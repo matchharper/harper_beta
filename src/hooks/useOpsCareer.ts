@@ -3,6 +3,7 @@ import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import type {
   CareerTalentListResponse,
   CareerTalentDetailResponse,
+  CareerTalentProfileIngestResponse,
 } from "@/lib/opsCareerServer";
 
 export const opsCareerListKey = ["ops-career-list"] as const;
@@ -90,6 +91,25 @@ export function useRefreshInsights(userId: string) {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: opsCareerDetailKey(userId) });
+    },
+  });
+}
+
+export function useIngestCareerProfile(userId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      fetchWithInternalAuth<CareerTalentProfileIngestResponse>(
+        "/api/internal/career/ingest-profile",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId }),
+        }
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: opsCareerDetailKey(userId) });
+      queryClient.invalidateQueries({ queryKey: opsCareerListKey });
     },
   });
 }

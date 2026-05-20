@@ -84,6 +84,9 @@ async function buildRealtimeInstructions(
     interruptHandling: getCareerInterruptHandlingPrompt(),
     isOnboardingDone: talentSetting?.is_onboarding_done,
     profile,
+    proactiveTurnInstructionMode: conversationStarter
+      ? "conversation_starter"
+      : undefined,
     proactiveTurnInstruction:
       conversationStarter?.voiceProactiveInstruction ?? undefined,
     recentConversationSection,

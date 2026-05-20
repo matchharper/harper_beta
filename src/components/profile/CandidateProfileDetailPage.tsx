@@ -7,7 +7,7 @@ import {
 import ShareProfileModal from "@/components/Modal/ShareProfileModal";
 import ConnectionModal from "@/components/Modal/ConnectionModal";
 import { ChevronDown, GraduationCap, Upload } from "lucide-react";
-import Bookmarkbutton from "@/components/ui/bookmarkbutton";
+import BookmarkButton from "@/components/candidates/BookmarkButton";
 import GithubRepoContributionBox from "@/components/profile/GithubRepoContributionBox";
 import ItemBox from "@/pages/my/p/components/ItemBox";
 import PublicationBox from "@/pages/my/p/components/PublicationBox";
@@ -29,13 +29,13 @@ import FeedbackBanner from "@/pages/my/p/components/FeedbackBanner";
 import { useRunDetail } from "@/hooks/useRunDetail";
 import { supabase } from "@/lib/supabase";
 import Criterias from "@/pages/my/p/components/Criterias";
-import CandidateMemoDock from "@/components/ui/CandidateMemoDock";
+import CandidateMemoDock from "@/components/candidates/CandidateMemoDock";
 import { useShortlistMemo } from "@/hooks/useShortlistMemo";
 import {
   formatScholarCitationCount,
   formatScholarPaperCount,
 } from "@/lib/scholarPreview";
-import RevealProfileButton from "@/components/ui/RevealProfileButton";
+import RevealProfileButton from "@/components/candidates/RevealProfileButton";
 import { MarkdownView } from "@/components/chat/MarkDownView";
 
 const PUBLICATION_PREVIEW_COUNT = 10;
@@ -759,7 +759,7 @@ function CandidateProfileDetailPage({
               ) : (
                 <RevealProfileButton candidId={candidId} />
               )}
-              <Bookmarkbutton
+              <BookmarkButton
                 userId={userId}
                 candidId={c.id}
                 connection={c.connection}
@@ -1031,10 +1031,10 @@ export const Box = ({
   color?: string;
 }) => {
   return (
-    <div className="shadow-sm w-full grid grid-cols-7">
+    <div className="w-full grid grid-cols-7">
       <div className="col-span-1">
         <div
-          className={`flex items-center gap-2 font-normal ${color ? `text-${color} text-sm` : "text-base text-hgray1000"}`}
+          className={`flex items-center gap-2 font-normal ${color ? `text-${color} text-sm` : "text-base"}`}
         >
           {icon}
           {title}

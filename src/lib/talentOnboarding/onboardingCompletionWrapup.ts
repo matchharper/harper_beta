@@ -20,11 +20,14 @@ import {
 } from "@/lib/talentOnboarding/recommendationSettings";
 import { fetchRecentMessagesWithSummary } from "@/lib/talentOnboarding/conversationSummary";
 import {
+  fetchOnboardingCompletionNextStepsMessage,
   fetchOnboardingCompletionWrapupMessage,
+  insertOnboardingCompletionNextStepsMessage,
   insertOnboardingCompletionWrapupMessage,
 } from "@/lib/talentOnboarding/messageStore";
 import {
   TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NOTICE,
+  TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NEXT_STEPS,
   TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP,
 } from "@/lib/talentOnboarding/onboarding";
 import {
@@ -43,16 +46,30 @@ const FALLBACK_WRAPUP_CONTENT = [
   "**Key insights**",
   "- 앞으로의 추천은 대화에서 확인한 우선순위를 먼저 반영합니다.",
   "- 명확히 맞는 기회만 추려서 보여드리는 방향으로 탐색합니다.",
-  "",
-  "**Next steps**",
-  "말씀해주신 기준으로 새로운 기회를 찾기 시작했습니다. 결과가 준비되면 대시보드와 이메일로 안내드릴게요. 최대 1시간 정도 걸릴 수 있습니다.",
 ].join("\n");
+
+const FALLBACK_NEXT_STEPS_CONTENT = [
+  "말씀해주신 조건들을 Harper의 검색 기준에 반영했어요. 이제 대화에서 확인한 역할, 산업, 지역, 근무 형태 기준을 중심으로 새로운 기회를 찾기 시작할게요. 결과는 포지션 탭과 이메일로 준비되는 대로 보내드릴 거예요. 최대 1시간 정도 걸릴 수 있어요.",
+  "",
+  "확인하신 뒤에는 각 기회에 대해 좋아요/싫어요를 눌러주세요. 마음에 드는 회사가 있으면 회사명을 눌러 자세히 보고, 계속 지켜보고 싶은 회사는 track 해두시면 관련 소식이나 채용 업데이트가 있을 때 챙겨드릴게요.",
+  "",
+  "앞으로 좋아하실 만한 채용 공고나 회사 소식을 주기적으로 드릴 수도 있고, 내부 추천처럼 꼭 중요한 기회가 있을 때만 연락드릴 수도 있어요. 어떤 종류의 연락을 어느 정도 자주 받는 게 편하실까요?",
+].join("\n\n");
 
 const ONBOARDING_COMPLETION_WRAPUP_THINKING_LOGS = [
   "온보딩이 종료되었습니다.",
   "대화 내용을 바탕으로 프로필 업데이트가 필요한지 확인했습니다.",
   "대화 요약을 작성했습니다.",
 ];
+
+function stripNextStepsSection(content: string) {
+  return content
+    .replace(
+      /\n{0,2}(?:#{1,6}\s*)?(?:\*\*)?Next steps(?:\*\*)?\s*\n[\s\S]*$/i,
+      ""
+    )
+    .trim();
+}
 
 function normalizeWrapupContent(content: string) {
   const lines = content
@@ -67,10 +84,25 @@ function normalizeWrapupContent(content: string) {
       ? lines.slice(1)
       : lines;
 
-  return withoutTitle
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  return stripNextStepsSection(
+    withoutTitle.join("\n").replace(/\n{3,}/g, "\n\n").trim()
+  );
+}
+
+function normalizeNextStepsContent(content: string) {
+  const lines = content
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => line.trimEnd());
+  const withoutTitle =
+    lines[0]
+      ?.trim()
+      .replace(/^#+\s*/, "")
+      .toLowerCase() === "next steps"
+      ? lines.slice(1)
+      : lines;
+
+  return withoutTitle.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 function isWrapupInputMessage(message: TalentMessageRow) {
@@ -78,6 +110,7 @@ function isWrapupInputMessage(message: TalentMessageRow) {
   return (
     messageType !== "call_wrapup" &&
     messageType !== TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NOTICE &&
+    messageType !== TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NEXT_STEPS &&
     messageType !== TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP
   );
 }
@@ -121,11 +154,32 @@ function buildWrapupInstruction() {
     "**Key insights**",
     "- 2-4 concise bullets about recommendation-relevant signals.",
     "",
-    "**Next steps**",
-    "A short paragraph saying Harper updated the 검색 기준 and is starting a fresh search. Mention that results will appear in the position tab and by email when ready, and that it can take up to 1 hour.",
-    "",
     "Language: match the user's conversation language. If mixed or unclear, write in polite Korean.",
     "Keep it specific, useful, and grounded in the conversation. Do not invent companies, investors, locations, compensation details, or preferences that were not discussed.",
+    "Do not include a `Next steps` section or any instruction about how Harper will contact the user. That belongs in the separate assistant message.",
+  ].join("\n");
+}
+
+function buildNextStepsInstruction() {
+  return [
+    "## Onboarding completion next message task",
+    "The user's career onboarding conversation has just completed. Write the normal Harper assistant message that appears immediately below the summary card.",
+    "",
+    "This message is NOT part of the summary card. It should explain what happens next and ask the user about contact preferences.",
+    "",
+    "Required content:",
+    "- Say Harper reflected the user's stated criteria into the search 기준. Mention the most important role/domain/location/company-stage/work-style criteria from the conversation, but only when grounded in the conversation or saved profile.",
+    "- Say Harper is starting a fresh search now. Explain that results will appear in the position tab and by email as soon as they are ready, and that it can take up to 1 hour.",
+    "- Explain what the user should do after seeing opportunities: use 좋아요/싫어요, open company details, and track/follow companies they want Harper to monitor for company news or hiring updates.",
+    "- End with a clear question asking what kind of contact Harper should send and how often. Offer examples such as regular new postings/company news versus only high-signal internal referral opportunities.",
+    "",
+    "Style:",
+    "- Use warm, clear Korean unless the conversation is clearly in another language.",
+    "- Markdown is allowed. Prefer 2-4 short paragraphs or compact bullets.",
+    "- Be concrete and more detailed than a generic status message.",
+    "- Do not include a title like `Next steps`.",
+    "- Do not claim a search has already found specific companies or roles unless those appeared in the conversation.",
+    "- The final sentence must be a question about contact frequency or contact type.",
   ].join("\n");
 }
 
@@ -212,6 +266,178 @@ export async function generateOnboardingCompletionWrapupContent(args: {
   });
 
   return normalizeWrapupContent(generated);
+}
+
+export async function generateOnboardingCompletionNextStepsContent(args: {
+  admin: TalentAdminClient;
+  conversationId: string;
+  userId: string;
+}) {
+  const [profile, setting, insights, structuredProfile, recentMessages] =
+    await Promise.all([
+      fetchTalentUserProfile({ admin: args.admin, userId: args.userId }),
+      fetchTalentSetting({ admin: args.admin, userId: args.userId }),
+      fetchTalentInsights({ admin: args.admin, userId: args.userId }),
+      fetchTalentStructuredProfile({
+        admin: args.admin,
+        userId: args.userId,
+      }),
+      fetchRecentMessagesWithSummary({
+        admin: args.admin,
+        conversationId: args.conversationId,
+        fallbackLimit: 80,
+        recentLimit: 40,
+        userId: args.userId,
+      }),
+    ]);
+
+  const structuredProfileText = buildTalentProfileContext({
+    profile,
+    setting,
+    structuredProfile,
+  });
+  const promptPlan = buildCareerTextChatPromptBlocks({
+    currentInsightContent: normalizeTalentInsightContent(
+      insights?.content ?? null
+    ),
+    currentPreferences: buildCurrentPreferences(setting),
+    isOnboardingDone: true,
+    profile,
+    sessionStartInstruction: buildNextStepsInstruction(),
+    structuredProfileText,
+    toolNames: [],
+  });
+  const conversationMessages = recentMessages
+    .filter(isWrapupInputMessage)
+    .map((message) => ({
+      content: formatTalentMessageContentForLlmPrompt(message),
+      role: message.role as "user" | "assistant",
+    }))
+    .filter((message) => message.content.trim().length > 0);
+
+  conversationMessages.push({
+    role: "user",
+    content:
+      "[System task] Onboarding is complete. Generate the normal Harper next-steps assistant message now.",
+  });
+
+  const generated = await runCareerChatAssistant({
+    executeTool: async () => null,
+    messages: conversationMessages,
+    stopAfterToolNames: [],
+    systemBlocks: promptPlan.promptBlocks,
+    tools: [],
+  });
+
+  return normalizeNextStepsContent(generated);
+}
+
+export async function regenerateOnboardingCompletionNextStepsMessage(args: {
+  admin: TalentAdminClient;
+  conversationId: string;
+  userId: string;
+}) {
+  let content = FALLBACK_NEXT_STEPS_CONTENT;
+
+  try {
+    const generated = await generateOnboardingCompletionNextStepsContent(args);
+    if (generated) {
+      content = generated;
+    }
+  } catch (error) {
+    console.error(
+      "[onboarding-completion-next-steps] Failed to regenerate content",
+      {
+        conversationId: args.conversationId,
+        error: error instanceof Error ? error.message : String(error),
+        userId: args.userId,
+      }
+    );
+  }
+
+  const existing = await fetchOnboardingCompletionNextStepsMessage({
+    admin: args.admin,
+    conversationId: args.conversationId,
+    userId: args.userId,
+  });
+
+  if (!existing) {
+    return insertOnboardingCompletionNextStepsMessage({
+      admin: args.admin,
+      content,
+      conversationId: args.conversationId,
+      userId: args.userId,
+    });
+  }
+
+  const { data, error } = await args.admin
+    .from("talent_messages")
+    .update({ content })
+    .eq("id", existing.id)
+    .eq("conversation_id", args.conversationId)
+    .eq("user_id", args.userId)
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    throw new Error(
+      error?.message ?? "Failed to update onboarding completion next steps"
+    );
+  }
+
+  return data as TalentMessageRow;
+}
+
+export async function createOnboardingCompletionNextStepsMessage(args: {
+  admin: TalentAdminClient;
+  conversationId: string;
+  userId: string;
+}) {
+  try {
+    const existing = await fetchOnboardingCompletionNextStepsMessage({
+      admin: args.admin,
+      conversationId: args.conversationId,
+      userId: args.userId,
+    });
+    if (existing) return existing;
+  } catch (error) {
+    console.error("[onboarding-completion-next-steps] Failed to read existing", {
+      conversationId: args.conversationId,
+      error: error instanceof Error ? error.message : String(error),
+      userId: args.userId,
+    });
+  }
+
+  let content = FALLBACK_NEXT_STEPS_CONTENT;
+
+  try {
+    const generated = await generateOnboardingCompletionNextStepsContent(args);
+    if (generated) {
+      content = generated;
+    }
+  } catch (error) {
+    console.error("[onboarding-completion-next-steps] Failed to generate", {
+      conversationId: args.conversationId,
+      error: error instanceof Error ? error.message : String(error),
+      userId: args.userId,
+    });
+  }
+
+  try {
+    return await insertOnboardingCompletionNextStepsMessage({
+      admin: args.admin,
+      content,
+      conversationId: args.conversationId,
+      userId: args.userId,
+    });
+  } catch (error) {
+    console.error("[onboarding-completion-next-steps] Failed to save message", {
+      conversationId: args.conversationId,
+      error: error instanceof Error ? error.message : String(error),
+      userId: args.userId,
+    });
+    return null;
+  }
 }
 
 export async function regenerateOnboardingCompletionWrapupMessage(args: {
@@ -327,4 +553,42 @@ export async function createOnboardingCompletionWrapupMessage(args: {
     });
     return null;
   }
+}
+
+export async function createOnboardingCompletionMessages(args: {
+  admin: TalentAdminClient;
+  conversationId: string;
+  latestUserMessageId?: number | string | null;
+  userId: string;
+}) {
+  const wrapupMessage = await createOnboardingCompletionWrapupMessage(args);
+  const nextStepsMessage = await createOnboardingCompletionNextStepsMessage({
+    admin: args.admin,
+    conversationId: args.conversationId,
+    userId: args.userId,
+  });
+
+  return {
+    nextStepsMessage,
+    wrapupMessage,
+  };
+}
+
+export async function regenerateOnboardingCompletionMessages(args: {
+  admin: TalentAdminClient;
+  conversationId: string;
+  latestUserMessageId?: number | string | null;
+  userId: string;
+}) {
+  const wrapupMessage = await regenerateOnboardingCompletionWrapupMessage(args);
+  const nextStepsMessage = await regenerateOnboardingCompletionNextStepsMessage({
+    admin: args.admin,
+    conversationId: args.conversationId,
+    userId: args.userId,
+  });
+
+  return {
+    nextStepsMessage,
+    wrapupMessage,
+  };
 }

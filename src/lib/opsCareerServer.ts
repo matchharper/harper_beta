@@ -6,6 +6,10 @@ import {
   getMergedChecklist,
 } from "@/lib/talentOnboarding/server";
 import { normalizeTalentInsightContent } from "@/lib/talentOnboarding/server";
+import {
+  ingestTalentProfileFromLinkedin,
+  pickLinkedinUrl,
+} from "@/lib/talentOnboarding/profileIngestion";
 import type { MergedChecklistItem } from "@/lib/talentOnboarding/server";
 import type { Database } from "@/types/database.types";
 
@@ -42,6 +46,7 @@ export type CareerTalentDetailResponse = {
   headline: string | null;
   bio: string | null;
   location: string | null;
+  registeredLinks: string[];
   conversationStage: string | null;
   lastConversationAt: string | null;
   createdAt: string | null;
@@ -65,6 +70,29 @@ export type CareerTalentDetailResponse = {
     messageType: string | null;
     createdAt: string;
   }>;
+};
+
+export type CareerTalentProfileIngestResponse = {
+  ok: true;
+  ingestion: {
+    linkedinUrl: string;
+    stats: {
+      experiencesFromLinkedin: number;
+      educationsFromLinkedin: number;
+      extrasFromLinkedin: number;
+      experiencesFromLlm: number;
+      educationsFromLlm: number;
+      extrasFromLlm: number;
+      experiencesSaved: number;
+      educationsSaved: number;
+      extrasSaved: number;
+    };
+    warnings: Array<{
+      code: string;
+      message: string;
+      detail?: string | null;
+    }>;
+  };
 };
 
 const DEFAULT_LIMIT = 40;
@@ -235,6 +263,7 @@ export async function fetchCareerTalentDetail(
     headline: profile?.headline ?? null,
     bio: profile?.bio ?? null,
     location: profile?.location ?? null,
+    registeredLinks: profile?.resume_links ?? [],
     conversationStage: latestConv?.stage ?? null,
     lastConversationAt: latestConv?.updated_at ?? null,
     createdAt: profile?.created_at ?? null,
@@ -256,5 +285,43 @@ export async function fetchCareerTalentDetail(
         }
       : null,
     messages,
+  };
+}
+
+export async function ingestCareerTalentProfileFromRegisteredLinks(
+  userId: string
+): Promise<CareerTalentProfileIngestResponse> {
+  const admin = getTalentSupabaseAdmin();
+  const profile = await fetchTalentUserProfile({ admin, userId });
+
+  if (!profile) {
+    throw new Error("Talent user profile was not found");
+  }
+
+  const links = (profile.resume_links ?? [])
+    .map((link) => String(link ?? "").trim())
+    .filter(Boolean);
+  const linkedinUrl = pickLinkedinUrl(links);
+
+  if (!linkedinUrl) {
+    throw new Error("LinkedIn profile link is required in registered links");
+  }
+
+  const ingestion = await ingestTalentProfileFromLinkedin({
+    admin,
+    userId,
+    links,
+    resumeText: profile.resume_text ?? null,
+    resumeFileName: profile.resume_file_name ?? null,
+    resumeStoragePath: profile.resume_storage_path ?? null,
+  });
+
+  return {
+    ok: true,
+    ingestion: {
+      linkedinUrl: ingestion.linkedinUrl,
+      stats: ingestion.stats,
+      warnings: ingestion.warnings,
+    },
   };
 }

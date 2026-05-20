@@ -185,7 +185,7 @@ const ProfilePreview = ({ activeStep }: { activeStep: number }) => {
   );
 };
 
-const LoadingState = () => {
+const LoadingState = ({ isOnboarding = true }: { isOnboarding?: boolean }) => {
   const [activeStep, setActiveStep] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
@@ -210,7 +210,9 @@ const LoadingState = () => {
   const ActiveIcon = steps[activeStep].icon;
 
   return (
-    <div className="relative mx-auto flex min-h-[calc(100svh-8px)] w-full max-w-[980px] flex-col items-center justify-center overflow-hidden px-4 py-10">
+    <div
+      className={`relative mx-auto flex w-full max-w-[980px] flex-col items-center justify-center overflow-hidden px-4 py-10 ${isOnboarding ? "min-h-[calc(100svh-8px)]" : ""}`}
+    >
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute left-1/2 top-1/2 h-[520px] w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-beige900/[0.035] blur-3xl" />
         <div className="absolute left-[12%] top-[18%] h-48 w-48 rounded-full bg-xprimary/5.5 blur-3xl" />

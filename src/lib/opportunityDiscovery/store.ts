@@ -42,7 +42,11 @@ const OPPORTUNITY_RUN_LOCK_TIMEOUT_MS = 3 * 60 * 1000;
 function normalizeOpportunityAgentVariant(
   value: unknown
 ): OpportunityDiscoveryAgentVariant | null {
-  return value === "tool_agent" || value === "scripted" ? value : null;
+  return value === "tool_agent" ||
+    value === "scripted" ||
+    value === "scripted_human"
+    ? value
+    : null;
 }
 
 function readOpportunityAgentVariant(payload: unknown) {
@@ -61,10 +65,8 @@ function isOpportunityRunLockExpired(run: OpportunityRunRow) {
 }
 
 export type CreateDiscoveryRunArgs = {
-  chatPreviewCount?: number;
   conversationId?: string | null;
   runMode?: OpportunityRunMode;
-  targetRecommendationCount?: number;
   talentId: string;
   trigger: OpportunityDiscoveryTrigger;
   triggerPayload?: Record<string, unknown>;
@@ -189,7 +191,6 @@ export async function completeOnboardingAndQueueInitialOpportunityRun(args: {
   completionReason: TalentOnboardingCompletionReason;
   conversationId: string;
   source: string;
-  targetRecommendationCount?: number;
   userId: string;
 }) {
   const previousSetting = await fetchTalentSetting({
@@ -243,11 +244,9 @@ export async function completeOnboardingAndQueueInitialOpportunityRun(args: {
 
   const run = await createOpportunityDiscoveryRun({
     admin: args.admin,
-    chatPreviewCount: 3,
     conversationId: args.conversationId,
     runMode: "initial",
     talentId: args.userId,
-    targetRecommendationCount: args.targetRecommendationCount ?? 150,
     trigger: "conversation_completed",
     triggerPayload: {
       completionReason: args.completionReason,
@@ -296,7 +295,6 @@ export function serializeOpportunityRun(run: OpportunityRunRow | null) {
 
   return {
     agentVariant: readOpportunityAgentVariant(run.trigger_payload),
-    chatPreviewCount: run.chat_preview_count,
     completedAt: run.completed_at ?? null,
     coverage: run.coverage ?? {},
     createdAt: run.created_at,
@@ -305,7 +303,6 @@ export function serializeOpportunityRun(run: OpportunityRunRow | null) {
     inputLocked,
     startedAt: run.started_at ?? null,
     status: run.status,
-    targetRecommendationCount: run.target_recommendation_count,
     trigger: run.trigger,
   };
 }
@@ -321,7 +318,6 @@ export async function createOpportunityDiscoveryRun(
   });
 
   const payload = {
-    chat_preview_count: Math.max(0, Math.min(10, args.chatPreviewCount ?? 3)),
     conversation_id: args.conversationId ?? null,
     run_mode: args.runMode ?? triggerToRunMode(args.trigger),
     settings_snapshot: {
@@ -331,15 +327,6 @@ export async function createOpportunityDiscoveryRun(
     },
     status: "queued",
     talent_id: args.talentId,
-    target_recommendation_count: Math.max(
-      1,
-      Math.min(
-        200,
-        Math.floor(
-          args.targetRecommendationCount ?? settings.recommendationBatchSize
-        )
-      )
-    ),
     trigger: args.trigger,
     trigger_payload: args.triggerPayload ?? {},
   };

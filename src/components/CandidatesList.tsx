@@ -45,11 +45,11 @@ import {
 } from "./CandidatesListTable";
 import { Avatar } from "./NameProfile";
 import SharedFolderCandidateNotes from "./shared/SharedFolderCandidateNotes";
-import Bookmarkbutton from "./ui/bookmarkbutton";
+import BookmarkButton from "@/components/candidates/BookmarkButton";
 import { Checkbox } from "./ui/Checkbox";
-import CandidateMemoDock from "./ui/CandidateMemoDock";
+import CandidateMemoDock from "@/components/candidates/CandidateMemoDock";
 import { Tooltips } from "./ui/tooltip";
-import RevealProfileButton from "./ui/RevealProfileButton";
+import RevealProfileButton from "@/components/candidates/RevealProfileButton";
 import { showToast } from "./toast/toast";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
@@ -597,7 +597,7 @@ function CandidateCard({
                     isBookmarked && !isMyList ? "opacity-100" : "opacity-0"
                   } group-hover:opacity-100`}
                 >
-                  <Bookmarkbutton
+                  <BookmarkButton
                     userId={userId}
                     candidId={c.id}
                     connection={c.connection}

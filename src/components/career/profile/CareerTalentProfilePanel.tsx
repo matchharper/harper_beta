@@ -33,11 +33,13 @@ import {
   CareerTextarea,
   careerCx,
 } from "../ui/CareerPrimitives";
+import { CareerActionButton } from "../ui/CareerActionButton";
 import {
   BeigeActionDropdown,
   BeigeActionDropdownItem,
   BeigeActionDropdownSeparator,
 } from "@/components/ui/beige/action-dropdown";
+import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 
 type EditableExperience = CareerTalentExperience & { clientKey: string };
 type EditableEducation = CareerTalentEducation & { clientKey: string };
@@ -522,9 +524,6 @@ const profileEditPlainTextareaClassName =
 const profileNoticeClassName =
   "flex items-center gap-2.5 rounded-[14px] border border-beige900/10 bg-linear-to-br from-beige100 to-white/80 px-3.5 py-2.5 text-[12.5px] leading-5 text-beige900/65";
 
-const profileCvLinkClassName =
-  "inline-flex h-11 items-center justify-center gap-1.5 rounded-[8px] border border-beige900/15 bg-white/70 px-4 text-[13.5px] font-medium text-beige900 transition-colors hover:border-beige900/30 hover:bg-beige100 md:h-9 md:px-3.5 md:text-[12.5px]";
-
 const overviewEyebrowClassName = "text-[13px] font-medium text-beige900/70";
 
 const insightTermClassName = "text-[13px] font-medium text-beige900/70";
@@ -760,25 +759,27 @@ const ProfileHeader = ({
       )}
     >
       {savedResumeDownloadUrl && (
-        <a
-          href={savedResumeDownloadUrl}
-          target="_blank"
-          rel="noreferrer"
-          className={profileCvLinkClassName}
+        <CareerActionButton
+          asChild
+          actionVariant="secondary"
+          className="h-9 gap-1.5 px-3.5 text-[12.5px]"
         >
-          <FileText className="h-3.5 w-3.5 text-beige900/60" />
-          View CV
-        </a>
+          <a href={savedResumeDownloadUrl} target="_blank" rel="noreferrer">
+            <FileText className="h-3.5 w-3.5 text-beige900/60" />
+            View CV
+          </a>
+        </CareerActionButton>
       )}
       {!isEditing && onEdit ? (
-        <CareerSecondaryButton
+        <CareerActionButton
           type="button"
+          actionVariant="secondary"
           onClick={onEdit}
           className="h-9 gap-1.5 px-3.5 text-[12.5px]"
         >
           <Pencil className="h-3.5 w-3.5" />
           수정하기
-        </CareerSecondaryButton>
+        </CareerActionButton>
       ) : null}
     </div>
   </section>
@@ -975,6 +976,7 @@ const CareerTalentProfilePanel = ({
 }: {
   className?: string;
 }) => {
+  const logCareerEvent = useCareerLogEvent();
   const { fetchWithAuth } = useCareerApi();
   const {
     savedResumeDownloadUrl,
@@ -1054,17 +1056,20 @@ const CareerTalentProfilePanel = ({
   }, [draft, talentProfile]);
 
   const beginEditing = () => {
+    logCareerEvent("click_profile_edit");
     setDraft(createEditableProfile(talentProfile));
     setIsEditing(true);
   };
 
   const cancelEditing = () => {
+    logCareerEvent("click_profile_cancel_edit");
     setDraft(createEditableProfile(talentProfile));
     onResetTalentInsights();
     setIsEditing(false);
   };
 
   const handleSave = async () => {
+    logCareerEvent("click_profile_save");
     const profileSaved = hasUnsavedChanges
       ? await onSaveTalentProfile({
           structuredProfile: toStructuredProfile(
@@ -1118,6 +1123,7 @@ const CareerTalentProfilePanel = ({
   };
 
   const uploadProfileImage = async (file: File) => {
+    logCareerEvent("click_profile_upload_image");
     if (!file.type.startsWith("image/")) {
       setProfileImageError("이미지 파일만 업로드할 수 있습니다.");
       return;
@@ -1161,6 +1167,7 @@ const CareerTalentProfilePanel = ({
   };
 
   const deleteProfileImage = async () => {
+    logCareerEvent("click_profile_delete_image");
     setProfileImageError("");
     setProfileImageUploadPending(true);
 
@@ -1198,6 +1205,7 @@ const CareerTalentProfilePanel = ({
     clientKey: string,
     file: File
   ) => {
+    logCareerEvent("click_profile_upload_company_logo");
     if (!file.type.startsWith("image/")) {
       setLogoUploadError("이미지 파일만 업로드할 수 있습니다.");
       return;
@@ -1269,6 +1277,7 @@ const CareerTalentProfilePanel = ({
   };
 
   const addExperience = () => {
+    logCareerEvent("click_profile_add_experience");
     setDraft((current) => ({
       ...current,
       talentExperiences: [
@@ -1298,6 +1307,7 @@ const CareerTalentProfilePanel = ({
   };
 
   const addEducation = () => {
+    logCareerEvent("click_profile_add_education");
     setDraft((current) => ({
       ...current,
       talentEducations: [
@@ -1323,6 +1333,7 @@ const CareerTalentProfilePanel = ({
   };
 
   const addExtra = () => {
+    logCareerEvent("click_profile_add_extra");
     setDraft((current) => ({
       ...current,
       talentExtras: [
@@ -1339,6 +1350,7 @@ const CareerTalentProfilePanel = ({
   };
 
   const removeExperience = (index: number) => {
+    logCareerEvent("click_profile_remove_experience");
     setDraft((current) => ({
       ...current,
       talentExperiences: current.talentExperiences.filter(
@@ -1348,6 +1360,7 @@ const CareerTalentProfilePanel = ({
   };
 
   const removeEducation = (index: number) => {
+    logCareerEvent("click_profile_remove_education");
     setDraft((current) => ({
       ...current,
       talentEducations: current.talentEducations.filter(
@@ -1357,6 +1370,7 @@ const CareerTalentProfilePanel = ({
   };
 
   const removeExtra = (index: number) => {
+    logCareerEvent("click_profile_remove_extra");
     setDraft((current) => ({
       ...current,
       talentExtras: current.talentExtras.filter(
@@ -1988,14 +2002,15 @@ const CareerTalentProfilePanel = ({
             아직 저장된 프로필 내용이 없습니다. 수정하기를 눌러 직접 입력할 수
             있습니다.
           </div>
-          <CareerSecondaryButton
+          <CareerActionButton
             type="button"
+            actionVariant="secondary"
             onClick={beginEditing}
             className="mt-4 h-11 gap-1.5 px-4 text-[13.5px] md:h-9 md:px-3.5 md:text-[12.5px]"
           >
             <Pencil className="h-3.5 w-3.5" />
             수정하기
-          </CareerSecondaryButton>
+          </CareerActionButton>
         </div>
       )}
     </div>

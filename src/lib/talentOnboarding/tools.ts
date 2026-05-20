@@ -1,5 +1,6 @@
 import { runWebSearch } from "@/lib/tools/webSearch";
 import { fetchTalentOpportunityHistory } from "@/lib/talentOpportunity";
+import { runCareerCompanyRecommendations } from "@/lib/career/companyWatchlist";
 import { runCareerJobPostingRecommendations } from "./jobPostingRecommendations";
 import { lookupServiceHelp } from "@/lib/serviceHelpRag";
 import { normalizeGeneratedTalentInsightEntry } from "./insights";
@@ -76,6 +77,7 @@ export class TalentToolError extends Error {
 export const TALENT_TOOL_NAMES = {
   SELECT_ADDITIONAL_ONBOARDING_QUESTION:
     "select_additional_onboarding_question",
+  RECOMMEND_COMPANIES: "recommend_companies",
   RECOMMEND_JOB_POSTINGS: "recommend_job_postings",
   READ_RECOMMENDED_OPPORTUNITIES: "read_recommended_opportunities",
   WEB_SEARCH: "web_search",
@@ -94,6 +96,8 @@ export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION,
   TALENT_TOOL_NAMES.WEB_SEARCH,
   TALENT_TOOL_NAMES.OPEN_URL,
+  // Company recommendations are temporarily disabled while Watchlist is hidden.
+  // TALENT_TOOL_NAMES.RECOMMEND_COMPANIES,
   TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS,
   TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES,
   TALENT_TOOL_NAMES.RESEARCH_COMPANY,
@@ -155,6 +159,8 @@ const normalizeToolLimit = (value: unknown, fallback: number) => {
 };
 
 const TALENT_ACTIVITY_EVENT_TYPES = new Set([
+  "company_followed",
+  "company_unfollowed",
   "insight_updated",
   "onboarding_completed",
   "profile_updated",
@@ -362,6 +368,52 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       });
     },
   },
+  [TALENT_TOOL_NAMES.RECOMMEND_COMPANIES]: {
+    name: TALENT_TOOL_NAMES.RECOMMEND_COMPANIES,
+    description:
+      "Find, rank, and save companies for the user's Career Watchlist. Use when the user asks for companies to follow, company recommendations, startup/company discovery, or watchlist suggestions independent of a specific role. The server only considers companies with at least one active company_roles row in the last 6 months and a connected company_db record with a LinkedIn URL.",
+    parameters: {
+      type: "object",
+      properties: {
+        request: {
+          type: "string",
+          description:
+            "The user's company-discovery request, including domains, company stage, location, role direction, or any constraints. If the user asks broadly, summarize the durable company signals Harper should use.",
+        },
+        limit: {
+          type: "integer",
+          description: "Number of companies to save to the Watchlist.",
+          minimum: 1,
+          maximum: 40,
+          default: 24,
+        },
+      },
+      additionalProperties: false,
+    },
+    channels: ["chat"],
+    async execute(input, context) {
+      const admin = context?.admin;
+      const conversationId = context?.conversationId;
+      const userId = context?.userId;
+      if (!admin || !conversationId || !userId) {
+        throw new TalentToolError(
+          "recommend_companies requires user and conversation context."
+        );
+      }
+
+      return runCareerCompanyRecommendations({
+        admin: admin as any,
+        conversationId,
+        limit:
+          typeof input.limit === "number"
+            ? input.limit
+            : Number.parseInt(String(input.limit ?? ""), 10),
+        request: optionalToolString(input.request),
+        source: "tool",
+        userId,
+      });
+    },
+  },
   [TALENT_TOOL_NAMES.RESEARCH_COMPANY]: {
     name: TALENT_TOOL_NAMES.RESEARCH_COMPANY,
     description:
@@ -499,6 +551,8 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           items: {
             type: "string",
             enum: [
+              "company_followed",
+              "company_unfollowed",
               "preferences_changed",
               "row_memo_added",
               "insight_updated",

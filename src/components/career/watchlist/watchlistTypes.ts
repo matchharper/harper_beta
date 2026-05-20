@@ -1,0 +1,86 @@
+import type { MouseEvent } from "react";
+
+export type CompanyWatchlistTab = "recommended" | "following" | "signals";
+
+export type CompanyRolePreview = {
+  externalJdUrl: string | null;
+  location: string | null;
+  name: string;
+  postedAt: string | null;
+  roleId: string;
+  type: string[];
+  workMode: string | null;
+};
+
+export type CompanyWatchlistItem = {
+  activeRoleCount: number;
+  careerUrl: string | null;
+  companyDbId: number;
+  companyWorkspaceId: string | null;
+  crunchbaseInformation: unknown | null;
+  description: string | null;
+  discoveryChannelSummary: string | null;
+  employeeCountRange: unknown | null;
+  followedAt: string | null;
+  following: boolean;
+  foundedYear: number | null;
+  funding: unknown | null;
+  fundingUrl: string | null;
+  homepageUrl: string | null;
+  id: string;
+  investors: string | null;
+  lastCrunchbaseUpdatedAt: string | null;
+  lastUpdatedAt: string | null;
+  latestRolePostedAt: string | null;
+  latestSignal: string | null;
+  linkedinUrl: string | null;
+  location: string | null;
+  logoUrl: string | null;
+  name: string;
+  nextSignal: string | null;
+  rank: number | null;
+  reasonSummary: string | null;
+  recommendationReasons: string[];
+  recommendedAt: string | null;
+  relatedLinks: string[];
+  rolePreviews: CompanyRolePreview[];
+  shortDescription: string | null;
+  signalSummary: string | null;
+  specialities: string[];
+  trackingSummary: string | null;
+  websiteUrl: string | null;
+};
+
+export type CompanyWatchlistPage = {
+  count: number;
+  items: CompanyWatchlistItem[];
+  nextOffset: number | null;
+};
+
+export type CompanyDetailPayload = {
+  item?: CompanyWatchlistItem | null;
+};
+
+export type CompanyDetailRow = {
+  icon: React.ElementType | null;
+  label: string;
+  value: string;
+};
+
+export type CompanyFollowClickHandler = (
+  item: CompanyWatchlistItem,
+  event: MouseEvent<HTMLButtonElement>
+) => void;
+
+export const WATCHLIST_PAGE_SIZE = 12;
+export const WATCHLIST_TAB_QUERY_KEY = "watchlistTab";
+export const WATCHLIST_COMPANY_QUERY_KEY = "company";
+
+export const WATCHLIST_TABS: Array<{
+  id: CompanyWatchlistTab;
+  label: string;
+}> = [
+  { id: "recommended", label: "추천회사" },
+  { id: "following", label: "팔로우" },
+  { id: "signals", label: "시그널" },
+];

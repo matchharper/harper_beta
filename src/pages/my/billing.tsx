@@ -1171,14 +1171,26 @@ const Billing = () => {
         isLoading={isUpgradeConfirming}
       />
       <div className="px-6 py-8 w-full">
-        <div className="text-3xl font-hedvig font-light tracking-tight text-beige900">
-          {m.system.credits}
-        </div>
-        {isLoading ? (
-          <div className="mt-2 text-sm text-beige900/80">
-            결제 정보를 처리하는 중...
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="text-3xl font-hedvig font-light tracking-tight text-beige900">
+              {m.system.credits}
+            </div>
+            {isLoading ? (
+              <div className="mt-2 text-sm text-beige900/80">
+                결제 정보를 처리하는 중...
+              </div>
+            ) : null}
           </div>
-        ) : null}
+          <button
+            type="button"
+            disabled={!canCancelSubscription || isCanceling}
+            className="inline-flex min-h-10 items-center justify-center self-end rounded-sm bg-red-700 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-40"
+            onClick={() => setIsCancelModalOpen(true)}
+          >
+            {isCanceling ? "취소 중..." : "구독 취소"}
+          </button>
+        </div>
 
         <div className="mt-8">
           <div className="rounded-lg bg-beige50 border border-beige900/8 shadow-sm p-6">
@@ -1536,16 +1548,6 @@ const Billing = () => {
               환불 규정
             </div>
           </div>
-        </div>
-        <div className="mt-20 px-2 flex flex-row items-center justify-between">
-          <button
-            type="button"
-            disabled={!canCancelSubscription || isCanceling}
-            className="cursor-pointer text-sm px-4 py-2 rounded-sm hover:bg-red-500 bg-red-500/90 text-beige50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            onClick={() => setIsCancelModalOpen(true)}
-          >
-            {isCanceling ? "취소 중..." : "구독 취소"}
-          </button>
         </div>
       </div>
     </AppLayout>

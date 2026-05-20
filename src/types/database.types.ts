@@ -850,6 +850,65 @@ export type Database = {
         }
         Relationships: []
       }
+      company_role_liveness: {
+        Row: {
+          closed_detected_at: string | null
+          consecutive_missing_count: number
+          deadline_type: string | null
+          last_alive_at: string | null
+          last_detail_checked_at: string | null
+          last_error: string | null
+          last_seen_at: string | null
+          next_check_at: string | null
+          role_id: string
+          source_expires_at: string | null
+          source_external_id: string
+          source_provider: string
+          source_status: string | null
+          updated_at: string
+        }
+        Insert: {
+          closed_detected_at?: string | null
+          consecutive_missing_count?: number
+          deadline_type?: string | null
+          last_alive_at?: string | null
+          last_detail_checked_at?: string | null
+          last_error?: string | null
+          last_seen_at?: string | null
+          next_check_at?: string | null
+          role_id: string
+          source_expires_at?: string | null
+          source_external_id: string
+          source_provider: string
+          source_status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          closed_detected_at?: string | null
+          consecutive_missing_count?: number
+          deadline_type?: string | null
+          last_alive_at?: string | null
+          last_detail_checked_at?: string | null
+          last_error?: string | null
+          last_seen_at?: string | null
+          next_check_at?: string | null
+          role_id?: string
+          source_expires_at?: string | null
+          source_external_id?: string
+          source_provider?: string
+          source_status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_role_liveness_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: true
+            referencedRelation: "company_roles"
+            referencedColumns: ["role_id"]
+          },
+        ]
+      }
       company_role_matched: {
         Row: {
           candid_id: string
@@ -2575,6 +2634,7 @@ export type Database = {
           created_at: string
           error_message: string | null
           id: string
+          message: string | null
           query_plan: Json
           run_mode: string
           settings_snapshot: Json
@@ -2595,6 +2655,7 @@ export type Database = {
           created_at?: string
           error_message?: string | null
           id?: string
+          message?: string | null
           query_plan?: Json
           run_mode?: string
           settings_snapshot?: Json
@@ -2615,6 +2676,7 @@ export type Database = {
           created_at?: string
           error_message?: string | null
           id?: string
+          message?: string | null
           query_plan?: Json
           run_mode?: string
           settings_snapshot?: Json
@@ -4032,6 +4094,192 @@ export type Database = {
           },
           {
             foreignKeyName: "talent_activity_events_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      talent_company_follow: {
+        Row: {
+          company_db_id: number
+          company_workspace_id: string | null
+          conversation_id: string | null
+          created_at: string
+          discovery_channel_summary: string | null
+          followed_at: string
+          id: string
+          source: string
+          talent_id: string
+          tracking_summary: string | null
+          unfollowed_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_db_id: number
+          company_workspace_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          discovery_channel_summary?: string | null
+          followed_at?: string
+          id?: string
+          source?: string
+          talent_id: string
+          tracking_summary?: string | null
+          unfollowed_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_db_id?: number
+          company_workspace_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          discovery_channel_summary?: string | null
+          followed_at?: string
+          id?: string
+          source?: string
+          talent_id?: string
+          tracking_summary?: string | null
+          unfollowed_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_company_follow_company_db_id_fkey"
+            columns: ["company_db_id"]
+            isOneToOne: false
+            referencedRelation: "company_db"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_company_follow_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "company_workspace"
+            referencedColumns: ["company_workspace_id"]
+          },
+          {
+            foreignKeyName: "talent_company_follow_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "ops_company_workspace_with_label"
+            referencedColumns: ["company_workspace_id"]
+          },
+          {
+            foreignKeyName: "talent_company_follow_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "talent_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_company_follow_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      talent_company_recommendation: {
+        Row: {
+          active_role_count: number
+          clicked_at: string | null
+          company_db_id: number
+          company_workspace_id: string | null
+          conversation_id: string | null
+          created_at: string
+          dismissed_at: string | null
+          id: string
+          latest_signal: string | null
+          next_signal: string | null
+          rank: number | null
+          reason_summary: string | null
+          recommendation_reasons: Json
+          recommended_at: string
+          score: number | null
+          signal_summary: string | null
+          source: string
+          talent_id: string
+          updated_at: string
+          viewed_at: string | null
+        }
+        Insert: {
+          active_role_count?: number
+          clicked_at?: string | null
+          company_db_id: number
+          company_workspace_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          dismissed_at?: string | null
+          id?: string
+          latest_signal?: string | null
+          next_signal?: string | null
+          rank?: number | null
+          reason_summary?: string | null
+          recommendation_reasons?: Json
+          recommended_at?: string
+          score?: number | null
+          signal_summary?: string | null
+          source?: string
+          talent_id: string
+          updated_at?: string
+          viewed_at?: string | null
+        }
+        Update: {
+          active_role_count?: number
+          clicked_at?: string | null
+          company_db_id?: number
+          company_workspace_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          dismissed_at?: string | null
+          id?: string
+          latest_signal?: string | null
+          next_signal?: string | null
+          rank?: number | null
+          reason_summary?: string | null
+          recommendation_reasons?: Json
+          recommended_at?: string
+          score?: number | null
+          signal_summary?: string | null
+          source?: string
+          talent_id?: string
+          updated_at?: string
+          viewed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_company_recommendation_company_db_id_fkey"
+            columns: ["company_db_id"]
+            isOneToOne: false
+            referencedRelation: "company_db"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_company_recommendation_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "company_workspace"
+            referencedColumns: ["company_workspace_id"]
+          },
+          {
+            foreignKeyName: "talent_company_recommendation_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "ops_company_workspace_with_label"
+            referencedColumns: ["company_workspace_id"]
+          },
+          {
+            foreignKeyName: "talent_company_recommendation_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "talent_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_company_recommendation_talent_id_fkey"
             columns: ["talent_id"]
             isOneToOne: false
             referencedRelation: "talent_users"

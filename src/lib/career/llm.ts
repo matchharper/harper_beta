@@ -287,6 +287,121 @@ function serializeToolResult(result: unknown) {
   }
 }
 
+const TOOL_RESULT_FOLLOWUP_INSTRUCTION = [
+  "Use the tool result(s) above to answer the user's latest message in Korean.",
+  "Do not return empty text, expose raw JSON, or mention internal tool names.",
+  "If the result is inconclusive, say what could and could not be verified, then continue naturally from the user's question.",
+].join(" ");
+
+const EMPTY_VISIBLE_TEXT_RECOVERY_INSTRUCTION = [
+  "The previous assistant generation produced no visible user-facing text.",
+  "Continue as Harper from the exact current conversation state in Korean.",
+  "Use any tool result text already present in the conversation.",
+  "Do not call tools or mention internal errors.",
+  "If the evidence is inconclusive, say so briefly instead of inventing details.",
+].join(" ");
+
+function withToolResultFollowupInstruction(
+  blocks: AnthropicToolResultBlock[]
+): AnthropicUserContentBlock[] {
+  if (blocks.length === 0) return blocks;
+  return [
+    ...blocks,
+    {
+      type: "text",
+      text: TOOL_RESULT_FOLLOWUP_INSTRUCTION,
+    },
+  ];
+}
+
+function appendTextToUserContent(
+  content: AnthropicMessage["content"],
+  text: string
+): string | AnthropicUserContentBlock[] {
+  if (typeof content === "string") {
+    return `${content.trimEnd()}\n\n${text}`;
+  }
+
+  return [
+    ...(content as AnthropicUserContentBlock[]),
+    {
+      type: "text",
+      text,
+    },
+  ];
+}
+
+function appendUserInstructionToMessages(
+  messages: AnthropicMessage[],
+  instruction: string
+): AnthropicMessage[] {
+  const lastMessage = messages[messages.length - 1];
+  if (lastMessage?.role === "user") {
+    return [
+      ...messages.slice(0, -1),
+      {
+        ...lastMessage,
+        content: appendTextToUserContent(lastMessage.content, instruction),
+      },
+    ];
+  }
+
+  return [
+    ...messages,
+    {
+      role: "user",
+      content: instruction,
+    },
+  ];
+}
+
+function stringifyAnthropicContent(content: AnthropicMessage["content"]) {
+  if (typeof content === "string") return content;
+
+  return content
+    .map((block) => {
+      if (block.type === "text") return block.text;
+      if (block.type === "tool_use") {
+        return `[Assistant requested ${block.name}: ${serializeToolResult(
+          block.input
+        )}]`;
+      }
+      if (block.type === "tool_result") {
+        return `[Tool result${block.is_error ? " error" : ""}: ${
+          block.content
+        }]`;
+      }
+      return "";
+    })
+    .filter((text) => text.trim().length > 0)
+    .join("\n");
+}
+
+function buildDirectRecoveryMessages(args: {
+  messages: AnthropicMessage[];
+  systemBlocks: CareerChatSystemBlock[];
+}): DirectOpenAIMessage[] {
+  return [
+    {
+      role: "system",
+      content: [
+        flattenCareerSystemBlocks(args.systemBlocks),
+        EMPTY_VISIBLE_TEXT_RECOVERY_INSTRUCTION,
+      ]
+        .filter((text) => text.trim().length > 0)
+        .join("\n\n"),
+    },
+    ...args.messages
+      .map(
+        (message): DirectOpenAIMessage => ({
+          role: message.role,
+          content: stringifyAnthropicContent(message.content),
+        })
+      )
+      .filter((message) => message.content.trim().length > 0),
+  ];
+}
+
 function parseAnthropicToolInput(raw: string): Record<string, unknown> {
   const text = raw.trim();
   if (!text) return {};
@@ -373,6 +488,18 @@ async function createAnthropicMessage(args: {
   });
 
   return json;
+}
+
+async function createAnthropicMessageText(args: {
+  messages: AnthropicMessage[];
+  model: string;
+  systemBlocks: CareerChatSystemBlock[];
+  temperature: number;
+  tools?: TalentChatTool[];
+  usageLabel?: string;
+}) {
+  const response = await createAnthropicMessage(args);
+  return cleanModelText(extractAnthropicText(response.content));
 }
 
 async function createAnthropicMessageStreamResponse(args: {
@@ -637,6 +764,87 @@ async function createAnthropicMessageStream(args: {
   return cleanModelText(extractAnthropicText(response.content));
 }
 
+async function recoverVisibleTextFromAnthropicMessages(args: {
+  instruction?: string;
+  messages: AnthropicMessage[];
+  modelConfig: CareerAssistantModelConfig;
+  onTextDelta?: (delta: string) => void | Promise<void>;
+  reason: string;
+  skipNativeRetry?: boolean;
+  systemBlocks: CareerChatSystemBlock[];
+  usageLabel?: string;
+}) {
+  const instruction =
+    args.instruction?.trim() || EMPTY_VISIBLE_TEXT_RECOVERY_INSTRUCTION;
+  const recoveryMessages = appendUserInstructionToMessages(
+    args.messages,
+    instruction
+  );
+
+  console.warn("[career-chat:visible-text-recovery]", {
+    messageCount: recoveryMessages.length,
+    reason: args.reason,
+    usageLabel: args.usageLabel ?? null,
+  });
+
+  if (
+    !args.skipNativeRetry &&
+    shouldUseAnthropicNativeMessages(args.modelConfig.primaryModel)
+  ) {
+    try {
+      const nativeText = args.onTextDelta
+        ? await createAnthropicMessageStream({
+            messages: recoveryMessages,
+            model: args.modelConfig.primaryModel,
+            onTextDelta: args.onTextDelta,
+            systemBlocks: args.systemBlocks,
+            temperature: CAREER_LLM_CONFIG.chat.temperature,
+            usageLabel: args.usageLabel,
+          })
+        : await createAnthropicMessageText({
+            messages: recoveryMessages,
+            model: args.modelConfig.primaryModel,
+            systemBlocks: args.systemBlocks,
+            temperature: CAREER_LLM_CONFIG.chat.temperature,
+            usageLabel: args.usageLabel,
+          });
+      if (nativeText.trim()) return nativeText;
+    } catch (error) {
+      console.warn("[career-chat:visible-text-recovery-native-failed]", {
+        error: error instanceof Error ? error.message : String(error),
+        reason: args.reason,
+        usageLabel: args.usageLabel ?? null,
+      });
+    }
+  }
+
+  try {
+    const directText = await runDirectTextCompletion({
+      fallbackModel: args.modelConfig.anthropicOverloadFallbackModel,
+      messages: buildDirectRecoveryMessages({
+        messages: recoveryMessages,
+        systemBlocks: args.systemBlocks,
+      }),
+      model: args.modelConfig.fallbackModel,
+      temperature: CAREER_LLM_CONFIG.chat.temperature,
+      usageLabel: args.usageLabel
+        ? `${args.usageLabel}:visible-text-recovery`
+        : "career/chat:assistant:visible-text-recovery",
+    });
+    if (directText.trim() && args.onTextDelta) {
+      await args.onTextDelta(directText);
+    }
+    return directText;
+  } catch (error) {
+    console.error("[career-chat:visible-text-recovery-failed]", {
+      error: error instanceof Error ? error.message : String(error),
+      reason: args.reason,
+      usageLabel: args.usageLabel ?? null,
+    });
+    return "";
+  }
+}
+
 async function runDirectTextCompletion(args: {
   fallbackModel?: string | null;
   jsonMode?: boolean;
@@ -717,6 +925,10 @@ export async function runCareerChatAssistant(args: {
   stopAfterToolNames?: string[];
   systemBlocks: CareerChatSystemBlock[];
   tools: TalentChatTool[];
+  onToolStart?: (tool: {
+    input: Record<string, unknown>;
+    name: string;
+  }) => void | Promise<void>;
   modelConfig?: CareerAssistantModelConfig;
 }) {
   const modelConfig = args.modelConfig ?? assistantModelConfig();
@@ -734,6 +946,7 @@ export async function runCareerChatAssistant(args: {
         executeTool: args.executeTool,
         messages: fallbackMessages,
         modelConfig: activeModelConfig,
+        onToolStart: args.onToolStart,
         stopAfterToolNames: args.stopAfterToolNames,
         temperature: CAREER_LLM_CONFIG.chat.temperature,
         tools: args.tools,
@@ -764,14 +977,21 @@ export async function runCareerChatAssistant(args: {
     let totalToolCalls = 0;
 
     if (args.tools.length === 0) {
-      const response = await createAnthropicMessage({
+      const text = await createAnthropicMessageText({
         messages: workingMessages,
         model: modelConfig.primaryModel,
         systemBlocks: args.systemBlocks,
         temperature: CAREER_LLM_CONFIG.chat.temperature,
         usageLabel: "career/chat:assistant",
       });
-      return cleanModelText(extractAnthropicText(response.content));
+      if (text) return text;
+      return recoverVisibleTextFromAnthropicMessages({
+        messages: workingMessages,
+        modelConfig,
+        reason: "empty_text_without_tools",
+        systemBlocks: args.systemBlocks,
+        usageLabel: "career/chat:assistant",
+      });
     }
 
     for (let loop = 0; loop < 3; loop += 1) {
@@ -792,7 +1012,17 @@ export async function runCareerChatAssistant(args: {
       );
 
       if (toolUseBlocks.length === 0) {
-        return cleanModelText(extractAnthropicText(assistantBlocks));
+        const responseText = cleanModelText(
+          extractAnthropicText(assistantBlocks)
+        );
+        if (responseText) return responseText;
+        return recoverVisibleTextFromAnthropicMessages({
+          messages: workingMessages,
+          modelConfig,
+          reason: "empty_text_without_tool_use",
+          systemBlocks: args.systemBlocks,
+          usageLabel: "career/chat:assistant",
+        });
       }
 
       workingMessages.push({
@@ -836,6 +1066,10 @@ export async function runCareerChatAssistant(args: {
         });
         const toolStartedAt = Date.now();
         try {
+          await args.onToolStart?.({
+            name: toolCall.name,
+            input: toolInput,
+          });
           const result = await args.executeTool({
             name: toolCall.name,
             input: toolInput,
@@ -877,7 +1111,7 @@ export async function runCareerChatAssistant(args: {
       if (toolResultBlocks.length > 0) {
         workingMessages.push({
           role: "user",
-          content: toolResultBlocks,
+          content: withToolResultFollowupInstruction(toolResultBlocks),
         });
       }
 
@@ -886,16 +1120,25 @@ export async function runCareerChatAssistant(args: {
       }
     }
 
-    const finalResponse = await createAnthropicMessage({
-      messages: workingMessages,
+    const finalMessages = appendUserInstructionToMessages(
+      workingMessages,
+      "Tool call budget is exhausted. Answer now in Korean without additional tool use."
+    );
+    const finalText = await createAnthropicMessageText({
+      messages: finalMessages,
       model: modelConfig.primaryModel,
       systemBlocks: args.systemBlocks,
       temperature: CAREER_LLM_CONFIG.chat.temperature,
-      tools: args.tools,
       usageLabel: "career/chat:assistant",
     });
-
-    return cleanModelText(extractAnthropicText(finalResponse.content));
+    if (finalText) return finalText;
+    return recoverVisibleTextFromAnthropicMessages({
+      messages: finalMessages,
+      modelConfig,
+      reason: "empty_text_after_tool_budget",
+      systemBlocks: args.systemBlocks,
+      usageLabel: "career/chat:assistant",
+    });
   } catch (error) {
     const nativeFallback = resolveNativeAnthropicFallbackModelConfig(
       error,
@@ -909,6 +1152,40 @@ export async function runCareerChatAssistant(args: {
     });
     return fallbackWithExistingClient(nativeFallback.modelConfig);
   }
+}
+
+export async function recoverCareerChatAssistantText(args: {
+  latestUserMessage?: string | null;
+  messages: Array<{
+    content: string;
+    role: "user" | "assistant";
+  }>;
+  onTextDelta?: (delta: string) => void | Promise<void>;
+  systemBlocks: CareerChatSystemBlock[];
+}) {
+  const workingMessages: AnthropicMessage[] = args.messages
+    .filter((message) => message.content.trim().length > 0)
+    .map((message) => ({
+      role: message.role,
+      content: message.content,
+    }));
+  const latestUserMessage = String(args.latestUserMessage ?? "").trim();
+  const instruction = [
+    EMPTY_VISIBLE_TEXT_RECOVERY_INSTRUCTION,
+    latestUserMessage ? `Latest user message: ${latestUserMessage}` : "",
+  ]
+    .filter((line) => line.trim().length > 0)
+    .join("\n");
+
+  return recoverVisibleTextFromAnthropicMessages({
+    instruction,
+    messages: workingMessages,
+    modelConfig: assistantModelConfig(),
+    onTextDelta: args.onTextDelta,
+    reason: "route_empty_assistant_text",
+    systemBlocks: args.systemBlocks,
+    usageLabel: "career/chat:assistant",
+  });
 }
 
 export async function runCareerChatAssistantStream(args: {
@@ -934,6 +1211,9 @@ export async function runCareerChatAssistantStream(args: {
       executeTool: args.executeTool,
       messages: args.messages,
       modelConfig,
+      onToolStart: args.onToolStart
+        ? ({ name }) => args.onToolStart?.({ id: "", name })
+        : undefined,
       stopAfterToolNames: args.stopAfterToolNames,
       systemBlocks: args.systemBlocks,
       tools: args.tools,
@@ -963,12 +1243,21 @@ export async function runCareerChatAssistantStream(args: {
 
   try {
     if (args.tools.length === 0) {
-      return await createAnthropicMessageStream({
+      const text = await createAnthropicMessageStream({
         messages: workingMessages,
         model: modelConfig.primaryModel,
         onTextDelta: forwardTextDelta,
         systemBlocks: args.systemBlocks,
         temperature: CAREER_LLM_CONFIG.chat.temperature,
+        usageLabel: "career/chat:assistant",
+      });
+      if (text) return text;
+      return recoverVisibleTextFromAnthropicMessages({
+        messages: workingMessages,
+        modelConfig,
+        onTextDelta: forwardTextDelta,
+        reason: "stream_empty_text_without_tools",
+        systemBlocks: args.systemBlocks,
         usageLabel: "career/chat:assistant",
       });
     }
@@ -1003,6 +1292,16 @@ export async function runCareerChatAssistantStream(args: {
         const responseText = cleanModelText(
           extractAnthropicText(assistantBlocks)
         );
+        if (!responseText) {
+          return recoverVisibleTextFromAnthropicMessages({
+            messages: workingMessages,
+            modelConfig,
+            onTextDelta: forwardTextDelta,
+            reason: "stream_empty_text_without_tool_use",
+            systemBlocks: args.systemBlocks,
+            usageLabel: "career/chat:assistant",
+          });
+        }
         await forwardTextDelta(responseText);
         return responseText;
       }
@@ -1090,7 +1389,7 @@ export async function runCareerChatAssistantStream(args: {
       if (toolResultBlocks.length > 0) {
         workingMessages.push({
           role: "user",
-          content: toolResultBlocks,
+          content: withToolResultFollowupInstruction(toolResultBlocks),
         });
       }
 
@@ -1098,7 +1397,7 @@ export async function runCareerChatAssistantStream(args: {
         return "";
       }
 
-      return await createAnthropicMessageStream({
+      const finalText = await createAnthropicMessageStream({
         messages: workingMessages,
         model: modelConfig.primaryModel,
         onTextDelta: forwardTextDelta,
@@ -1106,15 +1405,33 @@ export async function runCareerChatAssistantStream(args: {
         temperature: CAREER_LLM_CONFIG.chat.temperature,
         usageLabel: "career/chat:assistant",
       });
+      if (finalText) return finalText;
+      return recoverVisibleTextFromAnthropicMessages({
+        messages: workingMessages,
+        modelConfig,
+        onTextDelta: forwardTextDelta,
+        reason: "stream_empty_text_after_tool",
+        systemBlocks: args.systemBlocks,
+        usageLabel: "career/chat:assistant",
+      });
     }
 
     if (executedAnyTool) {
-      return await createAnthropicMessageStream({
+      const finalText = await createAnthropicMessageStream({
         messages: workingMessages,
         model: modelConfig.primaryModel,
         onTextDelta: forwardTextDelta,
         systemBlocks: args.systemBlocks,
         temperature: CAREER_LLM_CONFIG.chat.temperature,
+        usageLabel: "career/chat:assistant",
+      });
+      if (finalText) return finalText;
+      return recoverVisibleTextFromAnthropicMessages({
+        messages: workingMessages,
+        modelConfig,
+        onTextDelta: forwardTextDelta,
+        reason: "stream_empty_text_after_tool_loop",
+        systemBlocks: args.systemBlocks,
         usageLabel: "career/chat:assistant",
       });
     }
@@ -1138,9 +1455,32 @@ export async function runCareerChatAssistantStream(args: {
 
     const finalText = extractAnthropicText(finalResponse.content);
     const cleanFinalText = cleanModelText(finalText);
+    if (!cleanFinalText) {
+      return recoverVisibleTextFromAnthropicMessages({
+        messages: workingMessages,
+        modelConfig,
+        onTextDelta: forwardTextDelta,
+        reason: "stream_empty_final_response",
+        systemBlocks: args.systemBlocks,
+        usageLabel: "career/chat:assistant",
+      });
+    }
     await forwardTextDelta(cleanFinalText);
     return cleanFinalText;
   } catch (error) {
+    if (streamedAnyText || startedAnyTool || executedAnyTool) {
+      const recoveredText = await recoverVisibleTextFromAnthropicMessages({
+        messages: workingMessages,
+        modelConfig,
+        onTextDelta: forwardTextDelta,
+        reason: "stream_error_after_partial_or_tool",
+        skipNativeRetry: true,
+        systemBlocks: args.systemBlocks,
+        usageLabel: "career/chat:assistant",
+      });
+      if (recoveredText) return recoveredText;
+    }
+
     if (streamedAnyText || startedAnyTool || executedAnyTool) {
       throw error;
     }

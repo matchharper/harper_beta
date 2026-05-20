@@ -15,6 +15,7 @@ import { useCareerSidebarContext } from "@/components/career/CareerSidebarContex
 import { CAREER_LINK_LABELS } from "@/components/career/constants";
 import LoadingState from "@/components/career/OnboardingLoadingState";
 import { pickLinkedinProfileLink } from "@/hooks/career/careerHelpers";
+import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import {
   CareerField,
   CareerFieldLabel,
@@ -69,6 +70,7 @@ const LinkItemIcon = ({ index }: { index: number }) => {
 };
 
 const CareerResumeLinksSettingsSection = () => {
+  const logCareerEvent = useCareerLogEvent();
   const {
     resumeFile,
     savedResumeFileName,
@@ -109,6 +111,7 @@ const CareerResumeLinksSettingsSection = () => {
   const shouldProcessProfileSources = Boolean(resumeFile) || hasLinkedinChange;
 
   const handleSaveClick = async () => {
+    logCareerEvent("click_resume_links_save");
     if (shouldProcessProfileSources) {
       setIsProcessingSourceUpdate(true);
     }
@@ -142,6 +145,7 @@ const CareerResumeLinksSettingsSection = () => {
                   href={savedResumeDownloadUrl}
                   target="_blank"
                   rel="noreferrer"
+                  onClick={() => logCareerEvent("click_resume_download")}
                   className="mt-2 inline-flex items-center gap-1 text-xs text-beige900 underline underline-offset-2"
                 >
                   <ExternalLink className="h-3.5 w-3.5" />
@@ -168,6 +172,7 @@ const CareerResumeLinksSettingsSection = () => {
               accept=".pdf,.doc,.docx,.txt"
               className="hidden"
               onChange={(event) => {
+                logCareerEvent("click_resume_select_file");
                 onResumeFileChange(event.target.files?.[0] ?? null);
               }}
             />
@@ -210,7 +215,10 @@ const CareerResumeLinksSettingsSection = () => {
               {index >= CAREER_LINK_ITEMS.length && (
                 <button
                   type="button"
-                  onClick={() => onRemoveProfileLink(index)}
+                  onClick={() => {
+                    logCareerEvent("click_resume_links_remove_link");
+                    onRemoveProfileLink(index);
+                  }}
                   className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-hblack50 text-hblack600 transition-colors hover:border-beige900 hover:text-beige900"
                 >
                   <X className="h-4 w-4" />
@@ -220,7 +228,13 @@ const CareerResumeLinksSettingsSection = () => {
           ))}
         </div>
 
-        <CareerSecondaryButton onClick={onAddProfileLink} className="mt-5">
+        <CareerSecondaryButton
+          onClick={() => {
+            logCareerEvent("click_resume_links_add_link");
+            onAddProfileLink();
+          }}
+          className="mt-5"
+        >
           <Plus className="h-3.5 w-3.5" />
           링크 추가
         </CareerSecondaryButton>
@@ -253,10 +267,10 @@ const CareerResumeLinksSettingsSection = () => {
         closeOnBackdrop={false}
         showCloseButton={false}
         overlayClassName="z-120"
-        panelClassName="max-w-none w-[min(1080px,94vw)] max-h-[92svh] border-0 bg-beige50"
-        bodyClassName="max-h-[92svh] overflow-y-auto"
+        panelClassName="max-w-none w-[min(1080px,94vw)] max-h-[92svh] border-0 bg-beige50/40"
+        bodyClassName="max-h-[92svh] overflow-y-auto py-0"
       >
-        <LoadingState />
+        <LoadingState isOnboarding={false} />
       </TalentCareerModal>
     </div>
   );

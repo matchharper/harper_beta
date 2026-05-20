@@ -1,7 +1,14 @@
-import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
+import {
+  createClient,
+  type SupabaseClient,
+  type User,
+} from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 
 export type TalentAdminClient = SupabaseClient<Database>;
+const SUPABASE_ADMIN_FETCH_TIMEOUT_MS = Number(
+  process.env.SUPABASE_ADMIN_FETCH_TIMEOUT_MS ?? 5000
+);
 
 function readEnv(name: string) {
   const value = process.env[name];
@@ -9,6 +16,22 @@ function readEnv(name: string) {
     throw new Error(`${name} is required`);
   }
   return value;
+}
+
+function createTimeoutFetch(timeoutMs: number): typeof fetch {
+  return async (input, init) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      return await fetch(input, {
+        ...init,
+        signal: init?.signal ?? controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
 }
 
 export function getTalentSupabaseAdmin(): TalentAdminClient {
@@ -22,6 +45,13 @@ export function getTalentSupabaseAdmin(): TalentAdminClient {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
+    },
+    global: {
+      fetch: createTimeoutFetch(
+        Number.isFinite(SUPABASE_ADMIN_FETCH_TIMEOUT_MS)
+          ? Math.max(1000, SUPABASE_ADMIN_FETCH_TIMEOUT_MS)
+          : 5000
+      ),
     },
   });
 }

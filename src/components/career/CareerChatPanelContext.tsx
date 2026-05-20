@@ -51,6 +51,8 @@ export type CareerChatPanelContextValue = {
   thinkingLogsByMessageId: Record<string, string[]>;
   chatPending: boolean;
   sessionReengagementPending: boolean;
+  sessionReengagementThinkingLogs: string[];
+  sessionReengagementRecommendationStatus: CareerRecommendationSearchStatus | null;
   sessionReengagementActionMessageId?: string | null;
   opportunityRun: CareerOpportunityRun | null;
   opportunitySearchLocked: boolean;

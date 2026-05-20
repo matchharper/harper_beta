@@ -5,6 +5,7 @@ import type {
   CareerHistoryOpportunityCounts,
   CareerHistoryOpportunityFeedback,
   CareerHistoryOpportunityPageFilter,
+  CareerMessagePayload,
   CareerOpportunitySavedStage,
   CareerRecentOpportunity,
   CareerStage,
@@ -19,9 +20,32 @@ import type {
   CareerConversationStarterId,
   CareerConversationStarterMode,
 } from "@/lib/career/conversationStarters";
+import type { TalentCompanyWatchlistItem } from "@/lib/career/companyWatchlist";
+
+export type CareerCompanyFollowActionResult = {
+  assistantMessage?: CareerMessagePayload | null;
+  changed?: boolean;
+  followUp?: {
+    companyDbId?: number | null;
+    delayed?: boolean;
+  } | null;
+  item?: TalentCompanyWatchlistItem | null;
+  ok?: boolean;
+  userMessage?: CareerMessagePayload | null;
+};
+
+export type CareerCompanyRecommendationResult = {
+  answerDraft?: string;
+  cacheHit?: boolean;
+  candidateCount?: number;
+  ok?: boolean;
+  recommendedCount?: number;
+  recommendations?: TalentCompanyWatchlistItem[];
+};
 
 export type CareerSidebarContextValue = {
   user: User | null;
+  conversationId: string | null;
   stage: CareerStage;
   isOnboardingDone: boolean;
   userChatCount: number;
@@ -33,11 +57,10 @@ export type CareerSidebarContextValue = {
   activeCompanyRoleCount: number;
   opportunityRun: CareerOpportunityRun | null;
   opportunityRunTriggerPending: boolean;
+  onboardingCompletionTestPending: boolean;
   sessionReengagementTestPending: boolean;
-  onRunSessionReengagementTest: () =>
-    | boolean
-    | void
-    | Promise<boolean | void>;
+  onRunOnboardingCompletionTest: () => boolean | Promise<boolean>;
+  onRunSessionReengagementTest: () => boolean | void | Promise<boolean | void>;
   onRunPeriodicOpportunityDiscoveryTest: (
     agentVariant?: CareerOpportunityAgentVariant
   ) => void | Promise<void>;
@@ -88,6 +111,17 @@ export type CareerSidebarContextValue = {
   onMarkHistoryOpportunityClicked: (
     opportunityId: string
   ) => void | Promise<void>;
+  onUpdateCompanyFollow: (args: {
+    action: "follow" | "unfollow";
+    companyDbId: number;
+    companyWorkspaceId?: string | null;
+    source?: string | null;
+  }) => Promise<CareerCompanyFollowActionResult | null>;
+  onGenerateCompanyRecommendations: (args?: {
+    forceRefresh?: boolean;
+    limit?: number;
+    request?: string | null;
+  }) => Promise<CareerCompanyRecommendationResult | null>;
   onSendHistoryOpportunityQuestion: (
     opportunityId: string,
     question: string

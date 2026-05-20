@@ -2,9 +2,12 @@
 
 import React, { useRef, useState } from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
-import { X, AudioLines, Mic, MicOff } from "lucide-react";
+import { X, AudioLines, MessageCircle, Mic, MicOff } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { cn } from "@/lib/utils";
 import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
+import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
+import { useCareerMobileChatNotice } from "@/hooks/career/useCareerMobileChatNotice";
 
 type CareerMobileChatLauncherProps = {
   children: React.ReactNode;
@@ -16,7 +19,7 @@ type CareerMobileChatLauncherProps = {
   onOpenChange?: (open: boolean) => void;
 };
 
-const DEFAULT_TOP_OFFSET_PX = 64;
+const DEFAULT_TOP_OFFSET_PX = 56;
 const SWIPE_UP_THRESHOLD_PX = 24;
 
 export default function CareerMobileChatLauncher({
@@ -28,6 +31,7 @@ export default function CareerMobileChatLauncher({
   open: controlledOpen,
   onOpenChange,
 }: CareerMobileChatLauncherProps) {
+  const logCareerEvent = useCareerLogEvent();
   const [internalOpen, setInternalOpen] = useState(false);
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? controlledOpen : internalOpen;
@@ -39,6 +43,7 @@ export default function CareerMobileChatLauncher({
 
   const {
     callConnectionStatus,
+    messages,
     voiceMuted,
     onToggleVoiceMute,
     onEndCallMode,
@@ -47,8 +52,23 @@ export default function CareerMobileChatLauncher({
     callConnectionStatus === "connected" ||
     callConnectionStatus === "reconnecting";
   const showMinimizedCall = isCallActive && !open;
+  const chatNotice = useCareerMobileChatNotice({
+    messages,
+    open,
+  });
 
-  const openDrawer = () => setOpen(true);
+  const openDrawer = () => {
+    logCareerEvent("click_mobile_chat_launcher_open");
+    chatNotice.markRead();
+    setOpen(true);
+  };
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) {
+      chatNotice.markRead();
+    }
+    setOpen(nextOpen);
+  };
 
   const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
     touchStartYRef.current = event.touches[0]?.clientY ?? null;
@@ -60,6 +80,8 @@ export default function CareerMobileChatLauncher({
     if (current === undefined) return;
     if (start - current > SWIPE_UP_THRESHOLD_PX) {
       touchStartYRef.current = null;
+      logCareerEvent("click_mobile_chat_launcher_swipe_open");
+      chatNotice.markRead();
       setOpen(true);
     }
   };
@@ -83,6 +105,30 @@ export default function CareerMobileChatLauncher({
         <div className="flex justify-center pt-2 pb-1">
           <div className="h-1 w-10 rounded-full bg-beige900/20" />
         </div>
+        <AnimatePresence initial={false}>
+          {chatNotice.showPrompt && !showMinimizedCall ? (
+            <motion.button
+              type="button"
+              key="mobile-chat-notice"
+              onClick={openDrawer}
+              initial={{ opacity: 0, y: 8, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 6, scale: 0.98 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+              className="mx-4 mb-2 flex min-h-11 items-center gap-2 rounded-full border border-beige900/10 bg-white px-3 py-2 text-left text-sm text-beige900 shadow-md transition active:scale-[0.99]"
+            >
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-beige900 text-beige50">
+                <MessageCircle className="h-3.5 w-3.5" />
+              </span>
+              <span className="min-w-0 flex-1 font-medium leading-5">
+                Harper가 답했어요
+              </span>
+              <span className="shrink-0 text-[12px] font-medium text-beige900/45">
+                열기
+              </span>
+            </motion.button>
+          ) : null}
+        </AnimatePresence>
         {actionBar && !showMinimizedCall ? (
           <div className="px-4 pt-1 pb-2">{actionBar}</div>
         ) : null}
@@ -96,7 +142,14 @@ export default function CareerMobileChatLauncher({
               <div className="flex items-center gap-2 rounded-full bg-beige900/5 px-3 py-2">
                 <button
                   type="button"
-                  onClick={onToggleVoiceMute}
+                  onClick={() => {
+                    logCareerEvent(
+                      voiceMuted
+                        ? "click_mobile_call_unmute"
+                        : "click_mobile_call_mute"
+                    );
+                    onToggleVoiceMute();
+                  }}
                   className={cn(
                     "flex h-12 w-12 items-center justify-center rounded-full transition-colors",
                     voiceMuted
@@ -113,7 +166,10 @@ export default function CareerMobileChatLauncher({
                 </button>
                 <button
                   type="button"
-                  onClick={() => onEndCallMode?.()}
+                  onClick={() => {
+                    logCareerEvent("click_mobile_call_end");
+                    onEndCallMode?.();
+                  }}
                   className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500 text-white transition-opacity hover:opacity-90"
                   aria-label="통화 종료"
                 >
@@ -125,10 +181,19 @@ export default function CareerMobileChatLauncher({
             <button
               type="button"
               onClick={openDrawer}
-              className="flex h-12 flex-1 items-center justify-between rounded-full border border-beige900/10 bg-white px-4 text-left text-[15px] text-beige900/45 transition active:bg-beige100"
+              className={cn(
+                "flex h-12 flex-1 items-center justify-between rounded-full border border-beige900/10 bg-white px-4 text-left text-sm text-beige900/45 transition active:bg-beige100",
+                chatNotice.hasUnread &&
+                  "border-accentBronze/45 text-beige900 shadow-sm"
+              )}
             >
               <span>{placeholder}</span>
-              <AudioLines className="h-5 w-5 text-beige900/60" />
+              <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
+                <AudioLines className="h-5 w-5 text-beige900/60" />
+                {chatNotice.hasUnread ? (
+                  <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border border-white bg-accentBronze" />
+                ) : null}
+              </span>
             </button>
           )}
         </div>
@@ -136,7 +201,7 @@ export default function CareerMobileChatLauncher({
 
       <DrawerPrimitive.Root
         open={open}
-        onOpenChange={setOpen}
+        onOpenChange={handleOpenChange}
         shouldScaleBackground={false}
       >
         <DrawerPrimitive.Portal>

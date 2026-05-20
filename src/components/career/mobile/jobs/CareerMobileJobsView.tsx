@@ -9,21 +9,22 @@ import {
   ArrowUpRight,
   Building2,
   Dot,
-  Globe,
   Hand,
   Loader2,
+  MapPin,
   ThumbsDown,
   ThumbsUp,
 } from "lucide-react";
 import CareerMobileShell from "../CareerMobileShell";
 import CareerMobileTopBar from "../CareerMobileTopBar";
-import CareerMobileSegmentedTabs, {
-  type SegmentedTabItem,
-} from "../CareerMobileSegmentedTabs";
+import CareerInPageTabs, {
+  type CareerInPageTabItem,
+} from "@/components/career/CareerInPageTabs";
 import type { CareerWorkspaceTab } from "@/components/career/CareerWorkspaceNav";
 import {
   getMetaItems,
   getNegativeActionLabel,
+  getOpportunityPanelTone,
   getPositiveActionLabel,
 } from "@/components/career/CareerHistoryPanel";
 import { HistoryOpportunityInfoTag } from "@/components/career/history/HistoryOpportunityDetailContent";
@@ -32,12 +33,14 @@ import OpportunityPreferenceFit from "@/components/career/history/OpportunityPre
 import CareerRichText from "@/components/career/ui/CareerRichText";
 import type { CareerOpportunityType } from "@/components/career/types";
 import { useKeyboardArrows } from "@/hooks/useKeyboardArrows";
+import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { formatRelativeTime, cn } from "@/lib/utils";
 import type { CareerHistoryOpportunity } from "@/components/career/types";
 
 export type JobsDisplayTab = "new" | "saved" | "archived" | "connected";
 
 type WorkspaceTabOption = {
+  badgeCount?: number;
   id: CareerWorkspaceTab;
   label: string;
 };
@@ -145,7 +148,7 @@ export default function CareerMobileJobsView({
     [handlePrev, handleNext]
   );
 
-  const items: SegmentedTabItem<JobsDisplayTab>[] = [
+  const items: CareerInPageTabItem<JobsDisplayTab>[] = [
     { id: "new", label: "새 포지션", count: newCount },
     { id: "saved", label: "저장함", count: savedCount },
     { id: "archived", label: "선호하지 않음", count: archivedCount },
@@ -169,14 +172,14 @@ export default function CareerMobileJobsView({
       }
     >
       <div className="relative flex flex-1 flex-col">
-        <CareerMobileSegmentedTabs
+        <CareerInPageTabs
           items={items}
           activeId={tab}
           onChange={setTab}
-          className="sticky top-0 z-20"
+          mobileFloating
         />
 
-        <div className="relative flex flex-1 flex-col">
+        <div className="relative flex flex-1 flex-col text-sm">
           <AnimatePresence mode="wait" initial={false}>
             {selectedOpportunity ? (
               <motion.div
@@ -191,26 +194,17 @@ export default function CareerMobileJobsView({
                 dragElastic={0.2}
                 dragMomentum={false}
                 onDragEnd={handleDragEnd}
-                className="flex flex-col gap-5 px-4 pt-4"
+                className="flex flex-col px-2 pt-4"
                 style={{
                   paddingBottom: `${bottomReservePx}px`,
                   touchAction: "pan-y",
                 }}
               >
-                <OpportunitySummaryCard
+                <MobileOpportunityDetailPanel
                   opportunity={selectedOpportunity}
                   onOpenCompanyInfo={onOpenCompanyInfo}
                   onOpenOpportunityInfo={onOpenOpportunityInfo}
                 />
-                <RecommendationSummary opportunity={selectedOpportunity} />
-                <RecommendationConcerns opportunity={selectedOpportunity} />
-                <JDLinkButton opportunity={selectedOpportunity} />
-                <PreferenceFitSection opportunity={selectedOpportunity} />
-                <CompanySection
-                  opportunity={selectedOpportunity}
-                  onOpenCompanyInfo={onOpenCompanyInfo}
-                />
-                <RoleDescriptionSection opportunity={selectedOpportunity} />
               </motion.div>
             ) : isLoading ? (
               <motion.div
@@ -235,7 +229,6 @@ export default function CareerMobileJobsView({
               </motion.div>
             )}
           </AnimatePresence>
-
         </div>
       </div>
       {showSwipeHint && selectedOpportunity ? (
@@ -259,6 +252,43 @@ function emptyStateMessage(tab: JobsDisplayTab) {
   return "선호하지 않음으로 보낸 포지션이 없습니다.";
 }
 
+function MobileOpportunityDetailPanel({
+  opportunity,
+  onOpenCompanyInfo,
+  onOpenOpportunityInfo,
+}: {
+  opportunity: CareerHistoryOpportunity;
+  onOpenCompanyInfo?: (opportunity: CareerHistoryOpportunity) => void;
+  onOpenOpportunityInfo?: (type: CareerOpportunityType) => void;
+}) {
+  return (
+    <section
+      className={cn("rounded-2xl p-1", getOpportunityPanelTone(opportunity))}
+    >
+      <div className="flex w-full flex-col items-start justify-between rounded-2xl bg-beige50 px-4 py-5">
+        <OpportunitySummaryCard
+          opportunity={opportunity}
+          onOpenCompanyInfo={onOpenCompanyInfo}
+          onOpenOpportunityInfo={onOpenOpportunityInfo}
+        />
+        <RecommendationContent opportunity={opportunity} />
+      </div>
+
+      <div className="flex flex-col gap-6 px-4 py-4 font-inter text-[14px] font-normal text-black/80">
+        <div className="space-y-3">
+          <JDLinkButton opportunity={opportunity} />
+          <PreferenceFitSection opportunity={opportunity} />
+        </div>
+        <CompanySection
+          opportunity={opportunity}
+          onOpenCompanyInfo={onOpenCompanyInfo}
+        />
+        <RoleDescriptionSection opportunity={opportunity} />
+      </div>
+    </section>
+  );
+}
+
 function OpportunitySummaryCard({
   opportunity,
   onOpenCompanyInfo,
@@ -270,133 +300,135 @@ function OpportunitySummaryCard({
 }) {
   const postedAgo = formatRelativeTime(opportunity.postedAt);
   const metaItems = getMetaItems(opportunity);
-  const sourceLabel =
-    opportunity.sourceType === "external"
-      ? opportunity.sourceProvider?.trim() || "Web-sourced"
-      : "Internal";
   const companyInfoLink =
     opportunity.companyHomepageUrl ?? opportunity.companyLinkedinUrl;
   const canOpenCompanyInfo = Boolean(
     onOpenCompanyInfo && (opportunity.companyDbId || companyInfoLink)
   );
+  const detailMetaItems = [
+    {
+      label: "location",
+      value: opportunity.location,
+    },
+    ...metaItems.map((meta) => ({
+      label: meta,
+      value: meta,
+    })),
+  ].filter(
+    (meta): meta is { label: string; value: string } =>
+      typeof meta.value === "string" && meta.value.trim().length > 0
+  );
 
   return (
-    <article className="border border-beige900/10 bg-white p-5">
+    <article className="w-full">
       <header className="flex items-start gap-3">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-beige900 text-beige50/80">
+        <div className="flex shrink-0 items-center justify-center rounded-lg border border-beige900/10 bg-white p-1">
           {opportunity.companyLogoUrl ? (
             <Image
               src={opportunity.companyLogoUrl}
               alt={opportunity.companyName}
-              width={48}
-              height={48}
-              className="h-12 w-12 object-cover"
+              width={40}
+              height={40}
+              className="h-10 w-10 rounded-lg object-cover"
             />
           ) : (
-            <span className="text-[10px] font-semibold uppercase tracking-wide">
-              {opportunity.companyName.slice(0, 2)}
-            </span>
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-beige900 text-beige100">
+              <Building2 className="h-4 w-4" />
+            </div>
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <h2 className="text-[20px] font-medium leading-tight text-beige900">
+          <h2 className="wrap-break-word text-[17px] font-medium leading-tight text-black">
             {opportunity.title}
           </h2>
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[14px] text-beige900/70">
+          <div className="mt-2 flex min-w-0 flex-row items-center justify-between gap-1 text-[13px]">
             {canOpenCompanyInfo ? (
               <button
                 type="button"
                 onClick={() => onOpenCompanyInfo?.(opportunity)}
-                className="min-w-0 wrap-break-word text-left decoration-dotted underline underline-offset-2 transition-colors hover:text-beige900"
+                className="min-w-0 wrap-break-word text-left text-[14px] font-medium text-black/90 decoration-dotted underline underline-offset-2 transition-colors hover:text-black"
               >
                 {opportunity.companyName}
               </button>
             ) : (
-              <span>{opportunity.companyName}</span>
+              <span className="min-w-0 wrap-break-word text-[14px] font-medium text-black/90">
+                {opportunity.companyName}
+              </span>
             )}
-            {opportunity.location ? (
-              <>
-                <Sep />
-                <span>{opportunity.location}</span>
-              </>
+            {postedAgo ? (
+              <span className="text-[12px] leading-4 text-black/50">
+                {postedAgo}에 게시됨
+              </span>
             ) : null}
-            {metaItems.map((meta, idx) => (
-              <React.Fragment key={`${opportunity.id}-meta-${idx}`}>
-                <Sep />
-                <span>{meta}</span>
-              </React.Fragment>
-            ))}
-          </div>
-          <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[13px] text-beige900/55">
-            {postedAgo ? <span>{postedAgo}에 게시됨</span> : null}
-            {postedAgo ? <Sep /> : null}
-            <Globe className="h-3.5 w-3.5" />
-            <span className="underline underline-offset-[3px]">
-              {sourceLabel}
-            </span>
-          </div>
-          <div className="mt-3">
-            <HistoryOpportunityInfoTag
-              item={opportunity}
-              onOpenInfo={(type) => onOpenOpportunityInfo?.(type)}
-            />
           </div>
         </div>
       </header>
-
-      {opportunity.recommendationReasons.length > 0 ? (
-        <ul className="mt-5 space-y-2.5 text-[15px] leading-[1.55] text-beige900">
-          {opportunity.recommendationReasons.map((reason, idx) => (
-            <li
-              key={`${opportunity.id}-reason-${idx}`}
-              className="relative flex items-start gap-2"
+      <div className="mt-3 flex w-full flex-col items-start gap-2 text-[13px] font-normal text-black/75">
+        <div className="flex max-w-full flex-wrap items-center gap-x-2 gap-y-1.5">
+          {detailMetaItems.map((meta, idx) => (
+            <span
+              key={`${opportunity.id}-detail-meta-${idx}`}
+              className="inline-flex min-w-0 items-center gap-x-1"
             >
-              <Dot className="mt-0.5 h-5 w-5 shrink-0 text-beige900" />
-              <span
-                className="flex-1"
-                dangerouslySetInnerHTML={{ __html: reason }}
-              />
-            </li>
+              {meta.label === "location" ? (
+                <MapPin className="h-3.5 w-3.5 shrink-0 text-black/50" />
+              ) : (
+                <span className="shrink-0 text-black/35">·</span>
+              )}
+              <span className="min-w-0 wrap-break-word">{meta.value}</span>
+            </span>
           ))}
-        </ul>
-      ) : null}
+        </div>
+        {onOpenOpportunityInfo ? (
+          <HistoryOpportunityInfoTag
+            item={opportunity}
+            onOpenInfo={(type) => onOpenOpportunityInfo(type)}
+          />
+        ) : null}
+      </div>
     </article>
   );
 }
 
-function RecommendationSummary({
+function RecommendationContent({
   opportunity,
 }: {
   opportunity: CareerHistoryOpportunity;
 }) {
   const summary = opportunity.recommendationSummary?.trim();
-  if (!summary) return null;
-  return (
-    <div className="rounded-[6px] border border-beige900/10 bg-white/65 px-4 py-3 text-[14px] leading-6 text-beige900/90">
-      {summary}
-    </div>
-  );
-}
-
-function RecommendationConcerns({
-  opportunity,
-}: {
-  opportunity: CareerHistoryOpportunity;
-}) {
   const concerns = opportunity.recommendationConcerns ?? [];
-  if (concerns.length === 0) return null;
+  const hasContent =
+    Boolean(summary) ||
+    opportunity.recommendationReasons.length > 0 ||
+    concerns.length > 0;
+
+  if (!hasContent) return null;
+
   return (
-    <ul className="space-y-2">
-      {concerns.map((concern, idx) => (
-        <li
-          key={`${opportunity.id}-concern-${idx}`}
-          className="flex items-start gap-1 text-[14px] leading-6 text-beige900/80"
+    <div className="mt-6 flex flex-col gap-2.5 text-[13px] leading-6 text-black/80">
+      {summary ? <div>{summary}</div> : null}
+      {opportunity.recommendationReasons.map((reason, idx) => (
+        <div
+          key={`${opportunity.id}-reason-${idx}`}
+          className="flex w-full items-start justify-start gap-1"
         >
-          <Dot className="mt-0.5 h-5 w-5 shrink-0 text-[#9a7b39]" />
-          <span>불안 요소 : {concern}</span>
-        </li>
+          <Dot className="mt-0.5 h-4 w-4 min-w-4 text-black/35" />
+          <div
+            className="min-w-0 flex-1"
+            dangerouslySetInnerHTML={{ __html: reason }}
+          />
+        </div>
       ))}
-    </ul>
+      {concerns.map((concern, idx) => (
+        <div
+          key={`${opportunity.id}-concern-${idx}`}
+          className="flex w-full items-start justify-start gap-1"
+        >
+          <Dot className="mt-0.5 h-4 w-4 min-w-4 text-black/35" />
+          <div className="min-w-0 flex-1">불안 요소 : {concern}</div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -405,6 +437,7 @@ function JDLinkButton({
 }: {
   opportunity: CareerHistoryOpportunity;
 }) {
+  const logCareerEvent = useCareerLogEvent();
   const roleLink = opportunity.href;
   if (!roleLink) return null;
   return (
@@ -412,7 +445,8 @@ function JDLinkButton({
       href={roleLink}
       target="_blank"
       rel="noreferrer"
-      className="inline-flex h-12 items-center justify-center gap-2 rounded-[8px] border border-beige900 bg-beige900 px-4 text-[15px] font-medium text-beige50"
+      onClick={() => logCareerEvent("click_mobile_history_open_jd")}
+      className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-beige900 px-4 py-3 text-sm font-semibold text-beige50 transition-opacity active:opacity-90"
     >
       JD 확인하기
       <ArrowUpRight className="h-4 w-4" />
@@ -437,7 +471,9 @@ function CompanySection({
   opportunity: CareerHistoryOpportunity;
   onOpenCompanyInfo?: (opportunity: CareerHistoryOpportunity) => void;
 }) {
-  const sectionTitle = getCareerCompanySectionTitle(opportunity.opportunityType);
+  const sectionTitle = getCareerCompanySectionTitle(
+    opportunity.opportunityType
+  );
   const companyInfoLink =
     opportunity.companyHomepageUrl ?? opportunity.companyLinkedinUrl;
   const canOpenCompanyInfo = Boolean(
@@ -446,9 +482,9 @@ function CompanySection({
   const actionLabel = opportunity.companyDbId ? "회사 정보" : "링크 열기";
 
   return (
-    <section>
-      <div className="flex w-full items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-[15px] font-medium text-beige900">
+    <section className="space-y-2">
+      <div className="flex w-full items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-[14px] font-medium leading-5 text-beige900">
           <Building2 className="h-4 w-4" />
           <span>{sectionTitle}</span>
         </div>
@@ -456,16 +492,16 @@ function CompanySection({
           <button
             type="button"
             onClick={() => onOpenCompanyInfo?.(opportunity)}
-            className="inline-flex items-center gap-1 text-[13px] font-medium text-beige900/70 decoration-dotted underline underline-offset-2 transition-colors hover:text-beige900"
+            className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-medium text-beige900/60 decoration-dotted underline underline-offset-2 transition-colors hover:text-beige900/80"
           >
             {actionLabel}
+            <ArrowUpRight className="h-3.5 w-3.5" />
           </button>
         ) : null}
       </div>
-      <hr className="mt-3 border-beige900/10" />
-      <div className="mt-3 text-[14px] leading-6 text-beige900/85">
-        {opportunity.companyDescription?.trim() ||
-          "아직 회사 설명이 없습니다."}
+      <div className="h-px w-full bg-beige900/10" />
+      <div className="text-sm leading-6">
+        {opportunity.companyDescription?.trim() || "아직 회사 설명이 없습니다."}
       </div>
     </section>
   );
@@ -477,13 +513,15 @@ function RoleDescriptionSection({
   opportunity: CareerHistoryOpportunity;
 }) {
   return (
-    <section>
-      <h3 className="text-[15px] font-medium text-beige900">역할 설명</h3>
-      <hr className="mt-3 border-beige900/10" />
+    <section className="space-y-2">
+      <h3 className="flex items-center gap-2 text-[14px] font-medium leading-5 text-beige900">
+        <span>역할 설명</span>
+      </h3>
+      <div className="h-px w-full bg-beige900/10" />
       {opportunity.description?.trim() ? (
-        <CareerRichText content={opportunity.description} className="mt-3" />
+        <CareerRichText content={opportunity.description} />
       ) : (
-        <div className="mt-3 text-[14px] leading-6 text-beige900/60">
+        <div className="text-sm leading-6">
           아직 상세 역할 설명이 정리되지 않았습니다.
         </div>
       )}
@@ -508,17 +546,17 @@ export function JobActionBar({
       <button
         type="button"
         onClick={onDismiss}
-        className="inline-flex h-12 items-center justify-center gap-2 rounded-md border border-beige900/15 bg-white text-[15px] font-medium text-beige900/85 transition active:bg-beige100"
+        className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-beige900/15 bg-white text-sm font-normal text-beige900/85 transition active:bg-beige100"
       >
-        <ThumbsDown className="h-4 w-4" />
+        <ThumbsDown className="h-3.5 w-3.5" />
         {getNegativeActionLabel(opportunity)}
       </button>
       <button
         type="button"
         onClick={onTrack}
-        className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-beige900 text-[15px] font-medium text-beige50 transition active:bg-beige900/85"
+        className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-beige900 text-sm font-normal text-beige50 transition active:bg-beige900/85"
       >
-        <ThumbsUp className="h-4 w-4" />
+        <ThumbsUp className="h-3.5 w-3.5" />
         {getPositiveActionLabel(opportunity)}
       </button>
     </div>
@@ -604,13 +642,5 @@ function SwipeHintOverlay({
       </div>
       <p className="text-[14px] font-medium text-beige50">좌우로 넘겨 보세요</p>
     </motion.div>
-  );
-}
-
-function Sep() {
-  return (
-    <span className="select-none text-beige900/35" aria-hidden>
-      ·
-    </span>
   );
 }

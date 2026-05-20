@@ -19,6 +19,7 @@ import { FallingTagsSmall } from "@/components/landing/FallingTagsSmall";
 import QuestionAnswer from "@/components/landing/Questions";
 import { logger } from "@/utils/logger";
 import { supabase } from "@/lib/supabase";
+import { withLandingLogSource } from "@/lib/landingLogTypes";
 import RowImageSection from "@/components/landing/RowImageSection";
 import GradientBackground from "@/components/landing/GradientBackground";
 import { useMessages } from "@/i18n/useMessage";
@@ -43,6 +44,7 @@ type CompanyAbtestType = "company_copy_b_v1";
 const SECTION_VIEW_INTERSECTION_THRESHOLD = 0.35;
 const SECTION_VIEW_LOG_COOLDOWN_MS = 15000;
 const COMPANY_ABTEST_TYPE: CompanyAbtestType = "company_copy_b_v1";
+const COMPANY_LANDING_LOG_SOURCE = "company";
 export const LANDING_CANONICAL_URL = "https://matchharper.com/";
 export const LANDING_OG_IMAGE_URL =
   "https://matchharper.com/images/usemain.png";
@@ -149,7 +151,7 @@ const CandidatePage = () => {
       // if (!isTeamEmailChecked || isTeamEmail || !landingId) return;
       const body = {
         local_id: landingId,
-        type: type,
+        type: withLandingLogSource(type, COMPANY_LANDING_LOG_SOURCE),
         abtest_type: abtestType,
         is_mobile: isMobile,
         country_lang: countryLang,
@@ -193,7 +195,7 @@ const CandidatePage = () => {
 
     const body = {
       local_id: newId,
-      type: "new_visit",
+      type: withLandingLogSource("new_visit", COMPANY_LANDING_LOG_SOURCE),
       abtest_type: abtestType,
       is_mobile: isMobile,
       country_lang: countryLang,
@@ -303,7 +305,7 @@ const CandidatePage = () => {
     addLog("click_login_google");
     const redirectTo =
       typeof window !== "undefined"
-        ? `${window.location.origin}/auths/callback?lid=${localStorage.getItem("harper_landing_id_0209") ?? ""}&cl=${encodeURIComponent(countryLang)}&ab=${encodeURIComponent(abtestType)}`
+        ? `${window.location.origin}/auths/callback?lid=${localStorage.getItem("harper_landing_id_0209") ?? ""}&cl=${encodeURIComponent(countryLang)}&ab=${encodeURIComponent(abtestType)}&src=${COMPANY_LANDING_LOG_SOURCE}`
         : undefined;
 
     const { data, error } = await supabase.auth.signInWithOAuth({

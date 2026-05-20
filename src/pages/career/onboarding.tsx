@@ -30,6 +30,7 @@ import { showToast } from "@/components/toast/toast";
 import { BeigeButton, BeigeInput } from "@/components/ui/beige";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
+import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useHtmlClass } from "@/hooks/useHtmlClass";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import {
@@ -39,6 +40,7 @@ import {
   type TalentNetworkProfileInputType,
 } from "@/lib/talentNetworkOptions";
 import { cn } from "@/lib/cn";
+import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
 import LoadingState from "../../components/career/OnboardingLoadingState";
 
 const SLIDE_VARIANTS = {
@@ -179,13 +181,15 @@ const getSingleQueryParam = (value: string | string[] | undefined) =>
 const careerOnboardingSessionKey = (
   userId: string | null,
   inviteToken?: string | null,
-  mail?: string | null
+  mail?: string | null,
+  emailOnboardingToken?: string | null
 ) =>
   [
     "career-onboarding-session",
     userId,
     inviteToken?.trim() || null,
     mail?.trim() || null,
+    emailOnboardingToken?.trim() || null,
   ] as const;
 
 type OnboardingSessionPayload = {
@@ -779,6 +783,7 @@ const CareerNetworkOnboardingContent = () => {
   const queryClient = useQueryClient();
   const { user, authLoading } = useCareerAuth();
   const { fetchWithAuth } = useCareerApi();
+  const logCareerEvent = useCareerLogEvent();
   const [bootstrapLoading, setBootstrapLoading] = useState(true);
   const [conversationId, setConversationId] = useState("");
   const [name, setName] = useState("");
@@ -810,10 +815,20 @@ const CareerNetworkOnboardingContent = () => {
   const userId = user?.id ?? null;
   const inviteToken = getSingleQueryParam(router.query.invite)?.trim() || null;
   const mail = getSingleQueryParam(router.query.mail)?.trim() || null;
+  const emailOnboardingToken =
+    getSingleQueryParam(
+      router.query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM]
+    )?.trim() || null;
   const onboardingNextPath = router.asPath || "/career/onboarding";
   const sessionQueryKey = useMemo(
-    () => careerOnboardingSessionKey(userId, inviteToken, mail),
-    [inviteToken, mail, userId]
+    () =>
+      careerOnboardingSessionKey(
+        userId,
+        inviteToken,
+        mail,
+        emailOnboardingToken
+      ),
+    [emailOnboardingToken, inviteToken, mail, userId]
   );
   const lastSavedBasicInfoRef = useRef("");
 
@@ -821,6 +836,7 @@ const CareerNetworkOnboardingContent = () => {
     const bootstrapRes = await fetchWithAuth("/api/talent/auth/bootstrap", {
       method: "POST",
       body: JSON.stringify({
+        emailOnboardingToken: emailOnboardingToken || undefined,
         inviteToken: inviteToken || undefined,
         mail: mail || undefined,
       }),
@@ -843,7 +859,7 @@ const CareerNetworkOnboardingContent = () => {
     }
 
     return payload;
-  }, [fetchWithAuth, inviteToken, mail]);
+  }, [emailOnboardingToken, fetchWithAuth, inviteToken, mail]);
 
   useEffect(() => {
     if (!user) return;
@@ -891,6 +907,9 @@ const CareerNetworkOnboardingContent = () => {
           const query: Record<string, string> = {};
           if (inviteToken) query.invite = inviteToken;
           if (mail) query.mail = mail;
+          if (emailOnboardingToken) {
+            query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM] = emailOnboardingToken;
+          }
 
           void router.replace({
             pathname: "/career",
@@ -927,6 +946,7 @@ const CareerNetworkOnboardingContent = () => {
     authLoading,
     conversationId,
     fetchOnboardingSession,
+    emailOnboardingToken,
     inviteToken,
     mail,
     onboardingNextPath,
@@ -985,24 +1005,26 @@ const CareerNetworkOnboardingContent = () => {
 
   const handleProfileInputToggle = useCallback(
     (option: TalentNetworkProfileInputType) => {
+      logCareerEvent(`click_onboarding_profile_input_${option}`);
       setSelectedProfileInputs((current) =>
         current.includes(option)
           ? current.filter((item) => item !== option)
           : [...current, option]
       );
     },
-    []
+    [logCareerEvent]
   );
 
   const handleEngagementToggle = useCallback(
     (option: TalentNetworkEngagementOptionId) => {
+      logCareerEvent(`click_onboarding_engagement_${option}`);
       setSelectedEngagements((current) =>
         current.includes(option)
           ? current.filter((item) => item !== option)
           : [...current, option]
       );
     },
-    []
+    [logCareerEvent]
   );
 
   const links = useMemo(
@@ -1121,6 +1143,7 @@ const CareerNetworkOnboardingContent = () => {
       return;
     }
 
+    logCareerEvent("click_onboarding_submit");
     setSubmitState("loading");
 
     try {
@@ -1230,6 +1253,7 @@ const CareerNetworkOnboardingContent = () => {
     resumeFile,
     selectedEngagements,
     submitState,
+    logCareerEvent,
     uploadResumeFile,
   ]);
 
@@ -1240,6 +1264,28 @@ const CareerNetworkOnboardingContent = () => {
     onComplete: submitOnboarding,
     enableWheelNavigation: false,
   });
+
+  const handleLoggedNext = useCallback(() => {
+    logCareerEvent(
+      step === TOTAL_STEPS - 1
+        ? "click_onboarding_submit_button"
+        : `click_onboarding_next_step_${step + 1}`
+    );
+    handleNext();
+  }, [handleNext, logCareerEvent, step]);
+
+  const handleLoggedPrev = useCallback(() => {
+    logCareerEvent(`click_onboarding_prev_step_${step + 1}`);
+    handlePrev();
+  }, [handlePrev, logCareerEvent, step]);
+
+  const handleProfileVisibilitySelect = useCallback(
+    (value: OnboardingProfileVisibility) => {
+      logCareerEvent(`click_onboarding_profile_visibility_${value}`);
+      setProfileVisibility(value);
+    },
+    [logCareerEvent]
+  );
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -1273,12 +1319,12 @@ const CareerNetworkOnboardingContent = () => {
       if (!visibility) return;
 
       event.preventDefault();
-      setProfileVisibility(visibility.id);
+      handleProfileVisibilitySelect(visibility.id);
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [handleEngagementToggle, step]);
+  }, [handleEngagementToggle, handleProfileVisibilitySelect, step]);
 
   const currentStepDefinition = ONBOARDING_STEPS[step] ?? ONBOARDING_STEPS[0];
   const stepLabel = `${step + 1} / ${TOTAL_STEPS}`;
@@ -1291,18 +1337,25 @@ const CareerNetworkOnboardingContent = () => {
 
   const navigateToCareerStart = useCallback(
     (startMode: "call" | "chat") => {
+      logCareerEvent(`click_onboarding_done_start_${startMode}`);
       const invite = getSingleQueryParam(router.query.invite);
       const mail = getSingleQueryParam(router.query.mail);
+      const emailOnboarding = getSingleQueryParam(
+        router.query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM]
+      );
       const query: Record<string, string> = { start: startMode };
       if (invite) query.invite = invite;
       if (mail) query.mail = mail;
+      if (emailOnboarding) {
+        query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM] = emailOnboarding;
+      }
 
       void router.push({
         pathname: "/career",
         query,
       });
     },
-    [router]
+    [logCareerEvent, router]
   );
 
   if (authLoading || bootstrapLoading) {
@@ -1473,9 +1526,10 @@ const CareerNetworkOnboardingContent = () => {
                         {selectedProfileInputs.includes("cv") && (
                           <ResumeUploadInput
                             fileName={resumeFile?.name ?? ""}
-                            onChange={(event) =>
-                              setResumeFile(event.target.files?.[0] ?? null)
-                            }
+                            onChange={(event) => {
+                              logCareerEvent("click_onboarding_resume_select");
+                              setResumeFile(event.target.files?.[0] ?? null);
+                            }}
                           />
                         )}
                       </div>
@@ -1494,7 +1548,9 @@ const CareerNetworkOnboardingContent = () => {
                               label={option.label}
                               description={option.description}
                               active={profileVisibility === option.id}
-                              onClick={() => setProfileVisibility(option.id)}
+                              onClick={() =>
+                                handleProfileVisibilitySelect(option.id)
+                              }
                             />
                           )
                         )}
@@ -1513,7 +1569,7 @@ const CareerNetworkOnboardingContent = () => {
                     type="button"
                     variant="outline"
                     size="lg"
-                    onClick={handlePrev}
+                    onClick={handleLoggedPrev}
                     className="font-normal w-full sm:w-auto"
                   >
                     이전
@@ -1523,7 +1579,7 @@ const CareerNetworkOnboardingContent = () => {
                   type="button"
                   variant="primary"
                   size="lg"
-                  onClick={handleNext}
+                  onClick={handleLoggedNext}
                   className="font-normal min-w-[76px] w-full sm:w-auto"
                 >
                   {step === TOTAL_STEPS - 1 ? (

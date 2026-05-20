@@ -1,4 +1,5 @@
 import type { User } from "@supabase/supabase-js";
+import { useRouter } from "next/router";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
   CareerChatPanelProvider,
@@ -10,6 +11,7 @@ import {
 } from "@/components/career/CareerSidebarContext";
 import CareerSettingsModal from "@/components/career/CareerSettingsModal";
 import CareerWorkspaceScreen from "@/components/career/CareerWorkspaceScreen";
+import type { CareerWorkspaceTab } from "@/components/career/CareerWorkspaceNav";
 import {
   CareerOpportunityType,
   type CareerHistoryOpportunity,
@@ -32,6 +34,11 @@ const previewDate = (offsetMs = 0) =>
 const previewDaysAgo = (days: number) =>
   previewDate(-days * 24 * 60 * 60 * 1000);
 const previewHoursAgo = (hours: number) => previewDate(-hours * 60 * 60 * 1000);
+
+type CareerWorkspaceHistoryTarget = {
+  historyTab: "new" | "saved" | "archived";
+  savedStage?: "saved" | "applied" | "connected" | "closed";
+};
 
 const mockUser = {
   id: "career-preview-user",
@@ -352,10 +359,11 @@ const initialHistoryOpportunities: CareerHistoryOpportunity[] = [
 ];
 
 const CareerPreviewPage = () => {
+  const router = useRouter();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<
-    "home" | "chat" | "profile" | "history"
-  >("chat");
+  const [activeTab, setActiveTab] = useState<CareerWorkspaceTab | "chat">(
+    "chat"
+  );
   const workspaceActiveTab = activeTab === "chat" ? "home" : activeTab;
   const [messages, setMessages] = useState<CareerMessage[]>(initialMessages);
   const [profileLinks, setProfileLinks] = useState<string[]>([
@@ -413,10 +421,48 @@ const CareerPreviewPage = () => {
     initialHistoryOpportunities
   );
   const scrollRef = useRef<HTMLDivElement>(null);
+  const handleWorkspaceTabChange = useCallback(
+    (
+      nextTab: CareerWorkspaceTab,
+      options?: {
+        historyTarget?: CareerWorkspaceHistoryTarget;
+      }
+    ) => {
+      setActiveTab(nextTab);
+
+      if (!router.isReady || nextTab !== "history") return;
+
+      const historyTarget = options?.historyTarget;
+      if (!historyTarget) return;
+
+      const query: Record<string, string | string[] | undefined> = {
+        ...router.query,
+        historyTab: historyTarget.historyTab,
+      };
+      delete query.tab;
+
+      if (historyTarget.savedStage) {
+        query.savedStage = historyTarget.savedStage;
+      } else {
+        delete query.savedStage;
+      }
+
+      void router.push(
+        {
+          pathname: "/career/preview",
+          query,
+        },
+        undefined,
+        { shallow: true, scroll: false }
+      );
+    },
+    [router]
+  );
 
   const sidebarContextValue: CareerSidebarContextValue = useMemo(
     () => ({
       user: mockUser,
+      conversationId: "preview-conversation",
       stage: "chat",
       isOnboardingDone: talentPreferences.isOnboardingDone,
       userChatCount: 1,
@@ -428,7 +474,9 @@ const CareerPreviewPage = () => {
       activeCompanyRoleCount: 1284,
       opportunityRun: null,
       opportunityRunTriggerPending: false,
+      onboardingCompletionTestPending: false,
       sessionReengagementTestPending: false,
+      onRunOnboardingCompletionTest: () => true,
       onRunSessionReengagementTest: () => undefined,
       onRunPeriodicOpportunityDiscoveryTest: () => undefined,
       onRunOpportunityDiscoveryTest: () => undefined,
@@ -498,6 +546,12 @@ const CareerPreviewPage = () => {
           )
         );
       },
+      onUpdateCompanyFollow: async () => null,
+      onGenerateCompanyRecommendations: async () => ({
+        ok: true,
+        recommendations: [],
+        recommendedCount: 0,
+      }),
       onSendHistoryOpportunityQuestion: async () => true,
       resumeFile,
       savedResumeFileName,
@@ -694,6 +748,8 @@ const CareerPreviewPage = () => {
       thinkingLogsByMessageId: {},
       chatPending: false,
       sessionReengagementPending: false,
+      sessionReengagementThinkingLogs: [],
+      sessionReengagementRecommendationStatus: null,
       opportunityRun: null,
       opportunitySearchLocked: false,
       historyUpdatingOpportunityIds: [],
@@ -745,15 +801,28 @@ const CareerPreviewPage = () => {
       onUpdateHistoryOpportunityFeedback: async () => undefined,
       onLoadOlderMessages: async () => undefined,
       onForceCompleteOnboarding: async () => {
+        const now = Date.now();
         const nextAssistantMessage: CareerMessage = {
-          id: Date.now(),
+          id: now,
           role: "assistant",
           content:
-            "미리보기 화면입니다. 실제 연동에서는 인터뷰를 종료하고 추천 탐색을 시작합니다.",
+            "미리보기 화면입니다. 실제 연동에서는 인터뷰를 종료하고 대화 요약 카드만 여기에 렌더링합니다.",
           messageType: "onboarding_completion_wrapup",
           createdAt: new Date().toISOString(),
         };
-        setMessages((current) => [...current, nextAssistantMessage]);
+        const nextStepsMessage: CareerMessage = {
+          id: now + 1,
+          role: "assistant",
+          content:
+            "말씀해주신 조건들을 Harper의 검색 기준에 반영했어요. 결과는 포지션 탭과 이메일로 준비되는 대로 보내드릴 거예요. 최대 1시간 정도 걸릴 수 있어요.\n\n확인하신 뒤에는 좋아요/싫어요를 눌러주시고, 마음에 드는 회사는 track 해두시면 관련 소식이나 채용 업데이트를 챙겨드릴게요.\n\n앞으로 어떤 종류의 연락을 어느 정도 자주 받는 게 편하실까요?",
+          messageType: "onboarding_completion_next_steps",
+          createdAt: new Date().toISOString(),
+        };
+        setMessages((current) => [
+          ...current,
+          nextAssistantMessage,
+          nextStepsMessage,
+        ]);
         return true;
       },
       showVoiceStartPrompt: false,
@@ -781,7 +850,7 @@ const CareerPreviewPage = () => {
       <CareerSidebarProvider value={sidebarContextValue}>
         <CareerWorkspaceScreen
           activeTab={workspaceActiveTab}
-          onChangeTab={setActiveTab}
+          onChangeTab={handleWorkspaceTabChange}
         />
         <CareerSettingsModal
           open={isSettingsOpen}

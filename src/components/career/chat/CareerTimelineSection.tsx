@@ -130,7 +130,7 @@ const formatChatOpportunityWorkMode = (value: string | null) => {
 const formatChatOpportunityEmploymentType = (value: string) => {
   const normalized = value.trim().toLowerCase().replaceAll("-", "_");
   if (!normalized) return null;
-  if (normalized === "full_time") return null;
+  if (normalized === "full_time") return "풀타임";
   if (normalized === "part_time") return "파트타임";
   if (normalized === "internship") return "인턴";
   if (normalized === "contract") return "계약직";
@@ -412,7 +412,7 @@ const OpportunityPreviewCards = memo(function OpportunityPreviewCards({
           event.preventDefault();
           onOpenOpportunity(item);
         }}
-        className="group relative flex min-h-[152px] cursor-pointer flex-col gap-4 rounded-[8px] border border-beige900/10 bg-white/70 px-4 py-4 text-left outline-none transition-colors hover:border-beige900/25 hover:bg-white/85 focus-visible:ring-2 focus-visible:ring-beige900/25"
+        className="group relative flex cursor-pointer flex-col gap-4 rounded-[8px] border border-beige900/10 bg-white/70 px-4 py-4 text-left outline-none transition-colors hover:border-beige900/25 hover:bg-white/85 focus-visible:ring-2 focus-visible:ring-beige900/25"
         aria-label={`${item.companyName} ${item.title} 공고 열기`}
       >
         {hasMultipleItems ? (
@@ -464,18 +464,22 @@ const OpportunityPreviewCards = memo(function OpportunityPreviewCards({
             )}
 
             <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-5 text-beige900/45">
-                {postedAgo && <span>{postedAgo}에 게시됨</span>}
-                {postedAgo && metaItems.length > 0 && <span>·</span>}
-                {metaItems.length > 0 && (
-                  <span className="break-words">{metaItems.join(" - ")}</span>
-                )}
-              </div>
               <div className="mt-0.5 break-words text-[15px] font-medium text-beige900">
                 {item.title}
               </div>
-              <div className="mt-0.5 flex flex-row items-center gap-2 break-words text-[13px] text-beige900/65">
+              <div className="mt-0.5 flex flex-row items-center gap-2 break-words text-[13px] text-black/90">
                 {item.companyName}
+                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-5 text-black/60">
+                  {metaItems.length > 0 &&
+                    metaItems.map((meta) => (
+                      <>
+                        <span>·</span>
+                        <span>{meta}</span>
+                      </>
+                    ))}
+                  {postedAgo && metaItems.length > 0 && <span>·</span>}
+                  {postedAgo && <span>{postedAgo}에 게시됨</span>}
+                </div>
                 {feedback && (
                   <div
                     className={careerCx(
@@ -497,7 +501,7 @@ const OpportunityPreviewCards = memo(function OpportunityPreviewCards({
           </div>
 
           {summary && (
-            <div className="max-h-24 overflow-hidden text-[13px] leading-6 text-beige900/70">
+            <div className="max-h-24 overflow-hidden text-[13px] leading-6 text-black/60">
               {summary}
             </div>
           )}
@@ -785,6 +789,8 @@ const CareerTimelineSection = () => {
     thinkingLogsByMessageId,
     chatPending,
     sessionReengagementPending,
+    sessionReengagementThinkingLogs,
+    sessionReengagementRecommendationStatus,
     sessionReengagementActionMessageId,
     onboardingBeginPending,
     callStartPending = false,
@@ -1252,12 +1258,20 @@ const CareerTimelineSection = () => {
           />
         ) : null}
 
-        {showSessionReengagementPending && (
-          <TimelinePendingPanel
-            label="Thinking..."
-            detail="오랜만에 이어갈 대화를 준비하고 있어요."
-          />
-        )}
+        {showSessionReengagementPending &&
+          (sessionReengagementRecommendationStatus ? (
+            <RecommendationSearchStatusPanel
+              active
+              status={sessionReengagementRecommendationStatus}
+            />
+          ) : sessionReengagementThinkingLogs.length > 0 ? (
+            <ThinkingLogPanel active logs={sessionReengagementThinkingLogs} />
+          ) : (
+            <TimelinePendingPanel
+              label="Thinking..."
+              detail="오랜만에 이어갈 대화를 준비하고 있어요."
+            />
+          ))}
 
         {callWrapUpPending && !sessionPending && stage !== "profile" && (
           <TimelinePendingPanel
