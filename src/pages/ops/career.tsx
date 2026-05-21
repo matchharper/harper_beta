@@ -30,9 +30,15 @@ import {
   User,
 } from "lucide-react";
 import Head from "next/head";
+import { useRouter } from "next/router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 const FETCH_LIMIT = 40;
+
+const readQueryValue = (value: string | string[] | undefined) => {
+  if (Array.isArray(value)) return value[0] ?? "";
+  return value ?? "";
+};
 
 const formatKst = (value: string | null | undefined) => {
   if (!value) return "-";
@@ -47,17 +53,14 @@ const formatKst = (value: string | null | undefined) => {
   });
 };
 
-const stageLabel = (stage: string | null) => {
-  if (stage === "completed") return "완료";
-  if (stage === "chat") return "대화 중";
-  if (stage === "profile") return "프로필";
-  return stage ?? "-";
+const onboardingStatusLabel = (isDone: boolean) => {
+  return isDone ? "완료" : "온보딩 미완료";
 };
 
-const stageBadgeClass = (stage: string | null) => {
-  if (stage === "completed") return "bg-[#E4EDE2] text-[#29513A]";
-  if (stage === "chat") return "bg-[#FEF3C7] text-[#92400E]";
-  return "bg-beige500/60 text-beige900/60";
+const onboardingStatusBadgeClass = (isDone: boolean) => {
+  return isDone
+    ? "bg-[#E4EDE2] text-[#29513A]"
+    : "bg-[#FEF3C7] text-[#92400E]";
 };
 
 function TalentListItem({
@@ -70,7 +73,7 @@ function TalentListItem({
     name: string | null;
     email: string | null;
     headline: string | null;
-    conversationStage: string | null;
+    isOnboardingDone: boolean;
     insightCoverage: number;
     lastConversationAt: string | null;
   };
@@ -95,10 +98,10 @@ function TalentListItem({
             <span
               className={cx(
                 "shrink-0 rounded px-1.5 py-0.5 font-geist text-[11px] font-medium",
-                stageBadgeClass(talent.conversationStage)
+                onboardingStatusBadgeClass(talent.isOnboardingDone)
               )}
             >
-              {stageLabel(talent.conversationStage)}
+              {onboardingStatusLabel(talent.isOnboardingDone)}
             </span>
           </div>
           {talent.headline ? (
@@ -180,14 +183,14 @@ function TalentDetail({ userId }: { userId: string }) {
         ) : null}
         <div className="mt-2 flex items-center gap-3 font-geist text-xs text-beige900/40">
           <span>
-            대화:{" "}
+            온보딩:{" "}
             <span
               className={cx(
-                "font-medium",
-                stageBadgeClass(detail.conversationStage)
+                "rounded px-1.5 py-0.5 font-medium",
+                onboardingStatusBadgeClass(detail.isOnboardingDone)
               )}
             >
-              {stageLabel(detail.conversationStage)}
+              {onboardingStatusLabel(detail.isOnboardingDone)}
             </span>
           </span>
           <span>마지막 대화: {formatKst(detail.lastConversationAt)}</span>
@@ -1085,6 +1088,7 @@ function ProfileTab({ detail }: { detail: CareerTalentDetailResponse }) {
 }
 
 export default function OpsCareerPage() {
+  const router = useRouter();
   const { loading: authLoading, user } = useAuthStore();
   const canFetchInternal = !authLoading && isInternalEmail(user?.email);
   const {
@@ -1095,8 +1099,32 @@ export default function OpsCareerPage() {
     hasNextPage,
     isFetchingNextPage,
   } = useOpsCareerTalents(FETCH_LIMIT, canFetchInternal);
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+
+  const selectedUserId = useMemo(() => {
+    if (!router.isReady) return null;
+    return readQueryValue(router.query.userId).trim() || null;
+  }, [router.isReady, router.query.userId]);
+
+  const selectTalent = useCallback(
+    (userId: string) => {
+      const nextUserId = userId.trim();
+      if (!nextUserId) return;
+
+      void router.push(
+        {
+          pathname: router.pathname,
+          query: {
+            ...router.query,
+            userId: nextUserId,
+          },
+        },
+        undefined,
+        { shallow: true }
+      );
+    },
+    [router]
+  );
 
   const allTalents = useMemo(
     () => data?.pages.flatMap((page) => page.talents) ?? [],
@@ -1168,7 +1196,7 @@ export default function OpsCareerPage() {
                       key={talent.userId}
                       talent={talent}
                       isActive={selectedUserId === talent.userId}
-                      onClick={() => setSelectedUserId(talent.userId)}
+                      onClick={() => selectTalent(talent.userId)}
                     />
                   ))}
                   {hasNextPage && (

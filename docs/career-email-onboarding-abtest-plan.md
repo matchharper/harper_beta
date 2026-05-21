@@ -178,7 +178,7 @@ Body:
 괜찮으시면 이 메일에 "좋아요"라고만 답장 주세요. 바로 이어서 필요한 자료와 회사에 소개드릴 때의 편한 방식을 여쭤볼게요.
 ```
 
-이 메일의 `Reply-To`는 `reply+{token}@matchharper.com` 형태의 alias다.
+이 메일의 `Reply-To`는 `reply+{token}@reply.matchharper.com` 형태의 alias다.
 
 ### 메일 2: 시작 답장 이후 자료 요청
 

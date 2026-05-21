@@ -95,6 +95,7 @@ PYTHONPATH=. ../myenv/bin/python email_reply_worker.py once
 - `WORKER_DB_ROLE=harper_worker` 권장
 - `RESEND_API_KEY`
 - `EMAIL_REPLY_FROM_EMAIL` 또는 `RESEND_FROM_EMAIL`
+- `EMAIL_REPLY_DOMAIN`, 권장값 `reply.matchharper.com`
 - `ANTHROPIC_API_KEY`, `GROK_API_KEY`, 또는 `OPENAI_API_KEY`
 
 튜닝 env:
@@ -107,7 +108,7 @@ PYTHONPATH=. ../myenv/bin/python email_reply_worker.py once
 - `EMAIL_REPLY_MAX_THREAD_CHARS`: 수신 메일 안에 포함된 이전 thread context 한도, 기본 16000자
 - `EMAIL_REPLY_DRY_RUN=true`: 발송 없이 DB 저장까지만 확인
 
-Reply alias domain은 코드에서 `matchharper.com`으로 고정한다. `EMAIL_REPLY_DOMAIN` 환경변수는 관리하지 않는다.
+Reply alias domain은 `EMAIL_REPLY_DOMAIN`을 사용하며 기본값은 `reply.matchharper.com`이다. 이 도메인은 Resend receiving domain으로 설정하고 MX record를 붙여야 한다.
 
 모델 provider는 `EMAIL_REPLY_MODEL` prefix로 결정한다.
 

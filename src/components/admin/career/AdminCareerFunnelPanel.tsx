@@ -41,7 +41,7 @@ const FUNNEL_TOOLTIPS: Record<string, string> = {
   onboarding_completed:
     "talent_activity_events.event_type='onboarding_completed' 첫 발생 기준입니다. 과거 이벤트가 없으면 talent_setting.is_onboarding_done=true 및 updated_at으로 보정합니다.",
   returned_after_first_recommendation:
-    "첫 talent_opportunity_recommendation 시각 이후 career_app_opened 로그가 있거나 talent_users.last_logined_at이 더 늦은 유저 수입니다.",
+    "첫 talent_opportunity_recommendation 시각 이후 login_completed, career 로그, 유저 메시지, 추천 열람/클릭/피드백/status 변경, 또는 talent_users.last_logined_at이 있는 유저 수입니다. 시스템 추천 생성이나 talent_setting.updated_at만으로는 재접속으로 보지 않습니다.",
 };
 
 const formatRate = (value: number | null) => {

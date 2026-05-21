@@ -5,7 +5,11 @@ import pdf from "pdf-parse-fork";
 import { htmlToReadableMarkdown } from "../utils";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { logger } from "@/utils/logger";
-import { ApifyClient } from "apify-client";
+import {
+  callApifyActor,
+  getApifyApiToken,
+  listApifyDatasetItems,
+} from "@/lib/apifyRest";
 
 // (선택) 혹시 런타임이 Edge로 잡히는 환경이면 강제로 Node로
 export const runtime = "nodejs";
@@ -133,28 +137,28 @@ async function fetchHtmlDirect(url: string) {
 }
 
 async function fetchWebsiteContentWithApify(url: string) {
-  const token = String(process.env.APIFY_CLIENT_KEY ?? "").trim();
-  if (!token) {
-    throw new Error("APIFY_CLIENT_KEY is not configured");
-  }
+  const token = getApifyApiToken();
 
   const actorId =
     String(process.env.APIFY_WEBSITE_CONTENT_CRAWLER_ACTOR_ID ?? "").trim() ||
     DEFAULT_APIFY_WEBSITE_CONTENT_CRAWLER_ACTOR_ID;
-  const client = new ApifyClient({ token });
-  const run = await client.actor(actorId).call({
-    crawlerType: "playwright:adaptive",
-    maxCrawlDepth: 0,
-    maxCrawlPages: 1,
-    startUrls: [{ url }],
+  const run = await callApifyActor({
+    actorId,
+    input: {
+      crawlerType: "playwright:adaptive",
+      maxCrawlDepth: 0,
+      maxCrawlPages: 1,
+      startUrls: [{ url }],
+    },
+    maxRunWaitSeconds: 120,
+    token,
+    waitForFinishSeconds: 120,
   });
 
-  if (!run.defaultDatasetId) {
-    throw new Error("Apify website content crawler returned no dataset");
-  }
-
-  const { items } = await client.dataset(run.defaultDatasetId).listItems({
+  const items = await listApifyDatasetItems({
+    datasetId: run.defaultDatasetId,
     limit: 1,
+    token,
   });
   const item = (Array.isArray(items) ? items[0] : null) as
     | Record<string, any>
@@ -298,10 +302,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (isTwitterUrl(url)) {
-      const token = process.env.APIFY_CLIENT_KEY;
-      const client = new ApifyClient({
-        token: token,
-      });
+      const token = getApifyApiToken();
 
       // Prepare Actor input
       const input = {
@@ -316,9 +317,19 @@ export async function POST(req: NextRequest) {
         },
       };
 
-      const run = await client.actor("61RPP7dywgiy0JPD0").call(input);
+      const run = await callApifyActor({
+        actorId: "61RPP7dywgiy0JPD0",
+        input,
+        maxRunWaitSeconds: 120,
+        token,
+        waitForFinishSeconds: 120,
+      });
 
-      const { items } = await client.dataset(run.defaultDatasetId).listItems();
+      const items = await listApifyDatasetItems<Record<string, any>>({
+        datasetId: run.defaultDatasetId,
+        limit: 20,
+        token,
+      });
       let results: any[] = [];
       items.forEach((item) => {
         results.push({

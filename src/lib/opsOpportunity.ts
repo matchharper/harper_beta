@@ -1,5 +1,9 @@
 import type { Json } from "@/types/database.types";
-import { ApifyClient } from "apify-client";
+import {
+  callApifyActor,
+  getApifyApiToken,
+  listApifyDatasetItems,
+} from "@/lib/apifyRest";
 import {
   getOpsCompanyManagementEmployeeCountRangeExactJsonValues,
   normalizeOpsCompanyManagementQualityLabelFilter,
@@ -744,14 +748,6 @@ function dedupeSyncedExternalRoles(items: SyncedExternalRoleSeed[]) {
   return deduped;
 }
 
-function getApifyClient() {
-  const token = String(process.env.APIFY_CLIENT_KEY ?? "").trim();
-  if (!token) {
-    throw new Error("APIFY_CLIENT_KEY is not configured");
-  }
-  return new ApifyClient({ token });
-}
-
 function normalizeCareerUrl(raw: string) {
   const normalized = normalizeLink(raw).trim();
   if (!normalized) return null;
@@ -961,27 +957,33 @@ async function fetchExternalRolesFromApify(args: {
   careerUrl: string;
   provider: SupportedExternalRoleProvider;
 }) {
-  const client = getApifyClient();
+  const token = getApifyApiToken();
 
   if (args.provider === "lever") {
     const actorId =
       String(process.env.APIFY_LEVER_JOBS_ACTOR_ID ?? "").trim() ||
       DEFAULT_APIFY_LEVER_JOBS_ACTOR_ID;
     const run = await withTimeout(
-      client.actor(actorId).call({
-        urls: [{ url: args.careerUrl }],
-        proxy: { useApifyProxy: true },
+      callApifyActor({
+        actorId,
+        input: {
+          urls: [{ url: args.careerUrl }],
+          proxy: { useApifyProxy: true },
+        },
+        maxRunWaitSeconds: 120,
+        token,
+        waitForFinishSeconds: 120,
       }),
       120_000,
       "Lever Apify crawl timed out"
     );
 
-    if (!run.defaultDatasetId) {
-      throw new Error("Lever Apify actor returned no dataset");
-    }
-
-    const { items } = await withTimeout(
-      client.dataset(run.defaultDatasetId).listItems({ limit: 500 }),
+    const items = await withTimeout(
+      listApifyDatasetItems({
+        datasetId: run.defaultDatasetId,
+        limit: 500,
+        token,
+      }),
       60_000,
       "Lever Apify dataset fetch timed out"
     );
@@ -997,22 +999,28 @@ async function fetchExternalRolesFromApify(args: {
     String(process.env.APIFY_LINKEDIN_JOBS_ACTOR_ID ?? "").trim() ||
     DEFAULT_APIFY_LINKEDIN_JOBS_ACTOR_ID;
   const run = await withTimeout(
-    client.actor(actorId).call({
-      urls: [args.careerUrl],
-      scrapeCompany: true,
-      count: 100,
-      splitByLocation: false,
+    callApifyActor({
+      actorId,
+      input: {
+        urls: [args.careerUrl],
+        scrapeCompany: true,
+        count: 100,
+        splitByLocation: false,
+      },
+      maxRunWaitSeconds: 120,
+      token,
+      waitForFinishSeconds: 120,
     }),
     120_000,
     "LinkedIn Jobs Apify crawl timed out"
   );
 
-  if (!run.defaultDatasetId) {
-    throw new Error("LinkedIn Jobs Apify actor returned no dataset");
-  }
-
-  const { items } = await withTimeout(
-    client.dataset(run.defaultDatasetId).listItems({ limit: 500 }),
+  const items = await withTimeout(
+    listApifyDatasetItems({
+      datasetId: run.defaultDatasetId,
+      limit: 500,
+      token,
+    }),
     60_000,
     "LinkedIn Jobs Apify dataset fetch timed out"
   );

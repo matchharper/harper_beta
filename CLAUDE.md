@@ -60,7 +60,7 @@ Endpoints under `src/app/api/internal/**` are privileged. They should authentica
 ### Security headers
 `next.config.mjs` sets strict headers globally (`X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Permissions-Policy` allowing only `microphone=(self)`). If you add a feature that needs camera / geolocation / iframe embedding, update this header block — do not work around it ad-hoc.
 
-`apify-client` and `proxy-agent` are declared in `serverComponentsExternalPackages` and must not be imported from client code. SVGs are handled via `@svgr/webpack` (import `.svg` as a React component).
+Apify calls should go through `src/lib/apifyRest.ts`; do not import `apify-client` in runtime code. SVGs are handled via `@svgr/webpack` (import `.svg` as a React component).
 
 ## Repo conventions
 

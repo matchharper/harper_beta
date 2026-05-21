@@ -17,9 +17,9 @@ const METRIC_TOOLTIPS: Record<string, string> = {
   careerUsers:
     "talent_users 기준 유저 수입니다. admin excluded emails에 걸리는 이메일/도메인은 제외합니다.",
   active7d:
-    "lastActiveAt이 최근 7일 안인 유저입니다. lastActiveAt은 talent_users.last_logined_at, career 로그의 최신 시각, talent_setting.updated_at 중 가장 최신값입니다.",
+    "lastActiveAt이 최근 7일 안인 유저입니다. lastActiveAt은 login_completed, talent_users.last_logined_at, career 로그, 유저 메시지, 추천 열람/클릭/피드백/status 변경 중 가장 최신값입니다. 시스템 추천 생성이나 talent_setting.updated_at만으로는 활동으로 보지 않습니다.",
   active30d:
-    "lastActiveAt이 최근 30일 안인 유저입니다. 단순 로그인뿐 아니라 career 화면 로그와 설정 업데이트도 활동으로 봅니다.",
+    "lastActiveAt이 최근 30일 안인 유저입니다. 로그인, career 화면 로그, 유저 메시지, 추천 상호작용을 활동으로 봅니다.",
   onboardingCompleted:
     "talent_activity_events.event_type='onboarding_completed' 첫 발생 기준입니다. 과거 이벤트가 없으면 talent_setting.is_onboarding_done=true 및 updated_at으로 보정합니다.",
   recommendedUsers:
@@ -29,7 +29,7 @@ const METRIC_TOOLTIPS: Record<string, string> = {
   signalUsers:
     "추천 피드백, status 변경, 프로필/설정/이력서 링크 저장 같은 명시적 선호 신호가 있는 유저 수입니다.",
   returnedAfterFirstRecommendation:
-    "첫 추천 시각 이후 career_app_opened 로그가 있거나 talent_users.last_logined_at이 첫 추천보다 늦은 유저 수입니다.",
+    "첫 추천 시각 이후 login_completed, career 로그, 유저 메시지, 추천 열람/클릭/피드백/status 변경, 또는 talent_users.last_logined_at이 있는 유저 수입니다.",
   positiveFeedback:
     "talent_opportunity_recommendation.feedback='like' 레코드 수입니다. 과거 positive 값도 함께 인식합니다.",
   negativeFeedback:

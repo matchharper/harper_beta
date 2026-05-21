@@ -8,7 +8,6 @@ import {
   BeigeActionDropdownSeparator,
 } from "@/components/ui/beige/action-dropdown";
 import { DropdownMenuLabel } from "@/components/ui/beige/dropdown-menu";
-import { useUnreadCareerUpdateNote } from "@/hooks/career/useCareerUpdateNotes";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 
 type CareerProfileMenuVariant = "desktop" | "mobile";
@@ -31,8 +30,6 @@ const CareerProfileMenu = ({
   const logCareerEvent = useCareerLogEvent();
   const [menuOpen, setMenuOpen] = useState(false);
   const [updateNotesOpen, setUpdateNotesOpen] = useState(false);
-  const { hasUnread: hasUnreadUpdateNote, markSeen: markLatestUpdateNoteSeen } =
-    useUnreadCareerUpdateNote();
 
   const normalizedProfileName = String(profileName ?? "Candidate");
   const profileInitial =
@@ -50,7 +47,6 @@ const CareerProfileMenu = ({
     logCareerEvent("click_profile_menu_update_notes");
     setUpdateNotesOpen(true);
     setMenuOpen(false);
-    markLatestUpdateNoteSeen();
   };
 
   const handleSuggestUpdate = () => {
@@ -125,15 +121,6 @@ const CareerProfileMenu = ({
             className={triggerClassName}
           >
             {avatarBody}
-            {hasUnreadUpdateNote ? (
-              <span
-                aria-hidden
-                className={careerCx(
-                  "absolute h-2 w-2 rounded-full bg-[#ef4444] ring-2 ring-beige50",
-                  isMobile ? "right-1.5 top-1.5" : "right-0.5 top-0.5"
-                )}
-              />
-            ) : null}
           </button>
         }
       >
@@ -158,11 +145,6 @@ const CareerProfileMenu = ({
         >
           <Scroll className="h-4 w-4" />
           <span className="min-w-0 flex-1">업데이트 노트</span>
-          {!hasUnreadUpdateNote && (
-            <span className="rounded-full bg-beige900 px-1.5 py-1 text-[10px] font-normal leading-none text-beige50">
-              NEW
-            </span>
-          )}
         </BeigeActionDropdownItem>
         <BeigeActionDropdownSeparator />
         <BeigeActionDropdownItem

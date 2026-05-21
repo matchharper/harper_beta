@@ -7,8 +7,7 @@ export type CareerUpdateNote = {
   tag?: string;
 };
 
-// Add the newest note at the top. Change `id` when the latest note should show
-// as unread again in the profile menu.
+// Add the newest note at the top.
 export const careerUpdateNotes: CareerUpdateNote[] = [
   {
     id: "2026-05-19-mobile-career",
@@ -70,8 +69,3 @@ export const careerUpdateNotes: CareerUpdateNote[] = [
     ],
   },
 ];
-
-export const latestCareerUpdateNote = careerUpdateNotes[0] ?? null;
-
-export const CAREER_UPDATE_NOTES_STORAGE_KEY =
-  "harper.career.updateNotes.latestSeenId";
