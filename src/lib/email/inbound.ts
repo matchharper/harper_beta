@@ -11,7 +11,7 @@ type InboundEventRow = {
   id: string;
 };
 
-const EMAIL_REPLY_DOMAIN = "matchharper.com";
+const DEFAULT_EMAIL_REPLY_DOMAIN = "reply.matchharper.com";
 
 export type ResendInboundEventPayload = {
   created_at?: string;
@@ -42,7 +42,9 @@ function getString(value: unknown) {
 }
 
 function getEmailReplyDomain() {
-  return EMAIL_REPLY_DOMAIN;
+  return (
+    process.env.EMAIL_REPLY_DOMAIN?.trim() || DEFAULT_EMAIL_REPLY_DOMAIN
+  ).toLowerCase();
 }
 
 export async function createEmailReplyAlias(args: {

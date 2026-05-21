@@ -24,6 +24,7 @@ export type CareerTalentSummary = {
   profilePicture: string | null;
   headline: string | null;
   conversationStage: string | null;
+  isOnboardingDone: boolean;
   insightCoverage: number;
   lastConversationAt: string | null;
   createdAt: string | null;
@@ -48,6 +49,7 @@ export type CareerTalentDetailResponse = {
   location: string | null;
   registeredLinks: string[];
   conversationStage: string | null;
+  isOnboardingDone: boolean;
   lastConversationAt: string | null;
   createdAt: string | null;
   insights: Record<string, string> | null;
@@ -166,6 +168,20 @@ export async function fetchCareerTalentList(args: {
     }
   }
 
+  // Fetch onboarding completion status per user.
+  const { data: settingsRows } = await admin
+    .from("talent_setting")
+    .select("user_id, is_onboarding_done")
+    .in("user_id", userIds);
+
+  const onboardingDoneMap = new Map<string, boolean>();
+  for (const setting of settingsRows ?? []) {
+    onboardingDoneMap.set(
+      setting.user_id,
+      Boolean(setting.is_onboarding_done)
+    );
+  }
+
   // Fetch insights per user
   const { data: insightsRows } = await admin
     .from("talent_insights")
@@ -192,6 +208,7 @@ export async function fetchCareerTalentList(args: {
       profilePicture: row.profile_picture,
       headline: row.headline,
       conversationStage: conv?.stage ?? null,
+      isOnboardingDone: onboardingDoneMap.get(row.user_id) ?? false,
       insightCoverage: insightCount,
       lastConversationAt: conv?.updated_at ?? null,
       createdAt: row.created_at,
@@ -255,7 +272,9 @@ export async function fetchCareerTalentDetail(
   // Fetch preferences
   const { data: setting } = await admin
     .from("talent_setting")
-    .select("engagement_types, career_move_intent, profile_visibility")
+    .select(
+      "engagement_types, career_move_intent, profile_visibility, is_onboarding_done"
+    )
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -271,6 +290,7 @@ export async function fetchCareerTalentDetail(
     location: profile?.location ?? null,
     registeredLinks: profile?.resume_links ?? [],
     conversationStage: latestConv?.stage ?? null,
+    isOnboardingDone: Boolean(setting?.is_onboarding_done),
     lastConversationAt: latestConv?.updated_at ?? null,
     createdAt: profile?.created_at ?? null,
     insights: normalizedInsights,

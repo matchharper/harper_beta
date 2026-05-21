@@ -1,12 +1,11 @@
 
 ### Lever 예시 사용 코드
 
-import { ApifyClient } from 'apify-client';
-
-// Initialize the ApifyClient with API token
-const client = new ApifyClient({
-    token: '<YOUR_API_TOKEN>',
-});
+import {
+  callApifyActor,
+  getApifyApiToken,
+  listApifyDatasetItems,
+} from "@/lib/apifyRest";
 
 // Prepare Actor input
 const input = {
@@ -21,12 +20,24 @@ const input = {
 };
 
 (async () => {
+    const token = getApifyApiToken();
+
     // Run the Actor and wait for it to finish
-    const run = await client.actor("RyuY39MwHKAvdAZdg").call(input);
+    const run = await callApifyActor({
+        actorId: "RyuY39MwHKAvdAZdg",
+        input,
+        maxRunWaitSeconds: 120,
+        token,
+        waitForFinishSeconds: 120,
+    });
 
     // Fetch and print Actor results from the run's dataset (if any)
     console.log('Results from dataset');
-    const { items } = await client.dataset(run.defaultDatasetId).listItems();
+    const items = await listApifyDatasetItems({
+        datasetId: run.defaultDatasetId,
+        limit: 500,
+        token,
+    });
     items.forEach((item) => {
         console.dir(item);
     });
@@ -74,12 +85,11 @@ const input = {
 
 
 ### Linkedin jobs 예시 사용 코드
-import { ApifyClient } from 'apify-client';
-
-// Initialize the ApifyClient with API token
-const client = new ApifyClient({
-    token: '<YOUR_API_TOKEN>',
-});
+import {
+  callApifyActor,
+  getApifyApiToken,
+  listApifyDatasetItems,
+} from "@/lib/apifyRest";
 
 // Prepare Actor input
 const input = {
@@ -92,12 +102,24 @@ const input = {
 };
 
 (async () => {
+    const token = getApifyApiToken();
+
     // Run the Actor and wait for it to finish
-    const run = await client.actor("hKByXkMQaC5Qt9UMN").call(input);
+    const run = await callApifyActor({
+        actorId: "hKByXkMQaC5Qt9UMN",
+        input,
+        maxRunWaitSeconds: 120,
+        token,
+        waitForFinishSeconds: 120,
+    });
 
     // Fetch and print Actor results from the run's dataset (if any)
     console.log('Results from dataset');
-    const { items } = await client.dataset(run.defaultDatasetId).listItems();
+    const items = await listApifyDatasetItems({
+        datasetId: run.defaultDatasetId,
+        limit: 500,
+        token,
+    });
     items.forEach((item) => {
         console.dir(item);
     });

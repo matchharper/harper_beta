@@ -319,7 +319,7 @@ const CareerComposerSection = () => {
                 rows={3}
                 disabled={isTextInputLocked}
                 className={careerCx(
-                  "min-h-[72px] min-w-0 flex-1 resize-none border-none px-3.5 py-4 text-sm leading-5 text-black outline-none transition-all placeholder:text-beige900/35 disabled:cursor-not-allowed lg:text-[14px]"
+                  "min-h-[72px] min-w-0 flex-1 resize-none border-none px-3.5 py-4 text-base leading-5 text-black outline-none transition-all placeholder:text-beige900/35 disabled:cursor-not-allowed md:text-sm lg:text-[14px]"
                 )}
               />
               {!isVoiceMode && (

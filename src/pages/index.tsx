@@ -29,6 +29,8 @@ const CAREER_AUTHENTICATED_START_HREF = "/career";
 const CAREER_ONBOARDING_HREF = "/career/onboarding";
 const CAREER_LANDING_ABTEST_TYPE = "career_landing_v1";
 const CAREER_EMAIL_ONBOARDING_OVERRIDE_PARAM = "career_onboarding_variant";
+// Temporarily disable the email onboarding A/B route; CTA should use login.
+const CAREER_EMAIL_ONBOARDING_AB_TEST_ENABLED = false;
 const CAREER_LANDING_LOCAL_ID_KEY = "harper_career_landing_id_v1";
 const CAREER_LANDING_LAST_VISIT_AT_KEY = "harper_career_landing_last_visit_at";
 const CAREER_LANDING_SESSION_GAP_MS = 30 * 60 * 1000;
@@ -661,24 +663,26 @@ export default function LandingKoVfPage() {
       event.preventDefault();
       void addLandingLog("click_start");
 
-      const override =
-        typeof router.query[CAREER_EMAIL_ONBOARDING_OVERRIDE_PARAM] === "string"
-          ? router.query[CAREER_EMAIL_ONBOARDING_OVERRIDE_PARAM]
-          : null;
-      const variant = resolveCareerOnboardingLandingVariant({
-        localId: landingId,
-        override,
-        salt: CAREER_EMAIL_ONBOARDING_ABTEST_TYPE,
-      });
+      if (CAREER_EMAIL_ONBOARDING_AB_TEST_ENABLED) {
+        const override =
+          typeof router.query[CAREER_EMAIL_ONBOARDING_OVERRIDE_PARAM] === "string"
+            ? router.query[CAREER_EMAIL_ONBOARDING_OVERRIDE_PARAM]
+            : null;
+        const variant = resolveCareerOnboardingLandingVariant({
+          localId: landingId,
+          override,
+          salt: CAREER_EMAIL_ONBOARDING_ABTEST_TYPE,
+        });
 
-      if (
-        !authLoading &&
-        !user &&
-        variant === CAREER_EMAIL_ONBOARDING_VARIANT
-      ) {
-        void addLandingLog("email_onboarding_modal_open");
-        setEmailOnboardingModalOpen(true);
-        return;
+        if (
+          !authLoading &&
+          !user &&
+          variant === CAREER_EMAIL_ONBOARDING_VARIANT
+        ) {
+          void addLandingLog("email_onboarding_modal_open");
+          setEmailOnboardingModalOpen(true);
+          return;
+        }
       }
 
       void router.push(careerStartHref);
