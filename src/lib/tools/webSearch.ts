@@ -1,4 +1,8 @@
-import { ApifyClient } from "apify-client";
+import {
+  callApifyActor,
+  getApifyApiToken,
+  listApifyDatasetItems,
+} from "@/lib/apifyRest";
 
 export type WebSearchResult = {
   snippet: string;
@@ -35,27 +39,33 @@ export async function runWebSearch(args: {
 }): Promise<WebSearchResponse> {
   const query = String(args.query ?? "").trim();
   const maxResults = clampCount(args.maxResults, 5);
-  const token = String(process.env.APIFY_CLIENT_KEY ?? "").trim();
 
   if (!query) {
     throw new Error("query is required");
   }
 
-  if (!token) {
-    throw new Error("APIFY_CLIENT_KEY is not configured");
-  }
+  const token = getApifyApiToken();
 
-  const client = new ApifyClient({ token });
-  const run = await client.actor("563JCPLOqM1kMmbbP").call({
-    keyword: query,
-    language: "ko",
-    country: "KR",
-    page: 1,
-    limit: String(toApifyLimit(maxResults)),
-    logger: null,
+  const run = await callApifyActor({
+    actorId: "563JCPLOqM1kMmbbP",
+    input: {
+      keyword: query,
+      language: "ko",
+      country: "KR",
+      page: 1,
+      limit: String(toApifyLimit(maxResults)),
+      logger: null,
+    },
+    maxRunWaitSeconds: 60,
+    token,
+    waitForFinishSeconds: 60,
   });
 
-  const { items } = await client.dataset(run.defaultDatasetId).listItems();
+  const items = await listApifyDatasetItems({
+    datasetId: run.defaultDatasetId,
+    limit: 10,
+    token,
+  });
   if (!items || items.length === 0) {
     return { query, results: [] };
   }

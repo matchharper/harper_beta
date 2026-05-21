@@ -83,8 +83,8 @@ type MutableUserStats = {
   companyOpenCount: number;
   firstRecommendationAt: string | null;
   jdOpenCount: number;
-  lastCareerEventAt: string | null;
   lastMeaningfulAction: string | null;
+  lastMeaningfulActionAt: string | null;
   messageCount: number;
   negativeFeedbackCount: number;
   positiveFeedbackCount: number;
@@ -330,6 +330,49 @@ function addFirstOccurredAt(
   if (nextValue) map.set(userId, nextValue);
 }
 
+function addOccurredAt(
+  map: Map<string, string[]>,
+  userId: string,
+  occurredAt: string | null | undefined
+) {
+  if (!userId || !occurredAt) return;
+  const values = map.get(userId) ?? [];
+  values.push(occurredAt);
+  map.set(userId, values);
+}
+
+function latestOccurredAt(map: Map<string, string[]>, userId: string) {
+  return (map.get(userId) ?? []).reduce<string | null>(
+    (current, occurredAt) => maxIso(current, occurredAt),
+    null
+  );
+}
+
+function hasOccurredAfter(
+  map: Map<string, string[]>,
+  userId: string,
+  baseline: string | null | undefined
+) {
+  if (!baseline) return false;
+  return (map.get(userId) ?? []).some((occurredAt) =>
+    isAfter(occurredAt, baseline)
+  );
+}
+
+function hasOccurredInRangeAfter(
+  map: Map<string, string[]>,
+  userId: string,
+  baseline: string | null | undefined,
+  range: AnalyticsDateRange
+) {
+  if (!baseline) return false;
+  return (map.get(userId) ?? []).some(
+    (occurredAt) =>
+      isWithinAnalyticsDateRange(occurredAt, range) &&
+      isAfter(occurredAt, baseline)
+  );
+}
+
 function countIntersection(left: Set<string>, right: Set<string>) {
   let count = 0;
   for (const value of left) {
@@ -357,8 +400,8 @@ function createEmptyStats(): MutableUserStats {
     companyOpenCount: 0,
     firstRecommendationAt: null,
     jdOpenCount: 0,
-    lastCareerEventAt: null,
     lastMeaningfulAction: null,
+    lastMeaningfulActionAt: null,
     messageCount: 0,
     negativeFeedbackCount: 0,
     positiveFeedbackCount: 0,
@@ -401,8 +444,12 @@ function markMeaningfulAction(
   const stats = statsByUserId.get(userId);
   if (!stats || !occurredAt) return;
 
-  if (!stats.lastMeaningfulAction || occurredAt >= stats.lastMeaningfulAction) {
+  if (
+    !stats.lastMeaningfulActionAt ||
+    isAfter(occurredAt, stats.lastMeaningfulActionAt)
+  ) {
     stats.lastMeaningfulAction = label;
+    stats.lastMeaningfulActionAt = occurredAt;
   }
 }
 
@@ -673,6 +720,7 @@ export async function POST(req: NextRequest) {
     const [
       landingLogs,
       careerLogs,
+      loginCompletedLogs,
       talentUsers,
       talentSettings,
       talentMessages,
@@ -694,6 +742,14 @@ export async function POST(req: NextRequest) {
           .from("logs")
           .select("user_id,type,created_at")
           .like("type", "career_%")
+          .order("id", { ascending: true })
+          .range(from, to)
+      ),
+      fetchAllRows<LogRow>((from, to) =>
+        supabaseServer
+          .from("logs")
+          .select("user_id,type,created_at")
+          .eq("type", "login_completed")
           .order("id", { ascending: true })
           .range(from, to)
       ),
@@ -830,7 +886,23 @@ export async function POST(req: NextRequest) {
       ["onboarding_visibility", new Set<string>()],
     ]);
 
-    const careerAppOpenedRowsByUserId = new Map<string, string[]>();
+    const userActivityRowsByUserId = new Map<string, string[]>();
+    const latestLoginCompletedAtByUserId = new Map<string, string>();
+    for (const log of loginCompletedLogs) {
+      const userId = String(log.user_id ?? "").trim();
+      if (!userId || !includedUserIds.has(userId)) continue;
+
+      addOccurredAt(userActivityRowsByUserId, userId, log.created_at);
+
+      const latestLoginCompletedAt = maxIso(
+        latestLoginCompletedAtByUserId.get(userId),
+        log.created_at
+      );
+      if (latestLoginCompletedAt) {
+        latestLoginCompletedAtByUserId.set(userId, latestLoginCompletedAt);
+      }
+    }
+
     const firstSignupAtByUserId = new Map<string, string>();
     const firstProfileSubmittedAtByUserId = new Map<string, string>();
     for (const log of careerLogs) {
@@ -841,7 +913,7 @@ export async function POST(req: NextRequest) {
       const stats = statsByUserId.get(userId);
       if (!stats) continue;
 
-      stats.lastCareerEventAt = maxIso(stats.lastCareerEventAt, log.created_at);
+      addOccurredAt(userActivityRowsByUserId, userId, log.created_at);
       const isInAnalyticsRange = isWithinAnalyticsDateRange(
         log.created_at,
         analyticsDateRange
@@ -849,9 +921,6 @@ export async function POST(req: NextRequest) {
 
       if (type === "career_app_opened") {
         incrementStat(statsByUserId, userId, "appOpenCount");
-        const values = careerAppOpenedRowsByUserId.get(userId) ?? [];
-        values.push(log.created_at);
-        careerAppOpenedRowsByUserId.set(userId, values);
       }
       if (type === "career_signup_completed") {
         addFirstOccurredAt(firstSignupAtByUserId, userId, log.created_at);
@@ -919,6 +988,11 @@ export async function POST(req: NextRequest) {
         );
       }
       incrementStat(statsByUserId, message.user_id, "messageCount");
+      addOccurredAt(
+        userActivityRowsByUserId,
+        message.user_id,
+        message.created_at
+      );
       markMeaningfulAction(
         statsByUserId,
         message.user_id,
@@ -929,7 +1003,11 @@ export async function POST(req: NextRequest) {
 
     for (const user of includedTalentUsers) {
       if (!firstSignupAtByUserId.has(user.user_id)) {
-        addFirstOccurredAt(firstSignupAtByUserId, user.user_id, user.created_at);
+        addFirstOccurredAt(
+          firstSignupAtByUserId,
+          user.user_id,
+          user.created_at
+        );
       }
     }
 
@@ -979,6 +1057,11 @@ export async function POST(req: NextRequest) {
 
       if (recommendation.viewed_at) {
         incrementStat(statsByUserId, userId, "viewedRecommendationCount");
+        addOccurredAt(
+          userActivityRowsByUserId,
+          userId,
+          recommendation.viewed_at
+        );
         markMeaningfulAction(
           statsByUserId,
           userId,
@@ -987,6 +1070,11 @@ export async function POST(req: NextRequest) {
         );
       }
       if (recommendation.clicked_at) {
+        addOccurredAt(
+          userActivityRowsByUserId,
+          userId,
+          recommendation.clicked_at
+        );
         markMeaningfulAction(
           statsByUserId,
           userId,
@@ -997,6 +1085,11 @@ export async function POST(req: NextRequest) {
       const feedback = normalizeRecommendationFeedback(recommendation.feedback);
       if (feedback === "positive") {
         incrementStat(statsByUserId, userId, "positiveFeedbackCount");
+        addOccurredAt(
+          userActivityRowsByUserId,
+          userId,
+          recommendation.feedback_at ?? recommendation.updated_at
+        );
         markMeaningfulAction(
           statsByUserId,
           userId,
@@ -1006,6 +1099,11 @@ export async function POST(req: NextRequest) {
       }
       if (feedback === "negative") {
         incrementStat(statsByUserId, userId, "negativeFeedbackCount");
+        addOccurredAt(
+          userActivityRowsByUserId,
+          userId,
+          recommendation.feedback_at ?? recommendation.updated_at
+        );
         markMeaningfulAction(
           statsByUserId,
           userId,
@@ -1015,6 +1113,11 @@ export async function POST(req: NextRequest) {
       }
       if (recommendation.saved_stage) {
         incrementStat(statsByUserId, userId, "statusChangeCount");
+        addOccurredAt(
+          userActivityRowsByUserId,
+          userId,
+          recommendation.updated_at
+        );
       }
     }
 
@@ -1022,14 +1125,13 @@ export async function POST(req: NextRequest) {
       const stats = statsByUserId.get(user.user_id);
       if (!stats || !stats.firstRecommendationAt) continue;
 
-      const openedAfterRecommendation =
-        careerAppOpenedRowsByUserId
-          .get(user.user_id)
-          ?.some((openedAt) =>
-            isAfter(openedAt, stats.firstRecommendationAt)
-          ) ?? false;
+      const userActivityAfterRecommendation = hasOccurredAfter(
+        userActivityRowsByUserId,
+        user.user_id,
+        stats.firstRecommendationAt
+      );
       stats.returnedAfterFirstRecommendation =
-        openedAfterRecommendation ||
+        userActivityAfterRecommendation ||
         isAfter(user.last_logined_at, stats.firstRecommendationAt);
     }
 
@@ -1094,16 +1196,14 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        const openedAfterFirstRecommendationInRange =
-          careerAppOpenedRowsByUserId
-            .get(user.user_id)
-            ?.some(
-              (openedAt) =>
-                isWithinAnalyticsDateRange(openedAt, analyticsDateRange) &&
-                isAfter(openedAt, stats.firstRecommendationAt)
-            ) ?? false;
-
-        if (openedAfterFirstRecommendationInRange) {
+        if (
+          hasOccurredInRangeAfter(
+            userActivityRowsByUserId,
+            user.user_id,
+            stats.firstRecommendationAt,
+            analyticsDateRange
+          )
+        ) {
           rangedReturnedAfterFirstRecommendationUserIds.add(user.user_id);
         }
       }
@@ -1178,8 +1278,7 @@ export async function POST(req: NextRequest) {
         count: analyticsDateRange.isActive
           ? rangedReturnedAfterFirstRecommendationUserIds.size
           : returnedAfterFirstRecommendationUserIds.size,
-        detail:
-          "career_app_opened or last_logined_at after first recommendation",
+        detail: "user activity after first recommendation",
       },
     ];
 
@@ -1199,8 +1298,8 @@ export async function POST(req: NextRequest) {
       const createdAt = user.created_at ?? null;
       const lastActiveAt = [
         user.last_logined_at,
-        stats.lastCareerEventAt,
-        settingByUserId.get(user.user_id)?.updated_at,
+        latestLoginCompletedAtByUserId.get(user.user_id),
+        latestOccurredAt(userActivityRowsByUserId, user.user_id),
       ].reduce<string | null>((current, value) => maxIso(current, value), null);
       const profileSignalCount =
         (user.resume_file_name ? 1 : 0) + (user.resume_links?.length ?? 0);
@@ -1290,15 +1389,14 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      for (const setting of talentSettings) {
-        if (!includedUserIds.has(setting.user_id)) continue;
-        if (
-          !isWithinAnalyticsDateRange(setting.updated_at, analyticsDateRange)
-        ) {
+      for (const log of loginCompletedLogs) {
+        const userId = String(log.user_id ?? "").trim();
+        if (!userId || !includedUserIds.has(userId)) continue;
+        if (!isWithinAnalyticsDateRange(log.created_at, analyticsDateRange)) {
           continue;
         }
 
-        rangedActiveUserIds.add(setting.user_id);
+        rangedActiveUserIds.add(userId);
       }
 
       for (const log of careerLogs) {
@@ -1342,6 +1440,7 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
+        rangedActiveUserIds.add(message.user_id);
         rangedEngagedUserIds.add(message.user_id);
       }
 
@@ -1360,6 +1459,7 @@ export async function POST(req: NextRequest) {
             analyticsDateRange
           )
         ) {
+          rangedActiveUserIds.add(userId);
           rangedEngagedUserIds.add(userId);
         }
         if (
@@ -1368,6 +1468,7 @@ export async function POST(req: NextRequest) {
             analyticsDateRange
           )
         ) {
+          rangedActiveUserIds.add(userId);
           rangedEngagedUserIds.add(userId);
         }
 
@@ -1381,6 +1482,7 @@ export async function POST(req: NextRequest) {
           isWithinAnalyticsDateRange(feedbackAt, analyticsDateRange)
         ) {
           rangedPositiveFeedback += 1;
+          rangedActiveUserIds.add(userId);
           rangedSignalUserIds.add(userId);
         }
         if (
@@ -1388,6 +1490,7 @@ export async function POST(req: NextRequest) {
           isWithinAnalyticsDateRange(feedbackAt, analyticsDateRange)
         ) {
           rangedNegativeFeedback += 1;
+          rangedActiveUserIds.add(userId);
           rangedSignalUserIds.add(userId);
         }
         if (
@@ -1397,6 +1500,7 @@ export async function POST(req: NextRequest) {
             analyticsDateRange
           )
         ) {
+          rangedActiveUserIds.add(userId);
           rangedSignalUserIds.add(userId);
         }
       }
@@ -1462,7 +1566,7 @@ export async function POST(req: NextRequest) {
           ? "선택 기간 첫 추천자 중 같은 기간 재접속"
           : "첫 추천 받은 유저 중 재접속",
         tooltip:
-          "첫 추천 이후 career_app_opened 로그가 있거나 talent_users.last_logined_at이 첫 추천보다 늦으면 재접속으로 봅니다.",
+          "첫 추천 이후 login_completed, career 로그, 유저 메시지, 추천 열람/클릭/피드백/status 변경, 또는 talent_users.last_logined_at이 있으면 재접속으로 봅니다. 시스템 추천 생성이나 talent_setting.updated_at만으로는 재접속으로 보지 않습니다.",
       }),
     ];
 
@@ -1480,7 +1584,7 @@ export async function POST(req: NextRequest) {
             "Active users",
             rangedActiveUserIds.size,
             "선택 기간 활동",
-            "선택 기간 안에 talent_users.last_logined_at, career 로그, talent_setting.updated_at 중 하나라도 있는 유저 수입니다."
+            "선택 기간 안에 login_completed, talent_users.last_logined_at, career 로그, 유저 메시지, 추천 열람/클릭/피드백/status 변경 중 하나라도 있는 유저 수입니다. 시스템 추천 생성이나 talent_setting.updated_at만으로는 활동으로 보지 않습니다."
           ),
           buildSummaryMetric(
             "active30d",
@@ -1522,7 +1626,7 @@ export async function POST(req: NextRequest) {
             "Returned after first rec",
             rangedReturnedAfterFirstRecommendationUserIds.size,
             "선택 기간 재접속",
-            "첫 추천은 전체 기간에서 찾고, 선택 기간 안에 그 이후 career_app_opened 또는 last_logined_at이 있는 유저 수입니다."
+            "첫 추천은 전체 기간에서 찾고, 선택 기간 안에 그 이후 login_completed, career 로그, 유저 메시지, 추천 열람/클릭/피드백/status 변경, 또는 last_logined_at이 있는 유저 수입니다."
           ),
           buildSummaryMetric(
             "positiveFeedback",

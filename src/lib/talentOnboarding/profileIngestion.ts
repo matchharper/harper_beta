@@ -1,4 +1,3 @@
-import { ApifyClient } from "apify-client";
 import { logger } from "@/utils/logger";
 import {
   buildCareerProfileIngestionSystemPrompt,
@@ -12,6 +11,11 @@ import {
   normalizeTalentBlockedCompanies,
   upsertTalentSetting,
 } from "@/lib/talentOnboarding/stateStore";
+import {
+  callApifyActor,
+  getApifyApiToken,
+  listApifyDatasetItems,
+} from "@/lib/apifyRest";
 import type { TalentStructuredProfile } from "@/lib/talentOnboarding/models";
 
 const DEFAULT_LINKEDIN_ACTOR_ID = "LpVuK3Zozwuipa5bp";
@@ -1223,15 +1227,11 @@ async function extractTalentProfileDraftFromSources(
 
   if (linkedinUrl) {
     try {
-      const token = process.env.APIFY_CLIENT_KEY;
-      if (!token) {
-        throw new Error("APIFY_CLIENT_KEY is required");
-      }
+      const token = getApifyApiToken("APIFY_CLIENT_KEY is required");
 
       const actorId =
         cleanText(process.env.APIFY_LINKEDIN_PROFILE_ACTOR_ID, 80) ??
         DEFAULT_LINKEDIN_ACTOR_ID;
-      const client = new ApifyClient({ token });
 
       const input = {
         profileScraperMode: "Profile details no email ($4 per 1k)",
@@ -1243,7 +1243,13 @@ async function extractTalentProfileDraftFromSources(
         linkedinUrl,
       });
       const run = await withTimeout(
-        client.actor(actorId).call(input),
+        callApifyActor({
+          actorId,
+          input,
+          maxRunWaitSeconds: 90,
+          token,
+          waitForFinishSeconds: 90,
+        }),
         90_000,
         "Apify LinkedIn crawl timed out"
       );
@@ -1252,9 +1258,11 @@ async function extractTalentProfileDraftFromSources(
         defaultDatasetId: run.defaultDatasetId,
       });
 
-      const { items } = await withTimeout(
-        client.dataset(run.defaultDatasetId).listItems({
+      const items = await withTimeout(
+        listApifyDatasetItems({
+          datasetId: run.defaultDatasetId,
           limit: 1,
+          token,
         }),
         20_000,
         "Apify dataset fetch timed out"
