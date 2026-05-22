@@ -311,7 +311,17 @@ begin
 
     if exists (select 1 from public.talent_setting where user_id = target_user_id) then
       update public.talent_setting target_setting
-         set profile_visibility = coalesce(source_setting.profile_visibility, target_setting.profile_visibility),
+         set profile_visibility = case
+               when lead_row.metadata ? 'profileVisibility'
+                 then coalesce(source_setting.profile_visibility, target_setting.profile_visibility)
+               else target_setting.profile_visibility
+             end,
+             engagement_types = case
+               when lead_row.metadata ? 'engagementTypes'
+                 and cardinality(coalesce(source_setting.engagement_types, '{}'::text[])) > 0
+                 then source_setting.engagement_types
+               else target_setting.engagement_types
+             end,
              updated_at = now_ts
         from public.talent_setting source_setting
        where target_setting.user_id = target_user_id
