@@ -175,14 +175,16 @@ Body:
 
 앞으로 좋은 기회를 찾고, 준비하고, 실제로 연결되는 과정까지 제가 옆에서 챙겨보겠습니다.
 
-괜찮으시면 이 메일에 "좋아요"라고만 답장 주세요. 바로 이어서 필요한 자료와 회사에 소개드릴 때의 편한 방식을 여쭤볼게요.
+괜찮으시면 이 메일에 "좋아요"라고만 답장 주세요. 혹시 지금 찾고 있거나 열어두고 있는 방향이 있다면 한 줄만 덧붙여주셔도 좋아요. 예를 들면 풀타임 합류, 현업과 병행할 파트타임/프로젝트, 가벼운 기술 자문 같은 것들이요.
+
+아직 잘 모르겠으면 그냥 "좋아요"만 보내셔도 됩니다. 바로 이어서 필요한 자료와 회사에 소개드릴 때의 편한 방식을 여쭤볼게요.
 ```
 
 이 메일의 `Reply-To`는 `reply+{token}@reply.matchharper.com` 형태의 alias다.
 
 ### 메일 2: 시작 답장 이후 자료 요청
 
-유저가 "네", "시작해요", "좋아요"처럼 답하면 보낸다. 다만 유저가 첫 답장에 이미 링크나 이력서를 보냈다면 이 단계를 건너뛰고 메일 3으로 간다.
+유저가 "네", "시작해요", "좋아요"처럼 답하면 보낸다. 다만 유저가 첫 답장에 이미 링크나 이력서를 보냈다면 이 단계를 건너뛰고 메일 3으로 간다. 첫 답장에서 기회 형태가 명확하면 `talent_setting.engagement_types`에 저장하지만, 애매하거나 누락됐다고 해서 이 메일에서 바로 다시 묻지는 않는다.
 
 Subject:
 
@@ -640,10 +642,12 @@ any step -> failed
 유저 답장에서 처리한다.
 
 - stop intent면 `paused`
+- 답장에서 `open_to_matches`/`exceptional_only`나 `full_time`/`fractional`/`advisor`가 명확하면 `talent_setting`과 lead metadata에 저장
 - profile link나 resume text가 있으면 바로 `profile_received`
 - 그 외에는 `awaiting_profile`로 바꾸고 메일 2 발송
 
 이 단계에서는 "네"만 허용하지 않는다. 사용자가 바로 질문을 하거나 "어떻게 하면 돼요?"라고 해도 자연스럽게 자료 요청으로 연결한다.
+기회 형태가 애매한 경우에도 즉시 재질문하지 않고, 메일 2 이후 자료 수신 단계에서 부족한 값만 다시 묻는다.
 
 #### `awaiting_profile`
 
@@ -671,6 +675,7 @@ any step -> failed
 - `talent_users.resume_links` 업데이트
 - 첨부가 있으면 metadata에 Resend attachment 정보를 저장하고, internal API에서 PDF/TXT/MD 텍스트를 추출해 `resume_text` 업데이트
 - `talent_messages`에는 기존 inbound job 처리에서 유저 메일을 저장
+- `profile_visibility`나 `engagement_types`가 아직 확정되지 않았다면 메일 3 하단에서 부족한 항목만 짧게 질문
 - 메일 3 즉시 발송
 - lead step을 `profile_review_pending`으로 변경하고, worker가 lead를 직접 claim
 
