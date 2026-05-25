@@ -666,7 +666,8 @@ export default function LandingKoVfPage() {
 
       if (CAREER_EMAIL_ONBOARDING_AB_TEST_ENABLED) {
         const override =
-          typeof router.query[CAREER_EMAIL_ONBOARDING_OVERRIDE_PARAM] === "string"
+          typeof router.query[CAREER_EMAIL_ONBOARDING_OVERRIDE_PARAM] ===
+          "string"
             ? router.query[CAREER_EMAIL_ONBOARDING_OVERRIDE_PARAM]
             : null;
         const variant = resolveCareerOnboardingLandingVariant({
@@ -973,11 +974,6 @@ export default function LandingKoVfPage() {
                 label="Talk to Harper"
                 onClick={handleCareerStartClick}
               />
-            </Reveal>
-            <Reveal once delay={0.22}>
-              <div className="mt-5 text-[13px] text-beige900/45">
-                로그인 후 바로 커리어 agent 설정을 시작합니다.
-              </div>
             </Reveal>
           </section>
 

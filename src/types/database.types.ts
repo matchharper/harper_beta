@@ -742,6 +742,92 @@ export type Database = {
           },
         ]
       }
+      career_email_messages: {
+        Row: {
+          body_text: string | null
+          created_at: string
+          created_by: string | null
+          direction: string
+          from_email: string | null
+          id: string
+          inbound_event_id: string | null
+          mail_type: string
+          metadata: Json
+          occurred_at: string
+          reply_job_id: string | null
+          status: string
+          subject: string | null
+          talent_id: string
+          talent_message_id: number | null
+          to_email: string | null
+        }
+        Insert: {
+          body_text?: string | null
+          created_at?: string
+          created_by?: string | null
+          direction: string
+          from_email?: string | null
+          id?: string
+          inbound_event_id?: string | null
+          mail_type: string
+          metadata?: Json
+          occurred_at?: string
+          reply_job_id?: string | null
+          status?: string
+          subject?: string | null
+          talent_id: string
+          talent_message_id?: number | null
+          to_email?: string | null
+        }
+        Update: {
+          body_text?: string | null
+          created_at?: string
+          created_by?: string | null
+          direction?: string
+          from_email?: string | null
+          id?: string
+          inbound_event_id?: string | null
+          mail_type?: string
+          metadata?: Json
+          occurred_at?: string
+          reply_job_id?: string | null
+          status?: string
+          subject?: string | null
+          talent_id?: string
+          talent_message_id?: number | null
+          to_email?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "career_email_messages_inbound_event_id_fkey"
+            columns: ["inbound_event_id"]
+            isOneToOne: false
+            referencedRelation: "email_inbound_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "career_email_messages_reply_job_id_fkey"
+            columns: ["reply_job_id"]
+            isOneToOne: false
+            referencedRelation: "email_reply_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "career_email_messages_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "career_email_messages_talent_message_id_fkey"
+            columns: ["talent_message_id"]
+            isOneToOne: false
+            referencedRelation: "talent_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       career_email_onboarding_events: {
         Row: {
           created_at: string
@@ -3039,41 +3125,50 @@ export type Database = {
       opportunity_ingestion_run: {
         Row: {
           completed_at: string | null
+          coverage: Json
           created_at: string
           error_message: string | null
           from_date: string | null
           id: string
           numbers: Json | null
+          source_scope: Json
           source_provider: string | null
           started_at: string | null
           status: string
           to_date: string | null
+          trigger: string
           updated_at: string
         }
         Insert: {
           completed_at?: string | null
+          coverage?: Json
           created_at?: string
           error_message?: string | null
           from_date?: string | null
           id?: string
           numbers?: Json | null
+          source_scope?: Json
           source_provider?: string | null
           started_at?: string | null
           status?: string
           to_date?: string | null
+          trigger?: string
           updated_at?: string
         }
         Update: {
           completed_at?: string | null
+          coverage?: Json
           created_at?: string
           error_message?: string | null
           from_date?: string | null
           id?: string
           numbers?: Json | null
+          source_scope?: Json
           source_provider?: string | null
           started_at?: string | null
           status?: string
           to_date?: string | null
+          trigger?: string
           updated_at?: string
         }
         Relationships: []

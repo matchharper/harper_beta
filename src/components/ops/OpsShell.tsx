@@ -3,16 +3,21 @@ import { useRouter } from "next/router";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useOpsInternalDataExclusionStore } from "@/store/useOpsInternalDataExclusionStore";
 import { INTERNAL_EMAIL_DOMAIN, isInternalEmail } from "@/lib/internalAccess";
 import {
   BriefcaseBusiness,
+  ClipboardList,
+  EyeOff,
   KeyRound,
   LayoutDashboard,
   Lock,
-  LogOut,
   MessageSquareText,
+  Plus,
   ShieldAlert,
+  Trash2,
   Users,
+  X,
 } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 
@@ -46,6 +51,13 @@ export const OPS_NAV_ITEMS: OpsNavItem[] = [
     icon: MessageSquareText,
     label: "Career Talents",
     matchPrefix: "/ops/career",
+  },
+  {
+    description: "사람별 internal 추천 관리",
+    href: "/ops/internal-recommendations",
+    icon: ClipboardList,
+    label: "Internal Recs",
+    matchPrefix: "/ops/internal-recommendations",
   },
   {
     description: "회사·기회 관리와 수동 매칭",
@@ -162,6 +174,147 @@ function ForbiddenGate({
   );
 }
 
+function OpsInternalDataExclusionModal({
+  onClose,
+  open,
+}: {
+  onClose: () => void;
+  open: boolean;
+}) {
+  const emailExclusionTerms = useOpsInternalDataExclusionStore(
+    (state) => state.emailExclusionTerms
+  );
+  const clearEmailExclusionTerms = useOpsInternalDataExclusionStore(
+    (state) => state.clearEmailExclusionTerms
+  );
+  const removeEmailExclusionTerm = useOpsInternalDataExclusionStore(
+    (state) => state.removeEmailExclusionTerm
+  );
+  const setEmailExclusionTerms = useOpsInternalDataExclusionStore(
+    (state) => state.setEmailExclusionTerms
+  );
+  const [draft, setDraft] = useState("");
+
+  const handleAdd = useCallback(() => {
+    const additions = draft
+      .split(/[\n,]/)
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    if (additions.length === 0) return;
+    setEmailExclusionTerms([...emailExclusionTerms, ...additions]);
+    setDraft("");
+  }, [draft, emailExclusionTerms, setEmailExclusionTerms]);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-beige900/25 px-4 py-6 backdrop-blur-sm">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ops-internal-data-exclusion-title"
+        className="w-full max-w-lg rounded-lg bg-beige100 p-5 shadow-[0_28px_90px_rgba(89,57,24,0.18)]"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className={opsTheme.eyebrow}>Local Ops Filter</div>
+            <h2
+              id="ops-internal-data-exclusion-title"
+              className="mt-1 font-geist text-lg font-medium text-beige900"
+            >
+              내부 데이터 제외
+            </h2>
+            <p className="mt-2 font-geist text-sm leading-6 text-beige900/60">
+              아래 문자열 중 하나라도 이메일에 포함된 유저는 Ops 화면에서
+              숨깁니다.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-beige900/45 transition hover:bg-beige500/60 hover:text-beige900"
+            aria-label="닫기"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-5">
+          <label
+            htmlFor="ops-internal-data-exclusion-input"
+            className={opsTheme.label}
+          >
+            제외할 이메일 포함 문자열
+          </label>
+          <div className="mt-2 flex gap-2">
+            <textarea
+              id="ops-internal-data-exclusion-input"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder="예: @matchharper.com, test, internal"
+              className={cx(opsTheme.textarea, "min-h-[88px] flex-1 py-3")}
+            />
+            <button
+              type="button"
+              onClick={handleAdd}
+              disabled={!draft.trim()}
+              className={cx(opsTheme.buttonPrimary, "h-10 self-start px-3")}
+            >
+              <Plus className="h-4 w-4" />
+              추가
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-5">
+          <div className="flex items-center justify-between gap-3">
+            <div className={opsTheme.eyebrow}>
+              Exclusion Strings · {emailExclusionTerms.length}
+            </div>
+            {emailExclusionTerms.length > 0 ? (
+              <button
+                type="button"
+                onClick={clearEmailExclusionTerms}
+                className="font-geist text-xs font-medium text-beige900/45 transition hover:text-beige900"
+              >
+                전체 삭제
+              </button>
+            ) : null}
+          </div>
+
+          {emailExclusionTerms.length === 0 ? (
+            <div className="mt-2 rounded-md border border-dashed border-beige900/15 bg-white/35 px-4 py-5 text-center font-geist text-sm text-beige900/40">
+              저장된 제외 문자열이 없습니다.
+            </div>
+          ) : (
+            <div className="mt-2 max-h-[220px] overflow-y-auto rounded-md border border-beige900/10 bg-white/50">
+              {emailExclusionTerms.map((term) => (
+                <div
+                  key={term}
+                  className="flex items-center justify-between gap-3 border-b border-beige900/10 px-3 py-2 last:border-b-0"
+                >
+                  <span className="min-w-0 truncate font-geist text-sm text-beige900/75">
+                    {term}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeEmailExclusionTerm(term)}
+                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-beige900/35 transition hover:bg-[#F7DBD3] hover:text-[#8A2E1D]"
+                    aria-label={`${term} 삭제`}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function OpsShell({
   actions,
   children,
@@ -176,8 +329,12 @@ export default function OpsShell({
 }) {
   const router = useRouter();
   const { loading: authLoading, signOut, user } = useAuthStore();
+  const exclusionTermCount = useOpsInternalDataExclusionStore(
+    (state) => state.emailExclusionTerms.length
+  );
   const [authPending, setAuthPending] = useState(false);
   const [authError, setAuthError] = useState("");
+  const [exclusionModalOpen, setExclusionModalOpen] = useState(false);
 
   const isAllowedUser = isInternalEmail(user?.email);
 
@@ -255,6 +412,19 @@ export default function OpsShell({
             >
               Harper Ops
             </Link>
+            <button
+              type="button"
+              onClick={() => setExclusionModalOpen(true)}
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-white/65 px-2.5 font-geist text-xs font-medium text-beige900/65 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] transition hover:bg-white hover:text-beige900"
+            >
+              <EyeOff className="h-3.5 w-3.5" />
+              내부 데이터 제외
+              {exclusionTermCount > 0 ? (
+                <span className="rounded bg-beige900 px-1.5 py-0.5 text-[10px] leading-none text-beige100">
+                  {exclusionTermCount}
+                </span>
+              ) : null}
+            </button>
           </div>
           <nav className="overflow-x-auto">
             <div className="flex min-w-max items-center gap-2">
@@ -308,6 +478,10 @@ export default function OpsShell({
           {children}
         </main>
       </div>
+      <OpsInternalDataExclusionModal
+        open={exclusionModalOpen}
+        onClose={() => setExclusionModalOpen(false)}
+      />
     </div>
   );
 }

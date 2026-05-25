@@ -274,12 +274,12 @@ function logCareerChatLlmRequestBody(args: {
 }) {
   if (!shouldLogCareerChatLlmRequestBody(args.usageLabel)) return;
 
-  console.info(
-    args.stream
-      ? "[career-chat:llm-request-body:stream]"
-      : "[career-chat:llm-request-body]",
-    JSON.stringify(args.requestBody, null, 2)
-  );
+  // console.info(
+  //   args.stream
+  //     ? "[career-chat:llm-request-body:stream]"
+  //     : "[career-chat:llm-request-body]",
+  //   JSON.stringify(args.requestBody, null, 2)
+  // );
 }
 
 function extractAnthropicText(

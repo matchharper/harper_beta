@@ -5,8 +5,8 @@ import {
   fetchTalentInsights,
   fetchTalentSetting,
   getTalentSupabaseAdmin,
+  normalizeTalentInsightContent,
   toTalentMessageResponse,
-  type TalentConversationRow,
   type TalentMessageRow,
 } from "@/lib/talentOnboarding/server";
 import { TALENT_INTERVIEW_FINAL_STEP } from "@/lib/talentOnboarding/progress";
@@ -25,6 +25,8 @@ import {
   stripTalentOnboardingCompletionMarker,
 } from "@/lib/talentOnboarding/completion";
 import { getCareerConversationStarterPrompt } from "@/lib/career/conversationStarterPrompts";
+import { getRealtimeTools } from "@/lib/talentOnboarding/tools";
+import { buildCareerRealtimeSessionInstructions } from "@/lib/career/realtimeInstructions";
 
 type Body = {
   assistantEndedOnboarding?: boolean;
@@ -123,24 +125,47 @@ export async function POST(req: NextRequest) {
       !Boolean(talentSetting?.is_onboarding_done) &&
       Boolean(userMessageText) &&
       Boolean(assistantMessageText);
+    let responseTalentInsights = normalizeTalentInsightContent(
+      currentInsights?.content ?? null
+    );
+    let responseInsightUpdatedAt = currentInsights?.last_updated_at ?? null;
+
+    const runInsightExtraction = async () => {
+      if (!shouldAutoExtractInsights) return 0;
+
+      const changedCount = await extractAndPersistChatInsights({
+        admin,
+        assistantContent: assistantMessageText,
+        buildPrompt: (promptArgs) =>
+          buildCareerInsightExtractionOnlyPrompt({
+            currentInsightContent: promptArgs.currentInsightContent,
+          }),
+        conversationId,
+        currentInsightContent,
+        logPrefix: "ChatSave",
+        sourceChannel: isCallMode ? "voice_call" : "text_chat",
+        userId: user.id,
+      });
+      if (changedCount > 0) {
+        const latestInsights = await fetchTalentInsights({
+          admin,
+          userId: user.id,
+        });
+        responseTalentInsights = normalizeTalentInsightContent(
+          latestInsights?.content ?? null
+        );
+        responseInsightUpdatedAt = latestInsights?.last_updated_at ?? null;
+      }
+
+      return changedCount;
+    };
+
     const scheduleInsightExtraction = () => {
       if (!shouldAutoExtractInsights) return;
 
       const runBackgroundInsightExtraction = async () => {
         try {
-          await extractAndPersistChatInsights({
-            admin,
-            assistantContent: assistantMessageText,
-            buildPrompt: (promptArgs) =>
-              buildCareerInsightExtractionOnlyPrompt({
-                currentInsightContent: promptArgs.currentInsightContent,
-              }),
-            conversationId,
-            currentInsightContent,
-            logPrefix: "ChatSave",
-            sourceChannel: isCallMode ? "voice_call" : "text_chat",
-            userId: user.id,
-          });
+          await runInsightExtraction();
         } catch (error) {
           console.error("[ChatSave] Failed to extract insights", {
             conversationId,
@@ -225,7 +250,19 @@ export async function POST(req: NextRequest) {
       ReturnType<typeof completeOnboardingAndQueueInitialOpportunityRun>
     > | null = null;
 
-    scheduleInsightExtraction();
+    if (isCallMode) {
+      try {
+        await runInsightExtraction();
+      } catch (error) {
+        console.error("[ChatSave] Failed to extract call insights", {
+          conversationId,
+          error: error instanceof Error ? error.message : String(error),
+          userId: user.id,
+        });
+      }
+    } else {
+      scheduleInsightExtraction();
+    }
     void maybeSummarizeTalentConversation({
       admin,
       conversationId,
@@ -303,6 +340,25 @@ export async function POST(req: NextRequest) {
       (message): message is ReturnType<typeof toResponseMessage> =>
         message !== null
     );
+    let nextStepInstructions: string | null = null;
+    if (isCallMode && !shouldApplyCompletion) {
+      try {
+        nextStepInstructions = (
+          await buildCareerRealtimeSessionInstructions({
+            conversationId,
+            conversationStarterId,
+            toolNames: getRealtimeTools("voice").map((tool) => tool.name),
+            userId: user.id,
+          })
+        ).instructions;
+      } catch (error) {
+        console.error("[ChatSave] Failed to rebuild realtime instructions", {
+          conversationId,
+          error: error instanceof Error ? error.message : String(error),
+          userId: user.id,
+        });
+      }
+    }
 
     return NextResponse.json({
       ok: true,
@@ -315,6 +371,9 @@ export async function POST(req: NextRequest) {
       opportunityRun: serializeOpportunityRun(opportunityRun),
       searchStatusMessage: null,
       shouldEndCall: false,
+      insightUpdatedAt: responseInsightUpdatedAt,
+      nextStepInstructions,
+      talentInsights: responseTalentInsights,
       progress: {
         answeredCount: userTurnCount,
         targetCount: TALENT_INTERVIEW_FINAL_STEP,

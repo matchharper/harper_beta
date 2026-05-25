@@ -27,6 +27,10 @@ import { isInternalEmail } from "@/lib/internalAccess";
 import type { NetworkLeadSummary, TalentInternalEntry } from "@/lib/opsNetwork";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
+import {
+  isEmailExcludedByOpsInternalTerms,
+  useOpsInternalDataExclusionStore,
+} from "@/store/useOpsInternalDataExclusionStore";
 import { useOpsNetworkStore } from "@/store/useOpsNetworkStore";
 import { AnimatePresence } from "motion/react";
 import { Download, RefreshCw } from "lucide-react";
@@ -63,6 +67,9 @@ export default function NetworkOpsPage() {
   const { loading: authLoading, user } = useAuthStore();
   const pageSize = useOpsNetworkStore((state) => state.pageSize);
   const setPageSize = useOpsNetworkStore((state) => state.setPageSize);
+  const emailExclusionTerms = useOpsInternalDataExclusionStore(
+    (state) => state.emailExclusionTerms
+  );
   const canFetchInternal = !authLoading && isInternalEmail(user?.email);
 
   const currentPage = parsePositiveQueryNumber(router.query.page) ?? 1;
@@ -114,6 +121,14 @@ export default function NetworkOpsPage() {
 
   const list = leadsQuery.data;
   const currentLeads = useMemo(() => list?.leads ?? [], [list?.leads]);
+  const visibleCurrentLeads = useMemo(
+    () =>
+      currentLeads.filter(
+        (lead) =>
+          !isEmailExcludedByOpsInternalTerms(lead.email, emailExclusionTerms)
+      ),
+    [currentLeads, emailExclusionTerms]
+  );
   const totalPages = list?.totalPages ?? 1;
   const pageNumbers = useMemo(
     () => buildPaginationNumbers(currentPage, totalPages),
@@ -293,12 +308,20 @@ export default function NetworkOpsPage() {
   }, [selectedLeadId]);
 
   const selectedLead = useMemo(
-    () => currentLeads.find((lead) => lead.id === selectedLeadId) ?? null,
-    [currentLeads, selectedLeadId]
+    () => visibleCurrentLeads.find((lead) => lead.id === selectedLeadId) ?? null,
+    [selectedLeadId, visibleCurrentLeads]
   );
 
   const detail = detailQuery.data;
-  const displayedLead = detail?.lead ?? selectedLead;
+  const displayedLeadCandidate = detail?.lead ?? selectedLead;
+  const displayedLead =
+    displayedLeadCandidate &&
+    !isEmailExcludedByOpsInternalTerms(
+      displayedLeadCandidate.email,
+      emailExclusionTerms
+    )
+      ? displayedLeadCandidate
+      : null;
   const stats = list?.stats ?? {
     readyNowCount: 0,
     recentCount: 0,
@@ -429,7 +452,7 @@ export default function NetworkOpsPage() {
       "role_recommended",
     ];
 
-    const rows = currentLeads.map((lead) => [
+    const rows = visibleCurrentLeads.map((lead) => [
       lead.submittedAt,
       lead.name,
       lead.email,
@@ -470,7 +493,7 @@ export default function NetworkOpsPage() {
     anchor.click();
     document.body.removeChild(anchor);
     URL.revokeObjectURL(url);
-  }, [currentLeads]);
+  }, [visibleCurrentLeads]);
 
   const handleIngest = useCallback(async () => {
     if (!displayedLead) return;
@@ -718,7 +741,7 @@ export default function NetworkOpsPage() {
             <button
               type="button"
               onClick={handleExportCsv}
-              disabled={currentLeads.length === 0}
+              disabled={visibleCurrentLeads.length === 0}
               className={cx(opsTheme.buttonSecondary, "h-10")}
             >
               <Download className="h-4 w-4" />
@@ -729,7 +752,7 @@ export default function NetworkOpsPage() {
       >
         <section className="space-y-6">
           <ListView
-            currentLeads={currentLeads}
+            currentLeads={visibleCurrentLeads}
             currentPage={currentPage}
             cvOnly={cvOnly}
             isLoading={leadsQuery.isLoading}

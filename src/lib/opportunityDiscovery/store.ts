@@ -1,12 +1,13 @@
 import type { User } from "@supabase/supabase-js";
-import type {
-  OpportunityDiscoveryTrigger,
-  OpportunityDiscoveryAgentVariant,
-  OpportunityIngestionRunRow,
-  OpportunityIngestionTrigger,
-  OpportunityRunMode,
-  OpportunityRunRow,
-  RecommendationSettings,
+import {
+  DEFAULT_OPPORTUNITY_DISCOVERY_AGENT_VARIANT,
+  type OpportunityDiscoveryTrigger,
+  type OpportunityDiscoveryAgentVariant,
+  type OpportunityIngestionRunRow,
+  type OpportunityIngestionTrigger,
+  type OpportunityRunMode,
+  type OpportunityRunRow,
+  type RecommendationSettings,
 } from "./types";
 import {
   fetchTalentSetting,
@@ -318,6 +319,15 @@ export async function createOpportunityDiscoveryRun(
     userId: args.talentId,
   });
 
+  const requestedAgentVariant = readOpportunityAgentVariant(
+    args.triggerPayload
+  );
+  const triggerPayload = {
+    ...(args.triggerPayload ?? {}),
+    opportunityAgentVariant:
+      requestedAgentVariant ?? DEFAULT_OPPORTUNITY_DISCOVERY_AGENT_VARIANT,
+  };
+
   const payload = {
     conversation_id: args.conversationId ?? null,
     run_mode: args.runMode ?? triggerToRunMode(args.trigger),
@@ -329,7 +339,7 @@ export async function createOpportunityDiscoveryRun(
     status: "queued",
     talent_id: args.talentId,
     trigger: args.trigger,
-    trigger_payload: args.triggerPayload ?? {},
+    trigger_payload: triggerPayload,
   };
 
   const { data, error } = await ((

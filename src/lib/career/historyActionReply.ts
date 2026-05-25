@@ -82,6 +82,31 @@ const buildRecentConversationContext = (messages: TalentMessageRow[]) =>
     })
     .join("\n\n");
 
+const buildProfileStatusContext = (args: {
+  profile: Awaited<ReturnType<typeof fetchTalentUserProfile>>;
+  setting: Awaited<ReturnType<typeof fetchTalentSetting>>;
+}) => {
+  const resumeLinks = Array.isArray(args.profile?.resume_links)
+    ? args.profile.resume_links.filter(
+        (link): link is string =>
+          typeof link === "string" && link.trim().length > 0
+      )
+    : [];
+  const hasResume = Boolean(
+    args.profile?.resume_file_name ||
+    args.profile?.resume_storage_path ||
+    args.profile?.resume_text ||
+    resumeLinks.length > 0
+  );
+
+  return [
+    `hasResume: ${hasResume ? "true" : "false"}`,
+    `hasResumeFile: ${args.profile?.resume_file_name || args.profile?.resume_storage_path ? "true" : "false"}`,
+    `resumeLinkCount: ${resumeLinks.length}`,
+    `isOnboardingDone: ${args.setting?.is_onboarding_done ? "true" : "false"}`,
+  ].join("\n");
+};
+
 const getFeedbackFollowUpResponseMode = (args: {
   items: readonly TalentOpportunityFeedbackActivityItem[];
   trigger: TalentOpportunityFeedbackReplyTrigger;
@@ -194,6 +219,10 @@ export async function createTalentOpportunityActionReply(args: {
             ),
             opportunity,
             profileContext,
+            profileStatusContext: buildProfileStatusContext({
+              profile,
+              setting: talentSetting,
+            }),
             recentConversationContext:
               buildRecentConversationContext(recentMessages),
             talentInsights: talentInsights?.content ?? null,

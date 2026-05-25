@@ -32,6 +32,10 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
+import {
+  isEmailExcludedByOpsInternalTerms,
+  useOpsInternalDataExclusionStore,
+} from "@/store/useOpsInternalDataExclusionStore";
 
 const STATUS_OPTIONS: Array<{
   id: "all" | RequestAccessReviewStatus;
@@ -145,6 +149,9 @@ export default function OpsRequestAccessPage() {
   const router = useRouter();
   const authLoading = useAuthStore((state) => state.loading);
   const user = useAuthStore((state) => state.user);
+  const emailExclusionTerms = useOpsInternalDataExclusionStore(
+    (state) => state.emailExclusionTerms
+  );
   const canFetchInternal = !authLoading && isInternalEmail(user?.email);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<
@@ -193,6 +200,10 @@ export default function OpsRequestAccessPage() {
     const normalizedQuery = search.trim().toLowerCase();
 
     return (queue?.items ?? []).filter((item) => {
+      if (isEmailExcludedByOpsInternalTerms(item.email, emailExclusionTerms)) {
+        return false;
+      }
+
       if (statusFilter !== "all" && item.status !== statusFilter) {
         return false;
       }
@@ -205,7 +216,7 @@ export default function OpsRequestAccessPage() {
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(normalizedQuery));
     });
-  }, [queue?.items, search, statusFilter]);
+  }, [emailExclusionTerms, queue?.items, search, statusFilter]);
 
   const selectableFilteredItems = useMemo(
     () => filteredItems.filter((item) => isBulkSelectable(item.status)),
@@ -215,9 +226,10 @@ export default function OpsRequestAccessPage() {
   const selectedItems = useMemo(
     () =>
       (queue?.items ?? []).filter((item) =>
-        selectedRequestSet.has(item.requestToken)
+        selectedRequestSet.has(item.requestToken) &&
+        !isEmailExcludedByOpsInternalTerms(item.email, emailExclusionTerms)
       ),
-    [queue?.items, selectedRequestSet]
+    [emailExclusionTerms, queue?.items, selectedRequestSet]
   );
 
   const selectableSelectedItems = useMemo(
