@@ -7,6 +7,7 @@ import {
   fetchCareerTalentRecommendations,
   parseCareerRecommendationLimit,
   parseCareerRecommendationOffset,
+  parseCareerRecommendationSourceFilter,
   updateCareerTalentRecommendationProcessedStage,
 } from "@/lib/opsCareerServer";
 
@@ -34,6 +35,9 @@ export async function GET(req: NextRequest) {
       ),
       offset: parseCareerRecommendationOffset(
         req.nextUrl.searchParams.get("offset")
+      ),
+      sourceType: parseCareerRecommendationSourceFilter(
+        req.nextUrl.searchParams.get("sourceType")
       ),
       userId,
     });

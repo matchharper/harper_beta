@@ -92,6 +92,7 @@ export type RunCareerChatTurnArgs = {
   assistantMessageType?: string;
   channel?: CareerChatTurnChannel;
   conversationId: string;
+  inlineInsightExtraction?: boolean;
   link?: string | null;
   noMessageMarker?: string;
   onRecommendationStatus?: (status: RecommendJobPostingStatus) => void;
@@ -378,6 +379,7 @@ export async function runCareerChatTurn(
     userId,
   } = args;
   const requestChannel = args.channel === "voice" ? "voice" : "chat";
+  const inlineInsightExtraction = args.inlineInsightExtraction === true;
   const assistantMessageType =
     String(args.assistantMessageType ?? "").trim() || "chat";
   const skipConversationWrites = Boolean(args.skipConversationWrites);
@@ -681,7 +683,7 @@ export async function runCareerChatTurn(
       thinkingLogs = appendRecommendationStatusLog(thinkingLogs, status);
     }
   };
-  const scheduleInsightExtractionForAssistantMessage = (payload: {
+  const scheduleInsightExtractionForAssistantMessage = async (payload: {
     content: string;
     messageId: number | string | null | undefined;
   }) => {
@@ -703,9 +705,17 @@ export async function runCareerChatTurn(
     };
 
     try {
-      after(runBackgroundInsightExtraction);
+      if (inlineInsightExtraction) {
+        await runBackgroundInsightExtraction();
+      } else {
+        after(runBackgroundInsightExtraction);
+      }
     } catch {
-      void runBackgroundInsightExtraction();
+      if (inlineInsightExtraction) {
+        await runBackgroundInsightExtraction();
+      } else {
+        void runBackgroundInsightExtraction();
+      }
     }
   };
   const executeRecommendJobPostings = async (
@@ -1013,7 +1023,7 @@ export async function runCareerChatTurn(
       preparedCompanySnapshot.messages[
         preparedCompanySnapshot.messages.length - 1
       ]?.id;
-    scheduleInsightExtractionForAssistantMessage({
+    await scheduleInsightExtractionForAssistantMessage({
       content: preparedAssistantText,
       messageId: preparedMessageId,
     });
@@ -1145,7 +1155,7 @@ export async function runCareerChatTurn(
     );
   }
 
-  scheduleInsightExtractionForAssistantMessage({
+  await scheduleInsightExtractionForAssistantMessage({
     content: safeAssistantText,
     messageId: insertedAssistantMessage.id,
   });

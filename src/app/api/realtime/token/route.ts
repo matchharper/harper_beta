@@ -2,98 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
-  buildTalentProfileContext,
-  fetchVisibleMessagesPage,
-  fetchTalentInsights,
-  fetchTalentSetting,
-  fetchTalentStructuredProfile,
-  fetchTalentUserProfile,
-  getTalentSupabaseAdmin,
-} from "@/lib/talentOnboarding/server";
-import {
   getTalentToolVoicePreambles,
   getRealtimeTools,
 } from "@/lib/talentOnboarding/tools";
-import {
-  getCareerCallEndInstructionPrompt,
-  getCareerInterruptHandlingPrompt,
-  buildCareerRealtimePromptPlan,
-  buildCareerRealtimeRecentConversationSection,
-} from "@/lib/career/prompts";
 import { getCareerRealtimeSessionConfig } from "@/lib/career/llm";
-import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 import { getCareerConversationStarterPrompt } from "@/lib/career/conversationStarterPrompts";
-
-/**
- * Build realtime instructions from the shared Harper system prompt plus
- * voice-only guidance and dynamic context.
- */
-async function buildRealtimeInstructions(
-  userId: string,
-  conversationId: string,
-  toolNames: string[],
-  conversationStarterId?: string | null
-) {
-  const admin = getTalentSupabaseAdmin();
-
-  const [profile, currentInsights, talentSetting] = await Promise.all([
-    fetchTalentUserProfile({ admin, userId }),
-    fetchTalentInsights({ admin, userId }),
-    fetchTalentSetting({ admin, userId }),
-  ]);
-
-  const structuredProfile = await fetchTalentStructuredProfile({
-    admin,
-    userId,
-    talentUser: profile,
-  });
-
-  const structuredProfileText = buildTalentProfileContext({
-    profile,
-    structuredProfile,
-    setting: talentSetting,
-    maxResumeChars: 3000,
-  });
-
-  const { messages: visibleMessages } = await fetchVisibleMessagesPage({
-    admin,
-    conversationId,
-    limit: 12,
-  });
-
-  const currentInsightContent = (currentInsights?.content ?? null) as Record<
-    string,
-    string
-  > | null;
-  const promptToolNames = talentSetting?.is_onboarding_done ? toolNames : [];
-  const conversationStarter = conversationStarterId
-    ? getCareerConversationStarterPrompt(conversationStarterId)
-    : null;
-
-  const recentConversationSection =
-    buildCareerRealtimeRecentConversationSection(
-      visibleMessages.map((message) => ({
-        role: message.role,
-        content: formatTalentMessageContentForLlmPrompt(message),
-        createdAt: message.created_at,
-      }))
-    );
-  return buildCareerRealtimePromptPlan({
-    callEndInstruction: getCareerCallEndInstructionPrompt(),
-    currentInsightContent,
-    interruptHandling: getCareerInterruptHandlingPrompt(),
-    isOnboardingDone: talentSetting?.is_onboarding_done,
-    profile,
-    proactiveTurnInstructionMode: conversationStarter
-      ? "conversation_starter"
-      : undefined,
-    proactiveTurnInstruction:
-      conversationStarter?.voiceProactiveInstruction ?? undefined,
-    recentConversationSection,
-    structuredProfileText,
-    toolNames: promptToolNames,
-  });
-}
+import { buildCareerRealtimeSessionInstructions } from "@/lib/career/realtimeInstructions";
 
 const TOKEN_RATE_LIMIT = new Map<string, { count: number; resetAt: number }>();
 const MAX_TOKENS_PER_MINUTE = 10;
@@ -232,12 +146,12 @@ export async function POST(req: NextRequest) {
     }
 
     const realtimeTools = getRealtimeTools("voice");
-    const realtimePromptPlan = await buildRealtimeInstructions(
-      user.id,
+    const realtimePromptPlan = await buildCareerRealtimeSessionInstructions({
       conversationId,
-      realtimeTools.map((tool) => tool.name),
-      conversationStarterId
-    );
+      conversationStarterId,
+      toolNames: realtimeTools.map((tool) => tool.name),
+      userId: user.id,
+    });
     const instructions = realtimePromptPlan.instructions;
     if (process.env.NODE_ENV !== "production") {
       console.log("[RealtimeToken] final instructions", {

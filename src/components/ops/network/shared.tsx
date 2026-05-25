@@ -18,6 +18,7 @@ import {
   FileText,
   FileUp,
   LoaderCircle,
+  Mail,
   MessageSquareText,
   Pencil,
   Phone,
@@ -558,6 +559,12 @@ function getMessageTypeMeta(messageType: string | null) {
   if (messageType === "call_transcript" || messageType === "call_wrapup") {
     return {
       icon: Phone,
+    };
+  }
+
+  if (messageType === "mail") {
+    return {
+      icon: Mail,
     };
   }
 

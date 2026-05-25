@@ -757,6 +757,8 @@ export const CareerFlowProvider = ({
     messages,
     fetchWithAuth,
     isVoiceInteractionLocked,
+    isOnboardingDone:
+      stage === "completed" || Boolean(talentPreferences?.isOnboardingDone),
     onSendChatMessage: sendChatMessage,
     onOpportunityRunChanged: setOpportunityRun,
     onTalentPreferencesRefreshed: handleTalentPreferencesRefreshedFromChat,
@@ -765,6 +767,7 @@ export const CareerFlowProvider = ({
     appendMessage,
     setChatError,
     setStage,
+    talentInsights,
     enqueueAssistantTypewriter,
     onMessagesChanged: appendLatestMessagesToCache,
   });

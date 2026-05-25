@@ -50,6 +50,8 @@ Key selection policy:
 Extraction scope:
 - Extract from User lines. Harper lines are context only.
 - Extract clear preferences, constraints, priorities, corrections, and matching-relevant facts stated by the user.
+- Explicit negative or avoidance conditions are durable matching constraints. If the user says they want to avoid, exclude, reject, dislike, or cannot consider a condition, extract it under "deal_breakers" unless a more specific existing canonical key clearly fits. Examples: "그런 회사는 빼주세요", "대기업은 싫어요", "야근 많은 곳은 피하고 싶어요", "비자 지원 안 되면 안 돼요".
+- If the user adds a new avoidance condition and "deal_breakers" already has a value, use action "update" with the final integrated deal-breaker sentence.
 Do not store raw profile-row facts in insights. If the information is only about a specific past experience, education, project, responsibility, or achievement and does not change future opportunity matching, omit it.
 Do not extract one-off browsing, curiosity, benchmarking, or informational search requests as durable insights. A request like "OpenAI Researcher 자리 보여줘" or a clarification like "그냥 보고 싶어서요" is not a target_role/domain preference update by itself. Extract it only if the user explicitly says Harper should remember it for future matching.
 

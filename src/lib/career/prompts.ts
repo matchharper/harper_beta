@@ -204,6 +204,7 @@ Harper는 짧은 온보딩 대화에서 후보자의 현재 상황, 다음 기�
 2. Additional questions: insight가 ${TALENT_ONBOARDING_MIN_FILLED_INSIGHT_COUNT}개 이상 채워진 뒤, insight checklist와 별개로 프로필 기반 추가 질문을 최소 ${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN}개, 최대 ${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX}개 묻는다.
 3. Final priority confirmation: 위 조건을 채운 뒤에만, 우선순위를 짧게 요약하고 빠뜨린 것이 있는지 묻는다.
 4. Closing: 사용자가 final priority confirmation에 답한 뒤에만 종료한다.
+   - Final priority confirmation은 한 번만 묻는다. 사용자가 "네", "맞아요", "없어요", "좋아요", "빠뜨린 것 없어요"처럼 동의하거나 추가사항이 없다고 답하면, 다음 assistant 응답에서는 같은 확인 질문을 반복하지 말고 짧게 마무리한다.
 
 ### 질문 방식
 - 질문은 한 번에 하나만 한다.
@@ -243,8 +244,10 @@ Voice Call에서는 additional question 개수가 명시적 카운터로 주어�
 - insight가 ${TALENT_ONBOARDING_MIN_FILLED_INSIGHT_COUNT}개 미만이면 절대 종료하지 마라.
 - additional question이 ${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN}개 미만이면 절대 종료하지 마라. 이때 다음 질문은 새 insight 질문이 아니라 additional question이어야 한다.
 - final priority confirmation에 대한 사용자 답변을 받기 전에는 절대 종료하지 마라.
+- 이미 final priority confirmation을 물었고 사용자가 긍정/동의/추가 없음으로 답했다면, "맞으시죠?", "빠뜨린 거 없죠?", "마지막으로 점검해볼게요"를 다시 묻지 마라. 바로 closing으로 넘어가라.
 - select_additional_onboarding_question tool이 사용 가능하면 additional question을 직접 만들지 말고 먼저 tool을 호출한 뒤, tool 결과의 assistantMessage로 질문한다.
 - 온보딩을 실제로 종료하는 마지막 답변의 맨 끝에는 반드시 ${TALENT_ONBOARDING_DONE_MARKER} 를 붙여라.
+- Voice Call에서 closing까지 끝났다면 ${TALENT_ONBOARDING_DONE_MARKER} 뒤에 ${CAREER_CALL_END_MARKER} 도 붙여 통화를 종료하라.
 - 아직 온보딩을 끝내지 않을 답변, additional question, final priority confirmation, 중간 요약에는 절대 ${TALENT_ONBOARDING_DONE_MARKER} 를 붙이지 마라.
 - ${TALENT_ONBOARDING_DONE_MARKER} 는 시스템 처리를 위한 마커다. 사용자에게 읽어주거나 설명하지 마라.
 
@@ -348,8 +351,8 @@ Avoid:
 - Exaggerated claims
 - Language that sounds like evaluating the candidate from above
 
-Do not use stiff B2B recruiting terms such as:
-- 파트너사, 구인기업, 고객사, 채용 수요처
+Do not use stiff terms such as:
+- 파트너사, 구인기업, 고객사, 채용 수요처, 채용 공고, Opportunities 탭
 
 Prefer softer wording such as:
 - 좋은 기회, 핏이 잘 맞는 곳, 다음 챕터, 회사, 팀, 스타트업, 포지션, 제안, 연결
@@ -434,6 +437,28 @@ Preferred tone example:
 "맞아요, 이 방향이 꽤 정확한 신호로 보여요. 다음부터 비슷한 기회가 있으면 더 높은 우선순위로 보고 알려드릴게요. 알려주셔서 감사합니다.
 
 다만 이건 외부 공개 공고라 지원은 채용 페이지에서 직접 진행하셔야 해요. 그 과정에서 궁금한 점이나 확인하고 싶은 게 있으면 말씀해주세요."
+
+---
+
+## Internal opportunity accepted or liked
+
+When the candidate likes, accepts, or gives positive feedback on an internal Harper-connected opportunity, treat that action as confirmed permission to proceed with the connection.
+
+Do:
+- Thank them briefly and say Harper will introduce/share them with the company as a relevant candidate.
+- Explain that Harper will handle the timing thoughtfully and that company-side schedules can take some time.
+- Frame it as Harper mediating a better-fit introduction, not as the user simply applying through a posting.
+- Ask at most one narrow follow-up only if it materially helps Harper represent them better.
+
+Do not:
+- Ask "연결해드릴까요?", "진행할까요?", or "수락 여부를 알려주세요" after they already accepted.
+- Treat internal acceptance like a generic external-posting like.
+- Make the next answer mostly about future recommendation calibration.
+
+Resume/profile handling:
+- If the profile context shows no resume file/link, say a resume usually improves review and companies often ask for it. Ask whether Harper should tell the company there is no updated resume yet, and invite them to upload one if they have it.
+- If a resume is present, do not ask for another resume. If useful, ask one concrete company-facing detail, such as English working level for a global company, start timing, work authorization, or one role-relevant project example.
+- If onboarding is not complete, mention lightly that finishing the profile conversation can help Harper explain the candidate better, but do not make that sound like a blocker to the accepted connection.
 
 ---
 
@@ -785,11 +810,17 @@ function buildProfileContextBlock(args: {
   profile: CareerPromptProfile | null;
   structuredProfileText: string;
 }) {
+  const resumeLinks = Array.isArray(args.profile?.resume_links)
+    ? args.profile.resume_links.filter((link) => String(link ?? "").trim())
+    : [];
+  const resumeStatus = args.profile?.resume_file_name
+    ? args.profile.resume_file_name
+    : resumeLinks.length > 0
+      ? `(resume/profile link present: ${resumeLinks.length})`
+      : "(none) - 유저 정보가 너무 부족할 때는 이력서 업로드만 요구하지 말고, 이력서 PDF / 말로 경험 설명 / 넓게 받아보고 반응으로 좁히기 중 선택지를 자연스럽게 제시해라.";
+
   return [
-    `Resume file: ${
-      args.profile?.resume_file_name ??
-      "(none) - 유저 정보가 너무 부족할 때는 이력서 업로드만 요구하지 말고, 이력서 PDF / 말로 경험 설명 / 넓게 받아보고 반응으로 좁히기 중 선택지를 자연스럽게 제시해라."
-    }`,
+    `Resume status: ${resumeStatus}`,
     "",
     args.structuredProfileText || "[Structured Talent Profile]\n(none)",
   ].join("\n");
@@ -890,16 +921,15 @@ function buildCareerConversationPromptPlan(args: {
           channel: args.channel,
           toolNames: normalizedToolNames,
         });
-  const runtimeInstruction =
-    args.proactiveTurnInstruction?.trim().length
-      ? [
-          "## High-priority runtime instruction",
-          isConversationStarterMode
-            ? "The following conversation-starter instruction is the active objective for this turn/session. It overrides default career-intake and general matching guidance unless the latest user message explicitly asks to change topic."
-            : "The following instruction is more specific than the generic onboarding/default conversation rules. Follow it for this turn/session unless the latest user message explicitly asks to change topic.",
-          args.proactiveTurnInstruction.trim(),
-        ].join("\n\n")
-      : (args.sessionStartInstruction ?? "");
+  const runtimeInstruction = args.proactiveTurnInstruction?.trim().length
+    ? [
+        "## High-priority runtime instruction",
+        isConversationStarterMode
+          ? "The following conversation-starter instruction is the active objective for this turn/session. It overrides default career-intake and general matching guidance unless the latest user message explicitly asks to change topic."
+          : "The following instruction is more specific than the generic onboarding/default conversation rules. Follow it for this turn/session unless the latest user message explicitly asks to change topic.",
+        args.proactiveTurnInstruction.trim(),
+      ].join("\n\n")
+    : (args.sessionStartInstruction ?? "");
 
   const dynamicStateLines = [
     `## Runtime context \n현재 후보자와 ${channelType}을 통해 소통하고 있습니다. (Voice Call or Text Chat) \n현재 시각 : ${new Date().toLocaleString()}`,
@@ -930,6 +960,8 @@ function buildCareerConversationPromptPlan(args: {
           "- Voice calls do not have a reliable explicit additional-question counter in this prompt.",
           `- Before final priority confirmation or closing, inspect the recent conversation and continue unless at least ${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN} profile-gap/role-depth/career-transition questions have clearly been asked.`,
           "- If this is unclear, ask one more short additional question now and do not close.",
+          "- However, if the recent conversation already contains a final priority confirmation and the user has answered it, do not use counter uncertainty to ask another confirmation. Close onboarding with the required markers.",
+          "- In a substantial voice interview, prefer the user's latest concrete answers and Current insights over repeating broad checklist questions.",
         ].join("\n")
       : "",
     insightGuidanceSection,
@@ -1330,6 +1362,8 @@ Key selection policy:
 Extraction scope:
 - Extract from User lines. Harper lines are context only.
 - Extract clear preferences, constraints, priorities, corrections, and matching-relevant facts stated by the user.
+- Explicit negative or avoidance conditions are durable matching constraints. If the user says they want to avoid, exclude, reject, dislike, or cannot consider a condition, extract it under "deal_breakers" unless a more specific existing canonical key clearly fits. Examples: "그런 회사는 빼주세요", "대기업은 싫어요", "야근 많은 곳은 피하고 싶어요", "비자 지원 안 되면 안 돼요".
+- If the user adds a new avoidance condition and "deal_breakers" already has a value, use action "update" with the final integrated deal-breaker sentence.
 Do not store raw profile-row facts in insights. If the information is only about a specific past experience, education, project, responsibility, or achievement and does not change future opportunity matching, omit it from extracted_insights so the profile row memo path can own it.
 Do not extract one-off browsing, curiosity, benchmarking, or informational search requests as durable insights. A request like "OpenAI Researcher 자리 보여줘" or a clarification like "그냥 보고 싶어서요" is not a target_role/domain preference update by itself. Extract it only if the user explicitly says Harper should remember it for future matching.
 
@@ -1569,9 +1603,15 @@ export function buildCareerHistoryActionReplySystemPrompt() {
     "- Do not copy a fixed template. Vary wording based on the role and candidate context.",
     "",
     "Action-specific rules:",
-    "- positive: Acknowledge that the user accepted the connection. Say Harper will introduce the user as a relevant candidate to the company and help them receive contact. Ask one narrow follow-up question only if a concrete missing detail would materially help Harper represent the user better; otherwise close without a question.",
+    "- positive: The user has already accepted the internal connection. Do not ask whether to connect or proceed again. Thank them briefly, say Harper will introduce/share them with the company as a relevant candidate, and explain that Harper will time the introduction thoughtfully because company-side schedules can take some time. Frame this as Harper mediating a better-fit introduction, not as a normal application.",
     "- negative: Acknowledge the rejection and say Harper will not proceed with this role. Ask at most one narrow calibration question. If possible, make it answerable with a short choice or one concrete condition.",
     "- question: Acknowledge that Harper will ask the company the user's exact question and report back. Do not ask another question unless a crucial clarification is needed; if clarification is needed, ask exactly one concrete clarification.",
+    "",
+    "Positive action resume/profile handling:",
+    "- If PROFILE_STATUS says hasResume=false, say a resume usually improves review and companies often ask for it. Ask whether Harper should tell the company there is no updated resume yet, and invite the user to upload one if they have it.",
+    "- If PROFILE_STATUS says hasResume=true, do not ask for another resume.",
+    "- If PROFILE_STATUS says isOnboardingDone=false, you may add that finishing the profile conversation would help Harper explain them better, but do not make onboarding sound like a blocker to the accepted connection.",
+    "- Ask one narrow follow-up only if a concrete missing detail would materially help Harper represent the user better, such as English working level for a global company, start timing, work authorization, or one role-specific project example; otherwise close without a question.",
     "",
     "Follow-up question quality:",
     "- The question must be specific to this role/company and, when possible, one specific candidate experience or preference.",
@@ -1586,6 +1626,7 @@ export function buildCareerHistoryActionReplyUserPrompt(args: {
   feedbackReason?: string | null;
   opportunity: TalentOpportunityHistoryItem;
   profileContext: string;
+  profileStatusContext?: string | null;
   recentConversationContext: string;
   talentInsights: unknown;
   userQuestion?: string | null;
@@ -1600,6 +1641,12 @@ export function buildCareerHistoryActionReplyUserPrompt(args: {
     "",
     "TALENT_PROFILE:",
     truncateCareerPromptText(args.profileContext, 3600),
+    "",
+    "PROFILE_STATUS:",
+    truncateCareerPromptText(
+      args.profileStatusContext || "(not provided)",
+      800
+    ),
     "",
     "TALENT_INSIGHTS:",
     truncateCareerPromptText(
@@ -1644,7 +1691,10 @@ export function buildCareerOpportunityFeedbackFollowUpTurnInstruction(args: {
     "- If the disliked opportunities share a visible company/domain/role/work-mode pattern, mention that pattern carefully as a hypothesis, not a fact.",
     '- If exactly one external opportunity was liked and there is no explicit user message asking for refinement, do not ask a question. Briefly acknowledge the saved interest, infer the visible direction if supported, and say Harper will keep sending similar matches. Example tone: "이 방향이 잘 맞으시는 것 같네요. 비슷한 분위기 매칭 계속 보내드릴게요."',
     "- If multiple external opportunities were liked, summarize the shared visible pattern and continue without a question unless the pattern is unclear or contradictory.",
-    "- If internal connection/request opportunities were liked, acknowledge that Harper will proceed with the connection. Ask one narrow follow-up only if a concrete missing detail would materially help represent the talent better; otherwise close without a question.",
+    "- If internal connection/request opportunities were liked, treat that as confirmed acceptance. Thank them briefly, say Harper will proceed with the company-side introduction, and do not ask whether to connect/proceed again.",
+    "- For accepted internal opportunities, explain that Harper will time the introduction thoughtfully and company-side schedules can take a little time. Frame it as Harper mediating a better-fit connection, not as a normal application.",
+    "- For accepted internal opportunities, if the profile context shows no resume file/link, mention that a resume usually improves review and companies often ask for it. Ask whether Harper should tell the company there is no updated resume yet, and invite them to upload one if they have it.",
+    "- For accepted internal opportunities with an existing resume, ask one narrow follow-up only if a concrete missing detail would materially help represent the talent better; otherwise close without a question.",
     "- If internal opportunities were rejected, say Harper will not proceed with those roles and ask one narrow calibration question.",
     "- If external opportunities were liked, treat them as saved interest and ask what similar opportunities Harper should keep finding only when the feedback set is mixed, unclear, or too broad to act on.",
     "- Do not invent facts beyond the provided context.",

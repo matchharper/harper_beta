@@ -119,7 +119,7 @@ export const CompanyDetailView = ({
         <h2 className="mt-4 text-[16px] font-medium text-beige900">
           회사를 찾지 못했습니다.
         </h2>
-        <CareerActionButton
+        {/* <CareerActionButton
           actionVariant="secondary"
           buttonRadius="rounded"
           onClick={onBack}
@@ -127,7 +127,7 @@ export const CompanyDetailView = ({
         >
           <ArrowLeft className="h-4 w-4" />
           워치리스트로 돌아가기
-        </CareerActionButton>
+        </CareerActionButton> */}
       </section>
     );
   }
@@ -235,7 +235,7 @@ export const CompanyDetailView = ({
 
   return (
     <section className="min-w-0">
-      <CareerActionButton
+      {/* <CareerActionButton
         actionVariant="secondary"
         buttonRadius="rounded"
         onClick={onBack}
@@ -243,7 +243,7 @@ export const CompanyDetailView = ({
       >
         <ArrowLeft className="h-3 w-3" />
         워치리스트로 돌아가기
-      </CareerActionButton>
+      </CareerActionButton> */}
 
       <header className="mt-4">
         <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">

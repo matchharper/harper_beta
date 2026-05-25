@@ -11,6 +11,12 @@ import type {
   CareerTalentMailHistoryResponse,
   CareerTalentProfileIngestResponse,
   CareerTalentRecommendationsResponse,
+  CareerTalentRecommendationSourceFilter,
+  OpsInternalRecommendationAcceptedFilter,
+  OpsInternalRecommendationStageBulkUpdateResponse,
+  OpsInternalRecommendationsResponse,
+  OpsManualInternalRecommendationRolesResponse,
+  OpsQueueManualInternalRecommendationResponse,
 } from "@/lib/opsCareerServer";
 
 type SendCareerTalentMailResponse = {
@@ -31,8 +37,18 @@ export const opsCareerDetailKey = (userId?: string | null) =>
   ["ops-career-detail", userId] as const;
 export const opsCareerMailHistoryKey = (userId?: string | null) =>
   ["ops-career-mail-history", userId] as const;
-export const opsCareerRecommendationsKey = (userId?: string | null) =>
-  ["ops-career-recommendations", userId] as const;
+export const opsCareerRecommendationsKey = (
+  userId?: string | null,
+  sourceType: CareerTalentRecommendationSourceFilter = "all"
+) => ["ops-career-recommendations", userId, sourceType] as const;
+export const opsInternalRecommendationsKey = (
+  acceptedFilter: OpsInternalRecommendationAcceptedFilter = "all",
+  limit = 80
+) => ["ops-internal-recommendations", acceptedFilter, limit] as const;
+export const opsManualInternalRecommendationRolesKey = (
+  query: string,
+  limit = 40
+) => ["ops-manual-internal-recommendation-roles", query, limit] as const;
 
 export function useOpsCareerTalents(limit = 40, enabled = true) {
   return useInfiniteQuery({
@@ -83,16 +99,24 @@ export function useOpsCareerMailHistory(
 export function useOpsCareerRecommendations(
   userId?: string | null,
   limit = 20,
-  enabled = true
+  enabled = true,
+  sourceType: CareerTalentRecommendationSourceFilter = "all"
 ) {
   return useInfiniteQuery({
-    queryKey: [...opsCareerRecommendationsKey(userId), limit],
-    queryFn: ({ pageParam }) =>
-      fetchWithInternalAuth<CareerTalentRecommendationsResponse>(
-        `/api/internal/career/recommendations?userId=${encodeURIComponent(
-          userId ?? ""
-        )}&limit=${limit}&offset=${pageParam}`
-      ),
+    queryKey: [...opsCareerRecommendationsKey(userId, sourceType), limit],
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams({
+        limit: String(limit),
+        offset: String(pageParam),
+        userId: userId ?? "",
+      });
+      if (sourceType !== "all") {
+        params.set("sourceType", sourceType);
+      }
+      return fetchWithInternalAuth<CareerTalentRecommendationsResponse>(
+        `/api/internal/career/recommendations?${params.toString()}`
+      );
+    },
     getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
     initialPageParam: 0,
     enabled: enabled && typeof userId === "string" && userId.length > 0,
@@ -225,8 +249,111 @@ export function useUpdateOpsCareerRecommendationStage() {
       ),
     onSuccess: (_result, variables) => {
       queryClient.invalidateQueries({
-        queryKey: opsCareerRecommendationsKey(variables.userId),
+        queryKey: ["ops-career-recommendations", variables.userId],
       });
+    },
+  });
+}
+
+export function useOpsManualInternalRecommendationRoles(
+  query = "",
+  limit = 40,
+  enabled = true
+) {
+  const normalizedQuery = query.trim();
+  return useQuery({
+    queryKey: opsManualInternalRecommendationRolesKey(normalizedQuery, limit),
+    queryFn: () => {
+      const params = new URLSearchParams({
+        limit: String(limit),
+      });
+      if (normalizedQuery) {
+        params.set("query", normalizedQuery);
+      }
+      return fetchWithInternalAuth<OpsManualInternalRecommendationRolesResponse>(
+        `/api/internal/career/manual-internal-recommendation?${params.toString()}`
+      );
+    },
+    enabled,
+    staleTime: 15_000,
+  });
+}
+
+export function useQueueOpsManualInternalRecommendation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: {
+      reason?: string | null;
+      roleId: string;
+      userId: string;
+    }) =>
+      fetchWithInternalAuth<OpsQueueManualInternalRecommendationResponse>(
+        "/api/internal/career/manual-internal-recommendation",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(args),
+        }
+      ),
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["ops-career-recommendations", variables.userId],
+      });
+    },
+  });
+}
+
+export function useOpsInternalRecommendations(
+  acceptedFilter: OpsInternalRecommendationAcceptedFilter = "all",
+  limit = 80,
+  enabled = true
+) {
+  return useInfiniteQuery({
+    queryKey: opsInternalRecommendationsKey(acceptedFilter, limit),
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams({
+        acceptedFilter,
+        limit: String(limit),
+        offset: String(pageParam),
+      });
+      return fetchWithInternalAuth<OpsInternalRecommendationsResponse>(
+        `/api/internal/career/internal-recommendations?${params.toString()}`
+      );
+    },
+    getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
+    initialPageParam: 0,
+    enabled,
+    staleTime: 10_000,
+  });
+}
+
+export function useBulkUpdateOpsInternalRecommendationStages() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (args: {
+      updates: Array<{
+        processedStage: string | null;
+        recommendationId: string;
+      }>;
+    }) =>
+      fetchWithInternalAuth<OpsInternalRecommendationStageBulkUpdateResponse>(
+        "/api/internal/career/internal-recommendations",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(args),
+        }
+      ),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["ops-internal-recommendations"],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["ops-career-recommendations"],
+        }),
+      ]);
     },
   });
 }

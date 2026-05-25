@@ -28,6 +28,7 @@ import type {
   CareerConversationStarterId,
   CareerConversationStarterMode,
 } from "@/lib/career/conversationStarters";
+import { DEFAULT_OPPORTUNITY_DISCOVERY_AGENT_VARIANT } from "@/lib/opportunityDiscovery/types";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { Text } from "@/components/ui/typography";
 import {
@@ -160,7 +161,9 @@ const CareerHomePanel = ({
     sessionReengagementTestPending,
   } = useCareerSidebarContext();
   const [devAgentVariant, setDevAgentVariant] =
-    React.useState<CareerOpportunityAgentVariant>("tool_agent");
+    React.useState<CareerOpportunityAgentVariant>(
+      DEFAULT_OPPORTUNITY_DISCOVERY_AGENT_VARIANT
+    );
 
   const displayName =
     talentProfile.talentUser?.name ??

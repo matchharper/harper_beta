@@ -1,5 +1,5 @@
-@import 'tailwindcss';
-@import 'tw-animate-css';
+@import "tailwindcss";
+@import "tw-animate-css";
 
 @plugin 'tailwind-scrollbar';
 
@@ -199,9 +199,9 @@
 
 @layer utilities {
   @font-face {
-    font-family: 'PretendardVariable';
-    src: url('/fonts/pretendard/PretendardVariable.woff2')
-      format('woff2-variations');
+    font-family: "PretendardVariable";
+    src: url("/fonts/pretendard/PretendardVariable.woff2")
+      format("woff2-variations");
     font-weight: 100 900;
     font-style: normal;
     font-display: swap;
@@ -218,7 +218,7 @@
   }
 
   .hedvig-letters-serif {
-    font-family: 'Hedvig Letters Serif', serif;
+    font-family: "Hedvig Letters Serif", serif;
     font-optical-sizing: auto;
     font-weight: 400;
     font-style: normal;
@@ -229,11 +229,11 @@
     --main-body-background: #f7f0e8;
     --background-start-rgb: 247, 240, 232;
     --background-end-rgb: 247, 240, 232;
-    --font-inter: 'Inter';
-    --font-garamond: 'Cormorant Garamond';
-    --font-roboto: 'Roboto';
-    --font-averia: 'Averia Serif Libre';
-    --font-serif: 'Averia Serif Libre';
+    --font-inter: "Inter";
+    --font-garamond: "Cormorant Garamond";
+    --font-roboto: "Roboto";
+    --font-averia: "Averia Serif Libre";
+    --font-serif: "Averia Serif Libre";
     --ink: #111111;
     --paper: #ffffff;
     --gold: #0624a8;
@@ -331,7 +331,7 @@
 
 @layer utilities {
   .pattern {
-    background-image: 'url(/images/pattern.png)';
+    background-image: "url(/images/pattern.png)";
   }
 
   /* globals.css */

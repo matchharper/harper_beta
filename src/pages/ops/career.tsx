@@ -10,15 +10,23 @@ import {
   useIngestCareerProfile,
   useOpsCareerMailHistory,
   useOpsCareerRecommendations,
+  useOpsManualInternalRecommendationRoles,
+  useQueueOpsManualInternalRecommendation,
   useSendCareerTalentMail,
   useUpdateOpsCareerRecommendationStage,
 } from "@/hooks/useOpsCareer";
+import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { renderEmailBodyHtmlWithHarperFooter } from "@/lib/email/harperFooter";
 import { isInternalEmail } from "@/lib/internalAccess";
+import {
+  isEmailExcludedByOpsInternalTerms,
+  useOpsInternalDataExclusionStore,
+} from "@/store/useOpsInternalDataExclusionStore";
 import type {
   CareerTalentDetailResponse,
   CareerTalentMailHistoryItem,
   CareerTalentRecommendationItem,
+  OpsManualInternalRecommendationRole,
 } from "@/lib/opsCareerServer";
 import { useAuthStore } from "@/store/useAuthStore";
 import {
@@ -35,6 +43,7 @@ import {
   Save,
   Search,
   Send,
+  Sparkles,
   Trash2,
   User,
 } from "lucide-react";
@@ -134,6 +143,14 @@ const INTERNAL_RECOMMENDATION_FIXED_STAGES = [
   "채용됨",
   "프로세스종료됨",
 ] as const;
+type RecommendationSourceFilter = "all" | "internal";
+const RECOMMENDATION_SOURCE_FILTER_OPTIONS = [
+  { id: "all", label: "전체 보기" },
+  { id: "internal", label: "Internal만 보기" },
+] as const satisfies readonly {
+  id: RecommendationSourceFilter;
+  label: string;
+}[];
 
 const recommendationSourceLabel = (
   sourceType: CareerTalentRecommendationItem["sourceType"]
@@ -239,6 +256,9 @@ function TalentListItem({
 
 function TalentDetail({ userId }: { userId: string }) {
   const { data: detail, isLoading, error } = useOpsCareerDetail(userId);
+  const emailExclusionTerms = useOpsInternalDataExclusionStore(
+    (state) => state.emailExclusionTerms
+  );
   const [activeTab, setActiveTab] = useState<
     "insights" | "messages" | "profile" | "mail" | "recommendations"
   >("insights");
@@ -257,6 +277,17 @@ function TalentDetail({ userId }: { userId: string }) {
         {error instanceof Error
           ? error.message
           : "데이터를 불러오지 못했습니다."}
+      </div>
+    );
+  }
+
+  if (isEmailExcludedByOpsInternalTerms(detail.email, emailExclusionTerms)) {
+    return (
+      <div className="flex flex-col items-center justify-center px-6 py-24 text-center">
+        <MessageSquareText className="h-10 w-10 text-beige900/15" />
+        <div className="mt-4 font-geist text-sm text-beige900/45">
+          내부 데이터 제외 설정으로 숨긴 talent입니다.
+        </div>
       </div>
     );
   }
@@ -1133,7 +1164,384 @@ function MailTab({ detail }: { detail: CareerTalentDetailResponse }) {
   );
 }
 
+function ManualInternalRecommendationModal({
+  onClose,
+  onQueued,
+  open,
+  userId,
+}: {
+  onClose: () => void;
+  onQueued: (result: {
+    role: OpsManualInternalRecommendationRole;
+    runId: string;
+  }) => void;
+  open: boolean;
+  userId: string;
+}) {
+  const [roleSearch, setRoleSearch] = useState("");
+  const [selectedRole, setSelectedRole] =
+    useState<OpsManualInternalRecommendationRole | null>(null);
+  const [reason, setReason] = useState("");
+  const [reasonModalOpen, setReasonModalOpen] = useState(false);
+  const [error, setError] = useState("");
+  const rolesQuery = useOpsManualInternalRecommendationRoles(
+    roleSearch,
+    40,
+    open
+  );
+  const queueRecommendation = useQueueOpsManualInternalRecommendation();
+
+  function resetModalState() {
+    setRoleSearch("");
+    setSelectedRole(null);
+    setReason("");
+    setReasonModalOpen(false);
+    setError("");
+  }
+
+  function handleClose() {
+    resetModalState();
+    onClose();
+  }
+
+  const roles = rolesQuery.data?.roles ?? [];
+  const selectedDescriptionSummary = selectedRole?.descriptionSummary?.trim();
+  const selectedDescription = selectedRole?.description?.trim();
+  const showSelectedDescription =
+    selectedDescription && selectedDescription !== selectedDescriptionSummary;
+  const canOpenReason = Boolean(selectedRole) && !queueRecommendation.isPending;
+  const canSubmit = Boolean(selectedRole) && !queueRecommendation.isPending;
+
+  function handleOpenReasonModal() {
+    if (!selectedRole || !canOpenReason) return;
+    setError("");
+    setReasonModalOpen(true);
+  }
+
+  function handleReasonClose() {
+    if (queueRecommendation.isPending) return;
+    setError("");
+    setReasonModalOpen(false);
+  }
+
+  async function handleSubmit() {
+    if (!selectedRole || !canSubmit) return;
+    setError("");
+    try {
+      const result = await queueRecommendation.mutateAsync({
+        reason: reason.trim() || null,
+        roleId: selectedRole.roleId,
+        userId,
+      });
+      onQueued({
+        role: result.role,
+        runId: result.run.id,
+      });
+      handleClose();
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : "추천 등록에 실패했습니다."
+      );
+    }
+  }
+
+  return (
+    <>
+      <TalentCareerModal
+        open={open && !reasonModalOpen}
+        onClose={handleClose}
+        title="Internal 추천 등록"
+        panelClassName="flex h-[760px] max-h-[88vh] max-w-[1120px] flex-col border border-beige900/10 bg-beige50"
+        headerClassName="shrink-0 border-b border-beige900/10 bg-beige50 pr-16"
+        bodyClassName="min-h-0 flex-1 overflow-hidden bg-beige50 p-0"
+        footerClassName="shrink-0 border-t border-beige900/10 bg-beige50"
+        closeButtonClassName="font-geist right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-beige900/10 bg-white/70 text-beige900/70 transition-colors hover:border-beige900/25 hover:text-beige900"
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={handleClose}
+              className={cx(opsTheme.buttonSecondary, "h-9 px-4 text-xs")}
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              onClick={handleOpenReasonModal}
+              disabled={!canOpenReason}
+              className={cx(
+                opsTheme.buttonPrimary,
+                "h-9 px-4 text-xs",
+                !canOpenReason && "cursor-not-allowed opacity-50"
+              )}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              등록
+            </button>
+          </div>
+        }
+      >
+        <div className="grid h-full min-h-0 grid-cols-1 overflow-y-auto lg:grid-cols-[minmax(0,0.85fr)_minmax(360px,0.85fr)] lg:overflow-hidden">
+          <div className="flex min-w-0 flex-col border-b border-beige900/10 lg:border-b-0 lg:border-r">
+            <div className="border-b border-beige900/10 px-5 py-4">
+              <label className="block">
+                <span className={opsTheme.label}>Internal role</span>
+                <div className="relative mt-2">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-beige900/30" />
+                  <input
+                    type="text"
+                    value={roleSearch}
+                    onChange={(event) => setRoleSearch(event.target.value)}
+                    placeholder="회사, role, location 검색"
+                    className={cx(opsTheme.input, "h-10 pl-9 text-sm")}
+                  />
+                </div>
+              </label>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-auto p-5">
+              {rolesQuery.isLoading ? (
+                <div className="flex h-full min-h-[280px] items-center justify-center">
+                  <LoaderCircle className="h-5 w-5 animate-spin text-beige900/30" />
+                </div>
+              ) : rolesQuery.error ? (
+                <div className={opsTheme.errorNotice}>
+                  {rolesQuery.error instanceof Error
+                    ? rolesQuery.error.message
+                    : "Internal role을 불러오지 못했습니다."}
+                </div>
+              ) : roles.length === 0 ? (
+                <div className="flex h-full min-h-[280px] items-center justify-center rounded-md border border-dashed border-beige900/15 bg-white/30 font-geist text-sm text-beige900/40">
+                  선택 가능한 internal role이 없습니다.
+                </div>
+              ) : (
+                <div className="overflow-hidden rounded-md border border-beige900/10 bg-white/55">
+                  <div className="max-h-[440px] overflow-auto">
+                    <table className="w-full min-w-[760px] table-fixed border-collapse font-geist text-xs">
+                      <thead className="sticky top-0 z-[1] bg-beige500/45 text-left text-beige900/45">
+                        <tr>
+                          <th className="w-[140px] px-3 py-2 font-medium">
+                            회사
+                          </th>
+                          <th className="px-3 py-2 font-medium">역할</th>
+                          <th className="w-[180px] px-3 py-2 font-medium">
+                            Location
+                          </th>
+                          <th className="w-[96px] px-3 py-2 font-medium">
+                            Status
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-beige900/10">
+                        {roles.map((role) => {
+                          const active = selectedRole?.roleId === role.roleId;
+                          return (
+                            <tr
+                              key={role.roleId}
+                              role="button"
+                              tabIndex={0}
+                              aria-pressed={active}
+                              onClick={() => setSelectedRole(role)}
+                              onKeyDown={(event) => {
+                                if (
+                                  event.key === "Enter" ||
+                                  event.key === " "
+                                ) {
+                                  event.preventDefault();
+                                  setSelectedRole(role);
+                                }
+                              }}
+                              className={cx(
+                                "cursor-pointer align-top transition hover:opacity-80",
+                                active
+                                  ? "bg-[#2E1706] text-beige100"
+                                  : "text-beige900/70"
+                              )}
+                            >
+                              <td
+                                className={cx(
+                                  "truncate px-3 py-3 align-top font-medium",
+                                  active ? "text-beige100" : "text-beige900/75"
+                                )}
+                                title={role.companyName}
+                              >
+                                {role.companyName}
+                              </td>
+                              <td
+                                className={cx(
+                                  "truncate px-3 py-3 align-top text-[13px] font-normal",
+                                  active ? "text-beige100" : "text-beige900/85"
+                                )}
+                                title={role.roleName}
+                              >
+                                {role.roleName}
+                              </td>
+                              <td
+                                className={cx(
+                                  "truncate px-3 py-3 align-top",
+                                  active
+                                    ? "text-beige100/70"
+                                    : "text-beige900/45"
+                                )}
+                                title={role.locationText ?? undefined}
+                              >
+                                {role.locationText || "-"}
+                              </td>
+                              <td className="px-3 py-3 align-top">
+                                <span
+                                  className={cx(
+                                    "inline-flex max-w-full items-center truncate rounded border px-1 text-[11px] font-medium",
+                                    active
+                                      ? "border-beige100/25 bg-white/10 text-beige100"
+                                      : "border-beige900/10 bg-white/75 text-beige900/45"
+                                  )}
+                                >
+                                  {role.status ?? "active"}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <aside className="flex min-h-0 flex-col bg-beige500/20 px-5 py-5">
+            {selectedRole ? (
+              <>
+                <div className="">
+                  <div className="font-geist text-base font-medium text-beige900">
+                    {selectedRole.roleName}
+                  </div>
+                  <div className="mt-1 font-geist text-sm text-beige900/85">
+                    {selectedRole.companyName}
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 font-geist text-xs text-beige900/45">
+                    <div className="min-w-0 truncate">
+                      {selectedRole.locationText || "Location 없음"}
+                    </div>
+                    <div className="min-w-0 truncate text-right">
+                      {formatKst(selectedRole.updatedAt)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 min-h-0 flex-1 overflow-y-auto font-geist text-sm leading-6 text-beige900/90 pb-4">
+                  {selectedDescriptionSummary ? (
+                    <div className="whitespace-pre-wrap break-words font-medium text-beige900/85">
+                      {selectedDescriptionSummary}
+                    </div>
+                  ) : null}
+                  {showSelectedDescription ? (
+                    <div
+                      className={cx(
+                        "whitespace-pre-wrap break-words",
+                        selectedDescriptionSummary && "mt-4 text-beige900/65"
+                      )}
+                    >
+                      {selectedDescription}
+                    </div>
+                  ) : null}
+                  {!selectedDescriptionSummary && !showSelectedDescription ? (
+                    <div className="text-beige900/35">
+                      이 role에는 아직 description이 없습니다.
+                    </div>
+                  ) : null}
+                </div>
+              </>
+            ) : (
+              <div className="mt-3 flex flex-1 items-center justify-center rounded-md border border-dashed border-beige900/15 bg-white/30 p-6 text-center font-geist text-sm text-beige900/40">
+                왼쪽 테이블에서 role을 선택하면 상세 description이 여기에
+                표시됩니다.
+              </div>
+            )}
+          </aside>
+        </div>
+      </TalentCareerModal>
+
+      <TalentCareerModal
+        open={open && reasonModalOpen}
+        onClose={handleReasonClose}
+        title="추천 이유 입력"
+        description="추천 이유를 작성해주세요. 작성하지 않거나 대충 작성하더라도 Harper가 알아서 잘 작성해서 추천하게 됩니다."
+        panelClassName="max-w-[560px] border border-beige900/10 bg-beige50"
+        headerClassName="border-b border-beige900/10 bg-beige50 pr-16"
+        bodyClassName="bg-beige50 p-5"
+        footerClassName="border-t border-beige900/10 bg-beige50"
+        closeButtonClassName="font-geist right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-beige900/10 bg-white/70 text-beige900/70 transition-colors hover:border-beige900/25 hover:text-beige900"
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={handleReasonClose}
+              disabled={queueRecommendation.isPending}
+              className={cx(
+                opsTheme.buttonSecondary,
+                "h-9 px-4 text-xs",
+                queueRecommendation.isPending && "cursor-not-allowed opacity-50"
+              )}
+            >
+              이전
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleSubmit()}
+              disabled={!canSubmit}
+              className={cx(
+                opsTheme.buttonPrimary,
+                "h-9 px-4 text-xs",
+                !canSubmit && "cursor-not-allowed opacity-50"
+              )}
+            >
+              {queueRecommendation.isPending ? (
+                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5" />
+              )}
+              제출
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          {selectedRole ? (
+            <div className="font-geist">
+              <div className="text-sm font-ㅡㄷ야ㅕㅡ text-beige900">
+                {selectedRole.roleName}
+              </div>
+              <div className="mt-1 text-xs text-beige900/55">
+                {selectedRole.companyName}
+              </div>
+            </div>
+          ) : null}
+
+          <label className="block">
+            <span className={opsTheme.label}>추천 이유 (optional)</span>
+            <textarea
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              placeholder="예: 최근 agent workflow 경험과 잘 맞고, Harper가 직접 연결할 수 있는 팀이라 우선 제안하고 싶음"
+              className={cx(opsTheme.textarea, "mt-2 min-h-[180px] resize-y")}
+              maxLength={2000}
+            />
+          </label>
+
+          {error ? <div className={opsTheme.errorNotice}>{error}</div> : null}
+        </div>
+      </TalentCareerModal>
+    </>
+  );
+}
+
 function RecommendationsTab({ userId }: { userId: string }) {
+  const [sourceFilter, setSourceFilter] =
+    useState<RecommendationSourceFilter>("all");
   const {
     data,
     isLoading,
@@ -1141,7 +1549,7 @@ function RecommendationsTab({ userId }: { userId: string }) {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useOpsCareerRecommendations(userId, 20);
+  } = useOpsCareerRecommendations(userId, 20, true, sourceFilter);
   const updateStage = useUpdateOpsCareerRecommendationStage();
   const [customOpenIds, setCustomOpenIds] = useState<Set<string>>(
     () => new Set()
@@ -1149,11 +1557,17 @@ function RecommendationsTab({ userId }: { userId: string }) {
   const [customDrafts, setCustomDrafts] = useState<Record<string, string>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
   const [stageError, setStageError] = useState("");
+  const [manualModalOpen, setManualModalOpen] = useState(false);
+  const [manualNotice, setManualNotice] = useState("");
 
   const recommendations = useMemo(
     () => data?.pages.flatMap((page) => page.recommendations) ?? [],
     [data]
   );
+  const emptyRecommendationMessage =
+    sourceFilter === "internal"
+      ? "연결된 Internal 기회가 없습니다."
+      : "저장된 추천 기록이 없습니다.";
 
   const saveStage = useCallback(
     async (
@@ -1234,18 +1648,61 @@ function RecommendationsTab({ userId }: { userId: string }) {
 
   return (
     <div className={cx(opsTheme.panelSoft, "p-4")}>
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className={opsTheme.eyebrow}>Recommendations</div>
           <div className="mt-1 font-geist text-xs text-beige900/45">
             Internal / External 추천 기록, 열람, 클릭, 피드백, 진행 상태
           </div>
         </div>
-        <FileText className="h-4 w-4 shrink-0 text-beige900/30" />
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setManualNotice("");
+              setManualModalOpen(true);
+            }}
+            className={cx(opsTheme.buttonPrimary, "h-8 px-3 text-xs")}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            Internal 추천 등록
+          </button>
+          <div
+            role="radiogroup"
+            aria-label="추천 표시 범위"
+            className="flex items-center gap-1.5 rounded-md border border-beige900/10 bg-white/55 px-2 py-1 font-geist text-[11px] text-beige900/55"
+          >
+            {RECOMMENDATION_SOURCE_FILTER_OPTIONS.map((option) => (
+              <label
+                key={option.id}
+                className={cx(
+                  "inline-flex h-6 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded px-1 transition",
+                  sourceFilter === option.id
+                    ? "text-beige900"
+                    : "hover:text-beige900/75"
+                )}
+              >
+                <input
+                  type="radio"
+                  name={`recommendation-source-filter-${userId}`}
+                  value={option.id}
+                  checked={sourceFilter === option.id}
+                  onChange={() => setSourceFilter(option.id)}
+                  className="h-3 w-3 accent-beige900"
+                />
+                {option.label}
+              </label>
+            ))}
+          </div>
+          <FileText className="h-4 w-4 shrink-0 text-beige900/30" />
+        </div>
       </div>
 
       {stageError ? (
         <div className={cx(opsTheme.errorNotice, "mt-4")}>{stageError}</div>
+      ) : null}
+      {manualNotice ? (
+        <div className={cx(opsTheme.successNotice, "mt-4")}>{manualNotice}</div>
       ) : null}
 
       {isLoading ? (
@@ -1260,7 +1717,7 @@ function RecommendationsTab({ userId }: { userId: string }) {
         </div>
       ) : recommendations.length === 0 ? (
         <div className="mt-4 rounded-md border border-dashed border-beige900/15 bg-white/30 px-4 py-6 text-center font-geist text-sm text-beige900/40">
-          저장된 추천 기록이 없습니다.
+          {emptyRecommendationMessage}
         </div>
       ) : (
         <>
@@ -1287,8 +1744,7 @@ function RecommendationsTab({ userId }: { userId: string }) {
                     Boolean(item.processedStage?.trim());
                   const isCustomOpen =
                     isInternal &&
-                    (customOpenIds.has(item.recommendationId) ||
-                      isSavedCustom);
+                    (customOpenIds.has(item.recommendationId) || isSavedCustom);
                   const customDraft =
                     customDrafts[item.recommendationId] ??
                     item.processedStage ??
@@ -1413,9 +1869,7 @@ function RecommendationsTab({ userId }: { userId: string }) {
                                   </option>
                                 )
                               )}
-                              <option
-                                value={CUSTOM_RECOMMENDATION_STAGE_VALUE}
-                              >
+                              <option value={CUSTOM_RECOMMENDATION_STAGE_VALUE}>
                                 기타(주관식)
                               </option>
                             </select>
@@ -1486,6 +1940,17 @@ function RecommendationsTab({ userId }: { userId: string }) {
           ) : null}
         </>
       )}
+
+      <ManualInternalRecommendationModal
+        open={manualModalOpen}
+        onClose={() => setManualModalOpen(false)}
+        userId={userId}
+        onQueued={({ role, runId }) => {
+          setManualNotice(
+            `${role.roleName} at ${role.companyName} 추천 run을 등록했습니다. (${runId})`
+          );
+        }}
+      />
     </div>
   );
 }
@@ -1821,6 +2286,9 @@ export default function OpsCareerPage() {
     isFetchingNextPage,
   } = useOpsCareerTalents(FETCH_LIMIT, canFetchInternal);
   const [searchQuery, setSearchQuery] = useState("");
+  const emailExclusionTerms = useOpsInternalDataExclusionStore(
+    (state) => state.emailExclusionTerms
+  );
 
   const selectedUserId = useMemo(() => {
     if (!router.isReady) return null;
@@ -1852,16 +2320,33 @@ export default function OpsCareerPage() {
     [data]
   );
 
+  const visibleTalents = useMemo(
+    () =>
+      allTalents.filter(
+        (talent) =>
+          !isEmailExcludedByOpsInternalTerms(talent.email, emailExclusionTerms)
+      ),
+    [allTalents, emailExclusionTerms]
+  );
+
+  const hiddenByInternalDataExclusionCount =
+    allTalents.length - visibleTalents.length;
+  const emptyTalentMessage = searchQuery.trim()
+    ? "검색 결과가 없습니다."
+    : hiddenByInternalDataExclusionCount > 0
+      ? "내부 데이터 제외 설정으로 숨겨진 talent만 있습니다."
+      : "등록된 talent가 없습니다.";
+
   const filteredTalents = useMemo(() => {
-    if (!searchQuery.trim()) return allTalents;
+    if (!searchQuery.trim()) return visibleTalents;
     const q = searchQuery.toLowerCase();
-    return allTalents.filter(
+    return visibleTalents.filter(
       (t) =>
         t.name?.toLowerCase().includes(q) ||
         t.email?.toLowerCase().includes(q) ||
         t.headline?.toLowerCase().includes(q)
     );
-  }, [allTalents, searchQuery]);
+  }, [searchQuery, visibleTalents]);
 
   const totalCount = data?.pages[0]?.totalCount ?? 0;
 
@@ -1890,6 +2375,12 @@ export default function OpsCareerPage() {
                   className={cx(opsTheme.input, "pl-9 h-9")}
                 />
               </div>
+              {hiddenByInternalDataExclusionCount > 0 ? (
+                <div className="mt-2 font-geist text-[11px] text-beige900/35">
+                  내부 데이터 제외 설정으로 현재 불러온 목록에서{" "}
+                  {hiddenByInternalDataExclusionCount}명을 숨겼습니다.
+                </div>
+              ) : null}
             </div>
 
             {/* List */}
@@ -1906,9 +2397,7 @@ export default function OpsCareerPage() {
                 </div>
               ) : filteredTalents.length === 0 ? (
                 <div className="px-4 py-12 text-center font-geist text-sm text-beige900/40">
-                  {searchQuery
-                    ? "검색 결과가 없습니다."
-                    : "등록된 talent가 없습니다."}
+                  {emptyTalentMessage}
                 </div>
               ) : (
                 <>
