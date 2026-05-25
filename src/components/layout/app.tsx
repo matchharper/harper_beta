@@ -38,6 +38,8 @@ type AppLayoutProps = {
   initialCollapse?: boolean;
 };
 
+const AUTH_REDIRECT_PATH = "/search";
+
 const AppLayout = ({ children, initialCollapse = true }: AppLayoutProps) => {
   const [collapsed, setCollapsed] = useState(initialCollapse);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -62,7 +64,7 @@ const AppLayout = ({ children, initialCollapse = true }: AppLayoutProps) => {
     if (authLoading) return;
     if (!user) {
       clear();
-      router.replace("/");
+      router.replace(AUTH_REDIRECT_PATH);
       return;
     }
 
@@ -99,7 +101,7 @@ const AppLayout = ({ children, initialCollapse = true }: AppLayoutProps) => {
     if (!initialized || loading) return;
     if (loadedUserId !== user.id) return;
     if (!companyUser || !companyUser.is_authenticated) {
-      router.replace("/");
+      router.replace(AUTH_REDIRECT_PATH);
     }
   }, [
     authLoading,
@@ -354,7 +356,7 @@ const AppLayout = ({ children, initialCollapse = true }: AppLayoutProps) => {
           logEvent("logout");
           await signOut();
           clear();
-          router.push("/");
+          router.push(AUTH_REDIRECT_PATH);
         }}
       >
         <LogOut size={18} />

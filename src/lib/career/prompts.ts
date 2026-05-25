@@ -1538,6 +1538,7 @@ const buildCareerHistoryActionOpportunityContext = (
       ),
       concerns: item.recommendationConcerns.map(stripCareerPromptHtml),
       location: item.location,
+      processedStage: item.processedStage,
       recommendationReasons: item.recommendationReasons.map(
         stripCareerPromptHtml
       ),

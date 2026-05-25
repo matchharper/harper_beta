@@ -7,9 +7,9 @@
 목표는 두 가지다.
 
 1. 우리가 이미 알고 있는 회사의 채용 페이지를 다시 확인해서 `company_roles`를 최신화한다.
-2. 유저가 새 조건을 말했을 때, 기존 DB에 없는 범위의 공고를 추가로 찾고 그 범위를 이후 업데이트 대상에 포함한다.
+2. 유저가 새 조건을 말했을 때, 기존 DB에 없는 범위의 공고를 즉시 외부 검색으로 보충한다.
 
-예를 들어 유저가 “Engineer 말고 GTM으로 찾아줘”라고 하면, 그 순간에만 검색하고 끝내지 않는다. `GTM`, `Korea`, `AI startup` 같은 검색 범위를 저장해두고, 다음 공고 업데이트 때도 그 범위를 다시 본다.
+예를 들어 유저가 “Engineer 말고 GTM으로 찾아줘”라고 하면, discovery run 중 Brave Search로 후보 URL을 찾아보고, 읽힌 공고만 `company_roles`에 저장한다. 반복 업데이트 대상은 안정적인 회사/ATS URL인 `opportunity_source_registry`로 관리한다.
 
 ## 핵심 테이블
 
@@ -35,20 +35,6 @@ Stripe Greenhouse URL
 ```
 
 이 테이블은 “어디를 다시 볼지”를 관리한다.
-
-`opportunity_market_scan_scope`
-
-아직 특정 회사 URL로 고정되지 않은 검색 범위다.
-
-예:
-
-```text
-GTM AI startup Korea jobs
-ML Engineer Seoul Ashby
-Product Designer Korea Wanted
-```
-
-이 테이블은 “어떤 범위를 더 찾아볼지”를 관리한다.
 
 `opportunity_source_document`
 
@@ -89,8 +75,7 @@ worker가 처리하면 아래 순서로 돈다.
 5. 링크의 상세 페이지를 fetch한다.
 6. title, description, location, employment type, source URL을 추출한다.
 7. `company_workspace`와 `company_roles`에 upsert한다.
-8. `opportunity_market_scan_scope`가 있으면 Brave Search API로 후보 URL을 찾고 같은 방식으로 정규화한다. scheduled run에서는 `next_refresh_at`이 지난 scope만 본다.
-9. 오래된 external role은 `closed`로 바꾼다.
+8. 오래된 external role은 `closed`로 바꾼다.
 
 worker가 직접 수동 run을 만들고 바로 처리할 수도 있다.
 
@@ -137,29 +122,27 @@ https://www.linkedin.com/jobs/view/...
 
 그래서 Brave Search는 주력 수집 방식이 아니라 fallback이다.
 
-## `opportunity_market_scan_scope`가 있을 때 실제 흐름
+## 외부 검색을 쓸 때 실제 흐름
 
-예를 들어 이 row가 있다고 하자.
+예를 들어 discovery run의 context가 아래와 같다고 하자.
 
 ```text
-provider = search_api
-query = "GTM AI startup Korea jobs"
-role_family = "GTM"
-location = "Korea"
-company_archetype = "AI startup"
+roleFamilies = ["GTM"]
+locations = ["Korea"]
+companyArchetypes = ["AI startup"]
 ```
 
-공고 업데이트 worker는 이렇게 처리한다.
+worker는 DB 후보와 등록된 source 후보가 부족할 때 이렇게 처리한다.
 
-1. `opportunity_market_scan_scope`에서 이 row를 읽는다.
-2. `query`를 Brave Search API에 보낸다.
+1. context에서 `"GTM Korea careers"` 같은 query를 만든다.
+2. query를 Brave Search API에 보낸다.
 3. 검색 결과 URL 목록을 받는다.
 4. 각 URL을 fetch한다.
 5. 페이지 텍스트에 `GTM` 관련 내용이 있는지 확인한다.
 6. 조건에 맞으면 `opportunity_source_document`에 원문을 저장한다.
 7. 공고 형태로 정규화해서 `company_roles`에 넣는다.
 
-현재 구현은 여기까지다.
+검색 query 자체는 별도 DB 테이블에 저장하지 않는다.
 
 ## 현재 구현의 한계
 
@@ -192,7 +175,7 @@ company_archetype = "AI startup"
 
 1. 먼저 `company_roles`에서 기존 DB를 검색한다.
 2. 부족하면 `opportunity_source_registry`의 관련 source를 fetch한다.
-3. 그래도 부족하면 `opportunity_market_scan_scope`로 외부 검색을 한다.
+3. 그래도 부족하면 현재 discovery context로 외부 검색을 한다.
 4. 검색 결과에서 좋은 source를 찾으면 `opportunity_source_registry`에 등록한다.
 5. 다음 업데이트부터는 검색 API가 아니라 등록된 source를 직접 fetch한다.
 
@@ -200,7 +183,7 @@ company_archetype = "AI startup"
 
 ```text
 유저 요청: "GTM으로 찾아줘"
-scope 저장: "GTM AI startup Korea jobs"
+즉시 검색: "GTM AI startup Korea jobs"
 Brave Search 결과: jobs.ashbyhq.com/company-b
 source_registry 등록: company-b Ashby URL
 다음 업데이트: company-b Ashby URL 직접 fetch
@@ -210,7 +193,7 @@ source_registry 등록: company-b Ashby URL
 
 ## 지금 바로 추가해야 하는 개선
 
-1. `opportunity_market_scan_scope` 결과에서 좋은 ATS/career URL을 발견하면 `opportunity_source_registry`에 승격한다.
+1. 외부 검색 결과에서 좋은 ATS/career URL을 발견하면 `opportunity_source_registry`에 승격한다.
 2. Greenhouse, Ashby, Lever는 provider별 adapter를 먼저 만든다.
 3. Wanted, JobKorea, Saramin은 공식/허용 가능한 접근 방식이 있는지 확인한 뒤 별도 adapter로 붙인다.
 4. `next_refresh_at <= now()` 필터를 적용해서 수동 업데이트라도 due source만 돌릴 수 있게 한다.
@@ -222,7 +205,7 @@ source_registry 등록: company-b Ashby URL
 
 ```text
 known company career_url 업데이트
-+ 저장된 검색 scope를 Brave Search로 보충
++ discovery 중 부족한 후보를 Brave Search로 보충
 + 읽힌 페이지를 company_roles에 저장
 + 오래된 external role 닫기
 ```
@@ -230,7 +213,7 @@ known company career_url 업데이트
 최종적으로 가야 하는 구조는 다음이다.
 
 ```text
-검색 scope는 새 source 발견용
+외부 검색은 새 source 발견용
 반복 업데이트는 source_registry 중심
 공고 저장은 company_roles 중심
 추천은 company_roles를 기반으로 별도 실행

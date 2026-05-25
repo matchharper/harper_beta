@@ -98,6 +98,7 @@ async function createTalentChatCompletion(args: {
     anthropicOverloadFallbackModel,
     fallbackModel,
     model: primaryModel,
+    debugLabel: usageLabel,
     buildRequest: () => ({
       messages: messages as any,
       temperature,
@@ -134,6 +135,7 @@ export async function runTalentAssistantCompletion(args: {
     anthropicOverloadFallbackModel,
     fallbackModel,
     model: primaryModel,
+    debugLabel: usageLabel,
     buildRequest: (model) => {
       const responseFormat =
         jsonMode && supportsResponseFormatForModel(model)

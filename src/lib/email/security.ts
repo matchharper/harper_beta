@@ -14,7 +14,7 @@ function readTokenSecret() {
 }
 
 export function createReplyToken() {
-  return randomBytes(18).toString("base64url");
+  return randomBytes(18).toString("base64url").toLowerCase();
 }
 
 export function hashReplyToken(token: string) {

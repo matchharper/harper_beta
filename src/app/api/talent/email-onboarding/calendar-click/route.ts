@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { parseCareerEmailOnboardingToken } from "@/lib/careerEmailOnboarding/token";
+import {
+  buildCareerEmailOnboardingToken,
+  parseCareerEmailOnboardingToken,
+} from "@/lib/careerEmailOnboarding/token";
+import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
 import {
   getTalentSupabaseAdmin,
   type TalentAdminClient,
@@ -14,12 +18,27 @@ function toUntypedAdmin(admin: TalentAdminClient): UntypedAdmin {
 }
 
 export async function GET(req: NextRequest) {
-  const configured =
-    process.env.CAREER_EMAIL_ONBOARDING_CALENDAR_URL?.trim() ||
-    "https://calendly.com/chris-matchharper/30min";
-  const fallbackUrl = /^https?:\/\//i.test(configured)
-    ? configured
-    : `https://${configured}`;
+  const buildInternalCallStartUrl = (args?: {
+    email?: string | null;
+    leadId?: string | null;
+  }) => {
+    const url = new URL("/career_login", req.nextUrl.origin);
+    url.searchParams.set("next", "/career/onboarding?start=call");
+    url.searchParams.set("source", "email_onboarding_call");
+    if (args?.email) url.searchParams.set("mail", args.email);
+    if (args?.email && args.leadId) {
+      url.searchParams.set(
+        CAREER_EMAIL_ONBOARDING_TOKEN_PARAM,
+        buildCareerEmailOnboardingToken({
+          email: args.email,
+          leadId: args.leadId,
+          purpose: "login",
+        })
+      );
+    }
+    return url;
+  };
+  let redirectUrl = buildInternalCallStartUrl();
 
   try {
     const leadId = req.nextUrl.searchParams.get("lead") ?? "";
@@ -28,6 +47,10 @@ export async function GET(req: NextRequest) {
     if (parsed.leadId !== leadId) {
       throw new Error("Invalid lead token");
     }
+    redirectUrl = buildInternalCallStartUrl({
+      email: parsed.email,
+      leadId: parsed.leadId,
+    });
 
     const admin = toUntypedAdmin(getTalentSupabaseAdmin());
     const now = new Date().toISOString();
@@ -56,6 +79,7 @@ export async function GET(req: NextRequest) {
         local_id: lead.local_id ?? null,
         metadata: {
           clickedAt: now,
+          redirectedToInternalCallStart: true,
         },
       });
     }
@@ -65,5 +89,5 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  return NextResponse.redirect(fallbackUrl);
+  return NextResponse.redirect(redirectUrl);
 }

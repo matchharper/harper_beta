@@ -604,7 +604,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES]: {
     name: TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES,
     description:
-      "Read the user's existing recommended opportunities so the assistant can answer questions about previously recommended companies, roles, links, reasons, and user feedback.",
+      "Read the user's existing recommended opportunities so the assistant can answer questions about previously recommended companies, roles, links, reasons, user feedback, and internal process stages.",
     parameters: {
       type: "object",
       properties: {
@@ -689,6 +689,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           recommendationReasons: item.recommendationReasons.slice(0, 5),
           feedback: item.feedback,
           feedbackReason: item.feedbackReason,
+          processedStage: item.processedStage,
           savedStage: item.savedStage,
           dismissedAt: item.dismissedAt,
           status: item.status,

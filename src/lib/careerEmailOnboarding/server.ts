@@ -28,6 +28,7 @@ export type CareerEmailOnboardingRequest = {
   abtestType?: string | null;
   countryLang?: string | null;
   email: string;
+  forceResend?: boolean | null;
   isMobile?: boolean | null;
   localId?: string | null;
   pagePath?: string | null;
@@ -91,6 +92,10 @@ function textToHtml(text: string) {
     .join("");
 }
 
+function htmlLink(label: string, url: string) {
+  return `<a href="${htmlEscape(url)}" target="_blank" rel="noreferrer" style="color:#4d2f13;text-decoration:underline;">${htmlEscape(label)}</a>`;
+}
+
 function getBaseUrl(origin?: string | null) {
   const raw = (
     process.env.NEXT_PUBLIC_APP_URL?.trim() ||
@@ -109,6 +114,32 @@ function getClientIp(req: Request) {
     req.headers.get("cf-connecting-ip")?.trim() ||
     "unknown"
   );
+}
+
+function getStoredCareerEmailFrom() {
+  return (
+    process.env.EMAIL_REPLY_FROM_EMAIL?.trim() ||
+    process.env.RESEND_FROM_EMAIL?.trim() ||
+    "Harper <hello@matchharper.com>"
+  );
+}
+
+function isLocalOrigin(origin?: string | null) {
+  if (!origin) return false;
+  try {
+    const url = new URL(origin);
+    return ["localhost", "127.0.0.1", "::1"].includes(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function shouldForceResend(args: {
+  body: CareerEmailOnboardingRequest;
+  origin?: string | null;
+}) {
+  if (args.body.forceResend !== true) return false;
+  return process.env.NODE_ENV !== "production" || isLocalOrigin(args.origin);
 }
 
 export function hashCareerEmailForLogs(email: string) {
@@ -137,7 +168,7 @@ function buildLoginUrl(args: {
   return url.toString();
 }
 
-function buildCalendarUrl(args: {
+function buildCallStartLoginUrl(args: {
   baseUrl: string;
   email: string;
   leadId: string;
@@ -145,14 +176,13 @@ function buildCalendarUrl(args: {
   const token = buildCareerEmailOnboardingToken({
     email: args.email,
     leadId: args.leadId,
-    purpose: "calendar",
+    purpose: "login",
   });
-  const url = new URL(
-    "/api/talent/email-onboarding/calendar-click",
-    args.baseUrl
-  );
-  url.searchParams.set("lead", args.leadId);
-  url.searchParams.set("token", token);
+  const url = new URL("/career_login", args.baseUrl);
+  url.searchParams.set("next", "/career/onboarding?start=call");
+  url.searchParams.set("source", "email_onboarding_call");
+  url.searchParams.set("mail", args.email);
+  url.searchParams.set(CAREER_EMAIL_ONBOARDING_TOKEN_PARAM, token);
   return url.toString();
 }
 
@@ -173,13 +203,15 @@ async function recordEvent(
     metadata?: Record<string, unknown>;
   }
 ) {
-  const { error } = await admin.from("career_email_onboarding_events").insert({
-    event_type: args.eventType,
-    lead_id: args.leadId ?? null,
-    local_id: args.localId ?? null,
-    metadata: args.metadata ?? {},
-    normalized_email_hash: args.emailHash ?? null,
-  });
+  const { error } = await (admin as any)
+    .from("career_email_onboarding_events")
+    .insert({
+      event_type: args.eventType,
+      lead_id: args.leadId ?? null,
+      local_id: args.localId ?? null,
+      metadata: args.metadata ?? {},
+      normalized_email_hash: args.emailHash ?? null,
+    });
   if (error) {
     console.error("[career-email-onboarding] event insert failed", error);
   }
@@ -408,7 +440,7 @@ function buildFirstEmail(args: {
   const subject = name
     ? `From Harper to ${name}`
     : "Harper에서 먼저 인사드려요";
-  const text = `${greeting}
+  const coreText = `${greeting}
 
 이메일 남겨주셔서 감사해요. 긴 가입 폼부터 채우는 대신, 오늘은 메일로 가볍게 시작해볼게요 :)
 
@@ -416,15 +448,17 @@ function buildFirstEmail(args: {
 
 괜찮으시면 이 메일에 "좋아요"라고만 답장 주세요. 혹시 지금 찾고 있거나 열어두고 있는 방향이 있다면 한 줄만 덧붙여주셔도 좋아요. 예를 들면 풀타임 합류, 현업과 병행할 파트타임/프로젝트, 가벼운 기술 자문 같은 것들이요.
 
-아직 잘 모르겠으면 그냥 "좋아요"만 보내셔도 됩니다. 바로 이어서 필요한 자료와 회사에 소개드릴 때의 편한 방식을 여쭤볼게요.
+아직 잘 모르겠으면 그냥 "좋아요"만 보내셔도 됩니다. 바로 이어서 필요한 자료와 회사에 소개드릴 때의 편한 방식을 여쭤볼게요.`;
+  const text = `${coreText}
 
 웹에서 바로 이어가고 싶으시면 아래 링크로 들어오시면 됩니다.
-${args.loginUrl}`;
+사이트에서 계속하기: ${args.loginUrl}`;
+  const html = `${textToHtml(coreText)}<br /><p>${htmlLink("사이트에서 계속하기", args.loginUrl)}</p>`;
 
   return {
     subject,
     text,
-    html: textToHtml(text),
+    html,
   };
 }
 
@@ -441,13 +475,18 @@ export async function requestCareerEmailOnboarding(args: {
   const admin = toUntypedAdmin(getTalentSupabaseAdmin());
   const ip = getClientIp(args.request);
   const emailHash = hashCareerEmailForLogs(email);
+  const forceResend = shouldForceResend(args);
 
   const { data: existingSentLead } = await admin
     .from("career_email_onboarding_leads")
     .select("id, first_email_sent_at, reply_alias")
     .eq("normalized_email", email)
     .maybeSingle();
-  if (existingSentLead?.first_email_sent_at && existingSentLead.reply_alias) {
+  if (
+    !forceResend &&
+    existingSentLead?.first_email_sent_at &&
+    existingSentLead.reply_alias
+  ) {
     return {
       alreadySent: true,
       leadId: String(existingSentLead.id),
@@ -464,7 +503,7 @@ export async function requestCareerEmailOnboarding(args: {
     displayName,
     email,
   });
-  if (lead.first_email_sent_at && lead.reply_alias) {
+  if (!forceResend && lead.first_email_sent_at && lead.reply_alias) {
     return {
       alreadySent: true,
       leadId: String(lead.id),
@@ -488,7 +527,7 @@ export async function requestCareerEmailOnboarding(args: {
 
   const baseUrl = getBaseUrl(args.origin);
   const loginUrl = buildLoginUrl({ baseUrl, email, leadId: String(lead.id) });
-  const calendarUrl = buildCalendarUrl({
+  const callStartUrl = buildCallStartLoginUrl({
     baseUrl,
     email,
     leadId: String(lead.id),
@@ -500,16 +539,19 @@ export async function requestCareerEmailOnboarding(args: {
     text: firstEmail.text,
     html: firstEmail.html,
     replyTo: alias.address,
-    idempotencyKey: `career-email-onboarding/lead/${lead.id}/mail1`,
+    idempotencyKey: forceResend
+      ? `career-email-onboarding/lead/${lead.id}/mail1/local/${Date.now()}`
+      : `career-email-onboarding/lead/${lead.id}/mail1`,
   });
+  const firstEmailSentAt = new Date().toISOString();
 
   const { error: updateError } = await admin
     .from("career_email_onboarding_leads")
     .update({
-      calendar_url: calendarUrl,
+      calendar_url: callStartUrl,
       conversation_id: conversationId,
       first_email_resend_id: sendResult.id ?? null,
-      first_email_sent_at: new Date().toISOString(),
+      first_email_sent_at: firstEmailSentAt,
       metadata: {
         ...(lead.metadata && typeof lead.metadata === "object"
           ? lead.metadata
@@ -535,19 +577,50 @@ export async function requestCareerEmailOnboarding(args: {
     localId: args.body.localId,
     metadata: {
       ip,
+      forceResend,
       pagePath: args.body.pagePath ?? null,
       source: args.body.source ?? null,
       variant: args.body.variant ?? null,
     },
   });
 
-  await admin.from("talent_messages").insert({
-    content: firstEmail.text,
-    conversation_id: conversationId,
-    message_type: "email_onboarding",
-    role: "assistant",
-    user_id: talentId,
-  });
+  const { data: firstEmailMessage } = await admin
+    .from("talent_messages")
+    .insert({
+      content: firstEmail.text,
+      conversation_id: conversationId,
+      message_type: "email_onboarding",
+      role: "assistant",
+      user_id: talentId,
+    })
+    .select("id")
+    .single();
+
+  const { error: historyError } = await (admin as any)
+    .from("career_email_messages")
+    .insert({
+      body_text: firstEmail.text,
+      created_at: firstEmailSentAt,
+      direction: "outbound",
+      from_email: getStoredCareerEmailFrom(),
+      mail_type: "onboarding",
+      metadata: {
+        replyTo: alias.address,
+        resendEmailId: sendResult.id ?? null,
+      },
+      occurred_at: firstEmailSentAt,
+      status: "sent",
+      subject: firstEmail.subject,
+      talent_id: talentId,
+      talent_message_id: firstEmailMessage?.id ?? null,
+      to_email: email,
+    });
+  if (historyError) {
+    console.warn("[career-email-onboarding] email history insert skipped", {
+      error: historyError.message,
+      leadId: String(lead.id),
+    });
+  }
 
   await recordEvent(admin, {
     emailHash,
