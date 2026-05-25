@@ -1,16 +1,3 @@
-alter table public.opportunity_discovery_run
-  drop constraint if exists opportunity_discovery_run_target_count_check;
-
-do $$
-begin
-  alter table public.opportunity_discovery_run
-    add constraint opportunity_discovery_run_target_count_check
-    check (target_recommendation_count between 1 and 200);
-exception
-  when duplicate_object then null;
-end
-$$;
-
 create table if not exists public.talent_opportunity_profile_snapshot (
   id uuid primary key default gen_random_uuid(),
   talent_id uuid not null references public.talent_users(user_id) on delete cascade,

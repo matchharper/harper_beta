@@ -8,15 +8,24 @@ import {
   useUpdateInsights,
   useDeleteChecklistItem,
   useIngestCareerProfile,
+  useOpsCareerMailHistory,
+  useOpsCareerRecommendations,
   useSendCareerTalentMail,
+  useUpdateOpsCareerRecommendationStage,
 } from "@/hooks/useOpsCareer";
 import { renderEmailBodyHtmlWithHarperFooter } from "@/lib/email/harperFooter";
 import { isInternalEmail } from "@/lib/internalAccess";
-import type { CareerTalentDetailResponse } from "@/lib/opsCareerServer";
+import type {
+  CareerTalentDetailResponse,
+  CareerTalentMailHistoryItem,
+  CareerTalentRecommendationItem,
+} from "@/lib/opsCareerServer";
 import { useAuthStore } from "@/store/useAuthStore";
 import {
+  ChevronDown,
   ChevronRight,
   ExternalLink,
+  FileText,
   Link2,
   LoaderCircle,
   Mail,
@@ -58,9 +67,117 @@ const onboardingStatusLabel = (isDone: boolean) => {
 };
 
 const onboardingStatusBadgeClass = (isDone: boolean) => {
-  return isDone
+  return isDone ? "bg-[#E4EDE2] text-[#29513A]" : "bg-[#FEF3C7] text-[#92400E]";
+};
+
+const mailActorLabel = (item: CareerTalentMailHistoryItem) => {
+  if (item.direction === "inbound") return "유저";
+  if (item.mailType === "manual_ops") return "Ops 수동";
+  return "시스템";
+};
+
+const mailTypeLabel = (mailType: string) => {
+  switch (mailType) {
+    case "manual_ops":
+      return "수동 발송";
+    case "user_reply":
+      return "유저 답장";
+    case "auto_reply":
+      return "자동 답장";
+    case "onboarding":
+      return "온보딩 1차";
+    case "onboarding_review":
+      return "온보딩 리뷰";
+    case "opportunity_recommendation":
+      return "추천 메일";
+    default:
+      return mailType;
+  }
+};
+
+const mailStatusLabel = (status: string) => {
+  switch (status) {
+    case "queued":
+      return "대기";
+    case "sent":
+      return "발송";
+    case "received":
+      return "수신";
+    case "failed":
+      return "실패";
+    case "skipped":
+      return "스킵";
+    default:
+      return status || "-";
+  }
+};
+
+const mailStatusClass = (status: string) => {
+  if (status === "sent" || status === "received") {
+    return "bg-[#E4EDE2] text-[#29513A]";
+  }
+  if (status === "failed") return "bg-[#F7DBD3] text-[#8A2E1D]";
+  return "bg-beige500/60 text-beige900/55";
+};
+
+const compactMailAddress = (value: string | null | undefined) => {
+  const normalized = value?.trim();
+  return normalized || "-";
+};
+
+const AUTO_RECOMMENDATION_STAGE_VALUE = "__auto__";
+const CUSTOM_RECOMMENDATION_STAGE_VALUE = "__custom__";
+const INTERNAL_RECOMMENDATION_FIXED_STAGES = [
+  "회사에 전달됨",
+  "회사에서 거절됨",
+  "연결시켜줌",
+  "채용됨",
+  "프로세스종료됨",
+] as const;
+
+const recommendationSourceLabel = (
+  sourceType: CareerTalentRecommendationItem["sourceType"]
+) => (sourceType === "internal" ? "Internal" : "External");
+
+const recommendationSourceClass = (
+  sourceType: CareerTalentRecommendationItem["sourceType"]
+) =>
+  sourceType === "internal"
     ? "bg-[#E4EDE2] text-[#29513A]"
-    : "bg-[#FEF3C7] text-[#92400E]";
+    : "bg-beige500/65 text-beige900/55";
+
+const recommendationFeedbackLabel = (feedback: string | null | undefined) => {
+  const normalized = String(feedback ?? "").toLowerCase();
+  if (normalized === "like" || normalized === "positive") return "수락";
+  if (normalized === "dislike" || normalized === "negative") return "거절";
+  return "-";
+};
+
+const recommendationFeedbackClass = (feedback: string | null | undefined) => {
+  const normalized = String(feedback ?? "").toLowerCase();
+  if (normalized === "like" || normalized === "positive") {
+    return "bg-[#E4EDE2] text-[#29513A]";
+  }
+  if (normalized === "dislike" || normalized === "negative") {
+    return "bg-[#F7DBD3] text-[#8A2E1D]";
+  }
+  return "bg-beige500/55 text-beige900/40";
+};
+
+const getAutoRecommendationStageLabel = (
+  item: CareerTalentRecommendationItem
+) => (item.feedback ? "수락-거절함" : "추천됨");
+
+const getRecommendationStageSelectValue = (
+  item: CareerTalentRecommendationItem
+) => {
+  const processedStage = item.processedStage?.trim();
+  if (!processedStage) return AUTO_RECOMMENDATION_STAGE_VALUE;
+  return INTERNAL_RECOMMENDATION_FIXED_STAGES.includes(
+    processedStage as (typeof INTERNAL_RECOMMENDATION_FIXED_STAGES)[number]
+  )
+    ? processedStage
+    : CUSTOM_RECOMMENDATION_STAGE_VALUE;
 };
 
 function TalentListItem({
@@ -123,7 +240,7 @@ function TalentListItem({
 function TalentDetail({ userId }: { userId: string }) {
   const { data: detail, isLoading, error } = useOpsCareerDetail(userId);
   const [activeTab, setActiveTab] = useState<
-    "insights" | "messages" | "profile" | "mail"
+    "insights" | "messages" | "profile" | "mail" | "recommendations"
   >("insights");
 
   if (isLoading) {
@@ -149,6 +266,7 @@ function TalentDetail({ userId }: { userId: string }) {
     { id: "messages" as const, label: "대화 내역" },
     { id: "profile" as const, label: "프로필" },
     { id: "mail" as const, label: "메일" },
+    { id: "recommendations" as const, label: "추천" },
   ];
 
   return (
@@ -230,6 +348,9 @@ function TalentDetail({ userId }: { userId: string }) {
         {activeTab === "profile" && <ProfileTab detail={detail} />}
         {activeTab === "mail" && (
           <MailTab key={detail.userId} detail={detail} />
+        )}
+        {activeTab === "recommendations" && (
+          <RecommendationsTab key={detail.userId} userId={detail.userId} />
         )}
       </div>
     </div>
@@ -629,8 +750,191 @@ function MessagesTab({
   );
 }
 
+function MailHistoryPanel({ userId }: { userId: string }) {
+  const {
+    data,
+    isLoading,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useOpsCareerMailHistory(userId, 10);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
+
+  const messages = useMemo(
+    () => data?.pages.flatMap((page) => page.messages) ?? [],
+    [data]
+  );
+
+  const toggleExpanded = useCallback((id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  return (
+    <div className={cx(opsTheme.panelSoft, "p-4")}>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className={opsTheme.eyebrow}>Mail History</div>
+          <div className="mt-1 font-geist text-xs text-beige900/45">
+            시스템 발송, Ops 수동 발송, 유저 답장
+          </div>
+        </div>
+        <Mail className="h-4 w-4 shrink-0 text-beige900/30" />
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-10">
+          <LoaderCircle className="h-5 w-5 animate-spin text-beige900/30" />
+        </div>
+      ) : error ? (
+        <div className={cx(opsTheme.errorNotice, "mt-4")}>
+          {error instanceof Error
+            ? error.message
+            : "메일 기록을 불러오지 못했습니다."}
+        </div>
+      ) : messages.length === 0 ? (
+        <div className="mt-4 rounded-md border border-dashed border-beige900/15 bg-white/30 px-4 py-6 text-center font-geist text-sm text-beige900/40">
+          저장된 메일 기록이 없습니다.
+        </div>
+      ) : (
+        <>
+          <div className="mt-4 overflow-x-auto rounded-md border border-beige900/10 bg-white/55">
+            <table className="min-w-[820px] w-full table-fixed border-collapse font-geist text-xs">
+              <thead className="bg-beige500/45 text-left text-beige900/45">
+                <tr>
+                  <th className="w-[150px] px-3 py-2 font-medium">일시</th>
+                  <th className="w-[100px] px-3 py-2 font-medium">구분</th>
+                  <th className="w-[170px] px-3 py-2 font-medium">발신</th>
+                  <th className="w-[170px] px-3 py-2 font-medium">수신</th>
+                  <th className="px-3 py-2 font-medium">제목</th>
+                  <th className="w-[90px] px-3 py-2 font-medium">상태</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-beige900/10">
+                {messages.map((item) => {
+                  const isExpanded = expandedIds.has(item.id);
+                  return (
+                    <React.Fragment key={item.id}>
+                      <tr
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => toggleExpanded(item.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            toggleExpanded(item.id);
+                          }
+                        }}
+                        className="cursor-pointer text-beige900/70 transition hover:bg-white/70"
+                      >
+                        <td className="px-3 py-2 align-top text-beige900/45">
+                          {formatKst(item.occurredAt)}
+                        </td>
+                        <td className="px-3 py-2 align-top">
+                          <div className="flex items-center gap-1.5">
+                            <ChevronDown
+                              className={cx(
+                                "h-3.5 w-3.5 shrink-0 text-beige900/30 transition",
+                                isExpanded ? "rotate-0" : "-rotate-90"
+                              )}
+                            />
+                            <div className="min-w-0">
+                              <div className="truncate font-medium text-beige900/75">
+                                {mailActorLabel(item)}
+                              </div>
+                              <div className="truncate text-[11px] text-beige900/35">
+                                {mailTypeLabel(item.mailType)}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td
+                          className="truncate px-3 py-2 align-top"
+                          title={compactMailAddress(item.fromEmail)}
+                        >
+                          {compactMailAddress(item.fromEmail)}
+                        </td>
+                        <td
+                          className="truncate px-3 py-2 align-top"
+                          title={compactMailAddress(item.toEmail)}
+                        >
+                          {compactMailAddress(item.toEmail)}
+                        </td>
+                        <td
+                          className="truncate px-3 py-2 align-top font-medium text-beige900/80"
+                          title={item.subject ?? "(제목 없음)"}
+                        >
+                          {item.subject?.trim() || "(제목 없음)"}
+                        </td>
+                        <td className="px-3 py-2 align-top">
+                          <span
+                            className={cx(
+                              "inline-flex rounded px-1.5 py-0.5 text-[11px] font-medium",
+                              mailStatusClass(item.status)
+                            )}
+                          >
+                            {mailStatusLabel(item.status)}
+                          </span>
+                        </td>
+                      </tr>
+                      {isExpanded ? (
+                        <tr>
+                          <td colSpan={6} className="bg-white/65 px-3 py-3">
+                            <div className="rounded-md border border-beige900/10 bg-white/70 px-3 py-3 font-geist text-xs leading-5 text-beige900/70">
+                              {item.bodyText?.trim() ? (
+                                <div className="whitespace-pre-wrap">
+                                  {item.bodyText.trim()}
+                                </div>
+                              ) : (
+                                <div className="text-beige900/35">
+                                  저장된 본문이 없습니다.
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ) : null}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {hasNextPage ? (
+            <div className="mt-3 flex justify-center">
+              <button
+                type="button"
+                onClick={() => void fetchNextPage()}
+                disabled={isFetchingNextPage}
+                className={cx(opsTheme.buttonSecondary, "h-9 px-4 text-xs")}
+              >
+                {isFetchingNextPage ? (
+                  <>
+                    <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                    불러오는 중...
+                  </>
+                ) : (
+                  "10개 더 보기"
+                )}
+              </button>
+            </div>
+          ) : null}
+        </>
+      )}
+    </div>
+  );
+}
+
 function MailTab({ detail }: { detail: CareerTalentDetailResponse }) {
-  const user = useAuthStore((state) => state.user);
   const sendMail = useSendCareerTalentMail();
   const [fromEmail, setFromEmail] = useState("Harper <hello@matchharper.com>");
   const [subject, setSubject] = useState("");
@@ -823,6 +1127,365 @@ function MailTab({ detail }: { detail: CareerTalentDetailResponse }) {
           </div>
         </div>
       </div>
+
+      <MailHistoryPanel userId={detail.userId} />
+    </div>
+  );
+}
+
+function RecommendationsTab({ userId }: { userId: string }) {
+  const {
+    data,
+    isLoading,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useOpsCareerRecommendations(userId, 20);
+  const updateStage = useUpdateOpsCareerRecommendationStage();
+  const [customOpenIds, setCustomOpenIds] = useState<Set<string>>(
+    () => new Set()
+  );
+  const [customDrafts, setCustomDrafts] = useState<Record<string, string>>({});
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [stageError, setStageError] = useState("");
+
+  const recommendations = useMemo(
+    () => data?.pages.flatMap((page) => page.recommendations) ?? [],
+    [data]
+  );
+
+  const saveStage = useCallback(
+    async (
+      item: CareerTalentRecommendationItem,
+      processedStage: string | null
+    ) => {
+      if (item.sourceType !== "internal") return;
+      setSavingId(item.recommendationId);
+      setStageError("");
+      try {
+        await updateStage.mutateAsync({
+          processedStage,
+          recommendationId: item.recommendationId,
+          userId,
+        });
+      } catch (stageUpdateError) {
+        setStageError(
+          stageUpdateError instanceof Error
+            ? stageUpdateError.message
+            : "추천 상태를 저장하지 못했습니다."
+        );
+      } finally {
+        setSavingId(null);
+      }
+    },
+    [updateStage, userId]
+  );
+
+  const closeCustomEditor = useCallback((recommendationId: string) => {
+    setCustomOpenIds((prev) => {
+      const next = new Set(prev);
+      next.delete(recommendationId);
+      return next;
+    });
+  }, []);
+
+  const openCustomEditor = useCallback(
+    (item: CareerTalentRecommendationItem) => {
+      setCustomOpenIds((prev) => {
+        const next = new Set(prev);
+        next.add(item.recommendationId);
+        return next;
+      });
+      setCustomDrafts((prev) => ({
+        ...prev,
+        [item.recommendationId]:
+          prev[item.recommendationId] ?? item.processedStage ?? "",
+      }));
+    },
+    []
+  );
+
+  const handleStageSelect = useCallback(
+    async (item: CareerTalentRecommendationItem, value: string) => {
+      if (value === CUSTOM_RECOMMENDATION_STAGE_VALUE) {
+        openCustomEditor(item);
+        return;
+      }
+
+      closeCustomEditor(item.recommendationId);
+      await saveStage(
+        item,
+        value === AUTO_RECOMMENDATION_STAGE_VALUE ? null : value
+      );
+    },
+    [closeCustomEditor, openCustomEditor, saveStage]
+  );
+
+  const handleCustomSave = useCallback(
+    async (item: CareerTalentRecommendationItem) => {
+      const draft = (customDrafts[item.recommendationId] ?? "").trim();
+      if (!draft) return;
+      await saveStage(item, draft);
+      closeCustomEditor(item.recommendationId);
+    },
+    [closeCustomEditor, customDrafts, saveStage]
+  );
+
+  return (
+    <div className={cx(opsTheme.panelSoft, "p-4")}>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className={opsTheme.eyebrow}>Recommendations</div>
+          <div className="mt-1 font-geist text-xs text-beige900/45">
+            Internal / External 추천 기록, 열람, 클릭, 피드백, 진행 상태
+          </div>
+        </div>
+        <FileText className="h-4 w-4 shrink-0 text-beige900/30" />
+      </div>
+
+      {stageError ? (
+        <div className={cx(opsTheme.errorNotice, "mt-4")}>{stageError}</div>
+      ) : null}
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-10">
+          <LoaderCircle className="h-5 w-5 animate-spin text-beige900/30" />
+        </div>
+      ) : error ? (
+        <div className={cx(opsTheme.errorNotice, "mt-4")}>
+          {error instanceof Error
+            ? error.message
+            : "추천 기록을 불러오지 못했습니다."}
+        </div>
+      ) : recommendations.length === 0 ? (
+        <div className="mt-4 rounded-md border border-dashed border-beige900/15 bg-white/30 px-4 py-6 text-center font-geist text-sm text-beige900/40">
+          저장된 추천 기록이 없습니다.
+        </div>
+      ) : (
+        <>
+          <div className="mt-4 overflow-x-auto rounded-md border border-beige900/10 bg-white/55">
+            <table className="min-w-[1080px] w-full table-fixed border-collapse font-geist text-xs">
+              <thead className="bg-beige500/45 text-left text-beige900/45">
+                <tr>
+                  <th className="w-[135px] px-2 py-2 font-medium">추천일</th>
+                  <th className="w-[90px] px-2 py-2 font-medium">구분</th>
+                  <th className="px-2 py-2 font-medium">회사 / 역할</th>
+                  <th className="w-[150px] px-2 py-2 font-medium">
+                    열람 / 클릭
+                  </th>
+                  <th className="w-[150px] px-2 py-2 font-medium">피드백</th>
+                  <th className="w-[230px] px-2 py-2 font-medium">상태</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-beige900/10">
+                {recommendations.map((item) => {
+                  const isInternal = item.sourceType === "internal";
+                  const selectValue = getRecommendationStageSelectValue(item);
+                  const isSavedCustom =
+                    selectValue === CUSTOM_RECOMMENDATION_STAGE_VALUE &&
+                    Boolean(item.processedStage?.trim());
+                  const isCustomOpen =
+                    isInternal &&
+                    (customOpenIds.has(item.recommendationId) ||
+                      isSavedCustom);
+                  const customDraft =
+                    customDrafts[item.recommendationId] ??
+                    item.processedStage ??
+                    "";
+                  const isSaving = savingId === item.recommendationId;
+
+                  return (
+                    <tr
+                      key={item.recommendationId}
+                      className="text-beige900/70 transition hover:bg-white/70"
+                    >
+                      <td className="px-2 py-2 align-top text-beige900/45">
+                        {formatKst(item.recommendedAt)}
+                      </td>
+                      <td className="px-2 py-2 align-top">
+                        <span
+                          className={cx(
+                            "inline-flex rounded px-1.5 py-0.5 text-[11px] font-medium",
+                            recommendationSourceClass(item.sourceType)
+                          )}
+                        >
+                          {recommendationSourceLabel(item.sourceType)}
+                        </span>
+                      </td>
+                      <td className="px-2 py-2 align-top">
+                        <div className="min-w-0">
+                          <div
+                            className="truncate font-medium text-beige900/85"
+                            title={item.roleName}
+                          >
+                            {item.roleName}
+                          </div>
+                          <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-beige900/45">
+                            <span className="truncate" title={item.companyName}>
+                              {item.companyName}
+                            </span>
+                            {item.externalJdUrl ? (
+                              <a
+                                href={item.externalJdUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="shrink-0 text-beige900/45 transition hover:text-beige900"
+                                title="JD 열기"
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            ) : null}
+                          </div>
+                          {item.locationText ? (
+                            <div className="mt-0.5 truncate text-[11px] text-beige900/35">
+                              {item.locationText}
+                            </div>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td className="px-2 py-2 align-top text-[11px]">
+                        <div
+                          className={cx(
+                            item.viewedAt
+                              ? "text-beige900/65"
+                              : "text-beige900/30"
+                          )}
+                        >
+                          {item.viewedAt
+                            ? `열람 ${formatKst(item.viewedAt)}`
+                            : "미열람"}
+                        </div>
+                        <div
+                          className={cx(
+                            "mt-0.5",
+                            item.clickedAt
+                              ? "text-beige900/65"
+                              : "text-beige900/30"
+                          )}
+                        >
+                          {item.clickedAt
+                            ? `클릭 ${formatKst(item.clickedAt)}`
+                            : "미클릭"}
+                        </div>
+                      </td>
+                      <td className="px-2 py-2 align-top">
+                        <span
+                          className={cx(
+                            "inline-flex rounded px-1.5 py-0.5 text-[11px] font-medium",
+                            recommendationFeedbackClass(item.feedback)
+                          )}
+                        >
+                          {recommendationFeedbackLabel(item.feedback)}
+                        </span>
+                        {item.feedbackAt ? (
+                          <div className="mt-1 text-[11px] text-beige900/35">
+                            {formatKst(item.feedbackAt)}
+                          </div>
+                        ) : null}
+                        {item.feedbackReason ? (
+                          <div
+                            className="mt-0.5 truncate text-[11px] text-beige900/45"
+                            title={item.feedbackReason}
+                          >
+                            {item.feedbackReason}
+                          </div>
+                        ) : null}
+                      </td>
+                      <td className="px-2 py-2 align-top">
+                        {isInternal ? (
+                          <div className="space-y-1.5">
+                            <select
+                              value={selectValue}
+                              onChange={(event) =>
+                                void handleStageSelect(item, event.target.value)
+                              }
+                              disabled={isSaving}
+                              className="h-8 w-full rounded-md border border-beige900/10 bg-white/80 px-2 font-geist text-xs text-beige900 outline-none transition focus:border-beige900/25 disabled:opacity-50"
+                            >
+                              <option value={AUTO_RECOMMENDATION_STAGE_VALUE}>
+                                {getAutoRecommendationStageLabel(item)}
+                              </option>
+                              {INTERNAL_RECOMMENDATION_FIXED_STAGES.map(
+                                (stage) => (
+                                  <option key={stage} value={stage}>
+                                    {stage}
+                                  </option>
+                                )
+                              )}
+                              <option
+                                value={CUSTOM_RECOMMENDATION_STAGE_VALUE}
+                              >
+                                기타(주관식)
+                              </option>
+                            </select>
+                            {isCustomOpen ? (
+                              <div className="flex items-center gap-1.5">
+                                <input
+                                  type="text"
+                                  value={customDraft}
+                                  onChange={(event) =>
+                                    setCustomDrafts((prev) => ({
+                                      ...prev,
+                                      [item.recommendationId]:
+                                        event.target.value,
+                                    }))
+                                  }
+                                  placeholder="상태 입력"
+                                  className="h-8 min-w-0 flex-1 rounded-md border border-beige900/10 bg-white/80 px-2 font-geist text-xs text-beige900 outline-none transition placeholder:text-beige900/35 focus:border-beige900/25"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => void handleCustomSave(item)}
+                                  disabled={isSaving || !customDraft.trim()}
+                                  className={cx(
+                                    opsTheme.buttonSecondary,
+                                    "h-8 px-2 text-xs"
+                                  )}
+                                >
+                                  {isSaving ? (
+                                    <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <Save className="h-3.5 w-3.5" />
+                                  )}
+                                </button>
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <span className="text-beige900/45">
+                            {item.effectiveStage}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {hasNextPage ? (
+            <div className="mt-3 flex justify-center">
+              <button
+                type="button"
+                onClick={() => void fetchNextPage()}
+                disabled={isFetchingNextPage}
+                className={cx(opsTheme.buttonSecondary, "h-9 px-4 text-xs")}
+              >
+                {isFetchingNextPage ? (
+                  <>
+                    <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                    불러오는 중...
+                  </>
+                ) : (
+                  "20개 더 보기"
+                )}
+              </button>
+            </div>
+          ) : null}
+        </>
+      )}
     </div>
   );
 }
@@ -842,6 +1505,12 @@ const formatRegisteredLinkLabel = (link: string) => {
   } catch {
     return link;
   }
+};
+
+const getResumeFileDisplayName = (detail: CareerTalentDetailResponse) => {
+  const fileName = detail.resumeFileName?.trim();
+  if (fileName) return fileName;
+  return detail.resumeStoragePath?.trim() ? "파일명 없이 저장됨" : null;
 };
 
 function ProfileTab({ detail }: { detail: CareerTalentDetailResponse }) {
@@ -864,6 +1533,9 @@ function ProfileTab({ detail }: { detail: CareerTalentDetailResponse }) {
     date?: string | null;
   }>;
   const registeredLinks = detail.registeredLinks;
+  const resumeFileDisplayName = getResumeFileDisplayName(detail);
+  const hasResumeFile = Boolean(resumeFileDisplayName);
+  const hasResumeText = Boolean(detail.resumeTextAvailable);
   const linkedinUrl = useMemo(
     () => getLinkedinProfileUrl(registeredLinks),
     [registeredLinks]
@@ -914,7 +1586,7 @@ function ProfileTab({ detail }: { detail: CareerTalentDetailResponse }) {
     <div className="space-y-4">
       <div className={cx(opsTheme.panelSoft, "p-4")}>
         <div className="flex items-center justify-between gap-3">
-          <div className={cx(opsTheme.eyebrow)}>등록 링크</div>
+          <div className={cx(opsTheme.eyebrow)}>등록 자료</div>
           {linkedinUrl ? (
             <button
               type="button"
@@ -942,6 +1614,55 @@ function ProfileTab({ detail }: { detail: CareerTalentDetailResponse }) {
           ) : null}
         </div>
 
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <div className="rounded-md border border-beige900/10 bg-white/45 px-3 py-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-1.5 font-geist text-xs font-medium text-beige900/70">
+                <FileText className="h-3.5 w-3.5 shrink-0 text-beige900/35" />
+                <span>이력서 파일</span>
+              </div>
+              <span
+                className={cx(
+                  "shrink-0 rounded px-1.5 py-0.5 font-geist text-[10px] font-medium",
+                  hasResumeFile
+                    ? "bg-[#E4EDE2] text-[#29513A]"
+                    : "bg-beige500/50 text-beige900/45"
+                )}
+              >
+                {hasResumeFile ? "있음" : "없음"}
+              </span>
+            </div>
+            <div className="mt-1 truncate font-geist text-xs text-beige900/45">
+              {resumeFileDisplayName ?? "저장된 파일 없음"}
+            </div>
+          </div>
+
+          <div className="rounded-md border border-beige900/10 bg-white/45 px-3 py-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-1.5 font-geist text-xs font-medium text-beige900/70">
+                <FileText className="h-3.5 w-3.5 shrink-0 text-beige900/35" />
+                <span>이력서 텍스트</span>
+              </div>
+              <span
+                className={cx(
+                  "shrink-0 rounded px-1.5 py-0.5 font-geist text-[10px] font-medium",
+                  hasResumeText
+                    ? "bg-[#E4EDE2] text-[#29513A]"
+                    : "bg-beige500/50 text-beige900/45"
+                )}
+              >
+                {hasResumeText ? "추출됨" : "없음"}
+              </span>
+            </div>
+            <div className="mt-1 truncate font-geist text-xs text-beige900/45">
+              {hasResumeText
+                ? "프로필 추출에 사용할 resume text가 저장되어 있습니다."
+                : "저장된 resume text 없음"}
+            </div>
+          </div>
+        </div>
+
+        <div className={cx(opsTheme.eyebrow, "mt-4")}>등록 링크</div>
         {registeredLinks.length > 0 ? (
           <div className="mt-3 space-y-2">
             {registeredLinks.map((link) => {

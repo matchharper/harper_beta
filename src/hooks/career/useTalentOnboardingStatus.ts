@@ -58,10 +58,20 @@ export function useTalentOnboardingRedirect({
     if (emailOnboardingToken) {
       query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM] = emailOnboardingToken;
     }
+    if (router.query.start === "call" || router.query.start === "chat") {
+      query.start = router.query.start;
+    }
 
     void router.replace({
       pathname: "/career/onboarding",
       query: Object.keys(query).length > 0 ? query : undefined,
     });
-  }, [emailOnboardingToken, inviteToken, mail, needsOnboarding, router]);
+  }, [
+    emailOnboardingToken,
+    inviteToken,
+    mail,
+    needsOnboarding,
+    router,
+    router.query.start,
+  ]);
 }

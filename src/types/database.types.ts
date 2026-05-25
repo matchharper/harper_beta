@@ -742,6 +742,176 @@ export type Database = {
           },
         ]
       }
+      career_email_onboarding_events: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: string
+          lead_id: string | null
+          local_id: string | null
+          metadata: Json
+          normalized_email_hash: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: string
+          lead_id?: string | null
+          local_id?: string | null
+          metadata?: Json
+          normalized_email_hash?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: string
+          lead_id?: string | null
+          local_id?: string | null
+          metadata?: Json
+          normalized_email_hash?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "career_email_onboarding_events_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "career_email_onboarding_leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      career_email_onboarding_leads: {
+        Row: {
+          abtest_type: string
+          calendar_cta_sent_at: string | null
+          calendar_url: string | null
+          conversation_id: string | null
+          converted_at: string | null
+          converted_user_id: string | null
+          country_lang: string | null
+          created_at: string
+          display_name: string | null
+          email: string
+          first_email_resend_id: string | null
+          first_email_sent_at: string | null
+          first_inbound_at: string | null
+          id: string
+          is_mobile: boolean | null
+          last_error: string | null
+          local_id: string | null
+          metadata: Json
+          normalized_email: string
+          page_path: string | null
+          paused_at: string | null
+          profile_ingested_at: string | null
+          profile_links: string[]
+          profile_received_at: string | null
+          reply_alias: string | null
+          resume_text: string | null
+          review_attempts: number
+          review_email_resend_id: string | null
+          review_locked_at: string | null
+          review_locked_by: string | null
+          source: string | null
+          status: string
+          step: string
+          talent_id: string | null
+          updated_at: string
+          variant: string
+        }
+        Insert: {
+          abtest_type?: string
+          calendar_cta_sent_at?: string | null
+          calendar_url?: string | null
+          conversation_id?: string | null
+          converted_at?: string | null
+          converted_user_id?: string | null
+          country_lang?: string | null
+          created_at?: string
+          display_name?: string | null
+          email: string
+          first_email_resend_id?: string | null
+          first_email_sent_at?: string | null
+          first_inbound_at?: string | null
+          id?: string
+          is_mobile?: boolean | null
+          last_error?: string | null
+          local_id?: string | null
+          metadata?: Json
+          normalized_email: string
+          page_path?: string | null
+          paused_at?: string | null
+          profile_ingested_at?: string | null
+          profile_links?: string[]
+          profile_received_at?: string | null
+          reply_alias?: string | null
+          resume_text?: string | null
+          review_attempts?: number
+          review_email_resend_id?: string | null
+          review_locked_at?: string | null
+          review_locked_by?: string | null
+          source?: string | null
+          status?: string
+          step?: string
+          talent_id?: string | null
+          updated_at?: string
+          variant?: string
+        }
+        Update: {
+          abtest_type?: string
+          calendar_cta_sent_at?: string | null
+          calendar_url?: string | null
+          conversation_id?: string | null
+          converted_at?: string | null
+          converted_user_id?: string | null
+          country_lang?: string | null
+          created_at?: string
+          display_name?: string | null
+          email?: string
+          first_email_resend_id?: string | null
+          first_email_sent_at?: string | null
+          first_inbound_at?: string | null
+          id?: string
+          is_mobile?: boolean | null
+          last_error?: string | null
+          local_id?: string | null
+          metadata?: Json
+          normalized_email?: string
+          page_path?: string | null
+          paused_at?: string | null
+          profile_ingested_at?: string | null
+          profile_links?: string[]
+          profile_received_at?: string | null
+          reply_alias?: string | null
+          resume_text?: string | null
+          review_attempts?: number
+          review_email_resend_id?: string | null
+          review_locked_at?: string | null
+          review_locked_by?: string | null
+          source?: string | null
+          status?: string
+          step?: string
+          talent_id?: string | null
+          updated_at?: string
+          variant?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "career_email_onboarding_leads_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "talent_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "career_email_onboarding_leads_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       company_code: {
         Row: {
           code: string
@@ -1566,6 +1736,169 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "candid"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_inbound_events: {
+        Row: {
+          cc_addresses: string[]
+          created_at: string
+          from_email: string | null
+          id: string
+          message_id: string | null
+          provider: string
+          provider_email_id: string
+          provider_event_id: string | null
+          received_at: string
+          subject: string | null
+          to_addresses: string[]
+        }
+        Insert: {
+          cc_addresses?: string[]
+          created_at?: string
+          from_email?: string | null
+          id?: string
+          message_id?: string | null
+          provider?: string
+          provider_email_id: string
+          provider_event_id?: string | null
+          received_at?: string
+          subject?: string | null
+          to_addresses?: string[]
+        }
+        Update: {
+          cc_addresses?: string[]
+          created_at?: string
+          from_email?: string | null
+          id?: string
+          message_id?: string | null
+          provider?: string
+          provider_email_id?: string
+          provider_event_id?: string | null
+          received_at?: string
+          subject?: string | null
+          to_addresses?: string[]
+        }
+        Relationships: []
+      }
+      email_reply_aliases: {
+        Row: {
+          conversation_id: string | null
+          created_at: string
+          expires_at: string | null
+          id: string
+          talent_id: string
+          token_hash: string
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          talent_id: string
+          token_hash: string
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          talent_id?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_reply_aliases_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "talent_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_reply_aliases_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      email_reply_jobs: {
+        Row: {
+          assistant_message_id: number | null
+          attempts: number
+          conversation_id: string | null
+          created_at: string
+          id: string
+          inbound_event_id: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          processed_at: string | null
+          resend_email_id: string | null
+          skip_reason: string | null
+          status: string
+          talent_id: string | null
+          updated_at: string
+          user_message_id: number | null
+        }
+        Insert: {
+          assistant_message_id?: number | null
+          attempts?: number
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          inbound_event_id: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          processed_at?: string | null
+          resend_email_id?: string | null
+          skip_reason?: string | null
+          status?: string
+          talent_id?: string | null
+          updated_at?: string
+          user_message_id?: number | null
+        }
+        Update: {
+          assistant_message_id?: number | null
+          attempts?: number
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          inbound_event_id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          processed_at?: string | null
+          resend_email_id?: string | null
+          skip_reason?: string | null
+          status?: string
+          talent_id?: string | null
+          updated_at?: string
+          user_message_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_reply_jobs_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "talent_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_reply_jobs_inbound_event_id_fkey"
+            columns: ["inbound_event_id"]
+            isOneToOne: true
+            referencedRelation: "email_inbound_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_reply_jobs_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -2627,7 +2960,6 @@ export type Database = {
       }
       opportunity_discovery_run: {
         Row: {
-          chat_preview_count: number
           completed_at: string | null
           conversation_id: string | null
           coverage: Json
@@ -2648,7 +2980,6 @@ export type Database = {
           user_brief: Json
         }
         Insert: {
-          chat_preview_count?: number
           completed_at?: string | null
           conversation_id?: string | null
           coverage?: Json
@@ -2669,7 +3000,6 @@ export type Database = {
           user_brief?: Json
         }
         Update: {
-          chat_preview_count?: number
           completed_at?: string | null
           conversation_id?: string | null
           coverage?: Json
@@ -2747,86 +3077,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
-      }
-      opportunity_market_scan_scope: {
-        Row: {
-          allowed_access_mode: string
-          company_archetype: string | null
-          created_at: string
-          created_from: string
-          created_from_run_id: string | null
-          demand_score: number
-          enabled: boolean
-          excluded_role_family: string | null
-          id: string
-          keyword_tags: string[]
-          last_checked_at: string | null
-          last_error: string | null
-          last_success_at: string | null
-          location: string | null
-          next_refresh_at: string | null
-          priority: number
-          provider: string
-          query: string
-          refresh_interval_hours: number
-          role_family: string | null
-          updated_at: string
-        }
-        Insert: {
-          allowed_access_mode?: string
-          company_archetype?: string | null
-          created_at?: string
-          created_from?: string
-          created_from_run_id?: string | null
-          demand_score?: number
-          enabled?: boolean
-          excluded_role_family?: string | null
-          id?: string
-          keyword_tags?: string[]
-          last_checked_at?: string | null
-          last_error?: string | null
-          last_success_at?: string | null
-          location?: string | null
-          next_refresh_at?: string | null
-          priority?: number
-          provider: string
-          query: string
-          refresh_interval_hours?: number
-          role_family?: string | null
-          updated_at?: string
-        }
-        Update: {
-          allowed_access_mode?: string
-          company_archetype?: string | null
-          created_at?: string
-          created_from?: string
-          created_from_run_id?: string | null
-          demand_score?: number
-          enabled?: boolean
-          excluded_role_family?: string | null
-          id?: string
-          keyword_tags?: string[]
-          last_checked_at?: string | null
-          last_error?: string | null
-          last_success_at?: string | null
-          location?: string | null
-          next_refresh_at?: string | null
-          priority?: number
-          provider?: string
-          query?: string
-          refresh_interval_hours?: number
-          role_family?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "opportunity_market_scan_scope_created_from_run_id_fkey"
-            columns: ["created_from_run_id"]
-            isOneToOne: false
-            referencedRelation: "opportunity_discovery_run"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       opportunity_role_match_index: {
         Row: {
@@ -4653,6 +4903,13 @@ export type Database = {
             referencedRelation: "talent_conversations"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "talent_messages_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
         ]
       }
       talent_network_referral_links: {
@@ -4903,7 +5160,6 @@ export type Database = {
       talent_opportunity_recommendation: {
         Row: {
           clicked_at: string | null
-          confidence: number | null
           created_at: string
           discovery_run_id: string | null
           dismissed_at: string | null
@@ -4918,10 +5174,8 @@ export type Database = {
           model_version: string | null
           opportunity_type: string
           preference_fit: Json
+          processed_stage: string | null
           rank: number | null
-          ranking_notes: string | null
-          recommendation_reasons: Json
-          recommendation_status: string
           recommended_at: string
           role_id: string
           saved_stage: string | null
@@ -4933,7 +5187,6 @@ export type Database = {
         }
         Insert: {
           clicked_at?: string | null
-          confidence?: number | null
           created_at?: string
           discovery_run_id?: string | null
           dismissed_at?: string | null
@@ -4948,10 +5201,8 @@ export type Database = {
           model_version?: string | null
           opportunity_type?: string
           preference_fit?: Json
+          processed_stage?: string | null
           rank?: number | null
-          ranking_notes?: string | null
-          recommendation_reasons?: Json
-          recommendation_status?: string
           recommended_at?: string
           role_id: string
           saved_stage?: string | null
@@ -4963,7 +5214,6 @@ export type Database = {
         }
         Update: {
           clicked_at?: string | null
-          confidence?: number | null
           created_at?: string
           discovery_run_id?: string | null
           dismissed_at?: string | null
@@ -4978,10 +5228,8 @@ export type Database = {
           model_version?: string | null
           opportunity_type?: string
           preference_fit?: Json
+          processed_stage?: string | null
           rank?: number | null
-          ranking_notes?: string | null
-          recommendation_reasons?: Json
-          recommendation_status?: string
           recommended_at?: string
           role_id?: string
           saved_stage?: string | null
@@ -5323,6 +5571,100 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "candid"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      claim_career_email_onboarding_lead: {
+        Args: {
+          onboarding_lead_id: string
+          target_email?: string
+          target_name?: string
+          target_profile_picture?: string
+          target_user_id: string
+        }
+        Returns: boolean
+      }
+      claim_career_email_onboarding_reviews: {
+        Args: {
+          batch_size?: number
+          max_attempts?: number
+          stale_after_seconds?: number
+          worker_id: string
+        }
+        Returns: {
+          abtest_type: string
+          calendar_cta_sent_at: string | null
+          calendar_url: string | null
+          conversation_id: string | null
+          converted_at: string | null
+          converted_user_id: string | null
+          country_lang: string | null
+          created_at: string
+          display_name: string | null
+          email: string
+          first_email_resend_id: string | null
+          first_email_sent_at: string | null
+          first_inbound_at: string | null
+          id: string
+          is_mobile: boolean | null
+          last_error: string | null
+          local_id: string | null
+          metadata: Json
+          normalized_email: string
+          page_path: string | null
+          paused_at: string | null
+          profile_ingested_at: string | null
+          profile_links: string[]
+          profile_received_at: string | null
+          reply_alias: string | null
+          resume_text: string | null
+          review_attempts: number
+          review_email_resend_id: string | null
+          review_locked_at: string | null
+          review_locked_by: string | null
+          source: string | null
+          status: string
+          step: string
+          talent_id: string | null
+          updated_at: string
+          variant: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "career_email_onboarding_leads"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      claim_email_reply_jobs: {
+        Args: {
+          batch_size?: number
+          max_attempts?: number
+          stale_after_seconds?: number
+          worker_id: string
+        }
+        Returns: {
+          assistant_message_id: number | null
+          attempts: number
+          conversation_id: string | null
+          created_at: string
+          id: string
+          inbound_event_id: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          processed_at: string | null
+          resend_email_id: string | null
+          skip_reason: string | null
+          status: string
+          talent_id: string | null
+          updated_at: string
+          user_message_id: number | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "email_reply_jobs"
           isOneToOne: false
           isSetofReturn: true
         }

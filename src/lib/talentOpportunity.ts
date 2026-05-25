@@ -21,6 +21,7 @@ type RawRecommendationRow = {
   kind: string;
   opportunity_type: string | null;
   preference_fit: Json | null;
+  processed_stage: string | null;
   recommended_at: string;
   fit_reasons: Json;
   role_id: string;
@@ -66,6 +67,7 @@ type RawPostingRecommendationRow = {
   kind: string;
   opportunity_type: string | null;
   preference_fit: Json | null;
+  processed_stage: string | null;
   recommended_at: string | null;
   fit_reasons: Json;
   saved_stage: string | null;
@@ -107,6 +109,7 @@ const TALENT_OPPORTUNITY_HISTORY_SELECT = `
   kind,
   opportunity_type,
   preference_fit,
+  processed_stage,
   fit_summary,
   recommended_at,
   fit_reasons,
@@ -176,6 +179,7 @@ const TALENT_POSTING_ROLE_SELECT = `
     kind,
     opportunity_type,
     preference_fit,
+    processed_stage,
     fit_summary,
     recommended_at,
     fit_reasons,
@@ -227,6 +231,7 @@ export type TalentOpportunityHistoryItem = {
   opportunityType: OpportunityType;
   postedAt: string | null;
   preferenceFit: TalentOpportunityPreferenceFitItem[];
+  processedStage: string | null;
   recommendedAt: string;
   recommendationConcerns: string[];
   recommendationReasons: string[];
@@ -670,6 +675,7 @@ function mapRecommendationRow(
     opportunityType,
     postedAt: role.posted_at ?? null,
     preferenceFit: normalizePreferenceFit(row.preference_fit ?? null),
+    processedStage: row.processed_stage ?? null,
     recommendedAt: row.recommended_at,
     recommendationConcerns: normalizeTextList(row.tradeoffs, 3),
     recommendationReasons: normalizeTextList(row.fit_reasons),
@@ -757,6 +763,7 @@ function mapPostingRoleRow(
     preferenceFit: normalizePreferenceFit(
       existingRecommendation?.preference_fit ?? null
     ),
+    processedStage: existingRecommendation?.processed_stage ?? null,
     recommendedAt:
       existingRecommendation?.recommended_at ??
       row.posted_at ??

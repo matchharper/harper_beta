@@ -181,6 +181,7 @@ export type CareerHistoryOpportunity = {
   opportunityType: OpportunityType;
   postedAt: string | null;
   preferenceFit?: CareerPreferenceFitItem[];
+  processedStage?: string | null;
   recommendedAt: string;
   recommendationConcerns?: string[];
   recommendationReasons: string[];

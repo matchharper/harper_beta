@@ -263,6 +263,25 @@ function buildAnthropicTools(tools: TalentChatTool[]) {
   })) as AnthropicTool[];
 }
 
+function shouldLogCareerChatLlmRequestBody(usageLabel: string | undefined) {
+  return Boolean(usageLabel?.startsWith("career/chat:assistant"));
+}
+
+function logCareerChatLlmRequestBody(args: {
+  requestBody: unknown;
+  stream: boolean;
+  usageLabel?: string;
+}) {
+  if (!shouldLogCareerChatLlmRequestBody(args.usageLabel)) return;
+
+  console.info(
+    args.stream
+      ? "[career-chat:llm-request-body:stream]"
+      : "[career-chat:llm-request-body]",
+    JSON.stringify(args.requestBody, null, 2)
+  );
+}
+
 function extractAnthropicText(
   blocks: AnthropicAssistantContentBlock[] | undefined
 ) {
@@ -437,6 +456,25 @@ async function createAnthropicMessage(args: {
   }
 
   const tools = args.tools ?? [];
+  const requestBody = {
+    model: args.model,
+    max_tokens: CAREER_LLM_CONFIG.chat.maxTokens,
+    system: buildAnthropicSystemBlocks(args.systemBlocks),
+    messages: args.messages,
+    temperature: args.temperature,
+    ...(tools.length > 0
+      ? {
+          tool_choice: { type: "auto" as const },
+          tools: buildAnthropicTools(tools),
+        }
+      : {}),
+  };
+  logCareerChatLlmRequestBody({
+    requestBody,
+    stream: false,
+    usageLabel: args.usageLabel,
+  });
+
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -444,19 +482,7 @@ async function createAnthropicMessage(args: {
       "x-api-key": apiKey,
       "anthropic-version": "2023-06-01",
     },
-    body: JSON.stringify({
-      model: args.model,
-      max_tokens: CAREER_LLM_CONFIG.chat.maxTokens,
-      system: buildAnthropicSystemBlocks(args.systemBlocks),
-      messages: args.messages,
-      temperature: args.temperature,
-      ...(tools.length > 0
-        ? {
-            tool_choice: { type: "auto" as const },
-            tools: buildAnthropicTools(tools),
-          }
-        : {}),
-    }),
+    body: JSON.stringify(requestBody),
     cache: "no-store",
   });
 
@@ -517,6 +543,25 @@ async function createAnthropicMessageStreamResponse(args: {
     throw new Error("ANTHROPIC_API_KEY is required for Anthropic Messages API");
   }
   const tools = args.tools?.length ? buildAnthropicTools(args.tools) : [];
+  const requestBody = {
+    model: args.model,
+    max_tokens: CAREER_LLM_CONFIG.chat.maxTokens,
+    system: buildAnthropicSystemBlocks(args.systemBlocks),
+    messages: args.messages,
+    temperature: args.temperature,
+    stream: true,
+    ...(tools.length > 0
+      ? {
+          tool_choice: { type: "auto" as const },
+          tools,
+        }
+      : {}),
+  };
+  logCareerChatLlmRequestBody({
+    requestBody,
+    stream: true,
+    usageLabel: args.usageLabel,
+  });
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -525,20 +570,7 @@ async function createAnthropicMessageStreamResponse(args: {
       "x-api-key": apiKey,
       "anthropic-version": "2023-06-01",
     },
-    body: JSON.stringify({
-      model: args.model,
-      max_tokens: CAREER_LLM_CONFIG.chat.maxTokens,
-      system: buildAnthropicSystemBlocks(args.systemBlocks),
-      messages: args.messages,
-      temperature: args.temperature,
-      stream: true,
-      ...(tools.length > 0
-        ? {
-            tool_choice: { type: "auto" as const },
-            tools,
-          }
-        : {}),
-    }),
+    body: JSON.stringify(requestBody),
     cache: "no-store",
   });
 

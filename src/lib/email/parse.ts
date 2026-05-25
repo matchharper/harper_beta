@@ -51,8 +51,8 @@ export function extractReplyAliasTokens(args: {
     const email = extractEmailAddress(rawAddress);
     if (!email) continue;
 
-    const [localPart = "", domain = ""] = email.toLowerCase().split("@");
-    if (expectedDomain && domain !== expectedDomain) continue;
+    const [localPart = "", domain = ""] = email.split("@");
+    if (expectedDomain && domain.toLowerCase() !== expectedDomain) continue;
 
     const match = localPart.match(REPLY_ALIAS_PATTERN);
     if (match?.[1]) {

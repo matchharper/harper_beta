@@ -2070,7 +2070,6 @@ async function persistRecommendations(args: {
       const fitReasons = item.detail.fitReasons.filter(Boolean);
 
       return {
-        confidence: recommendationScoreForDb(item.score),
         evidence: buildRecommendationEvidence(item),
         fit_reasons: fitReasons,
         fit_summary: item.detail.roleOverviewText,
@@ -2080,7 +2079,6 @@ async function persistRecommendations(args: {
         preference_fit: item.detail.preferenceFit,
         rank: index + 1,
         recommended_at: now,
-        recommendation_status: "ready",
         role_id: roleId,
         score: recommendationScoreForDb(item.score),
         talent_id: args.userId,
