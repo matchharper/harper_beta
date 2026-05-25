@@ -62,6 +62,10 @@ import type {
 import { OpportunityType } from "@/lib/opportunityType";
 import { isInternalEmail } from "@/lib/internalAccess";
 import { useAuthStore } from "@/store/useAuthStore";
+import {
+  isEmailExcludedByOpsInternalTerms,
+  useOpsInternalDataExclusionStore,
+} from "@/store/useOpsInternalDataExclusionStore";
 import { DEFAULT_OPS_TALENT_RECOMMENDATION_PROMPT } from "@/lib/opsOpportunityRecommendationPrompt";
 import { useOpsOpportunityRecommendationPromptStore } from "@/store/useOpsOpportunityRecommendationPromptStore";
 import {
@@ -88,6 +92,9 @@ export default function OpsOpportunitiesPage() {
   const router = useRouter();
   const authLoading = useAuthStore((state) => state.loading);
   const user = useAuthStore((state) => state.user);
+  const emailExclusionTerms = useOpsInternalDataExclusionStore(
+    (state) => state.emailExclusionTerms
+  );
   const canFetchInternal = !authLoading && isInternalEmail(user?.email);
   const savedRecommendationPromptTemplate =
     useOpsOpportunityRecommendationPromptStore((state) => state.promptTemplate);
@@ -380,6 +387,45 @@ export default function OpsOpportunitiesPage() {
     query: recommendationTalentSearchQuery,
   });
 
+  const visibleCompanyCandidates = useMemo(
+    () =>
+      (companyCandidateQuery.data?.items ?? []).filter(
+        (item) =>
+          !isEmailExcludedByOpsInternalTerms(item.email, emailExclusionTerms)
+      ),
+    [companyCandidateQuery.data?.items, emailExclusionTerms]
+  );
+  const visibleRecommendationTalents = useMemo(
+    () =>
+      (recommendationTalentQuery.data?.items ?? []).filter(
+        (item) =>
+          !isEmailExcludedByOpsInternalTerms(item.email, emailExclusionTerms)
+      ),
+    [emailExclusionTerms, recommendationTalentQuery.data?.items]
+  );
+  const visibleSelectedCompanyTalent = useMemo(
+    () =>
+      selectedCompanyTalent &&
+      !isEmailExcludedByOpsInternalTerms(
+        selectedCompanyTalent.email,
+        emailExclusionTerms
+      )
+        ? selectedCompanyTalent
+        : null,
+    [emailExclusionTerms, selectedCompanyTalent]
+  );
+  const visibleSelectedRecommendationTalent = useMemo(
+    () =>
+      selectedRecommendationTalent &&
+      !isEmailExcludedByOpsInternalTerms(
+        selectedRecommendationTalent.email,
+        emailExclusionTerms
+      )
+        ? selectedRecommendationTalent
+        : null,
+    [emailExclusionTerms, selectedRecommendationTalent]
+  );
+
   useEffect(() => {
     if (!router.isReady) return;
 
@@ -399,8 +445,8 @@ export default function OpsOpportunitiesPage() {
     enabled:
       canFetchInternal &&
       view === "talent_recommendation" &&
-      Boolean(selectedRecommendationTalent?.talentId),
-    talentId: selectedRecommendationTalent?.talentId,
+      Boolean(visibleSelectedRecommendationTalent?.talentId),
+    talentId: visibleSelectedRecommendationTalent?.talentId,
   });
 
   useEffect(() => {
@@ -476,24 +522,24 @@ export default function OpsOpportunitiesPage() {
   }, [roleDraftMode, selectedRole]);
 
   useEffect(() => {
-    if (!selectedCompanyTalent) return;
-    const refreshed = (companyCandidateQuery.data?.items ?? []).find(
-      (item) => item.talentId === selectedCompanyTalent.talentId
+    if (!visibleSelectedCompanyTalent) return;
+    const refreshed = visibleCompanyCandidates.find(
+      (item) => item.talentId === visibleSelectedCompanyTalent.talentId
     );
     if (refreshed) {
       setSelectedCompanyTalent(refreshed);
     }
-  }, [companyCandidateQuery.data?.items, selectedCompanyTalent]);
+  }, [visibleCompanyCandidates, visibleSelectedCompanyTalent]);
 
   useEffect(() => {
-    if (!selectedRecommendationTalent) return;
-    const refreshed = (recommendationTalentQuery.data?.items ?? []).find(
-      (item) => item.talentId === selectedRecommendationTalent.talentId
+    if (!visibleSelectedRecommendationTalent) return;
+    const refreshed = visibleRecommendationTalents.find(
+      (item) => item.talentId === visibleSelectedRecommendationTalent.talentId
     );
     if (refreshed) {
       setSelectedRecommendationTalent(refreshed);
     }
-  }, [recommendationTalentQuery.data?.items, selectedRecommendationTalent]);
+  }, [visibleRecommendationTalents, visibleSelectedRecommendationTalent]);
 
   useEffect(() => {
     if (!isRecommendationPromptModalOpen) return;
@@ -760,7 +806,7 @@ export default function OpsOpportunitiesPage() {
   };
 
   const handleCreateCompanyMatch = async () => {
-    if (!selectedCompanyRole || !selectedCompanyTalent?.candidId) {
+    if (!selectedCompanyRole || !visibleSelectedCompanyTalent?.candidId) {
       showToast({
         message: "candid로 연결된 talent를 선택해야 합니다.",
         variant: "white",
@@ -770,7 +816,7 @@ export default function OpsOpportunitiesPage() {
 
     try {
       await saveMatch.mutateAsync({
-        candidId: selectedCompanyTalent.candidId,
+        candidId: visibleSelectedCompanyTalent.candidId,
         harperMemo: companyMemo,
         roleId: selectedCompanyRole.roleId,
       });
@@ -789,14 +835,16 @@ export default function OpsOpportunitiesPage() {
   };
 
   const handleCreateRecommendation = async () => {
-    if (!selectedRecommendationRole || !selectedRecommendationTalent) return;
+    if (!selectedRecommendationRole || !visibleSelectedRecommendationTalent) {
+      return;
+    }
 
     try {
       await saveRecommendation.mutateAsync({
         opportunityType: recommendationOpportunityType,
         recommendationMemo: recommendationMemo,
         roleId: selectedRecommendationRole.roleId,
-        talentId: selectedRecommendationTalent.talentId,
+        talentId: visibleSelectedRecommendationTalent.talentId,
       });
       setRecommendationMemo("");
       showToast({
@@ -813,7 +861,7 @@ export default function OpsOpportunitiesPage() {
   };
 
   const handleGenerateRecommendationMemo = async () => {
-    if (!selectedRecommendationRole || !selectedRecommendationTalent) {
+    if (!selectedRecommendationRole || !visibleSelectedRecommendationTalent) {
       showToast({
         message: "talent와 기회를 먼저 선택해 주세요.",
         variant: "white",
@@ -826,7 +874,7 @@ export default function OpsOpportunitiesPage() {
         opportunityType: recommendationOpportunityType,
         promptTemplate: savedRecommendationPromptTemplate,
         roleId: selectedRecommendationRole.roleId,
-        talentId: selectedRecommendationTalent.talentId,
+        talentId: visibleSelectedRecommendationTalent.talentId,
       });
       setRecommendationMemo(response.draft);
       showToast({
@@ -1221,7 +1269,7 @@ export default function OpsOpportunitiesPage() {
           />
         ) : view === "company_match" ? (
           <CompanyMatchView
-            companyCandidates={companyCandidateQuery.data?.items ?? []}
+            companyCandidates={visibleCompanyCandidates}
             companyCandidateLoading={companyCandidateQuery.isLoading}
             companyMemo={companyMemo}
             companyRoleSearch={companyRoleSearch}
@@ -1250,7 +1298,7 @@ export default function OpsOpportunitiesPage() {
             saveMatchPending={saveMatch.isPending}
             selectedCompanyRole={selectedCompanyRole}
             selectedCompanyRoleId={selectedCompanyRoleId}
-            selectedCompanyTalent={selectedCompanyTalent}
+            selectedCompanyTalent={visibleSelectedCompanyTalent}
           />
         ) : (
           <TalentRecommendationView
@@ -1290,11 +1338,11 @@ export default function OpsOpportunitiesPage() {
             recommendationTalentInput={recommendationTalentInput}
             recommendationTalentLoading={recommendationTalentQuery.isLoading}
             recommendationTalentSearchQuery={recommendationTalentSearchQuery}
-            recommendationTalents={recommendationTalentQuery.data?.items ?? []}
+            recommendationTalents={visibleRecommendationTalents}
             saveRecommendationPending={saveRecommendation.isPending}
             selectedRecommendationRole={selectedRecommendationRole}
             selectedRecommendationRoleId={selectedRecommendationRoleId}
-            selectedRecommendationTalent={selectedRecommendationTalent}
+            selectedRecommendationTalent={visibleSelectedRecommendationTalent}
             talentRecommendations={talentRecommendationsQuery.data?.items ?? []}
             talentRecommendationsLoading={talentRecommendationsQuery.isLoading}
           />

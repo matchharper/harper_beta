@@ -40,6 +40,7 @@ import {
   BeigeActionDropdownSeparator,
 } from "@/components/ui/beige/action-dropdown";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
+import CareerRichText from "../ui/CareerRichText";
 
 type EditableExperience = CareerTalentExperience & { clientKey: string };
 type EditableEducation = CareerTalentEducation & { clientKey: string };
@@ -451,9 +452,10 @@ const TimelineBlock = ({
           </div>
         )}
         {description && (
-          <div className="mt-2 whitespace-pre-wrap text-[13px] leading-6 text-beige900/65">
-            {description}
-          </div>
+          <CareerRichText
+            content={description}
+            className="mt-2 text-beige900/65 [&_a]:text-beige900/80 [&_blockquote]:text-[13px] [&_code]:text-[12px] [&_em]:text-beige900/70 [&_li]:text-[13px] [&_ol]:text-[13px] [&_p]:text-[13px] [&_strong]:text-beige900 [&_ul]:text-[13px]"
+          />
         )}
         {memo && (
           <div className="mt-3 flex items-start gap-2 rounded-[10px] bg-beige100 px-3.5 py-3">

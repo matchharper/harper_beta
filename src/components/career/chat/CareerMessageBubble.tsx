@@ -1,6 +1,6 @@
 import React, { type ReactNode } from "react";
 import { useRouter } from "next/router";
-import { AudioLines, Phone } from "lucide-react";
+import { AudioLines, Mail, Phone } from "lucide-react";
 import type { CareerMessage } from "@/components/career/types";
 import CareerRichText from "@/components/career/ui/CareerRichText";
 import { TALENT_MESSAGE_TYPE_OPPORTUNITY_FEEDBACK_NOTE } from "@/lib/career/opportunityFeedbackNote";
@@ -164,6 +164,7 @@ const CareerMessageBubble = ({
     [router]
   );
   const isCallTranscript = message.messageType === "call_transcript";
+  const isMailMessage = message.messageType === "mail";
   const hasCallAction = !isUser && message.content.includes(CALL_ACTION_MARKER);
   const isOpportunityFeedbackNote =
     isUser &&
@@ -197,20 +198,30 @@ const CareerMessageBubble = ({
   return (
     <article className={articleClassName}>
       <div className="flex items-start gap-2">
-        {isCallTranscript && (
+        {(isCallTranscript || isMailMessage) && (
           <span
             className={[
               "flex shrink-0 items-center justify-center",
               isUser ? "h-6" : "h-7",
             ].join(" ")}
           >
-            <AudioLines
-              className={[
-                "h-3.5 w-3.5",
-                isUser ? "text-beige100/70" : "text-beige900/45",
-              ].join(" ")}
-              aria-label="전화 대화"
-            />
+            {isMailMessage ? (
+              <Mail
+                className={[
+                  "h-3.5 w-3.5",
+                  isUser ? "text-beige100/70" : "text-beige900/45",
+                ].join(" ")}
+                aria-label="이메일"
+              />
+            ) : (
+              <AudioLines
+                className={[
+                  "h-3.5 w-3.5",
+                  isUser ? "text-beige100/70" : "text-beige900/45",
+                ].join(" ")}
+                aria-label="전화 대화"
+              />
+            )}
           </span>
         )}
         <div className="min-w-0 flex-1">

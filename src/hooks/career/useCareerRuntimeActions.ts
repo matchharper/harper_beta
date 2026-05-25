@@ -3,6 +3,7 @@ import type {
   CareerOpportunityAgentVariant,
   CareerOpportunityRun,
 } from "@/components/career/types";
+import { DEFAULT_OPPORTUNITY_DISCOVERY_AGENT_VARIANT } from "@/lib/opportunityDiscovery/types";
 import { getErrorMessage } from "@/hooks/career/careerHelpers";
 import { showOpportunityDiscoveryStartedToast } from "@/hooks/career/opportunityDiscoveryToast";
 import type { FetchWithAuth } from "@/hooks/career/useCareerApi";
@@ -29,7 +30,7 @@ export function useCareerRuntimeActions(args: {
   const queueOpportunityRun = useCallback(
     async (
       mode: "immediate" | "periodic",
-      agentVariant: CareerOpportunityAgentVariant = "tool_agent"
+      agentVariant: CareerOpportunityAgentVariant = DEFAULT_OPPORTUNITY_DISCOVERY_AGENT_VARIANT
     ) => {
       if (opportunityRun?.inputLocked || opportunityRunTriggerPending) {
         return;

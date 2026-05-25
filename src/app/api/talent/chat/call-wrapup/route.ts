@@ -341,6 +341,7 @@ export async function POST(request: NextRequest) {
         allowedToolNames: [TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE],
         assistantMessageType: "call_wrapup",
         conversationId,
+        inlineInsightExtraction: true,
         proactiveContext: buildCareerCallWrapupTurnInstruction({
           durationLabel,
           isBrief: briefConversation,

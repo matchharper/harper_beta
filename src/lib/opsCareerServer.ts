@@ -15,6 +15,8 @@ import {
   appendHarperEmailFooterText,
   renderEmailBodyHtmlWithHarperFooter,
 } from "@/lib/email/harperFooter";
+import { createOpportunityDiscoveryRun } from "@/lib/opportunityDiscovery/store";
+import { insertTalentActivityEvent } from "@/lib/talentOnboarding/activityEvents";
 import { createEmailReplyAlias } from "@/lib/email/inbound";
 import { buildReplySubject } from "@/lib/email/parse";
 import { sendResendEmail } from "@/lib/email/send";
@@ -24,6 +26,10 @@ import type { Database } from "@/types/database.types";
 type TalentUserRow = Database["public"]["Tables"]["talent_users"]["Row"];
 type TalentConversationRow =
   Database["public"]["Tables"]["talent_conversations"]["Row"];
+type CareerEmailMessageInsert =
+  Database["public"]["Tables"]["career_email_messages"]["Insert"];
+type CareerEmailMessageUpdate =
+  Database["public"]["Tables"]["career_email_messages"]["Update"];
 type TalentAdminClient = ReturnType<typeof getTalentSupabaseAdmin>;
 type UntypedAdminClient = TalentAdminClient & {
   from: (table: string) => any;
@@ -152,6 +158,9 @@ export type CareerTalentMailSendResponse = {
 };
 
 export type CareerTalentRecommendationSourceType = "internal" | "external";
+export type CareerTalentRecommendationSourceFilter =
+  | "all"
+  | CareerTalentRecommendationSourceType;
 
 export type CareerTalentRecommendationItem = {
   clickedAt: string | null;
@@ -176,6 +185,7 @@ export type CareerTalentRecommendationItem = {
   savedStage: string | null;
   score: number | null;
   sourceType: CareerTalentRecommendationSourceType;
+  talentId: string;
   updatedAt: string;
   viewedAt: string | null;
 };
@@ -194,6 +204,62 @@ export type CareerTalentRecommendationStageUpdateResponse = {
   processedStage: string | null;
 };
 
+export type OpsInternalRecommendationAcceptedFilter = "all" | "accepted";
+
+export type OpsInternalRecommendationTalent = {
+  email: string | null;
+  headline: string | null;
+  name: string | null;
+  profilePicture: string | null;
+  userId: string;
+};
+
+export type OpsInternalRecommendationItem = CareerTalentRecommendationItem & {
+  talent: OpsInternalRecommendationTalent;
+};
+
+export type OpsInternalRecommendationsResponse = {
+  acceptedFilter: OpsInternalRecommendationAcceptedFilter;
+  recommendations: OpsInternalRecommendationItem[];
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+  nextOffset: number | null;
+};
+
+export type OpsInternalRecommendationStageBulkUpdateResponse = {
+  ok: true;
+  updates: CareerTalentRecommendationStageUpdateResponse[];
+};
+
+export type OpsManualInternalRecommendationRole = {
+  companyName: string;
+  companyWorkspaceId: string;
+  description: string | null;
+  descriptionSummary: string | null;
+  locationText: string | null;
+  roleId: string;
+  roleName: string;
+  status: string | null;
+  updatedAt: string | null;
+};
+
+export type OpsManualInternalRecommendationRolesResponse = {
+  roles: OpsManualInternalRecommendationRole[];
+  limit: number;
+  query: string;
+};
+
+export type OpsQueueManualInternalRecommendationResponse = {
+  ok: true;
+  run: {
+    id: string;
+    status: string;
+    trigger: string;
+  };
+  role: OpsManualInternalRecommendationRole;
+};
+
 const DEFAULT_LIMIT = 40;
 const MAX_LIMIT = 100;
 const DEFAULT_MAIL_HISTORY_LIMIT = 10;
@@ -201,7 +267,13 @@ const MAX_MAIL_HISTORY_LIMIT = 50;
 const MAX_MAIL_HISTORY_SOURCE_LIMIT = 1000;
 const DEFAULT_RECOMMENDATION_LIMIT = 20;
 const MAX_RECOMMENDATION_LIMIT = 50;
+const DEFAULT_INTERNAL_RECOMMENDATION_LIMIT = 80;
+const MAX_INTERNAL_RECOMMENDATION_LIMIT = 100;
+const MAX_INTERNAL_RECOMMENDATION_UPDATE_COUNT = 100;
 const MAX_PROCESSED_STAGE_LENGTH = 200;
+const DEFAULT_MANUAL_INTERNAL_ROLE_LIMIT = 40;
+const MAX_MANUAL_INTERNAL_ROLE_LIMIT = 80;
+const MAX_MANUAL_INTERNAL_REASON_LENGTH = 2000;
 const DEFAULT_CAREER_MAIL_FROM = "Harper <hello@matchharper.com>";
 
 export function parseCareerListLimit(value: string | null) {
@@ -238,6 +310,30 @@ export function parseCareerRecommendationOffset(value: string | null) {
   const n = Number(value ?? 0);
   if (!Number.isFinite(n)) return 0;
   return Math.max(0, Math.floor(n));
+}
+
+export function parseCareerRecommendationSourceFilter(
+  value: string | null
+): CareerTalentRecommendationSourceFilter {
+  return value === "internal" || value === "external" ? value : "all";
+}
+
+export function parseOpsInternalRecommendationLimit(value: string | null) {
+  const n = Number(value ?? DEFAULT_INTERNAL_RECOMMENDATION_LIMIT);
+  if (!Number.isFinite(n)) return DEFAULT_INTERNAL_RECOMMENDATION_LIMIT;
+  return Math.max(1, Math.min(MAX_INTERNAL_RECOMMENDATION_LIMIT, Math.floor(n)));
+}
+
+export function parseOpsInternalRecommendationOffset(value: string | null) {
+  const n = Number(value ?? 0);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.floor(n));
+}
+
+export function parseOpsInternalRecommendationAcceptedFilter(
+  value: string | null
+): OpsInternalRecommendationAcceptedFilter {
+  return value === "accepted" ? "accepted" : "all";
 }
 
 function toUntypedAdmin(admin: TalentAdminClient) {
@@ -292,6 +388,22 @@ function normalizeTextList(value: unknown, limit = 5): string[] {
     })
     .filter(Boolean)
     .slice(0, limit);
+}
+
+function normalizeManualInternalRoleLimit(value: number | undefined) {
+  const n = Number(value ?? DEFAULT_MANUAL_INTERNAL_ROLE_LIMIT);
+  if (!Number.isFinite(n)) return DEFAULT_MANUAL_INTERNAL_ROLE_LIMIT;
+  return Math.max(1, Math.min(MAX_MANUAL_INTERNAL_ROLE_LIMIT, Math.floor(n)));
+}
+
+function normalizeRoleSearchText(value: unknown) {
+  return String(value ?? "").trim().slice(0, 160);
+}
+
+function normalizeManualReason(value: unknown) {
+  const reason = String(value ?? "").trim();
+  if (!reason) return "";
+  return reason.slice(0, MAX_MANUAL_INTERNAL_REASON_LENGTH);
 }
 
 function isMissingCareerEmailMessagesError(error: unknown) {
@@ -388,7 +500,7 @@ function buildStoredMailMessage(args: {
 
 async function createCareerEmailMessage(args: {
   admin: UntypedAdminClient;
-  payload: Record<string, unknown>;
+  payload: CareerEmailMessageInsert;
 }) {
   const { error } = await args.admin
     .from("career_email_messages")
@@ -406,7 +518,7 @@ async function createCareerEmailMessage(args: {
 async function updateCareerEmailMessage(args: {
   admin: UntypedAdminClient;
   id: string;
-  payload: Record<string, unknown>;
+  payload: CareerEmailMessageUpdate;
 }) {
   const { error } = await args.admin
     .from("career_email_messages")
@@ -695,8 +807,17 @@ type CareerRecommendationRow = {
   role_id?: string | null;
   saved_stage?: string | null;
   score?: number | null;
+  talent_id?: string | null;
   updated_at?: string | null;
   viewed_at?: string | null;
+};
+
+type InternalRecommendationTalentRow = {
+  email?: string | null;
+  headline?: string | null;
+  name?: string | null;
+  profile_picture?: string | null;
+  user_id?: string | null;
 };
 
 type CareerRecommendationStageLookupRow = {
@@ -745,6 +866,7 @@ function mapCareerRecommendationRow(
   const workspace = getFirstRecord(role.company_workspace);
   const recommendationId = String(row.id ?? "").trim();
   const roleId = String(row.role_id ?? role.role_id ?? "").trim();
+  const talentId = String(row.talent_id ?? "").trim();
   if (!recommendationId || !roleId) return null;
 
   const opportunityType = String(row.opportunity_type ?? "external_jd");
@@ -780,14 +902,114 @@ function mapCareerRecommendationRow(
       opportunityType,
       roleSourceType: role.source_type ?? null,
     }),
+    talentId,
     updatedAt,
     viewedAt: row.viewed_at ?? null,
   };
 }
 
+const CAREER_RECOMMENDATION_SELECT = `
+  id,
+  talent_id,
+  role_id,
+  opportunity_type,
+  processed_stage,
+  feedback,
+  feedback_at,
+  feedback_reason,
+  saved_stage,
+  viewed_at,
+  clicked_at,
+  recommended_at,
+  created_at,
+  updated_at,
+  fit_reasons,
+  fit_summary,
+  rank,
+  score,
+  company_role:company_roles (
+    role_id,
+    name,
+    external_jd_url,
+    location_text,
+    source_type,
+    status,
+    company_workspace:company_workspace (
+      company_name
+    )
+  )
+`;
+
+async function loadCareerRecommendationRows(args: {
+  admin: UntypedAdminClient;
+  limit: number;
+  offset: number;
+  userId?: string | null;
+}): Promise<CareerRecommendationRow[]> {
+  let query = args.admin
+    .from("talent_opportunity_recommendation")
+    .select(CAREER_RECOMMENDATION_SELECT)
+    .order("recommended_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false, nullsFirst: false })
+    .range(args.offset, args.offset + args.limit);
+
+  if (args.userId) {
+    query = query.eq("talent_id", args.userId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load recommendations");
+  }
+
+  return (Array.isArray(data) ? data : []) as CareerRecommendationRow[];
+}
+
+async function fetchFilteredCareerTalentRecommendations(args: {
+  admin: UntypedAdminClient;
+  filter: CareerTalentRecommendationSourceType;
+  limit: number;
+  offset: number;
+  userId: string;
+}): Promise<CareerTalentRecommendationItem[]> {
+  const collected: CareerTalentRecommendationItem[] = [];
+  let filteredSeen = 0;
+  let scanOffset = 0;
+  let hasUnscannedRows = true;
+
+  while (collected.length <= args.limit && hasUnscannedRows) {
+    const rows = await loadCareerRecommendationRows({
+      admin: args.admin,
+      limit: MAX_RECOMMENDATION_LIMIT,
+      offset: scanOffset,
+      userId: args.userId,
+    });
+    hasUnscannedRows = rows.length > MAX_RECOMMENDATION_LIMIT;
+
+    for (const row of rows.slice(0, MAX_RECOMMENDATION_LIMIT)) {
+      const item = mapCareerRecommendationRow(row);
+      if (!item || item.sourceType !== args.filter) continue;
+
+      if (filteredSeen < args.offset) {
+        filteredSeen += 1;
+        continue;
+      }
+
+      collected.push(item);
+      if (collected.length > args.limit) break;
+    }
+
+    scanOffset += MAX_RECOMMENDATION_LIMIT;
+  }
+
+  return collected;
+}
+
 export async function fetchCareerTalentRecommendations(args: {
   limit?: number;
   offset?: number;
+  sourceType?: CareerTalentRecommendationSourceFilter;
   userId: string;
 }): Promise<CareerTalentRecommendationsResponse> {
   const limit = Math.max(
@@ -804,55 +1026,38 @@ export async function fetchCareerTalentRecommendations(args: {
   }
 
   const admin = toUntypedAdmin(getTalentSupabaseAdmin());
-  const { data, error } = await admin
-    .from("talent_opportunity_recommendation")
-    .select(
-      `
-        id,
-        role_id,
-        opportunity_type,
-        processed_stage,
-        feedback,
-        feedback_at,
-        feedback_reason,
-        saved_stage,
-        viewed_at,
-        clicked_at,
-        recommended_at,
-        created_at,
-        updated_at,
-        fit_reasons,
-        fit_summary,
-        rank,
-        score,
-        company_role:company_roles (
-          role_id,
-          name,
-          external_jd_url,
-          location_text,
-          source_type,
-          status,
-          company_workspace:company_workspace (
-            company_name
-          )
-        )
-      `
-    )
-    .eq("talent_id", userId)
-    .order("recommended_at", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false, nullsFirst: false })
-    .range(offset, offset + limit);
+  const sourceType = args.sourceType ?? "all";
+  if (sourceType === "all") {
+    const rows = await loadCareerRecommendationRows({
+      admin,
+      limit,
+      offset,
+      userId,
+    });
+    const hasMore = rows.length > limit;
+    const recommendations = rows
+      .slice(0, limit)
+      .map(mapCareerRecommendationRow)
+      .filter((item): item is CareerTalentRecommendationItem => item !== null);
 
-  if (error) {
-    throw new Error(error.message ?? "Failed to load recommendations");
+    return {
+      recommendations,
+      limit,
+      offset,
+      hasMore,
+      nextOffset: hasMore ? offset + limit : null,
+    };
   }
 
-  const rows = (Array.isArray(data) ? data : []) as CareerRecommendationRow[];
-  const hasMore = rows.length > limit;
-  const recommendations = rows
-    .slice(0, limit)
-    .map(mapCareerRecommendationRow)
-    .filter((item): item is CareerTalentRecommendationItem => item !== null);
+  const filteredItems = await fetchFilteredCareerTalentRecommendations({
+    admin,
+    filter: sourceType,
+    limit,
+    offset,
+    userId,
+  });
+  const hasMore = filteredItems.length > limit;
+  const recommendations = filteredItems.slice(0, limit);
 
   return {
     recommendations,
@@ -933,6 +1138,476 @@ export async function updateCareerTalentRecommendationProcessedStage(args: {
     ok: true,
     recommendationId,
     processedStage: normalizedStage,
+  };
+}
+
+function isAcceptedRecommendationFeedback(feedback: string | null | undefined) {
+  const normalized = String(feedback ?? "").trim().toLowerCase();
+  return normalized === "like" || normalized === "positive";
+}
+
+async function fetchInternalRecommendationTalentMap(
+  admin: UntypedAdminClient,
+  talentIds: string[]
+) {
+  const uniqueTalentIds = Array.from(
+    new Set(talentIds.map((value) => value.trim()).filter(Boolean))
+  );
+  const byTalentId = new Map<string, OpsInternalRecommendationTalent>();
+  if (uniqueTalentIds.length === 0) return byTalentId;
+
+  const { data, error } = await admin
+    .from("talent_users")
+    .select("user_id, name, email, profile_picture, headline")
+    .in("user_id", uniqueTalentIds);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load recommendation talents");
+  }
+
+  for (const row of (Array.isArray(data)
+    ? data
+    : []) as InternalRecommendationTalentRow[]) {
+    const userId = String(row.user_id ?? "").trim();
+    if (!userId) continue;
+    byTalentId.set(userId, {
+      email: row.email ?? null,
+      headline: row.headline ?? null,
+      name: row.name ?? null,
+      profilePicture: row.profile_picture ?? null,
+      userId,
+    });
+  }
+
+  return byTalentId;
+}
+
+export async function fetchOpsInternalRecommendations(args: {
+  acceptedFilter?: OpsInternalRecommendationAcceptedFilter;
+  limit?: number;
+  offset?: number;
+}): Promise<OpsInternalRecommendationsResponse> {
+  const limit = Math.max(
+    1,
+    Math.min(
+      MAX_INTERNAL_RECOMMENDATION_LIMIT,
+      args.limit ?? DEFAULT_INTERNAL_RECOMMENDATION_LIMIT
+    )
+  );
+  const offset = Math.max(0, args.offset ?? 0);
+  const acceptedFilter = args.acceptedFilter ?? "all";
+  const admin = toUntypedAdmin(getTalentSupabaseAdmin());
+  const collected: CareerTalentRecommendationItem[] = [];
+  let filteredSeen = 0;
+  let scanOffset = 0;
+  let hasUnscannedRows = true;
+
+  while (collected.length <= limit && hasUnscannedRows) {
+    const rows = await loadCareerRecommendationRows({
+      admin,
+      limit: MAX_INTERNAL_RECOMMENDATION_LIMIT,
+      offset: scanOffset,
+    });
+    hasUnscannedRows = rows.length > MAX_INTERNAL_RECOMMENDATION_LIMIT;
+
+    for (const row of rows.slice(0, MAX_INTERNAL_RECOMMENDATION_LIMIT)) {
+      const item = mapCareerRecommendationRow(row);
+      if (!item || item.sourceType !== "internal" || !item.talentId) continue;
+      if (
+        acceptedFilter === "accepted" &&
+        !isAcceptedRecommendationFeedback(item.feedback)
+      ) {
+        continue;
+      }
+
+      if (filteredSeen < offset) {
+        filteredSeen += 1;
+        continue;
+      }
+
+      collected.push(item);
+      if (collected.length > limit) break;
+    }
+
+    scanOffset += MAX_INTERNAL_RECOMMENDATION_LIMIT;
+  }
+
+  const hasMore = collected.length > limit;
+  const pageItems = collected.slice(0, limit);
+  const talentMap = await fetchInternalRecommendationTalentMap(
+    admin,
+    pageItems.map((item) => item.talentId)
+  );
+
+  return {
+    acceptedFilter,
+    recommendations: pageItems.map((item) => ({
+      ...item,
+      talent: talentMap.get(item.talentId) ?? {
+        email: null,
+        headline: null,
+        name: null,
+        profilePicture: null,
+        userId: item.talentId,
+      },
+    })),
+    limit,
+    offset,
+    hasMore,
+    nextOffset: hasMore ? offset + limit : null,
+  };
+}
+
+export async function updateOpsInternalRecommendationProcessedStages(args: {
+  updates: Array<{
+    processedStage: string | null;
+    recommendationId: string;
+  }>;
+}): Promise<OpsInternalRecommendationStageBulkUpdateResponse> {
+  const updatesById = new Map<
+    string,
+    { processedStage: string | null; recommendationId: string }
+  >();
+
+  for (const update of args.updates) {
+    const recommendationId = String(update.recommendationId ?? "").trim();
+    if (!recommendationId) continue;
+    updatesById.set(recommendationId, {
+      recommendationId,
+      processedStage:
+        typeof update.processedStage === "string"
+          ? update.processedStage.trim()
+          : null,
+    });
+  }
+
+  const updates = Array.from(updatesById.values());
+  if (updates.length === 0) {
+    throw new Error("updates is required");
+  }
+  if (updates.length > MAX_INTERNAL_RECOMMENDATION_UPDATE_COUNT) {
+    throw new Error(
+      `updates must include ${MAX_INTERNAL_RECOMMENDATION_UPDATE_COUNT} items or fewer`
+    );
+  }
+
+  const results: CareerTalentRecommendationStageUpdateResponse[] = [];
+  for (const update of updates) {
+    results.push(await updateCareerTalentRecommendationProcessedStage(update));
+  }
+
+  return {
+    ok: true,
+    updates: results,
+  };
+}
+
+type ManualInternalRoleRow = {
+  company_workspace?:
+    | {
+        company_name?: string | null;
+        company_workspace_id?: string | null;
+        is_internal?: boolean | null;
+      }
+    | Array<{
+        company_name?: string | null;
+        company_workspace_id?: string | null;
+        is_internal?: boolean | null;
+      }>
+    | null;
+  company_workspace_id?: string | null;
+  description?: string | null;
+  description_summary?: string | null;
+  location_text?: string | null;
+  name?: string | null;
+  role_id?: string | null;
+  source_type?: string | null;
+  status?: string | null;
+  updated_at?: string | null;
+};
+
+function mapManualInternalRoleRow(
+  row: ManualInternalRoleRow
+): OpsManualInternalRecommendationRole | null {
+  const workspace = getFirstRecord(row.company_workspace);
+  const roleId = String(row.role_id ?? "").trim();
+  const roleName = String(row.name ?? "").trim();
+  const companyWorkspaceId = String(
+    row.company_workspace_id ?? workspace?.company_workspace_id ?? ""
+  ).trim();
+  const companyName = String(workspace?.company_name ?? "").trim();
+  const roleSourceType = String(row.source_type ?? "").toLowerCase();
+  const status = String(row.status ?? "").trim().toLowerCase();
+  const isInternal =
+    roleSourceType === "internal" || Boolean(workspace?.is_internal);
+  const isActive = status === "active" || status === "top_priority";
+  if (!roleId || !roleName || !companyWorkspaceId || !isInternal) return null;
+  if (!isActive) return null;
+
+  return {
+    companyName: companyName || "회사명 없음",
+    companyWorkspaceId,
+    description: row.description ?? null,
+    descriptionSummary: row.description_summary ?? null,
+    locationText: row.location_text ?? null,
+    roleId,
+    roleName,
+    status: row.status ?? null,
+    updatedAt: row.updated_at ?? null,
+  };
+}
+
+function roleMatchesManualSearch(
+  role: OpsManualInternalRecommendationRole,
+  query: string
+) {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return true;
+  const haystack = [
+    role.roleName,
+    role.companyName,
+    role.locationText ?? "",
+    role.status ?? "",
+  ]
+    .join(" ")
+    .toLowerCase();
+  return haystack.includes(normalized);
+}
+
+async function loadManualInternalRoleRows(args: {
+  admin: UntypedAdminClient;
+  limit: number;
+}): Promise<ManualInternalRoleRow[]> {
+  const select = `
+    role_id,
+    company_workspace_id,
+    name,
+    description,
+    description_summary,
+    location_text,
+    status,
+    source_type,
+    updated_at,
+    company_workspace:company_workspace!inner (
+      company_workspace_id,
+      company_name,
+      is_internal
+    )
+  `;
+  const sourceLimit = Math.max(120, Math.min(args.limit * 8, 600));
+
+  const [sourceTypedResponse, workspaceInternalResponse] = await Promise.all([
+    args.admin
+      .from("company_roles")
+      .select(select)
+      .eq("source_type", "internal")
+      .in("status", ["active", "top_priority"])
+      .order("updated_at", { ascending: false })
+      .limit(sourceLimit),
+    args.admin
+      .from("company_roles")
+      .select(select)
+      .eq("company_workspace.is_internal", true)
+      .in("status", ["active", "top_priority"])
+      .order("updated_at", { ascending: false })
+      .limit(sourceLimit),
+  ]);
+
+  for (const response of [sourceTypedResponse, workspaceInternalResponse]) {
+    if (response.error) {
+      throw new Error(
+        response.error.message ?? "Failed to load internal roles"
+      );
+    }
+  }
+
+  const byRoleId = new Map<string, ManualInternalRoleRow>();
+  for (const row of [
+    ...((sourceTypedResponse.data ?? []) as ManualInternalRoleRow[]),
+    ...((workspaceInternalResponse.data ?? []) as ManualInternalRoleRow[]),
+  ]) {
+    const roleId = String(row.role_id ?? "").trim();
+    if (!roleId || byRoleId.has(roleId)) continue;
+    byRoleId.set(roleId, row);
+  }
+
+  return Array.from(byRoleId.values());
+}
+
+async function loadManualInternalRoleById(args: {
+  admin: UntypedAdminClient;
+  roleId: string;
+}): Promise<OpsManualInternalRecommendationRole | null> {
+  const { data, error } = await args.admin
+    .from("company_roles")
+    .select(
+      `
+        role_id,
+        company_workspace_id,
+        name,
+        description,
+        description_summary,
+        location_text,
+        status,
+        source_type,
+        updated_at,
+        company_workspace:company_workspace (
+          company_workspace_id,
+          company_name,
+          is_internal
+        )
+      `
+    )
+    .eq("role_id", args.roleId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load internal role");
+  }
+
+  return data ? mapManualInternalRoleRow(data as ManualInternalRoleRow) : null;
+}
+
+export async function fetchManualInternalRecommendationRoles(args: {
+  limit?: number;
+  query?: string | null;
+}): Promise<OpsManualInternalRecommendationRolesResponse> {
+  const admin = toUntypedAdmin(getTalentSupabaseAdmin());
+  const limit = normalizeManualInternalRoleLimit(args.limit);
+  const query = normalizeRoleSearchText(args.query);
+  const rows = await loadManualInternalRoleRows({ admin, limit });
+  const roles = rows
+    .map(mapManualInternalRoleRow)
+    .filter(
+      (role): role is OpsManualInternalRecommendationRole => role !== null
+    )
+    .filter((role) => roleMatchesManualSearch(role, query))
+    .slice(0, limit);
+
+  return {
+    roles,
+    limit,
+    query,
+  };
+}
+
+async function fetchLatestTalentConversationId(args: {
+  admin: UntypedAdminClient;
+  userId: string;
+}) {
+  const { data, error } = await args.admin
+    .from("talent_conversations")
+    .select("id")
+    .eq("user_id", args.userId)
+    .order("updated_at", { ascending: false })
+    .limit(1);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load talent conversation");
+  }
+
+  return String(data?.[0]?.id ?? "").trim() || null;
+}
+
+export async function queueManualInternalRecommendationRun(args: {
+  reason?: string | null;
+  requestedBy?: string | null;
+  roleId: string;
+  userId: string;
+}): Promise<OpsQueueManualInternalRecommendationResponse> {
+  const userId = String(args.userId ?? "").trim();
+  const roleId = String(args.roleId ?? "").trim();
+  if (!userId) throw new Error("userId is required");
+  if (!roleId) throw new Error("roleId is required");
+
+  const admin = toUntypedAdmin(getTalentSupabaseAdmin());
+
+  const [{ data: talent, error: talentError }, role] = await Promise.all([
+    admin
+      .from("talent_users")
+      .select("user_id")
+      .eq("user_id", userId)
+      .maybeSingle(),
+    loadManualInternalRoleById({ admin, roleId }),
+  ]);
+
+  if (talentError) {
+    throw new Error(talentError.message ?? "Failed to load talent user");
+  }
+  if (!talent) {
+    throw new Error("Talent user was not found");
+  }
+  if (!role) {
+    throw new Error("Active internal role was not found");
+  }
+
+  const reason = normalizeManualReason(args.reason);
+  const conversationId = await fetchLatestTalentConversationId({
+    admin,
+    userId,
+  });
+  const requestedAt = new Date().toISOString();
+  const run = await createOpportunityDiscoveryRun({
+    admin,
+    conversationId,
+    runMode: "immediate",
+    talentId: userId,
+    trigger: "immediate_opportunity_requested",
+    triggerPayload: {
+      entryPoint: "ops_career_manual_internal_recommendation",
+      opportunityAgentVariant: "new_rule",
+      source: "ops_career_recommendations_tab",
+      manualInternalRecommendation: {
+        allowRepeat: true,
+        companyName: role.companyName,
+        reason: reason || null,
+        requestedAt,
+        requestedBy: String(args.requestedBy ?? "").trim() || null,
+        roleId: role.roleId,
+        roleName: role.roleName,
+        source: "ops_career_recommendations_tab",
+        type: "ops_manual_internal_role",
+      },
+      recommendationPolicy: {
+        external: "none",
+        internal: "forced_single_role",
+      },
+    },
+  });
+
+  await insertTalentActivityEvent({
+    admin,
+    changedDomains: ["opportunity_search", "recommendations"],
+    conversationId,
+    eventType: "ops_manual_internal_recommendation_queued",
+    impactLevel: "high",
+    metadata: {
+      manualInternalRecommendation: {
+        allowRepeat: true,
+        companyName: role.companyName,
+        reason: reason || null,
+        requestedAt,
+        requestedBy: String(args.requestedBy ?? "").trim() || null,
+        roleId: role.roleId,
+        roleName: role.roleName,
+      },
+      runId: run.id,
+    },
+    relatedEntityId: run.id,
+    relatedEntityType: "opportunity_discovery_run",
+    source: "ops",
+    summary: `Ops queued a manual internal recommendation: ${role.roleName} at ${role.companyName}.`,
+    userId,
+  });
+
+  return {
+    ok: true,
+    run: {
+      id: run.id,
+      status: run.status,
+      trigger: run.trigger,
+    },
+    role,
   };
 }
 
@@ -1557,7 +2232,7 @@ export async function sendCareerTalentMailAndRecord(args: {
     .select("id")
     .single();
 
-  const updatePayload: Record<string, unknown> = {
+  const updatePayload: CareerEmailMessageUpdate = {
     metadata: {
       ...baseMetadata,
       resendEmailId,

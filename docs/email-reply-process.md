@@ -5,17 +5,19 @@
 This flow is shared by:
 
 - career email onboarding mail
+- opportunity delivery mail from `new_harper_agent`
 - opportunity delivery mail from `scripted_human_opportunity_agent`
 - other opportunity agents that send through `opp.autonomous_tool_agent.deliver_email()`
 
-`scripted_human_opportunity_agent` is reply-capable as long as it has a `conversation_id` when it persists delivery. Its `persist()` method passes `conversation_id` into `deliver_email()`, and `deliver_email()` creates a `reply+token@reply.matchharper.com` alias, stores the token hash in `email_reply_aliases`, and sends the outbound email with Resend `reply_to`.
+Opportunity delivery is reply-capable when `deliver_email()` creates a `reply+token@reply.matchharper.com` alias, stores the token hash in `email_reply_aliases`, and sends the outbound email with Resend `reply_to`.
 
-If `conversation_id`, `EMAIL_REPLY_DOMAIN`, or `EMAIL_REPLY_TOKEN_SECRET` is missing, the opportunity email can still be sent, but it will not get a Harper reply alias. In that case replies will go to the sender address instead of the email reply worker.
+If `conversation_id` is missing, the alias is still created with `conversation_id = null`; the email reply worker resolves the user from the alias and then attaches the reply to the latest conversation or creates one. If `EMAIL_REPLY_DOMAIN` or `EMAIL_REPLY_TOKEN_SECRET` is missing, opportunity delivery refuses to send instead of silently sending without `Reply-To`, because replies would otherwise go to the visible sender address instead of the email reply worker.
 
 ## Runtime Flow
 
 1. Outbound email sender creates a reply alias.
    - App onboarding path: `src/lib/email/inbound.ts#createEmailReplyAlias`
+   - New Harper opportunity path: `opp/utils/new_delivery_transport.py#get_or_create_email_reply_alias`
    - Worker opportunity path: `opp/autonomous_tool_agent.py#get_or_create_email_reply_alias`
    - Alias format: `reply+<token>@reply.matchharper.com`
    - DB row: `email_reply_aliases(token_hash, talent_id, conversation_id)`
@@ -136,4 +138,3 @@ For the generic email reply LLM:
 - `ANTHROPIC_API_KEY` if using `claude-*`
 - `GROK_API_KEY` if using `grok-*`
 - `OPENAI_API_KEY` otherwise
-

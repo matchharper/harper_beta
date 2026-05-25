@@ -21,6 +21,9 @@ export type OpportunityDiscoveryAgentVariant =
   | "scripted"
   | "scripted_human";
 
+export const DEFAULT_OPPORTUNITY_DISCOVERY_AGENT_VARIANT: OpportunityDiscoveryAgentVariant =
+  "new_rule";
+
 export type OpportunityIngestionTrigger =
   | "scheduled_refresh"
   | "manual_admin_refresh"

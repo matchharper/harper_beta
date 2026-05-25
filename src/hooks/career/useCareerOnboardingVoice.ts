@@ -12,6 +12,7 @@ import { useCareerVoiceInput } from "@/components/career/useCareerVoiceInput";
 import { useRealtimeSession } from "@/hooks/career/useRealtimeSession";
 import type {
   CallLiveTranscriptPlacement,
+  CareerInterviewProgress,
   CareerMessage,
   CareerMessagePayload,
   CareerOpportunityRun,
@@ -32,6 +33,7 @@ import {
   TALENT_ONBOARDING_DONE_MARKER,
 } from "@/lib/talentOnboarding/completion";
 import type { CareerConversationStarterId } from "@/lib/career/conversationStarters";
+import { INSIGHT_CHECKLIST } from "@/lib/talentOnboarding/insightChecklist";
 
 const DEFAULT_CALL_OPENING_TEXT =
   "통화로 이야기해볼게요. 최근에 달라진 우선순위가 있으면 거기서 시작해도 좋고, 아니면 지금까지의 역할이나 경험 중 회사들이 꼭 알아야 할 부분부터 편하게 들려주세요. 정보가 많을수록 더 잘 맞는 연결 요청이나 기회를 골라드릴 수 있어요.";
@@ -105,16 +107,41 @@ function buildCallOpeningRecentConversationContext(messages: CareerMessage[]) {
 }
 
 function buildCallOpeningResponseInstruction(args: {
+  interviewProgress?: CareerInterviewProgress | null;
+  isOnboardingDone?: boolean;
   isConversationStarter?: boolean;
   openingText?: string;
   recentConversationContext?: string;
 }) {
-  const { isConversationStarter, openingText, recentConversationContext } =
-    args;
+  const {
+    interviewProgress,
+    isConversationStarter,
+    isOnboardingDone,
+    openingText,
+    recentConversationContext,
+  } = args;
   const normalizedOpeningText = openingText?.trim();
+  const shouldUseNearFinishOpening =
+    !isOnboardingDone &&
+    !isConversationStarter &&
+    typeof interviewProgress?.percent === "number" &&
+    interviewProgress.percent >= 75;
 
   const sections = [
     CALL_OPENING_RESPONSE_INSTRUCTION,
+    shouldUseNearFinishOpening
+      ? [
+          "",
+          "## Incomplete onboarding near-finish opening",
+          "현재 커리어 인터뷰는 아직 완료되지 않았지만 거의 끝난 상태입니다.",
+          `- filledInsights: ${interviewProgress?.filledCount ?? "(unknown)"}/${interviewProgress?.totalCount ?? "(unknown)"}`,
+          `- remainingInsights: ${interviewProgress?.remainingCount ?? "(unknown)"}`,
+          "- 일반적인 새 통화 인사나 '오늘 어떠세요?', '최근 우선순위가 바뀐 게 있나요?' 같은 넓은 질문으로 시작하지 마세요.",
+          "- 첫 문장은 반드시 '대화가 거의 끝났으니 빠르게 마무리해볼게요'라는 취지를 자연스럽게 담으세요.",
+          "- 최근 대화 맥락을 보고 마지막으로 남은 한 가지 확인점이나 final priority confirmation으로 바로 이어가세요.",
+          "- 이미 final priority confirmation에 사용자가 답한 맥락이면 같은 확인 질문을 반복하지 말고 짧게 closing으로 넘어가세요.",
+        ].join("\n")
+      : "",
     isConversationStarter
       ? [
           "",
@@ -183,6 +210,7 @@ type UseCareerOnboardingVoiceArgs = {
   messages: CareerMessage[];
   fetchWithAuth: FetchWithAuth;
   isVoiceInteractionLocked: boolean;
+  isOnboardingDone?: boolean;
   onSendChatMessage: (args: SendChatArgs) => void | Promise<void>;
   onOpportunityRunChanged?: (run: CareerOpportunityRun | null) => void;
   onTalentPreferencesRefreshed?: (
@@ -196,6 +224,7 @@ type UseCareerOnboardingVoiceArgs = {
   appendMessage: (message: CareerMessage) => void;
   setChatError: Dispatch<SetStateAction<string>>;
   setStage: Dispatch<SetStateAction<CareerStage>>;
+  talentInsights?: Record<string, string> | null;
   enqueueAssistantTypewriter: (message: CareerMessage) => Promise<void>;
   onMessagesChanged?: (
     messages: CareerMessagePayload[]
@@ -214,6 +243,7 @@ export const useCareerOnboardingVoice = ({
   messages,
   fetchWithAuth,
   isVoiceInteractionLocked,
+  isOnboardingDone,
   onSendChatMessage,
   onOpportunityRunChanged,
   onTalentPreferencesRefreshed,
@@ -222,6 +252,7 @@ export const useCareerOnboardingVoice = ({
   appendMessage,
   setChatError,
   setStage,
+  talentInsights,
   enqueueAssistantTypewriter,
   onMessagesChanged,
 }: UseCareerOnboardingVoiceArgs) => {
@@ -233,6 +264,25 @@ export const useCareerOnboardingVoice = ({
   const [callWrapUpPending, setCallWrapUpPending] = useState(false);
   const [liveUserTranscriptPlacement, setLiveUserTranscriptPlacement] =
     useState<CallLiveTranscriptPlacement>("beforeCurrentAssistant");
+  const callInterviewProgress = useMemo<CareerInterviewProgress>(() => {
+    const totalCount = INSIGHT_CHECKLIST.length;
+    const filledCount = INSIGHT_CHECKLIST.reduce((count, item) => {
+      const value = talentInsights?.[item.key];
+      return String(value ?? "").trim().length > 0 ? count + 1 : count;
+    }, 0);
+    const percent =
+      totalCount > 0
+        ? Math.min(100, Math.round((filledCount / totalCount) * 100))
+        : 0;
+
+    return {
+      canForceComplete: !isOnboardingDone && percent >= 85,
+      filledCount,
+      percent,
+      remainingCount: Math.max(totalCount - filledCount, 0),
+      totalCount,
+    };
+  }, [isOnboardingDone, talentInsights]);
 
   const beginOnboardingConversation = useCallback(
     async (options?: {
@@ -1283,6 +1333,8 @@ export const useCareerOnboardingVoice = ({
           suppressNextAssistantDoneRef.current = true;
           if (generateSpeechFromInstructionsRef.current) {
             const openingInstructions = buildCallOpeningResponseInstruction({
+              interviewProgress: callInterviewProgress,
+              isOnboardingDone,
               isConversationStarter: Boolean(conversationStarterId),
               openingText,
               recentConversationContext: openingRecentConversationContext,
@@ -1307,6 +1359,8 @@ export const useCareerOnboardingVoice = ({
         suppressNextAssistantDoneRef.current = true;
         if (generateSpeechFromInstructionsRef.current) {
           const openingInstructions = buildCallOpeningResponseInstruction({
+            interviewProgress: callInterviewProgress,
+            isOnboardingDone,
             isConversationStarter: Boolean(conversationStarterId),
             openingText,
             recentConversationContext: openingRecentConversationContext,
@@ -1327,7 +1381,9 @@ export const useCareerOnboardingVoice = ({
     [
       beginOnboardingConversation,
       callStartPending,
+      callInterviewProgress,
       clearRealtimeTurnSyncState,
+      isOnboardingDone,
       messages,
       onboardingBeginPending,
       showVoiceStartPrompt,
