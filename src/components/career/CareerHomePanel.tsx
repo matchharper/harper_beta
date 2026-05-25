@@ -42,9 +42,17 @@ const devAgentVariantOptions: Array<{
   value: CareerOpportunityAgentVariant;
 }> = [
   { label: "Tool agent", value: "tool_agent" },
-  { label: "Rule flow", value: "scripted" },
-  { label: "Human scripted v1", value: "scripted_human" },
+  { label: "New rule", value: "new_rule" },
 ];
+
+const getOpportunityAgentLabel = (
+  value: CareerOpportunityAgentVariant | null | undefined
+) => {
+  if (value === "new_rule") return "new-rule";
+  if (value === "tool_agent") return "tool agent";
+  if (value === "scripted" || value === "scripted_human") return "legacy agent";
+  return "agent 미지정";
+};
 
 const isLinkedinProfileLink = (value: string) =>
   /linkedin\.com\/in\//i.test(value.trim());
@@ -256,14 +264,9 @@ const CareerHomePanel = ({
   const onboardingCompletionTestDisabled =
     onboardingCompletionTestPending || !conversationId || stage === "profile";
 
-  const latestRunAgentLabel =
-    opportunityRun?.agentVariant === "scripted"
-      ? "rule flow"
-      : opportunityRun?.agentVariant === "scripted_human"
-        ? "human scripted v1"
-        : opportunityRun?.agentVariant === "tool_agent"
-          ? "tool agent"
-          : "agent 미지정";
+  const latestRunAgentLabel = getOpportunityAgentLabel(
+    opportunityRun?.agentVariant
+  );
   const latestRunLabel = opportunityRun
     ? `${opportunityRun.id.slice(0, 8)} · ${opportunityRun.status} · ${latestRunAgentLabel}`
     : "latest run 없음";

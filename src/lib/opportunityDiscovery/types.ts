@@ -17,6 +17,7 @@ export type OpportunityRunMode = "initial" | "immediate" | "refine" | "refresh";
 
 export type OpportunityDiscoveryAgentVariant =
   | "tool_agent"
+  | "new_rule"
   | "scripted"
   | "scripted_human";
 

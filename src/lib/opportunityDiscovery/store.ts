@@ -43,6 +43,7 @@ function normalizeOpportunityAgentVariant(
   value: unknown
 ): OpportunityDiscoveryAgentVariant | null {
   return value === "tool_agent" ||
+    value === "new_rule" ||
     value === "scripted" ||
     value === "scripted_human"
     ? value
