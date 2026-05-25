@@ -23,6 +23,7 @@ const isAgentVariant = (
   value: unknown
 ): value is OpportunityDiscoveryAgentVariant =>
   value === "tool_agent" ||
+  value === "new_rule" ||
   value === "scripted" ||
   value === "scripted_human";
 
