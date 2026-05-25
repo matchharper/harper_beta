@@ -119,10 +119,10 @@ const CareerUpdateNotesModal = ({
                   </div>
 
                   <div className="min-w-0">
-                    <Text as="h3" type="title">
+                    <Text as="h3" type="desc" className="font-medium">
                       {note.title}
                     </Text>
-                    <Text type="desc" className="mt-1">
+                    <Text type="desc" className="mt-2">
                       {note.summary}
                     </Text>
 

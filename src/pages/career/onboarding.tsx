@@ -910,6 +910,9 @@ const CareerNetworkOnboardingContent = () => {
           if (emailOnboardingToken) {
             query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM] = emailOnboardingToken;
           }
+          if (router.query.start === "call" || router.query.start === "chat") {
+            query.start = router.query.start;
+          }
 
           void router.replace({
             pathname: "/career",

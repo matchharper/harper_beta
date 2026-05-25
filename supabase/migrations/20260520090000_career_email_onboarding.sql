@@ -309,6 +309,46 @@ begin
        set talent_id = target_user_id
      where talent_id = source_user_id;
 
+    update public.talent_activity_events
+       set talent_id = target_user_id
+     where talent_id = source_user_id;
+
+    update public.talent_conversation_summaries
+       set talent_id = target_user_id
+     where talent_id = source_user_id;
+
+    update public.opportunity_discovery_run
+       set talent_id = target_user_id
+     where talent_id = source_user_id;
+
+    update public.talent_opportunity_profile_snapshot
+       set talent_id = target_user_id
+     where talent_id = source_user_id;
+
+    update public.talent_opportunity_delivery
+       set talent_id = target_user_id
+     where talent_id = source_user_id;
+
+    delete from public.talent_company_recommendation source_recommendation
+     using public.talent_company_recommendation target_recommendation
+     where source_recommendation.talent_id = source_user_id
+       and target_recommendation.talent_id = target_user_id
+       and target_recommendation.company_db_id = source_recommendation.company_db_id;
+
+    update public.talent_company_recommendation
+       set talent_id = target_user_id
+     where talent_id = source_user_id;
+
+    delete from public.talent_company_follow source_follow
+     using public.talent_company_follow target_follow
+     where source_follow.talent_id = source_user_id
+       and target_follow.talent_id = target_user_id
+       and target_follow.company_db_id = source_follow.company_db_id;
+
+    update public.talent_company_follow
+       set talent_id = target_user_id
+     where talent_id = source_user_id;
+
     if exists (select 1 from public.talent_setting where user_id = target_user_id) then
       update public.talent_setting target_setting
          set profile_visibility = case

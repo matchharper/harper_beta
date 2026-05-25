@@ -4,11 +4,11 @@ import {
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
 import {
-  appendHarperEmailFooterText,
-  renderEmailBodyHtmlWithHarperFooter,
-} from "@/lib/email/harperFooter";
-import { sendInternalEmail } from "@/lib/internalMail";
-import { fetchCareerTalentMailRecipient } from "@/lib/opsCareerServer";
+  fetchCareerTalentMailHistory,
+  parseCareerMailHistoryLimit,
+  parseCareerMailHistoryOffset,
+  sendCareerTalentMailAndRecord,
+} from "@/lib/opsCareerServer";
 
 export const runtime = "nodejs";
 
@@ -27,9 +27,37 @@ function isValidEmail(value: string) {
   );
 }
 
-export async function POST(req: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
     await requireInternalApiUser(req);
+    const userId = req.nextUrl.searchParams.get("userId")?.trim() ?? "";
+    if (!userId) {
+      return NextResponse.json(
+        { error: "userId is required" },
+        { status: 400 }
+      );
+    }
+
+    const history = await fetchCareerTalentMailHistory({
+      limit: parseCareerMailHistoryLimit(req.nextUrl.searchParams.get("limit")),
+      offset: parseCareerMailHistoryOffset(
+        req.nextUrl.searchParams.get("offset")
+      ),
+      userId,
+    });
+
+    return NextResponse.json(history);
+  } catch (error) {
+    return toInternalApiErrorResponse(
+      error,
+      "Failed to load career talent email history"
+    );
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const user = await requireInternalApiUser(req);
     const body = (await req.json().catch(() => ({}))) as Body;
 
     const userId = String(body.userId ?? "").trim();
@@ -38,7 +66,10 @@ export async function POST(req: NextRequest) {
     const content = String(body.content ?? "").trim();
 
     if (!userId) {
-      return NextResponse.json({ error: "userId is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "userId is required" },
+        { status: 400 }
+      );
     }
     if (!isValidEmail(fromEmail)) {
       return NextResponse.json(
@@ -47,28 +78,36 @@ export async function POST(req: NextRequest) {
       );
     }
     if (!subject) {
-      return NextResponse.json({ error: "Subject is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Subject is required" },
+        { status: 400 }
+      );
     }
     if (!content) {
-      return NextResponse.json({ error: "Content is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Content is required" },
+        { status: 400 }
+      );
     }
 
-    const recipient = await fetchCareerTalentMailRecipient(userId);
-
-    await sendInternalEmail({
-      from: fromEmail,
-      html: renderEmailBodyHtmlWithHarperFooter(content),
+    const result = await sendCareerTalentMailAndRecord({
+      content,
+      createdBy: user.email ?? "unknown@matchharper.com",
+      fromEmail,
       subject,
-      text: appendHarperEmailFooterText(content),
-      to: recipient.email,
+      userId,
     });
 
     return NextResponse.json({
       ok: true,
-      recipientEmail: recipient.email,
-      recipientName: recipient.name,
+      historyId: result.historyId,
+      recipientEmail: result.recipientEmail,
+      recipientName: result.recipientName,
     });
   } catch (error) {
-    return toInternalApiErrorResponse(error, "Failed to send career talent email");
+    return toInternalApiErrorResponse(
+      error,
+      "Failed to send career talent email"
+    );
   }
 }

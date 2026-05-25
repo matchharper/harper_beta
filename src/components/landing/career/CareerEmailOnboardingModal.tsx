@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 type CareerEmailOnboardingModalProps = {
   abtestType: string;
   countryLang: string;
+  forceResend?: boolean;
   isMobile: boolean;
   localId: string;
   onClose: () => void;
@@ -18,6 +19,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export default function CareerEmailOnboardingModal({
   abtestType,
   countryLang,
+  forceResend = false,
   isMobile,
   localId,
   onClose,
@@ -62,6 +64,7 @@ export default function CareerEmailOnboardingModal({
           abtestType,
           countryLang,
           email: normalizedEmail,
+          forceResend,
           isMobile,
           localId,
           pagePath:

@@ -24,6 +24,7 @@ const DEFAULT_RECENT_MESSAGE_LIMIT = 12;
 const MIN_RECENT_RAW_MESSAGES = 6;
 const MAX_SOURCE_MESSAGES = 80;
 const MAX_SOURCE_CHARS = 18000;
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
 type TalentConversationSummaryRow = {
   id: string;
@@ -38,6 +39,16 @@ type TalentConversationSummaryRow = {
   summary_json: Record<string, unknown>;
   created_at: string;
 };
+
+type TalentConversationSummaryCursorRow = Pick<
+  TalentConversationSummaryRow,
+  "created_at" | "to_message_id"
+>;
+
+type TalentConversationSegmentSummaryRow = Pick<
+  TalentConversationSummaryRow,
+  "conversation_id" | "created_at" | "segment_summary" | "to_message_id"
+>;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -75,14 +86,50 @@ function normalizeStringArray(value: unknown, limit = 8) {
   return normalized;
 }
 
+function toSummaryKstDateKey(value: string | null | undefined) {
+  const timestampMs = new Date(String(value ?? "").trim()).getTime();
+  if (!Number.isFinite(timestampMs)) return "";
+  return new Date(timestampMs + KST_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+function formatSummaryDateKey(dateKey: string) {
+  const match = dateKey.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return "";
+  return `${match[1]}.${match[2]}.${match[3]}`;
+}
+
+function formatMessageDateForSummary(message: TalentMessageRow) {
+  return (
+    formatSummaryDateKey(toSummaryKstDateKey(message.created_at)) || "unknown"
+  );
+}
+
+function formatSummaryRowDateForSummary(
+  summary: TalentConversationSegmentSummaryRow
+) {
+  return formatSummaryDateKey(toSummaryKstDateKey(summary.created_at));
+}
+
+function formatMessageDateCoverage(messages: TalentMessageRow[]) {
+  const dateLabels = Array.from(
+    new Set(
+      messages
+        .map((message) => formatMessageDateForSummary(message))
+        .filter((dateLabel) => dateLabel !== "unknown")
+    )
+  );
+  return dateLabels.length > 0 ? dateLabels.join(", ") : "(unknown)";
+}
+
 function formatMessagesForSummary(messages: TalentMessageRow[]) {
   return messages
     .map((message) => {
       const role = message.role === "assistant" ? "Harper" : "User";
+      const date = formatMessageDateForSummary(message);
       const content = formatTalentMessageContentForLlmPrompt(message)
         .replace(/\s+/g, " ")
         .trim();
-      return `[${message.id}] ${role}: ${content}`;
+      return `[${message.id} | date=${date} KST] ${role}: ${content}`;
     })
     .join("\n");
 }
@@ -109,6 +156,9 @@ function buildSummarySystemPrompt() {
     "Write Korean unless a company, role, or product name is naturally English.",
     "Preserve durable facts: career preferences, constraints, corrections, recommendation feedback, open loops, and next actions.",
     "Also write `segment_summary` from ONLY the new messages to fold in. It should be 4-8 concise Korean sentences and must not include facts that only come from the existing rolling summary.",
+    "Each new message includes a KST date. `segment_summary` must include date labels for the summarized message date(s).",
+    'Format each `segment_summary` segment as `[YYYY.MM.DD] "summary"`. If a single summarized segment spans consecutive dates in the same month, use `[YYYY.MM.DD~DD] "summary"`, for example `[2026.05.24~26] "..."`. If a date range crosses months or years, use full endpoints like `[YYYY.MM.DD~YYYY.MM.DD] "summary"`.',
+    'When `segment_summary` covers multiple non-consecutive date groups, write multiple labeled segments separated by spaces, for example `[2026.05.14] "..." [2026.05.24~26] "..."`. Do not put unlabeled text in `segment_summary`.',
     "Treat the existing summary as prior state to merge and rewrite, not text to append.",
     "If a fact appears in both the existing summary and new messages, mention it once.",
     "If new messages correct or supersede an older fact, keep the corrected version only.",
@@ -133,6 +183,9 @@ function buildSummaryUserPrompt(args: {
         ].join("\n")
       : "[Existing rolling summary]\n(none)",
     "",
+    "[New message date coverage - KST]",
+    formatMessageDateCoverage(args.messages),
+    "",
     "[New messages to fold in]",
     formatMessagesForSummary(args.messages),
     "",
@@ -140,7 +193,7 @@ function buildSummaryUserPrompt(args: {
     JSON.stringify(
       {
         segment_summary:
-          "4-8 sentence summary of ONLY the new messages to fold in.",
+          '[YYYY.MM.DD] "4-8 sentence summary of ONLY the new messages from that date"; use multiple dated segments or same-month ranges like [2026.05.24~26] when needed.',
         summary_text:
           "8-12 sentence compact, deduplicated rolling summary of the useful conversation state.",
         key_points: ["durable user preference or fact"],
@@ -177,6 +230,57 @@ async function fetchLatestConversationSummary(args: {
   }
 
   return (data ?? null) as TalentConversationSummaryRow | null;
+}
+
+async function fetchLatestConversationSummaryCursor(args: {
+  admin: TalentAdminClient;
+  conversationId: string;
+  userId: string;
+}) {
+  const { data, error } = await ((
+    args.admin.from("talent_conversation_summaries" as any) as any
+  )
+    .select("created_at, to_message_id")
+    .eq("talent_id", args.userId)
+    .eq("conversation_id", args.conversationId)
+    .order("to_message_id", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle() as any);
+
+  if (error) {
+    throw new Error(
+      error.message ?? "Failed to load talent_conversation_summaries"
+    );
+  }
+
+  return (data ?? null) as TalentConversationSummaryCursorRow | null;
+}
+
+async function fetchRecentConversationSegmentSummaries(args: {
+  admin: TalentAdminClient;
+  conversationId: string;
+  limit: number;
+  userId: string;
+}) {
+  const { data, error } = await ((
+    args.admin.from("talent_conversation_summaries" as any) as any
+  )
+    .select("conversation_id, created_at, segment_summary, to_message_id")
+    .eq("talent_id", args.userId)
+    .eq("conversation_id", args.conversationId)
+    .neq("segment_summary", "")
+    .order("to_message_id", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(Math.max(1, args.limit)) as any);
+
+  if (error) {
+    throw new Error(
+      error.message ?? "Failed to load talent_conversation_summaries"
+    );
+  }
+
+  return ((data ?? []) as TalentConversationSegmentSummaryRow[]).reverse();
 }
 
 export async function maybeSummarizeTalentConversation(args: {
@@ -309,26 +413,28 @@ function isVisibleSummaryRecentMessage(message: TalentMessageRow) {
   return true;
 }
 
-function buildSummaryPseudoMessage(args: {
+function buildSegmentSummariesPseudoMessage(args: {
   conversationId: string;
-  summary: TalentConversationSummaryRow;
+  latestSummary: TalentConversationSummaryCursorRow;
+  summaries: TalentConversationSegmentSummaryRow[];
   userId: string;
 }): TalentMessageRow {
-  const structured = args.summary.summary_json ?? {};
   return {
     content: [
-      "[Earlier conversation summary]",
-      args.summary.summary_text,
-      "",
-      "[Open loops]",
-      JSON.stringify(structured.open_loops ?? []),
-      "",
-      "[Next best action]",
-      normalizeText(structured.next_best_action, 800) || "(none)",
+      "[Recent conversation segment summaries]",
+      ...args.summaries
+        .map((summary, index) => {
+          const text = normalizeText(summary.segment_summary, 3000);
+          const date = formatSummaryRowDateForSummary(summary);
+          return text
+            ? `Segment ${index + 1}${date ? ` (${date} KST)` : ""}: ${text}`
+            : "";
+        })
+        .filter(Boolean),
     ].join("\n"),
     conversation_id: args.conversationId,
-    created_at: args.summary.created_at,
-    id: args.summary.to_message_id,
+    created_at: args.latestSummary.created_at,
+    id: args.latestSummary.to_message_id,
     message_type: SUMMARY_MESSAGE_TYPE,
     role: "assistant",
     user_id: args.userId,
@@ -346,7 +452,7 @@ export async function fetchRecentMessagesWithSummary(args: {
     MIN_RECENT_RAW_MESSAGES,
     Math.min(args.recentLimit ?? DEFAULT_RECENT_MESSAGE_LIMIT, 40)
   );
-  const latestSummary = await fetchLatestConversationSummary(args);
+  const latestSummary = await fetchLatestConversationSummaryCursor(args);
   if (!latestSummary) {
     return fetchRecentMessages({
       admin: args.admin,
@@ -354,6 +460,12 @@ export async function fetchRecentMessagesWithSummary(args: {
       limit: args.fallbackLimit ?? 24,
     });
   }
+  const segmentSummaries = await fetchRecentConversationSegmentSummaries({
+    admin: args.admin,
+    conversationId: args.conversationId,
+    limit: 3,
+    userId: args.userId,
+  });
 
   const { data, error } = await args.admin
     .from("talent_messages")
@@ -391,11 +503,16 @@ export async function fetchRecentMessagesWithSummary(args: {
   }
 
   return [
-    buildSummaryPseudoMessage({
-      conversationId: args.conversationId,
-      summary: latestSummary,
-      userId: args.userId,
-    }),
+    ...(segmentSummaries.length > 0
+      ? [
+          buildSegmentSummariesPseudoMessage({
+            conversationId: args.conversationId,
+            latestSummary,
+            summaries: segmentSummaries,
+            userId: args.userId,
+          }),
+        ]
+      : []),
     ...recentMessages,
   ];
 }

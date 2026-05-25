@@ -14,7 +14,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { User2 } from "lucide-react";
+import { Mail, User2 } from "lucide-react";
 import { motion } from "motion/react";
 import DemoSection from "@/components/landing/career/DemoSection";
 import {
@@ -35,6 +35,7 @@ const CAREER_LANDING_LOCAL_ID_KEY = "harper_career_landing_id_v1";
 const CAREER_LANDING_LAST_VISIT_AT_KEY = "harper_career_landing_last_visit_at";
 const CAREER_LANDING_SESSION_GAP_MS = 30 * 60 * 1000;
 const CAREER_LANDING_LOG_SOURCE = "career";
+const SHOW_LOCAL_EMAIL_ONBOARDING_TEST = process.env.NODE_ENV === "development";
 
 const createCareerLandingId = () => {
   if (
@@ -696,6 +697,11 @@ export default function LandingKoVfPage() {
     void router.push(careerStartHref);
   }, [addLandingLog, careerStartHref, router]);
 
+  const handleLocalEmailOnboardingTestClick = useCallback(() => {
+    void addLandingLog("email_onboarding_local_test_open");
+    setEmailOnboardingModalOpen(true);
+  }, [addLandingLog]);
+
   return (
     <>
       <Head>
@@ -725,8 +731,9 @@ export default function LandingKoVfPage() {
         <CareerEmailOnboardingModal
           abtestType={CAREER_EMAIL_ONBOARDING_ABTEST_TYPE}
           countryLang={countryLang}
+          forceResend={SHOW_LOCAL_EMAIL_ONBOARDING_TEST}
           isMobile={isMobile}
-          localId={landingId}
+          localId={landingId || "local-email-onboarding-test"}
           onClose={() => {
             void addLandingLog("email_onboarding_modal_close");
             setEmailOnboardingModalOpen(false);
@@ -738,6 +745,16 @@ export default function LandingKoVfPage() {
           open={emailOnboardingModalOpen}
           variant={CAREER_EMAIL_ONBOARDING_VARIANT}
         />
+        {SHOW_LOCAL_EMAIL_ONBOARDING_TEST ? (
+          <button
+            type="button"
+            onClick={handleLocalEmailOnboardingTestClick}
+            className="fixed bottom-4 left-4 z-[70] inline-flex h-9 items-center gap-2 rounded-lg border border-beige900/15 bg-beige50/95 px-3 text-xs font-semibold text-beige900 shadow-[0_10px_30px_rgba(37,20,6,0.14)] backdrop-blur transition hover:border-beige900/25 hover:bg-white"
+          >
+            <Mail className="h-3.5 w-3.5" />
+            메일 온보딩 테스트
+          </button>
+        ) : null}
 
         <main>
           <CareerHeroSection

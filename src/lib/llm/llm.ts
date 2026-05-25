@@ -187,10 +187,7 @@ export function getChatCompletionFallbackCandidates(args: {
     getLlmChatProviderForModel(requestedModel) === "anthropic" &&
     isAnthropicOverloadedError(args.error)
   ) {
-    addCandidate(
-      args.anthropicOverloadFallbackModel,
-      "anthropic_overloaded"
-    );
+    addCandidate(args.anthropicOverloadFallbackModel, "anthropic_overloaded");
   }
 
   addCandidate(args.fallbackModel, "primary_failed");
@@ -209,6 +206,7 @@ export function resolveChatCompletionFallbackModelForError(args: {
 export async function createChatCompletionWithFallback(args: {
   anthropicOverloadFallbackModel?: string | null;
   buildRequest: (model: string) => Record<string, unknown>;
+  debugLabel?: string | null;
   fallbackModel?: string | null;
   model: string;
 }): Promise<{
@@ -216,12 +214,22 @@ export async function createChatCompletionWithFallback(args: {
   model: string;
   response: any;
 }> {
+  const shouldLogRequestBody = Boolean(
+    args.debugLabel?.startsWith("career/chat:assistant")
+  );
   const createForModel = async (model: string) => {
     const llmClient = getChatClientForModel(model);
-    return llmClient.chat.completions.create({
+    const requestBody = {
       ...args.buildRequest(model),
       model,
-    } as any);
+    };
+    if (shouldLogRequestBody) {
+      console.info(
+        "[career-chat:llm-request-body:chat-completions]",
+        JSON.stringify(requestBody, null, 2)
+      );
+    }
+    return llmClient.chat.completions.create(requestBody as any);
   };
 
   try {

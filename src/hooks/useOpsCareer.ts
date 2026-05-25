@@ -1,20 +1,38 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import type {
   CareerTalentListResponse,
   CareerTalentDetailResponse,
+  CareerTalentMailHistoryResponse,
   CareerTalentProfileIngestResponse,
+  CareerTalentRecommendationsResponse,
 } from "@/lib/opsCareerServer";
 
 type SendCareerTalentMailResponse = {
   ok: true;
+  historyId: string;
   recipientEmail: string;
   recipientName: string | null;
+};
+
+type UpdateCareerRecommendationStageResponse = {
+  ok: true;
+  recommendationId: string;
+  processedStage: string | null;
 };
 
 export const opsCareerListKey = ["ops-career-list"] as const;
 export const opsCareerDetailKey = (userId?: string | null) =>
   ["ops-career-detail", userId] as const;
+export const opsCareerMailHistoryKey = (userId?: string | null) =>
+  ["ops-career-mail-history", userId] as const;
+export const opsCareerRecommendationsKey = (userId?: string | null) =>
+  ["ops-career-recommendations", userId] as const;
 
 export function useOpsCareerTalents(limit = 40, enabled = true) {
   return useInfiniteQuery({
@@ -39,6 +57,46 @@ export function useOpsCareerDetail(userId?: string | null, enabled = true) {
       ),
     enabled: enabled && typeof userId === "string" && userId.length > 0,
     staleTime: 15_000,
+  });
+}
+
+export function useOpsCareerMailHistory(
+  userId?: string | null,
+  limit = 10,
+  enabled = true
+) {
+  return useInfiniteQuery({
+    queryKey: [...opsCareerMailHistoryKey(userId), limit],
+    queryFn: ({ pageParam }) =>
+      fetchWithInternalAuth<CareerTalentMailHistoryResponse>(
+        `/api/internal/career/mail?userId=${encodeURIComponent(
+          userId ?? ""
+        )}&limit=${limit}&offset=${pageParam}`
+      ),
+    getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
+    initialPageParam: 0,
+    enabled: enabled && typeof userId === "string" && userId.length > 0,
+    staleTime: 10_000,
+  });
+}
+
+export function useOpsCareerRecommendations(
+  userId?: string | null,
+  limit = 20,
+  enabled = true
+) {
+  return useInfiniteQuery({
+    queryKey: [...opsCareerRecommendationsKey(userId), limit],
+    queryFn: ({ pageParam }) =>
+      fetchWithInternalAuth<CareerTalentRecommendationsResponse>(
+        `/api/internal/career/recommendations?userId=${encodeURIComponent(
+          userId ?? ""
+        )}&limit=${limit}&offset=${pageParam}`
+      ),
+    getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
+    initialPageParam: 0,
+    enabled: enabled && typeof userId === "string" && userId.length > 0,
+    staleTime: 10_000,
   });
 }
 
@@ -122,6 +180,7 @@ export function useIngestCareerProfile(userId: string) {
 }
 
 export function useSendCareerTalentMail() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (args: {
       content: string;
@@ -137,5 +196,37 @@ export function useSendCareerTalentMail() {
           body: JSON.stringify(args),
         }
       ),
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: opsCareerMailHistoryKey(variables.userId),
+      });
+    },
+  });
+}
+
+export function useUpdateOpsCareerRecommendationStage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: {
+      processedStage: string | null;
+      recommendationId: string;
+      userId: string;
+    }) =>
+      fetchWithInternalAuth<UpdateCareerRecommendationStageResponse>(
+        "/api/internal/career/recommendations",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            processedStage: args.processedStage,
+            recommendationId: args.recommendationId,
+          }),
+        }
+      ),
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: opsCareerRecommendationsKey(variables.userId),
+      });
+    },
   });
 }

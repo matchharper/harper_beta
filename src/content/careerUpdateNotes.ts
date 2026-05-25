@@ -10,6 +10,18 @@ export type CareerUpdateNote = {
 // Add the newest note at the top.
 export const careerUpdateNotes: CareerUpdateNote[] = [
   {
+    id: "2026-05-25-email-communication",
+    dateLabel: "2026.05.25",
+    title: "이메일로도 Harper와 소통할 수 있게 했어요",
+    summary:
+      "커리어 추천과 후속 안내를 웹 안에서만 확인하지 않아도 되도록 이메일 소통 흐름을 추가했습니다.",
+    tag: "New",
+    items: [
+      "Harper와 주고받은 커리어 관련 내용을 이메일로도 이어갈 수 있어요.",
+      "중요한 안내와 다음 액션을 놓치지 않도록 이메일 기반 소통 흐름을 정리했어요.",
+    ],
+  },
+  {
     id: "2026-05-19-mobile-career",
     dateLabel: "2026.05.19",
     title: "모바일에서도 커리어 흐름을 보기 쉽게 정리했어요",
