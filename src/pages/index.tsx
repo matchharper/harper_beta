@@ -6,14 +6,27 @@ import LandingButton from "@/components/landing/career/CareerLandingButton";
 import SocialProofSection from "@/components/landing/career/SocialProofSection";
 import { useCountryLang } from "@/hooks/useCountryLang";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import { withLandingLogSource } from "@/lib/landingLogTypes";
+import {
+  CAREER_LANDING_ABTEST_TYPE,
+  CAREER_LANDING_LOCAL_ID_STORAGE_KEY,
+  CAREER_UTM_DEFAULT_SOURCE,
+  CAREER_UTM_LOGIN_LOGGED_STORAGE_PREFIX,
+  CAREER_UTM_SOURCE_STORAGE_KEY,
+  normalizeCareerUtmSource,
+  readCareerUtmSourceFromSearch,
+  resolveCareerUtmSource,
+} from "@/lib/careerUtm";
+import {
+  buildLandingLoginEmailType,
+  withLandingLogSource,
+} from "@/lib/landingLogTypes";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
 import Head from "next/head";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Mail, User2 } from "lucide-react";
 import { motion } from "motion/react";
 import DemoSection from "@/components/landing/career/DemoSection";
@@ -23,19 +36,23 @@ import {
 } from "@/lib/careerEmailOnboarding/constants";
 import { resolveCareerOnboardingLandingVariant } from "@/lib/careerEmailOnboarding/experiment";
 
-const CAREER_START_HREF =
-  "/career_login?next=%2Fcareer%2Fonboarding&source=network";
 const CAREER_AUTHENTICATED_START_HREF = "/career";
 const CAREER_ONBOARDING_HREF = "/career/onboarding";
-const CAREER_LANDING_ABTEST_TYPE = "career_landing_v1";
 const CAREER_EMAIL_ONBOARDING_OVERRIDE_PARAM = "career_onboarding_variant";
 // Temporarily disable the email onboarding A/B route; CTA should use login.
 const CAREER_EMAIL_ONBOARDING_AB_TEST_ENABLED = false;
-const CAREER_LANDING_LOCAL_ID_KEY = "harper_career_landing_id_v1";
 const CAREER_LANDING_LAST_VISIT_AT_KEY = "harper_career_landing_last_visit_at";
 const CAREER_LANDING_SESSION_GAP_MS = 30 * 60 * 1000;
-const CAREER_LANDING_LOG_SOURCE = "career";
 const SHOW_LOCAL_EMAIL_ONBOARDING_TEST = process.env.NODE_ENV === "development";
+
+const buildCareerLoginHref = (source: string, landingId: string) => {
+  const params = new URLSearchParams({
+    next: CAREER_ONBOARDING_HREF,
+    source: resolveCareerUtmSource(source),
+  });
+  if (landingId) params.set("lid", landingId);
+  return `/career_login?${params.toString()}`;
+};
 
 const createCareerLandingId = () => {
   if (
@@ -182,7 +199,7 @@ export const WavyTag = ({
   );
 };
 
-const useCareerStartHref = () => {
+const useCareerStartHref = (source: string, landingId: string) => {
   const user = useAuthStore((state) => state.user);
   const session = useAuthStore((state) => state.session);
   const authLoading = useAuthStore((state) => state.loading);
@@ -240,7 +257,7 @@ const useCareerStartHref = () => {
   }, [authLoading, session?.access_token, user]);
 
   if (authLoading || !user) {
-    return CAREER_START_HREF;
+    return buildCareerLoginHref(source, landingId);
   }
 
   if (needsOnboarding !== false) {
@@ -569,29 +586,52 @@ function DirectMatchBranch() {
 
 export default function LandingKoVfPage() {
   const router = useRouter();
-  const careerStartHref = useCareerStartHref();
   const countryLang = useCountryLang();
   const isMobile = useIsMobile();
   const authLoading = useAuthStore((state) => state.loading);
   const user = useAuthStore((state) => state.user);
   const [landingId, setLandingId] = useState("");
+  const marketingSource = useMemo(() => {
+    const querySource =
+      typeof router.query.source === "string"
+        ? normalizeCareerUtmSource(router.query.source)
+        : null;
+    if (querySource) return querySource;
+    if (typeof window === "undefined") return CAREER_UTM_DEFAULT_SOURCE;
+    return (
+      normalizeCareerUtmSource(
+        localStorage.getItem(CAREER_UTM_SOURCE_STORAGE_KEY)
+      ) ?? CAREER_UTM_DEFAULT_SOURCE
+    );
+  }, [router.query.source]);
+  const careerStartHref = useCareerStartHref(marketingSource, landingId);
   const [emailOnboardingModalOpen, setEmailOnboardingModalOpen] =
     useState(false);
   const hasLoggedFirstScrollRef = useRef(false);
 
   const addLandingLog = useCallback(
-    async (type: string, overrides?: { localId?: string }) => {
+    async (
+      type: string,
+      overrides?: { localId?: string; source?: string | null }
+    ) => {
       const storedLocalId =
         typeof window !== "undefined"
-          ? (localStorage.getItem(CAREER_LANDING_LOCAL_ID_KEY) ?? "")
+          ? (localStorage.getItem(CAREER_LANDING_LOCAL_ID_STORAGE_KEY) ?? "")
           : "";
+      const storedSource =
+        typeof window !== "undefined"
+          ? localStorage.getItem(CAREER_UTM_SOURCE_STORAGE_KEY)
+          : null;
       const resolvedLocalId = overrides?.localId || landingId || storedLocalId;
-      if (!resolvedLocalId) return;
+      const resolvedSource = resolveCareerUtmSource(
+        overrides?.source ?? marketingSource ?? storedSource
+      );
+      if (!resolvedLocalId) return false;
 
       try {
         const { error } = await supabase.from("landing_logs").insert({
           local_id: resolvedLocalId,
-          type: withLandingLogSource(type, CAREER_LANDING_LOG_SOURCE),
+          type: withLandingLogSource(type, resolvedSource),
           abtest_type: CAREER_LANDING_ABTEST_TYPE,
           is_mobile: isMobile,
           country_lang: countryLang,
@@ -599,32 +639,60 @@ export default function LandingKoVfPage() {
 
         if (error) {
           console.error("career landing log insert error:", error);
+          return false;
         }
+        return true;
       } catch (error) {
         console.error("career landing log insert error:", error);
+        return false;
       }
     },
-    [countryLang, isMobile, landingId]
+    [countryLang, isMobile, landingId, marketingSource]
   );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const savedId = localStorage.getItem(CAREER_LANDING_LOCAL_ID_KEY);
+    const querySource = readCareerUtmSourceFromSearch(window.location.search);
+    const savedSource = normalizeCareerUtmSource(
+      localStorage.getItem(CAREER_UTM_SOURCE_STORAGE_KEY)
+    );
+    const resolvedSource =
+      querySource ?? savedSource ?? CAREER_UTM_DEFAULT_SOURCE;
+    localStorage.setItem(CAREER_UTM_SOURCE_STORAGE_KEY, resolvedSource);
+
+    const savedId = localStorage.getItem(CAREER_LANDING_LOCAL_ID_STORAGE_KEY);
     const resolvedLandingId = savedId || createCareerLandingId();
 
     if (!savedId) {
-      localStorage.setItem(CAREER_LANDING_LOCAL_ID_KEY, resolvedLandingId);
+      localStorage.setItem(
+        CAREER_LANDING_LOCAL_ID_STORAGE_KEY,
+        resolvedLandingId
+      );
       localStorage.setItem(
         CAREER_LANDING_LAST_VISIT_AT_KEY,
         Date.now().toString()
       );
       setLandingId(resolvedLandingId);
-      void addLandingLog("new_visit", { localId: resolvedLandingId });
+      void addLandingLog("new_visit", {
+        localId: resolvedLandingId,
+        source: resolvedSource,
+      });
       return;
     }
 
     setLandingId(savedId);
+
+    if (querySource && querySource !== savedSource) {
+      localStorage.setItem(
+        CAREER_LANDING_LAST_VISIT_AT_KEY,
+        Date.now().toString()
+      );
+      void addLandingLog("new_session", {
+        localId: savedId,
+        source: querySource,
+      });
+    }
   }, [addLandingLog]);
 
   useEffect(() => {
@@ -658,6 +726,22 @@ export default function LandingKoVfPage() {
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, [addLandingLog, landingId]);
+
+  useEffect(() => {
+    if (!landingId || !user?.id || !user.email || typeof window === "undefined") {
+      return;
+    }
+
+    const email = user.email;
+    const source = resolveCareerUtmSource(marketingSource);
+    const storageKey = `${CAREER_UTM_LOGIN_LOGGED_STORAGE_PREFIX}:${user.id}:${landingId}:${source}`;
+    if (localStorage.getItem(storageKey)) return;
+
+    void (async () => {
+      const didLog = await addLandingLog(buildLandingLoginEmailType(email, source));
+      if (didLog) localStorage.setItem(storageKey, "1");
+    })();
+  }, [addLandingLog, landingId, marketingSource, user?.email, user?.id]);
 
   const handleCareerStartClick = useCallback(
     (event: React.MouseEvent<HTMLAnchorElement>) => {
@@ -977,7 +1061,10 @@ export default function LandingKoVfPage() {
             </Reveal>
           </section>
 
-          <Footer onCareerStartClick={handleCareerStartClick} />
+          <Footer
+            careerStartHref={careerStartHref}
+            onCareerStartClick={handleCareerStartClick}
+          />
         </main>
       </div>
     </>
@@ -990,11 +1077,12 @@ const labelStyle =
 const blockStyle = "flex flex-col items-start justify-start md:min-w-[140px]";
 
 const Footer = ({
+  careerStartHref,
   onCareerStartClick,
 }: {
+  careerStartHref: string;
   onCareerStartClick?: React.MouseEventHandler<HTMLAnchorElement>;
 }) => {
-  const careerStartHref = useCareerStartHref();
   const openCrispChat = () => {
     if (typeof window === "undefined") return;
 

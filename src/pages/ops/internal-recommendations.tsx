@@ -70,9 +70,9 @@ const normalizeStage = (value: string | null | undefined) => {
 const isFixedStage = (value: string | null | undefined) =>
   Boolean(
     value &&
-      INTERNAL_RECOMMENDATION_FIXED_STAGES.includes(
-        value as (typeof INTERNAL_RECOMMENDATION_FIXED_STAGES)[number]
-      )
+    INTERNAL_RECOMMENDATION_FIXED_STAGES.includes(
+      value as (typeof INTERNAL_RECOMMENDATION_FIXED_STAGES)[number]
+    )
   );
 
 const formatKst = (value: string | null | undefined) => {
@@ -164,7 +164,10 @@ function TalentLink({ item }: { item: OpsInternalRecommendationItem }) {
   );
 }
 
-function getResolvedStage(item: OpsInternalRecommendationItem, drafts: StageDrafts) {
+function getResolvedStage(
+  item: OpsInternalRecommendationItem,
+  drafts: StageDrafts
+) {
   return Object.prototype.hasOwnProperty.call(drafts, item.recommendationId)
     ? normalizeStage(drafts[item.recommendationId])
     : normalizeStage(item.processedStage);
@@ -195,7 +198,10 @@ function StageEditor({
   disabled: boolean;
   drafts: StageDrafts;
   item: OpsInternalRecommendationItem;
-  onCustomValueChange: (item: OpsInternalRecommendationItem, value: string) => void;
+  onCustomValueChange: (
+    item: OpsInternalRecommendationItem,
+    value: string
+  ) => void;
   onStageSelect: (item: OpsInternalRecommendationItem, value: string) => void;
 }) {
   const selectValue = getStageSelectValue(item, drafts, customOpenIds);
@@ -246,7 +252,10 @@ function RecommendationsTable({
   customValues: Record<string, string>;
   drafts: StageDrafts;
   items: OpsInternalRecommendationItem[];
-  onCustomValueChange: (item: OpsInternalRecommendationItem, value: string) => void;
+  onCustomValueChange: (
+    item: OpsInternalRecommendationItem,
+    value: string
+  ) => void;
   onStageSelect: (item: OpsInternalRecommendationItem, value: string) => void;
   savePending: boolean;
 }) {
@@ -303,9 +312,13 @@ function RecommendationsTable({
               </td>
               <td className="px-3 py-2 align-top text-[11px]">
                 <div
-                  className={item.viewedAt ? "text-beige900/65" : "text-beige900/30"}
+                  className={
+                    item.viewedAt ? "text-beige900/65" : "text-beige900/30"
+                  }
                 >
-                  {item.viewedAt ? `열람 ${formatKst(item.viewedAt)}` : "미열람"}
+                  {item.viewedAt
+                    ? `열람 ${formatKst(item.viewedAt)}`
+                    : "미열람"}
                 </div>
                 <div
                   className={cx(
@@ -313,7 +326,9 @@ function RecommendationsTable({
                     item.clickedAt ? "text-beige900/65" : "text-beige900/30"
                   )}
                 >
-                  {item.clickedAt ? `클릭 ${formatKst(item.clickedAt)}` : "미클릭"}
+                  {item.clickedAt
+                    ? `클릭 ${formatKst(item.clickedAt)}`
+                    : "미클릭"}
                 </div>
               </td>
               <td className="px-3 py-2 align-top">
@@ -381,8 +396,14 @@ function RecommendationsBoard({
   customValues: Record<string, string>;
   drafts: StageDrafts;
   items: OpsInternalRecommendationItem[];
-  onCustomValueChange: (item: OpsInternalRecommendationItem, value: string) => void;
-  onDropToStage: (item: OpsInternalRecommendationItem, stage: string | null) => void;
+  onCustomValueChange: (
+    item: OpsInternalRecommendationItem,
+    value: string
+  ) => void;
+  onDropToStage: (
+    item: OpsInternalRecommendationItem,
+    stage: string | null
+  ) => void;
   onStageSelect: (item: OpsInternalRecommendationItem, value: string) => void;
   savePending: boolean;
 }) {
@@ -570,7 +591,10 @@ export default function OpsInternalRecommendationsPage() {
   const hiddenByInternalDataExclusionCount = useMemo(
     () =>
       recommendations.filter((item) =>
-        isEmailExcludedByOpsInternalTerms(item.talent.email, emailExclusionTerms)
+        isEmailExcludedByOpsInternalTerms(
+          item.talent.email,
+          emailExclusionTerms
+        )
       ).length,
     [emailExclusionTerms, recommendations]
   );
@@ -579,7 +603,10 @@ export default function OpsInternalRecommendationsPage() {
     const q = searchQuery.trim().toLowerCase();
     return recommendations.filter((item) => {
       if (
-        isEmailExcludedByOpsInternalTerms(item.talent.email, emailExclusionTerms)
+        isEmailExcludedByOpsInternalTerms(
+          item.talent.email,
+          emailExclusionTerms
+        )
       ) {
         return false;
       }
@@ -616,8 +643,10 @@ export default function OpsInternalRecommendationsPage() {
         .filter(
           (
             item
-          ): item is { processedStage: string | null; recommendationId: string } =>
-            item !== null
+          ): item is {
+            processedStage: string | null;
+            recommendationId: string;
+          } => item !== null
         ),
     [recommendationById, stageDrafts]
   );
@@ -781,12 +810,9 @@ export default function OpsInternalRecommendationsPage() {
         <section className="space-y-4 px-4">
           <div className={cx(opsTheme.panel, "p-4")}>
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-              <div className="min-w-0">
-                <div className={opsTheme.eyebrow}>Internal Opportunity Flow</div>
-                <div className="mt-1 font-geist text-sm text-beige900/55">
-                  사람별로 추천된 internal 기회의 유저 반응과 운영 상태를
-                  관리합니다.
-                </div>
+              <div className="mt-1 font-geist text-sm text-beige900/55">
+                사람별로 추천된 internal 기회의 유저 반응과 운영 상태를
+                관리합니다.
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <div className="relative w-full min-w-[220px] sm:w-[280px]">

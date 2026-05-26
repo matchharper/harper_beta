@@ -998,6 +998,30 @@ export type Database = {
           },
         ]
       }
+      career_utm_sources: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          source: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          source?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       company_code: {
         Row: {
           code: string

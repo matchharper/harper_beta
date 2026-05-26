@@ -3,6 +3,7 @@ import AdminCareerDateRangeFilter from "@/components/admin/career/AdminCareerDat
 import AdminCareerFunnelPanel from "@/components/admin/career/AdminCareerFunnelPanel";
 import AdminCareerMetricGrid from "@/components/admin/career/AdminCareerMetricGrid";
 import AdminCareerQuickSignalPanel from "@/components/admin/career/AdminCareerQuickSignalPanel";
+import AdminCareerUtmTab from "@/components/admin/career/AdminCareerUtmTab";
 import AdminCareerUserTable from "@/components/admin/career/AdminCareerUserTable";
 import AdminMetricsExcludedEmails from "@/components/admin/metrics/AdminMetricsExcludedEmails";
 import { useAdminMetricsStore } from "@/components/admin/metrics/useAdminMetricsStore";
@@ -25,6 +26,8 @@ type CareerAnalyticsDateRangeInput = {
   endDate: string;
   startDate: string;
 };
+
+type CareerAdminTab = "overview" | "utm";
 
 const emptyDateRange: CareerAnalyticsDateRangeInput = {
   endDate: "",
@@ -112,6 +115,7 @@ function AdminCareerContent() {
     useState<CareerAnalyticsDateRangeInput>(emptyDateRange);
   const [isSendingSlackSummary, setIsSendingSlackSummary] = useState(false);
   const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState<CareerAdminTab>("overview");
 
   const query = useQuery({
     queryKey: [
@@ -121,6 +125,7 @@ function AdminCareerContent() {
       appliedDateRange.endDate,
     ],
     queryFn: () => fetchCareerAnalytics(excludedEmails, appliedDateRange),
+    enabled: activeTab === "overview",
     placeholderData: (previousData) => previousData,
   });
 
@@ -227,11 +232,28 @@ function AdminCareerContent() {
                   <Link href="/admin">Admin index</Link>
                 </Button>
                 <Button
-                  variant="default"
+                  variant={activeTab === "overview" ? "default" : "outline"}
                   size="sm"
-                  className="h-8 rounded-none text-[12px]"
+                  className={cn(
+                    "h-8 rounded-none text-[12px]",
+                    activeTab !== "overview" &&
+                      "border-black/15 bg-white text-black shadow-none"
+                  )}
+                  onClick={() => setActiveTab("overview")}
                 >
                   Career
+                </Button>
+                <Button
+                  variant={activeTab === "utm" ? "default" : "outline"}
+                  size="sm"
+                  className={cn(
+                    "h-8 rounded-none text-[12px]",
+                    activeTab !== "utm" &&
+                      "border-black/15 bg-white text-black shadow-none"
+                  )}
+                  onClick={() => setActiveTab("utm")}
+                >
+                  UTM
                 </Button>
               </nav>
             </div>
@@ -275,7 +297,9 @@ function AdminCareerContent() {
         </header>
 
         <div className="mx-auto w-full max-w-[1180px] space-y-4 px-4 py-5 md:px-6">
-          {query.error ? (
+          {activeTab === "utm" ? (
+            <AdminCareerUtmTab excludedEmails={excludedEmails} />
+          ) : query.error ? (
             <Card className="rounded-md border-red-200 bg-red-50 shadow-none">
               <CardContent className="p-4 text-[12px] text-red-700">
                 {query.error instanceof Error
@@ -285,13 +309,13 @@ function AdminCareerContent() {
             </Card>
           ) : null}
 
-          {query.isLoading ? (
+          {activeTab === "overview" && query.isLoading ? (
             <Card className="rounded-md border-black/10 shadow-none">
               <CardContent className="p-4 text-[12px] text-black/50">
                 Career analytics를 불러오는 중입니다.
               </CardContent>
             </Card>
-          ) : query.data ? (
+          ) : activeTab === "overview" && query.data ? (
             <>
               <AdminCareerDateRangeFilter
                 appliedEndDate={appliedDateRange.endDate}
