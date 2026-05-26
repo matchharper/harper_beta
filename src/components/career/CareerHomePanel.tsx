@@ -1,15 +1,19 @@
 import {
   BriefcaseBusiness,
+  AlertTriangle,
   Check,
   ChevronRight,
   Clock3,
   FileText,
+  History,
   Loader2,
   Mail,
   MessageSquareText,
   Plus,
+  Play,
   RefreshCw,
   Search,
+  Terminal,
   UserRound,
 } from "lucide-react";
 import { useMemo } from "react";
@@ -30,6 +34,8 @@ import type {
 } from "@/lib/career/conversationStarters";
 import { DEFAULT_OPPORTUNITY_DISCOVERY_AGENT_VARIANT } from "@/lib/opportunityDiscovery/types";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
+import { useCareerApi } from "@/hooks/career/useCareerApi";
+import { useCareerDevSqlPromptHistoryStore } from "@/store/useCareerDevSqlPromptHistoryStore";
 import { Text } from "@/components/ui/typography";
 import {
   SectionDescription,
@@ -57,6 +63,20 @@ const getOpportunityAgentLabel = (
 
 const isLinkedinProfileLink = (value: string) =>
   /linkedin\.com\/in\//i.test(value.trim());
+
+type CareerDevSqlDraft = {
+  expectedResult?: string;
+  explanation?: string;
+  sql?: string;
+  validationErrors?: string[];
+  warnings?: string[];
+};
+
+type CareerDevSqlExecutionResult = {
+  command?: string | null;
+  rowCount?: number | null;
+  rows?: unknown[];
+};
 
 type HomeHistoryTarget = {
   historyTab: "new" | "saved" | "archived";
@@ -133,6 +153,13 @@ const CareerHomePanel = ({
   onOpenProfile: () => void;
 }) => {
   const logCareerEvent = useCareerLogEvent();
+  const { fetchWithAuth } = useCareerApi();
+  const devSqlPromptHistory = useCareerDevSqlPromptHistoryStore(
+    (state) => state.prompts
+  );
+  const addDevSqlPromptHistory = useCareerDevSqlPromptHistoryStore(
+    (state) => state.addPrompt
+  );
   const {
     user,
     conversationId,
@@ -164,6 +191,15 @@ const CareerHomePanel = ({
     React.useState<CareerOpportunityAgentVariant>(
       DEFAULT_OPPORTUNITY_DISCOVERY_AGENT_VARIANT
     );
+  const [devSqlRequest, setDevSqlRequest] = React.useState("");
+  const [devSqlDraft, setDevSqlDraft] =
+    React.useState<CareerDevSqlDraft | null>(null);
+  const [devSqlText, setDevSqlText] = React.useState("");
+  const [devSqlError, setDevSqlError] = React.useState("");
+  const [devSqlGenerating, setDevSqlGenerating] = React.useState(false);
+  const [devSqlExecuting, setDevSqlExecuting] = React.useState(false);
+  const [devSqlResult, setDevSqlResult] =
+    React.useState<CareerDevSqlExecutionResult | null>(null);
 
   const displayName =
     talentProfile.talentUser?.name ??
@@ -344,6 +380,92 @@ const CareerHomePanel = ({
     onOpenChat();
     return onStartConversationStarter?.({ mode, starterId }) ?? false;
   };
+
+  const handleGenerateDevSql = React.useCallback(async () => {
+    const request = devSqlRequest.trim();
+    if (!request || devSqlGenerating || devSqlExecuting) return;
+
+    logCareerEvent("click_home_dev_sql_generate");
+    addDevSqlPromptHistory(request);
+    setDevSqlGenerating(true);
+    setDevSqlError("");
+    setDevSqlResult(null);
+    try {
+      const response = await fetchWithAuth("/api/talent/dev-sql", {
+        method: "POST",
+        body: JSON.stringify({ request }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        draft?: CareerDevSqlDraft;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.draft) {
+        throw new Error(payload.error || "SQL 생성에 실패했습니다.");
+      }
+
+      setDevSqlDraft(payload.draft);
+      setDevSqlText(payload.draft.sql ?? "");
+    } catch (error) {
+      setDevSqlError(
+        error instanceof Error ? error.message : "SQL 생성에 실패했습니다."
+      );
+    } finally {
+      setDevSqlGenerating(false);
+    }
+  }, [
+    devSqlExecuting,
+    devSqlGenerating,
+    devSqlRequest,
+    fetchWithAuth,
+    addDevSqlPromptHistory,
+    logCareerEvent,
+  ]);
+
+  const handleExecuteDevSql = React.useCallback(async () => {
+    const sql = devSqlText.trim();
+    if (!sql || devSqlExecuting || devSqlGenerating) return;
+    if (
+      !window.confirm(
+        "현재 로그인 계정의 DB 상태가 변경됩니다. 표시된 SQL을 실행할까요?"
+      )
+    ) {
+      return;
+    }
+
+    logCareerEvent("click_home_dev_sql_execute");
+    setDevSqlExecuting(true);
+    setDevSqlError("");
+    setDevSqlResult(null);
+    try {
+      const response = await fetchWithAuth("/api/talent/dev-sql", {
+        method: "PATCH",
+        body: JSON.stringify({ sql }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        result?: CareerDevSqlExecutionResult;
+      };
+
+      if (!response.ok || !payload.result) {
+        throw new Error(payload.error || "SQL 실행에 실패했습니다.");
+      }
+
+      setDevSqlResult(payload.result);
+    } catch (error) {
+      setDevSqlError(
+        error instanceof Error ? error.message : "SQL 실행에 실패했습니다."
+      );
+    } finally {
+      setDevSqlExecuting(false);
+    }
+  }, [
+    devSqlExecuting,
+    devSqlGenerating,
+    devSqlText,
+    fetchWithAuth,
+    logCareerEvent,
+  ]);
 
   return (
     <div className="space-y-4 text-beige900">
@@ -632,6 +754,157 @@ const CareerHomePanel = ({
               <MessageSquareText className="h-3.5 w-3.5" />
               Chat 열기
             </CareerActionButton>
+          </div>
+          <div className="mt-4 border-t border-beige900/10 pt-4">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <Text as="div" type="eyebrow">
+                  현재 상태 변경
+                </Text>
+                <Text as="div" type="subtle" className="mt-1">
+                  현재 로그인 계정에 한정된 상태를 변경하기 위한 명령어를
+                  생성하고 실행
+                </Text>
+              </div>
+              <CareerActionButton
+                onClick={() => void handleGenerateDevSql()}
+                disabled={
+                  devSqlGenerating ||
+                  devSqlExecuting ||
+                  devSqlRequest.trim().length === 0
+                }
+                actionVariant="secondary"
+                className="mt-2 sm:mt-0"
+              >
+                {devSqlGenerating ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Terminal className="h-3.5 w-3.5" />
+                )}
+                {devSqlGenerating ? "생성 중..." : "적용할 SQL 생성"}
+              </CareerActionButton>
+            </div>
+            <textarea
+              value={devSqlRequest}
+              onChange={(event) => setDevSqlRequest(event.target.value)}
+              placeholder="예: 추천된 기회 전부 삭제 / 최근 3일간 모든 추천 데이터 삭제"
+              rows={3}
+              className="mt-3 min-h-[86px] w-full resize-y rounded-xl border border-beige900/15 bg-white/75 px-3 py-2 text-[13px] leading-5 text-beige900 outline-none transition-colors placeholder:text-beige900/35 focus:border-beige700"
+            />
+            {devSqlPromptHistory.length > 0 ? (
+              <div className="mt-2 space-y-1.5">
+                <Text
+                  as="div"
+                  type="subtle"
+                  className="inline-flex items-center gap-1.5"
+                >
+                  <History className="h-3.5 w-3.5" />
+                  최근 입력
+                </Text>
+                <div className="flex flex-wrap gap-1.5">
+                  {devSqlPromptHistory.map((prompt) => (
+                    <button
+                      key={prompt}
+                      type="button"
+                      onClick={() => {
+                        logCareerEvent("click_home_dev_sql_prompt_history");
+                        setDevSqlRequest(prompt);
+                      }}
+                      className="max-w-full rounded-lg border border-beige900/10 bg-white/70 px-2.5 py-1.5 text-left text-[12px] leading-4 text-beige900 transition-colors hover:border-beige700/40 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-beige700/30"
+                    >
+                      <span className="block max-w-[240px] truncate sm:max-w-[320px]">
+                        {prompt}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {devSqlError ? (
+              <div className="mt-3 flex gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[12px] leading-5 text-red-700">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span className="whitespace-pre-wrap">{devSqlError}</span>
+              </div>
+            ) : null}
+            {devSqlDraft ? (
+              <div className="mt-3 space-y-3 rounded-xl border border-beige900/10 bg-white/65 px-3 py-3">
+                {devSqlDraft.explanation ? (
+                  <Text as="div" type="caption" className="text-beige900">
+                    {devSqlDraft.explanation}
+                  </Text>
+                ) : null}
+                {devSqlDraft.expectedResult ? (
+                  <Text as="div" type="subtle">
+                    결과: {devSqlDraft.expectedResult}
+                  </Text>
+                ) : null}
+                {devSqlDraft.warnings?.length ? (
+                  <div className="space-y-1">
+                    {devSqlDraft.warnings.map((warning, index) => (
+                      <Text
+                        key={`${warning}-${index}`}
+                        as="div"
+                        type="caption"
+                        className="text-[#9a5a28]"
+                      >
+                        주의: {warning}
+                      </Text>
+                    ))}
+                  </div>
+                ) : null}
+                {devSqlDraft.validationErrors?.length ? (
+                  <div className="space-y-1 rounded-lg bg-red-50 px-3 py-2">
+                    {devSqlDraft.validationErrors.map((validationError) => (
+                      <Text
+                        key={validationError}
+                        as="div"
+                        type="caption"
+                        className="text-red-700"
+                      >
+                        {validationError}
+                      </Text>
+                    ))}
+                  </div>
+                ) : null}
+                <textarea
+                  value={devSqlText}
+                  onChange={(event) => setDevSqlText(event.target.value)}
+                  rows={9}
+                  spellCheck={false}
+                  className="min-h-[210px] w-full resize-y rounded-xl border border-beige900/15 bg-white/85 px-3 py-2 font-mono text-[12px] leading-5 text-beige900 outline-none transition-colors focus:border-beige700"
+                />
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  {devSqlResult ? (
+                    <Text as="div" type="subtle">
+                      실행됨: {devSqlResult.command ?? "OK"}
+                      {typeof devSqlResult.rowCount === "number"
+                        ? ` · ${devSqlResult.rowCount} rows`
+                        : ""}
+                    </Text>
+                  ) : (
+                    <Text as="div" type="subtle">
+                      실행 전 SQL을 직접 확인하세요.
+                    </Text>
+                  )}
+                  <CareerActionButton
+                    onClick={() => void handleExecuteDevSql()}
+                    disabled={
+                      devSqlExecuting ||
+                      devSqlGenerating ||
+                      devSqlText.trim().length === 0
+                    }
+                    actionVariant="primary"
+                  >
+                    {devSqlExecuting ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Play className="h-3.5 w-3.5" />
+                    )}
+                    {devSqlExecuting ? "실행 중..." : "SQL 실행"}
+                  </CareerActionButton>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}

@@ -11,6 +11,11 @@ import { useRouter } from "next/router";
 import { Loader2, MailCheck } from "lucide-react";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
+import {
+  CAREER_LANDING_LOCAL_ID_STORAGE_KEY,
+  CAREER_UTM_SOURCE_STORAGE_KEY,
+  normalizeCareerUtmSource,
+} from "@/lib/careerUtm";
 
 type PartnerLogo = {
   src: string;
@@ -93,6 +98,23 @@ const CareerLoginContent = () => {
   ]);
   const emailConfirmationSent = Boolean(authInfo);
   const submittedEmail = email.trim();
+
+  useEffect(() => {
+    if (!router.isReady || typeof window === "undefined") return;
+
+    const source =
+      typeof router.query.source === "string"
+        ? normalizeCareerUtmSource(router.query.source)
+        : null;
+    const localId = typeof router.query.lid === "string" ? router.query.lid : "";
+
+    if (source) {
+      localStorage.setItem(CAREER_UTM_SOURCE_STORAGE_KEY, source);
+    }
+    if (localId) {
+      localStorage.setItem(CAREER_LANDING_LOCAL_ID_STORAGE_KEY, localId);
+    }
+  }, [router.isReady, router.query.lid, router.query.source]);
 
   useEffect(() => {
     if (authLoading || !user || !router.isReady) return;
