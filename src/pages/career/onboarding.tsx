@@ -81,13 +81,10 @@ const descriptionClassName =
 const ONBOARDING_STEPS: OnboardingStepDefinition[] = [
   {
     label: "기본 정보",
-    title: [
-      "모든 스포츠 스타에게 에이전트가 있듯이,",
-      "커리어에도 에이전트가 필요합니다.",
-    ],
+    title: ["좋은 기회는, 먼저 발견하는 사람이 가져갑니다."],
     description: [
-      "Harper가 에이전트/헤드헌터처럼 좋은 기회를 먼저 살펴보고 알려드릴 수 있도록,",
-      "이름과 연락처만 먼저 확인할게요.",
+      "잘 맞는 기회가 보이면 Harper가 먼저 연결해요.",
+      "시작은 이름과 이메일만 있으면 충분해요.",
     ],
     headerClassName: "mx-auto max-w-[720px]",
     titleClassName: "text-xl font-medium leading-[1.25] md:text-2xl",
@@ -95,12 +92,9 @@ const ONBOARDING_STEPS: OnboardingStepDefinition[] = [
     bodyClassName: "mx-auto mt-4 grid w-full max-w-[520px] gap-3 text-left",
   },
   {
-    label: "찾는 역할",
-    title: ["어떤 형태의 기회에 열려계신가요?"],
-    description: [
-      "풀타임 합류부터 현업과 병행하는 파트타임, 어드바이저 역할까지 관심 있는 것만 선택해주세요.",
-      "Harper가 24/7 쉬지않고 찾아드릴게요.",
-    ],
+    label: "기회 유형",
+    title: ["어떤 방향을 먼저 볼까요?"],
+    description: ["Harper가 여기서부터 맞춤으로 움직여요."],
     headerClassName: "mx-auto max-w-[720px]",
     titleClassName: "text-xl font-medium leading-[1.25] md:text-2xl",
     descriptionClassName,
@@ -108,11 +102,11 @@ const ONBOARDING_STEPS: OnboardingStepDefinition[] = [
       "mx-auto mt-5 grid w-full max-w-[860px] gap-3 md:grid-cols-3",
   },
   {
-    label: "프로필 자료",
-    title: ["본인을 가장 잘 보여주는 자료를 연결해주세요."],
+    label: "프로필 연결",
+    title: ["Harper가 먼저 이해할게요."],
     description: [
-      "이력서(CV)/LinkedIn 중 1개 필수",
-      "GitHub, Scholar, 개인 사이트는 더 정확한 판단을 위한 보조 자료로 추가할 수 있습니다.",
+      "LinkedIn 또는 이력서 하나면 충분해요.",
+      "추가 정보는 방향을 더 정확히 좁히는 데 도움이 돼요.",
     ],
     headerClassName: "mx-auto max-w-[720px]",
     titleClassName: "text-xl font-medium leading-[1.25] md:text-2xl",
@@ -123,10 +117,11 @@ const ONBOARDING_STEPS: OnboardingStepDefinition[] = [
       "mx-auto mt-5 flex w-full max-w-[700px] flex-col gap-4 text-left",
   },
   {
-    label: "공개 범위",
-    title: ["회사에 프로필을 언제 공개할까요?"],
+    label: "공개 설정",
+    title: ["회사에 프로필을 언제 공유할까요?"],
     description: [
-      "공개 범위를 정해주세요. 대화 내용과 선택한 옵션은 회사에 공개되지 않습니다.",
+      "프로필은 선택한 방식대로만 공유돼요.",
+      "대화 내용은 회사에 공개되지 않아요.",
     ],
     headerClassName: "mx-auto max-w-[720px]",
     titleClassName: "text-xl font-medium leading-[1.25] md:text-2xl",
@@ -238,15 +233,15 @@ const ONBOARDING_ENGAGEMENT_COPY: Record<
 > = {
   advisor: {
     label: "어드바이저",
-    description: "기술 자문, 초기 팀 멘토링, 전략 검토 중심",
+    description: "초기 팀을 돕거나<br />전략적으로 기여하고 싶어요",
   },
   fractional: {
-    label: "파트타임 · 단기 프로젝트",
-    description: "현업과 병행하며<br />부가적인 수입을 얻고싶다면",
+    label: "파트타임·프로젝트",
+    description: "지금 자리는 유지하면서,<br />병행할 수 있는 일을 찾아요",
   },
   full_time: {
-    label: "풀타임 합류",
-    description: "정말 좋은 기회인 경우,<br />이직/취직에도 열려있다면",
+    label: "풀타임",
+    description: "제대로 된 기회라면<br />이직도 열어두고 있어요",
   },
 };
 
@@ -387,11 +382,13 @@ const ProfileInputToggle = ({
   id,
   label,
   onClick,
+  requiredBadge,
 }: {
   active: boolean;
   id: TalentNetworkProfileInputType;
   label: string;
   onClick: () => void;
+  requiredBadge?: string;
 }) => (
   <button
     type="button"
@@ -406,7 +403,21 @@ const ProfileInputToggle = ({
     <span className={cn("flex h-9 w-9 items-center justify-center")}>
       <ProfileInputIcon id={id} />
     </span>
-    <span className="line-clamp-2 min-h-8">{label}</span>
+    <span className="flex min-h-8 flex-col items-center justify-center gap-1">
+      <span className="line-clamp-1">{label}</span>
+      {requiredBadge && (
+        <span
+          className={cn(
+            "rounded-full border px-1.5 py-[2px] text-[10px] font-medium leading-none",
+            active
+              ? "border-beige100/25 text-beige100/75"
+              : "border-beige900/10 text-beige900/45"
+          )}
+        >
+          {requiredBadge}
+        </span>
+      )}
+    </span>
   </button>
 );
 
@@ -515,7 +526,7 @@ const SelectionCardButton = ({
           {label}
         </span>
         {description && (
-          <span className="mt-1 text-sm leading-5 text-beige900/60">
+          <span className="mt-1 whitespace-pre-line text-sm leading-5 text-beige900/60">
             {description}
           </span>
         )}
@@ -598,18 +609,18 @@ const ONBOARDING_PROFILE_VISIBILITY_OPTIONS: Array<{
 }> = [
   {
     id: "open_to_matches",
-    label: "Open to matches",
+    label: "Harper가 먼저 공유해요",
     description:
-      "Harper가 회원님이 선호하실만한 포지션이라고 판단하면 회사에 익명 프로필을 먼저 공유하고, 제안을 먼저 받으실 수 있게 합니다.",
-    sub: "매칭에 필요한 프로필 정보만 공유됩니다. 공개하지 않을 회사를 설정할 수 있어요.",
+      "잘 맞는 기회라고 판단되면\nHarper가 먼저 회사에 프로필을 공유해요.\n\n관심이 오면 바로 알려드려요.",
+    sub: "매칭에 필요한 프로필 정보만 공유돼요. 공개하지 않을 회사를 설정할 수 있어요.",
     Icon: ShieldCheck,
   },
   {
     id: "exceptional_only",
-    label: "Exceptional only",
+    label: "내가 먼저 확인해요",
     description:
-      "Harper가 제안한 역할과 회사를 확인하고 허용한 경우에만 프로필이 공유됩니다.",
-    sub: "기회를 먼저 확인한 뒤 직접 허용하는 방식입니다. 기본적으로 회사에는 프로필이 공유되지 않습니다.",
+      "Harper가 먼저 기회를 가져오고,\n내가 확인한 뒤에만 프로필이 공유돼요.",
+    sub: "매칭에 필요한 프로필 정보만 공유돼요. 공개하지 않을 회사를 설정할 수 있어요.",
     Icon: ShieldAlert,
   },
 ];
@@ -637,7 +648,7 @@ const ResumeUploadInput = ({
       )}
     </span>
     <span className="mt-1 text-base font-medium">
-      {fileName || "Upload Resume/CV (Optional)"}
+      {fileName || "이력서/CV 업로드"}
     </span>
     <span className="text-center text-sm font-normal text-beige900/70">
       PDF나 텍스트 파일을 올려주세요. 최대 10MB까지 권장합니다.
@@ -1330,8 +1341,7 @@ const CareerNetworkOnboardingContent = () => {
   }, [handleEngagementToggle, handleProfileVisibilitySelect, step]);
 
   const currentStepDefinition = ONBOARDING_STEPS[step] ?? ONBOARDING_STEPS[0];
-  const stepLabel = `${step + 1} / ${TOTAL_STEPS}`;
-  // const stepLabel = `Step ${step + 1} / ${TOTAL_STEPS} · ${currentStepDefinition.label}`;
+  const stepLabel = `Step ${step + 1} · ${currentStepDefinition.label}`;
 
   const selectedVisibilityOption =
     ONBOARDING_PROFILE_VISIBILITY_OPTIONS.find(
@@ -1486,6 +1496,11 @@ const CareerNetworkOnboardingContent = () => {
                             label={option.label}
                             active={selectedProfileInputs.includes(option.id)}
                             onClick={() => handleProfileInputToggle(option.id)}
+                            requiredBadge={
+                              option.id === "linkedin" || option.id === "cv"
+                                ? "필수 중 하나"
+                                : undefined
+                            }
                           />
                         ))}
                       </div>
@@ -1578,25 +1593,26 @@ const CareerNetworkOnboardingContent = () => {
                     이전
                   </BeigeButton>
                 )}
-                <BeigeButton
-                  type="button"
-                  variant="primary"
-                  size="lg"
-                  onClick={handleLoggedNext}
-                  className="font-normal min-w-[76px] w-full sm:w-auto"
-                >
-                  {step === TOTAL_STEPS - 1 ? (
-                    <>
-                      <span>정보 제출하기</span>
-                      <span className="text-beige100/70">
-                        {" "}
-                        - 2분 정도 소요됩니다.
-                      </span>
-                    </>
-                  ) : (
-                    "다음"
+                <div className="flex w-full flex-col items-center gap-1 sm:w-auto">
+                  <BeigeButton
+                    type="button"
+                    variant="primary"
+                    size="lg"
+                    onClick={handleLoggedNext}
+                    className="font-normal min-w-[76px] w-full sm:w-auto"
+                  >
+                    {step === TOTAL_STEPS - 1
+                      ? "기회 탐색 시작하기"
+                      : step === 0
+                        ? "Harper 시작하기"
+                        : "다음"}
+                  </BeigeButton>
+                  {step === TOTAL_STEPS - 1 && (
+                    <span className="text-[12px] leading-5 text-beige900/45">
+                      분석까지 약 2분 걸려요
+                    </span>
                   )}
-                </BeigeButton>
+                </div>
                 <div className="hidden text-sm text-beige900/45 md:block">
                   press <span className="font-medium text-beige900">Enter</span>
                 </div>

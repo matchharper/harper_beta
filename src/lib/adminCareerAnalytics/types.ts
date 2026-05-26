@@ -91,3 +91,39 @@ export type AdminCareerAnalyticsResponse = {
   summary: AdminCareerSummaryMetric[];
   users: AdminCareerUserRow[];
 };
+
+export type AdminCareerUtmSourceRow = {
+  id: string;
+  source: string;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+  lastEnteredAt: string | null;
+  entryCount: number;
+  loginCount: number;
+  identifiedUserCount: number;
+};
+
+export type AdminCareerUtmPerson = {
+  localId: string;
+  userId: string | null;
+  name: string | null;
+  email: string | null;
+  firstEnteredAt: string | null;
+  lastEnteredAt: string | null;
+  lastLoginAt: string | null;
+  currentStepKey: AdminCareerFunnelStepKey;
+  currentStepLabel: string;
+};
+
+export type AdminCareerUtmSourceDetail = {
+  source: string;
+  steps: AdminCareerFunnelStep[];
+  people: AdminCareerUtmPerson[];
+};
+
+export type AdminCareerUtmResponse = {
+  generatedAt: string;
+  sources: AdminCareerUtmSourceRow[];
+  selectedSource: AdminCareerUtmSourceDetail | null;
+};

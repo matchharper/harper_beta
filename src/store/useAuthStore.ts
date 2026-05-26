@@ -2,6 +2,14 @@ import { create } from "zustand";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { postLogEvent } from "@/lib/logEvent";
+import { buildLandingLoginEmailType } from "@/lib/landingLogTypes";
+import {
+  CAREER_LANDING_ABTEST_TYPE,
+  CAREER_LANDING_LOCAL_ID_STORAGE_KEY,
+  CAREER_UTM_LOGIN_LOGGED_STORAGE_PREFIX,
+  CAREER_UTM_SOURCE_STORAGE_KEY,
+  normalizeCareerUtmSource,
+} from "@/lib/careerUtm";
 
 type AuthState = {
   loading: boolean;
@@ -14,6 +22,35 @@ type AuthState = {
 let subscribed = false; // ✅ onAuthStateChange 중복 방지
 const LOGIN_COMPLETED_EVENT_TYPE = "login_completed";
 const LOGIN_LOGGED_ACCESS_TOKEN_KEY = "harper_logged_login_access_token";
+
+async function logPendingCareerUtmLogin(session: Session) {
+  if (typeof window === "undefined") return;
+
+  const email = String(session.user.email ?? "").trim();
+  const localId = localStorage.getItem(CAREER_LANDING_LOCAL_ID_STORAGE_KEY);
+  const source = normalizeCareerUtmSource(
+    localStorage.getItem(CAREER_UTM_SOURCE_STORAGE_KEY)
+  );
+  if (!email || !localId || !source) return;
+
+  const storageKey = `${CAREER_UTM_LOGIN_LOGGED_STORAGE_PREFIX}:${session.user.id}:${localId}:${source}`;
+  if (localStorage.getItem(storageKey)) return;
+
+  const { error } = await supabase.from("landing_logs").insert({
+    local_id: localId,
+    type: buildLandingLoginEmailType(email, source),
+    abtest_type: CAREER_LANDING_ABTEST_TYPE,
+    is_mobile: null,
+    country_lang: null,
+  });
+
+  if (error) {
+    console.warn("career UTM login log failed:", error.message);
+    return;
+  }
+
+  localStorage.setItem(storageKey, "1");
+}
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   loading: true,
@@ -56,6 +93,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       void postLogEvent(LOGIN_COMPLETED_EVENT_TYPE, {
         accessToken: sess.access_token,
       });
+      void logPendingCareerUtmLogin(sess);
     });
   },
 
