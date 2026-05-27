@@ -7,12 +7,18 @@ import {
   type OpsOfficialJobRecord,
 } from "@/hooks/useOpsOfficialJobs";
 import { isInternalEmail } from "@/lib/internalAccess";
+import {
+  OFFICIAL_JOBS_INTERNAL_COPY_ROLE_TITLE,
+  OFFICIAL_JOBS_INTERNAL_COPY_SLUG,
+  isOfficialJobsInternalCopyIdentity,
+} from "@/lib/officialJobs";
 import type { OpsOfficialJobSaveInput } from "@/lib/opsOfficialJobs";
 import { useAuthStore } from "@/store/useAuthStore";
 import {
   ArrowUpRight,
   CheckCircle2,
   LoaderCircle,
+  LockKeyhole,
   Plus,
   RefreshCw,
   Save,
@@ -86,6 +92,8 @@ function jobToDraft(job: OpsOfficialJobRecord): OfficialJobDraft {
 }
 
 function draftToPayload(draft: OfficialJobDraft): OpsOfficialJobSaveInput {
+  const isInternalCopy = isOfficialJobsInternalCopyIdentity(draft);
+
   return {
     companyDescriptionMarkdown: draft.companyDescriptionMarkdown,
     companyLogoUrl: draft.companyLogoUrl,
@@ -95,13 +103,15 @@ function draftToPayload(draft: OfficialJobDraft): OpsOfficialJobSaveInput {
     displayOrder: draft.displayOrder,
     employmentType: draft.employmentType,
     id: draft.id,
-    isPublished: draft.isPublished,
+    isPublished: isInternalCopy ? false : draft.isPublished,
     location: draft.location,
     roleDescriptionMarkdown: draft.roleDescriptionMarkdown,
-    roleTitle: draft.roleTitle,
+    roleTitle: isInternalCopy
+      ? OFFICIAL_JOBS_INTERNAL_COPY_ROLE_TITLE
+      : draft.roleTitle,
     seniority: draft.seniority,
     shortDescription: draft.shortDescription,
-    slug: draft.slug,
+    slug: isInternalCopy ? OFFICIAL_JOBS_INTERNAL_COPY_SLUG : draft.slug,
     vertical: draft.vertical,
   };
 }
@@ -189,6 +199,8 @@ export default function OpsOfficialJobsPage() {
       : selectedJob
         ? jobToDraft(selectedJob)
         : EMPTY_DRAFT;
+  const isInternalCopyDraft = isOfficialJobsInternalCopyIdentity(draft);
+  const effectiveIsPublished = isInternalCopyDraft ? false : draft.isPublished;
 
   const filteredJobs = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -197,14 +209,14 @@ export default function OpsOfficialJobsPage() {
     );
   }, [filter, jobs, query]);
 
-  const stats = useMemo(
-    () => ({
-      draft: jobs.filter((job) => !job.isPublished).length,
-      published: jobs.filter((job) => job.isPublished).length,
-      total: jobs.length,
-    }),
-    [jobs]
-  );
+  const stats = useMemo(() => {
+    const visibleJobs = jobs.filter((job) => !job.isInternalCopy);
+    return {
+      draft: visibleJobs.filter((job) => !job.isPublished).length,
+      published: visibleJobs.filter((job) => job.isPublished).length,
+      total: visibleJobs.length,
+    };
+  }, [jobs]);
 
   const updateDraft = <Key extends keyof OfficialJobDraft>(
     key: Key,
@@ -232,6 +244,11 @@ export default function OpsOfficialJobsPage() {
   };
 
   const handleGenerateSlug = () => {
+    if (isInternalCopyDraft) {
+      updateDraft("slug", OFFICIAL_JOBS_INTERNAL_COPY_SLUG);
+      return;
+    }
+
     const slug = createSlug(`${draft.companyName} ${draft.roleTitle}`);
     updateDraft("slug", slug);
   };
@@ -260,7 +277,7 @@ export default function OpsOfficialJobsPage() {
 
       <OpsShell
         title="Official Jobs"
-        description="공개 jobs 페이지에 노출되는 포지션을 관리합니다. Harper 설명 문구는 코드 공통값이라 여기서는 회사/역할 정보와 공개 여부만 수정합니다."
+        description="공개 jobs 페이지에 노출되는 포지션을 관리합니다. internal_internal row의 Company description은 How Harper helps, Role description은 진행과정 공통 문구로 적용됩니다."
       >
         <section className="grid gap-3 md:grid-cols-3">
           <div className={cx(opsTheme.panel, "p-4")}>
@@ -385,16 +402,26 @@ export default function OpsOfficialJobsPage() {
                     <span
                       className={cx(
                         "shrink-0 rounded-md px-2 py-1 font-geist text-[11px] font-medium",
-                        job.isPublished
-                          ? "bg-[#E4EDE2] text-[#29513A]"
-                          : "bg-[#FEF3C7] text-[#92400E]"
+                        job.isInternalCopy
+                          ? "bg-beige900/10 text-beige900/65"
+                          : job.isPublished
+                            ? "bg-[#E4EDE2] text-[#29513A]"
+                            : "bg-[#FEF3C7] text-[#92400E]"
                       )}
                     >
-                      {job.isPublished ? "Published" : "Draft"}
+                      {job.isInternalCopy
+                        ? "Landing copy"
+                        : job.isPublished
+                          ? "Published"
+                          : "Draft"}
                     </span>
                   </div>
                   <div className="mt-2 flex items-center justify-between gap-3 font-geist text-[12px] text-beige900/45">
-                    <span className="truncate">{job.location}</span>
+                    <span className="truncate">
+                      {job.isInternalCopy
+                        ? "How Harper helps / 진행과정"
+                        : job.location}
+                    </span>
                     <span>#{job.displayOrder}</span>
                   </div>
                 </button>
@@ -410,13 +437,14 @@ export default function OpsOfficialJobsPage() {
                   {draft.id ? "Edit official job" : "Create official job"}
                 </h2>
                 <p className="mt-2 font-geist text-sm leading-6 text-beige900/60">
-                  공개 페이지에는 `is_published=true`인 job만 노출됩니다. Harper
-                  help copy는 공통 코드값으로 적용됩니다.
+                  {isInternalCopyDraft
+                    ? "이 row는 공통 landing copy 전용입니다. 저장해도 public job으로 공개되지 않습니다."
+                    : "공개 페이지에는 `is_published=true`인 job만 노출됩니다."}
                 </p>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                {draft.slug ? (
+                {draft.slug && !isInternalCopyDraft ? (
                   <Link
                     href={`/jobs/${draft.slug}`}
                     target="_blank"
@@ -458,28 +486,34 @@ export default function OpsOfficialJobsPage() {
                       Published
                     </div>
                     <div className="mt-1 block font-geist text-xs text-beige900/50">
-                      켜면 `/jobs`와 상세 페이지에서 공개됩니다.
+                      {isInternalCopyDraft
+                        ? "internal_internal row는 항상 비공개로 유지됩니다."
+                        : "켜면 `/jobs`와 상세 페이지에서 공개됩니다."}
                     </div>
                   </div>
                   <button
                     type="button"
                     role="switch"
-                    aria-checked={draft.isPublished}
+                    aria-checked={effectiveIsPublished}
                     aria-label="Toggle published status"
+                    disabled={isInternalCopyDraft}
                     onClick={() =>
+                      !isInternalCopyDraft &&
                       updateDraft("isPublished", !draft.isPublished)
                     }
                     className={cx(
                       "relative h-7 w-12 shrink-0 rounded-full border transition focus:outline-none focus:ring-2 focus:ring-beige900/20 focus:ring-offset-2 focus:ring-offset-beige100",
-                      draft.isPublished
-                        ? "border-beige900 bg-beige900"
-                        : "border-beige900/15 bg-white/80"
+                      isInternalCopyDraft
+                        ? "cursor-not-allowed border-beige900/10 bg-beige500/70 opacity-70"
+                        : effectiveIsPublished
+                          ? "border-beige900 bg-beige900"
+                          : "border-beige900/15 bg-white/80"
                     )}
                   >
                     <span
                       className={cx(
                         "absolute top-1 h-5 w-5 rounded-full shadow-sm transition",
-                        draft.isPublished
+                        effectiveIsPublished
                           ? "left-6 bg-beige100"
                           : "left-1 bg-beige900/35"
                       )}
@@ -489,17 +523,23 @@ export default function OpsOfficialJobsPage() {
                 <div
                   className={cx(
                     "mt-3 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 font-geist text-xs font-medium",
-                    draft.isPublished
+                    effectiveIsPublished
                       ? "bg-[#E4EDE2] text-[#29513A]"
                       : "bg-beige500/70 text-beige900/55"
                   )}
                 >
-                  {draft.isPublished ? (
+                  {isInternalCopyDraft ? (
+                    <LockKeyhole className="h-3.5 w-3.5" />
+                  ) : effectiveIsPublished ? (
                     <CheckCircle2 className="h-3.5 w-3.5" />
                   ) : (
                     <span className="h-1.5 w-1.5 rounded-full bg-beige900/35" />
                   )}
-                  {draft.isPublished ? "Public" : "Draft"}
+                  {isInternalCopyDraft
+                    ? "Internal"
+                    : effectiveIsPublished
+                      ? "Public"
+                      : "Draft"}
                 </div>
               </div>
 
@@ -532,10 +572,15 @@ export default function OpsOfficialJobsPage() {
               <Field label="Role title">
                 <input
                   value={draft.roleTitle}
+                  disabled={isInternalCopyDraft}
                   onChange={(event) =>
                     updateDraft("roleTitle", event.target.value)
                   }
-                  className={opsTheme.input}
+                  className={cx(
+                    opsTheme.input,
+                    isInternalCopyDraft &&
+                      "cursor-not-allowed bg-beige500/60 text-beige900/55"
+                  )}
                 />
               </Field>
               <Field label="Company name">
@@ -551,15 +596,25 @@ export default function OpsOfficialJobsPage() {
                 <div className="flex gap-2">
                   <input
                     value={draft.slug}
+                    disabled={isInternalCopyDraft}
                     onChange={(event) =>
                       updateDraft("slug", event.target.value)
                     }
-                    className={opsTheme.input}
+                    className={cx(
+                      opsTheme.input,
+                      isInternalCopyDraft &&
+                        "cursor-not-allowed bg-beige500/60 text-beige900/55"
+                    )}
                   />
                   <button
                     type="button"
                     onClick={handleGenerateSlug}
-                    className={cx(opsTheme.buttonSecondary, "h-11 px-3")}
+                    disabled={isInternalCopyDraft}
+                    className={cx(
+                      opsTheme.buttonSecondary,
+                      "h-11 px-3",
+                      isInternalCopyDraft && "cursor-not-allowed opacity-55"
+                    )}
                   >
                     Generate
                   </button>
@@ -652,7 +707,13 @@ export default function OpsOfficialJobsPage() {
                   className={cx(opsTheme.textarea, "min-h-[88px]")}
                 />
               </Field>
-              <Field label="Role description markdown">
+              <Field
+                label={
+                  isInternalCopyDraft
+                    ? "진행과정 markdown"
+                    : "Role description markdown"
+                }
+              >
                 <textarea
                   value={draft.roleDescriptionMarkdown}
                   onChange={(event) =>
@@ -661,7 +722,13 @@ export default function OpsOfficialJobsPage() {
                   className={cx(opsTheme.textarea, "min-h-[480px] resize-y")}
                 />
               </Field>
-              <Field label="Company description markdown">
+              <Field
+                label={
+                  isInternalCopyDraft
+                    ? "How Harper helps markdown"
+                    : "Company description markdown"
+                }
+              >
                 <textarea
                   value={draft.companyDescriptionMarkdown}
                   onChange={(event) =>

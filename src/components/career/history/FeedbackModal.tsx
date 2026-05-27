@@ -281,7 +281,7 @@ export const HistoryNegativeFeedbackModal = ({
       onClose={onClose}
       title={negativeFeedbackModalCopy.title}
       description={negativeFeedbackModalCopy.description}
-      panelClassName="max-w-[560px] border border-beige900/10 bg-beige50"
+      panelClassName="max-w-[620px] border border-beige900/10 bg-beige50"
       bodyClassName="bg-beige50 px-5 py-5"
       footer={
         <div className="flex items-center justify-end gap-2">
@@ -307,7 +307,7 @@ export const HistoryNegativeFeedbackModal = ({
                 type="button"
                 onClick={() => onToggleOption(option.value)}
                 className={careerCx(
-                  "flex items-start gap-3 rounded-md border px-3 py-3 text-left text-sm leading-5 transition-colors",
+                  "flex items-start gap-2 rounded-md border px-3 py-3 text-left text-sm leading-5 transition-colors",
                   getCareerDefaultFeedbackButtonClassName(active)
                 )}
               >
@@ -316,7 +316,7 @@ export const HistoryNegativeFeedbackModal = ({
                     "inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full border px-1 text-[11px] font-medium leading-none",
                     active
                       ? "border-current bg-white/70 text-inherit"
-                      : "border-beige900/20 bg-white/70 text-beige900/55"
+                      : "border-beige900/20 bg-white/70 text-beige900"
                   )}
                 >
                   {index + 1}
