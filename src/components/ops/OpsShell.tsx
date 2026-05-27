@@ -11,6 +11,7 @@ import {
   EyeOff,
   KeyRound,
   LayoutDashboard,
+  ListChecks,
   Lock,
   MessageSquareText,
   Plus,
@@ -65,6 +66,13 @@ export const OPS_NAV_ITEMS: OpsNavItem[] = [
     icon: BriefcaseBusiness,
     label: "Opportunities",
     matchPrefix: "/ops/opportunities",
+  },
+  {
+    description: "공개 jobs 페이지 포지션 관리",
+    href: "/ops/jobs",
+    icon: ListChecks,
+    label: "Official Jobs",
+    matchPrefix: "/ops/jobs",
   },
   {
     description: "access 요청 승인 및 리뷰",
@@ -453,18 +461,9 @@ export default function OpsShell({
       <div className="relative mx-auto max-w-[1600px] px-4 py-6 lg:px-6">
         <main className="min-w-0 space-y-6">
           <section className="flex flex-col gap-4 px-4">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <h1
-                  className={cx(
-                    compactHeader
-                      ? "mt-1 font-geist text-[1.15rem] font-medium tracking-[-0.02em] text-beige900"
-                      : opsTheme.title,
-                    compactHeader ? "" : "mt-1"
-                  )}
-                >
-                  {title}
-                </h1>
+                <h1>{title}</h1>
               </div>
 
               {actions ? (

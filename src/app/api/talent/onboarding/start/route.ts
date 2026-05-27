@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { notifySlackActivity } from "@/lib/slackActivity";
+import {
+  getSlackActivityDeviceLabel,
+  notifySlackActivity,
+} from "@/lib/slackActivity";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   TALENT_PENDING_QUESTION_PREFIX,
@@ -13,11 +16,9 @@ import {
   getTalentSupabaseAdmin,
   toTalentDisplayName,
 } from "@/lib/talentOnboarding/server";
-import { getTalentEngagementLabels } from "@/lib/talentNetworkOptions";
 import {
   getTalentProfileVisibilityLabel,
   normalizeTalentBlockedCompanies,
-  normalizeTalentEngagementTypes,
 } from "@/lib/talentOnboarding/server";
 import { ingestTalentProfileFromLinkedin } from "@/lib/talentOnboarding/profileIngestion";
 import {
@@ -139,20 +140,6 @@ const buildProfileSubmitMessage = (args: {
     return `${linkPart}를 제출했습니다.`;
   }
   return "프로필 정보를 제출했습니다.";
-};
-
-const summarizeSubmittedProfile = (args: {
-  linkCount: number;
-  resumeFileName?: string;
-}) => {
-  const parts: string[] = [];
-  if (args.linkCount > 0) {
-    parts.push(`${args.linkCount} link${args.linkCount === 1 ? "" : "s"}`);
-  }
-  if (args.resumeFileName) {
-    parts.push("resume");
-  }
-  return parts.join(", ") || "profile info";
 };
 
 export async function POST(req: NextRequest) {
@@ -460,27 +447,7 @@ export async function POST(req: NextRequest) {
       await notifySlackActivity({
         action: "/career/onboarding 제출 완료",
         details: [
-          {
-            label: "Submitted",
-            value: summarizeSubmittedProfile({
-              linkCount: links.length,
-              resumeFileName,
-            }),
-          },
-          {
-            label: "Looking for",
-            value: getTalentEngagementLabels(
-              normalizeTalentEngagementTypes(
-                talentSetting?.engagement_types ?? []
-              )
-            ).join(", "),
-          },
-          {
-            label: "Visibility",
-            value: getTalentProfileVisibilityLabel(
-              talentSetting?.profile_visibility
-            ),
-          },
+          { label: "Device", value: getSlackActivityDeviceLabel(req) },
         ],
         email: submittedEmail || profile?.email || user.email,
         name: submittedName || profile?.name || displayName,

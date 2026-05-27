@@ -25,7 +25,7 @@ import {
   stripTalentOnboardingCompletionMarker,
 } from "@/lib/talentOnboarding/completion";
 import { getCareerConversationStarterPrompt } from "@/lib/career/conversationStarterPrompts";
-import { getRealtimeTools } from "@/lib/talentOnboarding/tools";
+import { getCareerRealtimeCandidateToolNames } from "@/lib/career/llmTools";
 import { buildCareerRealtimeSessionInstructions } from "@/lib/career/realtimeInstructions";
 
 type Body = {
@@ -347,7 +347,7 @@ export async function POST(req: NextRequest) {
           await buildCareerRealtimeSessionInstructions({
             conversationId,
             conversationStarterId,
-            toolNames: getRealtimeTools("voice").map((tool) => tool.name),
+            toolNames: getCareerRealtimeCandidateToolNames(),
             userId: user.id,
           })
         ).instructions;

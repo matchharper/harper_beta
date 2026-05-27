@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
-  getTalentToolVoicePreambles,
-  getRealtimeTools,
-} from "@/lib/talentOnboarding/tools";
+  getCareerRealtimeToolCandidates,
+  resolveCareerRealtimeTools,
+  type CareerRealtimeTool,
+} from "@/lib/career/llmTools";
 import { getCareerRealtimeSessionConfig } from "@/lib/career/llm";
 import { getCareerConversationStarterPrompt } from "@/lib/career/conversationStarterPrompts";
 import { buildCareerRealtimeSessionInstructions } from "@/lib/career/realtimeInstructions";
@@ -43,7 +44,7 @@ function buildSafetyIdentifier(userId: string): string {
 function buildRealtimeSessionBody(args: {
   instructions: string;
   realtimeConfig: ReturnType<typeof getCareerRealtimeSessionConfig>;
-  tools: ReturnType<typeof getRealtimeTools>;
+  tools: readonly CareerRealtimeTool[];
   transcriptionModel: string;
 }) {
   const { instructions, realtimeConfig, tools, transcriptionModel } = args;
@@ -145,11 +146,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const realtimeTools = getRealtimeTools("voice");
+    const realtimeToolCandidates = getCareerRealtimeToolCandidates();
     const realtimePromptPlan = await buildCareerRealtimeSessionInstructions({
       conversationId,
       conversationStarterId,
-      toolNames: realtimeTools.map((tool) => tool.name),
+      toolNames: realtimeToolCandidates.map((tool) => tool.name),
       userId: user.id,
     });
     const instructions = realtimePromptPlan.instructions;
@@ -161,14 +162,12 @@ export async function POST(req: NextRequest) {
       console.log(instructions);
     }
 
-    const enabledRealtimeToolNames = new Set(
-      realtimePromptPlan.enabledToolNames
-    );
-    const tools = realtimeTools.filter((tool) =>
-      enabledRealtimeToolNames.has(tool.name)
-    );
-    const toolVoicePreambles =
-      tools.length > 0 ? getTalentToolVoicePreambles("voice") : {};
+    const realtimeToolSelection = resolveCareerRealtimeTools({
+      candidateTools: realtimeToolCandidates,
+      enabledToolNames: realtimePromptPlan.enabledToolNames,
+    });
+    const tools = realtimeToolSelection.tools;
+    const toolVoicePreambles = realtimeToolSelection.toolVoicePreambles;
     const realtimeConfig = getCareerRealtimeSessionConfig();
     const safetyIdentifier = buildSafetyIdentifier(user.id);
 

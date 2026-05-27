@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { notifySlackActivity } from "@/lib/slackActivity";
+import {
+  getSlackActivityDeviceLabel,
+  notifySlackActivity,
+} from "@/lib/slackActivity";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   ensureTalentUserRecord,
@@ -142,7 +145,7 @@ export async function POST(req: NextRequest) {
         await notifySlackActivity({
           action: "회원가입 완료",
           details: [
-            { label: "Flow", value: "Career" },
+            { label: "Device", value: getSlackActivityDeviceLabel(req) },
             ...(inviteToken ? [{ label: "Invite", value: "yes" }] : []),
             ...(emailOnboardingClaim?.claimed
               ? [
