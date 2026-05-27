@@ -3,7 +3,6 @@ import AppLayout from "@/components/layout/app";
 import { useCredits } from "@/hooks/useCredit";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { supabase } from "@/lib/supabase";
-import { useCreditRequestHistory } from "@/hooks/useCreditRequestHistory";
 import { dateToFormatLong } from "@/utils/textprocess";
 import { useMessages } from "@/i18n/useMessage";
 import { showToast } from "@/components/toast/toast";
@@ -211,9 +210,6 @@ const Billing = () => {
   const { credits, refetch: refetchCredits } = useCredits();
   const router = useRouter();
   const { companyUser } = useCompanyUserStore();
-  const { refetch: refetchCreditRequestHistory } = useCreditRequestHistory(
-    companyUser?.user_id
-  );
   const [isRevealCardNumber, setIsRevealCardNumber] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubscriptionLoading, setIsSubscriptionLoading] = useState(false);
@@ -514,7 +510,6 @@ const Billing = () => {
         variant: "white",
       });
       void refetchCredits();
-      void refetchCreditRequestHistory();
       void router.replace("/my/billing?checkout_synced=1", undefined, {
         shallow: true,
       });
@@ -815,7 +810,7 @@ const Billing = () => {
               : "카드 등록과 결제가 완료되었습니다.",
           variant: "white",
         });
-        await Promise.all([refetchCredits(), refetchCreditRequestHistory()]);
+        await refetchCredits();
 
         if (isMounted) {
           void router.replace("/my/billing?checkout_synced=1", undefined, {
@@ -841,7 +836,7 @@ const Billing = () => {
     return () => {
       isMounted = false;
     };
-  }, [router, refetchCredits, refetchCreditRequestHistory]);
+  }, [router, refetchCredits]);
 
   useEffect(() => {
     if (!router.isReady) return;

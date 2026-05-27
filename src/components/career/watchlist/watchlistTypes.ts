@@ -12,10 +12,19 @@ export type CompanyRolePreview = {
   workMode: string | null;
 };
 
+export type CompanySnapshotDossier = {
+  fullMarkdown: string;
+  investigationDate: string | null;
+  snapshotId: string;
+  sourceFile: string | null;
+  updatedAt: string | null;
+};
+
 export type CompanyWatchlistItem = {
   activeRoleCount: number;
   careerUrl: string | null;
   companyDbId: number;
+  companySnapshot: CompanySnapshotDossier | null;
   companyWorkspaceId: string | null;
   crunchbaseInformation: unknown | null;
   description: string | null;

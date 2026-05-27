@@ -529,107 +529,24 @@ export async function getTalentResumeSignedUrl(args: {
   return data?.signedUrl ?? null;
 }
 
-export async function fetchCustomChecklistItems(args: {
-  admin: TalentAdminClient;
-}) {
-  const { admin } = args;
-  const { data, error } = await admin
-    .from("insight_checklist_items")
-    .select(
-      "id, key, label, prompt_hint, priority, is_active, created_at, created_by"
-    )
-    .eq("is_active", true)
-    .order("priority", { ascending: true });
-
-  if (error) throw new Error(error.message ?? "Failed to load checklist items");
-  return data ?? [];
-}
-
-export async function addCustomChecklistItem(args: {
-  admin: TalentAdminClient;
-  key: string;
-  label: string;
-  promptHint?: string;
-  createdBy?: string;
-}) {
-  const { admin, label, promptHint, createdBy } = args;
-  const key = normalizeTalentInsightKey(args.key);
-  if (!key) throw new Error("Invalid key");
-
-  const { data, error } = await admin
-    .from("insight_checklist_items")
-    .insert({
-      key,
-      label,
-      prompt_hint: promptHint ?? null,
-      is_active: true,
-      created_by: createdBy ?? null,
-    })
-    .select(
-      "id, key, label, prompt_hint, priority, is_active, created_at, created_by"
-    )
-    .single();
-
-  if (error)
-    throw new Error(error.message ?? "Failed to insert checklist item");
-  return data;
-}
-
-export async function deleteCustomChecklistItem(args: {
-  admin: TalentAdminClient;
-  key: string;
-}) {
-  const { admin, key } = args;
-  const { error } = await admin
-    .from("insight_checklist_items")
-    .update({ is_active: false })
-    .eq("key", key);
-
-  if (error)
-    throw new Error(error.message ?? "Failed to delete checklist item");
-}
-
 export type MergedChecklistItem = {
   key: string;
   label: string;
   promptHint: string | null;
   priority: number;
-  source: "code" | "db";
+  source: "code";
 };
 
-export async function getMergedChecklist(args: {
-  admin: TalentAdminClient;
-}): Promise<MergedChecklistItem[]> {
-  let dbItems: Awaited<ReturnType<typeof fetchCustomChecklistItems>> = [];
-  try {
-    dbItems = await fetchCustomChecklistItems(args);
-  } catch {
-    // Table may not exist yet.
-  }
-
-  const codeItems: MergedChecklistItem[] = INSIGHT_CHECKLIST.map((item) => ({
+export async function getMergedChecklist(
+  _args?: { admin?: TalentAdminClient }
+): Promise<MergedChecklistItem[]> {
+  return INSIGHT_CHECKLIST.map((item) => ({
     key: item.key,
     label: item.label,
     promptHint: item.promptHint,
     priority: item.priority,
     source: "code" as const,
-  }));
-
-  const dbMapped: MergedChecklistItem[] = dbItems.map((item) => ({
-    key: item.key,
-    label: item.label,
-    promptHint: item.prompt_hint,
-    priority: item.priority ?? 50,
-    source: "db" as const,
-  }));
-
-  const codeKeySet = new Set(codeItems.map((item) => item.key));
-  const deduped = [
-    ...codeItems,
-    ...dbMapped.filter((item) => !codeKeySet.has(item.key)),
-  ];
-
-  return deduped.sort((left, right) => left.priority - right.priority);
+  })).sort((left, right) => left.priority - right.priority);
 }
 
 export async function getEmptyInsightKeys(

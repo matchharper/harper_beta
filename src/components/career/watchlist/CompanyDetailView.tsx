@@ -1,5 +1,4 @@
 import {
-  ArrowLeft,
   ArrowUpRight,
   Building2,
   Calendar,
@@ -8,7 +7,7 @@ import {
   Users,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { CareerActionButton } from "@/components/career/ui/CareerActionButton";
+import CareerRichText from "@/components/career/ui/CareerRichText";
 import { PillLink } from "@/components/ui/pill";
 import { CompanyLogo } from "./CompanyLogo";
 import { FollowButton } from "./FollowButton";
@@ -62,6 +61,23 @@ const TagList = ({ items }: { items: string[] }) => (
     ))}
   </div>
 );
+
+const stripCompanySnapshotChrome = (markdown: string) => {
+  const lines = markdown.trim().split(/\r?\n/);
+  if (lines[0]?.startsWith("# ")) {
+    lines.shift();
+  }
+  while (lines[0]?.trim() === "") {
+    lines.shift();
+  }
+  if (/^조사일\s*:/.test(lines[0] ?? "")) {
+    lines.shift();
+  }
+  while (lines[0]?.trim() === "") {
+    lines.shift();
+  }
+  return lines.join("\n").trim();
+};
 
 const getFaviconUrl = (href: string) => {
   try {
@@ -179,6 +195,11 @@ export const CompanyDetailView = ({
     .map((link) => String(link ?? "").trim())
     .filter(Boolean)
     .slice(0, 8);
+  const snapshotMarkdown = item.companySnapshot?.fullMarkdown
+    ? stripCompanySnapshotChrome(item.companySnapshot.fullMarkdown)
+    : "";
+  const snapshotInvestigationDate =
+    item.companySnapshot?.investigationDate?.trim() ?? "";
 
   const crunchbaseInformation = toRecord(item.crunchbaseInformation);
   const crunchbaseCompany = toRecord(crunchbaseInformation.company);
@@ -307,11 +328,27 @@ export const CompanyDetailView = ({
             ))}
           </div>
         )}
-        <DetailSection title="회사 설명">
-          <p className="whitespace-pre-wrap text-sm leading-6 text-black/90">
-            {item.description ?? "아직 회사 설명이 없습니다."}
-          </p>
-        </DetailSection>
+        {snapshotMarkdown ? (
+          <DetailSection title="Harper가 찾아본 내용">
+            <div className="">
+              {snapshotInvestigationDate ? (
+                <div className="mb-4 inline-flex rounded-full bg-beige200 px-2.5 py-1 text-[12px] font-medium leading-none text-beige900/65">
+                  조사일 {snapshotInvestigationDate}
+                </div>
+              ) : null}
+              <CareerRichText
+                content={snapshotMarkdown}
+                className="text-beige900/85"
+              />
+            </div>
+          </DetailSection>
+        ) : (
+          <DetailSection title="회사 설명">
+            <p className="whitespace-pre-wrap text-sm leading-6 text-black/90">
+              {item.description ?? "아직 회사 설명이 없습니다."}
+            </p>
+          </DetailSection>
+        )}
 
         {item.specialities.length > 0 ? (
           <DetailSection title="전문 분야">

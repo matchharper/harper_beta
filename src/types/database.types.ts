@@ -1340,8 +1340,6 @@ export type Database = {
           content: Json
           created_at: string
           id: string
-          normalized_company_name: string
-          source_urls: Json
           status: string
           updated_at: string
         }
@@ -1351,8 +1349,6 @@ export type Database = {
           content?: Json
           created_at?: string
           id?: string
-          normalized_company_name: string
-          source_urls?: Json
           status?: string
           updated_at?: string
         }
@@ -1362,8 +1358,6 @@ export type Database = {
           content?: Json
           created_at?: string
           id?: string
-          normalized_company_name?: string
-          source_urls?: Json
           status?: string
           updated_at?: string
         }
@@ -1625,38 +1619,6 @@ export type Database = {
           },
           {
             foreignKeyName: "connection_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "company_users"
-            referencedColumns: ["user_id"]
-          },
-        ]
-      }
-      credit_request: {
-        Row: {
-          created_at: string
-          credit_num: number | null
-          id: number
-          is_done: boolean
-          user_id: string | null
-        }
-        Insert: {
-          created_at?: string
-          credit_num?: number | null
-          id?: number
-          is_done?: boolean
-          user_id?: string | null
-        }
-        Update: {
-          created_at?: string
-          credit_num?: number | null
-          id?: number
-          is_done?: boolean
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "credit_request_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "company_users"
@@ -2558,39 +2520,6 @@ export type Database = {
         }
         Relationships: []
       }
-      insight_checklist_items: {
-        Row: {
-          created_at: string | null
-          created_by: string | null
-          id: number
-          is_active: boolean | null
-          key: string
-          label: string
-          priority: number | null
-          prompt_hint: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          created_by?: string | null
-          id?: number
-          is_active?: boolean | null
-          key: string
-          label: string
-          priority?: number | null
-          prompt_hint?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          created_by?: string | null
-          id?: number
-          is_active?: boolean | null
-          key?: string
-          label?: string
-          priority?: number | null
-          prompt_hint?: string | null
-        }
-        Relationships: []
-      }
       jobposting_company_identity: {
         Row: {
           company_db_id: number | null
@@ -2980,38 +2909,6 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
-      }
-      memory: {
-        Row: {
-          content: string | null
-          created_at: string
-          id: number
-          last_updated_at: string | null
-          user_id: string | null
-        }
-        Insert: {
-          content?: string | null
-          created_at?: string
-          id?: number
-          last_updated_at?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          content?: string | null
-          created_at?: string
-          id?: number
-          last_updated_at?: string | null
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "memory_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "company_users"
-            referencedColumns: ["user_id"]
-          },
-        ]
       }
       messages: {
         Row: {
