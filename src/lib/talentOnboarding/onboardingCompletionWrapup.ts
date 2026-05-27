@@ -32,9 +32,9 @@ import {
 } from "@/lib/talentOnboarding/onboarding";
 import {
   executeTalentTool,
-  getOpenAIChatTools,
   TALENT_TOOL_NAMES,
 } from "@/lib/talentOnboarding/tools";
+import { resolveCareerChatTools } from "@/lib/career/llmTools";
 
 const FALLBACK_WRAPUP_CONTENT = [
   "좋은 대화였습니다. 말씀해주신 내용을 바탕으로 다음 기회 탐색 기준을 정리했습니다.",
@@ -213,9 +213,11 @@ export async function generateOnboardingCompletionWrapupContent(args: {
       }),
     ]);
 
-  const wrapupTools = getOpenAIChatTools("chat").filter(
-    (tool) => tool.function.name === TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE
-  );
+  const wrapupToolSelection = resolveCareerChatTools({
+    allowedToolNames: [TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE],
+    isOnboardingDone: true,
+  });
+  const wrapupTools = wrapupToolSelection.tools;
   const structuredProfileText = buildTalentProfileContext({
     profile,
     setting,
@@ -230,7 +232,7 @@ export async function generateOnboardingCompletionWrapupContent(args: {
     profile,
     sessionStartInstruction: buildWrapupInstruction(),
     structuredProfileText,
-    toolNames: wrapupTools.map((tool) => tool.function.name),
+    toolNames: wrapupToolSelection.toolNames,
   });
   const conversationMessages = recentMessages
     .filter(isWrapupInputMessage)

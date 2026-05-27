@@ -2965,6 +2965,128 @@ export type Database = {
           },
         ]
       }
+      official_job_events: {
+        Row: {
+          anonymous_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          ip_address: string | null
+          job_slug: string | null
+          metadata: Json
+          official_job_id: string | null
+          path: string | null
+          referrer: string | null
+          user_agent: string | null
+          user_email: string | null
+          user_id: string | null
+        }
+        Insert: {
+          anonymous_id?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          ip_address?: string | null
+          job_slug?: string | null
+          metadata?: Json
+          official_job_id?: string | null
+          path?: string | null
+          referrer?: string | null
+          user_agent?: string | null
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          anonymous_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          ip_address?: string | null
+          job_slug?: string | null
+          metadata?: Json
+          official_job_id?: string | null
+          path?: string | null
+          referrer?: string | null
+          user_agent?: string | null
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "official_job_events_official_job_id_fkey"
+            columns: ["official_job_id"]
+            isOneToOne: false
+            referencedRelation: "official_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      official_jobs: {
+        Row: {
+          company_description_markdown: string
+          company_logo_url: string | null
+          company_name: string
+          company_website_url: string | null
+          compensation: string | null
+          created_at: string
+          display_order: number
+          employment_type: string | null
+          id: string
+          is_published: boolean
+          location: string
+          published_at: string | null
+          role_description_markdown: string
+          role_title: string
+          seniority: string | null
+          short_description: string
+          slug: string
+          updated_at: string
+          vertical: string
+        }
+        Insert: {
+          company_description_markdown?: string
+          company_logo_url?: string | null
+          company_name: string
+          company_website_url?: string | null
+          compensation?: string | null
+          created_at?: string
+          display_order?: number
+          employment_type?: string | null
+          id?: string
+          is_published?: boolean
+          location: string
+          published_at?: string | null
+          role_description_markdown?: string
+          role_title: string
+          seniority?: string | null
+          short_description?: string
+          slug: string
+          updated_at?: string
+          vertical: string
+        }
+        Update: {
+          company_description_markdown?: string
+          company_logo_url?: string | null
+          company_name?: string
+          company_website_url?: string | null
+          compensation?: string | null
+          created_at?: string
+          display_order?: number
+          employment_type?: string | null
+          id?: string
+          is_published?: boolean
+          location?: string
+          published_at?: string | null
+          role_description_markdown?: string
+          role_title?: string
+          seniority?: string | null
+          short_description?: string
+          slug?: string
+          updated_at?: string
+          vertical?: string
+        }
+        Relationships: []
+      }
       opportunity_discovery_run: {
         Row: {
           completed_at: string | null

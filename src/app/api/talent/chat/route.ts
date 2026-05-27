@@ -23,7 +23,6 @@ import { TALENT_INTERVIEW_FINAL_STEP } from "@/lib/talentOnboarding/progress";
 import {
   TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NOTICE,
   TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP,
-  TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX,
 } from "@/lib/talentOnboarding/onboarding";
 import {
   buildCareerTextChatPromptBlocks,
@@ -36,10 +35,10 @@ import {
 } from "@/lib/career/llm";
 import {
   executeTalentTool,
-  getOpenAIChatTools,
-  getStopAfterTalentToolNames,
   TALENT_TOOL_NAMES,
 } from "@/lib/talentOnboarding/tools";
+import { insertTalentToolUsageLog } from "@/lib/talentOnboarding/toolUsageLog";
+import { resolveCareerChatTools } from "@/lib/career/llmTools";
 import {
   fetchRecentMessagesWithSummary,
   maybeSummarizeTalentConversation,
@@ -613,35 +612,12 @@ export async function POST(req: NextRequest) {
       }))
       .filter((item) => item.content.trim().length > 0);
 
-    const availableChatTools = getOpenAIChatTools("chat");
-    const isOnboardingActiveForTools = !Boolean(
-      talentSetting?.is_onboarding_done
-    );
-    const canSelectAdditionalOnboardingQuestion =
-      additionalQuestionSelectionCount <
-      TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX;
-    // During onboarding, suppress all chat tools EXCEPT the silent profile writer
-    // and, for text chat only, the additional-question selector. Voice onboarding
-    // should ask directly instead of exposing this selector as a callable tool.
-    // After onboarding, keep the selector hidden because it is only meaningful
-    // inside onboarding. The selector is also hidden after the hard max so the
-    // model cannot keep asking extras.
-    const toolDefinitions = isOnboardingActiveForTools
-      ? availableChatTools.filter(
-          (tool) =>
-            tool.function.name === TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE ||
-            (requestChannel !== "voice" &&
-              tool.function.name === TALENT_TOOL_NAMES.OPEN_URL) ||
-            (requestChannel !== "voice" &&
-              canSelectAdditionalOnboardingQuestion &&
-              tool.function.name ===
-                TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION)
-        )
-      : availableChatTools.filter(
-          (tool) =>
-            tool.function.name !==
-            TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION
-        );
+    const toolSelection = resolveCareerChatTools({
+      additionalQuestionSelectionCount,
+      channel: requestChannel,
+      isOnboardingDone: talentSetting?.is_onboarding_done,
+    });
+    const toolDefinitions = toolSelection.tools;
     const currentPreferences = {
       periodicIntervalDays: talentSetting?.periodic_interval_days ?? null,
       recommendationBatchSize: talentSetting?.recommendation_batch_size ?? null,
@@ -676,7 +652,7 @@ export async function POST(req: NextRequest) {
         conversationStarter?.chatProactiveInstruction ?? undefined,
       recentActivitySummaries,
       structuredProfileText,
-      toolNames: toolDefinitions.map((tool) => tool.function.name),
+      toolNames: toolSelection.toolNames,
     });
     const systemBlocks = promptBlocks;
 
@@ -956,7 +932,7 @@ export async function POST(req: NextRequest) {
             const assistantText = await runCareerChatAssistantStream({
               messages: llmMessages,
               tools: toolDefinitions,
-              stopAfterToolNames: getStopAfterTalentToolNames("chat"),
+              stopAfterToolNames: toolSelection.stopAfterToolNames,
               systemBlocks,
               onTextDelta: (delta) => {
                 sendVisibleTextDelta(delta);
@@ -982,6 +958,12 @@ export async function POST(req: NextRequest) {
                 }
 
                 if (name === TALENT_TOOL_NAMES.RESEARCH_COMPANY) {
+                  await insertTalentToolUsageLog({
+                    admin,
+                    name,
+                    userId: user.id,
+                  });
+
                   const companyName =
                     optionalToolString(toolInput.company_name) ??
                     optionalToolString(toolInput.companyName);
@@ -1321,7 +1303,7 @@ export async function POST(req: NextRequest) {
     const assistantText = await runCareerChatAssistant({
       messages: llmMessages,
       tools: toolDefinitions,
-      stopAfterToolNames: getStopAfterTalentToolNames("chat"),
+      stopAfterToolNames: toolSelection.stopAfterToolNames,
       systemBlocks,
       executeTool: async ({ name, input }) => {
         const { status, toolInput } = splitToolUiStatus(input);
@@ -1330,6 +1312,12 @@ export async function POST(req: NextRequest) {
         }
 
         if (name === TALENT_TOOL_NAMES.RESEARCH_COMPANY) {
+          await insertTalentToolUsageLog({
+            admin,
+            name,
+            userId: user.id,
+          });
+
           const companyName =
             optionalToolString(toolInput.company_name) ??
             optionalToolString(toolInput.companyName);

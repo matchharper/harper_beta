@@ -1,4 +1,5 @@
 import Reveal from "@/components/landing/Animation/Reveal";
+import CareerLandingFooter from "@/components/landing/CareerLandingFooter";
 import CareerAppBar from "@/components/landing/career/CareerAppBar";
 import CareerEmailOnboardingModal from "@/components/landing/career/CareerEmailOnboardingModal";
 import CareerHeroSection from "@/components/landing/career/CareerHeroSection";
@@ -24,9 +25,14 @@ import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
 import Head from "next/head";
 import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/router";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Mail, User2 } from "lucide-react";
 import { motion } from "motion/react";
 import DemoSection from "@/components/landing/career/DemoSection";
@@ -728,7 +734,12 @@ export default function LandingKoVfPage() {
   }, [addLandingLog, landingId]);
 
   useEffect(() => {
-    if (!landingId || !user?.id || !user.email || typeof window === "undefined") {
+    if (
+      !landingId ||
+      !user?.id ||
+      !user.email ||
+      typeof window === "undefined"
+    ) {
       return;
     }
 
@@ -738,7 +749,9 @@ export default function LandingKoVfPage() {
     if (localStorage.getItem(storageKey)) return;
 
     void (async () => {
-      const didLog = await addLandingLog(buildLandingLoginEmailType(email, source));
+      const didLog = await addLandingLog(
+        buildLandingLoginEmailType(email, source)
+      );
       if (didLog) localStorage.setItem(storageKey, "1");
     })();
   }, [addLandingLog, landingId, marketingSource, user?.email, user?.id]);
@@ -1061,7 +1074,7 @@ export default function LandingKoVfPage() {
             </Reveal>
           </section>
 
-          <Footer
+          <CareerLandingFooter
             careerStartHref={careerStartHref}
             onCareerStartClick={handleCareerStartClick}
           />
@@ -1070,135 +1083,3 @@ export default function LandingKoVfPage() {
     </>
   );
 }
-
-const labelStyle =
-  "transition text-[14px] text-beige900/45 hover:text-beige900/85 font-medium cursor-pointer duration-300";
-
-const blockStyle = "flex flex-col items-start justify-start md:min-w-[140px]";
-
-const Footer = ({
-  careerStartHref,
-  onCareerStartClick,
-}: {
-  careerStartHref: string;
-  onCareerStartClick?: React.MouseEventHandler<HTMLAnchorElement>;
-}) => {
-  const openCrispChat = () => {
-    if (typeof window === "undefined") return;
-
-    const crispWindow = window as Window & {
-      $crisp?: Array<unknown[]>;
-    };
-    const hasCrispLoader = Boolean(document.getElementById("crisp-loader"));
-
-    if (!crispWindow.$crisp && !hasCrispLoader) {
-      window.location.href = "mailto:hello@matchharper.com";
-      return;
-    }
-
-    crispWindow.$crisp = crispWindow.$crisp ?? [];
-    crispWindow.$crisp.push(["do", "chat:show"]);
-    crispWindow.$crisp.push(["do", "chat:open"]);
-  };
-
-  return (
-    <footer className="border-t border-beige900/10 bg-beige500/35 px-4 py-14 text-[12px] text-beige900 md:px-10 md:py-16">
-      <div className="mx-auto max-w-[1160px]">
-        <div className="flex flex-row items-start justify-between gap-10 border-b border-beige900/10 pb-10">
-          <div className="max-w-[360px]">
-            <Image
-              src="/svgs/logov2.svg"
-              alt="Harper"
-              width={78}
-              height={34}
-              className="h-auto w-[78px]"
-            />
-            <p className="font-halant mt-5 text-base font-medium leading-[1.65] text-beige900/70">
-              Get <span className="text-beige900">introduced</span> to your{" "}
-              <span className="text-beige900">dream role</span>.
-              <br />
-              With <span className="text-beige900">Harper</span>.
-            </p>
-            {/* <a
-              href="mailto:hello@matchharper.com"
-              className="mt-6 inline-flex items-center gap-2 rounded-[10px] border border-beige900/10 bg-beige50/65 px-3.5 py-2 text-[13px] font-medium text-beige900 transition hover:border-beige900/25 hover:bg-beige50"
-            >
-              hello@matchharper.com
-              <ArrowUpRight className="h-3.5 w-3.5" strokeWidth={1.8} />
-            </a> */}
-          </div>
-
-          <div className="flex flex-row items-start justify-end gap-12">
-            <div className={blockStyle}>
-              <div className="w-full font-medium uppercase text-beige900">
-                For Talent
-              </div>
-              <div className="mt-4 flex flex-col gap-3 text-[14px] text-beige900/68">
-                <Link
-                  href={careerStartHref}
-                  className={labelStyle}
-                  onClick={onCareerStartClick}
-                >
-                  시작하기
-                </Link>
-                <a href="#workflow" className={labelStyle}>
-                  How it works
-                </a>
-                <a href="#voices" className={labelStyle}>
-                  Success stories
-                </a>
-              </div>
-            </div>
-
-            <div className={blockStyle}>
-              <div className="w-full font-medium uppercase text-beige900">
-                For Companies
-              </div>
-              <div className="mt-4 flex flex-col gap-3 text-[14px] text-beige900/68">
-                <Link href="/company" className={labelStyle}>
-                  Harper for Companies
-                </Link>
-                <a
-                  href="https://calendly.com/chris-matchharper/30min"
-                  className={labelStyle}
-                >
-                  Schedule a call
-                </a>
-              </div>
-            </div>
-
-            <div className={blockStyle}>
-              <div className="w-full font-medium uppercase text-beige900">
-                Company
-              </div>
-              <div className="mt-4 flex flex-col gap-3 text-[14px] text-beige900/68">
-                <Link href="/blog" className={labelStyle}>
-                  Blog
-                </Link>
-                <a
-                  href="https://www.linkedin.com/company/matchharper/"
-                  target="_blank"
-                  rel="noreferrer"
-                  className={labelStyle}
-                >
-                  LinkedIn
-                </a>
-                <button
-                  type="button"
-                  onClick={openCrispChat}
-                  className={`${labelStyle} text-left`}
-                >
-                  문의하기
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-6 flex flex-col gap-3 text-[12.5px] text-beige900/45 md:flex-row md:items-center md:justify-between">
-          <div>© 2026 Harper. All rights reserved.</div>
-        </div>
-      </div>
-    </footer>
-  );
-};

@@ -26,6 +26,8 @@ import type { Database } from "@/types/database.types";
 type TalentUserRow = Database["public"]["Tables"]["talent_users"]["Row"];
 type TalentConversationRow =
   Database["public"]["Tables"]["talent_conversations"]["Row"];
+type TalentExperienceRow =
+  Database["public"]["Tables"]["talent_experiences"]["Row"];
 type CareerEmailMessageInsert =
   Database["public"]["Tables"]["career_email_messages"]["Insert"];
 type CareerEmailMessageUpdate =
@@ -41,12 +43,19 @@ export type CareerTalentSummary = {
   email: string | null;
   profilePicture: string | null;
   headline: string | null;
+  currentCompanyName: string | null;
+  currentRole: string | null;
+  registeredLinkTypes: CareerTalentRegisteredLinkType[];
+  hasRegisteredLink: boolean;
+  hasResume: boolean;
   conversationStage: string | null;
   isOnboardingDone: boolean;
   insightCoverage: number;
   lastConversationAt: string | null;
   createdAt: string | null;
 };
+
+export type CareerTalentRegisteredLinkType = "linkedin" | "github" | "other";
 
 export type CareerTalentListResponse = {
   talents: CareerTalentSummary[];
@@ -390,6 +399,63 @@ function normalizeTextList(value: unknown, limit = 5): string[] {
     .slice(0, limit);
 }
 
+function normalizeCareerSummaryText(value: string | null | undefined) {
+  const normalized = value?.replace(/\s+/g, " ").trim();
+  return normalized || null;
+}
+
+function normalizeCareerLinkHref(link: string) {
+  return /^https?:\/\//i.test(link) ? link : `https://${link}`;
+}
+
+function getRegisteredLinkType(
+  link: string
+): CareerTalentRegisteredLinkType | null {
+  const normalized = normalizeCareerSummaryText(link);
+  if (!normalized) return null;
+
+  try {
+    const url = new URL(normalizeCareerLinkHref(normalized));
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
+    if (host === "linkedin.com" || host.endsWith(".linkedin.com")) {
+      return "linkedin";
+    }
+    if (host === "github.com" || host.endsWith(".github.com")) {
+      return "github";
+    }
+  } catch {
+    if (/linkedin\.com/i.test(normalized)) return "linkedin";
+    if (/github\.com/i.test(normalized)) return "github";
+  }
+
+  return "other";
+}
+
+function getRegisteredLinkTypes(value: unknown) {
+  if (!Array.isArray(value)) return [];
+
+  const types: CareerTalentRegisteredLinkType[] = [];
+  for (const link of value) {
+    if (typeof link !== "string") continue;
+    const type = getRegisteredLinkType(link);
+    if (type && !types.includes(type)) {
+      types.push(type);
+    }
+  }
+  return types;
+}
+
+function isCurrentTalentExperience(
+  row: Pick<TalentExperienceRow, "end_date">
+) {
+  const endDate = normalizeCareerSummaryText(row.end_date);
+  return (
+    !endDate ||
+    /^(present|current|now|ongoing|재직|현재)$/i.test(endDate) ||
+    /present|current|ongoing|재직|현재/i.test(endDate)
+  );
+}
+
 function normalizeManualInternalRoleLimit(value: number | undefined) {
   const n = Number(value ?? DEFAULT_MANUAL_INTERNAL_ROLE_LIMIT);
   if (!Number.isFinite(n)) return DEFAULT_MANUAL_INTERNAL_ROLE_LIMIT;
@@ -575,9 +641,12 @@ export async function fetchCareerTalentList(args: {
     count,
   } = await admin
     .from("talent_users")
-    .select("user_id, name, email, profile_picture, headline, created_at", {
-      count: "exact",
-    })
+    .select(
+      "user_id, name, email, profile_picture, headline, resume_file_name, resume_storage_path, resume_links, created_at",
+      {
+        count: "exact",
+      }
+    )
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
 
@@ -587,7 +656,15 @@ export async function fetchCareerTalentList(args: {
 
   const rows = (talentUsers ?? []) as Pick<
     TalentUserRow,
-    "user_id" | "name" | "email" | "profile_picture" | "headline" | "created_at"
+    | "user_id"
+    | "name"
+    | "email"
+    | "profile_picture"
+    | "headline"
+    | "resume_file_name"
+    | "resume_storage_path"
+    | "resume_links"
+    | "created_at"
   >[];
   const totalCount = count ?? 0;
 
@@ -603,6 +680,34 @@ export async function fetchCareerTalentList(args: {
   }
 
   const userIds = rows.map((r) => r.user_id);
+
+  const { data: experienceRows } = await admin
+    .from("talent_experiences")
+    .select("id, talent_id, company_name, role, start_date, end_date")
+    .in("talent_id", userIds)
+    .order("start_date", { ascending: false, nullsFirst: false })
+    .order("id", { ascending: false });
+
+  const currentExperienceMap = new Map<
+    string,
+    { companyName: string | null; role: string | null }
+  >();
+  for (const experience of (experienceRows ?? []) as Pick<
+    TalentExperienceRow,
+    "id" | "talent_id" | "company_name" | "role" | "start_date" | "end_date"
+  >[]) {
+    if (currentExperienceMap.has(experience.talent_id)) continue;
+    if (!isCurrentTalentExperience(experience)) continue;
+
+    const companyName = normalizeCareerSummaryText(experience.company_name);
+    const role = normalizeCareerSummaryText(experience.role);
+    if (!companyName && !role) continue;
+
+    currentExperienceMap.set(experience.talent_id, {
+      companyName,
+      role,
+    });
+  }
 
   // Fetch latest conversation per user
   const { data: conversations } = await admin
@@ -650,6 +755,8 @@ export async function fetchCareerTalentList(args: {
     const conv = conversationMap.get(row.user_id);
     const insights = insightsMap.get(row.user_id);
     const insightCount = insights ? Object.keys(insights).length : 0;
+    const currentExperience = currentExperienceMap.get(row.user_id);
+    const registeredLinkTypes = getRegisteredLinkTypes(row.resume_links);
 
     return {
       userId: row.user_id,
@@ -657,6 +764,14 @@ export async function fetchCareerTalentList(args: {
       email: row.email,
       profilePicture: row.profile_picture,
       headline: row.headline,
+      currentCompanyName: currentExperience?.companyName ?? null,
+      currentRole: currentExperience?.role ?? null,
+      registeredLinkTypes,
+      hasRegisteredLink: registeredLinkTypes.length > 0,
+      hasResume: Boolean(
+        normalizeCareerSummaryText(row.resume_file_name) ||
+          normalizeCareerSummaryText(row.resume_storage_path)
+      ),
       conversationStage: conv?.stage ?? null,
       isOnboardingDone: onboardingDoneMap.get(row.user_id) ?? false,
       insightCoverage: insightCount,

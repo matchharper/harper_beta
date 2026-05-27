@@ -33,14 +33,13 @@ import {
 import { extractAndPersistChatInsights } from "@/lib/talentOnboarding/chatInsights";
 import {
   executeTalentTool,
-  getOpenAIChatTools,
-  getStopAfterTalentToolNames,
   TALENT_TOOL_NAMES,
 } from "@/lib/talentOnboarding/tools";
+import { insertTalentToolUsageLog } from "@/lib/talentOnboarding/toolUsageLog";
+import { resolveCareerChatTools } from "@/lib/career/llmTools";
 import {
   TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NOTICE,
   TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP,
-  TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX,
 } from "@/lib/talentOnboarding/onboarding";
 import { TALENT_INTERVIEW_FINAL_STEP } from "@/lib/talentOnboarding/progress";
 import {
@@ -385,19 +384,6 @@ export async function runCareerChatTurn(
   const skipConversationWrites = Boolean(args.skipConversationWrites);
   const rawUserMessage = String(args.userMessage ?? "").trim();
   const link = String(args.link ?? "").trim();
-  const allowedToolNameSet = Array.isArray(args.allowedToolNames)
-    ? new Set(
-        args.allowedToolNames
-          .map((name) => String(name ?? "").trim())
-          .filter((name) => name.length > 0)
-      )
-    : null;
-  const applyAllowedToolFilter = <T extends { function: { name: string } }>(
-    tools: T[]
-  ) =>
-    allowedToolNameSet
-      ? tools.filter((tool) => allowedToolNameSet.has(tool.function.name))
-      : tools;
   const explicitPendingOpportunityFeedbackContext =
     args.pendingOpportunityFeedbackContext === undefined
       ? undefined
@@ -596,31 +582,13 @@ export async function runCareerChatTurn(
     });
   }
 
-  const availableChatTools = getOpenAIChatTools("chat");
-  const isOnboardingActiveForTools = !Boolean(
-    talentSetting?.is_onboarding_done
-  );
-  const canSelectAdditionalOnboardingQuestion =
-    additionalQuestionSelectionCount <
-    TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX;
-  const toolDefinitions = applyAllowedToolFilter(
-    isOnboardingActiveForTools
-      ? availableChatTools.filter(
-          (tool) =>
-            tool.function.name === TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE ||
-            (requestChannel !== "voice" &&
-              tool.function.name === TALENT_TOOL_NAMES.OPEN_URL) ||
-            (requestChannel !== "voice" &&
-              canSelectAdditionalOnboardingQuestion &&
-              tool.function.name ===
-                TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION)
-        )
-      : availableChatTools.filter(
-          (tool) =>
-            tool.function.name !==
-            TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION
-        )
-  );
+  const toolSelection = resolveCareerChatTools({
+    additionalQuestionSelectionCount,
+    allowedToolNames: args.allowedToolNames,
+    channel: requestChannel,
+    isOnboardingDone: talentSetting?.is_onboarding_done,
+  });
+  const toolDefinitions = toolSelection.tools;
   const currentPreferences = {
     periodicIntervalDays: talentSetting?.periodic_interval_days ?? null,
     recommendationBatchSize: talentSetting?.recommendation_batch_size ?? null,
@@ -652,7 +620,7 @@ export async function runCareerChatTurn(
     proactiveTurnInstruction: proactiveContext,
     recentActivitySummaries,
     structuredProfileText,
-    toolNames: toolDefinitions.map((tool) => tool.function.name),
+    toolNames: toolSelection.toolNames,
   });
 
   const preparedCompanySnapshotRef: {
@@ -875,6 +843,12 @@ export async function runCareerChatTurn(
       }
 
       if (name === TALENT_TOOL_NAMES.RESEARCH_COMPANY) {
+        await insertTalentToolUsageLog({
+          admin,
+          name,
+          userId,
+        });
+
         const companyName =
           optionalToolString(toolInput.company_name) ??
           optionalToolString(toolInput.companyName);
@@ -957,7 +931,7 @@ export async function runCareerChatTurn(
       return executeDefaultTalentTool({ name, input: toolInput });
     },
     messages: assistantTurnMessages,
-    stopAfterToolNames: getStopAfterTalentToolNames("chat"),
+    stopAfterToolNames: toolSelection.stopAfterToolNames,
     systemBlocks: promptBlocks,
     tools: toolDefinitions,
   });

@@ -20,6 +20,11 @@ const getActivityWebhookUrl = () =>
   process.env.SLACK_TOKEN?.trim() ||
   "";
 
+const COMPACT_ACTIVITY_ACTIONS = new Set([
+  "회원가입 완료",
+  "/career/onboarding 제출 완료",
+]);
+
 const normalizeText = (value: unknown) => String(value ?? "").trim();
 
 const escapeSlackText = (value: unknown) =>
@@ -34,6 +39,69 @@ export const getSlackActivityUserName = (user: User | null | undefined) =>
   normalizeText(user?.email).split("@")[0] ||
   "Unknown";
 
+export function getSlackActivityDeviceLabel(req: {
+  headers: { get(name: string): string | null };
+}) {
+  const mobileClientHint = req.headers.get("sec-ch-ua-mobile")?.trim();
+  if (mobileClientHint === "?1" || mobileClientHint === "1") return "모바일";
+  if (mobileClientHint === "?0" || mobileClientHint === "0") return "데스크탑";
+
+  const userAgent = req.headers.get("user-agent") ?? "";
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(
+    userAgent
+  )
+    ? "모바일"
+    : "데스크탑";
+}
+
+function getSlackActivityDetailValue(
+  details: SlackActivityDetail[] | undefined,
+  label: string
+) {
+  const targetLabel = label.toLowerCase();
+  return normalizeText(
+    details?.find((detail) => detail.label.toLowerCase() === targetLabel)
+      ?.value
+  );
+}
+
+function buildSlackActivityLines(args: NotifySlackActivityArgs & {
+  email: string;
+  name: string;
+  userId: string;
+}) {
+  const action = escapeSlackText(args.action) || "Unknown";
+
+  if (COMPACT_ACTIVITY_ACTIONS.has(args.action)) {
+    const device = getSlackActivityDetailValue(args.details, "Device");
+    const identity = [args.name, args.email, device]
+      .map(escapeSlackText)
+      .filter(Boolean)
+      .join(", ");
+
+    return [
+      "*Harper activity*",
+      `- *Action*: ${action}`,
+      `- ${identity || escapeSlackText(args.userId) || "Unknown"}`,
+    ];
+  }
+
+  const lines = [
+    "*Harper activity*",
+    `- *Action*: ${action}`,
+    `- *Name*: ${escapeSlackText(args.name) || "Unknown"}`,
+    `- *Email*: ${escapeSlackText(args.email) || "Unknown"}`,
+  ];
+
+  for (const detail of args.details ?? []) {
+    const value = normalizeText(detail.value);
+    if (!value) continue;
+    lines.push(`- *${escapeSlackText(detail.label)}*: ${escapeSlackText(value)}`);
+  }
+
+  return lines;
+}
+
 export async function notifySlackActivity(args: NotifySlackActivityArgs) {
   if (process.env.NEXT_PUBLIC_WORKER_TEST_MODE === "true") return false;
 
@@ -46,19 +114,12 @@ export async function notifySlackActivity(args: NotifySlackActivityArgs) {
   const name = normalizeText(args.name) || getSlackActivityUserName(args.user);
   const email = normalizeText(args.email) || normalizeText(args.user?.email);
   const userId = normalizeText(args.userId) || normalizeText(args.user?.id);
-
-  const lines = [
-    "*Harper activity*",
-    `- *Action*: ${escapeSlackText(args.action) || "Unknown"}`,
-    `- *Name*: ${escapeSlackText(name) || "Unknown"}`,
-    `- *Email*: ${escapeSlackText(email) || "Unknown"}`,
-  ];
-
-  for (const detail of args.details ?? []) {
-    const value = normalizeText(detail.value);
-    if (!value) continue;
-    lines.push(`- *${escapeSlackText(detail.label)}*: ${escapeSlackText(value)}`);
-  }
+  const lines = buildSlackActivityLines({
+    ...args,
+    email,
+    name,
+    userId,
+  });
 
   const webhook = new IncomingWebhook(webhookUrl);
   await webhook.send({
