@@ -3,6 +3,7 @@ import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { postLogEvent } from "@/lib/logEvent";
 import { buildLandingLoginEmailType } from "@/lib/landingLogTypes";
+import { linkOfficialJobEventsToCurrentUser } from "@/lib/officialJobEvents";
 import {
   CAREER_LANDING_ABTEST_TYPE,
   CAREER_LANDING_LOCAL_ID_STORAGE_KEY,
@@ -93,6 +94,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       void postLogEvent(LOGIN_COMPLETED_EVENT_TYPE, {
         accessToken: sess.access_token,
       });
+      void linkOfficialJobEventsToCurrentUser(sess.access_token);
       void logPendingCareerUtmLogin(sess);
     });
   },

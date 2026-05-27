@@ -90,6 +90,18 @@ export default function OpsOverviewPage() {
               </div>
             </Link>
             <Link
+              href="/ops/jobs"
+              className={cx(
+                opsTheme.panelSoft,
+                "block px-4 py-4 font-geist text-sm text-beige900 transition hover:bg-white/80"
+              )}
+            >
+              <div className="font-semibold">/ops/jobs</div>
+              <div className="mt-1 text-beige900/55">
+                공식 jobs 노출 및 상세 내용 관리
+              </div>
+            </Link>
+            <Link
               href="/ops/request-access/review"
               className={cx(
                 opsTheme.panelSoft,
@@ -106,8 +118,9 @@ export default function OpsOverviewPage() {
           <div className={cx(opsTheme.panelMuted, "mt-4 px-4 py-4")}>
             <div className={opsTheme.eyebrow}>Design Rule</div>
             <div className="mt-2 font-geist text-sm leading-6 text-beige900/65">
-              `/ops` 화면은 [src/pages/index.tsx]의 베이지 톤을 기준으로 맞춥니다.
-              세부 규칙은 `src/pages/ops/OPS_DESIGN.md`에 정리했습니다.
+              `/ops` 화면은 [src/pages/index.tsx]의 베이지 톤을 기준으로
+              맞춥니다. 세부 규칙은 `src/pages/ops/OPS_DESIGN.md`에
+              정리했습니다.
             </div>
           </div>
         </section>

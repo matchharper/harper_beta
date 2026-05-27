@@ -24,6 +24,8 @@ import type {
   CareerTalentDetailResponse,
   CareerTalentMailHistoryItem,
   CareerTalentRecommendationItem,
+  CareerTalentRegisteredLinkType,
+  CareerTalentSummary,
   OpsManualInternalRecommendationRole,
 } from "@/lib/opsCareerServer";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -32,7 +34,9 @@ import {
   ChevronRight,
   ExternalLink,
   FileText,
+  Github,
   Link2,
+  Linkedin,
   LoaderCircle,
   Mail,
   MessageSquareText,
@@ -125,6 +129,32 @@ const mailStatusClass = (status: string) => {
   return "bg-beige500/60 text-beige900/55";
 };
 
+const profileVisibilityLabel = (value: string | null | undefined) => {
+  switch (value) {
+    case "open_to_matches":
+      return "Open to matches";
+    case "exceptional_only":
+      return "Exceptional only";
+    case "dont_share":
+      return "Don't share";
+    default:
+      return value?.trim() || "미설정";
+  }
+};
+
+const profileVisibilityBadgeClass = (value: string | null | undefined) => {
+  switch (value) {
+    case "open_to_matches":
+      return "bg-[#E4EDE2] text-[#29513A]";
+    case "exceptional_only":
+      return "bg-[#FEF3C7] text-[#92400E]";
+    case "dont_share":
+      return "bg-[#F7DBD3] text-[#8A2E1D]";
+    default:
+      return "bg-beige500/60 text-beige900/55";
+  }
+};
+
 const compactMailAddress = (value: string | null | undefined) => {
   const normalized = value?.trim();
   return normalized || "-";
@@ -193,23 +223,63 @@ const getRecommendationStageSelectValue = (
     : CUSTOM_RECOMMENDATION_STAGE_VALUE;
 };
 
+const formatCurrentPositionLabel = (talent: CareerTalentSummary) => {
+  const company = talent.currentCompanyName?.trim();
+  const role = talent.currentRole?.trim();
+  if (company && role) return `${company} · ${role}`;
+  return company || role || null;
+};
+
+const registeredLinkTypeLabel = (type: CareerTalentRegisteredLinkType) => {
+  switch (type) {
+    case "linkedin":
+      return "LinkedIn 링크 있음";
+    case "github":
+      return "GitHub 링크 있음";
+    default:
+      return "등록 링크 있음";
+  }
+};
+
+function RegisteredLinkIcon({
+  type,
+}: {
+  type: CareerTalentRegisteredLinkType;
+}) {
+  const label = registeredLinkTypeLabel(type);
+  const Icon =
+    type === "linkedin" ? Linkedin : type === "github" ? Github : Link2;
+
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      title={label}
+      className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-beige500/60 text-beige900/40"
+    >
+      <Icon className="h-2.5 w-2.5" aria-hidden="true" />
+    </span>
+  );
+}
+
 function TalentListItem({
   talent,
   isActive,
   onClick,
 }: {
-  talent: {
-    userId: string;
-    name: string | null;
-    email: string | null;
-    headline: string | null;
-    isOnboardingDone: boolean;
-    insightCoverage: number;
-    lastConversationAt: string | null;
-  };
+  talent: CareerTalentSummary;
   isActive: boolean;
   onClick: () => void;
 }) {
+  const currentPositionLabel = formatCurrentPositionLabel(talent);
+  const registeredLinkTypes =
+    talent.registeredLinkTypes?.length > 0
+      ? talent.registeredLinkTypes
+      : talent.hasRegisteredLink
+        ? (["other"] as CareerTalentRegisteredLinkType[])
+        : [];
+  const hasProfileInputSignal = registeredLinkTypes.length > 0 || talent.hasResume;
+
   return (
     <button
       type="button"
@@ -234,14 +304,33 @@ function TalentListItem({
               {onboardingStatusLabel(talent.isOnboardingDone)}
             </span>
           </div>
-          {talent.headline ? (
-            <div className="mt-0.5 font-geist text-xs text-beige900/50 truncate">
-              {talent.headline}
+          {currentPositionLabel ? (
+            <div
+              className="mt-0.5 font-geist text-xs text-beige900/80 truncate"
+              title={currentPositionLabel}
+            >
+              {currentPositionLabel}
             </div>
           ) : null}
-          <div className="mt-1 flex items-center gap-3 font-geist text-[11px] text-beige900/40">
-            <span>인사이트 {talent.insightCoverage}개</span>
+          <div className="mt-1 flex items-center gap-2 font-geist text-[11px] text-beige900/60">
             <span>{formatKst(talent.lastConversationAt)}</span>
+            {hasProfileInputSignal ? (
+              <span className="inline-flex shrink-0 items-center gap-1">
+                {registeredLinkTypes.map((type) => (
+                  <RegisteredLinkIcon key={type} type={type} />
+                ))}
+                {talent.hasResume ? (
+                  <span
+                    role="img"
+                    aria-label="이력서 있음"
+                    title="이력서 있음"
+                    className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-beige500/60 text-beige900/40"
+                  >
+                    <FileText className="h-2.5 w-2.5" aria-hidden="true" />
+                  </span>
+                ) : null}
+              </span>
+            ) : null}
           </div>
         </div>
         <ChevronRight className="h-4 w-4 shrink-0 text-beige900/25" />
@@ -326,7 +415,7 @@ function TalentDetail({ userId }: { userId: string }) {
             {detail.headline}
           </div>
         ) : null}
-        <div className="mt-2 flex items-center gap-3 font-geist text-xs text-beige900/40">
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-geist text-xs text-beige900/40">
           <span>
             온보딩:{" "}
             <span
@@ -339,6 +428,17 @@ function TalentDetail({ userId }: { userId: string }) {
             </span>
           </span>
           <span>마지막 대화: {formatKst(detail.lastConversationAt)}</span>
+          <span>
+            공개 범위:{" "}
+            <span
+              className={cx(
+                "rounded px-1.5 py-0.5 font-medium",
+                profileVisibilityBadgeClass(detail.preferences?.profileVisibility)
+              )}
+            >
+              {profileVisibilityLabel(detail.preferences?.profileVisibility)}
+            </span>
+          </span>
         </div>
       </div>
 
@@ -613,7 +713,6 @@ function InsightsTab({
           </div>
         )}
       </div>
-
     </div>
   );
 }
@@ -2227,7 +2326,8 @@ export default function OpsCareerPage() {
       (t) =>
         t.name?.toLowerCase().includes(q) ||
         t.email?.toLowerCase().includes(q) ||
-        t.headline?.toLowerCase().includes(q)
+        t.currentCompanyName?.toLowerCase().includes(q) ||
+        t.currentRole?.toLowerCase().includes(q)
     );
   }, [searchQuery, visibleTalents]);
 
@@ -2252,7 +2352,7 @@ export default function OpsCareerPage() {
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-beige900/30" />
                 <input
                   type="text"
-                  placeholder="이름, 이메일, 헤드라인 검색..."
+                  placeholder="이름, 이메일, 회사, role 검색..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className={cx(opsTheme.input, "pl-9 h-9")}

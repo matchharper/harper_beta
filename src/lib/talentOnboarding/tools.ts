@@ -1,6 +1,18 @@
 import { runWebSearch } from "@/lib/tools/webSearch";
-import { fetchTalentOpportunityHistory } from "@/lib/talentOpportunity";
+import {
+  fetchTalentOpportunityHistory,
+  fetchTalentOpportunityHistoryByIds,
+  updateTalentOpportunityHistoryItem,
+  type TalentOpportunityFeedback,
+  type TalentOpportunityHistoryItem,
+} from "@/lib/talentOpportunity";
 import { runCareerCompanyRecommendations } from "@/lib/career/companyWatchlist";
+import {
+  getPostingRoleIdFromOpportunityId,
+  isPostingRoleId,
+  normalizePostingRoleId,
+  toPostingOpportunityId,
+} from "@/lib/career/postingLinks";
 import { runCareerJobPostingRecommendations } from "./jobPostingRecommendations";
 import { lookupServiceHelp } from "@/lib/serviceHelpRag";
 import { normalizeGeneratedTalentInsightEntry } from "./insights";
@@ -30,6 +42,7 @@ import {
   fetchTalentActivityEvents,
   getPreferenceActivityImpact,
   insertTalentActivityEvent,
+  insertTalentOpportunityFeedbackActivityEvent,
   isSameActivityValue,
   toPreferenceActivityDisplayChanges,
   type TalentActivityChange,
@@ -41,6 +54,8 @@ import {
   logTalentToolError,
   logTalentToolResult,
 } from "./toolLogging";
+import { insertTalentToolUsageLog } from "./toolUsageLog";
+import type { TalentAdminClient } from "./admin";
 
 export type TalentToolChannel = "chat" | "voice";
 
@@ -64,6 +79,20 @@ export type TalentToolDefinition = {
   voicePreamble?: string;
 };
 
+async function insertToolUsageLogFromContext(args: {
+  context?: TalentToolExecutionContext;
+  name: string;
+}) {
+  const admin = args.context?.admin;
+  if (!admin) return;
+
+  await insertTalentToolUsageLog({
+    admin: admin as TalentAdminClient,
+    name: args.name,
+    userId: args.context?.userId,
+  });
+}
+
 export class TalentToolError extends Error {
   status: number;
 
@@ -80,6 +109,8 @@ export const TALENT_TOOL_NAMES = {
   RECOMMEND_COMPANIES: "recommend_companies",
   RECOMMEND_JOB_POSTINGS: "recommend_job_postings",
   READ_RECOMMENDED_OPPORTUNITIES: "read_recommended_opportunities",
+  UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK:
+    "update_recommended_opportunity_feedback",
   WEB_SEARCH: "web_search",
   OPEN_URL: "open_url",
   RESEARCH_COMPANY: "research_company",
@@ -100,6 +131,7 @@ export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   // TALENT_TOOL_NAMES.RECOMMEND_COMPANIES,
   TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS,
   TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES,
+  TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK,
   TALENT_TOOL_NAMES.RESEARCH_COMPANY,
   TALENT_TOOL_NAMES.LOOKUP_SERVICE_HELP,
   TALENT_TOOL_NAMES.GET_OPEN_ROLES,
@@ -195,6 +227,199 @@ function normalizeSinceDate(input: Record<string, unknown>) {
   return new Date(
     Date.now() - normalizedDays * 24 * 60 * 60 * 1000
   ).toISOString();
+}
+
+type RecommendedOpportunityToolFeedback = "like" | "dislike";
+
+const RECOMMENDED_OPPORTUNITY_TOOL_FEEDBACK = new Set<string>([
+  "like",
+  "dislike",
+]);
+
+function normalizeRecommendedOpportunityToolFeedback(
+  value: unknown
+): RecommendedOpportunityToolFeedback | null {
+  const text = optionalToolString(value);
+  return text && RECOMMENDED_OPPORTUNITY_TOOL_FEEDBACK.has(text)
+    ? (text as RecommendedOpportunityToolFeedback)
+    : null;
+}
+
+function toTalentOpportunityFeedback(
+  feedback: RecommendedOpportunityToolFeedback
+): TalentOpportunityFeedback {
+  return feedback === "like" ? "positive" : "negative";
+}
+
+function compactOpportunityForTool(item: TalentOpportunityHistoryItem) {
+  return {
+    id: item.id,
+    roleId: item.roleId,
+    companyName: item.companyName,
+    title: item.title,
+    opportunityType: item.opportunityType,
+    sourceType: item.sourceType,
+    location: item.location,
+    workMode: item.workMode,
+    feedback: item.feedback,
+    dismissedAt: item.dismissedAt,
+    href: item.href,
+  };
+}
+
+function includesLoose(haystack: string, needle: string) {
+  return haystack
+    .toLocaleLowerCase("ko-KR")
+    .includes(needle.toLocaleLowerCase("ko-KR"));
+}
+
+async function resolveRecommendedOpportunityForFeedbackUpdate(args: {
+  admin: any;
+  companyName: string | null;
+  opportunityId: string | null;
+  roleId: string | null;
+  roleTitle: string | null;
+  userId: string;
+}) {
+  if (args.opportunityId) {
+    const postingRoleId = getPostingRoleIdFromOpportunityId(args.opportunityId);
+    if (postingRoleId) {
+      return {
+        ok: true as const,
+        opportunity: null,
+        updateOpportunityId: args.opportunityId,
+      };
+    }
+
+    const [opportunity] = await fetchTalentOpportunityHistoryByIds({
+      admin: args.admin,
+      ids: [args.opportunityId],
+      userId: args.userId,
+    });
+    if (!opportunity) {
+      return {
+        ok: false as const,
+        reason: "not_found",
+        message:
+          "No recommended opportunity matched the provided opportunityId.",
+        candidates: [],
+      };
+    }
+    return {
+      ok: true as const,
+      opportunity,
+      updateOpportunityId: args.opportunityId,
+    };
+  }
+
+  if (args.roleId) {
+    const roleId = args.roleId;
+    return {
+      ok: true as const,
+      opportunity: null,
+      updateOpportunityId: toPostingOpportunityId(roleId),
+    };
+  }
+
+  const opportunities = await fetchTalentOpportunityHistory({
+    admin: args.admin,
+    userId: args.userId,
+  });
+  const filtered = opportunities.filter((item) => {
+    if (
+      args.companyName &&
+      !includesLoose(item.companyName, args.companyName)
+    ) {
+      return false;
+    }
+    if (args.roleTitle && !includesLoose(item.title, args.roleTitle)) {
+      return false;
+    }
+    return true;
+  });
+
+  if (filtered.length === 1) {
+    return {
+      ok: true as const,
+      opportunity: filtered[0],
+      updateOpportunityId: filtered[0].id,
+    };
+  }
+
+  return {
+    ok: false as const,
+    reason: filtered.length === 0 ? "not_found" : "ambiguous",
+    message:
+      filtered.length === 0
+        ? "No recommended opportunity matched the provided filters."
+        : "Multiple recommended opportunities matched. Ask the user which one.",
+    candidates: filtered.slice(0, 5).map(compactOpportunityForTool),
+  };
+}
+
+async function updateRecommendedOpportunityFeedback(args: {
+  admin: any;
+  companyName: string | null;
+  feedback: RecommendedOpportunityToolFeedback;
+  feedbackReason: string | null;
+  opportunityId: string | null;
+  roleId: string | null;
+  roleTitle: string | null;
+  userId: string;
+  conversationId?: string | null;
+}) {
+  const resolved = await resolveRecommendedOpportunityForFeedbackUpdate({
+    admin: args.admin,
+    companyName: args.companyName,
+    opportunityId: args.opportunityId,
+    roleId: args.roleId,
+    roleTitle: args.roleTitle,
+    userId: args.userId,
+  });
+
+  if (!resolved.ok) {
+    return {
+      ok: false,
+      reason: resolved.reason,
+      message: resolved.message,
+      candidates: resolved.candidates,
+    };
+  }
+
+  const feedback = toTalentOpportunityFeedback(args.feedback);
+  const result = await updateTalentOpportunityHistoryItem({
+    action: "feedback",
+    admin: args.admin,
+    feedback,
+    feedbackReason: args.feedbackReason,
+    opportunityId: resolved.updateOpportunityId,
+    userId: args.userId,
+  });
+  const [updatedOpportunity] = await fetchTalentOpportunityHistoryByIds({
+    admin: args.admin,
+    ids: [result.opportunityId],
+    userId: args.userId,
+  });
+
+  if (updatedOpportunity) {
+    await insertTalentOpportunityFeedbackActivityEvent({
+      action: feedback,
+      admin: args.admin,
+      conversationId: args.conversationId ?? null,
+      feedbackReason: args.feedbackReason,
+      opportunity: updatedOpportunity,
+      userId: args.userId,
+    });
+  }
+
+  return {
+    ok: true,
+    feedback: args.feedback,
+    updatedAt: result.updatedAt,
+    opportunity: updatedOpportunity
+      ? compactOpportunityForTool(updatedOpportunity)
+      : null,
+  };
 }
 
 const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
@@ -696,6 +921,86 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           summary: item.description ?? item.companyDescription ?? null,
         })),
       };
+    },
+  },
+  [TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK]: {
+    name: TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK,
+    description:
+      "Set one recommended opportunity's feedback to like or dislike.",
+    parameters: {
+      type: "object",
+      properties: {
+        feedback: {
+          type: "string",
+          enum: ["like", "dislike"],
+          description: "Use like for saved/positive, dislike for rejected.",
+        },
+        opportunityId: {
+          type: "string",
+          description:
+            "Exact recommendation id when known. Prefer roleId from [posting](roleId) when available.",
+        },
+        roleId: {
+          type: "string",
+          description: "Role id from a [posting](roleId) card line.",
+        },
+        companyName: {
+          type: "string",
+          description:
+            "Company name only when id/roleId is unavailable. Used to disambiguate.",
+        },
+        roleTitle: {
+          type: "string",
+          description:
+            "Role title only when id/roleId is unavailable. Used to disambiguate.",
+        },
+        feedbackReason: {
+          type: "string",
+          description:
+            "Optional short reason from the user's message, if they gave one.",
+        },
+      },
+      required: ["feedback"],
+      additionalProperties: false,
+    },
+    channels: ["chat"],
+    async execute(input, context) {
+      const admin = context?.admin;
+      const userId = context?.userId;
+      if (!admin || !userId) {
+        throw new TalentToolError(
+          "update_recommended_opportunity_feedback requires user context."
+        );
+      }
+
+      const feedback = normalizeRecommendedOpportunityToolFeedback(
+        input.feedback
+      );
+      if (!feedback) {
+        throw new TalentToolError(
+          "update_recommended_opportunity_feedback requires a valid feedback."
+        );
+      }
+
+      const opportunityId = optionalToolString(input.opportunityId);
+      const roleId = normalizePostingRoleId(input.roleId);
+      if (roleId && !isPostingRoleId(roleId)) {
+        throw new TalentToolError(
+          "update_recommended_opportunity_feedback received an invalid roleId."
+        );
+      }
+
+      return updateRecommendedOpportunityFeedback({
+        admin: admin as any,
+        companyName: optionalToolString(input.companyName),
+        conversationId: context?.conversationId ?? null,
+        feedback,
+        feedbackReason: optionalToolString(input.feedbackReason),
+        opportunityId,
+        roleId,
+        roleTitle: optionalToolString(input.roleTitle),
+        userId,
+      });
     },
   },
   [TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE]: {
@@ -1449,6 +1754,11 @@ export async function executeTalentTool(args: {
   }
 
   const shouldLog = args.logging !== false;
+
+  await insertToolUsageLogFromContext({
+    context: args.context,
+    name: tool.name,
+  });
 
   if (shouldLog) {
     logTalentToolCall({

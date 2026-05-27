@@ -14,8 +14,8 @@ const pageVariants = cva("flex w-full flex-col", {
     },
     background: {
       none: "",
-      beige: "bg-beige100 text-beige900",
-      beigeAlt: "bg-beige200 text-beige900",
+      beige: "bg-beige50 text-beige900",
+      beigeAlt: "bg-beige100 text-beige900",
       paper: "bg-hgray1000 text-hblack900",
       dark: "bg-bgDark900 text-hgray1000",
     },
@@ -43,13 +43,24 @@ export type PageProps = PageOwnProps &
   Omit<HTMLAttributes<HTMLElement>, keyof PageOwnProps>;
 
 export const Page = forwardRef<HTMLElement, PageProps>(function Page(
-  { as: Component = "div", minHeight, background, safeArea, className, children, ...rest },
+  {
+    as: Component = "div",
+    minHeight,
+    background,
+    safeArea,
+    className,
+    children,
+    ...rest
+  },
   ref
 ) {
   return (
     <Component
       ref={ref}
-      className={cn(pageVariants({ minHeight, background, safeArea }), className)}
+      className={cn(
+        pageVariants({ minHeight, background, safeArea }),
+        className
+      )}
       {...rest}
     >
       {children}

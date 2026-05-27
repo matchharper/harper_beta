@@ -1,0 +1,682 @@
+import OpsShell from "@/components/ops/OpsShell";
+import { cx, opsTheme } from "@/components/ops/theme";
+import { showToast } from "@/components/toast/toast";
+import {
+  useOpsOfficialJobs,
+  useSaveOpsOfficialJob,
+  type OpsOfficialJobRecord,
+} from "@/hooks/useOpsOfficialJobs";
+import { isInternalEmail } from "@/lib/internalAccess";
+import type { OpsOfficialJobSaveInput } from "@/lib/opsOfficialJobs";
+import { useAuthStore } from "@/store/useAuthStore";
+import {
+  ArrowUpRight,
+  CheckCircle2,
+  LoaderCircle,
+  Plus,
+  RefreshCw,
+  Save,
+  Search,
+} from "lucide-react";
+import Head from "next/head";
+import Link from "next/link";
+import type { ReactNode } from "react";
+import { useMemo, useState } from "react";
+
+type JobFilter = "all" | "published" | "draft";
+const NEW_JOB_ID = "__new_official_job__";
+
+type OfficialJobDraft = {
+  companyDescriptionMarkdown: string;
+  companyLogoUrl: string;
+  companyName: string;
+  companyWebsiteUrl: string;
+  compensation: string;
+  displayOrder: string;
+  employmentType: string;
+  id: string | null;
+  isPublished: boolean;
+  location: string;
+  roleDescriptionMarkdown: string;
+  roleTitle: string;
+  seniority: string;
+  shortDescription: string;
+  slug: string;
+  vertical: string;
+};
+
+const EMPTY_DRAFT: OfficialJobDraft = {
+  companyDescriptionMarkdown: "",
+  companyLogoUrl: "",
+  companyName: "",
+  companyWebsiteUrl: "",
+  compensation: "",
+  displayOrder: "0",
+  employmentType: "Full-time",
+  id: null,
+  isPublished: false,
+  location: "",
+  roleDescriptionMarkdown: "",
+  roleTitle: "",
+  seniority: "",
+  shortDescription: "",
+  slug: "",
+  vertical: "",
+};
+
+function jobToDraft(job: OpsOfficialJobRecord): OfficialJobDraft {
+  return {
+    companyDescriptionMarkdown: job.companyDescriptionMarkdown,
+    companyLogoUrl: job.companyLogoUrl ?? "",
+    companyName: job.companyName,
+    companyWebsiteUrl: job.companyWebsiteUrl ?? "",
+    compensation: job.compensation ?? "",
+    displayOrder: String(job.displayOrder),
+    employmentType: job.employmentType ?? "",
+    id: job.id,
+    isPublished: job.isPublished,
+    location: job.location,
+    roleDescriptionMarkdown: job.roleDescriptionMarkdown,
+    roleTitle: job.roleTitle,
+    seniority: job.seniority ?? "",
+    shortDescription: job.shortDescription,
+    slug: job.slug,
+    vertical: job.vertical,
+  };
+}
+
+function draftToPayload(draft: OfficialJobDraft): OpsOfficialJobSaveInput {
+  return {
+    companyDescriptionMarkdown: draft.companyDescriptionMarkdown,
+    companyLogoUrl: draft.companyLogoUrl,
+    companyName: draft.companyName,
+    companyWebsiteUrl: draft.companyWebsiteUrl,
+    compensation: draft.compensation,
+    displayOrder: draft.displayOrder,
+    employmentType: draft.employmentType,
+    id: draft.id,
+    isPublished: draft.isPublished,
+    location: draft.location,
+    roleDescriptionMarkdown: draft.roleDescriptionMarkdown,
+    roleTitle: draft.roleTitle,
+    seniority: draft.seniority,
+    shortDescription: draft.shortDescription,
+    slug: draft.slug,
+    vertical: draft.vertical,
+  };
+}
+
+function createSlug(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("ko-KR", {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "2-digit",
+  });
+}
+
+function matchesFilter(job: OpsOfficialJobRecord, filter: JobFilter) {
+  if (filter === "published") return job.isPublished;
+  if (filter === "draft") return !job.isPublished;
+  return true;
+}
+
+function matchesQuery(job: OpsOfficialJobRecord, query: string) {
+  if (!query) return true;
+  const haystack = [
+    job.companyName,
+    job.roleTitle,
+    job.location,
+    job.vertical,
+    job.slug,
+    job.shortDescription,
+  ]
+    .join(" ")
+    .toLowerCase();
+  return haystack.includes(query);
+}
+
+function Field({ children, label }: { children: ReactNode; label: string }) {
+  return (
+    <label className="block">
+      <span className={opsTheme.label}>{label}</span>
+      <div className="mt-2">{children}</div>
+    </label>
+  );
+}
+
+export default function OpsOfficialJobsPage() {
+  const authLoading = useAuthStore((state) => state.loading);
+  const user = useAuthStore((state) => state.user);
+  const canFetchInternal = !authLoading && isInternalEmail(user?.email);
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<JobFilter>("all");
+  const [draftState, setDraftState] = useState<{
+    draft: OfficialJobDraft;
+    key: string;
+  }>({ draft: EMPTY_DRAFT, key: NEW_JOB_ID });
+
+  const jobsQuery = useOpsOfficialJobs(canFetchInternal);
+  const saveJob = useSaveOpsOfficialJob();
+  const jobs = useMemo(
+    () => jobsQuery.data?.jobs ?? [],
+    [jobsQuery.data?.jobs]
+  );
+  const activeJobId =
+    selectedJobId === NEW_JOB_ID
+      ? null
+      : (selectedJobId ?? jobs[0]?.id ?? null);
+  const selectedJob = jobs.find((job) => job.id === activeJobId) ?? null;
+  const activeDraftKey =
+    selectedJobId === NEW_JOB_ID ? NEW_JOB_ID : activeJobId;
+  const draft =
+    draftState.key === activeDraftKey
+      ? draftState.draft
+      : selectedJob
+        ? jobToDraft(selectedJob)
+        : EMPTY_DRAFT;
+
+  const filteredJobs = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return jobs.filter(
+      (job) => matchesFilter(job, filter) && matchesQuery(job, normalizedQuery)
+    );
+  }, [filter, jobs, query]);
+
+  const stats = useMemo(
+    () => ({
+      draft: jobs.filter((job) => !job.isPublished).length,
+      published: jobs.filter((job) => job.isPublished).length,
+      total: jobs.length,
+    }),
+    [jobs]
+  );
+
+  const updateDraft = <Key extends keyof OfficialJobDraft>(
+    key: Key,
+    value: OfficialJobDraft[Key]
+  ) => {
+    setDraftState({
+      draft: { ...draft, [key]: value },
+      key: activeDraftKey ?? NEW_JOB_ID,
+    });
+  };
+
+  const startNewJob = () => {
+    const maxDisplayOrder = jobs.reduce(
+      (max, job) => Math.max(max, job.displayOrder),
+      0
+    );
+    setSelectedJobId(NEW_JOB_ID);
+    setDraftState({
+      draft: {
+        ...EMPTY_DRAFT,
+        displayOrder: String(maxDisplayOrder + 10),
+      },
+      key: NEW_JOB_ID,
+    });
+  };
+
+  const handleGenerateSlug = () => {
+    const slug = createSlug(`${draft.companyName} ${draft.roleTitle}`);
+    updateDraft("slug", slug);
+  };
+
+  const handleSave = async () => {
+    try {
+      const result = await saveJob.mutateAsync(draftToPayload(draft));
+      setSelectedJobId(result.job.id);
+      setDraftState({ draft: jobToDraft(result.job), key: result.job.id });
+      showToast({ message: "Official job 저장 완료", variant: "success" });
+    } catch (error) {
+      showToast({
+        message:
+          error instanceof Error ? error.message : "Official job 저장 실패",
+        variant: "error",
+      });
+    }
+  };
+
+  return (
+    <>
+      <Head>
+        <title>Official Jobs | Harper Ops</title>
+        <meta name="description" content="Manage Harper official jobs" />
+      </Head>
+
+      <OpsShell
+        title="Official Jobs"
+        description="공개 jobs 페이지에 노출되는 포지션을 관리합니다. Harper 설명 문구는 코드 공통값이라 여기서는 회사/역할 정보와 공개 여부만 수정합니다."
+      >
+        <section className="grid gap-3 md:grid-cols-3">
+          <div className={cx(opsTheme.panel, "p-4")}>
+            <div className={opsTheme.eyebrow}>Total</div>
+            <div className="mt-2 font-geist text-2xl font-semibold text-beige900">
+              {stats.total}
+            </div>
+          </div>
+          <div className={cx(opsTheme.panel, "p-4")}>
+            <div className={opsTheme.eyebrow}>Published</div>
+            <div className="mt-2 font-geist text-2xl font-semibold text-[#29513A]">
+              {stats.published}
+            </div>
+          </div>
+          <div className={cx(opsTheme.panel, "p-4")}>
+            <div className={opsTheme.eyebrow}>Draft</div>
+            <div className="mt-2 font-geist text-2xl font-semibold text-[#8A5A12]">
+              {stats.draft}
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
+          <aside className={cx(opsTheme.panel, "overflow-hidden")}>
+            <div className="border-b border-beige900/10 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className={opsTheme.eyebrow}>Jobs</div>
+                  <h2 className="mt-1 font-geist text-lg font-medium text-beige900">
+                    Official job list
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={startNewJob}
+                  className={cx(opsTheme.buttonPrimary, "h-10 px-3")}
+                >
+                  <Plus className="h-4 w-4" />
+                  New
+                </button>
+              </div>
+
+              <div className="mt-4 flex items-center gap-2 rounded-md border border-beige900/10 bg-white/70 px-3">
+                <Search className="h-4 w-4 text-beige900/40" />
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search role, company, slug"
+                  className="h-10 flex-1 bg-transparent font-geist text-sm text-beige900 outline-none placeholder:text-beige900/35"
+                />
+              </div>
+
+              <div className="mt-3 grid grid-cols-3 rounded-md bg-beige500/55 p-1">
+                {[
+                  ["all", "All"],
+                  ["published", "Published"],
+                  ["draft", "Draft"],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setFilter(value as JobFilter)}
+                    className={cx(
+                      "h-8 rounded px-2 font-geist text-xs font-medium transition",
+                      filter === value
+                        ? "bg-white text-beige900 shadow-sm"
+                        : "text-beige900/55 hover:text-beige900"
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="max-h-[760px] overflow-y-auto">
+              {jobsQuery.isLoading ? (
+                <div className="flex items-center gap-2 p-4 font-geist text-sm text-beige900/55">
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                  Loading jobs
+                </div>
+              ) : null}
+
+              {jobsQuery.error ? (
+                <div className={cx(opsTheme.errorNotice, "m-4")}>
+                  {jobsQuery.error instanceof Error
+                    ? jobsQuery.error.message
+                    : "Failed to load jobs"}
+                </div>
+              ) : null}
+
+              {!jobsQuery.isLoading && filteredJobs.length === 0 ? (
+                <div className="p-4 font-geist text-sm text-beige900/55">
+                  표시할 job이 없습니다.
+                </div>
+              ) : null}
+
+              {filteredJobs.map((job) => (
+                <button
+                  key={job.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedJobId(job.id);
+                    setDraftState({ draft: jobToDraft(job), key: job.id });
+                  }}
+                  className={cx(
+                    "block w-full border-b border-beige900/5 px-4 py-3 text-left transition",
+                    activeJobId === job.id
+                      ? "bg-beige900/5"
+                      : "hover:bg-white/60"
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate font-geist text-sm font-semibold text-beige900">
+                        {job.roleTitle}
+                      </div>
+                      <div className="mt-1 truncate font-geist text-xs text-beige900/55">
+                        {job.companyName}
+                      </div>
+                    </div>
+                    <span
+                      className={cx(
+                        "shrink-0 rounded-md px-2 py-1 font-geist text-[11px] font-medium",
+                        job.isPublished
+                          ? "bg-[#E4EDE2] text-[#29513A]"
+                          : "bg-[#FEF3C7] text-[#92400E]"
+                      )}
+                    >
+                      {job.isPublished ? "Published" : "Draft"}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-3 font-geist text-[12px] text-beige900/45">
+                    <span className="truncate">{job.location}</span>
+                    <span>#{job.displayOrder}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </aside>
+
+          <section className={cx(opsTheme.panel, "p-5")}>
+            <div className="flex flex-col gap-4 border-b border-beige900/10 pb-5 md:flex-row md:items-start md:justify-between">
+              <div>
+                <div className={opsTheme.eyebrow}>Editor</div>
+                <h2 className="mt-1 font-geist text-xl font-medium text-beige900">
+                  {draft.id ? "Edit official job" : "Create official job"}
+                </h2>
+                <p className="mt-2 font-geist text-sm leading-6 text-beige900/60">
+                  공개 페이지에는 `is_published=true`인 job만 노출됩니다. Harper
+                  help copy는 공통 코드값으로 적용됩니다.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {draft.slug ? (
+                  <Link
+                    href={`/jobs/${draft.slug}`}
+                    target="_blank"
+                    className={cx(opsTheme.buttonSecondary, "h-10 px-3")}
+                  >
+                    Preview
+                    <ArrowUpRight className="h-4 w-4" />
+                  </Link>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => jobsQuery.refetch()}
+                  className={cx(opsTheme.buttonSecondary, "h-10 px-3")}
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Refresh
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saveJob.isPending}
+                  className={cx(opsTheme.buttonPrimary, "h-10 px-4")}
+                >
+                  {saveJob.isPending ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  Save
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-4 lg:grid-cols-2">
+              <div className={cx(opsTheme.panelSoft, "p-4")}>
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <div className="block font-geist text-sm font-semibold text-beige900">
+                      Published
+                    </div>
+                    <div className="mt-1 block font-geist text-xs text-beige900/50">
+                      켜면 `/jobs`와 상세 페이지에서 공개됩니다.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={draft.isPublished}
+                    aria-label="Toggle published status"
+                    onClick={() =>
+                      updateDraft("isPublished", !draft.isPublished)
+                    }
+                    className={cx(
+                      "relative h-7 w-12 shrink-0 rounded-full border transition focus:outline-none focus:ring-2 focus:ring-beige900/20 focus:ring-offset-2 focus:ring-offset-beige100",
+                      draft.isPublished
+                        ? "border-beige900 bg-beige900"
+                        : "border-beige900/15 bg-white/80"
+                    )}
+                  >
+                    <span
+                      className={cx(
+                        "absolute top-1 h-5 w-5 rounded-full shadow-sm transition",
+                        draft.isPublished
+                          ? "left-6 bg-beige100"
+                          : "left-1 bg-beige900/35"
+                      )}
+                    />
+                  </button>
+                </div>
+                <div
+                  className={cx(
+                    "mt-3 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 font-geist text-xs font-medium",
+                    draft.isPublished
+                      ? "bg-[#E4EDE2] text-[#29513A]"
+                      : "bg-beige500/70 text-beige900/55"
+                  )}
+                >
+                  {draft.isPublished ? (
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                  ) : (
+                    <span className="h-1.5 w-1.5 rounded-full bg-beige900/35" />
+                  )}
+                  {draft.isPublished ? "Public" : "Draft"}
+                </div>
+              </div>
+
+              <div className={cx(opsTheme.panelSoft, "p-4")}>
+                <div className={opsTheme.eyebrow}>Timestamps</div>
+                <div className="mt-3 grid gap-2 font-geist text-xs text-beige900/55 sm:grid-cols-3">
+                  <div>
+                    <div className="text-beige900/35">Created</div>
+                    <div className="mt-1 text-beige900">
+                      {formatDateTime(selectedJob?.createdAt)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-beige900/35">Updated</div>
+                    <div className="mt-1 text-beige900">
+                      {formatDateTime(selectedJob?.updatedAt)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-beige900/35">Published</div>
+                    <div className="mt-1 text-beige900">
+                      {formatDateTime(selectedJob?.publishedAt)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-4 lg:grid-cols-2">
+              <Field label="Role title">
+                <input
+                  value={draft.roleTitle}
+                  onChange={(event) =>
+                    updateDraft("roleTitle", event.target.value)
+                  }
+                  className={opsTheme.input}
+                />
+              </Field>
+              <Field label="Company name">
+                <input
+                  value={draft.companyName}
+                  onChange={(event) =>
+                    updateDraft("companyName", event.target.value)
+                  }
+                  className={opsTheme.input}
+                />
+              </Field>
+              <Field label="Slug">
+                <div className="flex gap-2">
+                  <input
+                    value={draft.slug}
+                    onChange={(event) =>
+                      updateDraft("slug", event.target.value)
+                    }
+                    className={opsTheme.input}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleGenerateSlug}
+                    className={cx(opsTheme.buttonSecondary, "h-11 px-3")}
+                  >
+                    Generate
+                  </button>
+                </div>
+              </Field>
+              <Field label="Display order">
+                <input
+                  type="number"
+                  value={draft.displayOrder}
+                  onChange={(event) =>
+                    updateDraft("displayOrder", event.target.value)
+                  }
+                  className={opsTheme.input}
+                />
+              </Field>
+              <Field label="Location">
+                <input
+                  value={draft.location}
+                  onChange={(event) =>
+                    updateDraft("location", event.target.value)
+                  }
+                  className={opsTheme.input}
+                />
+              </Field>
+              <Field label="Vertical">
+                <input
+                  value={draft.vertical}
+                  onChange={(event) =>
+                    updateDraft("vertical", event.target.value)
+                  }
+                  className={opsTheme.input}
+                />
+              </Field>
+              <Field label="Employment type">
+                <input
+                  value={draft.employmentType}
+                  onChange={(event) =>
+                    updateDraft("employmentType", event.target.value)
+                  }
+                  className={opsTheme.input}
+                  placeholder="Full-time"
+                />
+              </Field>
+              <Field label="Seniority">
+                <input
+                  value={draft.seniority}
+                  onChange={(event) =>
+                    updateDraft("seniority", event.target.value)
+                  }
+                  className={opsTheme.input}
+                  placeholder="Senior / Staff"
+                />
+              </Field>
+              <Field label="Compensation">
+                <input
+                  value={draft.compensation}
+                  onChange={(event) =>
+                    updateDraft("compensation", event.target.value)
+                  }
+                  className={opsTheme.input}
+                />
+              </Field>
+              <Field label="Company website URL">
+                <input
+                  value={draft.companyWebsiteUrl}
+                  onChange={(event) =>
+                    updateDraft("companyWebsiteUrl", event.target.value)
+                  }
+                  className={opsTheme.input}
+                />
+              </Field>
+              <Field label="Company logo URL">
+                <input
+                  value={draft.companyLogoUrl}
+                  onChange={(event) =>
+                    updateDraft("companyLogoUrl", event.target.value)
+                  }
+                  className={opsTheme.input}
+                />
+              </Field>
+            </div>
+
+            <div className="mt-5 grid gap-4">
+              <Field label="Short description">
+                <textarea
+                  value={draft.shortDescription}
+                  onChange={(event) =>
+                    updateDraft("shortDescription", event.target.value)
+                  }
+                  className={cx(opsTheme.textarea, "min-h-[88px]")}
+                />
+              </Field>
+              <Field label="Role description markdown">
+                <textarea
+                  value={draft.roleDescriptionMarkdown}
+                  onChange={(event) =>
+                    updateDraft("roleDescriptionMarkdown", event.target.value)
+                  }
+                  className={cx(opsTheme.textarea, "min-h-[480px] resize-y")}
+                />
+              </Field>
+              <Field label="Company description markdown">
+                <textarea
+                  value={draft.companyDescriptionMarkdown}
+                  onChange={(event) =>
+                    updateDraft(
+                      "companyDescriptionMarkdown",
+                      event.target.value
+                    )
+                  }
+                  className={cx(opsTheme.textarea, "min-h-[360px] resize-y")}
+                />
+              </Field>
+            </div>
+          </section>
+        </section>
+      </OpsShell>
+    </>
+  );
+}
