@@ -3,10 +3,8 @@ import { cx, opsTheme } from "@/components/ops/theme";
 import {
   useOpsCareerTalents,
   useOpsCareerDetail,
-  useAddChecklistItem,
   useRefreshInsights,
   useUpdateInsights,
-  useDeleteChecklistItem,
   useIngestCareerProfile,
   useOpsCareerMailHistory,
   useOpsCareerRecommendations,
@@ -38,13 +36,11 @@ import {
   LoaderCircle,
   Mail,
   MessageSquareText,
-  Plus,
   RefreshCw,
   Save,
   Search,
   Send,
   Sparkles,
-  Trash2,
   User,
 } from "lucide-react";
 import Head from "next/head";
@@ -404,16 +400,11 @@ function InsightsTab({
     profileVisibility: string | null;
   } | null;
 }) {
-  const [newKey, setNewKey] = useState("");
-  const [newLabel, setNewLabel] = useState("");
-  const [newPromptHint, setNewPromptHint] = useState("");
   const [editedValues, setEditedValues] = useState<Record<string, string>>({});
   const [isEditing, setIsEditing] = useState(false);
 
-  const addChecklistItemMutation = useAddChecklistItem();
   const refreshInsightsMutation = useRefreshInsights(userId);
   const updateInsightsMutation = useUpdateInsights(userId);
-  const deleteChecklistItemMutation = useDeleteChecklistItem();
 
   // Sync editedValues when insights change
   useEffect(() => {
@@ -452,42 +443,6 @@ function InsightsTab({
         setEditedValues({});
       },
     });
-  }
-
-  function handleDeleteChecklistItem(key: string, label: string) {
-    if (
-      !window.confirm(
-        `'${label}' (${key}) 항목을 삭제하시겠습니까? 모든 인재에서 제거됩니다.`
-      )
-    )
-      return;
-    deleteChecklistItemMutation.mutate(key);
-  }
-
-  function handleAddItem() {
-    const trimmedKey = newKey.trim();
-    const trimmedLabel = newLabel.trim();
-    if (!trimmedKey || !trimmedLabel) return;
-    if (
-      !window.confirm(
-        `'${trimmedLabel}' (${trimmedKey}) 항목을 추가하시겠습니까? 이 항목은 모든 인재에게 적용됩니다.`
-      )
-    )
-      return;
-    addChecklistItemMutation.mutate(
-      {
-        key: trimmedKey,
-        label: trimmedLabel,
-        promptHint: newPromptHint.trim() || undefined,
-      },
-      {
-        onSuccess: () => {
-          setNewKey("");
-          setNewLabel("");
-          setNewPromptHint("");
-        },
-      }
-    );
   }
 
   function handleRefresh() {
@@ -627,25 +582,7 @@ function InsightsTab({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   <div className={opsTheme.eyebrow}>{item.label}</div>
-                  {item.source === "db" && (
-                    <span className="rounded px-1 py-0.5 font-geist text-[10px] bg-beige500/50 text-beige900/50">
-                      custom
-                    </span>
-                  )}
                 </div>
-                {item.source === "db" && !isEditing && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleDeleteChecklistItem(item.key, item.label)
-                    }
-                    disabled={deleteChecklistItemMutation.isPending}
-                    className="p-1 rounded hover:bg-beige500/30 text-beige900/30 hover:text-red-500 transition-colors"
-                    title="항목 삭제"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                )}
               </div>
               {isEditing ? (
                 <textarea
@@ -677,60 +614,6 @@ function InsightsTab({
         )}
       </div>
 
-      {/* Add checklist item form */}
-      <div className={cx(opsTheme.panelSoft, "p-4 space-y-3")}>
-        <div className={cx(opsTheme.eyebrow, "mb-1")}>체크리스트 항목 추가</div>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            placeholder="영문 키 (snake_case)"
-            value={newKey}
-            onChange={(e) =>
-              setNewKey(e.target.value.replace(/[^a-z0-9_]/g, ""))
-            }
-            className={cx(opsTheme.input, "h-8 text-xs flex-1")}
-          />
-          <input
-            type="text"
-            placeholder="한국어 라벨"
-            value={newLabel}
-            onChange={(e) => setNewLabel(e.target.value)}
-            className={cx(opsTheme.input, "h-8 text-xs flex-1")}
-          />
-        </div>
-        <input
-          type="text"
-          placeholder="프롬프트 힌트 (선택)"
-          value={newPromptHint}
-          onChange={(e) => setNewPromptHint(e.target.value)}
-          className={cx(opsTheme.input, "h-8 text-xs w-full")}
-        />
-        <div className="flex items-center justify-between gap-3">
-          <p className="font-geist text-[11px] text-beige900/40">
-            이 항목은 수동 추출만 지원됩니다
-          </p>
-          <button
-            type="button"
-            onClick={handleAddItem}
-            disabled={
-              !newKey.trim() ||
-              !newLabel.trim() ||
-              addChecklistItemMutation.isPending
-            }
-            className={cx(
-              opsTheme.buttonSecondary,
-              "h-8 px-3 text-xs flex items-center gap-1.5 shrink-0",
-              (!newKey.trim() ||
-                !newLabel.trim() ||
-                addChecklistItemMutation.isPending) &&
-                "opacity-50 cursor-not-allowed"
-            )}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            항목 추가
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

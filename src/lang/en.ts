@@ -362,19 +362,13 @@ export const en = {
     hello: "Hello",
     intro: "Who are you looking for?",
     credits: "Usage",
-    credit_history: "Plan inquiry history",
-    no_credit_request: "No plan inquiry history.",
     processing: "Processing...",
     done: "Done",
     pending: "Pending",
-    credit_request: "Plan inquiry",
     close_sidebar: "close sidebar",
     open_sidebar: "open sidebar",
     search: "Search",
     submit_request: "Submit Request",
-    credit_request_submitted: "Your inquiry has been submitted.",
-    credit_request_submitted_description:
-      "Thank you for reaching out. We are reviewing the plan and reveal credit volume you need, and we will follow up soon. If opted in, you’ll receive updates by email.",
   },
   home: {
     queryPlaceholder:

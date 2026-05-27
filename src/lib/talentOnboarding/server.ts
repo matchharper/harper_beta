@@ -13,9 +13,6 @@ import {
   markTalentUserLoggedIn,
 } from "@/lib/talentOnboarding/profileStore";
 import {
-  addCustomChecklistItem,
-  deleteCustomChecklistItem,
-  fetchCustomChecklistItems,
   fetchTalentInsights,
   fetchTalentSetting,
   getEmptyInsightKeys,
@@ -71,12 +68,9 @@ export {
   TALENT_PENDING_QUESTION_PREFIX,
   TALENT_RESUME_BUCKET,
   TALENT_SETTING_SELECT_QUERY,
-  addCustomChecklistItem,
   buildTalentProfileContext,
   countAdditionalOnboardingQuestionSelections,
   countUserChatTurns,
-  deleteCustomChecklistItem,
-  fetchCustomChecklistItems,
   fetchMessages,
   fetchRecentMessages,
   fetchTalentInsights,

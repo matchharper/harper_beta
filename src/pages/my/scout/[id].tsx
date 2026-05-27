@@ -363,14 +363,6 @@ export default function AutomationDetailPage() {
         );
       } catch {}
     }
-    void fetch("/api/memory/update", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId,
-        queryId: automationId,
-      }),
-    });
     setIsSaving(false);
     router.push("/my/scout");
   }, [

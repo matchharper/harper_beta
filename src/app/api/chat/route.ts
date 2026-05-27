@@ -36,7 +36,6 @@ const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-const MAX_MEMORY_CHARS = 2000;
 const MAX_ATTACHMENT_CHARS = 12000;
 const MAX_TEAM_CONTEXT_CHARS = 1200;
 const MAX_TOOL_TEXT_CHARS = 12000;
@@ -131,58 +130,17 @@ async function callWebsiteScraping(req: NextRequest, args: any) {
   };
 }
 
-async function fetchLatestMemory(userId: string) {
-  const { data, error } = await supabaseAdmin
-    .from("memory")
-    .select("id, content, created_at, last_updated_at")
-    .eq("user_id", userId)
-    .order("last_updated_at", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) throw error;
-  return data ?? null;
-}
-
 async function loadQueryPromptBase(_queryId?: string) {
   return SYSTEM_PROMPT;
 }
 
-function buildAutomationSystemPrompt(
-  basePrompt: string,
-  memoryContent: string
-) {
-  const normalized = memoryContent.trim().slice(0, MAX_MEMORY_CHARS);
+function buildAutomationSystemPrompt(basePrompt: string) {
   const today = new Date().toISOString().slice(0, 10);
 
   return `${basePrompt}
 
 ### Today
 ${today}
-
-### Memory about the user/team; not role-specific
-${normalized.length > 0 ? normalized : "(none)"}
-
----
-
-Instructions:
-- Use Team Memory only as background about the team/user, not as role requirements.
-- Do not invent or assume memory details beyond what is written above.
-- Team Memory may contain dated entries such as "### YYYY-MM-DD".
-- If a memory point is old or likely to have changed (team size, product direction, urgency, compensation, hiring priorities), do not assume it is still valid.
-- In that case, either:
-  - treat it as unknown for now, or
-  - ask a short confirmation question like:
-    "이전에 YYYY-MM-DD 기준으로 ~라고 말씀해주셨는데, 지금도 동일한가요?"
-- If user gives newer info in this chat, prioritize the latest user message over old memory.
-- If team memory is empty or insufficient, then in the first assistant reply after the user's first message:
-  - Start with "알겠습니다."
-  - Say you need team information for better recommendations.
-  - Ask first about: team culture, what the team is building, team size, and preferred talent profile.
-  - Ask these before any other questions.
-  - 직접 적으로 메모리라는 단어를 쓰지 말고, 좋은 추천을 위해서 팀의 정보가 더 있으면 좋다는걸 알려주는게 나아.
-  - 회사/팀에 대한 설명을 대신해주는 링크가 있다면 그걸 알려줘도 좋다고 말해줘.
 `;
 }
 
@@ -488,14 +446,7 @@ ${information}
         systemPrompt += `\n\n### Team Profile (from Account settings)\n${profileLines}\n\nInstructions:\n- Use this as stable background context for recommendations.\n- If this conflicts with the latest user message, prioritize the latest user message.\n`;
       }
 
-      try {
-        const memoryRow = await fetchLatestMemory(body.userId);
-        const memoryContent = (memoryRow?.content ?? "").trim();
-        systemPrompt = buildAutomationSystemPrompt(systemPrompt, memoryContent);
-      } catch (error) {
-        logger.log("Failed to load team memory:", error);
-        systemPrompt = buildAutomationSystemPrompt(systemPrompt, "");
-      }
+      systemPrompt = buildAutomationSystemPrompt(systemPrompt);
     }
 
     const allowTools =

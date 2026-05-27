@@ -996,7 +996,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     (instructions: string) => {
       sendEvent({
         type: "session.update",
-        session: { instructions },
+        session: { type: "realtime", instructions },
       });
     },
     [sendEvent]
