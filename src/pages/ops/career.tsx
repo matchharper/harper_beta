@@ -50,6 +50,7 @@ import {
 import Head from "next/head";
 import { useRouter } from "next/router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Tooltips } from "@/components/ui/tooltip";
 
 const FETCH_LIMIT = 40;
 
@@ -278,7 +279,8 @@ function TalentListItem({
       : talent.hasRegisteredLink
         ? (["other"] as CareerTalentRegisteredLinkType[])
         : [];
-  const hasProfileInputSignal = registeredLinkTypes.length > 0 || talent.hasResume;
+  const hasProfileInputSignal =
+    registeredLinkTypes.length > 0 || talent.hasResume;
 
   return (
     <button
@@ -433,7 +435,9 @@ function TalentDetail({ userId }: { userId: string }) {
             <span
               className={cx(
                 "rounded px-1.5 py-0.5 font-medium",
-                profileVisibilityBadgeClass(detail.preferences?.profileVisibility)
+                profileVisibilityBadgeClass(
+                  detail.preferences?.profileVisibility
+                )
               )}
             >
               {profileVisibilityLabel(detail.preferences?.profileVisibility)}
@@ -1169,7 +1173,8 @@ function ManualInternalRecommendationModal({
   const rolesQuery = useOpsManualInternalRecommendationRoles(
     roleSearch,
     40,
-    open
+    open,
+    userId
   );
   const queueRecommendation = useQueueOpsManualInternalRecommendation();
 
@@ -1301,9 +1306,12 @@ function ManualInternalRecommendationModal({
               ) : (
                 <div className="overflow-hidden rounded-md border border-beige900/10 bg-white/55">
                   <div className="max-h-[440px] overflow-auto">
-                    <table className="w-full min-w-[760px] table-fixed border-collapse font-geist text-xs">
+                    <table className="w-full min-w-[800px] table-fixed border-collapse font-geist text-xs">
                       <thead className="sticky top-0 z-[1] bg-beige500/45 text-left text-beige900/45">
                         <tr>
+                          <th className="w-[24px] px-3 py-2 font-medium">
+                            <span className="sr-only"></span>
+                          </th>
                           <th className="w-[140px] px-3 py-2 font-medium">
                             회사
                           </th>
@@ -1342,6 +1350,18 @@ function ManualInternalRecommendationModal({
                                   : "text-beige900/70"
                               )}
                             >
+                              <td className="px-3 py-3 align-top">
+                                {role.alreadyRecommended && (
+                                  <Tooltips text="이 역할은 이미 추천되었습니다.">
+                                    <span
+                                      role="img"
+                                      aria-label="이미 추천되었습니다."
+                                      title="이미 추천되었습니다."
+                                      className="mt-1 inline-flex h-2 w-2 rounded-full bg-[#2F7D46] shadow-[0_0_0_2px_rgba(47,125,70,0.14)]"
+                                    />
+                                  </Tooltips>
+                                )}
+                              </td>
                               <td
                                 className={cx(
                                   "truncate px-3 py-3 align-top font-medium",

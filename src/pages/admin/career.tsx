@@ -1,7 +1,9 @@
 import AdminAccessGuard from "@/components/admin/AdminAccessGuard";
 import AdminCareerDateRangeFilter from "@/components/admin/career/AdminCareerDateRangeFilter";
+import AdminCareerDeviceComparisonPanel from "@/components/admin/career/AdminCareerDeviceComparisonPanel";
 import AdminCareerFunnelPanel from "@/components/admin/career/AdminCareerFunnelPanel";
 import AdminCareerMetricGrid from "@/components/admin/career/AdminCareerMetricGrid";
+import AdminCareerJobsTab from "@/components/admin/career/AdminCareerJobsTab";
 import AdminCareerQuickSignalPanel from "@/components/admin/career/AdminCareerQuickSignalPanel";
 import AdminCareerUtmTab from "@/components/admin/career/AdminCareerUtmTab";
 import AdminCareerUserTable from "@/components/admin/career/AdminCareerUserTable";
@@ -27,7 +29,7 @@ type CareerAnalyticsDateRangeInput = {
   startDate: string;
 };
 
-type CareerAdminTab = "overview" | "utm";
+type CareerAdminTab = "overview" | "utm" | "jobs";
 
 const emptyDateRange: CareerAnalyticsDateRangeInput = {
   endDate: "",
@@ -255,6 +257,18 @@ function AdminCareerContent() {
                 >
                   UTM
                 </Button>
+                <Button
+                  variant={activeTab === "jobs" ? "default" : "outline"}
+                  size="sm"
+                  className={cn(
+                    "h-8 rounded-none text-[12px]",
+                    activeTab !== "jobs" &&
+                      "border-black/15 bg-white text-black shadow-none"
+                  )}
+                  onClick={() => setActiveTab("jobs")}
+                >
+                  Jobs
+                </Button>
               </nav>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -299,6 +313,8 @@ function AdminCareerContent() {
         <div className="mx-auto w-full max-w-[1180px] space-y-4 px-4 py-5 md:px-6">
           {activeTab === "utm" ? (
             <AdminCareerUtmTab excludedEmails={excludedEmails} />
+          ) : activeTab === "jobs" ? (
+            <AdminCareerJobsTab excludedEmails={excludedEmails} />
           ) : query.error ? (
             <Card className="rounded-md border-red-200 bg-red-50 shadow-none">
               <CardContent className="p-4 text-[12px] text-red-700">
@@ -328,6 +344,9 @@ function AdminCareerContent() {
               />
               <AdminCareerQuickSignalPanel
                 signals={query.data.quickSignals ?? []}
+              />
+              <AdminCareerDeviceComparisonPanel
+                rows={query.data.deviceComparison ?? []}
               />
               <AdminCareerMetricGrid metrics={query.data.summary} />
               <AdminCareerFunnelPanel

@@ -1,7 +1,16 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { OFFICIAL_JOBS_LOGIN_HREF } from "@/lib/officialJobs";
+import {
+  buildOfficialJobsLoginHref,
+  OFFICIAL_JOBS_LOGIN_HREF,
+} from "@/lib/officialJobs";
+import { getOfficialJobsAnonymousId } from "@/lib/officialJobEvents";
+import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobLandingLogs";
+import {
+  CAREER_LANDING_LOCAL_ID_STORAGE_KEY,
+  CAREER_UTM_SOURCE_STORAGE_KEY,
+} from "@/lib/careerUtm";
 import { useAuthStore } from "@/store/useAuthStore";
 import { cva, type VariantProps } from "class-variance-authority";
 import Link from "next/link";
@@ -52,10 +61,40 @@ export default function OfficialJobsCtaLink({
   const loading = useAuthStore((state) => state.loading);
   const href = !loading && user ? "/career" : OFFICIAL_JOBS_LOGIN_HREF;
 
+  const handleClick: MouseEventHandler<HTMLAnchorElement> = (event) => {
+    const resolvedAnonymousId = getOfficialJobsAnonymousId();
+
+    if (typeof window !== "undefined" && resolvedAnonymousId) {
+      window.localStorage.setItem(
+        CAREER_LANDING_LOCAL_ID_STORAGE_KEY,
+        resolvedAnonymousId
+      );
+      window.localStorage.setItem(
+        CAREER_UTM_SOURCE_STORAGE_KEY,
+        OFFICIAL_JOBS_LANDING_SOURCE
+      );
+    }
+
+    onClick?.(event);
+
+    if (
+      loading ||
+      user ||
+      !resolvedAnonymousId ||
+      event.defaultPrevented ||
+      typeof window === "undefined"
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    window.location.href = buildOfficialJobsLoginHref(resolvedAnonymousId);
+  };
+
   return (
     <Link
       href={href}
-      onClick={onClick}
+      onClick={handleClick}
       className={cn(ctaLinkVariants({ fullWidth, size, variant }), className)}
     >
       <span>{children}</span>

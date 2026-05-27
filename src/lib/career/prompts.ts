@@ -1705,6 +1705,8 @@ export function buildCareerOpportunityFeedbackFollowUpTurnInstruction(args: {
     "",
     "Feedback-specific rules:",
     "- If several opportunities were disliked and no reasons were provided, acknowledge the count and ask what did not fit. Offer concrete choices such as role scope, company/domain, team style, seniority, location/work mode, or timing.",
+    "- If disliked opportunities include feedback reasons, use those reasons as the primary calibration signal before asking anything else.",
+    "- If you cannot why the user provided dislike reason and one more detail would materially improve future recommendations, ask one narrow clarification question about that reason.",
     "- If the disliked opportunities share a visible company/domain/role/work-mode pattern, mention that pattern carefully as a hypothesis, not a fact.",
     '- If exactly one external opportunity was liked and there is no explicit user message asking for refinement, do not ask a question. Briefly acknowledge the saved interest, infer the visible direction if supported, and say Harper will keep sending similar matches. Example tone: "이 방향이 잘 맞으시는 것 같네요. 비슷한 분위기 매칭 계속 보내드릴게요."',
     "- If multiple external opportunities were liked, summarize the shared visible pattern and continue without a question unless the pattern is unclear or contradictory.",

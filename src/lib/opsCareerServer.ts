@@ -242,6 +242,7 @@ export type OpsInternalRecommendationStageBulkUpdateResponse = {
 };
 
 export type OpsManualInternalRecommendationRole = {
+  alreadyRecommended: boolean;
   companyName: string;
   companyWorkspaceId: string;
   description: string | null;
@@ -1460,6 +1461,7 @@ function mapManualInternalRoleRow(
   if (!isActive) return null;
 
   return {
+    alreadyRecommended: false,
     companyName: companyName || "회사명 없음",
     companyWorkspaceId,
     description: row.description ?? null,
@@ -1586,10 +1588,12 @@ async function loadManualInternalRoleById(args: {
 export async function fetchManualInternalRecommendationRoles(args: {
   limit?: number;
   query?: string | null;
+  userId?: string | null;
 }): Promise<OpsManualInternalRecommendationRolesResponse> {
   const admin = toUntypedAdmin(getTalentSupabaseAdmin());
   const limit = normalizeManualInternalRoleLimit(args.limit);
   const query = normalizeRoleSearchText(args.query);
+  const userId = String(args.userId ?? "").trim();
   const rows = await loadManualInternalRoleRows({ admin, limit });
   const roles = rows
     .map(mapManualInternalRoleRow)
@@ -1598,9 +1602,33 @@ export async function fetchManualInternalRecommendationRoles(args: {
     )
     .filter((role) => roleMatchesManualSearch(role, query))
     .slice(0, limit);
+  const roleIds = roles.map((role) => role.roleId);
+  const alreadyRecommendedRoleIds = new Set<string>();
+
+  if (userId && roleIds.length > 0) {
+    const { data, error } = await admin
+      .from("talent_opportunity_recommendation")
+      .select("role_id")
+      .eq("talent_id", userId)
+      .in("role_id", roleIds);
+
+    if (error) {
+      throw new Error(
+        error.message ?? "Failed to load existing recommendations"
+      );
+    }
+
+    for (const row of (data ?? []) as Array<{ role_id?: string | null }>) {
+      const roleId = String(row.role_id ?? "").trim();
+      if (roleId) alreadyRecommendedRoleIds.add(roleId);
+    }
+  }
 
   return {
-    roles,
+    roles: roles.map((role) => ({
+      ...role,
+      alreadyRecommended: alreadyRecommendedRoleIds.has(role.roleId),
+    })),
     limit,
     query,
   };

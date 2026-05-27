@@ -8,6 +8,8 @@ import {
 } from "@/lib/adminMetrics/utils";
 import type {
   AdminCareerAnalyticsResponse,
+  AdminCareerDeviceComparisonRow,
+  AdminCareerDeviceType,
   AdminCareerLandingSourceBreakdown,
   AdminCareerFunnelStep,
   AdminCareerFunnelStepKey,
@@ -32,7 +34,7 @@ const CAREER_ANALYTICS_SLACK_SUMMARY_MODEL = "grok-4-1-fast-reasoning";
 
 type LandingLogRow = Pick<
   Database["public"]["Tables"]["landing_logs"]["Row"],
-  "local_id" | "type" | "created_at"
+  "local_id" | "type" | "created_at" | "is_mobile"
 >;
 type LogRow = Pick<
   Database["public"]["Tables"]["logs"]["Row"],
@@ -99,6 +101,16 @@ type MutableLandingSourceStats = {
   entryLocalIds: Set<string>;
   eventTypes: Set<string>;
   loginLocalIds: Set<string>;
+};
+
+type MutableDeviceStats = {
+  entryLocalIds: Set<string>;
+  firstRecommendedUserIds: Set<string>;
+  loginLocalIds: Set<string>;
+  loggedInUserIds: Set<string>;
+  onboardingCompletedUserIds: Set<string>;
+  returnedAfterFirstRecommendationUserIds: Set<string>;
+  submittedUserIds: Set<string>;
 };
 
 type AnalyticsDateRange = {
@@ -279,6 +291,34 @@ function getOrCreateLandingSourceStats(
   return next;
 }
 
+function resolveDeviceType(
+  value: boolean | null | undefined
+): AdminCareerDeviceType {
+  if (value === true) return "mobile";
+  if (value === false) return "desktop";
+  return "unknown";
+}
+
+function getOrCreateDeviceStats(
+  map: Map<AdminCareerDeviceType, MutableDeviceStats>,
+  device: AdminCareerDeviceType
+) {
+  const current = map.get(device);
+  if (current) return current;
+
+  const next: MutableDeviceStats = {
+    entryLocalIds: new Set<string>(),
+    firstRecommendedUserIds: new Set<string>(),
+    loginLocalIds: new Set<string>(),
+    loggedInUserIds: new Set<string>(),
+    onboardingCompletedUserIds: new Set<string>(),
+    returnedAfterFirstRecommendationUserIds: new Set<string>(),
+    submittedUserIds: new Set<string>(),
+  };
+  map.set(device, next);
+  return next;
+}
+
 function maxIso(
   current: string | null | undefined,
   candidate: string | null | undefined
@@ -379,6 +419,156 @@ function countIntersection(left: Set<string>, right: Set<string>) {
     if (right.has(value)) count += 1;
   }
   return count;
+}
+
+function countSetRate(numerator: number, denominator: number) {
+  return denominator > 0 ? numerator / denominator : null;
+}
+
+function addIntersectingUserIds(
+  target: Set<string>,
+  source: Set<string>,
+  allowedUserIds: Set<string>
+) {
+  for (const userId of source) {
+    if (allowedUserIds.has(userId)) target.add(userId);
+  }
+}
+
+function buildDeviceComparison(args: {
+  analyticsDateRange: AnalyticsDateRange;
+  excludedEmailSet: Set<string>;
+  excludedLocalIds: Set<string>;
+  landingLogs: LandingLogRow[];
+  selectedFirstRecommendedUserIds: Set<string>;
+  selectedOnboardingCompletedUserIds: Set<string>;
+  selectedReturnedAfterFirstRecommendationUserIds: Set<string>;
+  selectedSubmittedUserIds: Set<string>;
+  talentByEmail: Map<string, TalentUserRow>;
+}) {
+  const deviceByLocalId = new Map<string, AdminCareerDeviceType>();
+  const entryAtByLocalId = new Map<string, string>();
+  const statsByDevice = new Map<AdminCareerDeviceType, MutableDeviceStats>();
+
+  for (const log of args.landingLogs) {
+    const localId = String(log.local_id ?? "").trim();
+    if (!localId || args.excludedLocalIds.has(localId)) continue;
+    if (!isLandingLogEntryType(log.type)) continue;
+    if (!isWithinAnalyticsDateRange(log.created_at, args.analyticsDateRange)) {
+      continue;
+    }
+
+    const currentEntryAt = entryAtByLocalId.get(localId);
+    if (!currentEntryAt || log.created_at < currentEntryAt) {
+      entryAtByLocalId.set(localId, log.created_at);
+      deviceByLocalId.set(localId, resolveDeviceType(log.is_mobile));
+    }
+  }
+
+  for (const [localId, device] of deviceByLocalId.entries()) {
+    getOrCreateDeviceStats(statsByDevice, device).entryLocalIds.add(localId);
+  }
+
+  for (const log of args.landingLogs) {
+    const localId = String(log.local_id ?? "").trim();
+    if (!localId || args.excludedLocalIds.has(localId)) continue;
+    if (!isWithinAnalyticsDateRange(log.created_at, args.analyticsDateRange)) {
+      continue;
+    }
+
+    const device = deviceByLocalId.get(localId);
+    if (!device) continue;
+
+    const email = parseLandingLoginEmail(log.type);
+    if (!email || isEmailExcluded(email, args.excludedEmailSet)) continue;
+
+    const stats = getOrCreateDeviceStats(statsByDevice, device);
+    stats.loginLocalIds.add(localId);
+
+    const talent = args.talentByEmail.get(email);
+    if (talent?.user_id) stats.loggedInUserIds.add(talent.user_id);
+  }
+
+  for (const stats of statsByDevice.values()) {
+    addIntersectingUserIds(
+      stats.submittedUserIds,
+      args.selectedSubmittedUserIds,
+      stats.loggedInUserIds
+    );
+    addIntersectingUserIds(
+      stats.onboardingCompletedUserIds,
+      args.selectedOnboardingCompletedUserIds,
+      stats.loggedInUserIds
+    );
+    addIntersectingUserIds(
+      stats.firstRecommendedUserIds,
+      args.selectedFirstRecommendedUserIds,
+      stats.loggedInUserIds
+    );
+    addIntersectingUserIds(
+      stats.returnedAfterFirstRecommendationUserIds,
+      args.selectedReturnedAfterFirstRecommendationUserIds,
+      stats.loggedInUserIds
+    );
+  }
+
+  const labels: Record<AdminCareerDeviceType, string> = {
+    desktop: "Desktop",
+    mobile: "Mobile",
+    unknown: "Unknown",
+  };
+
+  return (["desktop", "mobile", "unknown"] as const)
+    .map((device): AdminCareerDeviceComparisonRow => {
+      const stats =
+        statsByDevice.get(device) ?? getOrCreateDeviceStats(new Map(), device);
+      const entryCount = stats.entryLocalIds.size;
+      const loginCount = stats.loginLocalIds.size;
+      const submittedCount = stats.submittedUserIds.size;
+      const onboardingCompletedCount = stats.onboardingCompletedUserIds.size;
+      const firstRecommendedCount = stats.firstRecommendedUserIds.size;
+      const returnedAfterFirstRecommendationCount =
+        stats.returnedAfterFirstRecommendationUserIds.size;
+
+      return {
+        device,
+        label: labels[device],
+        entryCount,
+        loginCount,
+        loginRateFromEntry: countSetRate(loginCount, entryCount),
+        submittedCount,
+        submissionRateFromEntry: countSetRate(submittedCount, entryCount),
+        submissionRateFromLogin: countSetRate(submittedCount, loginCount),
+        onboardingCompletedCount,
+        onboardingCompletionRateFromEntry: countSetRate(
+          onboardingCompletedCount,
+          entryCount
+        ),
+        onboardingCompletionRateFromSubmitted: countSetRate(
+          onboardingCompletedCount,
+          submittedCount
+        ),
+        firstRecommendedCount,
+        returnedAfterFirstRecommendationCount,
+        returnRateFromEntry: countSetRate(
+          returnedAfterFirstRecommendationCount,
+          entryCount
+        ),
+        returnRateFromFirstRecommendation: countSetRate(
+          returnedAfterFirstRecommendationCount,
+          firstRecommendedCount
+        ),
+      };
+    })
+    .filter(
+      (row) =>
+        row.device !== "unknown" ||
+        row.entryCount > 0 ||
+        row.loginCount > 0 ||
+        row.submittedCount > 0 ||
+        row.onboardingCompletedCount > 0 ||
+        row.returnedAfterFirstRecommendationCount > 0
+    );
 }
 
 function filterUserIdsByDateRange(
@@ -568,6 +758,7 @@ function buildCareerAnalyticsLlmInput(response: AdminCareerAnalyticsResponse) {
     period: formatAnalyticsPeriod(response.dateRange),
     excludedEmailCount: response.excludedEmails.length,
     userCount: response.users.length,
+    deviceComparison: response.deviceComparison,
     quickSignals: response.quickSignals.map((signal) => ({
       key: signal.key,
       label: signal.label,
@@ -730,7 +921,7 @@ export async function POST(req: NextRequest) {
       fetchAllRows<LandingLogRow>((from, to) =>
         supabaseServer
           .from("landing_logs")
-          .select("local_id,type,created_at")
+          .select("local_id,type,created_at,is_mobile")
           .or(
             "type.eq.new_visit,type.like.new_visit:%,type.eq.new_session,type.like.new_session:%,type.like.login_email:%"
           )
@@ -864,6 +1055,13 @@ export async function POST(req: NextRequest) {
     const includedTalentUsers = talentUsers.filter((user) =>
       isIncludedUser(user, excludedEmailSet)
     );
+    const talentByEmail = new Map<string, TalentUserRow>();
+    for (const user of includedTalentUsers) {
+      const email = normalizeEmail(user.email);
+      if (email && !talentByEmail.has(email)) {
+        talentByEmail.set(email, user);
+      }
+    }
     const includedUserIds = new Set(
       includedTalentUsers.map((user) => user.user_id).filter(Boolean)
     );
@@ -1522,6 +1720,17 @@ export async function POST(req: NextRequest) {
       analyticsDateRange.isActive
         ? rangedReturnedAfterFirstRecommendationUserIds
         : returnedAfterFirstRecommendationUserIds;
+    const deviceComparison = buildDeviceComparison({
+      analyticsDateRange,
+      excludedEmailSet,
+      excludedLocalIds,
+      landingLogs,
+      selectedFirstRecommendedUserIds,
+      selectedOnboardingCompletedUserIds,
+      selectedReturnedAfterFirstRecommendationUserIds,
+      selectedSubmittedUserIds,
+      talentByEmail,
+    });
     const signupToSubmissionCount = countIntersection(
       selectedSignupUserIds,
       selectedSubmittedUserIds
@@ -1736,6 +1945,7 @@ export async function POST(req: NextRequest) {
         isActive: analyticsDateRange.isActive,
         startDate: analyticsDateRange.startDate,
       },
+      deviceComparison,
       excludedEmails,
       funnel,
       landingSources,
