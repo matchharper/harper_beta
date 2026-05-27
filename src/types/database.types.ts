@@ -1626,6 +1626,38 @@ export type Database = {
           },
         ]
       }
+      credit_request: {
+        Row: {
+          created_at: string
+          credit_num: number | null
+          id: number
+          is_done: boolean
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          credit_num?: number | null
+          id?: number
+          is_done?: boolean
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          credit_num?: number | null
+          id?: number
+          is_done?: boolean
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_request_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       credits: {
         Row: {
           charged_credit: number | null
@@ -2520,6 +2552,39 @@ export type Database = {
         }
         Relationships: []
       }
+      insight_checklist_items: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          id: number
+          is_active: boolean | null
+          key: string
+          label: string
+          priority: number | null
+          prompt_hint: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: number
+          is_active?: boolean | null
+          key: string
+          label: string
+          priority?: number | null
+          prompt_hint?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: number
+          is_active?: boolean | null
+          key?: string
+          label?: string
+          priority?: number | null
+          prompt_hint?: string | null
+        }
+        Relationships: []
+      }
       jobposting_company_identity: {
         Row: {
           company_db_id: number | null
@@ -2910,6 +2975,38 @@ export type Database = {
         }
         Relationships: []
       }
+      memory: {
+        Row: {
+          content: string | null
+          created_at: string
+          id: number
+          last_updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string
+          id?: number
+          last_updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          content?: string | null
+          created_at?: string
+          id?: number
+          last_updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "memory_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           candid_id: string | null
@@ -3174,8 +3271,8 @@ export type Database = {
           from_date: string | null
           id: string
           numbers: Json | null
-          source_scope: Json
           source_provider: string | null
+          source_scope: Json
           started_at: string | null
           status: string
           to_date: string | null
@@ -3190,8 +3287,8 @@ export type Database = {
           from_date?: string | null
           id?: string
           numbers?: Json | null
-          source_scope?: Json
           source_provider?: string | null
+          source_scope?: Json
           started_at?: string | null
           status?: string
           to_date?: string | null
@@ -3206,8 +3303,8 @@ export type Database = {
           from_date?: string | null
           id?: string
           numbers?: Json | null
-          source_scope?: Json
           source_provider?: string | null
+          source_scope?: Json
           started_at?: string | null
           status?: string
           to_date?: string | null
@@ -3215,76 +3312,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
-      }
-      opportunity_role_match_index: {
-        Row: {
-          company_workspace_id: string
-          created_at: string
-          embedding: Json | null
-          embedding_dim: number | null
-          embedding_model: string | null
-          freshness_score: number
-          match_text: string
-          quality_score: number
-          role_id: string
-          role_updated_at: string | null
-          source_type: string
-          updated_at: string
-          workspace_updated_at: string | null
-        }
-        Insert: {
-          company_workspace_id: string
-          created_at?: string
-          embedding?: Json | null
-          embedding_dim?: number | null
-          embedding_model?: string | null
-          freshness_score?: number
-          match_text?: string
-          quality_score?: number
-          role_id: string
-          role_updated_at?: string | null
-          source_type: string
-          updated_at?: string
-          workspace_updated_at?: string | null
-        }
-        Update: {
-          company_workspace_id?: string
-          created_at?: string
-          embedding?: Json | null
-          embedding_dim?: number | null
-          embedding_model?: string | null
-          freshness_score?: number
-          match_text?: string
-          quality_score?: number
-          role_id?: string
-          role_updated_at?: string | null
-          source_type?: string
-          updated_at?: string
-          workspace_updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "opportunity_role_match_index_company_workspace_id_fkey"
-            columns: ["company_workspace_id"]
-            isOneToOne: false
-            referencedRelation: "company_workspace"
-            referencedColumns: ["company_workspace_id"]
-          },
-          {
-            foreignKeyName: "opportunity_role_match_index_company_workspace_id_fkey"
-            columns: ["company_workspace_id"]
-            isOneToOne: false
-            referencedRelation: "ops_company_workspace_with_label"
-            referencedColumns: ["company_workspace_id"]
-          },
-          {
-            foreignKeyName: "opportunity_role_match_index_role_id_fkey"
-            columns: ["role_id"]
-            isOneToOne: true
-            referencedRelation: "company_roles"
-            referencedColumns: ["role_id"]
-          },
-        ]
       }
       opportunity_source_document: {
         Row: {
@@ -3726,103 +3753,6 @@ export type Database = {
         }
         Relationships: []
       }
-      prompt_templates: {
-        Row: {
-          content: string
-          draft_content: string | null
-          id: string
-          name: string
-          published_at: string | null
-          required_sections: string[]
-          slug: string
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          content: string
-          draft_content?: string | null
-          id?: string
-          name: string
-          published_at?: string | null
-          required_sections?: string[]
-          slug: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          content?: string
-          draft_content?: string | null
-          id?: string
-          name?: string
-          published_at?: string | null
-          required_sections?: string[]
-          slug?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: []
-      }
-      prompt_test_flags: {
-        Row: {
-          enabled_at: string
-          template_slug: string
-          user_id: string
-        }
-        Insert: {
-          enabled_at?: string
-          template_slug: string
-          user_id: string
-        }
-        Update: {
-          enabled_at?: string
-          template_slug?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "prompt_test_flags_template_slug_fkey"
-            columns: ["template_slug"]
-            isOneToOne: false
-            referencedRelation: "prompt_templates"
-            referencedColumns: ["slug"]
-          },
-        ]
-      }
-      prompt_versions: {
-        Row: {
-          content: string
-          id: string
-          published_at: string
-          published_by: string | null
-          template_id: string
-          version_number: number
-        }
-        Insert: {
-          content: string
-          id?: string
-          published_at?: string
-          published_by?: string | null
-          template_id: string
-          version_number: number
-        }
-        Update: {
-          content?: string
-          id?: string
-          published_at?: string
-          published_by?: string | null
-          template_id?: string
-          version_number?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "prompt_versions_template_id_fkey"
-            columns: ["template_id"]
-            isOneToOne: false
-            referencedRelation: "prompt_templates"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       publications: {
         Row: {
           abstract: string | null
@@ -4007,6 +3937,7 @@ export type Database = {
           latency: number | null
           limit_num: number
           locale: string
+          logs: Json | null
           message_id: number | null
           query_id: string | null
           query_text: string | null
@@ -4023,6 +3954,7 @@ export type Database = {
           latency?: number | null
           limit_num?: number
           locale?: string
+          logs?: Json | null
           message_id?: number | null
           query_id?: string | null
           query_text?: string | null
@@ -4039,6 +3971,7 @@ export type Database = {
           latency?: number | null
           limit_num?: number
           locale?: string
+          logs?: Json | null
           message_id?: number | null
           query_id?: string | null
           query_text?: string | null

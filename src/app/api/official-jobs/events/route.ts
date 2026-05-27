@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser, supabaseServer } from "@/lib/supabaseServer";
 import type { OfficialJobEventType } from "@/lib/officialJobEvents";
 import type { Json } from "@/types/database.types";
+import { buildLandingLoginEmailType } from "@/lib/landingLogTypes";
+import {
+  buildOfficialJobLandingLogType,
+  mapOfficialJobEventToLandingEvent,
+  OFFICIAL_JOBS_LANDING_ABTEST_TYPE,
+  OFFICIAL_JOBS_LANDING_SOURCE,
+} from "@/lib/officialJobLandingLogs";
 
 const OFFICIAL_JOB_EVENT_TYPES = new Set<OfficialJobEventType>([
   "jobs_list_view",
@@ -73,6 +80,11 @@ function getClientIp(req: NextRequest) {
   return req.headers.get("x-real-ip")?.trim().slice(0, 80) || null;
 }
 
+function isMobileUserAgent(value: string | null) {
+  if (!value) return null;
+  return /android|iphone|ipad|ipod|mobile/i.test(value);
+}
+
 async function resolveOfficialJobId(jobSlug: string | null) {
   if (!jobSlug) return null;
 
@@ -117,6 +129,7 @@ export async function POST(req: NextRequest) {
 
   const officialJobId = await resolveOfficialJobId(jobSlug);
   const anonymousId = normalizeOptionalString(body.anonymousId, 120);
+  const userAgent = normalizeOptionalString(req.headers.get("user-agent"), 500);
 
   if (user && anonymousId) {
     const { error: identifyError } = await supabaseServer
@@ -145,7 +158,7 @@ export async function POST(req: NextRequest) {
     user_email: user?.email ?? null,
     path: normalizeOptionalString(body.path, 500),
     referrer: normalizeOptionalString(body.referrer, 500),
-    user_agent: normalizeOptionalString(req.headers.get("user-agent"), 500),
+    user_agent: userAgent,
     ip_address: getClientIp(req),
     metadata: normalizeMetadata(body.metadata),
   });
@@ -155,6 +168,52 @@ export async function POST(req: NextRequest) {
       { error: error.message ?? "Failed to insert event" },
       { status: 500 }
     );
+  }
+
+  const landingEvent = mapOfficialJobEventToLandingEvent(eventType, jobSlug);
+  if (anonymousId && landingEvent) {
+    const { error: landingLogError } = await supabaseServer
+      .from("landing_logs")
+      .insert({
+        local_id: anonymousId,
+        type: buildOfficialJobLandingLogType(
+          landingEvent.event,
+          landingEvent.jobSlug
+        ),
+        abtest_type: OFFICIAL_JOBS_LANDING_ABTEST_TYPE,
+        is_mobile: isMobileUserAgent(userAgent),
+        country_lang: null,
+      });
+
+    if (landingLogError) {
+      console.warn("official jobs landing log failed:", landingLogError.message);
+    }
+  }
+
+  if (
+    eventType === "jobs_identity_linked" &&
+    anonymousId &&
+    user?.email
+  ) {
+    const { error: identityLandingLogError } = await supabaseServer
+      .from("landing_logs")
+      .insert({
+        local_id: anonymousId,
+        type: buildLandingLoginEmailType(
+          user.email,
+          OFFICIAL_JOBS_LANDING_SOURCE
+        ),
+        abtest_type: OFFICIAL_JOBS_LANDING_ABTEST_TYPE,
+        is_mobile: isMobileUserAgent(userAgent),
+        country_lang: null,
+      });
+
+    if (identityLandingLogError) {
+      console.warn(
+        "official jobs identity landing log failed:",
+        identityLandingLogError.message
+      );
+    }
   }
 
   return NextResponse.json({ ok: true }, { status: 200 });

@@ -1,3 +1,9 @@
+import {
+  OFFICIAL_JOBS_INTERNAL_COPY_ROLE_TITLE,
+  OFFICIAL_JOBS_INTERNAL_COPY_SLUG,
+  isOfficialJobsInternalCopyIdentity,
+  normalizeOfficialJobsLandingCopy,
+} from "@/lib/officialJobs";
 import { supabaseServer } from "@/lib/supabaseServer";
 import type { Database } from "@/types/database.types";
 
@@ -13,6 +19,7 @@ export type OpsOfficialJobRecord = {
   displayOrder: number;
   employmentType: string | null;
   id: string;
+  isInternalCopy: boolean;
   isPublished: boolean;
   location: string;
   publishedAt: string | null;
@@ -24,6 +31,12 @@ export type OpsOfficialJobRecord = {
   updatedAt: string;
   vertical: string;
 };
+
+const INTERNAL_COPY_COMPANY_NAME = "Harper";
+const INTERNAL_COPY_LOCATION = "Internal";
+const INTERNAL_COPY_SHORT_DESCRIPTION =
+  "Internal copy source for official jobs landing pages.";
+const INTERNAL_COPY_VERTICAL = "Internal";
 
 export type OpsOfficialJobsResponse = {
   jobs: OpsOfficialJobRecord[];
@@ -53,8 +66,18 @@ export type OpsOfficialJobSaveResponse = {
 };
 
 function mapOpsOfficialJob(row: OfficialJobRow): OpsOfficialJobRecord {
+  const isInternalCopy = isOfficialJobsInternalCopyIdentity(row);
+  const landingCopy = isInternalCopy
+    ? normalizeOfficialJobsLandingCopy({
+        harperDescriptionMarkdown: row.company_description_markdown,
+        harperStepsMarkdown: row.role_description_markdown,
+      })
+    : null;
+
   return {
-    companyDescriptionMarkdown: row.company_description_markdown,
+    companyDescriptionMarkdown:
+      landingCopy?.harperDescriptionMarkdown ??
+      row.company_description_markdown,
     companyLogoUrl: row.company_logo_url,
     companyName: row.company_name,
     companyWebsiteUrl: row.company_website_url,
@@ -63,10 +86,12 @@ function mapOpsOfficialJob(row: OfficialJobRow): OpsOfficialJobRecord {
     displayOrder: row.display_order,
     employmentType: row.employment_type,
     id: row.id,
+    isInternalCopy,
     isPublished: row.is_published,
     location: row.location,
     publishedAt: row.published_at,
-    roleDescriptionMarkdown: row.role_description_markdown,
+    roleDescriptionMarkdown:
+      landingCopy?.harperStepsMarkdown ?? row.role_description_markdown,
     roleTitle: row.role_title,
     seniority: row.seniority,
     shortDescription: row.short_description,
@@ -74,6 +99,12 @@ function mapOpsOfficialJob(row: OfficialJobRow): OpsOfficialJobRecord {
     updatedAt: row.updated_at,
     vertical: row.vertical,
   };
+}
+
+export function isOpsOfficialJobInternalCopy(
+  job: Pick<OpsOfficialJobRecord, "roleTitle" | "slug">
+) {
+  return isOfficialJobsInternalCopyIdentity(job);
 }
 
 function normalizeRequiredString(value: unknown, label: string) {
@@ -144,31 +175,54 @@ export async function saveOpsOfficialJob(
 ): Promise<OpsOfficialJobSaveResponse> {
   const id = normalizeOptionalString(input.id);
   const existing = await fetchExistingJob(id);
-  const isPublished = Boolean(input.isPublished);
-  const publishedAt =
-    isPublished && !existing?.published_at
+  const isInternalCopy =
+    isOfficialJobsInternalCopyIdentity(existing ?? {}) ||
+    isOfficialJobsInternalCopyIdentity({
+      roleTitle: input.roleTitle,
+      slug: input.slug,
+    });
+  const isPublished = isInternalCopy ? false : Boolean(input.isPublished);
+  const publishedAt = isInternalCopy
+    ? null
+    : isPublished && !existing?.published_at
       ? new Date().toISOString()
       : (existing?.published_at ?? null);
+  const shortDescription = normalizeMarkdown(input.shortDescription);
 
   const payload = {
     company_description_markdown: normalizeMarkdown(
       input.companyDescriptionMarkdown
     ),
     company_logo_url: normalizeOptionalString(input.companyLogoUrl),
-    company_name: normalizeRequiredString(input.companyName, "companyName"),
+    company_name: isInternalCopy
+      ? (normalizeOptionalString(input.companyName) ??
+        INTERNAL_COPY_COMPANY_NAME)
+      : normalizeRequiredString(input.companyName, "companyName"),
     company_website_url: normalizeOptionalString(input.companyWebsiteUrl),
     compensation: normalizeOptionalString(input.compensation),
-    display_order: normalizeDisplayOrder(input.displayOrder),
+    display_order: isInternalCopy
+      ? -1000
+      : normalizeDisplayOrder(input.displayOrder),
     employment_type: normalizeOptionalString(input.employmentType),
     is_published: isPublished,
-    location: normalizeRequiredString(input.location, "location"),
+    location: isInternalCopy
+      ? (normalizeOptionalString(input.location) ?? INTERNAL_COPY_LOCATION)
+      : normalizeRequiredString(input.location, "location"),
     published_at: publishedAt,
     role_description_markdown: normalizeMarkdown(input.roleDescriptionMarkdown),
-    role_title: normalizeRequiredString(input.roleTitle, "roleTitle"),
+    role_title: isInternalCopy
+      ? OFFICIAL_JOBS_INTERNAL_COPY_ROLE_TITLE
+      : normalizeRequiredString(input.roleTitle, "roleTitle"),
     seniority: normalizeOptionalString(input.seniority),
-    short_description: normalizeMarkdown(input.shortDescription),
-    slug: normalizeSlug(input.slug),
-    vertical: normalizeRequiredString(input.vertical, "vertical"),
+    short_description: isInternalCopy
+      ? shortDescription || INTERNAL_COPY_SHORT_DESCRIPTION
+      : shortDescription,
+    slug: isInternalCopy
+      ? OFFICIAL_JOBS_INTERNAL_COPY_SLUG
+      : normalizeSlug(input.slug),
+    vertical: isInternalCopy
+      ? (normalizeOptionalString(input.vertical) ?? INTERNAL_COPY_VERTICAL)
+      : normalizeRequiredString(input.vertical, "vertical"),
   };
 
   const query = id

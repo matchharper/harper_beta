@@ -47,8 +47,10 @@ export const opsInternalRecommendationsKey = (
 ) => ["ops-internal-recommendations", acceptedFilter, limit] as const;
 export const opsManualInternalRecommendationRolesKey = (
   query: string,
-  limit = 40
-) => ["ops-manual-internal-recommendation-roles", query, limit] as const;
+  limit = 40,
+  userId = ""
+) =>
+  ["ops-manual-internal-recommendation-roles", query, limit, userId] as const;
 
 export function useOpsCareerTalents(limit = 40, enabled = true) {
   return useInfiniteQuery({
@@ -228,17 +230,26 @@ export function useUpdateOpsCareerRecommendationStage() {
 export function useOpsManualInternalRecommendationRoles(
   query = "",
   limit = 40,
-  enabled = true
+  enabled = true,
+  userId = ""
 ) {
   const normalizedQuery = query.trim();
+  const normalizedUserId = userId.trim();
   return useQuery({
-    queryKey: opsManualInternalRecommendationRolesKey(normalizedQuery, limit),
+    queryKey: opsManualInternalRecommendationRolesKey(
+      normalizedQuery,
+      limit,
+      normalizedUserId
+    ),
     queryFn: () => {
       const params = new URLSearchParams({
         limit: String(limit),
       });
       if (normalizedQuery) {
         params.set("query", normalizedQuery);
+      }
+      if (normalizedUserId) {
+        params.set("userId", normalizedUserId);
       }
       return fetchWithInternalAuth<OpsManualInternalRecommendationRolesResponse>(
         `/api/internal/career/manual-internal-recommendation?${params.toString()}`

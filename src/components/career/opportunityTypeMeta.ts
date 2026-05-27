@@ -79,16 +79,25 @@ export const CAREER_OPPORTUNITY_TYPE_META: Record<
           "이 메모는 Harper가 다음 추천 방향을 조정할 때 참고합니다. 선택하지 않고 바로 제출하실 수 있습니다.",
         placeholder:
           "부담스럽거나 지금 방향과 맞지 않는 이유를 간단히 적어주세요.",
-        title: "다음에는 더 좋은 기회를 제공해드리겠습니다.",
+        title: "다음에는 더 좋은 기회를 찾아오겠습니다.",
       },
       options: [
-        { label: "역할 범위가 맞지 않아요", value: "역할 범위가 맞지 않아요" },
-        { label: "도메인이 끌리지 않아요", value: "도메인이 끌리지 않아요" },
         {
-          label: "레벨이나 기대치가 달라요",
-          value: "레벨이나 기대치가 달라요",
+          label: "역할이나 직무가 맞지 않아요",
+          value: "역할이나 직무가 맞지 않아요",
         },
-        { label: "근무 조건이 맞지 않아요", value: "근무 조건이 맞지 않아요" },
+        {
+          label: "회사 혹은 조건이 기준을 충족하지 못해요.",
+          value: "회사 혹은 조건이 기준을 충족하지 못해요.",
+        },
+        {
+          label: "선호하는 유형의 도메인/회사/서비스가 아니에요.",
+          value: "선호하는 유형의 도메인/회사/서비스가 아니에요.",
+        },
+        {
+          label: "근무 조건이 맞지않아요(리모트, 위치 등)",
+          value: "근무 조건이 맞지않아요(리모트, 위치 등)",
+        },
         {
           label: "기타 직접 입력",
           requiresTextInput: true,
@@ -140,18 +149,25 @@ export const CAREER_OPPORTUNITY_TYPE_META: Record<
         title: "다음에는 더 좋은 기회를 제공해드리겠습니다.",
       },
       options: [
-        { label: "역할 범위가 맞지 않아요", value: "역할 범위가 맞지 않아요" },
         {
-          label: "회사나 도메인이 안 맞아요",
-          value: "회사나 도메인이 안 맞아요",
+          label: "역할이나 직무가 맞지 않아요",
+          value: "역할이나 직무가 맞지 않아요",
         },
         {
-          label: "지금 이직 타이밍이 아니에요",
-          value: "지금 이직 타이밍이 아니에요",
+          label: "회사 혹은 조건이 기준을 충족하지 못해요.",
+          value: "회사 혹은 조건이 기준을 충족하지 못해요.",
         },
         {
-          label: "프로필 공유는 아직 원치 않아요",
-          value: "프로필 공유는 아직 원치 않아요",
+          label: "선호하는 유형의 도메인/회사/서비스가 아니에요.",
+          value: "선호하는 유형의 도메인/회사/서비스가 아니에요.",
+        },
+        {
+          label: "근무 조건이 맞지않아요(리모트, 위치 등)",
+          value: "근무 조건이 맞지않아요(리모트, 위치 등)",
+        },
+        {
+          label: "아직 회사를 직접 만나고 싶은 생각은 없어요.",
+          value: "아직 회사를 직접 만나고 싶은 생각은 없어요.",
         },
         {
           label: "기타 직접 입력",
@@ -207,17 +223,24 @@ export const CAREER_OPPORTUNITY_TYPE_META: Record<
       },
       options: [
         {
-          label: "지금은 연결 타이밍이 아니에요",
-          value: "지금은 연결 타이밍이 아니에요",
-        },
-        { label: "역할 범위가 맞지 않아요", value: "역할 범위가 맞지 않아요" },
-        {
-          label: "회사나 도메인이 안 맞아요",
-          value: "회사나 도메인이 안 맞아요",
+          label: "역할이나 직무가 맞지 않아요",
+          value: "역할이나 직무가 맞지 않아요",
         },
         {
-          label: "조건을 더 확인하고 싶어요",
-          value: "조건을 더 확인하고 싶어요",
+          label: "회사 혹은 조건이 기준을 충족하지 못해요.",
+          value: "회사 혹은 조건이 기준을 충족하지 못해요.",
+        },
+        {
+          label: "선호하는 유형의 도메인/회사/서비스가 아니에요.",
+          value: "선호하는 유형의 도메인/회사/서비스가 아니에요.",
+        },
+        {
+          label: "근무 조건이 맞지않아요(리모트, 위치 등)",
+          value: "근무 조건이 맞지않아요(리모트, 위치 등)",
+        },
+        {
+          label: "아직 회사를 직접 만나고 싶은 생각은 없어요.",
+          value: "아직 회사를 직접 만나고 싶은 생각은 없어요.",
         },
         {
           label: "기타 직접 입력",
@@ -319,7 +342,7 @@ export const shouldCollectCareerNegativeFeedbackReason = (
 const getDefaultFeedbackButtonClassName = (active: boolean) =>
   active
     ? "border-beige900 bg-beige200 text-beige900 outline outline-[0.5px] outline-beige900"
-    : "border-beige900/15 bg-white/45 text-beige900/70 hover:border-beige900/30 hover:text-beige900";
+    : "border-beige900/15 bg-white/45 text-beige900 hover:border-beige900/30 hover:text-beige900";
 
 const getIntroFeedbackButtonClassName = (active: boolean) =>
   active

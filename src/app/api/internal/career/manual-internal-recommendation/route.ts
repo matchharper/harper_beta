@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
     const payload = await fetchManualInternalRecommendationRoles({
       limit: parseLimit(req.nextUrl.searchParams.get("limit")),
       query: req.nextUrl.searchParams.get("query"),
+      userId: req.nextUrl.searchParams.get("userId"),
     });
     return NextResponse.json(payload);
   } catch (error) {
