@@ -3,7 +3,6 @@
 // import { useCredits } from "@/hooks/useCredit";
 // import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 // import { supabase } from "@/lib/supabase";
-// import { useCreditRequestHistory } from "@/hooks/useCreditRequestHistory";
 // import { dateToFormatLong } from "@/utils/textprocess";
 // import { useMessages } from "@/i18n/useMessage";
 // import { showToast } from "@/components/toast/toast";
@@ -131,9 +130,6 @@
 //   const { credits, refetch: refetchCredits } = useCredits();
 //   const router = useRouter();
 //   const { companyUser } = useCompanyUserStore();
-//   const { refetch: refetchCreditRequestHistory } = useCreditRequestHistory(
-//     companyUser?.user_id
-//   );
 //   const [isLoading, setIsLoading] = useState(false);
 //   const [isSubscriptionLoading, setIsSubscriptionLoading] = useState(false);
 //   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(

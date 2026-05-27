@@ -124,21 +124,6 @@ export function useOpsCareerRecommendations(
   });
 }
 
-export function useAddChecklistItem() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (args: { key: string; label: string; promptHint?: string }) =>
-      fetchWithInternalAuth("/api/internal/career/add-checklist-item", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(args),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ops-career-detail"] });
-    },
-  });
-}
-
 export function useUpdateInsights(userId: string) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -150,21 +135,6 @@ export function useUpdateInsights(userId: string) {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: opsCareerDetailKey(userId) });
-    },
-  });
-}
-
-export function useDeleteChecklistItem() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (key: string) =>
-      fetchWithInternalAuth("/api/internal/career/delete-checklist-item", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key }),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ops-career-detail"] });
     },
   });
 }

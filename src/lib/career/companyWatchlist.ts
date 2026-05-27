@@ -111,6 +111,14 @@ type CompanyRoleRow = {
   work_mode: string | null;
 };
 
+export type TalentCompanySnapshotDossier = {
+  fullMarkdown: string;
+  investigationDate: string | null;
+  snapshotId: string;
+  sourceFile: string | null;
+  updatedAt: string | null;
+};
+
 export type TalentCompanyRolePreview = {
   externalJdUrl: string | null;
   location: string | null;
@@ -125,6 +133,7 @@ export type TalentCompanyWatchlistItem = {
   activeRoleCount: number;
   careerUrl: string | null;
   companyDbId: number;
+  companySnapshot: TalentCompanySnapshotDossier | null;
   companyWorkspaceId: string | null;
   crunchbaseInformation: Json | null;
   description: string | null;
@@ -251,6 +260,16 @@ function toStringList(value: unknown, limit = 8) {
 
 function normalizeRecommendationReasons(value: Json | null | undefined) {
   return toStringList(value, 5);
+}
+
+function toJsonRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function cleanSnapshotText(value: unknown, maxLength = 120_000) {
+  const text = typeof value === "string" ? value.trim() : "";
+  return text ? text.slice(0, maxLength) : "";
 }
 
 function latestTime(values: Array<string | null | undefined>) {
@@ -474,6 +493,43 @@ async function fetchActiveRoleStatsByCompanyDbIds(
   return stats;
 }
 
+async function fetchLatestCompanySnapshotDossier(
+  admin: AdminClient,
+  companyDbId: number
+): Promise<TalentCompanySnapshotDossier | null> {
+  const { data, error } = await (admin.from("company_snapshot" as any) as any)
+    .select("id, content, created_at, updated_at")
+    .eq("company_db_id", companyDbId)
+    .eq("status", "completed")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load company snapshot");
+  }
+
+  const row = toJsonRecord(data);
+  const content = toJsonRecord(row?.content);
+  const fullMarkdown = cleanSnapshotText(content?.full_markdown);
+  if (!fullMarkdown) return null;
+
+  const metadata = toJsonRecord(content?.metadata);
+  const updatedAt =
+    cleanSnapshotText(row?.updated_at, 80) ||
+    cleanSnapshotText(row?.created_at, 80) ||
+    null;
+
+  return {
+    fullMarkdown,
+    investigationDate:
+      cleanSnapshotText(metadata?.investigation_date, 80) || null,
+    snapshotId: cleanSnapshotText(row?.id, 80),
+    sourceFile: cleanSnapshotText(metadata?.source_file, 240) || null,
+    updatedAt,
+  };
+}
+
 async function fetchActiveFollowRows(
   admin: AdminClient,
   userId: string,
@@ -534,6 +590,7 @@ async function fetchRecommendationRowsByCompanyDbIds(
 function mapCompanyWatchlistItem(args: {
   activeRoleStats?: ActiveRoleStats | null;
   companyDb: CompanyDbRow;
+  companySnapshot?: TalentCompanySnapshotDossier | null;
   fallbackWorkspace?: CompanyWorkspaceRow | null;
   follow?: TalentCompanyFollowRow | null;
   recommendation?: TalentCompanyRecommendationRow | null;
@@ -552,6 +609,7 @@ function mapCompanyWatchlistItem(args: {
     activeRoleCount,
     careerUrl: workspace?.career_url ?? null,
     companyDbId: Number(args.companyDb.id),
+    companySnapshot: args.companySnapshot ?? null,
     companyWorkspaceId:
       recommendation?.company_workspace_id ??
       follow?.company_workspace_id ??
@@ -778,6 +836,7 @@ export async function fetchTalentCompanyWatchlistDetail(args: {
     followByCompanyDbId,
     recommendationByCompanyDbId,
     activeRoleStatsByCompanyDbId,
+    companySnapshot,
   ] = await Promise.all([
     fetchCompanyDbMap(args.admin, [companyDbId]),
     fetchBestWorkspaceByCompanyDbIds(args.admin, [companyDbId]),
@@ -786,6 +845,7 @@ export async function fetchTalentCompanyWatchlistDetail(args: {
       companyDbId,
     ]),
     fetchActiveRoleStatsByCompanyDbIds(args.admin, [companyDbId]),
+    fetchLatestCompanySnapshotDossier(args.admin, companyDbId),
   ]);
 
   const companyDb = companyDbById.get(companyDbId);
@@ -797,6 +857,7 @@ export async function fetchTalentCompanyWatchlistDetail(args: {
   return mapCompanyWatchlistItem({
     activeRoleStats: activeRoleStatsByCompanyDbId.get(companyDbId),
     companyDb,
+    companySnapshot,
     follow,
     recommendation,
     workspace,

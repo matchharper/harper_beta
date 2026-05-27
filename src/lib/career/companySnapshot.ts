@@ -26,8 +26,6 @@ export type CompanySnapshotRow = {
   created_at: string;
   error_message: string | null;
   id: string;
-  normalized_company_name: string;
-  source_urls: Json;
   status: CompanySnapshotStatus;
   updated_at: string;
 };
@@ -77,7 +75,6 @@ export async function getOrCreateCompanySnapshot(args: {
     typeof (content as Record<string, unknown>)?.error === "string" &&
     ((content as Record<string, unknown>).error as string).length > 0;
   const status: CompanySnapshotStatus = researchFailed ? "failed" : "completed";
-  const sourceUrls = extractSourceUrls(content);
 
   const { data, error } = await ((
     args.admin.from("company_snapshot" as any) as any
@@ -86,8 +83,6 @@ export async function getOrCreateCompanySnapshot(args: {
       company_db_id: companyDb?.id ?? null,
       company_name: args.companyName.trim(),
       content,
-      normalized_company_name: normalizeCompanySnapshotName(args.companyName),
-      source_urls: sourceUrls,
       status,
     })
     .select("*")
@@ -107,6 +102,7 @@ export async function fetchRecentCompanySnapshot(args: {
   admin: AdminClient;
   companyName: string;
 }) {
+  const companyName = args.companyName.trim();
   const normalized = normalizeCompanySnapshotName(args.companyName);
   if (!normalized) return null;
 
@@ -117,6 +113,30 @@ export async function fetchRecentCompanySnapshot(args: {
   const threshold = new Date(
     Date.now() - COMPANY_SNAPSHOT_CACHE_WINDOW_DAYS * 24 * 60 * 60 * 1000
   ).toISOString();
+  const findMatchingSnapshot = (rows: CompanySnapshotRow[]) =>
+    rows.find(
+      (row) => normalizeCompanySnapshotName(row.company_name) === normalized
+    ) ?? null;
+  const readRecentSnapshotsByCompanyName = async (
+    pattern: string,
+    limit: number
+  ) => {
+    const { data, error } = await ((
+      args.admin.from("company_snapshot" as any) as any
+    )
+      .select("*")
+      .ilike("company_name", pattern)
+      .eq("status", "completed")
+      .gte("created_at", threshold)
+      .order("created_at", { ascending: false })
+      .limit(limit) as any);
+
+    if (error) {
+      throw new Error(error.message ?? "Failed to read company snapshot");
+    }
+
+    return Array.isArray(data) ? (data as CompanySnapshotRow[]) : [];
+  };
 
   if (companyDb) {
     const { data, error } = await ((
@@ -136,22 +156,18 @@ export async function fetchRecentCompanySnapshot(args: {
     if (data) return data as CompanySnapshotRow;
   }
 
-  const { data, error } = await ((
-    args.admin.from("company_snapshot" as any) as any
-  )
-    .select("*")
-    .eq("normalized_company_name", normalized)
-    .eq("status", "completed")
-    .gte("created_at", threshold)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle() as any);
+  const exactRows = await readRecentSnapshotsByCompanyName(
+    escapeLikePattern(companyName),
+    5
+  );
+  const exactMatch = findMatchingSnapshot(exactRows);
+  if (exactMatch) return exactMatch;
 
-  if (error) {
-    throw new Error(error.message ?? "Failed to read company snapshot");
-  }
-
-  return (data ?? null) as CompanySnapshotRow | null;
+  const fuzzyRows = await readRecentSnapshotsByCompanyName(
+    `%${escapeLikePattern(companyName)}%`,
+    100
+  );
+  return findMatchingSnapshot(fuzzyRows);
 }
 
 export async function runCompanySnapshotResearch(args: {
@@ -478,14 +494,7 @@ export function formatCompanySnapshotMessage(args: {
     !looksLikeCompanyResearchJsonLeak(content.summary)
       ? content.summary.trim()
       : null;
-  const sourceUrls = Array.from(
-    new Set([
-      ...(Array.isArray(args.snapshot.source_urls)
-        ? args.snapshot.source_urls.map((item) => normalizeSourceUrl(item))
-        : []),
-      ...extractSourceUrls(content),
-    ])
-  )
+  const sourceUrls = Array.from(new Set(extractSourceUrls(content)))
     .filter(Boolean)
     .slice(0, 5);
   const sourceText = sourceUrls.join("\n");
