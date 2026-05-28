@@ -14,7 +14,7 @@ import {
   toPostingOpportunityId,
 } from "@/lib/career/postingLinks";
 import { runCareerJobPostingRecommendations } from "./jobPostingRecommendations";
-import { lookupServiceHelp } from "@/lib/serviceHelpRag";
+import { lookupAnswerExamples } from "@/lib/serviceAnswerExamples";
 import { normalizeGeneratedTalentInsightEntry } from "./insights";
 import { openUrlWithDocumentsCache } from "./openUrlTool";
 import {
@@ -114,7 +114,7 @@ export const TALENT_TOOL_NAMES = {
   WEB_SEARCH: "web_search",
   OPEN_URL: "open_url",
   RESEARCH_COMPANY: "research_company",
-  LOOKUP_SERVICE_HELP: "lookup_service_help",
+  LOOKUP_ANSWER_EXAMPLES: "lookup_answer_examples",
   GET_OPEN_ROLES: "get_open_roles",
   READ_TALENT_ACTIVITY_EVENTS: "read_talent_activity_events",
   UPDATE_TALENT_PROFILE: "update_talent_profile",
@@ -133,7 +133,7 @@ export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES,
   TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK,
   TALENT_TOOL_NAMES.RESEARCH_COMPANY,
-  TALENT_TOOL_NAMES.LOOKUP_SERVICE_HELP,
+  TALENT_TOOL_NAMES.LOOKUP_ANSWER_EXAMPLES,
   TALENT_TOOL_NAMES.GET_OPEN_ROLES,
   TALENT_TOOL_NAMES.READ_TALENT_ACTIVITY_EVENTS,
   TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
@@ -662,17 +662,17 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
     channels: ["chat"],
     stopAfterExecution: true,
   },
-  [TALENT_TOOL_NAMES.LOOKUP_SERVICE_HELP]: {
-    name: TALENT_TOOL_NAMES.LOOKUP_SERVICE_HELP,
+  [TALENT_TOOL_NAMES.LOOKUP_ANSWER_EXAMPLES]: {
+    name: TALENT_TOOL_NAMES.LOOKUP_ANSWER_EXAMPLES,
     description:
-      "Use when the user asks about Harper's UI buttons, panels, features, opportunity flows, or how to use the product (e.g., '우측 별 모양 버튼 뭐야?', '이 버튼 뭐하는 거야?', '내부 기회 연결 수락하면 어떻게 돼?', 'Open to matches가 뭐야?'). Searches the in-app help corpus and returns relevant help chunks with source attribution.",
+      "Use when the current prompt and conversation context are not enough to answer well. Retrieves ops-managed example user messages and answer examples.",
     parameters: {
       type: "object",
       properties: {
         question: {
           type: "string",
           description:
-            "The user's question about Harper UI/features, in their own words.",
+            "The user's latest question or message, in their own words.",
         },
       },
       required: ["question"],
@@ -683,10 +683,10 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const question = optionalToolString(input.question);
       if (!question) {
         throw new TalentToolError(
-          "lookup_service_help requires a non-empty question."
+          "lookup_answer_examples requires a non-empty question."
         );
       }
-      return lookupServiceHelp(question);
+      return lookupAnswerExamples(question);
     },
   },
   [TALENT_TOOL_NAMES.GET_OPEN_ROLES]: {

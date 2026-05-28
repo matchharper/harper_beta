@@ -24,7 +24,7 @@ const ctaLinkVariants = cva(
         primary:
           "border border-beige900 bg-beige900 text-beige50 hover:opacity-90",
         secondary:
-          "border border-beige900/15 bg-white/50 text-beige900 hover:border-beige900/25 hover:bg-white/75",
+          "border border-black/0 bg-white/0 md:border-beige900/15 md:bg-white/50 text-beige900 hover:border-beige900/25 hover:bg-white/75",
       },
       size: {
         md: "px-4 text-[14px] min-h-10",

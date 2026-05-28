@@ -55,17 +55,14 @@ export default function CareerAppBar({
         y: isMobile && !isMobileHeaderVisible ? -88 : 0,
       }}
       transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-      className="fixed inset-x-0 top-0 z-50 border-b border-beige900/10 bg-beige200/95 backdrop-blur-lg"
+      className="fixed inset-x-0 top-0 z-50 border-b border-beige900/10 bg-beige50/50 backdrop-blur-lg"
     >
       <div className="mx-auto flex h-[64px] max-w-[1160px] items-center justify-between px-4">
-        <a href="#top" className="font-instrument text-[28px] text-beige900">
-          <Image
-            src="/svgs/logov2.svg"
-            alt="Harper"
-            width={70}
-            height={60}
-            className="h-auto"
-          />
+        <a
+          href="#top"
+          className="font-hedvig text-[20px] text-beige900 font-medium"
+        >
+          Harper
         </a>
         <div className="flex items-center gap-3 sm:gap-6">
           <div className="flex items-center gap-3 text-[12.5px] font-medium text-beige900/60 sm:gap-4 sm:text-[13px] md:gap-5 md:text-sm">

@@ -4,6 +4,7 @@ import {
   fetchTalentUserProfile,
   getTalentSupabaseAdmin,
   getMergedChecklist,
+  getTalentResumeSignedUrl,
 } from "@/lib/talentOnboarding/server";
 import { normalizeTalentInsightContent } from "@/lib/talentOnboarding/server";
 import {
@@ -76,6 +77,7 @@ export type CareerTalentDetailResponse = {
   location: string | null;
   resumeFileName: string | null;
   resumeStoragePath: string | null;
+  resumeDownloadUrl: string | null;
   resumeTextAvailable: boolean;
   registeredLinks: string[];
   conversationStage: string | null;
@@ -848,6 +850,10 @@ export async function fetchCareerTalentDetail(
   const normalizedInsights = normalizeTalentInsightContent(insights?.content);
   const resumeFileName = profile?.resume_file_name?.trim() || null;
   const resumeStoragePath = profile?.resume_storage_path?.trim() || null;
+  const resumeDownloadUrl = await getTalentResumeSignedUrl({
+    admin,
+    storagePath: resumeStoragePath,
+  });
 
   return {
     userId,
@@ -859,6 +865,7 @@ export async function fetchCareerTalentDetail(
     location: profile?.location ?? null,
     resumeFileName,
     resumeStoragePath,
+    resumeDownloadUrl,
     resumeTextAvailable: Boolean(profile?.resume_text?.trim()),
     registeredLinks: profile?.resume_links ?? [],
     conversationStage: latestConv?.stage ?? null,
@@ -1423,12 +1430,10 @@ type ManualInternalRoleRow = {
     | {
         company_name?: string | null;
         company_workspace_id?: string | null;
-        is_internal?: boolean | null;
       }
     | Array<{
         company_name?: string | null;
         company_workspace_id?: string | null;
-        is_internal?: boolean | null;
       }>
     | null;
   company_workspace_id?: string | null;
@@ -1452,12 +1457,11 @@ function mapManualInternalRoleRow(
     row.company_workspace_id ?? workspace?.company_workspace_id ?? ""
   ).trim();
   const companyName = String(workspace?.company_name ?? "").trim();
-  const roleSourceType = String(row.source_type ?? "").toLowerCase();
+  const roleSourceType = String(row.source_type ?? "").trim().toLowerCase();
   const status = String(row.status ?? "").trim().toLowerCase();
-  const isInternal =
-    roleSourceType === "internal" || Boolean(workspace?.is_internal);
   const isActive = status === "active" || status === "top_priority";
-  if (!roleId || !roleName || !companyWorkspaceId || !isInternal) return null;
+  if (!roleId || !roleName || !companyWorkspaceId) return null;
+  if (roleSourceType !== "internal") return null;
   if (!isActive) return null;
 
   return {
@@ -1507,48 +1511,24 @@ async function loadManualInternalRoleRows(args: {
     updated_at,
     company_workspace:company_workspace!inner (
       company_workspace_id,
-      company_name,
-      is_internal
+      company_name
     )
   `;
   const sourceLimit = Math.max(120, Math.min(args.limit * 8, 600));
 
-  const [sourceTypedResponse, workspaceInternalResponse] = await Promise.all([
-    args.admin
-      .from("company_roles")
-      .select(select)
-      .eq("source_type", "internal")
-      .in("status", ["active", "top_priority"])
-      .order("updated_at", { ascending: false })
-      .limit(sourceLimit),
-    args.admin
-      .from("company_roles")
-      .select(select)
-      .eq("company_workspace.is_internal", true)
-      .in("status", ["active", "top_priority"])
-      .order("updated_at", { ascending: false })
-      .limit(sourceLimit),
-  ]);
+  const { data, error } = await args.admin
+    .from("company_roles")
+    .select(select)
+    .eq("source_type", "internal")
+    .in("status", ["active", "top_priority"])
+    .order("updated_at", { ascending: false })
+    .limit(sourceLimit);
 
-  for (const response of [sourceTypedResponse, workspaceInternalResponse]) {
-    if (response.error) {
-      throw new Error(
-        response.error.message ?? "Failed to load internal roles"
-      );
-    }
+  if (error) {
+    throw new Error(error.message ?? "Failed to load internal roles");
   }
 
-  const byRoleId = new Map<string, ManualInternalRoleRow>();
-  for (const row of [
-    ...((sourceTypedResponse.data ?? []) as ManualInternalRoleRow[]),
-    ...((workspaceInternalResponse.data ?? []) as ManualInternalRoleRow[]),
-  ]) {
-    const roleId = String(row.role_id ?? "").trim();
-    if (!roleId || byRoleId.has(roleId)) continue;
-    byRoleId.set(roleId, row);
-  }
-
-  return Array.from(byRoleId.values());
+  return (data ?? []) as ManualInternalRoleRow[];
 }
 
 async function loadManualInternalRoleById(args: {
@@ -1570,8 +1550,7 @@ async function loadManualInternalRoleById(args: {
         updated_at,
         company_workspace:company_workspace (
           company_workspace_id,
-          company_name,
-          is_internal
+          company_name
         )
       `
     )

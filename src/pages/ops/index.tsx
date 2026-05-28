@@ -102,6 +102,18 @@ export default function OpsOverviewPage() {
               </div>
             </Link>
             <Link
+              href="/ops/answer-examples"
+              className={cx(
+                opsTheme.panelSoft,
+                "block px-4 py-4 font-geist text-sm text-beige900 transition hover:bg-white/80"
+              )}
+            >
+              <div className="font-semibold">/ops/answer-examples</div>
+              <div className="mt-1 text-beige900/55">
+                채팅 답변 예시와 임베딩 관리
+              </div>
+            </Link>
+            <Link
               href="/ops/request-access/review"
               className={cx(
                 opsTheme.panelSoft,

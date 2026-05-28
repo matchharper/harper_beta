@@ -75,6 +75,13 @@ export const OPS_NAV_ITEMS: OpsNavItem[] = [
     matchPrefix: "/ops/jobs",
   },
   {
+    description: "채팅 답변 예시 관리",
+    href: "/ops/answer-examples",
+    icon: MessageSquareText,
+    label: "Answer Examples",
+    matchPrefix: "/ops/answer-examples",
+  },
+  {
     description: "access 요청 승인 및 리뷰",
     href: "/ops/request-access",
     icon: KeyRound,

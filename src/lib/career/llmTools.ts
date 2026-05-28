@@ -64,8 +64,8 @@ export const CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES = [
   TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK,
   // 특정 회사 자체를 조사할 때. 예: "A 회사 어떤 회사야?"
   TALENT_TOOL_NAMES.RESEARCH_COMPANY,
-  // Harper UI/기능 사용법 질문용. 예: "Open to matches가 뭐야?"
-  TALENT_TOOL_NAMES.LOOKUP_SERVICE_HELP,
+  // Ops가 관리하는 "유저 질문 -> 좋은 답변 예시" 검색용.
+  TALENT_TOOL_NAMES.LOOKUP_ANSWER_EXAMPLES,
   // 현재 열려 있는 role 목록을 조회할 때.
   // 회사명을 주면 그 회사의 open roles, 회사명이 없으면 추천된 role 중심으로 조회한다.
   TALENT_TOOL_NAMES.GET_OPEN_ROLES,

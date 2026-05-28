@@ -61,20 +61,17 @@ function JobFact({
 }
 
 function DetailSection({
-  eyebrow,
   id,
   title,
   children,
 }: {
-  eyebrow: string;
   id?: string;
   title: string;
   children: ReactNode;
 }) {
   return (
     <section id={id} className="">
-      <p className="text-[13px] font-medium text-beige900/50">{eyebrow}</p>
-      <h2 className="mt-4 text-[22px] font-normal leading-tight text-black md:text-[26px]">
+      <h2 className="mt-4 text-[20px] font-normal leading-tight text-black md:text-[26px]">
         {title}
       </h2>
       <div className="mt-6">{children}</div>
@@ -135,25 +132,25 @@ export default function OfficialJobDetailPage({
                 <span className="py-1.5 px-4 rounded-full bg-black/5 text-[14px] font-normal text-black">
                   {job.vertical}
                 </span>
-                <h1 className="mt-6 max-w-[680px] text-[28px] md:text-[32px] wrap-break-word font-normal md:font-medium leading-[1.22] text-black">
+                <h1 className="mt-6 max-w-[680px] text-[24px] md:text-[32px] wrap-break-word font-normal md:font-medium leading-[1.4] text-black">
                   {job.roleTitle} at {job.companyName}
                 </h1>
-                <div className="mt-4 max-w-[720px] text-black text-[13px] md:text-[15px] flex flex-row items-center gap-4">
+                <div className="mt-4 max-w-[720px] text-black text-[13px] md:text-[15px] flex flex-row flex-wrap items-center gap-4">
                   {job.employmentType && (
-                    <span className="inline-flex items-center gap-2">
-                      <BriefcaseBusiness className="h-3.5 w-3.5" />
+                    <span className="inline-flex items-center gap-2 whitespace-nowrap">
+                      <BriefcaseBusiness className="h-3.5 w-3.5 shrink-0" />
                       {formatEmploymentType(job.employmentType)}
                     </span>
                   )}
                   {job.seniority && (
-                    <span className="inline-flex items-center gap-2">
-                      <Users className="h-3.5 w-3.5" />
+                    <span className="inline-flex items-center gap-2 whitespace-nowrap">
+                      <Users className="h-3.5 w-3.5 shrink-0" />
                       {job.seniority}
                     </span>
                   )}
                   {job.location && (
-                    <span className="inline-flex items-center gap-2">
-                      <MapPin className="h-3.5 w-3.5" />
+                    <span className="inline-flex items-center gap-2 whitespace-nowrap">
+                      <MapPin className="h-3.5 w-3.5 shrink-0" />
                       {job.location}
                     </span>
                   )}
@@ -173,39 +170,29 @@ export default function OfficialJobDetailPage({
                     어떻게 지원하나요?
                   </a>
                 </div>
-                <div className="mt-14 space-y-8 rounded-[4px] border border-beige900/10 bg-white/35 p-5 md:p-8">
-                  <DetailSection eyebrow="With Harper" title="How Harper helps">
+                <div className="mt-14 space-y-8 rounded-[4px] border border-white/0 md:border-beige900/10 bg-white/0 md:bg-white/35 p-0 md:p-8">
+                  <DetailSection title="How Harper helps">
                     <OfficialJobMarkdown
                       content={job.harperDescriptionMarkdown}
                     />
                   </DetailSection>
                   <hr />
 
-                  <DetailSection
-                    eyebrow="About this role"
-                    title="Role overview"
-                  >
+                  <DetailSection title="Role overview">
                     <OfficialJobMarkdown
                       content={job.roleDescriptionMarkdown}
                     />
                   </DetailSection>
                   <hr />
 
-                  <DetailSection
-                    eyebrow="About the company"
-                    title="Company overview"
-                  >
+                  <DetailSection title="Company overview">
                     <OfficialJobMarkdown
                       content={job.companyDescriptionMarkdown}
                     />
                   </DetailSection>
                   <hr />
 
-                  <DetailSection
-                    eyebrow="Process"
-                    id="official-job-steps"
-                    title="진행과정"
-                  >
+                  <DetailSection id="official-job-steps" title="진행과정">
                     <OfficialJobMarkdown content={job.harperStepsMarkdown} />
                   </DetailSection>
                 </div>
@@ -221,7 +208,7 @@ export default function OfficialJobDetailPage({
                     </div>
                   </div>
 
-                  <dl className="mt-5 overflow-hidden rounded-[4px] border border-beige900/10 bg-beige50/65">
+                  <dl className="mt-5 overflow-hidden rounded-[4px] border border-beige900/5 bg-beige50/65">
                     <JobFact
                       icon={<MapPin className="h-3.5 w-3.5" />}
                       label="Location"
@@ -267,6 +254,10 @@ export default function OfficialJobDetailPage({
                     Harper가 커리어를 책임지는 에이전트가 되어드리겠습니다.
                   </p>
                 </section>
+                <br />
+                <br />
+                <br />
+                <br />
               </aside>
             </div>
           </PageContainer>
