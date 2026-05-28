@@ -2099,9 +2099,33 @@ function ProfileTab({ detail }: { detail: CareerTalentDetailResponse }) {
                 {hasResumeFile ? "있음" : "없음"}
               </span>
             </div>
-            <div className="mt-1 truncate font-geist text-xs text-beige900/45">
-              {resumeFileDisplayName ?? "저장된 파일 없음"}
-            </div>
+            {resumeFileDisplayName ? (
+              detail.resumeDownloadUrl ? (
+                <a
+                  href={detail.resumeDownloadUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-1 flex min-w-0 items-center gap-1.5 font-geist text-xs text-beige900/65 underline-offset-2 transition hover:text-beige900 hover:underline"
+                  title={resumeFileDisplayName}
+                >
+                  <span className="min-w-0 truncate">
+                    {resumeFileDisplayName}
+                  </span>
+                  <ExternalLink className="h-3 w-3 shrink-0 text-beige900/35" />
+                </a>
+              ) : (
+                <div
+                  className="mt-1 truncate font-geist text-xs text-beige900/45"
+                  title={resumeFileDisplayName}
+                >
+                  {resumeFileDisplayName} · 열기 링크 없음
+                </div>
+              )
+            ) : (
+              <div className="mt-1 truncate font-geist text-xs text-beige900/45">
+                저장된 파일 없음
+              </div>
+            )}
           </div>
 
           <div className="rounded-md border border-beige900/10 bg-white/45 px-3 py-2">

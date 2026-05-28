@@ -1176,7 +1176,9 @@ export function buildCareerToolPolicyPrompt(args: {
   const toolNameText = toolNames.join(", ");
   const hasResearchCompanyTool = toolNames.includes("research_company");
   const hasOpenUrlTool = toolNames.includes("open_url");
-  const hasLookupServiceHelpTool = toolNames.includes("lookup_service_help");
+  const hasLookupAnswerExamplesTool = toolNames.includes(
+    "lookup_answer_examples"
+  );
   const hasGetOpenRolesTool = toolNames.includes("get_open_roles");
   const hasRecommendedOpportunitiesTool = toolNames.includes(
     "read_recommended_opportunities"
@@ -1236,9 +1238,9 @@ export function buildCareerToolPolicyPrompt(args: {
           "- If the user only says they are unsure whether a company is good or light question(ex. ~~는 어떤 회사지?), ask whether to research that company although it takes some time befor calling `research_company`.",
         ]
       : []),
-    ...(hasLookupServiceHelpTool
+    ...(hasLookupAnswerExamplesTool
       ? [
-          "- Use `lookup_service_help` when the user asks about Harper's UI buttons, panels, features, opportunity flows, or how to use the product (e.g., 'this star button on the right is what?', '이 버튼 뭐야?', 'How do I save a role?', '내부 기회 연결 수락하면 어떻게 돼?', 'Open to matches가 뭐야?'). Pass the user's question verbatim. The tool returns top-K help chunks; cite `source_doc_title` only when it materially helps the user.",
+          "- Use `lookup_answer_examples` when the current prompt and conversation context are not enough to answer well. Pass the user's latest message verbatim, then adapt any returned answer examples naturally without exposing raw IDs or scores.",
         ]
       : []),
     ...(hasGetOpenRolesTool

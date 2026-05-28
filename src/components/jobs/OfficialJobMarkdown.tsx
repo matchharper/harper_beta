@@ -20,17 +20,17 @@ const markdownComponents: Components = {
     </h4>
   ),
   p: ({ children }) => (
-    <p className="mt-4 break-keep text-[14px] md:text-[15px] leading-7 text-black/80 font-normal first:mt-0">
+    <p className="mt-4 break-keep text-[15px] md:text-[15px] leading-[1.6] text-black/80 font-normal first:mt-0">
       {children}
     </p>
   ),
   ul: ({ children }) => (
-    <ul className="mt-4 list-disc space-y-2 break-keep pl-5 text-[14px] md:text-[15px] leading-7 text-black/72 first:mt-0">
+    <ul className="mt-4 list-disc space-y-2 break-keep pl-5 text-[15px] md:text-[15px] leading-[1.6] text-black/80 first:mt-0">
       {children}
     </ul>
   ),
   ol: ({ children }) => (
-    <ol className="mt-4 list-decimal space-y-2 break-keep pl-5 text-[14px] md:text-[15px] leading-7 text-black/72 first:mt-0">
+    <ol className="mt-4 list-decimal space-y-2 break-keep pl-5 text-[15px] md:text-[15px] leading-[1.6] text-black/80 first:mt-0">
       {children}
     </ol>
   ),

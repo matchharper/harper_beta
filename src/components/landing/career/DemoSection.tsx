@@ -508,7 +508,7 @@ function CompanyMark({
   );
 }
 
-function DemoSection() {
+function DemoSection({ header }: { header: React.ReactNode }) {
   const isMobile = useIsMobile();
   const sectionRef = useRef<HTMLElement | null>(null);
   const phoneRef = useRef<HTMLDivElement | null>(null);
@@ -753,35 +753,7 @@ function DemoSection() {
       ref={sectionRef}
       className="bg-[#F4EFE7] px-4 py-14 text-center md:px-10 md:py-24"
     >
-      <Reveal once>
-        <WavyTag left="1.">외부 기회 탐색</WavyTag>
-        <h2 className="font-halant mx-auto mt-4 max-w-[820px] text-[26px] font-semibold leading-[1.15] text-[#21170D] md:text-[2rem] md:leading-tight">
-          “이런 역할 찾아줘”
-          <br />
-          <span className="text-beige700">가벼운 대화</span> 한 번이면
-          충분합니다.
-        </h2>
-        <p className="mx-auto mt-4 max-w-[700px] text-[14.5px] leading-[1.75] text-[#5F5144] md:text-[15px]">
-          채용 사이트를 뒤지며 비자 지원이 가능한 스타트업을 일일이 리서치할
-          필요가 없습니다.
-          <br />
-          압도적으로 높았던 탐색의 수고로움은 이제 Harper에게 맡기세요. 원하는
-          조건을 가볍게 이야기해 두기만 하면 됩니다.
-          <br />
-          Harper가 모든 기회를 스캔하여 풀타임, 파트타임, 단기 자문까지 찾아
-          알려드립니다.
-          {/* 지역, 비자, 보상, 근무 방식처럼 검색으로 확인하기 번거로운 조건을
-          대화로 정리합니다.
-          <span className="hidden md:inline">
-            <br />
-            Harper는 풀타임, 계약, 단기 자문을 같은 기준으로 훑고, 관심을 보인
-            기회만 다음 소개로 넘깁니다.
-          </span>
-          <span className="block md:hidden">
-            Harper는 관심을 보인 기회만 다음 소개로 넘깁니다.
-          </span> */}
-        </p>
-      </Reveal>
+      {header}
 
       <Reveal once className="mx-auto mt-8 max-w-[1180px] md:mt-12">
         <div className="relative mx-auto lg:h-[820px]">
@@ -823,9 +795,7 @@ function DemoSection() {
                       </div>
                     </div>
                   </div>
-                  <div className="border-b border-[#D7B48F]/30 px-0.5 pb-0.5 text-[10.5px] font-medium text-[#D7B48F]">
-                    기준 4개
-                  </div>
+                  <div className=""></div>
                 </div>
 
                 <div

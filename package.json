@@ -9,7 +9,6 @@
     "start": "next start",
     "lint": "eslint .",
     "ops:workspace:sync-list": "node scripts/syncCompanyWorkspacesFromList.mjs",
-    "index:help": "tsx scripts/index-help-chunks.ts",
     "prepare": "husky"
   },
   "dependencies": {
