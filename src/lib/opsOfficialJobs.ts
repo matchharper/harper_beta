@@ -6,10 +6,12 @@ import {
 } from "@/lib/officialJobs";
 import { supabaseServer } from "@/lib/supabaseServer";
 import type { Database } from "@/types/database.types";
+import type { AshbyOfficialJobsSyncSummary } from "@/lib/ashbyOfficialJobsSync";
 
 type OfficialJobRow = Database["public"]["Tables"]["official_jobs"]["Row"];
 
 export type OpsOfficialJobRecord = {
+  ashbyJobPostingId: string | null;
   companyDescriptionMarkdown: string;
   companyLogoUrl: string | null;
   companyName: string;
@@ -43,6 +45,7 @@ export type OpsOfficialJobsResponse = {
 };
 
 export type OpsOfficialJobSaveInput = {
+  ashbyJobPostingId?: string | null;
   companyDescriptionMarkdown?: string | null;
   companyLogoUrl?: string | null;
   companyName?: string | null;
@@ -65,6 +68,8 @@ export type OpsOfficialJobSaveResponse = {
   job: OpsOfficialJobRecord;
 };
 
+export type { AshbyOfficialJobsSyncSummary };
+
 function mapOpsOfficialJob(row: OfficialJobRow): OpsOfficialJobRecord {
   const isInternalCopy = isOfficialJobsInternalCopyIdentity(row);
   const landingCopy = isInternalCopy
@@ -75,6 +80,7 @@ function mapOpsOfficialJob(row: OfficialJobRow): OpsOfficialJobRecord {
     : null;
 
   return {
+    ashbyJobPostingId: row.ashby_job_posting_id ?? null,
     companyDescriptionMarkdown:
       landingCopy?.harperDescriptionMarkdown ??
       row.company_description_markdown,
@@ -193,6 +199,9 @@ export async function saveOpsOfficialJob(
     company_description_markdown: normalizeMarkdown(
       input.companyDescriptionMarkdown
     ),
+    ashby_job_posting_id: isInternalCopy
+      ? null
+      : normalizeOptionalString(input.ashbyJobPostingId),
     company_logo_url: normalizeOptionalString(input.companyLogoUrl),
     company_name: isInternalCopy
       ? (normalizeOptionalString(input.companyName) ??

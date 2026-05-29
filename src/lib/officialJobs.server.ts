@@ -71,3 +71,29 @@ export async function getPublicOfficialJobBySlug(
   const landingCopy = await getOfficialJobsLandingCopy();
   return mapOfficialJobRow(data, landingCopy);
 }
+
+export async function getPublicOfficialJobByAshbyId(
+  ashbyJobPostingId: string
+): Promise<OfficialJob | null> {
+  const normalizedAshbyId = ashbyJobPostingId.trim();
+  if (!normalizedAshbyId) return null;
+
+  const { data, error } = await supabaseServer
+    .from("official_jobs")
+    .select("*")
+    .eq("ashby_job_posting_id", normalizedAshbyId)
+    .eq("is_published", true)
+    .neq("role_title", OFFICIAL_JOBS_INTERNAL_COPY_ROLE_TITLE)
+    .neq("slug", OFFICIAL_JOBS_INTERNAL_COPY_SLUG)
+    .maybeSingle();
+
+  if (error) {
+    console.warn("official_jobs ashby lookup failed:", error.message);
+    return null;
+  }
+
+  if (!data) return null;
+
+  const landingCopy = await getOfficialJobsLandingCopy();
+  return mapOfficialJobRow(data, landingCopy);
+}

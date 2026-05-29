@@ -47,9 +47,8 @@ export default function CareerCallCard({
               as="div"
               type="desc"
               className="w-full text-center md:text-left"
-            >
-              {description}
-            </Text>
+              dangerouslySetInnerHTML={{ __html: description as string }}
+            />
           </div>
           <CareerActionButton
             onClick={onStartCall}

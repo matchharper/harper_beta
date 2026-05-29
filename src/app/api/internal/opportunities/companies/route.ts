@@ -3,9 +3,10 @@ import {
   requireInternalApiUser,
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
-import type {
-  OpsCompanyManagementEmployeeCountRangeFilter,
-  OpsCompanyManagementQualityLabelFilter,
+import {
+  OPS_COMPANY_MANAGEMENT_PAGE_SIZE,
+  type OpsCompanyManagementEmployeeCountRangeFilter,
+  type OpsCompanyManagementQualityLabelFilter,
 } from "@/lib/opsOpportunityCompanyManagement";
 import {
   fetchOpsCompanyManagementPage,
@@ -18,7 +19,9 @@ export async function GET(req: NextRequest) {
   try {
     await requireInternalApiUser(req);
     const { searchParams } = new URL(req.url);
-    const limit = Number(searchParams.get("limit") ?? "30");
+    const limit = Number(
+      searchParams.get("limit") ?? String(OPS_COMPANY_MANAGEMENT_PAGE_SIZE)
+    );
     const offset = Number(searchParams.get("offset") ?? "0");
     const companyName = String(
       searchParams.get("companyName") ?? searchParams.get("query") ?? ""

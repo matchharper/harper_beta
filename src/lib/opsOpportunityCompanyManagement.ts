@@ -18,6 +18,10 @@ export type OpsCompanyManagementQualityLabelFilter =
   | "2"
   | "unlabeled";
 
+export const OPS_OPPORTUNITY_COMPANY_PAGE_SIZE = 10;
+export const OPS_COMPANY_MANAGEMENT_PAGE_SIZE =
+  OPS_OPPORTUNITY_COMPANY_PAGE_SIZE;
+
 type EmployeeCountRangeOption = {
   exactJsonValues: string[];
   label: string;

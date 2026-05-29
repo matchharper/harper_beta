@@ -25,12 +25,13 @@ type PartnerLogo = {
 };
 
 const partnerLogos: PartnerLogo[] = [
-  { src: "/svgs/a16z2.svg", name: "a16z", width: 58 },
-  { src: "/svgs/yc.svg", name: "Y Combinator", width: 72 },
-  { src: "/images/mistral.png", name: "Mistral AI", width: 78 },
-  { src: "/svgs/cohere.svg", name: "Cohere", width: 76 },
-  { src: "/svgs/sequoia2.svg", name: "Sequoia", width: 82 },
-  { src: "/images/wonderful.png", name: "Wonderful", width: 78, invert: true },
+  { src: "/images/logos/sn.png", name: "snu", width: 78, invert: true },
+  { src: "/images/logos/kai.png", name: "kaist", width: 82, invert: true },
+  { src: "/images/logos/stan.png", name: "stanford", width: 86, invert: true },
+  { src: "/svgs/cohere.svg", name: "cohere", width: 78, invert: true },
+  { src: "/svgs/yc.svg", name: "ycombinator", width: 100, invert: true },
+  { src: "/images/logos/naver.svg", name: "naver", width: 64, invert: true },
+  { src: "/images/logos/moloco.png", name: "moloco", width: 78, invert: true },
 ];
 
 const resolveSafeNextPath = (value: string | string[] | undefined) => {
@@ -106,7 +107,8 @@ const CareerLoginContent = () => {
       typeof router.query.source === "string"
         ? normalizeCareerUtmSource(router.query.source)
         : null;
-    const localId = typeof router.query.lid === "string" ? router.query.lid : "";
+    const localId =
+      typeof router.query.lid === "string" ? router.query.lid : "";
 
     if (source) {
       localStorage.setItem(CAREER_UTM_SOURCE_STORAGE_KEY, source);
@@ -190,11 +192,11 @@ const CareerLoginContent = () => {
         </header>
 
         <section className="relative z-10 mx-auto flex w-full max-w-[520px] flex-1 flex-col items-center px-4 pt-10 text-center sm:pt-12 md:pt-16">
-          <h1 className="text-balance text-[26px] font-medium leading-[1.08] tracking-[-0.035em] text-[#111111] sm:text-[34px] md:text-[38px]">
-            <span className="block sm:inline">나에게 맞는</span>
-            <span className="block sm:inline">기회를 찾기까지</span>
+          <h1 className="text-balance text-[26px] font-medium leading-[1.24] tracking-[-0.035em] text-[#111111] sm:text-[34px] md:text-[38px]">
+            <span className="block sm:inline">당신만을 위한</span>
             <br className="hidden sm:block" />
-            <span className="block">60초면 충분합니다</span>
+            <span className="block sm:inline">커리어 에이전트</span>{" "}
+            <span className="block sm:inline">Harper</span>
           </h1>
           <p className="mt-4 max-w-[430px] text-xs font-medium leading-5 text-[#21170d]/68 sm:text-sm">
             하나의 프로필에서 대화, 선호, 추천까지. 인재를 위한 커리어 에이전트
@@ -362,11 +364,11 @@ const CareerLoginContent = () => {
         </section>
 
         {!emailConfirmationSent ? (
-          <section className="relative z-10 mx-auto w-full max-w-[1280px] px-6 pb-7 pt-10 text-center sm:pt-12 md:pb-9">
-            <h2 className="font-halant text-[17px] font-medium leading-tight tracking-[-0.02em] text-[#21170d] sm:text-[19px]">
-              {/* Harper 네트워크에서 만나는 팀 */}
+          <section className="relative z-10 mx-auto w-full max-w-[1280px] px-6 pb-7 pt-[12svh] text-center sm:pt-12 md:pb-9">
+            <h2 className="font-sans text-[13px] font-medium tracking-[-0.02em] text-black/60 sm:text-[14px]">
+              이곳의 인재들이 신뢰합니다.
             </h2>
-            <div className="mt-6 grid grid-cols-2 items-center gap-x-6 gap-y-5 sm:grid-cols-3 lg:grid-cols-6">
+            <div className="mt-6 grid grid-cols-3 items-center justify-center gap-x-6 gap-y-5 sm:grid-cols-3 lg:grid-cols-7">
               {partnerLogos.map((logo) => (
                 <span
                   key={logo.name}

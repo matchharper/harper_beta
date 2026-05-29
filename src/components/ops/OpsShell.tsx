@@ -6,6 +6,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useOpsInternalDataExclusionStore } from "@/store/useOpsInternalDataExclusionStore";
 import { INTERNAL_EMAIL_DOMAIN, isInternalEmail } from "@/lib/internalAccess";
 import {
+  Building2,
   BriefcaseBusiness,
   ClipboardList,
   EyeOff,
@@ -66,6 +67,13 @@ export const OPS_NAV_ITEMS: OpsNavItem[] = [
     icon: BriefcaseBusiness,
     label: "Opportunities",
     matchPrefix: "/ops/opportunities",
+  },
+  {
+    description: "company_workspace score와 quality label",
+    href: "/ops/companies",
+    icon: Building2,
+    label: "Companies",
+    matchPrefix: "/ops/companies",
   },
   {
     description: "공개 jobs 페이지 포지션 관리",
@@ -340,7 +348,7 @@ export default function OpsShell({
   children: React.ReactNode;
   compactHeader?: boolean;
   description?: React.ReactNode;
-  title: string;
+  title?: string;
 }) {
   const router = useRouter();
   const { loading: authLoading, signOut, user } = useAuthStore();

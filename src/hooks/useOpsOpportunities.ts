@@ -6,9 +6,11 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
-import type {
-  OpsCompanyManagementEmployeeCountRangeFilter,
-  OpsCompanyManagementQualityLabelFilter,
+import {
+  OPS_COMPANY_MANAGEMENT_PAGE_SIZE,
+  OPS_OPPORTUNITY_COMPANY_PAGE_SIZE,
+  type OpsCompanyManagementEmployeeCountRangeFilter,
+  type OpsCompanyManagementQualityLabelFilter,
 } from "@/lib/opsOpportunityCompanyManagement";
 import { queryKeys } from "@/lib/queryKeys";
 import type {
@@ -117,13 +119,39 @@ type UpdateCompanyHumanQualityLabelInput = {
   workspaceId: string;
 };
 
-export function useOpsOpportunityCatalog(args: { enabled?: boolean } = {}) {
-  return useQuery({
-    queryKey: queryKeys.opsOpportunity.catalog,
-    queryFn: () =>
-      fetchWithInternalAuth<OpsOpportunityCatalogResponse>(
-        "/api/internal/opportunities/catalog"
-      ),
+export function useOpsOpportunityCatalog(args: {
+  enabled?: boolean;
+  limit?: number;
+  workspaceQuery?: string | null;
+} = {}) {
+  const limit = Math.max(
+    1,
+    Math.min(
+      Number(args.limit ?? OPS_OPPORTUNITY_COMPANY_PAGE_SIZE) ||
+        OPS_OPPORTUNITY_COMPANY_PAGE_SIZE,
+      OPS_OPPORTUNITY_COMPANY_PAGE_SIZE
+    )
+  );
+  const workspaceQuery = String(args.workspaceQuery ?? "").trim();
+
+  return useInfiniteQuery({
+    queryKey: queryKeys.opsOpportunity.catalog({
+      limit,
+      workspaceQuery,
+    }),
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams();
+      params.set("limit", String(limit));
+      params.set("offset", String(pageParam));
+      if (workspaceQuery) {
+        params.set("workspaceQuery", workspaceQuery);
+      }
+      return fetchWithInternalAuth<OpsOpportunityCatalogResponse>(
+        `/api/internal/opportunities/catalog?${params.toString()}`
+      );
+    },
+    getNextPageParam: (lastPage) => lastPage.nextWorkspaceOffset ?? undefined,
     enabled: args.enabled ?? true,
     staleTime: 15_000,
   });
@@ -142,7 +170,14 @@ export function useOpsOpportunityCompanies(args: {
   location?: string | null;
   qualityLabel?: OpsCompanyManagementQualityLabelFilter | null;
 }) {
-  const limit = Math.max(1, Math.min(Number(args.limit ?? 30) || 30, 80));
+  const limit = Math.max(
+    1,
+    Math.min(
+      Number(args.limit ?? OPS_COMPANY_MANAGEMENT_PAGE_SIZE) ||
+        OPS_COMPANY_MANAGEMENT_PAGE_SIZE,
+      OPS_COMPANY_MANAGEMENT_PAGE_SIZE
+    )
+  );
   const companyName = String(args.companyName ?? "").trim();
   const employeeCountRange = String(args.employeeCountRange ?? "").trim();
   const investors = String(args.investors ?? "").trim();
@@ -381,42 +416,10 @@ export function useSaveOpsOpportunityWorkspace() {
         },
         body: JSON.stringify(input),
       }),
-    onSuccess: (data, input) => {
-      queryClient.setQueryData<OpsOpportunityCatalogResponse | undefined>(
-        queryKeys.opsOpportunity.catalog,
-        (current) => {
-          if (!current) return current;
-
-          const savedWorkspace = data.workspace;
-          const existingWorkspace = current.workspaces.find(
-            (workspace) =>
-              workspace.companyWorkspaceId === savedWorkspace.companyWorkspaceId
-          );
-          const nextWorkspace = existingWorkspace
-            ? {
-                ...existingWorkspace,
-                ...savedWorkspace,
-              }
-            : savedWorkspace;
-
-          const remainingWorkspaces = current.workspaces.filter(
-            (workspace) =>
-              workspace.companyWorkspaceId !== savedWorkspace.companyWorkspaceId
-          );
-          const nextWorkspaces = input.workspaceId
-            ? current.workspaces.map((workspace) =>
-                workspace.companyWorkspaceId === savedWorkspace.companyWorkspaceId
-                  ? nextWorkspace
-                  : workspace
-              )
-            : [nextWorkspace, ...remainingWorkspaces];
-
-          return {
-            ...current,
-            workspaces: nextWorkspaces,
-          };
-        }
-      );
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.opsOpportunity.catalogAll,
+      });
     },
   });
 }

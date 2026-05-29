@@ -258,7 +258,7 @@ const RecommendationSearchStatusPanel = memo(
         ? "검색 완료"
         : "검색 실패";
     const detail = isRunning
-      ? "프로필과 최근 대화를 반영해 맞춤 채용공고를 찾고 있습니다."
+      ? "프로필과 최근 대화를 반영해 최적의 기회를 찾고 있습니다."
       : isCompleted
         ? [
             typeof status.candidateCount === "number"

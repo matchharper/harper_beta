@@ -12,6 +12,9 @@ import {
   pickLinkedinUrl,
 } from "@/lib/talentOnboarding/profileIngestion";
 
+export const runtime = "nodejs";
+export const maxDuration = 240;
+
 type StructuredProfileBody = {
   talentUser?: {
     user_id?: string | null;

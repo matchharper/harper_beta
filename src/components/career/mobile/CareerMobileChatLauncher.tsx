@@ -22,7 +22,7 @@ type CareerMobileChatLauncherProps = {
 const DEFAULT_TOP_OFFSET_PX = 56;
 const SWIPE_UP_THRESHOLD_PX = 24;
 
-export default function CareerMobileChatLauncher({
+function CareerMobileChatLauncher({
   children,
   actionBar,
   topOffsetPx = DEFAULT_TOP_OFFSET_PX,
@@ -92,19 +92,8 @@ export default function CareerMobileChatLauncher({
   return (
     <>
       <div
-        role="presentation"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        className={cn(
-          "fixed inset-x-0 bottom-0 z-30 flex flex-col border-t border-beige900/10 bg-beige50",
-          className
-        )}
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        className={cn("fixed inset-x-0 bottom-0 z-30 flex flex-col", className)}
       >
-        <div className="flex justify-center pt-2 pb-1">
-          <div className="h-1 w-10 rounded-full bg-beige900/20" />
-        </div>
         <AnimatePresence initial={false}>
           {chatNotice.showPrompt && !showMinimizedCall ? (
             <motion.button
@@ -115,87 +104,98 @@ export default function CareerMobileChatLauncher({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 6, scale: 0.98 }}
               transition={{ duration: 0.18, ease: "easeOut" }}
-              className="mx-4 mb-2 flex min-h-11 items-center gap-2 rounded-full border border-beige900/10 bg-white px-3 py-2 text-left text-sm text-beige900 shadow-md transition active:scale-[0.99]"
+              className="mx-4 mb-2 flex min-h-10 backdrop-blur-md items-center gap-2 rounded-full border border-beige900/5 bg-white/20 px-4 py-2 text-left text-[13px] text-beige900 transition active:scale-[0.99]"
             >
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-beige900 text-beige50">
-                <MessageCircle className="h-3.5 w-3.5" />
-              </span>
-              <span className="min-w-0 flex-1 font-medium leading-5">
+              <MessageCircle className="h-3 w-3 text-beige900" />
+              <span className="min-w-0 flex-1 font-normal leading-5">
                 Harper가 답했어요
               </span>
-              <span className="shrink-0 text-[12px] font-medium text-beige900/45">
+              <span className="shrink-0 text-[12px] font-normal text-beige900/45">
                 열기
               </span>
             </motion.button>
           ) : null}
         </AnimatePresence>
-        {actionBar && !showMinimizedCall ? (
-          <div className="px-4 pt-1 pb-2">{actionBar}</div>
-        ) : null}
-        <div className="flex items-center gap-2 px-4 pb-3 pt-1">
-          {showMinimizedCall ? (
-            <div
-              className="flex w-full items-center justify-center"
-              onTouchStart={(event) => event.stopPropagation()}
-              onTouchMove={(event) => event.stopPropagation()}
-            >
-              <div className="flex items-center gap-2 rounded-full bg-beige900/5 px-3 py-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    logCareerEvent(
+
+        <div
+          role="presentation"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          className="flex flex-col border-t border-beige900/10 bg-beige50"
+          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        >
+          <div className="flex justify-center pt-2 pb-1">
+            <div className="h-1 w-10 rounded-full bg-beige900/20" />
+          </div>
+          {actionBar && !showMinimizedCall ? (
+            <div className="px-4 pt-1 pb-2">{actionBar}</div>
+          ) : null}
+          <div className="flex items-center gap-2 px-4 pb-3 pt-1">
+            {showMinimizedCall ? (
+              <div
+                className="flex w-full items-center justify-center"
+                onTouchStart={(event) => event.stopPropagation()}
+                onTouchMove={(event) => event.stopPropagation()}
+              >
+                <div className="flex items-center gap-2 rounded-full bg-beige900/5 px-3 py-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      logCareerEvent(
+                        voiceMuted
+                          ? "click_mobile_call_unmute"
+                          : "click_mobile_call_mute"
+                      );
+                      onToggleVoiceMute();
+                    }}
+                    className={cn(
+                      "flex h-12 w-12 items-center justify-center rounded-full transition-colors",
                       voiceMuted
-                        ? "click_mobile_call_unmute"
-                        : "click_mobile_call_mute"
-                    );
-                    onToggleVoiceMute();
-                  }}
-                  className={cn(
-                    "flex h-12 w-12 items-center justify-center rounded-full transition-colors",
-                    voiceMuted
-                      ? "bg-beige900/15 text-beige900/50"
-                      : "bg-white text-beige900"
-                  )}
-                  aria-label={voiceMuted ? "음소거 해제" : "음소거"}
-                >
-                  {voiceMuted ? (
-                    <MicOff className="h-5 w-5" />
-                  ) : (
-                    <Mic className="h-5 w-5" />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    logCareerEvent("click_mobile_call_end");
-                    onEndCallMode?.();
-                  }}
-                  className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500 text-white transition-opacity hover:opacity-90"
-                  aria-label="통화 종료"
-                >
-                  <X className="h-5 w-5" />
-                </button>
+                        ? "bg-beige900/15 text-beige900/50"
+                        : "bg-white text-beige900"
+                    )}
+                    aria-label={voiceMuted ? "음소거 해제" : "음소거"}
+                  >
+                    {voiceMuted ? (
+                      <MicOff className="h-5 w-5" />
+                    ) : (
+                      <Mic className="h-5 w-5" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      logCareerEvent("click_mobile_call_end");
+                      onEndCallMode?.();
+                    }}
+                    className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500 text-white transition-opacity hover:opacity-90"
+                    aria-label="통화 종료"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
               </div>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={openDrawer}
-              className={cn(
-                "flex h-12 flex-1 items-center justify-between rounded-full border border-beige900/10 bg-white px-4 text-left text-sm text-beige900/45 transition active:bg-beige100",
-                chatNotice.hasUnread &&
-                  "border-accentBronze/45 text-beige900 shadow-sm"
-              )}
-            >
-              <span>{placeholder}</span>
-              <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
-                <AudioLines className="h-5 w-5 text-beige900/60" />
-                {chatNotice.hasUnread ? (
-                  <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border border-white bg-accentBronze" />
-                ) : null}
-              </span>
-            </button>
-          )}
+            ) : (
+              <button
+                type="button"
+                onClick={openDrawer}
+                className={cn(
+                  "flex h-12 flex-1 items-center justify-between rounded-full border border-beige900/10 bg-white px-4 text-left text-sm text-beige900/45 transition active:bg-beige100",
+                  chatNotice.hasUnread &&
+                    "border-accentBronze/45 text-beige900 shadow-sm"
+                )}
+              >
+                <span>{placeholder}</span>
+                <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
+                  <AudioLines className="h-5 w-5 text-beige900/60" />
+                  {chatNotice.hasUnread ? (
+                    <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border border-white bg-accentBronze" />
+                  ) : null}
+                </span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -242,3 +242,5 @@ export default function CareerMobileChatLauncher({
     </>
   );
 }
+
+export default React.memo(CareerMobileChatLauncher);

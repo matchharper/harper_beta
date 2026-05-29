@@ -17,7 +17,6 @@ import {
   EMPTY_WORKSPACE_DRAFT,
   getPageViewFromQuery,
   matchesRoleQuery,
-  matchesWorkspaceQuery,
   PAGE_VIEW_QUERY_KEY,
   type PageView,
   type RoleDraft,
@@ -48,9 +47,11 @@ import {
   useUpdateOpsCompanyHumanQualityLabel,
   useUpdateOpsCompanyScrapeOriginal,
 } from "@/hooks/useOpsOpportunities";
-import type {
-  OpsCompanyManagementEmployeeCountRangeFilter,
-  OpsCompanyManagementQualityLabelFilter,
+import {
+  OPS_COMPANY_MANAGEMENT_PAGE_SIZE,
+  OPS_OPPORTUNITY_COMPANY_PAGE_SIZE,
+  type OpsCompanyManagementEmployeeCountRangeFilter,
+  type OpsCompanyManagementQualityLabelFilter,
 } from "@/lib/opsOpportunityCompanyManagement";
 import type {
   OpsCompanyQualityLabel,
@@ -227,9 +228,6 @@ export default function OpsOpportunitiesPage() {
     [currentViewQuery, router]
   );
 
-  const deferredWorkspaceSearch = useDeferredValue(
-    appliedWorkspaceSearch.trim().toLowerCase()
-  );
   const deferredRoleSearch = useDeferredValue(
     appliedRoleSearch.trim().toLowerCase()
   );
@@ -240,7 +238,11 @@ export default function OpsOpportunitiesPage() {
     recommendationRoleSearch.trim().toLowerCase()
   );
 
-  const catalogQuery = useOpsOpportunityCatalog({ enabled: canFetchInternal });
+  const catalogQuery = useOpsOpportunityCatalog({
+    enabled: canFetchInternal,
+    limit: OPS_OPPORTUNITY_COMPANY_PAGE_SIZE,
+    workspaceQuery: appliedWorkspaceSearch,
+  });
   const companyManagementQuery = useOpsOpportunityCompanies({
     companyName: companyManagementAppliedFilters.companyName,
     enabled: canFetchInternal && view === "company_management",
@@ -250,11 +252,14 @@ export default function OpsOpportunitiesPage() {
     humanLabelMissingFirst:
       companyManagementReviewMode && companyManagementReviewUnlabeledFirst,
     investors: companyManagementAppliedFilters.investors,
-    limit: 30,
+    limit: OPS_COMPANY_MANAGEMENT_PAGE_SIZE,
     llmQualityLabelFirst: companyManagementReviewMode,
     location: companyManagementAppliedFilters.location,
     qualityLabel: companyManagementAppliedFilters.qualityLabel,
   });
+  const fetchNextCatalogPage = catalogQuery.fetchNextPage;
+  const hasNextCatalogPage = catalogQuery.hasNextPage;
+  const isFetchingNextCatalogPage = catalogQuery.isFetchingNextPage;
   const refetchCatalog = catalogQuery.refetch;
   const fetchNextCompanyManagementQueryPage =
     companyManagementQuery.fetchNextPage;
@@ -274,13 +279,21 @@ export default function OpsOpportunitiesPage() {
   const updateCompanyHumanQualityLabel = useUpdateOpsCompanyHumanQualityLabel();
 
   const workspaces = useMemo(
-    () => catalogQuery.data?.workspaces ?? [],
-    [catalogQuery.data?.workspaces]
+    () => catalogQuery.data?.pages.flatMap((page) => page.workspaces) ?? [],
+    [catalogQuery.data?.pages]
   );
-  const roles = useMemo(
-    () => catalogQuery.data?.roles ?? [],
-    [catalogQuery.data?.roles]
-  );
+  const roles = useMemo(() => {
+    const rows = catalogQuery.data?.pages.flatMap((page) => page.roles) ?? [];
+    const roleById = new Map<string, OpsOpportunityRoleRecord>();
+    for (const role of rows) {
+      roleById.set(role.roleId, role);
+    }
+    return Array.from(roleById.values());
+  }, [catalogQuery.data?.pages]);
+  const workspaceTotalCount = useMemo(() => {
+    const pages = catalogQuery.data?.pages ?? [];
+    return pages[0]?.workspaceTotalCount ?? workspaces.length;
+  }, [catalogQuery.data?.pages, workspaces.length]);
   const companyManagementRows = useMemo(() => {
     const rows =
       companyManagementQuery.data?.pages.flatMap((page) => page.items) ?? [];
@@ -291,13 +304,7 @@ export default function OpsOpportunitiesPage() {
     return Array.from(rowByWorkspaceId.values());
   }, [companyManagementQuery.data?.pages]);
 
-  const filteredWorkspaces = useMemo(
-    () =>
-      workspaces.filter((workspace) =>
-        matchesWorkspaceQuery(workspace, deferredWorkspaceSearch)
-      ),
-    [deferredWorkspaceSearch, workspaces]
-  );
+  const filteredWorkspaces = workspaces;
 
   const visibleWorkspaces = useMemo(
     () => filteredWorkspaces.slice(0, visibleWorkspaceCount),
@@ -726,9 +733,14 @@ export default function OpsOpportunitiesPage() {
   };
 
   const handleWorkspaceSearchSubmit = useCallback(() => {
-    setAppliedWorkspaceSearch(workspaceSearch.trim());
-    setVisibleWorkspaceCount(CATALOG_PAGE_SIZE);
-  }, [workspaceSearch]);
+    const nextSearch = workspaceSearch.trim();
+    setVisibleWorkspaceCount(OPS_OPPORTUNITY_COMPANY_PAGE_SIZE);
+    if (nextSearch === appliedWorkspaceSearch) {
+      void refetchCatalog();
+      return;
+    }
+    setAppliedWorkspaceSearch(nextSearch);
+  }, [appliedWorkspaceSearch, refetchCatalog, workspaceSearch]);
 
   const handleRoleSearchSubmit = useCallback(() => {
     setAppliedRoleSearch(roleSearch.trim());
@@ -741,10 +753,18 @@ export default function OpsOpportunitiesPage() {
   }, []);
 
   const handleLoadMoreWorkspaces = useCallback(() => {
+    if (isFetchingNextCatalogPage) return;
     setVisibleWorkspaceCount((current) =>
-      Math.min(current + CATALOG_PAGE_SIZE, filteredWorkspaces.length)
+      current + OPS_OPPORTUNITY_COMPANY_PAGE_SIZE
     );
-  }, [filteredWorkspaces.length]);
+    if (hasNextCatalogPage) {
+      void fetchNextCatalogPage();
+    }
+  }, [
+    fetchNextCatalogPage,
+    hasNextCatalogPage,
+    isFetchingNextCatalogPage,
+  ]);
 
   const handleLoadMoreRoles = useCallback(() => {
     setVisibleRoleCount((current) =>
@@ -1226,7 +1246,7 @@ export default function OpsOpportunitiesPage() {
             selectedWorkspace={selectedWorkspace}
             selectedWorkspaceId={selectedWorkspaceId}
             workspaceSearch={workspaceSearch}
-            workspaceTotalCount={filteredWorkspaces.length}
+            workspaceTotalCount={workspaceTotalCount}
           />
         ) : view === "company_management" ? (
           <CompanyManagementView

@@ -5,6 +5,7 @@ import {
   getTalentSupabaseAdmin,
   getMergedChecklist,
   getTalentResumeSignedUrl,
+  TALENT_RESUME_BUCKET,
 } from "@/lib/talentOnboarding/server";
 import { normalizeTalentInsightContent } from "@/lib/talentOnboarding/server";
 import {
@@ -19,7 +20,7 @@ import {
 import { createOpportunityDiscoveryRun } from "@/lib/opportunityDiscovery/store";
 import { insertTalentActivityEvent } from "@/lib/talentOnboarding/activityEvents";
 import { createEmailReplyAlias } from "@/lib/email/inbound";
-import { buildReplySubject } from "@/lib/email/parse";
+import { buildReplySubject, normalizeEmailAddress } from "@/lib/email/parse";
 import { sendResendEmail } from "@/lib/email/send";
 import type { MergedChecklistItem } from "@/lib/talentOnboarding/server";
 import type { Database } from "@/types/database.types";
@@ -106,10 +107,14 @@ export type CareerTalentDetailResponse = {
   }>;
 };
 
+export type CareerTalentProfileIngestSource = "linkedin" | "resume";
+
 export type CareerTalentProfileIngestResponse = {
   ok: true;
   ingestion: {
     linkedinUrl: string;
+    resumeTextSource: "stored_resume_text" | "stored_resume_file" | null;
+    source: CareerTalentProfileIngestSource;
     stats: {
       experiencesFromLinkedin: number;
       educationsFromLinkedin: number;
@@ -287,6 +292,9 @@ const DEFAULT_MANUAL_INTERNAL_ROLE_LIMIT = 40;
 const MAX_MANUAL_INTERNAL_ROLE_LIMIT = 80;
 const MAX_MANUAL_INTERNAL_REASON_LENGTH = 2000;
 const DEFAULT_CAREER_MAIL_FROM = "Harper <hello@matchharper.com>";
+const MAX_OPS_RESUME_DOWNLOAD_BYTES = 12 * 1024 * 1024;
+const MAX_OPS_RESUME_TEXT_CHARS = 24_000;
+const MAX_OPS_RESUME_PDF_PAGES = 24;
 
 export function parseCareerListLimit(value: string | null) {
   const n = Number(value ?? DEFAULT_LIMIT);
@@ -360,6 +368,12 @@ function getDefaultCareerMailFrom() {
   );
 }
 
+function shouldUseAiReplyAliasForOpsManualMail(fromEmail: string) {
+  const sender = normalizeEmailAddress(fromEmail);
+  const defaultSender = normalizeEmailAddress(getDefaultCareerMailFrom());
+  return Boolean(sender && defaultSender && sender === defaultSender);
+}
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -407,6 +421,17 @@ function normalizeCareerSummaryText(value: string | null | undefined) {
   return normalized || null;
 }
 
+function normalizeOpsResumeText(value: string | null | undefined) {
+  const normalized = value?.trim();
+  return normalized ? normalized.slice(0, MAX_OPS_RESUME_TEXT_CHARS) : null;
+}
+
+function normalizeCareerProfileIngestSource(
+  value: unknown
+): CareerTalentProfileIngestSource {
+  return value === "resume" ? "resume" : "linkedin";
+}
+
 function normalizeCareerLinkHref(link: string) {
   return /^https?:\/\//i.test(link) ? link : `https://${link}`;
 }
@@ -446,6 +471,88 @@ function getRegisteredLinkTypes(value: unknown) {
     }
   }
   return types;
+}
+
+function isPdfResumeFile(args: {
+  contentType?: string | null;
+  fileName?: string | null;
+}) {
+  return (
+    args.contentType?.toLowerCase().includes("pdf") ||
+    args.fileName?.toLowerCase().endsWith(".pdf") ||
+    false
+  );
+}
+
+async function parseResumeTextFromStoredFile(args: {
+  admin: TalentAdminClient;
+  fileName: string | null;
+  storagePath: string | null;
+}) {
+  const storagePath = args.storagePath?.trim();
+  if (!storagePath) return null;
+
+  const { data, error } = await args.admin.storage
+    .from(TALENT_RESUME_BUCKET)
+    .download(storagePath);
+  if (error || !data) {
+    throw new Error(error?.message ?? "Failed to download stored resume");
+  }
+
+  if (data.size > MAX_OPS_RESUME_DOWNLOAD_BYTES) {
+    throw new Error("Stored resume file is too large to parse");
+  }
+
+  const arrayBuffer = await data.arrayBuffer();
+  if (arrayBuffer.byteLength > MAX_OPS_RESUME_DOWNLOAD_BYTES) {
+    throw new Error("Stored resume file is too large to parse");
+  }
+
+  const buffer = Buffer.from(arrayBuffer);
+  if (isPdfResumeFile({ contentType: data.type, fileName: args.fileName })) {
+    // @ts-ignore: pdf-parse-fork does not ship module declarations.
+    const pdfModule = await import("pdf-parse-fork");
+    const parsePdf = pdfModule.default;
+    const parsed = await parsePdf(buffer, { max: MAX_OPS_RESUME_PDF_PAGES });
+    return normalizeOpsResumeText(String(parsed.text ?? ""));
+  }
+
+  return normalizeOpsResumeText(buffer.toString("utf8"));
+}
+
+async function resolveResumeTextForCareerProfileIngest(args: {
+  admin: TalentAdminClient;
+  profile: Pick<
+    TalentUserRow,
+    "resume_file_name" | "resume_storage_path" | "resume_text"
+  >;
+  source: CareerTalentProfileIngestSource;
+}) {
+  const storedText = normalizeOpsResumeText(args.profile.resume_text);
+  if (storedText) {
+    return {
+      resumeText: storedText,
+      resumeTextSource: "stored_resume_text" as const,
+    };
+  }
+
+  if (args.source !== "resume") {
+    return {
+      resumeText: null,
+      resumeTextSource: null,
+    };
+  }
+
+  const parsedText = await parseResumeTextFromStoredFile({
+    admin: args.admin,
+    fileName: args.profile.resume_file_name,
+    storagePath: args.profile.resume_storage_path,
+  });
+
+  return {
+    resumeText: parsedText,
+    resumeTextSource: parsedText ? ("stored_resume_file" as const) : null,
+  };
 }
 
 function isCurrentTalentExperience(
@@ -552,19 +659,11 @@ function parseStoredMailMessage(content: string) {
   };
 }
 
-function buildStoredMailMessage(args: {
+function buildStoredManualOpsTalentMessage(args: {
   bodyText: string;
-  fromEmail: string;
   subject: string;
-  toEmail: string;
 }) {
-  return [
-    `Email subject: ${args.subject}`,
-    `From: ${args.fromEmail}`,
-    `To: ${args.toEmail}`,
-    "",
-    args.bodyText,
-  ].join("\n");
+  return [args.subject.trim(), "", args.bodyText.trim()].join("\n").trim();
 }
 
 async function createCareerEmailMessage(args: {
@@ -2267,23 +2366,29 @@ export async function sendCareerTalentMailAndRecord(args: {
     admin,
     userId: args.userId,
   });
-  const replyAlias = await createEmailReplyAlias({
-    admin,
-    conversationId,
-    userId: args.userId,
-  }).catch((error) => {
-    console.warn("[ops-career-mail] reply alias creation skipped", {
-      error: error instanceof Error ? error.message : String(error),
-      userId: args.userId,
-    });
-    return null;
-  });
+  const senderAddress = normalizeEmailAddress(args.fromEmail);
+  const useAiReplyAlias = shouldUseAiReplyAliasForOpsManualMail(args.fromEmail);
+  const replyAlias = useAiReplyAlias
+    ? await createEmailReplyAlias({
+        admin,
+        conversationId,
+        userId: args.userId,
+      }).catch((error) => {
+        console.warn("[ops-career-mail] reply alias creation skipped", {
+          error: error instanceof Error ? error.message : String(error),
+          userId: args.userId,
+        });
+        return null;
+      })
+    : null;
+  const replyTo = replyAlias?.address ?? senderAddress ?? null;
   const historyId = randomUUID();
   const now = new Date().toISOString();
   const bodyText = appendHarperEmailFooterText(args.content);
   const bodyHtml = renderEmailBodyHtmlWithHarperFooter(args.content);
   const baseMetadata = {
-    replyTo: replyAlias?.address ?? null,
+    replyRouting: useAiReplyAlias ? "ai_alias" : "sender",
+    replyTo,
   };
 
   const historyRowCreated = await createCareerEmailMessage({
@@ -2311,7 +2416,7 @@ export async function sendCareerTalentMailAndRecord(args: {
       from: args.fromEmail,
       html: bodyHtml,
       idempotencyKey: `ops-career/manual/${historyId}`,
-      replyTo: replyAlias?.address ?? null,
+      replyTo,
       subject: args.subject,
       text: bodyText,
       to: recipient.email,
@@ -2337,37 +2442,43 @@ export async function sendCareerTalentMailAndRecord(args: {
   }
 
   const sentAt = new Date().toISOString();
-  const { data: message, error: messageError } = await admin
-    .from("talent_messages")
-    .insert({
-      content: buildStoredMailMessage({
-        bodyText,
-        fromEmail: args.fromEmail,
-        subject: args.subject,
-        toEmail: recipient.email,
-      }),
-      conversation_id: conversationId,
-      message_type: "ops_manual_email",
-      role: "assistant",
-      user_id: args.userId,
-    })
-    .select("id")
-    .single();
+  let talentMessageId: number | null = null;
+  let messageError: { message?: string } | null = null;
+  if (useAiReplyAlias) {
+    const messageResult = await admin
+      .from("talent_messages")
+      .insert({
+        content: buildStoredManualOpsTalentMessage({
+          bodyText: args.content,
+          subject: args.subject,
+        }),
+        conversation_id: conversationId,
+        message_type: "ops_manual_email",
+        role: "assistant",
+        user_id: args.userId,
+      })
+      .select("id")
+      .single();
+    talentMessageId =
+      typeof messageResult.data?.id === "number" ? messageResult.data.id : null;
+    messageError = messageResult.error;
+  }
 
+  const updateMetadata = {
+    ...baseMetadata,
+    resendEmailId,
+  };
   const updatePayload: CareerEmailMessageUpdate = {
-    metadata: {
-      ...baseMetadata,
-      resendEmailId,
-    },
+    metadata: updateMetadata,
     occurred_at: sentAt,
     status: "sent",
   };
-  if (message?.id) {
-    updatePayload.talent_message_id = message.id;
+  if (talentMessageId !== null) {
+    updatePayload.talent_message_id = talentMessageId;
   }
   if (messageError) {
     updatePayload.metadata = {
-      ...baseMetadata,
+      ...updateMetadata,
       talentMessageError: messageError.message,
     };
   }
@@ -2395,8 +2506,18 @@ export async function sendCareerTalentMailAndRecord(args: {
 }
 
 export async function ingestCareerTalentProfileFromRegisteredLinks(
-  userId: string
+  args:
+    | string
+    | {
+        source?: unknown;
+        userId: string;
+      }
 ): Promise<CareerTalentProfileIngestResponse> {
+  const userId = typeof args === "string" ? args : args.userId;
+  const source =
+    typeof args === "string"
+      ? "linkedin"
+      : normalizeCareerProfileIngestSource(args.source);
   const admin = getTalentSupabaseAdmin();
   const profile = await fetchTalentUserProfile({ admin, userId });
 
@@ -2408,24 +2529,36 @@ export async function ingestCareerTalentProfileFromRegisteredLinks(
     .map((link) => String(link ?? "").trim())
     .filter(Boolean);
   const linkedinUrl = pickLinkedinUrl(links);
+  const { resumeText, resumeTextSource } =
+    await resolveResumeTextForCareerProfileIngest({
+      admin,
+      profile,
+      source,
+    });
 
-  if (!linkedinUrl) {
+  if (source === "linkedin" && !linkedinUrl) {
     throw new Error("LinkedIn profile link is required in registered links");
+  }
+  if (source === "resume" && !resumeText) {
+    throw new Error("Stored resume text or resume file is required");
   }
 
   const ingestion = await ingestTalentProfileFromLinkedin({
     admin,
     userId,
     links,
-    resumeText: profile.resume_text ?? null,
+    resumeText,
     resumeFileName: profile.resume_file_name ?? null,
     resumeStoragePath: profile.resume_storage_path ?? null,
+    skipLinkedinFetch: source === "resume",
   });
 
   return {
     ok: true,
     ingestion: {
       linkedinUrl: ingestion.linkedinUrl,
+      resumeTextSource,
+      source,
       stats: ingestion.stats,
       warnings: ingestion.warnings,
     },

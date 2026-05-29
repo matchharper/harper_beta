@@ -23,6 +23,7 @@ import {
 import type {
   CareerTalentDetailResponse,
   CareerTalentMailHistoryItem,
+  CareerTalentProfileIngestSource,
   CareerTalentRecommendationItem,
   CareerTalentRegisteredLinkType,
   CareerTalentSummary,
@@ -2003,11 +2004,17 @@ function ProfileTab({ detail }: { detail: CareerTalentDetailResponse }) {
   const resumeFileDisplayName = getResumeFileDisplayName(detail);
   const hasResumeFile = Boolean(resumeFileDisplayName);
   const hasResumeText = Boolean(detail.resumeTextAvailable);
+  const canIngestResume = hasResumeFile || hasResumeText;
   const linkedinUrl = useMemo(
     () => getLinkedinProfileUrl(registeredLinks),
     [registeredLinks]
   );
   const ingestProfileMutation = useIngestCareerProfile(detail.userId);
+  const pendingIngestSource = ingestProfileMutation.isPending
+    ? (ingestProfileMutation.variables?.source ?? "linkedin")
+    : null;
+  const isLinkedinIngestPending = pendingIngestSource === "linkedin";
+  const isResumeIngestPending = pendingIngestSource === "resume";
   const [ingestStatus, setIngestStatus] = useState<{
     userId: string;
     type: "success" | "error";
@@ -2016,37 +2023,51 @@ function ProfileTab({ detail }: { detail: CareerTalentDetailResponse }) {
   const visibleIngestStatus =
     ingestStatus?.userId === detail.userId ? ingestStatus : null;
 
-  function handleIngestProfile() {
-    if (!linkedinUrl || ingestProfileMutation.isPending) return;
-    if (
-      !window.confirm(
-        "등록된 LinkedIn 링크로 프로필 정보를 가져와 talent_* 테이블을 갱신합니다."
-      )
-    ) {
+  function handleIngestProfile(source: CareerTalentProfileIngestSource) {
+    if (ingestProfileMutation.isPending) return;
+    if (source === "linkedin" && !linkedinUrl) return;
+    if (source === "resume" && !canIngestResume) return;
+
+    const confirmMessage =
+      source === "resume"
+        ? "저장된 이력서로 프로필 정보를 다시 추출해 talent_* 테이블을 갱신합니다."
+        : "등록된 LinkedIn 링크로 프로필 정보를 가져와 talent_* 테이블을 갱신합니다.";
+    if (!window.confirm(confirmMessage)) {
       return;
     }
 
     setIngestStatus(null);
-    ingestProfileMutation.mutate(undefined, {
-      onSuccess: (result) => {
-        const stats = result.ingestion.stats;
-        setIngestStatus({
-          userId: detail.userId,
-          type: "success",
-          text: `완료: 경력 ${stats.experiencesSaved}개, 학력 ${stats.educationsSaved}개, 기타 ${stats.extrasSaved}개 저장`,
-        });
-      },
-      onError: (error) => {
-        setIngestStatus({
-          userId: detail.userId,
-          type: "error",
-          text:
-            error instanceof Error
-              ? error.message
-              : "프로필 정보를 가져오지 못했습니다.",
-        });
-      },
-    });
+    ingestProfileMutation.mutate(
+      { source },
+      {
+        onSuccess: (result) => {
+          const stats = result.ingestion.stats;
+          const sourceLabel =
+            result.ingestion.source === "resume" ? "이력서" : "LinkedIn";
+          const resumeSourceLabel =
+            result.ingestion.resumeTextSource === "stored_resume_file"
+              ? " · 저장 파일 파싱"
+              : result.ingestion.resumeTextSource === "stored_resume_text"
+                ? " · 저장 텍스트 사용"
+                : "";
+          setIngestStatus({
+            userId: detail.userId,
+            type: "success",
+            text: `${sourceLabel} 완료${resumeSourceLabel}: 경력 ${stats.experiencesSaved}개, 학력 ${stats.educationsSaved}개, 기타 ${stats.extrasSaved}개 저장`,
+          });
+        },
+        onError: (error) => {
+          setIngestStatus({
+            userId: detail.userId,
+            type: "error",
+            text:
+              error instanceof Error
+                ? error.message
+                : "프로필 정보를 가져오지 못했습니다.",
+          });
+        },
+      }
+    );
   }
 
   return (
@@ -2054,31 +2075,58 @@ function ProfileTab({ detail }: { detail: CareerTalentDetailResponse }) {
       <div className={cx(opsTheme.panelSoft, "p-4")}>
         <div className="flex items-center justify-between gap-3">
           <div className={cx(opsTheme.eyebrow)}>등록 자료</div>
-          {linkedinUrl ? (
-            <button
-              type="button"
-              onClick={handleIngestProfile}
-              disabled={ingestProfileMutation.isPending}
-              className={cx(
-                opsTheme.buttonSecondary,
-                "h-8 px-3 text-xs flex items-center gap-1.5 shrink-0",
-                ingestProfileMutation.isPending &&
-                  "opacity-50 cursor-not-allowed"
-              )}
-            >
-              {ingestProfileMutation.isPending ? (
-                <>
-                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                  가져오는 중...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  LinkedIn으로 프로필 생성
-                </>
-              )}
-            </button>
-          ) : null}
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {linkedinUrl ? (
+              <button
+                type="button"
+                onClick={() => handleIngestProfile("linkedin")}
+                disabled={ingestProfileMutation.isPending}
+                className={cx(
+                  opsTheme.buttonSecondary,
+                  "h-8 px-3 text-xs flex items-center gap-1.5 shrink-0",
+                  ingestProfileMutation.isPending &&
+                    "opacity-50 cursor-not-allowed"
+                )}
+              >
+                {isLinkedinIngestPending ? (
+                  <>
+                    <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                    가져오는 중...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    LinkedIn으로 프로필 생성
+                  </>
+                )}
+              </button>
+            ) : null}
+            {canIngestResume ? (
+              <button
+                type="button"
+                onClick={() => handleIngestProfile("resume")}
+                disabled={ingestProfileMutation.isPending}
+                className={cx(
+                  opsTheme.buttonSecondary,
+                  "h-8 px-3 text-xs flex items-center gap-1.5 shrink-0",
+                  ingestProfileMutation.isPending &&
+                    "opacity-50 cursor-not-allowed"
+                )}
+              >
+                {isResumeIngestPending ? (
+                  <>
+                    <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                    추출 중...
+                  </>
+                ) : (
+                  <>
+                    <FileText className="h-3.5 w-3.5" />
+                    이력서로 프로필 생성
+                  </>
+                )}
+              </button>
+            ) : null}
+          </div>
         </div>
 
         <div className="mt-3 grid gap-2 sm:grid-cols-2">

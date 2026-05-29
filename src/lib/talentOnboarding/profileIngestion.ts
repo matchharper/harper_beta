@@ -163,6 +163,7 @@ type IngestArgs = {
   resumeText?: string | null;
   resumeFileName?: string | null;
   resumeStoragePath?: string | null;
+  skipLinkedinFetch?: boolean;
 };
 
 type MergeIngestArgs = IngestArgs & {
@@ -194,6 +195,9 @@ type ExtractedTalentProfileDraft = {
     raw: string | null;
   };
 };
+
+const RESUME_ENRICHMENT_LLM_TIMEOUT_MS = 180_000;
+const PROFILE_UPDATE_MERGE_LLM_TIMEOUT_MS = 90_000;
 
 function toArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
@@ -1207,7 +1211,8 @@ async function extractTalentProfileDraftFromSources(
     linkCount: links.length,
   });
 
-  const linkedinUrl = pickLinkedinUrl(links);
+  const registeredLinkedinUrl = pickLinkedinUrl(links);
+  const linkedinUrl = args.skipLinkedinFetch ? null : registeredLinkedinUrl;
   const scholarLinks = pickScholarLinks(links);
   const resumeText = cleanMultilineText(args.resumeText, 24000);
   if (!linkedinUrl && !resumeText) {
@@ -1216,6 +1221,8 @@ async function extractTalentProfileDraftFromSources(
 
   logger.log("[TalentIngest] selected links", {
     linkedinUrl,
+    registeredLinkedinUrl,
+    skipLinkedinFetch: Boolean(args.skipLinkedinFetch),
     scholarLinksCount: scholarLinks.length,
   });
 
@@ -1347,7 +1354,7 @@ async function extractTalentProfileDraftFromSources(
   if (resumeText) {
     const llmResult = await withTimeout(
       runResumeEnrichmentLlm({
-        linkedinUrl: linkedinUrl ?? "",
+        linkedinUrl: registeredLinkedinUrl ?? "",
         scholarLinks,
         linkedinProfile,
         userDraft: talentUser,
@@ -1356,7 +1363,7 @@ async function extractTalentProfileDraftFromSources(
         talentExtras,
         resumeText,
       }),
-      90_000,
+      RESUME_ENRICHMENT_LLM_TIMEOUT_MS,
       "Resume enrichment LLM timed out"
     );
     llmRaw = llmResult.raw;
@@ -1402,7 +1409,7 @@ async function extractTalentProfileDraftFromSources(
   ]);
 
   return {
-    linkedinUrl,
+    linkedinUrl: registeredLinkedinUrl,
     scholarLinks,
     links,
     resumeText,
@@ -2030,7 +2037,7 @@ export async function mergeTalentProfileFromLatestSources(
   try {
     mergedRaw = await withTimeout(
       runProfileUpdateMergeLlm({ existingProfile, extracted }),
-      60_000,
+      PROFILE_UPDATE_MERGE_LLM_TIMEOUT_MS,
       "Profile update merge LLM timed out"
     );
   } catch (mergeError) {

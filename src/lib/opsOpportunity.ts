@@ -8,6 +8,8 @@ import {
   getOpsCompanyManagementEmployeeCountRangeExactJsonValues,
   normalizeOpsCompanyManagementQualityLabelFilter,
   OPS_COMPANY_MANAGEMENT_EMPLOYEE_COUNT_RANGE_OPTIONS,
+  OPS_COMPANY_MANAGEMENT_PAGE_SIZE,
+  OPS_OPPORTUNITY_COMPANY_PAGE_SIZE,
   type OpsCompanyManagementEmployeeCountRangeFilter,
   type OpsCompanyManagementQualityLabelFilter,
 } from "@/lib/opsOpportunityCompanyManagement";
@@ -306,7 +308,12 @@ export type OpsOpportunityRoleRecord = {
 };
 
 export type OpsOpportunityCatalogResponse = {
+  nextWorkspaceOffset: number | null;
   roles: OpsOpportunityRoleRecord[];
+  workspaceLimit: number;
+  workspaceOffset: number;
+  workspaceQuery: string;
+  workspaceTotalCount: number | null;
   workspaces: OpsOpportunityWorkspaceRecord[];
 };
 
@@ -1639,38 +1646,83 @@ async function fetchMatchedCandidateCountByRoleId(
   return counts;
 }
 
-export async function fetchOpsOpportunityCatalog(): Promise<OpsOpportunityCatalogResponse> {
+export async function fetchOpsOpportunityCatalog(args: {
+  workspaceLimit?: number;
+  workspaceOffset?: number;
+  workspaceQuery?: string | null;
+} = {}): Promise<OpsOpportunityCatalogResponse> {
   const admin = getSupabaseAdmin();
-  const [workspaceResponse, roleResponse] = await Promise.all([
-    (admin.from("company_workspace" as any) as any)
-      .select(
-        "company_workspace_id, company_name, homepage_url, career_url, linkedin_url, logo_url, company_description, company_db_id, is_internal, pitch, request, created_at, updated_at"
-      )
-      .order("updated_at", { ascending: false }) as any,
-    (admin.from("company_roles" as any) as any)
-      .select(
-        "role_id, company_workspace_id, name, external_jd_url, description, description_summary, information, type, status, request, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode"
-      )
-      .order("updated_at", { ascending: false }) as any,
-  ]);
+  const workspaceLimit = Math.max(
+    1,
+    Math.min(
+      Number(args.workspaceLimit ?? OPS_OPPORTUNITY_COMPANY_PAGE_SIZE) ||
+        OPS_OPPORTUNITY_COMPANY_PAGE_SIZE,
+      OPS_OPPORTUNITY_COMPANY_PAGE_SIZE
+    )
+  );
+  const workspaceOffset = Math.max(
+    0,
+    Number(args.workspaceOffset ?? 0) || 0
+  );
+  const workspaceQueryText = sanitizeCompanyManagementFilterText(
+    String(args.workspaceQuery ?? "")
+  );
 
+  let workspaceQuery = (admin.from("company_workspace" as any) as any)
+    .select(
+      "company_workspace_id, company_name, homepage_url, career_url, linkedin_url, logo_url, company_description, company_db_id, is_internal, pitch, request, created_at, updated_at",
+      { count: "exact" }
+    )
+    .order("updated_at", { ascending: false }) as any;
+
+  if (workspaceQueryText) {
+    workspaceQuery = workspaceQuery.or(
+      [
+        `company_name.ilike.%${workspaceQueryText}%`,
+        `company_description.ilike.%${workspaceQueryText}%`,
+        `homepage_url.ilike.%${workspaceQueryText}%`,
+        `career_url.ilike.%${workspaceQueryText}%`,
+        `linkedin_url.ilike.%${workspaceQueryText}%`,
+        `pitch.ilike.%${workspaceQueryText}%`,
+        `request.ilike.%${workspaceQueryText}%`,
+      ].join(",")
+    );
+  }
+
+  const workspaceResponse = await workspaceQuery.range(
+    workspaceOffset,
+    workspaceOffset + workspaceLimit - 1
+  );
   const workspaceError = (workspaceResponse as { error?: { message?: string } })
     .error;
   if (workspaceError) {
     throw new Error(workspaceError.message ?? "Failed to load companies");
   }
 
-  const roleError = (roleResponse as { error?: { message?: string } }).error;
-  if (roleError) {
-    throw new Error(roleError.message ?? "Failed to load roles");
-  }
-
   const workspaceRows = coerceJsonArray<WorkspaceRow>(
     (workspaceResponse as { data?: unknown }).data
   );
-  const roleRows = coerceJsonArray<RoleRow>(
-    (roleResponse as { data?: unknown }).data
-  );
+  const workspaceIds = workspaceRows
+    .map((row) => String(row.company_workspace_id ?? "").trim())
+    .filter(Boolean);
+
+  let roleRows: RoleRow[] = [];
+  if (workspaceIds.length > 0) {
+    const roleResponse = await ((admin.from("company_roles" as any) as any)
+      .select(
+        "role_id, company_workspace_id, name, external_jd_url, description, description_summary, information, type, status, request, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode"
+      )
+      .in("company_workspace_id", workspaceIds)
+      .order("updated_at", { ascending: false }) as any);
+    const roleError = (roleResponse as { error?: { message?: string } }).error;
+    if (roleError) {
+      throw new Error(roleError.message ?? "Failed to load roles");
+    }
+    roleRows = coerceJsonArray<RoleRow>(
+      (roleResponse as { data?: unknown }).data
+    );
+  }
+
   const roleIds = roleRows
     .map((row) => String(row.role_id ?? ""))
     .filter(Boolean);
@@ -1710,7 +1762,21 @@ export async function fetchOpsOpportunityCatalog(): Promise<OpsOpportunityCatalo
     roleStatsByWorkspaceId.set(workspaceId, current);
   }
 
+  const workspaceTotalCount =
+    typeof (workspaceResponse as { count?: unknown }).count === "number"
+      ? (workspaceResponse as { count: number }).count
+      : null;
+  const nextWorkspaceOffset =
+    workspaceTotalCount === null
+      ? workspaceRows.length === workspaceLimit
+        ? workspaceOffset + workspaceLimit
+        : null
+      : workspaceOffset + workspaceRows.length < workspaceTotalCount
+        ? workspaceOffset + workspaceLimit
+        : null;
+
   return {
+    nextWorkspaceOffset,
     roles: roleRows
       .map((row) =>
         mapRoleRecord({
@@ -1723,6 +1789,10 @@ export async function fetchOpsOpportunityCatalog(): Promise<OpsOpportunityCatalo
         })
       )
       .filter((row) => row.companyWorkspaceId),
+    workspaceLimit,
+    workspaceOffset,
+    workspaceQuery: workspaceQueryText,
+    workspaceTotalCount,
     workspaces: workspaceRows.map((row) => {
       const stats = roleStatsByWorkspaceId.get(
         String(row.company_workspace_id ?? "")
@@ -2226,7 +2296,14 @@ export async function fetchOpsCompanyManagementPage(args: {
   query?: string | null;
 }): Promise<OpsCompanyManagementPageResponse> {
   const admin = getSupabaseAdmin();
-  const limit = Math.max(1, Math.min(Number(args.limit ?? 30) || 30, 80));
+  const limit = Math.max(
+    1,
+    Math.min(
+      Number(args.limit ?? OPS_COMPANY_MANAGEMENT_PAGE_SIZE) ||
+        OPS_COMPANY_MANAGEMENT_PAGE_SIZE,
+      OPS_COMPANY_MANAGEMENT_PAGE_SIZE
+    )
+  );
   const offset = Math.max(0, Number(args.offset ?? 0) || 0);
   const companyName = sanitizeCompanyManagementFilterText(
     String(args.companyName ?? args.query ?? "")

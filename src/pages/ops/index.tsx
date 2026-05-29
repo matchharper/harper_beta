@@ -102,6 +102,18 @@ export default function OpsOverviewPage() {
               </div>
             </Link>
             <Link
+              href="/ops/companies"
+              className={cx(
+                opsTheme.panelSoft,
+                "block px-4 py-4 font-geist text-sm text-beige900 transition hover:bg-white/80"
+              )}
+            >
+              <div className="font-semibold">/ops/companies</div>
+              <div className="mt-1 text-beige900/55">
+                company_workspace score와 quality label 조회
+              </div>
+            </Link>
+            <Link
               href="/ops/answer-examples"
               className={cx(
                 opsTheme.panelSoft,
