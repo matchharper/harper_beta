@@ -59,8 +59,13 @@ export type AshbyOfficialJobsSyncSummary = {
 };
 
 const DEFAULT_ASHBY_JOB_BOARD_NAME = "harper";
-const DEFAULT_COMPANY_NAME = "Harper Partner";
 const DEFAULT_VERTICAL = "Ashby";
+const COMPANY_SECTION_LABELS = ["Company"];
+const COMPANY_DESCRIPTION_SECTION_LABELS = ["Company description"];
+const HARPER_SECTION_LABELS = ["How Harper helps"];
+const PROCESS_SECTION_LABELS = ["진행 과정", "진행과정"];
+const SENIORITY_SECTION_LABELS = ["Seniority"];
+const VERTICAL_SECTION_LABELS = ["Vertical"];
 
 const turndown = new TurndownService({
   bulletListMarker: "-",
@@ -100,16 +105,24 @@ function htmlToMarkdown(html: string | null | undefined) {
     .trim();
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function findSectionIndex(markdown: string, labels: string[]) {
-  const lower = markdown.toLowerCase();
   const indexes = labels
     .flatMap((label) => {
-      const lowerLabel = label.toLowerCase();
+      const escapedLabel = escapeRegExp(label);
       return [
-        lower.indexOf(`**${lowerLabel}**`),
-        lower.indexOf(`# ${lowerLabel}`),
-        lower.indexOf(`## ${lowerLabel}`),
-        lower.indexOf(`### ${lowerLabel}`),
+        markdown.search(
+          new RegExp(
+            `(^|\\n)\\s*\\*\\*\\s*${escapedLabel}\\s*:?\\s*\\*\\*\\s*:?`,
+            "i"
+          )
+        ),
+        markdown.search(
+          new RegExp(`^\\s{0,3}#{1,6}\\s+${escapedLabel}\\s*:?\\s*$`, "im")
+        ),
       ];
     })
     .filter((index) => index >= 0);
@@ -122,28 +135,112 @@ function minPositive(values: number[]) {
   return positiveValues.length > 0 ? Math.min(...positiveValues) : -1;
 }
 
+function sliceSection(
+  markdown: string,
+  sectionIndex: number,
+  boundaryIndexes: number[]
+) {
+  if (sectionIndex < 0) return "";
+
+  const endIndex = minPositive(
+    boundaryIndexes.filter((index) => index > sectionIndex)
+  );
+  return (
+    endIndex >= 0
+      ? markdown.slice(sectionIndex, endIndex)
+      : markdown.slice(sectionIndex)
+  ).trim();
+}
+
+function stripSectionHeading(markdown: string, labels: string[]) {
+  const labelPattern = labels.map(escapeRegExp).join("|");
+  return markdown
+    .replace(
+      new RegExp(
+        `^\\s*\\*\\*\\s*(?:${labelPattern})\\s*:?\\s*\\*\\*\\s*:?\\s*`,
+        "i"
+      ),
+      ""
+    )
+    .replace(
+      new RegExp(`^\\s{0,3}#{1,6}\\s*(?:${labelPattern})\\s*:?\\s*`, "i"),
+      ""
+    )
+    .trim();
+}
+
+function normalizeSectionScalar(markdown: string) {
+  const normalized = normalizeOptionalString(markdown);
+  if (!normalized) return null;
+
+  const value = normalized
+    .split(/\n+/)
+    .map((line) =>
+      line
+        .trim()
+        .replace(/^[-*]\s+/, "")
+        .replace(/^>\s*/, "")
+        .replace(/^\*\*(.+)\*\*$/, "$1")
+        .trim()
+    )
+    .filter(Boolean)
+    .join(" / ");
+
+  return normalizeOptionalString(value);
+}
+
 function splitDescription(markdown: string) {
-  const companyIndex = findSectionIndex(markdown, ["Company description"]);
-  const harperIndex = findSectionIndex(markdown, ["How Harper helps"]);
-  const processIndex = findSectionIndex(markdown, ["진행 과정", "진행과정"]);
-  const roleEndIndex = minPositive([companyIndex, harperIndex, processIndex]);
+  const companyNameIndex = findSectionIndex(markdown, COMPANY_SECTION_LABELS);
+  const companyIndex = findSectionIndex(
+    markdown,
+    COMPANY_DESCRIPTION_SECTION_LABELS
+  );
+  const harperIndex = findSectionIndex(markdown, HARPER_SECTION_LABELS);
+  const processIndex = findSectionIndex(markdown, PROCESS_SECTION_LABELS);
+  const seniorityIndex = findSectionIndex(markdown, SENIORITY_SECTION_LABELS);
+  const verticalIndex = findSectionIndex(markdown, VERTICAL_SECTION_LABELS);
+  const boundaryIndexes = [
+    companyNameIndex,
+    companyIndex,
+    harperIndex,
+    processIndex,
+    seniorityIndex,
+    verticalIndex,
+  ].filter((index) => index >= 0);
+  const roleEndIndex = minPositive(boundaryIndexes);
   const roleDescriptionMarkdown =
     roleEndIndex >= 0 ? markdown.slice(0, roleEndIndex).trim() : markdown;
 
-  let companyDescriptionMarkdown = "";
-  if (companyIndex >= 0) {
-    const companyEndIndex = minPositive(
-      [harperIndex, processIndex].filter((index) => index > companyIndex)
-    );
-    companyDescriptionMarkdown =
-      companyEndIndex >= 0
-        ? markdown.slice(companyIndex, companyEndIndex).trim()
-        : markdown.slice(companyIndex).trim();
-  }
+  const companyDescriptionMarkdown = sliceSection(
+    markdown,
+    companyIndex,
+    boundaryIndexes
+  );
+  const companyName = normalizeSectionScalar(
+    stripSectionHeading(
+      sliceSection(markdown, companyNameIndex, boundaryIndexes),
+      COMPANY_SECTION_LABELS
+    )
+  );
+  const seniority = normalizeSectionScalar(
+    stripSectionHeading(
+      sliceSection(markdown, seniorityIndex, boundaryIndexes),
+      SENIORITY_SECTION_LABELS
+    )
+  );
+  const vertical = normalizeSectionScalar(
+    stripSectionHeading(
+      sliceSection(markdown, verticalIndex, boundaryIndexes),
+      VERTICAL_SECTION_LABELS
+    )
+  );
 
   return {
+    companyName,
     companyDescriptionMarkdown,
     roleDescriptionMarkdown,
+    seniority,
+    vertical,
   };
 }
 
@@ -151,12 +248,9 @@ function parseCompanyName(rawTitle: string) {
   const title = rawTitle.trim();
   const separator = " at ";
   const index = title.toLowerCase().lastIndexOf(separator);
-  if (index <= 0) return DEFAULT_COMPANY_NAME;
+  if (index <= 0) return null;
 
-  return normalizeRequiredString(
-    title.slice(index + separator.length),
-    DEFAULT_COMPANY_NAME
-  );
+  return normalizeOptionalString(title.slice(index + separator.length));
 }
 
 function normalizeLocation(job: AshbyPublicJob) {
@@ -246,13 +340,19 @@ function buildPayload(job: AshbyPublicJob, existingRows: OfficialJobRow[]) {
   if (!ashbyJobId) return null;
 
   const roleTitle = normalizeRequiredString(job.title, "Untitled role");
-  const companyName = parseCompanyName(roleTitle);
   const descriptionMarkdown =
     htmlToMarkdown(job.descriptionHtml) ??
     normalizeOptionalString(job.descriptionPlain) ??
     "";
-  const { companyDescriptionMarkdown, roleDescriptionMarkdown } =
-    splitDescription(descriptionMarkdown);
+  const {
+    companyName: companyNameFromDescription,
+    companyDescriptionMarkdown,
+    roleDescriptionMarkdown,
+    seniority,
+    vertical,
+  } = splitDescription(descriptionMarkdown);
+  const companyName =
+    companyNameFromDescription ?? parseCompanyName(roleTitle) ?? "";
   const baseSlug = normalizeSlug(`${companyName} ${roleTitle}`);
   const slug = buildUniqueSlug({ ashbyJobId, baseSlug, existingRows });
   const existingRow = existingRows.find(
@@ -265,9 +365,10 @@ function buildPayload(job: AshbyPublicJob, existingRows: OfficialJobRow[]) {
       ashby_job_posting_id: ashbyJobId,
       company_description_markdown: companyDescriptionMarkdown,
       company_logo_url: null,
-      company_name: normalizeRequiredString(companyName, DEFAULT_COMPANY_NAME),
-      company_website_url:
-        normalizeOptionalString(existingRow?.company_website_url),
+      company_name: companyName,
+      company_website_url: normalizeOptionalString(
+        existingRow?.company_website_url
+      ),
       compensation: normalizeOptionalString(
         job.compensation?.compensationTierSummary ??
           job.compensation?.scrapeableCompensationSalarySummary
@@ -279,7 +380,7 @@ function buildPayload(job: AshbyPublicJob, existingRows: OfficialJobRow[]) {
       published_at: normalizeOptionalString(job.publishedAt),
       role_description_markdown: roleDescriptionMarkdown || descriptionMarkdown,
       role_title: normalizeRequiredString(roleTitle, "Untitled role"),
-      seniority: normalizeOptionalString(existingRow?.seniority),
+      seniority: seniority ?? normalizeOptionalString(existingRow?.seniority),
       short_description:
         normalizeOptionalString(
           job.socialDescription ?? job.social_description
@@ -289,7 +390,9 @@ function buildPayload(job: AshbyPublicJob, existingRows: OfficialJobRow[]) {
         "",
       slug,
       vertical:
-        normalizeOptionalString(existingRow?.vertical) ?? DEFAULT_VERTICAL,
+        vertical ??
+        normalizeOptionalString(existingRow?.vertical) ??
+        DEFAULT_VERTICAL,
     },
   };
 }
