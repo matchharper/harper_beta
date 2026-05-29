@@ -1,13 +1,8 @@
-import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
-import { fetchRecentMessagesWithSummary } from "@/lib/talentOnboarding/conversationSummary";
 import { fetchRecentTalentActivitySummaries } from "@/lib/talentOnboarding/activityEvents";
-import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
+import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
 import {
-  buildTalentProfileContext,
   fetchTalentInsights,
-  fetchTalentSetting,
   fetchTalentStructuredProfile,
-  fetchTalentUserProfile,
   getTalentSupabaseAdmin,
   normalizeTalentBlockedCompanies,
 } from "@/lib/talentOnboarding/server";
@@ -19,63 +14,69 @@ if (typeof window !== "undefined") {
 
 type AdminClient = ReturnType<typeof getTalentSupabaseAdmin>;
 
-type SearchCondition = {
-  column: string;
-  mode: "all" | "any";
-  polarity: "include" | "exclude";
-  values: string[];
-};
+type JsonRecord = Record<string, unknown>;
 
 type FtsKeyword = {
   terms: string[];
   weight: number;
 };
 
-type SearchPlan = {
+type RoleSearchMode = "relaxed" | "strict";
+
+type ExternalSearchPlan = {
+  excludeKeywords: string[];
   ftsKeywords: FtsKeyword[];
-  must: SearchCondition[];
-  rerankCriteria: string[];
+  locations: string[];
+  mustKeywords: string[];
   searchIntentSummary: string;
-  should: SearchCondition[];
 };
 
 type RawRoleRow = {
-  career_url?: string | null;
   company_db_description?: string | null;
-  company_db_id?: number | null;
+  company_db_employee_count_range?: unknown;
+  company_db_founded_year?: number | string | null;
   company_db_location?: string | null;
   company_db_name?: string | null;
   company_db_short_description?: string | null;
-  company_db_specialities?: string | null;
   company_description?: string | null;
   company_name?: string | null;
   company_test_score?: number | null;
   company_workspace_id?: string | null;
   description?: string | null;
   external_jd_url?: string | null;
-  homepage_url?: string | null;
   information_text?: string | null;
   location_text?: string | null;
   posted_at?: string | null;
   role_id?: string | null;
   role_name?: string | null;
-  salary_range?: string | null;
   search_rank?: number | null;
   seniority_level?: string | null;
-  source_type?: string | null;
-  status?: string | null;
   type?: string[] | null;
-  updated_at?: string | null;
   work_mode?: string | null;
 };
 
-type RankedRole = {
-  concerns: string[];
-  goodPoints: string[];
-  recommendationText: string | null;
-  role: RawRoleRow;
+type RoleCard = {
+  company: {
+    description?: string | null;
+    employeeCountRange?: unknown;
+    foundedYear?: number | string | null;
+    location?: string | null;
+    shortDescription?: string | null;
+  };
+  companyName: string | null;
+  companyWorkspaceId: string;
+  employmentType: string | null;
+  location: string | null;
+  postedAt: string | null;
+  roleDescription: string;
   roleId: string;
-  score: number;
+  roleName: string;
+  score: number | null;
+  searchRank: number;
+  seniorityLevel: string | null;
+  workMode: string | null;
+  row: RawRoleRow;
+  _shortlistCandidateId?: number;
 };
 
 type PreferenceFitStatus = "Satisfied" | "Neutral" | "Dissatisfied";
@@ -88,29 +89,82 @@ type RecommendationPreferenceFit = Record<
   }
 >;
 
-type RecommendationDetail = {
+type SelectedRecommendation = {
   fitReasons: string[];
+  fitSummary: string | null;
+  isSupplemental: boolean;
   preferenceFit: RecommendationPreferenceFit;
-  roleOverviewText: string | null;
+  rank: number;
+  roleId: string;
+  score: number;
   tradeoffs: string[];
 };
 
-type EnrichedRankedRole = RankedRole & {
-  detail: RecommendationDetail;
+type FinalSelectionResult = {
+  directFitCount: number;
+  scoredCount: number;
+  selected: SelectedRecommendation[];
+  supplementalCount: number;
+};
+
+type EnrichedRankedRole = {
+  concerns: string[];
+  detail: {
+    fitReasons: string[];
+    preferenceFit: RecommendationPreferenceFit;
+    roleOverviewText: string | null;
+    tradeoffs: string[];
+  };
+  goodPoints: string[];
+  isSupplemental: boolean;
   recommendationId: string | null;
+  recommendationText: string | null;
+  role: RawRoleRow;
+  roleId: string;
+  score: number;
+};
+
+type JobPostingTalentUserProfile = {
+  bio?: string | null;
+  created_at?: string | null;
+  email?: string | null;
+  headline?: string | null;
+  last_logined_at?: string | null;
+  location?: string | null;
+  name?: string | null;
+  network_source_talent_id?: string | null;
+  network_waitlist_id?: string | null;
+  profile_picture?: string | null;
+  resume_file_name?: string | null;
+  resume_links?: unknown;
+  updated_at?: string | null;
+  user_id?: string | null;
+};
+
+type JobPostingTalentSetting = {
+  blocked_companies?: unknown;
+  engagement_types?: unknown;
+  user_id?: string | null;
 };
 
 const MAX_SEARCH_RESULTS = 200;
 const PREVIOUSLY_RECOMMENDED_ROLE_ID_PAGE_SIZE = 1000;
-const RECENT_TALENT_ACTIVITY_SUMMARY_LIMIT = 5;
-const SHORTLIST_CANDIDATE_MIN_COUNT = 30;
-const SHORTLIST_CANDIDATE_TARGET_COUNT = 40;
-const SHORTLIST_COMPANY_DESCRIPTION_LIMIT = 200;
-const BROADENED_SEARCH_CANDIDATE_THRESHOLD = 5;
+const RECENT_TALENT_ACTIVITY_SUMMARY_LIMIT = 10;
+const RECENT_CONVERSATION_SUMMARY_LIMIT = 3;
+const RECENT_RECOMMENDATIONS_FOR_CONTEXT = 10;
+const RECENT_DELIVERY_TEXTS_LIMIT = 6;
+const RECENT_DELIVERY_META_LIMIT = 6;
+const SEARCH_COMPANY_WORKSPACE_ROLE_CAP = 5;
+const SHORTLIST_COMPANY_ROLE_CAP = 4;
+const SHORTLIST_LIMIT_MIN = 4;
+const SHORTLIST_LIMIT_MAX = 20;
+const SHORTLIST_LIMIT_MULTIPLIER = 2;
+const TALENT_EXPERIENCE_DESCRIPTION_MAX_LENGTH = 5000;
+const TALENT_TIMELINE_DESCRIPTION_MAX_LENGTH = 900;
 const FINAL_RECOMMENDATION_COUNT = 5;
 const CONTINUATION_RECOMMENDATION_BATCH_LIMIT = 10;
 const RECOMMEND_JOB_POSTINGS_MODEL_VERSION =
-  "career_chat_recommend_job_postings_v3";
+  "career_chat_recommend_job_postings_external_v4";
 const PREFERENCE_FIT_KEYS = [
   "next_scope",
   "location",
@@ -119,178 +173,95 @@ const PREFERENCE_FIT_KEYS = [
   "must_haves",
 ] as const;
 
-const COLUMN_SQL: Record<string, string> = {
-  "company_db.description": "cd.description",
-  "company_db.investors": "cd.investors",
-  "company_db.location": "cd.location",
-  "company_db.name": "cd.name",
-  "company_db.short_description": "cd.short_description",
-  "company_db.specialities": "cd.specialities",
-  "company_roles.description": "cr.description",
-  "company_roles.information": "cr.information::text",
-  "company_roles.location_text": "cr.location_text",
-  "company_roles.name": "cr.name",
-  "company_roles.seniority_level": "cr.seniority_level",
-  "company_roles.source_type": "cr.source_type",
-  "company_roles.type": "cr.type",
-  "company_roles.work_mode": "cr.work_mode",
-  "company_workspace.company_description": "cw.company_description",
-  "company_workspace.company_name": "cw.company_name",
-};
-
-const ARRAY_COLUMNS = new Set(["cr.type"]);
-const COMPANY_CONDITION_COLUMNS = new Set([
-  "company_workspace.company_name",
-  "company_db.name",
-]);
-const FTS_TEXT_CONDITION_COLUMNS = new Set([
-  "company_roles.description",
-  "company_roles.name",
-]);
 const FTS_RANK_WEIGHTS = "ARRAY[0.04,0.57,0.64,1.0]::real[]";
 const MAX_FTS_KEYWORDS = 8;
-const MAX_CONDITION_VALUES = 10;
-const MAX_FTS_TERMS_PER_KEYWORD = 10;
-const RERANK_BATCH_SIZE = 50;
-const RERANK_BATCH_FINALIST_COUNT = 10;
-const ROLE_DESCRIPTION_PROMPT_LIMIT = 3000;
+const MAX_FTS_TERMS_PER_KEYWORD = 8;
 const COMPANY_TEST_SCORE_MAX = 20;
-const COMPANY_TEST_SCORE_SEARCH_RANK_DIVISOR = 100;
-// Max boost is about +2.9 on the 0-10 rerank score.
-const COMPANY_TEST_SCORE_RERANK_DIVISOR = 7;
+const COMPANY_TEST_SCORE_SEARCH_RANK_DIVISOR = 5;
+const RECOMMEND_JOB_POSTINGS_PLAN_MODEL = "claude-sonnet-4-6";
+const RECOMMEND_JOB_POSTINGS_FINAL_SELECTION_MODEL =
+  RECOMMEND_JOB_POSTINGS_PLAN_MODEL;
 const RECOMMEND_JOB_POSTINGS_PRIMARY_MODEL = "grok-4-1-fast-reasoning";
 const RECOMMEND_JOB_POSTINGS_FALLBACK_MODEL = "grok-4-fast-reasoning";
 
-const PLAN_SYSTEM_PROMPT = `You are a job-search query planner for Harper.
-Return JSON only. Do not write SQL.
+const DEFAULT_EXCLUDE_KEYWORDS = ["tutor", "annotator", "evaluator"];
+const EXCLUDE_KEYWORDS_TO_DROP = new Set(["intern", "internship"]);
 
-You receive a user/candidate brief and a Supabase schema. Decide which columns and values should be used to retrieve up to ${MAX_SEARCH_RESULTS} candidate job postings, then write reranking criteria.
+const DEBUG_RECOMMEND_JOB_POSTINGS =
+  process.env.DEBUG_RECOMMEND_JOB_POSTINGS === "1";
 
-Allowed output shape:
+const PLAN_SYSTEM_PROMPT = `You are Harper's external job-posting search planner.
+Return JSON only.
+
+Your task is to find the most relevant job postings for the user's request and profile.
+
+This tool recommends external public job postings only. Do not output internal opportunity fields, follow-up decisions, todo actions, send decisions, or recommendation strategy metadata.
+
+The user's latest request is the primary retrieval target. Use the compact user profile only to disambiguate skills, avoid known blockers, and personalize matching. Do not over-optimize for a long-term recommendation strategy when it conflicts with the current request.
+
+Output schema:
 {
-  "searchIntentSummary": "one Korean sentence",
-  "must": [],
-  "should": [
-    { "column": "company_roles.location_text", "mode": "any", "values": ["Seoul", "서울"], "polarity": "include" }
-  ],
-  "ftsKeywords": [
-    { "terms": ["Research Scientist", "Research Engineer", "Applied Scientist", "ML Researcher", "AI Researcher", "Machine Learning Engineer", "ML Engineer", "Researcher", "연구원", "머신러닝 엔지니어"], "weight": 1.2 },
-    { "terms": ["TTS", "Text-to-Speech", "speech synthesis", "음성합성"], "weight": 2.8 }
-  ],
-  "rerankCriteria": ["Korean sentence 1", "Korean sentence 2", "Korean sentence 3"]
+  "searchIntentSummary": "one Korean sentence focused on the current request",
+  "mustKeywords": [],
+  "ftsKeywords": [{"terms": ["synonym", "group"], "weight": 1.0}],
+  "locations": [],
+  "excludeKeywords": []
 }
 
 Rules:
-- Use only these columns:
-  company_roles.name, company_roles.description,
-  company_roles.location_text, company_roles.work_mode, company_roles.type,
-  company_roles.source_type,
-  company_workspace.company_name, company_workspace.company_description,
-  company_db.name, company_db.description, company_db.short_description, company_db.specialities, company_db.location, company_db.investors.
-- For role name/description intent, always add ftsKeywords. The SQL builder searches company_roles.opportunity_search_tsv for these terms and uses weight for ts_rank_cd ordering.
-- Retrieval contract: ftsKeywords are the first-pass role/domain gate. The SQL builder ORs all ftsKeywords groups together, so a posting can enter the candidate pool if it matches any single ftsKeywords group. Therefore every ftsKeywords group must be strong enough that a posting matching only that group is still plausibly relevant to the user's requested role.
-- First-pass search must prioritize role fit above company, location, compensation, work style, culture, and prestige. Use ftsKeywords only for role family, title family, core technical/business domain, methods, tools, or responsibilities that define the work itself.
-- Do not put preference-only concepts in ftsKeywords: company stage, company size, funding stage, investors, famous accelerators, location, remote/hybrid/onsite, salary, culture, benefits, brand prestige, "startup", "Series A", "YC", "a16z", "global", "Seoul", or similar context. Put these in should when a column exists, and in rerankCriteria otherwise.
-- Exception: a context word may be in ftsKeywords only when it is literally the work domain or role family, not just a preference. Example: "Venture Capital Analyst" may use VC/investment terms; "LLM Researcher at VC-backed startups" must not use VC/startup terms as ftsKeywords.
-- If the request combines a role with company/location/work-mode/company-stage preferences, keep ftsKeywords role/domain-only and express the preferences through should and rerankCriteria.
-- Put synonyms for one concept in one ftsKeywords item. Example: ["TTS", "Text-to-Speech", "음성합성"].
-- Set ftsKeywords.weight from 0.5 to 5.0. More distinctive domain/skill keywords should be heavier than generic role words. Example: for "TTS Researcher", TTS should be around 3.0-5.0 and Researcher around 0.8-1.5.
-- Good example for "LLM Researcher at hot Seoul/remote startups": ftsKeywords should include LLM/large-language-model research terms, alignment/RLHF/SFT/DPO/PPO terms, and AI/ML researcher title-family terms. Put Seoul/remote/startup/investor preference in should/rerankCriteria, not ftsKeywords.
-- Bad example: adding ["Startup", "Series A", "YC", "a16z"] to ftsKeywords for an LLM Researcher search, because a marketing or sales role at a startup could then pass the first retrieval gate.
-- Avoid putting company_roles.name in must. Role titles are noisy, inconsistent, and often do not share exact wording; hard title substring filters hurt recall. Prefer ftsKeywords for title/role-family concepts and let rerankCriteria decide final fit.
-- Use company_roles.name in must only when the user explicitly makes the exact title non-negotiable, such as "Research Scientist만" or "ML Engineer role only". If you do, use mode="any" and include 8-10 broad English/Korean variants, abbreviations, and adjacent titles that should still count. Never use mode="all" for company_roles.name title variants.
-- Still use must/should for structured filters such as location_text, work_mode, type, company, source, and explicit exclusions.
-- Never use company_roles.salary_range in must or should. Salary data is sparse, so salary requirements belong only in rerankCriteria.
-- The SQL builder converts non-FTS condition values into ILIKE patterns. Example: column=company_roles.location_text, mode=any, values=["Seoul","서울"] becomes location_text ILIKE %Seoul% OR location_text ILIKE %서울%.
-- Use "mode":"any" when synonyms or alternatives are acceptable. Use "mode":"all" only for truly required co-occurring concepts.
-- Put truly non-negotiable requirements in must only when the user says "only", "must", "exclude", or clearly rejects alternatives. Put useful preferences in should. If unsure, prefer should.
-- Prefer should for location_text, work_mode, type, and seniority unless the user explicitly makes them hard constraints, because some postings have sparse structured fields.
-- Use polarity=exclude for explicit negative requirements only.
-- Keep values short search tokens, not whole sentences. Maximum 8 total conditions and 10 values per condition.
-- ftsKeywords should contain 2-6 high-signal role/domain concepts at most.
-- rerankCriteria must be 3-4 Korean sentences and should explain how to score fit, concerns, and prioritization.`;
-
-const BROADENED_PLAN_SYSTEM_PROMPT = `${PLAN_SYSTEM_PROMPT}
-
-Second-pass broadening rules:
-- You are creating a broader fallback SearchPlan after the first plan found too few roles.
-- Return the same JSON shape only.
-- This plan is still executed by the normal SQL builder: must conditions are ANDed, should conditions are soft preferences or fallback filters, and ftsKeywords groups are ORed together when present. Do not rely on preference-only ftsKeywords to broaden retrieval.
-- Preserve explicit hard constraints from the user, especially company names and exclusions. If the original plan targeted a specific company, the broader plan must still target that company.
-- For a specific company, prefer one company identity column, usually company_workspace.company_name. Do not duplicate the same company as separate must conditions across company_workspace.company_name and company_db.name unless both are truly required.
-- Broaden noisy role/domain matching by using fewer or broader role/domain ftsKeywords, or by moving preferences to rerankCriteria. Do not broaden by adding company-stage, location, compensation, or prestige terms to ftsKeywords.
-- Prefer moving location, work_mode, type, and seniority preferences to should or rerankCriteria unless the user made them explicit hard filters.
-- Do not add weak generic terms like "full-time", "remote", or "US" as ftsKeywords.`;
-
-const SHORTLIST_SYSTEM_PROMPT = `You are Harper's compact job-posting shortlist filter.
-Return JSON only:
-{
-  "selectedRoleIds": ["role_id_1", "role_id_2"]
-}
-
-Rules:
-- Select roleIds only from the candidate roles shown by the user.
-- Select ${SHORTLIST_CANDIDATE_MIN_COUNT}-${SHORTLIST_CANDIDATE_TARGET_COUNT} roles when that many candidates are plausibly relevant. If fewer candidates are available or plausible, select all plausible candidates.
-- Do not use hard-coded role category exclusions. Judge whether each role appears aligned with the user brief, current request, search intent, and compact card.
-- Prefer one role per company when possible. Select a second role from the same company only if there are not enough credible companies or the roles are materially different and both are strong fits.
-- Use the user's profile, current request, recent activity summaries, insights, and reranking criteria. The compact role cards intentionally omit detailed descriptions; shortlist for likely fit, then a later model will inspect full details.
-- Preserve candidate order only as a weak tie-breaker.
-- Company score is very important. Always prefer roles from companies with higher scores.
+- ftsKeywords are the first-pass role/domain gate over opportunity_search_tsv(consist of role name, description, work mode). Each group is OR-like, so a posting matching only one group must still be plausibly relevant.
+- Use ftsKeywords for role name, role description, domain, skills, etc.
+- 만약 한국의 공고도 검색한다면, terms에 영어 뿐만 아니라 한글 동의어도 포함해라. ex) "Research Engineer", "Machine leaning", "리서치 엔지니어", "머신러닝", "개발자", "Developer"
+- Do not put pure preferences in ftsKeywords: company stage, company size, funding, investors, location, remote/hybrid/onsite, salary, culture, brand prestige, "startup", "Series A", "YC", "a16z", "global", or "Seoul" unless that word is literally part of the work domain.
+- mustKeywords is optional and should usually be empty. Only include terms when the user's current request has explicit must-have concepts that should appear in the job description body, not just the role title. If non-empty, at least one mustKeyword becomes a hard cr.description ILIKE condition.
+- 예를 들어, 게임 개발 엔지니어라고 한다면 mustKeywords에는 "game", "게임"이 들어가면 좋다. "engineer"의 경우 너무 많이 중복될 수 있으니 좋지않다.
+- locations: Location filters or preferences. Keep empty if location preference is unknown.
+  - Examples: "Seoul", "Korea", ", CA", "United States",  "Japan"
+  - 유저가 명시적으로 한국만을 원한다고 하지 않은 경우에는 기본적으로 한국과 미국 둘다 열어둬라. 
+- excludeKeywords should contain explicit hard negatives from the request or strong user memory, not just rejected role or company. ex) intern, 인턴, 계약직 등
+- Weight ftsKeywords intentionally: 4.0-5.0 for must-have role/domain concepts, 2.0-3.5 for strong direction, 1.0-1.5 for weak supporting context.
+- Use English for English-market role/domain terms and Korean for Korean aliases when helpful.
+- If the request is broad, still produce high-recall ftsKeywords based on user's profile rather than generic "good jobs".
 `;
 
-const RERANK_SYSTEM_PROMPT = `You are Harper's job recommendation reranker.
-Score each role from 0 to 10 for this specific user. Return JSON only.
+const SHORTLIST_SYSTEM_PROMPT = `너는 Harper의 external job-posting shortlist 담당자다.
+반드시 JSON만 반환한다.
 
-Output:
+Harper는 한 명의 유저 정보와 요청을 바탕으로 커리어 기회를 골라 메일/제안한다.
+현재 유저 요청을 가장 중요하게 보고, 다음으로 유저 프로필/대화/최근 반응을 참고한다.
+
+Output schema:
 {
-  "rankedRoles": [
-    {
-      "roleId": "uuid",
-      "score": 8.6,
-      "goodPoints": ["short Korean phrase"],
-      "concerns": ["short Korean phrase"],
-      "recommendationText": "Korean explanation or null"
-    }
-  ]
+  "selectedCandidateIds": [0],
+  "rationale": "짧은 내부 판단 이유"
 }
 
-Rules:
-- Rank the best roles first.
-- Return the requested number of roleIds for the current rerank stage when enough candidates exist.
-- Use the user's profile, conversation, insights, preferences, and the reranking criteria.
-- Company test score is Harper's internal company quality/priority score from 0 to 20. Treat it as important, but do not let it override a severe role mismatch.
-- Strongly prefer company diversity in every rerank stage, including batch finalist selection and the final top 5.
-- In a batch stage, the returned finalists should normally contain at most one role per company. Include a second role from the same company only when it is clearly a different role family and materially stronger than the best outside-company alternative.
-- In the final top 5, do not include two roles from the same company unless there are fewer than 5 credible companies or the second same-company role is clearly different and much stronger than available alternatives.
-- When multiple same-company roles are close in fit, rank only the strongest one high and push the others below comparable roles from other companies.
-- If score is 9.0 or higher, recommendationText is required and must include both why it is good and one possible concern.
-- If score is below 9.0, recommendationText may be null.
-- Do not invent facts that are not in the role or company data.`;
+규칙:
+- externalCandidates 안에 있는 numeric id만 고른다.
+- selectionLimit은 선택할 넘길 후보 수다. hard reject 이후 남는 후보가 충분하면 가능한 한 selectionLimit개를 채운다.
+- 절대 같은 회사의 후보를 2개 이상 고르지 않는다. 같은 회사에서는 현재 요청에 가장 직접적으로 맞는 role 1개만 고른다.
+- company_score는 회사 품질 점수(company_workspace.test_score, 0~20)다. role fit 점수가 아니다.
+- 비슷한 역할이라면 company_score가 높은 회사를 선택한다.
+- retrievalFtsScore는 이번 DB query와의 FTS relevance에 company score bonus를 더한 내부 retrieval rank다. 참고값일 뿐 사용자에게 말하지 않는다. retrievalFtsScore를 선택에 반영하지 않는다.
+`;
+// - 현재 요청과 명확히 어긋나는 후보는 company_score 혹은 retrievalFtsScore가 높아도 제외한다.
+// - 이미 한번이라도 추천된 회사는 정말 좋은 role이 아니면 안고르는게 좋아.
 
-const EXPLANATION_SYSTEM_PROMPT = `You write concise Korean recommendation notes.
-Return JSON only:
+const FINAL_SELECTION_SYSTEM_PROMPT = `너는 Harper의 external job-posting selector다.
+반드시 JSON만 반환한다.
+
+이 도구는 external public job posting만 추천한다. Harper가 소개/연결할 수 있는 internal opportunity처럼 쓰지 않는다.
+현재 유저 요청을 가장 중요하게 반영하고, compact user_profile은 fitReasons와 preferenceFit을 개인화하는 데 사용한다.
+
+Output schema:
 {
-  "explanations": [
+  "selectedRecommendations": [
     {
-      "roleId": "uuid",
-      "goodPoints": ["short Korean phrase"],
-      "concerns": ["short Korean phrase"],
-      "recommendationText": "2-3 Korean sentences"
-    }
-  ]
-}
-
-Each recommendationText must explain why the role is recommended and include one realistic concern.`;
-
-const RECOMMENDATION_DETAIL_SYSTEM_PROMPT = `You write worker-compatible Korean job recommendation details.
-Return JSON only:
-{
-  "details": [
-    {
-      "roleId": "uuid",
-      "fitReasons": ["추천하는 이유", "추천하는 이유 2"],
-      "tradeoffs": ["구체적 우려나 확인할 점"],
-      "roleOverviewText": "회사 + Role에 대한 객관적 설명. 1-2 문장.",
+      "rank": 1,
+      "roleId": "...",
+      "score": 0.9,
+      "fitSummary": "회사와 역할에 대한 요약",
+      "fitReasons": ["유저 프로필 / request를 기반으로 이 역할을 추천하는 이우"],
       "preferenceFit": {
         "next_scope": {"status": "Satisfied|Neutral|Dissatisfied", "note": "짧은 한국어 한 문장"},
         "location": {"status": "Satisfied|Neutral|Dissatisfied", "note": "짧은 한국어 한 문장"},
@@ -298,56 +269,65 @@ Return JSON only:
         "deal_breakers": {"status": "Satisfied|Neutral|Dissatisfied", "note": "짧은 한국어 한 문장"},
         "must_haves": {"status": "Satisfied|Neutral|Dissatisfied", "note": "짧은 한국어 한 문장"}
       }
+    },
+    {
+      "roleId": "...",
+      "score": 0.52
     }
   ]
 }
 
-Rules:
-- Return one detail object for each selected roleId from the user message.
-- fitReasons are required. Write 1-2 personalized Korean reasons grounded in the candidate brief and role card.
-- tradeoffs should contain 0-1 concrete concern. Leave it empty when there is no grounded downside.
-- roleOverviewText is neutral company-and-role overview, not a recommendation reason. Do not mention the candidate in roleOverviewText.
-- preferenceFit evaluates only explicit user insights for next_scope, location, compensation, deal_breakers, and must_haves. Omit keys when the matching user insight is missing or blank.
-- Each preferenceFit note must be one short factual Korean sentence grounded in the role card and user insight.
-- Do not invent facts that are missing from the role or company data.`;
+## selectedRecommendations 필드 작성법:
+- detailedExternalCandidates의 모든 후보를 selectedRecommendations에 정확히 한 번씩 넣고 score를 매긴다. 이 배열은 최종 추천 목록이 아니라 scoring 결과다.
+- rank: 현재 요청과 잘 맞아 바로 추천할 수 있는 후보에만 쓴다. 1부터 시작한다.
+- roleId: 반드시 detailedExternalCandidates 안에 있는 roleId만 사용한다.
+- score: 0~1 사이의 "추천 confidence"다. retrieval 점수나 회사 점수를 복사하지 않는다.
+- fitSummary: 제품의 추천 상세 카드에 들어갈 중립 요약이다. 회사가 무엇을 하고, 이 role이 무엇을 하는지, 그리고 이 회사와 role이 왜 좋은지 등 1~3문장으로 쓴다.
+  - 여기에 "왜 이 유저에게 맞는지"를 쓰지 않는다. 데이터가 있다면 활용해서 쓰면 좋다.
+  - 예: "Elevenlabs는 음성 합성·음성 복제·오디오 생성 AI를 개발하는 글로벌 연구 중심 회사입니다. 2023년에 설립되어 현재까지 1조원 이상을 투자 받아 현재 수백만명이 사용하고 있습니다. 이 역할은 Research Engineer이지만 특정 역할에 얽매이지않고 어떤 작업이든 할 수 있으며, 완전 원격도 가능합니다."
+- fitReasons: 유저에게 이 role을 제안하는 개인화된 이유다. 최대 3개, 각각 짧고 구체적으로 쓴다.
+  - 유저의 경력/대화/최근 저장·좋아요·싫어요/선호와 role evidence를 연결한다.
+  - 예: "STT-LLM-TTS 파이프라인으로 실제 대화 AI를 구현한 경험이 Voice AI 에이전트 배포 업무와 직접적으로 일치합니다."
+  - 예: "현재 역할은 ex-founder를 선호한다고 되어있어 창업 배경을 가진 호진님에게 적합합니다."
+- preferenceFit: 유저 insight에 명시된 선호 축만 평가한다. 없는 선호 축은 생략한다.
+  - 허용 key: next_scope, location, compensation, deal_breakers, must_haves.
+  - status는 Satisfied, Neutral, Dissatisfied 중 하나다.
+  - note는 role card와 user insight에 근거한 짧은 한국어 한 문장이다.
+  - 예:
+    {
+      "next_scope": {"status": "Satisfied", "note": "말씀하신 applied AI research 방향과 role scope가 맞습니다."},
+      "location": {"status": "Neutral", "note": "SF 기반이라 선호 지역과는 맞지만 onsite 빈도는 확인이 필요합니다."},
+      "deal_breakers": {"status": "Dissatisfied", "note": "relocation-only 조건이면 원격 선호와 충돌할 수 있습니다."}
+    }
 
-const DEBUG_RECOMMEND_JOB_POSTINGS =
-  process.env.DEBUG_RECOMMEND_JOB_POSTINGS === "1";
+규칙:
+- roleId는 detailedExternalCandidates 안에 있는 roleId만 사용한다.
+- score는 0~1 사이의 추천 confidence다. retrieval 점수, searchRank, company_score, test_score를 복사하지 않는다.
+- 현재 요청과 충분히 fit한 후보에는 fitSummary, fitReasons, preferenceFit을 작성한다.
+- 현재 요청과 완전히 일치하지 않거나 바로 추천할 정도의 fit은 아닌 후보는 roleId와 score만 반환한다. fitSummary, fitReasons, preferenceFit을 쓰지 않는다.
+- 코드가 fitSummary/fitReasons/preferenceFit이 있는 후보를 우선 추천하고, targetRecommendationCount보다 부족하면 roleId+score만 있는 후보 중 score가 높은 순서로 나머지를 채운다.
+- fitReasons는 현재 요청과 user_profile의 근거를 role/company/JD evidence와 연결한다.
+- preferenceFit은 user_profile.insights에 명시된 축만 평가한다.
+- 한 회사에서 여러 role을 동시에 선택하지 않는다.
+- 제공된 후보/프로필에 없는 회사 문화, 투자, 팀 퀄리티, 보상, 성장성, 연락 가능성을 지어내지 않는다.
+- 역할의 설명과 관계없이 유저가 사용하는 언어로 모든 내용을 작성해라.(영어인 키워드는 제외)
+`;
 
 function cleanText(value: unknown, maxLength = 4000) {
   const text =
-    typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+    typeof value === "string" || typeof value === "number"
+      ? String(value).replace(/\s+/g, " ").trim()
+      : "";
   return text ? text.slice(0, maxLength) : "";
 }
 
-function cleanPlainText(value: unknown, maxLength = 4000) {
-  const raw = typeof value === "string" ? value.replace(/<[^>]*>/g, " ") : "";
-  return cleanText(raw, maxLength);
-}
-
-function clampBlock(value: unknown, maxLength = 4000) {
+function normalizeMultiline(value: unknown, maxLength = 4000) {
   const text = typeof value === "string" ? value.replace(/\r/g, "").trim() : "";
   return text ? text.slice(0, maxLength) : "";
 }
 
-function parseJsonObject(raw: string): Record<string, unknown> | null {
-  try {
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : null;
-  } catch {
-    const match = raw.match(/\{[\s\S]*\}/);
-    if (!match) return null;
-    try {
-      const parsed = JSON.parse(match[0]);
-      return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-        ? (parsed as Record<string, unknown>)
-        : null;
-    } catch {
-      return null;
-    }
-  }
+function clampBlock(value: unknown, maxLength = 4000) {
+  return normalizeMultiline(value, maxLength);
 }
 
 function debugLog(label: string, payload: Record<string, unknown>) {
@@ -365,10 +345,96 @@ function infoJson(label: string, payload: Record<string, unknown>) {
   );
 }
 
+function asRecord(value: unknown): JsonRecord | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as JsonRecord;
+}
+
+function parseJsonObject(raw: string): JsonRecord | null {
+  try {
+    const parsed = JSON.parse(raw);
+    return asRecord(parsed);
+  } catch {
+    const match = raw.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+    try {
+      return asRecord(JSON.parse(match[0]));
+    } catch {
+      return null;
+    }
+  }
+}
+
+function parseMaybeJsonValue(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
+async function fetchJobPostingTalentUserProfile(args: {
+  admin: AdminClient;
+  userId: string;
+}) {
+  const { data, error } = await args.admin
+    .from("talent_users")
+    .select(
+      [
+        "user_id",
+        "email",
+        "name",
+        "profile_picture",
+        "headline",
+        "bio",
+        "location",
+        "last_logined_at",
+        "network_waitlist_id",
+        "network_source_talent_id",
+        "resume_file_name",
+        "resume_links",
+        "created_at",
+        "updated_at",
+      ].join(", ")
+    )
+    .eq("user_id", args.userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load talent_users profile");
+  }
+
+  return (data ?? null) as JobPostingTalentUserProfile | null;
+}
+
+async function fetchJobPostingTalentSetting(args: {
+  admin: AdminClient;
+  userId: string;
+}) {
+  const { data, error } = await args.admin
+    .from("talent_setting")
+    .select("user_id, blocked_companies, engagement_types")
+    .eq("user_id", args.userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load talent_setting");
+  }
+
+  return (data ?? null) as JobPostingTalentSetting | null;
+}
+
+function coerceList(value: unknown, limit: number): unknown[] {
+  const parsed = parseMaybeJsonValue(value);
+  if (Array.isArray(parsed)) return parsed.slice(0, limit);
+  if (parsed === null || parsed === undefined || parsed === "") return [];
+  return [parsed].slice(0, limit);
+}
+
 function asStringArray(value: unknown, maxItems = 8, maxLength = 80) {
-  if (!Array.isArray(value)) return [];
   const unique = new Map<string, string>();
-  for (const item of value) {
+  for (const item of coerceList(value, maxItems)) {
     const text = cleanText(item, maxLength);
     if (!text) continue;
     const key = text.toLocaleLowerCase("ko-KR");
@@ -389,32 +455,1165 @@ function clampNumber(
   return Math.max(min, Math.min(max, number));
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  return value as Record<string, unknown>;
+function normalizeInt(
+  value: unknown,
+  fallback: number,
+  min: number,
+  max: number
+) {
+  const number = Number.parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.max(min, Math.min(max, number));
 }
 
-function parseMaybeJsonRecord(value: unknown): Record<string, unknown> | null {
-  const direct = asRecord(value);
-  if (direct) return direct;
-  if (typeof value !== "string") return null;
-
-  try {
-    const parsed = JSON.parse(value);
-    return asRecord(parsed);
-  } catch {
-    return null;
-  }
+function isEmptyForLlm(value: unknown) {
+  return (
+    value === null ||
+    value === undefined ||
+    value === "" ||
+    (Array.isArray(value) && value.length === 0) ||
+    (Boolean(value) &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      Object.keys(value as JsonRecord).length === 0)
+  );
 }
 
-function parseMaybeJsonValue(value: unknown): unknown {
-  if (typeof value !== "string") return value;
-
-  try {
-    return JSON.parse(value);
-  } catch {
-    return value;
+function cleanEmptyValues(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(cleanEmptyValues).filter((item) => !isEmptyForLlm(item));
   }
+  const record = asRecord(value);
+  if (record) {
+    const compact: JsonRecord = {};
+    for (const [key, child] of Object.entries(record)) {
+      const compactValue = cleanEmptyValues(child);
+      if (!isEmptyForLlm(compactValue)) compact[key] = compactValue;
+    }
+    return compact;
+  }
+  return value;
+}
+
+function compactDatetimeForLlm(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "";
+  if (value instanceof Date) {
+    return formatKstHour(value);
+  }
+  const text = cleanText(value, 120);
+  if (!text) return "";
+  if (text.endsWith("KST") && text.includes("시")) return text;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  if (/^\d{4}-\d{2}-\d{2}/.test(text) && !text.includes("T")) {
+    return text.slice(0, 10);
+  }
+  const normalized =
+    text.includes("T") && !/(Z|[+-]\d{2}:?\d{2})$/.test(text)
+      ? `${text}Z`
+      : text.replace(/Z$/, "+00:00");
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) {
+    return /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : text;
+  }
+  return formatKstHour(date);
+}
+
+function formatKstHour(date: Date) {
+  const shifted = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+  const iso = shifted.toISOString();
+  return `${iso.slice(0, 10)} ${iso.slice(11, 13)}시 KST`;
+}
+
+function compactPeriodDate(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "";
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  const text = cleanText(value, 120);
+  if (
+    !text ||
+    ["none", "null", "n/a", "na", "-"].includes(text.toLowerCase())
+  ) {
+    return "";
+  }
+  return /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : text;
+}
+
+function isDateFieldKey(key: string) {
+  return (
+    key.endsWith("At") ||
+    key.endsWith("_at") ||
+    key.endsWith("Date") ||
+    key.endsWith("_date") ||
+    [
+      "createdAt",
+      "updatedAt",
+      "occurredAt",
+      "occuredAt",
+      "recommendedAt",
+      "viewedAt",
+      "clickedAt",
+      "lastMentionedAt",
+      "lastPeriodicRunAt",
+      "postedAt",
+      "startDate",
+      "endDate",
+      "created_at",
+      "updated_at",
+      "occurred_at",
+      "occured_at",
+      "recommended_at",
+      "viewed_at",
+      "clicked_at",
+      "last_mentioned_at",
+      "last_periodic_run_at",
+      "posted_at",
+      "start_date",
+      "end_date",
+    ].includes(key)
+  );
+}
+
+function compactDates(value: unknown, key = ""): unknown {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => compactDates(item, key))
+      .filter((item) => !isEmptyForLlm(item));
+  }
+  const record = asRecord(value);
+  if (record) {
+    const compact: JsonRecord = {};
+    for (const [childKey, childValue] of Object.entries(record)) {
+      const compactValue = compactDates(childValue, childKey);
+      if (!isEmptyForLlm(compactValue)) compact[childKey] = compactValue;
+    }
+    return compact;
+  }
+  if (isDateFieldKey(key)) return compactDatetimeForLlm(value);
+  return parseMaybeJsonValue(value);
+}
+
+function compactStringList(value: unknown, limit: number, maxLength: number) {
+  return asStringArray(value, limit, maxLength);
+}
+
+function firstPresent(record: JsonRecord | null, keys: string[]) {
+  if (!record) return null;
+  for (const key of keys) {
+    const value = record[key];
+    if (!isEmptyForLlm(value)) return value;
+  }
+  return null;
+}
+
+function compactInsightsForLlm(value: unknown): JsonRecord {
+  const record = asRecord(value);
+  if (!record) return {};
+  const compact: JsonRecord = {};
+  for (const [key, raw] of Object.entries(record)) {
+    const name = cleanText(key, 80);
+    if (!name) continue;
+    if (typeof raw === "string") {
+      compact[name] = normalizeMultiline(raw, 800);
+    } else if (Array.isArray(raw)) {
+      compact[name] = compactStringList(raw, 12, 180);
+    } else {
+      compact[name] = parseMaybeJsonValue(raw);
+    }
+  }
+  return cleanEmptyValues(compact) as JsonRecord;
+}
+
+function compactProfileLinks(links: unknown, limit = 6) {
+  return asStringArray(links, limit, 240).map((url) => ({
+    type: url.toLowerCase().includes("linkedin.com")
+      ? "linkedin"
+      : url.toLowerCase().includes("github.com")
+        ? "github"
+        : "profile_link",
+    url,
+  }));
+}
+
+function containsLinkedIn(value: unknown): boolean {
+  if (typeof value === "string")
+    return value.toLowerCase().includes("linkedin.com");
+  if (Array.isArray(value)) return value.some(containsLinkedIn);
+  const record = asRecord(value);
+  return record ? Object.values(record).some(containsLinkedIn) : false;
+}
+
+function compactTimelineRows(
+  value: unknown,
+  limit: number,
+  options: { descriptionMaxLength?: number } = {}
+) {
+  const descriptionMaxLength =
+    options.descriptionMaxLength ?? TALENT_TIMELINE_DESCRIPTION_MAX_LENGTH;
+  const rows: JsonRecord[] = [];
+  for (const item of coerceList(value, limit)) {
+    const record = asRecord(item);
+    if (!record) continue;
+    const compact: JsonRecord = {};
+    for (const [key, itemValue] of Object.entries(record)) {
+      if (["startDate", "endDate", "start_date", "end_date"].includes(key)) {
+        continue;
+      }
+      if (key === "description" || key === "roleDescription") {
+        const text = normalizeMultiline(itemValue, descriptionMaxLength);
+        if (text) compact[key] = text;
+        continue;
+      }
+      if (key === "memo") {
+        const text = normalizeMultiline(itemValue, 600);
+        if (text) compact[key] = text;
+        continue;
+      }
+      const compactValue = compactDates(itemValue, key);
+      if (!isEmptyForLlm(compactValue)) compact[key] = compactValue;
+    }
+    const start = compactPeriodDate(record.startDate ?? record.start_date);
+    const end = compactPeriodDate(record.endDate ?? record.end_date) || "현재";
+    if (start) compact.period = `${start} - ${end}`;
+    const cleaned = cleanEmptyValues(compact);
+    if (asRecord(cleaned)) rows.push(cleaned as JsonRecord);
+  }
+  return rows;
+}
+
+function compactActivityEvent(item: {
+  created_at?: string | null;
+  summary?: string | null;
+}) {
+  const summary = normalizeMultiline(item.summary, 360);
+  if (!summary) return "";
+  const occurredAt = compactDatetimeForLlm(item.created_at);
+  return occurredAt ? `${occurredAt} | ${summary}` : summary;
+}
+
+type RecentRecommendationRow = {
+  clickedAt?: string | null;
+  companyName?: string | null;
+  feedback?: string | null;
+  feedbackReason?: string | null;
+  fitReasons?: unknown;
+  fitSummary?: string | null;
+  id?: string | null;
+  location?: string | null;
+  opportunityType?: string | null;
+  processedStage?: string | null;
+  recommendedAt?: string | null;
+  roleId?: string | null;
+  roleName?: string | null;
+  savedStage?: string | null;
+  score?: number | null;
+  sourceType?: string | null;
+  status?: string | null;
+  tradeoffs?: unknown;
+  viewedAt?: string | null;
+  workMode?: string | null;
+};
+
+function actionWords(item: RecentRecommendationRow) {
+  const actions: string[] = [];
+  const feedback = cleanText(item.feedback, 80).toLowerCase();
+  const savedStage = cleanText(item.savedStage, 80);
+  const status = cleanText(item.status, 80);
+  if (feedback) {
+    if (["like", "liked", "positive"].includes(feedback)) actions.push("liked");
+    else if (["dislike", "disliked", "negative"].includes(feedback)) {
+      actions.push("disliked");
+    } else actions.push(`fb:${feedback}`);
+  }
+  if (savedStage) actions.push(savedStage);
+  else if (status) actions.push(status);
+  if (item.viewedAt) actions.push("viewed");
+  if (item.clickedAt) actions.push("clicked");
+  return Array.from(new Set(actions));
+}
+
+function redactPreviousExternalMentions(
+  value: unknown,
+  terms: string[],
+  maxLength = 1600
+) {
+  let text = normalizeMultiline(value, maxLength);
+  text = text.replace(
+    /\[[^\]]+\]\([0-9a-fA-F-]{36}\)/g,
+    "[previous external role]"
+  );
+  text = text.replace(/\b[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,36}\b/g, "[roleId]");
+  for (const term of terms) {
+    if (!term) continue;
+    text = text.replace(
+      new RegExp(escapeRegExp(term), "gi"),
+      "[previous external role]"
+    );
+  }
+  return text;
+}
+
+function compactRecentRecommendation(
+  item: RecentRecommendationRow,
+  terms: string[],
+  includeReuseNote = true
+) {
+  let title =
+    [cleanText(item.companyName, 160), cleanText(item.roleName, 180)]
+      .filter(Boolean)
+      .join(" - ") || "unknown role";
+  title =
+    redactPreviousExternalMentions(title, terms, 260) ||
+    "[previous external role]";
+  const parts = [`external: ${title}`];
+  const recommendedAt = compactDatetimeForLlm(item.recommendedAt);
+  if (recommendedAt) parts.push(recommendedAt);
+  const actions = actionWords(item);
+  if (actions.length > 0) parts.push(actions.join(", "));
+  const place = [cleanText(item.location, 120), cleanText(item.workMode, 80)]
+    .filter(Boolean)
+    .join(" / ");
+  if (place) parts.push(place);
+  const feedbackReason = redactPreviousExternalMentions(
+    item.feedbackReason,
+    terms,
+    220
+  );
+  if (feedbackReason) parts.push(`reason: ${feedbackReason}`);
+  if (includeReuseNote) {
+    parts.push("prev external; signal only; do not repeat");
+  }
+  return parts.join(" | ");
+}
+
+function compactFeedbackSignals(
+  history: RecentRecommendationRow[],
+  terms: string[]
+) {
+  const buckets = {
+    applied: [] as string[],
+    negativeOrDisliked: [] as string[],
+    positiveOrLiked: [] as string[],
+    saved: [] as string[],
+  };
+  for (const item of history) {
+    const compact = compactRecentRecommendation(item, terms, false);
+    const feedback = cleanText(item.feedback, 80).toLowerCase();
+    const savedStage = cleanText(item.savedStage, 80).toLowerCase();
+    if (["like", "positive"].includes(feedback))
+      buckets.positiveOrLiked.push(compact);
+    if (["dislike", "negative"].includes(feedback)) {
+      buckets.negativeOrDisliked.push(compact);
+    }
+    if (["saved", "interested", "shortlisted"].includes(savedStage)) {
+      buckets.saved.push(compact);
+    }
+    if (["applied", "interviewing"].includes(savedStage)) {
+      buckets.applied.push(compact);
+    }
+  }
+  return cleanEmptyValues({
+    applied: buckets.applied.slice(0, 8),
+    instruction:
+      "Use these signals to interpret the current request. Mention what liked/saved roles imply and what disliked roles suggest avoiding only when relevant.",
+    negativeOrDisliked: buckets.negativeOrDisliked.slice(0, 8),
+    positiveOrLiked: buckets.positiveOrLiked.slice(0, 8),
+    saved: buckets.saved.slice(0, 8),
+  }) as JsonRecord;
+}
+
+function previousExternalRedactionTerms(
+  existing: PreviousExternalRecommendation[]
+) {
+  const terms: string[] = [];
+  for (const item of existing) {
+    for (const value of [item.roleName, item.companyName]) {
+      const text = cleanText(value, 180);
+      if (text.length >= 3 && !terms.includes(text)) terms.push(text);
+    }
+  }
+  return terms.sort((left, right) => right.length - left.length);
+}
+
+function compactDeliveryMetaForLlm(meta: JsonRecord) {
+  const parts: string[] = [];
+  const intent = normalizeMultiline(meta.intent, 240);
+  if (intent) parts.push(intent);
+  for (const [label, key] of [
+    ["act", "communicationAct"],
+    ["shape", "shape"],
+    ["ask", "askType"],
+    ["roles", "roleCount"],
+    ["cta", "ctaType"],
+    ["opening", "openingStyle"],
+  ] as const) {
+    const text = cleanText(meta[key], 80);
+    if (text) parts.push(`${label}:${text}`);
+  }
+  return parts.join(" | ");
+}
+
+async function fetchRecentConversationSummaries(args: {
+  admin: AdminClient;
+  conversationId: string;
+  userId: string;
+}) {
+  const { data, error } = await ((
+    args.admin.from("talent_conversation_summaries" as any) as any
+  )
+    .select("created_at, segment_summary, summary_text, to_message_id")
+    .eq("talent_id", args.userId)
+    .eq("conversation_id", args.conversationId)
+    .order("to_message_id", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(RECENT_CONVERSATION_SUMMARY_LIMIT) as any);
+
+  if (error) {
+    throw new Error(
+      error.message ?? "Failed to load talent_conversation_summaries"
+    );
+  }
+
+  return (Array.isArray(data) ? data : [])
+    .map((row) => {
+      const text =
+        normalizeMultiline(row?.segment_summary, 900) ||
+        normalizeMultiline(row?.summary_text, 900);
+      if (!text) return "";
+      const createdAt = compactDatetimeForLlm(row?.created_at);
+      return createdAt ? `${createdAt} | ${text}` : text;
+    })
+    .filter(Boolean)
+    .reverse();
+}
+
+async function fetchRecentRecommendations(args: {
+  admin: AdminClient;
+  userId: string;
+}) {
+  const { data, error } = await ((
+    args.admin.from("talent_opportunity_recommendation" as any) as any
+  )
+    .select(
+      `id,
+       role_id,
+       opportunity_type,
+       feedback,
+       feedback_reason,
+       recommended_at,
+       viewed_at,
+       clicked_at,
+       saved_stage,
+       processed_stage,
+       fit_summary,
+       fit_reasons,
+       tradeoffs,
+       score,
+       company_roles!inner(
+         name,
+         source_type,
+         location_text,
+         work_mode,
+         company_workspace:company_workspace_id(company_name)
+       )`
+    )
+    .eq("talent_id", args.userId)
+    .eq("opportunity_type", OpportunityType.ExternalJd)
+    .order("recommended_at", { ascending: false })
+    .limit(RECENT_RECOMMENDATIONS_FOR_CONTEXT) as any);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load recommendation history");
+  }
+
+  return (Array.isArray(data) ? data : []).map(
+    (row): RecentRecommendationRow => {
+      const role = asRecord(row?.company_roles);
+      const workspace = asRecord(role?.company_workspace);
+      return {
+        clickedAt: cleanText(row?.clicked_at, 80) || null,
+        companyName: cleanText(workspace?.company_name, 160) || null,
+        feedback: cleanText(row?.feedback, 80) || null,
+        feedbackReason: normalizeMultiline(row?.feedback_reason, 500) || null,
+        fitReasons: row?.fit_reasons,
+        fitSummary: normalizeMultiline(row?.fit_summary, 700) || null,
+        id: cleanText(row?.id, 120) || null,
+        location: cleanText(role?.location_text, 160) || null,
+        opportunityType: cleanText(row?.opportunity_type, 120) || null,
+        processedStage: cleanText(row?.processed_stage, 80) || null,
+        recommendedAt: cleanText(row?.recommended_at, 120) || null,
+        roleId: cleanText(row?.role_id, 120) || null,
+        roleName: cleanText(role?.name, 180) || null,
+        savedStage: cleanText(row?.saved_stage, 80) || null,
+        score:
+          typeof row?.score === "number" && Number.isFinite(row.score)
+            ? row.score
+            : null,
+        sourceType: "external",
+        status:
+          cleanText(row?.processed_stage, 80) ||
+          cleanText(row?.saved_stage, 80),
+        tradeoffs: row?.tradeoffs,
+        viewedAt: cleanText(row?.viewed_at, 80) || null,
+        workMode: cleanText(role?.work_mode, 80) || null,
+      };
+    }
+  );
+}
+
+type PreviousExternalRecommendation = {
+  companyName: string;
+  roleId: string;
+  roleName: string;
+};
+
+async function fetchExistingExternalRecommendations(args: {
+  admin: AdminClient;
+  userId: string;
+}) {
+  const result: PreviousExternalRecommendation[] = [];
+  let offset = 0;
+  while (true) {
+    const { data, error } = await ((
+      args.admin.from("talent_opportunity_recommendation" as any) as any
+    )
+      .select(
+        `role_id,
+         company_roles!inner(
+           name,
+           source_type,
+           company_workspace:company_workspace_id(company_name)
+         )`
+      )
+      .eq("talent_id", args.userId)
+      .eq("opportunity_type", OpportunityType.ExternalJd)
+      .range(
+        offset,
+        offset + PREVIOUSLY_RECOMMENDED_ROLE_ID_PAGE_SIZE - 1
+      ) as any);
+
+    if (error) {
+      throw new Error(
+        error.message ?? "Failed to load previous external recommendations"
+      );
+    }
+
+    const rows = Array.isArray(data) ? data : [];
+    for (const row of rows) {
+      const role = asRecord(row?.company_roles);
+      const sourceType = cleanText(role?.source_type, 80).toLowerCase();
+      if (sourceType === "internal") continue;
+      const workspace = asRecord(role?.company_workspace);
+      const roleId = cleanText(row?.role_id, 120);
+      if (!roleId) continue;
+      result.push({
+        companyName: cleanText(workspace?.company_name, 180),
+        roleId,
+        roleName: cleanText(role?.name, 180),
+      });
+    }
+
+    if (rows.length < PREVIOUSLY_RECOMMENDED_ROLE_ID_PAGE_SIZE) break;
+    offset += PREVIOUSLY_RECOMMENDED_ROLE_ID_PAGE_SIZE;
+  }
+  return result;
+}
+
+async function fetchRecentDeliveryContext(args: {
+  admin: AdminClient;
+  redactionTerms: string[];
+  userId: string;
+}) {
+  const { data, error } = await ((
+    args.admin.from("opportunity_discovery_run" as any) as any
+  )
+    .select("query_plan")
+    .eq("talent_id", args.userId)
+    .in("status", ["completed", "partial"])
+    .order("created_at", { ascending: false })
+    .limit(
+      Math.max(RECENT_DELIVERY_TEXTS_LIMIT, RECENT_DELIVERY_META_LIMIT)
+    ) as any);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load recent delivery context");
+  }
+
+  const previousDeliveryTexts: string[] = [];
+  const recentDeliveryMeta: string[] = [];
+  for (const row of Array.isArray(data) ? data : []) {
+    const plan = asRecord(parseMaybeJsonValue(row?.query_plan));
+    const delivery = asRecord(plan?.delivery);
+    for (const key of ["emailBody", "chatMessage"]) {
+      const text = redactPreviousExternalMentions(
+        delivery?.[key],
+        args.redactionTerms,
+        1600
+      );
+      if (text && previousDeliveryTexts.length < RECENT_DELIVERY_TEXTS_LIMIT) {
+        previousDeliveryTexts.push(text);
+      }
+    }
+    const meta = asRecord(plan?.deliveryMeta);
+    const compactMeta = meta ? compactDeliveryMetaForLlm(meta) : "";
+    if (compactMeta && recentDeliveryMeta.length < RECENT_DELIVERY_META_LIMIT) {
+      recentDeliveryMeta.push(compactMeta);
+    }
+  }
+
+  return { previousDeliveryTexts, recentDeliveryMeta };
+}
+
+function compactEmployeeRange(value: unknown) {
+  const parsed = parseMaybeJsonValue(value);
+  const record = asRecord(parsed);
+  if (record) {
+    const start = record.start ?? record.min ?? record.from ?? record.lower;
+    const end = record.end ?? record.max ?? record.to ?? record.upper;
+    if (start && end) return `${start}-${end} employees`;
+    if (start) return `${start}+ employees`;
+    if (end) return `up to ${end} employees`;
+  }
+  if (Array.isArray(parsed)) {
+    return parsed
+      .slice(0, 2)
+      .map((item) => cleanText(item, 80))
+      .filter(Boolean)
+      .join("-");
+  }
+  return cleanText(parsed, 120);
+}
+
+function compactJsonish(value: unknown, maxLength = 360) {
+  const parsed = parseMaybeJsonValue(value);
+  if (isEmptyForLlm(parsed)) return "";
+  if (typeof parsed === "string") return normalizeMultiline(parsed, maxLength);
+  const record = asRecord(parsed);
+  if (record) {
+    const parts: string[] = [];
+    for (const [key, item] of Object.entries(record)) {
+      const text = cleanText(item, 120);
+      if (text) parts.push(`${key}:${text}`);
+      if (parts.join(" | ").length >= maxLength) break;
+    }
+    if (parts.length > 0) return parts.join(" | ").slice(0, maxLength).trim();
+  }
+  if (Array.isArray(parsed)) {
+    const parts = parsed
+      .slice(0, 8)
+      .map((item) => cleanText(item, 120))
+      .filter(Boolean);
+    if (parts.length > 0) return parts.join(", ").slice(0, maxLength).trim();
+  }
+  return JSON.stringify(parsed).slice(0, maxLength).trim();
+}
+
+async function buildLlmUserProfile(args: {
+  activitySummaries: Awaited<
+    ReturnType<typeof fetchRecentTalentActivitySummaries>
+  >;
+  admin: AdminClient;
+  conversationId: string;
+  existingExternalRecommendations: PreviousExternalRecommendation[];
+  insights: unknown;
+  profile: JobPostingTalentUserProfile | null;
+  recentRecommendations: RecentRecommendationRow[];
+  setting: JobPostingTalentSetting | null;
+  structuredProfile: Awaited<ReturnType<typeof fetchTalentStructuredProfile>>;
+  userId: string;
+}) {
+  const settingRecord = asRecord(args.setting);
+  const profileRecord = asRecord(args.profile);
+  const redactionTerms = previousExternalRedactionTerms(
+    args.existingExternalRecommendations
+  );
+  const resumeLinks = coerceList(profileRecord?.resume_links, 20);
+  const extras = args.structuredProfile.talentExtras ?? [];
+  const hasResume = Boolean(
+    cleanText(profileRecord?.resume_file_name, 1) || resumeLinks.length > 0
+  );
+  const hasLinkedIn = containsLinkedIn(resumeLinks) || containsLinkedIn(extras);
+  const conversation = await fetchRecentConversationSummaries({
+    admin: args.admin,
+    conversationId: args.conversationId,
+    userId: args.userId,
+  });
+
+  const llmUserProfile = {
+    activityEvents: args.activitySummaries
+      .slice(0, 10)
+      .map(compactActivityEvent)
+      .filter(Boolean),
+    conversation,
+    educations: compactTimelineRows(
+      args.structuredProfile.talentEducations.map((row) => ({
+        degree: row.degree,
+        description: row.description,
+        end_date: row.end_date,
+        field: row.field,
+        memo: row.memo,
+        school: row.school,
+        start_date: row.start_date,
+      })),
+      8
+    ),
+    experiences: compactTimelineRows(
+      args.structuredProfile.talentExperiences.map((row) => ({
+        companyName: row.company_name,
+        description: row.description,
+        end_date: row.end_date,
+        memo: row.memo,
+        role: row.role,
+        start_date: row.start_date,
+      })),
+      12,
+      { descriptionMaxLength: TALENT_EXPERIENCE_DESCRIPTION_MAX_LENGTH }
+    ),
+    extra: {
+      talentExtras: extras.slice(0, 12).map((item) =>
+        cleanEmptyValues({
+          date: compactDates(cleanText(item.date, 80), "date"),
+          description: normalizeMultiline(item.description, 500),
+          memo: normalizeMultiline(item.memo, 300),
+          title: cleanText(item.title, 160),
+        })
+      ),
+    },
+    feedbackSignals: compactFeedbackSignals(
+      args.recentRecommendations,
+      redactionTerms
+    ),
+    insights: compactInsightsForLlm(args.insights),
+    profile: cleanEmptyValues({
+      bio: normalizeMultiline(profileRecord?.bio, 800),
+      headline: cleanText(profileRecord?.headline, 240),
+      location: cleanText(profileRecord?.location, 160),
+      name: cleanText(profileRecord?.name, 160),
+    }),
+    recentRecommendations: args.recentRecommendations
+      .map((item) => compactRecentRecommendation(item, redactionTerms))
+      .filter(Boolean),
+    resume: cleanEmptyValues({
+      fileName: cleanText(profileRecord?.resume_file_name, 180),
+      hasLinkedIn,
+      hasResume,
+      profileLinks: compactProfileLinks(resumeLinks),
+    }),
+    settings: cleanEmptyValues({
+      blockedCompanies: normalizeTalentBlockedCompanies(
+        settingRecord?.blocked_companies ?? []
+      ).slice(0, 20),
+      engagementTypes: compactStringList(
+        settingRecord?.engagement_types,
+        8,
+        120
+      ),
+      workModes: compactStringList(
+        firstPresent(settingRecord, [
+          "work_mode",
+          "preferred_work_mode",
+          "work_modes",
+        ]),
+        8,
+        120
+      ),
+    }),
+  };
+
+  return cleanEmptyValues(llmUserProfile) as JsonRecord;
+}
+
+function inferKeywordWeight(term: string) {
+  const lowered = term.toLowerCase();
+  if (
+    [
+      "voice",
+      "audio",
+      "tts",
+      "speech",
+      "llm",
+      "agent",
+      "rag",
+      "multimodal",
+      "generative",
+    ].some((token) => lowered.includes(token))
+  ) {
+    return 3.5;
+  }
+  if (
+    ["research", "machine learning", "ml", "ai"].some((token) =>
+      lowered.includes(token)
+    )
+  ) {
+    return 2.2;
+  }
+  if (
+    ["engineer", "developer", "software"].some((token) =>
+      lowered.includes(token)
+    )
+  ) {
+    return 1.1;
+  }
+  return 1.5;
+}
+
+function normalizeFtsKeywords(raw: unknown, fallbackText: string) {
+  const result: FtsKeyword[] = [];
+  const seen = new Set<string>();
+  for (const item of coerceList(raw, MAX_FTS_KEYWORDS)) {
+    const record = asRecord(item);
+    if (!record) continue;
+    const terms: string[] = [];
+    for (const term of coerceList(record.terms, MAX_FTS_TERMS_PER_KEYWORD)) {
+      const text = cleanText(term, 80);
+      const key = text.toLowerCase();
+      if (!text || seen.has(key)) continue;
+      seen.add(key);
+      terms.push(text);
+    }
+    if (terms.length > 0) {
+      result.push({
+        terms,
+        weight: clampNumber(record.weight, 0.5, 5, 1),
+      });
+    }
+  }
+  if (result.length === 0) {
+    for (const term of fallbackText.match(
+      /[A-Za-z0-9가-힣][A-Za-z0-9가-힣.+#-]{1,}/g
+    ) ?? []) {
+      if (result.length >= MAX_FTS_KEYWORDS) break;
+      const key = term.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      result.push({ terms: [term], weight: inferKeywordWeight(term) });
+    }
+  }
+  return result.length > 0 ? result : [{ terms: ["engineer"], weight: 1 }];
+}
+
+function normalizeExternalSearchPlan(
+  raw: JsonRecord | null,
+  request: string
+): ExternalSearchPlan {
+  const source = asRecord(raw?.external) ?? raw ?? {};
+  const fallbackText = cleanText(request, 500) || "engineer";
+  const excludeKeywords = Array.from(
+    new Set(
+      asStringArray(source.excludeKeywords, 12, 120)
+        .concat(DEFAULT_EXCLUDE_KEYWORDS)
+        .map((item) => item.trim())
+        .filter((item) => !EXCLUDE_KEYWORDS_TO_DROP.has(item.toLowerCase()))
+        .filter(Boolean)
+    )
+  ).slice(0, 12);
+  return {
+    excludeKeywords,
+    ftsKeywords: normalizeFtsKeywords(source.ftsKeywords, fallbackText),
+    locations: expandLocationSearchTerms(
+      asStringArray(source.locations, 8, 120)
+    ),
+    mustKeywords: asStringArray(source.mustKeywords, 12, 120),
+    searchIntentSummary:
+      cleanText(source.searchIntentSummary ?? raw?.searchIntentSummary, 260) ||
+      "현재 유저 요청에 맞는 external job posting을 찾는다.",
+  };
+}
+
+async function buildSearchPlan(args: {
+  llmUserProfile: JsonRecord;
+  previousDeliveryTexts: string[];
+  recentDeliveryMeta: string[];
+  request: string;
+}) {
+  const raw = await runTalentAssistantCompletion({
+    anthropicOverloadFallbackModel: RECOMMEND_JOB_POSTINGS_PLAN_MODEL,
+    fallbackModel: RECOMMEND_JOB_POSTINGS_PLAN_MODEL,
+    jsonMode: true,
+    messages: [
+      { role: "system", content: PLAN_SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: JSON.stringify({
+          config: {
+            externalSearchLimit: MAX_SEARCH_RESULTS,
+            sourceType: "external_only",
+          },
+          previousDeliveryTexts: args.previousDeliveryTexts,
+          recentDeliveryMeta: args.recentDeliveryMeta,
+          request: args.request,
+          user_profile: args.llmUserProfile,
+        }),
+      },
+    ],
+    primaryModel: RECOMMEND_JOB_POSTINGS_PLAN_MODEL,
+    temperature: 0.2,
+  });
+
+  return normalizeExternalSearchPlan(parseJsonObject(raw), args.request);
+}
+
+function sqlLiteral(value: string) {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value
+  );
+}
+
+function sqlNumber(value: number) {
+  return Number.isFinite(value) ? String(Math.round(value * 100) / 100) : "1";
+}
+
+function ftsVectorSql() {
+  return "cr.opportunity_search_tsv";
+}
+
+function ftsTermQuerySql(term: string) {
+  return `websearch_to_tsquery('simple', ${sqlLiteral(term)})`;
+}
+
+function ftsKeywordQuerySql(keyword: FtsKeyword) {
+  const terms = keyword.terms.map(ftsTermQuerySql);
+  if (terms.length === 0) return null;
+  return terms.length === 1 ? terms[0] : `(${terms.join(" || ")})`;
+}
+
+function ftsAnyQuerySql(keywords: FtsKeyword[]) {
+  const groups = keywords
+    .map(ftsKeywordQuerySql)
+    .filter((sql): sql is string => Boolean(sql));
+  if (groups.length === 0) return "websearch_to_tsquery('simple', 'engineer')";
+  return groups.length === 1 ? groups[0] : `(${groups.join(" || ")})`;
+}
+
+function ftsMatchSql() {
+  return `${ftsVectorSql()} @@ fts.query`;
+}
+
+function ftsRankSql(keywords: FtsKeyword[]) {
+  const vector = ftsVectorSql();
+  const parts = keywords
+    .map((keyword) => {
+      const query = ftsKeywordQuerySql(keyword);
+      if (!query) return null;
+      return `${sqlNumber(keyword.weight)} * ts_rank_cd(${FTS_RANK_WEIGHTS}, ${vector}, ${query})`;
+    })
+    .filter((sql): sql is string => Boolean(sql));
+  return parts.length > 0 ? `(${parts.join(" + ")})` : "0";
+}
+
+function buildBlockedCompanySql(blockedCompanies: string[]) {
+  return blockedCompanies
+    .map((company) => cleanText(company, 100))
+    .filter(Boolean)
+    .slice(0, 20)
+    .map(
+      (company) =>
+        `(COALESCE(cw.company_name, '') NOT ILIKE ${sqlLiteral(
+          `%${company}%`
+        )} AND COALESCE(cd.name, '') NOT ILIKE ${sqlLiteral(`%${company}%`)})`
+    );
+}
+
+function buildExcludeKeywordSql(excludeKeywords: string[]) {
+  return excludeKeywords
+    .map((keyword) => cleanText(keyword, 100))
+    .filter(Boolean)
+    .slice(0, 12)
+    .map((keyword) => {
+      const pattern = sqlLiteral(`%${keyword}%`);
+      return `COALESCE(cr.name, '') NOT ILIKE ${pattern}`;
+    });
+}
+
+function expandLocationSearchTerms(locations: string[]) {
+  const terms: string[] = [];
+  const seen = new Set<string>();
+  let shouldAddSeoul = false;
+  for (const location of locations) {
+    const text = cleanText(location, 100);
+    if (!text) continue;
+    const key = text.toLocaleLowerCase("ko-KR");
+    if (key === "seoul" || key === "korea") shouldAddSeoul = true;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    terms.push(text);
+  }
+  if (shouldAddSeoul && !seen.has("서울")) terms.push("서울");
+  return terms;
+}
+
+function isRemoteLocationTerm(location: string) {
+  return location.toLocaleLowerCase("ko-KR") === "remote";
+}
+
+function buildLocationSql(locations: string[]) {
+  const parts = expandLocationSearchTerms(locations)
+    .map((location) => cleanText(location, 100))
+    .filter(Boolean)
+    .slice(0, 12)
+    .map((location) => {
+      if (isRemoteLocationTerm(location)) {
+        return "LOWER(COALESCE(cr.work_mode, '')) = 'remote'";
+      }
+      const pattern = sqlLiteral(`%${location}%`);
+      return `COALESCE(cr.location_text, '') ILIKE ${pattern}`;
+    });
+  return parts.length > 0 ? [`(${parts.join(" OR ")})`] : [];
+}
+
+function buildMustKeywordSql(mustKeywords: string[]) {
+  const parts = mustKeywords
+    .map((keyword) => cleanText(keyword, 100))
+    .filter(Boolean)
+    .slice(0, 12)
+    .map((keyword) => {
+      const pattern = sqlLiteral(`%${keyword}%`);
+      return `COALESCE(cr.description, '') ILIKE ${pattern}`;
+    });
+  return parts.length > 0 ? [`(${parts.join(" OR ")})`] : [];
+}
+
+function buildRelaxedSearchSql(plan: ExternalSearchPlan) {
+  const uniqueTerms = new Map<string, string>();
+  for (const keyword of plan.ftsKeywords) {
+    for (const term of keyword.terms) {
+      const text = cleanText(term, 120);
+      if (!text) continue;
+      const key = text.toLocaleLowerCase("ko-KR");
+      if (!uniqueTerms.has(key)) uniqueTerms.set(key, text);
+      if (uniqueTerms.size >= 8) break;
+    }
+    if (uniqueTerms.size >= 8) break;
+  }
+  const terms = Array.from(uniqueTerms.values())
+    .map((term) => cleanText(term, 120))
+    .filter(Boolean)
+    .slice(0, 8);
+  if (terms.length === 0) return ftsMatchSql();
+  const ilikeParts = terms.map((term) => {
+    const pattern = sqlLiteral(`%${term}%`);
+    return `COALESCE(cr.name, '') ILIKE ${pattern}`;
+  });
+  return `(${ftsMatchSql()} OR ${ilikeParts.join(" OR ")})`;
+}
+
+function previouslyRecommendedRoleExclusionSql(userId: string) {
+  const normalizedUserId = cleanText(userId, 120);
+  if (!normalizedUserId || !isUuid(normalizedUserId)) return null;
+  return `NOT EXISTS (
+    SELECT 1
+    FROM public.talent_opportunity_recommendation tor
+    WHERE tor.talent_id = ${sqlLiteral(normalizedUserId)}::uuid
+      AND tor.opportunity_type = ${sqlLiteral(OpportunityType.ExternalJd)}
+      AND tor.role_id = cr.role_id
+  )`;
+}
+
+function buildRoleSearchSql(args: {
+  blockedCompanies: string[];
+  plan: ExternalSearchPlan;
+  searchMode: RoleSearchMode;
+  userId: string;
+}) {
+  const companyTestScoreRankSql = `COALESCE(cw.test_score, 0) / ${COMPANY_TEST_SCORE_SEARCH_RANK_DIVISOR}.0`;
+  const searchRankSql = `(${ftsRankSql(args.plan.ftsKeywords)} + ${companyTestScoreRankSql})`;
+  const ftsQuerySql = ftsAnyQuerySql(args.plan.ftsKeywords);
+  const isRelaxed = args.searchMode === "relaxed";
+  const ftsJoinSql = isRelaxed ? "true" : ftsMatchSql();
+  const where = [
+    "COALESCE(cr.is_expired, false) = false",
+    "cr.status NOT IN ('expired', 'closed', 'inactive', 'archived')",
+    "cr.source_type = 'external'",
+    previouslyRecommendedRoleExclusionSql(args.userId),
+    ...buildBlockedCompanySql(args.blockedCompanies),
+    ...buildExcludeKeywordSql(args.plan.excludeKeywords),
+    ...buildLocationSql(args.plan.locations),
+    ...buildMustKeywordSql(args.plan.mustKeywords),
+    isRelaxed ? buildRelaxedSearchSql(args.plan) : null,
+  ].filter((sql): sql is string => Boolean(sql));
+
+  return `
+WITH fts AS (
+  SELECT ${ftsQuerySql} AS query
+),
+candidates AS (
+  SELECT
+    cr.role_id::text AS role_id,
+    cr.company_workspace_id::text AS company_workspace_id,
+    cr.name AS role_name,
+    cr.description,
+    cr.information::text AS information_text,
+    cr.external_jd_url,
+    cr.location_text,
+    cr.work_mode,
+    cr.type,
+    cr.posted_at,
+    cr.seniority_level,
+    cr.updated_at AS role_updated_at,
+    cw.company_name,
+    cw.company_description,
+    cw.test_score AS company_test_score,
+    cd.name AS company_db_name,
+    cd.description AS company_db_description,
+    cd.short_description AS company_db_short_description,
+    cd.location AS company_db_location,
+    cd.founded_year AS company_db_founded_year,
+    cd.employee_count_range AS company_db_employee_count_range,
+    ${searchRankSql} AS search_rank
+  FROM public.company_roles cr
+  JOIN fts
+    ON ${ftsJoinSql}
+  JOIN public.company_workspace cw
+    ON cw.company_workspace_id = cr.company_workspace_id
+  LEFT JOIN public.company_db cd
+    ON cd.id = cw.company_db_id
+  WHERE ${where.join("\n    AND ")}
+),
+ranked_candidates AS (
+  SELECT
+    candidates.*,
+    ROW_NUMBER() OVER (
+      PARTITION BY company_workspace_id
+      ORDER BY
+        search_rank DESC,
+        company_test_score DESC NULLS LAST,
+        posted_at DESC NULLS LAST,
+        role_updated_at DESC NULLS LAST
+    ) AS company_workspace_role_rank
+  FROM candidates
+)
+SELECT
+  role_id,
+  company_workspace_id,
+  role_name,
+  description,
+  information_text,
+  external_jd_url,
+  location_text,
+  work_mode,
+  type,
+  posted_at,
+  seniority_level,
+  company_name,
+  company_description,
+  company_test_score,
+  company_db_name,
+  company_db_description,
+  company_db_short_description,
+  company_db_location,
+  company_db_founded_year,
+  company_db_employee_count_range,
+  search_rank
+FROM ranked_candidates
+WHERE company_workspace_role_rank <= ${SEARCH_COMPANY_WORKSPACE_ROLE_CAP}
+ORDER BY
+  search_rank DESC,
+  company_test_score DESC NULLS LAST,
+  posted_at DESC NULLS LAST,
+  role_updated_at DESC NULLS LAST
+`.trim();
 }
 
 const RPC_WRAPPER_KEYS = [
@@ -431,20 +1630,14 @@ const RPC_WRAPPER_KEYS = [
 function unwrapRpcArray(value: unknown): unknown[] | null {
   const parsed = parseMaybeJsonValue(value);
   if (Array.isArray(parsed)) return parsed;
-
-  const record = parseMaybeJsonRecord(parsed);
+  const record = asRecord(parsed);
   if (!record) return null;
-
   for (const key of RPC_WRAPPER_KEYS) {
     const nested = unwrapRpcArray(record[key]);
     if (nested) return nested;
   }
-
   const entries = Object.entries(record);
-  if (entries.length === 1) {
-    return unwrapRpcArray(entries[0][1]);
-  }
-
+  if (entries.length === 1) return unwrapRpcArray(entries[0][1]);
   return null;
 }
 
@@ -452,53 +1645,16 @@ function flattenRpcRows(value: unknown): unknown[] {
   const parsed = parseMaybeJsonValue(value);
   const topLevel = Array.isArray(parsed) ? parsed : [parsed];
   const rows: unknown[] = [];
-
   for (const item of topLevel) {
     const unwrappedArray = unwrapRpcArray(item);
-    if (unwrappedArray) {
-      rows.push(...unwrappedArray);
-      continue;
-    }
-
-    if (item !== null && item !== undefined) {
+    if (unwrappedArray) rows.push(...unwrappedArray);
+    else if (item !== null && item !== undefined)
       rows.push(parseMaybeJsonValue(item));
-    }
   }
-
   return rows;
 }
 
-function unwrapRpcRow(value: unknown): Record<string, unknown> | null {
-  let record = parseMaybeJsonRecord(value);
-  if (!record) return null;
-
-  for (let depth = 0; depth < 3; depth += 1) {
-    let unwrapped = false;
-    for (const key of RPC_WRAPPER_KEYS) {
-      const nested = parseMaybeJsonRecord(record[key]);
-      if (nested) {
-        record = nested;
-        unwrapped = true;
-        break;
-      }
-    }
-    if (unwrapped) continue;
-
-    const entries = Object.entries(record);
-    if (entries.length === 1) {
-      const nested = parseMaybeJsonRecord(entries[0][1]);
-      if (nested) {
-        record = nested;
-        continue;
-      }
-    }
-    break;
-  }
-
-  return record;
-}
-
-function stringField(record: Record<string, unknown>, ...keys: string[]) {
+function stringField(record: JsonRecord, ...keys: string[]) {
   for (const key of keys) {
     const value = record[key];
     if (typeof value === "string") return value;
@@ -507,7 +1663,7 @@ function stringField(record: Record<string, unknown>, ...keys: string[]) {
   return null;
 }
 
-function numberField(record: Record<string, unknown>, ...keys: string[]) {
+function numberField(record: JsonRecord, ...keys: string[]) {
   for (const key of keys) {
     const value = record[key];
     const number = typeof value === "number" ? value : Number(value);
@@ -516,49 +1672,40 @@ function numberField(record: Record<string, unknown>, ...keys: string[]) {
   return null;
 }
 
-function stringArrayField(record: Record<string, unknown>, ...keys: string[]) {
+function stringArrayField(record: JsonRecord, ...keys: string[]) {
   for (const key of keys) {
-    const value = record[key];
+    const value = parseMaybeJsonValue(record[key]);
     if (Array.isArray(value)) {
-      return value
-        .map((item) => (typeof item === "string" ? item : String(item ?? "")))
-        .filter(Boolean);
+      return value.map((item) => cleanText(item, 120)).filter(Boolean);
     }
-    if (typeof value === "string") {
-      try {
-        const parsed = JSON.parse(value);
-        if (Array.isArray(parsed)) {
-          return parsed
-            .map((item) =>
-              typeof item === "string" ? item : String(item ?? "")
-            )
-            .filter(Boolean);
-        }
-      } catch {
-        return [value].filter(Boolean);
-      }
-    }
+    if (typeof value === "string" && value) return [value];
   }
   return null;
 }
 
-function normalizeRoleRow(value: unknown): RawRoleRow | null {
-  const record = unwrapRpcRow(value);
-  if (!record) return null;
+function normalizeCompanyTestScore(value: unknown) {
+  const number = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(number)) return null;
+  return Math.max(0, Math.min(COMPANY_TEST_SCORE_MAX, number));
+}
 
+function normalizeRoleRow(value: unknown): RawRoleRow | null {
+  const record = asRecord(parseMaybeJsonValue(value));
+  if (!record) return null;
   return {
-    career_url: stringField(record, "career_url", "careerUrl"),
     company_db_description: stringField(
       record,
       "company_db_description",
       "companyDbDescription"
     ),
-    company_db_id:
-      typeof record.company_db_id === "number"
-        ? record.company_db_id
-        : typeof record.companyDbId === "number"
-          ? record.companyDbId
-          : null,
+    company_db_employee_count_range:
+      record.company_db_employee_count_range ??
+      record.companyDbEmployeeCountRange,
+    company_db_founded_year: stringField(
+      record,
+      "company_db_founded_year",
+      "companyDbFoundedYear"
+    ),
     company_db_location: stringField(
       record,
       "company_db_location",
@@ -569,11 +1716,6 @@ function normalizeRoleRow(value: unknown): RawRoleRow | null {
       record,
       "company_db_short_description",
       "companyDbShortDescription"
-    ),
-    company_db_specialities: stringField(
-      record,
-      "company_db_specialities",
-      "companyDbSpecialities"
     ),
     company_description: stringField(
       record,
@@ -591,7 +1733,6 @@ function normalizeRoleRow(value: unknown): RawRoleRow | null {
     ),
     description: stringField(record, "description"),
     external_jd_url: stringField(record, "external_jd_url", "externalJdUrl"),
-    homepage_url: stringField(record, "homepage_url", "homepageUrl"),
     information_text: stringField(
       record,
       "information_text",
@@ -601,460 +1742,32 @@ function normalizeRoleRow(value: unknown): RawRoleRow | null {
     posted_at: stringField(record, "posted_at", "postedAt"),
     role_id: stringField(record, "role_id", "roleId"),
     role_name: stringField(record, "role_name", "roleName", "name"),
-    salary_range: stringField(record, "salary_range", "salaryRange"),
     search_rank: numberField(record, "search_rank", "searchRank"),
     seniority_level: stringField(record, "seniority_level", "seniorityLevel"),
-    source_type: stringField(record, "source_type", "sourceType"),
-    status: stringField(record, "status"),
     type: stringArrayField(record, "type"),
-    updated_at: stringField(record, "updated_at", "updatedAt"),
     work_mode: stringField(record, "work_mode", "workMode"),
   };
 }
 
-function rolePreview(row: RawRoleRow) {
-  return {
-    companyName: row.company_name ?? row.company_db_name ?? null,
-    companyTestScore: row.company_test_score ?? null,
-    employmentTypes: row.type ?? [],
-    location: row.location_text ?? row.company_db_location ?? null,
-    roleId: row.role_id ?? null,
-    roleName: row.role_name ?? null,
-    url: row.external_jd_url ?? row.career_url ?? row.homepage_url ?? null,
-    workMode: row.work_mode ?? null,
-  };
-}
-
-function hasRoleData(row: RawRoleRow) {
+function hasRoleData(row: RawRoleRow | null): row is RawRoleRow {
   return Boolean(
-    cleanText(row.role_id, 120) ||
-    cleanText(row.role_name, 120) ||
-    cleanText(row.company_name, 120) ||
-    cleanText(row.company_db_name, 120) ||
-    cleanText(row.description, 120)
+    row &&
+    (cleanText(row.role_id, 120) ||
+      cleanText(row.role_name, 120) ||
+      cleanText(row.company_name, 120) ||
+      cleanText(row.company_db_name, 120) ||
+      cleanText(row.description, 120))
   );
-}
-
-function isMeaningfulRoleRow(row: RawRoleRow | null): row is RawRoleRow {
-  return row !== null && hasRoleData(row);
-}
-
-function normalizeCondition(value: unknown): SearchCondition | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const record = value as Record<string, unknown>;
-  const column = cleanText(record.column, 120);
-  const sqlColumn = COLUMN_SQL[column];
-  if (!sqlColumn) return null;
-
-  const values = asStringArray(record.values, MAX_CONDITION_VALUES);
-  if (values.length === 0) return null;
-
-  const mode = record.mode === "all" ? "all" : "any";
-  const polarity = record.polarity === "exclude" ? "exclude" : "include";
-
-  return { column, mode, polarity, values };
-}
-
-function normalizeConditions(value: unknown, maxItems: number) {
-  if (!Array.isArray(value)) return [];
-  const conditions: SearchCondition[] = [];
-  for (const item of value) {
-    const condition = normalizeCondition(item);
-    if (condition) conditions.push(condition);
-    if (conditions.length >= maxItems) break;
-  }
-  return conditions;
-}
-
-function normalizeFtsKeyword(value: unknown): FtsKeyword | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const record = value as Record<string, unknown>;
-  const terms = asStringArray(
-    Array.isArray(record.terms)
-      ? record.terms
-      : [record.term, record.query, record.keyword],
-    MAX_FTS_TERMS_PER_KEYWORD,
-    80
-  );
-  if (terms.length === 0) return null;
-
-  return {
-    terms,
-    weight: clampNumber(record.weight, 0.5, 5, 1),
-  };
-}
-
-function normalizeFtsKeywords(value: unknown) {
-  if (!Array.isArray(value)) return [];
-  const keywords: FtsKeyword[] = [];
-  for (const item of value) {
-    const keyword = normalizeFtsKeyword(item);
-    if (keyword) keywords.push(keyword);
-    if (keywords.length >= MAX_FTS_KEYWORDS) break;
-  }
-  return keywords;
-}
-
-function isPositiveFtsCondition(condition: SearchCondition) {
-  return (
-    condition.polarity === "include" &&
-    FTS_TEXT_CONDITION_COLUMNS.has(condition.column)
-  );
-}
-
-function deriveFtsKeywordsFromConditions(conditions: SearchCondition[]) {
-  const keywords: FtsKeyword[] = [];
-  for (const condition of conditions) {
-    if (!isPositiveFtsCondition(condition)) continue;
-    keywords.push({
-      terms: condition.values,
-      weight: condition.column === "company_roles.description" ? 1.4 : 1,
-    });
-  }
-  return keywords;
-}
-
-function mergeFtsKeywords(
-  plannedKeywords: FtsKeyword[],
-  derivedKeywords: FtsKeyword[]
-) {
-  const merged: FtsKeyword[] = [];
-  const seenTerms = new Set<string>();
-
-  const pushKeyword = (keyword: FtsKeyword) => {
-    const terms = keyword.terms.filter((term) => {
-      const key = term.toLocaleLowerCase("ko-KR");
-      if (seenTerms.has(key)) return false;
-      seenTerms.add(key);
-      return true;
-    });
-    if (terms.length === 0) return;
-    merged.push({ terms, weight: keyword.weight });
-  };
-
-  plannedKeywords.forEach(pushKeyword);
-  derivedKeywords.forEach(pushKeyword);
-  return merged.slice(0, MAX_FTS_KEYWORDS);
-}
-
-function normalizePlan(raw: Record<string, unknown> | null): SearchPlan {
-  const must = normalizeConditions(raw?.must, 4);
-  const should = normalizeConditions(raw?.should, 6);
-  const ftsKeywords = mergeFtsKeywords(
-    normalizeFtsKeywords(raw?.ftsKeywords),
-    deriveFtsKeywordsFromConditions(must.concat(should))
-  );
-  const rerankCriteria = asStringArray(raw?.rerankCriteria, 4, 280);
-  const searchIntentSummary =
-    cleanText(raw?.searchIntentSummary, 220) ||
-    "사용자의 프로필과 선호를 바탕으로 맞는 채용공고를 찾는다.";
-
-  return {
-    ftsKeywords,
-    must,
-    should,
-    searchIntentSummary,
-    rerankCriteria:
-      rerankCriteria.length > 0
-        ? rerankCriteria
-        : [
-            "유저의 최근 경력과 핵심 역량이 role의 실제 업무와 직접 연결되는지 우선 평가한다.",
-            "선호 지역, 근무 형태, 커리어 전환 의도와 맞는 공고를 더 높게 본다.",
-            "회사/직무 설명이 부족하거나 기대 역량이 불명확하면 우려점으로 반영한다.",
-          ],
-  };
-}
-
-function isCompanyCondition(condition: SearchCondition) {
-  return COMPANY_CONDITION_COLUMNS.has(condition.column);
-}
-
-function normalizedConditionKey(condition: SearchCondition) {
-  const values = condition.values
-    .map((value) => value.toLocaleLowerCase("ko-KR"))
-    .sort()
-    .join("\u0001");
-  return [condition.column, condition.mode, condition.polarity, values].join(
-    "\u0002"
-  );
-}
-
-function uniqueConditions(conditions: SearchCondition[]) {
-  const unique: SearchCondition[] = [];
-  const seen = new Set<string>();
-  for (const condition of conditions) {
-    const key = normalizedConditionKey(condition);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    unique.push(condition);
-  }
-  return unique;
-}
-
-function preferredCompanyMustCondition(plan: SearchPlan) {
-  const companyMust = plan.must.filter(
-    (condition) =>
-      condition.polarity === "include" && isCompanyCondition(condition)
-  );
-  return (
-    companyMust.find(
-      (condition) => condition.column === "company_workspace.company_name"
-    ) ??
-    companyMust[0] ??
-    null
-  );
-}
-
-function preserveBroadenedHardConstraints(
-  originalPlan: SearchPlan,
-  broadenedPlan: SearchPlan
-) {
-  const must = [...broadenedPlan.must];
-  const hasBroadenedCompanyMust = must.some(
-    (condition) =>
-      condition.polarity === "include" && isCompanyCondition(condition)
-  );
-  const originalCompanyMust = preferredCompanyMustCondition(originalPlan);
-  if (originalCompanyMust && !hasBroadenedCompanyMust) {
-    must.unshift(originalCompanyMust);
-  }
-
-  must.push(
-    ...originalPlan.must.filter(
-      (condition) =>
-        !isCompanyCondition(condition) && !isPositiveFtsCondition(condition)
-    ),
-    ...originalPlan.should.filter(
-      (condition) => condition.polarity === "exclude"
-    )
-  );
-
-  return {
-    ...broadenedPlan,
-    must: uniqueConditions(must),
-    should: uniqueConditions(broadenedPlan.should),
-  };
-}
-
-function hasStrongRetrievalConstraints(plan: SearchPlan) {
-  return plan.ftsKeywords.length > 0 || plan.must.length > 0;
-}
-
-function sqlLiteral(value: string) {
-  return `'${value.replace(/'/g, "''")}'`;
-}
-
-function sqlNumber(value: number) {
-  return Number.isFinite(value) ? String(Math.round(value * 100) / 100) : "1";
-}
-
-function ftsVectorSql() {
-  return "COALESCE(cr.opportunity_search_tsv, ''::tsvector)";
-}
-
-function ftsTermQuerySql(term: string) {
-  return `websearch_to_tsquery('simple', ${sqlLiteral(term)})`;
-}
-
-function ftsKeywordQuerySql(keyword: FtsKeyword) {
-  const terms = keyword.terms.map(ftsTermQuerySql);
-  if (terms.length === 0) return null;
-  return terms.length === 1 ? terms[0] : `(${terms.join(" || ")})`;
-}
-
-function ftsAnyQuerySql(keywords: FtsKeyword[]) {
-  const groups = keywords
-    .map(ftsKeywordQuerySql)
-    .filter((sql): sql is string => Boolean(sql));
-  if (groups.length === 0) return null;
-  return groups.length === 1 ? groups[0] : `(${groups.join(" || ")})`;
-}
-
-function ftsWhereSql(keywords: FtsKeyword[]) {
-  const query = ftsAnyQuerySql(keywords);
-  return query ? `${ftsVectorSql()} @@ ${query}` : null;
-}
-
-function ftsRankSql(keywords: FtsKeyword[]) {
-  const vector = ftsVectorSql();
-  const parts = keywords
-    .map((keyword) => {
-      const query = ftsKeywordQuerySql(keyword);
-      if (!query) return null;
-      return `${sqlNumber(keyword.weight)} * ts_rank_cd(${FTS_RANK_WEIGHTS}, ${vector}, ${query})`;
-    })
-    .filter((sql): sql is string => Boolean(sql));
-
-  return parts.length > 0 ? `(${parts.join(" + ")})` : "0";
-}
-
-function ilikeExpression(sqlColumn: string, value: string) {
-  const pattern = `%${value}%`;
-  if (ARRAY_COLUMNS.has(sqlColumn)) {
-    return `EXISTS (SELECT 1 FROM unnest(COALESCE(${sqlColumn}, ARRAY[]::text[])) AS array_item WHERE array_item ILIKE ${sqlLiteral(pattern)})`;
-  }
-  return `COALESCE(${sqlColumn}, '') ILIKE ${sqlLiteral(pattern)}`;
-}
-
-function conditionSql(condition: SearchCondition) {
-  const sqlColumn = COLUMN_SQL[condition.column];
-  if (!sqlColumn) return null;
-
-  const parts = condition.values.map((value) =>
-    ilikeExpression(sqlColumn, value)
-  );
-  if (parts.length === 0) return null;
-
-  const joined =
-    condition.mode === "all" ? parts.join(" AND ") : parts.join(" OR ");
-  const wrapped = `(${joined})`;
-  return condition.polarity === "exclude" ? `(NOT ${wrapped})` : wrapped;
-}
-
-function positiveConditionSql(condition: SearchCondition) {
-  if (condition.polarity === "exclude") return null;
-  return conditionSql(condition);
-}
-
-function softConditionScoreSql(condition: SearchCondition) {
-  const sql = positiveConditionSql(condition);
-  if (!sql) return null;
-  return `(CASE WHEN ${sql} THEN 0.2 ELSE 0 END)`;
-}
-
-function softConditionRankSql(conditions: SearchCondition[]) {
-  const parts = conditions
-    .filter((condition) => !isPositiveFtsCondition(condition))
-    .map(softConditionScoreSql)
-    .filter((sql): sql is string => Boolean(sql));
-  return parts.length > 0 ? `(${parts.join(" + ")})` : "0";
-}
-
-function buildBlockedCompanySql(blockedCompanies: string[]) {
-  const filters = blockedCompanies
-    .map((company) => cleanText(company, 100))
-    .filter(Boolean)
-    .slice(0, 20)
-    .map(
-      (company) =>
-        `(COALESCE(cw.company_name, '') NOT ILIKE ${sqlLiteral(
-          `%${company}%`
-        )} AND COALESCE(cd.name, '') NOT ILIKE ${sqlLiteral(`%${company}%`)})`
-    );
-
-  return filters;
-}
-
-function previouslyRecommendedRoleExclusionSql(userId: string) {
-  const normalizedUserId = cleanText(userId, 120);
-  if (!normalizedUserId) return null;
-
-  return `NOT EXISTS (
-    SELECT 1
-    FROM public.talent_opportunity_recommendation tor
-    WHERE tor.talent_id::text = ${sqlLiteral(normalizedUserId)}
-      AND tor.role_id = cr.role_id
-  )`;
-}
-
-function buildRoleSearchSql(args: {
-  blockedCompanies: string[];
-  plan: SearchPlan;
-  userId: string;
-}) {
-  const useFts = args.plan.ftsKeywords.length > 0;
-  const ftsWhere = useFts ? ftsWhereSql(args.plan.ftsKeywords) : null;
-  const companyTestScoreRankSql = `COALESCE(cw.test_score, 0) / ${COMPANY_TEST_SCORE_SEARCH_RANK_DIVISOR}.0`;
-  const effectiveCompanyQualityLabelSql = `COALESCE(cwql.human_quality_label, cwql.llm_quality_label)`;
-  const companyQualityLabelRankSql = `(CASE WHEN ${effectiveCompanyQualityLabelSql} = 2 THEN 0.25 ELSE 0 END)`;
-  const searchRankSql = `(${ftsRankSql(args.plan.ftsKeywords)} + ${softConditionRankSql(args.plan.must.concat(args.plan.should))} + ${companyTestScoreRankSql} + ${companyQualityLabelRankSql})`;
-  const baseWhere = [
-    "COALESCE(cr.is_expired, false) = false",
-    "LOWER(COALESCE(cr.status, '')) NOT IN ('expired', 'closed', 'inactive', 'archived')",
-    `(${effectiveCompanyQualityLabelSql} IS NULL OR ${effectiveCompanyQualityLabelSql} <> 0)`,
-    previouslyRecommendedRoleExclusionSql(args.userId),
-    ...buildBlockedCompanySql(args.blockedCompanies),
-  ].filter((sql): sql is string => Boolean(sql));
-  const excludeWhere = args.plan.must
-    .concat(args.plan.should)
-    .filter((condition) => condition.polarity === "exclude")
-    .map(conditionSql)
-    .filter((sql): sql is string => Boolean(sql));
-
-  if (useFts && ftsWhere) {
-    const mustWhere = args.plan.must
-      .filter((condition) => !isPositiveFtsCondition(condition))
-      .map(conditionSql)
-      .filter((sql): sql is string => Boolean(sql));
-
-    baseWhere.push(...mustWhere, ftsWhere, ...excludeWhere);
-  } else {
-    const mustWhere = args.plan.must
-      .map(conditionSql)
-      .filter((sql): sql is string => Boolean(sql));
-    const shouldWhere = args.plan.should
-      .map(positiveConditionSql)
-      .filter((sql): sql is string => Boolean(sql));
-
-    baseWhere.push(...mustWhere);
-    if (shouldWhere.length > 0) {
-      baseWhere.push(`(${shouldWhere.join(" OR ")})`);
-    }
-  }
-
-  return `
-SELECT
-  cr.role_id::text AS role_id,
-  cr.company_workspace_id::text AS company_workspace_id,
-  cr.name AS role_name,
-  cr.description,
-  cr.information::text AS information_text,
-  cr.external_jd_url,
-  cr.location_text,
-  cr.work_mode,
-  cr.type,
-  cr.status,
-  cr.source_type,
-  cr.posted_at,
-  cr.updated_at,
-  cr.salary_range,
-  cr.seniority_level,
-  cw.company_name,
-  cw.company_description,
-  cw.test_score AS company_test_score,
-  cw.homepage_url,
-  cw.career_url,
-  cw.linkedin_url,
-  cd.id AS company_db_id,
-  cd.name AS company_db_name,
-  cd.description AS company_db_description,
-  cd.short_description AS company_db_short_description,
-  cd.specialities AS company_db_specialities,
-  cd.location AS company_db_location,
-  ${searchRankSql} AS search_rank
-FROM public.company_roles cr
-JOIN public.company_workspace cw
-  ON cw.company_workspace_id = cr.company_workspace_id
-LEFT JOIN public.company_db cd
-  ON cd.id = cw.company_db_id
-LEFT JOIN public.company_workspace_quality_label cwql
-  ON cwql.company_workspace_id = cw.company_workspace_id
-WHERE ${baseWhere.join("\n  AND ")}
-ORDER BY
-  search_rank DESC,
-  COALESCE(cw.test_score, 0) DESC,
-  COALESCE(cr.priority, 0) DESC,
-  cr.posted_at DESC NULLS LAST,
-  cr.updated_at DESC NULLS LAST
-`.trim();
 }
 
 async function executeRoleSql(args: {
   admin: AdminClient;
   blockedCompanies: string[];
-  plan: SearchPlan;
+  plan: ExternalSearchPlan;
+  searchMode: RoleSearchMode;
   userId: string;
 }) {
+  const startedAt = Date.now();
   const sql = buildRoleSearchSql(args);
   const { data, error } = await (args.admin.rpc(
     "set_timeout_and_execute_raw_sql" as never,
@@ -1070,13 +1783,26 @@ async function executeRoleSql(args: {
   }>);
 
   if (error) {
-    throw new Error(error.message ?? "Failed to search company roles");
+    debugLog("role sql error", {
+      durationMs: Date.now() - startedAt,
+      message: error.message,
+      searchMode: args.searchMode,
+      sql,
+    });
+    throw new Error(
+      `[${args.searchMode} role sql] ${
+        error.message ?? "Failed to search company roles"
+      }`
+    );
   }
-
   const rawRows = flattenRpcRows(data);
-  const rows = rawRows
-    .map((row) => normalizeRoleRow(row))
-    .filter(isMeaningfulRoleRow);
+  const rows = rawRows.map(normalizeRoleRow).filter(hasRoleData);
+  infoJson("role sql completed", {
+    durationMs: Date.now() - startedAt,
+    rawCount: rawRows.length,
+    rowCount: rows.length,
+    searchMode: args.searchMode,
+  });
   return {
     rawRows,
     rows,
@@ -1085,383 +1811,48 @@ async function executeRoleSql(args: {
   };
 }
 
-async function fetchPreviouslyRecommendedRoleIds(args: {
-  admin: AdminClient;
-  userId: string;
-}) {
-  const roleIds = new Set<string>();
-  let offset = 0;
-
-  while (true) {
-    const { data, error } = await ((
-      args.admin.from("talent_opportunity_recommendation" as any) as any
-    )
-      .select("role_id")
-      .eq("talent_id", args.userId)
-      .range(
-        offset,
-        offset + PREVIOUSLY_RECOMMENDED_ROLE_ID_PAGE_SIZE - 1
-      ) as any);
-
-    if (error) {
-      throw new Error(
-        error.message ?? "Failed to load previous job posting recommendations"
-      );
-    }
-
-    const rows = Array.isArray(data) ? data : [];
-    for (const row of rows) {
-      const roleId = cleanText(row?.role_id, 120);
-      if (roleId) roleIds.add(roleId);
-    }
-
-    if (rows.length < PREVIOUSLY_RECOMMENDED_ROLE_ID_PAGE_SIZE) break;
-    offset += PREVIOUSLY_RECOMMENDED_ROLE_ID_PAGE_SIZE;
-  }
-
-  return roleIds;
+function companyKey(value: unknown) {
+  return cleanText(value, 180)
+    .toLocaleLowerCase("ko-KR")
+    .replace(/[^a-z0-9가-힣]+/g, "");
 }
 
-function blockedCompanyKey(value: unknown) {
-  return cleanText(value, 160).toLocaleLowerCase("ko-KR");
+function roleTitleKey(value: unknown) {
+  return cleanText(value, 180)
+    .toLocaleLowerCase("ko-KR")
+    .replace(/[^a-z0-9가-힣+#/ ]+/g, "")
+    .trim();
 }
 
-function isRoleFromBlockedCompany(
-  role: RawRoleRow,
-  blockedCompanies: string[]
+function roleFingerprint(companyName: unknown, roleName: unknown) {
+  const company = companyKey(companyName);
+  const role = roleTitleKey(roleName);
+  return company && role ? `${company}::${role}` : "";
+}
+
+function filterPreviouslyRecommendedExternalRows(
+  rows: RawRoleRow[],
+  existing: PreviousExternalRecommendation[]
 ) {
-  if (blockedCompanies.length === 0) return false;
-
-  const companyNames = [
-    blockedCompanyKey(role.company_name),
-    blockedCompanyKey(role.company_db_name),
-  ].filter(Boolean);
-  if (companyNames.length === 0) return false;
-
-  return blockedCompanies.some((company) => {
-    const blockedCompany = blockedCompanyKey(company);
-    if (!blockedCompany) return false;
-    return companyNames.some((companyName) =>
-      companyName.includes(blockedCompany)
+  const existingIds = new Set(
+    existing.map((item) => item.roleId).filter(Boolean)
+  );
+  const existingFingerprints = new Set(
+    existing
+      .map((item) => roleFingerprint(item.companyName, item.roleName))
+      .filter(Boolean)
+  );
+  return rows.filter((row) => {
+    const roleId = cleanText(row.role_id, 120);
+    const fingerprint = roleFingerprint(
+      row.company_name ?? row.company_db_name,
+      row.role_name
+    );
+    return (
+      (!roleId || !existingIds.has(roleId)) &&
+      (!fingerprint || !existingFingerprints.has(fingerprint))
     );
   });
-}
-
-function filterSearchRowsForUserConstraints(args: {
-  blockedCompanies: string[];
-  previouslyRecommendedRoleIds: Set<string>;
-  rows: RawRoleRow[];
-}) {
-  let blockedCompanyCount = 0;
-  let previouslyRecommendedRoleCount = 0;
-  const rows: RawRoleRow[] = [];
-
-  for (const row of args.rows) {
-    const roleId = cleanText(row.role_id, 120);
-    if (roleId && args.previouslyRecommendedRoleIds.has(roleId)) {
-      previouslyRecommendedRoleCount += 1;
-      continue;
-    }
-
-    if (isRoleFromBlockedCompany(row, args.blockedCompanies)) {
-      blockedCompanyCount += 1;
-      continue;
-    }
-
-    rows.push(row);
-  }
-
-  return {
-    blockedCompanyCount,
-    filteredCount: blockedCompanyCount + previouslyRecommendedRoleCount,
-    previouslyRecommendedRoleCount,
-    rows,
-  };
-}
-
-function applySearchRowUserFilters(args: {
-  blockedCompanies: string[];
-  label: string;
-  previouslyRecommendedRoleIds: Set<string>;
-  search: Awaited<ReturnType<typeof executeRoleSql>>;
-}) {
-  const filterResult = filterSearchRowsForUserConstraints({
-    blockedCompanies: args.blockedCompanies,
-    previouslyRecommendedRoleIds: args.previouslyRecommendedRoleIds,
-    rows: args.search.rows,
-  });
-
-  if (
-    filterResult.filteredCount > 0 ||
-    args.blockedCompanies.length > 0 ||
-    args.previouslyRecommendedRoleIds.size > 0
-  ) {
-    infoJson("candidate filters", {
-      afterCandidateCount: filterResult.rows.length,
-      beforeCandidateCount: args.search.rows.length,
-      blockedCompanies: args.blockedCompanies,
-      filteredBlockedCompanyCount: filterResult.blockedCompanyCount,
-      filteredPreviouslyRecommendedRoleCount:
-        filterResult.previouslyRecommendedRoleCount,
-      knownPreviouslyRecommendedRoleCount:
-        args.previouslyRecommendedRoleIds.size,
-      label: args.label,
-    });
-  }
-
-  return {
-    ...args.search,
-    rows: filterResult.rows,
-  };
-}
-
-function formatInsightContent(content: unknown) {
-  if (!content || typeof content !== "object" || Array.isArray(content)) {
-    return "(none)";
-  }
-  const lines = Object.entries(content as Record<string, unknown>)
-    .map(([key, value]) => {
-      const text = clampBlock(value, 900);
-      return text ? `- ${key}: ${text}` : "";
-    })
-    .filter(Boolean)
-    .slice(0, 20);
-  return lines.length > 0 ? lines.join("\n") : "(none)";
-}
-
-function formatRecentConversation(
-  messages: Awaited<ReturnType<typeof fetchRecentMessagesWithSummary>>
-) {
-  const lines = messages
-    .slice(-16)
-    .map((message) => {
-      const role = message.role === "user" ? "User" : "Harper";
-      return `${role}: ${clampBlock(
-        formatTalentMessageContentForLlmPrompt(message),
-        700
-      )}`;
-    })
-    .filter((line) => line.length > 8);
-  return lines.length > 0 ? lines.join("\n") : "(none)";
-}
-
-function formatRecentTalentActivitySummaries(
-  events: Awaited<ReturnType<typeof fetchRecentTalentActivitySummaries>>
-) {
-  const lines = events
-    .map((event) => cleanText(event.summary, 700))
-    .filter(Boolean)
-    .slice(0, RECENT_TALENT_ACTIVITY_SUMMARY_LIMIT)
-    .map((summary, index) => `${index + 1}. ${summary}`);
-
-  return lines.length > 0 ? lines.join("\n") : "(none)";
-}
-
-function buildUserBrief(args: {
-  activitySummaries: Awaited<
-    ReturnType<typeof fetchRecentTalentActivitySummaries>
-  >;
-  currentRequest: string;
-  insights: unknown;
-  profileText: string;
-  recentMessages: Awaited<ReturnType<typeof fetchRecentMessagesWithSummary>>;
-}) {
-  return [
-    "[Current Request]",
-    clampBlock(args.currentRequest, 1200) || "(none)",
-    "",
-    "[Structured Profile and Preferences]",
-    clampBlock(args.profileText, 8000) || "(none)",
-    "",
-    "[Insights]",
-    formatInsightContent(args.insights),
-    "",
-    "[Recent Talent Activity Summaries]",
-    formatRecentTalentActivitySummaries(args.activitySummaries),
-    "",
-    "[Recent Conversation]",
-    formatRecentConversation(args.recentMessages),
-  ].join("\n");
-}
-
-async function buildSearchPlan(args: { request: string; userBrief: string }) {
-  const raw = await runTalentAssistantCompletion({
-    fallbackModel: RECOMMEND_JOB_POSTINGS_FALLBACK_MODEL,
-    jsonMode: true,
-    messages: [
-      { role: "system", content: PLAN_SYSTEM_PROMPT },
-      {
-        role: "user",
-        content: [
-          "Supabase schema:",
-          "- company_roles(role_id, company_workspace_id, name, description, information, opportunity_search_tsv, type, status, is_expired, location_text, work_mode, salary_range, source_type, posted_at, expires_at, external_jd_url, priority, updated_at)",
-          "- company_workspace(company_workspace_id, company_name, company_description, homepage_url, career_url, linkedin_url, company_db_id)",
-          "- company_db(id, name, description, short_description, specialities, location, website_url, linkedin_url, founded_year, investors, funding, employee_count_range)",
-          "",
-          args.userBrief,
-        ].join("\n"),
-      },
-    ],
-    primaryModel: RECOMMEND_JOB_POSTINGS_PRIMARY_MODEL,
-    temperature: 0.2,
-  });
-
-  return normalizePlan(parseJsonObject(raw));
-}
-
-async function buildBroadenedSearchPlan(args: {
-  originalPlan: SearchPlan;
-  request: string;
-  strictCandidateCount: number;
-  strictCandidates: RawRoleRow[];
-  userBrief: string;
-}) {
-  const raw = await runTalentAssistantCompletion({
-    fallbackModel: RECOMMEND_JOB_POSTINGS_FALLBACK_MODEL,
-    jsonMode: true,
-    messages: [
-      { role: "system", content: BROADENED_PLAN_SYSTEM_PROMPT },
-      {
-        role: "user",
-        content: [
-          "Supabase schema:",
-          "- company_roles(role_id, company_workspace_id, name, description, information, opportunity_search_tsv, type, status, is_expired, location_text, work_mode, salary_range, source_type, posted_at, expires_at, external_jd_url, priority, updated_at)",
-          "- company_workspace(company_workspace_id, company_name, company_description, homepage_url, career_url, linkedin_url, company_db_id)",
-          "- company_db(id, name, description, short_description, specialities, location, website_url, linkedin_url, founded_year, investors, funding, employee_count_range)",
-          "",
-          args.userBrief,
-          "",
-          "[Original request]",
-          clampBlock(args.request, 1200),
-          "",
-          "[Original strict SearchPlan]",
-          JSON.stringify(args.originalPlan, null, 2),
-          "",
-          "[Strict search result]",
-          `candidateCount=${args.strictCandidateCount}`,
-          JSON.stringify(
-            args.strictCandidates.slice(0, 5).map(rolePreview),
-            null,
-            2
-          ),
-          "",
-          "Return a broader second-pass SearchPlan that can find additional plausible roles without dropping explicit hard constraints.",
-        ].join("\n"),
-      },
-    ],
-    primaryModel: RECOMMEND_JOB_POSTINGS_PRIMARY_MODEL,
-    temperature: 0.2,
-  });
-
-  const normalized = normalizePlan(parseJsonObject(raw));
-  const broadened = preserveBroadenedHardConstraints(
-    args.originalPlan,
-    normalized
-  );
-  debugLog("broadened search plan raw", {
-    normalized,
-    originalPlan: args.originalPlan,
-    raw: raw.slice(0, 4000),
-    strictCandidateCount: args.strictCandidateCount,
-  });
-
-  return hasStrongRetrievalConstraints(broadened)
-    ? broadened
-    : args.originalPlan;
-}
-
-function formatRoleForPrompt(role: RawRoleRow, index: number) {
-  return [
-    `#${index + 1} roleId=${getRoleKey(role, index)}`,
-    `Role: ${cleanText(role.role_name, 160) || "(unknown)"}`,
-    `Company: ${cleanText(role.company_name, 160) || cleanText(role.company_db_name, 160) || "(unknown)"}`,
-    `Company score: ${formatCompanyTestScore(role.company_test_score)}`,
-    `Location: ${cleanText(role.location_text, 160) || cleanText(role.company_db_location, 160) || "(unknown)"}`,
-    `Work mode: ${cleanText(role.work_mode, 80) || "(unknown)"}`,
-    `Employment type: ${Array.isArray(role.type) ? role.type.join(", ") : "(unknown)"}`,
-    `Seniority: ${cleanText(role.seniority_level, 120) || "(unknown)"}`,
-    `Salary: ${cleanText(role.salary_range, 160) || "(unknown)"}`,
-    `Source type: ${cleanText(role.source_type, 120) || "(unknown)"}`,
-    `Posted: ${cleanText(role.posted_at, 60) || "(unknown)"}`,
-    `Company description: ${cleanText(role.company_description, 420) || cleanText(role.company_db_description, 420) || cleanText(role.company_db_short_description, 420) || "(none)"}`,
-    `Company specialities: ${cleanText(role.company_db_specialities, 320) || "(none)"}`,
-    `Role information: ${cleanText(role.information_text, 500) || "(none)"}`,
-    `Role description: ${cleanText(role.description, ROLE_DESCRIPTION_PROMPT_LIMIT) || "(none)"}`,
-  ].join("\n");
-}
-
-function compactRoleForShortlist(role: RawRoleRow, index: number) {
-  return {
-    company_description:
-      cleanText(
-        role.company_description,
-        SHORTLIST_COMPANY_DESCRIPTION_LIMIT
-      ) ||
-      cleanText(
-        role.company_db_description,
-        SHORTLIST_COMPANY_DESCRIPTION_LIMIT
-      ) ||
-      cleanText(
-        role.company_db_short_description,
-        SHORTLIST_COMPANY_DESCRIPTION_LIMIT
-      ) ||
-      null,
-    company_name:
-      cleanText(role.company_name, 160) ||
-      cleanText(role.company_db_name, 160) ||
-      null,
-    role_id: getRoleKey(role, index),
-    role_location_text: cleanText(role.location_text, 160) || null,
-    role_name: cleanText(role.role_name, 180) || null,
-    role_type: Array.isArray(role.type) ? role.type : [],
-  };
-}
-
-function roleUrl(role: RawRoleRow) {
-  return (
-    cleanText(role.external_jd_url, 500) ||
-    cleanText(role.career_url, 500) ||
-    cleanText(role.homepage_url, 500) ||
-    null
-  );
-}
-
-function normalizeScore(value: unknown) {
-  const number = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(number)) return 0;
-  return Math.max(0, Math.min(10, number));
-}
-
-function normalizeCompanyTestScore(value: unknown) {
-  const number = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(number)) return null;
-  return Math.max(0, Math.min(COMPANY_TEST_SCORE_MAX, number));
-}
-
-function companyTestScoreBoost(value: unknown) {
-  const score = normalizeCompanyTestScore(value);
-  return score === null ? 0 : score / COMPANY_TEST_SCORE_RERANK_DIVISOR;
-}
-
-function applyCompanyTestScoreBoost(score: unknown, role: RawRoleRow) {
-  return normalizeScore(
-    normalizeScore(score) + companyTestScoreBoost(role.company_test_score)
-  );
-}
-
-function formatCompanyTestScore(value: unknown) {
-  const score = normalizeCompanyTestScore(value);
-  return score === null ? "(unknown)" : `${score.toFixed(1)}/20`;
-}
-
-function roleById(rows: RawRoleRow[]) {
-  return new Map(
-    rows.map((row, index) => [getRoleKey(row, index), row] as const)
-  );
-}
-
-function getRoleKey(role: RawRoleRow, index: number) {
-  return cleanText(role.role_id, 120) || `candidate_${index}`;
 }
 
 function mergeRoleRows(primary: RawRoleRow[], secondary: RawRoleRow[]) {
@@ -1470,10 +1861,12 @@ function mergeRoleRows(primary: RawRoleRow[], secondary: RawRoleRow[]) {
     { firstSeen: number; row: RawRoleRow; score: number }
   >();
   let firstSeen = 0;
-
   const addRows = (rows: RawRoleRow[]) => {
     rows.forEach((row, index) => {
-      const key = getRoleKey(row, index);
+      const key =
+        cleanText(row.role_id, 120) ||
+        roleFingerprint(row.company_name, row.role_name) ||
+        `candidate_${index}`;
       const score =
         typeof row.search_rank === "number" && Number.isFinite(row.search_rank)
           ? row.search_rank
@@ -1482,18 +1875,14 @@ function mergeRoleRows(primary: RawRoleRow[], secondary: RawRoleRow[]) {
       if (!existing) {
         rowsById.set(key, { firstSeen, row, score });
         firstSeen += 1;
-        return;
-      }
-      if (score > existing.score) {
+      } else if (score > existing.score) {
         existing.row = row;
         existing.score = score;
       }
     });
   };
-
   addRows(primary);
   addRows(secondary);
-
   return Array.from(rowsById.values())
     .sort((left, right) => {
       if (right.score !== left.score) return right.score - left.score;
@@ -1502,76 +1891,204 @@ function mergeRoleRows(primary: RawRoleRow[], secondary: RawRoleRow[]) {
     .map((item) => item.row);
 }
 
-function sameRoleRowOrder(left: RawRoleRow[], right: RawRoleRow[]) {
-  if (left.length !== right.length) return false;
-  return left.every(
-    (row, index) => getRoleKey(row, index) === getRoleKey(right[index], index)
+function roleRowsToCards(rows: RawRoleRow[]) {
+  return rows.map(roleCard);
+}
+
+function roleCard(row: RawRoleRow): RoleCard {
+  const companyScore = normalizeCompanyTestScore(row.company_test_score);
+  return {
+    company: {
+      description:
+        normalizeMultiline(row.company_description, 900) ||
+        normalizeMultiline(row.company_db_description, 900) ||
+        null,
+      employeeCountRange: row.company_db_employee_count_range,
+      foundedYear: row.company_db_founded_year ?? null,
+      location: row.company_db_location ?? null,
+      shortDescription: row.company_db_short_description ?? null,
+    },
+    companyName: row.company_name ?? row.company_db_name ?? null,
+    companyWorkspaceId: cleanText(row.company_workspace_id, 120),
+    employmentType: Array.isArray(row.type) ? row.type.join(", ") : null,
+    location: row.location_text ?? null,
+    postedAt: row.posted_at ?? null,
+    roleDescription: normalizeMultiline(row.description, 4000),
+    roleId: cleanText(row.role_id, 120),
+    roleName: cleanText(row.role_name, 180),
+    row,
+    score: companyScore,
+    searchRank: Number(row.search_rank ?? 0) || 0,
+    seniorityLevel: cleanText(row.seniority_level, 120) || null,
+    workMode: cleanText(row.work_mode, 100) || null,
+  };
+}
+
+function compactDateForRoleCard(value: unknown) {
+  const text = cleanText(value, 120);
+  if (!text) return "";
+  return /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : text;
+}
+
+function compactFloat(value: unknown, digits = 3) {
+  const number = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(number)) return null;
+  return Number(number.toFixed(digits));
+}
+
+function nonemptyJoin(parts: string[], sep = " | ") {
+  return parts.filter((part) => cleanText(part, 200)).join(sep);
+}
+
+function roleLineForLlm(card: RoleCard, includePostedAt = true) {
+  const role = cleanText(card.roleName, 180) || "Unknown role";
+  const company = cleanText(card.companyName, 180) || "Unknown company";
+  const details: string[] = [];
+  if (card.location) details.push(`work at ${card.location}`);
+  for (const item of [
+    card.workMode,
+    card.employmentType,
+    card.seniorityLevel,
+  ]) {
+    const text = cleanText(item, 120);
+    if (text) details.push(text);
+  }
+  const postedAt = includePostedAt ? compactDateForRoleCard(card.postedAt) : "";
+  if (postedAt) details.push(`posted ${postedAt}`);
+  const suffix = details.length > 0 ? ` | ${nonemptyJoin(details)}` : "";
+  return `external : ${role} at ${company}${suffix}`;
+}
+
+function companyLineForLlm(card: RoleCard, includeScore: boolean) {
+  const companyName = cleanText(card.companyName, 180) || "Unknown company";
+  const parts: string[] = [];
+  const shortDescription = normalizeMultiline(
+    card.company.shortDescription,
+    420
+  );
+  const employeeRange = compactEmployeeRange(card.company.employeeCountRange);
+  const location = cleanText(card.company.location, 120);
+  const foundedYear = cleanText(card.company.foundedYear, 40);
+  if (shortDescription) parts.push(shortDescription);
+  if (employeeRange) parts.push(employeeRange);
+  if (location) parts.push(`HQ ${location}`);
+  if (foundedYear) parts.push(`founded ${foundedYear}`);
+  if (includeScore && card.score !== null) {
+    parts.push(`company_score ${compactFloat(card.score, 2)}`);
+  }
+  const body = nonemptyJoin(parts);
+  return body ? `${companyName} : ${body}` : companyName;
+}
+
+function roleSearchResultCard(card: RoleCard) {
+  return {
+    id: card._shortlistCandidateId,
+    company: companyLineForLlm(card, true),
+    retrievalFtsScore: compactFloat(card.searchRank, 3),
+    role: roleLineForLlm(card),
+  };
+}
+
+function roleDetailCardForLlm(card: RoleCard) {
+  return cleanEmptyValues({
+    company: companyLineForLlm(card, false),
+    jd: normalizeMultiline(card.roleDescription, 4000),
+    role: roleLineForLlm(card),
+    roleId: card.roleId,
+  }) as JsonRecord;
+}
+
+function capRolesPerCompany(cards: RoleCard[], perCompanyLimit: number) {
+  const counts = new Map<string, number>();
+  const visible: RoleCard[] = [];
+  for (const card of cards) {
+    const key =
+      companyKey(card.companyName) || card.companyWorkspaceId || card.roleId;
+    if (key && (counts.get(key) ?? 0) >= perCompanyLimit) continue;
+    if (key) counts.set(key, (counts.get(key) ?? 0) + 1);
+    visible.push({ ...card, _shortlistCandidateId: visible.length });
+  }
+  return visible;
+}
+
+function shortlistLimit(targetRecommendationCount: number) {
+  return Math.max(
+    SHORTLIST_LIMIT_MIN,
+    Math.min(
+      SHORTLIST_LIMIT_MAX,
+      targetRecommendationCount * SHORTLIST_LIMIT_MULTIPLIER
+    )
   );
 }
 
-function roleLookupByKey(rows: RawRoleRow[]) {
-  const lookup = new Map<string, RawRoleRow>();
-  rows.forEach((row, index) => {
-    const fallbackKey = getRoleKey(row, index);
-    lookup.set(fallbackKey, row);
-    const roleId = cleanText(row.role_id, 120);
-    if (roleId) lookup.set(roleId, row);
-  });
-  return lookup;
+function desiredRecommendationCount() {
+  return FINAL_RECOMMENDATION_COUNT;
 }
 
-function roleSelectionKey(role: RawRoleRow, fallbackIndex: number) {
-  return cleanText(role.role_id, 120) || roleDedupeKey(role, fallbackIndex);
-}
-
-function selectedRowsFromRoleIds(args: {
-  candidates: RawRoleRow[];
-  selectedRoleIds: string[];
-}) {
-  const lookup = roleLookupByKey(args.candidates);
-  const selected: RawRoleRow[] = [];
-  const seen = new Set<string>();
-
-  for (const roleId of args.selectedRoleIds) {
-    const role = lookup.get(cleanText(roleId, 120));
-    if (!role) continue;
-    const key = roleSelectionKey(role, selected.length);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    selected.push(role);
-    if (selected.length >= SHORTLIST_CANDIDATE_TARGET_COUNT) break;
+function sanitizeShortlist(
+  raw: JsonRecord | null,
+  cards: RoleCard[],
+  limit: number
+) {
+  const roleIdByCandidateId = new Map<string, string>();
+  const cardByRoleId = new Map<string, RoleCard>();
+  for (const card of cards) {
+    const candidateId =
+      card._shortlistCandidateId === undefined
+        ? ""
+        : String(card._shortlistCandidateId);
+    if (candidateId && card.roleId)
+      roleIdByCandidateId.set(candidateId, card.roleId);
+    if (card.roleId) cardByRoleId.set(card.roleId, card);
   }
-
-  const minCount = Math.min(
-    SHORTLIST_CANDIDATE_MIN_COUNT,
-    args.candidates.length
-  );
-  for (let index = 0; selected.length < minCount; index += 1) {
-    const role = args.candidates[index];
-    if (!role) break;
-    const key = roleSelectionKey(role, index);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    selected.push(role);
+  const selected: string[] = [];
+  const selectedCompanies = new Set<string>();
+  const addRole = (roleId: string) => {
+    const card = cardByRoleId.get(roleId);
+    if (!card || selected.includes(roleId)) return;
+    const company =
+      companyKey(card.companyName) || card.companyWorkspaceId || roleId;
+    if (company && selectedCompanies.has(company)) return;
+    selected.push(roleId);
+    if (company) selectedCompanies.add(company);
+  };
+  const rawIds = [
+    ...coerceList(raw?.selectedCandidateIds, limit),
+    ...coerceList(raw?.selectedIds, limit),
+    ...coerceList(raw?.selectedRoleIds, limit),
+  ];
+  for (const rawId of rawIds) {
+    const id = cleanText(rawId, 120);
+    const roleId = roleIdByCandidateId.get(id) ?? id;
+    addRole(roleId);
+    if (selected.length >= limit) break;
   }
-
-  return selected.slice(0, SHORTLIST_CANDIDATE_TARGET_COUNT);
+  if (selected.length === 0) {
+    for (const card of cards) {
+      if (selected.length >= limit) break;
+      addRole(card.roleId);
+    }
+  }
+  return selected.slice(0, limit);
 }
 
 async function shortlistRoles(args: {
-  candidates: RawRoleRow[];
-  plan: SearchPlan;
-  userBrief: string;
+  cards: RoleCard[];
+  llmUserProfile: JsonRecord;
+  plan: ExternalSearchPlan;
+  request: string;
+  targetRecommendationCount: number;
 }) {
-  if (args.candidates.length <= SHORTLIST_CANDIDATE_TARGET_COUNT) {
+  const visible = capRolesPerCompany(args.cards, SHORTLIST_COMPANY_ROLE_CAP);
+  const selectionLimit = shortlistLimit(args.targetRecommendationCount);
+  if (visible.length <= selectionLimit) {
     infoJson("shortlist skipped", {
-      candidateCount: args.candidates.length,
-      reason: "candidate_count_within_target",
+      selectionLimit,
+      visibleExternal: visible.length,
+      reason: "visible_count_within_selection_limit",
     });
-    return args.candidates;
+    return visible;
   }
-
-  const compactRoles = args.candidates.map(compactRoleForShortlist);
   const raw = await runTalentAssistantCompletion({
     fallbackModel: RECOMMEND_JOB_POSTINGS_FALLBACK_MODEL,
     jsonMode: true,
@@ -1579,287 +2096,34 @@ async function shortlistRoles(args: {
       { role: "system", content: SHORTLIST_SYSTEM_PROMPT },
       {
         role: "user",
-        content: [
-          args.userBrief,
-          "",
-          "[Search intent]",
-          args.plan.searchIntentSummary,
-          "",
-          "[Reranking criteria]",
-          args.plan.rerankCriteria
-            .map((item, index) => `${index + 1}. ${item}`)
-            .join("\n"),
-          "",
-          "[Compact candidate roles]",
-          JSON.stringify(compactRoles),
-        ].join("\n"),
+        content: JSON.stringify({
+          externalCandidates: visible.map(roleSearchResultCard),
+          request: args.request,
+          searchPlan: args.plan,
+          selectionLimit,
+          user_profile: args.llmUserProfile,
+        }),
       },
     ],
     primaryModel: RECOMMEND_JOB_POSTINGS_PRIMARY_MODEL,
     temperature: 0.1,
   });
-
-  const parsed = parseJsonObject(raw);
-  const selectedRoleIds = asStringArray(
-    parsed?.selectedRoleIds,
-    SHORTLIST_CANDIDATE_TARGET_COUNT,
-    120
+  const selectedRoleIds = sanitizeShortlist(
+    parseJsonObject(raw),
+    visible,
+    selectionLimit
   );
-  const selected = selectedRowsFromRoleIds({
-    candidates: args.candidates,
-    selectedRoleIds,
-  });
-
+  const byRoleId = new Map(visible.map((card) => [card.roleId, card]));
+  const selected = selectedRoleIds
+    .map((roleId) => byRoleId.get(roleId))
+    .filter((card): card is RoleCard => Boolean(card));
   infoJson("shortlist completed", {
-    candidateCount: args.candidates.length,
-    compactRoleCount: compactRoles.length,
-    llmSelectedRoleIdCount: selectedRoleIds.length,
-    selectedCandidateCount: selected.length,
-    selectedCandidates: selected.slice(0, 5).map(rolePreview),
+    selectedExternal: selected.length,
+    selectionLimit,
+    visibleExternal: visible.length,
   });
-  debugLog("shortlist raw", {
-    parsed,
-    raw: raw.slice(0, 4000),
-    selectedRoleIds,
-  });
-
+  debugLog("shortlist raw", { raw: raw.slice(0, 4000), selectedRoleIds });
   return selected;
-}
-
-async function rerankRoles(args: {
-  candidates: RawRoleRow[];
-  plan: SearchPlan;
-  userBrief: string;
-}) {
-  if (args.candidates.length <= RERANK_BATCH_SIZE) {
-    return rerankRoleBatch({
-      ...args,
-      returnCount: FINAL_RECOMMENDATION_COUNT,
-      stageLabel: "final",
-    });
-  }
-
-  let round = 1;
-  let roundCandidates = args.candidates;
-
-  while (roundCandidates.length > RERANK_BATCH_SIZE) {
-    const batches = chunkArray(roundCandidates, RERANK_BATCH_SIZE);
-    const returnCount = Math.min(
-      RERANK_BATCH_FINALIST_COUNT,
-      RERANK_BATCH_SIZE
-    );
-
-    infoJson("rerank batch round", {
-      batchCount: batches.length,
-      batchSize: RERANK_BATCH_SIZE,
-      candidateCount: roundCandidates.length,
-      finalistTargetPerBatch: returnCount,
-      round,
-    });
-
-    const batchResults = await Promise.all(
-      batches.map((batch, index) =>
-        rerankRoleBatch({
-          candidates: batch,
-          plan: args.plan,
-          returnCount: Math.min(returnCount, batch.length),
-          stageLabel: `round ${round} batch ${index + 1}/${batches.length}`,
-          userBrief: args.userBrief,
-        })
-      )
-    );
-
-    const finalists = uniqueRoleRows(
-      batchResults.flat().map((item) => item.role)
-    );
-
-    if (finalists.length >= roundCandidates.length) break;
-    roundCandidates = finalists;
-    round += 1;
-  }
-
-  return rerankRoleBatch({
-    candidates: roundCandidates,
-    plan: args.plan,
-    returnCount: FINAL_RECOMMENDATION_COUNT,
-    stageLabel: `final from ${roundCandidates.length} finalists`,
-    userBrief: args.userBrief,
-  });
-}
-
-function chunkArray<T>(items: T[], chunkSize: number) {
-  const chunks: T[][] = [];
-  for (let index = 0; index < items.length; index += chunkSize) {
-    chunks.push(items.slice(index, index + chunkSize));
-  }
-  return chunks;
-}
-
-function roleDedupeKey(role: RawRoleRow, index: number) {
-  const explicitId = cleanText(role.role_id, 120);
-  if (explicitId) return explicitId;
-
-  const fallback = [
-    cleanText(role.company_workspace_id, 120),
-    cleanText(role.company_name, 160) || cleanText(role.company_db_name, 160),
-    cleanText(role.role_name, 160),
-    cleanText(role.external_jd_url, 500),
-  ]
-    .filter(Boolean)
-    .join("|")
-    .toLocaleLowerCase("ko-KR");
-
-  return fallback || `candidate_${index}`;
-}
-
-function uniqueRoleRows(rows: RawRoleRow[]) {
-  const seen = new Set<string>();
-  const unique: RawRoleRow[] = [];
-
-  rows.forEach((row, index) => {
-    const key = roleDedupeKey(row, index);
-    if (seen.has(key)) return;
-    seen.add(key);
-    unique.push(row);
-  });
-
-  return unique;
-}
-
-async function rerankRoleBatch(args: {
-  candidates: RawRoleRow[];
-  plan: SearchPlan;
-  returnCount: number;
-  stageLabel: string;
-  userBrief: string;
-}) {
-  const raw = await runTalentAssistantCompletion({
-    fallbackModel: RECOMMEND_JOB_POSTINGS_FALLBACK_MODEL,
-    jsonMode: true,
-    messages: [
-      { role: "system", content: RERANK_SYSTEM_PROMPT },
-      {
-        role: "user",
-        content: [
-          args.userBrief,
-          "",
-          "[Search intent]",
-          args.plan.searchIntentSummary,
-          "",
-          "[Reranking criteria]",
-          args.plan.rerankCriteria
-            .map((item, index) => `${index + 1}. ${item}`)
-            .join("\n"),
-          "",
-          "[Rerank stage]",
-          `${args.stageLabel}. Return up to ${args.returnCount} roleIds from only the candidate roles shown below.`,
-          "",
-          "[Candidate roles]",
-          args.candidates.map(formatRoleForPrompt).join("\n\n"),
-        ].join("\n"),
-      },
-    ],
-    primaryModel: RECOMMEND_JOB_POSTINGS_PRIMARY_MODEL,
-    temperature: 0.15,
-  });
-
-  const parsed = parseJsonObject(raw);
-  debugLog("rerank raw", {
-    candidateCount: args.candidates.length,
-    raw: raw.slice(0, 4000),
-    parsedKeys: parsed ? Object.keys(parsed) : [],
-    returnCount: args.returnCount,
-    stageLabel: args.stageLabel,
-  });
-  const rankedRows = Array.isArray(parsed?.rankedRoles)
-    ? parsed?.rankedRoles
-    : [];
-  const rowsById = roleById(args.candidates);
-  const ranked: RankedRole[] = [];
-  const seen = new Set<string>();
-
-  for (const item of rankedRows) {
-    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
-    const record = item as Record<string, unknown>;
-    const roleId = cleanText(record.roleId, 120);
-    let role = rowsById.get(roleId);
-    let resolvedRoleId = roleId;
-    if (!role && rankedRows.length === 1 && args.candidates.length === 1) {
-      resolvedRoleId = getRoleKey(args.candidates[0], 0);
-      role = args.candidates[0];
-    }
-    if (!resolvedRoleId || !role || seen.has(resolvedRoleId)) continue;
-    seen.add(resolvedRoleId);
-    ranked.push({
-      concerns: asStringArray(record.concerns, 4, 180),
-      goodPoints: asStringArray(record.goodPoints, 4, 180),
-      recommendationText: cleanText(record.recommendationText, 700) || null,
-      role,
-      roleId: resolvedRoleId,
-      score: applyCompanyTestScoreBoost(record.score, role),
-    });
-  }
-
-  for (let index = 0; index < args.candidates.length; index += 1) {
-    const role = args.candidates[index];
-    const roleId = getRoleKey(role, index);
-    if (seen.has(roleId)) continue;
-    ranked.push({
-      concerns: [],
-      goodPoints: [],
-      recommendationText: null,
-      role,
-      roleId,
-      score: applyCompanyTestScoreBoost(0, role),
-    });
-  }
-
-  return ranked
-    .sort((left, right) => right.score - left.score)
-    .slice(0, args.returnCount);
-}
-
-function fallbackRecommendationText(item: RankedRole) {
-  const role = item.role;
-  const company = cleanText(role.company_name, 160) || "해당 회사";
-  const title = cleanText(role.role_name, 160) || "해당 포지션";
-  const good =
-    item.goodPoints[0] ||
-    cleanText(role.description, 160) ||
-    "프로필과 연결될 수 있는 업무 내용이 있습니다";
-  const concern =
-    item.concerns[0] ||
-    "공고 설명만으로는 팀의 실제 범위와 기대 수준을 추가 확인할 필요가 있습니다";
-  return `${company}의 ${title}은 ${good}는 점에서 검토할 만합니다. 다만 ${concern}.`;
-}
-
-function buildRoleOverviewFallback(role: RawRoleRow) {
-  const company =
-    cleanText(role.company_name, 160) ||
-    cleanText(role.company_db_name, 160) ||
-    "해당 회사";
-  const title = cleanText(role.role_name, 180) || "해당 포지션";
-  const companyDescription =
-    cleanPlainText(role.company_description, 260) ||
-    cleanPlainText(role.company_db_description, 260) ||
-    cleanPlainText(role.company_db_short_description, 260);
-  const roleDescription =
-    cleanPlainText(role.information_text, 220) ||
-    cleanPlainText(role.description, 220);
-  const sentences: string[] = [];
-
-  if (companyDescription) {
-    sentences.push(`${company}는 ${companyDescription.replace(/[.。]$/, "")}.`);
-  } else {
-    sentences.push(`${company}의 ${title} 포지션입니다.`);
-  }
-  if (roleDescription) {
-    sentences.push(`이 역할은 ${roleDescription.replace(/[.。]$/, "")}.`);
-  } else if (companyDescription) {
-    sentences.push(`역할명은 ${title}입니다.`);
-  }
-
-  return cleanText(sentences.join(" "), 700) || null;
 }
 
 function normalizePreferenceFitStatus(
@@ -1877,7 +2141,6 @@ function normalizeRecommendationPreferenceFit(
 ): RecommendationPreferenceFit {
   const record = asRecord(value);
   if (!record) return {};
-
   const result: RecommendationPreferenceFit = {};
   for (const key of PREFERENCE_FIT_KEYS) {
     const item = asRecord(record[key]);
@@ -1890,148 +2153,208 @@ function normalizeRecommendationPreferenceFit(
     if (!status || !note) continue;
     result[key] = { note, status };
   }
-
   return result;
 }
 
-function normalizeRecommendationDetail(
-  raw: Record<string, unknown> | null,
-  item: RankedRole
-): RecommendationDetail {
-  const fitReasons = asStringArray(raw?.fitReasons, 2, 180);
-  const tradeoffs = asStringArray(raw?.tradeoffs, 1, 220);
-  const roleOverviewText =
-    cleanText(raw?.roleOverviewText, 700) ||
-    buildRoleOverviewFallback(item.role);
+function fallbackFitSummary(card: RoleCard) {
+  const company = cleanText(card.companyName, 160) || "해당 회사";
+  const title = cleanText(card.roleName, 180) || "해당 포지션";
+  const companyDescription =
+    normalizeMultiline(card.company.description, 260) ||
+    normalizeMultiline(card.company.shortDescription, 260);
+  if (companyDescription) {
+    return `${company}는 ${companyDescription.replace(/[.。]$/, "")}. 이 역할은 ${title} 포지션입니다.`;
+  }
+  return `${company}의 ${title} 포지션입니다.`;
+}
 
+function normalizeSelectedRecommendation(
+  raw: unknown,
+  index: number,
+  card: RoleCard
+): SelectedRecommendation {
+  const record = asRecord(raw) ?? {};
+  const score = clampNumber(record.score, 0, 1, 0);
+  const fitReasons = asStringArray(record.fitReasons, 3, 180);
+  const fitSummary = cleanText(record.fitSummary, 700);
+  const preferenceFit = normalizeRecommendationPreferenceFit(
+    record.preferenceFit
+  );
+  const isSupplemental =
+    fitReasons.length === 0 &&
+    !fitSummary &&
+    Object.keys(preferenceFit).length === 0;
   return {
-    fitReasons:
-      fitReasons.length > 0
-        ? fitReasons
-        : [
-            item.recommendationText ||
-              item.goodPoints[0] ||
-              fallbackRecommendationText(item),
-          ]
-            .filter(Boolean)
-            .map((value) => cleanText(value, 180)),
-    preferenceFit: normalizeRecommendationPreferenceFit(raw?.preferenceFit),
-    roleOverviewText,
-    tradeoffs:
-      tradeoffs.length > 0
-        ? tradeoffs
-        : item.concerns.slice(0, 1).map((value) => cleanText(value, 220)),
+    fitReasons,
+    fitSummary:
+      fitSummary || (isSupplemental ? null : fallbackFitSummary(card)),
+    isSupplemental,
+    preferenceFit,
+    rank: normalizeInt(record.rank, index + 1, 1, FINAL_RECOMMENDATION_COUNT),
+    roleId: card.roleId,
+    score,
+    tradeoffs: [],
   };
 }
 
-async function generateRecommendationDetails(args: {
-  plan: SearchPlan;
-  recommendations: RankedRole[];
-  userBrief: string;
-}) {
-  if (args.recommendations.length === 0) return [];
-
-  try {
-    const raw = await runTalentAssistantCompletion({
-      fallbackModel: RECOMMEND_JOB_POSTINGS_FALLBACK_MODEL,
-      jsonMode: true,
-      messages: [
-        { role: "system", content: RECOMMENDATION_DETAIL_SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: [
-            args.userBrief,
-            "",
-            "[Search intent]",
-            args.plan.searchIntentSummary,
-            "",
-            "[Reranking criteria]",
-            args.plan.rerankCriteria
-              .map((item, index) => `${index + 1}. ${item}`)
-              .join("\n"),
-            "",
-            "[Selected roles]",
-            args.recommendations
-              .map((item, index) => formatRoleForPrompt(item.role, index))
-              .join("\n\n"),
-            "",
-            "[Rerank results]",
-            JSON.stringify(
-              args.recommendations.map((item) => ({
-                concerns: item.concerns,
-                goodPoints: item.goodPoints,
-                recommendationText: item.recommendationText,
-                roleId: item.roleId,
-                score: item.score,
-              }))
-            ),
-          ].join("\n"),
-        },
-      ],
-      primaryModel: RECOMMEND_JOB_POSTINGS_PRIMARY_MODEL,
-      temperature: 0.2,
-    });
-
-    const parsed = parseJsonObject(raw);
-    const details = Array.isArray(parsed?.details) ? parsed.details : [];
-    const detailsByRoleId = new Map<string, Record<string, unknown>>();
-
-    for (const detail of details) {
-      const record = asRecord(detail);
-      const roleId = cleanText(record?.roleId, 120);
-      if (roleId && record) detailsByRoleId.set(roleId, record);
-    }
-
-    debugLog("detail generation raw", {
-      detailCount: detailsByRoleId.size,
-      raw: raw.slice(0, 4000),
-      recommendationCount: args.recommendations.length,
-    });
-
-    return args.recommendations.map((item) =>
-      normalizeRecommendationDetail(
-        detailsByRoleId.get(item.roleId) ?? null,
-        item
-      )
-    );
-  } catch (error) {
-    console.warn("[recommend_job_postings] detail generation failed", {
-      error: error instanceof Error ? error.message : String(error),
-      recommendationCount: args.recommendations.length,
-    });
-    return args.recommendations.map((item) =>
-      normalizeRecommendationDetail(null, item)
-    );
+async function selectFinalRecommendations(args: {
+  cards: RoleCard[];
+  llmUserProfile: JsonRecord;
+  plan: ExternalSearchPlan;
+  previousDeliveryTexts: string[];
+  recentDeliveryMeta: string[];
+  request: string;
+  targetRecommendationCount: number;
+}): Promise<FinalSelectionResult> {
+  if (args.cards.length === 0) {
+    return {
+      directFitCount: 0,
+      scoredCount: 0,
+      selected: [],
+      supplementalCount: 0,
+    };
   }
-}
-
-async function enrichRecommendationDetails(args: {
-  plan: SearchPlan;
-  recommendations: RankedRole[];
-  userBrief: string;
-}): Promise<EnrichedRankedRole[]> {
-  const details = await generateRecommendationDetails({
-    plan: args.plan,
-    recommendations: args.recommendations,
-    userBrief: args.userBrief,
+  const detailedExternalCandidates = args.cards.map(roleDetailCardForLlm);
+  const raw = await runTalentAssistantCompletion({
+    anthropicOverloadFallbackModel:
+      RECOMMEND_JOB_POSTINGS_FINAL_SELECTION_MODEL,
+    fallbackModel: RECOMMEND_JOB_POSTINGS_FINAL_SELECTION_MODEL,
+    jsonMode: true,
+    messages: [
+      { role: "system", content: FINAL_SELECTION_SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: JSON.stringify({
+          detailedExternalCandidates,
+          previousDeliveryTexts: args.previousDeliveryTexts,
+          recentDeliveryMeta: args.recentDeliveryMeta,
+          request: args.request,
+          searchPlan: args.plan,
+          targetRecommendationCount: args.targetRecommendationCount,
+          user_profile: args.llmUserProfile,
+        }),
+      },
+    ],
+    primaryModel: RECOMMEND_JOB_POSTINGS_FINAL_SELECTION_MODEL,
+    temperature: 0.2,
   });
-
-  return args.recommendations.map((item, index) => ({
+  const parsed = parseJsonObject(raw);
+  const selectedRaw = Array.isArray(parsed?.selectedRecommendations)
+    ? parsed.selectedRecommendations
+    : [];
+  const byRoleId = new Map(args.cards.map((card) => [card.roleId, card]));
+  const cardIndexByRoleId = new Map(
+    args.cards.map((card, index) => [card.roleId, index])
+  );
+  const scored: SelectedRecommendation[] = [];
+  const scoredRoleIds = new Set<string>();
+  for (const item of selectedRaw) {
+    const record = asRecord(item);
+    const roleId = cleanText(record?.roleId, 120);
+    const card = byRoleId.get(roleId);
+    if (!card || scoredRoleIds.has(roleId)) continue;
+    scored.push(normalizeSelectedRecommendation(record, scored.length, card));
+    scoredRoleIds.add(roleId);
+  }
+  const orderedDirectFits = scored
+    .filter((item) => !item.isSupplemental)
+    .sort((left, right) => {
+      if (left.rank !== right.rank) return left.rank - right.rank;
+      if (right.score !== left.score) return right.score - left.score;
+      return (
+        (cardIndexByRoleId.get(left.roleId) ?? Number.MAX_SAFE_INTEGER) -
+        (cardIndexByRoleId.get(right.roleId) ?? Number.MAX_SAFE_INTEGER)
+      );
+    });
+  const orderedSupplements = scored
+    .filter((item) => item.isSupplemental)
+    .sort((left, right) => {
+      if (right.score !== left.score) return right.score - left.score;
+      return (
+        (cardIndexByRoleId.get(left.roleId) ?? Number.MAX_SAFE_INTEGER) -
+        (cardIndexByRoleId.get(right.roleId) ?? Number.MAX_SAFE_INTEGER)
+      );
+    });
+  const selected: SelectedRecommendation[] = [];
+  const seenCompanies = new Set<string>();
+  const seenRoles = new Set<string>();
+  const addSelection = (item: SelectedRecommendation) => {
+    const card = byRoleId.get(item.roleId);
+    if (!card || seenRoles.has(item.roleId)) return;
+    const company =
+      companyKey(card.companyName) || card.companyWorkspaceId || item.roleId;
+    if (company && seenCompanies.has(company)) return;
+    selected.push(item);
+    seenRoles.add(item.roleId);
+    if (company) seenCompanies.add(company);
+  };
+  for (const item of orderedDirectFits) {
+    if (selected.length >= args.targetRecommendationCount) break;
+    addSelection(item);
+  }
+  for (const item of orderedSupplements) {
+    if (selected.length >= args.targetRecommendationCount) break;
+    addSelection(item);
+  }
+  const rankedSelected = selected.map((item, index) => ({
     ...item,
-    detail: details[index] ?? normalizeRecommendationDetail(null, item),
-    recommendationId: null,
+    rank: index + 1,
   }));
+  const supplementalCount = rankedSelected.filter(
+    (item) => item.isSupplemental
+  ).length;
+  debugLog("final selection raw", {
+    raw: raw.slice(0, 4000),
+    directFitCount: rankedSelected.length - supplementalCount,
+    scoredCount: scored.length,
+    selectedCount: rankedSelected.length,
+    supplementalCount,
+  });
+  return {
+    directFitCount: rankedSelected.length - supplementalCount,
+    scoredCount: scored.length,
+    selected: rankedSelected,
+    supplementalCount,
+  };
 }
 
-function opportunityTypeForRole(role: RawRoleRow) {
-  const sourceType = cleanText(role.source_type, 80).toLocaleLowerCase("ko-KR");
-  return sourceType === "internal"
-    ? OpportunityType.InternalRecommendation
-    : OpportunityType.ExternalJd;
+function roleUrl(role: RawRoleRow) {
+  return cleanText(role.external_jd_url, 500) || null;
+}
+
+function rankedFromSelected(
+  selected: SelectedRecommendation[],
+  cards: RoleCard[]
+): EnrichedRankedRole[] {
+  const byRoleId = new Map(cards.map((card) => [card.roleId, card]));
+  return selected
+    .map((item): EnrichedRankedRole | null => {
+      const card = byRoleId.get(item.roleId);
+      if (!card) return null;
+      return {
+        concerns: item.tradeoffs,
+        detail: {
+          fitReasons: item.fitReasons,
+          preferenceFit: item.preferenceFit,
+          roleOverviewText: item.fitSummary,
+          tradeoffs: item.tradeoffs,
+        },
+        goodPoints: item.fitReasons,
+        isSupplemental: item.isSupplemental,
+        recommendationId: null,
+        recommendationText: item.fitReasons.join(" ") || item.fitSummary,
+        role: card.row,
+        roleId: item.roleId,
+        score: item.score * 10,
+      };
+    })
+    .filter((item): item is EnrichedRankedRole => Boolean(item));
 }
 
 function recommendationScoreForDb(score: unknown) {
-  return Math.max(0, Math.min(1, normalizeScore(score) / 10));
+  const number = typeof score === "number" ? score : Number(score);
+  if (!Number.isFinite(number)) return 0;
+  return Math.max(0, Math.min(1, number / 10));
 }
 
 function buildRecommendationEvidence(item: EnrichedRankedRole) {
@@ -2040,19 +2363,19 @@ function buildRecommendationEvidence(item: EnrichedRankedRole) {
     {
       label: "role",
       text:
-        cleanText(role.information_text, 700) ||
-        cleanText(role.description, 700),
+        normalizeMultiline(role.information_text, 700) ||
+        normalizeMultiline(role.description, 700),
     },
     {
       label: "company",
       text:
-        cleanText(role.company_description, 700) ||
-        cleanText(role.company_db_description, 700) ||
-        cleanText(role.company_db_short_description, 700),
+        normalizeMultiline(role.company_description, 700) ||
+        normalizeMultiline(role.company_db_description, 700) ||
+        normalizeMultiline(role.company_db_short_description, 700),
     },
     {
       label: "search_intent",
-      text: cleanText(item.recommendationText, 700),
+      text: normalizeMultiline(item.recommendationText, 700),
     },
   ].filter((entry) => entry.text);
 }
@@ -2067,15 +2390,13 @@ async function persistRecommendations(args: {
     .map((item, index) => {
       const roleId = cleanText(item.role.role_id, 120);
       if (!roleId) return null;
-      const fitReasons = item.detail.fitReasons.filter(Boolean);
-
       return {
         evidence: buildRecommendationEvidence(item),
-        fit_reasons: fitReasons,
+        fit_reasons: item.detail.fitReasons.filter(Boolean),
         fit_summary: item.detail.roleOverviewText,
         kind: "recommendation",
         model_version: RECOMMEND_JOB_POSTINGS_MODEL_VERSION,
-        opportunity_type: opportunityTypeForRole(item.role),
+        opportunity_type: OpportunityType.ExternalJd,
         preference_fit: item.detail.preferenceFit,
         rank: index + 1,
         recommended_at: now,
@@ -2129,22 +2450,32 @@ function extractRequestedPostingCount(request: string) {
 
 function formatAnswerDraft(args: {
   candidateCount: number;
-  plan: SearchPlan;
+  plan: ExternalSearchPlan;
   recommendations: EnrichedRankedRole[];
   requestedCount: number | null;
+  supplementalRecommendationCount: number;
 }) {
   if (args.recommendations.length === 0) {
     return [
-      "지금 조건으로 바로 추천할 만한 채용공고를 찾지 못했습니다.",
-      "조건을 조금 넓혀서 직무명, 지역, 근무 형태 중 하나만 완화하면 다시 찾아볼 수 있습니다.",
+      "지금 조건으로 바로 추천할 만한 external 채용공고를 찾지 못했습니다.",
+      "직무명, 지역, 근무 형태 중 하나를 조금 넓히면 다시 찾아볼 수 있습니다.",
     ].join("\n");
   }
 
   const lines = [
-    `요청 조건과 프로필을 같이 보고 현재 채용공고 ${args.candidateCount}개를 검토한 뒤, 우선순위가 높은 ${args.recommendations.length}개를 포지션 탭에 저장했습니다.`,
+    `요청 조건을 기준으로 현재 external 채용공고 ${args.candidateCount}개를 검토한 뒤, 우선순위가 높은 ${args.recommendations.length}개를 포지션 탭에 저장했습니다.`,
     `검색 의도: ${args.plan.searchIntentSummary}`,
     "",
   ];
+
+  if (args.supplementalRecommendationCount > 0) {
+    const directCount =
+      args.recommendations.length - args.supplementalRecommendationCount;
+    lines.push(
+      `요청에 바로 맞는 공고가 ${directCount}개라서, 완전히 일치하지는 않지만 좋은 공고 ${args.supplementalRecommendationCount}개를 함께 포함했습니다.`,
+      ""
+    );
+  }
 
   if (
     typeof args.requestedCount === "number" &&
@@ -2170,7 +2501,9 @@ function formatAnswerDraft(args: {
     const why =
       item.detail.fitReasons.length > 0
         ? item.detail.fitReasons.join(" ")
-        : item.recommendationText || fallbackRecommendationText(item);
+        : item.isSupplemental
+          ? "현재 요청과 완전히 일치하지는 않지만, 후보군 중 점수가 높아 참고용으로 포함했습니다."
+          : item.recommendationText || "현재 요청과 맞는 업무 범위가 있습니다.";
     const concern = item.detail.tradeoffs[0];
     const roleId = cleanText(item.roleId, 120);
 
@@ -2178,7 +2511,7 @@ function formatAnswerDraft(args: {
       `${index + 1}. ${company} - ${title} (${item.score.toFixed(1)}/10)`
     );
     if (meta) lines.push(`   조건: ${meta}`);
-    lines.push(`   추천 이유: ${why}`);
+    lines.push(`   ${item.isSupplemental ? "포함 이유" : "추천 이유"}: ${why}`);
     if (concern) lines.push(`   확인할 점: ${concern}`);
     if (roleId) lines.push(`   [posting](${roleId})`);
     if (url) lines.push(`   공고 링크: ${url}`);
@@ -2188,6 +2521,23 @@ function formatAnswerDraft(args: {
   return lines.join("\n").trim();
 }
 
+function rolePreview(row: RawRoleRow) {
+  return {
+    companyName: row.company_name ?? row.company_db_name ?? null,
+    companyTestScore: row.company_test_score ?? null,
+    employmentTypes: row.type ?? [],
+    location: row.location_text ?? row.company_db_location ?? null,
+    roleId: row.role_id ?? null,
+    roleName: row.role_name ?? null,
+    url: row.external_jd_url ?? null,
+    workMode: row.work_mode ?? null,
+  };
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 export async function runCareerJobPostingRecommendations(args: {
   admin: AdminClient;
   conversationId: string;
@@ -2195,11 +2545,9 @@ export async function runCareerJobPostingRecommendations(args: {
   userId: string;
 }) {
   const request = cleanText(args.request, 1400);
-  if (!request) {
-    throw new Error("recommend_job_postings requires a request.");
-  }
-  const requestedCount = extractRequestedPostingCount(request);
+  if (!request) throw new Error("recommend_job_postings requires a request.");
 
+  const requestedCount = extractRequestedPostingCount(request);
   const startedAt = Date.now();
   console.info("[recommend_job_postings] start", {
     conversationId: args.conversationId,
@@ -2212,21 +2560,17 @@ export async function runCareerJobPostingRecommendations(args: {
     profile,
     insights,
     setting,
-    recentMessages,
-    previouslyRecommendedRoleIds,
+    existingExternalRecommendations,
     activitySummaries,
+    recentRecommendations,
   ] = await Promise.all([
-    fetchTalentUserProfile({ admin: args.admin, userId: args.userId }),
-    fetchTalentInsights({ admin: args.admin, userId: args.userId }),
-    fetchTalentSetting({ admin: args.admin, userId: args.userId }),
-    fetchRecentMessagesWithSummary({
+    fetchJobPostingTalentUserProfile({
       admin: args.admin,
-      conversationId: args.conversationId,
-      fallbackLimit: 4,
-      recentLimit: 4,
       userId: args.userId,
     }),
-    fetchPreviouslyRecommendedRoleIds({
+    fetchTalentInsights({ admin: args.admin, userId: args.userId }),
+    fetchJobPostingTalentSetting({ admin: args.admin, userId: args.userId }),
+    fetchExistingExternalRecommendations({
       admin: args.admin,
       userId: args.userId,
     }),
@@ -2235,192 +2579,153 @@ export async function runCareerJobPostingRecommendations(args: {
       limit: RECENT_TALENT_ACTIVITY_SUMMARY_LIMIT,
       userId: args.userId,
     }),
+    fetchRecentRecommendations({ admin: args.admin, userId: args.userId }),
   ]);
   const structuredProfile = await fetchTalentStructuredProfile({
     admin: args.admin,
     userId: args.userId,
-    talentUser: profile,
   });
-  const profileText = buildTalentProfileContext({
-    includeResumeFileName: false,
-    includeResumeText: false,
-    includeRowIds: false,
-    profile,
-    structuredProfile,
-    setting,
-  });
-  const userBrief = buildUserBrief({
-    activitySummaries,
-    currentRequest: request,
-    insights: insights?.content ?? null,
-    profileText,
-    recentMessages,
-  });
-  let plan = await buildSearchPlan({ request, userBrief });
-  const blockedCompanies = normalizeTalentBlockedCompanies(
-    setting?.blocked_companies ?? []
+  const redactionTerms = previousExternalRedactionTerms(
+    existingExternalRecommendations
   );
-  infoJson("search plan", {
-    ftsKeywords: plan.ftsKeywords,
-    must: plan.must,
-    rerankCriteria: plan.rerankCriteria,
-    searchIntentSummary: plan.searchIntentSummary,
-    should: plan.should,
+  const deliveryContext = await fetchRecentDeliveryContext({
+    admin: args.admin,
+    redactionTerms,
+    userId: args.userId,
   });
-  debugLog("search plan full", {
-    blockedCompanies,
+  const llmUserProfile = await buildLlmUserProfile({
+    activitySummaries,
+    admin: args.admin,
+    conversationId: args.conversationId,
+    existingExternalRecommendations,
+    insights: insights?.content ?? null,
+    profile,
+    recentRecommendations,
+    setting,
+    structuredProfile,
+    userId: args.userId,
+  });
+  const targetRecommendationCount = desiredRecommendationCount();
+  const blockedCompanies = normalizeTalentBlockedCompanies(
+    (asRecord(setting)?.blocked_companies as unknown) ?? []
+  );
+  const plan = await buildSearchPlan({
+    llmUserProfile,
+    previousDeliveryTexts: deliveryContext.previousDeliveryTexts,
+    recentDeliveryMeta: deliveryContext.recentDeliveryMeta,
+    request,
+  });
+  infoJson("external search plan", {
+    excludeKeywords: plan.excludeKeywords,
     ftsKeywords: plan.ftsKeywords,
-    must: plan.must,
-    previouslyRecommendedRoleCount: previouslyRecommendedRoleIds.size,
-    should: plan.should,
+    locations: plan.locations,
+    mustKeywords: plan.mustKeywords,
+    searchIntentSummary: plan.searchIntentSummary,
+    targetRecommendationCount,
   });
 
-  let search = applySearchRowUserFilters({
+  const strictSearch = await executeRoleSql({
+    admin: args.admin,
     blockedCompanies,
-    label: "strict",
-    previouslyRecommendedRoleIds,
-    search: await executeRoleSql({
+    plan,
+    searchMode: "strict",
+    userId: args.userId,
+  });
+  let rows = strictSearch.rows;
+  let relaxedSearchUsed = false;
+  if (rows.length < FINAL_RECOMMENDATION_COUNT) {
+    const relaxedSearch = await executeRoleSql({
       admin: args.admin,
       blockedCompanies,
       plan,
+      searchMode: "relaxed",
       userId: args.userId,
-    }),
-  });
-  let relaxed = false;
-  infoJson("sql search", {
-    candidateCount: search.rows.length,
-    candidates: search.rows.slice(0, 5).map(rolePreview),
-    relaxed,
-    rawCount: search.rawRows.length,
-    rpcContainerCount: search.rpcContainerCount,
-  });
-  debugLog("sql search full", {
-    candidateCount: search.rows.length,
-    rawCount: search.rawRows.length,
-    rawRowsSample: search.rawRows.slice(0, 5),
-    rowsSample: search.rows.slice(0, 5),
-    sql: search.sql,
-  });
-  const conditions = plan.must.concat(plan.should);
-  const shouldRunBroadenedSearch =
-    conditions.length > 0 &&
-    search.rows.length <= BROADENED_SEARCH_CANDIDATE_THRESHOLD;
-
-  if (shouldRunBroadenedSearch) {
-    const broadenedPlan = await buildBroadenedSearchPlan({
-      originalPlan: plan,
-      request,
-      strictCandidateCount: search.rows.length,
-      strictCandidates: search.rows,
-      userBrief,
     });
-    infoJson("broadened search plan", {
-      ftsKeywords: broadenedPlan.ftsKeywords,
-      must: broadenedPlan.must,
-      rerankCriteria: broadenedPlan.rerankCriteria,
-      searchIntentSummary: broadenedPlan.searchIntentSummary,
-      should: broadenedPlan.should,
-      strictCandidateCount: search.rows.length,
-    });
-
-    const broadenedSearch = applySearchRowUserFilters({
-      blockedCompanies,
-      label: "broadened",
-      previouslyRecommendedRoleIds,
-      search: await executeRoleSql({
-        admin: args.admin,
-        blockedCompanies,
-        plan: broadenedPlan,
-        userId: args.userId,
-      }),
-    });
-    const mergedRows = mergeRoleRows(search.rows, broadenedSearch.rows).slice(
+    rows = mergeRoleRows(strictSearch.rows, relaxedSearch.rows).slice(
       0,
       MAX_SEARCH_RESULTS
     );
-    const filteredMergedRows = filterSearchRowsForUserConstraints({
-      blockedCompanies,
-      previouslyRecommendedRoleIds,
-      rows: mergedRows,
-    }).rows;
-    const strictCandidateCount = search.rows.length;
-    if (
-      !sameRoleRowOrder(
-        search.rows.slice(0, MAX_SEARCH_RESULTS),
-        filteredMergedRows
-      )
-    ) {
-      search = {
-        ...search,
-        rawRows: search.rawRows.concat(broadenedSearch.rawRows),
-        rows: filteredMergedRows,
-        rpcContainerCount: null,
-        sql: `${search.sql}\n\n-- broadened candidate backfill\n${broadenedSearch.sql}`,
-      };
-      relaxed = true;
-      plan = broadenedPlan;
-      infoJson("broadened sql search", {
-        addedCandidateCount: Math.max(
-          0,
-          filteredMergedRows.length - strictCandidateCount
-        ),
-        candidateCount: filteredMergedRows.length,
-        candidates: search.rows.slice(0, 5).map(rolePreview),
-        relaxed,
-        rawCount: search.rawRows.length,
-        rpcContainerCount: search.rpcContainerCount,
-        strictCandidateCount,
-      });
-      debugLog("broadened sql search full", {
-        candidateCount: search.rows.length,
-        rawCount: search.rawRows.length,
-        rawRowsSample: search.rawRows.slice(0, 5),
-        rowsSample: search.rows.slice(0, 5),
-        sql: search.sql,
-      });
-    }
+    relaxedSearchUsed = true;
+    debugLog("relaxed sql search full", {
+      rawCount: relaxedSearch.rawRows.length,
+      sql: relaxedSearch.sql,
+    });
   }
+  rows = filterPreviouslyRecommendedExternalRows(
+    rows,
+    existingExternalRecommendations
+  ).slice(0, MAX_SEARCH_RESULTS);
 
-  const candidates = search.rows.slice(0, MAX_SEARCH_RESULTS);
-  const shortlistCandidates =
-    candidates.length > 0
-      ? await shortlistRoles({ candidates, plan, userBrief })
-      : [];
-  const ranked =
-    shortlistCandidates.length > 0
-      ? await rerankRoles({ candidates: shortlistCandidates, plan, userBrief })
-      : [];
-  const detailedRecommendations = await enrichRecommendationDetails({
-    plan,
-    recommendations: ranked,
-    userBrief,
+  infoJson("sql search", {
+    candidateCount: rows.length,
+    candidates: rows
+      .slice(0, 50)
+      .map(
+        (item) =>
+          `${item.role_name} - ${item.company_name} - ${item.company_test_score}`
+      ),
+    existingExternalRecommendationCount: existingExternalRecommendations.length,
+    relaxedSearchUsed,
+    strictCandidateCount: strictSearch.rows.length,
   });
+  debugLog("sql search full", {
+    rawCount: strictSearch.rawRows.length,
+    rowsSample: rows.slice(0, 5),
+    sql: strictSearch.sql,
+  });
+
+  const candidateCards = roleRowsToCards(rows);
+  const shortlistedCards =
+    candidateCards.length > 0
+      ? await shortlistRoles({
+          cards: candidateCards,
+          llmUserProfile,
+          plan,
+          request,
+          targetRecommendationCount,
+        })
+      : [];
+  const finalSelection = await selectFinalRecommendations({
+    cards: shortlistedCards,
+    llmUserProfile,
+    plan,
+    previousDeliveryTexts: deliveryContext.previousDeliveryTexts,
+    recentDeliveryMeta: deliveryContext.recentDeliveryMeta,
+    request,
+    targetRecommendationCount,
+  });
+  const detailedRecommendations = rankedFromSelected(
+    finalSelection.selected,
+    shortlistedCards
+  );
   const recommendations = await persistRecommendations({
     admin: args.admin,
     recommendations: detailedRecommendations,
     userId: args.userId,
   });
+
   infoJson("completed", {
-    candidateCount: candidates.length,
+    candidateCount: candidateCards.length,
     durationMs: Date.now() - startedAt,
     recommendationCount: recommendations.length,
-    shortlistCandidateCount: shortlistCandidates.length,
+    scoredFinalCandidateCount: finalSelection.scoredCount,
+    shortlistCandidateCount: shortlistedCards.length,
+    supplementalRecommendationCount: finalSelection.supplementalCount,
     topScores: recommendations.slice(0, 5).map((item) => ({
-      ...rolePreview(item.role),
-      recommendationId: item.recommendationId,
+      desc: `${item.role.role_name} - ${item.role.company_name} - ${item.role.company_test_score}`,
       score: item.score,
     })),
   });
 
   return {
     answerDraft: formatAnswerDraft({
-      candidateCount: candidates.length,
+      candidateCount: candidateCards.length,
       plan,
       recommendations,
       requestedCount,
+      supplementalRecommendationCount: finalSelection.supplementalCount,
     }),
-    candidateCount: candidates.length,
-    relaxed,
+    candidateCount: candidateCards.length,
     recommendations: recommendations.map((item, index) => ({
       id: item.recommendationId,
       rank: index + 1,
@@ -2437,21 +2742,26 @@ export async function runCareerJobPostingRecommendations(args: {
       recommendationText:
         item.detail.fitReasons.join(" ") ||
         item.recommendationText ||
-        fallbackRecommendationText(item),
+        (item.isSupplemental
+          ? "현재 요청과 완전히 일치하지는 않지만, 후보군 중 점수가 높아 참고용으로 포함했습니다."
+          : "현재 요청과 맞는 업무 범위가 있습니다."),
       goodPoints: item.detail.fitReasons,
+      isSupplemental: item.isSupplemental,
       concerns: item.detail.tradeoffs,
       preferenceFit: item.detail.preferenceFit,
       roleOverviewText: item.detail.roleOverviewText,
     })),
     requestedCount,
     saveCount: recommendations.filter((item) => item.recommendationId).length,
-    shortlistCandidateCount: shortlistCandidates.length,
+    shortlistCandidateCount: shortlistedCards.length,
+    supplementalRecommendationCount: finalSelection.supplementalCount,
     searchPlan: {
+      excludeKeywords: plan.excludeKeywords,
       ftsKeywords: plan.ftsKeywords,
-      must: plan.must,
-      rerankCriteria: plan.rerankCriteria,
+      locations: plan.locations,
+      mustKeywords: plan.mustKeywords,
       searchIntentSummary: plan.searchIntentSummary,
-      should: plan.should,
+      sourceType: "external",
     },
   };
 }

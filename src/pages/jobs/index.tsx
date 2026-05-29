@@ -6,7 +6,10 @@ import { Page } from "@/components/layout/Page";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { postOfficialJobEvent } from "@/lib/officialJobEvents";
 import { OFFICIAL_JOBS_LOGIN_HREF, type OfficialJob } from "@/lib/officialJobs";
-import { getPublicOfficialJobs } from "@/lib/officialJobs.server";
+import {
+  getPublicOfficialJobByAshbyId,
+  getPublicOfficialJobs,
+} from "@/lib/officialJobs.server";
 import { ArrowRight } from "lucide-react";
 import type { GetServerSideProps } from "next";
 import Head from "next/head";
@@ -16,6 +19,32 @@ import { useRouter } from "next/router";
 type OfficialJobsPageProps = {
   jobs: OfficialJob[];
 };
+
+function getSingleQueryParam(value: string | string[] | undefined) {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
+
+function buildRedirectDestination(
+  slug: string,
+  query: Record<string, string | string[] | undefined>
+) {
+  const params = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(query)) {
+    if (key === "ashby_jid" || key === "jid") continue;
+
+    const values = Array.isArray(value) ? value : [value];
+    for (const item of values) {
+      if (typeof item === "string" && item.trim()) {
+        params.append(key, item);
+      }
+    }
+  }
+
+  const search = params.toString();
+  return `/jobs/${encodeURIComponent(slug)}${search ? `?${search}` : ""}`;
+}
 
 function OfficialJobsTable({ jobs }: { jobs: OfficialJob[] }) {
   const router = useRouter();
@@ -163,7 +192,24 @@ export default function OfficialJobsPage({ jobs }: OfficialJobsPageProps) {
 
 export const getServerSideProps: GetServerSideProps<
   OfficialJobsPageProps
-> = async () => {
+> = async (context) => {
+  const ashbyJobPostingId =
+    getSingleQueryParam(context.query.ashby_jid) ??
+    getSingleQueryParam(context.query.jid);
+
+  if (ashbyJobPostingId) {
+    const job = await getPublicOfficialJobByAshbyId(ashbyJobPostingId);
+
+    if (job) {
+      return {
+        redirect: {
+          destination: buildRedirectDestination(job.slug, context.query),
+          permanent: false,
+        },
+      };
+    }
+  }
+
   const jobs = await getPublicOfficialJobs();
 
   return {

@@ -27,6 +27,9 @@ import {
 } from "@/lib/talentOnboarding/kickoff";
 import { logger } from "@/utils/logger";
 
+export const runtime = "nodejs";
+export const maxDuration = 240;
+
 type Body = {
   conversationId?: string;
   email?: string;

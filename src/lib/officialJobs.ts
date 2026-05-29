@@ -19,6 +19,7 @@ export function buildOfficialJobsLoginHref(localId?: string | null) {
 export type OfficialJobRow = Tables<"official_jobs">;
 
 export type OfficialJob = {
+  ashbyJobPostingId: string | null;
   id: string;
   slug: string;
   companyName: string;
@@ -103,6 +104,7 @@ export function mapOfficialJobRow(
   const normalizedLandingCopy = normalizeOfficialJobsLandingCopy(landingCopy);
 
   return {
+    ashbyJobPostingId: row.ashby_job_posting_id ?? null,
     id: row.id,
     slug: row.slug,
     companyName: row.company_name,

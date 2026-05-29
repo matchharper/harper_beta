@@ -237,7 +237,7 @@ export default function CareerMobileJobsView({
           onNavigate={onNavigate}
           canPrev={canPrev}
           canNext={canNext}
-          topInsetPx={64}
+          topInsetPx={54}
           bottomInsetPx={64}
         />
       ) : null}
@@ -546,7 +546,7 @@ export function JobActionBar({
       <button
         type="button"
         onClick={onDismiss}
-        className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-beige900/15 bg-white text-sm font-normal text-beige900/85 transition active:bg-beige100"
+        className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-beige900/15 bg-white text-[13px] font-normal text-beige900/85 transition active:bg-beige100"
       >
         <ThumbsDown className="h-3.5 w-3.5" />
         {getNegativeActionLabel(opportunity)}
@@ -554,7 +554,7 @@ export function JobActionBar({
       <button
         type="button"
         onClick={onTrack}
-        className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-beige900 text-sm font-normal text-beige50 transition active:bg-beige900/85"
+        className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-beige900 text-[13px] font-normal text-beige50 transition active:bg-beige900/85"
       >
         <ThumbsUp className="h-3.5 w-3.5" />
         {getPositiveActionLabel(opportunity)}

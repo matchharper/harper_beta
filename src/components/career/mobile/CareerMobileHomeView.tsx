@@ -274,7 +274,7 @@ const CareerMobileHomeView = ({
   );
 
   const callCardDescription = isOnboardingCompleted ? (
-    "변경된 사항이 있거나 요구사항이 있을 때 — 통화하면 빨라요"
+    "변경된 사항이 있거나 요구사항이 있을 때<br /> — 통화하면 빨라요"
   ) : (
     <>
       왼쪽 채팅에서 혹은 아래 통화로 간단한 질문에만 대답해주세요.

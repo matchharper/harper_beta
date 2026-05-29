@@ -3120,6 +3120,7 @@ export type Database = {
       }
       official_jobs: {
         Row: {
+          ashby_job_posting_id: string | null
           company_description_markdown: string
           company_logo_url: string | null
           company_name: string
@@ -3141,6 +3142,7 @@ export type Database = {
           vertical: string
         }
         Insert: {
+          ashby_job_posting_id?: string | null
           company_description_markdown?: string
           company_logo_url?: string | null
           company_name: string
@@ -3162,6 +3164,7 @@ export type Database = {
           vertical: string
         }
         Update: {
+          ashby_job_posting_id?: string | null
           company_description_markdown?: string
           company_logo_url?: string | null
           company_name?: string

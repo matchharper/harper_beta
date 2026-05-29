@@ -1,5 +1,9 @@
 // Central Query Key Factory
 // New hooks should use these keys. Existing hooks migrate opportunistically.
+import {
+  OPS_COMPANY_MANAGEMENT_PAGE_SIZE,
+  OPS_OPPORTUNITY_COMPANY_PAGE_SIZE,
+} from "@/lib/opsOpportunityCompanyManagement";
 
 export type QueryKey = readonly unknown[];
 
@@ -41,7 +45,17 @@ export const queryKeys = {
   },
   opsOpportunity: {
     all: ["opsOpportunity"] as const,
-    catalog: ["opsOpportunity", "catalog"] as const,
+    catalogAll: ["opsOpportunity", "catalog"] as const,
+    catalog: (filters?: {
+      limit?: number | null;
+      workspaceQuery?: string | null;
+    }) =>
+      [
+        "opsOpportunity",
+        "catalog",
+        filters?.workspaceQuery ?? "",
+        filters?.limit ?? OPS_OPPORTUNITY_COMPANY_PAGE_SIZE,
+      ] as const,
     companiesAll: ["opsOpportunity", "companies"] as const,
     companies: (filters?: {
       companyName?: string | null;
@@ -67,7 +81,7 @@ export const queryKeys = {
         Boolean(filters?.humanLabelMissingFirst),
         Boolean(filters?.llmQualityLabelFirst),
         filters?.qualityLabel ?? "",
-        filters?.limit ?? 30,
+        filters?.limit ?? OPS_COMPANY_MANAGEMENT_PAGE_SIZE,
       ] as const,
     candidates: (query?: string | null, roleId?: string | null) =>
       ["opsOpportunity", "candidates", query ?? "", roleId ?? "all"] as const,

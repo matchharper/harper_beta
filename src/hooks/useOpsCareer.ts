@@ -9,6 +9,7 @@ import type {
   CareerTalentListResponse,
   CareerTalentDetailResponse,
   CareerTalentMailHistoryResponse,
+  CareerTalentProfileIngestSource,
   CareerTalentProfileIngestResponse,
   CareerTalentRecommendationsResponse,
   CareerTalentRecommendationSourceFilter,
@@ -159,13 +160,15 @@ export function useRefreshInsights(userId: string) {
 export function useIngestCareerProfile(userId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () =>
+    mutationFn: (
+      args: { source?: CareerTalentProfileIngestSource } | undefined
+    ) =>
       fetchWithInternalAuth<CareerTalentProfileIngestResponse>(
         "/api/internal/career/ingest-profile",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId }),
+          body: JSON.stringify({ source: args?.source ?? "linkedin", userId }),
         }
       ),
     onSuccess: () => {

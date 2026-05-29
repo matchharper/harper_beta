@@ -1,6 +1,7 @@
 import { cx, opsTheme } from "@/components/ops/theme";
 import {
   OPS_COMPANY_MANAGEMENT_EMPLOYEE_COUNT_RANGE_OPTIONS,
+  OPS_COMPANY_MANAGEMENT_PAGE_SIZE,
   OPS_COMPANY_MANAGEMENT_QUALITY_LABEL_OPTIONS,
   type OpsCompanyManagementEmployeeCountRangeFilter,
   type OpsCompanyManagementQualityLabelFilter,
@@ -977,7 +978,7 @@ export default function CompanyManagementView({
                 {reviewIndex >= reviewCompanies.length - 1 && hasNextPage
                   ? isFetchingNextPage
                     ? "불러오는 중"
-                    : "다음 30개"
+                    : `다음 ${OPS_COMPANY_MANAGEMENT_PAGE_SIZE}개`
                   : "건너뛰기"}
               </button>
             </div>

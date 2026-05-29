@@ -2,6 +2,7 @@ import OpsShell from "@/components/ops/OpsShell";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { showToast } from "@/components/toast/toast";
 import {
+  useSyncAshbyOfficialJobs,
   useOpsOfficialJobs,
   useSaveOpsOfficialJob,
   type OpsOfficialJobRecord,
@@ -33,6 +34,7 @@ type JobFilter = "all" | "published" | "draft";
 const NEW_JOB_ID = "__new_official_job__";
 
 type OfficialJobDraft = {
+  ashbyJobPostingId: string;
   companyDescriptionMarkdown: string;
   companyLogoUrl: string;
   companyName: string;
@@ -52,6 +54,7 @@ type OfficialJobDraft = {
 };
 
 const EMPTY_DRAFT: OfficialJobDraft = {
+  ashbyJobPostingId: "",
   companyDescriptionMarkdown: "",
   companyLogoUrl: "",
   companyName: "",
@@ -72,6 +75,7 @@ const EMPTY_DRAFT: OfficialJobDraft = {
 
 function jobToDraft(job: OpsOfficialJobRecord): OfficialJobDraft {
   return {
+    ashbyJobPostingId: job.ashbyJobPostingId ?? "",
     companyDescriptionMarkdown: job.companyDescriptionMarkdown,
     companyLogoUrl: job.companyLogoUrl ?? "",
     companyName: job.companyName,
@@ -95,6 +99,7 @@ function draftToPayload(draft: OfficialJobDraft): OpsOfficialJobSaveInput {
   const isInternalCopy = isOfficialJobsInternalCopyIdentity(draft);
 
   return {
+    ashbyJobPostingId: isInternalCopy ? null : draft.ashbyJobPostingId,
     companyDescriptionMarkdown: draft.companyDescriptionMarkdown,
     companyLogoUrl: draft.companyLogoUrl,
     companyName: draft.companyName,
@@ -152,6 +157,7 @@ function matchesQuery(job: OpsOfficialJobRecord, query: string) {
     job.location,
     job.vertical,
     job.slug,
+    job.ashbyJobPostingId,
     job.shortDescription,
   ]
     .join(" ")
@@ -182,6 +188,7 @@ export default function OpsOfficialJobsPage() {
 
   const jobsQuery = useOpsOfficialJobs(canFetchInternal);
   const saveJob = useSaveOpsOfficialJob();
+  const syncAshbyJobs = useSyncAshbyOfficialJobs();
   const jobs = useMemo(
     () => jobsQuery.data?.jobs ?? [],
     [jobsQuery.data?.jobs]
@@ -268,6 +275,23 @@ export default function OpsOfficialJobsPage() {
     }
   };
 
+  const handleSyncAshby = async () => {
+    try {
+      const result = await syncAshbyJobs.mutateAsync();
+      showToast({
+        message: `Ashby sync 완료: ${result.inserted} created, ${result.updated} updated, ${result.unpublished} hidden`,
+        variant: "success",
+      });
+      await jobsQuery.refetch();
+    } catch (error) {
+      showToast({
+        message:
+          error instanceof Error ? error.message : "Ashby sync 실행 실패",
+        variant: "error",
+      });
+    }
+  };
+
   return (
     <>
       <Head>
@@ -277,29 +301,29 @@ export default function OpsOfficialJobsPage() {
 
       <OpsShell
         title="Official Jobs"
-        description="공개 jobs 페이지에 노출되는 포지션을 관리합니다. internal_internal row의 Company description은 How Harper helps, Role description은 진행과정 공통 문구로 적용됩니다."
+        actions={
+          <section className="grid gap-3 md:grid-cols-3">
+            <div className="flex flex-row gap-2 items-center px-2">
+              <div className={opsTheme.eyebrow}>Total</div>
+              <div className="mt-2 font-geist text-2xl font-semibold text-beige900">
+                {stats.total}
+              </div>
+            </div>
+            <div className="flex flex-row gap-2 items-center px-2">
+              <div className={opsTheme.eyebrow}>Published</div>
+              <div className="mt-2 font-geist text-2xl font-semibold text-[#29513A]">
+                {stats.published}
+              </div>
+            </div>
+            <div className="flex flex-row gap-2 items-center px-2">
+              <div className={opsTheme.eyebrow}>Draft</div>
+              <div className="mt-2 font-geist text-2xl font-semibold text-[#8A5A12]">
+                {stats.draft}
+              </div>
+            </div>
+          </section>
+        }
       >
-        <section className="grid gap-3 md:grid-cols-3">
-          <div className={cx(opsTheme.panel, "p-4")}>
-            <div className={opsTheme.eyebrow}>Total</div>
-            <div className="mt-2 font-geist text-2xl font-semibold text-beige900">
-              {stats.total}
-            </div>
-          </div>
-          <div className={cx(opsTheme.panel, "p-4")}>
-            <div className={opsTheme.eyebrow}>Published</div>
-            <div className="mt-2 font-geist text-2xl font-semibold text-[#29513A]">
-              {stats.published}
-            </div>
-          </div>
-          <div className={cx(opsTheme.panel, "p-4")}>
-            <div className={opsTheme.eyebrow}>Draft</div>
-            <div className="mt-2 font-geist text-2xl font-semibold text-[#8A5A12]">
-              {stats.draft}
-            </div>
-          </div>
-        </section>
-
         <section className="grid gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
           <aside className={cx(opsTheme.panel, "overflow-hidden")}>
             <div className="border-b border-beige900/10 p-4">
@@ -420,7 +444,7 @@ export default function OpsOfficialJobsPage() {
                     <span className="truncate">
                       {job.isInternalCopy
                         ? "How Harper helps / 진행과정"
-                        : job.location}
+                        : (job.ashbyJobPostingId ?? job.location)}
                     </span>
                     <span>#{job.displayOrder}</span>
                   </div>
@@ -461,6 +485,19 @@ export default function OpsOfficialJobsPage() {
                 >
                   <RefreshCw className="h-4 w-4" />
                   Refresh
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSyncAshby}
+                  disabled={syncAshbyJobs.isPending}
+                  className={cx(opsTheme.buttonSecondary, "h-10 px-3")}
+                >
+                  {syncAshbyJobs.isPending ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  Ashby 읽어오기
                 </button>
                 <button
                   type="button"
@@ -619,6 +656,21 @@ export default function OpsOfficialJobsPage() {
                     Generate
                   </button>
                 </div>
+              </Field>
+              <Field label="Ashby job posting ID">
+                <input
+                  value={draft.ashbyJobPostingId}
+                  disabled={isInternalCopyDraft}
+                  onChange={(event) =>
+                    updateDraft("ashbyJobPostingId", event.target.value)
+                  }
+                  className={cx(
+                    opsTheme.input,
+                    isInternalCopyDraft &&
+                      "cursor-not-allowed bg-beige500/60 text-beige900/55"
+                  )}
+                  placeholder="45134452-f53b-4d4c-915e-4a4615fb6c93"
+                />
               </Field>
               <Field label="Display order">
                 <input

@@ -8,6 +8,7 @@ import { ingestTalentProfileFromLinkedin } from "@/lib/talentOnboarding/profileI
 import { logger } from "@/utils/logger";
 
 export const runtime = "nodejs";
+export const maxDuration = 240;
 
 type Body = {
   links?: string[];

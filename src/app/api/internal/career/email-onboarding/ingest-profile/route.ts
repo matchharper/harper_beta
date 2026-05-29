@@ -10,6 +10,7 @@ import {
 import { ingestTalentProfileFromLinkedin } from "@/lib/talentOnboarding/profileIngestion";
 
 export const runtime = "nodejs";
+export const maxDuration = 240;
 
 type UntypedAdmin = TalentAdminClient & {
   from: (table: string) => any;

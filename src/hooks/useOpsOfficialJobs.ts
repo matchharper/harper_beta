@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import type {
+  AshbyOfficialJobsSyncSummary,
   OpsOfficialJobRecord,
   OpsOfficialJobSaveInput,
   OpsOfficialJobSaveResponse,
@@ -40,4 +41,27 @@ export function useSaveOpsOfficialJob() {
   });
 }
 
-export type { OpsOfficialJobRecord, OpsOfficialJobSaveInput };
+export function useSyncAshbyOfficialJobs() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () =>
+      fetchWithInternalAuth<AshbyOfficialJobsSyncSummary>(
+        "/api/internal/official-jobs/sync-ashby",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ unpublishMissing: true }),
+        }
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: opsOfficialJobsKey });
+    },
+  });
+}
+
+export type {
+  AshbyOfficialJobsSyncSummary,
+  OpsOfficialJobRecord,
+  OpsOfficialJobSaveInput,
+};
