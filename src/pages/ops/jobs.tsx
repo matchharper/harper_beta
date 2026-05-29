@@ -18,6 +18,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import {
   ArrowUpRight,
   CheckCircle2,
+  Link2,
   LoaderCircle,
   LockKeyhole,
   Plus,
@@ -165,10 +166,50 @@ function matchesQuery(job: OpsOfficialJobRecord, query: string) {
   return haystack.includes(query);
 }
 
-function Field({ children, label }: { children: ReactNode; label: string }) {
+function hasAshbyConnection(
+  job: Pick<OpsOfficialJobRecord, "ashbyJobPostingId">
+) {
+  return Boolean(job.ashbyJobPostingId?.trim());
+}
+
+function compareJobsForSidebar(
+  first: OpsOfficialJobRecord,
+  second: OpsOfficialJobRecord
+) {
+  const firstHasAshby = hasAshbyConnection(first);
+  const secondHasAshby = hasAshbyConnection(second);
+
+  if (firstHasAshby !== secondHasAshby) {
+    return firstHasAshby ? -1 : 1;
+  }
+
+  return 0;
+}
+
+const ashbySourcedFieldClass =
+  "!border-[#DC2626]/45 !bg-[#FFF1F1] !text-[#991B1B] focus:!border-[#DC2626]/75 focus:!bg-white";
+
+function Field({
+  children,
+  label,
+  sourceLabel,
+}: {
+  children: ReactNode;
+  label: ReactNode;
+  sourceLabel?: string;
+}) {
   return (
     <label className="block">
-      <span className={opsTheme.label}>{label}</span>
+      <span className="flex items-center gap-2">
+        <span className={cx(opsTheme.label, sourceLabel && "text-[#B91C1C]")}>
+          {label}
+        </span>
+        {sourceLabel ? (
+          <span className="rounded-md bg-[#FEE2E2] px-1.5 py-0.5 font-geist text-[10px] font-semibold text-[#B91C1C]">
+            {sourceLabel}
+          </span>
+        ) : null}
+      </span>
       <div className="mt-2">{children}</div>
     </label>
   );
@@ -189,10 +230,10 @@ export default function OpsOfficialJobsPage() {
   const jobsQuery = useOpsOfficialJobs(canFetchInternal);
   const saveJob = useSaveOpsOfficialJob();
   const syncAshbyJobs = useSyncAshbyOfficialJobs();
-  const jobs = useMemo(
-    () => jobsQuery.data?.jobs ?? [],
-    [jobsQuery.data?.jobs]
-  );
+  const jobs = useMemo(() => {
+    const loadedJobs = jobsQuery.data?.jobs ?? [];
+    return [...loadedJobs].sort(compareJobsForSidebar);
+  }, [jobsQuery.data?.jobs]);
   const activeJobId =
     selectedJobId === NEW_JOB_ID
       ? null
@@ -207,6 +248,7 @@ export default function OpsOfficialJobsPage() {
         ? jobToDraft(selectedJob)
         : EMPTY_DRAFT;
   const isInternalCopyDraft = isOfficialJobsInternalCopyIdentity(draft);
+  const isAshbyConnectedDraft = hasAshbyConnection(draft);
   const effectiveIsPublished = isInternalCopyDraft ? false : draft.isPublished;
 
   const filteredJobs = useMemo(() => {
@@ -324,7 +366,7 @@ export default function OpsOfficialJobsPage() {
           </section>
         }
       >
-        <section className="grid gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
+        <section className="grid gap-5 sm:grid-cols-[380px_minmax(0,1fr)]">
           <aside className={cx(opsTheme.panel, "overflow-hidden")}>
             <div className="border-b border-beige900/10 p-4">
               <div className="flex items-center justify-between gap-3">
@@ -399,57 +441,82 @@ export default function OpsOfficialJobsPage() {
                 </div>
               ) : null}
 
-              {filteredJobs.map((job) => (
-                <button
-                  key={job.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedJobId(job.id);
-                    setDraftState({ draft: jobToDraft(job), key: job.id });
-                  }}
-                  className={cx(
-                    "block w-full border-b border-beige900/5 px-4 py-3 text-left transition",
-                    activeJobId === job.id
-                      ? "bg-beige900/5"
-                      : "hover:bg-white/60"
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="truncate font-geist text-sm font-semibold text-beige900">
-                        {job.roleTitle}
+              {filteredJobs.map((job) => {
+                const isAshbyConnected = hasAshbyConnection(job);
+
+                return (
+                  <button
+                    key={job.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedJobId(job.id);
+                      setDraftState({ draft: jobToDraft(job), key: job.id });
+                    }}
+                    className={cx(
+                      "block w-full border-b border-l-4 border-beige900/5 border-l-transparent px-4 py-3 text-left transition",
+                      isAshbyConnected &&
+                        "border-l-[#2563EB] bg-[#F3F7FF] shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]",
+                      activeJobId === job.id
+                        ? isAshbyConnected
+                          ? "bg-[#EAF2FF]"
+                          : "bg-beige900/5"
+                        : isAshbyConnected
+                          ? "hover:bg-[#EAF2FF]"
+                          : "hover:bg-white/60"
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate font-geist text-sm font-semibold text-beige900">
+                          {job.roleTitle}
+                        </div>
+                        <div className="mt-1 truncate font-geist text-xs text-beige900/55">
+                          {job.companyName}
+                        </div>
                       </div>
-                      <div className="mt-1 truncate font-geist text-xs text-beige900/55">
-                        {job.companyName}
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        {isAshbyConnected ? (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-[#2563EB] px-2 py-1 font-geist text-[11px] font-semibold text-white shadow-sm">
+                            <Link2 className="h-3 w-3" />
+                            Ashby 연결
+                          </span>
+                        ) : null}
+                        <span
+                          className={cx(
+                            "rounded-md px-2 py-1 font-geist text-[11px] font-medium",
+                            job.isInternalCopy
+                              ? "bg-beige900/10 text-beige900/65"
+                              : job.isPublished
+                                ? "bg-[#E4EDE2] text-[#29513A]"
+                                : "bg-[#FEF3C7] text-[#92400E]"
+                          )}
+                        >
+                          {job.isInternalCopy
+                            ? "Landing copy"
+                            : job.isPublished
+                              ? "Published"
+                              : "Draft"}
+                        </span>
                       </div>
                     </div>
-                    <span
-                      className={cx(
-                        "shrink-0 rounded-md px-2 py-1 font-geist text-[11px] font-medium",
-                        job.isInternalCopy
-                          ? "bg-beige900/10 text-beige900/65"
-                          : job.isPublished
-                            ? "bg-[#E4EDE2] text-[#29513A]"
-                            : "bg-[#FEF3C7] text-[#92400E]"
-                      )}
-                    >
-                      {job.isInternalCopy
-                        ? "Landing copy"
-                        : job.isPublished
-                          ? "Published"
-                          : "Draft"}
-                    </span>
-                  </div>
-                  <div className="mt-2 flex items-center justify-between gap-3 font-geist text-[12px] text-beige900/45">
-                    <span className="truncate">
-                      {job.isInternalCopy
-                        ? "How Harper helps / 진행과정"
-                        : (job.ashbyJobPostingId ?? job.location)}
-                    </span>
-                    <span>#{job.displayOrder}</span>
-                  </div>
-                </button>
-              ))}
+                    <div className="mt-2 flex items-center justify-between gap-3 font-geist text-[12px] text-beige900/45">
+                      <span
+                        className={cx(
+                          "truncate",
+                          isAshbyConnected && "font-semibold text-[#1D4ED8]"
+                        )}
+                      >
+                        {job.isInternalCopy
+                          ? "How Harper helps / 진행과정"
+                          : isAshbyConnected
+                            ? `Ashby ID · ${job.ashbyJobPostingId}`
+                            : job.location}
+                      </span>
+                      <span>#{job.displayOrder}</span>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </aside>
 
@@ -606,7 +673,10 @@ export default function OpsOfficialJobsPage() {
             </div>
 
             <div className="mt-5 grid gap-4 lg:grid-cols-2">
-              <Field label="Role title">
+              <Field
+                label="Role title"
+                sourceLabel={isAshbyConnectedDraft ? "Ashby" : undefined}
+              >
                 <input
                   value={draft.roleTitle}
                   disabled={isInternalCopyDraft}
@@ -615,18 +685,25 @@ export default function OpsOfficialJobsPage() {
                   }
                   className={cx(
                     opsTheme.input,
+                    isAshbyConnectedDraft && ashbySourcedFieldClass,
                     isInternalCopyDraft &&
                       "cursor-not-allowed bg-beige500/60 text-beige900/55"
                   )}
                 />
               </Field>
-              <Field label="Company name">
+              <Field
+                label="Company name"
+                sourceLabel={isAshbyConnectedDraft ? "Ashby" : undefined}
+              >
                 <input
                   value={draft.companyName}
                   onChange={(event) =>
                     updateDraft("companyName", event.target.value)
                   }
-                  className={opsTheme.input}
+                  className={cx(
+                    opsTheme.input,
+                    isAshbyConnectedDraft && ashbySourcedFieldClass
+                  )}
                 />
               </Field>
               <Field label="Slug">
@@ -682,13 +759,19 @@ export default function OpsOfficialJobsPage() {
                   className={opsTheme.input}
                 />
               </Field>
-              <Field label="Location">
+              <Field
+                label="Location"
+                sourceLabel={isAshbyConnectedDraft ? "Ashby" : undefined}
+              >
                 <input
                   value={draft.location}
                   onChange={(event) =>
                     updateDraft("location", event.target.value)
                   }
-                  className={opsTheme.input}
+                  className={cx(
+                    opsTheme.input,
+                    isAshbyConnectedDraft && ashbySourcedFieldClass
+                  )}
                 />
               </Field>
               <Field label="Vertical">
@@ -700,13 +783,19 @@ export default function OpsOfficialJobsPage() {
                   className={opsTheme.input}
                 />
               </Field>
-              <Field label="Employment type">
+              <Field
+                label="Employment type"
+                sourceLabel={isAshbyConnectedDraft ? "Ashby" : undefined}
+              >
                 <input
                   value={draft.employmentType}
                   onChange={(event) =>
                     updateDraft("employmentType", event.target.value)
                   }
-                  className={opsTheme.input}
+                  className={cx(
+                    opsTheme.input,
+                    isAshbyConnectedDraft && ashbySourcedFieldClass
+                  )}
                   placeholder="Full-time"
                 />
               </Field>
@@ -750,13 +839,22 @@ export default function OpsOfficialJobsPage() {
             </div>
 
             <div className="mt-5 grid gap-4">
-              <Field label="Short description">
+              <Field
+                label="Short description"
+                sourceLabel={
+                  isAshbyConnectedDraft ? "Ashby socialDescription" : undefined
+                }
+              >
                 <textarea
                   value={draft.shortDescription}
                   onChange={(event) =>
                     updateDraft("shortDescription", event.target.value)
                   }
-                  className={cx(opsTheme.textarea, "min-h-[88px]")}
+                  className={cx(
+                    opsTheme.textarea,
+                    "min-h-[88px]",
+                    isAshbyConnectedDraft && ashbySourcedFieldClass
+                  )}
                 />
               </Field>
               <Field
@@ -765,13 +863,20 @@ export default function OpsOfficialJobsPage() {
                     ? "진행과정 markdown"
                     : "Role description markdown"
                 }
+                sourceLabel={
+                  isAshbyConnectedDraft ? "Ashby description" : undefined
+                }
               >
                 <textarea
                   value={draft.roleDescriptionMarkdown}
                   onChange={(event) =>
                     updateDraft("roleDescriptionMarkdown", event.target.value)
                   }
-                  className={cx(opsTheme.textarea, "min-h-[480px] resize-y")}
+                  className={cx(
+                    opsTheme.textarea,
+                    "min-h-[480px] resize-y",
+                    isAshbyConnectedDraft && ashbySourcedFieldClass
+                  )}
                 />
               </Field>
               <Field
@@ -779,6 +884,11 @@ export default function OpsOfficialJobsPage() {
                   isInternalCopyDraft
                     ? "How Harper helps markdown"
                     : "Company description markdown"
+                }
+                sourceLabel={
+                  isAshbyConnectedDraft
+                    ? "Ashby company description"
+                    : undefined
                 }
               >
                 <textarea
@@ -789,7 +899,11 @@ export default function OpsOfficialJobsPage() {
                       event.target.value
                     )
                   }
-                  className={cx(opsTheme.textarea, "min-h-[360px] resize-y")}
+                  className={cx(
+                    opsTheme.textarea,
+                    "min-h-[360px] resize-y",
+                    isAshbyConnectedDraft && ashbySourcedFieldClass
+                  )}
                 />
               </Field>
             </div>
