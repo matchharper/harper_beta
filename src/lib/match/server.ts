@@ -1,4 +1,3 @@
-import type { Json } from "@/types/database.types";
 import { MATCH_BOOKING_URL } from "@/lib/booking";
 import {
   applyListRevealState,
@@ -43,7 +42,6 @@ type RoleRow = {
   created_at: string;
   description: string | null;
   external_jd_url: string | null;
-  information: Json | null;
   name: string;
   role_id: string;
   status: string;
@@ -233,7 +231,6 @@ function mapRoleRecord(args: {
     description: args.row.description ?? null,
     employmentTypes: normalizeMatchEmploymentTypes(args.row.type),
     externalJdUrl: args.row.external_jd_url ?? null,
-    information: args.row.information ?? null,
     matchedCandidateCount: args.matchedCandidateCountByRoleId.get(roleId) ?? 0,
     name: String(args.row.name ?? ""),
     roleId,
@@ -393,7 +390,7 @@ export async function fetchWorkspaceRoles(args: {
 }) {
   const { data, error } = await ((args.admin.from("company_roles" as any) as any)
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, information, type, status, created_at, updated_at"
+      "role_id, company_workspace_id, name, external_jd_url, description, type, status, created_at, updated_at"
     )
     .eq("company_workspace_id", args.workspaceId)
     .order("updated_at", { ascending: false }));
@@ -570,7 +567,6 @@ export async function saveMatchRole(args: {
   description?: string | null;
   employmentTypes?: MatchEmploymentType[];
   externalJdUrl?: string | null;
-  information?: Json | null;
   name: string;
   roleId?: string | null;
   status?: MatchRoleStatus;
@@ -592,7 +588,6 @@ export async function saveMatchRole(args: {
     company_workspace_id: resolved.workspace.company_workspace_id,
     description: String(args.description ?? "").trim() || null,
     external_jd_url: String(args.externalJdUrl ?? "").trim() || null,
-    information: args.information ?? null,
     name: ensureNonEmptyString(args.name, "roleName"),
     status: normalizeMatchRoleStatus(args.status),
     type: normalizeMatchEmploymentTypes(args.employmentTypes ?? []),
@@ -613,7 +608,7 @@ export async function saveMatchRole(args: {
 
   const { data, error } = await query
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, information, type, status, created_at, updated_at"
+      "role_id, company_workspace_id, name, external_jd_url, description, type, status, created_at, updated_at"
     )
     .single();
 

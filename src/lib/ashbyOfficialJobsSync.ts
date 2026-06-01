@@ -114,6 +114,96 @@ function htmlToMarkdown(html: string | null | undefined) {
     .trim();
 }
 
+function decodeHtmlEntities(value: string) {
+  const namedEntities: Record<string, string> = {
+    amp: "&",
+    apos: "'",
+    gt: ">",
+    lt: "<",
+    nbsp: " ",
+    quot: '"',
+  };
+
+  return value.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (match, entity) => {
+    const normalizedEntity = String(entity).toLowerCase();
+    if (normalizedEntity.startsWith("#x")) {
+      const codePoint = Number.parseInt(normalizedEntity.slice(2), 16);
+      return Number.isFinite(codePoint)
+        ? String.fromCodePoint(codePoint)
+        : match;
+    }
+    if (normalizedEntity.startsWith("#")) {
+      const codePoint = Number.parseInt(normalizedEntity.slice(1), 10);
+      return Number.isFinite(codePoint)
+        ? String.fromCodePoint(codePoint)
+        : match;
+    }
+    return namedEntities[normalizedEntity] ?? match;
+  });
+}
+
+function parseHtmlTagAttributes(tag: string) {
+  const attributes: Record<string, string> = {};
+
+  for (const match of tag.matchAll(
+    /([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g
+  )) {
+    attributes[match[1].toLowerCase()] = decodeHtmlEntities(
+      match[2] ?? match[3] ?? ""
+    );
+  }
+
+  return attributes;
+}
+
+function extractMetaDescription(html: string) {
+  for (const match of html.matchAll(/<meta\b[^>]*>/gi)) {
+    const attributes = parseHtmlTagAttributes(match[0]);
+    const key = attributes.name ?? attributes.property;
+    if (key !== "description" && key !== "og:description") continue;
+
+    const content = normalizeOptionalString(attributes.content);
+    if (content) return content;
+  }
+
+  return null;
+}
+
+function extractEmbeddedShortDescription(html: string) {
+  const match = html.match(/"shortDescription"\s*:\s*"((?:\\.|[^"\\])*)"/);
+  if (!match) return null;
+
+  try {
+    return normalizeOptionalString(JSON.parse(`"${match[1]}"`));
+  } catch {
+    return null;
+  }
+}
+
+async function fetchAshbyPostingShortDescription(job: AshbyPublicJob) {
+  const jobUrl = normalizeOptionalString(job.jobUrl);
+  if (!jobUrl) return null;
+
+  try {
+    const response = await fetch(jobUrl, {
+      headers: { Accept: "text/html" },
+      next: { revalidate: 0 },
+    });
+    if (!response.ok) return null;
+
+    const html = await response.text();
+    return (
+      extractMetaDescription(html) ?? extractEmbeddedShortDescription(html)
+    );
+  } catch (error) {
+    console.warn("Ashby job posting short description fetch failed:", {
+      error: error instanceof Error ? error.message : String(error),
+      jobUrl,
+    });
+    return null;
+  }
+}
+
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -338,7 +428,10 @@ function buildUniqueSlug(args: {
   return normalizeSlug(`${args.baseSlug}-${args.ashbyJobId.slice(0, 8)}`);
 }
 
-function buildPayload(job: AshbyPublicJob, existingRows: OfficialJobRow[]) {
+async function buildPayload(
+  job: AshbyPublicJob,
+  existingRows: OfficialJobRow[]
+) {
   const ashbyJobId = normalizeRequiredString(job.id, "");
   if (!ashbyJobId) return null;
 
@@ -360,6 +453,12 @@ function buildPayload(job: AshbyPublicJob, existingRows: OfficialJobRow[]) {
   const existingRow = existingRows.find(
     (row) => row.ashby_job_posting_id === ashbyJobId || row.slug === slug
   );
+  const shortDescription =
+    normalizeOptionalString(job.socialDescription ?? job.social_description) ??
+    normalizeOptionalString(job.shortDescription) ??
+    (await fetchAshbyPostingShortDescription(job)) ??
+    normalizeOptionalString(existingRow?.short_description) ??
+    "";
 
   return {
     ashbyJobId,
@@ -384,18 +483,10 @@ function buildPayload(job: AshbyPublicJob, existingRows: OfficialJobRow[]) {
       role_description_markdown: roleDescriptionMarkdown || descriptionMarkdown,
       role_title: normalizeRequiredString(roleTitle, "Untitled role"),
       seniority: seniority ?? normalizeOptionalString(existingRow?.seniority),
-      short_description:
-        normalizeOptionalString(
-          job.socialDescription ?? job.social_description
-        ) ??
-        normalizeOptionalString(job.shortDescription) ??
-        normalizeOptionalString(existingRow?.short_description) ??
-        "",
+      short_description: shortDescription,
       slug,
       vertical:
-        vertical ??
-        normalizeExistingVertical(existingRow?.vertical) ??
-        "",
+        vertical ?? normalizeExistingVertical(existingRow?.vertical) ?? "",
     },
   };
 }
@@ -420,7 +511,7 @@ export async function runAshbyOfficialJobsSync(options?: {
   const activeAshbyIds = new Set<string>();
 
   for (const ashbyJob of ashbyJobs) {
-    const built = buildPayload(ashbyJob, existingRows);
+    const built = await buildPayload(ashbyJob, existingRows);
     if (!built) {
       summary.skipped += 1;
       continue;

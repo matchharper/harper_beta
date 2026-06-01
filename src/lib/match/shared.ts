@@ -1,5 +1,3 @@
-import type { Json } from "@/types/database.types";
-
 export const MATCH_ROLE_STATUS_VALUES = [
   "top_priority",
   "active",
@@ -41,7 +39,6 @@ export type MatchRoleRecord = {
   description: string | null;
   employmentTypes: MatchEmploymentType[];
   externalJdUrl: string | null;
-  information: Json | null;
   matchedCandidateCount: number;
   name: string;
   roleId: string;

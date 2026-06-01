@@ -680,7 +680,6 @@ export function applyDetailRevealState(candidate: any, isRevealed: boolean) {
     scholar_papers: scholarPapers.map((paper: any) => ({
       ...paper,
       title: maskFullValue(),
-      external_link: null,
       scholar_link: null,
     })),
   };

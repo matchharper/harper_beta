@@ -8,7 +8,6 @@ import type {
   MatchRoleStatus,
   MatchWorkspaceResponse,
 } from "@/lib/match/shared";
-import type { Json } from "@/types/database.types";
 import type { MatchCandidateListItem } from "@/lib/match/server";
 
 type MatchCandidatesResponse = {
@@ -31,7 +30,6 @@ type SaveRoleInput = {
   description?: string | null;
   employmentTypes?: MatchEmploymentType[];
   externalJdUrl?: string | null;
-  information?: Json | null;
   name: string;
   roleId?: string | null;
   status?: MatchRoleStatus;

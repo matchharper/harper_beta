@@ -536,7 +536,7 @@ function CandidateProfileDetailPage({
       paper_id: paper.id,
       title: paper.title,
       published_at: paper.published_at,
-      link: paper.external_link ?? paper.scholar_link,
+      link: paper.scholar_link,
       citation_num: paper.total_citations,
     }));
   }, [c]);

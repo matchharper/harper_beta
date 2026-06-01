@@ -56,7 +56,6 @@ type RoleRow = {
   description_summary?: string | null;
   expires_at?: string | null;
   external_jd_url: string | null;
-  information: Record<string, unknown> | null;
   location_text?: string | null;
   name: string;
   posted_at?: string | null;
@@ -1710,7 +1709,7 @@ export async function fetchOpsOpportunityCatalog(args: {
   if (workspaceIds.length > 0) {
     const roleResponse = await ((admin.from("company_roles" as any) as any)
       .select(
-        "role_id, company_workspace_id, name, external_jd_url, description, description_summary, information, type, status, request, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode"
+        "role_id, company_workspace_id, name, external_jd_url, description, description_summary, type, status, request, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode"
       )
       .in("company_workspace_id", workspaceIds)
       .order("updated_at", { ascending: false }) as any);
@@ -2926,7 +2925,6 @@ export async function saveOpsOpportunityRole(args: {
     description_summary: String(args.descriptionSummary ?? "").trim() || null,
     expires_at: parseDateString(args.expiresAt, "expiresAt"),
     external_jd_url: String(args.externalJdUrl ?? "").trim() || null,
-    information: null,
     location_text: String(args.locationText ?? "").trim() || null,
     name: ensureNonEmptyString(args.name, "name"),
     posted_at: parseDateString(args.postedAt, "postedAt"),
@@ -2953,7 +2951,7 @@ export async function saveOpsOpportunityRole(args: {
 
   const { data, error } = await query
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, description_summary, information, type, status, request, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode"
+      "role_id, company_workspace_id, name, external_jd_url, description, description_summary, type, status, request, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode"
     )
     .single();
 
@@ -3049,7 +3047,6 @@ export async function syncOpsOpportunityRoles(args: {
       description_summary: role.descriptionSummary,
       expires_at: role.expiresAt,
       external_jd_url: role.externalJdUrl,
-      information: null,
       location_text: role.locationText,
       name: role.name,
       posted_at: role.postedAt,
@@ -3240,7 +3237,7 @@ async function fetchRoleLookupByIds(admin: AdminClient, roleIds: string[]) {
 
   const { data, error } = await (admin.from("company_roles" as any) as any)
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, description_summary, information, type, status, request, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode"
+      "role_id, company_workspace_id, name, external_jd_url, description, description_summary, type, status, request, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode"
     )
     .in("role_id", roleIds);
 

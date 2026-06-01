@@ -33,7 +33,6 @@ export type CompanyWatchlistItem = {
   followedAt: string | null;
   following: boolean;
   foundedYear: number | null;
-  funding: unknown | null;
   fundingUrl: string | null;
   homepageUrl: string | null;
   id: string;
