@@ -10,7 +10,7 @@ import {
   getPublicOfficialJobByAshbyId,
   getPublicOfficialJobs,
 } from "@/lib/officialJobs.server";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Building2, MapPin } from "lucide-react";
 import type { GetServerSideProps } from "next";
 import Head from "next/head";
 import Link from "next/link";
@@ -49,14 +49,17 @@ function buildRedirectDestination(
 function OfficialJobsTable({ jobs }: { jobs: OfficialJob[] }) {
   const router = useRouter();
 
-  const openJob = (job: OfficialJob) => {
+  const openJob = (
+    job: OfficialJob,
+    source: "jobs_table_row" | "jobs_mobile_card"
+  ) => {
     void postOfficialJobEvent({
       eventType: "job_list_click",
       jobSlug: job.slug,
       metadata: {
         companyName: job.companyName,
         roleTitle: job.roleTitle,
-        source: "jobs_table_row",
+        source,
       },
     });
     void router.push(`/jobs/${job.slug}`);
@@ -71,51 +74,98 @@ function OfficialJobsTable({ jobs }: { jobs: OfficialJob[] }) {
   }
 
   return (
-    <div className="overflow-x-auto rounded-[4px] border border-beige900/10 bg-white/35">
-      <table className="min-w-[760px] w-full border-collapse text-left">
-        <thead>
-          <tr className="border-b border-beige900/10 text-[11px] uppercase text-black860">
-            <th className="px-4 py-3 font-medium">Role</th>
-            <th className="px-4 py-3 font-medium">Company</th>
-            <th className="px-4 py-3 font-medium">Location</th>
-            <th className="px-4 py-3 font-medium">Vertical</th>
-            <th className="px-4 py-3 font-medium text-right">Apply</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-beige900/10">
-          {jobs.map((job) => (
-            <tr
+    <>
+      <div className="space-y-0 md:hidden">
+        {jobs.map((job) => {
+          return (
+            <button
               key={job.id}
-              role="link"
-              tabIndex={0}
-              className="text-[13px] text-black/68 transition cursor-pointer hover:bg-black/3"
-              onClick={() => openJob(job)}
-              onKeyDown={(event) => {
-                if (event.key !== "Enter" && event.key !== " ") return;
-                event.preventDefault();
-                openJob(job);
-              }}
+              type="button"
+              aria-label={`${job.roleTitle}, ${job.companyName} 자세히 보기`}
+              className="group relative w-full overflow-hidden rounded-[0px] border border-beige900/10 border-b-0 bg-white/50 px-4 py-5 pl-5 text-left transition hover:-translate-y-0.5 hover:border-beige900/20 hover:bg-white/90 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-beige700/15 active:translate-y-0"
+              onClick={() => openJob(job, "jobs_mobile_card")}
             >
-              <td className="max-w-[240px] px-4 py-3 align-top">
-                <div className="font-medium text-black underline-offset-4 hover:underline">
+              <div className="flex items-start justify-between gap-3">
+                <h2 className="break-words text-[16px] font-medium leading-[1.42] text-black">
                   {job.roleTitle}
+                </h2>
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center group-hover:translate-x-0.5 group-hover:border-beige900/20 group-hover:bg-white">
+                  <ArrowRight className="h-4 w-4" />
+                </span>
+              </div>
+
+              <div className="mt-4 space-y-1">
+                <div className="flex items-start gap-2">
+                  <Building2 className="h-3.5 w-3.5 mt-[3px] shrink-0 text-black/45" />
+                  <div className="break-words text-[13px] font-medium leading-5 text-black/78">
+                    {job.companyName}
+                  </div>
                 </div>
-              </td>
-              <td className="px-4 py-3 align-top font-medium text-black/78">
-                {job.companyName}
-              </td>
-              <td className="px-4 py-3 align-top">{job.location}</td>
-              <td className="px-4 py-3 align-top">{job.vertical}</td>
-              <td className="px-4 py-3 text-right align-top">
-                <div className="inline-flex items-center justify-end gap-1 text-[12px] font-medium text-black transition hover:text-black/70">
-                  <ArrowRight className="h-3.5 w-3.5" />
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-3.5 w-3.5 shrink-0 text-black/45" />
+                  <div className="break-words text-[13px] leading-5 text-black/68">
+                    {job.location}
+                  </div>
                 </div>
-              </td>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-[4px] border border-beige900/10 bg-white/35 md:block">
+        <table className="min-w-[760px] w-full border-collapse text-left">
+          <colgroup>
+            <col className="w-[30%]" />
+            <col className="w-[30%]" />
+            <col className="w-[22%]" />
+            <col className="w-[10%]" />
+            <col className="w-[8%]" />
+          </colgroup>
+          <thead>
+            <tr className="border-b border-beige900/10 text-[11px] uppercase text-black860">
+              <th className="px-4 py-3 font-medium">Role</th>
+              <th className="px-4 py-3 font-medium">Company</th>
+              <th className="px-4 py-3 font-medium">Location</th>
+              <th className="px-4 py-3 font-medium">Vertical</th>
+              <th className="px-4 py-3 font-medium text-right">Apply</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody className="divide-y divide-beige900/10">
+            {jobs.map((job) => (
+              <tr
+                key={job.id}
+                role="link"
+                tabIndex={0}
+                className="text-[13px] text-black/68 transition cursor-pointer hover:bg-black/3"
+                onClick={() => openJob(job, "jobs_table_row")}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" && event.key !== " ") return;
+                  event.preventDefault();
+                  openJob(job, "jobs_table_row");
+                }}
+              >
+                <td className="max-w-[240px] px-4 py-3 align-top">
+                  <div className="font-medium text-black underline-offset-4 hover:underline">
+                    {job.roleTitle}
+                  </div>
+                </td>
+                <td className="px-4 py-3 align-top font-medium text-black/78">
+                  {job.companyName}
+                </td>
+                <td className="px-4 py-3 align-top">{job.location}</td>
+                <td className="px-4 py-3 align-top">{job.vertical}</td>
+                <td className="px-4 py-3 text-right align-top">
+                  <div className="inline-flex items-center justify-end gap-1 text-[12px] font-medium text-black transition hover:text-black/70">
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 
