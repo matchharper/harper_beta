@@ -185,11 +185,14 @@ export default function OfficialJobDetailPage({
                   </DetailSection>
                   <hr />
 
-                  <DetailSection title="Company overview">
-                    <OfficialJobMarkdown
-                      content={job.companyDescriptionMarkdown}
-                    />
-                  </DetailSection>
+                  {job.companyDescriptionMarkdown &&
+                    job.companyDescriptionMarkdown.length > 10 && (
+                      <DetailSection title="Company overview">
+                        <OfficialJobMarkdown
+                          content={job.companyDescriptionMarkdown}
+                        />
+                      </DetailSection>
+                    )}
                   <hr />
 
                   <DetailSection id="official-job-steps" title="진행과정">

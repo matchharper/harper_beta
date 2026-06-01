@@ -54,7 +54,10 @@ import {
   logTalentToolError,
   logTalentToolResult,
 } from "./toolLogging";
-import { insertTalentToolUsageLog } from "./toolUsageLog";
+import {
+  insertTalentToolFailureLog,
+  insertTalentToolUsageLog,
+} from "./toolUsageLog";
 import type { TalentAdminClient } from "./admin";
 
 export type TalentToolChannel = "chat" | "voice";
@@ -87,6 +90,20 @@ async function insertToolUsageLogFromContext(args: {
   if (!admin) return;
 
   await insertTalentToolUsageLog({
+    admin: admin as TalentAdminClient,
+    name: args.name,
+    userId: args.context?.userId,
+  });
+}
+
+async function insertToolFailureLogFromContext(args: {
+  context?: TalentToolExecutionContext;
+  name: string;
+}) {
+  const admin = args.context?.admin;
+  if (!admin) return;
+
+  await insertTalentToolFailureLog({
     admin: admin as TalentAdminClient,
     name: args.name,
     userId: args.context?.userId,
@@ -1787,6 +1804,10 @@ export async function executeTalentTool(args: {
     }
     return result;
   } catch (error) {
+    await insertToolFailureLogFromContext({
+      context: args.context,
+      name: tool.name,
+    });
     if (shouldLog) {
       logTalentToolError({
         durationMs: Date.now() - startedAt,

@@ -28,8 +28,23 @@ import type { Database } from "@/types/database.types";
 type TalentUserRow = Database["public"]["Tables"]["talent_users"]["Row"];
 type TalentConversationRow =
   Database["public"]["Tables"]["talent_conversations"]["Row"];
+type TalentEducationRow =
+  Database["public"]["Tables"]["talent_educations"]["Row"];
 type TalentExperienceRow =
   Database["public"]["Tables"]["talent_experiences"]["Row"];
+type TalentSettingRow = Database["public"]["Tables"]["talent_setting"]["Row"];
+type CareerTalentListUserRow = Pick<
+  TalentUserRow,
+  | "user_id"
+  | "name"
+  | "email"
+  | "profile_picture"
+  | "headline"
+  | "resume_file_name"
+  | "resume_storage_path"
+  | "resume_links"
+  | "created_at"
+>;
 type CareerEmailMessageInsert =
   Database["public"]["Tables"]["career_email_messages"]["Insert"];
 type CareerEmailMessageUpdate =
@@ -45,8 +60,11 @@ export type CareerTalentSummary = {
   email: string | null;
   profilePicture: string | null;
   headline: string | null;
+  opsProfileMemoPreview: string | null;
   currentCompanyName: string | null;
   currentRole: string | null;
+  expandedEducationLabels?: string[];
+  expandedExperienceLabels?: string[];
   registeredLinkTypes: CareerTalentRegisteredLinkType[];
   hasRegisteredLink: boolean;
   hasResume: boolean;
@@ -105,6 +123,13 @@ export type CareerTalentDetailResponse = {
     messageType: string | null;
     createdAt: string;
   }>;
+  opsProfileMemo: CareerTalentOpsProfileMemo | null;
+};
+
+export type CareerTalentOpsProfileMemo = {
+  content: string;
+  updatedAt: string | null;
+  updatedBy: string | null;
 };
 
 export type CareerTalentProfileIngestSource = "linkedin" | "resume";
@@ -248,6 +273,11 @@ export type OpsInternalRecommendationStageBulkUpdateResponse = {
   updates: CareerTalentRecommendationStageUpdateResponse[];
 };
 
+export type OpsInternalRecommendationHideResponse = {
+  ok: true;
+  recommendationId: string;
+};
+
 export type OpsManualInternalRecommendationRole = {
   alreadyRecommended: boolean;
   companyName: string;
@@ -279,6 +309,10 @@ export type OpsQueueManualInternalRecommendationResponse = {
 
 const DEFAULT_LIMIT = 40;
 const MAX_LIMIT = 100;
+const MAX_CAREER_LIST_SEARCH_QUERY_LENGTH = 160;
+const CAREER_LIST_SEARCH_PAGE_SIZE = 1000;
+const MAX_CAREER_LIST_SEARCH_ROWS = 10_000;
+const CAREER_LIST_USER_ID_CHUNK_SIZE = 500;
 const DEFAULT_MAIL_HISTORY_LIMIT = 10;
 const MAX_MAIL_HISTORY_LIMIT = 50;
 const MAX_MAIL_HISTORY_SOURCE_LIMIT = 1000;
@@ -295,6 +329,18 @@ const DEFAULT_CAREER_MAIL_FROM = "Harper <hello@matchharper.com>";
 const MAX_OPS_RESUME_DOWNLOAD_BYTES = 12 * 1024 * 1024;
 const MAX_OPS_RESUME_TEXT_CHARS = 24_000;
 const MAX_OPS_RESUME_PDF_PAGES = 24;
+const MAX_OPS_PROFILE_MEMO_LENGTH = 4000;
+const MAX_OPS_PROFILE_MEMO_PREVIEW_LENGTH = 240;
+const CAREER_TALENT_LIST_SELECT =
+  "user_id, name, email, profile_picture, headline, resume_file_name, resume_storage_path, resume_links, created_at";
+
+type CareerTalentListDateRange = {
+  endDate: string | null;
+  endExclusiveIso: string | null;
+  isActive: boolean;
+  startDate: string | null;
+  startIso: string | null;
+};
 
 export function parseCareerListLimit(value: string | null) {
   const n = Number(value ?? DEFAULT_LIMIT);
@@ -306,6 +352,35 @@ export function parseCareerListOffset(value: string | null) {
   const n = Number(value ?? 0);
   if (!Number.isFinite(n)) return 0;
   return Math.max(0, Math.floor(n));
+}
+
+export function parseCareerListSearchQuery(value: string | null) {
+  return String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, MAX_CAREER_LIST_SEARCH_QUERY_LENGTH);
+}
+
+export function parseCareerListBoolean(value: string | null) {
+  return value === "1" || value === "true";
+}
+
+export function parseCareerListDateOnly(value: string | null) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null;
+
+  const [year, month, day] = trimmed.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== month - 1 ||
+    parsed.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  return trimmed;
 }
 
 export function parseCareerMailHistoryLimit(value: string | null) {
@@ -341,7 +416,10 @@ export function parseCareerRecommendationSourceFilter(
 export function parseOpsInternalRecommendationLimit(value: string | null) {
   const n = Number(value ?? DEFAULT_INTERNAL_RECOMMENDATION_LIMIT);
   if (!Number.isFinite(n)) return DEFAULT_INTERNAL_RECOMMENDATION_LIMIT;
-  return Math.max(1, Math.min(MAX_INTERNAL_RECOMMENDATION_LIMIT, Math.floor(n)));
+  return Math.max(
+    1,
+    Math.min(MAX_INTERNAL_RECOMMENDATION_LIMIT, Math.floor(n))
+  );
 }
 
 export function parseOpsInternalRecommendationOffset(value: string | null) {
@@ -424,6 +502,17 @@ function normalizeCareerSummaryText(value: string | null | undefined) {
 function normalizeOpsResumeText(value: string | null | undefined) {
   const normalized = value?.trim();
   return normalized ? normalized.slice(0, MAX_OPS_RESUME_TEXT_CHARS) : null;
+}
+
+function normalizeOpsProfileMemoContent(value: unknown) {
+  return String(value ?? "")
+    .trim()
+    .slice(0, MAX_OPS_PROFILE_MEMO_LENGTH);
+}
+
+function normalizeOpsProfileMemoPreview(value: unknown) {
+  const preview = normalizeOpsProfileMemoContent(value).replace(/\s+/g, " ");
+  return preview ? preview.slice(0, MAX_OPS_PROFILE_MEMO_PREVIEW_LENGTH) : null;
 }
 
 function normalizeCareerProfileIngestSource(
@@ -555,9 +644,7 @@ async function resolveResumeTextForCareerProfileIngest(args: {
   };
 }
 
-function isCurrentTalentExperience(
-  row: Pick<TalentExperienceRow, "end_date">
-) {
+function isCurrentTalentExperience(row: Pick<TalentExperienceRow, "end_date">) {
   const endDate = normalizeCareerSummaryText(row.end_date);
   return (
     !endDate ||
@@ -573,7 +660,9 @@ function normalizeManualInternalRoleLimit(value: number | undefined) {
 }
 
 function normalizeRoleSearchText(value: unknown) {
-  return String(value ?? "").trim().slice(0, 160);
+  return String(value ?? "")
+    .trim()
+    .slice(0, 160);
 }
 
 function normalizeManualReason(value: unknown) {
@@ -590,6 +679,18 @@ function isMissingCareerEmailMessagesError(error: unknown) {
     code === "PGRST205" ||
     code === "42P01" ||
     (message.includes("career_email_messages") &&
+      (message.includes("schema cache") || message.includes("does not exist")))
+  );
+}
+
+function isMissingOpsProfileMemoTableError(error: unknown) {
+  const row = asRecord(error);
+  const code = typeof row.code === "string" ? row.code : "";
+  const message = typeof row.message === "string" ? row.message : "";
+  return (
+    code === "PGRST205" ||
+    code === "42P01" ||
+    (message.includes("talent_ops_profile_memos") &&
       (message.includes("schema cache") || message.includes("does not exist")))
   );
 }
@@ -728,47 +829,484 @@ function reviewOnboardingSubject(displayName: string | null | undefined) {
   return `${name ? `${name}님, ` : ""}자료 확인했습니다`;
 }
 
+function buildCareerListIlikePattern(searchQuery: string) {
+  return `%${searchQuery.replace(/[\\%_]/g, "\\$&")}%`;
+}
+
+function toKstDayStartIso(dateOnly: string) {
+  const [year, month, day] = dateOnly.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day, -9, 0, 0, 0)).toISOString();
+}
+
+function toKstNextDayStartIso(dateOnly: string) {
+  const [year, month, day] = dateOnly.split("-").map(Number);
+  return new Date(
+    Date.UTC(year, month - 1, day + 1, -9, 0, 0, 0)
+  ).toISOString();
+}
+
+function normalizeCareerListDateRange(args: {
+  endDate?: string | null;
+  startDate?: string | null;
+}): CareerTalentListDateRange {
+  let startDate = parseCareerListDateOnly(args.startDate ?? null);
+  let endDate = parseCareerListDateOnly(args.endDate ?? null);
+
+  if (!startDate && endDate) startDate = endDate;
+  if (startDate && !endDate) endDate = startDate;
+  if (startDate && endDate && endDate < startDate) {
+    const nextStartDate = endDate;
+    endDate = startDate;
+    startDate = nextStartDate;
+  }
+
+  return {
+    endDate,
+    endExclusiveIso: endDate ? toKstNextDayStartIso(endDate) : null,
+    isActive: Boolean(startDate || endDate),
+    startDate,
+    startIso: startDate ? toKstDayStartIso(startDate) : null,
+  };
+}
+
+function isWithinCareerListDateRange(
+  value: string | null | undefined,
+  dateRange: CareerTalentListDateRange
+) {
+  if (!dateRange.isActive) return true;
+  if (!value) return false;
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return false;
+  if (dateRange.startIso && timestamp < Date.parse(dateRange.startIso)) {
+    return false;
+  }
+  if (
+    dateRange.endExclusiveIso &&
+    timestamp >= Date.parse(dateRange.endExclusiveIso)
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function hasCareerTalentSubmittedMaterial(row: CareerTalentListUserRow) {
+  const hasResume = Boolean(
+    normalizeCareerSummaryText(row.resume_file_name) ||
+    normalizeCareerSummaryText(row.resume_storage_path)
+  );
+  if (hasResume) return true;
+  return getRegisteredLinkTypes(row.resume_links).includes("linkedin");
+}
+
+function parseCompactYearMonth(value: string | null | undefined) {
+  const normalized = normalizeCareerSummaryText(value);
+  if (!normalized) return null;
+
+  const yearMonth = normalized.match(/^(\d{4})(?:[-./년\s]+(\d{1,2}))?/);
+  if (!yearMonth) return null;
+  const year = Number(yearMonth[1]);
+  const month = yearMonth[2] ? Number(yearMonth[2]) : 1;
+  if (!Number.isFinite(year) || year < 1900 || year > 2200) return null;
+  if (!Number.isFinite(month) || month < 1 || month > 12) return null;
+  return { month, year };
+}
+
+function diffCareerListMonths(
+  startDate: string | null | undefined,
+  endDate: string | null | undefined
+) {
+  const start = parseCompactYearMonth(startDate);
+  if (!start) return null;
+
+  const end =
+    parseCompactYearMonth(endDate) ??
+    (() => {
+      const now = new Date();
+      return { month: now.getMonth() + 1, year: now.getFullYear() };
+    })();
+  const months = (end.year - start.year) * 12 + (end.month - start.month) + 1;
+  return months > 0 ? months : null;
+}
+
+function formatCareerListDuration(months: number | null | undefined) {
+  if (!months || months <= 0) return null;
+  const years = Math.floor(months / 12);
+  const remainingMonths = months % 12;
+  if (years > 0 && remainingMonths > 0) return `${years}y ${remainingMonths}m`;
+  if (years > 0) return `${years}y`;
+  return `${months}m`;
+}
+
+function formatCareerListExperienceLabel(
+  row: Pick<
+    TalentExperienceRow,
+    "company_name" | "end_date" | "months" | "role" | "start_date"
+  >
+) {
+  const role = normalizeCareerSummaryText(row.role);
+  const companyName = normalizeCareerSummaryText(row.company_name);
+  const title =
+    role && companyName
+      ? `${role}(${companyName}`
+      : (role ?? companyName ?? null);
+  if (!title) return null;
+
+  const duration = formatCareerListDuration(
+    row.months ?? diffCareerListMonths(row.start_date, row.end_date)
+  );
+  return duration ? `${title} - ${duration})` : `${title})`;
+}
+
+function getCareerListAdmissionYear(value: string | null | undefined) {
+  return parseCompactYearMonth(value)?.year.toString() ?? null;
+}
+
+function formatCareerListEducationLabel(
+  row: Pick<TalentEducationRow, "degree" | "field" | "school" | "start_date">
+) {
+  const school = normalizeCareerSummaryText(row.school);
+  const major =
+    normalizeCareerSummaryText(row.field) ??
+    normalizeCareerSummaryText(row.degree);
+  const admissionYear = getCareerListAdmissionYear(row.start_date);
+  const parts = [school, major, admissionYear].filter(Boolean);
+  return parts.length > 0 ? parts.join(" - ") : null;
+}
+
+function compareCareerTalentListUserRows(
+  a: CareerTalentListUserRow,
+  b: CareerTalentListUserRow
+) {
+  const aTime = Date.parse(a.created_at);
+  const bTime = Date.parse(b.created_at);
+  const safeATime = Number.isFinite(aTime) ? aTime : 0;
+  const safeBTime = Number.isFinite(bTime) ? bTime : 0;
+  if (safeATime !== safeBTime) return safeBTime - safeATime;
+  return b.user_id.localeCompare(a.user_id);
+}
+
+function mergeCareerTalentListUserRows(rows: CareerTalentListUserRow[]) {
+  const byUserId = new Map<string, CareerTalentListUserRow>();
+  for (const row of rows) {
+    if (!row.user_id || byUserId.has(row.user_id)) continue;
+    byUserId.set(row.user_id, row);
+  }
+  return Array.from(byUserId.values()).sort(compareCareerTalentListUserRows);
+}
+
+async function fetchCareerTalentUsersByIdentitySearch(args: {
+  admin: TalentAdminClient;
+  column: "name" | "email";
+  searchQuery: string;
+}) {
+  const pattern = buildCareerListIlikePattern(args.searchQuery);
+  const rows: CareerTalentListUserRow[] = [];
+
+  for (
+    let offset = 0;
+    offset < MAX_CAREER_LIST_SEARCH_ROWS;
+    offset += CAREER_LIST_SEARCH_PAGE_SIZE
+  ) {
+    const to = Math.min(
+      offset + CAREER_LIST_SEARCH_PAGE_SIZE - 1,
+      MAX_CAREER_LIST_SEARCH_ROWS - 1
+    );
+    const { data, error } = await args.admin
+      .from("talent_users")
+      .select(CAREER_TALENT_LIST_SELECT)
+      .ilike(args.column, pattern)
+      .order("created_at", { ascending: false })
+      .range(offset, to);
+
+    if (error) {
+      throw new Error(error.message ?? "Failed to search talent users");
+    }
+
+    const pageRows = (data ?? []) as CareerTalentListUserRow[];
+    rows.push(...pageRows);
+
+    if (pageRows.length < CAREER_LIST_SEARCH_PAGE_SIZE) break;
+  }
+
+  return rows;
+}
+
+async function fetchCareerTalentExperienceSearchUserIds(args: {
+  admin: TalentAdminClient;
+  column: "company_name" | "role";
+  searchQuery: string;
+}) {
+  const pattern = buildCareerListIlikePattern(args.searchQuery);
+  const userIds = new Set<string>();
+
+  for (
+    let offset = 0;
+    offset < MAX_CAREER_LIST_SEARCH_ROWS;
+    offset += CAREER_LIST_SEARCH_PAGE_SIZE
+  ) {
+    const to = Math.min(
+      offset + CAREER_LIST_SEARCH_PAGE_SIZE - 1,
+      MAX_CAREER_LIST_SEARCH_ROWS - 1
+    );
+    const { data, error } = await args.admin
+      .from("talent_experiences")
+      .select("talent_id")
+      .ilike(args.column, pattern)
+      .order("id", { ascending: true })
+      .range(offset, to);
+
+    if (error) {
+      throw new Error(error.message ?? "Failed to search talent experiences");
+    }
+
+    const pageRows = (data ?? []) as Pick<TalentExperienceRow, "talent_id">[];
+    for (const row of pageRows) {
+      if (row.talent_id) userIds.add(row.talent_id);
+    }
+
+    if (pageRows.length < CAREER_LIST_SEARCH_PAGE_SIZE) break;
+  }
+
+  return Array.from(userIds);
+}
+
+async function fetchCareerTalentUsersByIds(args: {
+  admin: TalentAdminClient;
+  userIds: string[];
+}) {
+  const rows: CareerTalentListUserRow[] = [];
+  const userIds = Array.from(
+    new Set(args.userIds.map((id) => id.trim()).filter(Boolean))
+  );
+
+  for (
+    let index = 0;
+    index < userIds.length;
+    index += CAREER_LIST_USER_ID_CHUNK_SIZE
+  ) {
+    const chunk = userIds.slice(index, index + CAREER_LIST_USER_ID_CHUNK_SIZE);
+    const { data, error } = await args.admin
+      .from("talent_users")
+      .select(CAREER_TALENT_LIST_SELECT)
+      .in("user_id", chunk);
+
+    if (error) {
+      throw new Error(error.message ?? "Failed to load searched talent users");
+    }
+
+    rows.push(...((data ?? []) as CareerTalentListUserRow[]));
+  }
+
+  return rows;
+}
+
+async function fetchCareerTalentUsersByDateRange(args: {
+  admin: TalentAdminClient;
+  dateRange: CareerTalentListDateRange;
+}) {
+  const rows: CareerTalentListUserRow[] = [];
+
+  for (
+    let offset = 0;
+    offset < MAX_CAREER_LIST_SEARCH_ROWS;
+    offset += CAREER_LIST_SEARCH_PAGE_SIZE
+  ) {
+    const to = Math.min(
+      offset + CAREER_LIST_SEARCH_PAGE_SIZE - 1,
+      MAX_CAREER_LIST_SEARCH_ROWS - 1
+    );
+    let request = args.admin
+      .from("talent_users")
+      .select(CAREER_TALENT_LIST_SELECT)
+      .order("created_at", { ascending: false })
+      .range(offset, to);
+
+    if (args.dateRange.startIso) {
+      request = request.gte("created_at", args.dateRange.startIso);
+    }
+    if (args.dateRange.endExclusiveIso) {
+      request = request.lt("created_at", args.dateRange.endExclusiveIso);
+    }
+
+    const { data, error } = await request;
+
+    if (error) {
+      throw new Error(error.message ?? "Failed to load filtered talent users");
+    }
+
+    const pageRows = (data ?? []) as CareerTalentListUserRow[];
+    rows.push(...pageRows);
+
+    if (pageRows.length < CAREER_LIST_SEARCH_PAGE_SIZE) break;
+  }
+
+  return rows;
+}
+
+async function fetchCareerTalentOnboardingDoneUserIds(
+  admin: TalentAdminClient
+) {
+  const userIds = new Set<string>();
+
+  for (
+    let offset = 0;
+    offset < MAX_CAREER_LIST_SEARCH_ROWS;
+    offset += CAREER_LIST_SEARCH_PAGE_SIZE
+  ) {
+    const to = Math.min(
+      offset + CAREER_LIST_SEARCH_PAGE_SIZE - 1,
+      MAX_CAREER_LIST_SEARCH_ROWS - 1
+    );
+    const { data, error } = await admin
+      .from("talent_setting")
+      .select("user_id")
+      .eq("is_onboarding_done", true)
+      .range(offset, to);
+
+    if (error) {
+      throw new Error(error.message ?? "Failed to load onboarding status");
+    }
+
+    const pageRows = (data ?? []) as Pick<TalentSettingRow, "user_id">[];
+    for (const row of pageRows) {
+      if (row.user_id) userIds.add(row.user_id);
+    }
+
+    if (pageRows.length < CAREER_LIST_SEARCH_PAGE_SIZE) break;
+  }
+
+  return userIds;
+}
+
+async function searchCareerTalentUsers(args: {
+  admin: TalentAdminClient;
+  searchQuery: string;
+}) {
+  const [nameRows, emailRows, companyUserIds, roleUserIds] = await Promise.all([
+    fetchCareerTalentUsersByIdentitySearch({
+      admin: args.admin,
+      column: "name",
+      searchQuery: args.searchQuery,
+    }),
+    fetchCareerTalentUsersByIdentitySearch({
+      admin: args.admin,
+      column: "email",
+      searchQuery: args.searchQuery,
+    }),
+    fetchCareerTalentExperienceSearchUserIds({
+      admin: args.admin,
+      column: "company_name",
+      searchQuery: args.searchQuery,
+    }),
+    fetchCareerTalentExperienceSearchUserIds({
+      admin: args.admin,
+      column: "role",
+      searchQuery: args.searchQuery,
+    }),
+  ]);
+  const experienceRows = await fetchCareerTalentUsersByIds({
+    admin: args.admin,
+    userIds: [...companyUserIds, ...roleUserIds],
+  });
+
+  return mergeCareerTalentListUserRows([
+    ...nameRows,
+    ...emailRows,
+    ...experienceRows,
+  ]);
+}
+
 export async function fetchCareerTalentList(args: {
+  createdFrom?: string | null;
+  createdTo?: string | null;
+  includeExpandedProfile?: boolean;
+  onboardingDoneOnly?: boolean;
   limit?: number;
   offset?: number;
+  query?: string | null;
+  submittedMaterialOnly?: boolean;
 }): Promise<CareerTalentListResponse> {
   const limit = Math.max(1, Math.min(MAX_LIMIT, args.limit ?? DEFAULT_LIMIT));
   const offset = Math.max(0, args.offset ?? 0);
+  const searchQuery = parseCareerListSearchQuery(args.query ?? null);
+  const includeExpandedProfile = Boolean(args.includeExpandedProfile);
+  const dateRange = normalizeCareerListDateRange({
+    endDate: args.createdTo,
+    startDate: args.createdFrom,
+  });
+  const hasAdvancedFilters =
+    dateRange.isActive ||
+    Boolean(args.onboardingDoneOnly) ||
+    Boolean(args.submittedMaterialOnly);
   const admin = getTalentSupabaseAdmin();
+  let rows: CareerTalentListUserRow[];
+  let totalCount: number;
 
-  // Fetch talent_users who have conversations (career onboarded)
-  const {
-    data: talentUsers,
-    error: talentError,
-    count,
-  } = await admin
-    .from("talent_users")
-    .select(
-      "user_id, name, email, profile_picture, headline, resume_file_name, resume_storage_path, resume_links, created_at",
-      {
+  if (searchQuery || hasAdvancedFilters) {
+    let onboardingDoneUserIds: Set<string> | null = null;
+    let matchedRows: CareerTalentListUserRow[];
+
+    if (searchQuery) {
+      matchedRows = await searchCareerTalentUsers({ admin, searchQuery });
+    } else if (dateRange.isActive) {
+      matchedRows = await fetchCareerTalentUsersByDateRange({
+        admin,
+        dateRange,
+      });
+    } else if (args.onboardingDoneOnly) {
+      onboardingDoneUserIds =
+        await fetchCareerTalentOnboardingDoneUserIds(admin);
+      matchedRows = await fetchCareerTalentUsersByIds({
+        admin,
+        userIds: Array.from(onboardingDoneUserIds),
+      });
+    } else {
+      matchedRows = await fetchCareerTalentUsersByDateRange({
+        admin,
+        dateRange,
+      });
+    }
+
+    if (searchQuery && dateRange.isActive) {
+      matchedRows = matchedRows.filter((row) =>
+        isWithinCareerListDateRange(row.created_at, dateRange)
+      );
+    }
+
+    if (args.onboardingDoneOnly) {
+      const doneUserIds =
+        onboardingDoneUserIds ??
+        (await fetchCareerTalentOnboardingDoneUserIds(admin));
+      onboardingDoneUserIds = doneUserIds;
+      matchedRows = matchedRows.filter((row) => doneUserIds.has(row.user_id));
+    }
+
+    if (args.submittedMaterialOnly) {
+      matchedRows = matchedRows.filter(hasCareerTalentSubmittedMaterial);
+    }
+
+    totalCount = matchedRows.length;
+    rows = matchedRows.slice(offset, offset + limit);
+  } else {
+    const {
+      data: talentUsers,
+      error: talentError,
+      count,
+    } = await admin
+      .from("talent_users")
+      .select(CAREER_TALENT_LIST_SELECT, {
         count: "exact",
-      }
-    )
-    .order("created_at", { ascending: false })
-    .range(offset, offset + limit - 1);
+      })
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
 
-  if (talentError) {
-    throw new Error(talentError.message ?? "Failed to load talent users");
+    if (talentError) {
+      throw new Error(talentError.message ?? "Failed to load talent users");
+    }
+
+    rows = (talentUsers ?? []) as CareerTalentListUserRow[];
+    totalCount = count ?? 0;
   }
-
-  const rows = (talentUsers ?? []) as Pick<
-    TalentUserRow,
-    | "user_id"
-    | "name"
-    | "email"
-    | "profile_picture"
-    | "headline"
-    | "resume_file_name"
-    | "resume_storage_path"
-    | "resume_links"
-    | "created_at"
-  >[];
-  const totalCount = count ?? 0;
 
   if (rows.length === 0) {
     return {
@@ -782,22 +1320,43 @@ export async function fetchCareerTalentList(args: {
   }
 
   const userIds = rows.map((r) => r.user_id);
+  const opsProfileMemoPreviewMap =
+    await fetchCareerTalentOpsProfileMemoPreviewMap({
+      admin,
+      userIds,
+    });
 
   const { data: experienceRows } = await admin
     .from("talent_experiences")
-    .select("id, talent_id, company_name, role, start_date, end_date")
+    .select("id, talent_id, company_name, role, start_date, end_date, months")
     .in("talent_id", userIds)
     .order("start_date", { ascending: false, nullsFirst: false })
     .order("id", { ascending: false });
 
+  const experienceListMap = new Map<string, string[]>();
   const currentExperienceMap = new Map<
     string,
     { companyName: string | null; role: string | null }
   >();
   for (const experience of (experienceRows ?? []) as Pick<
     TalentExperienceRow,
-    "id" | "talent_id" | "company_name" | "role" | "start_date" | "end_date"
+    | "id"
+    | "talent_id"
+    | "company_name"
+    | "role"
+    | "start_date"
+    | "end_date"
+    | "months"
   >[]) {
+    if (includeExpandedProfile) {
+      const label = formatCareerListExperienceLabel(experience);
+      if (label) {
+        const list = experienceListMap.get(experience.talent_id) ?? [];
+        list.push(label);
+        experienceListMap.set(experience.talent_id, list);
+      }
+    }
+
     if (currentExperienceMap.has(experience.talent_id)) continue;
     if (!isCurrentTalentExperience(experience)) continue;
 
@@ -809,6 +1368,27 @@ export async function fetchCareerTalentList(args: {
       companyName,
       role,
     });
+  }
+
+  const educationListMap = new Map<string, string[]>();
+  if (includeExpandedProfile) {
+    const { data: educationRows } = await admin
+      .from("talent_educations")
+      .select("id, talent_id, school, degree, field, start_date")
+      .in("talent_id", userIds)
+      .order("start_date", { ascending: false, nullsFirst: false })
+      .order("id", { ascending: false });
+
+    for (const education of (educationRows ?? []) as Pick<
+      TalentEducationRow,
+      "degree" | "field" | "id" | "school" | "start_date" | "talent_id"
+    >[]) {
+      const label = formatCareerListEducationLabel(education);
+      if (!label) continue;
+      const list = educationListMap.get(education.talent_id) ?? [];
+      list.push(label);
+      educationListMap.set(education.talent_id, list);
+    }
   }
 
   // Fetch latest conversation per user
@@ -866,13 +1446,20 @@ export async function fetchCareerTalentList(args: {
       email: row.email,
       profilePicture: row.profile_picture,
       headline: row.headline,
+      opsProfileMemoPreview: opsProfileMemoPreviewMap.get(row.user_id) ?? null,
       currentCompanyName: currentExperience?.companyName ?? null,
       currentRole: currentExperience?.role ?? null,
+      expandedEducationLabels: includeExpandedProfile
+        ? (educationListMap.get(row.user_id) ?? [])
+        : undefined,
+      expandedExperienceLabels: includeExpandedProfile
+        ? (experienceListMap.get(row.user_id) ?? [])
+        : undefined,
       registeredLinkTypes,
       hasRegisteredLink: registeredLinkTypes.length > 0,
       hasResume: Boolean(
         normalizeCareerSummaryText(row.resume_file_name) ||
-          normalizeCareerSummaryText(row.resume_storage_path)
+        normalizeCareerSummaryText(row.resume_storage_path)
       ),
       conversationStage: conv?.stage ?? null,
       isOnboardingDone: onboardingDoneMap.get(row.user_id) ?? false,
@@ -895,18 +1482,148 @@ export async function fetchCareerTalentList(args: {
   };
 }
 
+async function fetchCareerTalentOpsProfileMemo(args: {
+  admin: TalentAdminClient;
+  userId: string;
+}): Promise<CareerTalentOpsProfileMemo | null> {
+  const { data, error } = await toUntypedAdmin(args.admin)
+    .from("talent_ops_profile_memos")
+    .select("content, updated_at, updated_by")
+    .eq("talent_id", args.userId)
+    .maybeSingle();
+
+  if (error) {
+    if (isMissingOpsProfileMemoTableError(error)) return null;
+    throw new Error(error.message ?? "Failed to load ops profile memo");
+  }
+
+  const content = normalizeOpsProfileMemoContent(data?.content);
+  if (!content) return null;
+
+  return {
+    content,
+    updatedAt: typeof data?.updated_at === "string" ? data.updated_at : null,
+    updatedBy: typeof data?.updated_by === "string" ? data.updated_by : null,
+  };
+}
+
+async function fetchCareerTalentOpsProfileMemoPreviewMap(args: {
+  admin: TalentAdminClient;
+  userIds: string[];
+}) {
+  const uniqueUserIds = Array.from(new Set(args.userIds.filter(Boolean)));
+  const previewMap = new Map<string, string>();
+  if (uniqueUserIds.length === 0) return previewMap;
+
+  const { data, error } = await toUntypedAdmin(args.admin)
+    .from("talent_ops_profile_memos")
+    .select("talent_id, content")
+    .in("talent_id", uniqueUserIds);
+
+  if (error) {
+    if (isMissingOpsProfileMemoTableError(error)) return previewMap;
+    throw new Error(
+      error.message ?? "Failed to load ops profile memo previews"
+    );
+  }
+
+  for (const row of data ?? []) {
+    const talentId = typeof row?.talent_id === "string" ? row.talent_id : "";
+    const preview = normalizeOpsProfileMemoPreview(row?.content);
+    if (talentId && preview) {
+      previewMap.set(talentId, preview);
+    }
+  }
+
+  return previewMap;
+}
+
+export async function saveCareerTalentOpsProfileMemo(args: {
+  content: unknown;
+  updatedBy: string | null | undefined;
+  userId: string;
+}): Promise<CareerTalentOpsProfileMemo | null> {
+  const userId = args.userId.trim();
+  if (!userId) {
+    throw new Error("userId is required");
+  }
+
+  const admin = getTalentSupabaseAdmin();
+  const { data: profile, error: profileError } = await admin
+    .from("talent_users")
+    .select("user_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (profileError) {
+    throw new Error(profileError.message ?? "Failed to load talent user");
+  }
+  if (!profile) {
+    throw new Error("Talent user was not found");
+  }
+
+  const content = normalizeOpsProfileMemoContent(args.content);
+  const updatedBy = String(args.updatedBy ?? "").trim() || null;
+  const updatedAt = new Date().toISOString();
+  const untypedAdmin = toUntypedAdmin(admin);
+
+  if (!content) {
+    const { error } = await untypedAdmin
+      .from("talent_ops_profile_memos")
+      .delete()
+      .eq("talent_id", userId);
+    if (error) {
+      throw new Error(error.message ?? "Failed to delete ops profile memo");
+    }
+    return null;
+  }
+
+  const { data, error } = await untypedAdmin
+    .from("talent_ops_profile_memos")
+    .upsert(
+      {
+        content,
+        created_by: updatedBy,
+        talent_id: userId,
+        updated_at: updatedAt,
+        updated_by: updatedBy,
+      },
+      { onConflict: "talent_id" }
+    )
+    .select("content, updated_at, updated_by")
+    .single();
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to save ops profile memo");
+  }
+
+  return {
+    content: normalizeOpsProfileMemoContent(data?.content),
+    updatedAt:
+      typeof data?.updated_at === "string" ? data.updated_at : updatedAt,
+    updatedBy:
+      typeof data?.updated_by === "string" ? data.updated_by : updatedBy,
+  };
+}
+
 export async function fetchCareerTalentDetail(
   userId: string
 ): Promise<CareerTalentDetailResponse> {
   const admin = getTalentSupabaseAdmin();
 
-  const [profile, insights, structuredProfile, mergedChecklist] =
-    await Promise.all([
-      fetchTalentUserProfile({ admin, userId }),
-      fetchTalentInsights({ admin, userId }),
-      fetchTalentStructuredProfile({ admin, userId, talentUser: null }),
-      getMergedChecklist({ admin }),
-    ]);
+  const [
+    profile,
+    insights,
+    structuredProfile,
+    mergedChecklist,
+    opsProfileMemo,
+  ] = await Promise.all([
+    fetchTalentUserProfile({ admin, userId }),
+    fetchTalentInsights({ admin, userId }),
+    fetchTalentStructuredProfile({ admin, userId, talentUser: null }),
+    getMergedChecklist({ admin }),
+    fetchCareerTalentOpsProfileMemo({ admin, userId }),
+  ]);
 
   // Fetch latest conversation
   const { data: conversations } = await admin
@@ -989,6 +1706,7 @@ export async function fetchCareerTalentDetail(
         }
       : null,
     messages,
+    opsProfileMemo,
   };
 }
 
@@ -1188,6 +1906,44 @@ async function loadCareerRecommendationRows(args: {
   return (Array.isArray(data) ? data : []) as CareerRecommendationRow[];
 }
 
+async function loadCareerRecommendationRowById(args: {
+  admin: UntypedAdminClient;
+  recommendationId: string;
+}): Promise<CareerRecommendationRow | null> {
+  const { data, error } = await args.admin
+    .from("talent_opportunity_recommendation")
+    .select(CAREER_RECOMMENDATION_SELECT)
+    .eq("id", args.recommendationId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load recommendation");
+  }
+
+  return data ? (data as CareerRecommendationRow) : null;
+}
+
+async function fetchHiddenInternalRecommendationIds(admin: UntypedAdminClient) {
+  const { data, error } = await admin
+    .from("ops_internal_recommendation_hidden")
+    .select("recommendation_id");
+
+  if (error) {
+    throw new Error(
+      error.message ?? "Failed to load hidden internal recommendations"
+    );
+  }
+
+  const hiddenIds = new Set<string>();
+  for (const row of (Array.isArray(data) ? data : []) as Array<{
+    recommendation_id?: unknown;
+  }>) {
+    const recommendationId = String(row.recommendation_id ?? "").trim();
+    if (recommendationId) hiddenIds.add(recommendationId);
+  }
+  return hiddenIds;
+}
+
 async function fetchFilteredCareerTalentRecommendations(args: {
   admin: UntypedAdminClient;
   filter: CareerTalentRecommendationSourceType;
@@ -1300,9 +2056,7 @@ export async function updateCareerTalentRecommendationProcessedStage(args: {
   }
 
   const processedStage =
-    typeof args.processedStage === "string"
-      ? args.processedStage.trim()
-      : null;
+    typeof args.processedStage === "string" ? args.processedStage.trim() : null;
   if (processedStage && processedStage.length > MAX_PROCESSED_STAGE_LENGTH) {
     throw new Error(
       `processedStage must be ${MAX_PROCESSED_STAGE_LENGTH} characters or fewer`
@@ -1364,7 +2118,9 @@ export async function updateCareerTalentRecommendationProcessedStage(args: {
 }
 
 function isAcceptedRecommendationFeedback(feedback: string | null | undefined) {
-  const normalized = String(feedback ?? "").trim().toLowerCase();
+  const normalized = String(feedback ?? "")
+    .trim()
+    .toLowerCase();
   return normalized === "like" || normalized === "positive";
 }
 
@@ -1406,8 +2162,11 @@ async function fetchInternalRecommendationTalentMap(
 
 export async function fetchOpsInternalRecommendations(args: {
   acceptedFilter?: OpsInternalRecommendationAcceptedFilter;
+  hiddenOnly?: boolean;
   limit?: number;
   offset?: number;
+  recommendedFrom?: string | null;
+  recommendedTo?: string | null;
 }): Promise<OpsInternalRecommendationsResponse> {
   const limit = Math.max(
     1,
@@ -1418,7 +2177,14 @@ export async function fetchOpsInternalRecommendations(args: {
   );
   const offset = Math.max(0, args.offset ?? 0);
   const acceptedFilter = args.acceptedFilter ?? "all";
+  const hiddenOnly = Boolean(args.hiddenOnly);
+  const recommendedDateRange = normalizeCareerListDateRange({
+    endDate: args.recommendedTo,
+    startDate: args.recommendedFrom,
+  });
   const admin = toUntypedAdmin(getTalentSupabaseAdmin());
+  const hiddenRecommendationIds =
+    await fetchHiddenInternalRecommendationIds(admin);
   const collected: CareerTalentRecommendationItem[] = [];
   let filteredSeen = 0;
   let scanOffset = 0;
@@ -1435,6 +2201,13 @@ export async function fetchOpsInternalRecommendations(args: {
     for (const row of rows.slice(0, MAX_INTERNAL_RECOMMENDATION_LIMIT)) {
       const item = mapCareerRecommendationRow(row);
       if (!item || item.sourceType !== "internal" || !item.talentId) continue;
+      const isHidden = hiddenRecommendationIds.has(item.recommendationId);
+      if (hiddenOnly ? !isHidden : isHidden) continue;
+      if (
+        !isWithinCareerListDateRange(item.recommendedAt, recommendedDateRange)
+      ) {
+        continue;
+      }
       if (
         acceptedFilter === "accepted" &&
         !isAcceptedRecommendationFeedback(item.feedback)
@@ -1477,6 +2250,46 @@ export async function fetchOpsInternalRecommendations(args: {
     offset,
     hasMore,
     nextOffset: hasMore ? offset + limit : null,
+  };
+}
+
+export async function hideOpsInternalRecommendation(args: {
+  recommendationId: string;
+}): Promise<OpsInternalRecommendationHideResponse> {
+  const recommendationId = String(args.recommendationId ?? "").trim();
+  if (!recommendationId) {
+    throw new Error("recommendationId is required");
+  }
+
+  const admin = toUntypedAdmin(getTalentSupabaseAdmin());
+  const row = await loadCareerRecommendationRowById({
+    admin,
+    recommendationId,
+  });
+  const item = row ? mapCareerRecommendationRow(row) : null;
+  if (!item) {
+    throw new Error("Recommendation not found");
+  }
+  if (item.sourceType !== "internal") {
+    throw new Error("Only internal recommendations can be hidden");
+  }
+
+  const { error } = await admin
+    .from("ops_internal_recommendation_hidden")
+    .upsert(
+      {
+        recommendation_id: recommendationId,
+      },
+      { onConflict: "recommendation_id" }
+    );
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to hide recommendation");
+  }
+
+  return {
+    ok: true,
+    recommendationId,
   };
 }
 
@@ -1556,8 +2369,12 @@ function mapManualInternalRoleRow(
     row.company_workspace_id ?? workspace?.company_workspace_id ?? ""
   ).trim();
   const companyName = String(workspace?.company_name ?? "").trim();
-  const roleSourceType = String(row.source_type ?? "").trim().toLowerCase();
-  const status = String(row.status ?? "").trim().toLowerCase();
+  const roleSourceType = String(row.source_type ?? "")
+    .trim()
+    .toLowerCase();
+  const status = String(row.status ?? "")
+    .trim()
+    .toLowerCase();
   const isActive = status === "active" || status === "top_priority";
   if (!roleId || !roleName || !companyWorkspaceId) return null;
   if (roleSourceType !== "internal") return null;

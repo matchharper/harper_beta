@@ -5,6 +5,7 @@ import {
 } from "@/lib/internalApi";
 import {
   fetchOpsInternalRecommendations,
+  hideOpsInternalRecommendation,
   parseOpsInternalRecommendationAcceptedFilter,
   parseOpsInternalRecommendationLimit,
   parseOpsInternalRecommendationOffset,
@@ -20,6 +21,10 @@ type PatchBody = {
   }>;
 };
 
+type DeleteBody = {
+  recommendationId?: string;
+};
+
 export async function GET(req: NextRequest) {
   try {
     await requireInternalApiUser(req);
@@ -28,12 +33,15 @@ export async function GET(req: NextRequest) {
       acceptedFilter: parseOpsInternalRecommendationAcceptedFilter(
         req.nextUrl.searchParams.get("acceptedFilter")
       ),
+      hiddenOnly: req.nextUrl.searchParams.get("hiddenOnly") === "1",
       limit: parseOpsInternalRecommendationLimit(
         req.nextUrl.searchParams.get("limit")
       ),
       offset: parseOpsInternalRecommendationOffset(
         req.nextUrl.searchParams.get("offset")
       ),
+      recommendedFrom: req.nextUrl.searchParams.get("recommendedFrom"),
+      recommendedTo: req.nextUrl.searchParams.get("recommendedTo"),
     });
 
     return NextResponse.json(payload);
@@ -86,6 +94,31 @@ export async function PATCH(req: NextRequest) {
     return toInternalApiErrorResponse(
       error,
       "Failed to update internal recommendations"
+    );
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    await requireInternalApiUser(req);
+    const body = (await req.json().catch(() => ({}))) as DeleteBody;
+
+    if (typeof body.recommendationId !== "string") {
+      return NextResponse.json(
+        { error: "recommendationId is required" },
+        { status: 400 }
+      );
+    }
+
+    const payload = await hideOpsInternalRecommendation({
+      recommendationId: body.recommendationId,
+    });
+
+    return NextResponse.json(payload);
+  } catch (error) {
+    return toInternalApiErrorResponse(
+      error,
+      "Failed to hide internal recommendation"
     );
   }
 }

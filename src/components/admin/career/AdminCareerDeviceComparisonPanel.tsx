@@ -46,10 +46,10 @@ export default function AdminCareerDeviceComparisonPanel({
         <div className="flex items-start justify-between gap-3">
           <div>
             <CardTitle className="text-[14px] font-semibold text-black">
-              Device conversion comparison
+              디바이스별 비교
             </CardTitle>
             <CardDescription className="text-[12px] leading-5 text-black/50">
-              landing_logs.is_mobile 기준으로 진입부터 재진입까지 비교합니다.
+              데스크탑/모바일 기준으로 진입부터 재진입까지 비교합니다.
             </CardDescription>
           </div>
           <Tooltips text="진입은 선택 기간의 landing_logs new_visit/new_session unique local_id입니다. 로그인은 같은 local_id의 login_email 로그, 제출/온보딩/재진입은 해당 local_id로 로그인한 유저의 선택 기간 이벤트 기준입니다.">
@@ -63,41 +63,6 @@ export default function AdminCareerDeviceComparisonPanel({
         </div>
       </CardHeader>
       <CardContent className="space-y-3 p-4 pt-2">
-        <div className="grid gap-2 md:grid-cols-3">
-          {rows.map((row) => {
-            const width = `${Math.max(
-              (row.entryCount / maxEntryCount) * 100,
-              row.entryCount > 0 ? 6 : 0
-            )}%`;
-
-            return (
-              <div key={row.device} className="border border-black/10 p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-[12px] font-semibold text-black">
-                    {row.label}
-                  </div>
-                  <div className="text-[12px] text-black/55">
-                    entry {row.entryCount.toLocaleString("ko-KR")}
-                  </div>
-                </div>
-                <div className="mt-2 h-2 border border-black/10 bg-black/[0.03]">
-                  <div
-                    className="h-full bg-black"
-                    style={{ width }}
-                    aria-hidden="true"
-                  />
-                </div>
-                <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] text-black/50">
-                  <div>login {formatRate(row.loginRateFromEntry)}</div>
-                  <div>
-                    done {formatRate(row.onboardingCompletionRateFromSubmitted)}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
         <div className="overflow-x-auto">
           <Table className="min-w-[860px]">
             <TableHeader>

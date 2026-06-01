@@ -28,11 +28,8 @@ before insert or update of
 on public.company_roles
 for each row execute function public.set_company_roles_opportunity_search_tsv();
 
-update public.company_roles
-set opportunity_search_tsv =
-  setweight(to_tsvector('simple', coalesce(name, '')), 'A') ||
-  setweight(to_tsvector('simple', coalesce(description, '')), 'B') ||
-  setweight(to_tsvector('simple', coalesce(request, '')), 'C') ||
-  setweight(to_tsvector('simple', coalesce(location_text, '')), 'D') ||
-  setweight(to_tsvector('simple', coalesce(work_mode, '')), 'D') ||
-  setweight(to_tsvector('simple', array_to_string(coalesce("type", '{}'::text[]), ' ')), 'D');
+-- Do not backfill existing rows in this migration.
+-- Recomputing opportunity_search_tsv for every company_roles row rewrites the
+-- large GIN index in one transaction and can exhaust the production database.
+-- Existing rows will be corrected when one of the trigger columns changes, or
+-- by running a small external batch backfill outside the migration transaction.
