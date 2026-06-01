@@ -1,8 +1,10 @@
 import OpsShell from "@/components/ops/OpsShell";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { showToast } from "@/components/toast/toast";
+import { Calendar } from "@/components/ui/calendar";
 import {
   useBulkUpdateOpsInternalRecommendationStages,
+  useHideOpsInternalRecommendation,
   useOpsInternalRecommendations,
 } from "@/hooks/useOpsCareer";
 import { isInternalEmail } from "@/lib/internalAccess";
@@ -14,9 +16,15 @@ import {
   isEmailExcludedByOpsInternalTerms,
   useOpsInternalDataExclusionStore,
 } from "@/store/useOpsInternalDataExclusionStore";
+import { useOpsInternalRecommendationsBoardStore } from "@/store/useOpsInternalRecommendationsBoardStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import {
+  CalendarDays,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Columns3,
+  EyeOff,
   ExternalLink,
   GripVertical,
   LoaderCircle,
@@ -29,11 +37,13 @@ import {
 import Head from "next/head";
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { DateRange } from "react-day-picker";
 
 const FETCH_LIMIT = 80;
 const AUTO_STAGE_VALUE = "__auto__";
 const CUSTOM_STAGE_VALUE = "__custom__";
+const EMPTY_COLLAPSED_BOARD_COLUMNS: string[] = [];
 const INTERNAL_RECOMMENDATION_FIXED_STAGES = [
   "회사에 전달됨",
   "회사에서 거절됨",
@@ -44,6 +54,7 @@ const INTERNAL_RECOMMENDATION_FIXED_STAGES = [
 
 type ViewMode = "table" | "board";
 type StageDrafts = Record<string, string | null>;
+type RecommendationFilter = OpsInternalRecommendationAcceptedFilter | "hidden";
 
 const FILTER_OPTIONS = [
   { id: "all", label: "전체보기" },
@@ -85,6 +96,31 @@ const formatKst = (value: string | null | undefined) => {
     hour: "2-digit",
     minute: "2-digit",
   });
+};
+
+const toDateOnly = (date: Date | undefined) => {
+  if (!date) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const formatShortDate = (date: Date | undefined) => {
+  if (!date) return "";
+  return date.toLocaleDateString("ko-KR", {
+    day: "2-digit",
+    month: "2-digit",
+  });
+};
+
+const formatRecommendedDateRangeButtonLabel = (
+  range: DateRange | undefined
+) => {
+  if (!range?.from) return "추천일 전체";
+  const from = formatShortDate(range.from);
+  const to = formatShortDate(range.to ?? range.from);
+  return from === to ? `추천 ${from}` : `${from} - ${to}`;
 };
 
 const getAutoStageLabel = (item: OpsInternalRecommendationItem) =>
@@ -156,7 +192,7 @@ function TalentLink({ item }: { item: OpsInternalRecommendationItem }) {
         <div className="truncate font-geist text-sm font-medium text-beige900 group-hover:underline group-hover:decoration-beige900/25 group-hover:underline-offset-4">
           {displayName}
         </div>
-        <div className="mt-0.5 truncate font-geist text-[11px] text-beige900/45">
+        <div className="mt-0 truncate font-geist text-[11px] text-black/30">
           {item.talent.email ?? item.talent.headline ?? "-"}
         </div>
       </div>
@@ -243,21 +279,27 @@ function RecommendationsTable({
   customOpenIds,
   customValues,
   drafts,
+  hidingRecommendationId,
   items,
   onCustomValueChange,
+  onHideRecommendation,
   onStageSelect,
   savePending,
+  showHideAction,
 }: {
   customOpenIds: Set<string>;
   customValues: Record<string, string>;
   drafts: StageDrafts;
+  hidingRecommendationId: string | null;
   items: OpsInternalRecommendationItem[];
   onCustomValueChange: (
     item: OpsInternalRecommendationItem,
     value: string
   ) => void;
+  onHideRecommendation: (item: OpsInternalRecommendationItem) => void;
   onStageSelect: (item: OpsInternalRecommendationItem, value: string) => void;
   savePending: boolean;
+  showHideAction: boolean;
 }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-beige900/10 bg-white/55">
@@ -273,100 +315,126 @@ function RecommendationsTable({
           </tr>
         </thead>
         <tbody className="divide-y divide-beige900/10">
-          {items.map((item) => (
-            <tr
-              key={item.recommendationId}
-              className="text-beige900/70 transition hover:bg-white/70"
-            >
-              <td className="px-3 py-2 align-top">
-                <TalentLink item={item} />
-              </td>
-              <td className="px-3 py-2 align-top text-beige900/45">
-                {formatKst(item.recommendedAt)}
-              </td>
-              <td className="px-3 py-2 align-top">
-                <div className="min-w-0">
-                  <div className="truncate font-medium text-beige900/85">
-                    {item.roleName}
-                  </div>
-                  <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-beige900/45">
-                    <span className="truncate">{item.companyName}</span>
-                    {item.externalJdUrl ? (
-                      <a
-                        href={item.externalJdUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="shrink-0 text-beige900/45 transition hover:text-beige900"
-                        title="JD 열기"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
+          {items.map((item) => {
+            const isHiding = hidingRecommendationId === item.recommendationId;
+
+            return (
+              <tr
+                key={item.recommendationId}
+                className="text-beige900/70 transition hover:bg-white/70"
+              >
+                <td className="px-3 py-2 align-top">
+                  <TalentLink item={item} />
+                </td>
+                <td className="px-3 py-2 align-top text-beige900/45">
+                  {formatKst(item.recommendedAt)}
+                </td>
+                <td className="px-3 py-2 align-top">
+                  <div className="min-w-0">
+                    <div className="truncate font-medium text-beige900/85">
+                      {item.roleName}
+                    </div>
+                    <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-beige900/45">
+                      <span className="truncate">{item.companyName}</span>
+                      {item.externalJdUrl ? (
+                        <a
+                          href={item.externalJdUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="shrink-0 text-beige900/45 transition hover:text-beige900"
+                          title="JD 열기"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      ) : null}
+                    </div>
+                    {item.locationText ? (
+                      <div className="mt-0.5 truncate text-[11px] text-beige900/35">
+                        {item.locationText}
+                      </div>
                     ) : null}
                   </div>
-                  {item.locationText ? (
-                    <div className="mt-0.5 truncate text-[11px] text-beige900/35">
-                      {item.locationText}
+                </td>
+                <td className="px-3 py-2 align-top text-[11px]">
+                  <div
+                    className={
+                      item.viewedAt ? "text-beige900/65" : "text-beige900/30"
+                    }
+                  >
+                    {item.viewedAt
+                      ? `열람 ${formatKst(item.viewedAt)}`
+                      : "미열람"}
+                  </div>
+                  <div
+                    className={cx(
+                      "mt-0.5",
+                      item.clickedAt ? "text-beige900/65" : "text-beige900/30"
+                    )}
+                  >
+                    {item.clickedAt
+                      ? `클릭 ${formatKst(item.clickedAt)}`
+                      : "미클릭"}
+                  </div>
+                </td>
+                <td className="px-3 py-2 align-top">
+                  <span
+                    className={cx(
+                      "inline-flex rounded px-1.5 py-0.5 text-[11px] font-medium",
+                      getFeedbackClass(item.feedback)
+                    )}
+                  >
+                    {getFeedbackLabel(item.feedback)}
+                  </span>
+                  {item.feedbackAt ? (
+                    <div className="mt-1 text-[11px] text-beige900/35">
+                      {formatKst(item.feedbackAt)}
                     </div>
                   ) : null}
-                </div>
-              </td>
-              <td className="px-3 py-2 align-top text-[11px]">
-                <div
-                  className={
-                    item.viewedAt ? "text-beige900/65" : "text-beige900/30"
-                  }
-                >
-                  {item.viewedAt
-                    ? `열람 ${formatKst(item.viewedAt)}`
-                    : "미열람"}
-                </div>
-                <div
-                  className={cx(
-                    "mt-0.5",
-                    item.clickedAt ? "text-beige900/65" : "text-beige900/30"
-                  )}
-                >
-                  {item.clickedAt
-                    ? `클릭 ${formatKst(item.clickedAt)}`
-                    : "미클릭"}
-                </div>
-              </td>
-              <td className="px-3 py-2 align-top">
-                <span
-                  className={cx(
-                    "inline-flex rounded px-1.5 py-0.5 text-[11px] font-medium",
-                    getFeedbackClass(item.feedback)
-                  )}
-                >
-                  {getFeedbackLabel(item.feedback)}
-                </span>
-                {item.feedbackAt ? (
-                  <div className="mt-1 text-[11px] text-beige900/35">
-                    {formatKst(item.feedbackAt)}
+                  {item.feedbackReason ? (
+                    <div
+                      className="mt-0.5 truncate text-[11px] text-beige900/45"
+                      title={item.feedbackReason}
+                    >
+                      {item.feedbackReason}
+                    </div>
+                  ) : null}
+                </td>
+                <td className="px-3 py-2 align-top">
+                  <div className="mb-2 flex justify-end">
+                    {showHideAction ? (
+                      <button
+                        type="button"
+                        onClick={() => onHideRecommendation(item)}
+                        disabled={savePending || isHiding}
+                        className="inline-flex h-7 items-center gap-1 rounded-md px-2 font-geist text-[11px] font-medium text-beige900/38 transition hover:bg-beige900/5 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-45"
+                      >
+                        {isHiding ? (
+                          <LoaderCircle className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <EyeOff className="h-3 w-3" />
+                        )}
+                        숨김
+                      </button>
+                    ) : (
+                      <span className="inline-flex h-7 items-center gap-1 rounded-md bg-beige500/60 px-2 font-geist text-[11px] font-medium text-beige900/45">
+                        <EyeOff className="h-3 w-3" />
+                        숨김됨
+                      </span>
+                    )}
                   </div>
-                ) : null}
-                {item.feedbackReason ? (
-                  <div
-                    className="mt-0.5 truncate text-[11px] text-beige900/45"
-                    title={item.feedbackReason}
-                  >
-                    {item.feedbackReason}
-                  </div>
-                ) : null}
-              </td>
-              <td className="px-3 py-2 align-top">
-                <StageEditor
-                  customOpenIds={customOpenIds}
-                  customValues={customValues}
-                  disabled={savePending}
-                  drafts={drafts}
-                  item={item}
-                  onCustomValueChange={onCustomValueChange}
-                  onStageSelect={onStageSelect}
-                />
-              </td>
-            </tr>
-          ))}
+                  <StageEditor
+                    customOpenIds={customOpenIds}
+                    customValues={customValues}
+                    disabled={savePending}
+                    drafts={drafts}
+                    item={item}
+                    onCustomValueChange={onCustomValueChange}
+                    onStageSelect={onStageSelect}
+                  />
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -383,18 +451,25 @@ function getBoardColumnId(
 }
 
 function RecommendationsBoard({
+  collapsedColumnIds,
   customOpenIds,
   customValues,
   drafts,
+  hidingRecommendationId,
   items,
   onCustomValueChange,
   onDropToStage,
+  onHideRecommendation,
   onStageSelect,
+  onToggleColumnCollapsed,
   savePending,
+  showHideAction,
 }: {
+  collapsedColumnIds: string[];
   customOpenIds: Set<string>;
   customValues: Record<string, string>;
   drafts: StageDrafts;
+  hidingRecommendationId: string | null;
   items: OpsInternalRecommendationItem[];
   onCustomValueChange: (
     item: OpsInternalRecommendationItem,
@@ -404,8 +479,11 @@ function RecommendationsBoard({
     item: OpsInternalRecommendationItem,
     stage: string | null
   ) => void;
+  onHideRecommendation: (item: OpsInternalRecommendationItem) => void;
   onStageSelect: (item: OpsInternalRecommendationItem, value: string) => void;
+  onToggleColumnCollapsed: (columnId: string) => void;
   savePending: boolean;
+  showHideAction: boolean;
 }) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const hasCustomStages = items.some(
@@ -439,6 +517,10 @@ function RecommendationsBoard({
     () => new Map(items.map((item) => [item.recommendationId, item])),
     [items]
   );
+  const collapsedColumnSet = useMemo(
+    () => new Set(collapsedColumnIds),
+    [collapsedColumnIds]
+  );
   const groupedItems = useMemo(() => {
     const next = new Map<string, OpsInternalRecommendationItem[]>();
     for (const column of columns) next.set(column.id, []);
@@ -452,10 +534,11 @@ function RecommendationsBoard({
 
   return (
     <div className="overflow-x-auto pb-2">
-      <div className="grid min-w-[1240px] auto-cols-[minmax(190px,1fr)] grid-flow-col gap-3">
+      <div className="flex w-max min-w-full gap-3">
         {columns.map((column) => {
           const columnItems = groupedItems.get(column.id) ?? [];
           const isCustomColumn = column.id === CUSTOM_STAGE_VALUE;
+          const isCollapsed = collapsedColumnSet.has(column.id);
 
           return (
             <div
@@ -472,77 +555,151 @@ function RecommendationsBoard({
                 setDraggingId(null);
               }}
               className={cx(
-                "min-h-[520px] rounded-lg border border-beige900/10 bg-white/45 p-2",
+                "min-h-[520px] shrink-0 rounded-lg border border-beige900/10 bg-white/45 transition-[background-color,width,min-width]",
+                isCollapsed
+                  ? "flex w-14 min-w-[3.5rem] flex-col items-center p-2"
+                  : "w-[320px] min-w-[290px] p-2",
                 draggingId && !isCustomColumn && "bg-white/70"
               )}
             >
-              <div className="flex items-center justify-between gap-2 px-1 py-1.5">
-                <div className="min-w-0 truncate font-geist text-xs font-medium text-beige900/70">
-                  {column.label}
-                </div>
-                <span className="rounded bg-beige500/70 px-1.5 py-0.5 font-geist text-[10px] text-beige900/45">
-                  {columnItems.length}
-                </span>
-              </div>
-
-              <div className="mt-2 space-y-2">
-                {columnItems.map((item) => (
-                  <div
-                    key={item.recommendationId}
-                    draggable={!savePending}
-                    onDragStart={() => setDraggingId(item.recommendationId)}
-                    onDragEnd={() => setDraggingId(null)}
-                    className={cx(
-                      "rounded-md border border-beige900/10 bg-white/80 p-3 shadow-[0_12px_30px_rgba(89,57,24,0.06)] transition",
-                      draggingId === item.recommendationId && "opacity-45"
-                    )}
+              {isCollapsed ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => onToggleColumnCollapsed(column.id)}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md text-beige900/45 transition hover:bg-beige900/5 hover:text-beige900"
+                    aria-label={`${column.label} 펼치기`}
+                    title={`${column.label} 펼치기`}
                   >
-                    <div className="flex items-start gap-2">
-                      <GripVertical className="mt-1 h-4 w-4 shrink-0 text-beige900/25" />
-                      <div className="min-w-0 flex-1 space-y-3">
-                        <TalentLink item={item} />
-                        <div className="min-w-0">
-                          <div className="truncate font-geist text-sm font-medium text-beige900/85">
-                            {item.roleName}
-                          </div>
-                          <div className="mt-0.5 truncate font-geist text-[11px] text-beige900/45">
-                            {item.companyName}
-                            {item.locationText ? ` · ${item.locationText}` : ""}
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          <span
-                            className={cx(
-                              "rounded px-1.5 py-0.5 font-geist text-[11px] font-medium",
-                              getFeedbackClass(item.feedback)
-                            )}
-                          >
-                            {getFeedbackLabel(item.feedback)}
-                          </span>
-                          <span className="rounded bg-beige500/60 px-1.5 py-0.5 font-geist text-[11px] text-beige900/45">
-                            {formatKst(item.recommendedAt)}
-                          </span>
-                        </div>
-                        <StageEditor
-                          customOpenIds={customOpenIds}
-                          customValues={customValues}
-                          disabled={savePending}
-                          drafts={drafts}
-                          item={item}
-                          onCustomValueChange={onCustomValueChange}
-                          onStageSelect={onStageSelect}
-                        />
-                      </div>
+                    <ChevronDown className="h-4 w-4" />
+                  </button>
+                  <div className="mt-3 flex min-h-0 flex-1 flex-col items-center gap-2">
+                    <span className="rounded bg-beige500/70 px-1.5 py-0.5 font-geist text-[10px] text-beige900/45">
+                      {columnItems.length}
+                    </span>
+                    <div
+                      className="max-h-[420px] truncate font-geist text-xs font-medium text-beige900/65 [writing-mode:vertical-rl]"
+                      title={column.label}
+                    >
+                      {column.label}
                     </div>
                   </div>
-                ))}
-
-                {columnItems.length === 0 ? (
-                  <div className="rounded-md border border-dashed border-beige900/15 bg-white/35 px-3 py-8 text-center font-geist text-xs text-beige900/35">
-                    여기에 드롭
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between gap-2 px-1 py-1.5">
+                    <button
+                      type="button"
+                      onClick={() => onToggleColumnCollapsed(column.id)}
+                      className="inline-flex h-6 w-6 items-center justify-center rounded-md text-beige900/35 transition hover:bg-beige900/5 hover:text-beige900"
+                      aria-label={`${column.label} 접기`}
+                      title={`${column.label} 접기`}
+                    >
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </button>
+                    <div className="min-w-0 truncate font-geist text-xs font-medium">
+                      {column.label}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <span className="rounded bg-beige500/70 px-1.5 py-0.5 font-geist text-[10px] text-beige900/70">
+                        {columnItems.length}
+                      </span>
+                    </div>
                   </div>
-                ) : null}
-              </div>
+
+                  <div className="mt-2 space-y-2">
+                    {columnItems.map((item) => {
+                      const isHiding =
+                        hidingRecommendationId === item.recommendationId;
+
+                      return (
+                        <div
+                          key={item.recommendationId}
+                          draggable={!savePending && !isHiding}
+                          onDragStart={() =>
+                            setDraggingId(item.recommendationId)
+                          }
+                          onDragEnd={() => setDraggingId(null)}
+                          className={cx(
+                            "rounded-md border border-beige900/10 bg-white/80 p-3 shadow-[0_12px_30px_rgba(89,57,24,0.06)] transition",
+                            draggingId === item.recommendationId && "opacity-45"
+                          )}
+                        >
+                          <div className="flex items-start gap-2">
+                            <GripVertical className="mt-1 h-4 w-4 shrink-0 text-beige900/25" />
+                            <div className="min-w-0 flex-1 space-y-3">
+                              <TalentLink item={item} />
+                              <div className="min-w-0">
+                                <div className="truncate font-geist text-sm font-medium text-black/90">
+                                  {item.roleName}
+                                </div>
+                                <div className="mt-0.5 truncate font-geist text-[13px] text-black/60">
+                                  {item.companyName}
+                                  {item.locationText
+                                    ? ` · ${item.locationText}`
+                                    : ""}
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                <span
+                                  className={cx(
+                                    "rounded px-1.5 py-0.5 font-geist text-[11px] font-medium",
+                                    getFeedbackClass(item.feedback)
+                                  )}
+                                >
+                                  {getFeedbackLabel(item.feedback)}
+                                </span>
+                                <span className="rounded bg-beige500/60 px-1.5 py-0.5 font-geist text-[11px] text-beige900/45">
+                                  {formatKst(item.recommendedAt)}
+                                </span>
+                              </div>
+                              <StageEditor
+                                customOpenIds={customOpenIds}
+                                customValues={customValues}
+                                disabled={savePending}
+                                drafts={drafts}
+                                item={item}
+                                onCustomValueChange={onCustomValueChange}
+                                onStageSelect={onStageSelect}
+                              />
+                            </div>
+                            {showHideAction ? (
+                              <button
+                                type="button"
+                                onClick={() => onHideRecommendation(item)}
+                                disabled={savePending || isHiding}
+                                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-beige900/35 transition hover:bg-beige900/5 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-45"
+                                aria-label="추천 숨김"
+                                title="추천 숨김"
+                              >
+                                {isHiding ? (
+                                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <EyeOff className="h-3.5 w-3.5" />
+                                )}
+                              </button>
+                            ) : (
+                              <span
+                                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-beige500/60 text-beige900/45"
+                                aria-label="숨김됨"
+                                title="숨김됨"
+                              >
+                                <EyeOff className="h-3.5 w-3.5" />
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {columnItems.length === 0 ? (
+                      <div className="rounded-md border border-dashed border-beige900/15 bg-white/35 px-3 py-8 text-center font-geist text-xs text-beige900/35">
+                        여기에 드롭
+                      </div>
+                    ) : null}
+                  </div>
+                </>
+              )}
             </div>
           );
         })}
@@ -554,24 +711,84 @@ function RecommendationsBoard({
 export default function OpsInternalRecommendationsPage() {
   const { loading: authLoading, user } = useAuthStore();
   const canFetchInternal = !authLoading && isInternalEmail(user?.email);
+  const boardStorageUserKey = user?.id ?? user?.email ?? "anonymous";
   const emailExclusionTerms = useOpsInternalDataExclusionStore(
     (state) => state.emailExclusionTerms
   );
+  const collapsedBoardColumnIds = useOpsInternalRecommendationsBoardStore(
+    (state) =>
+      state.collapsedColumnIdsByUser[boardStorageUserKey] ??
+      EMPTY_COLLAPSED_BOARD_COLUMNS
+  );
+  const toggleBoardColumnCollapsed = useOpsInternalRecommendationsBoardStore(
+    (state) => state.toggleColumnCollapsed
+  );
   const [viewMode, setViewMode] = useState<ViewMode>("table");
-  const [acceptedFilter, setAcceptedFilter] =
-    useState<OpsInternalRecommendationAcceptedFilter>("all");
+  const [selectedFilter, setSelectedFilter] =
+    useState<RecommendationFilter>("all");
+  const acceptedFilter: OpsInternalRecommendationAcceptedFilter =
+    selectedFilter === "accepted" ? "accepted" : "all";
+  const hiddenOnly = selectedFilter === "hidden";
+  const showHideAction = !hiddenOnly;
   const [searchQuery, setSearchQuery] = useState("");
+  const [recommendedDateRange, setRecommendedDateRange] = useState<
+    DateRange | undefined
+  >();
+  const [isRecommendedDateOpen, setIsRecommendedDateOpen] = useState(false);
+  const recommendedDateFilterRef = useRef<HTMLDivElement>(null);
+  const recommendedFrom = toDateOnly(recommendedDateRange?.from);
+  const recommendedTo = toDateOnly(
+    recommendedDateRange?.to ?? recommendedDateRange?.from
+  );
+  const hasRecommendedDateFilter = Boolean(recommendedFrom || recommendedTo);
+  const recommendedDateLabel =
+    formatRecommendedDateRangeButtonLabel(recommendedDateRange);
   const [stageDrafts, setStageDrafts] = useState<StageDrafts>({});
   const [customOpenIds, setCustomOpenIds] = useState<Set<string>>(
     () => new Set()
   );
   const [customValues, setCustomValues] = useState<Record<string, string>>({});
+  const [hidingRecommendationId, setHidingRecommendationId] = useState<
+    string | null
+  >(null);
   const query = useOpsInternalRecommendations(
     acceptedFilter,
     FETCH_LIMIT,
-    canFetchInternal
+    canFetchInternal,
+    {
+      hiddenOnly,
+      recommendedFrom,
+      recommendedTo,
+    }
   );
   const saveStages = useBulkUpdateOpsInternalRecommendationStages();
+  const hideRecommendation = useHideOpsInternalRecommendation();
+
+  const handleToggleBoardColumnCollapsed = useCallback(
+    (columnId: string) => {
+      toggleBoardColumnCollapsed(boardStorageUserKey, columnId);
+    },
+    [boardStorageUserKey, toggleBoardColumnCollapsed]
+  );
+
+  useEffect(() => {
+    if (!isRecommendedDateOpen) return;
+
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (!recommendedDateFilterRef.current?.contains(target)) {
+        setIsRecommendedDateOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+    };
+  }, [isRecommendedDateOpen]);
 
   const recommendations = useMemo(() => {
     const byId = new Map<string, OpsInternalRecommendationItem>();
@@ -727,9 +944,41 @@ export default function OpsInternalRecommendationsPage() {
     setCustomValues({});
   }, []);
 
+  const clearRecommendationDraft = useCallback((recommendationId: string) => {
+    setStageDrafts((current) => {
+      const next = { ...current };
+      delete next[recommendationId];
+      return next;
+    });
+    setCustomOpenIds((current) => {
+      const next = new Set(current);
+      next.delete(recommendationId);
+      return next;
+    });
+    setCustomValues((current) => {
+      const next = { ...current };
+      delete next[recommendationId];
+      return next;
+    });
+  }, []);
+
+  const changeRecommendedDateRange = useCallback(
+    (nextRange: DateRange | undefined) => {
+      if (
+        hasUnsavedChanges &&
+        !window.confirm("저장하지 않은 변경사항을 버리고 날짜 필터를 바꿀까요?")
+      ) {
+        return;
+      }
+      resetDrafts();
+      setRecommendedDateRange(nextRange);
+    },
+    [hasUnsavedChanges, resetDrafts]
+  );
+
   const changeFilter = useCallback(
-    (nextFilter: OpsInternalRecommendationAcceptedFilter) => {
-      if (nextFilter === acceptedFilter) return;
+    (nextFilter: RecommendationFilter) => {
+      if (nextFilter === selectedFilter) return;
       if (
         hasUnsavedChanges &&
         !window.confirm("저장하지 않은 변경사항을 버리고 필터를 바꿀까요?")
@@ -737,9 +986,9 @@ export default function OpsInternalRecommendationsPage() {
         return;
       }
       resetDrafts();
-      setAcceptedFilter(nextFilter);
+      setSelectedFilter(nextFilter);
     },
-    [acceptedFilter, hasUnsavedChanges, resetDrafts]
+    [hasUnsavedChanges, resetDrafts, selectedFilter]
   );
 
   const handleRefresh = useCallback(() => {
@@ -774,13 +1023,58 @@ export default function OpsInternalRecommendationsPage() {
     }
   }, [changedStageUpdates, resetDrafts, saveStages]);
 
-  const emptyMessage = searchQuery.trim()
-    ? "검색 결과가 없습니다."
-    : hiddenByInternalDataExclusionCount > 0
-      ? "내부 데이터 제외 설정으로 숨겨진 추천만 있습니다."
-      : acceptedFilter === "accepted"
-        ? "유저가 수락한 internal 추천이 없습니다."
-        : "internal 추천이 없습니다.";
+  const handleHideRecommendation = useCallback(
+    async (item: OpsInternalRecommendationItem) => {
+      if (hidingRecommendationId || hiddenOnly) return;
+
+      setHidingRecommendationId(item.recommendationId);
+      try {
+        await hideRecommendation.mutateAsync({
+          recommendationId: item.recommendationId,
+        });
+        clearRecommendationDraft(item.recommendationId);
+        showToast({
+          message: "추천을 숨겼습니다.",
+          variant: "white",
+        });
+      } catch (error) {
+        showToast({
+          message:
+            error instanceof Error
+              ? error.message
+              : "추천 숨김에 실패했습니다.",
+          variant: "white",
+        });
+      } finally {
+        setHidingRecommendationId(null);
+      }
+    },
+    [
+      clearRecommendationDraft,
+      hiddenOnly,
+      hideRecommendation,
+      hidingRecommendationId,
+    ]
+  );
+
+  const hasSearchQuery = Boolean(searchQuery.trim());
+  const filterButtonClass = (active: boolean) =>
+    cx(
+      "inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border px-2.5 font-geist text-[12px] font-medium transition",
+      active
+        ? "border-[#90a88f]/55 bg-[#e4eee4] text-[#2f553d] hover:bg-[#dbe8db]"
+        : "border-beige900/10 bg-white/70 text-beige900/55 hover:border-beige900/18 hover:bg-white"
+    );
+  const emptyMessage =
+    hasSearchQuery || hasRecommendedDateFilter
+      ? "검색 결과가 없습니다."
+      : hiddenByInternalDataExclusionCount > 0
+        ? "내부 데이터 제외 설정으로 숨겨진 추천만 있습니다."
+        : hiddenOnly
+          ? "숨긴 internal 추천이 없습니다."
+          : selectedFilter === "accepted"
+            ? "유저가 수락한 internal 추천이 없습니다."
+            : "internal 추천이 없습니다.";
 
   return (
     <>
@@ -808,7 +1102,7 @@ export default function OpsInternalRecommendationsPage() {
         }
       >
         <section className="space-y-4 px-4">
-          <div className={cx(opsTheme.panel, "p-4")}>
+          <div className="py-2">
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div className="mt-1 font-geist text-sm text-beige900/55">
                 사람별로 추천된 internal 기회의 유저 반응과 운영 상태를
@@ -825,6 +1119,53 @@ export default function OpsInternalRecommendationsPage() {
                     className={cx(opsTheme.input, "h-9 pl-9")}
                   />
                 </div>
+                <div ref={recommendedDateFilterRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsRecommendedDateOpen((open) => !open)}
+                    className={filterButtonClass(hasRecommendedDateFilter)}
+                  >
+                    <CalendarDays className="h-3.5 w-3.5" aria-hidden />
+                    <span>{recommendedDateLabel}</span>
+                    <ChevronDown
+                      className={cx(
+                        "h-3.5 w-3.5 transition",
+                        isRecommendedDateOpen ? "rotate-180" : ""
+                      )}
+                      aria-hidden
+                    />
+                  </button>
+
+                  {isRecommendedDateOpen ? (
+                    <div className="absolute left-0 top-[calc(100%+6px)] z-50 w-[300px] rounded-md border border-beige900/12 bg-[#fbfaf7] p-2 shadow-[0_18px_48px_rgba(37,28,21,0.16)]">
+                      <Calendar
+                        mode="range"
+                        selected={recommendedDateRange}
+                        onSelect={changeRecommendedDateRange}
+                        numberOfMonths={1}
+                        disabled={{ after: new Date() }}
+                        className="p-2 text-[12px] [--cell-size:1.85rem]"
+                      />
+                      <div className="mt-1 flex items-center justify-end gap-2 border-t border-beige900/10 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => changeRecommendedDateRange(undefined)}
+                          disabled={!hasRecommendedDateFilter}
+                          className="h-7 rounded-md px-2 font-geist text-[11px] font-medium text-beige900/45 transition hover:bg-beige900/5 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          초기화
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsRecommendedDateOpen(false)}
+                          className="h-7 rounded-md bg-beige900 px-2.5 font-geist text-[11px] font-medium text-white transition hover:bg-beige900/88"
+                        >
+                          닫기
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
                 <div className="flex rounded-md border border-beige900/10 bg-white/55 p-1">
                   {FILTER_OPTIONS.map((option) => (
                     <button
@@ -833,7 +1174,7 @@ export default function OpsInternalRecommendationsPage() {
                       onClick={() => changeFilter(option.id)}
                       className={cx(
                         "h-7 rounded px-2.5 font-geist text-xs font-medium transition",
-                        acceptedFilter === option.id
+                        selectedFilter === option.id
                           ? "bg-beige900 text-beige100"
                           : "text-beige900/55 hover:text-beige900"
                       )}
@@ -863,6 +1204,19 @@ export default function OpsInternalRecommendationsPage() {
                     );
                   })}
                 </div>
+                <button
+                  type="button"
+                  onClick={() => changeFilter("hidden")}
+                  className={cx(
+                    "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-2.5 font-geist text-xs font-medium transition",
+                    selectedFilter === "hidden"
+                      ? "border-beige900 bg-beige900 text-beige100"
+                      : "border-beige900/10 bg-white/55 text-beige900/55 hover:border-beige900/18 hover:bg-white hover:text-beige900"
+                  )}
+                >
+                  <EyeOff className="h-3.5 w-3.5" />
+                  숨김
+                </button>
               </div>
             </div>
             <div className="mt-3 flex flex-wrap gap-2 font-geist text-[11px] text-beige900/40">
@@ -900,21 +1254,29 @@ export default function OpsInternalRecommendationsPage() {
               customOpenIds={customOpenIds}
               customValues={customValues}
               drafts={stageDrafts}
+              hidingRecommendationId={hidingRecommendationId}
               items={visibleRecommendations}
               onCustomValueChange={handleCustomValueChange}
+              onHideRecommendation={handleHideRecommendation}
               onStageSelect={handleStageSelect}
               savePending={saveStages.isPending}
+              showHideAction={showHideAction}
             />
           ) : (
             <RecommendationsBoard
+              collapsedColumnIds={collapsedBoardColumnIds}
               customOpenIds={customOpenIds}
               customValues={customValues}
               drafts={stageDrafts}
+              hidingRecommendationId={hidingRecommendationId}
               items={visibleRecommendations}
               onCustomValueChange={handleCustomValueChange}
               onDropToStage={handleDropToStage}
+              onHideRecommendation={handleHideRecommendation}
               onStageSelect={handleStageSelect}
+              onToggleColumnCollapsed={handleToggleBoardColumnCollapsed}
               savePending={saveStages.isPending}
+              showHideAction={showHideAction}
             />
           )}
 

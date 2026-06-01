@@ -269,6 +269,14 @@ function AdminCareerContent() {
                 >
                   Jobs
                 </Button>
+                <Button
+                  asChild
+                  variant="outline"
+                  size="sm"
+                  className="h-8 rounded-none border-black/15 bg-white text-[12px] text-black shadow-none"
+                >
+                  <Link href="/admin/career/top_funnel">Top funnel</Link>
+                </Button>
               </nav>
             </div>
             <div className="flex flex-wrap items-center gap-2">

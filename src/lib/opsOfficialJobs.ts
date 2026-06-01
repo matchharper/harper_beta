@@ -231,7 +231,7 @@ export async function saveOpsOfficialJob(
       : normalizeSlug(input.slug),
     vertical: isInternalCopy
       ? (normalizeOptionalString(input.vertical) ?? INTERNAL_COPY_VERTICAL)
-      : normalizeRequiredString(input.vertical, "vertical"),
+      : normalizeMarkdown(input.vertical),
   };
 
   const query = id

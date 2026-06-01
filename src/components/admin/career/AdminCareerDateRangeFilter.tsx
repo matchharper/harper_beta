@@ -7,10 +7,12 @@ import type { DateRange } from "react-day-picker";
 type AdminCareerDateRangeFilterProps = {
   appliedEndDate: string;
   appliedStartDate: string;
+  description?: string;
   isFetching: boolean;
   onApply: () => void;
   onChange: (value: DateRange | undefined) => void;
   onReset: () => void;
+  title?: string;
   value: DateRange | undefined;
 };
 
@@ -32,10 +34,12 @@ const formatAppliedRange = (startDate: string, endDate: string) => {
 export default function AdminCareerDateRangeFilter({
   appliedEndDate,
   appliedStartDate,
+  description = "Quick signal, metric, funnel, landing source를 선택 기간 기준으로 봅니다.",
   isFetching,
   onApply,
   onChange,
   onReset,
+  title = "상단 지표 기간",
   value,
 }: AdminCareerDateRangeFilterProps) {
   const hasDraftDate = Boolean(value?.from || value?.to);
@@ -43,15 +47,15 @@ export default function AdminCareerDateRangeFilter({
 
   return (
     <Card className="rounded-md border-black/10 shadow-none">
-      <CardContent className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+      <CardContent className="grid gap-4 p-4 lg:grid-cols-[1fr_1fr] lg:items-start">
         <div className="space-y-3">
           <div>
             <div className="inline-flex items-center gap-2 text-[13px] font-semibold text-black">
               <CalendarDays className="h-4 w-4" aria-hidden />
-              상단 지표 기간
+              {title}
             </div>
             <div className="mt-1 text-[12px] leading-5 text-black/50">
-              Quick signal, metric, funnel, landing source를 선택 기간 기준으로 봅니다.
+              {description}
             </div>
           </div>
 

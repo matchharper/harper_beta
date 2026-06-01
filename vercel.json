@@ -2,15 +2,15 @@
   "crons": [
     {
       "path": "/api/internal/ats/sweep",
-      "schedule": "* * * * *"
+      "schedule": "0 0 * * *"
     },
     {
       "path": "/api/internal/billing/sweep",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 1 * * *"
     },
     {
       "path": "/api/internal/official-jobs/sync-ashby",
-      "schedule": "0 * * * *"
+      "schedule": "0 2 * * *"
     }
   ]
 }

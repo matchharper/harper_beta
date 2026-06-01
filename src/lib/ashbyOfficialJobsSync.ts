@@ -5,6 +5,7 @@ import type { Database } from "@/types/database.types";
 type OfficialJobRow = Pick<
   Database["public"]["Tables"]["official_jobs"]["Row"],
   | "ashby_job_posting_id"
+  | "company_description_markdown"
   | "company_website_url"
   | "id"
   | "seniority"
@@ -59,7 +60,7 @@ export type AshbyOfficialJobsSyncSummary = {
 };
 
 const DEFAULT_ASHBY_JOB_BOARD_NAME = "harper";
-const DEFAULT_VERTICAL = "Ashby";
+const ASHBY_PROVIDER_VERTICAL = "Ashby";
 const COMPANY_SECTION_LABELS = ["Company"];
 const COMPANY_DESCRIPTION_SECTION_LABELS = ["Company description"];
 const HARPER_SECTION_LABELS = ["How Harper helps"];
@@ -77,6 +78,14 @@ turndown.remove(["script", "style"]);
 function normalizeOptionalString(value: unknown) {
   const normalized = String(value ?? "").trim();
   return normalized || null;
+}
+
+function normalizeExistingVertical(value: unknown) {
+  const normalized = normalizeOptionalString(value);
+  if (!normalized) return null;
+  return normalized.toLowerCase() === ASHBY_PROVIDER_VERTICAL.toLowerCase()
+    ? null
+    : normalized;
 }
 
 function normalizeRequiredString(value: unknown, fallback: string) {
@@ -211,11 +220,6 @@ function splitDescription(markdown: string) {
   const roleDescriptionMarkdown =
     roleEndIndex >= 0 ? markdown.slice(0, roleEndIndex).trim() : markdown;
 
-  const companyDescriptionMarkdown = sliceSection(
-    markdown,
-    companyIndex,
-    boundaryIndexes
-  );
   const companyName = normalizeSectionScalar(
     stripSectionHeading(
       sliceSection(markdown, companyNameIndex, boundaryIndexes),
@@ -237,7 +241,6 @@ function splitDescription(markdown: string) {
 
   return {
     companyName,
-    companyDescriptionMarkdown,
     roleDescriptionMarkdown,
     seniority,
     vertical,
@@ -305,7 +308,7 @@ async function fetchExistingOfficialJobs() {
   const { data, error } = await supabaseServer
     .from("official_jobs")
     .select(
-      "ashby_job_posting_id,company_website_url,id,seniority,short_description,slug,vertical"
+      "ashby_job_posting_id,company_description_markdown,company_website_url,id,seniority,short_description,slug,vertical"
     );
 
   if (error) {
@@ -346,7 +349,6 @@ function buildPayload(job: AshbyPublicJob, existingRows: OfficialJobRow[]) {
     "";
   const {
     companyName: companyNameFromDescription,
-    companyDescriptionMarkdown,
     roleDescriptionMarkdown,
     seniority,
     vertical,
@@ -363,7 +365,8 @@ function buildPayload(job: AshbyPublicJob, existingRows: OfficialJobRow[]) {
     ashbyJobId,
     payload: {
       ashby_job_posting_id: ashbyJobId,
-      company_description_markdown: companyDescriptionMarkdown,
+      company_description_markdown:
+        existingRow?.company_description_markdown ?? "",
       company_logo_url: null,
       company_name: companyName,
       company_website_url: normalizeOptionalString(
@@ -391,8 +394,8 @@ function buildPayload(job: AshbyPublicJob, existingRows: OfficialJobRow[]) {
       slug,
       vertical:
         vertical ??
-        normalizeOptionalString(existingRow?.vertical) ??
-        DEFAULT_VERTICAL,
+        normalizeExistingVertical(existingRow?.vertical) ??
+        "",
     },
   };
 }
@@ -448,6 +451,8 @@ export async function runAshbyOfficialJobsSync(options?: {
       summary.inserted += 1;
       existingRows.push({
         ashby_job_posting_id: built.ashbyJobId,
+        company_description_markdown:
+          built.payload.company_description_markdown,
         company_website_url: built.payload.company_website_url,
         id: data.id,
         seniority: built.payload.seniority,

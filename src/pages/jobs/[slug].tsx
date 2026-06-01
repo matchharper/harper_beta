@@ -129,11 +129,13 @@ export default function OfficialJobDetailPage({
 
             <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
               <div>
-                <span className="py-1.5 px-4 rounded-full bg-black/5 text-[14px] font-normal text-black">
-                  {job.vertical}
-                </span>
+                {job.vertical && (
+                  <span className="py-1.5 px-4 rounded-full bg-black/5 text-[14px] font-normal text-black">
+                    {job.vertical}
+                  </span>
+                )}
                 <h1 className="mt-6 max-w-[680px] text-[24px] md:text-[32px] wrap-break-word font-normal md:font-medium leading-[1.4] text-black">
-                  {job.roleTitle} at {job.companyName}
+                  {job.roleTitle}
                 </h1>
                 <div className="mt-4 max-w-[720px] text-black text-[13px] md:text-[15px] flex flex-row flex-wrap items-center gap-4">
                   {job.employmentType && (
@@ -171,28 +173,33 @@ export default function OfficialJobDetailPage({
                   </a>
                 </div>
                 <div className="mt-14 space-y-8 rounded-[4px] border border-white/0 md:border-beige900/10 bg-white/0 md:bg-white/35 p-0 md:p-8">
-                  <DetailSection title="How Harper helps">
+                  <DetailSection title="How Harper Helps">
                     <OfficialJobMarkdown
                       content={job.harperDescriptionMarkdown}
                     />
                   </DetailSection>
                   <hr />
 
-                  <DetailSection title="Role overview">
+                  <DetailSection title="">
                     <OfficialJobMarkdown
                       content={job.roleDescriptionMarkdown}
                     />
                   </DetailSection>
+
+                  {job.companyDescriptionMarkdown &&
+                    job.companyDescriptionMarkdown.length > 10 && (
+                      <>
+                        <hr />
+                        <DetailSection title="Company overview">
+                          <OfficialJobMarkdown
+                            content={job.companyDescriptionMarkdown}
+                          />
+                        </DetailSection>
+                      </>
+                    )}
                   <hr />
 
-                  <DetailSection title="Company overview">
-                    <OfficialJobMarkdown
-                      content={job.companyDescriptionMarkdown}
-                    />
-                  </DetailSection>
-                  <hr />
-
-                  <DetailSection id="official-job-steps" title="진행과정">
+                  <DetailSection id="official-job-steps" title="Process">
                     <OfficialJobMarkdown content={job.harperStepsMarkdown} />
                   </DetailSection>
                 </div>
@@ -240,7 +247,7 @@ export default function OfficialJobDetailPage({
                   </div>
                 </section>
 
-                <section className="overflow-hidden">
+                {/* <section className="overflow-hidden">
                   <Image
                     src="/images/feat33.png"
                     alt="Harper가 역할을 좁혀가는 화면"
@@ -253,7 +260,7 @@ export default function OfficialJobDetailPage({
                     <br />
                     Harper가 커리어를 책임지는 에이전트가 되어드리겠습니다.
                   </p>
-                </section>
+                </section> */}
                 <br />
                 <br />
                 <br />

@@ -54,6 +54,12 @@ type OfficialJobDraft = {
   vertical: string;
 };
 
+type OfficialJobDraftState = {
+  draft: OfficialJobDraft;
+  initialDraft: OfficialJobDraft;
+  key: string;
+};
+
 const EMPTY_DRAFT: OfficialJobDraft = {
   ashbyJobPostingId: "",
   companyDescriptionMarkdown: "",
@@ -73,6 +79,26 @@ const EMPTY_DRAFT: OfficialJobDraft = {
   slug: "",
   vertical: "",
 };
+
+const OFFICIAL_JOB_DRAFT_FIELDS: Array<keyof OfficialJobDraft> = [
+  "ashbyJobPostingId",
+  "companyDescriptionMarkdown",
+  "companyLogoUrl",
+  "companyName",
+  "companyWebsiteUrl",
+  "compensation",
+  "displayOrder",
+  "employmentType",
+  "id",
+  "isPublished",
+  "location",
+  "roleDescriptionMarkdown",
+  "roleTitle",
+  "seniority",
+  "shortDescription",
+  "slug",
+  "vertical",
+];
 
 function jobToDraft(job: OpsOfficialJobRecord): OfficialJobDraft {
   return {
@@ -94,6 +120,13 @@ function jobToDraft(job: OpsOfficialJobRecord): OfficialJobDraft {
     slug: job.slug,
     vertical: job.vertical,
   };
+}
+
+function areOfficialJobDraftsEqual(
+  first: OfficialJobDraft,
+  second: OfficialJobDraft
+) {
+  return OFFICIAL_JOB_DRAFT_FIELDS.every((field) => first[field] === second[field]);
 }
 
 function draftToPayload(draft: OfficialJobDraft): OpsOfficialJobSaveInput {
@@ -222,10 +255,11 @@ export default function OpsOfficialJobsPage() {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<JobFilter>("all");
-  const [draftState, setDraftState] = useState<{
-    draft: OfficialJobDraft;
-    key: string;
-  }>({ draft: EMPTY_DRAFT, key: NEW_JOB_ID });
+  const [draftState, setDraftState] = useState<OfficialJobDraftState>({
+    draft: EMPTY_DRAFT,
+    initialDraft: EMPTY_DRAFT,
+    key: NEW_JOB_ID,
+  });
 
   const jobsQuery = useOpsOfficialJobs(canFetchInternal);
   const saveJob = useSaveOpsOfficialJob();
@@ -241,12 +275,15 @@ export default function OpsOfficialJobsPage() {
   const selectedJob = jobs.find((job) => job.id === activeJobId) ?? null;
   const activeDraftKey =
     selectedJobId === NEW_JOB_ID ? NEW_JOB_ID : activeJobId;
-  const draft =
-    draftState.key === activeDraftKey
-      ? draftState.draft
-      : selectedJob
-        ? jobToDraft(selectedJob)
-        : EMPTY_DRAFT;
+  const draftStateMatchesActive = draftState.key === activeDraftKey;
+  const selectedJobDraft = selectedJob ? jobToDraft(selectedJob) : null;
+  const draft = draftStateMatchesActive
+    ? draftState.draft
+    : (selectedJobDraft ?? EMPTY_DRAFT);
+  const initialDraft = draftStateMatchesActive
+    ? draftState.initialDraft
+    : (selectedJobDraft ?? EMPTY_DRAFT);
+  const hasUnsavedChanges = !areOfficialJobDraftsEqual(draft, initialDraft);
   const isInternalCopyDraft = isOfficialJobsInternalCopyIdentity(draft);
   const isAshbyConnectedDraft = hasAshbyConnection(draft);
   const effectiveIsPublished = isInternalCopyDraft ? false : draft.isPublished;
@@ -273,6 +310,7 @@ export default function OpsOfficialJobsPage() {
   ) => {
     setDraftState({
       draft: { ...draft, [key]: value },
+      initialDraft,
       key: activeDraftKey ?? NEW_JOB_ID,
     });
   };
@@ -282,12 +320,14 @@ export default function OpsOfficialJobsPage() {
       (max, job) => Math.max(max, job.displayOrder),
       0
     );
+    const nextDraft = {
+      ...EMPTY_DRAFT,
+      displayOrder: String(maxDisplayOrder + 10),
+    };
     setSelectedJobId(NEW_JOB_ID);
     setDraftState({
-      draft: {
-        ...EMPTY_DRAFT,
-        displayOrder: String(maxDisplayOrder + 10),
-      },
+      draft: nextDraft,
+      initialDraft: nextDraft,
       key: NEW_JOB_ID,
     });
   };
@@ -305,8 +345,13 @@ export default function OpsOfficialJobsPage() {
   const handleSave = async () => {
     try {
       const result = await saveJob.mutateAsync(draftToPayload(draft));
+      const savedDraft = jobToDraft(result.job);
       setSelectedJobId(result.job.id);
-      setDraftState({ draft: jobToDraft(result.job), key: result.job.id });
+      setDraftState({
+        draft: savedDraft,
+        initialDraft: savedDraft,
+        key: result.job.id,
+      });
       showToast({ message: "Official job 저장 완료", variant: "success" });
     } catch (error) {
       showToast({
@@ -344,7 +389,7 @@ export default function OpsOfficialJobsPage() {
       <OpsShell
         title="Official Jobs"
         actions={
-          <section className="grid gap-3 md:grid-cols-3">
+          <section className="flex flex-wrap items-center gap-3">
             <div className="flex flex-row gap-2 items-center px-2">
               <div className={opsTheme.eyebrow}>Total</div>
               <div className="mt-2 font-geist text-2xl font-semibold text-beige900">
@@ -363,6 +408,19 @@ export default function OpsOfficialJobsPage() {
                 {stats.draft}
               </div>
             </div>
+            <button
+              type="button"
+              onClick={handleSyncAshby}
+              disabled={syncAshbyJobs.isPending}
+              className={cx(opsTheme.buttonSecondary, "h-10 self-center px-3")}
+            >
+              {syncAshbyJobs.isPending ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Ashby 전체 읽어오기
+            </button>
           </section>
         }
       >
@@ -449,8 +507,13 @@ export default function OpsOfficialJobsPage() {
                     key={job.id}
                     type="button"
                     onClick={() => {
+                      const nextDraft = jobToDraft(job);
                       setSelectedJobId(job.id);
-                      setDraftState({ draft: jobToDraft(job), key: job.id });
+                      setDraftState({
+                        draft: nextDraft,
+                        initialDraft: nextDraft,
+                        key: job.id,
+                      });
                     }}
                     className={cx(
                       "block w-full border-b border-l-4 border-beige900/5 border-l-transparent px-4 py-3 text-left transition",
@@ -553,32 +616,21 @@ export default function OpsOfficialJobsPage() {
                   <RefreshCw className="h-4 w-4" />
                   Refresh
                 </button>
-                <button
-                  type="button"
-                  onClick={handleSyncAshby}
-                  disabled={syncAshbyJobs.isPending}
-                  className={cx(opsTheme.buttonSecondary, "h-10 px-3")}
-                >
-                  {syncAshbyJobs.isPending ? (
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4" />
-                  )}
-                  Ashby 읽어오기
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  disabled={saveJob.isPending}
-                  className={cx(opsTheme.buttonPrimary, "h-10 px-4")}
-                >
-                  {saveJob.isPending ? (
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                  Save
-                </button>
+                {hasUnsavedChanges ? (
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={saveJob.isPending}
+                    className={cx(opsTheme.buttonPrimary, "h-10 px-4")}
+                  >
+                    {saveJob.isPending ? (
+                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
+                    Save
+                  </button>
+                ) : null}
               </div>
             </div>
 
