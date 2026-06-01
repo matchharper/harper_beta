@@ -63,7 +63,6 @@ type CompanyDbRow = {
   description: string | null;
   employee_count_range: Json | null;
   founded_year: number | null;
-  funding: Json | null;
   funding_url: string | null;
   id: number;
   investors: string | null;
@@ -142,7 +141,6 @@ export type TalentCompanyWatchlistItem = {
   followedAt: string | null;
   following: boolean;
   foundedYear: number | null;
-  funding: Json | null;
   fundingUrl: string | null;
   homepageUrl: string | null;
   id: string;
@@ -196,7 +194,7 @@ const COMPANY_RECOMMENDATION_PROFILE_CONTEXT_LIMIT = 3600;
 const COMPANY_RECOMMENDATION_CARD_DESCRIPTION_LIMIT = 650;
 
 const COMPANY_DB_SELECT =
-  "id, name, logo, website_url, linkedin_url, funding_url, short_description, description, specialities, location, investors, funding, employee_count_range, founded_year, related_links, crunchbase_information, last_crunchbase_updated_at, last_updated_at";
+  "id, name, logo, website_url, linkedin_url, funding_url, short_description, description, specialities, location, investors, employee_count_range, founded_year, related_links, crunchbase_information, last_crunchbase_updated_at, last_updated_at";
 
 const COMPANY_WORKSPACE_SELECT =
   "company_workspace_id, company_name, company_description, homepage_url, career_url, linkedin_url, logo_url, company_db_id, brief, pitch, request, is_internal, test_score, updated_at";
@@ -625,7 +623,6 @@ function mapCompanyWatchlistItem(args: {
     followedAt: follow?.followed_at ?? null,
     following: Boolean(follow && !follow.unfollowed_at),
     foundedYear: args.companyDb.founded_year ?? null,
-    funding: args.companyDb.funding ?? null,
     fundingUrl: args.companyDb.funding_url ?? null,
     homepageUrl: workspace?.homepage_url ?? args.companyDb.website_url ?? null,
     id: String(recommendation?.id ?? follow?.id ?? args.companyDb.id),

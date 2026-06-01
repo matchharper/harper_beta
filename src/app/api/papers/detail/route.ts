@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
         .from("scholar_contributions")
         .select("*")
         .eq("paper_id", paperId)
-        .order("author_order", { ascending: true, nullsFirst: false });
+        .order("created_at", { ascending: true });
 
     if (contributionsError) throw contributionsError;
 

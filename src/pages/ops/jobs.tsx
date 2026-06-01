@@ -126,7 +126,9 @@ function areOfficialJobDraftsEqual(
   first: OfficialJobDraft,
   second: OfficialJobDraft
 ) {
-  return OFFICIAL_JOB_DRAFT_FIELDS.every((field) => first[field] === second[field]);
+  return OFFICIAL_JOB_DRAFT_FIELDS.every(
+    (field) => first[field] === second[field]
+  );
 }
 
 function draftToPayload(draft: OfficialJobDraft): OpsOfficialJobSaveInput {
@@ -364,12 +366,29 @@ export default function OpsOfficialJobsPage() {
 
   const handleSyncAshby = async () => {
     try {
+      const activeJobIdBeforeSync = activeJobId;
+      const shouldReloadActiveDraft =
+        Boolean(activeJobIdBeforeSync) && !hasUnsavedChanges;
       const result = await syncAshbyJobs.mutateAsync();
       showToast({
         message: `Ashby sync 완료: ${result.inserted} created, ${result.updated} updated, ${result.unpublished} hidden`,
         variant: "success",
       });
-      await jobsQuery.refetch();
+      const refetchResult = await jobsQuery.refetch();
+
+      if (shouldReloadActiveDraft && activeJobIdBeforeSync) {
+        const refreshedJob = refetchResult.data?.jobs.find(
+          (job) => job.id === activeJobIdBeforeSync
+        );
+        if (refreshedJob) {
+          const refreshedDraft = jobToDraft(refreshedJob);
+          setDraftState({
+            draft: refreshedDraft,
+            initialDraft: refreshedDraft,
+            key: refreshedJob.id,
+          });
+        }
+      }
     } catch (error) {
       showToast({
         message:

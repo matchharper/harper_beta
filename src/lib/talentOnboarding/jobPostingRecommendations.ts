@@ -44,7 +44,6 @@ type RawRoleRow = {
   company_workspace_id?: string | null;
   description?: string | null;
   external_jd_url?: string | null;
-  information_text?: string | null;
   location_text?: string | null;
   posted_at?: string | null;
   role_id?: string | null;
@@ -1544,7 +1543,6 @@ candidates AS (
     cr.company_workspace_id::text AS company_workspace_id,
     cr.name AS role_name,
     cr.description,
-    cr.information::text AS information_text,
     cr.external_jd_url,
     cr.location_text,
     cr.work_mode,
@@ -1589,7 +1587,6 @@ SELECT
   company_workspace_id,
   role_name,
   description,
-  information_text,
   external_jd_url,
   location_text,
   work_mode,
@@ -1733,11 +1730,6 @@ function normalizeRoleRow(value: unknown): RawRoleRow | null {
     ),
     description: stringField(record, "description"),
     external_jd_url: stringField(record, "external_jd_url", "externalJdUrl"),
-    information_text: stringField(
-      record,
-      "information_text",
-      "informationText"
-    ),
     location_text: stringField(record, "location_text", "locationText"),
     posted_at: stringField(record, "posted_at", "postedAt"),
     role_id: stringField(record, "role_id", "roleId"),
@@ -2362,9 +2354,7 @@ function buildRecommendationEvidence(item: EnrichedRankedRole) {
   return [
     {
       label: "role",
-      text:
-        normalizeMultiline(role.information_text, 700) ||
-        normalizeMultiline(role.description, 700),
+      text: normalizeMultiline(role.description, 700),
     },
     {
       label: "company",

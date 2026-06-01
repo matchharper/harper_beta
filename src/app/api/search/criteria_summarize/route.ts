@@ -18,7 +18,6 @@ type ScholarPaperSummary = Pick<
   | "published_at"
   | "pub_year"
   | "total_citations"
-  | "external_link"
   | "scholar_link"
 >;
 
@@ -69,7 +68,7 @@ async function attachScholarSummaryContext(doc: Record<string, any>) {
     const { data: papers, error: papersError } = await supabaseServer
       .from("papers")
       .select(
-        "id, title, published_at, pub_year, total_citations, external_link, scholar_link"
+        "id, title, published_at, pub_year, total_citations, scholar_link"
       )
       .in("id", paperIds)
       .order("total_citations", { ascending: false })

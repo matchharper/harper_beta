@@ -3,7 +3,6 @@ import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowUpRight,
   BookOpenText,
-  FileText,
   GraduationCap,
   Quote,
   Users,
@@ -105,7 +104,7 @@ export default function PaperModalRoot() {
 
   const paperLinks = useMemo(() => {
     if (!paper) return [];
-    return [paper.external_link ?? "", paper.scholar_link ?? ""].filter(
+    return [paper.scholar_link ?? ""].filter(
       (link, index, array) => !!link && array.indexOf(link) === index
     );
   }, [paper]);
@@ -205,16 +204,6 @@ export default function PaperModalRoot() {
                   />
                 </div>
 
-                {/* <Section
-                  title="Abstract"
-                  icon={<FileText className="h-4 w-4" />}
-                >
-                  <div className="rounded-2xl bg-beige100 px-4 py-4 text-sm leading-7 text-beige900/80">
-                    {paper.abstract?.trim() ||
-                      "등록된 abstract가 없습니다. 위 링크에서 원문 정보를 확인할 수 있습니다."}
-                  </div>
-                </Section> */}
-
                 <Section
                   title={`Contributors (${contributors.length})`}
                   icon={<Users className="h-4 w-4" />}
@@ -244,7 +233,6 @@ export default function PaperModalRoot() {
                         const contributorKey = [
                           contributor.paper_id,
                           contributor.scholar_profile_id ?? "unknown",
-                          contributor.author_order ?? "na",
                         ].join("-");
 
                         const content = (
@@ -283,16 +271,6 @@ export default function PaperModalRoot() {
                                   {contributorCandidId && !isProfileRevealed ? (
                                     <span className="rounded-full bg-beige500/55 px-2 py-0.5 text-[11px] text-beige900/55">
                                       Harper profile locked
-                                    </span>
-                                  ) : null}
-                                  {contributor.author_order ? (
-                                    <span className="rounded-full bg-beige500/55 px-2 py-0.5 text-[11px] text-beige900/55">
-                                      Author #{contributor.author_order}
-                                    </span>
-                                  ) : null}
-                                  {contributor.is_first_author ? (
-                                    <span className="rounded-full bg-accentBronze/15 px-2 py-0.5 text-[11px] text-accentBronze">
-                                      First author
                                     </span>
                                   ) : null}
                                 </div>

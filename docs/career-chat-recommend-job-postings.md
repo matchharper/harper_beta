@@ -261,7 +261,7 @@ request: "20개 찾아줘" -> targetRecommendationCount = 5, selectionLimit = 10
 
 | Table | Columns used |
 | --- | --- |
-| `company_roles cr` | selected: `role_id, company_workspace_id, name, description, information::text, external_jd_url, location_text, work_mode, type, posted_at, seniority_level`; filtering/ranking: `opportunity_search_tsv, is_expired, status, source_type, role_id, name, description, information, location_text, work_mode, posted_at, updated_at`. |
+| `company_roles cr` | selected: `role_id, company_workspace_id, name, description, external_jd_url, location_text, work_mode, type, posted_at, seniority_level`; filtering/ranking: `opportunity_search_tsv, is_expired, status, source_type, role_id, name, description, location_text, work_mode, posted_at, updated_at`. |
 | `company_workspace cw` | `company_workspace_id, company_name, company_description, test_score, company_db_id`. |
 | `company_db cd` | `name, description, short_description, location, founded_year, employee_count_range`. |
 | `talent_opportunity_recommendation tor` | `talent_id, opportunity_type, role_id` for already-recommended external role exclusion. |

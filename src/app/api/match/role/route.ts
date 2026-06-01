@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 import { fetchMatchWorkspace, saveMatchRole } from "@/lib/match/server";
 import { type MatchEmploymentType, type MatchRoleStatus } from "@/lib/match/shared";
-import type { Json } from "@/types/database.types";
 
 export const runtime = "nodejs";
 
@@ -11,7 +10,6 @@ type RoleBody = {
   description?: string | null;
   employmentTypes?: MatchEmploymentType[];
   externalJdUrl?: string | null;
-  information?: Json | null;
   name?: string;
   roleId?: string | null;
   status?: MatchRoleStatus;
@@ -26,7 +24,6 @@ async function handleUpsert(req: NextRequest) {
     description: body.description,
     employmentTypes: body.employmentTypes,
     externalJdUrl: body.externalJdUrl,
-    information: body.information,
     name: String(body.name ?? ""),
     roleId: body.roleId,
     status: body.status,

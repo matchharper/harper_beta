@@ -1064,7 +1064,6 @@ export type Database = {
           description: string | null
           employee_count_range: Json | null
           founded_year: number | null
-          funding: Json | null
           funding_url: string | null
           harvestapi_information: Json | null
           id: number
@@ -1087,7 +1086,6 @@ export type Database = {
           description?: string | null
           employee_count_range?: Json | null
           founded_year?: number | null
-          funding?: Json | null
           funding_url?: string | null
           harvestapi_information?: Json | null
           id?: number
@@ -1110,7 +1108,6 @@ export type Database = {
           description?: string | null
           employee_count_range?: Json | null
           founded_year?: number | null
-          funding?: Json | null
           funding_url?: string | null
           harvestapi_information?: Json | null
           id?: number
@@ -1245,7 +1242,6 @@ export type Database = {
           description_summary: string | null
           expires_at: string | null
           external_jd_url: string | null
-          information: Json | null
           is_expired: boolean
           location_text: string | null
           name: string
@@ -1275,7 +1271,6 @@ export type Database = {
           description_summary?: string | null
           expires_at?: string | null
           external_jd_url?: string | null
-          information?: Json | null
           is_expired?: boolean
           location_text?: string | null
           name: string
@@ -1305,7 +1300,6 @@ export type Database = {
           description_summary?: string | null
           expires_at?: string | null
           external_jd_url?: string | null
-          information?: Json | null
           is_expired?: boolean
           location_text?: string | null
           name?: string
@@ -2812,11 +2806,7 @@ export type Database = {
           company_workspace_id: string | null
           created_at: string
           first_seen_at: string
-          groupby_company_name: string | null
-          groupby_company_url: string | null
           id: number
-          jobkorea_company_name: string | null
-          jobkorea_company_url: string | null
           last_seen_at: string
           linkedin_name: string | null
           linkedin_url: string | null
@@ -2831,11 +2821,7 @@ export type Database = {
           company_workspace_id?: string | null
           created_at?: string
           first_seen_at?: string
-          groupby_company_name?: string | null
-          groupby_company_url?: string | null
           id?: number
-          jobkorea_company_name?: string | null
-          jobkorea_company_url?: string | null
           last_seen_at?: string
           linkedin_name?: string | null
           linkedin_url?: string | null
@@ -2850,11 +2836,7 @@ export type Database = {
           company_workspace_id?: string | null
           created_at?: string
           first_seen_at?: string
-          groupby_company_name?: string | null
-          groupby_company_url?: string | null
           id?: number
-          jobkorea_company_name?: string | null
-          jobkorea_company_url?: string | null
           last_seen_at?: string
           linkedin_name?: string | null
           linkedin_url?: string | null
@@ -3481,11 +3463,9 @@ export type Database = {
       }
       papers: {
         Row: {
-          abstract: string | null
           canonical_key: string | null
           cited_by_scholar_link: string | null
           created_at: string
-          external_link: string | null
           id: string
           pub_year: number | null
           published_at: string | null
@@ -3495,11 +3475,9 @@ export type Database = {
           year_citations: Json
         }
         Insert: {
-          abstract?: string | null
           canonical_key?: string | null
           cited_by_scholar_link?: string | null
           created_at?: string
-          external_link?: string | null
           id?: string
           pub_year?: number | null
           published_at?: string | null
@@ -3509,11 +3487,9 @@ export type Database = {
           year_citations?: Json
         }
         Update: {
-          abstract?: string | null
           canonical_key?: string | null
           cited_by_scholar_link?: string | null
           created_at?: string
-          external_link?: string | null
           id?: string
           pub_year?: number | null
           published_at?: string | null
@@ -3770,7 +3746,6 @@ export type Database = {
       }
       publications: {
         Row: {
-          abstract: string | null
           candid_id: string | null
           citation_num: number | null
           created_at: string
@@ -3780,7 +3755,6 @@ export type Database = {
           title: string | null
         }
         Insert: {
-          abstract?: string | null
           candid_id?: string | null
           citation_num?: number | null
           created_at?: string
@@ -3790,7 +3764,6 @@ export type Database = {
           title?: string | null
         }
         Update: {
-          abstract?: string | null
           candid_id?: string | null
           citation_num?: number | null
           created_at?: string
@@ -4051,23 +4024,17 @@ export type Database = {
       }
       scholar_contributions: {
         Row: {
-          author_order: number | null
           created_at: string
-          is_first_author: boolean | null
           paper_id: string
           scholar_profile_id: string
         }
         Insert: {
-          author_order?: number | null
           created_at?: string
-          is_first_author?: boolean | null
           paper_id: string
           scholar_profile_id: string
         }
         Update: {
-          author_order?: number | null
           created_at?: string
-          is_first_author?: boolean | null
           paper_id?: string
           scholar_profile_id?: string
         }
@@ -4154,19 +4121,16 @@ export type Database = {
         Row: {
           candid_id: string
           created_at: string
-          identifier: string | null
           links: Json | null
         }
         Insert: {
           candid_id?: string
           created_at?: string
-          identifier?: string | null
           links?: Json | null
         }
         Update: {
           candid_id?: string
           created_at?: string
-          identifier?: string | null
           links?: Json | null
         }
         Relationships: []
