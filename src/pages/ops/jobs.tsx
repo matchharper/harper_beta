@@ -344,7 +344,7 @@ export default function OpsOfficialJobsPage() {
       <OpsShell
         title="Official Jobs"
         actions={
-          <section className="grid gap-3 md:grid-cols-3">
+          <section className="flex flex-wrap items-center gap-3">
             <div className="flex flex-row gap-2 items-center px-2">
               <div className={opsTheme.eyebrow}>Total</div>
               <div className="mt-2 font-geist text-2xl font-semibold text-beige900">
@@ -363,6 +363,19 @@ export default function OpsOfficialJobsPage() {
                 {stats.draft}
               </div>
             </div>
+            <button
+              type="button"
+              onClick={handleSyncAshby}
+              disabled={syncAshbyJobs.isPending}
+              className={cx(opsTheme.buttonSecondary, "h-10 self-center px-3")}
+            >
+              {syncAshbyJobs.isPending ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Ashby 전체 읽어오기
+            </button>
           </section>
         }
       >
@@ -552,19 +565,6 @@ export default function OpsOfficialJobsPage() {
                 >
                   <RefreshCw className="h-4 w-4" />
                   Refresh
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSyncAshby}
-                  disabled={syncAshbyJobs.isPending}
-                  className={cx(opsTheme.buttonSecondary, "h-10 px-3")}
-                >
-                  {syncAshbyJobs.isPending ? (
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4" />
-                  )}
-                  Ashby 읽어오기
                 </button>
                 <button
                   type="button"

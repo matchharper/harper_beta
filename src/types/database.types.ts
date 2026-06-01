@@ -1254,6 +1254,10 @@ export type Database = {
           priority: number | null
           request: string | null
           role_id: string
+          salary_currency: string | null
+          salary_max: number | null
+          salary_min: number | null
+          salary_period: string | null
           salary_range: string | null
           seniority_level: string | null
           source_job_id: string | null
@@ -1280,6 +1284,10 @@ export type Database = {
           priority?: number | null
           request?: string | null
           role_id?: string
+          salary_currency?: string | null
+          salary_max?: number | null
+          salary_min?: number | null
+          salary_period?: string | null
           salary_range?: string | null
           seniority_level?: string | null
           source_job_id?: string | null
@@ -1306,6 +1314,10 @@ export type Database = {
           priority?: number | null
           request?: string | null
           role_id?: string
+          salary_currency?: string | null
+          salary_max?: number | null
+          salary_min?: number | null
+          salary_period?: string | null
           salary_range?: string | null
           seniority_level?: string | null
           source_job_id?: string | null
@@ -4159,6 +4171,54 @@ export type Database = {
         }
         Relationships: []
       }
+      service_answer_examples: {
+        Row: {
+          answer_example_text: string
+          created_at: string
+          created_by: string | null
+          embedding: string
+          embedding_model: string
+          enabled: boolean
+          id: string
+          notes: string | null
+          tags: string[]
+          updated_at: string
+          updated_by: string | null
+          user_example_hash: string
+          user_example_text: string
+        }
+        Insert: {
+          answer_example_text: string
+          created_at?: string
+          created_by?: string | null
+          embedding: string
+          embedding_model?: string
+          enabled?: boolean
+          id?: string
+          notes?: string | null
+          tags?: string[]
+          updated_at?: string
+          updated_by?: string | null
+          user_example_hash: string
+          user_example_text: string
+        }
+        Update: {
+          answer_example_text?: string
+          created_at?: string
+          created_by?: string | null
+          embedding?: string
+          embedding_model?: string
+          enabled?: boolean
+          id?: string
+          notes?: string | null
+          tags?: string[]
+          updated_at?: string
+          updated_by?: string | null
+          user_example_hash?: string
+          user_example_text?: string
+        }
+        Relationships: []
+      }
       service_help_chunks: {
         Row: {
           chunk_index: number
@@ -5778,6 +5838,21 @@ export type Database = {
       }
       get_scholar_candidate_ids: { Args: never; Returns: string[] }
       is_admin: { Args: never; Returns: boolean }
+      match_service_answer_examples: {
+        Args: {
+          embedding_model_filter?: string
+          match_count?: number
+          min_score?: number
+          query_embedding: string
+        }
+        Returns: {
+          answer_example_text: string
+          id: string
+          score: number
+          tags: string[]
+          user_example_text: string
+        }[]
+      }
       match_service_help_chunks: {
         Args: { match_count?: number; query_embedding: string }
         Returns: {

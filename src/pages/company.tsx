@@ -582,7 +582,7 @@ const Beige = () => {
                 </div>
               </Reveal>
 
-              <Reveal once delay={0.32} className="mt-14 w-full">
+              {/* <Reveal once delay={0.32} className="mt-14 w-full">
                 <div className="grid grid-cols-[160px_1fr] items-center gap-12 max-[1199px]:grid-cols-1 max-[1199px]:gap-8">
                   <p className="w-full md:max-w-[132px] text-left font-geist text-[14px] leading-[1.55] tracking-[-0.02em] text-beige900/40">
                     Trusted by AI Companies like Pickle, Moss, Aleph lab,
@@ -603,7 +603,7 @@ const Beige = () => {
                     ))}
                   </div>
                 </div>
-              </Reveal>
+              </Reveal> */}
               <br />
               <br />
             </section>

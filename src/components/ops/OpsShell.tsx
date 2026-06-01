@@ -241,7 +241,6 @@ function OpsInternalDataExclusionModal({
       >
         <div className="flex items-start justify-between gap-4">
           <div>
-            <div className={opsTheme.eyebrow}>Local Ops Filter</div>
             <h2
               id="ops-internal-data-exclusion-title"
               className="mt-1 font-geist text-lg font-medium text-beige900"
@@ -474,7 +473,7 @@ export default function OpsShell({
         </div>
       </div>
       <div className="relative mx-auto max-w-[1600px] px-4 py-6 lg:px-6">
-        <main className="min-w-0 space-y-6">
+        <main className="min-w-0 space-y-2">
           <section className="flex flex-col gap-4 px-4">
             <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
               <div>

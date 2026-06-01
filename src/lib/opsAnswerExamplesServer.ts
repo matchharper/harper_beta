@@ -79,7 +79,7 @@ export type OpsAnswerExampleSaveResponse = {
 };
 
 function getUntypedAdmin(admin?: AdminClient) {
-  return (admin ?? getTalentSupabaseAdmin()) as AdminClient & {
+  return (admin ?? getTalentSupabaseAdmin()) as unknown as {
     from: (table: string) => any;
   };
 }
@@ -95,7 +95,11 @@ function normalizeOptionalString(value: unknown, maxLength?: number) {
   return trimmed;
 }
 
-function normalizeRequiredText(value: unknown, field: string, maxLength: number) {
+function normalizeRequiredText(
+  value: unknown,
+  field: string,
+  maxLength: number
+) {
   if (typeof value !== "string") {
     throw new Error(`${field} is required`);
   }
@@ -161,10 +165,7 @@ export async function fetchOpsAnswerExamples(args?: {
   query?: string | null;
 }): Promise<OpsAnswerExamplesResponse> {
   const admin = getUntypedAdmin(args?.admin);
-  const limit = Math.max(
-    1,
-    Math.min(args?.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
-  );
+  const limit = Math.max(1, Math.min(args?.limit ?? DEFAULT_LIMIT, MAX_LIMIT));
   const normalizedQuery = normalizeOptionalString(args?.query);
 
   const { data, error } = await admin
@@ -271,7 +272,7 @@ export async function saveOpsAnswerExample(args: {
   const payload = embeddingPayload
     ? {
         ...basePayload,
-        embedding: embeddingPayload.embedding as any,
+        embedding: embeddingPayload.embedding as unknown as string,
         embedding_model: embeddingPayload.embeddingModel,
         user_example_hash: embeddingPayload.userExampleHash,
       }
