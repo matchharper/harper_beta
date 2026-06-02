@@ -4,9 +4,7 @@ import type {
   TalentOpportunityHistoryItem,
 } from "@/lib/talentOpportunity";
 import {
-  getTalentCareerMoveIntentLabel,
   getTalentEngagementLabels,
-  getTalentLocationLabels,
 } from "@/lib/talentNetworkOptions";
 
 export type TalentActivityImpactLevel = "low" | "medium" | "high";
@@ -75,16 +73,14 @@ const IMPACT_LEVELS = new Set<TalentActivityImpactLevel>([
 ]);
 
 const PREFERENCE_FIELD_LABELS: Record<string, string> = {
-  careerMoveIntent: "career move intent",
   engagementTypes: "engagement types",
+  getExternalRecommendation: "external recommendations",
+  getInternalRecommendation: "internal recommendations",
   periodicIntervalDays: "periodic interval days",
-  preferredLocations: "preferred locations",
   recommendationBatchSize: "recommendation batch size",
 };
 
 const HIDDEN_TALENT_SETTING_SUMMARY_PATTERNS = [
-  "career move intent",
-  "careermoveintent",
   "engagement types",
   "engagementtypes",
 ];
@@ -154,12 +150,6 @@ function formatPreferenceActivityValue(field: string, value: unknown) {
   if (field === "engagementTypes") {
     return formatLabeledArray(getTalentEngagementLabels(value), value);
   }
-  if (field === "preferredLocations") {
-    return formatLabeledArray(getTalentLocationLabels(value), value);
-  }
-  if (field === "careerMoveIntent") {
-    return getTalentCareerMoveIntentLabel(value) ?? formatActivityValue(value);
-  }
   if (field === "periodicIntervalDays") {
     if (Number(value) === -1) return "off";
     const formatted = formatActivityValue(value);
@@ -169,6 +159,13 @@ function formatPreferenceActivityValue(field: string, value: unknown) {
     if (Number(value) === -1) return "off";
     const formatted = formatActivityValue(value);
     return formatted === "none" ? formatted : `${formatted} opportunities`;
+  }
+  if (
+    field === "getExternalRecommendation" ||
+    field === "getInternalRecommendation"
+  ) {
+    if (value === true) return "enabled";
+    if (value === false) return "disabled";
   }
   return formatActivityValue(value);
 }
@@ -285,9 +282,9 @@ export function getPreferenceActivityImpact(
   changes: readonly TalentActivityChange[]
 ): TalentActivityImpactLevel {
   const highImpactFields = new Set([
-    "careerMoveIntent",
     "engagementTypes",
-    "preferredLocations",
+    "getExternalRecommendation",
+    "getInternalRecommendation",
   ]);
   return changes.some((change) => highImpactFields.has(change.field))
     ? "high"

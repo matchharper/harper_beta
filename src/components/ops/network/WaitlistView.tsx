@@ -3,10 +3,7 @@ import type {
   NetworkLeadDetailResponse,
   NetworkLeadSummary,
 } from "@/lib/opsNetwork";
-import {
-  getTalentCareerMoveIntentLabel,
-  getTalentEngagementLabels,
-} from "@/lib/talentNetworkOptions";
+import { getTalentEngagementLabels } from "@/lib/talentNetworkOptions";
 import { Mail } from "lucide-react";
 import {
   Badge,
@@ -31,9 +28,6 @@ export default function WaitlistView({
       <div className={cx(opsTheme.panelSoft, "p-4")}>
         <div className={opsTheme.eyebrow}>핵심 상태</div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          {displayedLead.careerMoveIntentLabel ? (
-            <Badge tone="strong">{displayedLead.careerMoveIntentLabel}</Badge>
-          ) : null}
           <Badge>{displayedLead.hasCv ? "CV 있음" : "CV 없음"}</Badge>
           {displayedLead.selectedRole ? (
             <Badge>{displayedLead.selectedRole}</Badge>
@@ -79,14 +73,6 @@ export default function WaitlistView({
             value={
               displayedLead.engagementTypes.length > 0
                 ? displayedLead.engagementTypes.join(", ")
-                : "-"
-            }
-          />
-          <InfoRow
-            label="Preferred Location"
-            value={
-              displayedLead.preferredLocations.length > 0
-                ? displayedLead.preferredLocations.join(", ")
                 : "-"
             }
           />
@@ -145,14 +131,6 @@ export default function WaitlistView({
       {detail?.latestTalentSetting || detail?.latestTalentInsights ? (
         <div className={cx(opsTheme.panelSoft, "px-4 py-2")}>
           <div className="divide-y divide-beige900/10">
-            <InfoRow
-              label="이직 의향"
-              value={
-                getTalentCareerMoveIntentLabel(
-                  detail?.latestTalentSetting?.career_move_intent ?? null
-                ) ?? "-"
-              }
-            />
             <InfoRow
               label="선호 형태"
               value={

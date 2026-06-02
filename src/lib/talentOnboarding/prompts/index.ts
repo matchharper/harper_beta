@@ -68,7 +68,6 @@ const REQUIRED_SECTIONS: Record<string, string[]> = {
     "conversationGuidance",
     "extractionOnly",
   ],
-  "misc.md": ["firstVisitText", "Interrupt 처리", "통화 종료 시그널"],
 };
 
 /** Get required sections for a given slug (without .md extension). */

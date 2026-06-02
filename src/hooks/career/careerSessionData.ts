@@ -17,6 +17,7 @@ const SAVED_STAGES: CareerOpportunitySavedStage[] = [
   "applied",
   "connected",
   "closed",
+  "hidden",
 ];
 
 export const createEmptyHistoryOpportunityCounts =
@@ -29,6 +30,7 @@ export const createEmptyHistoryOpportunityCounts =
       applied: 0,
       connected: 0,
       closed: 0,
+      hidden: 0,
     },
     total: 0,
   });
@@ -159,9 +161,13 @@ export const normalizeHistoryOpportunities = (
       item.savedStage !== "saved" &&
       item.savedStage !== "applied" &&
       item.savedStage !== "connected" &&
-      item.savedStage !== "closed"
+      item.savedStage !== "closed" &&
+      item.savedStage !== "hidden"
     ) {
       return false;
+    }
+    if (typeof item.talentMemo !== "string") {
+      item.talentMemo = null;
     }
     return true;
   });

@@ -1,7 +1,9 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useSyncExternalStore } from "react";
 import {
   AwardIcon,
   Building2,
+  ChevronDown,
+  ChevronUp,
   Eye,
   FileText,
   ImagePlus,
@@ -41,6 +43,10 @@ import {
 } from "@/components/ui/beige/action-dropdown";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import CareerRichText from "../ui/CareerRichText";
+import {
+  INSIGHT_CHECKLIST_ORDER_MAP,
+  getInsightLabel,
+} from "@/lib/talentOnboarding/insightChecklist";
 
 type EditableExperience = CareerTalentExperience & { clientKey: string };
 type EditableEducation = CareerTalentEducation & { clientKey: string };
@@ -61,10 +67,8 @@ const PROFILE_RERANKING_INSIGHTS = [
   { key: "deal_breakers", label: "회피 조건" },
 ] as const;
 
-type ProfileInsightKey = (typeof PROFILE_RERANKING_INSIGHTS)[number]["key"];
-
 type ProfileInsightItem = {
-  key: ProfileInsightKey;
+  key: string;
   label: string;
   value: string;
 };
@@ -156,6 +160,17 @@ const formatLastUpdated = (value: string | null) => {
 
 const createClientKey = (prefix: string) =>
   `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
+
+const isLocalhostHostname = (hostname: string) =>
+  hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+
+const subscribeToLocalhostSnapshot = () => () => {};
+
+const getLocalhostSnapshot = () =>
+  typeof window !== "undefined" &&
+  isLocalhostHostname(window.location.hostname);
+
+const getServerLocalhostSnapshot = () => false;
 
 const createBlankTalentUser = (userId?: string | null): CareerTalentUser => ({
   user_id: userId ?? "",
@@ -788,81 +803,120 @@ const ProfileHeader = ({
 );
 
 const ProfileOverviewSection = ({
+  allItems,
   isEditing,
   items,
   onInsightChange,
   onSummaryChange,
+  showAllInsightsButton = false,
   summary,
 }: {
+  allItems?: ProfileInsightItem[];
   isEditing: boolean;
   items: ProfileInsightItem[];
-  onInsightChange?: (key: ProfileInsightKey, value: string) => void;
+  onInsightChange?: (key: string, value: string) => void;
   onSummaryChange?: (value: string) => void;
+  showAllInsightsButton?: boolean;
   summary: string;
-}) => (
-  <section className="px-1">
-    {isEditing || summary ? (
-      <div className="mb-7">
-        <div className={overviewEyebrowClassName}>Summary</div>
-        {isEditing ? (
-          <CareerTextarea
-            value={summary}
-            onChange={(event) => onSummaryChange?.(event.target.value)}
-            placeholder="Summary"
-            aria-label="Summary"
-            className={careerCx(profileEditTextareaClassName, "mt-3")}
-          />
-        ) : (
-          <p className="mt-3 whitespace-pre-line text-[14px] leading-6 text-beige900">
-            {summary}
-          </p>
-        )}
-      </div>
-    ) : null}
+}) => {
+  const [showAllInsights, setShowAllInsights] = useState(false);
+  const canShowAllInsights =
+    showAllInsightsButton &&
+    !isEditing &&
+    Boolean(
+      allItems?.some(
+        (item) => !items.some((currentItem) => currentItem.key === item.key)
+      )
+    );
+  const displayedItems =
+    showAllInsights && canShowAllInsights && allItems?.length
+      ? allItems
+      : items;
 
-    <div className={overviewEyebrowClassName}>What they are looking for</div>
-    <dl className="mt-3 grid gap-x-4 gap-y-3 sm:grid-cols-[112px_minmax(0,1fr)]">
-      {items.map((item) => (
-        <React.Fragment key={item.key}>
-          <dt
-            className={careerCx(
-              insightTermClassName,
-              isEditing ? "pt-2" : "pt-0.5"
-            )}
-          >
-            {item.label}
-          </dt>
-          <dd className="m-0">
-            {isEditing ? (
-              <CareerTextarea
-                rows={2}
-                value={item.value}
-                onChange={(event) =>
-                  onInsightChange?.(item.key, event.target.value)
-                }
-                placeholder="아직 확인 중"
-                aria-label={item.label}
-                className={careerCx(
-                  profileEditTextareaClassName,
-                  "min-h-[52px]"
-                )}
-              />
-            ) : (
-              <div
-                className={careerCx(
-                  "text-[14px] leading-6",
-                  item.value ? "text-beige900" : "text-beige900/40"
-                )}
-              >
-                {item.value || "아직 확인 중"}
-              </div>
-            )}
-          </dd>
-        </React.Fragment>
-      ))}
-    </dl>
-  </section>
-);
+  return (
+    <section className="px-1">
+      {isEditing || summary ? (
+        <div className="mb-7">
+          <div className={overviewEyebrowClassName}>Summary</div>
+          {isEditing ? (
+            <CareerTextarea
+              value={summary}
+              onChange={(event) => onSummaryChange?.(event.target.value)}
+              placeholder="Summary"
+              aria-label="Summary"
+              className={careerCx(profileEditTextareaClassName, "mt-3")}
+            />
+          ) : (
+            <p className="mt-3 whitespace-pre-line text-[14px] leading-6 text-beige900">
+              {summary}
+            </p>
+          )}
+        </div>
+      ) : null}
+
+      <div className={overviewEyebrowClassName}>What they are looking for</div>
+      <dl className="mt-3 grid gap-x-4 gap-y-3 sm:grid-cols-[112px_minmax(0,1fr)]">
+        {displayedItems.map((item) => (
+          <React.Fragment key={item.key}>
+            <dt
+              className={careerCx(
+                insightTermClassName,
+                isEditing ? "pt-2" : "pt-0.5"
+              )}
+            >
+              {item.label}
+            </dt>
+            <dd className="m-0">
+              {isEditing ? (
+                <CareerTextarea
+                  rows={2}
+                  value={item.value}
+                  onChange={(event) =>
+                    onInsightChange?.(item.key, event.target.value)
+                  }
+                  placeholder="아직 확인 중"
+                  aria-label={item.label}
+                  className={careerCx(
+                    profileEditTextareaClassName,
+                    "min-h-[52px]"
+                  )}
+                />
+              ) : (
+                <div
+                  className={careerCx(
+                    "text-[14px] leading-6",
+                    item.value ? "text-beige900" : "text-beige900/40"
+                  )}
+                >
+                  {item.value || "아직 확인 중"}
+                </div>
+              )}
+            </dd>
+          </React.Fragment>
+        ))}
+      </dl>
+      {canShowAllInsights ? (
+        <button
+          type="button"
+          onClick={() => setShowAllInsights((current) => !current)}
+          className="mt-4 inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-beige900/10 bg-white/45 px-3 text-[12px] font-medium text-beige900/55 transition-colors hover:border-beige900/25 hover:bg-white/70 hover:text-beige900"
+        >
+          {showAllInsights ? (
+            <>
+              <ChevronUp className="h-3.5 w-3.5" />
+              접기
+            </>
+          ) : (
+            <>
+              <ChevronDown className="h-3.5 w-3.5" />
+              전체 insight 보기
+            </>
+          )}
+        </button>
+      ) : null}
+    </section>
+  );
+};
 
 const TimelineEditBlock = ({
   children,
@@ -1008,6 +1062,11 @@ const CareerTalentProfilePanel = ({
   const [profileImageUploadPending, setProfileImageUploadPending] =
     useState(false);
   const [profileImageError, setProfileImageError] = useState("");
+  const isLocalhost = useSyncExternalStore(
+    subscribeToLocalhostSnapshot,
+    getLocalhostSnapshot,
+    getServerLocalhostSnapshot
+  );
 
   const mergedExperience = useMemo(
     () => mergeExperienceAndEducation(talentExperiences, talentEducations),
@@ -1043,6 +1102,24 @@ const CareerTalentProfilePanel = ({
         ...item,
         value: talentInsights?.[item.key]?.trim() ?? "",
       })),
+    [talentInsights]
+  );
+  const allInsightItems = useMemo(
+    () =>
+      Object.entries(talentInsights ?? {})
+        .map(([key, value]) => ({
+          key,
+          label: getInsightLabel(key),
+          value: value.trim(),
+        }))
+        .filter((item) => item.value)
+        .sort(
+          (left, right) =>
+            (INSIGHT_CHECKLIST_ORDER_MAP.get(left.key) ?? 999) -
+              (INSIGHT_CHECKLIST_ORDER_MAP.get(right.key) ?? 999) ||
+            left.label.localeCompare(right.label) ||
+            left.key.localeCompare(right.key)
+        ),
     [talentInsights]
   );
   const profileSummary = talentUser?.bio?.trim() ?? "";
@@ -1459,6 +1536,7 @@ const CareerTalentProfilePanel = ({
           />
 
           <ProfileOverviewSection
+            allItems={allInsightItems}
             isEditing
             items={lookingForItems}
             onInsightChange={(key, value) =>
@@ -1911,8 +1989,10 @@ const CareerTalentProfilePanel = ({
           />
 
           <ProfileOverviewSection
+            allItems={allInsightItems}
             isEditing={false}
             items={lookingForItems}
+            showAllInsightsButton={isLocalhost}
             summary={profileSummary}
           />
 

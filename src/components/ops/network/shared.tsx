@@ -7,11 +7,7 @@ import type {
   TalentInternalEntry,
 } from "@/lib/opsNetwork";
 import { NETWORK_LEAD_PROGRESS_STEP_ORDER } from "@/lib/opsNetwork";
-import {
-  getTalentCareerMoveIntentLabel,
-  getTalentEngagementLabels,
-  getTalentLocationLabels,
-} from "@/lib/talentNetworkOptions";
+import { getTalentEngagementLabels } from "@/lib/talentNetworkOptions";
 import {
   Check,
   ExternalLink,
@@ -158,15 +154,8 @@ export function getLatestExperienceText(lead: NetworkLeadSummary) {
 }
 
 export function getLeadPreferenceLabels(lead: NetworkLeadSummary) {
-  const moveLabel =
-    lead.careerMoveIntentLabel ??
-    getTalentCareerMoveIntentLabel(lead.careerMoveIntent) ??
-    null;
-
   return {
     engagementLabels: getTalentEngagementLabels(lead.engagementTypes),
-    locationLabels: getTalentLocationLabels(lead.preferredLocations),
-    moveLabel,
   };
 }
 

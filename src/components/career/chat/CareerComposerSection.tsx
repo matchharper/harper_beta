@@ -1,4 +1,4 @@
-import React from "react";
+import React, { KeyboardEvent, useCallback, useRef, useState } from "react";
 import {
   ArrowUp,
   AudioLines,
@@ -10,7 +10,6 @@ import {
   Phone,
   PhoneOff,
 } from "lucide-react";
-import { KeyboardEvent, useRef, useState } from "react";
 import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
 import { Tooltips } from "@/components/ui/tooltip";
 import { isOnboardingPaused } from "@/hooks/career/careerHelpers";
@@ -26,6 +25,7 @@ const CareerComposerSection = () => {
     conversationId,
     stage,
     messages,
+    scrollRef,
     isOnboardingDone,
     sessionPending,
     profilePending,
@@ -159,6 +159,17 @@ const CareerComposerSection = () => {
     }
   };
 
+  const handleComposerFocus = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      const scrollElement = scrollRef.current;
+      if (!scrollElement) return;
+      scrollElement.scrollTo({
+        top: scrollElement.scrollHeight,
+        behavior: "smooth",
+      });
+    });
+  }, [scrollRef]);
+
   const handleForceComplete = () => {
     if (!onForceCompleteOnboarding || manualCompletionDisabled) return;
     logCareerEvent("click_chat_force_complete");
@@ -166,7 +177,10 @@ const CareerComposerSection = () => {
   };
 
   return (
-    <div className="sticky bottom-0 shrink-0 px-5 py-4">
+    <div
+      data-vaul-no-drag=""
+      className="shrink-0 px-4 pb-3 pt-2 md:px-5 md:py-4"
+    >
       <div className="mx-auto w-full max-w-[1120px]">
         {isVoiceMode ? (
           <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -307,7 +321,9 @@ const CareerComposerSection = () => {
                   isComposingRef.current = false;
                   setDraft(event.currentTarget.value);
                 }}
+                onFocus={handleComposerFocus}
                 onKeyDown={handleComposerKeyDown}
+                enterKeyHint="send"
                 readOnly={isVoiceMode}
                 placeholder={
                   isVoiceMode

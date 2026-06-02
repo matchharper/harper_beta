@@ -5,7 +5,7 @@ import {
   getPositiveActionLabel,
   getNegativeActionLabel,
 } from "../CareerHistoryPanel";
-import { ArchiveRestore, ThumbsDown } from "lucide-react";
+import { ArchiveRestore, StickyNote, ThumbsDown } from "lucide-react";
 import {
   getCareerFeedbackButtonClassName,
   getCareerDefaultFeedbackButtonClassName,
@@ -26,6 +26,7 @@ const OpportunityDetailModal = ({
   onNegative,
   onQuestion,
   onRestore,
+  onEditMemo,
 }: {
   item: CareerHistoryOpportunity | null;
   open: boolean;
@@ -38,10 +39,12 @@ const OpportunityDetailModal = ({
   onNegative: () => void;
   onQuestion: () => void;
   onRestore?: () => void;
+  onEditMemo?: () => void;
 }) => {
   if (!open || !item) return null;
 
   const PositiveActionIcon = getCareerPositiveActionIcon(item.opportunityType);
+  const talentMemo = item.talentMemo?.trim() ?? "";
 
   return (
     <TalentCareerModal
@@ -78,15 +81,6 @@ const OpportunityDetailModal = ({
               onClick={onNegative}
             />
           </div>
-          {/* <div className="flex-1">
-            <HistoryFeedbackButton
-              className={getCareerDefaultFeedbackButtonClassName(false)}
-              disabled={pending}
-              icon={<MessageSquare className="h-4 w-4" />}
-              label="질문하기"
-              onClick={onQuestion}
-            />
-          </div> */}
           {onRestore && (
             <div className="flex-1">
               <HistoryFeedbackButton
@@ -99,6 +93,24 @@ const OpportunityDetailModal = ({
             </div>
           )}
         </div>
+        {/* <div className="mt-4 mb-4 flex flex-row items-start justify-start gap-2">
+          {onEditMemo && (
+            <div className="flex-1">
+              <HistoryFeedbackButton
+                className={getCareerDefaultFeedbackButtonClassName(
+                  Boolean(item.talentMemo?.trim())
+                )}
+                disabled={pending}
+                icon={<StickyNote className="h-4 w-4" />}
+                label={item.talentMemo?.trim() ? "메모 수정" : "메모하기"}
+                onClick={onEditMemo}
+              />
+            </div>
+          )}
+          <div className="w-[80%] px-2 whitespace-pre-wrap text-sm leading-6 text-black">
+            {talentMemo ? talentMemo : "메모를 남겨보세요"}
+          </div>
+        </div> */}
 
         <HistoryOpportunityDetailContent
           item={item}

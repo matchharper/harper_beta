@@ -13,7 +13,6 @@ import {
   markTalentUserLoggedIn,
   normalizeTalentEngagementTypes,
   normalizeTalentInsightContent,
-  sanitizeTalentCareerMoveIntent,
   type TalentConversationRow,
   type TalentMessageRow,
   type TalentStructuredProfile,
@@ -26,7 +25,6 @@ import {
 } from "@/lib/talentOnboarding/recommendationSettings";
 import { autoStartClaimedTalentConversation } from "@/lib/talentOnboarding/kickoff";
 import { TALENT_MESSAGE_TYPE_SESSION_REENGAGEMENT_SKIP } from "@/lib/talentOnboarding/onboarding";
-import { getTalentCareerMoveIntentLabel } from "@/lib/talentNetworkOptions";
 import {
   fetchTalentOpportunityHistoryByIds,
   fetchTalentOpportunityHistoryPage,
@@ -119,6 +117,7 @@ const createEmptyHistoryCounts = () => ({
     applied: 0,
     connected: 0,
     closed: 0,
+    hidden: 0,
   },
   total: 0,
 });
@@ -574,9 +573,6 @@ export async function GET(req: NextRequest) {
       talentInsights?.content
     );
     const historyOpportunities = historyOpportunitiesPage.items;
-    const careerMoveIntent = sanitizeTalentCareerMoveIntent(
-      talentSetting?.career_move_intent
-    );
     const talentSettingsUpdatedAt = talentSetting?.updated_at ?? null;
     const talentPreferencesUpdatedAt = talentSetting?.updated_at ?? null;
     const talentInsightsUpdatedAt = talentInsights?.last_updated_at ?? null;
@@ -711,9 +707,10 @@ export async function GET(req: NextRequest) {
         engagementTypes: normalizeTalentEngagementTypes(
           talentSetting?.engagement_types ?? []
         ),
-        preferredLocations: [],
-        careerMoveIntent,
-        careerMoveIntentLabel: getTalentCareerMoveIntentLabel(careerMoveIntent),
+        getExternalRecommendation:
+          talentSetting?.get_external_recommendation ?? true,
+        getInternalRecommendation:
+          talentSetting?.get_internal_recommendation ?? true,
         isOnboardingDone: Boolean(talentSetting?.is_onboarding_done),
         periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
           talentSetting?.periodic_interval_days

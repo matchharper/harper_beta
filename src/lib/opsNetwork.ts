@@ -58,14 +58,12 @@ export type NetworkLeadSummary = NetworkLead & {
 };
 
 export type NetworkLeadListStats = {
-  readyNowCount: number;
   recentCount: number;
   totalCount: number;
   withCvCount: number;
 };
 
 export type NetworkLeadListFilters = {
-  moveOptions: string[];
   roleOptions: string[];
 };
 
@@ -101,7 +99,7 @@ export type NetworkLeadDetailResponse = {
   latestTalentInsights: TalentInsightContent | null;
   latestTalentSetting: Pick<
     TalentSettingRow,
-    "engagement_types" | "career_move_intent"
+    "engagement_types"
   > | null;
   sourceTalentId: string;
   structuredProfile: TalentStructuredProfile | null;

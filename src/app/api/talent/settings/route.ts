@@ -89,7 +89,6 @@ export async function POST(req: NextRequest) {
       profileVisibility,
       blockedCompanies,
       engagementTypes: existing?.engagement_types ?? [],
-      careerMoveIntent: existing?.career_move_intent ?? null,
     });
 
     return NextResponse.json({

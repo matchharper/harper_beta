@@ -1,19 +1,18 @@
 import {
-  TALENT_NETWORK_CAREER_MOVE_INTENT_OPTIONS,
   TALENT_NETWORK_ENGAGEMENT_OPTIONS,
-  TALENT_NETWORK_LOCATION_OPTIONS,
-  type TalentNetworkCareerMoveIntentOptionId,
   type TalentNetworkEngagementOptionId,
-  type TalentNetworkLocationOptionId,
 } from "@/lib/talentNetworkOptions";
 import { INSIGHT_CHECKLIST } from "@/lib/talentOnboarding/insightChecklist";
 import {
+  DEFAULT_TALENT_GET_EXTERNAL_RECOMMENDATION,
+  DEFAULT_TALENT_GET_INTERNAL_RECOMMENDATION,
   DEFAULT_TALENT_PERIODIC_ENABLED,
   DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS,
   DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
   normalizeTalentPeriodicEnabled,
   normalizeTalentPeriodicIntervalDays,
   normalizeTalentRecommendationBatchSize,
+  normalizeTalentRecommendationToggle,
   type TalentRecommendationSettingsUpdateSource,
 } from "@/lib/talentOnboarding/recommendationSettings";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
@@ -45,15 +44,6 @@ const TALENT_ALLOWED_ENGAGEMENT_TYPES =
   new Set<TalentNetworkEngagementOptionId>(
     TALENT_NETWORK_ENGAGEMENT_OPTIONS.map((option) => option.id)
   );
-const TALENT_ALLOWED_PREFERRED_LOCATIONS =
-  new Set<TalentNetworkLocationOptionId>(
-    TALENT_NETWORK_LOCATION_OPTIONS.map((option) => option.id)
-  );
-const TALENT_ALLOWED_CAREER_MOVE_INTENTS =
-  new Set<TalentNetworkCareerMoveIntentOptionId>(
-    TALENT_NETWORK_CAREER_MOVE_INTENT_OPTIONS.map((option) => option.id)
-  );
-
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
@@ -97,37 +87,6 @@ export function normalizeTalentEngagementTypes(
   }
 
   return normalized;
-}
-
-export function normalizeTalentPreferredLocations(
-  values: unknown
-): TalentNetworkLocationOptionId[] {
-  if (!Array.isArray(values)) return [];
-
-  const unique = new Set<TalentNetworkLocationOptionId>();
-  const normalized: TalentNetworkLocationOptionId[] = [];
-
-  for (const raw of values) {
-    const value = String(raw ?? "").trim() as TalentNetworkLocationOptionId;
-    if (!TALENT_ALLOWED_PREFERRED_LOCATIONS.has(value)) continue;
-    if (unique.has(value)) continue;
-    unique.add(value);
-    normalized.push(value);
-  }
-
-  return normalized;
-}
-
-export function sanitizeTalentCareerMoveIntent(
-  value: unknown
-): TalentNetworkCareerMoveIntentOptionId | null {
-  const normalized = String(
-    value ?? ""
-  ).trim() as TalentNetworkCareerMoveIntentOptionId;
-  if (TALENT_ALLOWED_CAREER_MOVE_INTENTS.has(normalized)) {
-    return normalized;
-  }
-  return null;
 }
 
 const TALENT_INSIGHT_KEY_ALIASES: Record<string, string> = {
@@ -230,8 +189,6 @@ export function mergeTalentSettingSeed(args: {
   currentSetting: TalentSettingRow | null;
   blockedCompanies?: unknown;
   engagementTypes: unknown;
-  preferredLocations: unknown;
-  careerMoveIntent: unknown;
 }) {
   const { currentSetting } = args;
   const currentBlockedCompanies = normalizeTalentBlockedCompanies(
@@ -239,9 +196,6 @@ export function mergeTalentSettingSeed(args: {
   );
   const currentEngagementTypes = normalizeTalentEngagementTypes(
     currentSetting?.engagement_types ?? []
-  );
-  const currentCareerMoveIntent = sanitizeTalentCareerMoveIntent(
-    currentSetting?.career_move_intent
   );
 
   return {
@@ -256,9 +210,6 @@ export function mergeTalentSettingSeed(args: {
       currentEngagementTypes.length > 0
         ? currentEngagementTypes
         : normalizeTalentEngagementTypes(args.engagementTypes),
-    careerMoveIntent:
-      currentCareerMoveIntent ??
-      sanitizeTalentCareerMoveIntent(args.careerMoveIntent),
   };
 }
 
@@ -300,12 +251,11 @@ export async function upsertTalentSetting(args: {
   profileVisibility?: TalentProfileVisibility;
   blockedCompanies?: string[];
   engagementTypes?: TalentNetworkEngagementOptionId[];
-  preferredLocations?: TalentNetworkLocationOptionId[];
-  careerMoveIntent?: TalentNetworkCareerMoveIntentOptionId | null;
+  getExternalRecommendation?: boolean;
+  getInternalRecommendation?: boolean;
   periodicEnabled?: boolean;
   periodicIntervalDays?: number;
   recommendationBatchSize?: number;
-  lastPeriodicRunAt?: string | null;
   recommendationSourceConversationId?: string | null;
   recommendationSettingsUpdatedBy?: TalentRecommendationSettingsUpdateSource;
 }) {
@@ -325,8 +275,15 @@ export async function upsertTalentSetting(args: {
     engagement_types: normalizeTalentEngagementTypes(
       args.engagementTypes ?? current?.engagement_types ?? []
     ),
-    career_move_intent: sanitizeTalentCareerMoveIntent(
-      args.careerMoveIntent ?? current?.career_move_intent
+    get_external_recommendation: normalizeTalentRecommendationToggle(
+      args.getExternalRecommendation ??
+        current?.get_external_recommendation ??
+        DEFAULT_TALENT_GET_EXTERNAL_RECOMMENDATION
+    ),
+    get_internal_recommendation: normalizeTalentRecommendationToggle(
+      args.getInternalRecommendation ??
+        current?.get_internal_recommendation ??
+        DEFAULT_TALENT_GET_INTERNAL_RECOMMENDATION
     ),
     is_onboarding_done: current?.is_onboarding_done ?? false,
     periodic_enabled: normalizeTalentPeriodicEnabled(
@@ -340,10 +297,6 @@ export async function upsertTalentSetting(args: {
     recommendation_batch_size: normalizeTalentRecommendationBatchSize(
       args.recommendationBatchSize ?? current?.recommendation_batch_size
     ),
-    last_periodic_run_at:
-      args.lastPeriodicRunAt === undefined
-        ? current?.last_periodic_run_at ?? null
-        : args.lastPeriodicRunAt,
     recommendation_source_conversation_id:
       args.recommendationSourceConversationId === undefined
         ? current?.recommendation_source_conversation_id ?? null
@@ -416,7 +369,8 @@ export async function setTalentOnboardingDone(args: {
       profile_visibility: DEFAULT_TALENT_PROFILE_VISIBILITY,
       blocked_companies: [],
       engagement_types: [],
-      career_move_intent: null,
+      get_external_recommendation: DEFAULT_TALENT_GET_EXTERNAL_RECOMMENDATION,
+      get_internal_recommendation: DEFAULT_TALENT_GET_INTERNAL_RECOMMENDATION,
       is_onboarding_done: isOnboardingDone,
       periodic_enabled: DEFAULT_TALENT_PERIODIC_ENABLED,
       periodic_interval_days: DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS,

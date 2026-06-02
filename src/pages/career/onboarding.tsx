@@ -41,6 +41,7 @@ import {
 } from "@/lib/talentNetworkOptions";
 import { cn } from "@/lib/cn";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
+import { getCareerSignupAttributionPayload } from "@/lib/careerSignupAttribution";
 import LoadingState from "../../components/career/OnboardingLoadingState";
 
 const SLIDE_VARIANTS = {
@@ -847,6 +848,7 @@ const CareerNetworkOnboardingContent = () => {
     const bootstrapRes = await fetchWithAuth("/api/talent/auth/bootstrap", {
       method: "POST",
       body: JSON.stringify({
+        ...getCareerSignupAttributionPayload(),
         emailOnboardingToken: emailOnboardingToken || undefined,
         inviteToken: inviteToken || undefined,
         mail: mail || undefined,

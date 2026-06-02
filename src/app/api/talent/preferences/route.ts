@@ -9,7 +9,6 @@ import {
   normalizeTalentBlockedCompanies,
   normalizeTalentEngagementTypes,
   normalizeTalentInsightContent,
-  sanitizeTalentCareerMoveIntent,
   sanitizeTalentProfileVisibility,
   upsertTalentInsights,
   upsertTalentSetting,
@@ -17,8 +16,8 @@ import {
 import {
   normalizeTalentPeriodicIntervalDays,
   normalizeTalentRecommendationBatchSize,
+  normalizeTalentRecommendationToggle,
 } from "@/lib/talentOnboarding/recommendationSettings";
-import { getTalentCareerMoveIntentLabel } from "@/lib/talentNetworkOptions";
 import {
   buildInsightActivitySummary,
   buildPreferenceActivitySummary,
@@ -50,7 +49,8 @@ const getLatestUpdatedAt = (...values: Array<string | null | undefined>) => {
 
 type Body = {
   engagementTypes?: string[];
-  careerMoveIntent?: string | null;
+  getExternalRecommendation?: boolean;
+  getInternalRecommendation?: boolean;
   periodicIntervalDays?: number;
   recommendationBatchSize?: number;
   insightContent?: Record<string, unknown> | null;
@@ -59,23 +59,23 @@ type Body = {
 const toResponsePreferences = (
   setting?: {
     engagement_types?: string[] | null;
-    career_move_intent?: string | null;
+    get_external_recommendation?: boolean | null;
+    get_internal_recommendation?: boolean | null;
     is_onboarding_done?: boolean | null;
     periodic_interval_days?: number | null;
     recommendation_batch_size?: number | null;
   } | null
 ) => {
-  const careerMoveIntent = sanitizeTalentCareerMoveIntent(
-    setting?.career_move_intent
-  );
-
   return {
     engagementTypes: normalizeTalentEngagementTypes(
       setting?.engagement_types ?? []
     ),
-    preferredLocations: [],
-    careerMoveIntent,
-    careerMoveIntentLabel: getTalentCareerMoveIntentLabel(careerMoveIntent),
+    getExternalRecommendation: normalizeTalentRecommendationToggle(
+      setting?.get_external_recommendation
+    ),
+    getInternalRecommendation: normalizeTalentRecommendationToggle(
+      setting?.get_internal_recommendation
+    ),
     isOnboardingDone: Boolean(setting?.is_onboarding_done),
     periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
       setting?.periodic_interval_days
@@ -102,11 +102,18 @@ function getPreferenceActivityChanges(args: {
       to: args.to.engagementTypes,
     });
   }
-  if (args.body.careerMoveIntent !== undefined) {
+  if (args.body.getExternalRecommendation !== undefined) {
     changes.push({
-      field: "careerMoveIntent",
-      from: args.from.careerMoveIntent,
-      to: args.to.careerMoveIntent,
+      field: "getExternalRecommendation",
+      from: args.from.getExternalRecommendation,
+      to: args.to.getExternalRecommendation,
+    });
+  }
+  if (args.body.getInternalRecommendation !== undefined) {
+    changes.push({
+      field: "getInternalRecommendation",
+      from: args.from.getInternalRecommendation,
+      to: args.to.getInternalRecommendation,
     });
   }
   if (args.body.periodicIntervalDays !== undefined) {
@@ -189,7 +196,8 @@ export async function POST(req: NextRequest) {
 
     const hasPreferenceUpdate =
       body.engagementTypes !== undefined ||
-      body.careerMoveIntent !== undefined ||
+      body.getExternalRecommendation !== undefined ||
+      body.getInternalRecommendation !== undefined ||
       body.periodicIntervalDays !== undefined ||
       body.recommendationBatchSize !== undefined;
     const hasInsightUpdate = body.insightContent !== undefined;
@@ -208,8 +216,13 @@ export async function POST(req: NextRequest) {
           engagementTypes: normalizeTalentEngagementTypes(
             body.engagementTypes ?? existingSetting?.engagement_types ?? []
           ),
-          careerMoveIntent: sanitizeTalentCareerMoveIntent(
-            body.careerMoveIntent ?? existingSetting?.career_move_intent
+          getExternalRecommendation: normalizeTalentRecommendationToggle(
+            body.getExternalRecommendation ??
+              existingSetting?.get_external_recommendation
+          ),
+          getInternalRecommendation: normalizeTalentRecommendationToggle(
+            body.getInternalRecommendation ??
+              existingSetting?.get_internal_recommendation
           ),
           periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
             body.periodicIntervalDays ??

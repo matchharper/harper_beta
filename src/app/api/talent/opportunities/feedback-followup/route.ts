@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createTalentOpportunityFeedbackFollowUpReply } from "@/lib/career/historyActionReply";
+import type { TalentOpportunityFeedbackReplyTrigger } from "@/lib/career/historyActionReply";
 import { getRequestUser } from "@/lib/supabaseServer";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
+
+function normalizeFeedbackFollowUpTrigger(
+  value: unknown
+): TalentOpportunityFeedbackReplyTrigger {
+  return value === "all_recommended_opportunities_cleared"
+    ? "all_recommended_opportunities_cleared"
+    : "delayed_external_feedback";
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,6 +21,7 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json().catch(() => ({}))) as {
       conversationId?: string | null;
+      trigger?: string | null;
     };
     const conversationId = String(body.conversationId ?? "").trim();
     if (!conversationId) {
@@ -26,7 +36,7 @@ export async function POST(req: NextRequest) {
       {
         admin,
         conversationId,
-        trigger: "delayed_external_feedback",
+        trigger: normalizeFeedbackFollowUpTrigger(body.trigger),
         userId: user.id,
       }
     );

@@ -21,13 +21,12 @@ type FtsKeyword = {
   weight: number;
 };
 
-type RoleSearchMode = "relaxed" | "strict";
+type RoleSearchMode = "strict";
 
 type ExternalSearchPlan = {
   excludeKeywords: string[];
   ftsKeywords: FtsKeyword[];
   locations: string[];
-  mustKeywords: string[];
   searchIntentSummary: string;
 };
 
@@ -182,6 +181,8 @@ const RECOMMEND_JOB_POSTINGS_FINAL_SELECTION_MODEL =
   RECOMMEND_JOB_POSTINGS_PLAN_MODEL;
 const RECOMMEND_JOB_POSTINGS_PRIMARY_MODEL = "grok-4-1-fast-reasoning";
 const RECOMMEND_JOB_POSTINGS_FALLBACK_MODEL = "grok-4-fast-reasoning";
+const RECOMMEND_JOB_POSTINGS_ANTHROPIC_OVERLOAD_FALLBACK_MODEL =
+  RECOMMEND_JOB_POSTINGS_PRIMARY_MODEL;
 
 const DEFAULT_EXCLUDE_KEYWORDS = ["tutor", "annotator", "evaluator"];
 const EXCLUDE_KEYWORDS_TO_DROP = new Set(["intern", "internship"]);
@@ -201,7 +202,6 @@ The user's latest request is the primary retrieval target. Use the compact user 
 Output schema:
 {
   "searchIntentSummary": "one Korean sentence focused on the current request",
-  "mustKeywords": [],
   "ftsKeywords": [{"terms": ["synonym", "group"], "weight": 1.0}],
   "locations": [],
   "excludeKeywords": []
@@ -211,9 +211,8 @@ Rules:
 - ftsKeywords are the first-pass role/domain gate over opportunity_search_tsv(consist of role name, description, work mode). Each group is OR-like, so a posting matching only one group must still be plausibly relevant.
 - Use ftsKeywords for role name, role description, domain, skills, etc.
 - 만약 한국의 공고도 검색한다면, terms에 영어 뿐만 아니라 한글 동의어도 포함해라. ex) "Research Engineer", "Machine leaning", "리서치 엔지니어", "머신러닝", "개발자", "Developer"
+- Avoid standalone broad terms such as "AI", "data", "software".
 - Do not put pure preferences in ftsKeywords: company stage, company size, funding, investors, location, remote/hybrid/onsite, salary, culture, brand prestige, "startup", "Series A", "YC", "a16z", "global", or "Seoul" unless that word is literally part of the work domain.
-- mustKeywords is optional and should usually be empty. Only include terms when the user's current request has explicit must-have concepts that should appear in the job description body, not just the role title. If non-empty, at least one mustKeyword becomes a hard cr.description ILIKE condition.
-- 예를 들어, 게임 개발 엔지니어라고 한다면 mustKeywords에는 "game", "게임"이 들어가면 좋다. "engineer"의 경우 너무 많이 중복될 수 있으니 좋지않다.
 - locations: Location filters or preferences. Keep empty if location preference is unknown.
   - Examples: "Seoul", "Korea", ", CA", "United States",  "Japan"
   - 유저가 명시적으로 한국만을 원한다고 하지 않은 경우에는 기본적으로 한국과 미국 둘다 열어둬라. 
@@ -551,7 +550,6 @@ function isDateFieldKey(key: string) {
       "viewedAt",
       "clickedAt",
       "lastMentionedAt",
-      "lastPeriodicRunAt",
       "postedAt",
       "startDate",
       "endDate",
@@ -563,7 +561,6 @@ function isDateFieldKey(key: string) {
       "viewed_at",
       "clicked_at",
       "last_mentioned_at",
-      "last_periodic_run_at",
       "posted_at",
       "start_date",
       "end_date",
@@ -1310,7 +1307,6 @@ function normalizeExternalSearchPlan(
     locations: expandLocationSearchTerms(
       asStringArray(source.locations, 8, 120)
     ),
-    mustKeywords: asStringArray(source.mustKeywords, 12, 120),
     searchIntentSummary:
       cleanText(source.searchIntentSummary ?? raw?.searchIntentSummary, 260) ||
       "현재 유저 요청에 맞는 external job posting을 찾는다.",
@@ -1324,8 +1320,9 @@ async function buildSearchPlan(args: {
   request: string;
 }) {
   const raw = await runTalentAssistantCompletion({
-    anthropicOverloadFallbackModel: RECOMMEND_JOB_POSTINGS_PLAN_MODEL,
-    fallbackModel: RECOMMEND_JOB_POSTINGS_PLAN_MODEL,
+    anthropicOverloadFallbackModel:
+      RECOMMEND_JOB_POSTINGS_ANTHROPIC_OVERLOAD_FALLBACK_MODEL,
+    fallbackModel: RECOMMEND_JOB_POSTINGS_FALLBACK_MODEL,
     jsonMode: true,
     messages: [
       { role: "system", content: PLAN_SYSTEM_PROMPT },
@@ -1462,42 +1459,6 @@ function buildLocationSql(locations: string[]) {
   return parts.length > 0 ? [`(${parts.join(" OR ")})`] : [];
 }
 
-function buildMustKeywordSql(mustKeywords: string[]) {
-  const parts = mustKeywords
-    .map((keyword) => cleanText(keyword, 100))
-    .filter(Boolean)
-    .slice(0, 12)
-    .map((keyword) => {
-      const pattern = sqlLiteral(`%${keyword}%`);
-      return `COALESCE(cr.description, '') ILIKE ${pattern}`;
-    });
-  return parts.length > 0 ? [`(${parts.join(" OR ")})`] : [];
-}
-
-function buildRelaxedSearchSql(plan: ExternalSearchPlan) {
-  const uniqueTerms = new Map<string, string>();
-  for (const keyword of plan.ftsKeywords) {
-    for (const term of keyword.terms) {
-      const text = cleanText(term, 120);
-      if (!text) continue;
-      const key = text.toLocaleLowerCase("ko-KR");
-      if (!uniqueTerms.has(key)) uniqueTerms.set(key, text);
-      if (uniqueTerms.size >= 8) break;
-    }
-    if (uniqueTerms.size >= 8) break;
-  }
-  const terms = Array.from(uniqueTerms.values())
-    .map((term) => cleanText(term, 120))
-    .filter(Boolean)
-    .slice(0, 8);
-  if (terms.length === 0) return ftsMatchSql();
-  const ilikeParts = terms.map((term) => {
-    const pattern = sqlLiteral(`%${term}%`);
-    return `COALESCE(cr.name, '') ILIKE ${pattern}`;
-  });
-  return `(${ftsMatchSql()} OR ${ilikeParts.join(" OR ")})`;
-}
-
 function previouslyRecommendedRoleExclusionSql(userId: string) {
   const normalizedUserId = cleanText(userId, 120);
   if (!normalizedUserId || !isUuid(normalizedUserId)) return null;
@@ -1519,8 +1480,6 @@ function buildRoleSearchSql(args: {
   const companyTestScoreRankSql = `COALESCE(cw.test_score, 0) / ${COMPANY_TEST_SCORE_SEARCH_RANK_DIVISOR}.0`;
   const searchRankSql = `(${ftsRankSql(args.plan.ftsKeywords)} + ${companyTestScoreRankSql})`;
   const ftsQuerySql = ftsAnyQuerySql(args.plan.ftsKeywords);
-  const isRelaxed = args.searchMode === "relaxed";
-  const ftsJoinSql = isRelaxed ? "true" : ftsMatchSql();
   const where = [
     "COALESCE(cr.is_expired, false) = false",
     "cr.status NOT IN ('expired', 'closed', 'inactive', 'archived')",
@@ -1529,8 +1488,6 @@ function buildRoleSearchSql(args: {
     ...buildBlockedCompanySql(args.blockedCompanies),
     ...buildExcludeKeywordSql(args.plan.excludeKeywords),
     ...buildLocationSql(args.plan.locations),
-    ...buildMustKeywordSql(args.plan.mustKeywords),
-    isRelaxed ? buildRelaxedSearchSql(args.plan) : null,
   ].filter((sql): sql is string => Boolean(sql));
 
   return `
@@ -1562,7 +1519,7 @@ candidates AS (
     ${searchRankSql} AS search_rank
   FROM public.company_roles cr
   JOIN fts
-    ON ${ftsJoinSql}
+    ON ${ftsMatchSql()}
   JOIN public.company_workspace cw
     ON cw.company_workspace_id = cr.company_workspace_id
   LEFT JOIN public.company_db cd
@@ -1845,42 +1802,6 @@ function filterPreviouslyRecommendedExternalRows(
       (!fingerprint || !existingFingerprints.has(fingerprint))
     );
   });
-}
-
-function mergeRoleRows(primary: RawRoleRow[], secondary: RawRoleRow[]) {
-  const rowsById = new Map<
-    string,
-    { firstSeen: number; row: RawRoleRow; score: number }
-  >();
-  let firstSeen = 0;
-  const addRows = (rows: RawRoleRow[]) => {
-    rows.forEach((row, index) => {
-      const key =
-        cleanText(row.role_id, 120) ||
-        roleFingerprint(row.company_name, row.role_name) ||
-        `candidate_${index}`;
-      const score =
-        typeof row.search_rank === "number" && Number.isFinite(row.search_rank)
-          ? row.search_rank
-          : 0;
-      const existing = rowsById.get(key);
-      if (!existing) {
-        rowsById.set(key, { firstSeen, row, score });
-        firstSeen += 1;
-      } else if (score > existing.score) {
-        existing.row = row;
-        existing.score = score;
-      }
-    });
-  };
-  addRows(primary);
-  addRows(secondary);
-  return Array.from(rowsById.values())
-    .sort((left, right) => {
-      if (right.score !== left.score) return right.score - left.score;
-      return left.firstSeen - right.firstSeen;
-    })
-    .map((item) => item.row);
 }
 
 function roleRowsToCards(rows: RawRoleRow[]) {
@@ -2209,8 +2130,8 @@ async function selectFinalRecommendations(args: {
   const detailedExternalCandidates = args.cards.map(roleDetailCardForLlm);
   const raw = await runTalentAssistantCompletion({
     anthropicOverloadFallbackModel:
-      RECOMMEND_JOB_POSTINGS_FINAL_SELECTION_MODEL,
-    fallbackModel: RECOMMEND_JOB_POSTINGS_FINAL_SELECTION_MODEL,
+      RECOMMEND_JOB_POSTINGS_ANTHROPIC_OVERLOAD_FALLBACK_MODEL,
+    fallbackModel: RECOMMEND_JOB_POSTINGS_FALLBACK_MODEL,
     jsonMode: true,
     messages: [
       { role: "system", content: FINAL_SELECTION_SYSTEM_PROMPT },
@@ -2609,7 +2530,6 @@ export async function runCareerJobPostingRecommendations(args: {
     excludeKeywords: plan.excludeKeywords,
     ftsKeywords: plan.ftsKeywords,
     locations: plan.locations,
-    mustKeywords: plan.mustKeywords,
     searchIntentSummary: plan.searchIntentSummary,
     targetRecommendationCount,
   });
@@ -2622,25 +2542,6 @@ export async function runCareerJobPostingRecommendations(args: {
     userId: args.userId,
   });
   let rows = strictSearch.rows;
-  let relaxedSearchUsed = false;
-  if (rows.length < FINAL_RECOMMENDATION_COUNT) {
-    const relaxedSearch = await executeRoleSql({
-      admin: args.admin,
-      blockedCompanies,
-      plan,
-      searchMode: "relaxed",
-      userId: args.userId,
-    });
-    rows = mergeRoleRows(strictSearch.rows, relaxedSearch.rows).slice(
-      0,
-      MAX_SEARCH_RESULTS
-    );
-    relaxedSearchUsed = true;
-    debugLog("relaxed sql search full", {
-      rawCount: relaxedSearch.rawRows.length,
-      sql: relaxedSearch.sql,
-    });
-  }
   rows = filterPreviouslyRecommendedExternalRows(
     rows,
     existingExternalRecommendations
@@ -2655,7 +2556,6 @@ export async function runCareerJobPostingRecommendations(args: {
           `${item.role_name} - ${item.company_name} - ${item.company_test_score}`
       ),
     existingExternalRecommendationCount: existingExternalRecommendations.length,
-    relaxedSearchUsed,
     strictCandidateCount: strictSearch.rows.length,
   });
   debugLog("sql search full", {
@@ -2749,7 +2649,6 @@ export async function runCareerJobPostingRecommendations(args: {
       excludeKeywords: plan.excludeKeywords,
       ftsKeywords: plan.ftsKeywords,
       locations: plan.locations,
-      mustKeywords: plan.mustKeywords,
       searchIntentSummary: plan.searchIntentSummary,
       sourceType: "external",
     },

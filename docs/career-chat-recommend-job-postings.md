@@ -34,7 +34,6 @@ Output returned by `runCareerJobPostingRecommendations`:
   "searchPlan": {
     "sourceType": "external",
     "searchIntentSummary": "서울 또는 리모트 가능한 LLM 인프라 역할을 찾는다.",
-    "mustKeywords": ["inference platform"],
     "ftsKeywords": [
       { "terms": ["LLM infrastructure", "AI infra", "inference platform"], "weight": 4 },
       { "terms": ["ML platform engineer", "platform engineer"], "weight": 2.5 }
@@ -87,7 +86,6 @@ Output schema:
 ```json
 {
   "searchIntentSummary": "현재 요청을 요약한 한국어 한 문장",
-  "mustKeywords": [],
   "ftsKeywords": [
     { "terms": ["synonym", "group"], "weight": 1.0 }
   ],
@@ -101,7 +99,6 @@ Concrete output example:
 ```json
 {
   "searchIntentSummary": "서울 또는 리모트 가능한 LLM 인프라/ML 플랫폼 역할을 찾고 명시적으로 제외한 대기업은 뺀다.",
-  "mustKeywords": ["inference platform", "model serving"],
   "ftsKeywords": [
     { "terms": ["LLM infrastructure", "AI infrastructure", "inference platform"], "weight": 4 },
     { "terms": ["ML platform engineer", "Machine Learning Platform Engineer"], "weight": 3 },
@@ -114,8 +111,6 @@ Concrete output example:
 
 Normalization:
 
-- `mustKeywords`: max 12. Optional and usually empty. If present, the DB
-  query requires at least one term to appear in `cr.description`.
 - `ftsKeywords`: max 8 groups, max 8 terms per group.
 - `weight`: clamped to `0.5..5.0`.
 - `locations`: max 8.
@@ -284,12 +279,8 @@ Additional filters:
   `cd.name`.
 - Exclude `excludeKeywords` only from `cr.name` (role title).
 - If `locations` are present, hard-filter only on `cr.location_text`.
-- If `mustKeywords` are present, hard-filter with OR across
-  `cr.description ILIKE '%mustKeyword%'`.
 - FTS query is built once in a `WITH fts AS (...)` CTE.
 - Strict search joins with `JOIN fts ON cr.opportunity_search_tsv @@ fts.query`.
-- Relaxed fallback search is server-only. It joins `fts` once and uses
-  `cr.opportunity_search_tsv @@ fts.query OR cr.name ILIKE '%ftsKeywordTerm%'`.
 - `cr.opportunity_search_tsv` is used directly; it is not wrapped in
   `COALESCE`.
 

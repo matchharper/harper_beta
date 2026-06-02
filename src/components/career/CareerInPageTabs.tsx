@@ -1,5 +1,6 @@
 "use client";
 
+import CareerAttentionBadge from "./ui/CareerAttentionBadge";
 import { careerCx } from "./ui/CareerPrimitives";
 import { useHideOnScroll } from "@/hooks/useHideOnScroll";
 import { useIsMobile } from "@/hooks/useMediaQuery";
@@ -8,6 +9,8 @@ export type CareerInPageTabItem<T extends string> = {
   id: T;
   label: string;
   count?: number;
+  attention?: boolean;
+  attentionLabel?: string;
 };
 
 const MOBILE_SCROLL_CONTAINER_ID = "career-mobile-scroll";
@@ -42,6 +45,7 @@ const CareerInPageTabs = <T extends string>({
       {items.map((item) => {
         const active = item.id === activeId;
         const showCount = !isMobile && typeof item.count === "number";
+        const showAttention = Boolean(item.attention);
         return (
           <button
             key={item.id}
@@ -50,7 +54,8 @@ const CareerInPageTabs = <T extends string>({
             aria-selected={active}
             onClick={() => onChange(item.id)}
             className={careerCx(
-              "inline-flex h-7 items-center rounded-full px-3.5 text-[13px] font-medium transition-all md:h-7 md:px-3.5 md:text-[13px]",
+              "relative inline-flex h-7 items-center overflow-visible rounded-full text-[13px] font-medium transition-all md:h-7 md:text-[13px]",
+              showAttention ? "pl-3.5 pr-5 md:pl-3.5 md:pr-5" : "px-3.5",
               active
                 ? "bg-white text-beige900 shadow-[0_1px_2px_rgba(46,23,6,0.08)]"
                 : "text-beige900/60 hover:bg-beige100/70 hover:text-beige900"
@@ -71,6 +76,12 @@ const CareerInPageTabs = <T extends string>({
                 </span>
               )}
             </span>
+            {showAttention ? (
+              <CareerAttentionBadge
+                label={item.attentionLabel ?? "확인이 필요합니다"}
+                className="right-[-2px] top-[-2px] h-3.5 w-3.5"
+              />
+            ) : null}
           </button>
         );
       })}

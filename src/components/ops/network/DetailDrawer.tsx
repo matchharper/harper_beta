@@ -144,11 +144,6 @@ export default function DetailDrawer({
                       {displayedLead.name ?? "이름 없음"}
                     </h2>
                     <div className="mt-3 flex flex-wrap items-center gap-2">
-                      {displayedLead.careerMoveIntentLabel ? (
-                        <Badge tone="strong">
-                          {displayedLead.careerMoveIntentLabel}
-                        </Badge>
-                      ) : null}
                       <Badge>
                         진행:{" "}
                         {getLeadProgressLabel(

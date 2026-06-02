@@ -161,8 +161,47 @@ export function isAnthropicOverloadedError(error: unknown) {
   );
 }
 
+function isTransientLlmError(error: unknown) {
+  const status = getLlmErrorStatus(error);
+  if (
+    status === 408 ||
+    status === 409 ||
+    status === 429 ||
+    status === 529
+  ) {
+    return true;
+  }
+  if (status !== null && status >= 500 && status < 600) return true;
+
+  const detail = getLlmErrorMessage(error).toLowerCase();
+  return (
+    detail.includes("overloaded") ||
+    detail.includes("rate limit") ||
+    detail.includes("rate_limit") ||
+    detail.includes("temporarily unavailable") ||
+    detail.includes("timeout")
+  );
+}
+
+function shouldRetryLlmErrorForModel(error: unknown, model: string) {
+  if (
+    getLlmChatProviderForModel(model) === "anthropic" &&
+    isAnthropicOverloadedError(error)
+  ) {
+    return false;
+  }
+
+  return isTransientLlmError(error);
+}
+
 function normalizedModelName(model: string | null | undefined) {
   return (model ?? "").trim();
+}
+
+const CHAT_COMPLETION_TRANSIENT_RETRY_DELAYS_MS = [600] as const;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export function getChatCompletionFallbackCandidates(args: {
@@ -231,11 +270,39 @@ export async function createChatCompletionWithFallback(args: {
     }
     return llmClient.chat.completions.create(requestBody as any);
   };
+  const createForModelWithTransientRetry = async (model: string) => {
+    let attempt = 0;
+
+    for (;;) {
+      try {
+        return await createForModel(model);
+      } catch (error) {
+        const delayMs = CHAT_COMPLETION_TRANSIENT_RETRY_DELAYS_MS[attempt];
+        if (
+          delayMs === undefined ||
+          !shouldRetryLlmErrorForModel(error, model)
+        ) {
+          throw error;
+        }
+
+        attempt += 1;
+        console.warn("[llm:chat-completion-retry]", {
+          attempt,
+          debugLabel: args.debugLabel ?? null,
+          delayMs,
+          error: getLlmErrorMessage(error),
+          model,
+          provider: getLlmChatProviderForModel(model),
+        });
+        await sleep(delayMs);
+      }
+    }
+  };
 
   try {
     return {
       model: args.model,
-      response: await createForModel(args.model),
+      response: await createForModelWithTransientRetry(args.model),
     };
   } catch (error) {
     const fallbackCandidates = getChatCompletionFallbackCandidates({
@@ -258,7 +325,7 @@ export async function createChatCompletionWithFallback(args: {
         return {
           fallbackReason: fallback.reason,
           model: fallback.model,
-          response: await createForModel(fallback.model),
+          response: await createForModelWithTransientRetry(fallback.model),
         };
       } catch (fallbackError) {
         lastError = fallbackError;

@@ -4,12 +4,14 @@ import type {
   CareerTalentPreferences,
   SessionResponse,
 } from "@/components/career/types";
-import { getTalentCareerMoveIntentLabel } from "@/lib/talentNetworkOptions";
 import {
+  DEFAULT_TALENT_GET_EXTERNAL_RECOMMENDATION,
+  DEFAULT_TALENT_GET_INTERNAL_RECOMMENDATION,
   DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS,
   DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
   normalizeTalentPeriodicIntervalDays,
   normalizeTalentRecommendationBatchSize,
+  normalizeTalentRecommendationToggle,
 } from "@/lib/talentOnboarding/recommendationSettings";
 import { getErrorMessage } from "./careerHelpers";
 import { showOpportunityDiscoveryStartedToast } from "./opportunityDiscoveryToast";
@@ -30,9 +32,8 @@ type TalentPreferencesPayload = {
 
 const emptyPreferences = (): CareerTalentPreferences => ({
   engagementTypes: [],
-  preferredLocations: [],
-  careerMoveIntent: null,
-  careerMoveIntentLabel: null,
+  getExternalRecommendation: DEFAULT_TALENT_GET_EXTERNAL_RECOMMENDATION,
+  getInternalRecommendation: DEFAULT_TALENT_GET_INTERNAL_RECOMMENDATION,
   isOnboardingDone: false,
   periodicIntervalDays: DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS,
   recommendationBatchSize: DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
@@ -50,20 +51,18 @@ const cloneTalentPreferences = (value: unknown): CareerTalentPreferences => {
       : null;
   if (!record) return emptyPreferences();
 
-  const careerMoveIntent =
-    typeof record.careerMoveIntent === "string" && record.careerMoveIntent.trim()
-      ? record.careerMoveIntent
-      : null;
-
   return {
     engagementTypes: Array.isArray(record.engagementTypes)
       ? record.engagementTypes
           .map((item) => String(item ?? "").trim())
           .filter(Boolean)
       : [],
-    preferredLocations: [],
-    careerMoveIntent,
-    careerMoveIntentLabel: getTalentCareerMoveIntentLabel(careerMoveIntent),
+    getExternalRecommendation: normalizeTalentRecommendationToggle(
+      record.getExternalRecommendation
+    ),
+    getInternalRecommendation: normalizeTalentRecommendationToggle(
+      record.getInternalRecommendation
+    ),
     isOnboardingDone: Boolean(record.isOnboardingDone),
     periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
       record.periodicIntervalDays
@@ -88,7 +87,8 @@ const sameTalentPreferences = (
 
   return (
     sameStringArray(left.engagementTypes, right.engagementTypes) &&
-    left.careerMoveIntent === right.careerMoveIntent &&
+    left.getExternalRecommendation === right.getExternalRecommendation &&
+    left.getInternalRecommendation === right.getInternalRecommendation &&
     left.isOnboardingDone === right.isOnboardingDone &&
     left.periodicIntervalDays === right.periodicIntervalDays &&
     left.recommendationBatchSize === right.recommendationBatchSize
@@ -166,7 +166,8 @@ export const useCareerTalentPreferences = ({
         method: "POST",
         body: JSON.stringify({
           engagementTypes: talentPreferences.engagementTypes,
-          careerMoveIntent: talentPreferences.careerMoveIntent,
+          getExternalRecommendation: talentPreferences.getExternalRecommendation,
+          getInternalRecommendation: talentPreferences.getInternalRecommendation,
           periodicIntervalDays: talentPreferences.periodicIntervalDays,
           recommendationBatchSize: talentPreferences.recommendationBatchSize,
         }),

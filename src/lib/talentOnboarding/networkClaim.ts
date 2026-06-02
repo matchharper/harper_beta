@@ -112,11 +112,6 @@ function buildLeadInsightSeed(lead: ReturnType<typeof buildNetworkLead>) {
       ? { technical_strengths: lead.impactSummary }
       : {}),
     ...(lead.dreamTeams ? { desired_teams: lead.dreamTeams } : {}),
-    ...(lead.preferredLocations.length > 0
-      ? {
-          location: `선호 근무 지역은 ${lead.preferredLocations.join(", ")}입니다.`,
-        }
-      : {}),
   } satisfies TalentInsightContent;
 
   return Object.keys(content).length > 0 ? content : null;
@@ -366,14 +361,11 @@ async function copyTalentSettingIfEmpty(args: {
   const merged = mergeTalentSettingSeed({
     currentSetting,
     engagementTypes: sourceEngagementTypes,
-    preferredLocations: [],
-    careerMoveIntent: sourceSetting?.career_move_intent ?? lead.careerMoveIntent,
   });
 
   const shouldSave =
     !currentSetting ||
-    currentSetting.engagement_types.length === 0 ||
-    !currentSetting.career_move_intent;
+    currentSetting.engagement_types.length === 0;
 
   if (!shouldSave) return;
 

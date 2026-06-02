@@ -24,11 +24,8 @@ type ListViewProps = {
   isLoading: boolean;
   list: NetworkLeadListResponse | undefined;
   listError: string | null;
-  moveFilter: string;
-  moveOptions: string[];
   onCvOnlyChange: (value: boolean) => void;
   onGoToPage: (page: number) => void;
-  onMoveFilterChange: (value: string) => void;
   onOpenLeadDrawer: (leadId: number) => void;
   onOpenQuickMemo: (lead: NetworkLeadSummary) => void;
   onPageSizeChange: (value: number) => void;
@@ -52,11 +49,8 @@ export default function ListView({
   isLoading,
   list,
   listError,
-  moveFilter,
-  moveOptions,
   onCvOnlyChange,
   onGoToPage,
-  onMoveFilterChange,
   onOpenLeadDrawer,
   onOpenQuickMemo,
   onPageSizeChange,
@@ -80,10 +74,6 @@ export default function ListView({
           hint="현재 waitlist 전체 수"
         />
         <StatCard
-          value={String(stats.readyNowCount)}
-          hint="좋은 기회면 바로 이직 가능"
-        />
-        <StatCard
           value={String(stats.withCvCount)}
           hint="CV 또는 이력서 파일 포함"
         />
@@ -92,7 +82,7 @@ export default function ListView({
 
       <section className="space-y-6">
         <div className="px-4">
-          <div className="grid gap-3 xl:grid-cols-[minmax(0,1.3fr)_180px_220px_160px_160px_auto]">
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1.3fr)_180px_160px_160px_auto]">
             <label
               className={cx(
                 opsTheme.panelSoft,
@@ -117,19 +107,6 @@ export default function ListView({
               {roleOptions.map((role) => (
                 <option key={role} value={role}>
                   {role}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={moveFilter}
-              onChange={(event) => onMoveFilterChange(event.target.value)}
-              className={cx(opsTheme.input, "appearance-none")}
-            >
-              <option value="all">모든 이직 의향</option>
-              {moveOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
                 </option>
               ))}
             </select>
@@ -294,11 +271,6 @@ export default function ListView({
                         </td>
                         <td className="px-4 py-4 align-top">
                           <div className="flex flex-wrap gap-2">
-                            {preferenceLabels.moveLabel ? (
-                              <Badge tone={isSelected ? "inverse" : "default"}>
-                                {preferenceLabels.moveLabel}
-                              </Badge>
-                            ) : null}
                             {preferenceLabels.engagementLabels.map((label) => (
                               <Badge
                                 key={`${lead.id}-engagement-${label}`}
@@ -307,17 +279,7 @@ export default function ListView({
                                 {label}
                               </Badge>
                             ))}
-                            {preferenceLabels.locationLabels.map((label) => (
-                              <Badge
-                                key={`${lead.id}-location-${label}`}
-                                tone={isSelected ? "inverse" : "default"}
-                              >
-                                {label}
-                              </Badge>
-                            ))}
-                            {!preferenceLabels.moveLabel &&
-                            preferenceLabels.engagementLabels.length === 0 &&
-                            preferenceLabels.locationLabels.length === 0 ? (
+                            {preferenceLabels.engagementLabels.length === 0 ? (
                               <span
                                 className={cx(
                                   "font-geist text-sm",

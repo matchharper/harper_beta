@@ -41,6 +41,11 @@ type SaveCareerProfileMemoResponse = {
   memo: CareerTalentOpsProfileMemo | null;
 };
 
+type DeleteCareerProfileMemoResponse = {
+  ok: true;
+  memoId: string;
+};
+
 type OpsCareerTalentListFilters = {
   createdFrom?: string;
   createdTo?: string;
@@ -254,7 +259,15 @@ export function useRefreshInsights(userId: string) {
   });
 }
 
-export function useSaveOpsCareerProfileMemo(userId: string) {
+const invalidateOpsCareerMemoQueries = (
+  queryClient: ReturnType<typeof useQueryClient>,
+  userId: string
+) => {
+  queryClient.invalidateQueries({ queryKey: opsCareerDetailKey(userId) });
+  queryClient.invalidateQueries({ queryKey: opsCareerListKey });
+};
+
+export function useCreateOpsCareerProfileMemo(userId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (content: string) =>
@@ -267,8 +280,43 @@ export function useSaveOpsCareerProfileMemo(userId: string) {
         }
       ),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: opsCareerDetailKey(userId) });
-      queryClient.invalidateQueries({ queryKey: opsCareerListKey });
+      invalidateOpsCareerMemoQueries(queryClient, userId);
+    },
+  });
+}
+
+export function useUpdateOpsCareerProfileMemo(userId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { content: string; memoId: string }) =>
+      fetchWithInternalAuth<SaveCareerProfileMemoResponse>(
+        "/api/internal/career/profile-memo",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...args, userId }),
+        }
+      ),
+    onSuccess: () => {
+      invalidateOpsCareerMemoQueries(queryClient, userId);
+    },
+  });
+}
+
+export function useDeleteOpsCareerProfileMemo(userId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (memoId: string) =>
+      fetchWithInternalAuth<DeleteCareerProfileMemoResponse>(
+        "/api/internal/career/profile-memo",
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ memoId, userId }),
+        }
+      ),
+    onSuccess: () => {
+      invalidateOpsCareerMemoQueries(queryClient, userId);
     },
   });
 }

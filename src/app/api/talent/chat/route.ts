@@ -12,7 +12,6 @@ import {
   getTalentSupabaseAdmin,
   normalizeTalentEngagementTypes,
   normalizeTalentInsightContent,
-  sanitizeTalentCareerMoveIntent,
   toTalentMessageResponse,
 } from "@/lib/talentOnboarding/server";
 import {
@@ -44,7 +43,6 @@ import {
   maybeSummarizeTalentConversation,
 } from "@/lib/talentOnboarding/conversationSummary";
 import { createOnboardingCompletionMessages } from "@/lib/talentOnboarding/onboardingCompletionWrapup";
-import { getTalentCareerMoveIntentLabel } from "@/lib/talentNetworkOptions";
 import { extractAndPersistChatInsights } from "@/lib/talentOnboarding/chatInsights";
 import {
   TALENT_ONBOARDING_DONE_MARKER,
@@ -158,6 +156,9 @@ const createSseHeaders = () => ({
   "X-Accel-Buffering": "no",
 });
 
+const RECOMMEND_JOB_POSTINGS_STREAM_PREAMBLE =
+  "좋습니다. 지금까지의 대화와 피드백을 기준으로 새 포지션을 찾아볼게요.";
+
 function startOpportunityDiscoveryInBackground(runId: string) {
   console.info("[opportunity-discovery] queued for harper_worker", {
     runId,
@@ -173,17 +174,13 @@ async function buildTalentProfileSnapshot(args: {
     fetchTalentInsights({ admin: args.admin, userId: args.userId }),
     fetchTalentStructuredProfile({ admin: args.admin, userId: args.userId }),
   ]);
-  const careerMoveIntent = sanitizeTalentCareerMoveIntent(
-    setting?.career_move_intent
-  );
   return {
     talentPreferences: {
       engagementTypes: normalizeTalentEngagementTypes(
         setting?.engagement_types ?? []
       ),
-      preferredLocations: [],
-      careerMoveIntent,
-      careerMoveIntentLabel: getTalentCareerMoveIntentLabel(careerMoveIntent),
+      getExternalRecommendation: setting?.get_external_recommendation ?? true,
+      getInternalRecommendation: setting?.get_internal_recommendation ?? true,
       isOnboardingDone: Boolean(setting?.is_onboarding_done),
       periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
         setting?.periodic_interval_days
@@ -291,59 +288,6 @@ function getToolStartThinkingLog(toolName: string) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function getStringArray(value: unknown) {
-  return Array.isArray(value)
-    ? value
-        .map((entry) => String(entry ?? "").trim())
-        .filter((entry) => entry.length > 0)
-    : [];
-}
-
-function shouldAutoRecommendAfterProfileUpdate(result: unknown) {
-  return (
-    isRecord(result) &&
-    result.ok === true &&
-    // result.impactLevel === "high" &&
-    result.shouldRecommendJobPostings === true
-  );
-}
-
-function buildAutoRecommendationRequest(args: {
-  latestUserMessage: string;
-  profileUpdateResult: Record<string, unknown>;
-}) {
-  const trigger: Record<string, unknown> = isRecord(
-    args.profileUpdateResult.recommendationTrigger
-  )
-    ? args.profileUpdateResult.recommendationTrigger
-    : {};
-  const changedPreferenceFields = getStringArray(
-    trigger.changedPreferenceFields
-  );
-  const updatedTalentInsightKeys = getStringArray(
-    trigger.updatedTalentInsightKeys
-  );
-  const changeSummary =
-    optionalToolString(trigger.changeSummary) ??
-    "사용자의 추천 조건에 큰 변경이 생겼습니다.";
-
-  return [
-    "사용자의 방금 high-impact 프로필/선호 변경을 반영해 새로운 맞춤 채용공고를 추천해 주세요.",
-    `변경 요약: ${changeSummary}`,
-    changedPreferenceFields.length > 0
-      ? `변경된 preference 필드: ${changedPreferenceFields.join(", ")}`
-      : "",
-    updatedTalentInsightKeys.length > 0
-      ? `변경된 insight 키: ${updatedTalentInsightKeys.join(", ")}`
-      : "",
-    `사용자 최신 메시지: ${args.latestUserMessage}`,
-    "이미 저장된 최신 talent_preferences/talent_insights를 우선 기준으로 삼고, 직전 변경 사항과 맞지 않는 공고는 제외해 주세요.",
-  ]
-    .filter((line) => line.trim().length > 0)
-    .join("\n")
-    .slice(0, 1400);
 }
 
 async function persistThinkingLogsForMessage(args: {
@@ -619,7 +563,12 @@ export async function POST(req: NextRequest) {
     });
     const toolDefinitions = toolSelection.tools;
     const currentPreferences = {
+      getExternalRecommendation:
+        talentSetting?.get_external_recommendation ?? true,
+      getInternalRecommendation:
+        talentSetting?.get_internal_recommendation ?? true,
       periodicIntervalDays: talentSetting?.periodic_interval_days ?? null,
+      profileVisibility: talentSetting?.profile_visibility ?? null,
       recommendationBatchSize: talentSetting?.recommendation_batch_size ?? null,
     };
     const serializedActiveRun = serializeOpportunityRun(activeRun);
@@ -685,10 +634,6 @@ export async function POST(req: NextRequest) {
     let emitRecommendationStatus:
       | ((status: RecommendJobPostingStatus) => void)
       | null = null;
-    let autoRecommendationAttemptedAfterProfileUpdate = false;
-    const canAutoRecommendJobPostings = toolDefinitions.some(
-      (tool) => tool.function.name === TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS
-    );
     const recordThinkingLog = (status: string) => {
       const normalized = status.replace(/\s+/g, " ").trim().slice(0, 160);
       if (!normalized) return;
@@ -782,19 +727,6 @@ export async function POST(req: NextRequest) {
       name: string;
     }) => {
       const { toolInput } = splitToolUiStatus(toolArgs.input);
-      if (
-        toolArgs.name === TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS &&
-        autoRecommendationAttemptedAfterProfileUpdate
-      ) {
-        return {
-          assistantInstruction:
-            "A fresh recommendation search has already been run automatically after the high-impact profile update. Use the existing autoRecommendation result instead of calling recommend_job_postings again this turn.",
-          ok: false,
-          reason: "auto_recommendation_already_ran_this_turn",
-          skipped: true,
-        };
-      }
-
       if (toolArgs.name === TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS) {
         return executeRecommendJobPostings(toolInput);
       }
@@ -810,53 +742,6 @@ export async function POST(req: NextRequest) {
         name: toolArgs.name,
         input: toolInput,
       });
-
-      if (
-        toolArgs.name === TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE &&
-        canAutoRecommendJobPostings &&
-        shouldAutoRecommendAfterProfileUpdate(result)
-      ) {
-        const profileUpdateResult = result as Record<string, unknown>;
-        const request = buildAutoRecommendationRequest({
-          latestUserMessage: normalizedContent,
-          profileUpdateResult,
-        });
-        autoRecommendationAttemptedAfterProfileUpdate = true;
-        recordThinkingLog(
-          "변경된 추천 조건을 반영해 새 채용공고를 찾고 있습니다."
-        );
-
-        try {
-          const recommendationResult = await executeRecommendJobPostings({
-            request,
-          });
-
-          return {
-            ...profileUpdateResult,
-            assistantInstruction:
-              "The profile update was high-impact, so a fresh job-posting recommendation search has already been run. Answer in Korean using autoRecommendation.result.answerDraft, keep ranked roles, reasons, concerns, and links visible, and do not call recommend_job_postings again this turn.",
-            autoRecommendation: {
-              triggered: true,
-              request,
-              result: recommendationResult,
-            },
-          };
-        } catch (error) {
-          return {
-            ...profileUpdateResult,
-            assistantInstruction:
-              "The profile update was high-impact, so Harper attempted a fresh job-posting recommendation search, but it failed. Answer naturally in Korean: acknowledge the saved update, explain briefly that fresh recommendations could not be loaded right now, and continue without another tool call.",
-            autoRecommendation: {
-              error:
-                error instanceof Error
-                  ? error.message
-                  : "Fresh recommendation search failed.",
-              request,
-              triggered: true,
-            },
-          };
-        }
-      }
 
       if (
         toolArgs.name ===
@@ -922,6 +807,22 @@ export async function POST(req: NextRequest) {
             streamedAssistantText = "";
             send("assistant_text_replace", { content: "" });
           };
+          let injectedRecommendationToolPreamble = "";
+          const ensureRecommendationToolPreamble = () => {
+            if (
+              injectedRecommendationToolPreamble ||
+              streamedAssistantText.trim() ||
+              pendingAssistantText.trim()
+            ) {
+              return;
+            }
+
+            injectedRecommendationToolPreamble =
+              RECOMMEND_JOB_POSTINGS_STREAM_PREAMBLE;
+            sendVisibleTextDelta(
+              `${RECOMMEND_JOB_POSTINGS_STREAM_PREAMBLE}\n\n`
+            );
+          };
           try {
             send("user_message", {
               message: toResponseMessage(
@@ -939,6 +840,7 @@ export async function POST(req: NextRequest) {
               },
               onToolStart: (tool) => {
                 if (tool.name === TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS) {
+                  ensureRecommendationToolPreamble();
                   recordRecommendationStatus({ state: "running" });
                   return;
                 }
@@ -1145,6 +1047,17 @@ export async function POST(req: NextRequest) {
               safeAssistantText = stripTalentOnboardingCompletionMarker(
                 assistantTextWithMarkers
               );
+            }
+            if (
+              injectedRecommendationToolPreamble &&
+              !safeAssistantText.startsWith(injectedRecommendationToolPreamble)
+            ) {
+              safeAssistantText = [
+                injectedRecommendationToolPreamble,
+                safeAssistantText,
+              ]
+                .filter((text) => text.trim().length > 0)
+                .join("\n\n");
             }
             flushVisibleText(safeAssistantText);
             send("assistant_text_done", { ok: true });

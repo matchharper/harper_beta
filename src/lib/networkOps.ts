@@ -22,9 +22,6 @@ export type NetworkLeadPayload = {
   cv_storage_path?: string | null;
   impact_summary?: string | null;
   engagement_types?: string[];
-  preferred_locations?: string[];
-  career_move_intent?: string | null;
-  career_move_intent_label?: string | null;
   dream_teams?: string | null;
   submitted_at?: string | null;
 };
@@ -51,9 +48,6 @@ export type NetworkLead = {
   hasCv: boolean;
   impactSummary: string | null;
   engagementTypes: string[];
-  preferredLocations: string[];
-  careerMoveIntent: string | null;
-  careerMoveIntentLabel: string | null;
   dreamTeams: string | null;
   rawPayload: NetworkLeadPayload;
 };
@@ -95,9 +89,6 @@ export function parseNetworkLeadPayload(raw: string | null) {
       cv_storage_path: normalizeString(parsed.cv_storage_path),
       impact_summary: normalizeString(parsed.impact_summary),
       engagement_types: normalizeStringArray(parsed.engagement_types),
-      preferred_locations: normalizeStringArray(parsed.preferred_locations),
-      career_move_intent: normalizeString(parsed.career_move_intent),
-      career_move_intent_label: normalizeString(parsed.career_move_intent_label),
       dream_teams: normalizeString(parsed.dream_teams),
       submitted_at: normalizeString(parsed.submitted_at),
     } satisfies NetworkLeadPayload;
@@ -131,9 +122,6 @@ export function buildNetworkLead(row: NetworkWaitlistRow): NetworkLead {
     hasCv: Boolean(payload.cv_storage_bucket && payload.cv_storage_path),
     impactSummary: payload.impact_summary ?? null,
     engagementTypes: payload.engagement_types ?? [],
-    preferredLocations: payload.preferred_locations ?? [],
-    careerMoveIntent: payload.career_move_intent ?? null,
-    careerMoveIntentLabel: payload.career_move_intent_label ?? null,
     dreamTeams: payload.dream_teams ?? null,
     rawPayload: payload,
   };

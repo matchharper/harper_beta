@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { SessionResponse } from "@/components/career/types";
 import { getErrorMessage } from "./careerHelpers";
 import type { FetchWithAuth } from "./useCareerApi";
+import { getCareerSignupAttributionPayload } from "@/lib/careerSignupAttribution";
 
 type SessionPayload = SessionResponse & { error?: string };
 type LoadSessionOptions = {
@@ -71,25 +72,20 @@ export const useCareerSession = ({
   );
 
   const fetchSession = useCallback(async () => {
-    if (
-      normalizedInviteToken ||
-      normalizedMail ||
-      normalizedEmailOnboardingToken
-    ) {
-      const bootstrapRes = await fetchWithAuth("/api/talent/auth/bootstrap", {
-        method: "POST",
-        body: JSON.stringify({
-          emailOnboardingToken: normalizedEmailOnboardingToken || undefined,
-          inviteToken: normalizedInviteToken || undefined,
-          mail: normalizedMail || undefined,
-        }),
-      });
-      if (!bootstrapRes.ok) {
-        const payload = await bootstrapRes.json().catch(() => ({}));
-        throw new Error(
-          getErrorMessage(payload, "talent_users 초기화에 실패했습니다.")
-        );
-      }
+    const bootstrapRes = await fetchWithAuth("/api/talent/auth/bootstrap", {
+      method: "POST",
+      body: JSON.stringify({
+        ...getCareerSignupAttributionPayload(),
+        emailOnboardingToken: normalizedEmailOnboardingToken || undefined,
+        inviteToken: normalizedInviteToken || undefined,
+        mail: normalizedMail || undefined,
+      }),
+    });
+    if (!bootstrapRes.ok) {
+      const payload = await bootstrapRes.json().catch(() => ({}));
+      throw new Error(
+        getErrorMessage(payload, "talent_users 초기화에 실패했습니다.")
+      );
     }
 
     const sessionParams = new URLSearchParams({

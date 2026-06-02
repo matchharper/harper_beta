@@ -11,6 +11,10 @@
     {
       "path": "/api/internal/official-jobs/sync-ashby",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/internal/daily-user-stats",
+      "schedule": "5 0 * * *"
     }
   ]
 }
