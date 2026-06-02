@@ -16,6 +16,7 @@ import { CAREER_LINK_LABELS } from "@/components/career/constants";
 import LoadingState from "@/components/career/OnboardingLoadingState";
 import { pickLinkedinProfileLink } from "@/hooks/career/careerHelpers";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
+import CareerAttentionBadge from "../ui/CareerAttentionBadge";
 import {
   CareerField,
   CareerFieldLabel,
@@ -154,17 +155,26 @@ const CareerResumeLinksSettingsSection = () => {
               )}
             </>
           ) : (
-            <p className="mt-2 text-sm text-hblack500">
+            <p className="mt-1 text-sm leading-6 text-black/80">
               저장된 이력서가 없습니다.
+              <br />
+              이력서를 통해 회원님에 대해 알 수 있게되는 정보는 회사와의 연결 및
+              추천에 큰 영향을 미칩니다.
             </p>
           )}
 
           <div className="mt-3 flex items-center gap-2">
             <label
               htmlFor="career-settings-resume-upload"
-              className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-beige900/15 bg-white/45 px-3 text-xs font-medium text-beige900 hover:bg-beige900/10"
+              className="relative inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-beige900/15 bg-white/45 px-3 text-xs font-medium text-beige900 hover:bg-beige900/10"
             >
               <Upload className="h-3.5 w-3.5" />새 이력서 선택
+              {!hasSavedResume ? (
+                <CareerAttentionBadge
+                  label="저장된 이력서가 없습니다"
+                  className="-right-1 -top-1"
+                />
+              ) : null}
             </label>
             <input
               id="career-settings-resume-upload"

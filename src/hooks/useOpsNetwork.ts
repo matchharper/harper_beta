@@ -23,7 +23,6 @@ export function useOpsNetworkLeads(args: {
   cvOnly?: boolean;
   enabled?: boolean;
   limit?: number;
-  move?: string | null;
   offset?: number;
   query?: string;
   role?: string | null;
@@ -41,10 +40,6 @@ export function useOpsNetworkLeads(args: {
     searchParams.set("role", args.role);
   }
 
-  if (args.move) {
-    searchParams.set("move", args.move);
-  }
-
   if (args.cvOnly) {
     searchParams.set("cvOnly", "true");
   }
@@ -57,7 +52,6 @@ export function useOpsNetworkLeads(args: {
       args.offset ?? 0,
       query ?? "",
       args.role ?? "",
-      args.move ?? "",
       args.cvOnly === true,
     ],
     queryFn: () =>

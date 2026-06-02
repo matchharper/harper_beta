@@ -58,7 +58,7 @@ const CareerWorkspaceNav = () => {
   return (
     <>
       <header className="sticky top-0 z-20 bg-beige50 text-beige900 backdrop-blur-xl">
-        <div className="flex flex-row items-center justify-between gap-4 px-4 py-2 sm:px-6 lg:px-8">
+        <div className="flex flex-row items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
           <div className="font-hedvig text-[1.1rem] text-beige900">Harper</div>
           <div className="flex items-center gap-2">
             <button
@@ -68,7 +68,7 @@ const CareerWorkspaceNav = () => {
                 setInquiryOpen(true);
               }}
               aria-label="개선사항 및 문의사항"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-beige900/10 bg-beige100 text-beige900"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-black/10 hover:border-black/15 hover:bg-black/2 text-black"
             >
               <CircleHelp className="h-4 w-4" />
             </button>
@@ -76,7 +76,7 @@ const CareerWorkspaceNav = () => {
               type="button"
               onClick={onOpenSettings}
               aria-label="설정"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-beige900/10 bg-beige200 text-beige900"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-black/10 hover:border-black/15 hover:bg-black/2 text-black"
             >
               <Settings2 className="h-4 w-4" />
             </button>

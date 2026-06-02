@@ -24,6 +24,8 @@ import {
 import { getCareerDefaultSavedStage } from "@/components/career/opportunityTypeMeta";
 import { deriveHistoryOpportunityCounts } from "@/hooks/career/careerSessionData";
 import {
+  DEFAULT_TALENT_GET_EXTERNAL_RECOMMENDATION,
+  DEFAULT_TALENT_GET_INTERNAL_RECOMMENDATION,
   DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS,
   DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
 } from "@/lib/talentOnboarding/recommendationSettings";
@@ -54,10 +56,8 @@ const mockUser = {
 
 const initialTalentPreferences: CareerTalentPreferences = {
   engagementTypes: ["full_time", "fractional"],
-  preferredLocations: ["korea_based", "global_remote"],
-  careerMoveIntent: "open_to_explore",
-  careerMoveIntentLabel:
-    "아직 이직 생각은 없지만, 기회를 받아보고 결정하고 싶음",
+  getExternalRecommendation: DEFAULT_TALENT_GET_EXTERNAL_RECOMMENDATION,
+  getInternalRecommendation: DEFAULT_TALENT_GET_INTERNAL_RECOMMENDATION,
   isOnboardingDone: false,
   periodicIntervalDays: DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS,
   recommendationBatchSize: DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
@@ -522,6 +522,18 @@ const CareerPreviewPage = () => {
           current.map((item) =>
             item.id === opportunityId
               ? { ...item, feedback: "positive", savedStage }
+              : item
+          )
+        );
+      },
+      onUpdateHistoryOpportunityTalentMemo: (opportunityId, talentMemo) => {
+        setHistoryOpportunities((current) =>
+          current.map((item) =>
+            item.id === opportunityId
+              ? {
+                  ...item,
+                  talentMemo: String(talentMemo ?? "").trim() || null,
+                }
               : item
           )
         );

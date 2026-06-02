@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
+import { normalizeCareerUtmSource } from "@/lib/careerUtm";
 
 const EMAIL_SIGNIN_ERROR_MESSAGE = "이메일 혹은 비밀번호가 올바르지 않습니다.";
 const EMAIL_NOT_CONFIRMED_MESSAGE =
@@ -117,6 +118,12 @@ export const useCareerAuth = () => {
       nextUrl.searchParams.get("invite");
     const mail =
       currentUrl.searchParams.get("mail") || nextUrl.searchParams.get("mail");
+    const source = normalizeCareerUtmSource(
+      currentUrl.searchParams.get("source") ||
+        nextUrl.searchParams.get("source")
+    );
+    const localId =
+      currentUrl.searchParams.get("lid") || nextUrl.searchParams.get("lid");
     const emailOnboardingToken =
       currentUrl.searchParams.get(CAREER_EMAIL_ONBOARDING_TOKEN_PARAM) ||
       nextUrl.searchParams.get(CAREER_EMAIL_ONBOARDING_TOKEN_PARAM);
@@ -125,6 +132,12 @@ export const useCareerAuth = () => {
     }
     if (mail) {
       nextUrl.searchParams.set("mail", mail);
+    }
+    if (source) {
+      nextUrl.searchParams.set("source", source);
+    }
+    if (localId) {
+      nextUrl.searchParams.set("lid", localId);
     }
     if (emailOnboardingToken) {
       nextUrl.searchParams.set(

@@ -84,7 +84,6 @@ export default function NetworkOpsPage() {
 
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
-  const [moveFilter, setMoveFilter] = useState("all");
   const [cvOnly, setCvOnly] = useState(false);
   const [detailTab, setDetailTab] = useState<DetailTab>("profile");
   const [mailFromEmail, setMailFromEmail] = useState("");
@@ -107,7 +106,6 @@ export default function NetworkOpsPage() {
     cvOnly,
     enabled: router.isReady && canFetchInternal,
     limit: pageSize,
-    move: moveFilter !== "all" ? moveFilter : null,
     offset: currentOffset,
     query,
     role: roleFilter !== "all" ? roleFilter : null,
@@ -213,16 +211,6 @@ export default function NetworkOpsPage() {
     [currentPage, goToPage]
   );
 
-  const handleMoveFilterChange = useCallback(
-    (value: string) => {
-      setMoveFilter(value);
-      if (currentPage !== 1) {
-        goToPage(1, true);
-      }
-    },
-    [currentPage, goToPage]
-  );
-
   const handleCvOnlyChange = useCallback(
     (value: boolean) => {
       setCvOnly(value);
@@ -308,7 +296,8 @@ export default function NetworkOpsPage() {
   }, [selectedLeadId]);
 
   const selectedLead = useMemo(
-    () => visibleCurrentLeads.find((lead) => lead.id === selectedLeadId) ?? null,
+    () =>
+      visibleCurrentLeads.find((lead) => lead.id === selectedLeadId) ?? null,
     [selectedLeadId, visibleCurrentLeads]
   );
 
@@ -323,13 +312,11 @@ export default function NetworkOpsPage() {
       ? displayedLeadCandidate
       : null;
   const stats = list?.stats ?? {
-    readyNowCount: 0,
     recentCount: 0,
     totalCount: 0,
     withCvCount: 0,
   };
   const roleOptions = list?.filters.roleOptions ?? [];
-  const moveOptions = list?.filters.moveOptions ?? [];
 
   const listError =
     leadsQuery.error instanceof Error ? leadsQuery.error.message : null;
@@ -431,9 +418,7 @@ export default function NetworkOpsPage() {
       "name",
       "email",
       "selected_role",
-      "career_move_intent",
       "engagement_types",
-      "preferred_locations",
       "linkedin",
       "github",
       "scholar",
@@ -457,9 +442,7 @@ export default function NetworkOpsPage() {
       lead.name,
       lead.email,
       lead.selectedRole,
-      lead.careerMoveIntentLabel ?? lead.careerMoveIntent,
       lead.engagementTypes.join(" | "),
-      lead.preferredLocations.join(" | "),
       lead.linkedinProfileUrl,
       lead.githubProfileUrl,
       lead.scholarProfileUrl,
@@ -689,7 +672,6 @@ export default function NetworkOpsPage() {
   const resetFilters = useCallback(() => {
     setQuery("");
     setRoleFilter("all");
-    setMoveFilter("all");
     setCvOnly(false);
     if (currentPage !== 1) {
       goToPage(1, true);
@@ -758,11 +740,8 @@ export default function NetworkOpsPage() {
             isLoading={leadsQuery.isLoading}
             list={list}
             listError={listError}
-            moveFilter={moveFilter}
-            moveOptions={moveOptions}
             onCvOnlyChange={handleCvOnlyChange}
             onGoToPage={(page) => goToPage(page)}
-            onMoveFilterChange={handleMoveFilterChange}
             onOpenLeadDrawer={openLeadDrawer}
             onOpenQuickMemo={handleOpenQuickMemo}
             onPageSizeChange={handlePageSizeChange}

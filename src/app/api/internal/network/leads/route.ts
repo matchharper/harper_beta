@@ -21,13 +21,11 @@ export async function GET(req: NextRequest) {
     const offset = parseLeadOffset(req.nextUrl.searchParams.get("offset"));
     const query = parseLeadQuery(req.nextUrl.searchParams.get("query"));
     const role = parseLeadFilterValue(req.nextUrl.searchParams.get("role"));
-    const move = parseLeadFilterValue(req.nextUrl.searchParams.get("move"));
     const cvOnly = parseLeadBoolean(req.nextUrl.searchParams.get("cvOnly"));
 
     const payload = await fetchNetworkLeadPage({
       cvOnly,
       limit,
-      move,
       offset,
       query,
       role,

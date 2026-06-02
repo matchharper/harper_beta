@@ -77,6 +77,12 @@ const CareerLoginContent = () => {
     const inviteToken =
       typeof router.query.invite === "string" ? router.query.invite : "";
     const mail = typeof router.query.mail === "string" ? router.query.mail : "";
+    const source =
+      typeof router.query.source === "string"
+        ? normalizeCareerUtmSource(router.query.source)
+        : null;
+    const localId =
+      typeof router.query.lid === "string" ? router.query.lid.trim() : "";
     const origin =
       typeof window === "undefined"
         ? "https://matchharper.com"
@@ -84,6 +90,8 @@ const CareerLoginContent = () => {
     const nextUrl = new URL(nextPath, origin);
     if (inviteToken) nextUrl.searchParams.set("invite", inviteToken);
     if (mail) nextUrl.searchParams.set("mail", mail);
+    if (source) nextUrl.searchParams.set("source", source);
+    if (localId) nextUrl.searchParams.set("lid", localId);
     if (emailOnboardingTokenParam) {
       nextUrl.searchParams.set(
         CAREER_EMAIL_ONBOARDING_TOKEN_PARAM,
@@ -95,7 +103,9 @@ const CareerLoginContent = () => {
     emailOnboardingTokenParam,
     nextPath,
     router.query.invite,
+    router.query.lid,
     router.query.mail,
+    router.query.source,
   ]);
   const emailConfirmationSent = Boolean(authInfo);
   const submittedEmail = email.trim();

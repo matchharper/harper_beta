@@ -96,7 +96,6 @@ function parseOffset(value: string | null) {
 
 type NetworkLeadFilterArgs = {
   cvOnly?: boolean;
-  move?: string | null;
   query?: string | null;
   role?: string | null;
 };
@@ -165,11 +164,6 @@ function buildLeadInsightSeed(lead: NetworkLead) {
   const content = {
     ...(lead.impactSummary ? { technical_strengths: lead.impactSummary } : {}),
     ...(lead.dreamTeams ? { desired_teams: lead.dreamTeams } : {}),
-    ...(lead.preferredLocations.length > 0
-      ? {
-          location: `선호 근무 지역은 ${lead.preferredLocations.join(", ")}입니다.`,
-        }
-      : {}),
   };
 
   return Object.keys(content).length > 0 ? content : null;
@@ -215,9 +209,6 @@ async function fetchLeadRows(args: {
 }
 
 function buildLeadStats(leads: NetworkLead[]): NetworkLeadListStats {
-  const readyNowCount = leads.filter(
-    (lead) => lead.careerMoveIntent === "ready_to_move"
-  ).length;
   const withCvCount = leads.filter((lead) => lead.hasCv).length;
   const recentCount = leads.filter((lead) => {
     const submittedAt = new Date(lead.submittedAt);
@@ -227,7 +218,6 @@ function buildLeadStats(leads: NetworkLead[]): NetworkLeadListStats {
   }).length;
 
   return {
-    readyNowCount,
     recentCount,
     totalCount: leads.length,
     withCvCount,
@@ -243,31 +233,12 @@ function buildLeadFilterOptions(leads: NetworkLead[]): NetworkLeadListFilters {
     )
   ).sort((left, right) => left.localeCompare(right));
 
-  const moveOptions = Array.from(
-    new Set(
-      leads
-        .map(
-          (lead) =>
-            normalizeText(
-              lead.careerMoveIntentLabel ?? lead.careerMoveIntent ?? "미입력",
-              200
-            ) ?? "미입력"
-        )
-        .filter((value): value is string => Boolean(value))
-    )
-  ).sort((left, right) => left.localeCompare(right));
-
-  return { moveOptions, roleOptions };
+  return { roleOptions };
 }
 
 function matchesLeadFilters(lead: NetworkLead, filters: NetworkLeadFilterArgs) {
   if (filters.cvOnly && !lead.hasCv) return false;
   if (filters.role && lead.selectedRole !== filters.role) return false;
-
-  const moveValue =
-    normalizeText(lead.careerMoveIntentLabel ?? lead.careerMoveIntent, 200) ??
-    "미입력";
-  if (filters.move && moveValue !== filters.move) return false;
 
   const needle = normalizeText(filters.query, 200)?.toLowerCase();
   if (!needle) return true;
@@ -282,10 +253,7 @@ function matchesLeadFilters(lead: NetworkLead, filters: NetworkLeadFilterArgs) {
     lead.primaryProfileUrl,
     lead.impactSummary,
     lead.dreamTeams,
-    lead.careerMoveIntentLabel,
-    lead.careerMoveIntent,
     lead.engagementTypes.join(" "),
-    lead.preferredLocations.join(" "),
   ]
     .filter(Boolean)
     .join(" ")
@@ -673,7 +641,6 @@ export async function fetchNetworkLeadPage(args: {
   cvOnly?: boolean;
   limit?: number;
   offset?: number;
-  move?: string | null;
   query?: string | null;
   role?: string | null;
   userEmail?: string | null;
@@ -685,7 +652,6 @@ export async function fetchNetworkLeadPage(args: {
   const allLeads = rows.map((row) => buildNetworkLead(row));
   const filters = {
     cvOnly: args.cvOnly === true,
-    move: parseLeadFilterValue(args.move ?? null),
     query: parseLeadQuery(args.query ?? null),
     role: parseLeadFilterValue(args.role ?? null),
   } satisfies NetworkLeadFilterArgs;
@@ -972,7 +938,6 @@ export async function fetchNetworkLeadDetail(
     latestTalentSetting: latestTalentSetting
       ? {
           engagement_types: latestTalentSetting.engagement_types,
-          career_move_intent: latestTalentSetting.career_move_intent,
         }
       : null,
     sourceTalentId,
@@ -1107,8 +1072,6 @@ export async function ingestNetworkLeadProfile(args: { leadId: number }) {
           ? ingestion.experiences.map((experience) => experience.company_name)
           : [],
         engagementTypes: lead.engagementTypes,
-        preferredLocations: [],
-        careerMoveIntent: lead.careerMoveIntent,
       }),
     }),
     upsertTalentInsights({

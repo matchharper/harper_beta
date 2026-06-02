@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import CareerInPageTabs from "../CareerInPageTabs";
+import { useCareerSidebarContext } from "../CareerSidebarContext";
 import CareerTalentProfilePanel from "./CareerTalentProfilePanel";
 import CareerResumeLinksSettingsSection from "../settings/CareerResumeLinksSettingsSection";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
@@ -38,6 +39,23 @@ const PROFILE_SECTION_ITEMS: Array<{
 const CareerProfileWorkspace = () => {
   const router = useRouter();
   const logCareerEvent = useCareerLogEvent();
+  const { savedResumeFileName, savedResumeStoragePath } =
+    useCareerSidebarContext();
+  const hasSavedResume = Boolean(savedResumeFileName || savedResumeStoragePath);
+
+  const sectionItems = useMemo(
+    () =>
+      PROFILE_SECTION_ITEMS.map((item) =>
+        item.id === "links"
+          ? {
+              ...item,
+              attention: !hasSavedResume,
+              attentionLabel: "저장된 이력서가 없습니다",
+            }
+          : item
+      ),
+    [hasSavedResume]
+  );
 
   const activeSection: ProfileSectionId = useMemo(() => {
     const raw = router.query.profileSection;
@@ -69,7 +87,7 @@ const CareerProfileWorkspace = () => {
   return (
     <>
       <CareerInPageTabs
-        items={PROFILE_SECTION_ITEMS}
+        items={sectionItems}
         activeId={activeSection}
         onChange={handleChangeSection}
         mobileFloating

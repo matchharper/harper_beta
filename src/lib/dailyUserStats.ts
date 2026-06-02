@@ -19,6 +19,28 @@ const BATCH_SIZE = 1000;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const TOOL_USAGE_LOG_PREFIX = "career_tool_call:";
 const TOOL_FAILURE_LOG_PREFIX = "career_tool_call_failed:";
+const DAILY_USER_STATS_EXTRA_EXCLUDED_EMAILS = [
+  "@matchharper.com",
+  "@krewcapital.com",
+  "hongbeom.heo@gmail.com",
+  "yijunlee.000@gmail.com",
+  "khj605123@gmail.com",
+  "tarsyang05@gmail.com",
+  "junhyuck0819@gmail.com",
+  "khj6051@optimizerai.xyz",
+  "hyunbin.bk@gmail.com",
+  "yijunlee.125@snu.ac.kr",
+];
+const DAILY_USER_STATS_EXCLUDED_EMAILS = Array.from(
+  new Set(
+    [
+      ...DEFAULT_ADMIN_EXCLUDED_EMAILS,
+      ...DAILY_USER_STATS_EXTRA_EXCLUDED_EMAILS,
+    ]
+      .map((email) => normalizeEmail(email))
+      .filter(Boolean)
+  )
+);
 
 type TalentUserRow = Pick<
   Database["public"]["Tables"]["talent_users"]["Row"],
@@ -355,7 +377,7 @@ export async function buildDailyUserStatsReport(
   const { date, startIso, endIso } = getKstDayRange(
     resolveDailyUserStatsDate(dateInput)
   );
-  const excludedEmailSet = new Set(DEFAULT_ADMIN_EXCLUDED_EMAILS);
+  const excludedEmailSet = new Set(DAILY_USER_STATS_EXCLUDED_EMAILS);
 
   const [
     talentUsers,

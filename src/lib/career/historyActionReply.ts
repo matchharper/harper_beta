@@ -112,6 +112,9 @@ const getFeedbackFollowUpResponseMode = (args: {
   trigger: TalentOpportunityFeedbackReplyTrigger;
 }): CareerOpportunityFeedbackFollowUpResponseMode => {
   if (args.trigger === "immediate_internal_feedback") return "use_judgment";
+  if (args.trigger === "all_recommended_opportunities_cleared") {
+    return "use_judgment";
+  }
   if (args.items.length === 0) return "wrap_up_preferred";
 
   const signature = [

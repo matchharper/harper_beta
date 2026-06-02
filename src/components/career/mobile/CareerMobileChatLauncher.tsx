@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
 import { X, AudioLines, MessageCircle, Mic, MicOff } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
@@ -19,8 +19,93 @@ type CareerMobileChatLauncherProps = {
   onOpenChange?: (open: boolean) => void;
 };
 
-const DEFAULT_TOP_OFFSET_PX = 56;
+const DEFAULT_TOP_OFFSET_PX = 48;
 const SWIPE_UP_THRESHOLD_PX = 24;
+const KEYBOARD_OPEN_THRESHOLD_PX = 80;
+
+function readVisualViewportSnapshot() {
+  if (typeof window === "undefined") {
+    return {
+      height: 0,
+      offsetTop: 0,
+      bottomInset: 0,
+    };
+  }
+
+  const viewport = window.visualViewport;
+  const height = viewport?.height ?? window.innerHeight;
+  const offsetTop = viewport?.offsetTop ?? 0;
+  const bottomInset = Math.max(window.innerHeight - height - offsetTop, 0);
+
+  return {
+    height,
+    offsetTop,
+    bottomInset,
+  };
+}
+
+function useMobileChatViewport(open: boolean) {
+  const maxViewportHeightRef = useRef(0);
+
+  useEffect(() => {
+    if (!open || typeof window === "undefined") return;
+
+    const root = document.documentElement;
+    let animationFrame = 0;
+
+    const updateViewportVars = () => {
+      window.cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(() => {
+        const { height, offsetTop, bottomInset } = readVisualViewportSnapshot();
+        maxViewportHeightRef.current = Math.max(
+          maxViewportHeightRef.current,
+          height
+        );
+
+        const heightDelta = Math.max(maxViewportHeightRef.current - height, 0);
+        const keyboardOpen =
+          bottomInset > KEYBOARD_OPEN_THRESHOLD_PX ||
+          heightDelta > KEYBOARD_OPEN_THRESHOLD_PX;
+
+        root.style.setProperty(
+          "--career-mobile-chat-viewport-height",
+          `${height}px`
+        );
+        root.style.setProperty(
+          "--career-mobile-chat-viewport-top",
+          `${offsetTop}px`
+        );
+        root.style.setProperty(
+          "--career-mobile-chat-safe-bottom",
+          keyboardOpen ? "0px" : "env(safe-area-inset-bottom)"
+        );
+      });
+    };
+
+    const resetViewportBaseline = () => {
+      maxViewportHeightRef.current = 0;
+      updateViewportVars();
+    };
+
+    resetViewportBaseline();
+    window.addEventListener("resize", updateViewportVars);
+    window.addEventListener("orientationchange", resetViewportBaseline);
+    window.visualViewport?.addEventListener("resize", updateViewportVars);
+    window.visualViewport?.addEventListener("scroll", updateViewportVars);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener("resize", updateViewportVars);
+      window.removeEventListener("orientationchange", resetViewportBaseline);
+      window.visualViewport?.removeEventListener("resize", updateViewportVars);
+      window.visualViewport?.removeEventListener("scroll", updateViewportVars);
+      root.style.removeProperty("--career-mobile-chat-viewport-height");
+      root.style.removeProperty("--career-mobile-chat-viewport-top");
+      root.style.removeProperty("--career-mobile-chat-safe-bottom");
+      maxViewportHeightRef.current = 0;
+    };
+  }, [open]);
+}
 
 function CareerMobileChatLauncher({
   children,
@@ -40,6 +125,7 @@ function CareerMobileChatLauncher({
     onOpenChange?.(next);
   };
   const touchStartYRef = useRef<number | null>(null);
+  useMobileChatViewport(open);
 
   const {
     callConnectionStatus,
@@ -202,20 +288,23 @@ function CareerMobileChatLauncher({
       <DrawerPrimitive.Root
         open={open}
         onOpenChange={handleOpenChange}
+        repositionInputs={false}
         shouldScaleBackground={false}
       >
         <DrawerPrimitive.Portal>
           <DrawerPrimitive.Overlay
             className="fixed inset-0 z-40 bg-beige900/20 backdrop-blur-[2px]"
             style={{
-              top: `calc(env(safe-area-inset-top) + ${topOffsetPx}px)`,
+              top: `calc(var(--career-mobile-chat-viewport-top, 0px) + env(safe-area-inset-top) + ${topOffsetPx}px)`,
             }}
           />
           <DrawerPrimitive.Content
-            className="fixed inset-x-0 bottom-0 z-50 flex flex-col border-t border-beige900/10 bg-beige50 text-beige900 outline-none"
+            className="fixed inset-x-0 z-50 flex flex-col border-t border-beige900/10 bg-beige50 text-beige900 outline-none"
             style={{
-              height: `calc(100svh - ${topOffsetPx}px - env(safe-area-inset-top))`,
-              paddingBottom: "env(safe-area-inset-bottom)",
+              top: `calc(var(--career-mobile-chat-viewport-top, 0px) + env(safe-area-inset-top) + ${topOffsetPx}px)`,
+              height: `calc(var(--career-mobile-chat-viewport-height, 100svh) - ${topOffsetPx}px - env(safe-area-inset-top))`,
+              paddingBottom:
+                "var(--career-mobile-chat-safe-bottom, env(safe-area-inset-bottom))",
             }}
           >
             <DrawerPrimitive.Title className="sr-only">
@@ -229,7 +318,7 @@ function CareerMobileChatLauncher({
               <div className="h-1.5 w-12 rounded-full bg-beige900/15" />
               <DrawerPrimitive.Close
                 aria-label="채팅 접기"
-                className="absolute right-3 top-2 z-[60] inline-flex h-9 w-9 items-center justify-center rounded-full border border-beige900/10 bg-white text-beige900/70 shadow-[0_4px_12px_rgba(46,23,6,0.06)] transition active:bg-beige100"
+                className="absolute right-3 top-2 z-[60] inline-flex h-8 w-8 items-center justify-center rounded-full border border-black/5 bg-white/50 text-beige900/70 shadow-[0_4px_12px_rgba(46,23,6,0.06)] transition active:bg-beige100"
               >
                 <X className="h-4 w-4" />
               </DrawerPrimitive.Close>

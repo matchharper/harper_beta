@@ -9,10 +9,6 @@ const PROMPT_PATH_OVERRIDES: Record<string, string> = {
     process.cwd(),
     "src/lib/talentOnboarding/prompts/interview-steps.md"
   ),
-  "misc.md": path.join(
-    process.cwd(),
-    "src/lib/talentOnboarding/prompts/misc.md"
-  ),
   "insight-extraction.md": path.join(
     process.cwd(),
     "src/lib/career/insights.md"

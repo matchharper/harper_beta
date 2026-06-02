@@ -78,11 +78,20 @@ function buildSlackActivityLines(args: NotifySlackActivityArgs & {
       .map(escapeSlackText)
       .filter(Boolean)
       .join(", ");
+    const detailLines = (args.details ?? []).flatMap((detail) => {
+      if (detail.label.toLowerCase() === "device") return [];
+      const value = normalizeText(detail.value);
+      if (!value) return [];
+      return [
+        `- *${escapeSlackText(detail.label)}*: ${escapeSlackText(value)}`,
+      ];
+    });
 
     return [
       "*Harper activity*",
       `- *Action*: ${action}`,
       `- ${identity || escapeSlackText(args.userId) || "Unknown"}`,
+      ...detailLines,
     ];
   }
 

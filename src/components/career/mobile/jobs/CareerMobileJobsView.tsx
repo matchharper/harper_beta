@@ -12,6 +12,7 @@ import {
   Hand,
   Loader2,
   MapPin,
+  StickyNote,
   ThumbsDown,
   ThumbsUp,
 } from "lucide-react";
@@ -37,7 +38,7 @@ import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { formatRelativeTime, cn } from "@/lib/utils";
 import type { CareerHistoryOpportunity } from "@/components/career/types";
 
-export type JobsDisplayTab = "new" | "saved" | "archived" | "connected";
+export type JobsDisplayTab = "new" | "saved" | "archived";
 
 type WorkspaceTabOption = {
   badgeCount?: number;
@@ -52,7 +53,6 @@ type CareerMobileJobsViewProps = {
   newCount?: number;
   savedCount?: number;
   archivedCount?: number;
-  connectedCount?: number;
   selectedOpportunity: CareerHistoryOpportunity | null;
   selectionIndex: number;
   selectionTotal: number;
@@ -71,6 +71,7 @@ type CareerMobileJobsViewProps = {
   onDismissSwipeHint?: () => void;
   onOpenCompanyInfo?: (opportunity: CareerHistoryOpportunity) => void;
   onOpenOpportunityInfo?: (type: CareerOpportunityType) => void;
+  onEditMemo?: (opportunity: CareerHistoryOpportunity) => void;
 };
 
 const SWIPE_THRESHOLD_PX = 40;
@@ -91,7 +92,6 @@ export default function CareerMobileJobsView({
   newCount,
   savedCount,
   archivedCount,
-  connectedCount,
   selectedOpportunity,
   selectionIndex,
   selectionTotal,
@@ -110,6 +110,7 @@ export default function CareerMobileJobsView({
   onDismissSwipeHint,
   onOpenCompanyInfo,
   onOpenOpportunityInfo,
+  onEditMemo,
 }: CareerMobileJobsViewProps) {
   const [internalTab, setInternalTab] = useState<JobsDisplayTab>("new");
   const tab = activeJobsTab ?? internalTab;
@@ -152,7 +153,6 @@ export default function CareerMobileJobsView({
     { id: "new", label: "새 포지션", count: newCount },
     { id: "saved", label: "저장함", count: savedCount },
     { id: "archived", label: "선호하지 않음", count: archivedCount },
-    { id: "connected", label: "연결됨", count: connectedCount },
   ];
 
   return (
@@ -204,6 +204,7 @@ export default function CareerMobileJobsView({
                   opportunity={selectedOpportunity}
                   onOpenCompanyInfo={onOpenCompanyInfo}
                   onOpenOpportunityInfo={onOpenOpportunityInfo}
+                  onEditMemo={tab === "new" ? undefined : onEditMemo}
                 />
               </motion.div>
             ) : isLoading ? (
@@ -248,7 +249,6 @@ export default function CareerMobileJobsView({
 function emptyStateMessage(tab: JobsDisplayTab) {
   if (tab === "new") return "아직 새로 추천된 포지션이 없습니다.";
   if (tab === "saved") return "저장한 포지션이 없습니다.";
-  if (tab === "connected") return "연결된 포지션이 없습니다.";
   return "선호하지 않음으로 보낸 포지션이 없습니다.";
 }
 
@@ -256,11 +256,15 @@ function MobileOpportunityDetailPanel({
   opportunity,
   onOpenCompanyInfo,
   onOpenOpportunityInfo,
+  onEditMemo,
 }: {
   opportunity: CareerHistoryOpportunity;
   onOpenCompanyInfo?: (opportunity: CareerHistoryOpportunity) => void;
   onOpenOpportunityInfo?: (type: CareerOpportunityType) => void;
+  onEditMemo?: (opportunity: CareerHistoryOpportunity) => void;
 }) {
+  const talentMemo = opportunity.talentMemo?.trim() ?? "";
+
   return (
     <section
       className={cn("rounded-2xl p-1", getOpportunityPanelTone(opportunity))}
@@ -271,7 +275,20 @@ function MobileOpportunityDetailPanel({
           onOpenCompanyInfo={onOpenCompanyInfo}
           onOpenOpportunityInfo={onOpenOpportunityInfo}
         />
-        <RecommendationContent opportunity={opportunity} />
+        {onEditMemo ? (
+          <button
+            type="button"
+            onClick={() => onEditMemo(opportunity)}
+            className="mt-5 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[8px] border border-beige900/15 bg-white/70 px-3 py-2 text-sm font-medium text-beige900"
+          >
+            <StickyNote className="h-4 w-4" />
+            {talentMemo ? "메모 수정" : "메모하기"}
+          </button>
+        ) : null}
+        <RecommendationContent
+          opportunity={opportunity}
+          showTalentMemo={Boolean(onEditMemo)}
+        />
       </div>
 
       <div className="flex flex-col gap-6 px-4 py-4 font-inter text-[14px] font-normal text-black/80">
@@ -392,21 +409,35 @@ function OpportunitySummaryCard({
 
 function RecommendationContent({
   opportunity,
+  showTalentMemo = false,
 }: {
   opportunity: CareerHistoryOpportunity;
+  showTalentMemo?: boolean;
 }) {
   const summary = opportunity.recommendationSummary?.trim();
   const concerns = opportunity.recommendationConcerns ?? [];
+  const talentMemo = opportunity.talentMemo?.trim() ?? "";
   const hasContent =
     Boolean(summary) ||
     opportunity.recommendationReasons.length > 0 ||
-    concerns.length > 0;
+    concerns.length > 0 ||
+    (showTalentMemo && Boolean(talentMemo));
 
   if (!hasContent) return null;
 
   return (
     <div className="mt-6 flex flex-col gap-2.5 text-[13px] leading-6 text-black/80">
       {summary ? <div>{summary}</div> : null}
+      {showTalentMemo && talentMemo ? (
+        <div className="rounded-[8px] border border-beige900/10 bg-white/70 px-3 py-2">
+          <div className="text-[12px] font-medium text-beige900/50">
+            내 메모
+          </div>
+          <div className="mt-1 whitespace-pre-wrap text-[13px] leading-6 text-beige900">
+            {talentMemo}
+          </div>
+        </div>
+      ) : null}
       {opportunity.recommendationReasons.map((reason, idx) => (
         <div
           key={`${opportunity.id}-reason-${idx}`}

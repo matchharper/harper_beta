@@ -1,113 +1,64 @@
 import React from "react";
-import {
-  CareerHistoryOpportunity,
-  CareerHistoryOpportunityFeedback,
-  CareerOpportunitySavedStage,
-  CareerOpportunityType,
-} from "../types";
+import { CareerHistoryOpportunity, CareerOpportunityType } from "../types";
 import { CareerInlinePanel } from "../ui/CareerPrimitives";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, StickyNote } from "lucide-react";
 import {
   BeigeActionDropdown,
   BeigeActionDropdownItem,
 } from "@/components/ui/beige/action-dropdown";
-import {
-  getOpportunityStatusLabel,
-  getResolvedSavedStage,
-} from "../CareerHistoryPanel";
 import { OpportunityHeader } from "./HistoryOpportunityDetailContent";
 import OpportunityPreferenceFit from "./OpportunityPreferenceFit";
-
-type HistoryStatusDropdownValue = "new" | "saved" | "negative";
-
-const HISTORY_STATUS_OPTIONS: Array<{
-  value: HistoryStatusDropdownValue;
-  label: string;
-}> = [
-  { value: "new", label: "새 포지션" },
-  { value: "saved", label: "저장함" },
-  { value: "negative", label: "선호하지 않음" },
-];
-
-const getStatusDropdownValue = (
-  item: CareerHistoryOpportunity
-): HistoryStatusDropdownValue | null => {
-  if (item.feedback === "negative") return "negative";
-  if (item.feedback === "positive") {
-    return getResolvedSavedStage(item) === "saved" ? "saved" : null;
-  }
-  return "new";
-};
-
-const getStatusDropdownTriggerLabel = (item: CareerHistoryOpportunity) => {
-  if (item.feedback === "negative") return "선호하지 않음";
-  return getOpportunityStatusLabel(item) ?? "새 포지션";
-};
+import {
+  getSavedOpportunityStatusLabel,
+  SAVED_OPPORTUNITY_STATUS_OPTIONS,
+  type SavedOpportunityManagementStatus,
+} from "./savedOpportunityStatus";
 
 const stopCardActivation = (event: React.SyntheticEvent) => {
   event.stopPropagation();
 };
 
-const HistoryStatusDropdown = ({
+const SavedManagementStatusDropdown = ({
   disabled,
-  item,
+  status,
   onChange,
 }: {
   disabled: boolean;
-  item: CareerHistoryOpportunity;
-  onChange: (value: HistoryStatusDropdownValue) => void;
-}) => {
-  const value = getStatusDropdownValue(item);
-
-  return (
-    <div
-      data-career-card-action="true"
-      onClick={stopCardActivation}
-      onPointerDown={stopCardActivation}
+  status: SavedOpportunityManagementStatus;
+  onChange: (value: SavedOpportunityManagementStatus) => void;
+}) => (
+  <div
+    data-career-card-action="true"
+    onClick={stopCardActivation}
+    onPointerDown={stopCardActivation}
+  >
+    <BeigeActionDropdown
+      align="end"
+      contentClassName="min-w-[190px]"
+      trigger={
+        <button
+          type="button"
+          disabled={disabled}
+          className="inline-flex h-9 min-w-[156px] items-center justify-between gap-2 rounded-md border border-beige900/15 bg-white/70 px-3 text-sm font-medium text-beige900 hover:border-beige900/30 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <span>{getSavedOpportunityStatusLabel(status)}</span>
+          <ChevronDown className="h-4 w-4 text-beige900/65" />
+        </button>
+      }
     >
-      <BeigeActionDropdown
-        align="end"
-        contentClassName="min-w-[180px]"
-        trigger={
-          <button
-            type="button"
-            disabled={disabled}
-            className="inline-flex h-9 min-w-[148px] items-center justify-between gap-2 rounded-md border border-beige900/15 bg-white/60 px-3 text-sm text-beige900  hover:border-beige900/30 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <span>{getStatusDropdownTriggerLabel(item)}</span>
-            <ChevronDown className="h-4 w-4 text-beige900/50" />
-          </button>
-        }
-      >
-        {HISTORY_STATUS_OPTIONS.map((option) => (
-          <BeigeActionDropdownItem
-            key={option.value}
-            selected={option.value === value}
-            disabled={disabled}
-            onSelect={() => onChange(option.value)}
-          >
-            {option.label}
-          </BeigeActionDropdownItem>
-        ))}
-      </BeigeActionDropdown>
-    </div>
-  );
-};
-
-export const getFeedbackForStatusDropdownValue = (
-  value: HistoryStatusDropdownValue
-): {
-  feedback: CareerHistoryOpportunityFeedback | null;
-  savedStage: CareerOpportunitySavedStage | null;
-} => {
-  if (value === "saved") {
-    return { feedback: "positive", savedStage: "saved" };
-  }
-  if (value === "negative") {
-    return { feedback: "negative", savedStage: null };
-  }
-  return { feedback: null, savedStage: null };
-};
+      {SAVED_OPPORTUNITY_STATUS_OPTIONS.map((option) => (
+        <BeigeActionDropdownItem
+          key={option.id}
+          selected={option.id === status}
+          disabled={disabled}
+          onSelect={() => onChange(option.id)}
+        >
+          {option.label}
+        </BeigeActionDropdownItem>
+      ))}
+    </BeigeActionDropdown>
+  </div>
+);
 
 const CardActionArea = ({ children }: { children: React.ReactNode }) => (
   <div
@@ -123,20 +74,22 @@ const OpportunityListCard = ({
   action,
   item,
   pending,
-  showStatusSelect = false,
   onOpenDetail,
   onOpenCompanyInfo,
   onOpenOpportunityInfo,
-  onStatusChange,
+  onEditMemo,
+  savedStatus,
+  onSavedStatusChange,
 }: {
   action?: React.ReactNode;
   item: CareerHistoryOpportunity;
   pending: boolean;
-  showStatusSelect?: boolean;
   onOpenDetail: () => void;
   onOpenCompanyInfo?: (item: CareerHistoryOpportunity) => void;
   onOpenOpportunityInfo: (type: CareerOpportunityType) => void;
-  onStatusChange?: (value: HistoryStatusDropdownValue) => void;
+  onEditMemo?: (item: CareerHistoryOpportunity) => void;
+  savedStatus?: SavedOpportunityManagementStatus;
+  onSavedStatusChange?: (value: SavedOpportunityManagementStatus) => void;
 }) => {
   const recommendationReasons = item.recommendationReasons.slice(0, 2);
   const recommendationSummary = item.recommendationSummary?.trim() ?? "";
@@ -144,10 +97,13 @@ const OpportunityListCard = ({
     0,
     1
   );
-  const hasActionArea = Boolean(action || (showStatusSelect && onStatusChange));
+  const talentMemo = item.talentMemo?.trim() ?? "";
+  const hasActionArea = Boolean(
+    action || onEditMemo || (savedStatus && onSavedStatusChange)
+  );
 
   return (
-    <CareerInlinePanel className="rounded-2xl p-4 bg-white/40 hover:bg-white/80  border-1 border-black/10">
+    <CareerInlinePanel className="rounded-[8px] border border-beige900/10 bg-white/55 p-4 transition-colors hover:bg-white/85">
       <div className="flex items-start justify-between gap-4">
         <div
           role="button"
@@ -175,14 +131,13 @@ const OpportunityListCard = ({
               <>
                 {hasActionArea && (
                   <div className="flex shrink-0 flex-col items-end gap-2">
-                    {showStatusSelect && onStatusChange && (
-                      <HistoryStatusDropdown
-                        item={item}
+                    {savedStatus && onSavedStatusChange ? (
+                      <SavedManagementStatusDropdown
+                        status={savedStatus}
                         disabled={pending}
-                        onChange={onStatusChange}
+                        onChange={onSavedStatusChange}
                       />
-                    )}
-                    {action ? <CardActionArea>{action}</CardActionArea> : null}
+                    ) : null}
                   </div>
                 )}
               </>

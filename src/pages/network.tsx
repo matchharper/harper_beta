@@ -1925,548 +1925,550 @@ const NetworkPage = () => {
     );
   };
 
-  return (
-    <>
-      <Head>
-        <title>Harper Network</title>
-        <meta
-          name="description"
-          content="Top AI teams reach out to you privately."
-        />
-      </Head>
+  return null;
 
-      <div className="min-h-screen overflow-x-clip bg-beige100 font-geist text-beige900 antialiased">
-        <AnimatePresence>
-          {showPreloader && (
-            <motion.div
-              initial={{ opacity: 1 }}
-              exit={{
-                y: "-100%",
-                transition: { duration: 0.9, ease: [0.76, 0, 0.24, 1] },
-              }}
-              className="fixed inset-0 z-160 flex items-center justify-center bg-beige500"
-            >
-              <div className="font-hedvig text-5xl md:text-7xl tracking-[-0.08em] text-beige900">
-                <StaggerText text="Harper" by="char" delay={0.08} />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+  //   return (
+  //     <>
+  //       <Head>
+  //         <title>Harper Network</title>
+  //         <meta
+  //           name="description"
+  //           content="Top AI teams reach out to you privately."
+  //         />
+  //       </Head>
 
-        {/* <div className="fixed bottom-4 left-4 z-170 rounded-xl border border-beige900/15 bg-beige200/95 p-3 shadow-[0_12px_30px_rgba(37,20,6,0.15)] backdrop-blur">
-          <div className="text-[11px] font-medium tracking-[0.14em] text-beige900/45">
-            AB Test Preview
-          </div>
-          <div className="mt-1 text-sm text-beige900/70">
-            Current:{" "}
-            <span className="font-semibold text-beige900">
-              {abtestType === TALENT_NETWORK_ABTEST_TYPE_B ? "B" : "A"}
-            </span>
-          </div>
-          <div className="mt-3 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() =>
-                handleVariantOverride(TALENT_NETWORK_ABTEST_TYPE_A)
-              }
-              className={`inline-flex h-9 min-w-[40px] items-center justify-center rounded-lg border px-3 text-sm font-medium transition ${
-                abtestType === TALENT_NETWORK_ABTEST_TYPE_A
-                  ? "border-beige900 bg-beige900 text-beige100"
-                  : "border-beige900/15 bg-white/70 text-beige900/75 hover:bg-white"
-              }`}
-            >
-              A
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                handleVariantOverride(TALENT_NETWORK_ABTEST_TYPE_B)
-              }
-              className={`inline-flex h-9 min-w-[40px] items-center justify-center rounded-lg border px-3 text-sm font-medium transition ${
-                abtestType === TALENT_NETWORK_ABTEST_TYPE_B
-                  ? "border-beige900 bg-beige900 text-beige100"
-                  : "border-beige900/15 bg-white/70 text-beige900/75 hover:bg-white"
-              }`}
-            >
-              B
-            </button>
-          </div>
-        </div> */}
+  //       <div className="min-h-screen overflow-x-clip bg-beige100 font-geist text-beige900 antialiased">
+  //         <AnimatePresence>
+  //           {showPreloader && (
+  //             <motion.div
+  //               initial={{ opacity: 1 }}
+  //               exit={{
+  //                 y: "-100%",
+  //                 transition: { duration: 0.9, ease: [0.76, 0, 0.24, 1] },
+  //               }}
+  //               className="fixed inset-0 z-160 flex items-center justify-center bg-beige500"
+  //             >
+  //               <div className="font-hedvig text-5xl md:text-7xl tracking-[-0.08em] text-beige900">
+  //                 <StaggerText text="Harper" by="char" delay={0.08} />
+  //               </div>
+  //             </motion.div>
+  //           )}
+  //         </AnimatePresence>
 
-        <motion.nav
-          initial={false}
-          animate={{
-            y: isMobile && !isMobileHeaderVisible ? -88 : 0,
-          }}
-          transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-          className="fixed inset-x-0 top-0 z-50 bg-beige200 backdrop-blur-lg"
-        >
-          <div className="mx-auto flex h-[64px] max-w-[1160px] items-center justify-between px-4">
-            <a
-              href="#top"
-              className="font-hedvig text-[28px] tracking-[-0.06em] text-beige900"
-            >
-              Harper
-            </a>
-            <NetworkButton
-              label="Join"
-              size="sm"
-              variant="secondary"
-              showArrow={false}
-              onClick={() => openNetworkCta("talent_network_click_nav_join")}
-              className="inline-flex"
-            />
-          </div>
-        </motion.nav>
+  //         {/* <div className="fixed bottom-4 left-4 z-170 rounded-xl border border-beige900/15 bg-beige200/95 p-3 shadow-[0_12px_30px_rgba(37,20,6,0.15)] backdrop-blur">
+  //           <div className="text-[11px] font-medium tracking-[0.14em] text-beige900/45">
+  //             AB Test Preview
+  //           </div>
+  //           <div className="mt-1 text-sm text-beige900/70">
+  //             Current:{" "}
+  //             <span className="font-semibold text-beige900">
+  //               {abtestType === TALENT_NETWORK_ABTEST_TYPE_B ? "B" : "A"}
+  //             </span>
+  //           </div>
+  //           <div className="mt-3 flex items-center gap-2">
+  //             <button
+  //               type="button"
+  //               onClick={() =>
+  //                 handleVariantOverride(TALENT_NETWORK_ABTEST_TYPE_A)
+  //               }
+  //               className={`inline-flex h-9 min-w-[40px] items-center justify-center rounded-lg border px-3 text-sm font-medium transition ${
+  //                 abtestType === TALENT_NETWORK_ABTEST_TYPE_A
+  //                   ? "border-beige900 bg-beige900 text-beige100"
+  //                   : "border-beige900/15 bg-white/70 text-beige900/75 hover:bg-white"
+  //               }`}
+  //             >
+  //               A
+  //             </button>
+  //             <button
+  //               type="button"
+  //               onClick={() =>
+  //                 handleVariantOverride(TALENT_NETWORK_ABTEST_TYPE_B)
+  //               }
+  //               className={`inline-flex h-9 min-w-[40px] items-center justify-center rounded-lg border px-3 text-sm font-medium transition ${
+  //                 abtestType === TALENT_NETWORK_ABTEST_TYPE_B
+  //                   ? "border-beige900 bg-beige900 text-beige100"
+  //                   : "border-beige900/15 bg-white/70 text-beige900/75 hover:bg-white"
+  //               }`}
+  //             >
+  //               B
+  //             </button>
+  //           </div>
+  //         </div> */}
 
-        <main
-          id="top"
-          className="mx-auto flex max-w-[1160px] flex-col px-4 pb-24 pt-[72px] md:pt-[96px] "
-        >
-          <section
-            ref={heroSectionRef}
-            data-section="hero"
-            className="pt-10 text-center"
-          >
-            <Reveal once delay={0.06} className="mx-auto mt-6 max-w-[900px]">
-              <h2
-                className={`${titleTextClassName} text-beige900 text-4xl md:text-5xl`}
-              >
-                <span className="block">
-                  <StaggerText text="Access the World's" />
-                </span>
-                <span className="block mt-3">
-                  <StaggerText text="Most Elite AI Positions." delay={0.14} />
-                </span>
-              </h2>
-            </Reveal>
+  //         <motion.nav
+  //           initial={false}
+  //           animate={{
+  //             y: isMobile && !isMobileHeaderVisible ? -88 : 0,
+  //           }}
+  //           transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+  //           className="fixed inset-x-0 top-0 z-50 bg-beige200 backdrop-blur-lg"
+  //         >
+  //           <div className="mx-auto flex h-[64px] max-w-[1160px] items-center justify-between px-4">
+  //             <a
+  //               href="#top"
+  //               className="font-hedvig text-[28px] tracking-[-0.06em] text-beige900"
+  //             >
+  //               Harper
+  //             </a>
+  //             <NetworkButton
+  //               label="Join"
+  //               size="sm"
+  //               variant="secondary"
+  //               showArrow={false}
+  //               onClick={() => openNetworkCta("talent_network_click_nav_join")}
+  //               className="inline-flex"
+  //             />
+  //           </div>
+  //         </motion.nav>
 
-            <Reveal once delay={0.18}>
-              <div className="mt-8 flex flex-col justify-center items-center text-lg tracking-[-0.03em] text-beige900/70">
-                <div>
-                  Direct backdoor to confidential AI unicorns backed by top-tier
-                  Global VCs.
-                </div>
-                <div>Skip the HR screen and match directly with founders.</div>
-              </div>
+  //         <main
+  //           id="top"
+  //           className="mx-auto flex max-w-[1160px] flex-col px-4 pb-24 pt-[72px] md:pt-[96px] "
+  //         >
+  //           <section
+  //             ref={heroSectionRef}
+  //             data-section="hero"
+  //             className="pt-10 text-center"
+  //           >
+  //             <Reveal once delay={0.06} className="mx-auto mt-6 max-w-[900px]">
+  //               <h2
+  //                 className={`${titleTextClassName} text-beige900 text-4xl md:text-5xl`}
+  //               >
+  //                 <span className="block">
+  //                   <StaggerText text="Access the World's" />
+  //                 </span>
+  //                 <span className="block mt-3">
+  //                   <StaggerText text="Most Elite AI Positions." delay={0.14} />
+  //                 </span>
+  //               </h2>
+  //             </Reveal>
 
-              <div className="mt-8 flex flex-row items-center justify-center gap-2 text-base tracking-[-0.03em] text-beige900/50 flex-wrap">
-                <Pill label="Part-time (4~12 hrs/wk)" />
-                <Pill label="Founding Member / CTO" />
-                <Pill label="Intern" />
-              </div>
-            </Reveal>
+  //             <Reveal once delay={0.18}>
+  //               <div className="mt-8 flex flex-col justify-center items-center text-lg tracking-[-0.03em] text-beige900/70">
+  //                 <div>
+  //                   Direct backdoor to confidential AI unicorns backed by top-tier
+  //                   Global VCs.
+  //                 </div>
+  //                 <div>Skip the HR screen and match directly with founders.</div>
+  //               </div>
 
-            <Reveal once delay={0.24} className="mt-12">
-              <NetworkButton
-                label="Initiate Match"
-                highlighted={hasReferralHighlight}
-                onClick={() =>
-                  openNetworkCta("talent_network_click_hero_initiate_match")
-                }
-              />
-            </Reveal>
-          </section>
+  //               <div className="mt-8 flex flex-row items-center justify-center gap-2 text-base tracking-[-0.03em] text-beige900/50 flex-wrap">
+  //                 <Pill label="Part-time (4~12 hrs/wk)" />
+  //                 <Pill label="Founding Member / CTO" />
+  //                 <Pill label="Intern" />
+  //               </div>
+  //             </Reveal>
 
-          <section
-            ref={socialProofSectionRef}
-            data-section="social_proof"
-            className="mt-2"
-          >
-            <Reveal
-              once
-              delay={0.08}
-              className="text-center justify-center items-center mt-8 mb-12"
-            >
-              <div className="flex flex-row items-center justify-center gap-2">
-                <div className="relative items-baseline gap-1 font-normal flex text-[15px] md:text-base">
-                  <div>150+ engineers and researchers From </div>
-                </div>
-                <div className="flex -space-x-2">
-                  {schoolLogos.map((school) => (
-                    <div
-                      key={school.name}
-                      className="h-8 w-8 md:h-10 md:w-10 rounded-full bg-beige500 border border-beige900/20"
-                    >
-                      <Image
-                        src={school.src}
-                        alt={school.name}
-                        className="rounded-full"
-                        width={42}
-                        height={42}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-              {/* <p className="mt-3 text-[17px] leading-[1.55] tracking-[-0.03em] text-beige900/55">
-                매칭을 위해 Active pool을 500명 이하로 관리 예정입니다.
-              </p> */}
-            </Reveal>
+  //             <Reveal once delay={0.24} className="mt-12">
+  //               <NetworkButton
+  //                 label="Initiate Match"
+  //                 highlighted={hasReferralHighlight}
+  //                 onClick={() =>
+  //                   openNetworkCta("talent_network_click_hero_initiate_match")
+  //                 }
+  //               />
+  //             </Reveal>
+  //           </section>
 
-            <VCLogos />
-          </section>
+  //           <section
+  //             ref={socialProofSectionRef}
+  //             data-section="social_proof"
+  //             className="mt-2"
+  //           >
+  //             <Reveal
+  //               once
+  //               delay={0.08}
+  //               className="text-center justify-center items-center mt-8 mb-12"
+  //             >
+  //               <div className="flex flex-row items-center justify-center gap-2">
+  //                 <div className="relative items-baseline gap-1 font-normal flex text-[15px] md:text-base">
+  //                   <div>150+ engineers and researchers From </div>
+  //                 </div>
+  //                 <div className="flex -space-x-2">
+  //                   {schoolLogos.map((school) => (
+  //                     <div
+  //                       key={school.name}
+  //                       className="h-8 w-8 md:h-10 md:w-10 rounded-full bg-beige500 border border-beige900/20"
+  //                     >
+  //                       <Image
+  //                         src={school.src}
+  //                         alt={school.name}
+  //                         className="rounded-full"
+  //                         width={42}
+  //                         height={42}
+  //                       />
+  //                     </div>
+  //                   ))}
+  //                 </div>
+  //               </div>
+  //               {/* <p className="mt-3 text-[17px] leading-[1.55] tracking-[-0.03em] text-beige900/55">
+  //                 매칭을 위해 Active pool을 500명 이하로 관리 예정입니다.
+  //               </p> */}
+  //             </Reveal>
 
-          <section
-            id="opportunities"
-            ref={opportunitiesSectionRef}
-            data-section="opportunities"
-            className="mt-32 scroll-mt-24"
-          >
-            <Reveal once>
-              <div className="flex w-full items-center justify-between gap-4 text-beige900">
-                <div className="font-medium text-left">
-                  Opportunities in our network
-                </div>
-                <div className="flex items-center gap-2 md:hidden">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void addLandingLog(
-                        "talent_network_click_mobile_positions_prev"
-                      );
-                      setMobilePositionPage((prev) => Math.max(prev - 1, 0));
-                    }}
-                    disabled={mobilePositionPage === 0}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-sm bg-black/10 text-sm text-beige900 transition disabled:cursor-not-allowed disabled:opacity-35"
-                    aria-label="Show previous positions"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void addLandingLog(
-                        "talent_network_click_mobile_positions_next"
-                      );
-                      setMobilePositionPage((prev) =>
-                        Math.min(prev + 1, totalMobilePositionPages - 1)
-                      );
-                    }}
-                    disabled={
-                      mobilePositionPage >= totalMobilePositionPages - 1
-                    }
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-sm bg-black/10 text-sm text-beige900 transition disabled:cursor-not-allowed disabled:opacity-35"
-                    aria-label="Show next positions"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            </Reveal>
+  //             <VCLogos />
+  //           </section>
 
-            <div className="mt-4 grid w-full grid-cols-1 gap-4 md:hidden">
-              {mobileVisibleRequests.map((request, index) => (
-                <Reveal
-                  key={`${request.id}-${mobilePositionPage}`}
-                  once
-                  delay={0.05 * index}
-                  className={`h-full ${highlightedRequestId === request.id ? "pb-4" : ""}`}
-                >
-                  <RequestCard
-                    request={request}
-                    isHighlighted={highlightedRequestId === request.id}
-                    containerRef={(node) => {
-                      requestCardRefs.current[`mobile-${request.id}`] = node;
-                    }}
-                    onClick={() => handleOpenRequest(request)}
-                  />
-                </Reveal>
-              ))}
-            </div>
+  //           <section
+  //             id="opportunities"
+  //             ref={opportunitiesSectionRef}
+  //             data-section="opportunities"
+  //             className="mt-32 scroll-mt-24"
+  //           >
+  //             <Reveal once>
+  //               <div className="flex w-full items-center justify-between gap-4 text-beige900">
+  //                 <div className="font-medium text-left">
+  //                   Opportunities in our network
+  //                 </div>
+  //                 <div className="flex items-center gap-2 md:hidden">
+  //                   <button
+  //                     type="button"
+  //                     onClick={() => {
+  //                       void addLandingLog(
+  //                         "talent_network_click_mobile_positions_prev"
+  //                       );
+  //                       setMobilePositionPage((prev) => Math.max(prev - 1, 0));
+  //                     }}
+  //                     disabled={mobilePositionPage === 0}
+  //                     className="inline-flex h-7 w-7 items-center justify-center rounded-sm bg-black/10 text-sm text-beige900 transition disabled:cursor-not-allowed disabled:opacity-35"
+  //                     aria-label="Show previous positions"
+  //                   >
+  //                     <ChevronLeft className="w-4 h-4" />
+  //                   </button>
+  //                   <button
+  //                     type="button"
+  //                     onClick={() => {
+  //                       void addLandingLog(
+  //                         "talent_network_click_mobile_positions_next"
+  //                       );
+  //                       setMobilePositionPage((prev) =>
+  //                         Math.min(prev + 1, totalMobilePositionPages - 1)
+  //                       );
+  //                     }}
+  //                     disabled={
+  //                       mobilePositionPage >= totalMobilePositionPages - 1
+  //                     }
+  //                     className="inline-flex h-7 w-7 items-center justify-center rounded-sm bg-black/10 text-sm text-beige900 transition disabled:cursor-not-allowed disabled:opacity-35"
+  //                     aria-label="Show next positions"
+  //                   >
+  //                     <ChevronRight className="w-4 h-4" />
+  //                   </button>
+  //                 </div>
+  //               </div>
+  //             </Reveal>
 
-            <div className="mt-4 hidden w-full grid-cols-2 gap-4 md:grid lg:grid-cols-2">
-              {companyRequests.map((request, index) => (
-                <Reveal
-                  key={request.id}
-                  once
-                  delay={0.05 * index}
-                  className={`h-full ${highlightedRequestId === request.id ? "pb-4" : ""}`}
-                >
-                  <RequestCard
-                    request={request}
-                    isHighlighted={highlightedRequestId === request.id}
-                    containerRef={(node) => {
-                      requestCardRefs.current[`desktop-${request.id}`] = node;
-                    }}
-                    onClick={() => handleOpenRequest(request)}
-                  />
-                </Reveal>
-              ))}
-            </div>
-          </section>
+  //             <div className="mt-4 grid w-full grid-cols-1 gap-4 md:hidden">
+  //               {mobileVisibleRequests.map((request, index) => (
+  //                 <Reveal
+  //                   key={`${request.id}-${mobilePositionPage}`}
+  //                   once
+  //                   delay={0.05 * index}
+  //                   className={`h-full ${highlightedRequestId === request.id ? "pb-4" : ""}`}
+  //                 >
+  //                   <RequestCard
+  //                     request={request}
+  //                     isHighlighted={highlightedRequestId === request.id}
+  //                     containerRef={(node) => {
+  //                       requestCardRefs.current[`mobile-${request.id}`] = node;
+  //                     }}
+  //                     onClick={() => handleOpenRequest(request)}
+  //                   />
+  //                 </Reveal>
+  //               ))}
+  //             </div>
 
-          <Reveal once className="text-center mt-24 md:mt-32">
-            <SectionTag>Our value</SectionTag>
+  //             <div className="mt-4 hidden w-full grid-cols-2 gap-4 md:grid lg:grid-cols-2">
+  //               {companyRequests.map((request, index) => (
+  //                 <Reveal
+  //                   key={request.id}
+  //                   once
+  //                   delay={0.05 * index}
+  //                   className={`h-full ${highlightedRequestId === request.id ? "pb-4" : ""}`}
+  //                 >
+  //                   <RequestCard
+  //                     request={request}
+  //                     isHighlighted={highlightedRequestId === request.id}
+  //                     containerRef={(node) => {
+  //                       requestCardRefs.current[`desktop-${request.id}`] = node;
+  //                     }}
+  //                     onClick={() => handleOpenRequest(request)}
+  //                   />
+  //                 </Reveal>
+  //               ))}
+  //             </div>
+  //           </section>
 
-            <h2
-              className={`mx-auto mt-8 max-w-[860px] font-hedvig text-3xl md:text-4xl leading-[0.98] tracking-[-0.08em] text-beige900`}
-            >
-              Highly Curated
-            </h2>
-            {/* <p className="mx-auto mt-6 max-w-[680px] text-[20px] leading-normal tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
-                Tell us who you need. We find, shortlist, and deliver candidates
-                you can review and interview right away.
-              </p> */}
+  //           <Reveal once className="text-center mt-24 md:mt-32">
+  //             <SectionTag>Our value</SectionTag>
 
-            <div className="mt-8 md:mt-16 flex flex-col md:flex-row gap-6 items-start justify-between">
-              {valueCards.map((item, index) => (
-                <Reveal
-                  key={item.number}
-                  once
-                  direction="right"
-                  delay={index * 0.08}
-                  className="w-full"
-                >
-                  <div className="grid grid-cols-[42px_1fr] gap-4 text-left">
-                    <div className="pt-1 font-geist text-2xl font-medium leading-none tracking-[-0.08em] text-beige900/60 max-[809px]:pt-2">
-                      {item.number}
-                    </div>
-                    <div>
-                      <div className="flex items-start gap-3 max-[809px]:flex-col-reverse max-[809px]:gap-2">
-                        <h3 className="text-xl font-medium leading-[1.12] tracking-tighter text-beige900 max-[809px]:mt-2">
-                          {item.title}
-                        </h3>
-                      </div>
-                      <p
-                        className="mt-2 text-base md:text-[18px] leading-normal tracking-[-0.03em] text-beige900/50"
-                        dangerouslySetInnerHTML={{ __html: item.description }}
-                      />
-                    </div>
-                  </div>
-                </Reveal>
-              ))}
-            </div>
-          </Reveal>
+  //             <h2
+  //               className={`mx-auto mt-8 max-w-[860px] font-hedvig text-3xl md:text-4xl leading-[0.98] tracking-[-0.08em] text-beige900`}
+  //             >
+  //               Highly Curated
+  //             </h2>
+  //             {/* <p className="mx-auto mt-6 max-w-[680px] text-[20px] leading-normal tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
+  //                 Tell us who you need. We find, shortlist, and deliver candidates
+  //                 you can review and interview right away.
+  //               </p> */}
 
-          <section
-            id="faq"
-            ref={faqSectionRef}
-            data-section="faq"
-            className="py-24 mt-0 md:mt-8"
-          >
-            <Reveal once className="text-center">
-              <SectionTag>FAQ</SectionTag>
-            </Reveal>
+  //             <div className="mt-8 md:mt-16 flex flex-col md:flex-row gap-6 items-start justify-between">
+  //               {valueCards.map((item, index) => (
+  //                 <Reveal
+  //                   key={item.number}
+  //                   once
+  //                   direction="right"
+  //                   delay={index * 0.08}
+  //                   className="w-full"
+  //                 >
+  //                   <div className="grid grid-cols-[42px_1fr] gap-4 text-left">
+  //                     <div className="pt-1 font-geist text-2xl font-medium leading-none tracking-[-0.08em] text-beige900/60 max-[809px]:pt-2">
+  //                       {item.number}
+  //                     </div>
+  //                     <div>
+  //                       <div className="flex items-start gap-3 max-[809px]:flex-col-reverse max-[809px]:gap-2">
+  //                         <h3 className="text-xl font-medium leading-[1.12] tracking-tighter text-beige900 max-[809px]:mt-2">
+  //                           {item.title}
+  //                         </h3>
+  //                       </div>
+  //                       <p
+  //                         className="mt-2 text-base md:text-[18px] leading-normal tracking-[-0.03em] text-beige900/50"
+  //                         dangerouslySetInnerHTML={{ __html: item.description }}
+  //                       />
+  //                     </div>
+  //                   </div>
+  //                 </Reveal>
+  //               ))}
+  //             </div>
+  //           </Reveal>
 
-            <div className="mx-auto mt-12 max-w-[860px] space-y-4 text-left">
-              {faqs.map((faq, index) => {
-                const isOpen = openFaqIndex === index;
+  //           <section
+  //             id="faq"
+  //             ref={faqSectionRef}
+  //             data-section="faq"
+  //             className="py-24 mt-0 md:mt-8"
+  //           >
+  //             <Reveal once className="text-center">
+  //               <SectionTag>FAQ</SectionTag>
+  //             </Reveal>
 
-                return (
-                  <Reveal key={faq.question} once delay={index * 0.04}>
-                    <motion.button
-                      type="button"
-                      onClick={() => handleFaqToggle(index, isOpen)}
-                      aria-expanded={isOpen}
-                      className="w-full rounded-[24px] bg-beige100 px-6 py-6 shadow-[0_14px_30px_rgba(66,38,10,0.05)]"
-                    >
-                      <div className="flex items-center justify-between gap-8">
-                        <div className="text-left text-sm md:text-base font-medium leading-[1.24] tracking-[-0.04em] text-beige900">
-                          {faq.question}
-                        </div>
-                        <motion.div
-                          animate={{ rotate: isOpen ? 405 : 0 }}
-                          transition={{
-                            duration: 0.28,
-                            ease: [0.22, 1, 0.36, 1],
-                          }}
-                        >
-                          <Plus className="h-5 w-5 text-beige900/60" />
-                        </motion.div>
-                      </div>
+  //             <div className="mx-auto mt-12 max-w-[860px] space-y-4 text-left">
+  //               {faqs.map((faq, index) => {
+  //                 const isOpen = openFaqIndex === index;
 
-                      <AnimatePresence initial={false}>
-                        {isOpen && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0, marginTop: 0 }}
-                            animate={{
-                              height: "auto",
-                              opacity: 1,
-                              marginTop: 20,
-                            }}
-                            exit={{ height: 0, opacity: 0, marginTop: 0 }}
-                            transition={{
-                              duration: 0.35,
-                              ease: [0.22, 1, 0.36, 1],
-                            }}
-                            className="overflow-hidden"
-                          >
-                            <p
-                              className="w-full text-left text-sm md:text-[15px] leading-[1.6] tracking-[-0.01em] text-beige900/80"
-                              dangerouslySetInnerHTML={{ __html: faq.answer }}
-                            />
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </motion.button>
-                  </Reveal>
-                );
-              })}
-            </div>
+  //                 return (
+  //                   <Reveal key={faq.question} once delay={index * 0.04}>
+  //                     <motion.button
+  //                       type="button"
+  //                       onClick={() => handleFaqToggle(index, isOpen)}
+  //                       aria-expanded={isOpen}
+  //                       className="w-full rounded-[24px] bg-beige100 px-6 py-6 shadow-[0_14px_30px_rgba(66,38,10,0.05)]"
+  //                     >
+  //                       <div className="flex items-center justify-between gap-8">
+  //                         <div className="text-left text-sm md:text-base font-medium leading-[1.24] tracking-[-0.04em] text-beige900">
+  //                           {faq.question}
+  //                         </div>
+  //                         <motion.div
+  //                           animate={{ rotate: isOpen ? 405 : 0 }}
+  //                           transition={{
+  //                             duration: 0.28,
+  //                             ease: [0.22, 1, 0.36, 1],
+  //                           }}
+  //                         >
+  //                           <Plus className="h-5 w-5 text-beige900/60" />
+  //                         </motion.div>
+  //                       </div>
 
-            <Reveal once delay={0.18} className="mt-8 pt-2 text-center">
-              <button
-                type="button"
-                onClick={() => {
-                  void addLandingLog("talent_network_click_inquiry_open");
-                  setIsInquiryOpen(true);
-                }}
-                className="text-sm font-medium tracking-[-0.03em] text-beige900/75 underline underline-offset-4 transition hover:text-beige900 md:text-base"
-              >
-                문의하기
-              </button>
-            </Reveal>
-          </section>
-        </main>
-        <div ref={footerSectionRef} data-section="footer">
-          <br />
-          <br />
-          <br />
-          <br />
-          <Reveal once delay={0.32} className="w-full">
-            <div className="flex flex-col gap-8 items-center justify-center w-full mt-28 mb-20">
-              <Image
-                src="/images/objects.png"
-                alt="objects"
-                width={256}
-                height={171}
-                className="h-auto w-44 sm:w-52 md:w-64"
-              />
-              <div className="flex flex-col items-center gap-3">
-                <NetworkButton
-                  label="Initiate Match"
-                  highlighted={hasReferralHighlight}
-                  onClick={() =>
-                    openNetworkCta("talent_network_click_last_initiate_match")
-                  }
-                />
-                <div className="flex flex-col items-center gap-2 w-[360px]">
-                  <NetworkButton
-                    label="Harper 공유하기"
-                    variant="secondary"
-                    showArrow={false}
-                    className="h-11 w-[180px]"
-                    onClick={openShareModal}
-                  />
-                  <div className="whitespace-pre-wrap wrap-break-word px-1 py-0.5 leading-[1.2] w-full text-sm text-center rounded-sm mt-1 text-beige900/80">
-                    링크를 공유받은 사람이 Harper를 통해 채용되면 감사의 의미로
-                    양쪽에 300만원 상당의 허먼밀러 의자를 보내드립니다.
-                  </div>
-                </div>
-              </div>
-            </div>
-          </Reveal>
+  //                       <AnimatePresence initial={false}>
+  //                         {isOpen && (
+  //                           <motion.div
+  //                             initial={{ height: 0, opacity: 0, marginTop: 0 }}
+  //                             animate={{
+  //                               height: "auto",
+  //                               opacity: 1,
+  //                               marginTop: 20,
+  //                             }}
+  //                             exit={{ height: 0, opacity: 0, marginTop: 0 }}
+  //                             transition={{
+  //                               duration: 0.35,
+  //                               ease: [0.22, 1, 0.36, 1],
+  //                             }}
+  //                             className="overflow-hidden"
+  //                           >
+  //                             <p
+  //                               className="w-full text-left text-sm md:text-[15px] leading-[1.6] tracking-[-0.01em] text-beige900/80"
+  //                               dangerouslySetInnerHTML={{ __html: faq.answer }}
+  //                             />
+  //                           </motion.div>
+  //                         )}
+  //                       </AnimatePresence>
+  //                     </motion.button>
+  //                   </Reveal>
+  //                 );
+  //               })}
+  //             </div>
 
-          <footer className="border-t border-beige900/10 py-8">
-            <div className="mx-auto flex max-w-[1160px] flex-col items-center justify-between gap-4 px-4 tracking-[-0.03em] text-beige900/60 md:flex-row">
-              <div className="font-hedvig text-[28px] tracking-[-0.06em] text-beige900">
-                Harper
-              </div>
-              <div className="flex items-center gap-4 text-base">
-                <Link
-                  href="/terms"
-                  className="cursor-pointer transition hover:text-beige900"
-                >
-                  Terms
-                </Link>
-                <Link
-                  href="/privacy"
-                  className="cursor-pointer transition hover:text-beige900"
-                >
-                  Privacy
-                </Link>
-                <Link
-                  href="https://www.linkedin.com/company/matchharper/"
-                  className="cursor-pointer transition hover:text-beige900"
-                >
-                  LinkedIn
-                </Link>
-              </div>
-            </div>
-          </footer>
-        </div>
+  //             <Reveal once delay={0.18} className="mt-8 pt-2 text-center">
+  //               <button
+  //                 type="button"
+  //                 onClick={() => {
+  //                   void addLandingLog("talent_network_click_inquiry_open");
+  //                   setIsInquiryOpen(true);
+  //                 }}
+  //                 className="text-sm font-medium tracking-[-0.03em] text-beige900/75 underline underline-offset-4 transition hover:text-beige900 md:text-base"
+  //               >
+  //                 문의하기
+  //               </button>
+  //             </Reveal>
+  //           </section>
+  //         </main>
+  //         <div ref={footerSectionRef} data-section="footer">
+  //           <br />
+  //           <br />
+  //           <br />
+  //           <br />
+  //           <Reveal once delay={0.32} className="w-full">
+  //             <div className="flex flex-col gap-8 items-center justify-center w-full mt-28 mb-20">
+  //               <Image
+  //                 src="/images/objects.png"
+  //                 alt="objects"
+  //                 width={256}
+  //                 height={171}
+  //                 className="h-auto w-44 sm:w-52 md:w-64"
+  //               />
+  //               <div className="flex flex-col items-center gap-3">
+  //                 <NetworkButton
+  //                   label="Initiate Match"
+  //                   highlighted={hasReferralHighlight}
+  //                   onClick={() =>
+  //                     openNetworkCta("talent_network_click_last_initiate_match")
+  //                   }
+  //                 />
+  //                 <div className="flex flex-col items-center gap-2 w-[360px]">
+  //                   <NetworkButton
+  //                     label="Harper 공유하기"
+  //                     variant="secondary"
+  //                     showArrow={false}
+  //                     className="h-11 w-[180px]"
+  //                     onClick={openShareModal}
+  //                   />
+  //                   <div className="whitespace-pre-wrap wrap-break-word px-1 py-0.5 leading-[1.2] w-full text-sm text-center rounded-sm mt-1 text-beige900/80">
+  //                     링크를 공유받은 사람이 Harper를 통해 채용되면 감사의 의미로
+  //                     양쪽에 300만원 상당의 허먼밀러 의자를 보내드립니다.
+  //                   </div>
+  //                 </div>
+  //               </div>
+  //             </div>
+  //           </Reveal>
 
-        <AnimatePresence>
-          {selectedRequest && (
-            <RequestDetailModal
-              request={selectedRequest}
-              onClose={() => setSelectedRequest(null)}
-              onShare={() => void handleShareRequest(selectedRequest)}
-              highlightPrimaryCta={hasReferralHighlight}
-              shareButtonLabel={
-                copiedRequestId === selectedRequest.id
-                  ? "링크 복사됨"
-                  : "공유하기"
-              }
-              onGetMatched={() => {
-                void addLandingLog(
-                  `talent_network_click_request_get_matched:${selectedRequest.id}`
-                );
-                setSelectedRequest(null);
-                openNetworkCta(
-                  `talent_network_click_request_modal_open_onboarding:${selectedRequest.id}`,
-                  selectedRequest.role
-                );
-              }}
-            />
-          )}
-        </AnimatePresence>
+  //           <footer className="border-t border-beige900/10 py-8">
+  //             <div className="mx-auto flex max-w-[1160px] flex-col items-center justify-between gap-4 px-4 tracking-[-0.03em] text-beige900/60 md:flex-row">
+  //               <div className="font-hedvig text-[28px] tracking-[-0.06em] text-beige900">
+  //                 Harper
+  //               </div>
+  //               <div className="flex items-center gap-4 text-base">
+  //                 <Link
+  //                   href="/terms"
+  //                   className="cursor-pointer transition hover:text-beige900"
+  //                 >
+  //                   Terms
+  //                 </Link>
+  //                 <Link
+  //                   href="/privacy"
+  //                   className="cursor-pointer transition hover:text-beige900"
+  //                 >
+  //                   Privacy
+  //                 </Link>
+  //                 <Link
+  //                   href="https://www.linkedin.com/company/matchharper/"
+  //                   className="cursor-pointer transition hover:text-beige900"
+  //                 >
+  //                   LinkedIn
+  //                 </Link>
+  //               </div>
+  //             </div>
+  //           </footer>
+  //         </div>
 
-        <AnimatePresence>
-          {isInquiryOpen && (
-            <InquiryModal
-              email={inquiryEmail}
-              content={inquiryContent}
-              isSubmitting={isInquirySubmitting}
-              onClose={closeInquiryModal}
-              onSubmit={() => void handleSubmitInquiry()}
-              onEmailChange={setInquiryEmail}
-              onContentChange={setInquiryContent}
-            />
-          )}
-        </AnimatePresence>
+  //         <AnimatePresence>
+  //           {selectedRequest && (
+  //             <RequestDetailModal
+  //               request={selectedRequest}
+  //               onClose={() => setSelectedRequest(null)}
+  //               onShare={() => void handleShareRequest(selectedRequest)}
+  //               highlightPrimaryCta={hasReferralHighlight}
+  //               shareButtonLabel={
+  //                 copiedRequestId === selectedRequest.id
+  //                   ? "링크 복사됨"
+  //                   : "공유하기"
+  //               }
+  //               onGetMatched={() => {
+  //                 void addLandingLog(
+  //                   `talent_network_click_request_get_matched:${selectedRequest.id}`
+  //                 );
+  //                 setSelectedRequest(null);
+  //                 openNetworkCta(
+  //                   `talent_network_click_request_modal_open_onboarding:${selectedRequest.id}`,
+  //                   selectedRequest.role
+  //                 );
+  //               }}
+  //             />
+  //           )}
+  //         </AnimatePresence>
 
-        <AnimatePresence>
-          {isShareModalOpen && (
-            <ReferralShareModal
-              email={shareEmail}
-              isSubmitting={isShareSubmitting}
-              onClose={() => setIsShareModalOpen(false)}
-              onEmailChange={setShareEmail}
-              onSubmit={() => void handleCreateFooterShare()}
-            />
-          )}
-        </AnimatePresence>
+  //         <AnimatePresence>
+  //           {isInquiryOpen && (
+  //             <InquiryModal
+  //               email={inquiryEmail}
+  //               content={inquiryContent}
+  //               isSubmitting={isInquirySubmitting}
+  //               onClose={closeInquiryModal}
+  //               onSubmit={() => void handleSubmitInquiry()}
+  //               onEmailChange={setInquiryEmail}
+  //               onContentChange={setInquiryContent}
+  //             />
+  //           )}
+  //         </AnimatePresence>
 
-        <AnimatePresence>
-          {isQuickApplyOpen && (
-            <QuickApplyModal
-              roleLabel={
-                quickApplyCampaign === "wonderful"
-                  ? "Wonderful"
-                  : selectedOnboardingRole || "Talent Network"
-              }
-              campaign={quickApplyCampaign}
-              name={quickApplyName}
-              email={quickApplyEmail}
-              linkedinUrl={quickApplyLinkedinUrl}
-              resumeFileName={quickApplyResumeFile?.name || ""}
-              contactConsent={hasQuickApplyConsent}
-              isSubmitting={isQuickApplySubmitting}
-              onClose={closeQuickApplyModal}
-              onSubmit={() => void handleSubmitQuickApply()}
-              onNameChange={setQuickApplyName}
-              onEmailChange={setQuickApplyEmail}
-              onLinkedinUrlChange={setQuickApplyLinkedinUrl}
-              onResumeChange={setQuickApplyResumeFile}
-              onContactConsentChange={setHasQuickApplyConsent}
-            />
-          )}
-        </AnimatePresence>
-      </div>
-    </>
-  );
+  //         <AnimatePresence>
+  //           {isShareModalOpen && (
+  //             <ReferralShareModal
+  //               email={shareEmail}
+  //               isSubmitting={isShareSubmitting}
+  //               onClose={() => setIsShareModalOpen(false)}
+  //               onEmailChange={setShareEmail}
+  //               onSubmit={() => void handleCreateFooterShare()}
+  //             />
+  //           )}
+  //         </AnimatePresence>
+
+  //         <AnimatePresence>
+  //           {isQuickApplyOpen && (
+  //             <QuickApplyModal
+  //               roleLabel={
+  //                 quickApplyCampaign === "wonderful"
+  //                   ? "Wonderful"
+  //                   : selectedOnboardingRole || "Talent Network"
+  //               }
+  //               campaign={quickApplyCampaign}
+  //               name={quickApplyName}
+  //               email={quickApplyEmail}
+  //               linkedinUrl={quickApplyLinkedinUrl}
+  //               resumeFileName={quickApplyResumeFile?.name || ""}
+  //               contactConsent={hasQuickApplyConsent}
+  //               isSubmitting={isQuickApplySubmitting}
+  //               onClose={closeQuickApplyModal}
+  //               onSubmit={() => void handleSubmitQuickApply()}
+  //               onNameChange={setQuickApplyName}
+  //               onEmailChange={setQuickApplyEmail}
+  //               onLinkedinUrlChange={setQuickApplyLinkedinUrl}
+  //               onResumeChange={setQuickApplyResumeFile}
+  //               onContactConsentChange={setHasQuickApplyConsent}
+  //             />
+  //           )}
+  //         </AnimatePresence>
+  //       </div>
+  //     </>
+  //   );
 };
 
 export default NetworkPage;

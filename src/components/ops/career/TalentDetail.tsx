@@ -147,7 +147,10 @@ export const TalentDetail = memo(function TalentDetail({
           </div>
           <OpsProfileMemoPanel
             key={detail.userId}
-            memo={detail.opsProfileMemo}
+            memos={
+              detail.opsProfileMemos ??
+              (detail.opsProfileMemo ? [detail.opsProfileMemo] : [])
+            }
             userId={detail.userId}
           />
         </div>

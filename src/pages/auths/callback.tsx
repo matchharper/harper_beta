@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { finalizePendingTalentCapture } from "@/lib/talentCapture/client";
 import { buildLandingLoginEmailType } from "@/lib/landingLogTypes";
+import { getCareerSignupAttributionPayload } from "@/lib/careerSignupAttribution";
 
 function inferLandingLogSource(args: { flow: string; nextPath: string }) {
   if (args.nextPath.startsWith("/search")) return "search";
@@ -91,8 +92,15 @@ export default function AuthCallback() {
         const bootstrapRes = await fetch("/api/talent/auth/bootstrap", {
           method: "POST",
           headers: {
+            "Content-Type": "application/json",
             Authorization: `Bearer ${accessToken}`,
           },
+          body: JSON.stringify(
+            getCareerSignupAttributionPayload({
+              localId: lid,
+              source: querySource,
+            })
+          ),
         });
 
         const bootstrapJson = await bootstrapRes.json().catch(() => ({}));

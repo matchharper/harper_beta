@@ -170,6 +170,7 @@ const CareerHomePanel = ({
     opportunityRun,
     opportunityRunTriggerPending,
     talentProfile,
+    talentPreferences,
     savedProfileLinks,
     savedResumeDownloadUrl,
     savedResumeFileName,
@@ -287,6 +288,16 @@ const CareerHomePanel = ({
           activeCompanyRoleCount * 2
         )}개의 기회를 스캔하고 있습니다. 매일매일 더 많은 기회를 발견합니다.`
       : "현재 Harper는 새로운 기회를 계속 탐색하고 있습니다.";
+  const recommendationSettingLabel = talentPreferences
+    ? talentPreferences.getExternalRecommendation &&
+      talentPreferences.getInternalRecommendation
+      ? "외부 공개 포지션 추천과 내부 회사 연결 제안을 받고 있어요."
+      : talentPreferences.getExternalRecommendation
+        ? "외부 공개 포지션 추천만 받고 있어요. 내부 회사 연결 제안은 꺼져 있어요."
+        : talentPreferences.getInternalRecommendation
+          ? "내부 회사 연결 제안만 받고 있어요. 외부 공개 포지션 추천은 받지 않고 있어요."
+          : "외부 공개 포지션 추천과 내부 회사 연결 제안이 모두 꺼져 있어요."
+    : null;
 
   const userEmail = String(user?.email ?? "")
     .trim()
@@ -499,9 +510,16 @@ const CareerHomePanel = ({
           </CareerActionButton>
         </div>
       )}
-      <Text type="desc" className="text-center">
-        {activeOpportunityLabel}
-      </Text>
+      <div>
+        <Text type="desc" className="text-center">
+          {activeOpportunityLabel}
+        </Text>
+        {recommendationSettingLabel && (
+          <Text type="desc" className="mt-2 text-center text-green-900">
+            {recommendationSettingLabel}
+          </Text>
+        )}
+      </div>
       {isOnboardingCompleted && (
         <ConversationStarterActions
           callStartPending={callStartPending}

@@ -84,9 +84,8 @@ export type CareerTalentProfile = {
 
 export type CareerTalentPreferences = {
   engagementTypes: string[];
-  preferredLocations: string[];
-  careerMoveIntent: string | null;
-  careerMoveIntentLabel: string | null;
+  getExternalRecommendation: boolean;
+  getInternalRecommendation: boolean;
   isOnboardingDone: boolean;
   periodicIntervalDays: number;
   recommendationBatchSize: number;
@@ -106,7 +105,8 @@ export type CareerOpportunitySavedStage =
   | "saved"
   | "applied"
   | "connected"
-  | "closed";
+  | "closed"
+  | "hidden";
 
 export type CareerHistoryTabId = "new" | "saved" | "archived";
 
@@ -192,6 +192,7 @@ export type CareerHistoryOpportunity = {
   sourceProvider: string | null;
   sourceType: "internal" | "external";
   status: string;
+  talentMemo?: string | null;
   title: string;
   viewedAt: string | null;
   workMode: string | null;

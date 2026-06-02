@@ -83,18 +83,6 @@ export const InsightsTab = memo(function InsightsTab({
                 {preferences.engagementTypes.join(", ")}
               </div>
             ) : null}
-            {preferences.preferredLocations.length > 0 ? (
-              <div>
-                <span className="text-beige900/45">선호 지역:</span>{" "}
-                {preferences.preferredLocations.join(", ")}
-              </div>
-            ) : null}
-            {preferences.careerMoveIntent ? (
-              <div>
-                <span className="text-beige900/45">이직 의향:</span>{" "}
-                {preferences.careerMoveIntent}
-              </div>
-            ) : null}
           </div>
         </div>
       ) : null}

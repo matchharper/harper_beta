@@ -26,6 +26,7 @@ type RawRecommendationRow = {
   fit_reasons: Json;
   role_id: string;
   saved_stage: string | null;
+  talent_memo: string | null;
   tradeoffs: Json;
   viewed_at: string | null;
   company_role: {
@@ -71,6 +72,7 @@ type RawPostingRecommendationRow = {
   recommended_at: string | null;
   fit_reasons: Json;
   saved_stage: string | null;
+  talent_memo: string | null;
   tradeoffs: Json;
   viewed_at: string | null;
 };
@@ -118,6 +120,7 @@ const TALENT_OPPORTUNITY_HISTORY_SELECT = `
   feedback_at,
   feedback_reason,
   saved_stage,
+  talent_memo,
   viewed_at,
   clicked_at,
   dismissed_at,
@@ -188,6 +191,7 @@ const TALENT_POSTING_ROLE_SELECT = `
     feedback_at,
     feedback_reason,
     saved_stage,
+    talent_memo,
     viewed_at,
     clicked_at,
     dismissed_at,
@@ -203,7 +207,8 @@ export type TalentOpportunitySavedStage =
   | "saved"
   | "applied"
   | "connected"
-  | "closed";
+  | "closed"
+  | "hidden";
 
 export type TalentOpportunityHistoryTab = "new" | "saved" | "archived";
 
@@ -242,6 +247,7 @@ export type TalentOpportunityHistoryItem = {
   sourceProvider: string | null;
   sourceType: "internal" | "external";
   status: string;
+  talentMemo: string | null;
   title: string;
   viewedAt: string | null;
   workMode: string | null;
@@ -322,7 +328,8 @@ function normalizeSavedStage(
     value === "saved" ||
     value === "applied" ||
     value === "connected" ||
-    value === "closed"
+    value === "closed" ||
+    value === "hidden"
   ) {
     return value;
   }
@@ -426,19 +433,14 @@ const createEmptyHistoryCounts = (): TalentOpportunityHistoryCounts => ({
     applied: 0,
     connected: 0,
     closed: 0,
+    hidden: 0,
   },
   total: 0,
 });
 
 const getDefaultSavedStageForOpportunityType = (
-  opportunityType: OpportunityType
-): TalentOpportunitySavedStage => {
-  if (opportunityType === OpportunityType.IntroRequest) return "connected";
-  if (opportunityType === OpportunityType.InternalRecommendation) {
-    return "connected";
-  }
-  return "saved";
-};
+  _opportunityType: OpportunityType
+): TalentOpportunitySavedStage => "saved";
 
 function buildTalentOpportunityHistoryQuery(args: {
   admin: AdminClient;
@@ -539,6 +541,7 @@ export async function fetchTalentOpportunityHistoryCounts(args: {
     appliedStageCount,
     connectedStageCount,
     closedStageCount,
+    hiddenStageCount,
     savedRowsMissingStage,
   ] = await Promise.all([
     countTalentOpportunityRecommendations({
@@ -580,6 +583,12 @@ export async function fetchTalentOpportunityHistoryCounts(args: {
       savedStage: "closed",
       userId: args.userId,
     }),
+    countTalentOpportunityRecommendations({
+      admin: args.admin,
+      feedback: "like",
+      savedStage: "hidden",
+      userId: args.userId,
+    }),
     fetchSavedRowsMissingStage({
       admin: args.admin,
       userId: args.userId,
@@ -595,6 +604,7 @@ export async function fetchTalentOpportunityHistoryCounts(args: {
   counts.savedStages.applied = appliedStageCount;
   counts.savedStages.connected = connectedStageCount;
   counts.savedStages.closed = closedStageCount;
+  counts.savedStages.hidden = hiddenStageCount;
 
   for (const row of savedRowsMissingStage) {
     const kind = normalizeRecommendationKind(row.kind);
@@ -686,6 +696,7 @@ function mapRecommendationRow(
     sourceProvider: role.source_provider ?? null,
     sourceType,
     status: String(role.status ?? "active"),
+    talentMemo: row.talent_memo ?? null,
     title: String(role.name ?? ""),
     viewedAt: row.viewed_at ?? null,
     workMode: role.work_mode ?? null,
@@ -782,6 +793,7 @@ function mapPostingRoleRow(
     sourceProvider: row.source_provider ?? null,
     sourceType,
     status: String(row.status ?? "active"),
+    talentMemo: existingRecommendation?.talent_memo ?? null,
     title: String(row.name ?? ""),
     viewedAt: existingRecommendation?.viewed_at ?? null,
     workMode: row.work_mode ?? null,
@@ -1145,12 +1157,13 @@ async function ensureTalentOpportunityRecommendationForPostingRole(args: {
 }
 
 export async function updateTalentOpportunityHistoryItem(args: {
-  action: "feedback" | "saved_stage" | "view" | "click";
+  action: "feedback" | "saved_stage" | "view" | "click" | "memo";
   admin: AdminClient;
   feedback?: TalentOpportunityFeedback | null;
   feedbackReason?: string | null;
   opportunityId: string;
   savedStage?: TalentOpportunitySavedStage | null;
+  talentMemo?: string | null;
   userId: string;
 }) {
   const rawOpportunityId = String(args.opportunityId ?? "").trim();
@@ -1182,6 +1195,8 @@ export async function updateTalentOpportunityHistoryItem(args: {
     payload.saved_stage = args.savedStage ?? null;
   } else if (args.action === "view") {
     payload.viewed_at = now;
+  } else if (args.action === "memo") {
+    payload.talent_memo = String(args.talentMemo ?? "").trim() || null;
   } else {
     payload.clicked_at = now;
   }

@@ -228,14 +228,14 @@ const AccountSectionContent = ({
 
         <div className="border-t border-beige500 pt-4">
           <h3 className="text-sm font-semibold text-red-700">회원 탈퇴</h3>
-          <p className="mt-1 max-w-[520px] text-sm leading-relaxed text-hblack600">
+          <p className="mt-1 text-sm leading-relaxed text-hblack600">
             탈퇴하면 계정과 커리어 프로필, 이력서, 대화/추천 데이터가
             삭제됩니다. 다시 되돌릴 수 없습니다.
           </p>
           <button
             type="button"
             onClick={handleOpenDeleteConfirm}
-            className="mt-3 inline-flex h-10 items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 text-sm font-medium text-red-700 transition-colors hover:border-red-300 hover:bg-red-100"
+            className="mt-6 inline-flex h-9 items-center gap-2 rounded-lg bg-red-700 px-3 text-sm font-medium text-white transition-colors hover:bg-red-800"
           >
             <Trash2 className="h-4 w-4" />
             회원 탈퇴

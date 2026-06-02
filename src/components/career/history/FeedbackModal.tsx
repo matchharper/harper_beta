@@ -411,3 +411,52 @@ export const HistoryQuestionModal = ({
     </TalentCareerModal>
   );
 };
+
+export const HistoryMemoModal = ({
+  draft,
+  item,
+  pending,
+  onChangeDraft,
+  onClose,
+  onSubmit,
+}: {
+  draft: string;
+  item: CareerHistoryOpportunity | null;
+  pending: boolean;
+  onChangeDraft: (value: string) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+}) => {
+  if (!item) return null;
+
+  return (
+    <TalentCareerModal
+      open={Boolean(item)}
+      onClose={onClose}
+      title={item.talentMemo?.trim() ? "메모 수정" : "메모 작성"}
+      description="해당 포지션을 다시 볼 때 참고할 내용을 적어둘 수 있습니다."
+      panelClassName="max-w-[520px] border border-beige900/10 bg-beige50"
+      bodyClassName="bg-beige50 px-5 py-5"
+      footer={
+        <div className="flex items-center justify-end gap-2">
+          <CareerSecondaryButton onClick={onClose} disabled={pending}>
+            취소
+          </CareerSecondaryButton>
+          <CareerPrimaryButton onClick={onSubmit} disabled={pending}>
+            {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            저장
+          </CareerPrimaryButton>
+        </div>
+      }
+      closeButtonClassName="font-geist right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-beige900/10 bg-white/70 text-beige900/70 transition-colors hover:border-beige900/25 hover:text-beige900"
+    >
+      <textarea
+        autoFocus
+        value={draft}
+        onChange={(event) => onChangeDraft(event.target.value)}
+        placeholder="이 포지션에 대해 기억해둘 내용이나 확인할 점을 적어주세요."
+        className={careerCx(careerTextareaClassName, "min-h-[160px]")}
+      />
+    </TalentCareerModal>
+  );
+};

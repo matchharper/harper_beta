@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import Head from "next/head";
 import { useRouter } from "next/router";
 import { CareerFlowProvider } from "@/components/career/CareerFlowProvider";
 import CareerLoginGate from "@/components/career/CareerLoginGate";
@@ -153,7 +154,18 @@ const CareerWorkspacePage = ({
     );
   }
 
-  return <>{pageContent}</>;
+  return (
+    <>
+      <Head>
+        <meta
+          key="viewport"
+          name="viewport"
+          content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
+        />
+      </Head>
+      {pageContent}
+    </>
+  );
 };
 
 export default CareerWorkspacePage;

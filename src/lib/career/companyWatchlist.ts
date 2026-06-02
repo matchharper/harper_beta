@@ -10,7 +10,6 @@ import {
 } from "@/lib/talentOnboarding/server";
 import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
 import { insertTalentActivityEvent } from "@/lib/talentOnboarding/activityEvents";
-import { getTalentCareerMoveIntentLabel } from "@/lib/talentNetworkOptions";
 
 if (typeof window !== "undefined") {
   throw new Error("companyWatchlist must not run in the browser");
@@ -1455,7 +1454,6 @@ async function buildCompanyRecommendationProfileContext(args: {
     userId: args.userId,
     talentUser: profile,
   });
-  const careerMoveIntent = setting?.career_move_intent ?? null;
   return [
     buildTalentProfileContext({
       profile,
@@ -1463,9 +1461,6 @@ async function buildCompanyRecommendationProfileContext(args: {
       structuredProfile,
       maxResumeChars: 2400,
     }),
-    "",
-    "[Career move intent]",
-    getTalentCareerMoveIntentLabel(careerMoveIntent) ?? "미확인",
     "",
     "[Talent insights]",
     JSON.stringify(insights?.content ?? {}, null, 2),

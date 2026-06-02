@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
+import { normalizeCareerUtmSource } from "@/lib/careerUtm";
 
 type OnboardingStatus = {
   needsOnboarding: boolean;
@@ -61,6 +62,13 @@ export function useTalentOnboardingRedirect({
     if (router.query.start === "call" || router.query.start === "chat") {
       query.start = router.query.start;
     }
+    if (typeof router.query.lid === "string" && router.query.lid.trim()) {
+      query.lid = router.query.lid.trim();
+    }
+    if (typeof router.query.source === "string") {
+      const source = normalizeCareerUtmSource(router.query.source);
+      if (source) query.source = source;
+    }
 
     void router.replace({
       pathname: "/career/onboarding",
@@ -72,6 +80,8 @@ export function useTalentOnboardingRedirect({
     mail,
     needsOnboarding,
     router,
+    router.query.lid,
     router.query.start,
+    router.query.source,
   ]);
 }

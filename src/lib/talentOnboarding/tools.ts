@@ -682,7 +682,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.LOOKUP_ANSWER_EXAMPLES]: {
     name: TALENT_TOOL_NAMES.LOOKUP_ANSWER_EXAMPLES,
     description:
-      "Use when the current prompt and conversation context are not enough to answer well. Retrieves ops-managed example user messages and answer examples.",
+      "Use when the current prompt and conversation context are not enough to answer well. Retrieves managed example user messages and answer examples.",
     parameters: {
       type: "object",
       properties: {
@@ -1023,7 +1023,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE]: {
     name: TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
     description:
-      "Update internal profile state with new information about the user. It can update talent_users.bio, talent_preferences, and row memos during onboarding and after onboarding. It can update talent_insights only after onboarding is already complete, and only for future recommendation/search memory, not profile-row facts that belong in experiences, educations, or extras. Call when the user's latest statement directly maps to writable state, including explicit durable hard-filter search commands such as '미국 회사로만 찾아줘', '앞으로 리모트만 보내줘', '대기업은 빼고 찾아줘', or '다음부터 Series B 이상만 봐줘'. If the user discusses resume/CV context that matters for future matching, such as what their resume says, omits, emphasizes, or should signal, record that as talentInsights content when it is not a direct resume-file/profile-row update. For recommendation cadence, normal periodicIntervalDays values are 2-7. If the user says to stop recommendations entirely, set preferences.periodicIntervalDays=-1 and preferences.recommendationBatchSize=-1. If the user wants only internal Harper-connected recommendations, set preferences.periodicIntervalDays=-1 and preferences.recommendationBatchSize=1. Do not call for user questions, one-off browsing/curiosity/search requests, hypotheticals/conditional speech ('만약 ~라면'), assistant statements, aspirational/off-profile role mentions without explicit future intent, or information already saved in current state. If a post-onboarding update is marked high-impact and actually changes recommendation-relevant state, Harper will automatically run a fresh job-posting recommendation search after this tool, so reserve high impact for material changes. After the tool result, produce a normal user-facing chat reply in Korean; do not return an empty assistant message or only an onboarding marker.",
+      "Update internal profile state with new information about the user. It can update talent_users.bio, talent_preferences, and row memos during onboarding and after onboarding. It can update talent_insights only after onboarding is already complete, and only for future recommendation/search memory, not profile-row facts that belong in experiences, educations, or extras. Call when the user's latest statement directly maps to writable state, including explicit durable hard-filter search commands such as '미국 회사로만 찾아줘', '앞으로 리모트만 보내줘', '대기업은 빼고 찾아줘', or '다음부터 Series B 이상만 봐줘'. If the user discusses resume/CV context that matters for future matching, such as what their resume says, omits, emphasizes, or should signal, record that as talentInsights content when it is not a direct resume-file/profile-row update. For recommendation cadence, normal periodicIntervalDays values are 2-7. If the user says to stop recommendations entirely, set preferences.periodicIntervalDays=-1 and preferences.recommendationBatchSize=-1. If the user wants no public/external job-posting recommendations or wants only internal Harper-connected opportunities, set preferences.getExternalRecommendation=false and keep cadence fields unchanged. Do not call for user questions, one-off browsing/curiosity/search requests, hypotheticals/conditional speech ('만약 ~라면'), assistant statements, aspirational/off-profile role mentions without explicit future intent, or information already saved in current state. After the tool result, produce a normal user-facing chat reply in Korean; do not return an empty assistant message or only an onboarding marker.",
     parameters: {
       type: "object",
       properties: {
@@ -1043,15 +1043,25 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         preferences: {
           type: "object",
           description:
-            "Structured talent_preferences fields. Provide ONLY fields the user newly disclosed. Only numeric recommendation cadence fields are writable here. Special paired values: stop all recommendations = periodicIntervalDays -1 and recommendationBatchSize -1; internal-only recommendations = periodicIntervalDays -1 and recommendationBatchSize 1.",
+            "Structured talent_preferences fields. Provide ONLY fields the user newly disclosed. Numeric cadence fields and recommendation type booleans are writable here. Special paired values: stop all recommendations = periodicIntervalDays -1 and recommendationBatchSize -1. Internal-only connected opportunities = getExternalRecommendation false and getInternalRecommendation true; do not use cadence sentinels for that.",
           properties: {
+            getExternalRecommendation: {
+              type: "boolean",
+              description:
+                "Whether Harper may recommend external/public job postings. Set false when the user says not to recommend public/external/open job postings, or says they only want internal Harper-connected opportunities. Default is true.",
+            },
+            getInternalRecommendation: {
+              type: "boolean",
+              description:
+                "Whether Harper may recommend internal Harper-connected opportunities. Set true when the user says they still want internal/connected opportunities; set false only when they explicitly do not want these. Default is true.",
+            },
             periodicIntervalDays: {
               anyOf: [
                 { type: "integer", enum: [-1] },
                 { type: "integer", minimum: 2, maximum: 7 },
               ],
               description:
-                "How often (in days) the user wants opportunity batches. Normal values must be 2-7. Use -1 only as part of the special stop-all or internal-only paired values.",
+                "How often (in days) the user wants opportunity batches. Normal values must be 2-7. Use -1 only as part of the stop-all paired values, not for internal-only/external-off preferences.",
             },
             recommendationBatchSize: {
               anyOf: [
@@ -1059,7 +1069,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
                 { type: "integer", minimum: 1, maximum: 10 },
               ],
               description:
-                "Number of opportunities per batch (1-10). Use -1 only with periodicIntervalDays -1 when the user wants to stop recommendations entirely; use 1 with periodicIntervalDays -1 when the user wants only internal Harper-connected recommendations.",
+                "Number of opportunities per batch (1-10). Use -1 only with periodicIntervalDays -1 when the user wants to stop recommendations entirely.",
             },
           },
           additionalProperties: false,
@@ -1154,7 +1164,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
               type: "string",
               enum: ["low", "medium", "high"],
               description:
-                "Estimated impact on future recommendations. Use high only for core preference, hard constraint, or recommendation-changing updates. After onboarding is complete, high-impact changes automatically trigger a fresh job-posting recommendation search, so do not mark minor notes as high.",
+                "Estimated impact on future recommendations. Use high only for core preference, hard constraint, or recommendation-changing updates; do not mark minor notes as high.",
             },
           },
           required: ["content"],
@@ -1276,7 +1286,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         }
       }
 
-      // talent_preferences — overwrite numeric recommendation settings only.
+      // talent_preferences — overwrite only explicit recommendation settings.
       // Hidden talent_setting fields are intentionally NEVER passed so
       // upsertTalentSetting falls back to existing values.
       if (preferencesInput) {
@@ -1288,6 +1298,46 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         };
         let didUpdate = false;
 
+        if (typeof preferencesInput.getExternalRecommendation === "boolean") {
+          const nextGetExternalRecommendation =
+            preferencesInput.getExternalRecommendation;
+          updatePayload.getExternalRecommendation =
+            nextGetExternalRecommendation;
+          didUpdate = true;
+          updatedPreferenceFields.push("getExternalRecommendation");
+          if (
+            !isSameActivityValue(
+              existingSetting?.get_external_recommendation ?? true,
+              nextGetExternalRecommendation
+            )
+          ) {
+            preferenceActivityChanges.push({
+              field: "getExternalRecommendation",
+              from: existingSetting?.get_external_recommendation ?? true,
+              to: nextGetExternalRecommendation,
+            });
+          }
+        }
+        if (typeof preferencesInput.getInternalRecommendation === "boolean") {
+          const nextGetInternalRecommendation =
+            preferencesInput.getInternalRecommendation;
+          updatePayload.getInternalRecommendation =
+            nextGetInternalRecommendation;
+          didUpdate = true;
+          updatedPreferenceFields.push("getInternalRecommendation");
+          if (
+            !isSameActivityValue(
+              existingSetting?.get_internal_recommendation ?? true,
+              nextGetInternalRecommendation
+            )
+          ) {
+            preferenceActivityChanges.push({
+              field: "getInternalRecommendation",
+              from: existingSetting?.get_internal_recommendation ?? true,
+              to: nextGetInternalRecommendation,
+            });
+          }
+        }
         if (
           typeof preferencesInput.periodicIntervalDays === "number" &&
           Number.isFinite(preferencesInput.periodicIntervalDays)
@@ -1637,34 +1687,17 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         rowMemoActivityItems.length > 0 ? "medium" : null,
         insightImpactLevel,
       ]);
-      const hasRecommendationChangingUpdate =
-        preferenceChanges.length > 0 || talentInsightKeys.length > 0;
-      const shouldRecommendJobPostings =
-        // impactLevel === "high" &&
-        hasRecommendationChangingUpdate &&
-        Boolean((await loadExistingSetting())?.is_onboarding_done);
-      const recommendationTrigger = shouldRecommendJobPostings
-        ? {
-            changeSummary:
-              insightChangeSummary ??
-              preferenceSummary ??
-              insightSummary ??
-              "사용자의 추천 조건에 큰 변경이 생겼습니다.",
-            changedPreferenceFields: preferenceChanges.map(
-              (change) => change.field
-            ),
-            updatedTalentInsightKeys: talentInsightKeys,
-          }
-        : null;
+      const replyInstructions = [
+        "Continue the conversation naturally in Korean now. Do not mention internal tool names, JSON, or database fields.",
+        "If saved profile or preference state changed, do not make the saved-memory acknowledgement the whole answer. Explain the user-facing consequence in the context of what the user just asked, then continue naturally.",
+        "Use other tools only if independently required by the user's latest explicit request.",
+        "If onboarding is still active, ask at most one relevant next question, or close naturally with the required marker when appropriate. Do not return an empty assistant message.",
+      ];
 
       const result = {
-        assistantInstruction: shouldRecommendJobPostings
-          ? "This profile update is high-impact and onboarding is complete. A fresh job-posting recommendation search should be run immediately before the final Korean reply."
-          : "Continue the conversation naturally in Korean now. If onboarding is still active, ask the next relevant short question or close naturally with the required marker when appropriate. Do not return an empty assistant message.",
+        assistantInstruction: replyInstructions.join(" "),
         impactLevel,
         ok: true,
-        recommendationTrigger,
-        shouldRecommendJobPostings,
         updatedTalentUserFields,
         updatedPreferenceFields,
         updatedRowMemos,

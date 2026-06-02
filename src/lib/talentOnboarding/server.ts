@@ -25,8 +25,6 @@ import {
   normalizeTalentEngagementTypes,
   normalizeTalentInsightContent,
   normalizeTalentInsightKey,
-  normalizeTalentPreferredLocations,
-  sanitizeTalentCareerMoveIntent,
   sanitizeTalentProfileVisibility,
   setTalentOnboardingDone,
   upsertTalentInsights,
@@ -59,9 +57,6 @@ import {
   DEFAULT_TALENT_PROFILE_VISIBILITY,
   toTalentMessageResponse,
 } from "@/lib/talentOnboarding/models";
-import { validatePromptFile } from "./prompts";
-
-validatePromptFile("misc.md");
 
 export {
   DEFAULT_TALENT_PROFILE_VISIBILITY,
@@ -90,8 +85,6 @@ export {
   normalizeTalentEngagementTypes,
   normalizeTalentInsightContent,
   normalizeTalentInsightKey,
-  normalizeTalentPreferredLocations,
-  sanitizeTalentCareerMoveIntent,
   sanitizeTalentProfileVisibility,
   setTalentOnboardingDone,
   toTalentMessageResponse,
@@ -117,7 +110,7 @@ export type {
   TalentUserProfileRow,
 };
 
-/** Get first-visit text from misc.md. Lazy-evaluated for DB cache support. */
+/** Get first-visit text from the career prompt constants. */
 export function getTalentFirstVisitText(): string {
   return getCareerFirstVisitText();
 }

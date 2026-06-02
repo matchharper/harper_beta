@@ -1242,6 +1242,7 @@ export type Database = {
           description_summary: string | null
           expires_at: string | null
           external_jd_url: string | null
+          information: Json | null
           is_expired: boolean
           location_text: string | null
           name: string
@@ -1271,6 +1272,7 @@ export type Database = {
           description_summary?: string | null
           expires_at?: string | null
           external_jd_url?: string | null
+          information?: Json | null
           is_expired?: boolean
           location_text?: string | null
           name: string
@@ -1300,6 +1302,7 @@ export type Database = {
           description_summary?: string | null
           expires_at?: string | null
           external_jd_url?: string | null
+          information?: Json | null
           is_expired?: boolean
           location_text?: string | null
           name?: string
@@ -1625,38 +1628,6 @@ export type Database = {
           },
           {
             foreignKeyName: "connection_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "company_users"
-            referencedColumns: ["user_id"]
-          },
-        ]
-      }
-      credit_request: {
-        Row: {
-          created_at: string
-          credit_num: number | null
-          id: number
-          is_done: boolean
-          user_id: string | null
-        }
-        Insert: {
-          created_at?: string
-          credit_num?: number | null
-          id?: number
-          is_done?: boolean
-          user_id?: string | null
-        }
-        Update: {
-          created_at?: string
-          credit_num?: number | null
-          id?: number
-          is_done?: boolean
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "credit_request_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "company_users"
@@ -2558,39 +2529,6 @@ export type Database = {
         }
         Relationships: []
       }
-      insight_checklist_items: {
-        Row: {
-          created_at: string | null
-          created_by: string | null
-          id: number
-          is_active: boolean | null
-          key: string
-          label: string
-          priority: number | null
-          prompt_hint: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          created_by?: string | null
-          id?: number
-          is_active?: boolean | null
-          key: string
-          label: string
-          priority?: number | null
-          prompt_hint?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          created_by?: string | null
-          id?: number
-          is_active?: boolean | null
-          key?: string
-          label?: string
-          priority?: number | null
-          prompt_hint?: string | null
-        }
-        Relationships: []
-      }
       jobposting_company_identity: {
         Row: {
           company_db_id: number | null
@@ -2968,38 +2906,6 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
-      }
-      memory: {
-        Row: {
-          content: string | null
-          created_at: string
-          id: number
-          last_updated_at: string | null
-          user_id: string | null
-        }
-        Insert: {
-          content?: string | null
-          created_at?: string
-          id?: number
-          last_updated_at?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          content?: string | null
-          created_at?: string
-          id?: number
-          last_updated_at?: string | null
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "memory_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "company_users"
-            referencedColumns: ["user_id"]
-          },
-        ]
       }
       messages: {
         Row: {
@@ -3457,6 +3363,29 @@ export type Database = {
             columns: ["created_from_run_id"]
             isOneToOne: false
             referencedRelation: "opportunity_discovery_run"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ops_internal_recommendation_hidden: {
+        Row: {
+          hidden_at: string
+          recommendation_id: string
+        }
+        Insert: {
+          hidden_at?: string
+          recommendation_id: string
+        }
+        Update: {
+          hidden_at?: string
+          recommendation_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ops_internal_recommendation_hidden_recommendation_id_fkey"
+            columns: ["recommendation_id"]
+            isOneToOne: true
+            referencedRelation: "talent_opportunity_recommendation"
             referencedColumns: ["id"]
           },
         ]
@@ -5279,6 +5208,7 @@ export type Database = {
           saved_stage: string | null
           score: number | null
           talent_id: string
+          talent_memo: string | null
           tradeoffs: Json
           updated_at: string
           viewed_at: string | null
@@ -5306,6 +5236,7 @@ export type Database = {
           saved_stage?: string | null
           score?: number | null
           talent_id: string
+          talent_memo?: string | null
           tradeoffs?: Json
           updated_at?: string
           viewed_at?: string | null
@@ -5333,6 +5264,7 @@ export type Database = {
           saved_stage?: string | null
           score?: number | null
           talent_id?: string
+          talent_memo?: string | null
           tradeoffs?: Json
           updated_at?: string
           viewed_at?: string | null
@@ -5354,6 +5286,44 @@ export type Database = {
           },
           {
             foreignKeyName: "talent_opportunity_recommendation_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      talent_ops_profile_memos: {
+        Row: {
+          content: string
+          created_at: string
+          created_by: string | null
+          id: string
+          talent_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          talent_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          talent_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_ops_profile_memos_talent_id_fkey"
             columns: ["talent_id"]
             isOneToOne: false
             referencedRelation: "talent_users"
@@ -5411,6 +5381,8 @@ export type Database = {
           career_move_intent: string | null
           created_at: string
           engagement_types: string[]
+          get_external_recommendation: boolean
+          get_internal_recommendation: boolean
           is_onboarding_done: boolean
           last_periodic_run_at: string | null
           periodic_enabled: boolean
@@ -5428,6 +5400,8 @@ export type Database = {
           career_move_intent?: string | null
           created_at?: string
           engagement_types?: string[]
+          get_external_recommendation?: boolean
+          get_internal_recommendation?: boolean
           is_onboarding_done?: boolean
           last_periodic_run_at?: string | null
           periodic_enabled?: boolean
@@ -5445,6 +5419,8 @@ export type Database = {
           career_move_intent?: string | null
           created_at?: string
           engagement_types?: string[]
+          get_external_recommendation?: boolean
+          get_internal_recommendation?: boolean
           is_onboarding_done?: boolean
           last_periodic_run_at?: string | null
           periodic_enabled?: boolean

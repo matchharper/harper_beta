@@ -6,6 +6,8 @@ export type TalentRecommendationSettingsUpdateSource =
 export const DEFAULT_TALENT_PERIODIC_ENABLED = true;
 export const DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS = 3;
 export const DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE = 3;
+export const DEFAULT_TALENT_GET_EXTERNAL_RECOMMENDATION = true;
+export const DEFAULT_TALENT_GET_INTERNAL_RECOMMENDATION = true;
 export const TALENT_RECOMMENDATION_STOP_SENTINEL = -1;
 
 export const TALENT_PERIODIC_INTERVAL_DAYS_MIN = 2;
@@ -55,4 +57,8 @@ export function normalizeTalentRecommendationBatchSize(value: unknown) {
     DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
     [TALENT_RECOMMENDATION_STOP_SENTINEL]
   );
+}
+
+export function normalizeTalentRecommendationToggle(value: unknown) {
+  return value !== false;
 }

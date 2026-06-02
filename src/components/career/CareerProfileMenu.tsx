@@ -68,17 +68,19 @@ const CareerProfileMenu = ({
         menuOpen ? "bg-beige100" : "active:bg-beige900/5"
       )
     : careerCx(
-        "relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-[12px] border bg-beige100 transition-all",
+        "relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg text-white border border-black/10 bg-beige900 transition-all",
         menuOpen
-          ? "border-beige900/20 ring-4 ring-beige200"
-          : "border-beige900/10 hover:border-beige900/20 hover:bg-white"
+          ? "ring-4 ring-beige500"
+          : "hover:ring-4 ring-beige500 hover:opacity-90"
       );
 
   const avatarBody = isMobile ? (
     <span
       className={careerCx(
-        "inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border bg-beige100",
-        menuOpen ? "border-beige900/20" : "border-beige900/10"
+        "inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-full  border bg-beige900",
+        menuOpen
+          ? "ring-4 ring-beige500"
+          : "hover:ring-4 ring-beige500 hover:opacity-90"
       )}
     >
       {hasUploadedImage ? (
@@ -89,7 +91,7 @@ const CareerProfileMenu = ({
           className="h-full w-full object-cover"
         />
       ) : (
-        <span className="text-xs font-medium text-beige900">
+        <span className="text-[12px] font-normal text-white">
           {profileInitial}
         </span>
       )}
@@ -102,7 +104,7 @@ const CareerProfileMenu = ({
       className="h-full w-full object-cover"
     />
   ) : (
-    <span className="text-xs font-medium text-beige900">{profileInitial}</span>
+    <span className="text-[12px] font-normal text-white">{profileInitial}</span>
   );
 
   return (

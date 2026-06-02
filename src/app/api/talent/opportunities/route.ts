@@ -10,6 +10,7 @@ import {
 import {
   fetchTalentOpportunityHistoryByIds,
   fetchTalentOpportunityHistoryByRoleIds,
+  fetchTalentOpportunityHistoryCounts,
   fetchTalentOpportunityHistoryPage,
   type TalentOpportunityHistoryTab,
   type TalentOpportunitySavedStage,
@@ -62,7 +63,8 @@ const parseSavedStageParam = (
     value === "saved" ||
     value === "applied" ||
     value === "connected" ||
-    value === "closed"
+    value === "closed" ||
+    value === "hidden"
   ) {
     return value;
   }
@@ -262,7 +264,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     const body = (await req.json().catch(() => ({}))) as {
-      action?: "feedback" | "saved_stage" | "view" | "click";
+      action?: "feedback" | "saved_stage" | "view" | "click" | "memo";
       feedback?: TalentOpportunityFeedback | null;
       feedbackReason?: string | null;
       conversationId?: string | null;
@@ -270,6 +272,7 @@ export async function PATCH(req: NextRequest) {
       opportunityId?: string;
       promptImmediately?: boolean;
       savedStage?: TalentOpportunitySavedStage | null;
+      talentMemo?: string | null;
     };
 
     const action = body.action;
@@ -277,7 +280,8 @@ export async function PATCH(req: NextRequest) {
       action !== "feedback" &&
       action !== "saved_stage" &&
       action !== "view" &&
-      action !== "click"
+      action !== "click" &&
+      action !== "memo"
     ) {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }
@@ -304,7 +308,8 @@ export async function PATCH(req: NextRequest) {
       body.savedStage !== "saved" &&
       body.savedStage !== "applied" &&
       body.savedStage !== "connected" &&
-      body.savedStage !== "closed"
+      body.savedStage !== "closed" &&
+      body.savedStage !== "hidden"
     ) {
       return NextResponse.json(
         { error: "Invalid savedStage" },
@@ -313,6 +318,26 @@ export async function PATCH(req: NextRequest) {
     }
 
     const admin = getTalentSupabaseAdmin();
+    let previousOpportunity: TalentOpportunityHistoryItem | null = null;
+    if (action === "feedback") {
+      try {
+        const previousOpportunities = await fetchTalentOpportunityHistoryByIds({
+          admin,
+          ids: [opportunityId],
+          userId: user.id,
+        });
+        previousOpportunity = previousOpportunities[0] ?? null;
+      } catch (lookupError) {
+        console.warn("[career-history:previous-opportunity]", {
+          error:
+            lookupError instanceof Error
+              ? lookupError.message
+              : String(lookupError),
+          opportunityId,
+          userId: user.id,
+        });
+      }
+    }
     const result = await updateTalentOpportunityHistoryItem({
       action,
       admin,
@@ -320,6 +345,7 @@ export async function PATCH(req: NextRequest) {
       feedbackReason: body.feedbackReason,
       opportunityId,
       savedStage: body.savedStage,
+      talentMemo: body.talentMemo,
       userId: user.id,
     });
     const [updatedOpportunity] = await fetchTalentOpportunityHistoryByIds({
@@ -327,6 +353,33 @@ export async function PATCH(req: NextRequest) {
       ids: [result.opportunityId ?? opportunityId],
       userId: user.id,
     });
+    let historyCounts: Awaited<
+      ReturnType<typeof fetchTalentOpportunityHistoryCounts>
+    > | null = null;
+    if (action === "feedback" && body.feedback) {
+      try {
+        historyCounts = await fetchTalentOpportunityHistoryCounts({
+          admin,
+          userId: user.id,
+        });
+      } catch (countError) {
+        console.warn("[career-history:feedback-counts]", {
+          error:
+            countError instanceof Error
+              ? countError.message
+              : String(countError),
+          opportunityId,
+          userId: user.id,
+        });
+      }
+    }
+    const shouldPromptAfterClearedPositionTab =
+      action === "feedback" &&
+      (body.feedback === "positive" || body.feedback === "negative") &&
+      body.interactionSource === POSITION_TAB_INTERACTION_SOURCE &&
+      (previousOpportunity?.feedback === null ||
+        body.promptImmediately === true) &&
+      historyCounts?.new === 0;
 
     let assistantMessage: Awaited<
       ReturnType<typeof createTalentOpportunityFeedbackFollowUpReply>
@@ -379,13 +432,16 @@ export async function PATCH(req: NextRequest) {
           activityInserted && opportunity?.sourceType === "external";
 
         const replyTrigger: TalentOpportunityFeedbackReplyTrigger | null =
-          opportunity?.sourceType === "internal"
-            ? "immediate_internal_feedback"
-            : body.promptImmediately === true
-              ? "all_visible_feedback_submitted"
-              : null;
+          shouldPromptAfterClearedPositionTab
+            ? "all_recommended_opportunities_cleared"
+            : opportunity?.sourceType === "internal"
+              ? "immediate_internal_feedback"
+              : body.promptImmediately === true
+                ? "all_visible_feedback_submitted"
+                : null;
 
-        assistantMessage = replyTrigger
+        assistantMessage =
+          replyTrigger && !shouldPromptAfterClearedPositionTab
           ? await createTalentOpportunityFeedbackFollowUpReply({
               action: body.feedback,
               admin,
@@ -422,9 +478,18 @@ export async function PATCH(req: NextRequest) {
       ...result,
       assistantMessage,
       feedbackFollowUp: {
-        delayed: shouldScheduleDelayedFollowUp && !assistantMessage,
+        delayed:
+          shouldScheduleDelayedFollowUp &&
+          !assistantMessage &&
+          !shouldPromptAfterClearedPositionTab,
+        immediate: shouldPromptAfterClearedPositionTab,
+        trigger: shouldPromptAfterClearedPositionTab
+          ? "all_recommended_opportunities_cleared"
+          : null,
       },
       followUpRunId: null,
+      counts: historyCounts,
+      historyShouldRefresh: shouldPromptAfterClearedPositionTab,
       opportunity: updatedOpportunity ?? null,
       opportunityDiscoveryQueued: false,
       userMessage,

@@ -1,8 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import {
-  getCareerDefaultSavedStage,
-  getCareerOpportunitySortPriority,
-} from "@/components/career/opportunityTypeMeta";
+import { getCareerOpportunitySortPriority } from "@/components/career/opportunityTypeMeta";
 import type {
   CareerHistoryOpportunity,
   CareerHistoryOpportunityCounts,
@@ -12,25 +9,18 @@ import type {
 export type CareerMobileHistoryJobsTab =
   | "new"
   | "saved"
-  | "archived"
-  | "connected";
+  | "archived";
 
 const compareRecommendedAtDesc = (
   left: CareerHistoryOpportunity,
   right: CareerHistoryOpportunity
 ) => Date.parse(right.recommendedAt) - Date.parse(left.recommendedAt);
 
-const getResolvedSavedStage = (item: CareerHistoryOpportunity) =>
-  item.savedStage ?? getCareerDefaultSavedStage(item.opportunityType);
-
 const getHistoryFilterForJobsTab = (
   tab: CareerMobileHistoryJobsTab
 ): CareerHistoryOpportunityPageFilter => {
   if (tab === "saved") {
-    return { historyTab: "saved", savedStage: "saved" };
-  }
-  if (tab === "connected") {
-    return { historyTab: "saved", savedStage: "connected" };
+    return { historyTab: "saved" };
   }
   if (tab === "archived") {
     return { historyTab: "archived" };
@@ -48,13 +38,8 @@ const getJobsTabTotal = (
   counts: CareerHistoryOpportunityCounts
 ) => {
   if (tab === "new") return counts.new;
-  if (tab === "saved") return counts.savedStages.saved;
-  if (tab === "archived") return counts.archived;
-  return (
-    counts.savedStages.applied +
-    counts.savedStages.connected +
-    counts.savedStages.closed
-  );
+  if (tab === "saved") return counts.saved;
+  return counts.archived;
 };
 
 const isOpportunityInJobsTab = (
@@ -63,11 +48,7 @@ const isOpportunityInJobsTab = (
 ) => {
   if (tab === "new") return item.feedback === null;
   if (tab === "archived") return item.feedback === "negative";
-  if (item.feedback !== "positive") return false;
-
-  const savedStage = getResolvedSavedStage(item);
-  if (tab === "connected") return savedStage !== "saved";
-  return savedStage === "saved";
+  return item.feedback === "positive";
 };
 
 const sortOpportunitiesForJobsTab =

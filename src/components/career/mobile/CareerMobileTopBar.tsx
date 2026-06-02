@@ -58,7 +58,7 @@ export default function CareerMobileTopBar({
   return (
     <header
       className={cn(
-        "relative flex h-14 items-center justify-between px-2 text-beige900 backdrop-blur-xl",
+        "relative flex h-12 items-center justify-between px-2 text-beige900 backdrop-blur-xl",
         className
       )}
     >

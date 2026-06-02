@@ -23,6 +23,7 @@ import { createEmailReplyAlias } from "@/lib/email/inbound";
 import { buildReplySubject, normalizeEmailAddress } from "@/lib/email/parse";
 import { sendResendEmail } from "@/lib/email/send";
 import type { MergedChecklistItem } from "@/lib/talentOnboarding/server";
+import { normalizeTalentMessageThinkingLogs } from "@/lib/talentOnboarding/models";
 import type { Database } from "@/types/database.types";
 
 type TalentUserRow = Database["public"]["Tables"]["talent_users"]["Row"];
@@ -112,8 +113,6 @@ export type CareerTalentDetailResponse = {
   } | null;
   preferences: {
     engagementTypes: string[];
-    preferredLocations: string[];
-    careerMoveIntent: string | null;
     profileVisibility: string | null;
   } | null;
   messages: Array<{
@@ -122,12 +121,17 @@ export type CareerTalentDetailResponse = {
     content: string;
     messageType: string | null;
     createdAt: string;
+    thinkingLogs: string[];
   }>;
   opsProfileMemo: CareerTalentOpsProfileMemo | null;
+  opsProfileMemos: CareerTalentOpsProfileMemo[];
 };
 
 export type CareerTalentOpsProfileMemo = {
   content: string;
+  createdAt: string | null;
+  createdBy: string | null;
+  id: string;
   updatedAt: string | null;
   updatedBy: string | null;
 };
@@ -1482,29 +1486,65 @@ export async function fetchCareerTalentList(args: {
   };
 }
 
-async function fetchCareerTalentOpsProfileMemo(args: {
-  admin: TalentAdminClient;
-  userId: string;
-}): Promise<CareerTalentOpsProfileMemo | null> {
-  const { data, error } = await toUntypedAdmin(args.admin)
-    .from("talent_ops_profile_memos")
-    .select("content, updated_at, updated_by")
-    .eq("talent_id", args.userId)
-    .maybeSingle();
+function normalizeOpsProfileMemoId(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
 
-  if (error) {
-    if (isMissingOpsProfileMemoTableError(error)) return null;
-    throw new Error(error.message ?? "Failed to load ops profile memo");
-  }
-
-  const content = normalizeOpsProfileMemoContent(data?.content);
-  if (!content) return null;
+function toCareerTalentOpsProfileMemo(
+  row: Record<string, unknown> | null | undefined
+): CareerTalentOpsProfileMemo | null {
+  const id = normalizeOpsProfileMemoId(row?.id);
+  const content = normalizeOpsProfileMemoContent(row?.content);
+  if (!id || !content) return null;
 
   return {
+    id,
     content,
-    updatedAt: typeof data?.updated_at === "string" ? data.updated_at : null,
-    updatedBy: typeof data?.updated_by === "string" ? data.updated_by : null,
+    createdAt: typeof row?.created_at === "string" ? row.created_at : null,
+    createdBy: typeof row?.created_by === "string" ? row.created_by : null,
+    updatedAt: typeof row?.updated_at === "string" ? row.updated_at : null,
+    updatedBy: typeof row?.updated_by === "string" ? row.updated_by : null,
   };
+}
+
+async function assertCareerTalentUserExists(args: {
+  admin: TalentAdminClient;
+  userId: string;
+}) {
+  const { data: profile, error: profileError } = await args.admin
+    .from("talent_users")
+    .select("user_id")
+    .eq("user_id", args.userId)
+    .maybeSingle();
+
+  if (profileError) {
+    throw new Error(profileError.message ?? "Failed to load talent user");
+  }
+  if (!profile) {
+    throw new Error("Talent user was not found");
+  }
+}
+
+async function fetchCareerTalentOpsProfileMemos(args: {
+  admin: TalentAdminClient;
+  userId: string;
+}): Promise<CareerTalentOpsProfileMemo[]> {
+  const { data, error } = await toUntypedAdmin(args.admin)
+    .from("talent_ops_profile_memos")
+    .select("id, content, created_at, created_by, updated_at, updated_by")
+    .eq("talent_id", args.userId)
+    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (error) {
+    if (isMissingOpsProfileMemoTableError(error)) return [];
+    throw new Error(error.message ?? "Failed to load ops profile memos");
+  }
+
+  return ((data ?? []) as Record<string, unknown>[])
+    .map((row) => toCareerTalentOpsProfileMemo(row))
+    .filter((memo): memo is CareerTalentOpsProfileMemo => Boolean(memo));
 }
 
 async function fetchCareerTalentOpsProfileMemoPreviewMap(args: {
@@ -1517,8 +1557,9 @@ async function fetchCareerTalentOpsProfileMemoPreviewMap(args: {
 
   const { data, error } = await toUntypedAdmin(args.admin)
     .from("talent_ops_profile_memos")
-    .select("talent_id, content")
-    .in("talent_id", uniqueUserIds);
+    .select("talent_id, content, updated_at")
+    .in("talent_id", uniqueUserIds)
+    .order("updated_at", { ascending: false });
 
   if (error) {
     if (isMissingOpsProfileMemoTableError(error)) return previewMap;
@@ -1530,7 +1571,7 @@ async function fetchCareerTalentOpsProfileMemoPreviewMap(args: {
   for (const row of data ?? []) {
     const talentId = typeof row?.talent_id === "string" ? row.talent_id : "";
     const preview = normalizeOpsProfileMemoPreview(row?.content);
-    if (talentId && preview) {
+    if (talentId && preview && !previewMap.has(talentId)) {
       previewMap.set(talentId, preview);
     }
   }
@@ -1538,72 +1579,135 @@ async function fetchCareerTalentOpsProfileMemoPreviewMap(args: {
   return previewMap;
 }
 
-export async function saveCareerTalentOpsProfileMemo(args: {
+export async function createCareerTalentOpsProfileMemo(args: {
   content: unknown;
-  updatedBy: string | null | undefined;
+  createdBy: string | null | undefined;
   userId: string;
-}): Promise<CareerTalentOpsProfileMemo | null> {
+}): Promise<CareerTalentOpsProfileMemo> {
   const userId = args.userId.trim();
   if (!userId) {
     throw new Error("userId is required");
   }
 
   const admin = getTalentSupabaseAdmin();
-  const { data: profile, error: profileError } = await admin
-    .from("talent_users")
-    .select("user_id")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (profileError) {
-    throw new Error(profileError.message ?? "Failed to load talent user");
-  }
-  if (!profile) {
-    throw new Error("Talent user was not found");
-  }
+  await assertCareerTalentUserExists({ admin, userId });
 
   const content = normalizeOpsProfileMemoContent(args.content);
-  const updatedBy = String(args.updatedBy ?? "").trim() || null;
+  if (!content) {
+    throw new Error("memo content is required");
+  }
+
+  const createdBy = String(args.createdBy ?? "").trim() || null;
   const updatedAt = new Date().toISOString();
   const untypedAdmin = toUntypedAdmin(admin);
 
-  if (!content) {
-    const { error } = await untypedAdmin
-      .from("talent_ops_profile_memos")
-      .delete()
-      .eq("talent_id", userId);
-    if (error) {
-      throw new Error(error.message ?? "Failed to delete ops profile memo");
-    }
-    return null;
-  }
-
   const { data, error } = await untypedAdmin
     .from("talent_ops_profile_memos")
-    .upsert(
-      {
-        content,
-        created_by: updatedBy,
-        talent_id: userId,
-        updated_at: updatedAt,
-        updated_by: updatedBy,
-      },
-      { onConflict: "talent_id" }
-    )
-    .select("content, updated_at, updated_by")
+    .insert({
+      content,
+      created_by: createdBy,
+      talent_id: userId,
+      updated_at: updatedAt,
+      updated_by: createdBy,
+    })
+    .select("id, content, created_at, created_by, updated_at, updated_by")
     .single();
 
   if (error) {
-    throw new Error(error.message ?? "Failed to save ops profile memo");
+    throw new Error(error.message ?? "Failed to create ops profile memo");
   }
 
-  return {
-    content: normalizeOpsProfileMemoContent(data?.content),
-    updatedAt:
-      typeof data?.updated_at === "string" ? data.updated_at : updatedAt,
-    updatedBy:
-      typeof data?.updated_by === "string" ? data.updated_by : updatedBy,
-  };
+  const memo = toCareerTalentOpsProfileMemo(data);
+  if (!memo) {
+    throw new Error("Failed to create ops profile memo");
+  }
+
+  return memo;
+}
+
+export async function updateCareerTalentOpsProfileMemo(args: {
+  content: unknown;
+  memoId: string;
+  updatedBy: string | null | undefined;
+  userId: string;
+}): Promise<CareerTalentOpsProfileMemo> {
+  const userId = args.userId.trim();
+  const memoId = normalizeOpsProfileMemoId(args.memoId);
+  if (!userId) {
+    throw new Error("userId is required");
+  }
+  if (!memoId) {
+    throw new Error("memoId is required");
+  }
+
+  const content = normalizeOpsProfileMemoContent(args.content);
+  if (!content) {
+    throw new Error("memo content is required");
+  }
+
+  const admin = getTalentSupabaseAdmin();
+  await assertCareerTalentUserExists({ admin, userId });
+  const untypedAdmin = toUntypedAdmin(admin);
+
+  const updatedBy = String(args.updatedBy ?? "").trim() || null;
+  const updatedAt = new Date().toISOString();
+  const { data, error } = await untypedAdmin
+    .from("talent_ops_profile_memos")
+    .update({
+      content,
+      updated_at: updatedAt,
+      updated_by: updatedBy,
+    })
+    .eq("id", memoId)
+    .eq("talent_id", userId)
+    .select("id, content, created_at, created_by, updated_at, updated_by")
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to update ops profile memo");
+  }
+  if (!data) {
+    throw new Error("Ops profile memo was not found");
+  }
+
+  const memo = toCareerTalentOpsProfileMemo(data);
+  if (!memo) {
+    throw new Error("Failed to update ops profile memo");
+  }
+
+  return memo;
+}
+
+export async function deleteCareerTalentOpsProfileMemo(args: {
+  memoId: string;
+  userId: string;
+}) {
+  const userId = args.userId.trim();
+  const memoId = normalizeOpsProfileMemoId(args.memoId);
+  if (!userId) {
+    throw new Error("userId is required");
+  }
+  if (!memoId) {
+    throw new Error("memoId is required");
+  }
+
+  const admin = getTalentSupabaseAdmin();
+  const { data, error } = await toUntypedAdmin(admin)
+    .from("talent_ops_profile_memos")
+    .delete()
+    .eq("id", memoId)
+    .eq("talent_id", userId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to delete ops profile memo");
+  }
+  if (!data) {
+    throw new Error("Ops profile memo was not found");
+  }
+
+  return { memoId };
 }
 
 export async function fetchCareerTalentDetail(
@@ -1616,13 +1720,13 @@ export async function fetchCareerTalentDetail(
     insights,
     structuredProfile,
     mergedChecklist,
-    opsProfileMemo,
+    opsProfileMemos,
   ] = await Promise.all([
     fetchTalentUserProfile({ admin, userId }),
     fetchTalentInsights({ admin, userId }),
     fetchTalentStructuredProfile({ admin, userId, talentUser: null }),
     getMergedChecklist({ admin }),
-    fetchCareerTalentOpsProfileMemo({ admin, userId }),
+    fetchCareerTalentOpsProfileMemos({ admin, userId }),
   ]);
 
   // Fetch latest conversation
@@ -1640,7 +1744,7 @@ export async function fetchCareerTalentDetail(
   if (latestConv) {
     const { data: messageRows } = await admin
       .from("talent_messages")
-      .select("id, role, content, message_type, created_at")
+      .select("id, role, content, message_type, thinking_logs, created_at")
       .eq("conversation_id", latestConv.id)
       .order("created_at", { ascending: true })
       .limit(100);
@@ -1651,15 +1755,14 @@ export async function fetchCareerTalentDetail(
       content: m.content,
       messageType: m.message_type,
       createdAt: m.created_at,
+      thinkingLogs: normalizeTalentMessageThinkingLogs(m.thinking_logs),
     }));
   }
 
   // Fetch preferences
   const { data: setting } = await admin
     .from("talent_setting")
-    .select(
-      "engagement_types, career_move_intent, profile_visibility, is_onboarding_done"
-    )
+    .select("engagement_types, profile_visibility, is_onboarding_done")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -1700,13 +1803,12 @@ export async function fetchCareerTalentDetail(
     preferences: setting
       ? {
           engagementTypes: (setting.engagement_types as string[]) ?? [],
-          preferredLocations: [],
-          careerMoveIntent: (setting.career_move_intent as string) ?? null,
           profileVisibility: (setting.profile_visibility as string) ?? null,
         }
       : null,
     messages,
-    opsProfileMemo,
+    opsProfileMemo: opsProfileMemos[0] ?? null,
+    opsProfileMemos,
   };
 }
 

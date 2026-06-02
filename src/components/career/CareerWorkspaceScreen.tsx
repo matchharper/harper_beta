@@ -8,6 +8,7 @@ import CareerCompanyWatchlistPanel from "@/components/career/watchlist/CareerCom
 import CareerCompanyDetailDrawer from "@/components/career/watchlist/CareerCompanyDetailDrawer";
 import CareerSupportInquiryModal from "@/components/career/CareerSupportInquiryModal";
 import HistoryOpportunityInfoModal from "@/components/career/history/HistoryOppotunityInfoModal";
+import { HistoryMemoModal } from "@/components/career/history/FeedbackModal";
 import { useCareerSidebarContext } from "@/components/career/CareerSidebarContext";
 import CareerWorkspaceNav, {
   type CareerWorkspaceTab,
@@ -363,18 +364,17 @@ const CareerWorkspaceMobileHistoryView = ({
     historyOpportunityCounts,
     historyLoading,
     historyLoadingMore,
+    historyUpdatingOpportunityIds,
     onLoadMoreHistoryOpportunities,
     onUpdateHistoryOpportunityFeedback,
+    onUpdateHistoryOpportunityTalentMemo,
     onMarkHistoryOpportunityClicked,
   } = useCareerSidebarContext();
   const { displayName, profilePicture, userEmail } = useMobileUserDisplay();
 
   const [jobsTab, setJobsTab] = useState<JobsDisplayTab>(() => {
     if (initialHistoryTarget?.historyTab === "saved") {
-      const stage = initialHistoryTarget.savedStage;
-      return stage === "connected" || stage === "applied" || stage === "closed"
-        ? "connected"
-        : "saved";
+      return "saved";
     }
     if (initialHistoryTarget?.historyTab === "archived") return "archived";
     return "new";
@@ -386,6 +386,10 @@ const CareerWorkspaceMobileHistoryView = ({
   >(null);
   const [infoOpportunityType, setInfoOpportunityType] =
     useState<CareerOpportunityType | null>(null);
+  const [memoPromptOpportunityId, setMemoPromptOpportunityId] = useState<
+    string | null
+  >(null);
+  const [memoPromptDraft, setMemoPromptDraft] = useState("");
 
   const handleOpenCompanyInfo = useCallback(
     (item: CareerHistoryOpportunity) => {
@@ -414,6 +418,15 @@ const CareerWorkspaceMobileHistoryView = ({
     [logCareerEvent]
   );
 
+  const handleOpenMemo = useCallback(
+    (item: CareerHistoryOpportunity) => {
+      logCareerEvent("click_mobile_history_memo");
+      setMemoPromptOpportunityId(item.id);
+      setMemoPromptDraft(item.talentMemo ?? "");
+    },
+    [logCareerEvent]
+  );
+
   const {
     hasMore: hasMoreFilteredOpportunities,
     isLoading: filteredOpportunitiesLoading,
@@ -434,6 +447,27 @@ const CareerWorkspaceMobileHistoryView = ({
     Math.max(filteredOpportunities.length - 1, 0)
   );
   const currentOpportunity = filteredOpportunities[safeIndex] ?? null;
+  const memoPromptOpportunity =
+    memoPromptOpportunityId && currentOpportunity?.id === memoPromptOpportunityId
+      ? currentOpportunity
+      : null;
+
+  const handleSubmitMemo = useCallback(async () => {
+    if (!memoPromptOpportunity) return;
+
+    logCareerEvent("click_mobile_history_submit_memo");
+    await onUpdateHistoryOpportunityTalentMemo(
+      memoPromptOpportunity.id,
+      memoPromptDraft
+    );
+    setMemoPromptOpportunityId(null);
+    setMemoPromptDraft("");
+  }, [
+    logCareerEvent,
+    memoPromptDraft,
+    memoPromptOpportunity,
+    onUpdateHistoryOpportunityTalentMemo,
+  ]);
 
   const handleChangeJobsTab = useCallback(
     (nextTab: JobsDisplayTab) => {
@@ -482,15 +516,35 @@ const CareerWorkspaceMobileHistoryView = ({
     logCareerEvent("click_mobile_history_positive");
     void onUpdateHistoryOpportunityFeedback(currentOpportunity.id, "positive", {
       interactionSource: "position_tab",
+      promptImmediately:
+        jobsTab === "new" &&
+        currentOpportunity.feedback === null &&
+        historyOpportunityCounts.new <= 1,
     });
-  }, [currentOpportunity, logCareerEvent, onUpdateHistoryOpportunityFeedback]);
+  }, [
+    currentOpportunity,
+    historyOpportunityCounts.new,
+    jobsTab,
+    logCareerEvent,
+    onUpdateHistoryOpportunityFeedback,
+  ]);
   const handleDismiss = useCallback(() => {
     if (!currentOpportunity) return;
     logCareerEvent("click_mobile_history_negative");
     void onUpdateHistoryOpportunityFeedback(currentOpportunity.id, "negative", {
       interactionSource: "position_tab",
+      promptImmediately:
+        jobsTab === "new" &&
+        currentOpportunity.feedback === null &&
+        historyOpportunityCounts.new <= 1,
     });
-  }, [currentOpportunity, logCareerEvent, onUpdateHistoryOpportunityFeedback]);
+  }, [
+    currentOpportunity,
+    historyOpportunityCounts.new,
+    jobsTab,
+    logCareerEvent,
+    onUpdateHistoryOpportunityFeedback,
+  ]);
 
   const actionBar =
     currentOpportunity && jobsTab === "new" ? (
@@ -520,13 +574,8 @@ const CareerWorkspaceMobileHistoryView = ({
         )}
         onNavigate={handleNavigate}
         newCount={historyOpportunityCounts.new}
-        savedCount={historyOpportunityCounts.savedStages.saved}
+        savedCount={historyOpportunityCounts.saved}
         archivedCount={historyOpportunityCounts.archived}
-        connectedCount={
-          historyOpportunityCounts.savedStages.applied +
-          historyOpportunityCounts.savedStages.connected +
-          historyOpportunityCounts.savedStages.closed
-        }
         activeJobsTab={jobsTab}
         onChangeJobsTab={handleChangeJobsTab}
         profilePicture={profilePicture}
@@ -541,6 +590,7 @@ const CareerWorkspaceMobileHistoryView = ({
         onDismissSwipeHint={handleDismissHint}
         onOpenCompanyInfo={handleOpenCompanyInfo}
         onOpenOpportunityInfo={handleOpenOpportunityInfo}
+        onEditMemo={handleOpenMemo}
       />
       <CareerMobileChatLauncher actionBar={actionBar}>
         <CareerChatPanel />
@@ -548,6 +598,21 @@ const CareerWorkspaceMobileHistoryView = ({
       <HistoryOpportunityInfoModal
         opportunityType={infoOpportunityType}
         onClose={() => setInfoOpportunityType(null)}
+      />
+      <HistoryMemoModal
+        item={memoPromptOpportunity}
+        draft={memoPromptDraft}
+        pending={
+          memoPromptOpportunity
+            ? historyUpdatingOpportunityIds.includes(memoPromptOpportunity.id)
+            : false
+        }
+        onChangeDraft={setMemoPromptDraft}
+        onClose={() => {
+          setMemoPromptOpportunityId(null);
+          setMemoPromptDraft("");
+        }}
+        onSubmit={handleSubmitMemo}
       />
       <CareerCompanyDetailDrawer
         companyDbId={companyDetailCompanyDbId}

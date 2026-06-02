@@ -306,9 +306,48 @@ function serializeToolResult(result: unknown) {
   }
 }
 
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function parseSerializedToolResult(content: string) {
+  try {
+    const parsed = JSON.parse(content);
+    return isPlainRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function buildAssistantInstructionsFromToolResults(
+  blocks: AnthropicToolResultBlock[]
+) {
+  const instructions: string[] = [];
+
+  for (const block of blocks) {
+    const result = parseSerializedToolResult(block.content);
+    if (!result) continue;
+
+    const assistantInstruction = result.assistantInstruction;
+    if (typeof assistantInstruction === "string") {
+      const normalized = assistantInstruction.trim();
+      if (normalized) instructions.push(normalized);
+    }
+  }
+
+  if (instructions.length === 0) return "";
+
+  return [
+    "Additional tool-result instruction for the final user-facing reply:",
+    ...Array.from(new Set(instructions)).map((instruction) => `- ${instruction}`),
+  ].join("\n");
+}
+
 const TOOL_RESULT_FOLLOWUP_INSTRUCTION = [
   "Use the tool result(s) above to answer the user's latest message in Korean.",
   "Do not return empty text, expose raw JSON, or mention internal tool names.",
+  "If the assistant already wrote a brief pre-tool preamble in the same turn, do not repeat that preamble; continue with the result or the next useful sentence.",
+  "When a tool changed saved profile or preference state, answer as Harper in a normal product conversation: acknowledge the substantive change, explain the practical consequence when it matters, and continue naturally from the user's intent.",
   "If the result is inconclusive, say what could and could not be verified, then continue naturally from the user's question.",
 ].join(" ");
 
@@ -324,11 +363,15 @@ function withToolResultFollowupInstruction(
   blocks: AnthropicToolResultBlock[]
 ): AnthropicUserContentBlock[] {
   if (blocks.length === 0) return blocks;
+  const assistantInstructions =
+    buildAssistantInstructionsFromToolResults(blocks);
   return [
     ...blocks,
     {
       type: "text",
-      text: TOOL_RESULT_FOLLOWUP_INSTRUCTION,
+      text: [TOOL_RESULT_FOLLOWUP_INSTRUCTION, assistantInstructions]
+        .filter((text) => text.trim().length > 0)
+        .join("\n\n"),
     },
   ];
 }
@@ -1266,12 +1309,15 @@ export async function runCareerChatAssistantStream(args: {
   let streamedAnyText = false;
   let startedAnyTool = false;
   let executedAnyTool = false;
+  let forwardedVisibleText = "";
   const stopAfterToolNameSet = new Set(args.stopAfterToolNames ?? []);
   const forwardTextDelta = async (delta: string) => {
     if (!delta) return;
     streamedAnyText = true;
+    forwardedVisibleText += delta;
     await args.onTextDelta(delta);
   };
+  const getForwardedVisibleText = () => cleanModelText(forwardedVisibleText);
 
   try {
     if (args.tools.length === 0) {
@@ -1306,7 +1352,7 @@ export async function runCareerChatAssistantStream(args: {
             await args.onStopToolStart?.(tool);
           }
         },
-        onTextDelta: () => undefined,
+        onTextDelta: forwardTextDelta,
         systemBlocks: args.systemBlocks,
         temperature: CAREER_LLM_CONFIG.chat.temperature,
         tools: args.tools,
@@ -1325,7 +1371,7 @@ export async function runCareerChatAssistantStream(args: {
           extractAnthropicText(assistantBlocks)
         );
         if (!responseText) {
-          return recoverVisibleTextFromAnthropicMessages({
+          const recoveredText = await recoverVisibleTextFromAnthropicMessages({
             messages: workingMessages,
             modelConfig,
             onTextDelta: forwardTextDelta,
@@ -1333,7 +1379,10 @@ export async function runCareerChatAssistantStream(args: {
             systemBlocks: args.systemBlocks,
             usageLabel: "career/chat:assistant",
           });
+          return getForwardedVisibleText() || recoveredText;
         }
+        const forwardedText = getForwardedVisibleText();
+        if (forwardedText) return forwardedText;
         await forwardTextDelta(responseText);
         return responseText;
       }
@@ -1437,8 +1486,8 @@ export async function runCareerChatAssistantStream(args: {
         temperature: CAREER_LLM_CONFIG.chat.temperature,
         usageLabel: "career/chat:assistant",
       });
-      if (finalText) return finalText;
-      return recoverVisibleTextFromAnthropicMessages({
+      if (finalText) return getForwardedVisibleText() || finalText;
+      const recoveredText = await recoverVisibleTextFromAnthropicMessages({
         messages: workingMessages,
         modelConfig,
         onTextDelta: forwardTextDelta,
@@ -1446,6 +1495,7 @@ export async function runCareerChatAssistantStream(args: {
         systemBlocks: args.systemBlocks,
         usageLabel: "career/chat:assistant",
       });
+      return getForwardedVisibleText() || recoveredText;
     }
 
     if (executedAnyTool) {
@@ -1457,8 +1507,8 @@ export async function runCareerChatAssistantStream(args: {
         temperature: CAREER_LLM_CONFIG.chat.temperature,
         usageLabel: "career/chat:assistant",
       });
-      if (finalText) return finalText;
-      return recoverVisibleTextFromAnthropicMessages({
+      if (finalText) return getForwardedVisibleText() || finalText;
+      const recoveredText = await recoverVisibleTextFromAnthropicMessages({
         messages: workingMessages,
         modelConfig,
         onTextDelta: forwardTextDelta,
@@ -1466,6 +1516,7 @@ export async function runCareerChatAssistantStream(args: {
         systemBlocks: args.systemBlocks,
         usageLabel: "career/chat:assistant",
       });
+      return getForwardedVisibleText() || recoveredText;
     }
 
     const finalResponse = await createAnthropicMessageStreamResponse({
@@ -1478,7 +1529,7 @@ export async function runCareerChatAssistantStream(args: {
           await args.onStopToolStart?.(tool);
         }
       },
-      onTextDelta: () => undefined,
+      onTextDelta: forwardTextDelta,
       systemBlocks: args.systemBlocks,
       temperature: CAREER_LLM_CONFIG.chat.temperature,
       tools: args.tools,
@@ -1497,6 +1548,8 @@ export async function runCareerChatAssistantStream(args: {
         usageLabel: "career/chat:assistant",
       });
     }
+    const forwardedText = getForwardedVisibleText();
+    if (forwardedText) return forwardedText;
     await forwardTextDelta(cleanFinalText);
     return cleanFinalText;
   } catch (error) {
@@ -1510,7 +1563,7 @@ export async function runCareerChatAssistantStream(args: {
         systemBlocks: args.systemBlocks,
         usageLabel: "career/chat:assistant",
       });
-      if (recoveredText) return recoveredText;
+      if (recoveredText) return getForwardedVisibleText() || recoveredText;
     }
 
     if (streamedAnyText || startedAnyTool || executedAnyTool) {

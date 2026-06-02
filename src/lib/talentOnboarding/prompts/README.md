@@ -12,7 +12,6 @@ TypeScript 코드를 건드릴 필요 없습니다.
 | `interview-steps.md` | 인터뷰 6단계의 질문 가이드 | 질문 문구, 전환 조건, 스텝 목표 |
 | `system.md` | Harper 페르소나와 기본 지시 | 말투, 톤, relief nudge 문구 |
 | `../career/insights.md` | LLM 응답 포맷 및 인사이트 추출 룰 | 추출 규칙, JSON 포맷 지시 |
-| `misc.md` | 첫 방문 안내, 인터럽트 처리, 통화 종료 | 첫 인사말, 음성 안내 문구 |
 
 ## 편집 방법
 
@@ -67,16 +66,6 @@ IMPORTANT: Include this exact nudge once in your response:
 지금 정보만으로도 매칭을 시작할 수 있습니다.   <-- 이 문구를 수정
 ```
 
-### 4. 첫 방문 안내 수정
-
-`misc.md`의 `## firstVisitText` 섹션:
-
-```markdown
-## firstVisitText
-안녕하세요. 하퍼에 처음 방문해주셔서 감사합니다.   <-- 수정 가능
-...
-```
-
 ## 절대 하지 말아야 할 것
 
 1. **`## ` 헤딩을 섹션 본문 안에 쓰지 마세요**
@@ -85,7 +74,7 @@ IMPORTANT: Include this exact nudge once in your response:
    - `## Step 1:` 같은 기존 헤딩 이름을 바꾸면 서버가 시작되지 않습니다
 
 2. **섹션 헤딩 이름을 변경하지 마세요**
-   - `## persona`, `## Step 1:`, `## firstVisitText` 등의 이름은 코드와 연결되어 있습니다
+   - `## persona`, `## Step 1:` 등의 이름은 코드와 연결되어 있습니다
    - 이름을 바꾸면 서버 시작 시 에러가 발생합니다 (fail-fast 검증)
 
 3. **섹션을 삭제하지 마세요**
@@ -106,7 +95,6 @@ IMPORTANT: Include this exact nudge once in your response:
 | | `{{resumeFileName}}`, `{{resumeLinks}}` | 이력서 정보 |
 | | `{{structuredProfileText}}` | 구조화된 프로필 |
 | `../career/insights.md` | `{{insightChecklistSection}}` | 알아내면 좋은 인사이트와 현재 값 |
-| `misc.md` | `{{CALL_END_MARKER}}` | 통화 종료 마커 (##END##) |
 
 ## 수정 후 테스트
 

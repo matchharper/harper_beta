@@ -105,6 +105,10 @@ export type CareerSidebarContextValue = {
     opportunityId: string,
     savedStage: CareerOpportunitySavedStage
   ) => void | Promise<void>;
+  onUpdateHistoryOpportunityTalentMemo: (
+    opportunityId: string,
+    talentMemo: string | null
+  ) => void | Promise<void>;
   onMarkHistoryOpportunityViewed: (
     opportunityId: string
   ) => void | Promise<void>;

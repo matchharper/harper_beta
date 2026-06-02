@@ -18,12 +18,15 @@ import {
 import { insertTalentActivityEvent } from "@/lib/talentOnboarding/activityEvents";
 import type { TalentOnboardingCompletionReason } from "@/lib/talentOnboarding/completion";
 import {
+  DEFAULT_TALENT_GET_EXTERNAL_RECOMMENDATION,
+  DEFAULT_TALENT_GET_INTERNAL_RECOMMENDATION,
   DEFAULT_TALENT_PERIODIC_ENABLED,
   DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS,
   DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
   normalizeTalentPeriodicEnabled,
   normalizeTalentPeriodicIntervalDays,
   normalizeTalentRecommendationBatchSize,
+  normalizeTalentRecommendationToggle,
 } from "@/lib/talentOnboarding/recommendationSettings";
 
 if (typeof window !== "undefined") {
@@ -33,6 +36,8 @@ if (typeof window !== "undefined") {
 type AdminClient = ReturnType<typeof getTalentSupabaseAdmin>;
 
 const DEFAULT_SETTINGS: RecommendationSettings = {
+  getExternalRecommendation: DEFAULT_TALENT_GET_EXTERNAL_RECOMMENDATION,
+  getInternalRecommendation: DEFAULT_TALENT_GET_INTERNAL_RECOMMENDATION,
   periodicEnabled: DEFAULT_TALENT_PERIODIC_ENABLED,
   periodicIntervalDays: DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS,
   recommendationBatchSize: DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
@@ -89,6 +94,12 @@ export async function fetchRecommendationSettings(args: {
   if (!data) return DEFAULT_SETTINGS;
 
   return {
+    getExternalRecommendation: normalizeTalentRecommendationToggle(
+      data.get_external_recommendation
+    ),
+    getInternalRecommendation: normalizeTalentRecommendationToggle(
+      data.get_internal_recommendation
+    ),
     periodicEnabled: normalizeTalentPeriodicEnabled(data.periodic_enabled),
     periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
       data.periodic_interval_days
@@ -332,6 +343,8 @@ export async function createOpportunityDiscoveryRun(
     conversation_id: args.conversationId ?? null,
     run_mode: args.runMode ?? triggerToRunMode(args.trigger),
     settings_snapshot: {
+      getExternalRecommendation: settings.getExternalRecommendation,
+      getInternalRecommendation: settings.getInternalRecommendation,
       periodicEnabled: settings.periodicEnabled,
       periodicIntervalDays: settings.periodicIntervalDays,
       recommendationBatchSize: settings.recommendationBatchSize,
