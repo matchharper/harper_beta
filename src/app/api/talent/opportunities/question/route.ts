@@ -6,6 +6,7 @@ import {
   fetchTalentOpportunityHistoryByIds,
 } from "@/lib/talentOpportunity";
 import { createTalentOpportunityActionReply } from "@/lib/career/historyActionReply";
+import { isMobileRequest } from "@/lib/requestDevice";
 
 export async function POST(req: NextRequest) {
   try {
@@ -39,6 +40,7 @@ export async function POST(req: NextRequest) {
     const admin = getTalentSupabaseAdmin();
     const result = await createTalentOpportunityQuestion({
       admin,
+      isMobile: isMobileRequest(req),
       opportunityId,
       question,
       userId: user.id,
@@ -59,6 +61,7 @@ export async function POST(req: NextRequest) {
           action: "question",
           admin,
           conversationId,
+          isMobile: isMobileRequest(req),
           opportunity: opportunity ?? null,
           userId: user.id,
           userQuestion: question,

@@ -78,6 +78,7 @@ import {
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 import { getCareerConversationStarterPrompt } from "@/lib/career/conversationStarterPrompts";
 import { logger } from "@/utils/logger";
+import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 
 export const maxDuration = 180;
 
@@ -339,6 +340,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json()) as Body;
+    const isMobile = isMobileRequest(req);
     const conversationId = body.conversationId?.trim();
     const message = body.message?.trim();
     const link = body.link?.trim();
@@ -510,13 +512,18 @@ export async function POST(req: NextRequest) {
 
     const { data: insertedUserMessage, error: userMessageError } = await admin
       .from("talent_messages")
-      .insert({
-        conversation_id: conversationId,
-        user_id: user.id,
-        role: "user",
-        content: normalizedContent,
-        message_type: "chat",
-      })
+      .insert(
+        withIsMobile(
+          {
+            conversation_id: conversationId,
+            user_id: user.id,
+            role: "user",
+            content: normalizedContent,
+            message_type: "chat",
+          },
+          isMobile
+        )
+      )
       .select("*")
       .single();
 
@@ -695,6 +702,7 @@ export async function POST(req: NextRequest) {
           context: {
             admin,
             conversationId,
+            isMobile,
             userMessageId: insertedUserMessage.id,
             userId: user.id,
           },
@@ -735,6 +743,7 @@ export async function POST(req: NextRequest) {
         context: {
           admin,
           conversationId,
+          isMobile,
           userMessageId: insertedUserMessage.id,
           userId: user.id,
         },
@@ -885,13 +894,18 @@ export async function POST(req: NextRequest) {
                     const { data: cacheMessage, error: cacheMessageError } =
                       await admin
                         .from("talent_messages")
-                        .insert({
-                          content: messageContent,
-                          conversation_id: conversationId,
-                          message_type: COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
-                          role: "assistant",
-                          user_id: user.id,
-                        })
+                        .insert(
+                          withIsMobile(
+                            {
+                              content: messageContent,
+                              conversation_id: conversationId,
+                              message_type: COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
+                              role: "assistant",
+                              user_id: user.id,
+                            },
+                            isMobile
+                          )
+                        )
                         .select("*")
                         .single();
                     if (cacheMessageError || !cacheMessage) {
@@ -925,13 +939,18 @@ export async function POST(req: NextRequest) {
                   const { data: researchMessage, error: researchMessageError } =
                     await admin
                       .from("talent_messages")
-                      .insert({
-                        content: messageContent,
-                        conversation_id: conversationId,
-                        message_type: COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
-                        role: "assistant",
-                        user_id: user.id,
-                      })
+                      .insert(
+                        withIsMobile(
+                          {
+                            content: messageContent,
+                            conversation_id: conversationId,
+                            message_type: COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
+                            role: "assistant",
+                            user_id: user.id,
+                          },
+                          isMobile
+                        )
+                      )
                       .select("*")
                       .single();
                   if (researchMessageError || !researchMessage) {
@@ -1065,14 +1084,19 @@ export async function POST(req: NextRequest) {
             const { data: insertedAssistantMessage, error: assistantError } =
               await admin
                 .from("talent_messages")
-                .insert({
-                  conversation_id: conversationId,
-                  user_id: user.id,
-                  role: "assistant",
-                  content: safeAssistantText,
-                  message_type: "chat",
-                  thinking_logs: thinkingLogs,
-                })
+                .insert(
+                  withIsMobile(
+                    {
+                      conversation_id: conversationId,
+                      user_id: user.id,
+                      role: "assistant",
+                      content: safeAssistantText,
+                      message_type: "chat",
+                      thinking_logs: thinkingLogs,
+                    },
+                    isMobile
+                  )
+                )
                 .select("*")
                 .single();
 
@@ -1129,6 +1153,7 @@ export async function POST(req: NextRequest) {
                 await createOnboardingCompletionMessages({
                   admin,
                   conversationId,
+                  isMobile,
                   latestUserMessageId: insertedUserMessage.id,
                   userId: user.id,
                 });
@@ -1249,13 +1274,18 @@ export async function POST(req: NextRequest) {
             });
             const { data: cacheMessage, error: cacheMessageError } = await admin
               .from("talent_messages")
-              .insert({
-                content: messageContent,
-                conversation_id: conversationId,
-                message_type: COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
-                role: "assistant",
-                user_id: user.id,
-              })
+              .insert(
+                withIsMobile(
+                  {
+                    content: messageContent,
+                    conversation_id: conversationId,
+                    message_type: COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
+                    role: "assistant",
+                    user_id: user.id,
+                  },
+                  isMobile
+                )
+              )
               .select("*")
               .single();
             if (cacheMessageError || !cacheMessage) {
@@ -1287,13 +1317,18 @@ export async function POST(req: NextRequest) {
           const { data: researchMessage, error: researchMessageError } =
             await admin
               .from("talent_messages")
-              .insert({
-                content: messageContent,
-                conversation_id: conversationId,
-                message_type: COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
-                role: "assistant",
-                user_id: user.id,
-              })
+              .insert(
+                withIsMobile(
+                  {
+                    content: messageContent,
+                    conversation_id: conversationId,
+                    message_type: COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
+                    role: "assistant",
+                    user_id: user.id,
+                  },
+                  isMobile
+                )
+              )
               .select("*")
               .single();
           if (researchMessageError || !researchMessage) {
@@ -1416,14 +1451,19 @@ export async function POST(req: NextRequest) {
     const { data: insertedAssistantMessage, error: assistantError } =
       await admin
         .from("talent_messages")
-        .insert({
-          conversation_id: conversationId,
-          user_id: user.id,
-          role: "assistant",
-          content: safeAssistantText,
-          message_type: "chat",
-          thinking_logs: thinkingLogs,
-        })
+        .insert(
+          withIsMobile(
+            {
+              conversation_id: conversationId,
+              user_id: user.id,
+              role: "assistant",
+              content: safeAssistantText,
+              message_type: "chat",
+              thinking_logs: thinkingLogs,
+            },
+            isMobile
+          )
+        )
         .select("*")
         .single();
 
@@ -1466,6 +1506,7 @@ export async function POST(req: NextRequest) {
       ? await createOnboardingCompletionMessages({
           admin,
           conversationId,
+          isMobile,
           latestUserMessageId: insertedUserMessage.id,
           userId: user.id,
         })

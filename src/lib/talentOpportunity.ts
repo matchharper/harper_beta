@@ -7,6 +7,7 @@ import {
   toPostingOpportunityId,
 } from "@/lib/career/postingLinks";
 import { OpportunityType, isOpportunityType } from "@/lib/opportunityType";
+import { withIsMobile } from "@/lib/requestDevice";
 
 type AdminClient = ReturnType<typeof getTalentSupabaseAdmin>;
 
@@ -298,8 +299,25 @@ type RawSavedStageFallbackRow = {
   } | null;
 };
 
+type RawOpportunityProcessingLookupRow = {
+  processed_stage: string | null;
+  company_role:
+    | {
+        source_type: string | null;
+      }
+    | {
+        source_type: string | null;
+      }[]
+    | null;
+};
+
 function coerceJsonArray<T>(value: unknown) {
   return Array.isArray(value) ? (value as T[]) : [];
+}
+
+function getFirstRelatedRecord<T>(value: T | T[] | null | undefined) {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
 }
 
 function normalizeRecommendationKind(
@@ -1156,6 +1174,73 @@ async function ensureTalentOpportunityRecommendationForPostingRole(args: {
   return insertedId;
 }
 
+async function fetchAcceptedInternalOpportunityPendingStage(args: {
+  admin: AdminClient;
+  opportunityId: string;
+  userId: string;
+}) {
+  const { data, error } = await ((
+    args.admin.from("talent_opportunity_recommendation" as any) as any
+  )
+    .select(
+      `
+        processed_stage,
+        company_role:company_roles!inner (
+          source_type
+        )
+      `
+    )
+    .eq("talent_id", args.userId)
+    .eq("id", args.opportunityId)
+    .maybeSingle() as any);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load opportunity state");
+  }
+
+  const row = (data ?? null) as RawOpportunityProcessingLookupRow | null;
+  if (!row) return null;
+
+  const role = getFirstRelatedRecord(row.company_role);
+  const sourceType = normalizeSourceType(role?.source_type);
+  const processedStage = String(row.processed_stage ?? "").trim();
+  if (sourceType !== "internal" || processedStage) return null;
+
+  return {
+    currentProcessedStage: row.processed_stage,
+  };
+}
+
+async function markAcceptedInternalOpportunityPending(args: {
+  admin: AdminClient;
+  currentProcessedStage: string | null;
+  opportunityId: string;
+  userId: string;
+}) {
+  let query = ((
+    args.admin.from("talent_opportunity_recommendation" as any) as any
+  )
+    .update({
+      processed_stage: "pending",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("talent_id", args.userId)
+    .eq("id", args.opportunityId) as any);
+
+  query =
+    args.currentProcessedStage === null
+      ? query.is("processed_stage", null)
+      : query.eq("processed_stage", args.currentProcessedStage);
+
+  const { error } = await query;
+
+  if (error) {
+    throw new Error(
+      error.message ?? "Failed to mark accepted internal opportunity pending"
+    );
+  }
+}
+
 export async function updateTalentOpportunityHistoryItem(args: {
   action: "feedback" | "saved_stage" | "view" | "click" | "memo";
   admin: AdminClient;
@@ -1179,6 +1264,14 @@ export async function updateTalentOpportunityHistoryItem(args: {
     throw new Error("opportunityId is required");
   }
 
+  const pendingStageUpdate =
+    args.action === "feedback" && args.feedback === "positive"
+      ? await fetchAcceptedInternalOpportunityPendingStage({
+          admin: args.admin,
+          opportunityId,
+          userId: args.userId,
+        })
+      : null;
   const now = new Date().toISOString();
   const payload: Record<string, unknown> = {};
 
@@ -1212,11 +1305,21 @@ export async function updateTalentOpportunityHistoryItem(args: {
     throw new Error(error.message ?? "Failed to update opportunity state");
   }
 
+  if (pendingStageUpdate) {
+    await markAcceptedInternalOpportunityPending({
+      admin: args.admin,
+      currentProcessedStage: pendingStageUpdate.currentProcessedStage,
+      opportunityId,
+      userId: args.userId,
+    });
+  }
+
   return { ok: true, opportunityId, updatedAt: now };
 }
 
 export async function createTalentOpportunityQuestion(args: {
   admin: AdminClient;
+  isMobile?: boolean | null;
   opportunityId: string;
   question: string;
   userId: string;
@@ -1252,13 +1355,18 @@ export async function createTalentOpportunityQuestion(args: {
   const content = `Role:${roleId}\n${question}`;
   const { data: insertedMessage, error: insertError } = await args.admin
     .from("talent_messages")
-    .insert({
-      conversation_id: null,
-      user_id: args.userId,
-      role: "user",
-      content,
-      message_type: "question",
-    })
+    .insert(
+      withIsMobile(
+        {
+          conversation_id: null,
+          user_id: args.userId,
+          role: "user",
+          content,
+          message_type: "question",
+        },
+        args.isMobile
+      )
+    )
     .select("id, created_at")
     .single();
 

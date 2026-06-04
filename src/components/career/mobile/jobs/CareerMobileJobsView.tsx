@@ -476,7 +476,14 @@ function JDLinkButton({
       href={roleLink}
       target="_blank"
       rel="noreferrer"
-      onClick={() => logCareerEvent("click_mobile_history_open_jd")}
+      onClick={() =>
+        logCareerEvent(
+          "click_mobile_history_open_jd",
+          opportunity.companyDbId != null
+            ? { companyId: opportunity.companyDbId }
+            : undefined
+        )
+      }
       className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-beige900 px-4 py-3 text-sm font-semibold text-beige50 transition-opacity active:opacity-90"
     >
       JD 확인하기

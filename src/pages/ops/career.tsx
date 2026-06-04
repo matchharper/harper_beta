@@ -260,12 +260,6 @@ export default function OpsCareerPage() {
                     className={cx(opsTheme.input, "h-9 pl-9 pr-10")}
                   />
                 </div>
-                {hiddenByInternalDataExclusionCount > 0 ? (
-                  <div className="mt-2 font-geist text-[11px] text-beige900/35">
-                    내부 데이터 제외 설정으로 현재 불러온 목록에서{" "}
-                    {hiddenByInternalDataExclusionCount}명을 숨겼습니다.
-                  </div>
-                ) : null}
                 <button
                   type="button"
                   onClick={() => setIsListExpanded((value) => !value)}

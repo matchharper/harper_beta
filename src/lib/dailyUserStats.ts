@@ -78,7 +78,16 @@ type RecommendationRow = Pick<
 >;
 type CareerEmailMessageRow = Pick<
   Database["public"]["Tables"]["career_email_messages"]["Row"],
-  "talent_id" | "direction" | "mail_type" | "status" | "occurred_at"
+  | "direction"
+  | "mail_type"
+  | "metadata"
+  | "occurred_at"
+  | "status"
+  | "talent_id"
+>;
+type TalentOpportunityDeliveryRow = Pick<
+  Database["public"]["Tables"]["talent_opportunity_delivery"]["Row"],
+  "channel" | "discovery_run_id" | "id" | "sent_at" | "status" | "talent_id"
 >;
 type LandingLogRow = Pick<
   Database["public"]["Tables"]["landing_logs"]["Row"],
@@ -96,6 +105,7 @@ type FetchPageResult<T> = {
 
 export type DailyUserStatsToolRow = {
   callCount: number;
+  failedCallCount: number;
   name: string;
   userCount: number;
 };
@@ -110,6 +120,7 @@ export type DailyUserStatsJobRow = {
 
 export type DailyUserStatsReport = {
   activeTalentsCount: number;
+  callTranscriptMessageCount: number;
   chatMessageCount: number;
   chatUniqueTalentCount: number;
   cumulativeTalentsCount: number;
@@ -135,6 +146,8 @@ export type DailyUserStatsReport = {
   submittedCount: number;
   toolFailureRate: number | null;
   tools: DailyUserStatsToolRow[];
+  userMessageCount: number;
+  userMessageUniqueTalentCount: number;
   viewedRecommendationCount: number;
 };
 
@@ -241,6 +254,30 @@ function addUserId(set: Set<string>, userId: string | null | undefined) {
   if (normalized) set.add(normalized);
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function getJsonString(value: unknown, key: string) {
+  const raw = asRecord(value)[key];
+  return typeof raw === "string" && raw.trim() ? raw.trim() : null;
+}
+
+function getOpportunityDeliveryDedupeKey(args: {
+  discoveryRunId: string | null | undefined;
+  fallbackId?: string | null;
+  talentId: string | null | undefined;
+}) {
+  const talentId = String(args.talentId ?? "").trim();
+  const discoveryRunId = String(args.discoveryRunId ?? "").trim();
+  if (talentId && discoveryRunId) return `${talentId}:${discoveryRunId}`;
+
+  const fallbackId = String(args.fallbackId ?? "").trim();
+  return fallbackId ? `delivery:${fallbackId}` : "";
+}
+
 function countRate(numerator: number, denominator: number) {
   return denominator > 0 ? numerator / denominator : null;
 }
@@ -274,11 +311,15 @@ function parseToolName(type: string | null | undefined, prefix: string) {
 function sortToolRows(a: DailyUserStatsToolRow, b: DailyUserStatsToolRow) {
   if (b.callCount !== a.callCount) return b.callCount - a.callCount;
   if (b.userCount !== a.userCount) return b.userCount - a.userCount;
+  if (b.failedCallCount !== a.failedCallCount) {
+    return b.failedCallCount - a.failedCallCount;
+  }
   return a.name.localeCompare(b.name);
 }
 
-function buildToolRows(logs: LogRow[]) {
+function buildToolRows(logs: LogRow[], failureLogs: LogRow[]) {
   const callsByName = new Map<string, number>();
+  const failedCallsByName = new Map<string, number>();
   const usersByName = new Map<string, Set<string>>();
 
   for (const log of logs) {
@@ -294,9 +335,25 @@ function buildToolRows(logs: LogRow[]) {
     }
   }
 
-  return Array.from(callsByName.entries())
-    .map(([name, callCount]) => ({
-      callCount,
+  for (const log of failureLogs) {
+    const name = parseToolName(log.type, TOOL_FAILURE_LOG_PREFIX);
+    if (!name) continue;
+
+    failedCallsByName.set(name, (failedCallsByName.get(name) ?? 0) + 1);
+    const userId = String(log.user_id ?? "").trim();
+    if (userId) {
+      const users = usersByName.get(name) ?? new Set<string>();
+      users.add(userId);
+      usersByName.set(name, users);
+    }
+  }
+
+  return Array.from(
+    new Set([...callsByName.keys(), ...failedCallsByName.keys()])
+  )
+    .map((name) => ({
+      callCount: callsByName.get(name) ?? 0,
+      failedCallCount: failedCallsByName.get(name) ?? 0,
       name,
       userCount: usersByName.get(name)?.size ?? 0,
     }))
@@ -365,10 +422,11 @@ function buildJobRows(args: {
 }
 
 function isUserChatMessage(message: TalentMessageRow) {
-  return (
-    message.role === "user" &&
-    String(message.message_type ?? "").trim() !== "profile_submit"
-  );
+  return message.role === "user" && message.message_type === "chat";
+}
+
+function isUserCallTranscriptMessage(message: TalentMessageRow) {
+  return message.role === "user" && message.message_type === "call_transcript";
 }
 
 export async function buildDailyUserStatsReport(
@@ -392,6 +450,7 @@ export async function buildDailyUserStatsReport(
     legacyFeedbackRows,
     savedStageRows,
     emailRows,
+    opportunityEmailDeliveries,
     toolUsageLogs,
     toolFailureLogs,
     jobLandingLogs,
@@ -516,10 +575,21 @@ export async function buildDailyUserStatsReport(
     fetchAllRows<CareerEmailMessageRow>((from, to) =>
       supabaseServer
         .from("career_email_messages")
-        .select("talent_id,direction,mail_type,status,occurred_at")
+        .select("talent_id,direction,mail_type,status,occurred_at,metadata")
         .gte("occurred_at", startIso)
         .lt("occurred_at", endIso)
         .order("occurred_at", { ascending: true })
+        .range(from, to)
+    ),
+    fetchAllRows<TalentOpportunityDeliveryRow>((from, to) =>
+      supabaseServer
+        .from("talent_opportunity_delivery")
+        .select("id,talent_id,discovery_run_id,channel,status,sent_at")
+        .eq("channel", "email")
+        .eq("status", "sent")
+        .gte("sent_at", startIso)
+        .lt("sent_at", endIso)
+        .order("sent_at", { ascending: true })
         .range(from, to)
     ),
     fetchAllRows<LogRow>((from, to) =>
@@ -644,12 +714,33 @@ export async function buildDailyUserStatsReport(
   for (const message of chatMessages) {
     addUserId(chatUserIds, message.user_id);
   }
+  const callTranscriptUserIds = new Set<string>();
+  const callTranscriptMessages = messages.filter(
+    (message) =>
+      isUserCallTranscriptMessage(message) && isIncludedUserId(message.user_id)
+  );
+  for (const message of callTranscriptMessages) {
+    addUserId(callTranscriptUserIds, message.user_id);
+  }
+  const userMessageUserIds = new Set([
+    ...chatUserIds,
+    ...callTranscriptUserIds,
+  ]);
 
+  const cumulativeTalentCount = includedTalentUsers.filter(
+    (user) => user.created_at && user.created_at < endIso
+  ).length;
   const includedRecommendedRows = recommendedRows.filter((row) =>
     isIncludedUserId(row.talent_id)
   );
+  const includedRecommendedRowIds = new Set(
+    includedRecommendedRows.map((row) => row.id).filter(Boolean)
+  );
   const includedViewedRows = viewedRows.filter((row) =>
     isIncludedUserId(row.talent_id)
+  );
+  const includedViewedRecommendedRows = includedViewedRows.filter((row) =>
+    includedRecommendedRowIds.has(row.id)
   );
   const includedClickedRows = clickedRows.filter((row) =>
     isIncludedUserId(row.talent_id)
@@ -665,10 +756,13 @@ export async function buildDailyUserStatsReport(
       isIncludedUserId(row.talent_id) &&
       isInRange(row.feedback_at ?? row.updated_at, startIso, endIso)
   );
-  const positiveFeedbackRows = includedFeedbackRows.filter(
+  const includedFeedbackRecommendedRows = includedFeedbackRows.filter((row) =>
+    includedRecommendedRowIds.has(row.id)
+  );
+  const positiveFeedbackRows = includedFeedbackRecommendedRows.filter(
     (row) => normalizeRecommendationFeedback(row.feedback) === "positive"
   );
-  const negativeFeedbackRows = includedFeedbackRows.filter(
+  const negativeFeedbackRows = includedFeedbackRecommendedRows.filter(
     (row) => normalizeRecommendationFeedback(row.feedback) === "negative"
   );
 
@@ -678,11 +772,40 @@ export async function buildDailyUserStatsReport(
       row.direction === "outbound" &&
       row.status === "sent"
   );
+  const includedOpportunityEmailDeliveries = opportunityEmailDeliveries.filter(
+    (row) =>
+      isIncludedUserId(row.talent_id) &&
+      row.channel === "email" &&
+      row.status === "sent"
+  );
+  const opportunityDeliveryDedupeKeys = new Set(
+    includedOpportunityEmailDeliveries
+      .map((row) =>
+        getOpportunityDeliveryDedupeKey({
+          discoveryRunId: row.discovery_run_id,
+          fallbackId: row.id,
+          talentId: row.talent_id,
+        })
+      )
+      .filter(Boolean)
+  );
+  const outboundEmailRowsForSentCount = outboundEmailRows.filter((row) => {
+    if (row.mail_type !== "opportunity_recommendation") return true;
+
+    const deliveryKey = getOpportunityDeliveryDedupeKey({
+      discoveryRunId: getJsonString(row.metadata, "discoveryRunId"),
+      talentId: row.talent_id,
+    });
+    return !deliveryKey || !opportunityDeliveryDedupeKeys.has(deliveryKey);
+  });
   const recommendationEmailUserIds = new Set<string>();
   for (const row of outboundEmailRows) {
     if (row.mail_type === "opportunity_recommendation") {
       addUserId(recommendationEmailUserIds, row.talent_id);
     }
+  }
+  for (const row of includedOpportunityEmailDeliveries) {
+    addUserId(recommendationEmailUserIds, row.talent_id);
   }
   const inboundEmailRows = emailRows.filter(
     (row) =>
@@ -699,7 +822,7 @@ export async function buildDailyUserStatsReport(
   const activeTalentIds = new Set<string>();
   for (const source of [
     signupUserIds,
-    chatUserIds,
+    userMessageUserIds,
     inboundEmailUserIds,
     new Set(includedViewedRows.map((row) => row.talent_id)),
     new Set(includedClickedRows.map((row) => row.talent_id)),
@@ -711,7 +834,7 @@ export async function buildDailyUserStatsReport(
 
   const highIntentTalentIds = new Set<string>();
   for (const source of [
-    chatUserIds,
+    userMessageUserIds,
     inboundEmailUserIds,
     new Set(includedClickedRows.map((row) => row.talent_id)),
     new Set(includedFeedbackRows.map((row) => row.talent_id)),
@@ -720,22 +843,25 @@ export async function buildDailyUserStatsReport(
     for (const userId of source) highIntentTalentIds.add(userId);
   }
 
-  const toolRows = buildToolRows(
-    toolUsageLogs.filter((log) => isIncludedUserId(log.user_id))
-  );
-  const failedToolCallCount = toolFailureLogs.filter((log) =>
+  const includedToolUsageLogs = toolUsageLogs.filter((log) =>
     isIncludedUserId(log.user_id)
-  ).length;
-  const successfulToolCallCount = toolRows.reduce(
-    (sum, row) => sum + row.callCount,
-    0
   );
+  const includedToolFailureLogs = toolFailureLogs.filter((log) =>
+    isIncludedUserId(log.user_id)
+  );
+  const toolRows = buildToolRows(
+    includedToolUsageLogs,
+    includedToolFailureLogs
+  );
+  const failedToolCallCount = includedToolFailureLogs.length;
+  const toolCallCount = toolRows.reduce((sum, row) => sum + row.callCount, 0);
 
   return {
     activeTalentsCount: activeTalentIds.size,
+    callTranscriptMessageCount: callTranscriptMessages.length,
     chatMessageCount: chatMessages.length,
     chatUniqueTalentCount: chatUserIds.size,
-    cumulativeTalentsCount: includedTalentUsers.length,
+    cumulativeTalentsCount: cumulativeTalentCount,
     date,
     endIso,
     failedToolCallCount,
@@ -750,7 +876,9 @@ export async function buildDailyUserStatsReport(
       signedUpEmails,
     }).slice(0, 8),
     mailReplyCount: inboundEmailRows.length,
-    mailSentCount: outboundEmailRows.length,
+    mailSentCount:
+      outboundEmailRowsForSentCount.length +
+      includedOpportunityEmailDeliveries.length,
     negativeFeedbackCount: negativeFeedbackRows.length,
     newSignupOnboardingCompletedCount,
     newSignupSubmittedCount,
@@ -763,12 +891,11 @@ export async function buildDailyUserStatsReport(
     signupCount: signupUserIds.size,
     startIso,
     submittedCount: submittedUserIds.size,
-    toolFailureRate: countRate(
-      failedToolCallCount,
-      successfulToolCallCount + failedToolCallCount
-    ),
+    toolFailureRate: countRate(failedToolCallCount, toolCallCount),
     tools: toolRows.slice(0, 10),
-    viewedRecommendationCount: includedViewedRows.length,
+    userMessageCount: chatMessages.length + callTranscriptMessages.length,
+    userMessageUniqueTalentCount: userMessageUserIds.size,
+    viewedRecommendationCount: includedViewedRecommendedRows.length,
   };
 }
 
@@ -795,7 +922,7 @@ export function formatDailyUserStatsSlackMessage(report: DailyUserStatsReport) {
             (tool) =>
               `- ${tool.name}: ${formatCount(tool.callCount)} calls / ${formatCount(
                 tool.userCount
-              )} users`
+              )} users / error ${formatCount(tool.failedCallCount)}`
           )
           .join("\n")
       : "- 없음";
@@ -814,6 +941,7 @@ export function formatDailyUserStatsSlackMessage(report: DailyUserStatsReport) {
   return [
     `[Daily User Stats] ${report.date}, KST`,
     "",
+    "**신규**",
     `신규 가입: ${formatCount(report.signupCount)}명`,
     `신규 가입자 중 제출 완료: ${formatCount(
       report.newSignupSubmittedCount
@@ -835,9 +963,10 @@ export function formatDailyUserStatsSlackMessage(report: DailyUserStatsReport) {
     )}명`,
     "",
     `Active talents: ${formatCount(report.activeTalentsCount)}명`,
-    `High_intent_talents: ${formatCount(report.highIntentTalentsCount)}명`,
+    // `High_intent_talents: ${formatCount(report.highIntentTalentsCount)}명`,
     `누적 talents: ${formatCount(report.cumulativeTalentsCount)}명`,
     "",
+    "**추천 통계**",
     `추천된 기회: ${formatCount(report.recommendationCount)}개`,
     `열람(확인): ${formatCount(
       report.viewedRecommendationCount
@@ -853,13 +982,13 @@ export function formatDailyUserStatsSlackMessage(report: DailyUserStatsReport) {
       report.negativeFeedbackCount,
       report.recommendationCount
     )}`,
-    `internal 기회 추천 수: ${formatCount(
-      report.internalRecommendationCount
-    )}개`,
+    `추천된 내부 기회 수: ${formatCount(report.internalRecommendationCount)}개`,
     "",
-    `유저가 보낸 채팅 메시지: ${formatCount(report.chatMessageCount)}개`,
-    `채팅을 보낸 unique talents 수: ${formatCount(
-      report.chatUniqueTalentCount
+    `유저가 보낸 메시지: ${formatCount(report.userMessageCount)}개`,
+    `- 채팅: ${formatCount(report.chatMessageCount)}개`,
+    `- 통화: ${formatCount(report.callTranscriptMessageCount)}개`,
+    `메시지를 보낸 unique talents 수: ${formatCount(
+      report.userMessageUniqueTalentCount
     )}명`,
     `메일 발송: ${formatCount(report.mailSentCount)}개`,
     `주기적인 추천 메일을 받은 유저 수: ${formatCount(

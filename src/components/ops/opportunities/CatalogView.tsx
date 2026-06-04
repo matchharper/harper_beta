@@ -11,14 +11,7 @@ import {
   RefreshCw,
   Search,
 } from "lucide-react";
-import {
-  ActionButton,
-  EmptyState,
-  PanelHeader,
-  RoleOptionCard,
-  type SourceFilter,
-  Token,
-} from "./shared";
+import { EmptyState, PanelHeader, RoleOptionCard, Token } from "./shared";
 
 type CatalogViewProps = {
   catalogErrorMessage?: string | null;
@@ -27,21 +20,20 @@ type CatalogViewProps = {
   filteredWorkspaces: OpsOpportunityWorkspaceRecord[];
   onLoadMoreRoles: () => void;
   onLoadMoreWorkspaces: () => void;
+  onRoleEdit: (role: OpsOpportunityRoleRecord) => void;
   onOpenRoleCreateModal: () => void;
   onOpenRoleEditModal: () => void;
-  onOpenRoleFlow: (role: OpsOpportunityRoleRecord) => void;
   onOpenWorkspaceCreateModal: () => void;
   onOpenWorkspaceEditModal: () => void;
   onRoleSearchChange: (value: string) => void;
   onRoleSearchSubmit: () => void;
   onRoleSelect: (roleId: string) => void;
   onRoleSync: () => void;
-  onRoleSourceFilterChange: (filter: SourceFilter) => void;
   onWorkspaceSearchChange: (value: string) => void;
   onWorkspaceSearchSubmit: () => void;
   onWorkspaceSelect: (workspaceId: string) => void;
   roleSearch: string;
-  roleSourceFilter: SourceFilter;
+  roleLoading: boolean;
   roleTotalCount: number;
   selectedRoleId: string | null;
   selectedWorkspace: OpsOpportunityWorkspaceRecord | null;
@@ -58,21 +50,20 @@ export default function CatalogView({
   filteredWorkspaces,
   onLoadMoreRoles,
   onLoadMoreWorkspaces,
+  onRoleEdit,
   onOpenRoleCreateModal,
   onOpenRoleEditModal,
-  onOpenRoleFlow,
   onOpenWorkspaceCreateModal,
   onOpenWorkspaceEditModal,
   onRoleSearchChange,
   onRoleSearchSubmit,
   onRoleSelect,
   onRoleSync,
-  onRoleSourceFilterChange,
   onWorkspaceSearchChange,
   onWorkspaceSearchSubmit,
   onWorkspaceSelect,
   roleSearch,
-  roleSourceFilter,
+  roleLoading,
   roleTotalCount,
   selectedRoleId,
   selectedWorkspace,
@@ -83,6 +74,11 @@ export default function CatalogView({
 }: CatalogViewProps) {
   const hasMoreWorkspaces = filteredWorkspaces.length < workspaceTotalCount;
   const hasMoreRoles = filteredRoles.length < roleTotalCount;
+  const showLoadMoreRoles =
+    hasMoreRoles &&
+    !roleLoading &&
+    !catalogErrorMessage &&
+    Boolean(selectedWorkspaceId);
 
   return (
     <section className="grid gap-4 xl:grid-cols-[minmax(300px,420px)_minmax(0,1fr)]">
@@ -160,7 +156,8 @@ export default function CatalogView({
             <EmptyState copy="조건에 맞는 회사가 없습니다." />
           ) : (
             filteredWorkspaces.map((workspace) => {
-              const active = workspace.companyWorkspaceId === selectedWorkspaceId;
+              const active =
+                workspace.companyWorkspaceId === selectedWorkspaceId;
               return (
                 <button
                   key={workspace.companyWorkspaceId}
@@ -186,12 +183,11 @@ export default function CatalogView({
                           active ? "text-beige100/70" : "text-beige900/50"
                         )}
                       >
-                        {workspace.totalRoleCount} roles
+                        {workspace.internalRoleCount} internal roles
                       </div>
                     </div>
                     <Token active={active}>
-                      {workspace.internalRoleCount}/
-                      {workspace.externalRoleCount}
+                      {workspace.activeRoleCount} active
                     </Token>
                   </div>
                   {workspace.companyDescription ? (
@@ -266,7 +262,7 @@ export default function CatalogView({
           }
         />
         <form
-          className="grid gap-2 lg:grid-cols-[1fr_auto_auto]"
+          className="grid gap-2 lg:grid-cols-[1fr_auto]"
           onSubmit={(event) => {
             event.preventDefault();
             onRoleSearchSubmit();
@@ -281,26 +277,6 @@ export default function CatalogView({
               className={cx(opsTheme.input, "pl-9")}
             />
           </div>
-          <div className="flex gap-2">
-            <ActionButton
-              active={roleSourceFilter === "all"}
-              onClick={() => onRoleSourceFilterChange("all")}
-            >
-              전체
-            </ActionButton>
-            <ActionButton
-              active={roleSourceFilter === "internal"}
-              onClick={() => onRoleSourceFilterChange("internal")}
-            >
-              내부
-            </ActionButton>
-            <ActionButton
-              active={roleSourceFilter === "external"}
-              onClick={() => onRoleSourceFilterChange("external")}
-            >
-              외부
-            </ActionButton>
-          </div>
           <button
             type="submit"
             className={cx(opsTheme.buttonPrimary, "h-11 px-3")}
@@ -309,7 +285,7 @@ export default function CatalogView({
             검색
           </button>
         </form>
-        {!catalogLoading && selectedWorkspaceId && !catalogErrorMessage ? (
+        {!roleLoading && selectedWorkspaceId && !catalogErrorMessage ? (
           <div className="font-geist text-xs text-beige900/45">
             {filteredRoles.length} / {roleTotalCount}개 기회
           </div>
@@ -318,6 +294,8 @@ export default function CatalogView({
           <EmptyState copy="기회 목록을 새로고침해 주세요." />
         ) : !selectedWorkspaceId ? (
           <EmptyState copy="먼저 회사를 선택해 주세요." />
+        ) : roleLoading ? (
+          <EmptyState copy="기회 목록을 불러오는 중입니다." />
         ) : filteredRoles.length === 0 ? (
           <EmptyState copy="이 회사에 표시할 기회가 없습니다." />
         ) : (
@@ -328,25 +306,12 @@ export default function CatalogView({
                 role={role}
                 active={role.roleId === selectedRoleId}
                 onSelect={() => onRoleSelect(role.roleId)}
-                action={
-                  <button
-                    type="button"
-                    onClick={() => onOpenRoleFlow(role)}
-                    className={cx(
-                      "rounded-md px-2 py-1 font-geist text-[11px] transition",
-                      role.roleId === selectedRoleId
-                        ? "bg-white/10 text-beige100 hover:bg-white/20"
-                        : "bg-beige500/80 text-beige900 hover:bg-beige500/95"
-                    )}
-                  >
-                    {role.sourceType === "internal" ? "회사" : "후보자"}
-                  </button>
-                }
+                onEdit={() => onRoleEdit(role)}
               />
             ))}
           </div>
         )}
-        {hasMoreRoles && !catalogErrorMessage && selectedWorkspaceId ? (
+        {showLoadMoreRoles ? (
           <button
             type="button"
             onClick={onLoadMoreRoles}

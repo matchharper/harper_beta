@@ -25,6 +25,7 @@ import {
   getTalentSupabaseAdmin,
   toTalentDisplayName,
 } from "@/lib/talentOnboarding/server";
+import { withIsMobile } from "@/lib/requestDevice";
 
 type AdminClient = ReturnType<typeof getTalentSupabaseAdmin>;
 
@@ -201,6 +202,7 @@ export async function generateTalentKickoff(args: {
 export async function autoStartClaimedTalentConversation(args: {
   admin: AdminClient;
   conversation: TalentConversationRow;
+  isMobile?: boolean | null;
   profile: TalentUserProfileRow | null;
   user: User;
 }) {
@@ -289,29 +291,38 @@ export async function autoStartClaimedTalentConversation(args: {
 
   const now = new Date().toISOString();
   const messagePayloads = [
-    {
-      conversation_id: conversation.id,
-      user_id: user.id,
-      role: "user",
-      content: "기존에 제출한 정보로 커리어 워크스페이스를 시작했습니다.",
-      message_type: "profile_submit",
-    },
-    {
-      conversation_id: conversation.id,
-      user_id: user.id,
-      role: "assistant",
-      content: `${kickoff.acknowledgement}\n\n${kickoff.insight}`,
-      message_type: "system",
-    },
-    {
-      conversation_id: conversation.id,
-      user_id: user.id,
-      role: "assistant",
-      content: `${TALENT_PENDING_QUESTION_PREFIX}${buildTalentKickoffOpeningMessage(
-        toTalentDisplayName(user)
-      )}`,
-      message_type: "system",
-    },
+    withIsMobile(
+      {
+        conversation_id: conversation.id,
+        user_id: user.id,
+        role: "user",
+        content: "기존에 제출한 정보로 커리어 워크스페이스를 시작했습니다.",
+        message_type: "profile_submit",
+      },
+      args.isMobile
+    ),
+    withIsMobile(
+      {
+        conversation_id: conversation.id,
+        user_id: user.id,
+        role: "assistant",
+        content: `${kickoff.acknowledgement}\n\n${kickoff.insight}`,
+        message_type: "system",
+      },
+      args.isMobile
+    ),
+    withIsMobile(
+      {
+        conversation_id: conversation.id,
+        user_id: user.id,
+        role: "assistant",
+        content: `${TALENT_PENDING_QUESTION_PREFIX}${buildTalentKickoffOpeningMessage(
+          toTalentDisplayName(user)
+        )}`,
+        message_type: "system",
+      },
+      args.isMobile
+    ),
   ];
 
   const { data: insertedMessages, error: insertError } = await admin

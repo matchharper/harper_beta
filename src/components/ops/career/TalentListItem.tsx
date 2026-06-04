@@ -1,5 +1,12 @@
 import { memo, useCallback } from "react";
-import { ChevronRight, FileText, Github, Link2, Linkedin } from "lucide-react";
+import {
+  ChevronRight,
+  FileText,
+  Github,
+  Link2,
+  Linkedin,
+  MessageSquareText,
+} from "lucide-react";
 import { cx } from "@/components/ops/theme";
 import type {
   CareerTalentRegisteredLinkType,
@@ -66,6 +73,7 @@ export const TalentListItem = memo(function TalentListItem({
   const hasProfileInputSignal =
     registeredLinkTypes.length > 0 || talent.hasResume;
   const memoPreview = talent.opsProfileMemoPreview?.trim();
+  const profileMemoPreviews = talent.profileMemoPreviews ?? [];
 
   const handleClick = useCallback(() => {
     onSelect(talent.userId);
@@ -124,10 +132,40 @@ export const TalentListItem = memo(function TalentListItem({
           ) : null}
           {memoPreview ? (
             <div
-              className="mt-1 truncate font-geist text-[12px] text-black"
+              className="mt-2 rounded-md border border-[#9bb89c]/35 bg-[#e5f1e5]/75 px-2 py-1.5 font-geist text-[#24462f]"
               title={memoPreview}
             >
-              {memoPreview}
+              <div
+                className={cx(
+                  "leading-5",
+                  expanded
+                    ? "text-[14px] line-clamp-4"
+                    : "text-[12px] line-clamp-2"
+                )}
+              >
+                {memoPreview}
+              </div>
+            </div>
+          ) : null}
+          {expanded && profileMemoPreviews.length > 0 ? (
+            <div className="mt-2 space-y-1">
+              {profileMemoPreviews.map((preview, index) => (
+                <div
+                  key={`${preview.source}-${preview.label}-${index}`}
+                  className="rounded-md border border-beige900/10 bg-white/55 px-2 py-1.5 font-geist"
+                  title={`${preview.label}: ${preview.memo}`}
+                >
+                  <div className="truncate text-[10px] font-medium text-beige900/45">
+                    {preview.source === "experience"
+                      ? "경력 메모"
+                      : "학력 메모"}{" "}
+                    · {preview.label}
+                  </div>
+                  <div className="mt-0.5 line-clamp-2 text-[12px] leading-5 text-black/75">
+                    {preview.memo}
+                  </div>
+                </div>
+              ))}
             </div>
           ) : null}
           <div className="mt-1 flex items-center gap-2 font-geist text-[11px] text-beige900/60">

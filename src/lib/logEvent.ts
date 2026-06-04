@@ -1,8 +1,16 @@
 import { supabase } from "@/lib/supabase";
 
+export type LogEventMetadata = Record<string, string | number | boolean | null>;
+
 type PostLogEventOptions = {
   accessToken?: string | null;
+  metadata?: LogEventMetadata;
 };
+
+function getIsMobileViewport() {
+  if (typeof window === "undefined") return undefined;
+  return window.innerWidth <= 600;
+}
 
 export async function postLogEvent(
   type: string,
@@ -31,7 +39,11 @@ export async function postLogEvent(
         "Content-Type": "application/json",
         Authorization: `Bearer ${accessToken}`,
       },
-      body: JSON.stringify({ type: trimmedType }),
+      body: JSON.stringify({
+        isMobile: getIsMobileViewport(),
+        type: trimmedType,
+        ...(options.metadata ? { metadata: options.metadata } : {}),
+      }),
       keepalive: true,
     });
 

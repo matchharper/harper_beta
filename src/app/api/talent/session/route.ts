@@ -41,6 +41,7 @@ import {
   buildCareerSessionStartTurnInstruction,
   CAREER_SESSION_START_NO_MESSAGE_MARKER,
 } from "@/lib/career/prompts";
+import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 
 // const REENGAGEMENT_IDLE_MS = 60 * 1000;
 const REENGAGEMENT_IDLE_MS = 6 * 60 * 60 * 1000; // 6시간 지나서 접속시 인사
@@ -190,6 +191,7 @@ async function generateSessionStartGreeting(args: {
   conversationId: string;
   currentAccessAt: string;
   idleMs: number;
+  isMobile?: boolean | null;
   previousChatAt: string | null;
   userId: string;
 }) {
@@ -205,6 +207,7 @@ async function generateSessionStartGreeting(args: {
   const result = await runCareerChatTurn({
     admin,
     conversationId,
+    isMobile: args.isMobile,
     noMessageMarker: CAREER_SESSION_START_NO_MESSAGE_MARKER,
     proactiveContext: buildCareerSessionStartTurnInstruction({
       currentAccessAt,
@@ -225,6 +228,7 @@ export async function GET(req: NextRequest) {
     }
 
     const admin = getTalentSupabaseAdmin();
+    const isMobile = isMobileRequest(req);
     await ensureTalentUserRecord({ admin, user });
     await markTalentUserLoggedIn({ admin, userId: user.id });
 
@@ -271,13 +275,18 @@ export async function GET(req: NextRequest) {
 
       const { error: firstMessageError } = await admin
         .from("talent_messages")
-        .insert({
-          conversation_id: conversation.id,
-          user_id: user.id,
-          role: "assistant",
-          content: getTalentFirstVisitText(),
-          message_type: "system",
-        });
+        .insert(
+          withIsMobile(
+            {
+              conversation_id: conversation.id,
+              user_id: user.id,
+              role: "assistant",
+              content: getTalentFirstVisitText(),
+              message_type: "system",
+            },
+            isMobile
+          )
+        );
 
       if (firstMessageError) {
         await admin
@@ -302,6 +311,7 @@ export async function GET(req: NextRequest) {
       const seeded = await autoStartClaimedTalentConversation({
         admin,
         conversation,
+        isMobile,
         profile,
         user,
       });
@@ -418,6 +428,7 @@ export async function GET(req: NextRequest) {
             conversationId: conversation.id,
             currentAccessAt: now,
             idleMs,
+            isMobile,
             previousChatAt: latestChatMessage?.created_at ?? null,
             userId: user.id,
           });
@@ -425,14 +436,19 @@ export async function GET(req: NextRequest) {
           if (!assistantContent) {
             const { error: insertReengagementError } = await admin
               .from("talent_messages")
-              .insert({
-                conversation_id: conversation.id,
-                user_id: user.id,
-                role: "assistant",
-                content: CAREER_SESSION_START_NO_MESSAGE_MARKER,
-                message_type: TALENT_MESSAGE_TYPE_SESSION_REENGAGEMENT_SKIP,
-                created_at: now,
-              });
+              .insert(
+                withIsMobile(
+                  {
+                    conversation_id: conversation.id,
+                    user_id: user.id,
+                    role: "assistant",
+                    content: CAREER_SESSION_START_NO_MESSAGE_MARKER,
+                    message_type: TALENT_MESSAGE_TYPE_SESSION_REENGAGEMENT_SKIP,
+                    created_at: now,
+                  },
+                  isMobile
+                )
+              );
 
             if (insertReengagementError) {
               throw new Error(

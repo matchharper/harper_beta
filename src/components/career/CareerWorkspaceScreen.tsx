@@ -9,6 +9,9 @@ import CareerCompanyDetailDrawer from "@/components/career/watchlist/CareerCompa
 import CareerSupportInquiryModal from "@/components/career/CareerSupportInquiryModal";
 import HistoryOpportunityInfoModal from "@/components/career/history/HistoryOppotunityInfoModal";
 import { HistoryMemoModal } from "@/components/career/history/FeedbackModal";
+import InternalConnectionOnboardingModal, {
+  shouldBlockInternalConnectionAcceptance,
+} from "@/components/career/InternalConnectionOnboardingModal";
 import { useCareerSidebarContext } from "@/components/career/CareerSidebarContext";
 import CareerWorkspaceNav, {
   type CareerWorkspaceTab,
@@ -358,8 +361,13 @@ const CareerWorkspaceMobileHistoryView = ({
 }) => {
   const logCareerEvent = useCareerLogEvent();
   const {
+    stage,
+    isOnboardingDone,
     onOpenSettings,
     onLogout,
+    callStartPending,
+    onStartCallMode,
+    onUseChatOnly,
     historyOpportunities,
     historyOpportunityCounts,
     historyLoading,
@@ -390,13 +398,21 @@ const CareerWorkspaceMobileHistoryView = ({
     string | null
   >(null);
   const [memoPromptDraft, setMemoPromptDraft] = useState("");
+  const [
+    internalConnectionOnboardingOpportunityId,
+    setInternalConnectionOnboardingOpportunityId,
+  ] = useState<string | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
 
   const handleOpenCompanyInfo = useCallback(
     (item: CareerHistoryOpportunity) => {
       const fallbackUrl = item.companyHomepageUrl ?? item.companyLinkedinUrl;
       if (!item.companyDbId && !fallbackUrl) return;
 
-      logCareerEvent("click_mobile_history_open_company");
+      logCareerEvent(
+        "click_mobile_history_open_company",
+        item.companyDbId != null ? { companyId: item.companyDbId } : undefined
+      );
       void onMarkHistoryOpportunityClicked(item.id);
 
       if (item.companyDbId) {
@@ -412,7 +428,7 @@ const CareerWorkspaceMobileHistoryView = ({
   );
   const handleOpenOpportunityInfo = useCallback(
     (type: CareerOpportunityType) => {
-      logCareerEvent("click_mobile_history_opportunity_info");
+      logCareerEvent(`click_mobile_history_opportunity_info_${type}`);
       setInfoOpportunityType(type);
     },
     [logCareerEvent]
@@ -447,8 +463,16 @@ const CareerWorkspaceMobileHistoryView = ({
     Math.max(filteredOpportunities.length - 1, 0)
   );
   const currentOpportunity = filteredOpportunities[safeIndex] ?? null;
+  const internalConnectionOnboardingOpportunity =
+    internalConnectionOnboardingOpportunityId
+      ? (historyOpportunities.find(
+          (item) => item.id === internalConnectionOnboardingOpportunityId
+        ) ?? null)
+      : null;
+  const isCareerOnboardingComplete = isOnboardingDone || stage === "completed";
   const memoPromptOpportunity =
-    memoPromptOpportunityId && currentOpportunity?.id === memoPromptOpportunityId
+    memoPromptOpportunityId &&
+    currentOpportunity?.id === memoPromptOpportunityId
       ? currentOpportunity
       : null;
 
@@ -511,9 +535,39 @@ const CareerWorkspaceMobileHistoryView = ({
     setHintDismissed(true);
   }, []);
 
+  const openInternalConnectionOnboardingModal = useCallback(
+    (item: CareerHistoryOpportunity) => {
+      logCareerEvent("view_mobile_history_internal_connection_onboarding_gate");
+      setInternalConnectionOnboardingOpportunityId(item.id);
+    },
+    [logCareerEvent]
+  );
+
+  const handleStartOnboardingChatFromGate = useCallback(() => {
+    logCareerEvent("click_mobile_history_internal_connection_onboarding_chat");
+    setChatOpen(true);
+    onUseChatOnly?.();
+  }, [logCareerEvent, onUseChatOnly]);
+
+  const handleStartOnboardingCallFromGate = useCallback(() => {
+    logCareerEvent("click_mobile_history_internal_connection_onboarding_call");
+    setChatOpen(true);
+    void onStartCallMode?.();
+  }, [logCareerEvent, onStartCallMode]);
+
   const handleTrack = useCallback(() => {
     if (!currentOpportunity) return;
     logCareerEvent("click_mobile_history_positive");
+    if (
+      shouldBlockInternalConnectionAcceptance(
+        currentOpportunity,
+        isCareerOnboardingComplete
+      )
+    ) {
+      openInternalConnectionOnboardingModal(currentOpportunity);
+      return;
+    }
+
     void onUpdateHistoryOpportunityFeedback(currentOpportunity.id, "positive", {
       interactionSource: "position_tab",
       promptImmediately:
@@ -524,8 +578,10 @@ const CareerWorkspaceMobileHistoryView = ({
   }, [
     currentOpportunity,
     historyOpportunityCounts.new,
+    isCareerOnboardingComplete,
     jobsTab,
     logCareerEvent,
+    openInternalConnectionOnboardingModal,
     onUpdateHistoryOpportunityFeedback,
   ]);
   const handleDismiss = useCallback(() => {
@@ -592,9 +648,20 @@ const CareerWorkspaceMobileHistoryView = ({
         onOpenOpportunityInfo={handleOpenOpportunityInfo}
         onEditMemo={handleOpenMemo}
       />
-      <CareerMobileChatLauncher actionBar={actionBar}>
+      <CareerMobileChatLauncher
+        actionBar={actionBar}
+        open={chatOpen}
+        onOpenChange={setChatOpen}
+      >
         <CareerChatPanel />
       </CareerMobileChatLauncher>
+      <InternalConnectionOnboardingModal
+        open={Boolean(internalConnectionOnboardingOpportunity)}
+        callPending={Boolean(callStartPending)}
+        onClose={() => setInternalConnectionOnboardingOpportunityId(null)}
+        onStartChat={handleStartOnboardingChatFromGate}
+        onStartCall={handleStartOnboardingCallFromGate}
+      />
       <HistoryOpportunityInfoModal
         opportunityType={infoOpportunityType}
         onClose={() => setInfoOpportunityType(null)}

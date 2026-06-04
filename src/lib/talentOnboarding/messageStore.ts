@@ -1,4 +1,5 @@
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
+import { withIsMobile } from "@/lib/requestDevice";
 import {
   TALENT_MESSAGE_TYPE_ONBOARDING_ADDITIONAL_QUESTION_SELECTION,
   TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NEXT_STEPS,
@@ -98,6 +99,7 @@ export async function insertOnboardingCompletionWrapupMessage(args: {
   admin: TalentAdminClient;
   content: string;
   conversationId: string;
+  isMobile?: boolean | null;
   thinkingLogs?: string[];
   userId: string;
 }) {
@@ -111,14 +113,19 @@ export async function insertOnboardingCompletionWrapupMessage(args: {
 
   const { data, error } = await args.admin
     .from("talent_messages")
-    .insert({
-      conversation_id: args.conversationId,
-      content,
-      message_type: TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP,
-      role: "assistant",
-      thinking_logs: args.thinkingLogs ?? null,
-      user_id: args.userId,
-    })
+    .insert(
+      withIsMobile(
+        {
+          conversation_id: args.conversationId,
+          content,
+          message_type: TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP,
+          role: "assistant",
+          thinking_logs: args.thinkingLogs ?? null,
+          user_id: args.userId,
+        },
+        args.isMobile
+      )
+    )
     .select("*")
     .single();
 
@@ -135,6 +142,7 @@ export async function insertOnboardingCompletionNextStepsMessage(args: {
   admin: TalentAdminClient;
   content: string;
   conversationId: string;
+  isMobile?: boolean | null;
   userId: string;
 }) {
   const content = args.content.trim();
@@ -147,13 +155,18 @@ export async function insertOnboardingCompletionNextStepsMessage(args: {
 
   const { data, error } = await args.admin
     .from("talent_messages")
-    .insert({
-      conversation_id: args.conversationId,
-      content,
-      message_type: TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NEXT_STEPS,
-      role: "assistant",
-      user_id: args.userId,
-    })
+    .insert(
+      withIsMobile(
+        {
+          conversation_id: args.conversationId,
+          content,
+          message_type: TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NEXT_STEPS,
+          role: "assistant",
+          user_id: args.userId,
+        },
+        args.isMobile
+      )
+    )
     .select("*")
     .single();
 

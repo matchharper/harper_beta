@@ -26,6 +26,7 @@ import {
   type TalentMessageRow,
 } from "@/lib/talentOnboarding/server";
 import type { TalentOpportunityHistoryItem } from "@/lib/talentOpportunity";
+import { withIsMobile } from "@/lib/requestDevice";
 
 export type TalentOpportunityActionReplyAction = CareerHistoryActionReplyAction;
 
@@ -163,6 +164,7 @@ export async function createTalentOpportunityActionReply(args: {
   admin: TalentAdminClient;
   conversationId: string | null;
   feedbackReason?: string | null;
+  isMobile?: boolean | null;
   opportunity: TalentOpportunityHistoryItem | null;
   userId: string;
   userQuestion?: string | null;
@@ -242,13 +244,18 @@ export async function createTalentOpportunityActionReply(args: {
 
   const { data: insertedMessage, error: insertError } = await args.admin
     .from("talent_messages")
-    .insert({
-      conversation_id: conversationId,
-      user_id: args.userId,
-      role: "assistant",
-      content: assistantContent,
-      message_type: "chat",
-    })
+    .insert(
+      withIsMobile(
+        {
+          conversation_id: conversationId,
+          user_id: args.userId,
+          role: "assistant",
+          content: assistantContent,
+          message_type: "chat",
+        },
+        args.isMobile
+      )
+    )
     .select("*")
     .single();
 
@@ -291,6 +298,7 @@ export async function createTalentOpportunityFeedbackFollowUpReply(args: {
   admin: TalentAdminClient;
   conversationId: string | null;
   feedbackReason?: string | null;
+  isMobile?: boolean | null;
   opportunity?: TalentOpportunityHistoryItem | null;
   trigger: TalentOpportunityFeedbackReplyTrigger;
   userId: string;
@@ -342,6 +350,7 @@ export async function createTalentOpportunityFeedbackFollowUpReply(args: {
   const result = await runCareerChatTurn({
     admin: args.admin,
     conversationId,
+    isMobile: args.isMobile,
     pendingOpportunityFeedbackContext: feedbackContext,
     proactiveContext: buildCareerOpportunityFeedbackFollowUpTurnInstruction({
       responseMode,

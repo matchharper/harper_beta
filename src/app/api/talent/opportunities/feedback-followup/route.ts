@@ -3,6 +3,7 @@ import { createTalentOpportunityFeedbackFollowUpReply } from "@/lib/career/histo
 import type { TalentOpportunityFeedbackReplyTrigger } from "@/lib/career/historyActionReply";
 import { getRequestUser } from "@/lib/supabaseServer";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
+import { isMobileRequest } from "@/lib/requestDevice";
 
 function normalizeFeedbackFollowUpTrigger(
   value: unknown
@@ -36,6 +37,7 @@ export async function POST(req: NextRequest) {
       {
         admin,
         conversationId,
+        isMobile: isMobileRequest(req),
         trigger: normalizeFeedbackFollowUpTrigger(body.trigger),
         userId: user.id,
       }

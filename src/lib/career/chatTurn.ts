@@ -74,6 +74,7 @@ import {
   getOrCreateCompanySnapshot,
   touchConversation,
 } from "@/lib/career/companySnapshot";
+import { withIsMobile } from "@/lib/requestDevice";
 
 type TalentMessageResponse = ReturnType<typeof toTalentMessageResponse>;
 
@@ -90,6 +91,7 @@ export type RunCareerChatTurnArgs = {
   channel?: CareerChatTurnChannel;
   conversationId: string;
   inlineInsightExtraction?: boolean;
+  isMobile?: boolean | null;
   link?: string | null;
   noMessageMarker?: string;
   onRecommendationStatus?: (status: RecommendJobPostingStatus) => void;
@@ -321,6 +323,7 @@ export async function runCareerChatTurn(
   const inlineInsightExtraction = args.inlineInsightExtraction === true;
   const assistantMessageType =
     String(args.assistantMessageType ?? "").trim() || "chat";
+  const isMobile = args.isMobile;
   const skipConversationWrites = Boolean(args.skipConversationWrites);
   const rawUserMessage = String(args.userMessage ?? "").trim();
   const link = String(args.link ?? "").trim();
@@ -463,13 +466,18 @@ export async function runCareerChatTurn(
   if (rawUserMessage) {
     const { data, error } = await admin
       .from("talent_messages")
-      .insert({
-        conversation_id: conversationId,
-        user_id: userId,
-        role: "user",
-        content: normalizedContent,
-        message_type: "chat",
-      })
+      .insert(
+        withIsMobile(
+          {
+            conversation_id: conversationId,
+            user_id: userId,
+            role: "user",
+            content: normalizedContent,
+            message_type: "chat",
+          },
+          isMobile
+        )
+      )
       .select("*")
       .single();
 
@@ -635,6 +643,7 @@ export async function runCareerChatTurn(
         context: {
           admin,
           conversationId,
+          isMobile,
           userMessageId: insertedUserMessage?.id ?? null,
           userId,
         },
@@ -674,6 +683,7 @@ export async function runCareerChatTurn(
       context: {
         admin,
         conversationId,
+        isMobile,
         userMessageId: insertedUserMessage?.id ?? null,
         userId,
       },
@@ -746,13 +756,18 @@ export async function runCareerChatTurn(
           });
           const { data: cacheMessage, error: cacheMessageError } = await admin
             .from("talent_messages")
-            .insert({
-              content: messageContent,
-              conversation_id: conversationId,
-              message_type: COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
-              role: "assistant",
-              user_id: userId,
-            })
+            .insert(
+              withIsMobile(
+                {
+                  content: messageContent,
+                  conversation_id: conversationId,
+                  message_type: COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
+                  role: "assistant",
+                  user_id: userId,
+                },
+                isMobile
+              )
+            )
             .select("*")
             .single();
           if (cacheMessageError || !cacheMessage) {
@@ -783,13 +798,18 @@ export async function runCareerChatTurn(
         const { data: researchMessage, error: researchMessageError } =
           await admin
             .from("talent_messages")
-            .insert({
-              content: messageContent,
-              conversation_id: conversationId,
-              message_type: COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
-              role: "assistant",
-              user_id: userId,
-            })
+            .insert(
+              withIsMobile(
+                {
+                  content: messageContent,
+                  conversation_id: conversationId,
+                  message_type: COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
+                  role: "assistant",
+                  user_id: userId,
+                },
+                isMobile
+              )
+            )
             .select("*")
             .single();
         if (researchMessageError || !researchMessage) {
@@ -991,14 +1011,19 @@ export async function runCareerChatTurn(
 
   const { data: insertedAssistantMessage, error: assistantError } = await admin
     .from("talent_messages")
-    .insert({
-      conversation_id: conversationId,
-      user_id: userId,
-      role: "assistant",
-      content: safeAssistantText,
-      message_type: assistantMessageType,
-      thinking_logs: thinkingLogs,
-    })
+    .insert(
+      withIsMobile(
+        {
+          conversation_id: conversationId,
+          user_id: userId,
+          role: "assistant",
+          content: safeAssistantText,
+          message_type: assistantMessageType,
+          thinking_logs: thinkingLogs,
+        },
+        isMobile
+      )
+    )
     .select("*")
     .single();
 
@@ -1037,6 +1062,7 @@ export async function runCareerChatTurn(
       ? await createOnboardingCompletionMessages({
           admin,
           conversationId,
+          isMobile,
           latestUserMessageId: insertedUserMessage.id,
           userId,
         })

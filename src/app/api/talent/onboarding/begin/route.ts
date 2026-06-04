@@ -7,6 +7,7 @@ import {
   getTalentSupabaseAdmin,
   stripPendingQuestionPrefix,
 } from "@/lib/talentOnboarding/server";
+import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 
 type Body = {
   conversationId?: string;
@@ -20,6 +21,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json()) as Body;
+    const isMobile = isMobileRequest(req);
     const conversationId = body.conversationId?.trim();
     if (!conversationId) {
       return NextResponse.json(
@@ -111,13 +113,18 @@ export async function POST(req: NextRequest) {
 
     const { data: activatedMessage, error: insertError } = await admin
       .from("talent_messages")
-      .insert({
-        conversation_id: conversationId,
-        user_id: user.id,
-        role: pendingRow.role,
-        content: activatedContent,
-        message_type: "chat",
-      })
+      .insert(
+        withIsMobile(
+          {
+            conversation_id: conversationId,
+            user_id: user.id,
+            role: pendingRow.role,
+            content: activatedContent,
+            message_type: "chat",
+          },
+          isMobile
+        )
+      )
       .select("*")
       .single();
 

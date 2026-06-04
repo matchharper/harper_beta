@@ -13,6 +13,7 @@ import {
   getTalentSupabaseAdmin,
   type TalentAdminClient,
 } from "@/lib/talentOnboarding/server";
+import { withIsMobile } from "@/lib/requestDevice";
 
 const CAREER_EMAIL_ONBOARDING_NAMESPACE =
   "7c73b4d7-9fef-4f41-a7ff-e8d90db79749";
@@ -586,13 +587,18 @@ export async function requestCareerEmailOnboarding(args: {
 
   const { data: firstEmailMessage } = await admin
     .from("talent_messages")
-    .insert({
-      content: firstEmail.text,
-      conversation_id: conversationId,
-      message_type: "email_onboarding",
-      role: "assistant",
-      user_id: talentId,
-    })
+    .insert(
+      withIsMobile(
+        {
+          content: firstEmail.text,
+          conversation_id: conversationId,
+          message_type: "email_onboarding",
+          role: "assistant",
+          user_id: talentId,
+        },
+        args.body.isMobile
+      )
+    )
     .select("id")
     .single();
 

@@ -60,15 +60,14 @@ export const CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES = [
   // 이미 추천/저장된 opportunity 이력을 읽을 때.
   // 예: "지난번 추천한 토스 공고 링크 뭐였지?"
   TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES,
+  // 특정 posting roleId의 상세 role/company/recommendation context를 읽을 때.
+  TALENT_TOOL_NAMES.GET_ROLE_CONTEXT,
   // 추천된 특정 포지션을 저장함/선호하지 않음으로 보낼 때.
   TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK,
   // 특정 회사 자체를 조사할 때. 예: "A 회사 어떤 회사야?"
   TALENT_TOOL_NAMES.RESEARCH_COMPANY,
   // Ops가 관리하는 "유저 질문 -> 좋은 답변 예시" 검색용.
   TALENT_TOOL_NAMES.LOOKUP_ANSWER_EXAMPLES,
-  // 현재 열려 있는 role 목록을 조회할 때.
-  // 회사명을 주면 그 회사의 open roles, 회사명이 없으면 추천된 role 중심으로 조회한다.
-  TALENT_TOOL_NAMES.GET_OPEN_ROLES,
   // 최근 프로필/선호 변경, follow/unfollow 등 Career activity를 읽을 때.
   TALENT_TOOL_NAMES.READ_TALENT_ACTIVITY_EVENTS,
   // 온보딩 후에도 사용자가 "앞으로 리모트만", "추천 그만"처럼 저장할 선호를 말할 때.

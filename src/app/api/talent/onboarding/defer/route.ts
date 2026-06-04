@@ -21,6 +21,7 @@ import {
   fetchTalentInsights,
   getTalentSupabaseAdmin,
 } from "@/lib/talentOnboarding/server";
+import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 
 type Body = {
   conversationId?: string;
@@ -68,6 +69,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json()) as Body;
+    const isMobile = isMobileRequest(req);
     const conversationId = body.conversationId?.trim();
     const action = body.action;
 
@@ -110,13 +112,18 @@ export async function POST(req: NextRequest) {
     if (action === "prompt") {
       const { data: insertedAssistantMessage, error: insertError } = await admin
         .from("talent_messages")
-        .insert({
-          conversation_id: conversationId,
-          user_id: user.id,
-          role: "assistant",
-          content: CAREER_ONBOARDING_DEFER_PROMPT_TEXT,
-          message_type: TALENT_MESSAGE_TYPE_ONBOARDING_INTEREST_PROMPT,
-        })
+        .insert(
+          withIsMobile(
+            {
+              conversation_id: conversationId,
+              user_id: user.id,
+              role: "assistant",
+              content: CAREER_ONBOARDING_DEFER_PROMPT_TEXT,
+              message_type: TALENT_MESSAGE_TYPE_ONBOARDING_INTEREST_PROMPT,
+            },
+            isMobile
+          )
+        )
         .select("*")
         .single();
 
@@ -206,20 +213,26 @@ export async function POST(req: NextRequest) {
     const { data: insertedMessages, error: insertError } = await admin
       .from("talent_messages")
       .insert([
-        {
-          conversation_id: conversationId,
-          user_id: user.id,
-          role: "user",
-          content: userContent,
-          message_type: TALENT_MESSAGE_TYPE_ONBOARDING_STATUS,
-        },
-        {
-          conversation_id: conversationId,
-          user_id: user.id,
-          role: "assistant",
-          content: safeAssistantContent,
-          message_type: TALENT_MESSAGE_TYPE_ONBOARDING_PAUSE_CLOSE,
-        },
+        withIsMobile(
+          {
+            conversation_id: conversationId,
+            user_id: user.id,
+            role: "user",
+            content: userContent,
+            message_type: TALENT_MESSAGE_TYPE_ONBOARDING_STATUS,
+          },
+          isMobile
+        ),
+        withIsMobile(
+          {
+            conversation_id: conversationId,
+            user_id: user.id,
+            role: "assistant",
+            content: safeAssistantContent,
+            message_type: TALENT_MESSAGE_TYPE_ONBOARDING_PAUSE_CLOSE,
+          },
+          isMobile
+        ),
       ])
       .select("*");
 

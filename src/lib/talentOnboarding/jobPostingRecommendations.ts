@@ -26,7 +26,9 @@ type RoleSearchMode = "strict";
 type ExternalSearchPlan = {
   excludeKeywords: string[];
   ftsKeywords: FtsKeyword[];
+  includeRemote: boolean;
   locations: string[];
+  remoteOnly: boolean;
   searchIntentSummary: string;
 };
 
@@ -204,6 +206,8 @@ Output schema:
   "searchIntentSummary": "one Korean sentence focused on the current request",
   "ftsKeywords": [{"terms": ["synonym", "group"], "weight": 1.0}],
   "locations": [],
+  "includeRemote": false,
+  "remoteOnly": false,
   "excludeKeywords": []
 }
 
@@ -213,9 +217,13 @@ Rules:
 - 만약 한국의 공고도 검색한다면, terms에 영어 뿐만 아니라 한글 동의어도 포함해라. ex) "Research Engineer", "Machine leaning", "리서치 엔지니어", "머신러닝", "개발자", "Developer"
 - Avoid standalone broad terms such as "AI", "data", "software".
 - Do not put pure preferences in ftsKeywords: company stage, company size, funding, investors, location, remote/hybrid/onsite, salary, culture, brand prestige, "startup", "Series A", "YC", "a16z", "global", or "Seoul" unless that word is literally part of the work domain.
-- locations: Location filters or preferences. Keep empty if location preference is unknown.
+- locations: Geographic location filters or preferences only. Never put "remote" here. Keep empty if location preference is unknown.
   - Examples: "Seoul", "Korea", ", CA", "United States",  "Japan"
   - 유저가 명시적으로 한국만을 원한다고 하지 않은 경우에는 기본적으로 한국과 미국 둘다 열어둬라. 
+- includeRemote: true only when remote roles should be included alongside geographic locations, e.g. "remote or San Francisco", "원격도 좋아".
+- remoteOnly: true only when remote is a hard requirement, e.g. "remote only", "완전 원격만", "원격 아니면 제외".
+  - If remoteOnly=true and locations has geo values, SQL will require both remote work mode and one of those geographies, e.g. "US remote only".
+  - If the user only mildly prefers remote, keep both booleans false and let shortlist/final selection handle it as a preference.
 - excludeKeywords should contain explicit hard negatives from the request or strong user memory, not just rejected role or company. ex) intern, 인턴, 계약직 등
 - Weight ftsKeywords intentionally: 4.0-5.0 for must-have role/domain concepts, 2.0-3.5 for strong direction, 1.0-1.5 for weak supporting context.
 - Use English for English-market role/domain terms and Korean for Korean aliases when helpful.
@@ -855,9 +863,10 @@ async function fetchRecentConversationSummaries(args: {
   const { data, error } = await ((
     args.admin.from("talent_conversation_summaries" as any) as any
   )
-    .select("created_at, segment_summary, summary_text, to_message_id")
+    .select("created_at, segment_summary, to_message_id")
     .eq("talent_id", args.userId)
     .eq("conversation_id", args.conversationId)
+    .neq("segment_summary", "")
     .order("to_message_id", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(RECENT_CONVERSATION_SUMMARY_LIMIT) as any);
@@ -870,9 +879,7 @@ async function fetchRecentConversationSummaries(args: {
 
   return (Array.isArray(data) ? data : [])
     .map((row) => {
-      const text =
-        normalizeMultiline(row?.segment_summary, 900) ||
-        normalizeMultiline(row?.summary_text, 900);
+      const text = normalizeMultiline(row?.segment_summary, 900);
       if (!text) return "";
       const createdAt = compactDatetimeForLlm(row?.created_at);
       return createdAt ? `${createdAt} | ${text}` : text;
@@ -1301,12 +1308,35 @@ function normalizeExternalSearchPlan(
         .filter(Boolean)
     )
   ).slice(0, 12);
+  const rawLocations = asStringArray(source.locations, 8, 120);
+  const geoLocations = rawLocations.filter(
+    (location) => !isRemoteLocationTerm(location)
+  );
+  const hasRemoteLocation = rawLocations.length > geoLocations.length;
+  const explicitRemoteOnly = booleanField(
+    source,
+    "remoteOnly",
+    "remote_only",
+    "isRemoteOnly",
+    "is_remote_only"
+  );
+  const explicitIncludeRemote = booleanField(
+    source,
+    "includeRemote",
+    "include_remote"
+  );
+  const remoteOnly =
+    explicitRemoteOnly ?? (hasRemoteLocation && geoLocations.length === 0);
+  const includeRemote =
+    remoteOnly === true
+      ? false
+      : (explicitIncludeRemote ?? (hasRemoteLocation && geoLocations.length > 0));
   return {
     excludeKeywords,
     ftsKeywords: normalizeFtsKeywords(source.ftsKeywords, fallbackText),
-    locations: expandLocationSearchTerms(
-      asStringArray(source.locations, 8, 120)
-    ),
+    includeRemote,
+    locations: expandLocationSearchTerms(geoLocations),
+    remoteOnly,
     searchIntentSummary:
       cleanText(source.searchIntentSummary ?? raw?.searchIntentSummary, 260) ||
       "현재 유저 요청에 맞는 external job posting을 찾는다.",
@@ -1444,19 +1474,26 @@ function isRemoteLocationTerm(location: string) {
   return location.toLocaleLowerCase("ko-KR") === "remote";
 }
 
-function buildLocationSql(locations: string[]) {
-  const parts = expandLocationSearchTerms(locations)
+function buildLocationSql(plan: ExternalSearchPlan) {
+  const locationParts = expandLocationSearchTerms(plan.locations)
     .map((location) => cleanText(location, 100))
     .filter(Boolean)
     .slice(0, 12)
     .map((location) => {
-      if (isRemoteLocationTerm(location)) {
-        return "LOWER(COALESCE(cr.work_mode, '')) = 'remote'";
-      }
       const pattern = sqlLiteral(`%${location}%`);
       return `COALESCE(cr.location_text, '') ILIKE ${pattern}`;
     });
-  return parts.length > 0 ? [`(${parts.join(" OR ")})`] : [];
+  const remotePart = "LOWER(COALESCE(cr.work_mode, '')) = 'remote'";
+  if (plan.remoteOnly) {
+    return [
+      remotePart,
+      ...(locationParts.length > 0 ? [`(${locationParts.join(" OR ")})`] : []),
+    ];
+  }
+  if (plan.includeRemote) {
+    return [`(${[remotePart, ...locationParts].join(" OR ")})`];
+  }
+  return locationParts.length > 0 ? [`(${locationParts.join(" OR ")})`] : [];
 }
 
 function previouslyRecommendedRoleExclusionSql(userId: string) {
@@ -1487,7 +1524,7 @@ function buildRoleSearchSql(args: {
     previouslyRecommendedRoleExclusionSql(args.userId),
     ...buildBlockedCompanySql(args.blockedCompanies),
     ...buildExcludeKeywordSql(args.plan.excludeKeywords),
-    ...buildLocationSql(args.plan.locations),
+    ...buildLocationSql(args.plan),
   ].filter((sql): sql is string => Boolean(sql));
 
   return `
@@ -1633,6 +1670,18 @@ function stringArrayField(record: JsonRecord, ...keys: string[]) {
       return value.map((item) => cleanText(item, 120)).filter(Boolean);
     }
     if (typeof value === "string" && value) return [value];
+  }
+  return null;
+}
+
+function booleanField(record: JsonRecord, ...keys: string[]) {
+  for (const key of keys) {
+    if (!(key in record)) continue;
+    const value = record[key];
+    if (typeof value === "boolean") return value;
+    const text = cleanText(value, 20).toLocaleLowerCase("ko-KR");
+    if (["true", "1", "yes", "y"].includes(text)) return true;
+    if (["false", "0", "no", "n"].includes(text)) return false;
   }
   return null;
 }
@@ -1853,19 +1902,25 @@ function nonemptyJoin(parts: string[], sep = " | ") {
   return parts.filter((part) => cleanText(part, 200)).join(sep);
 }
 
+function workModeLineForLlm(value: unknown) {
+  const workMode = cleanText(value, 120) || "unknown(usually onsite)";
+  return `work mode: ${workMode}`;
+}
+
+function seniorityLevelLineForLlm(value: unknown) {
+  const seniorityLevel = cleanText(value, 120) || "unknown";
+  return `seniority level: ${seniorityLevel}`;
+}
+
 function roleLineForLlm(card: RoleCard, includePostedAt = true) {
   const role = cleanText(card.roleName, 180) || "Unknown role";
   const company = cleanText(card.companyName, 180) || "Unknown company";
   const details: string[] = [];
   if (card.location) details.push(`work at ${card.location}`);
-  for (const item of [
-    card.workMode,
-    card.employmentType,
-    card.seniorityLevel,
-  ]) {
-    const text = cleanText(item, 120);
-    if (text) details.push(text);
-  }
+  details.push(workModeLineForLlm(card.workMode));
+  const employmentType = cleanText(card.employmentType, 120);
+  if (employmentType) details.push(employmentType);
+  details.push(seniorityLevelLineForLlm(card.seniorityLevel));
   const postedAt = includePostedAt ? compactDateForRoleCard(card.postedAt) : "";
   if (postedAt) details.push(`posted ${postedAt}`);
   const suffix = details.length > 0 ? ` | ${nonemptyJoin(details)}` : "";
@@ -2529,7 +2584,9 @@ export async function runCareerJobPostingRecommendations(args: {
   infoJson("external search plan", {
     excludeKeywords: plan.excludeKeywords,
     ftsKeywords: plan.ftsKeywords,
+    includeRemote: plan.includeRemote,
     locations: plan.locations,
+    remoteOnly: plan.remoteOnly,
     searchIntentSummary: plan.searchIntentSummary,
     targetRecommendationCount,
   });
@@ -2648,7 +2705,9 @@ export async function runCareerJobPostingRecommendations(args: {
     searchPlan: {
       excludeKeywords: plan.excludeKeywords,
       ftsKeywords: plan.ftsKeywords,
+      includeRemote: plan.includeRemote,
       locations: plan.locations,
+      remoteOnly: plan.remoteOnly,
       searchIntentSummary: plan.searchIntentSummary,
       sourceType: "external",
     },

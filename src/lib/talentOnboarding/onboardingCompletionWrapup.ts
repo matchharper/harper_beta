@@ -337,6 +337,7 @@ export async function generateOnboardingCompletionNextStepsContent(args: {
 export async function regenerateOnboardingCompletionNextStepsMessage(args: {
   admin: TalentAdminClient;
   conversationId: string;
+  isMobile?: boolean | null;
   userId: string;
 }) {
   let content = FALLBACK_NEXT_STEPS_CONTENT;
@@ -368,6 +369,7 @@ export async function regenerateOnboardingCompletionNextStepsMessage(args: {
       admin: args.admin,
       content,
       conversationId: args.conversationId,
+      isMobile: args.isMobile,
       userId: args.userId,
     });
   }
@@ -393,6 +395,7 @@ export async function regenerateOnboardingCompletionNextStepsMessage(args: {
 export async function createOnboardingCompletionNextStepsMessage(args: {
   admin: TalentAdminClient;
   conversationId: string;
+  isMobile?: boolean | null;
   userId: string;
 }) {
   try {
@@ -430,6 +433,7 @@ export async function createOnboardingCompletionNextStepsMessage(args: {
       admin: args.admin,
       content,
       conversationId: args.conversationId,
+      isMobile: args.isMobile,
       userId: args.userId,
     });
   } catch (error) {
@@ -445,6 +449,7 @@ export async function createOnboardingCompletionNextStepsMessage(args: {
 export async function regenerateOnboardingCompletionWrapupMessage(args: {
   admin: TalentAdminClient;
   conversationId: string;
+  isMobile?: boolean | null;
   latestUserMessageId?: number | string | null;
   userId: string;
 }) {
@@ -477,6 +482,7 @@ export async function regenerateOnboardingCompletionWrapupMessage(args: {
       admin: args.admin,
       content,
       conversationId: args.conversationId,
+      isMobile: args.isMobile,
       thinkingLogs: ONBOARDING_COMPLETION_WRAPUP_THINKING_LOGS,
       userId: args.userId,
     });
@@ -506,6 +512,7 @@ export async function regenerateOnboardingCompletionWrapupMessage(args: {
 export async function createOnboardingCompletionWrapupMessage(args: {
   admin: TalentAdminClient;
   conversationId: string;
+  isMobile?: boolean | null;
   latestUserMessageId?: number | string | null;
   userId: string;
 }) {
@@ -544,6 +551,7 @@ export async function createOnboardingCompletionWrapupMessage(args: {
       admin: args.admin,
       content,
       conversationId: args.conversationId,
+      isMobile: args.isMobile,
       thinkingLogs: ONBOARDING_COMPLETION_WRAPUP_THINKING_LOGS,
       userId: args.userId,
     });
@@ -560,6 +568,7 @@ export async function createOnboardingCompletionWrapupMessage(args: {
 export async function createOnboardingCompletionMessages(args: {
   admin: TalentAdminClient;
   conversationId: string;
+  isMobile?: boolean | null;
   latestUserMessageId?: number | string | null;
   userId: string;
 }) {
@@ -567,6 +576,7 @@ export async function createOnboardingCompletionMessages(args: {
   const nextStepsMessage = await createOnboardingCompletionNextStepsMessage({
     admin: args.admin,
     conversationId: args.conversationId,
+    isMobile: args.isMobile,
     userId: args.userId,
   });
 
@@ -579,6 +589,7 @@ export async function createOnboardingCompletionMessages(args: {
 export async function regenerateOnboardingCompletionMessages(args: {
   admin: TalentAdminClient;
   conversationId: string;
+  isMobile?: boolean | null;
   latestUserMessageId?: number | string | null;
   userId: string;
 }) {
@@ -586,6 +597,7 @@ export async function regenerateOnboardingCompletionMessages(args: {
   const nextStepsMessage = await regenerateOnboardingCompletionNextStepsMessage({
     admin: args.admin,
     conversationId: args.conversationId,
+    isMobile: args.isMobile,
     userId: args.userId,
   });
 

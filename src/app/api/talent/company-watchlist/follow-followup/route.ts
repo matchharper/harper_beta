@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createTalentCompanyFollowFollowUpReply } from "@/lib/career/companyFollowUpReply";
 import { getRequestUser } from "@/lib/supabaseServer";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
+import { isMobileRequest } from "@/lib/requestDevice";
 
 type Body = {
   companyDbId?: number | string;
@@ -42,6 +43,7 @@ export async function POST(req: NextRequest) {
       admin: getTalentSupabaseAdmin(),
       companyDbId,
       conversationId,
+      isMobile: isMobileRequest(req),
       userId: user.id,
     });
 

@@ -63,6 +63,9 @@ import HistoryOpportunityInfoModal from "./history/HistoryOppotunityInfoModal";
 import OpportunityDetailModal from "./history/OpportunityDetailModal";
 import HistoryShortcutPanel from "./history/HistoryShortcutPanel";
 import CareerCompanyDetailDrawer from "./watchlist/CareerCompanyDetailDrawer";
+import InternalConnectionOnboardingModal, {
+  shouldBlockInternalConnectionAcceptance,
+} from "./InternalConnectionOnboardingModal";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import React from "react";
 import {
@@ -444,8 +447,12 @@ const CareerHistoryPanel = () => {
   const router = useRouter();
   const {
     stage,
+    isOnboardingDone,
     opportunityRun,
     opportunityRunTriggerPending,
+    callStartPending,
+    onStartCallMode,
+    onUseChatOnly,
     historyOpportunityCounts,
     historyOpportunities,
     historyLoading,
@@ -485,6 +492,10 @@ const CareerHistoryPanel = () => {
   );
   const [infoOpportunityType, setInfoOpportunityType] =
     useState<CareerOpportunityType | null>(null);
+  const [
+    internalConnectionOnboardingOpportunityId,
+    setInternalConnectionOnboardingOpportunityId,
+  ] = useState<string | null>(null);
   const [positivePromptOpportunityId, setPositivePromptOpportunityId] =
     useState<string | null>(null);
   const [positivePromptDraft, setPositivePromptDraft] = useState("");
@@ -508,19 +519,48 @@ const CareerHistoryPanel = () => {
   const currentSavedStageQuery = router.query[HISTORY_SAVED_STAGE_QUERY_KEY];
   const currentRoleQuery = router.query[HISTORY_ROLE_QUERY_KEY];
 
-  const openChatTab = useCallback(() => {
-    logCareerEvent("click_history_empty_open_chat");
-    const query: Record<string, string> = {};
-    const invite = getQueryValue(router.query.invite);
-    const mail = getQueryValue(router.query.mail);
-    if (invite) query.invite = invite;
-    if (mail) query.mail = mail;
+  const openChatTab = useCallback(
+    (eventName = "click_history_empty_open_chat") => {
+      logCareerEvent(eventName);
+      const query: Record<string, string> = {};
+      const invite = getQueryValue(router.query.invite);
+      const mail = getQueryValue(router.query.mail);
+      if (invite) query.invite = invite;
+      if (mail) query.mail = mail;
 
-    void router.push({
-      pathname: "/career",
-      query: Object.keys(query).length > 0 ? query : undefined,
-    });
-  }, [logCareerEvent, router]);
+      void router.push({
+        pathname: "/career",
+        query: Object.keys(query).length > 0 ? query : undefined,
+      });
+    },
+    [logCareerEvent, router]
+  );
+
+  const openInternalConnectionOnboardingModal = useCallback(
+    (item: CareerHistoryOpportunity) => {
+      logCareerEvent("view_history_internal_connection_onboarding_gate");
+      setInternalConnectionOnboardingOpportunityId(item.id);
+    },
+    [logCareerEvent]
+  );
+
+  const startOnboardingChatFromGate = useCallback(() => {
+    logCareerEvent("click_history_internal_connection_onboarding_chat");
+    onUseChatOnly?.();
+    openChatTab("navigate_history_internal_connection_onboarding_chat");
+    window.setTimeout(() => {
+      const composer = document.getElementById(
+        "career-chat-composer"
+      ) as HTMLTextAreaElement | null;
+      composer?.focus();
+    }, 150);
+  }, [logCareerEvent, onUseChatOnly, openChatTab]);
+
+  const startOnboardingCallFromGate = useCallback(() => {
+    logCareerEvent("click_history_internal_connection_onboarding_call");
+    openChatTab("navigate_history_internal_connection_onboarding_call");
+    void onStartCallMode?.();
+  }, [logCareerEvent, onStartCallMode, openChatTab]);
 
   const applyActiveTab = useCallback((nextTab: HistoryTabId) => {
     setActiveTab((current) => {
@@ -781,6 +821,22 @@ const CareerHistoryPanel = () => {
         ? (opportunityById.get(modalOpportunityId) ?? null)
         : null,
     [modalOpportunityId, opportunityById]
+  );
+
+  const internalConnectionOnboardingOpportunity = useMemo(
+    () =>
+      internalConnectionOnboardingOpportunityId
+        ? (opportunityById.get(internalConnectionOnboardingOpportunityId) ??
+          null)
+        : null,
+    [internalConnectionOnboardingOpportunityId, opportunityById]
+  );
+
+  const isCareerOnboardingComplete = isOnboardingDone || stage === "completed";
+  const shouldGateInternalConnection = useCallback(
+    (item: CareerHistoryOpportunity) =>
+      shouldBlockInternalConnectionAcceptance(item, isCareerOnboardingComplete),
+    [isCareerOnboardingComplete]
   );
 
   const positivePromptOpportunity = useMemo(
@@ -1135,10 +1191,13 @@ const CareerHistoryPanel = () => {
   }, []);
 
   const openHistoryLink = useCallback(
-    (opportunityId: string, url: string | null | undefined) => {
+    (item: CareerHistoryOpportunity, url: string | null | undefined) => {
       if (!url) return;
-      logCareerEvent("click_history_open_jd");
-      void onMarkHistoryOpportunityClicked(opportunityId);
+      logCareerEvent(
+        "click_history_open_jd",
+        item.companyDbId != null ? { companyId: item.companyDbId } : undefined
+      );
+      void onMarkHistoryOpportunityClicked(item.id);
       openUrl(url);
     },
     [logCareerEvent, onMarkHistoryOpportunityClicked, openUrl]
@@ -1149,7 +1208,10 @@ const CareerHistoryPanel = () => {
       const fallbackUrl = item.companyHomepageUrl ?? item.companyLinkedinUrl;
       if (!item.companyDbId && !fallbackUrl) return;
 
-      logCareerEvent("click_history_open_company");
+      logCareerEvent(
+        "click_history_open_company",
+        item.companyDbId != null ? { companyId: item.companyDbId } : undefined
+      );
       void onMarkHistoryOpportunityClicked(item.id);
 
       if (item.companyDbId) {
@@ -1295,6 +1357,11 @@ const CareerHistoryPanel = () => {
   const handlePositiveAction = useCallback(
     (item: CareerHistoryOpportunity) => {
       logCareerEvent("click_history_positive");
+      if (shouldGateInternalConnection(item)) {
+        openInternalConnectionOnboardingModal(item);
+        return;
+      }
+
       if (shouldCollectPositiveReason(item)) {
         requestPositiveFeedback(item);
         return;
@@ -1308,20 +1375,34 @@ const CareerHistoryPanel = () => {
     [
       rememberFeedbackAdvanceTarget,
       logCareerEvent,
+      openInternalConnectionOnboardingModal,
       requestPositiveFeedback,
+      shouldGateInternalConnection,
       updateFeedbackForItem,
     ]
   );
 
   const handleModalPositiveAction = useCallback(
     (item: CareerHistoryOpportunity) => {
+      if (shouldGateInternalConnection(item)) {
+        setModalOpportunityId(null);
+        clearHistoryRoleId();
+        openInternalConnectionOnboardingModal(item);
+        return;
+      }
+
       if (shouldCollectPositiveReason(item)) {
         setModalOpportunityId(null);
         clearHistoryRoleId();
       }
       handlePositiveAction(item);
     },
-    [clearHistoryRoleId, handlePositiveAction]
+    [
+      clearHistoryRoleId,
+      handlePositiveAction,
+      openInternalConnectionOnboardingModal,
+      shouldGateInternalConnection,
+    ]
   );
 
   const handleNegativeAction = useCallback(
@@ -1768,7 +1849,7 @@ const CareerHistoryPanel = () => {
                 canMovePrev={activeIndex > 0}
                 canMoveNext={canMoveNextOpportunity}
                 onOpenCompanyInfo={openHistoryCompanyInfo}
-                onOpenLink={(url) => openHistoryLink(activeOpportunity.id, url)}
+                onOpenLink={(url) => openHistoryLink(activeOpportunity, url)}
                 onOpenOpportunityInfo={openOpportunityInfo}
                 onMovePrev={() => moveActiveOpportunity(-1)}
                 onMoveNext={handleMoveNextOpportunity}
@@ -1976,7 +2057,7 @@ const CareerHistoryPanel = () => {
         onOpenCompanyInfo={openHistoryCompanyInfo}
         onOpenLink={(url) => {
           if (!modalOpportunity) return;
-          openHistoryLink(modalOpportunity.id, url);
+          openHistoryLink(modalOpportunity, url);
         }}
         onOpenOpportunityInfo={openOpportunityInfo}
         onPositive={() => {
@@ -2006,6 +2087,14 @@ const CareerHistoryPanel = () => {
       <HistoryOpportunityInfoModal
         opportunityType={infoOpportunityType}
         onClose={() => setInfoOpportunityType(null)}
+      />
+
+      <InternalConnectionOnboardingModal
+        open={Boolean(internalConnectionOnboardingOpportunity)}
+        callPending={Boolean(callStartPending)}
+        onClose={() => setInternalConnectionOnboardingOpportunityId(null)}
+        onStartChat={startOnboardingChatFromGate}
+        onStartCall={startOnboardingCallFromGate}
       />
 
       <CareerCompanyDetailDrawer

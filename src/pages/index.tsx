@@ -34,9 +34,12 @@ import React, {
   useState,
 } from "react";
 import {
+  AlertTriangleIcon,
   BriefcaseBusiness,
+  Check,
   FileX2,
   Mail,
+  Minus,
   Radar,
   Scan,
   User2,
@@ -195,7 +198,6 @@ export const WavyTag = ({
   return (
     <div className="wavy-underline">
       <div className="text-[13px] flex flex-row gap-2 font-medium text-beige700">
-        <span>{left}</span>
         <span>{children}</span>
       </div>
     </div>
@@ -270,19 +272,48 @@ const useCareerStartHref = (source: string, landingId: string) => {
   return CAREER_AUTHENTICATED_START_HREF;
 };
 
+const CheckIcon = () => {
+  return (
+    <div className="flex items-center justify-center h-3.5 w-3.5 rounded-full bg-green-700/90">
+      <Check className="text-white h-2 w-2" strokeWidth={2.8} />
+    </div>
+  );
+};
+
+const UnknownIcon = () => {
+  return (
+    <div className="flex items-center justify-center h-3.5 w-3.5 rounded-full bg-beige900/10 text-[10px] font-medium">
+      ?
+    </div>
+  );
+};
+
 function WorkflowVisual({
   type,
 }: {
   type: (typeof workflowCards)[number]["visual"];
 }) {
   if (type === "conversation") {
+    const bubbleStyle =
+      "rounded-xl font-medium px-3.5 py-2 text-[12.5px] leading-[1.45]";
     return (
       <>
-        <div className="w-fit max-w-[85%] rounded-2xl rounded-bl bg-beige900 px-3.5 py-2 text-[12.5px] leading-[1.45] text-beige50">
-          “나랑 잘 맞는 포지션 있어?”
+        <div
+          className={`${bubbleStyle} bg-beige900 text-beige50 ml-auto w-fit max-w-[85%]`}
+        >
+          나랑 잘 맞는 포지션 있어?
         </div>
-        <div className="ml-auto w-fit max-w-[82%] rounded-2xl rounded-br bg-beige700 px-3.5 py-2 text-[12.5px] leading-[1.45] text-beige50">
+        <div
+          className={`${bubbleStyle} bg-beige60 text-beige900 border border-beige900/10 w-fit max-w-[82%]`}
+        >
           조건을 들려주시면 바로 찾아볼게요.
+          <br />
+          지금 얼마나 이직에 열려 있으세요?
+        </div>
+        <div
+          className={`${bubbleStyle} bg-beige900 text-beige50 ml-auto w-fit max-w-[90%]`}
+        >
+          강하진 않아. 기준을 통과하는 곳들은 만나는 보고싶어
         </div>
       </>
     );
@@ -294,25 +325,33 @@ function WorkflowVisual({
         {[
           [
             "Anthropic · 풀타임",
-            "96% 적합",
+            <>
+              <CheckIcon />
+              <CheckIcon />
+              <CheckIcon />
+            </>,
             "시니어 ML 엔지니어 · H-1B 스폰서",
           ],
           [
             "Cursor · 단기 파트타임",
-            "91% 적합",
+            <>
+              <CheckIcon />
+              <CheckIcon />
+              <UnknownIcon />
+            </>,
             "데이터 보안 자문 · 월 약 10시간",
           ],
         ].map(([company, fit, body]) => (
-          <div key={company} className="rounded-lg bg-beige50 p-3">
+          <div key={`${company}`} className="rounded-lg bg-beige50 p-3">
             <div className="flex items-center justify-between gap-3">
               <span className="text-[12.5px] font-semibold text-beige900">
                 {company}
               </span>
-              <span className="text-[12px] font-medium text-beige700">
+              <span className="flex flex-row items-center gap-1.5 text-xs">
                 {fit}
               </span>
             </div>
-            <div className="mt-1 text-[13px] leading-snug text-beige900/55">
+            <div className="mt-1 text-[12px] leading-snug text-black/55">
               {body}
             </div>
           </div>
@@ -325,13 +364,13 @@ function WorkflowVisual({
     <>
       {[
         [
-          "Gmail",
+          "Harper",
           "Anthropic Hiring Manager와 커피챗",
           "Inference 팀 리더가 이번 주 30분을 비워뒀어요.",
           "방금",
         ],
         [
-          "Gmail",
+          "Harper",
           "Cursor Founder와 1:1",
           "Michael이 금요일 오전 가능하다고 전해왔어요.",
           "4시간 전",
@@ -351,16 +390,12 @@ function WorkflowVisual({
               <span className="truncate text-[13px] font-semibold text-beige900">
                 {sender}
               </span>
-              <span className="shrink-0 text-[10px] text-beige900/40">
-                {time}
-              </span>
+              <span className="shrink-0 text-[10px] text-black/40">{time}</span>
             </div>
-            <div className="mt-0.5 truncate text-[13px] font-semibold text-beige900">
+            <div className="truncate text-[13px] font-semibold text-beige900">
               {title}
             </div>
-            <div className="mt-0.5 truncate text-[10.5px] text-beige900/55">
-              {body}
-            </div>
+            <div className="truncate text-[11px] text-black/55">{body}</div>
           </div>
         </div>
       ))}
@@ -766,7 +801,18 @@ export default function LandingKoVfPage() {
               {workflowCards.map((card, index) => (
                 <Reveal key={card.title} once delay={index * 0.08}>
                   <div className="flex h-full flex-col">
-                    <div className="rounded-[8px] bg-orange-200/20 p-4 flex flex-col justify-center gap-3 h-[220px] md:h-[240px]">
+                    <div className="relative rounded-[8px] overflow-hidden bg-orange-200/20 p-4 flex flex-col justify-center gap-3 h-[220px] md:h-[240px]">
+                      {/* {card.visual === "conversation" && (
+                        <div>
+                          <Image
+                            src="/images/orangesky2.jpg"
+                            alt="Harper 대화 화면"
+                            width={400}
+                            height={225}
+                            className="absolute top-0 left-0 -z-10 h-full w-full object-cover"
+                          />
+                        </div>
+                      )} */}
                       <WorkflowVisual type={card.visual} />
                     </div>
                     <div className={`${h3style} mt-4 items-baseline`}>

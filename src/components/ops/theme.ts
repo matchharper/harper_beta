@@ -21,8 +21,7 @@ export const opsTheme = {
   divider: "divide-beige900/10",
   errorNotice:
     "rounded-md bg-[#F7DBD3] px-4 py-3 font-geist text-sm text-[#8A2E1D] shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]",
-  eyebrow:
-    "font-geist text-[11px] font-medium tracking-[0.14em] text-beige900/45",
+  eyebrow: "font-geist text-[11px] font-medium text-beige900/45",
   input:
     "h-11 w-full rounded-md border border-beige900/10 bg-white/80 px-3 font-geist text-sm text-beige900 outline-none transition placeholder:text-beige900/35 focus:border-beige900/25 focus:bg-white",
   label: "font-geist text-sm font-medium text-beige900/80",

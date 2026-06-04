@@ -13,6 +13,7 @@ export async function GET(req: NextRequest) {
     await requireInternalApiUser(req);
     const { searchParams } = new URL(req.url);
     const data = await fetchOpsOpportunityCatalog({
+      internalOnly: searchParams.get("internalOnly") === "true",
       workspaceLimit: Number(
         searchParams.get("limit") ?? String(OPS_OPPORTUNITY_COMPANY_PAGE_SIZE)
       ),
@@ -23,6 +24,9 @@ export async function GET(req: NextRequest) {
     });
     return NextResponse.json(data);
   } catch (error) {
-    return toInternalApiErrorResponse(error, "Failed to load opportunity catalog");
+    return toInternalApiErrorResponse(
+      error,
+      "Failed to load opportunity catalog"
+    );
   }
 }

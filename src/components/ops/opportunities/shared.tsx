@@ -11,7 +11,7 @@ import type {
   OpportunityWorkMode,
 } from "@/lib/opsOpportunity";
 import { OpportunityType } from "@/lib/opportunityType";
-import { Mail, Search } from "lucide-react";
+import { Mail, Pencil, Search } from "lucide-react";
 import type { KeyboardEvent, ReactNode } from "react";
 
 export type PageView =
@@ -19,7 +19,6 @@ export type PageView =
   | "company_management"
   | "company_match"
   | "talent_recommendation";
-export type SourceFilter = "all" | OpportunitySourceType;
 export type DraftMode = "edit" | "new";
 
 export type WorkspaceDraft = {
@@ -289,7 +288,7 @@ export function ActionButton({
         "rounded-md px-3 py-2 font-geist text-xs transition",
         active
           ? "bg-beige900 text-beige100"
-          : "bg-white/65 text-beige900 hover:bg-white"
+          : "bg-white/65 text-beige900 border border-black/10 hover:bg-black/2"
       )}
     >
       {children}
@@ -338,7 +337,7 @@ export function Token({
     <span
       className={cx(
         "inline-flex items-center rounded-md px-2 py-1 font-geist text-[11px]",
-        active ? "bg-beige900 text-beige100" : "bg-white/70 text-beige900/70"
+        active ? "bg-beige900 text-beige100" : "bg-black/5 text-black"
       )}
     >
       {children}
@@ -353,11 +352,13 @@ export function ToggleGrid({ children }: { children: ReactNode }) {
 export function RoleOptionCard({
   action,
   active,
+  onEdit,
   onSelect,
   role,
 }: {
   action?: ReactNode;
   active?: boolean;
+  onEdit?: () => void;
   onSelect: () => void;
   role: OpsOpportunityRoleRecord;
 }) {
@@ -374,19 +375,43 @@ export function RoleOptionCard({
           onClick={onSelect}
           className="min-w-0 flex-1 text-left"
         >
-          <div className="truncate font-geist text-sm font-medium">
+          <div className="truncate font-geist text-base font-normal">
             {role.name}
           </div>
           <div
             className={cx(
-              "mt-1 text-xs",
-              active ? "text-beige100/70" : "text-beige900/50"
+              "mt-2 text-xs",
+              active ? "text-beige100/70" : "text-black/80"
             )}
           >
-            {role.companyName} · {role.matchedCandidateCount} matches
+            {role.companyName} -{" "}
+            {role.locationText ||
+              (role.postedAt &&
+                [role.locationText, formatShortDate(role.postedAt)]
+                  .filter(Boolean)
+                  .join(" · "))}
           </div>
         </button>
-        {action}
+        {action || onEdit ? (
+          <div className="flex shrink-0 items-start gap-2">
+            {action}
+            {onEdit ? (
+              <button
+                type="button"
+                onClick={onEdit}
+                className={cx(
+                  "inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-2.5 font-geist text-[11px] transition",
+                  active
+                    ? "bg-white/10 text-beige100 hover:bg-white/20"
+                    : "bg-beige500/70 text-beige900 hover:bg-beige500/90"
+                )}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                수정
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
       <div className="mt-2 flex flex-wrap gap-1.5">
         <Token active={active}>{SOURCE_LABEL[role.sourceType]}</Token>
@@ -400,18 +425,6 @@ export function RoleOptionCard({
           </Token>
         ))}
       </div>
-      {role.locationText || role.postedAt ? (
-        <div
-          className={cx(
-            "mt-2 text-xs",
-            active ? "text-beige100/70" : "text-beige900/50"
-          )}
-        >
-          {[role.locationText, formatShortDate(role.postedAt)]
-            .filter(Boolean)
-            .join(" · ")}
-        </div>
-      ) : null}
     </div>
   );
 }

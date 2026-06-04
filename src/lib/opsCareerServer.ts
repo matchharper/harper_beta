@@ -62,6 +62,7 @@ export type CareerTalentSummary = {
   profilePicture: string | null;
   headline: string | null;
   opsProfileMemoPreview: string | null;
+  profileMemoPreviews: CareerTalentProfileMemoPreview[];
   currentCompanyName: string | null;
   currentRole: string | null;
   expandedEducationLabels?: string[];
@@ -74,6 +75,12 @@ export type CareerTalentSummary = {
   insightCoverage: number;
   lastConversationAt: string | null;
   createdAt: string | null;
+};
+
+export type CareerTalentProfileMemoPreview = {
+  label: string;
+  memo: string;
+  source: "education" | "experience";
 };
 
 export type CareerTalentRegisteredLinkType = "linkedin" | "github" | "other";
@@ -335,6 +342,8 @@ const MAX_OPS_RESUME_TEXT_CHARS = 24_000;
 const MAX_OPS_RESUME_PDF_PAGES = 24;
 const MAX_OPS_PROFILE_MEMO_LENGTH = 4000;
 const MAX_OPS_PROFILE_MEMO_PREVIEW_LENGTH = 240;
+const MAX_CAREER_LIST_PROFILE_MEMO_PREVIEWS = 3;
+const MAX_CAREER_LIST_PROFILE_MEMO_PREVIEW_LENGTH = 180;
 const CAREER_TALENT_LIST_SELECT =
   "user_id, name, email, profile_picture, headline, resume_file_name, resume_storage_path, resume_links, created_at";
 
@@ -517,6 +526,15 @@ function normalizeOpsProfileMemoContent(value: unknown) {
 function normalizeOpsProfileMemoPreview(value: unknown) {
   const preview = normalizeOpsProfileMemoContent(value).replace(/\s+/g, " ");
   return preview ? preview.slice(0, MAX_OPS_PROFILE_MEMO_PREVIEW_LENGTH) : null;
+}
+
+function normalizeCareerListProfileMemoPreview(
+  value: string | null | undefined
+) {
+  const preview = normalizeCareerSummaryText(value);
+  return preview
+    ? preview.slice(0, MAX_CAREER_LIST_PROFILE_MEMO_PREVIEW_LENGTH)
+    : null;
 }
 
 function normalizeCareerProfileIngestSource(
@@ -961,6 +979,14 @@ function formatCareerListExperienceLabel(
   return duration ? `${title} - ${duration})` : `${title})`;
 }
 
+function formatCareerListExperienceMemoLabel(
+  row: Pick<TalentExperienceRow, "company_name" | "role">
+) {
+  const role = normalizeCareerSummaryText(row.role);
+  const companyName = normalizeCareerSummaryText(row.company_name);
+  return [role, companyName].filter(Boolean).join(" @ ") || "경력";
+}
+
 function getCareerListAdmissionYear(value: string | null | undefined) {
   return parseCompactYearMonth(value)?.year.toString() ?? null;
 }
@@ -975,6 +1001,27 @@ function formatCareerListEducationLabel(
   const admissionYear = getCareerListAdmissionYear(row.start_date);
   const parts = [school, major, admissionYear].filter(Boolean);
   return parts.length > 0 ? parts.join(" - ") : null;
+}
+
+function formatCareerListEducationMemoLabel(
+  row: Pick<TalentEducationRow, "degree" | "field" | "school">
+) {
+  const school = normalizeCareerSummaryText(row.school);
+  const major =
+    normalizeCareerSummaryText(row.field) ??
+    normalizeCareerSummaryText(row.degree);
+  return [school, major].filter(Boolean).join(" - ") || "학력";
+}
+
+function addCareerListProfileMemoPreview(
+  map: Map<string, CareerTalentProfileMemoPreview[]>,
+  userId: string,
+  preview: CareerTalentProfileMemoPreview
+) {
+  const list = map.get(userId) ?? [];
+  if (list.length >= MAX_CAREER_LIST_PROFILE_MEMO_PREVIEWS) return;
+  list.push(preview);
+  map.set(userId, list);
 }
 
 function compareCareerTalentListUserRows(
@@ -1330,9 +1377,16 @@ export async function fetchCareerTalentList(args: {
       userIds,
     });
 
+  const profileMemoPreviewMap = new Map<
+    string,
+    CareerTalentProfileMemoPreview[]
+  >();
+
   const { data: experienceRows } = await admin
     .from("talent_experiences")
-    .select("id, talent_id, company_name, role, start_date, end_date, months")
+    .select(
+      "id, talent_id, company_name, role, start_date, end_date, months, memo"
+    )
     .in("talent_id", userIds)
     .order("start_date", { ascending: false, nullsFirst: false })
     .order("id", { ascending: false });
@@ -1351,8 +1405,22 @@ export async function fetchCareerTalentList(args: {
     | "start_date"
     | "end_date"
     | "months"
+    | "memo"
   >[]) {
     if (includeExpandedProfile) {
+      const memo = normalizeCareerListProfileMemoPreview(experience.memo);
+      if (memo) {
+        addCareerListProfileMemoPreview(
+          profileMemoPreviewMap,
+          experience.talent_id,
+          {
+            label: formatCareerListExperienceMemoLabel(experience),
+            memo,
+            source: "experience",
+          }
+        );
+      }
+
       const label = formatCareerListExperienceLabel(experience);
       if (label) {
         const list = experienceListMap.get(experience.talent_id) ?? [];
@@ -1378,15 +1446,34 @@ export async function fetchCareerTalentList(args: {
   if (includeExpandedProfile) {
     const { data: educationRows } = await admin
       .from("talent_educations")
-      .select("id, talent_id, school, degree, field, start_date")
+      .select("id, talent_id, school, degree, field, start_date, memo")
       .in("talent_id", userIds)
       .order("start_date", { ascending: false, nullsFirst: false })
       .order("id", { ascending: false });
 
     for (const education of (educationRows ?? []) as Pick<
       TalentEducationRow,
-      "degree" | "field" | "id" | "school" | "start_date" | "talent_id"
+      | "degree"
+      | "field"
+      | "id"
+      | "memo"
+      | "school"
+      | "start_date"
+      | "talent_id"
     >[]) {
+      const memo = normalizeCareerListProfileMemoPreview(education.memo);
+      if (memo) {
+        addCareerListProfileMemoPreview(
+          profileMemoPreviewMap,
+          education.talent_id,
+          {
+            label: formatCareerListEducationMemoLabel(education),
+            memo,
+            source: "education",
+          }
+        );
+      }
+
       const label = formatCareerListEducationLabel(education);
       if (!label) continue;
       const list = educationListMap.get(education.talent_id) ?? [];
@@ -1451,6 +1538,7 @@ export async function fetchCareerTalentList(args: {
       profilePicture: row.profile_picture,
       headline: row.headline,
       opsProfileMemoPreview: opsProfileMemoPreviewMap.get(row.user_id) ?? null,
+      profileMemoPreviews: profileMemoPreviewMap.get(row.user_id) ?? [],
       currentCompanyName: currentExperience?.companyName ?? null,
       currentRole: currentExperience?.role ?? null,
       expandedEducationLabels: includeExpandedProfile

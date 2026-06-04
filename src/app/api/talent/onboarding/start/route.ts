@@ -26,6 +26,7 @@ import {
   generateTalentKickoff,
 } from "@/lib/talentOnboarding/kickoff";
 import { logger } from "@/utils/logger";
+import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 
 export const runtime = "nodejs";
 export const maxDuration = 240;
@@ -153,6 +154,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json()) as Body;
+    const isMobile = isMobileRequest(req);
     const conversationId = body.conversationId?.trim();
     const submittedName = body.name?.trim();
     const submittedEmail = body.email?.trim().toLowerCase();
@@ -338,29 +340,38 @@ export async function POST(req: NextRequest) {
     });
 
     const messagePayloads = [
-      {
-        conversation_id: conversationId,
-        user_id: user.id,
-        role: "user",
-        content: profileSubmitContent,
-        message_type: "profile_submit",
-      },
-      {
-        conversation_id: conversationId,
-        user_id: user.id,
-        role: "assistant",
-        content: `${kickoff.acknowledgement}\n\n${kickoff.insight}`,
-        message_type: "system",
-      },
-      {
-        conversation_id: conversationId,
-        user_id: user.id,
-        role: "assistant",
-        content: `${TALENT_PENDING_QUESTION_PREFIX}${buildTalentKickoffOpeningMessage(
-          displayName
-        )}`,
-        message_type: "system",
-      },
+      withIsMobile(
+        {
+          conversation_id: conversationId,
+          user_id: user.id,
+          role: "user",
+          content: profileSubmitContent,
+          message_type: "profile_submit",
+        },
+        isMobile
+      ),
+      withIsMobile(
+        {
+          conversation_id: conversationId,
+          user_id: user.id,
+          role: "assistant",
+          content: `${kickoff.acknowledgement}\n\n${kickoff.insight}`,
+          message_type: "system",
+        },
+        isMobile
+      ),
+      withIsMobile(
+        {
+          conversation_id: conversationId,
+          user_id: user.id,
+          role: "assistant",
+          content: `${TALENT_PENDING_QUESTION_PREFIX}${buildTalentKickoffOpeningMessage(
+            displayName
+          )}`,
+          message_type: "system",
+        },
+        isMobile
+      ),
     ];
 
     const { data: insertedMessages, error: messageInsertError } = await admin

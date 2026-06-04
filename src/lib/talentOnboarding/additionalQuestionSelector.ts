@@ -14,6 +14,7 @@ import {
   TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX,
 } from "./onboarding";
 import { runTalentAssistantCompletion, type TalentChatMessage } from "./llm";
+import { withIsMobile } from "@/lib/requestDevice";
 
 const TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN = 2;
 
@@ -97,6 +98,7 @@ function countFilledInsights(content: Record<string, unknown> | null) {
 export async function selectAdditionalOnboardingQuestion(args: {
   admin: any;
   conversationId: string;
+  isMobile?: boolean | null;
   latestUserMessage?: string | null;
   userId: string;
 }) {
@@ -239,14 +241,21 @@ export async function selectAdditionalOnboardingQuestion(args: {
     : buildFinalPriorityConfirmationMessage();
 
   if (selection.shouldAsk) {
-    const { error: markerError } = await admin.from("talent_messages").insert({
-      conversation_id: conversationId,
-      user_id: userId,
-      role: "assistant",
-      content: assistantMessage,
-      message_type:
-        TALENT_MESSAGE_TYPE_ONBOARDING_ADDITIONAL_QUESTION_SELECTION,
-    });
+    const { error: markerError } = await admin
+      .from("talent_messages")
+      .insert(
+        withIsMobile(
+          {
+            conversation_id: conversationId,
+            user_id: userId,
+            role: "assistant",
+            content: assistantMessage,
+            message_type:
+              TALENT_MESSAGE_TYPE_ONBOARDING_ADDITIONAL_QUESTION_SELECTION,
+          },
+          args.isMobile
+        )
+      );
 
     if (markerError) {
       throw new Error(

@@ -17,6 +17,7 @@ import {
 export async function completeTalentOnboardingManually(args: {
   admin: TalentAdminClient;
   conversationId: string;
+  isMobile?: boolean | null;
   latestUserMessageId?: number | string | null;
   regenerateWrapup?: boolean;
   source: string;
@@ -58,6 +59,7 @@ export async function completeTalentOnboardingManually(args: {
     : createOnboardingCompletionMessages)({
     admin: args.admin,
     conversationId: args.conversationId,
+    isMobile: args.isMobile,
     latestUserMessageId: args.latestUserMessageId ?? null,
     userId: args.userId,
   });

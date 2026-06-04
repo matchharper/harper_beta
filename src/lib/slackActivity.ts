@@ -11,6 +11,7 @@ type NotifySlackActivityArgs = {
   details?: SlackActivityDetail[];
   email?: string | null;
   name?: string | null;
+  nameUrl?: string | null;
   user?: User | null;
   userId?: string | null;
 };
@@ -32,6 +33,20 @@ const escapeSlackText = (value: unknown) =>
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+
+const escapeSlackLinkUrl = (value: unknown) =>
+  normalizeText(value)
+    .replace(/\s/g, "%20")
+    .replace(/</g, "%3C")
+    .replace(/>/g, "%3E")
+    .replace(/\|/g, "%7C");
+
+const formatSlackLink = (url: unknown, text: unknown) => {
+  const normalizedText = normalizeText(text);
+  const safeUrl = escapeSlackLinkUrl(url);
+  if (!safeUrl || !normalizedText) return escapeSlackText(normalizedText);
+  return `<${safeUrl}|${escapeSlackText(normalizedText)}>`;
+};
 
 export const getSlackActivityUserName = (user: User | null | undefined) =>
   normalizeText(user?.user_metadata?.full_name) ||
@@ -74,8 +89,8 @@ function buildSlackActivityLines(args: NotifySlackActivityArgs & {
 
   if (COMPACT_ACTIVITY_ACTIONS.has(args.action)) {
     const device = getSlackActivityDetailValue(args.details, "Device");
-    const identity = [args.name, args.email, device]
-      .map(escapeSlackText)
+    const name = formatSlackLink(args.nameUrl, args.name);
+    const identity = [name, escapeSlackText(args.email), escapeSlackText(device)]
       .filter(Boolean)
       .join(", ");
     const detailLines = (args.details ?? []).flatMap((detail) => {
@@ -98,7 +113,7 @@ function buildSlackActivityLines(args: NotifySlackActivityArgs & {
   const lines = [
     "*Harper activity*",
     `- *Action*: ${action}`,
-    `- *Name*: ${escapeSlackText(args.name) || "Unknown"}`,
+    `- *Name*: ${formatSlackLink(args.nameUrl, args.name) || "Unknown"}`,
     `- *Email*: ${escapeSlackText(args.email) || "Unknown"}`,
   ];
 

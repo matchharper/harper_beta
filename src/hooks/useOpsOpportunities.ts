@@ -20,6 +20,7 @@ import type {
   OpsOpportunityCatalogResponse,
   OpsOpportunityMatchListResponse,
   OpsOpportunityRecommendationListResponse,
+  OpsOpportunityRoleListResponse,
   OpsOpportunityRoleSyncResult,
   OpsOpportunityType,
   OpsOpportunityWorkspaceExtraction,
@@ -119,11 +120,14 @@ type UpdateCompanyHumanQualityLabelInput = {
   workspaceId: string;
 };
 
-export function useOpsOpportunityCatalog(args: {
-  enabled?: boolean;
-  limit?: number;
-  workspaceQuery?: string | null;
-} = {}) {
+export function useOpsOpportunityCatalog(
+  args: {
+    enabled?: boolean;
+    internalOnly?: boolean;
+    limit?: number;
+    workspaceQuery?: string | null;
+  } = {}
+) {
   const limit = Math.max(
     1,
     Math.min(
@@ -133,9 +137,11 @@ export function useOpsOpportunityCatalog(args: {
     )
   );
   const workspaceQuery = String(args.workspaceQuery ?? "").trim();
+  const internalOnly = Boolean(args.internalOnly);
 
   return useInfiniteQuery({
     queryKey: queryKeys.opsOpportunity.catalog({
+      internalOnly,
       limit,
       workspaceQuery,
     }),
@@ -144,6 +150,9 @@ export function useOpsOpportunityCatalog(args: {
       const params = new URLSearchParams();
       params.set("limit", String(limit));
       params.set("offset", String(pageParam));
+      if (internalOnly) {
+        params.set("internalOnly", "true");
+      }
       if (workspaceQuery) {
         params.set("workspaceQuery", workspaceQuery);
       }
@@ -153,6 +162,60 @@ export function useOpsOpportunityCatalog(args: {
     },
     getNextPageParam: (lastPage) => lastPage.nextWorkspaceOffset ?? undefined,
     enabled: args.enabled ?? true,
+    staleTime: 15_000,
+  });
+}
+
+export function useOpsOpportunityRoles(
+  args: {
+    enabled?: boolean;
+    internalOnly?: boolean;
+    limit?: number;
+    query?: string | null;
+    sourceType?: OpportunitySourceType | null;
+    workspaceId?: string | null;
+  } = {}
+) {
+  const limit = Math.max(1, Math.min(Number(args.limit ?? 25) || 25, 100));
+  const query = String(args.query ?? "").trim();
+  const sourceType =
+    args.sourceType === "internal" || args.sourceType === "external"
+      ? args.sourceType
+      : null;
+  const workspaceId = String(args.workspaceId ?? "").trim();
+  const internalOnly = Boolean(args.internalOnly);
+
+  return useInfiniteQuery({
+    queryKey: queryKeys.opsOpportunity.roles({
+      internalOnly,
+      limit,
+      query,
+      sourceType,
+      workspaceId,
+    }),
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams();
+      params.set("limit", String(limit));
+      params.set("offset", String(pageParam));
+      if (internalOnly) {
+        params.set("internalOnly", "true");
+      }
+      if (query) {
+        params.set("query", query);
+      }
+      if (sourceType) {
+        params.set("sourceType", sourceType);
+      }
+      if (workspaceId) {
+        params.set("workspaceId", workspaceId);
+      }
+      return fetchWithInternalAuth<OpsOpportunityRoleListResponse>(
+        `/api/internal/opportunities/roles?${params.toString()}`
+      );
+    },
+    getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
+    enabled: (args.enabled ?? true) && Boolean(workspaceId),
     staleTime: 15_000,
   });
 }

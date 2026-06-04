@@ -43,7 +43,10 @@ function convertHtmlPasteToMarkdown(html: string) {
 
   turndown.remove(["script", "style"]);
 
-  return turndown.turndown(trimmedHtml).replace(/\n{3,}/g, "\n\n").trim();
+  return turndown
+    .turndown(trimmedHtml)
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function buildNextTextareaValue(args: {
@@ -119,11 +122,13 @@ function RoleDescriptionMarkdownPreview({ markdown }: { markdown: string }) {
                   </h2>
                 ),
                 h3: ({ children }) => (
-                  <h3 className="font-geist text-base font-semibold text-beige900">
+                  <h3 className="text-base font-semibold text-beige900">
                     {children}
                   </h3>
                 ),
-                hr: () => <hr className="my-4 border-0 border-t border-beige900/15" />,
+                hr: () => (
+                  <hr className="my-4 border-0 border-t border-beige900/15" />
+                ),
                 p: ({ children }) => (
                   <p className="whitespace-pre-wrap text-sm leading-6 text-beige900/75">
                     {children}
@@ -151,7 +156,7 @@ function RoleDescriptionMarkdownPreview({ markdown }: { markdown: string }) {
             </ReactMarkdown>
           </div>
         ) : (
-          <div className="font-geist text-sm text-beige900/45">
+          <div className="text-sm text-beige900/45">
             Description에 markdown을 입력하면 여기서 미리보기로 렌더링됩니다.
           </div>
         )}
@@ -215,17 +220,15 @@ export function CandidateMailModal({
           </button>
         </div>
       }
-      closeButtonClassName="font-geist right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-beige900/10 bg-white/70 text-beige900/70 transition-colors hover:border-beige900/25 hover:text-beige900"
+      closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-beige900/10 bg-white/70 text-beige900/70 transition-colors hover:border-beige900/25 hover:text-beige900"
     >
       <div className="space-y-4">
         <div className={cx(opsTheme.panelSoft, "space-y-2 px-4 py-4")}>
-          <div className="font-geist text-[11px] text-beige900/40">
-            받는 사람
-          </div>
-          <div className="font-geist text-sm text-beige900">
+          <div className="text-[11px] text-beige900/40">받는 사람</div>
+          <div className="text-sm text-beige900">
             {talent.name ?? "Unnamed talent"}
           </div>
-          <div className="font-geist text-xs text-beige900/55">
+          <div className="text-xs text-beige900/55">
             {talent.email ?? "등록된 이메일 없음"}
           </div>
         </div>
@@ -332,11 +335,11 @@ export function RecommendationPromptModal({
           </div>
         </div>
       }
-      closeButtonClassName="font-geist right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-beige900/10 bg-white/70 text-beige900/70 transition-colors hover:border-beige900/25 hover:text-beige900"
+      closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-beige900/10 bg-white/70 text-beige900/70 transition-colors hover:border-beige900/25 hover:text-beige900"
     >
       <div className="space-y-4">
         <div className={cx(opsTheme.panelSoft, "space-y-2 px-4 py-4")}>
-          <div className="font-geist text-sm text-beige900/75">
+          <div className="text-sm text-beige900/75">
             프롬프트는 브라우저 로컬 스토리지에 저장됩니다.
           </div>
           <div className="text-xs leading-5 text-beige900/55">
@@ -363,7 +366,7 @@ export function RecommendationPromptModal({
                 key={item.key}
                 className={cx(opsTheme.panelSoft, "space-y-1 px-3 py-3")}
               >
-                <div className="font-geist text-xs font-medium text-beige900">
+                <div className="text-xs font-medium text-beige900">
                   {item.key}
                 </div>
                 <div className="text-xs leading-5 text-beige900/55">
@@ -435,7 +438,7 @@ export function WorkspaceCreateModal({
           </button>
         </div>
       }
-      closeButtonClassName="font-geist right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-beige900/10 bg-white/70 text-beige900/70 transition-colors hover:border-beige900/25 hover:text-beige900"
+      closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-beige900/10 bg-white/70 text-beige900/70 transition-colors hover:border-beige900/25 hover:text-beige900"
     >
       <div className="space-y-4">
         <div className="space-y-2">
@@ -507,7 +510,7 @@ export function WorkspaceCreateModal({
             className={opsTheme.input}
           />
         </div>
-        <label className="flex items-center gap-3 rounded-md border border-beige900/10 bg-white/70 px-3 py-3 font-geist text-sm text-beige900">
+        <label className="flex items-center gap-3 rounded-md border border-beige900/10 bg-white/70 px-3 py-3 text-sm text-beige900">
           <input
             type="checkbox"
             checked={draft.isInternal}
@@ -596,8 +599,9 @@ export function RoleCreateModal({
       title={mode === "edit" ? "기회 수정" : "기회 추가"}
       description=""
       overlayClassName="items-start overflow-y-auto px-4 py-10 sm:px-6 sm:py-14 lg:py-16"
-      panelClassName="max-w-[860px] border border-beige900/10 bg-beige50"
-      bodyClassName="bg-beige50 px-5 py-5"
+      panelClassName="flex max-h-[calc(100svh-4rem)] max-w-[860px] flex-col border border-beige900/10 bg-beige50"
+      bodyClassName="flex-1 overflow-y-auto bg-beige50 px-5 py-5"
+      footerClassName="shrink-0 border-t border-beige900/10 bg-beige50"
       footer={
         <div className="flex items-center justify-end gap-2">
           <button
@@ -623,16 +627,11 @@ export function RoleCreateModal({
           </button>
         </div>
       }
-      closeButtonClassName="font-geist right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-beige900/10 bg-white/70 text-beige900/70 transition-colors hover:border-beige900/25 hover:text-beige900"
+      closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-beige900/10 bg-white/70 text-beige900/70 transition-colors hover:border-beige900/25 hover:text-beige900"
     >
       <div className="space-y-4">
-        <div className={cx(opsTheme.panelSoft, "space-y-1 px-4 py-3")}>
-          <div className="font-geist text-[11px] text-beige900/40">
-            연결 회사
-          </div>
-          <div className="font-geist text-sm text-beige900">
-            {workspaceName ?? "선택된 회사 없음"}
-          </div>
+        <div className="text-lg text-black">
+          {workspaceName ?? "선택된 회사 없음"}
         </div>
         <div className="space-y-2">
           <div className={opsTheme.eyebrow}>Role Title</div>
@@ -648,59 +647,63 @@ export function RoleCreateModal({
             className={opsTheme.input}
           />
         </div>
-        <div className="space-y-2">
-          <div className={opsTheme.eyebrow}>Source Type</div>
-          <ToggleGrid>
-            <ActionButton
-              active={draft.sourceType === "internal"}
-              onClick={() =>
-                onChange({
-                  ...draft,
-                  sourceType: "internal",
-                })
-              }
-            >
-              내부
-            </ActionButton>
-            <ActionButton
-              active={draft.sourceType === "external"}
-              onClick={() =>
-                onChange({
-                  ...draft,
-                  sourceType: "external",
-                })
-              }
-            >
-              외부
-            </ActionButton>
-          </ToggleGrid>
+        <div className="grid grid-cols-2 w-full items-start justify-between gap-2">
+          <div className="space-y-2">
+            <div className={opsTheme.eyebrow}>Source Type</div>
+            <ToggleGrid>
+              <ActionButton
+                active={draft.sourceType === "internal"}
+                onClick={() =>
+                  onChange({
+                    ...draft,
+                    sourceType: "internal",
+                  })
+                }
+              >
+                내부
+              </ActionButton>
+              <ActionButton
+                active={draft.sourceType === "external"}
+                onClick={() =>
+                  onChange({
+                    ...draft,
+                    sourceType: "external",
+                  })
+                }
+              >
+                외부
+              </ActionButton>
+            </ToggleGrid>
+          </div>
+          <div className="space-y-2">
+            <div className={opsTheme.eyebrow}>Status</div>
+            <ToggleGrid>
+              {(Object.keys(STATUS_LABEL) as OpportunityStatus[]).map(
+                (status) => (
+                  <ActionButton
+                    key={status}
+                    active={draft.status === status}
+                    onClick={() =>
+                      onChange({
+                        ...draft,
+                        status,
+                      })
+                    }
+                  >
+                    {STATUS_LABEL[status]}
+                  </ActionButton>
+                )
+              )}
+            </ToggleGrid>
+          </div>
         </div>
-        <div className="space-y-2">
-          <div className={opsTheme.eyebrow}>Status</div>
-          <ToggleGrid>
-            {(Object.keys(STATUS_LABEL) as OpportunityStatus[]).map(
-              (status) => (
-                <ActionButton
-                  key={status}
-                  active={draft.status === status}
-                  onClick={() =>
-                    onChange({
-                      ...draft,
-                      status,
-                    })
-                  }
-                >
-                  {STATUS_LABEL[status]}
-                </ActionButton>
-              )
-            )}
-          </ToggleGrid>
-        </div>
-        <div className="space-y-2">
-          <div className={opsTheme.eyebrow}>Employment Type</div>
-          <ToggleGrid>
-            {(Object.keys(EMPLOYMENT_LABEL) as OpportunityEmploymentType[]).map(
-              (type) => (
+        <div className="grid grid-cols-2 w-full items-start justify-between gap-2">
+          <div className="space-y-2">
+            <div className={opsTheme.eyebrow}>Employment Type</div>
+            <ToggleGrid>
+              {(
+                Object.keys(EMPLOYMENT_LABEL) as OpportunityEmploymentType[]
+              ).map((type) => (
                 <ActionButton
                   key={type}
                   active={draft.employmentTypes.includes(type)}
@@ -716,70 +719,40 @@ export function RoleCreateModal({
                 >
                   {EMPLOYMENT_LABEL[type]}
                 </ActionButton>
-              )
-            )}
-          </ToggleGrid>
-        </div>
-        <div className="space-y-2">
-          <div className={opsTheme.eyebrow}>Work Mode</div>
-          <ToggleGrid>
-            <ActionButton
-              active={draft.workMode === null}
-              onClick={() =>
-                onChange({
-                  ...draft,
-                  workMode: null,
-                })
-              }
-            >
-              미정
-            </ActionButton>
-            {(Object.keys(WORK_MODE_LABEL) as OpportunityWorkMode[]).map(
-              (mode) => (
-                <ActionButton
-                  key={mode}
-                  active={draft.workMode === mode}
-                  onClick={() =>
-                    onChange({
-                      ...draft,
-                      workMode: mode,
-                    })
-                  }
-                >
-                  {WORK_MODE_LABEL[mode]}
-                </ActionButton>
-              )
-            )}
-          </ToggleGrid>
-        </div>
-        <div className="grid gap-2 md:grid-cols-2">
-          <div className="space-y-2">
-            <div className={opsTheme.eyebrow}>Source Provider</div>
-            <input
-              value={draft.sourceProvider}
-              onChange={(event) =>
-                onChange({
-                  ...draft,
-                  sourceProvider: event.target.value,
-                })
-              }
-              placeholder="source provider"
-              className={opsTheme.input}
-            />
+              ))}
+            </ToggleGrid>
           </div>
           <div className="space-y-2">
-            <div className={opsTheme.eyebrow}>Source Job ID</div>
-            <input
-              value={draft.sourceJobId}
-              onChange={(event) =>
-                onChange({
-                  ...draft,
-                  sourceJobId: event.target.value,
-                })
-              }
-              placeholder="source job id"
-              className={opsTheme.input}
-            />
+            <div className={opsTheme.eyebrow}>Work Mode</div>
+            <ToggleGrid>
+              <ActionButton
+                active={draft.workMode === null}
+                onClick={() =>
+                  onChange({
+                    ...draft,
+                    workMode: null,
+                  })
+                }
+              >
+                미정
+              </ActionButton>
+              {(Object.keys(WORK_MODE_LABEL) as OpportunityWorkMode[]).map(
+                (mode) => (
+                  <ActionButton
+                    key={mode}
+                    active={draft.workMode === mode}
+                    onClick={() =>
+                      onChange({
+                        ...draft,
+                        workMode: mode,
+                      })
+                    }
+                  >
+                    {WORK_MODE_LABEL[mode]}
+                  </ActionButton>
+                )
+              )}
+            </ToggleGrid>
           </div>
         </div>
         <div className="space-y-2">
@@ -841,20 +814,6 @@ export function RoleCreateModal({
           </div>
         </div>
         <div className="space-y-2">
-          <div className={opsTheme.eyebrow}>Description Summary</div>
-          <textarea
-            value={draft.descriptionSummary}
-            onChange={(event) =>
-              onChange({
-                ...draft,
-                descriptionSummary: event.target.value,
-              })
-            }
-            placeholder="role description summary"
-            className={cx(opsTheme.textarea, "min-h-[120px]")}
-          />
-        </div>
-        <div className="space-y-2">
           <div className={opsTheme.eyebrow}>Request</div>
           <textarea
             value={draft.request}
@@ -865,6 +824,7 @@ export function RoleCreateModal({
               })
             }
             placeholder="기회 요청사항"
+            rows={6}
             className={cx(opsTheme.textarea, "min-h-[120px]")}
           />
         </div>
@@ -892,10 +852,24 @@ export function RoleCreateModal({
             placeholder="role description"
             className={cx(opsTheme.textarea, "min-h-[220px] px-3 py-3")}
           />
-          <div className="font-geist text-xs leading-5 text-beige900/45">
+          <div className="text-xs leading-5 text-beige900/45">
             노션이나 웹 문서에서 붙여 넣으면 가능한 범위에서 markdown으로
             변환합니다.
           </div>
+        </div>
+        <div className="space-y-2">
+          <div className={opsTheme.eyebrow}>Description Summary</div>
+          <textarea
+            value={draft.descriptionSummary}
+            onChange={(event) =>
+              onChange({
+                ...draft,
+                descriptionSummary: event.target.value,
+              })
+            }
+            placeholder="role description summary"
+            className={cx(opsTheme.textarea, "min-h-[120px]")}
+          />
         </div>
         <RoleDescriptionMarkdownPreview markdown={draft.description} />
       </div>

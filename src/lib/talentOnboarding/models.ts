@@ -62,6 +62,7 @@ export type TalentMessageRow = {
   content: string;
   message_type: string | null;
   thinking_logs?: Database["public"]["Tables"]["talent_messages"]["Row"]["thinking_logs"];
+  is_mobile?: boolean | null;
   created_at: string;
 };
 

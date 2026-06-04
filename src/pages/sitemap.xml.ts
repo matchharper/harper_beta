@@ -42,9 +42,19 @@ function buildSitemapXml(entries: SitemapEntry[]): string {
   return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`;
 }
 
+function toSitemapDateTime(value: string | null | undefined) {
+  const timestamp = Date.parse(String(value ?? ""));
+  if (Number.isNaN(timestamp)) return undefined;
+  return new Date(timestamp).toISOString();
+}
+
 export const getServerSideProps: GetServerSideProps = async ({ res }) => {
-  const { getAllPostsMeta } = await import("@/lib/blog.server");
+  const [{ getAllPostsMeta }, { getPublicOfficialJobs }] = await Promise.all([
+    import("@/lib/blog.server"),
+    import("@/lib/officialJobs.server"),
+  ]);
   const posts = getAllPostsMeta();
+  const jobs = await getPublicOfficialJobs();
 
   const staticEntries: SitemapEntry[] = [
     {
@@ -62,6 +72,11 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
       changefreq: "weekly",
       priority: 0.9,
     },
+    {
+      loc: `${SITE_URL}/jobs`,
+      changefreq: "daily",
+      priority: 0.9,
+    },
   ];
 
   const postEntries: SitemapEntry[] = posts.map((post) => ({
@@ -71,7 +86,19 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
     lastmod: toIsoDate(post.updatedAt),
   }));
 
-  const sitemap = buildSitemapXml([...staticEntries, ...postEntries]);
+  const jobEntries: SitemapEntry[] = jobs.map((job) => ({
+    loc: `${SITE_URL}/jobs/${encodeURIComponent(job.slug)}`,
+    changefreq: "weekly",
+    priority: 0.8,
+    lastmod:
+      toSitemapDateTime(job.updatedAt) ?? toSitemapDateTime(job.publishedAt),
+  }));
+
+  const sitemap = buildSitemapXml([
+    ...staticEntries,
+    ...postEntries,
+    ...jobEntries,
+  ]);
   res.setHeader("Content-Type", "text/xml; charset=utf-8");
   res.write(sitemap);
   res.end();

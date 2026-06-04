@@ -37,6 +37,7 @@ export async function createTalentCompanyFollowFollowUpReply(args: {
   admin: TalentAdminClient;
   companyDbId: number;
   conversationId: string | null;
+  isMobile?: boolean | null;
   userId: string;
 }) {
   const conversationId = String(args.conversationId ?? "").trim();
@@ -57,6 +58,7 @@ export async function createTalentCompanyFollowFollowUpReply(args: {
     allowedToolNames: [],
     assistantMessageType: TALENT_MESSAGE_TYPE_COMPANY_FOLLOW_UP,
     conversationId,
+    isMobile: args.isMobile,
     pendingOpportunityFeedbackContext: "",
     proactiveContext: buildCompanyFollowUpInstruction(item),
     shouldInsertAssistantMessage: async () => {

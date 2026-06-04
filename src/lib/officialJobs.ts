@@ -38,6 +38,7 @@ export type OfficialJob = {
   companyWebsiteUrl: string | null;
   displayOrder: number;
   publishedAt: string | null;
+  updatedAt: string;
 };
 
 export type OfficialJobsLandingCopy = {
@@ -123,5 +124,6 @@ export function mapOfficialJobRow(
     companyWebsiteUrl: row.company_website_url,
     displayOrder: row.display_order,
     publishedAt: row.published_at,
+    updatedAt: row.updated_at,
   };
 }

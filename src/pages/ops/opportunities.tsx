@@ -9,7 +9,6 @@ import {
   WorkspaceCreateModal,
 } from "@/components/ops/opportunities/modals";
 import {
-  ActionButton,
   type CandidateMailDraft,
   type DraftMode,
   EMPTY_CANDIDATE_MAIL_DRAFT,
@@ -21,11 +20,11 @@ import {
   type PageView,
   type RoleDraft,
   roleToDraft,
-  type SourceFilter,
   type WorkspaceDraft,
   workspaceToDraft,
 } from "@/components/ops/opportunities/shared";
 import TalentRecommendationView from "@/components/ops/opportunities/TalentRecommendationView";
+import { ViewTabs } from "@/components/ops/opportunities/ViewTabs";
 import { showToast } from "@/components/toast/toast";
 import { cx, opsTheme } from "@/components/ops/theme";
 import {
@@ -35,7 +34,6 @@ import {
   useDeleteOpsOpportunityRecommendation,
   useExtractOpsOpportunityWorkspace,
   useOpsOpportunityCandidates,
-  useOpsOpportunityCatalog,
   useOpsOpportunityCompanies,
   useOpsOpportunityMatches,
   useOpsOpportunityRecommendations,
@@ -47,9 +45,9 @@ import {
   useUpdateOpsCompanyHumanQualityLabel,
   useUpdateOpsCompanyScrapeOriginal,
 } from "@/hooks/useOpsOpportunities";
+import { useOpsOpportunityCatalogController } from "@/hooks/useOpsOpportunityCatalogController";
 import {
   OPS_COMPANY_MANAGEMENT_PAGE_SIZE,
-  OPS_OPPORTUNITY_COMPANY_PAGE_SIZE,
   type OpsCompanyManagementEmployeeCountRangeFilter,
   type OpsCompanyManagementQualityLabelFilter,
 } from "@/lib/opsOpportunityCompanyManagement";
@@ -69,25 +67,10 @@ import {
 } from "@/store/useOpsInternalDataExclusionStore";
 import { DEFAULT_OPS_TALENT_RECOMMENDATION_PROMPT } from "@/lib/opsOpportunityRecommendationPrompt";
 import { useOpsOpportunityRecommendationPromptStore } from "@/store/useOpsOpportunityRecommendationPromptStore";
-import {
-  ArrowLeftRight,
-  Building2,
-  Database,
-  LoaderCircle,
-  RefreshCw,
-  Sparkles,
-} from "lucide-react";
+import { LoaderCircle, RefreshCw } from "lucide-react";
 import Head from "next/head";
 import { useRouter } from "next/router";
-import {
-  useCallback,
-  useDeferredValue,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-
-const CATALOG_PAGE_SIZE = 10;
+import { useCallback, useDeferredValue, useMemo, useState } from "react";
 
 export default function OpsOpportunitiesPage() {
   const router = useRouter();
@@ -107,15 +90,6 @@ export default function OpsOpportunitiesPage() {
     useOpsOpportunityRecommendationPromptStore(
       (state) => state.resetPromptTemplate
     );
-  const [view, setView] = useState<PageView>("catalog");
-  const [workspaceSearch, setWorkspaceSearch] = useState("");
-  const [appliedWorkspaceSearch, setAppliedWorkspaceSearch] = useState("");
-  const [visibleWorkspaceCount, setVisibleWorkspaceCount] =
-    useState(CATALOG_PAGE_SIZE);
-  const [roleSearch, setRoleSearch] = useState("");
-  const [appliedRoleSearch, setAppliedRoleSearch] = useState("");
-  const [visibleRoleCount, setVisibleRoleCount] = useState(CATALOG_PAGE_SIZE);
-  const [roleSourceFilter, setRoleSourceFilter] = useState<SourceFilter>("all");
   const [companyManagementCompanyName, setCompanyManagementCompanyName] =
     useState("");
   const [companyManagementLocation, setCompanyManagementLocation] =
@@ -150,10 +124,6 @@ export default function OpsOpportunitiesPage() {
       location: "",
       qualityLabel: "" as OpsCompanyManagementQualityLabelFilter,
     });
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
-    null
-  );
-  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [workspaceDraftMode, setWorkspaceDraftMode] =
     useState<DraftMode>("edit");
   const [roleDraftMode, setRoleDraftMode] = useState<DraftMode>("edit");
@@ -203,11 +173,12 @@ export default function OpsOpportunitiesPage() {
     () => new Set<string>()
   );
   const currentViewQuery = router.query[PAGE_VIEW_QUERY_KEY];
+  const view = router.isReady
+    ? (getPageViewFromQuery(currentViewQuery) ?? "catalog")
+    : "catalog";
 
   const setViewWithUrl = useCallback(
     (nextView: PageView) => {
-      setView(nextView);
-
       if (!router.isReady) return;
       if (getPageViewFromQuery(currentViewQuery) === nextView) {
         return;
@@ -228,9 +199,6 @@ export default function OpsOpportunitiesPage() {
     [currentViewQuery, router]
   );
 
-  const deferredRoleSearch = useDeferredValue(
-    appliedRoleSearch.trim().toLowerCase()
-  );
   const deferredCompanyRoleSearch = useDeferredValue(
     companyRoleSearch.trim().toLowerCase()
   );
@@ -238,10 +206,9 @@ export default function OpsOpportunitiesPage() {
     recommendationRoleSearch.trim().toLowerCase()
   );
 
-  const catalogQuery = useOpsOpportunityCatalog({
-    enabled: canFetchInternal,
-    limit: OPS_OPPORTUNITY_COMPANY_PAGE_SIZE,
-    workspaceQuery: appliedWorkspaceSearch,
+  const catalog = useOpsOpportunityCatalogController({
+    canFetchInternal,
+    view,
   });
   const companyManagementQuery = useOpsOpportunityCompanies({
     companyName: companyManagementAppliedFilters.companyName,
@@ -257,10 +224,6 @@ export default function OpsOpportunitiesPage() {
     location: companyManagementAppliedFilters.location,
     qualityLabel: companyManagementAppliedFilters.qualityLabel,
   });
-  const fetchNextCatalogPage = catalogQuery.fetchNextPage;
-  const hasNextCatalogPage = catalogQuery.hasNextPage;
-  const isFetchingNextCatalogPage = catalogQuery.isFetchingNextPage;
-  const refetchCatalog = catalogQuery.refetch;
   const fetchNextCompanyManagementQueryPage =
     companyManagementQuery.fetchNextPage;
   const refetchCompanyManagement = companyManagementQuery.refetch;
@@ -278,22 +241,12 @@ export default function OpsOpportunitiesPage() {
   const updateCompanyScrapeOriginal = useUpdateOpsCompanyScrapeOriginal();
   const updateCompanyHumanQualityLabel = useUpdateOpsCompanyHumanQualityLabel();
 
-  const workspaces = useMemo(
-    () => catalogQuery.data?.pages.flatMap((page) => page.workspaces) ?? [],
-    [catalogQuery.data?.pages]
-  );
-  const roles = useMemo(() => {
-    const rows = catalogQuery.data?.pages.flatMap((page) => page.roles) ?? [];
-    const roleById = new Map<string, OpsOpportunityRoleRecord>();
-    for (const role of rows) {
-      roleById.set(role.roleId, role);
-    }
-    return Array.from(roleById.values());
-  }, [catalogQuery.data?.pages]);
-  const workspaceTotalCount = useMemo(() => {
-    const pages = catalogQuery.data?.pages ?? [];
-    return pages[0]?.workspaceTotalCount ?? workspaces.length;
-  }, [catalogQuery.data?.pages, workspaces.length]);
+  const roles = catalog.allRoles;
+  const selectedWorkspace = catalog.selectedWorkspace;
+  const selectedWorkspaceId = catalog.selectedWorkspaceId;
+  const selectedRole = catalog.selectedRole;
+  const selectedRoleId = catalog.selectedRoleId;
+
   const companyManagementRows = useMemo(() => {
     const rows =
       companyManagementQuery.data?.pages.flatMap((page) => page.items) ?? [];
@@ -303,55 +256,6 @@ export default function OpsOpportunitiesPage() {
     }
     return Array.from(rowByWorkspaceId.values());
   }, [companyManagementQuery.data?.pages]);
-
-  const filteredWorkspaces = workspaces;
-
-  const visibleWorkspaces = useMemo(
-    () => filteredWorkspaces.slice(0, visibleWorkspaceCount),
-    [filteredWorkspaces, visibleWorkspaceCount]
-  );
-
-  const selectedWorkspace = useMemo(
-    () =>
-      workspaces.find(
-        (workspace) => workspace.companyWorkspaceId === selectedWorkspaceId
-      ) ?? null,
-    [selectedWorkspaceId, workspaces]
-  );
-
-  const scopedRoles = useMemo(
-    () =>
-      roles.filter((role) =>
-        selectedWorkspaceId
-          ? role.companyWorkspaceId === selectedWorkspaceId
-          : true
-      ),
-    [roles, selectedWorkspaceId]
-  );
-
-  const filteredRoles = useMemo(
-    () =>
-      scopedRoles.filter((role) => {
-        if (
-          roleSourceFilter !== "all" &&
-          role.sourceType !== roleSourceFilter
-        ) {
-          return false;
-        }
-        return matchesRoleQuery(role, deferredRoleSearch);
-      }),
-    [deferredRoleSearch, roleSourceFilter, scopedRoles]
-  );
-
-  const visibleRoles = useMemo(
-    () => filteredRoles.slice(0, visibleRoleCount),
-    [filteredRoles, visibleRoleCount]
-  );
-
-  const selectedRole = useMemo(
-    () => roles.find((role) => role.roleId === selectedRoleId) ?? null,
-    [roles, selectedRoleId]
-  );
 
   const internalRoleOptions = useMemo(
     () =>
@@ -372,21 +276,32 @@ export default function OpsOpportunitiesPage() {
   );
 
   const selectedCompanyRole = useMemo(
-    () => roles.find((role) => role.roleId === selectedCompanyRoleId) ?? null,
+    () =>
+      roles.find(
+        (role) =>
+          role.roleId === selectedCompanyRoleId &&
+          role.sourceType === "internal"
+      ) ??
+      roles.find((role) => role.sourceType === "internal") ??
+      null,
     [roles, selectedCompanyRoleId]
   );
+  const selectedCompanyRoleIdForView = selectedCompanyRole?.roleId ?? null;
 
   const selectedRecommendationRole = useMemo(
     () =>
       roles.find((role) => role.roleId === selectedRecommendationRoleId) ??
+      roles[0] ??
       null,
     [roles, selectedRecommendationRoleId]
   );
+  const selectedRecommendationRoleIdForView =
+    selectedRecommendationRole?.roleId ?? null;
 
   const companyCandidateQuery = useOpsOpportunityCandidates({
     enabled: canFetchInternal && view === "company_match",
     query: companyTalentSearchQuery,
-    roleId: selectedCompanyRoleId,
+    roleId: selectedCompanyRoleIdForView,
   });
 
   const recommendationTalentQuery = useOpsOpportunityCandidates({
@@ -410,42 +325,43 @@ export default function OpsOpportunitiesPage() {
       ),
     [emailExclusionTerms, recommendationTalentQuery.data?.items]
   );
-  const visibleSelectedCompanyTalent = useMemo(
-    () =>
-      selectedCompanyTalent &&
-      !isEmailExcludedByOpsInternalTerms(
-        selectedCompanyTalent.email,
-        emailExclusionTerms
-      )
-        ? selectedCompanyTalent
-        : null,
-    [emailExclusionTerms, selectedCompanyTalent]
-  );
-  const visibleSelectedRecommendationTalent = useMemo(
-    () =>
-      selectedRecommendationTalent &&
-      !isEmailExcludedByOpsInternalTerms(
-        selectedRecommendationTalent.email,
-        emailExclusionTerms
-      )
-        ? selectedRecommendationTalent
-        : null,
-    [emailExclusionTerms, selectedRecommendationTalent]
-  );
-
-  useEffect(() => {
-    if (!router.isReady) return;
-
-    const nextView = getPageViewFromQuery(currentViewQuery);
-    setView(nextView ?? "catalog");
-  }, [currentViewQuery, router.isReady]);
+  const visibleSelectedCompanyTalent = useMemo(() => {
+    if (!selectedCompanyTalent) return null;
+    const refreshed =
+      visibleCompanyCandidates.find(
+        (item) => item.talentId === selectedCompanyTalent.talentId
+      ) ?? selectedCompanyTalent;
+    return isEmailExcludedByOpsInternalTerms(
+      refreshed.email,
+      emailExclusionTerms
+    )
+      ? null
+      : refreshed;
+  }, [emailExclusionTerms, selectedCompanyTalent, visibleCompanyCandidates]);
+  const visibleSelectedRecommendationTalent = useMemo(() => {
+    if (!selectedRecommendationTalent) return null;
+    const refreshed =
+      visibleRecommendationTalents.find(
+        (item) => item.talentId === selectedRecommendationTalent.talentId
+      ) ?? selectedRecommendationTalent;
+    return isEmailExcludedByOpsInternalTerms(
+      refreshed.email,
+      emailExclusionTerms
+    )
+      ? null
+      : refreshed;
+  }, [
+    emailExclusionTerms,
+    selectedRecommendationTalent,
+    visibleRecommendationTalents,
+  ]);
 
   const roleMatchesQuery = useOpsOpportunityMatches({
     enabled:
       canFetchInternal &&
       view === "company_match" &&
-      Boolean(selectedCompanyRoleId),
-    roleId: selectedCompanyRoleId,
+      Boolean(selectedCompanyRoleIdForView),
+    roleId: selectedCompanyRoleIdForView,
   });
 
   const talentRecommendationsQuery = useOpsOpportunityRecommendations({
@@ -455,112 +371,6 @@ export default function OpsOpportunitiesPage() {
       Boolean(visibleSelectedRecommendationTalent?.talentId),
     talentId: visibleSelectedRecommendationTalent?.talentId,
   });
-
-  useEffect(() => {
-    if (visibleWorkspaces.length === 0) {
-      setSelectedWorkspaceId(null);
-      return;
-    }
-    if (
-      selectedWorkspaceId &&
-      visibleWorkspaces.some(
-        (item) => item.companyWorkspaceId === selectedWorkspaceId
-      )
-    ) {
-      return;
-    }
-    setSelectedWorkspaceId(visibleWorkspaces[0]?.companyWorkspaceId ?? null);
-  }, [selectedWorkspaceId, visibleWorkspaces]);
-
-  useEffect(() => {
-    if (!selectedWorkspaceId) {
-      setSelectedRoleId(null);
-      return;
-    }
-
-    if (
-      selectedRoleId &&
-      visibleRoles.some((role) => role.roleId === selectedRoleId)
-    ) {
-      return;
-    }
-    const nextRole = visibleRoles[0] ?? null;
-    setSelectedRoleId(nextRole?.roleId ?? null);
-  }, [selectedRoleId, selectedWorkspaceId, visibleRoles]);
-
-  useEffect(() => {
-    setVisibleRoleCount(CATALOG_PAGE_SIZE);
-  }, [selectedWorkspaceId]);
-
-  useEffect(() => {
-    if (
-      selectedCompanyRoleId &&
-      roles.some(
-        (role) =>
-          role.roleId === selectedCompanyRoleId &&
-          role.sourceType === "internal"
-      )
-    ) {
-      return;
-    }
-    setSelectedCompanyRoleId(
-      roles.find((role) => role.sourceType === "internal")?.roleId ?? null
-    );
-  }, [roles, selectedCompanyRoleId]);
-
-  useEffect(() => {
-    if (
-      selectedRecommendationRoleId &&
-      roles.some((role) => role.roleId === selectedRecommendationRoleId)
-    ) {
-      return;
-    }
-    setSelectedRecommendationRoleId(roles[0]?.roleId ?? null);
-  }, [roles, selectedRecommendationRoleId]);
-
-  useEffect(() => {
-    if (workspaceDraftMode !== "edit") return;
-    setWorkspaceDraft(workspaceToDraft(selectedWorkspace));
-  }, [selectedWorkspace, workspaceDraftMode]);
-
-  useEffect(() => {
-    if (roleDraftMode !== "edit") return;
-    setRoleDraft(roleToDraft(selectedRole));
-  }, [roleDraftMode, selectedRole]);
-
-  useEffect(() => {
-    if (!visibleSelectedCompanyTalent) return;
-    const refreshed = visibleCompanyCandidates.find(
-      (item) => item.talentId === visibleSelectedCompanyTalent.talentId
-    );
-    if (refreshed) {
-      setSelectedCompanyTalent(refreshed);
-    }
-  }, [visibleCompanyCandidates, visibleSelectedCompanyTalent]);
-
-  useEffect(() => {
-    if (!visibleSelectedRecommendationTalent) return;
-    const refreshed = visibleRecommendationTalents.find(
-      (item) => item.talentId === visibleSelectedRecommendationTalent.talentId
-    );
-    if (refreshed) {
-      setSelectedRecommendationTalent(refreshed);
-    }
-  }, [visibleRecommendationTalents, visibleSelectedRecommendationTalent]);
-
-  useEffect(() => {
-    if (!isRecommendationPromptModalOpen) return;
-    setRecommendationPromptDraft(savedRecommendationPromptTemplate);
-  }, [isRecommendationPromptModalOpen, savedRecommendationPromptTemplate]);
-
-  useEffect(() => {
-    if (!user?.email) return;
-    if (candidateMailDraft.fromEmail.trim()) return;
-    setCandidateMailDraft((current) => ({
-      ...current,
-      fromEmail: user.email ?? "",
-    }));
-  }, [candidateMailDraft.fromEmail, user?.email]);
 
   const getDefaultCandidateMailSubject = () => {
     const activeRole =
@@ -606,7 +416,7 @@ export default function OpsOpportunitiesPage() {
             : null,
       });
       setWorkspaceDraftMode("edit");
-      setSelectedWorkspaceId(response.workspace.companyWorkspaceId);
+      catalog.setSelectedWorkspaceId(response.workspace.companyWorkspaceId);
       if (isWorkspaceCreateModalOpen) {
         setIsWorkspaceCreateModalOpen(false);
       }
@@ -671,7 +481,7 @@ export default function OpsOpportunitiesPage() {
         roleId: roleDraftMode === "edit" ? selectedRole?.roleId : null,
       });
       setRoleDraftMode("edit");
-      setSelectedRoleId(response.role.roleId);
+      catalog.setSelectedRoleId(response.role.roleId);
       if (response.role.sourceType === "internal") {
         setSelectedCompanyRoleId(response.role.roleId);
       }
@@ -732,49 +542,12 @@ export default function OpsOpportunitiesPage() {
     }
   };
 
-  const handleWorkspaceSearchSubmit = useCallback(() => {
-    const nextSearch = workspaceSearch.trim();
-    setVisibleWorkspaceCount(OPS_OPPORTUNITY_COMPANY_PAGE_SIZE);
-    if (nextSearch === appliedWorkspaceSearch) {
-      void refetchCatalog();
-      return;
-    }
-    setAppliedWorkspaceSearch(nextSearch);
-  }, [appliedWorkspaceSearch, refetchCatalog, workspaceSearch]);
-
-  const handleRoleSearchSubmit = useCallback(() => {
-    setAppliedRoleSearch(roleSearch.trim());
-    setVisibleRoleCount(CATALOG_PAGE_SIZE);
-  }, [roleSearch]);
-
-  const handleRoleSourceFilterChange = useCallback((filter: SourceFilter) => {
-    setRoleSourceFilter(filter);
-    setVisibleRoleCount(CATALOG_PAGE_SIZE);
-  }, []);
-
-  const handleLoadMoreWorkspaces = useCallback(() => {
-    if (isFetchingNextCatalogPage) return;
-    setVisibleWorkspaceCount((current) =>
-      current + OPS_OPPORTUNITY_COMPANY_PAGE_SIZE
-    );
-    if (hasNextCatalogPage) {
-      void fetchNextCatalogPage();
-    }
-  }, [
-    fetchNextCatalogPage,
-    hasNextCatalogPage,
-    isFetchingNextCatalogPage,
-  ]);
-
-  const handleLoadMoreRoles = useCallback(() => {
-    setVisibleRoleCount((current) =>
-      Math.min(current + CATALOG_PAGE_SIZE, filteredRoles.length)
-    );
-  }, [filteredRoles.length]);
-
   const openWorkspaceCreateModal = () => {
     setWorkspaceDraftMode("new");
-    setWorkspaceDraft(EMPTY_WORKSPACE_DRAFT);
+    setWorkspaceDraft({
+      ...EMPTY_WORKSPACE_DRAFT,
+      isInternal: view === "catalog",
+    });
     setIsWorkspaceCreateModalOpen(true);
   };
 
@@ -805,6 +578,13 @@ export default function OpsOpportunitiesPage() {
     setIsRoleCreateModalOpen(true);
   };
 
+  const openRoleEditModalForRole = (role: OpsOpportunityRoleRecord) => {
+    catalog.setSelectedRoleId(role.roleId);
+    setRoleDraftMode("edit");
+    setRoleDraft(roleToDraft(role));
+    setIsRoleCreateModalOpen(true);
+  };
+
   const openRoleEditModal = () => {
     if (!selectedRole) {
       showToast({
@@ -813,9 +593,7 @@ export default function OpsOpportunitiesPage() {
       });
       return;
     }
-    setRoleDraftMode("edit");
-    setRoleDraft(roleToDraft(selectedRole));
-    setIsRoleCreateModalOpen(true);
+    openRoleEditModalForRole(selectedRole);
   };
 
   const closeRoleCreateModal = () => {
@@ -999,24 +777,18 @@ export default function OpsOpportunitiesPage() {
     }
   };
 
-  const openRoleFlow = (role: OpsOpportunityRoleRecord) => {
-    if (role.sourceType === "internal") {
-      setViewWithUrl("company_match");
-      setSelectedCompanyRoleId(role.roleId);
-      return;
-    }
-
-    setViewWithUrl("talent_recommendation");
-    setSelectedRecommendationRoleId(role.roleId);
-  };
-
   const handleRefresh = useCallback(() => {
     if (view === "company_management") {
       void refetchCompanyManagement();
       return;
     }
-    void refetchCatalog();
-  }, [refetchCatalog, refetchCompanyManagement, view]);
+    if (view === "catalog") {
+      void catalog.refetchCatalog();
+      void catalog.refetchRoles();
+      return;
+    }
+    void catalog.refetchCatalog();
+  }, [catalog, refetchCompanyManagement, view]);
 
   const fetchNextCompanyManagementPage = useCallback(() => {
     void fetchNextCompanyManagementQueryPage();
@@ -1144,7 +916,7 @@ export default function OpsOpportunitiesPage() {
   const refreshPending =
     view === "company_management"
       ? companyManagementQuery.isFetching
-      : catalogQuery.isFetching;
+      : catalog.isFetching;
 
   return (
     <>
@@ -1175,78 +947,43 @@ export default function OpsOpportunitiesPage() {
           </button>
         }
       >
-        <div className="flex flex-wrap gap-2 px-4">
-          <ActionButton
-            active={view === "catalog"}
-            onClick={() => setViewWithUrl("catalog")}
-          >
-            <Building2 className="mr-2 inline-flex h-3.5 w-3.5" />
-            Role 목록 관리
-          </ActionButton>
-          <ActionButton
-            active={view === "company_management"}
-            onClick={() => setViewWithUrl("company_management")}
-          >
-            <Database className="mr-2 inline-flex h-3.5 w-3.5" />
-            회사 관리
-          </ActionButton>
-          <ActionButton
-            active={view === "company_match"}
-            onClick={() => setViewWithUrl("company_match")}
-          >
-            <ArrowLeftRight className="mr-2 inline-flex h-3.5 w-3.5" />
-            회사에게 후보자 추천
-          </ActionButton>
-          <ActionButton
-            active={view === "talent_recommendation"}
-            onClick={() => setViewWithUrl("talent_recommendation")}
-          >
-            <Sparkles className="mr-2 inline-flex h-3.5 w-3.5" />
-            후보자에게 회사 추천
-          </ActionButton>
-        </div>
+        <ViewTabs view={view} onChange={setViewWithUrl} />
 
         {view === "catalog" ? (
           <CatalogView
-            catalogErrorMessage={
-              catalogQuery.error instanceof Error
-                ? catalogQuery.error.message
-                : null
-            }
-            catalogLoading={catalogQuery.isLoading}
-            filteredRoles={visibleRoles}
-            filteredWorkspaces={visibleWorkspaces}
-            onLoadMoreRoles={handleLoadMoreRoles}
-            onLoadMoreWorkspaces={handleLoadMoreWorkspaces}
+            catalogErrorMessage={catalog.catalogErrorMessage}
+            catalogLoading={catalog.catalogLoading}
+            filteredRoles={catalog.catalogRoles}
+            filteredWorkspaces={catalog.workspaces}
+            onLoadMoreRoles={catalog.onLoadMoreRoles}
+            onLoadMoreWorkspaces={catalog.onLoadMoreWorkspaces}
+            onRoleEdit={openRoleEditModalForRole}
             onOpenRoleCreateModal={openRoleCreateModal}
             onOpenRoleEditModal={openRoleEditModal}
-            onOpenRoleFlow={openRoleFlow}
             onOpenWorkspaceCreateModal={openWorkspaceCreateModal}
             onOpenWorkspaceEditModal={openWorkspaceEditModal}
-            onRoleSearchChange={setRoleSearch}
-            onRoleSearchSubmit={handleRoleSearchSubmit}
+            onRoleSearchChange={catalog.onRoleSearchChange}
+            onRoleSearchSubmit={catalog.onRoleSearchSubmit}
             onRoleSelect={(roleId) => {
               setRoleDraftMode("edit");
-              setSelectedRoleId(roleId);
+              catalog.onRoleSelect(roleId);
             }}
             onRoleSync={() => void handleRoleSync()}
-            onRoleSourceFilterChange={handleRoleSourceFilterChange}
-            onWorkspaceSearchChange={setWorkspaceSearch}
-            onWorkspaceSearchSubmit={handleWorkspaceSearchSubmit}
+            onWorkspaceSearchChange={catalog.onWorkspaceSearchChange}
+            onWorkspaceSearchSubmit={catalog.onWorkspaceSearchSubmit}
             onWorkspaceSelect={(workspaceId) => {
               setWorkspaceDraftMode("edit");
-              setVisibleRoleCount(CATALOG_PAGE_SIZE);
-              setSelectedWorkspaceId(workspaceId);
+              catalog.onWorkspaceSelect(workspaceId);
             }}
-            roleSearch={roleSearch}
-            roleSourceFilter={roleSourceFilter}
-            roleTotalCount={filteredRoles.length}
+            roleSearch={catalog.roleSearch}
+            roleLoading={catalog.roleLoading}
+            roleTotalCount={catalog.roleTotalCount}
             syncRolePending={syncRoles.isPending}
             selectedRoleId={selectedRoleId}
             selectedWorkspace={selectedWorkspace}
             selectedWorkspaceId={selectedWorkspaceId}
-            workspaceSearch={workspaceSearch}
-            workspaceTotalCount={workspaceTotalCount}
+            workspaceSearch={catalog.workspaceSearch}
+            workspaceTotalCount={catalog.workspaceTotalCount}
           />
         ) : view === "company_management" ? (
           <CompanyManagementView
@@ -1317,7 +1054,7 @@ export default function OpsOpportunitiesPage() {
             roleMatchesLoading={roleMatchesQuery.isLoading}
             saveMatchPending={saveMatch.isPending}
             selectedCompanyRole={selectedCompanyRole}
-            selectedCompanyRoleId={selectedCompanyRoleId}
+            selectedCompanyRoleId={selectedCompanyRoleIdForView}
             selectedCompanyTalent={visibleSelectedCompanyTalent}
           />
         ) : (
@@ -1361,7 +1098,7 @@ export default function OpsOpportunitiesPage() {
             recommendationTalents={visibleRecommendationTalents}
             saveRecommendationPending={saveRecommendation.isPending}
             selectedRecommendationRole={selectedRecommendationRole}
-            selectedRecommendationRoleId={selectedRecommendationRoleId}
+            selectedRecommendationRoleId={selectedRecommendationRoleIdForView}
             selectedRecommendationTalent={visibleSelectedRecommendationTalent}
             talentRecommendations={talentRecommendationsQuery.data?.items ?? []}
             talentRecommendationsLoading={talentRecommendationsQuery.isLoading}

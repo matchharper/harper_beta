@@ -27,9 +27,14 @@ import {
   buildOpportunityFeedbackNoteContent,
   TALENT_MESSAGE_TYPE_OPPORTUNITY_FEEDBACK_NOTE,
 } from "@/lib/career/opportunityFeedbackNote";
-import { notifySlackActivity } from "@/lib/slackActivity";
+import {
+  getSlackActivityDeviceLabel,
+  notifySlackActivity,
+} from "@/lib/slackActivity";
+import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 
 const POSITION_TAB_INTERACTION_SOURCE = "position_tab";
+const OPS_CAREER_URL = "https://matchharper.com/ops/career";
 
 const parsePositiveIntegerParam = (
   value: string | null,
@@ -95,6 +100,7 @@ async function insertExternalOpportunityFeedbackNoteMessage(args: {
   action: TalentOpportunityFeedback;
   admin: TalentAdminClient;
   conversationId: string | null;
+  isMobile?: boolean | null;
   opportunity: TalentOpportunityHistoryItem | null;
   userId: string;
 }) {
@@ -111,17 +117,22 @@ async function insertExternalOpportunityFeedbackNoteMessage(args: {
 
   const { data, error } = await args.admin
     .from("talent_messages")
-    .insert({
-      conversation_id: conversationId,
-      user_id: args.userId,
-      role: "user",
-      content: buildOpportunityFeedbackNoteContent({
-        action: args.action,
-        companyName: args.opportunity.companyName,
-        title: args.opportunity.title,
-      }),
-      message_type: TALENT_MESSAGE_TYPE_OPPORTUNITY_FEEDBACK_NOTE,
-    })
+    .insert(
+      withIsMobile(
+        {
+          conversation_id: conversationId,
+          user_id: args.userId,
+          role: "user",
+          content: buildOpportunityFeedbackNoteContent({
+            action: args.action,
+            companyName: args.opportunity.companyName,
+            title: args.opportunity.title,
+          }),
+          message_type: TALENT_MESSAGE_TYPE_OPPORTUNITY_FEEDBACK_NOTE,
+        },
+        args.isMobile
+      )
+    )
     .select("*")
     .single();
 
@@ -156,8 +167,15 @@ function parseFeedbackReasonForSlack(value: string | null | undefined) {
   }
 }
 
+function buildOpsCareerUserUrl(userId: string) {
+  const url = new URL(OPS_CAREER_URL);
+  url.searchParams.set("userId", userId);
+  return url.toString();
+}
+
 async function notifyInternalPositionDecisionSlack(args: {
   decision: TalentOpportunityFeedback;
+  deviceLabel?: string | null;
   feedbackReason?: string | null;
   interactionSource?: string | null;
   opportunity?: TalentOpportunityHistoryItem | null;
@@ -167,19 +185,22 @@ async function notifyInternalPositionDecisionSlack(args: {
   if (!args.opportunity || args.opportunity.sourceType !== "internal") return;
 
   const accepted = args.decision === "positive";
-  const decisionLabel = accepted ? "accepted" : "rejected";
+  const decisionLabel = accepted ? "accepted ☘️" : "rejected ❌";
 
   try {
     await notifySlackActivity({
       action: `Internal position ${decisionLabel}`,
+      nameUrl: buildOpsCareerUserUrl(args.user.id),
       user: args.user,
       userId: args.user.id,
       details: [
-        { label: "Decision", value: accepted ? "수락" : "거절" },
-        { label: "Source", value: "Position tab" },
+        {
+          label: "Decision",
+          value: accepted ? "수락" : "거절" + "at 사이트내 포지션 탭",
+        },
+        { label: "Device", value: args.deviceLabel },
         { label: "Company", value: args.opportunity.companyName },
         { label: "Role", value: args.opportunity.title },
-        { label: "Opportunity Type", value: args.opportunity.opportunityType },
         { label: "Location", value: args.opportunity.location },
         { label: "Work Mode", value: args.opportunity.workMode },
         {
@@ -187,7 +208,6 @@ async function notifyInternalPositionDecisionSlack(args: {
           value: parseFeedbackReasonForSlack(args.feedbackReason),
         },
         { label: "Role ID", value: args.opportunity.roleId },
-        { label: "Opportunity ID", value: args.opportunity.id },
         { label: "User ID", value: args.user.id },
       ],
     });
@@ -274,6 +294,7 @@ export async function PATCH(req: NextRequest) {
       savedStage?: TalentOpportunitySavedStage | null;
       talentMemo?: string | null;
     };
+    const isMobile = isMobileRequest(req);
 
     const action = body.action;
     if (
@@ -403,27 +424,32 @@ export async function PATCH(req: NextRequest) {
 
         let activityInserted = false;
         if (opportunity) {
-          activityInserted = await insertTalentOpportunityFeedbackActivityEvent({
-            action: body.feedback,
-            admin,
-            conversationId,
-            feedbackReason: body.feedbackReason ?? null,
-            opportunity,
-            userId: user.id,
-          });
+          activityInserted = await insertTalentOpportunityFeedbackActivityEvent(
+            {
+              action: body.feedback,
+              admin,
+              conversationId,
+              feedbackReason: body.feedbackReason ?? null,
+              opportunity,
+              userId: user.id,
+            }
+          );
         }
         try {
           userMessage = await insertExternalOpportunityFeedbackNoteMessage({
             action: body.feedback,
             admin,
             conversationId,
+            isMobile,
             opportunity: opportunity ?? null,
             userId: user.id,
           });
         } catch (noteError) {
           console.error("[career-history:feedback-note]", {
             error:
-              noteError instanceof Error ? noteError.message : String(noteError),
+              noteError instanceof Error
+                ? noteError.message
+                : String(noteError),
             opportunityId,
             userId: user.id,
           });
@@ -442,16 +468,17 @@ export async function PATCH(req: NextRequest) {
 
         assistantMessage =
           replyTrigger && !shouldPromptAfterClearedPositionTab
-          ? await createTalentOpportunityFeedbackFollowUpReply({
-              action: body.feedback,
-              admin,
-              conversationId,
-              feedbackReason: body.feedbackReason ?? null,
-              opportunity: opportunity ?? null,
-              trigger: replyTrigger,
-              userId: user.id,
-            })
-          : null;
+            ? await createTalentOpportunityFeedbackFollowUpReply({
+                action: body.feedback,
+                admin,
+                conversationId,
+                feedbackReason: body.feedbackReason ?? null,
+                isMobile,
+                opportunity: opportunity ?? null,
+                trigger: replyTrigger,
+                userId: user.id,
+              })
+            : null;
       } catch (replyError) {
         console.error("[career-history:feedback-follow-up]", {
           error:
@@ -467,6 +494,7 @@ export async function PATCH(req: NextRequest) {
     if (action === "feedback" && body.feedback) {
       await notifyInternalPositionDecisionSlack({
         decision: body.feedback,
+        deviceLabel: getSlackActivityDeviceLabel(req),
         feedbackReason: body.feedbackReason ?? null,
         interactionSource: body.interactionSource ?? null,
         opportunity: updatedOpportunity ?? null,

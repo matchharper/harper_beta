@@ -6,6 +6,7 @@ import {
   toTalentMessageResponse,
   type TalentConversationRow,
 } from "@/lib/talentOnboarding/server";
+import { isMobileRequest } from "@/lib/requestDevice";
 
 type Body = {
   conversationId?: string;
@@ -38,6 +39,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json().catch(() => ({}))) as Body;
+    const isMobile = isMobileRequest(req);
     const conversationId = body.conversationId?.trim();
     if (!conversationId) {
       return NextResponse.json(
@@ -105,6 +107,7 @@ export async function POST(req: NextRequest) {
     const result = await completeTalentOnboardingManually({
       admin,
       conversationId,
+      isMobile,
       latestUserMessageId:
         typeof latestUserMessage?.id === "number"
           ? latestUserMessage.id

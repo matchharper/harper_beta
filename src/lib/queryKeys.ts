@@ -47,6 +47,7 @@ export const queryKeys = {
     all: ["opsOpportunity"] as const,
     catalogAll: ["opsOpportunity", "catalog"] as const,
     catalog: (filters?: {
+      internalOnly?: boolean | null;
       limit?: number | null;
       workspaceQuery?: string | null;
     }) =>
@@ -54,7 +55,24 @@ export const queryKeys = {
         "opsOpportunity",
         "catalog",
         filters?.workspaceQuery ?? "",
+        Boolean(filters?.internalOnly),
         filters?.limit ?? OPS_OPPORTUNITY_COMPANY_PAGE_SIZE,
+      ] as const,
+    roles: (filters?: {
+      internalOnly?: boolean | null;
+      limit?: number | null;
+      query?: string | null;
+      sourceType?: string | null;
+      workspaceId?: string | null;
+    }) =>
+      [
+        "opsOpportunity",
+        "roles",
+        filters?.workspaceId ?? "all",
+        filters?.query ?? "",
+        filters?.sourceType ?? "all",
+        Boolean(filters?.internalOnly),
+        filters?.limit ?? 25,
       ] as const,
     companiesAll: ["opsOpportunity", "companies"] as const,
     companies: (filters?: {

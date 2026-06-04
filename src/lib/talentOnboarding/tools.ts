@@ -18,10 +18,6 @@ import { lookupAnswerExamples } from "@/lib/serviceAnswerExamples";
 import { normalizeGeneratedTalentInsightEntry } from "./insights";
 import { openUrlWithDocumentsCache } from "./openUrlTool";
 import {
-  normalizeCompanySnapshotName,
-  escapeLikePattern,
-} from "@/lib/career/companySnapshot";
-import {
   appendEducationMemo,
   appendExperienceMemo,
   appendExtraMemo,
@@ -65,6 +61,7 @@ export type TalentToolChannel = "chat" | "voice";
 export type TalentToolExecutionContext = {
   admin?: unknown;
   conversationId?: string;
+  isMobile?: boolean | null;
   userMessageId?: number | string | null;
   userId?: string;
 };
@@ -126,13 +123,13 @@ export const TALENT_TOOL_NAMES = {
   RECOMMEND_COMPANIES: "recommend_companies",
   RECOMMEND_JOB_POSTINGS: "recommend_job_postings",
   READ_RECOMMENDED_OPPORTUNITIES: "read_recommended_opportunities",
+  GET_ROLE_CONTEXT: "get_role_context",
   UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK:
     "update_recommended_opportunity_feedback",
   WEB_SEARCH: "web_search",
   OPEN_URL: "open_url",
   RESEARCH_COMPANY: "research_company",
   LOOKUP_ANSWER_EXAMPLES: "lookup_answer_examples",
-  GET_OPEN_ROLES: "get_open_roles",
   READ_TALENT_ACTIVITY_EVENTS: "read_talent_activity_events",
   UPDATE_TALENT_PROFILE: "update_talent_profile",
 } as const;
@@ -148,10 +145,10 @@ export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   // TALENT_TOOL_NAMES.RECOMMEND_COMPANIES,
   TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS,
   TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES,
+  TALENT_TOOL_NAMES.GET_ROLE_CONTEXT,
   TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK,
   TALENT_TOOL_NAMES.RESEARCH_COMPANY,
   TALENT_TOOL_NAMES.LOOKUP_ANSWER_EXAMPLES,
-  TALENT_TOOL_NAMES.GET_OPEN_ROLES,
   TALENT_TOOL_NAMES.READ_TALENT_ACTIVITY_EVENTS,
   TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
 ] as const;
@@ -288,6 +285,236 @@ function includesLoose(haystack: string, needle: string) {
   return haystack
     .toLocaleLowerCase("ko-KR")
     .includes(needle.toLocaleLowerCase("ko-KR"));
+}
+
+const ROLE_CONTEXT_ROLE_ID_LIMIT = 3;
+const ROLE_CONTEXT_COMPANY_DESCRIPTION_MAX_CHARS = 1600;
+
+const ROLE_CONTEXT_ROLE_SELECT = `
+  role_id,
+  name,
+  description,
+  external_jd_url,
+  location_text,
+  work_mode,
+  type,
+  seniority_level,
+  salary_range,
+  status,
+  posted_at,
+  expires_at,
+  source_type,
+  request,
+  company_workspace:company_workspace!inner (
+    company_db:company_db (
+      name,
+      short_description,
+      description,
+      location,
+      founded_year,
+      employee_count_range
+    )
+  )
+`;
+
+const ROLE_CONTEXT_RECOMMENDATION_SELECT = `
+  role_id,
+  opportunity_type,
+  kind,
+  fit_summary,
+  fit_reasons,
+  tradeoffs,
+  preference_fit,
+  recommended_at,
+  feedback,
+  feedback_reason,
+  saved_stage,
+  processed_stage
+`;
+
+function asToolRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function asToolRecordArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value)
+    ? value.filter(
+        (entry): entry is Record<string, unknown> => asToolRecord(entry) !== null
+      )
+    : [];
+}
+
+function optionalClippedToolString(value: unknown, maxLength: number) {
+  const text = optionalToolString(value);
+  return text ? text.slice(0, maxLength) : null;
+}
+
+function normalizeRoleContextRoleIds(value: unknown) {
+  const rawValues = Array.isArray(value) ? value : [value];
+  const roleIds: string[] = [];
+  const seen = new Set<string>();
+
+  for (const rawValue of rawValues) {
+    const rawText = optionalToolString(rawValue);
+    if (!rawText) continue;
+    const postingRoleId = getPostingRoleIdFromOpportunityId(rawText);
+    const roleId = normalizePostingRoleId(postingRoleId || rawText);
+    if (!isPostingRoleId(roleId) || seen.has(roleId)) continue;
+    seen.add(roleId);
+    roleIds.push(roleId);
+    if (roleIds.length >= ROLE_CONTEXT_ROLE_ID_LIMIT) break;
+  }
+
+  return roleIds;
+}
+
+function normalizeRoleContextStringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.map(optionalToolString).filter((text): text is string => Boolean(text))
+    : [];
+}
+
+function pickLatestRoleContextRecommendation(
+  rows: readonly Record<string, unknown>[]
+) {
+  return [...rows].sort((left, right) => {
+    const leftTime = Date.parse(String(left.recommended_at ?? ""));
+    const rightTime = Date.parse(String(right.recommended_at ?? ""));
+    const normalizedLeftTime = Number.isFinite(leftTime) ? leftTime : 0;
+    const normalizedRightTime = Number.isFinite(rightTime) ? rightTime : 0;
+    return normalizedRightTime - normalizedLeftTime;
+  })[0];
+}
+
+async function runGetRoleContext(args: {
+  admin: any;
+  roleIds: string[];
+  userId: string;
+}) {
+  const [roleResponse, recommendationResponse] = await Promise.all([
+    (args.admin.from("company_roles" as any) as any)
+      .select(ROLE_CONTEXT_ROLE_SELECT)
+      .in("role_id", args.roleIds),
+    (args.admin.from("talent_opportunity_recommendation" as any) as any)
+      .select(ROLE_CONTEXT_RECOMMENDATION_SELECT)
+      .eq("talent_id", args.userId)
+      .in("role_id", args.roleIds)
+      .order("recommended_at", { ascending: false }),
+  ]);
+
+  if (roleResponse.error) {
+    throw new TalentToolError(
+      roleResponse.error.message ?? "Failed to load role context."
+    );
+  }
+  if (recommendationResponse.error) {
+    throw new TalentToolError(
+      recommendationResponse.error.message ??
+        "Failed to load role recommendation context."
+    );
+  }
+
+  const roleRows = asToolRecordArray(roleResponse.data);
+  const recommendationRows = asToolRecordArray(recommendationResponse.data);
+  const roleById = new Map(
+    roleRows
+      .map((row) => [optionalToolString(row.role_id), row] as const)
+      .filter((entry): entry is readonly [string, Record<string, unknown>] =>
+        Boolean(entry[0])
+      )
+  );
+  const recommendationsByRoleId = new Map<string, Record<string, unknown>[]>();
+
+  for (const row of recommendationRows) {
+    const roleId = optionalToolString(row.role_id);
+    if (!roleId) continue;
+    const current = recommendationsByRoleId.get(roleId) ?? [];
+    current.push(row);
+    recommendationsByRoleId.set(roleId, current);
+  }
+
+  const roles = args.roleIds.map((roleId) => {
+    const row = roleById.get(roleId);
+    if (!row) {
+      return {
+        found: false,
+        roleId,
+      };
+    }
+
+    const workspace = asToolRecord(row.company_workspace);
+    const companyDb = asToolRecord(workspace?.company_db);
+    const latestRecommendation = pickLatestRoleContextRecommendation(
+      recommendationsByRoleId.get(roleId) ?? []
+    );
+
+    return {
+      found: true,
+      roleId,
+      role: {
+        roleId,
+        name: optionalToolString(row.name),
+        description: optionalToolString(row.description),
+        externalJdUrl: optionalToolString(row.external_jd_url),
+        locationText: optionalToolString(row.location_text),
+        workMode: optionalToolString(row.work_mode),
+        type: normalizeRoleContextStringArray(row.type),
+        seniorityLevel: optionalToolString(row.seniority_level),
+        salaryRange: optionalToolString(row.salary_range),
+        status: optionalToolString(row.status),
+        postedAt: optionalToolString(row.posted_at),
+        expiresAt: optionalToolString(row.expires_at),
+        sourceType: optionalToolString(row.source_type),
+        internalRequest: optionalToolString(row.request),
+      },
+      companyDb: {
+        name: optionalToolString(companyDb?.name),
+        shortDescription: optionalToolString(companyDb?.short_description),
+        description: optionalClippedToolString(
+          companyDb?.description,
+          ROLE_CONTEXT_COMPANY_DESCRIPTION_MAX_CHARS
+        ),
+        hqLocation: optionalToolString(companyDb?.location),
+        foundedYear:
+          typeof companyDb?.founded_year === "number"
+            ? companyDb.founded_year
+            : optionalToolString(companyDb?.founded_year),
+        employeeCountRange: companyDb?.employee_count_range ?? null,
+      },
+      recommendation: latestRecommendation
+        ? {
+            opportunityType: optionalToolString(
+              latestRecommendation.opportunity_type
+            ),
+            kind: optionalToolString(latestRecommendation.kind),
+            fitSummary: optionalToolString(latestRecommendation.fit_summary),
+            fitReasons: latestRecommendation.fit_reasons ?? [],
+            tradeoffs: latestRecommendation.tradeoffs ?? [],
+            preferenceFit: latestRecommendation.preference_fit ?? null,
+            recommendedAt: optionalToolString(
+              latestRecommendation.recommended_at
+            ),
+            feedback: optionalToolString(latestRecommendation.feedback),
+            feedbackReason: optionalToolString(
+              latestRecommendation.feedback_reason
+            ),
+            savedStage: optionalToolString(latestRecommendation.saved_stage),
+            processedStage: optionalToolString(
+              latestRecommendation.processed_stage
+            ),
+          }
+        : null,
+    };
+  });
+
+  return {
+    requestedRoleIds: args.roleIds,
+    missingRoleIds: roles
+      .filter((role) => !role.found)
+      .map((role) => role.roleId),
+    roles,
+  };
 }
 
 async function resolveRecommendedOpportunityForFeedbackUpdate(args: {
@@ -469,6 +696,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       return selectAdditionalOnboardingQuestion({
         admin: admin as any,
         conversationId,
+        isMobile: context?.isMobile,
         latestUserMessage: optionalToolString(input.latestUserMessage),
         userId,
       });
@@ -659,7 +887,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.RESEARCH_COMPANY]: {
     name: TALENT_TOOL_NAMES.RESEARCH_COMPANY,
     description:
-      "Use this tool when the user GENUINELY wants to learn about a specific company (asking about culture, funding, team, business model, hiring landscape, etc.). On cache hit, returns the saved snapshot instantly; on cache miss, runs real-time web research (5-15 second delay) and returns a synthesized answer with citations.\n\nDo NOT call when:\n- Company name appears in passing or anecdotally (e.g., '내 친구도 토스 다녔어')\n- Company name is part of a JD/role question (use get_open_roles instead)\n- User is just sharing their own experience at a company\n- User asks for an opinion comparing companies without asking for info ('A vs B 어디가 좋을까')\n\nFresh research takes 5-15 seconds — only invoke when the user clearly wants the depth.",
+      "Use this tool when the user GENUINELY wants to learn about a specific company (asking about culture, funding, team, business model, hiring landscape, etc.). On cache hit, returns the saved snapshot instantly; on cache miss, runs real-time web research (5-15 second delay) and returns a synthesized answer with citations.\n\nDo NOT call when:\n- Company name appears in passing or anecdotally (e.g., '내 친구도 토스 다녔어')\n- Company name is part of a JD/role question\n- User is just sharing their own experience at a company\n- User asks for an opinion comparing companies without asking for info ('A vs B 어디가 좋을까')\n\nFresh research takes 5-15 seconds — only invoke when the user clearly wants the depth.",
     parameters: {
       type: "object",
       properties: {
@@ -704,61 +932,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         );
       }
       return lookupAnswerExamples(question);
-    },
-  },
-  [TALENT_TOOL_NAMES.GET_OPEN_ROLES]: {
-    name: TALENT_TOOL_NAMES.GET_OPEN_ROLES,
-    description:
-      "Use when the user asks about job postings, positions, or roles. Returns recommended roles when no company is specified, or roles matching a given company name. Each role includes an `is_recommended` flag.",
-    parameters: {
-      type: "object",
-      properties: {
-        company_name: {
-          type: "string",
-          description:
-            "Optional company name. If provided, returns roles for that company (recommended or not). If omitted, returns only roles already recommended to this user.",
-        },
-        role_filter: {
-          type: "object",
-          description: "Optional filters applied on top of the company filter.",
-          properties: {
-            role_name: {
-              type: "string",
-              description:
-                "Substring to match against the role name (e.g., '백엔드').",
-            },
-            type: {
-              type: "string",
-              description: "Employment type (e.g., 'full_time').",
-            },
-            seniority: {
-              type: "string",
-              description:
-                "Seniority filter exact-match (e.g., 'senior', 'mid').",
-            },
-            work_mode: {
-              type: "string",
-              description: "Work mode filter (e.g., 'remote', 'hybrid').",
-            },
-          },
-          additionalProperties: false,
-        },
-      },
-      additionalProperties: false,
-    },
-    channels: ["chat"],
-    async execute(input, context) {
-      const admin = context?.admin;
-      const userId = context?.userId;
-      if (!admin || !userId) {
-        throw new TalentToolError("get_open_roles requires user context.");
-      }
-      return runGetOpenRoles({
-        admin: admin as any,
-        userId,
-        companyName: optionalToolString(input.company_name),
-        roleFilter: normalizeRoleFilter(input.role_filter),
-      });
     },
   },
   [TALENT_TOOL_NAMES.READ_TALENT_ACTIVITY_EVENTS]: {
@@ -851,15 +1024,12 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       type: "object",
       properties: {
         companyName: {
-          type: "string",
+          type: "array",
           description:
-            "Optional company name filter when the user asks about one company.",
-        },
-        includeDismissed: {
-          type: "boolean",
-          description:
-            "Whether to include opportunities the user already dismissed.",
-          default: false,
+            "Optional company name filters. When provided, returns opportunities whose company name includes at least one of these names.",
+          items: {
+            type: "string",
+          },
         },
         limit: {
           type: "integer",
@@ -882,33 +1052,34 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         );
       }
 
-      const companyName = optionalToolString(input.companyName);
-      const includeDismissed = input.includeDismissed === true;
+      const companyNames = (
+        Array.isArray(input.companyName)
+          ? input.companyName
+          : [input.companyName]
+      )
+        .map(optionalToolString)
+        .filter((name): name is string => Boolean(name));
       const limit = normalizeToolLimit(input.limit, 8);
-      const companyFilter = companyName?.toLocaleLowerCase("ko-KR") ?? null;
+      const companyFilters = companyNames.map((name) =>
+        name.toLocaleLowerCase("ko-KR")
+      );
       const opportunities = await fetchTalentOpportunityHistory({
         admin: admin as any,
         userId,
       });
       const filtered = opportunities.filter((item) => {
-        if (
-          !includeDismissed &&
-          (item.dismissedAt || item.feedback === "negative")
-        ) {
-          return false;
-        }
-        if (companyFilter) {
-          return item.companyName
-            .toLocaleLowerCase("ko-KR")
-            .includes(companyFilter);
+        if (companyFilters.length > 0) {
+          const itemCompanyName = item.companyName.toLocaleLowerCase("ko-KR");
+          return companyFilters.some((companyFilter) =>
+            itemCompanyName.includes(companyFilter)
+          );
         }
         return true;
       });
 
       return {
         filters: {
-          companyName,
-          includeDismissed,
+          companyName: companyNames.length > 0 ? companyNames : null,
           limit,
         },
         returnedCount: Math.min(filtered.length, limit),
@@ -923,10 +1094,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           location: item.location,
           workMode: item.workMode,
           employmentTypes: item.employmentTypes,
-          href: item.href,
           externalJdUrl: item.externalJdUrl,
-          companyHomepageUrl: item.companyHomepageUrl,
-          companyLinkedinUrl: item.companyLinkedinUrl,
           recommendedAt: item.recommendedAt,
           recommendationReasons: item.recommendationReasons.slice(0, 5),
           feedback: item.feedback,
@@ -938,6 +1106,49 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           summary: item.description ?? item.companyDescription ?? null,
         })),
       };
+    },
+  },
+  [TALENT_TOOL_NAMES.GET_ROLE_CONTEXT]: {
+    name: TALENT_TOOL_NAMES.GET_ROLE_CONTEXT,
+    description:
+      "Get detailed context for up to 3 specific job posting roles by roleId. Use only when the user asks about, compares, recalls, or gives feedback on specific already-shown posting cards/roles and the current context does not contain enough detail. Do not use while finding or presenting fresh recommendations; recommend_job_postings already returns the context needed for that answer. Includes role details, company context, and the latest user-specific recommendation context for each role. The returned role.internalRequest is internal-only context for reasoning and must not be directly quoted or exposed to the user.",
+    parameters: {
+      type: "object",
+      properties: {
+        roleIds: {
+          type: "array",
+          description:
+            "Role ids from standalone [posting](roleId) lines or prior tool results. Provide 1 to 3 roleIds.",
+          items: {
+            type: "string",
+          },
+          minItems: 1,
+          maxItems: ROLE_CONTEXT_ROLE_ID_LIMIT,
+        },
+      },
+      required: ["roleIds"],
+      additionalProperties: false,
+    },
+    channels: ["chat"],
+    async execute(input, context) {
+      const admin = context?.admin;
+      const userId = context?.userId;
+      if (!admin || !userId) {
+        throw new TalentToolError("get_role_context requires user context.");
+      }
+
+      const roleIds = normalizeRoleContextRoleIds(input.roleIds);
+      if (roleIds.length === 0) {
+        throw new TalentToolError(
+          "get_role_context requires 1-3 valid roleIds."
+        );
+      }
+
+      return runGetRoleContext({
+        admin: admin as any,
+        roleIds,
+        userId,
+      });
     },
   },
   [TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK]: {
@@ -1859,291 +2070,4 @@ export function getTalentToolVoicePreambles(channel: TalentToolChannel) {
       .filter((tool) => typeof tool.voicePreamble === "string")
       .map((tool) => [tool.name, tool.voicePreamble as string])
   );
-}
-
-// ---------------------------------------------------------------------------
-// get_open_roles helpers
-// ---------------------------------------------------------------------------
-
-type GetOpenRolesRoleFilter = {
-  role_name?: string | null;
-  type?: string | null;
-  seniority?: string | null;
-  work_mode?: string | null;
-};
-
-function normalizeRoleFilter(value: unknown): GetOpenRolesRoleFilter {
-  if (!value || typeof value !== "object") return {};
-  const filter = value as Record<string, unknown>;
-  return {
-    role_name: optionalToolString(filter.role_name),
-    type: optionalToolString(filter.type),
-    seniority: optionalToolString(filter.seniority),
-    work_mode: optionalToolString(filter.work_mode),
-  };
-}
-
-type OpenRoleRow = {
-  role_id: string;
-  name: string;
-  description_summary: string | null;
-  location_text: string | null;
-  work_mode: string | null;
-  salary_range: string | null;
-  posted_at: string | null;
-  external_jd_url: string | null;
-  is_expired: boolean;
-  type: string[] | null;
-  seniority_level: string | null;
-  company_workspace_id: string;
-  company_workspace: {
-    company_workspace_id: string;
-    company_db_id: number | null;
-    company_name: string | null;
-    company_db: { id: number; name: string | null } | null;
-  } | null;
-  talent_opportunity_recommendation: Array<{
-    id: string;
-    talent_id: string;
-    dismissed_at: string | null;
-  }>;
-};
-
-async function runGetOpenRoles(args: {
-  admin: any;
-  userId: string;
-  companyName: string | null;
-  roleFilter: GetOpenRolesRoleFilter;
-}) {
-  const { admin, userId, companyName, roleFilter } = args;
-
-  let rows: OpenRoleRow[];
-
-  if (!companyName) {
-    // No-company path: start FROM talent_opportunity_recommendation so we
-    // never miss recommendations that fall outside the top-N company_roles
-    // rows. This prevents silently dropping recommendations past position 60.
-    let recQuery = admin
-      .from("talent_opportunity_recommendation")
-      .select(
-        `id,
-         talent_id,
-         dismissed_at,
-         company_roles!inner(
-           role_id,
-           name,
-           description_summary,
-           location_text,
-           work_mode,
-           salary_range,
-           posted_at,
-           external_jd_url,
-           is_expired,
-           type,
-           seniority_level,
-           company_workspace_id,
-           company_workspace:company_workspace_id (
-             company_workspace_id,
-             company_db_id,
-             company_name,
-             company_db:company_db_id (id, name)
-           )
-         )`
-      )
-      .eq("talent_id", userId)
-      .is("dismissed_at", null)
-      .eq("company_roles.is_expired", false)
-      .order("recommended_at", { ascending: false, nullsFirst: false })
-      .limit(20);
-
-    if (roleFilter.role_name) {
-      recQuery = recQuery.ilike(
-        "company_roles.name",
-        `%${escapeLikePattern(roleFilter.role_name)}%`
-      );
-    }
-    if (roleFilter.seniority) {
-      recQuery = recQuery.eq(
-        "company_roles.seniority_level",
-        roleFilter.seniority
-      );
-    }
-    if (roleFilter.work_mode) {
-      recQuery = recQuery.eq("company_roles.work_mode", roleFilter.work_mode);
-    }
-    if (roleFilter.type) {
-      recQuery = recQuery.contains("company_roles.type", [roleFilter.type]);
-    }
-
-    const { data: recData, error: recError } = (await recQuery) as {
-      data: Array<{
-        id: string;
-        talent_id: string;
-        dismissed_at: string | null;
-        company_roles: OpenRoleRow;
-      }> | null;
-      error: { message?: string } | null;
-    };
-
-    if (recError) {
-      throw new TalentToolError(
-        recError.message ?? "Failed to read talent_opportunity_recommendation."
-      );
-    }
-
-    // Reshape to match OpenRoleRow shape (embed the rec row back in).
-    rows = (recData ?? []).map((rec) => ({
-      ...rec.company_roles,
-      talent_opportunity_recommendation: [
-        {
-          id: rec.id,
-          talent_id: rec.talent_id,
-          dismissed_at: rec.dismissed_at,
-        },
-      ],
-    }));
-  } else {
-    // With-company path: query company_roles with embedded recommendation.
-    // Company filter narrows scope enough that limit 60 is safe.
-    let query = admin
-      .from("company_roles")
-      .select(
-        `role_id,
-         name,
-         description_summary,
-         location_text,
-         work_mode,
-         salary_range,
-         posted_at,
-         external_jd_url,
-         is_expired,
-         type,
-         seniority_level,
-         company_workspace_id,
-         company_workspace:company_workspace_id (
-           company_workspace_id,
-           company_db_id,
-           company_name,
-           company_db:company_db_id (id, name)
-         ),
-         talent_opportunity_recommendation:talent_opportunity_recommendation!role_id (
-           id,
-           talent_id,
-           dismissed_at
-         )`
-      )
-      .eq("is_expired", false)
-      .eq("talent_opportunity_recommendation.talent_id", userId)
-      .is("talent_opportunity_recommendation.dismissed_at", null)
-      .order("posted_at", { ascending: false, nullsFirst: false })
-      .limit(60);
-
-    if (roleFilter.role_name) {
-      query = query.ilike(
-        "name",
-        `%${escapeLikePattern(roleFilter.role_name)}%`
-      );
-    }
-    if (roleFilter.seniority) {
-      query = query.eq("seniority_level", roleFilter.seniority);
-    }
-    if (roleFilter.work_mode) {
-      query = query.eq("work_mode", roleFilter.work_mode);
-    }
-    if (roleFilter.type) {
-      query = query.contains("type", [roleFilter.type]);
-    }
-
-    const { data, error } = (await query) as {
-      data: OpenRoleRow[] | null;
-      error: { message?: string } | null;
-    };
-
-    if (error) {
-      throw new TalentToolError(
-        error.message ?? "Failed to read company_roles."
-      );
-    }
-
-    rows = (data ?? []) as OpenRoleRow[];
-  }
-
-  const normalizedTarget = companyName
-    ? normalizeCompanySnapshotName(companyName)
-    : null;
-
-  const filtered = companyName
-    ? rows.filter((row) => {
-        const dbName = row.company_workspace?.company_db?.name ?? null;
-        const wsName = row.company_workspace?.company_name ?? null;
-        const candidateNames = [dbName, wsName].filter(
-          (value): value is string =>
-            typeof value === "string" && value.length > 0
-        );
-
-        return candidateNames.some((name) => {
-          if (
-            name
-              .toLocaleLowerCase("ko-KR")
-              .includes(companyName.toLocaleLowerCase("ko-KR"))
-          ) {
-            return true;
-          }
-          if (
-            normalizedTarget &&
-            normalizeCompanySnapshotName(name) === normalizedTarget
-          ) {
-            return true;
-          }
-          return false;
-        });
-      })
-    : rows; // No-company path: all rows already come pre-filtered from the DB.
-
-  // Sort: recommended first, then by posted_at desc (nulls last).
-  filtered.sort((a, b) => {
-    const aRec = (a.talent_opportunity_recommendation ?? []).some(
-      (entry) => entry.talent_id === userId && !entry.dismissed_at
-    );
-    const bRec = (b.talent_opportunity_recommendation ?? []).some(
-      (entry) => entry.talent_id === userId && !entry.dismissed_at
-    );
-    if (aRec !== bRec) return aRec ? -1 : 1;
-    const aPosted = a.posted_at ?? "";
-    const bPosted = b.posted_at ?? "";
-    if (!aPosted && !bPosted) return 0;
-    if (!aPosted) return 1;
-    if (!bPosted) return -1;
-    return aPosted < bPosted ? 1 : aPosted > bPosted ? -1 : 0;
-  });
-
-  const limited = filtered.slice(0, 20);
-
-  const roles = limited.map((row) => {
-    const isRecommended = (row.talent_opportunity_recommendation ?? []).some(
-      (entry) => entry.talent_id === userId && !entry.dismissed_at
-    );
-    const companyDbName = row.company_workspace?.company_db?.name ?? null;
-    const workspaceCompanyName = row.company_workspace?.company_name ?? null;
-    return {
-      role_id: row.role_id,
-      role_name: row.name,
-      description_summary: row.description_summary,
-      location_text: row.location_text,
-      work_mode: row.work_mode,
-      salary_range: row.salary_range,
-      posted_at: row.posted_at,
-      external_jd_url: row.external_jd_url,
-      type: row.type,
-      seniority_level: row.seniority_level,
-      company_name: companyDbName ?? workspaceCompanyName,
-      company_workspace_id: row.company_workspace_id,
-      is_recommended: isRecommended,
-    };
-  });
-
-  return {
-    roles,
-    total: roles.length,
-  };
 }

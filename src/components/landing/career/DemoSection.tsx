@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Lock } from "lucide-react";
+import { ArrowUp, Lock, Phone } from "lucide-react";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { cn } from "@/lib/utils";
 import Reveal from "../Animation/Reveal";
-import { WavyTag } from "@/pages";
 import Image from "next/image";
 
 const REPORT_ITEM_COUNT = 9;
@@ -15,6 +15,7 @@ const matches = [
     role: "시니어 ML 엔지니어 · SF + 리모트",
     fit: "소개 가능",
     mark: "A",
+    iconSrc: "/company-icons/anthropic.png",
   },
   {
     company: "Perplexity",
@@ -22,6 +23,7 @@ const matches = [
     role: "AI 검색 인프라 · 샌프란시스코",
     fit: "비자 이력",
     mark: "P",
+    iconSrc: "/company-icons/perplexity.png",
   },
   {
     company: "Cursor",
@@ -29,6 +31,7 @@ const matches = [
     role: "추론 인프라 어드바이저 · 월 약 10시간 · 리모트",
     fit: "리모트",
     mark: "C",
+    iconSrc: "/company-icons/cursor.png",
   },
   {
     company: "Runway",
@@ -36,6 +39,7 @@ const matches = [
     role: "계약직 ML 엔지니어 · 주 약 20시간 · 리모트",
     fit: "단기",
     mark: "R",
+    iconSrc: "/company-icons/runway.png",
   },
 ] as const;
 
@@ -82,6 +86,27 @@ const chatMessages = [
 
 const finalDemoSteps = [...chatMessages.map((message) => message.step), 13];
 
+const demoItemVisibleClassName = "translate-y-0 opacity-100";
+const demoItemHiddenClassName = "translate-y-3 opacity-0";
+const demoChatTextClassName = "text-xs md:text-[13px] leading-normal";
+const demoIconButtonClassName =
+  "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full sm:h-8 sm:w-8";
+
+const mobileDemoMessages = [
+  {
+    role: "user",
+    text: "미국 AI 스타트업 중 비자 스폰서 있고 Series C 이상인 곳 볼 수 있을까요?",
+  },
+  {
+    role: "ai",
+    text: "가능합니다. 비자, 보상, 위치 기준으로 먼저 추려볼게요.",
+  },
+  {
+    role: "user",
+    text: "이미 제품이 있고 리모트가 섞여 있으면 더 좋고요.",
+  },
+] as const;
+
 type CursorState = {
   active: boolean;
   clicking: boolean;
@@ -112,7 +137,13 @@ function HarperReport({
       <ReportItem index={0} visibleCount={reportItemsVisible}>
         <div className="flex items-start justify-between gap-4 pb-4">
           <div className="flex items-center gap-3.5">
-            <CompanyMark size="lg">A</CompanyMark>
+            <CompanyMark
+              size="lg"
+              iconSrc={matches[0].iconSrc}
+              label={matches[0].company}
+            >
+              A
+            </CompanyMark>
             <div>
               <div className="mt-1 text-[22px] font-semibold leading-[1.15] text-[#21170D] md:text-2xl">
                 Anthropic<span> - Harper Report</span>
@@ -355,25 +386,31 @@ function ChatMatchCard({
   return (
     <div
       ref={refCallback}
-      className={`grid cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-2 rounded-md border-b px-2.5 py-2 transition duration-300 last:border-b-0 ${
-        visible ? "translate-x-0 opacity-100" : "-translate-x-2 opacity-0"
-      } ${selected ? "border-[#D7B48F]/30 bg-[#3B2B1D]" : "border-white/8"}`}
+      className={cn(
+        "flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-2 transition duration-300",
+        visible ? demoItemVisibleClassName : "-translate-x-2 opacity-0",
+        selected
+          ? "border-beige900/25 bg-white"
+          : "border-beige900/10 bg-white/65"
+      )}
     >
-      <CompanyMark>{match.mark}</CompanyMark>
+      <CompanyMark iconSrc={match.iconSrc} label={match.company}>
+        {match.mark}
+      </CompanyMark>
       <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="border-l border-[#D7B48F]/45 pl-1.5 text-[9.5px] font-medium text-[#D7B48F]">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="shrink-0 rounded-full bg-beige900/8 px-1.5 py-0.5 text-[10px] md:text-xs font-medium leading-none text-beige900/65">
             {match.type}
           </span>
-          <span className="truncate text-[12.5px] font-semibold text-[#FFF7EA]">
+          <span className="truncate text-xs font-semibold leading-5 text-beige900">
             {match.company}
           </span>
         </div>
-        <div className="mt-1 truncate text-[10.5px] text-[#BDAF9E]">
+        <div className="mt-0.5 truncate text-xs leading-4 text-beige900/50">
           {match.role}
         </div>
       </div>
-      <div className="shrink-0 text-[10px] font-semibold text-[#E4C6A0]">
+      <div className="hidden shrink-0 text-xs font-semibold text-beige700 sm:block">
         {match.fit}
       </div>
     </div>
@@ -415,15 +452,40 @@ function MessageBubble({
 }) {
   const isUser = role === "user";
 
+  if (!isUser) {
+    return (
+      <div
+        className={cn(
+          "mr-auto mb-2 flex max-w-[92%] items-start gap-2 transition duration-300 md:max-w-[88%]",
+          visible ? demoItemVisibleClassName : demoItemHiddenClassName
+        )}
+      >
+        <Image
+          src="/svgs/harper-h-mark.svg"
+          alt="Harper"
+          width={18}
+          height={18}
+          className="mt-1 h-4 w-4 shrink-0"
+        />
+        <p
+          className={cn(
+            demoChatTextClassName,
+            "whitespace-pre-wrap font-medium text-beige900"
+          )}
+        >
+          {text}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div
-      className={`max-w-[91%] rounded-md px-3 py-2 text-[11.5px] leading-[1.48] transition duration-300 md:max-w-[86%] md:text-[12.5px] md:leading-[1.45] ${
-        visible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
-      } ${
-        isUser
-          ? "ml-auto bg-[#D7B48F] text-[#21170D]"
-          : "mr-auto bg-[#2A2520] text-[#FFF7EA]"
-      }`}
+      className={cn(
+        "ml-auto mb-1 max-w-[91%] rounded-xl bg-beige900 px-3 py-2 text-white transition duration-300 md:max-w-[86%]",
+        demoChatTextClassName,
+        visible ? demoItemVisibleClassName : demoItemHiddenClassName
+      )}
     >
       {text}
     </div>
@@ -438,7 +500,7 @@ function TypingBubble({ active }: { active: boolean }) {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 8 }}
-          className="flex w-fit rounded-md items-center gap-1 bg-[#2A2520] px-3 py-2"
+          className="flex w-fit items-center gap-1 rounded-lg bg-white/65 px-3 py-2 text-beige900/45"
         >
           {[0, 1, 2].map((index) => (
             <motion.span
@@ -449,7 +511,7 @@ function TypingBubble({ active }: { active: boolean }) {
                 repeat: Infinity,
                 delay: index * 0.14,
               }}
-              className="h-1 w-1 rounded-full bg-[#D6C3AC]"
+              className="h-1 w-1 rounded-full bg-beige900/45"
             />
           ))}
         </motion.div>
@@ -467,10 +529,10 @@ function VoiceBar({ active, done }: { active: boolean; done: boolean }) {
         scale: active ? 1 : 0.96,
       }}
       transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      className="ml-auto flex w-fit items-center gap-2 rounded-[14px] rounded-br-[4px] bg-[#D7B48F] px-3 py-2 text-[#21170D]"
+      className="ml-auto flex w-fit items-center gap-2 rounded-xl rounded-br-sm bg-beige900 px-3 py-2 text-beige100"
     >
       <div className="flex items-center gap-[3px]">
-        {[12, 20, 14, 22, 10, 18].map((height, index) => (
+        {[10, 18, 12, 20, 8, 16].map((height, index) => (
           <motion.span
             key={`${height}-${index}`}
             animate={done ? { scaleY: 0.72 } : { scaleY: [0.6, 1, 0.6] }}
@@ -480,12 +542,12 @@ function VoiceBar({ active, done }: { active: boolean; done: boolean }) {
               delay: index * 0.1,
               ease: "easeInOut",
             }}
-            className="w-[3px] origin-center rounded-full bg-[#4B3421]"
+            className="w-[2px] origin-center rounded-full bg-beige100/75"
             style={{ height }}
           />
         ))}
       </div>
-      <span className="text-[12px] font-medium">음성 메모 · 0:28</span>
+      <span className="text-xs font-medium">음성 메모 · 1:28</span>
     </motion.div>
   );
 }
@@ -493,18 +555,95 @@ function VoiceBar({ active, done }: { active: boolean; done: boolean }) {
 function CompanyMark({
   children,
   size = "sm",
+  iconSrc,
+  label,
 }: {
   children: React.ReactNode;
   size?: "sm" | "lg";
+  iconSrc?: string;
+  label?: string;
 }) {
+  if (iconSrc) {
+    return (
+      <div
+        className={cn(
+          "flex shrink-0 items-center justify-center rounded-lg border border-beige900/10 bg-white",
+          size === "lg" ? "h-12 w-12" : "h-7 w-7"
+        )}
+      >
+        <Image
+          src={iconSrc}
+          alt={label ?? ""}
+          width={size === "lg" ? 32 : 20}
+          height={size === "lg" ? 32 : 20}
+          className={cn(
+            "object-contain",
+            size === "lg" ? "h-8 w-8" : "h-4 w-4"
+          )}
+        />
+      </div>
+    );
+  }
+
   return (
     <div
-      className={`flex rounded-md shrink-0 items-center justify-center border border-[#E3D3BE]/15 bg-[#201811] font-geist font-semibold text-[#F7E8D2] ${
-        size === "lg" ? "h-[52px] w-[52px] text-[21px]" : "h-7 w-7 text-[12px]"
-      }`}
+      className={cn(
+        "flex shrink-0 items-center justify-center rounded-lg border border-beige900/10 bg-beige900 font-geist font-semibold text-beige50",
+        size === "lg" ? "h-12 w-12 text-xl" : "h-7 w-7 text-xs"
+      )}
     >
       {children}
     </div>
+  );
+}
+
+function MobileDemoConversation({ visible }: { visible: boolean }) {
+  const visibleClassName = visible
+    ? demoItemVisibleClassName
+    : demoItemHiddenClassName;
+
+  return (
+    <>
+      <VoiceBar active={visible} done={visible} />
+
+      {mobileDemoMessages.map((message) => (
+        <MessageBubble
+          key={message.text}
+          role={message.role}
+          text={message.text}
+          visible={visible}
+        />
+      ))}
+
+      <div
+        className={cn(
+          "flex flex-col gap-1.5 rounded-xl border border-beige900/10 bg-white/55 px-2.5 py-2 transition duration-300",
+          visibleClassName
+        )}
+      >
+        <div className="flex items-center justify-between text-xs font-medium leading-none text-beige900/50">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-beige700" />
+            검색 완료
+          </span>
+          <span>2개 추천</span>
+        </div>
+        {matches.slice(0, 2).map((match, index) => (
+          <ChatMatchCard
+            key={match.company}
+            match={match}
+            visible={visible}
+            selected={index === 0}
+          />
+        ))}
+      </div>
+
+      <MessageBubble
+        role="ai"
+        text="Anthropic은 바로 소개 요청이 가능합니다. 원하시면 브리핑을 먼저 열어볼게요."
+        visible={visible}
+      />
+    </>
   );
 }
 
@@ -541,8 +680,12 @@ function DemoSection({ header }: { header: React.ReactNode }) {
       searchParams.get("demoState") === "final";
 
     if (shouldFreezeFinal) {
-      setFreezeFinalDemo(true);
-      setHasStarted(true);
+      const frame = window.requestAnimationFrame(() => {
+        setFreezeFinalDemo(true);
+        setHasStarted(true);
+      });
+
+      return () => window.cancelAnimationFrame(frame);
     }
   }, []);
 
@@ -569,29 +712,33 @@ function DemoSection({ header }: { header: React.ReactNode }) {
     if (!hasStarted) return;
 
     if (freezeFinalDemo) {
-      setVisibleSteps(finalDemoSteps);
-      setActiveTyping(null);
-      setVoiceActive(true);
-      setVoiceDone(true);
-      setMatchesActive(true);
-      setVisibleMatchCount(matches.length);
-      setSelectedMatch(true);
-      setReportVisible(!isMobile);
-      setReportItemsVisible(REPORT_ITEM_COUNT);
-      setCursor((current) => ({
-        ...current,
-        active: false,
-        clicking: false,
-        x: -40,
-        y: -40,
-        immediate: true,
-      }));
-      window.requestAnimationFrame(() => {
+      const frame = window.requestAnimationFrame(() => {
+        setVisibleSteps(finalDemoSteps);
+        setActiveTyping(null);
+        setVoiceActive(true);
+        setVoiceDone(true);
+        setMatchesActive(true);
+        setVisibleMatchCount(matches.length);
+        setSelectedMatch(true);
+        setReportVisible(!isMobile);
+        setReportItemsVisible(REPORT_ITEM_COUNT);
+        setCursor((current) => ({
+          ...current,
+          active: false,
+          clicking: false,
+          x: -40,
+          y: -40,
+          immediate: true,
+        }));
+
         if (phoneBodyRef.current) {
-          phoneBodyRef.current.scrollTop = phoneBodyRef.current.scrollHeight;
+          phoneBodyRef.current.scrollTop = isMobile
+            ? 0
+            : phoneBodyRef.current.scrollHeight;
         }
       });
-      return;
+
+      return () => window.cancelAnimationFrame(frame);
     }
 
     let cancelled = false;
@@ -734,9 +881,17 @@ function DemoSection({ header }: { header: React.ReactNode }) {
   useEffect(() => {
     const body = phoneBodyRef.current;
     if (!body) return;
+
+    if (freezeFinalDemo && isMobile) {
+      body.scrollTo({ top: 0, behavior: "auto" });
+      return;
+    }
+
     body.scrollTo({ top: body.scrollHeight, behavior: "smooth" });
   }, [
     activeTyping,
+    freezeFinalDemo,
+    isMobile,
     matchesActive,
     reportVisible,
     visibleMatchCount,
@@ -758,26 +913,23 @@ function DemoSection({ header }: { header: React.ReactNode }) {
       <Reveal once className="mx-auto mt-8 max-w-[1180px] md:mt-12">
         <div className="relative mx-auto lg:h-[820px]">
           <div
-            className={`relative z-20 mx-auto w-full max-w-[350px] text-left transition-[left,transform] duration-700 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] sm:max-w-[360px] md:max-w-[390px] lg:absolute lg:top-0 lg:mx-0 lg:w-[400px] lg:max-w-none xl:w-[440px] ${
+            className={cn(
+              "relative z-20 mx-auto w-full max-w-md text-left transition-[left,transform] duration-700 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]",
+              "sm:max-w-md md:max-w-md lg:absolute lg:top-0 lg:mx-0 lg:w-[400px] lg:max-w-none xl:w-[440px]",
               reportVisible
                 ? "lg:left-0 lg:translate-x-0"
                 : "lg:left-1/2 lg:-translate-x-1/2"
-            }`}
+            )}
           >
-            <div className="mb-3 flex items-center justify-between text-[13px] font-medium text-[#6B5A49] md:mb-2">
-              <span>대화 예시</span>
-              <span className="inline-flex items-center border-b border-[#21170D]/15 px-0.5 pb-0.5 text-[11px] text-[#6B5A49] lg:hidden">
-                기준 저장됨
-              </span>
-            </div>
             <div className="relative aspect-[434/842] w-full">
               <div
                 ref={phoneRef}
-                className="absolute inset-x-[5%] bottom-[2%] top-[2%] p-2 z-10 flex flex-col overflow-hidden rounded-[40px] bg-[#151311] text-left"
+                data-demo-phone
+                className="absolute inset-x-[5%] bottom-[1%] top-[1%] z-10 flex flex-col overflow-hidden rounded-[2rem] bg-[#14100c] p-1.5 text-left text-xs sm:p-2"
               >
-                <div className="flex items-center justify-between gap-3 border-b border-white/[0.08] px-3 pb-2.5 pt-[52px] md:pt-[56px]">
-                  <div className="flex items-center gap-2.5">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-md bg-[#D7B48F] md:h-9 md:w-9">
+                <div className="flex items-center justify-between gap-3 rounded-t-3xl border-b border-beige900/10 bg-beige50 px-3 pb-2 pt-12 text-beige900 md:pt-14">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-beige500/70 md:h-9 md:w-9">
                       <Image
                         src="/svgs/harper-h-mark.svg"
                         alt="Harper"
@@ -785,116 +937,169 @@ function DemoSection({ header }: { header: React.ReactNode }) {
                         height={23}
                       />
                     </div>
-                    <div>
-                      <div className="text-[12.5px] font-semibold text-[#FFF7EA]">
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold leading-5 text-beige900">
                         Harper
                       </div>
-                      <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-[#BDAF9E]">
+                      <div className="mt-0.5 flex items-center gap-1.5 text-xs leading-none text-beige900/45">
                         <Lock className="h-3 w-3" strokeWidth={1.8} />
                         비공개 대화
                       </div>
                     </div>
                   </div>
-                  <div className=""></div>
+                  <div className="rounded-full bg-beige900/6 px-2 py-1 text-xs font-medium leading-none text-beige900/55">
+                    Career
+                  </div>
                 </div>
 
                 <div
                   ref={phoneBodyRef}
-                  className="no-scrollbar flex flex-1 flex-col gap-2.5 overflow-y-auto px-1 py-3 md:px-1.5"
+                  className={cn(
+                    "no-scrollbar flex flex-1 flex-col bg-beige100 px-3 py-3",
+                    isMobile
+                      ? "gap-2 overflow-hidden"
+                      : "gap-2 overflow-y-auto md:gap-3"
+                  )}
                 >
-                  <VoiceBar active={voiceActive} done={voiceDone} />
-                  {chatMessages.slice(0, 1).map((message) => (
-                    <MessageBubble
-                      key={message.step}
-                      role={message.role}
-                      text={message.text}
-                      visible={visibleStepSet.has(message.step)}
+                  {isMobile ? (
+                    <MobileDemoConversation
+                      visible={hasStarted || freezeFinalDemo}
                     />
-                  ))}
-                  <TypingBubble active={activeTyping === 3} />
-                  {chatMessages.slice(1, 3).map((message) => (
-                    <MessageBubble
-                      key={message.step}
-                      role={message.role}
-                      text={message.text}
-                      visible={visibleStepSet.has(message.step)}
-                    />
-                  ))}
-                  <TypingBubble active={activeTyping === 6} />
-                  {chatMessages.slice(3, 4).map((message) => (
-                    <MessageBubble
-                      key={message.step}
-                      role={message.role}
-                      text={message.text}
-                      visible={visibleStepSet.has(message.step)}
-                    />
-                  ))}
+                  ) : (
+                    <>
+                      <VoiceBar active={voiceActive} done={voiceDone} />
+                      {chatMessages.slice(0, 1).map((message) => (
+                        <MessageBubble
+                          key={message.step}
+                          role={message.role}
+                          text={message.text}
+                          visible={visibleStepSet.has(message.step)}
+                        />
+                      ))}
+                      <TypingBubble active={activeTyping === 3} />
+                      {chatMessages.slice(1, 3).map((message) => (
+                        <MessageBubble
+                          key={message.step}
+                          role={message.role}
+                          text={message.text}
+                          visible={visibleStepSet.has(message.step)}
+                        />
+                      ))}
+                      <TypingBubble active={activeTyping === 6} />
+                      {chatMessages.slice(3, 4).map((message) => (
+                        <MessageBubble
+                          key={message.step}
+                          role={message.role}
+                          text={message.text}
+                          visible={visibleStepSet.has(message.step)}
+                        />
+                      ))}
 
-                  <div
-                    className={`flex flex-col border-y border-white/[0.08] bg-[#1B1815] px-2.5 py-2 transition ${
-                      matchesActive ? "opacity-100" : "hidden opacity-0"
-                    }`}
-                  >
-                    <div className="mb-0.5 flex items-center justify-between text-[10px] font-medium text-[#BDAF9E]">
-                      <span>정리된 기회</span>
-                      <span>4건</span>
-                    </div>
-                    {matches.map((match, index) => (
-                      <ChatMatchCard
-                        key={match.company}
-                        match={match}
-                        visible={visibleMatchCount > index}
-                        selected={index === 0 && selectedMatch}
-                        refCallback={
-                          index === 0
-                            ? (node) => {
-                                firstMatchRef.current = node;
-                              }
-                            : undefined
-                        }
-                      />
-                    ))}
-                  </div>
+                      <div
+                        className={cn(
+                          "flex flex-col gap-2 rounded-xl border border-beige900/10 bg-white/45 px-2.5 py-2.5 transition",
+                          matchesActive ? "opacity-100" : "hidden opacity-0"
+                        )}
+                      >
+                        <div className="flex items-center justify-between text-xs font-medium leading-none text-beige900/50">
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className="h-1.5 w-1.5 rounded-full bg-beige700" />
+                            검색 완료
+                          </span>
+                          <span>4개 추천</span>
+                        </div>
+                        {matches.map((match, index) => (
+                          <ChatMatchCard
+                            key={match.company}
+                            match={match}
+                            visible={visibleMatchCount > index}
+                            selected={index === 0 && selectedMatch}
+                            refCallback={
+                              index === 0
+                                ? (node) => {
+                                    firstMatchRef.current = node;
+                                  }
+                                : undefined
+                            }
+                          />
+                        ))}
+                      </div>
 
-                  <TypingBubble active={activeTyping === 9} />
-                  {chatMessages.slice(4, 5).map((message) => (
-                    <MessageBubble
-                      key={message.step}
-                      role={message.role}
-                      text={message.text}
-                      visible={visibleStepSet.has(message.step)}
-                    />
-                  ))}
-                  <TypingBubble active={activeTyping === 11} />
-                  {chatMessages.slice(5).map((message) => (
-                    <MessageBubble
-                      key={message.step}
-                      role={message.role}
-                      text={message.text}
-                      visible={visibleStepSet.has(message.step)}
-                    />
-                  ))}
-                  <div
-                    className={`flex max-w-[92%] items-center gap-2.5 bg-[#5E746C]/10 p-2.5 transition duration-300 md:max-w-[88%] ${
-                      visibleStepSet.has(13)
-                        ? "translate-y-0 opacity-100"
-                        : "translate-y-2 opacity-0"
-                    }`}
-                  >
-                    <CompanyMark>C</CompanyMark>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[12.5px] font-semibold leading-none text-[#FFF7EA]">
-                        <span className="mr-1.5 inline-flex pl-1.5 text-[9.5px] text-[#C9D7D1]">
-                          전문가 콜
+                      <TypingBubble active={activeTyping === 9} />
+                      {chatMessages.slice(4, 5).map((message) => (
+                        <MessageBubble
+                          key={message.step}
+                          role={message.role}
+                          text={message.text}
+                          visible={visibleStepSet.has(message.step)}
+                        />
+                      ))}
+                      <TypingBubble active={activeTyping === 11} />
+                      {chatMessages.slice(5).map((message) => (
+                        <MessageBubble
+                          key={message.step}
+                          role={message.role}
+                          text={message.text}
+                          visible={visibleStepSet.has(message.step)}
+                        />
+                      ))}
+                      <div
+                        className={cn(
+                          "flex max-w-[92%] items-center gap-2.5 rounded-xl border border-beige900/10 bg-white/70 p-2.5 transition duration-300 md:max-w-[88%]",
+                          visibleStepSet.has(13)
+                            ? demoItemVisibleClassName
+                            : "translate-y-2 opacity-0"
+                        )}
+                      >
+                        <CompanyMark>C</CompanyMark>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-semibold leading-5 text-beige900">
+                            <span className="mr-1 inline-flex rounded-full bg-beige700/10 px-1.5 py-0.5 text-xs font-medium leading-none text-beige700">
+                              전문가 콜
+                            </span>
+                            LLM 추론 인프라 자문
+                          </div>
+                          <div className="mt-0.5 truncate text-xs leading-4 text-beige900/50">
+                            Series C AI 스타트업 · 1시간 · 이번 주 가능
+                          </div>
+                        </div>
+                        <div className="text-xs font-semibold text-beige700">
+                          $500
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <div className="rounded-b-3xl border-t border-beige900/10 bg-beige50 px-3 pb-4 pt-2 sm:pb-6">
+                  <div className="rounded-2xl border border-beige900/20 bg-white">
+                    <div className="flex min-h-11 items-center gap-1.5 px-3 py-2 sm:gap-2">
+                      <div className="min-w-0 flex-1 truncate whitespace-nowrap text-xs leading-5 text-beige900/35">
+                        <span className="sm:hidden">답변 입력</span>
+                        <span className="hidden sm:inline">
+                          Harper에게 답변을 입력하세요.
                         </span>
-                        LLM 추론 인프라 자문
                       </div>
-                      <div className="mt-1 truncate text-[10px] text-[#BDAF9E]">
-                        Series C AI 스타트업 · 1시간 · 이번 주 가능
-                      </div>
-                    </div>
-                    <div className="text-[11.5px] font-semibold text-[#C9D7D1]">
-                      $500
+                      <button
+                        type="button"
+                        aria-label="통화 모드"
+                        className={cn(
+                          demoIconButtonClassName,
+                          "border border-black/15 bg-white/45 text-beige900"
+                        )}
+                      >
+                        <Phone className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="메시지 보내기"
+                        className={cn(
+                          demoIconButtonClassName,
+                          "border border-beige900 bg-beige900 text-beige50"
+                        )}
+                      >
+                        <ArrowUp className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -920,7 +1125,7 @@ function DemoSection({ header }: { header: React.ReactNode }) {
                       stroke="currentColor"
                       strokeWidth="1.5"
                       strokeLinejoin="round"
-                      className="text-[#FFF7EA]"
+                      className="text-beige900"
                     />
                   </svg>
                 </motion.div>
@@ -932,7 +1137,7 @@ function DemoSection({ header }: { header: React.ReactNode }) {
                       animate={{ opacity: 0, scale: 2.2 }}
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.65, ease: "easeOut" }}
-                      className="pointer-events-none absolute z-[9] h-9 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[#D7B48F] bg-[#D7B48F]/20"
+                      className="pointer-events-none absolute z-[9] h-9 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-beige900 bg-beige900/10"
                       style={{ left: cursor.x, top: cursor.y }}
                     />
                   )}

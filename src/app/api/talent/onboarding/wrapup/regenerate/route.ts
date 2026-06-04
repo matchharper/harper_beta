@@ -6,6 +6,7 @@ import {
   type TalentMessageRow,
 } from "@/lib/talentOnboarding/server";
 import { regenerateOnboardingCompletionMessages } from "@/lib/talentOnboarding/onboardingCompletionWrapup";
+import { isMobileRequest } from "@/lib/requestDevice";
 
 function isRegenerateEnabled() {
   return (
@@ -60,6 +61,7 @@ export async function POST(request: NextRequest) {
     await regenerateOnboardingCompletionMessages({
       admin,
       conversationId,
+      isMobile: isMobileRequest(request),
       userId: user.id,
     });
   const message = wrapupMessage

@@ -307,6 +307,7 @@ export type OpsOpportunityRoleRecord = {
 };
 
 export type OpsOpportunityCatalogResponse = {
+  internalOnly: boolean;
   nextWorkspaceOffset: number | null;
   roles: OpsOpportunityRoleRecord[];
   workspaceLimit: number;
@@ -314,6 +315,18 @@ export type OpsOpportunityCatalogResponse = {
   workspaceQuery: string;
   workspaceTotalCount: number | null;
   workspaces: OpsOpportunityWorkspaceRecord[];
+};
+
+export type OpsOpportunityRoleListResponse = {
+  internalOnly: boolean;
+  items: OpsOpportunityRoleRecord[];
+  limit: number;
+  nextOffset: number | null;
+  offset: number;
+  query: string;
+  sourceType: OpportunitySourceType | null;
+  totalCount: number | null;
+  workspaceId: string | null;
 };
 
 export type OpsCompanyManagementCompanyDbRecord = {
@@ -1117,6 +1130,20 @@ function normalizeOpportunitySourceType(value: unknown): OpportunitySourceType {
   return value === "external" ? "external" : "internal";
 }
 
+type RoleSourceTypeFilterQuery<TQuery> = {
+  eq: (column: string, value: string) => TQuery;
+  or: (filters: string) => TQuery;
+};
+
+function applyRoleSourceTypeFilter<
+  TQuery extends RoleSourceTypeFilterQuery<TQuery>,
+>(query: TQuery, sourceType: OpportunitySourceType): TQuery {
+  if (sourceType === "external") {
+    return query.eq("source_type", "external");
+  }
+  return query.or("source_type.eq.internal,source_type.is.null");
+}
+
 function normalizeOpportunityStatus(value: unknown): OpportunityStatus {
   if (value === "top_priority") return "top_priority";
   if (value === "ended") return "ended";
@@ -1645,12 +1672,16 @@ async function fetchMatchedCandidateCountByRoleId(
   return counts;
 }
 
-export async function fetchOpsOpportunityCatalog(args: {
-  workspaceLimit?: number;
-  workspaceOffset?: number;
-  workspaceQuery?: string | null;
-} = {}): Promise<OpsOpportunityCatalogResponse> {
+export async function fetchOpsOpportunityCatalog(
+  args: {
+    internalOnly?: boolean;
+    workspaceLimit?: number;
+    workspaceOffset?: number;
+    workspaceQuery?: string | null;
+  } = {}
+): Promise<OpsOpportunityCatalogResponse> {
   const admin = getSupabaseAdmin();
+  const internalOnly = Boolean(args.internalOnly);
   const workspaceLimit = Math.max(
     1,
     Math.min(
@@ -1659,10 +1690,7 @@ export async function fetchOpsOpportunityCatalog(args: {
       OPS_OPPORTUNITY_COMPANY_PAGE_SIZE
     )
   );
-  const workspaceOffset = Math.max(
-    0,
-    Number(args.workspaceOffset ?? 0) || 0
-  );
+  const workspaceOffset = Math.max(0, Number(args.workspaceOffset ?? 0) || 0);
   const workspaceQueryText = sanitizeCompanyManagementFilterText(
     String(args.workspaceQuery ?? "")
   );
@@ -1673,6 +1701,10 @@ export async function fetchOpsOpportunityCatalog(args: {
       { count: "exact" }
     )
     .order("updated_at", { ascending: false }) as any;
+
+  if (internalOnly) {
+    workspaceQuery = workspaceQuery.eq("is_internal", true);
+  }
 
   if (workspaceQueryText) {
     workspaceQuery = workspaceQuery.or(
@@ -1707,12 +1739,18 @@ export async function fetchOpsOpportunityCatalog(args: {
 
   let roleRows: RoleRow[] = [];
   if (workspaceIds.length > 0) {
-    const roleResponse = await ((admin.from("company_roles" as any) as any)
+    let roleQuery = (admin.from("company_roles" as any) as any)
       .select(
         "role_id, company_workspace_id, name, external_jd_url, description, description_summary, type, status, request, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode"
       )
       .in("company_workspace_id", workspaceIds)
-      .order("updated_at", { ascending: false }) as any);
+      .order("updated_at", { ascending: false }) as any;
+
+    if (internalOnly) {
+      roleQuery = applyRoleSourceTypeFilter(roleQuery, "internal");
+    }
+
+    const roleResponse = await roleQuery;
     const roleError = (roleResponse as { error?: { message?: string } }).error;
     if (roleError) {
       throw new Error(roleError.message ?? "Failed to load roles");
@@ -1775,6 +1813,7 @@ export async function fetchOpsOpportunityCatalog(args: {
         : null;
 
   return {
+    internalOnly,
     nextWorkspaceOffset,
     roles: roleRows
       .map((row) =>
@@ -1810,6 +1849,202 @@ export async function fetchOpsOpportunityCatalog(args: {
         totalRoleCount: stats.total,
       });
     }),
+  };
+}
+
+export async function fetchOpsOpportunityRoles(
+  args: {
+    internalOnly?: boolean;
+    limit?: number;
+    offset?: number;
+    query?: string | null;
+    sourceType?: OpportunitySourceType | null;
+    workspaceId?: string | null;
+  } = {}
+): Promise<OpsOpportunityRoleListResponse> {
+  const admin = getSupabaseAdmin();
+  const internalOnly = Boolean(args.internalOnly);
+  const limit = Math.max(1, Math.min(Number(args.limit ?? 25) || 25, 100));
+  const offset = Math.max(0, Number(args.offset ?? 0) || 0);
+  const queryText = sanitizeCompanyManagementFilterText(
+    String(args.query ?? "")
+  );
+  const sourceType =
+    args.sourceType === "internal" || args.sourceType === "external"
+      ? args.sourceType
+      : null;
+  const workspaceId = String(args.workspaceId ?? "").trim() || null;
+
+  let workspaceNameById = new Map<string, string>();
+  let queryMatchesWorkspace = false;
+
+  if (workspaceId) {
+    const { data: workspaceData, error: workspaceError } = await (
+      admin.from("company_workspace" as any) as any
+    )
+      .select("company_workspace_id, company_name, is_internal")
+      .eq("company_workspace_id", workspaceId)
+      .maybeSingle();
+
+    if (workspaceError) {
+      throw new Error(workspaceError.message ?? "Failed to load workspace");
+    }
+
+    if (!workspaceData || (internalOnly && !workspaceData.is_internal)) {
+      return {
+        internalOnly,
+        items: [],
+        limit,
+        nextOffset: null,
+        offset,
+        query: queryText,
+        sourceType,
+        totalCount: 0,
+        workspaceId,
+      };
+    }
+
+    const workspaceName = String(workspaceData.company_name ?? "");
+    workspaceNameById = new Map([[workspaceId, workspaceName]]);
+    queryMatchesWorkspace = Boolean(
+      queryText && workspaceName.toLowerCase().includes(queryText.toLowerCase())
+    );
+  }
+
+  let roleQuery = (admin.from("company_roles" as any) as any)
+    .select(
+      "role_id, company_workspace_id, name, external_jd_url, description, description_summary, type, status, request, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode",
+      { count: "exact" }
+    )
+    .order("updated_at", { ascending: false }) as any;
+
+  if (workspaceId) {
+    roleQuery = roleQuery.eq("company_workspace_id", workspaceId);
+  }
+
+  if (sourceType) {
+    roleQuery = applyRoleSourceTypeFilter(roleQuery, sourceType);
+  }
+
+  if (queryText && !queryMatchesWorkspace) {
+    roleQuery = roleQuery.or(
+      [
+        `name.ilike.%${queryText}%`,
+        `description.ilike.%${queryText}%`,
+        `description_summary.ilike.%${queryText}%`,
+        `location_text.ilike.%${queryText}%`,
+        `request.ilike.%${queryText}%`,
+        `external_jd_url.ilike.%${queryText}%`,
+      ].join(",")
+    );
+  }
+
+  const roleResponse = await roleQuery.range(offset, offset + limit - 1);
+  const roleError = (roleResponse as { error?: { message?: string } }).error;
+  if (roleError) {
+    throw new Error(roleError.message ?? "Failed to load roles");
+  }
+
+  let roleRows = coerceJsonArray<RoleRow>(
+    (roleResponse as { data?: unknown }).data
+  );
+
+  if (!workspaceId && internalOnly && roleRows.length > 0) {
+    const workspaceIds = Array.from(
+      new Set(
+        roleRows
+          .map((row) => String(row.company_workspace_id ?? "").trim())
+          .filter(Boolean)
+      )
+    );
+    const { data: workspaceData, error: workspaceError } = await (
+      admin.from("company_workspace" as any) as any
+    )
+      .select("company_workspace_id, company_name, is_internal")
+      .in("company_workspace_id", workspaceIds)
+      .eq("is_internal", true);
+
+    if (workspaceError) {
+      throw new Error(workspaceError.message ?? "Failed to load workspaces");
+    }
+
+    workspaceNameById = new Map(
+      coerceJsonArray<{
+        company_name?: string | null;
+        company_workspace_id?: string | null;
+      }>(workspaceData).map((row) => [
+        String(row.company_workspace_id ?? ""),
+        String(row.company_name ?? ""),
+      ])
+    );
+    roleRows = roleRows.filter((row) =>
+      workspaceNameById.has(String(row.company_workspace_id ?? ""))
+    );
+  } else if (!workspaceId && roleRows.length > 0) {
+    const workspaceIds = Array.from(
+      new Set(
+        roleRows
+          .map((row) => String(row.company_workspace_id ?? "").trim())
+          .filter(Boolean)
+      )
+    );
+    const { data: workspaceData, error: workspaceError } = await (
+      admin.from("company_workspace" as any) as any
+    )
+      .select("company_workspace_id, company_name")
+      .in("company_workspace_id", workspaceIds);
+
+    if (workspaceError) {
+      throw new Error(workspaceError.message ?? "Failed to load workspaces");
+    }
+
+    workspaceNameById = new Map(
+      coerceJsonArray<{
+        company_name?: string | null;
+        company_workspace_id?: string | null;
+      }>(workspaceData).map((row) => [
+        String(row.company_workspace_id ?? ""),
+        String(row.company_name ?? ""),
+      ])
+    );
+  }
+
+  const roleIds = roleRows
+    .map((row) => String(row.role_id ?? ""))
+    .filter(Boolean);
+  const matchedCandidateCountByRoleId =
+    await fetchMatchedCandidateCountByRoleId(admin, roleIds);
+  const totalCount =
+    typeof (roleResponse as { count?: unknown }).count === "number"
+      ? (roleResponse as { count: number }).count
+      : null;
+  const nextOffset =
+    totalCount === null
+      ? roleRows.length === limit
+        ? offset + limit
+        : null
+      : offset + roleRows.length < totalCount
+        ? offset + limit
+        : null;
+
+  return {
+    internalOnly,
+    items: roleRows.map((row) =>
+      mapRoleRecord({
+        companyName:
+          workspaceNameById.get(String(row.company_workspace_id ?? "")) ?? "",
+        matchedCandidateCount:
+          matchedCandidateCountByRoleId.get(String(row.role_id ?? "")) ?? 0,
+        row,
+      })
+    ),
+    limit,
+    nextOffset,
+    offset,
+    query: queryText,
+    sourceType,
+    totalCount,
+    workspaceId,
   };
 }
 

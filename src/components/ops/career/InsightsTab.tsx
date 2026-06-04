@@ -2,6 +2,7 @@ import { memo, useCallback, useMemo, useState } from "react";
 import { LoaderCircle, RefreshCw, Save } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { useRefreshInsights, useUpdateInsights } from "@/hooks/useOpsCareer";
+import { getInsightLabel } from "@/lib/talentOnboarding/insightChecklist";
 import type { CareerTalentDetailResponse } from "@/lib/opsCareerServer";
 
 type InsightsTabProps = {
@@ -26,6 +27,23 @@ export const InsightsTab = memo(function InsightsTab({
   const emptyCount = useMemo(() => {
     return mergedChecklist.filter((item) => !insights?.[item.key]?.trim())
       .length;
+  }, [mergedChecklist, insights]);
+
+  const displayInsightItems = useMemo(() => {
+    const checklistKeys = new Set(mergedChecklist.map((item) => item.key));
+    const additionalItems = Object.keys(insights ?? {})
+      .filter((key) => !checklistKeys.has(key))
+      .sort((left, right) => left.localeCompare(right, "ko-KR"))
+      .map((key) => ({
+        key,
+        label: getInsightLabel(key),
+        isAdditional: true,
+      }));
+
+    return [
+      ...mergedChecklist.map((item) => ({ ...item, isAdditional: false })),
+      ...additionalItems,
+    ];
   }, [mergedChecklist, insights]);
 
   const hasChanges = useMemo(() => {
@@ -161,7 +179,7 @@ export const InsightsTab = memo(function InsightsTab({
       </div>
 
       <div className="space-y-2">
-        {mergedChecklist.map((item) => {
+        {displayInsightItems.map((item) => {
           const savedValue = insights?.[item.key] ?? "";
           const displayValue = isEditing
             ? (editedValues[item.key] ?? savedValue)
@@ -178,8 +196,13 @@ export const InsightsTab = memo(function InsightsTab({
               )}
             >
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
+                <div className="flex min-w-0 items-center gap-1.5">
                   <div className={opsTheme.eyebrow}>{item.label}</div>
+                  {item.isAdditional ? (
+                    <div className="truncate font-geist text-[11px] text-beige900/30">
+                      {item.key}
+                    </div>
+                  ) : null}
                 </div>
               </div>
               {isEditing ? (
@@ -207,7 +230,7 @@ export const InsightsTab = memo(function InsightsTab({
             </div>
           );
         })}
-        {mergedChecklist.length === 0 ? (
+        {displayInsightItems.length === 0 ? (
           <div className="rounded-md border border-dashed border-beige900/15 bg-white/30 px-4 py-6 text-center font-geist text-sm text-beige900/40">
             추출된 인사이트가 없습니다.
           </div>

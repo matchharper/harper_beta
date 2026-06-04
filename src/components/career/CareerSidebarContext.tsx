@@ -69,6 +69,7 @@ export type CareerSidebarContextValue = {
   ) => void | Promise<void>;
   callStartPending?: boolean;
   onStartCallMode?: (openingText?: string) => boolean | Promise<boolean>;
+  onUseChatOnly?: () => void | Promise<void>;
   onStartConversationStarter?: (args: {
     mode: CareerConversationStarterMode;
     starterId: CareerConversationStarterId;

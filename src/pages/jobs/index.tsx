@@ -7,6 +7,13 @@ import { PageContainer } from "@/components/layout/PageContainer";
 import { postOfficialJobEvent } from "@/lib/officialJobEvents";
 import { OFFICIAL_JOBS_LOGIN_HREF, type OfficialJob } from "@/lib/officialJobs";
 import {
+  OFFICIAL_JOBS_CANONICAL_URL,
+  OFFICIAL_JOBS_LIST_DESCRIPTION,
+  OFFICIAL_JOBS_LIST_TITLE,
+  OFFICIAL_JOBS_OG_IMAGE_URL,
+  buildOfficialJobsCollectionStructuredData,
+} from "@/lib/officialJobsSeo";
+import {
   getPublicOfficialJobByAshbyId,
   getPublicOfficialJobs,
 } from "@/lib/officialJobs.server";
@@ -49,9 +56,9 @@ function buildRedirectDestination(
 function OfficialJobsTable({ jobs }: { jobs: OfficialJob[] }) {
   const router = useRouter();
 
-  const openJob = (
+  const trackJobClick = (
     job: OfficialJob,
-    source: "jobs_table_row" | "jobs_mobile_card"
+    source: "jobs_table_row" | "jobs_table_link" | "jobs_mobile_card"
   ) => {
     void postOfficialJobEvent({
       eventType: "job_list_click",
@@ -62,6 +69,13 @@ function OfficialJobsTable({ jobs }: { jobs: OfficialJob[] }) {
         source,
       },
     });
+  };
+
+  const openJob = (
+    job: OfficialJob,
+    source: "jobs_table_row" | "jobs_table_link" | "jobs_mobile_card"
+  ) => {
+    trackJobClick(job, source);
     void router.push(`/jobs/${job.slug}`);
   };
 
@@ -78,12 +92,12 @@ function OfficialJobsTable({ jobs }: { jobs: OfficialJob[] }) {
       <div className="space-y-0 md:hidden">
         {jobs.map((job) => {
           return (
-            <button
+            <Link
               key={job.id}
-              type="button"
+              href={`/jobs/${job.slug}`}
               aria-label={`${job.roleTitle}, ${job.companyName} 자세히 보기`}
-              className="group relative w-full overflow-hidden rounded-[0px] border border-beige900/10 border-b-0 bg-white/50 px-4 py-5 pl-5 text-left transition hover:-translate-y-0.5 hover:border-beige900/20 hover:bg-white/90 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-beige700/15 active:translate-y-0"
-              onClick={() => openJob(job, "jobs_mobile_card")}
+              className="group relative block w-full overflow-hidden rounded-[0px] border border-beige900/10 border-b-0 bg-white/50 px-4 py-5 pl-5 text-left transition hover:-translate-y-0.5 hover:border-beige900/20 hover:bg-white/90 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-beige700/15 active:translate-y-0"
+              onClick={() => trackJobClick(job, "jobs_mobile_card")}
             >
               <div className="flex items-start justify-between gap-3">
                 <h2 className="break-words text-[16px] font-medium leading-[1.42] text-black">
@@ -108,7 +122,7 @@ function OfficialJobsTable({ jobs }: { jobs: OfficialJob[] }) {
                   </div>
                 </div>
               </div>
-            </button>
+            </Link>
           );
         })}
       </div>
@@ -146,9 +160,16 @@ function OfficialJobsTable({ jobs }: { jobs: OfficialJob[] }) {
                 }}
               >
                 <td className="max-w-[240px] px-4 py-3 align-top">
-                  <div className="font-medium text-black underline-offset-4 hover:underline">
+                  <Link
+                    href={`/jobs/${job.slug}`}
+                    className="font-medium text-black underline-offset-4 hover:underline"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      trackJobClick(job, "jobs_table_link");
+                    }}
+                  >
                     {job.roleTitle}
-                  </div>
+                  </Link>
                 </td>
                 <td className="px-4 py-3 align-top font-medium text-black/78">
                   {job.companyName}
@@ -170,6 +191,8 @@ function OfficialJobsTable({ jobs }: { jobs: OfficialJob[] }) {
 }
 
 export default function OfficialJobsPage({ jobs }: OfficialJobsPageProps) {
+  const structuredData = buildOfficialJobsCollectionStructuredData(jobs);
+
   return (
     <>
       <OfficialJobsEventTracker
@@ -177,12 +200,49 @@ export default function OfficialJobsPage({ jobs }: OfficialJobsPageProps) {
         metadata={{ jobCount: jobs.length }}
       />
       <Head>
-        <title>Jobs Harper Is Watching | Harper</title>
+        <title>{OFFICIAL_JOBS_LIST_TITLE}</title>
         <meta
+          key="description"
           name="description"
-          content="Harper가 먼저 살펴보는 역할을 보고, 관심 있는 기회가 있으면 대화로 더 좁혀보세요."
+          content={OFFICIAL_JOBS_LIST_DESCRIPTION}
         />
+        <meta
+          key="robots"
+          name="robots"
+          content="index,follow,max-image-preview:large"
+        />
+        <link rel="canonical" href={OFFICIAL_JOBS_CANONICAL_URL} />
+        <link
+          rel="alternate"
+          hrefLang="x-default"
+          href={OFFICIAL_JOBS_CANONICAL_URL}
+        />
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Harper" />
+        <meta property="og:locale" content="ko_KR" />
+        <meta property="og:title" content={OFFICIAL_JOBS_LIST_TITLE} />
+        <meta
+          property="og:description"
+          content={OFFICIAL_JOBS_LIST_DESCRIPTION}
+        />
+        <meta property="og:url" content={OFFICIAL_JOBS_CANONICAL_URL} />
+        <meta property="og:image" content={OFFICIAL_JOBS_OG_IMAGE_URL} />
+        <meta property="og:image:alt" content={OFFICIAL_JOBS_LIST_TITLE} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={OFFICIAL_JOBS_LIST_TITLE} />
+        <meta
+          name="twitter:description"
+          content={OFFICIAL_JOBS_LIST_DESCRIPTION}
+        />
+        <meta name="twitter:image" content={OFFICIAL_JOBS_OG_IMAGE_URL} />
         <link rel="icon" href="/images/logo.ico" />
+        <script
+          key="ld-official-jobs"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(structuredData),
+          }}
+        />
       </Head>
       <Page as="div" background="beige" minHeight="svh" safeArea="bottom">
         <OfficialJobsHeader />

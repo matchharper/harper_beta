@@ -307,6 +307,7 @@ const CareerHomePanel = ({
     process.env.NODE_ENV !== "production" ||
     userEmail.endsWith("@matchharper.com") ||
     userEmail === "hyunbin.bk@gmail.com" ||
+    userEmail === "khj6051@optimizerai.xyz" ||
     userEmail === "khj605123@gmail.com";
 
   const opportunityRunLocked =

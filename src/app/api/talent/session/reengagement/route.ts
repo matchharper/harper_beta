@@ -14,6 +14,7 @@ import {
   buildCareerSessionStartTurnInstruction,
   CAREER_SESSION_START_NO_MESSAGE_MARKER,
 } from "@/lib/career/prompts";
+import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 
 const REENGAGEMENT_IDLE_MS = 6 * 60 * 60 * 1000;
 
@@ -53,6 +54,7 @@ async function finalizeSessionReengagement(args: {
   conversation: TalentConversationRow;
   deletedMessage: DeletedTalentMessage | null;
   isReengagementAnchorCurrent: () => Promise<boolean>;
+  isMobile?: boolean | null;
   now: string;
   result: CareerChatTurnResult;
   userId: string;
@@ -62,6 +64,7 @@ async function finalizeSessionReengagement(args: {
     conversation,
     deletedMessage,
     isReengagementAnchorCurrent,
+    isMobile,
     now,
     result,
     userId,
@@ -81,14 +84,19 @@ async function finalizeSessionReengagement(args: {
   ) {
     const { error: insertReengagementError } = await admin
       .from("talent_messages")
-      .insert({
-        conversation_id: conversation.id,
-        user_id: userId,
-        role: "assistant",
-        content: CAREER_SESSION_START_NO_MESSAGE_MARKER,
-        message_type: TALENT_MESSAGE_TYPE_SESSION_REENGAGEMENT_SKIP,
-        created_at: now,
-      });
+      .insert(
+        withIsMobile(
+          {
+            conversation_id: conversation.id,
+            user_id: userId,
+            role: "assistant",
+            content: CAREER_SESSION_START_NO_MESSAGE_MARKER,
+            message_type: TALENT_MESSAGE_TYPE_SESSION_REENGAGEMENT_SKIP,
+            created_at: now,
+          },
+          isMobile
+        )
+      );
 
     if (insertReengagementError) {
       throw new Error(
@@ -115,6 +123,7 @@ async function finalizeSessionReengagement(args: {
 
 const DEV_SESSION_REENGAGEMENT_TEST_EMAILS = new Set([
   "hyunbin.bk@gmail.com",
+  "khj6051@optimizerai.xyz",
   "khj605123@gmail.com",
 ]);
 
@@ -149,6 +158,7 @@ export async function POST(req: NextRequest) {
     }
 
     const admin = getTalentSupabaseAdmin();
+    const isMobile = isMobileRequest(req);
 
     await ensureTalentUserRecord({ admin, user });
 
@@ -337,6 +347,7 @@ export async function POST(req: NextRequest) {
             const result = await runCareerChatTurn({
               admin,
               conversationId: conversation.id,
+              isMobile,
               noMessageMarker: CAREER_SESSION_START_NO_MESSAGE_MARKER,
               onRecommendationStatus: (status) => {
                 send("recommendation_search_status", status);
@@ -353,6 +364,7 @@ export async function POST(req: NextRequest) {
               conversation,
               deletedMessage,
               isReengagementAnchorCurrent,
+              isMobile,
               now,
               result,
               userId: user.id,
@@ -379,6 +391,7 @@ export async function POST(req: NextRequest) {
     const result = await runCareerChatTurn({
       admin,
       conversationId: conversation.id,
+      isMobile,
       noMessageMarker: CAREER_SESSION_START_NO_MESSAGE_MARKER,
       proactiveContext,
       shouldInsertAssistantMessage: isReengagementAnchorCurrent,
@@ -389,6 +402,7 @@ export async function POST(req: NextRequest) {
       conversation,
       deletedMessage,
       isReengagementAnchorCurrent,
+      isMobile,
       now,
       result,
       userId: user.id,

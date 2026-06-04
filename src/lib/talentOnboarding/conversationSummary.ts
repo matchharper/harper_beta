@@ -7,7 +7,6 @@ import {
 import {
   TALENT_MESSAGE_TYPE_ONBOARDING_ADDITIONAL_QUESTION_SELECTION,
   TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NOTICE,
-  TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NEXT_STEPS,
   TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP,
   TALENT_MESSAGE_TYPE_SESSION_REENGAGEMENT_SKIP,
 } from "@/lib/talentOnboarding/onboarding";
@@ -20,11 +19,24 @@ import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunity
 const SUMMARY_MESSAGE_TYPE = "conversation_summary";
 const DEFAULT_MIN_MESSAGE_COUNT = 14;
 const DEFAULT_MIN_SOURCE_CHARS = 5000;
-const DEFAULT_RECENT_MESSAGE_LIMIT = 12;
-const MIN_RECENT_RAW_MESSAGES = 6;
+const DEFAULT_RECENT_MESSAGE_LIMIT = 16;
+const MIN_RECENT_RAW_MESSAGES = 16;
 const MAX_SOURCE_MESSAGES = 80;
 const MAX_SOURCE_CHARS = 18000;
+const SUMMARY_LOOKUP_LIMIT = 10;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+const SUMMARY_ROW_SELECT = `
+  id,
+  talent_id,
+  conversation_id,
+  from_message_id,
+  to_message_id,
+  message_count,
+  segment_summary,
+  source_char_count,
+  summary_text,
+  created_at
+`;
 
 type TalentConversationSummaryRow = {
   id: string;
@@ -36,7 +48,6 @@ type TalentConversationSummaryRow = {
   segment_summary: string;
   source_char_count: number;
   summary_text: string;
-  summary_json: Record<string, unknown>;
   created_at: string;
 };
 
@@ -72,18 +83,6 @@ function parseJsonObject(raw: string): Record<string, unknown> | null {
 function normalizeText(value: unknown, maxLength = 8000) {
   const text = typeof value === "string" ? value.trim() : "";
   return text ? text.slice(0, maxLength) : "";
-}
-
-function normalizeStringArray(value: unknown, limit = 8) {
-  if (!Array.isArray(value)) return [];
-  const normalized: string[] = [];
-  for (const item of value) {
-    const text = normalizeText(item, 500);
-    if (!text) continue;
-    normalized.push(text);
-    if (normalized.length >= limit) break;
-  }
-  return normalized;
 }
 
 function toSummaryKstDateKey(value: string | null | undefined) {
@@ -154,7 +153,7 @@ function buildSummarySystemPrompt() {
     "You summarize Harper career-agent conversations for future context.",
     "Return a valid JSON object only.",
     "Write Korean unless a company, role, or product name is naturally English.",
-    "Preserve durable facts: career preferences, constraints, corrections, recommendation feedback, open loops, and next actions.",
+    "Preserve durable facts: career preferences, constraints, corrections, recommendation feedback, and unresolved commitments already stated in the conversation.",
     "Also write `segment_summary` from ONLY the new messages to fold in. It should be 4-8 concise Korean sentences and must not include facts that only come from the existing rolling summary.",
     "Each new message includes a KST date. `segment_summary` must include date labels for the summarized message date(s).",
     'Format each `segment_summary` segment as `[YYYY.MM.DD] "summary"`. If a single summarized segment spans consecutive dates in the same month, use `[YYYY.MM.DD~DD] "summary"`, for example `[2026.05.24~26] "..."`. If a date range crosses months or years, use full endpoints like `[YYYY.MM.DD~YYYY.MM.DD] "summary"`.',
@@ -163,7 +162,6 @@ function buildSummarySystemPrompt() {
     "If a fact appears in both the existing summary and new messages, mention it once.",
     "If new messages correct or supersede an older fact, keep the corrected version only.",
     "Opportunity feedback notes such as saved/dismissed roles are action logs, not full user utterances. Compact many similar feedback notes into concise preference/status changes; do not let role-save logs dominate the summary.",
-    "`do_not_repeat` should contain only concrete context Harper should avoid repeating because it was already covered, rejected, or annoyed the user. Do not carry forward stale empathy/style notes unless the new messages explicitly support them.",
     "Do not invent facts. Do not include routine greetings or filler.",
   ].join("\n");
 }
@@ -177,9 +175,6 @@ function buildSummaryUserPrompt(args: {
       ? [
           "[Existing rolling summary]",
           args.existingSummary.summary_text,
-          "",
-          "[Existing structured summary]",
-          JSON.stringify(args.existingSummary.summary_json ?? {}, null, 2),
         ].join("\n")
       : "[Existing rolling summary]\n(none)",
     "",
@@ -196,10 +191,6 @@ function buildSummaryUserPrompt(args: {
           '[YYYY.MM.DD] "4-8 sentence summary of ONLY the new messages from that date"; use multiple dated segments or same-month ranges like [2026.05.24~26] when needed.',
         summary_text:
           "8-12 sentence compact, deduplicated rolling summary of the useful conversation state.",
-        key_points: ["durable user preference or fact"],
-        open_loops: ["unresolved follow-up or decision"],
-        do_not_repeat: ["context Harper should avoid repeating"],
-        next_best_action: "one concise next action Harper should take",
       },
       null,
       2
@@ -215,13 +206,13 @@ async function fetchLatestConversationSummary(args: {
   const { data, error } = await ((
     args.admin.from("talent_conversation_summaries" as any) as any
   )
-    .select("*")
+    .select(SUMMARY_ROW_SELECT)
     .eq("talent_id", args.userId)
     .eq("conversation_id", args.conversationId)
+    .neq("segment_summary", "")
     .order("to_message_id", { ascending: false })
     .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle() as any);
+    .limit(SUMMARY_LOOKUP_LIMIT) as any);
 
   if (error) {
     throw new Error(
@@ -229,7 +220,11 @@ async function fetchLatestConversationSummary(args: {
     );
   }
 
-  return (data ?? null) as TalentConversationSummaryRow | null;
+  return (
+    ((data ?? []) as TalentConversationSummaryRow[]).find((row) =>
+      Boolean(normalizeText(row.segment_summary, 1))
+    ) ?? null
+  );
 }
 
 async function fetchLatestConversationSummaryCursor(args: {
@@ -240,13 +235,13 @@ async function fetchLatestConversationSummaryCursor(args: {
   const { data, error } = await ((
     args.admin.from("talent_conversation_summaries" as any) as any
   )
-    .select("created_at, to_message_id")
+    .select("created_at, segment_summary, to_message_id")
     .eq("talent_id", args.userId)
     .eq("conversation_id", args.conversationId)
+    .neq("segment_summary", "")
     .order("to_message_id", { ascending: false })
     .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle() as any);
+    .limit(SUMMARY_LOOKUP_LIMIT) as any);
 
   if (error) {
     throw new Error(
@@ -254,7 +249,17 @@ async function fetchLatestConversationSummaryCursor(args: {
     );
   }
 
-  return (data ?? null) as TalentConversationSummaryCursorRow | null;
+  const summary =
+    ((data ?? []) as Array<
+      TalentConversationSummaryCursorRow & { segment_summary?: string | null }
+    >).find((row) => Boolean(normalizeText(row.segment_summary, 1))) ?? null;
+
+  return summary
+    ? {
+        created_at: summary.created_at,
+        to_message_id: summary.to_message_id,
+      }
+    : null;
 }
 
 async function fetchRecentConversationSegmentSummaries(args: {
@@ -337,20 +342,16 @@ export async function maybeSummarizeTalentConversation(args: {
       messages: summarizedMessages,
     }),
   });
-  const parsed = parseJsonObject(raw) ?? {};
+  const parsed = parseJsonObject(raw);
+  if (!parsed) {
+    return { created: false, reason: "invalid_summary" as const };
+  }
   const segmentSummary = normalizeText(parsed.segment_summary, 3000);
-  const summaryText =
-    normalizeText(parsed.summary_text, 6000) || normalizeText(raw, 6000);
-  if (!summaryText) {
+  const summaryText = normalizeText(parsed.summary_text, 6000);
+  if (!segmentSummary || !summaryText) {
     return { created: false, reason: "empty_summary" as const };
   }
 
-  const summaryJson = {
-    do_not_repeat: normalizeStringArray(parsed.do_not_repeat),
-    key_points: normalizeStringArray(parsed.key_points, 12),
-    next_best_action: normalizeText(parsed.next_best_action, 800),
-    open_loops: normalizeStringArray(parsed.open_loops),
-  };
   const fromMessage = summarizedMessages[0];
   const toMessage = summarizedMessages[summarizedMessages.length - 1];
   const summarizedCharCount = summarizedMessages.reduce(
@@ -375,14 +376,13 @@ export async function maybeSummarizeTalentConversation(args: {
         message_count: summarizedMessages.length,
         segment_summary: segmentSummary,
         source_char_count: summarizedCharCount,
-        summary_json: summaryJson,
         summary_text: summaryText,
         talent_id: args.userId,
         to_message_id: toMessage.id,
       },
       { onConflict: "conversation_id,to_message_id" }
     )
-    .select("*")
+    .select(SUMMARY_ROW_SELECT)
     .single() as any);
 
   if (error) {
@@ -402,8 +402,6 @@ function isVisibleSummaryRecentMessage(message: TalentMessageRow) {
     message.message_type ===
       TALENT_MESSAGE_TYPE_ONBOARDING_ADDITIONAL_QUESTION_SELECTION ||
     message.message_type === TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NOTICE ||
-    message.message_type ===
-      TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NEXT_STEPS ||
     message.message_type === TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP ||
     message.message_type === TALENT_MESSAGE_TYPE_SESSION_REENGAGEMENT_SKIP
   ) {
@@ -441,6 +439,35 @@ function buildSegmentSummariesPseudoMessage(args: {
   };
 }
 
+async function fetchRecentVisibleSummaryMessages(args: {
+  admin: TalentAdminClient;
+  conversationId: string;
+  limit: number;
+}) {
+  const targetLimit = Math.max(1, Math.min(args.limit, MAX_SOURCE_MESSAGES));
+  let fetchLimit = targetLimit;
+
+  while (fetchLimit <= MAX_SOURCE_MESSAGES) {
+    const messages = (
+      await fetchRecentMessages({
+        admin: args.admin,
+        conversationId: args.conversationId,
+        limit: fetchLimit,
+      })
+    ).filter(isVisibleSummaryRecentMessage);
+
+    if (messages.length >= targetLimit || fetchLimit === MAX_SOURCE_MESSAGES) {
+      return messages.slice(-targetLimit);
+    }
+
+    const nextFetchLimit = Math.min(fetchLimit * 2, MAX_SOURCE_MESSAGES);
+    if (nextFetchLimit === fetchLimit) return messages;
+    fetchLimit = nextFetchLimit;
+  }
+
+  return [];
+}
+
 export async function fetchRecentMessagesWithSummary(args: {
   admin: TalentAdminClient;
   conversationId: string;
@@ -453,12 +480,19 @@ export async function fetchRecentMessagesWithSummary(args: {
     Math.min(args.recentLimit ?? DEFAULT_RECENT_MESSAGE_LIMIT, 40)
   );
   const latestSummary = await fetchLatestConversationSummaryCursor(args);
+  const rawRecentLimit = latestSummary
+    ? recentLimit
+    : Math.max(
+        recentLimit,
+        Math.min(args.fallbackLimit ?? recentLimit, MAX_SOURCE_MESSAGES)
+      );
+  const recentMessages = await fetchRecentVisibleSummaryMessages({
+    admin: args.admin,
+    conversationId: args.conversationId,
+    limit: rawRecentLimit,
+  });
   if (!latestSummary) {
-    return fetchRecentMessages({
-      admin: args.admin,
-      conversationId: args.conversationId,
-      limit: args.fallbackLimit ?? 24,
-    });
+    return recentMessages;
   }
   const segmentSummaries = await fetchRecentConversationSegmentSummaries({
     admin: args.admin,
@@ -466,41 +500,6 @@ export async function fetchRecentMessagesWithSummary(args: {
     limit: 3,
     userId: args.userId,
   });
-
-  const { data, error } = await args.admin
-    .from("talent_messages")
-    .select(
-      "id, conversation_id, user_id, role, content, message_type, thinking_logs, created_at"
-    )
-    .eq("conversation_id", args.conversationId)
-    .gt("id", latestSummary.to_message_id)
-    .order("id", { ascending: false })
-    .limit(recentLimit);
-
-  if (error) {
-    throw new Error(error.message ?? "Failed to load recent talent_messages");
-  }
-
-  let recentMessages = ((data ?? []) as TalentMessageRow[])
-    .filter(isVisibleSummaryRecentMessage)
-    .reverse();
-
-  if (recentMessages.length < MIN_RECENT_RAW_MESSAGES) {
-    const fallbackRecentMessages = (
-      await fetchRecentMessages({
-        admin: args.admin,
-        conversationId: args.conversationId,
-        limit: recentLimit,
-      })
-    ).filter(isVisibleSummaryRecentMessage);
-    const messageById = new Map<number, TalentMessageRow>();
-    for (const message of [...recentMessages, ...fallbackRecentMessages]) {
-      messageById.set(message.id, message);
-    }
-    recentMessages = Array.from(messageById.values())
-      .sort((left, right) => left.id - right.id)
-      .slice(-recentLimit);
-  }
 
   return [
     ...(segmentSummaries.length > 0

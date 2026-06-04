@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { useLogEvent } from "@/hooks/useLog";
+import type { LogEventMetadata } from "@/lib/logEvent";
 
 const CAREER_LOG_PREFIX = "career_";
 
@@ -7,7 +8,7 @@ export function useCareerLogEvent() {
   const logEvent = useLogEvent();
 
   return useCallback(
-    (type: string) => {
+    (type: string, metadata?: LogEventMetadata) => {
       const trimmedType = String(type ?? "").trim();
       if (!trimmedType) return;
 
@@ -15,7 +16,9 @@ export function useCareerLogEvent() {
         ? trimmedType
         : `${CAREER_LOG_PREFIX}${trimmedType}`;
 
-      void logEvent(eventType);
+      // Keep metadata minimal: store only stable IDs needed for analytics
+      // (for example, companyId), never names, URLs, payloads, or full objects.
+      void logEvent(eventType, metadata);
     },
     [logEvent]
   );

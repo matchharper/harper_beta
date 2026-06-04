@@ -2,9 +2,27 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser, supabaseServer } from "@/lib/supabaseServer";
 
 type LogBody = {
+  isMobile?: unknown;
+  metadata?: unknown;
   type?: string;
   userId?: string;
 };
+
+type LogMetadata = Record<string, string | number | boolean | null>;
+
+function isLogMetadata(value: unknown): value is LogMetadata {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  return Object.values(value).every(
+    (metadataValue) =>
+      metadataValue === null ||
+      typeof metadataValue === "string" ||
+      typeof metadataValue === "number" ||
+      typeof metadataValue === "boolean"
+  );
+}
 
 export async function POST(req: NextRequest) {
   const user = await getRequestUser(req);
@@ -24,11 +42,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing type" }, { status: 400 });
   }
 
+  let metadata: LogMetadata | undefined;
+  if (body.metadata !== undefined) {
+    if (!isLogMetadata(body.metadata)) {
+      return NextResponse.json({ error: "Invalid metadata" }, { status: 400 });
+    }
+    if (Object.keys(body.metadata).length > 0) {
+      metadata = body.metadata;
+    }
+  }
+
   // Never trust client-provided userId for ownership.
   const userId = user.id;
+  const isMobile =
+    typeof body.isMobile === "boolean" ? body.isMobile : undefined;
   const { data, error } = await supabaseServer
     .from("logs")
-    .insert({ type, user_id: userId })
+    .insert({
+      type,
+      user_id: userId,
+      ...(typeof isMobile === "boolean" ? { is_mobile: isMobile } : {}),
+      ...(metadata ? { meta_data: metadata } : {}),
+    })
     .select("id")
     .single();
 

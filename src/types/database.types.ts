@@ -2890,18 +2890,24 @@ export type Database = {
         Row: {
           created_at: string
           id: number
+          is_mobile: boolean | null
+          meta_data: Json | null
           type: string | null
           user_id: string | null
         }
         Insert: {
           created_at?: string
           id?: number
+          is_mobile?: boolean | null
+          meta_data?: Json | null
           type?: string | null
           user_id?: string | null
         }
         Update: {
           created_at?: string
           id?: number
+          is_mobile?: boolean | null
+          meta_data?: Json | null
           type?: string | null
           user_id?: string | null
         }
@@ -4897,6 +4903,7 @@ export type Database = {
           conversation_id: string | null
           created_at: string
           id: number
+          is_mobile: boolean | null
           message_type: string
           role: string
           thinking_logs: Json
@@ -4907,6 +4914,7 @@ export type Database = {
           conversation_id?: string | null
           created_at?: string
           id?: number
+          is_mobile?: boolean | null
           message_type?: string
           role: string
           thinking_logs?: Json
@@ -4917,6 +4925,7 @@ export type Database = {
           conversation_id?: string | null
           created_at?: string
           id?: number
+          is_mobile?: boolean | null
           message_type?: string
           role?: string
           thinking_logs?: Json

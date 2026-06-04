@@ -106,10 +106,11 @@ export default function App({ Component, pageProps }: AppProps) {
       <Head>
         <title>Harper — AI Recruiter</title>
         <meta
+          key="description"
           name="description"
           content="Harper는 모든 팀들을 위한 전담 AI Recruiter입니다."
         />
-        <meta name="theme-color" content="#F7F0E8" />
+        <meta key="theme-color" name="theme-color" content="#F7F0E8" />
       </Head>
       {GA_ID && (
         <>

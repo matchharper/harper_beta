@@ -27,6 +27,7 @@ import {
 import { getCareerConversationStarterPrompt } from "@/lib/career/conversationStarterPrompts";
 import { getCareerRealtimeCandidateToolNames } from "@/lib/career/llmTools";
 import { buildCareerRealtimeSessionInstructions } from "@/lib/career/realtimeInstructions";
+import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 
 type Body = {
   assistantEndedOnboarding?: boolean;
@@ -53,6 +54,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json()) as Body;
+    const isMobile = isMobileRequest(req);
     const conversationId = body.conversationId?.trim();
     const conversationStarterId =
       typeof body.conversationStarterId === "string"
@@ -202,13 +204,18 @@ export async function POST(req: NextRequest) {
     if (userMessageText) {
       const { data, error } = await admin
         .from("talent_messages")
-        .insert({
-          conversation_id: conversationId,
-          user_id: user.id,
-          role: "user",
-          content: userMessageText,
-          message_type: messageType,
-        })
+        .insert(
+          withIsMobile(
+            {
+              conversation_id: conversationId,
+              user_id: user.id,
+              role: "user",
+              content: userMessageText,
+              message_type: messageType,
+            },
+            isMobile
+          )
+        )
         .select("*")
         .single();
 
@@ -225,13 +232,18 @@ export async function POST(req: NextRequest) {
     if (assistantMessageText) {
       const { data, error } = await admin
         .from("talent_messages")
-        .insert({
-          conversation_id: conversationId,
-          user_id: user.id,
-          role: "assistant",
-          content: assistantMessageText,
-          message_type: messageType,
-        })
+        .insert(
+          withIsMobile(
+            {
+              conversation_id: conversationId,
+              user_id: user.id,
+              role: "assistant",
+              content: assistantMessageText,
+              message_type: messageType,
+            },
+            isMobile
+          )
+        )
         .select("*")
         .single();
 
@@ -317,6 +329,7 @@ export async function POST(req: NextRequest) {
         ? await createOnboardingCompletionMessages({
             admin,
             conversationId,
+            isMobile,
             latestUserMessageId: insertedUserMessage.id,
             userId: user.id,
           })

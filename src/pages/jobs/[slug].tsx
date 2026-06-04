@@ -7,6 +7,14 @@ import { Page } from "@/components/layout/Page";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { postOfficialJobEvent } from "@/lib/officialJobEvents";
 import { OFFICIAL_JOBS_LOGIN_HREF, type OfficialJob } from "@/lib/officialJobs";
+import {
+  OFFICIAL_JOBS_OG_IMAGE_URL,
+  buildOfficialJobCanonicalUrl,
+  buildOfficialJobDescription,
+  buildOfficialJobStructuredData,
+  buildOfficialJobTitle,
+  toIsoDateTime,
+} from "@/lib/officialJobsSeo";
 import { getPublicOfficialJobBySlug } from "@/lib/officialJobs.server";
 import {
   BriefcaseBusiness,
@@ -17,7 +25,6 @@ import {
 } from "lucide-react";
 import type { GetServerSideProps } from "next";
 import Head from "next/head";
-import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -82,7 +89,12 @@ function DetailSection({
 export default function OfficialJobDetailPage({
   job,
 }: OfficialJobDetailPageProps) {
-  const pageTitle = `${job.roleTitle} at ${job.companyName} | Harper`;
+  const pageTitle = buildOfficialJobTitle(job);
+  const pageDescription = buildOfficialJobDescription(job);
+  const canonicalUrl = buildOfficialJobCanonicalUrl(job.slug);
+  const publishedIsoDate = toIsoDateTime(job.publishedAt);
+  const updatedIsoDate = toIsoDateTime(job.updatedAt);
+  const structuredData = buildOfficialJobStructuredData(job);
   const trackApplyClick = (source: string) => {
     void postOfficialJobEvent({
       eventType: "job_apply_click",
@@ -107,8 +119,43 @@ export default function OfficialJobDetailPage({
       />
       <Head>
         <title>{pageTitle}</title>
-        <meta name="description" content={job.shortDescription} />
+        <meta key="description" name="description" content={pageDescription} />
+        <meta
+          key="robots"
+          name="robots"
+          content="index,follow,max-image-preview:large"
+        />
+        <link rel="canonical" href={canonicalUrl} />
+        <link rel="alternate" hrefLang="x-default" href={canonicalUrl} />
+        <meta property="og:type" content="article" />
+        <meta property="og:site_name" content="Harper" />
+        <meta property="og:locale" content="ko_KR" />
+        <meta property="og:title" content={pageTitle} />
+        <meta property="og:description" content={pageDescription} />
+        <meta property="og:url" content={canonicalUrl} />
+        <meta property="og:image" content={OFFICIAL_JOBS_OG_IMAGE_URL} />
+        <meta property="og:image:alt" content={pageTitle} />
+        {publishedIsoDate && (
+          <meta property="article:published_time" content={publishedIsoDate} />
+        )}
+        {updatedIsoDate && (
+          <meta property="article:modified_time" content={updatedIsoDate} />
+        )}
+        {job.vertical && (
+          <meta property="article:section" content={job.vertical} />
+        )}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={pageTitle} />
+        <meta name="twitter:description" content={pageDescription} />
+        <meta name="twitter:image" content={OFFICIAL_JOBS_OG_IMAGE_URL} />
         <link rel="icon" href="/images/logo.ico" />
+        <script
+          key={`ld-official-job-${job.slug}`}
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(structuredData),
+          }}
+        />
       </Head>
       <Page as="div" background="beige" minHeight="svh" safeArea="bottom">
         <OfficialJobsHeader />

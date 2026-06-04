@@ -3,9 +3,8 @@ import type {
   TalentOpportunityFeedback,
   TalentOpportunityHistoryItem,
 } from "@/lib/talentOpportunity";
-import {
-  getTalentEngagementLabels,
-} from "@/lib/talentNetworkOptions";
+import { getTalentEngagementLabels } from "@/lib/talentNetworkOptions";
+import { logger } from "@/utils/logger";
 
 export type TalentActivityImpactLevel = "low" | "medium" | "high";
 
@@ -715,6 +714,10 @@ export function formatOpportunityFeedbackPromptContext(
 
     return `- ${index + 1}. ${actionLabel}: ${roleLabel || "(unknown opportunity)"}; ${details.join("; ")}`;
   });
+
+  logger.log(
+    "\n\n\n## Pending opportunity feedback since Harper last replied\n\n\n"
+  );
 
   return [
     "## Pending opportunity feedback since Harper last replied",

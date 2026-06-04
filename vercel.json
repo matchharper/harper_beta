@@ -13,8 +13,12 @@
       "schedule": "0 2 * * *"
     },
     {
+      "path": "/api/internal/zighang/watchdog",
+      "schedule": "0 12 * * *"
+    },
+    {
       "path": "/api/internal/daily-user-stats",
-      "schedule": "5 0 * * *"
+      "schedule": "0 16 * * *"
     }
   ]
 }

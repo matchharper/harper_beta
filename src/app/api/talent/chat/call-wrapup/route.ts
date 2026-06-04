@@ -14,6 +14,7 @@ import { completeTalentOnboardingManually } from "@/lib/talentOnboarding/manualC
 import { runCareerChatTurn } from "@/lib/career/chatTurn";
 import { TALENT_TOOL_NAMES } from "@/lib/talentOnboarding/tools";
 import { getCareerConversationStarterPrompt } from "@/lib/career/conversationStarterPrompts";
+import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 
 type TranscriptEntry = {
   role: "user" | "assistant";
@@ -160,20 +161,26 @@ function normalizeFollowUpMessage(content: string): string {
 async function insertFallbackFollowUp(args: {
   content: string;
   conversationId: string;
+  isMobile?: boolean | null;
   supabase: ReturnType<typeof getTalentSupabaseAdmin>;
   userId: string;
 }) {
   const now = new Date().toISOString();
   const { data: savedFollowUp, error: followUpError } = await args.supabase
     .from("talent_messages")
-    .insert({
-      conversation_id: args.conversationId,
-      user_id: args.userId,
-      role: "assistant",
-      content: args.content,
-      message_type: "call_wrapup",
-      created_at: now,
-    })
+    .insert(
+      withIsMobile(
+        {
+          conversation_id: args.conversationId,
+          user_id: args.userId,
+          role: "assistant",
+          content: args.content,
+          message_type: "call_wrapup",
+          created_at: now,
+        },
+        args.isMobile
+      )
+    )
     .select("id, role, content, message_type, created_at")
     .single();
 
@@ -214,6 +221,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as Body;
+    const isMobile = isMobileRequest(request);
     const {
       conversationId,
       conversationStarterId: rawConversationStarterId,
@@ -302,6 +310,7 @@ export async function POST(request: NextRequest) {
       const result = await completeTalentOnboardingManually({
         admin: supabase,
         conversationId,
+        isMobile,
         source: "career_call_manual_completion",
         userId: user.id,
       });
@@ -342,6 +351,7 @@ export async function POST(request: NextRequest) {
         assistantMessageType: "call_wrapup",
         conversationId,
         inlineInsightExtraction: true,
+        isMobile,
         proactiveContext: buildCareerCallWrapupTurnInstruction({
           durationLabel,
           isBrief: briefConversation,
@@ -382,6 +392,7 @@ export async function POST(request: NextRequest) {
     const fallbackMessage = await insertFallbackFollowUp({
       content: fallbackFollowUpText,
       conversationId,
+      isMobile,
       supabase,
       userId: user.id,
     });
