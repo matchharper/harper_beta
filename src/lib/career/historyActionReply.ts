@@ -6,7 +6,6 @@ import {
   buildCareerHistoryActionReplyUserPrompt,
   buildCareerOpportunityFeedbackFollowUpTurnInstruction,
   type CareerHistoryActionReplyAction,
-  type CareerOpportunityFeedbackFollowUpResponseMode,
   type CareerOpportunityFeedbackFollowUpTrigger,
 } from "@/lib/career/prompts";
 import {
@@ -106,37 +105,6 @@ const buildProfileStatusContext = (args: {
     `resumeLinkCount: ${resumeLinks.length}`,
     `isOnboardingDone: ${args.setting?.is_onboarding_done ? "true" : "false"}`,
   ].join("\n");
-};
-
-const getFeedbackFollowUpResponseMode = (args: {
-  items: readonly TalentOpportunityFeedbackActivityItem[];
-  trigger: TalentOpportunityFeedbackReplyTrigger;
-}): CareerOpportunityFeedbackFollowUpResponseMode => {
-  if (args.trigger === "immediate_internal_feedback") return "use_judgment";
-  if (args.trigger === "all_recommended_opportunities_cleared") {
-    return "use_judgment";
-  }
-  if (args.items.length === 0) return "wrap_up_preferred";
-
-  const signature = [
-    args.trigger,
-    ...args.items.map((item) =>
-      [
-        item.eventId,
-        item.opportunityId,
-        item.action,
-        item.companyName,
-        item.title,
-        item.feedbackReason,
-      ].join(":")
-    ),
-  ].join("|");
-  let hash = 0;
-  for (let index = 0; index < signature.length; index += 1) {
-    hash = (hash * 31 + signature.charCodeAt(index)) >>> 0;
-  }
-
-  return hash % 2 === 0 ? "question_preferred" : "wrap_up_preferred";
 };
 
 async function assertConversationAccess(args: {
@@ -343,17 +311,12 @@ export async function createTalentOpportunityFeedbackFollowUpReply(args: {
   if (items.length === 0) return null;
 
   const feedbackContext = formatOpportunityFeedbackPromptContext(items);
-  const responseMode = getFeedbackFollowUpResponseMode({
-    items,
-    trigger: args.trigger,
-  });
   const result = await runCareerChatTurn({
     admin: args.admin,
     conversationId,
     isMobile: args.isMobile,
     pendingOpportunityFeedbackContext: feedbackContext,
     proactiveContext: buildCareerOpportunityFeedbackFollowUpTurnInstruction({
-      responseMode,
       trigger: args.trigger,
     }),
     shouldInsertAssistantMessage: usingFallbackOnly

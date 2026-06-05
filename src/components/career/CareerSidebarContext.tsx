@@ -60,7 +60,9 @@ export type CareerSidebarContextValue = {
   onboardingCompletionTestPending: boolean;
   sessionReengagementTestPending: boolean;
   onRunOnboardingCompletionTest: () => boolean | Promise<boolean>;
-  onRunSessionReengagementTest: () => boolean | void | Promise<boolean | void>;
+  onRunSessionReengagementTest: (options?: {
+    deleteLatestMessage?: boolean;
+  }) => boolean | void | Promise<boolean | void>;
   onRunPeriodicOpportunityDiscoveryTest: (
     agentVariant?: CareerOpportunityAgentVariant
   ) => void | Promise<void>;

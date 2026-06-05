@@ -1,9 +1,8 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import { CareerFlowProvider } from "@/components/career/CareerFlowProvider";
-import CareerLoginGate from "@/components/career/CareerLoginGate";
 import CareerSettingsModal from "@/components/career/CareerSettingsModal";
 import CareerWorkspaceScreen, {
   CareerLoadingState,
@@ -26,8 +25,7 @@ const CareerWorkspacePage = ({
 }) => {
   const router = useRouter();
   const logCareerEvent = useCareerLogEvent();
-  const { user, authLoading, authPending, authError, handleGoogleLogin } =
-    useCareerAuth();
+  const { user, authLoading } = useCareerAuth();
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const isRouterReady = router.isReady;
   const inviteToken =
@@ -57,6 +55,15 @@ const CareerWorkspacePage = ({
     mail,
   });
   useCareerVisitLog(!authLoading && isRouterReady && Boolean(user));
+
+  useEffect(() => {
+    if (authLoading || !isRouterReady || user) return;
+
+    void router.replace({
+      pathname: "/career_login",
+      query: { next: router.asPath || getCareerWorkspaceHref(activeTab) },
+    });
+  }, [activeTab, authLoading, isRouterReady, router, user]);
 
   const handleOpenSettings = useCallback(() => {
     logCareerEvent("click_open_settings");
@@ -124,16 +131,7 @@ const CareerWorkspacePage = ({
   if (authLoading || !isRouterReady) {
     pageContent = <CareerLoadingState />;
   } else if (!user) {
-    pageContent = (
-      <CareerWorkspaceScreen>
-        <CareerLoginGate
-          activeTab={activeTab}
-          authPending={authPending}
-          authError={authError}
-          onGoogleLogin={handleGoogleLogin}
-        />
-      </CareerWorkspaceScreen>
-    );
+    pageContent = <CareerLoadingState />;
   } else {
     pageContent = (
       <CareerFlowProvider

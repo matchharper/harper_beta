@@ -389,6 +389,7 @@ function pickLatestRoleContextRecommendation(
 
 async function runGetRoleContext(args: {
   admin: any;
+  includeJd: boolean;
   roleIds: string[];
   userId: string;
 }) {
@@ -455,7 +456,9 @@ async function runGetRoleContext(args: {
       role: {
         roleId,
         name: optionalToolString(row.name),
-        description: optionalToolString(row.description),
+        ...(args.includeJd
+          ? { description: optionalToolString(row.description) }
+          : {}),
         externalJdUrl: optionalToolString(row.external_jd_url),
         locationText: optionalToolString(row.location_text),
         workMode: optionalToolString(row.work_mode),
@@ -1111,10 +1114,15 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.GET_ROLE_CONTEXT]: {
     name: TALENT_TOOL_NAMES.GET_ROLE_CONTEXT,
     description:
-      "Get detailed context for up to 3 specific job posting roles by roleId. Use only when the user asks about, compares, recalls, or gives feedback on specific already-shown posting cards/roles and the current context does not contain enough detail. Do not use while finding or presenting fresh recommendations; recommend_job_postings already returns the context needed for that answer. Includes role details, company context, and the latest user-specific recommendation context for each role. The returned role.internalRequest is internal-only context for reasoning and must not be directly quoted or exposed to the user.",
+      "Get detailed context for up to 3 specific job posting roles by roleId. Use only when the user asks about, compares, recalls, or gives feedback on specific already-shown posting cards/roles and the current context does not contain enough detail. Do not use while finding or presenting fresh recommendations; recommend_job_postings already returns the context needed for that answer. Includes role details, company context, and the latest user-specific recommendation context for each role. Set include_jd true only when the job description/JD text is needed; when false, role.description is omitted. The returned role.internalRequest is internal-only context for reasoning and must not be directly quoted or exposed to the user.",
     parameters: {
       type: "object",
       properties: {
+        include_jd: {
+          type: "boolean",
+          description:
+            "Whether to include the job description text as role.description. Set true when the user needs JD/details/responsibilities/requirements; set false when role metadata and recommendation context are enough.",
+        },
         roleIds: {
           type: "array",
           description:
@@ -1126,7 +1134,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           maxItems: ROLE_CONTEXT_ROLE_ID_LIMIT,
         },
       },
-      required: ["roleIds"],
+      required: ["roleIds", "include_jd"],
       additionalProperties: false,
     },
     channels: ["chat"],
@@ -1146,6 +1154,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
 
       return runGetRoleContext({
         admin: admin as any,
+        includeJd: input.include_jd === true,
         roleIds,
         userId,
       });
@@ -1234,7 +1243,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE]: {
     name: TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
     description:
-      "Update internal profile state with new information about the user. It can update talent_users.bio, talent_preferences, and row memos during onboarding and after onboarding. It can update talent_insights only after onboarding is already complete, and only for future recommendation/search memory, not profile-row facts that belong in experiences, educations, or extras. Call when the user's latest statement directly maps to writable state, including explicit durable hard-filter search commands such as '미국 회사로만 찾아줘', '앞으로 리모트만 보내줘', '대기업은 빼고 찾아줘', or '다음부터 Series B 이상만 봐줘'. If the user discusses resume/CV context that matters for future matching, such as what their resume says, omits, emphasizes, or should signal, record that as talentInsights content when it is not a direct resume-file/profile-row update. For recommendation cadence, normal periodicIntervalDays values are 2-7. If the user says to stop recommendations entirely, set preferences.periodicIntervalDays=-1 and preferences.recommendationBatchSize=-1. If the user wants no public/external job-posting recommendations or wants only internal Harper-connected opportunities, set preferences.getExternalRecommendation=false and keep cadence fields unchanged. Do not call for user questions, one-off browsing/curiosity/search requests, hypotheticals/conditional speech ('만약 ~라면'), assistant statements, aspirational/off-profile role mentions without explicit future intent, or information already saved in current state. After the tool result, produce a normal user-facing chat reply in Korean; do not return an empty assistant message or only an onboarding marker.",
+      "Update internal profile state with new information about the user. It can update talent_users.bio, talent_preferences, and row memos during onboarding and after onboarding. It can update talent_insights only after onboarding is already complete, and only for future recommendation/search memory, not profile-row facts that belong in experiences, educations, or extras. Call when the user's latest statement directly maps to writable state, including explicit durable hard-filter search commands such as '미국 회사로만 찾아줘', '앞으로 리모트만 보내줘', '대기업은 빼고 찾아줘', or '다음부터 Series B 이상만 봐줘'. If the user discusses resume/CV context that matters for future matching, such as what their resume says, omits, emphasizes, or should signal, record that as talentInsights content when it is not a direct resume-file/profile-row update. For recommendation cadence, normal periodicIntervalDays values are 2-7. If the user wants to stop all opportunity recommendations, set both preferences.getExternalRecommendation=false and preferences.getInternalRecommendation=false. If the user wants no public/external job-posting recommendations or wants only internal Harper-connected opportunities, set preferences.getExternalRecommendation=false and keep cadence fields unchanged. Do not call for user questions, one-off browsing/curiosity/search requests, hypotheticals/conditional speech ('만약 ~라면'), assistant statements, aspirational/off-profile role mentions without explicit future intent, or information already saved in current state. After the tool result, produce a normal user-facing chat reply in Korean; do not return an empty assistant message or only an onboarding marker.",
     parameters: {
       type: "object",
       properties: {
@@ -1254,7 +1263,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         preferences: {
           type: "object",
           description:
-            "Structured talent_preferences fields. Provide ONLY fields the user newly disclosed. Numeric cadence fields and recommendation type booleans are writable here. Special paired values: stop all recommendations = periodicIntervalDays -1 and recommendationBatchSize -1. Internal-only connected opportunities = getExternalRecommendation false and getInternalRecommendation true; do not use cadence sentinels for that.",
+            "Structured talent_preferences fields. Provide ONLY fields the user newly disclosed. Numeric cadence fields and recommendation type booleans are writable here. Stop all opportunity recommendations by setting both getExternalRecommendation false and getInternalRecommendation false. Internal-only connected opportunities = getExternalRecommendation false and getInternalRecommendation true.",
           properties: {
             getExternalRecommendation: {
               type: "boolean",
@@ -1267,20 +1276,18 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
                 "Whether Harper may recommend internal Harper-connected opportunities. Set true when the user says they still want internal/connected opportunities; set false only when they explicitly do not want these. Default is true.",
             },
             periodicIntervalDays: {
-              anyOf: [
-                { type: "integer", enum: [-1] },
-                { type: "integer", minimum: 2, maximum: 7 },
-              ],
+              type: "integer",
+              minimum: 2,
+              maximum: 7,
               description:
-                "How often (in days) the user wants opportunity batches. Normal values must be 2-7. Use -1 only as part of the stop-all paired values, not for internal-only/external-off preferences.",
+                "How often (in days) the user wants opportunity batches. Values must be 2-7.",
             },
             recommendationBatchSize: {
-              anyOf: [
-                { type: "integer", enum: [-1] },
-                { type: "integer", minimum: 1, maximum: 10 },
-              ],
+              type: "integer",
+              minimum: 1,
+              maximum: 10,
               description:
-                "Number of opportunities per batch (1-10). Use -1 only with periodicIntervalDays -1 when the user wants to stop recommendations entirely.",
+                "Number of opportunities per batch (1-10).",
             },
           },
           additionalProperties: false,

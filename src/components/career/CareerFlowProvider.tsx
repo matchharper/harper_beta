@@ -961,7 +961,9 @@ export const CareerFlowProvider = ({
   );
 
   const handleRunSessionReengagementTest =
-    useCallback(async (): Promise<void> => {
+    useCallback(async (options?: {
+      deleteLatestMessage?: boolean;
+    }): Promise<void> => {
       if (
         !conversationId ||
         sessionReengagementTestPending ||
@@ -973,6 +975,7 @@ export const CareerFlowProvider = ({
       clearSessionReengagementAction();
       setSessionReengagementTestPending(true);
       setChatError("");
+      const deleteLatestMessage = options?.deleteLatestMessage !== false;
       try {
         const response = await fetchWithAuth(
           "/api/talent/session/reengagement",
@@ -980,7 +983,7 @@ export const CareerFlowProvider = ({
             method: "POST",
             body: JSON.stringify({
               conversationId,
-              devDeleteLatestMessage: true,
+              ...(deleteLatestMessage ? { devDeleteLatestMessage: true } : {}),
               devForce: true,
             }),
           }

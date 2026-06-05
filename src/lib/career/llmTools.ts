@@ -33,6 +33,8 @@ export type CareerRealtimeToolSelectionArgs = {
 // - 아래 목록에서 tool을 빼면 그 상황의 LLM tools에는 들어가지 않는다.
 // - 단, registry 쪽에서 disabled 된 tool은 여기에 넣어도 최종 노출되지 않는다.
 export const CAREER_CHAT_ONBOARDING_TOOL_NAMES = [
+  // 온보딩 중에도 사용자가 최신/외부 정보가 필요한 질문을 하면 웹 검색 허용.
+  TALENT_TOOL_NAMES.WEB_SEARCH,
   // 온보딩 중 사용자가 말한 프로필 row memo / 추천 주기 같은 저장 가능한 정보 기록.
   TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
   // 온보딩 텍스트 채팅에서 사용자가 URL을 줬을 때만 페이지 본문 확인.

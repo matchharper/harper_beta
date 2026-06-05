@@ -90,7 +90,6 @@ const HomeOpportunitySummaryCard = ({
   icon,
   iconClassName,
   onClick,
-  status,
   title,
 }: {
   buttonLabel: string;
@@ -99,22 +98,16 @@ const HomeOpportunitySummaryCard = ({
   icon: React.ReactNode;
   iconClassName: string;
   onClick: () => void;
-  status: string;
   title: string;
 }) => (
   <CareerInteractiveCard
     onClick={onClick}
-    className="group rounded-2xl flex min-h-[154px] w-full flex-col items-stretch justify-between whitespace-normal px-4 py-4 text-left text-beige900"
+    className="group rounded-2xl flex min-h-[104px] w-full flex-col items-stretch justify-between whitespace-normal px-4 py-4 text-left text-beige900"
   >
     <div className="flex items-start justify-between gap-3">
-      <div>
-        <Text as="div" type="title">
-          {title}
-        </Text>
-        <Text as="div" type="subtle" className="mt-1">
-          {status}
-        </Text>
-      </div>
+      <Text as="div" type="title">
+        {title}
+      </Text>
       <span
         className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] ${iconClassName}`}
       >
@@ -123,7 +116,7 @@ const HomeOpportunitySummaryCard = ({
     </div>
 
     <div>
-      <div className="mt-2 flex items-end gap-2.5">
+      <div className="mt-0 flex items-end gap-2.5">
         <Text as="span" type="metric">
           {countFormatter.format(count)}
         </Text>
@@ -516,7 +509,7 @@ const CareerHomePanel = ({
           {activeOpportunityLabel}
         </Text>
         {recommendationSettingLabel && (
-          <Text type="desc" className="mt-2 text-center text-green-900">
+          <Text type="desc" className="mt-2 text-center">
             {recommendationSettingLabel}
           </Text>
         )}
@@ -605,8 +598,7 @@ const CareerHomePanel = ({
       {isOnboardingCompleted ? (
         <div className="mt-12 grid grid-cols-1 gap-4 lg:grid-cols-2">
           <HomeOpportunitySummaryCard
-            title="새 포지션"
-            status="검토 대기 중"
+            title="새로 받은 기회"
             count={newPositionCount}
             description={newPositionDescription}
             buttonLabel="검토하기"
@@ -621,7 +613,6 @@ const CareerHomePanel = ({
           />
           <HomeOpportunitySummaryCard
             title="저장 / 연결"
-            status="저장함 + 연결됨"
             count={inProgressPositionCount}
             description={inProgressCompanyLabel}
             buttonLabel="상세 보기"
@@ -755,23 +746,20 @@ const CareerHomePanel = ({
             </CareerActionButton>
             <CareerActionButton
               onClick={() => {
-                logCareerEvent("click_home_open_profile");
-                onOpenProfile();
+                logCareerEvent("click_home_dev_reengagement_greeting_only");
+                void onRunSessionReengagementTest({
+                  deleteLatestMessage: false,
+                });
               }}
+              disabled={sessionReengagementTestPending}
               actionVariant="secondary"
             >
-              <BriefcaseBusiness className="h-3.5 w-3.5" />
-              프로필 보기
-            </CareerActionButton>
-            <CareerActionButton
-              onClick={() => {
-                logCareerEvent("click_home_open_chat");
-                onOpenChat();
-              }}
-              actionVariant="primary"
-            >
-              <MessageSquareText className="h-3.5 w-3.5" />
-              Chat 열기
+              {sessionReengagementTestPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Clock3 className="h-3.5 w-3.5" />
+              )}
+              6시간 인사만
             </CareerActionButton>
           </div>
           <div className="mt-4 border-t border-beige900/10 pt-4">

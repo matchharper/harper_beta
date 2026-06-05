@@ -24,7 +24,7 @@ import type { FetchWithAuth } from "@/hooks/career/useCareerApi";
 
 const CAREER_HISTORY_PAGE_SIZE = 10;
 const CAREER_HISTORY_GC_TIME = 30 * 60_000;
-const CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_DELAY_MS = 15_000;
+const CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_DELAY_MS = 10_000;
 
 type CareerHistoryPage = {
   counts: CareerHistoryOpportunityCounts | null;
@@ -161,9 +161,7 @@ export function useCareerHistoryState(args: {
   }, []);
 
   const updateFilteredPageState = useCallback(
-    (
-      updater: (current: FilteredPageStateMap) => FilteredPageStateMap
-    ) => {
+    (updater: (current: FilteredPageStateMap) => FilteredPageStateMap) => {
       const next = updater(filteredPageStateRef.current);
       filteredPageStateRef.current = next;
       setFilteredPageState(next);
@@ -241,10 +239,7 @@ export function useCareerHistoryState(args: {
   );
 
   const fetchHistoryPage = useCallback(
-    async (
-      offset: number,
-      filter?: CareerHistoryOpportunityPageFilter
-    ) => {
+    async (offset: number, filter?: CareerHistoryOpportunityPageFilter) => {
       if (!userId) {
         return {
           counts: null,
@@ -860,9 +855,7 @@ export function useCareerHistoryState(args: {
       } catch (error) {
         restoreHistoryOpportunity(normalizedOpportunityId, previousItem);
         setHistoryUpdateError(
-          error instanceof Error
-            ? error.message
-            : "메모를 저장하지 못했습니다."
+          error instanceof Error ? error.message : "메모를 저장하지 못했습니다."
         );
       } finally {
         endHistoryUpdate(normalizedOpportunityId);
