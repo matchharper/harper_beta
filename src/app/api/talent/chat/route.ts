@@ -64,7 +64,9 @@ import {
   fetchRecentTalentActivitySummaries,
 } from "@/lib/talentOnboarding/activityEvents";
 import {
+  fetchTalentOpportunityHistory,
   fetchTalentPostingCardsByRoleIds,
+  formatRecentRecommendedOpportunitiesForPrompt,
   type TalentOpportunityHistoryItem,
 } from "@/lib/talentOpportunity";
 import { extractPostingRoleIdsFromText } from "@/lib/career/postingLinks";
@@ -444,6 +446,7 @@ export async function POST(req: NextRequest) {
       onboardingCompletionEvent,
       pendingOpportunityFeedbackContext,
       recentActivitySummaries,
+      recentRecommendedOpportunities,
     ] = await Promise.all([
       fetchTalentUserProfile({ admin, userId: user.id }),
       fetchTalentInsights({ admin, userId: user.id }),
@@ -469,6 +472,11 @@ export async function POST(req: NextRequest) {
         limit: 5,
         userId: user.id,
       }),
+      fetchTalentOpportunityHistory({
+        admin,
+        limit: 10,
+        userId: user.id,
+      }),
     ]);
     const structuredProfile = await fetchTalentStructuredProfile({
       admin,
@@ -481,6 +489,10 @@ export async function POST(req: NextRequest) {
       setting: talentSetting,
       maxResumeChars: 3000,
     });
+    const recentRecommendedOpportunitiesText =
+      formatRecentRecommendedOpportunitiesForPrompt(
+        recentRecommendedOpportunities
+      );
 
     const currentInsightContent = (currentInsights?.content ?? null) as Record<
       string,
@@ -607,6 +619,7 @@ export async function POST(req: NextRequest) {
       proactiveTurnInstruction:
         conversationStarter?.chatProactiveInstruction ?? undefined,
       recentActivitySummaries,
+      recentRecommendedOpportunitiesText,
       structuredProfileText,
       toolNames: toolSelection.toolNames,
     });

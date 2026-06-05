@@ -9,15 +9,17 @@ const OPPORTUNITY_FEEDBACK_SYSTEM_ACTION_LOG_PREFIX = [
 export function buildOpportunityFeedbackNoteContent(args: {
   action: "positive" | "negative";
   companyName: string;
+  sourceType: "external" | "internal" | string | null | undefined;
   title: string;
 }) {
   const title = args.title.replace(/\s+/g, " ").trim() || "Unknown role";
   const companyName =
     args.companyName.replace(/\s+/g, " ").trim() || "Unknown company";
+  const sourceLabel = args.sourceType === "internal" ? "Internal" : "External";
   const actionLabel =
     args.action === "positive" ? "저장함" : "선호하지 않음";
 
-  return `${title} at ${companyName} ${actionLabel}`;
+  return `(${sourceLabel}) ${title} at ${companyName} ${actionLabel}`;
 }
 
 export function isOpportunityFeedbackNoteMessageType(

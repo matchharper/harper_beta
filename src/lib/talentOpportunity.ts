@@ -372,6 +372,49 @@ export function toDatabaseFeedback(
   return null;
 }
 
+function normalizeOpportunityPromptText(value: unknown, fallback: string) {
+  const text =
+    typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+  return text || fallback;
+}
+
+export function formatRecentRecommendedOpportunitiesForPrompt(
+  items: readonly TalentOpportunityHistoryItem[] | null | undefined,
+  maxItems = 10
+) {
+  const limit =
+    typeof maxItems === "number" && Number.isFinite(maxItems)
+      ? Math.max(0, Math.min(Math.floor(maxItems), 10))
+      : 10;
+
+  return (items ?? [])
+    .slice(0, limit)
+    .map((item) => {
+      const sourceType =
+        item.sourceType === "external" ? "external" : "internal";
+      const title = normalizeOpportunityPromptText(item.title, "Unknown role");
+      const companyName = normalizeOpportunityPromptText(
+        item.companyName,
+        "Unknown company"
+      );
+      const feedback = item.feedback ?? "none";
+      const savedStage = item.savedStage ?? "none";
+      const processedStage = normalizeOpportunityPromptText(
+        item.processedStage,
+        ""
+      );
+
+      return [
+        `(${sourceType}) ${title} at ${companyName} - feedback: ${feedback}, saved stage: ${savedStage}`,
+        processedStage ? `processed stage: ${processedStage}` : "",
+      ]
+        .filter(Boolean)
+        .join(", ");
+    })
+    .filter((line) => line.trim().length > 0)
+    .join("\n");
+}
+
 function normalizeTextList(value: Json, limit = 8): string[] {
   if (Array.isArray(value)) {
     return value

@@ -96,7 +96,7 @@ async function assertConversationAccess(args: {
   }
 }
 
-async function insertExternalOpportunityFeedbackNoteMessage(args: {
+async function insertOpportunityFeedbackNoteMessage(args: {
   action: TalentOpportunityFeedback;
   admin: TalentAdminClient;
   conversationId: string | null;
@@ -105,7 +105,7 @@ async function insertExternalOpportunityFeedbackNoteMessage(args: {
   userId: string;
 }) {
   const conversationId = String(args.conversationId ?? "").trim();
-  if (!conversationId || args.opportunity?.sourceType !== "external") {
+  if (!conversationId || !args.opportunity) {
     return null;
   }
 
@@ -126,6 +126,7 @@ async function insertExternalOpportunityFeedbackNoteMessage(args: {
           content: buildOpportunityFeedbackNoteContent({
             action: args.action,
             companyName: args.opportunity.companyName,
+            sourceType: args.opportunity.sourceType,
             title: args.opportunity.title,
           }),
           message_type: TALENT_MESSAGE_TYPE_OPPORTUNITY_FEEDBACK_NOTE,
@@ -406,7 +407,7 @@ export async function PATCH(req: NextRequest) {
       ReturnType<typeof createTalentOpportunityFeedbackFollowUpReply>
     > | null = null;
     let userMessage: Awaited<
-      ReturnType<typeof insertExternalOpportunityFeedbackNoteMessage>
+      ReturnType<typeof insertOpportunityFeedbackNoteMessage>
     > | null = null;
     const conversationId = String(body.conversationId ?? "").trim() || null;
     let shouldScheduleDelayedFollowUp = false;
@@ -436,7 +437,7 @@ export async function PATCH(req: NextRequest) {
           );
         }
         try {
-          userMessage = await insertExternalOpportunityFeedbackNoteMessage({
+          userMessage = await insertOpportunityFeedbackNoteMessage({
             action: body.feedback,
             admin,
             conversationId,

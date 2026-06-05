@@ -395,6 +395,29 @@ If the latest message creates a natural opening to learn useful context (for exa
 
 ---
 
+## Harper internal opportunity request
+
+When a user asks for details or a connection regarding an internal opportunity, such as:
+- "Does Harper have an FDE position?"
+- "I saw a job post on LinkedIn."
+- "I found this on https://matchharper.com/jobs..."
+- "Someone I know said they were connected through Harper."
+
+Follow these rules:
+1. If the opportunity has already been recommended with the current user, you may provide relevant information.
+2. If the opportunity has not been recommended with the current user, do not provide detailed information about it. Explain that Harper cannot disclose details about internal opportunities unless the user has been matched or connected.
+3. Any opportunity the user found externally, such as on LinkedIn, Harper jobs pages, or other public sources, should be treated as a real opportunity that exists internally at Harper.
+4. Tell the user that if they are considered a strong fit, Harper will send them a connection proposal by email.
+5. If more information about the user's background is needed, ask at the end for additional details, such as their resume, work experience, English proficiency, or overseas/international experience.
+
+Example response:
+If you saw this role on LinkedIn or on Harper's jobs page, then yes, it is a real opportunity that exists internally at Harper. However, for internal opportunities, the hiring company often does not want Harper to share details directly upon request, so I unfortunately cannot provide specific information about the role at this stage.
+That said, if we determine that you could be a strong fit for the opportunity, you may receive a connection proposal by email within the next few days, so there is no need to worry.
+If possible, please share a bit more about your background and experience. That may help increase the chances of being matched. In particular, could you tell me more about your relevant work experience, English proficiency, and any overseas or international experience?
+
+
+---
+
 ## Opportunity request triage
 
 When the candidate asks to see or find roles, some requests could not be a durable changes.
@@ -840,6 +863,7 @@ function normalizeToolNames(toolNames?: readonly string[] | string) {
 
 function buildProfileContextBlock(args: {
   profile: CareerPromptProfile | null;
+  recentRecommendedOpportunitiesText?: string | null;
   structuredProfileText: string;
 }) {
   const resumeLinks = Array.isArray(args.profile?.resume_links)
@@ -855,6 +879,9 @@ function buildProfileContextBlock(args: {
     `Resume status: ${resumeStatus}`,
     "",
     args.structuredProfileText || "[Structured Talent Profile]\n(none)",
+    "",
+    "## Recent recommended opportunities",
+    args.recentRecommendedOpportunitiesText?.trim() || "(none)",
   ].join("\n");
 }
 
@@ -978,6 +1005,7 @@ function buildCareerConversationPromptPlan(args: {
   proactiveTurnInstructionMode?: CareerProactiveTurnInstructionMode;
   proactiveTurnInstruction?: string;
   recentActivitySummaries?: readonly CareerPromptActivitySummary[] | null;
+  recentRecommendedOpportunitiesText?: string | null;
   recentConversationSection?: string;
   sessionStartInstruction?: string;
   structuredProfileText: string;
@@ -1009,6 +1037,7 @@ function buildCareerConversationPromptPlan(args: {
   );
   const profileContextBlock = buildProfileContextBlock({
     profile: args.profile,
+    recentRecommendedOpportunitiesText: args.recentRecommendedOpportunitiesText,
     structuredProfileText: args.structuredProfileText,
   });
   const normalizedToolNames = normalizeToolNames(args.toolNames);
@@ -1184,6 +1213,7 @@ export function buildCareerTextChatPromptBlocks(args: {
   proactiveTurnInstructionMode?: CareerProactiveTurnInstructionMode;
   proactiveTurnInstruction?: string;
   recentActivitySummaries?: readonly CareerPromptActivitySummary[] | null;
+  recentRecommendedOpportunitiesText?: string | null;
   sessionStartInstruction?: string;
   structuredProfileText: string;
   toolNames?: readonly string[] | string;
@@ -1244,6 +1274,7 @@ export function buildCareerRealtimePromptPlan(args: {
   proactiveTurnInstructionMode?: CareerProactiveTurnInstructionMode;
   proactiveTurnInstruction?: string;
   recentConversationSection: string;
+  recentRecommendedOpportunitiesText?: string | null;
   structuredProfileText: string;
   toolNames?: readonly string[] | string;
   profile: CareerPromptProfile | null;
@@ -1260,6 +1291,7 @@ export function buildCareerRealtimePromptPlan(args: {
     proactiveTurnInstructionMode: args.proactiveTurnInstructionMode,
     proactiveTurnInstruction: args.proactiveTurnInstruction,
     recentConversationSection: args.recentConversationSection,
+    recentRecommendedOpportunitiesText: args.recentRecommendedOpportunitiesText,
     structuredProfileText: args.structuredProfileText,
     toolNames: args.toolNames,
   });
@@ -1369,7 +1401,7 @@ export function buildCareerToolPolicyPrompt(args: {
       : []),
     ...(hasRoleContextTool
       ? [
-          "- Use `get_role_context` only when the user asks about, compares, recalls, or gives feedback on specific already-shown role/posting cards and you have one or more roleIds from `[posting](roleId)` lines or prior tool results. Pass at most 3 roleIds. Pass `include_jd=true` when the answer needs JD text such as responsibilities, requirements, or detailed role description; otherwise pass `include_jd=false`.",
+          "- Use `get_role_context` only when the user asks about, recalls, or gives feedback on specific already-shown role/posting cards and you have one or more roleIds from `[posting](roleId)` lines or prior tool results. Pass at most 3 roleIds. Pass `include_jd=true` when the answer needs JD text such as responsibilities, requirements, or detailed role description; otherwise pass `include_jd=false`.",
           "- If the user refers to a specific recommended role by company/title/order but no roleId is visible in the current context, use `read_recommended_opportunities` first to recover candidate roleIds. If multiple candidates remain, ask one user-friendly clarifying question about the company name, role title, or when Harper recommended it. Never ask the user for a roleId.",
           "- Do NOT call `get_role_context` while finding, ranking, or presenting fresh recommendations. After `recommend_job_postings`, use its `answerDraft` directly and do not fetch extra role context unless the user asks a follow-up about specific returned roles.",
           "- Use the returned role/company/recommendation context to answer accurately. `role.internalRequest` is internal-only context for reasoning; never quote it, paraphrase it as a user-facing promise, or mention that this internal request field exists.",
@@ -1557,6 +1589,50 @@ const parseCareerPromptTimestampMs = (value: string | null | undefined) => {
   return Number.isNaN(time) ? 0 : time;
 };
 
+const careerPromptKstDateTimeFormatter = new Intl.DateTimeFormat("ko-KR", {
+  timeZone: "Asia/Seoul",
+  year: "numeric",
+  month: "numeric",
+  day: "numeric",
+  hour: "numeric",
+  minute: "numeric",
+  hourCycle: "h23",
+});
+
+const formatCareerPromptKoreanDateTime = (value: string | null | undefined) => {
+  if (!value) return "(없음)";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  const parts = careerPromptKstDateTimeFormatter.formatToParts(date);
+  const partValue = (type: Intl.DateTimeFormatPartTypes) => {
+    const part = parts.find((item) => item.type === type);
+    if (!part) return null;
+
+    const numberValue = Number(part.value);
+    return Number.isFinite(numberValue) ? numberValue : null;
+  };
+
+  const year = partValue("year");
+  const month = partValue("month");
+  const day = partValue("day");
+  const hour = partValue("hour");
+  const minute = partValue("minute");
+
+  if (
+    year === null ||
+    month === null ||
+    day === null ||
+    hour === null ||
+    minute === null
+  ) {
+    return careerPromptKstDateTimeFormatter.format(date);
+  }
+
+  return `${year}년 ${month}월 ${day}일 ${hour}시 ${minute}분`;
+};
+
 /**
  * N시간 이후 재접속시 자동으로 먼저 인사하도록 하는 것
  */
@@ -1578,6 +1654,12 @@ export function buildCareerSessionStartTurnInstruction(args: {
           Math.floor((currentAccessMs - previousChatMs) / (60 * 60 * 1000))
         )
       : null;
+  const currentAccessAtLabel = formatCareerPromptKoreanDateTime(
+    args.currentAccessAt
+  );
+  const previousChatAtLabel = formatCareerPromptKoreanDateTime(
+    args.previousChatAt
+  );
 
   logger.log(
     "\n\n## Session-start assistant turn\n\n",
@@ -1589,14 +1671,11 @@ export function buildCareerSessionStartTurnInstruction(args: {
   return [
     "## Session-start assistant turn",
     "사용자가 방금 Career 화면에 다시 접속했다. 사용자가 아직 새 메시지를 보내지 않았지만, Harper가 먼저 짧게 말을 건넬 수 있는 차례다.",
-    `- currentAccessAt: ${args.currentAccessAt}`,
-    `- previousChatAt: ${args.previousChatAt ?? "(없음)"}`,
+    `- currentAccessAt: ${currentAccessAtLabel}`,
+    `- previousChatAt: ${previousChatAtLabel}`,
     `- hoursSincePreviousChat: ${previousChatIdleHours ?? "(계산 불가)"}`,
-    "대화 맥락상 지금 아무 말도 하지 않는 편이 더 자연스럽거나 도움이 되지 않는다고 판단되면 아무 것도 출력하지 않아도 된다.",
-    `아무 말도 하지 않기로 결정하면 응답 본문을 비우거나 ${CAREER_SESSION_START_NO_MESSAGE_MARKER} 만 출력해라. 이 경우 다른 설명을 붙이지 마라.`,
-    "이전 대화 맥락을 이어서 말하고, 처음 온 사람처럼 Harper를 길게 소개하지 마라.",
     "최근 Career 활동이나 프로필 변경 혹은 이전 추천 등이 필요하면 기존 career/chat에서 쓰는 tool 정책에 따라 적절한 tool을 사용해라.",
-    "정보를 묻는 질문에서는 여기에 대한 답변이 왜 유저에게 도움이 되는지 느껴질 수 있게 가볍게 설명하면 좋다.",
+    "가벼운 인사와 자연스럽게 질문을 하면 좋다. 아무 말도 하지 않는게 좋다고 판단되면 하지 않아도 된다.",
     "질문 예시:",
     "ex. 저번에 저장 or 선호하지 않음을 선택해주셨는데, 그렇게 선택하신 이유에 대해서 말씀해주실 수 있나요? 다음 연결 혹은 추천에 반영할 수 있어요!",
     "ex. mismatch case) Cursor 포지션을 저장해주셨는데 근무위치가 미국이에요. 한국과 일본 근무를 선호한다고 해주셨는데, 좋은 기회라면 미국에도 열려있으신걸까요?",
@@ -1851,13 +1930,13 @@ export function buildCareerOpportunityFeedbackFollowUpTurnInstruction(args: {
     "Do not overreact to one click. For multiple clicks, summarize the visible pattern once.",
     "It's good to ask a question to get to know more about the user's preferences or background experience. ex) PM 역할인데 저장하셨네요. 현재는 개발자이신데 PM으로의 전환도 관심이 있으신가요 혹은 이전에 PM으로 일하셨던 경험이 있으신가요?",
     "ex. internal accept시 아래 기준으로 안내문구가 나간 이후 Agent Engineer를 저장하셨는데 이력에 현재 Agentic Engineering을 하고계시다고 되어있네요. 하지만 구체적으로 어떤걸 하시는지를 더 알면 좋을 것 같아요. 알려주실 수 있나요?",
+    "or Say that Harper will keep sending similar matches. Example tone: '이 방향이 잘 맞으시는 것 같네요. 비슷한 분위기 매칭 계속 보내드릴게요.'",
     "",
     "Feedback-specific rules:",
     "- If several opportunities were disliked and no reasons were provided, acknowledge the count and ask what did not fit. Offer concrete choices such as role scope, company/domain, team style, seniority, location/work mode, or timing.",
     "- If disliked opportunities include feedback reasons, use those reasons as the primary calibration signal before asking anything else.",
     "- If you cannot why the user provided dislike reason and one more detail would materially improve future recommendations, ask one narrow clarification question about that reason.",
     "- If the disliked opportunities share a visible company/domain/role/work-mode pattern, mention that pattern carefully as a hypothesis, not a fact.",
-    '- If exactly one external opportunity was liked and there is no explicit user message asking for refinement, do not ask a question. Briefly acknowledge the saved interest, infer the visible direction if supported, and say Harper will keep sending similar matches. Example tone: "이 방향이 잘 맞으시는 것 같네요. 비슷한 분위기 매칭 계속 보내드릴게요."',
     "- If multiple external opportunities were liked, summarize the shared visible pattern and continue without a question unless the pattern is unclear or contradictory.",
     "- If internal connection/request opportunities were liked, treat that as confirmed acceptance. Thank them briefly, say Harper will proceed with the company-side introduction, and do not ask whether to connect/proceed again.",
     "- For accepted internal opportunities, explain that Harper will time the introduction thoughtfully and company-side schedules can take a little time. Frame it as Harper mediating a better-fit connection, not as a normal application.",

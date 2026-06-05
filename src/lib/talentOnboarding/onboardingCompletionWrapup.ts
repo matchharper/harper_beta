@@ -35,6 +35,10 @@ import {
   TALENT_TOOL_NAMES,
 } from "@/lib/talentOnboarding/tools";
 import { resolveCareerChatTools } from "@/lib/career/llmTools";
+import {
+  fetchTalentOpportunityHistory,
+  formatRecentRecommendedOpportunitiesForPrompt,
+} from "@/lib/talentOpportunity";
 
 const FALLBACK_WRAPUP_CONTENT = [
   "좋은 대화였습니다. 말씀해주신 내용을 바탕으로 다음 기회 탐색 기준을 정리했습니다.",
@@ -195,8 +199,14 @@ export async function generateOnboardingCompletionWrapupContent(args: {
   latestUserMessageId?: number | string | null;
   userId: string;
 }) {
-  const [profile, setting, insights, structuredProfile, recentMessages] =
-    await Promise.all([
+  const [
+    profile,
+    setting,
+    insights,
+    structuredProfile,
+    recentMessages,
+    recentRecommendedOpportunities,
+  ] = await Promise.all([
       fetchTalentUserProfile({ admin: args.admin, userId: args.userId }),
       fetchTalentSetting({ admin: args.admin, userId: args.userId }),
       fetchTalentInsights({ admin: args.admin, userId: args.userId }),
@@ -211,6 +221,11 @@ export async function generateOnboardingCompletionWrapupContent(args: {
         recentLimit: 40,
         userId: args.userId,
       }),
+      fetchTalentOpportunityHistory({
+        admin: args.admin,
+        limit: 10,
+        userId: args.userId,
+      }),
     ]);
 
   const wrapupToolSelection = resolveCareerChatTools({
@@ -223,6 +238,10 @@ export async function generateOnboardingCompletionWrapupContent(args: {
     setting,
     structuredProfile,
   });
+  const recentRecommendedOpportunitiesText =
+    formatRecentRecommendedOpportunitiesForPrompt(
+      recentRecommendedOpportunities
+    );
   const promptPlan = buildCareerTextChatPromptBlocks({
     currentInsightContent: normalizeTalentInsightContent(
       insights?.content ?? null
@@ -230,6 +249,7 @@ export async function generateOnboardingCompletionWrapupContent(args: {
     currentPreferences: buildCurrentPreferences(setting),
     isOnboardingDone: true,
     profile,
+    recentRecommendedOpportunitiesText,
     sessionStartInstruction: buildWrapupInstruction(),
     structuredProfileText,
     toolNames: wrapupToolSelection.toolNames,
@@ -275,8 +295,14 @@ export async function generateOnboardingCompletionNextStepsContent(args: {
   conversationId: string;
   userId: string;
 }) {
-  const [profile, setting, insights, structuredProfile, recentMessages] =
-    await Promise.all([
+  const [
+    profile,
+    setting,
+    insights,
+    structuredProfile,
+    recentMessages,
+    recentRecommendedOpportunities,
+  ] = await Promise.all([
       fetchTalentUserProfile({ admin: args.admin, userId: args.userId }),
       fetchTalentSetting({ admin: args.admin, userId: args.userId }),
       fetchTalentInsights({ admin: args.admin, userId: args.userId }),
@@ -291,6 +317,11 @@ export async function generateOnboardingCompletionNextStepsContent(args: {
         recentLimit: 40,
         userId: args.userId,
       }),
+      fetchTalentOpportunityHistory({
+        admin: args.admin,
+        limit: 10,
+        userId: args.userId,
+      }),
     ]);
 
   const structuredProfileText = buildTalentProfileContext({
@@ -298,6 +329,10 @@ export async function generateOnboardingCompletionNextStepsContent(args: {
     setting,
     structuredProfile,
   });
+  const recentRecommendedOpportunitiesText =
+    formatRecentRecommendedOpportunitiesForPrompt(
+      recentRecommendedOpportunities
+    );
   const promptPlan = buildCareerTextChatPromptBlocks({
     currentInsightContent: normalizeTalentInsightContent(
       insights?.content ?? null
@@ -305,6 +340,7 @@ export async function generateOnboardingCompletionNextStepsContent(args: {
     currentPreferences: buildCurrentPreferences(setting),
     isOnboardingDone: true,
     profile,
+    recentRecommendedOpportunitiesText,
     sessionStartInstruction: buildNextStepsInstruction(),
     structuredProfileText,
     toolNames: [],

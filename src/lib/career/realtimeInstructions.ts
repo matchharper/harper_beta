@@ -15,6 +15,10 @@ import {
 } from "@/lib/career/prompts";
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 import { getCareerConversationStarterPrompt } from "@/lib/career/conversationStarterPrompts";
+import {
+  fetchTalentOpportunityHistory,
+  formatRecentRecommendedOpportunitiesForPrompt,
+} from "@/lib/talentOpportunity";
 
 /**
  * Build realtime instructions from the shared Harper system prompt plus
@@ -28,10 +32,20 @@ export async function buildCareerRealtimeSessionInstructions(args: {
 }) {
   const admin = getTalentSupabaseAdmin();
 
-  const [profile, currentInsights, talentSetting] = await Promise.all([
+  const [
+    profile,
+    currentInsights,
+    talentSetting,
+    recentRecommendedOpportunities,
+  ] = await Promise.all([
     fetchTalentUserProfile({ admin, userId: args.userId }),
     fetchTalentInsights({ admin, userId: args.userId }),
     fetchTalentSetting({ admin, userId: args.userId }),
+    fetchTalentOpportunityHistory({
+      admin,
+      limit: 10,
+      userId: args.userId,
+    }),
   ]);
 
   const structuredProfile = await fetchTalentStructuredProfile({
@@ -46,6 +60,10 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     setting: talentSetting,
     maxResumeChars: 3000,
   });
+  const recentRecommendedOpportunitiesText =
+    formatRecentRecommendedOpportunitiesForPrompt(
+      recentRecommendedOpportunities
+    );
 
   const { messages: visibleMessages } = await fetchVisibleMessagesPage({
     admin,
@@ -84,6 +102,7 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     proactiveTurnInstruction:
       conversationStarter?.voiceProactiveInstruction ?? undefined,
     recentConversationSection,
+    recentRecommendedOpportunitiesText,
     structuredProfileText,
     toolNames: promptToolNames,
   });

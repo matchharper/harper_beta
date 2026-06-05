@@ -340,7 +340,8 @@ function asToolRecord(value: unknown): Record<string, unknown> | null {
 function asToolRecordArray(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value)
     ? value.filter(
-        (entry): entry is Record<string, unknown> => asToolRecord(entry) !== null
+        (entry): entry is Record<string, unknown> =>
+          asToolRecord(entry) !== null
       )
     : [];
 }
@@ -371,7 +372,9 @@ function normalizeRoleContextRoleIds(value: unknown) {
 
 function normalizeRoleContextStringArray(value: unknown) {
   return Array.isArray(value)
-    ? value.map(optionalToolString).filter((text): text is string => Boolean(text))
+    ? value
+        .map(optionalToolString)
+        .filter((text): text is string => Boolean(text))
     : [];
 }
 
@@ -1114,7 +1117,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.GET_ROLE_CONTEXT]: {
     name: TALENT_TOOL_NAMES.GET_ROLE_CONTEXT,
     description:
-      "Get detailed context for up to 3 specific job posting roles by roleId. Use only when the user asks about, compares, recalls, or gives feedback on specific already-shown posting cards/roles and the current context does not contain enough detail. Do not use while finding or presenting fresh recommendations; recommend_job_postings already returns the context needed for that answer. Includes role details, company context, and the latest user-specific recommendation context for each role. Set include_jd true only when the job description/JD text is needed; when false, role.description is omitted. The returned role.internalRequest is internal-only context for reasoning and must not be directly quoted or exposed to the user.",
+      "Get detailed context for up to 3 specific job posting roles by roleId. Use only when the user asks about, recalls, or gives feedback on specific already-shown posting cards/roles and the current context does not contain enough detail. Do not use while finding or presenting fresh recommendations; recommend_job_postings already returns the context needed for that answer. Includes role details, company context, and the latest user-specific recommendation context for each role. Set include_jd true only when the job description/JD text is needed; when false, role.description is omitted. The returned role.internalRequest is internal-only context for reasoning and must not be directly quoted or exposed to the user.",
     parameters: {
       type: "object",
       properties: {
@@ -1286,8 +1289,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
               type: "integer",
               minimum: 1,
               maximum: 10,
-              description:
-                "Number of opportunities per batch (1-10).",
+              description: "Number of opportunities per batch (1-10).",
             },
           },
           additionalProperties: false,
