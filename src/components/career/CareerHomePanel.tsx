@@ -160,6 +160,7 @@ const CareerHomePanel = ({
     isOnboardingDone,
     activeCompanyRoleCount,
     callStartPending = false,
+    currentDataJobPostingRecommendationTestPending,
     opportunityRun,
     opportunityRunTriggerPending,
     talentProfile,
@@ -173,6 +174,7 @@ const CareerHomePanel = ({
     historyOpportunities,
     onboardingCompletionTestPending,
     onRefreshTalentProfileSources,
+    onRunCurrentDataJobPostingRecommendationTest,
     onRunOnboardingCompletionTest,
     onRunPeriodicOpportunityDiscoveryTest,
     onRunOpportunityDiscoveryTest,
@@ -307,6 +309,10 @@ const CareerHomePanel = ({
     opportunityRunTriggerPending || Boolean(opportunityRun?.inputLocked);
   const onboardingCompletionTestDisabled =
     onboardingCompletionTestPending || !conversationId || stage === "profile";
+  const currentDataJobPostingRecommendationTestDisabled =
+    currentDataJobPostingRecommendationTestPending ||
+    !conversationId ||
+    stage === "profile";
 
   const latestRunAgentLabel = getOpportunityAgentLabel(
     opportunityRun?.agentVariant
@@ -709,6 +715,24 @@ const CareerHomePanel = ({
                 <Clock3 className="h-3.5 w-3.5" />
               )}
               3일 경과 run 큐잉
+            </CareerActionButton>
+            <CareerActionButton
+              onClick={() => {
+                logCareerEvent(
+                  "click_home_dev_current_data_job_posting_recommendation"
+                );
+                onOpenChat();
+                void onRunCurrentDataJobPostingRecommendationTest();
+              }}
+              disabled={currentDataJobPostingRecommendationTestDisabled}
+              actionVariant="secondary"
+            >
+              {currentDataJobPostingRecommendationTestPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <BriefcaseBusiness className="h-3.5 w-3.5" />
+              )}
+              현재 데이터로 공고 추천
             </CareerActionButton>
             <CareerActionButton
               onClick={() => {

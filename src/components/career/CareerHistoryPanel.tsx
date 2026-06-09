@@ -22,7 +22,6 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/router";
-import { showToast } from "@/components/toast/toast";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
 import CareerInPageTabs from "./CareerInPageTabs";
 import {
@@ -52,7 +51,6 @@ import {
   HistoryNegativeFeedbackModal,
   HistoryPositiveFeedbackModal,
   HistoryMemoModal,
-  HistoryQuestionModal,
   parseNegativeFeedbackReason,
   serializeNegativeFeedbackReason,
 } from "./history/FeedbackModal";
@@ -466,7 +464,6 @@ const CareerHistoryPanel = () => {
     onUpdateHistoryOpportunityFeedback,
     onUpdateHistoryOpportunitySavedStage,
     onUpdateHistoryOpportunityTalentMemo,
-    onSendHistoryOpportunityQuestion,
   } = useCareerSidebarContext();
   const [activeTab, setActiveTab] = useState<HistoryTabId>("new");
   const [activeSavedStatus, setActiveSavedStatus] =
@@ -505,9 +502,6 @@ const CareerHistoryPanel = () => {
     useState<string[]>([]);
   const [negativePromptCustomReason, setNegativePromptCustomReason] =
     useState("");
-  const [questionPromptOpportunityId, setQuestionPromptOpportunityId] =
-    useState<string | null>(null);
-  const [questionPromptDraft, setQuestionPromptDraft] = useState("");
   const [memoPromptOpportunityId, setMemoPromptOpportunityId] = useState<
     string | null
   >(null);
@@ -853,14 +847,6 @@ const CareerHistoryPanel = () => {
         ? (opportunityById.get(negativePromptOpportunityId) ?? null)
         : null,
     [negativePromptOpportunityId, opportunityById]
-  );
-
-  const questionPromptOpportunity = useMemo(
-    () =>
-      questionPromptOpportunityId
-        ? (opportunityById.get(questionPromptOpportunityId) ?? null)
-        : null,
-    [opportunityById, questionPromptOpportunityId]
   );
 
   const memoPromptOpportunity = useMemo(
@@ -1250,14 +1236,6 @@ const CareerHistoryPanel = () => {
     );
   }, []);
 
-  const requestQuestionPrompt = useCallback(
-    (item: CareerHistoryOpportunity) => {
-      setQuestionPromptOpportunityId(item.id);
-      setQuestionPromptDraft("");
-    },
-    []
-  );
-
   const requestMemoPrompt = useCallback(
     (item: CareerHistoryOpportunity) => {
       logCareerEvent("click_history_memo");
@@ -1422,23 +1400,6 @@ const CareerHistoryPanel = () => {
     [clearHistoryRoleId, handleNegativeAction]
   );
 
-  const handleQuestionAction = useCallback(
-    (item: CareerHistoryOpportunity) => {
-      logCareerEvent("click_history_question");
-      requestQuestionPrompt(item);
-    },
-    [logCareerEvent, requestQuestionPrompt]
-  );
-
-  const handleModalQuestionAction = useCallback(
-    (item: CareerHistoryOpportunity) => {
-      setModalOpportunityId(null);
-      clearHistoryRoleId();
-      handleQuestionAction(item);
-    },
-    [clearHistoryRoleId, handleQuestionAction]
-  );
-
   const handleSubmitPositivePrompt = useCallback(() => {
     if (!positivePromptOpportunity) return;
 
@@ -1488,30 +1449,6 @@ const CareerHistoryPanel = () => {
     updateFeedbackForItem,
   ]);
 
-  const handleSubmitQuestionPrompt = useCallback(async () => {
-    if (!questionPromptOpportunity || !questionPromptDraft.trim()) return;
-
-    logCareerEvent("click_history_submit_question");
-    const didSend = await onSendHistoryOpportunityQuestion(
-      questionPromptOpportunity.id,
-      questionPromptDraft.trim()
-    );
-
-    if (!didSend) return;
-
-    showToast({
-      message: "질문을 등록했습니다. 답변이 오면 메일로 알려드리겠습니다.",
-      variant: "white",
-    });
-    setQuestionPromptOpportunityId(null);
-    setQuestionPromptDraft("");
-  }, [
-    logCareerEvent,
-    onSendHistoryOpportunityQuestion,
-    questionPromptDraft,
-    questionPromptOpportunity,
-  ]);
-
   const handleSubmitMemoPrompt = useCallback(async () => {
     if (!memoPromptOpportunity) return;
 
@@ -1535,8 +1472,7 @@ const CareerHistoryPanel = () => {
       !activeOpportunity ||
       infoOpportunityType ||
       positivePromptOpportunity ||
-      negativePromptOpportunity ||
-      questionPromptOpportunity
+      negativePromptOpportunity
     ) {
       return;
     }
@@ -1570,11 +1506,6 @@ const CareerHistoryPanel = () => {
         handleNegativeAction(activeOpportunity);
         return;
       }
-
-      if (key === "a" || key === "ㅁ") {
-        event.preventDefault();
-        handleQuestionAction(activeOpportunity);
-      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -1586,11 +1517,9 @@ const CareerHistoryPanel = () => {
     handleMoveNextOpportunity,
     handlePositiveAction,
     infoOpportunityType,
-    handleQuestionAction,
     moveActiveOpportunity,
     negativePromptOpportunity,
     positivePromptOpportunity,
-    questionPromptOpportunity,
   ]);
 
   const tabs = useMemo(
@@ -2028,13 +1957,12 @@ const CareerHistoryPanel = () => {
           )}
         </div>
         {showShortcutPanel && activeOpportunity && (
-          <div className="sticky -bottom-8 z-20 -mx-4 bg-beige50 px-4 pb-3 pt-2 border-t border-beige900/10">
+          <div className="sticky -bottom-8 z-20 bg-white px-4 pb-3 pt-2 border-t border-neutral-100">
             <HistoryShortcutPanel
               item={activeOpportunity}
               pending={pendingOpportunityIds.has(activeOpportunity.id)}
               onPositive={() => handlePositiveAction(activeOpportunity)}
               onNegative={() => handleNegativeAction(activeOpportunity)}
-              onQuestion={() => handleQuestionAction(activeOpportunity)}
               activeIndex={activeIndex}
               canMoveNext={canMoveNextOpportunity}
               nextPending={nextOpportunityPending}
@@ -2067,10 +1995,6 @@ const CareerHistoryPanel = () => {
         onNegative={() => {
           if (!modalOpportunity) return;
           handleModalNegativeAction(modalOpportunity);
-        }}
-        onQuestion={() => {
-          if (!modalOpportunity) return;
-          handleModalQuestionAction(modalOpportunity);
         }}
         onEditMemo={
           modalOpportunity
@@ -2136,22 +2060,6 @@ const CareerHistoryPanel = () => {
           setNegativePromptCustomReason("");
         }}
         onSubmit={handleSubmitNegativePrompt}
-      />
-
-      <HistoryQuestionModal
-        item={questionPromptOpportunity}
-        draft={questionPromptDraft}
-        pending={
-          questionPromptOpportunity
-            ? pendingOpportunityIds.has(questionPromptOpportunity.id)
-            : false
-        }
-        onChangeDraft={setQuestionPromptDraft}
-        onClose={() => {
-          setQuestionPromptOpportunityId(null);
-          setQuestionPromptDraft("");
-        }}
-        onSubmit={handleSubmitQuestionPrompt}
       />
 
       <HistoryMemoModal

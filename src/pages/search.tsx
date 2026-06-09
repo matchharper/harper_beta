@@ -1237,7 +1237,6 @@ export default function RadarLandingPage() {
               </h3>
             </div>
           </BaseSectionLayout>
-          {/* <VCLogosWidth /> */}
         </Reveal>
         <div className="h-20 md:h-40" />
         <WhySection />

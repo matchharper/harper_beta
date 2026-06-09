@@ -20,6 +20,7 @@ import {
   getTalentProfileVisibilityLabel,
   normalizeTalentBlockedCompanies,
 } from "@/lib/talentOnboarding/server";
+import { insertTalentProfileSourceErrorLog } from "@/lib/talentOnboarding/errorLogs";
 import { ingestTalentProfileFromLinkedin } from "@/lib/talentOnboarding/profileIngestion";
 import {
   buildTalentKickoffOpeningMessage,
@@ -131,8 +132,7 @@ const buildProfileSubmitMessage = (args: {
     }
     return acc;
   }, []);
-  const linkPart =
-    linkLabels.length > 0 ? `${linkLabels.join("/")} 링크` : "";
+  const linkPart = linkLabels.length > 0 ? `${linkLabels.join("/")} 링크` : "";
 
   if (args.hasResume && linkPart) {
     return `이력서와 ${linkPart}를 제출했습니다.`;
@@ -234,6 +234,20 @@ export async function POST(req: NextRequest) {
       .eq("user_id", user.id);
 
     if (profileUpdateError) {
+      await insertTalentProfileSourceErrorLog({
+        admin,
+        error: profileUpdateError,
+        stage: "onboarding_profile_update",
+        userId: user.id,
+        metadata: {
+          conversationId,
+          hasLinkedin,
+          hasResume,
+          hasResumeText: Boolean(resumeText),
+          linkCount: links.length,
+          resumeFileName: resumeFileName ?? null,
+        },
+      });
       return NextResponse.json(
         {
           error:
@@ -287,6 +301,20 @@ export async function POST(req: NextRequest) {
             logger.log("[TalentOnboardingStart] profile ingestion failed", {
               userId: user.id,
               error: ingestionMessage,
+            });
+            await insertTalentProfileSourceErrorLog({
+              admin,
+              error: ingestionError,
+              stage: "onboarding_profile_ingest",
+              userId: user.id,
+              metadata: {
+                conversationId,
+                hasLinkedin,
+                hasResume,
+                hasResumeText: Boolean(resumeText),
+                linkCount: links.length,
+                resumeFileName: resumeFileName ?? null,
+              },
             });
             return {
               ok: false,
@@ -460,9 +488,7 @@ export async function POST(req: NextRequest) {
     try {
       await notifySlackActivity({
         action: "/career/onboarding 제출 완료",
-        details: [
-          { label: "Device", value: getSlackActivityDeviceLabel(req) },
-        ],
+        details: [{ label: "Device", value: getSlackActivityDeviceLabel(req) }],
         email: submittedEmail || profile?.email || user.email,
         name: submittedName || profile?.name || displayName,
         user,

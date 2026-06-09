@@ -7,6 +7,7 @@ import {
   getTalentResumeSignedUrl,
   getTalentSupabaseAdmin,
 } from "@/lib/talentOnboarding/server";
+import { insertTalentProfileSourceErrorLog } from "@/lib/talentOnboarding/errorLogs";
 import {
   mergeTalentProfileFromLatestSources,
   pickLinkedinUrl,
@@ -122,9 +123,8 @@ const normalizeStructuredProfile = (
     location: sanitizeSingleLineText(talentUserRecord?.location, 240),
   };
 
-  const talentExperiences = (Array.isArray(record.talentExperiences)
-    ? record.talentExperiences
-    : []
+  const talentExperiences = (
+    Array.isArray(record.talentExperiences) ? record.talentExperiences : []
   )
     .map((item) => {
       const row = asRecord(item);
@@ -171,9 +171,8 @@ const normalizeStructuredProfile = (
       } => Boolean(item)
     );
 
-  const talentEducations = (Array.isArray(record.talentEducations)
-    ? record.talentEducations
-    : []
+  const talentEducations = (
+    Array.isArray(record.talentEducations) ? record.talentEducations : []
   )
     .map((item) => {
       const row = asRecord(item);
@@ -212,9 +211,8 @@ const normalizeStructuredProfile = (
       } => Boolean(item)
     );
 
-  const talentExtras = (Array.isArray(record.talentExtras)
-    ? record.talentExtras
-    : []
+  const talentExtras = (
+    Array.isArray(record.talentExtras) ? record.talentExtras : []
   )
     .map((item) => {
       const row = asRecord(item);
@@ -250,11 +248,16 @@ const normalizeStructuredProfile = (
 };
 
 export async function POST(req: NextRequest) {
+  let admin: ReturnType<typeof getTalentSupabaseAdmin> | null = null;
+  let profileSourceLogMetadata: Record<string, unknown> | undefined;
+  let userId: string | null = null;
+
   try {
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    userId = user.id;
 
     const body = (await req.json()) as Body;
     const resumeFileName = body.resumeFileName?.trim();
@@ -286,13 +289,40 @@ export async function POST(req: NextRequest) {
     }
     if (structuredProfile) {
       updatePayload.name = structuredProfile.talentUser.name;
-      updatePayload.profile_picture = structuredProfile.talentUser.profile_picture;
+      updatePayload.profile_picture =
+        structuredProfile.talentUser.profile_picture;
       updatePayload.headline = structuredProfile.talentUser.headline;
       updatePayload.bio = structuredProfile.talentUser.bio;
       updatePayload.location = structuredProfile.talentUser.location;
     }
 
-    const admin = getTalentSupabaseAdmin();
+    profileSourceLogMetadata = {
+      forceProfileIngestion,
+      hasLinkedin: Boolean(pickLinkedinUrl(links)),
+      hasResumeFile: Boolean(resumeFileName || resumeStoragePath),
+      hasResumeText: Boolean(resumeText),
+      linkCount: links.length,
+      resumeFileName: resumeFileName ?? null,
+      structuredProfile: Boolean(structuredProfile),
+    };
+
+    admin = getTalentSupabaseAdmin();
+    const logProfileSourceError = (
+      stage: string,
+      error: unknown,
+      metadata?: Record<string, unknown>
+    ) =>
+      insertTalentProfileSourceErrorLog({
+        admin: admin!,
+        error,
+        stage,
+        userId: user.id,
+        metadata: {
+          ...profileSourceLogMetadata,
+          ...(metadata ?? {}),
+        },
+      });
+
     await ensureTalentUserRecord({ admin, user });
     const existingProfile = await fetchTalentUserProfile({
       admin,
@@ -322,19 +352,17 @@ export async function POST(req: NextRequest) {
           talentUser: existingProfile,
         })
       : null;
-    let profileIngestion:
-      | {
-          ok: boolean;
-          linkedinUrl?: string;
-          stats?: Record<string, number>;
-          warnings?: Array<{
-            code: string;
-            message: string;
-            detail?: string | null;
-          }>;
-          error?: string;
-        }
-      | null = null;
+    let profileIngestion: {
+      ok: boolean;
+      linkedinUrl?: string;
+      stats?: Record<string, number>;
+      warnings?: Array<{
+        code: string;
+        message: string;
+        detail?: string | null;
+      }>;
+      error?: string;
+    } | null = null;
 
     const { error: updateError } = await admin
       .from("talent_users")
@@ -342,6 +370,7 @@ export async function POST(req: NextRequest) {
       .eq("user_id", user.id);
 
     if (updateError) {
+      await logProfileSourceError("profile_update_talent_users", updateError);
       return NextResponse.json(
         { error: updateError.message ?? "Failed to update profile" },
         { status: 500 }
@@ -356,6 +385,10 @@ export async function POST(req: NextRequest) {
         .delete()
         .eq("talent_id", user.id);
       if (expDeleteError) {
+        await logProfileSourceError(
+          "profile_update_delete_talent_experiences",
+          expDeleteError
+        );
         return NextResponse.json(
           {
             error:
@@ -370,6 +403,10 @@ export async function POST(req: NextRequest) {
         .delete()
         .eq("talent_id", user.id);
       if (eduDeleteError) {
+        await logProfileSourceError(
+          "profile_update_delete_talent_educations",
+          eduDeleteError
+        );
         return NextResponse.json(
           {
             error:
@@ -384,6 +421,11 @@ export async function POST(req: NextRequest) {
           .from("talent_experiences")
           .insert(structuredProfile.talentExperiences);
         if (expInsertError) {
+          await logProfileSourceError(
+            "profile_update_insert_talent_experiences",
+            expInsertError,
+            { experienceCount: structuredProfile.talentExperiences.length }
+          );
           return NextResponse.json(
             {
               error:
@@ -399,6 +441,11 @@ export async function POST(req: NextRequest) {
           .from("talent_educations")
           .insert(structuredProfile.talentEducations);
         if (eduInsertError) {
+          await logProfileSourceError(
+            "profile_update_insert_talent_educations",
+            eduInsertError,
+            { educationCount: structuredProfile.talentEducations.length }
+          );
           return NextResponse.json(
             {
               error:
@@ -409,17 +456,24 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      const { error: extrasUpsertError } = await db.from("talent_extras").upsert(
-        {
-          talent_id: user.id,
-          content: {
-            updated_at: now,
-            talent_extras: structuredProfile.talentExtras,
+      const { error: extrasUpsertError } = await db
+        .from("talent_extras")
+        .upsert(
+          {
+            talent_id: user.id,
+            content: {
+              updated_at: now,
+              talent_extras: structuredProfile.talentExtras,
+            },
           },
-        },
-        { onConflict: "talent_id" }
-      );
+          { onConflict: "talent_id" }
+        );
       if (extrasUpsertError) {
+        await logProfileSourceError(
+          "profile_update_upsert_talent_extras",
+          extrasUpsertError,
+          { extrasCount: structuredProfile.talentExtras.length }
+        );
         return NextResponse.json(
           {
             error: extrasUpsertError.message ?? "Failed to save talent extras",
@@ -453,6 +507,14 @@ export async function POST(req: NextRequest) {
           userId: user.id,
           error: ingestionMessage,
         });
+        await logProfileSourceError(
+          "profile_update_merge_ingestion",
+          ingestionError,
+          {
+            hasExistingStructuredProfile: Boolean(existingStructuredProfile),
+            shouldMergeLatestSources,
+          }
+        );
         profileIngestion = {
           ok: false,
           error: ingestionMessage,
@@ -490,6 +552,15 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to update profile";
+    if (admin && userId) {
+      await insertTalentProfileSourceErrorLog({
+        admin,
+        error,
+        stage: "profile_update_unhandled",
+        userId,
+        metadata: profileSourceLogMetadata,
+      });
+    }
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

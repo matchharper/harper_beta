@@ -35,6 +35,7 @@ import React, {
 } from "react";
 import {
   AlertTriangleIcon,
+  ArrowRight,
   BriefcaseBusiness,
   Check,
   FileX2,
@@ -719,6 +720,7 @@ export default function LandingKoVfPage() {
           careerStartHref={careerStartHref}
           onCareerStartClick={handleCareerStartClick}
         />
+
         <CareerEmailOnboardingModal
           abtestType={CAREER_EMAIL_ONBOARDING_ABTEST_TYPE}
           countryLang={countryLang}

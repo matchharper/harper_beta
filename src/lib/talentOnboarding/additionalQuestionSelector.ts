@@ -220,7 +220,7 @@ export async function selectAdditionalOnboardingQuestion(args: {
     jsonMode: true,
     messages,
     primaryModel: CAREER_LLM_CONFIG.assistant.primaryModel,
-    temperature: 0.2,
+    temperature: CAREER_LLM_CONFIG.additionalQuestionSelector.temperature,
     usageLabel: "career/onboarding:additional_question_selector",
   });
 

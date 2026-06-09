@@ -6,6 +6,7 @@ import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { finalizePendingTalentCapture } from "@/lib/talentCapture/client";
 import { buildLandingLoginEmailType } from "@/lib/landingLogTypes";
 import { getCareerSignupAttributionPayload } from "@/lib/careerSignupAttribution";
+import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
 
 function inferLandingLogSource(args: { flow: string; nextPath: string }) {
   if (args.nextPath.startsWith("/search")) return "search";
@@ -15,6 +16,23 @@ function inferLandingLogSource(args: { flow: string; nextPath: string }) {
   return null;
 }
 
+function getQueryText(value: string | string[] | undefined) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function getNextPathParam(nextPath: string, key: string) {
+  if (typeof window === "undefined") return "";
+
+  try {
+    return (
+      new URL(nextPath, window.location.origin).searchParams.get(key)?.trim() ??
+      ""
+    );
+  } catch {
+    return "";
+  }
+}
+
 export default function AuthCallback() {
   const router = useRouter();
 
@@ -22,9 +40,8 @@ export default function AuthCallback() {
     if (!router.isReady) return;
 
     (async () => {
-      const lid = typeof router.query.lid === "string" ? router.query.lid : "";
-      const flow =
-        typeof router.query.flow === "string" ? router.query.flow : "";
+      const lid = getQueryText(router.query.lid);
+      const flow = getQueryText(router.query.flow);
       const rawNext =
         typeof router.query.next === "string" ? router.query.next : "";
       const nextPath = rawNext.startsWith("/") ? rawNext : "/invitation";
@@ -38,6 +55,14 @@ export default function AuthCallback() {
           : typeof router.query.source === "string"
             ? router.query.source
             : null;
+      const inviteToken =
+        getQueryText(router.query.invite) ||
+        getNextPathParam(nextPath, "invite");
+      const mail =
+        getQueryText(router.query.mail) || getNextPathParam(nextPath, "mail");
+      const emailOnboardingToken =
+        getQueryText(router.query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM]) ||
+        getNextPathParam(nextPath, CAREER_EMAIL_ONBOARDING_TOKEN_PARAM);
       const code =
         typeof router.query.code === "string" ? router.query.code : "";
 
@@ -95,12 +120,16 @@ export default function AuthCallback() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${accessToken}`,
           },
-          body: JSON.stringify(
-            getCareerSignupAttributionPayload({
+          body: JSON.stringify({
+            ...getCareerSignupAttributionPayload({
               localId: lid,
+              path: nextPath,
               source: querySource,
-            })
-          ),
+            }),
+            ...(inviteToken ? { inviteToken } : {}),
+            ...(mail ? { mail } : {}),
+            ...(emailOnboardingToken ? { emailOnboardingToken } : {}),
+          }),
         });
 
         const bootstrapJson = await bootstrapRes.json().catch(() => ({}));

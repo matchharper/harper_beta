@@ -15,6 +15,7 @@ import type { CareerConversationStarterId } from "@/lib/career/conversationStart
 import { createRecommendJobPostingStatusLog } from "@/lib/talentOnboarding/recommendJobPostingStatus";
 
 type SendChatArgs = {
+  allowedToolNames?: readonly string[];
   channel?: "chat" | "voice";
   conversationStarterId?: CareerConversationStarterId;
   text: string;
@@ -448,6 +449,7 @@ export const useCareerChat = ({
             Accept: "text/event-stream",
           },
           body: JSON.stringify({
+            allowedToolNames: args.allowedToolNames,
             channel: args.channel ?? "chat",
             conversationStarterId: activeConversationStarterId,
             conversationId,

@@ -5,10 +5,7 @@ import {
   getOpportunityPanelTone,
   getOpportunityTypeLabel,
 } from "../CareerHistoryPanel";
-import {
-  getCareerCompanySectionTitle,
-  getCareerOpportunityInfoTagMeta,
-} from "../opportunityTypeMeta";
+import { getCareerCompanySectionTitle } from "../opportunityTypeMeta";
 import { formatRelativeTime } from "@/lib/utils";
 import CareerRichText from "../ui/CareerRichText";
 import {
@@ -16,13 +13,14 @@ import {
   ArrowRight,
   ArrowUpRight,
   Building2,
-  CircleHelp,
   Dot,
+  HeartHandshake,
   MapPin,
 } from "lucide-react";
 import { careerCx, CareerInlinePanel } from "../ui/CareerPrimitives";
 import { OpportunityType } from "@/lib/opportunityType";
 import OpportunityPreferenceFit from "./OpportunityPreferenceFit";
+import { CareerBadge } from "@/components/ui/career/badge";
 
 export const OpportunityHeader = ({
   item,
@@ -237,51 +235,59 @@ const HistoryOpportunityDetailContent = ({
         <CareerInlinePanel
           className={careerCx("rounded-2xl p-1", getOpportunityPanelTone(item))}
         >
-          <div className="flex w-full flex-col items-start justify-between rounded-2xl bg-beige50 px-5 py-6">
+          <div className="flex w-full flex-col items-start justify-between rounded-2xl px-5 py-6">
             <OpportunityHeader
               item={item}
               onOpenCompanyInfo={onOpenCompanyInfo}
               onOpenOpportunityInfo={onOpenOpportunityInfo}
             />
 
-            <div className="mt-8 flex flex-col gap-3 text-sm text-black">
-              {recommendationSummary && <div>{recommendationSummary}</div>}
-              {item.recommendationReasons.map((reason, index) => (
-                <div
-                  key={`${item.id}-${index}`}
-                  className="flex w-full flex-row items-center justify-start gap-1"
-                >
-                  <Dot className="h-5 w-5 min-w-5" />
+            <div className="mt-8 flex flex-col gap-3 p-4 rounded-2xl border border-black/10 text-sm text-black bg-neutral-50">
+              <div className="w-full flex flex-row items-center justify-between text-black/60">
+                <div>Harper가 요약한 정보</div>
+                <div>
+                  {roleLink && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenLink(roleLink)}
+                      className="underline underline-offset-4 cursor-pointer hover:text-black flex flex-row items-center gap-1"
+                    >
+                      <ArrowUpRight className="h-4 w-4" />
+                      JD 확인하기
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="h-[1px] mt-1 w-full bg-black/10" />
+              <div className="flex flex-col gap-3 py-2">
+                {recommendationSummary && <div>{recommendationSummary}</div>}
+                {item.recommendationReasons.map((reason, index) => (
                   <div
-                    className="text-sm"
-                    dangerouslySetInnerHTML={{ __html: reason }}
-                  />
-                </div>
-              ))}
-              {recommendationConcerns.map((concern, index) => (
-                <div
-                  key={`${item.id}-concern-${index}`}
-                  className="flex w-full flex-row items-center justify-start gap-1"
-                >
-                  <Dot className="h-5 w-5 min-w-5" />
-                  <div>불안 요소 : {concern}</div>
-                </div>
-              ))}
+                    key={`${item.id}-${index}`}
+                    className="flex w-full flex-row items-center justify-start gap-1"
+                  >
+                    <Dot className="h-5 w-5 min-w-5" />
+                    <div
+                      className="text-sm"
+                      dangerouslySetInnerHTML={{ __html: reason }}
+                    />
+                  </div>
+                ))}
+                {recommendationConcerns.map((concern, index) => (
+                  <div
+                    key={`${item.id}-concern-${index}`}
+                    className="flex w-full flex-row items-center justify-start gap-1"
+                  >
+                    <Dot className="h-5 w-5 min-w-5" />
+                    <div>불안 요소 : {concern}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
           <div className="flex flex-col gap-8 px-5 py-4 font-inter text-[15px] font-normal text-black/80">
             <div className="space-y-3">
-              {roleLink && (
-                <button
-                  type="button"
-                  onClick={() => onOpenLink(roleLink)}
-                  className="flex min-h-9 w-full items-center justify-center gap-2 rounded-[8px] bg-beige900 px-4 py-3 text-sm font-medium text-beige50 transition-opacity hover:opacity-95"
-                >
-                  JD 확인하기
-                  <ArrowUpRight className="h-4 w-4" />
-                </button>
-              )}
               <OpportunityPreferenceFit
                 items={item.preferenceFit}
                 variant="detail"
@@ -345,33 +351,20 @@ export const HistoryOpportunityInfoTag = ({
   onOpenInfo: (type: CareerOpportunityType) => void;
 }) => {
   const label = getOpportunityTypeLabel(item);
-  const infoTagMeta = getCareerOpportunityInfoTagMeta(item.opportunityType);
-  const LeadingIcon = infoTagMeta.icon;
   const textColor =
     item.opportunityType === OpportunityType.IntroRequest
-      ? "text-xprimary"
-      : "text-black/80";
-
-  if (!infoTagMeta.interactive) {
-    return (
-      <div
-        className={`flex shrink-0 flex-row items-center gap-2 text-[13px] ${textColor}`}
-      >
-        <LeadingIcon className="h-3.5 w-3.5" />
-        <span>{label}</span>
-      </div>
-    );
-  }
+      ? "bg-black text-white"
+      : "bg-neutral-100 text-black";
 
   return (
-    <button
-      type="button"
+    <CareerBadge
       onClick={() => onOpenInfo(item.opportunityType)}
-      className={`flex shrink-0 flex-row items-center gap-2 text-[13px] decoration-dotted underline underline-offset-2 transition-colors hover:opacity-90 ${textColor}`}
+      className={`flex shrink-0 flex-row items-center gap-2 text-[13px] transition-colors hover:opacity-90 ${textColor}`}
     >
-      <LeadingIcon className="h-3.5 w-3.5" />
+      {item.opportunityType === OpportunityType.IntroRequest && (
+        <HeartHandshake className="h-3.5 w-3.5 text-white" />
+      )}
       <span>{label}</span>
-      {infoTagMeta.showHelpIcon && <CircleHelp className="h-3.5 w-3.5" />}
-    </button>
+    </CareerBadge>
   );
 };

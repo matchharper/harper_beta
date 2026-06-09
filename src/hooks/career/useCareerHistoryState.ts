@@ -944,66 +944,6 @@ export function useCareerHistoryState(args: {
     ]
   );
 
-  const onSendHistoryOpportunityQuestion = useCallback(
-    async (opportunityId: string, question: string) => {
-      const normalizedOpportunityId = opportunityId.trim();
-      const normalizedQuestion = question.trim();
-
-      if (!normalizedOpportunityId || !normalizedQuestion) {
-        return false;
-      }
-
-      const currentItem = historyOpportunityById.get(normalizedOpportunityId);
-      if (!currentItem) return false;
-
-      beginHistoryUpdate(normalizedOpportunityId);
-
-      try {
-        const response = await fetchWithAuth(
-          "/api/talent/opportunities/question",
-          {
-            method: "POST",
-            body: JSON.stringify({
-              conversationId,
-              opportunityId: normalizedOpportunityId,
-              question: normalizedQuestion,
-            }),
-          }
-        );
-        const payload = await response.json().catch(() => ({}));
-
-        if (!response.ok) {
-          throw new Error(
-            getErrorMessage(payload, "질문을 전송하지 못했습니다.")
-          );
-        }
-
-        if (payload.assistantMessage) {
-          onHistoryActionAssistantMessage?.(
-            payload.assistantMessage as CareerMessagePayload
-          );
-        }
-
-        return true;
-      } catch (error) {
-        setHistoryUpdateError(
-          error instanceof Error ? error.message : "질문을 전송하지 못했습니다."
-        );
-        return false;
-      } finally {
-        endHistoryUpdate(normalizedOpportunityId);
-      }
-    },
-    [
-      beginHistoryUpdate,
-      conversationId,
-      endHistoryUpdate,
-      fetchWithAuth,
-      historyOpportunityById,
-      onHistoryActionAssistantMessage,
-    ]
-  );
-
   const hydrateHistoryOpportunities = useCallback(
     (value: unknown, nextOffset?: number | null, counts?: unknown) => {
       const firstPage = toHistoryPage(value, nextOffset, counts);
@@ -1190,7 +1130,6 @@ export function useCareerHistoryState(args: {
     loadMoreHistoryOpportunities,
     onMarkHistoryOpportunityClicked,
     onMarkHistoryOpportunityViewed,
-    onSendHistoryOpportunityQuestion,
     onUpdateHistoryOpportunityFeedback,
     onUpdateHistoryOpportunitySavedStage,
     onUpdateHistoryOpportunityTalentMemo,

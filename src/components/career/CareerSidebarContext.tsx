@@ -59,7 +59,9 @@ export type CareerSidebarContextValue = {
   opportunityRunTriggerPending: boolean;
   onboardingCompletionTestPending: boolean;
   sessionReengagementTestPending: boolean;
+  currentDataJobPostingRecommendationTestPending: boolean;
   onRunOnboardingCompletionTest: () => boolean | Promise<boolean>;
+  onRunCurrentDataJobPostingRecommendationTest: () => void | Promise<void>;
   onRunSessionReengagementTest: (options?: {
     deleteLatestMessage?: boolean;
   }) => boolean | void | Promise<boolean | void>;
@@ -129,10 +131,6 @@ export type CareerSidebarContextValue = {
     limit?: number;
     request?: string | null;
   }) => Promise<CareerCompanyRecommendationResult | null>;
-  onSendHistoryOpportunityQuestion: (
-    opportunityId: string,
-    question: string
-  ) => boolean | Promise<boolean>;
 
   resumeFile: File | null;
   savedResumeFileName: string | null;

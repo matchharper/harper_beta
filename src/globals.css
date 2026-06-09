@@ -40,7 +40,6 @@
   --color-gray700: #bdc8cd;
   --color-gray800: #dcdee3;
   --color-gray900: #e3e3e3;
-  --color-xprimary: #d35400;
   --color-xgrayblack: #1f2937;
   --color-xmain: #000000;
   --color-xopp: #ffffff;
@@ -78,23 +77,24 @@
   --color-accenta1: #efff3f;
   --color-accentBronze: #753b17;
   --color-accenta2: #c0ce2b;
-  --color-harper-neutral-00: #fffefc;
-  --color-harper-neutral-100: #f8f7f5;
-  --color-harper-neutral-200: #f3f1ee;
-  --color-harper-neutral-300: #ece9e5;
-  --color-harper-neutral-400: #ddd8d2;
-  --color-harper-neutral-500: #cec8c1;
-  --color-harper-neutral-600: #aba49d;
-  --color-harper-neutral-700: #827b75;
-  --color-harper-neutral-1000: #1f1c1a;
-  --color-harper-neutral-1000-a05: #1f1c1a0d;
-  --color-harper-neutral-1000-a10: #1f1c1a1a;
-  --color-harper-accent-00: #fffefc;
-  --color-harper-accent-200: #f5eee8;
-  --color-harper-accent-300: #f2dfce;
-  --color-harper-accent-400: #e0c3af;
-  --color-harper-accent-700: #753b17;
-  --color-harper-accent-700-a40: #753b1766;
+  --color-neutral-00: #fffefc;
+  --color-neutral-100: #f8f7f5;
+  --color-neutral-200: #f3f1ee;
+  --color-neutral-300: #ece9e5;
+  --color-neutral-400: #ddd8d2;
+  --color-neutral-500: #cec8c1;
+  --color-neutral-600: #aba49d;
+  --color-neutral-700: #827b75;
+  --color-neutral-1000: #1f1c1a;
+  --color-neutral-1000-a05: #1f1c1a0d;
+  --color-neutral-1000-a10: #1f1c1a1a;
+  --color-accent-00: #fffefc;
+  --color-accent-200: #f5eee8;
+  --color-accent-300: #f2dfce;
+  --color-accent-400: #e0c3af;
+  --color-accent-700: #753b17;
+  --color-accent-700-a40: #753b1766;
+  --color-xprimary: #d35400;
   --color-xgray800: #8a8b9d;
   --color-bgDark900: #121212;
   --color-bgDark600: #1e1e1e;
@@ -255,6 +255,18 @@
     --ink: #1f1c1a;
     --paper: #fffefc;
     --gold: #753b17;
+    --liquid-glass-filter: blur(18px) saturate(180%) contrast(1.04);
+    --liquid-glass-bg: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.38),
+      rgba(255, 255, 255, 0.12)
+    );
+    --liquid-glass-border: rgba(255, 255, 255, 0.42);
+    --liquid-glass-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.56),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.16),
+      0 18px 50px rgba(31, 28, 24, 0.13);
+    --liquid-glass-fallback-bg: rgba(255, 255, 255, 0.82);
   }
 
   @media (prefers-color-scheme: dark) {
@@ -344,6 +356,51 @@
 @layer utilities {
   button {
     cursor: pointer;
+  }
+
+  .liquid-glass {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    background: var(--liquid-glass-bg);
+    border: 1px solid var(--liquid-glass-border);
+    box-shadow: var(--liquid-glass-shadow);
+    -webkit-backdrop-filter: var(--liquid-glass-filter);
+    backdrop-filter: var(--liquid-glass-filter);
+  }
+
+  .liquid-glass::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background:
+      linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.58),
+        rgba(255, 255, 255, 0) 42%
+      ),
+      radial-gradient(
+        circle at 14% 8%,
+        rgba(255, 255, 255, 0.62),
+        transparent 32%
+      ),
+      radial-gradient(
+        circle at 88% 92%,
+        rgba(255, 255, 255, 0.18),
+        transparent 38%
+      );
+    mix-blend-mode: screen;
+    opacity: var(--liquid-glass-shine-opacity, 0.72);
+  }
+
+  @supports not (
+    (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+  ) {
+    .liquid-glass {
+      background: var(--liquid-glass-fallback-bg);
+    }
   }
 }
 

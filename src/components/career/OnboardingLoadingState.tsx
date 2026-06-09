@@ -53,7 +53,7 @@ const SkeletonLine = ({
     className={`relative overflow-hidden rounded-full bg-beige900/6 ${className}`}
   >
     <motion.div
-      className="absolute inset-y-0 w-1/2 rounded-full bg-linear-to-r from-transparent via-beige50/80 to-transparent"
+      className="absolute inset-y-0 w-1/2 rounded-full bg-gradient-to-r from-white/0 via-white/80 to-white/0"
       initial={{ x: "-120%" }}
       animate={{ x: "220%" }}
       transition={{
@@ -96,7 +96,7 @@ const ProfilePreview = ({ activeStep }: { activeStep: number }) => {
     <div className="relative w-full max-w-[520px]">
       <div className="absolute inset-0 translate-y-3 rounded-[32px] bg-beige900/4" />
 
-      <div className="relative overflow-hidden rounded-[32px] border border-beige900/8 bg-beige50/90 p-5 text-left shadow-[0_24px_80px_rgba(54,45,36,0.08)] backdrop-blur-xl md:p-6">
+      <div className="relative overflow-hidden rounded-[32px] border border-beige900/8 bg-white/90 p-5 text-left shadow-2xl shadow-black/5 backdrop-blur-xl md:p-6">
         <div className="flex items-center justify-between border-b border-beige900/[0.07] pb-4">
           <div>
             <p className="text-xs font-medium tracking-[-0.01em] text-beige900/40">
@@ -220,7 +220,7 @@ const LoadingState = ({ isOnboarding = true }: { isOnboarding?: boolean }) => {
 
       <div className="relative z-10 grid w-full items-center gap-10 md:grid-cols-[1fr_520px] md:gap-12">
         <div className="text-center md:text-left">
-          <div className="mx-auto mb-5 flex w-fit items-center gap-2 rounded-full border border-beige900/8 bg-beige50/70 px-3 py-1.5 text-xs font-medium text-beige900/45 backdrop-blur md:mx-0">
+          <div className="mx-auto mb-5 flex w-fit items-center gap-2 rounded-full border border-beige900/8 bg-white/70 px-3 py-1.5 text-xs font-medium text-beige900/45 backdrop-blur md:mx-0">
             <ActiveIcon className="h-3.5 w-3.5" />
             <span>Harper is coming</span>
             <span className="min-w-[4ch] font-mono tabular-nums text-beige900/35">
@@ -266,7 +266,7 @@ const LoadingState = ({ isOnboarding = true }: { isOnboarding?: boolean }) => {
                       isDone
                         ? "bg-xprimary/10 text-xprimary"
                         : isActive
-                          ? "bg-beige900 text-beige50"
+                          ? "bg-beige900 text-white"
                           : "bg-beige900/6 text-beige900/40",
                     ].join(" ")}
                   >

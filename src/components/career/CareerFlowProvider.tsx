@@ -56,6 +56,10 @@ const getCompletedOpportunityRunRefreshKey = (
 };
 
 const CAREER_COMPANY_FOLLOW_UP_DELAY_MS = 15_000;
+const DEV_CURRENT_DATA_JOB_POSTING_RECOMMENDATION_TOOL =
+  "recommend_job_postings";
+const DEV_CURRENT_DATA_JOB_POSTING_RECOMMENDATION_PROMPT =
+  "지금까지 저장된 내 프로필, 선호, 최근 피드백 데이터를 기준으로 지금 검토할 만한 공개 채용 공고를 추천해줘. 새로운 장기 선호는 저장하지 말고, 현재 데이터 기반으로 한 번만 찾아줘.";
 
 type SessionReengagementPayload = {
   assistantMessage?: CareerMessagePayload | null;
@@ -430,7 +434,6 @@ export const CareerFlowProvider = ({
     loadMoreHistoryOpportunities,
     onMarkHistoryOpportunityClicked,
     onMarkHistoryOpportunityViewed,
-    onSendHistoryOpportunityQuestion,
     onUpdateHistoryOpportunityFeedback,
     onUpdateHistoryOpportunitySavedStage,
     onUpdateHistoryOpportunityTalentMemo,
@@ -572,6 +575,7 @@ export const CareerFlowProvider = ({
 
   const sendChatMessage = useCallback(
     async (args: {
+      allowedToolNames?: readonly string[];
       channel?: "chat" | "voice";
       conversationStarterId?: CareerConversationStarterId;
       text: string;
@@ -592,6 +596,25 @@ export const CareerFlowProvider = ({
       profilePending,
       sendChatMessageBase,
     ]
+  );
+
+  const handleRunCurrentDataJobPostingRecommendationTest = useCallback(
+    async () => {
+      if (
+        !conversationId ||
+        stage === "profile" ||
+        chatPending ||
+        assistantTyping
+      ) {
+        return;
+      }
+
+      await sendChatMessage({
+        allowedToolNames: [DEV_CURRENT_DATA_JOB_POSTING_RECOMMENDATION_TOOL],
+        text: DEV_CURRENT_DATA_JOB_POSTING_RECOMMENDATION_PROMPT,
+      });
+    },
+    [assistantTyping, chatPending, conversationId, sendChatMessage, stage]
   );
 
   const handleLoadOlderMessages = useCallback(async () => {
@@ -1673,7 +1696,11 @@ export const CareerFlowProvider = ({
       opportunityRunTriggerPending,
       onboardingCompletionTestPending: forceCompletePending,
       sessionReengagementTestPending,
+      currentDataJobPostingRecommendationTestPending:
+        chatPending || assistantTyping,
       onRunOnboardingCompletionTest: handleRunOnboardingCompletionTest,
+      onRunCurrentDataJobPostingRecommendationTest:
+        handleRunCurrentDataJobPostingRecommendationTest,
       onRunSessionReengagementTest: handleRunSessionReengagementTest,
       onRunPeriodicOpportunityDiscoveryTest:
         handleRunPeriodicOpportunityDiscoveryTest,
@@ -1699,7 +1726,6 @@ export const CareerFlowProvider = ({
       onMarkHistoryOpportunityClicked,
       onUpdateCompanyFollow: handleUpdateCompanyFollow,
       onGenerateCompanyRecommendations: handleGenerateCompanyRecommendations,
-      onSendHistoryOpportunityQuestion,
       resumeFile,
       savedResumeFileName,
       savedResumeStoragePath,
@@ -1756,8 +1782,10 @@ export const CareerFlowProvider = ({
     [
       answeredCount,
       activeCompanyRoleCount,
+      assistantTyping,
       blockedCompanies,
       callStartPending,
+      chatPending,
       conversationId,
       handleAddProfileLink,
       handleRunPeriodicOpportunityDiscoveryTest,
@@ -1773,6 +1801,7 @@ export const CareerFlowProvider = ({
       handleGenerateCompanyRecommendations,
       handleProfileLinkChange,
       handleRunOnboardingCompletionTest,
+      handleRunCurrentDataJobPostingRecommendationTest,
       forceCompletePending,
       onResetTalentInsights,
       onResetTalentPreferences,
@@ -1833,7 +1862,6 @@ export const CareerFlowProvider = ({
       userChatCount,
       onMarkHistoryOpportunityClicked,
       onMarkHistoryOpportunityViewed,
-      onSendHistoryOpportunityQuestion,
       onUpdateHistoryOpportunityFeedback,
       onUpdateHistoryOpportunitySavedStage,
       onUpdateHistoryOpportunityTalentMemo,

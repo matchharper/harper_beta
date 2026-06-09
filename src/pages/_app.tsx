@@ -52,6 +52,7 @@ export default function App({ Component, pageProps }: AppProps) {
     router.pathname === "/career_login";
   const shouldHideCrisp =
     isCareerPage ||
+    router.pathname === "/index2" ||
     router.pathname === "/landing-ko-vf" ||
     router.pathname === "/network2";
   const shouldLoadCrisp = Boolean(CRISP_BOOTSTRAP_SCRIPT) && !shouldHideCrisp;

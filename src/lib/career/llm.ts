@@ -18,27 +18,35 @@ import {
 } from "@/lib/talentOnboarding/toolLogging";
 
 export const CAREER_LLM_CONFIG = {
+  // 커리어 제품군의 LLM/Realtime 기본 설정 모음.
+  // runCareer* wrapper 기반 호출은 여기 값을 거치며, 일부 직접 호출도 아래
+  // 개별 섹션을 참조한다. 단, legacy candidate search/chat, embedding lookup,
+  // worker-side opportunity agent는 별도 런타임이다.
+  //
   // 공통 talent assistant 모델 설정. runTalentAssistantCompletion/ToolLoop 기반
   // wrapper들이 primary/general fallback/Anthropic overload fallback을 공유한다.
-  // 사용처: 일반 커리어 채팅, kickoff, reengagement, onboarding defer,
-  // profile ingestion, refresh insights, ops 요약/추천.
+  // 사용처: 일반 커리어 채팅, kickoff, onboarding defer,
+  // profile ingestion, refresh insights, ops 요약/추천, additional question selector.
   assistant: {
     anthropicOverloadFallbackModel: "grok-4-1-fast-reasoning",
     primaryModel: "claude-sonnet-4-6",
     fallbackModel: "grok-4-1-fast-reasoning",
     // fallbackModel: "gpt-4.1-mini",
   },
-  // 일반 텍스트 커리어 채팅 온도. Realtime 전화/음성 응답에는 적용되지 않는다.
-  // 사용처: /api/talent/chat 에서 유저 메시지에 답하거나 tool loop를 돌릴 때.
+  // 일반 텍스트 커리어 채팅 설정. Realtime 전화/음성 응답에는 적용되지 않는다.
+  // prompt에는 structured profile, 최근 activity, 최근 추천 기회 10개 compact summary,
+  // 현재 opportunity run 상태와 tool policy가 함께 들어간다.
+  // 사용처: /api/talent/chat, src/lib/career/chatTurn.ts,
+  // onboarding completion wrapup에서 유저 메시지에 답하거나 tool loop를 돌릴 때.
   chat: {
-    maxTokens: 1024,
+    maxTokens: 1536,
     temperature: 0.55,
   },
-  // 통화/음성 대화 종료 후 transcript를 보고 후속 메시지를 생성할 때.
-  // 사용처: /api/talent/chat/call-wrapup.
-  callWrapup: {
-    model: "grok-4-fast-reasoning",
-    temperature: 0.5,
+  // 온보딩 중 다음 additional question을 고를지 결정하는 JSON selector.
+  // 모델은 assistant.primary/fallback을 쓴다.
+  // 사용처: src/lib/talentOnboarding/additionalQuestionSelector.ts.
+  additionalQuestionSelector: {
+    temperature: 0.2,
   },
   // 대화 저장/응답 이후 assistant 답변에서 structured insight JSON을 뽑을 때.
   // 사용처: /api/talent/chat, /api/talent/chat/save.
@@ -71,6 +79,29 @@ export const CAREER_LLM_CONFIG = {
   opsRoleSummary: {
     temperature: 0.2,
   },
+  // 추천할 company watchlist 후보를 LLM으로 rank할 때.
+  // 사용처: src/lib/career/companyWatchlist.ts 의 rankCompanyRecommendations.
+  companyWatchlistRank: {
+    anthropicOverloadFallbackModel: "grok-4-1-fast-reasoning",
+    fallbackModel: "gpt-4.1-mini",
+    primaryModel: "grok-4-1-fast-non-reasoning",
+    temperature: 0.15,
+  },
+  // 공개 external job posting 추천 tool 내부의 3단계 LLM.
+  // plan: 유저 요청/프로필을 DB 검색 계획으로 변환.
+  // shortlist: 검색 후보가 많을 때 compact card 기준으로 상세 후보를 축소.
+  // finalSelection: 상세 후보 중 최종 추천과 fit reason JSON 생성.
+  // 사용처: src/lib/talentOnboarding/jobPostingRecommendations.ts.
+  recommendJobPostings: {
+    anthropicOverloadFallbackModel: "grok-4-1-fast-reasoning",
+    fallbackModel: "grok-4-fast-reasoning",
+    finalSelectionModel: "claude-sonnet-4-6",
+    finalSelectionTemperature: 0.2,
+    planModel: "claude-sonnet-4-6",
+    planTemperature: 0.2,
+    shortlistModel: "grok-4-1-fast-reasoning",
+    shortlistTemperature: 0.1,
+  },
   // LinkedIn/이력서/입력 링크에서 가져온 profile raw data를 정규화/보강할 때.
   // 모델은 assistant.primary/fallback을 쓴다.
   // 사용처: src/lib/talentOnboarding/profileIngestion.ts.
@@ -84,17 +115,13 @@ export const CAREER_LLM_CONFIG = {
     transcriptionModel: "gpt-4o-mini-transcribe",
     voice: "cedar",
   },
-  // 오래 대화하지 않은 유저에게 다시 말을 걸 reengagement 메시지를 만들 때.
-  // 모델은 assistant.primary/fallback을 쓴다.
-  // 사용처: src/lib/talentOnboarding/reengagement.ts.
-  reengagement: {
-    temperature: 0.45,
-  },
-  // 히스토리의 internal recommendation 액션 이후 채팅창에 보여줄 짧은 응답.
-  // 모델은 assistant.primary/fallback을 쓴다.
-  // 사용처: /api/talent/opportunities, /api/talent/opportunities/question.
-  historyActionReply: {
-    temperature: 0.5,
+  // 회사 스냅샷이 캐시에 없을 때 OpenAI Responses API + web_search로 조사한다.
+  // createChatCompletionWithFallback 경로가 아니며, web_search tool을 쓰기 때문에
+  // 모델만 여기에서 공유한다.
+  // 사용처: src/lib/career/companySnapshot.ts 의 runCompanySnapshotResearch.
+  companySnapshotResearch: {
+    fallbackModel: "gpt-4o",
+    primaryModel: "gpt-4.1",
   },
   // 기존 프로필/대화에서 비어 있는 insight key만 채우는 내부 refresh 작업.
   // 모델은 assistant.primary/fallback을 쓰고 JSON 응답을 기대한다.
@@ -339,7 +366,9 @@ function buildAssistantInstructionsFromToolResults(
 
   return [
     "Additional tool-result instruction for the final user-facing reply:",
-    ...Array.from(new Set(instructions)).map((instruction) => `- ${instruction}`),
+    ...Array.from(new Set(instructions)).map(
+      (instruction) => `- ${instruction}`
+    ),
   ].join("\n");
 }
 
@@ -1632,36 +1661,6 @@ export async function runCareerConversationSummary(args: {
     model: CAREER_LLM_CONFIG.conversationSummary.model,
     temperature: CAREER_LLM_CONFIG.conversationSummary.temperature,
     usageLabel: "career/chat:conversation_summary",
-  });
-}
-
-export async function runCareerCallWrapup(args: { prompt: string }) {
-  return runDirectTextCompletion({
-    messages: [{ role: "user", content: args.prompt }],
-    model: CAREER_LLM_CONFIG.callWrapup.model,
-    temperature: CAREER_LLM_CONFIG.callWrapup.temperature,
-    usageLabel: "career/chat:call_wrapup",
-  });
-}
-
-export async function runCareerReengagementMessage(args: {
-  messages: TalentChatMessage[];
-}) {
-  return runTalentAssistantCompletion({
-    ...assistantModelConfig(),
-    messages: args.messages,
-    temperature: CAREER_LLM_CONFIG.reengagement.temperature,
-  });
-}
-
-export async function runCareerHistoryActionReply(args: {
-  messages: TalentChatMessage[];
-}) {
-  return runTalentAssistantCompletion({
-    ...assistantModelConfig(),
-    messages: args.messages,
-    temperature: CAREER_LLM_CONFIG.historyActionReply.temperature,
-    usageLabel: "career/history:action_reply",
   });
 }
 

@@ -97,10 +97,14 @@ type TalentUserDraft = {
 };
 
 type LlmEnrichmentDraft = {
+  userPatch?: Partial<TalentUserDraft>;
   talentUserPatch?: Partial<TalentUserDraft>;
   talentUser?: Partial<TalentUserDraft>;
+  experiences?: TalentExperienceDraft[];
   talentExperiences?: TalentExperienceDraft[];
+  educations?: TalentEducationDraft[];
   talentEducations?: TalentEducationDraft[];
+  extras?: TalentExtraDraft[];
   talentExtras?: TalentExtraDraft[];
   blockedCompanies?: string[];
   notes?: string;
@@ -119,10 +123,14 @@ type MergedTalentExtraDraft = TalentExtraDraft & {
 };
 
 type LlmProfileMergeDraft = {
+  userPatch?: Partial<TalentUserDraft>;
   talentUserPatch?: Partial<TalentUserDraft>;
   talentUser?: Partial<TalentUserDraft>;
+  experiences?: Array<Record<string, unknown>>;
   talentExperiences?: Array<Record<string, unknown>>;
+  educations?: Array<Record<string, unknown>>;
   talentEducations?: Array<Record<string, unknown>>;
+  extras?: Array<Record<string, unknown>>;
   talentExtras?: Array<Record<string, unknown>>;
   blockedCompanies?: string[];
   notes?: string;
@@ -198,6 +206,8 @@ type ExtractedTalentProfileDraft = {
 
 const RESUME_ENRICHMENT_LLM_TIMEOUT_MS = 180_000;
 const PROFILE_UPDATE_MERGE_LLM_TIMEOUT_MS = 90_000;
+const LLM_EXPERIENCE_OUTPUT_LIMIT = 10;
+const LLM_EXTRA_GROUP_OUTPUT_LIMIT = 5;
 
 function toArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
@@ -305,7 +315,9 @@ async function mergeBlockedCompaniesIntoTalentSetting(args: {
     ...nextBlockedCompanies,
   ]);
 
-  if (mergedBlockedCompanies.length === (current?.blocked_companies ?? []).length) {
+  if (
+    mergedBlockedCompanies.length === (current?.blocked_companies ?? []).length
+  ) {
     return current;
   }
 
@@ -557,9 +569,13 @@ function buildTalentUserDraft(
   };
 }
 
-function toTalentExperienceDraft(raw: unknown): TalentExperienceDraft | null {
+function toTalentExperienceDraft(
+  raw: unknown,
+  options: { useRawMonths?: boolean } = {}
+): TalentExperienceDraft | null {
   if (!raw || typeof raw !== "object") return null;
   const item = raw as Record<string, unknown>;
+  const useRawMonths = options.useRawMonths !== false;
 
   const startDate = parseLinkedinDate(
     extractDateText(item.start_date ?? item.startDate),
@@ -596,12 +612,13 @@ function toTalentExperienceDraft(raw: unknown): TalentExperienceDraft | null {
     return null;
   }
 
-  const rawMonths =
-    typeof item.months === "number"
+  const rawMonths = useRawMonths
+    ? typeof item.months === "number"
       ? item.months
       : typeof item.months === "string"
         ? Number(item.months)
-        : null;
+        : null
+    : null;
   const months =
     typeof rawMonths === "number" && Number.isFinite(rawMonths)
       ? Math.max(Math.floor(rawMonths), 0)
@@ -822,7 +839,8 @@ function recoverExperienceCompanyIds(
 
     const bestCandidate = bestCandidates[0];
     const resolvedCompanyId =
-      typeof bestCandidate.company_id === "number" && bestCandidate.company_id > 0
+      typeof bestCandidate.company_id === "number" &&
+      bestCandidate.company_id > 0
         ? bestCandidate.company_id
         : null;
 
@@ -973,7 +991,8 @@ function normalizeLlmEnrichment(raw: LlmEnrichmentDraft): {
   blockedCompanies: string[];
   notes: string | null;
 } {
-  const userPatchRaw = raw.talentUserPatch ?? raw.talentUser ?? {};
+  const userPatchRaw =
+    raw.userPatch ?? raw.talentUserPatch ?? raw.talentUser ?? {};
   const userPatch: Partial<TalentUserDraft> = {};
 
   if ("name" in userPatchRaw)
@@ -986,26 +1005,23 @@ function normalizeLlmEnrichment(raw: LlmEnrichmentDraft): {
   if ("location" in userPatchRaw) {
     userPatch.location = cleanText(userPatchRaw.location, 240);
   }
-  if ("profile_picture" in userPatchRaw) {
-    userPatch.profile_picture = cleanText(userPatchRaw.profile_picture, 1000);
-  }
 
   const experiences = dedupeByKey(
-    toArray(raw.talentExperiences)
-      .map((item) => toTalentExperienceDraft(item))
+    toArray(raw.experiences ?? raw.talentExperiences)
+      .map((item) => toTalentExperienceDraft(item, { useRawMonths: false }))
       .filter((item): item is TalentExperienceDraft => item !== null),
     experienceKey
   );
 
   const educations = dedupeByKey(
-    toArray(raw.talentEducations)
+    toArray(raw.educations ?? raw.talentEducations)
       .map((item) => toTalentEducationDraft(item))
       .filter((item): item is TalentEducationDraft => item !== null),
     educationKey
   );
 
   const talentExtras = dedupeByKey(
-    toArray(raw.talentExtras)
+    toArray(raw.extras ?? raw.talentExtras)
       .map((item) => toTalentExtraDraft(item))
       .filter((item): item is TalentExtraDraft => item !== null),
     extraKey
@@ -1013,11 +1029,11 @@ function normalizeLlmEnrichment(raw: LlmEnrichmentDraft): {
 
   return {
     talentUserPatch: userPatch,
-    experiences,
+    experiences: experiences.slice(0, LLM_EXPERIENCE_OUTPUT_LIMIT),
     educations,
-    talentExtras,
+    talentExtras: talentExtras.slice(0, LLM_EXTRA_GROUP_OUTPUT_LIMIT),
     blockedCompanies: normalizeTalentBlockedCompanies(raw.blockedCompanies),
-    notes: cleanText(raw.notes, 2000),
+    notes: null,
   };
 }
 
@@ -1033,7 +1049,7 @@ function parseExistingId(value: unknown): number | null {
 function toMergedExperienceDraft(
   raw: unknown
 ): MergedTalentExperienceDraft | null {
-  const base = toTalentExperienceDraft(raw);
+  const base = toTalentExperienceDraft(raw, { useRawMonths: false });
   if (!base || !raw || typeof raw !== "object") return null;
   const record = raw as Record<string, unknown>;
   return {
@@ -1101,26 +1117,47 @@ function normalizeLlmProfileMerge(raw: LlmProfileMergeDraft): {
   return {
     talentUserPatch: base.talentUserPatch,
     experiences: dedupeMergedRows(
-      toArray(raw.talentExperiences)
+      toArray(raw.experiences ?? raw.talentExperiences)
         .map((item) => toMergedExperienceDraft(item))
-        .filter(
-          (item): item is MergedTalentExperienceDraft => item !== null
-        ),
+        .filter((item): item is MergedTalentExperienceDraft => item !== null),
       experienceKey
-    ),
+    ).slice(0, LLM_EXPERIENCE_OUTPUT_LIMIT),
     educations: dedupeMergedRows(
-      toArray(raw.talentEducations)
+      toArray(raw.educations ?? raw.talentEducations)
         .map((item) => toMergedEducationDraft(item))
         .filter((item): item is MergedTalentEducationDraft => item !== null),
       educationKey
     ),
     talentExtras: dedupeByKey(
-      toArray(raw.talentExtras)
+      toArray(raw.extras ?? raw.talentExtras)
         .map((item) => toMergedExtraDraft(item))
         .filter((item): item is MergedTalentExtraDraft => item !== null),
       extraKey
-    ),
+    ).slice(0, LLM_EXTRA_GROUP_OUTPUT_LIMIT),
     notes: base.notes,
+  };
+}
+
+function compactExperienceForPrompt(item: TalentExperienceDraft) {
+  return {
+    role: item.role,
+    description: item.description,
+    employment_type: item.employment_type,
+    start_date: item.start_date,
+    end_date: item.end_date,
+    company_name: item.company_name,
+    company_location: item.company_location,
+  };
+}
+
+function compactEducationForPrompt(item: TalentEducationDraft) {
+  return {
+    school: item.school,
+    degree: item.degree,
+    description: item.description,
+    field: item.field,
+    start_date: item.start_date,
+    end_date: item.end_date,
   };
 }
 
@@ -1158,9 +1195,9 @@ async function runResumeEnrichmentLlm(args: {
       bio: userDraft.bio,
       location: userDraft.location,
     },
-    experiences: experiences.slice(0, 30),
-    educations: educations.slice(0, 20),
-    talentExtras: talentExtras.slice(0, 40),
+    experiences: experiences.slice(0, 30).map(compactExperienceForPrompt),
+    educations: educations.slice(0, 20).map(compactEducationForPrompt),
+    extras: talentExtras.slice(0, 40),
     scholarLinks,
   };
 
@@ -1687,10 +1724,12 @@ function experienceLooksSame(
   const incomingRole = normalizeForKey(incoming.role);
   if (!existingCompany || existingCompany !== incomingCompany) return false;
 
-  if (existingRole && incomingRole && existingRole === incomingRole) return true;
+  if (existingRole && incomingRole && existingRole === incomingRole)
+    return true;
   if (
     normalizeForKey(existing.start_date) &&
-    normalizeForKey(existing.start_date) === normalizeForKey(incoming.start_date)
+    normalizeForKey(existing.start_date) ===
+      normalizeForKey(incoming.start_date)
   ) {
     return true;
   }
@@ -1804,7 +1843,7 @@ function buildFallbackMergedProfile(args: {
     experiences,
     educations,
     talentExtras,
-    notes: "Used deterministic fallback merge.",
+    notes: null,
   };
 }
 
@@ -1812,23 +1851,25 @@ function buildExistingProfileForMergePrompt(
   existingProfile: TalentStructuredProfile
 ) {
   return {
-    talentUser: existingProfile.talentUser,
-    talentExperiences: existingProfile.talentExperiences.map((item) => ({
+    user: {
+      name: existingProfile.talentUser?.name ?? null,
+      headline: existingProfile.talentUser?.headline ?? null,
+      bio: existingProfile.talentUser?.bio ?? null,
+      location: existingProfile.talentUser?.location ?? null,
+    },
+    experiences: existingProfile.talentExperiences.map((item) => ({
       existingId: item.id,
       role: item.role,
       description: item.description,
       employment_type: item.employment_type,
       start_date: item.start_date,
       end_date: item.end_date,
-      months: item.months,
-      company_id: item.company_id,
-      company_link: item.company_link,
       company_name: item.company_name,
       company_location: item.company_location,
       hasMemo: Boolean(item.memo?.trim()),
       memo: item.memo,
     })),
-    talentEducations: existingProfile.talentEducations.map((item) => ({
+    educations: existingProfile.talentEducations.map((item) => ({
       existingId: item.id,
       school: item.school,
       degree: item.degree,
@@ -1836,11 +1877,10 @@ function buildExistingProfileForMergePrompt(
       field: item.field,
       start_date: item.start_date,
       end_date: item.end_date,
-      url: item.url,
       hasMemo: Boolean(item.memo?.trim()),
       memo: item.memo,
     })),
-    talentExtras: existingProfile.talentExtras.map((item) => ({
+    extras: existingProfile.talentExtras.map((item) => ({
       existingTitle: item.title,
       title: item.title,
       description: item.description,
@@ -1857,10 +1897,15 @@ function buildLatestParsedProfileForMergePrompt(
   return {
     linkedinUrl: extracted.linkedinUrl,
     scholarLinks: extracted.scholarLinks,
-    talentUser: extracted.talentUser,
-    talentExperiences: extracted.experiences,
-    talentEducations: extracted.educations,
-    talentExtras: extracted.talentExtras,
+    user: {
+      name: extracted.talentUser.name,
+      headline: extracted.talentUser.headline,
+      bio: extracted.talentUser.bio,
+      location: extracted.talentUser.location,
+    },
+    experiences: extracted.experiences.map(compactExperienceForPrompt),
+    educations: extracted.educations.map(compactEducationForPrompt),
+    extras: extracted.talentExtras,
     stats: extracted.stats,
   };
 }
@@ -1994,25 +2039,34 @@ function experienceUpdatePayload(
   item: MergedTalentExperienceDraft,
   existing?: TalentStructuredProfile["talentExperiences"][number]
 ) {
+  const companyId =
+    typeof item.company_id === "number" && item.company_id > 0
+      ? String(item.company_id)
+      : (existing?.company_id ?? null);
+
   return {
     role: item.role,
     description: item.description,
     employment_type: item.employment_type,
     start_date: item.start_date,
     end_date: item.end_date,
-    months: item.months,
-    company_id:
-      typeof item.company_id === "number" && item.company_id > 0
-        ? String(item.company_id)
-        : null,
-    company_link: item.company_link,
+    months:
+      monthsBetween(item.start_date, item.end_date) ??
+      item.months ??
+      existing?.months ??
+      null,
+    company_id: companyId,
+    company_link: item.company_link ?? existing?.company_link ?? null,
     company_name: item.company_name,
     company_location: item.company_location,
     company_logo: item.company_logo ?? existing?.company_logo ?? null,
   };
 }
 
-function educationUpdatePayload(item: MergedTalentEducationDraft) {
+function educationUpdatePayload(
+  item: MergedTalentEducationDraft,
+  existing?: TalentStructuredProfile["talentEducations"][number]
+) {
   return {
     school: item.school,
     degree: item.degree,
@@ -2020,7 +2074,7 @@ function educationUpdatePayload(item: MergedTalentEducationDraft) {
     field: item.field,
     start_date: item.start_date,
     end_date: item.end_date,
-    url: item.url,
+    url: item.url ?? existing?.url ?? null,
   };
 }
 
@@ -2054,6 +2108,13 @@ export async function mergeTalentProfileFromLatestSources(
     existingProfile,
     rows: mergedRaw.experiences,
   });
+  experiences = recoverExperienceCompanyIds(
+    experiences,
+    extracted.experiences
+  ).map((item, index) => ({
+    ...item,
+    existingId: experiences[index]?.existingId ?? null,
+  }));
   const educations = validMergedEducationRows({
     existingProfile,
     rows: mergedRaw.educations,
@@ -2128,7 +2189,9 @@ export async function mergeTalentProfileFromLatestSources(
       .update(
         experienceUpdatePayload(
           item,
-          item.existingId ? existingExperienceById.get(item.existingId) : undefined
+          item.existingId
+            ? existingExperienceById.get(item.existingId)
+            : undefined
         )
       )
       .eq("talent_id", userId)
@@ -2158,6 +2221,9 @@ export async function mergeTalentProfileFromLatestSources(
       .map((item) => item.existingId)
       .filter((item): item is number => typeof item === "number")
   );
+  const existingEducationById = new Map(
+    existingProfile.talentEducations.map((item) => [item.id, item])
+  );
   const educationIdsToDelete = existingProfile.talentEducations
     .map((item) => item.id)
     .filter((id) => !finalEducationIds.has(id));
@@ -2175,7 +2241,14 @@ export async function mergeTalentProfileFromLatestSources(
   for (const item of educations.filter((row) => row.existingId)) {
     const { error } = await db
       .from("talent_educations")
-      .update(educationUpdatePayload(item))
+      .update(
+        educationUpdatePayload(
+          item,
+          item.existingId
+            ? existingEducationById.get(item.existingId)
+            : undefined
+        )
+      )
       .eq("talent_id", userId)
       .eq("id", item.existingId);
     if (error) {
@@ -2272,7 +2345,9 @@ export async function mergeTalentProfileFromLatestSources(
         cleanText(mergedRaw.talentUserPatch.location, 240) ??
         extracted.talentUser.location,
     },
-    experiences: experiences.map(({ existingId: _existingId, ...item }) => item),
+    experiences: experiences.map(
+      ({ existingId: _existingId, ...item }) => item
+    ),
     educations: educations.map(({ existingId: _existingId, ...item }) => item),
     talentExtras: talentExtras.map(({ memo: _memo, ...item }) => item),
     blockedCompanies,

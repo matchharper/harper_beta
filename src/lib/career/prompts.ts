@@ -6,7 +6,6 @@ import {
 import { TALENT_ONBOARDING_DONE_MARKER } from "@/lib/talentOnboarding/completion";
 import { TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX } from "@/lib/talentOnboarding/onboarding";
 import { INSIGHT_CHECKLIST } from "@/lib/talentOnboarding/insightChecklist";
-import type { TalentOpportunityHistoryItem } from "@/lib/talentOpportunity";
 import { logger } from "@/utils/logger";
 
 const TALENT_ONBOARDING_MIN_FILLED_INSIGHT_COUNT = 6;
@@ -42,11 +41,6 @@ export type CareerTranscriptEntry = {
   role: "user" | "assistant";
   text: string;
 };
-
-export type CareerHistoryActionReplyAction =
-  | "negative"
-  | "positive"
-  | "question";
 
 export type CareerOpportunityFeedbackFollowUpTrigger =
   | "all_visible_feedback_submitted"
@@ -239,7 +233,8 @@ Additional question은 insight checklist를 직접 채우는 일반 선호 질�
 온보딩을 종료하려면 아래 조건을 모두 만족해야 한다.
 1. Current insights에 값이 있는 insight가 최소 ${TALENT_ONBOARDING_MIN_FILLED_INSIGHT_COUNT}개 이상이어야 한다.
 2. Additional questions를 최소 ${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN}개 이상 물어야 한다. 질문 유형은 프로필 gap, 직무 관련 depth/preference, 이력 전환/타임라인 중 하나여야 한다.
-3. Final priority confirmation을 물었고, 사용자가 그 확인 질문에 답해야 한다.
+3. language-외국어 능력 관련 질문을 해야한다.
+4. Final priority confirmation을 물었고, 사용자가 종료 시그널을 보내야 한다.
 Voice Call에서는 additional question 개수가 명시적 카운터로 주어지지 않을 수 있다. 이 경우 최근 대화에서 위 유형의 additional question이 최소 ${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN}개 명확히 다뤄졌는지 판단하고, 불확실하면 종료하지 말고 하나 더 묻는다.
 
 ### 종료 금지 규칙
@@ -250,8 +245,8 @@ Voice Call에서는 additional question 개수가 명시적 카운터로 주어�
 - select_additional_onboarding_question tool이 사용 가능하면 additional question을 직접 만들지 말고 먼저 tool을 호출한 뒤, tool 결과의 assistantMessage로 질문한다.
 - 온보딩을 실제로 종료하는 마지막 답변의 맨 끝에는 반드시 ${TALENT_ONBOARDING_DONE_MARKER} 를 붙여라.
 - Voice Call에서 closing까지 끝났다면 ${TALENT_ONBOARDING_DONE_MARKER} 뒤에 ${CAREER_CALL_END_MARKER} 도 붙여 통화를 종료하라.
-- 아직 온보딩을 끝내지 않을 답변, additional question, final priority confirmation, 중간 요약에는 절대 ${TALENT_ONBOARDING_DONE_MARKER} 를 붙이지 마라.
-- ${TALENT_ONBOARDING_DONE_MARKER} 는 시스템 처리를 위한 마커다. 사용자에게 읽어주거나 설명하지 마라.
+- 아직 온보딩을 끝내지 않을 답변, additional question, final priority confirmation, 중간 요약에는 절대 ${TALENT_ONBOARDING_DONE_MARKER}를 붙이지 마라.
+- ${TALENT_ONBOARDING_DONE_MARKER}는 시스템 처리를 위한 마커다. 사용자에게 읽어주거나 설명하지 마라.
 
 [종료 멘트 가이드 (그대로 읽지 말고 자연스럽게 변형할 것)]
 "좋습니다. [name]님 정리해드리면...
@@ -395,26 +390,27 @@ If the latest message creates a natural opening to learn useful context (for exa
 
 ---
 
-## Harper internal opportunity request
+## Guidance for not recommended internal opportunities
 
-When a user asks for details or a connection regarding an internal opportunity, such as:
+When a user asks for details or a connection regarding an internal opportunity that has not been recommended to them, such as:
 - "Does Harper have an FDE position?"
-- "I saw a job post on LinkedIn."
-- "I found this on https://matchharper.com/jobs..."
+- "I saw a job post on LinkedIn (FDE at Index-backed startup)"
+- matchharper.com/jobs 페이지에 대해서 이야기 하는 경우. matchharper.com은 우리 도메인이고, jobs는 외부에 연결가능한 역할을 보여주는 페이지이다. 하지만 자세한 정보는 공개하지 않았다.
 - "Someone I know said they were connected through Harper."
 
 Follow these rules:
 1. If the opportunity has already been recommended with the current user, you may provide relevant information.
-2. If the opportunity has not been recommended with the current user, do not provide detailed information about it. Explain that Harper cannot disclose details about internal opportunities unless the user has been matched or connected.
+2. If the opportunity has not been recommended to the user, do not provide specific details about it. Explain that Harper cannot disclose details about internal opportunities unless the user has been matched or connected.
 3. Any opportunity the user found externally, such as on LinkedIn, Harper jobs pages, or other public sources, should be treated as a real opportunity that exists internally at Harper.
 4. Tell the user that if they are considered a strong fit, Harper will send them a connection proposal by email.
 5. If more information about the user's background is needed, ask at the end for additional details, such as their resume, work experience, English proficiency, or overseas/international experience.
 
 Example response:
+"""
 If you saw this role on LinkedIn or on Harper's jobs page, then yes, it is a real opportunity that exists internally at Harper. However, for internal opportunities, the hiring company often does not want Harper to share details directly upon request, so I unfortunately cannot provide specific information about the role at this stage.
 That said, if we determine that you could be a strong fit for the opportunity, you may receive a connection proposal by email within the next few days, so there is no need to worry.
 If possible, please share a bit more about your background and experience. That may help increase the chances of being matched. In particular, could you tell me more about your relevant work experience, English proficiency, and any overseas or international experience?
-
+"""
 
 ---
 
@@ -480,7 +476,7 @@ Preferred tone example:
 
 ## Internal opportunity accepted or liked
 
-When the candidate likes, accepts, or gives positive feedback on an internal Harper-connected opportunity, treat that action as confirmed permission to proceed with the connection.
+When the candidate likes, accepts, or gives positive feedback on an recommended internal opportunity, treat that action as confirmed permission to proceed with the connection.
 
 Do:
 - If update_recommended_opportunity_feedback is available and the specific opportunity is identifiable, set feedback=like before the final answer.
@@ -1692,43 +1688,6 @@ export function buildCareerSessionStartTurnInstruction(args: {
   ].join("\n");
 }
 
-export function buildCareerCallWrapupPrompt(args: {
-  durationLabel: string | null;
-  isBrief: boolean;
-  isOnboardingDone?: boolean;
-  transcript: CareerTranscriptEntry[];
-}) {
-  const lines = args.transcript
-    .map(
-      (entry) => `${entry.role === "user" ? "User" : "Harper"}: ${entry.text}`
-    )
-    .join("\n");
-
-  return `당신은 Harper, AI 커리어 어드바이저입니다. 방금 음성 통화가 종료되었습니다.
-
-통화 길이 평가는 "${args.isBrief ? "짧은 대화" : "충분히 진행된 대화"}"입니다.
-${args.durationLabel ? `통화 시간은 ${args.durationLabel}입니다.` : ""}
-
-사용자에게 보낼 마지막 한마디만 자연스럽게 작성하세요.
-
-규칙:
-- 한국어 존댓말로 작성
-- 1~2문장, 최대 120자 정도
-- 제목, 불릿, 번호, 요약 섹션 금지
-- "통화 요약", "정리하면" 같은 표현 금지
-- 온보딩이 아직 끝나지 않았다면: 아직 조금 더 확인할 내용이 남아 있지만, 통화가 끊겼으니 이 채팅에서 그대로 이어서 마무리할 수 있다고 말하기. 다시 통화해야 한다는 식으로 말하지 마라.
-- 온보딩이 끝났고 너무 짧은 대화였다면: 오늘은 짧게 들었으니 다음에 더 이야기해 달라고 부드럽게 안내
-- 온보딩이 끝났고 충분한 대화였다면: 좋은 정보를 알려줘서 고맙고, 만족하실 만한 기회를 가져오겠다고 자연스럽게 말하기
-- 과한 확신, 과장, 딱딱한 상담 문구 금지
-- 응답은 메시지 본문 텍스트만 출력
-
-온보딩 완료 여부: ${args.isOnboardingDone ? "완료" : "미완료"}
-
-아래는 방금 통화 transcript입니다:
-
-${lines || "(대화 내용이 거의 없었음)"}`;
-}
-
 export function buildCareerCallWrapupTurnInstruction(args: {
   durationLabel: string | null;
   isBrief: boolean;
@@ -1785,126 +1744,6 @@ export function buildCareerCallWrapupFallbackFollowUp(args: {
   return "좋은 이야기 들려주셔서 감사합니다. 말씀해주신 내용을 바탕으로 만족하실 만한 기회를 잘 골라서 가져와볼게요.";
 }
 
-const truncateCareerPromptText = (
-  value: string | null | undefined,
-  maxLength: number
-) => {
-  const text = String(value ?? "").trim();
-  if (text.length <= maxLength) return text;
-  return `${text.slice(0, maxLength - 3).trim()}...`;
-};
-
-const stripCareerPromptHtml = (value: string) =>
-  value
-    .replace(/<[^>]*>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/\s+/g, " ")
-    .trim();
-
-const buildCareerHistoryActionOpportunityContext = (
-  item: TalentOpportunityHistoryItem
-) =>
-  JSON.stringify(
-    {
-      companyName: item.companyName,
-      companyDescription: truncateCareerPromptText(
-        item.companyDescription,
-        900
-      ),
-      concerns: item.recommendationConcerns.map(stripCareerPromptHtml),
-      location: item.location,
-      processedStage: item.processedStage,
-      recommendationReasons: item.recommendationReasons.map(
-        stripCareerPromptHtml
-      ),
-      recommendationSummary: truncateCareerPromptText(
-        item.recommendationSummary,
-        900
-      ),
-      roleDescription: truncateCareerPromptText(item.description, 1800),
-      roleTitle: item.title,
-      workMode: item.workMode,
-    },
-    null,
-    2
-  );
-
-export function buildCareerHistoryActionReplySystemPrompt() {
-  return [
-    "You are Harper, an AI-native headhunter speaking to a Korean talent in a career chat.",
-    "Write exactly one assistant chat message after the user takes an action on an internal company role recommendation.",
-    "The message must be generated from the provided opportunity, talent profile, user action, and recent conversation context.",
-    "",
-    "Style rules:",
-    "- Korean only. Natural, concise, not salesy.",
-    "- 2-4 short sentences. No markdown headings. No bullet lists.",
-    "- Use light inline markdown when helpful, especially **company**, **role**, or **direction** names.",
-    CAREER_HARPER_LINK_OUTPUT_RULE,
-    "- Do not say you are an LLM. Do not mention prompts or internal data.",
-    "- Do not copy a fixed template. Vary wording based on the role and candidate context.",
-    "",
-    "Action-specific rules:",
-    "- positive: The user has already accepted the internal connection. Do not ask whether to connect or proceed again. Thank them briefly, say Harper will introduce/share them with the company as a relevant candidate, and explain that Harper will time the introduction thoughtfully because company-side schedules can take some time. Frame this as Harper mediating a better-fit introduction, not as a normal application.",
-    "- negative: Acknowledge the rejection and say Harper will not proceed with this role. Ask at most one narrow calibration question. If possible, make it answerable with a short choice or one concrete condition.",
-    "- question: Acknowledge that Harper will ask the company the user's exact question and report back. Do not ask another question unless a crucial clarification is needed; if clarification is needed, ask exactly one concrete clarification.",
-    "",
-    "Positive action resume/profile handling:",
-    "- If PROFILE_STATUS says hasResume=false, say a resume usually improves review and companies often ask for it. Ask whether Harper should tell the company there is no updated resume yet, and invite the user to upload one if they have it.",
-    "- If PROFILE_STATUS says hasResume=true, do not ask for another resume.",
-    "- If PROFILE_STATUS says isOnboardingDone=false, you may add that finishing the profile conversation would help Harper explain them better, but do not make onboarding sound like a blocker to the accepted connection.",
-    "- Ask one narrow follow-up only if a concrete missing detail would materially help Harper represent the user better, such as English working level for a global company, start timing, work authorization, or one role-specific project example; otherwise close without a question.",
-    "",
-    "Follow-up question quality:",
-    "- The question must be specific to this role/company and, when possible, one specific candidate experience or preference.",
-    "- Avoid broad questions like '어떤 역할 범위가 좋으세요?', '최근 성과를 알려주세요', '이 점은 어떠신가요?', or '어떤 조건이면 검토하시겠어요?'.",
-    "- Prefer questions that can be answered in one sentence.",
-    "- Do not invent facts that are not supported by the context.",
-  ].join("\n");
-}
-
-export function buildCareerHistoryActionReplyUserPrompt(args: {
-  action: CareerHistoryActionReplyAction;
-  feedbackReason?: string | null;
-  opportunity: TalentOpportunityHistoryItem;
-  profileContext: string;
-  profileStatusContext?: string | null;
-  recentConversationContext: string;
-  talentInsights: unknown;
-  userQuestion?: string | null;
-}) {
-  return [
-    `USER_ACTION: ${args.action}`,
-    args.userQuestion ? `USER_QUESTION: ${args.userQuestion}` : null,
-    args.feedbackReason ? `FEEDBACK_REASON: ${args.feedbackReason}` : null,
-    "",
-    "OPPORTUNITY:",
-    buildCareerHistoryActionOpportunityContext(args.opportunity),
-    "",
-    "TALENT_PROFILE:",
-    truncateCareerPromptText(args.profileContext, 3600),
-    "",
-    "PROFILE_STATUS:",
-    truncateCareerPromptText(
-      args.profileStatusContext || "(not provided)",
-      800
-    ),
-    "",
-    "TALENT_INSIGHTS:",
-    truncateCareerPromptText(
-      JSON.stringify(args.talentInsights ?? {}, null, 2),
-      2200
-    ),
-    "",
-    "RECENT_CONVERSATION:",
-    truncateCareerPromptText(args.recentConversationContext, 2400),
-    "",
-    "Now write the assistant chat message only.",
-  ]
-    .filter((line): line is string => typeof line === "string")
-    .join("\n");
-}
-
 export function buildCareerOpportunityFeedbackFollowUpTurnInstruction(args: {
   trigger: CareerOpportunityFeedbackFollowUpTrigger;
 }) {
@@ -1930,67 +1769,19 @@ export function buildCareerOpportunityFeedbackFollowUpTurnInstruction(args: {
     "Do not overreact to one click. For multiple clicks, summarize the visible pattern once.",
     "It's good to ask a question to get to know more about the user's preferences or background experience. ex) PM 역할인데 저장하셨네요. 현재는 개발자이신데 PM으로의 전환도 관심이 있으신가요 혹은 이전에 PM으로 일하셨던 경험이 있으신가요?",
     "ex. internal accept시 아래 기준으로 안내문구가 나간 이후 Agent Engineer를 저장하셨는데 이력에 현재 Agentic Engineering을 하고계시다고 되어있네요. 하지만 구체적으로 어떤걸 하시는지를 더 알면 좋을 것 같아요. 알려주실 수 있나요?",
-    "or Say that Harper will keep sending similar matches. Example tone: '이 방향이 잘 맞으시는 것 같네요. 비슷한 분위기 매칭 계속 보내드릴게요.'",
+    "or if the liked/disliked opportunities share a visible company/domain/role/work-mode pattern, mention that pattern carefully as a hypothesis, not a fact and say that Harper will keep sending similar matches. Example tone: '이 방향이 잘 맞으시는 것 같네요. 비슷한 분위기 매칭 계속 보내드릴게요.'",
     "",
     "Feedback-specific rules:",
-    "- If several opportunities were disliked and no reasons were provided, acknowledge the count and ask what did not fit. Offer concrete choices such as role scope, company/domain, team style, seniority, location/work mode, or timing.",
-    "- If disliked opportunities include feedback reasons, use those reasons as the primary calibration signal before asking anything else.",
-    "- If you cannot why the user provided dislike reason and one more detail would materially improve future recommendations, ask one narrow clarification question about that reason.",
-    "- If the disliked opportunities share a visible company/domain/role/work-mode pattern, mention that pattern carefully as a hypothesis, not a fact.",
-    "- If multiple external opportunities were liked, summarize the shared visible pattern and continue without a question unless the pattern is unclear or contradictory.",
-    "- If internal connection/request opportunities were liked, treat that as confirmed acceptance. Thank them briefly, say Harper will proceed with the company-side introduction, and do not ask whether to connect/proceed again.",
-    "- For accepted internal opportunities, explain that Harper will time the introduction thoughtfully and company-side schedules can take a little time. Frame it as Harper mediating a better-fit connection, not as a normal application.",
-    "- For accepted internal opportunities, if the profile context shows no resume file/link, mention that a resume usually improves review and companies often ask for it. Ask whether Harper should tell the company there is no updated resume yet, and invite them to upload one if they have it.",
-    "- For accepted internal opportunities with an existing resume, ask one narrow follow-up only if a concrete missing detail would materially help represent the talent better; otherwise close without a question.",
-    "- If internal opportunities were rejected, say Harper will not proceed with those roles and ask one narrow calibration question.",
-    "- If external opportunities were liked, treat them as saved interest and ask what similar opportunities Harper should keep finding only when the feedback set is mixed, unclear, or too broad to act on.",
-    "- Do not invent facts beyond the provided context.",
+    "- If several opportunities were disliked and no specific reasons were provided, acknowledge the count and ask what did not fit. Offer concrete choices such as role scope, company/domain, team style, seniority, location/work mode, or timing.",
+    // "- If disliked opportunities include feedback reasons, use those reasons as the primary calibration signal before asking anything else.",
+    // "- If you cannot why the user provided dislike reason and one more detail would materially improve future recommendations, ask one narrow clarification question about that reason.",
+    "- If internal connection/request opportunities were liked, treat that as confirmed acceptance. Thank them briefly, say Harper will proceed with the company-side introduction, and do not ask whether to connect/proceed again. explain that Harper will time the introduction thoughtfully and company-side schedules can take a little time. Frame it as Harper mediating a better-fit connection, not as a normal application.",
+    "- and if the profile context shows no resume file/link, mention that a resume usually improves review and companies often ask for it. Ask whether Harper should tell the company there is no updated resume yet, and invite them to upload one if they have it.",
+    "",
+    "- For accepted feedback, 너가 아는 유저의 선호/니즈와 다른 부분이 있다면 그 부분에 대해서 물어봐라. ex. current location - role location mismatch, company/domain, etc.",
+    // "- If internal opportunities were rejected, say Harper will not proceed with those roles and ask one narrow calibration question.",
+    // "- If external opportunities were liked, treat them as saved interest and ask what similar opportunities Harper should keep finding only when the feedback set is mixed, unclear, or too broad to act on.",
   ].join("\n");
-}
-
-export const CAREER_REENGAGEMENT_FALLBACK_MESSAGE =
-  "다시 이어서 이야기해볼게요. 최근 기준으로 달라진 우선순위가 있으면 그 부분부터 반영하겠습니다.";
-
-export const CAREER_REENGAGEMENT_CALL_ACTION_MARKER = "[[CALL]]";
-
-export function buildCareerReengagementSystemPrompt() {
-  return [
-    "You are Harper, an AI career agent for talent users.",
-    "Always answer in Korean.",
-    "The user reopened the chat after a long pause.",
-    "Write one proactive assistant message that appears before the user speaks.",
-    "Rules:",
-    "- Write 2-3 natural Korean sentences.",
-    "- Keep it concise, warm, and specific.",
-    "- Use the recent activity, recent conversation, and profile context if helpful.",
-    "- Default structure: briefly wrap up the most relevant previous conversation, recent Career activity, profile change, previous recommendation, or feedback, then end with one focused follow-up question.",
-    "- The question should be easy to answer and should naturally continue from that wrap-up.",
-    "- If prior context is weak, ask what changed most recently in the user's priorities or what direction they want to focus on now.",
-    "- If there is already a clear next action and the user does not need to answer anything, you may close with a short status update instead of a question.",
-    `- If hoursSinceLastChat is 168 or more and there is no clear recent activity, recommendation, profile update, or feedback to continue from, naturally suggest a quick call to hear any recent updates or interesting things the user is working on, then append ${CAREER_REENGAGEMENT_CALL_ACTION_MARKER} at the very end.`,
-    `- ${CAREER_REENGAGEMENT_CALL_ACTION_MARKER} is a UI marker for showing a call button. Do not explain it or wrap it in quotes.`,
-    "- Do not use bullet points, markdown headings, or quotes.",
-    "- Use light inline markdown when helpful, especially **company**, **role**, or **direction** names.",
-    CAREER_HARPER_LINK_OUTPUT_RULE,
-    '- Do not mention internal mechanics like "자동 메시지", "시스템", or "24시간 이상".',
-    "- Do not sound like a first-visit greeting.",
-  ].join("\n");
-}
-
-export function buildCareerReengagementUserPrompt(args: {
-  displayName: string;
-  hoursSinceLastChat: number;
-  profileSummary: string;
-  recentActivity: string;
-  recentConversation: string;
-}) {
-  return [
-    `사용자 이름: ${args.displayName}`,
-    `직전 chat 이후 경과 시간(시간): ${args.hoursSinceLastChat}`,
-    `프로필 요약:\n${args.profileSummary}`,
-    `최근 활동:\n${args.recentActivity}`,
-    `최근 대화:\n${args.recentConversation}`,
-  ].join("\n\n");
 }
 
 export const CAREER_KICKOFF_FALLBACK = {
@@ -2078,57 +1869,52 @@ export function buildCareerProfileIngestionSystemPrompt() {
     "Use the LinkedIn data and resume information to generate a full consolidated output.",
     "Do not return only delta/additional rows. Return full arrays for all sections.",
     "If resume has less information, it is valid to keep LinkedIn-derived values.",
-    "Preserve company_id from the current LinkedIn experience when the final row refers to the same company.",
-    "Preserve company_link from the current LinkedIn experience when the final row refers to the same company.",
-    "Never invent a company_id.",
     "blockedCompanies must list company names the candidate has ever worked for or interned at. Use exact company names from LinkedIn/resume only.",
-    "talentExtras is an array for awards, projects, publications, volunteering, certifications, or other notable details.",
+    "experiences must contain at most 10 rows. Prioritize the most important or most recent experiences. Drop older or low-signal roles if there are more than 10.",
+    "extras must contain at most 5 grouped sections for awards, projects, publications, volunteering, certifications, patents, talks, open-source work, or other notable details.",
+    "For each extras row, title is the group name, such as Awards, Publications, Certifications, Projects, Volunteering, Patents, Talks, Open Source, or Extra.",
+    "For each extras row, description is markdown that lists items in that group. Use this repeated format: **Item title** newline item description. Separate items with a blank line.",
+    "If extras would need more than 5 groups, keep the 4 highest-signal specific groups and put all remaining items into one Extra group.",
     "Date format must be YYYY-MM-DD or null.",
     "for description field, you can use markdown for formatting.(bold, list, italic, etc.)",
-    "talentExperiences is most important. Use exact role name",
+    "experiences is most important. Use exact role name.",
+    "Do not output months, company_id, company_link, education url, profile_picture, or notes.",
     "Output schema:",
     "{",
-    '  "talentUserPatch": {',
+    '  "userPatch": {',
     '    "name": string|null,',
     '    "headline": string|null,',
     '    "bio": string|null,',
-    '    "location": string|null,',
-    '    "profile_picture": string|null',
+    '    "location": string|null',
     "  },",
-    '  "talentExperiences": [',
+    '  "experiences": [',
     "    {",
     '      "role": string|null,',
     '      "description": string|null,',
     '      "employment_type": string|null,',
     '      "start_date": "YYYY-MM-DD"|null,',
     '      "end_date": "YYYY-MM-DD"|null,',
-    '      "months": number|null,',
     '      "company_name": string|null,',
-    '      "company_location": string|null,',
-    '      "company_id": number|null,',
-    '      "company_link": string|null,',
+    '      "company_location": string|null',
     "    }",
     "  ],",
-    '  "talentEducations": [',
+    '  "educations": [',
     "    {",
     '      "school": string|null,',
     '      "degree": string|null,',
     '      "description": string|null,',
     '      "field": string|null,',
     '      "start_date": "YYYY-MM-DD"|null,',
-    '      "end_date": "YYYY-MM-DD"|null,',
-    '      "url": string|null,',
+    '      "end_date": "YYYY-MM-DD"|null',
     "    }",
     "  ],",
-    '  "talentExtras": [',
+    '  "extras": [',
     "    {",
     '      "title": string|null,',
-    '      "description": string|null,',
-    '      "date": "YYYY-MM-DD"|null',
+    '      "description": string|null',
     "    }",
     "  ],",
-    '  "blockedCompanies": string[],',
-    '  "notes": string|null',
+    '  "blockedCompanies": string[]',
     "}",
   ].join("\n");
 }
@@ -2158,20 +1944,24 @@ export function buildCareerProfileUpdateMergeSystemPrompt() {
     "Existing memo fields are user/Harper notes. Never edit, rewrite, summarize, translate, or include memo in your output. The server preserves memo for rows that keep their existingId or existingTitle.",
     "Prefer preserving existing wording when new data is weaker. Use new data to add missing rows, fill missing dates/descriptions, or correct clearly better facts.",
     "Never hallucinate uncertain facts. If uncertain, leave field null or keep the existing value.",
-    "Preserve company_id/company_link from existing or LinkedIn-derived rows when the final row refers to the same company. Never invent company_id.",
     "blockedCompanies must list company names the candidate has ever worked for or interned at. Use exact company names from existing/new profile data only.",
+    "experiences must contain at most 10 rows. Prioritize the most important or most recent experiences. Drop older or low-signal roles if there are more than 10.",
+    "extras must contain at most 5 grouped sections for awards, projects, publications, volunteering, certifications, patents, talks, open-source work, or other notable details.",
+    "For each extras row, title is the group name, such as Awards, Publications, Certifications, Projects, Volunteering, Patents, Talks, Open Source, or Extra.",
+    "For each extras row, description is markdown that lists items in that group. Use this repeated format: **Item title** newline item description. Separate items with a blank line.",
+    "If extras would need more than 5 groups, keep the 4 highest-signal specific groups and put all remaining items into one Extra group.",
     "Date format must be YYYY-MM-DD or null.",
     "Descriptions may use markdown for formatting.",
+    "Do not output months, company_id, company_link, education url, profile_picture, or notes.",
     "Output schema:",
     "{",
-    '  "talentUserPatch": {',
+    '  "userPatch": {',
     '    "name"?: string|null,',
     '    "headline"?: string|null,',
     '    "bio"?: string|null,',
-    '    "location"?: string|null,',
-    '    "profile_picture"?: string|null',
+    '    "location"?: string|null',
     "  },",
-    '  "talentExperiences": [',
+    '  "experiences": [',
     "    {",
     '      "existingId": number|null,',
     '      "role": string|null,',
@@ -2179,14 +1969,11 @@ export function buildCareerProfileUpdateMergeSystemPrompt() {
     '      "employment_type": string|null,',
     '      "start_date": "YYYY-MM-DD"|null,',
     '      "end_date": "YYYY-MM-DD"|null,',
-    '      "months": number|null,',
     '      "company_name": string|null,',
-    '      "company_location": string|null,',
-    '      "company_id": number|null,',
-    '      "company_link": string|null',
+    '      "company_location": string|null',
     "    }",
     "  ],",
-    '  "talentEducations": [',
+    '  "educations": [',
     "    {",
     '      "existingId": number|null,',
     '      "school": string|null,',
@@ -2194,20 +1981,17 @@ export function buildCareerProfileUpdateMergeSystemPrompt() {
     '      "description": string|null,',
     '      "field": string|null,',
     '      "start_date": "YYYY-MM-DD"|null,',
-    '      "end_date": "YYYY-MM-DD"|null,',
-    '      "url": string|null',
+    '      "end_date": "YYYY-MM-DD"|null',
     "    }",
     "  ],",
-    '  "talentExtras": [',
+    '  "extras": [',
     "    {",
     '      "existingTitle": string|null,',
     '      "title": string|null,',
-    '      "description": string|null,',
-    '      "date": "YYYY-MM-DD"|null',
+    '      "description": string|null',
     "    }",
     "  ],",
-    '  "blockedCompanies": string[],',
-    '  "notes": string|null',
+    '  "blockedCompanies": string[]',
     "}",
   ].join("\n");
 }

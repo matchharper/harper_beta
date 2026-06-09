@@ -9,7 +9,7 @@ import {
 import { getCareerPositiveActionIcon } from "../opportunityTypeMeta";
 
 const ShortcutKey = ({ children }: { children: React.ReactNode }) => (
-  <kbd className="inline-flex h-4 min-w-4 items-center justify-center rounded-[4px] border border-beige900/10 bg-beige500 px-1 text-[9.5px] font-medium leading-none text-beige900/70 shadow-[0_1px_0_rgba(46,23,6,0.05)]">
+  <kbd className="inline-flex h-4 min-w-4 items-center justify-center rounded-[4px] bg-neutral-200 px-1 text-[9.5px] font-medium leading-none text-beige900/70 shadow-[0_1px_0_rgba(46,23,6,0.05)]">
     {children}
   </kbd>
 );
@@ -54,7 +54,7 @@ const ShortcutNavButton = ({
     onClick={onClick}
     disabled={disabled}
     aria-label={label}
-    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-beige900/10 bg-transparent text-beige900/80 transition-colors hover:bg-beige500 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-40"
+    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-neutral-200 text-black transition-colors hover:bg-neutral-300 disabled:cursor-not-allowed disabled:opacity-40"
   >
     {children}
   </button>
@@ -68,7 +68,6 @@ const HistoryShortcutPanel = ({
   pending,
   onPositive,
   onNegative,
-  onQuestion,
   canMoveNext,
   nextPending,
 }: {
@@ -81,13 +80,12 @@ const HistoryShortcutPanel = ({
   pending: boolean;
   onPositive: () => void;
   onNegative: () => void;
-  onQuestion: () => void;
 }) => {
   const PositiveActionIcon = getCareerPositiveActionIcon(item.opportunityType);
 
   return (
     <div className="space-y-2.5">
-      <div className="flex text-sm flex-wrap items-center gap-1 rounded-[10px] border border-beige900/10 bg-white/75 p-1 shadow-[0_1px_2px_rgba(46,23,6,0.04)] sm:flex-nowrap">
+      <div className="flex text-sm flex-wrap items-center gap-1 rounded-[10px] sm:flex-nowrap">
         <ShortcutNavButton
           onClick={onPrev}
           disabled={activeIndex <= 0}
@@ -99,7 +97,7 @@ const HistoryShortcutPanel = ({
         <ShortcutActionButton
           onClick={onNegative}
           disabled={pending}
-          className="bg-beige500 text-beige900/70 hover:bg-beige200 hover:text-beige900"
+          className="bg-neutral-200 text-black"
         >
           <ThumbsDown className="h-3 w-3" />
           {getNegativeActionLabel(item)}
@@ -108,7 +106,7 @@ const HistoryShortcutPanel = ({
         <ShortcutActionButton
           onClick={onPositive}
           disabled={pending}
-          className="bg-beige700 text-beige50 hover:bg-beige900"
+          className="bg-black text-white hover:opacity-90"
         >
           <PositiveActionIcon className="h-3 w-3" />
           {getPositiveActionLabel(item)}
@@ -127,28 +125,22 @@ const HistoryShortcutPanel = ({
         </ShortcutNavButton>
       </div>
 
-      <div className="flex flex-wrap items-center justify-center gap-2 text-[12px] leading-4 text-beige900/50">
-        <span className="opacity-60">Shortcut</span>
-        <span className="inline-flex items-center gap-1">
+      <div className="flex flex-wrap items-center justify-center gap-2 text-[12px] leading-4 text-black/50">
+        <span className="inline-flex items-center gap-2">
           <ShortcutKey>←</ShortcutKey>
           <ShortcutKey>→</ShortcutKey>
           이동
         </span>
         <span className="text-beige900/20">·</span>
-        <span className="inline-flex items-center gap-1">
+        <span className="inline-flex items-center gap-2">
           <ShortcutKey>S</ShortcutKey>
           {getNegativeActionLabel(item)}
         </span>
         <span className="text-beige900/20">·</span>
-        <span className="inline-flex items-center gap-1">
+        <span className="inline-flex items-center gap-2">
           <ShortcutKey>T</ShortcutKey>
           {getPositiveActionLabel(item)}
         </span>
-        <span className="text-beige900/20">·</span>
-        {/* <span className="inline-flex items-center gap-1">
-        <ShortcutKey>A</ShortcutKey>
-        질문하기
-      </span> */}
       </div>
     </div>
   );

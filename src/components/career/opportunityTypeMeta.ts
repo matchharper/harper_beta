@@ -38,7 +38,6 @@ type CareerOpportunityTypeMeta = {
     description: string;
     title: string;
   };
-  infoTag: CareerOpportunityInfoTagMeta;
   label: string;
   negativeActionLabel: string;
   negativeFeedback: CareerOpportunityFeedbackMeta;
@@ -66,12 +65,7 @@ export const CAREER_OPPORTUNITY_TYPE_META: Record<
         "하퍼가 공개 채용 페이지와 JD를 탐색해 회원님의 경력, 선호 조건, 다음 커리어 방향과 맞춰 본 포지션입니다. 지원은 외부 JD에서 직접 진행하고, 저장한 항목은 추천 기준 개선과 가능한 연결 탐색에 활용됩니다.",
       title: "하퍼가 발견한 기회",
     },
-    infoTag: {
-      icon: ExternalLink,
-      interactive: true,
-      showHelpIcon: false,
-    },
-    label: "하퍼가 발견한 기회",
+    label: "오픈 포지션",
     negativeActionLabel: "선호하지 않음",
     negativeFeedback: {
       modal: {
@@ -132,11 +126,6 @@ export const CAREER_OPPORTUNITY_TYPE_META: Record<
       description:
         "하퍼가 회사의 채용 니즈를 확인하고 회원님에게 먼저 연결 의사를 묻는 추천입니다. 수락 전에는 프로필을 회사에 전달하지 않고, 수락 후 하퍼가 소개와 후속 조율을 진행합니다.",
       title: "하퍼의 연결 제안",
-    },
-    infoTag: {
-      icon: Handshake,
-      interactive: true,
-      showHelpIcon: true,
     },
     label: "하퍼의 연결 제안",
     negativeActionLabel: "선호하지 않음",
@@ -205,11 +194,6 @@ export const CAREER_OPPORTUNITY_TYPE_META: Record<
       description:
         "회사 측이 하퍼를 통해 회원님에게 직접 연결을 요청한 케이스입니다. 수락 여부를 확인한 뒤에만 연락처 공유와 후속 조율을 진행합니다.",
       title: "직접 연결 요청",
-    },
-    infoTag: {
-      icon: Handshake,
-      interactive: true,
-      showHelpIcon: true,
     },
     label: "직접 연결 요청",
     negativeActionLabel: "거절하기",
@@ -318,10 +302,6 @@ export const getCareerNegativeFeedbackOptions = (
   opportunityType: OpportunityType
 ) =>
   getCareerOpportunityTypeMeta(opportunityType).negativeFeedback.options ?? [];
-
-export const getCareerOpportunityInfoTagMeta = (
-  opportunityType: OpportunityType
-) => getCareerOpportunityTypeMeta(opportunityType).infoTag;
 
 export const getCareerAppliedSavedStageLabel = (
   opportunityType: OpportunityType

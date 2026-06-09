@@ -5,6 +5,7 @@ import {
   getTalentResumeSignedUrl,
   getTalentSupabaseAdmin,
 } from "@/lib/talentOnboarding/server";
+import { insertTalentProfileSourceErrorLog } from "@/lib/talentOnboarding/errorLogs";
 
 function sanitizeFileName(fileName: string) {
   return fileName
@@ -14,11 +15,15 @@ function sanitizeFileName(fileName: string) {
 }
 
 export async function POST(req: NextRequest) {
+  let admin: ReturnType<typeof getTalentSupabaseAdmin> | null = null;
+  let userId: string | null = null;
+
   try {
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    userId = user.id;
 
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
@@ -34,7 +39,7 @@ export async function POST(req: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    const admin = getTalentSupabaseAdmin();
+    admin = getTalentSupabaseAdmin();
     const { error: uploadError } = await admin.storage
       .from(TALENT_RESUME_BUCKET)
       .upload(storagePath, buffer, {
@@ -43,6 +48,18 @@ export async function POST(req: NextRequest) {
       });
 
     if (uploadError) {
+      await insertTalentProfileSourceErrorLog({
+        admin,
+        error: uploadError,
+        stage: "resume_upload",
+        userId,
+        metadata: {
+          bucket: TALENT_RESUME_BUCKET,
+          contentType: file.type || null,
+          fileName: originalName,
+          fileSize: file.size,
+        },
+      });
       return NextResponse.json(
         { error: uploadError.message ?? "Failed to upload resume" },
         { status: 500 }
@@ -64,6 +81,14 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to upload resume";
+    if (admin && userId) {
+      await insertTalentProfileSourceErrorLog({
+        admin,
+        error,
+        stage: "resume_upload_unhandled",
+        userId,
+      });
+    }
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

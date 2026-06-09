@@ -16,7 +16,7 @@ import {
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 import { getCareerConversationStarterPrompt } from "@/lib/career/conversationStarterPrompts";
 import {
-  fetchTalentOpportunityHistory,
+  fetchRecentRecommendedOpportunitiesForPrompt,
   formatRecentRecommendedOpportunitiesForPrompt,
 } from "@/lib/talentOpportunity";
 
@@ -41,7 +41,7 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     fetchTalentUserProfile({ admin, userId: args.userId }),
     fetchTalentInsights({ admin, userId: args.userId }),
     fetchTalentSetting({ admin, userId: args.userId }),
-    fetchTalentOpportunityHistory({
+    fetchRecentRecommendedOpportunitiesForPrompt({
       admin,
       limit: 10,
       userId: args.userId,

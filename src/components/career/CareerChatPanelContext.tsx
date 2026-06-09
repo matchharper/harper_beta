@@ -76,6 +76,7 @@ export type CareerChatPanelContextValue = {
   onProfileSubmit: () => void | Promise<void>;
 
   onSendChatMessage: (args: {
+    allowedToolNames?: readonly string[];
     channel?: "chat" | "voice";
     conversationStarterId?: CareerConversationStarterId;
     text: string;

@@ -1,4 +1,5 @@
 import type { Json } from "@/types/database.types";
+import { CAREER_LLM_CONFIG } from "@/lib/career/llm";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 import { client } from "@/lib/llm/llm";
 
@@ -176,8 +177,8 @@ export async function runCompanySnapshotResearch(args: {
   reason?: string | null;
 }): Promise<Record<string, unknown>> {
   const prompt = buildCompanyResearchPrompt(args);
-  const primaryModel = "gpt-4.1";
-  const fallbackModel = "gpt-4o";
+  const primaryModel = CAREER_LLM_CONFIG.companySnapshotResearch.primaryModel;
+  const fallbackModel = CAREER_LLM_CONFIG.companySnapshotResearch.fallbackModel;
 
   const callResponses = async (model: string) => {
     return (client as any).responses.create({
@@ -189,7 +190,7 @@ export async function runCompanySnapshotResearch(args: {
 
   try {
     let response: any;
-    let modelUsed = primaryModel;
+    let modelUsed: string = primaryModel;
     try {
       response = await callResponses(primaryModel);
     } catch (primaryError) {

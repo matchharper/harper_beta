@@ -1,4 +1,5 @@
 import type { Json } from "@/types/database.types";
+import { CAREER_LLM_CONFIG } from "@/lib/career/llm";
 import {
   buildTalentProfileContext,
   fetchTalentInsights,
@@ -1297,8 +1298,12 @@ async function rankCompanyCandidatesWithLlm(args: {
     }));
 
   const raw = await runTalentAssistantCompletion({
+    anthropicOverloadFallbackModel:
+      CAREER_LLM_CONFIG.companyWatchlistRank.anthropicOverloadFallbackModel,
+    fallbackModel: CAREER_LLM_CONFIG.companyWatchlistRank.fallbackModel,
     jsonMode: true,
-    primaryModel: "grok-4-1-fast-non-reasoning",
+    primaryModel: CAREER_LLM_CONFIG.companyWatchlistRank.primaryModel,
+    temperature: CAREER_LLM_CONFIG.companyWatchlistRank.temperature,
     usageLabel: "career/company_recommendations:rank",
     messages: [
       {
@@ -1327,7 +1332,6 @@ async function rankCompanyCandidatesWithLlm(args: {
         ].join("\n"),
       },
     ],
-    temperature: 0.15,
   });
 
   const parsed = parseJsonObject(raw);

@@ -59,11 +59,6 @@ Career 화면을 수정할 때는 이 문서를 먼저 확인한다. 같은 역�
 - 사용처: Career 화면의 긴 텍스트 입력.
 - 모달이 열리자마자 입력을 받아야 하는 경우 `ref`로 focus를 연결한다.
 
-### `CareerLinkInputRow`
-
-- 위치: `src/components/career/ui/CareerLinkInputRow.tsx`
-- 사용처: 라벨과 링크 input이 한 줄로 배치되는 resume/profile 링크 편집 UI.
-
 ### `CareerToggleButton`
 
 - 위치: `src/components/career/ui/CareerPrimitives.tsx`

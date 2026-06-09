@@ -62,7 +62,7 @@ import {
   fetchRecentTalentActivitySummaries,
 } from "@/lib/talentOnboarding/activityEvents";
 import {
-  fetchTalentOpportunityHistory,
+  fetchRecentRecommendedOpportunitiesForPrompt,
   fetchTalentPostingCardsByRoleIds,
   formatRecentRecommendedOpportunitiesForPrompt,
   type TalentOpportunityHistoryItem,
@@ -424,7 +424,7 @@ export async function runCareerChatTurn(
       limit: 5,
       userId,
     }),
-    fetchTalentOpportunityHistory({
+    fetchRecentRecommendedOpportunitiesForPrompt({
       admin,
       limit: 10,
       userId,

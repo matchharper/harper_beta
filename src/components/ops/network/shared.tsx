@@ -533,7 +533,7 @@ export function ActivityEntryCard({
 }
 
 function getMessageTypeMeta(messageType: string | null) {
-  if (!messageType || messageType === "chat" || messageType === "question") {
+  if (!messageType || messageType === "chat") {
     return {
       icon: MessageSquareText,
     };

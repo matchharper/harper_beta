@@ -64,7 +64,7 @@ import {
   fetchRecentTalentActivitySummaries,
 } from "@/lib/talentOnboarding/activityEvents";
 import {
-  fetchTalentOpportunityHistory,
+  fetchRecentRecommendedOpportunitiesForPrompt,
   fetchTalentPostingCardsByRoleIds,
   formatRecentRecommendedOpportunitiesForPrompt,
   type TalentOpportunityHistoryItem,
@@ -85,6 +85,7 @@ import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 export const maxDuration = 180;
 
 type Body = {
+  allowedToolNames?: unknown;
   channel?: string;
   conversationStarterId?: string;
   conversationId?: string;
@@ -202,6 +203,13 @@ async function buildTalentProfileSnapshot(args: {
 const optionalToolString = (value: unknown) => {
   const text = typeof value === "string" ? value.trim() : "";
   return text || null;
+};
+
+const normalizeAllowedToolNames = (value: unknown) => {
+  if (!Array.isArray(value)) return undefined;
+  return value
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter((item) => item.length > 0);
 };
 
 function countPromptChars(value: string | null | undefined) {
@@ -347,6 +355,7 @@ export async function POST(req: NextRequest) {
     const message = body.message?.trim();
     const link = body.link?.trim();
     const requestChannel = body.channel === "voice" ? "voice" : "chat";
+    const allowedToolNames = normalizeAllowedToolNames(body.allowedToolNames);
     const conversationStarterId =
       typeof body.conversationStarterId === "string"
         ? body.conversationStarterId.trim()
@@ -472,7 +481,7 @@ export async function POST(req: NextRequest) {
         limit: 5,
         userId: user.id,
       }),
-      fetchTalentOpportunityHistory({
+      fetchRecentRecommendedOpportunitiesForPrompt({
         admin,
         limit: 10,
         userId: user.id,
@@ -577,6 +586,7 @@ export async function POST(req: NextRequest) {
 
     const toolSelection = resolveCareerChatTools({
       additionalQuestionSelectionCount,
+      allowedToolNames,
       channel: requestChannel,
       isOnboardingDone: talentSetting?.is_onboarding_done,
     });

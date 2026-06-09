@@ -24,7 +24,6 @@ const OpportunityDetailModal = ({
   onOpenOpportunityInfo,
   onPositive,
   onNegative,
-  onQuestion,
   onRestore,
   onEditMemo,
 }: {
@@ -37,7 +36,6 @@ const OpportunityDetailModal = ({
   onOpenOpportunityInfo: (type: CareerOpportunityType) => void;
   onPositive: () => void;
   onNegative: () => void;
-  onQuestion: () => void;
   onRestore?: () => void;
   onEditMemo?: () => void;
 }) => {

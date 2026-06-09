@@ -4,6 +4,7 @@ import {
   ensureTalentUserRecord,
   getTalentSupabaseAdmin,
 } from "@/lib/talentOnboarding/server";
+import { insertTalentProfileSourceErrorLog } from "@/lib/talentOnboarding/errorLogs";
 import { ingestTalentProfileFromLinkedin } from "@/lib/talentOnboarding/profileIngestion";
 import { logger } from "@/utils/logger";
 
@@ -18,11 +19,16 @@ type Body = {
 };
 
 export async function POST(req: NextRequest) {
+  let admin: ReturnType<typeof getTalentSupabaseAdmin> | null = null;
+  let logMetadata: Record<string, unknown> | undefined;
+  let userId: string | null = null;
+
   try {
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    userId = user.id;
 
     const body = (await req.json()) as Body;
     const links = (body.links ?? [])
@@ -42,13 +48,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    logMetadata = {
+      hasLinkedin: true,
+      hasResumeFile: Boolean(body.resumeFileName || body.resumeStoragePath),
+      hasResumeText: Boolean(body.resumeText?.trim()),
+      linkCount: links.length,
+      resumeFileName: body.resumeFileName ?? null,
+    };
+
     logger.log("[TalentIngestAPI] request", {
       userId: user.id,
       linkCount: links.length,
       hasResumeText: Boolean(body.resumeText?.trim()),
     });
 
-    const admin = getTalentSupabaseAdmin();
+    admin = getTalentSupabaseAdmin();
     await ensureTalentUserRecord({ admin, user });
 
     const result = await ingestTalentProfileFromLinkedin({
@@ -70,6 +84,15 @@ export async function POST(req: NextRequest) {
         ? error.message
         : "Failed to ingest talent profile";
     logger.log("[TalentIngestAPI] error", message);
+    if (admin && userId) {
+      await insertTalentProfileSourceErrorLog({
+        admin,
+        error,
+        stage: "profile_ingest",
+        userId,
+        metadata: logMetadata,
+      });
+    }
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

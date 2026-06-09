@@ -599,7 +599,6 @@ const CandidatePage = () => {
           className="flex flex-col items-center justify-center px-0 md:px-20 w-full bg-black text-white h-[86vh] md:h-[90vh]"
         >
           <div className="absolute top-0 left-0 w-full h-[90%]">
-            {/* <InteractiveDotGridBackground /> */}
             <div
               className="pointer-events-none absolute inset-0"
               style={HERO_DOT_BACKGROUND_STYLE}
@@ -673,7 +672,6 @@ const CandidatePage = () => {
               </p>
             </div>
           </BaseSectionLayout>
-          {/* <VCLogosWidth /> */}
         </Animate>
         <div id="how-it-works" />
         <div className="h-48" />

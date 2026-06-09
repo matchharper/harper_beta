@@ -36,7 +36,7 @@ import {
 } from "@/lib/talentOnboarding/tools";
 import { resolveCareerChatTools } from "@/lib/career/llmTools";
 import {
-  fetchTalentOpportunityHistory,
+  fetchRecentRecommendedOpportunitiesForPrompt,
   formatRecentRecommendedOpportunitiesForPrompt,
 } from "@/lib/talentOpportunity";
 
@@ -221,7 +221,7 @@ export async function generateOnboardingCompletionWrapupContent(args: {
         recentLimit: 40,
         userId: args.userId,
       }),
-      fetchTalentOpportunityHistory({
+      fetchRecentRecommendedOpportunitiesForPrompt({
         admin: args.admin,
         limit: 10,
         userId: args.userId,
@@ -317,7 +317,7 @@ export async function generateOnboardingCompletionNextStepsContent(args: {
         recentLimit: 40,
         userId: args.userId,
       }),
-      fetchTalentOpportunityHistory({
+      fetchRecentRecommendedOpportunitiesForPrompt({
         admin: args.admin,
         limit: 10,
         userId: args.userId,

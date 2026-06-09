@@ -1,4 +1,5 @@
 import { fetchRecentTalentActivitySummaries } from "@/lib/talentOnboarding/activityEvents";
+import { CAREER_LLM_CONFIG } from "@/lib/career/llm";
 import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
 import {
   fetchTalentInsights,
@@ -23,12 +24,18 @@ type FtsKeyword = {
 
 type RoleSearchMode = "strict";
 
+type EntryPreference = -1 | 0 | 1;
+
 type ExternalSearchPlan = {
-  excludeKeywords: string[];
   ftsKeywords: FtsKeyword[];
+  includeContract: boolean;
+  includeIntern: boolean;
+  includeParttime: boolean;
   includeRemote: boolean;
+  isPreferEntry: EntryPreference;
   locations: string[];
   remoteOnly: boolean;
+  roleTitles: string[];
   searchIntentSummary: string;
 };
 
@@ -164,7 +171,7 @@ const TALENT_TIMELINE_DESCRIPTION_MAX_LENGTH = 900;
 const FINAL_RECOMMENDATION_COUNT = 5;
 const CONTINUATION_RECOMMENDATION_BATCH_LIMIT = 10;
 const RECOMMEND_JOB_POSTINGS_MODEL_VERSION =
-  "career_chat_recommend_job_postings_external_v4";
+  "career_chat_recommend_job_postings_external_v5";
 const PREFERENCE_FIT_KEYS = [
   "next_scope",
   "location",
@@ -176,18 +183,19 @@ const PREFERENCE_FIT_KEYS = [
 const FTS_RANK_WEIGHTS = "ARRAY[0.04,0.57,0.64,1.0]::real[]";
 const MAX_FTS_KEYWORDS = 8;
 const MAX_FTS_TERMS_PER_KEYWORD = 8;
+const MAX_ROLE_TITLES = 12;
 const COMPANY_TEST_SCORE_MAX = 20;
 const COMPANY_TEST_SCORE_SEARCH_RANK_DIVISOR = 5;
-const RECOMMEND_JOB_POSTINGS_PLAN_MODEL = "claude-sonnet-4-6";
+const RECOMMEND_JOB_POSTINGS_PLAN_MODEL =
+  CAREER_LLM_CONFIG.recommendJobPostings.planModel;
 const RECOMMEND_JOB_POSTINGS_FINAL_SELECTION_MODEL =
-  RECOMMEND_JOB_POSTINGS_PLAN_MODEL;
-const RECOMMEND_JOB_POSTINGS_PRIMARY_MODEL = "grok-4-1-fast-reasoning";
-const RECOMMEND_JOB_POSTINGS_FALLBACK_MODEL = "grok-4-fast-reasoning";
+  CAREER_LLM_CONFIG.recommendJobPostings.finalSelectionModel;
+const RECOMMEND_JOB_POSTINGS_PRIMARY_MODEL =
+  CAREER_LLM_CONFIG.recommendJobPostings.shortlistModel;
+const RECOMMEND_JOB_POSTINGS_FALLBACK_MODEL =
+  CAREER_LLM_CONFIG.recommendJobPostings.fallbackModel;
 const RECOMMEND_JOB_POSTINGS_ANTHROPIC_OVERLOAD_FALLBACK_MODEL =
-  RECOMMEND_JOB_POSTINGS_PRIMARY_MODEL;
-
-const DEFAULT_EXCLUDE_KEYWORDS = ["tutor", "annotator", "evaluator"];
-const EXCLUDE_KEYWORDS_TO_DROP = new Set(["intern", "internship"]);
+  CAREER_LLM_CONFIG.recommendJobPostings.anthropicOverloadFallbackModel;
 
 const DEBUG_RECOMMEND_JOB_POSTINGS =
   process.env.DEBUG_RECOMMEND_JOB_POSTINGS === "1";
@@ -205,15 +213,19 @@ Output schema:
 {
   "searchIntentSummary": "one Korean sentence focused on the current request",
   "ftsKeywords": [{"terms": ["synonym", "group"], "weight": 1.0}],
+  "role_titles": ["role title fragment"],
+  "include_contract": false,
+  "include_parttime": false,
+  "include_intern": false,
+  "is_prefer_entry": 0,
   "locations": [],
   "includeRemote": false,
-  "remoteOnly": false,
-  "excludeKeywords": []
+  "remoteOnly": false
 }
 
 Rules:
-- ftsKeywords are the first-pass role/domain gate over opportunity_search_tsv(consist of role name, description, work mode). Each group is OR-like, so a posting matching only one group must still be plausibly relevant.
-- Use ftsKeywords for role name, role description, domain, skills, etc.
+- role_titles are the first DB retrieval gate over company_roles.name. ftsKeywords are applied only after title/type/location filtering narrows the candidate pool.
+- Use ftsKeywords for role description, domain, skills, methods, and problem area. Use only important keywords, not broad terms.
 - 만약 한국의 공고도 검색한다면, terms에 영어 뿐만 아니라 한글 동의어도 포함해라. ex) "Research Engineer", "Machine leaning", "리서치 엔지니어", "머신러닝", "개발자", "Developer"
 - Avoid standalone broad terms such as "AI", "data", "software".
 - Do not put pure preferences in ftsKeywords: company stage, company size, funding, investors, location, remote/hybrid/onsite, salary, culture, brand prestige, "startup", "Series A", "YC", "a16z", "global", or "Seoul" unless that word is literally part of the work domain.
@@ -224,7 +236,20 @@ Rules:
 - remoteOnly: true only when remote is a hard requirement, e.g. "remote only", "완전 원격만", "원격 아니면 제외".
   - If remoteOnly=true and locations has geo values, SQL will require both remote work mode and one of those geographies, e.g. "US remote only".
   - If the user only mildly prefers remote, keep both booleans false and let shortlist/final selection handle it as a preference.
-- excludeKeywords should contain explicit hard negatives from the request or strong user memory, not just rejected role or company. ex) intern, 인턴, 계약직 등
+## role_titles rules
+- role_titles are a hard role-title gate over company_roles.name using ILIKE. Always output 1-15 title fragments.
+  - They must be role/title fragments likely to appear in cr.name, not company names, domains, skills, locations, company stage, or preferences.
+  - English title fragments are preferred for English-market roles; include Korean aliases when Korean postings are relevant.
+  - Recall matters more than precision. Use broad-enough fragments so good roles are not excluded by an overly specific title.
+  - Good: "Engineer", "Developer", "Research Engineer", "Software Engineer", "Backend", "Product Manager", "Designer", "개발자", "엔지니어", "기획자", "공무원".
+  - Bad: "국가직 공기업 공무원" when "공무원" would keep the right roles; "Series B", "remote", "OpenAI", "LLM", "fintech".
+  - Because SQL uses ILIKE substring matching, do not include a narrower value already covered by another output value. Example: if you output "Engineer", do not also output "ML Engineer".
+
+  - include_contract/include_parttime/include_intern are hard employment-type switches over company_roles.type.
+  - Set each to true only when the user explicitly accepts or asks for that engagement type.
+  - Default to false for normal job recommendations. False means SQL excludes type values containing "contract", "part_time", or "internship" respectively.
+- is_prefer_entry: 1 when the user prefers entry-level/new grad/junior roles, -1 when they prefer non-entry/mid+ roles or reject junior roles, 0 when unknown/neutral.
+  - This is not the same as internship. Do not set include_intern=true just because is_prefer_entry=1.
 - Weight ftsKeywords intentionally: 4.0-5.0 for must-have role/domain concepts, 2.0-3.5 for strong direction, 1.0-1.5 for weak supporting context.
 - Use English for English-market role/domain terms and Korean for Korean aliases when helpful.
 - If the request is broad, still produce high-recall ftsKeywords based on user's profile rather than generic "good jobs".
@@ -248,7 +273,7 @@ Output schema:
 - 절대 같은 회사의 후보를 2개 이상 고르지 않는다. 같은 회사에서는 현재 요청에 가장 직접적으로 맞는 role 1개만 고른다.
 - company_score는 회사 품질 점수(company_workspace.test_score, 0~20)다. role fit 점수가 아니다.
 - 비슷한 역할이라면 company_score가 높은 회사를 선택한다.
-- retrievalFtsScore는 이번 DB query와의 FTS relevance에 company score bonus를 더한 내부 retrieval rank다. 참고값일 뿐 사용자에게 말하지 않는다. retrievalFtsScore를 선택에 반영하지 않는다.
+- retrievalFtsScore는 title 후보군 안에서 계산한 FTS/domain relevance에 company score bonus를 더한 내부 retrieval rank다. 참고값일 뿐 사용자에게 말하지 않는다. retrievalFtsScore를 선택에 반영하지 않는다.
 `;
 // - 현재 요청과 명확히 어긋나는 후보는 company_score 혹은 retrievalFtsScore가 높아도 제외한다.
 // - 이미 한번이라도 추천된 회사는 정말 좋은 role이 아니면 안고르는게 좋아.
@@ -1293,21 +1318,107 @@ function normalizeFtsKeywords(raw: unknown, fallbackText: string) {
   return result.length > 0 ? result : [{ terms: ["engineer"], weight: 1 }];
 }
 
+function cleanRoleTitle(value: unknown) {
+  return cleanText(value, 80).replace(/[%_]+/g, " ").replace(/\s+/g, " ");
+}
+
+function isLikelyRoleTitle(value: string) {
+  const lowered = value.toLocaleLowerCase("ko-KR");
+  return /engineer|developer|scientist|research|researcher|manager|designer|analyst|architect|founder|founding|lead|owner|consultant|sales|recruiter|marketer|writer|editor|intern|backend|frontend|front-end|fullstack|full-stack|product|pm|po|개발|엔지니어|연구|리서치|매니저|매니지|기획|디자이너|분석|세일즈|영업|마케팅|인턴|백엔드|프론트엔드|풀스택|공무원/.test(
+    lowered
+  );
+}
+
+function normalizeRoleTitles(
+  raw: unknown,
+  ftsKeywords: FtsKeyword[],
+  fallbackText: string
+) {
+  const candidates = asStringArray(raw, MAX_ROLE_TITLES * 2, 80)
+    .map(cleanRoleTitle)
+    .filter((title) => title && isLikelyRoleTitle(title));
+  if (candidates.length === 0) {
+    for (const keyword of ftsKeywords) {
+      for (const term of keyword.terms) {
+        const title = cleanRoleTitle(term);
+        if (title && isLikelyRoleTitle(title)) candidates.push(title);
+        if (candidates.length >= MAX_ROLE_TITLES * 2) break;
+      }
+      if (candidates.length >= MAX_ROLE_TITLES * 2) break;
+    }
+  }
+  if (candidates.length === 0) {
+    for (const match of fallbackText.matchAll(
+      /[A-Za-z가-힣][A-Za-z가-힣0-9.+#/-]*(?:\s+[A-Za-z가-힣][A-Za-z가-힣0-9.+#/-]*){0,3}/g
+    )) {
+      const title = cleanRoleTitle(match[0]);
+      if (title && isLikelyRoleTitle(title)) candidates.push(title);
+      if (candidates.length >= MAX_ROLE_TITLES * 2) break;
+    }
+  }
+
+  const unique = new Map<string, string>();
+  for (const candidate of candidates) {
+    const title = cleanRoleTitle(candidate);
+    if (!title) continue;
+    const key = title.toLocaleLowerCase("ko-KR");
+    if (!unique.has(key)) unique.set(key, title);
+  }
+
+  const result: string[] = [];
+  for (const title of Array.from(unique.values()).sort(
+    (a, b) => a.length - b.length
+  )) {
+    const key = title.toLocaleLowerCase("ko-KR");
+    if (
+      result.some((existing) =>
+        key.includes(existing.toLocaleLowerCase("ko-KR"))
+      )
+    ) {
+      continue;
+    }
+    result.push(title);
+    if (result.length >= MAX_ROLE_TITLES) break;
+  }
+
+  return result.length > 0 ? result : ["Engineer"];
+}
+
+function entryPreferenceField(record: JsonRecord, ...keys: string[]) {
+  for (const key of keys) {
+    if (!(key in record)) continue;
+    const value = record[key];
+    const number = Number(value);
+    if (number === -1 || number === 0 || number === 1) {
+      return number as EntryPreference;
+    }
+    const text = cleanText(value, 80).toLocaleLowerCase("ko-KR");
+    if (
+      ["non-entry", "mid", "senior", "staff", "principal", "시니어"].some(
+        (token) => text.includes(token)
+      )
+    ) {
+      return -1;
+    }
+    if (
+      ["entry", "entry-level", "junior", "new grad", "신입", "주니어"].some(
+        (token) => text.includes(token)
+      )
+    ) {
+      return 1;
+    }
+    if (["neutral", "unknown", "none", "상관없음"].includes(text)) return 0;
+  }
+  return 0;
+}
+
 function normalizeExternalSearchPlan(
   raw: JsonRecord | null,
   request: string
 ): ExternalSearchPlan {
   const source = asRecord(raw?.external) ?? raw ?? {};
   const fallbackText = cleanText(request, 500) || "engineer";
-  const excludeKeywords = Array.from(
-    new Set(
-      asStringArray(source.excludeKeywords, 12, 120)
-        .concat(DEFAULT_EXCLUDE_KEYWORDS)
-        .map((item) => item.trim())
-        .filter((item) => !EXCLUDE_KEYWORDS_TO_DROP.has(item.toLowerCase()))
-        .filter(Boolean)
-    )
-  ).slice(0, 12);
+  const ftsKeywords = normalizeFtsKeywords(source.ftsKeywords, fallbackText);
   const rawLocations = asStringArray(source.locations, 8, 120);
   const geoLocations = rawLocations.filter(
     (location) => !isRemoteLocationTerm(location)
@@ -1330,13 +1441,31 @@ function normalizeExternalSearchPlan(
   const includeRemote =
     remoteOnly === true
       ? false
-      : (explicitIncludeRemote ?? (hasRemoteLocation && geoLocations.length > 0));
+      : (explicitIncludeRemote ??
+        (hasRemoteLocation && geoLocations.length > 0));
   return {
-    excludeKeywords,
-    ftsKeywords: normalizeFtsKeywords(source.ftsKeywords, fallbackText),
+    ftsKeywords,
+    includeContract:
+      booleanField(source, "include_contract", "includeContract") ?? false,
+    includeIntern:
+      booleanField(source, "include_intern", "includeIntern") ?? false,
+    includeParttime:
+      booleanField(source, "include_parttime", "includeParttime") ?? false,
     includeRemote,
+    isPreferEntry: entryPreferenceField(
+      source,
+      "is_prefer_entry",
+      "isPreferEntry",
+      "preferEntry",
+      "entryPreference"
+    ),
     locations: expandLocationSearchTerms(geoLocations),
     remoteOnly,
+    roleTitles: normalizeRoleTitles(
+      source.role_titles ?? source.roleTitles,
+      ftsKeywords,
+      fallbackText
+    ),
     searchIntentSummary:
       cleanText(source.searchIntentSummary ?? raw?.searchIntentSummary, 260) ||
       "현재 유저 요청에 맞는 external job posting을 찾는다.",
@@ -1371,7 +1500,7 @@ async function buildSearchPlan(args: {
       },
     ],
     primaryModel: RECOMMEND_JOB_POSTINGS_PLAN_MODEL,
-    temperature: 0.2,
+    temperature: CAREER_LLM_CONFIG.recommendJobPostings.planTemperature,
   });
 
   return normalizeExternalSearchPlan(parseJsonObject(raw), args.request);
@@ -1389,10 +1518,6 @@ function isUuid(value: string) {
 
 function sqlNumber(value: number) {
   return Number.isFinite(value) ? String(Math.round(value * 100) / 100) : "1";
-}
-
-function ftsVectorSql() {
-  return "cr.opportunity_search_tsv";
 }
 
 function ftsTermQuerySql(term: string) {
@@ -1413,17 +1538,12 @@ function ftsAnyQuerySql(keywords: FtsKeyword[]) {
   return groups.length === 1 ? groups[0] : `(${groups.join(" || ")})`;
 }
 
-function ftsMatchSql() {
-  return `${ftsVectorSql()} @@ fts.query`;
-}
-
-function ftsRankSql(keywords: FtsKeyword[]) {
-  const vector = ftsVectorSql();
+function ftsRankSql(keywords: FtsKeyword[], vectorSql: string) {
   const parts = keywords
     .map((keyword) => {
       const query = ftsKeywordQuerySql(keyword);
       if (!query) return null;
-      return `${sqlNumber(keyword.weight)} * ts_rank_cd(${FTS_RANK_WEIGHTS}, ${vector}, ${query})`;
+      return `${sqlNumber(keyword.weight)} * ts_rank_cd(${FTS_RANK_WEIGHTS}, ${vectorSql}, ${query})`;
     })
     .filter((sql): sql is string => Boolean(sql));
   return parts.length > 0 ? `(${parts.join(" + ")})` : "0";
@@ -1442,15 +1562,104 @@ function buildBlockedCompanySql(blockedCompanies: string[]) {
     );
 }
 
-function buildExcludeKeywordSql(excludeKeywords: string[]) {
-  return excludeKeywords
-    .map((keyword) => cleanText(keyword, 100))
+function buildRoleTitleSql(roleTitles: string[]) {
+  const parts = roleTitles
+    .map(cleanRoleTitle)
     .filter(Boolean)
-    .slice(0, 12)
-    .map((keyword) => {
-      const pattern = sqlLiteral(`%${keyword}%`);
-      return `COALESCE(cr.name, '') NOT ILIKE ${pattern}`;
-    });
+    .slice(0, MAX_ROLE_TITLES)
+    .map((title) => `COALESCE(cr.name, '') ILIKE ${sqlLiteral(`%${title}%`)}`);
+  return parts.length > 0 ? [`(${parts.join(" OR ")})`] : [];
+}
+
+function buildExcludedEmploymentTypeSql(types: string[]) {
+  const literals = types.map((type) => sqlLiteral(type)).join(", ");
+  return `NOT EXISTS (
+    SELECT 1
+    FROM unnest(COALESCE(cr.type, ARRAY[]::text[])) AS role_type(type_value)
+    WHERE LOWER(BTRIM(role_type.type_value)) IN (${literals})
+  )`;
+}
+
+function buildEmploymentTypeSql(plan: ExternalSearchPlan) {
+  const clauses: string[] = [];
+  if (!plan.includeContract) {
+    clauses.push(
+      buildExcludedEmploymentTypeSql([
+        "contract",
+        "contractor",
+        "계약",
+        "계약직",
+      ])
+    );
+  }
+  if (!plan.includeIntern) {
+    clauses.push(
+      buildExcludedEmploymentTypeSql(["internship", "intern", "인턴"])
+    );
+  }
+  if (!plan.includeParttime) {
+    clauses.push(
+      buildExcludedEmploymentTypeSql([
+        "part_time",
+        "part-time",
+        "part time",
+        "파트타임",
+      ])
+    );
+  }
+  return clauses;
+}
+
+function entryPreferenceRankSql(
+  preference: EntryPreference,
+  roleNameSql = "cr.name",
+  seniorityLevelSql = "cr.seniority_level"
+) {
+  if (preference === 1) {
+    return `(CASE
+      WHEN LOWER(COALESCE(${seniorityLevelSql}, '')) ~ '(entry|junior|new[ _-]?grad|신입|주니어)'
+        OR COALESCE(${roleNameSql}, '') ILIKE '%entry%'
+        OR COALESCE(${roleNameSql}, '') ILIKE '%junior%'
+        OR COALESCE(${roleNameSql}, '') ILIKE '%new grad%'
+        OR COALESCE(${roleNameSql}, '') ILIKE '%신입%'
+        OR COALESCE(${roleNameSql}, '') ILIKE '%주니어%'
+      THEN 0.8
+      WHEN LOWER(COALESCE(${seniorityLevelSql}, '')) ~ '(senior|staff|principal|lead|head|manager|시니어|리드)'
+        OR COALESCE(${roleNameSql}, '') ILIKE '%senior%'
+        OR COALESCE(${roleNameSql}, '') ILIKE '%staff%'
+        OR COALESCE(${roleNameSql}, '') ILIKE '%principal%'
+        OR COALESCE(${roleNameSql}, '') ILIKE '%lead%'
+        OR COALESCE(${roleNameSql}, '') ILIKE '%head%'
+        OR COALESCE(${roleNameSql}, '') ILIKE '%manager%'
+        OR COALESCE(${roleNameSql}, '') ILIKE '%시니어%'
+        OR COALESCE(${roleNameSql}, '') ILIKE '%리드%'
+      THEN -0.4
+      ELSE 0
+    END)`;
+  }
+  if (preference === -1) {
+    return `(CASE
+      WHEN LOWER(COALESCE(${seniorityLevelSql}, '')) ~ '(senior|staff|principal|lead|head|manager|시니어|리드)'
+        OR COALESCE(${roleNameSql}, '') ILIKE '%senior%'
+        OR COALESCE(${roleNameSql}, '') ILIKE '%staff%'
+        OR COALESCE(${roleNameSql}, '') ILIKE '%principal%'
+        OR COALESCE(${roleNameSql}, '') ILIKE '%lead%'
+        OR COALESCE(${roleNameSql}, '') ILIKE '%head%'
+        OR COALESCE(${roleNameSql}, '') ILIKE '%manager%'
+        OR COALESCE(${roleNameSql}, '') ILIKE '%시니어%'
+        OR COALESCE(${roleNameSql}, '') ILIKE '%리드%'
+      THEN 0.4
+      WHEN LOWER(COALESCE(${seniorityLevelSql}, '')) ~ '(entry|junior|new[ _-]?grad|신입|주니어)'
+        OR COALESCE(${roleNameSql}, '') ILIKE '%entry%'
+        OR COALESCE(${roleNameSql}, '') ILIKE '%junior%'
+        OR COALESCE(${roleNameSql}, '') ILIKE '%new grad%'
+        OR COALESCE(${roleNameSql}, '') ILIKE '%신입%'
+        OR COALESCE(${roleNameSql}, '') ILIKE '%주니어%'
+      THEN -0.4
+      ELSE 0
+    END)`;
+  }
+  return "0";
 }
 
 function expandLocationSearchTerms(locations: string[]) {
@@ -1514,16 +1723,17 @@ function buildRoleSearchSql(args: {
   searchMode: RoleSearchMode;
   userId: string;
 }) {
-  const companyTestScoreRankSql = `COALESCE(cw.test_score, 0) / ${COMPANY_TEST_SCORE_SEARCH_RANK_DIVISOR}.0`;
-  const searchRankSql = `(${ftsRankSql(args.plan.ftsKeywords)} + ${companyTestScoreRankSql})`;
   const ftsQuerySql = ftsAnyQuerySql(args.plan.ftsKeywords);
+  const companyTestScoreRankSql = `COALESCE(tc.company_test_score, 0) / ${COMPANY_TEST_SCORE_SEARCH_RANK_DIVISOR}.0`;
+  const searchRankSql = `(${ftsRankSql(args.plan.ftsKeywords, "tc.opportunity_search_tsv")} + ${companyTestScoreRankSql} + ${entryPreferenceRankSql(args.plan.isPreferEntry, "tc.role_name", "tc.seniority_level")})`;
   const where = [
     "COALESCE(cr.is_expired, false) = false",
     "cr.status NOT IN ('expired', 'closed', 'inactive', 'archived')",
     "cr.source_type = 'external'",
     previouslyRecommendedRoleExclusionSql(args.userId),
     ...buildBlockedCompanySql(args.blockedCompanies),
-    ...buildExcludeKeywordSql(args.plan.excludeKeywords),
+    ...buildEmploymentTypeSql(args.plan),
+    ...buildRoleTitleSql(args.plan.roleTitles),
     ...buildLocationSql(args.plan),
   ].filter((sql): sql is string => Boolean(sql));
 
@@ -1531,12 +1741,13 @@ function buildRoleSearchSql(args: {
 WITH fts AS (
   SELECT ${ftsQuerySql} AS query
 ),
-candidates AS (
+title_candidates AS MATERIALIZED (
   SELECT
     cr.role_id::text AS role_id,
     cr.company_workspace_id::text AS company_workspace_id,
     cr.name AS role_name,
     cr.description,
+    cr.opportunity_search_tsv,
     cr.external_jd_url,
     cr.location_text,
     cr.work_mode,
@@ -1552,16 +1763,40 @@ candidates AS (
     cd.short_description AS company_db_short_description,
     cd.location AS company_db_location,
     cd.founded_year AS company_db_founded_year,
-    cd.employee_count_range AS company_db_employee_count_range,
-    ${searchRankSql} AS search_rank
+    cd.employee_count_range AS company_db_employee_count_range
   FROM public.company_roles cr
-  JOIN fts
-    ON ${ftsMatchSql()}
   JOIN public.company_workspace cw
     ON cw.company_workspace_id = cr.company_workspace_id
   LEFT JOIN public.company_db cd
     ON cd.id = cw.company_db_id
   WHERE ${where.join("\n    AND ")}
+),
+candidates AS (
+  SELECT
+    tc.role_id,
+    tc.company_workspace_id,
+    tc.role_name,
+    tc.description,
+    tc.external_jd_url,
+    tc.location_text,
+    tc.work_mode,
+    tc.type,
+    tc.posted_at,
+    tc.seniority_level,
+    tc.role_updated_at,
+    tc.company_name,
+    tc.company_description,
+    tc.company_test_score,
+    tc.company_db_name,
+    tc.company_db_description,
+    tc.company_db_short_description,
+    tc.company_db_location,
+    tc.company_db_founded_year,
+    tc.company_db_employee_count_range,
+    ${searchRankSql} AS search_rank
+  FROM title_candidates tc
+  JOIN fts
+    ON tc.opportunity_search_tsv @@ fts.query
 ),
 ranked_candidates AS (
   SELECT
@@ -2074,7 +2309,7 @@ async function shortlistRoles(args: {
       },
     ],
     primaryModel: RECOMMEND_JOB_POSTINGS_PRIMARY_MODEL,
-    temperature: 0.1,
+    temperature: CAREER_LLM_CONFIG.recommendJobPostings.shortlistTemperature,
   });
   const selectedRoleIds = sanitizeShortlist(
     parseJsonObject(raw),
@@ -2204,7 +2439,8 @@ async function selectFinalRecommendations(args: {
       },
     ],
     primaryModel: RECOMMEND_JOB_POSTINGS_FINAL_SELECTION_MODEL,
-    temperature: 0.2,
+    temperature:
+      CAREER_LLM_CONFIG.recommendJobPostings.finalSelectionTemperature,
   });
   const parsed = parseJsonObject(raw);
   const selectedRaw = Array.isArray(parsed?.selectedRecommendations)
@@ -2582,11 +2818,15 @@ export async function runCareerJobPostingRecommendations(args: {
     request,
   });
   infoJson("external search plan", {
-    excludeKeywords: plan.excludeKeywords,
     ftsKeywords: plan.ftsKeywords,
+    include_contract: plan.includeContract,
+    include_intern: plan.includeIntern,
+    include_parttime: plan.includeParttime,
     includeRemote: plan.includeRemote,
+    is_prefer_entry: plan.isPreferEntry,
     locations: plan.locations,
     remoteOnly: plan.remoteOnly,
+    role_titles: plan.roleTitles,
     searchIntentSummary: plan.searchIntentSummary,
     targetRecommendationCount,
   });
@@ -2703,11 +2943,15 @@ export async function runCareerJobPostingRecommendations(args: {
     shortlistCandidateCount: shortlistedCards.length,
     supplementalRecommendationCount: finalSelection.supplementalCount,
     searchPlan: {
-      excludeKeywords: plan.excludeKeywords,
       ftsKeywords: plan.ftsKeywords,
+      include_contract: plan.includeContract,
+      include_intern: plan.includeIntern,
+      include_parttime: plan.includeParttime,
       includeRemote: plan.includeRemote,
+      is_prefer_entry: plan.isPreferEntry,
       locations: plan.locations,
       remoteOnly: plan.remoteOnly,
+      role_titles: plan.roleTitles,
       searchIntentSummary: plan.searchIntentSummary,
       sourceType: "external",
     },

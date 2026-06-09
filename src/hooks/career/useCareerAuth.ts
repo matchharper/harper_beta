@@ -99,7 +99,7 @@ export const useCareerAuth = () => {
   const [authError, setAuthError] = useState("");
   const [authInfo, setAuthInfo] = useState("");
 
-  const buildCareerRedirectPath = useCallback(() => {
+  const buildCareerAuthCallbackUrl = useCallback(() => {
     if (typeof window === "undefined") return undefined;
 
     const currentUrl = new URL(window.location.href);
@@ -146,7 +146,33 @@ export const useCareerAuth = () => {
       );
     }
 
-    return nextUrl.toString();
+    const callbackUrl = new URL("/auths/callback", window.location.origin);
+    callbackUrl.searchParams.set("flow", "talent_capture");
+    callbackUrl.searchParams.set(
+      "next",
+      `${nextUrl.pathname}${nextUrl.search}`
+    );
+
+    if (inviteToken) {
+      callbackUrl.searchParams.set("invite", inviteToken);
+    }
+    if (mail) {
+      callbackUrl.searchParams.set("mail", mail);
+    }
+    if (source) {
+      callbackUrl.searchParams.set("source", source);
+    }
+    if (localId) {
+      callbackUrl.searchParams.set("lid", localId);
+    }
+    if (emailOnboardingToken) {
+      callbackUrl.searchParams.set(
+        CAREER_EMAIL_ONBOARDING_TOKEN_PARAM,
+        emailOnboardingToken
+      );
+    }
+
+    return callbackUrl.toString();
   }, []);
 
   const handleGoogleLogin = useCallback(async () => {
@@ -155,7 +181,7 @@ export const useCareerAuth = () => {
     setAuthError("");
     setAuthInfo("");
     try {
-      const redirectTo = buildCareerRedirectPath();
+      const redirectTo = buildCareerAuthCallbackUrl();
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: { redirectTo },
@@ -169,7 +195,7 @@ export const useCareerAuth = () => {
     } finally {
       setAuthPending(false);
     }
-  }, [authPending, buildCareerRedirectPath]);
+  }, [authPending, buildCareerAuthCallbackUrl]);
 
   const handleEmailAuth = useCallback(
     async (args: {
@@ -190,7 +216,7 @@ export const useCareerAuth = () => {
       setAuthInfo("");
       try {
         if (args.mode === "signup") {
-          const redirectTo = buildCareerRedirectPath();
+          const redirectTo = buildCareerAuthCallbackUrl();
           const { data, error } = await supabase.auth.signUp({
             email,
             password: args.password,
@@ -222,7 +248,7 @@ export const useCareerAuth = () => {
         setAuthPending(false);
       }
     },
-    [authPending, buildCareerRedirectPath]
+    [authPending, buildCareerAuthCallbackUrl]
   );
 
   const handleLogout = useCallback(async () => {

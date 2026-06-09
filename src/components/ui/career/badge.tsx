@@ -37,7 +37,7 @@ const badgeColorClassNames: Record<
     outline: "border border-[#1F1C1A1A] bg-transparent text-black",
   },
   primary: {
-    solid: "bg-[#753B17] text-white",
+    solid: "bg-neutral-950 text-white",
     faded: "bg-[#F2DFCE] text-[#753B17]",
     outline: "border border-[#F2DFCE] bg-transparent text-[#753B17]",
   },

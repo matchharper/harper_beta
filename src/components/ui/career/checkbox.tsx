@@ -126,7 +126,7 @@ const CareerCheckbox = React.forwardRef<HTMLInputElement, CareerCheckboxProps>(
             state === "error"
               ? "border border-[#9B2E1E33]"
               : "border border-[#1F1C1A1A]",
-            "checked:border-[#753B17] checked:bg-[#753B17]",
+            "checked:border-black checked:bg-black",
             "indeterminate:border-[#753B17] indeterminate:bg-[#753B17]",
             resolvedDisabled &&
               "border-[#F3F1EE] bg-[#F8F7F5] checked:bg-[#CEC8C1]"

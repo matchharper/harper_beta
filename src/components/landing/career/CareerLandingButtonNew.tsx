@@ -23,10 +23,10 @@ export default function CareerLandingButtonNew({
 }: CareerLandingButtonNewProps) {
   const isSmall = size === "sm";
   const isPrimary = variant === "primary";
-  const classNames = `group relative inline-flex items-center justify-center overflow-hidden font-geist font-medium transition-shadow duration-300 ${
+  const classNames = `group relative inline-flex items-center justify-center overflow-hidden font-geist font-medium transition-colors duration-300 ${
     isPrimary
-      ? "rounded-[12px] bg-black text-white shadow-lg hover:shadow-xl"
-      : "rounded-[12px] bg-beige500/70 text-beige900 shadow-inner"
+      ? "rounded-[12px] bg-black text-white hover:bg-neutral-800"
+      : "rounded-[12px] bg-white text-neutral-950 hover:bg-neutral-100"
   } ${
     isSmall
       ? isPrimary
@@ -38,7 +38,7 @@ export default function CareerLandingButtonNew({
   const content = (
     <>
       {!isPrimary && (
-        <span className="absolute inset-0 bg-beige50/10 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+        <span className="absolute inset-0 bg-black/5 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
       )}
       <span className="relative flex h-full items-start overflow-hidden">
         <span

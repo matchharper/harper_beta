@@ -7,7 +7,6 @@ import {
   toPostingOpportunityId,
 } from "@/lib/career/postingLinks";
 import { OpportunityType, isOpportunityType } from "@/lib/opportunityType";
-import { withIsMobile } from "@/lib/requestDevice";
 
 type AdminClient = ReturnType<typeof getTalentSupabaseAdmin>;
 
@@ -55,6 +54,27 @@ type RawRecommendationRow = {
     status: string;
     type: string[];
     work_mode: string | null;
+  } | null;
+};
+
+type RawRecentRecommendationPromptRow = {
+  feedback: string | null;
+  feedback_reason: string | null;
+  processed_stage: string | null;
+  role_id: string | null;
+  saved_stage: string | null;
+  company_role: {
+    location_text: string | null;
+    name: string;
+    source_type: string;
+    type: string[] | null;
+    work_mode: string | null;
+    company_workspace: {
+      company_name: string;
+      company_db: {
+        employee_count_range: Json | null;
+      } | null;
+    } | null;
   } | null;
 };
 
@@ -148,6 +168,27 @@ const TALENT_OPPORTUNITY_HISTORY_SELECT = `
       company_db:company_db (
         id,
         logo
+      )
+    )
+  )
+`;
+
+const TALENT_RECENT_RECOMMENDATION_PROMPT_SELECT = `
+  feedback,
+  feedback_reason,
+  processed_stage,
+  role_id,
+  saved_stage,
+  company_role:company_roles!inner (
+    name,
+    location_text,
+    type,
+    work_mode,
+    source_type,
+    company_workspace:company_workspace!inner (
+      company_name,
+      company_db:company_db (
+        employee_count_range
       )
     )
   )
@@ -251,6 +292,21 @@ export type TalentOpportunityHistoryItem = {
   talentMemo: string | null;
   title: string;
   viewedAt: string | null;
+  workMode: string | null;
+};
+
+export type TalentRecentRecommendationPromptItem = {
+  companyName: string;
+  companySize: string | null;
+  employmentTypes: string[];
+  feedback: TalentOpportunityFeedback | null;
+  feedbackReason: string | null;
+  location: string | null;
+  processedStage: string | null;
+  roleId: string | null;
+  savedStage: TalentOpportunitySavedStage | null;
+  sourceType: "internal" | "external";
+  title: string;
   workMode: string | null;
 };
 
@@ -378,8 +434,72 @@ function normalizeOpportunityPromptText(value: unknown, fallback: string) {
   return text || fallback;
 }
 
+function normalizePromptTextOrNull(value: unknown) {
+  const text =
+    typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+  return text || null;
+}
+
+function normalizePromptTextList(value: unknown, limit = 4) {
+  return (Array.isArray(value) ? value : [])
+    .map((item) => normalizePromptTextOrNull(item))
+    .filter((item): item is string => Boolean(item))
+    .slice(0, limit);
+}
+
+function compactEmployeeCountRangeForPrompt(value: Json | null | undefined) {
+  if (!value) return null;
+
+  if (typeof value === "string") {
+    return normalizePromptTextOrNull(value);
+  }
+
+  if (Array.isArray(value)) {
+    return normalizePromptTextOrNull(value.slice(0, 2).join("-"));
+  }
+
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const start = record.start ?? record.min ?? record.from ?? record.lower;
+    const end = record.end ?? record.max ?? record.to ?? record.upper;
+    if (start && end) return `${start}-${end} employees`;
+    if (start) return `${start}+ employees`;
+    if (end) return `up to ${end} employees`;
+  }
+
+  return null;
+}
+
+function mapRecentRecommendationPromptRow(
+  row: RawRecentRecommendationPromptRow
+): TalentRecentRecommendationPromptItem | null {
+  const role = row.company_role;
+  const workspace = role?.company_workspace;
+  if (!role || !workspace) return null;
+
+  return {
+    companyName: normalizeOpportunityPromptText(
+      workspace.company_name,
+      "Unknown company"
+    ),
+    companySize: compactEmployeeCountRangeForPrompt(
+      workspace.company_db?.employee_count_range ?? null
+    ),
+    employmentTypes: normalizePromptTextList(role.type, 4),
+    feedback: normalizeFeedback(row.feedback),
+    feedbackReason: normalizePromptTextOrNull(row.feedback_reason),
+    location: normalizePromptTextOrNull(role.location_text),
+    processedStage: normalizePromptTextOrNull(row.processed_stage),
+    roleId: normalizePromptTextOrNull(row.role_id),
+    savedStage: normalizeSavedStage(row.saved_stage),
+    sourceType: normalizeSourceType(role.source_type),
+    title: normalizeOpportunityPromptText(role.name, "Unknown role"),
+    workMode: normalizePromptTextOrNull(role.work_mode),
+  };
+}
+
 export function formatRecentRecommendedOpportunitiesForPrompt(
-  items: readonly TalentOpportunityHistoryItem[] | null | undefined,
+  items: readonly TalentRecentRecommendationPromptItem[] | null | undefined,
   maxItems = 10
 ) {
   const limit =
@@ -392,21 +512,28 @@ export function formatRecentRecommendedOpportunitiesForPrompt(
     .map((item) => {
       const sourceType =
         item.sourceType === "external" ? "external" : "internal";
-      const title = normalizeOpportunityPromptText(item.title, "Unknown role");
-      const companyName = normalizeOpportunityPromptText(
-        item.companyName,
-        "Unknown company"
-      );
       const feedback = item.feedback ?? "none";
+      const roleIdPrefix = item.roleId ? `roleId: ${item.roleId}, ` : "";
       const savedStage = item.savedStage ?? "none";
-      const processedStage = normalizeOpportunityPromptText(
-        item.processedStage,
-        ""
-      );
+      const details =
+        item.feedback === null
+          ? []
+          : [
+              item.location ? `location: ${item.location}` : "",
+              item.workMode ? `work mode: ${item.workMode}` : "",
+              item.employmentTypes.length > 0
+                ? `types: ${item.employmentTypes.join("/")}`
+                : "",
+              item.companySize ? `company size: ${item.companySize}` : "",
+              item.feedbackReason
+                ? `feedback reason: ${item.feedbackReason}`
+                : "",
+            ].filter(Boolean);
 
       return [
-        `(${sourceType}) ${title} at ${companyName} - feedback: ${feedback}, saved stage: ${savedStage}`,
-        processedStage ? `processed stage: ${processedStage}` : "",
+        `(${sourceType}) ${item.title} at ${item.companyName} - ${roleIdPrefix}feedback: ${feedback}, saved stage: ${savedStage}`,
+        item.processedStage ? `processed stage: ${item.processedStage}` : "",
+        ...details,
       ]
         .filter(Boolean)
         .join(", ");
@@ -528,6 +655,37 @@ function buildTalentOpportunityHistoryQuery(args: {
   }
 
   return query;
+}
+
+export async function fetchRecentRecommendedOpportunitiesForPrompt(args: {
+  admin: AdminClient;
+  limit?: number;
+  userId: string;
+}) {
+  const limit =
+    typeof args.limit === "number" && Number.isFinite(args.limit)
+      ? Math.max(1, Math.min(Math.floor(args.limit), 10))
+      : 10;
+
+  const { data, error } = await ((args.admin.from(
+    "talent_opportunity_recommendation" as any
+  ) as any)
+    .select(TALENT_RECENT_RECOMMENDATION_PROMPT_SELECT)
+    .eq("talent_id", args.userId)
+    .order("recommended_at", { ascending: false })
+    .limit(limit) as any);
+
+  if (error) {
+    throw new Error(
+      error.message ?? "Failed to load recent recommended opportunities"
+    );
+  }
+
+  return coerceJsonArray<RawRecentRecommendationPromptRow>(data)
+    .map(mapRecentRecommendationPromptRow)
+    .filter(
+      (item): item is TalentRecentRecommendationPromptItem => item !== null
+    );
 }
 
 async function countTalentOpportunityRecommendations(args: {
@@ -1358,69 +1516,4 @@ export async function updateTalentOpportunityHistoryItem(args: {
   }
 
   return { ok: true, opportunityId, updatedAt: now };
-}
-
-export async function createTalentOpportunityQuestion(args: {
-  admin: AdminClient;
-  isMobile?: boolean | null;
-  opportunityId: string;
-  question: string;
-  userId: string;
-}) {
-  const opportunityId = String(args.opportunityId ?? "").trim();
-  if (!opportunityId) {
-    throw new Error("opportunityId is required");
-  }
-
-  const question = String(args.question ?? "").trim();
-  if (!question) {
-    throw new Error("question is required");
-  }
-
-  const { data: opportunity, error: lookupError } = await ((
-    args.admin.from("talent_opportunity_recommendation" as any) as any
-  )
-    .select("role_id")
-    .eq("talent_id", args.userId)
-    .eq("id", opportunityId)
-    .maybeSingle() as any);
-
-  if (lookupError) {
-    throw new Error(lookupError.message ?? "Failed to load opportunity");
-  }
-
-  const roleId =
-    typeof opportunity?.role_id === "string" ? opportunity.role_id.trim() : "";
-  if (!roleId) {
-    throw new Error("Opportunity not found");
-  }
-
-  const content = `Role:${roleId}\n${question}`;
-  const { data: insertedMessage, error: insertError } = await args.admin
-    .from("talent_messages")
-    .insert(
-      withIsMobile(
-        {
-          conversation_id: null,
-          user_id: args.userId,
-          role: "user",
-          content,
-          message_type: "question",
-        },
-        args.isMobile
-      )
-    )
-    .select("id, created_at")
-    .single();
-
-  if (insertError) {
-    throw new Error(insertError.message ?? "Failed to save question");
-  }
-
-  return {
-    ok: true,
-    createdAt: insertedMessage.created_at,
-    messageId: insertedMessage.id,
-    roleId,
-  };
 }

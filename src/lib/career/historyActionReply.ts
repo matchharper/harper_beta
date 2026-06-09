@@ -1,11 +1,6 @@
-import { OpportunityType } from "@/lib/opportunityType";
 import { runCareerChatTurn } from "@/lib/career/chatTurn";
-import { runCareerHistoryActionReply } from "@/lib/career/llm";
 import {
-  buildCareerHistoryActionReplySystemPrompt,
-  buildCareerHistoryActionReplyUserPrompt,
   buildCareerOpportunityFeedbackFollowUpTurnInstruction,
-  type CareerHistoryActionReplyAction,
   type CareerOpportunityFeedbackFollowUpTrigger,
 } from "@/lib/career/prompts";
 import {
@@ -13,32 +8,13 @@ import {
   formatOpportunityFeedbackPromptContext,
   type TalentOpportunityFeedbackActivityItem,
 } from "@/lib/talentOnboarding/activityEvents";
-import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
-import {
-  buildTalentProfileContext,
-  fetchRecentMessages,
-  fetchTalentInsights,
-  fetchTalentSetting,
-  fetchTalentStructuredProfile,
-  fetchTalentUserProfile,
-  type TalentAdminClient,
-  type TalentMessageRow,
-} from "@/lib/talentOnboarding/server";
+import { type TalentAdminClient } from "@/lib/talentOnboarding/server";
 import type { TalentOpportunityHistoryItem } from "@/lib/talentOpportunity";
-import { withIsMobile } from "@/lib/requestDevice";
 
-export type TalentOpportunityActionReplyAction = CareerHistoryActionReplyAction;
+type TalentOpportunityFeedbackAction = "negative" | "positive";
 
 export type TalentOpportunityFeedbackReplyTrigger =
   CareerOpportunityFeedbackFollowUpTrigger;
-
-const MAX_TEXT = 2200;
-
-const truncate = (value: string | null | undefined, max = MAX_TEXT) => {
-  const text = String(value ?? "").trim();
-  if (text.length <= max) return text;
-  return `${text.slice(0, max - 3).trim()}...`;
-};
 
 const parseFeedbackReason = (value: string | null) => {
   if (!value) return null;
@@ -62,51 +38,6 @@ const parseFeedbackReason = (value: string | null) => {
   }
 };
 
-const toResponseMessage = (item: TalentMessageRow) => ({
-  id: item.id,
-  role: item.role,
-  content: item.content,
-  messageType: item.message_type ?? "chat",
-  createdAt: item.created_at,
-});
-
-const buildRecentConversationContext = (messages: TalentMessageRow[]) =>
-  messages
-    .map((message) => {
-      const speaker = message.role === "assistant" ? "Harper" : "User";
-      const content = formatTalentMessageContentForLlmPrompt(message).replace(
-        /\s+/g,
-        " "
-      );
-      return `${speaker}: ${truncate(content, 500)}`;
-    })
-    .join("\n\n");
-
-const buildProfileStatusContext = (args: {
-  profile: Awaited<ReturnType<typeof fetchTalentUserProfile>>;
-  setting: Awaited<ReturnType<typeof fetchTalentSetting>>;
-}) => {
-  const resumeLinks = Array.isArray(args.profile?.resume_links)
-    ? args.profile.resume_links.filter(
-        (link): link is string =>
-          typeof link === "string" && link.trim().length > 0
-      )
-    : [];
-  const hasResume = Boolean(
-    args.profile?.resume_file_name ||
-    args.profile?.resume_storage_path ||
-    args.profile?.resume_text ||
-    resumeLinks.length > 0
-  );
-
-  return [
-    `hasResume: ${hasResume ? "true" : "false"}`,
-    `hasResumeFile: ${args.profile?.resume_file_name || args.profile?.resume_storage_path ? "true" : "false"}`,
-    `resumeLinkCount: ${resumeLinks.length}`,
-    `isOnboardingDone: ${args.setting?.is_onboarding_done ? "true" : "false"}`,
-  ].join("\n");
-};
-
 async function assertConversationAccess(args: {
   admin: TalentAdminClient;
   conversationId: string;
@@ -127,120 +58,11 @@ async function assertConversationAccess(args: {
   }
 }
 
-export async function createTalentOpportunityActionReply(args: {
-  action: TalentOpportunityActionReplyAction;
-  admin: TalentAdminClient;
-  conversationId: string | null;
-  feedbackReason?: string | null;
-  isMobile?: boolean | null;
-  opportunity: TalentOpportunityHistoryItem | null;
-  userId: string;
-  userQuestion?: string | null;
-}) {
-  const conversationId = String(args.conversationId ?? "").trim();
-  const opportunity = args.opportunity;
-
-  if (
-    !conversationId ||
-    !opportunity ||
-    opportunity.opportunityType !== OpportunityType.InternalRecommendation
-  ) {
-    return null;
-  }
-
-  await assertConversationAccess({
-    admin: args.admin,
-    conversationId,
-    userId: args.userId,
-  });
-
-  const [profile, talentSetting, talentInsights, recentMessages] =
-    await Promise.all([
-      fetchTalentUserProfile({ admin: args.admin, userId: args.userId }),
-      fetchTalentSetting({ admin: args.admin, userId: args.userId }),
-      fetchTalentInsights({ admin: args.admin, userId: args.userId }),
-      fetchRecentMessages({
-        admin: args.admin,
-        conversationId,
-        limit: 10,
-      }),
-    ]);
-  const structuredProfile = await fetchTalentStructuredProfile({
-    admin: args.admin,
-    userId: args.userId,
-    talentUser: profile,
-  });
-  const profileContext = buildTalentProfileContext({
-    profile,
-    structuredProfile,
-    setting: talentSetting,
-    maxResumeChars: 2000,
-  });
-  const assistantContent = (
-    await runCareerHistoryActionReply({
-      messages: [
-        {
-          role: "system",
-          content: buildCareerHistoryActionReplySystemPrompt(),
-        },
-        {
-          role: "user",
-          content: buildCareerHistoryActionReplyUserPrompt({
-            action: args.action,
-            feedbackReason: parseFeedbackReason(
-              args.feedbackReason ?? opportunity.feedbackReason
-            ),
-            opportunity,
-            profileContext,
-            profileStatusContext: buildProfileStatusContext({
-              profile,
-              setting: talentSetting,
-            }),
-            recentConversationContext:
-              buildRecentConversationContext(recentMessages),
-            talentInsights: talentInsights?.content ?? null,
-            userQuestion: args.userQuestion ?? null,
-          }),
-        },
-      ],
-    })
-  ).trim();
-
-  if (!assistantContent) {
-    return null;
-  }
-
-  const { data: insertedMessage, error: insertError } = await args.admin
-    .from("talent_messages")
-    .insert(
-      withIsMobile(
-        {
-          conversation_id: conversationId,
-          user_id: args.userId,
-          role: "assistant",
-          content: assistantContent,
-          message_type: "chat",
-        },
-        args.isMobile
-      )
-    )
-    .select("*")
-    .single();
-
-  if (insertError) {
-    throw new Error(insertError.message ?? "Failed to insert assistant reply");
-  }
-
-  return toResponseMessage(insertedMessage as TalentMessageRow);
-}
-
 function toFeedbackActivityItem(args: {
-  action: TalentOpportunityActionReplyAction;
+  action: TalentOpportunityFeedbackAction;
   feedbackReason?: string | null;
   opportunity: TalentOpportunityHistoryItem;
-}): TalentOpportunityFeedbackActivityItem | null {
-  if (args.action !== "positive" && args.action !== "negative") return null;
-
+}): TalentOpportunityFeedbackActivityItem {
   return {
     action: args.action,
     companyName: args.opportunity.companyName,
@@ -262,7 +84,7 @@ function toFeedbackActivityItem(args: {
 }
 
 export async function createTalentOpportunityFeedbackFollowUpReply(args: {
-  action?: TalentOpportunityActionReplyAction | null;
+  action?: TalentOpportunityFeedbackAction | null;
   admin: TalentAdminClient;
   conversationId: string | null;
   feedbackReason?: string | null;

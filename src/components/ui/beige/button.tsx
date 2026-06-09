@@ -17,10 +17,8 @@ export type BeigeButtonProps = Omit<HTMLMotionProps<"button">, "children"> & {
 };
 
 const beigeButtonVariantClassNames: Record<BeigeButtonVariant, string> = {
-  primary:
-    "border border-beige900 bg-beige900 text-beige100 shadow-[0_10px_20px_rgba(46,23,6,0.1)] hover:shadow-[0_18px_40px_rgba(46,23,6,0.2)]",
-  secondary:
-    "border border-beige900/10 bg-beige500/70 text-beige900 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] hover:bg-beige500",
+  primary: "border border-black bg-black text-neutral-50 font-normal",
+  secondary: "bg-neutral-200 text-black hover:bg-neutral-300",
   outline:
     "border border-beige900/15 bg-white/45 text-beige900 hover:border-beige900/30 hover:bg-white/65",
   ghost:
@@ -86,7 +84,7 @@ const BeigeButtonRoot = React.forwardRef<HTMLButtonElement, BeigeButtonProps>(
         whileHover={disabled ? undefined : { y: -1 }}
         whileTap={disabled ? undefined : { scale: 0.985 }}
         className={cn(
-          "group relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-[8px] font-geist font-medium tracking-[-0.03em] outline-none transition-[background-color,border-color,box-shadow,opacity] duration-200 focus-visible:ring-2 focus-visible:ring-beige500/80 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-60",
+          "group relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-[8px] font-medium tracking-[-0.03em] outline-none transition-[background-color,border-color,box-shadow,opacity] duration-200 focus-visible:ring-2 focus-visible:ring-beige500/80 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-60",
           beigeButtonVariantClassNames[variant],
           getBeigeButtonSizeClassName(size, variant),
           className
