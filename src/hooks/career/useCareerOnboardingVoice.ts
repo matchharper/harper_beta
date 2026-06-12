@@ -56,6 +56,19 @@ const CALL_OPENING_RESPONSE_INSTRUCTION = [
   "많은 정보를 들려줄수록 회사 연결 요청이나 맞춤 기회 추천이 더 정확해진다는 취지를 한 번만 짧게 말하고, 함께 헤드헌터의 입장에서 할만한 질문을 던져도 됩니다.",
 ].join("\n");
 
+const ONBOARDING_CALL_OPENING_RESPONSE_INSTRUCTION = [
+  "통화가 방금 시작되었습니다. 이 통화는 5분 커리어 인터뷰를 위한 통화입니다.",
+  "도구는 사용하지 마세요. 지금은 통화 시작 멘트와 첫 질문만 합니다.",
+  "한국어 존댓말로, 실제 전화 첫마디처럼 자연스럽게 말하세요.",
+  "첫 문장에서는 이 대화가 왜 필요한지 가볍게 안내하세요. 더 잘 맞는 기회 추천과 회사 연결을 위해 현재 상황과 선호를 짧게 확인한다는 취지입니다.",
+  "안내 직후 바로 질문 하나를 하세요.",
+  "질문은 세션 instructions의 Onboarding Question Checklist에서 current_status가 missing인 항목 중 우선순위가 높은 항목을 고르고, 해당 항목의 question hint를 기반으로 만드세요.",
+  "이미 covered인 항목이나 최근 대화에서 답한 주제는 다시 묻지 마세요.",
+  "최근 대화 내역은 배경으로만 참고하고, missing checklist 항목과 question hint 기반 질문 선택을 대신하지 마세요.",
+  "전체 첫 멘트는 3~4문장으로 끝내고, 마지막 문장은 사용자가 바로 답할 수 있는 질문이어야 합니다.",
+  '예시: "안녕하세요. 이 5분 커리어 인터뷰는 하퍼가 더 잘 맞는 기회를 추천하고, 필요하면 회사와 연결할 때 후보자님의 맥락을 잘 전달하기 위해 짧게 확인하는 대화예요. 편하게 답해주시면 되고, 먼저 현재 탐색 온도부터 확인해볼게요. 지금 적극적으로 다음 기회를 찾고 계신 건지, 아니면 좋은 게 있으면 받아는 보고 싶다 정도인지 편하게 말씀해주세요."',
+].join("\n");
+
 function formatCallOpeningRelativeTime(createdAt: string, nowMs: number) {
   const createdAtMs = Date.parse(createdAt);
   if (!Number.isFinite(createdAtMs)) return "";
@@ -129,46 +142,48 @@ function buildCallOpeningResponseInstruction(args: {
     !isConversationStarter &&
     typeof interviewProgress?.percent === "number" &&
     interviewProgress.percent >= 75;
+  const shouldUseOnboardingOpening =
+    !isOnboardingDone && !isConversationStarter;
 
   const sections = [
-    CALL_OPENING_RESPONSE_INSTRUCTION,
-    shouldUseNearFinishOpening
-      ? [
-          "",
-          "## Incomplete onboarding near-finish opening",
-          "현재 커리어 인터뷰는 아직 완료되지 않았지만 거의 끝난 상태입니다.",
-          `- filledInsights: ${interviewProgress?.filledCount ?? "(unknown)"}/${interviewProgress?.totalCount ?? "(unknown)"}`,
-          `- remainingInsights: ${interviewProgress?.remainingCount ?? "(unknown)"}`,
-          "- 일반적인 새 통화 인사나 '오늘 어떠세요?', '최근 우선순위가 바뀐 게 있나요?' 같은 넓은 질문으로 시작하지 마세요.",
-          "- 첫 문장은 반드시 '대화가 거의 끝났으니 빠르게 마무리해볼게요'라는 취지를 자연스럽게 담으세요.",
-          "- 최근 대화 맥락을 보고 마지막으로 남은 한 가지 확인점이나 final priority confirmation으로 바로 이어가세요.",
-          "- 이미 final priority confirmation에 사용자가 답한 맥락이면 같은 확인 질문을 반복하지 말고 짧게 closing으로 넘어가세요.",
-        ].join("\n")
-      : "",
-    isConversationStarter
-      ? [
-          "",
-          "## Conversation starter opening",
-          "이번 통화는 사용자가 특정 conversation starter 버튼을 눌러 시작했습니다.",
-          "아래 starter 내용의 목적과 질문 방향을 가장 우선하세요.",
-          "최근 우선순위, 선호 조건, 일반적인 기회 탐색 질문을 임의로 고르지 마세요.",
-        ].join("\n")
-      : "",
-    recentConversationContext
-      ? [
-          "",
-          recentConversationContext,
+    shouldUseOnboardingOpening
+      ? ONBOARDING_CALL_OPENING_RESPONSE_INSTRUCTION
+      : CALL_OPENING_RESPONSE_INSTRUCTION,
+    shouldUseNearFinishOpening &&
+      [
+        "",
+        "## Incomplete onboarding near-finish opening",
+        "현재 커리어 인터뷰는 아직 완료되지 않았지만 거의 끝난 상태입니다.",
+        `- filledInsights: ${interviewProgress?.filledCount ?? "(unknown)"}/${interviewProgress?.totalCount ?? "(unknown)"}`,
+        `- remainingInsights: ${interviewProgress?.remainingCount ?? "(unknown)"}`,
+        "- 일반적인 새 통화 인사나 '오늘 어떠세요?', '최근 우선순위가 바뀐 게 있나요?' 같은 넓은 질문으로 시작하지 마세요.",
+        "- 첫 문장은 '대화가 거의 끝났고, 더 정확한 추천/연결을 위해 마지막 확인만 빠르게 하겠다'는 취지를 자연스럽게 담으세요.",
+        "- 최근 대화 맥락은 배경으로만 참고하고, 마지막으로 남은 한 가지 missing checklist question hint나 final priority confirmation으로 바로 이어가세요.",
+        "- 이미 final priority confirmation에 사용자가 답한 맥락이면 같은 확인 질문을 반복하지 말고 짧게 closing으로 넘어가세요.",
+      ].join("\n"),
+    isConversationStarter &&
+      [
+        "",
+        "## Conversation starter opening",
+        "이번 통화는 사용자가 특정 conversation starter 버튼을 눌러 시작했습니다.",
+        "아래 starter 내용의 목적과 질문 방향을 가장 우선하세요.",
+        "최근 우선순위, 선호 조건, 일반적인 기회 탐색 질문을 임의로 고르지 마세요.",
+      ].join("\n"),
+    recentConversationContext &&
+      [
+        "",
+        recentConversationContext,
+        !shouldUseOnboardingOpening &&
           "위 최근 채팅 맥락은 통화 첫 멘트를 정할 때 가장 먼저 참고하세요. 마지막 대화가 아직 이어지는 흐름이면 일반적인 새 인사나 새 질문으로 시작하지 마세요.",
-        ].join("\n")
-      : "",
-    normalizedOpeningText
-      ? [
-          "",
-          "## 참고할 통화 시작 내용",
-          "아래 문구나 질문의 취지를 통화 첫 멘트에 자연스럽게 반영하세요. 그대로 읽기보다 위 지시와 최근 대화 맥락에 맞게 말하세요.",
-          normalizedOpeningText,
-        ].join("\n")
-      : "",
+      ].join("\n"),
+    normalizedOpeningText &&
+      !shouldUseOnboardingOpening &&
+      [
+        "",
+        "## 참고할 통화 시작 내용",
+        "아래 문구나 질문의 취지를 통화 첫 멘트에 자연스럽게 반영하세요. 그대로 읽기보다 위 지시와 최근 대화 맥락에 맞게 말하세요.",
+        normalizedOpeningText,
+      ].join("\n"),
   ].filter(Boolean);
 
   return sections.join("\n");

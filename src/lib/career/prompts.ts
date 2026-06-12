@@ -1906,9 +1906,9 @@ export function buildCareerOpportunityFeedbackFollowUpTurnInstruction(args: {
 }
 
 export const CAREER_KICKOFF_FALLBACK = {
-  acknowledgement: "정보를 알려주셔서 감사합니다.",
+  acknowledgement: "하퍼와 함께 해주셔서 감사합니다.",
   insight:
-    "제출해주신 이력서/링크 기반으로 볼 때 강점이 분명해서 하퍼가 찾을 수 있는 기회 폭이 넓습니다.",
+    "제가 항상 더 좋은 기회를 찾고 연결시켜드릴 수 있도록 노력할게요. 거기에 앞서, 회원님이 선호하시는게 어떤건지 먼저 알려주시면 도움이 될 것 같아요.",
 };
 
 export function buildCareerKickoffOpeningMessage(displayName: string) {
