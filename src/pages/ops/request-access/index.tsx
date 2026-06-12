@@ -1,6 +1,6 @@
 import OpsShell from "@/components/ops/OpsShell";
 import { cx, opsTheme } from "@/components/ops/theme";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   useBulkSendOpsRequestAccessApproval,
   useOpsRequestAccessQueue,
@@ -36,6 +36,9 @@ import {
   isEmailExcludedByOpsInternalTerms,
   useOpsInternalDataExclusionStore,
 } from "@/store/useOpsInternalDataExclusionStore";
+import { BareButton } from "@/components/ui/button";
+import { Input as UiInput } from "@/components/ui/input";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
 const STATUS_OPTIONS: Array<{
   id: "all" | RequestAccessReviewStatus;
@@ -83,7 +86,7 @@ function QueueBadge({ status }: { status: RequestAccessReviewStatus }) {
       ? opsTheme.badgeStrong
       : status === "approved"
         ? opsTheme.badge
-        : cx(opsTheme.badge, "bg-white/70");
+        : cx(opsTheme.badge, "bg-bg-default/70");
 
   return <div className={className}>{formatStatusLabel(status)}</div>;
 }
@@ -100,10 +103,10 @@ function StatCard({
   return (
     <div className={cx(opsTheme.panelSoft, "px-4 py-4")}>
       <div className={opsTheme.eyebrow}>{label}</div>
-      <div className="mt-3 font-hedvig text-[2.1rem] leading-none tracking-[-0.07em] text-beige900">
+      <div className="mt-3 font-hedvig text-[2.1rem] leading-none tracking-[-0.07em] text-neutral-primary">
         {value}
       </div>
-      <div className="mt-2 font-geist text-sm text-beige900/60">{hint}</div>
+      <div className="mt-2 text-sm text-neutral-muted">{hint}</div>
     </div>
   );
 }
@@ -225,9 +228,10 @@ export default function OpsRequestAccessPage() {
 
   const selectedItems = useMemo(
     () =>
-      (queue?.items ?? []).filter((item) =>
-        selectedRequestSet.has(item.requestToken) &&
-        !isEmailExcludedByOpsInternalTerms(item.email, emailExclusionTerms)
+      (queue?.items ?? []).filter(
+        (item) =>
+          selectedRequestSet.has(item.requestToken) &&
+          !isEmailExcludedByOpsInternalTerms(item.email, emailExclusionTerms)
       ),
     [emailExclusionTerms, queue?.items, selectedRequestSet]
   );
@@ -394,13 +398,13 @@ export default function OpsRequestAccessPage() {
                   <div className={cx(opsTheme.titleSm, "mt-1")}>
                     검토할 신청 내역
                   </div>
-                  <div className="mt-2 font-geist text-sm text-beige900/65">
+                  <div className="mt-2 text-sm text-neutral-muted">
                     pending 항목을 먼저 보여주고, 승인됨/활성화됨 상태도 함께 볼
                     수 있습니다.
                   </div>
                 </div>
 
-                <button
+                <BareButton
                   type="button"
                   onClick={() => void queueQuery.refetch()}
                   disabled={queueQuery.isFetching}
@@ -412,13 +416,14 @@ export default function OpsRequestAccessPage() {
                     <ArrowRight className="h-4 w-4" />
                   )}
                   새로고침
-                </button>
+                </BareButton>
               </div>
 
               <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
                 <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-beige900/40" />
-                  <input
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-soft" />
+                  <UiInput
+                    unstyled
                     type="text"
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
@@ -432,19 +437,19 @@ export default function OpsRequestAccessPage() {
                     const active = statusFilter === option.id;
 
                     return (
-                      <button
+                      <BareButton
                         key={option.id}
                         type="button"
                         onClick={() => setStatusFilter(option.id)}
                         className={cx(
-                          "rounded-md px-3 py-2 font-geist text-sm transition",
+                          "rounded-md px-3 py-2 text-sm transition",
                           active
-                            ? "bg-beige900 text-beige100"
-                            : "bg-white/60 text-beige900 hover:bg-white/80"
+                            ? "bg-black text-neutral-00"
+                            : "bg-bg-default/60 text-neutral-primary hover:bg-bg-default/80"
                         )}
                       >
                         {option.label}
-                      </button>
+                      </BareButton>
                     );
                   })}
                 </div>
@@ -454,12 +459,12 @@ export default function OpsRequestAccessPage() {
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
                     <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-beige900/60" />
+                      <Users className="h-4 w-4 text-neutral-muted" />
                       <div className={opsTheme.titleSm}>Bulk Send</div>
                     </div>
-                    <div className="mt-2 font-geist text-sm leading-6 text-beige900/65">
+                    <div className="mt-2 text-sm leading-6 text-neutral-muted">
                       여러 명을 체크한 뒤 같은 제목/본문으로 동시에 발송합니다.{" "}
-                      <code className="rounded bg-white/80 px-1.5 py-0.5 font-mono text-[12px] text-beige900">
+                      <code className="rounded bg-bg-default/80 px-1.5 py-0.5 font-mono text-[12px] text-neutral-primary">
                         {"{{activationUrl}}"}
                       </code>{" "}
                       같은 변수는 각 수신자 값으로 자동 치환됩니다.
@@ -467,7 +472,7 @@ export default function OpsRequestAccessPage() {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
-                    <button
+                    <BareButton
                       type="button"
                       onClick={handleToggleSelectFiltered}
                       disabled={selectableFilteredItems.length === 0}
@@ -476,26 +481,26 @@ export default function OpsRequestAccessPage() {
                       {allFilteredSelected
                         ? "현재 필터 선택 해제"
                         : "현재 필터 전체 선택"}
-                    </button>
-                    <button
+                    </BareButton>
+                    <BareButton
                       type="button"
                       onClick={handleClearSelection}
                       disabled={selectedItems.length === 0}
                       className={cx(opsTheme.buttonSoft, "h-10 px-3")}
                     >
                       선택 비우기
-                    </button>
+                    </BareButton>
                   </div>
                 </div>
 
                 <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-                  <div className="font-geist text-sm text-beige900/70">
+                  <div className="text-sm text-neutral-muted">
                     선택 {selectedItems.length}건
-                    <span className="ml-2 text-beige900/50">
+                    <span className="ml-2 text-neutral-muted">
                       {formatSelectedRecipients(selectedItems)}
                     </span>
                   </div>
-                  <div className="font-geist text-xs text-beige900/50">
+                  <div className="text-xs text-neutral-muted">
                     활성화 완료 상태는 bulk send 대상에서 제외됩니다.
                   </div>
                 </div>
@@ -519,22 +524,22 @@ export default function OpsRequestAccessPage() {
                 <div className="mt-5 space-y-4">
                   <div>
                     <label className={opsTheme.label}>Language</label>
-                    <div className="mt-2 inline-flex rounded-md border border-beige900/10 bg-white/80 p-1">
+                    <div className="mt-2 inline-flex rounded-md border border-neutral-1000-a05 bg-bg-default/80 p-1">
                       {(["en", "ko"] as RequestAccessApprovalEmailLocale[]).map(
                         (option) => (
-                          <button
+                          <BareButton
                             key={option}
                             type="button"
                             onClick={() => applyBulkTemplate(option)}
                             className={cx(
-                              "rounded-md px-3 py-2 font-geist text-sm transition",
+                              "rounded-md px-3 py-2 text-sm transition",
                               bulkLocale === option
-                                ? "bg-beige900 text-beige100"
-                                : "text-beige900/60 hover:bg-beige500/35 hover:text-beige900"
+                                ? "bg-black text-neutral-00"
+                                : "text-neutral-muted hover:bg-bg-weak hover:text-neutral-primary"
                             )}
                           >
                             {formatLocaleLabel(option)}
-                          </button>
+                          </BareButton>
                         )
                       )}
                     </div>
@@ -542,7 +547,8 @@ export default function OpsRequestAccessPage() {
 
                   <div>
                     <label className={opsTheme.label}>From</label>
-                    <input
+                    <UiInput
+                      unstyled
                       type="text"
                       value={bulkFrom}
                       onChange={(event) => setBulkFrom(event.target.value)}
@@ -553,7 +559,8 @@ export default function OpsRequestAccessPage() {
 
                   <div>
                     <label className={opsTheme.label}>Subject</label>
-                    <input
+                    <UiInput
+                      unstyled
                       type="text"
                       value={bulkSubject}
                       onChange={(event) => setBulkSubject(event.target.value)}
@@ -565,7 +572,7 @@ export default function OpsRequestAccessPage() {
                   <div>
                     <div className="flex items-center justify-between gap-3">
                       <label className={opsTheme.label}>HTML Body</label>
-                      <button
+                      <BareButton
                         type="button"
                         onClick={handleResetBulkTemplate}
                         disabled={bulkSendMutation.isPending}
@@ -573,9 +580,10 @@ export default function OpsRequestAccessPage() {
                       >
                         <RotateCcw className="h-3.5 w-3.5" />
                         Reset Default
-                      </button>
+                      </BareButton>
                     </div>
-                    <textarea
+                    <UiTextarea
+                      unstyled
                       value={bulkHtml}
                       onChange={(event) => setBulkHtml(event.target.value)}
                       className={cx(
@@ -592,7 +600,7 @@ export default function OpsRequestAccessPage() {
                             key={variable.key}
                             className={cx(
                               opsTheme.badge,
-                              "bg-white/75 text-[11px]"
+                              "bg-bg-default/75 text-[11px]"
                             )}
                           >
                             {variable.placeholder}
@@ -600,9 +608,9 @@ export default function OpsRequestAccessPage() {
                         )
                       )}
                     </div>
-                    <p className="mt-2 font-geist text-xs leading-5 text-beige900/55">
+                    <p className="mt-2 text-xs leading-5 text-neutral-muted">
                       최소한{" "}
-                      <code className="rounded bg-white/80 px-1.5 py-0.5 font-mono text-[11px] text-beige900">
+                      <code className="rounded bg-bg-default/80 px-1.5 py-0.5 font-mono text-[11px] text-neutral-primary">
                         {"{{activationUrl}}"}
                       </code>
                       는 본문에 남겨두는 편이 안전합니다. 없으면 수신자가 승인
@@ -611,7 +619,7 @@ export default function OpsRequestAccessPage() {
                   </div>
 
                   <div className="flex justify-end">
-                    <button
+                    <BareButton
                       type="button"
                       onClick={handleBulkSend}
                       disabled={isBulkSendDisabled}
@@ -623,19 +631,19 @@ export default function OpsRequestAccessPage() {
                         <Send className="h-4 w-4" />
                       )}
                       선택 {selectableSelectedItems.length}명에게 발송
-                    </button>
+                    </BareButton>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-4 font-geist text-sm text-beige900/60">
+              <div className="mt-4 text-sm text-neutral-muted">
                 현재 {filteredItems.length}건 표시 중
               </div>
 
               <div className="mt-4 space-y-3">
                 {queueQuery.isLoading ? (
                   <div className="flex min-h-[240px] items-center justify-center">
-                    <LoaderCircle className="h-6 w-6 animate-spin text-beige900/45" />
+                    <LoaderCircle className="h-6 w-6 animate-spin text-neutral-muted" />
                   </div>
                 ) : queueQuery.error ? (
                   <div className={opsTheme.errorNotice}>
@@ -647,7 +655,7 @@ export default function OpsRequestAccessPage() {
                   <div
                     className={cx(
                       opsTheme.panelSoft,
-                      "px-4 py-6 font-geist text-sm text-beige900/60"
+                      "px-4 py-6 text-sm text-neutral-muted"
                     )}
                   >
                     조건에 맞는 request access 신청이 없습니다.
@@ -668,7 +676,7 @@ export default function OpsRequestAccessPage() {
                             }}
                             disabled={!isBulkSelectable(item.status)}
                             aria-label={`${item.name || item.email} 선택`}
-                            className="h-5 w-5 rounded-[4px] border-beige900/15 bg-white/80 data-[state=checked]:bg-beige900 data-[state=checked]:text-beige100"
+                            className="h-5 w-5 rounded-[4px] border-neutral-1000-a10 bg-bg-default/80 data-[state=checked]:bg-black data-[state=checked]:text-neutral-00"
                           />
                         </div>
 
@@ -676,20 +684,20 @@ export default function OpsRequestAccessPage() {
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2">
                               <QueueBadge status={item.status} />
-                              <div className="font-geist text-xs text-beige900/55">
+                              <div className="text-xs text-neutral-muted">
                                 제출 {formatDateTime(item.createdAt)}
                               </div>
                               {!isBulkSelectable(item.status) ? (
-                                <div className="font-geist text-xs text-beige900/45">
+                                <div className="text-xs text-neutral-muted">
                                   bulk send 제외
                                 </div>
                               ) : null}
                             </div>
 
-                            <div className="mt-3 font-geist text-base font-semibold text-beige900">
+                            <div className="mt-3 text-base font-semibold text-neutral-primary">
                               {item.name || item.email}
                             </div>
-                            <div className="mt-1 break-all font-geist text-sm text-beige900/65">
+                            <div className="mt-1 break-all text-sm text-neutral-muted">
                               {item.email}
                             </div>
 
@@ -711,7 +719,7 @@ export default function OpsRequestAccessPage() {
                               ) : null}
                             </div>
 
-                            <div className="mt-4 grid gap-2 font-geist text-sm text-beige900/60 md:grid-cols-2">
+                            <div className="mt-4 grid gap-2 text-sm text-neutral-muted md:grid-cols-2">
                               <div>
                                 승인 메일 발송:{" "}
                                 {formatDateTime(item.approvalEmailSentAt)}
@@ -724,7 +732,7 @@ export default function OpsRequestAccessPage() {
                           </div>
 
                           <div className="flex flex-wrap gap-2">
-                            <button
+                            <BareButton
                               type="button"
                               onClick={() =>
                                 handleOpenQueueItem(item.requestToken)
@@ -736,7 +744,7 @@ export default function OpsRequestAccessPage() {
                             >
                               <KeyRound className="h-4 w-4" />
                               Review 열기
-                            </button>
+                            </BareButton>
                             <a
                               href={item.reviewUrl}
                               target="_blank"

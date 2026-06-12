@@ -41,6 +41,7 @@ import {
   buildCareerSessionStartTurnInstruction,
   CAREER_SESSION_START_NO_MESSAGE_MARKER,
 } from "@/lib/career/prompts";
+import { fetchPendingInternalOpportunityCallRequests } from "@/lib/talentOnboarding/internalOpportunityCallRequest";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 
 // const REENGAGEMENT_IDLE_MS = 60 * 1000;
@@ -505,6 +506,7 @@ export async function GET(req: NextRequest) {
       historyOpportunitiesPage,
       latestOpportunityRun,
       activeCompanyRoleCount,
+      pendingInternalOpportunityCallRequests,
     ] = await Promise.all([
       withSessionFallback({
         fallback: { messages: [], nextBeforeMessageId: null },
@@ -580,7 +582,18 @@ export async function GET(req: NextRequest) {
         promise: fetchActiveCompanyRoleCount({ admin }),
         userId: user.id,
       }),
+      withSessionFallback({
+        fallback: [],
+        label: "pending internal opportunity call requests",
+        promise: fetchPendingInternalOpportunityCallRequests({
+          admin,
+          userId: user.id,
+        }),
+        userId: user.id,
+      }),
     ]);
+    const pendingInternalOpportunityCallRequest =
+      pendingInternalOpportunityCallRequests[0] ?? null;
     const { messages, nextBeforeMessageId } = messagePage;
     const visibleMessages = messages.filter(
       (message) => !(message.message_type ?? "").startsWith("mock_interview")
@@ -749,6 +762,8 @@ export async function GET(req: NextRequest) {
       },
       talentProfile,
       opportunityRun: serializeOpportunityRun(latestOpportunityRun),
+      pendingInternalOpportunityCallRequest,
+      pendingInternalOpportunityCallRequests,
       messages: visibleMessages.map((message) => ({
         ...toTalentMessageResponse(message as TalentMessageRow),
         opportunityPreview: previewByMessageId.get(message.id) ?? [],

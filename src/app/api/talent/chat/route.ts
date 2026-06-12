@@ -9,6 +9,7 @@ import {
   fetchTalentStructuredProfile,
   TalentMessageRow,
   fetchTalentUserProfile,
+  getCareerOnboardingChecklistCoverage,
   getTalentSupabaseAdmin,
   normalizeTalentEngagementTypes,
   normalizeTalentInsightContent,
@@ -56,6 +57,7 @@ import {
 } from "@/lib/opportunityDiscovery/store";
 import {
   createRecommendJobPostingStatusLog,
+  RECOMMEND_JOB_POSTINGS_CHAT_PREAMBLE,
   type RecommendJobPostingStatus,
 } from "@/lib/talentOnboarding/recommendJobPostingStatus";
 import {
@@ -159,9 +161,6 @@ const createSseHeaders = () => ({
   "Content-Type": "text/event-stream; charset=utf-8",
   "X-Accel-Buffering": "no",
 });
-
-const RECOMMEND_JOB_POSTINGS_STREAM_PREAMBLE =
-  "좋습니다. 지금까지의 대화와 피드백을 기준으로 새 포지션을 찾아볼게요.";
 
 function startOpportunityDiscoveryInBackground(runId: string) {
   console.info("[opportunity-discovery] queued for harper_worker", {
@@ -284,8 +283,10 @@ function getOnboardingMarkerPrefixSuffixLength(value: string) {
 
 function getToolStartThinkingLog(toolName: string) {
   switch (toolName) {
+    case TALENT_TOOL_NAMES.UPDATE_SETTING:
+      return "추천 발송 설정을 업데이트하고 있습니다.";
     case TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE:
-      return "프로필과 추천 선호를 업데이트하고 있습니다.";
+      return "프로필 정보를 업데이트하고 있습니다.";
     case TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION:
       return "다음에 확인할 온보딩 질문을 고르고 있습니다.";
     case TALENT_TOOL_NAMES.OPEN_URL:
@@ -507,6 +508,16 @@ export async function POST(req: NextRequest) {
       string,
       string
     > | null;
+    const onboardingChecklistCoverage = !Boolean(
+      talentSetting?.is_onboarding_done
+    )
+      ? await getCareerOnboardingChecklistCoverage({
+          admin,
+          conversationId,
+          currentInsightContent,
+          userId: user.id,
+        })
+      : null;
     const shouldAutoExtractInsights = !Boolean(
       talentSetting?.is_onboarding_done
     );
@@ -517,6 +528,7 @@ export async function POST(req: NextRequest) {
             assistantContent,
             buildPrompt: (promptArgs) =>
               buildCareerInsightExtractionPrompt({
+                currentChecklistCoverage: promptArgs.currentChecklistCoverage,
                 currentInsightContent: promptArgs.currentInsightContent,
               }),
             conversationId,
@@ -617,6 +629,7 @@ export async function POST(req: NextRequest) {
         : null;
     const { promptBlocks } = buildCareerTextChatPromptBlocks({
       additionalQuestionSelectionCount,
+      onboardingChecklistCoverage,
       currentInsightContent,
       currentPreferences,
       isOnboardingDone: talentSetting?.is_onboarding_done,
@@ -635,20 +648,20 @@ export async function POST(req: NextRequest) {
     });
     const systemBlocks = promptBlocks;
 
-    console.info("[career-chat:prompt-breakdown]", {
-      cacheableSystemBlockKeys: systemBlocks
-        .filter((block) => block.cacheable)
-        .map((block) => block.key),
-      label: "career/chat:assistant",
-      conversationId,
-      historyChars: countMessageContentChars(llmMessages),
-      historyMessageCount: llmMessages.length,
-      profileChars: countPromptChars(structuredProfileText),
-      systemBlockChars: countPromptBlockChars(systemBlocks),
-      systemBlockCount: systemBlocks.length,
-      toolSchemaChars: countSerializedChars(toolDefinitions),
-      userId: user.id,
-    });
+    // console.info("[career-chat:prompt-breakdown]", {
+    //   cacheableSystemBlockKeys: systemBlocks
+    //     .filter((block) => block.cacheable)
+    //     .map((block) => block.key),
+    //   label: "career/chat:assistant",
+    //   conversationId,
+    //   historyChars: countMessageContentChars(llmMessages),
+    //   historyMessageCount: llmMessages.length,
+    //   profileChars: countPromptChars(structuredProfileText),
+    //   systemBlockChars: countPromptBlockChars(systemBlocks),
+    //   systemBlockCount: systemBlocks.length,
+    //   toolSchemaChars: countSerializedChars(toolDefinitions),
+    //   userId: user.id,
+    // });
 
     // logger.log("\n\n [toolPolicy] : ", toolPolicy);
 
@@ -724,6 +737,7 @@ export async function POST(req: NextRequest) {
         const result = await executeTalentTool({
           context: {
             admin,
+            abortSignal: req.signal,
             conversationId,
             isMobile,
             userMessageId: insertedUserMessage.id,
@@ -733,22 +747,23 @@ export async function POST(req: NextRequest) {
           input,
         });
         const recommendationResult = isRecord(result) ? result : {};
-        const recommendations = Array.isArray(
-          recommendationResult.recommendations
-        )
-          ? recommendationResult.recommendations
-          : [];
         const completedStatus: RecommendJobPostingStatus = {
           candidateCount:
             typeof recommendationResult.candidateCount === "number"
               ? recommendationResult.candidateCount
               : null,
-          recommendationCount: recommendations.length,
+          recommendationCount:
+            typeof recommendationResult.recommendationCount === "number"
+              ? recommendationResult.recommendationCount
+              : null,
           state: "completed",
         };
         recordRecommendationStatus(completedStatus, { persist: true });
         return result;
       } catch (error) {
+        if (req.signal.aborted) {
+          throw error;
+        }
         recordRecommendationStatus({ state: "error" }, { persist: true });
         throw error;
       }
@@ -765,6 +780,7 @@ export async function POST(req: NextRequest) {
       const result = await executeTalentTool({
         context: {
           admin,
+          abortSignal: req.signal,
           conversationId,
           isMobile,
           userMessageId: insertedUserMessage.id,
@@ -797,13 +813,19 @@ export async function POST(req: NextRequest) {
       const stream = new ReadableStream<Uint8Array>({
         async start(controller) {
           const send = (event: string, data: unknown) => {
-            controller.enqueue(encoder.encode(createSseMessage(event, data)));
+            if (req.signal.aborted) return;
+            try {
+              controller.enqueue(encoder.encode(createSseMessage(event, data)));
+            } catch {
+              // Client disconnected while a tool or model call was still resolving.
+            }
           };
           emitToolStatus = (message) => send("tool_status", { message });
           emitRecommendationStatus = (status) =>
             send("recommendation_search_status", status);
           let pendingAssistantText = "";
           let streamedAssistantText = "";
+          let recommendationStatusAfterCharCount: number | null = null;
           const sendVisibleTextDelta = (delta: string) => {
             pendingAssistantText = (pendingAssistantText + delta).replaceAll(
               TALENT_ONBOARDING_DONE_MARKER,
@@ -850,11 +872,27 @@ export async function POST(req: NextRequest) {
             }
 
             injectedRecommendationToolPreamble =
-              RECOMMEND_JOB_POSTINGS_STREAM_PREAMBLE;
-            sendVisibleTextDelta(
-              `${RECOMMEND_JOB_POSTINGS_STREAM_PREAMBLE}\n\n`
-            );
+              RECOMMEND_JOB_POSTINGS_CHAT_PREAMBLE;
+            sendVisibleTextDelta(`${RECOMMEND_JOB_POSTINGS_CHAT_PREAMBLE}\n\n`);
           };
+          const markRecommendationStatusAnchor = () => {
+            if (recommendationStatusAfterCharCount !== null) return;
+            recommendationStatusAfterCharCount = streamedAssistantText.length;
+            send("recommendation_status_anchor", {
+              contentLength: recommendationStatusAfterCharCount,
+            });
+          };
+          const withRecommendationStatusAnchor = <
+            T extends Record<string, unknown>,
+          >(
+            message: T
+          ) =>
+            recommendationStatusAfterCharCount === null
+              ? message
+              : {
+                  ...message,
+                  recommendationStatusAfterCharCount,
+                };
           try {
             send("user_message", {
               message: toResponseMessage(
@@ -873,6 +911,7 @@ export async function POST(req: NextRequest) {
               onToolStart: (tool) => {
                 if (tool.name === TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS) {
                   ensureRecommendationToolPreamble();
+                  markRecommendationStatusAnchor();
                   recordRecommendationStatus({ state: "running" });
                   return;
                 }
@@ -922,7 +961,8 @@ export async function POST(req: NextRequest) {
                             {
                               content: messageContent,
                               conversation_id: conversationId,
-                              message_type: COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
+                              message_type:
+                                COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
                               role: "assistant",
                               user_id: user.id,
                             },
@@ -1161,12 +1201,12 @@ export async function POST(req: NextRequest) {
               null;
             if (shouldApplyCompletion) {
               send("assistant_message", {
-                message: {
+                message: withRecommendationStatusAnchor({
                   ...toResponseMessage(
                     insertedAssistantMessage as TalentMessageRow
                   ),
                   thinkingLogs: finalAssistantThinkingLogs,
-                },
+                }),
               });
               sentFinalAssistantMessage = true;
               send("onboarding_wrapup_status", {
@@ -1189,12 +1229,12 @@ export async function POST(req: NextRequest) {
               await attachPostingPreviewsToMessages({
                 admin,
                 messages: [
-                  {
+                  withRecommendationStatusAnchor({
                     ...toResponseMessage(
                       insertedAssistantMessage as TalentMessageRow
                     ),
                     thinkingLogs: finalAssistantThinkingLogs,
-                  },
+                  }),
                   insertedCompletionWrapupMessage
                     ? toResponseMessage(insertedCompletionWrapupMessage)
                     : null,
@@ -1243,6 +1283,7 @@ export async function POST(req: NextRequest) {
             send("talent_profile", profileSnapshot);
             send("done", { ok: true });
           } catch (error) {
+            if (req.signal.aborted) return;
             const message =
               error instanceof Error
                 ? error.message
@@ -1251,7 +1292,11 @@ export async function POST(req: NextRequest) {
           } finally {
             emitToolStatus = null;
             emitRecommendationStatus = null;
-            controller.close();
+            try {
+              controller.close();
+            } catch {
+              // Stream may already be closed after client abort.
+            }
           }
         },
       });

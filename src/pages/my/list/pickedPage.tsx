@@ -1,8 +1,12 @@
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
-import { useBookmarkedCandidates, usePickedCandidates } from "@/hooks/useBookMarkCandidates";
+import {
+  useBookmarkedCandidates,
+  usePickedCandidates,
+} from "@/hooks/useBookMarkCandidates";
 import { useMemo, useState, useEffect } from "react";
 import CandidateViews from "@/components/CandidateViews";
 import { Loading } from "@/components/ui/loading";
+import { BareButton } from "@/components/ui/button";
 
 const PAGE_SIZE = 10;
 
@@ -30,33 +34,35 @@ export default function PickedPage() {
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  if (isLoading) return <Loading className="text-beige900/55" />;
+  if (isLoading) return <Loading className="text-neutral-muted" />;
   if (error) return <div>Error</div>;
 
   return (
     <div className="w-full">
       {/* Pagination Header */}
       <div className="flex items-center justify-between gap-3 mb-4">
-        <div className="text-sm text-beige900/55">
+        <div className="text-sm text-neutral-muted">
           Page <span className="font-medium">{pageIdx + 1}</span> /{" "}
           <span className="font-medium">{pageCount}</span>{" "}
-          <span className="ml-2 text-beige900/55">(전체 {total}개)</span>
-          {isFetching && <span className="ml-2 text-beige900/45">Syncing…</span>}
+          <span className="ml-2 text-neutral-muted">(전체 {total}개)</span>
+          {isFetching && (
+            <span className="ml-2 text-neutral-soft">Syncing…</span>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
-          <button
+          <BareButton
             type="button"
-            className="px-3 py-1.5 rounded-lg border border-beige900/8 bg-beige100 text-sm disabled:opacity-50"
+            className="px-3 py-1.5 rounded-lg border border-neutral-1000-a05 bg-bg-basement text-sm disabled:opacity-50"
             onClick={() => setPageIdx((p) => Math.max(0, p - 1))}
             disabled={!hasPrev || isFetching}
           >
             이전
-          </button>
+          </BareButton>
 
-          <button
+          <BareButton
             type="button"
-            className="px-3 py-1.5 rounded-lg border border-beige900/10 text-beige100 bg-beige900 text-sm disabled:opacity-50"
+            className="px-3 py-1.5 rounded-lg border border-neutral-1000-a05 text-neutral-00 bg-black text-sm disabled:opacity-50"
             onClick={() => {
               if (!hasNext) return;
               setPageIdx((p) => p + 1);
@@ -64,7 +70,7 @@ export default function PickedPage() {
             disabled={!hasNext || isFetching}
           >
             다음
-          </button>
+          </BareButton>
         </div>
       </div>
 

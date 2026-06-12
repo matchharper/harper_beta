@@ -12,7 +12,7 @@ export default function CompareSection() {
               They are busy shipping.
             </h2>
 
-            <p className="mt-5 max-w-[720px] text-center text-sm leading-7 text-hgray700 md:text-lg">
+            <p className="mt-5 max-w-[720px] text-center text-sm leading-7 text-neutral-500 md:text-lg">
               Polished profiles tell you how someone wants to be seen. Real work
               shows what they can actually do.
             </p>

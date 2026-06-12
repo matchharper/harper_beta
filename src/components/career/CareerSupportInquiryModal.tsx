@@ -3,6 +3,8 @@ import React, { useState } from "react";
 import { showToast } from "@/components/toast/toast";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
+import { BareButton } from "@/components/ui/button";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
 const CareerSupportInquiryModal = ({
   onClose,
@@ -87,66 +89,67 @@ const CareerSupportInquiryModal = ({
 
   return (
     <div className="fixed inset-0 z-80 flex items-center justify-center p-4">
-      <button
+      <BareButton
         type="button"
         aria-label="문의 모달 닫기"
         onClick={handleClose}
-        className="absolute inset-0 bg-beige900/15 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-black/15 backdrop-blur-[2px]"
       />
       <form
         onSubmit={(event) => {
           event.preventDefault();
           void handleSubmit();
         }}
-        className="relative z-10 w-full max-w-[460px] rounded-2xl border border-beige900/10 bg-beige50 p-5 shadow-[0_20px_60px_rgba(37,20,6,0.18)]"
+        className="relative z-10 w-full max-w-[460px] rounded-2xl border border-neutral-1000-a05 bg-bg-floating p-5 shadow-[0_20px_60px_color-mix(in_srgb,var(--color-neutral-1000)_18%,transparent)]"
       >
-        <button
+        <BareButton
           type="button"
           onClick={handleClose}
           disabled={submitting}
           aria-label="문의 모달 닫기"
-          className="absolute right-3 top-3 inline-flex h-11 w-11 items-center justify-center rounded-lg text-beige900/50 transition hover:bg-beige900/5 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-40 md:h-8 md:w-8"
+          className="absolute right-3 top-3 inline-flex h-11 w-11 items-center justify-center rounded-lg text-neutral-soft transition hover:bg-black/5 hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-40 md:h-8 md:w-8"
         >
           <X className="h-4 w-4" />
-        </button>
+        </BareButton>
         <div className="pr-8">
-          <h2 className="text-lg font-semibold text-beige900">
+          <h2 className="text-lg font-semibold text-neutral-primary">
             개선사항 혹은 문의사항을 알려주세요.
           </h2>
-          <p className="mt-2 text-sm leading-6 text-beige900/55">
+          <p className="mt-2 text-sm leading-6 text-neutral-muted">
             확인 후 {email}로 답변드리겠습니다.
           </p>
         </div>
         <div className="mt-5 space-y-4">
           <label className="block">
-            <span className="mb-2 block text-sm font-medium text-beige900/70">
+            <span className="mb-2 block text-sm font-medium text-neutral-muted">
               Harper가 커리어 에이전트로써 어떤걸 해주기를 원하시나요?
               <br />
               아래에서 자유롭게 작성해주세요.
             </span>
-            <textarea
+            <UiTextarea
+              unstyled
               value={content}
               onChange={(event) => setContent(event.target.value)}
               disabled={submitting}
               rows={4}
               placeholder="개선사항이나 문의사항을 입력해 주세요."
-              className="w-full resize-none rounded-xl border border-beige900/10 bg-white/75 px-3 py-3 text-base leading-6 text-beige900 outline-none transition placeholder:text-beige900/30 focus:border-beige900/30 focus:ring-2 focus:ring-beige900/10 disabled:cursor-not-allowed disabled:opacity-60 md:text-sm"
+              className="w-full resize-none rounded-xl border border-neutral-1000-a05 bg-bg-floating px-3 py-3 text-base leading-6 text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:ring-2 focus:ring-neutral-1000-a05 disabled:cursor-not-allowed disabled:opacity-60 md:text-sm"
             />
           </label>
         </div>
         <div className="mt-5 flex justify-end gap-2">
-          <button
+          <BareButton
             type="button"
             onClick={handleClose}
             disabled={submitting}
-            className="inline-flex h-11 items-center justify-center rounded-xl border border-beige900/10 bg-white/65 px-4 text-sm font-medium text-beige900/70 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 md:h-10"
+            className="inline-flex h-11 items-center justify-center rounded-xl border border-neutral-1000-a05 bg-bg-floating px-4 text-sm font-medium text-neutral-muted transition hover:bg-bg-weak disabled:cursor-not-allowed disabled:opacity-40 md:h-10"
           >
             닫기
-          </button>
-          <button
+          </BareButton>
+          <BareButton
             type="submit"
             disabled={submitting}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-beige900 px-4 text-sm font-medium text-beige50 transition hover:bg-beige900/90 disabled:cursor-not-allowed disabled:opacity-40 md:h-10"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-medium text-neutral-00 transition hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-40 md:h-10"
           >
             {submitting ? (
               <>
@@ -156,7 +159,7 @@ const CareerSupportInquiryModal = ({
             ) : (
               "제출"
             )}
-          </button>
+          </BareButton>
         </div>
       </form>
     </div>

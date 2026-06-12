@@ -55,13 +55,20 @@ function sanitizeInlineChatText(raw: string) {
 const SOURCE_TERM_RE = /\b(linkedin|scholar|github)\b/gi;
 const SOURCE_TERM_EXACT_RE = /^(linkedin|scholar|github)$/i;
 
-function renderHighlightedChatText(text: string, keyPrefix: string, isDark: boolean) {
+function renderHighlightedChatText(
+  text: string,
+  keyPrefix: string,
+  isDark: boolean
+) {
   return text.split(SOURCE_TERM_RE).map((part, idx) => {
     if (!part) return null;
     if (!SOURCE_TERM_EXACT_RE.test(part)) return part;
 
     return (
-      <span className={isDark ? "text-white" : "text-accentBronze"} key={`${keyPrefix}-${idx}`}>
+      <span
+        className={isDark ? "text-neutral-00" : "text-primary"}
+        key={`${keyPrefix}-${idx}`}
+      >
         {part}
       </span>
     );
@@ -122,7 +129,9 @@ function ChatMessageList({
   return (
     <div className="flex-1 pr-2 space-y-8">
       {messages.length === 0 && (
-        <div className={`text-[13px] ${isDark ? "text-hgray700" : "text-beige900/65"}`}>
+        <div
+          className={`text-[13px] ${isDark ? "text-neutral-00/70" : "text-neutral-muted"}`}
+        >
           이 후보자에 대해 궁금하신게 있다면 질문해주세요. <br />
           링크 속 정보, 회사 정보 등 더 자세한 정보를 바탕으로 대답해드려요.
         </div>
@@ -132,9 +141,11 @@ function ChatMessageList({
         const isUser = m.role === "user";
         const bubbleCls = isUser
           ? isDark
-            ? "ml-auto border border-white/10 bg-hgray100/70 text-hgray900 py-3 px-4"
-            : "ml-auto border border-beige900/8 bg-beige500/55 text-beige900 py-3 px-4"
-          : isDark ? "bg-white/0 text-hgray800 mt-1" : "bg-white/0 text-beige900 mt-1";
+            ? "ml-auto border border-neutral-00/10 bg-black/70 text-neutral-00/90 py-3 px-4"
+            : "ml-auto border border-neutral-1000-a05 bg-bg-floating text-neutral-primary py-3 px-4"
+          : isDark
+            ? "bg-transparent text-neutral-00/80 mt-1"
+            : "bg-transparent text-neutral-primary mt-1";
         const segments = m.segments ?? [];
         const toolSegments = segments
           .filter(
@@ -161,14 +172,14 @@ function ChatMessageList({
         return (
           <div className="flex flex-col gap-1" key={rowKey}>
             <div
-              className={`text-[13px] text-ngray600 ${
+              className={`text-[13px] text-neutral-soft ${
                 isUser ? "text-right" : "text-left"
               }`}
             >
               {isUser ? (
                 "me"
               ) : (
-                <div className="flex flex-row items-center justify-start gap-1.5 text-sm text-beige900">
+                <div className="flex flex-row items-center justify-start gap-1.5 text-sm text-neutral-primary">
                   {/* <Bolt className="w-3 h-3" /> */}
                   <Image
                     src="/svgs/harper-h-mark.svg"
@@ -184,7 +195,9 @@ function ChatMessageList({
               className={`max-w-[98%] rounded-3xl text-sm leading-relaxed ${bubbleCls}`}
             >
               <div className="whitespace-pre-wrap wrap-break-word">
-                {showToolToggle && <ToolStatusToggle items={toolSegments} theme={theme} />}
+                {showToolToggle && (
+                  <ToolStatusToggle items={toolSegments} theme={theme} />
+                )}
                 {segmentsToRender.map((s, si) => {
                   if (s.type === "text") {
                     const safeText = sanitizeInlineChatText(s.content);
@@ -244,7 +257,12 @@ function ChatMessageList({
                       );
                     }
                     if (s.content.type === "criteria_loading") {
-                      return <CriteriaLoading key={`block-${idx}-${si}`} theme={theme} />;
+                      return (
+                        <CriteriaLoading
+                          key={`block-${idx}-${si}`}
+                          theme={theme}
+                        />
+                      );
                     }
                     if (s.content.type === "tool_status") {
                       return (
@@ -332,7 +350,7 @@ function ChatMessageList({
                       return (
                         <span
                           key={`suggestion-${idx}-${si}`}
-                          className={`text-[13px] font-light underline decoration-dotted underline-offset-4 ${isDark ? "text-white/90 decoration-white/70" : "text-beige900/80 decoration-beige900/40"}`}
+                          className={`text-[13px] font-light underline decoration-dotted underline-offset-4 ${isDark ? "text-neutral-00/90 decoration-neutral-00/70" : "text-neutral-primary decoration-neutral-1000-a10"}`}
                         >
                           {text}
                         </span>
@@ -343,7 +361,7 @@ function ChatMessageList({
                       <span
                         key={`suggestion-${idx}-${si}`}
                         onClick={() => onApplyCriteriaSuggestion(text)}
-                        className={`text-left font-light underline decoration-dotted underline-offset-4 transition-all duration-200 cursor-pointer ${isDark ? "text-white/90 decoration-white/70 hover:text-white" : "text-beige900/80 decoration-beige900/40 hover:text-beige900"}`}
+                        className={`text-left font-light underline decoration-dotted underline-offset-4 transition-all duration-200 cursor-pointer ${isDark ? "text-neutral-00/90 decoration-neutral-00/70 hover:text-neutral-00" : "text-neutral-primary decoration-neutral-1000-a10 hover:text-neutral-primary"}`}
                       >
                         {text}
                       </span>
@@ -358,13 +376,15 @@ function ChatMessageList({
       })}
 
       {isStreaming && !hasActiveToolCall && (
-        <div className={`text-xs flex items-center gap-2 ${isDark ? "text-hgray600" : "text-beige900/55"}`}>
+        <div
+          className={`text-xs flex items-center gap-2 ${isDark ? "text-neutral-00/60" : "text-neutral-muted"}`}
+        >
           <Loader2 className="w-3.5 h-3.5 animate-spin" />
           응답 작성 중...
         </div>
       )}
 
-      {error && <div className="text-xs text-red-400">{error}</div>}
+      {error && <div className="text-xs text-critical">{error}</div>}
     </div>
   );
 }

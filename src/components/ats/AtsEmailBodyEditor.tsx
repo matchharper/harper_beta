@@ -1,5 +1,7 @@
 import { useRef } from "react";
 import { Bold, Italic, Link2, List, Underline } from "lucide-react";
+import { BareButton } from "@/components/ui/button";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
 type FormatAction = "bold" | "italic" | "link" | "list" | "underline";
 
@@ -154,12 +156,12 @@ export default function AtsEmailBodyEditor({
   };
 
   const toolbarButtonClass =
-    "inline-flex h-8 items-center gap-1 rounded-md border border-beige900/8 bg-beige500/55 px-2.5 text-xs text-beige900/80 transition hover:bg-beige500/70 hover:text-beige900";
+    "inline-flex h-8 items-center gap-1 rounded-md border border-neutral-1000-a05 bg-bg-floating px-2.5 text-xs text-neutral-primary transition hover:bg-bg-weak hover:text-neutral-primary";
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
-        <button
+        <BareButton
           type="button"
           onClick={() => handleFormat("bold")}
           className={toolbarButtonClass}
@@ -167,8 +169,8 @@ export default function AtsEmailBodyEditor({
         >
           <Bold className="h-3.5 w-3.5" />
           Bold
-        </button>
-        <button
+        </BareButton>
+        <BareButton
           type="button"
           onClick={() => handleFormat("italic")}
           className={toolbarButtonClass}
@@ -176,8 +178,8 @@ export default function AtsEmailBodyEditor({
         >
           <Italic className="h-3.5 w-3.5" />
           Italic
-        </button>
-        <button
+        </BareButton>
+        <BareButton
           type="button"
           onClick={() => handleFormat("underline")}
           className={toolbarButtonClass}
@@ -185,8 +187,8 @@ export default function AtsEmailBodyEditor({
         >
           <Underline className="h-3.5 w-3.5" />
           Underline
-        </button>
-        <button
+        </BareButton>
+        <BareButton
           type="button"
           onClick={() => handleFormat("link")}
           className={toolbarButtonClass}
@@ -194,8 +196,8 @@ export default function AtsEmailBodyEditor({
         >
           <Link2 className="h-3.5 w-3.5" />
           Link
-        </button>
-        <button
+        </BareButton>
+        <BareButton
           type="button"
           onClick={() => handleFormat("list")}
           className={toolbarButtonClass}
@@ -203,13 +205,14 @@ export default function AtsEmailBodyEditor({
         >
           <List className="h-3.5 w-3.5" />
           List
-        </button>
+        </BareButton>
       </div>
-      <div className="text-xs text-beige900/45">
-        `**bold**`, `*italic*`, `<u>underline</u>`, `[label](https://...)`,
-        `- list` 를 지원합니다.
+      <div className="text-xs text-neutral-soft">
+        `**bold**`, `*italic*`, `<u>underline</u>`, `[label](https://...)`, `-
+        list` 를 지원합니다.
       </div>
-      <textarea
+      <UiTextarea
+        unstyled
         ref={textareaRef}
         value={value}
         onChange={(event) => onChange(event.target.value)}

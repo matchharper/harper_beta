@@ -25,6 +25,7 @@ import {
   ActionDropdownSeparator,
 } from "@/components/ui/action-dropdown";
 import { Tooltips } from "@/components/ui/tooltip";
+import { BareButton } from "@/components/ui/button";
 
 type AtsSequenceMarkButtonProps = {
   align?: "start" | "center" | "end";
@@ -111,7 +112,7 @@ export default function AtsSequenceMarkButton({
   };
 
   const trigger = (
-    <button
+    <BareButton
       type="button"
       onMouseDown={handleClickCapture}
       onClick={handleClickCapture}
@@ -120,8 +121,8 @@ export default function AtsSequenceMarkButton({
         "inline-flex items-center justify-center gap-2 rounded-md transition disabled:opacity-60",
         compact ? "h-8 px-2 text-sm" : "h-8 px-2 text-sm",
         meta
-          ? `${meta.bgClassName} hover:brightness-110 text-white`
-          : "border border-beige900/8 bg-beige500/55 text-beige900/60 hover:bg-beige50/80 hover:text-beige900",
+          ? `${meta.bgClassName} hover:brightness-110 text-neutral-00`
+          : "border border-neutral-1000-a05 bg-bg-floating text-neutral-muted hover:bg-bg-default hover:text-neutral-primary",
       ].join(" ")}
     >
       {meta ? (
@@ -130,7 +131,7 @@ export default function AtsSequenceMarkButton({
         <Tag className="h-4 w-4" strokeWidth={1.7} />
       )}
       {meta?.shortLabel}
-    </button>
+    </BareButton>
   );
 
   return (
@@ -168,13 +169,13 @@ export default function AtsSequenceMarkButton({
                   </span>
                   <div className="min-w-0">
                     <div>{option.label}</div>
-                    <div className="text-xs text-beige900/45">
+                    <div className="text-xs text-neutral-soft">
                       {option.description}
                     </div>
                   </div>
                 </div>
                 {isSelected && (
-                  <Check className="h-4 w-4 text-accentBronze" strokeWidth={1.8} />
+                  <Check className="h-4 w-4 text-primary" strokeWidth={1.8} />
                 )}
               </ActionDropdownItem>
             );
@@ -188,7 +189,7 @@ export default function AtsSequenceMarkButton({
                 onSelect={() => {
                   void handleSelect(null);
                 }}
-                className="text-beige900/55"
+                className="text-neutral-muted"
               >
                 마크 해제
               </ActionDropdownItem>

@@ -18,6 +18,12 @@ type UseRealtimeSessionArgs = {
 
 type RealtimeConnectOptions = {
   conversationStarterId?: CareerConversationStarterId | null;
+  internalCallRequestId?: string | null;
+};
+
+export type RealtimeConnectFailure = {
+  code: "internal_call_completed" | "token" | "connection";
+  message: string;
 };
 
 type TokenInfo = {
@@ -31,6 +37,40 @@ type PendingFunctionCallOutput = {
 };
 
 const VOICE_DEBUG_STORAGE_KEY = "careerVoiceDebug";
+const PLAYBACK_DRAIN_GRACE_MS = 900;
+const PLAYBACK_RESPONSE_DONE_GRACE_MS = 700;
+const MIN_ESTIMATED_PLAYBACK_MS = 900;
+const MAX_ESTIMATED_PLAYBACK_MS = 45_000;
+
+function getPlaybackNow() {
+  if (typeof performance !== "undefined") return performance.now();
+  return Date.now();
+}
+
+function estimateSpeechPlaybackMs(text: string) {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (!normalized) return PLAYBACK_RESPONSE_DONE_GRACE_MS;
+
+  const koreanSyllables = normalized.match(/[\uac00-\ud7a3]/g)?.length ?? 0;
+  const latinWords =
+    normalized.match(/[A-Za-z0-9][A-Za-z0-9'./+-]*/g)?.length ?? 0;
+  const otherChars = normalized
+    .replace(/[\s\uac00-\ud7a3A-Za-z0-9'./+-]/g, "")
+    .trim().length;
+  const pauses =
+    normalized.match(/[.!?。！？…]|[.]{3}|[,，、;:]/g)?.length ?? 0;
+
+  const estimated =
+    700 +
+    koreanSyllables * 155 +
+    latinWords * 390 +
+    otherChars * 90 +
+    pauses * 220;
+  return Math.min(
+    MAX_ESTIMATED_PLAYBACK_MS,
+    Math.max(MIN_ESTIMATED_PLAYBACK_MS, estimated)
+  );
+}
 
 function isCareerVoiceDebugEnabled(): boolean {
   if (process.env.NODE_ENV !== "production") return true;
@@ -99,6 +139,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   const connectRef = useRef<
     ((options?: RealtimeConnectOptions) => Promise<boolean>) | null
   >(null);
+  const lastConnectFailureRef = useRef<RealtimeConnectFailure | null>(null);
   const connectPromiseRef = useRef<Promise<boolean> | null>(null);
   const pendingConnectAbortControllerRef = useRef<AbortController | null>(null);
   const pendingConnectCancelRef = useRef<(() => void) | null>(null);
@@ -113,6 +154,11 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   const responseCancelRequestedRef = useRef(false);
   const suppressCurrentResponseOutputRef = useRef(false);
   const suppressCancelledResponseDoneRef = useRef(false);
+  const assistantPlaybackStartedAtRef = useRef<number | null>(null);
+  const playbackDrainUntilRef = useRef(0);
+  const playbackDrainTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(
+    new Set()
+  );
 
   // TTFT measurement: speech_stopped → first audio playback
   const speechStoppedAtRef = useRef<number>(0);
@@ -210,11 +256,35 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
           body: JSON.stringify({
             conversationId,
             conversationStarterId: options?.conversationStarterId ?? undefined,
+            internalCallRequestId:
+              options?.internalCallRequestId ?? undefined,
           }),
         });
         if (!res.ok) {
           const errText = await res.text().catch(() => "");
+          let parsedError: unknown = null;
+          try {
+            parsedError = errText ? JSON.parse(errText) : null;
+          } catch {
+            parsedError = null;
+          }
+          const errorMessage = getErrorText(
+            parsedError,
+            errText || "Failed to create realtime token."
+          );
           console.error("[RealtimeSession] Token fetch failed:", errText);
+          lastConnectFailureRef.current =
+            options?.internalCallRequestId &&
+            res.status === 409 &&
+            errorMessage === "Internal call already completed"
+              ? {
+                  code: "internal_call_completed",
+                  message: "이미 종료된 call입니다.",
+                }
+              : {
+                  code: "token",
+                  message: errorMessage,
+                };
           return null;
         }
         const data = await res.json();
@@ -229,6 +299,13 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
         };
       } catch (err) {
         console.error("[RealtimeSession] Token fetch error:", err);
+        lastConnectFailureRef.current = {
+          code: "token",
+          message:
+            err instanceof Error
+              ? err.message
+              : "Failed to create realtime token.",
+        };
         return null;
       }
     },
@@ -270,14 +347,49 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     [sendEvent]
   );
 
+  const markAssistantPlaybackStarted = useCallback(() => {
+    const now = getPlaybackNow();
+    if (assistantPlaybackStartedAtRef.current === null) {
+      assistantPlaybackStartedAtRef.current = now;
+    }
+    playbackDrainUntilRef.current = Math.max(
+      playbackDrainUntilRef.current,
+      now + PLAYBACK_RESPONSE_DONE_GRACE_MS
+    );
+  }, []);
+
+  const markAssistantPlaybackDone = useCallback((fullText: string) => {
+    const now = getPlaybackNow();
+    const startedAt = assistantPlaybackStartedAtRef.current ?? now;
+    const estimatedEndAt =
+      startedAt + estimateSpeechPlaybackMs(fullText) + PLAYBACK_DRAIN_GRACE_MS;
+
+    playbackDrainUntilRef.current = Math.max(
+      playbackDrainUntilRef.current,
+      estimatedEndAt,
+      now + PLAYBACK_RESPONSE_DONE_GRACE_MS
+    );
+    assistantPlaybackStartedAtRef.current = null;
+  }, []);
+
   const getRemainingPlaybackMs = useCallback(() => {
-    return 0;
+    const remainingMs = playbackDrainUntilRef.current - getPlaybackNow();
+    if (!Number.isFinite(remainingMs) || remainingMs <= 0) return 0;
+    return Math.min(MAX_ESTIMATED_PLAYBACK_MS, remainingMs);
+  }, []);
+
+  const clearPlaybackDrainTimers = useCallback(() => {
+    playbackDrainTimersRef.current.forEach((timer) => clearTimeout(timer));
+    playbackDrainTimersRef.current.clear();
   }, []);
 
   const stopNativePlayback = useCallback(() => {
     hasAudioInResponseRef.current = false;
+    assistantPlaybackStartedAtRef.current = null;
+    playbackDrainUntilRef.current = 0;
+    clearPlaybackDrainTimers();
     setIsAssistantSpeaking(false);
-  }, []);
+  }, [clearPlaybackDrainTimers]);
 
   const cancelActiveResponse = useCallback(() => {
     suppressCurrentResponseOutputRef.current = true;
@@ -299,7 +411,11 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     (callback: () => void) => {
       const remainingMs = getRemainingPlaybackMs();
       if (remainingMs > 50) {
-        window.setTimeout(callback, remainingMs);
+        const timer = setTimeout(() => {
+          playbackDrainTimersRef.current.delete(timer);
+          callback();
+        }, remainingMs);
+        playbackDrainTimersRef.current.add(timer);
         return;
       }
       callback();
@@ -509,6 +625,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
 
           case "response.output_audio.delta": {
             if (suppressCurrentResponseOutputRef.current) break;
+            markAssistantPlaybackStarted();
             if (
               !hasAudioInResponseRef.current &&
               speechStoppedAtRef.current > 0
@@ -525,6 +642,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
           case "response.output_audio_transcript.delta": {
             if (suppressCurrentResponseOutputRef.current) break;
             const delta = typeof msg.delta === "string" ? msg.delta : "";
+            markAssistantPlaybackStarted();
             hasAudioInResponseRef.current = true;
             setIsAssistantSpeaking(true);
             responseTextRef.current += delta;
@@ -547,7 +665,11 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
             responseCancelRequestedRef.current = false;
             const fullText = responseTextRef.current;
             responseTextRef.current = "";
+            const hadAudioInResponse = hasAudioInResponseRef.current;
             hasAudioInResponseRef.current = false;
+            if (hadAudioInResponse) {
+              markAssistantPlaybackDone(fullText);
+            }
 
             const response = msg.response as
               | Record<string, unknown>
@@ -608,7 +730,9 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
             if (status === "cancelled") {
               stopNativePlayback();
             } else {
-              setIsAssistantSpeaking(false);
+              runAfterCurrentPlayback(() => {
+                setIsAssistantSpeaking(false);
+              });
             }
 
             onAssistantDoneRef.current(fullText);
@@ -662,7 +786,13 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
         console.error("[RealtimeSession] Failed to parse message:", e);
       }
     },
-    [handleFunctionCalls, runAfterCurrentPlayback, stopNativePlayback]
+    [
+      handleFunctionCalls,
+      markAssistantPlaybackDone,
+      markAssistantPlaybackStarted,
+      runAfterCurrentPlayback,
+      stopNativePlayback,
+    ]
   );
 
   const startAudioCapture = useCallback(
@@ -703,6 +833,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
 
   const disconnect = useCallback(() => {
     connectAttemptIdRef.current += 1;
+    lastConnectFailureRef.current = null;
     pendingConnectAbortControllerRef.current?.abort();
     pendingConnectAbortControllerRef.current = null;
     pendingConnectCancelRef.current?.();
@@ -713,6 +844,9 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
       interruptTimerRef.current = null;
     }
     hasAudioInResponseRef.current = false;
+    assistantPlaybackStartedAtRef.current = null;
+    playbackDrainUntilRef.current = 0;
+    clearPlaybackDrainTimers();
     cleanupTransport();
     tokenInfoRef.current = null;
     responseTextRef.current = "";
@@ -727,7 +861,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     setIsConnected(false);
     setIsConnecting(false);
     setConnectionStatus("disconnected");
-  }, [cleanupTransport]);
+  }, [cleanupTransport, clearPlaybackDrainTimers]);
 
   const connect = useCallback(
     (options?: RealtimeConnectOptions): Promise<boolean> => {
@@ -737,6 +871,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
       if (connectPromiseRef.current) return connectPromiseRef.current;
 
       setIsConnecting(true);
+      lastConnectFailureRef.current = null;
       const attemptId = connectAttemptIdRef.current + 1;
       connectAttemptIdRef.current = attemptId;
       const abortController =
@@ -760,6 +895,10 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
       const connectWorkPromise = (async (): Promise<boolean> => {
         try {
           if (typeof RTCPeerConnection === "undefined") {
+            lastConnectFailureRef.current = {
+              code: "connection",
+              message: "Realtime connection is not supported.",
+            };
             return false;
           }
 
@@ -926,6 +1065,13 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
             return false;
           }
           console.error("[RealtimeSession] Connect error:", err);
+          lastConnectFailureRef.current = {
+            code: "connection",
+            message:
+              err instanceof Error
+                ? err.message
+                : "Failed to connect realtime session.",
+          };
           cleanupTransport();
           setIsConnected(false);
           setConnectionStatus("disconnected");
@@ -1022,6 +1168,11 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     return mediaStreamRef.current;
   }, []);
 
+  const getLastConnectFailure = useCallback(
+    () => lastConnectFailureRef.current,
+    []
+  );
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -1041,10 +1192,12 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     triggerResponse,
     cancelResponse,
     primePlayback,
+    runAfterCurrentPlayback,
     generateSpeech,
     generateSpeechFromInstructions,
     updateSessionInstructions,
     getMediaStream,
+    getLastConnectFailure,
     sendEvent,
   };
 }

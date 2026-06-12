@@ -8,6 +8,7 @@ import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { Loader2 } from "lucide-react";
 import { useMessages } from "@/i18n/useMessage";
 import { notifyToSlack } from "@/lib/slack";
+import { BareButton } from "@/components/ui/button";
 
 const Help = () => {
   const [feedback, setFeedback] = useState("");
@@ -55,10 +56,14 @@ const Help = () => {
         <div className="flex flex-col items-start w-full justify-between min-h-[75vh]">
           <div className="flex flex-col items-start w-full justify-start mt-12 font-normal">
             <div className="mt-2">{m.help.intro}</div>
-            <div className="underline cursor-pointer" onClick={handleContactUs}>
+            <BareButton
+              type="button"
+              className="cursor-pointer underline"
+              onClick={handleContactUs}
+            >
               chris@matchharper.com
-            </div>
-            <div className="text-beige900/80 mt-16 font-normal text-sm">
+            </BareButton>
+            <div className="text-neutral-primary mt-16 font-normal text-sm">
               {m.help.prompt}
             </div>
             <Textarea
@@ -68,33 +73,33 @@ const Help = () => {
               className="mt-4 max-w-[770px] text-[15px] font-normal"
               rows={3}
             />
-            <button
+            <BareButton
               onClick={handleSubmit}
               disabled={isLoading}
-              className="px-4 py-2 cursor-pointer mt-4 text-sm bg-beige900 text-beige100 rounded-lg font-normal"
+              className="px-4 py-2 cursor-pointer mt-4 text-sm bg-black text-neutral-00 rounded-lg font-normal"
             >
               {isLoading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
                 m.help.submit
               )}
-            </button>
+            </BareButton>
           </div>
           <div className="flex items-end justify-end w-full">
-            <div className="flex items-center gap-3 text-sm text-beige900/55">
-              <button
+            <div className="flex items-center gap-3 text-sm text-neutral-muted">
+              <BareButton
                 onClick={() => setLocaleCookie("ko")}
-                className={`transition hover:text-beige900 ${locale === "ko" ? "text-beige900 font-medium" : ""}`}
+                className={`transition hover:text-neutral-primary ${locale === "ko" ? "text-neutral-primary font-medium" : ""}`}
               >
                 한국어
-              </button>
-              <span className="text-beige900/45">|</span>
-              <button
+              </BareButton>
+              <span className="text-neutral-soft">|</span>
+              <BareButton
                 onClick={() => setLocaleCookie("en")}
-                className={`transition hover:text-beige900 ${locale === "en" ? "text-beige900 font-medium" : ""}`}
+                className={`transition hover:text-neutral-primary ${locale === "en" ? "text-neutral-primary font-medium" : ""}`}
               >
                 English
-              </button>
+              </BareButton>
             </div>
           </div>
         </div>

@@ -21,15 +21,15 @@ const Footer = ({
   };
 
   return (
-    <div className="w-full flex flex-col md:flex-row items-start md:items-stretch justify-between border-t border-white/20 py-10 md:py-8 md:px-8 mx-auto px-4 gap-6 md:gap-0 bg-black text-hblack000">
+    <div className="w-full flex flex-col md:flex-row items-start md:items-stretch justify-between border-t border-white/20 py-10 md:py-8 md:px-8 mx-auto px-4 gap-6 md:gap-0 bg-black text-neutral-00">
       <div className="flex flex-1 flex-col items-start justify-start gap-4 md:gap-6">
         <div className="text-left text-3xl font-semibold font-garamond">
           Harper
         </div>
-        <div className="text-[13px] text-hgray700">
+        <div className="text-[13px] text-neutral-500">
           Harper <span className="ml-1">© 2026</span>
         </div>
-        <div className="text-[13px] text-hgray700 flex flex-row items-center gap-2">
+        <div className="text-[13px] text-neutral-500 flex flex-row items-center gap-2">
           <div>사람을 찾고 계신가요?</div>
           <div
             onClick={() =>
@@ -42,7 +42,7 @@ const Footer = ({
             시작하기
           </div>
         </div>
-        <div className="text-[13px] text-hgray700 flex flex-row items-center gap-1">
+        <div className="text-[13px] text-neutral-500 flex flex-row items-center gap-1">
           <Link
             href="/terms"
             className="cursor-pointer hover:text-white/90 text-white/80"
@@ -69,7 +69,7 @@ const Footer = ({
             Refund Policy
           </div>
         </div>
-        <div className="text-[13px] text-hgray700 flex flex-col items-start justify-start gap-0">
+        <div className="text-[13px] text-neutral-500 flex flex-col items-start justify-start gap-0">
           <div>상호명 : 주식회사 하퍼</div>
           <div>대표자명 : HEO HONGBEOM</div>
           <div>사업자등록번호 : 314-86-68621</div>

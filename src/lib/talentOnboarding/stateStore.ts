@@ -6,14 +6,11 @@ import { INSIGHT_CHECKLIST } from "@/lib/talentOnboarding/insightChecklist";
 import {
   DEFAULT_TALENT_GET_EXTERNAL_RECOMMENDATION,
   DEFAULT_TALENT_GET_INTERNAL_RECOMMENDATION,
-  DEFAULT_TALENT_PERIODIC_ENABLED,
   DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS,
   DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
-  normalizeTalentPeriodicEnabled,
   normalizeTalentPeriodicIntervalDays,
   normalizeTalentRecommendationBatchSize,
   normalizeTalentRecommendationToggle,
-  type TalentRecommendationSettingsUpdateSource,
 } from "@/lib/talentOnboarding/recommendationSettings";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import {
@@ -253,11 +250,9 @@ export async function upsertTalentSetting(args: {
   engagementTypes?: TalentNetworkEngagementOptionId[];
   getExternalRecommendation?: boolean;
   getInternalRecommendation?: boolean;
-  periodicEnabled?: boolean;
   periodicIntervalDays?: number;
   recommendationBatchSize?: number;
   recommendationSourceConversationId?: string | null;
-  recommendationSettingsUpdatedBy?: TalentRecommendationSettingsUpdateSource;
 }) {
   const { admin, userId } = args;
   const current = await fetchTalentSetting({ admin, userId });
@@ -286,11 +281,6 @@ export async function upsertTalentSetting(args: {
         DEFAULT_TALENT_GET_INTERNAL_RECOMMENDATION
     ),
     is_onboarding_done: current?.is_onboarding_done ?? false,
-    periodic_enabled: normalizeTalentPeriodicEnabled(
-      args.periodicEnabled ??
-        current?.periodic_enabled ??
-        DEFAULT_TALENT_PERIODIC_ENABLED
-    ),
     periodic_interval_days: normalizeTalentPeriodicIntervalDays(
       args.periodicIntervalDays ?? current?.periodic_interval_days
     ),
@@ -301,10 +291,6 @@ export async function upsertTalentSetting(args: {
       args.recommendationSourceConversationId === undefined
         ? current?.recommendation_source_conversation_id ?? null
         : args.recommendationSourceConversationId,
-    recommendation_settings_updated_by:
-      args.recommendationSettingsUpdatedBy ??
-      current?.recommendation_settings_updated_by ??
-      "user_settings",
     updated_at: now,
   };
 
@@ -325,14 +311,12 @@ export async function setTalentOnboardingDone(args: {
   admin: TalentAdminClient;
   userId: string;
   isOnboardingDone?: boolean;
-  recommendationSettingsUpdatedBy?: TalentRecommendationSettingsUpdateSource;
   recommendationSourceConversationId?: string | null;
 }) {
   const {
     admin,
     userId,
     isOnboardingDone = true,
-    recommendationSettingsUpdatedBy,
     recommendationSourceConversationId,
   } = args;
   const now = new Date().toISOString();
@@ -343,8 +327,6 @@ export async function setTalentOnboardingDone(args: {
       recommendationSourceConversationId === undefined
         ? undefined
         : recommendationSourceConversationId,
-    recommendation_settings_updated_by:
-      recommendationSettingsUpdatedBy ?? undefined,
   };
 
   const { data: updated, error: updateError } = await admin
@@ -372,13 +354,10 @@ export async function setTalentOnboardingDone(args: {
       get_external_recommendation: DEFAULT_TALENT_GET_EXTERNAL_RECOMMENDATION,
       get_internal_recommendation: DEFAULT_TALENT_GET_INTERNAL_RECOMMENDATION,
       is_onboarding_done: isOnboardingDone,
-      periodic_enabled: DEFAULT_TALENT_PERIODIC_ENABLED,
       periodic_interval_days: DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS,
       recommendation_batch_size: DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
       recommendation_source_conversation_id:
         recommendationSourceConversationId ?? null,
-      recommendation_settings_updated_by:
-        recommendationSettingsUpdatedBy ?? "user_settings",
       updated_at: now,
     })
     .select(TALENT_SETTING_SELECT_QUERY)

@@ -137,7 +137,7 @@ function OfficialJobsTable({ jobs }: { jobs: OfficialJob[] }) {
             <col className="w-[8%]" />
           </colgroup>
           <thead>
-            <tr className="border-b border-beige900/10 text-[11px] uppercase text-black860">
+            <tr className="border-b border-beige900/10 text-[11px] uppercase text-neutral-muted">
               <th className="px-4 py-3 font-medium">Role</th>
               <th className="px-4 py-3 font-medium">Company</th>
               <th className="px-4 py-3 font-medium">Location</th>
@@ -267,6 +267,7 @@ export default function OfficialJobsPage({ jobs }: OfficialJobsPageProps) {
                 </p>
                 <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                   <OfficialJobsCtaLink
+                    className="bg-primary border-none"
                     size="lg"
                     onClick={() => {
                       void postOfficialJobEvent({

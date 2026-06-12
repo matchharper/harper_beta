@@ -39,12 +39,11 @@ import {
   formatDateTime,
   isDueToday,
 } from "@/components/ats/utils";
+import { BareButton } from "@/components/ui/button";
+import { Input as UiInput } from "@/components/ui/input";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
-export type AtsMainPanelTab =
-  | "candidate"
-  | "sequence"
-  | "profile"
-  | "contact";
+export type AtsMainPanelTab = "candidate" | "sequence" | "profile" | "contact";
 
 type SequenceDraftState = Record<number, AtsContactEmailDraft>;
 
@@ -249,34 +248,34 @@ function getManualReviewStatusLabel(
 function getStageBadge(outreach: AtsOutreachRecord | null) {
   if (!outreach) {
     return {
-      className: "border-beige900/8 bg-beige500/55 text-beige900/80",
+      className: "border-neutral-1000-a05 bg-bg-floating text-neutral-primary",
       label: "Stage 0/4",
     };
   }
 
   if (outreach.sequenceStatus === "completed") {
     return {
-      className: "border-emerald-400/20 bg-emerald-400/10 text-emerald-200",
+      className: "border-positive/30 bg-positive-faded text-positive",
       label: "Completed · 4/4",
     };
   }
 
   if (outreach.sequenceStatus === "paused") {
     return {
-      className: "border-amber-400/20 bg-amber-400/10 text-amber-100",
+      className: "border-info/30 bg-info-faded text-info",
       label: `Paused · ${outreach.activeStep}/4`,
     };
   }
 
   if (outreach.nextDueAt && isDueToday(outreach.nextDueAt)) {
     return {
-      className: "border-sky-400/20 bg-sky-400/10 text-sky-100",
+      className: "border-info/30 bg-info-faded text-info",
       label: `Due · ${outreach.activeStep}/4`,
     };
   }
 
   return {
-    className: "border-beige900/8 bg-beige500/55 text-beige900/80",
+    className: "border-neutral-1000-a05 bg-bg-floating text-neutral-primary",
     label: `Stage ${outreach.activeStep}/4`,
   };
 }
@@ -338,15 +337,17 @@ function SequenceStepCard({
     : draft.body.trim() || message?.body || "아직 생성되지 않았습니다.";
 
   return (
-    <div className="rounded-md border border-beige900/8 bg-beige50 p-4 text-beige900">
-      <div className="mb-4 rounded-md bg-beige100 p-3">
+    <div className="rounded-md border border-neutral-1000-a05 bg-bg-default p-4 text-neutral-primary">
+      <div className="mb-4 rounded-md bg-bg-basement p-3">
         <div className="flex items-center justify-between gap-3">
-          <div className="text-xs font-medium text-beige900/80">예약 발송</div>
-          <button
+          <div className="text-xs font-medium text-neutral-primary">
+            예약 발송
+          </div>
+          <BareButton
             type="button"
             onClick={onSaveSchedule}
             disabled={saveSchedulePending}
-            className="inline-flex items-center gap-1 rounded-md bg-beige900 px-2 py-1 text-xs text-beige100 transition hover:bg-beige900/90 disabled:opacity-40"
+            className="inline-flex items-center gap-1 rounded-md bg-black px-2 py-1 text-xs text-neutral-00 transition hover:bg-black/90 disabled:opacity-40"
           >
             {saveSchedulePending ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -354,11 +355,11 @@ function SequenceStepCard({
               <Check className="h-3.5 w-3.5" />
             )}
             예약 변경 저장
-          </button>
+          </BareButton>
         </div>
 
         <div className="mt-3 flex gap-2">
-          <button
+          <BareButton
             type="button"
             onClick={() =>
               onScheduleChange({
@@ -368,64 +369,65 @@ function SequenceStepCard({
             }
             className={`rounded-md border px-2.5 py-1 text-xs transition ${
               schedule.mode === "date"
-                ? "border-accentBronze bg-accentBronze text-beige100"
-                : "border-beige900/8 bg-beige500/55 text-beige900/55 hover:bg-beige500/70"
+                ? "border-primary bg-primary text-neutral-00"
+                : "border-neutral-1000-a05 bg-bg-floating text-neutral-muted hover:bg-bg-weak"
             }`}
           >
             날짜 지정
-          </button>
-          <button
+          </BareButton>
+          <BareButton
             type="button"
             onClick={() => onScheduleChange({ mode: "relative" })}
             className={`rounded-md border px-2.5 py-1 text-xs transition ${
               schedule.mode === "relative"
-                ? "border-accentBronze bg-accentBronze text-beige100"
-                : "border-beige900/8 bg-beige500/55 text-beige900/55 hover:bg-beige500/70"
+                ? "border-primary bg-primary text-neutral-00"
+                : "border-neutral-1000-a05 bg-bg-floating text-neutral-muted hover:bg-bg-weak"
             }`}
           >
             며칠 뒤
-          </button>
+          </BareButton>
         </div>
 
         {schedule.mode === "relative" && (
           <div className="mt-3 grid gap-3 md:grid-cols-[auto_1fr]">
             <div>
-              <div className="mb-1 text-[11px] uppercase tracking-[0.12em] text-beige900/35">
+              <div className="mb-1 text-[11px] uppercase tracking-[0.12em] text-neutral-disabled">
                 Days
               </div>
               <div className="flex items-center gap-2">
-                <button
+                <BareButton
                   type="button"
                   onClick={() =>
                     onScheduleChange({
                       delayDays: Math.max(0, schedule.delayDays - 1),
                     })
                   }
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-beige900/8 bg-beige500/55 text-beige900/65 transition hover:bg-beige500/70"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-1000-a05 bg-bg-floating text-neutral-muted transition hover:bg-bg-weak"
                 >
                   <Minus className="h-3.5 w-3.5" />
-                </button>
-                <div className="min-w-[48px] text-center text-sm text-beige900">
+                </BareButton>
+                <div className="min-w-[48px] text-center text-sm text-neutral-primary">
                   {schedule.delayDays}d
                 </div>
-                <button
+                <BareButton
                   type="button"
                   onClick={() =>
                     onScheduleChange({ delayDays: schedule.delayDays + 1 })
                   }
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-beige900/8 bg-beige500/55 text-beige900/65 transition hover:bg-beige500/70"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-1000-a05 bg-bg-floating text-neutral-muted transition hover:bg-bg-weak"
                 >
                   <Plus className="h-3.5 w-3.5" />
-                </button>
+                </BareButton>
               </div>
             </div>
             <div>
-              <div className="mb-1 text-[11px] uppercase tracking-[0.12em] text-beige900/35">
+              <div className="mb-1 text-[11px] uppercase tracking-[0.12em] text-neutral-disabled">
                 Time
               </div>
               <div className="relative">
-                <Clock3 className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-beige900/35" />
-                <input
+                <Clock3 className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-disabled" />
+                <UiInput
+                  unstyled
                   type="time"
                   value={schedule.sendTime}
                   onChange={(event) =>
@@ -441,12 +443,13 @@ function SequenceStepCard({
         {schedule.mode === "date" && (
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             <div>
-              <div className="mb-1 text-[11px] uppercase tracking-[0.12em] text-beige900/35">
+              <div className="mb-1 text-[11px] uppercase tracking-[0.12em] text-neutral-disabled">
                 Date
               </div>
               <div className="relative">
-                <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-beige900/35" />
-                <input
+                <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-disabled" />
+                <UiInput
+                  unstyled
                   type="date"
                   value={schedule.date ?? ""}
                   onChange={(event) =>
@@ -457,12 +460,13 @@ function SequenceStepCard({
               </div>
             </div>
             <div>
-              <div className="mb-1 text-[11px] uppercase tracking-[0.12em] text-beige900/35">
+              <div className="mb-1 text-[11px] uppercase tracking-[0.12em] text-neutral-disabled">
                 Time
               </div>
               <div className="relative">
-                <Clock3 className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-beige900/35" />
-                <input
+                <Clock3 className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-disabled" />
+                <UiInput
+                  unstyled
                   type="time"
                   value={schedule.sendTime}
                   onChange={(event) =>
@@ -479,7 +483,7 @@ function SequenceStepCard({
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-sm font-medium">Step {stepNumber}</div>
-          <div className="mt-1 text-xs text-beige900/45">
+          <div className="mt-1 text-xs text-neutral-soft">
             {describeSchedule(schedule, stepNumber)}
           </div>
         </div>
@@ -490,16 +494,16 @@ function SequenceStepCard({
             {label.text}
           </span>
           {!isSent && message && (
-            <button
+            <BareButton
               type="button"
               onClick={onToggleEdit}
-              className="inline-flex items-center gap-1 rounded-md border border-beige900/8 bg-beige500/55 px-2.5 py-1.5 text-xs text-beige900/80 transition hover:bg-beige500/70 hover:text-beige900"
+              className="inline-flex items-center gap-1 rounded-md border border-neutral-1000-a05 bg-bg-floating px-2.5 py-1.5 text-xs text-neutral-primary transition hover:bg-bg-weak hover:text-neutral-primary"
             >
               <ChevronDown
                 className={`h-3.5 w-3.5 transition ${isEditing ? "rotate-180" : ""}`}
               />
               {isEditing ? "Close" : "Edit Draft"}
-            </button>
+            </BareButton>
           )}
         </div>
       </div>
@@ -508,8 +512,9 @@ function SequenceStepCard({
         {isEditing && !isSent ? (
           <div className="space-y-4">
             <div>
-              <div className="mb-2 text-xs text-beige900/45">Subject</div>
-              <input
+              <div className="mb-2 text-xs text-neutral-soft">Subject</div>
+              <UiInput
+                unstyled
                 value={draft.subject}
                 onChange={(event) =>
                   onDraftChange({ subject: event.target.value })
@@ -519,7 +524,7 @@ function SequenceStepCard({
               />
             </div>
             <div>
-              <div className="mb-2 text-xs text-beige900/45">Body</div>
+              <div className="mb-2 text-xs text-neutral-soft">Body</div>
               <AtsEmailBodyEditor
                 value={draft.body}
                 onChange={(body) => onDraftChange({ body })}
@@ -529,19 +534,19 @@ function SequenceStepCard({
               />
             </div>
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="text-xs text-beige900/45">
+              <div className="text-xs text-neutral-soft">
                 템플릿 변수는 발송 시 실제 후보자 값으로 치환됩니다.
               </div>
               <div className="flex flex-wrap gap-2">
-                <button
+                <BareButton
                   type="button"
                   onClick={onResetDraft}
                   disabled={saveDraftPending || !isDraftDirty}
                   className={buttonSecondaryClassName}
                 >
                   Reset
-                </button>
-                <button
+                </BareButton>
+                <BareButton
                   type="button"
                   onClick={onSaveDraft}
                   disabled={
@@ -558,33 +563,35 @@ function SequenceStepCard({
                     <Check className="h-4 w-4" />
                   )}
                   Save Draft
-                </button>
+                </BareButton>
               </div>
             </div>
           </div>
         ) : (
           <>
             <div>
-              <div className="text-xs text-beige900/45">Subject</div>
-              <div className="mt-1 text-sm text-beige900">{subjectPreview}</div>
+              <div className="text-xs text-neutral-soft">Subject</div>
+              <div className="mt-1 text-sm text-neutral-primary">
+                {subjectPreview}
+              </div>
             </div>
             <div>
-              <div className="text-xs text-beige900/45">Body</div>
-              <div className="mt-1 line-clamp-5 whitespace-pre-wrap text-sm leading-6 text-beige900/55">
+              <div className="text-xs text-neutral-soft">Body</div>
+              <div className="mt-1 line-clamp-5 whitespace-pre-wrap text-sm leading-6 text-neutral-muted">
                 {bodyPreview}
               </div>
             </div>
           </>
         )}
         <div className="flex items-center justify-between gap-3">
-          <div className="text-xs text-beige900/45">
+          <div className="text-xs text-neutral-soft">
             {isDraftDirty && !isSent
               ? "저장되지 않은 draft 변경이 있습니다."
               : message?.sentAt
                 ? `Sent ${formatDateTime(message.sentAt)}`
                 : "아직 발송되지 않음"}
           </div>
-          <button
+          <BareButton
             type="button"
             onClick={onSend}
             disabled={!canSend || sendPending || saveDraftPending}
@@ -596,7 +603,7 @@ function SequenceStepCard({
               <Send className="h-4 w-4" />
             )}
             Send
-          </button>
+          </BareButton>
         </div>
       </div>
     </div>
@@ -665,7 +672,7 @@ export default function AtsCandidateDrawer({
           <motion.button
             type="button"
             aria-label="Close ATS candidate drawer"
-            className="absolute inset-0 bg-beige900/55"
+            className="absolute inset-0 bg-bg-weak"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -676,7 +683,7 @@ export default function AtsCandidateDrawer({
           <motion.aside
             role="dialog"
             aria-modal="true"
-            className="absolute right-0 top-0 h-full w-[92vw] border-l border-beige900/8 bg-beige50 shadow-2xl lg:w-[min(60vw,1120px)]"
+            className="absolute right-0 top-0 h-full w-[92vw] border-l border-neutral-1000-a05 bg-bg-default shadow-2xl lg:w-[min(60vw,1120px)]"
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
@@ -688,23 +695,23 @@ export default function AtsCandidateDrawer({
           >
             <div className="h-full overflow-y-auto p-5">
               <div className="mb-4 flex justify-end">
-                <button
+                <BareButton
                   type="button"
                   onClick={onClose}
                   aria-label="Close candidate drawer"
-                  className="inline-flex items-center justify-center rounded-sm border border-beige900/8 bg-beige500/55 p-2 text-beige900/80 transition hover:bg-beige500/70 hover:text-beige900"
+                  className="inline-flex items-center justify-center rounded-sm border border-neutral-1000-a05 bg-bg-floating p-2 text-neutral-primary transition hover:bg-bg-weak hover:text-neutral-primary"
                 >
                   <X className="h-4 w-4" />
-                </button>
+                </BareButton>
               </div>
 
               {!activeCandidate ? (
-                <div className="flex min-h-[760px] items-center justify-center text-sm text-beige900/45">
+                <div className="flex min-h-[760px] items-center justify-center text-sm text-neutral-soft">
                   후보자를 선택해 주세요.
                 </div>
               ) : detailLoading ? (
                 <div className="flex min-h-[760px] items-center justify-center">
-                  <Loader2 className="h-5 w-5 animate-spin text-beige900" />
+                  <Loader2 className="h-5 w-5 animate-spin text-neutral-primary" />
                 </div>
               ) : (
                 <div className="space-y-5">
@@ -720,20 +727,20 @@ export default function AtsCandidateDrawer({
                               className="h-11 w-11 rounded-lg object-cover"
                             />
                           ) : (
-                            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-beige500/55 text-beige900">
+                            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-bg-floating text-neutral-primary">
                               <UserSquare2 className="h-5 w-5" />
                             </div>
                           )}
                           <div className="min-w-0">
-                            <div className="truncate text-lg font-medium text-beige900">
+                            <div className="truncate text-lg font-medium text-neutral-primary">
                               {activeCandidate.name ?? "Unknown"}
                             </div>
-                            <div className="mt-1 max-w-[360px] truncate text-sm text-beige900/55">
+                            <div className="mt-1 max-w-[360px] truncate text-sm text-neutral-muted">
                               {activeCandidate.headline ?? "headline 없음"}
                             </div>
                           </div>
                         </div>
-                        <div className="mt-4 flex flex-wrap gap-3 text-sm text-beige900/55">
+                        <div className="mt-4 flex flex-wrap gap-3 text-sm text-neutral-muted">
                           {activeCandidate.currentCompany && (
                             <span>{activeCandidate.currentCompany}</span>
                           )}
@@ -758,13 +765,13 @@ export default function AtsCandidateDrawer({
                         {emailDiscovery.isSearching ||
                         emailDiscovery.isActive ||
                         emailDiscovery.isQueued ? (
-                          <button
+                          <BareButton
                             type="button"
                             onClick={() => {
                               void emailDiscovery.onStop();
                             }}
                             disabled={emailDiscovery.isStopping}
-                            className="inline-flex items-center justify-center gap-2 rounded-sm border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-sm text-rose-100 transition hover:bg-rose-400/15 disabled:cursor-not-allowed disabled:opacity-40"
+                            className="inline-flex items-center justify-center gap-2 rounded-sm border border-critical/30 bg-critical-faded px-3 py-2 text-sm text-critical transition hover:bg-critical-faded disabled:cursor-not-allowed disabled:opacity-40"
                           >
                             {emailDiscovery.isStopping ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
@@ -775,27 +782,29 @@ export default function AtsCandidateDrawer({
                             emailDiscovery.isActive
                               ? "이메일 탐색 중지"
                               : `대기 ${emailDiscovery.queuePosition} 취소`}
-                          </button>
+                          </BareButton>
                         ) : (
-                          <button
+                          <BareButton
                             type="button"
                             onClick={() => {
                               void emailDiscovery.onDiscover();
                             }}
-                            className="inline-flex items-center justify-center gap-2 rounded-sm bg-accentBronze px-3 py-2 text-sm text-black transition hover:opacity-90"
+                            className="inline-flex items-center justify-center gap-2 rounded-sm bg-primary px-3 py-2 text-sm text-neutral-00 transition hover:opacity-90"
                           >
                             <Sparkles className="h-4 w-4" />
                             {emailDiscovery.resolvedEmail
                               ? "이메일 재탐색"
                               : "이메일 찾기"}
-                          </button>
+                          </BareButton>
                         )}
-                        <button
+                        <BareButton
                           type="button"
                           onClick={() => {
                             void onGenerateSequence();
                           }}
-                          disabled={generateSequencePending || saveWorkspacePending}
+                          disabled={
+                            generateSequencePending || saveWorkspacePending
+                          }
                           className={buttonPrimaryClassName}
                         >
                           {generateSequencePending || saveWorkspacePending ? (
@@ -804,8 +813,8 @@ export default function AtsCandidateDrawer({
                             <Mail className="h-4 w-4" />
                           )}
                           Generate 4-Step
-                        </button>
-                        <button
+                        </BareButton>
+                        <BareButton
                           type="button"
                           onClick={() => {
                             void onResetCandidateOutreach();
@@ -817,7 +826,7 @@ export default function AtsCandidateDrawer({
                             emailDiscovery.isQueued ||
                             emailDiscovery.isStopping
                           }
-                          className="inline-flex items-center justify-center gap-2 rounded-sm border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-sm text-rose-100 transition hover:bg-rose-400/15 disabled:cursor-not-allowed disabled:opacity-40"
+                          className="inline-flex items-center justify-center gap-2 rounded-sm border border-critical/30 bg-critical-faded px-3 py-2 text-sm text-critical transition hover:bg-critical-faded disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           {resetCandidateOutreachPending ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
@@ -825,14 +834,15 @@ export default function AtsCandidateDrawer({
                             <RotateCcw className="h-4 w-4" />
                           )}
                           Reset Outreach
-                        </button>
-                        <button
+                        </BareButton>
+                        <BareButton
                           type="button"
                           onClick={() => {
                             void onToggleSequencePause();
                           }}
                           disabled={
-                            !canToggleSequencePause || updateSequenceStatusPending
+                            !canToggleSequencePause ||
+                            updateSequenceStatusPending
                           }
                           className={buttonSecondaryClassName}
                         >
@@ -848,11 +858,11 @@ export default function AtsCandidateDrawer({
                             : sequence.outreach?.sequenceStatus === "paused"
                               ? "Resume"
                               : "Pause"}
-                        </button>
+                        </BareButton>
                       </div>
                     </div>
 
-                    <div className="flex gap-2 border-b border-beige900/8 pb-3">
+                    <div className="flex gap-2 border-b border-neutral-1000-a05 pb-3">
                       {(
                         [
                           ["candidate", "Candidate"],
@@ -861,18 +871,18 @@ export default function AtsCandidateDrawer({
                           ["contact", "Contact"],
                         ] as Array<[AtsMainPanelTab, string]>
                       ).map(([value, label]) => (
-                        <button
+                        <BareButton
                           key={value}
                           type="button"
                           onClick={() => onMainPanelTabChange(value)}
                           className={`rounded-md border px-3 py-1.5 text-sm transition ${
                             mainPanelTab === value
-                              ? "border-accentBronze/40 bg-accentBronze text-black"
-                              : "border-beige900/8 bg-beige500/55 text-beige900/55 hover:bg-beige500/70"
+                              ? "border-primary/40 bg-primary text-neutral-00"
+                              : "border-neutral-1000-a05 bg-bg-floating text-neutral-muted hover:bg-bg-weak"
                           }`}
                         >
                           {label}
-                        </button>
+                        </BareButton>
                       ))}
                     </div>
                   </div>
@@ -883,12 +893,13 @@ export default function AtsCandidateDrawer({
                         <div className="min-w-0 space-y-4">
                           <div className="w-full min-w-0">
                             <div className="flex items-center justify-between gap-3">
-                              <div className="text-sm font-medium text-beige900">
+                              <div className="text-sm font-medium text-neutral-primary">
                                 이메일 찾기
                               </div>
                             </div>
                             <div className="mt-4 flex flex-col gap-3 md:flex-row">
-                              <input
+                              <UiInput
+                                unstyled
                                 value={contact.manualEmail}
                                 onChange={(event) =>
                                   contact.onManualEmailChange(
@@ -898,7 +909,7 @@ export default function AtsCandidateDrawer({
                                 placeholder="candidate@email.com"
                                 className={inputClassName}
                               />
-                              <button
+                              <BareButton
                                 type="button"
                                 onClick={() => {
                                   void contact.onSaveManualEmail();
@@ -912,7 +923,7 @@ export default function AtsCandidateDrawer({
                                   <Check className="h-4 w-4" />
                                 )}
                                 Save
-                              </button>
+                              </BareButton>
                             </div>
                             <div className="mt-4 min-w-0">
                               <AtsEmailDiscoveryActivity
@@ -922,12 +933,12 @@ export default function AtsCandidateDrawer({
                                 clearPending={emailDiscovery.clearPending}
                               />
                             </div>
-                            <div className="mt-4 rounded-md border border-beige900/8 bg-beige100 p-4">
+                            <div className="mt-4 rounded-md border border-neutral-1000-a05 bg-bg-basement p-4">
                               <div className="flex items-center justify-between gap-3">
-                                <div className="text-sm font-medium text-beige900">
+                                <div className="text-sm font-medium text-neutral-primary">
                                   Manual Review URLs
                                 </div>
-                                <div className="text-xs text-beige900/45">
+                                <div className="text-xs text-neutral-soft">
                                   {manualReviewSuggestions.length > 0
                                     ? `${manualReviewSuggestions.length}개 추천`
                                     : emailDiscovery.isSearching
@@ -937,7 +948,7 @@ export default function AtsCandidateDrawer({
                               </div>
                               <div className="mt-3 space-y-3">
                                 {manualReviewSuggestions.length === 0 ? (
-                                  <div className="rounded-md border border-dashed border-beige900/8 px-3 py-3 text-sm text-beige900/45">
+                                  <div className="rounded-md border border-dashed border-neutral-1000-a05 px-3 py-3 text-sm text-neutral-soft">
                                     {emailDiscovery.isSearching
                                       ? "이메일 탐색이 끝나면 수동 확인 추천 URL이 여기에 표시됩니다."
                                       : "추천 URL이 아직 없습니다. 이메일 탐색을 실행하면 후보자와 가장 관련 있는 링크들을 정리합니다."}
@@ -947,18 +958,18 @@ export default function AtsCandidateDrawer({
                                     (suggestion, index) => (
                                       <div
                                         key={`${suggestion.url}-${index}`}
-                                        className="rounded-md border border-beige900/8 bg-beige50 p-3"
+                                        className="rounded-md border border-neutral-1000-a05 bg-bg-default p-3"
                                       >
                                         <div className="flex flex-wrap items-center gap-2">
-                                          <span className="rounded-md border border-beige900/8 bg-beige500/55 px-2 py-1 text-[11px] text-beige900/55">
+                                          <span className="rounded-md border border-neutral-1000-a05 bg-bg-floating px-2 py-1 text-[11px] text-neutral-muted">
                                             {index + 1}
                                           </span>
-                                          <span className="rounded-md border border-beige900/8 bg-beige500/55 px-2 py-1 text-[11px] text-beige900/55">
+                                          <span className="rounded-md border border-neutral-1000-a05 bg-bg-floating px-2 py-1 text-[11px] text-neutral-muted">
                                             {getManualReviewCategoryLabel(
                                               suggestion.category
                                             )}
                                           </span>
-                                          <span className="rounded-md border border-beige900/8 bg-beige500/55 px-2 py-1 text-[11px] text-beige900/45">
+                                          <span className="rounded-md border border-neutral-1000-a05 bg-bg-floating px-2 py-1 text-[11px] text-neutral-soft">
                                             {getManualReviewStatusLabel(
                                               suggestion.scrapeStatus
                                             )}
@@ -968,12 +979,12 @@ export default function AtsCandidateDrawer({
                                           href={suggestion.url}
                                           target="_blank"
                                           rel="noreferrer"
-                                          className="mt-3 inline-flex items-start gap-1 break-all text-sm text-accentBronze transition hover:text-accentBronze/90"
+                                          className="mt-3 inline-flex items-start gap-1 break-all text-sm text-primary transition hover:text-primary/90"
                                         >
                                           <span>{suggestion.label}</span>
                                           <ArrowUpRight className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                                         </a>
-                                        <div className="mt-2 wrap-break-word text-xs leading-5 text-beige900/55">
+                                        <div className="mt-2 wrap-break-word text-xs leading-5 text-neutral-muted">
                                           {suggestion.reason}
                                         </div>
                                       </div>
@@ -983,53 +994,55 @@ export default function AtsCandidateDrawer({
                               </div>
                             </div>
                             <div className="mt-3 flex flex-wrap gap-2">
-                              {(detailCandidate?.existingEmailSources ?? []).map(
-                                (source) => (
-                                  <span
-                                    key={`${source.sourceType}-${source.email}`}
-                                    className="break-all rounded-md border border-beige900/8 bg-beige500/55 px-2 py-1 text-xs text-beige900/55"
-                                  >
-                                    {source.label}: {source.email}
-                                  </span>
-                                )
-                              )}
+                              {(
+                                detailCandidate?.existingEmailSources ?? []
+                              ).map((source) => (
+                                <span
+                                  key={`${source.sourceType}-${source.email}`}
+                                  className="break-all rounded-md border border-neutral-1000-a05 bg-bg-floating px-2 py-1 text-xs text-neutral-muted"
+                                >
+                                  {source.label}: {source.email}
+                                </span>
+                              ))}
                             </div>
                           </div>
 
                           <div className="w-full min-w-0">
-                            <div className="text-sm font-medium text-beige900">
+                            <div className="text-sm font-medium text-neutral-primary">
                               Discovery Evidence
                             </div>
                             <div className="mt-4 grid gap-3">
-                              {(detailCandidate?.outreach?.emailDiscoveryEvidence ??
-                                []).length === 0 && (
-                                <div className="rounded-md border border-dashed border-beige900/8 px-4 py-4 text-sm text-beige900/45">
+                              {(
+                                detailCandidate?.outreach
+                                  ?.emailDiscoveryEvidence ?? []
+                              ).length === 0 && (
+                                <div className="rounded-md border border-dashed border-neutral-1000-a05 px-4 py-4 text-sm text-neutral-soft">
                                   아직 저장된 탐색 근거가 없습니다.
                                 </div>
                               )}
                               {(
-                                detailCandidate?.outreach?.emailDiscoveryEvidence ??
-                                []
+                                detailCandidate?.outreach
+                                  ?.emailDiscoveryEvidence ?? []
                               ).map((evidence, index) => (
                                 <div
                                   key={`${evidence.email}-${index}`}
-                                  className="rounded-md border border-beige900/8 bg-beige100 p-3"
+                                  className="rounded-md border border-neutral-1000-a05 bg-bg-basement p-3"
                                 >
                                   <div className="flex flex-wrap items-center justify-between gap-3">
-                                    <div className="text-sm font-medium text-beige900">
+                                    <div className="text-sm font-medium text-neutral-primary">
                                       {evidence.email}
                                     </div>
-                                    <span className="rounded-md border border-beige900/8 bg-beige500/55 px-2 py-1 text-xs text-beige900/55">
+                                    <span className="rounded-md border border-neutral-1000-a05 bg-bg-floating px-2 py-1 text-xs text-neutral-muted">
                                       {evidence.confidence}
                                     </span>
                                   </div>
                                   {evidence.title && (
-                                    <div className="mt-2 wrap-break-word text-sm text-beige900/80">
+                                    <div className="mt-2 wrap-break-word text-sm text-neutral-primary">
                                       {evidence.title}
                                     </div>
                                   )}
                                   {evidence.snippet && (
-                                    <div className="mt-2 wrap-break-word text-sm leading-6 text-beige900/55">
+                                    <div className="mt-2 wrap-break-word text-sm leading-6 text-neutral-muted">
                                       {evidence.snippet}
                                     </div>
                                   )}
@@ -1038,7 +1051,7 @@ export default function AtsCandidateDrawer({
                                       href={evidence.url}
                                       target="_blank"
                                       rel="noreferrer"
-                                      className="mt-3 inline-flex items-center gap-1 text-xs text-accentBronze transition hover:text-accentBronze/90"
+                                      className="mt-3 inline-flex items-center gap-1 text-xs text-primary transition hover:text-primary/90"
                                     >
                                       Open source
                                       <ArrowUpRight className="h-3 w-3" />
@@ -1053,10 +1066,10 @@ export default function AtsCandidateDrawer({
                         <div className="min-w-0 space-y-4">
                           <div className="rounded-md p-4">
                             <div className="flex items-center justify-between gap-3">
-                              <div className="text-sm font-medium text-beige900">
+                              <div className="text-sm font-medium text-neutral-primary">
                                 노트
                               </div>
-                              <button
+                              <BareButton
                                 type="button"
                                 onClick={() => {
                                   void candidateMemo.onSave();
@@ -1070,9 +1083,10 @@ export default function AtsCandidateDrawer({
                                   <Check className="h-4 w-4" />
                                 )}
                                 Save
-                              </button>
+                              </BareButton>
                             </div>
-                            <textarea
+                            <UiTextarea
+                              unstyled
                               value={candidateMemo.value}
                               onChange={(event) =>
                                 candidateMemo.onChange(event.target.value)
@@ -1082,40 +1096,40 @@ export default function AtsCandidateDrawer({
                               className={`${textareaClassName} mt-4`}
                             />
                           </div>
-                          <div className="rounded-md bg-beige500/55 p-4">
-                            <div className="text-sm font-medium text-beige900">
+                          <div className="rounded-md bg-bg-floating p-4">
+                            <div className="text-sm font-medium text-neutral-primary">
                               Candidate Snapshot
                             </div>
                             <div className="mt-4 w-full gap-3">
                               <div className="flex w-full flex-row gap-4">
                                 <div>
-                                  <div className="text-xs text-beige900/45">
+                                  <div className="text-xs text-neutral-soft">
                                     Current Company
                                   </div>
-                                  <div className="mt-1 text-sm text-beige900/80">
+                                  <div className="mt-1 text-sm text-neutral-primary">
                                     <span className="font-semibold">
                                       {activeCandidate.currentRole ?? "-"}
                                     </span>{" "}
                                     at{" "}
-                                    <span className="text-accentBronze">
+                                    <span className="text-primary">
                                       {activeCandidate.currentCompany ?? "-"}
                                     </span>
                                   </div>
                                 </div>
                                 <div>
-                                  <div className="text-xs text-beige900/45">
+                                  <div className="text-xs text-neutral-soft">
                                     Location
                                   </div>
-                                  <div className="mt-1 text-sm text-beige900/80">
+                                  <div className="mt-1 text-sm text-neutral-primary">
                                     {activeCandidate.location ?? "-"}
                                   </div>
                                 </div>
                               </div>
                               <div>
-                                <div className="text-xs text-beige900/45">
+                                <div className="text-xs text-neutral-soft">
                                   Shortlist Memo
                                 </div>
-                                <div className="mt-1 whitespace-pre-wrap text-sm leading-6 text-beige900/55">
+                                <div className="mt-1 whitespace-pre-wrap text-sm leading-6 text-neutral-muted">
                                   {activeCandidate.shortlistMemo || "-"}
                                 </div>
                               </div>
@@ -1129,14 +1143,14 @@ export default function AtsCandidateDrawer({
                   {mainPanelTab === "sequence" && (
                     <div className="space-y-4">
                       {sequence.hasUnsavedDraftChanges && (
-                        <div className="rounded-md border border-sky-400/20 bg-sky-400/10 px-4 py-3 text-sm text-sky-100">
+                        <div className="rounded-md border border-info/30 bg-info-faded px-4 py-3 text-sm text-info">
                           저장되지 않은 sequence draft 변경이 있습니다. `Send`
                           전에 자동 반영되지만, step 카드에서 바로 저장할 수도
                           있습니다.
                         </div>
                       )}
                       {sequence.hasUnsavedScheduleChanges && (
-                        <div className="rounded-md border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+                        <div className="rounded-md border border-info/30 bg-info-faded px-4 py-3 text-sm text-info">
                           저장되지 않은 timing 변경이 있습니다. `Send` 또는
                           `Generate 4-Step` 전에 자동 반영되지만, 지금 바로
                           저장할 수도 있습니다.
@@ -1144,24 +1158,24 @@ export default function AtsCandidateDrawer({
                       )}
                       <div className="grid gap-4 xl:grid-cols-[0.5fr_1.5fr]">
                         <div>
-                          <div className="text-sm font-medium text-beige900">
+                          <div className="text-sm font-medium text-neutral-primary">
                             Sequence Snapshot
                           </div>
                           <div className="mt-4 grid gap-3">
-                            <div className="rounded-md border border-beige900/8 bg-beige100 p-3">
-                              <div className="text-xs text-beige900/45">
+                            <div className="rounded-md border border-neutral-1000-a05 bg-bg-basement p-3">
+                              <div className="text-xs text-neutral-soft">
                                 Target Email
                               </div>
-                              <div className="mt-1 text-sm text-beige900">
+                              <div className="mt-1 text-sm text-neutral-primary">
                                 {sequence.resolvedEmail ?? "이메일 필요"}
                               </div>
                             </div>
-                            <div className="rounded-md border border-beige900/8 bg-beige100 p-3">
+                            <div className="rounded-md border border-neutral-1000-a05 bg-bg-basement p-3">
                               <div className="flex items-center justify-between gap-3">
-                                <div className="text-xs text-beige900/45">
+                                <div className="text-xs text-neutral-soft">
                                   Stage Marks
                                 </div>
-                                <div className="text-sm text-beige900">
+                                <div className="text-sm text-neutral-primary">
                                   {stageBadge.label}
                                 </div>
                               </div>
@@ -1170,7 +1184,7 @@ export default function AtsCandidateDrawer({
                                   outreach={sequence.outreach}
                                 />
                               </div>
-                              <div className="mt-3 text-sm text-beige900/55">
+                              <div className="mt-3 text-sm text-neutral-muted">
                                 {sequence.isCompleted
                                   ? "4-step 시퀀스가 모두 완료되었습니다."
                                   : !sequence.resolvedEmail
@@ -1181,17 +1195,17 @@ export default function AtsCandidateDrawer({
                                       : `다음 액션은 step ${sequence.nextStep ?? 1} 발송입니다.`}
                               </div>
                             </div>
-                            <div className="rounded-md border border-beige900/8 bg-beige100 p-3">
-                              <div className="text-xs text-beige900/45">
+                            <div className="rounded-md border border-neutral-1000-a05 bg-bg-basement p-3">
+                              <div className="text-xs text-neutral-soft">
                                 마지막 발송
                               </div>
-                              <div className="mt-1 text-sm text-beige900">
+                              <div className="mt-1 text-sm text-neutral-primary">
                                 {formatDateTime(sequence.outreach?.lastSentAt)}
                               </div>
-                              <div className="text-xs text-beige900/45">
+                              <div className="text-xs text-neutral-soft">
                                 Next Due
                               </div>
-                              <div className="mt-1 text-sm text-beige900">
+                              <div className="mt-1 text-sm text-neutral-primary">
                                 {formatDateTime(sequence.outreach?.nextDueAt)}
                               </div>
                             </div>
@@ -1213,16 +1227,16 @@ export default function AtsCandidateDrawer({
                               const draftMessage =
                                 sequence.draftMessageByNumber.get(stepNumber) ??
                                 null;
-                              const stepDraft =
-                                sequence.drafts[stepNumber] ?? {
-                                  body: "",
-                                  subject: "",
-                                };
-                              const savedStepDraft =
-                                sequence.savedDrafts[stepNumber] ?? {
-                                  body: "",
-                                  subject: "",
-                                };
+                              const stepDraft = sequence.drafts[stepNumber] ?? {
+                                body: "",
+                                subject: "",
+                              };
+                              const savedStepDraft = sequence.savedDrafts[
+                                stepNumber
+                              ] ?? {
+                                body: "",
+                                subject: "",
+                              };
                               const isDraftDirty =
                                 stepDraft.subject !== savedStepDraft.subject ||
                                 stepDraft.body !== savedStepDraft.body;
@@ -1232,7 +1246,8 @@ export default function AtsCandidateDrawer({
                                 Boolean(sequence.resolvedEmail) &&
                                 Boolean(draftMessage) &&
                                 !sentMessage &&
-                                sequence.outreach?.sequenceStatus !== "paused" &&
+                                sequence.outreach?.sequenceStatus !==
+                                  "paused" &&
                                 !saveWorkspacePending &&
                                 !sequence.isCompleted &&
                                 isReadyStep;
@@ -1241,18 +1256,18 @@ export default function AtsCandidateDrawer({
                                 ? {
                                     className:
                                       sentMessage.kind === "manual"
-                                        ? "border-amber-400/20 bg-amber-400/10 text-amber-100"
-                                        : "border-emerald-400/20 bg-emerald-400/10 text-emerald-200",
+                                        ? "border-info/30 bg-info-faded text-info"
+                                        : "border-positive/30 bg-positive-faded text-positive",
                                     text:
                                       sentMessage.kind === "manual"
                                         ? "Sent manually"
                                         : "Sent",
                                   }
                                 : sequence.outreach?.sequenceStatus ===
-                                        "paused" && isReadyStep
+                                      "paused" && isReadyStep
                                   ? {
                                       className:
-                                        "border-amber-400/20 bg-amber-400/10 text-amber-100",
+                                        "border-info/30 bg-info-faded text-info",
                                       text: "Paused",
                                     }
                                   : !sequence.resolvedEmail &&
@@ -1260,18 +1275,18 @@ export default function AtsCandidateDrawer({
                                       draftMessage
                                     ? {
                                         className:
-                                          "border-rose-400/20 bg-rose-400/10 text-rose-100",
+                                          "border-critical/30 bg-critical-faded text-critical",
                                         text: "Needs email",
                                       }
                                     : canSend
                                       ? {
                                           className:
-                                            "border-sky-400/20 bg-sky-400/10 text-sky-100",
+                                            "border-info/30 bg-info-faded text-info",
                                           text: "Ready",
                                         }
                                       : {
                                           className:
-                                            "border-beige900/8 bg-beige500/55 text-beige900/55",
+                                            "border-neutral-1000-a05 bg-bg-floating text-neutral-muted",
                                           text: draftMessage
                                             ? "Waiting"
                                             : "Draft pending",
@@ -1290,7 +1305,9 @@ export default function AtsCandidateDrawer({
                                   draft={stepDraft}
                                   inputClassName={inputClassName}
                                   isDraftDirty={isDraftDirty}
-                                  isEditing={sequence.expandedStep === stepNumber}
+                                  isEditing={
+                                    sequence.expandedStep === stepNumber
+                                  }
                                   isSent={Boolean(sentMessage)}
                                   label={label}
                                   message={sentMessage ?? draftMessage}
@@ -1334,44 +1351,44 @@ export default function AtsCandidateDrawer({
                         </div>
                       </div>
 
-                      <div className="rounded-md border border-beige900/8 bg-beige500/55 p-4">
-                        <div className="text-sm font-medium text-beige900">
+                      <div className="rounded-md border border-neutral-1000-a05 bg-bg-floating p-4">
+                        <div className="text-sm font-medium text-neutral-primary">
                           Mail History
                         </div>
                         <div className="mt-4 space-y-3">
                           {sequence.messages.length === 0 && (
-                            <div className="rounded-md border border-dashed border-beige900/8 px-4 py-4 text-sm text-beige900/45">
+                            <div className="rounded-md border border-dashed border-neutral-1000-a05 px-4 py-4 text-sm text-neutral-soft">
                               아직 생성되거나 발송된 메일이 없습니다.
                             </div>
                           )}
                           {sequence.messages.map((message) => (
                             <div
                               key={message.id}
-                              className="rounded-md border border-beige900/8 bg-beige100 p-3"
+                              className="rounded-md border border-neutral-1000-a05 bg-bg-basement p-3"
                             >
                               <div className="flex flex-wrap items-center justify-between gap-3">
                                 <div className="flex items-center gap-2">
-                                  <span className="rounded-md border border-beige900/8 bg-beige500/55 px-2 py-1 text-xs text-beige900/55">
+                                  <span className="rounded-md border border-neutral-1000-a05 bg-bg-floating px-2 py-1 text-xs text-neutral-muted">
                                     {message.kind === "manual"
                                       ? "Manual"
                                       : "Sequence"}
                                   </span>
                                   {message.stepNumber && (
-                                    <span className="rounded-md border border-beige900/8 bg-beige500/55 px-2 py-1 text-xs text-beige900/55">
+                                    <span className="rounded-md border border-neutral-1000-a05 bg-bg-floating px-2 py-1 text-xs text-neutral-muted">
                                       Step {message.stepNumber}
                                     </span>
                                   )}
-                                  <span className="text-xs text-beige900/45">
+                                  <span className="text-xs text-neutral-soft">
                                     {message.status}
                                   </span>
                                 </div>
-                                <div className="text-xs text-beige900/45">
+                                <div className="text-xs text-neutral-soft">
                                   {formatDateTime(
                                     message.sentAt ?? message.createdAt
                                   )}
                                 </div>
                               </div>
-                              <div className="mt-3 text-sm font-medium text-beige900">
+                              <div className="mt-3 text-sm font-medium text-neutral-primary">
                                 {message.renderedSubject ?? message.subject}
                               </div>
                               <div className="mt-2">
@@ -1391,11 +1408,12 @@ export default function AtsCandidateDrawer({
                     <div className="space-y-4">
                       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
                         <div className="flex flex-col gap-2">
-                          <div className="text-sm font-medium text-beige900">
+                          <div className="text-sm font-medium text-neutral-primary">
                             예약 발송
                           </div>
                           <div className="flex flex-col gap-2 sm:flex-row">
-                            <input
+                            <UiInput
+                              unstyled
                               type="datetime-local"
                               value={contact.scheduledAt}
                               onChange={(event) =>
@@ -1403,7 +1421,7 @@ export default function AtsCandidateDrawer({
                               }
                               className={inputClassName}
                             />
-                            <button
+                            <BareButton
                               type="button"
                               onClick={() => {
                                 void contact.onSchedule();
@@ -1423,11 +1441,11 @@ export default function AtsCandidateDrawer({
                                 <Clock3 className="h-4 w-4" />
                               )}
                               예약 저장
-                            </button>
+                            </BareButton>
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          <button
+                          <BareButton
                             type="button"
                             onClick={() => {
                               void contact.onGenerate();
@@ -1435,7 +1453,7 @@ export default function AtsCandidateDrawer({
                             disabled={
                               contact.generatePending || saveWorkspacePending
                             }
-                            className="inline-flex items-center justify-center gap-2 rounded-sm bg-accentBronze px-3 py-2 text-sm text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                            className="inline-flex items-center justify-center gap-2 rounded-sm bg-primary px-3 py-2 text-sm text-neutral-00 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
                           >
                             {contact.generatePending || saveWorkspacePending ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
@@ -1443,8 +1461,8 @@ export default function AtsCandidateDrawer({
                               <Sparkles className="h-4 w-4" />
                             )}
                             메일 내용 자동 작성
-                          </button>
-                          <button
+                          </BareButton>
+                          <BareButton
                             type="button"
                             onClick={() => {
                               void contact.onSend();
@@ -1464,22 +1482,23 @@ export default function AtsCandidateDrawer({
                               <Send className="h-4 w-4" />
                             )}
                             메일 발송
-                          </button>
+                          </BareButton>
                         </div>
                       </div>
 
                       <div className="grid gap-4 xl:grid-cols-2">
                         <div>
-                          <div className="text-sm font-medium text-beige900">
+                          <div className="text-sm font-medium text-neutral-primary">
                             메일 작성
                           </div>
                           <div className="mt-4 space-y-4">
                             <div>
-                              <div className="mb-2 text-xs text-beige900/45">
+                              <div className="mb-2 text-xs text-neutral-soft">
                                 To
                               </div>
                               <div className="flex flex-col gap-3 md:flex-row">
-                                <input
+                                <UiInput
+                                  unstyled
                                   value={contact.manualEmail}
                                   onChange={(event) =>
                                     contact.onManualEmailChange(
@@ -1489,7 +1508,7 @@ export default function AtsCandidateDrawer({
                                   placeholder="candidate@email.com"
                                   className={inputClassName}
                                 />
-                                <button
+                                <BareButton
                                   type="button"
                                   onClick={() => {
                                     void contact.onSaveManualEmail();
@@ -1503,15 +1522,16 @@ export default function AtsCandidateDrawer({
                                     <Check className="h-4 w-4" />
                                   )}
                                   Save Email
-                                </button>
+                                </BareButton>
                               </div>
                             </div>
 
                             <div>
-                              <div className="mb-2 text-xs text-beige900/45">
+                              <div className="mb-2 text-xs text-neutral-soft">
                                 Subject
                               </div>
-                              <input
+                              <UiInput
+                                unstyled
                                 value={contact.draft.subject}
                                 onChange={(event) =>
                                   contact.onDraftChange({
@@ -1524,7 +1544,7 @@ export default function AtsCandidateDrawer({
                             </div>
 
                             <div>
-                              <div className="mb-2 text-xs text-beige900/45">
+                              <div className="mb-2 text-xs text-neutral-soft">
                                 Body
                               </div>
                               <AtsEmailBodyEditor
@@ -1540,31 +1560,37 @@ export default function AtsCandidateDrawer({
                           </div>
                         </div>
 
-                        <div className="rounded-md border border-beige900/8 bg-beige500/55 p-4">
+                        <div className="rounded-md border border-neutral-1000-a05 bg-bg-floating p-4">
                           <div className="flex items-center justify-between gap-3">
-                            <div className="text-sm font-medium text-beige900">
+                            <div className="text-sm font-medium text-neutral-primary">
                               Preview
                             </div>
-                            <div className="text-xs text-beige900/45">
+                            <div className="text-xs text-neutral-soft">
                               {activeCandidate.name ?? "후보자 없음"}
                             </div>
                           </div>
-                          <div className="mt-4 rounded-md bg-white p-4 text-black">
-                            <div className="grid gap-3 border-b border-black/10 pb-4 text-sm">
+                          <div className="mt-4 rounded-md bg-bg-default p-4 text-neutral-primary">
+                            <div className="grid gap-3 border-b border-neutral-1000-a10 pb-4 text-sm">
                               <div className="flex items-start gap-3">
-                                <div className="w-14 text-black/45">From</div>
+                                <div className="w-14 text-neutral-soft">
+                                  From
+                                </div>
                                 <div className="flex-1 break-all">
-                                  {contact.senderEmail || contact.userEmail || "-"}
+                                  {contact.senderEmail ||
+                                    contact.userEmail ||
+                                    "-"}
                                 </div>
                               </div>
                               <div className="flex items-start gap-3">
-                                <div className="w-14 text-black/45">To</div>
+                                <div className="w-14 text-neutral-soft">To</div>
                                 <div className="flex-1 break-all">
                                   {contact.manualEmail || "-"}
                                 </div>
                               </div>
                               <div className="flex items-start gap-3">
-                                <div className="w-14 text-black/45">Subject</div>
+                                <div className="w-14 text-neutral-soft">
+                                  Subject
+                                </div>
                                 <div className="flex-1 font-medium">
                                   {contact.previewSubject ||
                                     "제목을 입력하면 여기에 표시됩니다."}
@@ -1582,46 +1608,46 @@ export default function AtsCandidateDrawer({
                         </div>
                       </div>
 
-                      <div className="rounded-md border border-beige900/8 bg-beige500/55 p-4">
+                      <div className="rounded-md border border-neutral-1000-a05 bg-bg-floating p-4">
                         <div className="flex items-center justify-between gap-3">
-                          <div className="text-sm font-medium text-beige900">
+                          <div className="text-sm font-medium text-neutral-primary">
                             Scheduled Emails
                           </div>
-                          <div className="text-xs text-beige900/45">
+                          <div className="text-xs text-neutral-soft">
                             {contact.scheduledMessages.length}개 예약됨
                           </div>
                         </div>
                         <div className="mt-4 space-y-3">
                           {contact.scheduledMessages.length === 0 && (
-                            <div className="rounded-md border border-dashed border-beige900/8 px-4 py-4 text-sm text-beige900/45">
+                            <div className="rounded-md border border-dashed border-neutral-1000-a05 px-4 py-4 text-sm text-neutral-soft">
                               아직 예약된 메일이 없습니다.
                             </div>
                           )}
                           {contact.scheduledMessages.map((message) => (
                             <div
                               key={message.id}
-                              className="rounded-md border border-beige900/8 bg-beige100 p-4"
+                              className="rounded-md border border-neutral-1000-a05 bg-bg-basement p-4"
                             >
                               <div className="flex flex-wrap items-start justify-between gap-3">
                                 <div className="min-w-0">
                                   <div className="flex flex-wrap items-center gap-2">
-                                    <span className="rounded-md border border-sky-400/20 bg-sky-400/10 px-2 py-1 text-xs text-sky-100">
+                                    <span className="rounded-md border border-info/30 bg-info-faded px-2 py-1 text-xs text-info">
                                       Scheduled
                                     </span>
                                     {message.toEmail && (
-                                      <span className="rounded-md border border-beige900/8 bg-beige500/55 px-2 py-1 text-xs text-beige900/45">
+                                      <span className="rounded-md border border-neutral-1000-a05 bg-bg-floating px-2 py-1 text-xs text-neutral-soft">
                                         {message.toEmail}
                                       </span>
                                     )}
                                   </div>
-                                  <div className="mt-2 text-sm font-medium text-beige900">
+                                  <div className="mt-2 text-sm font-medium text-neutral-primary">
                                     {message.subject}
                                   </div>
-                                  <div className="mt-1 text-xs text-beige900/45">
+                                  <div className="mt-1 text-xs text-neutral-soft">
                                     {formatDateTime(message.scheduledFor)}
                                   </div>
                                 </div>
-                                <button
+                                <BareButton
                                   type="button"
                                   onClick={() => {
                                     void contact.onCancelScheduled(message.id);
@@ -1630,7 +1656,7 @@ export default function AtsCandidateDrawer({
                                     contact.cancelScheduledPendingMessageId ===
                                     message.id
                                   }
-                                  className="inline-flex items-center gap-2 rounded-sm border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-sm text-rose-100 transition hover:bg-rose-400/15 disabled:cursor-not-allowed disabled:opacity-40"
+                                  className="inline-flex items-center gap-2 rounded-sm border border-critical/30 bg-critical-faded px-3 py-2 text-sm text-critical transition hover:bg-critical-faded disabled:cursor-not-allowed disabled:opacity-40"
                                 >
                                   {contact.cancelScheduledPendingMessageId ===
                                   message.id ? (
@@ -1639,7 +1665,7 @@ export default function AtsCandidateDrawer({
                                     <X className="h-4 w-4" />
                                   )}
                                   예약 취소
-                                </button>
+                                </BareButton>
                               </div>
                               <div className="mt-3">
                                 <AtsEmailBodyContent
@@ -1652,46 +1678,46 @@ export default function AtsCandidateDrawer({
                         </div>
                       </div>
 
-                      <div className="rounded-md border border-beige900/8 bg-beige500/55 p-4">
-                        <div className="text-sm font-medium text-beige900">
+                      <div className="rounded-md border border-neutral-1000-a05 bg-bg-floating p-4">
+                        <div className="text-sm font-medium text-neutral-primary">
                           Email History
                         </div>
                         <div className="mt-4 space-y-3">
                           {contact.emailHistory.length === 0 && (
-                            <div className="rounded-md border border-dashed border-beige900/8 px-4 py-4 text-sm text-beige900/45">
+                            <div className="rounded-md border border-dashed border-neutral-1000-a05 px-4 py-4 text-sm text-neutral-soft">
                               아직 발송된 메일이 없습니다.
                             </div>
                           )}
                           {contact.emailHistory.map((message) => (
                             <div
                               key={message.id}
-                              className="rounded-md border border-beige900/8 bg-beige100 p-4"
+                              className="rounded-md border border-neutral-1000-a05 bg-bg-basement p-4"
                             >
                               <div className="flex flex-wrap items-center justify-between gap-3">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <span className="rounded-md border border-beige900/8 bg-beige500/55 px-2 py-1 text-xs text-beige900/55">
+                                  <span className="rounded-md border border-neutral-1000-a05 bg-bg-floating px-2 py-1 text-xs text-neutral-muted">
                                     {message.kind === "manual"
                                       ? "Manual"
                                       : "Sequence"}
                                   </span>
                                   {message.stepNumber && (
-                                    <span className="rounded-md border border-beige900/8 bg-beige500/55 px-2 py-1 text-xs text-beige900/55">
+                                    <span className="rounded-md border border-neutral-1000-a05 bg-bg-floating px-2 py-1 text-xs text-neutral-muted">
                                       Step {message.stepNumber}
                                     </span>
                                   )}
                                   {message.toEmail && (
-                                    <span className="rounded-md border border-beige900/8 bg-beige500/55 px-2 py-1 text-xs text-beige900/45">
+                                    <span className="rounded-md border border-neutral-1000-a05 bg-bg-floating px-2 py-1 text-xs text-neutral-soft">
                                       {message.toEmail}
                                     </span>
                                   )}
                                 </div>
-                                <div className="text-xs text-beige900/45">
+                                <div className="text-xs text-neutral-soft">
                                   {formatDateTime(
                                     message.sentAt ?? message.createdAt
                                   )}
                                 </div>
                               </div>
-                              <div className="mt-3 text-sm font-medium text-beige900">
+                              <div className="mt-3 text-sm font-medium text-neutral-primary">
                                 {message.renderedSubject ?? message.subject}
                               </div>
                               <div className="mt-2">

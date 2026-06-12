@@ -14,6 +14,7 @@ import {
   ActionDropdownSeparator,
 } from "@/components/ui/action-dropdown";
 import { Tooltips } from "@/components/ui/tooltip";
+import { BareButton } from "@/components/ui/button";
 
 type CandidateMarkButtonProps = {
   userId?: string;
@@ -88,7 +89,7 @@ export default function CandidateMarkButton({
   };
 
   const trigger = (
-    <button
+    <BareButton
       type="button"
       onMouseDown={handleClickCapture}
       onClick={handleClickCapture}
@@ -98,7 +99,7 @@ export default function CandidateMarkButton({
         compact ? "h-[32px] px-2 text-sm" : "h-[32px] px-2 text-sm",
         meta
           ? `${meta.borderClassName} ${meta.bgClassName} ${meta.textClassName} hover:brightness-110`
-          : "border-beige900/8 bg-beige500/55 text-beige900 hover:bg-beige50/80 hover:text-beige900",
+          : "border-neutral-1000-a05 bg-bg-floating text-neutral-primary hover:bg-bg-default hover:text-neutral-primary",
       ].join(" ")}
     >
       {meta ? (
@@ -110,7 +111,7 @@ export default function CandidateMarkButton({
         <Tag className="h-4 w-4 mx-0.5" strokeWidth={1.7} />
       )}
       {meta?.shortLabel}
-    </button>
+    </BareButton>
   );
 
   return (
@@ -150,7 +151,7 @@ export default function CandidateMarkButton({
                   <span>{option.label}</span>
                 </div>
                 {isSelected && (
-                  <Check className="h-4 w-4 text-accentBronze" strokeWidth={1.8} />
+                  <Check className="h-4 w-4 text-primary" strokeWidth={1.8} />
                 )}
               </ActionDropdownItem>
             );
@@ -164,7 +165,7 @@ export default function CandidateMarkButton({
                 onSelect={() => {
                   void handleSelect(null);
                 }}
-                className="text-beige900/55"
+                className="text-neutral-muted"
               >
                 태그 해제
               </ActionDropdownItem>

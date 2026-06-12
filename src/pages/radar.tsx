@@ -29,6 +29,8 @@ import CompareSection from "@/components/landing/Compareold";
 import PricingSection from "@/components/landing/PricingScholar";
 import { FallingTagsMl } from "@/components/landing/FallingTagsML";
 import Reveal from "@/components/landing/Animation/Reveal";
+import { BareButton } from "@/components/ui/button";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
 const LoginModal = dynamic(() => import("@/components/Modal/LoginModal"));
 
@@ -166,7 +168,7 @@ function NavItem({
   isArrowRight?: boolean;
 }) {
   return (
-    <button
+    <BareButton
       type="button"
       onClick={onClick}
       className={`flex cursor-pointer items-center justify-between gap-2 rounded-full py-2 transition-colors duration-200 hover:bg-white/5 hover:opacity-95 ${
@@ -175,7 +177,7 @@ function NavItem({
     >
       <span>{label}</span>
       {isArrowRight && <ArrowUpRight className="h-3 w-3" />}
-    </button>
+    </BareButton>
   );
 }
 
@@ -192,11 +194,11 @@ const StartButton = React.memo(function StartButton({
     size === "sm" ? "px-6 py-3 text-xs" : "mt-10 px-8 py-4 text-base";
 
   return (
-    <button
+    <BareButton
       type="button"
       onClick={onClick}
       className={[
-        "group relative z-10 cursor-pointer rounded-full bg-accenta1 font-medium text-black",
+        "group relative z-10 cursor-pointer rounded-full bg-accent-200 font-medium text-black",
         "ring-1 ring-white/10",
         "shadow-[0_12px_40px_rgba(180,255,120,0.25)]",
         "transition-all duration-200",
@@ -206,7 +208,7 @@ const StartButton = React.memo(function StartButton({
       ].join(" ")}
     >
       {label}
-    </button>
+    </BareButton>
   );
 });
 
@@ -301,11 +303,11 @@ function SearchInputPanel({
 
   return (
     <form onSubmit={onSubmit} className="w-full rounded-[28px] p-3 md:p-5">
-      <div className="relative w-full rounded-[24px] border border-white/10 bg-hgray200 p-1">
+      <div className="relative w-full rounded-[24px] border border-white/10 bg-neutral-900 p-1">
         <div className="relative rounded-[20px] backdrop-blur-xl">
           {isQueryEmpty && (
             <div
-              className="pointer-events-none absolute left-4 right-16 top-4 overflow-hidden text-sm leading-6 text-hgray600 md:right-20 md:text-[15px]"
+              className="pointer-events-none absolute left-4 right-16 top-4 overflow-hidden text-sm leading-6 text-neutral-600 md:right-20 md:text-[15px]"
               aria-hidden="true"
             >
               <div
@@ -326,7 +328,8 @@ function SearchInputPanel({
             </div>
           )}
 
-          <textarea
+          <UiTextarea
+            unstyled
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
             onKeyDown={(e) => {
@@ -346,19 +349,19 @@ function SearchInputPanel({
         </div>
 
         <div className="absolute bottom-4 right-4 flex items-center justify-center gap-2 md:bottom-5 md:right-5">
-          <button
+          <BareButton
             type="submit"
             disabled={!canSend}
             aria-label="Submit search"
             className={[
               "inline-flex h-10 w-10 items-center justify-center rounded-full transition active:scale-[0.98] md:h-11 md:w-11",
               canSend
-                ? "bg-accenta1 text-black hover:opacity-90"
+                ? "bg-accent-200 text-black hover:opacity-90"
                 : "cursor-not-allowed bg-white/10 text-white/35",
             ].join(" ")}
           >
             <ArrowUp size={20} />
-          </button>
+          </BareButton>
         </div>
       </div>
     </form>
@@ -592,7 +595,7 @@ export default function RadarLandingPage() {
                 </span>
               </h1>
 
-              <p className="mt-6 max-w-[760px] text-[15px] font-light leading-7 text-hgray700 md:text-[20px] md:leading-8">
+              <p className="mt-6 max-w-[760px] text-[15px] font-light leading-7 text-neutral-500 md:text-[20px] md:leading-8">
                 Describe a technical problem in plain language
                 <br />
                 and explore real repositories, projects, and papers.
@@ -679,7 +682,7 @@ export default function RadarLandingPage() {
           <BaseSectionLayout>
             <div className="w-full max-w-[640px] px-4 md:px-0">
               <div className="flex flex-col items-start gap-4 rounded-2xl bg-white/20 px-5 py-6 md:px-[30px] md:py-8">
-                <div className="text-left text-[13px] font-normal leading-[26px] text-hgray700 md:text-base md:leading-[30px]">
+                <div className="text-left text-[13px] font-normal leading-[26px] text-neutral-500 md:text-base md:leading-[30px]">
                   Harper is not a profile search engine.
                   <br />
                   It reads the public work itself: repositories, commits,
@@ -701,7 +704,7 @@ export default function RadarLandingPage() {
 
                   <div className="flex flex-col items-start justify-start gap-1">
                     <div className="text-sm">Chris & Daniel</div>
-                    <div className="text-xs text-hgray700">
+                    <div className="text-xs text-neutral-500">
                       {m.companyLanding.testimonial.role}
                     </div>
                   </div>
@@ -725,7 +728,7 @@ export default function RadarLandingPage() {
                 are the starting point.
               </h2>
 
-              <p className="mt-5 max-w-[620px] text-center text-[15px] leading-7 text-hgray700 md:text-[18px]">
+              <p className="mt-5 max-w-[620px] text-center text-[15px] leading-7 text-neutral-500 md:text-[18px]">
                 Search public technical work with natural language and explore
                 how real systems and ideas take shape.
               </p>

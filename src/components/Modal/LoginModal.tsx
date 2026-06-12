@@ -4,6 +4,8 @@ import type { Locale } from "@/i18n/useMessage";
 import { en } from "@/lang/en";
 import { ko } from "@/lang/ko";
 import { supabase } from "@/lib/supabase";
+import { BareButton } from "@/components/ui/button";
+import { Input as UiInput } from "@/components/ui/input";
 
 type LoginResult = { message?: string } | null;
 
@@ -281,14 +283,14 @@ const LoginModal = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 w-full">
-      <button
+      <BareButton
         type="button"
         aria-label={copy.closeAria}
         className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
         onClick={onClose}
       />
 
-      <div className="relative z-50 w-full max-w-[460px] rounded-2xl bg-beige50 border border-beige900/8 shadow-2xl transition-all duration-300">
+      <div className="relative z-50 w-full max-w-[460px] rounded-2xl bg-bg-default border border-neutral-1000-a05 shadow-2xl transition-all duration-300">
         <div className="p-6 pb-10">
           <div className="flex flex-col items-start justify-start mb-6">
             <Image
@@ -298,18 +300,18 @@ const LoginModal = ({
               height={40}
               className="mb-6 h-10 w-10"
             />
-            <div className="text-3xl font-bold tracking-tight text-beige900">
+            <div className="text-3xl font-bold tracking-tight text-neutral-primary">
               {isSignUp ? messages.auth.signup : messages.auth.login}
             </div>
           </div>
 
           {needsEmailConfirmation ? (
             <div className="flex flex-col items-start justify-center">
-              <div className="text-base text-beige900 my-4">
+              <div className="text-base text-neutral-primary my-4">
                 {messages.auth.emailConfirmationSent}
               </div>
               <div
-                className="cursor-pointer text-base text-beige900/55 hover:text-beige900 hover:underline transition w-full text-left mb-6"
+                className="cursor-pointer text-base text-neutral-muted hover:text-neutral-primary hover:underline transition w-full text-left mb-6"
                 onClick={onClose}
               >
                 {messages.system.close}
@@ -319,129 +321,132 @@ const LoginModal = ({
             <>
               {/* Social buttons */}
               <div className="space-y-3 mt-2">
-                <button
+                <BareButton
                   type="button"
                   onClick={onGoogle}
                   disabled={isSubmitting}
-                  className="w-full py-3 text-[13px] rounded-md bg-beige100 hover:bg-beige500/55 transition duration-300 flex items-center justify-center gap-3 text-beige900"
+                  className="w-full py-3 text-[13px] rounded-md bg-bg-basement hover:bg-bg-weak transition duration-300 flex items-center justify-center gap-3 text-neutral-primary"
                 >
                   <GoogleIcon />
                   <span className="font-medium">
                     {messages.auth.continueWithGoogle}
                   </span>
-                </button>
+                </BareButton>
               </div>
 
               <div className="mt-6 mb-2 flex items-center gap-4">
-                <div className="h-px flex-1 bg-beige900/15" />
-                <div className="text-xs font-normal tracking-widest text-beige900/35">
+                <div className="h-px flex-1 bg-bg-weak" />
+                <div className="text-xs font-normal tracking-widest text-neutral-disabled">
                   {copy.divider}
                 </div>
-                <div className="h-px flex-1 bg-beige900/15" />
+                <div className="h-px flex-1 bg-bg-weak" />
               </div>
 
               {/* Form */}
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-beige900">
+                  <label className="text-sm font-medium text-neutral-primary">
                     {copy.emailLabel}
                   </label>
-                  <input
+                  <UiInput
+                    unstyled
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     type="email"
                     autoComplete="email"
                     disabled={isSubmitting}
                     placeholder={"m@example.com"}
-                    className="w-full rounded-md text-sm font-light bg-beige50 border border-beige900/8 px-3 py-2.5 text-beige900 placeholder:text-beige900/35 outline-none focus:border-beige900/15 focus:ring-2 focus:ring-beige900/8"
+                    className="w-full rounded-md text-sm font-light bg-bg-default border border-neutral-1000-a05 px-3 py-2.5 text-neutral-primary placeholder:text-neutral-placeholder outline-none focus:border-neutral-1000-a10 focus:ring-2 focus:ring-neutral-1000-a05"
                   />
                 </div>
 
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-beige900">
+                    <label className="text-sm font-medium text-neutral-primary">
                       {copy.passwordLabel}
                     </label>
                     {!isSignUp && (
-                      <button
+                      <BareButton
                         type="button"
                         onClick={handleForgotPassword}
                         disabled={isSubmitting}
-                        className="text-xs text-beige900/45 underline underline-offset-2 hover:text-beige900 disabled:opacity-60"
+                        className="text-xs text-neutral-soft underline underline-offset-2 hover:text-neutral-primary disabled:opacity-60"
                       >
                         {copy.forgotPassword}
-                      </button>
+                      </BareButton>
                     )}
                   </div>
 
-                  <input
+                  <UiInput
+                    unstyled
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     type="password"
                     autoComplete="current-password"
                     disabled={isSubmitting}
                     placeholder=""
-                    className="w-full rounded-md text-sm font-light bg-beige50 border border-beige900/8 px-3 py-2.5 text-beige900 placeholder:text-beige900/35 outline-none focus:border-beige900/15 focus:ring-2 focus:ring-beige900/8"
+                    className="w-full rounded-md text-sm font-light bg-bg-default border border-neutral-1000-a05 px-3 py-2.5 text-neutral-primary placeholder:text-neutral-placeholder outline-none focus:border-neutral-1000-a10 focus:ring-2 focus:ring-neutral-1000-a05"
                   />
                 </div>
 
                 {isSignUp && (
                   <div className="space-y-1">
-                    <label className="text-sm font-medium text-beige900">
+                    <label className="text-sm font-medium text-neutral-primary">
                       {messages.auth.confirmPassword}
                     </label>
 
-                    <input
+                    <UiInput
+                      unstyled
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       type="password"
                       autoComplete="current-password"
                       disabled={isSubmitting}
                       placeholder=""
-                      className="w-full rounded-md text-sm font-light bg-beige50 border border-beige900/8 px-3 py-2.5 text-beige900 placeholder:text-beige900/35 outline-none focus:border-beige900/15 focus:ring-2 focus:ring-beige900/8"
+                      className="w-full rounded-md text-sm font-light bg-bg-default border border-neutral-1000-a05 px-3 py-2.5 text-neutral-primary placeholder:text-neutral-placeholder outline-none focus:border-neutral-1000-a10 focus:ring-2 focus:ring-neutral-1000-a05"
                     />
                   </div>
                 )}
 
                 {error && (
-                  <div className="text-sm text-red-500 mt-2">{error}</div>
+                  <div className="text-sm text-critical mt-2">{error}</div>
                 )}
                 {info && (
-                  <div className="text-sm text-green-400 mt-2">{info}</div>
+                  <div className="text-sm text-positive mt-2">{info}</div>
                 )}
-                <button
+                <BareButton
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full py-2.5 text-sm rounded-md bg-beige900 text-beige100 font-medium hover:bg-beige900/90 transition duration-300 mt-6 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full py-2.5 text-sm rounded-md bg-black text-neutral-00 font-medium hover:bg-black/90 transition duration-300 mt-6 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isSignUp ? messages.auth.signup : messages.auth.login}
-                </button>
+                </BareButton>
               </form>
 
               {isSignUp ? (
                 <>
-                  <div className="pt-1 text-center text-sm font-light text-beige900/55 mt-2">
+                  <div className="pt-1 text-center text-sm font-light text-neutral-muted mt-2">
                     {copy.hasAccount}{" "}
-                    <button
+                    <BareButton
                       type="button"
                       onClick={switchToLogin}
-                      className="transition underline underline-offset-4 font-normal hover:text-beige900"
+                      className="transition underline underline-offset-4 font-normal hover:text-neutral-primary"
                     >
                       {messages.auth.login}
-                    </button>
+                    </BareButton>
                   </div>
                 </>
               ) : (
                 <>
-                  <div className="pt-1 text-center text-sm font-light text-beige900/55 mt-2">
+                  <div className="pt-1 text-center text-sm font-light text-neutral-muted mt-2">
                     {copy.noAccount}{" "}
-                    <button
+                    <BareButton
                       type="button"
                       onClick={switchToSignUp}
-                      className="transition underline underline-offset-4 font-normal hover:text-beige900"
+                      className="transition underline underline-offset-4 font-normal hover:text-neutral-primary"
                     >
                       {messages.auth.signup}
-                    </button>
+                    </BareButton>
                   </div>
                 </>
               )}

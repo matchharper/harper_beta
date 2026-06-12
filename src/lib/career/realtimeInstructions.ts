@@ -5,6 +5,7 @@ import {
   fetchTalentStructuredProfile,
   fetchTalentUserProfile,
   fetchVisibleMessagesPage,
+  getCareerOnboardingChecklistCoverage,
   getTalentSupabaseAdmin,
 } from "@/lib/talentOnboarding/server";
 import {
@@ -19,6 +20,11 @@ import {
   fetchRecentRecommendedOpportunitiesForPrompt,
   formatRecentRecommendedOpportunitiesForPrompt,
 } from "@/lib/talentOpportunity";
+import {
+  buildInternalOpportunityRealtimeInstruction,
+  fetchInternalOpportunityCallRequestById,
+  isOpenInternalOpportunityCallRequestStatus,
+} from "@/lib/talentOnboarding/internalOpportunityCallRequest";
 
 /**
  * Build realtime instructions from the shared Harper system prompt plus
@@ -27,6 +33,7 @@ import {
 export async function buildCareerRealtimeSessionInstructions(args: {
   conversationId: string;
   conversationStarterId?: string | null;
+  internalCallRequestId?: string | null;
   toolNames: string[];
   userId: string;
 }) {
@@ -75,11 +82,32 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     string,
     string
   > | null;
+  const onboardingChecklistCoverage = !Boolean(talentSetting?.is_onboarding_done)
+    ? await getCareerOnboardingChecklistCoverage({
+        admin,
+        conversationId: args.conversationId,
+        currentInsightContent,
+        userId: args.userId,
+      })
+    : null;
   const promptToolNames = talentSetting?.is_onboarding_done ? args.toolNames : [];
   const conversationStarterId = args.conversationStarterId?.trim();
   const conversationStarter = conversationStarterId
     ? getCareerConversationStarterPrompt(conversationStarterId)
     : null;
+  const internalCallRequestId = args.internalCallRequestId?.trim();
+  const internalCallRequest = internalCallRequestId
+    ? await fetchInternalOpportunityCallRequestById({
+        admin,
+        callId: internalCallRequestId,
+        userId: args.userId,
+      })
+    : null;
+  const openInternalCallRequest =
+    internalCallRequest &&
+    isOpenInternalOpportunityCallRequestStatus(internalCallRequest.status)
+      ? internalCallRequest
+      : null;
 
   const recentConversationSection = buildCareerRealtimeRecentConversationSection(
     visibleMessages.map((message) => ({
@@ -95,12 +123,21 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     currentInsightContent,
     interruptHandling: getCareerInterruptHandlingPrompt(),
     isOnboardingDone: talentSetting?.is_onboarding_done,
+    onboardingChecklistCoverage,
     profile,
     proactiveTurnInstructionMode: conversationStarter
       ? "conversation_starter"
+      : openInternalCallRequest
+        ? "internal_opportunity_call"
       : undefined,
-    proactiveTurnInstruction:
-      conversationStarter?.voiceProactiveInstruction ?? undefined,
+    proactiveTurnInstruction: [
+      conversationStarter?.voiceProactiveInstruction ?? "",
+      openInternalCallRequest
+        ? buildInternalOpportunityRealtimeInstruction(openInternalCallRequest)
+        : "",
+    ]
+      .filter((section) => section.trim().length > 0)
+      .join("\n\n"),
     recentConversationSection,
     recentRecommendedOpportunitiesText,
     structuredProfileText,

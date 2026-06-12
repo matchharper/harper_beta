@@ -10,6 +10,7 @@ import React, {
 } from "react";
 import { useMessages } from "@/i18n/useMessage";
 import CandidateCarousel from "@/components/chat/LoadingComponent";
+import { BareButton } from "@/components/ui/button";
 
 type StepState = "done" | "active" | "pending" | "error";
 
@@ -298,8 +299,8 @@ const Timeline = ({
   if (statusMessage && statusMessage.includes(StatusEnum.FOUND)) {
     return (
       <div className="w-full relative flex items-start justify-start">
-        <div className="text-sm font-light text-beige900 flex flex-row gap-2 items-center absolute top-3 left-5">
-          <Check className="w-4 h-4 text-green-500" strokeWidth={2} />
+        <div className="text-sm font-light text-neutral-primary flex flex-row gap-2 items-center absolute top-3 left-5">
+          <Check className="w-4 h-4 text-positive" strokeWidth={2} />
           <div className="animate-textGlow">{m.search.timeline.found}</div>
         </div>
       </div>
@@ -309,7 +310,7 @@ const Timeline = ({
   if (statusMessage && statusMessage.includes(StatusEnum.RERANKING_STREAMING)) {
     return (
       <div className="w-full relative flex items-start justify-start">
-        <div className="text-sm font-light text-beige900 flex flex-row gap-2 items-center absolute top-3 left-5">
+        <div className="text-sm font-light text-neutral-primary flex flex-row gap-2 items-center absolute top-3 left-5">
           <Loader2 className="w-4 h-4 animate-spin" strokeWidth={2} />
           <div className="animate-textGlow">
             {m.search.resultHeader.readingCandidates}{" "}
@@ -327,13 +328,13 @@ const Timeline = ({
       {!statusMessage ||
         (!statusMessage.includes(StatusEnum.STOPPED) && (
           <div className="absolute flex items-center justify-center w-full h-full z-0 opacity-40">
-            <CandidateCarousel styleType="beige" />
+            <CandidateCarousel styleType="neutral" />
           </div>
         ))}
       {statusMessage && statusMessage.includes(StatusEnum.STOPPED) ? (
         <div className="flex flex-col gap-2 items-center justify-center">
-          <div className="text-sm font-light mt-4 text-beige900 flex flex-row gap-2 items-center">
-            <CircleSlash className="w-3.5 h-3.5 text-beige900" />
+          <div className="text-sm font-light mt-4 text-neutral-primary flex flex-row gap-2 items-center">
+            <CircleSlash className="w-3.5 h-3.5 text-neutral-primary" />
             <div className="animate-textGlow">{m.search.timeline.stopped}</div>
           </div>
         </div>
@@ -342,22 +343,22 @@ const Timeline = ({
           {/* Header */}
           <div className="flex flex-row items-center justify-between mb-4">
             <div className="flex flex-col">
-              <div className="text-base font-medium text-beige900">
+              <div className="text-base font-medium text-neutral-primary">
                 {m.search.timeline.headerTitle}
               </div>
             </div>
 
-            <button
+            <BareButton
               onClick={stopRun}
-              className="py-1.5 px-2 rounded-sm text-beige900/80 text-sm font-light hover:bg-beige500/0 cursor-pointer bg-beige500/0 flex flex-row gap-2 items-center hover:text-red-500/80 transition-colors duration-200"
+              className="py-1.5 px-2 rounded-sm text-neutral-primary text-sm font-light hover:bg-transparent cursor-pointer bg-transparent flex flex-row gap-2 items-center hover:text-critical transition-colors duration-200"
             >
               <Square className="w-3 h-3" fill="currentColor" />
               <span>{m.search.timeline.stop}</span>
-            </button>
+            </BareButton>
           </div>
 
           {/* Timeline */}
-          <div className="rounded-lg bg-beige50 border border-beige900/8 shadow-sm p-3 min-h-[240px]">
+          <div className="rounded-lg bg-bg-default border border-neutral-1000-a05 shadow-sm p-3 min-h-[240px]">
             <div className="flex flex-col gap-4">
               {progress.steps.slice(0, shownCount).map((step, idx) => {
                 const isLast = idx === progress.steps.length - 1;
@@ -385,51 +386,51 @@ const Timeline = ({
                       <div
                         className={[
                           "w-4 h-4 rounded-full flex items-center justify-center",
-                          step.state === "done" ? "bg-white/0" : "",
-                          step.state === "active" ? "bg-white/0" : "",
-                          step.state === "pending" ? "bg-white/0" : "",
-                          step.state === "error" ? "bg-white/0" : "",
+                          step.state === "done" ? "bg-transparent" : "",
+                          step.state === "active" ? "bg-transparent" : "",
+                          step.state === "pending" ? "bg-transparent" : "",
+                          step.state === "error" ? "bg-transparent" : "",
                         ].join(" ")}
                       >
                         {step.state === "active" && (
                           <Icon
-                            className="w-4 h-4 animate-spin text-beige900"
+                            className="w-4 h-4 animate-spin text-neutral-primary"
                             strokeWidth={2}
                           />
                         )}
                         {step.state === "done" && (
                           <Icon
-                            className="w-3 h-3 text-green-400"
+                            className="w-3 h-3 text-positive"
                             strokeWidth={2}
                           />
                         )}
                         {step.state === "pending" && (
                           <Icon
-                            className="w-3 h-3 text-beige900/55"
+                            className="w-3 h-3 text-neutral-muted"
                             strokeWidth={2}
                           />
                         )}
                         {step.state === "error" && (
                           <Icon
-                            className="w-3 h-3 text-red-500"
+                            className="w-3 h-3 text-critical"
                             strokeWidth={2}
                           />
                         )}
                       </div>
 
-                      {/* {!isLast && <div className="w-px flex-1 bg-white/10 my-1" />} */}
+                      {/* {!isLast && <div className="w-px flex-1 bg-neutral-00/10 my-1" />} */}
                     </div>
 
                     {/* Content */}
                     <div className="flex flex-col">
                       <div className="flex flex-row items-center gap-2">
-                        <div className="text-sm font-medium text-beige900">
+                        <div className="text-sm font-medium text-neutral-primary">
                           {step.title}
                         </div>
                       </div>
 
                       {step.state === "active" && step.description && (
-                        <div className="text-sm text-beige900/80 mt-1 leading-5 animate-textGlow">
+                        <div className="text-sm text-neutral-primary mt-1 leading-5 animate-textGlow">
                           {step.description}
                         </div>
                       )}
@@ -441,7 +442,7 @@ const Timeline = ({
           </div>
 
           {/* Optional: small reassurance row */}
-          <div className="text-xs text-beige900/55 mt-3 leading-relaxed">
+          <div className="text-xs text-neutral-muted mt-3 leading-relaxed">
             {m.search.timeline.note}
             <br />
             {m.search.timeline.note3}

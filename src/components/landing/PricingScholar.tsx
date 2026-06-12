@@ -166,8 +166,8 @@ function PlanCard({
             className={[
               "w-full rounded-full py-2.5 md:py-3 text-sm md:text-sm font-normal transition-colors",
               isPrimary
-                ? "bg-accenta1 text-black hover:opacity-95"
-                : "bg-white/10 text-accenta1 border border-white/0 hover:bg-accenta1/10",
+                ? "bg-accent-200 text-black hover:opacity-95"
+                : "bg-white/10 text-accent-200 border border-white/0 hover:bg-accent-200/10",
             ].join(" ")}
           >
             {buttonLabel}
@@ -189,7 +189,7 @@ function PlanCard({
                 </>
               ) : (
                 <>
-                  <Check className="w-4 h-4 mt-0.5 text-accenta1" />
+                  <Check className="w-4 h-4 mt-0.5 text-accent-200" />
                   <span
                     className="text-white/70 text-left"
                     dangerouslySetInnerHTML={{ __html: f }}

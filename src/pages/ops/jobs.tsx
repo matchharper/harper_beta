@@ -1,6 +1,7 @@
 import OpsShell from "@/components/ops/OpsShell";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { showToast } from "@/components/toast/toast";
+import { Switch } from "@/components/ui/switch";
 import {
   useSyncAshbyOfficialJobs,
   useOpsOfficialJobs,
@@ -30,6 +31,9 @@ import Head from "next/head";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
+import { BareButton } from "@/components/ui/button";
+import { Input as UiInput } from "@/components/ui/input";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
 type JobFilter = "all" | "published" | "draft";
 const NEW_JOB_ID = "__new_official_job__";
@@ -222,7 +226,7 @@ function compareJobsForSidebar(
 }
 
 const ashbySourcedFieldClass =
-  "!border-[#DC2626]/45 !bg-[#FFF1F1] !text-[#991B1B] focus:!border-[#DC2626]/75 focus:!bg-white";
+  "!border-critical/30 !bg-critical-faded !text-critical focus:!border-critical/30 focus:!bg-bg-default";
 
 function Field({
   children,
@@ -236,11 +240,11 @@ function Field({
   return (
     <label className="block">
       <span className="flex items-center gap-2">
-        <span className={cx(opsTheme.label, sourceLabel && "text-[#B91C1C]")}>
+        <span className={cx(opsTheme.label, sourceLabel && "text-critical")}>
           {label}
         </span>
         {sourceLabel ? (
-          <span className="rounded-md bg-[#FEE2E2] px-1.5 py-0.5 font-geist text-[10px] font-semibold text-[#B91C1C]">
+          <span className="rounded-md bg-critical-faded px-1.5 py-0.5 text-[10px] font-semibold text-critical">
             {sourceLabel}
           </span>
         ) : null}
@@ -411,23 +415,23 @@ export default function OpsOfficialJobsPage() {
           <section className="flex flex-wrap items-center gap-3">
             <div className="flex flex-row gap-2 items-center px-2">
               <div className={opsTheme.eyebrow}>Total</div>
-              <div className="mt-2 font-geist text-2xl font-semibold text-beige900">
+              <div className="mt-2 text-2xl font-semibold text-neutral-primary">
                 {stats.total}
               </div>
             </div>
             <div className="flex flex-row gap-2 items-center px-2">
               <div className={opsTheme.eyebrow}>Published</div>
-              <div className="mt-2 font-geist text-2xl font-semibold text-[#29513A]">
+              <div className="mt-2 text-2xl font-semibold text-positive">
                 {stats.published}
               </div>
             </div>
             <div className="flex flex-row gap-2 items-center px-2">
               <div className={opsTheme.eyebrow}>Draft</div>
-              <div className="mt-2 font-geist text-2xl font-semibold text-[#8A5A12]">
+              <div className="mt-2 text-2xl font-semibold text-info">
                 {stats.draft}
               </div>
             </div>
-            <button
+            <BareButton
               type="button"
               onClick={handleSyncAshby}
               disabled={syncAshbyJobs.isPending}
@@ -439,66 +443,67 @@ export default function OpsOfficialJobsPage() {
                 <RefreshCw className="h-4 w-4" />
               )}
               Ashby 전체 읽어오기
-            </button>
+            </BareButton>
           </section>
         }
       >
         <section className="grid gap-5 sm:grid-cols-[380px_minmax(0,1fr)]">
           <aside className={cx(opsTheme.panel, "overflow-hidden")}>
-            <div className="border-b border-beige900/10 p-4">
+            <div className="border-b border-neutral-1000-a05 p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className={opsTheme.eyebrow}>Jobs</div>
-                  <h2 className="mt-1 font-geist text-lg font-medium text-beige900">
+                  <h2 className="mt-1 text-lg font-medium text-neutral-primary">
                     Official job list
                   </h2>
                 </div>
-                <button
+                <BareButton
                   type="button"
                   onClick={startNewJob}
                   className={cx(opsTheme.buttonPrimary, "h-10 px-3")}
                 >
                   <Plus className="h-4 w-4" />
                   New
-                </button>
+                </BareButton>
               </div>
 
-              <div className="mt-4 flex items-center gap-2 rounded-md border border-beige900/10 bg-white/70 px-3">
-                <Search className="h-4 w-4 text-beige900/40" />
-                <input
+              <div className="mt-4 flex items-center gap-2 rounded-md border border-neutral-1000-a05 bg-bg-default/70 px-3">
+                <Search className="h-4 w-4 text-neutral-soft" />
+                <UiInput
+                  unstyled
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Search role, company, slug"
-                  className="h-10 flex-1 bg-transparent font-geist text-sm text-beige900 outline-none placeholder:text-beige900/35"
+                  className="h-10 flex-1 bg-transparent text-sm text-neutral-primary outline-none placeholder:text-neutral-placeholder"
                 />
               </div>
 
-              <div className="mt-3 grid grid-cols-3 rounded-md bg-beige500/55 p-1">
+              <div className="mt-3 grid grid-cols-3 rounded-md bg-bg-weak p-1">
                 {[
                   ["all", "All"],
                   ["published", "Published"],
                   ["draft", "Draft"],
                 ].map(([value, label]) => (
-                  <button
+                  <BareButton
                     key={value}
                     type="button"
                     onClick={() => setFilter(value as JobFilter)}
                     className={cx(
-                      "h-8 rounded px-2 font-geist text-xs font-medium transition",
+                      "h-8 rounded px-2 text-xs font-medium transition",
                       filter === value
-                        ? "bg-white text-beige900 shadow-sm"
-                        : "text-beige900/55 hover:text-beige900"
+                        ? "bg-bg-default text-neutral-primary shadow-sm"
+                        : "text-neutral-muted hover:text-neutral-primary"
                     )}
                   >
                     {label}
-                  </button>
+                  </BareButton>
                 ))}
               </div>
             </div>
 
             <div className="max-h-[760px] overflow-y-auto">
               {jobsQuery.isLoading ? (
-                <div className="flex items-center gap-2 p-4 font-geist text-sm text-beige900/55">
+                <div className="flex items-center gap-2 p-4 text-sm text-neutral-muted">
                   <LoaderCircle className="h-4 w-4 animate-spin" />
                   Loading jobs
                 </div>
@@ -513,7 +518,7 @@ export default function OpsOfficialJobsPage() {
               ) : null}
 
               {!jobsQuery.isLoading && filteredJobs.length === 0 ? (
-                <div className="p-4 font-geist text-sm text-beige900/55">
+                <div className="p-4 text-sm text-neutral-muted">
                   표시할 job이 없습니다.
                 </div>
               ) : null}
@@ -522,7 +527,7 @@ export default function OpsOfficialJobsPage() {
                 const isAshbyConnected = hasAshbyConnection(job);
 
                 return (
-                  <button
+                  <BareButton
                     key={job.id}
                     type="button"
                     onClick={() => {
@@ -535,42 +540,41 @@ export default function OpsOfficialJobsPage() {
                       });
                     }}
                     className={cx(
-                      "block w-full border-b border-l-4 border-beige900/5 border-l-transparent px-4 py-3 text-left transition",
-                      isAshbyConnected &&
-                        "border-l-[#2563EB] bg-[#F3F7FF] shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]",
+                      "block w-full border-b border-l-4 border-neutral-1000-a05 border-l-transparent px-4 py-3 text-left transition",
+                      isAshbyConnected && "border-l-info bg-info-faded",
                       activeJobId === job.id
                         ? isAshbyConnected
-                          ? "bg-[#EAF2FF]"
-                          : "bg-beige900/5"
+                          ? "bg-info-faded"
+                          : "bg-bg-floating"
                         : isAshbyConnected
-                          ? "hover:bg-[#EAF2FF]"
-                          : "hover:bg-white/60"
+                          ? "hover:bg-info-faded"
+                          : "hover:bg-bg-default/60"
                     )}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="truncate font-geist text-sm font-semibold text-beige900">
+                        <div className="truncate text-sm font-semibold text-neutral-primary">
                           {job.roleTitle}
                         </div>
-                        <div className="mt-1 truncate font-geist text-xs text-beige900/55">
+                        <div className="mt-1 truncate text-xs text-neutral-muted">
                           {job.companyName}
                         </div>
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-1">
                         {isAshbyConnected ? (
-                          <span className="inline-flex items-center gap-1 rounded-md bg-[#2563EB] px-2 py-1 font-geist text-[11px] font-semibold text-white shadow-sm">
+                          <span className="inline-flex items-center gap-1 rounded-md bg-info px-2 py-1 text-[11px] font-semibold text-neutral-00 shadow-sm">
                             <Link2 className="h-3 w-3" />
                             Ashby 연결
                           </span>
                         ) : null}
                         <span
                           className={cx(
-                            "rounded-md px-2 py-1 font-geist text-[11px] font-medium",
+                            "rounded-md px-2 py-1 text-[11px] font-medium",
                             job.isInternalCopy
-                              ? "bg-beige900/10 text-beige900/65"
+                              ? "bg-bg-floating text-neutral-muted"
                               : job.isPublished
-                                ? "bg-[#E4EDE2] text-[#29513A]"
-                                : "bg-[#FEF3C7] text-[#92400E]"
+                                ? "bg-positive-faded text-positive"
+                                : "bg-info-faded text-info"
                           )}
                         >
                           {job.isInternalCopy
@@ -581,11 +585,11 @@ export default function OpsOfficialJobsPage() {
                         </span>
                       </div>
                     </div>
-                    <div className="mt-2 flex items-center justify-between gap-3 font-geist text-[12px] text-beige900/45">
+                    <div className="mt-2 flex items-center justify-between gap-3 text-[12px] text-neutral-muted">
                       <span
                         className={cx(
                           "truncate",
-                          isAshbyConnected && "font-semibold text-[#1D4ED8]"
+                          isAshbyConnected && "font-semibold text-info"
                         )}
                       >
                         {job.isInternalCopy
@@ -596,20 +600,20 @@ export default function OpsOfficialJobsPage() {
                       </span>
                       <span>#{job.displayOrder}</span>
                     </div>
-                  </button>
+                  </BareButton>
                 );
               })}
             </div>
           </aside>
 
           <section className={cx(opsTheme.panel, "p-5")}>
-            <div className="flex flex-col gap-4 border-b border-beige900/10 pb-5 md:flex-row md:items-start md:justify-between">
+            <div className="flex flex-col gap-4 border-b border-neutral-1000-a05 pb-5 md:flex-row md:items-start md:justify-between">
               <div>
                 <div className={opsTheme.eyebrow}>Editor</div>
-                <h2 className="mt-1 font-geist text-xl font-medium text-beige900">
+                <h2 className="mt-1 text-xl font-medium text-neutral-primary">
                   {draft.id ? "Edit official job" : "Create official job"}
                 </h2>
-                <p className="mt-2 font-geist text-sm leading-6 text-beige900/60">
+                <p className="mt-2 text-sm leading-6 text-neutral-muted">
                   {isInternalCopyDraft
                     ? "이 row는 공통 landing copy 전용입니다. 저장해도 public job으로 공개되지 않습니다."
                     : "공개 페이지에는 `is_published=true`인 job만 노출됩니다."}
@@ -627,16 +631,16 @@ export default function OpsOfficialJobsPage() {
                     <ArrowUpRight className="h-4 w-4" />
                   </Link>
                 ) : null}
-                <button
+                <BareButton
                   type="button"
                   onClick={() => jobsQuery.refetch()}
                   className={cx(opsTheme.buttonSecondary, "h-10 px-3")}
                 >
                   <RefreshCw className="h-4 w-4" />
                   Refresh
-                </button>
+                </BareButton>
                 {hasUnsavedChanges ? (
-                  <button
+                  <BareButton
                     type="button"
                     onClick={handleSave}
                     disabled={saveJob.isPending}
@@ -648,7 +652,7 @@ export default function OpsOfficialJobsPage() {
                       <Save className="h-4 w-4" />
                     )}
                     Save
-                  </button>
+                  </BareButton>
                 ) : null}
               </div>
             </div>
@@ -657,50 +661,38 @@ export default function OpsOfficialJobsPage() {
               <div className={cx(opsTheme.panelSoft, "p-4")}>
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <div className="block font-geist text-sm font-semibold text-beige900">
+                    <div className="block text-sm font-semibold text-neutral-primary">
                       Published
                     </div>
-                    <div className="mt-1 block font-geist text-xs text-beige900/50">
+                    <div className="mt-1 block text-xs text-neutral-muted">
                       {isInternalCopyDraft
                         ? "internal_internal row는 항상 비공개로 유지됩니다."
                         : "켜면 `/jobs`와 상세 페이지에서 공개됩니다."}
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={effectiveIsPublished}
+                  <Switch
+                    checked={effectiveIsPublished}
                     aria-label="Toggle published status"
                     disabled={isInternalCopyDraft}
-                    onClick={() =>
+                    onCheckedChange={() =>
                       !isInternalCopyDraft &&
                       updateDraft("isPublished", !draft.isPublished)
                     }
                     className={cx(
-                      "relative h-7 w-12 shrink-0 rounded-full border transition focus:outline-none focus:ring-2 focus:ring-beige900/20 focus:ring-offset-2 focus:ring-offset-beige100",
                       isInternalCopyDraft
-                        ? "cursor-not-allowed border-beige900/10 bg-beige500/70 opacity-70"
+                        ? "cursor-not-allowed opacity-70"
                         : effectiveIsPublished
-                          ? "border-beige900 bg-beige900"
-                          : "border-beige900/15 bg-white/80"
+                          ? "bg-black"
+                          : "bg-bg-floating"
                     )}
-                  >
-                    <span
-                      className={cx(
-                        "absolute top-1 h-5 w-5 rounded-full shadow-sm transition",
-                        effectiveIsPublished
-                          ? "left-6 bg-beige100"
-                          : "left-1 bg-beige900/35"
-                      )}
-                    />
-                  </button>
+                  />
                 </div>
                 <div
                   className={cx(
-                    "mt-3 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 font-geist text-xs font-medium",
+                    "mt-3 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium",
                     effectiveIsPublished
-                      ? "bg-[#E4EDE2] text-[#29513A]"
-                      : "bg-beige500/70 text-beige900/55"
+                      ? "bg-positive-faded text-positive"
+                      : "bg-bg-weak text-neutral-muted"
                   )}
                 >
                   {isInternalCopyDraft ? (
@@ -708,7 +700,7 @@ export default function OpsOfficialJobsPage() {
                   ) : effectiveIsPublished ? (
                     <CheckCircle2 className="h-3.5 w-3.5" />
                   ) : (
-                    <span className="h-1.5 w-1.5 rounded-full bg-beige900/35" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-neutral-disabled" />
                   )}
                   {isInternalCopyDraft
                     ? "Internal"
@@ -720,22 +712,22 @@ export default function OpsOfficialJobsPage() {
 
               <div className={cx(opsTheme.panelSoft, "p-4")}>
                 <div className={opsTheme.eyebrow}>Timestamps</div>
-                <div className="mt-3 grid gap-2 font-geist text-xs text-beige900/55 sm:grid-cols-3">
+                <div className="mt-3 grid gap-2 text-xs text-neutral-muted sm:grid-cols-3">
                   <div>
-                    <div className="text-beige900/35">Created</div>
-                    <div className="mt-1 text-beige900">
+                    <div className="text-neutral-soft">Created</div>
+                    <div className="mt-1 text-neutral-primary">
                       {formatDateTime(selectedJob?.createdAt)}
                     </div>
                   </div>
                   <div>
-                    <div className="text-beige900/35">Updated</div>
-                    <div className="mt-1 text-beige900">
+                    <div className="text-neutral-soft">Updated</div>
+                    <div className="mt-1 text-neutral-primary">
                       {formatDateTime(selectedJob?.updatedAt)}
                     </div>
                   </div>
                   <div>
-                    <div className="text-beige900/35">Published</div>
-                    <div className="mt-1 text-beige900">
+                    <div className="text-neutral-soft">Published</div>
+                    <div className="mt-1 text-neutral-primary">
                       {formatDateTime(selectedJob?.publishedAt)}
                     </div>
                   </div>
@@ -748,7 +740,8 @@ export default function OpsOfficialJobsPage() {
                 label="Role title"
                 sourceLabel={isAshbyConnectedDraft ? "Ashby" : undefined}
               >
-                <input
+                <UiInput
+                  unstyled
                   value={draft.roleTitle}
                   disabled={isInternalCopyDraft}
                   onChange={(event) =>
@@ -758,7 +751,7 @@ export default function OpsOfficialJobsPage() {
                     opsTheme.input,
                     isAshbyConnectedDraft && ashbySourcedFieldClass,
                     isInternalCopyDraft &&
-                      "cursor-not-allowed bg-beige500/60 text-beige900/55"
+                      "cursor-not-allowed bg-bg-weak text-neutral-muted"
                   )}
                 />
               </Field>
@@ -766,7 +759,8 @@ export default function OpsOfficialJobsPage() {
                 label="Company name"
                 sourceLabel={isAshbyConnectedDraft ? "Ashby" : undefined}
               >
-                <input
+                <UiInput
+                  unstyled
                   value={draft.companyName}
                   onChange={(event) =>
                     updateDraft("companyName", event.target.value)
@@ -779,7 +773,8 @@ export default function OpsOfficialJobsPage() {
               </Field>
               <Field label="Slug">
                 <div className="flex gap-2">
-                  <input
+                  <UiInput
+                    unstyled
                     value={draft.slug}
                     disabled={isInternalCopyDraft}
                     onChange={(event) =>
@@ -788,10 +783,10 @@ export default function OpsOfficialJobsPage() {
                     className={cx(
                       opsTheme.input,
                       isInternalCopyDraft &&
-                        "cursor-not-allowed bg-beige500/60 text-beige900/55"
+                        "cursor-not-allowed bg-bg-weak text-neutral-muted"
                     )}
                   />
-                  <button
+                  <BareButton
                     type="button"
                     onClick={handleGenerateSlug}
                     disabled={isInternalCopyDraft}
@@ -802,11 +797,12 @@ export default function OpsOfficialJobsPage() {
                     )}
                   >
                     Generate
-                  </button>
+                  </BareButton>
                 </div>
               </Field>
               <Field label="Ashby job posting ID">
-                <input
+                <UiInput
+                  unstyled
                   value={draft.ashbyJobPostingId}
                   disabled={isInternalCopyDraft}
                   onChange={(event) =>
@@ -815,13 +811,14 @@ export default function OpsOfficialJobsPage() {
                   className={cx(
                     opsTheme.input,
                     isInternalCopyDraft &&
-                      "cursor-not-allowed bg-beige500/60 text-beige900/55"
+                      "cursor-not-allowed bg-bg-weak text-neutral-muted"
                   )}
                   placeholder="45134452-f53b-4d4c-915e-4a4615fb6c93"
                 />
               </Field>
               <Field label="Display order">
-                <input
+                <UiInput
+                  unstyled
                   type="number"
                   value={draft.displayOrder}
                   onChange={(event) =>
@@ -834,7 +831,8 @@ export default function OpsOfficialJobsPage() {
                 label="Location"
                 sourceLabel={isAshbyConnectedDraft ? "Ashby" : undefined}
               >
-                <input
+                <UiInput
+                  unstyled
                   value={draft.location}
                   onChange={(event) =>
                     updateDraft("location", event.target.value)
@@ -846,7 +844,8 @@ export default function OpsOfficialJobsPage() {
                 />
               </Field>
               <Field label="Vertical">
-                <input
+                <UiInput
+                  unstyled
                   value={draft.vertical}
                   onChange={(event) =>
                     updateDraft("vertical", event.target.value)
@@ -858,7 +857,8 @@ export default function OpsOfficialJobsPage() {
                 label="Employment type"
                 sourceLabel={isAshbyConnectedDraft ? "Ashby" : undefined}
               >
-                <input
+                <UiInput
+                  unstyled
                   value={draft.employmentType}
                   onChange={(event) =>
                     updateDraft("employmentType", event.target.value)
@@ -871,7 +871,8 @@ export default function OpsOfficialJobsPage() {
                 />
               </Field>
               <Field label="Seniority">
-                <input
+                <UiInput
+                  unstyled
                   value={draft.seniority}
                   onChange={(event) =>
                     updateDraft("seniority", event.target.value)
@@ -881,7 +882,8 @@ export default function OpsOfficialJobsPage() {
                 />
               </Field>
               <Field label="Compensation">
-                <input
+                <UiInput
+                  unstyled
                   value={draft.compensation}
                   onChange={(event) =>
                     updateDraft("compensation", event.target.value)
@@ -890,7 +892,8 @@ export default function OpsOfficialJobsPage() {
                 />
               </Field>
               <Field label="Company website URL">
-                <input
+                <UiInput
+                  unstyled
                   value={draft.companyWebsiteUrl}
                   onChange={(event) =>
                     updateDraft("companyWebsiteUrl", event.target.value)
@@ -899,7 +902,8 @@ export default function OpsOfficialJobsPage() {
                 />
               </Field>
               <Field label="Company logo URL">
-                <input
+                <UiInput
+                  unstyled
                   value={draft.companyLogoUrl}
                   onChange={(event) =>
                     updateDraft("companyLogoUrl", event.target.value)
@@ -916,7 +920,8 @@ export default function OpsOfficialJobsPage() {
                   isAshbyConnectedDraft ? "Ashby socialDescription" : undefined
                 }
               >
-                <textarea
+                <UiTextarea
+                  unstyled
                   value={draft.shortDescription}
                   onChange={(event) =>
                     updateDraft("shortDescription", event.target.value)
@@ -938,7 +943,8 @@ export default function OpsOfficialJobsPage() {
                   isAshbyConnectedDraft ? "Ashby description" : undefined
                 }
               >
-                <textarea
+                <UiTextarea
+                  unstyled
                   value={draft.roleDescriptionMarkdown}
                   onChange={(event) =>
                     updateDraft("roleDescriptionMarkdown", event.target.value)
@@ -962,7 +968,8 @@ export default function OpsOfficialJobsPage() {
                     : undefined
                 }
               >
-                <textarea
+                <UiTextarea
+                  unstyled
                   value={draft.companyDescriptionMarkdown}
                   onChange={(event) =>
                     updateDraft(

@@ -23,7 +23,7 @@ export default function CareerLandingButtonNew({
 }: CareerLandingButtonNewProps) {
   const isSmall = size === "sm";
   const isPrimary = variant === "primary";
-  const classNames = `group relative inline-flex items-center justify-center overflow-hidden font-geist font-medium transition-colors duration-300 ${
+  const classNames = `group relative inline-flex items-center justify-center overflow-hidden font-medium transition-colors duration-300 ${
     isPrimary
       ? "rounded-[12px] bg-black text-white hover:bg-neutral-800"
       : "rounded-[12px] bg-white text-neutral-950 hover:bg-neutral-100"

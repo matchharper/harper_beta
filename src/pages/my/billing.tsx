@@ -26,6 +26,8 @@ import {
 } from "@/lib/billing/common";
 import { logger } from "@/utils/logger";
 import { Tooltips } from "@/components/ui/tooltip";
+import { BareButton } from "@/components/ui/button";
+import { Checkbox as UiCheckbox } from "@/components/ui/checkbox";
 
 function formatDateToDots(dateStr?: string | null) {
   if (!dateStr) return null;
@@ -1106,7 +1108,7 @@ const Billing = () => {
         title="구독을 취소할까요?"
         description={
           freeStartDateLabel
-            ? `현재 결제 주기 종료(<span class="text-accentBronze px-1">${freeStartDateLabel}</span>)후 Free 플랜으로 전환됩니다.`
+            ? `현재 결제 주기 종료(<span class="text-primary px-1">${freeStartDateLabel}</span>)후 Free 플랜으로 전환됩니다.`
             : "현재 결제 주기 종료 후 Free 플랜으로 전환됩니다."
         }
         confirmLabel="구독 취소"
@@ -1124,7 +1126,7 @@ const Billing = () => {
         title="구독 변경"
         description={
           freeStartDateLabel
-            ? `다운그레이드의 경우 우선 구독을 취소하고 기존 구독 갱신 날짜(<span class="text-accentBronze px-1">${freeStartDateLabel}</span>) 이후 새로운 플랜으로 결제하시는 것을 추천드립니다.`
+            ? `다운그레이드의 경우 우선 구독을 취소하고 기존 구독 갱신 날짜(<span class="text-primary px-1">${freeStartDateLabel}</span>) 이후 새로운 플랜으로 결제하시는 것을 추천드립니다.`
             : "다운그레이드의 경우 우선 구독을 취소하고 기존 구독 갱신 날짜 이후 새로운 플랜으로 결제하시는 것을 추천드립니다."
         }
         confirmLabel="구독 취소"
@@ -1168,54 +1170,54 @@ const Billing = () => {
       <div className="px-6 py-8 w-full">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <div className="text-3xl font-hedvig font-light tracking-tight text-beige900">
+            <div className="text-3xl font-hedvig font-light tracking-tight text-neutral-primary">
               {m.system.credits}
             </div>
             {isLoading ? (
-              <div className="mt-2 text-sm text-beige900/80">
+              <div className="mt-2 text-sm text-neutral-primary">
                 결제 정보를 처리하는 중...
               </div>
             ) : null}
           </div>
-          <button
+          <BareButton
             type="button"
             disabled={!canCancelSubscription || isCanceling}
-            className="inline-flex min-h-10 items-center justify-center self-end rounded-sm bg-red-700 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex min-h-10 items-center justify-center self-end rounded-sm bg-critical px-4 py-2 text-sm font-medium text-neutral-00 shadow-sm transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             onClick={() => setIsCancelModalOpen(true)}
           >
             {isCanceling ? "취소 중..." : "구독 취소"}
-          </button>
+          </BareButton>
         </div>
 
         <div className="mt-8">
-          <div className="rounded-lg bg-beige50 border border-beige900/8 shadow-sm p-6">
+          <div className="rounded-lg bg-bg-default border border-neutral-1000-a05 shadow-sm p-6">
             {isSubscriptionLoading ? (
-              <div className="mt-2 text-sm text-beige900/80">
+              <div className="mt-2 text-sm text-neutral-primary">
                 구독 정보를 불러오는 중...
               </div>
             ) : subscription ? (
               <div className="flex flex-col gap-5">
                 <div className="flex flex-row items-end justify-between gap-6">
                   <div className="flex flex-col gap-2 text-sm w-[30%]">
-                    <div className="text-sm text-beige900 font-normal">
+                    <div className="text-sm text-neutral-primary font-normal">
                       구독 상태
                     </div>
-                    <div className="text-beige900">
-                      <span className="text-beige900 text-xl font-medium">
+                    <div className="text-neutral-primary">
+                      <span className="text-neutral-primary text-xl font-medium">
                         {subscriptionPlanLabel}
                       </span>
-                      <span className="text-beige900/80">
+                      <span className="text-neutral-primary">
                         {" "}
                         · {subscriptionBillingLabel}
                       </span>
                     </div>
                     {currentProviderStatus ? (
-                      <div className="text-xs text-accentBronze">
+                      <div className="text-xs text-primary">
                         {currentProviderStatusLabel}
                       </div>
                     ) : null}
                     {subscription.currentPeriodEnd ? (
-                      <div className="text-beige900/80 font-light">
+                      <div className="text-neutral-primary font-light">
                         {isTossPastDue
                           ? "결제 재시도 예정"
                           : subscription.cancelAtPeriodEnd
@@ -1235,7 +1237,7 @@ const Billing = () => {
                     {subscription.planKey !== "free" && (
                       <div className="w-full flex flex-row items-start justify-end">
                         {isRevealCardNumber && subscription.cardNumberMasked ? (
-                          <div className="text-sm text-beige900/80">
+                          <div className="text-sm text-neutral-primary">
                             <Tooltips
                               text={`원본 전체 카드 정보는 저장하지 않고 있습니다.`}
                             >
@@ -1252,7 +1254,7 @@ const Billing = () => {
                           <div className="relative px-4 py-1">
                             ****-****-****-****
                             <div
-                              className="absolute left-0 top-0 text-center bg-beige500/90 backdrop-blur-sm w-full py-1 rounded-sm text-[15px] text-beige900 cursor-pointer"
+                              className="absolute left-0 top-0 text-center bg-bg-default/90 backdrop-blur-sm w-full py-1 rounded-sm text-[15px] text-neutral-primary cursor-pointer"
                               onClick={() => setIsRevealCardNumber(true)}
                             >
                               결제 카드 정보 보기
@@ -1263,22 +1265,22 @@ const Billing = () => {
                     )}
                     <div className="w-full flex flex-row items-center justify-end h-full mb-2">
                       <div className="w-[30%] flex flex-col items-start justify-end">
-                        <div className="flex flex-row items-start justify-start gap-2 text-beige900 text-sm font-normal">
+                        <div className="flex flex-row items-start justify-start gap-2 text-neutral-primary text-sm font-normal">
                           이번 달 남은 열람 횟수
-                          <span className="text-accentBronze">
+                          <span className="text-primary">
                             {credits?.remain_credit}
                           </span>
                           <span className=""> / {credits?.charged_credit}</span>
                         </div>
                         {usageResetDateLabel ? (
-                          <div className="mt-1 text-xs font-light text-beige900/55">
+                          <div className="mt-1 text-xs font-light text-neutral-muted">
                             (초기화 : {usageResetDateLabel})
                           </div>
                         ) : null}
                       </div>
-                      <div className="w-[70%] flex relative rounded-xl h-1.5 bg-beige900/15">
+                      <div className="w-[70%] flex relative rounded-xl h-1.5 bg-bg-weak">
                         <div
-                          className="w-full flex absolute left-0 top-0 rounded-xl h-1.5 bg-beige900 transition-all duration-500 ease-out"
+                          className="w-full flex absolute left-0 top-0 rounded-xl h-1.5 bg-black transition-all duration-500 ease-out"
                           style={{
                             width: `${Math.min(
                               ((credits?.remain_credit ?? 0) /
@@ -1293,7 +1295,7 @@ const Billing = () => {
                   </div>
                 </div>
                 {isTossPastDue ? (
-                  <div className="flex flex-col gap-3 rounded-lg border border-yellow-700/30 bg-yellow-500/15 px-4 py-4 text-sm text-yellow-900">
+                  <div className="flex flex-col gap-3 rounded-lg border border-info/30 bg-info-faded px-4 py-4 text-sm text-info">
                     <div>
                       미납 결제가 있습니다.{" "}
                       {retryDateLabel
@@ -1301,13 +1303,13 @@ const Billing = () => {
                         : "자동 재시도가 예정되어 있습니다."}
                     </div>
                     <div className="flex items-center justify-between gap-4">
-                      <div className="text-xs text-yellow-900/75">
+                      <div className="text-xs text-info/75">
                         카드 정보를 다시 등록하면 즉시 미납 금액을 결제하고
                         구독을 복구합니다.
                       </div>
-                      <button
+                      <BareButton
                         type="button"
-                        className="rounded-xl bg-yellow-300 px-4 py-2 text-xs font-medium text-yellow-950 hover:bg-yellow-400"
+                        className="rounded-xl bg-info px-4 py-2 text-xs font-medium text-neutral-00 hover:opacity-90"
                         onClick={() => {
                           if (!subscription?.billing || !subscription.planKey) {
                             return;
@@ -1322,31 +1324,31 @@ const Billing = () => {
                         }}
                       >
                         카드 다시 등록
-                      </button>
+                      </BareButton>
                     </div>
                   </div>
                 ) : null}
               </div>
             ) : (
-              <div className="mt-2 text-sm text-beige900/80">
+              <div className="mt-2 text-sm text-neutral-primary">
                 현재 활성 구독이 없습니다.
               </div>
             )}
           </div>
         </div>
         {isTossCancelScheduled && (
-          <div className="mt-4 rounded-lg border border-beige900/8 bg-beige50 px-4 py-3 text-sm text-beige900/80">
+          <div className="mt-4 rounded-lg border border-neutral-1000-a05 bg-bg-default px-4 py-3 text-sm text-neutral-primary">
             현재 결제 주기가 끝나면 자동으로 Free 플랜으로 전환됩니다.
           </div>
         )}
         {/* <div className="mt-6">
-          <div className="rounded-lg border border-white/10 bg-white/5 p-6">
+          <div className="rounded-lg border border-neutral-00/10 bg-neutral-00/5 p-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div className="flex flex-col gap-1">
-                <div className="text-sm font-normal text-hgray900">
+                <div className="text-sm font-normal text-neutral-00/90">
                   일회성 결제
                 </div>
-                <div className="text-sm text-hgray700">
+                <div className="text-sm text-neutral-00/70">
                   구독 결제와 별개로 Toss 일반 결제창을 바로 열 수 있습니다.
                 </div>
               </div>
@@ -1356,7 +1358,7 @@ const Billing = () => {
                   void requestOneTimePayment();
                 }}
                 disabled={isOneTimePaymentLoading}
-                className="inline-flex items-center justify-center rounded-xl border border-accentBronze/30 bg-accentBronze/10 px-4 py-2 text-sm font-medium text-accentBronze hover:bg-accentBronze/15 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center justify-center rounded-xl border border-primary/30 bg-accent-200 px-4 py-2 text-sm font-medium text-primary hover:bg-accent-200 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isOneTimePaymentLoading
                   ? "일회성 결제창 여는 중..."
@@ -1415,65 +1417,65 @@ const Billing = () => {
 
         {tossPreview ? (
           <div className="fixed inset-0 z-70 flex items-center justify-center px-4">
-            <button
+            <BareButton
               type="button"
               aria-label="close toss preview modal"
-              className="absolute inset-0 bg-beige900/60 backdrop-blur-[2px]"
+              className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"
               onClick={closeTossPreview}
             />
-            <div className="relative z-71 w-full max-w-[560px] rounded-[24px] border border-beige900/8 bg-beige100 p-6 shadow-xl">
+            <div className="relative z-71 w-full max-w-[560px] rounded-[24px] border border-neutral-1000-a05 bg-bg-basement p-6 shadow-xl">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-sm text-beige900">
+                  <div className="text-sm text-neutral-primary">
                     {tossPreview.reason === "recover"
                       ? "카드 정보를 다시 등록해주세요"
                       : "Billing Details"}
                   </div>
-                  <div className="mt-1 text-beige900 text-lg font-medium">
+                  <div className="mt-1 text-neutral-primary text-lg font-medium">
                     {tossPreview.planName} ·{" "}
                     {tossPreview.billing === "yearly" ? "연간" : "월간"}
                   </div>
                 </div>
-                <button
+                <BareButton
                   type="button"
-                  className="text-sm text-beige900/55 hover:text-beige900 transition-colors"
+                  className="text-sm text-neutral-muted hover:text-neutral-primary transition-colors"
                   onClick={closeTossPreview}
                 >
                   <X className="w-4 h-4" />
-                </button>
+                </BareButton>
               </div>
 
               {tossPreviewError ? (
-                <div className="mt-4 rounded-md border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                <div className="mt-4 rounded-md border border-critical/30 bg-critical-faded px-4 py-3 text-sm text-critical">
                   {tossPreviewError}
                 </div>
               ) : null}
 
-              <div className="mt-5 bg-beige900/10 px-4 py-4 rounded-md">
-                <div className="text-[15px] text-beige900/55">
+              <div className="mt-5 bg-bg-weak px-4 py-4 rounded-md">
+                <div className="text-[15px] text-neutral-muted">
                   {tossPreview.reason === "recover"
                     ? "미납 결제 금액"
                     : "결제 예정 금액"}
                 </div>
-                <div className="mt-1 text-xl font-medium tracking-tight text-accentBronze">
+                <div className="mt-1 text-xl font-medium tracking-tight text-primary">
                   {tossPreview.amount.toLocaleString("ko-KR")}원
                 </div>
               </div>
 
               <label className="mt-5 flex items-start gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
+                <UiCheckbox
+                  unstyled
                   checked={isBillingAgreementChecked}
                   onChange={(e) =>
                     setIsBillingAgreementChecked(e.target.checked)
                   }
-                  className="mt-0.5 h-4 w-4 rounded border-beige900/25 bg-transparent accent-beige900"
+                  className="mt-0.5 h-4 w-4 rounded border-neutral-400 bg-transparent accent-black"
                 />
-                <span className="text-sm text-beige900/80">
+                <span className="text-sm text-neutral-primary">
                   <a
                     href="https://peat-find-598.notion.site/Refund-policy-2e684af768c6800e8276ccbe16fc8cb4?pvs=74"
                     target="_blank"
-                    className="text-beige900 decoration-dotted underline"
+                    className="text-neutral-primary decoration-dotted underline"
                   >
                     구매 조건 확인
                   </a>{" "}
@@ -1482,27 +1484,27 @@ const Billing = () => {
               </label>
 
               <div className="mt-6 flex items-center justify-end gap-2">
-                <button
+                <BareButton
                   type="button"
-                  className="rounded-xl px-4 py-2 text-sm text-beige900 hover:bg-beige500/55"
+                  className="rounded-xl px-4 py-2 text-sm text-neutral-primary hover:bg-bg-weak"
                   onClick={closeTossPreview}
                 >
                   닫기
-                </button>
-                <button
+                </BareButton>
+                <BareButton
                   type="button"
                   disabled={isTossBillingLoading || !isBillingAgreementChecked}
                   onClick={() => {
                     void requestBillingAuth();
                   }}
-                  className="rounded-xl bg-beige900 px-4 py-2 text-sm text-beige100 hover:opacity-95 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="rounded-xl bg-black px-4 py-2 text-sm text-neutral-00 hover:opacity-95 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {isTossBillingLoading
                     ? "카드 등록창 여는 중..."
                     : tossPreview.reason === "recover"
                       ? "카드 다시 등록"
                       : "결제 진행"}
-                </button>
+                </BareButton>
               </div>
             </div>
           </div>
@@ -1512,7 +1514,7 @@ const Billing = () => {
           <Animate>
             <div className="flex flex-col items-center justify-center w-full pt-4">
               <div className="font-hedvig text-lg mt-20">결제 및 구독 FAQ</div>
-              <div className="flex flex-col items-start justify-start text-beige900/80 font-light w-full mt-10 px-4 md:px-0">
+              <div className="flex flex-col items-start justify-start text-neutral-primary font-light w-full mt-10 px-4 md:px-0">
                 {m.companyLanding.pricingFaq.items.map((item, index) => (
                   <QuestionAnswer
                     key={item.question}
@@ -1528,11 +1530,11 @@ const Billing = () => {
           </Animate>
         </section>
         <div>
-          <div className="mt-24 text-beige900/80 font-light text-center mb-40 flex flex-col items-center justify-center">
+          <div className="mt-24 text-neutral-primary font-light text-center mb-40 flex flex-col items-center justify-center">
             추가 문의 사항이 있으시다면, chris@matchharper.com으로 문의해
             주세요.
             <div
-              className="mt-2 underline decoration-dotted cursor-pointer text-beige900/80 hover:text-beige900"
+              className="mt-2 underline decoration-dotted cursor-pointer text-neutral-primary hover:text-neutral-primary"
               onClick={() =>
                 window.open(
                   "https://peat-find-598.notion.site/Refund-policy-2e684af768c6800e8276ccbe16fc8cb4?pvs=74",

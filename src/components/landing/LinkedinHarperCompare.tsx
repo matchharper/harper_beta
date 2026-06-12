@@ -54,7 +54,7 @@ function LinkedInMark() {
 
 function HarperMark() {
   return (
-    <div className="flex items-center justify-center z-20 gap-2 text-accenta1/90 md:gap-3 font-inter">
+    <div className="flex items-center justify-center z-20 gap-2 text-accent-200/90 md:gap-3 font-inter">
       {/* <Image src="/svgs/logo.svg" alt="Harper" width={22} height={22} /> */}
       <span className="font-hedvig text-xl tracking-[-0.065em] font-normal md:text-2xl">
         Activity-based Approach
@@ -132,7 +132,7 @@ function LinkedinInboxPhone() {
                   <div className="truncate text-[11px] font-semibold leading-none text-[#1F1F1F] md:text-[13px]">
                     {message.sender}
                   </div>
-                  <div className="shrink-0 text-[10px] text-hgray500 md:text-[12px]">
+                  <div className="shrink-0 text-[10px] text-neutral-800 md:text-[12px]">
                     {message.date}
                   </div>
                 </div>
@@ -254,7 +254,7 @@ export default function LinkedinHarperCompare() {
               <div className="mt-2">대화를 시작해보세요.</div> */}
             </h2>
 
-            <p className="mx-auto mt-8 max-w-[680px] text-balance text-sm md:text-[17px] font-light text-hgray700">
+            <p className="mx-auto mt-8 max-w-[680px] text-balance text-sm md:text-[17px] font-light text-neutral-500">
               일반적인 연락시 응답률은 1~3%에 불과합니다. GitHub 프로젝트와 논문
               내용을 기반으로 대화를 시작하면 응답률은 30%까지 올라갑니다.
             </p>

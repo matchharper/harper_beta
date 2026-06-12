@@ -24,7 +24,9 @@ function LinkChips({
 
         const { url, brand, icon, label } = getLinkChipMeta(raw);
         const displayLabel =
-          brand?.label === "linkedin" && label === "linkedin" ? "링크드인" : label;
+          brand?.label === "linkedin" && label === "linkedin"
+            ? "링크드인"
+            : label;
 
         const content = (
           <>
@@ -43,7 +45,7 @@ function LinkChips({
           return (
             <div
               key={raw}
-              className="inline-flex cursor-default font-normal items-center gap-2 rounded-lg bg-beige500/55 px-2.5 py-1.5 text-xs text-beige900/65"
+              className="inline-flex cursor-default font-normal items-center gap-2 rounded-lg bg-bg-floating px-2.5 py-1.5 text-xs text-neutral-muted"
             >
               {content}
             </div>
@@ -57,7 +59,7 @@ function LinkChips({
             target="_blank"
             rel="noreferrer"
             onClick={() => onLinkClick?.(url)}
-            className="inline-flex font-normal items-center gap-2 rounded-lg bg-beige500/55 px-2.5 py-1.5 text-xs text-beige900 hover:bg-beige500/70 transition-all duration-200"
+            className="inline-flex font-normal items-center gap-2 rounded-lg bg-bg-floating px-2.5 py-1.5 text-xs text-neutral-primary hover:bg-bg-weak transition-all duration-200"
           >
             {content}
           </a>

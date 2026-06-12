@@ -76,7 +76,7 @@ const TalentCareerModal = ({
               if (!closeOnBackdrop) event.preventDefault();
             }}
             className={cn(
-              "relative w-full max-w-[720px] overflow-hidden rounded-xl border border-hblack200 bg-hblack000 shadow-[0_24px_80px_rgba(17,24,39,0.2)] outline-none pointer-events-auto",
+              "relative w-full max-w-[720px] overflow-hidden rounded-xl border border-neutral-1000-a10 bg-bg-default shadow-[0_24px_80px_rgba(17,24,39,0.2)] outline-none pointer-events-auto",
               "data-[state=open]:animate-in data-[state=closed]:animate-out",
               "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
               "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
@@ -98,28 +98,28 @@ const TalentCareerModal = ({
             {eyebrow || hasTitle || hasDescription ? (
               <header
                 className={cn(
-                  "border-b border-hblack100/80 px-4 py-5 sm:px-5",
+                  "border-b border-neutral-1000-a05 px-4 py-5 sm:px-5",
                   headerClassName
                 )}
               >
                 {eyebrow && (
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-hblack500">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-soft">
                     {eyebrow}
                   </div>
                 )}
                 {hasTitle && (
-                  <DialogPrimitive.Title className="mt-2 text-base font-semibold tracking-[-0.02em] text-beige900">
+                  <DialogPrimitive.Title className="mt-2 text-base font-semibold tracking-[-0.02em] text-neutral-primary">
                     {title}
                   </DialogPrimitive.Title>
                 )}
                 {hasDescription &&
                   (typeof description === "string" ? (
                     <DialogPrimitive.Description
-                      className="mt-2 max-w-[56ch] text-sm leading-relaxed text-hblack700"
+                      className="mt-2 max-w-[56ch] text-sm leading-relaxed text-neutral-muted"
                       dangerouslySetInnerHTML={{ __html: description }}
                     />
                   ) : (
-                    <DialogPrimitive.Description className="mt-2 max-w-[56ch] text-sm leading-relaxed text-hblack700">
+                    <DialogPrimitive.Description className="mt-2 max-w-[56ch] text-sm leading-relaxed text-neutral-muted">
                       {description}
                     </DialogPrimitive.Description>
                   ))}
@@ -127,9 +127,7 @@ const TalentCareerModal = ({
             ) : null}
             <div className={cn("py-0", bodyClassName)}>{children}</div>
             {footer && (
-              <footer
-                className={cn("px-4 py-5 sm:px-5", footerClassName)}
-              >
+              <footer className={cn("px-4 py-5 sm:px-5", footerClassName)}>
                 {footer}
               </footer>
             )}

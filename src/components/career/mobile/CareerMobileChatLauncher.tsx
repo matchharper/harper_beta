@@ -2,12 +2,20 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
-import { X, AudioLines, MessageCircle, Mic, MicOff } from "lucide-react";
+import {
+  X,
+  AudioLines,
+  Loader2,
+  MessageCircle,
+  Mic,
+  MicOff,
+} from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { cn } from "@/lib/utils";
 import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useCareerMobileChatNotice } from "@/hooks/career/useCareerMobileChatNotice";
+import { BareButton } from "@/components/ui/button";
 
 type CareerMobileChatLauncherProps = {
   children: React.ReactNode;
@@ -46,9 +54,11 @@ function readVisualViewportSnapshot() {
 
 function useMobileChatViewport(open: boolean) {
   const maxViewportHeightRef = useRef(0);
+  const keyboardOpenRef = useRef(false);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
 
   useEffect(() => {
-    if (!open || typeof window === "undefined") return;
+    if (!open || typeof window === "undefined") return undefined;
 
     const root = document.documentElement;
     let animationFrame = 0;
@@ -66,14 +76,21 @@ function useMobileChatViewport(open: boolean) {
         const keyboardOpen =
           bottomInset > KEYBOARD_OPEN_THRESHOLD_PX ||
           heightDelta > KEYBOARD_OPEN_THRESHOLD_PX;
+        const drawerViewportTop = keyboardOpen ? 0 : offsetTop;
+        const drawerViewportHeight = keyboardOpen ? height + offsetTop : height;
+
+        if (keyboardOpenRef.current !== keyboardOpen) {
+          keyboardOpenRef.current = keyboardOpen;
+          setKeyboardOpen(keyboardOpen);
+        }
 
         root.style.setProperty(
           "--career-mobile-chat-viewport-height",
-          `${height}px`
+          `${drawerViewportHeight}px`
         );
         root.style.setProperty(
           "--career-mobile-chat-viewport-top",
-          `${offsetTop}px`
+          `${drawerViewportTop}px`
         );
         root.style.setProperty(
           "--career-mobile-chat-safe-bottom",
@@ -103,8 +120,12 @@ function useMobileChatViewport(open: boolean) {
       root.style.removeProperty("--career-mobile-chat-viewport-top");
       root.style.removeProperty("--career-mobile-chat-safe-bottom");
       maxViewportHeightRef.current = 0;
+      keyboardOpenRef.current = false;
+      setKeyboardOpen(false);
     };
   }, [open]);
+
+  return keyboardOpen;
 }
 
 function CareerMobileChatLauncher({
@@ -125,11 +146,18 @@ function CareerMobileChatLauncher({
     onOpenChange?.(next);
   };
   const touchStartYRef = useRef<number | null>(null);
-  useMobileChatViewport(open);
+  const keyboardOpen = useMobileChatViewport(open);
 
   const {
+    activeThinkingLogs,
+    assistantTyping,
+    callWrapUpPending,
+    chatPending,
     callConnectionStatus,
     messages,
+    onboardingWrapupPending,
+    opportunityFeedbackFollowUpPending,
+    sessionReengagementPending,
     voiceMuted,
     onToggleVoiceMute,
     onEndCallMode,
@@ -142,6 +170,19 @@ function CareerMobileChatLauncher({
     messages,
     open,
   });
+  const harperPreparing =
+    !open &&
+    !showMinimizedCall &&
+    (chatPending ||
+      assistantTyping ||
+      activeThinkingLogs.length > 0 ||
+      sessionReengagementPending ||
+      opportunityFeedbackFollowUpPending ||
+      onboardingWrapupPending ||
+      callWrapUpPending);
+  const launcherPlaceholder = harperPreparing
+    ? "Harper가 답변을 준비하고 있습니다..."
+    : placeholder;
 
   const openDrawer = () => {
     logCareerEvent("click_mobile_chat_launcher_open");
@@ -190,13 +231,13 @@ function CareerMobileChatLauncher({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 6, scale: 0.98 }}
               transition={{ duration: 0.18, ease: "easeOut" }}
-              className="mx-4 mb-2 flex min-h-10 backdrop-blur-md items-center gap-2 rounded-full border border-beige900/5 bg-white/20 px-4 py-2 text-left text-[13px] text-beige900 transition active:scale-[0.99]"
+              className="mx-4 mb-2 flex min-h-10 items-center gap-2 rounded-full border border-neutral-1000-a05 bg-bg-floating/90 px-4 py-2 text-left text-[13px] text-neutral-primary backdrop-blur-md transition active:scale-[0.99]"
             >
-              <MessageCircle className="h-3 w-3 text-beige900" />
+              <MessageCircle className="h-3 w-3 text-neutral-primary" />
               <span className="min-w-0 flex-1 font-normal leading-5">
                 Harper가 답했어요
               </span>
-              <span className="shrink-0 text-[12px] font-normal text-beige900/45">
+              <span className="shrink-0 text-[12px] font-normal text-neutral-soft">
                 열기
               </span>
             </motion.button>
@@ -208,11 +249,11 @@ function CareerMobileChatLauncher({
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
-          className="flex flex-col border-t border-beige900/10 bg-beige50"
+          className="flex flex-col border-t border-neutral-1000-a05 bg-bg-floating"
           style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
         >
           <div className="flex justify-center pt-2 pb-1">
-            <div className="h-1 w-10 rounded-full bg-beige900/20" />
+            <div className="h-1 w-10 rounded-full bg-black/20" />
           </div>
           {actionBar && !showMinimizedCall ? (
             <div className="px-4 pt-1 pb-2">{actionBar}</div>
@@ -224,8 +265,8 @@ function CareerMobileChatLauncher({
                 onTouchStart={(event) => event.stopPropagation()}
                 onTouchMove={(event) => event.stopPropagation()}
               >
-                <div className="flex items-center gap-2 rounded-full bg-beige900/5 px-3 py-2">
-                  <button
+                <div className="flex items-center gap-2 rounded-full bg-black/5 px-3 py-2">
+                  <BareButton
                     type="button"
                     onClick={() => {
                       logCareerEvent(
@@ -238,8 +279,8 @@ function CareerMobileChatLauncher({
                     className={cn(
                       "flex h-12 w-12 items-center justify-center rounded-full transition-colors",
                       voiceMuted
-                        ? "bg-beige900/15 text-beige900/50"
-                        : "bg-white text-beige900"
+                        ? "bg-black/15 text-neutral-soft"
+                        : "bg-bg-floating text-neutral-primary"
                     )}
                     aria-label={voiceMuted ? "음소거 해제" : "음소거"}
                   >
@@ -248,38 +289,44 @@ function CareerMobileChatLauncher({
                     ) : (
                       <Mic className="h-5 w-5" />
                     )}
-                  </button>
-                  <button
+                  </BareButton>
+                  <BareButton
                     type="button"
                     onClick={() => {
                       logCareerEvent("click_mobile_call_end");
                       onEndCallMode?.();
                     }}
-                    className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500 text-white transition-opacity hover:opacity-90"
+                    className="flex h-12 w-12 items-center justify-center rounded-full bg-critical text-neutral-00 transition-opacity hover:opacity-90"
                     aria-label="통화 종료"
                   >
                     <X className="h-5 w-5" />
-                  </button>
+                  </BareButton>
                 </div>
               </div>
             ) : (
-              <button
+              <BareButton
                 type="button"
                 onClick={openDrawer}
                 className={cn(
-                  "flex h-12 flex-1 items-center justify-between rounded-full border border-beige900/10 bg-white px-4 text-left text-sm text-beige900/45 transition active:bg-beige100",
+                  "flex h-12 flex-1 items-center justify-between rounded-full border border-neutral-1000-a05 bg-bg-floating px-4 text-left text-sm text-neutral-soft transition active:bg-bg-weak",
+                  harperPreparing &&
+                    "border-primary/20 bg-primary/5 text-neutral-primary shadow-[0_8px_24px_rgba(31,28,26,0.06)]",
                   chatNotice.hasUnread &&
-                    "border-accentBronze/45 text-beige900 shadow-sm"
+                    "border-primary/40 text-neutral-primary"
                 )}
               >
-                <span>{placeholder}</span>
+                <span>{launcherPlaceholder}</span>
                 <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
-                  <AudioLines className="h-5 w-5 text-beige900/60" />
+                  {harperPreparing ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  ) : (
+                    <AudioLines className="h-5 w-5 text-neutral-muted" />
+                  )}
                   {chatNotice.hasUnread ? (
-                    <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border border-white bg-accentBronze" />
+                    <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border border-bg-default bg-primary" />
                   ) : null}
                 </span>
-              </button>
+              </BareButton>
             )}
           </div>
         </div>
@@ -288,18 +335,19 @@ function CareerMobileChatLauncher({
       <DrawerPrimitive.Root
         open={open}
         onOpenChange={handleOpenChange}
+        handleOnly={keyboardOpen}
         repositionInputs={false}
         shouldScaleBackground={false}
       >
         <DrawerPrimitive.Portal>
           <DrawerPrimitive.Overlay
-            className="fixed inset-0 z-40 bg-beige900/20 backdrop-blur-[2px]"
+            className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[2px]"
             style={{
               top: `calc(var(--career-mobile-chat-viewport-top, 0px) + env(safe-area-inset-top) + ${topOffsetPx}px)`,
             }}
           />
           <DrawerPrimitive.Content
-            className="fixed inset-x-0 z-50 flex flex-col border-t border-beige900/10 bg-beige50 text-beige900 outline-none"
+            className="fixed inset-x-0 z-50 flex flex-col border-t border-neutral-1000-a05 bg-bg-floating text-neutral-primary outline-none"
             style={{
               top: `calc(var(--career-mobile-chat-viewport-top, 0px) + env(safe-area-inset-top) + ${topOffsetPx}px)`,
               height: `calc(var(--career-mobile-chat-viewport-height, 100svh) - ${topOffsetPx}px - env(safe-area-inset-top))`,
@@ -315,10 +363,15 @@ function CareerMobileChatLauncher({
             </DrawerPrimitive.Description>
 
             <div className="relative flex shrink-0 items-center justify-center px-4 pt-3 pb-2">
-              <div className="h-1.5 w-12 rounded-full bg-beige900/15" />
+              <DrawerPrimitive.Handle
+                preventCycle
+                className="flex h-6 w-24 items-center justify-center"
+              >
+                <div className="h-1.5 w-12 rounded-full bg-black/15" />
+              </DrawerPrimitive.Handle>
               <DrawerPrimitive.Close
                 aria-label="채팅 접기"
-                className="absolute right-3 top-2 z-[60] inline-flex h-8 w-8 items-center justify-center rounded-full border border-black/5 bg-white/50 text-beige900/70 shadow-[0_4px_12px_rgba(46,23,6,0.06)] transition active:bg-beige100"
+                className="absolute right-3 top-2 z-[60] inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-1000-a05 bg-bg-floating text-neutral-muted transition active:bg-bg-weak"
               >
                 <X className="h-4 w-4" />
               </DrawerPrimitive.Close>

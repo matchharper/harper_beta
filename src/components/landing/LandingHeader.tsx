@@ -151,7 +151,7 @@ const LandingHeader = ({
               font-medium
               cursor-pointer
               rounded-full
-              bg-accenta1 text-black
+              bg-accent-200 text-black
               z-10
               py-3 px-6 text-xs
               ring-1 ring-white/10

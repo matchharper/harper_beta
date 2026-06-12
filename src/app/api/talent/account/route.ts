@@ -523,12 +523,6 @@ async function deleteCareerRows(
   );
   await deleteEq(
     admin,
-    "talent_opportunity_profile_snapshot",
-    "talent_id",
-    context.userId
-  );
-  await deleteEq(
-    admin,
     "talent_opportunity_recommendation",
     "talent_id",
     context.userId

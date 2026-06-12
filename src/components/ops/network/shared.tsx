@@ -24,6 +24,8 @@ import {
   X,
 } from "lucide-react";
 import type { KeyboardEvent, ReactNode } from "react";
+import { BareButton } from "@/components/ui/button";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
 export type DetailTab = "internal" | "messages" | "profile" | "waitlist";
 
@@ -113,7 +115,10 @@ export function parsePositiveQueryNumber(value: string | string[] | undefined) {
   return numeric;
 }
 
-export function buildPaginationNumbers(currentPage: number, totalPages: number) {
+export function buildPaginationNumbers(
+  currentPage: number,
+  totalPages: number
+) {
   if (totalPages <= 0) return [];
 
   const half = Math.floor(PAGINATION_BUTTON_COUNT / 2);
@@ -211,19 +216,23 @@ export function formatTalentInsightLabel(key: string) {
 export function Badge({
   children,
   tone = "default",
+  onClick,
 }: {
   children: ReactNode;
   tone?: "default" | "inverse" | "strong";
+  onClick?: () => void;
 }) {
   return (
     <span
-      className={
+      onClick={onClick}
+      className={cx(
         tone === "strong"
           ? opsTheme.badgeStrong
           : tone === "inverse"
             ? opsTheme.badgeInverse
-            : opsTheme.badge
-      }
+            : opsTheme.badge,
+        onClick ? "cursor-pointer hover:bg-neutral-300" : ""
+      )}
     >
       {children}
     </span>
@@ -240,7 +249,7 @@ export function ProfileChip({
   onClick?: () => void;
 }) {
   const className =
-    "inline-flex items-center gap-2 rounded-md bg-beige500/70 px-3 py-2 font-geist text-sm text-beige900 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] transition hover:bg-beige500/90";
+    "inline-flex items-center gap-2 rounded-md bg-bg-weak px-3 py-2 text-sm text-neutral-primary transition hover:bg-bg-weak";
 
   if (href) {
     return (
@@ -252,9 +261,9 @@ export function ProfileChip({
 
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} className={className}>
+      <BareButton type="button" onClick={onClick} className={className}>
         {children}
-      </button>
+      </BareButton>
     );
   }
 
@@ -263,26 +272,20 @@ export function ProfileChip({
 
 export function StatCard({ hint, value }: { hint: string; value: string }) {
   return (
-    <div className="flex flex-row items-center justify-center gap-2 bg-beige500 p-2">
-      <div className="font-hedvig text-[1.4rem] leading-none text-beige900">
+    <div className="flex flex-row items-center justify-center gap-2 bg-bg-default p-2">
+      <div className="font-hedvig text-[1.4rem] leading-none text-neutral-primary">
         {value}
       </div>
-      <div className="font-geist text-sm text-beige900/60">{hint}</div>
+      <div className="text-sm text-neutral-muted">{hint}</div>
     </div>
   );
 }
 
-export function InfoRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: ReactNode;
-}) {
+export function InfoRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="grid gap-2 py-3 sm:grid-cols-[160px_1fr] sm:gap-4">
       <div className={opsTheme.eyebrow}>{label}</div>
-      <div className="font-geist text-sm leading-6 text-beige900">{value}</div>
+      <div className="text-sm leading-6 text-neutral-primary">{value}</div>
     </div>
   );
 }
@@ -297,18 +300,18 @@ export function TabButton({
   onClick: () => void;
 }) {
   return (
-    <button
+    <BareButton
       type="button"
       onClick={onClick}
       className={cx(
-        "rounded-md px-3 py-2 font-geist text-sm transition",
+        "rounded-md px-3 py-2 text-sm transition",
         active
-          ? "bg-beige900 text-beige100"
-          : "bg-white/60 text-beige900 hover:bg-white/80"
+          ? "bg-black text-neutral-00"
+          : "bg-bg-default/60 text-neutral-primary hover:bg-bg-default/80"
       )}
     >
       {label}
-    </button>
+    </BareButton>
   );
 }
 
@@ -324,10 +327,10 @@ export function StructuredSection({
   return (
     <section className={cx(opsTheme.panelSoft, "p-4")}>
       <div className="flex items-center gap-3">
-        <div className="rounded-md bg-beige500/70 p-2 text-beige900">
+        <div className="rounded-md bg-bg-weak p-2 text-neutral-primary">
           <Icon className="h-4 w-4" />
         </div>
-        <div className="font-geist text-sm font-semibold text-beige900">
+        <div className="text-sm font-semibold text-neutral-primary">
           {title}
         </div>
       </div>
@@ -349,14 +352,14 @@ export function NetworkLeadProgressTrack({
 }) {
   const getStepClassName = (done: boolean) =>
     cx(
-      "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 font-geist text-[11px] transition",
+      "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] transition",
       done
         ? selected
-          ? "border-beige100/20 bg-beige100/10 text-beige100"
-          : "border-[#E8D4BC] bg-[#EEDFCC] text-beige900"
+          ? "border-neutral-00/20 bg-bg-default/10 text-neutral-00"
+          : "border-primary/40 bg-accent-200 text-neutral-primary"
         : selected
-          ? "border-beige100/10 bg-transparent text-beige100/40"
-          : "border-beige900/10 bg-white/55 text-beige900/40"
+          ? "border-neutral-00/10 bg-transparent text-neutral-00/40"
+          : "border-neutral-1000-a05 bg-bg-default/55 text-neutral-soft"
     );
 
   return (
@@ -364,8 +367,8 @@ export function NetworkLeadProgressTrack({
       {showCurrent ? (
         <div
           className={cx(
-            "font-geist text-xs font-medium",
-            selected ? "text-beige100/80" : "text-beige900/60"
+            "text-xs font-medium",
+            selected ? "text-neutral-00/80" : "text-neutral-muted"
           )}
         >
           현재 {getLeadProgressLabel(progress.currentStep, structuredReady)}
@@ -379,7 +382,7 @@ export function NetworkLeadProgressTrack({
             <span
               className={cx(
                 "h-1.5 w-1.5 shrink-0 rounded-full",
-                selected ? "bg-beige100/40" : "bg-beige900/25"
+                selected ? "bg-bg-default/40" : "bg-bg-weak"
               )}
             />
           )}
@@ -396,7 +399,7 @@ export function NetworkLeadProgressTrack({
                 <span
                   className={cx(
                     "h-1.5 w-1.5 shrink-0 rounded-full",
-                    selected ? "bg-beige100/40" : "bg-beige900/25"
+                    selected ? "bg-bg-default/40" : "bg-bg-weak"
                   )}
                 />
               )}
@@ -441,7 +444,7 @@ export function ActivityEntryCard({
           <Badge tone={entry.type === "mail" ? "strong" : "default"}>
             {formatEntryType(entry.type)}
           </Badge>
-          <span className="font-geist text-xs text-beige900/55">
+          <span className="text-xs text-neutral-muted">
             {formatKst(entry.created_at)}
           </span>
         </div>
@@ -450,7 +453,7 @@ export function ActivityEntryCard({
           <div className="flex flex-wrap items-center gap-2">
             {isEditing ? (
               <>
-                <button
+                <BareButton
                   type="button"
                   onClick={onEditCancel}
                   disabled={editPending}
@@ -458,8 +461,8 @@ export function ActivityEntryCard({
                 >
                   <X className="h-3.5 w-3.5" />
                   취소
-                </button>
-                <button
+                </BareButton>
+                <BareButton
                   type="button"
                   onClick={() => onEditSave(entry)}
                   disabled={editPending || !editingValue.trim()}
@@ -471,11 +474,11 @@ export function ActivityEntryCard({
                     <Check className="h-3.5 w-3.5" />
                   )}
                   저장
-                </button>
+                </BareButton>
               </>
             ) : (
               <>
-                <button
+                <BareButton
                   type="button"
                   onClick={() => onEditStart(entry)}
                   disabled={deletePending}
@@ -483,12 +486,12 @@ export function ActivityEntryCard({
                 >
                   <Pencil className="h-3.5 w-3.5" />
                   수정
-                </button>
-                <button
+                </BareButton>
+                <BareButton
                   type="button"
                   onClick={() => onDelete(entry)}
                   disabled={deletePending}
-                  className="inline-flex h-8 items-center justify-center gap-2 rounded-md bg-[#F7DBD3] px-3 font-geist text-xs font-medium text-[#8A2E1D] transition hover:bg-[#f2c9be] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex h-8 items-center justify-center gap-2 rounded-md bg-critical-faded px-3 text-xs font-medium text-critical transition hover:bg-critical-faded disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {deletePending ? (
                     <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
@@ -496,14 +499,14 @@ export function ActivityEntryCard({
                     <Trash2 className="h-3.5 w-3.5" />
                   )}
                   삭제
-                </button>
+                </BareButton>
               </>
             )}
           </div>
         ) : null}
       </div>
 
-      <div className="mt-3 space-y-2 font-geist text-sm text-beige900/70">
+      <div className="mt-3 space-y-2 text-sm text-neutral-muted">
         <div>작성자: {entry.created_by}</div>
         {entry.type === "mail" && entry.subject ? (
           <div>제목: {entry.subject}</div>
@@ -517,14 +520,15 @@ export function ActivityEntryCard({
       </div>
 
       {isEditing ? (
-        <textarea
+        <UiTextarea
+          unstyled
           value={editingValue}
           onChange={(event) => onEditChange(event.target.value)}
           className={cx(opsTheme.textarea, "mt-4 min-h-[140px]")}
           placeholder="내용을 수정하세요."
         />
       ) : (
-        <div className="mt-4 whitespace-pre-wrap font-geist text-sm leading-6 text-beige900">
+        <div className="mt-4 whitespace-pre-wrap text-sm leading-6 text-neutral-primary">
           {entry.content}
         </div>
       )}
@@ -578,7 +582,11 @@ function getMessageTypeMeta(messageType: string | null) {
   };
 }
 
-export function MessageHistoryCard({ message }: { message: NetworkLeadMessage }) {
+export function MessageHistoryCard({
+  message,
+}: {
+  message: NetworkLeadMessage;
+}) {
   const isAssistant = message.role === "assistant";
   const roleLabel = isAssistant ? "Harper" : "Talent";
   const RoleIcon = isAssistant ? Sparkles : User;
@@ -586,23 +594,23 @@ export function MessageHistoryCard({ message }: { message: NetworkLeadMessage })
   const TypeIcon = typeMeta?.icon ?? null;
 
   return (
-    <div className="border-b border-beige900/20 px-4 py-3">
+    <div className="border-b border-neutral-1000-a10 px-4 py-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 font-geist text-xs text-beige900">
+          <span className="inline-flex items-center gap-1.5 text-xs text-neutral-primary">
             <RoleIcon className="h-3.5 w-3.5" />
             {roleLabel}
           </span>
-          <span className="inline-flex items-center gap-1.5 rounded-md bg-white/65 px-2 py-1 font-geist text-[11px] text-beige900/65">
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-bg-default/65 px-2 py-1 text-[11px] text-neutral-muted">
             {TypeIcon ? <TypeIcon className="h-3.5 w-3.5" /> : null}
             {message.messageType ?? "chat"}
           </span>
         </div>
-        <span className="font-geist text-[11px] text-beige900/40">
+        <span className="text-[11px] text-neutral-soft">
           {formatKst(message.createdAt)}
         </span>
       </div>
-      <div className="mt-3 whitespace-pre-wrap font-geist text-sm leading-6 text-beige900">
+      <div className="mt-3 whitespace-pre-wrap text-sm leading-6 text-neutral-primary">
         {message.content}
       </div>
     </div>

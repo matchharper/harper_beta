@@ -76,16 +76,22 @@ import {
   matchesFilter,
   getPreviewCandidate,
 } from "@/components/ats/utils";
+import { Input as UiInput } from "@/components/ui/input";
+import { BareButton } from "@/components/ui/button";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
+import { Select as UiSelect } from "@/components/ui/select";
+import { Checkbox as UiCheckbox } from "@/components/ui/checkbox";
 
-const PANEL_CLASS = "rounded-md border border-beige900/8 bg-beige50 shadow-sm";
+const PANEL_CLASS =
+  "rounded-md border border-neutral-1000-a05 bg-bg-default shadow-sm";
 const BUTTON_PRIMARY =
-  "inline-flex items-center justify-center gap-2 rounded-sm bg-beige900 px-3 py-2 text-sm font-medium text-beige100 transition hover:bg-beige900/90 disabled:cursor-not-allowed disabled:bg-beige900/40";
+  "inline-flex items-center justify-center gap-2 rounded-sm bg-black px-3 py-2 text-sm font-medium text-neutral-00 transition hover:bg-black/90 disabled:cursor-not-allowed disabled:bg-black/40";
 const BUTTON_SECONDARY =
-  "inline-flex items-center justify-center gap-2 rounded-sm border border-beige900/8 bg-beige500/55 px-3 py-2 text-sm text-beige900 transition hover:bg-beige500/70 disabled:cursor-not-allowed disabled:opacity-40";
+  "inline-flex items-center justify-center gap-2 rounded-sm border border-neutral-1000-a05 bg-bg-floating px-3 py-2 text-sm text-neutral-primary transition hover:bg-bg-weak disabled:cursor-not-allowed disabled:opacity-40";
 const INPUT_CLASS =
-  "w-full rounded-sm border border-beige900/10 bg-beige500/55 px-3 py-2 text-sm text-beige900 outline-none placeholder:text-beige900/40 focus:border-beige900/20";
+  "w-full rounded-sm border border-neutral-1000-a05 bg-bg-floating px-3 py-2 text-sm text-neutral-primary outline-none placeholder:text-neutral-placeholder focus:border-neutral-1000-a10";
 const TEXTAREA_CLASS =
-  "w-full rounded-sm border border-beige900/10 bg-beige500/55 px-3 py-2 text-sm text-beige900 outline-none placeholder:text-beige900/40 focus:border-beige900/20";
+  "w-full rounded-sm border border-neutral-1000-a05 bg-bg-floating px-3 py-2 text-sm text-neutral-primary outline-none placeholder:text-neutral-placeholder focus:border-neutral-1000-a10";
 
 const ATS_TABLE_LAYOUT = {
   bodyCell: "px-3 py-3 align-top",
@@ -243,34 +249,34 @@ function mergeSequenceDraftState(args: {
 function getStageBadge(outreach: AtsOutreachRecord | null) {
   if (!outreach) {
     return {
-      className: "border-beige900/10 bg-beige500/55 text-beige900/70",
+      className: "border-neutral-1000-a05 bg-bg-floating text-neutral-muted",
       label: "Stage 0/4",
     };
   }
 
   if (outreach.sequenceStatus === "completed") {
     return {
-      className: "border-emerald-400/20 bg-emerald-400/10 text-emerald-200",
+      className: "border-positive/30 bg-positive-faded text-positive",
       label: "Completed · 4/4",
     };
   }
 
   if (outreach.sequenceStatus === "paused") {
     return {
-      className: "border-amber-700/30 bg-amber-300/15 text-amber-700",
+      className: "border-info/30 bg-info-faded text-info",
       label: `Paused · ${outreach.activeStep}/4`,
     };
   }
 
   if (outreach.nextDueAt && isDueToday(outreach.nextDueAt)) {
     return {
-      className: "border-sky-400/20 bg-sky-400/10 text-sky-100",
+      className: "border-info/30 bg-info-faded text-info",
       label: `Due · ${outreach.activeStep}/4`,
     };
   }
 
   return {
-    className: "border-beige900/10 bg-beige500/55 text-beige900/70",
+    className: "border-neutral-1000-a05 bg-bg-floating text-neutral-muted",
     label: `Stage ${outreach.activeStep}/4`,
   };
 }
@@ -279,14 +285,14 @@ function getEmailBadge(candidate: AtsCandidateSummary) {
   const email = resolveTargetEmail(candidate);
   if (email) {
     return {
-      className: "border-emerald-400/20 bg-emerald-400/10 text-emerald-200",
+      className: "border-positive/30 bg-positive-faded text-positive",
       label: "이메일 찾음",
     };
   }
 
   if (candidate.outreach?.emailDiscoveryStatus === "searching") {
     return {
-      className: "border-sky-400/20 bg-sky-400/10 text-sky-100",
+      className: "border-info/30 bg-info-faded text-info",
       label: "탐색 중",
     };
   }
@@ -296,20 +302,20 @@ function getEmailBadge(candidate: AtsCandidateSummary) {
     candidate.outreach?.emailDiscoveryStatus === "error"
   ) {
     return {
-      className: "border-rose-400/20 bg-rose-400/10 text-rose-100",
+      className: "border-critical/30 bg-critical-faded text-critical",
       label: "이메일 확정 필요",
     };
   }
 
   if (candidate.outreach?.emailDiscoveryStatus === "canceled") {
     return {
-      className: "border-beige900/10 bg-beige500/55 text-beige900/75",
+      className: "border-neutral-1000-a05 bg-bg-floating text-neutral-muted",
       label: "탐색 중단",
     };
   }
 
   return {
-    className: "border-beige900/10 bg-beige500/55 text-beige900/70",
+    className: "border-neutral-1000-a05 bg-bg-floating text-neutral-muted",
     label: "이메일 발견 실패",
   };
 }
@@ -379,7 +385,7 @@ function IconLinkButton({
       target="_blank"
       rel="noreferrer"
       onClick={(event) => event.stopPropagation()}
-      className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-beige900/10 bg-beige500/55 text-beige900/60 transition hover:bg-beige500/70 hover:text-beige900"
+      className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-neutral-1000-a05 bg-bg-floating text-neutral-muted transition hover:bg-bg-weak hover:text-neutral-primary"
       aria-label={label}
       title={label}
     >
@@ -434,19 +440,22 @@ function AtsEmailRecipientNameField({
       onClick={(event) => event.stopPropagation()}
       onMouseDown={(event) => event.stopPropagation()}
     >
-      <div className="text-[11px] text-beige900/35">메일에 사용할 이름</div>
+      <div className="text-[11px] text-neutral-disabled">
+        메일에 사용할 이름
+      </div>
       <div className="flex items-center gap-2">
-        <input
+        <UiInput
+          unstyled
           value={value}
           onChange={(event) => setValue(event.target.value)}
           placeholder={String(defaultName ?? "") || "이름"}
-          className="h-8 min-w-0 flex-1 rounded-sm border border-beige900/10 bg-beige500/55 px-2.5 text-xs text-beige900 outline-none placeholder:text-beige900/35 focus:border-beige900/20"
+          className="h-8 min-w-0 flex-1 rounded-sm border border-neutral-1000-a05 bg-bg-floating px-2.5 text-xs text-neutral-primary outline-none placeholder:text-neutral-placeholder focus:border-neutral-1000-a10"
         />
-        <button
+        <BareButton
           type="button"
           onClick={() => void handleSave()}
           disabled={saveEmailRecipientName.isPending}
-          className="inline-flex h-8 items-center gap-1.5 rounded-sm border border-beige900/10 bg-beige500/55 px-2.5 text-xs text-beige900 transition hover:bg-beige500/70 disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex h-8 items-center gap-1.5 rounded-sm border border-neutral-1000-a05 bg-bg-floating px-2.5 text-xs text-neutral-primary transition hover:bg-bg-weak disabled:cursor-not-allowed disabled:opacity-40"
         >
           {saveEmailRecipientName.isPending ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -454,7 +463,7 @@ function AtsEmailRecipientNameField({
             <Check className="h-3.5 w-3.5" />
           )}
           Save
-        </button>
+        </BareButton>
       </div>
     </div>
   );
@@ -496,7 +505,8 @@ function AtsMemoCell({
       onClick={(event) => event.stopPropagation()}
       onMouseDown={(event) => event.stopPropagation()}
     >
-      <textarea
+      <UiTextarea
+        unstyled
         value={value}
         onChange={(event) => setValue(event.target.value)}
         rows={3}
@@ -504,11 +514,11 @@ function AtsMemoCell({
         className={`${TEXTAREA_CLASS} min-h-[88px] text-xs leading-5`}
       />
       <div className="flex justify-end">
-        <button
+        <BareButton
           type="button"
           onClick={() => void handleSave()}
           disabled={saveMemo.isPending}
-          className="inline-flex items-center gap-2 rounded-sm border border-beige900/10 bg-beige500/55 px-2.5 py-1.5 text-xs text-beige900 transition hover:bg-beige500/70 disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex items-center gap-2 rounded-sm border border-neutral-1000-a05 bg-bg-floating px-2.5 py-1.5 text-xs text-neutral-primary transition hover:bg-bg-weak disabled:cursor-not-allowed disabled:opacity-40"
         >
           {saveMemo.isPending ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -516,7 +526,7 @@ function AtsMemoCell({
             <Check className="h-3.5 w-3.5" />
           )}
           Save
-        </button>
+        </BareButton>
       </div>
     </div>
   );
@@ -581,19 +591,20 @@ function ContactHistoryCell({
       onClick={(event) => event.stopPropagation()}
       onMouseDown={(event) => event.stopPropagation()}
     >
-      <button
+      <BareButton
         type="button"
         onClick={() => setIsComposerOpen((prev) => !prev)}
-        className="inline-flex items-center gap-2 rounded-md bg-beige900 px-2 py-1 text-xs text-beige100 transition hover:bg-beige900/90 hover:text-beige100"
+        className="inline-flex items-center gap-2 rounded-md bg-black px-2 py-1 text-xs text-neutral-00 transition hover:bg-black/90 hover:text-neutral-00"
       >
         <Plus className="h-3.5 w-3.5" />
         연락 기록
-      </button>
+      </BareButton>
 
       {isComposerOpen && (
         <div className="">
           <div className="grid gap-2">
-            <select
+            <UiSelect
+              unstyled
               value={channel}
               onChange={(event) =>
                 setChannel(event.target.value as AtsContactHistoryChannel)
@@ -605,14 +616,16 @@ function ContactHistoryCell({
               <option value="call">Call</option>
               <option value="meeting">Meeting</option>
               <option value="other">Other</option>
-            </select>
-            <input
+            </UiSelect>
+            <UiInput
+              unstyled
               type="datetime-local"
               value={contactedAt}
               onChange={(event) => setContactedAt(event.target.value)}
               className={INPUT_CLASS}
             />
-            <textarea
+            <UiTextarea
+              unstyled
               value={note}
               onChange={(event) => setNote(event.target.value)}
               rows={2}
@@ -620,7 +633,7 @@ function ContactHistoryCell({
               className={TEXTAREA_CLASS}
             />
             <div className="flex justify-end">
-              <button
+              <BareButton
                 type="button"
                 onClick={() => void handleAdd()}
                 disabled={!contactedAt || addHistory.isPending}
@@ -632,7 +645,7 @@ function ContactHistoryCell({
                   <Check className="h-4 w-4" />
                 )}
                 Save
-              </button>
+              </BareButton>
             </div>
           </div>
         </div>
@@ -640,36 +653,36 @@ function ContactHistoryCell({
 
       <div className="space-y-1.5">
         {history.length === 0 && (
-          <div className="text-xs text-beige900/35">기록 없음</div>
+          <div className="text-xs text-neutral-disabled">기록 없음</div>
         )}
         {history.map((item) => (
           <div
             key={item.id}
-            className="rounded-md border border-beige900/10 bg-beige500/55 px-2.5 py-2"
+            className="rounded-md border border-neutral-1000-a05 bg-bg-floating px-2.5 py-2"
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-md border border-beige900/10 bg-beige500/55 px-1.5 py-0.5 text-[11px] text-beige900/60">
+                  <span className="rounded-md border border-neutral-1000-a05 bg-bg-floating px-1.5 py-0.5 text-[11px] text-neutral-muted">
                     {item.channel}
                   </span>
-                  <span className="text-[11px] text-beige900/40">
+                  <span className="text-[11px] text-neutral-soft">
                     {formatDateTime(item.contactedAt)}
                   </span>
                 </div>
                 {item.note && (
-                  <div className="mt-1.5 wrap-break-word text-xs leading-5 text-beige900/60">
+                  <div className="mt-1.5 wrap-break-word text-xs leading-5 text-neutral-muted">
                     {item.note}
                   </div>
                 )}
               </div>
-              <button
+              <BareButton
                 type="button"
                 onClick={() => void handleDelete(item.id)}
-                className="text-beige900/35 transition hover:text-beige900/75"
+                className="text-neutral-disabled transition hover:text-neutral-muted"
               >
                 <X className="h-3.5 w-3.5" />
-              </button>
+              </BareButton>
             </div>
           </div>
         ))}
@@ -733,9 +746,8 @@ export default function AtsPage() {
   const [contactDraftByCandidateId, setContactDraftByCandidateId] = useState<
     Record<string, AtsContactEmailDraft>
   >({});
-  const [sharedContactDraft, setSharedContactDraft] = useState<AtsContactEmailDraft>(
-    () => readSharedContactDraft()
-  );
+  const [sharedContactDraft, setSharedContactDraft] =
+    useState<AtsContactEmailDraft>(() => readSharedContactDraft());
   const [scheduledContactAtByCandidateId, setScheduledContactAtByCandidateId] =
     useState<Record<string, string>>({});
   const [sequenceDraftByCandidateId, setSequenceDraftByCandidateId] = useState<
@@ -875,7 +887,7 @@ export default function AtsPage() {
   const activeCandidateSummary = useMemo(
     () =>
       selectedCandidateId
-        ? candidateById.get(selectedCandidateId) ?? null
+        ? (candidateById.get(selectedCandidateId) ?? null)
         : null,
     [candidateById, selectedCandidateId]
   );
@@ -883,44 +895,41 @@ export default function AtsPage() {
   const activeCandidate =
     (detailCandidate as AtsCandidateSummary | null) ?? activeCandidateSummary;
   const detailMessages = detailQuery.data?.messages ?? EMPTY_MESSAGES;
-  const {
-    emailHistory,
-    nextServerSequenceDrafts,
-    scheduledContactMessages,
-  } = useMemo(() => {
-    const nextEmailHistory: AtsMessageRecord[] = [];
-    const nextScheduledContactMessages: AtsMessageRecord[] = [];
+  const { emailHistory, nextServerSequenceDrafts, scheduledContactMessages } =
+    useMemo(() => {
+      const nextEmailHistory: AtsMessageRecord[] = [];
+      const nextScheduledContactMessages: AtsMessageRecord[] = [];
 
-    for (const message of detailMessages) {
-      if (message.status === "sent") {
-        nextEmailHistory.push(message);
+      for (const message of detailMessages) {
+        if (message.status === "sent") {
+          nextEmailHistory.push(message);
+        }
+        if (
+          message.kind === "manual" &&
+          message.status === "draft" &&
+          message.scheduledFor
+        ) {
+          nextScheduledContactMessages.push(message);
+        }
       }
-      if (
-        message.kind === "manual" &&
-        message.status === "draft" &&
-        message.scheduledFor
-      ) {
-        nextScheduledContactMessages.push(message);
-      }
-    }
 
-    nextEmailHistory.sort((a, b) => {
-      const aTime = Date.parse(a.sentAt ?? a.createdAt);
-      const bTime = Date.parse(b.sentAt ?? b.createdAt);
-      return bTime - aTime;
-    });
-    nextScheduledContactMessages.sort((a, b) => {
-      const aTime = Date.parse(a.scheduledFor ?? a.createdAt);
-      const bTime = Date.parse(b.scheduledFor ?? b.createdAt);
-      return aTime - bTime;
-    });
+      nextEmailHistory.sort((a, b) => {
+        const aTime = Date.parse(a.sentAt ?? a.createdAt);
+        const bTime = Date.parse(b.sentAt ?? b.createdAt);
+        return bTime - aTime;
+      });
+      nextScheduledContactMessages.sort((a, b) => {
+        const aTime = Date.parse(a.scheduledFor ?? a.createdAt);
+        const bTime = Date.parse(b.scheduledFor ?? b.createdAt);
+        return aTime - bTime;
+      });
 
-    return {
-      emailHistory: nextEmailHistory,
-      nextServerSequenceDrafts: buildSequenceDraftState(detailMessages),
-      scheduledContactMessages: nextScheduledContactMessages,
-    };
-  }, [detailMessages]);
+      return {
+        emailHistory: nextEmailHistory,
+        nextServerSequenceDrafts: buildSequenceDraftState(detailMessages),
+        scheduledContactMessages: nextScheduledContactMessages,
+      };
+    }, [detailMessages]);
   const savedSequenceSchedule = useMemo(
     () =>
       normalizeAtsSequenceSchedule(
@@ -1182,9 +1191,7 @@ export default function AtsPage() {
   const allVisibleSelected = useMemo(
     () =>
       filteredCandidates.length > 0 &&
-      filteredCandidates.every((candidate) =>
-        selectedIdSet.has(candidate.id)
-      ),
+      filteredCandidates.every((candidate) => selectedIdSet.has(candidate.id)),
     [filteredCandidates, selectedIdSet]
   );
   const hasUnsavedWorkspaceChanges = useMemo(() => {
@@ -1966,7 +1973,7 @@ export default function AtsPage() {
     return (
       <AppLayout initialCollapse={false}>
         <div className="flex min-h-screen items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-beige900" />
+          <Loader2 className="h-5 w-5 animate-spin text-neutral-primary" />
         </div>
       </AppLayout>
     );
@@ -1977,11 +1984,11 @@ export default function AtsPage() {
       <AppLayout initialCollapse={false}>
         <div className="mx-auto flex min-h-screen max-w-3xl items-center px-6">
           <div className={`${PANEL_CLASS} w-full p-6`}>
-            <div className="flex items-center gap-3 text-beige900">
+            <div className="flex items-center gap-3 text-neutral-primary">
               <AlertCircle className="h-5 w-5" />
               <div className="text-lg font-medium">Internal only</div>
             </div>
-            <div className="mt-3 text-sm leading-6 text-beige900/80">
+            <div className="mt-3 text-sm leading-6 text-neutral-primary">
               ATS 화면은 `matchharper.com` 계정 또는 허용된 ATS 계정으로
               로그인했을 때만 접근할 수 있습니다.
             </div>
@@ -2029,11 +2036,11 @@ export default function AtsPage() {
     <>
       {profileDetailQuery.isLoading && (
         <div className="flex min-h-[720px] items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-beige900" />
+          <Loader2 className="h-5 w-5 animate-spin text-neutral-primary" />
         </div>
       )}
       {!profileDetailQuery.isLoading && profileDetailQuery.error && (
-        <div className="flex min-h-[720px] items-center justify-center text-sm text-beige900/50">
+        <div className="flex min-h-[720px] items-center justify-center text-sm text-neutral-muted">
           프로필을 불러오지 못했습니다.
         </div>
       )}
@@ -2054,7 +2061,7 @@ export default function AtsPage() {
 
   const PanelCard = ({ children }: { children: React.ReactNode }) => {
     return (
-      <div className="flex flex-row items-center justify-between rounded-md bg-beige50 border border-beige900/8 shadow-sm text-beige900 p-3">
+      <div className="flex flex-row items-center justify-between rounded-md bg-bg-default border border-neutral-1000-a05 shadow-sm text-neutral-primary p-3">
         {children}
       </div>
     );
@@ -2105,11 +2112,12 @@ export default function AtsPage() {
 
           <div className="flex flex-col gap-4">
             <div className={`${PANEL_CLASS} overflow-hidden`}>
-              <div className="border-b border-beige900/10 px-4 py-4">
+              <div className="border-b border-neutral-1000-a05 px-4 py-4">
                 <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
                   <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-beige900/40" />
-                    <input
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-soft" />
+                    <UiInput
+                      unstyled
                       value={query}
                       onChange={(event) => setQuery(event.target.value)}
                       placeholder="이름, 회사, headline 검색"
@@ -2127,22 +2135,22 @@ export default function AtsPage() {
                         ["completed", "Completed"],
                       ] as Array<[FilterKey, string]>
                     ).map(([value, label]) => (
-                      <button
+                      <BareButton
                         key={value}
                         type="button"
                         onClick={() => setFilter(value)}
                         className={`rounded-md border min-w-[60px] px-3 py-1.5 text-xs transition ${
                           filter === value
-                            ? "border-beige900/0 bg-accentBronze/10 text-accentBronze"
-                            : "border-beige900/10 bg-beige500/55 text-beige900/55 hover:bg-beige500/70"
+                            ? "border-transparent bg-accent-200 text-primary"
+                            : "border-neutral-1000-a05 bg-bg-floating text-neutral-muted hover:bg-bg-weak"
                         }`}
                       >
                         {label}
-                      </button>
+                      </BareButton>
                     ))}
                     {(activeEmailDiscoveryId ||
                       emailDiscoveryQueueCount > 0) && (
-                      <div className="inline-flex items-center gap-2 rounded-md border border-sky-400/20 bg-sky-400/10 px-3 py-1.5 text-xs text-sky-100">
+                      <div className="inline-flex items-center gap-2 rounded-md border border-info/30 bg-info-faded px-3 py-1.5 text-xs text-info">
                         {activeEmailDiscoveryId ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
@@ -2151,20 +2159,20 @@ export default function AtsPage() {
                         {activeEmailDiscoveryId
                           ? "이메일 탐색 실행 중"
                           : "이메일 탐색 대기 중"}
-                        <span className="text-sky-100/70">
+                        <span className="text-info/70">
                           대기 {emailDiscoveryQueueCount}건
                         </span>
                       </div>
                     )}
-                    <button
+                    <BareButton
                       type="button"
                       onClick={handleQueueSelectedEmailDiscoveries}
                       disabled={selectedIds.length === 0}
-                      className="inline-flex items-center gap-2 rounded-md border border-beige900/10 bg-beige500/55 px-3 py-1.5 text-xs text-beige900/80 transition hover:bg-beige500/70 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="inline-flex items-center gap-2 rounded-md border border-neutral-1000-a05 bg-bg-floating px-3 py-1.5 text-xs text-neutral-primary transition hover:bg-bg-weak disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       <Sparkles className="h-3.5 w-3.5" />
                       선택 후보 이메일 찾기
-                    </button>
+                    </BareButton>
                   </div>
                 </div>
               </div>
@@ -2172,16 +2180,16 @@ export default function AtsPage() {
               <div className="overflow-x-auto">
                 {workspaceQuery.isLoading ? (
                   <div className="flex min-h-[640px] items-center justify-center">
-                    <Loader2 className="h-5 w-5 animate-spin text-beige900" />
+                    <Loader2 className="h-5 w-5 animate-spin text-neutral-primary" />
                   </div>
                 ) : filteredCandidates.length === 0 ? (
-                  <div className="flex min-h-[640px] items-center justify-center text-sm text-beige900/50">
+                  <div className="flex min-h-[640px] items-center justify-center text-sm text-neutral-muted">
                     후보자가 없습니다.
                   </div>
                 ) : (
                   <table className={ATS_TABLE_LAYOUT.table}>
                     <thead>
-                      <tr className="border-b border-beige900/10 text-left text-xs text-beige900/45">
+                      <tr className="border-b border-neutral-1000-a05 text-left text-xs text-neutral-soft">
                         <th
                           className={`${ATS_TABLE_LAYOUT.widths.select} ${ATS_TABLE_LAYOUT.headerCell}`}
                         >
@@ -2252,21 +2260,21 @@ export default function AtsPage() {
                               setSelectedCandidateId(candidate.id);
                               setIsCandidateDrawerOpen(true);
                             }}
-                            className={`cursor-pointer border-b border-beige900/8 transition ${
+                            className={`cursor-pointer border-b border-neutral-1000-a05 transition ${
                               selectedCandidateId === candidate.id
-                                ? "bg-beige500/70"
-                                : "hover:bg-beige500/55"
+                                ? "bg-bg-weak"
+                                : "hover:bg-bg-weak"
                             }`}
                           >
                             <td className={ATS_TABLE_LAYOUT.bodyCell}>
-                              <input
-                                type="checkbox"
+                              <UiCheckbox
+                                unstyled
                                 checked={selectedIdSet.has(candidate.id)}
                                 onChange={() =>
                                   toggleCandidateSelection(candidate.id)
                                 }
                                 onClick={(event) => event.stopPropagation()}
-                                className="mt-0.5 h-4 w-4 rounded border-beige900/20 bg-transparent"
+                                className="mt-0.5 h-4 w-4 rounded border-neutral-1000-a10 bg-transparent"
                               />
                             </td>
                             <td className={ATS_TABLE_LAYOUT.bodyCell}>
@@ -2280,13 +2288,13 @@ export default function AtsPage() {
                                   />
                                 ) : (
                                   <div
-                                    className={`flex ${ATS_TABLE_LAYOUT.profileImage} items-center justify-center rounded-md bg-beige500/70 text-beige900/70`}
+                                    className={`flex ${ATS_TABLE_LAYOUT.profileImage} items-center justify-center rounded-md bg-bg-weak text-neutral-muted`}
                                   >
                                     <UserSquare2 className="h-4 w-4" />
                                   </div>
                                 )}
                                 <div className="min-w-0">
-                                  <div className="text-sm font-medium text-beige900">
+                                  <div className="text-sm font-medium text-neutral-primary">
                                     {candidate.name ?? "Unknown"}
                                   </div>
                                   <div className="flex items-start gap-2 mt-2">
@@ -2297,20 +2305,20 @@ export default function AtsPage() {
                                         alt={
                                           candidate.currentCompany ?? "company"
                                         }
-                                        className={`${ATS_TABLE_LAYOUT.companyLogo} rounded-md border border-beige900/10 bg-beige100 object-contain p-1`}
+                                        className={`${ATS_TABLE_LAYOUT.companyLogo} rounded-md border border-neutral-1000-a05 bg-bg-basement object-contain p-1`}
                                       />
                                     ) : (
                                       <div
-                                        className={`flex ${ATS_TABLE_LAYOUT.companyLogo} items-center justify-center rounded-md border border-beige900/10 bg-beige500/55 text-beige900/45`}
+                                        className={`flex ${ATS_TABLE_LAYOUT.companyLogo} items-center justify-center rounded-md border border-neutral-1000-a05 bg-bg-floating text-neutral-soft`}
                                       >
                                         <Building2 className="h-4 w-4" />
                                       </div>
                                     )}
                                     <div className="min-w-0">
-                                      <div className="text-sm text-beige900">
+                                      <div className="text-sm text-neutral-primary">
                                         {candidate.currentCompany ?? "-"}
                                       </div>
-                                      <div className="mt-0 text-sm text-accentBronze">
+                                      <div className="mt-0 text-sm text-primary">
                                         {candidate.currentRole ?? "-"}
                                       </div>
                                     </div>
@@ -2370,13 +2378,13 @@ export default function AtsPage() {
                               >
                                 {emailBadge.label}
                               </div>
-                              <div className="mt-2 text-xs text-beige900/55">
+                              <div className="mt-2 text-xs text-neutral-muted">
                                 {resolveTargetEmail(candidate) ?? "-"}
                               </div>
                               <div className="mt-2 flex flex-wrap gap-1.5">
                                 {isRowEmailDiscoverySearching ||
                                 isRowEmailDiscoveryQueued ? (
-                                  <button
+                                  <BareButton
                                     type="button"
                                     onClick={(event) => {
                                       event.stopPropagation();
@@ -2385,7 +2393,7 @@ export default function AtsPage() {
                                       );
                                     }}
                                     disabled={isRowEmailDiscoveryStopping}
-                                    className="inline-flex items-center gap-1.5 rounded-sm border border-rose-400/20 bg-rose-400/10 px-2 py-1 text-[11px] text-rose-100 transition hover:bg-rose-400/15 disabled:cursor-not-allowed disabled:opacity-40"
+                                    className="inline-flex items-center gap-1.5 rounded-sm border border-critical/30 bg-critical-faded px-2 py-1 text-[11px] text-critical transition hover:bg-critical-faded disabled:cursor-not-allowed disabled:opacity-40"
                                   >
                                     {isRowEmailDiscoveryStopping ? (
                                       <Loader2 className="h-3 w-3 animate-spin" />
@@ -2395,9 +2403,9 @@ export default function AtsPage() {
                                     {isRowEmailDiscoverySearching
                                       ? "탐색 중지"
                                       : "대기 취소"}
-                                  </button>
+                                  </BareButton>
                                 ) : (
-                                  <button
+                                  <BareButton
                                     type="button"
                                     onClick={(event) => {
                                       event.stopPropagation();
@@ -2405,14 +2413,14 @@ export default function AtsPage() {
                                         candidate.id
                                       );
                                     }}
-                                    className="inline-flex items-center gap-1.5 rounded-sm border border-beige900/10 bg-beige500/55 px-2 py-1 text-[11px] text-beige900/80 transition hover:bg-beige500/70"
+                                    className="inline-flex items-center gap-1.5 rounded-sm border border-neutral-1000-a05 bg-bg-floating px-2 py-1 text-[11px] text-neutral-primary transition hover:bg-bg-weak"
                                   >
                                     <Sparkles className="h-3 w-3" />
                                     {rowEmailActionLabel}
-                                  </button>
+                                  </BareButton>
                                 )}
                                 {hasRowEmailDiscoveryTrace && (
-                                  <button
+                                  <BareButton
                                     type="button"
                                     onClick={(event) => {
                                       event.stopPropagation();
@@ -2425,7 +2433,7 @@ export default function AtsPage() {
                                       isRowEmailDiscoverySearching ||
                                       isRowEmailDiscoveryStopping
                                     }
-                                    className="inline-flex items-center gap-1.5 rounded-sm border border-beige900/10 bg-beige500/55 px-2 py-1 text-[11px] text-beige900/70 transition hover:bg-beige500/70 disabled:cursor-not-allowed disabled:opacity-40"
+                                    className="inline-flex items-center gap-1.5 rounded-sm border border-neutral-1000-a05 bg-bg-floating px-2 py-1 text-[11px] text-neutral-muted transition hover:bg-bg-weak disabled:cursor-not-allowed disabled:opacity-40"
                                   >
                                     {clearEmailTrace.isPending ? (
                                       <Loader2 className="h-3 w-3 animate-spin" />
@@ -2433,11 +2441,11 @@ export default function AtsPage() {
                                       <X className="h-3 w-3" />
                                     )}
                                     로그 삭제
-                                  </button>
+                                  </BareButton>
                                 )}
                               </div>
                               {isRowEmailDiscoverySearching && (
-                                <div className="mt-2 text-[11px] leading-5 text-sky-200/80">
+                                <div className="mt-2 text-[11px] leading-5 text-info/80">
                                   {(candidate.outreach?.emailDiscoveryTrace
                                     ?.length ?? 0) > 0
                                     ? `로그 ${candidate.outreach?.emailDiscoveryTrace.length ?? 0}개 수집됨`
@@ -2448,7 +2456,7 @@ export default function AtsPage() {
                               )}
                               {!isRowEmailDiscoverySearching &&
                                 rowEmailDiscoveryQueuePosition && (
-                                  <div className="mt-2 text-[11px] leading-5 text-sky-200/80">
+                                  <div className="mt-2 text-[11px] leading-5 text-info/80">
                                     대기열 {rowEmailDiscoveryQueuePosition}번째
                                   </div>
                                 )}
@@ -2570,16 +2578,14 @@ export default function AtsPage() {
                 outreach: detailCandidate?.outreach ?? null,
                 resolvedEmail,
                 savedDrafts: savedSequenceDrafts,
-                saveDraftPendingStep:
-                  saveSequenceDraft.isPending
-                    ? (saveSequenceDraft.variables?.stepNumber ?? null)
-                    : null,
+                saveDraftPendingStep: saveSequenceDraft.isPending
+                  ? (saveSequenceDraft.variables?.stepNumber ?? null)
+                  : null,
                 saveSchedulePending: saveSequenceSchedule.isPending,
                 scheduleDraft: sequenceScheduleDraft,
-                sendPendingStep:
-                  sendSequenceStep.isPending
-                    ? (sendSequenceStep.variables?.stepNumber ?? null)
-                    : null,
+                sendPendingStep: sendSequenceStep.isPending
+                  ? (sendSequenceStep.variables?.stepNumber ?? null)
+                  : null,
                 sentMessageByNumber: stepSentMessageByNumber,
               }}
               textareaClassName={TEXTAREA_CLASS}

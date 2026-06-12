@@ -26,7 +26,11 @@ import {
   type ReactNode,
 } from "react";
 import { showToast } from "@/components/toast/toast";
-import { BeigeButton, BeigeInput } from "@/components/ui/beige";
+import { Badge } from "@/components/ui/badge";
+import { AnimatedButton, BareButton } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input, Input as UiInput } from "@/components/ui/input";
+import { Text } from "@/components/ui/text";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
@@ -42,7 +46,6 @@ import { cn } from "@/lib/cn";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
 import { getCareerSignupAttributionPayload } from "@/lib/careerSignupAttribution";
 import LoadingState from "../../components/career/OnboardingLoadingState";
-import { CareerBadge, CareerCheckbox } from "@/components/ui/career";
 
 const SLIDE_VARIANTS = {
   enter: (isNext: boolean) => ({
@@ -61,7 +64,7 @@ const SLIDE_VARIANTS = {
 
 const SLIDE_TRANSITION = { duration: 0.22, ease: "easeOut" } as const;
 
-const ONBOARDING_BACKGROUND_CLASS = "bg-neutral-100";
+const ONBOARDING_BACKGROUND_CLASS = "bg-bg-basement";
 
 type OnboardingStepDefinition = {
   label: string;
@@ -77,8 +80,9 @@ type OnboardingStepDefinition = {
 
 const headerClassName = "flex h-full flex-col justify-end pt-4 text-left pb-1";
 const titleClassName =
-  "text-[20px] md:text-[24px] font-normal leading-[1.5] text-black";
-const descriptionClassName = "mt-2 text-[13px] md:text-[15px] text-black/45";
+  "text-[20px] md:text-[24px] font-normal leading-[1.5] text-neutral-primary";
+const descriptionClassName =
+  "mt-2 text-[13px] md:text-[15px] text-neutral-soft";
 
 const ONBOARDING_STEPS: OnboardingStepDefinition[] = [
   {
@@ -123,7 +127,7 @@ const ONBOARDING_STEPS: OnboardingStepDefinition[] = [
     titleClassName,
     descriptionClassName,
     bodyClassName: "grid w-full gap-3 text-left",
-    footnoteClassName: "mt-3 text-[13px] leading-5 text-black/60",
+    footnoteClassName: "mt-3 text-[13px] leading-5 text-neutral-muted",
   },
 ];
 
@@ -330,7 +334,7 @@ const ProgressBar = ({
           className={cn(
             "h-full rounded-full transition-colors duration-300",
             index < currentStep
-              ? "bg-neutral-500"
+              ? "bg-black"
               : index === currentStep
                 ? "bg-black"
                 : "bg-neutral-400"
@@ -343,7 +347,7 @@ const ProgressBar = ({
 
 const OnboardingTopBar = ({ step }: { step: number }) => (
   <div className="flex h-16 shrink-0 flex-col justify-center gap-5">
-    <div className="font-hedvig font-bold text-[21px] leading-none text-beige900">
+    <div className="font-hedvig font-bold text-[21px] leading-none text-neutral-primary">
       Harper
     </div>
     <ProgressBar step={step} />
@@ -379,7 +383,12 @@ const OnboardingStepHeader = ({
   stepDefinition: OnboardingStepDefinition;
 }) => (
   <header className={stepDefinition.headerClassName}>
-    <h1 className={stepDefinition.titleClassName}>
+    <Text
+      as="h1"
+      variant="head1"
+      tone="primary"
+      className={stepDefinition.titleClassName}
+    >
       {stepDefinition.title.map((line, index) => (
         <span
           key={`${index}-${line}`}
@@ -387,8 +396,13 @@ const OnboardingStepHeader = ({
           dangerouslySetInnerHTML={{ __html: line }}
         />
       ))}
-    </h1>
-    <p className={stepDefinition.descriptionClassName}>
+    </Text>
+    <Text
+      as="p"
+      variant="body"
+      tone="subtle"
+      className={stepDefinition.descriptionClassName}
+    >
       {stepDefinition.description.map((line, index) => (
         <span
           key={`${index}-${line}`}
@@ -397,15 +411,22 @@ const OnboardingStepHeader = ({
           {line}
         </span>
       ))}
-    </p>
+    </Text>
   </header>
 );
 
 const OnboardingFieldLabel = ({ children }: { children: ReactNode }) => (
-  <label className="text-sm font-normal text-black/80">{children}</label>
+  <Text
+    as="label"
+    variant="label"
+    tone="neutral"
+    className="text-sm font-normal"
+  >
+    {children}
+  </Text>
 );
 
-const BeigeLinkInput = ({
+const LinkInput = ({
   label,
   placeholder,
   value,
@@ -417,10 +438,15 @@ const BeigeLinkInput = ({
   onChange: (event: ChangeEvent<HTMLInputElement>) => void;
 }) => (
   <div className="flex w-full flex-col gap-2 md:flex-row md:items-center">
-    <div className="w-full text-[14px] font-normal text-black/80 md:w-1/4">
+    <Text
+      as="div"
+      variant="body"
+      tone="neutral"
+      className="w-full text-[14px] font-normal md:w-1/4"
+    >
       {label}
-    </div>
-    <BeigeInput
+    </Text>
+    <Input
       value={value}
       onChange={onChange}
       placeholder={placeholder}
@@ -442,31 +468,31 @@ const ProfileInputToggle = ({
   onClick: () => void;
   requiredBadge?: string;
 }) => (
-  <button
+  <BareButton
     type="button"
     onClick={onClick}
     className={cn(
       "flex relative h-[104px] w-full shrink-0 flex-col items-center justify-center gap-2 rounded-[8px] border px-3 py-3 text-center text-[13px] font-medium leading-4 transition",
       active
-        ? "border-black bg-neutral-100"
-        : "border-black/10 bg-white text-black hover:border-black/55"
+        ? "border-neutral-1000 bg-bg-floating"
+        : "border-neutral-1000-a05 bg-bg-floating text-neutral-primary hover:border-neutral-800 hover:bg-bg-weak"
     )}
   >
     <div className="absolute top-1.5 right-1.5">
-      <CareerCheckbox checked={active} />
+      <Checkbox checked={active} />
     </div>
     <span
       className={cn(
-        "flex h-12 w-12 items-center justify-center text-beige900/80"
+        "flex h-12 w-12 items-center justify-center text-neutral-muted"
       )}
     >
       <ProfileInputIcon id={id} />
     </span>
     <span className="flex flex-row gap-0.5">
       <span className="line-clamp-2">{label}</span>
-      {requiredBadge && <span className="text-red-400">{requiredBadge}</span>}
+      {requiredBadge && <span className="text-critical">{requiredBadge}</span>}
     </span>
-  </button>
+  </BareButton>
 );
 
 const ProfileInputIcon = ({ id }: { id: TalentNetworkProfileInputType }) => {
@@ -506,7 +532,7 @@ const ProfileIconMask = ({
 }) => (
   <span
     aria-hidden="true"
-    className={cn("block bg-beige900/80", sizeClass)}
+    className={cn("block bg-black/80", sizeClass)}
     style={{
       WebkitMaskImage: `url(${src})`,
       WebkitMaskPosition: "center",
@@ -525,7 +551,7 @@ const EngagementOptionIcon = ({
 }: {
   id: TalentNetworkEngagementOptionId;
 }) => {
-  const className = cn("h-6 w-6 transition-colors text-beige900");
+  const className = cn("h-6 w-6 transition-colors text-neutral-primary");
 
   if (id === "full_time") {
     return <BriefcaseBusiness className={className} strokeWidth={1.5} />;
@@ -553,25 +579,25 @@ const EngagementCardButton = ({
   label: string;
   onClick: () => void;
 }) => (
-  <button
+  <BareButton
     type="button"
     onClick={onClick}
     className={cn(
-      "flex w-full flex-row gap-4 text-black items-center justify-center rounded-[8px] border px-4 py-5 text-center transition duration-300",
+      "flex w-full flex-row gap-4 text-neutral-primary items-center justify-center rounded-[8px] border px-4 py-5 text-center transition duration-300",
       active
-        ? "border-black bg-neutral-100"
-        : "border-black/10 bg-white text-black hover:border-black/55"
+        ? "border-neutral-1000 bg-bg-basement"
+        : "border-neutral-1000-a05 bg-bg-basement text-neutral-primary hover:border-neutral-800"
     )}
   >
     <div className="flex w-full items-center gap-3">
       <span
         className={cn(
-          "flex h-10 w-10 shrink-0 items-center justify-center rounded-[6px] bg-black/5"
+          "flex h-10 w-10 shrink-0 items-center justify-center rounded-[6px] bg-bg-weak"
         )}
         aria-hidden="true"
       >
         {Icon ? (
-          <Icon className="h-6 w-6 text-beige900" strokeWidth={1.5} />
+          <Icon className="h-6 w-6 text-neutral-primary" strokeWidth={1.5} />
         ) : id ? (
           <EngagementOptionIcon id={id} />
         ) : null}
@@ -581,17 +607,17 @@ const EngagementCardButton = ({
         <span className="text-[15px] leading-6">{label}</span>
         {description && (
           <span
-            className="text-[13px] leading-5 text-black/60 text-left"
+            className="text-[13px] leading-5 text-neutral-muted text-left"
             dangerouslySetInnerHTML={{ __html: description }}
           />
         )}
       </div>
 
       <div className="flex h-6 w-6 shrink-0 items-center justify-center">
-        <CareerCheckbox checked={active} />
+        <Checkbox checked={active} />
       </div>
     </div>
-  </button>
+  </BareButton>
 );
 
 type OnboardingProfileVisibility = "open_to_matches" | "exceptional_only";
@@ -635,11 +661,11 @@ const ResumeUploadInput = ({
     className={cn(
       "flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-[6px] border px-4 py-10 transition",
       fileName
-        ? "border-black bg-white hover:bg-beige500/90"
-        : "border-dashed border-black/50 bg-neutral-200 hover:bg-neutral-300"
+        ? "border-neutral-1000 bg-bg-basement hover:bg-bg-weak"
+        : "border-dashed border-neutral-400 bg-bg-default hover:bg-bg-weak"
     )}
   >
-    <span className="flex w-fit flex-wrap rounded-full border border-xgray300 bg-white p-3">
+    <span className="flex w-fit flex-wrap rounded-full border border-neutral-300 bg-bg-basement p-3">
       {fileName ? (
         <FileText size={20} strokeWidth={1.6} />
       ) : (
@@ -649,10 +675,11 @@ const ResumeUploadInput = ({
     <span className="mt-1 text-sm font-normal">
       {fileName || "이력서/CV 업로드"}
     </span>
-    <span className="text-center text-sm font-normal text-black/70">
+    <span className="text-center text-sm font-normal text-neutral-muted">
       PDF나 텍스트 파일을 올려주세요. 최대 10MB까지 권장합니다.
     </span>
-    <input
+    <UiInput
+      unstyled
       type="file"
       accept=".pdf,.txt,.md"
       className="hidden"
@@ -670,10 +697,10 @@ const OnboardingFooterControls = ({
   onPrev: () => void;
   step: number;
 }) => (
-  <div className="min-h-[80px] bg-gradient-to-b from-transparent to-neutral-100">
+  <div className="min-h-[80px] bg-gradient-to-b from-transparent to-bg-basement">
     <div className={cn("flex w-full gap-3 flex-row")}>
       {step > 0 && (
-        <BeigeButton
+        <AnimatedButton
           type="button"
           variant="secondary"
           size="lg"
@@ -681,9 +708,9 @@ const OnboardingFooterControls = ({
           className="min-w-[110px] font-normal"
         >
           이전
-        </BeigeButton>
+        </AnimatedButton>
       )}
-      <BeigeButton
+      <AnimatedButton
         type="button"
         variant="primary"
         size="lg"
@@ -695,16 +722,16 @@ const OnboardingFooterControls = ({
           : step === 0
             ? "Harper 시작하기"
             : "다음"}
-      </BeigeButton>
+      </AnimatedButton>
     </div>
     <div
-      className={`mt-2 flex min-h-5 items-center ${step === 0 ? "justify-center" : "justify-end"} text-[12px] leading-5 text-black/45`}
+      className={`mt-2 flex min-h-5 items-center ${step === 0 ? "justify-center" : "justify-end"} text-[12px] leading-5 text-neutral-soft`}
     >
       {step === TOTAL_STEPS - 1 ? (
         <span>분석까지 약 2분 걸려요</span>
       ) : (
         <span>
-          press <CareerBadge>Enter</CareerBadge>
+          press <Badge>Enter</Badge>
         </span>
       )}
     </div>
@@ -753,7 +780,7 @@ const DoneState = ({
                 transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
               >
                 <div className="grid grid-cols-2 gap-2">
-                  <BeigeButton
+                  <AnimatedButton
                     type="button"
                     size="md"
                     variant="secondary"
@@ -761,8 +788,8 @@ const DoneState = ({
                     className="w-full px-3 text-[14px] font-normal"
                   >
                     채팅하기
-                  </BeigeButton>
-                  <BeigeButton
+                  </AnimatedButton>
+                  <AnimatedButton
                     type="button"
                     size="md"
                     variant="primary"
@@ -770,11 +797,16 @@ const DoneState = ({
                     className="w-full px-3 text-[14px] font-normal"
                   >
                     Harper와 통화하기
-                  </BeigeButton>
+                  </AnimatedButton>
                 </div>
-                <p className="mt-3 text-[12px] leading-5 text-black/45">
+                <Text
+                  as="p"
+                  variant="caption"
+                  tone="subtle"
+                  className="mt-3 text-[12px] leading-5"
+                >
                   통화가 어렵다면 채팅으로 이어가도 됩니다.
-                </p>
+                </Text>
               </motion.div>
             )}
           </AnimatePresence>
@@ -788,9 +820,14 @@ const DoneState = ({
           transition={{ delay: 0.12, duration: 0.45, ease: "easeOut" }}
           className="flex justify-end"
         >
-          <p className="max-w-[320px] rounded-xl bg-white px-4 py-2 text-right text-[13px] leading-5 text-black">
+          <Text
+            as="p"
+            variant="caption"
+            tone="primary"
+            className="max-w-[320px] rounded-xl bg-bg-basement px-4 py-2 text-right text-[13px] leading-5"
+          >
             {userMessage || DEFAULT_DONE_USER_MESSAGE}
-          </p>
+          </Text>
         </motion.div>
 
         <motion.div
@@ -799,9 +836,14 @@ const DoneState = ({
           transition={{ delay: 0.32, duration: 0.45, ease: "easeOut" }}
           className="flex justify-start"
         >
-          <p className="max-w-[320px] rounded-xl bg-black px-4 py-2 mt-4 font-light font-sans text-left text-[13px] leading-5 text-white">
+          <Text
+            as="p"
+            variant="caption"
+            tone="inverted"
+            className="mt-4 max-w-[320px] rounded-xl bg-black px-4 py-2 text-left font-sans text-[13px] font-light leading-5"
+          >
             소중한 정보 감사해요.
-          </p>
+          </Text>
         </motion.div>
 
         <motion.div
@@ -810,16 +852,21 @@ const DoneState = ({
           transition={{ delay: 0.36, duration: 0.45, ease: "easeOut" }}
           className="mt-8"
         >
-          <div className="space-y-5 text-left text-[14px] leading-7 text-black">
+          <div className="space-y-5 text-left text-[14px] leading-7 text-neutral-primary">
             {streamedParagraphs.map((paragraph, index) => {
               const isLast = index === streamedParagraphs.length - 1;
               return (
-                <p key={`${index}-${paragraph.slice(0, 10)}`}>
+                <Text
+                  as="p"
+                  variant="body"
+                  tone="primary"
+                  key={`${index}-${paragraph.slice(0, 10)}`}
+                >
                   {paragraph}
                   {isLast && !isStreamComplete && (
                     <span className="ml-1 inline-block h-4 w-px translate-y-0.5 animate-pulse bg-black/55" />
                   )}
-                </p>
+                </Text>
               );
             })}
           </div>
@@ -1416,11 +1463,11 @@ const CareerNetworkOnboardingContent = () => {
     return (
       <main
         className={cn(
-          "flex min-h-svh items-center justify-center text-black",
+          "flex min-h-svh items-center justify-center text-neutral-primary",
           ONBOARDING_BACKGROUND_CLASS
         )}
       >
-        <LoaderCircle className="h-5 w-5 animate-spin text-black/40" />
+        <LoaderCircle className="h-5 w-5 animate-spin text-neutral-muted" />
       </main>
     );
   }
@@ -1432,7 +1479,7 @@ const CareerNetworkOnboardingContent = () => {
       </Head>
       <main
         className={cn(
-          "min-h-svh font-sans text-black",
+          "min-h-svh font-sans text-neutral-primary",
           ONBOARDING_BACKGROUND_CLASS
         )}
       >
@@ -1494,7 +1541,7 @@ const CareerNetworkOnboardingContent = () => {
                       <OnboardingFieldLabel>
                         이름 (한글 이름의 경우 한글로 적어주세요.)
                       </OnboardingFieldLabel>
-                      <BeigeInput
+                      <Input
                         autoFocus
                         value={name}
                         onChange={(event) => setName(event.target.value)}
@@ -1504,7 +1551,7 @@ const CareerNetworkOnboardingContent = () => {
                     </div>
                     <div>
                       <OnboardingFieldLabel>이메일</OnboardingFieldLabel>
-                      <BeigeInput
+                      <Input
                         type="email"
                         value={email}
                         onChange={(event) => setEmail(event.target.value)}
@@ -1556,7 +1603,7 @@ const CareerNetworkOnboardingContent = () => {
                       className={currentStepDefinition.secondaryBodyClassName}
                     >
                       {selectedProfileInputs.includes("linkedin") && (
-                        <BeigeLinkInput
+                        <LinkInput
                           label="LinkedIn"
                           placeholder="https://linkedin.com/in/..."
                           value={linkedin}
@@ -1564,7 +1611,7 @@ const CareerNetworkOnboardingContent = () => {
                         />
                       )}
                       {selectedProfileInputs.includes("github") && (
-                        <BeigeLinkInput
+                        <LinkInput
                           label="GitHub"
                           placeholder="https://github.com/..."
                           value={github}
@@ -1572,7 +1619,7 @@ const CareerNetworkOnboardingContent = () => {
                         />
                       )}
                       {selectedProfileInputs.includes("scholar") && (
-                        <BeigeLinkInput
+                        <LinkInput
                           label="Google Scholar"
                           placeholder="https://scholar.google.com/..."
                           value={scholar}
@@ -1580,7 +1627,7 @@ const CareerNetworkOnboardingContent = () => {
                         />
                       )}
                       {selectedProfileInputs.includes("website") && (
-                        <BeigeLinkInput
+                        <LinkInput
                           label="개인 페이지"
                           placeholder="https://..."
                           value={website}
@@ -1619,9 +1666,14 @@ const CareerNetworkOnboardingContent = () => {
                         />
                       ))}
                     </div>
-                    <p className={currentStepDefinition.footnoteClassName}>
+                    <Text
+                      as="p"
+                      variant="caption"
+                      tone="caption"
+                      className={currentStepDefinition.footnoteClassName}
+                    >
                       {selectedVisibilityOption.sub}
-                    </p>
+                    </Text>
                   </>
                 )}
               </motion.div>

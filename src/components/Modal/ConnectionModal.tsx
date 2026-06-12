@@ -12,6 +12,8 @@ import { notifyToSlack } from "@/lib/slack";
 import { useMessages } from "@/i18n/useMessage";
 import { Tooltips } from "../ui/tooltip";
 import { HelpCircle } from "lucide-react";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
+import { BareButton } from "@/components/ui/button";
 
 interface ConnectionModalProps {
   open: boolean;
@@ -156,7 +158,7 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({
       <div
         className={`relative z-50 w-full ${
           requestSent ? "max-w-[580px]" : "max-w-[640px]"
-        } rounded-[28px] bg-beige50 p-6 shadow-sm border border-beige900/8`}
+        } rounded-[28px] bg-bg-default p-6 shadow-sm border border-neutral-1000-a05`}
       >
         <NameProfile
           id={candidId}
@@ -175,30 +177,31 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({
           <div className="flex flex-col items-start justify-start mt-8 gap-1">
             <div className="text-[16px] font-light">
               Harper에게 보낼 내용
-              <span className="text-beige900/55 ml-2 text-sm">
+              <span className="text-neutral-muted ml-2 text-sm">
                 {isRequested && requestDate
                   ? ` (Requested at ${requestDate})`
                   : ""}
               </span>
             </div>
             {isRequested ? (
-              <div className="w-full mt-2 rounded-md border border-beige900/8 bg-beige100 px-4 py-3 text-sm text-beige900 focus:outline-none focus:ring-2 focus:ring-beige900/8">
+              <div className="w-full mt-2 rounded-md border border-neutral-1000-a05 bg-bg-basement px-4 py-3 text-sm text-neutral-primary focus:outline-none focus:ring-2 focus:ring-neutral-1000-a05">
                 {requestText || "이미 Intro 요청을 보낸 상태입니다."}
               </div>
             ) : (
-              <textarea
+              <UiTextarea
+                unstyled
                 placeholder={`[${name}]님을 커피챗으로 만나보고 싶습니다.`}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 rows={6}
-                className="w-full text-beige900 mt-2 rounded-2xl border font-light border-beige900/8 bg-beige50 p-4 text-[15px] focus:outline-none focus:ring-2 focus:ring-beige900/8"
+                className="w-full text-neutral-primary mt-2 rounded-2xl border font-light border-neutral-1000-a05 bg-bg-default p-4 text-[15px] focus:outline-none focus:ring-2 focus:ring-neutral-1000-a05"
               />
             )}
             <Tooltips
               text="Harper가 연결되기를 원하시는 분과의 중간 연결고리가 되어 드립니다. 꼭 목적을 함께 알려주세요."
               side="bottom"
             >
-              <div className="text-xs text-beige900/55 mt-2 ml-2 flex flex-row items-center gap-1">
+              <div className="text-xs text-neutral-muted mt-2 ml-2 flex flex-row items-center gap-1">
                 <HelpCircle strokeWidth={1.5} className="w-3 h-3" /> Harper가
                 어떻게 도와주나요?
               </div>
@@ -208,8 +211,8 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({
 
         <div className="w-full mt-8 flex flex-row items-end justify-end gap-2 transition-colors duration-200">
           {requestSent && (
-            <button
-              className="inline-flex items-center justify-center rounded-xl bg-beige900 px-6 py-3 text-sm font-medium text-beige100 disabled:cursor-not-allowed disabled:opacity-70"
+            <BareButton
+              className="inline-flex items-center justify-center rounded-xl bg-black px-6 py-3 text-sm font-medium text-neutral-00 disabled:cursor-not-allowed disabled:opacity-70"
               onClick={() => {
                 onConfirm();
                 onClose();
@@ -220,22 +223,22 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({
               }}
             >
               Close
-            </button>
+            </BareButton>
           )}
           {!requestSent && (
             <>
-              <button
-                className="inline-flex items-center justify-center rounded-xl px-6 py-3 text-sm font-medium text-beige900/55 hover:bg-beige50/80"
+              <BareButton
+                className="inline-flex items-center justify-center rounded-xl px-6 py-3 text-sm font-medium text-neutral-muted hover:bg-bg-default"
                 onClick={onClose}
               >
                 {m.system.close}
-              </button>
-              <button
-                className="inline-flex items-center justify-center rounded-xl bg-beige900 px-6 py-3 text-sm font-medium text-beige100 disabled:cursor-not-allowed disabled:opacity-70"
+              </BareButton>
+              <BareButton
+                className="inline-flex items-center justify-center rounded-xl bg-black px-6 py-3 text-sm font-medium text-neutral-00 disabled:cursor-not-allowed disabled:opacity-70"
                 onClick={onConfirmHandler}
               >
                 {isRequested ? "요청 취소" : "Intro 요청하기"}
-              </button>
+              </BareButton>
             </>
           )}
         </div>

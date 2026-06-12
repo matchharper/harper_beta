@@ -15,7 +15,7 @@ import type {
   CareerPreferenceFitKey,
   CareerPreferenceFitStatus,
 } from "../types";
-import { careerCx } from "../ui/CareerPrimitives";
+import { cn } from "@/lib/utils";
 import { Tooltips } from "@/components/ui/tooltip";
 
 const PREFERENCE_FIT_ICON: Record<CareerPreferenceFitKey, LucideIcon> = {
@@ -35,15 +35,15 @@ const PREFERENCE_FIT_STATUS_META: Record<
 > = {
   Satisfied: {
     label: <Check className="h-4 w-4" />,
-    statusClassName: "text-[#2f6f4e]",
+    statusClassName: "text-positive",
   },
   Neutral: {
     label: <TriangleAlert className="h-3.5 w-3.5" />,
-    statusClassName: "text-orange-600/70",
+    statusClassName: "text-info",
   },
   Dissatisfied: {
     label: <X className="h-3.5 w-3.5" />,
-    statusClassName: "text-[#9f3e29]",
+    statusClassName: "text-critical",
   },
 };
 
@@ -63,7 +63,7 @@ const OpportunityPreferenceFit = ({
 
   return (
     <div
-      className={careerCx(
+      className={cn(
         variant === "detail"
           ? "grid w-full gap-2 sm:grid-cols-1"
           : "w-full flex flex-row items-center justify-between gap-2",
@@ -80,7 +80,7 @@ const OpportunityPreferenceFit = ({
             key={`${item.key}-${item.status}-${item.note}`}
           >
             <div
-              className={careerCx(
+              className={cn(
                 "min-w-0 rounded-[8px] py-2",
                 variant === "detail"
                   ? "flex items-start gap-2.5"
@@ -88,8 +88,8 @@ const OpportunityPreferenceFit = ({
               )}
             >
               <span
-                className={careerCx(
-                  "mt-0.5 inline-flex shrink-0 items-center justify-center rounded-full bg-black/[0.04] text-black/90",
+                className={cn(
+                  "mt-0.5 inline-flex shrink-0 items-center justify-center rounded-full bg-bg-weak text-neutral-primary",
                   variant === "detail" ? "h-7 w-7" : "h-6 w-6"
                 )}
               >
@@ -99,11 +99,11 @@ const OpportunityPreferenceFit = ({
               </span>
               <span className="min-w-0 flex-1">
                 <span className="flex min-w-0 flex-wrap items-center gap-0.5">
-                  <span className="text-[13px] font-medium leading-5 text-black/90">
+                  <span className="text-[13px] font-medium leading-5 text-neutral-primary">
                     {item.label}
                   </span>
                   <span
-                    className={careerCx(
+                    className={cn(
                       "rounded-full px-1.5 py-0.5 text-[10px] font-medium leading-4",
                       meta.statusClassName
                     )}
@@ -113,8 +113,8 @@ const OpportunityPreferenceFit = ({
                 </span>
                 {variant !== "compact" && (
                   <span
-                    className={careerCx(
-                      "mt-0.5 block text-[13px] leading-5 text-black/80"
+                    className={cn(
+                      "mt-0.5 block text-[13px] leading-5 text-neutral-muted"
                     )}
                   >
                     {item.note}

@@ -7,8 +7,8 @@ import {
   Users,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import CareerRichText from "@/components/career/ui/CareerRichText";
-import { PillLink } from "@/components/ui/pill";
+import RichText from "@/components/ui/rich-text";
+import { BadgeLink } from "@/components/ui/badge";
 import { CompanyLogo } from "./CompanyLogo";
 import { FollowButton } from "./FollowButton";
 import {
@@ -26,7 +26,8 @@ import type {
   CompanyFollowClickHandler,
   CompanyWatchlistItem,
 } from "./watchlistTypes";
-import Tag from "@/components/ui/tag";
+import { Badge } from "@/components/ui/badge";
+import { Text } from "@/components/ui/text";
 
 const DetailSection = ({
   children,
@@ -36,7 +37,9 @@ const DetailSection = ({
   title: string;
 }) => (
   <section className="mt-8">
-    <h2 className="text-[15px] font-medium leading-6 text-black">{title}</h2>
+    <Text as="h2" variant="title" tone="primary" className="text-[15px]">
+      {title}
+    </Text>
     <div className="mt-2">{children}</div>
   </section>
 );
@@ -45,8 +48,8 @@ const DetailRows = ({ rows }: { rows: CompanyDetailRow[] }) => (
   <dl className="grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
     {rows.map((row) => (
       <div key={row.label} className="min-w-0">
-        <dt className="text-xs leading-5 text-black/60">{row.label}</dt>
-        <dd className="mt-1 wrap-break-word text-base leading-6 text-black">
+        <dt className="text-xs leading-5 text-neutral-muted">{row.label}</dt>
+        <dd className="mt-1 wrap-break-word text-base leading-6 text-neutral-primary">
           {row.value}
         </dd>
       </div>
@@ -57,7 +60,7 @@ const DetailRows = ({ rows }: { rows: CompanyDetailRow[] }) => (
 const TagList = ({ items }: { items: string[] }) => (
   <div className="flex flex-wrap gap-2">
     {items.map((item) => (
-      <Tag key={item}>{item}</Tag>
+      <Badge key={item}>{item}</Badge>
     ))}
   </div>
 );
@@ -123,19 +126,19 @@ export const CompanyDetailView = ({
   if (loading) {
     return (
       <section className="flex min-h-[420px] items-center justify-center">
-        <Loader2 className="h-5 w-5 animate-spin text-beige900/40" />
+        <Loader2 className="h-5 w-5 animate-spin text-neutral-soft" />
       </section>
     );
   }
 
   if (!item) {
     return (
-      <section className="rounded-[8px] border border-beige900/10 bg-white/45 px-5 py-10 text-center">
-        <Building2 className="mx-auto h-6 w-6 text-beige900/35" />
-        <h2 className="mt-4 text-[16px] font-medium text-beige900">
+      <section className="rounded-[8px] border border-neutral-1000-a05 bg-bg-floating px-5 py-10 text-center shadow-sm">
+        <Building2 className="mx-auto h-6 w-6 text-neutral-disabled" />
+        <h2 className="mt-4 text-[16px] font-medium text-neutral-primary">
           회사를 찾지 못했습니다.
         </h2>
-        {/* <CareerActionButton
+        {/* <ActionButton
           actionVariant="secondary"
           buttonRadius="rounded"
           onClick={onBack}
@@ -143,7 +146,7 @@ export const CompanyDetailView = ({
         >
           <ArrowLeft className="h-4 w-4" />
           워치리스트로 돌아가기
-        </CareerActionButton> */}
+        </ActionButton> */}
       </section>
     );
   }
@@ -166,7 +169,10 @@ export const CompanyDetailView = ({
     item.location
       ? {
           icon: (
-            <MapPin className="h-3.5 w-3.5 text-hgray200" strokeWidth={2} />
+            <MapPin
+              className="h-3.5 w-3.5 text-neutral-muted"
+              strokeWidth={2}
+            />
           ),
           label: "본사 위치",
           value: item.location,
@@ -175,7 +181,10 @@ export const CompanyDetailView = ({
     item.foundedYear
       ? {
           icon: (
-            <Calendar className="h-3.5 w-3.5 text-hgray200" strokeWidth={2} />
+            <Calendar
+              className="h-3.5 w-3.5 text-neutral-muted"
+              strokeWidth={2}
+            />
           ),
           label: "설립 연도",
           value: `${String(item.foundedYear)}년 설립`,
@@ -183,7 +192,9 @@ export const CompanyDetailView = ({
       : null,
     employeeCount
       ? {
-          icon: <Users className="h-3.5 w-3.5 text-hgray200" strokeWidth={2} />,
+          icon: (
+            <Users className="h-3.5 w-3.5 text-neutral-muted" strokeWidth={2} />
+          ),
           label: "직원 수",
           value: employeeCount,
         }
@@ -256,15 +267,15 @@ export const CompanyDetailView = ({
 
   return (
     <section className="min-w-0">
-      {/* <CareerActionButton
+      {/* <ActionButton
         actionVariant="secondary"
         buttonRadius="rounded"
         onClick={onBack}
-        className="h-auto border-transparent bg-transparent px-0 text-[13px] text-black/60 hover:translate-y-0 hover:border-transparent hover:bg-transparent hover:text-black hover:underline"
+        className="h-auto border-transparent bg-transparent px-0 text-[13px] text-neutral-muted hover:translate-y-0 hover:border-transparent hover:bg-transparent hover:text-neutral-primary hover:underline"
       >
         <ArrowLeft className="h-3 w-3" />
         워치리스트로 돌아가기
-      </CareerActionButton> */}
+      </ActionButton> */}
 
       <header className="mt-4">
         <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
@@ -272,33 +283,38 @@ export const CompanyDetailView = ({
             <CompanyLogo logoUrl={item.logoUrl} name={item.name} size="lg" />
             <div className="min-w-0 space-y-2">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="wrap-break-word text-[28px] font-semibold leading-8 text-black">
+                <Text
+                  as="h1"
+                  variant="head1"
+                  tone="primary"
+                  className="wrap-break-word text-[28px] font-semibold leading-8"
+                >
                   {item.name}
-                </h1>
+                </Text>
                 {item.followedAt ? (
-                  <span className="rounded-full bg-beige200 px-2.5 py-1 text-[12px] leading-none text-beige900/65">
+                  <span className="rounded-full bg-bg-weak px-2.5 py-1 text-[12px] leading-none text-neutral-muted">
                     {formatFollowedAt(item.followedAt)}
                   </span>
                 ) : null}
               </div>
-              <p className="max-w-[780px] text-[14px] text-black/70">
+              <Text className="max-w-[780px] text-[14px]" tone="muted">
                 {item.shortDescription ??
                   item.location ??
                   "회사 설명을 정리 중입니다."}
-              </p>
+              </Text>
 
               {links.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {links.map((link) => (
-                    <PillLink
+                    <BadgeLink
                       key={link.label}
                       href={link.href}
                       size="sm"
-                      className="bg-white/55 px-2.5 text-[12px] font-medium text-beige900 hover:border-beige900/25 hover:bg-white"
+                      className="bg-bg-floating px-2.5 text-[12px] font-medium text-neutral-primary hover:border-neutral-400 hover:bg-bg-weak"
                     >
                       <LinkPillIcon iconUrl={link.iconUrl} />
                       {link.label}
-                    </PillLink>
+                    </BadgeLink>
                   ))}
                 </div>
               ) : null}
@@ -320,7 +336,7 @@ export const CompanyDetailView = ({
             {infoRows.map((row) => (
               <div
                 key={row.label}
-                className="flex flex-row gap-1.5 items-center text-sm text-black/90"
+                className="flex flex-row gap-1.5 items-center text-sm text-neutral-primary"
               >
                 {row.icon && row.icon}
                 <span className="font-normal">{row.value}</span>
@@ -332,21 +348,24 @@ export const CompanyDetailView = ({
           <DetailSection title="Harper가 찾아본 내용">
             <div className="">
               {snapshotInvestigationDate ? (
-                <div className="mb-4 inline-flex rounded-full bg-beige200 px-2.5 py-1 text-[12px] font-medium leading-none text-beige900/65">
+                <div className="mb-4 inline-flex rounded-full bg-bg-weak px-2.5 py-1 text-[12px] font-medium leading-none text-neutral-muted">
                   조사일 {snapshotInvestigationDate}
                 </div>
               ) : null}
-              <CareerRichText
+              <RichText
                 content={snapshotMarkdown}
-                className="text-beige900/85"
+                className="text-neutral-primary/85"
               />
             </div>
           </DetailSection>
         ) : (
           <DetailSection title="회사 설명">
-            <p className="whitespace-pre-wrap text-sm leading-6 text-black/90">
+            <Text
+              className="whitespace-pre-wrap text-sm leading-6"
+              tone="neutral"
+            >
               {item.description ?? "아직 회사 설명이 없습니다."}
-            </p>
+            </Text>
           </DetailSection>
         )}
 
@@ -373,7 +392,7 @@ export const CompanyDetailView = ({
               ) : null}
               {crunchbaseCategories.length > 0 ? (
                 <div>
-                  <div className="mb-2 text-[12px] leading-5 text-black/60">
+                  <div className="mb-2 text-[12px] leading-5 text-neutral-muted">
                     카테고리
                   </div>
                   <TagList items={crunchbaseCategories} />
@@ -381,7 +400,7 @@ export const CompanyDetailView = ({
               ) : null}
               {crunchbaseFounders.length > 0 ? (
                 <div>
-                  <div className="mb-2 text-[12px] leading-5 text-black/60">
+                  <div className="mb-2 text-[12px] leading-5 text-neutral-muted">
                     창업자
                   </div>
                   <TagList items={crunchbaseFounders} />
@@ -389,7 +408,7 @@ export const CompanyDetailView = ({
               ) : null}
               {crunchbaseLocationGroups.length > 0 ? (
                 <div>
-                  <div className="mb-2 text-[12px] leading-5 text-black/60">
+                  <div className="mb-2 text-[12px] leading-5 text-neutral-muted">
                     지역 그룹
                   </div>
                   <TagList items={crunchbaseLocationGroups} />
@@ -408,7 +427,7 @@ export const CompanyDetailView = ({
                   href={link}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex min-w-0 items-center justify-between gap-3 text-[13px] leading-6 text-black/60 transition-colors hover:text-black"
+                  className="flex min-w-0 items-center justify-between gap-3 text-[13px] leading-6 text-neutral-muted transition-colors hover:text-neutral-primary"
                 >
                   <span className="min-w-0 truncate">{link}</span>
                   <ArrowUpRight className="h-3.5 w-3.5 shrink-0" />

@@ -6,6 +6,7 @@ import {
   TrendingUp,
   XCircle,
 } from "lucide-react";
+import { BareButton } from "@/components/ui/button";
 
 type ScoutEmptyStateProps = {
   onCreateAgent: () => void;
@@ -61,7 +62,7 @@ export default function ScoutEmptyState({
           <h2 className="mt-3 text-3xl font-hedvig font-normal leading-relaxed tracking-tight text-white">
             끝까지 책임지고
             <br />
-            <span className="text-hgray600">까다롭고 모호한 조건</span>까지
+            <span className="text-neutral-600">까다롭고 모호한 조건</span>까지
             <br />
             충족하는 인재를 찾아드립니다.
           </h2>
@@ -108,14 +109,14 @@ export default function ScoutEmptyState({
             </div>
           </div>
 
-          <button
+          <BareButton
             type="button"
             onClick={onCreateAgent}
-            className="inline-flex items-center gap-2 border border-white/30 px-6 py-3 text-sm font-medium bg-accenta1 rounded-full text-black transition hover:opacity-80"
+            className="inline-flex items-center gap-2 border border-white/30 px-6 py-3 text-sm font-medium bg-accent-200 rounded-full text-black transition hover:opacity-80"
           >
             Agent 만들기
             <ArrowRight className="h-4 w-4" />
-          </button>
+          </BareButton>
         </div>
       </section>
     </div>

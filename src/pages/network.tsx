@@ -46,7 +46,10 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { logger } from "@/utils/logger";
-import { BeigeCheckbox } from "@/components/ui/beige/checkbox";
+import { Checkbox } from "@/components/ui/checkbox";
+import { BareButton } from "@/components/ui/button";
+import { Input as UiInput } from "@/components/ui/input";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
 type CompanyRequest = {
   id: string;
@@ -225,15 +228,15 @@ const faqs = [
                 <br />
               정규직 합류뿐만 아니라, 현업을 유지하며 주당 4~12시간 내외로 핵심 프로젝트에 기여하는 'Fractional(파트타임)' 형태의 협업 기회도 Harper 네트워크 안에서 활발하게 연결됩니다.</div>
             </div>`,
-    //             `<div><span class='font-semibold text-beige900 font-inter'>Focused Expertise:</span> 저희는 오직 AI/ML 분야에만 집중합니다. 모델 트레이닝, LLM 인프라, NPU 설계 등 기술적 난도가 높은 직무의 맥락을 정확히 이해하고, 정확한 기회만 연결합니다.</div>
-    // <div class="mt-2"><span class='font-semibold text-beige900 font-inter'>Exclusive Partnership:</span> 모든 회사의 공고를 제안하지 않습니다. 실리콘밸리 Tier 1 VC의 투자를 받았거나 기술적 파괴력이 입증된 소수의 팀들과만 긴밀하게 협업하며, 시장에 공개되지 않은 핵심 포지션(Stealth Roles)을 우선적으로 매칭합니다.</div>
-    // <div class="mt-2"><span class='font-semibold text-beige900 font-inter'>Streamlined Process:</span> 불필요한 단계를 생략합니다. Harper의 추천은 파트너사의 창업자 또는 기술 리드에게 직접 전달되어, 가장 효율적이고 전문적인 논의가 이루어질 수 있도록 지원합니다.</div>
-    // <div class="mt-2"><span class='font-semibold text-beige900 font-inter'>Engagement Flexibility:</span> 정규직 합류뿐만 아니라, 현업을 유지하며 주당 4~12시간 내외로 핵심 프로젝트에 기여하는 'Fractional(파트타임)' 형태의 협업 기회도 Harper 네트워크 안에서 활발하게 연결됩니다.</div>
+    //             `<div><span class='font-semibold text-neutral-primary font-inter'>Focused Expertise:</span> 저희는 오직 AI/ML 분야에만 집중합니다. 모델 트레이닝, LLM 인프라, NPU 설계 등 기술적 난도가 높은 직무의 맥락을 정확히 이해하고, 정확한 기회만 연결합니다.</div>
+    // <div class="mt-2"><span class='font-semibold text-neutral-primary font-inter'>Exclusive Partnership:</span> 모든 회사의 공고를 제안하지 않습니다. 실리콘밸리 Tier 1 VC의 투자를 받았거나 기술적 파괴력이 입증된 소수의 팀들과만 긴밀하게 협업하며, 시장에 공개되지 않은 핵심 포지션(Stealth Roles)을 우선적으로 매칭합니다.</div>
+    // <div class="mt-2"><span class='font-semibold text-neutral-primary font-inter'>Streamlined Process:</span> 불필요한 단계를 생략합니다. Harper의 추천은 파트너사의 창업자 또는 기술 리드에게 직접 전달되어, 가장 효율적이고 전문적인 논의가 이루어질 수 있도록 지원합니다.</div>
+    // <div class="mt-2"><span class='font-semibold text-neutral-primary font-inter'>Engagement Flexibility:</span> 정규직 합류뿐만 아니라, 현업을 유지하며 주당 4~12시간 내외로 핵심 프로젝트에 기여하는 'Fractional(파트타임)' 형태의 협업 기회도 Harper 네트워크 안에서 활발하게 연결됩니다.</div>
     // `
   },
   {
     question: "당장 이직 생각이 없어도 등록해둘 수 있을까요?",
-    answer: `네. 하퍼는 정규직 채용 외에도 <span class='font-semibold text-beige900 font-inter'>파트타임, 인턴, 자문</span> 등 지원자님에게 도움이 될 수 있는 다양한 형태의 기회를 함께 연결합니다.<br /><br />
+    answer: `네. 하퍼는 정규직 채용 외에도 <span class='font-semibold text-neutral-primary font-inter'>파트타임, 인턴, 자문</span> 등 지원자님에게 도움이 될 수 있는 다양한 형태의 기회를 함께 연결합니다.<br /><br />
 등록해두시면 좋은 기회가 생길 때마다 알려드릴게요. 수락만 하시면 회사와 바로 인터뷰부터 진행하실 수 있습니다.<br /><br />
 
 아래의 사항들 중 하나에 해당되신다면 등록해두시는걸 추천드립니다.<br /><br />
@@ -267,7 +270,7 @@ const valueCards = [
 ];
 
 const sectionTagClassName =
-  "inline-flex items-center rounded-lg bg-beige500/80 px-4 py-2 font-geist text-[15px] font-medium tracking-[-0.03em] text-beige900/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] backdrop-blur-xl";
+  "inline-flex items-center rounded-lg bg-bg-weak/80 px-4 py-2 text-[15px] font-medium tracking-[-0.03em] text-neutral-muted shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] backdrop-blur-xl";
 
 const titleTextClassName =
   "font-hedvig text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.95] tracking-[-0.08em]";
@@ -367,10 +370,10 @@ export const NetworkButton = ({
       onClick={onClick}
       whileHover={{ y: -1 }}
       whileTap={{ scale: 0.985 }}
-      className={`group relative inline-flex items-center justify-center overflow-hidden font-geist font-medium tracking-[-0.03em] transition-shadow duration-300 ${
+      className={`group relative inline-flex items-center justify-center overflow-hidden font-medium tracking-[-0.03em] transition-shadow duration-300 ${
         isPrimary
-          ? "rounded-[12px] bg-beige900 text-beige100 shadow-[0_10px_20px_rgba(46,23,6,0.1)] hover:shadow-[0_18px_40px_rgba(46,23,6,0.2)]"
-          : "rounded-[12px] bg-beige500/70 text-beige900 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]"
+          ? "rounded-[12px] bg-black text-neutral-00 shadow-sm hover:shadow-md"
+          : "rounded-[12px] bg-bg-weak/70 text-neutral-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]"
       } ${
         isSmall
           ? isPrimary
@@ -380,8 +383,8 @@ export const NetworkButton = ({
       } ${
         highlighted
           ? isPrimary
-            ? "ring-4 ring-[#D9C1A0] ring-offset-2 ring-offset-beige200 shadow-[0_18px_44px_rgba(46,23,6,0.2)]"
-            : "ring-2 ring-[#D9C1A0]/90 ring-offset-2 ring-offset-beige200"
+            ? "ring-4 ring-[#D9C1A0] ring-offset-2 ring-offset-bg-weak shadow-[0_18px_44px_rgba(46,23,6,0.2)]"
+            : "ring-2 ring-[#D9C1A0]/90 ring-offset-2 ring-offset-bg-weak"
           : ""
       } ${className}`}
     >
@@ -429,23 +432,23 @@ const RequestCard = ({
 }) => {
   return (
     <div ref={containerRef} className={`h-full`}>
-      <button
+      <BareButton
         type="button"
         onClick={onClick}
-        className={`group relative flex h-full min-h-[140px] md:min-h-[148px] w-full flex-col justify-between rounded-md bg-beige100/80 p-4 md:p-5 text-left transition-all duration-200 outline ${
+        className={`group relative flex h-full min-h-[140px] md:min-h-[148px] w-full flex-col justify-between rounded-md bg-bg-basement/80 p-4 md:p-5 text-left transition-all duration-200 outline ${
           isHighlighted
-            ? "border border-beige900 outline-2 outline-beige900 shadow-[0_18px_40px_rgba(46,23,6,0.1)]"
-            : "border border-beige900/10 outline-1 outline-beige900/0 hover:outline-beige900/90 hover:border-beige900/90"
+            ? "border border-neutral-800 outline-2 outline-neutral-800 shadow-sm"
+            : "border border-neutral-1000-a05 outline-1 outline-transparent hover:outline-neutral-800 hover:border-neutral-800"
         }`}
       >
         <div className="flex flex-col w-full">
           <div className="font-inter text-base font-medium leading-[0.96] tracking-[-0.04em] text-black">
             {request.title}
           </div>
-          <div className="inline-flex w-fit mt-2 md:mt-3 text-base font-medium leading-[1.45] tracking-[-0.03em] text-beige900/80">
+          <div className="inline-flex w-fit mt-2 md:mt-3 text-base font-medium leading-[1.45] tracking-[-0.03em] text-neutral-muted">
             <span>{request.company}</span>
           </div>
-          <div className="absolute right-2 top-2 text-sm inline-flex font-normal items-center gap-1 tracking-[-0.03em] text-black/50 group-hover:text-beige900 transition-colors duration-200">
+          <div className="absolute right-2 top-2 text-sm inline-flex font-normal items-center gap-1 tracking-[-0.03em] text-black/50 group-hover:text-neutral-primary transition-colors duration-200">
             <ArrowUpRight className="h-4 w-4 transition-all duration-300 group-hover:translate-x-[2px] group-hover:translate-y-[-2px]" />
           </div>
         </div>
@@ -456,10 +459,10 @@ const RequestCard = ({
             <div>{request.compensation}</div>
           </div>
         </div>
-      </button>
+      </BareButton>
 
       {isHighlighted && (
-        <p className="mt-2 px-1 text-[12px] font-medium leading-[1.4] tracking-[-0.03em] text-beige900/70">
+        <p className="mt-2 px-1 text-[12px] font-medium leading-[1.4] tracking-[-0.03em] text-neutral-muted">
           이 포지션에 추천받으셨습니다.
         </p>
       )}
@@ -491,10 +494,10 @@ const RequestDetailModal = ({
     children: React.ReactNode;
   }) => (
     <section className="space-y-2">
-      <span className="py-1 px-2 rounded-lg bg-beige500 text-sm font-medium tracking-[-0.01em] text-beige900/90 ml-[-2px]">
+      <span className="py-1 px-2 rounded-lg bg-bg-weak text-sm font-medium tracking-[-0.01em] text-neutral-primary ml-[-2px]">
         {label}
       </span>
-      <div className="text-[15px] leading-[1.75] tracking-[-0.02em] text-beige900/80">
+      <div className="text-[15px] leading-[1.75] tracking-[-0.02em] text-neutral-muted">
         {children}
       </div>
     </section>
@@ -502,7 +505,7 @@ const RequestDetailModal = ({
 
   function convertITagToSpan(input: string): string {
     return input
-      .replace(/<i>/g, '<span class="text-beige900/50">')
+      .replace(/<i>/g, '<span class="text-neutral-soft">')
       .replace(/<\/i>/g, "</span>");
   }
 
@@ -525,28 +528,28 @@ const RequestDetailModal = ({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 12, scale: 0.985 }}
         transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-        className="relative z-10 flex max-h-[calc(100vh-32px)] w-full max-w-[640px] flex-col overflow-hidden rounded-2xl border border-beige900/10 bg-beige100 shadow-[0_20px_60px_rgba(37,20,6,0.15)]"
+        className="relative z-10 flex max-h-[calc(100vh-32px)] w-full max-w-[640px] flex-col overflow-hidden rounded-2xl border border-neutral-1000-a05 bg-bg-basement shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="overflow-y-auto px-6 py-6 md:px-7 md:py-7 relative">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <h2 className="text-lg font-medium leading-[1.05] tracking-[-0.04em] text-beige900 md:text-xl">
+              <h2 className="text-lg font-medium leading-[1.05] tracking-[-0.04em] text-neutral-primary md:text-xl">
                 {request.title}
               </h2>
             </div>
 
-            <button
+            <BareButton
               type="button"
               onClick={onClose}
-              className="absolute right-3 top-3 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-beige900/55 transition hover:border-beige900/20 hover:bg-beige900/5 hover:text-beige900/80"
+              className="absolute right-3 top-3 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-neutral-muted transition hover:border-neutral-1000-a10 hover:bg-black/5 hover:text-neutral-muted"
               aria-label="Close request details"
             >
               <X className="h-4 w-4" />
-            </button>
+            </BareButton>
           </div>
           <p
-            className="mt-4 text-base md:text-lg font-medium leading-[1.75] tracking-[-0.02em] text-beige900/90"
+            className="mt-4 text-base md:text-lg font-medium leading-[1.75] tracking-[-0.02em] text-neutral-primary"
             dangerouslySetInnerHTML={{
               __html: convertITagToSpan(request.intro),
             }}
@@ -568,14 +571,14 @@ const RequestDetailModal = ({
 
             {request.whoThisIsFor && request.whoThisIsFor.length > 0 && (
               <section className="space-y-2.5">
-                <h3 className="text-[13px] font-medium tracking-[-0.01em] text-beige900/45">
+                <h3 className="text-[13px] font-medium tracking-[-0.01em] text-neutral-soft">
                   Who this is for
                 </h3>
                 <div className="space-y-2">
                   {request.whoThisIsFor.map((item) => (
                     <div
                       key={item}
-                      className="flex items-start gap-3 text-[15px] leading-[1.75] tracking-[-0.02em] text-beige900/80"
+                      className="flex items-start gap-3 text-[15px] leading-[1.75] tracking-[-0.02em] text-neutral-muted"
                     >
                       <span>- {item}</span>
                     </div>
@@ -655,24 +658,24 @@ const InquiryModal = ({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 12, scale: 0.985 }}
         transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-        className="relative z-10 w-full max-w-[560px] rounded-2xl border border-beige900/10 bg-beige200 p-6 shadow-[0_20px_60px_rgba(37,20,6,0.15)] md:p-7"
+        className="relative z-10 w-full max-w-[560px] rounded-2xl border border-neutral-1000-a05 bg-bg-weak p-6 shadow-xl md:p-7"
         onClick={(event) => event.stopPropagation()}
       >
-        <button
+        <BareButton
           type="button"
           onClick={onClose}
           disabled={isSubmitting}
-          className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-lg text-beige900/55 transition hover:bg-beige900/5 hover:text-beige900/80 disabled:cursor-not-allowed disabled:opacity-40"
+          className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-lg text-neutral-muted transition hover:bg-black/5 hover:text-neutral-muted disabled:cursor-not-allowed disabled:opacity-40"
           aria-label="문의 모달 닫기"
         >
           <X className="h-4 w-4" />
-        </button>
+        </BareButton>
 
         <div className="pr-8">
-          <h2 className="text-xl font-medium tracking-[-0.04em] text-beige900">
+          <h2 className="text-xl font-medium tracking-[-0.04em] text-neutral-primary">
             문의하기
           </h2>
-          <p className="mt-2 text-sm leading-[1.7] tracking-[-0.02em] text-beige900/60">
+          <p className="mt-2 text-sm leading-[1.7] tracking-[-0.02em] text-neutral-muted">
             궁금한 점이나 원하는 기회가 있으면 남겨주세요. 확인 후
             연락드리겠습니다.
           </p>
@@ -680,46 +683,48 @@ const InquiryModal = ({
 
         <div className="mt-6 space-y-4">
           <div>
-            <label className="mb-2 block text-sm font-medium tracking-[-0.02em] text-beige900/70">
+            <label className="mb-2 block text-sm font-medium tracking-[-0.02em] text-neutral-muted">
               회신 받으실 이메일
             </label>
-            <input
+            <UiInput
+              unstyled
               type="email"
               value={email}
               onChange={(event) => onEmailChange(event.target.value)}
               placeholder="example@example.com"
-              className="h-12 w-full rounded-xl border border-beige900/10 bg-white/70 px-4 text-[15px] text-beige900 outline-none transition focus:border-beige900/30 focus:ring-1 focus:ring-beige900/20 placeholder:text-beige900/30"
+              className="h-12 w-full rounded-xl border border-neutral-1000-a05 bg-white/70 px-4 text-[15px] text-neutral-primary outline-none transition focus:border-neutral-400 focus:ring-1 focus:ring-neutral-1000-a05 placeholder:text-neutral-placeholder"
             />
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-medium tracking-[-0.02em] text-beige900/70">
+            <label className="mb-2 block text-sm font-medium tracking-[-0.02em] text-neutral-muted">
               내용
             </label>
-            <textarea
+            <UiTextarea
+              unstyled
               value={content}
               onChange={(event) => onContentChange(event.target.value)}
               rows={4}
               placeholder="문의하실 내용을 입력해 주세요."
-              className="w-full rounded-xl border border-beige900/10 bg-white/70 px-4 py-3 text-[15px] leading-[1.6] text-beige900 outline-none transition focus:border-beige900/30 focus:ring-1 focus:ring-beige900/20 placeholder:text-beige900/30 resize-none"
+              className="w-full rounded-xl border border-neutral-1000-a05 bg-white/70 px-4 py-3 text-[15px] leading-[1.6] text-neutral-primary outline-none transition focus:border-neutral-400 focus:ring-1 focus:ring-neutral-1000-a05 placeholder:text-neutral-placeholder resize-none"
             />
           </div>
         </div>
 
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <button
+          <BareButton
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            className="inline-flex h-11 items-center justify-center rounded-xl border border-beige900/10 bg-white/60 px-4 text-sm font-medium text-beige900/80 transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex h-11 items-center justify-center rounded-xl border border-neutral-1000-a05 bg-white/60 px-4 text-sm font-medium text-neutral-muted transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-40"
           >
             닫기
-          </button>
-          <button
+          </BareButton>
+          <BareButton
             type="button"
             onClick={onSubmit}
             disabled={isSubmitting}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-beige900 px-4 text-sm font-medium text-beige100 transition hover:opacity-92 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-medium text-neutral-00 transition hover:opacity-92 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {isSubmitting ? (
               <>
@@ -729,7 +734,7 @@ const InquiryModal = ({
             ) : (
               "문의하기"
             )}
-          </button>
+          </BareButton>
         </div>
       </motion.div>
     </motion.div>
@@ -768,52 +773,53 @@ const ReferralShareModal = ({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 10, scale: 0.985 }}
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-        className="relative z-10 w-[96%] max-w-[420px] rounded-2xl border border-beige900/10 bg-beige100 p-5 shadow-[0_20px_60px_rgba(37,20,6,0.15)]"
+        className="relative z-10 w-[96%] max-w-[420px] rounded-2xl border border-neutral-1000-a05 bg-bg-basement p-5 shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <button
+        <BareButton
           type="button"
           onClick={onClose}
           disabled={isSubmitting}
-          className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-beige900/55 transition hover:bg-beige900/5 hover:text-beige900/80 disabled:cursor-not-allowed disabled:opacity-40"
+          className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-neutral-muted transition hover:bg-black/5 hover:text-neutral-muted disabled:cursor-not-allowed disabled:opacity-40"
           aria-label="공유 모달 닫기"
         >
           <X className="h-4 w-4" />
-        </button>
+        </BareButton>
 
         <div className="pr-7">
-          <h2 className="text-base font-medium tracking-[-0.03em] text-beige900">
+          <h2 className="text-base font-medium tracking-[-0.03em] text-neutral-primary">
             공유 링크 생성
           </h2>
         </div>
 
         <div className="mt-5">
-          <label className="mb-2 block text-sm font-medium tracking-[-0.02em] text-beige900/70">
+          <label className="mb-2 block text-sm font-medium tracking-[-0.02em] text-neutral-muted">
             이메일
           </label>
-          <input
+          <UiInput
+            unstyled
             type="email"
             value={email}
             onChange={(event) => onEmailChange(event.target.value)}
             placeholder="example@example.com"
-            className="h-11 w-full rounded-md border border-beige900/10 bg-white/75 px-4 text-[15px] text-beige900 outline-none transition focus:border-beige900/30 focus:ring-1 focus:ring-beige900/20 placeholder:text-beige900/30"
+            className="h-11 w-full rounded-md border border-neutral-1000-a05 bg-white/75 px-4 text-[15px] text-neutral-primary outline-none transition focus:border-neutral-400 focus:ring-1 focus:ring-neutral-1000-a05 placeholder:text-neutral-placeholder"
           />
         </div>
 
         <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <button
+          <BareButton
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            className="inline-flex h-10 items-center justify-center rounded-xl border border-beige900/10 bg-white/60 px-4 text-sm font-medium text-beige900/80 transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex h-10 items-center justify-center rounded-xl border border-neutral-1000-a05 bg-white/60 px-4 text-sm font-medium text-neutral-muted transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-40"
           >
             닫기
-          </button>
-          <button
+          </BareButton>
+          <BareButton
             type="button"
             onClick={onSubmit}
             disabled={isSubmitting}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-beige900 px-4 text-sm font-medium text-beige100 transition hover:opacity-92 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-medium text-neutral-00 transition hover:opacity-92 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {isSubmitting ? (
               <>
@@ -823,7 +829,7 @@ const ReferralShareModal = ({
             ) : (
               "공유 링크 생성"
             )}
-          </button>
+          </BareButton>
         </div>
       </motion.div>
     </motion.div>
@@ -842,12 +848,13 @@ const QuickApplyTextInput = ({
   placeholder: string;
 }) => {
   return (
-    <input
+    <UiInput
+      unstyled
       type={type}
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
-      className="h-10 px-2.5 text-sm w-full rounded-md border border-beige900/10 bg-white/75 text-[15px] text-beige900 outline-none transition focus:border-beige900/30 focus:ring-1 focus:ring-beige900/20 placeholder:text-beige900/30"
+      className="h-10 px-2.5 text-sm w-full rounded-md border border-neutral-1000-a05 bg-white/75 text-[15px] text-neutral-primary outline-none transition focus:border-neutral-400 focus:ring-1 focus:ring-neutral-1000-a05 placeholder:text-neutral-placeholder"
     />
   );
 };
@@ -906,18 +913,18 @@ const QuickApplyModal = ({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 10, scale: 0.985 }}
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-        className="relative z-10 w-full min-h-screen md:min-h-fit md:max-w-[460px] md:rounded-lg border border-beige900/10 bg-beige100 p-4 shadow-[0_20px_60px_rgba(37,20,6,0.15)] md:p-5"
+        className="relative z-10 w-full min-h-screen md:min-h-fit md:max-w-[460px] md:rounded-lg border border-neutral-1000-a05 bg-bg-basement p-4 shadow-xl md:p-5"
         onClick={(event) => event.stopPropagation()}
       >
-        <button
+        <BareButton
           type="button"
           onClick={onClose}
           disabled={isSubmitting}
-          className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-beige900/55 transition hover:bg-beige900/5 hover:text-beige900/80 disabled:cursor-not-allowed disabled:opacity-40"
+          className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-neutral-muted transition hover:bg-black/5 hover:text-neutral-muted disabled:cursor-not-allowed disabled:opacity-40"
           aria-label="지원 모달 닫기"
         >
           <X className="h-4 w-4" />
-        </button>
+        </BareButton>
 
         <div className="">
           <div className="flex items-center gap-2">
@@ -930,12 +937,12 @@ const QuickApplyModal = ({
                 className="h-12 w-auto object-contain"
               />
             ) : (
-              <h2 className="text-lg font-medium tracking-[-0.03em] text-beige900">
+              <h2 className="text-lg font-medium tracking-[-0.03em] text-neutral-primary">
                 {roleLabel}
               </h2>
             )}
           </div>
-          <p className="flex flex-row items-center gap-1 mt-1 text-sm leading-[1.65] tracking-[-0.02em] text-beige900/60">
+          <p className="flex flex-row items-center gap-1 mt-1 text-sm leading-[1.65] tracking-[-0.02em] text-neutral-muted">
             <Shield className="h-3.5 w-3.5" /> 입력하신 정보는 절대로 허락 없이
             외부에 공개되지 않습니다.
           </p>
@@ -943,7 +950,7 @@ const QuickApplyModal = ({
 
         <div className="mt-3 space-y-3">
           <div>
-            <label className="mb-1 block text-sm font-medium tracking-[-0.02em] text-beige900/70">
+            <label className="mb-1 block text-sm font-medium tracking-[-0.02em] text-neutral-muted">
               이름
             </label>
             <QuickApplyTextInput
@@ -955,7 +962,7 @@ const QuickApplyModal = ({
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium tracking-[-0.02em] text-beige900/70">
+            <label className="mb-1 block text-sm font-medium tracking-[-0.02em] text-neutral-muted">
               이메일
             </label>
             <QuickApplyTextInput
@@ -967,7 +974,7 @@ const QuickApplyModal = ({
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium tracking-[-0.02em] text-beige900/70">
+            <label className="mb-1 block text-sm font-medium tracking-[-0.02em] text-neutral-muted">
               링크드인 링크
             </label>
             <QuickApplyTextInput
@@ -979,12 +986,12 @@ const QuickApplyModal = ({
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-medium tracking-[-0.02em] text-beige900/70">
+            <label className="mb-2 block text-sm font-medium tracking-[-0.02em] text-neutral-muted">
               이력서 업로드 (optional)
             </label>
-            <label className="flex cursor-pointer items-center justify-between rounded-md border border-dashed border-beige900/20 bg-beige200/65 px-3 py-2 transition hover:border-beige900/30 hover:bg-beige200">
+            <label className="flex cursor-pointer items-center justify-between rounded-md border border-dashed border-neutral-1000-a10 bg-bg-weak/65 px-3 py-2 transition hover:border-neutral-400 hover:bg-bg-weak">
               <div className="flex min-w-0 items-center gap-3">
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-beige900/10 bg-white/80 text-beige900/70">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-1000-a05 bg-white/80 text-neutral-muted">
                   {resumeFileName ? (
                     <FileText className="h-4 w-4" />
                   ) : (
@@ -992,18 +999,19 @@ const QuickApplyModal = ({
                   )}
                 </span>
                 <div className="min-w-0">
-                  <div className="truncate text-[13px] font-medium text-beige900/80">
+                  <div className="truncate text-[13px] font-medium text-neutral-muted">
                     {resumeFileName || "파일 선택"}
                   </div>
-                  <div className="text-xs text-beige900/45">
+                  <div className="text-xs text-neutral-soft">
                     PDF, DOC, DOCX 중 하나를 올릴 수 있습니다.
                   </div>
                 </div>
               </div>
-              <span className="ml-3 shrink-0 text-xs font-medium text-beige900/55">
+              <span className="ml-3 shrink-0 text-xs font-medium text-neutral-muted">
                 선택
               </span>
-              <input
+              <UiInput
+                unstyled
                 type="file"
                 accept=".pdf,.doc,.docx"
                 className="hidden"
@@ -1017,12 +1025,12 @@ const QuickApplyModal = ({
           <div className="h-1" />
 
           <label className="flex flex-row items-center gap-1 cursor-pointer group">
-            <BeigeCheckbox
+            <Checkbox
               checked={contactConsent}
               onChange={(event) => onContactConsentChange(event.target.checked)}
-              className="mt-1 h-4 w-4 rounded border-beige900/25 text-beige900 focus:ring-beige900/30"
+              className="mt-1 h-4 w-4 rounded border-neutral-400 text-neutral-primary focus:ring-neutral-1000-a10"
             />
-            <div className="group-hover:text-beige900/75 mt-1 w-full text-sm tracking-[-0.02em] text-beige900/90">
+            <div className="group-hover:text-neutral-muted mt-1 w-full text-sm tracking-[-0.02em] text-neutral-primary">
               기재한 이메일로{" "}
               {isWonderfulCampaign
                 ? "Wonderful에 대해 안내하는 것에"
@@ -1033,11 +1041,11 @@ const QuickApplyModal = ({
         </div>
 
         <div className="mt-3 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <button
+          <BareButton
             type="button"
             onClick={onSubmit}
             disabled={isSubmitting}
-            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-beige900 px-4 text-sm font-medium text-beige100 transition hover:opacity-92 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-black px-4 text-sm font-medium text-neutral-00 transition hover:opacity-92 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {isSubmitting ? (
               <>
@@ -1047,7 +1055,7 @@ const QuickApplyModal = ({
             ) : (
               "지원하기"
             )}
-          </button>
+          </BareButton>
         </div>
       </motion.div>
     </motion.div>
@@ -1919,7 +1927,7 @@ const NetworkPage = () => {
 
   const Pill = ({ label }: { label: string }) => {
     return (
-      <div className="inline-flex items-center gap-1 rounded-md bg-beige500 px-3 py-1 text-[13px] md:text-sm font-medium tracking-[-0.03em] text-beige900/90 transition-colors duration-200">
+      <div className="inline-flex items-center gap-1 rounded-md bg-bg-weak px-3 py-1 text-[13px] md:text-sm font-medium tracking-[-0.03em] text-neutral-primary transition-colors duration-200">
         {label}
       </div>
     );
@@ -1937,7 +1945,7 @@ const NetworkPage = () => {
   //         />
   //       </Head>
 
-  //       <div className="min-h-screen overflow-x-clip bg-beige100 font-geist text-beige900 antialiased">
+  //       <div className="min-h-screen overflow-x-clip bg-bg-basement text-neutral-primary antialiased">
   //         <AnimatePresence>
   //           {showPreloader && (
   //             <motion.div
@@ -1946,22 +1954,22 @@ const NetworkPage = () => {
   //                 y: "-100%",
   //                 transition: { duration: 0.9, ease: [0.76, 0, 0.24, 1] },
   //               }}
-  //               className="fixed inset-0 z-160 flex items-center justify-center bg-beige500"
+  //               className="fixed inset-0 z-160 flex items-center justify-center bg-bg-weak"
   //             >
-  //               <div className="font-hedvig text-5xl md:text-7xl tracking-[-0.08em] text-beige900">
+  //               <div className="font-hedvig text-5xl md:text-7xl tracking-[-0.08em] text-neutral-primary">
   //                 <StaggerText text="Harper" by="char" delay={0.08} />
   //               </div>
   //             </motion.div>
   //           )}
   //         </AnimatePresence>
 
-  //         {/* <div className="fixed bottom-4 left-4 z-170 rounded-xl border border-beige900/15 bg-beige200/95 p-3 shadow-[0_12px_30px_rgba(37,20,6,0.15)] backdrop-blur">
-  //           <div className="text-[11px] font-medium tracking-[0.14em] text-beige900/45">
+  //         {/* <div className="fixed bottom-4 left-4 z-170 rounded-xl border border-neutral-1000-a10 bg-bg-weak/95 p-3 shadow-[0_12px_30px_rgba(37,20,6,0.15)] backdrop-blur">
+  //           <div className="text-[11px] font-medium tracking-[0.14em] text-neutral-soft">
   //             AB Test Preview
   //           </div>
-  //           <div className="mt-1 text-sm text-beige900/70">
+  //           <div className="mt-1 text-sm text-neutral-muted">
   //             Current:{" "}
-  //             <span className="font-semibold text-beige900">
+  //             <span className="font-semibold text-neutral-primary">
   //               {abtestType === TALENT_NETWORK_ABTEST_TYPE_B ? "B" : "A"}
   //             </span>
   //           </div>
@@ -1973,8 +1981,8 @@ const NetworkPage = () => {
   //               }
   //               className={`inline-flex h-9 min-w-[40px] items-center justify-center rounded-lg border px-3 text-sm font-medium transition ${
   //                 abtestType === TALENT_NETWORK_ABTEST_TYPE_A
-  //                   ? "border-beige900 bg-beige900 text-beige100"
-  //                   : "border-beige900/15 bg-white/70 text-beige900/75 hover:bg-white"
+  //                   ? "border-neutral-800 bg-black text-neutral-00"
+  //                   : "border-neutral-1000-a10 bg-white/70 text-neutral-muted hover:bg-white"
   //               }`}
   //             >
   //               A
@@ -1986,8 +1994,8 @@ const NetworkPage = () => {
   //               }
   //               className={`inline-flex h-9 min-w-[40px] items-center justify-center rounded-lg border px-3 text-sm font-medium transition ${
   //                 abtestType === TALENT_NETWORK_ABTEST_TYPE_B
-  //                   ? "border-beige900 bg-beige900 text-beige100"
-  //                   : "border-beige900/15 bg-white/70 text-beige900/75 hover:bg-white"
+  //                   ? "border-neutral-800 bg-black text-neutral-00"
+  //                   : "border-neutral-1000-a10 bg-white/70 text-neutral-muted hover:bg-white"
   //               }`}
   //             >
   //               B
@@ -2001,12 +2009,12 @@ const NetworkPage = () => {
   //             y: isMobile && !isMobileHeaderVisible ? -88 : 0,
   //           }}
   //           transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-  //           className="fixed inset-x-0 top-0 z-50 bg-beige200 backdrop-blur-lg"
+  //           className="fixed inset-x-0 top-0 z-50 bg-bg-weak backdrop-blur-lg"
   //         >
   //           <div className="mx-auto flex h-[64px] max-w-[1160px] items-center justify-between px-4">
   //             <a
   //               href="#top"
-  //               className="font-hedvig text-[28px] tracking-[-0.06em] text-beige900"
+  //               className="font-hedvig text-[28px] tracking-[-0.06em] text-neutral-primary"
   //             >
   //               Harper
   //             </a>
@@ -2032,7 +2040,7 @@ const NetworkPage = () => {
   //           >
   //             <Reveal once delay={0.06} className="mx-auto mt-6 max-w-[900px]">
   //               <h2
-  //                 className={`${titleTextClassName} text-beige900 text-4xl md:text-5xl`}
+  //                 className={`${titleTextClassName} text-neutral-primary text-4xl md:text-5xl`}
   //               >
   //                 <span className="block">
   //                   <StaggerText text="Access the World's" />
@@ -2044,7 +2052,7 @@ const NetworkPage = () => {
   //             </Reveal>
 
   //             <Reveal once delay={0.18}>
-  //               <div className="mt-8 flex flex-col justify-center items-center text-lg tracking-[-0.03em] text-beige900/70">
+  //               <div className="mt-8 flex flex-col justify-center items-center text-lg tracking-[-0.03em] text-neutral-muted">
   //                 <div>
   //                   Direct backdoor to confidential AI unicorns backed by top-tier
   //                   Global VCs.
@@ -2052,7 +2060,7 @@ const NetworkPage = () => {
   //                 <div>Skip the HR screen and match directly with founders.</div>
   //               </div>
 
-  //               <div className="mt-8 flex flex-row items-center justify-center gap-2 text-base tracking-[-0.03em] text-beige900/50 flex-wrap">
+  //               <div className="mt-8 flex flex-row items-center justify-center gap-2 text-base tracking-[-0.03em] text-neutral-soft flex-wrap">
   //                 <Pill label="Part-time (4~12 hrs/wk)" />
   //                 <Pill label="Founding Member / CTO" />
   //                 <Pill label="Intern" />
@@ -2088,7 +2096,7 @@ const NetworkPage = () => {
   //                   {schoolLogos.map((school) => (
   //                     <div
   //                       key={school.name}
-  //                       className="h-8 w-8 md:h-10 md:w-10 rounded-full bg-beige500 border border-beige900/20"
+  //                       className="h-8 w-8 md:h-10 md:w-10 rounded-full bg-bg-weak border border-neutral-1000-a10"
   //                     >
   //                       <Image
   //                         src={school.src}
@@ -2101,7 +2109,7 @@ const NetworkPage = () => {
   //                   ))}
   //                 </div>
   //               </div>
-  //               {/* <p className="mt-3 text-[17px] leading-[1.55] tracking-[-0.03em] text-beige900/55">
+  //               {/* <p className="mt-3 text-[17px] leading-[1.55] tracking-[-0.03em] text-neutral-muted">
   //                 매칭을 위해 Active pool을 500명 이하로 관리 예정입니다.
   //               </p> */}
   //             </Reveal>
@@ -2116,7 +2124,7 @@ const NetworkPage = () => {
   //             className="mt-32 scroll-mt-24"
   //           >
   //             <Reveal once>
-  //               <div className="flex w-full items-center justify-between gap-4 text-beige900">
+  //               <div className="flex w-full items-center justify-between gap-4 text-neutral-primary">
   //                 <div className="font-medium text-left">
   //                   Opportunities in our network
   //                 </div>
@@ -2130,7 +2138,7 @@ const NetworkPage = () => {
   //                       setMobilePositionPage((prev) => Math.max(prev - 1, 0));
   //                     }}
   //                     disabled={mobilePositionPage === 0}
-  //                     className="inline-flex h-7 w-7 items-center justify-center rounded-sm bg-black/10 text-sm text-beige900 transition disabled:cursor-not-allowed disabled:opacity-35"
+  //                     className="inline-flex h-7 w-7 items-center justify-center rounded-sm bg-black/10 text-sm text-neutral-primary transition disabled:cursor-not-allowed disabled:opacity-35"
   //                     aria-label="Show previous positions"
   //                   >
   //                     <ChevronLeft className="w-4 h-4" />
@@ -2148,7 +2156,7 @@ const NetworkPage = () => {
   //                     disabled={
   //                       mobilePositionPage >= totalMobilePositionPages - 1
   //                     }
-  //                     className="inline-flex h-7 w-7 items-center justify-center rounded-sm bg-black/10 text-sm text-beige900 transition disabled:cursor-not-allowed disabled:opacity-35"
+  //                     className="inline-flex h-7 w-7 items-center justify-center rounded-sm bg-black/10 text-sm text-neutral-primary transition disabled:cursor-not-allowed disabled:opacity-35"
   //                     aria-label="Show next positions"
   //                   >
   //                     <ChevronRight className="w-4 h-4" />
@@ -2202,11 +2210,11 @@ const NetworkPage = () => {
   //             <SectionTag>Our value</SectionTag>
 
   //             <h2
-  //               className={`mx-auto mt-8 max-w-[860px] font-hedvig text-3xl md:text-4xl leading-[0.98] tracking-[-0.08em] text-beige900`}
+  //               className={`mx-auto mt-8 max-w-[860px] font-hedvig text-3xl md:text-4xl leading-[0.98] tracking-[-0.08em] text-neutral-primary`}
   //             >
   //               Highly Curated
   //             </h2>
-  //             {/* <p className="mx-auto mt-6 max-w-[680px] text-[20px] leading-normal tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
+  //             {/* <p className="mx-auto mt-6 max-w-[680px] text-[20px] leading-normal tracking-[-0.03em] text-neutral-soft max-[809px]:text-[18px]">
   //                 Tell us who you need. We find, shortlist, and deliver candidates
   //                 you can review and interview right away.
   //               </p> */}
@@ -2221,17 +2229,17 @@ const NetworkPage = () => {
   //                   className="w-full"
   //                 >
   //                   <div className="grid grid-cols-[42px_1fr] gap-4 text-left">
-  //                     <div className="pt-1 font-geist text-2xl font-medium leading-none tracking-[-0.08em] text-beige900/60 max-[809px]:pt-2">
+  //                     <div className="pt-1 text-2xl font-medium leading-none tracking-[-0.08em] text-neutral-muted max-[809px]:pt-2">
   //                       {item.number}
   //                     </div>
   //                     <div>
   //                       <div className="flex items-start gap-3 max-[809px]:flex-col-reverse max-[809px]:gap-2">
-  //                         <h3 className="text-xl font-medium leading-[1.12] tracking-tighter text-beige900 max-[809px]:mt-2">
+  //                         <h3 className="text-xl font-medium leading-[1.12] tracking-tighter text-neutral-primary max-[809px]:mt-2">
   //                           {item.title}
   //                         </h3>
   //                       </div>
   //                       <p
-  //                         className="mt-2 text-base md:text-[18px] leading-normal tracking-[-0.03em] text-beige900/50"
+  //                         className="mt-2 text-base md:text-[18px] leading-normal tracking-[-0.03em] text-neutral-soft"
   //                         dangerouslySetInnerHTML={{ __html: item.description }}
   //                       />
   //                     </div>
@@ -2261,10 +2269,10 @@ const NetworkPage = () => {
   //                       type="button"
   //                       onClick={() => handleFaqToggle(index, isOpen)}
   //                       aria-expanded={isOpen}
-  //                       className="w-full rounded-[24px] bg-beige100 px-6 py-6 shadow-[0_14px_30px_rgba(66,38,10,0.05)]"
+  //                       className="w-full rounded-[24px] bg-bg-basement px-6 py-6 shadow-[0_14px_30px_rgba(66,38,10,0.05)]"
   //                     >
   //                       <div className="flex items-center justify-between gap-8">
-  //                         <div className="text-left text-sm md:text-base font-medium leading-[1.24] tracking-[-0.04em] text-beige900">
+  //                         <div className="text-left text-sm md:text-base font-medium leading-[1.24] tracking-[-0.04em] text-neutral-primary">
   //                           {faq.question}
   //                         </div>
   //                         <motion.div
@@ -2274,7 +2282,7 @@ const NetworkPage = () => {
   //                             ease: [0.22, 1, 0.36, 1],
   //                           }}
   //                         >
-  //                           <Plus className="h-5 w-5 text-beige900/60" />
+  //                           <Plus className="h-5 w-5 text-neutral-muted" />
   //                         </motion.div>
   //                       </div>
 
@@ -2295,7 +2303,7 @@ const NetworkPage = () => {
   //                             className="overflow-hidden"
   //                           >
   //                             <p
-  //                               className="w-full text-left text-sm md:text-[15px] leading-[1.6] tracking-[-0.01em] text-beige900/80"
+  //                               className="w-full text-left text-sm md:text-[15px] leading-[1.6] tracking-[-0.01em] text-neutral-muted"
   //                               dangerouslySetInnerHTML={{ __html: faq.answer }}
   //                             />
   //                           </motion.div>
@@ -2314,7 +2322,7 @@ const NetworkPage = () => {
   //                   void addLandingLog("talent_network_click_inquiry_open");
   //                   setIsInquiryOpen(true);
   //                 }}
-  //                 className="text-sm font-medium tracking-[-0.03em] text-beige900/75 underline underline-offset-4 transition hover:text-beige900 md:text-base"
+  //                 className="text-sm font-medium tracking-[-0.03em] text-neutral-muted underline underline-offset-4 transition hover:text-neutral-primary md:text-base"
   //               >
   //                 문의하기
   //               </button>
@@ -2351,7 +2359,7 @@ const NetworkPage = () => {
   //                     className="h-11 w-[180px]"
   //                     onClick={openShareModal}
   //                   />
-  //                   <div className="whitespace-pre-wrap wrap-break-word px-1 py-0.5 leading-[1.2] w-full text-sm text-center rounded-sm mt-1 text-beige900/80">
+  //                   <div className="whitespace-pre-wrap wrap-break-word px-1 py-0.5 leading-[1.2] w-full text-sm text-center rounded-sm mt-1 text-neutral-muted">
   //                     링크를 공유받은 사람이 Harper를 통해 채용되면 감사의 의미로
   //                     양쪽에 300만원 상당의 허먼밀러 의자를 보내드립니다.
   //                   </div>
@@ -2360,27 +2368,27 @@ const NetworkPage = () => {
   //             </div>
   //           </Reveal>
 
-  //           <footer className="border-t border-beige900/10 py-8">
-  //             <div className="mx-auto flex max-w-[1160px] flex-col items-center justify-between gap-4 px-4 tracking-[-0.03em] text-beige900/60 md:flex-row">
-  //               <div className="font-hedvig text-[28px] tracking-[-0.06em] text-beige900">
+  //           <footer className="border-t border-neutral-1000-a05 py-8">
+  //             <div className="mx-auto flex max-w-[1160px] flex-col items-center justify-between gap-4 px-4 tracking-[-0.03em] text-neutral-muted md:flex-row">
+  //               <div className="font-hedvig text-[28px] tracking-[-0.06em] text-neutral-primary">
   //                 Harper
   //               </div>
   //               <div className="flex items-center gap-4 text-base">
   //                 <Link
   //                   href="/terms"
-  //                   className="cursor-pointer transition hover:text-beige900"
+  //                   className="cursor-pointer transition hover:text-neutral-primary"
   //                 >
   //                   Terms
   //                 </Link>
   //                 <Link
   //                   href="/privacy"
-  //                   className="cursor-pointer transition hover:text-beige900"
+  //                   className="cursor-pointer transition hover:text-neutral-primary"
   //                 >
   //                   Privacy
   //                 </Link>
   //                 <Link
   //                   href="https://www.linkedin.com/company/matchharper/"
-  //                   className="cursor-pointer transition hover:text-beige900"
+  //                   className="cursor-pointer transition hover:text-neutral-primary"
   //                 >
   //                   LinkedIn
   //                 </Link>
@@ -2487,12 +2495,14 @@ function VCLogos() {
   return (
     <div className="relative w-[90%] mx-auto overflow-hidden mt-16">
       <Reveal once delay={0.08} className="w-full text-center">
-        <div className="w-full text-center text-beige900 text-base md:text-lg leading-[1.55] tracking-[-0.03em] font-medium">
+        <div className="w-full text-center text-neutral-primary text-base md:text-lg leading-[1.55] tracking-[-0.03em] font-medium">
           Partnering with{" "}
-          <span className="text-beige900/50">Most Exciting Tech companies</span>{" "}
+          <span className="text-neutral-soft">
+            Most Exciting Tech companies
+          </span>{" "}
           funded by the world&apos;s elite.
         </div>
-        <div className="w-full text-center text-beige900 text-base md:text-lg leading-[1.55] tracking-[-0.03em] font-medium mt-2">
+        <div className="w-full text-center text-neutral-primary text-base md:text-lg leading-[1.55] tracking-[-0.03em] font-medium mt-2">
           It&apos;s worth joining even if you&apos;re not actively looking.
         </div>
       </Reveal>

@@ -17,13 +17,13 @@ import {
 } from "@/lib/talentOnboarding/server";
 import { insertTalentActivityEvent } from "@/lib/talentOnboarding/activityEvents";
 import type { TalentOnboardingCompletionReason } from "@/lib/talentOnboarding/completion";
+import { completeActiveCareerOnboardingCall } from "@/lib/talentOnboarding/calls";
+import { cancelCareerOnboardingContactQueue } from "@/lib/contactQueue";
 import {
   DEFAULT_TALENT_GET_EXTERNAL_RECOMMENDATION,
   DEFAULT_TALENT_GET_INTERNAL_RECOMMENDATION,
-  DEFAULT_TALENT_PERIODIC_ENABLED,
   DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS,
   DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
-  normalizeTalentPeriodicEnabled,
   normalizeTalentPeriodicIntervalDays,
   normalizeTalentRecommendationBatchSize,
   normalizeTalentRecommendationToggle,
@@ -38,7 +38,6 @@ type AdminClient = ReturnType<typeof getTalentSupabaseAdmin>;
 const DEFAULT_SETTINGS: RecommendationSettings = {
   getExternalRecommendation: DEFAULT_TALENT_GET_EXTERNAL_RECOMMENDATION,
   getInternalRecommendation: DEFAULT_TALENT_GET_INTERNAL_RECOMMENDATION,
-  periodicEnabled: DEFAULT_TALENT_PERIODIC_ENABLED,
   periodicIntervalDays: DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS,
   recommendationBatchSize: DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
 };
@@ -100,7 +99,6 @@ export async function fetchRecommendationSettings(args: {
     getInternalRecommendation: normalizeTalentRecommendationToggle(
       data.get_internal_recommendation
     ),
-    periodicEnabled: normalizeTalentPeriodicEnabled(data.periodic_enabled),
     periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
       data.periodic_interval_days
     ),
@@ -112,25 +110,20 @@ export async function fetchRecommendationSettings(args: {
 
 export async function upsertRecommendationSettings(args: {
   admin: AdminClient;
-  periodicEnabled?: boolean;
   periodicIntervalDays?: number;
   recommendationBatchSize?: number;
   sourceConversationId?: string | null;
-  updatedBy: "user_settings" | "conversation" | "admin";
   userId: string;
 }) {
   const saved = await upsertTalentSetting({
     admin: args.admin,
     userId: args.userId,
-    periodicEnabled: args.periodicEnabled,
     periodicIntervalDays: args.periodicIntervalDays,
     recommendationBatchSize: args.recommendationBatchSize,
     recommendationSourceConversationId: args.sourceConversationId,
-    recommendationSettingsUpdatedBy: args.updatedBy,
   });
 
   return {
-    periodicEnabled: normalizeTalentPeriodicEnabled(saved.periodic_enabled),
     periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
       saved.periodic_interval_days
     ),
@@ -216,7 +209,24 @@ export async function completeOnboardingAndQueueInitialOpportunityRun(args: {
     userId: args.userId,
     isOnboardingDone: true,
     recommendationSourceConversationId: args.conversationId,
-    recommendationSettingsUpdatedBy: "conversation",
+  });
+  await cancelCareerOnboardingContactQueue({
+    admin: args.admin,
+    userId: args.userId,
+  }).catch((error) => {
+    console.error("[opportunity-discovery] Failed to cancel contact queue", {
+      error: error instanceof Error ? error.message : String(error),
+      userId: args.userId,
+    });
+  });
+  await completeActiveCareerOnboardingCall({
+    admin: args.admin,
+    userId: args.userId,
+  }).catch((error) => {
+    console.error("[opportunity-discovery] Failed to complete talent call", {
+      error: error instanceof Error ? error.message : String(error),
+      userId: args.userId,
+    });
   });
 
   const hasInitialRun = await hasInitialOpportunityDiscoveryRun({
@@ -243,7 +253,6 @@ export async function completeOnboardingAndQueueInitialOpportunityRun(args: {
             to: true,
           },
           recommendation_source_conversation_id: args.conversationId,
-          recommendation_settings_updated_by: "conversation",
         },
       },
       relatedEntityType: "talent_setting",
@@ -287,7 +296,6 @@ export async function completeOnboardingAndQueueInitialOpportunityRun(args: {
           to: true,
         },
         recommendation_source_conversation_id: args.conversationId,
-        recommendation_settings_updated_by: "conversation",
       },
     },
     relatedEntityId: run.id,
@@ -345,7 +353,6 @@ export async function createOpportunityDiscoveryRun(
     settings_snapshot: {
       getExternalRecommendation: settings.getExternalRecommendation,
       getInternalRecommendation: settings.getInternalRecommendation,
-      periodicEnabled: settings.periodicEnabled,
       periodicIntervalDays: settings.periodicIntervalDays,
       recommendationBatchSize: settings.recommendationBatchSize,
     },

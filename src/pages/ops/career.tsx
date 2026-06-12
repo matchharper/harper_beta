@@ -27,6 +27,8 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DateRange } from "react-day-picker";
+import { BareButton } from "@/components/ui/button";
+import { Input as UiInput } from "@/components/ui/input";
 
 const FETCH_LIMIT = 40;
 
@@ -149,10 +151,10 @@ export default function OpsCareerPage() {
   );
   const filterButtonClass = (active: boolean) =>
     cx(
-      "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border px-2.5 font-geist text-[12px] font-medium transition",
+      "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border px-2.5 text-[12px] font-medium transition",
       active
-        ? "border-[#90a88f]/55 bg-[#e4eee4] text-[#2f553d] hover:bg-[#dbe8db]"
-        : "border-beige900/10 bg-white/70 text-beige900/75 hover:border-beige900/18 hover:bg-white"
+        ? "border-positive/30 bg-positive-faded text-positive hover:bg-positive-faded"
+        : "border-neutral-1000-a05 bg-bg-default/70 text-neutral-muted hover:border-neutral-1000-a10 hover:bg-bg-default"
     );
   const emptyTalentMessage = hasActiveListFilter
     ? "검색 결과가 없습니다."
@@ -171,7 +173,7 @@ export default function OpsCareerPage() {
       <OpsShell>
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <div ref={createdDateFilterRef} className="relative">
-            <button
+            <BareButton
               type="button"
               onClick={() => setIsCreatedDateOpen((open) => !open)}
               className={filterButtonClass(hasCreatedDateFilter)}
@@ -185,10 +187,10 @@ export default function OpsCareerPage() {
                 )}
                 aria-hidden
               />
-            </button>
+            </BareButton>
 
             {isCreatedDateOpen ? (
-              <div className="absolute left-0 top-[calc(100%+6px)] z-50 w-[300px] rounded-md border border-beige900/12 bg-[#fbfaf7] p-2 shadow-[0_18px_48px_rgba(37,28,21,0.16)]">
+              <div className="absolute left-0 top-[calc(100%+6px)] z-50 w-[300px] rounded-md border border-neutral-1000-a10 bg-bg-floating p-2 shadow-[0_18px_48px_color-mix(in_srgb,var(--color-neutral-1000)_16%,transparent)]">
                 <Calendar
                   mode="range"
                   selected={createdDateRange}
@@ -197,41 +199,41 @@ export default function OpsCareerPage() {
                   disabled={{ after: new Date() }}
                   className="p-2 text-[12px] [--cell-size:1.85rem]"
                 />
-                <div className="mt-1 flex items-center justify-end gap-2 border-t border-beige900/10 pt-2">
-                  <button
+                <div className="mt-1 flex items-center justify-end gap-2 border-t border-neutral-1000-a05 pt-2">
+                  <BareButton
                     type="button"
                     onClick={() => setCreatedDateRange(undefined)}
                     disabled={!hasCreatedDateFilter}
-                    className="h-7 rounded-md px-2 font-geist text-[11px] font-medium text-beige900/45 transition hover:bg-beige900/5 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="h-7 rounded-md px-2 text-[11px] font-medium text-neutral-muted transition hover:bg-bg-floating disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     초기화
-                  </button>
-                  <button
+                  </BareButton>
+                  <BareButton
                     type="button"
                     onClick={() => setIsCreatedDateOpen(false)}
-                    className="h-7 rounded-md bg-beige900 px-2.5 font-geist text-[11px] font-medium text-white transition hover:bg-beige900/88"
+                    className="h-7 rounded-md bg-black px-2.5 text-[11px] font-medium text-neutral-00 transition hover:bg-black/88"
                   >
                     닫기
-                  </button>
+                  </BareButton>
                 </div>
               </div>
             ) : null}
           </div>
 
-          <button
+          <BareButton
             type="button"
             onClick={() => setOnboardingDoneOnly((value) => !value)}
             className={filterButtonClass(onboardingDoneOnly)}
           >
             온보딩 완료한 사람만 보기
-          </button>
-          <button
+          </BareButton>
+          <BareButton
             type="button"
             onClick={() => setSubmittedMaterialOnly((value) => !value)}
             className={filterButtonClass(submittedMaterialOnly)}
           >
             LinkedIn/이력서 제출한 사람만 보기
-          </button>
+          </BareButton>
         </div>
         <div
           className={cx(
@@ -244,10 +246,11 @@ export default function OpsCareerPage() {
           {/* Left: List */}
           <div className={cx(opsTheme.panel, "overflow-hidden")}>
             <div className="">
-              <div className="flex items-center gap-2 flex-row p-3 border-b border-beige900/10 w-full">
+              <div className="flex items-center gap-2 flex-row p-3 border-b border-neutral-1000-a05 w-full">
                 <div className="relative w-full">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-beige900/30" />
-                  <input
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-soft" />
+                  <UiInput
+                    unstyled
                     type="text"
                     placeholder="이름, 이메일, 회사, role 검색..."
                     value={searchInput}
@@ -260,10 +263,10 @@ export default function OpsCareerPage() {
                     className={cx(opsTheme.input, "h-9 pl-9 pr-10")}
                   />
                 </div>
-                <button
+                <BareButton
                   type="button"
                   onClick={() => setIsListExpanded((value) => !value)}
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-md text-black hover:bg-black/5"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md text-neutral-primary hover:bg-bg-floating"
                   aria-label={isListExpanded ? "목록 축소" : "목록 확장"}
                   title={isListExpanded ? "목록 축소" : "목록 확장"}
                 >
@@ -272,7 +275,7 @@ export default function OpsCareerPage() {
                   ) : (
                     <Maximize2 className="h-3.5 w-3.5" aria-hidden />
                   )}
-                </button>
+                </BareButton>
               </div>
             </div>
 
@@ -280,7 +283,7 @@ export default function OpsCareerPage() {
             <div className="max-h-[calc(100vh-250px)] overflow-y-auto">
               {isLoading ? (
                 <div className="flex items-center justify-center py-12">
-                  <LoaderCircle className="h-5 w-5 animate-spin text-beige900/30" />
+                  <LoaderCircle className="h-5 w-5 animate-spin text-neutral-soft" />
                 </div>
               ) : error ? (
                 <div className={cx(opsTheme.errorNotice, "m-4")}>
@@ -289,7 +292,7 @@ export default function OpsCareerPage() {
                     : "데이터를 불러오지 못했습니다."}
                 </div>
               ) : visibleTalents.length === 0 ? (
-                <div className="px-4 py-12 text-center font-geist text-sm text-beige900/40">
+                <div className="px-4 py-12 text-center text-sm text-neutral-soft">
                   {emptyTalentMessage}
                 </div>
               ) : (
@@ -305,7 +308,7 @@ export default function OpsCareerPage() {
                   ))}
                   {hasNextPage && (
                     <div className="p-3">
-                      <button
+                      <BareButton
                         type="button"
                         onClick={() => void fetchNextPage()}
                         disabled={isFetchingNextPage}
@@ -315,7 +318,7 @@ export default function OpsCareerPage() {
                         )}
                       >
                         {isFetchingNextPage ? "불러오는 중..." : "더 보기"}
-                      </button>
+                      </BareButton>
                     </div>
                   )}
                 </>
@@ -329,8 +332,8 @@ export default function OpsCareerPage() {
               <TalentDetail userId={selectedUserId} />
             ) : (
               <div className="flex flex-col items-center justify-center py-24 text-center">
-                <MessageSquareText className="h-10 w-10 text-beige900/15" />
-                <div className="mt-4 font-geist text-sm text-beige900/40">
+                <MessageSquareText className="h-10 w-10 text-neutral-soft" />
+                <div className="mt-4 text-sm text-neutral-soft">
                   왼쪽에서 talent를 선택하세요
                 </div>
               </div>

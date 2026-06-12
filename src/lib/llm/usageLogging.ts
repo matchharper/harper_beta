@@ -228,17 +228,17 @@ export function logLlmTokenUsage(args: {
 
   const usage = extractLlmTokenUsage(args.response);
   const cost = estimateLlmUsageCost(args.model, usage);
-  console.info("[llm-usage]", {
-    label: args.label,
-    model: args.model,
-    cacheCreationInputTokens: usage.cacheCreationInputTokens,
-    cacheHit: (usage.cacheReadInputTokens ?? 0) > 0,
-    cacheReadInputTokens: usage.cacheReadInputTokens,
-    inputTokens: usage.inputTokens,
-    outputTokens: usage.outputTokens,
-    totalProcessedInputTokens: usage.totalProcessedInputTokens,
-    totalTokens: usage.totalTokens,
-    estimatedCostUsd: cost?.estimatedCostUsd ?? null,
-    costBreakdown: cost,
-  });
+  // console.info("[llm-usage]", {
+  //   label: args.label,
+  //   model: args.model,
+  //   cacheCreationInputTokens: usage.cacheCreationInputTokens,
+  //   cacheHit: (usage.cacheReadInputTokens ?? 0) > 0,
+  //   cacheReadInputTokens: usage.cacheReadInputTokens,
+  //   inputTokens: usage.inputTokens,
+  //   outputTokens: usage.outputTokens,
+  //   totalProcessedInputTokens: usage.totalProcessedInputTokens,
+  //   totalTokens: usage.totalTokens,
+  //   estimatedCostUsd: cost?.estimatedCostUsd ?? null,
+  //   costBreakdown: cost,
+  // });
 }

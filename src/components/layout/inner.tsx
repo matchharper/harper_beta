@@ -12,7 +12,7 @@ const InnerLayout = ({
       {/* Header */}
       <div className="mx-auto w-full px-4 pt-6 pb-2 flex flex-col items-center justify-start">
         <div className="flex items-end justify-between gap-4 w-full">
-          <div className="text-3xl font-hedvig font-light tracking-tight text-beige900">
+          <div className="text-3xl font-hedvig font-light tracking-tight text-neutral-primary">
             {title}
           </div>
         </div>

@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { Loader2, Play, Square } from "lucide-react";
 import { Loading } from "@/components/ui/loading";
 import { useMessages } from "@/i18n/useMessage";
+import { BareButton } from "@/components/ui/button";
 
 type AutomationRow = Database["public"]["Tables"]["automation"]["Row"];
 
@@ -461,24 +462,24 @@ export default function AutomationDetailPage() {
   ]);
 
   const buttonClassName =
-    "rounded-lg bg-beige500/70 px-3 py-2 text-xs text-beige900 transition hover:bg-beige500/90 disabled:opacity-60 flex flex-row gap-1 items-center justify-center";
+    "rounded-lg bg-bg-weak px-3 py-2 text-xs text-neutral-primary transition hover:bg-bg-default disabled:opacity-60 flex flex-row gap-1 items-center justify-center";
 
   const statusBadge = useMemo(() => {
     if (isDraft) {
       return {
         label: "Draft",
-        tone: "bg-beige500/70 text-beige900/80 border-beige900/10",
+        tone: "bg-bg-weak text-neutral-primary border-neutral-1000-a05",
       };
     }
     if (automation?.is_in_progress) {
       return {
         label: "Active",
-        tone: "bg-emerald-500/15 text-emerald-700 border-emerald-500/20",
+        tone: "bg-positive-faded text-positive border-positive/30",
       };
     }
     return {
       label: "Paused",
-      tone: "bg-amber-300/15 text-amber-700 border-amber-700/30",
+      tone: "bg-info-faded text-info border-info/30",
     };
   }, [isDraft, automation?.is_in_progress]);
 
@@ -492,13 +493,13 @@ export default function AutomationDetailPage() {
   const headerActions = (
     <div className="flex items-center gap-2">
       {isDraft ? (
-        <button
+        <BareButton
           type="button"
           onClick={handleRegister}
           disabled={isSaving}
           className={cn(
             buttonClassName,
-            "bg-beige900 font-medium text-beige100 shadow-lg hover:bg-beige900/90"
+            "bg-black font-medium text-neutral-00 shadow-lg hover:bg-black/90"
           )}
         >
           {isSaving ? (
@@ -508,45 +509,45 @@ export default function AutomationDetailPage() {
           ) : (
             "등록"
           )}
-        </button>
+        </BareButton>
       ) : (
         <>
           {automation?.is_in_progress ? (
-            <button
+            <BareButton
               type="button"
               onClick={() => setConfirmPauseOpen(true)}
               disabled={isSaving}
               className={cn(
                 buttonClassName,
-                "bg-beige900 hover:bg-beige900/90 text-beige100"
+                "bg-black hover:bg-black/90 text-neutral-00"
               )}
             >
               <Square fill="currentColor" className="w-3 h-3" />
               진행 정지
-            </button>
+            </BareButton>
           ) : (
-            <button
+            <BareButton
               type="button"
               onClick={() => setConfirmResumeOpen(true)}
               disabled={isSaving}
               className={cn(
                 buttonClassName,
-                "bg-beige900 hover:bg-beige900/90 text-beige100"
+                "bg-black hover:bg-black/90 text-neutral-00"
               )}
             >
               <Play fill="currentColor" className="w-3 h-3" />
               진행
-            </button>
+            </BareButton>
           )}
 
-          <button
+          <BareButton
             type="button"
             onClick={() => setConfirmDeleteOpen(true)}
             disabled={isSaving}
-            className={cn(buttonClassName, "bg-red-500/70 hover:bg-red-500/80")}
+            className={cn(buttonClassName, "bg-critical hover:opacity-90")}
           >
             삭제
-          </button>
+          </BareButton>
         </>
       )}
     </div>
@@ -556,10 +557,10 @@ export default function AutomationDetailPage() {
     <AppLayout>
       <div className="relative flex w-full min-h-screen">
         {(isLoading || !isMessageReady) && (
-          <div className="w-full px-6 py-8 text-sm text-xgray800">
+          <div className="w-full px-6 py-8 text-sm text-neutral-muted">
             <Loading
               label="불러오는 중..."
-              className="text-xgray800"
+              className="text-neutral-muted"
               isFullScreen={true}
             />
           </div>
@@ -570,11 +571,11 @@ export default function AutomationDetailPage() {
             <div className="w-full max-w-[780px] px-3 md:px-0">
               {/* Sticky header: title + status + actions */}
               <div className="absolute top-2 z-30 w-full max-w-[780px] ">
-                <div className="bg-beige100">
+                <div className="bg-bg-basement">
                   <div className="flex items-start justify-between gap-3 px-3 py-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <div className="text-sm font-medium text-beige900">
+                        <div className="text-sm font-medium text-neutral-primary">
                           {automationTitle}
                         </div>
 
@@ -588,7 +589,7 @@ export default function AutomationDetailPage() {
                         </span>
                       </div>
 
-                      <div className="mt-2 text-[13px] text-beige900/80">
+                      <div className="mt-2 text-[13px] text-neutral-primary">
                         {statusMessage}
                       </div>
                     </div>

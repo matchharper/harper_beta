@@ -9,9 +9,15 @@ import {
 } from "@/lib/talentOnboarding/insights";
 import {
   fetchRecentMessages,
+  getCareerOnboardingChecklistCoverage,
   getTalentSupabaseAdmin,
+  mergeCareerOnboardingChecklistCoverage,
   upsertTalentInsights,
 } from "@/lib/talentOnboarding/server";
+import {
+  ONBOARDING_QUESTION_BY_INSIGHT_KEY,
+  ONBOARDING_QUESTION_CHECKLIST_KEY_SET,
+} from "@/lib/talentOnboarding/insightChecklist";
 import { logger } from "@/utils/logger";
 
 type AdminClient = ReturnType<typeof getTalentSupabaseAdmin>;
@@ -24,6 +30,7 @@ type ExtractionConversationMessage = {
 };
 
 type BuildPromptArgs = {
+  currentChecklistCoverage: Record<string, "covered"> | null;
   currentInsightContent: Record<string, string> | null;
 };
 
@@ -77,32 +84,39 @@ function parseExtractedInsights(args: {
   rawExtraction: string;
 }) {
   const { logPrefix, rawExtraction } = args;
-  let parsed: { extracted_insights?: Record<string, unknown> } = {};
+  let parsed: {
+    covered_checklist?: unknown;
+    covered_onboarding_checklist?: unknown;
+    covered_onboarding_questions?: unknown;
+    extracted_insights?: Record<string, unknown>;
+  } = {};
   let parseOk = false;
   const cleaned = rawExtraction
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/\s*```$/i, "")
     .trim();
+  const hasSupportedExtractionFields = (value: unknown) =>
+    Boolean(
+      value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      ("extracted_insights" in value ||
+        "covered_onboarding_checklist" in value ||
+        "covered_checklist" in value ||
+        "covered_onboarding_questions" in value)
+    );
 
   try {
     parsed = JSON.parse(cleaned);
-    parseOk =
-      parsed &&
-      typeof parsed === "object" &&
-      !Array.isArray(parsed) &&
-      parsed.extracted_insights !== undefined;
+    parseOk = hasSupportedExtractionFields(parsed);
   } catch {
     const candidates = extractJsonObjectCandidates(cleaned);
     for (const candidate of candidates) {
       try {
         const candidateParsed = JSON.parse(candidate);
-        if (
-          candidateParsed &&
-          typeof candidateParsed === "object" &&
-          !Array.isArray(candidateParsed)
-        ) {
+        if (hasSupportedExtractionFields(candidateParsed)) {
           parsed = candidateParsed;
-          parseOk = parsed.extracted_insights !== undefined;
+          parseOk = true;
           break;
         }
       } catch {
@@ -118,11 +132,49 @@ function parseExtractedInsights(args: {
   }
 
   return {
+    coveredChecklistKeys: normalizeExtractedChecklistKeys(
+      parsed.covered_onboarding_checklist ??
+        parsed.covered_checklist ??
+        parsed.covered_onboarding_questions
+    ),
     insights: normalizeExtractedInsights(
       (parsed.extracted_insights as Record<string, unknown>) ?? null
     ),
     parseOk,
   };
+}
+
+function normalizeExtractedChecklistKeys(value: unknown): string[] {
+  const keys: string[] = [];
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (typeof item !== "string") continue;
+      const key = item.trim();
+      if (ONBOARDING_QUESTION_CHECKLIST_KEY_SET.has(key)) {
+        keys.push(key);
+      }
+    }
+    return Array.from(new Set(keys));
+  }
+
+  if (value && typeof value === "object") {
+    for (const [rawKey, rawStatus] of Object.entries(value)) {
+      const key = rawKey.trim();
+      if (!ONBOARDING_QUESTION_CHECKLIST_KEY_SET.has(key)) continue;
+      if (
+        rawStatus === "covered" ||
+        rawStatus === true ||
+        (rawStatus &&
+          typeof rawStatus === "object" &&
+          (rawStatus as { status?: unknown }).status === "covered")
+      ) {
+        keys.push(key);
+      }
+    }
+  }
+
+  return Array.from(new Set(keys));
 }
 
 function extractJsonObjectCandidates(value: string) {
@@ -209,28 +261,39 @@ export async function extractAndPersistChatInsights(args: {
           }) satisfies ExtractionConversationMessage
       )
       .filter((item) => item.content.length > 0);
-    const recentMessagesForLog =
-      formatRecentMessagesForLog(recentExtractionMessages);
+    const recentMessagesForLog = formatRecentMessagesForLog(
+      recentExtractionMessages
+    );
 
     const conversationMessages = buildExtractionConversationMessages({
       assistantContent,
       recentMessages: recentExtractionMessages,
     });
+    const currentChecklistCoverage = await getCareerOnboardingChecklistCoverage(
+      {
+        admin: args.admin,
+        conversationId: args.conversationId,
+        currentInsightContent: args.currentInsightContent,
+        userId: args.userId,
+      }
+    );
 
     const systemPrompt = args.buildPrompt({
+      currentChecklistCoverage,
       currentInsightContent: args.currentInsightContent,
     });
     let rawExtraction = await runCareerInsightExtraction({
       systemPrompt,
-      conversationMessages,
+      conversationMessages, // 최근 6개의 메세지가 들어감
     });
+
     logger.log("[llm-output]", {
       label: "career/chat:insight_extraction",
-      logPrefix: args.logPrefix,
       model: CAREER_LLM_CONFIG.insightExtraction.model,
+      // systemPrompt: systemPrompt,
+      // conversationMessages: conversationMessages,
       output: rawExtraction,
-      recentMessages: recentMessagesForLog,
-      sourceChannel: args.sourceChannel ?? "unknown",
+      // recentMessages: recentMessagesForLog,
     });
 
     let parsedExtraction = parseExtractedInsights({
@@ -269,13 +332,14 @@ export async function extractAndPersistChatInsights(args: {
     }
 
     const extractedInsights = parsedExtraction.insights;
-    if (!extractedInsights) {
+    const coveredChecklistKeys = new Set(parsedExtraction.coveredChecklistKeys);
+    if (!extractedInsights && coveredChecklistKeys.size === 0) {
       return 0;
     }
 
     const processedInsights: Record<string, string> = {};
 
-    for (const [rawKey, extracted] of Object.entries(extractedInsights)) {
+    for (const [rawKey, extracted] of Object.entries(extractedInsights ?? {})) {
       const normalized = normalizeGeneratedTalentInsightEntry({
         rawKey,
         rawValue: extracted.value,
@@ -290,6 +354,10 @@ export async function extractAndPersistChatInsights(args: {
       }
 
       const { key, value } = normalized;
+      const checklistKey = ONBOARDING_QUESTION_BY_INSIGHT_KEY.get(key);
+      if (checklistKey) {
+        coveredChecklistKeys.add(checklistKey);
+      }
       const existingValue = args.currentInsightContent?.[key]?.trim();
       if (extracted.action === "update") {
         if (existingValue === value) continue;
@@ -302,23 +370,37 @@ export async function extractAndPersistChatInsights(args: {
       }
     }
 
-    if (Object.keys(processedInsights).length === 0) {
-      return 0;
+    const changedKeysCount = Object.keys(processedInsights).length;
+    let changedChecklistCount = 0;
+
+    if (changedKeysCount > 0) {
+      const finalContent: Record<string, string> = {
+        ...(args.currentInsightContent ?? {}),
+        ...processedInsights,
+      };
+
+      await upsertTalentInsights({
+        admin: args.admin,
+        userId: args.userId,
+        content: finalContent,
+      });
     }
 
-    const changedKeysCount = Object.keys(processedInsights).length;
-    const finalContent: Record<string, string> = {
-      ...(args.currentInsightContent ?? {}),
-      ...processedInsights,
-    };
+    if (coveredChecklistKeys.size > 0) {
+      const coverageResult = await mergeCareerOnboardingChecklistCoverage({
+        admin: args.admin,
+        conversationId: args.conversationId,
+        coveredKeys: Array.from(coveredChecklistKeys),
+        currentInsightContent: {
+          ...(args.currentInsightContent ?? {}),
+          ...processedInsights,
+        },
+        userId: args.userId,
+      });
+      changedChecklistCount = coverageResult.changedCount;
+    }
 
-    await upsertTalentInsights({
-      admin: args.admin,
-      userId: args.userId,
-      content: finalContent,
-    });
-
-    return changedKeysCount;
+    return changedKeysCount + changedChecklistCount;
   } catch (insightError) {
     logger.log(`[${args.logPrefix}] Failed to extract insights`, {
       userId: args.userId,

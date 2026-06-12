@@ -28,9 +28,7 @@ Output returned by `runCareerJobPostingRecommendations`:
 {
   "answerDraft": "요청 조건을 기준으로 현재 external 채용공고 37개를 검토한 뒤...",
   "candidateCount": 37,
-  "requestedCount": null,
-  "saveCount": 5,
-  "shortlistCandidateCount": 10,
+  "recommendationCount": 5,
   "searchPlan": {
     "sourceType": "external",
     "searchIntentSummary": "서울 또는 리모트 가능한 LLM 인프라 역할을 찾는다.",
@@ -46,18 +44,7 @@ Output returned by `runCareerJobPostingRecommendations`:
     "locations": ["Seoul"],
     "includeRemote": true,
     "remoteOnly": false
-  },
-  "recommendations": [
-    {
-      "rank": 1,
-      "roleId": "role-uuid",
-      "companyName": "Example AI",
-      "roleName": "ML Platform Engineer",
-      "score": 8.7,
-      "url": "https://example.com/jobs/1",
-      "recommendationText": "LLM serving과 inference platform 업무가 요청과 직접 맞습니다."
-    }
-  ]
+  }
 }
 ```
 

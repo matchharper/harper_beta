@@ -14,6 +14,7 @@ import {
 } from "@/components/admin/utils";
 import { isLandingLogEntryType } from "@/lib/landingLogTypes";
 import { Loading } from "@/components/ui/loading";
+import { BareButton } from "@/components/ui/button";
 
 type AdminLandingLogsTabProps = {
   deviceFilterLabel: string;
@@ -226,13 +227,13 @@ export default function AdminLandingLogsTab({
             <div className="font-semibold">Error</div>
             <div className="text-black/70 mt-1">{error}</div>
           </div>
-          <button
+          <BareButton
             onClick={onRefresh}
             className="h-9 px-3 text-[13px] border border-black/15 hover:border-black/30 hover:bg-black/5"
             style={{ borderRadius: 0 }}
           >
             Retry
-          </button>
+          </BareButton>
         </div>
       ) : null}
 

@@ -40,14 +40,18 @@ function normalizeLinks(raw: any): string[] {
 function ErrorCard({ title, desc }: { title: string; desc: string }) {
   return (
     <div className="min-h-screen bg-white flex items-center justify-center px-6">
-      <div className="max-w-md w-full rounded-2xl border border-gray-200 bg-white p-6">
+      <div className="max-w-md w-full rounded-2xl border border-neutral-300 bg-white p-6">
         <div className="flex items-start gap-3">
           <div className="mt-0.5">
-            <AlertTriangle className="h-5 w-5 text-gray-500" />
+            <AlertTriangle className="h-5 w-5 text-neutral-soft" />
           </div>
           <div>
-            <div className="text-base font-semibold text-gray-900">{title}</div>
-            <div className="mt-2 text-sm leading-6 text-gray-600">{desc}</div>
+            <div className="text-base font-semibold text-neutral-primary">
+              {title}
+            </div>
+            <div className="mt-2 text-sm leading-6 text-neutral-muted">
+              {desc}
+            </div>
           </div>
         </div>
       </div>
@@ -57,7 +61,7 @@ function ErrorCard({ title, desc }: { title: string; desc: string }) {
 
 function PublicBadge() {
   return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs text-gray-600">
+    <div className="inline-flex items-center gap-2 rounded-full border border-neutral-300 bg-white px-3 py-1 text-xs text-neutral-muted">
       <Lock className="h-3.5 w-3.5" />
       외부 공유용 보기
     </div>
@@ -109,7 +113,9 @@ export default function ShareTokenPage() {
   const links = useMemo(() => normalizeLinks(candid?.links), [candid?.links]);
 
   if (loading)
-    return <Loading className="min-h-screen justify-center text-gray-600" />;
+    return (
+      <Loading className="min-h-screen justify-center text-neutral-muted" />
+    );
 
   if (err || !candid) {
     return (
@@ -122,7 +128,7 @@ export default function ShareTokenPage() {
       {messages && messages.length > 0 && (
         <SharedChatPanel title={candid.name} messages={messages ?? []} />
       )}
-      <div className="h-screen bg-hgray200 font-sans text-white w-full overflow-y-auto">
+      <div className="h-screen bg-neutral-900 font-sans text-white w-full overflow-y-auto">
         {/* Top bar */}
         <div className="sticky top-0 z-20 border-b border-b-white/5 backdrop-blur">
           <div className="mx-auto max-w-full px-4 py-3 flex items-center justify-between">
@@ -130,8 +136,8 @@ export default function ShareTokenPage() {
               className="text-sm cursor-pointer hover:underline"
               onClick={() => window.open("https://matchharper.com", "_blank")}
             >
-              <span className="text-hgray900">From </span>{" "}
-              <span className="text-accenta1">Harper</span>
+              <span className="text-neutral-200">From </span>{" "}
+              <span className="text-accent-200">Harper</span>
             </div>
           </div>
         </div>
@@ -157,7 +163,7 @@ export default function ShareTokenPage() {
                     href={candid.linkedin_url}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                    className="inline-flex items-center gap-2 rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-muted hover:bg-bg-weak"
                   >
                     <ExternalLink className="h-4 w-4" />
                     LinkedIn
@@ -268,10 +274,10 @@ export default function ShareTokenPage() {
           )}
 
           {/* Footer */}
-          <div className="mt-[20vh] pt-2 pb-10 font-light text-center text-xs text-gray-400">
+          <div className="mt-[20vh] pt-2 pb-10 font-light text-center text-xs text-neutral-soft">
             Shared from{" "}
             <span
-              className="text-accenta1"
+              className="text-accent-200"
               onClick={() => window.open("https://matchharper.com", "_blank")}
             >
               Harper

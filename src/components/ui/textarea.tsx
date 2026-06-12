@@ -1,32 +1,26 @@
-import React from "react";
+import * as React from "react";
 
-type TextareaProps = {
-  placeholder: string;
-  value: string;
-  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
-  rows?: number;
-  className?: string;
-};
+import { cn } from "@/lib/utils";
 
-const Textarea = ({
-  placeholder,
-  value,
-  onChange,
-  rows = 4,
-  className = "",
-}: TextareaProps) => {
-  return (
+export const textareaSurfaceClassName =
+  "w-full resize-none rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 py-2 text-sm font-normal leading-6 text-neutral-primary outline-none transition-[border-color,background-color] duration-200 placeholder:text-neutral-placeholder focus:border-neutral-400 focus:bg-bg-floating focus:ring-2 focus:ring-neutral-1000-a05 disabled:cursor-not-allowed disabled:bg-bg-weak disabled:text-neutral-disabled disabled:placeholder:text-neutral-placeholder disabled:opacity-70";
+
+export type TextareaProps =
+  React.TextareaHTMLAttributes<HTMLTextAreaElement> & {
+    unstyled?: boolean;
+  };
+
+const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
+  ({ className, rows = 4, unstyled = false, ...props }, ref) => (
     <textarea
-      placeholder={placeholder}
-      value={value}
-      onChange={onChange}
+      ref={ref}
       rows={rows}
-      className={[
-        "w-full text-beige900 mt-2 rounded-lg border font-light border-beige900/8 bg-beige50 p-4 text-[15px] focus:outline-none focus:ring-2 focus:ring-beige900/8",
-        className,
-      ].join(" ")}
+      className={unstyled ? className : cn(textareaSurfaceClassName, className)}
+      {...props}
     />
-  );
-};
+  )
+);
+Textarea.displayName = "Textarea";
 
+export { Textarea };
 export default Textarea;

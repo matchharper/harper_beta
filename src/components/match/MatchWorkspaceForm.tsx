@@ -5,6 +5,8 @@ import { cn } from "@/lib/cn";
 import { motion } from "motion/react";
 import { X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { BareButton } from "@/components/ui/button";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
 type MatchWorkspaceFormValues = {
   companyDescription: string;
@@ -83,7 +85,7 @@ export default function MatchWorkspaceForm({
 
   const canSubmit = useMemo(() => companyName.trim().length > 0, [companyName]);
 
-  const labelStyle = "mb-3 text-xs text-beige900/80";
+  const labelStyle = "mb-3 text-xs text-neutral-primary";
 
   return (
     <div className="fixed inset-0 z-80 flex items-center justify-center px-4 py-6 sm:px-6">
@@ -93,7 +95,7 @@ export default function MatchWorkspaceForm({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="absolute inset-0 bg-beige900/20"
+        className="absolute inset-0 bg-bg-weak"
         onClick={() => onCancel?.()}
       />
 
@@ -105,23 +107,23 @@ export default function MatchWorkspaceForm({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 20, scale: 0.98 }}
         transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-        className="relative z-1 w-full max-w-[560px] overflow-hidden rounded-[16px] bg-beige50 shadow-[0_32px_90px_rgba(0,0,0,0.12)] ring-1 ring-beige900/8"
+        className="relative z-1 w-full max-w-[560px] overflow-hidden rounded-[16px] bg-bg-default shadow-[0_32px_90px_rgba(0,0,0,0.12)] ring-1 ring-neutral-1000-a05"
       >
         <div className="px-5 py-4">
           <div className="flex flex-row items-center justify-between gap-6">
             <div className="max-w-[500px]">
-              <h2 className="text-lg font-medium leading-tight text-beige900">
+              <h2 className="text-lg font-medium leading-tight text-neutral-primary">
                 {title}
               </h2>
             </div>
             {onCancel && (
-              <button
+              <BareButton
                 type="button"
                 onClick={onCancel}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-md text-beige900/55 transition hover:bg-beige50/80 hover:text-beige900"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-md text-neutral-muted transition hover:bg-bg-default hover:text-neutral-primary"
               >
                 <X size={16} />
-              </button>
+              </BareButton>
             )}
           </div>
         </div>
@@ -173,7 +175,8 @@ export default function MatchWorkspaceForm({
 
             <label className="block">
               <div className={labelStyle}>간단한 설명</div>
-              <textarea
+              <UiTextarea
+                unstyled
                 rows={4}
                 className={cn(
                   inputSurfaceClassName,
@@ -186,14 +189,14 @@ export default function MatchWorkspaceForm({
             </label>
           </div>
 
-          <div className="mt-8 flex flex-col justify-between gap-4 border-t border-beige900/8 pt-5 sm:flex-row sm:items-center">
-            <button
+          <div className="mt-8 flex flex-col justify-between gap-4 border-t border-neutral-1000-a05 pt-5 sm:flex-row sm:items-center">
+            <BareButton
               type="submit"
               disabled={!canSubmit || isSubmitting}
-              className="inline-flex w-full items-center justify-center rounded-lg bg-beige900 px-4 py-2.5 text-sm font-semibold text-beige100 transition hover:bg-beige900/90 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex w-full items-center justify-center rounded-lg bg-black px-4 py-2.5 text-sm font-semibold text-neutral-00 transition hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSubmitting ? "저장 중..." : submitLabel}
-            </button>
+            </BareButton>
           </div>
         </form>
       </motion.section>

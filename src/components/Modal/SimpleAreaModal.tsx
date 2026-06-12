@@ -6,6 +6,7 @@ import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { CheckIcon } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { notifyToSlack } from "@/lib/slack";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
 type SimpleTextModalProps = {
   open: boolean;
@@ -88,7 +89,7 @@ const SimpleAreaModal = ({
       confirmLabel={
         isLike ? (
           <div className="flex items-center gap-2">
-            <CheckIcon className="w-4 h-4 text-beige100" />
+            <CheckIcon className="w-4 h-4 text-neutral-00" />
             저장하기
           </div>
         ) : (
@@ -100,27 +101,32 @@ const SimpleAreaModal = ({
     >
       <div className="flex flex-col gap-3">
         {/* 제목 */}
-        <div className="text-lg font-normal text-beige900">{title}</div>
+        <div className="text-lg font-normal text-neutral-primary">
+          {title}
+        </div>
         {isLike ? (
-          <div className="text-sm mt-0 font-light text-beige900/80 leading-relaxed">
-            <span className="text-beige900">어떤 점이 마음에 드셨나요?</span>
+          <div className="text-sm mt-0 font-light text-neutral-primary leading-relaxed">
+            <span className="text-neutral-primary">
+              어떤 점이 마음에 드셨나요?
+            </span>
             <br />
             선호 이유를 알려주시면, 다음 추천에 반영됩니다.
           </div>
         ) : (
-          <div className="text-sm mt-0 font-light text-beige900/80">
+          <div className="text-sm mt-0 font-light text-neutral-primary">
             아쉬운 점을 짧게 남겨주시면, 다음 추천에 반영됩니다.
           </div>
         )}
 
         {/* 내용 */}
-        <textarea
+        <UiTextarea
+          unstyled
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder={placeholder}
           disabled={isLoading}
           rows={4}
-          className="w-full mt-2 placeholder:text-sm resize-none rounded-xl border border-beige900/8 bg-beige50 px-3 py-2 text-sm text-beige900 outline-none disabled:bg-beige100 disabled:text-beige900/35"
+          className="w-full mt-2 placeholder:text-sm resize-none rounded-xl border border-neutral-1000-a05 bg-bg-default px-3 py-2 text-sm text-neutral-primary outline-none disabled:bg-bg-basement disabled:text-neutral-disabled"
         />
       </div>
     </BaseModal>

@@ -1,6 +1,10 @@
 import React from "react";
-import type { BlogMetricRow, BlogMetricsSummary } from "@/components/admin/types";
+import type {
+  BlogMetricRow,
+  BlogMetricsSummary,
+} from "@/components/admin/types";
 import { Loading } from "@/components/ui/loading";
+import { BareButton } from "@/components/ui/button";
 
 type AdminBlogMetricsTabProps = {
   summary: BlogMetricsSummary;
@@ -25,8 +29,9 @@ export default function AdminBlogMetricsTab({
       >
         <div className="font-semibold text-black mb-1">Blog summary</div>
         <div className="leading-6">
-          글 수: <span className="text-black font-medium">{summary.totalPosts}</span>{" "}
-          · 조회수 합계:{" "}
+          글 수:{" "}
+          <span className="text-black font-medium">{summary.totalPosts}</span> ·
+          조회수 합계:{" "}
           <span className="text-black font-medium">{summary.totalViews}</span> ·
           전환수 합계:{" "}
           <span className="text-black font-medium">
@@ -44,17 +49,20 @@ export default function AdminBlogMetricsTab({
             <div className="font-semibold">Error</div>
             <div className="text-black/70 mt-1">{error}</div>
           </div>
-          <button
+          <BareButton
             onClick={onRefresh}
             className="h-9 px-3 text-[13px] border border-black/15 hover:border-black/30 hover:bg-black/5"
             style={{ borderRadius: 0 }}
           >
             Retry
-          </button>
+          </BareButton>
         </div>
       ) : null}
 
-      <div className="border border-black/10 w-full" style={{ borderRadius: 0 }}>
+      <div
+        className="border border-black/10 w-full"
+        style={{ borderRadius: 0 }}
+      >
         {loading ? (
           <Loading
             size="sm"

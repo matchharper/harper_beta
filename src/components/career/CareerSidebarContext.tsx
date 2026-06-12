@@ -5,6 +5,8 @@ import type {
   CareerHistoryOpportunityCounts,
   CareerHistoryOpportunityFeedback,
   CareerHistoryOpportunityPageFilter,
+  CareerCallStartRequest,
+  CareerInternalOpportunityCallRequest,
   CareerMessagePayload,
   CareerOpportunitySavedStage,
   CareerRecentOpportunity,
@@ -72,13 +74,17 @@ export type CareerSidebarContextValue = {
     agentVariant?: CareerOpportunityAgentVariant
   ) => void | Promise<void>;
   callStartPending?: boolean;
-  onStartCallMode?: (openingText?: string) => boolean | Promise<boolean>;
+  onStartCallMode?: (
+    args?: CareerCallStartRequest
+  ) => boolean | Promise<boolean>;
   onUseChatOnly?: () => void | Promise<void>;
   onStartConversationStarter?: (args: {
     mode: CareerConversationStarterMode;
     starterId: CareerConversationStarterId;
   }) => boolean | Promise<boolean>;
   recentOpportunities: CareerRecentOpportunity[];
+  pendingInternalOpportunityCallRequest?: CareerInternalOpportunityCallRequest | null;
+  pendingInternalOpportunityCallRequests?: CareerInternalOpportunityCallRequest[];
   historyOpportunityCounts: CareerHistoryOpportunityCounts;
   historyOpportunities: CareerHistoryOpportunity[];
   historyLoading: boolean;

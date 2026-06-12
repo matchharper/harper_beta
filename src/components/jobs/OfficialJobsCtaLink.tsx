@@ -17,16 +17,17 @@ import Link from "next/link";
 import type { MouseEventHandler, ReactNode } from "react";
 
 const ctaLinkVariants = cva(
-  "group inline-flex items-center justify-center gap-2 rounded-[4px] font-normal outline-none transition focus-visible:ring-4 focus-visible:ring-beige700/20 disabled:pointer-events-none disabled:opacity-60",
+  "group inline-flex items-center justify-center gap-2 rounded-[4px] font-normal outline-none transition focus-visible:ring-4 focus-visible:ring-neutral-1000-a05 disabled:pointer-events-none disabled:opacity-60",
   {
     variants: {
       variant: {
         primary:
-          "border border-beige900 bg-beige900 text-beige50 hover:opacity-90",
+          "border border-neutral-800 bg-black text-neutral-00 hover:opacity-90",
         secondary:
-          "border border-black/0 bg-white/0 md:border-beige900/15 md:bg-white/50 text-beige900 hover:border-beige900/25 hover:bg-white/75",
+          "border border-transparent bg-transparent md:border-neutral-1000-a10 md:bg-neutral-00/50 text-neutral-primary hover:border-neutral-400 hover:bg-bg-default/75",
       },
       size: {
+        sm: "px-4 text-[13px] min-h-9 rounded-full",
         md: "px-4 text-[14px] min-h-10",
         lg: "px-4 text-[15px] min-h-11",
       },

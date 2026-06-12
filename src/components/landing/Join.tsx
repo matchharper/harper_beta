@@ -32,13 +32,13 @@ export const Selections = ({
                     className={`flex flex-row text-base md:text-base transition-all duration-200 items-center gap-2 cursor-pointer border-2 py-2 px-3 min-w-[200px] rounded-[4px]
               ${flash ? "animate-pulse" : ""}
               ${selected === option
-                            ? "bg-brightnavy/20  hover:bg-brightnavy/20 border-brightnavy"
-                            : "bg-brightnavy/5  hover:bg-brightnavy/30 active:border-brightnavy border-brightnavy/10"
+                            ? "bg-neutral-1000/20  hover:bg-neutral-1000/20 border-neutral-1000"
+                            : "bg-neutral-1000/5  hover:bg-neutral-1000/30 active:border-neutral-1000 border-neutral-1000/10"
                         }
               `}
                 >
                     {showOptionNumbers && index < 9 ? (
-                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-[4px] border border-xgray300 bg-white text-[11px] font-semibold text-xgray700">
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-[4px] border border-neutral-300 bg-white text-[11px] font-semibold text-neutral-800">
                             {index + 1}
                         </span>
                     ) : null}
@@ -74,7 +74,7 @@ export const TextInput = ({
             {rows ? (
                 <textarea
                     placeholder={placeholder}
-                    className="transition-colors duration-200 leading-8 focus:border-b focus:border-brightnavy w-full px-0.5 py-2 border-b border-xgray400 text-lg md:text-xl font-normal focus:outline-none outline-none"
+                    className="transition-colors duration-200 leading-8 focus:border-b focus:border-neutral-1000 w-full px-0.5 py-2 border-b border-neutral-500 text-lg md:text-xl font-normal focus:outline-none outline-none"
                     value={value}
                     onChange={onChange}
                     rows={rows}
@@ -83,13 +83,13 @@ export const TextInput = ({
             ) : (
                 <input
                     placeholder={placeholder}
-                    className="transition-colors duration-200 focus:border-b focus:border-brightnavy w-full px-0.5 py-2 border-b border-xgray400 text-lg md:text-xl font-normal leading-5 focus:outline-none outline-none"
+                    className="transition-colors duration-200 focus:border-b focus:border-neutral-1000 w-full px-0.5 py-2 border-b border-neutral-500 text-lg md:text-xl font-normal leading-5 focus:outline-none outline-none"
                     value={value}
                     onChange={onChange}
                     autoFocus={autoFocus}
                 />
             )}
-            <div className="transition-colors duration-200 rounded-full w-full h-px bg-white/0 group-focus-within:bg-brightnavy"></div>
+            <div className="transition-colors duration-200 rounded-full w-full h-px bg-white/0 group-focus-within:bg-neutral-1000"></div>
         </div>
     );
 };

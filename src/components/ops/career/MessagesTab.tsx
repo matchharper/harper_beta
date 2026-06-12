@@ -59,7 +59,9 @@ function formatRecommendationToolLog(rawLog: string): MessageToolLog | null {
       ? "완료"
       : status.state === "error"
         ? "실패"
-        : "실행 중";
+        : status.state === "stopped"
+          ? "중지"
+          : "실행 중";
 
   return {
     label: "recommend_job_postings",
@@ -106,10 +108,10 @@ const toolLogClass = (tone: MessageToolLog["tone"]) =>
   cx(
     "rounded-md border px-2.5 py-1.5 text-[11px] leading-5",
     tone === "success"
-      ? "border-[#90a88f]/35 bg-[#e4eee4]/70 text-[#2f553d]"
+      ? "border-positive/30 bg-positive-faded/70 text-positive"
       : tone === "error"
-        ? "border-[#c98b77]/35 bg-[#f7dbd3]/65 text-[#8a2e1d]"
-        : "border-beige900/10 bg-white/55 text-beige900/55"
+        ? "border-critical/30 bg-critical-faded/65 text-critical"
+        : "border-neutral-1000-a05 bg-bg-default/55 text-neutral-muted"
   );
 
 export const MessagesTab = memo(function MessagesTab({
@@ -117,7 +119,7 @@ export const MessagesTab = memo(function MessagesTab({
 }: MessagesTabProps) {
   if (messages.length === 0) {
     return (
-      <div className="rounded-md border border-dashed border-beige900/15 bg-white/30 px-4 py-6 text-center font-geist text-sm text-beige900/40">
+      <div className="rounded-md border border-dashed border-neutral-1000-a10 bg-bg-floating px-4 py-6 text-center text-sm text-neutral-soft">
         대화 내역이 없습니다.
       </div>
     );
@@ -132,17 +134,17 @@ export const MessagesTab = memo(function MessagesTab({
           <div
             key={msg.id}
             className={cx(
-              "rounded-lg px-4 py-3 font-geist text-sm",
+              "rounded-lg px-4 py-3 text-sm",
               msg.role === "assistant"
-                ? "bg-beige500/40 text-beige900/80"
-                : "bg-white/70 text-beige900"
+                ? "bg-bg-weak text-neutral-primary"
+                : "bg-bg-default/70 text-neutral-primary"
             )}
           >
             <div className="mb-1 flex items-center justify-between">
               <span className={cx(opsTheme.eyebrow)}>
                 {msg.role === "assistant" ? "Harper" : "Talent"}
               </span>
-              <span className="font-geist text-[10px] text-beige900/30">
+              <span className="text-[10px] text-neutral-soft">
                 {formatKst(msg.createdAt)}
               </span>
             </div>
@@ -153,7 +155,7 @@ export const MessagesTab = memo(function MessagesTab({
                     key={`${msg.id}-tool-${index}-${log.label}`}
                     className={toolLogClass(log.tone)}
                   >
-                    <span className="mr-1.5 font-medium text-beige900/70">
+                    <span className="mr-1.5 font-medium text-neutral-muted">
                       {log.label}
                     </span>
                     <span>{log.text}</span>

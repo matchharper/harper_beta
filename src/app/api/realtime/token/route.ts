@@ -9,6 +9,12 @@ import {
 import { getCareerRealtimeSessionConfig } from "@/lib/career/llm";
 import { getCareerConversationStarterPrompt } from "@/lib/career/conversationStarterPrompts";
 import { buildCareerRealtimeSessionInstructions } from "@/lib/career/realtimeInstructions";
+import {
+  fetchInternalOpportunityCallRequestById,
+  isOpenInternalOpportunityCallRequestStatus,
+  touchInternalOpportunityCallRequest,
+} from "@/lib/talentOnboarding/internalOpportunityCallRequest";
+import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 
 const TOKEN_RATE_LIMIT = new Map<string, { count: number; resetAt: number }>();
 const MAX_TOKENS_PER_MINUTE = 10;
@@ -120,14 +126,20 @@ export async function POST(req: NextRequest) {
     const {
       conversationId: rawConversationId,
       conversationStarterId: rawConversationStarterId,
+      internalCallRequestId: rawInternalCallRequestId,
     } = body as {
       conversationId?: string;
       conversationStarterId?: string;
+      internalCallRequestId?: string;
     };
     const conversationId = rawConversationId?.trim();
     const conversationStarterId =
       typeof rawConversationStarterId === "string"
         ? rawConversationStarterId.trim()
+        : "";
+    const internalCallRequestId =
+      typeof rawInternalCallRequestId === "string"
+        ? rawInternalCallRequestId.trim()
         : "";
 
     if (!conversationId) {
@@ -145,11 +157,37 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+    if (internalCallRequestId) {
+      const admin = getTalentSupabaseAdmin();
+      const callRequest = await fetchInternalOpportunityCallRequestById({
+        admin,
+        callId: internalCallRequestId,
+        userId: user.id,
+      });
+      if (!callRequest) {
+        return NextResponse.json(
+          { error: "Invalid internalCallRequestId" },
+          { status: 400 }
+        );
+      }
+      if (!isOpenInternalOpportunityCallRequestStatus(callRequest.status)) {
+        return NextResponse.json(
+          { error: "Internal call already completed" },
+          { status: 409 }
+        );
+      }
+      await touchInternalOpportunityCallRequest({
+        admin,
+        callId: internalCallRequestId,
+        userId: user.id,
+      });
+    }
 
     const realtimeToolCandidates = getCareerRealtimeToolCandidates();
     const realtimePromptPlan = await buildCareerRealtimeSessionInstructions({
       conversationId,
       conversationStarterId,
+      internalCallRequestId,
       toolNames: realtimeToolCandidates.map((tool) => tool.name),
       userId: user.id,
     });

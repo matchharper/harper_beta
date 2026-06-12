@@ -16,6 +16,10 @@ import {
   onEnterOrSpace,
   StatCard,
 } from "./shared";
+import { Input as UiInput } from "@/components/ui/input";
+import { Select as UiSelect } from "@/components/ui/select";
+import { Checkbox as UiCheckbox } from "@/components/ui/checkbox";
+import { BareButton } from "@/components/ui/button";
 
 type ListViewProps = {
   currentLeads: NetworkLeadSummary[];
@@ -89,16 +93,18 @@ export default function ListView({
                 "flex h-11 items-center gap-2 px-3"
               )}
             >
-              <Search className="h-4 w-4 text-beige900/40" />
-              <input
+              <Search className="h-4 w-4 text-neutral-soft" />
+              <UiInput
+                unstyled
                 value={query}
                 onChange={(event) => onQueryChange(event.target.value)}
                 placeholder="이름, 이메일, 역할, 링크 검색"
-                className="h-full w-full bg-transparent font-geist text-sm text-beige900 outline-none placeholder:text-beige900/35"
+                className="h-full w-full bg-transparent text-sm text-neutral-primary outline-none placeholder:text-neutral-placeholder"
               />
             </label>
 
-            <select
+            <UiSelect
+              unstyled
               value={roleFilter}
               onChange={(event) => onRoleFilterChange(event.target.value)}
               className={cx(opsTheme.input, "appearance-none")}
@@ -109,24 +115,25 @@ export default function ListView({
                   {role}
                 </option>
               ))}
-            </select>
+            </UiSelect>
 
             <label
               className={cx(
                 opsTheme.panelSoft,
-                "flex h-11 items-center gap-2 px-3 font-geist text-sm text-beige900/70"
+                "flex h-11 items-center gap-2 px-3 text-sm text-neutral-muted"
               )}
             >
-              <input
-                type="checkbox"
+              <UiCheckbox
+                unstyled
                 checked={cvOnly}
                 onChange={(event) => onCvOnlyChange(event.target.checked)}
-                className="accent-[#2E1706]"
+                className="accent-black"
               />
               CV만 보기
             </label>
 
-            <select
+            <UiSelect
+              unstyled
               value={pageSize}
               onChange={(event) => onPageSizeChange(Number(event.target.value))}
               className={cx(opsTheme.input, "appearance-none")}
@@ -136,15 +143,15 @@ export default function ListView({
                   페이지당 {option}명
                 </option>
               ))}
-            </select>
+            </UiSelect>
 
-            <button
+            <BareButton
               type="button"
               onClick={onResetFilters}
               className={cx(opsTheme.buttonSoft, "h-11")}
             >
               필터 초기화
-            </button>
+            </BareButton>
           </div>
         </div>
 
@@ -153,23 +160,23 @@ export default function ListView({
         ) : null}
 
         <div className={cx(opsTheme.panel, "overflow-hidden")}>
-          <div className="flex flex-col gap-3 border-b border-beige900/10 px-4 py-4 md:flex-row md:items-end md:justify-between">
+          <div className="flex flex-col gap-3 border-b border-neutral-1000-a05 px-4 py-4 md:flex-row md:items-end md:justify-between">
             <div>
               <div className={opsTheme.eyebrow}>Candidates</div>
-              <div className="mt-1 font-geist text-sm text-beige900/70">
+              <div className="mt-1 text-sm text-neutral-muted">
                 필터 결과 {list?.filteredCount ?? 0}명 / 전체{" "}
                 {list?.allCount ?? 0}명
               </div>
             </div>
-            <div className="font-geist text-sm text-beige900/55">
+            <div className="text-sm text-neutral-muted">
               페이지 {currentPage} / {totalPages} · 현재 {currentLeads.length}명
             </div>
           </div>
 
           <div className="overflow-x-auto">
             <table className="min-w-[1680px] w-full table-fixed border-collapse">
-              <thead className="bg-white/55 text-left">
-                <tr className="border-b border-beige900/10 font-geist text-xs uppercase text-beige900/50">
+              <thead className="bg-bg-default/55 text-left">
+                <tr className="border-b border-neutral-1000-a05 text-xs uppercase text-neutral-muted">
                   <th className="w-[240px] px-4 py-3 font-medium">이름</th>
                   <th className="w-[280px] px-4 py-3 font-medium">
                     최근 회사 / 역할
@@ -187,7 +194,7 @@ export default function ListView({
                   <tr>
                     <td colSpan={6} className="px-4 py-12">
                       <div className="flex items-center justify-center">
-                        <LoaderCircle className="h-5 w-5 animate-spin text-beige900/45" />
+                        <LoaderCircle className="h-5 w-5 animate-spin text-neutral-muted" />
                       </div>
                     </td>
                   </tr>
@@ -195,7 +202,7 @@ export default function ListView({
                   <tr>
                     <td
                       colSpan={6}
-                      className="px-4 py-12 text-center font-geist text-sm text-beige900/55"
+                      className="px-4 py-12 text-center text-sm text-neutral-muted"
                     >
                       조건에 맞는 후보자가 없습니다.
                     </td>
@@ -217,21 +224,21 @@ export default function ListView({
                           onEnterOrSpace(event, () => onOpenLeadDrawer(lead.id))
                         }
                         className={cx(
-                          "cursor-pointer border-b border-beige900/10 align-top transition hover:bg-white/50 focus-visible:bg-white/60",
-                          isSelected && "bg-[#2E1706] text-beige100"
+                          "cursor-pointer border-b border-neutral-1000-a05 align-top transition hover:bg-bg-default/50 focus-visible:bg-bg-default/60",
+                          isSelected && "bg-black text-neutral-00"
                         )}
                       >
                         <td className="px-4 py-4 align-top">
                           <div className="min-w-0">
-                            <div className="truncate font-geist text-base font-medium">
+                            <div className="truncate text-base font-medium">
                               {lead.name ?? "이름 없음"}
                             </div>
                             <div
                               className={cx(
-                                "mt-1 truncate font-geist text-sm",
+                                "mt-1 truncate text-sm",
                                 isSelected
-                                  ? "text-beige100/70"
-                                  : "text-beige900/55"
+                                  ? "text-neutral-00/70"
+                                  : "text-neutral-muted"
                               )}
                             >
                               {lead.email ?? "이메일 없음"}
@@ -255,15 +262,15 @@ export default function ListView({
                           </div>
                         </td>
                         <td className="px-4 py-4 align-top">
-                          <div className="font-geist text-sm font-medium">
+                          <div className="text-sm font-medium">
                             {latestExperience.primary}
                           </div>
                           <div
                             className={cx(
-                              "mt-2 font-geist text-xs",
+                              "mt-2 text-xs",
                               isSelected
-                                ? "text-beige100/65"
-                                : "text-beige900/55"
+                                ? "text-neutral-00/65"
+                                : "text-neutral-muted"
                             )}
                           >
                             {latestExperience.meta ?? "세부 경력 정보 없음"}
@@ -282,10 +289,10 @@ export default function ListView({
                             {preferenceLabels.engagementLabels.length === 0 ? (
                               <span
                                 className={cx(
-                                  "font-geist text-sm",
+                                  "text-sm",
                                   isSelected
-                                    ? "text-beige100/65"
-                                    : "text-beige900/50"
+                                    ? "text-neutral-00/65"
+                                    : "text-neutral-muted"
                                 )}
                               >
                                 저장된 선택 값 없음
@@ -295,31 +302,31 @@ export default function ListView({
                         </td>
                         <td className="px-4 py-4 align-top">
                           <div className="space-y-3">
-                            <button
+                            <BareButton
                               type="button"
                               onClick={(event) => {
                                 event.stopPropagation();
                                 onOpenQuickMemo(lead);
                               }}
-                              className="inline-flex h-8 items-center justify-center rounded-md bg-beige900 px-3 font-geist text-xs text-beige100 transition hover:opacity-90"
+                              className="inline-flex h-8 items-center justify-center rounded-md bg-black px-3 text-xs text-neutral-00 transition hover:opacity-90"
                             >
                               메모 추가
-                            </button>
+                            </BareButton>
                             {lead.recentMemos.length > 0 ? (
                               <div className="space-y-3">
                                 {lead.recentMemos.map((memo) => (
                                   <div key={memo.id}>
                                     <div
                                       className={cx(
-                                        "font-geist text-xs",
+                                        "text-xs",
                                         isSelected
-                                          ? "text-beige100/60"
-                                          : "text-beige900/45"
+                                          ? "text-neutral-00/60"
+                                          : "text-neutral-muted"
                                       )}
                                     >
                                       {formatKstDate(memo.createdAt)}
                                     </div>
-                                    <div className="mt-1 line-clamp-2 font-geist text-sm leading-6">
+                                    <div className="mt-1 line-clamp-2 text-sm leading-6">
                                       {memo.content}
                                     </div>
                                   </div>
@@ -328,10 +335,10 @@ export default function ListView({
                             ) : (
                               <div
                                 className={cx(
-                                  "font-geist text-sm",
+                                  "text-sm",
                                   isSelected
-                                    ? "text-beige100/65"
-                                    : "text-beige900/50"
+                                    ? "text-neutral-00/65"
+                                    : "text-neutral-muted"
                                 )}
                               >
                                 최근 메모 없음
@@ -340,15 +347,15 @@ export default function ListView({
                           </div>
                         </td>
                         <td className="px-4 py-4 align-top">
-                          <div className="font-geist text-sm">
+                          <div className="text-sm">
                             {formatKstDate(lead.createdAt)}
                           </div>
                           <div
                             className={cx(
-                              "mt-2 font-geist text-xs",
+                              "mt-2 text-xs",
                               isSelected
-                                ? "text-beige100/60"
-                                : "text-beige900/45"
+                                ? "text-neutral-00/60"
+                                : "text-neutral-muted"
                             )}
                           >
                             {submittedDaysAgo !== null
@@ -371,12 +378,12 @@ export default function ListView({
             </table>
           </div>
 
-          <div className="flex flex-col gap-3 border-t border-beige900/10 px-4 py-4 md:flex-row md:items-center md:justify-between">
-            <div className="font-geist text-sm text-beige900/55">
+          <div className="flex flex-col gap-3 border-t border-neutral-1000-a05 px-4 py-4 md:flex-row md:items-center md:justify-between">
+            <div className="text-sm text-neutral-muted">
               페이지당 {pageSize}명
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <button
+              <BareButton
                 type="button"
                 onClick={() => onGoToPage(currentPage - 1)}
                 disabled={currentPage <= 1}
@@ -384,23 +391,23 @@ export default function ListView({
               >
                 <ChevronLeft className="h-4 w-4" />
                 이전
-              </button>
+              </BareButton>
               {pageNumbers.map((page) => (
-                <button
+                <BareButton
                   key={page}
                   type="button"
                   onClick={() => onGoToPage(page)}
                   className={cx(
-                    "inline-flex h-10 min-w-10 items-center justify-center rounded-md px-3 font-geist text-sm transition",
+                    "inline-flex h-10 min-w-10 items-center justify-center rounded-md px-3 text-sm transition",
                     page === currentPage
-                      ? "bg-beige900 text-beige100"
-                      : "bg-white/60 text-beige900 hover:bg-white/80"
+                      ? "bg-black text-neutral-00"
+                      : "bg-bg-default/60 text-neutral-primary hover:bg-bg-default/80"
                   )}
                 >
                   {page}
-                </button>
+                </BareButton>
               ))}
-              <button
+              <BareButton
                 type="button"
                 onClick={() => onGoToPage(currentPage + 1)}
                 disabled={currentPage >= totalPages}
@@ -408,7 +415,7 @@ export default function ListView({
               >
                 다음
                 <ChevronRight className="h-4 w-4" />
-              </button>
+              </BareButton>
             </div>
           </div>
         </div>

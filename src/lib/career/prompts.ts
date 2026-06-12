@@ -5,10 +5,15 @@ import {
 } from "@/lib/talentOnboarding/prompts";
 import { TALENT_ONBOARDING_DONE_MARKER } from "@/lib/talentOnboarding/completion";
 import { TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX } from "@/lib/talentOnboarding/onboarding";
-import { INSIGHT_CHECKLIST } from "@/lib/talentOnboarding/insightChecklist";
+import {
+  INSIGHT_CHECKLIST,
+  ONBOARDING_ADDITIONAL_QUESTION_KEYS,
+  ONBOARDING_FINAL_CONFIRMATION_KEY,
+  ONBOARDING_QUESTION_CHECKLIST,
+  ONBOARDING_QUESTION_MIN_COVERED_COUNT,
+} from "@/lib/talentOnboarding/insightChecklist";
 import { logger } from "@/utils/logger";
 
-const TALENT_ONBOARDING_MIN_FILLED_INSIGHT_COUNT = 6;
 const TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN = 2;
 
 export type CareerPromptProfile = {
@@ -85,6 +90,7 @@ export type CareerPromptBlock = {
 export type CareerPromptChannel = "chat" | "voice";
 export type CareerProactiveTurnInstructionMode =
   | "conversation_starter"
+  | "internal_opportunity_call"
   | "generic";
 export type CareerToolPolicyChannel = CareerPromptChannel;
 
@@ -196,8 +202,8 @@ export const CAREER_ONBOARDING_CONVERSATION_PROMPT = `
 Harper는 짧은 온보딩 대화에서 후보자의 현재 상황, 다음 기회 선호, 제약 조건, 대표 경험을 파악해 이후 추천 기준을 잡아야 한다.
 
 ### 진행 순서
-1. Insight collection: Known & Unknown Insights에서 비어 있거나 얕은 항목을 자연스럽게 채운다.
-2. Additional questions: insight가 ${TALENT_ONBOARDING_MIN_FILLED_INSIGHT_COUNT}개 이상 채워진 뒤, insight checklist와 별개로 프로필 기반 추가 질문을 최소 ${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN}개, 최대 ${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX}개 묻는다.
+1. Question coverage: Onboarding question checklist에서 아직 covered가 아닌 항목을 자연스럽게 채운다. insight 저장 여부만으로 질문 완료 여부를 판단하지 않는다.
+2. Additional questions: checklist와 별개가 아니라 checklist 안의 additional_question 항목으로 관리한다. 프로필 기반 추가 질문을 최소 ${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN}개, 최대 ${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX}개 묻는다.
 3. Final priority confirmation: 위 조건을 채운 뒤에만, 우선순위를 짧게 요약하고 빠뜨린 것이 있는지 묻는다.
 4. Closing: 사용자가 final priority confirmation에 답한 뒤에만 종료한다.
    - Final priority confirmation은 한 번만 묻는다. 사용자가 "네", "맞아요", "없어요", "좋아요", "빠뜨린 것 없어요"처럼 동의하거나 추가사항이 없다고 답하면, 다음 assistant 응답에서는 같은 확인 질문을 반복하지 말고 짧게 마무리한다.
@@ -231,16 +237,17 @@ Additional question은 insight checklist를 직접 채우는 일반 선호 질�
 
 ### 종료 판단 조건
 온보딩을 종료하려면 아래 조건을 모두 만족해야 한다.
-1. Current insights에 값이 있는 insight가 최소 ${TALENT_ONBOARDING_MIN_FILLED_INSIGHT_COUNT}개 이상이어야 한다.
-2. Additional questions를 최소 ${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN}개 이상 물어야 한다. 질문 유형은 프로필 gap, 직무 관련 depth/preference, 이력 전환/타임라인 중 하나여야 한다.
-3. language-외국어 능력 관련 질문을 해야한다.
-4. Final priority confirmation을 물었고, 사용자가 종료 시그널을 보내야 한다.
-Voice Call에서는 additional question 개수가 명시적 카운터로 주어지지 않을 수 있다. 이 경우 최근 대화에서 위 유형의 additional question이 최소 ${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN}개 명확히 다뤄졌는지 판단하고, 불확실하면 종료하지 말고 하나 더 묻는다.
+1. Onboarding question checklist에서 covered 항목이 최소 ${ONBOARDING_QUESTION_MIN_COVERED_COUNT}개 이상이어야 한다.
+2. Additional question checklist 항목(${ONBOARDING_ADDITIONAL_QUESTION_KEYS.join(", ")})이 모두 covered여야 한다.
+3. final priority confirmation checklist 항목(${ONBOARDING_FINAL_CONFIRMATION_KEY})이 covered여야 한다.
+4. language-외국어 능력 관련 checklist 항목이 covered여야 한다.
+Voice Call에서도 최근 대화 추론으로 additional question 개수를 다시 세지 말고, prompt에 제공되는 checklist coverage 상태를 기준으로 진행한다.
 
 ### 종료 금지 규칙
-- insight가 ${TALENT_ONBOARDING_MIN_FILLED_INSIGHT_COUNT}개 미만이면 절대 종료하지 마라.
-- additional question이 ${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN}개 미만이면 절대 종료하지 마라. 이때 다음 질문은 새 insight 질문이 아니라 additional question이어야 한다.
+- checklist covered 항목이 ${ONBOARDING_QUESTION_MIN_COVERED_COUNT}개 미만이면 절대 종료하지 마라.
+- additional question checklist 항목이 모두 covered되기 전에는 절대 종료하지 마라. 이때 다음 질문은 새 insight 질문이 아니라 additional question이어야 한다.
 - final priority confirmation에 대한 사용자 답변을 받기 전에는 절대 종료하지 마라.
+- 단, 사용자의 최신 답변은 아직 checklist coverage에 반영되기 전일 수 있다. 최근 대화에서 Harper가 final priority confirmation을 이미 물었고 최신 사용자 답변이 그 확인에 답한 것이 명확하면, 이번 응답에서는 final_priority_confirmation이 사실상 충족된 것으로 보고 종료할 수 있다.
 - 이미 final priority confirmation을 물었고 사용자가 긍정/동의/추가 없음으로 답했다면, "맞으시죠?", "빠뜨린 거 없죠?", "마지막으로 점검해볼게요"를 다시 묻지 마라. 바로 closing으로 넘어가라.
 - select_additional_onboarding_question tool이 사용 가능하면 additional question을 직접 만들지 말고 먼저 tool을 호출한 뒤, tool 결과의 assistantMessage로 질문한다.
 - 온보딩을 실제로 종료하는 마지막 답변의 맨 끝에는 반드시 ${TALENT_ONBOARDING_DONE_MARKER} 를 붙여라.
@@ -495,7 +502,7 @@ Resume/profile handling:
 - If onboarding is not complete, mention lightly that finishing the profile conversation can help Harper explain the candidate better, but do not make that sound like a blocker to the accepted connection.
 
 - If the user asks to be connected to an internal opportunity that Harper has not already offered to them, guide them: '내부 기회는 유저 요청만으로 바로 진행할 수는 없고, 내부적으로 검토 후 연결 제안 이메일을 드릴 예정입니다. 대신 최우선으로 검토하겠습니다.' This does not apply when the user accepts or likes an internal opportunity Harper already recommended.
-- processed_stage "pending" is internal-only and means the company-side manager has not answered yet. Do not mention the field name; say 회사 쪽 답변을 기다리는 중.
+- If internal opportunity context indicates a pending company-side process, do not mention internal status labels; say 회사 쪽 답변을 기다리는 중.
 
 ---
 
@@ -538,7 +545,7 @@ Briefly acknowledge it and explain how it will affect future opportunity selecti
 Do not immediately ask an unrelated question.
 
 Saved preference update replies:
-- After using update_talent_profile to change saved preferences or profile state, reply as if the user asked Harper to change how the product behaves, not as if Harper merely wrote to storage.
+- After using update_setting or update_talent_profile to change saved settings, profile state, or matching memory, reply as if the user asked Harper to change how the product behaves, not as if Harper merely wrote to storage.
 - A saved-memory acknowledgement should be a bridge into the real answer. In the same reply, explain the practical consequence in the user's language when it matters, and mention how they can adjust the setting later when that would reduce ambiguity.
 - For recommendation settings, translate the change into what kinds of opportunities Harper will include or avoid. Do not expose field names.
 - Ask at most one follow-up question, and only if it directly helps the current preference or profile update. Do not ask an unrelated profile-gap question just because a tool was called.
@@ -622,13 +629,41 @@ function renderInsightKey(key: string, quoteKeys: boolean) {
   return quoteKeys ? `"${key}"` : key;
 }
 
+type OnboardingChecklistCoverage = Record<string, "covered">;
+
+function normalizePromptChecklistCoverage(
+  coverage: OnboardingChecklistCoverage | null | undefined
+): OnboardingChecklistCoverage {
+  const normalized: OnboardingChecklistCoverage = {};
+  for (const [key, value] of Object.entries(coverage ?? {})) {
+    if (value === "covered") normalized[key] = "covered";
+  }
+  return normalized;
+}
+
 function buildKnownInsightsSection(args: {
+  checklistCoverage?: OnboardingChecklistCoverage | null;
   content: Record<string, string> | null;
   includeAdditionalQuestions: boolean;
   quoteKeys?: boolean;
 }) {
-  const { content, includeAdditionalQuestions, quoteKeys = false } = args;
+  const {
+    checklistCoverage,
+    content,
+    includeAdditionalQuestions,
+    quoteKeys = false,
+  } = args;
   const currentContent = content ?? {};
+  const coverage = normalizePromptChecklistCoverage(checklistCoverage);
+  const coveredChecklistItems = ONBOARDING_QUESTION_CHECKLIST.filter(
+    (item) => coverage[item.key] === "covered"
+  );
+  const missingChecklistItems = ONBOARDING_QUESTION_CHECKLIST.filter(
+    (item) => coverage[item.key] !== "covered"
+  );
+  const additionalCoveredCount = ONBOARDING_ADDITIONAL_QUESTION_KEYS.filter(
+    (key) => coverage[key] === "covered"
+  ).length;
   const filledInsightCount = Object.values(currentContent).filter(
     (value) => typeof value === "string" && value.trim().length > 0
   ).length;
@@ -637,15 +672,17 @@ function buildKnownInsightsSection(args: {
     return typeof value === "string" && value.trim().length > 0;
   }).length;
   const checklistKeys = new Set(INSIGHT_CHECKLIST.map((item) => item.key));
-  const checklistLines = [...INSIGHT_CHECKLIST]
+  const checklistLines = [...ONBOARDING_QUESTION_CHECKLIST]
     .sort((left, right) => left.priority - right.priority)
     .map((item) => {
-      const value = currentContent[item.key]?.trim();
+      const value = currentContent[item.insightKey ?? item.key]?.trim();
       return [
-        // `- ${renderInsightKey(item.key, quoteKeys)} (${item.label})`,
-        `- ${item.label}`,
-        `  - topic: ${item.promptHint}`,
-        `  - current value: ${value || "(아직 없음)"}`,
+        `- ${renderInsightKey(item.key, quoteKeys)} (${item.label})`,
+        `  - status: ${coverage[item.key] === "covered" ? "covered" : "missing"}`,
+        coverage[item.key] !== "covered" &&
+          `  - promptHint: ${item.promptHint}`,
+        item.insightKey &&
+          `  - current insight value: ${value || "(아직 없음)"}`,
       ].join("\n");
     });
   const extraLines = Object.entries(currentContent)
@@ -658,13 +695,42 @@ function buildKnownInsightsSection(args: {
         `- ${renderInsightKey(key, quoteKeys)}\n  - 현재 값: ${value.trim()}`
     );
 
+  const dynamicPomrpt = [
+    "## Onboarding question coverage runtime state",
+    `- Covered checklist items: ${coveredChecklistItems.length}/${ONBOARDING_QUESTION_CHECKLIST.length}`,
+    `- Minimum covered checklist items before closing: ${ONBOARDING_QUESTION_MIN_COVERED_COUNT}`,
+    `- Additional questions covered: ${additionalCoveredCount}/${ONBOARDING_ADDITIONAL_QUESTION_KEYS.length}`,
+    `- Final priority confirmation: ${coverage[ONBOARDING_FINAL_CONFIRMATION_KEY] === "covered" ? "covered" : "missing"}`,
+    coveredChecklistItems.length > 0
+      ? `- Covered keys: ${coveredChecklistItems.map((item) => item.key).join(", ")}`
+      : "- Covered keys: (none)",
+    missingChecklistItems.length > 0
+      ? `- Next missing keys: ${missingChecklistItems
+          .slice(0, 4)
+          .map((item) => item.key)
+          .join(", ")}`
+      : "- Next missing keys: (none)",
+    "- Do not ask a checklist item whose status is covered again. Use missing checklist items and their promptHint to decide the next question.",
+    "## Current insight values",
+    `- Filled insights: ${filledInsightCount}`,
+    `- Filled canonical checklist insights: ${canonicalFilledInsightCount}/${INSIGHT_CHECKLIST.length}`,
+    "## Onboarding Question Checklist",
+    checklistLines.join("\n"),
+    extraLines.length > 0
+      ? ["## Other current insights", extraLines.join("\n")].join("\n")
+      : "",
+  ]
+    .filter((line) => line.trim().length > 0)
+    .join("\n");
+
+  console.info("\n\n", dynamicPomrpt, "\n\n");
+
   return [
     includeAdditionalQuestions
       ? `
-## Additional questions
-- Additional question은 insight checklist를 채우는 일반 선호 질문이 아니라, 프로필 gap / 직무 관련 depth / 이력 전환 맥락을 확인하는 질문이다.
-- 시작 조건: Current insights가 최소 ${TALENT_ONBOARDING_MIN_FILLED_INSIGHT_COUNT}개 이상 채워진 뒤 additional phase로 넘어간다.
-- 종료 전 필수 조건: additional question을 최소 ${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN}개 이상 묻는다. 최대 ${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX}개까지만 묻는다.
+	## Additional questions
+- Additional question은 일반 선호 질문이 아니라, 프로필 gap / 직무 관련 depth / 이력 전환 맥락을 확인하는 질문이다.
+- 종료 전 필수 조건: additional question checklist 항목을 최소 ${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN}개 이상 covered로 만든다. 최대 ${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX}개까지만 묻는다.
 - select_additional_onboarding_question tool이 사용 가능하면 직접 고르지 말고 반드시 tool을 먼저 호출한다.
 
 ### Additional question selection policy
@@ -682,25 +748,21 @@ function buildKnownInsightsSection(args: {
 - 최근 경험에서 본인이 직접 만든 변화나 결과를 하나만 꼽으면 뭐가 있을까요?
 
 ---
-`
+	`
       : "",
-    "## Insight completion runtime state",
-    `- Filled insights: ${filledInsightCount} (must be >= ${TALENT_ONBOARDING_MIN_FILLED_INSIGHT_COUNT} before final priority confirmation or closing)`,
-    `- Filled canonical checklist insights: ${canonicalFilledInsightCount}/${INSIGHT_CHECKLIST.length}`,
-    "## Known & Unknown Insights",
-    checklistLines.join("\n"),
-    extraLines.length > 0
-      ? ["## Other current insights", extraLines.join("\n")].join("\n")
-      : "",
+    dynamicPomrpt,
   ]
     .filter((line) => line.trim().length > 0)
     .join("\n");
 }
 
-function buildExtractionInsightChecklistSection(
-  content: Record<string, string> | null
-) {
+function buildExtractionInsightChecklistSection(args: {
+  checklistCoverage?: OnboardingChecklistCoverage | null;
+  content: Record<string, string> | null;
+}) {
+  const { checklistCoverage, content } = args;
   const currentContent = content ?? {};
+  const coverage = normalizePromptChecklistCoverage(checklistCoverage);
   const canonicalKeys = [...INSIGHT_CHECKLIST]
     .sort((left, right) => left.priority - right.priority)
     .map((item) => `"${item.key}"`);
@@ -710,6 +772,23 @@ function buildExtractionInsightChecklistSection(
     .map((item) => {
       const value = currentContent[item.key]?.trim();
       return `- "${item.key}" (${item.label}): ${item.promptHint}\n  current_value: ${value ? `"${value}"` : "null"}`;
+    });
+  const onboardingChecklistLines = [...ONBOARDING_QUESTION_CHECKLIST]
+    .sort((left, right) => left.priority - right.priority)
+    .map((item) => {
+      const currentValue = item.insightKey
+        ? currentContent[item.insightKey]?.trim()
+        : "";
+      return [
+        `- "${item.key}" (${item.label})`,
+        `  kind: ${item.kind}`,
+        item.insightKey ? `  insight_key: "${item.insightKey}"` : "",
+        `  current_status: ${coverage[item.key] === "covered" ? "covered" : "missing"}`,
+        currentValue ? `  current_insight_value: "${currentValue}"` : "",
+        `  question hint: ${item.promptHint}`,
+      ]
+        .filter((line) => line.trim().length > 0)
+        .join("\n");
     });
   const extraLines = Object.entries(currentContent)
     .filter(
@@ -723,6 +802,10 @@ function buildExtractionInsightChecklistSection(
     canonicalKeys.join(", "),
     "## Insight fields and current values",
     checklistLines.join("\n"),
+    "## Onboarding question checklist coverage",
+    "Only output checklist keys that became covered in the given transcript and are not already covered.",
+    "A single user reply can cover multiple checklist keys. If Harper asked final_priority_confirmation and the user answers with an additional must-have condition to remember for future matching, include both final_priority_confirmation and must_haves, and extract the condition under the must_haves insight key.",
+    onboardingChecklistLines.join("\n"),
     extraLines.length > 0
       ? ["## Other current insights", extraLines.join("\n")].join("\n")
       : "",
@@ -754,7 +837,11 @@ function buildKnownPreferencesSection(
     );
   }
   if (typeof prefs.profileVisibility === "string" && prefs.profileVisibility) {
-    lines.push(`- profileVisibility: ${prefs.profileVisibility}`);
+    lines.push(
+      prefs.profileVisibility === "open_to_matches"
+        ? "- Internal opportunity visibility: open to company-initiated profile-review offers."
+        : "- Internal opportunity visibility: company-initiated profile-review offers are not enabled."
+    );
   }
   if (
     typeof prefs.periodicIntervalDays === "number" &&
@@ -794,7 +881,7 @@ function buildKnownPreferencesSection(
   if (lines.length === 0) return "";
 
   return [
-    "## 현재 talent_preferences (구조화 필드, update_talent_profile 호출 시 합집합/덮어쓰기 머지 기준)",
+    "## 현재 recommendation/profile settings (구조화 필드: 추천 발송 설정은 update_setting, 미래 매칭 메모는 update_talent_profile 사용)",
     ...lines,
   ].join("\n");
 }
@@ -975,11 +1062,11 @@ function buildHelpfulMissingSignalsSection(args: {
   return [
     "## Helpful missing signals",
     "Use this only when there is a natural opening. Do not force questions.",
-    "### Question opportunities (not talent_insights keys)",
+    "### Question opportunities (not future-matching memory keys)",
     "These snake_case names are admin-managed question opportunity labels only, not storage keys. If the user answers with a profile-row fact, save it as rowMemo when one visible row matches.",
     questionSignalLines.join("\n"),
     resumeNudge,
-    "### Canonical talent_insights slots",
+    "### Canonical future-matching memory slots",
     "Use these only for durable future matching memory. Prefer these keys before creating a new talentInsights key; do not store profile-row facts here.",
     insightSlotLines.join("\n"),
   ]
@@ -995,6 +1082,7 @@ function buildCareerConversationPromptPlan(args: {
   currentPreferences?: CareerPromptPreferences | null;
   interruptHandling?: string;
   isOnboardingDone?: boolean;
+  onboardingChecklistCoverage?: OnboardingChecklistCoverage | null;
   opportunityStatus?: CareerPromptOpportunityStatus | null;
   pendingOpportunityFeedbackContext?: string | null;
   profile: CareerPromptProfile | null;
@@ -1012,6 +1100,7 @@ function buildCareerConversationPromptPlan(args: {
   const isConversationStarterMode =
     args.proactiveTurnInstructionMode === "conversation_starter";
   const insightGuidanceSection = buildKnownInsightsSection({
+    checklistCoverage: args.onboardingChecklistCoverage,
     content: args.currentInsightContent,
     includeAdditionalQuestions: isOnboardingActive,
     quoteKeys: args.channel === "chat",
@@ -1045,11 +1134,25 @@ function buildCareerConversationPromptPlan(args: {
     Number.isFinite(args.additionalQuestionSelectionCount)
       ? Math.max(0, Math.floor(args.additionalQuestionSelectionCount))
       : null;
+  const onboardingChecklistCoverage = normalizePromptChecklistCoverage(
+    args.onboardingChecklistCoverage
+  );
+  const onboardingCoverageCoveredCount = ONBOARDING_QUESTION_CHECKLIST.filter(
+    (item) => onboardingChecklistCoverage[item.key] === "covered"
+  ).length;
+  const onboardingAdditionalCoveredCount =
+    ONBOARDING_ADDITIONAL_QUESTION_KEYS.filter(
+      (key) => onboardingChecklistCoverage[key] === "covered"
+    ).length;
+  const onboardingFinalConfirmationCovered =
+    onboardingChecklistCoverage[ONBOARDING_FINAL_CONFIRMATION_KEY] ===
+    "covered";
 
-  // During onboarding, suppress the standard tool policy block UNLESS the silent
-  // profile-writer (update_talent_profile) is enabled — that one runs during
-  // onboarding too and needs its policy/trigger rules in the system prompt.
+  // During onboarding, suppress the standard tool policy block UNLESS silent
+  // state-writers are enabled — those run during onboarding too and need their
+  // policy/trigger rules in the system prompt.
   const allowToolPolicyDuringOnboarding =
+    normalizedToolNames.includes("update_setting") ||
     normalizedToolNames.includes("update_talent_profile") ||
     hasAdditionalQuestionSelectorTool ||
     normalizedToolNames.includes("open_url") ||
@@ -1087,23 +1190,20 @@ function buildCareerConversationPromptPlan(args: {
             : additionalQuestionSelectionCount <
                 TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN
               ? args.channel === "voice"
-                ? "- In voice, infer additional questions from the recent conversation if selector count is unavailable. If fewer than 2 profile-gap/role-depth/career-transition questions have clearly been asked, ask one now and do not close."
+                ? "- In voice, use the onboarding checklist coverage state above. Ask a missing additional_question checklist item only when that item is not covered."
                 : hasAdditionalQuestionSelectorTool
-                  ? "- If insight count is >= 6, call the selector now before asking the next additional question. Do not close."
-                  : "- If insight count is >= 6, ask one short profile-gap/role-depth/career-transition question directly. Do not close."
-              : "- Minimum additional questions are satisfied. Move to final priority confirmation if insight count is also >= 6.",
+                  ? "- If the next missing checklist item is an additional question, call the selector before asking it. Do not close."
+                  : "- If the next missing checklist item is an additional question, ask one short profile-gap/role-depth/career-transition question directly. Do not close."
+              : "- Minimum additional questions are satisfied. Move to final priority confirmation when checklist coverage is otherwise sufficient.",
         ].join("\n")
       : "",
-    isOnboardingActive &&
-    args.channel === "voice" &&
-    additionalQuestionSelectionCount === null
+    isOnboardingActive
       ? [
-          "## Voice onboarding additional question state",
-          "- Voice calls do not have a reliable explicit additional-question counter in this prompt.",
-          `- Before final priority confirmation or closing, inspect the recent conversation and continue unless at least ${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN} profile-gap/role-depth/career-transition questions have clearly been asked.`,
-          "- If this is unclear, ask one more short additional question now and do not close.",
-          "- However, if the recent conversation already contains a final priority confirmation and the user has answered it, do not use counter uncertainty to ask another confirmation. Close onboarding with the required markers.",
-          "- In a substantial voice interview, prefer the user's latest concrete answers and Current insights over repeating broad checklist questions.",
+          "## Onboarding checklist progress policy",
+          "- Do not infer progress from insight key count. Use checklist coverage state as the progress source of truth.",
+          "- If a checklist key is covered, do not ask that topic again even if the corresponding insight value is empty or terse.",
+          "- The user's latest reply may not yet be reflected in checklist coverage. If recent conversation shows Harper already asked the final priority confirmation and the latest user reply answered it, you may treat final_priority_confirmation as effectively satisfied for this response and close onboarding with the required markers.",
+          "- If final_priority_confirmation is covered, do not summarize and ask for more confirmation again; close onboarding with the required markers.",
         ].join("\n")
       : "",
     insightGuidanceSection,
@@ -1203,6 +1303,7 @@ export function buildCareerTextChatPromptBlocks(args: {
   currentInsightContent: Record<string, string> | null;
   currentPreferences?: CareerPromptPreferences | null;
   isOnboardingDone?: boolean;
+  onboardingChecklistCoverage?: OnboardingChecklistCoverage | null;
   opportunityStatus?: CareerPromptOpportunityStatus | null;
   pendingOpportunityFeedbackContext?: string | null;
   profile: CareerPromptProfile | null;
@@ -1266,6 +1367,7 @@ export function buildCareerRealtimePromptPlan(args: {
   interruptHandling: string;
   isOnboardingDone?: boolean;
   callEndInstruction: string;
+  onboardingChecklistCoverage?: OnboardingChecklistCoverage | null;
   opportunityStatus?: CareerPromptOpportunityStatus | null;
   proactiveTurnInstructionMode?: CareerProactiveTurnInstructionMode;
   proactiveTurnInstruction?: string;
@@ -1282,6 +1384,7 @@ export function buildCareerRealtimePromptPlan(args: {
     currentInsightContent: args.currentInsightContent,
     interruptHandling: args.interruptHandling,
     isOnboardingDone: args.isOnboardingDone,
+    onboardingChecklistCoverage: args.onboardingChecklistCoverage,
     opportunityStatus: args.opportunityStatus,
     profile: args.profile,
     proactiveTurnInstructionMode: args.proactiveTurnInstructionMode,
@@ -1337,6 +1440,7 @@ export function buildCareerToolPolicyPrompt(args: {
   const hasUpdateTalentProfileTool = toolNames.includes(
     "update_talent_profile"
   );
+  const hasUpdateSettingTool = toolNames.includes("update_setting");
   const hasAdditionalQuestionSelectorTool = toolNames.includes(
     "select_additional_onboarding_question"
   );
@@ -1348,7 +1452,7 @@ export function buildCareerToolPolicyPrompt(args: {
   return [
     "## Tool Use Policy",
     `Available tools: ${toolNameText}`,
-    "For every tool call, include `_uiStatusMessage`: one concrete English user-facing Thinking log sentence. Do not reveal internal tool names, database names, or implementation details.",
+    "For every tool call, include `_uiStatusMessage`: one concrete English user-facing Thinking log sentence. Do not reveal internal tool names, storage names, or implementation details.",
     "- `_uiStatusMessage` must describe the exact action or lookup, not a generic process. Avoid vague text like 'updating', 'checking', or 'searching' by itself.",
     "- If the tool changes saved user information, mention the concrete field or value being adjusted. Old-to-new wording is optional only when it is naturally available and useful.",
     "- If the tool reads/searches data, mention the specific company, role, opportunity type, preference, or activity being checked. For job searches, describe what kind of jobs Harper is looking for.",
@@ -1390,7 +1494,7 @@ export function buildCareerToolPolicyPrompt(args: {
           "- Use `read_recommended_opportunities` when the answer depends on opportunities already recommended to this user, such as comparing them, recalling links, explaining recommendation reasons, or checking prior feedback.",
           ...(args.channel === "chat"
             ? [
-                "- When showing a returned opportunity in chat, include a standalone `[posting](roleId)` line so the UI can render the posting card.",
+                "- When showing a returned opportunity in chat, include a standalone `[posting](roleId)` line for each returned opportunity you mention.",
               ]
             : []),
         ]
@@ -1400,10 +1504,10 @@ export function buildCareerToolPolicyPrompt(args: {
           "- Use `get_role_context` only when the user asks about, recalls, or gives feedback on specific already-shown role/posting cards and you have one or more roleIds from `[posting](roleId)` lines or prior tool results. Pass at most 3 roleIds. Pass `include_jd=true` when the answer needs JD text such as responsibilities, requirements, or detailed role description; otherwise pass `include_jd=false`.",
           "- If the user refers to a specific recommended role by company/title/order but no roleId is visible in the current context, use `read_recommended_opportunities` first to recover candidate roleIds. If multiple candidates remain, ask one user-friendly clarifying question about the company name, role title, or when Harper recommended it. Never ask the user for a roleId.",
           "- Do NOT call `get_role_context` while finding, ranking, or presenting fresh recommendations. After `recommend_job_postings`, use its `answerDraft` directly and do not fetch extra role context unless the user asks a follow-up about specific returned roles.",
-          "- Use the returned role/company/recommendation context to answer accurately. `role.internalRequest` is internal-only context for reasoning; never quote it, paraphrase it as a user-facing promise, or mention that this internal request field exists.",
+          "- Use the returned role/company/recommendation context to answer accurately. Treat private company-side/request context as reasoning-only; never quote it, paraphrase it as a user-facing promise, or mention that such private context exists.",
           ...(args.channel === "chat"
             ? [
-                "- When showing a returned role in chat, include a standalone `[posting](roleId)` line so the UI can render the posting card.",
+                "- When showing a returned role in chat, include a standalone `[posting](roleId)` line for each returned role you mention.",
               ]
             : []),
         ]
@@ -1411,7 +1515,7 @@ export function buildCareerToolPolicyPrompt(args: {
     ...(hasUpdateRecommendedOpportunityFeedbackTool
       ? [
           "- Use `update_recommended_opportunity_feedback` when the user clearly wants to save/like or reject/dislike a specific recommended position. Use the roleId from `[posting](roleId)` when available. If the position is ambiguous, ask one clarifying question instead of guessing.",
-          "- Set feedback=`like` for saved/positive/accepted reactions. Set feedback=`dislike` for rejected/negative reactions. Do not mention savedStage or processed_stage.",
+          "- Set feedback=`like` for saved/positive/accepted reactions. Set feedback=`dislike` for rejected/negative reactions. Do not mention internal status labels.",
         ]
       : []),
     ...(hasReadActivityEventsTool
@@ -1429,8 +1533,7 @@ export function buildCareerToolPolicyPrompt(args: {
       : []),
     ...(hasJobPostingRecommendationTool
       ? [
-          "- Use `recommend_job_postings` when the user asks you to find, recommend, or match new job postings, open roles, positions, or opportunities. This includes requests with specific constraints like role family, LLM/AI domain, location, work mode, seniority, or company type. If the request is company-level rather than role/posting-level, prefer `recommend_companies` when available.",
-          "- If current preferences show `getExternalRecommendation: false`, public/external job-posting recommendations are disabled. Do not call `recommend_job_postings` for more public postings unless the latest user message explicitly asks to re-enable external recommendations; in that case call `update_talent_profile` first with `preferences.getExternalRecommendation: true`, then call `recommend_job_postings` only if the user is also asking for public postings now.",
+          "- Use `recommend_job_postings` when the user asks you to find, recommend, or match new job postings, open roles, positions, or opportunities. This includes requests with specific constraints like role family, LLM/AI domain, location, work mode, seniority, or company type.",
           "- Important priority: if the latest message combines a search request with a durable hard filter or future-matching command (Korean examples: '~로만 찾아줘', '~만 보내줘', '앞으로 ~로 찾아줘', '다음부터 ~는 빼줘', '~ 조건을 반영해줘'), do NOT call `recommend_job_postings` first. Call `update_talent_profile` first so the condition is saved; then call `recommend_job_postings` only if the latest user message explicitly asks to find postings now.",
           "- For a request like '미국 회사로만 찾아줘', treat it as a durable hard filter by default, not one-off browsing. Update talentInsights first, preferably under an existing matching axis such as `must_haves` if it is a hard requirement, with a complete value like '앞으로 미국 기반 회사만 추천받고 싶어합니다.' Use high impact.",
           "- Exception: before calling `recommend_job_postings`, triage whether the latest request is aligned search, off-profile/aspirational search, one-off exploration, or durable direction change. If a request is clearly off-profile or aspirational relative to the visible profile, do not call the tool immediately; first explain the mismatch and ask one clarifying question about what attracted the user to that company/role.",
@@ -1438,18 +1541,41 @@ export function buildCareerToolPolicyPrompt(args: {
           "- If you run `recommend_job_postings` for an ambiguous search condition before saving it, end the answer by asking one short question about whether Harper should reflect that condition in future matching. If the user says yes, call `update_talent_profile` on the next turn.",
           "- If the originally requested role is unrealistic for the profile, prefer an adjacent realistic query around the same company/domain unless the user explicitly insists on the original role. Example: a B2B SaaS Growth marketer asking for OpenAI Researcher should first be steered toward OpenAI-like AI company marketing/GTM/growth roles, with the research-track caveat clearly stated.",
           "- `recommend_job_postings` immediately returns and saves at most 5 high-fit postings. If the user asks for more, use the tool's larger-request guidance: explain that Harper will show the best 5 now and continue with periodic batches of up to 10 high-quality postings rather than dumping weak matches.",
-          "- After `recommend_job_postings`, answer in Korean using the tool's `answerDraft` and keep the ranked roles, reasons, concerns, and links visible. Do not replace it with generic advice.",
+          "- After `recommend_job_postings`, answer using `answerDraft`. 1. 2.로 역할을 나누는 등 지나치게 딱딱하게 구조를 갖추지 말고, 최대한 자연스러운 채팅처럼 자유로운 구조로 말해라. Do not use seperators(---)",
           "- Preserve every standalone `[posting](role_id)` line from `answerDraft` exactly. These lines drive the chat posting-card carousel, so do not remove or rewrite them.",
+        ]
+      : []),
+    ...(hasUpdateSettingTool
+      ? [
+          "",
+          "### update_setting (recommendation delivery settings)",
+          "- Purpose: update only how Harper sends opportunity recommendations: periodicIntervalDays, recommendationBatchSize, getInternalRecommendation, and getExternalRecommendation.",
+          "- Use this when the user clearly asks to change recommendation cadence/frequency, number of opportunities per batch, whether to receive external/public postings, whether to receive internal Harper-connected opportunities, or whether to stop all opportunity recommendations.",
+          "- Do NOT use this for target roles, domains, locations, work mode, company/stage preferences, compensation, deal-breakers, resume/CV context, or profile-row facts. Use `update_talent_profile` for durable future matching memory/profile data when appropriate.",
+          "- periodicIntervalDays 는 사용자가 명확한 숫자 선호를 말했을 때만 보내고, 보내면 그 값으로 덮어쓰기된다.",
+          "- recommendationBatchSize 는 사용자가 숫자를 말한 경우뿐 아니라 '좀 많이', '더 많이', '늘려줘', '적게', '줄여줘'처럼 방향을 분명히 말한 경우에도 3-10 사이의 구체적인 값으로 보내라. 이때 되묻지 마라.",
+          "- 숫자 없이 '좀 많이/더 많이/늘려줘'라고 하면 현재 recommendationBatchSize에서 2를 더하되 10을 넘기지 않는다. 현재값이 없거나 유효하지 않으면 5를 보낸다.",
+          "- 숫자 없이 '최대한 많이/가능한 많이/많을수록 좋다'라고 하면 10을 보낸다. 숫자 없이 '적게/줄여줘/조금만'이라고 하면 현재 recommendationBatchSize에서 2를 빼되 3보다 작게 만들지 않는다. 현재값이 없거나 유효하지 않으면 3을 보낸다.",
+          "- 일반 추천 주기는 periodicIntervalDays 1-7 사이만 사용한다. recommendationBatchSize는 3-10 사이만 사용한다.",
+          "- getExternalRecommendation=false means Harper should stop suggesting external public job postings. If getInternalRecommendation=true, the user may still receive internal Harper-connected opportunities.",
+          "- getExternalRecommendation / getInternalRecommendation 은 사용자가 추천/연결받고 싶은 기회 종류를 바꿀 때만 수정해라. 두 값의 기본값은 true다.",
+          "- 사용자가 추천/기회 제안을 전부 중단하겠다고 하면 getExternalRecommendation: false 와 getInternalRecommendation: false 를 함께 보낸다. periodicIntervalDays나 recommendationBatchSize를 중단 표현으로 바꾸지 마라.",
+          "- ex. 사용자가 '공개 공고는 추천하지 마', '외부 공고 안 받을래', '외부 채용 기회는 빼줘', '내부 연결되는 기회만 받고 싶어' 라고 하면 getExternalRecommendation: false 를 보낸다.(getInternalRecommendation가 현재 false라면 이것도 true를 보낸다.)",
+          "- When the profile is open to company-initiated matches and internal recommendations are enabled, the user can receive both (1) opportunities Harper proposes and (2) company-initiated connection offers after a company reviews their profile. If it is not open to company-initiated matches, they receive Harper-proposed opportunities only.",
+          "- When the latest user request is about turning external/public posting recommendations on or off, the follow-up reply should translate that saved setting into the user's day-to-day experience: what Harper will include or avoid from now on, what may still happen through enabled recommendation channels, and how the user can adjust it later.",
+          "- After this tool returns, produce a normal user-facing chat reply. Do not expose field names unless the user specifically asks for technical details.",
+          "",
         ]
       : []),
     ...(hasUpdateTalentProfileTool
       ? [
           "",
           "### update_talent_profile (profile writer)",
-          "- Purpose: update internal profile state with new info the user just shared: talentUser.bio, talent_preferences (periodicIntervalDays, recommendationBatchSize, getInternalRecommendation, getExternalRecommendation), row memos, and post-onboarding talent_insights.",
+          "- Purpose: update saved profile state with new info the user just shared: talentUser.bio, row memos, and post-onboarding future-matching memory.",
           "- Boundary: facts about a specific past role, school, project, responsibility, achievement, or education belong in the structured profile row memo when one visible row matches. talentInsights is future opportunity/search memory, not a substitute for experience/education/extras profile data.",
-          "- During onboarding: use only talentUser.bio, preferences, and rowMemos. Do NOT send talentInsights; onboarding insight extraction is handled separately.",
-          "- After onboarding is complete: send talentInsights only when the user's latest message clearly changes durable future recommendation memory, such as desired next role, search intensity, compensation, must-haves, deal-breakers, team style, company/domain preference, company size/stage preference, or corrections to prior recommendation preferences.",
+          "- Do NOT use this tool for recommendation delivery settings such as cadence/frequency, batch size, external recommendations, or internal recommendations. Use `update_setting` for those.",
+          "- During onboarding: use only talentUser.bio and rowMemos. Do NOT send talentInsights; onboarding insight extraction is handled separately.",
+          "- After onboarding is complete: send talentInsights only when the user's latest message clearly changes durable future recommendation memory, such as desired next role, search intensity, compensation, must-haves, deal-breakers, team style, company/domain preference, company size/stage preference, or corrections to prior matching preferences.",
           "- Search requests with explicit hard-filter language count as durable future recommendation memory even when phrased as 'find/search'. Examples: '미국 회사로만 찾아줘', '앞으로 리모트만 보내줘', '대기업은 빼고 찾아줘', '다음부터 Series B 이상만 봐줘'. In these cases, call this tool before job search.",
           "- For '미국 회사로만 찾아줘', update `must_haves` if the user means a hard requirement, e.g. '앞으로 미국 기반 회사만 추천받고 싶어합니다.' Use `impactLevel: \"high\"` because it materially changes recommendations.",
           "- Do NOT call this tool for one-off browsing, curiosity, benchmarking, or informational role/company searches. Messages like 'OpenAI Researcher 자리 보여줘', '그냥 보고 싶어서요', '어떤 공고가 있나 보고 싶어요' are search/exploration requests, not durable memory updates unless the user explicitly says to remember them for future matching.",
@@ -1458,37 +1584,28 @@ export function buildCareerToolPolicyPrompt(args: {
           "- After this tool returns, produce a normal user-facing chat reply. Do not return an empty assistant message, and do not return only an onboarding marker.",
           "- Trigger conditions: call ONLY when the user's latest statement directly maps to a writable field in this tool:",
           "  1) talentUser.bio: the user explicitly provides, rewrites, corrects, or asks to clear their profile Summary/About/Bio text. Do not invent this from assistant-only summaries.",
-          "  2) talent_preferences: periodicIntervalDays, recommendationBatchSize, getInternalRecommendation, getExternalRecommendation. Normal periodicIntervalDays values are 2-7 only.",
-          "  3) rowMemos: a short fact clearly tied to exactly one visible experience/education/extra row. This includes recent/representative experience details, project descriptions, responsibilities, achievements, and education details.",
-          "  4) talentInsights: post-onboarding durable future preference/memory changes. Use descriptive English snake_case keys and final integrated Korean complete sentences as values.",
+          "  2) rowMemos: a short fact clearly tied to exactly one visible experience/education/extra row. This includes recent/representative experience details, project descriptions, responsibilities, achievements, and education details.",
+          "  3) talentInsights: post-onboarding durable future preference/memory changes. Use descriptive English snake_case keys and final integrated Korean complete sentences as values.",
           "- Do NOT call this tool during onboarding for general answers that only update insight-like understanding, such as search intensity, desired next role, compensation, must-haves, deal-breakers, team style, environment preference, career-change reason, or optional-question answers. Those are handled outside this tool until onboarding completes.",
           "- Do NOT call when:",
           "  - 사용자의 발화가 *질문*(예: '회사들이 보통 어떤 보상을 주나요?')이거나 *가정/추측*(예: '만약 연봉이 1억이면 좋겠죠')일 때.",
           "  - assistant 본인의 발언/요약/메타 멘트에 대해. 사용자가 새로 말한 정보에만 반응한다.",
           "  - 이미 같은 preference/memo 정보가 들어 있고 변동/보강할 게 없을 때 (중복 호출 금지).",
           "- Read-merge-write 규칙:",
-          "  - talentUser.bio 는 talent_users.bio 전체를 교체한다. 사용자가 의도한 최종 Summary/About 문장만 보내라. 삭제/비우기를 명확히 요청한 경우에만 null 또는 빈 문자열을 보낸다.",
-          "  - periodicIntervalDays / recommendationBatchSize 는 사용자가 명확한 숫자 선호를 말했을 때만 보내고, 보내면 그 값으로 덮어쓰기된다.",
-          "  - getExternalRecommendation=false means Harper should stop suggesting external public job postings. If getInternalRecommendation=true, the user may still receive internal Harper-connected opportunities.",
-          "  - getExternalRecommendation / getInternalRecommendation 은 사용자가 추천/연결받고 싶은 기회 종류를 바꿀 때만 수정해라. 두 값의 기본값은 true다.",
-          "  - 사용자가 추천/기회 제안을 전부 중단하겠다고 하면 getExternalRecommendation: false 와 getInternalRecommendation: false 를 함께 보낸다. periodicIntervalDays나 recommendationBatchSize를 중단 표현으로 바꾸지 마라.",
-          "  - ex. 사용자가 '공개 공고는 추천하지 마', '외부 공고 안 받을래', '외부 채용 기회는 빼줘', '내부 연결되는 기회만 받고 싶어' 라고 하면 getExternalRecommendation: false 를 보낸다.(getInternalRecommendation가 현재 false라면 이것도 true를 보낸다.)",
-          "  - 일반 추천 주기는 periodicIntervalDays 2-7 사이만 사용한다.",
-          "  - Open to matches semantics: if profileVisibility is `open_to_matches` and internal recommendations are enabled, the user can receive both (1) opportunities Harper proposes and (2) company-initiated connection offers after a company reviews their profile. If profileVisibility is not `open_to_matches`, they receive Harper-proposed opportunities only.",
-          "  - When the latest user request is about turning external/public posting recommendations on or off, the follow-up reply should translate that saved setting into the user's day-to-day experience: what Harper will include or avoid from now on, what may still happen through enabled recommendation channels, and how the user can adjust it later.",
-          "  - talentInsights.content 는 partial patch 이다. 기존 값과 통합된 최종 문장만 보내고, 단순 중복이면 보내지 않는다.",
-          "  - 새 정보가 기존/current insight 또는 checklist 축에 속하면 새 synonym key를 만들지 말고 그 key를 업데이트해라. 예: target_role 계열은 next_scope, deal_breaker 계열은 deal_breakers, must_have 계열은 must_haves, team_style 계열은 team_style_fit, compensation_floor 계열은 compensation, location_preference 계열은 location.",
-          "  - 정말 기존 key로 표현하기 어려운 별도 축이면 새 영어 snake_case key를 만들어도 된다. 단, `representative_experience`, `recent_experience`처럼 프로필 row fact를 담는 key는 만들지 마라.",
+          "  - talentUser.bio 는 프로필 Summary/About 전체를 교체한다. 사용자가 의도한 최종 Summary/About 문장만 보내라. 삭제/비우기를 명확히 요청한 경우에만 null 또는 빈 문자열을 보낸다.",
+          "  - talentInsights.content 는 future-matching memory partial patch 이다. 기존 값과 통합된 최종 문장만 보내고, 단순 중복이면 보내지 않는다.",
+          "  - 새 정보가 기존/current insight 또는 checklist 축에 속하면 새 synonym key를 만들지 말고 그 key를 업데이트해라.",
+          "  - 기존 key로 표현하기 어려운 별도 축이면 새 영어 snake_case key를 만들어도 된다. 단, `representative_experience`, `recent_experience`처럼 프로필 row fact를 담는 key는 만들지 마라.",
           "  - talentInsights value 는 완성된 한국어 문장이어야 한다. 예: `규모 선호.`가 아니라 `일정 규모가 있는 회사를 선호합니다.`",
           "- 제외 대상:",
           "  - profileLinks(LinkedIn/GitHub/Scholar/X/개인 사이트), resume 파일은 채팅 발화에 등장해도 이 도구로 쓰지 않는다.",
-          "- rowMemos (talent_experiences/educations/extras 의 'Harper의 메모' 박스):",
+          "- rowMemos (experience/education/extra profile rows 의 'Harper의 메모' 박스):",
           "  - 사용자가 프로필의 *특정* role/school/extra 하나에 분명히 연결되는 declarative 발화를 했을 때만 사용한다 (예: '삼성에서 ML 모델 만들었어요' → 시스템 프롬프트의 Experiences 블록에서 company_name이 '삼성'인 행 하나).",
           "  - experiences/educations 는 시스템 프롬프트에 노출된 그 행의 RowID 값을 verbatim 으로 사용해라. 환각 금지. extras 는 동일 블록의 Title 을 정확히 사용한다.",
-          "  - newInfo 에는 *새로 알게 된 정보 한 조각만* 짧은 한국어 자연 문장으로 적어라. 기존 memo 내용을 다시 적지 마라(서버가 자동 append + 2000자 cap).",
+          "  - newInfo 에는 *새로 알게 된 정보 한 조각만* 짧은 한국어 자연 문장으로 적어라. 기존 memo 내용을 다시 적지 마라.",
           "  - 같은 발화의 같은 사실을 rowMemos와 talentInsights에 중복 저장하지 마라. 프로필 row에 들어갈 내용은 rowMemos만 사용한다.",
           "  - OMIT 규칙: (1) 후보 행이 두 개 이상 (예: '삼성' → Samsung Electronics + Samsung SDS 둘 다 존재) (2) 매칭되는 행이 없음 (3) 발화가 회사/학교 mention 없는 generic skill — 이런 케이스는 rowMemos 항목을 넣지 마라. 단순 프로필 사실이라면 talentInsights로 우회 저장하지도 마라.",
-          "- 한 turn 에 여러 필드가 동시에 갱신될 수 있으면 한 번의 호출에 preferences/rowMemos 를 같이 담아라 (turn 당 가능하면 1회).",
+          "- 한 turn 에 추천 발송 설정과 프로필/미래 매칭 메모가 동시에 갱신될 수 있으면 `update_setting`과 `update_talent_profile`을 별도 호출해라. 설정 필드를 이 도구에 넣지 마라.",
           "- After calling this tool, continue the conversation naturally in Korean: acknowledge the substance of what the user said, ask the next relevant question if onboarding is still active, or close naturally with the required marker if enough information has been collected.",
           "",
         ]
@@ -1498,7 +1615,7 @@ export function buildCareerToolPolicyPrompt(args: {
           "",
           "### select_additional_onboarding_question (onboarding additional question selector)",
           "- Purpose: choose the best next Additional questions phase question from the user's structured profile, recent conversation, and known insights.",
-          `- Eligible only during onboarding. Use it when Current insights has at least ${TALENT_ONBOARDING_MIN_FILLED_INSIGHT_COUNT} filled items and the next step should be an additional onboarding question.`,
+          "- Eligible only during onboarding. Use it when the onboarding question checklist says an additional_question item is still missing and the next step should be an additional onboarding question.",
           "- This tool may return either a profile-gap question OR a role-specific depth/preference question. Prefer concrete profile gaps, especially substantial experience rows with no description/memo. Do not keep asking broad desired role/tech-stack preference questions.",
           "- When this tool is available and you are in Additional questions phase, call it before asking the additional question. Do not invent the additional question yourself first.",
           "- Pass the user's latest message in `latestUserMessage` when available.",
@@ -1513,7 +1630,7 @@ export function buildCareerToolPolicyPrompt(args: {
           "- Use `web_search` only when the user needs current, factual, or web-dependent information.",
         ]
       : []),
-    "- Do not use tools for the normal onboarding interview flow if you can continue from the existing conversation context. (Exceptions: `update_talent_profile` is the background state-writer above; `select_additional_onboarding_question` is required for Additional questions phase when available.)",
+    "- Do not use tools for the normal onboarding interview flow if you can continue from the existing conversation context. (Exceptions: `update_setting` and `update_talent_profile` are the background state-writers above; `select_additional_onboarding_question` is required for Additional questions phase when available.)",
     "- After tool use, summarize only the useful findings. Do not dump raw JSON.",
     "- Mention source names or URLs only when they materially help the user.",
     channelRule,
@@ -1521,11 +1638,13 @@ export function buildCareerToolPolicyPrompt(args: {
 }
 
 export function buildCareerInsightExtractionPrompt(args: {
+  currentChecklistCoverage?: OnboardingChecklistCoverage | null;
   currentInsightContent: Record<string, string> | null;
 }) {
-  const insightChecklistSection = buildExtractionInsightChecklistSection(
-    args.currentInsightContent
-  );
+  const insightChecklistSection = buildExtractionInsightChecklistSection({
+    checklistCoverage: args.currentChecklistCoverage,
+    content: args.currentInsightContent,
+  });
 
   return `You are an insight extraction assistant. Given a recent transcript between a user and Harper (an AI career counselor), extract structured career insights.
 
@@ -1539,6 +1658,7 @@ Key selection policy:
 
 Extraction scope:
 - Extract from User lines. Harper lines are context only.
+- For covered_onboarding_checklist, use Harper lines only to identify what was asked. Mark a checklist key covered only when the User line answers or clearly addresses that checklist item.
 - Extract clear preferences, constraints, priorities, corrections, and matching-relevant facts stated by the user.
 - Explicit negative or avoidance conditions are durable matching constraints. If the user says they want to avoid, exclude, reject, dislike, or cannot consider a condition, extract it under "deal_breakers" unless a more specific existing canonical key clearly fits. Examples: "그런 회사는 빼주세요", "대기업은 싫어요", "야근 많은 곳은 피하고 싶어요", "비자 지원 안 되면 안 돼요".
 - If the user adds a new avoidance condition and "deal_breakers" already has a value, use action "update" with the final integrated deal-breaker sentence.
@@ -1550,23 +1670,27 @@ Return a valid JSON object:
 {
   "extracted_insights": {
     "key_name": { "value": "extracted value in Korean", "action": "new" | "update" }
-  }
+  },
+  "covered_onboarding_checklist": ["checklist_key"]
 }
 
 - "new": key has no existing value
 - "update": user corrected or enriched a previously known insight (value = final integrated text)
-- If nothing to extract, return: { "extracted_insights": {} }
+- covered_onboarding_checklist must contain only newly covered checklist keys from the transcript. If none, return an empty array.
+- If nothing to extract or mark covered, return: { "extracted_insights": {}, "covered_onboarding_checklist": [] }
 - Only include keys where the user provided clear information.
 - Keys must be English snake_case. Values must be complete Korean sentences, not fragments such as "규모 선호.".`;
 }
 
 export function buildCareerInsightExtractionOnlyPrompt(args: {
+  currentChecklistCoverage?: OnboardingChecklistCoverage | null;
   currentInsightContent: Record<string, string> | null;
   insightMdOverride?: string;
 }) {
-  const insightChecklistSection = buildExtractionInsightChecklistSection(
-    args.currentInsightContent
-  );
+  const insightChecklistSection = buildExtractionInsightChecklistSection({
+    checklistCoverage: args.currentChecklistCoverage,
+    content: args.currentInsightContent,
+  });
   const md = args.insightMdOverride ?? loadPrompt("insight-extraction.md");
 
   return [
@@ -1710,9 +1834,10 @@ export function buildCareerCallWrapupTurnInstruction(args: {
     `- onboardingStatus: ${args.isOnboardingDone ? "completed" : "not_completed"}`,
     "",
     "Important tool instruction:",
-    "- During the live voice call, `update_talent_profile` was not available. Inspect only the user's statements in the call transcript below.",
-    "- If the user disclosed clear new durable preferences, constraints, recommendation memory, or profile-row details that are missing from current state, call `update_talent_profile` once before writing the wrap-up.",
-    "- This tool call is optional. Skip it when there is no clear new writable information, the information is already saved, or the statement was only casual/uncertain.",
+    "- During the live voice call, `update_setting` and `update_talent_profile` were not available. Inspect only the user's statements in the call transcript below.",
+    "- If the user disclosed clear recommendation delivery setting changes, call `update_setting` before writing the wrap-up.",
+    "- If the user disclosed clear new durable preferences, constraints, recommendation memory, or profile-row details that are missing from current state, call `update_talent_profile` before writing the wrap-up.",
+    "- These tool calls are optional. Skip them when there is no clear new writable information, the information is already saved, or the statement was only casual/uncertain.",
     "- Do not call search, recommendation, company research, service-help, open-role, or activity-reading tools in this wrap-up turn.",
     "",
     "Response instruction:",
@@ -1722,7 +1847,7 @@ export function buildCareerCallWrapupTurnInstruction(args: {
     "- If onboarding is not completed, say briefly that there is a little more to finish and invite the user to continue from here in this chat.",
     "- For incomplete onboarding, do not imply the user must start another call. The primary next step is continuing by chat.",
     "- If onboarding is completed and the call had useful substance, thank them and say Harper will reflect what they shared in future matching/search.",
-    "- Do not claim you updated profile state unless `update_talent_profile` was actually called and returned a successful change.",
+    "- Do not claim you updated settings/profile state unless the relevant tool was actually called and returned a successful change.",
     "",
     "[Call transcript for this wrap-up]",
     lines || "(no transcript text)",
@@ -1773,14 +1898,10 @@ export function buildCareerOpportunityFeedbackFollowUpTurnInstruction(args: {
     "",
     "Feedback-specific rules:",
     "- If several opportunities were disliked and no specific reasons were provided, acknowledge the count and ask what did not fit. Offer concrete choices such as role scope, company/domain, team style, seniority, location/work mode, or timing.",
-    // "- If disliked opportunities include feedback reasons, use those reasons as the primary calibration signal before asking anything else.",
-    // "- If you cannot why the user provided dislike reason and one more detail would materially improve future recommendations, ask one narrow clarification question about that reason.",
     "- If internal connection/request opportunities were liked, treat that as confirmed acceptance. Thank them briefly, say Harper will proceed with the company-side introduction, and do not ask whether to connect/proceed again. explain that Harper will time the introduction thoughtfully and company-side schedules can take a little time. Frame it as Harper mediating a better-fit connection, not as a normal application.",
     "- and if the profile context shows no resume file/link, mention that a resume usually improves review and companies often ask for it. Ask whether Harper should tell the company there is no updated resume yet, and invite them to upload one if they have it.",
     "",
     "- For accepted feedback, 너가 아는 유저의 선호/니즈와 다른 부분이 있다면 그 부분에 대해서 물어봐라. ex. current location - role location mismatch, company/domain, etc.",
-    // "- If internal opportunities were rejected, say Harper will not proceed with those roles and ask one narrow calibration question.",
-    // "- If external opportunities were liked, treat them as saved interest and ask what similar opportunities Harper should keep finding only when the feedback set is mixed, unclear, or too broad to act on.",
   ].join("\n");
 }
 

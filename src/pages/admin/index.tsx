@@ -65,6 +65,7 @@ import {
   TALENT_NETWORK_SUBMIT_COMPLETED_EVENT,
   getTalentNetworkVariantLabel,
 } from "@/lib/talentNetwork";
+import { BareButton } from "@/components/ui/button";
 
 const PAGE_SIZE = 50;
 const BLOG_METRIC_FETCH_BATCH_SIZE = 1000;
@@ -1496,7 +1497,7 @@ const AdminIndexContent = ({ canAccessAdminData }: AdminIndexContentProps) => {
                 const isActive = activeTab === tabKey;
 
                 return (
-                  <button
+                  <BareButton
                     key={tabKey}
                     onClick={() => setActiveTab(tabKey)}
                     className={`h-8 px-3 text-[12px] border ${
@@ -1507,7 +1508,7 @@ const AdminIndexContent = ({ canAccessAdminData }: AdminIndexContentProps) => {
                     style={{ borderRadius: 0 }}
                   >
                     {ADMIN_TAB_META[tabKey].label}
-                  </button>
+                  </BareButton>
                 );
               })}
               <Link
@@ -1532,7 +1533,7 @@ const AdminIndexContent = ({ canAccessAdminData }: AdminIndexContentProps) => {
                   const isActive = deviceFilter === item.key;
 
                   return (
-                    <button
+                    <BareButton
                       key={item.key}
                       onClick={() => setDeviceFilter(item.key)}
                       className={`h-9 px-3 text-[12px] border ${
@@ -1543,26 +1544,26 @@ const AdminIndexContent = ({ canAccessAdminData }: AdminIndexContentProps) => {
                       style={{ borderRadius: 0 }}
                     >
                       {item.label}
-                    </button>
+                    </BareButton>
                   );
                 })}
               </div>
             )}
-            <button
+            <BareButton
               onClick={() => setIsExcludedEmailsModalOpen(true)}
               className="h-9 px-3 text-[13px] border border-black/15 hover:border-black/30 hover:bg-black/5 active:bg-black/5"
               style={{ borderRadius: 0 }}
             >
               Excluded emails ({excludedEmails.length})
-            </button>
-            <button
+            </BareButton>
+            <BareButton
               onClick={onRefresh}
               className="h-9 px-3 text-[13px] border border-black/15 hover:border-black/30 hover:bg-black/5 active:bg-black/5"
               style={{ borderRadius: 0 }}
               disabled={isLoading}
             >
               Refresh
-            </button>
+            </BareButton>
           </div>
         </div>
       </div>
@@ -1706,14 +1707,14 @@ const AdminIndexContent = ({ canAccessAdminData }: AdminIndexContentProps) => {
                   현재 제외된 local_id {excludedLandingLocalIds.length}개
                 </div>
               </div>
-              <button
+              <BareButton
                 type="button"
                 onClick={() => setIsExcludedEmailsModalOpen(false)}
                 className="h-9 px-3 text-[12px] border border-black/15 text-black hover:border-black/30 hover:bg-black/5"
                 style={{ borderRadius: 0 }}
               >
                 Close
-              </button>
+              </BareButton>
             </div>
 
             <AdminMetricsExcludedEmails

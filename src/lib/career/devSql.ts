@@ -397,7 +397,7 @@ Hard rules:
 
 Relevant Supabase public schema:
 - talent_users: user_id uuid/text primary account id; email, name, headline, bio, location, resume_file_name, resume_storage_path, resume_links, resume_text, last_logined_at, created_at, updated_at.
-- talent_setting: user_id references talent_users.user_id; is_onboarding_done, engagement_types, blocked_companies, profile_visibility, periodic_interval_days, recommendation_batch_size, recommendation_source_conversation_id, created_at, updated_at.
+- talent_setting: user_id references talent_users.user_id; is_onboarding_done, status ('active'/'passive'/'stopped'), status_updated_at, engagement_types, blocked_companies, profile_visibility, periodic_interval_days, recommendation_batch_size, recommendation_source_conversation_id, created_at, updated_at.
 - talent_conversations: id uuid, user_id references talent_users.user_id, stage, relief_nudge_sent, created_at, updated_at.
 - talent_messages: id bigint, conversation_id references talent_conversations.id, user_id references talent_users.user_id, role, content, message_type, thinking_logs, created_at.
 - talent_conversation_summaries: id uuid, talent_id references talent_users.user_id, conversation_id references talent_conversations.id, from_message_id, to_message_id, summary_text/json, created_at.
@@ -409,7 +409,6 @@ Relevant Supabase public schema:
 - talent_opportunity_recommendation: id uuid, talent_id references talent_users.user_id, discovery_run_id references opportunity_discovery_run.id, role_id references company_roles.role_id, kind, opportunity_type, fit_summary, fit_reasons, tradeoffs, preference_fit, feedback ('like'/'dislike'/null), saved_stage, viewed_at, clicked_at, dismissed_at, recommended_at, created_at, updated_at.
 - talent_opportunity_chat_preview: id uuid, recommendation_id references talent_opportunity_recommendation.id, discovery_run_id references opportunity_discovery_run.id, conversation_id references talent_conversations.id, assistant_message_id references talent_messages.id, rank, created_at. Delete this before deleting matching recommendations/messages/runs.
 - talent_opportunity_delivery: id uuid, talent_id references talent_users.user_id, discovery_run_id references opportunity_discovery_run.id, channel, status, payload, sent_at, created_at, updated_at.
-- talent_opportunity_profile_snapshot: id uuid, talent_id references talent_users.user_id, source_conversation_id, snapshot_hash, snapshot_text, raw_signals_json, preference_profile_json, retrieval_query_text, created_at.
 - talent_company_recommendation: id uuid, talent_id references talent_users.user_id, conversation_id, company_db_id, company_workspace_id, reason_summary, recommendation_reasons, source, rank, score, viewed_at, clicked_at, dismissed_at, recommended_at, created_at, updated_at.
 - talent_company_follow: id uuid, talent_id references talent_users.user_id, conversation_id, company_db_id, company_workspace_id, source, followed_at, unfollowed_at, created_at, updated_at.
 - career_email_messages: id uuid, talent_id references talent_users.user_id, talent_message_id references talent_messages.id, direction, provider_message_id, from_email, to_email, subject, text_body, html_body, sent_at, received_at, created_at, updated_at.

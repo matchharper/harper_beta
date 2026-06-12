@@ -15,6 +15,8 @@ import {
   fetchTalentSetting,
   fetchTalentStructuredProfile,
   fetchTalentUserProfile,
+  getCareerOnboardingChecklistCoverage,
+  getOnboardingChecklistCoverageStats,
   normalizeTalentEngagementTypes,
   normalizeTalentInsightContent,
   toTalentMessageResponse,
@@ -160,8 +162,10 @@ function appendRecommendationStatusLog(
 
 function getToolStartThinkingLog(toolName: string) {
   switch (toolName) {
+    case TALENT_TOOL_NAMES.UPDATE_SETTING:
+      return "추천 발송 설정을 업데이트하고 있습니다.";
     case TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE:
-      return "프로필과 추천 선호를 업데이트하고 있습니다.";
+      return "프로필 정보를 업데이트하고 있습니다.";
     case TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION:
       return "다음에 확인할 온보딩 질문을 고르고 있습니다.";
     case TALENT_TOOL_NAMES.OPEN_URL:
@@ -451,6 +455,14 @@ export async function runCareerChatTurn(
     string,
     string
   > | null;
+  const onboardingChecklistCoverage = !Boolean(talentSetting?.is_onboarding_done)
+    ? await getCareerOnboardingChecklistCoverage({
+        admin,
+        conversationId,
+        currentInsightContent,
+        userId,
+      })
+    : null;
   const shouldAutoExtractInsights = !Boolean(talentSetting?.is_onboarding_done);
   const extractTurnInsights = (assistantContent: string) =>
     shouldAutoExtractInsights
@@ -459,6 +471,7 @@ export async function runCareerChatTurn(
           assistantContent,
           buildPrompt: (promptArgs) =>
             buildCareerInsightExtractionPrompt({
+              currentChecklistCoverage: promptArgs.currentChecklistCoverage,
               currentInsightContent: promptArgs.currentInsightContent,
             }),
           conversationId,
@@ -577,6 +590,7 @@ export async function runCareerChatTurn(
     currentInsightContent,
     currentPreferences,
     isOnboardingDone: talentSetting?.is_onboarding_done,
+    onboardingChecklistCoverage,
     opportunityStatus,
     pendingOpportunityFeedbackContext: fetchedPendingOpportunityFeedbackContext,
     profile,
@@ -664,17 +678,15 @@ export async function runCareerChatTurn(
         input,
       });
       const recommendationResult = isRecord(result) ? result : {};
-      const recommendations = Array.isArray(
-        recommendationResult.recommendations
-      )
-        ? recommendationResult.recommendations
-        : [];
       const completedStatus: RecommendJobPostingStatus = {
         candidateCount:
           typeof recommendationResult.candidateCount === "number"
             ? recommendationResult.candidateCount
             : null,
-        recommendationCount: recommendations.length,
+        recommendationCount:
+          typeof recommendationResult.recommendationCount === "number"
+            ? recommendationResult.recommendationCount
+            : null,
         state: "completed",
       };
       recordRecommendationStatus(completedStatus, { persist: true });
@@ -1053,15 +1065,38 @@ export async function runCareerChatTurn(
   const finalAssistantThinkingLogs = thinkingLogs;
   summarizeConversationInBackground();
 
-  const isCompleted = Boolean(insertedUserMessage && completion.completed);
+  const latestChecklistCoverage = !Boolean(talentSetting?.is_onboarding_done)
+    ? await getCareerOnboardingChecklistCoverage({
+        admin,
+        conversationId,
+        currentInsightContent: normalizeTalentInsightContent(
+          (await fetchTalentInsights({ admin, userId }))?.content ?? null
+        ),
+        userId,
+      })
+    : null;
+  const checklistCompleted =
+    latestChecklistCoverage &&
+    getOnboardingChecklistCoverageStats(latestChecklistCoverage).isComplete;
+  const resolvedCompletion = completion.completed
+    ? completion
+    : checklistCompleted
+      ? {
+          completed: true,
+          reason: "question_checklist_covered" as const,
+        }
+      : completion;
+  const isCompleted = Boolean(
+    insertedUserMessage && resolvedCompletion.completed
+  );
   const shouldApplyCompletion = isCompleted && !skipConversationWrites;
   await updateConversationStageIfAllowed(isCompleted);
 
   const completedOpportunityRun =
-    shouldApplyCompletion && completion.reason
+    shouldApplyCompletion && resolvedCompletion.reason
       ? await completeOnboardingAndQueueInitialOpportunityRun({
           admin,
-          completionReason: completion.reason,
+          completionReason: resolvedCompletion.reason,
           conversationId,
           source: "career_chat_completion",
           userId,

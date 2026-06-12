@@ -8,6 +8,7 @@ import {
   normalizeTalentBlockedCompanies,
 } from "@/lib/talentOnboarding/server";
 import { OpportunityType } from "@/lib/opportunityType";
+import { logger } from "@/utils/logger";
 
 if (typeof window !== "undefined") {
   throw new Error("jobPostingRecommendations must not run in the browser");
@@ -225,7 +226,7 @@ Output schema:
 
 Rules:
 - role_titles are the first DB retrieval gate over company_roles.name. ftsKeywords are applied only after title/type/location filtering narrows the candidate pool.
-- Use ftsKeywords for role description, domain, skills, methods, and problem area. Use only important keywords, not broad terms.
+- Use ftsKeywords for role titles, role description, companies, domain, skills, methods, and problem area. Use only important keywords, not broad terms.
 - 만약 한국의 공고도 검색한다면, terms에 영어 뿐만 아니라 한글 동의어도 포함해라. ex) "Research Engineer", "Machine leaning", "리서치 엔지니어", "머신러닝", "개발자", "Developer"
 - Avoid standalone broad terms such as "AI", "data", "software".
 - Do not put pure preferences in ftsKeywords: company stage, company size, funding, investors, location, remote/hybrid/onsite, salary, culture, brand prestige, "startup", "Series A", "YC", "a16z", "global", or "Seoul" unless that word is literally part of the work domain.
@@ -259,11 +260,11 @@ const SHORTLIST_SYSTEM_PROMPT = `너는 Harper의 external job-posting shortlist
 반드시 JSON만 반환한다.
 
 Harper는 한 명의 유저 정보와 요청을 바탕으로 커리어 기회를 골라 메일/제안한다.
-현재 유저 요청을 가장 중요하게 보고, 다음으로 유저 프로필/대화/최근 반응을 참고한다.
+현재 유저 요청을 가장 중요하게 보고, 다음으로 유저 프로필/대화/맥락을 참고한다.
 
 Output schema:
 {
-  "selectedCandidateIds": [0],
+  "selectedCandidateIds": [0, 32, 184, 92, 155],
   "rationale": "짧은 내부 판단 이유"
 }
 
@@ -271,8 +272,8 @@ Output schema:
 - externalCandidates 안에 있는 numeric id만 고른다.
 - selectionLimit은 선택할 넘길 후보 수다. hard reject 이후 남는 후보가 충분하면 가능한 한 selectionLimit개를 채운다.
 - 절대 같은 회사의 후보를 2개 이상 고르지 않는다. 같은 회사에서는 현재 요청에 가장 직접적으로 맞는 role 1개만 고른다.
-- company_score는 회사 품질 점수(company_workspace.test_score, 0~20)다. role fit 점수가 아니다.
-- 비슷한 역할이라면 company_score가 높은 회사를 선택한다.
+- company_score는 회사 점수이다. role fit 점수가 아니다.
+- 같은 역할이라면 company_score가 높은 회사를 더 우선시해라.
 - retrievalFtsScore는 title 후보군 안에서 계산한 FTS/domain relevance에 company score bonus를 더한 내부 retrieval rank다. 참고값일 뿐 사용자에게 말하지 않는다. retrievalFtsScore를 선택에 반영하지 않는다.
 `;
 // - 현재 요청과 명확히 어긋나는 후보는 company_score 혹은 retrievalFtsScore가 높아도 제외한다.
@@ -2311,6 +2312,17 @@ async function shortlistRoles(args: {
     primaryModel: RECOMMEND_JOB_POSTINGS_PRIMARY_MODEL,
     temperature: CAREER_LLM_CONFIG.recommendJobPostings.shortlistTemperature,
   });
+  // logger.log(
+  //   "\n\n\n",
+  //   JSON.stringify({
+  //     externalCandidates: visible.map(roleSearchResultCard),
+  //     request: args.request,
+  //     searchPlan: args.plan,
+  //     selectionLimit,
+  //     user_profile: args.llmUserProfile,
+  //   }),
+  //   "\n\n\n"
+  // );
   const selectedRoleIds = sanitizeShortlist(
     parseJsonObject(raw),
     visible,
@@ -2320,10 +2332,12 @@ async function shortlistRoles(args: {
   const selected = selectedRoleIds
     .map((roleId) => byRoleId.get(roleId))
     .filter((card): card is RoleCard => Boolean(card));
+
   infoJson("shortlist completed", {
     selectedExternal: selected.length,
     selectionLimit,
     visibleExternal: visible.length,
+    raw: parseJsonObject(raw),
   });
   debugLog("shortlist raw", { raw: raw.slice(0, 4000), selectedRoleIds });
   return selected;
@@ -2650,6 +2664,13 @@ function extractRequestedPostingCount(request: string) {
   return counts.length > 0 ? Math.max(...counts) : null;
 }
 
+function throwIfRecommendationSearchAborted(signal?: AbortSignal) {
+  if (!signal?.aborted) return;
+  const error = new Error("recommend_job_postings aborted");
+  error.name = "AbortError";
+  throw error;
+}
+
 function formatAnswerDraft(args: {
   candidateCount: number;
   plan: ExternalSearchPlan;
@@ -2665,7 +2686,7 @@ function formatAnswerDraft(args: {
   }
 
   const lines = [
-    `요청 조건을 기준으로 현재 external 채용공고 ${args.candidateCount}개를 검토한 뒤, 우선순위가 높은 ${args.recommendations.length}개를 포지션 탭에 저장했습니다.`,
+    `요청 조건을 기준으로 현재 우선순위가 높은 ${args.recommendations.length}개를 포지션 탭에 저장했습니다.`,
     `검색 의도: ${args.plan.searchIntentSummary}`,
     "",
   ];
@@ -2698,14 +2719,13 @@ function formatAnswerDraft(args: {
     const title = cleanText(role.role_name, 180) || "Untitled Role";
     const location = cleanText(role.location_text, 160);
     const workMode = cleanText(role.work_mode, 100);
-    const url = roleUrl(role);
     const meta = [location, workMode].filter(Boolean).join(" / ");
     const why =
-      item.detail.fitReasons.length > 0
-        ? item.detail.fitReasons.join(" ")
-        : item.isSupplemental
-          ? "현재 요청과 완전히 일치하지는 않지만, 후보군 중 점수가 높아 참고용으로 포함했습니다."
-          : item.recommendationText || "현재 요청과 맞는 업무 범위가 있습니다.";
+      item.detail.fitReasons.length > 0 && item.detail.fitReasons.join(" ");
+
+    const recommendationText = item.isSupplemental
+      ? "현재 요청과 완전히 일치하지는 않지만, 후보군 중 점수가 높아 참고용으로 포함했습니다."
+      : item.recommendationText || "현재 요청과 맞는 업무 범위가 있습니다.";
     const concern = item.detail.tradeoffs[0];
     const roleId = cleanText(item.roleId, 120);
 
@@ -2713,27 +2733,15 @@ function formatAnswerDraft(args: {
       `${index + 1}. ${company} - ${title} (${item.score.toFixed(1)}/10)`
     );
     if (meta) lines.push(`   조건: ${meta}`);
-    lines.push(`   ${item.isSupplemental ? "포함 이유" : "추천 이유"}: ${why}`);
+    lines.push(
+      `   ${item.isSupplemental ? "포함 이유" : "추천 이유"}: ${recommendationText} \n ${why}`
+    );
     if (concern) lines.push(`   확인할 점: ${concern}`);
     if (roleId) lines.push(`   [posting](${roleId})`);
-    if (url) lines.push(`   공고 링크: ${url}`);
     lines.push("");
   });
 
   return lines.join("\n").trim();
-}
-
-function rolePreview(row: RawRoleRow) {
-  return {
-    companyName: row.company_name ?? row.company_db_name ?? null,
-    companyTestScore: row.company_test_score ?? null,
-    employmentTypes: row.type ?? [],
-    location: row.location_text ?? row.company_db_location ?? null,
-    roleId: row.role_id ?? null,
-    roleName: row.role_name ?? null,
-    url: row.external_jd_url ?? null,
-    workMode: row.work_mode ?? null,
-  };
 }
 
 function escapeRegExp(value: string) {
@@ -2742,12 +2750,14 @@ function escapeRegExp(value: string) {
 
 export async function runCareerJobPostingRecommendations(args: {
   admin: AdminClient;
+  abortSignal?: AbortSignal;
   conversationId: string;
   request: string;
   userId: string;
 }) {
   const request = cleanText(args.request, 1400);
   if (!request) throw new Error("recommend_job_postings requires a request.");
+  throwIfRecommendationSearchAborted(args.abortSignal);
 
   const requestedCount = extractRequestedPostingCount(request);
   const startedAt = Date.now();
@@ -2783,10 +2793,12 @@ export async function runCareerJobPostingRecommendations(args: {
     }),
     fetchRecentRecommendations({ admin: args.admin, userId: args.userId }),
   ]);
+  throwIfRecommendationSearchAborted(args.abortSignal);
   const structuredProfile = await fetchTalentStructuredProfile({
     admin: args.admin,
     userId: args.userId,
   });
+  throwIfRecommendationSearchAborted(args.abortSignal);
   const redactionTerms = previousExternalRedactionTerms(
     existingExternalRecommendations
   );
@@ -2795,6 +2807,7 @@ export async function runCareerJobPostingRecommendations(args: {
     redactionTerms,
     userId: args.userId,
   });
+  throwIfRecommendationSearchAborted(args.abortSignal);
   const llmUserProfile = await buildLlmUserProfile({
     activitySummaries,
     admin: args.admin,
@@ -2807,6 +2820,7 @@ export async function runCareerJobPostingRecommendations(args: {
     structuredProfile,
     userId: args.userId,
   });
+  throwIfRecommendationSearchAborted(args.abortSignal);
   const targetRecommendationCount = desiredRecommendationCount();
   const blockedCompanies = normalizeTalentBlockedCompanies(
     (asRecord(setting)?.blocked_companies as unknown) ?? []
@@ -2817,6 +2831,7 @@ export async function runCareerJobPostingRecommendations(args: {
     recentDeliveryMeta: deliveryContext.recentDeliveryMeta,
     request,
   });
+  throwIfRecommendationSearchAborted(args.abortSignal);
   infoJson("external search plan", {
     ftsKeywords: plan.ftsKeywords,
     include_contract: plan.includeContract,
@@ -2838,6 +2853,7 @@ export async function runCareerJobPostingRecommendations(args: {
     searchMode: "strict",
     userId: args.userId,
   });
+  throwIfRecommendationSearchAborted(args.abortSignal);
   let rows = strictSearch.rows;
   rows = filterPreviouslyRecommendedExternalRows(
     rows,
@@ -2847,7 +2863,7 @@ export async function runCareerJobPostingRecommendations(args: {
   infoJson("sql search", {
     candidateCount: rows.length,
     candidates: rows
-      .slice(0, 50)
+      .slice(0, 100)
       .map(
         (item) =>
           `${item.role_name} - ${item.company_name} - ${item.company_test_score}`
@@ -2872,6 +2888,7 @@ export async function runCareerJobPostingRecommendations(args: {
           targetRecommendationCount,
         })
       : [];
+  throwIfRecommendationSearchAborted(args.abortSignal);
   const finalSelection = await selectFinalRecommendations({
     cards: shortlistedCards,
     llmUserProfile,
@@ -2881,10 +2898,12 @@ export async function runCareerJobPostingRecommendations(args: {
     request,
     targetRecommendationCount,
   });
+  throwIfRecommendationSearchAborted(args.abortSignal);
   const detailedRecommendations = rankedFromSelected(
     finalSelection.selected,
     shortlistedCards
   );
+  throwIfRecommendationSearchAborted(args.abortSignal);
   const recommendations = await persistRecommendations({
     admin: args.admin,
     recommendations: detailedRecommendations,
@@ -2913,35 +2932,7 @@ export async function runCareerJobPostingRecommendations(args: {
       supplementalRecommendationCount: finalSelection.supplementalCount,
     }),
     candidateCount: candidateCards.length,
-    recommendations: recommendations.map((item, index) => ({
-      id: item.recommendationId,
-      rank: index + 1,
-      roleId: item.roleId,
-      score: item.score,
-      companyName:
-        cleanText(item.role.company_name, 160) ||
-        cleanText(item.role.company_db_name, 160),
-      roleName: cleanText(item.role.role_name, 180),
-      location: cleanText(item.role.location_text, 160) || null,
-      workMode: cleanText(item.role.work_mode, 100) || null,
-      employmentTypes: Array.isArray(item.role.type) ? item.role.type : [],
-      url: roleUrl(item.role),
-      recommendationText:
-        item.detail.fitReasons.join(" ") ||
-        item.recommendationText ||
-        (item.isSupplemental
-          ? "현재 요청과 완전히 일치하지는 않지만, 후보군 중 점수가 높아 참고용으로 포함했습니다."
-          : "현재 요청과 맞는 업무 범위가 있습니다."),
-      goodPoints: item.detail.fitReasons,
-      isSupplemental: item.isSupplemental,
-      concerns: item.detail.tradeoffs,
-      preferenceFit: item.detail.preferenceFit,
-      roleOverviewText: item.detail.roleOverviewText,
-    })),
-    requestedCount,
-    saveCount: recommendations.filter((item) => item.recommendationId).length,
-    shortlistCandidateCount: shortlistedCards.length,
-    supplementalRecommendationCount: finalSelection.supplementalCount,
+    recommendationCount: recommendations.length,
     searchPlan: {
       ftsKeywords: plan.ftsKeywords,
       include_contract: plan.includeContract,

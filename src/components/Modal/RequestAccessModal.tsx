@@ -2,6 +2,9 @@
 
 import { LoaderCircle, X } from "lucide-react";
 import React, { useEffect, useState } from "react";
+import { BareButton } from "@/components/ui/button";
+import { Input as UiInput } from "@/components/ui/input";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
 export type RequestAccessValues = {
   name: string;
@@ -94,12 +97,12 @@ export function RequestAccessForm({
         value={role}
         onChange={setRole}
       />
-      <button
+      <BareButton
         type="submit"
         disabled={isSubmitting}
         className={
           submitButtonClassName ??
-          "mt-12 inline-flex w-full items-center justify-center rounded-full bg-beige900 px-5 py-3.5 text-sm font-medium text-beige100 transition hover:bg-beige900/90 disabled:cursor-not-allowed disabled:opacity-70"
+          "mt-12 inline-flex w-full items-center justify-center rounded-full bg-black px-5 py-3.5 text-sm font-medium text-neutral-00 transition hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-70"
         }
       >
         {isSubmitting ? (
@@ -107,7 +110,7 @@ export function RequestAccessForm({
         ) : (
           copy.submit
         )}
-      </button>
+      </BareButton>
     </form>
   );
 }
@@ -125,15 +128,16 @@ function LabeledInput({
 }) {
   return (
     <label className="block">
-      <div className="mb-2 text-left text-sm font-medium text-beige900">
+      <div className="mb-2 text-left text-sm font-medium text-neutral-primary">
         {label}
       </div>
-      <input
+      <UiInput
+        unstyled
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-2xl border border-beige900/8 bg-beige50 px-4 py-3 text-sm text-beige900 placeholder:text-beige900/35 focus:border-beige900/15 focus:outline-none"
+        className="w-full rounded-2xl border border-neutral-1000-a05 bg-bg-default px-4 py-3 text-sm text-neutral-primary placeholder:text-neutral-placeholder focus:border-neutral-1000-a10 focus:outline-none"
       />
     </label>
   );
@@ -152,15 +156,16 @@ function LabeledTextarea({
 }) {
   return (
     <label className="block w-full">
-      <div className="mb-2 text-sm text-left w-full font-medium text-beige900">
+      <div className="mb-2 text-sm text-left w-full font-medium text-neutral-primary">
         {label}
       </div>
-      <textarea
+      <UiTextarea
+        unstyled
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         rows={4}
-        className="w-full resize-none rounded-2xl border border-beige900/8 bg-beige50 px-4 py-3 text-sm text-beige900 placeholder:text-beige900/35 focus:border-beige900/15 focus:outline-none"
+        className="w-full resize-none rounded-2xl border border-neutral-1000-a05 bg-bg-default px-4 py-3 text-sm text-neutral-primary placeholder:text-neutral-placeholder focus:border-neutral-1000-a10 focus:outline-none"
       />
     </label>
   );

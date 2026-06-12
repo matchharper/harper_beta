@@ -206,7 +206,7 @@ export default function PricingPage() {
             추가 문의 사항이 있으시다면, chris@matchharper.com으로 문의해
             주세요.
             <div
-              className="mt-2 underline decoration-dotted cursor-pointer text-hgray800 hover:text-hgray1000"
+              className="mt-2 underline decoration-dotted cursor-pointer text-neutral-300 hover:text-neutral-00"
               onClick={() =>
                 window.open(
                   "https://peat-find-598.notion.site/Refund-policy-2e684af768c6800e8276ccbe16fc8cb4?pvs=74",

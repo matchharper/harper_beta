@@ -50,7 +50,7 @@ const LegalDocumentPage = ({
               )}
             </div>
           ) : (
-            <p className="mt-6 text-sm md:text-base text-hgray700 leading-7">
+            <p className="mt-6 text-sm md:text-base text-neutral-500 leading-7">
               The document could not be loaded right now. Please use the source
               link below.
             </p>
@@ -60,7 +60,7 @@ const LegalDocumentPage = ({
             href={sourceUrl}
             target="_blank"
             rel="noreferrer"
-            className="inline-block mt-8 text-sm text-accenta1 hover:underline"
+            className="inline-block mt-8 text-sm text-accent-200 hover:underline"
           >
             Open original document
           </a>

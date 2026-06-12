@@ -1,6 +1,6 @@
 import { BookmarkCheck, Check, Loader2, Plus } from "lucide-react";
 import type { MouseEvent } from "react";
-import { CareerActionButton } from "@/components/career/ui/CareerActionButton";
+import { ActionButton } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export const FollowButton = ({
@@ -12,7 +12,7 @@ export const FollowButton = ({
   following: boolean;
   onClick: (event: MouseEvent<HTMLButtonElement>) => void;
 }) => (
-  <CareerActionButton
+  <ActionButton
     actionVariant="secondary"
     active={following}
     buttonRadius="rounded"
@@ -21,8 +21,8 @@ export const FollowButton = ({
     className={cn(
       "h-7 shrink-0 px-2 text-[12px]",
       following
-        ? "bg-beige200 text-beige700 border-none"
-        : "bg-beige900 text-beige50"
+        ? "bg-bg-weak text-neutral-muted border-none"
+        : "bg-black text-neutral-00"
     )}
   >
     {disabled ? (
@@ -33,5 +33,5 @@ export const FollowButton = ({
       <Plus className="h-3 w-3" />
     )}
     <span>{following ? "팔로잉" : "팔로우"}</span>
-  </CareerActionButton>
+  </ActionButton>
 );

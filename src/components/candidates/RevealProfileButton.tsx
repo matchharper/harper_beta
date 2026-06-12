@@ -3,6 +3,7 @@ import CreditModal from "@/components/Modal/CreditModal";
 import { showToast } from "@/components/toast/toast";
 import { useRevealCandidateProfile } from "@/hooks/useRevealCandidateProfile";
 import { cn } from "@/lib/utils";
+import { BareButton } from "@/components/ui/button";
 
 function isInsufficientRevealCreditError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error ?? "");
@@ -65,7 +66,7 @@ export default function RevealProfileButton({
       />
 
       {overlay ? (
-        <button
+        <BareButton
           type="button"
           aria-label={label}
           aria-busy={revealMutation.isPending}
@@ -76,21 +77,21 @@ export default function RevealProfileButton({
           }}
           disabled={revealMutation.isPending}
           className={cn(
-            "group-hover:bg-beige900/8 absolute inset-0 z-40 flex h-full w-full cursor-pointer items-center justify-center border border-transparent transition-all duration-300 disabled:cursor-not-allowed",
+            "group-hover:bg-bg-floating absolute inset-0 z-40 flex h-full w-full cursor-pointer items-center justify-center border border-transparent transition-all duration-300 disabled:cursor-not-allowed",
             overlayClassName
           )}
         >
           <span
             className={cn(
-              "inline-flex items-center rounded-full border border-beige900/15 bg-beige50/90 px-4 py-1.5 text-sm font-normal text-black transition-all duration-300 group-hover:bg-beige50 group-hover:border-beige900/25",
+              "inline-flex items-center rounded-full border border-neutral-1000-a10 bg-bg-default/90 px-4 py-1.5 text-sm font-normal text-neutral-primary transition-all duration-300 group-hover:bg-bg-default group-hover:border-neutral-400",
               className
             )}
           >
             {revealMutation.isPending ? "열람 중입니다..." : label}
           </span>
-        </button>
+        </BareButton>
       ) : (
-        <button
+        <BareButton
           type="button"
           onClick={(event) => {
             event.preventDefault();
@@ -99,12 +100,12 @@ export default function RevealProfileButton({
           }}
           disabled={revealMutation.isPending}
           className={cn(
-            "inline-flex items-center rounded-lg border border-beige900/15 bg-beige50/90 px-4 py-1.5 text-sm font-normal text-black transition-all duration-300 hover:bg-beige50 hover:border-beige900/25",
+            "inline-flex items-center rounded-lg border border-neutral-1000-a10 bg-bg-default/90 px-4 py-1.5 text-sm font-normal text-neutral-primary transition-all duration-300 hover:bg-bg-default hover:border-neutral-400",
             className
           )}
         >
           {revealMutation.isPending ? "열람 중입니다..." : label}
-        </button>
+        </BareButton>
       )}
     </>
   );

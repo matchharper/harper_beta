@@ -39,7 +39,7 @@ const DialogContent = React.forwardRef<
       ref={ref}
       className={cn(
         "fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4",
-        "rounded-2xl border border-beige900/10 bg-beige100 p-6 text-beige900 shadow-xl",
+        "rounded-2xl border border-neutral-1000-a05 bg-bg-floating p-6 text-neutral-primary shadow-xl",
         "data-[state=open]:animate-in data-[state=closed]:animate-out",
         "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
         "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
@@ -53,7 +53,7 @@ const DialogContent = React.forwardRef<
         <DialogPrimitive.Close
           className={cn(
             "absolute right-4 top-4 rounded-sm opacity-70 transition",
-            "hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-beige900/30",
+            "hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
             "disabled:pointer-events-none"
           )}
         >
@@ -109,7 +109,7 @@ const DialogDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn("text-sm text-beige900/70", className)}
+    className={cn("text-sm text-neutral-muted", className)}
     {...props}
   />
 ));

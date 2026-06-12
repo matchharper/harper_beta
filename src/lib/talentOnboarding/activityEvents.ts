@@ -150,12 +150,10 @@ function formatPreferenceActivityValue(field: string, value: unknown) {
     return formatLabeledArray(getTalentEngagementLabels(value), value);
   }
   if (field === "periodicIntervalDays") {
-    if (Number(value) === -1) return "off";
     const formatted = formatActivityValue(value);
     return formatted === "none" ? formatted : `${formatted} days`;
   }
   if (field === "recommendationBatchSize") {
-    if (Number(value) === -1) return "off";
     const formatted = formatActivityValue(value);
     return formatted === "none" ? formatted : `${formatted} opportunities`;
   }

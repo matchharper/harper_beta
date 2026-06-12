@@ -14,6 +14,7 @@ import { claimTalentNetworkInvite } from "@/lib/talentOnboarding/networkClaim";
 import { parseCareerEmailOnboardingToken } from "@/lib/careerEmailOnboarding/token";
 import { normalizeCareerUtmSource } from "@/lib/careerUtm";
 import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobLandingLogs";
+import { enqueueSignupNoProfileSubmit } from "@/lib/contactQueue";
 import type { Json } from "@/types/database.types";
 
 type Body = {
@@ -254,6 +255,24 @@ export async function POST(req: NextRequest) {
           "[talent/auth/bootstrap] signup log insert error:",
           logInsertError
         );
+      }
+
+      if (!emailOnboardingClaim?.claimed) {
+        await enqueueSignupNoProfileSubmit({
+          admin,
+          payload: {
+            landingLocalId,
+            landingPath,
+            landingSource,
+            sourceDetail: signupSourceDetail,
+          },
+          userId: user.id,
+        }).catch((queueError) => {
+          console.error(
+            "[talent/auth/bootstrap] contact queue enqueue error:",
+            queueError
+          );
+        });
       }
 
       try {

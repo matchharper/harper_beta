@@ -12,14 +12,14 @@ const ProgressBar = ({ currentStep, totalSteps }: ProgressBarProps) => {
   const progress = Math.min(normalizedStep / totalSteps, 1);
 
   return (
-    <div className="flex flex-row items-center justify-start w-full h-1 bg-xgray300 overflow-hidden">
+    <div className="flex flex-row items-center justify-start w-full h-1 bg-bg-weak overflow-hidden">
       <motion.div
         initial={{ width: 0 }}
         animate={{ width: `${progress * 100}%` }}
         transition={{ duration: 0.35, ease: "easeInOut" }}
         className="h-full bg-black"
       />
-      <div className="bg-white block w-[3px] h-full"></div>
+      <div className="block h-full w-[3px] bg-bg-default"></div>
     </div>
   );
 };

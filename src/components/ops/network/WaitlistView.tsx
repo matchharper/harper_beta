@@ -46,13 +46,13 @@ export default function WaitlistView({
       </div>
 
       <div className={cx(opsTheme.panelSoft, "px-4 py-2")}>
-        <div className="divide-y divide-beige900/10">
+        <div className="divide-y divide-neutral-1000-a05">
           <InfoRow
             label="이메일"
             value={
               displayedLead.email ? (
                 <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-beige900/35" />
+                  <Mail className="h-4 w-4 text-neutral-soft" />
                   <span>{displayedLead.email}</span>
                 </div>
               ) : (
@@ -130,7 +130,7 @@ export default function WaitlistView({
 
       {detail?.latestTalentSetting || detail?.latestTalentInsights ? (
         <div className={cx(opsTheme.panelSoft, "px-4 py-2")}>
-          <div className="divide-y divide-beige900/10">
+          <div className="divide-y divide-neutral-1000-a05">
             <InfoRow
               label="선호 형태"
               value={
@@ -163,7 +163,7 @@ export default function WaitlistView({
 
       <div className={cx(opsTheme.panelSoft, "p-4")}>
         <div className={opsTheme.eyebrow}>원본 payload</div>
-        <pre className="mt-3 overflow-x-auto whitespace-pre-wrap font-mono text-[12px] leading-6 text-beige900/70">
+        <pre className="mt-3 overflow-x-auto whitespace-pre-wrap font-mono text-[12px] leading-6 text-neutral-muted">
           {JSON.stringify(displayedLead.rawPayload, null, 2)}
         </pre>
       </div>

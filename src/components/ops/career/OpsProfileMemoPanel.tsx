@@ -9,6 +9,8 @@ import {
 } from "@/hooks/useOpsCareer";
 import type { CareerTalentOpsProfileMemo } from "@/lib/opsCareerServer";
 import { formatKst } from "./utils";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
+import { BareButton } from "@/components/ui/button";
 
 type OpsProfileMemoPanelProps = {
   memos: CareerTalentOpsProfileMemo[];
@@ -21,7 +23,7 @@ type EditingState =
   | null;
 
 const iconButtonClass =
-  "inline-flex h-7 w-7 items-center justify-center rounded-md border border-beige900/10 bg-white/55 text-beige900/55 transition hover:border-beige900/18 hover:bg-white hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-45";
+  "inline-flex h-7 w-7 items-center justify-center rounded-md border border-neutral-1000-a05 bg-bg-default/55 text-neutral-muted transition hover:border-neutral-1000-a10 hover:bg-bg-default hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-45";
 
 function getMemoTimestamp(memo: CareerTalentOpsProfileMemo) {
   return memo.updatedAt ?? memo.createdAt;
@@ -124,33 +126,32 @@ export const OpsProfileMemoPanel = memo(function OpsProfileMemoPanel({
   );
 
   const renderEditor = (modeLabel: string) => (
-    <div className="rounded-md border border-[#9bb89c]/45 bg-[#edf6ed] p-2">
-      <textarea
+    <div className="rounded-md border border-positive/30 bg-positive-faded p-2">
+      <UiTextarea
+        unstyled
         value={draft}
         onChange={(event) => setDraft(event.target.value)}
         rows={4}
         maxLength={4000}
-        className="min-h-[104px] w-full resize-y rounded-md border border-[#9bb89c]/55 bg-white/80 px-3 py-2 font-geist text-[15px] leading-6 text-black outline-none focus:border-[#5f8a64]"
+        className="min-h-[104px] w-full resize-y rounded-md border border-positive/30 bg-bg-default/80 px-3 py-2 text-[15px] leading-6 text-neutral-primary outline-none focus:border-positive/30"
         placeholder="내부 메모를 입력하세요."
       />
       <div className="mt-2 flex items-center justify-between gap-2">
-        <span className="font-geist text-[11px] text-beige900/40">
-          {modeLabel}
-        </span>
+        <span className="text-[11px] text-neutral-soft">{modeLabel}</span>
         <div className="flex items-center gap-2">
-          <button
+          <BareButton
             type="button"
             onClick={cancelEditing}
             disabled={savePending}
-            className="h-8 rounded-md px-3 font-geist text-xs font-medium text-black/70 transition hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-50"
+            className="h-8 rounded-md px-3 text-xs font-medium text-neutral-muted transition hover:bg-bg-floating disabled:cursor-not-allowed disabled:opacity-50"
           >
             취소
-          </button>
-          <button
+          </BareButton>
+          <BareButton
             type="button"
             onClick={saveMemo}
             disabled={!hasChanges || savePending}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-[#315f3d] px-3 font-geist text-xs font-medium text-white transition hover:bg-[#264b31] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-positive px-3 text-xs font-medium text-neutral-00 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {savePending ? (
               <>
@@ -163,11 +164,11 @@ export const OpsProfileMemoPanel = memo(function OpsProfileMemoPanel({
                 저장
               </>
             )}
-          </button>
+          </BareButton>
         </div>
       </div>
       {activeError ? (
-        <div className="mt-2 font-geist text-xs text-red-700">
+        <div className="mt-2 text-xs text-critical">
           {activeError instanceof Error
             ? activeError.message
             : "메모 저장에 실패했습니다."}
@@ -179,7 +180,7 @@ export const OpsProfileMemoPanel = memo(function OpsProfileMemoPanel({
   return (
     <div className="w-full shrink-0 lg:w-[360px]">
       <div className="flex justify-start lg:justify-end">
-        <button
+        <BareButton
           type="button"
           onClick={startCreating}
           className={cx(
@@ -189,14 +190,14 @@ export const OpsProfileMemoPanel = memo(function OpsProfileMemoPanel({
         >
           <Plus className="h-3.5 w-3.5" aria-hidden />
           메모 추가
-        </button>
+        </BareButton>
       </div>
 
       <div className="mt-2 flex flex-col gap-2">
         {editing?.mode === "create" ? renderEditor("새 메모") : null}
 
         {sortedMemos.length === 0 && editing?.mode !== "create" ? (
-          <div className="rounded-md border border-dashed border-beige900/15 bg-white/35 px-3 py-2 font-geist text-xs text-beige900/40">
+          <div className="rounded-md border border-dashed border-neutral-1000-a10 bg-bg-floating px-3 py-2 text-xs text-neutral-soft">
             아직 메모가 없습니다.
           </div>
         ) : null}
@@ -209,16 +210,16 @@ export const OpsProfileMemoPanel = memo(function OpsProfileMemoPanel({
           return (
             <div
               key={memo.id}
-              className="rounded-md border border-[#9bb89c]/35 bg-[#e5f1e5] px-3 py-2 font-geist text-black"
+              className="rounded-md border border-positive/30 bg-positive-faded px-3 py-2 text-neutral-primary"
             >
               <div className="mb-1.5 flex items-center justify-between gap-2">
-                <div className="min-w-0 truncate text-[11px] text-black/45">
+                <div className="min-w-0 truncate text-[11px] text-neutral-soft">
                   {formatKst(getMemoTimestamp(memo))}
                   {memo.updatedBy ? ` · ${memo.updatedBy}` : ""}
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                   <Tooltips text="메모 수정">
-                    <button
+                    <BareButton
                       type="button"
                       onClick={() => startEditing(memo)}
                       disabled={savePending || deleteMutation.isPending}
@@ -226,17 +227,17 @@ export const OpsProfileMemoPanel = memo(function OpsProfileMemoPanel({
                       className={iconButtonClass}
                     >
                       <Pencil className="h-3.5 w-3.5" aria-hidden />
-                    </button>
+                    </BareButton>
                   </Tooltips>
                   <Tooltips text="메모 삭제">
-                    <button
+                    <BareButton
                       type="button"
                       onClick={() => deleteMemo(memo)}
                       disabled={savePending || deleteMutation.isPending}
                       aria-label="메모 삭제"
                       className={cx(
                         iconButtonClass,
-                        "hover:border-[#c98b77]/45 hover:text-[#8a2e1d]"
+                        "hover:border-critical/30 hover:text-critical"
                       )}
                     >
                       {isDeleting ? (
@@ -247,7 +248,7 @@ export const OpsProfileMemoPanel = memo(function OpsProfileMemoPanel({
                       ) : (
                         <Trash2 className="h-3.5 w-3.5" aria-hidden />
                       )}
-                    </button>
+                    </BareButton>
                   </Tooltips>
                 </div>
               </div>
@@ -264,7 +265,7 @@ export const OpsProfileMemoPanel = memo(function OpsProfileMemoPanel({
         })}
 
         {deleteMutation.error ? (
-          <div className="font-geist text-xs text-red-700">
+          <div className="text-xs text-critical">
             {deleteMutation.error instanceof Error
               ? deleteMutation.error.message
               : "메모 삭제에 실패했습니다."}

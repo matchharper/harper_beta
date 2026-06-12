@@ -1,6 +1,5 @@
 import type { Database } from "@/types/database.types";
 import type { TalentNetworkEngagementOptionId } from "@/lib/talentNetworkOptions";
-import type { TalentRecommendationSettingsUpdateSource } from "@/lib/talentOnboarding/recommendationSettings";
 
 export type TalentConversationRow = {
   id: string;
@@ -114,11 +113,9 @@ export type TalentSettingRow = {
   get_external_recommendation: boolean;
   get_internal_recommendation: boolean;
   is_onboarding_done: boolean;
-  periodic_enabled: boolean;
   periodic_interval_days: number;
   recommendation_batch_size: number;
   recommendation_source_conversation_id: string | null;
-  recommendation_settings_updated_by: TalentRecommendationSettingsUpdateSource;
   created_at: string;
   updated_at: string;
 };
@@ -136,4 +133,4 @@ export type TalentInsightRow = {
 export const TALENT_RESUME_BUCKET = "talent-resumes";
 export const TALENT_PENDING_QUESTION_PREFIX = "__PENDING_Q__::";
 export const TALENT_SETTING_SELECT_QUERY =
-  "user_id, profile_visibility, blocked_companies, engagement_types, get_external_recommendation, get_internal_recommendation, is_onboarding_done, periodic_enabled, periodic_interval_days, recommendation_batch_size, recommendation_source_conversation_id, recommendation_settings_updated_by, created_at, updated_at";
+  "user_id, profile_visibility, blocked_companies, engagement_types, get_external_recommendation, get_internal_recommendation, is_onboarding_done, periodic_interval_days, recommendation_batch_size, recommendation_source_conversation_id, created_at, updated_at";

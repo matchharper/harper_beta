@@ -119,7 +119,7 @@ const UseCaseCard = ({ item }: { item: UseCaseCardItem }) => {
           <button
             type="button"
             onClick={item.onCtaClick}
-            className="mt-auto pt-6 text-left text-[12px] md:text-[13px] text-white/70 hover:text-accenta1 transition"
+            className="mt-auto pt-6 text-left text-[12px] md:text-[13px] text-white/70 hover:text-accent-200 transition"
           >
             {item.ctaLabel ?? "찾으러 가기 →"}
           </button>

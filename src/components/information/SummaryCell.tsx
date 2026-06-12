@@ -25,14 +25,14 @@ function scoreIcon(score: string, isDark: boolean) {
   if (score === SummaryScore.SATISFIED)
     return (
       <Check
-        className={`w-4 h-4 ${isDark ? "text-accenta1" : "text-accentBronze"}`}
+        className={`w-4 h-4 ${isDark ? "text-accent-200" : "text-primary"}`}
         strokeWidth={2.2}
       />
     );
   if (score === SummaryScore.AMBIGUOUS)
     return (
       <Dot
-        className={`w-5 h-5 ${isDark ? "text-hgray700" : "text-beige900/55"}`}
+        className={`w-5 h-5 ${isDark ? "text-neutral-500" : "text-beige900/55"}`}
         strokeWidth={2.2}
       />
     );
@@ -40,7 +40,7 @@ function scoreIcon(score: string, isDark: boolean) {
     return <X className="w-4 h-4 text-red-600" strokeWidth={2.2} />;
   return (
     <Dot
-      className={`w-5 h-5 ${isDark ? "text-hgray800" : "text-beige900/55"}`}
+      className={`w-5 h-5 ${isDark ? "text-neutral-300" : "text-beige900/55"}`}
       strokeWidth={2.2}
     />
   );
@@ -112,7 +112,7 @@ const HoverPopover = ({
           shadow-[0_16px_60px_rgba(0,0,0,0.12)]
           ${
             isDark
-              ? "border border-white/5 bg-hgray100/50 backdrop-blur-md"
+              ? "border border-white/5 bg-neutral-1000/50 backdrop-blur-md"
               : "border border-beige900/8 bg-beige50 backdrop-blur-md"
           }
         `}
@@ -138,14 +138,14 @@ const HoverPopover = ({
 
       <div className="mt-3">
         <div
-          className={`text-[14px] leading-relaxed whitespace-pre-wrap wrap-break-word ${isDark ? "text-hgray800" : "text-beige900/80"}`}
+          className={`text-[14px] leading-relaxed whitespace-pre-wrap wrap-break-word ${isDark ? "text-neutral-300" : "text-beige900/80"}`}
           dangerouslySetInnerHTML={{ __html: reasonText || "No details" }}
         />
       </div>
 
       {title && (
         <div
-          className={`mt-3 text-[12px] truncate ${isDark ? "text-hgray700" : "text-beige900/65"}`}
+          className={`mt-3 text-[12px] truncate ${isDark ? "text-neutral-500" : "text-beige900/65"}`}
         >
           {title}
         </div>

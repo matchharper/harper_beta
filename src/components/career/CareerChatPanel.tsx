@@ -1,13 +1,18 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCareerChatPanelContext } from "./CareerChatPanelContext";
 import CareerCallScreen from "./chat/CareerCallScreen";
 import CareerCallEnvironmentNotice from "./chat/CareerCallEnvironmentNotice";
 import CareerComposerSection from "./chat/CareerComposerSection";
 import CareerTimelineSection from "./chat/CareerTimelineSection";
 import CareerWelcomeScreen from "./chat/CareerWelcomeScreen";
-import { careerCx } from "./ui/CareerPrimitives";
+import { cn } from "@/lib/utils";
 import { useCareerAutoStart } from "@/hooks/career/useCareerAutoStart";
 import React from "react";
+
+const DEFAULT_COMPOSER_OVERLAY_HEIGHT_PX = 168;
+// Extra empty space after the last timeline item, on top of the composer height.
+// Increase this when the final chat should sit farther above the composer.
+const TIMELINE_BOTTOM_VISIBLE_GAP_PX = 120;
 
 const CareerCallLoadingScreen = ({
   noticeCollapsed,
@@ -16,7 +21,7 @@ const CareerCallLoadingScreen = ({
   noticeCollapsed: boolean;
   onToggleNotice: () => void;
 }) => (
-  <div className="animate-in fade-in zoom-in-95 absolute inset-0 z-10 flex flex-col items-center justify-center bg-beige50/95 text-beige900 duration-500">
+  <div className="animate-in fade-in zoom-in-95 absolute inset-0 z-10 flex flex-col items-center justify-center bg-bg-default/95 text-neutral-primary duration-500">
     <div className="absolute inset-x-4 top-4 flex justify-center">
       <CareerCallEnvironmentNotice
         collapsed={noticeCollapsed}
@@ -34,8 +39,8 @@ const CareerCallLoadingScreen = ({
         alt="Harper"
         className="h-16 w-auto animate-pulse"
       />
-      <div className="h-px w-20 bg-beige900/10" />
-      <p className="text-sm font-medium text-beige900/55">통화 연결 중...</p>
+      <div className="h-px w-20 bg-neutral-1000-a05" />
+      <p className="text-sm font-medium text-neutral-muted">통화 연결 중...</p>
     </div>
   </div>
 );
@@ -67,6 +72,10 @@ const CallSessionView = ({
 };
 
 const CareerChatPanel = () => {
+  const composerOverlayRef = useRef<HTMLDivElement | null>(null);
+  const [composerOverlayHeight, setComposerOverlayHeight] = useState(
+    DEFAULT_COMPOSER_OVERLAY_HEIGHT_PX
+  );
   const {
     user,
     inputMode,
@@ -102,13 +111,69 @@ const CareerChatPanel = () => {
     !hasConversationActivity &&
     showVoiceStartPrompt;
 
+  useEffect(() => {
+    const element = composerOverlayRef.current;
+    if (!element) return;
+
+    let frameId: number | null = null;
+    const updateComposerHeight = () => {
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId);
+      }
+      frameId = window.requestAnimationFrame(() => {
+        frameId = null;
+        const nextHeight = Math.ceil(element.getBoundingClientRect().height);
+        if (nextHeight <= 0) return;
+        setComposerOverlayHeight((currentHeight) =>
+          Math.abs(currentHeight - nextHeight) <= 1 ? currentHeight : nextHeight
+        );
+      });
+    };
+
+    updateComposerHeight();
+
+    const Observer = window.ResizeObserver;
+    const observer = Observer ? new Observer(updateComposerHeight) : null;
+    observer?.observe(element);
+    window.addEventListener("resize", updateComposerHeight);
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", updateComposerHeight);
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId);
+      }
+    };
+  }, [inputMode, showInitialWelcome]);
+
+  const chatLayoutStyle = useMemo(
+    () =>
+      ({
+        "--career-composer-height": `${composerOverlayHeight}px`,
+        "--career-timeline-bottom-padding": `${
+          composerOverlayHeight + TIMELINE_BOTTOM_VISIBLE_GAP_PX
+        }px`,
+      }) as React.CSSProperties,
+    [composerOverlayHeight]
+  );
+
   const chatContent = showInitialWelcome ? (
     <CareerWelcomeScreen />
   ) : (
-    <>
+    <div
+      className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
+      style={chatLayoutStyle}
+    >
       <CareerTimelineSection />
-      <CareerComposerSection />
-    </>
+      <div
+        ref={composerOverlayRef}
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-linear-to-t from-bg-basement via-bg-basement/10 to-transparent"
+      >
+        <div className="pointer-events-auto">
+          <CareerComposerSection />
+        </div>
+      </div>
+    </div>
   );
 
   const callSessionActive = callStartPending || inputMode === "call";
@@ -117,7 +182,7 @@ const CareerChatPanel = () => {
     <section className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       {inputMode !== "call" && (
         <div
-          className={careerCx(
+          className={cn(
             "flex min-h-0 flex-1 flex-col transition-all duration-500 ease-out",
             callStartPending
               ? "pointer-events-none translate-y-2 scale-[0.985] opacity-0 blur-[2px]"

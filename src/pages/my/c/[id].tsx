@@ -413,7 +413,7 @@ export default function ResultPage() {
   if (!queryId)
     return (
       <AppLayout>
-        <Loading className="p-6 text-xgray800" />
+        <Loading className="p-6 text-neutral-muted" />
       </AppLayout>
     );
 
@@ -475,7 +475,7 @@ export default function ResultPage() {
             isResizing
               ? "transition-none"
               : "transition-all duration-300 ease-in-out"
-          } ${isChatFull ? "w-[50%] border-transparent" : "border-beige900/10"}`}
+          } ${isChatFull ? "w-[50%] border-transparent" : "border-neutral-1000-a05"}`}
         >
           <ChatPanel
             title={queryItem?.query_keyword ?? ""}
@@ -490,7 +490,7 @@ export default function ResultPage() {
             <div
               onMouseDown={handleResizeStart}
               className={`absolute top-0 right-[-3px] z-50 h-full w-[2px] cursor-col-resize ${
-                isResizing ? "bg-beige900/50" : "bg-transparent hover:bg-beige900/20"
+                isResizing ? "bg-black/50" : "bg-transparent hover:bg-bg-weak"
               }`}
             />
           )}
@@ -505,7 +505,7 @@ export default function ResultPage() {
         >
           <div
             ref={resultScrollRef}
-            className={`w-full max-h-screen min-h-screen py-2 transition-all duration-200 relative overflow-y-auto scrollbar-thin scrollbar-thumb-beige900/10 scrollbar-track-transparent hover:scrollbar-thumb-beige900/20`}
+            className={`w-full max-h-screen min-h-screen py-2 transition-all duration-200 relative overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-1000-a10 scrollbar-track-transparent hover:scrollbar-thumb-neutral-1000-a10`}
           >
             {queryItem && runId && (
               <ResultHeader
@@ -519,7 +519,7 @@ export default function ResultPage() {
 
             {isLoading && (
               <div className="w-full h-full min-h-[60vh] flex items-center justify-center">
-                <Loading className="p-6 text-xgray800" />
+                <Loading className="p-6 text-neutral-muted" />
               </div>
             )}
 

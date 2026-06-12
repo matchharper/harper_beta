@@ -24,6 +24,8 @@ import {
 import Head from "next/head";
 import type { FormEvent } from "react";
 import { useCallback, useMemo, useState } from "react";
+import { BareButton } from "@/components/ui/button";
+import { Input as UiInput } from "@/components/ui/input";
 
 function formatScore(value: number) {
   return Number.isInteger(value)
@@ -55,7 +57,7 @@ function CompanyLogo({
 
   return (
     <div
-      className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-md bg-beige500/70 bg-contain bg-center bg-no-repeat font-geist text-xs font-semibold text-beige900"
+      className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-md bg-bg-weak bg-contain bg-center bg-no-repeat text-xs font-semibold text-neutral-primary"
       style={logoUrl ? { backgroundImage: `url(${logoUrl})` } : undefined}
       aria-hidden="true"
     >
@@ -66,20 +68,20 @@ function CompanyLogo({
 
 function QualityPill({ value }: { value: OpsCompaniesQualityLabel | null }) {
   if (value === null) {
-    return <span className="font-geist text-sm text-beige900/35">-</span>;
+    return <span className="text-sm text-neutral-soft">-</span>;
   }
 
   const tone =
     value === 2
-      ? "bg-[#DDEBDD] text-[#29513A]"
+      ? "bg-positive-faded text-positive"
       : value === 1
-        ? "bg-[#F4E6BC] text-[#6B5418]"
-        : "bg-[#F7DBD3] text-[#8A2E1D]";
+        ? "bg-info-faded text-info"
+        : "bg-critical-faded text-critical";
 
   return (
     <span
       className={cx(
-        "inline-flex h-6 min-w-8 items-center justify-center rounded-md px-2 font-geist text-xs font-semibold",
+        "inline-flex h-6 min-w-8 items-center justify-center rounded-md px-2 text-xs font-semibold",
         tone
       )}
     >
@@ -99,31 +101,31 @@ function ScoreControl({
 }) {
   return (
     <div className="inline-flex items-center gap-1">
-      <button
+      <BareButton
         type="button"
         onClick={() => onChange(company, -1)}
         disabled={disabled}
-        className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-white/70 text-beige900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-45"
+        className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-bg-default/70 text-neutral-primary transition hover:bg-bg-default disabled:cursor-not-allowed disabled:opacity-45"
         aria-label={`${company.companyName} test_score 내리기`}
       >
         <Minus className="h-3.5 w-3.5" />
-      </button>
-      <span className="inline-flex h-7 min-w-12 items-center justify-center rounded-md bg-beige900 px-2 font-geist text-sm font-semibold tabular-nums text-beige100">
+      </BareButton>
+      <span className="inline-flex h-7 min-w-12 items-center justify-center rounded-md bg-black px-2 text-sm font-semibold tabular-nums text-neutral-00">
         {disabled ? (
           <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
         ) : (
           formatScore(company.testScore)
         )}
       </span>
-      <button
+      <BareButton
         type="button"
         onClick={() => onChange(company, 1)}
         disabled={disabled}
-        className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-white/70 text-beige900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-45"
+        className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-bg-default/70 text-neutral-primary transition hover:bg-bg-default disabled:cursor-not-allowed disabled:opacity-45"
         aria-label={`${company.companyName} test_score 올리기`}
       >
         <Plus className="h-3.5 w-3.5" />
-      </button>
+      </BareButton>
     </div>
   );
 }
@@ -204,21 +206,22 @@ export default function OpsCompaniesPage() {
               onSubmit={handleSearchSubmit}
             >
               <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-beige900/35" />
-                <input
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-soft" />
+                <UiInput
+                  unstyled
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="회사명 검색"
                   className={cx(opsTheme.input, "pl-9")}
                 />
               </div>
-              <button
+              <BareButton
                 type="submit"
                 className={cx(opsTheme.buttonPrimary, "h-11 px-3")}
               >
                 <Search className="h-4 w-4" />
                 검색
-              </button>
+              </BareButton>
             </form>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -227,7 +230,7 @@ export default function OpsCompaniesPage() {
                 {companies.length}
                 {totalCount === null ? "" : ` / ${totalCount}`} rows
               </span>
-              <button
+              <BareButton
                 type="button"
                 onClick={() => void companiesQuery.refetch()}
                 disabled={companiesQuery.isFetching}
@@ -240,7 +243,7 @@ export default function OpsCompaniesPage() {
                   )}
                 />
                 새로고침
-              </button>
+              </BareButton>
             </div>
           </div>
         </section>
@@ -264,23 +267,23 @@ export default function OpsCompaniesPage() {
                 <col className="w-[8%]" />
               </colgroup>
               <thead>
-                <tr className="h-10 border-b border-beige900/10 text-left">
-                  <th className="px-3 font-geist text-[11px] font-medium tracking-[0.14em] text-beige900/45">
+                <tr className="h-10 border-b border-neutral-1000-a05 text-left">
+                  <th className="px-3 text-[11px] font-medium tracking-[0.14em] text-neutral-muted">
                     Company
                   </th>
-                  <th className="px-3 font-geist text-[11px] font-medium tracking-[0.14em] text-beige900/45">
+                  <th className="px-3 text-[11px] font-medium tracking-[0.14em] text-neutral-muted">
                     Roles
                   </th>
-                  <th className="px-3 font-geist text-[11px] font-medium tracking-[0.14em] text-beige900/45">
+                  <th className="px-3 text-[11px] font-medium tracking-[0.14em] text-neutral-muted">
                     Test Score
                   </th>
-                  <th className="px-3 font-geist text-[11px] font-medium tracking-[0.14em] text-beige900/45">
+                  <th className="px-3 text-[11px] font-medium tracking-[0.14em] text-neutral-muted">
                     Human
                   </th>
-                  <th className="px-3 font-geist text-[11px] font-medium tracking-[0.14em] text-beige900/45">
+                  <th className="px-3 text-[11px] font-medium tracking-[0.14em] text-neutral-muted">
                     LLM
                   </th>
-                  <th className="px-3 font-geist text-[11px] font-medium tracking-[0.14em] text-beige900/45">
+                  <th className="px-3 text-[11px] font-medium tracking-[0.14em] text-neutral-muted">
                     Updated
                   </th>
                 </tr>
@@ -290,7 +293,7 @@ export default function OpsCompaniesPage() {
                   <tr>
                     <td
                       colSpan={6}
-                      className="h-28 px-3 text-center font-geist text-sm text-beige900/50"
+                      className="h-28 px-3 text-center text-sm text-neutral-muted"
                     >
                       <span className="inline-flex items-center gap-2">
                         <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -302,7 +305,7 @@ export default function OpsCompaniesPage() {
                   <tr>
                     <td
                       colSpan={6}
-                      className="h-28 px-3 text-center font-geist text-sm text-beige900/50"
+                      className="h-28 px-3 text-center text-sm text-neutral-muted"
                     >
                       조건에 맞는 회사가 없습니다.
                     </td>
@@ -316,7 +319,7 @@ export default function OpsCompaniesPage() {
                     return (
                       <tr
                         key={company.companyWorkspaceId}
-                        className="h-11 border-b border-beige900/10 last:border-b-0"
+                        className="h-11 border-b border-neutral-1000-a05 last:border-b-0"
                       >
                         <td className="px-3 py-1.5">
                           <div className="flex min-w-0 items-center gap-2">
@@ -325,17 +328,17 @@ export default function OpsCompaniesPage() {
                               logoUrl={company.logoUrl}
                             />
                             <div className="min-w-0">
-                              <div className="truncate font-geist text-sm font-medium text-beige900">
+                              <div className="truncate text-sm font-medium text-neutral-primary">
                                 {company.companyName}
                               </div>
-                              <div className="truncate font-geist text-[11px] text-beige900/35">
+                              <div className="truncate text-[11px] text-neutral-soft">
                                 {company.companyWorkspaceId}
                               </div>
                             </div>
                           </div>
                         </td>
                         <td className="px-3 py-1.5">
-                          <span className="font-geist text-sm tabular-nums text-beige900">
+                          <span className="text-sm tabular-nums text-neutral-primary">
                             {company.currentRoleCount}
                           </span>
                         </td>
@@ -352,7 +355,7 @@ export default function OpsCompaniesPage() {
                         <td className="px-3 py-1.5">
                           <QualityPill value={company.llmQualityLabel} />
                         </td>
-                        <td className="px-3 py-1.5 font-geist text-xs text-beige900/45">
+                        <td className="px-3 py-1.5 text-xs text-neutral-muted">
                           {formatDate(company.updatedAt)}
                         </td>
                       </tr>
@@ -365,7 +368,7 @@ export default function OpsCompaniesPage() {
         </section>
 
         {companiesQuery.hasNextPage ? (
-          <button
+          <BareButton
             type="button"
             onClick={() => void companiesQuery.fetchNextPage()}
             disabled={companiesQuery.isFetchingNextPage}
@@ -377,11 +380,11 @@ export default function OpsCompaniesPage() {
               <ChevronDown className="h-4 w-4" />
             )}
             더보기
-          </button>
+          </BareButton>
         ) : null}
 
         {!companiesQuery.isLoading && !errorMessage && companies.length > 0 ? (
-          <div className="flex items-center gap-2 px-4 font-geist text-xs text-beige900/45">
+          <div className="flex items-center gap-2 px-4 text-xs text-neutral-muted">
             <Building2 className="h-3.5 w-3.5" />
             test_score가 있는 company_workspace만 표시됩니다.
           </div>

@@ -4,7 +4,8 @@ You MUST return a valid JSON object with exactly these fields:
   "reply": "your Korean conversational reply here",
   "extracted_insights": {
     "key_name": { "value": "extracted value", "action": "new" | "update" }
-  }
+  },
+  "covered_onboarding_checklist": ["checklist_key"]
 }
 
 ## stepTransition
@@ -49,6 +50,7 @@ Key selection policy:
 
 Extraction scope:
 - Extract from User lines. Harper lines are context only.
+- For covered_onboarding_checklist, use Harper lines only to identify what was asked. Mark a checklist key covered only when the User line answers or clearly addresses that checklist item.
 - Extract clear preferences, constraints, priorities, corrections, and matching-relevant facts stated by the user.
 - Explicit negative or avoidance conditions are durable matching constraints. If the user says they want to avoid, exclude, reject, dislike, or cannot consider a condition, extract it under "deal_breakers" unless a more specific existing canonical key clearly fits. Examples: "그런 회사는 빼주세요", "대기업은 싫어요", "야근 많은 곳은 피하고 싶어요", "비자 지원 안 되면 안 돼요".
 - If the user adds a new avoidance condition and "deal_breakers" already has a value, use action "update" with the final integrated deal-breaker sentence.
@@ -60,11 +62,13 @@ Return a valid JSON object:
 {
   "extracted_insights": {
     "key_name": { "value": "extracted value in Korean", "action": "new" | "update" }
-  }
+  },
+  "covered_onboarding_checklist": ["checklist_key"]
 }
 
 - "new": key has no existing value
 - "update": user corrected or enriched a previously known insight (value = final integrated text)
-- If nothing to extract, return: { "extracted_insights": {} }
+- covered_onboarding_checklist must contain only newly covered checklist keys from the transcript. If none, return an empty array.
+- If nothing to extract or mark covered, return: { "extracted_insights": {}, "covered_onboarding_checklist": [] }
 - Only include keys where the user provided clear information.
 - Keys must be English snake_case. Values must be complete Korean sentences, not fragments such as "규모 선호.".

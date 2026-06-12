@@ -2,13 +2,14 @@ import { Loader2, Mic, MicOff, X, Captions, PhoneOff } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
 import { Tooltips } from "@/components/ui/tooltip";
-import { careerCx } from "@/components/career/ui/CareerPrimitives";
+import { cn } from "@/lib/utils";
 import { useCareerVoiceInputStore } from "@/store/useCareerVoiceInputStore";
 import type {
   CallLiveTranscriptPlacement,
   CallTranscriptEntry,
 } from "../types";
 import CareerCallEnvironmentNotice from "./CareerCallEnvironmentNotice";
+import { BareButton } from "@/components/ui/button";
 
 /* ─── Waveform Dots ─── */
 
@@ -34,8 +35,8 @@ const WaveformDots = memo(({ size = "md" }: { size?: "sm" | "md" | "lg" }) => {
         return (
           <div
             key={i}
-            className={careerCx(
-              "rounded-full bg-beige900 transition-[opacity,transform] duration-150",
+            className={cn(
+              "rounded-full bg-black transition-[opacity,transform] duration-150",
               sizeClass,
               active ? "opacity-100" : "opacity-25"
             )}
@@ -120,9 +121,9 @@ const TranscriptOverlay = memo(
     }, [transcriptScrollKey]);
 
     return (
-      <div className="absolute inset-x-4 bottom-24 z-10 max-h-[50svh] overflow-hidden rounded-[8px] border border-beige900/10 bg-white/95 shadow-[0_0_24px_rgba(0,0,0,0.1)]">
-        <div className="border-b border-beige900/10 px-4 py-3">
-          <span className="text-sm font-medium text-beige900/70">
+      <div className="absolute inset-x-4 bottom-24 z-10 max-h-[50svh] overflow-hidden rounded-[8px] border border-neutral-1000-a05 bg-bg-default/95 shadow-[0_0_24px_color-mix(in_srgb,var(--color-black)_10%,transparent)]">
+        <div className="border-b border-neutral-1000-a05 px-4 py-3">
+          <span className="text-sm font-medium text-neutral-muted">
             Transcript
           </span>
         </div>
@@ -131,7 +132,7 @@ const TranscriptOverlay = memo(
           className="max-h-[calc(50svh-48px)] overflow-y-auto px-4 py-3"
         >
           {displayEntries.length === 0 ? (
-            <p className="text-center text-sm text-beige900/35">
+            <p className="text-center text-sm text-neutral-disabled">
               대화가 시작되면 여기에 표시됩니다.
             </p>
           ) : (
@@ -143,11 +144,11 @@ const TranscriptOverlay = memo(
                 return (
                   <div
                     key={`${entry.timestamp}-${entry.role}-${i}`}
-                    className={careerCx(
+                    className={cn(
                       "max-w-[80%] rounded-[8px] px-3 py-2 text-sm",
                       entry.role === "user"
-                        ? "ml-auto bg-[#e87c3e]/85 text-white"
-                        : "mr-auto bg-beige900/5 text-beige900/80",
+                        ? "ml-auto bg-primary/85 text-neutral-00"
+                        : "mr-auto bg-black/5 text-neutral-muted",
                       isLiveUserEntry ? "opacity-80" : null
                     )}
                   >
@@ -261,7 +262,7 @@ const CareerCallScreen = ({
 
   return (
     <div
-      className={careerCx(
+      className={cn(
         "relative flex min-h-0 flex-1 flex-col items-center transition-all duration-500 ease-out",
         isClosing
           ? "pointer-events-none translate-y-3 scale-[0.985] opacity-0 blur-[2px]"
@@ -274,7 +275,7 @@ const CareerCallScreen = ({
           onToggle={onToggleNotice}
         />
         {callConnectionStatus === "reconnecting" && (
-          <div className="flex items-center gap-2 rounded-full border border-beige900/10 bg-white/85 px-3 py-2 text-sm text-beige900/60 shadow-[0_10px_24px_rgba(44,29,17,0.1)] backdrop-blur">
+          <div className="flex items-center gap-2 rounded-full border border-neutral-1000-a05 bg-bg-floating px-3 py-2 text-sm text-neutral-muted shadow-[0_10px_24px_color-mix(in_srgb,var(--color-neutral-1000)_10%,transparent)] backdrop-blur">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
             연결 중...
           </div>
@@ -283,11 +284,11 @@ const CareerCallScreen = ({
 
       {/* Center area — pushed up from center */}
       <div className="flex flex-1 flex-col items-center justify-center pb-40">
-        <span className="text-lg font-medium text-beige900/80">Harper</span>
-        <div className="mt-4 flex h-24 w-24 items-center justify-center rounded-full bg-beige900/5">
+        <span className="text-lg font-medium text-neutral-muted">Harper</span>
+        <div className="mt-4 flex h-24 w-24 items-center justify-center rounded-full bg-black/5">
           <WaveformDots size="lg" />
         </div>
-        <span className="mt-4 text-sm tabular-nums text-beige900/50">
+        <span className="mt-4 text-sm tabular-nums text-neutral-soft">
           {timer}
         </span>
 
@@ -295,25 +296,25 @@ const CareerCallScreen = ({
         <span
           className={`mt-3 rounded-full px-3 py-1 text-xs font-medium ${
             isAssistantSpeaking
-              ? "bg-emerald-100 text-emerald-700"
-              : "bg-amber-100 text-amber-700"
+              ? "bg-positive-faded text-positive"
+              : "bg-info-faded text-info"
           }`}
         >
           {isAssistantSpeaking ? "Speaking" : "Listening"}
         </span>
 
         {showInterviewCallProgress ? (
-          <div className="mt-4 w-full max-w-[360px] min-w-[360px] rounded-[12px] border border-beige50/10 bg-beige900/90 px-4 py-3 text-beige50 shadow-[0_14px_32px_rgba(37,20,6,0.16)] backdrop-blur">
+          <div className="mt-4 w-full max-w-[360px] min-w-[360px] rounded-[12px] border border-neutral-1000-a05 bg-black/90 px-4 py-3 text-neutral-00 shadow-[0_14px_32px_color-mix(in_srgb,var(--color-neutral-1000)_16%,transparent)] backdrop-blur">
             <div className="flex items-center justify-between gap-3">
               <span className="career-interview-shimmer text-[13px] font-semibold">
                 커리어 인터뷰 진행 중
               </span>
-              <span className="text-[13px] font-normal text-beige50/80">
+              <span className="text-[13px] font-normal text-neutral-00/80">
                 완료율
               </span>
             </div>
             <div
-              className="mt-2 h-1 overflow-hidden rounded-full bg-beige50/15"
+              className="mt-2 h-1 overflow-hidden rounded-full bg-bg-default/15"
               role="progressbar"
               aria-label="커리어 인터뷰 진행률"
               aria-valuemin={0}
@@ -321,7 +322,7 @@ const CareerCallScreen = ({
               aria-valuenow={interviewProgress.percent}
             >
               <div
-                className="h-full rounded-full bg-[#f1a35d] transition-[width] duration-700 ease-out"
+                className="h-full rounded-full bg-accent-300 transition-[width] duration-700 ease-out"
                 style={{ width: `${interviewProgress.percent}%` }}
               />
             </div>
@@ -340,21 +341,21 @@ const CareerCallScreen = ({
 
       {/* Bottom control bar */}
       <div className="sticky bottom-0 flex w-full justify-center pb-8 pt-4">
-        <div className="flex items-center gap-3 rounded-full bg-beige900/5 px-5 py-3">
+        <div className="flex items-center gap-3 rounded-full bg-black/5 px-5 py-3">
           {/* Waveform indicator */}
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-bg-default">
             <WaveformDots />
           </div>
 
           {/* Mic mute toggle */}
-          <button
+          <BareButton
             type="button"
             onClick={handleToggleVoiceMute}
             disabled={isClosing}
             className={`flex h-12 w-12 items-center justify-center rounded-full transition-colors ${
               voiceMuted
-                ? "bg-beige900/15 text-beige900/50"
-                : "bg-white text-beige900"
+                ? "bg-black/15 text-neutral-soft"
+                : "bg-bg-default text-neutral-primary"
             }`}
             aria-label={voiceMuted ? "음소거 해제" : "음소거"}
           >
@@ -363,33 +364,33 @@ const CareerCallScreen = ({
             ) : (
               <Mic className="h-5 w-5" />
             )}
-          </button>
+          </BareButton>
 
           {/* CC toggle */}
-          <button
+          <BareButton
             type="button"
             onClick={handleToggleTranscript}
             disabled={isClosing}
             className={`flex h-12 w-12 items-center justify-center rounded-[8px] text-sm font-bold transition-colors ${
               showTranscript
-                ? "bg-beige900 text-[#f5ecdd]"
-                : "bg-white text-beige900/70"
+                ? "bg-black text-neutral-00"
+                : "bg-bg-default text-neutral-muted"
             }`}
             aria-label="자막 토글"
           >
             <Captions className="h-5 w-5" />
-          </button>
+          </BareButton>
 
           {/* End call */}
           {interviewProgress.canForceComplete ? (
             <Tooltips text={forceCompleteTooltip} side="top">
-              <button
+              <BareButton
                 type="button"
                 onClick={handleEndCall}
                 disabled={
                   isClosing || forceCompletePending || onboardingWrapupPending
                 }
-                className="flex h-12 items-center justify-center gap-2 rounded-full bg-red-500 px-4 text-sm font-semibold text-white transition-colors hover:bg-red-600 disabled:opacity-60"
+                className="flex h-12 items-center justify-center gap-2 rounded-full bg-critical px-4 text-sm font-semibold text-neutral-00 transition-colors hover:opacity-90 disabled:opacity-60"
                 aria-label="통화 종료 및 커리어 인터뷰 임의 종료"
               >
                 임의 종료
@@ -398,18 +399,18 @@ const CareerCallScreen = ({
                 ) : (
                   <PhoneOff className="h-4 w-4" strokeWidth={1.6} />
                 )}
-              </button>
+              </BareButton>
             </Tooltips>
           ) : (
-            <button
+            <BareButton
               type="button"
               onClick={handleEndCall}
               disabled={isClosing}
-              className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500 text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+              className="flex h-12 w-12 items-center justify-center rounded-full bg-critical text-neutral-00 transition-opacity hover:opacity-90 disabled:opacity-60"
               aria-label="통화 종료"
             >
               <PhoneOff className="h-4 w-4" strokeWidth={1.6} />
-            </button>
+            </BareButton>
           )}
         </div>
       </div>

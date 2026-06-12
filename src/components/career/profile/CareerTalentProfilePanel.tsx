@@ -29,20 +29,21 @@ import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { locationEnToKo } from "@/utils/language_map";
 import { dateToFormat } from "@/utils/textprocess";
 import {
-  CareerPrimaryButton,
-  CareerSecondaryButton,
-  CareerTextInput,
-  CareerTextarea,
-  careerCx,
-} from "../ui/CareerPrimitives";
-import { CareerActionButton } from "../ui/CareerActionButton";
+  ActionButton,
+  PrimaryButton,
+  SecondaryButton,
+  BareButton,
+} from "@/components/ui/button";
+import { Input, Input as UiInput } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
-  BeigeActionDropdown,
-  BeigeActionDropdownItem,
-  BeigeActionDropdownSeparator,
-} from "@/components/ui/beige/action-dropdown";
+  ActionDropdown,
+  ActionDropdownItem,
+  ActionDropdownSeparator,
+} from "@/components/ui/action-dropdown";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
-import CareerRichText from "../ui/CareerRichText";
+import RichText from "@/components/ui/rich-text";
+import { cn } from "@/lib/utils";
 import {
   INSIGHT_CHECKLIST_ORDER_MAP,
   getInsightLabel,
@@ -405,10 +406,10 @@ const TimelineBlock = ({
 }) => {
   const badgeClassName =
     kind === "education"
-      ? "bg-beige900/10 text-beige900/60"
+      ? "bg-bg-weak text-neutral-muted"
       : kind === "extra"
-        ? "bg-beige200 text-beige900/60"
-        : "bg-beige700/10 text-beige700";
+        ? "bg-bg-weak text-neutral-muted"
+        : "bg-bg-weak text-neutral-muted";
   const badgeLabel =
     kind === "education" ? "Education" : kind === "extra" ? "Extra" : "Work";
   const fallbackLogoText = (logoText ?? logoAlt ?? title)
@@ -418,15 +419,15 @@ const TimelineBlock = ({
 
   return (
     <div
-      className={careerCx(
+      className={cn(
         "relative grid grid-cols-[40px_minmax(0,1fr)] gap-4 py-3 first:pt-0 last:pb-0",
         !isLast && "pb-5"
       )}
     >
       {!isLast && (
-        <div className="absolute bottom-[-8px] left-[19px] top-[46px] w-px bg-linear-to-b from-beige900/15 via-beige900/10 to-transparent" />
+        <div className="absolute bottom-[-8px] left-[19px] top-[46px] w-px bg-linear-to-b from-neutral-1000-a10 via-neutral-1000-a05 to-transparent" />
       )}
-      <div className="relative z-1 flex h-10 w-10 items-center justify-center overflow-hidden rounded-[10px] border-2 border-white bg-beige500 text-[17px] font-semibold leading-none text-beige900/65 shadow-[0_1px_2px_rgba(46,23,6,0.05)]">
+      <div className="relative z-1 flex h-10 w-10 items-center justify-center overflow-hidden rounded-[10px] border-2 border-bg-default bg-bg-weak text-[17px] font-semibold leading-none text-neutral-muted shadow-sm">
         <span className="absolute inset-0 flex items-center justify-center">
           {fallbackLogoText || icon}
         </span>
@@ -445,7 +446,7 @@ const TimelineBlock = ({
       <div className="min-w-0">
         <div className="mb-1 flex flex-wrap items-center gap-2">
           <span
-            className={careerCx(
+            className={cn(
               "rounded-[4px] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em]",
               badgeClassName
             )}
@@ -453,31 +454,35 @@ const TimelineBlock = ({
             {badgeLabel}
           </span>
           {meta && (
-            <span className="text-[11.5px] leading-5 text-beige900/40">
+            <span className="text-[11.5px] leading-5 text-neutral-soft">
               {meta}
             </span>
           )}
         </div>
-        <div className="text-[14px] font-medium leading-[1.35] text-beige900">
+        <div className="text-[14px] font-medium leading-[1.35] text-neutral-primary">
           {title}
         </div>
         {subtitle && (
-          <div className="mt-1 text-[12.5px] leading-5 text-beige900/65">
+          <div className="mt-1 text-[12.5px] leading-5 text-neutral-muted">
             {subtitle}
           </div>
         )}
         {description && (
-          <CareerRichText
+          <RichText
             content={description}
-            className="mt-2 text-beige900/65 [&_a]:text-beige900/80 [&_blockquote]:text-[13px] [&_code]:text-[12px] [&_em]:text-beige900/70 [&_li]:text-[13px] [&_ol]:text-[13px] [&_p]:text-[13px] [&_strong]:text-beige900 [&_ul]:text-[13px]"
+            className="mt-2 text-neutral-muted [&_a]:text-neutral-muted [&_blockquote]:text-[13px] [&_code]:text-[12px] [&_em]:text-neutral-muted [&_li]:text-[13px] [&_ol]:text-[13px] [&_p]:text-[13px] [&_strong]:text-neutral-primary [&_ul]:text-[13px]"
           />
         )}
         {memo && (
-          <div className="mt-3 flex items-start gap-2 rounded-[10px] bg-beige100 px-3.5 py-3">
-            <MessageSquare className="mt-0.5 h-3 w-3 shrink-0 text-beige700" />
+          <div className="mt-3 flex items-start gap-2 rounded-[10px] bg-bg-basement px-3.5 py-3">
+            <MessageSquare className="mt-0.5 h-3 w-3 shrink-0 text-neutral-muted" />
             <div className="min-w-0">
-              <div className="mb-1 text-[11px] text-beige700">Harper 메모</div>
-              <div className="text-[13px] leading-5 text-beige900">{memo}</div>
+              <div className="mb-1 text-[11px] text-neutral-muted">
+                Harper 메모
+              </div>
+              <div className="text-[13px] leading-5 text-neutral-primary">
+                {memo}
+              </div>
             </div>
           </div>
         )}
@@ -496,60 +501,62 @@ const ProfileSectionHeader = ({
   label: string;
 }) => (
   <div className="flex items-center gap-2 px-1 pt-4">
-    <span className="flex h-5 w-5 shrink-0 items-center justify-center text-beige900/65">
+    <span className="flex h-5 w-5 shrink-0 items-center justify-center text-neutral-muted">
       {icon}
     </span>
-    <span className="font-halant text-lg leading-none text-beige900">
+    <span className="font-halant text-lg leading-none text-neutral-primary">
       {label}
     </span>
     {typeof count === "number" ? (
-      <span className="text-[13px] leading-none text-beige900/45">{count}</span>
+      <span className="text-[13px] leading-none text-neutral-soft">
+        {count}
+      </span>
     ) : null}
-    <span className="h-px min-w-8 flex-1 bg-beige900/10" />
+    <span className="h-px min-w-8 flex-1 bg-neutral-1000-a05" />
   </div>
 );
 
 const EmptyEditState = ({ label }: { label: string }) => (
-  <div className="rounded-[10px] border border-dashed border-beige900/20 bg-white/30 px-4 py-4 text-sm text-beige900/55">
+  <div className="rounded-[10px] border border-dashed border-neutral-1000-a10 bg-bg-floating px-4 py-4 text-sm text-neutral-muted">
     {label}
   </div>
 );
 
 const ItemRemoveButton = ({ onClick }: { onClick: () => void }) => (
-  <button
+  <BareButton
     type="button"
     onClick={onClick}
-    className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-beige900/10 bg-white/60 text-beige900/60 transition-colors hover:border-beige900/25 hover:text-beige900 md:h-8 md:w-8"
+    className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-neutral-1000-a05 bg-bg-floating text-neutral-muted transition-colors hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary md:h-8 md:w-8"
     aria-label="항목 삭제"
   >
     <Trash2 className="h-4 w-4" />
-  </button>
+  </BareButton>
 );
 
 const profileEditInputClassName =
-  "h-11 border-beige900/15 bg-white/70 text-base placeholder:text-beige900/35 md:h-9 md:text-[13px]";
+  "h-11 border-neutral-1000-a10 bg-bg-floating text-base placeholder:text-neutral-placeholder md:h-9 md:text-[13px]";
 
 const profileEditTextareaClassName =
-  "min-h-[92px] border-beige900/15 bg-white/70 text-base leading-6 placeholder:text-beige900/35 md:text-[13px]";
+  "min-h-[92px] border-neutral-1000-a10 bg-bg-floating text-base leading-6 placeholder:text-neutral-placeholder md:text-[13px]";
 
 const profileEditPlainInputClassName =
-  "h-auto rounded-[4px] border border-white/50 bg-white/80 px-1.5 py-1 shadow-none hover:bg-white/45 focus:border-beige900/15 focus:bg-white/75 focus:ring-1 focus:ring-beige900/20";
+  "h-auto rounded-[4px] border border-neutral-1000-a05 bg-bg-floating px-1.5 py-1 hover:bg-bg-weak focus:border-neutral-1000-a10 focus:bg-bg-floating focus:ring-1 focus:ring-neutral-1000-a05";
 
 const profileEditPlainTextareaClassName =
-  "min-h-[74px] rounded-[6px] border border-white/50 bg-white/80 px-1.5 py-1.5 shadow-none hover:bg-white/45 focus:border-beige900/15 focus:bg-white/75 focus:ring-1 focus:ring-beige900/20";
+  "min-h-[74px] rounded-[6px] border border-neutral-1000-a05 bg-bg-floating px-1.5 py-1.5 hover:bg-bg-weak focus:border-neutral-1000-a10 focus:bg-bg-floating focus:ring-1 focus:ring-neutral-1000-a05";
 
 const profileNoticeClassName =
-  "flex items-center gap-2.5 rounded-[14px] border border-beige900/10 bg-linear-to-br from-beige100 to-white/80 px-3.5 py-2.5 text-[12.5px] leading-5 text-beige900/65";
+  "flex items-center gap-2.5 rounded-[14px] border border-neutral-1000-a05 bg-linear-to-br from-bg-basement to-bg-default px-3.5 py-2.5 text-[12.5px] leading-5 text-neutral-muted";
 
-const overviewEyebrowClassName = "text-[13px] font-medium text-beige900/70";
+const overviewEyebrowClassName = "text-[13px] font-medium text-neutral-muted";
 
-const insightTermClassName = "text-[13px] font-medium text-beige900/70";
+const insightTermClassName = "text-[13px] font-medium text-neutral-muted";
 
 const RecruiterProfileNotice = ({ copy }: { copy: string }) => (
   <div className={profileNoticeClassName}>
-    <Eye className="h-3.5 w-3.5 shrink-0 text-beige700" />
+    <Eye className="h-3.5 w-3.5 shrink-0 text-neutral-muted" />
     <div>
-      <strong className="font-medium text-beige900">{copy}</strong>
+      <strong className="font-medium text-neutral-primary">{copy}</strong>
       <span> · 연결이 성사된 회사에만 공유돼요</span>
     </div>
   </div>
@@ -578,7 +585,8 @@ const ProfileAvatar = ({
 
   return (
     <div className="relative h-14 w-14 shrink-0">
-      <input
+      <UiInput
+        unstyled
         ref={fileInputRef}
         type="file"
         accept="image/*"
@@ -589,7 +597,7 @@ const ProfileAvatar = ({
           if (file) onFileChange?.(file);
         }}
       />
-      <BeigeActionDropdown
+      <ActionDropdown
         open={menuOpen}
         onOpenChange={setMenuOpen}
         align="start"
@@ -597,15 +605,15 @@ const ProfileAvatar = ({
         sideOffset={8}
         contentClassName="w-[190px]"
         trigger={
-          <button
+          <BareButton
             type="button"
             aria-label="프로필 사진 메뉴"
             disabled={imageActionDisabled}
-            className={careerCx(
-              "group relative flex h-14 w-14 items-center justify-center rounded-full border border-beige900/10 bg-beige500 text-beige900/55 shadow-[0_2px_10px_rgba(46,23,6,0.06)] transition-all focus:outline-none focus-visible:ring-4 focus-visible:ring-[#22c55e]/20",
+            className={cn(
+              "group relative flex h-14 w-14 items-center justify-center rounded-full border border-neutral-1000-a05 bg-bg-weak text-neutral-muted transition-all focus:outline-none focus-visible:ring-4 focus-visible:ring-positive/30",
               imageActionDisabled
                 ? "cursor-default"
-                : "cursor-pointer hover:border-[#22c55e]/45"
+                : "cursor-pointer hover:border-positive/30"
             )}
           >
             <UserRound className="h-7 w-7" strokeWidth={1.7} />
@@ -621,14 +629,14 @@ const ProfileAvatar = ({
               />
             ) : null}
             {uploadPending ? (
-              <span className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full bg-beige900/30 text-white">
+              <span className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full bg-black/30 text-neutral-00">
                 <Loader2 className="h-4 w-4 animate-spin" />
               </span>
             ) : null}
-          </button>
+          </BareButton>
         }
       >
-        <BeigeActionDropdownItem
+        <ActionDropdownItem
           disabled={!onFileChange || uploadPending}
           onSelect={() => {
             setMenuOpen(false);
@@ -638,9 +646,9 @@ const ProfileAvatar = ({
         >
           <ImagePlus className="h-4 w-4" />
           사진 변경/업로드
-        </BeigeActionDropdownItem>
-        <BeigeActionDropdownSeparator />
-        <BeigeActionDropdownItem
+        </ActionDropdownItem>
+        <ActionDropdownSeparator />
+        <ActionDropdownItem
           disabled={!onDeleteImage || !hasStoredImage || uploadPending}
           onSelect={() => {
             setMenuOpen(false);
@@ -651,8 +659,8 @@ const ProfileAvatar = ({
         >
           <Trash2 className="h-4 w-4" />
           사진 삭제
-        </BeigeActionDropdownItem>
-      </BeigeActionDropdown>
+        </ActionDropdownItem>
+      </ActionDropdown>
     </div>
   );
 };
@@ -684,7 +692,7 @@ const ProfileHeader = ({
   user: CareerTalentUser | null | undefined;
 }) => (
   <section
-    className={careerCx(
+    className={cn(
       "relative flex flex-col gap-4 px-1 pt-1 sm:flex-row",
       isEditing ? "sm:items-start" : "sm:items-center"
     )}
@@ -700,30 +708,30 @@ const ProfileHeader = ({
     <div className="min-w-0 flex-1">
       <div className="flex min-w-0 flex-wrap items-center gap-2.5">
         {isEditing ? (
-          <CareerTextInput
+          <Input
             value={user?.name ?? ""}
             onChange={(event) => onFieldChange?.("name", event.target.value)}
             placeholder="이름"
             aria-label="이름"
-            className={careerCx(
+            className={cn(
               profileEditInputClassName,
               "h-10 max-w-[360px] font-hedvig text-[24px]"
             )}
           />
         ) : (
-          <h2 className="font-hedvig text-[24px] leading-none text-beige900">
+          <h2 className="font-hedvig text-[24px] leading-none text-neutral-primary">
             {displayName}
           </h2>
         )}
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-beige700/10 px-2.5 py-1 text-[11px] font-medium tracking-[0.02em] text-beige700">
-          <span className="h-1.5 w-1.5 rounded-full bg-beige700" />
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-bg-weak px-2.5 py-1 text-[11px] font-medium tracking-[0.02em] text-neutral-muted">
+          <span className="h-1.5 w-1.5 rounded-full bg-positive" />
           Active
         </span>
       </div>
 
       {isEditing ? (
         <div className="mt-2 grid gap-2 md:grid-cols-2">
-          <CareerTextInput
+          <Input
             value={user?.headline ?? ""}
             onChange={(event) =>
               onFieldChange?.("headline", event.target.value)
@@ -732,7 +740,7 @@ const ProfileHeader = ({
             aria-label="한 줄 소개"
             className={profileEditInputClassName}
           />
-          <CareerTextInput
+          <Input
             value={user?.location ?? ""}
             onChange={(event) =>
               onFieldChange?.("location", event.target.value)
@@ -743,10 +751,10 @@ const ProfileHeader = ({
           />
         </div>
       ) : (
-        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13.5px] leading-5 text-beige900/65">
+        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13.5px] leading-5 text-neutral-muted">
           {user?.headline ? <span>{user.headline}</span> : null}
           {user?.headline && user?.location ? (
-            <span className="text-beige900/25">|</span>
+            <span className="text-neutral-1000-a10">|</span>
           ) : null}
           {user?.location ? (
             <span className="inline-flex items-center gap-1.5">
@@ -759,8 +767,8 @@ const ProfileHeader = ({
 
       {profileUpdatedText ? (
         <div
-          className={careerCx(
-            "text-[11.5px] leading-5 tracking-[0.02em] text-beige900/45",
+          className={cn(
+            "text-[11.5px] leading-5 tracking-[0.02em] text-neutral-soft",
             isEditing ? "mt-2" : "mt-1"
           )}
         >
@@ -770,25 +778,25 @@ const ProfileHeader = ({
     </div>
 
     <div
-      className={careerCx(
+      className={cn(
         "absolute right-1 top-1 flex shrink-0 gap-2 sm:static sm:right-auto sm:top-auto",
         isEditing ? "flex-wrap" : "flex-col items-end"
       )}
     >
       {savedResumeDownloadUrl && (
-        <CareerActionButton
+        <ActionButton
           asChild
           actionVariant="secondary"
           className="h-9 gap-1.5 px-3.5 text-[12.5px]"
         >
           <a href={savedResumeDownloadUrl} target="_blank" rel="noreferrer">
-            <FileText className="h-3.5 w-3.5 text-beige900/60" />
+            <FileText className="h-3.5 w-3.5 text-neutral-muted" />
             View CV
           </a>
-        </CareerActionButton>
+        </ActionButton>
       )}
       {!isEditing && onEdit ? (
-        <CareerActionButton
+        <ActionButton
           type="button"
           actionVariant="secondary"
           onClick={onEdit}
@@ -796,7 +804,7 @@ const ProfileHeader = ({
         >
           <Pencil className="h-3.5 w-3.5" />
           수정하기
-        </CareerActionButton>
+        </ActionButton>
       ) : null}
     </div>
   </section>
@@ -839,15 +847,15 @@ const ProfileOverviewSection = ({
         <div className="mb-7">
           <div className={overviewEyebrowClassName}>Summary</div>
           {isEditing ? (
-            <CareerTextarea
+            <Textarea
               value={summary}
               onChange={(event) => onSummaryChange?.(event.target.value)}
               placeholder="Summary"
               aria-label="Summary"
-              className={careerCx(profileEditTextareaClassName, "mt-3")}
+              className={cn(profileEditTextareaClassName, "mt-3")}
             />
           ) : (
-            <p className="mt-3 whitespace-pre-line text-[14px] leading-6 text-beige900">
+            <p className="mt-3 whitespace-pre-line text-[14px] leading-6 text-neutral-primary">
               {summary}
             </p>
           )}
@@ -859,7 +867,7 @@ const ProfileOverviewSection = ({
         {displayedItems.map((item) => (
           <React.Fragment key={item.key}>
             <dt
-              className={careerCx(
+              className={cn(
                 insightTermClassName,
                 isEditing ? "pt-2" : "pt-0.5"
               )}
@@ -868,7 +876,7 @@ const ProfileOverviewSection = ({
             </dt>
             <dd className="m-0">
               {isEditing ? (
-                <CareerTextarea
+                <Textarea
                   rows={2}
                   value={item.value}
                   onChange={(event) =>
@@ -876,16 +884,13 @@ const ProfileOverviewSection = ({
                   }
                   placeholder="아직 확인 중"
                   aria-label={item.label}
-                  className={careerCx(
-                    profileEditTextareaClassName,
-                    "min-h-[52px]"
-                  )}
+                  className={cn(profileEditTextareaClassName, "min-h-[52px]")}
                 />
               ) : (
                 <div
-                  className={careerCx(
+                  className={cn(
                     "text-[14px] leading-6",
-                    item.value ? "text-beige900" : "text-beige900/40"
+                    item.value ? "text-neutral-primary" : "text-neutral-soft"
                   )}
                 >
                   {item.value || "아직 확인 중"}
@@ -896,10 +901,10 @@ const ProfileOverviewSection = ({
         ))}
       </dl>
       {canShowAllInsights ? (
-        <button
+        <BareButton
           type="button"
           onClick={() => setShowAllInsights((current) => !current)}
-          className="mt-4 inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-beige900/10 bg-white/45 px-3 text-[12px] font-medium text-beige900/55 transition-colors hover:border-beige900/25 hover:bg-white/70 hover:text-beige900"
+          className="mt-4 inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-neutral-1000-a05 bg-bg-floating px-3 text-[12px] font-medium text-neutral-muted transition-colors hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary"
         >
           {showAllInsights ? (
             <>
@@ -912,7 +917,7 @@ const ProfileOverviewSection = ({
               전체 insight 보기
             </>
           )}
-        </button>
+        </BareButton>
       ) : null}
     </section>
   );
@@ -941,10 +946,10 @@ const TimelineEditBlock = ({
 }) => {
   const badgeClassName =
     kind === "education"
-      ? "bg-beige900/10 text-beige900/60"
+      ? "bg-bg-weak text-neutral-muted"
       : kind === "extra"
-        ? "bg-beige200 text-beige900/60"
-        : "bg-beige700/10 text-beige700";
+        ? "bg-bg-weak text-neutral-muted"
+        : "bg-bg-weak text-neutral-muted";
 
   const badgeLabel =
     kind === "education" ? "Education" : kind === "extra" ? "Extra" : "Work";
@@ -956,17 +961,17 @@ const TimelineEditBlock = ({
 
   return (
     <div
-      className={careerCx(
+      className={cn(
         "relative grid grid-cols-[40px_minmax(0,1fr)] gap-4 py-3 first:pt-0 last:pb-0",
         !isLast && "pb-5"
       )}
     >
       {!isLast && (
-        <div className="absolute bottom-[-8px] left-[19px] top-[46px] w-px bg-linear-to-b from-beige900/15 via-beige900/10 to-transparent" />
+        <div className="absolute bottom-[-8px] left-[19px] top-[46px] w-px bg-linear-to-b from-neutral-1000-a10 via-neutral-1000-a05 to-transparent" />
       )}
       <label
-        className={careerCx(
-          "relative z-1 flex h-10 w-10 items-center justify-center overflow-hidden rounded-[10px] border-2 border-white bg-beige500 text-[17px] font-semibold leading-none text-beige900/65 shadow-[0_1px_2px_rgba(46,23,6,0.05)]",
+        className={cn(
+          "relative z-1 flex h-10 w-10 items-center justify-center overflow-hidden rounded-[10px] border-2 border-bg-default bg-bg-weak text-[17px] font-semibold leading-none text-neutral-muted",
           onLogoFileChange &&
             "cursor-pointer transition-transform hover:scale-[1.03]",
           logoUploadPending && "pointer-events-none opacity-75"
@@ -974,7 +979,8 @@ const TimelineEditBlock = ({
         aria-label={onLogoFileChange ? "로고 이미지 업로드" : undefined}
       >
         {onLogoFileChange ? (
-          <input
+          <UiInput
+            unstyled
             type="file"
             accept="image/*"
             className="sr-only"
@@ -1000,7 +1006,7 @@ const TimelineEditBlock = ({
           />
         ) : null}
         {onLogoFileChange ? (
-          <span className="absolute bottom-[-3px] right-[-3px] z-2 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-[#22c55e] text-white shadow-[0_2px_7px_rgba(21,128,61,0.28)]">
+          <span className="absolute bottom-[-3px] right-[-3px] z-2 flex h-5 w-5 items-center justify-center rounded-full border-2 border-bg-default bg-positive text-neutral-00">
             {logoUploadPending ? (
               <Loader2 className="h-3 w-3 animate-spin" />
             ) : (
@@ -1012,7 +1018,7 @@ const TimelineEditBlock = ({
       <div className="min-w-0">
         <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
           <span
-            className={careerCx(
+            className={cn(
               "rounded-[4px] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em]",
               badgeClassName
             )}
@@ -1459,18 +1465,18 @@ const CareerTalentProfilePanel = ({
   };
 
   return (
-    <div className={careerCx("space-y-5", isEditing && "pb-24", className)}>
+    <div className={cn("space-y-5", isEditing && "pb-24", className)}>
       {isEditing && (
-        <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+104px)] right-3 z-50 flex flex-wrap items-center justify-end gap-2 rounded-[12px] bg-beige50/40 p-1 shadow-[0_16px_44px_rgba(46,23,6,0.16)] backdrop-blur md:bottom-5 md:right-5">
-          <CareerSecondaryButton
+        <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+104px)] right-3 z-50 flex flex-wrap items-center justify-end gap-2 rounded-[12px] border border-neutral-1000-a05 bg-bg-floating/90 p-1 shadow-[0_16px_44px_color-mix(in_srgb,var(--color-neutral-1000)_16%,transparent)] backdrop-blur md:bottom-5 md:right-5">
+          <SecondaryButton
             type="button"
             onClick={cancelEditing}
             disabled={profileSavePending || talentInsightsSavePending}
             className="gap-1.5"
           >
             취소
-          </CareerSecondaryButton>
-          <CareerPrimaryButton
+          </SecondaryButton>
+          <PrimaryButton
             type="button"
             onClick={() => void handleSave()}
             disabled={
@@ -1484,30 +1490,30 @@ const CareerTalentProfilePanel = ({
             {profileSavePending || talentInsightsSavePending
               ? "저장 중..."
               : "저장하기"}
-          </CareerPrimaryButton>
+          </PrimaryButton>
         </div>
       )}
 
       {profileSaveError && (
-        <p className="rounded-lg border border-beige900/20 bg-beige900/10 px-3 py-2 text-sm text-beige900">
+        <p className="rounded-lg border border-critical/30 bg-critical-faded px-3 py-2 text-sm text-critical">
           {profileSaveError}
         </p>
       )}
 
       {talentInsightsSaveError && (
-        <p className="rounded-lg border border-beige900/20 bg-beige900/10 px-3 py-2 text-sm text-beige900">
+        <p className="rounded-lg border border-critical/30 bg-critical-faded px-3 py-2 text-sm text-critical">
           {talentInsightsSaveError}
         </p>
       )}
 
       {logoUploadError && (
-        <p className="rounded-lg border border-beige900/20 bg-beige900/10 px-3 py-2 text-sm text-beige900">
+        <p className="rounded-lg border border-critical/30 bg-critical-faded px-3 py-2 text-sm text-critical">
           {logoUploadError}
         </p>
       )}
 
       {profileImageError && (
-        <p className="rounded-lg border border-beige900/20 bg-beige900/10 px-3 py-2 text-sm text-beige900">
+        <p className="rounded-lg border border-critical/30 bg-critical-faded px-3 py-2 text-sm text-critical">
           {profileImageError}
         </p>
       )}
@@ -1557,30 +1563,30 @@ const CareerTalentProfilePanel = ({
 
           <section className="px-1">
             <div className="mb-4 flex flex-wrap gap-2">
-              <CareerSecondaryButton
+              <SecondaryButton
                 type="button"
                 onClick={addExperience}
                 className="h-11 gap-1.5 px-4 text-[13px] md:h-8 md:px-3 md:text-xs"
               >
                 <Plus className="h-3.5 w-3.5" />
                 경력 추가
-              </CareerSecondaryButton>
-              <CareerSecondaryButton
+              </SecondaryButton>
+              <SecondaryButton
                 type="button"
                 onClick={addEducation}
                 className="h-11 gap-1.5 px-4 text-[13px] md:h-8 md:px-3 md:text-xs"
               >
                 <Plus className="h-3.5 w-3.5" />
                 학력 추가
-              </CareerSecondaryButton>
-              <CareerSecondaryButton
+              </SecondaryButton>
+              <SecondaryButton
                 type="button"
                 onClick={addExtra}
                 className="h-11 gap-1.5 px-4 text-[13px] md:h-8 md:px-3 md:text-xs"
               >
                 <Plus className="h-3.5 w-3.5" />
                 추가 정보
-              </CareerSecondaryButton>
+              </SecondaryButton>
             </div>
 
             {draftBackgroundCount > 0 ? (
@@ -1613,7 +1619,7 @@ const CareerTalentProfilePanel = ({
                         )}
                       >
                         <div className="space-y-1.5">
-                          <CareerTextInput
+                          <Input
                             value={exp.role ?? ""}
                             onChange={(event) =>
                               updateExperienceField(
@@ -1624,13 +1630,13 @@ const CareerTalentProfilePanel = ({
                             }
                             placeholder="직무"
                             aria-label="직무"
-                            className={careerCx(
+                            className={cn(
                               profileEditPlainInputClassName,
                               "text-[14px] font-medium leading-[1.35]"
                             )}
                           />
-                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] leading-5 text-beige900/65">
-                            <CareerTextInput
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] leading-5 text-neutral-muted">
+                            <Input
                               value={exp.company_name ?? ""}
                               onChange={(event) =>
                                 updateExperienceField(
@@ -1641,13 +1647,13 @@ const CareerTalentProfilePanel = ({
                               }
                               placeholder="회사명"
                               aria-label="회사명"
-                              className={careerCx(
+                              className={cn(
                                 profileEditPlainInputClassName,
-                                "w-[180px] text-[12.5px] leading-5 text-beige900/65"
+                                "w-[180px] text-[12.5px] leading-5 text-neutral-muted"
                               )}
                             />
-                            <span className="text-beige900/25">·</span>
-                            <CareerTextInput
+                            <span className="text-neutral-1000-a10">·</span>
+                            <Input
                               value={exp.company_location ?? ""}
                               onChange={(event) =>
                                 updateExperienceField(
@@ -1658,13 +1664,13 @@ const CareerTalentProfilePanel = ({
                               }
                               placeholder="근무 지역"
                               aria-label="근무 지역"
-                              className={careerCx(
+                              className={cn(
                                 profileEditPlainInputClassName,
-                                "w-[150px] text-[12.5px] leading-5 text-beige900/65"
+                                "w-[150px] text-[12.5px] leading-5 text-neutral-muted"
                               )}
                             />
-                            <span className="text-beige900/25">·</span>
-                            <CareerTextInput
+                            <span className="text-neutral-1000-a10">·</span>
+                            <Input
                               value={exp.employment_type ?? ""}
                               onChange={(event) =>
                                 updateExperienceField(
@@ -1675,14 +1681,14 @@ const CareerTalentProfilePanel = ({
                               }
                               placeholder="고용 형태"
                               aria-label="고용 형태"
-                              className={careerCx(
+                              className={cn(
                                 profileEditPlainInputClassName,
-                                "w-[120px] text-[12.5px] leading-5 text-beige900/65"
+                                "w-[120px] text-[12.5px] leading-5 text-neutral-muted"
                               )}
                             />
                           </div>
-                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] leading-5 text-beige900/40">
-                            <CareerTextInput
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] leading-5 text-neutral-soft">
+                            <Input
                               value={exp.start_date ?? ""}
                               onChange={(event) =>
                                 updateExperienceField(
@@ -1693,13 +1699,13 @@ const CareerTalentProfilePanel = ({
                               }
                               placeholder="시작일"
                               aria-label="시작일"
-                              className={careerCx(
+                              className={cn(
                                 profileEditPlainInputClassName,
-                                "w-[92px] text-[11.5px] leading-5 text-beige900/40"
+                                "w-[92px] text-[11.5px] leading-5 text-neutral-soft"
                               )}
                             />
                             <span>-</span>
-                            <CareerTextInput
+                            <Input
                               value={exp.end_date ?? ""}
                               onChange={(event) =>
                                 updateExperienceField(
@@ -1710,13 +1716,13 @@ const CareerTalentProfilePanel = ({
                               }
                               placeholder="현재"
                               aria-label="종료일 또는 현재"
-                              className={careerCx(
+                              className={cn(
                                 profileEditPlainInputClassName,
-                                "w-[92px] text-[11.5px] leading-5 text-beige900/40"
+                                "w-[92px] text-[11.5px] leading-5 text-neutral-soft"
                               )}
                             />
-                            <span className="text-beige900/25">·</span>
-                            <span className="rounded-[4px] bg-white/30 px-1.5 py-1 text-[11.5px] leading-5 text-beige900/45">
+                            <span className="text-neutral-1000-a10">·</span>
+                            <span className="rounded-[4px] bg-bg-weak px-1.5 py-1 text-[11.5px] leading-5 text-neutral-soft">
                               {formatMonth(
                                 calculateExperienceMonths(
                                   exp.start_date,
@@ -1724,8 +1730,8 @@ const CareerTalentProfilePanel = ({
                                 )
                               ) || "기간 자동 계산"}
                             </span>
-                            <span className="text-beige900/25">·</span>
-                            <CareerTextInput
+                            <span className="text-neutral-1000-a10">·</span>
+                            <Input
                               value={exp.company_link ?? ""}
                               onChange={(event) =>
                                 updateExperienceField(
@@ -1736,13 +1742,13 @@ const CareerTalentProfilePanel = ({
                               }
                               placeholder="회사 링크"
                               aria-label="회사 링크"
-                              className={careerCx(
+                              className={cn(
                                 profileEditPlainInputClassName,
-                                "min-w-[180px] flex-1 text-[11.5px] leading-5 text-beige900/40"
+                                "min-w-[180px] flex-1 text-[11.5px] leading-5 text-neutral-soft"
                               )}
                             />
                           </div>
-                          <CareerTextarea
+                          <Textarea
                             value={exp.description ?? ""}
                             onChange={(event) =>
                               updateExperienceField(
@@ -1753,9 +1759,9 @@ const CareerTalentProfilePanel = ({
                             }
                             placeholder="주요 업무와 성과"
                             aria-label="주요 업무와 성과"
-                            className={careerCx(
+                            className={cn(
                               profileEditPlainTextareaClassName,
-                              "mt-2 text-[13px] leading-6 text-beige900/65"
+                              "mt-2 text-[13px] leading-6 text-neutral-muted"
                             )}
                           />
                         </div>
@@ -1773,7 +1779,7 @@ const CareerTalentProfilePanel = ({
                       onRemove={() => removeEducation(entry.index)}
                     >
                       <div className="space-y-1.5">
-                        <CareerTextInput
+                        <Input
                           value={edu.school ?? ""}
                           onChange={(event) =>
                             updateEducationField(
@@ -1784,13 +1790,13 @@ const CareerTalentProfilePanel = ({
                           }
                           placeholder="학교명"
                           aria-label="학교명"
-                          className={careerCx(
+                          className={cn(
                             profileEditPlainInputClassName,
                             "text-[14px] font-medium leading-[1.35]"
                           )}
                         />
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] leading-5 text-beige900/65">
-                          <CareerTextInput
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] leading-5 text-neutral-muted">
+                          <Input
                             value={edu.field ?? ""}
                             onChange={(event) =>
                               updateEducationField(
@@ -1801,13 +1807,13 @@ const CareerTalentProfilePanel = ({
                             }
                             placeholder="전공"
                             aria-label="전공"
-                            className={careerCx(
+                            className={cn(
                               profileEditPlainInputClassName,
-                              "w-[170px] text-[12.5px] leading-5 text-beige900/65"
+                              "w-[170px] text-[12.5px] leading-5 text-neutral-muted"
                             )}
                           />
-                          <span className="text-beige900/25">·</span>
-                          <CareerTextInput
+                          <span className="text-neutral-1000-a10">·</span>
+                          <Input
                             value={edu.degree ?? ""}
                             onChange={(event) =>
                               updateEducationField(
@@ -1818,13 +1824,13 @@ const CareerTalentProfilePanel = ({
                             }
                             placeholder="학위"
                             aria-label="학위"
-                            className={careerCx(
+                            className={cn(
                               profileEditPlainInputClassName,
-                              "w-[150px] text-[12.5px] leading-5 text-beige900/65"
+                              "w-[150px] text-[12.5px] leading-5 text-neutral-muted"
                             )}
                           />
-                          <span className="text-beige900/25">·</span>
-                          <CareerTextInput
+                          <span className="text-neutral-1000-a10">·</span>
+                          <Input
                             value={edu.url ?? ""}
                             onChange={(event) =>
                               updateEducationField(
@@ -1835,14 +1841,14 @@ const CareerTalentProfilePanel = ({
                             }
                             placeholder="학교/프로그램 링크"
                             aria-label="학교/프로그램 링크"
-                            className={careerCx(
+                            className={cn(
                               profileEditPlainInputClassName,
-                              "min-w-[180px] flex-1 text-[12.5px] leading-5 text-beige900/65"
+                              "min-w-[180px] flex-1 text-[12.5px] leading-5 text-neutral-muted"
                             )}
                           />
                         </div>
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] leading-5 text-beige900/40">
-                          <CareerTextInput
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] leading-5 text-neutral-soft">
+                          <Input
                             value={edu.start_date ?? ""}
                             onChange={(event) =>
                               updateEducationField(
@@ -1853,13 +1859,13 @@ const CareerTalentProfilePanel = ({
                             }
                             placeholder="시작일"
                             aria-label="시작일"
-                            className={careerCx(
+                            className={cn(
                               profileEditPlainInputClassName,
-                              "w-[92px] text-[11.5px] leading-5 text-beige900/40"
+                              "w-[92px] text-[11.5px] leading-5 text-neutral-soft"
                             )}
                           />
                           <span>-</span>
-                          <CareerTextInput
+                          <Input
                             value={edu.end_date ?? ""}
                             onChange={(event) =>
                               updateEducationField(
@@ -1870,13 +1876,13 @@ const CareerTalentProfilePanel = ({
                             }
                             placeholder="종료일"
                             aria-label="종료일"
-                            className={careerCx(
+                            className={cn(
                               profileEditPlainInputClassName,
-                              "w-[92px] text-[11.5px] leading-5 text-beige900/40"
+                              "w-[92px] text-[11.5px] leading-5 text-neutral-soft"
                             )}
                           />
                         </div>
-                        <CareerTextarea
+                        <Textarea
                           value={edu.description ?? ""}
                           onChange={(event) =>
                             updateEducationField(
@@ -1887,9 +1893,9 @@ const CareerTalentProfilePanel = ({
                           }
                           placeholder="학력 설명"
                           aria-label="학력 설명"
-                          className={careerCx(
+                          className={cn(
                             profileEditPlainTextareaClassName,
-                            "mt-2 text-[13px] leading-6 text-beige900/65"
+                            "mt-2 text-[13px] leading-6 text-neutral-muted"
                           )}
                         />
                       </div>
@@ -1906,7 +1912,7 @@ const CareerTalentProfilePanel = ({
                     onRemove={() => removeExtra(extraIndex)}
                   >
                     <div className="space-y-1.5">
-                      <CareerTextInput
+                      <Input
                         value={extra.title ?? ""}
                         onChange={(event) =>
                           updateExtraField(
@@ -1917,13 +1923,13 @@ const CareerTalentProfilePanel = ({
                         }
                         placeholder="제목"
                         aria-label="제목"
-                        className={careerCx(
+                        className={cn(
                           profileEditPlainInputClassName,
                           "text-[14px] font-medium leading-[1.35]"
                         )}
                       />
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] leading-5 text-beige900/65">
-                        <CareerTextInput
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] leading-5 text-neutral-muted">
+                        <Input
                           value={extra.date ?? ""}
                           onChange={(event) =>
                             updateExtraField(
@@ -1934,13 +1940,13 @@ const CareerTalentProfilePanel = ({
                           }
                           placeholder="날짜"
                           aria-label="날짜"
-                          className={careerCx(
+                          className={cn(
                             profileEditPlainInputClassName,
-                            "w-[160px] text-[12.5px] leading-5 text-beige900/65"
+                            "w-[160px] text-[12.5px] leading-5 text-neutral-muted"
                           )}
                         />
                       </div>
-                      <CareerTextarea
+                      <Textarea
                         value={extra.description ?? ""}
                         onChange={(event) =>
                           updateExtraField(
@@ -1951,9 +1957,9 @@ const CareerTalentProfilePanel = ({
                         }
                         placeholder="설명"
                         aria-label="설명"
-                        className={careerCx(
+                        className={cn(
                           profileEditPlainTextareaClassName,
-                          "mt-2 text-[13px] leading-6 text-beige900/65"
+                          "mt-2 text-[13px] leading-6 text-neutral-muted"
                         )}
                       />
                     </div>
@@ -2079,12 +2085,12 @@ const CareerTalentProfilePanel = ({
           ) : null}
         </>
       ) : (
-        <div className="rounded-[12px] border border-dashed border-beige900/20 bg-white/35 px-5 py-6 text-sm leading-6 text-beige900/60">
+        <div className="rounded-[12px] border border-dashed border-neutral-1000-a10 bg-bg-floating px-5 py-6 text-sm leading-6 text-neutral-muted shadow-sm">
           <div>
             아직 저장된 프로필 내용이 없습니다. 수정하기를 눌러 직접 입력할 수
             있습니다.
           </div>
-          <CareerActionButton
+          <ActionButton
             type="button"
             actionVariant="secondary"
             onClick={beginEditing}
@@ -2092,7 +2098,7 @@ const CareerTalentProfilePanel = ({
           >
             <Pencil className="h-3.5 w-3.5" />
             수정하기
-          </CareerActionButton>
+          </ActionButton>
         </div>
       )}
     </div>

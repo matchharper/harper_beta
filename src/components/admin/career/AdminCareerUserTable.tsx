@@ -16,6 +16,7 @@ import {
 import { Tooltips } from "@/components/ui/tooltip";
 import type { AdminCareerUserRow } from "@/lib/adminCareerAnalytics/types";
 import { ExternalLink, Info } from "lucide-react";
+import { BareButton } from "@/components/ui/button";
 
 type AdminCareerUserTableProps = {
   users: AdminCareerUserRow[];
@@ -78,7 +79,7 @@ function HeaderCell({
 }) {
   return (
     <Tooltips text={tooltip}>
-      <button
+      <BareButton
         type="button"
         className={
           align === "right"
@@ -88,7 +89,7 @@ function HeaderCell({
       >
         {label}
         <Info className="h-3 w-3 text-black/35" aria-hidden />
-      </button>
+      </BareButton>
     </Tooltips>
   );
 }

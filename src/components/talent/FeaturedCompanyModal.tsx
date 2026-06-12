@@ -2,6 +2,7 @@ import { ArrowRight, ArrowUpRight } from "lucide-react";
 import React from "react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import type { FeaturedCompanyProfile } from "./featuredCompanies";
+import { BareButton } from "@/components/ui/button";
 
 type FeaturedCompanyModalProps = {
   open: boolean;
@@ -33,17 +34,17 @@ const FeaturedCompanyModal = ({
       headerClassName="border-b-0 px-5 pt-5 pb-2"
       bodyClassName="px-5 py-0"
       footerClassName="border-t-0 px-5 pt-2 pb-5"
-      closeButtonClassName="right-4 top-4 h-8 w-8 rounded-md border-0 bg-hblack50/80 text-hblack600 hover:bg-hblack100 hover:text-beige900"
+      closeButtonClassName="right-4 top-4 h-8 w-8 rounded-md border-0 bg-neutral-200/80 text-neutral-800 hover:bg-neutral-300 hover:text-beige900"
       footer={
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
-          <button
+          <BareButton
             type="button"
             onClick={handleStartConversation}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-beige900 px-4 text-sm font-normal text-hblack000 transition-opacity hover:opacity-90"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-beige900 px-4 text-sm font-normal text-neutral-00 transition-opacity hover:opacity-90"
           >
             Harper와 대화 시작
             <ArrowRight className="h-4 w-4" />
-          </button>
+          </BareButton>
         </div>
       }
     >
@@ -52,7 +53,7 @@ const FeaturedCompanyModal = ({
           href={company.officialUrl}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex h-9 mt-1 shrink-0 items-center justify-center gap-1 rounded-full bg-hblack50 px-3.5 text-xs font-medium text-hblack800 transition-colors hover:bg-hblack100 hover:text-hblack1000"
+          className="inline-flex h-9 mt-1 shrink-0 items-center justify-center gap-1 rounded-full bg-neutral-200 px-3.5 text-xs font-medium text-neutral-900 transition-colors hover:bg-neutral-300 hover:text-neutral-1000"
         >
           공식 사이트
           <ArrowUpRight className="h-4 w-4" />
@@ -62,7 +63,7 @@ const FeaturedCompanyModal = ({
           {company.tags.map((tag) => (
             <span
               key={tag}
-              className="rounded-sm bg-hblack50 px-3 py-1.5 text-xs font-medium text-hblack700"
+              className="rounded-sm bg-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-900"
             >
               {tag}
             </span>
@@ -83,7 +84,7 @@ const FeaturedCompanyModal = ({
           </div>
         </div>
 
-        <div className="h-px bg-hblack100/80 mt-6 mb-2" />
+        <div className="h-px bg-neutral-300/80 mt-6 mb-2" />
       </div>
     </TalentCareerModal>
   );

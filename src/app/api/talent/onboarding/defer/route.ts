@@ -280,6 +280,7 @@ export async function POST(req: NextRequest) {
       assistantContent: safeAssistantContent,
       buildPrompt: (promptArgs) =>
         buildCareerInsightExtractionPrompt({
+          currentChecklistCoverage: promptArgs.currentChecklistCoverage,
           currentInsightContent: promptArgs.currentInsightContent,
         }),
       conversationId,

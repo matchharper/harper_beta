@@ -2,14 +2,7 @@ import { showToast } from "@/components/toast/toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Textarea from "@/components/ui/textarea";
 import type {
   AdminCareerFunnelStep,
@@ -17,23 +10,10 @@ import type {
   AdminCareerUtmSourceRow,
 } from "@/lib/adminCareerAnalytics/types";
 import { ADMIN_PAGE_PASSWORD } from "@/lib/admin";
-import {
-  buildCareerUtmUrl,
-  normalizeCareerUtmSource,
-} from "@/lib/careerUtm";
+import { buildCareerUtmUrl, normalizeCareerUtmSource } from "@/lib/careerUtm";
 import { cn } from "@/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Check,
-  Copy,
-  LoaderCircle,
-  Pencil,
-  Plus,
-  RefreshCw,
-  Shuffle,
-  Trash2,
-  X,
-} from "lucide-react";
+import { Check, Copy, LoaderCircle, Pencil, Plus, RefreshCw, Shuffle, Trash2, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
 type AdminCareerUtmTabProps = {
@@ -331,7 +311,7 @@ export default function AdminCareerUtmTab({
                 />
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="secondary"
                   size="icon"
                   className="h-9 w-9 rounded-none border-black/15 bg-white text-black shadow-none"
                   onClick={() => setSourceInput(createRandomSource())}
@@ -378,7 +358,7 @@ export default function AdminCareerUtmTab({
             </div>
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               size="sm"
               className="h-8 rounded-none border-black/15 bg-white text-[12px] text-black shadow-none"
               onClick={() => query.refetch()}
@@ -470,7 +450,7 @@ export default function AdminCareerUtmTab({
                                 </code>
                                 <Button
                                   type="button"
-                                  variant="outline"
+                                  variant="secondary"
                                   size="icon"
                                   className="h-7 w-7 rounded-none border-black/15 bg-white text-black shadow-none"
                                   onClick={(event) => {
@@ -509,7 +489,7 @@ export default function AdminCareerUtmTab({
                                 <>
                                   <Button
                                     type="button"
-                                    variant="outline"
+                                    variant="secondary"
                                     size="icon"
                                     className="h-7 w-7 rounded-none border-black/15 bg-white text-black shadow-none"
                                     onClick={handleUpdate}
@@ -520,7 +500,7 @@ export default function AdminCareerUtmTab({
                                   </Button>
                                   <Button
                                     type="button"
-                                    variant="outline"
+                                    variant="secondary"
                                     size="icon"
                                     className="h-7 w-7 rounded-none border-black/15 bg-white text-black shadow-none"
                                     onClick={() => setEditingId(null)}
@@ -533,7 +513,7 @@ export default function AdminCareerUtmTab({
                                 <>
                                   <Button
                                     type="button"
-                                    variant="outline"
+                                    variant="secondary"
                                     size="icon"
                                     className="h-7 w-7 rounded-none border-black/15 bg-white text-black shadow-none"
                                     onClick={() => startEditing(source)}
@@ -543,7 +523,7 @@ export default function AdminCareerUtmTab({
                                   </Button>
                                   <Button
                                     type="button"
-                                    variant="outline"
+                                    variant="secondary"
                                     size="icon"
                                     className="h-7 w-7 rounded-none border-red-200 bg-white text-red-600 shadow-none"
                                     onClick={() => handleDelete(source)}

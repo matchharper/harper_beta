@@ -7,11 +7,7 @@ import CareerSettingsModal from "@/components/career/CareerSettingsModal";
 import CareerWorkspaceScreen, {
   CareerLoadingState,
 } from "@/components/career/CareerWorkspaceScreen";
-import {
-  getCareerWorkspaceHref,
-  getCareerWorkspaceTabFromPath,
-  type CareerWorkspaceTab,
-} from "@/components/career/CareerWorkspaceNav";
+import { getCareerWorkspaceHref, getCareerWorkspaceTabFromPath, type CareerWorkspaceTab } from "@/components/career/CareerWorkspaceNav";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useCareerVisitLog } from "@/hooks/career/useCareerVisitLog";

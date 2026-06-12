@@ -87,7 +87,7 @@ const SimpleTextModal = ({
       confirmLabel={
         isLike ? (
           <div className="flex items-center gap-2">
-            <CheckIcon className="w-4 h-4 text-green-500" />
+            <CheckIcon className="w-4 h-4 text-positive" />
             관심 등록 및 연결 요청
           </div>
         ) : (
@@ -99,7 +99,9 @@ const SimpleTextModal = ({
     >
       <div className="flex flex-col gap-3">
         {/* 제목 */}
-        <div className="text-lg font-normal text-beige900">후보자 추가</div>
+        <div className="text-lg font-normal text-neutral-primary">
+          후보자 추가
+        </div>
         <div></div>
 
         <div>
@@ -107,7 +109,7 @@ const SimpleTextModal = ({
             <div
               key={customList.user_id}
               onClick={() => handleSelectCustomList(customList.user_id)}
-              className={`cursor-pointer p-1 rounded-md ${alreadyAddedList?.includes(customList.user_id) ? "bg-red-500/10 text-red-500" : selectedCustomLists?.includes(customList.user_id) ? "bg-accentBronze/20 text-beige900" : "bg-transparent"}`}
+              className={`cursor-pointer p-1 rounded-md ${alreadyAddedList?.includes(customList.user_id) ? "bg-critical-faded text-critical" : selectedCustomLists?.includes(customList.user_id) ? "bg-accent-200 text-neutral-primary" : "bg-transparent"}`}
             >
               <div>
                 {customList.name} - {customList.email} - {customList.company}

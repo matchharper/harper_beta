@@ -6,6 +6,8 @@ import type { MatchCandidateDetailResponse } from "@/lib/match/shared";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowRight, Ban, Clock3 } from "lucide-react";
 import { useState } from "react";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
+import { BareButton } from "@/components/ui/button";
 
 type MatchMemoPanelProps = {
   detail: MatchCandidateDetailResponse;
@@ -24,19 +26,19 @@ const ACTION_BUTTONS = [
     icon: ArrowRight,
     label: "연결 요청",
     status: "requested" as const,
-    tone: "bg-beige900 text-beige100 hover:bg-beige900/90",
+    tone: "bg-black text-neutral-00 hover:bg-black/90",
   },
   {
     icon: Ban,
     label: "거절",
     status: "rejected" as const,
-    tone: "text-beige900/80 hover:bg-beige50/80 hover:text-beige900",
+    tone: "text-neutral-primary hover:bg-bg-default hover:text-neutral-primary",
   },
   {
     icon: Clock3,
     label: "보류",
     status: "hold" as const,
-    tone: "text-beige900/80 hover:bg-beige50/80 hover:text-beige900",
+    tone: "text-neutral-primary hover:bg-bg-default hover:text-neutral-primary",
   },
 ];
 
@@ -85,39 +87,39 @@ export default function MatchMemoPanel({
   };
 
   return (
-    <div className="flex h-screen w-full flex-col text-beige900">
+    <div className="flex h-screen w-full flex-col text-neutral-primary">
       <div className="px-5 pb-5 pt-5">
-        <h2 className="mt-3 text-xl font-medium leading-tight text-beige900">
+        <h2 className="mt-3 text-xl font-medium leading-tight text-neutral-primary">
           {detail.role?.name ?? detail.match.roleName}
         </h2>
-        <div className="mt-3 text-sm text-beige900/55">
+        <div className="mt-3 text-sm text-neutral-muted">
           {detail.workspace.companyName}
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-beige900/45">
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-neutral-soft">
           <span>현재 상태</span>
-          <span className="text-beige900/80">
+          <span className="text-neutral-primary">
             {STATUS_COPY[detail.match.status]}
           </span>
           {detail.relatedRoles.slice(1).map((role) => (
-            <span key={role.roleId} className="text-beige900/45">
+            <span key={role.roleId} className="text-neutral-soft">
               · also for {role.name}
             </span>
           ))}
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto border-y border-beige900/8 px-5">
+      <div className="flex-1 overflow-y-auto border-y border-neutral-1000-a05 px-5">
         <section className="py-5">
-          <div className="text-sm text-beige900/45">Memo from Harper</div>
-          <div className="mt-2 whitespace-pre-wrap text-[15px] leading-8 text-beige900/80">
+          <div className="text-sm text-neutral-soft">Memo from Harper</div>
+          <div className="mt-2 whitespace-pre-wrap text-[15px] leading-8 text-neutral-primary">
             {detail.match.harperMemo?.trim() ||
               "아직 남겨진 Harper memo가 없습니다."}
           </div>
         </section>
 
-        <section className="border-t border-beige900/8 py-5">
-          <div className="text-sm text-beige900/45">최근 피드백</div>
-          <div className="mt-2 whitespace-pre-wrap text-[15px] leading-8 text-beige900/55">
+        <section className="border-t border-neutral-1000-a05 py-5">
+          <div className="text-sm text-neutral-soft">최근 피드백</div>
+          <div className="mt-2 whitespace-pre-wrap text-[15px] leading-8 text-neutral-muted">
             {detail.match.feedbackText?.trim() ||
               "아직 결정 사유가 기록되지 않았습니다."}
           </div>
@@ -134,8 +136,8 @@ export default function MatchMemoPanel({
               exit={{ opacity: 0, y: 16 }}
               className="space-y-4"
             >
-              <div className="text-sm text-beige900/80">
-                <span className="font-medium text-beige900">
+              <div className="text-sm text-neutral-primary">
+                <span className="font-medium text-neutral-primary">
                   {
                     ACTION_BUTTONS.find((item) => item.status === draftStatus)
                       ?.label
@@ -143,32 +145,33 @@ export default function MatchMemoPanel({
                 </span>{" "}
                 사유를 남겨주세요.
               </div>
-              <textarea
+              <UiTextarea
+                unstyled
                 rows={4}
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
-                className="w-full resize-none rounded-[14px] border border-beige900/8 bg-beige50 px-4 py-3 text-sm text-beige900 outline-none placeholder:text-beige900/35 transition hover:border-beige900/15 focus:border-beige900/20"
+                className="w-full resize-none rounded-[14px] border border-neutral-1000-a05 bg-bg-default px-4 py-3 text-sm text-neutral-primary outline-none placeholder:text-neutral-placeholder transition hover:border-neutral-1000-a10 focus:border-neutral-1000-a10"
                 placeholder="후보자와 연결을 요청하거나, 거절하거나, 보류하는 이유를 적어주세요."
               />
               <div className="flex items-center justify-end gap-3">
-                <button
+                <BareButton
                   type="button"
                   onClick={() => {
                     setDraftStatus(null);
                     setReason("");
                   }}
-                  className="rounded-md px-3 py-2 text-sm text-beige900/55 transition hover:bg-beige50/80 hover:text-beige900"
+                  className="rounded-md px-3 py-2 text-sm text-neutral-muted transition hover:bg-bg-default hover:text-neutral-primary"
                 >
                   취소
-                </button>
-                <button
+                </BareButton>
+                <BareButton
                   type="button"
                   onClick={() => void confirmDecision()}
                   disabled={updateDecision.isPending}
-                  className="rounded-md bg-beige900 px-4 py-2.5 text-sm font-medium text-beige100 transition hover:bg-beige900/90 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-md bg-black px-4 py-2.5 text-sm font-medium text-neutral-00 transition hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {updateDecision.isPending ? "저장 중..." : "사유와 함께 저장"}
-                </button>
+                </BareButton>
               </div>
             </motion.div>
           ) : (
@@ -182,7 +185,7 @@ export default function MatchMemoPanel({
               {ACTION_BUTTONS.map((action) => {
                 const Icon = action.icon;
                 return (
-                  <button
+                  <BareButton
                     key={action.status}
                     type="button"
                     onClick={() => setDraftStatus(action.status)}
@@ -190,7 +193,7 @@ export default function MatchMemoPanel({
                   >
                     <Icon size={15} />
                     {action.label}
-                  </button>
+                  </BareButton>
                 );
               })}
             </motion.div>

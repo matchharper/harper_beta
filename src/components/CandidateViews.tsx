@@ -48,6 +48,7 @@ import {
 import { useLogEvent } from "@/hooks/useLog";
 import { useRevealCandidateProfiles } from "@/hooks/useRevealCandidateProfile";
 import { showToast } from "./toast/toast";
+import { BareButton } from "@/components/ui/button";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
 
@@ -170,7 +171,9 @@ const CandidateViews = ({
     markStatusOverridesByCandidateId,
     setMarkStatusOverridesByCandidateId,
   ] = useState<Record<string, CandidateMarkStatus | null>>({});
-  const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
+  const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>(
+    []
+  );
   const transparentDragImageRef = useRef<HTMLCanvasElement | null>(null);
   const logEvent = useLogEvent();
   const bulkRevealMutation = useRevealCandidateProfiles();
@@ -621,7 +624,7 @@ const CandidateViews = ({
                 {unopenedCandidateCount > 0 && (
                   <>
                     {hasCheckedCandidates ? (
-                      <button
+                      <BareButton
                         type="button"
                         onClick={() => {
                           setSelectedCandidateIds([]);
@@ -635,11 +638,11 @@ const CandidateViews = ({
                         }`}
                       >
                         <X className="h-3.5 w-3.5" />
-                      </button>
+                      </BareButton>
                     ) : null}
                     <Tooltips text={selectionDisabledReason}>
                       <span className="inline-flex">
-                        <button
+                        <BareButton
                           type="button"
                           onClick={() => {
                             void handleBulkOpenProfiles();
@@ -650,7 +653,7 @@ const CandidateViews = ({
                           className={`inline-flex flex-row gap-2 items-center justify-center rounded-lg px-2.5 py-1.5 text-xs font-normal transition duration-200 disabled:cursor-not-allowed disabled:opacity-40 ${
                             isDark
                               ? hasCheckedCandidates
-                                ? "border border-accenta1 bg-accenta1 text-black hover:opacity-90"
+                                ? "border border-accent-200 bg-accent-200 text-black hover:opacity-90"
                                 : "border border-white/80 bg-linear-to-br from-white/85 via-white/75 to-white/70 text-black hover:bg-white"
                               : hasCheckedCandidates
                                 ? "border border-beige900 bg-beige900 text-beige100 hover:opacity-90"
@@ -669,7 +672,7 @@ const CandidateViews = ({
                                 ? `${checkedCandidateCount}개 열람하기`
                                 : `${unopenedCandidateCount}개 체크하기`}
                           </span>
-                        </button>
+                        </BareButton>
                       </span>
                     </Tooltips>
                   </>
@@ -684,12 +687,12 @@ const CandidateViews = ({
                 sideOffset={10}
                 contentClassName={
                   isDark
-                    ? "w-[240px] border-white/10 bg-hgray200 text-white shadow-2xl"
+                    ? "w-[240px] border-white/10 bg-neutral-900 text-white shadow-2xl"
                     : "w-[240px] border-beige900/10 bg-beige100 text-beige900 shadow-2xl"
                 }
                 modal={false}
                 trigger={
-                  <button
+                  <BareButton
                     type="button"
                     className={`inline-flex h-8 items-center gap-2 rounded-lg px-3 text-sm transition-colors duration-200 ${
                       isDark
@@ -706,7 +709,7 @@ const CandidateViews = ({
                     >
                       {appliedFilterSummary}
                     </span>
-                  </button>
+                  </BareButton>
                 }
               >
                 <div
@@ -729,7 +732,7 @@ const CandidateViews = ({
                   !draftExcludeUnopenedProfiles ? (
                     <span
                       className={`ml-auto text-[11px] ${
-                        isDark ? "text-accenta1" : "text-accentBronze"
+                        isDark ? "text-accent-200" : "text-primary"
                       }`}
                     >
                       선택됨
@@ -775,7 +778,7 @@ const CandidateViews = ({
                 ))}
                 <ActionDropdownSeparator />
                 <div className="flex items-center justify-end gap-2 px-1 py-1">
-                  <button
+                  <BareButton
                     type="button"
                     onClick={() => {
                       setDraftExcludedStatuses(appliedExcludedStatuses);
@@ -791,19 +794,19 @@ const CandidateViews = ({
                     }`}
                   >
                     취소
-                  </button>
-                  <button
+                  </BareButton>
+                  <BareButton
                     type="button"
                     onClick={applyExcludedMarkFilter}
                     disabled={!hasPendingFilterChanges}
                     className={`inline-flex h-8 items-center justify-center rounded-md px-3 text-xs font-medium transition duration-200 hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40 ${
                       isDark
-                        ? "bg-accenta1 text-black"
+                        ? "bg-accent-200 text-black"
                         : "bg-beige900 text-beige100"
                     }`}
                   >
                     적용
-                  </button>
+                  </BareButton>
                 </div>
               </ActionDropdown>
             ) : null}
@@ -825,7 +828,7 @@ const CandidateViews = ({
                 }}
               />
               <Tooltips text="Table view">
-                <button
+                <BareButton
                   type="button"
                   className={`relative z-10 flex h-8 w-9 items-center justify-center rounded-lg transition-colors duration-200 ${
                     isDark
@@ -835,10 +838,10 @@ const CandidateViews = ({
                   onClick={() => changeViewType("table")}
                 >
                   <Table className="h-4 w-4" strokeWidth={1.6} />
-                </button>
+                </BareButton>
               </Tooltips>
               <Tooltips text="Card view">
-                <button
+                <BareButton
                   type="button"
                   className={`relative z-10 flex h-8 w-9 items-center justify-center rounded-lg transition-colors duration-200 ${
                     isDark
@@ -848,7 +851,7 @@ const CandidateViews = ({
                   onClick={() => changeViewType("card")}
                 >
                   <Columns2 className="h-4 w-4" strokeWidth={1.6} />
-                </button>
+                </BareButton>
               </Tooltips>
             </div>
           </div>
@@ -871,7 +874,7 @@ const CandidateViews = ({
           {canUseMarkFilter &&
           (appliedExcludedStatuses.length > 0 ||
             appliedExcludeUnopenedProfiles) ? (
-            <button
+            <BareButton
               type="button"
               onClick={resetExcludedMarkFilter}
               className={`inline-flex h-9 items-center justify-center rounded-lg px-4 text-sm transition-colors duration-200 ${
@@ -881,7 +884,7 @@ const CandidateViews = ({
               }`}
             >
               전체보기로 되돌리기
-            </button>
+            </BareButton>
           ) : null}
         </div>
       )}
@@ -898,7 +901,7 @@ const CandidateViews = ({
               <div
                 className={`inline-grid items-center py-2 text-xs font-light w-full relative ${
                   isDark
-                    ? "text-hgray800 bg-hgray200 border-y border-white/5"
+                    ? "text-neutral-300 bg-neutral-900 border-y border-white/5"
                     : "text-beige900/80 bg-beige100 border-y border-beige900/8"
                 }`}
                 style={{ gridTemplateColumns }}
@@ -906,14 +909,14 @@ const CandidateViews = ({
                 <div
                   className={`sticky left-0 z-30 w-full h-full ${
                     isDark
-                      ? "bg-hgray200 border-r border-white/5"
+                      ? "bg-neutral-900 border-r border-white/5"
                       : "bg-beige100 border-r border-beige900/8"
                   }`}
                 />
                 <div
                   className={`sticky left-14 z-30 px-4 ${
                     isDark
-                      ? "bg-hgray200 border-r border-white/5"
+                      ? "bg-neutral-900 border-r border-white/5"
                       : "bg-beige100 border-r border-beige900/8"
                   }`}
                 >
@@ -944,7 +947,7 @@ const CandidateViews = ({
                         {isDragOverTarget && (
                           <span
                             className={`pointer-events-none absolute left-0 top-0 h-full w-[2px] ${
-                              isDark ? "bg-accenta1" : "bg-beige900"
+                              isDark ? "bg-accent-200" : "bg-beige900"
                             }`}
                           />
                         )}
@@ -960,7 +963,7 @@ const CandidateViews = ({
                         {column.draggable && (
                           <span
                             className={`absolute right-2 top-1/2 -translate-y-1/2 ${
-                              isDark ? "text-hgray700/80" : "text-beige900/55"
+                              isDark ? "text-neutral-500/80" : "text-beige900/55"
                             }`}
                           >
                             <GripVertical className="w-3 h-3" />
@@ -972,7 +975,7 @@ const CandidateViews = ({
                             onClick={toggleFold}
                             className={`absolute top-[-8px] right-0 p-0.5 rounded-bl-lg cursor-pointer h-4 w-4 transition-colors duration-200 ${
                               isDark
-                                ? "bg-hgray300 hover:bg-hgray400"
+                                ? "bg-neutral-900 hover:bg-neutral-800"
                                 : "bg-beige500/70 hover:bg-beige500/90"
                             }`}
                           >
@@ -997,14 +1000,12 @@ const CandidateViews = ({
                       onDragEnd={onDragEnd}
                       className={`relative px-4 flex items-center justify-between gap-2 border-r ${
                         isDark ? "border-white/5" : "border-beige900/8"
-                      } ${
-                        column.draggable ? "cursor-grab" : "cursor-default"
-                      }`}
+                      } ${column.draggable ? "cursor-grab" : "cursor-default"}`}
                     >
                       {isDragOverTarget && (
                         <span
                           className={`pointer-events-none absolute left-0 top-0 h-full w-[2px] ${
-                            isDark ? "bg-accenta1" : "bg-beige900"
+                            isDark ? "bg-accent-200" : "bg-beige900"
                           }`}
                         />
                       )}
@@ -1012,7 +1013,7 @@ const CandidateViews = ({
                       {column.draggable && (
                         <span
                           className={
-                            isDark ? "text-hgray900/50" : "text-beige900/45"
+                            isDark ? "text-neutral-200/50" : "text-beige900/45"
                           }
                         >
                           <GripVertical className="w-3 h-3" />
@@ -1042,7 +1043,9 @@ const CandidateViews = ({
                     showMarkAction={shouldShowMarkAction}
                     showSelectionControl={canSelectUnopenedProfiles}
                     selectionDisabled={isSelectionDisabled}
-                    isSelected={selectedCandidateIds.includes(String(c?.id ?? ""))}
+                    isSelected={selectedCandidateIds.includes(
+                      String(c?.id ?? "")
+                    )}
                     onToggleSelection={() => {
                       handleToggleCandidateSelection(String(c?.id ?? ""));
                     }}

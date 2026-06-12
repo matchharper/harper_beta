@@ -2,6 +2,9 @@
 
 import React from "react";
 
+import { ClickablePanel } from "@/components/ui/clickable-panel";
+import { Input as UiInput } from "@/components/ui/input";
+
 const MultiSelects = ({
   selects,
   setSelects,
@@ -47,37 +50,38 @@ const MultiSelects = ({
   return (
     <div className="flex flex-row gap-2 flex-wrap">
       {options.map((option, index) => (
-        <div
+        <ClickablePanel
           key={option}
-          onClick={() => {
+          onActivate={() => {
             setIsDirty(true);
             handleSelect(option);
           }}
           className={`flex flex-row transition-all duration-200 items-center gap-2 cursor-pointer border-2 py-2 px-3 min-w-[160px] md:min-w-[200px] rounded-[4px]
               ${
                 selects.includes(option)
-                  ? "bg-brightnavy/20  hover:bg-brightnavy/20 border-brightnavy"
-                  : "bg-brightnavy/5  hover:bg-brightnavy/30 active:border-brightnavy border-brightnavy/10"
+                  ? "bg-info-faded  hover:bg-info-faded border-info/30"
+                  : "bg-bg-floating  hover:bg-info-faded active:border-info/30 border-info/30"
               }
               `}
         >
           {showOptionNumbers && index < 9 ? (
-            <span className="inline-flex items-center justify-center w-5 h-5 rounded-[4px] border border-xgray300 bg-white text-[11px] font-semibold text-xgray700">
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-[4px] border border-neutral-1000-a05 bg-bg-default text-[11px] font-semibold text-neutral-muted">
               {index + 1}
             </span>
           ) : null}
           <span>{option}</span>
-        </div>
+        </ClickablePanel>
       ))}
 
       {selects.includes(otherOptionLabel) && (
-        <input
+        <UiInput
+          unstyled
           type="text"
           value={selects[selects.length - 1]}
           onChange={handleOtherChange}
           onClick={(e) => e.stopPropagation()} // 클릭해도 카드 토글 안 되게
           placeholder={otherPlaceholder}
-          className="transition-colors duration-200 mt-2 focus:border-b focus:border-brightnavy w-full px-0.5 py-2 border-b border-xgray400 text-base font-normal leading-5 focus:outline-none outline-none"
+          className="transition-colors duration-200 mt-2 focus:border-b focus:border-info/30 w-full px-0.5 py-2 border-b border-neutral-400 text-base font-normal leading-5 focus:outline-none outline-none"
         />
       )}
     </div>

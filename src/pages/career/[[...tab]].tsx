@@ -1,9 +1,6 @@
 import type { GetStaticPaths, GetStaticProps } from "next";
 import CareerWorkspacePage from "@/components/career/CareerWorkspacePage";
-import {
-  isCareerWorkspaceTab,
-  type CareerWorkspaceTab,
-} from "@/components/career/CareerWorkspaceNav";
+import { isCareerWorkspaceTab, type CareerWorkspaceTab } from "@/components/career/CareerWorkspaceNav";
 
 type CareerTabPageProps = {
   activeTab: CareerWorkspaceTab;

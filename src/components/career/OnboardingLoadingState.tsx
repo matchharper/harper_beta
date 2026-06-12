@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import { Check, FileText, Linkedin, MessageCircle, Search } from "lucide-react";
 import React from "react";
 import { useEffect, useState } from "react";
@@ -50,7 +50,7 @@ const SkeletonLine = ({
   delay?: number;
 }) => (
   <div
-    className={`relative overflow-hidden rounded-full bg-beige900/6 ${className}`}
+    className={`relative overflow-hidden rounded-full bg-black/6 ${className}`}
   >
     <motion.div
       className="absolute inset-y-0 w-1/2 rounded-full bg-gradient-to-r from-white/0 via-white/80 to-white/0"
@@ -74,11 +74,11 @@ const StepProgressBar = ({
   duration: number;
 }) => {
   return (
-    <div className="h-1.5 w-24 overflow-hidden rounded-full bg-beige900/[0.07]">
+    <div className="h-1.5 w-24 overflow-hidden rounded-full bg-black/[0.07]">
       {isActive && (
         <motion.div
           key={duration}
-          className="h-full rounded-full bg-xprimary"
+          className="h-full rounded-full bg-primary"
           initial={{ width: "0%" }}
           animate={{ width: "100%" }}
           transition={{
@@ -94,32 +94,32 @@ const StepProgressBar = ({
 const ProfilePreview = ({ activeStep }: { activeStep: number }) => {
   return (
     <div className="relative w-full max-w-[520px]">
-      <div className="absolute inset-0 translate-y-3 rounded-[32px] bg-beige900/4" />
+      <div className="absolute inset-0 translate-y-3 rounded-[32px] bg-black/4" />
 
-      <div className="relative overflow-hidden rounded-[32px] border border-beige900/8 bg-white/90 p-5 text-left shadow-2xl shadow-black/5 backdrop-blur-xl md:p-6">
-        <div className="flex items-center justify-between border-b border-beige900/[0.07] pb-4">
+      <div className="relative overflow-hidden rounded-[32px] border border-neutral-1000-a05 bg-bg-floating/90 p-5 text-left shadow-2xl shadow-black/5 backdrop-blur-xl md:p-6">
+        <div className="flex items-center justify-between border-b border-neutral-1000-a05 pb-4">
           <div>
-            <p className="text-xs font-medium tracking-[-0.01em] text-beige900/40">
+            <p className="text-xs font-medium tracking-[-0.01em] text-neutral-soft">
               Harper profile
             </p>
-            <p className="mt-1 text-sm font-semibold tracking-[-0.02em] text-beige900/70">
+            <p className="mt-1 text-sm font-semibold tracking-[-0.02em] text-neutral-muted">
               Preparing your first conversation
             </p>
           </div>
 
-          <div className="flex items-center gap-1.5 rounded-full bg-beige900/4 px-3 py-1.5">
+          <div className="flex items-center gap-1.5 rounded-full bg-black/4 px-3 py-1.5">
             <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-xprimary/50" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-xprimary" />
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/50" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
             </span>
-            <span className="text-xs font-medium text-beige900/45">
+            <span className="text-xs font-medium text-neutral-soft">
               Working
             </span>
           </div>
         </div>
 
         <div className="mt-6 flex items-start gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-beige900/6">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-black/6">
             <SkeletonLine className="h-6 w-6 rounded-xl" />
           </div>
 
@@ -130,12 +130,12 @@ const ProfilePreview = ({ activeStep }: { activeStep: number }) => {
         </div>
 
         <div className="mt-7 space-y-4">
-          <div className="rounded-2xl border border-beige900/6 bg-white/[0.28] p-4">
+          <div className="rounded-2xl border border-neutral-1000-a05 bg-bg-floating p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between">
-              <p className="text-xs font-semibold text-beige900/40">
+              <p className="text-xs font-semibold text-neutral-soft">
                 Career signals
               </p>
-              {activeStep >= 1 && <Check className="h-4 w-4 text-xprimary" />}
+              {activeStep >= 1 && <Check className="h-4 w-4 text-primary" />}
             </div>
 
             <SkeletonLine className="h-3 w-full" delay={0.1} />
@@ -143,12 +143,12 @@ const ProfilePreview = ({ activeStep }: { activeStep: number }) => {
             <SkeletonLine className="mt-2.5 h-3 w-[64%]" delay={0.3} />
           </div>
 
-          <div className="rounded-2xl border border-beige900/6 bg-white/[0.28] p-4">
+          <div className="rounded-2xl border border-neutral-1000-a05 bg-bg-floating p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between">
-              <p className="text-xs font-semibold text-beige900/40">
+              <p className="text-xs font-semibold text-neutral-soft">
                 Preferred companies
               </p>
-              {activeStep >= 2 && <Check className="h-4 w-4 text-xprimary" />}
+              {activeStep >= 2 && <Check className="h-4 w-4 text-primary" />}
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -158,12 +158,12 @@ const ProfilePreview = ({ activeStep }: { activeStep: number }) => {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-beige900/6 bg-white/[0.28] p-4">
+          <div className="rounded-2xl border border-neutral-1000-a05 bg-bg-floating p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between">
-              <p className="text-xs font-semibold text-beige900/40">
+              <p className="text-xs font-semibold text-neutral-soft">
                 Conversation context
               </p>
-              {activeStep >= 4 && <Check className="h-4 w-4 text-xprimary" />}
+              {activeStep >= 4 && <Check className="h-4 w-4 text-primary" />}
             </div>
 
             <SkeletonLine className="h-3 w-[92%]" delay={0.05} />
@@ -171,9 +171,9 @@ const ProfilePreview = ({ activeStep }: { activeStep: number }) => {
           </div>
         </div>
 
-        <div className="mt-6 h-1.5 overflow-hidden rounded-full bg-beige900/6">
+        <div className="mt-6 h-1.5 overflow-hidden rounded-full bg-black/6">
           <motion.div
-            className="h-full rounded-full bg-beige900/70"
+            className="h-full rounded-full bg-black/70"
             animate={{
               width: `${((activeStep + 1) / steps.length) * 100}%`,
             }}
@@ -214,37 +214,33 @@ const LoadingState = ({ isOnboarding = true }: { isOnboarding?: boolean }) => {
       className={`relative mx-auto flex w-full max-w-[980px] flex-col items-center justify-center overflow-hidden px-4 py-10 ${isOnboarding ? "min-h-[calc(100svh-8px)]" : ""}`}
     >
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-1/2 top-1/2 h-[520px] w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-beige900/[0.035] blur-3xl" />
-        <div className="absolute left-[12%] top-[18%] h-48 w-48 rounded-full bg-xprimary/5.5 blur-3xl" />
+        <div className="absolute left-1/2 top-1/2 h-[520px] w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/[0.035] blur-3xl" />
+        <div className="absolute left-[12%] top-[18%] h-48 w-48 rounded-full bg-accent-200/50 blur-3xl" />
       </div>
 
       <div className="relative z-10 grid w-full items-center gap-10 md:grid-cols-[1fr_520px] md:gap-12">
         <div className="text-center md:text-left">
-          <div className="mx-auto mb-5 flex w-fit items-center gap-2 rounded-full border border-beige900/8 bg-white/70 px-3 py-1.5 text-xs font-medium text-beige900/45 backdrop-blur md:mx-0">
+          <div className="mx-auto mb-5 flex w-fit items-center gap-2 rounded-full border border-neutral-1000-a05 bg-bg-floating px-3 py-1.5 text-xs font-medium text-neutral-soft shadow-sm backdrop-blur md:mx-0">
             <ActiveIcon className="h-3.5 w-3.5" />
             <span>Harper is coming</span>
-            <span className="min-w-[4ch] font-mono tabular-nums text-beige900/35">
+            <span className="min-w-[4ch] font-mono tabular-nums text-neutral-disabled">
               {formatElapsedTime(elapsedSeconds)}
             </span>
           </div>
 
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeStep}
-              initial={{ opacity: 0, y: 8, filter: "blur(6px)" }}
-              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-              exit={{ opacity: 0, y: -8, filter: "blur(6px)" }}
-              transition={{ duration: 0.35, ease: "easeOut" }}
-            >
-              <h1 className="text-xl font-semibold leading-tight tracking-[-0.045em] text-beige900 md:text-2xl">
-                {steps[activeStep].title}
-              </h1>
+          <motion.div
+            initial={{ opacity: 0, y: 8, filter: "blur(6px)" }}
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            transition={{ duration: 0.35, ease: "easeOut" }}
+          >
+            <h1 className="text-xl font-semibold leading-tight tracking-[-0.045em] text-neutral-primary md:text-2xl">
+              <span>{steps[activeStep].title}</span>
+            </h1>
 
-              <p className="mt-3 max-w-[520px] text-base font-medium leading-7 tracking-tight text-beige900/55 md:text-lg md:leading-8">
-                {steps[activeStep].description}
-              </p>
-            </motion.div>
-          </AnimatePresence>
+            <p className="mt-3 max-w-[520px] text-base font-medium leading-7 tracking-tight text-neutral-muted md:text-lg md:leading-8">
+              <span>{steps[activeStep].description}</span>
+            </p>
+          </motion.div>
 
           <div className="mt-8 space-y-3">
             {steps.map((step, index) => {
@@ -264,10 +260,10 @@ const LoadingState = ({ isOnboarding = true }: { isOnboarding?: boolean }) => {
                     className={[
                       "flex h-7 w-7 items-center justify-center rounded-full transition-colors",
                       isDone
-                        ? "bg-xprimary/10 text-xprimary"
+                        ? "bg-accent-200 text-primary"
                         : isActive
-                          ? "bg-beige900 text-white"
-                          : "bg-beige900/6 text-beige900/40",
+                          ? "bg-black text-neutral-00"
+                          : "bg-black/6 text-neutral-soft",
                     ].join(" ")}
                   >
                     {isDone ? (
@@ -277,7 +273,7 @@ const LoadingState = ({ isOnboarding = true }: { isOnboarding?: boolean }) => {
                     )}
                   </div>
 
-                  <span className="text-left text-sm font-medium tracking-[-0.02em] text-beige900/55">
+                  <span className="text-left text-sm font-medium tracking-[-0.02em] text-neutral-muted">
                     {step.title}
                   </span>
 
@@ -290,9 +286,9 @@ const LoadingState = ({ isOnboarding = true }: { isOnboarding?: boolean }) => {
             })}
           </div>
 
-          <p className="mt-8 max-w-[520px] text-sm leading-6 text-beige900/40">
+          <p className="mt-8 max-w-[520px] text-sm leading-6 text-neutral-soft">
             보통{" "}
-            <span className="text-beige900">
+            <span className="text-neutral-primary">
               1분 정도 걸리고, 길어도 2분 안에 끝나요.
             </span>{" "}
             확인이 끝나면 Harper와 짧게 대화하면서 현재 상황과 원하는 기회를

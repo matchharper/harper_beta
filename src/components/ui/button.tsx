@@ -1,29 +1,34 @@
-import * as React from "react"
-import { Slot } from "@radix-ui/react-slot"
-import { cva, type VariantProps } from "class-variance-authority"
+import * as React from "react";
+import { Slot } from "@radix-ui/react-slot";
+import { cva, type VariantProps } from "class-variance-authority";
+import { motion, type HTMLMotionProps } from "motion/react";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium outline-none transition-[background-color,border-color,color,opacity,transform] duration-150 focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-55 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground shadow hover:bg-primary/90",
-        destructive:
-          "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
-        outline:
-          "border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground",
+          "border border-neutral-1000-a10 bg-bg-floating text-neutral-primary hover:border-neutral-400 hover:bg-bg-weak",
+        primary:
+          "border border-primary bg-primary text-neutral-00 hover:bg-primary/90",
+        black:
+          "border border-black bg-black text-neutral-00 hover:bg-neutral-900",
         secondary:
-          "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 hover:underline",
+          "border border-neutral-1000-a05 bg-bg-floating text-neutral-primary hover:border-neutral-1000-a10 hover:bg-bg-weak",
+        critical:
+          "border border-critical bg-critical text-neutral-00 hover:bg-critical/90",
+        positive:
+          "border border-positive bg-positive text-neutral-00 hover:bg-positive/90",
       },
       size: {
         default: "h-9 px-4 py-2",
         sm: "h-8 rounded-md px-3 text-xs",
-        lg: "h-10 rounded-md px-8",
+        md: "h-9 px-4 py-2 text-sm",
+        lg: "h-11 rounded-md px-5 text-base",
+        xl: "h-12 rounded-lg px-6 text-base",
         icon: "h-9 w-9",
       },
     },
@@ -32,26 +37,387 @@ const buttonVariants = cva(
       size: "default",
     },
   }
-)
+);
 
 export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+  extends
+    React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
-  asChild?: boolean
+  asChild?: boolean;
 }
+
+export interface BareButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  asChild?: boolean;
+}
+
+const BareButton = React.forwardRef<HTMLButtonElement, BareButtonProps>(
+  ({ asChild = false, className, ...props }, ref) => {
+    const Comp = asChild ? Slot : "button";
+
+    return <Comp ref={ref} className={className} {...props} />;
+  }
+);
+BareButton.displayName = "BareButton";
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, ...props }, ref) => {
-    const Comp = asChild ? Slot : "button"
+    const Comp = asChild ? Slot : "button";
     return (
       <Comp
         className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
         {...props}
       />
-    )
+    );
   }
-)
-Button.displayName = "Button"
+);
+Button.displayName = "Button";
 
-export { Button, buttonVariants }
+export type IconButtonProps = Omit<ButtonProps, "children" | "size"> & {
+  "aria-label": string;
+  icon?: React.ReactNode;
+  size?: "sm" | "default" | "md" | "lg" | "xl" | "icon";
+};
+
+const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(
+  ({ className, icon, size = "icon", ...props }, ref) => (
+    <Button
+      ref={ref}
+      size={size === "icon" ? "icon" : size}
+      className={cn(size !== "icon" && "aspect-square px-0", className)}
+      {...props}
+    >
+      {icon}
+    </Button>
+  )
+);
+IconButton.displayName = "IconButton";
+
+type ActionButtonVariant = "primary" | "secondary" | "icon";
+type ActionButtonRadius = "pill" | "rounded";
+
+export type ActionButtonProps = Omit<ButtonProps, "size" | "variant"> & {
+  active?: boolean;
+  actionVariant?: ActionButtonVariant;
+  buttonRadius?: ActionButtonRadius;
+};
+
+const actionButtonVariantClassName: Record<ActionButtonVariant, string> = {
+  primary:
+    "h-11 border border-primary bg-primary px-5 text-[14px] text-neutral-00 hover:bg-primary/90 hover:text-neutral-00",
+  secondary:
+    "h-10 border border-neutral-1000-a10 bg-bg-floating px-4 text-[13px] text-neutral-primary hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary",
+  icon: "h-10 w-10 border border-neutral-1000-a10 bg-bg-floating p-0 text-neutral-primary hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary",
+};
+
+const actionButtonActiveClassName: Partial<
+  Record<ActionButtonVariant, string>
+> = {
+  secondary:
+    "bg-primary text-neutral-00 hover:bg-primary/90 hover:text-neutral-00 hover:border-primary/10",
+};
+
+const actionButtonRadiusClassName: Record<ActionButtonRadius, string> = {
+  pill: "rounded-full",
+  rounded: "rounded-lg",
+};
+
+const ActionButton = React.forwardRef<HTMLButtonElement, ActionButtonProps>(
+  (
+    {
+      active = false,
+      actionVariant = "secondary",
+      asChild = false,
+      buttonRadius,
+      className,
+      type,
+      ...props
+    },
+    ref
+  ) => {
+    const resolvedRadius =
+      buttonRadius ?? (actionVariant === "icon" ? "rounded" : "pill");
+    const resolvedType = type ?? (asChild ? undefined : "button");
+
+    return (
+      <Button
+        ref={ref}
+        type={resolvedType}
+        variant="secondary"
+        asChild={asChild}
+        className={cn(
+          "gap-2 whitespace-nowrap font-medium transition-all duration-150 ease-out hover:-translate-y-px disabled:pointer-events-auto disabled:cursor-not-allowed disabled:opacity-60",
+          actionButtonVariantClassName[actionVariant],
+          actionButtonRadiusClassName[resolvedRadius],
+          active &&
+            (actionButtonActiveClassName[actionVariant] ??
+              actionButtonVariantClassName[actionVariant]),
+          className
+        )}
+        {...props}
+      />
+    );
+  }
+);
+ActionButton.displayName = "ActionButton";
+
+export type InteractiveCardProps = Omit<CardButtonProps, "selected">;
+
+export type CardButtonProps = Omit<ButtonProps, "variant"> & {
+  selected?: boolean;
+};
+
+const CardButton = React.forwardRef<HTMLButtonElement, CardButtonProps>(
+  ({ className, selected = false, type = "button", ...props }, ref) => (
+    <Button
+      ref={ref}
+      type={type}
+      variant="default"
+      className={cn(
+        "h-auto w-full justify-start whitespace-normal rounded-lg px-4 py-4 text-left",
+        selected
+          ? "border-neutral-800 bg-bg-weak text-neutral-primary outline outline-[0.5px] outline-neutral-800 hover:border-neutral-800 hover:bg-bg-weak"
+          : "border-neutral-1000-a10 bg-bg-floating text-neutral-primary hover:border-neutral-400 hover:bg-bg-weak",
+        className
+      )}
+      {...props}
+    />
+  )
+);
+CardButton.displayName = "CardButton";
+
+const InteractiveCard = React.forwardRef<
+  HTMLButtonElement,
+  InteractiveCardProps
+>(({ className, type = "button", ...props }, ref) => (
+  <CardButton
+    ref={ref}
+    type={type}
+    className={cn(
+      "h-auto w-full justify-start whitespace-normal px-4 py-4 text-left",
+      className
+    )}
+    {...props}
+  />
+));
+InteractiveCard.displayName = "InteractiveCard";
+
+export type ChoiceCardProps = Omit<
+  ActionButtonProps,
+  "actionVariant" | "active" | "buttonRadius"
+> & {
+  selected?: boolean;
+};
+
+const ChoiceCard = React.forwardRef<HTMLButtonElement, ChoiceCardProps>(
+  ({ className, selected = false, type = "button", ...props }, ref) => (
+    <CardButton
+      ref={ref}
+      type={type}
+      selected={selected}
+      className={cn(
+        "h-auto justify-start whitespace-normal px-4 py-3 text-left",
+        className
+      )}
+      {...props}
+    />
+  )
+);
+ChoiceCard.displayName = "ChoiceCard";
+
+export type AnimatedButtonVariant =
+  | "default"
+  | "primary"
+  | "black"
+  | "secondary"
+  | "critical"
+  | "positive";
+export type AnimatedButtonSize = "sm" | "md" | "lg" | "icon";
+
+export type AnimatedButtonProps = Omit<
+  HTMLMotionProps<"button">,
+  "children"
+> & {
+  animate?: boolean;
+  children?: React.ReactNode;
+  icon?: React.ReactNode;
+  label?: React.ReactNode;
+  size?: AnimatedButtonSize;
+  variant?: AnimatedButtonVariant;
+};
+
+const animatedButtonVariantClassNames: Record<AnimatedButtonVariant, string> = {
+  default:
+    "border border-neutral-1000-a10 bg-bg-floating text-neutral-primary hover:border-neutral-400 hover:bg-bg-weak",
+  primary:
+    "border border-primary bg-primary text-neutral-00 hover:bg-primary/90",
+  black: "border border-black bg-black text-neutral-00 hover:bg-neutral-900",
+  secondary:
+    "border border-neutral-1000-a05 bg-bg-floating text-neutral-primary hover:border-neutral-1000-a10 hover:bg-bg-weak",
+  critical:
+    "border border-critical bg-critical text-neutral-00 hover:bg-critical/90",
+  positive:
+    "border border-positive bg-positive text-neutral-00 hover:bg-positive/90",
+};
+
+function getAnimatedButtonSizeClassName(size: AnimatedButtonSize) {
+  if (size === "icon") return "h-10 w-10 p-0";
+  if (size === "lg") return "h-12 px-6 text-base";
+  if (size === "sm") return "h-[42px] px-4 text-[14px]";
+  return "h-[44px] px-4 text-base";
+}
+
+function getAnimatedButtonRowClassName(size: AnimatedButtonSize) {
+  if (size === "lg") return "h-12";
+  if (size === "icon") return "h-10";
+  return "h-[44px]";
+}
+
+const AnimatedButton = React.forwardRef<HTMLButtonElement, AnimatedButtonProps>(
+  (
+    {
+      animate = false,
+      children,
+      className,
+      disabled,
+      icon,
+      label,
+      size = "md",
+      type = "button",
+      variant = "primary",
+      ...props
+    },
+    ref
+  ) => {
+    const rowHeightClassName = getAnimatedButtonRowClassName(size);
+    const content = label ?? children;
+    const renderContent = () => (
+      <>
+        {icon ? (
+          <span className="flex shrink-0 items-center">{icon}</span>
+        ) : null}
+        {content ? <span className="leading-none">{content}</span> : null}
+      </>
+    );
+
+    return (
+      <motion.button
+        ref={ref}
+        type={type}
+        disabled={disabled}
+        whileHover={disabled ? undefined : { y: -1 }}
+        whileTap={disabled ? undefined : { scale: 0.985 }}
+        className={cn(
+          "group relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-[8px] font-medium tracking-normal outline-none transition-[background-color,border-color,opacity] duration-200 focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-basement disabled:cursor-not-allowed disabled:opacity-60",
+          animatedButtonVariantClassNames[variant],
+          getAnimatedButtonSizeClassName(size),
+          className
+        )}
+        {...props}
+      >
+        {variant === "secondary" ? (
+          <span className="absolute inset-0 bg-white/10 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+        ) : null}
+        {animate ? (
+          <span className="relative flex h-full items-start overflow-hidden">
+            <span
+              className="flex flex-col transition-transform duration-500 group-hover:-translate-y-1/2"
+              style={{
+                transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)",
+              }}
+            >
+              <span
+                className={cn(
+                  "flex items-center justify-center gap-2",
+                  rowHeightClassName
+                )}
+              >
+                {renderContent()}
+              </span>
+              <span
+                className={cn(
+                  "flex items-center justify-center gap-2",
+                  rowHeightClassName
+                )}
+              >
+                {renderContent()}
+              </span>
+            </span>
+          </span>
+        ) : (
+          <span className="relative flex items-center justify-center gap-2">
+            {renderContent()}
+          </span>
+        )}
+      </motion.button>
+    );
+  }
+);
+AnimatedButton.displayName = "AnimatedButton";
+
+const PrimaryButton = React.forwardRef<
+  HTMLButtonElement,
+  React.ButtonHTMLAttributes<HTMLButtonElement>
+>(({ className, type = "button", ...props }, ref) => (
+  <Button
+    ref={ref}
+    type={type}
+    variant="primary"
+    className={cn("h-9 rounded-[8px] px-3.5 text-sm", className)}
+    {...props}
+  />
+));
+PrimaryButton.displayName = "PrimaryButton";
+
+const SecondaryButton = React.forwardRef<
+  HTMLButtonElement,
+  React.ButtonHTMLAttributes<HTMLButtonElement>
+>(({ className, type = "button", ...props }, ref) => (
+  <Button
+    ref={ref}
+    type={type}
+    variant="secondary"
+    className={cn("h-10 rounded-[8px] px-4 text-sm", className)}
+    {...props}
+  />
+));
+SecondaryButton.displayName = "SecondaryButton";
+
+const ToggleButton = ({
+  active,
+  children,
+  className,
+  type = "button",
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  active?: boolean;
+}) => (
+  <button
+    type={type}
+    {...props}
+    className={cn(
+      "inline-flex min-h-[36px] min-w-[calc(30%-4px)] items-center rounded-md border px-5 py-3 text-sm font-medium leading-5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:cursor-not-allowed disabled:opacity-55",
+      active
+        ? "border-neutral-800 bg-bg-weak text-neutral-primary outline outline-[0.5px] outline-neutral-800"
+        : "border-neutral-1000-a10 bg-bg-floating text-neutral-muted hover:border-neutral-800 hover:bg-bg-weak hover:text-neutral-primary",
+      className
+    )}
+  >
+    {children}
+  </button>
+);
+
+export {
+  ActionButton,
+  AnimatedButton,
+  BareButton,
+  Button,
+  CardButton,
+  ChoiceCard,
+  IconButton,
+  InteractiveCard,
+  PrimaryButton,
+  SecondaryButton,
+  ToggleButton,
+  buttonVariants,
+};

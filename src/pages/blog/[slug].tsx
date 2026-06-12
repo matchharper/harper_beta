@@ -19,6 +19,7 @@ import { useRouter } from "next/router";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { supabase } from "@/lib/supabase";
 import { showToast } from "@/components/toast/toast";
+import { BareButton } from "@/components/ui/button";
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://matchharper.com")
   .trim()
@@ -368,7 +369,7 @@ export default function BlogPostPage({ post }: BlogPostPageProps) {
         className="pointer-events-none fixed inset-0 z-0 top-0 left-0"
         style={HERO_DOT_BACKGROUND_STYLE}
       />
-      <main className="min-h-screen text-hgray1000 font-sans relative">
+      <main className="min-h-screen text-neutral-00 font-sans relative">
         <LandingHeader />
         {markdownH1Toc.length > 0 && (
           <aside className="hidden lg:flex fixed top-24 left-6">
@@ -378,18 +379,18 @@ export default function BlogPostPage({ post }: BlogPostPageProps) {
                   const isActive = item.id === activeHeadingId;
 
                   return (
-                    <button
+                    <BareButton
                       key={item.id}
                       type="button"
                       onClick={() => scrollToHeading(item.id)}
                       className={`bg-transparent border-0 p-0 text-left leading-snug transition-all duration-200 ${
                         isActive
-                          ? "text-hgray1000 text-base"
-                          : "text-hgray500 text-sm hover:text-hgray700"
+                          ? "text-neutral-00 text-base"
+                          : "text-neutral-800 text-sm hover:text-neutral-500"
                       }`}
                     >
                       {item.text}
-                    </button>
+                    </BareButton>
                   );
                 })}
               </div>
@@ -401,21 +402,21 @@ export default function BlogPostPage({ post }: BlogPostPageProps) {
             <header className="mt-8 flex flex-col items-center justify-center pt-8 pb-20 w-full">
               <Link
                 href="/blog"
-                className="inline-flex items-center gap-2 text-sm text-hgray900 transition-colors hover:text-hgray1000"
+                className="inline-flex items-center gap-2 text-sm text-neutral-200 transition-colors hover:text-neutral-00"
               >
                 <span aria-hidden="true">←</span>
                 <span>Back to blog</span>
               </Link>
               <br />
               <br />
-              <p className="text-base font-normal text-accenta1">
+              <p className="text-base font-normal text-accent-200">
                 {post.category}
               </p>
               <h1 className="max-w-[70%] md:max-w-[80%] mt-4 font-medium text-3xl leading-normal md:text-4xl md:leading-normal text-center break-keep">
                 {post.title}
               </h1>
 
-              <div className="mt-9 flex flex-wrap items-center gap-2.5 text-sm text-hgray900">
+              <div className="mt-9 flex flex-wrap items-center gap-2.5 text-sm text-neutral-200">
                 <div className="relative h-5 w-5 overflow-hidden rounded-full ring-1 ring-white/20">
                   <Image
                     src={post.authorAvatar}
@@ -429,16 +430,16 @@ export default function BlogPostPage({ post }: BlogPostPageProps) {
               </div>
             </header>
 
-            <div className="flex flex-row items-center justify-between w-full text-hgray700 text-sm font-light py-4">
-              <button
+            <div className="flex flex-row items-center justify-between w-full text-neutral-500 text-sm font-light py-4">
+              <BareButton
                 type="button"
                 onClick={copyPostLink}
-                className="flex flex-row items-center gap-2 text-accenta1 bg-transparent border-0 p-0 cursor-pointer transition-colors hover:text-accenta1/80"
+                className="flex flex-row items-center gap-2 text-accent-200 bg-transparent border-0 p-0 cursor-pointer transition-colors hover:text-accent-200/80"
                 aria-label="게시글 링크 복사"
               >
                 <LinkIcon className="w-3.5 h-3.5" strokeWidth={2} />
                 <span>링크 복사</span>
-              </button>
+              </BareButton>
               <time dateTime={post.publishedAt}>
                 {formatBlogDate(post.publishedAt)}
               </time>
@@ -454,7 +455,7 @@ export default function BlogPostPage({ post }: BlogPostPageProps) {
               />
             </div>
 
-            <article className="blog-markdown mt-12 text-hgray800 flex items-center justify-center">
+            <article className="blog-markdown mt-12 text-neutral-300 flex items-center justify-center">
               <div className="max-w-[712px] w-full">
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
@@ -479,17 +480,17 @@ export default function BlogPostPage({ post }: BlogPostPageProps) {
             <div className="absolute inset-0 bg-black/80" />
 
             {/* content */}
-            <div className="relative z-10 flex flex-col items-center justify-center text-center text-2xl md:text-3xl font-medium text-hgray1000">
+            <div className="relative z-10 flex flex-col items-center justify-center text-center text-2xl md:text-3xl font-medium text-neutral-00">
               Harper를 사용해서
               <br />
               원하는 사람을 즉시 발견하세요.
-              <button
+              <BareButton
                 onClick={moveToHome}
-                className="cursor-pointer hover:bg-accenta1/90 transition-all duration-200 mt-8 text-sm font-medium text-black bg-accenta1 px-5 py-3 rounded-full"
+                className="cursor-pointer hover:bg-accent-200/90 transition-all duration-200 mt-8 text-sm font-medium text-black bg-accent-200 px-5 py-3 rounded-full"
               >
                 시작하기
-              </button>
-              <div className="mt-8 text-sm text-hgray800 font-normal">
+              </BareButton>
+              <div className="mt-8 text-sm text-neutral-300 font-normal">
                 <div className="flex flex-col gap-1">
                   <div className="flex flex-col md:flex-row gap-2 items-center justify-center">
                     <div

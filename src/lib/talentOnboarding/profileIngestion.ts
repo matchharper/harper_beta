@@ -325,8 +325,6 @@ async function mergeBlockedCompaniesIntoTalentSetting(args: {
     admin: args.admin,
     userId: args.userId,
     blockedCompanies: mergedBlockedCompanies,
-    recommendationSettingsUpdatedBy:
-      current?.recommendation_settings_updated_by ?? "conversation",
   });
 }
 

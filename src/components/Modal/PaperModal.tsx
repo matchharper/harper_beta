@@ -15,6 +15,7 @@ import { usePaperModalStore } from "@/store/usePaperModalStore";
 import { usePaperDetail } from "@/hooks/usePaperDetail";
 import LinkChips from "@/pages/my/p/components/LinkChips";
 import { normalizeVenue, parsePublishedAt } from "@/utils/conference_map";
+import { BareButton } from "@/components/ui/button";
 
 function MetaCard({
   label,
@@ -26,11 +27,13 @@ function MetaCard({
   subvalue?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl bg-beige100 px-4 py-3">
-      <div className="text-sm text-beige900/55">{label}</div>
-      <div className="mt-2 text-base text-beige900">{value}</div>
+    <div className="rounded-2xl bg-bg-basement px-4 py-3">
+      <div className="text-sm text-neutral-muted">{label}</div>
+      <div className="mt-2 text-base text-neutral-primary">{value}</div>
       {subvalue ? (
-        <div className="mt-1 text-sm leading-5 text-beige900/55">{subvalue}</div>
+        <div className="mt-1 text-sm leading-5 text-neutral-muted">
+          {subvalue}
+        </div>
       ) : null}
     </div>
   );
@@ -47,7 +50,7 @@ function Section({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-2 text-sm text-beige900/55">
+      <div className="flex items-center gap-2 text-sm text-neutral-muted">
         {icon}
         <span>{title}</span>
       </div>
@@ -139,16 +142,16 @@ export default function PaperModalRoot() {
           <motion.div
             role="dialog"
             aria-modal="true"
-            className="absolute inset-x-0 top-[6vh] mx-auto max-h-[88vh] w-[min(760px,92vw)] scrollbar-none overflow-y-auto rounded-xl bg-beige50 px-6 pb-8 text-beige900 shadow-2xl md:px-8"
+            className="absolute inset-x-0 top-[6vh] mx-auto max-h-[88vh] w-[min(760px,92vw)] scrollbar-none overflow-y-auto rounded-xl bg-bg-default px-6 pb-8 text-neutral-primary shadow-2xl md:px-8"
             initial={{ opacity: 0, y: 24, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.98 }}
             transition={{ type: "tween", ease: "easeOut", duration: 0.2 }}
           >
-            <div className="sticky top-0 z-10 -mx-6 mb-6 flex items-start justify-between border-b border-beige900/8 bg-beige50/95 px-6 pb-4 backdrop-blur md:-mx-8 md:px-8">
+            <div className="sticky top-0 z-10 -mx-6 mb-6 flex items-start justify-between border-b border-neutral-1000-a05 bg-bg-default/95 px-6 pb-4 backdrop-blur md:-mx-8 md:px-8">
               <div className="pr-4 pt-6">
-                <div className="text-sm text-accentBronze/80">{year}</div>
-                <div className="mt-2 text-2xl leading-tight text-beige900">
+                <div className="text-sm text-primary">{year}</div>
+                <div className="mt-2 text-2xl leading-tight text-neutral-primary">
                   {paper?.title ?? "논문 정보를 불러오는 중"}
                 </div>
 
@@ -158,25 +161,25 @@ export default function PaperModalRoot() {
                   </div>
                 )}
               </div>
-              <button
+              <BareButton
                 type="button"
                 onClick={requestClose}
-                className="absolute right-4 top-4 rounded-lg p-2 text-beige900/55 transition hover:bg-beige50/80"
+                className="absolute right-4 top-4 rounded-lg p-2 text-neutral-muted transition hover:bg-bg-default"
               >
                 <XIcon className="h-5 w-5" strokeWidth={1.6} />
-              </button>
+              </BareButton>
             </div>
 
             {isLoading ? (
-              <div className="py-16 text-center text-sm text-beige900/55">
+              <div className="py-16 text-center text-sm text-neutral-muted">
                 논문 정보를 불러오는 중입니다.
               </div>
             ) : error ? (
-              <div className="rounded-2xl bg-rose-50 px-4 py-6 text-sm text-rose-700">
+              <div className="rounded-2xl bg-critical-faded px-4 py-6 text-sm text-critical">
                 논문 정보를 불러오지 못했습니다.
               </div>
             ) : !paper ? (
-              <div className="rounded-2xl bg-beige100 px-4 py-6 text-sm text-beige900/55">
+              <div className="rounded-2xl bg-bg-basement px-4 py-6 text-sm text-neutral-muted">
                 해당 논문 정보를 찾을 수 없습니다.
               </div>
             ) : (
@@ -192,7 +195,7 @@ export default function PaperModalRoot() {
                     value={`${paper.total_citations ?? 0}`}
                     subvalue={
                       <div
-                        className="flex items-center gap-1 flex-row cursor-pointer hover:text-beige900 transition-all duration-200"
+                        className="flex items-center gap-1 flex-row cursor-pointer hover:text-neutral-primary transition-all duration-200"
                         onClick={() => {
                           window.open(cited_by_scholar_link, "_blank");
                         }}
@@ -210,7 +213,7 @@ export default function PaperModalRoot() {
                 >
                   <div className="flex flex-col gap-3">
                     {contributors.length === 0 ? (
-                      <div className="rounded-2xl bg-beige100 px-4 py-4 text-sm text-beige900/55">
+                      <div className="rounded-2xl bg-bg-basement px-4 py-4 text-sm text-neutral-muted">
                         기여자 정보가 아직 연결되어 있지 않습니다.
                       </div>
                     ) : (
@@ -238,7 +241,7 @@ export default function PaperModalRoot() {
                         const content = (
                           <>
                             <div className="flex items-start gap-3">
-                              <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-beige900/8 bg-beige100">
+                              <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-neutral-1000-a05 bg-bg-basement">
                                 {profile?.profile_image_url ? (
                                   <>
                                     {profile?.profile_image_url.includes(
@@ -258,26 +261,26 @@ export default function PaperModalRoot() {
                                     )}
                                   </>
                                 ) : (
-                                  <div className="text-sm text-beige900/80">
+                                  <div className="text-sm text-neutral-primary">
                                     {initials(contributorName)}
                                   </div>
                                 )}
                               </div>
                               <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <div className="text-base text-beige900">
+                                  <div className="text-base text-neutral-primary">
                                     {contributorName}
                                   </div>
                                   {contributorCandidId && !isProfileRevealed ? (
-                                    <span className="rounded-full bg-beige500/55 px-2 py-0.5 text-[11px] text-beige900/55">
+                                    <span className="rounded-full bg-bg-floating px-2 py-0.5 text-[11px] text-neutral-muted">
                                       Harper profile locked
                                     </span>
                                   ) : null}
                                 </div>
-                                <div className="mt-1 text-sm text-beige900/55">
+                                <div className="mt-1 text-sm text-neutral-muted">
                                   {contributorAffiliation}
                                 </div>
-                                <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-beige900/45">
+                                <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-neutral-soft">
                                   {profile?.topics && (
                                     <div className="inline-flex items-center gap-1">
                                       <BookOpenText className="h-3.5 w-3.5" />
@@ -289,7 +292,7 @@ export default function PaperModalRoot() {
                                 </div>
                               </div>
                             </div>
-                            <div className="ml-14 mt-3 flex flex-wrap items-center gap-3 text-sm text-beige900/55">
+                            <div className="ml-14 mt-3 flex flex-wrap items-center gap-3 text-sm text-neutral-muted">
                               <div className="inline-flex items-center gap-1">
                                 <span>
                                   {profile?.total_citations_num ?? 0} citations
@@ -303,7 +306,7 @@ export default function PaperModalRoot() {
                           return (
                             <div
                               key={contributorKey}
-                              className="rounded-2xl bg-beige100 px-4 py-4 transition hover:bg-beige500/55"
+                              className="rounded-2xl bg-bg-basement px-4 py-4 transition hover:bg-bg-weak"
                             >
                               <Link
                                 href={profilePath}
@@ -313,12 +316,12 @@ export default function PaperModalRoot() {
                               >
                                 {content}
                               </Link>
-                              <div className="ml-14 mt-3 flex flex-wrap items-center gap-2 text-xs text-beige900/45">
+                              <div className="ml-14 mt-3 flex flex-wrap items-center gap-2 text-xs text-neutral-soft">
                                 <Link
                                   href={profilePath}
                                   replace
                                   onClick={close}
-                                  className="inline-flex items-center gap-1 rounded-full bg-beige500/55 px-3 py-1.5 text-beige900/55 transition hover:bg-beige50/80"
+                                  className="inline-flex items-center gap-1 rounded-full bg-bg-floating px-3 py-1.5 text-neutral-muted transition hover:bg-bg-default"
                                 >
                                   <span>프로필 보기</span>
                                   <ArrowUpRight className="h-3.5 w-3.5" />
@@ -331,7 +334,7 @@ export default function PaperModalRoot() {
                         return (
                           <div
                             key={contributorKey}
-                            className="relative group rounded-2xl bg-beige100 px-4 py-4"
+                            className="relative group rounded-2xl bg-bg-basement px-4 py-4"
                           >
                             {profilePath ? (
                               <Link
@@ -346,10 +349,10 @@ export default function PaperModalRoot() {
                               content
                             )}
                             {profilePath && !isProfileRevealed && (
-                              <div className="ml-14 mt-3 gap-2 text-xs text-beige900/45">
+                              <div className="ml-14 mt-3 gap-2 text-xs text-neutral-soft">
                                 <RevealProfileButton
                                   overlay
-                                  overlayClassName="w-full h-full z-30 rounded-2xl group-hover:border-accentBronze/40 group-hover:bg-beige900/8"
+                                  overlayClassName="w-full h-full z-30 rounded-2xl group-hover:border-primary/40 group-hover:bg-bg-floating"
                                   candidId={contributorCandidId}
                                   label="프로필 열람"
                                   className="px-4 py-1.5 text-xs"

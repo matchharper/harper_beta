@@ -14,15 +14,17 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import CareerCallCard from "@/components/career/CareerCallCard";
+import { InternalOpportunityCallActions } from "@/components/career/InternalOpportunityCallActions";
 import { useCareerSidebarContext } from "@/components/career/CareerSidebarContext";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { getCareerDefaultSavedStage } from "@/components/career/opportunityTypeMeta";
 import { ConversationStarterActions } from "@/components/career/ConversationStarterActions";
+import type { CareerInternalOpportunityCallRequest } from "@/components/career/types";
 import type {
   CareerConversationStarterId,
   CareerConversationStarterMode,
 } from "@/lib/career/conversationStarters";
-import { CareerActionButton } from "../ui/CareerActionButton";
+import { ActionButton } from "@/components/ui/button";
 
 const countFormatter = new Intl.NumberFormat("ko-KR");
 
@@ -75,9 +77,11 @@ const ChecklistItem = ({
       aria-hidden
       className={cn(
         "mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded-md border transition-colors",
-        state === "done" && "border-beige700 bg-beige700 text-hblack000",
-        state === "current" && "border-beige700 bg-hblack000 text-beige700",
-        state === "pending" && "border-hblack300 bg-hblack000 text-transparent"
+        state === "done" && "border-neutral-800 bg-black text-neutral-00",
+        state === "current" &&
+          "border-neutral-800 bg-bg-floating text-neutral-muted",
+        state === "pending" &&
+          "border-neutral-400 bg-bg-floating text-transparent"
       )}
     >
       <Check className="h-3 w-3" />
@@ -87,7 +91,7 @@ const ChecklistItem = ({
         aria-hidden
         className={cn(
           "flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors",
-          state === "pending" ? "text-hblack400" : "text-beige700"
+          state === "pending" ? "text-neutral-soft" : "text-neutral-muted"
         )}
       >
         <Icon className="h-4 w-4" strokeWidth={1.8} />
@@ -96,13 +100,13 @@ const ChecklistItem = ({
         <p
           className={cn(
             "text-sm",
-            state === "pending" ? "text-hblack500" : "text-hblack1000"
+            state === "pending" ? "text-neutral-soft" : "text-neutral-primary"
           )}
         >
           {label}
         </p>
         {meta ? (
-          <p className="mt-1 text-[12px] leading-5 text-hblack500">{meta}</p>
+          <p className="mt-1 text-[12px] leading-5 text-neutral-soft">{meta}</p>
         ) : null}
       </div>
     </div>
@@ -120,23 +124,24 @@ const SummaryCard = ({
   onClick: () => void;
   label: string;
 }) => (
-  <CareerActionButton
+  <ActionButton
     actionVariant="secondary"
     onClick={onClick}
-    className="w-full flex flex-col items-center justify-center gap-3 h-24 rounded-3xl shadow-md shadow-black/5"
+    className="w-full flex flex-col w-[50%] items-center justify-center gap-4 h-24 rounded-3xl shadow-xs"
   >
     <span className={cn("inline-flex items-center justify-center")}>
       {icon}
     </span>
-    <div className="text-sm font-medium text-black/50">
+    <div className="text-sm font-medium text-neutral-primary">
       {countFormatter.format(count)}개의 {label}
     </div>
-  </CareerActionButton>
+  </ActionButton>
 );
 
 const CallHero = ({
   callDisabled,
   callStartPending,
+  ctaLabel,
   description,
   isOnboardingCompleted,
   onStartCall,
@@ -145,6 +150,7 @@ const CallHero = ({
 }: {
   callDisabled: boolean;
   callStartPending: boolean;
+  ctaLabel?: string;
   description: React.ReactNode;
   isOnboardingCompleted: boolean;
   onStartCall: () => void;
@@ -155,6 +161,7 @@ const CallHero = ({
     <CareerCallCard
       callDisabled={callDisabled}
       callStartPending={callStartPending}
+      ctaLabel={ctaLabel}
       className="mt-0 w-full"
       description={description}
       isOnboardingCompleted={isOnboardingCompleted}
@@ -180,6 +187,7 @@ const CareerMobileHomeView = ({
     historyOpportunities,
     onStartCallMode,
     onStartConversationStarter,
+    pendingInternalOpportunityCallRequests = [],
     talentProfile,
   } = useCareerSidebarContext();
 
@@ -265,6 +273,7 @@ const CareerMobileHomeView = ({
     inProgressTargetSavedStage,
   ]);
 
+  const callCardUsesCompletedLayout = isOnboardingCompleted;
   const callCardTitle = isOnboardingCompleted
     ? "Harper와 5분 통화"
     : "아직 5분 커리어 인터뷰가 완료되지 않았어요";
@@ -277,9 +286,10 @@ const CareerMobileHomeView = ({
     "변경된 사항이 있거나 요구사항이 있을 때<br /> — 통화하면 빨라요"
   ) : (
     <>
-      왼쪽 채팅에서 혹은 아래 통화로 간단한 질문에만 대답해주세요.
+      채팅에서 혹은 통화로 간단한 질문에만 대답해주세요.
       <br />
-      대화가 끝나면 내용을 정리하고, 딱맞는 기회를 받아보실 수 있게 할게요.
+      대화를 통해 회원님을 더 잘 이해하고, 좋아하실만한 기회를 받아보실 수 있게
+      할게요.
     </>
   );
 
@@ -287,6 +297,19 @@ const CareerMobileHomeView = ({
     logCareerEvent("click_mobile_home_start_call");
     onOpenChat();
     void onStartCallMode?.();
+  };
+
+  const handleStartInternalOpportunityCall = (
+    callRequest: CareerInternalOpportunityCallRequest
+  ) => {
+    logCareerEvent("click_mobile_home_internal_opportunity_call");
+    onOpenChat();
+    return (
+      onStartCallMode?.({
+        internalCallRequestId: callRequest.id,
+        openingText: `${callRequest.companyName} ${callRequest.roleTitle} 연결 건으로, 회사에 더 잘 전달할 수 있게 짧게 몇 가지를 확인하고 싶어요.`,
+      }) ?? false
+    );
   };
 
   const handleStartConversationStarter = ({
@@ -307,27 +330,36 @@ const CareerMobileHomeView = ({
         callDisabled={!onStartCallMode}
         callStartPending={callStartPending}
         description={callCardDescription}
-        isOnboardingCompleted={isOnboardingCompleted}
+        isOnboardingCompleted={callCardUsesCompletedLayout}
         onStartCall={handleStartCall}
         title={callCardTitle}
-        extraComponent={<></>}
+        extraComponent={
+          <InternalOpportunityCallActions
+            callRequests={pendingInternalOpportunityCallRequests}
+            callStartPending={callStartPending}
+            className="mt-1"
+            disabled={!onStartCallMode}
+            onStart={handleStartInternalOpportunityCall}
+            variant="mobile"
+          />
+        }
       />
 
       <div className="px-1 text-center">
-        <h2 className="text-black/70 font-hedvig text-[24px] font-normal">
+        <h2 className="text-neutral-primary font-hedvig text-[24px] font-normal">
           {displayGreetingName}
         </h2>
-        <p className="mt-2 text-sm font-medium text-black/50">
+        <p className="mt-2 text-[15px] font-medium text-neutral-muted">
           {currentTimeGreeting} 필요하신게 있다면 알려주세요.
         </p>
       </div>
 
       {!isOnboardingCompleted ? (
-        <section className="rounded-3xl bg-beige100 px-5 py-5">
-          <div className="text-[15px] font-semibold text-beige900">
+        <section className="rounded-3xl border border-neutral-1000-a05 bg-bg-floating px-5 py-5 shadow-sm">
+          <div className="text-[15px] font-semibold text-neutral-primary">
             커리어 인터뷰 진행 중
           </div>
-          <p className="mt-1 text-[13px] leading-5 text-beige900/60">
+          <p className="mt-1 text-[13px] leading-5 text-neutral-muted">
             원하는 기회의 기준을 확인하고 있어요.
           </p>
           <div className="mt-4 space-y-4">
@@ -366,7 +398,7 @@ const CareerMobileHomeView = ({
             count={newPositionCount}
             icon={
               <GalleryVerticalEnd
-                className="!h-5 !w-5 text-black/70"
+                className="!h-5 !w-5 text-neutral-muted"
                 strokeWidth={2.4}
               />
             }
@@ -378,7 +410,10 @@ const CareerMobileHomeView = ({
             label="저장/연결된 기회"
             count={inProgressPositionCount}
             icon={
-              <Bookmark className="!h-5 !w-5 text-black/70" strokeWidth={2.4} />
+              <Bookmark
+                className="!h-5 !w-5 text-neutral-muted"
+                strokeWidth={2.4}
+              />
             }
             onClick={() =>
               onOpenHistory({

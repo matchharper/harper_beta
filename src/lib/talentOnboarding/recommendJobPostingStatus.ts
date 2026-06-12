@@ -1,10 +1,17 @@
-export type RecommendJobPostingStatusState = "running" | "completed" | "error";
+export type RecommendJobPostingStatusState =
+  | "running"
+  | "completed"
+  | "error"
+  | "stopped";
 
 export type RecommendJobPostingStatus = {
   candidateCount?: number | null;
   recommendationCount?: number | null;
   state: RecommendJobPostingStatusState;
 };
+
+export const RECOMMEND_JOB_POSTINGS_CHAT_PREAMBLE =
+  "좋습니다. 지금까지의 대화와 피드백을 기준으로 새 포지션을 찾아볼게요.";
 
 const STATUS_LOG_PREFIX = "[[recommend_job_postings:";
 const STATUS_LOG_SUFFIX = "]]";
@@ -48,7 +55,8 @@ export function parseRecommendJobPostingStatusLog(
   if (
     rawState !== "running" &&
     rawState !== "completed" &&
-    rawState !== "error"
+    rawState !== "error" &&
+    rawState !== "stopped"
   ) {
     return null;
   }

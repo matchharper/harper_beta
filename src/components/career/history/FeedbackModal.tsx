@@ -10,11 +10,15 @@ import {
   getCareerPositiveFeedbackSubmitButtonClassName,
 } from "../opportunityTypeMeta";
 import {
-  CareerPrimaryButton,
-  CareerSecondaryButton,
-  careerCx,
-  careerTextareaClassName,
-} from "../ui/CareerPrimitives";
+  PrimaryButton,
+  SecondaryButton,
+  BareButton,
+} from "@/components/ui/button";
+import {
+  textareaSurfaceClassName,
+  Textarea as UiTextarea,
+} from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
 const NEGATIVE_FEEDBACK_REASON_SEPARATOR = " | ";
 
@@ -32,7 +36,7 @@ const isInteractiveTarget = (target: EventTarget | null) => {
 };
 
 const EnterShortcutHint = () => (
-  <span className="ml-2 inline-flex items-center gap-1 rounded-md bg-white/5 px-1.5 py-0.5 text-[12px] font-normal text-current">
+  <span className="ml-2 inline-flex items-center gap-1 rounded-md bg-bg-default/10 px-1.5 py-0.5 text-[12px] font-normal text-current">
     <span>Enter</span>
     <CornerDownLeft className="h-3 w-3" strokeWidth={2} />
   </span>
@@ -162,14 +166,14 @@ export const HistoryPositiveFeedbackModal = ({
       onClose={onClose}
       title={positiveFeedbackModalCopy.title}
       description={positiveFeedbackModalCopy.description}
-      panelClassName="max-w-[520px] border border-beige900/10 bg-beige50"
-      bodyClassName="bg-beige50 px-5 py-5"
+      panelClassName="max-w-[520px] border border-neutral-1000-a05 bg-bg-floating"
+      bodyClassName="bg-bg-floating px-5 py-5"
       footer={
         <div className="flex items-center justify-end gap-2">
-          <CareerSecondaryButton onClick={onClose} disabled={pending}>
+          <SecondaryButton onClick={onClose} disabled={pending}>
             취소
-          </CareerSecondaryButton>
-          <CareerPrimaryButton
+          </SecondaryButton>
+          <PrimaryButton
             onClick={onSubmit}
             disabled={pending}
             className={getCareerPositiveFeedbackSubmitButtonClassName(
@@ -179,13 +183,14 @@ export const HistoryPositiveFeedbackModal = ({
             {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             제출
             <EnterShortcutHint />
-          </CareerPrimaryButton>
+          </PrimaryButton>
         </div>
       }
-      closeButtonClassName="font-geist right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-beige900/10 bg-white/70 text-beige900/70 transition-colors hover:border-beige900/25 hover:text-beige900"
+      closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-floating text-neutral-muted transition-colors hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary"
     >
       <div className="space-y-3">
-        <textarea
+        <UiTextarea
+          unstyled
           autoFocus
           value={draft}
           onChange={(event) => onChangeDraft(event.target.value)}
@@ -199,7 +204,7 @@ export const HistoryPositiveFeedbackModal = ({
             }
           }}
           placeholder={positiveFeedbackModalCopy.placeholder}
-          className={careerCx(careerTextareaClassName, "min-h-[148px]")}
+          className={cn(textareaSurfaceClassName, "min-h-[148px]")}
         />
       </div>
     </TalentCareerModal>
@@ -281,54 +286,55 @@ export const HistoryNegativeFeedbackModal = ({
       onClose={onClose}
       title={negativeFeedbackModalCopy.title}
       description={negativeFeedbackModalCopy.description}
-      panelClassName="max-w-[620px] border border-beige900/10 bg-beige50"
-      bodyClassName="bg-beige50 px-5 py-5"
+      panelClassName="max-w-[620px] border border-neutral-1000-a05 bg-bg-floating"
+      bodyClassName="bg-bg-floating px-5 py-5"
       footer={
         <div className="flex items-center justify-end gap-2">
-          <CareerSecondaryButton onClick={onClose} disabled={pending}>
+          <SecondaryButton onClick={onClose} disabled={pending}>
             취소
-          </CareerSecondaryButton>
-          <CareerPrimaryButton onClick={onSubmit} disabled={pending}>
+          </SecondaryButton>
+          <PrimaryButton onClick={onSubmit} disabled={pending}>
             {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             제출
             <EnterShortcutHint />
-          </CareerPrimaryButton>
+          </PrimaryButton>
         </div>
       }
-      closeButtonClassName="font-geist right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-beige900/10 bg-white/70 text-beige900/70 transition-colors hover:border-beige900/25 hover:text-beige900"
+      closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-floating text-neutral-muted transition-colors hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary"
     >
       <div className="space-y-4">
         <div className="grid gap-2 sm:grid-cols-2">
           {options.map((option, index) => {
             const active = selectedOptions.includes(option.value);
             return (
-              <button
+              <BareButton
                 key={option.value}
                 type="button"
                 onClick={() => onToggleOption(option.value)}
-                className={careerCx(
+                className={cn(
                   "flex items-start gap-2 rounded-md border px-3 py-3 text-left text-sm leading-5 transition-colors",
                   getCareerDefaultFeedbackButtonClassName(active)
                 )}
               >
                 <span
-                  className={careerCx(
+                  className={cn(
                     "inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full border px-1 text-[11px] font-medium leading-none",
                     active
-                      ? "border-current bg-white/70 text-inherit"
-                      : "border-beige900/20 bg-white/70 text-beige900"
+                      ? "border-current bg-bg-floating text-inherit"
+                      : "border-neutral-1000-a10 bg-bg-floating text-neutral-primary"
                   )}
                 >
                   {index + 1}
                 </span>
                 <span>{option.label}</span>
-              </button>
+              </BareButton>
             );
           })}
         </div>
 
         {requiresTextInput && (
-          <textarea
+          <UiTextarea
+            unstyled
             autoFocus
             value={customReason}
             onChange={(event) => onChangeCustomReason(event.target.value)}
@@ -342,7 +348,7 @@ export const HistoryNegativeFeedbackModal = ({
               }
             }}
             placeholder={negativeFeedbackModalCopy.placeholder}
-            className={careerCx(careerTextareaClassName, "min-h-[120px]")}
+            className={cn(textareaSurfaceClassName, "min-h-[120px]")}
           />
         )}
       </div>
@@ -373,27 +379,28 @@ export const HistoryMemoModal = ({
       onClose={onClose}
       title={item.talentMemo?.trim() ? "메모 수정" : "메모 작성"}
       description="해당 포지션을 다시 볼 때 참고할 내용을 적어둘 수 있습니다."
-      panelClassName="max-w-[520px] border border-beige900/10 bg-beige50"
-      bodyClassName="bg-beige50 px-5 py-5"
+      panelClassName="max-w-[520px] border border-neutral-1000-a05 bg-bg-floating"
+      bodyClassName="bg-bg-floating px-5 py-5"
       footer={
         <div className="flex items-center justify-end gap-2">
-          <CareerSecondaryButton onClick={onClose} disabled={pending}>
+          <SecondaryButton onClick={onClose} disabled={pending}>
             취소
-          </CareerSecondaryButton>
-          <CareerPrimaryButton onClick={onSubmit} disabled={pending}>
+          </SecondaryButton>
+          <PrimaryButton onClick={onSubmit} disabled={pending}>
             {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             저장
-          </CareerPrimaryButton>
+          </PrimaryButton>
         </div>
       }
-      closeButtonClassName="font-geist right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-beige900/10 bg-white/70 text-beige900/70 transition-colors hover:border-beige900/25 hover:text-beige900"
+      closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-floating text-neutral-muted transition-colors hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary"
     >
-      <textarea
+      <UiTextarea
+        unstyled
         autoFocus
         value={draft}
         onChange={(event) => onChangeDraft(event.target.value)}
         placeholder="이 포지션에 대해 기억해둘 내용이나 확인할 점을 적어주세요."
-        className={careerCx(careerTextareaClassName, "min-h-[160px]")}
+        className={cn(textareaSurfaceClassName, "min-h-[160px]")}
       />
     </TalentCareerModal>
   );

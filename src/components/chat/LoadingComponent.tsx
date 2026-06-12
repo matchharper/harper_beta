@@ -2,7 +2,7 @@ import React from "react";
 
 type CandidateCarouselProps = {
   className?: string;
-  styleType?: "default" | "beige";
+  styleType?: "default" | "neutral";
 };
 
 const pattern = [0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1];
@@ -11,11 +11,19 @@ export default function CandidateCarousel({
   styleType = "default",
   className = "",
 }: CandidateCarouselProps) {
-  const isBeige = styleType === "beige";
-  const matchedStroke = isBeige ? "#B5835A" : "#454E0E";
-  const unmatchedStroke = isBeige ? "#5C4A3D" : "#393D46";
-  const matchedFill = isBeige ? "rgba(181,131,90,0.35)" : "rgba(69,78,14,0.5)";
-  const unmatchedFill = isBeige ? "rgba(92,74,61,0.3)" : "rgba(57,61,70,0.5)";
+  const isNeutral = styleType === "neutral";
+  const matchedStroke = isNeutral
+    ? "var(--color-primary)"
+    : "var(--color-positive)";
+  const unmatchedStroke = isNeutral
+    ? "var(--color-neutral-muted)"
+    : "var(--color-neutral-muted)";
+  const matchedFill = isNeutral
+    ? "color-mix(in srgb, var(--color-primary) 35%, transparent)"
+    : "color-mix(in srgb, var(--color-positive) 35%, transparent)";
+  const unmatchedFill = isNeutral
+    ? "color-mix(in srgb, var(--color-neutral-muted) 30%, transparent)"
+    : "color-mix(in srgb, var(--color-neutral-muted) 35%, transparent)";
   return (
     <>
       <style>
@@ -54,7 +62,7 @@ export default function CandidateCarousel({
             background: linear-gradient(
               105deg,
               transparent 35%,
-              rgba(255, 255, 255, 0.06) 50%,
+              color-mix(in srgb, var(--color-neutral-00) 6%, transparent) 50%,
               transparent 65%
             );
           }
@@ -63,7 +71,7 @@ export default function CandidateCarousel({
             background: linear-gradient(
               105deg,
               transparent 35%,
-              rgba(239, 255, 63, 0.08) 50%,
+              color-mix(in srgb, var(--color-accent-300) 12%, transparent) 50%,
               transparent 65%
             );
           }
@@ -72,10 +80,10 @@ export default function CandidateCarousel({
 
       <div className={`relative w-[480px] overflow-hidden ${className}`}>
         <div
-          className={`pointer-events-none absolute inset-y-0 left-0 z-10 w-[140px] bg-linear-to-r ${styleType === "beige" ? "from-beige50" : "from-[#212121]"} to-transparent`}
+          className={`pointer-events-none absolute inset-y-0 left-0 z-10 w-[140px] bg-linear-to-r ${isNeutral ? "from-bg-default" : "from-neutral-1000"} to-transparent`}
         />
         <div
-          className={`pointer-events-none absolute inset-y-0 right-0 z-10 w-[140px] bg-linear-to-l ${styleType === "beige" ? "from-beige50" : "from-[#212121]"} to-transparent`}
+          className={`pointer-events-none absolute inset-y-0 right-0 z-10 w-[140px] bg-linear-to-l ${isNeutral ? "from-bg-default" : "from-neutral-1000"} to-transparent`}
         />
 
         <div className="harper-track flex gap-3">
@@ -117,17 +125,23 @@ export default function CandidateCarousel({
                       "harper-shimmer relative h-14 w-14 overflow-hidden rounded-full",
                       matched ? "harper-shimmer-accent" : "harper-shimmer-gray",
                     ].join(" ")}
-                    style={{ backgroundColor: matched ? matchedFill : unmatchedFill }}
+                    style={{
+                      backgroundColor: matched ? matchedFill : unmatchedFill,
+                    }}
                   />
 
                   <div className="relative z-1 flex flex-col items-center gap-1.5">
                     <div
                       className="h-3 w-16 rounded-[5px]"
-                      style={{ backgroundColor: matched ? matchedFill : unmatchedFill }}
+                      style={{
+                        backgroundColor: matched ? matchedFill : unmatchedFill,
+                      }}
                     />
                     <div
                       className="h-2.5 w-11 rounded-[5px]"
-                      style={{ backgroundColor: matched ? matchedFill : unmatchedFill }}
+                      style={{
+                        backgroundColor: matched ? matchedFill : unmatchedFill,
+                      }}
                     />
                   </div>
                 </div>

@@ -1,13 +1,22 @@
 import React from "react";
 import { Check, ChevronDown, Loader2, Target } from "lucide-react";
-import type { AtsBookmarkFolderOption, AtsWorkspaceRecord } from "@/lib/ats/shared";
+import type {
+  AtsBookmarkFolderOption,
+  AtsWorkspaceRecord,
+} from "@/lib/ats/shared";
+import { BareButton } from "@/components/ui/button";
+import { Select as UiSelect } from "@/components/ui/select";
+import { Input as UiInput } from "@/components/ui/input";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
 type AtsWorkspacePanelProps = {
   atsFolders: AtsBookmarkFolderOption[];
   buttonPrimaryClassName: string;
   currentAtsFolder: AtsBookmarkFolderOption | null;
   inputClassName: string;
-  onChangeWorkspaceFolder: (nextFolderId: number | null) => void | Promise<void>;
+  onChangeWorkspaceFolder: (
+    nextFolderId: number | null
+  ) => void | Promise<void>;
   onSaveWorkspace: () => void | Promise<void>;
   onToggleOpen: () => void;
   panelClassName: string;
@@ -37,18 +46,20 @@ export default function AtsWorkspacePanel({
     <div className={`${panelClassName} overflow-hidden`}>
       <div className="flex flex-col px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-3">
-          <div className="rounded-md bg-beige500/55 p-2 text-beige900">
+          <div className="rounded-md bg-bg-floating p-2 text-neutral-primary">
             <Target className="h-4 w-4" />
           </div>
           <div>
-            <div className="text-lg font-medium text-beige900">ATS Workspace</div>
-            <div className="mt-1 text-xs text-beige900/45">
+            <div className="text-lg font-medium text-neutral-primary">
+              ATS Workspace
+            </div>
+            <div className="mt-1 text-xs text-neutral-soft">
               대상 폴더: {currentAtsFolder?.name ?? "폴더 없음"}
             </div>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
+          <BareButton
             type="button"
             onClick={onToggleOpen}
             aria-expanded={workspaceOpen}
@@ -58,8 +69,8 @@ export default function AtsWorkspacePanel({
               className={`h-4 w-4 transition ${workspaceOpen ? "rotate-0" : "-rotate-90"}`}
             />
             {workspaceOpen ? "접기" : "펼치기"}
-          </button>
-          <button
+          </BareButton>
+          <BareButton
             type="button"
             onClick={() => void onSaveWorkspace()}
             disabled={saveWorkspacePending}
@@ -71,7 +82,7 @@ export default function AtsWorkspacePanel({
               <Check className="h-4 w-4" />
             )}
             Save Workspace
-          </button>
+          </BareButton>
         </div>
       </div>
 
@@ -79,15 +90,16 @@ export default function AtsWorkspacePanel({
         <div className="flex flex-col gap-4 px-5 pb-5">
           <div className="space-y-3">
             <div>
-              <div className="mb-2 text-sm font-medium text-beige900">
+              <div className="mb-2 text-sm font-medium text-neutral-primary">
                 ATS Folder
               </div>
               {atsFolders.length === 0 ? (
-                <div className="rounded-md border border-dashed border-beige900/8 px-3 py-3 text-sm text-beige900/45">
+                <div className="rounded-md border border-dashed border-neutral-1000-a05 px-3 py-3 text-sm text-neutral-soft">
                   선택 가능한 북마크 폴더가 없습니다.
                 </div>
               ) : (
-                <select
+                <UiSelect
+                  unstyled
                   value={currentAtsFolder?.id ?? ""}
                   onChange={(event) => {
                     const raw = Number(event.target.value);
@@ -104,18 +116,19 @@ export default function AtsWorkspacePanel({
                       {folder.isDefault ? " (Default)" : ""}
                     </option>
                   ))}
-                </select>
+                </UiSelect>
               )}
-              <div className="mt-2 text-xs text-beige900/45">
+              <div className="mt-2 text-xs text-neutral-soft">
                 ATS 후보 목록은 여기서 선택한 북마크 폴더를 기준으로 불러옵니다.
               </div>
             </div>
 
             <div>
-              <div className="mb-2 text-sm font-medium text-beige900">
+              <div className="mb-2 text-sm font-medium text-neutral-primary">
                 Sender Email
               </div>
-              <input
+              <UiInput
+                unstyled
                 type="email"
                 value={workspaceDraft.senderEmail ?? ""}
                 onChange={(event) =>
@@ -127,14 +140,17 @@ export default function AtsWorkspacePanel({
                 placeholder="you@company.com"
                 className={inputClassName}
               />
-              <div className="mt-2 text-xs text-beige900/45">
+              <div className="mt-2 text-xs text-neutral-soft">
                 ATS 수동 메일과 시퀀스 발신 주소로 사용됩니다.
               </div>
             </div>
 
             <div>
-              <div className="mb-2 text-sm font-medium text-beige900">JD</div>
-              <textarea
+              <div className="mb-2 text-sm font-medium text-neutral-primary">
+                JD
+              </div>
+              <UiTextarea
+                unstyled
                 value={workspaceDraft.jobDescription ?? ""}
                 onChange={(event) =>
                   setWorkspaceDraft((prev) => ({
@@ -150,10 +166,11 @@ export default function AtsWorkspacePanel({
             </div>
 
             <div>
-              <div className="mb-2 text-sm font-medium text-beige900">
+              <div className="mb-2 text-sm font-medium text-neutral-primary">
                 Company Pitch
               </div>
-              <textarea
+              <UiTextarea
+                unstyled
                 value={workspaceDraft.companyPitch ?? ""}
                 onChange={(event) =>
                   setWorkspaceDraft((prev) => ({

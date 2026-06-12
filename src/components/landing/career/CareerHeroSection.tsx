@@ -10,7 +10,7 @@ type CareerHeroSectionProps = {
 };
 
 const SectionTag = ({ children }: { children: React.ReactNode }) => (
-  <div className="mb-2 inline-flex items-center rounded-lg bg-beige500/80 px-4 py-2 font-geist text-[13px] md:text-[15px] font-medium tracking-[-0.03em] text-beige900/80 backdrop-blur-xl">
+  <div className="mb-2 inline-flex items-center rounded-lg bg-beige500/80 px-4 py-2 text-[13px] md:text-[15px] font-medium tracking-[-0.03em] text-beige900/80 backdrop-blur-xl">
     {children}
   </div>
 );

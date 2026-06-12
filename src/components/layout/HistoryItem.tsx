@@ -5,6 +5,7 @@ import { Tooltips } from "../ui/tooltip";
 import Link from "next/link";
 import { QueryHistoryItem } from "@/hooks/useSearchHistory";
 import { ActionDropdown, ActionDropdownItem } from "../ui/action-dropdown";
+import { BareButton } from "@/components/ui/button";
 
 const HistoryItem = ({
   queryItem,
@@ -28,8 +29,8 @@ const HistoryItem = ({
     <Link
       href={`/my/c/${queryItem.query_id}`}
       className={[
-        "group relative flex flex-row items-center justify-between px-2.5 min-h-10 py-1.5 text-beige900 font-normal cursor-pointer rounded-lg gap-1 hover:bg-beige900/8",
-        isActive ? "bg-beige500/55" : "",
+        "group relative flex flex-row items-center justify-between px-2.5 min-h-10 py-1.5 text-neutral-primary font-normal cursor-pointer rounded-lg gap-1 hover:bg-bg-floating",
+        isActive ? "bg-bg-floating" : "",
       ].join(" ")}
       key={queryItem.query_id}
     >
@@ -46,14 +47,14 @@ const HistoryItem = ({
           </div>
           {collapsed && isLiked ? (
             <Pin
-              className="h-3 w-3 shrink-0 text-accenta1"
+              className="h-3 w-3 shrink-0 text-accent-300"
               fill="currentColor"
               strokeWidth={1.8}
             />
           ) : null}
         </div>
         {!collapsed && (
-          <div className="flex flex-row w-full items-center justify-start gap-1 text-xs text-beige900/45">
+          <div className="flex flex-row w-full items-center justify-start gap-1 text-xs text-neutral-soft">
             <span>
               {dateToFormatLong(
                 new Date(queryItem.created_at).toLocaleDateString()
@@ -61,7 +62,7 @@ const HistoryItem = ({
             </span>
             {isLiked ? (
               <Pin
-                className="h-2.5 w-2.5 shrink-0 text-accenta1"
+                className="h-2.5 w-2.5 shrink-0 text-accent-300"
                 fill="currentColor"
                 strokeWidth={1.8}
               />
@@ -75,17 +76,17 @@ const HistoryItem = ({
         align="start"
         contentClassName="w-40"
         trigger={
-          <button
+          <BareButton
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
             }}
             className={[
               "rounded-sm h-7 w-7 flex items-center justify-center",
-              "hover:bg-beige900/8 focus:outline-beige900/10 focus:ring-beige900/10",
+              "hover:bg-bg-floating focus:outline-neutral-1000-a05 focus:ring-neutral-1000-a05",
               "transition-opacity",
               menuOpen
-                ? "opacity-100 ring-2 ring-beige900/30"
+                ? "opacity-100 ring-2 ring-neutral-1000-a10"
                 : "opacity-0 group-hover:opacity-100 ring-0",
               collapsed
                 ? "absolute right-1.5 top-1/2 -translate-y-1/2"
@@ -93,7 +94,7 @@ const HistoryItem = ({
             ].join(" ")}
           >
             <MoreHorizontal size={16} />
-          </button>
+          </BareButton>
         }
       >
         <ActionDropdownItem
@@ -136,11 +137,11 @@ export function NavItem({
         href={href}
         onClick={onNavigate}
         className={[
-          "w-full flex text-sm font-extralight items-center justify-between gap-2 rounded-[6px] h-10 text-beige900",
-          shortcut ? "bg-beige900/5 border border-beige900/8" : "",
+          "w-full flex text-sm font-extralight items-center justify-between gap-2 rounded-[6px] h-10 text-neutral-primary",
+          shortcut ? "bg-bg-floating border border-neutral-1000-a05" : "",
           active
-            ? "bg-beige500/55 shadow-sm"
-            : "bg-transparent hover:bg-beige900/8",
+            ? "bg-bg-floating shadow-sm"
+            : "bg-transparent hover:bg-bg-floating",
           collapsed ? "px-3" : "px-2.5",
         ].join(" ")}
       >
@@ -151,7 +152,7 @@ export function NavItem({
           )}
         </div>
         {!collapsed && shortcut && (
-          <div className="flex flex-row items-center gap-0.5 text-xs text-beige900/45">
+          <div className="flex flex-row items-center gap-0.5 text-xs text-neutral-soft">
             <Command size={10} /> + K
           </div>
         )}

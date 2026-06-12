@@ -2,6 +2,8 @@ import Appbar from "@/components/Appbar";
 import { ChevronsLeft, Globe, Monitor } from "lucide-react";
 import { useRouter } from "next/router";
 import React, { useState } from "react";
+import { BareButton } from "@/components/ui/button";
+import { Input as UiInput } from "@/components/ui/input";
 
 const Role = () => {
   const [name, setName] = useState("");
@@ -17,13 +19,13 @@ const Role = () => {
     <main className="min-h-screen bg-white text-black px-4 pt-24 flex flex-row items-start justify-center gap-8 lg:gap-[64px]">
       <Appbar />
       <div className="flex flex-col gap-2 lg:w-[50%] md:w-[60%] w-full">
-        <div className="text-brightnavy mb-10 text-[14px] cursor-pointer flex flex-row items-center gap-1">
+        <div className="text-neutral-1000 mb-10 text-[14px] cursor-pointer flex flex-row items-center gap-1">
           <ChevronsLeft size={16} />
           <div>Back</div>
         </div>
         <div className="flex flex-col gap-[12px]">
           <div className="text-2xl font-medium">ML Pipeline Engineer</div>
-          <div className="flex flex-row justify-between items-center text-brightnavy text-[14px]">
+          <div className="flex flex-row justify-between items-center text-neutral-1000 text-[14px]">
             <div className="flex flex-row items-center gap-1">
               <Monitor size={14} />
               <div>Full time</div>
@@ -40,19 +42,19 @@ const Role = () => {
           {Texts.map((item) => (
             <div
               key={item.title}
-              className="flex flex-col gap-2 pt-[18px] border-t border-xgray300"
+              className="flex flex-col gap-2 pt-[18px] border-t border-neutral-300"
             >
               <div className="text-[15px] font-semibold">{item.title}</div>
               <div
                 dangerouslySetInnerHTML={{ __html: item.description }}
-                className="whitespace-pre-line text-[15px] font-light leading-6 text-xgray600"
+                className="whitespace-pre-line text-[15px] font-light leading-6 text-neutral-700"
               ></div>
             </div>
           ))}
         </div>
       </div>
       <div className="w-[32%] min-w-[340px] pt-16">
-        <div className="flex flex-col px-6 py-9 border border-xgray300 rounded-[8px] gap-4">
+        <div className="flex flex-col px-6 py-9 border border-neutral-300 rounded-[8px] gap-4">
           <InputForm
             label="이름"
             value={name}
@@ -71,12 +73,12 @@ const Role = () => {
             onChange={(e) => setPhone(e.target.value)}
             placeholder="010-1234-5678"
           />
-          <button
+          <BareButton
             onClick={onApply}
-            className="hover:opacity-90 mt-8 cursor-pointer text-white bg-brightnavy w-full h-[38px] px-3 py-2 rounded-[6px] text-[14px] font-medium leading-5"
+            className="hover:opacity-90 mt-8 cursor-pointer text-white bg-neutral-1000 w-full h-[38px] px-3 py-2 rounded-[6px] text-[14px] font-medium leading-5"
           >
             지원하기
-          </button>
+          </BareButton>
         </div>
       </div>
     </main>
@@ -99,9 +101,10 @@ const InputForm = ({
   return (
     <div className="flex flex-col gap-1">
       <div className="text-[14px] font-medium">{label}</div>
-      <input
+      <UiInput
+        unstyled
         placeholder={placeholder}
-        className="w-full h-[36px] px-3 py-2 border border-xgray400 rounded-[5px] text-[13px] font-light leading-5 focus:ring-1 focus:ring-brightnavy outline-none"
+        className="w-full h-[36px] px-3 py-2 border border-neutral-500 rounded-[5px] text-[13px] font-light leading-5 focus:ring-1 focus:ring-neutral-1000 outline-none"
         value={value}
         onChange={onChange}
       />

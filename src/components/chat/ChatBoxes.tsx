@@ -44,6 +44,10 @@ import {
 import { useRunDetail } from "@/hooks/useRunDetail";
 import { Tooltips } from "../ui/tooltip";
 import { useMessages } from "@/i18n/useMessage";
+import { BareButton } from "@/components/ui/button";
+import { ClickablePanel } from "@/components/ui/clickable-panel";
+import { Input as UiInput } from "@/components/ui/input";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
 const DEFAULT_CRITERIA_CARD_SOURCES: EnabledSearchSource[] = ["linkedin"];
 
@@ -126,36 +130,54 @@ export const CriteriaItem = React.memo(function CriteriaItem({
   return (
     <div
       ref={rootRef}
-      onClick={() => {
-        if (!isEditing) setIsEditing(true);
-      }}
-      className={`relative flex items-center gap-2 rounded-2xl text-[13px] font-light px-3 pt-2 group cursor-pointer transition-all duration-200 ${isDark ? "hover:bg-white/5" : "hover:bg-beige500/40"}
+      className={`relative flex items-center gap-2 rounded-2xl text-[13px] font-light px-3 pt-2 group cursor-pointer transition-all duration-200 ${isDark ? "hover:bg-neutral-00/5" : "hover:bg-bg-floating"}
           ${
             isEditing
-              ? isDark ? "border border-white/5 bg-white/5 pb-4" : "border border-beige900/8 bg-beige500/30 pb-4"
-              : "border border-white/0 pb-2"
+              ? isDark
+                ? "border border-neutral-00/5 bg-neutral-00/5 pb-4"
+                : "border border-neutral-1000-a05 bg-bg-floating pb-4"
+              : "border border-transparent pb-2"
           }
           `}
     >
       {!isEditing ? (
-        <div className="flex flex-row items-center justify-between gap-2 w-full">
-          <span className={isDark ? "text-hgray900" : "text-beige900"}>{criteria}</span>
-          <Pencil strokeWidth={1.6} className={isDark ? "w-2.5 h-2.5 text-hgray900/50" : "w-2.5 h-2.5 text-beige900/45"} />
-          <button
+        <>
+          <ClickablePanel
+            onActivate={() => {
+              setIsEditing(true);
+            }}
+            className="flex w-full flex-row items-center justify-between gap-2"
+          >
+            <span
+              className={isDark ? "text-neutral-00/90" : "text-neutral-primary"}
+            >
+              {criteria}
+            </span>
+            <Pencil
+              strokeWidth={1.6}
+              className={
+                isDark
+                  ? "w-2.5 h-2.5 text-neutral-00/50"
+                  : "w-2.5 h-2.5 text-neutral-soft"
+              }
+            />
+          </ClickablePanel>
+          <BareButton
             type="button"
             onClick={(e) => {
               e.stopPropagation();
               onRemove();
             }}
-            className={`absolute top-[-4px] right-0 text-xs opacity-0 group-hover:opacity-100 transition-all duration-200 ${isDark ? "text-hgray700 hover:text-hgray900" : "text-beige900/55 hover:text-beige900"}`}
+            className={`absolute top-[-4px] right-0 text-xs opacity-0 group-hover:opacity-100 transition-all duration-200 ${isDark ? "text-neutral-00/70 hover:text-neutral-00/90" : "text-neutral-muted hover:text-neutral-primary"}`}
             aria-label="Remove"
           >
             ✕
-          </button>
-        </div>
+          </BareButton>
+        </>
       ) : (
         <>
-          <input
+          <UiInput
+            unstyled
             ref={inputRef}
             value={draft}
             placeholder={placeholder}
@@ -168,10 +190,10 @@ export const CriteriaItem = React.memo(function CriteriaItem({
               if (e.key === "Enter") commit();
               if (e.key === "Escape") cancel();
             }}
-            className={`w-full bg-transparent outline-none pr-14 ${isDark ? "text-hgray900" : "text-beige900"}`}
+            className={`w-full bg-transparent outline-none pr-14 ${isDark ? "text-neutral-00/90" : "text-neutral-primary"}`}
           />
 
-          <button
+          <BareButton
             type="button"
             onClick={(e) => {
               e.stopPropagation();
@@ -182,16 +204,24 @@ export const CriteriaItem = React.memo(function CriteriaItem({
                   // ✅ Add-mode should be enabled when there's text
                   autoRemoveIfEmpty
                     ? draft.trim()
-                      ? isDark ? "text-accenta1" : "text-accentBronze"
-                      : isDark ? "text-hgray600" : "text-beige900/45"
+                      ? isDark
+                        ? "text-accent-300"
+                        : "text-primary"
+                      : isDark
+                        ? "text-neutral-00/60"
+                        : "text-neutral-soft"
                     : isChanged
-                      ? isDark ? "text-accenta1" : "text-accentBronze"
-                      : isDark ? "text-hgray600" : "text-beige900/45"
+                      ? isDark
+                        ? "text-accent-300"
+                        : "text-primary"
+                      : isDark
+                        ? "text-neutral-00/60"
+                        : "text-neutral-soft"
                 }
                 `}
           >
             Confirm
-          </button>
+          </BareButton>
         </>
       )}
     </div>
@@ -265,25 +295,30 @@ const QueryTextItem = React.memo(function QueryTextItem({
   return (
     <div
       ref={rootRef}
-      onClick={() => {
-        if (!isEditing) setIsEditing(true);
-      }}
-      className={`relative mt-2 rounded-2xl px-3 pt-2 transition-all duration-200 cursor-pointer ${isDark ? "hover:bg-white/5" : "hover:bg-beige500/40"}
-        ${isEditing ? isDark ? "border border-white/5 bg-white/5 pb-6" : "border border-beige900/8 bg-beige500/30 pb-6" : "border border-white/0 pb-2"}`}
+      className={`relative mt-2 rounded-2xl px-3 pt-2 transition-all duration-200 cursor-pointer ${isDark ? "hover:bg-neutral-00/5" : "hover:bg-bg-floating"}
+        ${isEditing ? (isDark ? "border border-neutral-00/5 bg-neutral-00/5 pb-6" : "border border-neutral-1000-a05 bg-bg-floating pb-6") : "border border-transparent pb-2"}`}
     >
       {!isEditing ? (
-        <div
+        <ClickablePanel
+          onActivate={() => {
+            setIsEditing(true);
+          }}
           className={`text-[13px] whitespace-pre-wrap leading-relaxed ${
             isDark
-              ? text ? "text-hgray700" : "text-hgray600"
-              : text ? "text-beige900/80" : "text-beige900/45"
+              ? text
+                ? "text-neutral-00/70"
+                : "text-neutral-00/60"
+              : text
+                ? "text-neutral-primary"
+                : "text-neutral-soft"
           }`}
         >
           {text || placeholder}
-        </div>
+        </ClickablePanel>
       ) : (
         <>
-          <textarea
+          <UiTextarea
+            unstyled
             ref={inputRef}
             value={draft}
             rows={3}
@@ -299,21 +334,27 @@ const QueryTextItem = React.memo(function QueryTextItem({
                 commit();
               }
             }}
-            className={`w-full resize-none bg-transparent outline-none text-xs leading-relaxed pr-14 ${isDark ? "text-hgray900" : "text-beige900"}`}
+            className={`w-full resize-none bg-transparent outline-none text-xs leading-relaxed pr-14 ${isDark ? "text-neutral-00/90" : "text-neutral-primary"}`}
           />
 
-          <button
+          <BareButton
             type="button"
             onClick={(e) => {
               e.stopPropagation();
               commit();
             }}
             className={`absolute bottom-2 right-2 text-xs transition-all duration-200 ${
-              isChanged ? isDark ? "text-accenta1" : "text-accentBronze" : isDark ? "text-hgray600" : "text-beige900/45"
+              isChanged
+                ? isDark
+                  ? "text-accent-300"
+                  : "text-primary"
+                : isDark
+                  ? "text-neutral-00/60"
+                  : "text-neutral-soft"
             }`}
           >
             Confirm
-          </button>
+          </BareButton>
         </>
       )}
     </div>
@@ -328,7 +369,7 @@ function SourceIcons({ sources }: { sources: EnabledSearchSource[] }) {
       {sources.map((source) => (
         <span
           key={source}
-          className="flex items-center justify-center p-1 rounded-full bg-white"
+          className="flex items-center justify-center p-1 rounded-full bg-bg-default"
         >
           <Image
             src={getSearchSourceLogoPath(source)}
@@ -434,18 +475,24 @@ export const CriteriaCard = React.memo(function CriteriaCard({
   return (
     <div className="mt-2 w-full">
       <div className="max-w-[440px]">
-        <div className={`text-xs font-extralight flex flex-row items-center gap-1.5 ${isDark ? "text-hgray600" : "text-beige900/55"}`}>
+        <div
+          className={`text-xs font-extralight flex flex-row items-center gap-1.5 ${isDark ? "text-neutral-00/60" : "text-neutral-muted"}`}
+        >
           <span>
-            <Bolt className={`w-2.5 h-2.5 ${isDark ? "text-hgray600" : "text-beige900/55"}`} />
+            <Bolt
+              className={`w-2.5 h-2.5 ${isDark ? "text-neutral-00/60" : "text-neutral-muted"}`}
+            />
           </span>
           Search
         </div>
         <div
-          className={`mt-2 rounded-3xl px-4 py-4 transition-all duration-200 ${isDark ? "border border-white/10 bg-white/5" : "border border-beige900/8 bg-beige50"}
+          className={`mt-2 rounded-3xl px-4 py-4 transition-all duration-200 ${isDark ? "border border-neutral-00/10 bg-neutral-00/5" : "border border-neutral-1000-a05 bg-bg-default"}
         ${disabled ? "pointer-events-none cursor-default" : ""}`}
         >
           <div className="flex items-start justify-between gap-3">
-            <div className={`text-sm font-semibold flex items-center gap-2 ${isDark ? "text-hgray900" : "text-beige900"}`}>
+            <div
+              className={`text-sm font-semibold flex items-center gap-2 ${isDark ? "text-neutral-00/90" : "text-neutral-primary"}`}
+            >
               검색 방법
             </div>
           </div>
@@ -456,10 +503,16 @@ export const CriteriaCard = React.memo(function CriteriaCard({
             theme={theme}
           />
 
-          <div className={`mt-3 text-xs ${isDark ? "text-hgray600" : "text-beige900/55"}`}>Sources</div>
+          <div
+            className={`mt-3 text-xs ${isDark ? "text-neutral-00/60" : "text-neutral-muted"}`}
+          >
+            Sources
+          </div>
 
           <div className="flex flex-row gap-1 items-center justify-between">
-            <div className={`text-sm font-light ${isDark ? "text-white" : "text-beige900"}`}>
+            <div
+              className={`text-sm font-light ${isDark ? "text-neutral-00" : "text-neutral-primary"}`}
+            >
               검색에 사용할 출처
             </div>
 
@@ -468,19 +521,21 @@ export const CriteriaCard = React.memo(function CriteriaCard({
               onOpenChange={setSourcesMenuOpen}
             >
               <DropdownMenuTrigger asChild>
-                <button
+                <BareButton
                   type="button"
-                  className={`inline-flex items-center gap-2 rounded-full pr-3 pl-2.5 py-1.5 text-sm transition-all duration-200 ${isDark ? "bg-white/5 border border-white/10 text-hgray900 hover:bg-white/10" : "bg-beige500/55 border border-beige900/8 text-beige900 hover:bg-beige500/70"}`}
+                  className={`inline-flex items-center gap-2 rounded-full pr-3 pl-2.5 py-1.5 text-sm transition-all duration-200 ${isDark ? "bg-neutral-00/5 border border-neutral-00/10 text-neutral-00/90 hover:bg-neutral-00/10" : "bg-bg-floating border border-neutral-1000-a05 text-neutral-primary hover:bg-bg-weak"}`}
                 >
                   <SourceIcons sources={selectedSources} />
                   <ChevronDown className="h-3.5 w-3.5" />
-                </button>
+                </BareButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
-                className={`w-[220px] rounded-2xl p-2 backdrop-blur-sm ${isDark ? "border-white/10 bg-ngray300/70" : "border-beige900/8 bg-beige50"}`}
+                className={`w-[220px] rounded-2xl p-2 backdrop-blur-sm ${isDark ? "border-neutral-00/10 bg-black/70" : "border-neutral-1000-a05 bg-bg-default"}`}
               >
-                <div className={`px-1 pb-2 text-[11px] ${isDark ? "text-hgray700" : "text-beige900/65"}`}>
+                <div
+                  className={`px-1 pb-2 text-[11px] ${isDark ? "text-neutral-00/70" : "text-neutral-muted"}`}
+                >
                   검색에 사용할 출처를 선택하세요.
                 </div>
                 <div className="flex flex-col gap-1">
@@ -491,7 +546,7 @@ export const CriteriaCard = React.memo(function CriteriaCard({
                         key={source}
                         text={SEARCH_SOURCE_DESCRIPTIONS[source]}
                       >
-                        <button
+                        <BareButton
                           key={source}
                           type="button"
                           onClick={(e) => {
@@ -501,11 +556,17 @@ export const CriteriaCard = React.memo(function CriteriaCard({
                           }}
                           className={`group flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition-all duration-200 ${
                             isDark
-                              ? checked ? "bg-white/10" : "hover:bg-white/5"
-                              : checked ? "bg-beige500/55" : "hover:bg-beige500/40"
+                              ? checked
+                                ? "bg-neutral-00/10"
+                                : "hover:bg-neutral-00/5"
+                              : checked
+                                ? "bg-bg-floating"
+                                : "hover:bg-bg-floating"
                           }`}
                         >
-                          <div className={`flex items-center gap-2 ${isDark ? "text-hgray900" : "text-beige900"}`}>
+                          <div
+                            className={`flex items-center gap-2 ${isDark ? "text-neutral-00/90" : "text-neutral-primary"}`}
+                          >
                             <Image
                               src={getSearchSourceLogoPath(source)}
                               alt={getSearchSourceLabel(source)}
@@ -517,28 +578,28 @@ export const CriteriaCard = React.memo(function CriteriaCard({
                           </div>
                           <div className="relative h-3.5 w-3.5 shrink-0 overflow-hidden">
                             <Check
-                              className={`absolute inset-0 h-3.5 w-3.5 transition-all duration-200 ${isDark ? "text-accenta1" : "text-accentBronze"} ${
+                              className={`absolute inset-0 h-3.5 w-3.5 transition-all duration-200 ${isDark ? "text-accent-300" : "text-primary"} ${
                                 checked
                                   ? "opacity-100 translate-y-0 group-hover:opacity-0 group-hover:-translate-y-1.5"
                                   : "pointer-events-none opacity-0 translate-y-1.5"
                               }`}
                             />
                             <ChevronDown
-                              className={`absolute inset-0 h-3.5 w-3.5 transition-all duration-200 ${isDark ? "text-hgray700" : "text-beige900/65"} ${
+                              className={`absolute inset-0 h-3.5 w-3.5 transition-all duration-200 ${isDark ? "text-neutral-00/70" : "text-neutral-muted"} ${
                                 checked
                                   ? "opacity-0 translate-y-1.5 group-hover:opacity-100 group-hover:translate-y-0"
                                   : "pointer-events-none opacity-0 translate-y-1.5"
                               }`}
                             />
                             <ChevronUp
-                              className={`absolute inset-0 h-3.5 w-3.5 transition-all duration-200 ${isDark ? "text-hgray700" : "text-beige900/65"} ${
+                              className={`absolute inset-0 h-3.5 w-3.5 transition-all duration-200 ${isDark ? "text-neutral-00/70" : "text-neutral-muted"} ${
                                 checked
                                   ? "pointer-events-none opacity-0 -translate-y-1.5"
                                   : "opacity-0 translate-y-1.5 group-hover:opacity-100 group-hover:translate-y-0"
                               }`}
                             />
                           </div>
-                        </button>
+                        </BareButton>
                       </Tooltips>
                     );
                   })}
@@ -547,7 +608,11 @@ export const CriteriaCard = React.memo(function CriteriaCard({
             </DropdownMenu>
           </div>
 
-          <div className={`mt-3 text-xs ${isDark ? "text-hgray600" : "text-beige900/55"}`}>Criteria</div>
+          <div
+            className={`mt-3 text-xs ${isDark ? "text-neutral-00/60" : "text-neutral-muted"}`}
+          >
+            Criteria
+          </div>
 
           {Array.isArray(draft.criteria) && draft.criteria.length > 0 && (
             <div className="mt-2 flex flex-col gap-1">
@@ -578,28 +643,30 @@ export const CriteriaCard = React.memo(function CriteriaCard({
             </div>
           )}
 
-          <button
+          <BareButton
             type="button"
             onClick={() => {
               if (!pendingAdd) setPendingAdd(true);
             }}
-            className={`rounded-2xl font-light pl-2 pr-3 py-2 text-sm flex items-center gap-1 mt-4 transition-all duration-200 ${isDark ? "hover:bg-white/5 text-hgray900" : "hover:bg-beige500/40 text-beige900"}`}
+            className={`rounded-2xl font-light pl-2 pr-3 py-2 text-sm flex items-center gap-1 mt-4 transition-all duration-200 ${isDark ? "hover:bg-neutral-00/5 text-neutral-00/90" : "hover:bg-bg-floating text-neutral-primary"}`}
           >
             <Plus size={16} />
             Add Criteria
-          </button>
+          </BareButton>
 
-          <button
+          <BareButton
             type="button"
             className={`mt-4 w-full rounded-full py-2.5 text-sm hover:opacity-90 disabled:opacity-50 ${
-              isDark ? "bg-accenta1 text-black" : "bg-beige900 text-beige100"
+              isDark
+                ? "bg-accent-300 text-neutral-primary"
+                : "bg-black text-neutral-00"
             } ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
             disabled={disabled}
             // disabled={!draft.ready || disabled}
             onClick={() => onConfirm?.(draft)}
           >
             Confirm & Search
-          </button>
+          </BareButton>
         </div>
       </div>
     </div>
@@ -613,11 +680,15 @@ export const CriteriaLoading = React.memo(function CriteriaLoading({
 }) {
   const isDark = theme === "dark";
   return (
-    <div className={`relative mt-3 rounded-3xl px-4 py-4 overflow-hidden ${isDark ? "border border-white/10 bg-white/5" : "border border-beige900/8 bg-beige50"}`}>
+    <div
+      className={`relative mt-3 rounded-3xl px-4 py-4 overflow-hidden ${isDark ? "border border-neutral-00/10 bg-neutral-00/5" : "border border-neutral-1000-a05 bg-bg-default"}`}
+    >
       {/* shimmer layer */}
       <div className="pointer-events-none absolute inset-0 shimmer-bg" />
 
-      <div className={`relative text-sm font-normal ${isDark ? "text-hgray900" : "text-beige900"}`}>
+      <div
+        className={`relative text-sm font-normal ${isDark ? "text-neutral-00/90" : "text-neutral-primary"}`}
+      >
         후보자를 찾을 방법을 설계하고 있습니다...
       </div>
     </div>
@@ -640,7 +711,9 @@ export const ToolStatusCard = React.memo(function ToolStatusCard({
 
   if (state === "done") {
     return (
-      <div className={`w-full text-xs flex flex-row items-center gap-1 ${isDark ? "text-hgray700" : "text-beige900/65"}`}>
+      <div
+        className={`w-full text-xs flex flex-row items-center gap-1 ${isDark ? "text-neutral-00/70" : "text-neutral-muted"}`}
+      >
         <Check size={12} /> {label} 완료
       </div>
     );
@@ -648,14 +721,16 @@ export const ToolStatusCard = React.memo(function ToolStatusCard({
 
   // if (state === "error") {
   //   return (
-  //     <div className="w-full text-xs text-red-400 flex flex-row items-center gap-1">
+  //     <div className="w-full text-xs text-critical flex flex-row items-center gap-1">
   //       <AlertTriangle size={12} /> 실패{message ? `: ${message}` : ""}
   //     </div>
   //   );
   // }
 
   return (
-    <div className={`w-full text-xs flex items-center gap-1 mt-2 ${isDark ? "text-hgray600" : "text-beige900/55"}`}>
+    <div
+      className={`w-full text-xs flex items-center gap-1 mt-2 ${isDark ? "text-neutral-00/60" : "text-neutral-muted"}`}
+    >
       <Loader2 className="w-3.5 h-3.5 animate-spin" />
       {label}...
     </div>
@@ -674,21 +749,27 @@ export const ToolStatusToggle = React.memo(function ToolStatusToggle({
 
   return (
     <div className="w-full mt-1 mb-2">
-      <button
+      <BareButton
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`text-xs flex flex-row items-center gap-1 group ${isDark ? "text-hgray700" : "text-beige900/65"}`}
+        className={`text-xs flex flex-row items-center gap-1 group ${isDark ? "text-neutral-00/70" : "text-neutral-muted"}`}
       >
         <Check size={12} />
         검색 완료
-        <span className={`transition-all duration-200 ${isDark ? "text-hgray600 group-hover:text-hgray900" : "text-beige900/55 group-hover:text-beige900"}`}>
+        <span
+          className={`transition-all duration-200 ${isDark ? "text-neutral-00/60 group-hover:text-neutral-00/90" : "text-neutral-muted group-hover:text-neutral-primary"}`}
+        >
           {open ? "접기" : "보기"}
         </span>
-      </button>
+      </BareButton>
       {open && (
         <div className="mt-2 flex flex-col gap-2">
           {items.map((s, idx) => (
-            <ToolStatusCard key={`${s.id ?? s.name ?? "tool"}-${idx}`} {...s} theme={theme} />
+            <ToolStatusCard
+              key={`${s.id ?? s.name ?? "tool"}-${idx}`}
+              {...s}
+              theme={theme}
+            />
           ))}
         </div>
       )}
@@ -724,30 +805,40 @@ export const DocumentCard = React.memo(function DocumentCard({
   const hasText = displayText.trim().length > 0;
 
   return (
-    <div className={`mt-2 mb-4 rounded-2xl px-4 pb-3 pt-2 ${isDark ? "border border-white/10 bg-white/5" : "border border-beige900/8 bg-beige50"}`}>
+    <div
+      className={`mt-2 mb-4 rounded-2xl px-4 pb-3 pt-2 ${isDark ? "border border-neutral-00/10 bg-neutral-00/5" : "border border-neutral-1000-a05 bg-bg-default"}`}
+    >
       {(title || url) && (
         <div className="mt-2 flex flex-col gap-1">
           {title && (
-            <div className={`text-sm font-medium ${isDark ? "text-hgray900" : "text-beige900"}`}>{title}</div>
+            <div
+              className={`text-sm font-medium ${isDark ? "text-neutral-00/90" : "text-neutral-primary"}`}
+            >
+              {title}
+            </div>
           )}
         </div>
       )}
-      <div className={`text-xs flex items-center ${isDark ? "text-hgray600" : "text-beige900/55"}`}>
+      <div
+        className={`text-xs flex items-center ${isDark ? "text-neutral-00/60" : "text-neutral-muted"}`}
+      >
         {url && <LinkChip raw={url} size="md" theme={theme} />}
       </div>
       {hasText && (
-        <div className={`mt-4 text-xs whitespace-pre-wrap ${isDark ? "text-hgray700" : "text-beige900/65"}`}>
+        <div
+          className={`mt-4 text-xs whitespace-pre-wrap ${isDark ? "text-neutral-00/70" : "text-neutral-muted"}`}
+        >
           {expanded ? displayText : displayText.slice(0, 360)}
           {displayText.length > 360 && (
             <>
               {!expanded && "…"}
-              <button
+              <BareButton
                 type="button"
                 onClick={() => setExpanded((v) => !v)}
-                className={`ml-2 text-xs ${isDark ? "text-hgray600 hover:text-hgray900" : "text-beige900/55 hover:text-beige900"}`}
+                className={`ml-2 text-xs ${isDark ? "text-neutral-00/60 hover:text-neutral-00/90" : "text-neutral-muted hover:text-neutral-primary"}`}
               >
                 {expanded ? "접기" : "더보기"}
-              </button>
+              </BareButton>
             </>
           )}
         </div>
@@ -771,10 +862,19 @@ export const AttachmentContextCard = React.memo(function AttachmentContextCard({
   const isLink = block.kind === "link";
 
   return (
-    <div className={`mt-2 w-full rounded-2xl px-4 py-3 ${isDark ? "border border-white/10 bg-white/5" : "border border-beige900/8 bg-beige50"}`}>
-      <div className={`flex items-center gap-1.5 text-xs ${isDark ? "text-hgray600" : "text-beige900/55"}`}>
+    <div
+      className={`mt-2 w-full rounded-2xl px-4 py-3 ${isDark ? "border border-neutral-00/10 bg-neutral-00/5" : "border border-neutral-1000-a05 bg-bg-default"}`}
+    >
+      <div
+        className={`flex items-center gap-1.5 text-xs ${isDark ? "text-neutral-00/60" : "text-neutral-muted"}`}
+      >
         {isLink ? (
-          <LinkChip raw={block.url ?? ""} size="md" theme={theme} className="mt-0" />
+          <LinkChip
+            raw={block.url ?? ""}
+            size="md"
+            theme={theme}
+            className="mt-0"
+          />
         ) : (
           <>
             <Paperclip className="h-3 w-3" />
@@ -782,23 +882,31 @@ export const AttachmentContextCard = React.memo(function AttachmentContextCard({
           </>
         )}
       </div>
-      <div className={`mt-2 text-sm font-medium ${isDark ? "text-hgray900" : "text-beige900"}`}>{block.name}</div>
-      <div className={`mt-1 text-[11px] ${isDark ? "text-hgray600" : "text-beige900/55"}`}>
+      <div
+        className={`mt-2 text-sm font-medium ${isDark ? "text-neutral-00/90" : "text-neutral-primary"}`}
+      >
+        {block.name}
+      </div>
+      <div
+        className={`mt-1 text-[11px] ${isDark ? "text-neutral-00/60" : "text-neutral-muted"}`}
+      >
         {[block.mime, formatBytes(block.size)].filter(Boolean).join(" · ")}
       </div>
       {hasExcerpt && (
-        <div className={`mt-2 text-xs whitespace-pre-wrap ${isDark ? "text-hgray700" : "text-beige900/65"}`}>
+        <div
+          className={`mt-2 text-xs whitespace-pre-wrap ${isDark ? "text-neutral-00/70" : "text-neutral-muted"}`}
+        >
           {expanded ? excerpt : excerpt.slice(0, 360)}
           {excerpt.length > 360 && (
             <>
               {!expanded && "…"}
-              <button
+              <BareButton
                 type="button"
                 onClick={() => setExpanded((v) => !v)}
-                className={`ml-2 text-xs ${isDark ? "text-hgray600 hover:text-hgray900" : "text-beige900/55 hover:text-beige900"}`}
+                className={`ml-2 text-xs ${isDark ? "text-neutral-00/60 hover:text-neutral-00/90" : "text-neutral-muted hover:text-neutral-primary"}`}
               >
                 {expanded ? "접기" : "더보기"}
-              </button>
+              </BareButton>
             </>
           )}
         </div>
@@ -845,20 +953,22 @@ export const SettingsCtaCard = React.memo(function SettingsCtaCard({
 
   return (
     <div className="w-full">
-      <div className={`inline-flex flex-col rounded-xl px-4 py-3 text-[13px] backdrop-blur-sm ${isDark ? "bg-white/3" : "bg-beige50 border border-beige900/8"}`}>
+      <div
+        className={`inline-flex flex-col rounded-xl px-4 py-3 text-[13px] backdrop-blur-sm ${isDark ? "bg-neutral-00/5" : "bg-bg-default border border-neutral-1000-a05"}`}
+      >
         <div
-          className={`leading-relaxed whitespace-pre-wrap ${isDark ? "text-white/70" : "text-beige900/80"}`}
+          className={`leading-relaxed whitespace-pre-wrap ${isDark ? "text-neutral-00/70" : "text-neutral-primary"}`}
           dangerouslySetInnerHTML={{ __html: block.text }}
         />
 
-        <button
+        <BareButton
           type="button"
           onClick={() => router.push(href)}
-          className={`mt-4 inline-flex w-fit items-center gap-1.5 rounded-md px-3 py-1.5 transition ${isDark ? "bg-white/4 text-white/80 hover:bg-white/8" : "bg-beige500/55 text-beige900 hover:bg-beige500/70"}`}
+          className={`mt-4 inline-flex w-fit items-center gap-1.5 rounded-md px-3 py-1.5 transition ${isDark ? "bg-neutral-00/5 text-neutral-00/80 hover:bg-neutral-00/10" : "bg-bg-floating text-neutral-primary hover:bg-bg-weak"}`}
         >
           {buttonLabel}
           <ArrowRight className="w-3.5 h-3.5 opacity-70" />
-        </button>
+        </BareButton>
       </div>
     </div>
   );
@@ -920,23 +1030,29 @@ export const SearchResultCard = React.memo(function SearchResultCard({
       <div className="w-full">
         <div
           onClick={openResults}
-          className={`text-sm flex flex-row items-center justify-between w-full mt-4 relative rounded-3xl px-4 py-4 overflow-hidden transition-all duration-200 ${isDark ? "text-hgray900 border border-white/5" : "text-beige900 border border-beige900/8"} ${
-            canOpen ? isDark ? "cursor-pointer hover:bg-white/5" : "cursor-pointer hover:bg-beige500/40" : "cursor-default"
+          className={`text-sm flex flex-row items-center justify-between w-full mt-4 relative rounded-3xl px-4 py-4 overflow-hidden transition-all duration-200 ${isDark ? "text-neutral-00/90 border border-neutral-00/5" : "text-neutral-primary border border-neutral-1000-a05"} ${
+            canOpen
+              ? isDark
+                ? "cursor-pointer hover:bg-neutral-00/5"
+                : "cursor-pointer hover:bg-bg-floating"
+              : "cursor-default"
           }`}
         >
           <div className="font-normal flex flex-row items-center gap-2">
-            <FileSpreadsheet className="w-4 h-4 text-green-500" />
+            <FileSpreadsheet className="w-4 h-4 text-positive" />
             <span>{firstText}</span>
           </div>
           <div className="flex items-center gap-2">
             {isPinned ? (
               <Pin
-                className={`h-3.5 w-3.5 ${isDark ? "text-accenta1" : "text-accentBronze"}`}
+                className={`h-3.5 w-3.5 ${isDark ? "text-accent-300" : "text-primary"}`}
                 fill="currentColor"
                 strokeWidth={1.8}
               />
             ) : null}
-            <ArrowRight className={`w-4 h-4 ${isDark ? "text-hgray900" : "text-beige900"}`} />
+            <ArrowRight
+              className={`w-4 h-4 ${isDark ? "text-neutral-00/90" : "text-neutral-primary"}`}
+            />
           </div>
         </div>
       </div>
@@ -961,9 +1077,11 @@ export const SearchResultCard = React.memo(function SearchResultCard({
   if (!fullCount || fullCount <= 0) {
     return (
       <div className="w-full mt-4">
-        <div className={`w-full rounded-2xl overflow-hidden ${isDark ? "border border-white/10 bg-white/3 text-hgray900" : "border border-beige900/8 bg-beige50 text-beige900"}`}>
+        <div
+          className={`w-full rounded-2xl overflow-hidden ${isDark ? "border border-neutral-00/10 bg-neutral-00/5 text-neutral-00/90" : "border border-neutral-1000-a05 bg-bg-default text-neutral-primary"}`}
+        >
           <div className="flex text-[13px] items-center gap-2 px-4 py-3">
-            <FileSpreadsheet className="w-3 h-3 text-green-500" />
+            <FileSpreadsheet className="w-3 h-3 text-positive" />
             <span className="font-medium">
               완벽히 일치하는 후보자를 찾지 못했습니다.
             </span>
@@ -979,29 +1097,53 @@ export const SearchResultCard = React.memo(function SearchResultCard({
           </div>
 
           <div className="flex flex-col w-full items-center justify-center px-4 pb-4 gap-4">
-            <div className={`w-full mt-6 pt-4 text-[13px] space-y-1.5 ${isDark ? "border-t border-white/10" : "border-t border-beige900/8"}`}>
+            <div
+              className={`w-full mt-6 pt-4 text-[13px] space-y-1.5 ${isDark ? "border-t border-neutral-00/10" : "border-t border-neutral-1000-a05"}`}
+            >
               <div className="flex items-center justify-between">
-                <span className={isDark ? "text-hgray900/70" : "text-beige900/80"}>완벽 일치</span>
-                <span className={`font-medium ${isDark ? "text-hgray900" : "text-beige900"}`}>
+                <span
+                  className={
+                    isDark ? "text-neutral-00/70" : "text-neutral-primary"
+                  }
+                >
+                  완벽 일치
+                </span>
+                <span
+                  className={`font-medium ${isDark ? "text-neutral-00/90" : "text-neutral-primary"}`}
+                >
                   {formatCount(fullCount)}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className={isDark ? "text-hgray900/70" : "text-beige900/80"}>부분 일치</span>
-                <span className={isDark ? "text-hgray900/70" : "text-beige900/80"}>
+                <span
+                  className={
+                    isDark ? "text-neutral-00/70" : "text-neutral-primary"
+                  }
+                >
+                  부분 일치
+                </span>
+                <span
+                  className={
+                    isDark ? "text-neutral-00/70" : "text-neutral-primary"
+                  }
+                >
                   {formatCount(partialCount)}
                 </span>
               </div>
             </div>
             <div className="flex flex-row items-center justify-center gap-2 w-full">
-              <button
+              <BareButton
                 type="button"
                 onClick={retrySearch}
                 disabled={!canRetry}
                 className={`inline-flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-[13px] font-medium transition-all duration-200 ${
                   canRetry
-                    ? isDark ? "bg-accenta1 text-black hover:opacity-80" : "bg-beige900 text-beige100 hover:opacity-80"
-                    : isDark ? "bg-white/10 text-hgray600 cursor-not-allowed" : "bg-beige900/10 text-beige900/45 cursor-not-allowed"
+                    ? isDark
+                      ? "bg-accent-300 text-neutral-primary hover:opacity-80"
+                      : "bg-black text-neutral-00 hover:opacity-80"
+                    : isDark
+                      ? "bg-neutral-00/10 text-neutral-00/60 cursor-not-allowed"
+                      : "bg-bg-weak text-neutral-soft cursor-not-allowed"
                 }`}
               >
                 {isRetrying ? (
@@ -1012,20 +1154,24 @@ export const SearchResultCard = React.memo(function SearchResultCard({
                 ) : (
                   "다시 검색하기"
                 )}
-              </button>
-              <button
+              </BareButton>
+              <BareButton
                 type="button"
                 onClick={openResults}
                 disabled={!canOpen}
                 className={`inline-flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-[13px] font-medium transition-all duration-200 ${
                   canOpen
-                    ? isDark ? "bg-white/10 text-hgray900" : "bg-beige500/55 text-beige900"
-                    : isDark ? "bg-white/10 text-hgray600 cursor-not-allowed" : "bg-beige900/10 text-beige900/45 cursor-not-allowed"
+                    ? isDark
+                      ? "bg-neutral-00/10 text-neutral-00/90"
+                      : "bg-bg-floating text-neutral-primary"
+                    : isDark
+                      ? "bg-neutral-00/10 text-neutral-00/60 cursor-not-allowed"
+                      : "bg-bg-weak text-neutral-soft cursor-not-allowed"
                 }`}
               >
                 결과 확인
                 <ArrowRight className="w-4 h-4" />
-              </button>
+              </BareButton>
             </div>
           </div>
         </div>
@@ -1035,15 +1181,19 @@ export const SearchResultCard = React.memo(function SearchResultCard({
 
   return (
     <div className="w-full mt-4">
-      <div className={`w-full rounded-2xl overflow-hidden ${isDark ? "border border-white/10 bg-white/3 text-hgray900" : "border border-beige900/8 bg-beige50 text-beige900"}`}>
-        <div className={`flex text-[13px] items-center justify-between gap-2 px-4 py-3 ${isDark ? "border-b border-white/10" : "border-b border-beige900/8"}`}>
+      <div
+        className={`w-full rounded-2xl overflow-hidden ${isDark ? "border border-neutral-00/10 bg-neutral-00/5 text-neutral-00/90" : "border border-neutral-1000-a05 bg-bg-default text-neutral-primary"}`}
+      >
+        <div
+          className={`flex text-[13px] items-center justify-between gap-2 px-4 py-3 ${isDark ? "border-b border-neutral-00/10" : "border-b border-neutral-1000-a05"}`}
+        >
           <div className="flex items-center gap-2">
-            <FileSpreadsheet className="w-3 h-3 text-green-500" />
+            <FileSpreadsheet className="w-3 h-3 text-positive" />
             <span className="font-medium">검색 결과</span>
           </div>
           {isPinned ? (
             <Pin
-              className={`h-3.5 w-3.5 ${isDark ? "text-accenta1" : "text-accentBronze"}`}
+              className={`h-3.5 w-3.5 ${isDark ? "text-accent-300" : "text-primary"}`}
               fill="currentColor"
               strokeWidth={1.8}
             />
@@ -1051,7 +1201,9 @@ export const SearchResultCard = React.memo(function SearchResultCard({
         </div>
 
         <div className="px-4 py-4">
-          <div className={`text-xs font-medium ${isDark ? "text-hgray900" : "text-beige900"}`}>
+          <div
+            className={`text-xs font-medium ${isDark ? "text-neutral-00/90" : "text-neutral-primary"}`}
+          >
             적용된 검색 조건
           </div>
           {hasCriteria ? (
@@ -1059,51 +1211,79 @@ export const SearchResultCard = React.memo(function SearchResultCard({
               {criteria.map((item, idx) => (
                 <li
                   key={`${item}-${idx}`}
-                  className={`flex flex-row items-center gap-2 text-[13px] ${isDark ? "text-hgray900/70" : "text-beige900/80"}`}
+                  className={`flex flex-row items-center gap-2 text-[13px] ${isDark ? "text-neutral-00/70" : "text-neutral-primary"}`}
                 >
                   <Check className="w-3.5 h-3.5" /> {item}
                 </li>
               ))}
             </ol>
           ) : (
-            <div className={`mt-2 text-sm ${isDark ? "text-hgray700" : "text-beige900/65"}`}>
+            <div
+              className={`mt-2 text-sm ${isDark ? "text-neutral-00/70" : "text-neutral-muted"}`}
+            >
               {block.text?.trim() || "검색 조건 정보가 없습니다."}
             </div>
           )}
 
-          <div className={`mt-6 pt-4 ${isDark ? "border-t border-white/10" : "border-t border-beige900/8"}`}>
-            <div className={`text-xs font-medium ${isDark ? "text-hgray900" : "text-beige900"}`}>
+          <div
+            className={`mt-6 pt-4 ${isDark ? "border-t border-neutral-00/10" : "border-t border-neutral-1000-a05"}`}
+          >
+            <div
+              className={`text-xs font-medium ${isDark ? "text-neutral-00/90" : "text-neutral-primary"}`}
+            >
               검색 결과 요약
             </div>
             <div className="mt-2 space-y-1.5 text-[13px]">
               <div className="flex items-center justify-between">
-                <span className={isDark ? "text-hgray900/70" : "text-beige900/80"}>완벽 일치</span>
-                <span className={`font-medium ${isDark ? "text-hgray900" : "text-beige900"}`}>
+                <span
+                  className={
+                    isDark ? "text-neutral-00/70" : "text-neutral-primary"
+                  }
+                >
+                  완벽 일치
+                </span>
+                <span
+                  className={`font-medium ${isDark ? "text-neutral-00/90" : "text-neutral-primary"}`}
+                >
                   {formatCount(fullCount)}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className={isDark ? "text-hgray900/70" : "text-beige900/80"}>부분 일치</span>
-                <span className={isDark ? "text-hgray900/70" : "text-beige900/80"}>
+                <span
+                  className={
+                    isDark ? "text-neutral-00/70" : "text-neutral-primary"
+                  }
+                >
+                  부분 일치
+                </span>
+                <span
+                  className={
+                    isDark ? "text-neutral-00/70" : "text-neutral-primary"
+                  }
+                >
                   {formatCount(partialCount)}
                 </span>
               </div>
             </div>
           </div>
 
-          <button
+          <BareButton
             type="button"
             onClick={openResults}
             disabled={!canOpen}
             className={`mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-[13px] font-medium transition-all duration-200 ${
               canOpen
-                ? isDark ? "bg-accenta1 text-black hover:opacity-80" : "bg-beige900 text-beige100 hover:opacity-80"
-                : isDark ? "bg-white/10 text-hgray600 cursor-not-allowed" : "bg-beige900/10 text-beige900/45 cursor-not-allowed"
+                ? isDark
+                  ? "bg-accent-300 text-neutral-primary hover:opacity-80"
+                  : "bg-black text-neutral-00 hover:opacity-80"
+                : isDark
+                  ? "bg-neutral-00/10 text-neutral-00/60 cursor-not-allowed"
+                  : "bg-bg-weak text-neutral-soft cursor-not-allowed"
             }`}
           >
             결과 확인
             <ArrowRight className="w-4 h-4" />
-          </button>
+          </BareButton>
         </div>
       </div>
     </div>
@@ -1196,21 +1376,33 @@ export const SearchStartCard = React.memo(function SearchStartCard({
         );
       }}
       className={`w-full relative rounded-md overflow-hidden transition-all duration-200 ${
-        canOpen ? isDark ? "cursor-pointer hover:bg-white/5" : "cursor-pointer hover:bg-beige500/40" : "cursor-default"
+        canOpen
+          ? isDark
+            ? "cursor-pointer hover:bg-neutral-00/5"
+            : "cursor-pointer hover:bg-bg-floating"
+          : "cursor-default"
       }`}
     >
-      <div className={`text-[13px] font-normal flex flex-row items-center gap-2 ${isDark ? "text-hgray900" : "text-beige900"}`}>
+      <div
+        className={`text-[13px] font-normal flex flex-row items-center gap-2 ${isDark ? "text-neutral-00/90" : "text-neutral-primary"}`}
+      >
         {status === "done" ? (
-          <Check className="w-4 h-4 text-green-500" />
+          <Check className="w-4 h-4 text-positive" />
         ) : status === "failed" || status === "stopped" ? (
-          <X className={`w-4 h-4 ${isDark ? "text-hgray600" : "text-beige900/55"}`} />
+          <X
+            className={`w-4 h-4 ${isDark ? "text-neutral-00/60" : "text-neutral-muted"}`}
+          />
         ) : (
-          <Loader2 className={`w-4 h-4 animate-spin ${isDark ? "text-hgray600" : "text-beige900/55"}`} />
+          <Loader2
+            className={`w-4 h-4 animate-spin ${isDark ? "text-neutral-00/60" : "text-neutral-muted"}`}
+          />
         )}
         <span>{label}</span>
       </div>
       {canOpen && (
-        <div className={`text-xs mt-1 ${isDark ? "text-hgray600" : "text-beige900/55"}`}>
+        <div
+          className={`text-xs mt-1 ${isDark ? "text-neutral-00/60" : "text-neutral-muted"}`}
+        >
           클릭하면 검색 화면으로 이동합니다.
         </div>
       )}

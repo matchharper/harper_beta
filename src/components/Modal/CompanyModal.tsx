@@ -9,6 +9,7 @@ import { countryEnToKo } from "@/utils/language_map";
 import { Tooltips } from "../ui/tooltip";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 import { cn } from "@/lib/utils";
+import { BareButton } from "@/components/ui/button";
 
 export default function CompanyModalRoot() {
   const { isOpen, payload, close } = useCompanyModalStore();
@@ -190,45 +191,47 @@ export default function CompanyModalRoot() {
   );
   const drawerClassName = cn(
     "fixed z-9999 outline-none flex flex-col",
-    isCareerTone ? "bg-[#fffdf8] text-beige900" : "bg-beige50 text-beige900",
+    isCareerTone
+      ? "bg-bg-floating text-neutral-primary"
+      : "bg-bg-default text-neutral-primary",
     isMobile
       ? cn(
           "inset-x-0 bottom-0 h-full max-h-[92dvh] rounded-t-[20px]",
           isCareerTone
-            ? "border-t border-xprimary/20"
-            : "border-t border-beige900/8"
+            ? "border-t border-primary/20"
+            : "border-t border-neutral-1000-a05"
         )
       : cn(
           "right-0 top-0 h-full w-[min(560px,92vw)] shadow-2xl",
           isCareerTone
-            ? "border-l border-xprimary/20"
-            : "border-l border-beige900/8"
+            ? "border-l border-primary/20"
+            : "border-l border-neutral-1000-a05"
         )
   );
   const bodyClassName = cn(
     "min-h-0 flex-1 overflow-y-auto",
-    isMobile
-      ? "px-5 pb-[calc(env(safe-area-inset-bottom)+16px)]"
-      : "px-8 pb-12"
+    isMobile ? "px-5 pb-[calc(env(safe-area-inset-bottom)+16px)]" : "px-8 pb-12"
   );
   const closeButtonClassName = [
     "rounded-sm bg-transparent px-1 py-1 text-sm cursor-pointer",
     isCareerTone
-      ? "text-beige900/70 hover:bg-xprimary/10 hover:text-beige900"
-      : "hover:bg-beige50/80",
+      ? "text-neutral-muted hover:bg-accent-200 hover:text-neutral-primary"
+      : "hover:bg-bg-default",
   ].join(" ");
   const accentLabelClassName = isCareerTone
-    ? "text-xprimary text-sm"
-    : "text-accentBronze text-sm";
+    ? "text-primary text-sm"
+    : "text-primary text-sm";
   const detailPanelClassName = [
     "px-4 text-sm flex flex-col gap-4 py-4 rounded-lg",
-    isCareerTone ? "border border-xprimary/10 bg-white/70" : "bg-beige100",
+    isCareerTone
+      ? "border border-primary/10 bg-bg-default/70"
+      : "bg-bg-basement",
   ].join(" ");
   const tagClassName = [
     "rounded-md px-3 py-2 text-xs",
     isCareerTone
-      ? "border border-xprimary/10 bg-white/70 text-beige900/75"
-      : "bg-beige500/55",
+      ? "border border-primary/10 bg-bg-default/70 text-neutral-muted"
+      : "bg-bg-floating",
   ].join(" ");
 
   const handleOpenChange = useCallback(
@@ -260,25 +263,22 @@ export default function CompanyModalRoot() {
 
           {isMobile && (
             <div className="flex shrink-0 justify-center pt-3 pb-2">
-              <div className="h-1.5 w-12 rounded-full bg-beige900/20" />
+              <div className="h-1.5 w-12 rounded-full bg-bg-weak" />
             </div>
           )}
 
           {company ? (
             <div className={bodyClassName}>
               <div
-                className={cn(
-                  "absolute right-4",
-                  isMobile ? "top-3" : "top-4"
-                )}
+                className={cn("absolute right-4", isMobile ? "top-3" : "top-4")}
               >
-                <button
+                <BareButton
                   type="button"
                   onClick={requestClose}
                   className={closeButtonClassName}
                 >
                   <XIcon className="w-6 h-6" strokeWidth={1} />
-                </button>
+                </BareButton>
               </div>
 
               {/* Header */}
@@ -288,137 +288,140 @@ export default function CompanyModalRoot() {
                   isMobile ? "pt-2" : "pt-12"
                 )}
               >
-              <div className="flex flex-row gap-6 items-start justify-start">
-                <img
-                  src={company.logo ?? ""}
-                  alt={company.name ?? ""}
-                  className="w-20 h-20 rounded-md object-cover"
-                />
-                <div className="min-w-0">
-                  <div className="text-3xl font-medium leading-tight">
-                    {company.name ?? "Company"}
-                  </div>
+                <div className="flex flex-row gap-6 items-start justify-start">
+                  <img
+                    src={company.logo ?? ""}
+                    alt={company.name ?? ""}
+                    className="w-20 h-20 rounded-md object-cover"
+                  />
+                  <div className="min-w-0">
+                    <div className="text-3xl font-medium leading-tight">
+                      {company.name ?? "Company"}
+                    </div>
 
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <LinkChips links={links} />
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <LinkChips links={links} />
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            <div className="flex flex-col gap-8">
-              {company.short_description && (
-                <div>
-                  <div className={accentLabelClassName}>한 줄 설명</div>
-                  <div className="mt-2 text-base text-beige900">
-                    {company.short_description}
+              <div className="flex flex-col gap-8">
+                {company.short_description && (
+                  <div>
+                    <div className={accentLabelClassName}>한 줄 설명</div>
+                    <div className="mt-2 text-base text-neutral-primary">
+                      {company.short_description}
+                    </div>
                   </div>
-                </div>
-              )}
-              <Section title={`${company.name} 정보`}>
-                <div className={detailPanelClassName}>
-                  <ColRow
-                    label="본사 위치"
-                    // label={m.company.hq}
-                    value={countryEnToKo(company.location ?? "")}
-                  />
-                  {company.founded_year !== null &&
-                    company.founded_year !== undefined &&
-                    company.founded_year > 1000 && (
-                      <ColRow label="설립 연도" value={company.founded_year} />
+                )}
+                <Section title={`${company.name} 정보`}>
+                  <div className={detailPanelClassName}>
+                    <ColRow
+                      label="본사 위치"
+                      // label={m.company.hq}
+                      value={countryEnToKo(company.location ?? "")}
+                    />
+                    {company.founded_year !== null &&
+                      company.founded_year !== undefined &&
+                      company.founded_year > 1000 && (
+                        <ColRow
+                          label="설립 연도"
+                          value={company.founded_year}
+                        />
+                      )}
+                    {employeeCount && (
+                      <ColRow label="직원 수" value={employeeCount} />
                     )}
-                  {employeeCount && (
-                    <ColRow label="직원 수" value={employeeCount} />
-                  )}
-                </div>
-              </Section>
-              <Section title={`전문 분야`}>
-                <div className="flex flex-wrap gap-2">
-                  {tags.map((t) => (
-                    <span key={t} className={tagClassName}>
-                      {t}
-                    </span>
-                  ))}
-                </div>
-              </Section>
-
-              {crunchbaseStatusRows.length > 0 && (
-                <Section title="상태">
-                  <div className="grid grid-cols-1 gap-4 rounded-lg bg-beige100 px-4 py-4 text-sm sm:grid-cols-3">
-                    {crunchbaseStatusRows.map((row) => (
-                      <ColRow
-                        key={row.label}
-                        label={row.label}
-                        value={row.value}
-                      />
+                  </div>
+                </Section>
+                <Section title={`전문 분야`}>
+                  <div className="flex flex-wrap gap-2">
+                    {tags.map((t) => (
+                      <span key={t} className={tagClassName}>
+                        {t}
+                      </span>
                     ))}
                   </div>
                 </Section>
-              )}
 
-              {crunchbaseScoreCards.length > 0 && (
-                <Section title="Signals">
-                  <div className="flex flex-col gap-3">
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      {crunchbaseScoreCards.map((card) => (
-                        <MetricCard
-                          key={card.label}
-                          label={card.label}
-                          value={card.value}
-                          tooltip={card.tooltip}
+                {crunchbaseStatusRows.length > 0 && (
+                  <Section title="상태">
+                    <div className="grid grid-cols-1 gap-4 rounded-lg bg-bg-basement px-4 py-4 text-sm sm:grid-cols-3">
+                      {crunchbaseStatusRows.map((row) => (
+                        <ColRow
+                          key={row.label}
+                          label={row.label}
+                          value={row.value}
                         />
                       ))}
                     </div>
-                    {crunchbaseTrendCards.length > 0 && (
+                  </Section>
+                )}
+
+                {crunchbaseScoreCards.length > 0 && (
+                  <Section title="Signals">
+                    <div className="flex flex-col gap-3">
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        {crunchbaseTrendCards.map((card) =>
-                          card.series ? (
-                            <TrendSparklineCard
-                              key={card.label}
-                              label={card.label}
-                              tooltip={card.tooltip}
-                              tone={card.tone}
-                              values={card.series.values}
-                              interval={card.series.interval}
-                            />
-                          ) : null
-                        )}
+                        {crunchbaseScoreCards.map((card) => (
+                          <MetricCard
+                            key={card.label}
+                            label={card.label}
+                            value={card.value}
+                            tooltip={card.tooltip}
+                          />
+                        ))}
                       </div>
-                    )}
-                  </div>
-                </Section>
-              )}
+                      {crunchbaseTrendCards.length > 0 && (
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          {crunchbaseTrendCards.map((card) =>
+                            card.series ? (
+                              <TrendSparklineCard
+                                key={card.label}
+                                label={card.label}
+                                tooltip={card.tooltip}
+                                tone={card.tone}
+                                values={card.series.values}
+                                interval={card.series.interval}
+                              />
+                            ) : null
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </Section>
+                )}
 
-              {(crunchbaseCategories.length > 0 ||
-                crunchbaseFounders.length > 0 ||
-                crunchbaseLocationGroups.length > 0) && (
-                <Section title="Crunchbase 분류">
-                  <div className="flex flex-col gap-4">
-                    {crunchbaseCategories.length > 0 && (
-                      <TagCluster
-                        label="카테고리"
-                        items={crunchbaseCategories}
-                      />
-                    )}
-                    {crunchbaseFounders.length > 0 && (
-                      <TagCluster label="창업자" items={crunchbaseFounders} />
-                    )}
-                    {crunchbaseLocationGroups.length > 0 && (
-                      <TagCluster
-                        label="지역 그룹"
-                        items={crunchbaseLocationGroups}
-                      />
-                    )}
-                  </div>
-                </Section>
-              )}
+                {(crunchbaseCategories.length > 0 ||
+                  crunchbaseFounders.length > 0 ||
+                  crunchbaseLocationGroups.length > 0) && (
+                  <Section title="Crunchbase 분류">
+                    <div className="flex flex-col gap-4">
+                      {crunchbaseCategories.length > 0 && (
+                        <TagCluster
+                          label="카테고리"
+                          items={crunchbaseCategories}
+                        />
+                      )}
+                      {crunchbaseFounders.length > 0 && (
+                        <TagCluster label="창업자" items={crunchbaseFounders} />
+                      )}
+                      {crunchbaseLocationGroups.length > 0 && (
+                        <TagCluster
+                          label="지역 그룹"
+                          items={crunchbaseLocationGroups}
+                        />
+                      )}
+                    </div>
+                  </Section>
+                )}
 
-              {/* Body */}
-              <div className="flex flex-col gap-8">
-                {/* <Section title={m.company.information}>
+                {/* Body */}
+                <div className="flex flex-col gap-8">
+                  {/* <Section title={m.company.information}>
                 <div className="space-y-2 text-sm w-full">
                   <Row
-                    label={<MapPinHouse className="w-4 h-4 text-beige900/55" />}
+                    label={<MapPinHouse className="w-4 h-4 text-neutral-muted" />}
                     // label={m.company.hq}
                     value={countryEnToKo(company.location ?? "")}
                   />
@@ -426,56 +429,56 @@ export default function CompanyModalRoot() {
                     company.founded_year !== undefined &&
                     company.founded_year > 1000 && (
                       <Row
-                        label={<Calendar className="w-4 h-4 text-beige900/55" />}
+                        label={<Calendar className="w-4 h-4 text-neutral-muted" />}
                         value={company.founded_year}
                       />
                     )}
                   {company.website_url && (
                     <Row
-                      label={<Globe className="w-4 h-4 text-beige900/55" />}
+                      label={<Globe className="w-4 h-4 text-neutral-muted" />}
                       value={company.website_url}
                       isLink
                     />
                   )}
                   <Row
-                    label={<Linkedin className="w-4 h-4 text-beige900/55" />}
+                    label={<Linkedin className="w-4 h-4 text-neutral-muted" />}
                     value={company.linkedin_url}
                     isLink
                   />
                 </div>
               </Section> */}
 
-                {!company.short_description && company.description?.trim() ? (
-                  <Section title={m.company.description}>
-                    <p className="text-sm leading-6 whitespace-pre-wrap font-light">
-                      {company.description.trim()}
-                    </p>
-                  </Section>
-                ) : null}
+                  {!company.short_description && company.description?.trim() ? (
+                    <Section title={m.company.description}>
+                      <p className="text-sm leading-6 whitespace-pre-wrap font-light">
+                        {company.description.trim()}
+                      </p>
+                    </Section>
+                  ) : null}
 
-                {company.investors && (
-                  <Section title={m.company.investors}>
-                    <div className="flex flex-wrap gap-2">
-                      {company.investors.split(",").map((i: string) => (
-                        <span key={i} className={tagClassName}>
-                          {i}
-                        </span>
-                      ))}
-                    </div>
-                  </Section>
-                )}
+                  {company.investors && (
+                    <Section title={m.company.investors}>
+                      <div className="flex flex-wrap gap-2">
+                        {company.investors.split(",").map((i: string) => (
+                          <span key={i} className={tagClassName}>
+                            {i}
+                          </span>
+                        ))}
+                      </div>
+                    </Section>
+                  )}
 
-                {company.related_links && (
-                  <Section title={m.company.news}>
-                    <div className="flex flex-col gap-3">
-                      {company.related_links.map((l: string) => (
-                        <LinkPreview key={l} url={l} />
-                      ))}
-                    </div>
-                  </Section>
-                )}
+                  {company.related_links && (
+                    <Section title={m.company.news}>
+                      <div className="flex flex-col gap-3">
+                        {company.related_links.map((l: string) => (
+                          <LinkPreview key={l} url={l} />
+                        ))}
+                      </div>
+                    </Section>
+                  )}
+                </div>
               </div>
-            </div>
             </div>
           ) : null}
         </DrawerPrimitive.Content>
@@ -497,7 +500,7 @@ function ColRow({
 
   return (
     <div className="flex flex-col items-start justify-start gap-0">
-      <div className="text-left text-beige900 text-base font-medium">
+      <div className="text-left text-neutral-primary text-base font-medium">
         {isLink && v !== "—" ? (
           <a
             href={v}
@@ -511,7 +514,7 @@ function ColRow({
           v
         )}
       </div>
-      <div className="text-left text-[13px] text-beige900/55 font-light">
+      <div className="text-left text-[13px] text-neutral-muted font-light">
         {label}
       </div>
     </div>
@@ -558,7 +561,7 @@ const Section = ({
   children: React.ReactNode;
 }) => {
   return (
-    <div className="flex flex-col text-beige900 gap-2 w-full max-w-full">
+    <div className="flex flex-col text-neutral-primary gap-2 w-full max-w-full">
       <div className="text-base font-medium">{title}</div>
       <div className="max-w-full overflow-x-hidden">{children}</div>
     </div>
@@ -576,15 +579,15 @@ function MetricCard({
 }) {
   return (
     <Tooltips text={tooltip ?? ""} side="bottom">
-      <div className="rounded-lg bg-beige100 px-4 py-4">
-        <div className="text-left text-xl font-medium text-beige900">
+      <div className="rounded-lg bg-bg-basement px-4 py-4">
+        <div className="text-left text-xl font-medium text-neutral-primary">
           {value}
         </div>
-        <div className="mt-1 flex items-center gap-1.5 text-left text-[13px] font-light text-beige900/55">
+        <div className="mt-1 flex items-center gap-1.5 text-left text-[13px] font-light text-neutral-muted">
           <span>{label}</span>
           <div
             aria-label={`${label} 설명`}
-            className="text-beige900/45 transition-colors hover:text-beige900"
+            className="text-neutral-soft transition-colors hover:text-neutral-primary"
           >
             <CircleHelp className="h-3.5 w-3.5" />
           </div>
@@ -610,49 +613,54 @@ function TrendSparklineCard({
   const geometry = useMemo(() => buildSparklineGeometry(values), [values]);
   const firstValue = values[0];
   const lastValue = values[values.length - 1];
-  const strokeColor = tone === "growth" ? "#1B7F6B" : "#C27A1A";
+  const strokeColor =
+    tone === "growth" ? "var(--color-positive)" : "var(--color-primary)";
   const fillColor =
-    tone === "growth" ? "rgba(27, 127, 107, 0.12)" : "rgba(194, 122, 26, 0.12)";
+    tone === "growth"
+      ? "color-mix(in srgb, var(--color-positive) 12%, transparent)"
+      : "color-mix(in srgb, var(--color-primary) 12%, transparent)";
 
   return (
-    <div className="rounded-lg bg-beige100 px-4 py-4">
+    <div className="rounded-lg bg-bg-basement px-4 py-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-1.5 text-[13px] font-light text-beige900/55">
+          <div className="flex items-center gap-1.5 text-[13px] font-light text-neutral-muted">
             <span className="truncate">{label}</span>
             {tooltip && (
               <Tooltips text={tooltip}>
-                <button
+                <BareButton
                   type="button"
                   aria-label={`${label} 설명`}
-                  className="cursor-help text-beige900/45 transition-colors hover:text-beige900"
+                  className="cursor-help text-neutral-soft transition-colors hover:text-neutral-primary"
                 >
                   <CircleHelp className="h-3.5 w-3.5" />
-                </button>
+                </BareButton>
               </Tooltips>
             )}
           </div>
           {interval && (
-            <div className="mt-1 text-[11px] font-light text-beige900/55">
+            <div className="mt-1 text-[11px] font-light text-neutral-muted">
               {interval}
             </div>
           )}
         </div>
         <div className="text-right">
-          <div className="text-lg font-medium text-beige900">
+          <div className="text-lg font-medium text-neutral-primary">
             {formatCrunchbaseMetricValue(lastValue)}
           </div>
-          <div className="text-[11px] font-light text-beige900/55">최근 값</div>
+          <div className="text-[11px] font-light text-neutral-muted">
+            최근 값
+          </div>
         </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-between text-[11px] font-light text-beige900/55">
+      <div className="mt-3 flex items-center justify-between text-[11px] font-light text-neutral-muted">
         <span>시작 {formatCrunchbaseMetricValue(firstValue)}</span>
         <span></span>
         <span>최근 {formatCrunchbaseMetricValue(lastValue)}</span>
       </div>
 
-      <div className="mt-2 overflow-hidden rounded-md border border-beige900/8 bg-beige100">
+      <div className="mt-2 overflow-hidden rounded-md border border-neutral-1000-a05 bg-bg-basement">
         <svg
           viewBox="0 0 100 44"
           className="h-16 w-full"
@@ -682,12 +690,12 @@ function TrendSparklineCard({
 function TagCluster({ label, items }: { label: string; items: string[] }) {
   return (
     <div className="flex flex-col gap-2">
-      <div className="text-[13px] font-light text-beige900/55">{label}</div>
+      <div className="text-[13px] font-light text-neutral-muted">{label}</div>
       <div className="flex flex-wrap gap-2">
         {items.map((item) => (
           <span
             key={`${label}-${item}`}
-            className="rounded-md bg-beige500/55 px-3 py-2 text-xs"
+            className="rounded-md bg-bg-floating px-3 py-2 text-xs"
           >
             {item}
           </span>

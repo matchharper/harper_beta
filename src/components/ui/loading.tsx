@@ -33,7 +33,7 @@ function Loading({
     <Component
       className={cn(
         inline ? "inline-flex" : "flex",
-        "items-center gap-2 text-xgray800 font-inter",
+        "items-center gap-2 text-neutral-600 font-inter",
         textClasses[size],
         className,
         isFullScreen ? "w-full h-full flex items-center justify-center" : ""
@@ -43,7 +43,7 @@ function Loading({
     >
       <span
         className={cn(
-          "inline-block animate-spin rounded-full border-xgray300 border-t-xgray800",
+          "inline-block animate-spin rounded-full border-neutral-300 border-t-neutral-600",
           sizeClasses[size]
         )}
         aria-hidden="true"

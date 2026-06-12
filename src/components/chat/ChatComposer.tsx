@@ -8,6 +8,8 @@ import {
 import { useMessages } from "@/i18n/useMessage";
 import React, { useCallback, useRef } from "react";
 import { ArrowUp, Square } from "lucide-react";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
+import { BareButton } from "@/components/ui/button";
 
 type Props = {
   value: string;
@@ -75,16 +77,16 @@ export default function ChatComposer({
         />
       ) : null}
 
-
       <div className="relative flex items-end">
-        <textarea
+        <UiTextarea
+          unstyled
           ref={inputRef}
           autoFocus
           value={value}
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={onKeyDown}
           placeholder={m.chat.composerPlaceholder}
-          className="w-full min-h-[94px] max-h-[140px] resize-none rounded-[20px] border border-beige900/8 bg-beige50 px-4 py-2.5 text-[13px] text-beige900 outline-none transition focus:border-beige900/20"
+          className="w-full min-h-[94px] max-h-[140px] resize-none rounded-[20px] border border-neutral-1000-a05 bg-bg-default px-4 py-2.5 text-[13px] text-neutral-primary outline-none transition focus:border-neutral-1000-a10"
         />
 
         <div className="absolute bottom-2 right-2 flex items-center gap-2">
@@ -100,14 +102,13 @@ export default function ChatComposer({
             />
           ) : null}
 
-
-          <button
+          <BareButton
             type="button"
             onClick={handleSendClick}
             className={`flex h-8 w-8 items-center justify-center rounded-[12px] cursor-pointer hover:opacity-90 ${
               isStreaming
-                ? "bg-beige900/70 text-beige100"
-                : "bg-beige900 text-beige100 disabled:opacity-50"
+                ? "bg-black/70 text-neutral-00"
+                : "bg-black text-neutral-00 disabled:opacity-50"
             }`}
             disabled={!isStreaming && disabledSend}
             aria-label={m.chat.send ?? "Send"}
@@ -117,7 +118,7 @@ export default function ChatComposer({
             ) : (
               <ArrowUp size={18} />
             )}
-          </button>
+          </BareButton>
         </div>
       </div>
     </div>

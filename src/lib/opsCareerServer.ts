@@ -332,6 +332,11 @@ const MAX_RECOMMENDATION_LIMIT = 50;
 const DEFAULT_INTERNAL_RECOMMENDATION_LIMIT = 80;
 const MAX_INTERNAL_RECOMMENDATION_LIMIT = 100;
 const MAX_INTERNAL_RECOMMENDATION_UPDATE_COUNT = 100;
+const INTERNAL_RECOMMENDATION_ROLE_ID_BATCH_SIZE = 1000;
+const INTERNAL_RECOMMENDATION_OPPORTUNITY_TYPES = [
+  "internal_recommendation",
+  "intro_request",
+] as const;
 const MAX_PROCESSED_STAGE_LENGTH = 200;
 const DEFAULT_MANUAL_INTERNAL_ROLE_LIMIT = 40;
 const MAX_MANUAL_INTERNAL_ROLE_LIMIT = 80;
@@ -2134,6 +2139,99 @@ async function fetchHiddenInternalRecommendationIds(admin: UntypedAdminClient) {
   return hiddenIds;
 }
 
+async function fetchInternalCompanyRoleIds(admin: UntypedAdminClient) {
+  const roleIds: string[] = [];
+  let offset = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await admin
+      .from("company_roles")
+      .select("role_id")
+      .eq("source_type", "internal")
+      .range(
+        offset,
+        offset + INTERNAL_RECOMMENDATION_ROLE_ID_BATCH_SIZE - 1
+      );
+
+    if (error) {
+      throw new Error(error.message ?? "Failed to load internal roles");
+    }
+
+    const rows = (Array.isArray(data) ? data : []) as Array<{
+      role_id?: unknown;
+    }>;
+    for (const row of rows) {
+      const roleId = String(row.role_id ?? "").trim();
+      if (roleId) roleIds.push(roleId);
+    }
+
+    hasMore = rows.length >= INTERNAL_RECOMMENDATION_ROLE_ID_BATCH_SIZE;
+    offset += INTERNAL_RECOMMENDATION_ROLE_ID_BATCH_SIZE;
+  }
+
+  return Array.from(new Set(roleIds));
+}
+
+function buildOpsInternalRecommendationSourceFilter(roleIds: string[]) {
+  const clauses = [
+    `opportunity_type.in.(${INTERNAL_RECOMMENDATION_OPPORTUNITY_TYPES.join(
+      ","
+    )})`,
+  ];
+  if (roleIds.length > 0) {
+    clauses.push(`role_id.in.(${roleIds.join(",")})`);
+  }
+  return clauses.join(",");
+}
+
+async function loadOpsInternalRecommendationRows(args: {
+  acceptedFilter: OpsInternalRecommendationAcceptedFilter;
+  admin: UntypedAdminClient;
+  dateRange: CareerTalentListDateRange;
+  hiddenOnly: boolean;
+  hiddenRecommendationIds: Set<string>;
+  internalRoleIds: string[];
+  limit: number;
+  offset: number;
+}): Promise<CareerRecommendationRow[]> {
+  if (args.hiddenOnly && args.hiddenRecommendationIds.size === 0) {
+    return [];
+  }
+
+  const hiddenIds = Array.from(args.hiddenRecommendationIds);
+  let query = args.admin
+    .from("talent_opportunity_recommendation")
+    .select(CAREER_RECOMMENDATION_SELECT)
+    .or(buildOpsInternalRecommendationSourceFilter(args.internalRoleIds))
+    .order("recommended_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false, nullsFirst: false })
+    .range(args.offset, args.offset + args.limit);
+
+  if (args.dateRange.startIso) {
+    query = query.gte("recommended_at", args.dateRange.startIso);
+  }
+  if (args.dateRange.endExclusiveIso) {
+    query = query.lt("recommended_at", args.dateRange.endExclusiveIso);
+  }
+  if (args.acceptedFilter === "accepted") {
+    query = query.in("feedback", ["like", "positive"]);
+  }
+  if (args.hiddenOnly) {
+    query = query.in("id", hiddenIds);
+  } else if (hiddenIds.length > 0) {
+    query = query.not("id", "in", `(${hiddenIds.join(",")})`);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load internal recommendations");
+  }
+
+  return (Array.isArray(data) ? data : []) as CareerRecommendationRow[];
+}
+
 async function fetchFilteredCareerTalentRecommendations(args: {
   admin: UntypedAdminClient;
   filter: CareerTalentRecommendationSourceType;
@@ -2373,49 +2471,41 @@ export async function fetchOpsInternalRecommendations(args: {
     startDate: args.recommendedFrom,
   });
   const admin = toUntypedAdmin(getTalentSupabaseAdmin());
-  const hiddenRecommendationIds =
-    await fetchHiddenInternalRecommendationIds(admin);
-  const collected: CareerTalentRecommendationItem[] = [];
-  let filteredSeen = 0;
-  let scanOffset = 0;
-  let hasUnscannedRows = true;
-
-  while (collected.length <= limit && hasUnscannedRows) {
-    const rows = await loadCareerRecommendationRows({
-      admin,
-      limit: MAX_INTERNAL_RECOMMENDATION_LIMIT,
-      offset: scanOffset,
-    });
-    hasUnscannedRows = rows.length > MAX_INTERNAL_RECOMMENDATION_LIMIT;
-
-    for (const row of rows.slice(0, MAX_INTERNAL_RECOMMENDATION_LIMIT)) {
-      const item = mapCareerRecommendationRow(row);
-      if (!item || item.sourceType !== "internal" || !item.talentId) continue;
+  const [hiddenRecommendationIds, internalRoleIds] = await Promise.all([
+    fetchHiddenInternalRecommendationIds(admin),
+    fetchInternalCompanyRoleIds(admin),
+  ]);
+  const rows = await loadOpsInternalRecommendationRows({
+    acceptedFilter,
+    admin,
+    dateRange: recommendedDateRange,
+    hiddenOnly,
+    hiddenRecommendationIds,
+    internalRoleIds,
+    limit,
+    offset,
+  });
+  const collected = rows
+    .map(mapCareerRecommendationRow)
+    .filter((item): item is CareerTalentRecommendationItem => {
+      if (!item || item.sourceType !== "internal" || !item.talentId) {
+        return false;
+      }
       const isHidden = hiddenRecommendationIds.has(item.recommendationId);
-      if (hiddenOnly ? !isHidden : isHidden) continue;
+      if (hiddenOnly ? !isHidden : isHidden) return false;
       if (
         !isWithinCareerListDateRange(item.recommendedAt, recommendedDateRange)
       ) {
-        continue;
+        return false;
       }
       if (
         acceptedFilter === "accepted" &&
         !isAcceptedRecommendationFeedback(item.feedback)
       ) {
-        continue;
+        return false;
       }
-
-      if (filteredSeen < offset) {
-        filteredSeen += 1;
-        continue;
-      }
-
-      collected.push(item);
-      if (collected.length > limit) break;
-    }
-
-    scanOffset += MAX_INTERNAL_RECOMMENDATION_LIMIT;
-  }
+      return true;
+    });
 
   const hasMore = collected.length > limit;
   const pageItems = collected.slice(0, limit);

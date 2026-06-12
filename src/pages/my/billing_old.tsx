@@ -496,7 +496,7 @@
 //         title="구독을 취소할까요?"
 //         description={
 //           freeStartDateLabel
-//             ? `현재 결제 주기 종료(<span class="text-accenta1 px-1">${freeStartDateLabel}</span>)후 Free 플랜으로 전환됩니다.`
+//             ? `현재 결제 주기 종료(<span class="text-accent-300 px-1">${freeStartDateLabel}</span>)후 Free 플랜으로 전환됩니다.`
 //             : "현재 결제 주기 종료 후 Free 플랜으로 전환됩니다."
 //         }
 //         confirmLabel="구독 취소"
@@ -514,7 +514,7 @@
 //         title="구독 변경"
 //         description={
 //           freeStartDateLabel
-//             ? `다운그레이드의 경우 우선 구독을 취소하고 기존 구독 갱신 날짜(<span class="text-accenta1 px-1">${freeStartDateLabel}</span>) 이후 새로운 플랜으로 결제하시는 것을 추천드립니다.`
+//             ? `다운그레이드의 경우 우선 구독을 취소하고 기존 구독 갱신 날짜(<span class="text-accent-300 px-1">${freeStartDateLabel}</span>) 이후 새로운 플랜으로 결제하시는 것을 추천드립니다.`
 //             : "다운그레이드의 경우 우선 구독을 취소하고 기존 구독 갱신 날짜 이후 새로운 플랜으로 결제하시는 것을 추천드립니다."
 //         }
 //         confirmLabel="구독 취소"
@@ -556,33 +556,33 @@
 //         isLoading={isUpgradeConfirming}
 //       />
 //       <div className="px-6 py-8 w-full">
-//         <div className="text-3xl font-hedvig font-light tracking-tight text-white">
+//         <div className="text-3xl font-hedvig font-light tracking-tight text-neutral-00">
 //           {m.system.credits}
 //         </div>
 
 //         <div className="mt-8">
-//           <div className="rounded-lg bg-white/5 p-6">
+//           <div className="rounded-lg bg-neutral-00/5 p-6">
 //             {isSubscriptionLoading ? (
-//               <div className="mt-2 text-sm text-hgray700">
+//               <div className="mt-2 text-sm text-neutral-00/70">
 //                 구독 정보를 불러오는 중...
 //               </div>
 //             ) : subscription ? (
 //               <div className="flex flex-row items-start justify-between">
 //                 <div className="flex flex-col gap-2 text-sm w-[30%]">
-//                   <div className="text-sm text-hgray900 font-normal">
+//                   <div className="text-sm text-neutral-00/90 font-normal">
 //                     구독 상태
 //                   </div>
-//                   <div className="text-hgray900">
-//                     <span className="text-white text-xl font-medium">
+//                   <div className="text-neutral-00/90">
+//                     <span className="text-neutral-00 text-xl font-medium">
 //                       {subscriptionPlanLabel}
 //                     </span>
-//                     <span className="text-hgray700">
+//                     <span className="text-neutral-00/70">
 //                       {" "}
 //                       · {subscriptionBillingLabel}
 //                     </span>
 //                   </div>
 //                   {subscription.currentPeriodEnd ? (
-//                     <div className="text-hgray700 font-light">
+//                     <div className="text-neutral-00/70 font-light">
 //                       {subscription.cancelAtPeriodEnd
 //                         ? "기간 종료 후 해지 예정"
 //                         : "다음 결제일"}
@@ -591,16 +591,16 @@
 //                   ) : null}
 //                 </div>
 //                 <div className="w-[70%] flex items-end justify-end flex-col h-full">
-//                   <div className="w-full flex flex-row items-start justify-start gap-2 text-hgray900 text-sm font-normal">
+//                   <div className="w-full flex flex-row items-start justify-start gap-2 text-neutral-00/90 text-sm font-normal">
 //                     Credit 사용량
-//                     <span className="text-accenta1">
+//                     <span className="text-accent-300">
 //                       {credits?.remain_credit}
 //                     </span>
 //                     <span className=""> / {credits?.charged_credit}</span>
 //                   </div>
-//                   <div className="mt-2 w-full flex relative rounded-xl h-2 bg-accenta1/20">
+//                   <div className="mt-2 w-full flex relative rounded-xl h-2 bg-accent-300/20">
 //                     <div
-//                       className="w-full flex absolute left-0 top-0 rounded-xl h-2 bg-accenta1 transition-all duration-500 ease-out"
+//                       className="w-full flex absolute left-0 top-0 rounded-xl h-2 bg-accent-300 transition-all duration-500 ease-out"
 //                       style={{
 //                         width: `${Math.min(
 //                           ((credits?.remain_credit ?? 0) /
@@ -614,7 +614,7 @@
 //                 </div>
 //               </div>
 //             ) : (
-//               <div className="mt-2 text-sm text-hgray700">
+//               <div className="mt-2 text-sm text-neutral-00/70">
 //                 현재 활성 구독이 없습니다.
 //               </div>
 //             )}
@@ -656,7 +656,7 @@
 //           <Animate>
 //             <div className="flex flex-col items-center justify-center w-full pt-4">
 //               <div className="font-hedvig text-lg mt-20">결제 및 구독 FAQ</div>
-//               <div className="flex flex-col items-start justify-start text-white/70 font-light w-full mt-10 px-4 md:px-0">
+//               <div className="flex flex-col items-start justify-start text-neutral-00/70 font-light w-full mt-10 px-4 md:px-0">
 //                 {m.companyLanding.pricingFaq.items.map((item, index) => (
 //                   <QuestionAnswer
 //                     key={item.question}
@@ -671,11 +671,11 @@
 //           </Animate>
 //         </section>
 //         <div>
-//           <div className="mt-24 text-white/70 font-light text-center mb-40 flex flex-col items-center justify-center">
+//           <div className="mt-24 text-neutral-00/70 font-light text-center mb-40 flex flex-col items-center justify-center">
 //             추가 문의 사항이 있으시다면, chris@matchharper.com으로 문의해
 //             주세요.
 //             <div
-//               className="mt-2 underline decoration-dotted cursor-pointer text-hgray800 hover:text-hgray1000"
+//               className="mt-2 underline decoration-dotted cursor-pointer text-neutral-00/80 hover:text-neutral-00"
 //               onClick={() =>
 //                 window.open(
 //                   "https://peat-find-598.notion.site/Refund-policy-2e684af768c6800e8276ccbe16fc8cb4?pvs=74",
@@ -691,7 +691,7 @@
 //           <button
 //             type="button"
 //             disabled={!canCancelSubscription || isCanceling}
-//             className="text-sm text-red-600/80 hover:text-red-600/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+//             className="text-sm text-critical hover:text-critical transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
 //             onClick={() => setIsCancelModalOpen(true)}
 //           >
 //             {isCanceling ? "취소 중..." : "구독 취소"}

@@ -13,6 +13,7 @@ import {
   getResumeFileDisplayName,
   normalizeRegisteredLinkHref,
 } from "./utils";
+import { BareButton } from "@/components/ui/button";
 
 type ProfileTabProps = {
   detail: CareerTalentDetailResponse;
@@ -116,7 +117,7 @@ export const ProfileTab = memo(function ProfileTab({
           <div className={cx(opsTheme.eyebrow)}>등록 자료</div>
           <div className="flex flex-wrap items-center justify-end gap-2">
             {linkedinUrl ? (
-              <button
+              <BareButton
                 type="button"
                 onClick={() => handleIngestProfile("linkedin")}
                 disabled={ingestProfileMutation.isPending}
@@ -138,10 +139,10 @@ export const ProfileTab = memo(function ProfileTab({
                     LinkedIn으로 프로필 생성
                   </>
                 )}
-              </button>
+              </BareButton>
             ) : null}
             {canIngestResume ? (
-              <button
+              <BareButton
                 type="button"
                 onClick={() => handleIngestProfile("resume")}
                 disabled={ingestProfileMutation.isPending}
@@ -163,24 +164,24 @@ export const ProfileTab = memo(function ProfileTab({
                     이력서로 프로필 생성
                   </>
                 )}
-              </button>
+              </BareButton>
             ) : null}
           </div>
         </div>
 
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          <div className="rounded-md border border-beige900/10 bg-white/45 px-3 py-2">
+          <div className="rounded-md border border-neutral-1000-a05 bg-bg-default/45 px-3 py-2">
             <div className="flex items-center justify-between gap-2">
-              <div className="flex min-w-0 items-center gap-1.5 font-geist text-xs font-medium text-beige900/70">
-                <FileText className="h-3.5 w-3.5 shrink-0 text-beige900/35" />
+              <div className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-neutral-muted">
+                <FileText className="h-3.5 w-3.5 shrink-0 text-neutral-soft" />
                 <span>이력서 파일</span>
               </div>
               <span
                 className={cx(
-                  "shrink-0 rounded px-1.5 py-0.5 font-geist text-[10px] font-medium",
+                  "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium",
                   hasResumeFile
-                    ? "bg-[#E4EDE2] text-[#29513A]"
-                    : "bg-beige500/50 text-beige900/45"
+                    ? "bg-positive-faded text-positive"
+                    : "bg-bg-weak text-neutral-muted"
                 )}
               >
                 {hasResumeFile ? "있음" : "없음"}
@@ -192,47 +193,47 @@ export const ProfileTab = memo(function ProfileTab({
                   href={detail.resumeDownloadUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="mt-1 flex min-w-0 items-center gap-1.5 font-geist text-xs text-beige900/65 underline-offset-2 transition hover:text-beige900 hover:underline"
+                  className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-neutral-muted underline-offset-2 transition hover:text-neutral-primary hover:underline"
                   title={resumeFileDisplayName}
                 >
                   <span className="min-w-0 truncate">
                     {resumeFileDisplayName}
                   </span>
-                  <ExternalLink className="h-3 w-3 shrink-0 text-beige900/35" />
+                  <ExternalLink className="h-3 w-3 shrink-0 text-neutral-soft" />
                 </a>
               ) : (
                 <div
-                  className="mt-1 truncate font-geist text-xs text-beige900/45"
+                  className="mt-1 truncate text-xs text-neutral-muted"
                   title={resumeFileDisplayName}
                 >
                   {resumeFileDisplayName} · 열기 링크 없음
                 </div>
               )
             ) : (
-              <div className="mt-1 truncate font-geist text-xs text-beige900/45">
+              <div className="mt-1 truncate text-xs text-neutral-muted">
                 저장된 파일 없음
               </div>
             )}
           </div>
 
-          <div className="rounded-md border border-beige900/10 bg-white/45 px-3 py-2">
+          <div className="rounded-md border border-neutral-1000-a05 bg-bg-default/45 px-3 py-2">
             <div className="flex items-center justify-between gap-2">
-              <div className="flex min-w-0 items-center gap-1.5 font-geist text-xs font-medium text-beige900/70">
-                <FileText className="h-3.5 w-3.5 shrink-0 text-beige900/35" />
+              <div className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-neutral-muted">
+                <FileText className="h-3.5 w-3.5 shrink-0 text-neutral-soft" />
                 <span>이력서 텍스트</span>
               </div>
               <span
                 className={cx(
-                  "shrink-0 rounded px-1.5 py-0.5 font-geist text-[10px] font-medium",
+                  "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium",
                   hasResumeText
-                    ? "bg-[#E4EDE2] text-[#29513A]"
-                    : "bg-beige500/50 text-beige900/45"
+                    ? "bg-positive-faded text-positive"
+                    : "bg-bg-weak text-neutral-muted"
                 )}
               >
                 {hasResumeText ? "추출됨" : "없음"}
               </span>
             </div>
-            <div className="mt-1 truncate font-geist text-xs text-beige900/45">
+            <div className="mt-1 truncate text-xs text-neutral-muted">
               {hasResumeText
                 ? "프로필 추출에 사용할 resume text가 저장되어 있습니다."
                 : "저장된 resume text 없음"}
@@ -251,19 +252,19 @@ export const ProfileTab = memo(function ProfileTab({
                   href={normalizeRegisteredLinkHref(link)}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center justify-between gap-3 rounded-md border border-beige900/10 bg-white/45 px-3 py-2 font-geist text-xs text-beige900/70 transition hover:border-beige900/20 hover:bg-white/70"
+                  className="flex items-center justify-between gap-3 rounded-md border border-neutral-1000-a05 bg-bg-default/45 px-3 py-2 text-xs text-neutral-muted transition hover:border-neutral-1000-a10 hover:bg-bg-default/70"
                 >
                   <span className="min-w-0 truncate">
                     {isLinkedin ? "LinkedIn · " : ""}
                     {formatRegisteredLinkLabel(link)}
                   </span>
-                  <ExternalLink className="h-3.5 w-3.5 shrink-0 text-beige900/35" />
+                  <ExternalLink className="h-3.5 w-3.5 shrink-0 text-neutral-soft" />
                 </a>
               );
             })}
           </div>
         ) : (
-          <div className="mt-2 font-geist text-sm text-beige900/35">
+          <div className="mt-2 text-sm text-neutral-soft">
             등록된 링크가 없습니다.
           </div>
         )}
@@ -272,7 +273,7 @@ export const ProfileTab = memo(function ProfileTab({
           <div
             className={
               visibleIngestStatus.type === "success"
-                ? "mt-3 rounded-md border border-[#9FB795]/35 bg-[#E4EDE2]/70 px-3 py-2 font-geist text-xs text-[#29513A]"
+                ? "mt-3 rounded-md border border-positive/30 bg-positive-faded/70 px-3 py-2 text-xs text-positive"
                 : cx(opsTheme.errorNotice, "mt-3 text-xs")
             }
           >
@@ -284,7 +285,7 @@ export const ProfileTab = memo(function ProfileTab({
       {detail.bio ? (
         <div className={cx(opsTheme.panelSoft, "p-4")}>
           <div className={cx(opsTheme.eyebrow, "mb-1")}>소개</div>
-          <div className="whitespace-pre-wrap font-geist text-sm text-beige900/80">
+          <div className="whitespace-pre-wrap text-sm text-neutral-primary">
             {detail.bio}
           </div>
         </div>
@@ -293,9 +294,7 @@ export const ProfileTab = memo(function ProfileTab({
       {detail.location ? (
         <div className={cx(opsTheme.panelSoft, "p-4")}>
           <div className={cx(opsTheme.eyebrow, "mb-1")}>위치</div>
-          <div className="font-geist text-sm text-beige900/80">
-            {detail.location}
-          </div>
+          <div className="text-sm text-neutral-primary">{detail.location}</div>
         </div>
       ) : null}
 
@@ -305,17 +304,17 @@ export const ProfileTab = memo(function ProfileTab({
           <div className="space-y-2">
             {experiences.map((exp, index) => (
               <div key={index} className={cx(opsTheme.panelSoft, "p-3")}>
-                <div className="font-geist text-sm font-medium text-beige900">
+                <div className="text-sm font-medium text-neutral-primary">
                   {exp.role ?? "역할 미상"}
                 </div>
-                <div className="font-geist text-xs text-beige900/50">
+                <div className="text-xs text-neutral-muted">
                   {exp.company_name ?? ""}{" "}
                   {exp.start_date
                     ? `(${exp.start_date} ~ ${exp.end_date ?? "현재"})`
                     : ""}
                 </div>
                 {exp.description?.trim() ? (
-                  <div className="mt-2 whitespace-pre-wrap font-geist text-xs leading-5 text-beige900/70">
+                  <div className="mt-2 whitespace-pre-wrap text-xs leading-5 text-neutral-muted">
                     {exp.description.trim()}
                   </div>
                 ) : null}
@@ -331,14 +330,14 @@ export const ProfileTab = memo(function ProfileTab({
           <div className="space-y-2">
             {educations.map((edu, index) => (
               <div key={index} className={cx(opsTheme.panelSoft, "p-3")}>
-                <div className="font-geist text-sm font-medium text-beige900">
+                <div className="text-sm font-medium text-neutral-primary">
                   {edu.school ?? "학교 미상"}
                 </div>
-                <div className="font-geist text-xs text-beige900/50">
+                <div className="text-xs text-neutral-muted">
                   {[edu.degree, edu.field].filter(Boolean).join(" · ")}
                 </div>
                 {edu.description?.trim() ? (
-                  <div className="mt-2 whitespace-pre-wrap font-geist text-xs leading-5 text-beige900/70">
+                  <div className="mt-2 whitespace-pre-wrap text-xs leading-5 text-neutral-muted">
                     {edu.description.trim()}
                   </div>
                 ) : null}
@@ -354,16 +353,14 @@ export const ProfileTab = memo(function ProfileTab({
           <div className="space-y-2">
             {extras.map((extra, index) => (
               <div key={index} className={cx(opsTheme.panelSoft, "p-3")}>
-                <div className="font-geist text-sm font-medium text-beige900">
+                <div className="text-sm font-medium text-neutral-primary">
                   {extra.title ?? "제목 없음"}
                 </div>
                 {extra.date ? (
-                  <div className="font-geist text-xs text-beige900/50">
-                    {extra.date}
-                  </div>
+                  <div className="text-xs text-neutral-muted">{extra.date}</div>
                 ) : null}
                 {extra.description?.trim() ? (
-                  <div className="mt-2 whitespace-pre-wrap font-geist text-xs leading-5 text-beige900/70">
+                  <div className="mt-2 whitespace-pre-wrap text-xs leading-5 text-neutral-muted">
                     {extra.description.trim()}
                   </div>
                 ) : null}
@@ -378,7 +375,7 @@ export const ProfileTab = memo(function ProfileTab({
       experiences.length === 0 &&
       educations.length === 0 &&
       extras.length === 0 ? (
-        <div className="rounded-md border border-dashed border-beige900/15 bg-white/30 px-4 py-6 text-center font-geist text-sm text-beige900/40">
+        <div className="rounded-md border border-dashed border-neutral-1000-a10 bg-bg-floating px-4 py-6 text-center text-sm text-neutral-soft">
           프로필 정보가 없습니다.
         </div>
       ) : null}

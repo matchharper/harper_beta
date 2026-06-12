@@ -28,6 +28,10 @@ import {
 } from "@/lib/talentOnboarding/kickoff";
 import { logger } from "@/utils/logger";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
+import {
+  cancelSignupNoProfileSubmit,
+  enqueueProfileSubmittedNoAnswer,
+} from "@/lib/contactQueue";
 
 export const runtime = "nodejs";
 export const maxDuration = 240;
@@ -484,6 +488,32 @@ export async function POST(req: NextRequest) {
         logInsertError
       );
     }
+
+    await cancelSignupNoProfileSubmit({
+      admin,
+      userId: user.id,
+    }).catch((queueError) => {
+      console.error(
+        "[TalentOnboardingStart] signup contact queue cancel failed:",
+        queueError
+      );
+    });
+    await enqueueProfileSubmittedNoAnswer({
+      admin,
+      conversationId,
+      payload: {
+        hasLinkedin,
+        hasResume,
+        linkCount: links.length,
+        resumeFileName: resumeFileName ?? null,
+      },
+      userId: user.id,
+    }).catch((queueError) => {
+      console.error(
+        "[TalentOnboardingStart] profile contact queue enqueue failed:",
+        queueError
+      );
+    });
 
     try {
       await notifySlackActivity({

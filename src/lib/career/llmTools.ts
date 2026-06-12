@@ -35,7 +35,9 @@ export type CareerRealtimeToolSelectionArgs = {
 export const CAREER_CHAT_ONBOARDING_TOOL_NAMES = [
   // 온보딩 중에도 사용자가 최신/외부 정보가 필요한 질문을 하면 웹 검색 허용.
   TALENT_TOOL_NAMES.WEB_SEARCH,
-  // 온보딩 중 사용자가 말한 프로필 row memo / 추천 주기 같은 저장 가능한 정보 기록.
+  // 온보딩 중 사용자가 말한 추천 발송 설정 기록.
+  TALENT_TOOL_NAMES.UPDATE_SETTING,
+  // 온보딩 중 사용자가 말한 프로필 row memo 같은 저장 가능한 정보 기록.
   TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
   // 온보딩 텍스트 채팅에서 사용자가 URL을 줬을 때만 페이지 본문 확인.
   TALENT_TOOL_NAMES.OPEN_URL,
@@ -47,6 +49,7 @@ export const CAREER_CHAT_ONBOARDING_TOOL_NAMES = [
 export const CAREER_CHAT_VOICE_ONBOARDING_TOOL_NAMES = [
   // /api/talent/chat 이 voice channel로 호출될 때의 온보딩 tool.
   // voice 온보딩에서는 URL 열기나 additional-question selector를 노출하지 않는다.
+  TALENT_TOOL_NAMES.UPDATE_SETTING,
   TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
 ] as const;
 
@@ -72,7 +75,9 @@ export const CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES = [
   TALENT_TOOL_NAMES.LOOKUP_ANSWER_EXAMPLES,
   // 최근 프로필/선호 변경, follow/unfollow 등 Career activity를 읽을 때.
   TALENT_TOOL_NAMES.READ_TALENT_ACTIVITY_EVENTS,
-  // 온보딩 후에도 사용자가 "앞으로 리모트만", "추천 그만"처럼 저장할 선호를 말할 때.
+  // 온보딩 후에도 사용자가 "3일마다", "외부 공고 빼줘"처럼 추천 발송 설정을 말할 때.
+  TALENT_TOOL_NAMES.UPDATE_SETTING,
+  // 온보딩 후에도 사용자가 "앞으로 리모트만"처럼 저장할 선호를 말할 때.
   TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
 ] as const;
 
@@ -87,6 +92,8 @@ export const CAREER_REALTIME_VOICE_POST_ONBOARDING_TOOL_NAMES = [
   TALENT_TOOL_NAMES.WEB_SEARCH,
   // 통화 중 이미 추천된 opportunity를 짧게 확인할 때.
   TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES,
+  // 통화 중 이미 추천된 특정 role/posting의 상세 맥락을 확인할 때.
+  TALENT_TOOL_NAMES.GET_ROLE_CONTEXT,
 ] as const;
 
 function normalizeToolNames(toolNames?: readonly string[] | null) {

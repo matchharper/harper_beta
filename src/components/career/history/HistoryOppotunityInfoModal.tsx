@@ -12,17 +12,19 @@ const ModalSection = ({
   title: string;
 }) => (
   <section className="space-y-2.5">
-    <h3 className="text-[15px] font-medium leading-6 text-beige900">{title}</h3>
+    <h3 className="text-[15px] font-medium leading-6 text-neutral-primary">
+      {title}
+    </h3>
     {children}
   </section>
 );
 
 const Paragraph = ({ children }: { children: React.ReactNode }) => (
-  <p className="text-[14px] leading-7 text-beige900/78">{children}</p>
+  <p className="text-[14px] leading-7 text-neutral-primary/78">{children}</p>
 );
 
 const DocumentList = ({ children }: { children: React.ReactNode }) => (
-  <ol className="space-y-2.5 pl-5 text-[14px] leading-7 text-beige900/78">
+  <ol className="space-y-2.5 pl-5 text-[14px] leading-7 text-neutral-primary/78">
     {children}
   </ol>
 );
@@ -35,18 +37,20 @@ const DocumentListItem = ({
   title: string;
 }) => (
   <li className="list-decimal pl-1">
-    <span className="font-medium text-beige900">{title}</span>
-    <span className="text-beige900/78"> {children}</span>
+    <span className="font-medium text-neutral-primary">{title}</span>
+    <span className="text-neutral-primary/78"> {children}</span>
   </li>
 );
 
 const DocumentNote = ({ children }: { children: React.ReactNode }) => (
-  <p className="border-l border-beige900/25 pl-4 text-[13px] leading-6 text-beige900/58">
+  <p className="border-l border-neutral-400 pl-4 text-[13px] leading-6 text-neutral-primary/58">
     {children}
   </p>
 );
 
-const SectionDivider = () => <div className="h-px w-full bg-beige900/10" />;
+const SectionDivider = () => (
+  <div className="h-px w-full bg-neutral-1000-a05" />
+);
 
 const HistoryOpportunityInfoModal = ({
   onClose,
@@ -189,10 +193,10 @@ const HistoryOpportunityInfoModal = ({
       onClose={onClose}
       title={copy.title}
       description={copy.description}
-      panelClassName="max-w-[680px] border border-beige900/10 bg-beige50"
-      headerClassName="border-beige900/10 px-5 py-5 sm:px-6"
-      bodyClassName="max-h-[72svh] overflow-y-auto bg-beige50 px-5 py-5 pb-10 sm:px-6"
-      closeButtonClassName="font-geist right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:border-beige900/25 hover:text-beige900"
+      panelClassName="max-w-[680px] border border-neutral-1000-a05 bg-bg-floating"
+      headerClassName="border-neutral-1000-a05 px-5 py-5 sm:px-6"
+      bodyClassName="max-h-[72svh] overflow-y-auto bg-bg-floating px-5 py-5 pb-10 sm:px-6"
+      closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:border-neutral-400 hover:text-neutral-primary"
     >
       {content()}
     </TalentCareerModal>

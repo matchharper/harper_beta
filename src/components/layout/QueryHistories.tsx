@@ -4,6 +4,7 @@ import React from "react";
 import HistoryItem from "./HistoryItem";
 import { useMessages } from "@/i18n/useMessage";
 import { Loading } from "@/components/ui/loading";
+import { BareButton } from "@/components/ui/button";
 
 const QueryHistories = ({
   collapsed,
@@ -42,7 +43,7 @@ const QueryHistories = ({
       }`}
     >
       {queryItems.length === 0 && !isFetchingNextPage && (
-        <div className="text-xs text-gray-500 py-2 px-2.5">
+        <div className="text-xs text-neutral-soft py-2 px-2.5">
           검색 결과가 여기 표시됩니다.
         </div>
       )}
@@ -57,17 +58,17 @@ const QueryHistories = ({
       ))}
 
       {hasNextPage && (
-        <button
+        <BareButton
           onClick={() => fetchNextPage()}
           disabled={isFetchingNextPage}
-          className="text-[13px] text-gray-500 py-2 hover:text-white transition-all duration-200"
+          className="text-[13px] text-neutral-soft py-2 hover:text-neutral-00 transition-all duration-200"
         >
           {isFetchingNextPage ? (
-            <Loading inline={true} size="sm" className="text-gray-500" />
+            <Loading inline={true} size="sm" className="text-neutral-soft" />
           ) : (
             m.system.loadmore
           )}
-        </button>
+        </BareButton>
       )}
     </div>
   );

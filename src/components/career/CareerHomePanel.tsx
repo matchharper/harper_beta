@@ -19,15 +19,20 @@ import {
 import { useMemo } from "react";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
 import { CareerProfileSharingSettingsSection } from "./CareerProfileSettingsSection";
-import { type CareerOpportunityAgentVariant } from "./types";
+import type {
+  CareerInternalOpportunityCallRequest,
+  CareerOpportunityAgentVariant,
+} from "./types";
 import React from "react";
 import CareerCallCard from "./CareerCallCard";
+import { InternalOpportunityCallActions } from "./InternalOpportunityCallActions";
 import { getCareerDefaultSavedStage } from "./opportunityTypeMeta";
 import { ConversationStarterActions } from "./ConversationStarterActions";
 import {
-  CareerActionButton,
-  CareerInteractiveCard,
-} from "./ui/CareerActionButton";
+  ActionButton,
+  InteractiveCard,
+  BareButton,
+} from "@/components/ui/button";
 import type {
   CareerConversationStarterId,
   CareerConversationStarterMode,
@@ -36,12 +41,13 @@ import { DEFAULT_OPPORTUNITY_DISCOVERY_AGENT_VARIANT } from "@/lib/opportunityDi
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerDevSqlPromptHistoryStore } from "@/store/useCareerDevSqlPromptHistoryStore";
-import { Text } from "@/components/ui/typography";
+import { Text } from "@/components/ui/text";
 import {
   SectionDescription,
   SectionHeader,
   SectionTitle,
 } from "@/components/ui/section-header";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
 const countFormatter = new Intl.NumberFormat("ko-KR");
 const devAgentVariantOptions: Array<{
@@ -100,9 +106,9 @@ const HomeOpportunitySummaryCard = ({
   onClick: () => void;
   title: string;
 }) => (
-  <CareerInteractiveCard
+  <InteractiveCard
     onClick={onClick}
-    className="group rounded-2xl flex min-h-[104px] w-full flex-col items-stretch justify-between whitespace-normal px-4 py-4 text-left text-beige900"
+    className="group rounded-2xl flex min-h-[104px] w-full flex-col items-stretch justify-between whitespace-normal px-4 py-4 text-left text-neutral-primary"
   >
     <div className="flex items-start justify-between gap-3">
       <Text as="div" type="title">
@@ -133,17 +139,15 @@ const HomeOpportunitySummaryCard = ({
         <ChevronRight className="h-3 w-3" />
       </Text>
     </div>
-  </CareerInteractiveCard>
+  </InteractiveCard>
 );
 
 const CareerHomePanel = ({
   onOpenChat,
   onOpenHistory,
-  onOpenProfile,
 }: {
   onOpenChat: () => void;
   onOpenHistory: (target?: HomeHistoryTarget) => void;
-  onOpenProfile: () => void;
 }) => {
   const logCareerEvent = useCareerLogEvent();
   const { fetchWithAuth } = useCareerApi();
@@ -181,6 +185,7 @@ const CareerHomePanel = ({
     onRunSessionReengagementTest,
     onStartCallMode,
     onStartConversationStarter,
+    pendingInternalOpportunityCallRequests = [],
     sessionReengagementTestPending,
   } = useCareerSidebarContext();
   const [devAgentVariant, setDevAgentVariant] =
@@ -333,6 +338,7 @@ const CareerHomePanel = ({
   const shouldShowProfileImportRecovery =
     hasSavedProfileSource && hasEmptyStructuredProfile;
 
+  const callCardUsesCompletedLayout = isOnboardingCompleted;
   const callCardTitle = isOnboardingCompleted
     ? "Harper와 5분 통화"
     : "아직 5분 커리어 인터뷰가 완료되지 않았어요";
@@ -378,6 +384,19 @@ const CareerHomePanel = ({
     logCareerEvent("click_home_start_call");
     onOpenChat();
     void onStartCallMode?.();
+  };
+
+  const handleStartInternalOpportunityCall = (
+    callRequest: CareerInternalOpportunityCallRequest
+  ) => {
+    logCareerEvent("click_home_internal_opportunity_call");
+    onOpenChat();
+    return (
+      onStartCallMode?.({
+        internalCallRequestId: callRequest.id,
+        openingText: `${callRequest.companyName} ${callRequest.roleTitle} 연결 건으로, 회사에 더 잘 전달할 수 있게 짧게 몇 가지를 확인하고 싶어요.`,
+      }) ?? false
+    );
   };
 
   const handleStartConversationStarter = ({
@@ -479,12 +498,12 @@ const CareerHomePanel = ({
   ]);
 
   return (
-    <div className="space-y-4 text-beige900">
+    <div className="space-y-4 text-neutral-primary">
       <Text as="h2" type="head1" className="mt-8 text-center font-hedvig">
-        Welcome, <span className="text-beige700">{displayName}</span>!
+        Welcome, <span className="text-primary">{displayName}</span>!
       </Text>
       {shouldShowProfileImportRecovery && (
-        <div className="mt-2 mb-4 flex flex-col gap-3 rounded-3xl bg-[#e8f1ff] px-3 py-3 text-[#123d73] shadow-[0_8px_20px_rgba(31,111,235,0.08)] sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-2 mb-4 flex flex-col gap-3 rounded-3xl border border-info/30 bg-bg-floating px-3 py-3 text-info shadow-[0_8px_20px_color-mix(in_srgb,var(--color-neutral-1000)_8%,transparent)] sm:flex-row sm:items-center sm:justify-between">
           <Text as="div" type="label" className="min-w-0 pl-2">
             정보를 가져오는데 문제가 있었던 것 같습니다.
             <br />
@@ -492,7 +511,7 @@ const CareerHomePanel = ({
               오른쪽의 버튼을 통해 다시 시도해주세요. 불편을드려 죄송합니다.
             </Text>
           </Text>
-          <CareerActionButton
+          <ActionButton
             onClick={() => {
               logCareerEvent("click_home_refresh_profile_sources");
               void onRefreshTalentProfileSources();
@@ -507,7 +526,7 @@ const CareerHomePanel = ({
               <RefreshCw className="h-3.5 w-3.5" />
             )}
             {profileSavePending ? "가져오는 중..." : "정보 다시 가져오기"}
-          </CareerActionButton>
+          </ActionButton>
         </div>
       )}
       <div>
@@ -532,12 +551,19 @@ const CareerHomePanel = ({
         callDisabled={!onStartCallMode}
         callStartPending={callStartPending}
         description={callCardDescription}
-        isOnboardingCompleted={isOnboardingCompleted}
+        isOnboardingCompleted={callCardUsesCompletedLayout}
         onStartCall={handleStartCall}
         title={callCardTitle}
       />
+      <InternalOpportunityCallActions
+        callRequests={pendingInternalOpportunityCallRequests}
+        callStartPending={callStartPending}
+        className="mt-2"
+        disabled={!onStartCallMode}
+        onStart={handleStartInternalOpportunityCall}
+      />
       {!isOnboardingCompleted ? (
-        <div className="rounded-3xl bg-beige100 px-6 py-5">
+        <div className="rounded-3xl border border-neutral-1000-a05 bg-bg-floating px-6 py-5 shadow-sm">
           <SectionHeader className="gap-1">
             <SectionTitle as="h3">커리어 인터뷰 진행 중</SectionTitle>
             <SectionDescription className="max-w-none">
@@ -557,10 +583,10 @@ const CareerHomePanel = ({
                     className={[
                       "flex mt-px h-4 w-4 shrink-0 items-center justify-center rounded-md border transition-colors",
                       item.state === "done"
-                        ? "border-beige700 bg-beige700 text-hblack000"
+                        ? "border-neutral-800 bg-black text-neutral-00"
                         : item.state === "current"
-                          ? "border-beige700 bg-hblack000 text-beige700"
-                          : "border-hblack300 bg-hblack000 text-transparent",
+                          ? "border-neutral-800 bg-bg-floating text-neutral-muted"
+                          : "border-neutral-400 bg-bg-floating text-transparent",
                     ].join(" ")}
                     aria-hidden="true"
                   >
@@ -571,8 +597,8 @@ const CareerHomePanel = ({
                       className={[
                         "flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors",
                         item.state === "pending"
-                          ? "text-hblack400"
-                          : "text-beige700",
+                          ? "text-neutral-soft"
+                          : "text-neutral-muted",
                       ].join(" ")}
                       aria-hidden="true"
                     >
@@ -582,14 +608,14 @@ const CareerHomePanel = ({
                       <p
                         className={
                           item.state === "pending"
-                            ? "text-hblack500"
-                            : "text-hblack1000"
+                            ? "text-neutral-soft"
+                            : "text-neutral-primary"
                         }
                       >
                         {item.label}
                       </p>
                       {item.meta && (
-                        <p className="mt-1 text-[12px] leading-5 text-hblack500">
+                        <p className="mt-1 text-[12px] leading-5 text-neutral-soft">
                           {item.meta}
                         </p>
                       )}
@@ -608,8 +634,8 @@ const CareerHomePanel = ({
             count={newPositionCount}
             description={newPositionDescription}
             buttonLabel="검토하기"
-            icon={<Mail className="h-5 w-5 text-[#b77a4e]" strokeWidth={1.8} />}
-            iconClassName="bg-[#f3ede8]"
+            icon={<Mail className="h-5 w-5 text-primary" strokeWidth={1.8} />}
+            iconClassName="bg-accent-200"
             onClick={() =>
               onOpenHistory({
                 historyTab: "new",
@@ -622,10 +648,8 @@ const CareerHomePanel = ({
             count={inProgressPositionCount}
             description={inProgressCompanyLabel}
             buttonLabel="상세 보기"
-            icon={
-              <Check className="h-6 w-6 text-[#4f8062]" strokeWidth={1.9} />
-            }
-            iconClassName="bg-[#e8f0eb]"
+            icon={<Check className="h-6 w-6 text-positive" strokeWidth={1.9} />}
+            iconClassName="bg-positive-faded"
             onClick={() =>
               onOpenHistory({
                 historyTab: "saved",
@@ -640,7 +664,7 @@ const CareerHomePanel = ({
       <CareerProfileSharingSettingsSection showLastUpdated={false} />
 
       {showDevRunControls ? (
-        <div className="mt-5 rounded-2xl border border-dashed border-beige900/15 bg-white/70 px-4 py-4">
+        <div className="mt-5 rounded-2xl border border-dashed border-neutral-1000-a10 bg-bg-floating px-4 py-4 shadow-sm">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <Text as="div" type="eyebrow">
@@ -668,7 +692,7 @@ const CareerHomePanel = ({
             {devAgentVariantOptions.map((option) => {
               const selected = option.value === devAgentVariant;
               return (
-                <CareerActionButton
+                <ActionButton
                   key={option.value}
                   onClick={() => {
                     logCareerEvent(
@@ -681,12 +705,12 @@ const CareerHomePanel = ({
                   actionVariant="secondary"
                 >
                   {option.label}
-                </CareerActionButton>
+                </ActionButton>
               );
             })}
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <CareerActionButton
+            <ActionButton
               onClick={() => {
                 logCareerEvent("click_home_dev_discovery_run");
                 void onRunOpportunityDiscoveryTest(devAgentVariant);
@@ -700,8 +724,8 @@ const CareerHomePanel = ({
                 <Plus className="h-3.5 w-3.5" />
               )}
               discovery_run 추가
-            </CareerActionButton>
-            <CareerActionButton
+            </ActionButton>
+            <ActionButton
               onClick={() => {
                 logCareerEvent("click_home_dev_periodic_discovery_run");
                 void onRunPeriodicOpportunityDiscoveryTest(devAgentVariant);
@@ -715,8 +739,8 @@ const CareerHomePanel = ({
                 <Clock3 className="h-3.5 w-3.5" />
               )}
               3일 경과 run 큐잉
-            </CareerActionButton>
-            <CareerActionButton
+            </ActionButton>
+            <ActionButton
               onClick={() => {
                 logCareerEvent(
                   "click_home_dev_current_data_job_posting_recommendation"
@@ -733,8 +757,8 @@ const CareerHomePanel = ({
                 <BriefcaseBusiness className="h-3.5 w-3.5" />
               )}
               현재 데이터로 공고 추천
-            </CareerActionButton>
-            <CareerActionButton
+            </ActionButton>
+            <ActionButton
               onClick={() => {
                 logCareerEvent("click_home_dev_onboarding_completion_test");
                 void Promise.resolve(onRunOnboardingCompletionTest()).then(
@@ -752,8 +776,8 @@ const CareerHomePanel = ({
                 <Check className="h-3.5 w-3.5" />
               )}
               온보딩 종료 테스트
-            </CareerActionButton>
-            <CareerActionButton
+            </ActionButton>
+            <ActionButton
               onClick={() => {
                 logCareerEvent("click_home_dev_reengagement_test");
                 void onRunSessionReengagementTest();
@@ -767,8 +791,8 @@ const CareerHomePanel = ({
                 <RefreshCw className="h-3.5 w-3.5" />
               )}
               최근 메시지 삭제 + 6시간 인사
-            </CareerActionButton>
-            <CareerActionButton
+            </ActionButton>
+            <ActionButton
               onClick={() => {
                 logCareerEvent("click_home_dev_reengagement_greeting_only");
                 void onRunSessionReengagementTest({
@@ -784,9 +808,9 @@ const CareerHomePanel = ({
                 <Clock3 className="h-3.5 w-3.5" />
               )}
               6시간 인사만
-            </CareerActionButton>
+            </ActionButton>
           </div>
-          <div className="mt-4 border-t border-beige900/10 pt-4">
+          <div className="mt-4 border-t border-neutral-1000-a05 pt-4">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <Text as="div" type="eyebrow">
@@ -797,7 +821,7 @@ const CareerHomePanel = ({
                   생성하고 실행
                 </Text>
               </div>
-              <CareerActionButton
+              <ActionButton
                 onClick={() => void handleGenerateDevSql()}
                 disabled={
                   devSqlGenerating ||
@@ -813,14 +837,15 @@ const CareerHomePanel = ({
                   <Terminal className="h-3.5 w-3.5" />
                 )}
                 {devSqlGenerating ? "생성 중..." : "적용할 SQL 생성"}
-              </CareerActionButton>
+              </ActionButton>
             </div>
-            <textarea
+            <UiTextarea
+              unstyled
               value={devSqlRequest}
               onChange={(event) => setDevSqlRequest(event.target.value)}
               placeholder="예: 추천된 기회 전부 삭제 / 최근 3일간 모든 추천 데이터 삭제"
               rows={3}
-              className="mt-3 min-h-[86px] w-full resize-y rounded-xl border border-beige900/15 bg-white/75 px-3 py-2 text-[13px] leading-5 text-beige900 outline-none transition-colors placeholder:text-beige900/35 focus:border-beige700"
+              className="mt-3 min-h-[86px] w-full resize-y rounded-xl border border-neutral-1000-a10 bg-bg-floating px-3 py-2 text-[13px] leading-5 text-neutral-primary outline-none transition-colors placeholder:text-neutral-placeholder focus:border-neutral-800"
             />
             {devSqlPromptHistory.length > 0 ? (
               <div className="mt-2 space-y-1.5">
@@ -834,33 +859,37 @@ const CareerHomePanel = ({
                 </Text>
                 <div className="flex flex-wrap gap-1.5">
                   {devSqlPromptHistory.map((prompt) => (
-                    <button
+                    <BareButton
                       key={prompt}
                       type="button"
                       onClick={() => {
                         logCareerEvent("click_home_dev_sql_prompt_history");
                         setDevSqlRequest(prompt);
                       }}
-                      className="max-w-full rounded-lg border border-beige900/10 bg-white/70 px-2.5 py-1.5 text-left text-[12px] leading-4 text-beige900 transition-colors hover:border-beige700/40 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-beige700/30"
+                      className="max-w-full rounded-lg border border-neutral-1000-a05 bg-bg-floating px-2.5 py-1.5 text-left text-[12px] leading-4 text-neutral-primary transition-colors hover:border-neutral-800/40 hover:bg-bg-weak focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
                     >
                       <span className="block max-w-[240px] truncate sm:max-w-[320px]">
                         {prompt}
                       </span>
-                    </button>
+                    </BareButton>
                   ))}
                 </div>
               </div>
             ) : null}
             {devSqlError ? (
-              <div className="mt-3 flex gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[12px] leading-5 text-red-700">
+              <div className="mt-3 flex gap-2 rounded-xl border border-critical/30 bg-critical-faded px-3 py-2 text-[12px] leading-5 text-critical">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <span className="whitespace-pre-wrap">{devSqlError}</span>
               </div>
             ) : null}
             {devSqlDraft ? (
-              <div className="mt-3 space-y-3 rounded-xl border border-beige900/10 bg-white/65 px-3 py-3">
+              <div className="mt-3 space-y-3 rounded-xl border border-neutral-1000-a05 bg-bg-floating px-3 py-3 shadow-sm">
                 {devSqlDraft.explanation ? (
-                  <Text as="div" type="caption" className="text-beige900">
+                  <Text
+                    as="div"
+                    type="caption"
+                    className="text-neutral-primary"
+                  >
                     {devSqlDraft.explanation}
                   </Text>
                 ) : null}
@@ -876,7 +905,7 @@ const CareerHomePanel = ({
                         key={`${warning}-${index}`}
                         as="div"
                         type="caption"
-                        className="text-[#9a5a28]"
+                        className="text-primary"
                       >
                         주의: {warning}
                       </Text>
@@ -884,25 +913,26 @@ const CareerHomePanel = ({
                   </div>
                 ) : null}
                 {devSqlDraft.validationErrors?.length ? (
-                  <div className="space-y-1 rounded-lg bg-red-50 px-3 py-2">
+                  <div className="space-y-1 rounded-lg bg-critical-faded px-3 py-2">
                     {devSqlDraft.validationErrors.map((validationError) => (
                       <Text
                         key={validationError}
                         as="div"
                         type="caption"
-                        className="text-red-700"
+                        className="text-critical"
                       >
                         {validationError}
                       </Text>
                     ))}
                   </div>
                 ) : null}
-                <textarea
+                <UiTextarea
+                  unstyled
                   value={devSqlText}
                   onChange={(event) => setDevSqlText(event.target.value)}
                   rows={9}
                   spellCheck={false}
-                  className="min-h-[210px] w-full resize-y rounded-xl border border-beige900/15 bg-white/85 px-3 py-2 font-mono text-[12px] leading-5 text-beige900 outline-none transition-colors focus:border-beige700"
+                  className="min-h-[210px] w-full resize-y rounded-xl border border-neutral-1000-a10 bg-bg-floating px-3 py-2 font-mono text-[12px] leading-5 text-neutral-primary outline-none transition-colors focus:border-neutral-800"
                 />
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   {devSqlResult ? (
@@ -917,7 +947,7 @@ const CareerHomePanel = ({
                       실행 전 SQL을 직접 확인하세요.
                     </Text>
                   )}
-                  <CareerActionButton
+                  <ActionButton
                     onClick={() => void handleExecuteDevSql()}
                     disabled={
                       devSqlExecuting ||
@@ -932,7 +962,7 @@ const CareerHomePanel = ({
                       <Play className="h-3.5 w-3.5" />
                     )}
                     {devSqlExecuting ? "실행 중..." : "SQL 실행"}
-                  </CareerActionButton>
+                  </ActionButton>
                 </div>
               </div>
             ) : null}

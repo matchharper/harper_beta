@@ -6,6 +6,8 @@ import type {
 } from "@/components/admin/types";
 import { formatDecimal } from "@/components/admin/utils";
 import { Loading } from "@/components/ui/loading";
+import { Input as UiInput } from "@/components/ui/input";
+import { BareButton } from "@/components/ui/button";
 
 type AdminUserAnalyticsTabProps = {
   search: string;
@@ -28,19 +30,15 @@ type AdminUserAnalyticsTabProps = {
   onResetDateRange: () => void | Promise<void>;
 };
 
-function SummaryMetricCard({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
+function SummaryMetricCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
       <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
         {label}
       </div>
-      <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">{value}</div>
+      <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
+        {value}
+      </div>
     </div>
   );
 }
@@ -74,7 +72,8 @@ export default function AdminUserAnalyticsTab({
           링크 클릭 지표를 확인합니다.
         </div>
         <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-          <input
+          <UiInput
+            unstyled
             value={search}
             onChange={(event) => onSearchChange(event.target.value)}
             onKeyDown={(event) => {
@@ -86,14 +85,14 @@ export default function AdminUserAnalyticsTab({
             placeholder="이름, 이메일 또는 회사명"
             className="h-11 flex-1 rounded-[14px] border border-[#d8c7aa] bg-[#fffaf1] px-4 text-[14px] text-[#3f301f] outline-none placeholder:text-[#9e8b6d]"
           />
-          <button
+          <BareButton
             onClick={() => {
               void onSearchSubmit();
             }}
             className="h-11 rounded-[14px] border border-[#5d4931] bg-[#5d4931] px-4 text-[13px] text-[#fff8ef] transition-colors hover:bg-[#4f3e29]"
           >
             Search
-          </button>
+          </BareButton>
         </div>
         {usersError ? (
           <div className="mt-3 text-[12px] text-[#8d3a24]">{usersError}</div>
@@ -107,7 +106,9 @@ export default function AdminUserAnalyticsTab({
               <div className="text-[13px] font-semibold text-[#4d3a24]">
                 Users
               </div>
-              <div className="mt-1 text-[12px] text-[#7a664b]">{users.length}명</div>
+              <div className="mt-1 text-[12px] text-[#7a664b]">
+                {users.length}명
+              </div>
             </div>
             {usersLoading ? (
               <Loading
@@ -130,7 +131,7 @@ export default function AdminUserAnalyticsTab({
                 const isSelected = selectedUser?.userId === user.userId;
 
                 return (
-                  <button
+                  <BareButton
                     key={user.userId}
                     type="button"
                     onClick={() => {
@@ -153,7 +154,7 @@ export default function AdminUserAnalyticsTab({
                       {user.profileViewCount.toLocaleString("ko-KR")} · 링크{" "}
                       {user.linkClickCount.toLocaleString("ko-KR")}
                     </div>
-                  </button>
+                  </BareButton>
                 );
               })
             )}
@@ -195,20 +196,22 @@ export default function AdminUserAnalyticsTab({
                   Date Range (KST)
                 </div>
                 <div className="mt-3 flex flex-col gap-2 lg:flex-row lg:items-center">
-                  <input
+                  <UiInput
+                    unstyled
                     type="date"
                     value={startDate}
                     onChange={(event) => onStartDateChange(event.target.value)}
                     className="h-10 rounded-[12px] border border-[#d8c7aa] bg-[#fffaf1] px-3 text-[13px] text-[#3f301f] outline-none"
                   />
                   <div className="px-1 text-[12px] text-[#8d7a5d]">~</div>
-                  <input
+                  <UiInput
+                    unstyled
                     type="date"
                     value={endDate}
                     onChange={(event) => onEndDateChange(event.target.value)}
                     className="h-10 rounded-[12px] border border-[#d8c7aa] bg-[#fffaf1] px-3 text-[13px] text-[#3f301f] outline-none"
                   />
-                  <button
+                  <BareButton
                     type="button"
                     onClick={() => {
                       void onApplyDateRange();
@@ -216,8 +219,8 @@ export default function AdminUserAnalyticsTab({
                     className="h-10 rounded-[12px] border border-[#5d4931] bg-[#5d4931] px-4 text-[12px] text-[#fff8ef] transition-colors hover:bg-[#4f3e29]"
                   >
                     적용
-                  </button>
-                  <button
+                  </BareButton>
+                  <BareButton
                     type="button"
                     onClick={() => {
                       void onResetDateRange();
@@ -225,13 +228,15 @@ export default function AdminUserAnalyticsTab({
                     className="h-10 rounded-[12px] border border-[#dcccad] bg-transparent px-4 text-[12px] text-[#6a563c] transition-colors hover:bg-[#f4eadb]"
                   >
                     전체
-                  </button>
+                  </BareButton>
                 </div>
               </div>
             ) : null}
 
             {detailError ? (
-              <div className="mt-3 text-[12px] text-[#8d3a24]">{detailError}</div>
+              <div className="mt-3 text-[12px] text-[#8d3a24]">
+                {detailError}
+              </div>
             ) : null}
 
             {!selectedUser ? (
@@ -263,7 +268,9 @@ export default function AdminUserAnalyticsTab({
                     />
                     <SummaryMetricCard
                       label="프로필 본 후보자 수"
-                      value={summary.uniqueProfilesViewed.toLocaleString("ko-KR")}
+                      value={summary.uniqueProfilesViewed.toLocaleString(
+                        "ko-KR"
+                      )}
                     />
                     <SummaryMetricCard
                       label="링크 클릭 수"
@@ -287,7 +294,9 @@ export default function AdminUserAnalyticsTab({
                   <div className="mt-3 grid gap-3 sm:grid-cols-3">
                     <SummaryMetricCard
                       label="마크 준 사람 수"
-                      value={summary.markedCandidateCount.toLocaleString("ko-KR")}
+                      value={summary.markedCandidateCount.toLocaleString(
+                        "ko-KR"
+                      )}
                     />
                     <SummaryMetricCard
                       label="폴더에 넣은 사람 수"
@@ -386,7 +395,9 @@ export default function AdminUserAnalyticsTab({
                       />
                       <SummaryMetricCard
                         label="Link Hosts"
-                        value={profile.linkClicks.length.toLocaleString("ko-KR")}
+                        value={profile.linkClicks.length.toLocaleString(
+                          "ko-KR"
+                        )}
                       />
                     </div>
 

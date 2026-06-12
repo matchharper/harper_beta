@@ -18,14 +18,14 @@ export const CompanyLogo = ({
       <img
         src={logoUrl}
         alt={name}
-        className={`${className} shrink-0 border border-beige900/10 bg-white object-contain p-1`}
+        className={`${className} shrink-0 border border-neutral-1000-a05 bg-bg-default object-contain p-1`}
       />
     );
   }
 
   return (
     <div
-      className={`${className} flex shrink-0 items-center justify-center border border-beige900/10 bg-beige200 text-beige900`}
+      className={`${className} flex shrink-0 items-center justify-center border border-neutral-1000-a05 bg-bg-weak text-neutral-primary`}
     >
       <Building2 className={size === "lg" ? "h-5 w-5" : "h-4 w-4"} />
     </div>

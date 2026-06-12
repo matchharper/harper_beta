@@ -111,7 +111,7 @@ export default function PricingSection({
           <div className="w-full flex flex-col items-center justify-center text-center px-4 md:px-0">
             {/* <Head1 className="text-white">Pricing</Head1> */}
             <Head1 className="mt-4 md:mt-6 text-white">{pricing.title}</Head1>
-            <div className="mt-3 text-sm md:text-base text-hgray700 font-light">
+            <div className="mt-3 text-sm md:text-base text-neutral-500 font-light">
               {pricing.subtitle}
             </div>
 
@@ -191,7 +191,7 @@ function BillingToggle({
 
       {/* discount badge */}
       <div className="absolute -right-6 -top-3 md:-right-8 md:-top-3">
-        <div className="px-3 py-1 rounded-full text-[11px] md:text-xs font-semibold bg-accenta1 text-black shadow-sm">
+        <div className="px-3 py-1 rounded-full text-[11px] md:text-xs font-semibold bg-accent-200 text-black shadow-sm">
           {pricing.billing.discountLabel}
         </div>
       </div>
@@ -269,8 +269,8 @@ function PlanCard({
             className={[
               "w-full rounded-full py-2.5 md:py-3 text-sm md:text-sm font-normal transition-colors",
               isPrimary
-                ? "bg-accenta1 text-black hover:opacity-95"
-                : "bg-white/10 text-accenta1 border border-white/0 hover:bg-accenta1/10",
+                ? "bg-accent-200 text-black hover:opacity-95"
+                : "bg-white/10 text-accent-200 border border-white/0 hover:bg-accent-200/10",
             ].join(" ")}
           >
             {buttonLabel}
@@ -292,7 +292,7 @@ function PlanCard({
                 </>
               ) : (
                 <>
-                  <Check className="w-4 h-4 mt-0.5 text-accenta1" />
+                  <Check className="w-4 h-4 mt-0.5 text-accent-200" />
                   <span
                     className="text-white/70 text-left"
                     dangerouslySetInnerHTML={{ __html: f }}

@@ -16,6 +16,7 @@ import { useMessages } from "@/i18n/useMessage";
 import { StatusEnum } from "@/types/type";
 import { SearchSource } from "@/lib/searchSource";
 import { runKey } from "@/hooks/useRunDetail";
+import { BareButton } from "@/components/ui/button";
 
 type Props = {
   queryItem: any;
@@ -43,7 +44,7 @@ export default function ResultHeader({
   }, [status]);
   const sourceBadgeText =
     sourceType === "scholar" ? (
-      <div className="flex flex-row items-center justify-start gap-1 text-beige900/55">
+      <div className="flex flex-row items-center justify-start gap-1 text-neutral-muted">
         <GraduationCap className="w-4 h-4" strokeWidth={2} />
         <span className="text-sm">from publications</span>
       </div>
@@ -110,7 +111,7 @@ export default function ResultHeader({
   return (
     <>
       <div className="w-full h-full py-1 flex flex-row items-center justify-between px-4">
-        <div className="text-sm text-beige900/55 font-normal flex flex-row items-center justify-start gap-4">
+        <div className="text-sm text-neutral-muted font-normal flex flex-row items-center justify-start gap-4">
           <div>
             {queryItem.company_users ? (
               <>
@@ -129,11 +130,11 @@ export default function ResultHeader({
             ""
           )}
           {sourceBadgeText ? (
-            <div className="text-sm text-beige900/55">{sourceBadgeText}</div>
+            <div className="text-sm text-neutral-muted">{sourceBadgeText}</div>
           ) : null}
         </div>
-        <div className="flex flex-row items-center justify-center gap-3 text-beige900/55">
-          <button
+        <div className="flex flex-row items-center justify-center gap-3 text-neutral-muted">
+          <BareButton
             onClick={pin}
             disabled={!runId || pendingAction !== null}
             aria-label={
@@ -142,8 +143,8 @@ export default function ResultHeader({
             aria-pressed={isLikeActive}
             className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors duration-150 ${
               isLikeActive
-                ? "bg-accentBronze/10 text-accentBronze"
-                : "hover:bg-beige500/70 hover:text-beige900"
+                ? "bg-accent-200 text-primary"
+                : "hover:bg-bg-weak hover:text-neutral-primary"
             } ${pendingAction ? "cursor-wait" : "cursor-pointer"}`}
           >
             {isLikePending ? (
@@ -155,16 +156,16 @@ export default function ResultHeader({
                 strokeWidth={1.8}
               />
             )}
-          </button>
-          <button
+          </BareButton>
+          <BareButton
             onClick={dislike}
             disabled={!runId || pendingAction !== null}
             aria-label="Dislike search result"
             aria-pressed={isDislikeActive}
             className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors duration-150 ${
               isDislikeActive
-                ? "bg-beige500/55 text-beige900"
-                : "hover:bg-beige500/70 hover:text-beige900"
+                ? "bg-bg-floating text-neutral-primary"
+                : "hover:bg-bg-weak hover:text-neutral-primary"
             } ${pendingAction ? "cursor-wait" : "cursor-pointer"}`}
           >
             {isDislikePending ? (
@@ -176,7 +177,7 @@ export default function ResultHeader({
                 strokeWidth={1.8}
               />
             )}
-          </button>
+          </BareButton>
         </div>
       </div>
 
@@ -187,7 +188,7 @@ export default function ResultHeader({
       {statusMessage && (
         <div className="w-full relative flex items-start justify-start">
           {/* {statusMessage === StatusEnum.RERANKING_STREAMING && (
-            <div className="text-sm font-light text-beige900 flex flex-row gap-2 items-start absolute top-3 left-5">
+            <div className="text-sm font-light text-neutral-primary flex flex-row gap-2 items-start absolute top-3 left-5">
               <Loader2 className="w-4 h-4 animate-spin" strokeWidth={2} />
               <div className="animate-textGlow">
                 {m.search.resultHeader.readingCandidates}
@@ -195,11 +196,8 @@ export default function ResultHeader({
             </div>
           )} */}
           {statusMessage === StatusEnum.FINISHED && (
-            <div className="text-sm font-light text-beige900 flex flex-row gap-2 items-start absolute top-3 left-5">
-              <Check
-                className="w-4 h-4 text-green-500 mt-0.5"
-                strokeWidth={2}
-              />
+            <div className="text-sm font-light text-neutral-primary flex flex-row gap-2 items-start absolute top-3 left-5">
+              <Check className="w-4 h-4 text-positive mt-0.5" strokeWidth={2} />
               <div className="">{m.search.resultHeader.finished}</div>
             </div>
           )}

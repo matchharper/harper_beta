@@ -1635,6 +1635,68 @@ export type Database = {
           },
         ]
       }
+      contact_queue: {
+        Row: {
+          attempts: number
+          cancelled_at: string | null
+          created_at: string
+          id: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          payload: Json
+          resend_email_id: string | null
+          scheduled_at: string
+          sent_at: string | null
+          status: string
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          attempts?: number
+          cancelled_at?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          payload?: Json
+          resend_email_id?: string | null
+          scheduled_at: string
+          sent_at?: string | null
+          status?: string
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          attempts?: number
+          cancelled_at?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          payload?: Json
+          resend_email_id?: string | null
+          scheduled_at?: string
+          sent_at?: string | null
+          status?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_queue_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       credits: {
         Row: {
           charged_credit: number | null
@@ -2385,6 +2447,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      harper_system: {
+        Row: {
+          content: Json | null
+          created_at: string
+          id: number
+          key: string | null
+        }
+        Insert: {
+          content?: Json | null
+          created_at?: string
+          id?: number
+          key?: string | null
+        }
+        Update: {
+          content?: Json | null
+          created_at?: string
+          id?: number
+          key?: string | null
+        }
+        Relationships: []
       }
       harper_waitlist: {
         Row: {
@@ -4384,6 +4467,63 @@ export type Database = {
           },
         ]
       }
+      talent_calls: {
+        Row: {
+          completed_at: string | null
+          conversation_id: string | null
+          created_at: string
+          id: string
+          kind: string
+          last_active_at: string
+          started_at: string
+          state: Json
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          kind: string
+          last_active_at?: string
+          started_at?: string
+          state?: Json
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          last_active_at?: string
+          started_at?: string
+          state?: Json
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_calls_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "talent_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_calls_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       talent_company_follow: {
         Row: {
           company_db_id: number
@@ -5136,63 +5276,6 @@ export type Database = {
           },
         ]
       }
-      talent_opportunity_profile_snapshot: {
-        Row: {
-          created_at: string
-          embedding_model: string | null
-          id: string
-          preference_profile_json: Json
-          raw_signals_json: Json
-          retrieval_query_text: string
-          snapshot_embedding: Json | null
-          snapshot_hash: string
-          snapshot_text: string
-          source_conversation_id: string | null
-          talent_id: string
-        }
-        Insert: {
-          created_at?: string
-          embedding_model?: string | null
-          id?: string
-          preference_profile_json?: Json
-          raw_signals_json?: Json
-          retrieval_query_text?: string
-          snapshot_embedding?: Json | null
-          snapshot_hash: string
-          snapshot_text?: string
-          source_conversation_id?: string | null
-          talent_id: string
-        }
-        Update: {
-          created_at?: string
-          embedding_model?: string | null
-          id?: string
-          preference_profile_json?: Json
-          raw_signals_json?: Json
-          retrieval_query_text?: string
-          snapshot_embedding?: Json | null
-          snapshot_hash?: string
-          snapshot_text?: string
-          source_conversation_id?: string | null
-          talent_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "talent_opportunity_profile_snapshot_source_conversation_id_fkey"
-            columns: ["source_conversation_id"]
-            isOneToOne: false
-            referencedRelation: "talent_conversations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "talent_opportunity_profile_snapshot_talent_id_fkey"
-            columns: ["talent_id"]
-            isOneToOne: false
-            referencedRelation: "talent_users"
-            referencedColumns: ["user_id"]
-          },
-        ]
-      }
       talent_opportunity_recommendation: {
         Row: {
           clicked_at: string | null
@@ -5387,58 +5470,49 @@ export type Database = {
       talent_setting: {
         Row: {
           blocked_companies: string[]
-          career_move_intent: string | null
           created_at: string
           engagement_types: string[]
           get_external_recommendation: boolean
           get_internal_recommendation: boolean
           is_onboarding_done: boolean
-          last_periodic_run_at: string | null
-          periodic_enabled: boolean
           periodic_interval_days: number
-          preferred_locations: string[]
           profile_visibility: string
           recommendation_batch_size: number
-          recommendation_settings_updated_by: string
           recommendation_source_conversation_id: string | null
+          status: string
+          status_updated_at: string
           updated_at: string
           user_id: string
         }
         Insert: {
           blocked_companies?: string[]
-          career_move_intent?: string | null
           created_at?: string
           engagement_types?: string[]
           get_external_recommendation?: boolean
           get_internal_recommendation?: boolean
           is_onboarding_done?: boolean
-          last_periodic_run_at?: string | null
-          periodic_enabled?: boolean
           periodic_interval_days?: number
-          preferred_locations?: string[]
           profile_visibility?: string
           recommendation_batch_size?: number
-          recommendation_settings_updated_by?: string
           recommendation_source_conversation_id?: string | null
+          status?: string
+          status_updated_at?: string
           updated_at?: string
           user_id: string
         }
         Update: {
           blocked_companies?: string[]
-          career_move_intent?: string | null
           created_at?: string
           engagement_types?: string[]
           get_external_recommendation?: boolean
           get_internal_recommendation?: boolean
           is_onboarding_done?: boolean
-          last_periodic_run_at?: string | null
-          periodic_enabled?: boolean
           periodic_interval_days?: number
-          preferred_locations?: string[]
           profile_visibility?: string
           recommendation_batch_size?: number
-          recommendation_settings_updated_by?: string
           recommendation_source_conversation_id?: string | null
+          status?: string
+          status_updated_at?: string
           updated_at?: string
           user_id?: string
         }
@@ -5716,6 +5790,37 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "career_email_onboarding_leads"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      claim_contact_queue_jobs: {
+        Args: {
+          batch_size?: number
+          max_attempts?: number
+          stale_after_seconds?: number
+          worker_id: string
+        }
+        Returns: {
+          attempts: number
+          cancelled_at: string | null
+          created_at: string
+          id: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          payload: Json
+          resend_email_id: string | null
+          scheduled_at: string
+          sent_at: string | null
+          status: string
+          type: string
+          updated_at: string
+          user_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "contact_queue"
           isOneToOne: false
           isSetofReturn: true
         }

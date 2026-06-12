@@ -153,7 +153,7 @@ We believe the best sales people are the hiring managers themselves. We do a qui
 ];
 
 const sectionTagClassName =
-  "inline-flex items-center rounded-lg bg-beige500/80 px-4 py-2 font-geist text-[15px] md:text-[16px] font-medium tracking-[-0.03em] text-beige900/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] backdrop-blur-xl";
+  "inline-flex items-center rounded-lg bg-beige500/80 px-4 py-2 text-[15px] md:text-[16px] font-medium tracking-[-0.03em] text-beige900/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] backdrop-blur-xl";
 
 const titleTextClassName =
   "font-hedvig text-4xl sm:text-4xl md:text-5xl leading-[0.98] tracking-[-0.08em] text-beige900";
@@ -187,7 +187,7 @@ const RadarButton = ({
     href="/search"
     whileHover={{ y: -1 }}
     whileTap={{ scale: 0.985 }}
-    className={`group inline-flex h-[50px] items-center gap-2 rounded-full bg-beige100 px-6 font-geist text-[15px] font-medium tracking-[-0.03em] text-black shadow-[0_14px_30px_rgba(0,0,0,0.22)] transition-shadow duration-300 hover:shadow-[0_18px_40px_rgba(0,0,0,0.3)] ${className}`}
+    className={`group inline-flex h-[50px] items-center gap-2 rounded-full bg-beige100 px-6 text-[15px] font-medium tracking-[-0.03em] text-black shadow-[0_14px_30px_rgba(0,0,0,0.22)] transition-shadow duration-300 hover:shadow-[0_18px_40px_rgba(0,0,0,0.3)] ${className}`}
   >
     <span>{label}</span>
     <ArrowUpRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-[2px] group-hover:translate-y-[-2px]" />
@@ -211,7 +211,7 @@ const CalendlyButton = ({
       rel="noreferrer"
       whileHover={{ y: -1 }}
       whileTap={{ scale: 0.985 }}
-      className={`group relative inline-flex items-center justify-center overflow-hidden font-geist font-medium tracking-[-0.03em] transition-shadow duration-300 ${
+      className={`group relative inline-flex items-center justify-center overflow-hidden font-medium tracking-[-0.03em] transition-shadow duration-300 ${
         isPrimary
           ? "bg-beige900 text-beige100 shadow-[0_10px_20px_rgba(46,23,6,0.08)]"
           : "bg-beige500/70 text-beige900 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]"
@@ -479,7 +479,7 @@ const Beige = () => {
           }}
         />
       </Head>
-      <div className="min-h-screen overflow-x-clip bg-beige200 font-geist text-beige900 antialiased">
+      <div className="min-h-screen overflow-x-clip bg-beige200 text-beige900 antialiased">
         <div className="w-full">
           <AnimatePresence>
             {showPreloader && (
@@ -584,7 +584,7 @@ const Beige = () => {
 
               {/* <Reveal once delay={0.32} className="mt-14 w-full">
                 <div className="grid grid-cols-[160px_1fr] items-center gap-12 max-[1199px]:grid-cols-1 max-[1199px]:gap-8">
-                  <p className="w-full md:max-w-[132px] text-left font-geist text-[14px] leading-[1.55] tracking-[-0.02em] text-beige900/40">
+                  <p className="w-full md:max-w-[132px] text-left text-[14px] leading-[1.55] tracking-[-0.02em] text-beige900/40">
                     Trusted by AI Companies like Pickle, Moss, Aleph lab,
                     OptimizerAI and many others.
                   </p>
@@ -641,7 +641,7 @@ const Beige = () => {
                     delay={index * 0.08}
                   >
                     <div className="grid grid-cols-[42px_1fr] gap-8">
-                      <div className="pt-1 font-geist text-2xl font-medium leading-none tracking-[-0.08em] text-beige900/60 max-[809px]:pt-2">
+                      <div className="pt-1 text-2xl font-medium leading-none tracking-[-0.08em] text-beige900/60 max-[809px]:pt-2">
                         {item.number}
                       </div>
                       <div>
@@ -907,7 +907,7 @@ const Beige = () => {
               contentClassName="grid grid-cols-[0.98fr_0.82fr] gap-16 py-24 text-beige100 max-[1199px]:grid-cols-1 max-[1199px]:gap-12 max-[809px]:py-20"
             >
               <Reveal direction="left" className="max-w-[620px]">
-                <div className="inline-flex items-center rounded-full border border-white/10 bg-white/10 px-4 py-2 font-geist text-[13px] font-medium tracking-[-0.03em] text-white/70">
+                <div className="inline-flex items-center rounded-full border border-white/10 bg-white/10 px-4 py-2 text-[13px] font-medium tracking-[-0.03em] text-white/70">
                   The Engine
                 </div>
                 <h2
@@ -915,7 +915,7 @@ const Beige = () => {
                 >
                   Autonomous Intelligence. Evidence-First.
                 </h2>
-                <p className="mt-7 max-w-[560px] font-geist text-[20px] leading-[1.58] tracking-[-0.03em] text-white/70 max-[809px]:text-[18px]">
+                <p className="mt-7 max-w-[560px] text-[20px] leading-[1.58] tracking-[-0.03em] text-white/70 max-[809px]:text-[18px]">
                   {/* Search across real research output, open-source evidence, and
                   technical project history in one place. */}
                   The same infrastructure our specialists use to scale teams.
@@ -932,7 +932,7 @@ const Beige = () => {
                   <div className="absolute inset-0 bg-[linear-gradient(135deg,transparent_0%,rgba(255,255,255,0.04)_100%)]" />
                   <div className="relative">
                     <div className="rounded-[22px]">
-                      <div className="max-w-md font-geist text-base md:text-lg leading-[1.55] tracking-[-0.03em] text-white/90">
+                      <div className="max-w-md text-base md:text-lg leading-[1.55] tracking-[-0.03em] text-white/90">
                         Find multimodal ML engineers who shipped production
                         systems and also published or contributed meaningful
                         research work.
@@ -952,7 +952,7 @@ const Beige = () => {
                           <div className="font-hedvig text-[32px] leading-none tracking-[-0.06em] text-beige100">
                             {value}
                           </div>
-                          <div className="mt-2 font-geist text-[13px] leading-[1.45] tracking-[-0.02em] text-white/50">
+                          <div className="mt-2 text-[13px] leading-[1.45] tracking-[-0.02em] text-white/50">
                             {label}
                           </div>
                         </div>
@@ -1025,11 +1025,11 @@ const Beige = () => {
                           }}
                           className="flex items-center justify-between rounded-[18px] border border-white/10 bg-white/10 px-4 py-3"
                         >
-                          <span className="font-geist text-[15px] tracking-[-0.02em] text-white/70">
+                          <span className="text-[15px] tracking-[-0.02em] text-white/70">
                             {item}
                           </span>
                           <span className="flex items-center gap-2">
-                            <span className="font-geist text-[13px] tracking-[-0.02em] text-white/30">
+                            <span className="text-[13px] tracking-[-0.02em] text-white/30">
                               {index === 0
                                 ? "Verified"
                                 : index === 1
@@ -1173,7 +1173,7 @@ const Footer = ({
   };
 
   return (
-    <div className="mt-10 self-start max-w-[740px] text-sm tracking-[-0.03em] font-geist w-full flex flex-col md:flex-row items-start md:items-stretch justify-between py-10 md:py-8 gap-6 md:gap-0">
+    <div className="mt-10 self-start max-w-[740px] text-sm tracking-[-0.03em] w-full flex flex-col md:flex-row items-start md:items-stretch justify-between py-10 md:py-8 gap-6 md:gap-0">
       <div className="flex flex-1 flex-col items-start justify-start gap-4 md:gap-6 text-beige900/70">
         <div className="text-left text-3xl font-semibold font-hedvig text-beige900">
           Harper

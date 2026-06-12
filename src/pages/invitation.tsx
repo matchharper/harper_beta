@@ -24,6 +24,8 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { handleContactUs } from "@/utils/info";
+import { Input as UiInput } from "@/components/ui/input";
+import { BareButton } from "@/components/ui/button";
 
 const LoginModal = dynamic(() => import("@/components/Modal/LoginModal"));
 
@@ -548,7 +550,7 @@ export default function InvitationPage() {
           <h1 className="text-2xl font-normal tracking-tight md:text-4xl">
             {title}
           </h1>
-          <p className="mt-4 md:mt-8 text-sm font-light leading-relaxed text-xgray500 md:text-base">
+          <p className="mt-4 md:mt-8 text-sm font-light leading-relaxed text-neutral-600 md:text-base">
             {description.split("\n").map((line) => (
               <React.Fragment key={line}>
                 {line}
@@ -582,42 +584,43 @@ export default function InvitationPage() {
                       <label className="block text-sm font-medium text-white">
                         {inviteCopy.nameLabel}
                       </label>
-                      <input
+                      <UiInput
+                        unstyled
                         type="text"
                         value={inviteName}
                         onChange={(event) => setInviteName(event.target.value)}
                         placeholder={inviteCopy.namePlaceholder}
                         className="w-full rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-white/20"
                       />
-                      <button
+                      <BareButton
                         type="button"
                         onClick={handleInviteRetry}
                         disabled={!inviteName.trim()}
                         className="inline-flex w-full items-center justify-center rounded-full bg-white px-5 py-3.5 text-sm font-medium text-black transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-70"
                       >
                         {inviteCopy.nameSubmit}
-                      </button>
+                      </BareButton>
                     </div>
                   ) : null}
 
                   {inviteStatus === "needs_login" ||
                   inviteStatus === "error" ? (
                     <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-                      <button
+                      <BareButton
                         type="button"
                         onClick={() => setIsOpenLoginModal(true)}
                         className="inline-flex flex-1 items-center justify-center rounded-full bg-white px-5 py-3.5 text-sm font-medium text-black transition hover:bg-white/90"
                       >
                         {inviteCopy.loginCta}
-                      </button>
+                      </BareButton>
                       {user ? (
-                        <button
+                        <BareButton
                           type="button"
                           onClick={handleInviteRetry}
                           className="inline-flex flex-1 items-center justify-center rounded-full border border-white/15 bg-transparent px-5 py-3.5 text-sm font-medium text-white transition hover:border-white/30 hover:bg-white/5"
                         >
                           {inviteCopy.retry}
-                        </button>
+                        </BareButton>
                       ) : null}
                     </div>
                   ) : null}
@@ -648,12 +651,12 @@ export default function InvitationPage() {
               )}
             </div>
 
-            <button
+            <BareButton
               onClick={handleContactUs}
               className="mt-8 mb-2 w-full text-xs text-neutral-500 transition-all duration-200 hover:text-neutral-400 md:mb-4 md:text-sm"
             >
               {m.invitation.contact}
-            </button>
+            </BareButton>
           </div>
         </div>
       </div>

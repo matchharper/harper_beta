@@ -6,6 +6,8 @@ import type {
 } from "@/components/admin/types";
 import { formatKST } from "@/components/admin/utils";
 import { Loading } from "@/components/ui/loading";
+import { Input as UiInput } from "@/components/ui/input";
+import { BareButton } from "@/components/ui/button";
 
 type AdminBookmarkFoldersTabProps = {
   search: string;
@@ -59,7 +61,8 @@ export default function AdminBookmarkFoldersTab({
           확인합니다.
         </div>
         <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-          <input
+          <UiInput
+            unstyled
             value={search}
             onChange={(event) => onSearchChange(event.target.value)}
             onKeyDown={(event) => {
@@ -71,14 +74,14 @@ export default function AdminBookmarkFoldersTab({
             placeholder="이름 또는 이메일"
             className="h-11 flex-1 rounded-[14px] border border-[#d8c7aa] bg-[#fffaf1] px-4 text-[14px] text-[#3f301f] outline-none placeholder:text-[#9e8b6d]"
           />
-          <button
+          <BareButton
             onClick={() => {
               void onSearchSubmit();
             }}
             className="h-11 rounded-[14px] border border-[#5d4931] bg-[#5d4931] px-4 text-[13px] text-[#fff8ef] transition-colors hover:bg-[#4f3e29]"
           >
             Search
-          </button>
+          </BareButton>
         </div>
         {usersError ? (
           <div className="mt-3 text-[12px] text-[#8d3a24]">{usersError}</div>
@@ -92,7 +95,9 @@ export default function AdminBookmarkFoldersTab({
               <div className="text-[13px] font-semibold text-[#4d3a24]">
                 Users
               </div>
-              <div className="mt-1 text-[12px] text-[#7a664b]">{users.length}명</div>
+              <div className="mt-1 text-[12px] text-[#7a664b]">
+                {users.length}명
+              </div>
             </div>
             {usersLoading ? (
               <Loading
@@ -115,7 +120,7 @@ export default function AdminBookmarkFoldersTab({
                 const isSelected = selectedUser?.userId === user.userId;
 
                 return (
-                  <button
+                  <BareButton
                     key={user.userId}
                     type="button"
                     onClick={() => {
@@ -136,7 +141,7 @@ export default function AdminBookmarkFoldersTab({
                     <div className="mt-2 text-[11px] text-[#8d7a5d]">
                       폴더 {user.folderCount} · 북마크 {user.bookmarkCount}
                     </div>
-                  </button>
+                  </BareButton>
                 );
               })
             )}
@@ -172,7 +177,9 @@ export default function AdminBookmarkFoldersTab({
           ) : null}
 
           {foldersError ? (
-            <div className="mt-3 text-[12px] text-[#8d3a24]">{foldersError}</div>
+            <div className="mt-3 text-[12px] text-[#8d3a24]">
+              {foldersError}
+            </div>
           ) : null}
 
           <div className="mt-4 space-y-2">
@@ -189,7 +196,7 @@ export default function AdminBookmarkFoldersTab({
                 const isSelected = selectedFolderId === folder.id;
 
                 return (
-                  <button
+                  <BareButton
                     key={folder.id}
                     type="button"
                     onClick={() => {
@@ -214,7 +221,7 @@ export default function AdminBookmarkFoldersTab({
                         {folder.itemCount}명
                       </div>
                     </div>
-                  </button>
+                  </BareButton>
                 );
               })
             )}
@@ -244,7 +251,8 @@ export default function AdminBookmarkFoldersTab({
 
           {selectedFolder && itemTotal > itemLimit ? (
             <div className="mt-3 rounded-[14px] border border-[#dcccad] bg-[#fffaf1] px-3 py-2 text-[11px] text-[#7a664b]">
-              최근 {itemLimit}개만 표시합니다. 전체 저장 수는 {itemTotal}개입니다.
+              최근 {itemLimit}개만 표시합니다. 전체 저장 수는 {itemTotal}
+              개입니다.
             </div>
           ) : null}
 

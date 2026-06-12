@@ -109,8 +109,8 @@ export const FallingTagsSmall = ({
                 flex flex-row items-center justify-start gap-1.5 cursor-grab \
                 active:cursor-grabbing border ${
                   theme === "white"
-                    ? "bg-white border-gray-400/50 text-xgray700"
-                    : "bg-gray-500/10 border-white/10 text-white"
+                    ? "bg-white border-neutral-400/50 text-neutral-800"
+                    : "bg-bg-floating0/10 border-white/10 text-white"
                 } backdrop-blur-sm`}
               drag
               dragElastic={0.25}

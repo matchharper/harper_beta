@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import { Check } from "lucide-react";
 import { useMessages } from "@/i18n/useMessage";
 import { useLogEvent } from "@/hooks/useLog";
+import { BareButton } from "@/components/ui/button";
 
 type Billing = "monthly" | "yearly";
 type PlanKey = "pro" | "max" | "enterprise" | "free";
@@ -141,10 +142,17 @@ export default function PricingSection({
   const isDark = theme === "dark";
 
   return (
-    <section id="pricing" className={`w-full ${isDark ? "text-hgray900" : "text-beige900"}`}>
+    <section
+      id="pricing"
+      className={`w-full ${isDark ? "text-neutral-200" : "text-neutral-primary"}`}
+    >
       <div className="w-full flex flex-col items-center justify-center text-center px-4 md:px-0">
         <div className="mt-16 md:mt-10">
-          <BillingToggle billing={billing} setBilling={setBilling} theme={theme} />
+          <BillingToggle
+            billing={billing}
+            setBilling={setBilling}
+            theme={theme}
+          />
         </div>
         <div className="mt-4 w-full max-w-[1200px]">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-4">
@@ -215,33 +223,43 @@ function BillingToggle({
 
   return (
     <div className="relative inline-flex items-center">
-      <div className={`relative flex items-center ${isDark ? "bg-white/10 border border-white/10" : "bg-beige500/55 border border-beige900/8"} rounded-full p-1 backdrop-blur`}>
-        <button
+      <div
+        className={`relative flex items-center ${isDark ? "bg-white/10 border border-white/10" : "border border-neutral-1000-a05 bg-bg-weak"} rounded-full p-1 backdrop-blur`}
+      >
+        <BareButton
           type="button"
           onClick={() => setBilling("monthly")}
           className={`relative z-10 px-6 py-2 rounded-full text-sm md:text-sm transition-colors ${
             !isYearly
-              ? isDark ? "text-black" : "text-beige100"
-              : isDark ? "text-white/70 hover:text-white" : "text-beige900/70 hover:text-beige900"
+              ? isDark
+                ? "text-black"
+                : "text-neutral-00"
+              : isDark
+                ? "text-white/70 hover:text-white"
+                : "text-neutral-muted hover:text-neutral-primary"
           }`}
         >
           {pricing.billing.monthly}
-        </button>
-        <button
+        </BareButton>
+        <BareButton
           type="button"
           onClick={() => setBilling("yearly")}
           className={`relative z-10 px-6 py-2 rounded-full text-sm md:text-sm transition-colors ${
             isYearly
-              ? isDark ? "text-black" : "text-beige100"
-              : isDark ? "text-white/70 hover:text-white" : "text-beige900/70 hover:text-beige900"
+              ? isDark
+                ? "text-black"
+                : "text-neutral-00"
+              : isDark
+                ? "text-white/70 hover:text-white"
+                : "text-neutral-muted hover:text-neutral-primary"
           }`}
         >
           {pricing.billing.yearly}
-        </button>
+        </BareButton>
 
         {/* sliding pill */}
         <motion.div
-          className={`absolute top-1 bottom-1 w-[48%] rounded-full ${isDark ? "bg-white" : "bg-beige900"}`}
+          className={`absolute top-1 bottom-1 w-[48%] rounded-full ${isDark ? "bg-white" : "bg-black"}`}
           initial={false}
           animate={{ x: isYearly ? "100%" : "0%" }}
           transition={{ type: "spring", stiffness: 500, damping: 40 }}
@@ -250,7 +268,9 @@ function BillingToggle({
 
       {/* discount badge */}
       <div className="absolute -right-6 -top-3 md:-right-8 md:-top-3">
-        <div className={`px-3 py-1 rounded-full text-[11px] md:text-xs font-semibold ${isDark ? "bg-accenta1 text-black" : "bg-accentBronze text-beige100"} shadow-sm`}>
+        <div
+          className={`px-3 py-1 rounded-full text-[11px] md:text-xs font-semibold ${isDark ? "bg-accent-200 text-black" : "bg-primary text-neutral-00"} shadow-sm`}
+        >
           {pricing.billing.discountLabel}
         </div>
       </div>
@@ -293,17 +313,22 @@ function PlanCard({
   return (
     <div
       className={[
-        "relative w-full rounded-xl md:rounded-3xl overflow-hidden shadow-md",
-        "bg-white/5 border border-white/5",
+        "relative w-full rounded-xl md:rounded-3xl overflow-hidden",
+        isDark
+          ? `border border-white/5 shadow-md ${isPrimary ? "bg-white/10" : "bg-white/5"}`
+          : isPrimary
+            ? "border border-primary/30 bg-primary-faded/35 shadow-sm"
+            : "border border-neutral-1000-a05 bg-bg-floating shadow-sm",
         "px-5 md:px-7 pt-4 md:pt-6 pb-4 md:pb-20",
-        isPrimary ? "bg-white/10" : "",
       ].join(" ")}
     >
       <div className="flex flex-col items-start justify-start">
         <div className="text-[24px] md:text-[28px] font-medium tracking-tight">
           {name}
         </div>
-        <div className={`mt-0 text-left w-full text-sm ${isDark ? "text-white/55" : "text-beige900/55"} leading-6 min-h-6`}>
+        <div
+          className={`mt-0 text-left w-full text-sm ${isDark ? "text-white/55" : "text-neutral-soft"} leading-6 min-h-6`}
+        >
           {tagline}
         </div>
 
@@ -319,7 +344,9 @@ function PlanCard({
               <div className="text-[24px] md:text-[32px] font-medium tracking-tight leading-none">
                 {formatPrice(isEnglish, price)}
               </div>
-              <div className={`text-base md:text-lg ${isDark ? "text-white/60" : "text-beige900/65"} pb-1`}>
+              <div
+                className={`text-base md:text-lg ${isDark ? "text-white/60" : "text-neutral-muted"} pb-1`}
+              >
                 {priceUnit}
               </div>
             </div>
@@ -327,7 +354,7 @@ function PlanCard({
         </div>
 
         <div className="mt-4 md:mt-6 w-full">
-          <button
+          <BareButton
             type="button"
             onClick={() => onClick(name, billing)}
             disabled={disabled}
@@ -335,36 +362,42 @@ function PlanCard({
               "w-full rounded-full py-2.5 md:py-3 text-sm md:text-sm font-normal transition-colors",
               isPrimary
                 ? isDark
-                  ? "bg-accenta1 text-black hover:opacity-95"
-                  : "bg-beige900 text-beige100 hover:opacity-95"
+                  ? "bg-accent-200 text-black hover:opacity-95"
+                  : "bg-primary text-neutral-00 hover:bg-primary/90"
                 : isDark
-                  ? "bg-white/10 text-accenta1 border border-white/0 hover:bg-accenta1/10"
-                  : "bg-beige500/55 text-beige900 border border-beige900/8 hover:bg-beige500/70",
+                  ? "bg-white/10 text-accent-200 border border-white/0 hover:bg-accent-200/10"
+                  : "border border-neutral-1000-a05 bg-bg-weak text-neutral-primary hover:bg-bg-floating",
               "disabled:opacity-60 disabled:cursor-not-allowed",
             ].join(" ")}
           >
             {buttonLabel}
-          </button>
+          </BareButton>
         </div>
 
-        <div className={`mt-7 md:mt-8 h-px w-full ${isDark ? "bg-white/10" : "bg-beige900/10"}`} />
+        <div
+          className={`mt-7 md:mt-8 h-px w-full ${isDark ? "bg-white/10" : "bg-neutral-1000-a10"}`}
+        />
 
         <ul className="mt-6 md:mt-7 flex flex-col gap-4">
           {features.map((f, idx) => (
             <li key={idx} className="flex items-start gap-3 text-sm md:text-sm">
               {f.endsWith("및:") || f.endsWith(":") ? (
                 <>
-                  <span className={`mt-[6px] w-2 h-2 rounded-full ${isDark ? "bg-white/25" : "bg-beige900/25"}`} />
                   <span
-                    className={`${isDark ? "text-white/80" : "text-beige900/80"} font-medium`}
+                    className={`mt-[6px] w-2 h-2 rounded-full ${isDark ? "bg-white/25" : "bg-neutral-1000-a10"}`}
+                  />
+                  <span
+                    className={`${isDark ? "text-white/80" : "text-neutral-primary"} font-medium`}
                     dangerouslySetInnerHTML={{ __html: f }}
                   />
                 </>
               ) : (
                 <>
-                  <Check className={`w-4 h-4 mt-0.5 ${isDark ? "text-accenta1" : "text-accentBronze"}`} />
+                  <Check
+                    className={`w-4 h-4 mt-0.5 ${isDark ? "text-accent-200" : "text-primary"}`}
+                  />
                   <span
-                    className={`${isDark ? "text-white/70" : "text-beige900/70"} text-left`}
+                    className={`${isDark ? "text-white/70" : "text-neutral-muted"} text-left`}
                     dangerouslySetInnerHTML={{ __html: f }}
                   ></span>
                 </>

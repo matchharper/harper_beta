@@ -19,6 +19,7 @@ import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
 import CareerProfileSettingsSection from "./CareerProfileSettingsSection";
 import CareerResumeLinksSettingsSection from "./settings/CareerResumeLinksSettingsSection";
+import { BareButton } from "@/components/ui/button";
 
 type CareerSettingsTab = "profile" | "resume" | "account";
 type MobileSettingsView = "menu" | CareerSettingsTab;
@@ -80,54 +81,54 @@ const AccountDeleteConfirmDialog = ({
       aria-modal="true"
       aria-labelledby="career-account-delete-title"
     >
-      <button
+      <BareButton
         type="button"
         aria-label="회원 탈퇴 확인 닫기"
         className="absolute inset-0 bg-black/45"
         onClick={pending ? undefined : onClose}
       />
-      <div className="relative z-[81] w-full max-w-[440px] rounded-[16px] border border-red-200 bg-beige50 p-5 shadow-[0_24px_80px_rgba(30,10,0,0.24)]">
+      <div className="relative z-[81] w-full max-w-[440px] rounded-[16px] border border-critical/30 bg-bg-floating p-5 shadow-[0_24px_80px_color-mix(in_srgb,var(--color-neutral-1000)_24%,transparent)]">
         <div className="flex items-start gap-3">
-          <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-700">
+          <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-critical-faded text-critical">
             <AlertTriangle className="h-5 w-5" />
           </span>
           <div className="min-w-0">
             <h3
               id="career-account-delete-title"
-              className="text-base font-semibold text-hblack1000"
+              className="text-base font-semibold text-neutral-primary"
             >
               회원 탈퇴를 진행할까요?
             </h3>
-            <p className="mt-2 text-sm leading-relaxed text-hblack700">
+            <p className="mt-2 text-sm leading-relaxed text-neutral-muted">
               탈퇴하면 계정 접근 권한, 커리어 프로필, 이력서, 대화 기록,
               추천/설정 데이터가 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
             </p>
-            <p className="mt-2 text-sm font-medium text-red-700">
+            <p className="mt-2 text-sm font-medium text-critical">
               삭제된 데이터는 복구할 수 없습니다.
             </p>
           </div>
         </div>
 
         {error ? (
-          <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p className="mt-4 rounded-lg border border-critical/30 bg-critical-faded px-3 py-2 text-sm text-critical">
             {error}
           </p>
         ) : null}
 
         <div className="mt-6 flex justify-end gap-2">
-          <button
+          <BareButton
             type="button"
             onClick={onClose}
             disabled={pending}
-            className="inline-flex h-10 items-center justify-center rounded-lg px-4 text-sm font-medium text-hblack600 transition-colors hover:bg-beige200 hover:text-hblack900 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-10 items-center justify-center rounded-lg px-4 text-sm font-medium text-neutral-muted transition-colors hover:bg-bg-weak hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-60"
           >
             취소
-          </button>
-          <button
+          </BareButton>
+          <BareButton
             type="button"
             onClick={onConfirm}
             disabled={pending}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-red-700 px-4 text-sm font-semibold text-white transition-colors hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-70"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-critical px-4 text-sm font-semibold text-neutral-00 transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
           >
             {pending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -135,7 +136,7 @@ const AccountDeleteConfirmDialog = ({
               <Trash2 className="h-4 w-4" />
             )}
             {pending ? "탈퇴 처리 중" : "탈퇴하기"}
-          </button>
+          </BareButton>
         </div>
       </div>
     </div>
@@ -207,39 +208,41 @@ const AccountSectionContent = ({
     <>
       <div className="space-y-4">
         <div>
-          <h2 className="text-lg font-semibold text-hblack1000">계정 관리</h2>
-          <p className="mt-1 text-sm text-hblack600">
+          <h2 className="text-lg font-semibold text-neutral-primary">
+            계정 관리
+          </h2>
+          <p className="mt-1 text-sm text-neutral-soft">
             계정 세션과 가입 상태를 관리합니다.
           </p>
         </div>
 
-        <p className="font-geist text-sm text-hblack700">{email}</p>
-        <button
+        <p className="text-sm text-neutral-muted">{email}</p>
+        <BareButton
           type="button"
           onClick={() => {
             logCareerEvent("click_settings_logout");
             void onLogout();
           }}
-          className="mt-3 inline-flex h-10 items-center gap-2 rounded-lg bg-beige500 px-4 text-sm text-hblack700 transition-colors hover:border-beige900 hover:bg-beige200 hover:text-beige900"
+          className="mt-3 inline-flex h-10 items-center gap-2 rounded-lg border border-neutral-1000-a05 bg-bg-floating px-4 text-sm text-neutral-muted transition-colors hover:border-neutral-800 hover:bg-bg-weak hover:text-neutral-primary"
         >
           <LogOut className="h-4 w-4" />
           로그아웃
-        </button>
+        </BareButton>
 
-        <div className="border-t border-beige500 pt-4">
-          <h3 className="text-sm font-semibold text-red-700">회원 탈퇴</h3>
-          <p className="mt-1 text-sm leading-relaxed text-hblack600">
+        <div className="border-t border-neutral-1000-a05 pt-4">
+          <h3 className="text-sm font-semibold text-critical">회원 탈퇴</h3>
+          <p className="mt-1 text-sm leading-relaxed text-neutral-soft">
             탈퇴하면 계정과 커리어 프로필, 이력서, 대화/추천 데이터가
             삭제됩니다. 다시 되돌릴 수 없습니다.
           </p>
-          <button
+          <BareButton
             type="button"
             onClick={handleOpenDeleteConfirm}
-            className="mt-6 inline-flex h-9 items-center gap-2 rounded-lg bg-red-700 px-3 text-sm font-medium text-white transition-colors hover:bg-red-800"
+            className="mt-6 inline-flex h-9 items-center gap-2 rounded-lg bg-critical px-3 text-sm font-medium text-neutral-00 transition-colors hover:opacity-90"
           >
             <Trash2 className="h-4 w-4" />
             회원 탈퇴
-          </button>
+          </BareButton>
         </div>
       </div>
 
@@ -335,7 +338,7 @@ const CareerSettingsModal = ({
         <DrawerPrimitive.Portal>
           <DrawerPrimitive.Overlay className="fixed inset-0 z-50 bg-black/50" />
           <DrawerPrimitive.Content
-            className="fixed inset-x-0 bottom-0 z-50 flex h-full max-h-[97svh] flex-col rounded-t-[20px] border-t border-beige900/10 bg-beige50 text-beige900 outline-none"
+            className="fixed inset-x-0 bottom-0 z-50 flex h-full max-h-[97svh] flex-col rounded-t-[20px] border-t border-neutral-1000-a05 bg-bg-floating text-neutral-primary outline-none"
             style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
           >
             <DrawerPrimitive.Title className="sr-only">
@@ -347,57 +350,57 @@ const CareerSettingsModal = ({
             </DrawerPrimitive.Description>
 
             <div className="flex shrink-0 justify-center pt-3 pb-2">
-              <div className="h-1.5 w-12 rounded-full bg-beige900/20" />
+              <div className="h-1.5 w-12 rounded-full bg-black/20" />
             </div>
 
             {mobileView === "menu" ? (
               <>
                 <header className="flex shrink-0 items-center justify-between px-5 pb-2">
-                  <h2 className="font-instrument text-[22px] leading-none text-beige900">
+                  <h2 className="font-instrument text-[22px] leading-none text-neutral-primary">
                     설정
                   </h2>
                   <DrawerPrimitive.Close
                     aria-label="설정 닫기"
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-full text-hblack600 transition-colors hover:bg-beige200 hover:text-beige900"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-muted transition-colors hover:bg-bg-weak hover:text-neutral-primary"
                   >
                     <X className="h-4 w-4" />
                   </DrawerPrimitive.Close>
                 </header>
                 <nav className="flex flex-col gap-1 overflow-y-auto px-3 pb-6 pt-2">
                   {SETTINGS_TABS.map((tab) => (
-                    <button
+                    <BareButton
                       key={tab.key}
                       type="button"
                       onClick={() => handleSelectTab(tab.key)}
-                      className="flex w-full min-h-11 items-center justify-between gap-3 rounded-xl px-3 py-3 text-left text-[15px] text-hblack900 transition-colors hover:bg-beige200 active:bg-beige200"
+                      className="flex w-full min-h-11 items-center justify-between gap-3 rounded-xl px-3 py-3 text-left text-[15px] text-neutral-primary transition-colors hover:bg-bg-weak active:bg-bg-weak"
                     >
                       <span className="flex items-center gap-3">
-                        <tab.Icon className="h-5 w-5 text-hblack600" />
+                        <tab.Icon className="h-5 w-5 text-neutral-muted" />
                         {tab.label}
                       </span>
-                      <ChevronRight className="h-4 w-4 text-hblack400" />
-                    </button>
+                      <ChevronRight className="h-4 w-4 text-neutral-soft" />
+                    </BareButton>
                   ))}
                 </nav>
               </>
             ) : (
               <>
-                <header className="flex shrink-0 items-center justify-between border-b border-beige500/40 px-3 pb-2">
-                  <button
+                <header className="flex shrink-0 items-center justify-between border-b border-neutral-1000-a05 px-3 pb-2">
+                  <BareButton
                     type="button"
                     onClick={handleBackToMenu}
-                    className="inline-flex min-h-11 min-w-11 items-center gap-1 rounded-lg px-2 text-sm text-hblack700 transition-colors hover:text-hblack900"
+                    className="inline-flex min-h-11 min-w-11 items-center gap-1 rounded-lg px-2 text-sm text-neutral-muted transition-colors hover:text-neutral-primary"
                     aria-label="설정 메뉴로 돌아가기"
                   >
                     <ArrowLeft className="h-4 w-4" />
                     설정
-                  </button>
-                  <h2 className="text-[15px] font-semibold text-beige900">
+                  </BareButton>
+                  <h2 className="text-[15px] font-semibold text-neutral-primary">
                     {SETTINGS_TABS.find((t) => t.key === mobileView)?.label}
                   </h2>
                   <DrawerPrimitive.Close
                     aria-label="설정 닫기"
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-full text-hblack600 transition-colors hover:bg-beige200 hover:text-beige900"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-muted transition-colors hover:bg-bg-weak hover:text-neutral-primary"
                   >
                     <X className="h-4 w-4" />
                   </DrawerPrimitive.Close>
@@ -423,24 +426,24 @@ const CareerSettingsModal = ({
       overlayClassName="items-start pt-14"
       panelClassName="max-w-none h-[80svh] max-h-[860px] px-0 w-[min(1040px,90vw)]"
       bodyClassName="h-full p-0"
-      closeButtonClassName="font-geist right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-hblack100 bg-beige50 text-hblack600 transition-colors hover:border-beige900 hover:text-beige900"
+      closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-floating text-neutral-muted transition-colors hover:border-neutral-800 hover:bg-bg-weak hover:text-neutral-primary"
     >
       <section className="h-full">
         <div className="grid h-full grid-cols-[260px_minmax(0,1fr)]">
-          <aside className="border-r border-beige500 bg-beige200 p-2">
+          <aside className="border-r border-neutral-1000-a05 bg-bg-basement p-2">
             <nav className="mt-2 space-y-1">
-              <button
+              <BareButton
                 type="button"
                 onClick={handleClose}
-                className="px-3 py-0 inline-flex items-center gap-1 text-sm text-hblack400 transition-colors hover:text-hblack900"
+                className="px-3 py-0 inline-flex items-center gap-1 text-sm text-neutral-soft transition-colors hover:text-neutral-primary"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back
-              </button>
+              </BareButton>
               {SETTINGS_TABS.map((tab) => {
                 const isActive = tab.key === activeTab;
                 return (
-                  <button
+                  <BareButton
                     key={tab.key}
                     type="button"
                     onClick={() => {
@@ -450,19 +453,19 @@ const CareerSettingsModal = ({
                     className={[
                       "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors",
                       isActive
-                        ? "bg-beige500 text-hblack900"
-                        : "text-hblack700 hover:bg-beige200",
+                        ? "bg-bg-floating text-neutral-primary"
+                        : "text-neutral-muted hover:bg-bg-weak",
                     ].join(" ")}
                   >
                     <tab.Icon className="h-4 w-4" />
                     {tab.label}
-                  </button>
+                  </BareButton>
                 );
               })}
             </nav>
           </aside>
 
-          <div className="bg-beige50 h-full overflow-y-auto px-8 py-7">
+          <div className="h-full overflow-y-auto bg-bg-floating px-8 py-7">
             {renderSection(activeTab, email, onLogout)}
           </div>
         </div>

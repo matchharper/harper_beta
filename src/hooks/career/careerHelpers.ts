@@ -36,6 +36,7 @@ export const toUiMessage = (message: {
   messageType?: string;
   createdAt?: string;
   opportunityPreview?: CareerMessage["opportunityPreview"];
+  recommendationStatusAfterCharCount?: number | null;
   thinkingLogs?: unknown;
 }): CareerMessage => ({
   id: message.id,
@@ -44,6 +45,12 @@ export const toUiMessage = (message: {
   messageType: message.messageType ?? "chat",
   createdAt: message.createdAt ?? new Date().toISOString(),
   opportunityPreview: message.opportunityPreview,
+  recommendationStatusAfterCharCount:
+    typeof message.recommendationStatusAfterCharCount === "number" &&
+    Number.isFinite(message.recommendationStatusAfterCharCount) &&
+    message.recommendationStatusAfterCharCount >= 0
+      ? Math.floor(message.recommendationStatusAfterCharCount)
+      : undefined,
   thinkingLogs: normalizeThinkingLogs(message.thinkingLogs),
 });
 
@@ -153,10 +160,23 @@ const findLastMessageTypeIndex = (
   return -1;
 };
 
-const hasChatAfterIndex = (messages: CareerMessage[], index: number) =>
+const CAREER_CONVERSATION_CONTINUATION_MESSAGE_TYPES = new Set([
+  "chat",
+  "call_transcript",
+  "call_wrapup",
+]);
+
+const hasConversationContinuationAfterIndex = (
+  messages: CareerMessage[],
+  index: number
+) =>
   messages
     .slice(index + 1)
-    .some((message) => (message.messageType ?? "chat") === "chat");
+    .some((message) =>
+      CAREER_CONVERSATION_CONTINUATION_MESSAGE_TYPES.has(
+        message.messageType ?? "chat"
+      )
+    );
 
 const CAREER_CONVERSATION_ACTIVITY_MESSAGE_TYPES = new Set([
   "chat",
@@ -207,7 +227,10 @@ export const shouldShowOnboardingInterestSelector = (
       (message) => message.messageType === TALENT_MESSAGE_TYPE_ONBOARDING_STATUS
     );
 
-  return !hasStatusAfter && !hasChatAfterIndex(messages, promptIndex);
+  return (
+    !hasStatusAfter &&
+    !hasConversationContinuationAfterIndex(messages, promptIndex)
+  );
 };
 
 export const shouldShowContinueConversationAction = (
@@ -219,7 +242,7 @@ export const shouldShowContinueConversationAction = (
   );
   if (closeIndex < 0) return false;
 
-  return !hasChatAfterIndex(messages, closeIndex);
+  return !hasConversationContinuationAfterIndex(messages, closeIndex);
 };
 
 export const isOnboardingPaused = (messages: CareerMessage[]) =>

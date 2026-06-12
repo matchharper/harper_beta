@@ -2,13 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { filterLandingLogsByExcludedLocalIds } from "@/lib/adminEmailExclusions";
 import { supabase } from "@/lib/supabase";
 import { Loading } from "@/components/ui/loading";
-import {
-  getSearchLandingVariantDescription,
-  getSearchLandingVariantLabel,
-  SEARCH_LANDING_ANALYTICS_ABTEST_TYPES,
-  summarizeSearchLandingFunnel,
-  type SearchLandingLog,
-} from "@/lib/searchLandingLogs";
+import { getSearchLandingVariantDescription, getSearchLandingVariantLabel, SEARCH_LANDING_ANALYTICS_ABTEST_TYPES, summarizeSearchLandingFunnel, type SearchLandingLog } from "@/lib/searchLandingLogs";
 
 const SEARCH_LANDING_FETCH_BATCH_SIZE = 1000;
 

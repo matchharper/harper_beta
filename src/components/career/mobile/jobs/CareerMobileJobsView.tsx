@@ -31,12 +31,14 @@ import {
 import { HistoryOpportunityInfoTag } from "@/components/career/history/HistoryOpportunityDetailContent";
 import { getCareerCompanySectionTitle } from "@/components/career/opportunityTypeMeta";
 import OpportunityPreferenceFit from "@/components/career/history/OpportunityPreferenceFit";
-import CareerRichText from "@/components/career/ui/CareerRichText";
+import RichText from "@/components/ui/rich-text";
 import type { CareerOpportunityType } from "@/components/career/types";
 import { useKeyboardArrows } from "@/hooks/useKeyboardArrows";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
-import { formatRelativeTime, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import type { CareerHistoryOpportunity } from "@/components/career/types";
+import { getOpportunityPostingStatus } from "@/components/career/history/opportunityPostingStatus";
+import { BareButton } from "@/components/ui/button";
 
 export type JobsDisplayTab = "new" | "saved" | "archived";
 
@@ -213,9 +215,9 @@ export default function CareerMobileJobsView({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="flex flex-1 items-center justify-center gap-2 px-6 py-20 text-[15px] text-beige900/55"
+                className="flex flex-1 items-center justify-center gap-2 px-6 py-20 text-[15px] text-neutral-muted"
               >
-                <Loader2 className="h-4 w-4 animate-spin text-beige900" />
+                <Loader2 className="h-4 w-4 animate-spin text-neutral-primary" />
                 <span>저장된 정보를 불러오는 중입니다...</span>
               </motion.div>
             ) : (
@@ -224,7 +226,7 @@ export default function CareerMobileJobsView({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="flex flex-1 items-center justify-center px-6 py-20 text-center text-[15px] text-beige900/55"
+                className="flex flex-1 items-center justify-center px-6 py-20 text-center text-[15px] text-neutral-muted"
               >
                 {emptyStateMessage(tab)}
               </motion.div>
@@ -269,21 +271,21 @@ function MobileOpportunityDetailPanel({
     <section
       className={cn("rounded-2xl p-1", getOpportunityPanelTone(opportunity))}
     >
-      <div className="flex w-full flex-col items-start justify-between rounded-2xl bg-beige50 px-4 py-5">
+      <div className="flex w-full flex-col items-start justify-between rounded-2xl bg-bg-floating px-4 py-5">
         <OpportunitySummaryCard
           opportunity={opportunity}
           onOpenCompanyInfo={onOpenCompanyInfo}
           onOpenOpportunityInfo={onOpenOpportunityInfo}
         />
         {onEditMemo ? (
-          <button
+          <BareButton
             type="button"
             onClick={() => onEditMemo(opportunity)}
-            className="mt-5 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[8px] border border-beige900/15 bg-white/70 px-3 py-2 text-sm font-medium text-beige900"
+            className="mt-5 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[8px] border border-neutral-1000-a10 bg-bg-floating px-3 py-2 text-sm font-medium text-neutral-primary"
           >
             <StickyNote className="h-4 w-4" />
             {talentMemo ? "메모 수정" : "메모하기"}
-          </button>
+          </BareButton>
         ) : null}
         <RecommendationContent
           opportunity={opportunity}
@@ -291,7 +293,7 @@ function MobileOpportunityDetailPanel({
         />
       </div>
 
-      <div className="flex flex-col gap-6 px-4 py-4 font-inter text-[14px] font-normal text-black/80">
+      <div className="flex flex-col gap-6 px-4 py-4 font-inter text-[14px] font-normal text-neutral-primary">
         <div className="space-y-3">
           <JDLinkButton opportunity={opportunity} />
           <PreferenceFitSection opportunity={opportunity} />
@@ -315,7 +317,7 @@ function OpportunitySummaryCard({
   onOpenCompanyInfo?: (opportunity: CareerHistoryOpportunity) => void;
   onOpenOpportunityInfo?: (type: CareerOpportunityType) => void;
 }) {
-  const postedAgo = formatRelativeTime(opportunity.postedAt);
+  const postingStatus = getOpportunityPostingStatus(opportunity);
   const metaItems = getMetaItems(opportunity);
   const companyInfoLink =
     opportunity.companyHomepageUrl ?? opportunity.companyLinkedinUrl;
@@ -339,7 +341,7 @@ function OpportunitySummaryCard({
   return (
     <article className="w-full">
       <header className="flex items-start gap-3">
-        <div className="flex shrink-0 items-center justify-center rounded-lg border border-beige900/10 bg-white p-1">
+        <div className="flex shrink-0 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-floating p-1">
           {opportunity.companyLogoUrl ? (
             <Image
               src={opportunity.companyLogoUrl}
@@ -349,38 +351,45 @@ function OpportunitySummaryCard({
               className="h-10 w-10 rounded-lg object-cover"
             />
           ) : (
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-beige900 text-beige100">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-black text-neutral-00">
               <Building2 className="h-4 w-4" />
             </div>
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <h2 className="wrap-break-word text-[17px] font-medium leading-tight text-black">
+          <h2 className="wrap-break-word text-[17px] font-medium leading-tight text-neutral-primary">
             {opportunity.title}
           </h2>
           <div className="mt-2 flex min-w-0 flex-row items-center justify-between gap-1 text-[13px]">
             {canOpenCompanyInfo ? (
-              <button
+              <BareButton
                 type="button"
                 onClick={() => onOpenCompanyInfo?.(opportunity)}
-                className="min-w-0 wrap-break-word text-left text-[14px] font-medium text-black/90 decoration-dotted underline underline-offset-2 transition-colors hover:text-black"
+                className="min-w-0 wrap-break-word text-left text-[14px] font-medium text-neutral-primary decoration-dotted underline underline-offset-2 transition-colors hover:text-neutral-primary"
               >
                 {opportunity.companyName}
-              </button>
+              </BareButton>
             ) : (
-              <span className="min-w-0 wrap-break-word text-[14px] font-medium text-black/90">
+              <span className="min-w-0 wrap-break-word text-[14px] font-medium text-neutral-primary">
                 {opportunity.companyName}
               </span>
             )}
-            {postedAgo ? (
-              <span className="text-[12px] leading-4 text-black/50">
-                {postedAgo}에 게시됨
+            {postingStatus ? (
+              <span
+                className={cn(
+                  "text-[12px] leading-4",
+                  postingStatus.isExpired
+                    ? "font-medium text-info"
+                    : "text-neutral-muted"
+                )}
+              >
+                {postingStatus.label}
               </span>
             ) : null}
           </div>
         </div>
       </header>
-      <div className="mt-3 flex w-full flex-col items-start gap-2 text-[13px] font-normal text-black/75">
+      <div className="mt-3 flex w-full flex-col items-start gap-2 text-[13px] font-normal text-neutral-muted">
         <div className="flex max-w-full flex-wrap items-center gap-x-2 gap-y-1.5">
           {detailMetaItems.map((meta, idx) => (
             <span
@@ -388,9 +397,9 @@ function OpportunitySummaryCard({
               className="inline-flex min-w-0 items-center gap-x-1"
             >
               {meta.label === "location" ? (
-                <MapPin className="h-3.5 w-3.5 shrink-0 text-black/50" />
+                <MapPin className="h-3.5 w-3.5 shrink-0 text-neutral-muted" />
               ) : (
-                <span className="shrink-0 text-black/35">·</span>
+                <span className="shrink-0 text-neutral-soft">·</span>
               )}
               <span className="min-w-0 wrap-break-word">{meta.value}</span>
             </span>
@@ -426,14 +435,14 @@ function RecommendationContent({
   if (!hasContent) return null;
 
   return (
-    <div className="mt-6 flex flex-col gap-2.5 text-[13px] leading-6 text-black/80">
+    <div className="mt-6 flex flex-col gap-2.5 text-[15px] leading-[1.7] text-neutral-primary">
       {summary ? <div>{summary}</div> : null}
       {showTalentMemo && talentMemo ? (
-        <div className="rounded-[8px] border border-beige900/10 bg-white/70 px-3 py-2">
-          <div className="text-[12px] font-medium text-beige900/50">
+        <div className="rounded-[8px] border border-neutral-1000-a05 bg-bg-floating px-3 py-2 shadow-sm">
+          <div className="text-[12px] font-medium text-neutral-soft">
             내 메모
           </div>
-          <div className="mt-1 whitespace-pre-wrap text-[13px] leading-6 text-beige900">
+          <div className="mt-1 whitespace-pre-wrap text-[13px] text-neutral-primary">
             {talentMemo}
           </div>
         </div>
@@ -443,7 +452,7 @@ function RecommendationContent({
           key={`${opportunity.id}-reason-${idx}`}
           className="flex w-full items-start justify-start gap-1"
         >
-          <Dot className="mt-0.5 h-4 w-4 min-w-4 text-black/35" />
+          <Dot className="mt-0.5 h-4 w-4 min-w-4 text-neutral-soft" />
           <div
             className="min-w-0 flex-1"
             dangerouslySetInnerHTML={{ __html: reason }}
@@ -455,7 +464,7 @@ function RecommendationContent({
           key={`${opportunity.id}-concern-${idx}`}
           className="flex w-full items-start justify-start gap-1"
         >
-          <Dot className="mt-0.5 h-4 w-4 min-w-4 text-black/35" />
+          <Dot className="mt-0.5 h-4 w-4 min-w-4 text-neutral-soft" />
           <div className="min-w-0 flex-1">불안 요소 : {concern}</div>
         </div>
       ))}
@@ -484,7 +493,7 @@ function JDLinkButton({
             : undefined
         )
       }
-      className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-beige900 px-4 py-3 text-sm font-semibold text-beige50 transition-opacity active:opacity-90"
+      className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-black px-4 py-3 text-sm font-semibold text-neutral-00 transition-opacity active:opacity-90"
     >
       JD 확인하기
       <ArrowUpRight className="h-4 w-4" />
@@ -522,22 +531,22 @@ function CompanySection({
   return (
     <section className="space-y-2">
       <div className="flex w-full items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-[14px] font-medium leading-5 text-beige900">
+        <div className="flex items-center gap-2 text-[14px] font-medium text-neutral-primary">
           <Building2 className="h-4 w-4" />
           <span>{sectionTitle}</span>
         </div>
         {canOpenCompanyInfo ? (
-          <button
+          <BareButton
             type="button"
             onClick={() => onOpenCompanyInfo?.(opportunity)}
-            className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-medium text-beige900/60 decoration-dotted underline underline-offset-2 transition-colors hover:text-beige900/80"
+            className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-medium text-neutral-muted decoration-dotted underline underline-offset-2 transition-colors hover:text-neutral-muted"
           >
             {actionLabel}
             <ArrowUpRight className="h-3.5 w-3.5" />
-          </button>
+          </BareButton>
         ) : null}
       </div>
-      <div className="h-px w-full bg-beige900/10" />
+      <div className="h-px w-full bg-neutral-1000-a05" />
       <div className="text-sm leading-6">
         {opportunity.companyDescription?.trim() || "아직 회사 설명이 없습니다."}
       </div>
@@ -552,12 +561,12 @@ function RoleDescriptionSection({
 }) {
   return (
     <section className="space-y-2">
-      <h3 className="flex items-center gap-2 text-[14px] font-medium leading-5 text-beige900">
+      <h3 className="flex items-center gap-2 text-[14px] font-medium leading-5 text-neutral-primary">
         <span>역할 설명</span>
       </h3>
-      <div className="h-px w-full bg-beige900/10" />
+      <div className="h-px w-full bg-neutral-1000-a05" />
       {opportunity.description?.trim() ? (
-        <CareerRichText content={opportunity.description} />
+        <RichText content={opportunity.description} />
       ) : (
         <div className="text-sm leading-6">
           아직 상세 역할 설명이 정리되지 않았습니다.
@@ -581,22 +590,22 @@ export function JobActionBar({
   if (!opportunity) return null;
   return (
     <div className={cn("grid grid-cols-2 gap-2", className)}>
-      <button
+      <BareButton
         type="button"
         onClick={onDismiss}
-        className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-beige900/15 bg-white text-[13px] font-normal text-beige900/85 transition active:bg-beige100"
+        className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-neutral-1000-a10 bg-bg-floating text-[13px] font-normal text-neutral-primary/85 transition active:bg-bg-weak"
       >
         <ThumbsDown className="h-3.5 w-3.5" />
         {getNegativeActionLabel(opportunity)}
-      </button>
-      <button
+      </BareButton>
+      <BareButton
         type="button"
         onClick={onTrack}
-        className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-beige900 text-[13px] font-normal text-beige50 transition active:bg-beige900/85"
+        className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-black text-[13px] font-normal text-neutral-00 transition active:bg-black/85"
       >
         <ThumbsUp className="h-3.5 w-3.5" />
         {getPositiveActionLabel(opportunity)}
-      </button>
+      </BareButton>
     </div>
   );
 }
@@ -618,12 +627,12 @@ function SwipeHintOverlay({
 }) {
   const startRef = useRef<{ x: number; y: number } | null>(null);
 
-  const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+  const handleTouchStart = (event: React.TouchEvent<HTMLButtonElement>) => {
     const touch = event.touches[0];
     if (!touch) return;
     startRef.current = { x: touch.clientX, y: touch.clientY };
   };
-  const handleTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+  const handleTouchEnd = (event: React.TouchEvent<HTMLButtonElement>) => {
     const start = startRef.current;
     startRef.current = null;
     const touch = event.changedTouches[0];
@@ -641,29 +650,22 @@ function SwipeHintOverlay({
   };
 
   return (
-    <motion.div
-      role="button"
-      tabIndex={0}
+    <motion.button
+      type="button"
       onClick={onDismiss}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onDismiss?.();
-        }
-      }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.25 }}
-      className="fixed left-0 right-0 z-40 flex flex-col items-center justify-center gap-4 bg-beige900/45 backdrop-blur-[1px]"
+      className="fixed left-0 right-0 z-40 flex flex-col items-center justify-center gap-4 bg-black/45 backdrop-blur-[1px]"
       style={{
         top: `calc(env(safe-area-inset-top) + ${topInsetPx}px)`,
         bottom: `calc(env(safe-area-inset-bottom) + ${bottomInsetPx}px)`,
       }}
     >
-      <div className="flex items-center gap-6 text-beige50">
+      <div className="flex items-center gap-6 text-neutral-00">
         <motion.div
           animate={{ x: [0, -10, 0] }}
           transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
@@ -678,7 +680,9 @@ function SwipeHintOverlay({
           <ArrowRight className="h-9 w-9" strokeWidth={2.5} />
         </motion.div>
       </div>
-      <p className="text-[14px] font-medium text-beige50">좌우로 넘겨 보세요</p>
-    </motion.div>
+      <p className="text-[14px] font-medium text-neutral-00">
+        좌우로 넘겨 보세요
+      </p>
+    </motion.button>
   );
 }

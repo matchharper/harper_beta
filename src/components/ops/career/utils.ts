@@ -67,7 +67,7 @@ export const onboardingStatusLabel = (isDone: boolean) =>
   isDone ? "완료" : "온보딩 미완료";
 
 export const onboardingStatusBadgeClass = (isDone: boolean) =>
-  isDone ? "bg-[#E4EDE2] text-[#29513A]" : "bg-[#FEF3C7] text-[#92400E]";
+  isDone ? "bg-positive-faded text-positive" : "bg-info-faded text-info";
 
 export const mailActorLabel = (item: CareerTalentMailHistoryItem) => {
   if (item.direction === "inbound") return "유저";
@@ -113,10 +113,10 @@ export const mailStatusLabel = (status: string) => {
 
 export const mailStatusClass = (status: string) => {
   if (status === "sent" || status === "received") {
-    return "bg-[#E4EDE2] text-[#29513A]";
+    return "bg-positive-faded text-positive";
   }
-  if (status === "failed") return "bg-[#F7DBD3] text-[#8A2E1D]";
-  return "bg-beige500/60 text-beige900/55";
+  if (status === "failed") return "bg-critical-faded text-critical";
+  return "bg-bg-weak text-neutral-muted";
 };
 
 export const profileVisibilityLabel = (value: string | null | undefined) => {
@@ -137,13 +137,13 @@ export const profileVisibilityBadgeClass = (
 ) => {
   switch (value) {
     case "open_to_matches":
-      return "bg-[#E4EDE2] text-[#29513A]";
+      return "bg-positive-faded text-positive";
     case "exceptional_only":
-      return "bg-[#FEF3C7] text-[#92400E]";
+      return "bg-info-faded text-info";
     case "dont_share":
-      return "bg-[#F7DBD3] text-[#8A2E1D]";
+      return "bg-critical-faded text-critical";
     default:
-      return "bg-beige500/60 text-beige900/55";
+      return "bg-bg-weak text-neutral-muted";
   }
 };
 
@@ -160,8 +160,8 @@ export const recommendationSourceClass = (
   sourceType: CareerTalentRecommendationItem["sourceType"]
 ) =>
   sourceType === "internal"
-    ? "bg-[#E4EDE2] text-[#29513A]"
-    : "bg-beige500/65 text-beige900/55";
+    ? "bg-positive-faded text-positive"
+    : "bg-bg-weak text-neutral-muted";
 
 export const recommendationFeedbackLabel = (
   feedback: string | null | undefined
@@ -177,12 +177,12 @@ export const recommendationFeedbackClass = (
 ) => {
   const normalized = String(feedback ?? "").toLowerCase();
   if (normalized === "like" || normalized === "positive") {
-    return "bg-[#E4EDE2] text-[#29513A]";
+    return "bg-positive-faded text-positive";
   }
   if (normalized === "dislike" || normalized === "negative") {
-    return "bg-[#F7DBD3] text-[#8A2E1D]";
+    return "bg-critical-faded text-critical";
   }
-  return "bg-beige500/55 text-beige900/40";
+  return "bg-bg-weak text-neutral-soft";
 };
 
 export const getAutoRecommendationStageLabel = (

@@ -101,7 +101,7 @@ const StartButton = React.memo(function StartButton({
       font-medium
       cursor-pointer
       rounded-full
-      bg-accenta1 text-black
+      bg-accent-200 text-black
       z-10
 
       ring-1 ring-white/10
@@ -614,7 +614,7 @@ const CandidatePage = () => {
                 {m.companyLanding.hero.titleLine2Prefix}{" "}
                 <RotatingText
                   texts={copyVariant.rotatingTexts}
-                  mainClassName="lg:px-3 md:px-2 px-1.5 rounded-sm font-hedvig bg-accenta1 text-black overflow-hidden py-0 sm:py-0 md:py-0 justify-center inline-block"
+                  mainClassName="lg:px-3 md:px-2 px-1.5 rounded-sm font-hedvig bg-accent-200 text-black overflow-hidden py-0 sm:py-0 md:py-0 justify-center inline-block"
                   staggerFrom={"last"}
                   initial={{ y: "100%" }}
                   animate={{ y: 0 }}
@@ -625,11 +625,11 @@ const CandidatePage = () => {
                   rotationInterval={2800}
                 />
               </div>
-              {/* <span className="font-hedvig text-accenta1 font-normal italic">
+              {/* <span className="font-hedvig text-accent-200 font-normal italic">
               {m.companyLanding.hero.titleLine2Highlight}
             </span> */}
             </div>
-            <div className="text-base md:text-lg text-hgray700 font-light mt-6">
+            <div className="text-base md:text-lg text-neutral-500 font-light mt-6">
               <span
                 dangerouslySetInnerHTML={{
                   __html: copyVariant.heroSubtitle,
@@ -665,7 +665,7 @@ const CandidatePage = () => {
                 <br />
                 {copyVariant.section1HeadlineLine2}
               </h3>
-              <p className="text-base font-hedvig font-light md:text-lg mt-6 px-2 text-hgray700">
+              <p className="text-base font-hedvig font-light md:text-lg mt-6 px-2 text-neutral-500">
                 {m.companyLanding.section1.bodyLine1}
                 <br />
                 {copyVariant.section1BodyLine2}
@@ -681,7 +681,7 @@ const CandidatePage = () => {
               <Head1 as="h2" className="text-white text-center w-full">
                 {m.companyLanding.why.title}
               </Head1>
-              <div className="text-sm font-hedvig font-light md:text-lg mt-6 px-2 text-hgray700">
+              <div className="text-sm font-hedvig font-light md:text-lg mt-6 px-2 text-neutral-500">
                 <span
                   dangerouslySetInnerHTML={{
                     __html: copyVariant.whySubtitle,
@@ -722,7 +722,7 @@ const CandidatePage = () => {
           <BaseSectionLayout>
             <div className="w-[90%] max-w-[600px] flex flex-col">
               <div className="flex flex-col items-start gap-4 bg-white/20 rounded-2xl px-6 md:px-[30px] py-6 md:py-8">
-                <div className="text-[13px] md:text-base text-left md:leading-[30px] leading-[26px] font-normal text-hgray700">
+                <div className="text-[13px] md:text-base text-left md:leading-[30px] leading-[26px] font-normal text-neutral-500">
                   <span
                     dangerouslySetInnerHTML={{
                       __html: m.companyLanding.testimonial.body,
@@ -742,7 +742,7 @@ const CandidatePage = () => {
                     <div className="text-sm">
                       {m.companyLanding.testimonial.name}
                     </div>
-                    <div className="text-hgray700 text-xs">
+                    <div className="text-neutral-500 text-xs">
                       {m.companyLanding.testimonial.role}
                     </div>
                   </div>

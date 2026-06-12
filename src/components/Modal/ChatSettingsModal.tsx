@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import BaseModal from "./BaseModal";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { UserSettings } from "@/hooks/useSettings";
 
 type ChatSettingsModalProps = {
@@ -55,13 +55,15 @@ const ChatSettingsModal = ({
       size="sm"
     >
       <div className="flex flex-col gap-2">
-        <div className="text-lg font-normal text-beige900">검색 기본 설정</div>
-        <div className="text-sm text-beige900/80">
+        <div className="text-lg font-normal text-neutral-primary">
+          검색 기본 설정
+        </div>
+        <div className="text-sm text-neutral-primary">
           아래에서 설정된 값들은 검색시 요청하지 않아도 항상 적용됩니다.
         </div>
 
         <div className="space-y-3 mt-4">
-          <label className="flex items-center gap-2 text-sm text-beige900/80">
+          <label className="flex items-center gap-2 text-sm text-neutral-primary">
             <Checkbox
               checked={draft.is_korean}
               onChange={() =>
@@ -71,7 +73,7 @@ const ChatSettingsModal = ({
             한국 관련 사람만 보기 (한국인 혹은 한국 학교/회사 출신)
           </label>
           {isLoading && (
-            <div className="text-xs text-beige900/55">
+            <div className="text-xs text-neutral-muted">
               기존 설정을 불러오는 중입니다.
             </div>
           )}

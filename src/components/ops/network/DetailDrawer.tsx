@@ -18,6 +18,7 @@ import {
   TabButton,
 } from "./shared";
 import WaitlistView from "./WaitlistView";
+import { BareButton } from "@/components/ui/button";
 
 type DetailDrawerProps = {
   closeLeadDrawer: () => void;
@@ -113,7 +114,7 @@ export default function DetailDrawer({
       <motion.button
         type="button"
         aria-label="Close candidate drawer"
-        className="absolute inset-0 bg-beige900/30 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-bg-weak backdrop-blur-[2px]"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -124,15 +125,15 @@ export default function DetailDrawer({
         animate={{ opacity: 1, x: 0 }}
         exit={{ opacity: 0, x: "100%" }}
         transition={{ duration: 0.2, ease: "easeOut" }}
-        className="absolute inset-y-0 right-0 w-full max-w-[min(1080px,94vw)] overflow-hidden border-l border-beige900/10 bg-[#F4E8D8] shadow-[-24px_0_80px_rgba(46,23,6,0.2)]"
+        className="absolute inset-y-0 right-0 w-full max-w-[min(1080px,94vw)] overflow-hidden border-l border-neutral-1000-a05 bg-bg-default shadow-[-24px_0_80px_color-mix(in_srgb,var(--color-neutral-1000)_20%,transparent)]"
       >
         <div className="h-full overflow-y-auto">
           {!displayedLead ? (
-            <div className="flex h-full items-center justify-center px-6 py-10 font-geist text-sm text-beige900/55">
+            <div className="flex h-full items-center justify-center px-6 py-10 text-sm text-neutral-muted">
               {detailError ? (
                 <div className={opsTheme.errorNotice}>{detailError}</div>
               ) : (
-                <LoaderCircle className="h-6 w-6 animate-spin text-beige900/45" />
+                <LoaderCircle className="h-6 w-6 animate-spin text-neutral-muted" />
               )}
             </div>
           ) : (
@@ -163,22 +164,22 @@ export default function DetailDrawer({
                         <Badge>{displayedLead.selectedRole}</Badge>
                       ) : null}
                     </div>
-                    <div className="mt-3 font-geist text-sm text-beige900/65">
+                    <div className="mt-3 text-sm text-neutral-muted">
                       {displayedLead.email ?? "이메일 없음"}
                     </div>
                   </div>
 
                   <div className="flex flex-wrap gap-2">
-                    <button
+                    <BareButton
                       type="button"
                       onClick={closeLeadDrawer}
                       className={cx(opsTheme.buttonSoft, "h-10 px-3")}
                     >
                       <X className="h-4 w-4" />
                       닫기
-                    </button>
+                    </BareButton>
                     {displayedLead.email ? (
-                      <button
+                      <BareButton
                         type="button"
                         onClick={() =>
                           onCopy(displayedLead.email ?? "", "이메일")
@@ -187,10 +188,10 @@ export default function DetailDrawer({
                       >
                         <Copy className="h-4 w-4" />
                         이메일 복사
-                      </button>
+                      </BareButton>
                     ) : null}
                     {displayedLead.hasCv ? (
-                      <button
+                      <BareButton
                         type="button"
                         onClick={() => onOpenCv(displayedLead)}
                         disabled={isOpeningCv === displayedLead.id}
@@ -202,9 +203,9 @@ export default function DetailDrawer({
                           <FileText className="h-4 w-4" />
                         )}
                         CV 열기
-                      </button>
+                      </BareButton>
                     ) : null}
-                    <button
+                    <BareButton
                       type="button"
                       onClick={onIngest}
                       disabled={isSelectedLeadIngesting}
@@ -218,12 +219,12 @@ export default function DetailDrawer({
                       {detail?.hasStructuredProfile
                         ? "정보 다시 추출하기"
                         : "정보 추출하기"}
-                    </button>
+                    </BareButton>
                   </div>
                 </div>
               </div>
 
-              <div className="border-t border-beige900/10 px-5 py-4">
+              <div className="border-t border-neutral-1000-a05 px-5 py-4">
                 <div className="flex flex-wrap items-center gap-2">
                   {DETAIL_TABS.map((tab) => (
                     <TabButton
@@ -242,7 +243,7 @@ export default function DetailDrawer({
                 </div>
               ) : detailLoading && !detail ? (
                 <div className="flex min-h-[420px] items-center justify-center">
-                  <LoaderCircle className="h-6 w-6 animate-spin text-beige900/45" />
+                  <LoaderCircle className="h-6 w-6 animate-spin text-neutral-muted" />
                 </div>
               ) : (
                 <div className="px-5 pb-5">

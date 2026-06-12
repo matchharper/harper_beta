@@ -28,6 +28,10 @@ import {
   WORK_MODE_LABEL,
   type WorkspaceDraft,
 } from "./shared";
+import { BareButton } from "@/components/ui/button";
+import { Input as UiInput } from "@/components/ui/input";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
+import { Checkbox as UiCheckbox } from "@/components/ui/checkbox";
 
 function convertHtmlPasteToMarkdown(html: string) {
   const trimmedHtml = html.trim();
@@ -102,7 +106,7 @@ function RoleDescriptionMarkdownPreview({ markdown }: { markdown: string }) {
       <div
         className={cx(
           opsTheme.panelSoft,
-          "overflow-hidden px-4 py-4 text-sm leading-6 text-beige900"
+          "overflow-hidden px-4 py-4 text-sm leading-6 text-neutral-primary"
         )}
       >
         {trimmedMarkdown ? (
@@ -112,41 +116,41 @@ function RoleDescriptionMarkdownPreview({ markdown }: { markdown: string }) {
               rehypePlugins={[rehypeSanitize]}
               components={{
                 h1: ({ children }) => (
-                  <h1 className="font-halant text-[1.7rem] leading-none tracking-tighter text-beige900">
+                  <h1 className="font-halant text-[1.7rem] leading-none tracking-tighter text-neutral-primary">
                     {children}
                   </h1>
                 ),
                 h2: ({ children }) => (
-                  <h2 className="font-halant text-[1.35rem] leading-[1.05] tracking-[-0.04em] text-beige900">
+                  <h2 className="font-halant text-[1.35rem] leading-[1.05] tracking-[-0.04em] text-neutral-primary">
                     {children}
                   </h2>
                 ),
                 h3: ({ children }) => (
-                  <h3 className="text-base font-semibold text-beige900">
+                  <h3 className="text-base font-semibold text-neutral-primary">
                     {children}
                   </h3>
                 ),
                 hr: () => (
-                  <hr className="my-4 border-0 border-t border-beige900/15" />
+                  <hr className="my-4 border-0 border-t border-neutral-1000-a10" />
                 ),
                 p: ({ children }) => (
-                  <p className="whitespace-pre-wrap text-sm leading-6 text-beige900/75">
+                  <p className="whitespace-pre-wrap text-sm leading-6 text-neutral-muted">
                     {children}
                   </p>
                 ),
                 ul: ({ children }) => (
-                  <ul className="list-disc space-y-1 pl-5 text-sm leading-6 text-beige900/75">
+                  <ul className="list-disc space-y-1 pl-5 text-sm leading-6 text-neutral-muted">
                     {children}
                   </ul>
                 ),
                 ol: ({ children }) => (
-                  <ol className="list-decimal space-y-1 pl-5 text-sm leading-6 text-beige900/75">
+                  <ol className="list-decimal space-y-1 pl-5 text-sm leading-6 text-neutral-muted">
                     {children}
                   </ol>
                 ),
                 li: ({ children }) => <li className="pl-1">{children}</li>,
                 strong: ({ children }) => (
-                  <strong className="font-semibold text-beige900">
+                  <strong className="font-semibold text-neutral-primary">
                     {children}
                   </strong>
                 ),
@@ -156,7 +160,7 @@ function RoleDescriptionMarkdownPreview({ markdown }: { markdown: string }) {
             </ReactMarkdown>
           </div>
         ) : (
-          <div className="text-sm text-beige900/45">
+          <div className="text-sm text-neutral-muted">
             Description에 markdown을 입력하면 여기서 미리보기로 렌더링됩니다.
           </div>
         )}
@@ -188,19 +192,19 @@ export function CandidateMailModal({
       onClose={onClose}
       title="후보자에게 메일 보내기"
       description=""
-      panelClassName="max-w-[720px] border border-beige900/10 bg-beige50"
-      bodyClassName="bg-beige50 px-5 py-5"
+      panelClassName="max-w-[720px] border border-neutral-1000-a05 bg-bg-default"
+      bodyClassName="bg-bg-default px-5 py-5"
       footer={
         <div className="flex items-center justify-end gap-2">
-          <button
+          <BareButton
             type="button"
             onClick={onClose}
             disabled={pending}
             className={cx(opsTheme.buttonSecondary, "h-10 px-4")}
           >
             취소
-          </button>
-          <button
+          </BareButton>
+          <BareButton
             type="button"
             onClick={onSubmit}
             disabled={
@@ -217,25 +221,26 @@ export function CandidateMailModal({
               <Mail className="h-4 w-4" />
             )}
             보내기
-          </button>
+          </BareButton>
         </div>
       }
-      closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-beige900/10 bg-white/70 text-beige900/70 transition-colors hover:border-beige900/25 hover:text-beige900"
+      closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-default/70 text-neutral-muted transition-colors hover:border-neutral-1000-a10 hover:text-neutral-primary"
     >
       <div className="space-y-4">
         <div className={cx(opsTheme.panelSoft, "space-y-2 px-4 py-4")}>
-          <div className="text-[11px] text-beige900/40">받는 사람</div>
-          <div className="text-sm text-beige900">
+          <div className="text-[11px] text-neutral-soft">받는 사람</div>
+          <div className="text-sm text-neutral-primary">
             {talent.name ?? "Unnamed talent"}
           </div>
-          <div className="text-xs text-beige900/55">
+          <div className="text-xs text-neutral-muted">
             {talent.email ?? "등록된 이메일 없음"}
           </div>
         </div>
 
         <div className="space-y-2">
           <div className={opsTheme.eyebrow}>보내는 사람</div>
-          <input
+          <UiInput
+            unstyled
             value={draft.fromEmail}
             onChange={(event) =>
               onChange({
@@ -250,7 +255,8 @@ export function CandidateMailModal({
 
         <div className="space-y-2">
           <div className={opsTheme.eyebrow}>제목</div>
-          <input
+          <UiInput
+            unstyled
             value={draft.subject}
             onChange={(event) =>
               onChange({
@@ -265,7 +271,8 @@ export function CandidateMailModal({
 
         <div className="space-y-2">
           <div className={opsTheme.eyebrow}>내용</div>
-          <textarea
+          <UiTextarea
+            unstyled
             value={draft.content}
             onChange={(event) =>
               onChange({
@@ -305,44 +312,44 @@ export function RecommendationPromptModal({
       onClose={onClose}
       title="추천 문구 프롬프트 수정"
       description=""
-      panelClassName="max-w-[880px] border border-beige900/10 bg-beige50"
-      bodyClassName="bg-beige50 px-5 py-5"
+      panelClassName="max-w-[880px] border border-neutral-1000-a05 bg-bg-default"
+      bodyClassName="bg-bg-default px-5 py-5"
       footer={
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <button
+          <BareButton
             type="button"
             onClick={onReset}
             className={cx(opsTheme.buttonSecondary, "h-10 px-4")}
           >
             기본값 복원
-          </button>
+          </BareButton>
           <div className="flex flex-wrap items-center gap-2">
-            <button
+            <BareButton
               type="button"
               onClick={onClose}
               className={cx(opsTheme.buttonSecondary, "h-10 px-4")}
             >
               취소
-            </button>
-            <button
+            </BareButton>
+            <BareButton
               type="button"
               onClick={onSave}
               disabled={!value.trim()}
               className={cx(opsTheme.buttonPrimary, "h-10 px-4")}
             >
               저장
-            </button>
+            </BareButton>
           </div>
         </div>
       }
-      closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-beige900/10 bg-white/70 text-beige900/70 transition-colors hover:border-beige900/25 hover:text-beige900"
+      closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-default/70 text-neutral-muted transition-colors hover:border-neutral-1000-a10 hover:text-neutral-primary"
     >
       <div className="space-y-4">
         <div className={cx(opsTheme.panelSoft, "space-y-2 px-4 py-4")}>
-          <div className="text-sm text-beige900/75">
+          <div className="text-sm text-neutral-muted">
             프롬프트는 브라우저 로컬 스토리지에 저장됩니다.
           </div>
-          <div className="text-xs leading-5 text-beige900/55">
+          <div className="text-xs leading-5 text-neutral-muted">
             아래 placeholder를 유지하면 선택된 후보자/role 정보가 자동으로
             들어갑니다.
           </div>
@@ -350,7 +357,8 @@ export function RecommendationPromptModal({
 
         <div className="space-y-2">
           <div className={opsTheme.eyebrow}>프롬프트</div>
-          <textarea
+          <UiTextarea
+            unstyled
             value={value}
             onChange={(event) => onChange(event.target.value)}
             className={cx(opsTheme.textarea, "min-h-[320px]")}
@@ -366,10 +374,10 @@ export function RecommendationPromptModal({
                 key={item.key}
                 className={cx(opsTheme.panelSoft, "space-y-1 px-3 py-3")}
               >
-                <div className="text-xs font-medium text-beige900">
+                <div className="text-xs font-medium text-neutral-primary">
                   {item.key}
                 </div>
-                <div className="text-xs leading-5 text-beige900/55">
+                <div className="text-xs leading-5 text-neutral-muted">
                   {item.description}
                 </div>
               </div>
@@ -411,19 +419,19 @@ export function WorkspaceCreateModal({
       title={mode === "edit" ? "회사 수정" : "회사 추가"}
       description=""
       overlayClassName="items-start overflow-y-auto px-4 py-10 sm:px-6 sm:py-14 lg:py-16"
-      panelClassName="max-w-[720px] border border-beige900/10 bg-beige50"
-      bodyClassName="bg-beige50 px-5 py-5"
+      panelClassName="max-w-[720px] border border-neutral-1000-a05 bg-bg-default"
+      bodyClassName="bg-bg-default px-5 py-5"
       footer={
         <div className="flex items-center justify-end gap-2">
-          <button
+          <BareButton
             type="button"
             onClick={onClose}
             disabled={pending || extractPending}
             className={cx(opsTheme.buttonSecondary, "h-10 px-4")}
           >
             취소
-          </button>
-          <button
+          </BareButton>
+          <BareButton
             type="button"
             onClick={onSubmit}
             disabled={pending || extractPending || !draft.companyName.trim()}
@@ -435,15 +443,16 @@ export function WorkspaceCreateModal({
               <Save className="h-4 w-4" />
             )}
             저장
-          </button>
+          </BareButton>
         </div>
       }
-      closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-beige900/10 bg-white/70 text-beige900/70 transition-colors hover:border-beige900/25 hover:text-beige900"
+      closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-default/70 text-neutral-muted transition-colors hover:border-neutral-1000-a10 hover:text-neutral-primary"
     >
       <div className="space-y-4">
         <div className="space-y-2">
           <div className={opsTheme.eyebrow}>회사명</div>
-          <input
+          <UiInput
+            unstyled
             value={draft.companyName}
             onChange={(event) =>
               onChange({
@@ -457,7 +466,8 @@ export function WorkspaceCreateModal({
         </div>
         <div className="space-y-2">
           <div className={opsTheme.eyebrow}>홈페이지</div>
-          <input
+          <UiInput
+            unstyled
             value={draft.homepageUrl}
             onChange={(event) =>
               onChange({
@@ -472,7 +482,8 @@ export function WorkspaceCreateModal({
         <div className="space-y-2">
           <div className={opsTheme.eyebrow}>LinkedIn</div>
           <div className="flex gap-2">
-            <input
+            <UiInput
+              unstyled
               value={draft.linkedinUrl}
               onChange={(event) =>
                 onChange({
@@ -483,7 +494,7 @@ export function WorkspaceCreateModal({
               placeholder="linkedin company url"
               className={cx(opsTheme.input, "flex-1")}
             />
-            <button
+            <BareButton
               type="button"
               onClick={onExtract}
               disabled={extractPending || !draft.linkedinUrl.trim()}
@@ -493,12 +504,13 @@ export function WorkspaceCreateModal({
                 <LoaderCircle className="h-4 w-4 animate-spin" />
               ) : null}
               추출하기
-            </button>
+            </BareButton>
           </div>
         </div>
         <div className="space-y-2">
           <div className={opsTheme.eyebrow}>Career</div>
-          <input
+          <UiInput
+            unstyled
             value={draft.careerUrl}
             onChange={(event) =>
               onChange({
@@ -510,9 +522,9 @@ export function WorkspaceCreateModal({
             className={opsTheme.input}
           />
         </div>
-        <label className="flex items-center gap-3 rounded-md border border-beige900/10 bg-white/70 px-3 py-3 text-sm text-beige900">
-          <input
-            type="checkbox"
+        <label className="flex items-center gap-3 rounded-md border border-neutral-1000-a05 bg-bg-default/70 px-3 py-3 text-sm text-neutral-primary">
+          <UiCheckbox
+            unstyled
             checked={draft.isInternal}
             onChange={(event) =>
               onChange({
@@ -520,13 +532,14 @@ export function WorkspaceCreateModal({
                 isInternal: event.target.checked,
               })
             }
-            className="h-4 w-4 rounded border-beige900/20 accent-beige900"
+            className="h-4 w-4 rounded border-neutral-1000-a10 accent-black"
           />
           <span>is_internal</span>
         </label>
         <div className="space-y-2">
           <div className={opsTheme.eyebrow}>소개</div>
-          <textarea
+          <UiTextarea
+            unstyled
             value={draft.companyDescription}
             onChange={(event) =>
               onChange({
@@ -540,7 +553,8 @@ export function WorkspaceCreateModal({
         </div>
         <div className="space-y-2">
           <div className={opsTheme.eyebrow}>Pitch</div>
-          <textarea
+          <UiTextarea
+            unstyled
             value={draft.pitch}
             onChange={(event) =>
               onChange({
@@ -554,7 +568,8 @@ export function WorkspaceCreateModal({
         </div>
         <div className="space-y-2">
           <div className={opsTheme.eyebrow}>Request</div>
-          <textarea
+          <UiTextarea
+            unstyled
             value={draft.request}
             onChange={(event) =>
               onChange({
@@ -599,20 +614,20 @@ export function RoleCreateModal({
       title={mode === "edit" ? "기회 수정" : "기회 추가"}
       description=""
       overlayClassName="items-start overflow-y-auto px-4 py-10 sm:px-6 sm:py-14 lg:py-16"
-      panelClassName="flex max-h-[calc(100svh-4rem)] max-w-[860px] flex-col border border-beige900/10 bg-beige50"
-      bodyClassName="flex-1 overflow-y-auto bg-beige50 px-5 py-5"
-      footerClassName="shrink-0 border-t border-beige900/10 bg-beige50"
+      panelClassName="flex max-h-[calc(100svh-4rem)] max-w-[860px] flex-col border border-neutral-1000-a05 bg-bg-default"
+      bodyClassName="flex-1 overflow-y-auto bg-bg-default px-5 py-5"
+      footerClassName="shrink-0 border-t border-neutral-1000-a05 bg-bg-default"
       footer={
         <div className="flex items-center justify-end gap-2">
-          <button
+          <BareButton
             type="button"
             onClick={onClose}
             disabled={pending}
             className={cx(opsTheme.buttonSecondary, "h-10 px-4")}
           >
             취소
-          </button>
-          <button
+          </BareButton>
+          <BareButton
             type="button"
             onClick={onSubmit}
             disabled={pending || !draft.name.trim()}
@@ -624,18 +639,19 @@ export function RoleCreateModal({
               <Save className="h-4 w-4" />
             )}
             저장
-          </button>
+          </BareButton>
         </div>
       }
-      closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-beige900/10 bg-white/70 text-beige900/70 transition-colors hover:border-beige900/25 hover:text-beige900"
+      closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-default/70 text-neutral-muted transition-colors hover:border-neutral-1000-a10 hover:text-neutral-primary"
     >
       <div className="space-y-4">
-        <div className="text-lg text-black">
+        <div className="text-lg text-neutral-primary">
           {workspaceName ?? "선택된 회사 없음"}
         </div>
         <div className="space-y-2">
           <div className={opsTheme.eyebrow}>Role Title</div>
-          <input
+          <UiInput
+            unstyled
             value={draft.name}
             onChange={(event) =>
               onChange({
@@ -757,7 +773,8 @@ export function RoleCreateModal({
         </div>
         <div className="space-y-2">
           <div className={opsTheme.eyebrow}>External JD URL</div>
-          <input
+          <UiInput
+            unstyled
             value={draft.externalJdUrl}
             onChange={(event) =>
               onChange({
@@ -772,7 +789,8 @@ export function RoleCreateModal({
         <div className="grid gap-2 md:grid-cols-3">
           <div className="space-y-2">
             <div className={opsTheme.eyebrow}>Location</div>
-            <input
+            <UiInput
+              unstyled
               value={draft.locationText}
               onChange={(event) =>
                 onChange({
@@ -786,7 +804,8 @@ export function RoleCreateModal({
           </div>
           <div className="space-y-2">
             <div className={opsTheme.eyebrow}>Posted At</div>
-            <input
+            <UiInput
+              unstyled
               value={draft.postedAt}
               onChange={(event) =>
                 onChange({
@@ -800,7 +819,8 @@ export function RoleCreateModal({
           </div>
           <div className="space-y-2">
             <div className={opsTheme.eyebrow}>Expires At</div>
-            <input
+            <UiInput
+              unstyled
               value={draft.expiresAt}
               onChange={(event) =>
                 onChange({
@@ -815,7 +835,8 @@ export function RoleCreateModal({
         </div>
         <div className="space-y-2">
           <div className={opsTheme.eyebrow}>Request</div>
-          <textarea
+          <UiTextarea
+            unstyled
             value={draft.request}
             onChange={(event) =>
               onChange({
@@ -830,7 +851,8 @@ export function RoleCreateModal({
         </div>
         <div className="space-y-2">
           <div className={opsTheme.eyebrow}>Description</div>
-          <textarea
+          <UiTextarea
+            unstyled
             value={draft.description}
             onChange={(event) =>
               onChange({
@@ -852,14 +874,15 @@ export function RoleCreateModal({
             placeholder="role description"
             className={cx(opsTheme.textarea, "min-h-[220px] px-3 py-3")}
           />
-          <div className="text-xs leading-5 text-beige900/45">
+          <div className="text-xs leading-5 text-neutral-muted">
             노션이나 웹 문서에서 붙여 넣으면 가능한 범위에서 markdown으로
             변환합니다.
           </div>
         </div>
         <div className="space-y-2">
           <div className={opsTheme.eyebrow}>Description Summary</div>
-          <textarea
+          <UiTextarea
+            unstyled
             value={draft.descriptionSummary}
             onChange={(event) =>
               onChange({

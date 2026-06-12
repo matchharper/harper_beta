@@ -2,6 +2,7 @@
 
 import { CheckCircle2, ArrowRight, Clock } from "lucide-react";
 import React from "react";
+import { BareButton } from "@/components/ui/button";
 
 type RecruiterCallSummaryProps = {
   // You can pass real data from your backend later
@@ -142,14 +143,14 @@ const RecruiterCallSummaryScreen: React.FC<RecruiterCallSummaryProps> = ({
           에서 확인하실 수 있어요.
         </div>
 
-        <button
+        <BareButton
           type="button"
           onClick={onClickProfile}
-          className="flex flex-row items-center justify-center gap-2 cursor-pointer hover:opacity-90 rounded-lg bg-brightnavy text-white py-4 w-full"
+          className="flex flex-row items-center justify-center gap-2 cursor-pointer hover:opacity-90 rounded-lg bg-neutral-1000 text-white py-4 w-full"
         >
           계속하기
           <ArrowRight className="w-4 h-4" />
-        </button>
+        </BareButton>
       </div>
     </div>
   );

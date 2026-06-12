@@ -1,5 +1,8 @@
 import { cx, opsTheme } from "@/components/ops/theme";
-import type { NetworkLeadDetailResponse, TalentInternalEntry } from "@/lib/opsNetwork";
+import type {
+  NetworkLeadDetailResponse,
+  TalentInternalEntry,
+} from "@/lib/opsNetwork";
 import { OPS_NETWORK_MAIL_TEMPLATE_VARIABLES } from "@/lib/opsNetworkMailTemplate";
 import {
   FileText,
@@ -9,6 +12,9 @@ import {
   Send,
 } from "lucide-react";
 import { ActivityEntryCard, StructuredSection } from "./shared";
+import { Input as UiInput } from "@/components/ui/input";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
+import { BareButton } from "@/components/ui/button";
 
 type InternalViewProps = {
   conversationContent: string;
@@ -75,14 +81,17 @@ export default function InternalView({
 
   return (
     <div className="space-y-4">
-      {detailError ? <div className={opsTheme.errorNotice}>{detailError}</div> : null}
+      {detailError ? (
+        <div className={opsTheme.errorNotice}>{detailError}</div>
+      ) : null}
 
       <StructuredSection icon={Send} title="메일 보내기">
         <div className="space-y-3">
           <div className="grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)]">
             <div>
               <label className={opsTheme.label}>보내는 사람</label>
-              <input
+              <UiInput
+                unstyled
                 type="text"
                 value={mailFromEmail}
                 onChange={(event) => onMailFromEmailChange(event.target.value)}
@@ -95,7 +104,7 @@ export default function InternalView({
               <div
                 className={cx(
                   opsTheme.panelSoft,
-                  "mt-2 flex h-11 items-center px-3 font-geist text-sm text-beige900/70"
+                  "mt-2 flex h-11 items-center px-3 text-sm text-neutral-muted"
                 )}
               >
                 {displayedLeadEmail ?? "이메일 없음"}
@@ -105,7 +114,8 @@ export default function InternalView({
 
           <div>
             <label className={opsTheme.label}>제목</label>
-            <input
+            <UiInput
+              unstyled
               type="text"
               value={mailSubject}
               onChange={(event) => onMailSubjectChange(event.target.value)}
@@ -116,19 +126,20 @@ export default function InternalView({
 
           <div>
             <label className={opsTheme.label}>본문</label>
-            <textarea
+            <UiTextarea
+              unstyled
               value={mailContent}
               onChange={(event) => onMailContentChange(event.target.value)}
               className={cx(opsTheme.textarea, "mt-2 min-h-[180px]")}
               placeholder="후보자에게 보낼 메일 내용을 작성하세요."
             />
-            <p className="mt-2 font-geist text-xs leading-5 text-beige900/60">
-              제목과 본문에서 {supportedMailVariables} 을 사용할 수 있고, 발송 시
-              후보자 정보로 치환됩니다.
+            <p className="mt-2 text-xs leading-5 text-neutral-muted">
+              제목과 본문에서 {supportedMailVariables} 을 사용할 수 있고, 발송
+              시 후보자 정보로 치환됩니다.
             </p>
           </div>
 
-          <button
+          <BareButton
             type="button"
             onClick={onSendMail}
             disabled={
@@ -146,43 +157,47 @@ export default function InternalView({
               <Send className="h-4 w-4" />
             )}
             메일 발송
-          </button>
+          </BareButton>
         </div>
       </StructuredSection>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <StructuredSection icon={NotebookPen} title="공용 메모">
-          <textarea
+          <UiTextarea
+            unstyled
             value={memoContent}
             onChange={(event) => onMemoContentChange(event.target.value)}
             className={cx(opsTheme.textarea, "min-h-[180px]")}
             placeholder="후보자에 대한 공용 메모를 남기세요."
           />
-          <button
+          <BareButton
             type="button"
             onClick={onSaveMemo}
             disabled={internalPending || !memoContent.trim()}
             className={cx(opsTheme.buttonSoft, "mt-3 h-10")}
           >
             메모 저장
-          </button>
+          </BareButton>
         </StructuredSection>
 
         <StructuredSection icon={MessageSquareText} title="직접 대화 기록">
-          <textarea
+          <UiTextarea
+            unstyled
             value={conversationContent}
-            onChange={(event) => onConversationContentChange(event.target.value)}
+            onChange={(event) =>
+              onConversationContentChange(event.target.value)
+            }
             className={cx(opsTheme.textarea, "min-h-[180px]")}
             placeholder="전화나 미팅으로 직접 나눈 대화 내용을 기록하세요."
           />
-          <button
+          <BareButton
             type="button"
             onClick={onSaveConversation}
             disabled={internalPending || !conversationContent.trim()}
             className={cx(opsTheme.buttonSoft, "mt-3 h-10")}
           >
             대화 기록 저장
-          </button>
+          </BareButton>
         </StructuredSection>
       </div>
 
@@ -194,7 +209,9 @@ export default function InternalView({
                 key={entry.id}
                 deletePending={deletePendingEntryId === entry.id}
                 editPending={updatePendingEntryId === entry.id}
-                editingValue={editingEntryId === entry.id ? editingEntryContent : ""}
+                editingValue={
+                  editingEntryId === entry.id ? editingEntryContent : ""
+                }
                 entry={entry}
                 isEditing={editingEntryId === entry.id}
                 onDelete={onDeleteEntry}
@@ -206,7 +223,7 @@ export default function InternalView({
             ))}
           </div>
         ) : (
-          <div className="font-geist text-sm text-beige900/55">
+          <div className="text-sm text-neutral-muted">
             아직 저장된 내부 활동이 없습니다.
           </div>
         )}

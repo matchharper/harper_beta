@@ -8,6 +8,7 @@ import {
 import { Tooltips } from "@/components/ui/tooltip";
 import type { AdminCareerSummaryMetric } from "@/lib/adminCareerAnalytics/types";
 import { Info } from "lucide-react";
+import { BareButton } from "@/components/ui/button";
 
 type AdminCareerMetricGridProps = {
   metrics: AdminCareerSummaryMetric[];
@@ -55,13 +56,13 @@ export default function AdminCareerMetricGrid({
                   `${metric.label}: ${metric.detail}`
                 }
               >
-                <button
+                <BareButton
                   type="button"
                   className="inline-flex cursor-help items-center gap-1 bg-transparent p-0 text-left"
                 >
                   {metric.label}
                   <Info className="h-3 w-3" aria-hidden="true" />
-                </button>
+                </BareButton>
               </Tooltips>
             </CardDescription>
             <CardTitle className="text-[20px] font-semibold leading-7 text-black">

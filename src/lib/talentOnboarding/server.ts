@@ -39,6 +39,13 @@ import {
   fetchVisibleMessagesPage,
 } from "@/lib/talentOnboarding/messageStore";
 import {
+  completeActiveCareerOnboardingCall,
+  getCareerOnboardingChecklistCoverage,
+  getOnboardingChecklistCoverageStats,
+  getOrCreateCareerOnboardingCall,
+  mergeCareerOnboardingChecklistCoverage,
+} from "@/lib/talentOnboarding/calls";
+import {
   TALENT_PENDING_QUESTION_PREFIX,
   TALENT_RESUME_BUCKET,
   TALENT_SETTING_SELECT_QUERY,
@@ -73,8 +80,12 @@ export {
   fetchTalentStructuredProfile,
   fetchTalentUserProfile,
   fetchVisibleMessagesPage,
+  completeActiveCareerOnboardingCall,
   getEmptyInsightKeys,
+  getCareerOnboardingChecklistCoverage,
   getMergedChecklist,
+  getOnboardingChecklistCoverageStats,
+  getOrCreateCareerOnboardingCall,
   getTalentProfileVisibilityLabel,
   getTalentResumeSignedUrl,
   getTalentSupabaseAdmin,
@@ -89,6 +100,7 @@ export {
   setTalentOnboardingDone,
   toTalentMessageResponse,
   toTalentDisplayName,
+  mergeCareerOnboardingChecklistCoverage,
   upsertTalentInsights,
   upsertTalentSetting,
 };

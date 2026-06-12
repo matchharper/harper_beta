@@ -7,22 +7,9 @@ import { Page } from "@/components/layout/Page";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { postOfficialJobEvent } from "@/lib/officialJobEvents";
 import { OFFICIAL_JOBS_LOGIN_HREF, type OfficialJob } from "@/lib/officialJobs";
-import {
-  OFFICIAL_JOBS_OG_IMAGE_URL,
-  buildOfficialJobCanonicalUrl,
-  buildOfficialJobDescription,
-  buildOfficialJobStructuredData,
-  buildOfficialJobTitle,
-  toIsoDateTime,
-} from "@/lib/officialJobsSeo";
+import { OFFICIAL_JOBS_OG_IMAGE_URL, buildOfficialJobCanonicalUrl, buildOfficialJobDescription, buildOfficialJobStructuredData, buildOfficialJobTitle, toIsoDateTime } from "@/lib/officialJobsSeo";
 import { getPublicOfficialJobBySlug } from "@/lib/officialJobs.server";
-import {
-  BriefcaseBusiness,
-  ChevronLeft,
-  MapPin,
-  ShieldCheck,
-  Users,
-} from "lucide-react";
+import { BriefcaseBusiness, ChevronLeft, MapPin, ShieldCheck, Users } from "lucide-react";
 import type { GetServerSideProps } from "next";
 import Head from "next/head";
 import Link from "next/link";

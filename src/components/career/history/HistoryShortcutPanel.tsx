@@ -1,17 +1,28 @@
 import React from "react";
-import { careerCx } from "../ui/CareerPrimitives";
-import { ArrowLeft, ArrowRight, Loader2, ThumbsDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Loader2,
+  ThumbsDown,
+  type LucideIcon,
+} from "lucide-react";
 import { CareerHistoryOpportunity } from "../types";
 import {
   getNegativeActionLabel,
   getPositiveActionLabel,
 } from "../CareerHistoryPanel";
 import { getCareerPositiveActionIcon } from "../opportunityTypeMeta";
+import { BareButton } from "@/components/ui/button";
 
 const ShortcutKey = ({ children }: { children: React.ReactNode }) => (
-  <kbd className="inline-flex h-4 min-w-4 items-center justify-center rounded-[4px] bg-neutral-200 px-1 text-[9.5px] font-medium leading-none text-beige900/70 shadow-[0_1px_0_rgba(46,23,6,0.05)]">
+  <kbd className="inline-flex h-4 min-w-4 items-center justify-center rounded-[4px] bg-bg-weak px-1 text-[9.5px] font-medium leading-none text-neutral-muted shadow-[0_1px_0_color-mix(in_srgb,var(--color-neutral-1000)_5%,transparent)]">
     {children}
   </kbd>
+);
+
+const ShortcutPositiveActionIcon = ({ icon: Icon }: { icon: LucideIcon }) => (
+  <Icon className="h-3 w-3" />
 );
 
 const ShortcutActionButton = ({
@@ -25,17 +36,17 @@ const ShortcutActionButton = ({
   disabled?: boolean;
   onClick: () => void;
 }) => (
-  <button
+  <BareButton
     type="button"
     onClick={onClick}
     disabled={disabled}
-    className={careerCx(
+    className={cn(
       "inline-flex h-10 min-w-[92px] flex-1 items-center justify-center gap-1 rounded-[8px] px-2 font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-55",
       className
     )}
   >
     {children}
-  </button>
+  </BareButton>
 );
 
 const ShortcutNavButton = ({
@@ -49,15 +60,15 @@ const ShortcutNavButton = ({
   label: string;
   onClick: () => void;
 }) => (
-  <button
+  <BareButton
     type="button"
     onClick={onClick}
     disabled={disabled}
     aria-label={label}
-    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-neutral-200 text-black transition-colors hover:bg-neutral-300 disabled:cursor-not-allowed disabled:opacity-40"
+    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-bg-weak text-neutral-primary transition-colors hover:bg-bg-weak disabled:cursor-not-allowed disabled:opacity-40"
   >
     {children}
-  </button>
+  </BareButton>
 );
 
 const HistoryShortcutPanel = ({
@@ -82,6 +93,10 @@ const HistoryShortcutPanel = ({
   onNegative: () => void;
 }) => {
   const PositiveActionIcon = getCareerPositiveActionIcon(item.opportunityType);
+  const positiveActionClassName =
+    item.isInternal || item.sourceType === "internal"
+      ? "bg-primary text-neutral-00 hover:opacity-90"
+      : "bg-black text-neutral-00 hover:opacity-90";
 
   return (
     <div className="space-y-2.5">
@@ -97,7 +112,7 @@ const HistoryShortcutPanel = ({
         <ShortcutActionButton
           onClick={onNegative}
           disabled={pending}
-          className="bg-neutral-200 text-black"
+          className="bg-bg-weak text-neutral-primary"
         >
           <ThumbsDown className="h-3 w-3" />
           {getNegativeActionLabel(item)}
@@ -106,9 +121,9 @@ const HistoryShortcutPanel = ({
         <ShortcutActionButton
           onClick={onPositive}
           disabled={pending}
-          className="bg-black text-white hover:opacity-90"
+          className={positiveActionClassName}
         >
-          <PositiveActionIcon className="h-3 w-3" />
+          <ShortcutPositiveActionIcon icon={PositiveActionIcon} />
           {getPositiveActionLabel(item)}
         </ShortcutActionButton>
 
@@ -125,18 +140,18 @@ const HistoryShortcutPanel = ({
         </ShortcutNavButton>
       </div>
 
-      <div className="flex flex-wrap items-center justify-center gap-2 text-[12px] leading-4 text-black/50">
+      <div className="flex flex-wrap items-center justify-center gap-2 text-[12px] leading-4 text-neutral-muted">
         <span className="inline-flex items-center gap-2">
           <ShortcutKey>←</ShortcutKey>
           <ShortcutKey>→</ShortcutKey>
           이동
         </span>
-        <span className="text-beige900/20">·</span>
+        <span className="text-neutral-primary/20">·</span>
         <span className="inline-flex items-center gap-2">
           <ShortcutKey>S</ShortcutKey>
           {getNegativeActionLabel(item)}
         </span>
-        <span className="text-beige900/20">·</span>
+        <span className="text-neutral-primary/20">·</span>
         <span className="inline-flex items-center gap-2">
           <ShortcutKey>T</ShortcutKey>
           {getPositiveActionLabel(item)}

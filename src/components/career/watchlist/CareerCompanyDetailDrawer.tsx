@@ -10,6 +10,7 @@ import type {
   CompanyDetailPayload,
   CompanyWatchlistItem,
 } from "./watchlistTypes";
+import { BareButton } from "@/components/ui/button";
 
 const DETAIL_QUERY_KEY = "career-company-watchlist-detail";
 
@@ -151,25 +152,25 @@ const CareerCompanyDetailDrawer = ({
             role="dialog"
             aria-modal="true"
             aria-label="회사 상세 정보"
-            className="absolute right-0 top-0 flex h-full w-full max-w-[760px] flex-col border-l border-beige900/10 bg-beige50 text-beige900 shadow-[0_24px_80px_rgba(25,18,10,0.22)]"
+            className="absolute right-0 top-0 flex h-full w-full max-w-[760px] flex-col border-l border-neutral-1000-a05 bg-bg-floating text-neutral-primary shadow-2xl"
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ duration: 0.22, ease: "easeOut" }}
           >
-            <div className="flex h-12 shrink-0 items-center justify-end border-b border-beige900/10 px-4">
-              <button
+            <div className="flex h-12 shrink-0 items-center justify-end border-b border-neutral-1000-a05 px-4">
+              <BareButton
                 type="button"
                 aria-label="닫기"
                 onClick={handleClose}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-beige900/60 transition-colors hover:bg-beige900/5 hover:text-beige900"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-muted transition-colors hover:bg-bg-weak hover:text-neutral-primary"
               >
                 <X className="h-4 w-4" />
-              </button>
+              </BareButton>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-8 pt-4 sm:px-7">
               {errorMessage ? (
-                <div className="mb-4 rounded-[8px] border border-red-500/20 bg-red-50 px-4 py-3 text-[13px] text-red-700">
+                <div className="mb-4 rounded-[8px] border border-critical/30 bg-critical-faded px-4 py-3 text-[13px] text-critical">
                   {errorMessage}
                 </div>
               ) : null}
@@ -185,7 +186,7 @@ const CareerCompanyDetailDrawer = ({
                 }
               />
               {visibleActionError ? (
-                <div className="mt-4 rounded-[8px] border border-red-500/20 bg-red-50 px-4 py-3 text-[13px] text-red-700">
+                <div className="mt-4 rounded-[8px] border border-critical/30 bg-critical-faded px-4 py-3 text-[13px] text-critical">
                   {visibleActionError}
                 </div>
               ) : null}

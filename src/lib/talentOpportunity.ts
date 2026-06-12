@@ -44,8 +44,10 @@ type RawRecommendationRow = {
     } | null;
     description: string | null;
     external_jd_url: string | null;
+    expires_at: string | null;
     location_text: string | null;
     name: string;
+    is_expired: boolean | null;
     posted_at: string | null;
     role_id: string;
     source_job_id: string | null;
@@ -101,8 +103,10 @@ type RawPostingRecommendationRow = {
 type RawPostingRoleRow = {
   description: string | null;
   external_jd_url: string | null;
+  expires_at: string | null;
   location_text: string | null;
   name: string;
+  is_expired: boolean | null;
   posted_at: string | null;
   role_id: string;
   source_job_id: string | null;
@@ -150,7 +154,9 @@ const TALENT_OPPORTUNITY_HISTORY_SELECT = `
     name,
     description,
     external_jd_url,
+    expires_at,
     location_text,
+    is_expired,
     posted_at,
     type,
     work_mode,
@@ -199,7 +205,9 @@ const TALENT_POSTING_ROLE_SELECT = `
   name,
   description,
   external_jd_url,
+  expires_at,
   location_text,
+  is_expired,
   posted_at,
   type,
   work_mode,
@@ -266,11 +274,13 @@ export type TalentOpportunityHistoryItem = {
   dismissedAt: string | null;
   employmentTypes: string[];
   externalJdUrl: string | null;
+  expiresAt: string | null;
   feedback: TalentOpportunityFeedback | null;
   feedbackAt: string | null;
   feedbackReason: string | null;
   href: string | null;
   id: string;
+  isExpired: boolean;
   isAccepted: boolean;
   isInternal: boolean;
   kind: "match" | "recommendation";
@@ -630,6 +640,28 @@ const getDefaultSavedStageForOpportunityType = (
   _opportunityType: OpportunityType
 ): TalentOpportunitySavedStage => "saved";
 
+const INACTIVE_ROLE_STATUSES = new Set([
+  "archived",
+  "closed",
+  "expired",
+  "inactive",
+]);
+
+function isExpiredOpportunityRole(args: {
+  expiresAt?: string | null;
+  isExpired?: boolean | null;
+  status?: string | null;
+}) {
+  if (args.isExpired === true) return true;
+
+  const normalizedStatus = String(args.status ?? "").trim().toLowerCase();
+  if (INACTIVE_ROLE_STATUSES.has(normalizedStatus)) return true;
+
+  if (!args.expiresAt) return false;
+  const expiresAtMs = Date.parse(args.expiresAt);
+  return Number.isFinite(expiresAtMs) && expiresAtMs < Date.now();
+}
+
 function buildTalentOpportunityHistoryQuery(args: {
   admin: AdminClient;
   feedback?: "like" | "dislike" | null;
@@ -892,11 +924,17 @@ function mapRecommendationRow(
     dismissedAt: row.dismissed_at ?? null,
     employmentTypes: Array.isArray(role.type) ? role.type : [],
     externalJdUrl,
+    expiresAt: role.expires_at ?? null,
     feedback: normalizeFeedback(row.feedback),
     feedbackAt: row.feedback_at ?? null,
     feedbackReason: row.feedback_reason ?? null,
     href,
     id: String(row.id ?? ""),
+    isExpired: isExpiredOpportunityRole({
+      expiresAt: role.expires_at,
+      isExpired: role.is_expired,
+      status: role.status,
+    }),
     isAccepted: kind === "match",
     isInternal: sourceType === "internal",
     kind,
@@ -977,6 +1015,7 @@ function mapPostingRoleRow(
     dismissedAt: existingRecommendation?.dismissed_at ?? null,
     employmentTypes: Array.isArray(row.type) ? row.type : [],
     externalJdUrl,
+    expiresAt: row.expires_at ?? null,
     feedback: normalizeFeedback(existingRecommendation?.feedback),
     feedbackAt: existingRecommendation?.feedback_at ?? null,
     feedbackReason: existingRecommendation?.feedback_reason ?? null,
@@ -984,6 +1023,11 @@ function mapPostingRoleRow(
     id: existingRecommendation?.id
       ? String(existingRecommendation.id)
       : toPostingOpportunityId(roleId),
+    isExpired: isExpiredOpportunityRole({
+      expiresAt: row.expires_at,
+      isExpired: row.is_expired,
+      status: row.status,
+    }),
     isAccepted: kind === "match",
     isInternal: sourceType === "internal",
     kind,

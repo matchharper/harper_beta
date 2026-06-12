@@ -1,6 +1,7 @@
 import { CompanyLogo } from "./CompanyLogo";
 import { FollowButton } from "./FollowButton";
 import { formatFollowedAt } from "./watchlistFormatters";
+import { BareButton } from "@/components/ui/button";
 import type {
   CompanyFollowClickHandler,
   CompanyWatchlistItem,
@@ -43,16 +44,10 @@ export const CompanyCard = ({
           "회사 정보를 정리 중입니다.");
 
   return (
-    <article
-      role="button"
-      tabIndex={0}
+    <BareButton
+      type="button"
       onClick={() => onOpen(item)}
-      onKeyDown={(event) => {
-        if (event.key !== "Enter" && event.key !== " ") return;
-        event.preventDefault();
-        onOpen(item);
-      }}
-      className="cursor-pointer rounded-2xl border border-black/10 bg-white/45 p-4 text-left transition-colors hover:bg-white/80 focus:outline-none focus-visible:ring-4 focus-visible:ring-beige700/15"
+      className="w-full cursor-pointer rounded-2xl border border-neutral-1000-a05 bg-bg-floating p-4 text-left transition-colors hover:bg-bg-weak focus:outline-none focus-visible:ring-4 focus-visible:ring-neutral-1000-a05"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 items-start gap-3 w-full">
@@ -60,16 +55,16 @@ export const CompanyCard = ({
           <div className="flex flex-row items-start justify-between w-full">
             <div className="w-full">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <h3 className="min-w-0 wrap-break-word text-base font-medium leading-6 text-black">
+                <h3 className="min-w-0 wrap-break-word text-base font-medium leading-6 text-neutral-primary">
                   {item.name}
                 </h3>
                 {item.followedAt ? (
-                  <span className="rounded-full bg-black/[0.04] px-2 py-1 text-[11px] leading-none text-black/60">
+                  <span className="rounded-full bg-bg-weak px-2 py-1 text-[11px] leading-none text-neutral-muted">
                     {formatFollowedAt(item.followedAt)}
                   </span>
                 ) : null}
               </div>
-              <p className="mt-1 line-clamp-2 text-[13px] text-black/60">
+              <p className="mt-1 line-clamp-2 text-[13px] text-neutral-muted">
                 {item.shortDescription ??
                   item.location ??
                   "회사 설명을 정리 중입니다."}
@@ -88,14 +83,14 @@ export const CompanyCard = ({
         {activeTab === "following" ? (
           <></>
         ) : (
-          <div className="min-w-0 rounded-lg bg-black/[0.04] px-3 py-2">
-            <div className="text-[12px] font-medium text-black/60">
+          <div className="min-w-0 rounded-lg border border-neutral-1000-a05 bg-bg-floating px-3 py-2 shadow-sm">
+            <div className="text-[12px] font-medium text-neutral-muted">
               {reasonLabel}
             </div>
-            <p className="mt-1 line-clamp-3 text-black/90">{reason}</p>
+            <p className="mt-1 line-clamp-3 text-neutral-primary">{reason}</p>
           </div>
         )}
       </div>
-    </article>
+    </BareButton>
   );
 };

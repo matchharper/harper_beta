@@ -1,6 +1,8 @@
 import React from "react";
 import Image from "next/image";
 
+import { Input as UiInput } from "@/components/ui/input";
+
 const LinkInput = ({
   label,
   value,
@@ -20,9 +22,10 @@ const LinkInput = ({
         <Image src={imgSrc} alt={label} width={16} height={16} />
         <div>{label}</div>
       </div>
-      <input
+      <UiInput
+        unstyled
         placeholder={placeholder}
-        className="w-full h-[36px] px-3 py-2 border border-xgray400 rounded-[5px] text-[14px] font-light leading-5 focus:ring-1 focus:ring-brightnavy outline-none"
+        className="w-full h-[36px] px-3 py-2 border border-neutral-400 rounded-[5px] text-[14px] font-light leading-5 focus:ring-1 focus:ring-info/30 outline-none"
         value={value}
         onChange={onChange}
       />

@@ -4,6 +4,8 @@ import { cx, opsTheme } from "@/components/ops/theme";
 import { useRefreshInsights, useUpdateInsights } from "@/hooks/useOpsCareer";
 import { getInsightLabel } from "@/lib/talentOnboarding/insightChecklist";
 import type { CareerTalentDetailResponse } from "@/lib/opsCareerServer";
+import { BareButton } from "@/components/ui/button";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
 type InsightsTabProps = {
   insights: Record<string, string> | null;
@@ -94,10 +96,10 @@ export const InsightsTab = memo(function InsightsTab({
       {preferences ? (
         <div className={cx(opsTheme.panelSoft, "p-4")}>
           <div className={cx(opsTheme.eyebrow, "mb-2")}>선호 설정</div>
-          <div className="space-y-1.5 font-geist text-sm text-beige900/80">
+          <div className="space-y-1.5 text-sm text-neutral-primary">
             {preferences.engagementTypes.length > 0 ? (
               <div>
-                <span className="text-beige900/45">근무 형태:</span>{" "}
+                <span className="text-neutral-muted">근무 형태:</span>{" "}
                 {preferences.engagementTypes.join(", ")}
               </div>
             ) : null}
@@ -110,14 +112,14 @@ export const InsightsTab = memo(function InsightsTab({
         <div className="flex items-center gap-2">
           {isEditing ? (
             <>
-              <button
+              <BareButton
                 type="button"
                 onClick={cancelEditing}
                 className={cx(opsTheme.buttonSecondary, "h-8 px-3 text-xs")}
               >
                 취소
-              </button>
-              <button
+              </BareButton>
+              <BareButton
                 type="button"
                 onClick={handleSave}
                 disabled={!hasChanges || updateInsightsMutation.isPending}
@@ -139,18 +141,18 @@ export const InsightsTab = memo(function InsightsTab({
                     저장
                   </>
                 )}
-              </button>
+              </BareButton>
             </>
           ) : (
             <>
-              <button
+              <BareButton
                 type="button"
                 onClick={() => setIsEditing(true)}
                 className={cx(opsTheme.buttonSecondary, "h-8 px-3 text-xs")}
               >
                 편집
-              </button>
-              <button
+              </BareButton>
+              <BareButton
                 type="button"
                 onClick={handleRefresh}
                 disabled={emptyCount === 0 || refreshInsightsMutation.isPending}
@@ -172,7 +174,7 @@ export const InsightsTab = memo(function InsightsTab({
                     추출
                   </>
                 )}
-              </button>
+              </BareButton>
             </>
           )}
         </div>
@@ -192,21 +194,22 @@ export const InsightsTab = memo(function InsightsTab({
                 "p-3 rounded-md",
                 isFilled
                   ? cx(opsTheme.panelSoft)
-                  : "border border-dashed border-beige900/20 bg-white/20"
+                  : "border border-dashed border-neutral-1000-a10 bg-neutral-00/20"
               )}
             >
               <div className="flex items-center justify-between">
                 <div className="flex min-w-0 items-center gap-1.5">
                   <div className={opsTheme.eyebrow}>{item.label}</div>
                   {item.isAdditional ? (
-                    <div className="truncate font-geist text-[11px] text-beige900/30">
+                    <div className="truncate text-[11px] text-neutral-soft">
                       {item.key}
                     </div>
                   ) : null}
                 </div>
               </div>
               {isEditing ? (
-                <textarea
+                <UiTextarea
+                  unstyled
                   value={displayValue}
                   onChange={(event) =>
                     handleEditChange(item.key, event.target.value)
@@ -214,16 +217,16 @@ export const InsightsTab = memo(function InsightsTab({
                   rows={2}
                   className={cx(
                     opsTheme.input,
-                    "mt-1 w-full text-sm font-geist resize-y min-h-10"
+                    "mt-1 w-full text-sm resize-y min-h-10"
                   )}
                   placeholder="값을 입력하세요..."
                 />
               ) : isFilled ? (
-                <div className="mt-1 whitespace-pre-wrap font-geist text-sm text-beige900/80">
+                <div className="mt-1 whitespace-pre-wrap text-sm text-neutral-primary">
                   {displayValue}
                 </div>
               ) : (
-                <div className="mt-1 font-geist text-sm text-beige900/30 italic">
+                <div className="mt-1 text-sm text-neutral-soft italic">
                   미입력
                 </div>
               )}
@@ -231,7 +234,7 @@ export const InsightsTab = memo(function InsightsTab({
           );
         })}
         {displayInsightItems.length === 0 ? (
-          <div className="rounded-md border border-dashed border-beige900/15 bg-white/30 px-4 py-6 text-center font-geist text-sm text-beige900/40">
+          <div className="rounded-md border border-dashed border-neutral-1000-a10 bg-bg-floating px-4 py-6 text-center text-sm text-neutral-soft">
             추출된 인사이트가 없습니다.
           </div>
         ) : null}

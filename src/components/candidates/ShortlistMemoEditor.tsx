@@ -3,6 +3,9 @@ import { Pencil, PencilLine } from "lucide-react";
 import { useUpsertShortlistMemo } from "@/hooks/useShortlistMemo";
 import { cn } from "@/lib/cn";
 import { showToast } from "@/components/toast/toast";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
+import { BareButton } from "@/components/ui/button";
+import { ClickablePanel } from "@/components/ui/clickable-panel";
 
 type ShortlistMemoEditorProps = {
   userId: string;
@@ -108,52 +111,63 @@ export default function ShortlistMemoEditor({
   return (
     <div
       ref={rootRef}
-      onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (!isEditing) setIsEditing(true);
-      }}
       className={cn(
-        "relative ml-[2px] w-full cursor-pointer rounded-md border border-transparent px-2 pb-1.5 pl-3 pt-1.5 text-[13px] leading-relaxed transition-all duration-200",
+        "relative ml-[2px] w-full rounded-md border border-transparent px-2 pb-1.5 pl-3 pt-1.5 text-[13px] leading-relaxed transition-all duration-200",
+        !isEditing && "cursor-pointer",
         isEditing
-          ? "bg-beige50"
+          ? "bg-bg-default"
           : isSmall
-            ? "hover:text-beige900"
-            : "hover:bg-beige50/80",
-        hasMemo ? "text-beige900" : "text-beige900/55",
-        !isEditing && hasMemo && "border-transparent bg-beige50 py-2",
+            ? "hover:text-neutral-primary"
+            : "hover:bg-bg-default",
+        hasMemo ? "text-neutral-primary" : "text-neutral-muted",
+        !isEditing && hasMemo && "border-transparent bg-bg-default py-2",
         !isEditing &&
           !hasMemo &&
-          "w-fit pl-3 pr-4 rounded-md border-beige900/8 bg-beige500/55 h-8 flex items-center justify-start hover:bg-beige500/70",
+          "w-fit pl-3 pr-4 rounded-md border-neutral-1000-a05 bg-bg-floating h-8 flex items-center justify-start hover:bg-bg-weak",
         className
       )}
     >
       {/* {!isEditing && hasMemo && (
-        <div className="absolute top-0 -left-px h-full bg-accenta1 w-0.5 rounded-[1px]"></div>
+        <div className="absolute top-0 -left-px h-full bg-accent-300 w-0.5 rounded-[1px]"></div>
       )} */}
       {!isEditing ? (
         <>
           {hasMemo ? (
-            <div className="group flex items-center justify-between gap-2 whitespace-pre-wrap wrap-break-word">
+            <ClickablePanel
+              onActivate={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setIsEditing(true);
+              }}
+              className="group flex items-center justify-between gap-2 whitespace-pre-wrap wrap-break-word"
+            >
               <span>{memo}</span>
               <PencilLine
-                className="w-3 h-3 mr-1 text-beige900/45 shrink-0 group-hover:text-beige900"
+                className="w-3 h-3 mr-1 text-neutral-soft shrink-0 group-hover:text-neutral-primary"
                 strokeWidth={1.6}
               />
-            </div>
+            </ClickablePanel>
           ) : (
-            <div className="group flex items-center justify-start gap-2.5 whitespace-pre-wrap wrap-break-word text-beige900">
+            <ClickablePanel
+              onActivate={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setIsEditing(true);
+              }}
+              className="group flex items-center justify-start gap-2.5 whitespace-pre-wrap wrap-break-word text-neutral-primary"
+            >
               <PencilLine
-                className="w-2.5 h-2.5 shrink-0 text-beige900 group-hover:text-beige900"
+                className="w-2.5 h-2.5 shrink-0 text-neutral-primary group-hover:text-neutral-primary"
                 strokeWidth={1.6}
               />
               <span>메모 추가</span>
-            </div>
+            </ClickablePanel>
           )}
         </>
       ) : (
         <>
-          <textarea
+          <UiTextarea
+            unstyled
             ref={inputRef}
             value={draft}
             rows={rows}
@@ -172,10 +186,10 @@ export default function ShortlistMemoEditor({
                 void commit();
               }
             }}
-            className="w-full resize-none bg-transparent pr-14 text-beige900 outline-none"
+            className="w-full resize-none bg-transparent pr-14 text-neutral-primary outline-none"
             placeholder={placeholder}
           />
-          <button
+          <BareButton
             type="button"
             onClick={(e) => {
               e.preventDefault();
@@ -185,11 +199,11 @@ export default function ShortlistMemoEditor({
             disabled={isPending}
             className={cn(
               "absolute -bottom-px right-0.5 text-xs transition-all duration-200 disabled:opacity-60",
-              isChanged ? "text-accentBronze" : "text-beige900/45"
+              isChanged ? "text-primary" : "text-neutral-soft"
             )}
           >
             Confirm
-          </button>
+          </BareButton>
         </>
       )}
     </div>

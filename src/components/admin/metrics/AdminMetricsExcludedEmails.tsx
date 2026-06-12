@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
+import { BareButton } from "@/components/ui/button";
 
 type AdminMetricsExcludedEmailsProps = {
   excludedEmails: string[];
@@ -28,8 +30,8 @@ export default function AdminMetricsExcludedEmails({
             제외할 이메일 목록
           </div>
           <div className="mt-1 text-[12px] leading-5 text-black/60">
-            한 줄에 하나씩 넣거나 쉼표로 구분해서 저장하면 됩니다.
-            @도메인 형태도 지원합니다.
+            한 줄에 하나씩 넣거나 쉼표로 구분해서 저장하면 됩니다. @도메인
+            형태도 지원합니다.
           </div>
         </div>
         <div className="text-[12px] text-black/45">
@@ -37,7 +39,8 @@ export default function AdminMetricsExcludedEmails({
         </div>
       </div>
 
-      <textarea
+      <UiTextarea
+        unstyled
         value={draftValue}
         onChange={(event) => setDraftValue(event.target.value)}
         rows={5}
@@ -52,22 +55,22 @@ export default function AdminMetricsExcludedEmails({
       />
 
       <div className="mt-3 flex items-center gap-2">
-        <button
+        <BareButton
           type="button"
           onClick={() => onSave(draftValue)}
           className="h-9 px-3 text-[12px] border border-black bg-black text-white hover:bg-black/90"
           style={{ borderRadius: 0 }}
         >
           Save exclusions
-        </button>
-        <button
+        </BareButton>
+        <BareButton
           type="button"
           onClick={onReset}
           className="h-9 px-3 text-[12px] border border-black/15 text-black hover:border-black/30 hover:bg-black/5"
           style={{ borderRadius: 0 }}
         >
           Reset defaults
-        </button>
+        </BareButton>
       </div>
     </div>
   );

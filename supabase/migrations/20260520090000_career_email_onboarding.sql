@@ -321,10 +321,6 @@ begin
        set talent_id = target_user_id
      where talent_id = source_user_id;
 
-    update public.talent_opportunity_profile_snapshot
-       set talent_id = target_user_id
-     where talent_id = source_user_id;
-
     update public.talent_opportunity_delivery
        set talent_id = target_user_id
      where talent_id = source_user_id;

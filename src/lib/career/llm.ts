@@ -111,7 +111,7 @@ export const CAREER_LLM_CONFIG = {
   // OpenAI Realtime 세션 생성 설정.
   // 사용처: /api/realtime/token.
   realtime: {
-    model: "gpt-realtime-1.5",
+    model: "gpt-realtime-2",
     transcriptionModel: "gpt-4o-mini-transcribe",
     voice: "cedar",
   },
@@ -128,6 +128,12 @@ export const CAREER_LLM_CONFIG = {
   // 사용처: /api/internal/career/refresh-insights.
   refreshInsights: {
     temperature: 0.2,
+  },
+  // Internal opportunity를 유저가 수락한 직후, 회사 전달 품질을 높이기 위한
+  // 선택형 통화 요청이 필요한지 판단한다.
+  // 사용처: src/lib/talentOnboarding/internalOpportunityCallRequest.ts.
+  internalOpportunityCallRequest: {
+    temperature: 0.15,
   },
   // 온보딩/프로필 입력 직후 첫 kickoff 메시지를 만들 때.
   // 모델은 assistant.primary/fallback을 쓴다.

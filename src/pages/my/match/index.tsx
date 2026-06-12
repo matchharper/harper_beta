@@ -36,6 +36,7 @@ import {
 import Image from "next/image";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
+import { BareButton } from "@/components/ui/button";
 
 const ROLE_STATUS_LABEL: Record<MatchRoleRecord["status"], string> = {
   active: "진행중",
@@ -52,13 +53,12 @@ const TYPE_LABEL: Record<"full_time" | "part_time", string> = {
 const ROLE_STATUS_SURFACE_CLASSNAME: Record<MatchRoleRecord["status"], string> =
   {
     active:
-      "border-green-700/20 bg-green-700/10 text-green-600 hover:bg-green-700/15",
+      "border-positive/30 bg-positive-faded text-positive hover:bg-positive-faded",
     ended:
-      "border-beige900/10 bg-beige500/55 text-beige900/45 hover:bg-beige500/70",
-    paused:
-      "border-amber-700/20 bg-amber-300/15 text-amber-700 hover:bg-amber-300/25",
+      "border-neutral-1000-a05 bg-bg-floating text-neutral-soft hover:bg-bg-weak",
+    paused: "border-info/30 bg-info-faded text-info hover:bg-info-faded",
     top_priority:
-      "border-accentBronze/40 bg-accentBronze/15 text-accentBronze hover:bg-accentBronze/20",
+      "border-primary/40 bg-accent-200 text-primary hover:bg-accent-200",
   };
 
 function MatchEmptyState({
@@ -69,12 +69,12 @@ function MatchEmptyState({
   title: string;
 }) {
   return (
-    <div className="border-y border-beige900/8 py-8 text-center">
-      <div className="mx-auto flex items-center justify-center text-beige900/80">
+    <div className="border-y border-neutral-1000-a05 py-8 text-center">
+      <div className="mx-auto flex items-center justify-center text-neutral-primary">
         <Box size={20} />
       </div>
-      <div className="mt-5 text-base text-beige900">{title}</div>
-      <div className="mx-auto mt-3 max-w-[560px] text-sm leading-7 text-beige900/55">
+      <div className="mt-5 text-base text-neutral-primary">{title}</div>
+      <div className="mx-auto mt-3 max-w-[560px] text-sm leading-7 text-neutral-muted">
         {description}
       </div>
     </div>
@@ -89,9 +89,9 @@ function SummaryMetric({
   value: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-row items-center justify-between w-full gap-5 py-4 px-4 rounded-md bg-beige50 border border-beige900/8 shadow-sm h-14">
-      <div className="text-sm text-beige900/55">{label}</div>
-      <div className="text-right text-beige900">{value}</div>
+    <div className="flex flex-row items-center justify-between w-full gap-5 py-4 px-4 rounded-md bg-bg-default border border-neutral-1000-a05 shadow-sm h-14">
+      <div className="text-sm text-neutral-muted">{label}</div>
+      <div className="text-right text-neutral-primary">{value}</div>
     </div>
   );
 }
@@ -283,7 +283,7 @@ export default function MatchPage() {
         <Loading
           isFullScreen={true}
           label="로딩 중입니다"
-          className="text-beige900/55"
+          className="text-neutral-muted"
         />
       </AppLayout>
     );
@@ -309,7 +309,7 @@ export default function MatchPage() {
 
   return (
     <AppLayout initialCollapse={false}>
-      <div className="w-full border-b border-beige900/8 px-4 py-2.5 flex flex-row items-center justify-between">
+      <div className="w-full border-b border-neutral-1000-a05 px-4 py-2.5 flex flex-row items-center justify-between">
         <div className="text-xl font-medium">Workspace</div>
         <div>
           {workspace ? (
@@ -317,9 +317,9 @@ export default function MatchPage() {
               align="end"
               contentClassName="w-[260px]"
               trigger={
-                <button
+                <BareButton
                   type="button"
-                  className="inline-flex items-center gap-2 rounded-md border border-beige900/10 bg-beige500/55 px-3 py-2.5 text-xs font-medium text-beige900 transition hover:bg-beige500/70"
+                  className="inline-flex items-center gap-2 rounded-md border border-neutral-1000-a05 bg-bg-floating px-3 py-2.5 text-xs font-medium text-neutral-primary transition hover:bg-bg-weak"
                 >
                   <div className="flex flex-row items-center gap-2">
                     {workspace.logoUrl ? (
@@ -329,14 +329,14 @@ export default function MatchPage() {
                         className="h-4 w-4 rounded-full"
                       />
                     ) : (
-                      <Building2 size={14} className="text-beige900/45" />
+                      <Building2 size={14} className="text-neutral-soft" />
                     )}
                     <span className="max-w-[180px] truncate">
                       {workspace.companyName}
                     </span>
                   </div>
-                  <ChevronDown size={14} className="text-beige900/55" />
-                </button>
+                  <ChevronDown size={14} className="text-neutral-muted" />
+                </BareButton>
               }
             >
               {workspaces.map((item) => (
@@ -357,12 +357,12 @@ export default function MatchPage() {
                         className="h-4 w-4 rounded-full"
                       />
                     ) : (
-                      <Building2 size={14} className="text-beige900/45" />
+                      <Building2 size={14} className="text-neutral-soft" />
                     )}
                     <span className="truncate">{item.companyName}</span>
                   </div>
                   {workspace.companyWorkspaceId === item.companyWorkspaceId ? (
-                    <span className="text-xs text-beige900/45">선택됨</span>
+                    <span className="text-xs text-neutral-soft">선택됨</span>
                   ) : null}
                 </ActionDropdownItem>
               ))}
@@ -376,17 +376,17 @@ export default function MatchPage() {
               </ActionDropdownItem>
             </ActionDropdown>
           ) : (
-            <button
+            <BareButton
               type="button"
               onClick={() => setShowCreateForm(true)}
-              className="inline-flex items-center gap-2 rounded-md bg-beige900 px-3 py-2.5 text-xs font-medium text-beige100 transition hover:bg-beige900/90"
+              className="inline-flex items-center gap-2 rounded-md bg-black px-3 py-2.5 text-xs font-medium text-neutral-00 transition hover:bg-black/90"
             >
               <Plus size={14} />새 Workspace
-            </button>
+            </BareButton>
           )}
         </div>
       </div>
-      <div className="relative font-geist w-full px-4 py-6 sm:px-6">
+      <div className="relative w-full px-4 py-6 sm:px-6">
         {!workspace ? (
           <motion.div
             key="match-intro"
@@ -405,12 +405,12 @@ export default function MatchPage() {
                 />
               </Reveal>
               <Reveal delay={0.04}>
-                <div className="mt-2 font-hedvig text-2xl leading-none text-beige900">
-                  Harper <span className="text-beige900/55">Scout</span>
+                <div className="mt-2 font-hedvig text-2xl leading-none text-neutral-primary">
+                  Harper <span className="text-neutral-muted">Scout</span>
                 </div>
               </Reveal>
               <Reveal delay={0.08}>
-                <p className="mx-auto flex flex-col gap-0 font-normal mt-6 max-w-[720px] text-[15px] text-beige900">
+                <p className="mx-auto flex flex-col gap-0 font-normal mt-6 max-w-[720px] text-[15px] text-neutral-primary">
                   <div>
                     하퍼는 검색 이외에도, 내부적으로 확보한 인재풀을 통해 직접
                   </div>
@@ -423,7 +423,7 @@ export default function MatchPage() {
                   <div className="mt-2">
                     자세한 설명은{" "}
                     <span
-                      className="text-blue-500 underline cursor-pointer hover:text-blue-600"
+                      className="text-primary underline cursor-pointer hover:text-primary"
                       onClick={() =>
                         window.open("https://www.matchharper.com", "_blank")
                       }
@@ -441,14 +441,14 @@ export default function MatchPage() {
                     href={data?.bookingUrl ?? "#"}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex flex-col min-w-[232px] items-center justify-center rounded-[12px] bg-beige900 px-6 py-2.5 text-sm font-semibold text-beige100 transition hover:brightness-95"
+                    className="inline-flex flex-col min-w-[232px] items-center justify-center rounded-[12px] bg-black px-6 py-2.5 text-sm font-semibold text-neutral-00 transition hover:brightness-95"
                   >
                     <div>이용 신청하기</div>
-                    <div className="font-normal text-[13px] text-beige100/65 mt-0">
+                    <div className="font-normal text-[13px] text-neutral-00/65 mt-0">
                       스케줄 선택으로 이동합니다.
                     </div>
                   </a>
-                  <div className="mt-6 text-xs text-beige900/45">
+                  <div className="mt-6 text-xs text-neutral-soft">
                     이미 신청을 완료하셨다면?
                   </div>
                   <Image
@@ -462,7 +462,7 @@ export default function MatchPage() {
                   {/* <button
                   type="button"
                   onClick={() => setShowCreateForm(true)}
-                  className="mt-2 min-w-[240px] bg-white/5 inline-flex items-center justify-center gap-2 rounded-[12px] border-hgray500 px-6 py-4 text-[15px] text-hgray900 transition hover:border-white/30 hover:text-white"
+                  className="mt-2 min-w-[240px] bg-neutral-00/5 inline-flex items-center justify-center gap-2 rounded-[12px] border-neutral-1000-a10 px-6 py-4 text-[15px] text-neutral-00/90 transition hover:border-neutral-00/30 hover:text-neutral-00"
                 >
                   <Plus size={18} />새 Workspace 만들기
                 </button> */}
@@ -478,7 +478,7 @@ export default function MatchPage() {
                   <div className="flex flex-row w-full items-end justify-between">
                     <div className="w-64"></div>
                     <div className="flex flex-row w-full justify-center items-center gap-4">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[14px] bg-beige500/55">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[14px] bg-bg-floating">
                         {workspace.logoUrl ? (
                           <img
                             src={workspace.logoUrl}
@@ -486,32 +486,32 @@ export default function MatchPage() {
                             className="h-full w-full object-cover"
                           />
                         ) : (
-                          <Building2 size={20} className="text-beige900/45" />
+                          <Building2 size={20} className="text-neutral-soft" />
                         )}
                       </div>
-                      <h1 className="text-4xl font-semibold leading-[1.05] text-beige900">
+                      <h1 className="text-4xl font-semibold leading-[1.05] text-neutral-primary">
                         {workspace.companyName}
                       </h1>
                     </div>
 
                     <div className="w-64 flex justify-end">
-                      <button
+                      <BareButton
                         type="button"
                         onClick={() => setIsEditingWorkspace(true)}
-                        className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full px-4 py-2 text-xs bg-beige900 text-beige100 transition hover:bg-beige900/90"
+                        className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full px-4 py-2 text-xs bg-black text-neutral-00 transition hover:bg-black/90"
                       >
                         <Pencil size={14} />
                         Workspace 수정
-                      </button>
+                      </BareButton>
                     </div>
                   </div>
-                  <div className="flex flex-row items-center justify-center w-full gap-4 text-sm text-beige900/55">
+                  <div className="flex flex-row items-center justify-center w-full gap-4 text-sm text-neutral-muted">
                     {workspace.homepageUrl && (
                       <a
                         href={workspace.homepageUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1 transition hover:text-beige900 bg-beige500/55 py-1.5 px-3 rounded-full"
+                        className="inline-flex items-center gap-1 transition hover:text-neutral-primary bg-bg-floating py-1.5 px-3 rounded-full"
                       >
                         <Globe size={14} />
                         홈페이지
@@ -523,7 +523,7 @@ export default function MatchPage() {
                         href={workspace.linkedinUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1 transition hover:text-beige900 bg-beige500/55 py-1.5 px-3 rounded-full"
+                        className="inline-flex items-center gap-1 transition hover:text-neutral-primary bg-bg-floating py-1.5 px-3 rounded-full"
                       >
                         <Link2 size={14} />
                         LinkedIn
@@ -533,7 +533,7 @@ export default function MatchPage() {
                   </div>
                 </div>
 
-                <div className="mt-8 max-w-[760px] text-[15px] leading-8 text-beige900/80">
+                <div className="mt-8 max-w-[760px] text-[15px] leading-8 text-neutral-primary">
                   {workspace.companyDescription?.trim() ||
                     "아직 회사 설명이 없습니다. 우측 수정 버튼으로 context를 추가해 주세요."}
                 </div>
@@ -555,7 +555,7 @@ export default function MatchPage() {
                 <SummaryMetric
                   label="Focused role"
                   value={
-                    <span className="text-sm text-beige900/80">
+                    <span className="text-sm text-neutral-primary">
                       {selectedRole?.name ?? "All Roles"}
                     </span>
                   }
@@ -593,8 +593,10 @@ export default function MatchPage() {
 
             <section className="mt-16">
               <div className="flex flex-row items-center justify-between gap-5">
-                <div className="text-lg font-medium text-beige900">Roles</div>
-                <button
+                <div className="text-lg font-medium text-neutral-primary">
+                  Roles
+                </div>
+                <BareButton
                   type="button"
                   onClick={() =>
                     replaceQuery({
@@ -603,11 +605,11 @@ export default function MatchPage() {
                       workspaceId: workspace.companyWorkspaceId,
                     })
                   }
-                  className="inline-flex items-center justify-center gap-2 rounded-md bg-beige900 px-3 py-2 text-xs font-medium text-beige100 transition hover:bg-beige900/90"
+                  className="inline-flex items-center justify-center gap-2 rounded-md bg-black px-3 py-2 text-xs font-medium text-neutral-00 transition hover:bg-black/90"
                 >
                   <Plus size={15} />
                   Role 추가하기
-                </button>
+                </BareButton>
               </div>
 
               <div className="mt-4">
@@ -633,17 +635,17 @@ export default function MatchPage() {
                         >
                           <div
                             className={cn(
-                              "border-b border-beige900/8 py-3 bg-beige500/1 px-3 hover:bg-beige500/3 transition-colors",
+                              "border-b border-neutral-1000-a05 py-3 bg-bg-floating px-3 hover:bg-bg-floating transition-colors",
                               isActive
-                                ? "border-beige900/8 bg-beige50"
-                                : "hover:border-beige900/12 hover:bg-beige500/3"
+                                ? "border-neutral-1000-a05 bg-bg-default"
+                                : "hover:border-neutral-1000-a05 hover:bg-bg-floating"
                             )}
                           >
                             <div className="flex gap-4 flex-row items-start justify-between">
                               <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-start justify-between gap-3">
                                   <div className="min-w-0">
-                                    <button
+                                    <BareButton
                                       type="button"
                                       onClick={() =>
                                         replaceQuery({
@@ -652,12 +654,12 @@ export default function MatchPage() {
                                             workspace.companyWorkspaceId,
                                         })
                                       }
-                                      className="text-left text-base font-medium leading-tight text-beige900 transition hover:text-beige900/80"
+                                      className="text-left text-base font-medium leading-tight text-neutral-primary transition hover:text-neutral-primary"
                                     >
                                       {role.name}
-                                    </button>
+                                    </BareButton>
 
-                                    <div className="mt-2 max-w-[760px] text-[13px] leading-5 text-beige900/80 line-clamp-2">
+                                    <div className="mt-2 max-w-[760px] text-[13px] leading-5 text-neutral-primary line-clamp-2">
                                       {role.description?.trim() ||
                                         "아직 role description이 없습니다."}
                                     </div>
@@ -667,23 +669,23 @@ export default function MatchPage() {
                                         href={role.externalJdUrl}
                                         target="_blank"
                                         rel="noreferrer"
-                                        className="mt-4 inline-flex items-center gap-1 text-sm text-beige900/55 transition hover:text-beige900"
+                                        className="mt-4 inline-flex items-center gap-1 text-sm text-neutral-muted transition hover:text-neutral-primary"
                                       >
                                         JD 보기
                                         <ArrowUpRight size={13} />
                                       </a>
                                     )}
 
-                                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-beige900/55">
+                                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-neutral-muted">
                                       {/* {role.employmentTypes.map((item) => (
                                         <span
                                           key={item}
-                                          className="inline-flex items-center rounded-full border border-beige900/10 bg-beige500/55 px-2.5 py-1"
+                                          className="inline-flex items-center rounded-full border border-neutral-1000-a05 bg-bg-floating px-2.5 py-1"
                                         >
                                           {TYPE_LABEL[item]}
                                         </span>
                                       ))} */}
-                                      <span className="inline-flex text-[13px] items-center text-beige900">
+                                      <span className="inline-flex text-[13px] items-center text-neutral-primary">
                                         {role.matchedCandidateCount} 매칭됨 ᐧ{" "}
                                         {formatDateInputValue(
                                           new Date(role.createdAt)
@@ -696,26 +698,26 @@ export default function MatchPage() {
                               </div>
 
                               <div className="flex self-stretch flex-col items-end justify-between">
-                                <button
+                                <BareButton
                                   type="button"
                                   onClick={() => {
                                     setEditingRole(role);
                                   }}
-                                  className="inline-flex flex-row gap-2 items-center justify-center bg-beige500/55 hover:bg-beige500/70 rounded-md px-3 py-2 text-xs text-beige900 transition"
+                                  className="inline-flex flex-row gap-2 items-center justify-center bg-bg-floating hover:bg-bg-weak rounded-md px-3 py-2 text-xs text-neutral-primary transition"
                                 >
                                   <Edit size={14} />
                                   수정
-                                </button>
+                                </BareButton>
 
                                 <ActionDropdown
                                   align="end"
                                   contentClassName="min-w-[180px]"
                                   trigger={
-                                    <button
+                                    <BareButton
                                       type="button"
                                       disabled={isUpdatingStatus}
                                       className={cn(
-                                        "inline-flex shrink-0 items-center gap-2 rounded-full bg-white/0 border px-3 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50",
+                                        "inline-flex shrink-0 items-center gap-2 rounded-full bg-transparent border px-3 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50",
                                         ROLE_STATUS_SURFACE_CLASSNAME[
                                           role.status
                                         ]
@@ -727,7 +729,7 @@ export default function MatchPage() {
                                           : ROLE_STATUS_LABEL[role.status]}
                                       </span>
                                       <ChevronDown size={14} />
-                                    </button>
+                                    </BareButton>
                                   }
                                 >
                                   {(
@@ -744,7 +746,7 @@ export default function MatchPage() {
                                     >
                                       <span>{ROLE_STATUS_LABEL[item]}</span>
                                       {role.status === item && (
-                                        <span className="text-xs text-beige900/45">
+                                        <span className="text-xs text-neutral-soft">
                                           선택됨
                                         </span>
                                       )}
@@ -764,24 +766,26 @@ export default function MatchPage() {
 
             <section className="mt-16">
               <div className="flex flex-col justify-between gap-2 md:flex-row md:items-end">
-                <div className="mt-2 text-lg font-medium text-beige900">
+                <div className="mt-2 text-lg font-medium text-neutral-primary">
                   현재까지 추천된 후보자
                 </div>
-                <div className="flex flex-wrap items-center gap-3 text-sm text-beige900/55">
+                <div className="flex flex-wrap items-center gap-3 text-sm text-neutral-muted">
                   {selectedRole ? (
                     <>
-                      <span className="text-beige900/80">{selectedRole.name}</span>
-                      <button
+                      <span className="text-neutral-primary">
+                        {selectedRole.name}
+                      </span>
+                      <BareButton
                         type="button"
                         onClick={() =>
                           replaceQuery({
                             workspaceId: workspace.companyWorkspaceId,
                           })
                         }
-                        className="text-beige900/55 transition hover:text-beige900"
+                        className="text-neutral-muted transition hover:text-neutral-primary"
                       >
                         필터 해제
-                      </button>
+                      </BareButton>
                     </>
                   ) : (
                     <span>모든 role 기준으로 표시 중</span>
@@ -801,8 +805,8 @@ export default function MatchPage() {
                     }
                   />
                 ) : candidatesQuery.isLoading ? (
-                  <div className="border-y border-beige900/10 py-12">
-                    <Loading inline={true} className="text-beige900/55" />
+                  <div className="border-y border-neutral-1000-a05 py-12">
+                    <Loading inline={true} className="text-neutral-muted" />
                   </div>
                 ) : (candidatesQuery.data?.items?.length ?? 0) === 0 ? (
                   <MatchEmptyState

@@ -71,6 +71,7 @@ import { LoaderCircle, RefreshCw } from "lucide-react";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import { useCallback, useDeferredValue, useMemo, useState } from "react";
+import { BareButton } from "@/components/ui/button";
 
 export default function OpsOpportunitiesPage() {
   const router = useRouter();
@@ -933,7 +934,7 @@ export default function OpsOpportunitiesPage() {
         title="Company / Opportunity Ops"
         description="회사와 기회를 관리하고, 회사 전달용 후보자 매칭과 후보자 전달용 기회 추천을 분리해서 운영합니다."
         actions={
-          <button
+          <BareButton
             type="button"
             onClick={handleRefresh}
             className={cx(opsTheme.buttonSecondary, "h-10 px-3")}
@@ -944,7 +945,7 @@ export default function OpsOpportunitiesPage() {
               <RefreshCw className="h-4 w-4" />
             )}
             새로고침
-          </button>
+          </BareButton>
         }
       >
         <ViewTabs view={view} onChange={setViewWithUrl} />

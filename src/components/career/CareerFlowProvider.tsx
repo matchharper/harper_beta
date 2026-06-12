@@ -8,7 +8,9 @@ import React, {
 import { useRouter } from "next/router";
 import type {
   CareerInterviewProgress,
+  CareerInternalOpportunityCallRequest,
   CareerMessagePayload,
+  CareerOpportunityFeedbackFollowUpTrigger,
   CareerOpportunityRun,
   CareerRecommendationSearchStatus,
   CareerRecentOpportunity,
@@ -60,6 +62,17 @@ const DEV_CURRENT_DATA_JOB_POSTING_RECOMMENDATION_TOOL =
   "recommend_job_postings";
 const DEV_CURRENT_DATA_JOB_POSTING_RECOMMENDATION_PROMPT =
   "지금까지 저장된 내 프로필, 선호, 최근 피드백 데이터를 기준으로 지금 검토할 만한 공개 채용 공고를 추천해줘. 새로운 장기 선호는 저장하지 말고, 현재 데이터 기반으로 한 번만 찾아줘.";
+
+const normalizePendingInternalOpportunityCallRequests = (
+  callRequests: CareerInternalOpportunityCallRequest[] | null | undefined
+) => {
+  const seen = new Set<string>();
+  return (callRequests ?? []).filter((callRequest) => {
+    if (!callRequest?.id || seen.has(callRequest.id)) return false;
+    seen.add(callRequest.id);
+    return true;
+  });
+};
 
 type SessionReengagementPayload = {
   assistantMessage?: CareerMessagePayload | null;
@@ -114,7 +127,12 @@ const toRecommendationSearchStatus = (
 ): CareerRecommendationSearchStatus | null => {
   if (!isRecord(value)) return null;
   const state = value.state;
-  if (state !== "running" && state !== "completed" && state !== "error") {
+  if (
+    state !== "running" &&
+    state !== "completed" &&
+    state !== "error" &&
+    state !== "stopped"
+  ) {
     return null;
   }
 
@@ -176,6 +194,14 @@ export const CareerFlowProvider = ({
   >([]);
   const [opportunityRun, setOpportunityRun] =
     useState<CareerOpportunityRun | null>(null);
+  const [
+    pendingInternalOpportunityCallRequest,
+    setPendingInternalOpportunityCallRequest,
+  ] = useState<CareerInternalOpportunityCallRequest | null>(null);
+  const [
+    pendingInternalOpportunityCallRequests,
+    setPendingInternalOpportunityCallRequests,
+  ] = useState<CareerInternalOpportunityCallRequest[]>([]);
   const [opportunityRunTriggerPending, setOpportunityRunTriggerPending] =
     useState(false);
   const [sessionReengagementTestPending, setSessionReengagementTestPending] =
@@ -200,6 +226,14 @@ export const CareerFlowProvider = ({
     sessionReengagementRecommendationStatus,
     setSessionReengagementRecommendationStatus,
   ] = useState<CareerRecommendationSearchStatus | null>(null);
+  const [
+    opportunityFeedbackFollowUpPending,
+    setOpportunityFeedbackFollowUpPending,
+  ] = useState(false);
+  const [
+    opportunityFeedbackFollowUpTrigger,
+    setOpportunityFeedbackFollowUpTrigger,
+  ] = useState<CareerOpportunityFeedbackFollowUpTrigger | null>(null);
   const refreshLatestHistoryOpportunitiesRef = useRef<
     (() => void | Promise<void>) | null
   >(null);
@@ -321,6 +355,7 @@ export const CareerFlowProvider = ({
     toolStatusMessage,
     activeThinkingLogs,
     activeRecommendationSearchStatus,
+    cancelActiveRecommendationSearch,
     onboardingWrapupPending: chatOnboardingWrapupPending,
     thinkingLogsByMessageId,
     enqueueAssistantTypewriter,
@@ -343,6 +378,41 @@ export const CareerFlowProvider = ({
     onMessagesChanged: appendLatestMessagesToCache,
   });
 
+  const replacePendingInternalOpportunityCallRequests = useCallback(
+    (
+      callRequests: CareerInternalOpportunityCallRequest[] | null | undefined
+    ) => {
+      const next =
+        normalizePendingInternalOpportunityCallRequests(callRequests);
+      setPendingInternalOpportunityCallRequests(next);
+      setPendingInternalOpportunityCallRequest(next[0] ?? null);
+    },
+    []
+  );
+
+  const mergePendingInternalOpportunityCallRequest = useCallback(
+    (callRequest: CareerInternalOpportunityCallRequest | null) => {
+      if (!callRequest) return;
+      setPendingInternalOpportunityCallRequest(callRequest);
+      setPendingInternalOpportunityCallRequests((current) =>
+        normalizePendingInternalOpportunityCallRequests([
+          callRequest,
+          ...current.filter((item) => item.id !== callRequest.id),
+        ])
+      );
+    },
+    []
+  );
+
+  const replacePendingInternalOpportunityCallRequest = useCallback(
+    (callRequest: CareerInternalOpportunityCallRequest | null) => {
+      replacePendingInternalOpportunityCallRequests(
+        callRequest ? [callRequest] : []
+      );
+    },
+    [replacePendingInternalOpportunityCallRequests]
+  );
+
   const enqueueHistoryActionAssistantMessage = useCallback(
     (message: CareerMessagePayload) => {
       void (async () => {
@@ -359,6 +429,17 @@ export const CareerFlowProvider = ({
       appendLatestMessagesToCache([message]);
     },
     [appendLatestMessagesToCache, appendMessage]
+  );
+
+  const handleOpportunityFeedbackFollowUpPendingChanged = useCallback(
+    (state: {
+      pending: boolean;
+      trigger: CareerOpportunityFeedbackFollowUpTrigger | null;
+    }) => {
+      setOpportunityFeedbackFollowUpPending(state.pending);
+      setOpportunityFeedbackFollowUpTrigger(state.trigger);
+    },
+    []
   );
 
   const requestCompanyFollowUp = useCallback(
@@ -453,6 +534,12 @@ export const CareerFlowProvider = ({
       : null,
     onHistoryActionAssistantMessage: enqueueHistoryActionAssistantMessage,
     onHistoryActionUserMessage: appendHistoryActionUserMessage,
+    onPendingInternalOpportunityCallRequestChanged:
+      mergePendingInternalOpportunityCallRequest,
+    onPendingInternalOpportunityCallRequestsChanged:
+      replacePendingInternalOpportunityCallRequests,
+    onOpportunityFeedbackFollowUpPendingChanged:
+      handleOpportunityFeedbackFollowUpPendingChanged,
     userId,
   });
 
@@ -598,8 +685,8 @@ export const CareerFlowProvider = ({
     ]
   );
 
-  const handleRunCurrentDataJobPostingRecommendationTest = useCallback(
-    async () => {
+  const handleRunCurrentDataJobPostingRecommendationTest =
+    useCallback(async () => {
       if (
         !conversationId ||
         stage === "profile" ||
@@ -613,9 +700,7 @@ export const CareerFlowProvider = ({
         allowedToolNames: [DEV_CURRENT_DATA_JOB_POSTING_RECOMMENDATION_TOOL],
         text: DEV_CURRENT_DATA_JOB_POSTING_RECOMMENDATION_PROMPT,
       });
-    },
-    [assistantTyping, chatPending, conversationId, sendChatMessage, stage]
-  );
+    }, [assistantTyping, chatPending, conversationId, sendChatMessage, stage]);
 
   const handleLoadOlderMessages = useCallback(async () => {
     await loadOlderMessages();
@@ -752,14 +837,8 @@ export const CareerFlowProvider = ({
     inputMode,
     voiceTranscript,
     liveUserTranscriptPlacement,
-    voiceListening,
     voiceMuted,
-    voiceError,
-    assistantAudioBusy,
-    voicePrimaryPressed,
-    handleVoicePrimaryAction,
     handleToggleVoiceMute,
-    handleStartVoiceCall,
     handleStartCallMode,
     handleEndCallMode,
     callTranscriptEntries,
@@ -768,7 +847,6 @@ export const CareerFlowProvider = ({
     handlePauseOnboarding,
     handleSubmitOnboardingInterest,
     handleContinueOnboardingConversation,
-    handleSwitchToTextMode,
     applySessionPrompt,
     handleProfileSubmitSuccess,
     resetOnboardingState,
@@ -788,6 +866,10 @@ export const CareerFlowProvider = ({
     onTalentPreferencesRefreshed: handleTalentPreferencesRefreshedFromChat,
     onTalentInsightsRefreshed: handleTalentInsightsRefreshedFromChat,
     onTalentProfileRefreshed: handleTalentProfileRefreshedFromChat,
+    onPendingInternalOpportunityCallRequestChanged:
+      replacePendingInternalOpportunityCallRequest,
+    onPendingInternalOpportunityCallRequestsChanged:
+      replacePendingInternalOpportunityCallRequests,
     appendMessage,
     setChatError,
     setStage,
@@ -965,6 +1047,13 @@ export const CareerFlowProvider = ({
         Math.max(0, Number(payload.activeCompanyRoleCount ?? 0) || 0)
       );
       setOpportunityRun(payload.opportunityRun ?? null);
+      replacePendingInternalOpportunityCallRequests(
+        Array.isArray(payload.pendingInternalOpportunityCallRequests)
+          ? payload.pendingInternalOpportunityCallRequests
+          : payload.pendingInternalOpportunityCallRequest
+            ? [payload.pendingInternalOpportunityCallRequest]
+            : []
+      );
       const completedRunRefreshKey = getCompletedOpportunityRunRefreshKey(
         payload.opportunityRun ?? null
       );
@@ -980,13 +1069,12 @@ export const CareerFlowProvider = ({
       applySessionPrompt,
       appendLatestMessagesToCache,
       hydrateHistoryOpportunities,
+      replacePendingInternalOpportunityCallRequests,
     ]
   );
 
-  const handleRunSessionReengagementTest =
-    useCallback(async (options?: {
-      deleteLatestMessage?: boolean;
-    }): Promise<void> => {
+  const handleRunSessionReengagementTest = useCallback(
+    async (options?: { deleteLatestMessage?: boolean }): Promise<void> => {
       if (
         !conversationId ||
         sessionReengagementTestPending ||
@@ -1067,7 +1155,8 @@ export const CareerFlowProvider = ({
       } finally {
         setSessionReengagementTestPending(false);
       }
-    }, [
+    },
+    [
       clearSessionReengagementAction,
       conversationId,
       enqueueAssistantMessages,
@@ -1080,7 +1169,8 @@ export const CareerFlowProvider = ({
       sessionReengagementTestPending,
       setChatError,
       stage,
-    ]);
+    ]
+  );
 
   const loadSessionForCompletedOpportunityRun = useCallback(
     async (run: CareerOpportunityRun | null) => {
@@ -1117,6 +1207,7 @@ export const CareerFlowProvider = ({
       resetRuntimeActionsState();
       setRecentOpportunities([]);
       setActiveCompanyRoleCount(0);
+      replacePendingInternalOpportunityCallRequests([]);
       clearSessionReengagementAction();
       sessionReengagementRef.current = null;
     }
@@ -1131,6 +1222,7 @@ export const CareerFlowProvider = ({
     resetTalentPreferencesState,
     resetSessionState,
     resetHistoryState,
+    replacePendingInternalOpportunityCallRequests,
     userId,
   ]);
 
@@ -1551,6 +1643,7 @@ export const CareerFlowProvider = ({
       toolStatusMessage,
       activeThinkingLogs,
       activeRecommendationSearchStatus,
+      onCancelActiveRecommendationSearch: cancelActiveRecommendationSearch,
       onboardingWrapupPending,
       thinkingLogsByMessageId,
       chatPending,
@@ -1558,6 +1651,8 @@ export const CareerFlowProvider = ({
       sessionReengagementThinkingLogs,
       sessionReengagementRecommendationStatus,
       sessionReengagementActionMessageId,
+      opportunityFeedbackFollowUpPending,
+      opportunityFeedbackFollowUpTrigger,
       opportunityRun,
       opportunitySearchLocked: Boolean(opportunityRun?.inputLocked),
       historyUpdatingOpportunityIds,
@@ -1581,21 +1676,14 @@ export const CareerFlowProvider = ({
       interviewProgress,
       onForceCompleteOnboarding: handleForceCompleteOnboarding,
       showVoiceStartPrompt,
-      onStartVoiceCall: handleStartVoiceCall,
       onUseChatOnly: handleUseChatOnly,
       onPauseOnboarding: handlePauseOnboarding,
       onSubmitOnboardingInterest: handleSubmitOnboardingInterest,
       onContinueOnboardingConversation: handleContinueOnboardingConversation,
       inputMode,
       voiceTranscript,
-      voiceListening,
       voiceMuted,
-      voiceError,
-      assistantAudioBusy,
-      voicePrimaryPressed,
-      onVoicePrimaryAction: handleVoicePrimaryAction,
       onToggleVoiceMute: handleToggleVoiceMute,
-      onSwitchToTextMode: handleSwitchToTextMode,
       onStartCallMode: handleStartCallModeFromUi,
       onEndCallMode: handleEndCallMode,
       callTranscriptEntries,
@@ -1607,6 +1695,7 @@ export const CareerFlowProvider = ({
       assistantTyping,
       activeThinkingLogs,
       activeRecommendationSearchStatus,
+      cancelActiveRecommendationSearch,
       onboardingWrapupPending,
       authLoading,
       authError,
@@ -1618,6 +1707,8 @@ export const CareerFlowProvider = ({
       toolStatusMessage,
       sessionReengagementThinkingLogs,
       sessionReengagementRecommendationStatus,
+      opportunityFeedbackFollowUpPending,
+      opportunityFeedbackFollowUpTrigger,
       conversationId,
       handleAddProfileLink,
       handleEmailAuth,
@@ -1631,18 +1722,15 @@ export const CareerFlowProvider = ({
       hasOlderMessages,
       handleContinueOnboardingConversation,
       handlePauseOnboarding,
-      handleStartVoiceCall,
       handleStartCallModeFromUi,
       handleStartConversationStarter,
       handleEndCallMode,
       callTranscriptEntries,
       liveUserTranscriptPlacement,
       connectionStatus,
-      handleSwitchToTextMode,
       handleSubmitOnboardingInterest,
       handleToggleVoiceMute,
       handleUseChatOnly,
-      handleVoicePrimaryAction,
       inputMode,
       forceCompletePending,
       isOnboardingDone,
@@ -1669,11 +1757,7 @@ export const CareerFlowProvider = ({
       showVoiceStartPrompt,
       stage,
       user,
-      voiceError,
-      assistantAudioBusy,
-      voiceListening,
       voiceMuted,
-      voicePrimaryPressed,
       voiceTranscript,
       isAssistantSpeaking,
     ]
@@ -1710,6 +1794,8 @@ export const CareerFlowProvider = ({
       onUseChatOnly: handleUseChatOnly,
       onStartConversationStarter: handleStartConversationStarter,
       recentOpportunities,
+      pendingInternalOpportunityCallRequest,
+      pendingInternalOpportunityCallRequests,
       historyOpportunityCounts,
       historyOpportunities,
       historyLoading,
@@ -1827,6 +1913,8 @@ export const CareerFlowProvider = ({
       historyOpportunities,
       historyUpdateError,
       historyUpdatingOpportunityIds,
+      pendingInternalOpportunityCallRequest,
+      pendingInternalOpportunityCallRequests,
       isOnboardingDone,
       loadHistoryOpportunityByRoleId,
       loadMoreHistoryOpportunities,

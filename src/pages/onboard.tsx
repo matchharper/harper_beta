@@ -10,6 +10,7 @@ import LinkInput from "@/components/apply/LinkInput";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import MultiSelects from "@/components/apply/MultiSelects";
 import { logger } from "@/utils/logger";
+import { BareButton } from "@/components/ui/button";
 
 const OPTIONS = [
   "풀타임 정규직",
@@ -194,27 +195,27 @@ const Onboard: React.FC = () => {
           <div className="text-2xl font-normal">
             Thank you for your submission!
           </div>
-          <div className="text-lg font-normal text-xgray700">
+          <div className="text-lg font-normal text-neutral-800">
             We will get in touch with you on the next step within the next 24
             hours. Please seat back and relax
           </div>
-          <button
+          <BareButton
             onClick={() => {
               router.push("/call");
             }}
-            className="bg-brightnavy text-white px-4 h-11 rounded-[4px] text-lg font-medium hover:opacity-90"
+            className="bg-neutral-1000 text-white px-4 h-11 rounded-[4px] text-lg font-medium hover:opacity-90"
           >
             Recruiter call 시작하기
-          </button>
+          </BareButton>
         </div>
       ) : (
         <div className="flex flex-col md:flex-row items-start justify-center h-full w-full px-4 pb-20 pt-4 md:pt-8 md:pb-28">
           <div className="h-full items-start justify-center min-w-16 pt-1 hidden md:flex">
-            <div className="flex flex-row items-center gap-1 font-light text-brightnavy">
+            <div className="flex flex-row items-center gap-1 font-light text-neutral-1000">
               {step + 1} <ArrowRight size={16} strokeWidth={2} />
             </div>
           </div>
-          <div className="flex md:hidden rounded-md w-6 h-6 text-sm bg-brightnavy/80 text-white mb-4 items-center justify-center">
+          <div className="flex md:hidden rounded-md w-6 h-6 text-sm bg-neutral-1000/80 text-white mb-4 items-center justify-center">
             {step + 1}
           </div>
 
@@ -236,7 +237,7 @@ const Onboard: React.FC = () => {
                   </div>
                 ) : null}
                 {step < STEPS.length && STEPS[step].description ? (
-                  <div className="text-xgray600 text-xl font-normal mb-4">
+                  <div className="text-neutral-700 text-xl font-normal mb-4">
                     {STEPS[step].description}
                   </div>
                 ) : null}
@@ -309,7 +310,7 @@ const Onboard: React.FC = () => {
 
                 {step === 3 && (
                   <div className="flex flex-col gap-6">
-                    <div className="rounded-md border border-xgray300 px-4 py-3 text-sm text-xgray700 bg-xlightgray">
+                    <div className="rounded-md border border-neutral-300 px-4 py-3 text-sm text-neutral-800 bg-neutral-100">
                       이 단계는 현재 DB 저장 없이 로컬 상태만 편집됩니다.
                     </div>
 
@@ -345,9 +346,9 @@ const Onboard: React.FC = () => {
                           />
                         </div>
                       ))}
-                      <button
+                      <BareButton
                         type="button"
-                        className="text-sm px-3 py-1.5 text-brightnavy rounded-[5px] hover:bg-xlightgray w-fit"
+                        className="text-sm px-3 py-1.5 text-neutral-1000 rounded-[5px] hover:bg-neutral-100 w-fit"
                         onClick={() => {
                           setIsDirty(true);
                           setWorkExperiences((prev) => [
@@ -357,7 +358,7 @@ const Onboard: React.FC = () => {
                         }}
                       >
                         + 경력 추가
-                      </button>
+                      </BareButton>
                     </div>
 
                     <div className="flex flex-col gap-4">
@@ -384,16 +385,16 @@ const Onboard: React.FC = () => {
                           />
                         </div>
                       ))}
-                      <button
+                      <BareButton
                         type="button"
-                        className="text-sm px-3 py-1.5 text-brightnavy rounded-[5px] hover:bg-xlightgray w-fit"
+                        className="text-sm px-3 py-1.5 text-neutral-1000 rounded-[5px] hover:bg-neutral-100 w-fit"
                         onClick={() => {
                           setIsDirty(true);
                           setEducations((prev) => [...prev, makeEducation()]);
                         }}
                       >
                         + 학력 추가
-                      </button>
+                      </BareButton>
                     </div>
                   </div>
                 )}
@@ -445,24 +446,24 @@ const Onboard: React.FC = () => {
                         </div>
                       ))}
                     <div className="flex flex-row items-center justify-start">
-                      <button
+                      <BareButton
                         type="button"
                         onClick={() => {
                           setIsDirty(true);
                           setLinks((prev) => [...prev, ""]);
                         }}
-                        className="text-[13px] px-3 py-1 text-brightnavy rounded-[5px] hover:bg-xlightgray"
+                        className="text-[13px] px-3 py-1 text-neutral-1000 rounded-[5px] hover:bg-neutral-100"
                       >
                         + 추가
-                      </button>
+                      </BareButton>
                     </div>
                   </div>
                 )}
 
                 <div className="flex flex-row items-center gap-3 mt-4">
-                  <button
+                  <BareButton
                     onClick={handleNext}
-                    className="bg-brightnavy shadow-lg transition-all duration-200 cursor-pointer text-white px-4 h-11 rounded-[4px] text-lg font-medium hover:opacity-90"
+                    className="bg-neutral-1000 shadow-lg transition-all duration-200 cursor-pointer text-white px-4 h-11 rounded-[4px] text-lg font-medium hover:opacity-90"
                   >
                     {submitLoading ? (
                       <span className="animate-spin">
@@ -473,10 +474,10 @@ const Onboard: React.FC = () => {
                     ) : (
                       "Next"
                     )}
-                  </button>
+                  </BareButton>
 
                   <span className="text-[14px] font-light flex flex-row items-center gap-1">
-                    <span className="text-xgray700">press</span>
+                    <span className="text-neutral-800">press</span>
                     <span className="text-black font-medium">Enter</span>
                     <CornerDownLeft size={14} strokeWidth={2} />
                   </span>
@@ -485,21 +486,21 @@ const Onboard: React.FC = () => {
             </AnimatePresence>
           </div>
 
-          <div className="flex flex-row items-center gap-2 fixed bottom-4 left-4 text-sm text-xgray600">
-            <button
+          <div className="flex flex-row items-center gap-2 fixed bottom-4 left-4 text-sm text-neutral-700">
+            <BareButton
               type="button"
               className="underline hover:text-black"
               onClick={handlePrev}
             >
               Back
-            </button>
-            <button
+            </BareButton>
+            <BareButton
               type="button"
               className="underline hover:text-black"
               onClick={handleNext}
             >
               Next
-            </button>
+            </BareButton>
           </div>
         </div>
       )}

@@ -3,6 +3,8 @@ import { useRouter } from "next/router";
 import React, { useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
+import { BareButton } from "@/components/ui/button";
+import { Input as UiInput } from "@/components/ui/input";
 
 type AuthMode = "signin" | "signup";
 
@@ -143,7 +145,7 @@ const AppHeader = ({ topClassName = "top-0" }: AppHeaderProps) => {
         <div className="mx-auto flex h-12 max-w-[1440px] items-center justify-between px-4 lg:px-8">
           <Link
             href="/talent"
-            className="text-3xl font-bold font-hedvig tracking-tight text-hblack1000"
+            className="text-3xl font-bold font-hedvig tracking-tight text-neutral-primary"
           >
             Harper
           </Link>
@@ -155,7 +157,7 @@ const AppHeader = ({ topClassName = "top-0" }: AppHeaderProps) => {
                 "inline-flex h-9 items-center rounded-md px-3 transition-colors underline-offset-8",
                 isHome
                   ? "underline font-medium"
-                  : "text-hblack700 hover:font-medium",
+                  : "text-neutral-muted hover:font-medium",
               ].join(" ")}
             >
               Home
@@ -166,119 +168,123 @@ const AppHeader = ({ topClassName = "top-0" }: AppHeaderProps) => {
                 "inline-flex h-9 items-center rounded-md px-3 transition-colors underline-offset-8",
                 isWhy
                   ? "underline font-medium"
-                  : "text-hblack700 hover:font-medium",
+                  : "text-neutral-muted hover:font-medium",
               ].join(" ")}
             >
               Why Harper
             </Link>
-            <button
+            <BareButton
               type="button"
               onClick={() => setOpenAuthModal(true)}
-              className="inline-flex h-9 items-center rounded-md px-3 text-hblack800 transition-colors hover:border-xprimary hover:text-xprimary"
+              className="inline-flex h-9 items-center rounded-md px-3 text-neutral-primary transition-colors hover:border-primary hover:text-primary"
             >
               Login
-            </button>
+            </BareButton>
           </nav>
         </div>
       </header>
 
       {openAuthModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <button
+          <BareButton
             type="button"
             onClick={handleCloseModal}
             aria-label="Close login modal"
-            className="absolute inset-0 bg-hblack900/40"
+            className="absolute inset-0 bg-black/40"
           />
 
-          <div className="relative z-10 w-full max-w-[460px] rounded-xl border border-hblack200 bg-hblack000 p-6">
+          <div className="relative z-10 w-full max-w-[460px] rounded-xl border border-neutral-1000-a10 bg-bg-default p-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-medium text-hblack1000">로그인</h2>
+              <h2 className="text-lg font-medium text-neutral-primary">
+                로그인
+              </h2>
             </div>
 
             {user ? (
               <div className="mt-4 space-y-3">
-                <p className="text-sm text-hblack700">
+                <p className="text-sm text-neutral-muted">
                   현재 로그인된 계정:{" "}
-                  <span className="font-medium text-hblack900">
+                  <span className="font-medium text-neutral-primary">
                     {user.email}
                   </span>
                 </p>
-                <button
+                <BareButton
                   type="button"
                   onClick={() => void handleLogout()}
                   disabled={authPending}
-                  className="h-10 w-full rounded-md border border-hblack300 bg-hblack000 text-sm font-medium text-hblack800 transition-colors hover:border-xprimary hover:text-xprimary disabled:cursor-not-allowed disabled:opacity-60"
+                  className="h-10 w-full rounded-md border border-neutral-400 bg-bg-default text-sm font-medium text-neutral-primary transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   로그아웃
-                </button>
+                </BareButton>
               </div>
             ) : (
               <>
-                <button
+                <BareButton
                   type="button"
                   onClick={() => void handleGoogleLogin()}
                   disabled={authPending}
-                  className="mt-4 h-11 w-full rounded-md border border-hblack100 bg-hblack50 text-sm font-normal text-hblack900 transition-colors hover:bg-hblack100"
+                  className="mt-4 h-11 w-full rounded-md border border-neutral-1000-a05 bg-bg-basement text-sm font-normal text-neutral-primary transition-colors hover:bg-bg-weak"
                 >
                   Google 로그인
-                </button>
+                </BareButton>
 
-                <p className="mt-4 text-xs font-medium uppercase tracking-widest text-hblack500">
+                <p className="mt-4 text-xs font-medium uppercase tracking-widest text-neutral-soft">
                   이메일 {authMode === "signup" ? "회원가입" : "로그인"}
                 </p>
                 <form onSubmit={handleEmailAuth} className="mt-2 space-y-2">
-                  <input
+                  <UiInput
+                    unstyled
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
                     type="email"
                     placeholder="이메일"
                     disabled={authPending}
-                    className="h-10 w-full rounded-md border border-hblack300 bg-hblack000 px-3 text-sm text-hblack900 outline-none transition-colors focus:border-xprimary"
+                    className="h-10 w-full rounded-md border border-neutral-400 bg-bg-default px-3 text-sm text-neutral-primary outline-none transition-colors focus:border-primary"
                   />
-                  <input
+                  <UiInput
+                    unstyled
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     type="password"
                     placeholder="비밀번호"
                     disabled={authPending}
-                    className="h-10 w-full rounded-md border border-hblack300 bg-hblack000 px-3 text-sm text-hblack900 outline-none transition-colors focus:border-xprimary"
+                    className="h-10 w-full rounded-md border border-neutral-400 bg-bg-default px-3 text-sm text-neutral-primary outline-none transition-colors focus:border-primary"
                   />
-                  <button
+                  <BareButton
                     type="submit"
                     disabled={authPending}
-                    className="h-10 w-full rounded-md border border-xprimary bg-xprimary text-sm font-medium text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="h-10 w-full rounded-md border border-primary bg-primary text-sm font-medium text-neutral-00 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {authMode === "signup" ? "회원가입" : "로그인"}
-                  </button>
+                  </BareButton>
                 </form>
 
-                <p className="mt-3 text-sm text-hblack600">
+                <p className="mt-3 text-sm text-neutral-muted">
                   {authMode === "signup"
                     ? "이미 계정이 있으신가요?"
                     : "첫 방문이신가요?"}{" "}
-                  <button
+                  <BareButton
                     type="button"
                     onClick={() =>
                       setAuthMode((prev) =>
                         prev === "signin" ? "signup" : "signin"
                       )
                     }
-                    className="font-medium text-xprimary underline underline-offset-4"
+                    className="font-medium text-primary underline underline-offset-4"
                   >
                     {authMode === "signup" ? "로그인" : "회원가입"}
-                  </button>
+                  </BareButton>
                 </p>
               </>
             )}
 
             {authError ? (
-              <p className="mt-3 rounded-md border border-xprimary/30 bg-xprimary/10 px-3 py-2 text-sm text-xprimary">
+              <p className="mt-3 rounded-md border border-primary/30 bg-accent-200 px-3 py-2 text-sm text-primary">
                 {authError}
               </p>
             ) : null}
             {authInfo ? (
-              <p className="mt-3 rounded-md border border-hblack200 bg-hblack100 px-3 py-2 text-sm text-hblack700">
+              <p className="mt-3 rounded-md border border-neutral-1000-a10 bg-bg-weak px-3 py-2 text-sm text-neutral-muted">
                 {authInfo}
               </p>
             ) : null}

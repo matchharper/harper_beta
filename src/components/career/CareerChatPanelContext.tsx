@@ -3,11 +3,13 @@ import React, { createContext, useContext } from "react";
 import type {
   CallLiveTranscriptPlacement,
   CallTranscriptEntry,
+  CareerCallStartRequest,
   CareerInputMode,
   CareerHistoryOpportunity,
   CareerHistoryOpportunityFeedback,
   CareerInterviewProgress,
   CareerMessage,
+  CareerOpportunityFeedbackFollowUpTrigger,
   CareerOpportunityRun,
   CareerOpportunitySavedStage,
   CareerRecommendationSearchStatus,
@@ -47,6 +49,7 @@ export type CareerChatPanelContextValue = {
   toolStatusMessage: string;
   activeThinkingLogs: string[];
   activeRecommendationSearchStatus: CareerRecommendationSearchStatus | null;
+  onCancelActiveRecommendationSearch?: () => void;
   onboardingWrapupPending: boolean;
   thinkingLogsByMessageId: Record<string, string[]>;
   chatPending: boolean;
@@ -54,6 +57,8 @@ export type CareerChatPanelContextValue = {
   sessionReengagementThinkingLogs: string[];
   sessionReengagementRecommendationStatus: CareerRecommendationSearchStatus | null;
   sessionReengagementActionMessageId?: string | null;
+  opportunityFeedbackFollowUpPending: boolean;
+  opportunityFeedbackFollowUpTrigger: CareerOpportunityFeedbackFollowUpTrigger | null;
   opportunityRun: CareerOpportunityRun | null;
   opportunitySearchLocked: boolean;
   historyUpdatingOpportunityIds: string[];
@@ -105,7 +110,6 @@ export type CareerChatPanelContextValue = {
   onForceCompleteOnboarding?: () => boolean | Promise<boolean>;
 
   showVoiceStartPrompt: boolean;
-  onStartVoiceCall: (durationMinutes?: 5 | 10) => void;
   onUseChatOnly: () => void;
   onPauseOnboarding: () => void | Promise<void>;
   onSubmitOnboardingInterest: (
@@ -114,17 +118,13 @@ export type CareerChatPanelContextValue = {
   onContinueOnboardingConversation: () => void | Promise<void>;
   inputMode: CareerInputMode;
   voiceTranscript: string;
-  voiceListening: boolean;
   voiceMuted: boolean;
-  voiceError: string;
-  assistantAudioBusy: boolean;
-  voicePrimaryPressed: boolean;
-  onVoicePrimaryAction: () => void;
   onToggleVoiceMute: () => void;
-  onSwitchToTextMode: () => void;
 
   // Call mode (optional — not provided by preview.tsx)
-  onStartCallMode?: (openingText?: string) => boolean | Promise<boolean>;
+  onStartCallMode?: (
+    args?: CareerCallStartRequest
+  ) => boolean | Promise<boolean>;
   onEndCallMode?: (options?: { forceCompleteOnboarding?: boolean }) => void;
   callTranscriptEntries?: CallTranscriptEntry[];
   liveUserTranscriptPlacement?: CallLiveTranscriptPlacement;

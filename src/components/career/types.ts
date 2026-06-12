@@ -1,11 +1,19 @@
 import { OpportunityType } from "@/lib/opportunityType";
 import type { OpportunityDiscoveryAgentVariant } from "@/lib/opportunityDiscovery/types";
+import type { CareerConversationStarterId } from "@/lib/career/conversationStarters";
 
 export { OpportunityType as CareerOpportunityType };
 
 export type CareerStage = "profile" | "chat" | "completed";
 export type MessageRole = "assistant" | "user";
-export type CareerInputMode = "text" | "voice" | "call";
+export type CareerInputMode = "text" | "call";
+export type CareerCallStartRequest =
+  | string
+  | {
+      conversationStarterId?: CareerConversationStarterId | null;
+      internalCallRequestId?: string | null;
+      openingText?: string;
+    };
 export type CallLiveTranscriptPlacement =
   | "beforeCurrentAssistant"
   | "afterCurrentAssistant";
@@ -13,13 +21,20 @@ export type CallLiveTranscriptPlacement =
 export type CareerRecommendationSearchStatusState =
   | "running"
   | "completed"
-  | "error";
+  | "error"
+  | "stopped";
 
 export type CareerRecommendationSearchStatus = {
   candidateCount?: number | null;
   recommendationCount?: number | null;
   state: CareerRecommendationSearchStatusState;
 };
+
+export type CareerOpportunityFeedbackFollowUpTrigger =
+  | "all_recommended_opportunities_cleared"
+  | "all_visible_feedback_submitted"
+  | "delayed_external_feedback"
+  | "immediate_internal_feedback";
 
 export type CareerOpportunityAgentVariant = OpportunityDiscoveryAgentVariant;
 
@@ -169,11 +184,13 @@ export type CareerHistoryOpportunity = {
   dismissedAt: string | null;
   employmentTypes: string[];
   externalJdUrl: string | null;
+  expiresAt?: string | null;
   feedback: CareerHistoryOpportunityFeedback | null;
   feedbackAt: string | null;
   feedbackReason: string | null;
   href: string | null;
   id: string;
+  isExpired?: boolean;
   isAccepted: boolean;
   isInternal: boolean;
   kind: "match" | "recommendation";
@@ -230,6 +247,7 @@ export type CareerMessage = {
   messageType: string;
   createdAt: string;
   opportunityPreview?: CareerHistoryOpportunity[];
+  recommendationStatusAfterCharCount?: number | null;
   thinkingLogs?: string[];
   typing?: boolean;
 };
@@ -241,7 +259,23 @@ export type CareerMessagePayload = {
   messageType: string;
   createdAt: string;
   opportunityPreview?: CareerHistoryOpportunity[];
+  recommendationStatusAfterCharCount?: number | null;
   thinkingLogs?: string[];
+};
+
+export type CareerInternalOpportunityCallRequest = {
+  companyLogoUrl: string | null;
+  companyName: string;
+  createdAt: string;
+  id: string;
+  opportunityId: string;
+  questions: string[];
+  reason: string | null;
+  resumePromptNeeded: boolean;
+  roleId: string;
+  roleTitle: string;
+  status: string;
+  updatedAt: string;
 };
 
 export type CareerProfileSettingsMeta = {
@@ -271,6 +305,8 @@ export type SessionResponse = {
   profileSettingsMeta?: CareerProfileSettingsMeta;
   talentProfile?: CareerTalentProfile;
   opportunityRun?: CareerOpportunityRun | null;
+  pendingInternalOpportunityCallRequest?: CareerInternalOpportunityCallRequest | null;
+  pendingInternalOpportunityCallRequests?: CareerInternalOpportunityCallRequest[];
   messages: CareerMessagePayload[];
   nextBeforeMessageId: number | null;
   nextOpportunityOffset?: number | null;

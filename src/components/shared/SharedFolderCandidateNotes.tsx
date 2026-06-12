@@ -11,6 +11,8 @@ import {
   SharedFolderViewerIdentity,
 } from "@/lib/sharedFolder";
 import { showToast } from "../toast/toast";
+import { BareButton } from "@/components/ui/button";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
 type SharedFolderCandidateNotesProps = {
   token: string;
@@ -69,7 +71,7 @@ export default function SharedFolderCandidateNotes({
   const containerClassName = useMemo(() => {
     if (variant === "table") {
       return [
-        "flex h-full flex-col border-l border-white/10 bg-black/15",
+        "flex h-full flex-col border-l border-neutral-00/10 bg-black/15",
         compact ? "px-4 py-3" : "min-h-[200px] px-4 py-4",
       ].join(" ");
     }
@@ -79,7 +81,7 @@ export default function SharedFolderCandidateNotes({
       compact ? "min-h-[160px] p-3" : "min-h-[220px] p-3",
     ].join(" ");
   }, [compact, variant]);
-  const noteCardClassName = "py-1 border-b border-white/5";
+  const noteCardClassName = "py-1 border-b border-neutral-00/5";
 
   const resetEditor = () => {
     setDraft("");
@@ -195,35 +197,35 @@ export default function SharedFolderCandidateNotes({
             <div className="flex items-center justify-between gap-3">
               <div className="flex flex-row items-center justify-between w-full">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="inline-flex max-w-full items-center text-xs text-hgray900">
+                  <span className="inline-flex max-w-full items-center text-xs text-neutral-00/90">
                     <span className="truncate">{note.viewerName}</span>
                   </span>
                 </div>
-                <div className="text-[11px] text-hgray600">
+                <div className="text-[11px] text-neutral-00/60">
                   {formatSharedFolderNoteDate(note.updatedAt || note.createdAt)}
                 </div>
               </div>
               {note.canEdit ? (
                 <div className="flex items-center gap-1">
-                  <button
+                  <BareButton
                     type="button"
                     onClick={() => openEdit(note)}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-xl text-hgray700 transition-colors hover:bg-white/10 hover:text-white"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-xl text-neutral-00/70 transition-colors hover:bg-neutral-00/10 hover:text-neutral-00"
                   >
                     <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                  <button
+                  </BareButton>
+                  <BareButton
                     type="button"
                     onClick={() => void handleDelete(note.id)}
                     disabled={isDeleting}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-xl text-hgray700 transition-colors hover:bg-red-500/15 hover:text-red-300 disabled:opacity-60"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-xl text-neutral-00/70 transition-colors hover:bg-critical-faded hover:text-critical disabled:opacity-60"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  </BareButton>
                 </div>
               ) : null}
             </div>
-            <div className="mt-3 whitespace-pre-wrap wrap-break-word text-[13px] leading-6 text-hgray900">
+            <div className="mt-3 whitespace-pre-wrap wrap-break-word text-[13px] leading-6 text-neutral-00/90">
               {note.memo}
             </div>
           </div>
@@ -232,20 +234,21 @@ export default function SharedFolderCandidateNotes({
 
       {showCreateButton && showHeaderRow && !isComposing && canCompose && (
         <div className="flex items-start justify-between gap-3">
-          <button
+          <BareButton
             type="button"
             onClick={openCreate}
-            className="mb-3 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-white/10 bg-white/5 px-3 text-[12px] text-hgray900 transition-colors hover:bg-white/10"
+            className="mb-3 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-neutral-00/10 bg-neutral-00/5 px-3 text-[12px] text-neutral-00/90 transition-colors hover:bg-neutral-00/10"
           >
             <Plus className="h-3.5 w-3.5" />
             공유 메모 추가
-          </button>
+          </BareButton>
         </div>
       )}
 
       {isComposing && (
         <div className="mt-0">
-          <textarea
+          <UiTextarea
+            unstyled
             rows={compact ? 3 : 4}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
@@ -259,27 +262,27 @@ export default function SharedFolderCandidateNotes({
                 void handleSave();
               }
             }}
-            className="w-full resize-none rounded-md border border-white/5 bg-black/10 px-3 py-3 text-[13px] leading-6 text-hgray900 outline-none placeholder:text-hgray600 focus:border-white/20"
+            className="w-full resize-none rounded-md border border-neutral-00/5 bg-black/10 px-3 py-3 text-[13px] leading-6 text-neutral-00/90 outline-none placeholder:text-neutral-00/60 focus:border-neutral-00/20"
             placeholder="메모를 남겨보세요"
           />
           <div className="mt-2 flex items-center justify-between gap-3">
-            <div className="text-[11px] text-hgray600"></div>
+            <div className="text-[11px] text-neutral-00/60"></div>
             <div className="flex items-center gap-2">
-              <button
+              <BareButton
                 type="button"
-                className="rounded-xl px-3 py-1.5 text-xs text-hgray700 transition-colors hover:bg-white/5 hover:text-white"
+                className="rounded-xl px-3 py-1.5 text-xs text-neutral-00/70 transition-colors hover:bg-neutral-00/5 hover:text-neutral-00"
                 onClick={resetEditor}
               >
                 취소
-              </button>
-              <button
+              </BareButton>
+              <BareButton
                 type="button"
                 onClick={() => void handleSave()}
                 disabled={isSaving || !viewer}
-                className="rounded-xl bg-accenta1 px-3 py-1.5 text-xs text-black disabled:opacity-60"
+                className="rounded-xl bg-accent-300 px-3 py-1.5 text-xs text-neutral-primary disabled:opacity-60"
               >
                 저장
-              </button>
+              </BareButton>
             </div>
           </div>
         </div>

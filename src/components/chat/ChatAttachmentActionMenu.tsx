@@ -7,6 +7,8 @@ import { cn } from "@/lib/cn";
 import { useMessages } from "@/i18n/useMessage";
 import { Link2, Paperclip, Plus } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
+import { Input as UiInput } from "@/components/ui/input";
+import { BareButton } from "@/components/ui/button";
 
 type Props = {
   align?: "start" | "center" | "end";
@@ -67,7 +69,8 @@ export default function ChatAttachmentActionMenu({
 
   return (
     <>
-      <input
+      <UiInput
+        unstyled
         ref={fileInputRef}
         type="file"
         className="hidden"
@@ -90,17 +93,17 @@ export default function ChatAttachmentActionMenu({
         side="top"
         contentClassName="w-[240px]"
         trigger={
-          <button
+          <BareButton
             type="button"
             disabled={disabled}
             className={cn(
-              "inline-flex h-9 w-9 items-center justify-center rounded-[12px] bg-white/5 text-hgray700 transition hover:bg-white/10 hover:text-hgray900 disabled:cursor-not-allowed disabled:opacity-40",
+              "inline-flex h-9 w-9 items-center justify-center rounded-[12px] bg-neutral-00/5 text-neutral-00/70 transition hover:bg-neutral-00/10 hover:text-neutral-00/90 disabled:cursor-not-allowed disabled:opacity-40",
               className
             )}
             aria-label={m.chat.addAttachment ?? "첨부 추가"}
           >
             <Plus size={16} />
-          </button>
+          </BareButton>
         }
       >
         <ActionDropdownItem
@@ -127,8 +130,9 @@ export default function ChatAttachmentActionMenu({
 
         {isLinkEditorOpen && (
           <div className="px-1 pb-1 pt-2">
-            <div className="rounded-[12px] bg-white/5 px-2 py-2">
-              <input
+            <div className="rounded-[12px] bg-neutral-00/5 px-2 py-2">
+              <UiInput
+                unstyled
                 ref={linkInputRef}
                 type="url"
                 value={linkValue}
@@ -143,22 +147,22 @@ export default function ChatAttachmentActionMenu({
                   }
                 }}
                 placeholder={m.chat.linkPlaceholder ?? "https://example.com"}
-                className="w-full bg-transparent text-[13px] text-white outline-none placeholder:text-white/35"
+                className="w-full bg-transparent text-[13px] text-neutral-00 outline-none placeholder:text-neutral-00/35"
               />
             </div>
             {linkError && (
-              <div className="px-1 pt-2 text-[11px] text-red-300">
+              <div className="px-1 pt-2 text-[11px] text-critical">
                 {linkError}
               </div>
             )}
             <div className="mt-2 flex justify-end">
-              <button
+              <BareButton
                 type="button"
                 onClick={submitLink}
-                className={`inline-flex items-center justify-center rounded-sm ${linkValue ? "bg-accenta1 text-black" : "bg-white/10 text-white"} px-2.5 py-1 text-[11px] transition hover:bg-opacity-90`}
+                className={`inline-flex items-center justify-center rounded-sm ${linkValue ? "bg-accent-300 text-neutral-primary" : "bg-neutral-00/10 text-neutral-00"} px-2.5 py-1 text-[11px] transition hover:opacity-90`}
               >
                 {m.chat.addLink ?? "링크 추가"}
-              </button>
+              </BareButton>
             </div>
           </div>
         )}

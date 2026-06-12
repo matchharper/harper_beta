@@ -9,7 +9,7 @@ import {
   type CareerConversationStarterId,
   type CareerConversationStarterMode,
 } from "@/lib/career/conversationStarters";
-import { CareerActionButton } from "./ui/CareerActionButton";
+import { ActionButton } from "@/components/ui/button";
 
 type ConversationStarterActionsProps = {
   callStartPending?: boolean;
@@ -93,7 +93,7 @@ export function ConversationStarterActions({
         const StarterIcon = STARTER_ICON_BY_NAME[starter.icon];
 
         return (
-          <CareerActionButton
+          <ActionButton
             key={starter.id}
             onClick={() =>
               void handleStart({ mode: "call", starterId: starter.id })
@@ -105,12 +105,13 @@ export function ConversationStarterActions({
             className={cn(
               "text-center font-normal",
               isMobile ? "w-full" : isReengagement ? "min-w-0" : "pl-2 pr-4",
-              isReengagement && "border-beige900/5 bg-hgray900 hover:bg-hgray800"
+              isReengagement &&
+                "border-neutral-1000-a05 bg-bg-floating hover:bg-bg-weak"
             )}
           >
             <span
               className={cn(
-                "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-beige900/5 text-beige900/75",
+                "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-black/5 text-neutral-muted",
                 isReengagement && "h-5 w-5"
               )}
               aria-hidden="true"
@@ -138,7 +139,7 @@ export function ConversationStarterActions({
             >
               {callPending ? "연결 중..." : label}
             </span>
-          </CareerActionButton>
+          </ActionButton>
         );
       })}
     </div>

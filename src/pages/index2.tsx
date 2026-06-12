@@ -29,7 +29,7 @@ import CareerLandingFooter from "@/components/landing/CareerLandingFooter";
 import GmailPhoneMockup from "@/components/landing/career/GmailMockup";
 import { cx } from "@/components/ops/theme";
 import { cn } from "@/lib/cn";
-import { CareerBadge } from "@/components/ui/career";
+import { Badge } from "@/components/ui/badge";
 
 const text = {
   h1: "text-[36px] font-medium leading-[1.08] text-neutral-950 md:text-[48px]",
@@ -56,6 +56,7 @@ const voices = [
       "한국에서는 이런 글로벌 기회가 있다는 것조차 몰랐어요. 그런데 Harper에게 CTO를 직접 연결받았고, 이제 곧 합류할 예정이에요.",
     initial: "",
     name: "익명 요청",
+    to: "to",
     company: "Wonderful (Series B)",
     role: "Founding Forward Deployed Engineer",
   },
@@ -64,6 +65,7 @@ const voices = [
       "제 전문성이 이런 식으로도 쓰일 수 있다는 걸 몰랐어요. 본업은 그대로 유지하고 있는데, Harper가 파트타임 두 건을 연결해줬어요.",
     initial: "/images/person3.png",
     name: "Soyeon L.",
+    to: "to",
     company: "High-Growth AI Team",
     role: "Staff Engineer, Infrastructure",
   },
@@ -72,8 +74,9 @@ const voices = [
       "이미 한번 대화한 사람을 소개받으니 Harper의 추천은 인터뷰까지는 바로 진행했어요. 진짜 헤드헌터와 대화하는 줄 알았습니다.",
     initial: "P",
     name: "Patrick",
+    to: "from",
     company: "YC-backed Startup",
-    role: "Founding Engineer",
+    role: "Founder",
   },
 ] as const;
 
@@ -440,7 +443,7 @@ function RoleBriefingVisual() {
             className="relative rounded-[12px] bg-white px-4 py-5 ring ring-black/5"
           >
             <div className="absolute top-1 right-2">
-              <CareerBadge
+              <Badge
                 size="small"
                 color={card.company === "Anthropic" ? "primary" : "neutral"}
               >
@@ -452,7 +455,7 @@ function RoleBriefingVisual() {
                 ) : (
                   "오픈 포지션"
                 )}
-              </CareerBadge>
+              </Badge>
             </div>
             <div className="grid grid-cols-[38px_1fr_auto] items-start gap-3">
               <div className="relative h-9 w-9 overflow-hidden rounded-[9px] bg-white ring-1 ring-black/[0.06]">
@@ -583,7 +586,7 @@ function OpportunityCard({
       <div className="mt-2 text-[14px] font-normal leading-6 text-black/50">
         {item.description}
       </div>
-      <div className="mt-auto flex w-fit flex-row items-center gap-1 pt-8 text-sm text-xprimary transition-colors group-hover:text-neutral-950">
+      <div className="mt-auto flex w-fit flex-row items-center gap-1 pt-8 text-sm text-primary transition-colors group-hover:text-neutral-950">
         소개받기 <ArrowRight className="h-3 w-3" />
       </div>
     </Link>

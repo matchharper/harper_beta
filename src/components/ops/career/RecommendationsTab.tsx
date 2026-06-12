@@ -34,6 +34,11 @@ import {
   recommendationSourceClass,
   recommendationSourceLabel,
 } from "./utils";
+import { BareButton } from "@/components/ui/button";
+import { Input as UiInput } from "@/components/ui/input";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
+import { Select as UiSelect } from "@/components/ui/select";
+import { Radio as UiRadio } from "@/components/ui/radio";
 
 type ManualInternalRecommendationModalProps = {
   onClose: () => void;
@@ -135,21 +140,21 @@ function ManualInternalRecommendationModal({
         open={open && !reasonModalOpen}
         onClose={handleClose}
         title="Internal 추천 등록"
-        panelClassName="flex h-[760px] max-h-[88vh] max-w-[1120px] flex-col border border-beige900/10 bg-beige50"
-        headerClassName="shrink-0 border-b border-beige900/10 bg-beige50 pr-16"
-        bodyClassName="min-h-0 flex-1 overflow-hidden bg-beige50 p-0"
-        footerClassName="shrink-0 border-t border-beige900/10 bg-beige50"
-        closeButtonClassName="font-geist right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-beige900/10 bg-white/70 text-beige900/70 transition-colors hover:border-beige900/25 hover:text-beige900"
+        panelClassName="flex h-[760px] max-h-[88vh] max-w-[1120px] flex-col border border-neutral-1000-a05 bg-bg-default"
+        headerClassName="shrink-0 border-b border-neutral-1000-a05 bg-bg-default pr-16"
+        bodyClassName="min-h-0 flex-1 overflow-hidden bg-bg-default p-0"
+        footerClassName="shrink-0 border-t border-neutral-1000-a05 bg-bg-default"
+        closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-default/70 text-neutral-muted transition-colors hover:border-neutral-1000-a10 hover:text-neutral-primary"
         footer={
           <div className="flex items-center justify-end gap-2">
-            <button
+            <BareButton
               type="button"
               onClick={handleClose}
               className={cx(opsTheme.buttonSecondary, "h-9 px-4 text-xs")}
             >
               취소
-            </button>
-            <button
+            </BareButton>
+            <BareButton
               type="button"
               onClick={handleOpenReasonModal}
               disabled={!canOpenReason}
@@ -161,18 +166,19 @@ function ManualInternalRecommendationModal({
             >
               <Sparkles className="h-3.5 w-3.5" />
               등록
-            </button>
+            </BareButton>
           </div>
         }
       >
         <div className="grid h-full min-h-0 grid-cols-1 overflow-y-auto lg:grid-cols-[minmax(0,0.85fr)_minmax(360px,0.85fr)] lg:overflow-hidden">
-          <div className="flex min-w-0 flex-col border-b border-beige900/10 lg:border-b-0 lg:border-r">
-            <div className="border-b border-beige900/10 px-5 py-4">
+          <div className="flex min-w-0 flex-col border-b border-neutral-1000-a05 lg:border-b-0 lg:border-r">
+            <div className="border-b border-neutral-1000-a05 px-5 py-4">
               <label className="block">
                 <span className={opsTheme.label}>Internal role</span>
                 <div className="relative mt-2">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-beige900/30" />
-                  <input
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-soft" />
+                  <UiInput
+                    unstyled
                     type="text"
                     value={roleSearch}
                     onChange={(event) => setRoleSearch(event.target.value)}
@@ -186,7 +192,7 @@ function ManualInternalRecommendationModal({
             <div className="min-h-0 flex-1 overflow-auto p-5">
               {rolesQuery.isLoading ? (
                 <div className="flex h-full min-h-[280px] items-center justify-center">
-                  <LoaderCircle className="h-5 w-5 animate-spin text-beige900/30" />
+                  <LoaderCircle className="h-5 w-5 animate-spin text-neutral-soft" />
                 </div>
               ) : rolesQuery.error ? (
                 <div className={opsTheme.errorNotice}>
@@ -195,14 +201,14 @@ function ManualInternalRecommendationModal({
                     : "Internal role을 불러오지 못했습니다."}
                 </div>
               ) : roles.length === 0 ? (
-                <div className="flex h-full min-h-[280px] items-center justify-center rounded-md border border-dashed border-beige900/15 bg-white/30 font-geist text-sm text-beige900/40">
+                <div className="flex h-full min-h-[280px] items-center justify-center rounded-md border border-dashed border-neutral-1000-a10 bg-bg-floating text-sm text-neutral-soft">
                   선택 가능한 internal role이 없습니다.
                 </div>
               ) : (
-                <div className="overflow-hidden rounded-md border border-beige900/10 bg-white/55">
+                <div className="overflow-hidden rounded-md border border-neutral-1000-a05 bg-bg-default/55">
                   <div className="max-h-[440px] overflow-auto">
-                    <table className="w-full min-w-[800px] table-fixed border-collapse font-geist text-xs">
-                      <thead className="sticky top-0 z-[1] bg-beige500/45 text-left text-beige900/45">
+                    <table className="w-full min-w-[800px] table-fixed border-collapse text-xs">
+                      <thead className="sticky top-0 z-[1] bg-bg-weak text-left text-neutral-muted">
                         <tr>
                           <th className="w-[24px] px-3 py-2 font-medium">
                             <span className="sr-only"></span>
@@ -219,7 +225,7 @@ function ManualInternalRecommendationModal({
                           </th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-beige900/10">
+                      <tbody className="divide-y divide-neutral-1000-a05">
                         {roles.map((role) => {
                           const active = selectedRole?.roleId === role.roleId;
                           return (
@@ -241,8 +247,8 @@ function ManualInternalRecommendationModal({
                               className={cx(
                                 "cursor-pointer align-top transition hover:opacity-80",
                                 active
-                                  ? "bg-[#2E1706] text-beige100"
-                                  : "text-beige900/70"
+                                  ? "bg-black text-neutral-00"
+                                  : "text-neutral-muted"
                               )}
                             >
                               <td className="px-3 py-3 align-top">
@@ -252,7 +258,7 @@ function ManualInternalRecommendationModal({
                                       role="img"
                                       aria-label="이미 추천되었습니다."
                                       title="이미 추천되었습니다."
-                                      className="mt-1 inline-flex h-2 w-2 rounded-full bg-[#2F7D46] shadow-[0_0_0_2px_rgba(47,125,70,0.14)]"
+                                      className="mt-1 inline-flex h-2 w-2 rounded-full bg-positive ring-2 ring-positive/30"
                                     />
                                   </Tooltips>
                                 ) : null}
@@ -260,7 +266,9 @@ function ManualInternalRecommendationModal({
                               <td
                                 className={cx(
                                   "truncate px-3 py-3 align-top font-medium",
-                                  active ? "text-beige100" : "text-beige900/75"
+                                  active
+                                    ? "text-neutral-00"
+                                    : "text-neutral-muted"
                                 )}
                                 title={role.companyName}
                               >
@@ -269,7 +277,9 @@ function ManualInternalRecommendationModal({
                               <td
                                 className={cx(
                                   "truncate px-3 py-3 align-top text-[13px] font-normal",
-                                  active ? "text-beige100" : "text-beige900/85"
+                                  active
+                                    ? "text-neutral-00"
+                                    : "text-neutral-primary"
                                 )}
                                 title={role.roleName}
                               >
@@ -279,8 +289,8 @@ function ManualInternalRecommendationModal({
                                 className={cx(
                                   "truncate px-3 py-3 align-top",
                                   active
-                                    ? "text-beige100/70"
-                                    : "text-beige900/45"
+                                    ? "text-neutral-00/70"
+                                    : "text-neutral-muted"
                                 )}
                                 title={role.locationText ?? undefined}
                               >
@@ -291,8 +301,8 @@ function ManualInternalRecommendationModal({
                                   className={cx(
                                     "inline-flex max-w-full items-center truncate rounded border px-1 text-[11px] font-medium",
                                     active
-                                      ? "border-beige100/25 bg-white/10 text-beige100"
-                                      : "border-beige900/10 bg-white/75 text-beige900/45"
+                                      ? "border-neutral-00/25 bg-neutral-00/10 text-neutral-00"
+                                      : "border-neutral-1000-a05 bg-bg-default/75 text-neutral-muted"
                                   )}
                                 >
                                   {role.status ?? "active"}
@@ -309,17 +319,17 @@ function ManualInternalRecommendationModal({
             </div>
           </div>
 
-          <aside className="flex min-h-0 flex-col bg-beige500/20 px-5 py-5">
+          <aside className="flex min-h-0 flex-col bg-bg-weak px-5 py-5">
             {selectedRole ? (
               <>
                 <div>
-                  <div className="font-geist text-base font-medium text-beige900">
+                  <div className="text-base font-medium text-neutral-primary">
                     {selectedRole.roleName}
                   </div>
-                  <div className="mt-1 font-geist text-sm text-beige900/85">
+                  <div className="mt-1 text-sm text-neutral-primary">
                     {selectedRole.companyName}
                   </div>
-                  <div className="mt-3 grid grid-cols-2 gap-2 font-geist text-xs text-beige900/45">
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-neutral-muted">
                     <div className="min-w-0 truncate">
                       {selectedRole.locationText || "Location 없음"}
                     </div>
@@ -329,9 +339,9 @@ function ManualInternalRecommendationModal({
                   </div>
                 </div>
 
-                <div className="mt-4 min-h-0 flex-1 overflow-y-auto font-geist text-sm leading-6 text-beige900/90 pb-4">
+                <div className="mt-4 min-h-0 flex-1 overflow-y-auto text-sm leading-6 text-neutral-primary pb-4">
                   {selectedDescriptionSummary ? (
-                    <div className="whitespace-pre-wrap break-words font-medium text-beige900/85">
+                    <div className="whitespace-pre-wrap break-words font-medium text-neutral-primary">
                       {selectedDescriptionSummary}
                     </div>
                   ) : null}
@@ -339,21 +349,21 @@ function ManualInternalRecommendationModal({
                     <div
                       className={cx(
                         "whitespace-pre-wrap break-words",
-                        selectedDescriptionSummary && "mt-4 text-beige900/65"
+                        selectedDescriptionSummary && "mt-4 text-neutral-muted"
                       )}
                     >
                       {selectedDescription}
                     </div>
                   ) : null}
                   {!selectedDescriptionSummary && !showSelectedDescription ? (
-                    <div className="text-beige900/35">
+                    <div className="text-neutral-soft">
                       이 role에는 아직 description이 없습니다.
                     </div>
                   ) : null}
                 </div>
               </>
             ) : (
-              <div className="mt-3 flex flex-1 items-center justify-center rounded-md border border-dashed border-beige900/15 bg-white/30 p-6 text-center font-geist text-sm text-beige900/40">
+              <div className="mt-3 flex flex-1 items-center justify-center rounded-md border border-dashed border-neutral-1000-a10 bg-bg-floating p-6 text-center text-sm text-neutral-soft">
                 왼쪽 테이블에서 role을 선택하면 상세 description이 여기에
                 표시됩니다.
               </div>
@@ -367,14 +377,14 @@ function ManualInternalRecommendationModal({
         onClose={handleReasonClose}
         title="추천 이유 입력"
         description="추천 이유를 작성해주세요. 작성하지 않거나 대충 작성하더라도 Harper가 알아서 잘 작성해서 추천하게 됩니다."
-        panelClassName="max-w-[560px] border border-beige900/10 bg-beige50"
-        headerClassName="border-b border-beige900/10 bg-beige50 pr-16"
-        bodyClassName="bg-beige50 p-5"
-        footerClassName="border-t border-beige900/10 bg-beige50"
-        closeButtonClassName="font-geist right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-beige900/10 bg-white/70 text-beige900/70 transition-colors hover:border-beige900/25 hover:text-beige900"
+        panelClassName="max-w-[560px] border border-neutral-1000-a05 bg-bg-default"
+        headerClassName="border-b border-neutral-1000-a05 bg-bg-default pr-16"
+        bodyClassName="bg-bg-default p-5"
+        footerClassName="border-t border-neutral-1000-a05 bg-bg-default"
+        closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-default/70 text-neutral-muted transition-colors hover:border-neutral-1000-a10 hover:text-neutral-primary"
         footer={
           <div className="flex items-center justify-end gap-2">
-            <button
+            <BareButton
               type="button"
               onClick={handleReasonClose}
               disabled={queueRecommendation.isPending}
@@ -385,8 +395,8 @@ function ManualInternalRecommendationModal({
               )}
             >
               이전
-            </button>
-            <button
+            </BareButton>
+            <BareButton
               type="button"
               onClick={() => void handleSubmit()}
               disabled={!canSubmit}
@@ -402,17 +412,17 @@ function ManualInternalRecommendationModal({
                 <Sparkles className="h-3.5 w-3.5" />
               )}
               제출
-            </button>
+            </BareButton>
           </div>
         }
       >
         <div className="space-y-4">
           {selectedRole ? (
-            <div className="font-geist">
-              <div className="text-sm font-medium text-beige900">
+            <div className="">
+              <div className="text-sm font-medium text-neutral-primary">
                 {selectedRole.roleName}
               </div>
-              <div className="mt-1 text-xs text-beige900/55">
+              <div className="mt-1 text-xs text-neutral-muted">
                 {selectedRole.companyName}
               </div>
             </div>
@@ -420,7 +430,8 @@ function ManualInternalRecommendationModal({
 
           <label className="block">
             <span className={opsTheme.label}>추천 이유 (optional)</span>
-            <textarea
+            <UiTextarea
+              unstyled
               value={reason}
               onChange={(event) => setReason(event.target.value)}
               placeholder="예: 최근 agent workflow 경험과 잘 맞고, Harper가 직접 연결할 수 있는 팀이라 우선 제안하고 싶음"
@@ -460,8 +471,8 @@ const RecommendationRow = memo(function RecommendationRow({
   const isInternal = item.sourceType === "internal";
 
   return (
-    <tr className="text-beige900/70 transition hover:bg-white/70">
-      <td className="px-2 py-2 align-top text-beige900/45">
+    <tr className="text-neutral-muted transition hover:bg-bg-default/70">
+      <td className="px-2 py-2 align-top text-neutral-muted">
         {formatKst(item.recommendedAt)}
       </td>
       <td className="px-2 py-2 align-top">
@@ -477,12 +488,12 @@ const RecommendationRow = memo(function RecommendationRow({
       <td className="px-2 py-2 align-top">
         <div className="min-w-0">
           <div
-            className="truncate font-medium text-beige900/85"
+            className="truncate font-medium text-neutral-primary"
             title={item.roleName}
           >
             {item.roleName}
           </div>
-          <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-beige900/45">
+          <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-neutral-muted">
             <span className="truncate" title={item.companyName}>
               {item.companyName}
             </span>
@@ -491,7 +502,7 @@ const RecommendationRow = memo(function RecommendationRow({
                 href={item.externalJdUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="shrink-0 text-beige900/45 transition hover:text-beige900"
+                className="shrink-0 text-neutral-muted transition hover:text-neutral-primary"
                 title="JD 열기"
               >
                 <ExternalLink className="h-3 w-3" />
@@ -499,7 +510,7 @@ const RecommendationRow = memo(function RecommendationRow({
             ) : null}
           </div>
           {item.locationText ? (
-            <div className="mt-0.5 truncate text-[11px] text-beige900/35">
+            <div className="mt-0.5 truncate text-[11px] text-neutral-soft">
               {item.locationText}
             </div>
           ) : null}
@@ -508,7 +519,7 @@ const RecommendationRow = memo(function RecommendationRow({
       <td className="px-2 py-2 align-top text-[11px]">
         <div
           className={cx(
-            item.viewedAt ? "text-beige900/65" : "text-beige900/30"
+            item.viewedAt ? "text-neutral-muted" : "text-neutral-soft"
           )}
         >
           {item.viewedAt ? `열람 ${formatKst(item.viewedAt)}` : "미열람"}
@@ -516,7 +527,7 @@ const RecommendationRow = memo(function RecommendationRow({
         <div
           className={cx(
             "mt-0.5",
-            item.clickedAt ? "text-beige900/65" : "text-beige900/30"
+            item.clickedAt ? "text-neutral-muted" : "text-neutral-soft"
           )}
         >
           {item.clickedAt ? `클릭 ${formatKst(item.clickedAt)}` : "미클릭"}
@@ -532,13 +543,13 @@ const RecommendationRow = memo(function RecommendationRow({
           {recommendationFeedbackLabel(item.feedback)}
         </span>
         {item.feedbackAt ? (
-          <div className="mt-1 text-[11px] text-beige900/35">
+          <div className="mt-1 text-[11px] text-neutral-soft">
             {formatKst(item.feedbackAt)}
           </div>
         ) : null}
         {item.feedbackReason ? (
           <div
-            className="mt-0.5 truncate text-[11px] text-beige900/45"
+            className="mt-0.5 truncate text-[11px] text-neutral-muted"
             title={item.feedbackReason}
           >
             {item.feedbackReason}
@@ -548,11 +559,12 @@ const RecommendationRow = memo(function RecommendationRow({
       <td className="px-2 py-2 align-top">
         {isInternal ? (
           <div className="space-y-1.5">
-            <select
+            <UiSelect
+              unstyled
               value={selectValue}
               onChange={(event) => onStageSelect(item, event.target.value)}
               disabled={isSaving}
-              className="h-8 w-full rounded-md border border-beige900/10 bg-white/80 px-2 font-geist text-xs text-beige900 outline-none transition focus:border-beige900/25 disabled:opacity-50"
+              className="h-8 w-full rounded-md border border-neutral-1000-a05 bg-bg-default/80 px-2 text-xs text-neutral-primary outline-none transition focus:border-neutral-1000-a10 disabled:opacity-50"
             >
               <option value={AUTO_RECOMMENDATION_STAGE_VALUE}>
                 {getAutoRecommendationStageLabel(item)}
@@ -565,10 +577,11 @@ const RecommendationRow = memo(function RecommendationRow({
               <option value={CUSTOM_RECOMMENDATION_STAGE_VALUE}>
                 기타(주관식)
               </option>
-            </select>
+            </UiSelect>
             {isCustomOpen ? (
               <div className="flex items-center gap-1.5">
-                <input
+                <UiInput
+                  unstyled
                   type="text"
                   value={customDraft}
                   onChange={(event) =>
@@ -578,9 +591,9 @@ const RecommendationRow = memo(function RecommendationRow({
                     )
                   }
                   placeholder="상태 입력"
-                  className="h-8 min-w-0 flex-1 rounded-md border border-beige900/10 bg-white/80 px-2 font-geist text-xs text-beige900 outline-none transition placeholder:text-beige900/35 focus:border-beige900/25"
+                  className="h-8 min-w-0 flex-1 rounded-md border border-neutral-1000-a05 bg-bg-default/80 px-2 text-xs text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-1000-a10"
                 />
-                <button
+                <BareButton
                   type="button"
                   onClick={() => onCustomSave(item)}
                   disabled={isSaving || !customDraft.trim()}
@@ -591,12 +604,12 @@ const RecommendationRow = memo(function RecommendationRow({
                   ) : (
                     <Save className="h-3.5 w-3.5" />
                   )}
-                </button>
+                </BareButton>
               </div>
             ) : null}
           </div>
         ) : (
-          <span className="text-beige900/45">{item.effectiveStage}</span>
+          <span className="text-neutral-muted">{item.effectiveStage}</span>
         )}
       </td>
     </tr>
@@ -746,12 +759,12 @@ export const RecommendationsTab = memo(function RecommendationsTab({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className={opsTheme.eyebrow}>Recommendations</div>
-          <div className="mt-1 font-geist text-xs text-beige900/45">
+          <div className="mt-1 text-xs text-neutral-muted">
             Internal / External 추천 기록, 열람, 클릭, 피드백, 진행 상태
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
+          <BareButton
             type="button"
             onClick={() => {
               setManualNotice("");
@@ -761,11 +774,11 @@ export const RecommendationsTab = memo(function RecommendationsTab({
           >
             <Sparkles className="h-3.5 w-3.5" />
             Internal 추천 등록
-          </button>
+          </BareButton>
           <div
             role="radiogroup"
             aria-label="추천 표시 범위"
-            className="flex items-center gap-1.5 rounded-md border border-beige900/10 bg-white/55 px-2 py-1 font-geist text-[11px] text-beige900/55"
+            className="flex items-center gap-1.5 rounded-md border border-neutral-1000-a05 bg-bg-default/55 px-2 py-1 text-[11px] text-neutral-muted"
           >
             {RECOMMENDATION_SOURCE_FILTER_OPTIONS.map((option) => (
               <label
@@ -773,23 +786,23 @@ export const RecommendationsTab = memo(function RecommendationsTab({
                 className={cx(
                   "inline-flex h-6 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded px-1 transition",
                   sourceFilter === option.id
-                    ? "text-beige900"
-                    : "hover:text-beige900/75"
+                    ? "text-neutral-primary"
+                    : "hover:text-neutral-muted"
                 )}
               >
-                <input
-                  type="radio"
+                <UiRadio
+                  unstyled
                   name={`recommendation-source-filter-${userId}`}
                   value={option.id}
                   checked={sourceFilter === option.id}
                   onChange={() => setSourceFilter(option.id)}
-                  className="h-3 w-3 accent-beige900"
+                  className="h-3 w-3 accent-black"
                 />
                 {option.label}
               </label>
             ))}
           </div>
-          <FileText className="h-4 w-4 shrink-0 text-beige900/30" />
+          <FileText className="h-4 w-4 shrink-0 text-neutral-soft" />
         </div>
       </div>
 
@@ -802,7 +815,7 @@ export const RecommendationsTab = memo(function RecommendationsTab({
 
       {isLoading ? (
         <div className="flex items-center justify-center py-10">
-          <LoaderCircle className="h-5 w-5 animate-spin text-beige900/30" />
+          <LoaderCircle className="h-5 w-5 animate-spin text-neutral-soft" />
         </div>
       ) : error ? (
         <div className={cx(opsTheme.errorNotice, "mt-4")}>
@@ -811,14 +824,14 @@ export const RecommendationsTab = memo(function RecommendationsTab({
             : "추천 기록을 불러오지 못했습니다."}
         </div>
       ) : recommendations.length === 0 ? (
-        <div className="mt-4 rounded-md border border-dashed border-beige900/15 bg-white/30 px-4 py-6 text-center font-geist text-sm text-beige900/40">
+        <div className="mt-4 rounded-md border border-dashed border-neutral-1000-a10 bg-bg-floating px-4 py-6 text-center text-sm text-neutral-soft">
           {emptyRecommendationMessage}
         </div>
       ) : (
         <>
-          <div className="mt-4 overflow-x-auto rounded-md border border-beige900/10 bg-white/55">
-            <table className="min-w-[1080px] w-full table-fixed border-collapse font-geist text-xs">
-              <thead className="bg-beige500/45 text-left text-beige900/45">
+          <div className="mt-4 overflow-x-auto rounded-md border border-neutral-1000-a05 bg-bg-default/55">
+            <table className="min-w-[1080px] w-full table-fixed border-collapse text-xs">
+              <thead className="bg-bg-weak text-left text-neutral-muted">
                 <tr>
                   <th className="w-[135px] px-2 py-2 font-medium">추천일</th>
                   <th className="w-[90px] px-2 py-2 font-medium">구분</th>
@@ -830,7 +843,7 @@ export const RecommendationsTab = memo(function RecommendationsTab({
                   <th className="w-[230px] px-2 py-2 font-medium">상태</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-beige900/10">
+              <tbody className="divide-y divide-neutral-1000-a05">
                 {recommendations.map((item) => {
                   const selectValue = getRecommendationStageSelectValue(item);
                   const isSavedCustom =
@@ -864,7 +877,7 @@ export const RecommendationsTab = memo(function RecommendationsTab({
 
           {hasNextPage ? (
             <div className="mt-3 flex justify-center">
-              <button
+              <BareButton
                 type="button"
                 onClick={() => void fetchNextPage()}
                 disabled={isFetchingNextPage}
@@ -878,7 +891,7 @@ export const RecommendationsTab = memo(function RecommendationsTab({
                 ) : (
                   "20개 더 보기"
                 )}
-              </button>
+              </BareButton>
             </div>
           ) : null}
         </>

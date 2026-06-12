@@ -2,10 +2,11 @@ import { ExternalLink, Linkedin, MessageSquareText } from "lucide-react";
 import React, { useEffect, useRef } from "react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { careerUpdateNotes } from "@/content/careerUpdateNotes";
-import { PillLink } from "@/components/ui/pill";
-import { Text } from "@/components/ui/typography";
-import { CareerActionButton } from "./ui/CareerActionButton";
+import { BadgeLink } from "@/components/ui/badge";
+import { Text } from "@/components/ui/text";
+import { ActionButton } from "@/components/ui/button";
 import Image from "next/image";
+import { Badge } from "../ops/network/shared";
 
 const harperActivityLinks = [
   {
@@ -55,12 +56,12 @@ const CareerUpdateNotesModal = ({
       onClose={onClose}
       ariaLabel="업데이트 노트"
       overlayClassName="items-start pt-14"
-      panelClassName="max-w-none w-[min(720px,calc(100vw-32px))] rounded-[18px] border-beige900/10 bg-[#fbfaf7]"
+      panelClassName="max-w-none w-[min(720px,calc(100vw-32px))] rounded-[18px] border-neutral-1000-a05 bg-bg-floating"
       bodyClassName="p-0"
-      closeButtonClassName="right-4 top-4 rounded-[8px] text-beige900/45 hover:bg-beige900/6 hover:text-beige900"
+      closeButtonClassName="right-4 top-4 rounded-[8px] text-neutral-soft hover:bg-black/6 hover:text-neutral-primary"
     >
-      <section className="font-geist text-beige900">
-        <header className="border-b border-beige900/10 px-5 pb-4 pt-5">
+      <section className="text-neutral-primary">
+        <header className="border-b border-neutral-1000-a05 px-5 pb-4 pt-5">
           <div className="min-w-0">
             <Text as="div" type="eyebrow">
               Update notes
@@ -69,7 +70,7 @@ const CareerUpdateNotesModal = ({
               Harper 업데이트 노트
             </Text>
             <div className="mt-4 flex flex-row gap-2 items-center justify-between">
-              <CareerActionButton
+              <ActionButton
                 type="button"
                 actionVariant="secondary"
                 onClick={onSuggestUpdate}
@@ -77,16 +78,18 @@ const CareerUpdateNotesModal = ({
               >
                 <MessageSquareText className="h-3.5 w-3.5" />
                 제안하기
-              </CareerActionButton>
+              </ActionButton>
               <div className="mt-2 flex flex-wrap gap-2">
                 {harperActivityLinks.map((link) => {
                   const LinkIcon = link.icon;
 
                   return (
-                    <PillLink key={link.href} href={link.href}>
-                      {LinkIcon}
-                      {link.label}
-                    </PillLink>
+                    <Badge
+                      key={link.href}
+                      onClick={() => window.open(link.href, "_blank")}
+                    >
+                      {LinkIcon} &nbsp;{link.label}
+                    </Badge>
                   );
                 })}
               </div>
@@ -100,7 +103,7 @@ const CareerUpdateNotesModal = ({
           aria-label="업데이트 노트 내용"
           className="max-h-[min(68svh,640px)] overflow-y-auto px-5 py-2 outline-none"
         >
-          <div className="divide-y divide-beige900/10">
+          <div className="divide-y divide-neutral-1000-a05">
             {careerUpdateNotes.map((note) => {
               const isLatest = note.id === latestId;
 
@@ -131,7 +134,7 @@ const CareerUpdateNotesModal = ({
                         <li key={item} className="flex items-start gap-2">
                           <span
                             aria-hidden="true"
-                            className="mt-2 h-1 w-1 shrink-0 rounded-full bg-beige900/35"
+                            className="mt-2 h-1 w-1 shrink-0 rounded-full bg-black/35"
                           />
                           <Text as="span" type="desc">
                             {item}

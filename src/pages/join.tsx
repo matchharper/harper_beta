@@ -420,7 +420,7 @@ const Onboard: React.FC = () => {
             height={32}
           />
           <div className="text-2xl font-normal mt-2">{m.join.done.title}</div>
-          <div className="text-lg font-normal text-xgray700">
+          <div className="text-lg font-normal text-neutral-800">
             {m.join.done.description.split("\n").map((line) => (
               <React.Fragment key={line}>
                 {line}
@@ -430,7 +430,7 @@ const Onboard: React.FC = () => {
           </div>
           <button
             onClick={() => router.push("/")}
-            className="bg-brightnavy text-white mt-4 px-4 h-11 rounded-[4px] text-lg font-medium hover:opacity-90"
+            className="bg-neutral-1000 text-white mt-4 px-4 h-11 rounded-[4px] text-lg font-medium hover:opacity-90"
           >
             {m.join.done.backToCompanies}
           </button>
@@ -438,12 +438,12 @@ const Onboard: React.FC = () => {
       ) : (
         <div className="flex flex-col md:flex-row items-start justify-center h-full w-full px-4 pb-20 pt-4 md:pt-8 md:pb-28">
           <div className="h-full items-start justify-center min-w-16 pt-1 hidden md:flex">
-            <div className="flex flex-row items-center gap-1 font-light text-brightnavy">
+            <div className="flex flex-row items-center gap-1 font-light text-neutral-1000">
               {step + 1} <ArrowRight size={16} strokeWidth={2} />
             </div>
           </div>
 
-          <div className="flex md:hidden rounded-md w-6 h-6 text-sm bg-brightnavy/80 text-white mb-4 items-center justify-center">
+          <div className="flex md:hidden rounded-md w-6 h-6 text-sm bg-neutral-1000/80 text-white mb-4 items-center justify-center">
             {step + 1}
           </div>
 
@@ -467,7 +467,7 @@ const Onboard: React.FC = () => {
                 ) : null}
 
                 {currentStep.description ? (
-                  <div className="text-xgray600 text-md md:text-lg font-normal mb-4">
+                  <div className="text-neutral-700 text-md md:text-lg font-normal mb-4">
                     {currentStep.description}
                   </div>
                 ) : (
@@ -586,7 +586,7 @@ const Onboard: React.FC = () => {
                   <button
                     onClick={() => void goNext()}
                     disabled={loading || submitLoading}
-                    className="bg-brightnavy shadow-lg transition-all duration-200 cursor-pointer text-white w-full md:w-auto px-4 h-11 rounded-[4px] text-lg font-medium hover:opacity-90 disabled:opacity-60"
+                    className="bg-neutral-1000 shadow-lg transition-all duration-200 cursor-pointer text-white w-full md:w-auto px-4 h-11 rounded-[4px] text-lg font-medium hover:opacity-90 disabled:opacity-60"
                   >
                     {submitLoading ? (
                       <span className="animate-spin">
@@ -600,7 +600,7 @@ const Onboard: React.FC = () => {
                   </button>
 
                   <span className="text-[14px] font-light flex-row items-center gap-1 hidden md:flex">
-                    <span className="text-xgray700">
+                    <span className="text-neutral-800">
                       {m.join.actions.press}
                     </span>
                     <span className="text-black font-medium">
@@ -611,7 +611,7 @@ const Onboard: React.FC = () => {
 
                   {/* 저장중 표시(원하면) */}
                   {loading ? (
-                    <span className="text-sm text-xgray600">
+                    <span className="text-sm text-neutral-700">
                       {m.join.actions.saving}
                     </span>
                   ) : null}
@@ -621,7 +621,7 @@ const Onboard: React.FC = () => {
           </div>
 
           {/* Bottom-left dev nav */}
-          <div className="flex flex-row items-center gap-2 fixed bottom-4 left-4 text-sm text-xgray600">
+          <div className="flex flex-row items-center gap-2 fixed bottom-4 left-4 text-sm text-neutral-700">
             <button
               type="button"
               className="underline hover:text-black"

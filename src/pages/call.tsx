@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/router";
 import React, { useEffect, useRef, useState } from "react";
+import { BareButton } from "@/components/ui/button";
 
 const TEST_SCRIPT = "오늘은 기분이 좋다.";
 
@@ -179,11 +180,11 @@ const Call: React.FC = () => {
             <div className="flex h-6 w-full flex-row items-center justify-start gap-2">
               <span>Call with Harper</span>
               {(callStatus === "calling" || callStatus === "ended") && (
-                <div className="text-xgray700">{timer}</div>
+                <div className="text-neutral-800">{timer}</div>
               )}
             </div>
 
-            <div className="relative flex h-[380px] w-full items-center justify-center rounded-lg border border-xlightgray shadow-sm">
+            <div className="relative flex h-[380px] w-full items-center justify-center rounded-lg border border-neutral-100 shadow-sm">
               <div className="flex flex-col items-center justify-center gap-3">
                 <div className="relative flex h-[140px] w-[140px] items-center justify-center rounded-full bg-[linear-gradient(45deg,#6d28d9,#8b5cf6,#c084fc,#e879f9,#f472b6)] bg-size-[300%_300%] transition-all animate-gradientx">
                   {isPlayingTts && <MicPulseRings count={2} />}
@@ -192,23 +193,23 @@ const Call: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex h-[220px] w-full items-end justify-center rounded-lg border border-xgray300/0">
+            <div className="flex h-[220px] w-full items-end justify-center rounded-lg border border-neutral-300/0">
               {callStatus === "calling" && (
                 <div className="flex w-full flex-col items-center justify-center">
                   <div className="flex flex-row items-end justify-end gap-8">
                     <div className="group inline-flex flex-col items-center gap-2">
                       {!isMuted && isRecording && (
                         <div className="flex w-[86%] items-center gap-3">
-                          <div className="h-2 flex-1 overflow-hidden rounded-full bg-xgray300">
+                          <div className="h-2 flex-1 overflow-hidden rounded-full bg-neutral-300">
                             <div
-                              className="h-full max-w-full rounded-full bg-xgrayblack transition-all duration-150"
+                              className="h-full max-w-full rounded-full bg-neutral-900 transition-all duration-150"
                               style={{ width: `${micLevel * 100 * 1.2}%` }}
                             />
                           </div>
                         </div>
                       )}
 
-                      <button
+                      <BareButton
                         ref={sendButtonRef}
                         type="button"
                         onClick={
@@ -218,7 +219,7 @@ const Call: React.FC = () => {
                           isActiveButton ? "scale-95" : "scale-100"
                         } ${
                           isRecording
-                            ? "w-64 bg-xgrayblack"
+                            ? "w-64 bg-neutral-900"
                             : "w-16 bg-white disabled:opacity-40"
                         }`}
                       >
@@ -227,7 +228,7 @@ const Call: React.FC = () => {
                         ) : (
                           <AudioLines className="h-5 w-5 text-black/90" />
                         )}
-                      </button>
+                      </BareButton>
 
                       <span className="text-sm font-light text-black/80">
                         {isRecording
@@ -237,7 +238,7 @@ const Call: React.FC = () => {
                     </div>
 
                     <div className="group inline-flex flex-col items-center gap-2">
-                      <button
+                      <BareButton
                         type="button"
                         onClick={toggleMute}
                         className="flex h-16 w-16 items-center justify-center rounded-full border border-black/30 transition active:scale-95"
@@ -247,20 +248,20 @@ const Call: React.FC = () => {
                         ) : (
                           <Mic className="h-5 w-5 text-black/90" />
                         )}
-                      </button>
+                      </BareButton>
                       <span className="text-base font-light text-black/90">
                         {isMuted ? "Muted" : "Mute"}
                       </span>
                     </div>
 
                     <div className="group inline-flex flex-col items-center gap-2">
-                      <button
+                      <BareButton
                         type="button"
                         onClick={handleEndCall}
                         className="flex h-16 w-16 items-center justify-center rounded-full border border-red-600 bg-red-600/10 transition active:scale-95"
                       >
                         <PhoneOff className="h-5 w-5 text-red-600" />
-                      </button>
+                      </BareButton>
                       <span className="text-base text-black/90">End Call</span>
                     </div>
                   </div>
@@ -278,17 +279,17 @@ const Call: React.FC = () => {
           <div className="flex w-full flex-row items-center justify-between gap-2">
             <div className="h-6 w-full text-sm text-black/50">{message}</div>
             <div className="flex w-full items-center justify-end">
-              <button
+              <BareButton
                 type="button"
                 onClick={() => setIsScriptVisible((prev) => !prev)}
-                className="cursor-pointer text-brightnavy hover:opacity-90"
+                className="cursor-pointer text-neutral-1000 hover:opacity-90"
               >
                 {isScriptVisible ? "Hide" : "Show"}
-              </button>
+              </BareButton>
             </div>
           </div>
 
-          <div className="flex h-full w-full flex-row items-center justify-center gap-2 rounded-md bg-xlightgray p-4 md:flex-col">
+          <div className="flex h-full w-full flex-row items-center justify-center gap-2 rounded-md bg-neutral-100 p-4 md:flex-col">
             {callStatus === "ended" && (
               <div className="flex flex-col items-center justify-between">
                 <RecruiterCallSummaryScreen
@@ -303,7 +304,9 @@ const Call: React.FC = () => {
             {callStatus === "idle" && (
               <div className="flex w-full flex-1 flex-col items-center justify-between gap-4">
                 <div className="w-full text-left">
-                  <div>지원자님만을 위한 리크루터 AI 하퍼와의 통화가 시작됩니다.</div>
+                  <div>
+                    지원자님만을 위한 리크루터 AI 하퍼와의 통화가 시작됩니다.
+                  </div>
                   <div>
                     통화를 시작하기에 앞서, 통화하기에 적합한 환경으로 이동한 뒤
                     아래 시작 버튼을 눌러주세요.
@@ -323,15 +326,16 @@ const Call: React.FC = () => {
                   {isTest && (
                     <div className="mt-12 flex w-full flex-col gap-2">
                       <div>
-                        테스트 중입니다. 아래 텍스트를 읽고, 제출 버튼을 눌러주세요.
+                        테스트 중입니다. 아래 텍스트를 읽고, 제출 버튼을
+                        눌러주세요.
                       </div>
 
-                      <div className="flex h-12 items-center justify-start rounded-lg border border-xgray300 bg-xlightgray px-4 text-sm text-black/80">
+                      <div className="flex h-12 items-center justify-start rounded-lg border border-neutral-300 bg-neutral-100 px-4 text-sm text-black/80">
                         {TEST_SCRIPT}
                       </div>
 
                       <div
-                        className="flex min-h-[48px] flex-row items-center justify-start rounded-lg border border-xgray300 bg-blue-100 px-4 text-sm text-blue-800"
+                        className="flex min-h-[48px] flex-row items-center justify-start rounded-lg border border-neutral-300 bg-blue-100 px-4 text-sm text-blue-800"
                         dangerouslySetInnerHTML={{
                           __html: textScript || userTranscript,
                         }}
@@ -358,21 +362,23 @@ const Call: React.FC = () => {
 
                 <div className="flex w-full flex-col gap-2">
                   {(!isTest || isTestLoading || isTestDone) && (
-                    <button
+                    <BareButton
                       type="button"
                       onClick={handleStartTest}
-                      className="flex w-full items-center justify-center rounded-lg border border-xgray300 bg-xlightgray py-4 text-black hover:bg-xgray300/40"
+                      className="flex w-full items-center justify-center rounded-lg border border-neutral-300 bg-neutral-100 py-4 text-black hover:bg-neutral-300/40"
                     >
                       {isTestDone ? (
-                        wrongCount > 0
-                          ? "다시 테스트 하기"
-                          : "테스트 완료. 다시 테스트 하기"
+                        wrongCount > 0 ? (
+                          "다시 테스트 하기"
+                        ) : (
+                          "테스트 완료. 다시 테스트 하기"
+                        )
                       ) : isTestLoading ? (
                         <LoaderCircle className="h-6 w-6 animate-spin text-black" />
                       ) : (
                         "Test"
                       )}
-                    </button>
+                    </BareButton>
                   )}
 
                   {isTest && !isTestDone && !isTestLoading && (
@@ -380,31 +386,31 @@ const Call: React.FC = () => {
                       <div className="flex w-full items-center gap-3">
                         <Mic className="h-4 w-4 text-black" />
 
-                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-xgray300">
+                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-neutral-300">
                           <div
-                            className="h-full rounded-full bg-brightnavy transition-all duration-150"
+                            className="h-full rounded-full bg-neutral-1000 transition-all duration-150"
                             style={{ width: `${micLevel * 100}%` }}
                           />
                         </div>
                       </div>
 
-                      <button
+                      <BareButton
                         type="button"
                         onClick={handleCheckTest}
-                        className="w-full rounded-lg border border-xgray300 bg-xlightgray py-4 text-black hover:bg-xgray300"
+                        className="w-full rounded-lg border border-neutral-300 bg-neutral-100 py-4 text-black hover:bg-neutral-300"
                       >
                         제출하기
-                      </button>
+                      </BareButton>
                     </div>
                   )}
 
-                  <button
+                  <BareButton
                     type="button"
                     onClick={handleStartCall}
-                    className="w-full rounded-lg bg-brightnavy py-4 text-white hover:opacity-90"
+                    className="w-full rounded-lg bg-neutral-1000 py-4 text-white hover:opacity-90"
                   >
                     Start Call
-                  </button>
+                  </BareButton>
                 </div>
               </div>
             )}
@@ -413,9 +419,12 @@ const Call: React.FC = () => {
               <div className="flex w-full flex-1 flex-col items-center justify-between gap-4 overflow-y-scroll pb-6">
                 <div className="flex w-full flex-col gap-2">
                   {isScriptVisible && (
-                    <div className="min-h-[120px] w-full rounded-lg bg-xlightgray px-4 py-0 text-sm">
+                    <div className="min-h-[120px] w-full rounded-lg bg-neutral-100 px-4 py-0 text-sm">
                       {assistantTexts.map((transcript, index) => (
-                        <div key={`assistant-${index}`} className="flex w-full flex-col gap-2">
+                        <div
+                          key={`assistant-${index}`}
+                          className="flex w-full flex-col gap-2"
+                        >
                           <div className="pt-2">
                             <div className="whitespace-pre-wrap text-black/80">
                               {transcript}

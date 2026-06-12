@@ -61,6 +61,8 @@ import WhySection from "@/components/landing/WhySection";
 import FounderNote from "@/components/landing/FounderNote";
 import LinkedinHarperCompare from "@/components/landing/LinkedinHarperCompare";
 import AsteriskIcon from "@/assets/icons/asterisk";
+import { BareButton } from "@/components/ui/button";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
 const LoginModal = dynamic(() => import("@/components/Modal/LoginModal"));
 const RADAR_LOGIN_MODAL_LANGUAGE = "ko" as const;
@@ -224,11 +226,11 @@ export const StartButton = React.memo(function StartButton({
       : "mt-10 px-8 py-4 text-sm md:text-base";
 
   return (
-    <button
+    <BareButton
       type="button"
       onClick={onClick}
       className={[
-        "group relative z-10 cursor-pointer rounded-full bg-accenta1 font-medium text-black",
+        "group relative z-10 cursor-pointer rounded-full bg-accent-200 font-medium text-black",
         "ring-1 ring-white/10",
         "shadow-[0_12px_40px_rgba(180,255,120,0.25)]",
         "transition-all duration-200",
@@ -238,7 +240,7 @@ export const StartButton = React.memo(function StartButton({
       ].join(" ")}
     >
       {label}
-    </button>
+    </BareButton>
   );
 });
 
@@ -333,11 +335,11 @@ function SearchInputPanel({
 
   return (
     <form onSubmit={onSubmit} className="w-full rounded-[28px] p-2 md:p-5">
-      <div className="relative w-full rounded-[24px] border border-white/10 bg-hgray200 p-1">
+      <div className="relative w-full rounded-[24px] border border-white/10 bg-neutral-900 p-1">
         <div className="relative rounded-[20px] backdrop-blur-xl">
           {isQueryEmpty && (
             <div
-              className="pointer-events-none absolute left-4 right-16 top-4 overflow-hidden text-sm leading-6 text-hgray600 md:right-20 md:text-[15px]"
+              className="pointer-events-none absolute left-4 right-16 top-4 overflow-hidden text-sm leading-6 text-neutral-600 md:right-20 md:text-[15px]"
               aria-hidden="true"
             >
               <div
@@ -358,7 +360,8 @@ function SearchInputPanel({
             </div>
           )}
 
-          <textarea
+          <UiTextarea
+            unstyled
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
             onKeyDown={(e) => {
@@ -379,20 +382,20 @@ function SearchInputPanel({
         </div>
 
         <div className="absolute bottom-2 right-2 flex items-center justify-center gap-2 md:bottom-3 md:right-3">
-          <button
+          <BareButton
             type="submit"
             disabled={!canSend}
             aria-label="Submit search"
             className={[
-              "inline-flex h-10 w-10 items-center justify-center rounded-full transition active:scale-[0.98] md:h-11 md:w-11 bg-accenta1 text-black hover:opacity-90",
+              "inline-flex h-10 w-10 items-center justify-center rounded-full transition active:scale-[0.98] md:h-11 md:w-11 bg-accent-200 text-black hover:opacity-90",
             ].join(" ")}
           >
             <ArrowUp size={20} />
-          </button>
+          </BareButton>
         </div>
       </div>
 
-      <div className="mt-4 text-left text-sm text-hgray700"></div>
+      <div className="mt-4 text-left text-sm text-neutral-500"></div>
     </form>
   );
 }
@@ -1137,7 +1140,7 @@ export default function RadarLandingPage() {
               </h1>
 
               <p
-                className="mt-6 md:mt-8 max-w-[700px] text-base font-light leading-7 text-hgray700 md:text-lg md:leading-8"
+                className="mt-6 md:mt-8 max-w-[700px] text-base font-light leading-7 text-neutral-500 md:text-lg md:leading-8"
                 dangerouslySetInnerHTML={{
                   __html: heroSubtitle,
                 }}
@@ -1195,7 +1198,7 @@ export default function RadarLandingPage() {
                 }}
               />
               <div className="text-white flex flex-row items-center justify-center gap-3 w-full text-center text-xl md:text-2xl font-medium font-hedvig">
-                <AsteriskIcon className="w-6 h-6 text-accenta1/90" />
+                <AsteriskIcon className="w-6 h-6 text-accent-200/90" />
                 Harper를 신뢰하는 팀들
               </div>
 
@@ -1206,14 +1209,14 @@ export default function RadarLandingPage() {
                     className={`relative flex h-full flex-col`}
                   >
                     <p
-                      className="font-geist mt-12 text-center max-w-[560px] text-[16px] text-white/65 md:text-[20px]"
+                      className="mt-12 text-center max-w-[560px] text-[16px] text-white/65 md:text-[20px]"
                       dangerouslySetInnerHTML={{
                         __html: item.quote,
                       }}
                     />
 
                     <div
-                      className="text-center w-full mt-4 text-hgray700 text-lg font-light"
+                      className="text-center w-full mt-4 text-neutral-500 text-lg font-light"
                       dangerouslySetInnerHTML={{
                         __html: item.attribution,
                       }}
@@ -1268,7 +1271,7 @@ export default function RadarLandingPage() {
                 <Head1 className="text-white">
                   Who&apos;s Not on LinkedIn?
                 </Head1>
-                <h2 className="mb-12 mt-8 max-w-[760px] text-sm font-light text-hgray700 md:mb-20 md:text-lg">
+                <h2 className="mb-12 mt-8 max-w-[760px] text-sm font-light text-neutral-500 md:mb-20 md:text-lg">
                   Harper는 링크드인 뿐만 아니라 코드, 논문 등 다양한 출처를
                   분석해
                   <br />
@@ -1341,7 +1344,7 @@ export default function RadarLandingPage() {
                 are our talent pool.
               </h2>
 
-              <p className="mt-5 max-w-[620px] text-center text-[15px] leading-7 text-hgray700 md:text-[18px]">
+              <p className="mt-5 max-w-[620px] text-center text-[15px] leading-7 text-neutral-500 md:text-[18px]">
                 하퍼와 함께 진짜 인재를 찾아보세요.
               </p>
 

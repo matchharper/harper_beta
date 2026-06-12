@@ -3,6 +3,9 @@ import type {
   AdminMetricInterval,
   AdminMetricKey,
 } from "@/lib/adminMetrics/types";
+import { Checkbox as UiCheckbox } from "@/components/ui/checkbox";
+import { BareButton } from "@/components/ui/button";
+import { Input as UiInput } from "@/components/ui/input";
 
 type AdminMetricsControlsProps = {
   selectedMetricKeys: AdminMetricKey[];
@@ -63,8 +66,8 @@ export default function AdminMetricsControls({
                 }`}
                 style={{ borderRadius: 0 }}
               >
-                <input
-                  type="checkbox"
+                <UiCheckbox
+                  unstyled
                   checked={isSelected}
                   onChange={() => onToggleMetric(metric.key)}
                   className="hidden"
@@ -89,15 +92,13 @@ export default function AdminMetricsControls({
       >
         <div className="grid gap-4 md:grid-cols-[1.2fr_1.4fr_0.7fr]">
           <div>
-            <div className="text-[12px] font-semibold text-black">
-              Bucket
-            </div>
+            <div className="text-[12px] font-semibold text-black">Bucket</div>
             <div className="mt-2 flex flex-wrap gap-2">
               {INTERVAL_OPTIONS.map((option) => {
                 const isActive = interval === option.value;
 
                 return (
-                  <button
+                  <BareButton
                     key={option.value}
                     type="button"
                     onClick={() => onIntervalChange(option.value)}
@@ -109,25 +110,25 @@ export default function AdminMetricsControls({
                     style={{ borderRadius: 0 }}
                   >
                     {option.label}
-                  </button>
+                  </BareButton>
                 );
               })}
             </div>
           </div>
 
           <div>
-            <div className="text-[12px] font-semibold text-black">
-              기간
-            </div>
+            <div className="text-[12px] font-semibold text-black">기간</div>
             <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-              <input
+              <UiInput
+                unstyled
                 type="date"
                 value={startDate}
                 onChange={(event) => onStartDateChange(event.target.value)}
                 className="h-9 w-full border border-black/15 px-3 text-[12px] outline-none transition focus:border-black/35"
                 style={{ borderRadius: 0 }}
               />
-              <input
+              <UiInput
+                unstyled
                 type="date"
                 value={endDate}
                 onChange={(event) => onEndDateChange(event.target.value)}
@@ -141,7 +142,8 @@ export default function AdminMetricsControls({
             <div className="text-[12px] font-semibold text-black">
               Grid Cols
             </div>
-            <input
+            <UiInput
+              unstyled
               type="number"
               min={1}
               max={4}

@@ -14,6 +14,8 @@ import { useRouter } from "next/router";
 import { CandidateDetail } from "@/hooks/useCandidateDetail";
 import { Skeleton } from "../ui/skeleton";
 import { useMessages } from "@/i18n/useMessage";
+import { BareButton } from "@/components/ui/button";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
 export type ChatScope =
   | { type: "query"; queryId: string }
@@ -150,15 +152,15 @@ export default function CandidChatPanel({
   return (
     <div className="w-full flex flex-col min-h-0 h-screen">
       {/* Header (fixed) */}
-      <div className="flex items-center justify-between flex-none h-14 px-4 text-beige900">
+      <div className="flex items-center justify-between flex-none h-14 px-4 text-neutral-primary">
         <div
           onClick={() => router.back()}
-          className="text-sm font-medium flex items-center gap-1.5 hover:gap-2 cursor-pointer hover:text-beige900 transition-all duration-200"
+          className="text-sm font-medium flex items-center gap-1.5 hover:gap-2 cursor-pointer hover:text-neutral-primary transition-all duration-200"
         >
-          <ArrowLeft className="w-3.5 h-3.5 text-beige900/55" />
+          <ArrowLeft className="w-3.5 h-3.5 text-neutral-muted" />
           <div>{title === "" ? <Skeleton className="w-20 h-5" /> : title}</div>
         </div>
-        <div className="flex flex-row justify-center items-center gap-2 text-beige900/65">
+        <div className="flex flex-row justify-center items-center gap-2 text-neutral-muted">
           {/* <div
             className="p-1 cursor-pointer"
             onClick={() => setIsSettingsOpen(true)}
@@ -175,10 +177,10 @@ export default function CandidChatPanel({
       <div className="flex-1 min-h-0 relative">
         <div
           ref={scrollRef}
-          className="h-full overflow-y-auto px-4 pt-4 scrollbar-thin scrollbar-thumb-beige900/10 scrollbar-track-transparent hover:scrollbar-thumb-beige900/20"
+          className="h-full overflow-y-auto px-4 pt-4 scrollbar-thin scrollbar-thumb-neutral-1000-a10 scrollbar-track-transparent hover:scrollbar-thumb-neutral-1000-a10"
         >
           {chat.isLoadingHistory && (
-            <div className="text-xs text-beige900/55 flex items-center gap-2 py-2">
+            <div className="text-xs text-neutral-muted flex items-center gap-2 py-2">
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
               {m.chat.loadingHistory}
             </div>
@@ -195,17 +197,17 @@ export default function CandidChatPanel({
         </div>
 
         {showJumpToBottom && (
-          <button
+          <BareButton
             type="button"
             onClick={() => {
               scrollToBottom("smooth");
               setStickToBottom(true);
               setShowJumpToBottom(false);
             }}
-            className="absolute bottom-3 right-3 flex items-center gap-1 cursor-pointer rounded-full bg-beige500/55 hover:bg-beige500/70 px-2 py-2 text-xs text-beige900"
+            className="absolute bottom-3 right-3 flex items-center gap-1 cursor-pointer rounded-full bg-bg-floating hover:bg-bg-weak px-2 py-2 text-xs text-neutral-primary"
           >
             <ArrowDown className="w-4 h-4" />
-          </button>
+          </BareButton>
         )}
       </div>
 
@@ -213,14 +215,14 @@ export default function CandidChatPanel({
       {isCandidEmpty && (
         <div className="flex flex-col gap-2 p-3">
           {m.chat.candidSuggestions.map((q) => (
-            <button
+            <BareButton
               key={q}
               type="button"
               onClick={() => void onClickCandidSuggestion(q)}
-              className="inline-flex w-fit text-left rounded-lg bg-beige500/55 hover:bg-beige500/70 px-3 py-2 text-xs text-beige900 cursor-pointer"
+              className="inline-flex w-fit text-left rounded-lg bg-bg-floating hover:bg-bg-weak px-3 py-2 text-xs text-neutral-primary cursor-pointer"
             >
               {q}
-            </button>
+            </BareButton>
           ))}
         </div>
       )}
@@ -250,23 +252,24 @@ export default function CandidChatPanel({
           size="lg"
         >
           <div className="space-y-4">
-            <div className="text-lg font-normal text-hgray900">
+            <div className="text-lg font-normal text-neutral-00/90">
               Candid System Prompt (테스트용)
             </div>
-            <textarea
-              className="w-full min-h-[220px] rounded-xl bg-black/40 border border-white/10 p-3 text-xs text-hgray900"
+            <UiTextarea
+              unstyled
+              className="w-full min-h-[220px] rounded-xl bg-black/40 border border-neutral-00/10 p-3 text-xs text-neutral-00/90"
               value={promptDraft}
               onChange={(e) => setPromptDraft(e.target.value)}
             />
             <div className="flex items-center justify-between">
-              <button
+              <BareButton
                 type="button"
-                className="text-xs text-hgray600 hover:text-hgray900"
+                className="text-xs text-neutral-00/60 hover:text-neutral-00/90"
                 onClick={() => setPromptDraft(CANDID_SYSTEM_PROMPT)}
               >
                 기본값 불러오기
-              </button>
-              <div className="text-xs text-hgray600">
+              </BareButton>
+              <div className="text-xs text-neutral-00/60">
                 저장 후 다음 메시지부터 적용됨
               </div>
             </div>

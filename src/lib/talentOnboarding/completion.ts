@@ -1,5 +1,6 @@
 export type TalentOnboardingCompletionReason =
   | "llm_onboarding_done_marker"
+  | "question_checklist_covered"
   | "user_requested_manual_completion";
 
 export const TALENT_ONBOARDING_DONE_MARKER = "[[HARPER_ONBOARDING_DONE]]";

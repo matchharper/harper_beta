@@ -1,14 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ADMIN_PAGE_PASSWORD } from "@/lib/admin";
 import type {
   AdminCareerJobFunnelStep,
@@ -151,7 +144,7 @@ export default function AdminCareerJobsTab({
           </div>
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             size="sm"
             className="h-8 rounded-none border-black/15 bg-white text-[12px] text-black shadow-none"
             onClick={() => query.refetch()}

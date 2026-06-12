@@ -3,7 +3,7 @@ import React from "react";
 
 const RoundImage = ({ src, alt }: { src: string; alt: string }) => {
   return (
-    <div className="rounded-full border border-hblack100 transition-all duration-300 hover:translate-x-[4px]">
+    <div className="rounded-full border border-neutral-300 transition-all duration-300 hover:translate-x-[4px]">
       <Image
         src={src}
         alt={alt}
@@ -17,8 +17,8 @@ const RoundImage = ({ src, alt }: { src: string; alt: string }) => {
 
 const CandidateSocialProof = () => {
   return (
-    <div className="mt-3 flex flex-row items-center gap-2 font-geist">
-      <div className="relative items-baseline gap-1 text-hblack500 font-normal text-sm flex">
+    <div className="mt-3 flex flex-row items-center gap-2 ">
+      <div className="relative items-baseline gap-1 text-neutral-800 font-normal text-sm flex">
         현재 500+명이 등록했습니다.
       </div>
       <div className="flex -space-x-2">

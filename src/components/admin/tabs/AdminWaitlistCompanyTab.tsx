@@ -2,6 +2,7 @@ import React from "react";
 import type { WaitlistCompany } from "@/components/admin/types";
 import { formatKST } from "@/components/admin/utils";
 import { Loading } from "@/components/ui/loading";
+import { BareButton } from "@/components/ui/button";
 
 type AdminWaitlistCompanyTabProps = {
   rows: WaitlistCompany[];
@@ -42,17 +43,20 @@ export default function AdminWaitlistCompanyTab({
             <div className="font-semibold">Error</div>
             <div className="text-black/70 mt-1">{error}</div>
           </div>
-          <button
+          <BareButton
             onClick={onRefresh}
             className="h-9 px-3 text-[13px] border border-black/15 hover:border-black/30 hover:bg-black/5"
             style={{ borderRadius: 0 }}
           >
             Retry
-          </button>
+          </BareButton>
         </div>
       ) : null}
 
-      <div className="border border-black/10 w-full" style={{ borderRadius: 0 }}>
+      <div
+        className="border border-black/10 w-full"
+        style={{ borderRadius: 0 }}
+      >
         {loading ? (
           <Loading
             size="sm"

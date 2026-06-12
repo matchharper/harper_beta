@@ -12,7 +12,7 @@ const FounderNote = () => {
       <BaseSectionLayout>
         <div className="w-[90%] max-w-[600px] flex flex-col">
           <div className="flex flex-col items-start gap-4 bg-white/20 rounded-2xl px-6 md:px-[30px] py-6 md:py-8">
-            <div className="text-[13px] md:text-base text-left md:leading-[30px] leading-[26px] font-normal text-hgray700">
+            <div className="text-[13px] md:text-base text-left md:leading-[30px] leading-[26px] font-normal text-neutral-500">
               <span
                 dangerouslySetInnerHTML={{
                   __html: m.companyLanding.testimonial.body,
@@ -32,7 +32,7 @@ const FounderNote = () => {
                 <div className="text-sm">
                   {m.companyLanding.testimonial.name}
                 </div>
-                <div className="text-hgray700 text-xs">
+                <div className="text-neutral-500 text-xs">
                   {m.companyLanding.testimonial.role}
                 </div>
               </div>

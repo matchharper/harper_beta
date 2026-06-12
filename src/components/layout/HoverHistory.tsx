@@ -9,6 +9,7 @@ import { ChevronRight, History } from "lucide-react";
 import { ChevronUp } from "lucide-react";
 import { ChevronDown } from "lucide-react";
 import QueryHistories from "./QueryHistories";
+import { BareButton } from "@/components/ui/button";
 
 const HoverHistory = ({
   collapsed,
@@ -31,18 +32,18 @@ const HoverHistory = ({
         >
           <DropdownMenu open={hoverHistory} onOpenChange={setHoverHistory}>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center justify-between px-3 py-2 text-[12px] text-beige900 cursor-pointer hover:bg-beige900/8 rounded-[6px]">
+              <BareButton className="flex items-center justify-between px-3 py-2 text-[12px] text-neutral-primary cursor-pointer hover:bg-bg-floating rounded-[6px]">
                 <History size={16} />
-              </button>
+              </BareButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent
-              className="w-64 border border-beige900/8 text-beige900 px-1 bg-beige100 mt-[-4px]"
+              className="w-64 border border-neutral-1000-a05 text-neutral-primary px-1 bg-bg-basement mt-[-4px]"
               side="right"
               align="start"
               sideOffset={0}
             >
               <DropdownMenuGroup>
-                <div className="w-full h-full bg-beige100 p-2 rounded-md">
+                <div className="w-full h-full bg-bg-basement p-2 rounded-md">
                   {/* 2. Nav & History: 이 영역이 스크롤됨 */}
                   <div
                     className="px-0 py-0 gap-1 flex-1 overflow-y-auto mt-0
@@ -68,7 +69,7 @@ const HoverHistory = ({
       <>
         <div
           onClick={() => setOpenHistory((v) => !v)}
-          className={`group flex flex-row items-center justify-start gap-2 px-2.5 py-1 text-[13px] text-beige900/55 cursor-pointer ${collapsed ? "hidden" : "flex"}`}
+          className={`group flex flex-row items-center justify-start gap-2 px-2.5 py-1 text-[13px] text-neutral-muted cursor-pointer ${collapsed ? "hidden" : "flex"}`}
         >
           <div>History</div>
           <div>

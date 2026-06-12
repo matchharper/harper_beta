@@ -50,7 +50,7 @@ export const FallingTagsMl = ({
       x: 10,
       y: -5,
       rotate: -12,
-      color: "bg-accenta1/70",
+      color: "bg-accent-200/70",
     },
     {
       label:

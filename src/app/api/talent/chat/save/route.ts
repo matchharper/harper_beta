@@ -4,6 +4,8 @@ import {
   countUserChatTurns,
   fetchTalentInsights,
   fetchTalentSetting,
+  getCareerOnboardingChecklistCoverage,
+  getOnboardingChecklistCoverageStats,
   getTalentSupabaseAdmin,
   normalizeTalentInsightContent,
   toTalentMessageResponse,
@@ -33,6 +35,7 @@ type Body = {
   assistantEndedOnboarding?: boolean;
   conversationStarterId?: string | null;
   conversationId: string;
+  internalCallRequestId?: string | null;
   userMessage?: string;
   assistantMessage?: string;
   isCallMode?: boolean;
@@ -59,6 +62,10 @@ export async function POST(req: NextRequest) {
     const conversationStarterId =
       typeof body.conversationStarterId === "string"
         ? body.conversationStarterId.trim()
+        : "";
+    const internalCallRequestId =
+      typeof body.internalCallRequestId === "string"
+        ? body.internalCallRequestId.trim()
         : "";
     const conversationStarter = conversationStarterId
       ? getCareerConversationStarterPrompt(conversationStarterId)
@@ -140,6 +147,7 @@ export async function POST(req: NextRequest) {
         assistantContent: assistantMessageText,
         buildPrompt: (promptArgs) =>
           buildCareerInsightExtractionOnlyPrompt({
+            currentChecklistCoverage: promptArgs.currentChecklistCoverage,
             currentInsightContent: promptArgs.currentInsightContent,
           }),
         conversationId,
@@ -287,16 +295,35 @@ export async function POST(req: NextRequest) {
       });
     });
 
-    // Completion check: explicit LLM onboarding-done marker only.
+    // Completion check: LLM marker or checklist coverage.
     const userTurnCount = await countUserChatTurns({ admin, conversationId });
     const currentProgressStep = Math.min(
       userTurnCount,
       TALENT_INTERVIEW_FINAL_STEP
     );
-    const completion = resolveTalentOnboardingCompletion({
+    const markerCompletion = resolveTalentOnboardingCompletion({
       assistantContent: assistantMessageTextWithMarkers ?? "",
       assistantEndedOnboarding,
     });
+    const latestChecklistCoverage = !Boolean(talentSetting?.is_onboarding_done)
+      ? await getCareerOnboardingChecklistCoverage({
+          admin,
+          conversationId,
+          currentInsightContent: responseTalentInsights,
+          userId: user.id,
+        })
+      : null;
+    const checklistCompletion =
+      latestChecklistCoverage &&
+      getOnboardingChecklistCoverageStats(latestChecklistCoverage).isComplete;
+    const completion = markerCompletion.completed
+      ? markerCompletion
+      : checklistCompletion
+        ? {
+            completed: true,
+            reason: "question_checklist_covered" as const,
+          }
+        : markerCompletion;
     const isCompleted = Boolean(insertedAssistantMessage) && completion.completed;
     const shouldApplyCompletion = isCompleted && !skipConversationWrites;
 
@@ -360,6 +387,7 @@ export async function POST(req: NextRequest) {
           await buildCareerRealtimeSessionInstructions({
             conversationId,
             conversationStarterId,
+            internalCallRequestId,
             toolNames: getCareerRealtimeCandidateToolNames(),
             userId: user.id,
           })

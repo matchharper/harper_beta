@@ -17,6 +17,8 @@ import {
   ActionDropdownItem,
   ActionDropdownSeparator,
 } from "@/components/ui/action-dropdown";
+import { BareButton } from "@/components/ui/button";
+import { Input as UiInput } from "@/components/ui/input";
 
 const BookmarkButton = ({
   userId,
@@ -145,34 +147,41 @@ const BookmarkButton = ({
       align="end"
       contentClassName="w-[260px]"
       trigger={
-        <button
+        <BareButton
           onMouseEnter={warmBookmarkMenu}
           onFocus={warmBookmarkMenu}
-          className={`cursor-pointer text-sm rounded-xl text-beige900 flex flex-row items-center gap-2 ${
+          className={`cursor-pointer text-sm rounded-xl text-neutral-primary flex flex-row items-center gap-2 ${
             size === "sm"
-              ? "h-7 px-1.5 text-xs bg-beige500/55 hover:bg-beige500/70"
+              ? "h-7 px-1.5 text-xs bg-bg-floating hover:bg-bg-weak"
               : size === "lg"
-                ? "h-12 px-6 text-lg bg-beige500/55 hover:bg-beige50/80"
-                : "h-8 px-2 text-sm bg-transparent hover:bg-beige50/80"
+                ? "h-12 px-6 text-lg bg-bg-floating hover:bg-bg-default"
+                : "h-8 px-2 text-sm bg-transparent hover:bg-bg-default"
           }`}
         >
           {isBookmarkedInUi ? (
-            <Bookmark className="w-4 h-4 text-beige900" fill="currentColor" />
+            <Bookmark
+              className="w-4 h-4 text-neutral-primary"
+              fill="currentColor"
+            />
           ) : (
-            <Bookmark className="w-4 h-4 text-beige900" />
+            <Bookmark className="w-4 h-4 text-neutral-primary" />
           )}
           {isText && (
             <span>{isBookmarkedInUi ? m.data.saved : m.data.save}</span>
           )}
-        </button>
+        </BareButton>
       }
     >
       {showInitialLoading && (
-        <div className="px-2 py-2 text-xs text-beige900/45">불러오는 중...</div>
+        <div className="px-2 py-2 text-xs text-neutral-soft">
+          불러오는 중...
+        </div>
       )}
 
-      {!isFoldersLoading && !isSelectedFoldersLoading && folders.length === 0 && (
-          <div className="px-2 py-2 text-xs text-beige900/45">
+      {!isFoldersLoading &&
+        !isSelectedFoldersLoading &&
+        folders.length === 0 && (
+          <div className="px-2 py-2 text-xs text-neutral-soft">
             폴더가 없습니다. 새 폴더를 만들어주세요.
           </div>
         )}
@@ -193,7 +202,7 @@ const BookmarkButton = ({
               <div className="relative flex w-full items-center justify-between gap-2">
                 <span className="line-clamp-2">{folder.name}</span>
                 {isChecked && (
-                  <Check className="absolute right-2 h-3.5 w-3.5 text-accentBronze" />
+                  <Check className="absolute right-2 h-3.5 w-3.5 text-primary" />
                 )}
               </div>
             </ActionDropdownItem>
@@ -217,7 +226,8 @@ const BookmarkButton = ({
 
       {isAddingFolder && (
         <div className="px-2 py-1.5">
-          <input
+          <UiInput
+            unstyled
             ref={inputRef}
             value={newFolderName}
             onChange={(e) => setNewFolderName(e.target.value)}
@@ -233,27 +243,27 @@ const BookmarkButton = ({
               }
             }}
             placeholder="새 폴더 이름"
-            className="h-8 w-full rounded-md border border-beige900/8 bg-beige50 px-2 text-xs text-beige900 placeholder:text-beige900/35 outline-none focus:border-beige900/15"
+            className="h-8 w-full rounded-md border border-neutral-1000-a05 bg-bg-default px-2 text-xs text-neutral-primary placeholder:text-neutral-placeholder outline-none focus:border-neutral-1000-a10"
           />
           <div className="mt-2 flex items-center justify-end gap-1">
-            <button
+            <BareButton
               type="button"
-              className="h-7 rounded px-2 text-xs text-beige900/45 hover:bg-beige50/80 hover:text-beige900"
+              className="h-7 rounded px-2 text-xs text-neutral-soft hover:bg-bg-default hover:text-neutral-primary"
               onClick={() => {
                 setIsAddingFolder(false);
                 setNewFolderName("");
               }}
             >
               취소
-            </button>
-            <button
+            </BareButton>
+            <BareButton
               type="button"
-              className="h-7 rounded bg-beige900 px-2 text-xs text-beige100 disabled:opacity-70"
+              className="h-7 rounded bg-black px-2 text-xs text-neutral-00 disabled:opacity-70"
               onClick={() => void handleCreateFolder()}
               disabled={isCreatingFolder || isAddingToFolder}
             >
               생성 후 저장
-            </button>
+            </BareButton>
           </div>
         </div>
       )}

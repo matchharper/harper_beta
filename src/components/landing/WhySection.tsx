@@ -17,7 +17,7 @@ const WhySection = () => {
           <Head1 as="h2" className="text-white text-center w-full">
             {m.companyLanding.why.title}
           </Head1>
-          {/* <div className="text-sm font-hedvig font-light md:text-lg mt-6 px-2 text-hgray700">
+          {/* <div className="text-sm font-hedvig font-light md:text-lg mt-6 px-2 text-neutral-500">
             <span
               dangerouslySetInnerHTML={{
                 __html: copyVariant.whySubtitle,
@@ -101,7 +101,7 @@ export const WhyImageSection = React.memo(function WhyImageSection({
           dangerouslySetInnerHTML={{ __html: title }}
         />
         <div
-          className="text-sm md:text-base leading-6 font-light text-hgray700"
+          className="text-sm md:text-base leading-6 font-light text-neutral-500"
           dangerouslySetInnerHTML={{ __html: desc }}
         />
       </div>

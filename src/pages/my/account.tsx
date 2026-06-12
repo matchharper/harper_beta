@@ -3,6 +3,9 @@ import AppLayout from "@/components/layout/app";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { supabase } from "@/lib/supabase";
 import { Loader2 } from "lucide-react";
+import { BareButton } from "@/components/ui/button";
+import { Input as UiInput } from "@/components/ui/input";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
 const Account = () => {
   const { companyUser, load } = useCompanyUserStore();
@@ -82,7 +85,7 @@ const Account = () => {
         {/* Header */}
         <div className="mx-auto w-full px-4 pt-6 pb-2 flex flex-col items-center justify-start">
           <div className="flex items-end justify-between gap-4 w-full">
-            <div className="text-3xl font-hedvig font-light tracking-tight text-beige900">
+            <div className="text-3xl font-hedvig font-light tracking-tight text-neutral-primary">
               Profile
             </div>
           </div>
@@ -118,30 +121,30 @@ const Account = () => {
               onChange={setCountry}
             />
             {isModified && (
-              <div className="sticky bottom-0 bg-beige50 border-t border-beige900/8 backdrop-blur-md">
+              <div className="sticky bottom-0 bg-bg-default border-t border-neutral-1000-a05 backdrop-blur-md">
                 <div className="px-6 py-4 flex items-center justify-between gap-8">
-                  <div className="text-sm text-beige900/80">
+                  <div className="text-sm text-neutral-primary">
                     You have unsaved changes.
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <button
+                    <BareButton
                       onClick={handleCancel}
-                      className="rounded-lg px-4 py-2 text-sm text-beige900/70 hover:bg-beige500/55 transition"
+                      className="rounded-lg px-4 py-2 text-sm text-neutral-muted hover:bg-bg-weak transition"
                     >
                       Cancel
-                    </button>
+                    </BareButton>
 
-                    <button
+                    <BareButton
                       onClick={handleSave}
                       disabled={isLoading}
-                      className="rounded-lg px-4 py-2 text-sm font-medium text-beige100 bg-beige900 hover:opacity-90 disabled:opacity-70 transition inline-flex items-center gap-2"
+                      className="rounded-lg px-4 py-2 text-sm font-medium text-neutral-00 bg-black hover:opacity-90 disabled:opacity-70 transition inline-flex items-center gap-2"
                     >
                       {isLoading && (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       )}
                       Save changes
-                    </button>
+                    </BareButton>
                   </div>
                 </div>
               </div>
@@ -166,13 +169,14 @@ const InputLabel = ({
 }) => {
   return (
     <div className="flex flex-col gap-1.5 w-full">
-      <div className="text-sm text-beige900/55">{label}</div>
-      <input
+      <div className="text-sm text-neutral-muted">{label}</div>
+      <UiInput
+        unstyled
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-xl border border-beige900/10 bg-beige500/55 px-4 py-3 text-[14px] text-beige900 placeholder:text-beige900/30 outline-none
-                   focus:border-beige900/20 transition"
+        className="w-full rounded-xl border border-neutral-1000-a05 bg-bg-floating px-4 py-3 text-[14px] text-neutral-primary placeholder:text-neutral-placeholder outline-none
+                   focus:border-neutral-1000-a10 transition"
       />
     </div>
   );
@@ -191,16 +195,17 @@ const TextAreaLabel = ({
 }) => {
   return (
     <div className="flex flex-col gap-1.5 w-full mt-4">
-      <div className="text-sm text-beige900/55">{label}</div>
-      <textarea
+      <div className="text-sm text-neutral-muted">{label}</div>
+      <UiTextarea
+        unstyled
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
         rows={5}
-        className="w-full resize-none rounded-xl border border-beige900/10 bg-beige500/55 px-4 py-3 text-[14px] text-beige900 placeholder:text-beige900/30 outline-none
-                   focus:border-beige900/20 transition leading-relaxed"
+        className="w-full resize-none rounded-xl border border-neutral-1000-a05 bg-bg-floating px-4 py-3 text-[14px] text-neutral-primary placeholder:text-neutral-placeholder outline-none
+                   focus:border-neutral-1000-a10 transition leading-relaxed"
       />
-      <div className="text-xs text-beige900/40">
+      <div className="text-xs text-neutral-soft">
         Optional — helps improve recommendations.
       </div>
     </div>

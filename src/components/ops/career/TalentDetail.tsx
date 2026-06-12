@@ -20,6 +20,7 @@ import { MessagesTab } from "./MessagesTab";
 import { OpsProfileMemoPanel } from "./OpsProfileMemoPanel";
 import { ProfileTab } from "./ProfileTab";
 import { RecommendationsTab } from "./RecommendationsTab";
+import { BareButton } from "@/components/ui/button";
 
 type TalentDetailTabId =
   | "insights"
@@ -55,7 +56,7 @@ export const TalentDetail = memo(function TalentDetail({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <LoaderCircle className="h-5 w-5 animate-spin text-beige900/30" />
+        <LoaderCircle className="h-5 w-5 animate-spin text-neutral-soft" />
       </div>
     );
   }
@@ -73,8 +74,8 @@ export const TalentDetail = memo(function TalentDetail({
   if (isEmailExcludedByOpsInternalTerms(detail.email, emailExclusionTerms)) {
     return (
       <div className="flex flex-col items-center justify-center px-6 py-24 text-center">
-        <MessageSquareText className="h-10 w-10 text-beige900/15" />
-        <div className="mt-4 font-geist text-sm text-beige900/45">
+        <MessageSquareText className="h-10 w-10 text-neutral-soft" />
+        <div className="mt-4 text-sm text-neutral-muted">
           내부 데이터 제외 설정으로 숨긴 talent입니다.
         </div>
       </div>
@@ -83,7 +84,7 @@ export const TalentDetail = memo(function TalentDetail({
 
   return (
     <div>
-      <div className="px-5 pt-5 pb-4 border-b border-beige900/10">
+      <div className="px-5 pt-5 pb-4 border-b border-neutral-1000-a05">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-3">
@@ -97,25 +98,25 @@ export const TalentDetail = memo(function TalentDetail({
                   className="h-10 w-10 rounded-full object-cover"
                 />
               ) : (
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-beige500/60">
-                  <User className="h-5 w-5 text-beige900/40" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-bg-weak">
+                  <User className="h-5 w-5 text-neutral-soft" />
                 </div>
               )}
               <div className="min-w-0">
-                <div className="font-geist text-base font-medium text-beige900 truncate">
+                <div className="text-base font-medium text-neutral-primary truncate">
                   {detail.name || "이름 없음"}
                 </div>
-                <div className="font-geist text-xs text-beige900/50 truncate">
+                <div className="text-xs text-neutral-muted truncate">
                   {detail.email ?? "-"}
                 </div>
               </div>
             </div>
             {detail.headline ? (
-              <div className="mt-2 font-geist text-sm text-beige900/65">
+              <div className="mt-2 text-sm text-neutral-muted">
                 {detail.headline}
               </div>
             ) : null}
-            <div className="mt-2 flex flex-row flex-wrap items-center gap-x-3 gap-y-1 font-geist text-xs text-beige900/40">
+            <div className="mt-2 flex flex-row flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-soft">
               <span>
                 온보딩:{" "}
                 <span
@@ -156,21 +157,21 @@ export const TalentDetail = memo(function TalentDetail({
         </div>
       </div>
 
-      <div className="flex border-b border-beige900/10">
+      <div className="flex border-b border-neutral-1000-a05">
         {TALENT_DETAIL_TABS.map((tab) => (
-          <button
+          <BareButton
             key={tab.id}
             type="button"
             onClick={() => setActiveTab(tab.id)}
             className={cx(
-              "px-4 py-2.5 font-geist text-sm transition",
+              "px-4 py-2.5 text-sm transition",
               activeTab === tab.id
-                ? "border-b-2 border-beige900 font-medium text-beige900"
-                : "text-beige900/45 hover:text-beige900/70"
+                ? "border-b-2 border-neutral-800 font-medium text-neutral-primary"
+                : "text-neutral-muted hover:text-neutral-muted"
             )}
           >
             {tab.label}
-          </button>
+          </BareButton>
         ))}
       </div>
 

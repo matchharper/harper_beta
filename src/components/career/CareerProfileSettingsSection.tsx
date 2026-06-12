@@ -12,8 +12,9 @@ import React, { KeyboardEvent, useMemo, useState } from "react";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import type { CareerProfileVisibility } from "@/hooks/career/useCareerTalentSettings";
-import { CareerField, CareerTextInput } from "./ui/CareerPrimitives";
-import { CareerActionButton, CareerChoiceCard } from "./ui/CareerActionButton";
+import { ActionButton, ChoiceCard } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Field } from "@/components/ui/panel";
 
 const PROFILE_VISIBILITY_OPTIONS: Array<{
   value: CareerProfileVisibility;
@@ -34,9 +35,9 @@ const PROFILE_VISIBILITY_OPTIONS: Array<{
     value: "exceptional_only",
     label: "Exceptional only",
     description:
-      "매칭된 기회/회사를 확인한 뒤 허용한 경우에만 프로필이 공유됩니다.",
+      "먼저 매칭된 기회/회사를 확인한 뒤 직접 허용한 경우에만 익명 프로필이 공유됩니다.",
     Icon: ShieldAlert,
-    sub: "매칭된 기회/회사를 확인한 뒤 허용한 경우에만 프로필이 회사 측에 공유됩니다. 이 경우에도 대화 내용 및 선택하신 옵션이 공개되진 않고, 매칭에 필요한 정보만 공유됩니다.",
+    sub: "먼저 매칭된 기회/회사를 확인한 뒤 직접 허용한 경우에만 익명 프로필이 회사 측에 공유됩니다. 이 경우에도 대화 내용 및 선택하신 옵션이 공개되진 않고, 매칭에 필요한 정보만 공유됩니다.",
   },
   {
     value: "dont_share",
@@ -177,24 +178,24 @@ export const CareerProfileSharingSettingsSection = ({
   };
 
   return (
-    <div className="font-geist">
+    <div>
       {showLastUpdated ? (
         <div className="mb-6 text-sm">
-          <span className="text-beige900/45">Last updated : </span>
-          <span className="text-beige900">
+          <span className="text-neutral-soft">Last updated : </span>
+          <span className="text-neutral-primary">
             {formatUpdatedAt(settingsUpdatedAt)}
           </span>
         </div>
       ) : null}
 
       <div>
-        <CareerField
+        <Field
           label={
             <span className="inline-flex items-center gap-2">
               <span>프로필 공개</span>
               {profileVisibilitySavePending ? (
                 <Loader2
-                  className="h-3.5 w-3.5 animate-spin text-beige900/60"
+                  className="h-3.5 w-3.5 animate-spin text-neutral-muted"
                   aria-label="프로필 공개 저장 중"
                 />
               ) : null}
@@ -208,7 +209,7 @@ export const CareerProfileSharingSettingsSection = ({
                 const isSelected = option.value === profileVisibility;
 
                 return (
-                  <CareerChoiceCard
+                  <ChoiceCard
                     key={option.value}
                     onClick={() =>
                       void handleProfileVisibilitySelect(option.value)
@@ -219,21 +220,21 @@ export const CareerProfileSharingSettingsSection = ({
                       profileVisibilitySavePending
                     }
                     selected={isSelected}
-                    className="block h-auto whitespace-normal"
+                    className="block h-auto whitespace-normal items-start justify-start"
                   >
                     <div className="flex items-center gap-2 text-sm font-medium">
                       <option.Icon className="h-4 w-4" />
                       <span>{option.label}</span>
                     </div>
-                    <p className="mt-2 text-[13px] leading-5 opacity-80">
+                    <p className="mt-2 text-[13px] leading-5 opacity-80 h-full">
                       {option.description}
                     </p>
-                  </CareerChoiceCard>
+                  </ChoiceCard>
                 );
               })}
             </div>
 
-            <div className="flex items-center gap-2 text-[13px] text-beige900/60">
+            <div className="flex items-center gap-2 text-[13px] text-neutral-muted">
               {settingsLoading && (
                 <>
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -242,22 +243,26 @@ export const CareerProfileSharingSettingsSection = ({
               )}
               {!settingsLoading && (
                 <span
-                  className={`${selectedVisibilityOption.value === "dont_share" ? "text-red-600" : "text-beige900/60"}`}
+                  className={
+                    selectedVisibilityOption.value === "dont_share"
+                      ? "text-critical"
+                      : "text-neutral-muted"
+                  }
                 >
                   {selectedVisibilityOption.sub}
                 </span>
               )}
             </div>
           </div>
-        </CareerField>
+        </Field>
 
-        <CareerField
+        <Field
           label={
             <span className="inline-flex items-center gap-2">
               <span>차단 기업</span>
               {blockedCompaniesSavePending ? (
                 <Loader2
-                  className="h-3.5 w-3.5 animate-spin text-beige900/60"
+                  className="h-3.5 w-3.5 animate-spin text-neutral-muted"
                   aria-label="차단 기업 저장 중"
                 />
               ) : null}
@@ -268,7 +273,7 @@ export const CareerProfileSharingSettingsSection = ({
         >
           <div className="space-y-3">
             <div className="flex flex-col gap-2 sm:flex-row">
-              <CareerTextInput
+              <Input
                 value={blockedCompanyDraft}
                 onChange={(event) => setBlockedCompanyDraft(event.target.value)}
                 onKeyDown={handleBlockedCompanyKeyDown}
@@ -280,7 +285,7 @@ export const CareerProfileSharingSettingsSection = ({
                 }
                 className="flex-1"
               />
-              <CareerActionButton
+              <ActionButton
                 onClick={() => void handleAddBlockedCompany()}
                 disabled={
                   settingsLoading ||
@@ -297,11 +302,11 @@ export const CareerProfileSharingSettingsSection = ({
                   <Plus className="h-3 w-3" />
                 )}
                 {blockedCompaniesSavePending ? "저장 중..." : "추가"}
-              </CareerActionButton>
+              </ActionButton>
             </div>
 
             {blockedCompanies.length === 0 ? (
-              <div className="rounded-[8px] border border-dashed border-beige900/15 bg-white/30 px-3 py-2 text-sm text-beige900/45">
+              <div className="rounded-[8px] border border-dashed border-neutral-1000-a10 bg-bg-floating px-3 py-2 text-sm text-neutral-soft shadow-sm">
                 차단된 회사가 없습니다.
               </div>
             ) : (
@@ -309,10 +314,10 @@ export const CareerProfileSharingSettingsSection = ({
                 {blockedCompanies.map((companyName) => (
                   <div
                     key={companyName}
-                    className="inline-flex items-center gap-2 rounded-[8px] border border-beige900/10 bg-white/45 pl-3 pr-1.5 py-1.5 text-sm text-beige900"
+                    className="inline-flex items-center gap-2 rounded-[8px] border border-neutral-1000-a05 bg-bg-floating py-1.5 pl-3 pr-1.5 text-sm text-neutral-primary shadow-sm"
                   >
                     <span>{companyName}</span>
-                    <CareerActionButton
+                    <ActionButton
                       onClick={() =>
                         void handleRemoveBlockedCompany(companyName)
                       }
@@ -323,21 +328,21 @@ export const CareerProfileSharingSettingsSection = ({
                       }
                       actionVariant="icon"
                       buttonRadius="rounded"
-                      className="h-6 w-6 border-transparent bg-transparent text-beige900/45 hover:bg-beige900/10"
+                      className="h-6 w-6 border-transparent bg-transparent text-neutral-soft hover:bg-bg-weak"
                       aria-label={`${companyName} 삭제`}
                     >
                       <X className="h-3.5 w-3.5" />
-                    </CareerActionButton>
+                    </ActionButton>
                   </div>
                 ))}
               </div>
             )}
           </div>
-        </CareerField>
+        </Field>
       </div>
 
       {saveError && (
-        <div className="mt-5 border border-[#7c2d12]/15 bg-[#7c2d12]/5 px-4 py-3 text-sm text-[#7c2d12]">
+        <div className="mt-5 border border-critical/30 bg-critical-faded px-4 py-3 text-sm text-critical">
           {saveError}
         </div>
       )}
@@ -346,16 +351,16 @@ export const CareerProfileSharingSettingsSection = ({
         !profileVisibilitySavePending &&
         !blockedCompaniesSavePending && (
           <div className="fixed bottom-4 right-4 flex justify-end gap-2">
-            <CareerActionButton
+            <ActionButton
               onClick={handleRefresh}
               disabled={isSavePending || settingsLoading}
               actionVariant="secondary"
-              className="bg-beige50/70"
+              className="bg-bg-floating/90"
             >
               <Undo2 className="h-4 w-4" />
               되돌리기
-            </CareerActionButton>
-            <CareerActionButton
+            </ActionButton>
+            <ActionButton
               onClick={() => void handleSave()}
               disabled={isSavePending || !canSaveProfileSettings}
               actionVariant="primary"
@@ -366,7 +371,7 @@ export const CareerProfileSharingSettingsSection = ({
                 <Save className="h-4 w-4" />
               )}
               {isSavePending ? "저장 중..." : "설정 저장"}
-            </CareerActionButton>
+            </ActionButton>
           </div>
         )}
     </div>

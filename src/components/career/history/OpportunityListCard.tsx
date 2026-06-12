@@ -1,11 +1,12 @@
 import React from "react";
 import { CareerHistoryOpportunity, CareerOpportunityType } from "../types";
-import { CareerInlinePanel } from "../ui/CareerPrimitives";
+import { InlinePanel } from "@/components/ui/panel";
 import { ChevronDown, StickyNote } from "lucide-react";
 import {
-  BeigeActionDropdown,
-  BeigeActionDropdownItem,
-} from "@/components/ui/beige/action-dropdown";
+  ActionDropdown,
+  ActionDropdownItem,
+} from "@/components/ui/action-dropdown";
+import { ClickablePanel } from "@/components/ui/clickable-panel";
 import { OpportunityHeader } from "./HistoryOpportunityDetailContent";
 import OpportunityPreferenceFit from "./OpportunityPreferenceFit";
 import {
@@ -13,6 +14,7 @@ import {
   SAVED_OPPORTUNITY_STATUS_OPTIONS,
   type SavedOpportunityManagementStatus,
 } from "./savedOpportunityStatus";
+import { BareButton } from "@/components/ui/button";
 
 const stopCardActivation = (event: React.SyntheticEvent) => {
   event.stopPropagation();
@@ -32,31 +34,31 @@ const SavedManagementStatusDropdown = ({
     onClick={stopCardActivation}
     onPointerDown={stopCardActivation}
   >
-    <BeigeActionDropdown
+    <ActionDropdown
       align="end"
       contentClassName="min-w-[190px]"
       trigger={
-        <button
+        <BareButton
           type="button"
           disabled={disabled}
-          className="inline-flex h-9 min-w-[156px] items-center justify-between gap-2 rounded-md border border-beige900/15 bg-white/70 px-3 text-sm font-medium text-beige900 hover:border-beige900/30 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-9 min-w-[156px] items-center justify-between gap-2 rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 text-sm font-medium text-neutral-primary hover:border-neutral-400 hover:bg-bg-weak disabled:cursor-not-allowed disabled:opacity-60"
         >
           <span>{getSavedOpportunityStatusLabel(status)}</span>
-          <ChevronDown className="h-4 w-4 text-beige900/65" />
-        </button>
+          <ChevronDown className="h-4 w-4 text-neutral-muted" />
+        </BareButton>
       }
     >
       {SAVED_OPPORTUNITY_STATUS_OPTIONS.map((option) => (
-        <BeigeActionDropdownItem
+        <ActionDropdownItem
           key={option.id}
           selected={option.id === status}
           disabled={disabled}
           onSelect={() => onChange(option.id)}
         >
           {option.label}
-        </BeigeActionDropdownItem>
+        </ActionDropdownItem>
       ))}
-    </BeigeActionDropdown>
+    </ActionDropdown>
   </div>
 );
 
@@ -103,25 +105,13 @@ const OpportunityListCard = ({
   );
 
   return (
-    <CareerInlinePanel className="rounded-[8px] border border-beige900/10 bg-white/55 p-4 transition-colors hover:bg-white/85">
+    <InlinePanel className="rounded-[8px] border border-neutral-1000-a05 bg-bg-floating p-4 transition-colors hover:bg-bg-weak">
       <div className="flex items-start justify-between gap-4">
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={(event) => {
-            const interactiveTarget = (event.target as HTMLElement).closest(
-              "a,button,input,select,textarea,[data-career-card-action='true']"
-            );
-            if (interactiveTarget) return;
+        <ClickablePanel
+          onActivate={() => {
             onOpenDetail();
           }}
-          onKeyDown={(event) => {
-            if (event.currentTarget !== event.target) return;
-            if (event.key !== "Enter" && event.key !== " ") return;
-            event.preventDefault();
-            onOpenDetail();
-          }}
-          className="min-w-0 flex-1 cursor-pointer p-2 text-left focus:outline-none"
+          className="min-w-0 flex-1 cursor-pointer p-2 text-left"
         >
           <OpportunityHeader
             item={item}
@@ -144,7 +134,7 @@ const OpportunityListCard = ({
             }
           />
 
-          <div className="mt-4 text-sm text-black space-y-3">
+          <div className="mt-4 space-y-3 text-sm text-neutral-primary">
             {recommendationSummary && <div>{recommendationSummary}</div>}
             {recommendationReasons.length > 0 &&
               recommendationReasons.map((reason, index) => (
@@ -152,7 +142,7 @@ const OpportunityListCard = ({
                   key={`${item.id}-reason-${index}`}
                   className="flex items-start gap-2 text-sm"
                 >
-                  <span className="mt-[10px] h-1 w-1 shrink-0 rounded-full bg-beige900/40" />
+                  <span className="mt-[10px] h-1 w-1 shrink-0 rounded-full bg-black/40" />
                   <div
                     className="line-clamp-2 min-w-0"
                     dangerouslySetInnerHTML={{ __html: reason }}
@@ -165,8 +155,8 @@ const OpportunityListCard = ({
                   key={`${item.id}-concern-${index}`}
                   className="flex items-start gap-2 text-sm"
                 >
-                  <span className="mt-[10px] h-1 w-1 shrink-0 rounded-full bg-beige700" />
-                  <div className="text-sm leading-6 text-beige700">
+                  <span className="mt-[10px] h-1 w-1 shrink-0 rounded-full bg-black" />
+                  <div className="text-sm leading-6 text-neutral-muted">
                     주의 요소 : {concern}
                   </div>
                 </div>
@@ -176,9 +166,9 @@ const OpportunityListCard = ({
               variant="compact"
             />
           </div>
-        </div>
+        </ClickablePanel>
       </div>
-    </CareerInlinePanel>
+    </InlinePanel>
   );
 };
 

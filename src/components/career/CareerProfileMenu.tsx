@@ -1,14 +1,15 @@
 import { HelpCircle, LogOut, Scroll } from "lucide-react";
 import React, { useState } from "react";
 import CareerUpdateNotesModal from "./CareerUpdateNotesModal";
-import { careerCx } from "./ui/CareerPrimitives";
+import { cn } from "@/lib/utils";
 import {
-  BeigeActionDropdown,
-  BeigeActionDropdownItem,
-  BeigeActionDropdownSeparator,
-} from "@/components/ui/beige/action-dropdown";
-import { DropdownMenuLabel } from "@/components/ui/beige/dropdown-menu";
+  ActionDropdown,
+  ActionDropdownItem,
+  ActionDropdownSeparator,
+} from "@/components/ui/action-dropdown";
+import { DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
+import { BareButton } from "@/components/ui/button";
 
 type CareerProfileMenuVariant = "desktop" | "mobile";
 
@@ -63,24 +64,24 @@ const CareerProfileMenu = ({
 
   const isMobile = variant === "mobile";
   const triggerClassName = isMobile
-    ? careerCx(
+    ? cn(
         "relative inline-flex h-11 w-11 items-center justify-center rounded-full transition-all",
-        menuOpen ? "bg-beige100" : "active:bg-beige900/5"
+        menuOpen ? "bg-bg-floating" : "active:bg-bg-weak"
       )
-    : careerCx(
-        "relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg text-white border border-black/10 bg-beige900 transition-all",
+    : cn(
+        "relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg border border-neutral-1000-a10 bg-black text-neutral-00 transition-all",
         menuOpen
-          ? "ring-4 ring-beige500"
-          : "hover:ring-4 ring-beige500 hover:opacity-90"
+          ? "ring-4 ring-neutral-1000-a10"
+          : "hover:ring-4 ring-neutral-1000-a10 hover:opacity-90"
       );
 
   const avatarBody = isMobile ? (
     <span
-      className={careerCx(
-        "inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-full  border bg-beige900",
+      className={cn(
+        "inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-full  border bg-black",
         menuOpen
-          ? "ring-4 ring-beige500"
-          : "hover:ring-4 ring-beige500 hover:opacity-90"
+          ? "ring-4 ring-neutral-1000-a10"
+          : "hover:ring-4 ring-neutral-1000-a10 hover:opacity-90"
       )}
     >
       {hasUploadedImage ? (
@@ -91,7 +92,7 @@ const CareerProfileMenu = ({
           className="h-full w-full object-cover"
         />
       ) : (
-        <span className="text-[12px] font-normal text-white">
+        <span className="text-[12px] font-normal text-neutral-00">
           {profileInitial}
         </span>
       )}
@@ -104,12 +105,14 @@ const CareerProfileMenu = ({
       className="h-full w-full object-cover"
     />
   ) : (
-    <span className="text-[12px] font-normal text-white">{profileInitial}</span>
+    <span className="text-[12px] font-normal text-neutral-00">
+      {profileInitial}
+    </span>
   );
 
   return (
     <>
-      <BeigeActionDropdown
+      <ActionDropdown
         open={menuOpen}
         onOpenChange={setMenuOpen}
         align="end"
@@ -117,39 +120,39 @@ const CareerProfileMenu = ({
         sideOffset={isMobile ? 8 : 12}
         contentClassName="w-[236px]"
         trigger={
-          <button
+          <BareButton
             type="button"
             aria-label="프로필 메뉴"
             className={triggerClassName}
           >
             {avatarBody}
-          </button>
+          </BareButton>
         }
       >
         <DropdownMenuLabel className="px-3 pb-2 pt-2.5">
-          <div className="truncate text-sm font-medium text-beige900">
+          <div className="truncate text-sm font-medium text-neutral-primary">
             {profileName}
           </div>
-          <div className="mt-1 truncate text-[12px] font-normal text-beige900/50">
+          <div className="mt-1 truncate text-[12px] font-normal text-neutral-soft">
             {profileEmail || "Career profile"}
           </div>
         </DropdownMenuLabel>
-        <BeigeActionDropdownItem
+        <ActionDropdownItem
           onSelect={() => handleOpenSupport()}
           className="flex flex-row items-center gap-2.5 mt-2"
         >
           <HelpCircle className="h-4 w-4" />
           문의하기
-        </BeigeActionDropdownItem>
-        <BeigeActionDropdownItem
+        </ActionDropdownItem>
+        <ActionDropdownItem
           onSelect={() => handleOpenUpdateNotes()}
           className="flex flex-row items-center gap-2.5"
         >
           <Scroll className="h-4 w-4" />
           <span className="min-w-0 flex-1">업데이트 노트</span>
-        </BeigeActionDropdownItem>
-        <BeigeActionDropdownSeparator />
-        <BeigeActionDropdownItem
+        </ActionDropdownItem>
+        <ActionDropdownSeparator />
+        <ActionDropdownItem
           onSelect={() => {
             logCareerEvent("click_profile_menu_logout");
             void onLogout();
@@ -159,8 +162,8 @@ const CareerProfileMenu = ({
         >
           <LogOut className="h-4 w-4" />
           로그아웃
-        </BeigeActionDropdownItem>
-      </BeigeActionDropdown>
+        </ActionDropdownItem>
+      </ActionDropdown>
       <CareerUpdateNotesModal
         open={updateNotesOpen}
         onClose={() => setUpdateNotesOpen(false)}

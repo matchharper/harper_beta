@@ -13,6 +13,8 @@ import type {
 import { OpportunityType } from "@/lib/opportunityType";
 import { Mail, Pencil, Search } from "lucide-react";
 import type { KeyboardEvent, ReactNode } from "react";
+import { BareButton } from "@/components/ui/button";
+import { Input as UiInput } from "@/components/ui/input";
 
 export type PageView =
   | "catalog"
@@ -281,18 +283,18 @@ export function ActionButton({
   onClick: () => void;
 }) {
   return (
-    <button
+    <BareButton
       type="button"
       onClick={onClick}
       className={cx(
-        "rounded-md px-3 py-2 font-geist text-xs transition",
+        "rounded-md px-3 py-2 text-xs transition",
         active
-          ? "bg-beige900 text-beige100"
-          : "bg-white/65 text-beige900 border border-black/10 hover:bg-black/2"
+          ? "bg-black text-neutral-00"
+          : "bg-bg-default/65 text-neutral-primary border border-neutral-1000-a10 hover:bg-black/5"
       )}
     >
       {children}
-    </button>
+    </BareButton>
   );
 }
 
@@ -305,9 +307,7 @@ export function PanelHeader({
 }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <div className="font-geist text-[13px] font-medium text-beige900/70">
-        {title}
-      </div>
+      <div className="text-[13px] font-medium text-neutral-muted">{title}</div>
       {action}
     </div>
   );
@@ -316,10 +316,7 @@ export function PanelHeader({
 export function EmptyState({ copy }: { copy: string }) {
   return (
     <div
-      className={cx(
-        opsTheme.panelSoft,
-        "px-4 py-4 font-geist text-sm text-beige900/55"
-      )}
+      className={cx(opsTheme.panelSoft, "px-4 py-4 text-sm text-neutral-muted")}
     >
       {copy}
     </div>
@@ -336,8 +333,10 @@ export function Token({
   return (
     <span
       className={cx(
-        "inline-flex items-center rounded-md px-2 py-1 font-geist text-[11px]",
-        active ? "bg-beige900 text-beige100" : "bg-black/5 text-black"
+        "inline-flex items-center rounded-md px-2 py-1 text-[11px]",
+        active
+          ? "bg-black text-neutral-00"
+          : "bg-bg-floating text-neutral-primary"
       )}
     >
       {children}
@@ -366,22 +365,22 @@ export function RoleOptionCard({
     <div
       className={cx(
         "rounded-md px-3 py-3 transition",
-        active ? "bg-beige900 text-beige100" : "bg-white/65 text-beige900"
+        active
+          ? "bg-black text-neutral-00"
+          : "bg-bg-default/65 text-neutral-primary"
       )}
     >
       <div className="flex items-start justify-between gap-3">
-        <button
+        <BareButton
           type="button"
           onClick={onSelect}
           className="min-w-0 flex-1 text-left"
         >
-          <div className="truncate font-geist text-base font-normal">
-            {role.name}
-          </div>
+          <div className="truncate text-base font-normal">{role.name}</div>
           <div
             className={cx(
               "mt-2 text-xs",
-              active ? "text-beige100/70" : "text-black/80"
+              active ? "text-neutral-00/70" : "text-neutral-muted"
             )}
           >
             {role.companyName} -{" "}
@@ -391,24 +390,24 @@ export function RoleOptionCard({
                   .filter(Boolean)
                   .join(" · "))}
           </div>
-        </button>
+        </BareButton>
         {action || onEdit ? (
           <div className="flex shrink-0 items-start gap-2">
             {action}
             {onEdit ? (
-              <button
+              <BareButton
                 type="button"
                 onClick={onEdit}
                 className={cx(
-                  "inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-2.5 font-geist text-[11px] transition",
+                  "inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-2.5 text-[11px] transition",
                   active
-                    ? "bg-white/10 text-beige100 hover:bg-white/20"
-                    : "bg-beige500/70 text-beige900 hover:bg-beige500/90"
+                    ? "bg-neutral-00/10 text-neutral-00 hover:bg-neutral-00/20"
+                    : "bg-bg-weak text-neutral-primary hover:bg-bg-weak"
                 )}
               >
                 <Pencil className="h-3.5 w-3.5" />
                 수정
-              </button>
+              </BareButton>
             ) : null}
           </div>
         ) : null}
@@ -445,23 +444,23 @@ export function TalentOptionCard({
       className={cx(
         "w-full rounded-md px-3 py-3 transition",
         active
-          ? "bg-beige900 text-beige100"
-          : "bg-white/65 text-beige900 hover:bg-white"
+          ? "bg-black text-neutral-00"
+          : "bg-bg-default/65 text-neutral-primary hover:bg-bg-default"
       )}
     >
       <div className="flex items-start justify-between gap-3">
-        <button
+        <BareButton
           type="button"
           onClick={onSelect}
           className="min-w-0 flex-1 text-left"
         >
-          <div className="truncate font-geist text-sm font-medium">
+          <div className="truncate text-sm font-medium">
             {item.name ?? "Unnamed talent"}
           </div>
           <div
             className={cx(
               "mt-1 text-xs",
-              active ? "text-beige100/70" : "text-beige900/55"
+              active ? "text-neutral-00/70" : "text-neutral-muted"
             )}
           >
             {item.headline ?? item.location ?? "-"}
@@ -470,30 +469,30 @@ export function TalentOptionCard({
             <div
               className={cx(
                 "mt-2 truncate text-[11px]",
-                active ? "text-beige100/70" : "text-beige900/50"
+                active ? "text-neutral-00/70" : "text-neutral-muted"
               )}
             >
               {item.email}
             </div>
           )}
-        </button>
+        </BareButton>
 
         <div className="flex flex-col items-end gap-2">
           {onSendMail && (
-            <button
+            <BareButton
               type="button"
               onClick={onSendMail}
               disabled={!item.email}
               className={cx(
-                "inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-2.5 font-geist text-[11px] transition disabled:cursor-not-allowed disabled:opacity-50",
+                "inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-2.5 text-[11px] transition disabled:cursor-not-allowed disabled:opacity-50",
                 active
-                  ? "bg-white/10 text-beige100 hover:bg-white/20"
-                  : "bg-beige500/70 text-beige900 hover:bg-beige500/90"
+                  ? "bg-neutral-00/10 text-neutral-00 hover:bg-neutral-00/20"
+                  : "bg-bg-weak text-neutral-primary hover:bg-bg-weak"
               )}
             >
               <Mail className="h-3.5 w-3.5" />
               {item.email ? "메일 보내기" : "메일 없음"}
-            </button>
+            </BareButton>
           )}
           <div className="flex flex-wrap justify-end gap-1.5">
             {item.matched && <Token active={active}>matched</Token>}
@@ -505,7 +504,7 @@ export function TalentOptionCard({
         <div
           className={cx(
             "mt-2 line-clamp-2 text-xs leading-5",
-            active ? "text-beige100/70" : "text-beige900/60"
+            active ? "text-neutral-00/70" : "text-neutral-muted"
           )}
         >
           {item.summary}
@@ -535,8 +534,9 @@ export function SearchInput({
   return (
     <div className="space-y-2">
       <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-beige900/35" />
-        <input
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-soft" />
+        <UiInput
+          unstyled
           value={value}
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={handleKeyDown}
@@ -544,7 +544,7 @@ export function SearchInput({
           className={cx(opsTheme.input, "pl-9")}
         />
       </div>
-      <div className="text-xs text-beige900/40">Enter로 검색</div>
+      <div className="text-xs text-neutral-soft">Enter로 검색</div>
     </div>
   );
 }
@@ -558,7 +558,7 @@ export function SelectionSummary({
 }) {
   return (
     <div className={cx(opsTheme.panelSoft, "space-y-2 px-3 py-3")}>
-      <div className="font-geist text-[11px] text-beige900/40">{title}</div>
+      <div className="text-[11px] text-neutral-soft">{title}</div>
       {children}
     </div>
   );

@@ -333,10 +333,10 @@ const Talent = () => {
 
   // Flat dashboard tokens (minimal borders, minimal radius)
   const kicker = "text-xs font-medium text-beige900/70";
-  const title = "mt-1 text-lg font-medium text-hblack1000";
-  const body = "text-base leading-relaxed text-hblack600";
-  const divider = "border-t border-hblack200/70";
-  const subtleDivider = "border-t border-hblack200/50";
+  const title = "mt-1 text-lg font-medium text-neutral-1000";
+  const body = "text-base leading-relaxed text-neutral-800";
+  const divider = "border-t border-neutral-400/70";
+  const subtleDivider = "border-t border-neutral-400/50";
 
   const Head = ({
     children,
@@ -347,7 +347,7 @@ const Talent = () => {
   }) => {
     return (
       <div
-        className={`text-3xl/[1.2] font-hedvig font-semibold tracking-tighter text-hblack1000 lg:text-4xl/[1.3] ${className ?? ""}`}
+        className={`text-3xl/[1.2] font-hedvig font-semibold tracking-tighter text-neutral-1000 lg:text-4xl/[1.3] ${className ?? ""}`}
       >
         {children}
       </div>
@@ -356,12 +356,11 @@ const Talent = () => {
 
   return (
     <main
-      className="min-h-screen bg-beige100 text-hblack900 font-geist pt-12"
+      className="min-h-screen bg-beige100 text-neutral-1000 pt-12"
       style={
         {
-          "--ink": "#2E1706",
-          "--paper": "#FDF6EE",
-          "--gold": "#593918",
+          "--ink": "var(--color-neutral-1000)",
+          "--gold": "var(--color-accent-700)",
         } as React.CSSProperties
       }
     >
@@ -427,7 +426,7 @@ const Talent = () => {
 
               <div className="flex flex-col mt-4">
                 <button
-                  className="btn-ink rounded-md w-fit font-geist tracking-[-0.02em]"
+                  className="btn-ink rounded-md w-fit tracking-[-0.02em]"
                   onClick={handleStartConversation}
                 >
                   <span className="font-medium">대화 시작하기</span>
@@ -451,14 +450,14 @@ const Talent = () => {
               <p className={kicker}>Why Harper?</p>
               <h2 className={title}>하퍼의 장점</h2>
 
-              <div className="mt-2 divide-y divide-hblack200/70 lg:max-w-[50%]">
+              <div className="mt-2 divide-y divide-neutral-400/70 lg:max-w-[50%]">
                 {BENEFITS.map((b) => (
                   <div key={b.title} className="py-4">
-                    <p className="text-lg font-medium text-hblack1000">
+                    <p className="text-lg font-medium text-neutral-1000">
                       {b.title}
                     </p>
                     <p
-                      className="mt-2 text-sm leading-relaxed text-hblack600"
+                      className="mt-2 text-sm leading-relaxed text-neutral-800"
                       dangerouslySetInnerHTML={{ __html: b.description }}
                     />
                   </div>
@@ -493,7 +492,7 @@ const Talent = () => {
               <p className={kicker}>Process</p>
               <h2 className={title}>하퍼는 이렇게 진행됩니다</h2>
 
-              <div className="mt-2 divide-y divide-hblack200/70">
+              <div className="mt-2 divide-y divide-neutral-400/70">
                 {PROCESS_STEPS.map((step, idx) => (
                   <div key={step.title} className="py-4">
                     <div className="flex items-start gap-4">
@@ -501,10 +500,10 @@ const Talent = () => {
                         {idx + 1}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-md font-medium text-hblack1000">
+                        <p className="text-md font-medium text-neutral-1000">
                           {step.title}
                         </p>
-                        <div className="mt-1 text-sm leading-relaxed text-hblack600">
+                        <div className="mt-1 text-sm leading-relaxed text-neutral-800">
                           {step.details.map((d) => (
                             <p key={d}>{d}</p>
                           ))}
@@ -524,20 +523,20 @@ const Talent = () => {
               <h2 className={title}>Harper vs Agency vs 직접 지원</h2>
 
               <div className="mt-5">
-                <div className="grid grid-cols-4 py-3 text-[11px] font-medium uppercase tracking-[0.14em] text-hblack500">
+                <div className="grid grid-cols-4 py-3 text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-800">
                   <div>비교 항목</div>
                   <div>Harper</div>
                   <div>Agency</div>
                   <div>직접 지원</div>
                 </div>
                 <div className={subtleDivider} />
-                <div className="divide-y divide-hblack200/70">
+                <div className="divide-y divide-neutral-400/70">
                   {COMPARISON_ROWS.map((row) => (
                     <div
                       key={row.item}
-                      className="grid grid-cols-4 py-4 text-sm text-hblack700"
+                      className="grid grid-cols-4 py-4 text-sm text-neutral-900"
                     >
-                      <div className="font-medium text-hblack900">
+                      <div className="font-medium text-neutral-1000">
                         {row.item}
                       </div>
                       <div>{row.harper}</div>
@@ -554,13 +553,13 @@ const Talent = () => {
               <p className={kicker}>FAQ</p>
               <h2 className={title}>자주 묻는 질문</h2>
 
-              <div className="mt-5 divide-y divide-hblack200/70">
+              <div className="mt-5 divide-y divide-neutral-400/70">
                 {FAQ_ITEMS.map((faq) => (
                   <div key={faq.question} className="py-5">
-                    <p className="text-sm font-medium text-hblack1000">
+                    <p className="text-sm font-medium text-neutral-1000">
                       {faq.question}
                     </p>
-                    <p className="mt-2 text-sm leading-relaxed text-hblack600">
+                    <p className="mt-2 text-sm leading-relaxed text-neutral-800">
                       {faq.answer}
                     </p>
                   </div>
@@ -574,17 +573,17 @@ const Talent = () => {
           {/* Right: panel (flat, like reference detail panel) */}
           <div className="w-full lg:col-span-4 lg:self-stretch">
             <FakeSticky top={54} className="hidden lg:block lg:h-full">
-              <div className="rounded-lg border border-hblack100 shadow-md px-5 py-5">
+              <div className="rounded-lg border border-neutral-300 shadow-md px-5 py-5">
                 <button
                   type="button"
                   onClick={handleStartConversation}
-                  className="group inline-flex h-12 w-full items-center justify-center gap-1 rounded-sm bg-beige900 text-sm font-medium text-hblack000 hover:opacity-90"
+                  className="group inline-flex h-12 w-full items-center justify-center gap-1 rounded-sm bg-beige900 text-sm font-medium text-neutral-00 hover:opacity-90"
                 >
                   지금 대화하기{" "}
                   <ArrowRight className="group-hover:translate-x-1 transition-all duration-300 h-4 w-4" />
                 </button>
                 <div className={`mt-4 ${divider}`} />
-                <h3 className="mt-4 text-sm font-medium text-hblack400">
+                <h3 className="mt-4 text-sm font-medium text-neutral-600">
                   혹은 일정 선택
                 </h3>
 
@@ -593,7 +592,7 @@ const Talent = () => {
                   <div className="flex items-center justify-between">
                     <button
                       type="button"
-                      className="inline-flex h-9 w-9 items-center justify-center bg-hblack000 hover:bg-hblack100"
+                      className="inline-flex h-9 w-9 items-center justify-center bg-neutral-00 hover:bg-neutral-300"
                       onClick={() =>
                         setMonthCursor(
                           new Date(
@@ -605,16 +604,16 @@ const Talent = () => {
                       }
                       aria-label="이전 달"
                     >
-                      <ChevronLeft className="h-4 w-4 text-hblack700" />
+                      <ChevronLeft className="h-4 w-4 text-neutral-900" />
                     </button>
 
-                    <p className="text-sm font-medium text-hblack900">
+                    <p className="text-sm font-medium text-neutral-1000">
                       {monthLabel}
                     </p>
 
                     <button
                       type="button"
-                      className="inline-flex h-9 w-9 items-center justify-center bg-hblack000 hover:bg-hblack100"
+                      className="inline-flex h-9 w-9 items-center justify-center bg-neutral-00 hover:bg-neutral-300"
                       onClick={() =>
                         setMonthCursor(
                           new Date(
@@ -626,11 +625,11 @@ const Talent = () => {
                       }
                       aria-label="다음 달"
                     >
-                      <ChevronRight className="h-4 w-4 text-hblack700" />
+                      <ChevronRight className="h-4 w-4 text-neutral-900" />
                     </button>
                   </div>
 
-                  <div className="mt-2 grid grid-cols-7 text-center text-[11px] font-medium text-hblack500">
+                  <div className="mt-2 grid grid-cols-7 text-center text-[11px] font-medium text-neutral-800">
                     {WEEKDAYS.map((d) => (
                       <div key={d} className="py-2">
                         {d}
@@ -656,7 +655,7 @@ const Talent = () => {
                             "h-8 text-sm font-medium",
                             isSelected
                               ? "bg-beige900/10 text-beige900"
-                              : "bg-transparent text-hblack700 hover:bg-hblack100",
+                              : "bg-transparent text-neutral-900 hover:bg-neutral-300",
                           ].join(" ")}
                         >
                           {cell.getDate()}
@@ -670,15 +669,15 @@ const Talent = () => {
 
                 {/* Time picker */}
                 <div className="mt-4">
-                  <p className="text-sm font-medium text-hblack900">
+                  <p className="text-sm font-medium text-neutral-1000">
                     {selectedDateLabel}요일
                   </p>
-                  <div className="mt-2 flex items-center gap-2 border border-hblack100 rounded-md px-3">
-                    <Clock3 className="h-4 w-4 text-hblack500" />
+                  <div className="mt-2 flex items-center gap-2 border border-neutral-300 rounded-md px-3">
+                    <Clock3 className="h-4 w-4 text-neutral-800" />
                     <select
                       value={selectedTime}
                       onChange={(e) => setSelectedTime(e.target.value)}
-                      className="h-11 w-full bg-transparent text-sm text-hblack900 outline-none"
+                      className="h-11 w-full bg-transparent text-sm text-neutral-1000 outline-none"
                     >
                       {TIME_SLOTS.map((t) => (
                         <option key={t} value={t}>
@@ -692,7 +691,7 @@ const Talent = () => {
                   <button
                     type="button"
                     onClick={handleCallBooking}
-                    className="rounded-sm inline-flex h-10 w-full items-center justify-center gap-2 bg-hblack100/50 text-sm font-medium text-hblack900 hover:bg-hblack100"
+                    className="rounded-sm inline-flex h-10 w-full items-center justify-center gap-2 bg-neutral-300/50 text-sm font-medium text-neutral-1000 hover:bg-neutral-300"
                   >
                     Call 예약 <CalendarDays className="h-4 w-4" />
                   </button>
@@ -711,7 +710,7 @@ const Talent = () => {
             onClick={handleShowMore}
             className={[
               "pointer-events-auto inline-flex items-center justify-center rounded-full flex-row gap-2",
-              "bg-hblack50 cursor-pointer hover:bg-hblack100 px-5 py-1.5 text-sm font-medium text-hblack900 shadow-md backdrop-blur",
+              "bg-neutral-200 cursor-pointer hover:bg-neutral-300 px-5 py-1.5 text-sm font-medium text-neutral-1000 shadow-md backdrop-blur",
               "transition-all duration-300",
               isMoreButtonFading
                 ? "translate-y-2 opacity-0"

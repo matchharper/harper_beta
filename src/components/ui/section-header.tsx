@@ -1,7 +1,7 @@
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
-import { Text, type TextProps } from "./typography";
+import { Text, type TextProps } from "./text";
 
 const SectionHeader = React.forwardRef<
   HTMLDivElement,

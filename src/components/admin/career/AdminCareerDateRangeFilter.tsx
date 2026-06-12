@@ -90,7 +90,7 @@ export default function AdminCareerDateRangeFilter({
             </Button>
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               size="sm"
               className="h-8 rounded-none border-black/15 bg-white text-[12px] text-black shadow-none"
               onClick={onReset}

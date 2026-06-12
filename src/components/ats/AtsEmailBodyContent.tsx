@@ -21,8 +21,8 @@ export default function AtsEmailBodyContent({
 
   const toneClass =
     tone === "light"
-      ? "text-black/75 [&_a]:text-black [&_blockquote]:text-black/70"
-      : "text-white/60 [&_a]:text-white [&_blockquote]:text-white/70";
+      ? "text-neutral-primary/75 [&_a]:text-neutral-primary [&_blockquote]:text-neutral-muted"
+      : "text-neutral-00/60 [&_a]:text-neutral-00 [&_blockquote]:text-neutral-00/70";
 
   return (
     <div

@@ -60,7 +60,7 @@ function QuestionAnswer({
         <span
           className={`${size.question} transition-colors ${
             isDark
-              ? `hover:text-white ${open ? "text-white" : "text-hgray700"}`
+              ? `hover:text-white ${open ? "text-white" : "text-neutral-500"}`
               : `hover:text-beige900 ${open ? "text-beige900" : "text-beige900/65"}`
           }`}
         >
@@ -75,7 +75,7 @@ function QuestionAnswer({
           <ChevronDown
             size={16}
             strokeWidth={1.5}
-            className={isDark ? "text-hgray700" : "text-beige900/65"}
+            className={isDark ? "text-neutral-500" : "text-beige900/65"}
           />
         </span>
       </button>

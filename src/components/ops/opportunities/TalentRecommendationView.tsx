@@ -21,6 +21,9 @@ import {
   TalentOptionCard,
   Token,
 } from "./shared";
+import { Input as UiInput } from "@/components/ui/input";
+import { BareButton } from "@/components/ui/button";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
 type TalentRecommendationViewProps = {
   generateRecommendationPending: boolean;
@@ -105,7 +108,9 @@ export default function TalentRecommendationView({
               <TalentOptionCard
                 key={item.talentId}
                 item={item}
-                active={item.talentId === selectedRecommendationTalent?.talentId}
+                active={
+                  item.talentId === selectedRecommendationTalent?.talentId
+                }
                 onSendMail={() => onOpenCandidateMailModal(item)}
                 onSelect={() => onRecommendationTalentSelect(item)}
               />
@@ -117,7 +122,8 @@ export default function TalentRecommendationView({
       <div className={cx(opsTheme.panel, "space-y-3 p-4")}>
         <PanelHeader title="기회" />
         <div className="relative">
-          <input
+          <UiInput
+            unstyled
             value={recommendationRoleSearch}
             onChange={(event) =>
               onRecommendationRoleSearchChange(event.target.value)
@@ -148,10 +154,10 @@ export default function TalentRecommendationView({
           <SelectionSummary title="talent">
             {selectedRecommendationTalent ? (
               <>
-                <div className="font-geist text-sm font-medium text-beige900">
+                <div className="text-sm font-medium text-neutral-primary">
                   {selectedRecommendationTalent.name ?? "Unnamed talent"}
                 </div>
-                <div className="text-xs text-beige900/55">
+                <div className="text-xs text-neutral-muted">
                   {selectedRecommendationTalent.headline ??
                     selectedRecommendationTalent.location ??
                     "-"}
@@ -168,7 +174,7 @@ export default function TalentRecommendationView({
                 ) : null}
               </>
             ) : (
-              <div className="font-geist text-sm text-beige900/55">
+              <div className="text-sm text-neutral-muted">
                 talent를 고르세요.
               </div>
             )}
@@ -176,25 +182,27 @@ export default function TalentRecommendationView({
           <SelectionSummary title="기회">
             {selectedRecommendationRole ? (
               <>
-                <div className="font-geist text-sm font-medium text-beige900">
+                <div className="text-sm font-medium text-neutral-primary">
                   {selectedRecommendationRole.name}
                 </div>
-                <div className="text-xs text-beige900/55">
+                <div className="text-xs text-neutral-muted">
                   {selectedRecommendationRole.companyName}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  <Token>{SOURCE_LABEL[selectedRecommendationRole.sourceType]}</Token>
-                  <Token>{STATUS_LABEL[selectedRecommendationRole.status]}</Token>
+                  <Token>
+                    {SOURCE_LABEL[selectedRecommendationRole.sourceType]}
+                  </Token>
+                  <Token>
+                    {STATUS_LABEL[selectedRecommendationRole.status]}
+                  </Token>
                 </div>
               </>
             ) : (
-              <div className="font-geist text-sm text-beige900/55">
-                기회를 고르세요.
-              </div>
+              <div className="text-sm text-neutral-muted">기회를 고르세요.</div>
             )}
           </SelectionSummary>
           <div className="flex flex-wrap gap-2">
-            <button
+            <BareButton
               type="button"
               onClick={onGenerateRecommendationMemo}
               disabled={
@@ -210,47 +218,48 @@ export default function TalentRecommendationView({
                 <Sparkles className="h-4 w-4" />
               )}
               추천 내용 작성
-            </button>
-            <button
+            </BareButton>
+            <BareButton
               type="button"
               onClick={onOpenRecommendationPromptModal}
               className={cx(opsTheme.buttonSecondary, "h-10 px-4")}
             >
               프롬프트 수정
-            </button>
+            </BareButton>
           </div>
-          <textarea
+          <UiTextarea
+            unstyled
             value={recommendationMemo}
             onChange={(event) => onRecommendationMemoChange(event.target.value)}
             placeholder="후보자에게 전달되는 메모"
             className={cx(opsTheme.textarea, "min-h-[108px] px-3 py-3")}
           />
           <div className="space-y-2">
-            <div className="font-geist text-xs font-medium uppercase tracking-[0.12em] text-beige900/45">
+            <div className="text-xs font-medium uppercase tracking-[0.12em] text-neutral-muted">
               추천 타입
             </div>
             <div className="grid gap-2">
-              {(Object.keys(OPPORTUNITY_TYPE_LABEL) as OpsOpportunityType[]).map(
-                (type) => (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => onRecommendationOpportunityTypeChange(type)}
-                    className={cx(
-                      opsTheme.buttonSecondary,
-                      "h-auto justify-start px-3 py-3 text-left",
-                      recommendationOpportunityType === type &&
-                        "border-beige900 bg-beige900 text-beige50 hover:bg-beige900/90"
-                    )}
-                  >
-                    {OPPORTUNITY_TYPE_LABEL[type]}
-                  </button>
-                )
-              )}
+              {(
+                Object.keys(OPPORTUNITY_TYPE_LABEL) as OpsOpportunityType[]
+              ).map((type) => (
+                <BareButton
+                  key={type}
+                  type="button"
+                  onClick={() => onRecommendationOpportunityTypeChange(type)}
+                  className={cx(
+                    opsTheme.buttonSecondary,
+                    "h-auto justify-start px-3 py-3 text-left",
+                    recommendationOpportunityType === type &&
+                      "border-neutral-800 bg-black text-neutral-00 hover:bg-black/90"
+                  )}
+                >
+                  {OPPORTUNITY_TYPE_LABEL[type]}
+                </BareButton>
+              ))}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button
+            <BareButton
               type="button"
               onClick={onCreateRecommendation}
               disabled={
@@ -266,14 +275,14 @@ export default function TalentRecommendationView({
                 <Sparkles className="h-4 w-4" />
               )}
               추천 추가
-            </button>
-            <button
+            </BareButton>
+            <BareButton
               type="button"
               onClick={onResetRecommendationSelection}
               className={cx(opsTheme.buttonSecondary, "h-10 px-4")}
             >
               초기화
-            </button>
+            </BareButton>
           </div>
         </div>
       </div>
@@ -295,22 +304,26 @@ export default function TalentRecommendationView({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="truncate font-geist text-sm font-medium text-beige900">
+                    <div className="truncate text-sm font-medium text-neutral-primary">
                       {item.roleName}
                     </div>
-                    <div className="mt-1 text-xs text-beige900/55">
+                    <div className="mt-1 text-xs text-neutral-muted">
                       {item.companyName}
                       {item.locationText ? ` · ${item.locationText}` : ""}
-                      {item.postedAt ? ` · ${formatShortDate(item.postedAt)}` : ""}
+                      {item.postedAt
+                        ? ` · ${formatShortDate(item.postedAt)}`
+                        : ""}
                     </div>
                   </div>
-                  <button
+                  <BareButton
                     type="button"
-                    onClick={() => onDeleteRecommendation(item.recommendationId)}
-                    className="rounded-md bg-white/80 px-2 py-1 text-[11px] text-beige900/75 transition hover:bg-white"
+                    onClick={() =>
+                      onDeleteRecommendation(item.recommendationId)
+                    }
+                    className="rounded-md bg-bg-default/80 px-2 py-1 text-[11px] text-neutral-muted transition hover:bg-bg-default"
                   >
                     제거
-                  </button>
+                  </BareButton>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   <Token>{SOURCE_LABEL[item.sourceType]}</Token>
@@ -321,11 +334,13 @@ export default function TalentRecommendationView({
                     </Token>
                   )}
                   {item.feedback && (
-                    <Token>{RECOMMENDATION_FEEDBACK_LABEL[item.feedback]}</Token>
+                    <Token>
+                      {RECOMMENDATION_FEEDBACK_LABEL[item.feedback]}
+                    </Token>
                   )}
                 </div>
                 {item.recommendationReasons.length > 0 && (
-                  <div className="space-y-1 text-xs leading-5 text-beige900/60">
+                  <div className="space-y-1 text-xs leading-5 text-neutral-muted">
                     {item.recommendationReasons.map((reason, index) => (
                       <div
                         key={`${item.recommendationId}-${index}`}

@@ -16,6 +16,7 @@ import { Loading } from "@/components/ui/loading";
 import { useMessages } from "@/i18n/useMessage";
 import ScoutCard from "@/components/scout/ScoutCard";
 import ScoutEmptyState from "@/components/scout/ScoutEmptyState";
+import { BareButton } from "@/components/ui/button";
 
 type AutomationRow = Database["public"]["Tables"]["automation"]["Row"];
 const PAGE_SIZE = 10;
@@ -261,17 +262,17 @@ export default function AutomationIndexPage() {
 
   return (
     <AppLayout initialCollapse={false}>
-      <div className="min-h-screen w-full text-beige900">
+      <div className="min-h-screen w-full text-neutral-primary">
         {items.length !== 0 && (
-          <div className="sticky top-0 z-40 w-full backdrop-blur bg-beige100/60">
+          <div className="sticky top-0 z-40 w-full backdrop-blur bg-bg-basement/60">
             <div className="mx-auto w-full px-4 pt-6 pb-4 flex items-end justify-between gap-4">
               <div className="w-full">
                 <div className="flex flex-row items-center justify-between">
-                  <div className="text-3xl font-hedvig font-light tracking-tight text-beige900">
+                  <div className="text-3xl font-hedvig font-light tracking-tight text-neutral-primary">
                     {m.scout.title}
                   </div>
                 </div>
-                <div className="mt-4 text-sm text-xgray800 whitespace-pre-line">
+                <div className="mt-4 text-sm text-neutral-muted whitespace-pre-line">
                   {m.scout.intro}
                 </div>
               </div>
@@ -285,10 +286,10 @@ export default function AutomationIndexPage() {
         {items.length > 0 && (
           <div className="mx-auto w-full px-4 pb-16 mt-8">
             {isLoading && (
-              <div className="py-8 text-sm text-xgray800">
+              <div className="py-8 text-sm text-neutral-muted">
                 <Loading
                   label={m.scout.loadingList}
-                  className="text-xgray800"
+                  className="text-neutral-muted"
                   isFullScreen={true}
                 />
               </div>
@@ -311,16 +312,16 @@ export default function AutomationIndexPage() {
                   />
                 );
               })}
-              <button
+              <BareButton
                 type="button"
                 onClick={handleAddAutomation}
-                className="flex flex-row items-center gap-2 justify-center min-w-[280px] rounded-xl border border-beige900/8 border-dashed bg-beige900/5 hover:bg-beige900/10 py-3 text-sm font-medium text-beige900 transition"
+                className="flex flex-row items-center gap-2 justify-center min-w-[280px] rounded-xl border border-neutral-1000-a05 border-dashed bg-bg-floating hover:bg-bg-weak py-3 text-sm font-medium text-neutral-primary transition"
               >
-                <span className="w-6 h-6 rounded-full bg-beige900/20 text-accentBronze flex items-center justify-center">
+                <span className="w-6 h-6 rounded-full bg-bg-weak text-primary flex items-center justify-center">
                   <Plus size={12} />
                 </span>
                 <span>{m.scout.addAgent}</span>
-              </button>
+              </BareButton>
             </div>
 
             {expandedId && (
@@ -413,40 +414,42 @@ function AutomationResultsList({
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  if (isLoading) return <Loading className="text-xgray800" />;
+  if (isLoading) return <Loading className="text-neutral-muted" />;
   if (error)
-    return <div className="text-sm text-red-400">불러오지 못했습니다.</div>;
+    return <div className="text-sm text-critical">불러오지 못했습니다.</div>;
 
   if (items.length === 0) {
     return (
-      <div className="text-sm text-xgray800">추천된 후보자가 없습니다.</div>
+      <div className="text-sm text-neutral-muted">
+        추천된 후보자가 없습니다.
+      </div>
     );
   }
 
   return (
     <div className="w-full">
       <div className="flex items-center justify-between gap-3 mb-4">
-        <div className="flex flex-row items-center gap-3 text-sm text-beige900">
+        <div className="flex flex-row items-center gap-3 text-sm text-neutral-primary">
           <span>Page</span>
           <span
-            className={`rounded-md p-1 bg-beige500/55 ${!hasPrev || isFetching ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+            className={`rounded-md p-1 bg-bg-floating ${!hasPrev || isFetching ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
             onClick={() => setPageIdx((p) => Math.max(0, p - 1))}
           >
-            <ChevronLeft size={16} className="text-accentBronze" />
+            <ChevronLeft size={16} className="text-primary" />
           </span>
           <span className="font-medium">{pageIdx + 1}</span> /{" "}
           <span className="font-medium">{pageCount}</span>{" "}
           <span
-            className={`rounded-md p-1 bg-beige500/55 ${!hasNext || isFetching ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+            className={`rounded-md p-1 bg-bg-floating ${!hasNext || isFetching ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
             onClick={() => {
               if (!hasNext) return;
               setPageIdx((p) => p + 1);
             }}
           >
-            <ChevronRight size={16} className="text-accentBronze" />
+            <ChevronRight size={16} className="text-primary" />
           </span>
           {isFetching && (
-            <span className="ml-2 text-beige900/45">Syncing…</span>
+            <span className="ml-2 text-neutral-soft">Syncing…</span>
           )}
         </div>
       </div>

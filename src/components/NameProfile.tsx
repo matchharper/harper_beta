@@ -42,7 +42,7 @@ const NameProfile = ({
       />
       <div
         onClick={() => router.push(`/my/p/${id}`)}
-        className="cursor-pointer rounded-full hover:border-accenta1/80 border border-transparent transition-colors duration-100"
+        className="cursor-pointer rounded-full hover:border-accent-200/80 border border-transparent transition-colors duration-100"
       >
         <Avatar url={profile_picture} name={name} size="lg" />
       </div>
@@ -58,12 +58,12 @@ const NameProfile = ({
           </div>
 
           {headline && (
-            <div className="mt-1 font-light text-base text-hgray800">
+            <div className="mt-1 font-light text-base text-neutral-300">
               {headline}
             </div>
           )}
           {location && (
-            <div className="mt-1 text-sm text-hgray600 font-light">
+            <div className="mt-1 text-sm text-neutral-600 font-light">
               {locationEnToKo(location)}
             </div>
           )}

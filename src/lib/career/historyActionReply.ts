@@ -4,6 +4,11 @@ import {
   type CareerOpportunityFeedbackFollowUpTrigger,
 } from "@/lib/career/prompts";
 import {
+  attachInternalOpportunityCallRequestToMessage,
+  buildInternalOpportunityCallProactiveInstruction,
+  type InternalOpportunityCallRequest,
+} from "@/lib/talentOnboarding/internalOpportunityCallRequest";
+import {
   fetchPendingOpportunityFeedbackActivityItems,
   formatOpportunityFeedbackPromptContext,
   type TalentOpportunityFeedbackActivityItem,
@@ -86,8 +91,10 @@ function toFeedbackActivityItem(args: {
 export async function createTalentOpportunityFeedbackFollowUpReply(args: {
   action?: TalentOpportunityFeedbackAction | null;
   admin: TalentAdminClient;
+  allowedToolNames?: readonly string[] | null;
   conversationId: string | null;
   feedbackReason?: string | null;
+  internalCallRequest?: InternalOpportunityCallRequest | null;
   isMobile?: boolean | null;
   opportunity?: TalentOpportunityHistoryItem | null;
   trigger: TalentOpportunityFeedbackReplyTrigger;
@@ -133,14 +140,23 @@ export async function createTalentOpportunityFeedbackFollowUpReply(args: {
   if (items.length === 0) return null;
 
   const feedbackContext = formatOpportunityFeedbackPromptContext(items);
+  const proactiveContext = [
+    buildCareerOpportunityFeedbackFollowUpTurnInstruction({
+      trigger: args.trigger,
+    }),
+    buildInternalOpportunityCallProactiveInstruction(
+      args.internalCallRequest ?? null
+    ),
+  ]
+    .filter((section) => section.trim().length > 0)
+    .join("\n\n");
   const result = await runCareerChatTurn({
+    allowedToolNames: args.allowedToolNames,
     admin: args.admin,
     conversationId,
     isMobile: args.isMobile,
     pendingOpportunityFeedbackContext: feedbackContext,
-    proactiveContext: buildCareerOpportunityFeedbackFollowUpTurnInstruction({
-      trigger: args.trigger,
-    }),
+    proactiveContext,
     shouldInsertAssistantMessage: usingFallbackOnly
       ? undefined
       : async () => {
@@ -155,6 +171,30 @@ export async function createTalentOpportunityFeedbackFollowUpReply(args: {
         },
     userId: args.userId,
   });
+
+  if (result.assistantMessage && args.internalCallRequest) {
+    try {
+      const content = await attachInternalOpportunityCallRequestToMessage({
+        admin: args.admin,
+        callRequest: args.internalCallRequest,
+        content: result.assistantMessage.content,
+        conversationId,
+        messageId: result.assistantMessage.id,
+        userId: args.userId,
+      });
+      return {
+        ...result.assistantMessage,
+        content,
+      };
+    } catch (error) {
+      console.error("[career-history:internal-call-request-marker]", {
+        error: error instanceof Error ? error.message : String(error),
+        callRequestId: args.internalCallRequest.id,
+        conversationId,
+        userId: args.userId,
+      });
+    }
+  }
 
   return result.assistantMessage;
 }

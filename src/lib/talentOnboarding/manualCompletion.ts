@@ -13,10 +13,12 @@ import {
   type TalentAdminClient,
   type TalentMessageRow,
 } from "@/lib/talentOnboarding/server";
+import type { TalentOnboardingCompletionReason } from "@/lib/talentOnboarding/completion";
 
 export async function completeTalentOnboardingManually(args: {
   admin: TalentAdminClient;
   conversationId: string;
+  completionReason?: TalentOnboardingCompletionReason;
   isMobile?: boolean | null;
   latestUserMessageId?: number | string | null;
   regenerateWrapup?: boolean;
@@ -42,7 +44,8 @@ export async function completeTalentOnboardingManually(args: {
 
   const queuedRun = await completeOnboardingAndQueueInitialOpportunityRun({
     admin: args.admin,
-    completionReason: "user_requested_manual_completion",
+    completionReason:
+      args.completionReason ?? "user_requested_manual_completion",
     conversationId: args.conversationId,
     source: args.source,
     userId: args.userId,

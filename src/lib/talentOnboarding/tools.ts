@@ -31,6 +31,12 @@ import {
 } from "./server";
 import { selectAdditionalOnboardingQuestion } from "./additionalQuestionSelector";
 import {
+  TALENT_PERIODIC_INTERVAL_DAYS_MAX,
+  TALENT_PERIODIC_INTERVAL_DAYS_MIN,
+  TALENT_RECOMMENDATION_BATCH_SIZE_MAX,
+  TALENT_RECOMMENDATION_BATCH_SIZE_MIN,
+} from "./recommendationSettings";
+import {
   buildInsightActivitySummary,
   buildPreferenceActivitySummary,
   buildRowMemoActivitySummary,
@@ -60,6 +66,7 @@ export type TalentToolChannel = "chat" | "voice";
 
 export type TalentToolExecutionContext = {
   admin?: unknown;
+  abortSignal?: AbortSignal;
   conversationId?: string;
   isMobile?: boolean | null;
   userMessageId?: number | string | null;
@@ -131,6 +138,7 @@ export const TALENT_TOOL_NAMES = {
   RESEARCH_COMPANY: "research_company",
   LOOKUP_ANSWER_EXAMPLES: "lookup_answer_examples",
   READ_TALENT_ACTIVITY_EVENTS: "read_talent_activity_events",
+  UPDATE_SETTING: "update_setting",
   UPDATE_TALENT_PROFILE: "update_talent_profile",
 } as const;
 
@@ -150,6 +158,7 @@ export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   TALENT_TOOL_NAMES.RESEARCH_COMPANY,
   TALENT_TOOL_NAMES.LOOKUP_ANSWER_EXAMPLES,
   TALENT_TOOL_NAMES.READ_TALENT_ACTIVITY_EVENTS,
+  TALENT_TOOL_NAMES.UPDATE_SETTING,
   TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
 ] as const;
 
@@ -766,7 +775,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.OPEN_URL]: {
     name: TALENT_TOOL_NAMES.OPEN_URL,
     description:
-      "Open a specific website URL and return its page markdown. Use when the user provides a URL or asks to read, inspect, summarize, or reason about a specific webpage. This first checks Harper's cached documents table by URL; on cache miss, it scrapes the URL with Firecrawl and saves the markdown to documents.",
+      "Open a specific website URL and return page markdown. Use when the user provides a URL or asks to read, inspect, summarize, or reason about a specific webpage.",
     parameters: {
       type: "object",
       properties: {
@@ -777,7 +786,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         maxMarkdownChars: {
           type: "integer",
           description:
-            "Optional maximum markdown characters returned to the model. The full markdown is still saved in the documents cache.",
+            "Optional maximum markdown characters returned to the model.",
           minimum: 1000,
           maximum: 40000,
           default: 20000,
@@ -791,7 +800,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const admin = context?.admin;
       const url = optionalToolString(input.url);
       if (!admin) {
-        throw new TalentToolError("open_url requires database context.");
+        throw new TalentToolError("open_url requires service context.");
       }
       if (!url) {
         throw new TalentToolError("open_url requires a non-empty URL.");
@@ -807,7 +816,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS]: {
     name: TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS,
     description:
-      "Find, rerank, enrich, and save up to 5 current job postings from Harper's company_roles/company_workspace/company_db database for this user. Use when the user asks to find, recommend, or match new job postings, roles, positions, companies, or opportunities with specific requirements. Do not use first when the user's request includes a durable hard filter or future-matching command such as '~로만 찾아줘', '~만 보내줘', '앞으로 ~로 찾아줘', '다음부터 ~는 빼줘', or '~ 조건을 반영해줘'; call update_talent_profile first so the condition is saved, then let the fresh search run. Do not use immediately for clearly off-profile or aspirational role requests; first explain the mismatch and ask one clarifying question. If the user clarifies it is only curiosity/browsing, use this as a one-off exploratory search and do not update future matching memory.",
+      "Find, rerank, enrich, and save up to 5 current job postings for this user. Use when the user asks to find, recommend, or match new job postings, roles, positions, companies, or opportunities with specific requirements. Do not use first when the user's request includes a durable hard filter or future-matching command such as '~로만 찾아줘', '~만 보내줘', '앞으로 ~로 찾아줘', '다음부터 ~는 빼줘', or '~ 조건을 반영해줘'; call update_talent_profile first so the condition is saved, then let the fresh search run. Do not use immediately for clearly off-profile or aspirational role requests; first explain the mismatch and ask one clarifying question. If the user clarifies it is only curiosity/browsing, use this as a one-off exploratory search and do not update future matching memory.",
     parameters: {
       type: "object",
       properties: {
@@ -838,6 +847,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
 
       return runCareerJobPostingRecommendations({
         admin: admin as any,
+        abortSignal: context?.abortSignal,
         conversationId,
         request,
         userId,
@@ -847,7 +857,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.RECOMMEND_COMPANIES]: {
     name: TALENT_TOOL_NAMES.RECOMMEND_COMPANIES,
     description:
-      "Find, rank, and save companies for the user's Career Watchlist. Use when the user asks for companies to follow, company recommendations, startup/company discovery, or watchlist suggestions independent of a specific role. The server only considers companies with at least one active company_roles row in the last 6 months and a connected company_db record with a LinkedIn URL.",
+      "Find, rank, and save companies for the user's Career Watchlist. Use when the user asks for companies to follow, company recommendations, startup/company discovery, or watchlist suggestions independent of a specific role.",
     parameters: {
       type: "object",
       properties: {
@@ -893,7 +903,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.RESEARCH_COMPANY]: {
     name: TALENT_TOOL_NAMES.RESEARCH_COMPANY,
     description:
-      "Use this tool when the user GENUINELY wants to learn about a specific company (asking about culture, funding, team, business model, hiring landscape, etc.). On cache hit, returns the saved snapshot instantly; on cache miss, runs real-time web research (5-15 second delay) and returns a synthesized answer with citations.\n\nDo NOT call when:\n- Company name appears in passing or anecdotally (e.g., '내 친구도 토스 다녔어')\n- Company name is part of a JD/role question\n- User is just sharing their own experience at a company\n- User asks for an opinion comparing companies without asking for info ('A vs B 어디가 좋을까')\n\nFresh research takes 5-15 seconds — only invoke when the user clearly wants the depth.",
+      "Use this tool when the user GENUINELY wants to learn about a specific company (asking about culture, funding, team, business model, hiring landscape, etc.). It returns a synthesized company answer with citations when available.\n\nDo NOT call when:\n- Company name appears in passing or anecdotally (e.g., '내 친구도 토스 다녔어')\n- Company name is part of a JD/role question\n- User is just sharing their own experience at a company\n- User asks for an opinion comparing companies without asking for info ('A vs B 어디가 좋을까')\n\nOnly invoke when the user clearly wants company-specific depth.",
     parameters: {
       type: "object",
       properties: {
@@ -1025,7 +1035,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES]: {
     name: TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES,
     description:
-      "Read the user's existing recommended opportunities so the assistant can answer questions about previously recommended companies, roles, links, reasons, user feedback, and internal process stages.",
+      "Read the user's existing recommended opportunities so the assistant can answer questions about previously recommended companies, roles, links, reasons, user feedback, and connection/review status.",
     parameters: {
       type: "object",
       properties: {
@@ -1117,7 +1127,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.GET_ROLE_CONTEXT]: {
     name: TALENT_TOOL_NAMES.GET_ROLE_CONTEXT,
     description:
-      "Get detailed context for up to 3 specific job posting roles by roleId. Use only when the user asks about, recalls, or gives feedback on specific already-shown posting cards/roles and the current context does not contain enough detail. Do not use while finding or presenting fresh recommendations; recommend_job_postings already returns the context needed for that answer. Includes role details, company context, and the latest user-specific recommendation context for each role. Set include_jd true only when the job description/JD text is needed; when false, role.description is omitted. The returned role.internalRequest is internal-only context for reasoning and must not be directly quoted or exposed to the user.",
+      "Get detailed context for up to 3 specific job posting roles by roleId. Use only when the user asks about, recalls, or gives feedback on specific already-shown posting cards/roles and the current context does not contain enough detail. Do not use while finding or presenting fresh recommendations; recommend_job_postings already returns the context needed for that answer. Includes role details, company context, and the latest user-specific recommendation context for each role. Set include_jd true only when the job description/JD text is needed; when false, role.description is omitted. Treat any private company-side notes in the result as reasoning-only context; never quote or expose them to the user.",
     parameters: {
       type: "object",
       properties: {
@@ -1140,7 +1150,8 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       required: ["roleIds", "include_jd"],
       additionalProperties: false,
     },
-    channels: ["chat"],
+    channels: ["chat", "voice"],
+    voicePreamble: "포지션 상세 내용을 잠깐 확인해볼게요.",
     async execute(input, context) {
       const admin = context?.admin;
       const userId = context?.userId;
@@ -1243,53 +1254,195 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       });
     },
   },
+  [TALENT_TOOL_NAMES.UPDATE_SETTING]: {
+    name: TALENT_TOOL_NAMES.UPDATE_SETTING,
+    description:
+      "Update recommendation delivery settings only. Use when the user's latest statement directly asks to change how often Harper sends opportunity recommendations, how many opportunities are in each batch, or whether Harper should include external/public job postings and/or internal Harper-connected opportunities. Do not use for profile facts, row memos, future matching criteria such as role/company/location preferences, one-off browsing/search requests, hypotheticals, or information already saved in current state. If the user wants to stop all opportunity recommendations, set both getExternalRecommendation=false and getInternalRecommendation=false. If the user wants no public/external job-posting recommendations or wants only internal Harper-connected opportunities, set getExternalRecommendation=false and keep cadence fields unchanged. After the tool result, produce a normal user-facing chat reply in Korean; do not expose internal setting names.",
+    parameters: {
+      type: "object",
+      properties: {
+        getExternalRecommendation: {
+          type: "boolean",
+          description:
+            "Whether Harper may recommend external/public job postings. Set false when the user says not to recommend public/external/open job postings, or says they only want internal Harper-connected opportunities. Default is true.",
+        },
+        getInternalRecommendation: {
+          type: "boolean",
+          description:
+            "Whether Harper may recommend internal Harper-connected opportunities. Set true when the user says they still want internal/connected opportunities; set false only when they explicitly do not want these. Default is true.",
+        },
+        periodicIntervalDays: {
+          type: "integer",
+          minimum: TALENT_PERIODIC_INTERVAL_DAYS_MIN,
+          maximum: TALENT_PERIODIC_INTERVAL_DAYS_MAX,
+          description:
+            "How often (in days) the user wants opportunity batches. Values must be 1-7.",
+        },
+        recommendationBatchSize: {
+          type: "integer",
+          minimum: TALENT_RECOMMENDATION_BATCH_SIZE_MIN,
+          maximum: TALENT_RECOMMENDATION_BATCH_SIZE_MAX,
+          description:
+            "Number of opportunities per batch. Values must be 3-10. Use when the user gives an exact count or clearly asks for more/fewer recommendations at a time. For vague larger requests, choose current +2 capped at 10, or 5 when there is no active/current value. For maximum requests, use 10. For vague smaller requests, choose current -2 floored at 3, or 3 when there is no active/current value.",
+        },
+      },
+      additionalProperties: false,
+    },
+    channels: ["chat"],
+    async execute(input, context) {
+      const admin = context?.admin as any;
+      const userId = context?.userId;
+      if (!admin || !userId) {
+        throw new TalentToolError("update_setting requires user context.");
+      }
+
+      const existingSetting = await fetchTalentSetting({ admin, userId });
+      const updatePayload: Parameters<typeof upsertTalentSetting>[0] = {
+        admin,
+        userId,
+      };
+      const updatedSettingFields: string[] = [];
+      const settingActivityChanges: TalentActivityChange[] = [];
+      let didUpdate = false;
+
+      if (typeof input.getExternalRecommendation === "boolean") {
+        const nextGetExternalRecommendation = input.getExternalRecommendation;
+        updatePayload.getExternalRecommendation = nextGetExternalRecommendation;
+        didUpdate = true;
+        updatedSettingFields.push("getExternalRecommendation");
+        if (
+          !isSameActivityValue(
+            existingSetting?.get_external_recommendation ?? true,
+            nextGetExternalRecommendation
+          )
+        ) {
+          settingActivityChanges.push({
+            field: "getExternalRecommendation",
+            from: existingSetting?.get_external_recommendation ?? true,
+            to: nextGetExternalRecommendation,
+          });
+        }
+      }
+      if (typeof input.getInternalRecommendation === "boolean") {
+        const nextGetInternalRecommendation = input.getInternalRecommendation;
+        updatePayload.getInternalRecommendation = nextGetInternalRecommendation;
+        didUpdate = true;
+        updatedSettingFields.push("getInternalRecommendation");
+        if (
+          !isSameActivityValue(
+            existingSetting?.get_internal_recommendation ?? true,
+            nextGetInternalRecommendation
+          )
+        ) {
+          settingActivityChanges.push({
+            field: "getInternalRecommendation",
+            from: existingSetting?.get_internal_recommendation ?? true,
+            to: nextGetInternalRecommendation,
+          });
+        }
+      }
+      if (
+        typeof input.periodicIntervalDays === "number" &&
+        Number.isFinite(input.periodicIntervalDays)
+      ) {
+        const nextPeriodicIntervalDays = input.periodicIntervalDays;
+        updatePayload.periodicIntervalDays = nextPeriodicIntervalDays;
+        didUpdate = true;
+        updatedSettingFields.push("periodicIntervalDays");
+        if (
+          !isSameActivityValue(
+            existingSetting?.periodic_interval_days ?? null,
+            nextPeriodicIntervalDays
+          )
+        ) {
+          settingActivityChanges.push({
+            field: "periodicIntervalDays",
+            from: existingSetting?.periodic_interval_days ?? null,
+            to: nextPeriodicIntervalDays,
+          });
+        }
+      }
+      if (
+        typeof input.recommendationBatchSize === "number" &&
+        Number.isFinite(input.recommendationBatchSize)
+      ) {
+        const nextRecommendationBatchSize = input.recommendationBatchSize;
+        updatePayload.recommendationBatchSize = nextRecommendationBatchSize;
+        didUpdate = true;
+        updatedSettingFields.push("recommendationBatchSize");
+        if (
+          !isSameActivityValue(
+            existingSetting?.recommendation_batch_size ?? null,
+            nextRecommendationBatchSize
+          )
+        ) {
+          settingActivityChanges.push({
+            field: "recommendationBatchSize",
+            from: existingSetting?.recommendation_batch_size ?? null,
+            to: nextRecommendationBatchSize,
+          });
+        }
+      }
+
+      if (didUpdate) {
+        await upsertTalentSetting(updatePayload);
+      }
+
+      const settingChanges = compactActivityChanges(settingActivityChanges);
+      const settingSummary = buildPreferenceActivitySummary(settingChanges);
+      const settingImpactLevel =
+        settingChanges.length > 0
+          ? getPreferenceActivityImpact(settingChanges)
+          : null;
+      if (settingSummary) {
+        await insertTalentActivityEvent({
+          admin,
+          changedDomains: [
+            "preferences",
+            ...settingChanges.map((change) => change.field),
+          ],
+          conversationId: context?.conversationId ?? null,
+          eventType: "preferences_changed",
+          impactLevel: settingImpactLevel ?? "low",
+          messageId: context?.userMessageId ?? null,
+          metadata: {
+            changes: toPreferenceActivityDisplayChanges(settingChanges),
+          },
+          relatedEntityType: "talent_setting",
+          source: "chat",
+          summary: settingSummary,
+          userId,
+        });
+      }
+
+      return {
+        assistantInstruction: [
+          "Continue the conversation naturally in Korean now. Do not mention internal tool names, JSON, or internal field names.",
+          "If recommendation delivery settings changed, explain the practical consequence in the user's language: how often Harper will send opportunities, how many, and which opportunity channels will be included or avoided.",
+          "Do not make the saved-setting acknowledgement the whole answer; continue naturally from the user's intent.",
+        ].join(" "),
+        impactLevel: settingImpactLevel ?? "low",
+        ok: true,
+        updatedSettingFields,
+      };
+    },
+  },
   [TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE]: {
     name: TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
     description:
-      "Update internal profile state with new information about the user. It can update talent_users.bio, talent_preferences, and row memos during onboarding and after onboarding. It can update talent_insights only after onboarding is already complete, and only for future recommendation/search memory, not profile-row facts that belong in experiences, educations, or extras. Call when the user's latest statement directly maps to writable state, including explicit durable hard-filter search commands such as '미국 회사로만 찾아줘', '앞으로 리모트만 보내줘', '대기업은 빼고 찾아줘', or '다음부터 Series B 이상만 봐줘'. If the user discusses resume/CV context that matters for future matching, such as what their resume says, omits, emphasizes, or should signal, record that as talentInsights content when it is not a direct resume-file/profile-row update. For recommendation cadence, normal periodicIntervalDays values are 2-7. If the user wants to stop all opportunity recommendations, set both preferences.getExternalRecommendation=false and preferences.getInternalRecommendation=false. If the user wants no public/external job-posting recommendations or wants only internal Harper-connected opportunities, set preferences.getExternalRecommendation=false and keep cadence fields unchanged. Do not call for user questions, one-off browsing/curiosity/search requests, hypotheticals/conditional speech ('만약 ~라면'), assistant statements, aspirational/off-profile role mentions without explicit future intent, or information already saved in current state. After the tool result, produce a normal user-facing chat reply in Korean; do not return an empty assistant message or only an onboarding marker.",
+      "Update saved profile state with new information about the user. It can update the user's profile summary and row memos during onboarding and after onboarding. It can update future recommendation/search memory only after onboarding is already complete, and only for matching memory, not facts that belong in profile rows. Call when the user's latest statement directly maps to writable profile or future-matching memory, including explicit durable hard-filter search commands such as '미국 회사로만 찾아줘', '앞으로 리모트만 보내줘', '대기업은 빼고 찾아줘', or '다음부터 Series B 이상만 봐줘'. If the user discusses resume/CV context that matters for future matching, such as what their resume says, omits, emphasizes, or should signal, record that as future matching memory when it is not a direct resume-file/profile-row update. Do not call this tool for recommendation delivery settings such as cadence, batch size, external recommendations, or internal recommendations; use update_setting for those. Do not call for user questions, one-off browsing/curiosity/search requests, hypotheticals/conditional speech ('만약 ~라면'), assistant statements, aspirational/off-profile role mentions without explicit future intent, or information already saved in current state. After the tool result, produce a normal user-facing chat reply in Korean; do not return an empty assistant message or only an onboarding marker.",
     parameters: {
       type: "object",
       properties: {
         talentUser: {
           type: "object",
           description:
-            "Profile-level talent_users fields. Currently supports bio only. Use when the user explicitly provides or corrects their profile summary/about text. Do not invent a bio from assistant-only summaries; write the user's intended updated summary.",
+            "Profile-level fields. Currently supports bio only. Use when the user explicitly provides or corrects their profile summary/about text. Do not invent a bio from assistant-only summaries; write the user's intended updated summary.",
           properties: {
             bio: {
               anyOf: [{ type: "string" }, { type: "null" }],
               description:
-                "New talent_users.bio profile summary. Use null or an empty string only when the user explicitly asks to clear/remove the summary. Server trims and caps at 8000 chars.",
-            },
-          },
-          additionalProperties: false,
-        },
-        preferences: {
-          type: "object",
-          description:
-            "Structured talent_preferences fields. Provide ONLY fields the user newly disclosed. Numeric cadence fields and recommendation type booleans are writable here. Stop all opportunity recommendations by setting both getExternalRecommendation false and getInternalRecommendation false. Internal-only connected opportunities = getExternalRecommendation false and getInternalRecommendation true.",
-          properties: {
-            getExternalRecommendation: {
-              type: "boolean",
-              description:
-                "Whether Harper may recommend external/public job postings. Set false when the user says not to recommend public/external/open job postings, or says they only want internal Harper-connected opportunities. Default is true.",
-            },
-            getInternalRecommendation: {
-              type: "boolean",
-              description:
-                "Whether Harper may recommend internal Harper-connected opportunities. Set true when the user says they still want internal/connected opportunities; set false only when they explicitly do not want these. Default is true.",
-            },
-            periodicIntervalDays: {
-              type: "integer",
-              minimum: 2,
-              maximum: 7,
-              description:
-                "How often (in days) the user wants opportunity batches. Values must be 2-7.",
-            },
-            recommendationBatchSize: {
-              type: "integer",
-              minimum: 1,
-              maximum: 10,
-              description: "Number of opportunities per batch (1-10).",
+                "New profile summary. Use null or an empty string only when the user explicitly asks to clear/remove the summary.",
             },
           },
           additionalProperties: false,
@@ -1297,24 +1450,24 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         rowMemos: {
           type: "object",
           description:
-            "Per-row memo additions. Use ONLY when the user's declarative statement clearly maps to ONE specific row visible in the system prompt's [Structured Talent Profile] block. Provide newInfo (one short Korean fact, plain prose, no preamble like '저는') — the server appends it to the existing memo automatically. NEVER invent rowIds or titles; use only those visible in the prompt's RowID lines (experiences/educations) or Title lines (extras). OMIT a table or entry entirely if the mention is ambiguous (multiple candidate rows), no row matches, or the statement is generic and not tied to a specific profile row.",
+            "Per-row memo additions. Use ONLY when the user's declarative statement clearly maps to ONE specific row visible in the system prompt's [Structured Talent Profile] block. Provide newInfo (one short Korean fact, plain prose, no preamble like '저는'). NEVER invent rowIds or titles; use only those visible in the prompt's RowID lines (experiences/educations) or Title lines (extras). OMIT a table or entry entirely if the mention is ambiguous (multiple candidate rows), no row matches, or the statement is generic and not tied to a specific profile row.",
           properties: {
             experiences: {
               type: "array",
               description:
-                "Memo additions for talent_experiences rows. Match a row by its RowID line in the prompt.",
+                "Memo additions for experience rows. Match a row by its RowID line in the prompt.",
               items: {
                 type: "object",
                 properties: {
                   rowId: {
                     type: "string",
                     description:
-                      "talent_experiences.id from the profile listing's RowID line. Must be a verbatim match.",
+                      "Experience RowID from the profile listing. Must be a verbatim match.",
                   },
                   newInfo: {
                     type: "string",
                     description:
-                      "Single short Korean fact to add to this row's memo. The server will append it to the existing memo and cap at 2000 chars.",
+                      "Single short Korean fact to add to this row's memo.",
                   },
                 },
                 required: ["rowId", "newInfo"],
@@ -1324,14 +1477,14 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             educations: {
               type: "array",
               description:
-                "Memo additions for talent_educations rows. Match a row by its RowID line in the prompt.",
+                "Memo additions for education rows. Match a row by its RowID line in the prompt.",
               items: {
                 type: "object",
                 properties: {
                   rowId: {
                     type: "string",
                     description:
-                      "talent_educations.id from the profile listing's RowID line. Must be a verbatim match.",
+                      "Education RowID from the profile listing. Must be a verbatim match.",
                   },
                   newInfo: { type: "string" },
                 },
@@ -1342,7 +1495,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             extras: {
               type: "array",
               description:
-                "Memo additions for talent_extras items. Match an item by its exact Title from the profile listing (case-insensitive trim match server-side). If two items share a title, the server skips silently.",
+                "Memo additions for extra profile items. Match an item by its exact Title from the profile listing. If two items share a title, omit the entry instead of guessing.",
               items: {
                 type: "object",
                 properties: {
@@ -1363,12 +1516,12 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         talentInsights: {
           type: "object",
           description:
-            "Post-onboarding only. Durable future recommendation/search-memory updates from the user's latest statement, such as desired next role, search intensity, compensation, must-haves, deal-breakers, team style, company/domain preference, company size/stage preference, resume/CV positioning context, or corrections to prior recommendation preferences. Explicit hard-filter search commands are durable memory too: for example, '미국 회사로만 찾아줘' should update must_haves with a value like '앞으로 미국 기반 회사만 추천받고 싶어합니다.' when intended as a hard requirement. If the user talks about what their resume/CV contains, leaves out, emphasizes, or should communicate for matching, preserve that resume-related context here unless it belongs on one visible profile row. Do not use this for facts that belong on a specific experience, education, or extra row; use rowMemos instead. Do not use this for one-off curiosity/browsing/search requests or aspirational/off-profile role mentions unless the user explicitly says Harper should remember the new direction for future matching. Keys must be English snake_case. Values must be final integrated Korean complete sentences, not fragments. During onboarding, omit this entirely because insight extraction is handled separately.",
+            "Post-onboarding only. Durable future recommendation/search-memory updates from the user's latest statement, such as desired next role, search intensity, compensation, must-haves, deal-breakers, team style, company/domain preference, company size/stage preference, resume/CV positioning context, or corrections to prior matching preferences. Explicit hard-filter search commands are durable memory too: for example, '미국 회사로만 찾아줘' should update must_haves with a value like '앞으로 미국 기반 회사만 추천받고 싶어합니다.' when intended as a hard requirement. If the user talks about what their resume/CV contains, leaves out, emphasizes, or should communicate for matching, preserve that resume-related context here unless it belongs on one visible profile row. Do not use this for facts that belong on a specific experience, education, or extra row; use rowMemos instead. Do not use this for one-off curiosity/browsing/search requests or aspirational/off-profile role mentions unless the user explicitly says Harper should remember the new direction for future matching. Keys must be English snake_case. Values must be final integrated Korean complete sentences, not fragments. During onboarding, omit this entirely because insight extraction is handled separately.",
           properties: {
             content: {
               type: "object",
               description:
-                "Partial talent_insights.content patch. If the new information belongs to an existing/current insight or checklist axis, update that key with the final integrated value instead of creating a synonym key. Examples: next_scope for target role, deal_breakers for deal-breakers, must_haves for must-have conditions, team_style_fit for team style, compensation for compensation floor, location for location preference. Create a new descriptive English snake_case key when the information is genuinely distinct and does not fit existing keys. Do not create profile-row keys like representative_experience or recent_experience.",
+                "Partial future-matching memory patch. If the new information belongs to an existing/current insight or checklist axis, update that key with the final integrated value instead of creating a synonym key. Create a new descriptive English snake_case key when the information is genuinely distinct and does not fit existing keys. Do not create profile-row keys like representative_experience or recent_experience.",
               additionalProperties: {
                 type: "string",
                 description:
@@ -1409,12 +1562,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         !Array.isArray(input.talentUser)
           ? (input.talentUser as Record<string, unknown>)
           : null;
-      const preferencesInput =
-        input.preferences &&
-        typeof input.preferences === "object" &&
-        !Array.isArray(input.preferences)
-          ? (input.preferences as Record<string, unknown>)
-          : null;
       const rowMemosInput =
         input.rowMemos &&
         typeof input.rowMemos === "object" &&
@@ -1440,7 +1587,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
 
       const updatedTalentUserFields: string[] = [];
       const talentUserActivityChanges: TalentActivityChange[] = [];
-      const updatedPreferenceFields: string[] = [];
       const updatedRowMemos: {
         experiences: string[];
         educations: string[];
@@ -1450,7 +1596,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         string,
         { from: string | null; to: string }
       > = {};
-      const preferenceActivityChanges: TalentActivityChange[] = [];
       const rowMemoActivityItems: TalentRowMemoActivityItem[] = [];
       const skippedRowMemos: Array<{
         table: "experiences" | "educations" | "extras";
@@ -1503,108 +1648,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
               to: nextBio,
             });
           }
-        }
-      }
-
-      // talent_preferences — overwrite only explicit recommendation settings.
-      // Hidden talent_setting fields are intentionally NEVER passed so
-      // upsertTalentSetting falls back to existing values.
-      if (preferencesInput) {
-        const existingSetting = await loadExistingSetting();
-        const updatePayload: Parameters<typeof upsertTalentSetting>[0] = {
-          admin,
-          userId,
-          recommendationSettingsUpdatedBy: "conversation",
-        };
-        let didUpdate = false;
-
-        if (typeof preferencesInput.getExternalRecommendation === "boolean") {
-          const nextGetExternalRecommendation =
-            preferencesInput.getExternalRecommendation;
-          updatePayload.getExternalRecommendation =
-            nextGetExternalRecommendation;
-          didUpdate = true;
-          updatedPreferenceFields.push("getExternalRecommendation");
-          if (
-            !isSameActivityValue(
-              existingSetting?.get_external_recommendation ?? true,
-              nextGetExternalRecommendation
-            )
-          ) {
-            preferenceActivityChanges.push({
-              field: "getExternalRecommendation",
-              from: existingSetting?.get_external_recommendation ?? true,
-              to: nextGetExternalRecommendation,
-            });
-          }
-        }
-        if (typeof preferencesInput.getInternalRecommendation === "boolean") {
-          const nextGetInternalRecommendation =
-            preferencesInput.getInternalRecommendation;
-          updatePayload.getInternalRecommendation =
-            nextGetInternalRecommendation;
-          didUpdate = true;
-          updatedPreferenceFields.push("getInternalRecommendation");
-          if (
-            !isSameActivityValue(
-              existingSetting?.get_internal_recommendation ?? true,
-              nextGetInternalRecommendation
-            )
-          ) {
-            preferenceActivityChanges.push({
-              field: "getInternalRecommendation",
-              from: existingSetting?.get_internal_recommendation ?? true,
-              to: nextGetInternalRecommendation,
-            });
-          }
-        }
-        if (
-          typeof preferencesInput.periodicIntervalDays === "number" &&
-          Number.isFinite(preferencesInput.periodicIntervalDays)
-        ) {
-          const nextPeriodicIntervalDays =
-            preferencesInput.periodicIntervalDays;
-          updatePayload.periodicIntervalDays = nextPeriodicIntervalDays;
-          didUpdate = true;
-          updatedPreferenceFields.push("periodicIntervalDays");
-          if (
-            !isSameActivityValue(
-              existingSetting?.periodic_interval_days ?? null,
-              nextPeriodicIntervalDays
-            )
-          ) {
-            preferenceActivityChanges.push({
-              field: "periodicIntervalDays",
-              from: existingSetting?.periodic_interval_days ?? null,
-              to: nextPeriodicIntervalDays,
-            });
-          }
-        }
-        if (
-          typeof preferencesInput.recommendationBatchSize === "number" &&
-          Number.isFinite(preferencesInput.recommendationBatchSize)
-        ) {
-          const nextRecommendationBatchSize =
-            preferencesInput.recommendationBatchSize;
-          updatePayload.recommendationBatchSize = nextRecommendationBatchSize;
-          didUpdate = true;
-          updatedPreferenceFields.push("recommendationBatchSize");
-          if (
-            !isSameActivityValue(
-              existingSetting?.recommendation_batch_size ?? null,
-              nextRecommendationBatchSize
-            )
-          ) {
-            preferenceActivityChanges.push({
-              field: "recommendationBatchSize",
-              from: existingSetting?.recommendation_batch_size ?? null,
-              to: nextRecommendationBatchSize,
-            });
-          }
-        }
-
-        if (didUpdate) {
-          await upsertTalentSetting(updatePayload);
         }
       }
 
@@ -1819,36 +1862,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         });
       }
 
-      const preferenceChanges = compactActivityChanges(
-        preferenceActivityChanges
-      );
-      const preferenceSummary =
-        buildPreferenceActivitySummary(preferenceChanges);
-      const preferenceImpactLevel =
-        preferenceChanges.length > 0
-          ? getPreferenceActivityImpact(preferenceChanges)
-          : null;
-      if (preferenceSummary) {
-        await insertTalentActivityEvent({
-          admin,
-          changedDomains: [
-            "preferences",
-            ...preferenceChanges.map((change) => change.field),
-          ],
-          conversationId: context?.conversationId ?? null,
-          eventType: "preferences_changed",
-          impactLevel: preferenceImpactLevel ?? "low",
-          messageId: context?.userMessageId ?? null,
-          metadata: {
-            changes: toPreferenceActivityDisplayChanges(preferenceChanges),
-          },
-          relatedEntityType: "talent_setting",
-          source: "chat",
-          summary: preferenceSummary,
-          userId,
-        });
-      }
-
       const rowMemoSummary = buildRowMemoActivitySummary(rowMemoActivityItems);
       if (rowMemoSummary) {
         await insertTalentActivityEvent({
@@ -1903,13 +1916,12 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
 
       const impactLevel = maxImpactLevel([
         talentUserActivityChanges.length > 0 ? "low" : null,
-        preferenceImpactLevel,
         rowMemoActivityItems.length > 0 ? "medium" : null,
         insightImpactLevel,
       ]);
       const replyInstructions = [
-        "Continue the conversation naturally in Korean now. Do not mention internal tool names, JSON, or database fields.",
-        "If saved profile or preference state changed, do not make the saved-memory acknowledgement the whole answer. Explain the user-facing consequence in the context of what the user just asked, then continue naturally.",
+        "Continue the conversation naturally in Korean now. Do not mention internal tool names, JSON, or internal field names.",
+        "If saved profile or future-matching memory changed, do not make the saved-memory acknowledgement the whole answer. Explain the user-facing consequence in the context of what the user just asked, then continue naturally.",
         "Use other tools only if independently required by the user's latest explicit request.",
         "If onboarding is still active, ask at most one relevant next question, or close naturally with the required marker when appropriate. Do not return an empty assistant message.",
       ];
@@ -1919,7 +1931,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         impactLevel,
         ok: true,
         updatedTalentUserFields,
-        updatedPreferenceFields,
         updatedRowMemos,
         updatedTalentInsightKeys: talentInsightKeys,
         skippedRowMemos,

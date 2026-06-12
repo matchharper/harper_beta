@@ -69,7 +69,7 @@ export const DropdownMenu: React.FC<DropdownMenuProps> = ({
                       setOpen(false);
                       item.onClick();
                     }}
-                    className="w-full font-normal px-3.5 py-2 text-left hover:bg-xlightgray"
+                    className="w-full font-normal px-3.5 py-2 text-left hover:bg-neutral-100"
                   >
                     {item.label}
                   </button>

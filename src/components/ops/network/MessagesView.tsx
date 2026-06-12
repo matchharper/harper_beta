@@ -1,10 +1,8 @@
 import { cx, opsTheme } from "@/components/ops/theme";
 import type { NetworkLeadMessage } from "@/lib/opsNetwork";
 import { ChevronLeft, LoaderCircle, MessageSquareText } from "lucide-react";
-import {
-  MessageHistoryCard,
-  StructuredSection,
-} from "./shared";
+import { MessageHistoryCard, StructuredSection } from "./shared";
+import { BareButton } from "@/components/ui/button";
 
 type MessagesViewProps = {
   error: string | null;
@@ -30,17 +28,17 @@ export default function MessagesView({
       <StructuredSection icon={MessageSquareText} title="Harper 대화 내역">
         {isLoading && messages.length === 0 ? (
           <div className="flex min-h-[240px] items-center justify-center">
-            <LoaderCircle className="h-5 w-5 animate-spin text-beige900/35" />
+            <LoaderCircle className="h-5 w-5 animate-spin text-neutral-soft" />
           </div>
         ) : messages.length === 0 ? (
-          <div className="font-geist text-sm text-beige900/55">
+          <div className="text-sm text-neutral-muted">
             아직 불러올 대화 내역이 없습니다.
           </div>
         ) : (
           <div className="space-y-3">
             {hasOlderMessages ? (
               <div className="flex justify-center">
-                <button
+                <BareButton
                   type="button"
                   onClick={onLoadOlderMessages}
                   disabled={loadingOlderMessages}
@@ -52,7 +50,7 @@ export default function MessagesView({
                     <ChevronLeft className="h-4 w-4" />
                   )}
                   이전 20개 더 불러오기
-                </button>
+                </BareButton>
               </div>
             ) : null}
 

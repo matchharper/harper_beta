@@ -9,7 +9,9 @@ import type {
   CareerHistoryOpportunityCounts,
   CareerHistoryOpportunityFeedback,
   CareerHistoryOpportunityPageFilter,
+  CareerInternalOpportunityCallRequest,
   CareerMessagePayload,
+  CareerOpportunityFeedbackFollowUpTrigger,
   CareerOpportunitySavedStage,
 } from "@/components/career/types";
 import { getErrorMessage } from "@/hooks/career/careerHelpers";
@@ -45,9 +47,30 @@ type FilteredPageState = {
 
 type FilteredPageStateMap = Record<string, FilteredPageState | undefined>;
 
-type OpportunityFeedbackFollowUpTrigger =
-  | "all_recommended_opportunities_cleared"
-  | "delayed_external_feedback";
+type OpportunityFeedbackFollowUpRequestOptions = {
+  delayMs?: number | null;
+  feedback?: CareerHistoryOpportunityFeedback | null;
+  feedbackReason?: string | null;
+  internalCallRequestId?: string | null;
+  opportunityId?: string | null;
+  refreshHistory?: boolean;
+  shouldCreateInternalCallRequest?: boolean;
+  trigger?: CareerOpportunityFeedbackFollowUpTrigger | null;
+};
+
+const FOLLOW_UP_TRIGGER_PRIORITY: Record<
+  CareerOpportunityFeedbackFollowUpTrigger,
+  number
+> = {
+  delayed_external_feedback: 1,
+  all_visible_feedback_submitted: 2,
+  all_recommended_opportunities_cleared: 3,
+  immediate_internal_feedback: 4,
+};
+
+const getFollowUpTriggerPriority = (
+  trigger: CareerOpportunityFeedbackFollowUpTrigger | null | undefined
+) => (trigger ? (FOLLOW_UP_TRIGGER_PRIORITY[trigger] ?? 0) : 0);
 
 export const careerHistoryOpportunitiesKey = (userId: string | null) =>
   ["career-history-opportunities", userId] as const;
@@ -124,6 +147,16 @@ export function useCareerHistoryState(args: {
   initialSessionPage?: InitialCareerHistoryPage;
   onHistoryActionAssistantMessage?: (message: CareerMessagePayload) => void;
   onHistoryActionUserMessage?: (message: CareerMessagePayload) => void;
+  onPendingInternalOpportunityCallRequestChanged?: (
+    callRequest: CareerInternalOpportunityCallRequest | null
+  ) => void;
+  onPendingInternalOpportunityCallRequestsChanged?: (
+    callRequests: CareerInternalOpportunityCallRequest[]
+  ) => void;
+  onOpportunityFeedbackFollowUpPendingChanged?: (state: {
+    pending: boolean;
+    trigger: CareerOpportunityFeedbackFollowUpTrigger | null;
+  }) => void;
   userId: string | null;
 }) {
   const {
@@ -133,6 +166,9 @@ export function useCareerHistoryState(args: {
     initialSessionPage,
     onHistoryActionAssistantMessage,
     onHistoryActionUserMessage,
+    onPendingInternalOpportunityCallRequestChanged,
+    onPendingInternalOpportunityCallRequestsChanged,
+    onOpportunityFeedbackFollowUpPendingChanged,
     userId,
   } = args;
   const queryClient = useQueryClient();
@@ -152,12 +188,16 @@ export function useCareerHistoryState(args: {
   const feedbackFollowUpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
+  const feedbackFollowUpRequestRef =
+    useRef<OpportunityFeedbackFollowUpRequestOptions | null>(null);
+  const feedbackFollowUpPendingSequenceRef = useRef(0);
   const feedbackActionSequenceRef = useRef(0);
 
   const cancelPendingOpportunityFeedbackFollowUp = useCallback(() => {
     if (!feedbackFollowUpTimerRef.current) return;
     clearTimeout(feedbackFollowUpTimerRef.current);
     feedbackFollowUpTimerRef.current = null;
+    feedbackFollowUpRequestRef.current = null;
   }, []);
 
   const updateFilteredPageState = useCallback(
@@ -170,11 +210,16 @@ export function useCareerHistoryState(args: {
   );
 
   const requestOpportunityFeedbackFollowUp = useCallback(
-    async (options?: {
-      refreshHistory?: boolean;
-      trigger?: OpportunityFeedbackFollowUpTrigger | null;
-    }) => {
+    async (options?: OpportunityFeedbackFollowUpRequestOptions) => {
       if (!conversationId) return;
+
+      const trigger = options?.trigger ?? "delayed_external_feedback";
+      const pendingSequence = feedbackFollowUpPendingSequenceRef.current + 1;
+      feedbackFollowUpPendingSequenceRef.current = pendingSequence;
+      onOpportunityFeedbackFollowUpPendingChanged?.({
+        pending: true,
+        trigger,
+      });
 
       try {
         const response = await fetchWithAuth(
@@ -183,7 +228,13 @@ export function useCareerHistoryState(args: {
             method: "POST",
             body: JSON.stringify({
               conversationId,
-              trigger: options?.trigger ?? "delayed_external_feedback",
+              feedback: options?.feedback ?? null,
+              feedbackReason: options?.feedbackReason ?? null,
+              internalCallRequestId: options?.internalCallRequestId ?? null,
+              opportunityId: options?.opportunityId ?? null,
+              shouldCreateInternalCallRequest:
+                options?.shouldCreateInternalCallRequest === true,
+              trigger,
             }),
           }
         );
@@ -200,6 +251,15 @@ export function useCareerHistoryState(args: {
             payload.assistantMessage as CareerMessagePayload
           );
         }
+        if (Array.isArray(payload.pendingInternalOpportunityCallRequests)) {
+          onPendingInternalOpportunityCallRequestsChanged?.(
+            payload.pendingInternalOpportunityCallRequests as CareerInternalOpportunityCallRequest[]
+          );
+        } else if (payload.pendingInternalOpportunityCallRequest) {
+          onPendingInternalOpportunityCallRequestChanged?.(
+            payload.pendingInternalOpportunityCallRequest as CareerInternalOpportunityCallRequest
+          );
+        }
         if (options?.refreshHistory) {
           await queryClient.invalidateQueries({ queryKey });
         }
@@ -209,27 +269,57 @@ export function useCareerHistoryState(args: {
             ? error.message
             : "피드백 후속 메시지를 만들지 못했습니다."
         );
+      } finally {
+        if (feedbackFollowUpPendingSequenceRef.current === pendingSequence) {
+          onOpportunityFeedbackFollowUpPendingChanged?.({
+            pending: false,
+            trigger: null,
+          });
+        }
       }
     },
     [
       conversationId,
       fetchWithAuth,
       onHistoryActionAssistantMessage,
+      onOpportunityFeedbackFollowUpPendingChanged,
+      onPendingInternalOpportunityCallRequestChanged,
+      onPendingInternalOpportunityCallRequestsChanged,
       queryClient,
       queryKey,
     ]
   );
 
-  const scheduleOpportunityFeedbackFollowUp = useCallback(() => {
-    cancelPendingOpportunityFeedbackFollowUp();
-    feedbackFollowUpTimerRef.current = setTimeout(() => {
-      feedbackFollowUpTimerRef.current = null;
-      void requestOpportunityFeedbackFollowUp();
-    }, CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_DELAY_MS);
-  }, [
-    cancelPendingOpportunityFeedbackFollowUp,
-    requestOpportunityFeedbackFollowUp,
-  ]);
+  const scheduleOpportunityFeedbackFollowUp = useCallback(
+    (options?: OpportunityFeedbackFollowUpRequestOptions) => {
+      const currentRequest = feedbackFollowUpRequestRef.current;
+      if (
+        feedbackFollowUpTimerRef.current &&
+        getFollowUpTriggerPriority(currentRequest?.trigger) >
+          getFollowUpTriggerPriority(options?.trigger)
+      ) {
+        return;
+      }
+
+      cancelPendingOpportunityFeedbackFollowUp();
+      const delayMs =
+        typeof options?.delayMs === "number" && Number.isFinite(options.delayMs)
+          ? Math.max(0, Math.floor(options.delayMs))
+          : CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_DELAY_MS;
+      feedbackFollowUpRequestRef.current = options ?? null;
+      feedbackFollowUpTimerRef.current = setTimeout(() => {
+        feedbackFollowUpTimerRef.current = null;
+        const scheduledOptions =
+          feedbackFollowUpRequestRef.current ?? undefined;
+        feedbackFollowUpRequestRef.current = null;
+        void requestOpportunityFeedbackFollowUp(scheduledOptions);
+      }, delayMs);
+    },
+    [
+      cancelPendingOpportunityFeedbackFollowUp,
+      requestOpportunityFeedbackFollowUp,
+    ]
+  );
 
   useEffect(
     () => () => {
@@ -599,14 +689,21 @@ export function useCareerHistoryState(args: {
       return payload as {
         assistantMessage?: CareerMessagePayload | null;
         feedbackFollowUp?: {
+          delayMs?: number | null;
           delayed?: boolean;
+          feedback?: CareerHistoryOpportunityFeedback | null;
           immediate?: boolean;
-          trigger?: OpportunityFeedbackFollowUpTrigger | null;
+          internalCallRequestId?: string | null;
+          opportunityId?: string | null;
+          shouldCreateInternalCallRequest?: boolean;
+          trigger?: CareerOpportunityFeedbackFollowUpTrigger | null;
         } | null;
         followUpRunId?: string | null;
         historyShouldRefresh?: boolean;
         opportunity?: CareerHistoryOpportunity | null;
         opportunityDiscoveryQueued?: boolean;
+        pendingInternalOpportunityCallRequest?: CareerInternalOpportunityCallRequest | null;
+        pendingInternalOpportunityCallRequests?: CareerInternalOpportunityCallRequest[];
         userMessage?: CareerMessagePayload | null;
       };
     },
@@ -696,22 +793,44 @@ export function useCareerHistoryState(args: {
         if (payload.userMessage) {
           onHistoryActionUserMessage?.(payload.userMessage);
         }
+        if (Array.isArray(payload.pendingInternalOpportunityCallRequests)) {
+          onPendingInternalOpportunityCallRequestsChanged?.(
+            payload.pendingInternalOpportunityCallRequests
+          );
+        } else if ("pendingInternalOpportunityCallRequest" in payload) {
+          onPendingInternalOpportunityCallRequestChanged?.(
+            payload.pendingInternalOpportunityCallRequest ?? null
+          );
+        }
         if (payload.assistantMessage) {
           cancelPendingOpportunityFeedbackFollowUp();
           onHistoryActionAssistantMessage?.(payload.assistantMessage);
-        } else if (payload.feedbackFollowUp?.immediate) {
-          cancelPendingOpportunityFeedbackFollowUp();
-          void requestOpportunityFeedbackFollowUp({
-            refreshHistory: true,
-            trigger: payload.feedbackFollowUp.trigger,
-          });
-        } else if (
-          feedback &&
-          feedbackActionSequence === feedbackActionSequenceRef.current &&
-          payload.feedbackFollowUp?.delayed &&
-          previousItem.sourceType === "external"
-        ) {
-          scheduleOpportunityFeedbackFollowUp();
+        } else {
+          const followUp = payload.feedbackFollowUp;
+          const followUpTrigger = followUp?.trigger ?? null;
+          const shouldScheduleFollowUp =
+            feedback &&
+            followUpTrigger &&
+            (feedbackActionSequence === feedbackActionSequenceRef.current ||
+              followUpTrigger === "immediate_internal_feedback");
+
+          if (shouldScheduleFollowUp) {
+            scheduleOpportunityFeedbackFollowUp({
+              delayMs: followUp?.delayMs,
+              feedback: followUp?.feedback ?? feedback,
+              feedbackReason: options?.feedbackReason ?? null,
+              internalCallRequestId: followUp?.internalCallRequestId ?? null,
+              opportunityId:
+                followUp?.opportunityId ??
+                updatedOpportunity?.id ??
+                normalizedOpportunityId,
+              refreshHistory:
+                payload.historyShouldRefresh || followUp?.immediate === true,
+              shouldCreateInternalCallRequest:
+                followUp?.shouldCreateInternalCallRequest === true,
+              trigger: followUpTrigger,
+            });
+          }
         }
         if (payload.opportunityDiscoveryQueued) {
           showOpportunityDiscoveryStartedToast();
@@ -751,10 +870,11 @@ export function useCareerHistoryState(args: {
       cancelPendingOpportunityFeedbackFollowUp,
       onHistoryActionAssistantMessage,
       onHistoryActionUserMessage,
+      onPendingInternalOpportunityCallRequestChanged,
+      onPendingInternalOpportunityCallRequestsChanged,
       patchHistoryOpportunity,
       queryClient,
       queryKey,
-      requestOpportunityFeedbackFollowUp,
       removeHistoryOpportunityLocally,
       restoreHistoryOpportunity,
       scheduleOpportunityFeedbackFollowUp,

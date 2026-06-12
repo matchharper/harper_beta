@@ -121,7 +121,7 @@ function GmailSubject() {
   return (
     <div className="grid grid-cols-[1fr_16px] gap-[8px]">
       <h3 className="text-[13px] font-normal leading-[1.4] tracking-[-0.025em] text-[#202124]">
-        호진님, Mel 쪽은 Harper가 회사에 전달 진행하겠습니다
+        호진님, Canva 쪽은 Harper가 회사에 전달 진행하겠습니다
         <span className="ml-[5px] inline-flex translate-y-[-2px] rounded-[4px] bg-[#f1f3f4] px-[5px] py-[2px] text-[8px] font-normal leading-none tracking-[-0.02em] text-[#5f6368]">
           받은편지함
         </span>
@@ -187,18 +187,21 @@ function GmailSenderRow() {
 
 function GmailBody() {
   return (
-    <div className="mt-[22px] space-y-[13px] text-[11px] font-normal leading-[1.43] tracking-[-0.025em] text-black">
+    <div className="mt-[22px] space-y-[12px] text-[11px] font-normal leading-[1.43] tracking-[-0.025em] text-black">
       <p>호진님,</p>
 
       <p>
-        Mel을 like로 바꿔주신 거 확인했습니다. 내부 기회라 Harper가 중간에서
-        회사 쪽에 직접 전달하고 일정 조율까지 도와드릴게요. 가장 적절한 타이밍에
-        넘겨드리겠습니다.
+        저번에 추천드린 Canva Engineer 역할에 연결을 수락해주신걸 확인했습니다.
+        내부 기회라 Harper가 중간에서 회사 쪽에 직접 전달하고 일정 조율까지
+        도와드릴게요. 가장 적절한 타이밍에 넘겨드리겠습니다.
+        <br />
+        바로 매니저한테 전달될 예정이라, 아마 다음주 안에 커피챗 혹은 인터뷰
+        일정 안내가 갈 예정이에요.
       </p>
 
       <p>
-        그 사이 voice AI/TTS 흐름을 이어가면서 multimodal/LLM 쪽도 살짝 넓혀,
-        이전에 저장하신 Cresta·Humelo·Cohere와 겹치지 않는 역할 세 개를
+        그 사이 Image/TTS에 대한 관심을 이어가면서 multimodal/LLM 쪽으로도 살짝
+        넓혀, 이전에 저장하신 Cresta·Ideogram·Cohere와 겹치지 않는 역할 세 개를
         골라봤습니다.
       </p>
 

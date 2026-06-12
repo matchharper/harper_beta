@@ -2,6 +2,8 @@ import { cx, opsTheme } from "@/components/ops/theme";
 import type { NetworkLeadSummary } from "@/lib/opsNetwork";
 import { motion } from "motion/react";
 import { LoaderCircle } from "lucide-react";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
+import { BareButton } from "@/components/ui/button";
 
 export function QuickMemoModal({
   isSaving,
@@ -25,7 +27,7 @@ export function QuickMemoModal({
       <motion.button
         type="button"
         aria-label="Close quick memo modal"
-        className="absolute inset-0 bg-beige900/25 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-bg-weak backdrop-blur-[2px]"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -36,18 +38,19 @@ export function QuickMemoModal({
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 12 }}
         transition={{ duration: 0.18, ease: "easeOut" }}
-        className="absolute left-1/2 top-1/2 w-[min(520px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-beige900/10 bg-[#F4E8D8] p-4 shadow-[0_24px_80px_rgba(46,23,6,0.2)]"
+        className="absolute left-1/2 top-1/2 w-[min(520px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-neutral-1000-a05 bg-bg-default p-4 shadow-[0_24px_80px_color-mix(in_srgb,var(--color-neutral-1000)_20%,transparent)]"
       >
-        <div className="mb-3 font-geist text-sm text-beige900/65">
+        <div className="mb-3 text-sm text-neutral-muted">
           {lead.name ?? "이름 없음"} 메모
         </div>
-        <textarea
+        <UiTextarea
+          unstyled
           value={value}
           onChange={(event) => onChange(event.target.value)}
           className={cx(opsTheme.textarea, "min-h-[180px]")}
           autoFocus
         />
-        <button
+        <BareButton
           type="button"
           onClick={onSubmit}
           disabled={isSaving || !value.trim()}
@@ -55,7 +58,7 @@ export function QuickMemoModal({
         >
           {isSaving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
           등록
-        </button>
+        </BareButton>
       </motion.div>
     </div>
   );

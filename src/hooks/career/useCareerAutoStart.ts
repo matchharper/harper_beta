@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import type { User } from "@supabase/supabase-js";
+import type { CareerCallStartRequest } from "@/components/career/types";
 
 type AutoStartArgs = {
   user: User | null;
   onboardingBeginPending: boolean;
   showVoiceStartPrompt: boolean;
-  onStartCallMode?: (openingText?: string) => boolean | Promise<boolean>;
+  onStartCallMode?: (
+    args?: CareerCallStartRequest
+  ) => boolean | Promise<boolean>;
   onUseChatOnly: () => boolean | Promise<boolean> | void;
 };
 

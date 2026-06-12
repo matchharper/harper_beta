@@ -7,11 +7,8 @@ import {
 } from "lucide-react";
 import StaggerText from "@/components/landing/Animation/StaggerText";
 import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
-import {
-  CareerPrimaryButton,
-  CareerSecondaryButton,
-  careerCx,
-} from "../ui/CareerPrimitives";
+import { PrimaryButton, SecondaryButton } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const normalizeDisplayName = (value: string | null | undefined) => {
   const trimmed = String(value ?? "")
@@ -41,25 +38,25 @@ const CareerWelcomeScreen = () => {
       <div className="flex min-h-full flex-1 flex-col overflow-hidden">
         <div className="flex flex-1 flex-col justify-between">
           <div className="max-w-[820px] mt-8 space-y-10 px-12">
-            <div className="max-w-[560px] rounded-[8px] border border-beige900/10 bg-white/65 px-4 py-4">
-              <div className="flex flex-wrap items-center gap-2 text-[12px] font-medium text-beige900/55">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-beige50 px-2.5 py-1">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-[#4f8062]" />
+            <div className="max-w-[560px] rounded-[8px] border border-neutral-1000-a05 bg-bg-floating px-4 py-4 shadow-sm">
+              <div className="flex flex-wrap items-center gap-2 text-[12px] font-medium text-neutral-muted">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-bg-default px-2.5 py-1">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-positive" />
                   프로필 확인됨
                 </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-beige50 px-2.5 py-1">
-                  <Clock3 className="h-3.5 w-3.5 text-beige700" />약 5분
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-bg-default px-2.5 py-1">
+                  <Clock3 className="h-3.5 w-3.5 text-neutral-muted" />약 5분
                 </span>
               </div>
-              <div className="mt-3 text-[15px] font-medium leading-6 text-beige900">
+              <div className="mt-3 text-[15px] font-medium leading-6 text-neutral-primary">
                 첫 추천 기준을 짧게 정리할게요.
               </div>
-              <p className="mt-2 text-[13px] leading-6 text-beige900/55">
+              <p className="mt-2 text-[13px] leading-6 text-neutral-muted">
                 희망 역할, 근무 방식, 제외할 조건만 확인하면 실제 포지션
                 탐색으로 넘어갑니다.
               </p>
             </div>
-            <div className="max-w-[560px] space-y-3 text-[13px] leading-8 text-beige900/65 sm:text-[15px]">
+            <div className="max-w-[560px] space-y-3 text-[13px] leading-8 text-neutral-muted sm:text-[15px]">
               <StaggerText
                 text={`안녕하세요 ${displayName}님, 만나서 반갑습니다. 저는 하퍼입니다.`}
                 by="word"
@@ -86,7 +83,7 @@ const CareerWelcomeScreen = () => {
                   blur={8}
                 />
               </p>
-              <p className="pt-2 text-beige900/75">
+              <p className="pt-2 text-neutral-muted">
                 <StaggerText
                   text={`${displayName}님에게 맞는 기회 기준을 5분 정도만 맞춰볼게요.`}
                   by="word"
@@ -97,10 +94,10 @@ const CareerWelcomeScreen = () => {
               </p>
             </div>
             <div className="grid max-w-[520px] gap-3 md:grid-cols-2">
-              <CareerPrimaryButton
+              <PrimaryButton
                 onClick={() => void onStartCallMode?.()}
                 disabled={isStartingCall || !onStartCallMode}
-                className={careerCx(
+                className={cn(
                   "h-12 justify-between rounded-[12px] px-4 text-[16px] font-medium sm:h-16 sm:px-6 sm:text-[17px]"
                 )}
               >
@@ -115,13 +112,13 @@ const CareerWelcomeScreen = () => {
                     통화하기
                   </span>
                 )}
-              </CareerPrimaryButton>
+              </PrimaryButton>
 
-              <CareerSecondaryButton
+              <SecondaryButton
                 onClick={() => void onUseChatOnly()}
                 disabled={isStartingCall}
-                className={careerCx(
-                  "h-12 justify-between rounded-[12px] border-beige900/15 bg-white/70 px-4 text-[16px] font-medium text-beige900 sm:h-16 sm:px-6 sm:text-[17px]"
+                className={cn(
+                  "h-12 justify-between rounded-[12px] border-neutral-1000-a10 bg-bg-floating px-4 text-[16px] font-medium text-neutral-primary sm:h-16 sm:px-6 sm:text-[17px]"
                 )}
               >
                 {isStartingCall ? (
@@ -135,7 +132,7 @@ const CareerWelcomeScreen = () => {
                     채팅으로 하기
                   </span>
                 )}
-              </CareerSecondaryButton>
+              </SecondaryButton>
             </div>
           </div>
         </div>

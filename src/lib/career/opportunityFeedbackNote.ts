@@ -17,7 +17,11 @@ export function buildOpportunityFeedbackNoteContent(args: {
     args.companyName.replace(/\s+/g, " ").trim() || "Unknown company";
   const sourceLabel = args.sourceType === "internal" ? "Internal" : "External";
   const actionLabel =
-    args.action === "positive" ? "저장함" : "선호하지 않음";
+    args.action === "positive"
+      ? args.sourceType === "internal"
+        ? "수락함"
+        : "저장함"
+      : "선호하지 않음";
 
   return `(${sourceLabel}) ${title} at ${companyName} ${actionLabel}`;
 }

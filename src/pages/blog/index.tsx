@@ -12,6 +12,7 @@ import {
 import Footer from "@/components/landing/Footer";
 import SearchHeader from "@/components/landing/SearchHeader";
 import router from "next/router";
+import { BareButton } from "@/components/ui/button";
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://matchharper.com")
   .trim()
@@ -138,7 +139,7 @@ export default function BlogListPage({ posts, categories }: BlogListPageProps) {
         />
       </Head>
 
-      <main className="relative min-h-screen overflow-hidden bg-black text-hgray1000 font-sans">
+      <main className="relative min-h-screen overflow-hidden bg-black text-neutral-00 font-sans">
         <SearchHeader
           onStartClick={() => {
             router.push("/search");
@@ -296,7 +297,7 @@ export default function BlogListPage({ posts, categories }: BlogListPageProps) {
                   {categoryItems.map((category) => {
                     const isActive = category.name === activeCategory;
                     return (
-                      <button
+                      <BareButton
                         key={category.name}
                         type="button"
                         onClick={() => setActiveCategory(category.name)}
@@ -311,7 +312,7 @@ export default function BlogListPage({ posts, categories }: BlogListPageProps) {
                         <span className="text-sm text-white/45">
                           ({category.count})
                         </span>
-                      </button>
+                      </BareButton>
                     );
                   })}
                 </div>

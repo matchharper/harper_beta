@@ -70,7 +70,7 @@ export default function AboutPage() {
 
         <main className="px-4 pb-24 pt-28 md:px-10 md:pb-[50vh] md:pt-32 min-h-screen">
           <article className="mx-auto max-w-[820px]">
-            <p className="font-light mb-2 text-xprimary text-sm">
+            <p className="font-light mb-2 text-primary text-sm">
               [ A Note from the Founders ]
             </p>
             <h1 className="font-medium">

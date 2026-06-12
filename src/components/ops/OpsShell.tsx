@@ -22,6 +22,8 @@ import {
   X,
 } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
+import { BareButton } from "@/components/ui/button";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
 type OpsNavItem = {
   description: string;
@@ -120,28 +122,28 @@ function LoginGate({
     <div className={opsTheme.page}>
       <div className={opsTheme.backgroundGlow} />
       <div className="relative flex min-h-screen items-center justify-center px-4">
-        <div className="w-full max-w-md rounded-lg bg-beige100/90 p-8 shadow-[0_28px_80px_rgba(89,57,24,0.1)]">
-          <div className="inline-flex rounded-md bg-beige500/70 p-3 text-beige900">
+        <div className="w-full max-w-md rounded-lg bg-bg-default/90 p-8 shadow-[0_28px_80px_color-mix(in_srgb,var(--color-neutral-1000)_10%,transparent)]">
+          <div className="inline-flex rounded-md bg-bg-weak p-3 text-neutral-primary">
             <Lock className="h-5 w-5" />
           </div>
-          <h1 className="mt-4 font-hedvig text-[2.2rem] leading-[0.95] tracking-[-0.07em] text-beige900">
+          <h1 className="mt-4 font-hedvig text-[2.2rem] leading-[0.95] tracking-[-0.07em] text-neutral-primary">
             Harper Ops
           </h1>
-          <p className="mt-3 font-geist text-sm leading-6 text-beige900/65">
+          <p className="mt-3 text-sm leading-6 text-neutral-muted">
             내부 운영 화면입니다. 로그인한 이메일의 도메인이{" "}
-            <span className="font-medium text-beige900">
+            <span className="font-medium text-neutral-primary">
               {INTERNAL_EMAIL_DOMAIN}
             </span>
             이어야 접근할 수 있습니다.
           </p>
-          <button
+          <BareButton
             type="button"
             onClick={onGoogleLogin}
             disabled={authPending}
             className={cx(opsTheme.buttonPrimary, "mt-6 h-11 w-full")}
           >
             {authPending ? "로그인 중..." : "Google 로그인"}
-          </button>
+          </BareButton>
           {authError ? (
             <div className={cx(opsTheme.errorNotice, "mt-4")}>{authError}</div>
           ) : null}
@@ -162,35 +164,35 @@ function ForbiddenGate({
     <div className={opsTheme.page}>
       <div className={opsTheme.backgroundGlow} />
       <div className="relative flex min-h-screen items-center justify-center px-4">
-        <div className="w-full max-w-lg rounded-lg bg-beige100/90 p-8 shadow-[0_28px_80px_rgba(89,57,24,0.1)]">
-          <div className="inline-flex rounded-md bg-[#F7DBD3] p-3 text-[#8A2E1D]">
+        <div className="w-full max-w-lg rounded-lg bg-bg-default/90 p-8 shadow-[0_28px_80px_color-mix(in_srgb,var(--color-neutral-1000)_10%,transparent)]">
+          <div className="inline-flex rounded-md bg-critical-faded p-3 text-critical">
             <ShieldAlert className="h-5 w-5" />
           </div>
-          <h1 className="mt-4 font-hedvig text-[2.2rem] leading-[0.95] tracking-[-0.07em] text-beige900">
+          <h1 className="mt-4 font-hedvig text-[2.2rem] leading-[0.95] tracking-[-0.07em] text-neutral-primary">
             접근 불가
           </h1>
-          <p className="mt-3 font-geist text-sm leading-6 text-beige900/65">
+          <p className="mt-3 text-sm leading-6 text-neutral-muted">
             현재 로그인한 계정은 내부 운영 도메인이 아닙니다.
           </p>
           <div className={cx(opsTheme.panelSoft, "mt-5 px-4 py-3")}>
             <div className={opsTheme.eyebrow}>Signed In</div>
-            <div className="mt-2 break-all font-geist text-sm font-medium text-beige900">
+            <div className="mt-2 break-all text-sm font-medium text-neutral-primary">
               {email ?? "-"}
             </div>
           </div>
           <div className={cx(opsTheme.panelSoft, "mt-3 px-4 py-3")}>
             <div className={opsTheme.eyebrow}>Allowed Domain</div>
-            <div className="mt-2 font-geist text-sm font-medium text-beige900">
+            <div className="mt-2 text-sm font-medium text-neutral-primary">
               {INTERNAL_EMAIL_DOMAIN}
             </div>
           </div>
-          <button
+          <BareButton
             type="button"
             onClick={onSignOut}
             className={cx(opsTheme.buttonSoft, "mt-6 h-11")}
           >
             다른 계정으로 다시 로그인
-          </button>
+          </BareButton>
         </div>
       </div>
     </div>
@@ -232,34 +234,34 @@ function OpsInternalDataExclusionModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-beige900/25 px-4 py-6 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg-weak px-4 py-6 backdrop-blur-sm">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="ops-internal-data-exclusion-title"
-        className="w-full max-w-lg rounded-lg bg-beige100 p-5 shadow-[0_28px_90px_rgba(89,57,24,0.18)]"
+        className="w-full max-w-lg rounded-lg bg-bg-default p-5 shadow-[0_28px_90px_color-mix(in_srgb,var(--color-neutral-1000)_18%,transparent)]"
       >
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2
               id="ops-internal-data-exclusion-title"
-              className="mt-1 font-geist text-lg font-medium text-beige900"
+              className="mt-1 text-lg font-medium text-neutral-primary"
             >
               내부 데이터 제외
             </h2>
-            <p className="mt-2 font-geist text-sm leading-6 text-beige900/60">
+            <p className="mt-2 text-sm leading-6 text-neutral-muted">
               아래 문자열 중 하나라도 이메일에 포함된 유저는 Ops 화면에서
               숨깁니다.
             </p>
           </div>
-          <button
+          <BareButton
             type="button"
             onClick={onClose}
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-beige900/45 transition hover:bg-beige500/60 hover:text-beige900"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-neutral-muted transition hover:bg-bg-weak hover:text-neutral-primary"
             aria-label="닫기"
           >
             <X className="h-4 w-4" />
-          </button>
+          </BareButton>
         </div>
 
         <div className="mt-5">
@@ -270,14 +272,15 @@ function OpsInternalDataExclusionModal({
             제외할 이메일 포함 문자열
           </label>
           <div className="mt-2 flex gap-2">
-            <textarea
+            <UiTextarea
+              unstyled
               id="ops-internal-data-exclusion-input"
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               placeholder="예: @matchharper.com, test, internal"
               className={cx(opsTheme.textarea, "min-h-[88px] flex-1 py-3")}
             />
-            <button
+            <BareButton
               type="button"
               onClick={handleAdd}
               disabled={!draft.trim()}
@@ -285,7 +288,7 @@ function OpsInternalDataExclusionModal({
             >
               <Plus className="h-4 w-4" />
               추가
-            </button>
+            </BareButton>
           </div>
         </div>
 
@@ -295,38 +298,38 @@ function OpsInternalDataExclusionModal({
               Exclusion Strings · {emailExclusionTerms.length}
             </div>
             {emailExclusionTerms.length > 0 ? (
-              <button
+              <BareButton
                 type="button"
                 onClick={clearEmailExclusionTerms}
-                className="font-geist text-xs font-medium text-beige900/45 transition hover:text-beige900"
+                className="text-xs font-medium text-neutral-muted transition hover:text-neutral-primary"
               >
                 전체 삭제
-              </button>
+              </BareButton>
             ) : null}
           </div>
 
           {emailExclusionTerms.length === 0 ? (
-            <div className="mt-2 rounded-md border border-dashed border-beige900/15 bg-white/35 px-4 py-5 text-center font-geist text-sm text-beige900/40">
+            <div className="mt-2 rounded-md border border-dashed border-neutral-1000-a10 bg-bg-floating px-4 py-5 text-center text-sm text-neutral-soft">
               저장된 제외 문자열이 없습니다.
             </div>
           ) : (
-            <div className="mt-2 max-h-[220px] overflow-y-auto rounded-md border border-beige900/10 bg-white/50">
+            <div className="mt-2 max-h-[220px] overflow-y-auto rounded-md border border-neutral-1000-a05 bg-bg-default/50">
               {emailExclusionTerms.map((term) => (
                 <div
                   key={term}
-                  className="flex items-center justify-between gap-3 border-b border-beige900/10 px-3 py-2 last:border-b-0"
+                  className="flex items-center justify-between gap-3 border-b border-neutral-1000-a05 px-3 py-2 last:border-b-0"
                 >
-                  <span className="min-w-0 truncate font-geist text-sm text-beige900/75">
+                  <span className="min-w-0 truncate text-sm text-neutral-muted">
                     {term}
                   </span>
-                  <button
+                  <BareButton
                     type="button"
                     onClick={() => removeEmailExclusionTerm(term)}
-                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-beige900/35 transition hover:bg-[#F7DBD3] hover:text-[#8A2E1D]"
+                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-soft transition hover:bg-critical-faded hover:text-critical"
                     aria-label={`${term} 삭제`}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  </BareButton>
                 </div>
               ))}
             </div>
@@ -398,7 +401,7 @@ export default function OpsShell({
     return (
       <div className={opsTheme.page}>
         <div className={opsTheme.backgroundGlow} />
-        <div className="relative flex min-h-screen items-center justify-center font-geist text-sm text-beige900/60">
+        <div className="relative flex min-h-screen items-center justify-center text-sm text-neutral-muted">
           세션 확인 중...
         </div>
       </div>
@@ -424,29 +427,29 @@ export default function OpsShell({
   return (
     <div className={opsTheme.page}>
       <div className={opsTheme.backgroundGlow} />
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-[linear-gradient(180deg,rgba(255,255,255,0.2),transparent)]" />
-      <div className="sticky top-0 z-30 border-b border-beige900/10 bg-beige100/80 backdrop-blur-xl">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--color-neutral-00)_20%,transparent),transparent)]" />
+      <div className="sticky top-0 z-30 border-b border-neutral-1000-a05 bg-bg-default/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-[1600px] flex-col gap-3 px-4 py-3 lg:px-6">
           <div className="flex items-center justify-between gap-4">
             <Link
               href="/ops"
-              className="shrink-0 font-hedvig text-[1.55rem] leading-none tracking-[-0.06em] text-beige900"
+              className="shrink-0 font-hedvig text-[1.55rem] leading-none tracking-[-0.06em] text-neutral-primary"
             >
               Harper Ops
             </Link>
-            <button
+            <BareButton
               type="button"
               onClick={() => setExclusionModalOpen(true)}
-              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-white/65 px-2.5 font-geist text-xs font-medium text-beige900/65 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] transition hover:bg-white hover:text-beige900"
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-bg-default/65 px-2.5 text-xs font-medium text-neutral-muted transition hover:bg-bg-default hover:text-neutral-primary"
             >
               <EyeOff className="h-3.5 w-3.5" />
               내부 데이터 제외
               {exclusionTermCount > 0 ? (
-                <span className="rounded bg-beige900 px-1.5 py-0.5 text-[10px] leading-none text-beige100">
+                <span className="rounded bg-black px-1.5 py-0.5 text-[10px] leading-none text-neutral-00">
                   {exclusionTermCount}
                 </span>
               ) : null}
-            </button>
+            </BareButton>
           </div>
           <nav className="overflow-x-auto">
             <div className="flex min-w-max items-center gap-2">
@@ -458,10 +461,10 @@ export default function OpsShell({
                     key={item.href}
                     href={item.href}
                     className={cx(
-                      "rounded-full px-3 py-2 font-geist text-sm font-medium transition-colors",
+                      "rounded-full px-3 py-2 text-sm font-medium transition-colors",
                       active
-                        ? "bg-beige900 text-beige100"
-                        : "bg-white/55 text-beige900/65 hover:bg-white/80 hover:text-beige900"
+                        ? "bg-black text-neutral-00"
+                        : "bg-bg-default/55 text-neutral-muted hover:bg-bg-default/80 hover:text-neutral-primary"
                     )}
                   >
                     {item.label}

@@ -9,6 +9,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
+import { Input as UiInput } from "@/components/ui/input";
+import { BareButton } from "@/components/ui/button";
 
 function normalizeTitle(value: string | null | undefined, fallback: string) {
   const normalized = String(value ?? "").trim();
@@ -114,13 +116,14 @@ const ScoutCard = ({
         e.preventDefault();
         setExpandedId((prev) => (prev === item.id ? null : item.id));
       }}
-      className={`relative flex flex-col items-start justify-between gap-1 border border-white/10 rounded-xl bg-white/5 px-5 py-4 text-left transition hover:bg-white/10 ${isExpanded ? "border-accenta1" : ""}`}
+      className={`relative flex flex-col items-start justify-between gap-1 border border-white/10 rounded-xl bg-white/5 px-5 py-4 text-left transition hover:bg-white/10 ${isExpanded ? "border-accent-200" : ""}`}
     >
       <div className="w-full flex items-start justify-between">
         <div className="flex flex-col gap-2 text-white">
           <div className="text-base font-medium flex items-center gap-1 w-full">
             {isEditingTitle ? (
-              <input
+              <UiInput
+                unstyled
                 ref={titleInputRef}
                 value={titleInput}
                 maxLength={80}
@@ -149,17 +152,17 @@ const ScoutCard = ({
                 className="h-7 w-full min-w-[300px] rounded-md border border-white/15 bg-white/5 px-2 text-base font-medium text-white outline-none focus:border-white/40"
               />
             ) : (
-              <button
+              <BareButton
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   setTitleInput(displayTitle);
                   setIsEditingTitle(true);
                 }}
-                className="text-base text-left font-medium text-white hover:text-accenta1 transition-colors"
+                className="text-base text-left font-medium text-white hover:text-accent-200 transition-colors"
               >
                 {displayTitle}
-              </button>
+              </BareButton>
             )}
             {/* <span className="text-white/70">#{item.id.slice(0, 6)}</span> */}
           </div>
@@ -170,7 +173,7 @@ const ScoutCard = ({
         <div className="flex items-center gap-2">
           <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
             <DropdownMenuTrigger asChild>
-              <button
+              <BareButton
                 type="button"
                 aria-label="Scout actions"
                 disabled={isActionLoading}
@@ -186,11 +189,11 @@ const ScoutCard = ({
                 ].join(" ")}
               >
                 <MoreHorizontal className="h-4 w-4" />
-              </button>
+              </BareButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="w-40 bg-bgDark400/80 backdrop-blur-md border-none text-white"
+              className="w-40 bg-neutral-800/80 backdrop-blur-md border-none text-white"
             >
               {item.is_in_progress ? (
                 <DropdownMenuItem
@@ -232,10 +235,10 @@ const ScoutCard = ({
       <div className="w-full flex flex-col gap-3">
         <div className="w-full flex flex-row items-end justify-between gap-1">
           <div className="flex flex-col gap-1">
-            <div className="text-xs text-xgray800 mt-4">
+            <div className="text-xs text-neutral-600 mt-4">
               {m.scout.createdAt} {dateToFormatLong(item.created_at)}
             </div>
-            <div className="text-xs text-xgray800">
+            <div className="text-xs text-neutral-600">
               {m.scout.updatedAt} {dateToFormatLong(updatedAt)}
             </div>
           </div>
@@ -243,7 +246,7 @@ const ScoutCard = ({
             <span
               className={[
                 "rounded-full text-[13px]",
-                item.is_in_progress ? " text-accenta1" : " text-hgray700",
+                item.is_in_progress ? " text-accent-200" : " text-neutral-500",
               ].join(" ")}
             >
               {statusLabel}
@@ -251,16 +254,16 @@ const ScoutCard = ({
           </div>
         </div>
         <div className="w-full">
-          <button
+          <BareButton
             type="button"
             onClick={(e) => {
               e.stopPropagation();
               router.push(`/my/scout/${item.id}`);
             }}
-            className="w-full rounded-md bg-accenta1 px-3 py-2 text-sm text-black transition hover:bg-accenta1/80"
+            className="w-full rounded-md bg-accent-200 px-3 py-2 text-sm text-black transition hover:bg-accent-200/80"
           >
             {m.scout.edit}
-          </button>
+          </BareButton>
         </div>
       </div>
     </div>

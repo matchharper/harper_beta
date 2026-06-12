@@ -3,6 +3,7 @@ import ToastProvider from "@/components/toast/ToastProvider";
 import "@/globals.css";
 import type { AppProps } from "next/app";
 import ReactQueryProvider from "@/components/Provider";
+import AppErrorBoundary from "@/components/AppErrorBoundary";
 import Head from "next/head";
 import { Analytics } from "@vercel/analytics/react";
 import { useEffect } from "react";
@@ -135,13 +136,15 @@ export default function App({ Component, pageProps }: AppProps) {
           {CRISP_BOOTSTRAP_SCRIPT}
         </Script>
       )}
-      <div className="font-sans">
-        <CompanyModalRoot />
-        <PaperModalRoot />
-        <RepoModalRoot />
+      <div className="notranslate font-sans" translate="no">
         <Analytics />
-        <Component {...pageProps} />
-        <ToastProvider />
+        <AppErrorBoundary resetKey={router.asPath}>
+          <CompanyModalRoot />
+          <PaperModalRoot />
+          <RepoModalRoot />
+          <Component {...pageProps} />
+          <ToastProvider />
+        </AppErrorBoundary>
       </div>
     </ReactQueryProvider>
   );

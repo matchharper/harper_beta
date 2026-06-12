@@ -13,6 +13,7 @@ import {
 import { Tooltips } from "../ui/tooltip";
 import { useRepoModalStore } from "@/store/useRepoModalStore";
 import { MarkdownView } from "@/components/chat/MarkDownView";
+import { BareButton } from "@/components/ui/button";
 
 const numberFormatter = new Intl.NumberFormat("en-US");
 
@@ -158,7 +159,9 @@ function RolePill({ isOwner }: { isOwner: boolean }) {
     <span
       className={cn(
         "inline-flex h-8 items-center rounded-full px-3 text-sm font-semibold",
-        isOwner ? "bg-white/10 text-white" : "bg-white/5 text-hgray700"
+        isOwner
+          ? "bg-neutral-00/10 text-neutral-00"
+          : "bg-neutral-00/5 text-neutral-00/70"
       )}
     >
       {isOwner ? "Owner" : "Contributor"}
@@ -182,16 +185,22 @@ function Metric({
       <div
         className={cn(
           "inline-flex items-center gap-1.5 text-sm",
-          dimmed ? "text-hgray700" : "text-hgray800"
+          dimmed ? "text-neutral-00/70" : "text-neutral-00/80"
         )}
       >
-        <span className={cn(dimmed ? "text-hgray700" : "text-hgray600")}>
+        <span
+          className={cn(
+            dimmed
+              ? "text-neutral-00/70"
+              : "text-neutral-00/60"
+          )}
+        >
           {icon}
         </span>
         <span
           className={cn(
             "font-medium",
-            dimmed ? "text-hgray800" : "text-hgray950"
+            dimmed ? "text-neutral-00/80" : "text-neutral-00"
           )}
         >
           {value}
@@ -206,7 +215,7 @@ function LanguagePill({ name, pct }: { name: string; pct: number }) {
 
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-[13px] text-hgray800"
+      className="inline-flex items-center gap-1.5 rounded-full bg-neutral-00/5 px-2.5 py-1 text-[13px] text-neutral-00/80"
       title={`${name} ${pct.toFixed(1)}%`}
     >
       <span
@@ -220,7 +229,7 @@ function LanguagePill({ name, pct }: { name: string; pct: number }) {
 
 function TopicPill({ topic }: { topic: string }) {
   return (
-    <span className="inline-flex items-center rounded-full bg-white/5 px-2.5 py-1 text-[12px] text-hgray700">
+    <span className="inline-flex items-center rounded-full bg-neutral-00/5 px-2.5 py-1 text-[12px] text-neutral-00/70">
       {topic}
     </span>
   );
@@ -253,15 +262,15 @@ function CollapsibleReadmeSection({
 
   return (
     <div className="mt-4 w-full">
-      <div className="[&_.prose]:max-w-none [&_.prose]:text-hgray800 [&_.prose_a]:text-blue-500 [&_.prose_code]:text-hgray900 [&_.prose_headings]:text-hgray1000 [&_.prose_p]:my-1! [&_.prose]:text-sm">
+      <div className="[&_.prose]:max-w-none [&_.prose]:text-neutral-00/80 [&_.prose_a]:text-primary [&_.prose_code]:text-neutral-00/90 [&_.prose_headings]:text-neutral-00 [&_.prose_p]:my-1! [&_.prose]:text-sm">
         <MarkdownView markdown={displayMarkdown} />
       </div>
 
       {isLong && (
-        <button
+        <BareButton
           type="button"
           onClick={handleToggle}
-          className="mt-1 inline-flex items-center gap-1 text-xs text-blue-500 transition hover:underline"
+          className="mt-1 inline-flex items-center gap-1 text-xs text-primary transition hover:underline"
         >
           {expanded ? (
             <>
@@ -274,7 +283,7 @@ function CollapsibleReadmeSection({
               Read more
             </>
           )}
-        </button>
+        </BareButton>
       )}
     </div>
   );
@@ -297,7 +306,7 @@ const GithubRepoContributionBox = ({
 
   if (!contribution) {
     return (
-      <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-hgray700">
+      <div className="rounded-xl border border-neutral-00/10 bg-neutral-00/5 px-4 py-3 text-sm text-neutral-00/70">
         GitHub repository data is unavailable.
       </div>
     );
@@ -341,27 +350,27 @@ const GithubRepoContributionBox = ({
   };
 
   return (
-    <button
+    <BareButton
       type="button"
       onClick={handleClick}
       className={cn(
         "group w-full rounded-2xl border text-left transition-all duration-200 flex flex-col items-start justify-start",
         "px-5 py-4",
         role.isOwner
-          ? "border-white/0 bg-white/5 hover:bg-white/5 hover:border-white/10"
-          : "border-white/0 bg-white/5 hover:bg-white/5 hover:border-white/5"
+          ? "border-transparent bg-neutral-00/5 hover:bg-neutral-00/5 hover:border-neutral-00/10"
+          : "border-transparent bg-neutral-00/5 hover:bg-neutral-00/5 hover:border-neutral-00/5"
       )}
     >
       <div className="flex items-start justify-between gap-4 w-full">
         <div className="min-w-0 flex flex-wrap flex-col items-start justify-start">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="truncate text-[15px] font-medium text-blue-500/95 group-hover:underline">
+            <div className="truncate text-[15px] font-medium text-primary group-hover:underline">
               {repoLabel || "Unknown repo"}
             </div>
           </div>
 
           {createdAtLabel && (
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-hgray700">
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-neutral-00/70">
               <span className="inline-flex items-center gap-1">
                 <CalendarDays size={12} />
                 Last Updated {createdAtLabel}
@@ -380,8 +389,8 @@ const GithubRepoContributionBox = ({
           className={cn(
             "mt-4 rounded-xl px-3.5 py-3 text-sm leading-6 w-full",
             role.isOwner
-              ? "bg-white/5 text-hgray850"
-              : "bg-white/5 text-hgray800"
+              ? "bg-neutral-00/5 text-neutral-00/85"
+              : "bg-neutral-00/5 text-neutral-00/80"
           )}
         >
           {description}
@@ -389,7 +398,7 @@ const GithubRepoContributionBox = ({
       ) : readmeExcerpt ? (
         <CollapsibleReadmeSection markdown={readmeExcerpt} />
       ) : (
-        <div className="mt-4 text-sm italic text-hgray700">
+        <div className="mt-4 text-sm italic text-neutral-00/70">
           [No description]
         </div>
       )}
@@ -437,7 +446,7 @@ const GithubRepoContributionBox = ({
           )}
         >
           <Metric
-            icon={<Star size={16} className="text-yellow-300" />}
+            icon={<Star size={16} className="text-accent-300" />}
             label="Stars"
             value={formatNumber(stars)}
             dimmed={!role.isOwner}
@@ -458,7 +467,7 @@ const GithubRepoContributionBox = ({
           ))}
         </div>
       )}
-    </button>
+    </BareButton>
   );
 };
 

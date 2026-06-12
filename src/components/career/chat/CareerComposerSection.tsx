@@ -5,18 +5,14 @@ import {
   Clock3,
   Loader2,
   MessageSquareText,
-  Mic,
-  MicOff,
-  Phone,
-  PhoneOff,
 } from "lucide-react";
 import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
 import { Tooltips } from "@/components/ui/tooltip";
 import { isOnboardingPaused } from "@/hooks/career/careerHelpers";
-import { careerCx } from "../ui/CareerPrimitives";
-import { CareerActionButton } from "../ui/CareerActionButton";
-import CareerVoiceInputLevelFill from "./CareerVoiceInputLevelFill";
+import { cn } from "@/lib/utils";
+import { ActionButton, BareButton } from "@/components/ui/button";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
 const CareerComposerSection = () => {
   const logCareerEvent = useCareerLogEvent();
@@ -40,15 +36,7 @@ const CareerComposerSection = () => {
     onboardingPausePending,
     showVoiceStartPrompt,
     inputMode,
-    voiceTranscript,
-    voiceListening,
-    voiceMuted,
-    voicePrimaryPressed,
-    onStartVoiceCall,
     onSendChatMessage,
-    onVoicePrimaryAction,
-    onToggleVoiceMute,
-    onSwitchToTextMode,
     onStartCallMode,
     onForceCompleteOnboarding,
   } = useCareerChatPanelContext();
@@ -95,14 +83,8 @@ const CareerComposerSection = () => {
                   ? "Harper에게 답변을 입력하세요."
                   : "원하는 역할이나 조건을 편하게 알려주세요.";
 
-  const showCallQuickAction =
-    Boolean(user) &&
-    messages.length > 0 &&
-    stage !== "profile" &&
-    inputMode === "text" &&
-    !showVoiceStartPrompt;
+  const hasDraftText = draft.trim().length > 0;
 
-  const isVoiceMode = inputMode === "voice";
   const showInterviewComposerFrame =
     Boolean(user) &&
     stage === "chat" &&
@@ -151,6 +133,16 @@ const CareerComposerSection = () => {
     });
   };
 
+  const handlePrimaryComposerAction = () => {
+    if (hasDraftText) {
+      void handleSend();
+      return;
+    }
+
+    logCareerEvent("click_chat_start_call");
+    void onStartCallMode?.();
+  };
+
   const handleComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
       if (event.nativeEvent.isComposing || isComposingRef.current) return;
@@ -179,140 +171,25 @@ const CareerComposerSection = () => {
   return (
     <div
       data-vaul-no-drag=""
-      className="shrink-0 px-4 pb-3 pt-2 md:px-5 md:py-4"
+      className="shrink-0 px-4 pb-3 pt-2 md:px-5 md:pb-6 md:pt-0"
     >
       <div className="mx-auto w-full max-w-[1120px]">
-        {isVoiceMode ? (
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                logCareerEvent("click_chat_voice_primary");
-                onVoicePrimaryAction();
-              }}
-              disabled={isComposerActionLocked}
-              className={careerCx(
-                "group relative flex min-h-[44px] flex-1 items-center justify-center overflow-hidden rounded-[8px] border px-4 py-3 text-sm transition-all duration-150",
-                voiceListening && !voiceMuted
-                  ? "border-beige900 bg-beige900 text-[#f5ecdd]"
-                  : "border-beige900/15 bg-white/45 text-beige900 hover:border-beige900/30",
-                voicePrimaryPressed && "scale-[0.99]"
-              )}
-            >
-              <CareerVoiceInputLevelFill voiceListening={voiceListening} />
-              <span className="relative z-10 flex items-center gap-2">
-                {voiceListening && !voiceMuted ? (
-                  <>
-                    <ArrowUp className="h-3.5 w-3.5" />
-                    말하는 중... 스페이스바를 눌러서 전송
-                  </>
-                ) : voiceMuted ? (
-                  <>
-                    <MicOff className="h-3.5 w-3.5" />
-                    음소거 상태
-                  </>
-                ) : (
-                  <>
-                    <AudioLines className="h-3.5 w-3.5" />
-                    대기중...
-                  </>
-                )}
-              </span>
-            </button>
-
-            <CareerActionButton
-              onClick={() => {
-                logCareerEvent(
-                  voiceMuted
-                    ? "click_chat_voice_unmute"
-                    : "click_chat_voice_mute"
-                );
-                onToggleVoiceMute();
-              }}
-              disabled={isComposerActionLocked}
-              actionVariant="icon"
-              aria-label={voiceMuted ? "음소거 해제" : "음소거"}
-            >
-              {voiceMuted ? (
-                <MicOff className="h-4 w-4" />
-              ) : (
-                <Mic className="h-4 w-4" />
-              )}
-            </CareerActionButton>
-            <CareerActionButton
-              onClick={() => {
-                logCareerEvent("click_chat_switch_text_mode");
-                onSwitchToTextMode();
-              }}
-              actionVariant="icon"
-              className="border-[#7c2d12]/20 bg-[#7c2d12]/5 text-[#7c2d12] hover:border-[#7c2d12]/30 hover:text-[#7c2d12]"
-            >
-              <PhoneOff className="h-3.5 w-3.5" />
-            </CareerActionButton>
-          </div>
-        ) : null}
-
         <div
-          className={careerCx(
+          className={cn(
             "transition-all duration-200",
             showInterviewComposerFrame
-              ? "rounded-[18px] bg-beige900 p-1 shadow-[0_12px_28px_rgba(37,20,6,0.14)]"
+              ? "rounded-[20px] border border-neutral-1000-a05 bg-neutral-200 p-2 shadow-[0_18px_42px_rgba(31,28,26,0.08)] backdrop-blur-xl"
               : "rounded-3xl"
           )}
         >
-          {showInterviewComposerFrame ? (
-            <div className="px-3 py-2 text-beige50">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="inline-flex items-center gap-2 text-[13px] font-semibold">
-                  <MessageSquareText className="h-4 w-4" />
-                  <span className="career-interview-shimmer inline-block">
-                    커리어 인터뷰 진행 중
-                  </span>
-                </div>
-                <div className="h-5 min-w-[64px] overflow-hidden text-right">
-                  {showManualCompletionAction ? (
-                    <Tooltips text={forceCompleteTooltip} side="top">
-                      <button
-                        type="button"
-                        onClick={handleForceComplete}
-                        disabled={manualCompletionDisabled}
-                        className="inline-flex h-5 items-center gap-1 text-[12px] font-semibold text-red-300 transition-all duration-300 ease-out hover:text-red-400 disabled:cursor-wait disabled:opacity-70"
-                      >
-                        {forceCompletePending || onboardingWrapupPending ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : null}
-                        임의 종료
-                      </button>
-                    </Tooltips>
-                  ) : (
-                    <div className="inline-flex h-5 items-center gap-1.5 text-[12px] text-beige50/70 transition-all duration-300 ease-out">
-                      <Clock3 className="h-3.5 w-3.5" />약 5분
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div
-                className="mt-2 h-1 overflow-hidden rounded-full bg-beige50/15"
-                role="progressbar"
-                aria-label="커리어 인터뷰 진행률"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={interviewProgress.percent}
-              >
-                <div
-                  className="h-full rounded-full bg-[#f1a35d] transition-[width] duration-700 ease-out"
-                  style={{ width: `${interviewProgress.percent}%` }}
-                />
-              </div>
-            </div>
-          ) : null}
-          <div className="rounded-[16px] border border-beige900/20 bg-white shadow-[0_0_16px_rgba(0,0,0,0.05)] transition-all duration-200 focus-within:border-beige900/40 focus-within:shadow-[0_0_16px_rgba(0,0,0,0.1)]">
+          <div className="overflow-hidden rounded-[16px] border border-neutral-1000-a10 bg-bg-floating/75 shadow-sm backdrop-blur-xl transition-all duration-200 focus-within:border-neutral-400">
             <div className="relative flex items-end gap-2">
-              <textarea
+              <UiTextarea
+                unstyled
                 key={textareaResetVersion}
                 ref={textareaRef}
                 id="career-chat-composer"
-                value={isVoiceMode ? voiceTranscript : draft}
+                value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 onCompositionStart={() => {
                   isComposingRef.current = true;
@@ -324,60 +201,86 @@ const CareerComposerSection = () => {
                 onFocus={handleComposerFocus}
                 onKeyDown={handleComposerKeyDown}
                 enterKeyHint="send"
-                readOnly={isVoiceMode}
-                placeholder={
-                  isVoiceMode
-                    ? voiceMuted
-                      ? "마이크가 음소거되어 있습니다."
-                      : "듣는 중..."
-                    : composerPlaceholder
-                }
+                placeholder={composerPlaceholder}
                 rows={3}
                 disabled={isTextInputLocked}
-                className={careerCx(
-                  "min-h-[72px] min-w-0 flex-1 resize-none border-none px-3.5 py-4 text-base leading-5 text-black outline-none transition-all placeholder:text-beige900/35 disabled:cursor-not-allowed md:text-sm lg:text-[14px]"
+                className={cn(
+                  "min-h-[72px] min-w-0 flex-1 resize-none border-none px-3.5 py-4 text-base leading-5 text-neutral-primary outline-none transition-all placeholder:text-neutral-placeholder disabled:cursor-not-allowed md:text-sm lg:text-[14px]"
                 )}
               />
-              {!isVoiceMode && (
-                <div className="absolute bottom-2 right-2 flex items-center gap-2">
-                  {showCallQuickAction && (
-                    <>
-                      <CareerActionButton
-                        onClick={() => {
-                          logCareerEvent("click_chat_start_call");
-                          onStartCallMode?.();
-                        }}
-                        disabled={isComposerActionLocked || isStartingCall}
-                        actionVariant="icon"
-                        buttonRadius="pill"
-                        className="h-8 w-8 border border-black/15 bg-white/45 text-beige900"
-                        aria-label="통화 모드"
-                      >
-                        {isStartingCall ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Phone className="h-3 w-3" />
-                        )}
-                      </CareerActionButton>
-                    </>
+              <div className="absolute bottom-3 right-3 flex items-center gap-2">
+                <ActionButton
+                  onClick={handlePrimaryComposerAction}
+                  disabled={
+                    hasDraftText
+                      ? isComposerActionLocked
+                      : isComposerActionLocked ||
+                        isStartingCall ||
+                        !onStartCallMode
+                  }
+                  actionVariant="primary"
+                  buttonRadius="pill"
+                  className={cn(
+                    "px-2.5 h-9 rounded-[18px] text-neutral-00 shadow-xs",
+                    hasDraftText
+                      ? "border-neutral-1000-a10 bg-primary"
+                      : "border border-neutral-1000-a10 bg-primary"
                   )}
-                  <CareerActionButton
-                    onClick={() => void handleSend()}
-                    disabled={isComposerActionLocked || !draft.trim()}
-                    actionVariant="icon"
-                    buttonRadius="pill"
-                    className="h-8 w-8 border-beige900 bg-beige900 text-beige50 hover:bg-beige800 hover:text-beige50"
-                  >
-                    {chatPending || assistantTyping ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <ArrowUp className="h-4 w-4" />
-                    )}
-                  </CareerActionButton>
-                </div>
-              )}
+                  aria-label={hasDraftText ? "메시지 보내기" : "통화 모드"}
+                >
+                  {(hasDraftText && (chatPending || assistantTyping)) ||
+                  (!hasDraftText && isStartingCall) ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : hasDraftText ? (
+                    <ArrowUp className="h-4 w-4" />
+                  ) : (
+                    <AudioLines className="h-3.5 w-3.5" />
+                  )}
+                </ActionButton>
+              </div>
             </div>
           </div>
+          {showInterviewComposerFrame ? (
+            <div className="mt-2 flex flex-wrap items-center justify-end gap-x-3 gap-y-1 px-1 text-neutral-muted">
+              <div className="inline-flex min-w-0 items-center gap-2">
+                <div className="inline-flex shrink-0 items-center gap-1.5 text-[12px] font-semibold">
+                  <span>커리어 인터뷰 진행 중</span>
+                </div>
+                <div
+                  className="h-1 w-24 overflow-hidden rounded-full bg-neutral-400 sm:w-32"
+                  role="progressbar"
+                  aria-label="커리어 인터뷰 진행률"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={interviewProgress.percent}
+                >
+                  <div
+                    className="h-full rounded-full bg-primary transition-[width] duration-700 ease-out"
+                    style={{ width: `${interviewProgress.percent}%` }}
+                  />
+                </div>
+                {showManualCompletionAction ? (
+                  <Tooltips text={forceCompleteTooltip} side="top">
+                    <BareButton
+                      type="button"
+                      onClick={handleForceComplete}
+                      disabled={manualCompletionDisabled}
+                      className="inline-flex h-5 items-center gap-1 text-[12px] font-semibold text-critical transition-all duration-300 ease-out hover:text-neutral-primary disabled:cursor-wait disabled:opacity-70"
+                    >
+                      {forceCompletePending || onboardingWrapupPending ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : null}
+                      임의 종료
+                    </BareButton>
+                  </Tooltips>
+                ) : (
+                  <div className="inline-flex h-5 items-center gap-1.5 text-[12px] text-neutral-soft transition-all duration-300 ease-out">
+                    <Clock3 className="h-3.5 w-3.5" />약 5분
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

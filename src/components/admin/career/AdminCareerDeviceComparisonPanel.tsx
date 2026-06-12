@@ -16,6 +16,7 @@ import {
 import { Tooltips } from "@/components/ui/tooltip";
 import type { AdminCareerDeviceComparisonRow } from "@/lib/adminCareerAnalytics/types";
 import { Info } from "lucide-react";
+import { BareButton } from "@/components/ui/button";
 
 type AdminCareerDeviceComparisonPanelProps = {
   rows: AdminCareerDeviceComparisonRow[];
@@ -53,12 +54,12 @@ export default function AdminCareerDeviceComparisonPanel({
             </CardDescription>
           </div>
           <Tooltips text="진입은 선택 기간의 landing_logs new_visit/new_session unique local_id입니다. 로그인은 같은 local_id의 login_email 로그, 제출/온보딩/재진입은 해당 local_id로 로그인한 유저의 선택 기간 이벤트 기준입니다.">
-            <button
+            <BareButton
               type="button"
               className="inline-flex h-7 w-7 shrink-0 cursor-help items-center justify-center border border-black/10 bg-white text-black/45"
             >
               <Info className="h-3.5 w-3.5" aria-hidden />
-            </button>
+            </BareButton>
           </Tooltips>
         </div>
       </CardHeader>

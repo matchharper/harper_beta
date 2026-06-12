@@ -17,6 +17,10 @@ import {
 } from "lucide-react";
 import Head from "next/head";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { BareButton } from "@/components/ui/button";
+import { Input as UiInput } from "@/components/ui/input";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
+import { Checkbox as UiCheckbox } from "@/components/ui/checkbox";
 
 type Draft = {
   answerExampleText: string;
@@ -229,7 +233,7 @@ export default function OpsAnswerExamplesPage() {
         title="Answer Examples"
         actions={
           <>
-            <button
+            <BareButton
               type="button"
               onClick={() => void loadExamples()}
               disabled={loading}
@@ -237,14 +241,14 @@ export default function OpsAnswerExamplesPage() {
             >
               <RefreshCw className={cx("h-4 w-4", loading && "animate-spin")} />
               새로고침
-            </button>
-            <button
+            </BareButton>
+            <BareButton
               type="button"
               onClick={startNewExample}
               className={cx(opsTheme.buttonPrimary, "h-10")}
             >
               <Plus className="h-4 w-4" />새 예시
-            </button>
+            </BareButton>
           </>
         }
       >
@@ -252,13 +256,14 @@ export default function OpsAnswerExamplesPage() {
           <div className={cx(opsTheme.panel, "min-w-0 p-5")}>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <div className="mt-1 font-geist text-lg font-medium text-beige900">
+                <div className="mt-1 text-lg font-medium text-neutral-primary">
                   {examples.length}개 등록
                 </div>
               </div>
               <div className="relative min-w-0 sm:w-72">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-beige900/35" />
-                <input
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-soft" />
+                <UiInput
+                  unstyled
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="질문, 답변, 태그 검색"
@@ -268,7 +273,7 @@ export default function OpsAnswerExamplesPage() {
             </div>
 
             <div className={cx(opsTheme.panelMuted, "mt-4 px-4 py-3")}>
-              <div className="font-geist text-xs leading-5 text-beige900/60">
+              <div className="text-xs leading-5 text-neutral-muted">
                 `User example`를 바꾸면 저장 시 임베딩을 새로 만듭니다. 답변
                 예시, 태그, 활성 여부만 바꾸면 기존 임베딩을 유지합니다.
               </div>
@@ -276,38 +281,40 @@ export default function OpsAnswerExamplesPage() {
 
             <div className="mt-4 max-h-[calc(100vh)] space-y-2 overflow-y-auto pr-1">
               {loading ? (
-                <div className="flex items-center gap-2 rounded-md bg-white/50 px-4 py-5 font-geist text-sm text-beige900/55">
+                <div className="flex items-center gap-2 rounded-md bg-bg-default/50 px-4 py-5 text-sm text-neutral-muted">
                   <LoaderCircle className="h-4 w-4 animate-spin" />
                   불러오는 중...
                 </div>
               ) : filteredExamples.length === 0 ? (
-                <div className="rounded-md border border-dashed border-beige900/15 bg-white/40 px-4 py-8 text-center font-geist text-sm text-beige900/45">
+                <div className="rounded-md border border-dashed border-neutral-1000-a10 bg-bg-default/40 px-4 py-8 text-center text-sm text-neutral-muted">
                   표시할 답변 예시가 없습니다.
                 </div>
               ) : (
                 filteredExamples.map((example) => {
                   const active = example.id === draft.id;
                   return (
-                    <button
+                    <BareButton
                       key={example.id}
                       type="button"
                       onClick={() => selectExample(example)}
                       className={cx(
                         "block w-full rounded-md px-4 py-3 text-left transition",
                         active
-                          ? "bg-beige900 text-beige100"
-                          : "bg-white/65 text-beige900 hover:bg-white"
+                          ? "bg-black text-neutral-00"
+                          : "bg-bg-default/65 text-neutral-primary hover:bg-bg-default"
                       )}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <div className="line-clamp-2 font-geist text-sm font-medium leading-5">
+                          <div className="line-clamp-2 text-sm font-medium leading-5">
                             {example.userExampleText}
                           </div>
                           <div
                             className={cx(
-                              "mt-1 line-clamp-2 font-geist text-xs leading-5",
-                              active ? "text-beige100/65" : "text-beige900/50"
+                              "mt-1 line-clamp-2 text-xs leading-5",
+                              active
+                                ? "text-neutral-00/65"
+                                : "text-neutral-muted"
                             )}
                           >
                             {example.answerExampleText}
@@ -315,14 +322,14 @@ export default function OpsAnswerExamplesPage() {
                         </div>
                         <span
                           className={cx(
-                            "shrink-0 rounded px-2 py-1 font-geist text-[11px] font-medium",
+                            "shrink-0 rounded px-2 py-1 text-[11px] font-medium",
                             example.enabled
                               ? active
-                                ? "bg-white/15 text-beige100"
-                                : "bg-[#E4EDE2] text-[#29513A]"
+                                ? "bg-neutral-00/15 text-neutral-00"
+                                : "bg-positive-faded text-positive"
                               : active
-                                ? "bg-white/10 text-beige100/65"
-                                : "bg-beige500/60 text-beige900/45"
+                                ? "bg-neutral-00/10 text-neutral-00/65"
+                                : "bg-bg-weak text-neutral-muted"
                           )}
                         >
                           {example.enabled ? "ON" : "OFF"}
@@ -330,13 +337,13 @@ export default function OpsAnswerExamplesPage() {
                       </div>
                       <div
                         className={cx(
-                          "mt-3 flex flex-wrap items-center gap-2 font-geist text-[11px]",
-                          active ? "text-beige100/55" : "text-beige900/45"
+                          "mt-3 flex flex-wrap items-center gap-2 text-[11px]",
+                          active ? "text-neutral-00/55" : "text-neutral-muted"
                         )}
                       >
                         <span>{formatKst(example.updatedAt)}</span>
                       </div>
-                    </button>
+                    </BareButton>
                   );
                 })
               )}
@@ -350,13 +357,13 @@ export default function OpsAnswerExamplesPage() {
               if (canSave) void handleSave();
             }}
           >
-            <div className="flex flex-col gap-3 border-b border-beige900/10 pb-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex flex-col gap-3 border-b border-neutral-1000-a05 pb-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <div className="mt-1 font-geist text-lg font-medium text-beige900">
+                <div className="mt-1 text-lg font-medium text-neutral-primary">
                   답변 예시
                 </div>
                 {selectedExample ? (
-                  <div className="mt-1 font-geist text-xs text-beige900/45">
+                  <div className="mt-1 text-xs text-neutral-muted">
                     updated {formatKst(selectedExample.updatedAt)} ·{" "}
                     {selectedExample.embeddingModel}
                   </div>
@@ -364,7 +371,7 @@ export default function OpsAnswerExamplesPage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 {draft.id ? (
-                  <button
+                  <BareButton
                     type="button"
                     onClick={() =>
                       setDraft((current) => ({
@@ -376,20 +383,20 @@ export default function OpsAnswerExamplesPage() {
                   >
                     <CheckCircle2 className="h-4 w-4" />
                     {draft.enabled ? "활성" : "비활성"}
-                  </button>
+                  </BareButton>
                 ) : null}
                 {draft.id ? (
-                  <button
+                  <BareButton
                     type="button"
                     onClick={() => void handleDelete()}
                     disabled={saving}
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#F7DBD3] px-4 font-geist text-sm font-medium text-[#8A2E1D] transition hover:bg-[#efc8bd] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-critical-faded px-4 text-sm font-medium text-critical transition hover:bg-critical-faded disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Trash2 className="h-4 w-4" />
                     삭제
-                  </button>
+                  </BareButton>
                 ) : null}
-                <button
+                <BareButton
                   type="submit"
                   disabled={!canSave}
                   className={cx(opsTheme.buttonPrimary, "h-10")}
@@ -400,7 +407,7 @@ export default function OpsAnswerExamplesPage() {
                     <Save className="h-4 w-4" />
                   )}
                   저장
-                </button>
+                </BareButton>
               </div>
             </div>
 
@@ -416,7 +423,8 @@ export default function OpsAnswerExamplesPage() {
                 <label className={opsTheme.label} htmlFor="user-example-text">
                   User example
                 </label>
-                <textarea
+                <UiTextarea
+                  unstyled
                   id="user-example-text"
                   value={draft.userExampleText}
                   onChange={(event) =>
@@ -435,7 +443,8 @@ export default function OpsAnswerExamplesPage() {
                 <label className={opsTheme.label} htmlFor="answer-example-text">
                   Answer example
                 </label>
-                <textarea
+                <UiTextarea
+                  unstyled
                   id="answer-example-text"
                   value={draft.answerExampleText}
                   onChange={(event) =>
@@ -451,9 +460,9 @@ export default function OpsAnswerExamplesPage() {
               </div>
 
               <div>
-                <label className="inline-flex h-11 items-center gap-2 rounded-md bg-white/65 px-3 font-geist text-sm font-medium text-beige900/70">
-                  <input
-                    type="checkbox"
+                <label className="inline-flex h-11 items-center gap-2 rounded-md bg-bg-default/65 px-3 text-sm font-medium text-neutral-muted">
+                  <UiCheckbox
+                    unstyled
                     checked={draft.enabled}
                     onChange={(event) =>
                       setDraft((current) => ({
@@ -461,7 +470,7 @@ export default function OpsAnswerExamplesPage() {
                         enabled: event.target.checked,
                       }))
                     }
-                    className="h-4 w-4 accent-beige900"
+                    className="h-4 w-4 accent-black"
                   />
                   Enabled
                 </label>
@@ -471,7 +480,8 @@ export default function OpsAnswerExamplesPage() {
                 <label className={opsTheme.label} htmlFor="tags">
                   Tags (optional)
                 </label>
-                <input
+                <UiInput
+                  unstyled
                   id="tags"
                   value={draft.tagsText}
                   onChange={(event) =>
@@ -489,7 +499,8 @@ export default function OpsAnswerExamplesPage() {
                 <label className={opsTheme.label} htmlFor="notes">
                   Notes
                 </label>
-                <textarea
+                <UiTextarea
+                  unstyled
                   id="notes"
                   value={draft.notes}
                   onChange={(event) =>

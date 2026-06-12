@@ -42,7 +42,7 @@ export function ActionDropdown({
         side={side}
         sideOffset={sideOffset}
         className={cn(
-          "rounded-[10px] border border-beige900/8 bg-beige50/95 p-1 text-beige900 shadow-[0_18px_40px_rgba(0,0,0,0.12)] backdrop-blur-md",
+          "rounded-[12px] border border-neutral-1000-a05 bg-bg-floating/95 p-1 text-neutral-primary shadow-[0_18px_40px_rgba(31,28,26,0.12)] backdrop-blur-md",
           contentClassName
         )}
       >
@@ -55,15 +55,23 @@ export function ActionDropdown({
 type ActionDropdownItemProps = React.ComponentPropsWithoutRef<
   typeof DropdownMenuItem
 > & {
-  tone?: "default" | "danger";
   keepOpen?: boolean;
+  selected?: boolean;
+  tone?: "default" | "danger";
 };
 
 export const ActionDropdownItem = React.forwardRef<
   React.ElementRef<typeof DropdownMenuItem>,
   ActionDropdownItemProps
 >(function ActionDropdownItem(
-  { className, tone = "default", keepOpen = false, onSelect, ...props },
+  {
+    className,
+    keepOpen = false,
+    onSelect,
+    selected = false,
+    tone = "default",
+    ...props
+  },
   ref
 ) {
   return (
@@ -76,10 +84,14 @@ export const ActionDropdownItem = React.forwardRef<
         onSelect?.(event);
       }}
       className={cn(
-        "cursor-pointer rounded-[10px] px-3 py-2 text-sm text-beige900 focus:bg-beige500/55 focus:text-beige900",
-        tone === "danger" && "text-red-600 focus:bg-red-400/15 focus:text-red-700",
+        "cursor-pointer rounded-[10px] px-3 py-2 text-sm text-neutral-primary focus:bg-bg-weak focus:text-neutral-primary",
+        selected && "bg-bg-weak text-neutral-primary",
+        tone === "danger" &&
+          "text-critical focus:bg-critical-faded focus:text-critical",
         className
       )}
+      selected={selected}
+      tone={tone}
       {...props}
     />
   );
@@ -92,7 +104,7 @@ export const ActionDropdownSeparator = React.forwardRef<
   return (
     <DropdownMenuSeparator
       ref={ref}
-      className={cn("my-1 bg-beige900/8", className)}
+      className={cn("my-1 bg-neutral-1000-a05", className)}
       {...props}
     />
   );

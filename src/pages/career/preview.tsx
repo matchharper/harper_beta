@@ -763,6 +763,8 @@ const CareerPreviewPage = () => {
       sessionReengagementPending: false,
       sessionReengagementThinkingLogs: [],
       sessionReengagementRecommendationStatus: null,
+      opportunityFeedbackFollowUpPending: false,
+      opportunityFeedbackFollowUpTrigger: null,
       opportunityRun: null,
       opportunitySearchLocked: false,
       historyUpdatingOpportunityIds: [],
@@ -827,7 +829,7 @@ const CareerPreviewPage = () => {
           id: now + 1,
           role: "assistant",
           content:
-            "말씀해주신 조건들을 Harper의 검색 기준에 반영했어요. 결과는 포지션 탭과 이메일로 준비되는 대로 보내드릴 거예요. 최대 1시간 정도 걸릴 수 있어요.\n\n확인하신 뒤에는 좋아요/싫어요를 눌러주시고, 마음에 드는 회사는 track 해두시면 관련 소식이나 채용 업데이트를 챙겨드릴게요.\n\n앞으로 어떤 종류의 연락을 어느 정도 자주 받는 게 편하실까요?",
+            "말씀해주신 조건들을 Harper의 검색 기준에 반영했어요. 결과는 포지션 탭과 이메일로 준비되는 대로 보내드릴 거예요. 최대 1시간 정도 걸릴 수 있어요.\n\n확인하신 뒤에는 좋아요/싫어요를 눌러주시고, 마음에 드는 회사는 track 해두시면 관련 소식이나 채용 업데이트를 챙겨드릴게요.\n\n한 가지만 여쭤볼게요. 선호하실 만한 기회라면 제가 연결 가능한 기회가 아닌 외부 공고라도 주기적으로 알려드리면 좋을까요? 아니면 내부 연결처럼 특히 핏이 강한 기회가 있을 때만 연락드리는 쪽이 편하실까요?",
           messageType: "onboarding_completion_next_steps",
           createdAt: new Date().toISOString(),
         };
@@ -839,21 +841,14 @@ const CareerPreviewPage = () => {
         return true;
       },
       showVoiceStartPrompt: false,
-      onStartVoiceCall: () => undefined,
       onUseChatOnly: () => undefined,
       onPauseOnboarding: async () => undefined,
       onSubmitOnboardingInterest: async () => true,
       onContinueOnboardingConversation: async () => undefined,
       inputMode: "text",
       voiceTranscript: "",
-      voiceListening: false,
       voiceMuted: false,
-      voiceError: "",
-      assistantAudioBusy: false,
-      voicePrimaryPressed: false,
-      onVoicePrimaryAction: () => undefined,
       onToggleVoiceMute: () => undefined,
-      onSwitchToTextMode: () => undefined,
     }),
     [messages, profileLinks, resumeFile, talentPreferences.isOnboardingDone]
   );

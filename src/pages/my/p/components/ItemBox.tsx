@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { getSchoolLogo } from "@/utils/school_logo";
+import { BareButton } from "@/components/ui/button";
 
 const ItemBox = ({
   title,
@@ -80,25 +81,35 @@ const ItemBox = ({
     });
   };
 
-  const logoSize = "w-10 h-10 outline outline-4 outline-beige200";
+  const logoSize = "w-10 h-10 outline outline-4 outline-bg-weak";
   const logoIcon = useMemo(() => {
     if (isEdu) {
       return (
-        <SchoolIcon size={20} strokeWidth={1.3} className="text-beige900" />
+        <SchoolIcon
+          size={20}
+          strokeWidth={1.3}
+          className="text-neutral-primary"
+        />
       );
     }
     if (typed === "award") {
       return (
-        <AwardIcon size={20} strokeWidth={1.3} className="text-beige900" />
+        <AwardIcon
+          size={20}
+          strokeWidth={1.3}
+          className="text-neutral-primary"
+        />
       );
     }
-    return <Building2 size={20} strokeWidth={1.3} className="text-beige900" />;
+    return (
+      <Building2 size={20} strokeWidth={1.3} className="text-neutral-primary" />
+    );
   }, [isEdu, typed]);
 
   return (
     <div className="relative">
       {isLast ? null : (
-        <div className="h-full bg-beige900/10 w-[2px] absolute left-[19px] top-0" />
+        <div className="h-full bg-bg-weak w-[2px] absolute left-[19px] top-0" />
       )}
       <div
         className={`flex flex-row items-start justify-between gap-4 relative pb-12 ${isContinued ? "mt-[-24px] pb-16" : "mt-0"}`}
@@ -112,12 +123,12 @@ const ItemBox = ({
               <img
                 src={logoUrl}
                 alt={name}
-                className={`transition-all duration-200 ${logoSize} mt-px rounded-full object-cover border border-beige900/0 bg-beige900/90 ${disableEntityClick ? "" : "cursor-pointer hover:border-beige900"}`}
+                className={`transition-all duration-200 ${logoSize} mt-px rounded-full object-cover border border-transparent bg-black/90 ${disableEntityClick ? "" : "cursor-pointer hover:border-neutral-800"}`}
               />
             ) : (
               <>
                 <div
-                  className={`${logoSize} mt-px rounded-full flex items-center justify-center text-lg bg-beige500`}
+                  className={`${logoSize} mt-px rounded-full flex items-center justify-center text-lg bg-bg-weak`}
                   // style={{ backgroundColor: getRevealLogoColor(String(name ?? title ?? "item")) }}
                 >
                   {logoIcon}
@@ -127,9 +138,9 @@ const ItemBox = ({
           </div>
 
           <div className="flex flex-col items-start justify-start gap-[2px] font-normal min-w-0 mt-[-4px]">
-            <div className="text-base font-medium truncate text-beige900 flex flex-row items-center justify-start gap-2">
+            <div className="text-base font-medium truncate text-neutral-primary flex flex-row items-center justify-start gap-2">
               {isEdu ? (
-                <span className="text-beige900/80 text-xs font-light">
+                <span className="text-neutral-primary text-xs font-light">
                   학력
                 </span>
               ) : null}{" "}
@@ -137,7 +148,7 @@ const ItemBox = ({
             </div>
 
             <div
-              className={`${isEdu || disableEntityClick ? "" : "cursor-pointer"} text-beige900/55 flex flex-row gap-2 items-center font-light text-sm`}
+              className={`${isEdu || disableEntityClick ? "" : "cursor-pointer"} text-neutral-muted flex flex-row gap-2 items-center font-light text-sm`}
               onClick={() => onButtonClick()}
             >
               <span
@@ -154,7 +165,7 @@ const ItemBox = ({
                   <span>{startDate}</span>
                   {typed !== "award" && <span>-</span>}
                   {endDate === "" && typed !== "award" ? (
-                    <span className="text-accentBronze">현재</span>
+                    <span className="text-primary">현재</span>
                   ) : (
                     <span>{endDate}</span>
                   )}
@@ -171,7 +182,7 @@ const ItemBox = ({
                   isOpen ? "max-h-[600px] opacity-100 pb-2" : "h-0 opacity-0",
                 ].join(" ")}
               >
-                <div className="mt-3 text-[15px] text-beige900/80 font-light whitespace-pre-wrap">
+                <div className="mt-3 text-[15px] text-neutral-primary font-light whitespace-pre-wrap">
                   {description}
                 </div>
               </div>
@@ -181,10 +192,10 @@ const ItemBox = ({
 
         {hasDescription ? (
           <div
-            className={`flex flex-row gap-2 shrink-0 absolute right-0 top-[-4px] h-20 w-24 items-center justify-center hover:bg-beige900/5 transition-all cursor-pointer rounded-r-md`}
+            className={`flex flex-row gap-2 shrink-0 absolute right-0 top-[-4px] h-20 w-24 items-center justify-center hover:bg-bg-floating transition-all cursor-pointer rounded-r-md`}
             onClick={toggleDesc}
           >
-            <button
+            <BareButton
               type="button"
               aria-label={isOpen ? "Hide description" : "Show description"}
               aria-expanded={isOpen}
@@ -193,11 +204,11 @@ const ItemBox = ({
               <ChevronDown
                 size={24}
                 strokeWidth={1.3}
-                className={`transition-transform duration-200 text-beige900 ${
+                className={`transition-transform duration-200 text-neutral-primary ${
                   isOpen ? "rotate-180" : "rotate-0"
                 }`}
               />
-            </button>
+            </BareButton>
           </div>
         ) : null}
       </div>

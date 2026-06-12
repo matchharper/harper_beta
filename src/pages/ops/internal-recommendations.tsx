@@ -3,6 +3,14 @@ import { cx, opsTheme } from "@/components/ops/theme";
 import { showToast } from "@/components/toast/toast";
 import { Calendar } from "@/components/ui/calendar";
 import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   useBulkUpdateOpsInternalRecommendationStages,
   useHideOpsInternalRecommendation,
   useOpsInternalRecommendations,
@@ -19,6 +27,7 @@ import {
 import { useOpsInternalRecommendationsBoardStore } from "@/store/useOpsInternalRecommendationsBoardStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import {
+  Briefcase,
   CalendarDays,
   ChevronDown,
   ChevronLeft,
@@ -39,6 +48,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DateRange } from "react-day-picker";
+import { Select as UiSelect } from "@/components/ui/select";
+import { Input as UiInput } from "@/components/ui/input";
+import { BareButton } from "@/components/ui/button";
 
 const FETCH_LIMIT = 80;
 const AUTO_STAGE_VALUE = "__auto__";
@@ -55,6 +67,13 @@ const INTERNAL_RECOMMENDATION_FIXED_STAGES = [
 type ViewMode = "table" | "board";
 type StageDrafts = Record<string, string | null>;
 type RecommendationFilter = OpsInternalRecommendationAcceptedFilter | "hidden";
+
+type RoleFilterOption = {
+  companyName: string;
+  count: number;
+  id: string;
+  label: string;
+};
 
 const FILTER_OPTIONS = [
   { id: "all", label: "전체보기" },
@@ -136,12 +155,12 @@ const getFeedbackLabel = (feedback: string | null | undefined) => {
 const getFeedbackClass = (feedback: string | null | undefined) => {
   const normalized = String(feedback ?? "").toLowerCase();
   if (normalized === "like" || normalized === "positive") {
-    return "bg-[#E4EDE2] text-[#29513A]";
+    return "bg-positive-faded text-positive";
   }
   if (normalized === "dislike" || normalized === "negative") {
-    return "bg-[#F7DBD3] text-[#8A2E1D]";
+    return "bg-critical-faded text-critical";
   }
-  return "bg-beige500/55 text-beige900/40";
+  return "bg-bg-weak text-neutral-soft";
 };
 
 function TalentAvatar({
@@ -170,7 +189,7 @@ function TalentAvatar({
     <div
       className={cx(
         size,
-        "flex shrink-0 items-center justify-center rounded-full bg-beige500/70 text-beige900/40"
+        "flex shrink-0 items-center justify-center rounded-full bg-bg-weak text-neutral-soft"
       )}
       aria-label={displayName}
     >
@@ -189,10 +208,10 @@ function TalentLink({ item }: { item: OpsInternalRecommendationItem }) {
     >
       <TalentAvatar item={item} />
       <div className="min-w-0">
-        <div className="truncate font-geist text-sm font-medium text-beige900 group-hover:underline group-hover:decoration-beige900/25 group-hover:underline-offset-4">
+        <div className="truncate text-sm font-medium text-neutral-primary group-hover:underline group-hover:decoration-neutral-1000-a10 group-hover:underline-offset-4">
           {displayName}
         </div>
-        <div className="mt-0 truncate font-geist text-[11px] text-black/30">
+        <div className="mt-0 truncate text-[11px] text-neutral-soft">
           {item.talent.email ?? item.talent.headline ?? "-"}
         </div>
       </div>
@@ -246,11 +265,12 @@ function StageEditor({
 
   return (
     <div className="space-y-1.5">
-      <select
+      <UiSelect
+        unstyled
         value={selectValue}
         onChange={(event) => onStageSelect(item, event.target.value)}
         disabled={disabled}
-        className="h-8 w-full rounded-md border border-beige900/10 bg-white/80 px-2 font-geist text-xs text-beige900 outline-none transition focus:border-beige900/25 disabled:opacity-50"
+        className="h-8 w-full rounded-md border border-neutral-1000-a05 bg-bg-default/80 px-2 text-xs text-neutral-primary outline-none transition focus:border-neutral-1000-a10 disabled:opacity-50"
       >
         <option value={AUTO_STAGE_VALUE}>{getAutoStageLabel(item)}</option>
         {INTERNAL_RECOMMENDATION_FIXED_STAGES.map((stage) => (
@@ -259,16 +279,17 @@ function StageEditor({
           </option>
         ))}
         <option value={CUSTOM_STAGE_VALUE}>기타(주관식)</option>
-      </select>
+      </UiSelect>
 
       {selectValue === CUSTOM_STAGE_VALUE ? (
-        <input
+        <UiInput
+          unstyled
           type="text"
           value={customValue}
           onChange={(event) => onCustomValueChange(item, event.target.value)}
           placeholder="상태 입력"
           disabled={disabled}
-          className="h-8 w-full rounded-md border border-beige900/10 bg-white/80 px-2 font-geist text-xs text-beige900 outline-none transition placeholder:text-beige900/35 focus:border-beige900/25 disabled:opacity-50"
+          className="h-8 w-full rounded-md border border-neutral-1000-a05 bg-bg-default/80 px-2 text-xs text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-1000-a10 disabled:opacity-50"
         />
       ) : null}
     </div>
@@ -302,9 +323,9 @@ function RecommendationsTable({
   showHideAction: boolean;
 }) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-beige900/10 bg-white/55">
-      <table className="w-full min-w-[1180px] table-fixed border-collapse font-geist text-xs">
-        <thead className="bg-beige500/45 text-left text-beige900/45">
+    <div className="overflow-x-auto rounded-lg border border-neutral-1000-a05 bg-bg-default/55">
+      <table className="w-full min-w-[1180px] table-fixed border-collapse text-xs">
+        <thead className="bg-bg-weak text-left text-neutral-muted">
           <tr>
             <th className="w-[240px] px-3 py-2 font-medium">유저</th>
             <th className="w-[135px] px-3 py-2 font-medium">추천일</th>
@@ -314,34 +335,34 @@ function RecommendationsTable({
             <th className="w-[240px] px-3 py-2 font-medium">상태</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-beige900/10">
+        <tbody className="divide-y divide-neutral-1000-a05">
           {items.map((item) => {
             const isHiding = hidingRecommendationId === item.recommendationId;
 
             return (
               <tr
                 key={item.recommendationId}
-                className="text-beige900/70 transition hover:bg-white/70"
+                className="text-neutral-muted transition hover:bg-bg-default/70"
               >
                 <td className="px-3 py-2 align-top">
                   <TalentLink item={item} />
                 </td>
-                <td className="px-3 py-2 align-top text-beige900/45">
+                <td className="px-3 py-2 align-top text-neutral-muted">
                   {formatKst(item.recommendedAt)}
                 </td>
                 <td className="px-3 py-2 align-top">
                   <div className="min-w-0">
-                    <div className="truncate font-medium text-beige900/85">
+                    <div className="truncate font-medium text-neutral-primary">
                       {item.roleName}
                     </div>
-                    <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-beige900/45">
+                    <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-neutral-muted">
                       <span className="truncate">{item.companyName}</span>
                       {item.externalJdUrl ? (
                         <a
                           href={item.externalJdUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="shrink-0 text-beige900/45 transition hover:text-beige900"
+                          className="shrink-0 text-neutral-muted transition hover:text-neutral-primary"
                           title="JD 열기"
                         >
                           <ExternalLink className="h-3 w-3" />
@@ -349,7 +370,7 @@ function RecommendationsTable({
                       ) : null}
                     </div>
                     {item.locationText ? (
-                      <div className="mt-0.5 truncate text-[11px] text-beige900/35">
+                      <div className="mt-0.5 truncate text-[11px] text-neutral-soft">
                         {item.locationText}
                       </div>
                     ) : null}
@@ -358,7 +379,7 @@ function RecommendationsTable({
                 <td className="px-3 py-2 align-top text-[11px]">
                   <div
                     className={
-                      item.viewedAt ? "text-beige900/65" : "text-beige900/30"
+                      item.viewedAt ? "text-neutral-muted" : "text-neutral-soft"
                     }
                   >
                     {item.viewedAt
@@ -368,7 +389,9 @@ function RecommendationsTable({
                   <div
                     className={cx(
                       "mt-0.5",
-                      item.clickedAt ? "text-beige900/65" : "text-beige900/30"
+                      item.clickedAt
+                        ? "text-neutral-muted"
+                        : "text-neutral-soft"
                     )}
                   >
                     {item.clickedAt
@@ -386,13 +409,13 @@ function RecommendationsTable({
                     {getFeedbackLabel(item.feedback)}
                   </span>
                   {item.feedbackAt ? (
-                    <div className="mt-1 text-[11px] text-beige900/35">
+                    <div className="mt-1 text-[11px] text-neutral-soft">
                       {formatKst(item.feedbackAt)}
                     </div>
                   ) : null}
                   {item.feedbackReason ? (
                     <div
-                      className="mt-0.5 truncate text-[11px] text-beige900/45"
+                      className="mt-0.5 truncate text-[11px] text-neutral-muted"
                       title={item.feedbackReason}
                     >
                       {item.feedbackReason}
@@ -402,11 +425,11 @@ function RecommendationsTable({
                 <td className="px-3 py-2 align-top">
                   <div className="mb-2 flex justify-end">
                     {showHideAction ? (
-                      <button
+                      <BareButton
                         type="button"
                         onClick={() => onHideRecommendation(item)}
                         disabled={savePending || isHiding}
-                        className="inline-flex h-7 items-center gap-1 rounded-md px-2 font-geist text-[11px] font-medium text-beige900/38 transition hover:bg-beige900/5 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-45"
+                        className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-neutral-soft transition hover:bg-bg-floating hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-45"
                       >
                         {isHiding ? (
                           <LoaderCircle className="h-3 w-3 animate-spin" />
@@ -414,9 +437,9 @@ function RecommendationsTable({
                           <EyeOff className="h-3 w-3" />
                         )}
                         숨김
-                      </button>
+                      </BareButton>
                     ) : (
-                      <span className="inline-flex h-7 items-center gap-1 rounded-md bg-beige500/60 px-2 font-geist text-[11px] font-medium text-beige900/45">
+                      <span className="inline-flex h-7 items-center gap-1 rounded-md bg-bg-weak px-2 text-[11px] font-medium text-neutral-muted">
                         <EyeOff className="h-3 w-3" />
                         숨김됨
                       </span>
@@ -555,30 +578,30 @@ function RecommendationsBoard({
                 setDraggingId(null);
               }}
               className={cx(
-                "min-h-[520px] shrink-0 rounded-lg border border-beige900/10 bg-white/45 transition-[background-color,width,min-width]",
+                "min-h-[520px] shrink-0 rounded-lg border border-neutral-1000-a05 bg-bg-default/45 transition-[background-color,width,min-width]",
                 isCollapsed
                   ? "flex w-14 min-w-[3.5rem] flex-col items-center p-2"
                   : "w-[320px] min-w-[290px] p-2",
-                draggingId && !isCustomColumn && "bg-white/70"
+                draggingId && !isCustomColumn && "bg-bg-default/70"
               )}
             >
               {isCollapsed ? (
                 <>
-                  <button
+                  <BareButton
                     type="button"
                     onClick={() => onToggleColumnCollapsed(column.id)}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-md text-beige900/45 transition hover:bg-beige900/5 hover:text-beige900"
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md text-neutral-muted transition hover:bg-bg-floating hover:text-neutral-primary"
                     aria-label={`${column.label} 펼치기`}
                     title={`${column.label} 펼치기`}
                   >
                     <ChevronDown className="h-4 w-4" />
-                  </button>
+                  </BareButton>
                   <div className="mt-3 flex min-h-0 flex-1 flex-col items-center gap-2">
-                    <span className="rounded bg-beige500/70 px-1.5 py-0.5 font-geist text-[10px] text-beige900/45">
+                    <span className="rounded bg-bg-weak px-1.5 py-0.5 text-[10px] text-neutral-muted">
                       {columnItems.length}
                     </span>
                     <div
-                      className="max-h-[420px] truncate font-geist text-xs font-medium text-beige900/65 [writing-mode:vertical-rl]"
+                      className="max-h-[420px] truncate text-xs font-medium text-neutral-muted [writing-mode:vertical-rl]"
                       title={column.label}
                     >
                       {column.label}
@@ -588,20 +611,20 @@ function RecommendationsBoard({
               ) : (
                 <>
                   <div className="flex items-center justify-between gap-2 px-1 py-1.5">
-                    <button
+                    <BareButton
                       type="button"
                       onClick={() => onToggleColumnCollapsed(column.id)}
-                      className="inline-flex h-6 w-6 items-center justify-center rounded-md text-beige900/35 transition hover:bg-beige900/5 hover:text-beige900"
+                      className="inline-flex h-6 w-6 items-center justify-center rounded-md text-neutral-soft transition hover:bg-bg-floating hover:text-neutral-primary"
                       aria-label={`${column.label} 접기`}
                       title={`${column.label} 접기`}
                     >
                       <ChevronRight className="h-3.5 w-3.5" />
-                    </button>
-                    <div className="min-w-0 truncate font-geist text-xs font-medium">
+                    </BareButton>
+                    <div className="min-w-0 truncate text-xs font-medium">
                       {column.label}
                     </div>
                     <div className="flex shrink-0 items-center gap-1.5">
-                      <span className="rounded bg-beige500/70 px-1.5 py-0.5 font-geist text-[10px] text-beige900/70">
+                      <span className="rounded bg-bg-weak px-1.5 py-0.5 text-[10px] text-neutral-muted">
                         {columnItems.length}
                       </span>
                     </div>
@@ -621,19 +644,19 @@ function RecommendationsBoard({
                           }
                           onDragEnd={() => setDraggingId(null)}
                           className={cx(
-                            "rounded-md border border-beige900/10 bg-white/80 p-3 shadow-[0_12px_30px_rgba(89,57,24,0.06)] transition",
+                            "rounded-md border border-neutral-1000-a05 bg-bg-default/80 p-3 shadow-[0_12px_30px_color-mix(in_srgb,var(--color-neutral-1000)_6%,transparent)] transition",
                             draggingId === item.recommendationId && "opacity-45"
                           )}
                         >
                           <div className="flex items-start gap-2">
-                            <GripVertical className="mt-1 h-4 w-4 shrink-0 text-beige900/25" />
+                            <GripVertical className="mt-1 h-4 w-4 shrink-0 text-neutral-soft" />
                             <div className="min-w-0 flex-1 space-y-3">
                               <TalentLink item={item} />
                               <div className="min-w-0">
-                                <div className="truncate font-geist text-sm font-medium text-black/90">
+                                <div className="truncate text-sm font-medium text-neutral-primary">
                                   {item.roleName}
                                 </div>
-                                <div className="mt-0.5 truncate font-geist text-[13px] text-black/60">
+                                <div className="mt-0.5 truncate text-[13px] text-neutral-muted">
                                   {item.companyName}
                                   {item.locationText
                                     ? ` · ${item.locationText}`
@@ -643,13 +666,13 @@ function RecommendationsBoard({
                               <div className="flex flex-wrap gap-1.5">
                                 <span
                                   className={cx(
-                                    "rounded px-1.5 py-0.5 font-geist text-[11px] font-medium",
+                                    "rounded px-1.5 py-0.5 text-[11px] font-medium",
                                     getFeedbackClass(item.feedback)
                                   )}
                                 >
                                   {getFeedbackLabel(item.feedback)}
                                 </span>
-                                <span className="rounded bg-beige500/60 px-1.5 py-0.5 font-geist text-[11px] text-beige900/45">
+                                <span className="rounded bg-bg-weak px-1.5 py-0.5 text-[11px] text-neutral-muted">
                                   {formatKst(item.recommendedAt)}
                                 </span>
                               </div>
@@ -664,11 +687,11 @@ function RecommendationsBoard({
                               />
                             </div>
                             {showHideAction ? (
-                              <button
+                              <BareButton
                                 type="button"
                                 onClick={() => onHideRecommendation(item)}
                                 disabled={savePending || isHiding}
-                                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-beige900/35 transition hover:bg-beige900/5 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-45"
+                                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-soft transition hover:bg-bg-floating hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-45"
                                 aria-label="추천 숨김"
                                 title="추천 숨김"
                               >
@@ -677,10 +700,10 @@ function RecommendationsBoard({
                                 ) : (
                                   <EyeOff className="h-3.5 w-3.5" />
                                 )}
-                              </button>
+                              </BareButton>
                             ) : (
                               <span
-                                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-beige500/60 text-beige900/45"
+                                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-bg-weak text-neutral-muted"
                                 aria-label="숨김됨"
                                 title="숨김됨"
                               >
@@ -693,7 +716,7 @@ function RecommendationsBoard({
                     })}
 
                     {columnItems.length === 0 ? (
-                      <div className="rounded-md border border-dashed border-beige900/15 bg-white/35 px-3 py-8 text-center font-geist text-xs text-beige900/35">
+                      <div className="rounded-md border border-dashed border-neutral-1000-a10 bg-bg-floating px-3 py-8 text-center text-xs text-neutral-soft">
                         여기에 드롭
                       </div>
                     ) : null}
@@ -731,6 +754,7 @@ export default function OpsInternalRecommendationsPage() {
   const hiddenOnly = selectedFilter === "hidden";
   const showHideAction = !hiddenOnly;
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
   const [recommendedDateRange, setRecommendedDateRange] = useState<
     DateRange | undefined
   >();
@@ -805,6 +829,72 @@ export default function OpsInternalRecommendationsPage() {
     [recommendations]
   );
 
+  const roleFilterOptions = useMemo<RoleFilterOption[]>(() => {
+    const byRoleId = new Map<string, RoleFilterOption>();
+    for (const item of recommendations) {
+      if (
+        isEmailExcludedByOpsInternalTerms(
+          item.talent.email,
+          emailExclusionTerms
+        )
+      ) {
+        continue;
+      }
+      const existing = byRoleId.get(item.roleId);
+      if (existing) {
+        existing.count += 1;
+        continue;
+      }
+      byRoleId.set(item.roleId, {
+        companyName: item.companyName,
+        count: 1,
+        id: item.roleId,
+        label: item.roleName,
+      });
+    }
+
+    return Array.from(byRoleId.values()).sort((a, b) => {
+      const companyCompare = a.companyName.localeCompare(b.companyName);
+      if (companyCompare !== 0) return companyCompare;
+      return a.label.localeCompare(b.label);
+    });
+  }, [emailExclusionTerms, recommendations]);
+
+  const roleOptionById = useMemo(
+    () => new Map(roleFilterOptions.map((option) => [option.id, option])),
+    [roleFilterOptions]
+  );
+
+  const validSelectedRoleIds = useMemo(
+    () => selectedRoleIds.filter((roleId) => roleOptionById.has(roleId)),
+    [roleOptionById, selectedRoleIds]
+  );
+  const selectedRoleIdSet = useMemo(
+    () => new Set(validSelectedRoleIds),
+    [validSelectedRoleIds]
+  );
+  const hasRoleFilter = validSelectedRoleIds.length > 0;
+  const roleFilterLabel = useMemo(() => {
+    if (validSelectedRoleIds.length === 0) return "Role 전체보기";
+    if (validSelectedRoleIds.length === 1) {
+      const option = roleOptionById.get(validSelectedRoleIds[0]);
+      return option ? option.label : "Role 1개";
+    }
+    return `Role ${validSelectedRoleIds.length}개`;
+  }, [roleOptionById, validSelectedRoleIds]);
+
+  const clearRoleFilter = useCallback(() => {
+    setSelectedRoleIds([]);
+  }, []);
+
+  const toggleRoleFilter = useCallback((roleId: string) => {
+    setSelectedRoleIds((current) =>
+      current.includes(roleId)
+        ? current.filter((id) => id !== roleId)
+        : [...current, roleId]
+    );
+  }, []);
+
   const hiddenByInternalDataExclusionCount = useMemo(
     () =>
       recommendations.filter((item) =>
@@ -827,6 +917,7 @@ export default function OpsInternalRecommendationsPage() {
       ) {
         return false;
       }
+      if (hasRoleFilter && !selectedRoleIdSet.has(item.roleId)) return false;
       if (!q) return true;
       return [
         item.talent.name,
@@ -841,7 +932,13 @@ export default function OpsInternalRecommendationsPage() {
         .toLowerCase()
         .includes(q);
     });
-  }, [emailExclusionTerms, recommendations, searchQuery]);
+  }, [
+    emailExclusionTerms,
+    hasRoleFilter,
+    recommendations,
+    searchQuery,
+    selectedRoleIdSet,
+  ]);
 
   const changedStageUpdates = useMemo(
     () =>
@@ -1060,13 +1157,13 @@ export default function OpsInternalRecommendationsPage() {
   const hasSearchQuery = Boolean(searchQuery.trim());
   const filterButtonClass = (active: boolean) =>
     cx(
-      "inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border px-2.5 font-geist text-[12px] font-medium transition",
+      "inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border px-2.5 text-[12px] font-medium transition",
       active
-        ? "border-[#90a88f]/55 bg-[#e4eee4] text-[#2f553d] hover:bg-[#dbe8db]"
-        : "border-beige900/10 bg-white/70 text-beige900/55 hover:border-beige900/18 hover:bg-white"
+        ? "border-positive/30 bg-positive-faded text-positive hover:bg-positive-faded"
+        : "border-neutral-1000-a05 bg-bg-default/70 text-neutral-muted hover:border-neutral-1000-a10 hover:bg-bg-default"
     );
   const emptyMessage =
-    hasSearchQuery || hasRecommendedDateFilter
+    hasSearchQuery || hasRecommendedDateFilter || hasRoleFilter
       ? "검색 결과가 없습니다."
       : hiddenByInternalDataExclusionCount > 0
         ? "내부 데이터 제외 설정으로 숨겨진 추천만 있습니다."
@@ -1086,7 +1183,7 @@ export default function OpsInternalRecommendationsPage() {
         compactHeader
         title="Internal Recommendations"
         actions={
-          <button
+          <BareButton
             type="button"
             onClick={handleRefresh}
             disabled={query.isFetching}
@@ -1098,20 +1195,21 @@ export default function OpsInternalRecommendationsPage() {
               <RefreshCw className="h-4 w-4" />
             )}
             새로고침
-          </button>
+          </BareButton>
         }
       >
         <section className="space-y-4 px-4">
           <div className="py-2">
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-              <div className="mt-1 font-geist text-sm text-beige900/55">
+              <div className="mt-1 text-sm text-neutral-muted">
                 사람별로 추천된 internal 기회의 유저 반응과 운영 상태를
                 관리합니다.
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <div className="relative w-full min-w-[220px] sm:w-[280px]">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-beige900/30" />
-                  <input
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-soft" />
+                  <UiInput
+                    unstyled
                     type="text"
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
@@ -1119,8 +1217,70 @@ export default function OpsInternalRecommendationsPage() {
                     className={cx(opsTheme.input, "h-9 pl-9")}
                   />
                 </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <BareButton
+                      type="button"
+                      className={cx(
+                        filterButtonClass(hasRoleFilter),
+                        "max-w-[260px]"
+                      )}
+                      title={roleFilterLabel}
+                    >
+                      <Briefcase className="h-3.5 w-3.5" aria-hidden />
+                      <span className="min-w-0 truncate">
+                        {roleFilterLabel}
+                      </span>
+                      <ChevronDown className="h-3.5 w-3.5" aria-hidden />
+                    </BareButton>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    className="max-h-[420px] w-[360px] max-w-[calc(100vw-2rem)]"
+                  >
+                    <DropdownMenuItem
+                      selected={!hasRoleFilter}
+                      onSelect={clearRoleFilter}
+                      className="cursor-pointer"
+                    >
+                      <span>전체보기</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {roleFilterOptions.length === 0 ? (
+                      <div className="px-3 py-8 text-center text-xs text-neutral-soft">
+                        선택할 role이 없습니다.
+                      </div>
+                    ) : (
+                      roleFilterOptions.map((option) => (
+                        <DropdownMenuCheckboxItem
+                          key={option.id}
+                          checked={selectedRoleIdSet.has(option.id)}
+                          onSelect={(event) => {
+                            event.preventDefault();
+                          }}
+                          onCheckedChange={() => toggleRoleFilter(option.id)}
+                          className="cursor-pointer py-2"
+                        >
+                          <div className="flex min-w-0 flex-1 items-center gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate text-sm text-neutral-primary">
+                                {option.label}
+                              </div>
+                              <div className="truncate text-[11px] text-neutral-soft">
+                                {option.companyName}
+                              </div>
+                            </div>
+                            <span className="shrink-0 rounded bg-bg-weak px-1.5 py-0.5 text-[10px] text-neutral-muted">
+                              {option.count}
+                            </span>
+                          </div>
+                        </DropdownMenuCheckboxItem>
+                      ))
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <div ref={recommendedDateFilterRef} className="relative">
-                  <button
+                  <BareButton
                     type="button"
                     onClick={() => setIsRecommendedDateOpen((open) => !open)}
                     className={filterButtonClass(hasRecommendedDateFilter)}
@@ -1134,10 +1294,10 @@ export default function OpsInternalRecommendationsPage() {
                       )}
                       aria-hidden
                     />
-                  </button>
+                  </BareButton>
 
                   {isRecommendedDateOpen ? (
-                    <div className="absolute left-0 top-[calc(100%+6px)] z-50 w-[300px] rounded-md border border-beige900/12 bg-[#fbfaf7] p-2 shadow-[0_18px_48px_rgba(37,28,21,0.16)]">
+                    <div className="absolute left-0 top-[calc(100%+6px)] z-50 w-[300px] rounded-md border border-neutral-1000-a10 bg-bg-floating p-2 shadow-[0_18px_48px_color-mix(in_srgb,var(--color-neutral-1000)_16%,transparent)]">
                       <Calendar
                         mode="range"
                         selected={recommendedDateRange}
@@ -1146,81 +1306,85 @@ export default function OpsInternalRecommendationsPage() {
                         disabled={{ after: new Date() }}
                         className="p-2 text-[12px] [--cell-size:1.85rem]"
                       />
-                      <div className="mt-1 flex items-center justify-end gap-2 border-t border-beige900/10 pt-2">
-                        <button
+                      <div className="mt-1 flex items-center justify-end gap-2 border-t border-neutral-1000-a05 pt-2">
+                        <BareButton
                           type="button"
                           onClick={() => changeRecommendedDateRange(undefined)}
                           disabled={!hasRecommendedDateFilter}
-                          className="h-7 rounded-md px-2 font-geist text-[11px] font-medium text-beige900/45 transition hover:bg-beige900/5 disabled:cursor-not-allowed disabled:opacity-40"
+                          className="h-7 rounded-md px-2 text-[11px] font-medium text-neutral-muted transition hover:bg-bg-floating disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           초기화
-                        </button>
-                        <button
+                        </BareButton>
+                        <BareButton
                           type="button"
                           onClick={() => setIsRecommendedDateOpen(false)}
-                          className="h-7 rounded-md bg-beige900 px-2.5 font-geist text-[11px] font-medium text-white transition hover:bg-beige900/88"
+                          className="h-7 rounded-md bg-black px-2.5 text-[11px] font-medium text-neutral-00 transition hover:bg-black/88"
                         >
                           닫기
-                        </button>
+                        </BareButton>
                       </div>
                     </div>
                   ) : null}
                 </div>
-                <div className="flex rounded-md border border-beige900/10 bg-white/55 p-1">
+                <div className="flex rounded-md border border-neutral-1000-a05 bg-bg-default/55 p-1">
                   {FILTER_OPTIONS.map((option) => (
-                    <button
+                    <BareButton
                       key={option.id}
                       type="button"
                       onClick={() => changeFilter(option.id)}
                       className={cx(
-                        "h-7 rounded px-2.5 font-geist text-xs font-medium transition",
+                        "h-7 rounded px-2.5 text-xs font-medium transition",
                         selectedFilter === option.id
-                          ? "bg-beige900 text-beige100"
-                          : "text-beige900/55 hover:text-beige900"
+                          ? "bg-black text-neutral-00"
+                          : "text-neutral-muted hover:text-neutral-primary"
                       )}
                     >
                       {option.label}
-                    </button>
+                    </BareButton>
                   ))}
                 </div>
-                <div className="flex rounded-md border border-beige900/10 bg-white/55 p-1">
+                <div className="flex rounded-md border border-neutral-1000-a05 bg-bg-default/55 p-1">
                   {VIEW_OPTIONS.map((option) => {
                     const Icon = option.icon;
                     return (
-                      <button
+                      <BareButton
                         key={option.id}
                         type="button"
                         onClick={() => setViewMode(option.id)}
                         className={cx(
-                          "inline-flex h-7 items-center gap-1.5 rounded px-2.5 font-geist text-xs font-medium transition",
+                          "inline-flex h-7 items-center gap-1.5 rounded px-2.5 text-xs font-medium transition",
                           viewMode === option.id
-                            ? "bg-beige900 text-beige100"
-                            : "text-beige900/55 hover:text-beige900"
+                            ? "bg-black text-neutral-00"
+                            : "text-neutral-muted hover:text-neutral-primary"
                         )}
                       >
                         <Icon className="h-3.5 w-3.5" />
                         {option.label}
-                      </button>
+                      </BareButton>
                     );
                   })}
                 </div>
-                <button
+                <BareButton
                   type="button"
                   onClick={() => changeFilter("hidden")}
                   className={cx(
-                    "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-2.5 font-geist text-xs font-medium transition",
+                    "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition",
                     selectedFilter === "hidden"
-                      ? "border-beige900 bg-beige900 text-beige100"
-                      : "border-beige900/10 bg-white/55 text-beige900/55 hover:border-beige900/18 hover:bg-white hover:text-beige900"
+                      ? "border-neutral-800 bg-black text-neutral-00"
+                      : "border-neutral-1000-a05 bg-bg-default/55 text-neutral-muted hover:border-neutral-1000-a10 hover:bg-bg-default hover:text-neutral-primary"
                   )}
                 >
                   <EyeOff className="h-3.5 w-3.5" />
                   숨김
-                </button>
+                </BareButton>
               </div>
             </div>
-            <div className="mt-3 flex flex-wrap gap-2 font-geist text-[11px] text-beige900/40">
-              <span>현재 로드 {visibleRecommendations.length}개</span>
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-neutral-soft">
+              <span>현재 표시 {visibleRecommendations.length}개</span>
+              <span>로드 {recommendations.length}개</span>
+              {hasRoleFilter ? (
+                <span>Role 필터 {validSelectedRoleIds.length}개</span>
+              ) : null}
               {hiddenByInternalDataExclusionCount > 0 ? (
                 <span>
                   내부 데이터 제외 설정으로 {hiddenByInternalDataExclusionCount}
@@ -1232,7 +1396,7 @@ export default function OpsInternalRecommendationsPage() {
 
           {query.isLoading ? (
             <div className={cx(opsTheme.panel, "flex justify-center py-20")}>
-              <LoaderCircle className="h-5 w-5 animate-spin text-beige900/30" />
+              <LoaderCircle className="h-5 w-5 animate-spin text-neutral-soft" />
             </div>
           ) : query.error ? (
             <div className={opsTheme.errorNotice}>
@@ -1244,7 +1408,7 @@ export default function OpsInternalRecommendationsPage() {
             <div
               className={cx(
                 opsTheme.panel,
-                "px-4 py-16 text-center font-geist text-sm text-beige900/40"
+                "px-4 py-16 text-center text-sm text-neutral-soft"
               )}
             >
               {emptyMessage}
@@ -1282,7 +1446,7 @@ export default function OpsInternalRecommendationsPage() {
 
           {query.hasNextPage ? (
             <div className="flex justify-center">
-              <button
+              <BareButton
                 type="button"
                 onClick={() => void query.fetchNextPage()}
                 disabled={query.isFetchingNextPage}
@@ -1296,30 +1460,30 @@ export default function OpsInternalRecommendationsPage() {
                 ) : (
                   `${FETCH_LIMIT}개 더 보기`
                 )}
-              </button>
+              </BareButton>
             </div>
           ) : null}
         </section>
 
         {hasUnsavedChanges ? (
           <div className="fixed inset-x-0 bottom-4 z-40 flex justify-center px-4">
-            <div className="flex w-full max-w-xl items-center justify-between gap-3 rounded-lg border border-beige900/10 bg-beige100/95 px-4 py-3 shadow-[0_18px_60px_rgba(89,57,24,0.22)] backdrop-blur">
-              <div className="min-w-0 font-geist text-sm text-beige900/70">
-                <span className="font-medium text-beige900">
+            <div className="flex w-full max-w-xl items-center justify-between gap-3 rounded-lg border border-neutral-1000-a05 bg-bg-default/95 px-4 py-3 shadow-[0_18px_60px_color-mix(in_srgb,var(--color-neutral-1000)_22%,transparent)] backdrop-blur">
+              <div className="min-w-0 text-sm text-neutral-muted">
+                <span className="font-medium text-neutral-primary">
                   {changedStageUpdates.length}개 변경사항
                 </span>
                 을 저장해야 반영됩니다.
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <button
+                <BareButton
                   type="button"
                   onClick={resetDrafts}
                   disabled={saveStages.isPending}
                   className={cx(opsTheme.buttonSecondary, "h-9 px-3 text-xs")}
                 >
                   취소
-                </button>
-                <button
+                </BareButton>
+                <BareButton
                   type="button"
                   onClick={() => void handleSave()}
                   disabled={saveStages.isPending}
@@ -1331,7 +1495,7 @@ export default function OpsInternalRecommendationsPage() {
                     <Save className="h-3.5 w-3.5" />
                   )}
                   저장
-                </button>
+                </BareButton>
               </div>
             </div>
           </div>

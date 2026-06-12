@@ -16,8 +16,8 @@ import { useCareerSidebarContext } from "@/components/career/CareerSidebarContex
 import CareerWorkspaceNav, {
   type CareerWorkspaceTab,
 } from "@/components/career/CareerWorkspaceNav";
-import { careerCx } from "@/components/career/ui/CareerPrimitives";
-import { CareerActionButton } from "@/components/career/ui/CareerActionButton";
+import { cn } from "@/lib/utils";
+import { ActionButton } from "@/components/ui/button";
 import CareerMobileJobsView, {
   JobActionBar,
 } from "@/components/career/mobile/jobs/CareerMobileJobsView";
@@ -85,9 +85,7 @@ const CareerCanvas = ({
 }: {
   children: React.ReactNode;
   className?: string;
-}) => (
-  <section className={careerCx("min-w-0 px-4", className)}>{children}</section>
-);
+}) => <section className={cn("min-w-0 px-4", className)}>{children}</section>;
 
 const CareerWorkspaceContent = ({
   activeTab,
@@ -109,7 +107,6 @@ const CareerWorkspaceContent = ({
           onOpenHistory={(historyTarget) =>
             onChangeTab("history", { historyTarget })
           }
-          onOpenProfile={() => onChangeTab("profile")}
         />
       </CareerCanvas>
     );
@@ -143,8 +140,8 @@ export const CareerWorkspace = () => {
 };
 
 export const CareerLoadingState = () => (
-  <main className="relative flex min-h-svh w-full items-center justify-center bg-hblack000 font-geist text-hblack900">
-    <Loader2 className="h-5 w-5 animate-spin text-hblack400" />
+  <main className="relative flex min-h-svh w-full items-center justify-center bg-bg-basement text-neutral-primary">
+    <Loader2 className="h-5 w-5 animate-spin text-neutral-soft" />
     <span className="sr-only">커리어 페이지 로딩 중</span>
   </main>
 );
@@ -161,7 +158,7 @@ const CareerWorkspaceScreen = ({
     options?: CareerWorkspaceNavigationOptions
   ) => void;
 }) => (
-  <main className="relative min-h-svh w-full bg-beige50 font-geist text-beige900">
+  <main className="relative min-h-svh w-full bg-bg-basement text-neutral-primary">
     {children ?? (
       <CareerWorkspaceRoot activeTab={activeTab} onChangeTab={onChangeTab} />
     )}
@@ -243,7 +240,7 @@ const CareerWorkspaceRoot = ({
       >
         <section
           id="career-chat-panel"
-          className="flex h-[55vh] min-h-0 min-w-0 flex-col border-b border-beige900/10 bg-beige50 lg:h-auto lg:flex-none lg:border-b-0"
+          className="flex h-[55vh] min-h-0 min-w-0 flex-col border-b border-neutral-1000-a05 bg-bg-default lg:h-auto lg:flex-none lg:border-b-0"
           style={
             isDesktop
               ? {
@@ -254,7 +251,7 @@ const CareerWorkspaceRoot = ({
               : undefined
           }
         >
-          <div className="min-h-0 flex-1 bg-beige100 p-1">
+          <div className="min-h-0 flex-1 bg-bg-default">
             <CareerChatPanel />
           </div>
         </section>
@@ -269,23 +266,23 @@ const CareerWorkspaceRoot = ({
             handleResizeStart(event.clientX);
           }}
           onKeyDown={handleResizeKeyDown}
-          className="hidden cursor-col-resize items-center justify-center outline-none transition-colors bg-beige50 hover:bg-beige100/80 focus:bg-beige100/80 lg:flex lg:w-2 lg:shrink-0"
+          className="hidden cursor-col-resize items-center justify-center bg-bg-basement outline-none transition-colors hover:bg-bg-weak focus:bg-bg-weak lg:flex lg:w-2 lg:shrink-0"
         >
           <div className="flex h-16 w-1 items-center justify-center rounded-full">
-            <div className="h-10 w-[3px] rounded-full bg-beige900/20" />
+            <div className="h-10 w-[3px] rounded-full bg-black/20" />
           </div>
         </div>
 
-        <section className="min-w-0 flex-1 lg:min-h-0 bg-beige50">
+        <section className="min-w-0 flex-1 bg-bg-basement lg:min-h-0">
           <div className="flex h-full min-h-[45svh] flex-col lg:min-h-0">
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-8">
-              <nav className="flex shrink-0 flex-wrap items-center justify-center gap-2 border-y border-y-black/5 px-3 py-3.5">
+              <nav className="flex shrink-0 flex-wrap items-center justify-center gap-2 border-b border-neutral-1000-a05 px-3 py-3.5">
                 {NAV_ITEMS.map((item) => {
                   const Icon = item.icon;
                   const active = item.id === activeTab;
 
                   return (
-                    <CareerActionButton
+                    <ActionButton
                       key={item.id}
                       onClick={() => handleChangeTab(item.id)}
                       active={active}
@@ -296,11 +293,11 @@ const CareerWorkspaceRoot = ({
                       {item.label}
                       {item.id === "history" &&
                       pendingInternalRoleFeedbackCount > 0 ? (
-                        <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-beige900 px-1.5 text-[11px] leading-none text-beige50">
+                        <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-black px-1.5 text-[11px] leading-none text-neutral-00">
                           {pendingInternalRoleFeedbackCount}
                         </span>
                       ) : null}
-                    </CareerActionButton>
+                    </ActionButton>
                   );
                 })}
               </nav>

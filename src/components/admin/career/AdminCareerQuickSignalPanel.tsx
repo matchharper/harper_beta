@@ -8,6 +8,7 @@ import {
 import { Tooltips } from "@/components/ui/tooltip";
 import type { AdminCareerQuickSignal } from "@/lib/adminCareerAnalytics/types";
 import { Info } from "lucide-react";
+import { BareButton } from "@/components/ui/button";
 
 type AdminCareerQuickSignalPanelProps = {
   signals: AdminCareerQuickSignal[];
@@ -35,13 +36,13 @@ export default function AdminCareerQuickSignalPanel({
         {signals.map((signal) => (
           <div key={signal.key} className="border border-black/10 p-3">
             <Tooltips text={signal.tooltip}>
-              <button
+              <BareButton
                 type="button"
                 className="inline-flex cursor-help items-center gap-1 bg-transparent p-0 text-left text-[12px] font-medium text-black"
               >
                 {signal.label}
                 <Info className="h-3 w-3 text-black/40" aria-hidden />
-              </button>
+              </BareButton>
             </Tooltips>
             <div className="mt-2 text-[24px] font-semibold leading-8 text-black">
               {formatRate(signal.rate)}

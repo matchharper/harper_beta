@@ -43,13 +43,24 @@ export type PageContainerProps = PageContainerOwnProps &
 
 export const PageContainer = forwardRef<HTMLElement, PageContainerProps>(
   function PageContainer(
-    { as: Component = "div", size, padding, safeArea, className, children, ...rest },
+    {
+      as: Component = "div",
+      size,
+      padding,
+      safeArea,
+      className,
+      children,
+      ...rest
+    },
     ref
   ) {
     return (
       <Component
         ref={ref}
-        className={cn(pageContainerVariants({ size, padding, safeArea }), className)}
+        className={cn(
+          pageContainerVariants({ size, padding, safeArea }),
+          className
+        )}
         {...rest}
       >
         {children}

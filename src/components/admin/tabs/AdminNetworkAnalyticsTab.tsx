@@ -16,6 +16,7 @@ import {
   TALENT_NETWORK_ONBOARDING_COMPARISON_STEPS,
   TALENT_NETWORK_PROFILE_IDENTITY_COMPLETED_EVENT,
 } from "@/lib/talentNetwork";
+import { BareButton } from "@/components/ui/button";
 
 type AdminNetworkAnalyticsTabProps = {
   deviceFilterLabel: string;
@@ -48,8 +49,8 @@ export default function AdminNetworkAnalyticsTab({
     <>
       <div className="mb-4 flex items-center justify-between w-full">
         <div className="text-[12px] text-black/55">
-          Loaded logs: <span className="text-black">{logs.length}</span> · Users:{" "}
-          <span className="text-black">{grouped.length}</span> · Device:{" "}
+          Loaded logs: <span className="text-black">{logs.length}</span> ·
+          Users: <span className="text-black">{grouped.length}</span> · Device:{" "}
           <span className="text-black">{deviceFilterLabel}</span>
         </div>
 
@@ -72,13 +73,13 @@ export default function AdminNetworkAnalyticsTab({
             <div className="font-semibold">Error</div>
             <div className="text-black/70 mt-1">{error}</div>
           </div>
-          <button
+          <BareButton
             onClick={onRefresh}
             className="h-9 px-3 text-[13px] border border-black/15 hover:border-black/30 hover:bg-black/5"
             style={{ borderRadius: 0 }}
           >
             Retry
-          </button>
+          </BareButton>
         </div>
       ) : !funnelSummary ? (
         <div
@@ -98,9 +99,13 @@ export default function AdminNetworkAnalyticsTab({
             </div>
             <div className="leading-6">
               유입 유저:{" "}
-              <span className="font-medium text-black">{funnelSummary.totalUsers}</span>{" "}
+              <span className="font-medium text-black">
+                {funnelSummary.totalUsers}
+              </span>{" "}
               · 디바이스:{" "}
-              <span className="font-medium text-black">{deviceFilterLabel}</span>{" "}
+              <span className="font-medium text-black">
+                {deviceFilterLabel}
+              </span>{" "}
               · 시작 화면 도달:{" "}
               <span className="font-medium text-black">
                 {funnelSummary.onboardingStartUsers}
@@ -136,9 +141,15 @@ export default function AdminNetworkAnalyticsTab({
                   <tr className="border-b border-black/10 text-black">
                     <th className="py-2 pr-3 font-semibold">Variant</th>
                     <th className="py-2 pr-3 font-semibold">UI</th>
-                    <th className="py-2 pr-3 text-right font-semibold">Users</th>
-                    <th className="py-2 pr-3 text-right font-semibold">Start</th>
-                    <th className="py-2 pr-3 text-right font-semibold">Submit</th>
+                    <th className="py-2 pr-3 text-right font-semibold">
+                      Users
+                    </th>
+                    <th className="py-2 pr-3 text-right font-semibold">
+                      Start
+                    </th>
+                    <th className="py-2 pr-3 text-right font-semibold">
+                      Submit
+                    </th>
                     <th className="py-2 text-right font-semibold">
                       Submit / Start
                     </th>
@@ -159,7 +170,9 @@ export default function AdminNetworkAnalyticsTab({
                       <td className="py-2 pr-3 text-black/65">
                         {getVariantDescription(item.abtestType) || "-"}
                       </td>
-                      <td className="py-2 pr-3 text-right">{item.totalUsers}</td>
+                      <td className="py-2 pr-3 text-right">
+                        {item.totalUsers}
+                      </td>
                       <td className="py-2 pr-3 text-right">
                         {item.onboardingStartUsers} (
                         {formatPercent(
@@ -170,8 +183,7 @@ export default function AdminNetworkAnalyticsTab({
                       </td>
                       <td className="py-2 pr-3 text-right">
                         {item.submittedUsers} (
-                        {formatPercent(item.submittedUsers, item.totalUsers)})
-                        )
+                        {formatPercent(item.submittedUsers, item.totalUsers)}) )
                       </td>
                       <td className="py-2 text-right">
                         {formatPercent(

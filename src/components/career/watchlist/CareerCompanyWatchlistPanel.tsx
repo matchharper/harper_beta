@@ -364,7 +364,7 @@ const CareerCompanyWatchlistPanel = () => {
           }
         />
         {actionError ? (
-          <div className="mt-4 rounded-[8px] border border-red-500/20 bg-red-50 px-4 py-3 text-[13px] text-red-700">
+          <div className="mt-4 rounded-[8px] border border-critical/30 bg-critical-faded px-4 py-3 text-[13px] text-critical">
             {actionError}
           </div>
         ) : null}
@@ -383,26 +383,27 @@ const CareerCompanyWatchlistPanel = () => {
       />
 
       {activeTab === "recommended" && (
-        <div className="min-w-0 rounded-lg bg-beige700/10 px-4 py-3 mb-4">
-          <div className="text-sm font-medium leading-5 text-black">
+        <div className="mb-4 min-w-0 rounded-lg border border-neutral-1000-a05 bg-bg-floating px-4 py-3 shadow-sm">
+          <div className="text-sm font-medium leading-5 text-neutral-primary">
             팔로우하면 일어나는 일
           </div>
-          <p className="mt-1 line-clamp-3 text-beige900/80 font-normal text-[13px]">
-            <span className="text-black">시그널 자동 추적</span> - 펀딩, 채용,
-            팀 변화, 사업 성과 등 의미 있는 변화를 찾아서 알려드립니다.
+          <p className="mt-1 line-clamp-3 text-neutral-muted font-normal text-[13px]">
+            <span className="text-neutral-primary">시그널 자동 추적</span> -
+            펀딩, 채용, 팀 변화, 사업 성과 등 의미 있는 변화를 찾아서
+            알려드립니다.
             <br />
-            <span className="text-black">회사 측 채널 열림</span> - 이 회사가
-            인재를 찾거나 Harper에게 채용을 요청 할 때 우선적으로 검토되실 수
-            있게 합니다.
+            <span className="text-neutral-primary">회사 측 채널 열림</span> - 이
+            회사가 인재를 찾거나 Harper에게 채용을 요청 할 때 우선적으로
+            검토되실 수 있게 합니다.
           </p>
         </div>
       )}
       {activeTab === "following" && (
-        <div className="min-w-0 rounded-lg bg-green-500/5 px-4 py-3 mb-4">
-          <div className="text-[13px] font-medium leading-5 text-green-600">
+        <div className="mb-4 min-w-0 rounded-lg border border-positive/30 bg-bg-floating px-4 py-3 shadow-sm">
+          <div className="text-[13px] font-medium leading-5 text-positive">
             추적중이에요
           </div>
-          <p className="mt-1 line-clamp-3 text-black text-sm">
+          <p className="mt-1 line-clamp-3 text-neutral-primary text-sm">
             펀딩, 채용, 팀 변화, 사업 성과 등 의미 있는 변화를 찾아서
             알려드립니다.
           </p>
@@ -411,7 +412,7 @@ const CareerCompanyWatchlistPanel = () => {
 
       <div className="space-y-4 pb-6">
         {actionError ? (
-          <div className="rounded-[8px] border border-red-500/20 bg-red-50 px-4 py-3 text-[13px] text-red-700">
+          <div className="rounded-[8px] border border-critical/30 bg-critical-faded px-4 py-3 text-[13px] text-critical">
             {actionError}
           </div>
         ) : null}
@@ -420,7 +421,7 @@ const CareerCompanyWatchlistPanel = () => {
           <div className="min-h-[280px]" aria-hidden="true" />
         ) : listQuery.isLoading ? (
           <div className="flex min-h-[280px] items-center justify-center">
-            <Loader2 className="h-5 w-5 animate-spin text-beige900/40" />
+            <Loader2 className="h-5 w-5 animate-spin text-neutral-soft" />
           </div>
         ) : items.length === 0 ? (
           <CompanyEmptyState
@@ -445,7 +446,7 @@ const CareerCompanyWatchlistPanel = () => {
             <div ref={sentinelRef} className="h-8" />
             {listQuery.isFetchingNextPage ? (
               <div className="flex justify-center py-2">
-                <Loader2 className="h-4 w-4 animate-spin text-beige900/35" />
+                <Loader2 className="h-4 w-4 animate-spin text-neutral-disabled" />
               </div>
             ) : null}
           </>

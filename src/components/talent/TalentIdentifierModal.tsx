@@ -16,6 +16,8 @@ import {
   type TalentCaptureSource,
   validateTalentCaptureLink,
 } from "@/lib/talentCapture/client";
+import { BareButton } from "@/components/ui/button";
+import { Input as UiInput } from "@/components/ui/input";
 
 type TalentIdentifierModalProps = {
   open: boolean;
@@ -196,11 +198,11 @@ const TalentIdentifierModal = ({
               {error}
             </p>
           ) : null}
-          <button
+          <BareButton
             type="button"
             onClick={() => void handleGoogleLogin()}
             disabled={!canContinue || isSubmitting}
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-beige900 px-4 text-sm font-medium text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-beige900 px-4 text-sm font-medium text-neutral-00 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSubmitting ? (
               <>
@@ -210,12 +212,12 @@ const TalentIdentifierModal = ({
             ) : (
               "Google 회원가입"
             )}
-          </button>
-          <div className="w-full bg-hblack50 h-px"></div>
-          <button
+          </BareButton>
+          <div className="w-full bg-neutral-200 h-px"></div>
+          <BareButton
             type="button"
             onClick={() => void handleGoogleLogin(false)}
-            className="inline-flex h-11 w-full items-center justify-center text-hblack800 gap-2 rounded-md bg-hblack50 px-4 text-sm font-medium transition-colors cursor-pointer hover:bg-hblack100"
+            className="inline-flex h-11 w-full items-center justify-center text-neutral-900 gap-2 rounded-md bg-neutral-200 px-4 text-sm font-medium transition-colors cursor-pointer hover:bg-neutral-300"
           >
             {isSubmitting ? (
               <>
@@ -225,7 +227,7 @@ const TalentIdentifierModal = ({
             ) : (
               "이미 회원가입을 하셨다면(로그인)"
             )}
-          </button>
+          </BareButton>
         </div>
       }
     >
@@ -235,7 +237,7 @@ const TalentIdentifierModal = ({
             const active = selectedSource === value;
 
             return (
-              <button
+              <BareButton
                 key={value}
                 aria-label="linkedin"
                 type="button"
@@ -244,12 +246,12 @@ const TalentIdentifierModal = ({
                   "inline-flex h-8 items-center justify-center gap-1.5 px-1.5 text-sm transition-colors",
                   active
                     ? "text-beige900"
-                    : "text-hblack500 hover:text-hblack900"
+                    : "text-neutral-800 hover:text-neutral-1000"
                 )}
               >
                 <Icon className="h-4 w-4" />
                 {label}
-              </button>
+              </BareButton>
             );
           })}
         </div>
@@ -257,7 +259,8 @@ const TalentIdentifierModal = ({
         <div className="">
           {selectedSource === "resume" ? (
             <div className="mt-3">
-              <input
+              <UiInput
+                unstyled
                 ref={fileInputRef}
                 type="file"
                 accept=".pdf,.txt,.doc,.docx"
@@ -268,15 +271,15 @@ const TalentIdentifierModal = ({
                   setError("");
                 }}
               />
-              <button
+              <BareButton
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-hblack100 bg-hblack50 px-4 text-sm text-hblack700 transition-colors hover:bg-hblack100"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-neutral-300 bg-neutral-200 px-4 text-sm text-neutral-900 transition-colors hover:bg-neutral-300"
               >
                 <Upload className="h-4 w-4" />
                 이력서 업로드
-              </button>
-              <p className="mt-2 text-xs text-hblack500">
+              </BareButton>
+              <p className="mt-2 text-xs text-neutral-800">
                 {resumeFile
                   ? `${resumeFile.name}`
                   : "PDF, DOC, DOCX 파일을 업로드할 수 있습니다."}
@@ -284,7 +287,8 @@ const TalentIdentifierModal = ({
             </div>
           ) : (
             <div className="mt-3">
-              <input
+              <UiInput
+                unstyled
                 type="url"
                 name={`${selectedSource}Url`}
                 autoComplete="url"
@@ -294,7 +298,7 @@ const TalentIdentifierModal = ({
                   setError("");
                 }}
                 placeholder={selectedOption?.placeholder}
-                className="h-11 w-full rounded-md border border-hblack200 bg-hblack000 px-3 text-sm text-hblack900 outline-none transition-all placeholder:text-hblack400 focus:outline-1 focus:outline-beige900"
+                className="h-11 w-full rounded-md border border-neutral-400 bg-neutral-00 px-3 text-sm text-neutral-1000 outline-none transition-all placeholder:text-neutral-600 focus:outline-1 focus:outline-beige900"
               />
             </div>
           )}

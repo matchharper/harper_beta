@@ -305,7 +305,7 @@ function WorkflowVisual({
           나랑 잘 맞는 포지션 있어?
         </div>
         <div
-          className={`${bubbleStyle} bg-beige60 text-beige900 border border-beige900/10 w-fit max-w-[82%]`}
+          className={`${bubbleStyle} border border-neutral-1000-a10 bg-bg-floating text-neutral-primary w-fit max-w-[82%]`}
         >
           조건을 들려주시면 바로 찾아볼게요.
           <br />

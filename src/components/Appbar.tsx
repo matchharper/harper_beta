@@ -1,6 +1,7 @@
 import React from "react";
 import { useRouter } from "next/router";
 import Image from "next/image";
+import { BareButton } from "@/components/ui/button";
 
 type AppbarProps = {
   back?: boolean;
@@ -21,16 +22,16 @@ const Appbar = ({ back = true }: AppbarProps) => {
       />
 
       <nav className="flex items-center gap-8 text-sm text-slate-600">
-        <button className="hover:text-slate-900">For companies</button>
-        <button className="hover:text-slate-900">FAQ</button>
-        <button className="hover:text-slate-900">Referral</button>
+        <BareButton className="hover:text-slate-900">For companies</BareButton>
+        <BareButton className="hover:text-slate-900">FAQ</BareButton>
+        <BareButton className="hover:text-slate-900">Referral</BareButton>
       </nav>
 
       <div className="flex items-center gap-4 text-sm text-slate-500">
-        <button className="hover:text-slate-900">KO | EN</button>
-        <button className="rounded-full bg-xlightgray px-4 py-2 text-sm font-medium text-black">
+        <BareButton className="hover:text-slate-900">KO | EN</BareButton>
+        <BareButton className="rounded-full bg-neutral-100 px-4 py-2 text-sm font-medium text-black">
           Log in
-        </button>
+        </BareButton>
       </div>
     </header>
   );

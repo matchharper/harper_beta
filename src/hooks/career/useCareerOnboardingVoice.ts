@@ -12,7 +12,9 @@ import { useCareerVoiceInput } from "@/components/career/useCareerVoiceInput";
 import { useRealtimeSession } from "@/hooks/career/useRealtimeSession";
 import type {
   CallLiveTranscriptPlacement,
+  CareerCallStartRequest,
   CareerInterviewProgress,
+  CareerInternalOpportunityCallRequest,
   CareerMessage,
   CareerMessagePayload,
   CareerOpportunityRun,
@@ -25,6 +27,7 @@ import {
   shouldShowVoiceStartPrompt,
   toUiMessage,
 } from "./careerHelpers";
+import { showToast } from "@/components/toast/toast";
 import { showOpportunityDiscoveryStartedToast } from "./opportunityDiscoveryToast";
 import type { FetchWithAuth } from "./useCareerApi";
 import {
@@ -181,6 +184,7 @@ function logCallOpeningResponseInstruction(instructions: string) {
 }
 
 const ASSISTANT_BUFFER_FLUSH_TIMEOUT_MS = 1_000;
+const INTERNAL_CALL_COMPLETED_TOAST_MESSAGE = "이미 종료된 call입니다.";
 const USER_TRANSCRIPTION_TIMEOUT_MS = 5_000;
 type SendChatArgs = {
   channel?: "chat" | "voice";
@@ -190,12 +194,7 @@ type SendChatArgs = {
   onError?: () => void;
 };
 
-type StartCallModeArgs =
-  | string
-  | {
-      conversationStarterId?: CareerConversationStarterId | null;
-      openingText?: string;
-    };
+type StartCallModeArgs = CareerCallStartRequest;
 
 type BeginOnboardingResult = {
   ok: boolean;
@@ -220,6 +219,12 @@ type UseCareerOnboardingVoiceArgs = {
   onTalentInsightsRefreshed?: (insights: unknown, updatedAt: unknown) => void;
   onTalentProfileRefreshed?: (
     profile: SessionResponse["talentProfile"] | undefined
+  ) => void;
+  onPendingInternalOpportunityCallRequestChanged?: (
+    callRequest: CareerInternalOpportunityCallRequest | null
+  ) => void;
+  onPendingInternalOpportunityCallRequestsChanged?: (
+    callRequests: CareerInternalOpportunityCallRequest[]
   ) => void;
   appendMessage: (message: CareerMessage) => void;
   setChatError: Dispatch<SetStateAction<string>>;
@@ -249,6 +254,8 @@ export const useCareerOnboardingVoice = ({
   onTalentPreferencesRefreshed,
   onTalentInsightsRefreshed,
   onTalentProfileRefreshed,
+  onPendingInternalOpportunityCallRequestChanged,
+  onPendingInternalOpportunityCallRequestsChanged,
   appendMessage,
   setChatError,
   setStage,
@@ -365,6 +372,7 @@ export const useCareerOnboardingVoice = ({
   const clearVoiceBufferRef = useRef<(() => void) | null>(null);
   const activeCallConversationStarterIdRef =
     useRef<CareerConversationStarterId | null>(null);
+  const activeInternalCallRequestIdRef = useRef<string | null>(null);
 
   const updateSessionInstructionsRef = useRef<
     ((instructions: string) => void) | null
@@ -374,7 +382,7 @@ export const useCareerOnboardingVoice = ({
   >(null);
   const forceEndCallModeRef = useRef<(() => void) | null>(null);
   const pendingCallEndRef = useRef(false);
-  const isAssistantSpeakingRef = useRef(false);
+  const wasAssistantSpeakingRef = useRef(false);
   const callStartedAtRef = useRef<number | null>(null);
   const callWrapUpPendingRef = useRef(false);
   const liveUserTranscriptPlacementRef = useRef<CallLiveTranscriptPlacement>(
@@ -386,6 +394,34 @@ export const useCareerOnboardingVoice = ({
   const userTranscriptionTimeoutRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
+  const inputModeRef = useRef<string>("text");
+  const generateSpeechRef = useRef<((text: string) => void) | null>(null);
+  const generateSpeechFromInstructionsRef = useRef<
+    ((instructions: string) => void) | null
+  >(null);
+  const realtimeSessionRef = useRef<ReturnType<
+    typeof useRealtimeSession
+  > | null>(null);
+
+  const scheduleCallEndAfterRealtimePlayback = useCallback(() => {
+    pendingCallEndRef.current = true;
+
+    const finishCallEnd = () => {
+      if (!pendingCallEndRef.current) return;
+      pendingCallEndRef.current = false;
+      if (inputModeRef.current !== "call") return;
+      endCallModeRef.current?.();
+    };
+
+    const runAfterPlayback =
+      realtimeSessionRef.current?.runAfterCurrentPlayback;
+    if (runAfterPlayback) {
+      runAfterPlayback(finishCallEnd);
+      return;
+    }
+
+    finishCallEnd();
+  }, []);
 
   const clearUserTranscriptionTimeout = useCallback(() => {
     if (userTranscriptionTimeoutRef.current) {
@@ -436,14 +472,14 @@ export const useCareerOnboardingVoice = ({
         pendingAssistant?.hasEndMarker ||
         pendingAssistant?.hasOnboardingDoneMarker
       ) {
-        pendingCallEndRef.current = true;
-        if (!isAssistantSpeakingRef.current) {
-          pendingCallEndRef.current = false;
-          endCallModeRef.current?.();
-        }
+        scheduleCallEndAfterRealtimePlayback();
       }
     },
-    [clearAssistantBufferFlushTimeout, clearUserTranscriptionTimeout]
+    [
+      clearAssistantBufferFlushTimeout,
+      clearUserTranscriptionTimeout,
+      scheduleCallEndAfterRealtimePlayback,
+    ]
   );
 
   const queueAssistantBufferFlush = useCallback(() => {
@@ -510,6 +546,8 @@ export const useCareerOnboardingVoice = ({
               conversationId,
               conversationStarterId:
                 activeCallConversationStarterIdRef.current ?? undefined,
+              internalCallRequestId:
+                activeInternalCallRequestIdRef.current ?? undefined,
               userMessage: userText,
               assistantMessage: assistantText,
               assistantEndedOnboarding: Boolean(args.assistantEndedOnboarding),
@@ -622,15 +660,6 @@ export const useCareerOnboardingVoice = ({
   const finalizeCallAssistantTranscriptRef = useRef<
     ((text: string) => void) | null
   >(null);
-  const inputModeRef = useRef<string>("text");
-  const generateSpeechRef = useRef<((text: string) => void) | null>(null);
-  const generateSpeechFromInstructionsRef = useRef<
-    ((instructions: string) => void) | null
-  >(null);
-  const realtimeSessionRef = useRef<ReturnType<
-    typeof useRealtimeSession
-  > | null>(null);
-
   const handleRealtimeTranscript = useCallback(
     (text: string) => {
       const userText = text.trim();
@@ -681,17 +710,14 @@ export const useCareerOnboardingVoice = ({
         pendingAssistant.hasEndMarker ||
         pendingAssistant.hasOnboardingDoneMarker
       ) {
-        pendingCallEndRef.current = true;
-        if (!isAssistantSpeakingRef.current) {
-          pendingCallEndRef.current = false;
-          endCallModeRef.current?.();
-        }
+        scheduleCallEndAfterRealtimePlayback();
       }
     },
     [
       clearRealtimeTurnSyncState,
       markUserTranscriptUnavailable,
       saveRealtimeTurn,
+      scheduleCallEndAfterRealtimePlayback,
     ]
   );
 
@@ -790,11 +816,7 @@ export const useCareerOnboardingVoice = ({
             setLiveUserTranscriptPlacement("beforeCurrentAssistant");
 
             if (hasEndMarker || hasOnboardingDoneMarker) {
-              pendingCallEndRef.current = true;
-              if (!isAssistantSpeakingRef.current) {
-                pendingCallEndRef.current = false;
-                endCallModeRef.current?.();
-              }
+              scheduleCallEndAfterRealtimePlayback();
             }
             return;
           }
@@ -839,11 +861,7 @@ export const useCareerOnboardingVoice = ({
         // AI signaled end of interview — wait for audio then end call.
         // The onboarding-done marker also means the live interview is finished.
         if (hasEndMarker || hasOnboardingDoneMarker) {
-          pendingCallEndRef.current = true;
-          if (!isAssistantSpeakingRef.current) {
-            pendingCallEndRef.current = false;
-            endCallModeRef.current?.();
-          }
+          scheduleCallEndAfterRealtimePlayback();
         }
         return;
       }
@@ -886,6 +904,7 @@ export const useCareerOnboardingVoice = ({
       onMessagesChanged,
       queueAssistantBufferFlush,
       saveRealtimeTurn,
+      scheduleCallEndAfterRealtimePlayback,
     ]
   );
 
@@ -943,37 +962,15 @@ export const useCareerOnboardingVoice = ({
     onUserSpeechStarted: handleRealtimeUserSpeechStarted,
     onUserSpeechStopped: handleRealtimeUserSpeechStopped,
   });
-  realtimeSessionRef.current = realtimeSession;
-  const sendRealtimeVoiceTextMessage = useCallback(
-    (text: string) => {
-      const normalized = text.trim();
-      if (!normalized) return;
 
-      lastRealtimeUserTextRef.current = lastRealtimeUserTextRef.current
-        ? `${lastRealtimeUserTextRef.current}\n${normalized}`
-        : normalized;
-      realtimeSession.sendTextMessage(normalized);
-    },
-    [realtimeSession]
-  );
-  const realtimeVoiceControls = useMemo(
-    () => ({
-      ...realtimeSession,
-      sendTextMessage: sendRealtimeVoiceTextMessage,
-    }),
-    [realtimeSession, sendRealtimeVoiceTextMessage]
-  );
+  useEffect(() => {
+    realtimeSessionRef.current = realtimeSession;
+  }, [realtimeSession]);
 
   const {
     inputMode,
     voiceTranscript,
-    voiceListening,
     voiceMuted,
-    voiceError,
-    assistantAudioBusy,
-    voicePrimaryPressed,
-    voiceEngine,
-    startVoiceCall,
     startCallMode,
     endCallMode,
     addCallTranscriptEntry,
@@ -982,11 +979,7 @@ export const useCareerOnboardingVoice = ({
     callTranscriptEntries,
     connectionStatus,
     switchToChatOnly,
-    handleVoicePrimaryAction,
     toggleVoiceMute,
-    switchToTextMode,
-    armAutoResumeAfterAssistant,
-    clearAutoResumeAfterAssistant,
     resetVoice,
     clearVoiceBuffer,
   } = useCareerVoiceInput({
@@ -994,12 +987,14 @@ export const useCareerOnboardingVoice = ({
       !isVoiceInteractionLocked &&
       !onboardingBeginPending &&
       Boolean(user && conversationId),
-    messages,
-    onSendMessage: onSendChatMessage,
     onUnsupported: (message) => {
+      if (message === INTERNAL_CALL_COMPLETED_TOAST_MESSAGE) {
+        showToast({ message, variant: "white" });
+        return;
+      }
       setChatError(message);
     },
-    realtimeControls: realtimeVoiceControls,
+    realtimeControls: realtimeSession,
   });
 
   // Wire refs for use in Realtime callbacks defined before useCareerVoiceInput
@@ -1063,40 +1058,6 @@ export const useCareerOnboardingVoice = ({
     setOnboardingPausePending(false);
     switchToChatOnly();
   }, [switchToChatOnly]);
-
-  const handleStartVoiceCall = useCallback(
-    (_: 5 | 10 = 5) => {
-      if (onboardingBeginPending) return;
-
-      const shouldBeginOnboarding = showVoiceStartPrompt;
-      if (shouldBeginOnboarding) {
-        setShowVoiceStartPrompt(false);
-        armAutoResumeAfterAssistant();
-      }
-
-      // Keep speech start inside the direct click handler to avoid
-      // browser gesture-loss `not-allowed` errors.
-      void startVoiceCall();
-
-      if (!shouldBeginOnboarding) return;
-
-      void (async () => {
-        const beginResult = await beginOnboardingConversation();
-        if (!beginResult.ok) {
-          clearAutoResumeAfterAssistant();
-          setShowVoiceStartPrompt(true);
-        }
-      })();
-    },
-    [
-      armAutoResumeAfterAssistant,
-      beginOnboardingConversation,
-      clearAutoResumeAfterAssistant,
-      onboardingBeginPending,
-      showVoiceStartPrompt,
-      startVoiceCall,
-    ]
-  );
 
   const handleUseChatOnly = useCallback(() => {
     if (onboardingBeginPending) return;
@@ -1266,10 +1227,6 @@ export const useCareerOnboardingVoice = ({
     switchToChatOnly,
   ]);
 
-  const handleSwitchToTextMode = useCallback(() => {
-    switchToTextMode();
-  }, [switchToTextMode]);
-
   const handleToggleVoiceMute = useCallback(() => {
     toggleVoiceMute();
   }, [toggleVoiceMute]);
@@ -1286,7 +1243,12 @@ export const useCareerOnboardingVoice = ({
         typeof startArgs === "object"
           ? (startArgs.conversationStarterId ?? null)
           : null;
+      const internalCallRequestId =
+        typeof startArgs === "object"
+          ? (startArgs.internalCallRequestId?.trim() ?? null)
+          : null;
       activeCallConversationStarterIdRef.current = conversationStarterId;
+      activeInternalCallRequestIdRef.current = internalCallRequestId;
 
       setCallStartPending(true);
       let callStartedSuccessfully = false;
@@ -1308,17 +1270,22 @@ export const useCareerOnboardingVoice = ({
           if (!beginResult.ok) {
             setShowVoiceStartPrompt(true);
             activeCallConversationStarterIdRef.current = null;
+            activeInternalCallRequestIdRef.current = null;
             return false;
           }
           openingAssistantMessage = beginResult.assistantMessage;
         }
 
-        const callStarted = await startCallMode({ conversationStarterId });
+        const callStarted = await startCallMode({
+          conversationStarterId,
+          internalCallRequestId,
+        });
         if (!callStarted) {
           if (shouldBeginOnboarding) {
             setShowVoiceStartPrompt(true);
           }
           activeCallConversationStarterIdRef.current = null;
+          activeInternalCallRequestIdRef.current = null;
           return false;
         }
 
@@ -1374,6 +1341,7 @@ export const useCareerOnboardingVoice = ({
       } finally {
         if (!callStartedSuccessfully) {
           activeCallConversationStarterIdRef.current = null;
+          activeInternalCallRequestIdRef.current = null;
         }
         setCallStartPending(false);
       }
@@ -1396,6 +1364,7 @@ export const useCareerOnboardingVoice = ({
   const handleEndCallMode = useCallback(
     (options?: EndCallModeOptions) => {
       setCallStartPending(false);
+      pendingCallEndRef.current = false;
       if (callWrapUpPendingRef.current) return;
       const forceCompleteOnboarding = Boolean(options?.forceCompleteOnboarding);
 
@@ -1407,6 +1376,8 @@ export const useCareerOnboardingVoice = ({
         : 0;
       const activeCallConversationStarterId =
         activeCallConversationStarterIdRef.current;
+      const activeInternalCallRequestId =
+        activeInternalCallRequestIdRef.current;
       const pendingUserText = lastRealtimeUserTextRef.current.trim();
       if (pendingUserText) {
         void saveRealtimeTurn({
@@ -1424,14 +1395,20 @@ export const useCareerOnboardingVoice = ({
 
       if (!conversationId) {
         activeCallConversationStarterIdRef.current = null;
+        activeInternalCallRequestIdRef.current = null;
         return;
       }
 
       const hasUserSpeech = transcript.some(
         (entry) => entry.role === "user" && entry.text.trim().length > 0
       );
-      if (!hasUserSpeech && !forceCompleteOnboarding) {
+      if (
+        !hasUserSpeech &&
+        !forceCompleteOnboarding &&
+        !activeInternalCallRequestId
+      ) {
         activeCallConversationStarterIdRef.current = null;
+        activeInternalCallRequestIdRef.current = null;
         return;
       }
 
@@ -1450,6 +1427,7 @@ export const useCareerOnboardingVoice = ({
               conversationId,
               conversationStarterId:
                 activeCallConversationStarterId ?? undefined,
+              internalCallRequestId: activeInternalCallRequestId ?? undefined,
               transcript: transcript.map((e) => ({
                 role: e.role,
                 text: e.text,
@@ -1507,6 +1485,24 @@ export const useCareerOnboardingVoice = ({
               payload.talentProfile as SessionResponse["talentProfile"]
             );
           }
+          if (
+            payload &&
+            typeof payload === "object" &&
+            Array.isArray(payload.pendingInternalOpportunityCallRequests)
+          ) {
+            onPendingInternalOpportunityCallRequestsChanged?.(
+              payload.pendingInternalOpportunityCallRequests as CareerInternalOpportunityCallRequest[]
+            );
+          } else if (
+            payload &&
+            typeof payload === "object" &&
+            "pendingInternalOpportunityCallRequest" in payload
+          ) {
+            onPendingInternalOpportunityCallRequestChanged?.(
+              (payload.pendingInternalOpportunityCallRequest ??
+                null) as CareerInternalOpportunityCallRequest | null
+            );
+          }
 
           const followUpMessages = Array.isArray(payload?.followUpMessages)
             ? payload.followUpMessages
@@ -1556,6 +1552,7 @@ export const useCareerOnboardingVoice = ({
           callWrapUpPendingRef.current = false;
           setCallWrapUpPending(false);
           activeCallConversationStarterIdRef.current = null;
+          activeInternalCallRequestIdRef.current = null;
         }
       })();
     },
@@ -1571,6 +1568,8 @@ export const useCareerOnboardingVoice = ({
       onTalentPreferencesRefreshed,
       onTalentInsightsRefreshed,
       onTalentProfileRefreshed,
+      onPendingInternalOpportunityCallRequestChanged,
+      onPendingInternalOpportunityCallRequestsChanged,
       saveRealtimeTurn,
       setChatError,
       setStage,
@@ -1582,18 +1581,21 @@ export const useCareerOnboardingVoice = ({
     endCallModeRef.current = handleEndCallMode;
   }, [handleEndCallMode]);
 
-  // Track isAssistantSpeaking in ref for use in callbacks
-  useEffect(() => {
-    isAssistantSpeakingRef.current = realtimeSession.isAssistantSpeaking;
-  }, [realtimeSession.isAssistantSpeaking]);
-
   // Auto-end call after AI finishes speaking when interview is completed
   useEffect(() => {
-    if (pendingCallEndRef.current && !realtimeSession.isAssistantSpeaking) {
-      pendingCallEndRef.current = false;
-      endCallModeRef.current?.();
+    const wasAssistantSpeaking = wasAssistantSpeakingRef.current;
+    wasAssistantSpeakingRef.current = realtimeSession.isAssistantSpeaking;
+    if (
+      pendingCallEndRef.current &&
+      wasAssistantSpeaking &&
+      !realtimeSession.isAssistantSpeaking
+    ) {
+      scheduleCallEndAfterRealtimePlayback();
     }
-  }, [realtimeSession.isAssistantSpeaking]);
+  }, [
+    realtimeSession.isAssistantSpeaking,
+    scheduleCallEndAfterRealtimePlayback,
+  ]);
 
   const resetOnboardingState = useCallback(() => {
     setShowVoiceStartPrompt(false);
@@ -1606,8 +1608,11 @@ export const useCareerOnboardingVoice = ({
     callWrapUpPendingRef.current = false;
     pendingAssistantDoneRef.current = null;
     pendingAssistantDeltaTextRef.current = "";
+    pendingCallEndRef.current = false;
     suppressNextAssistantDoneRef.current = false;
     lastRealtimeUserTextRef.current = "";
+    activeCallConversationStarterIdRef.current = null;
+    activeInternalCallRequestIdRef.current = null;
     clearRealtimeTurnSyncState();
   }, [clearRealtimeTurnSyncState]);
 
@@ -1621,15 +1626,8 @@ export const useCareerOnboardingVoice = ({
     inputMode,
     voiceTranscript,
     liveUserTranscriptPlacement,
-    voiceListening,
     voiceMuted,
-    voiceError,
-    assistantAudioBusy,
-    voicePrimaryPressed,
-    voiceEngine,
-    handleVoicePrimaryAction,
     handleToggleVoiceMute,
-    handleStartVoiceCall,
     handleStartCallMode,
     handleEndCallMode,
     primeCallAudioPlayback,
@@ -1639,7 +1637,6 @@ export const useCareerOnboardingVoice = ({
     handlePauseOnboarding,
     handleSubmitOnboardingInterest,
     handleContinueOnboardingConversation,
-    handleSwitchToTextMode,
     applySessionPrompt,
     handleProfileSubmitSuccess,
     resetOnboardingState,

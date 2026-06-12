@@ -46,6 +46,7 @@ import { notifyUsageToSlack } from "@/lib/slack";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { SearchSource, normalizeSearchSources } from "@/lib/searchSource";
 import type { ChatAttachmentPayload, SearchStartBlock } from "@/types/chat";
+import { BareButton } from "@/components/ui/button";
 
 export type ChatScope =
   | { type: "query"; queryId: string }
@@ -569,7 +570,7 @@ export default function ChatPanel({
   return (
     <div className="w-full flex flex-col min-h-0 h-screen">
       {/* Header (fixed) */}
-      <div className="flex items-center justify-between flex-none h-14 px-4 text-beige900">
+      <div className="flex items-center justify-between flex-none h-14 px-4 text-neutral-primary">
         <div
           onClick={() => {
             if (onBack) {
@@ -578,16 +579,16 @@ export default function ChatPanel({
               router.back();
             }
           }}
-          className="text-sm font-medium flex items-center gap-1.5 hover:gap-2 cursor-pointer hover:text-beige900 transition-all duration-200"
+          className="text-sm font-medium flex items-center gap-1.5 hover:gap-2 cursor-pointer hover:text-neutral-primary transition-all duration-200"
         >
-          <ArrowLeft className="w-3.5 h-3.5 text-beige900/55" />
+          <ArrowLeft className="w-3.5 h-3.5 text-neutral-muted" />
           <div>{title === "" ? <Skeleton className="w-20 h-5" /> : title}</div>
         </div>
-        <div className="flex flex-row justify-center items-center gap-2 text-beige900/65">
+        <div className="flex flex-row justify-center items-center gap-2 text-neutral-muted">
           {!systemPromptOverride && (
             <>
               {isQueryScope && (
-                <button
+                <BareButton
                   type="button"
                   className="relative p-1 cursor-pointer"
                   onClick={() => setIsSettingsOpen(true)}
@@ -596,11 +597,11 @@ export default function ChatPanel({
                   <Settings className="w-3.5 h-3.5" strokeWidth={1.4} />
                   {settings.is_korean && (
                     <Check
-                      className="absolute -right-1 -top-1 h-3.5 w-3.5 text-accentBronze"
+                      className="absolute -right-1 -top-1 h-3.5 w-3.5 text-primary"
                       strokeWidth={2.2}
                     />
                   )}
-                </button>
+                </BareButton>
               )}
               {isChatFull ? (
                 <div
@@ -627,10 +628,10 @@ export default function ChatPanel({
       <div className="flex-1 min-h-0 relative">
         <div
           ref={scrollRef}
-          className="h-full overflow-y-auto px-4 pt-4 scrollbar-thin scrollbar-thumb-beige900/10 scrollbar-track-transparent hover:scrollbar-thumb-beige900/20"
+          className="h-full overflow-y-auto px-4 pt-4 scrollbar-thin scrollbar-thumb-neutral-1000-a10 scrollbar-track-transparent hover:scrollbar-thumb-neutral-1000-a10"
         >
           {chat.isLoadingHistory && (
-            <div className="text-xs text-beige900/55 flex items-center gap-2 py-2">
+            <div className="text-xs text-neutral-muted flex items-center gap-2 py-2">
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
               대화 기록 불러오는 중...
             </div>
@@ -658,17 +659,17 @@ export default function ChatPanel({
         </div>
 
         {showJumpToBottom && (
-          <button
+          <BareButton
             type="button"
             onClick={() => {
               scrollToBottom("smooth");
               setStickToBottom(true);
               setShowJumpToBottom(false);
             }}
-            className="absolute bottom-3 right-3 flex items-center gap-1 cursor-pointer rounded-full bg-beige500/55 hover:bg-beige500/70 px-2 py-2 text-xs text-beige900"
+            className="absolute bottom-3 right-3 flex items-center gap-1 cursor-pointer rounded-full bg-bg-floating hover:bg-bg-weak px-2 py-2 text-xs text-neutral-primary"
           >
             <ArrowDown className="w-4 h-4" />
-          </button>
+          </BareButton>
         )}
       </div>
 

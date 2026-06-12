@@ -5,6 +5,7 @@ import CareerProfileMenu from "./CareerProfileMenu";
 import CareerSupportInquiryModal from "./CareerSupportInquiryModal";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import React from "react";
+import { BareButton } from "@/components/ui/button";
 
 export type CareerWorkspaceTab = "home" | "profile" | "history" | "watchlist";
 
@@ -57,29 +58,31 @@ const CareerWorkspaceNav = () => {
 
   return (
     <>
-      <header className="sticky top-0 z-20 bg-beige50 text-beige900 backdrop-blur-xl">
+      <header className="sticky top-0 z-20 border-b border-neutral-1000-a05 bg-bg-default text-neutral-primary backdrop-blur-xl">
         <div className="flex flex-row items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
-          <div className="font-hedvig text-[1.1rem] text-beige900">Harper</div>
+          <div className="font-hedvig text-[1.1rem] text-neutral-primary">
+            Harper
+          </div>
           <div className="flex items-center gap-2">
-            <button
+            <BareButton
               type="button"
               onClick={() => {
                 logCareerEvent("click_open_support");
                 setInquiryOpen(true);
               }}
               aria-label="개선사항 및 문의사항"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-black/10 hover:border-black/15 hover:bg-black/2 text-black"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-floating text-neutral-primary hover:border-neutral-1000-a10 hover:bg-bg-weak"
             >
               <CircleHelp className="h-4 w-4" />
-            </button>
-            <button
+            </BareButton>
+            <BareButton
               type="button"
               onClick={onOpenSettings}
               aria-label="설정"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-black/10 hover:border-black/15 hover:bg-black/2 text-black"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-floating text-neutral-primary hover:border-neutral-1000-a10 hover:bg-bg-weak"
             >
               <Settings2 className="h-4 w-4" />
-            </button>
+            </BareButton>
             <CareerProfileMenu
               variant="desktop"
               profileImageUrl={profileImageUrl}

@@ -5,6 +5,7 @@ import BaseModal from "./BaseModal";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { supabase } from "@/lib/supabase";
 import { notifyToSlack } from "@/lib/slack";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
 type ConnectionAreaModalProps = {
   open: boolean;
@@ -73,17 +74,20 @@ const ConnectionAreaModal = ({
       size="sm"
     >
       <div className="flex flex-col gap-3">
-        <div className="text-lg font-normal text-beige900">{title}</div>
-        <div className="text-sm mt-0 font-light text-beige900/80">
+        <div className="text-lg font-normal text-neutral-primary">
+          {title}
+        </div>
+        <div className="text-sm mt-0 font-light text-neutral-primary">
           연결 요청과 함께 Harper측에 전달하고 싶은 내용을 적어주세요.
         </div>
-        <textarea
+        <UiTextarea
+          unstyled
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder={placeholder}
           disabled={isBusy}
           rows={4}
-          className="w-full mt-2 placeholder:text-sm resize-none rounded-xl border border-beige900/8 bg-beige50 px-3 py-2 text-sm text-beige900 outline-none disabled:bg-beige100 disabled:text-beige900/35"
+          className="w-full mt-2 placeholder:text-sm resize-none rounded-xl border border-neutral-1000-a05 bg-bg-default px-3 py-2 text-sm text-neutral-primary outline-none disabled:bg-bg-basement disabled:text-neutral-disabled"
         />
       </div>
     </BaseModal>

@@ -1,16 +1,14 @@
 # Ops Design Guide
 
-Reference source: `src/pages/index.tsx`
+Reference source: `src/styles/Design.md` and `src/components/ui`.
 
 ## Intent
 
-`/ops` pages are internal tools, but they should still feel like Harper.
-Use the same warm beige language as the landing page instead of default gray admin UI.
+`/ops` pages are dense internal tools. They should use Harper's shared neutral/accent/status system, not the old landing beige palette or ad hoc admin gray UI.
 
 ## Core Rules
 
-- Base the palette on `beige100`, `beige200`, `beige500`, `beige900`.
-- Use `font-hedvig` for major headings and `font-geist` for controls, labels, and body copy.
+- Base the palette on `bg-bg-*`, `neutral-*`, `primary`, `positive`, `info`, and `critical`.
 - Default rounding is `rounded-md` and `rounded-lg`.
 - Do not use `rounded-2xl`, `rounded-3xl`, or pill-heavy styling unless there is a very strong reason.
 - Avoid stacking borders everywhere. Large surfaces should usually be separated by background contrast and shadow, not outlines.
@@ -21,11 +19,11 @@ Use the same warm beige language as the landing page instead of default gray adm
 
 ## Surface Hierarchy
 
-- Page background: `bg-beige200`
-- Primary panel: `bg-beige100/90` with soft outer shadow
-- Secondary inset surface: `bg-white/60` or `bg-beige500/55`
-- Active state: `bg-beige900` with `text-beige100`
-- Muted copy: `text-beige900/65`
+- Page background: `bg-bg-basement`
+- Primary panel: `bg-bg-default/90` with soft outer shadow
+- Secondary inset surface: `bg-bg-default/70`, `bg-bg-weak`, or `bg-bg-floating`
+- Active state: `bg-black` with `text-neutral-00`
+- Muted copy: `text-neutral-muted` or `text-neutral-muted`
 
 ## Reusable Tokens
 
@@ -46,9 +44,9 @@ Use `src/components/ops/theme.ts` first before inventing page-local classes.
 
 ## Interaction Rules
 
-- Primary actions should be dark beige buttons, not black/gray default admin buttons.
-- Secondary actions should sit on beige or white softened surfaces.
-- Selected rows can invert to `beige900` to create a clear focus state.
+- Primary actions should use `bg-black text-neutral-00`.
+- Secondary actions should sit on `bg-bg-weak`, `bg-bg-floating`, or `bg-bg-default`.
+- Selected rows can invert to `bg-black text-neutral-00` to create a clear focus state.
 - Use dividers only where scanning dense data benefits from them, such as detail rows or long lists.
 
 ## Do
@@ -60,7 +58,7 @@ Use `src/components/ops/theme.ts` first before inventing page-local classes.
 
 ## Avoid
 
-- Neutral gray dashboards unless the page is embedding a third-party view.
+- Legacy warm palette tokens, old gray aliases, old accent aliases, and raw red/green/blue UI colors.
 - Border around every nested box.
 - Huge rounded corners.
 - Multiple visual systems inside a single page.

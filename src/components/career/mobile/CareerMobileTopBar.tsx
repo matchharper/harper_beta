@@ -12,6 +12,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { CareerWorkspaceTab } from "@/components/career/CareerWorkspaceNav";
 import CareerProfileMenu from "@/components/career/CareerProfileMenu";
+import { BareButton } from "@/components/ui/button";
 
 type TabOption = {
   badgeCount?: number;
@@ -58,39 +59,39 @@ export default function CareerMobileTopBar({
   return (
     <header
       className={cn(
-        "relative flex h-12 items-center justify-between px-2 text-beige900 backdrop-blur-xl",
+        "relative flex h-12 items-center justify-between px-2 text-neutral-primary backdrop-blur-xl",
         className
       )}
     >
       {showHomeDate ? (
-        <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap text-[14px] font-normal text-beige900/40">
+        <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap text-[14px] font-normal text-neutral-soft">
           {todayLabel}
         </div>
       ) : null}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button
+          <BareButton
             type="button"
-            className="relative z-10 inline-flex h-11 max-w-[180px] items-center gap-1 rounded-md px-2.5 text-base font-medium text-beige900 transition active:bg-beige900/5"
+            className="relative z-10 inline-flex h-11 max-w-[180px] items-center gap-1 rounded-md px-2.5 text-base font-medium text-neutral-primary transition active:bg-bg-weak"
           >
             {ActiveIcon && (
-              <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center text-beige900">
+              <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center text-neutral-primary">
                 <ActiveIcon className="h-4 w-4" />
               </span>
             )}
             <span className="min-w-0 truncate">{activeOption?.label}</span>
             {activeBadgeCount > 0 ? (
-              <span className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-beige900 text-[11px] leading-none text-beige50">
+              <span className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-black text-[11px] leading-none text-neutral-00">
                 {activeBadgeCount}
               </span>
             ) : null}
-            <ChevronDown className="h-5 w-5 shrink-0 text-beige900/55" />
-          </button>
+            <ChevronDown className="h-5 w-5 shrink-0 text-neutral-muted" />
+          </BareButton>
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="start"
           sideOffset={4}
-          className="min-w-[196px] rounded-xl p-1 text-beige900"
+          className="min-w-[196px] rounded-xl p-1 text-neutral-primary"
         >
           {options.map((opt) => {
             const Icon = opt.icon;
@@ -102,23 +103,23 @@ export default function CareerMobileTopBar({
                 key={opt.id}
                 onSelect={() => onChangeTab(opt.id)}
                 className={cn(
-                  "cursor-pointer rounded-lg px-2.5 py-2.5 text-sm text-beige900 focus:bg-beige200/70 focus:text-beige900",
-                  active && "bg-beige200/70 font-medium"
+                  "cursor-pointer rounded-lg px-2.5 py-2.5 text-sm text-neutral-primary focus:bg-bg-weak/70 focus:text-neutral-primary",
+                  active && "bg-bg-weak/70 font-medium"
                 )}
               >
                 {Icon && (
-                  <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center text-beige900/75">
+                  <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center text-neutral-muted">
                     <Icon className="h-4 w-4" />
                   </span>
                 )}
                 <span className="min-w-0 flex-1 truncate">{opt.label}</span>
                 {badgeCount > 0 ? (
-                  <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-beige900 px-1.5 text-[11px] leading-none text-beige50">
+                  <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-black px-1.5 text-[11px] leading-none text-neutral-00">
                     {badgeCount}
                   </span>
                 ) : null}
                 {active && (
-                  <Check className="h-4 w-4 shrink-0 text-beige900/70" />
+                  <Check className="h-4 w-4 shrink-0 text-neutral-muted" />
                 )}
               </DropdownMenuItem>
             );
@@ -173,14 +174,14 @@ function IconButton({
   onClick?: () => void;
 }) {
   return (
-    <button
+    <BareButton
       type="button"
       aria-label={ariaLabel}
       onClick={onClick}
       disabled={!onClick}
-      className="inline-flex h-11 w-11 items-center justify-center rounded-full text-beige900/70 transition active:bg-beige900/5 disabled:opacity-40"
+      className="inline-flex h-11 w-11 items-center justify-center rounded-full text-neutral-muted transition active:bg-bg-weak disabled:opacity-40"
     >
       {icon}
-    </button>
+    </BareButton>
   );
 }

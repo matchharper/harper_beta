@@ -5,6 +5,7 @@ import {
 } from "@/lib/internalApi";
 import { sendInternalEmail } from "@/lib/internalMail";
 import { fetchOpsOpportunityCandidateContact } from "@/lib/opsOpportunity";
+import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 
 export const runtime = "nodejs";
 
@@ -21,7 +22,7 @@ function isValidEmail(value: string) {
 
 export async function POST(req: NextRequest) {
   try {
-    await requireInternalApiUser(req);
+    const user = await requireInternalApiUser(req);
     const body = (await req.json().catch(() => ({}))) as Body;
 
     const talentId = String(body.talentId ?? "").trim();
@@ -47,12 +48,40 @@ export async function POST(req: NextRequest) {
 
     const recipient = await fetchOpsOpportunityCandidateContact({ talentId });
 
-    await sendInternalEmail({
+    const sendResult = await sendInternalEmail({
       from: fromEmail,
       subject,
       text: content,
       to: recipient.email,
     });
+    const resendEmailId =
+      sendResult && typeof sendResult === "object" && "id" in sendResult
+        ? String((sendResult as { id?: unknown }).id ?? "")
+        : "";
+
+    const { error: historyError } = await (getTalentSupabaseAdmin() as any)
+      .from("career_email_messages")
+      .insert({
+        body_text: content,
+        created_by: user.email ?? "internal",
+        direction: "outbound",
+        from_email: fromEmail,
+        mail_type: "manual_ops",
+        metadata: {
+          resendEmailId: resendEmailId || null,
+          source: "internal_opportunity_candidate_mail",
+        },
+        status: "sent",
+        subject,
+        talent_id: talentId,
+        to_email: recipient.email,
+      });
+    if (historyError) {
+      console.warn("[opportunity-candidate-mail] email history insert skipped", {
+        error: historyError.message,
+        talentId,
+      });
+    }
 
     return NextResponse.json({
       ok: true,

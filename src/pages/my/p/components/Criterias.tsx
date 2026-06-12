@@ -13,16 +13,16 @@ type CriteriaSummaryItem = {
 
 function scoreIcon(score: string) {
   if (score === SummaryScore.SATISFIED)
-    return <Check className="w-3.5 h-3.5 text-accentBronze" strokeWidth={2.2} />;
+    return <Check className="w-3.5 h-3.5 text-primary" strokeWidth={2.2} />;
   if (score === SummaryScore.UNSATISFIED)
-    return <X className="w-3.5 h-3.5 text-red-500" strokeWidth={2.2} />;
-  return <Dot className="w-4 h-4 text-beige900/55" strokeWidth={2.2} />;
+    return <X className="w-3.5 h-3.5 text-critical" strokeWidth={2.2} />;
+  return <Dot className="w-4 h-4 text-neutral-muted" strokeWidth={2.2} />;
 }
 
 function scoreClassName(score: string) {
-  if (score === SummaryScore.SATISFIED) return "text-accentBronze";
-  if (score === SummaryScore.UNSATISFIED) return "text-red-500";
-  return "text-beige900/55";
+  if (score === SummaryScore.SATISFIED) return "text-primary";
+  if (score === SummaryScore.UNSATISFIED) return "text-critical";
+  return "text-neutral-muted";
 }
 
 const Criterias = ({

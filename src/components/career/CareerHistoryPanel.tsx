@@ -24,11 +24,9 @@ import {
 import { useRouter } from "next/router";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
 import CareerInPageTabs from "./CareerInPageTabs";
-import {
-  CareerInlinePanel,
-  CareerPrimaryButton,
-  careerCx,
-} from "./ui/CareerPrimitives";
+import { PrimaryButton, BareButton } from "@/components/ui/button";
+import { InlinePanel } from "@/components/ui/panel";
+import { cn } from "@/lib/utils";
 import {
   CareerOpportunityType,
   type CareerHistoryOpportunity,
@@ -67,9 +65,9 @@ import InternalConnectionOnboardingModal, {
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import React from "react";
 import {
-  BeigeActionDropdown,
-  BeigeActionDropdownItem,
-} from "@/components/ui/beige/action-dropdown";
+  ActionDropdown,
+  ActionDropdownItem,
+} from "@/components/ui/action-dropdown";
 import {
   getSavedOpportunityStatusLabel,
   getSavedOpportunityManagementStatus,
@@ -255,11 +253,11 @@ export const HistoryFeedbackButton = ({
   label: string;
   onClick: () => void;
 }) => (
-  <button
+  <BareButton
     type="button"
     onClick={onClick}
     disabled={disabled}
-    className={careerCx(
+    className={cn(
       "flex min-h-[40px] w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-left text-sm leading-5 transition-colors disabled:cursor-not-allowed disabled:opacity-60",
       className
     )}
@@ -269,7 +267,7 @@ export const HistoryFeedbackButton = ({
       <span>{label}</span>
     </span>
     {hint ? <span className="text-[12px]">{hint}</span> : null}
-  </button>
+  </BareButton>
 );
 
 type HistoryEmptyStateVariant = "onboarding" | "searching" | "matching";
@@ -283,15 +281,15 @@ const HistoryEmptyStateDetail = ({
   icon: ReactNode;
   title: string;
 }) => (
-  <div className="px-2 flex min-w-0 gap-3 border-t border-beige900/10 py-4 first:border-t-0 xl:block xl:border-t-0 xl:py-0 xl:pl-4 xl:first:pl-0">
-    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-beige500 text-beige900">
+  <div className="px-2 flex min-w-0 gap-3 border-t border-neutral-1000-a05 py-4 first:border-t-0 xl:block xl:border-t-0 xl:py-0 xl:pl-4 xl:first:pl-0">
+    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-bg-weak text-neutral-primary">
       {icon}
     </span>
     <div className="min-w-0 xl:mt-3">
-      <div className="text-[13px] font-medium leading-5 text-beige900">
+      <div className="text-[13px] font-medium leading-5 text-neutral-primary">
         {title}
       </div>
-      <div className="mt-1.5 text-[12px] leading-5 text-beige900/55">
+      <div className="mt-1.5 text-[12px] leading-5 text-neutral-muted">
         {body}
       </div>
     </div>
@@ -329,7 +327,7 @@ const HistoryEmptyStatePanel = ({
           eyebrow: "탐색 진행 중",
           icon: <Loader2 className="h-5 w-5 animate-spin" />,
           title: "좋은 기회를 찾고 있습니다.",
-          toneClassName: "bg-beige900 text-beige50",
+          toneClassName: "bg-black text-neutral-00",
           nextStep: "검토가 끝난 포지션은 새 포지션 탭에 바로 표시됩니다.",
           body: (
             <>
@@ -361,7 +359,7 @@ const HistoryEmptyStatePanel = ({
             eyebrow: "첫 추천 준비",
             icon: <ClipboardCheck className="h-5 w-5" />,
             title: "어떤 기회에 열려계신지 알려주세요..",
-            toneClassName: "bg-beige700/10 text-beige700",
+            toneClassName: "bg-bg-weak text-neutral-muted",
             nextStep:
               "대화를 통해 기준을 확인하면 첫 포지션 탐색을 시작합니다.",
             body: (
@@ -395,7 +393,7 @@ const HistoryEmptyStatePanel = ({
             eyebrow: "검토 진행 중",
             icon: <Search className="h-5 w-5" />,
             title: "첫 추천 후보를 검토하고 있습니다.",
-            toneClassName: "bg-beige700/10 text-beige700",
+            toneClassName: "bg-bg-weak text-neutral-muted",
             nextStep:
               "첫 추천이 준비되면 새 포지션 탭에서 바로 검토할 수 있습니다.",
             body: (
@@ -407,25 +405,25 @@ const HistoryEmptyStatePanel = ({
           };
 
   return (
-    <section className="mt-6 overflow-hidden rounded-[8px] border border-beige900/10 bg-white/70">
+    <section className="mt-6 overflow-hidden rounded-[8px] border border-neutral-1000-a05 bg-bg-floating shadow-sm">
       <div className="min-w-0 px-5 py-6 md:px-7 xl:px-8">
-        <h4 className="mt-0 max-w-[640px] text-[16px] font-medium leading-7 text-beige900 sm:text-[18px]">
+        <h4 className="mt-0 max-w-[640px] text-[16px] font-medium leading-7 text-neutral-primary sm:text-[18px]">
           {config.title}
         </h4>
-        <p className="mt-3 max-w-[620px] text-[14px] leading-6 text-beige900/65">
+        <p className="mt-3 max-w-[620px] text-[14px] leading-6 text-neutral-muted">
           {config.body}
         </p>
 
         {config.actionLabel && (
           <div className="mt-4">
-            <CareerPrimaryButton onClick={onOpenChat} className="gap-2">
+            <PrimaryButton onClick={onOpenChat} className="gap-2">
               {config.actionLabel}
               <ArrowRight className="h-4 w-4" />
-            </CareerPrimaryButton>
+            </PrimaryButton>
           </div>
         )}
 
-        <div className="mt-7 w-full grid xl:grid-cols-3 xl:divide-x xl:divide-beige900/10">
+        <div className="mt-7 w-full grid xl:grid-cols-3 xl:divide-x xl:divide-neutral-1000-a05">
           {config.details.map((detail) => (
             <HistoryEmptyStateDetail
               key={detail.title}
@@ -1731,8 +1729,8 @@ const CareerHistoryPanel = () => {
   if (historyLoading) {
     return (
       <section className="px-5 py-6">
-        <div className="flex items-center gap-2 text-[15px] leading-6 text-beige900/55">
-          <Loader2 className="h-4 w-4 animate-spin text-beige900" />
+        <div className="flex items-center gap-2 text-[15px] leading-6 text-neutral-muted">
+          <Loader2 className="h-4 w-4 animate-spin text-neutral-primary" />
           저장된 정보를 불러오는 중입니다...
         </div>
       </section>
@@ -1762,11 +1760,9 @@ const CareerHistoryPanel = () => {
       </div>
 
       <div className="relative flex flex-1 flex-col gap-6">
-        <div
-          className={careerCx("min-w-0 flex-1", showShortcutPanel && "pb-24")}
-        >
+        <div className={cn("min-w-0 flex-1", showShortcutPanel && "pb-24")}>
           {historyUpdateError && (
-            <div className="mb-4 rounded-[8px] border border-[#7c2d12]/15 bg-[#7c2d12]/5 px-4 py-3 text-sm text-[#7c2d12]">
+            <div className="mb-4 rounded-[8px] border border-critical/30 bg-critical-faded px-4 py-3 text-sm text-critical">
               {historyUpdateError}
             </div>
           )}
@@ -1787,24 +1783,24 @@ const CareerHistoryPanel = () => {
           )}
 
           {activeTab === "new" && !activeOpportunity && (
-            <CareerInlinePanel className="px-5 py-5">
-              <div className="text-[14px] leading-6 text-beige900/50">
+            <InlinePanel className="px-5 py-5">
+              <div className="text-[14px] leading-6 text-neutral-soft">
                 새로 받은 기회를 모두 검토했습니다.
               </div>
-            </CareerInlinePanel>
+            </InlinePanel>
           )}
 
           {activeTab === "saved" && (
             <div className="space-y-4">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div className="min-w-0">
-                  <BeigeActionDropdown
+                  <ActionDropdown
                     align="start"
                     contentClassName="min-w-[180px]"
                     trigger={
-                      <button
+                      <BareButton
                         type="button"
-                        className="inline-flex h-8 min-w-[160px] items-center justify-between gap-2 rounded-md border border-black/10 bg-white/70 px-2.5 text-[13px] font-medium text-black transition-colors hover:border-black/25"
+                        className="inline-flex h-8 min-w-[160px] items-center justify-between gap-2 rounded-md border border-neutral-1000-a05 bg-bg-floating px-2.5 text-[13px] font-medium text-neutral-primary transition-colors hover:border-neutral-400 hover:bg-bg-weak"
                       >
                         <span>
                           {getSavedOpportunityStatusLabel(activeSavedStatus)}
@@ -1812,14 +1808,14 @@ const CareerHistoryPanel = () => {
                             ? ` (${activeSavedStatusCount})`
                             : ""}
                         </span>
-                        <ChevronDown className="h-4 w-4 text-black/60" />
-                      </button>
+                        <ChevronDown className="h-4 w-4 text-neutral-muted" />
+                      </BareButton>
                     }
                   >
                     {SAVED_OPPORTUNITY_STATUS_OPTIONS.map((option) => {
                       const count = savedManagementCounts[option.id];
                       return (
-                        <BeigeActionDropdownItem
+                        <ActionDropdownItem
                           key={option.id}
                           selected={option.id === activeSavedStatus}
                           onSelect={() =>
@@ -1829,32 +1825,32 @@ const CareerHistoryPanel = () => {
                           {count > 0
                             ? `${option.label} (${count})`
                             : option.label}
-                        </BeigeActionDropdownItem>
+                        </ActionDropdownItem>
                       );
                     })}
-                  </BeigeActionDropdown>
+                  </ActionDropdown>
                 </div>
 
-                <div className="inline-flex h-9 w-fit items-center rounded-md border border-beige900/5 bg-white/70 p-1">
+                <div className="inline-flex h-9 w-fit items-center rounded-md border border-neutral-1000-a05 bg-bg-weak p-1">
                   {SAVED_DISPLAY_MODE_OPTIONS.map((option) => {
                     const Icon = option.icon;
                     const active = option.id === savedDisplayMode;
                     return (
-                      <button
+                      <BareButton
                         key={option.id}
                         type="button"
                         aria-label={option.label}
                         title={option.label}
                         onClick={() => handleSavedDisplayModeChange(option.id)}
-                        className={careerCx(
-                          "inline-flex h-7 w-8 items-center justify-center rounded text-beige900 transition-colors",
+                        className={cn(
+                          "inline-flex h-7 w-8 items-center justify-center rounded text-neutral-primary transition-colors",
                           active
-                            ? "bg-beige900 text-beige50"
-                            : "text-beige900/70 hover:bg-beige500/40 hover:text-beige900"
+                            ? "bg-black text-neutral-00"
+                            : "text-neutral-muted hover:bg-bg-floating hover:text-neutral-primary"
                         )}
                       >
                         <Icon className="h-4 w-4" />
-                      </button>
+                      </BareButton>
                     );
                   })}
                 </div>
@@ -1885,11 +1881,11 @@ const CareerHistoryPanel = () => {
               )}
 
               {savedDisplayMode === "list" && listItems.length === 0 && (
-                <CareerInlinePanel className="px-5 py-5">
-                  <div className="text-[14px] leading-6 text-beige900/65">
+                <InlinePanel className="px-5 py-5">
+                  <div className="text-[14px] leading-6 text-neutral-muted">
                     이 상태에 해당하는 기회가 아직 없습니다.
                   </div>
-                </CareerInlinePanel>
+                </InlinePanel>
               )}
 
               {savedDisplayMode === "board" && (
@@ -1905,10 +1901,10 @@ const CareerHistoryPanel = () => {
               {savedDisplayMode === "list" && hasMoreListItems && (
                 <div
                   ref={loadMoreSentinelRef}
-                  className="flex min-h-12 items-center justify-center text-[13px] text-beige900/65"
+                  className="flex min-h-12 items-center justify-center text-[13px] text-neutral-muted"
                 >
                   {historyLoadingMore ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-beige900/65" />
+                    <Loader2 className="h-4 w-4 animate-spin text-neutral-muted" />
                   ) : (
                     "더 불러올 항목이 있습니다."
                   )}
@@ -1935,21 +1931,21 @@ const CareerHistoryPanel = () => {
 
           {activeTab === "archived" && listItems.length === 0 && (
             <div className="space-y-3">
-              <CareerInlinePanel className="px-5 py-5">
-                <div className="text-[14px] leading-6 text-beige900/50">
+              <InlinePanel className="px-5 py-5">
+                <div className="text-[14px] leading-6 text-neutral-soft">
                   이 탭에 해당하는 기회가 아직 없습니다.
                 </div>
-              </CareerInlinePanel>
+              </InlinePanel>
             </div>
           )}
 
           {activeTab === "archived" && hasMoreListItems && (
             <div
               ref={loadMoreSentinelRef}
-              className="flex min-h-12 items-center justify-center text-[13px] text-beige900/45"
+              className="flex min-h-12 items-center justify-center text-[13px] text-neutral-soft"
             >
               {historyLoadingMore ? (
-                <Loader2 className="h-4 w-4 animate-spin text-beige900/55" />
+                <Loader2 className="h-4 w-4 animate-spin text-neutral-muted" />
               ) : (
                 "더 불러올 항목이 있습니다."
               )}
@@ -1957,7 +1953,7 @@ const CareerHistoryPanel = () => {
           )}
         </div>
         {showShortcutPanel && activeOpportunity && (
-          <div className="sticky -bottom-8 z-20 bg-white px-4 pb-3 pt-2 border-t border-neutral-100">
+          <div className="sticky -bottom-8 z-20 bg-bg-floating px-4 pb-3 pt-2">
             <HistoryShortcutPanel
               item={activeOpportunity}
               pending={pendingOpportunityIds.has(activeOpportunity.id)}

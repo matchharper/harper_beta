@@ -5,6 +5,7 @@ import BaseModal from "./BaseModal";
 import { supabase } from "@/lib/supabase";
 import { showToast } from "@/components/toast/toast";
 import { useFeedbackModalStore } from "@/store/useFeedbackModalStore";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
 const FeedbackRewardModal = () => {
   const { isOpen, close } = useFeedbackModalStore();
@@ -68,18 +69,21 @@ const FeedbackRewardModal = () => {
       isLoading={isSubmitting}
       size="sm"
     >
-      <div className="text-base font-normal text-beige900">피드백</div>
-      <p className="mt-3 text-sm text-beige900/80 font-normal leading-relaxed">
+      <div className="text-base font-normal text-neutral-primary">
+        피드백
+      </div>
+      <p className="mt-3 text-sm text-neutral-primary font-normal leading-relaxed">
         서비스 개선을 위해 피드백을 남겨주세요.
         <br />
         남겨주시는 모든 내용들이 큰 도움이 됩니다.
       </p>
-      <textarea
+      <UiTextarea
+        unstyled
         value={feedbackText}
         onChange={(e) => setFeedbackText(e.target.value)}
         rows={4}
         placeholder="피드백을 입력해 주세요."
-        className="w-full mt-4 text-beige900 rounded-lg border font-light border-beige900/8 bg-beige50 p-4 text-[15px] focus:outline-none focus:ring-2 focus:ring-beige900/8 resize-none"
+        className="w-full mt-4 text-neutral-primary rounded-lg border font-light border-neutral-1000-a05 bg-bg-default p-4 text-[15px] focus:outline-none focus:ring-2 focus:ring-neutral-1000-a05 resize-none"
       />
     </BaseModal>
   );

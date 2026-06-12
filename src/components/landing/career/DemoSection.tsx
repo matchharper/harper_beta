@@ -588,7 +588,7 @@ function CompanyMark({
   return (
     <div
       className={cn(
-        "flex shrink-0 items-center justify-center rounded-lg border border-beige900/10 bg-beige900 font-geist font-semibold text-beige50",
+        "flex shrink-0 items-center justify-center rounded-lg border border-beige900/10 bg-beige900 font-semibold text-beige50",
         size === "lg" ? "h-12 w-12 text-xl" : "h-7 w-7 text-xs"
       )}
     >

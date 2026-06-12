@@ -19,6 +19,7 @@ import type {
   AdminCareerLandingSourceBreakdown,
 } from "@/lib/adminCareerAnalytics/types";
 import { Info } from "lucide-react";
+import { BareButton } from "@/components/ui/button";
 
 type AdminCareerFunnelPanelProps = {
   landingSources: AdminCareerLandingSourceBreakdown[];
@@ -79,13 +80,13 @@ export default function AdminCareerFunnelPanel({
                   text={FUNNEL_TOOLTIPS[step.key] || step.detail}
                   side="right"
                 >
-                  <button
+                  <BareButton
                     type="button"
                     className="inline-flex cursor-help items-center gap-1 bg-transparent p-0 text-left text-[12px] font-medium text-black"
                   >
                     {index + 1}. {step.label}
                     <Info className="h-3 w-3 text-black/40" aria-hidden />
-                  </button>
+                  </BareButton>
                 </Tooltips>
                 <div className="mt-0.5 text-[11px] text-black/40">
                   {step.detail}
@@ -114,13 +115,13 @@ export default function AdminCareerFunnelPanel({
         <div className="border-t border-black/10 pt-3">
           <div className="mb-2 flex items-center justify-between gap-2">
             <Tooltips text="landing_logs.type의 source suffix 기준 분해입니다. 과거에 source suffix 없이 들어온 new_visit/new_session/login_email 로그는 unknown으로 표시됩니다.">
-              <button
+              <BareButton
                 type="button"
                 className="inline-flex cursor-help items-center gap-1 bg-transparent p-0 text-left text-[12px] font-medium text-black"
               >
                 Landing log sources
                 <Info className="h-3 w-3 text-black/40" aria-hidden />
-              </button>
+              </BareButton>
             </Tooltips>
             <div className="text-[11px] text-black/40">type suffix 기준</div>
           </div>

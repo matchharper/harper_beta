@@ -162,7 +162,12 @@ const toRecommendationSearchStatus = (
 ): CareerRecommendationSearchStatus | null => {
   if (!isRecord(value)) return null;
   const state = value.state;
-  if (state !== "running" && state !== "completed" && state !== "error") {
+  if (
+    state !== "running" &&
+    state !== "completed" &&
+    state !== "error" &&
+    state !== "stopped"
+  ) {
     return null;
   }
 
@@ -176,6 +181,23 @@ const toRecommendationSearchStatus = (
     state,
   };
 };
+
+const toRecommendationStatusAnchor = (value: unknown) => {
+  if (!isRecord(value)) return null;
+  const contentLength = value.contentLength;
+  if (
+    typeof contentLength !== "number" ||
+    !Number.isFinite(contentLength) ||
+    contentLength < 0
+  ) {
+    return null;
+  }
+  return Math.floor(contentLength);
+};
+
+const isAbortLikeError = (error: unknown) =>
+  (error instanceof DOMException && error.name === "AbortError") ||
+  (error instanceof Error && error.name === "AbortError");
 
 export const useCareerChat = ({
   user,
@@ -212,12 +234,16 @@ export const useCareerChat = ({
     remainingFollowUpTurns: number;
     starterId: CareerConversationStarterId;
   } | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const activeStreamAssistantIdRef = useRef<string | null>(null);
+  const cancelRequestedRef = useRef(false);
   const typingQueueRef = useRef<Promise<void>>(Promise.resolve());
   const mountedRef = useRef(true);
 
   useEffect(() => {
     return () => {
       mountedRef.current = false;
+      abortControllerRef.current?.abort();
     };
   }, []);
 
@@ -295,6 +321,55 @@ export const useCareerChat = ({
     setToolStatusMessage(normalized);
     setScrollTick((t) => t + 1);
   }, []);
+
+  const appendRecommendationStatusToActiveLogs = useCallback(
+    (status: CareerRecommendationSearchStatus) => {
+      const log = createRecommendJobPostingStatusLog(status);
+      const current = activeThinkingLogsRef.current;
+      const next =
+        current[current.length - 1] === log
+          ? current
+          : [...current, log].slice(-12);
+      activeThinkingLogsRef.current = next;
+      setActiveThinkingLogs(next);
+      setActiveRecommendationSearchStatus(status);
+      setScrollTick((t) => t + 1);
+      return next;
+    },
+    []
+  );
+
+  const markActiveRecommendationSearchStopped = useCallback(() => {
+    const stoppedStatus: CareerRecommendationSearchStatus = { state: "stopped" };
+    const logs = appendRecommendationStatusToActiveLogs(stoppedStatus);
+    const streamAssistantId = activeStreamAssistantIdRef.current;
+
+    if (streamAssistantId) {
+      setLocalMessages((prev) =>
+        prev.map((item) =>
+          String(item.id) === streamAssistantId
+            ? {
+                ...item,
+                thinkingLogs: logs,
+                typing: false,
+              }
+            : item
+        )
+      );
+    }
+
+    activeStreamAssistantIdRef.current = null;
+    setAssistantTyping(false);
+    setOnboardingWrapupPending(false);
+    setChatPending(false);
+    setScrollTick((t) => t + 1);
+  }, [appendRecommendationStatusToActiveLogs]);
+
+  const cancelActiveRecommendationSearch = useCallback(() => {
+    cancelRequestedRef.current = true;
+    markActiveRecommendationSearchStopped();
+    abortControllerRef.current?.abort();
+  }, [markActiveRecommendationSearchStopped]);
 
   const attachThinkingLogsToMessage = useCallback(
     (messageId: string | number) => {
@@ -428,6 +503,7 @@ export const useCareerChat = ({
 
       setChatError("");
       resetActiveThinkingLogs();
+      cancelRequestedRef.current = false;
       setChatPending(true);
       setLocalMessages((prev) => [
         ...prev,
@@ -441,6 +517,8 @@ export const useCareerChat = ({
       ]);
 
       let pendingAssistantMessageId: string | null = null;
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
 
       try {
         const response = await fetchWithAuth("/api/talent/chat", {
@@ -448,6 +526,7 @@ export const useCareerChat = ({
           headers: {
             Accept: "text/event-stream",
           },
+          signal: abortController.signal,
           body: JSON.stringify({
             allowedToolNames: args.allowedToolNames,
             channel: args.channel ?? "chat",
@@ -480,6 +559,7 @@ export const useCareerChat = ({
           const ensureStreamAssistant = () => {
             if (streamAssistantVisible) return;
             streamAssistantVisible = true;
+            activeStreamAssistantIdRef.current = streamAssistantId;
             setAssistantTyping(true);
             setLocalMessages((prev) => [
               ...prev,
@@ -533,14 +613,7 @@ export const useCareerChat = ({
           const appendRecommendationStatusLog = (
             status: CareerRecommendationSearchStatus
           ) => {
-            const log = createRecommendJobPostingStatusLog(status);
-            const current = activeThinkingLogsRef.current;
-            const next =
-              current[current.length - 1] === log
-                ? current
-                : [...current, log].slice(-12);
-            activeThinkingLogsRef.current = next;
-            setActiveThinkingLogs(next);
+            const next = appendRecommendationStatusToActiveLogs(status);
             setStreamAssistantThinkingLogs(next);
           };
 
@@ -568,6 +641,7 @@ export const useCareerChat = ({
               upsertFinalAssistantMessages(prev, [payload])
             );
             streamAssistantVisible = false;
+            activeStreamAssistantIdRef.current = null;
             pendingAssistantMessageId = null;
             setAssistantTyping(false);
             setScrollTick((t) => t + 1);
@@ -684,7 +758,6 @@ export const useCareerChat = ({
             if (event === "recommendation_search_status") {
               const status = toRecommendationSearchStatus(data);
               if (!status) return;
-              setActiveRecommendationSearchStatus(status);
               appendRecommendationStatusLog(status);
               if (
                 status.state === "completed" &&
@@ -693,6 +766,23 @@ export const useCareerChat = ({
                 refreshOpportunityRecommendations();
               }
               setScrollTick((t) => t + 1);
+              return;
+            }
+
+            if (event === "recommendation_status_anchor") {
+              const contentLength = toRecommendationStatusAnchor(data);
+              if (contentLength === null) return;
+              ensureStreamAssistant();
+              setLocalMessages((prev) =>
+                prev.map((item) =>
+                  String(item.id) === streamAssistantId
+                    ? {
+                        ...item,
+                        recommendationStatusAfterCharCount: contentLength,
+                      }
+                    : item
+                )
+              );
               return;
             }
 
@@ -739,6 +829,7 @@ export const useCareerChat = ({
                 return upsertFinalAssistantMessages(prev, payloads);
               });
               streamAssistantVisible = false;
+              activeStreamAssistantIdRef.current = null;
               pendingAssistantMessageId = null;
               setAssistantTyping(false);
               commitStreamMessages(payloads);
@@ -814,6 +905,7 @@ export const useCareerChat = ({
               }
               setChatPending(false);
               setAssistantTyping(false);
+              activeStreamAssistantIdRef.current = null;
             }
           };
 
@@ -905,6 +997,15 @@ export const useCareerChat = ({
           setStage("completed");
         }
       } catch (error) {
+        const wasCancelled =
+          cancelRequestedRef.current ||
+          abortController.signal.aborted ||
+          isAbortLikeError(error);
+        if (wasCancelled) {
+          markActiveRecommendationSearchStopped();
+          return;
+        }
+
         resetActiveThinkingLogs();
         const message =
           error instanceof Error
@@ -918,9 +1019,13 @@ export const useCareerChat = ({
                 String(item.id) !== pendingAssistantMessageId)
           )
         );
+        activeStreamAssistantIdRef.current = null;
         setChatError(message);
         args.onError?.();
       } finally {
+        if (abortControllerRef.current === abortController) {
+          abortControllerRef.current = null;
+        }
         if (
           !explicitConversationStarterId &&
           activeConversationStarterId &&
@@ -942,12 +1047,14 @@ export const useCareerChat = ({
     },
     [
       appendThinkingLog,
+      appendRecommendationStatusToActiveLogs,
       assistantTyping,
       attachThinkingLogsToMessage,
       chatPending,
       conversationId,
       enqueueAssistantTypewriter,
       fetchWithAuth,
+      markActiveRecommendationSearchStopped,
       sessionPending,
       stage,
       user,
@@ -994,6 +1101,7 @@ export const useCareerChat = ({
     assistantTyping,
     enqueueAssistantTypewriter,
     applySessionConversation,
+    cancelActiveRecommendationSearch,
     sendChatMessage,
     regenerateOnboardingWrapup,
     resetChatState,

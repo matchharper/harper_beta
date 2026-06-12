@@ -223,7 +223,7 @@ export function buildTalentProfileContext(args: {
 }) {
   const {
     includeResumeFileName = true,
-    includeResumeText = true,
+    includeResumeText = false,
     includeRowIds = true,
     profile,
     structuredProfile,

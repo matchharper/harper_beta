@@ -44,7 +44,6 @@ type CareerOpportunityTypeMeta = {
   panelToneClassName: string;
   positiveActionIcon: LucideIcon;
   positiveActionLabel: string;
-  positiveFeedbackSubmitButtonClassName?: string;
   positiveFeedback: CareerOpportunityFeedbackMeta;
   savedStageLabels: {
     applied: string;
@@ -100,7 +99,7 @@ export const CAREER_OPPORTUNITY_TYPE_META: Record<
       ],
       requiresComment: false,
     },
-    panelToneClassName: "bg-white",
+    panelToneClassName: "bg-bg-floating",
     positiveActionIcon: ThumbsUp,
     positiveActionLabel: "저장함",
     positiveFeedback: {
@@ -166,11 +165,9 @@ export const CAREER_OPPORTUNITY_TYPE_META: Record<
       ],
       requiresComment: false,
     },
-    panelToneClassName: "bg-[#edf4ef]",
+    panelToneClassName: "bg-bg-floating",
     positiveActionIcon: Handshake,
     positiveActionLabel: "연결 수락",
-    positiveFeedbackSubmitButtonClassName:
-      "border-[#2f5d47] bg-[#2f5d47] text-[#f3f8f4]",
     positiveFeedback: {
       modal: {
         description:
@@ -234,11 +231,9 @@ export const CAREER_OPPORTUNITY_TYPE_META: Record<
       ],
       requiresComment: false,
     },
-    panelToneClassName: "bg-orange-300",
+    panelToneClassName: "bg-bg-floating",
     positiveActionIcon: Handshake,
     positiveActionLabel: "연결 수락",
-    positiveFeedbackSubmitButtonClassName:
-      "border-xprimary bg-xprimary text-beige50",
     positiveFeedback: {
       modal: {
         description:
@@ -321,31 +316,25 @@ export const shouldCollectCareerNegativeFeedbackReason = (
 
 const getDefaultFeedbackButtonClassName = (active: boolean) =>
   active
-    ? "border-beige900 bg-beige200 text-beige900 outline outline-[0.5px] outline-beige900"
-    : "border-beige900/15 bg-white/45 text-beige900 hover:border-beige900/30 hover:text-beige900";
+    ? "border-neutral-800 bg-bg-weak text-neutral-primary outline outline-[0.5px] outline-neutral-800"
+    : "border-neutral-1000-a10 bg-bg-floating text-neutral-primary hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary";
 
-const getIntroFeedbackButtonClassName = (active: boolean) =>
+const getConnectionFeedbackButtonClassName = (active: boolean) =>
   active
-    ? "border-xprimary/95 bg-xprimary/85 text-beige50 outline outline-[0.5px] outline-xprimary"
-    : "border-xprimary/95 bg-xprimary/85 text-white hover:opacity-90";
+    ? "border-primary bg-primary text-neutral-00 outline outline-[0.5px] outline-primary hover:opacity-90"
+    : "border-primary bg-primary text-neutral-00 hover:opacity-90";
 
-const getInternalFeedbackButtonClassName = (active: boolean) =>
-  active
-    ? "border-[#bdc4bf] bg-[#edf4ef] text-beige900 outline outline-[0.5px] outline-beige900"
-    : "border-[#edf4ef] bg-[#edf4ef] text-beige900 hover:opacity-90";
+const isConnectionOpportunityType = (opportunityType: OpportunityType) =>
+  opportunityType === OpportunityType.InternalRecommendation ||
+  opportunityType === OpportunityType.IntroRequest;
 
 export const getCareerFeedbackButtonClassName = (
   opportunityType: OpportunityType,
   active: boolean
-) => {
-  if (opportunityType === OpportunityType.IntroRequest) {
-    return getIntroFeedbackButtonClassName(active);
-  }
-  if (opportunityType === OpportunityType.InternalRecommendation) {
-    return getInternalFeedbackButtonClassName(active);
-  }
-  return getDefaultFeedbackButtonClassName(active);
-};
+) =>
+  isConnectionOpportunityType(opportunityType)
+    ? getConnectionFeedbackButtonClassName(active)
+    : getDefaultFeedbackButtonClassName(active);
 
 export const getCareerDefaultFeedbackButtonClassName = (active: boolean) =>
   getDefaultFeedbackButtonClassName(active);
@@ -353,8 +342,9 @@ export const getCareerDefaultFeedbackButtonClassName = (active: boolean) =>
 export const getCareerPositiveFeedbackSubmitButtonClassName = (
   opportunityType: OpportunityType
 ) =>
-  getCareerOpportunityTypeMeta(opportunityType)
-    .positiveFeedbackSubmitButtonClassName;
+  isConnectionOpportunityType(opportunityType)
+    ? "border-primary bg-primary text-neutral-00"
+    : undefined;
 
 export const getCareerOpportunityPanelToneClassName = (
   opportunityType: OpportunityType

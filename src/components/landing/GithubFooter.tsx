@@ -27,15 +27,15 @@ const Footer = ({
   };
 
   return (
-    <div className="mx-auto flex w-full flex-col items-start justify-between gap-8 border-t border-white/20 bg-black px-4 py-10 text-hblack000 md:flex-row md:items-stretch md:gap-0 md:px-8 md:py-8">
+    <div className="mx-auto flex w-full flex-col items-start justify-between gap-8 border-t border-white/20 bg-black px-4 py-10 text-neutral-00 md:flex-row md:items-stretch md:gap-0 md:px-8 md:py-8">
       <div className="flex flex-1 flex-col items-start justify-start gap-4 md:gap-6">
         <div className="text-left text-3xl font-semibold font-garamond">
           Harper
         </div>
-        <div className="text-[13px] text-hgray700">
+        <div className="text-[13px] text-neutral-500">
           Harper <span className="ml-1">© 2026</span>
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-[13px] text-hgray700">
+        <div className="flex flex-wrap items-center gap-2 text-[13px] text-neutral-500">
           <div>Are you looking for talent?</div>
           <div
             onClick={() =>
@@ -48,7 +48,7 @@ const Footer = ({
             Start Now
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-1 text-[13px] text-hgray700">
+        <div className="flex flex-wrap items-center gap-1 text-[13px] text-neutral-500">
           <Link
             href="/terms"
             className="cursor-pointer hover:text-white/90 text-white/80"

@@ -83,13 +83,10 @@
   - 메시지 목록, 상태 카드, 온보딩 흐름 표시.
 
 - `chat/CareerComposerSection.tsx`
-  - 텍스트 입력, voice 관련 액션, submit UI.
+  - 텍스트 입력, 통화 시작 액션, submit UI.
 
 - `chat/CareerMessageBubble.tsx`
   - 메시지 bubble presentation.
-
-- `chat/CareerVoiceInputLevelFill.tsx`
-  - voice input level visualization.
 
 ### Supporting UI
 

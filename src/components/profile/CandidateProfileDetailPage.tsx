@@ -37,6 +37,7 @@ import {
 } from "@/lib/scholarPreview";
 import RevealProfileButton from "@/components/candidates/RevealProfileButton";
 import { MarkdownView } from "@/components/chat/MarkDownView";
+import { BareButton } from "@/components/ui/button";
 
 const PUBLICATION_PREVIEW_COUNT = 10;
 
@@ -57,11 +58,13 @@ function ProfileInsightCard({
   secondary,
 }: ProfileInsightCardProps) {
   return (
-    <div className="rounded-2xl bg-white/5 px-4 py-3">
-      <div className="text-xs text-hgray600">{label}</div>
-      <div className="mt-2 truncate text-sm text-hgray900">{primary}</div>
+    <div className="rounded-2xl bg-neutral-00/5 px-4 py-3">
+      <div className="text-xs text-neutral-00/60">{label}</div>
+      <div className="mt-2 truncate text-sm text-neutral-00/90">{primary}</div>
       {secondary ? (
-        <div className="mt-1 text-xs leading-5 text-hgray600">{secondary}</div>
+        <div className="mt-1 text-xs leading-5 text-neutral-00/60">
+          {secondary}
+        </div>
       ) : null}
     </div>
   );
@@ -145,17 +148,17 @@ function ScholarProfileSection({
             </div>
 
             {!showAllPublications && remainingPublicationCount > 0 && (
-              <button
+              <BareButton
                 type="button"
                 onClick={onShowAllPublications}
-                className="inline-flex items-center rounded-full bg-white/5 px-5 py-2.5 font-light text-sm text-hgray700 transition hover:bg-white/10"
+                className="inline-flex items-center rounded-full bg-neutral-00/5 px-5 py-2.5 font-light text-sm text-neutral-00/70 transition hover:bg-neutral-00/10"
               >
                 Show {remainingPublicationCount} more papers
-              </button>
+              </BareButton>
             )}
           </>
         ) : (
-          <div className="rounded-2xl bg-white/5 px-4 py-4 text-sm text-hgray700">
+          <div className="rounded-2xl bg-neutral-00/5 px-4 py-4 text-sm text-neutral-00/70">
             연결된 Scholar Profile은 있지만 아직 표시할 논문 데이터가 없습니다.
           </div>
         )}
@@ -213,28 +216,30 @@ function GithubProfileSection({
         </div>
 
         {hasReadme ? (
-          <div className="rounded-2xl bg-white/5 px-5 py-5">
-            <div className="mb-3 text-sm text-hgray700">Profile README</div>
-            <div className="[&_.prose]:max-w-none [&_.prose]:text-hgray800 [&_.prose_a]:text-blue-500 [&_.prose_code]:text-hgray900 [&_.prose_headings]:text-hgray1000">
+          <div className="rounded-2xl bg-neutral-00/5 px-5 py-5">
+            <div className="mb-3 text-sm text-neutral-00/70">
+              Profile README
+            </div>
+            <div className="[&_.prose]:max-w-none [&_.prose]:text-neutral-00/80 [&_.prose_a]:text-primary [&_.prose_code]:text-neutral-00/90 [&_.prose_headings]:text-neutral-00">
               <MarkdownView markdown={readmeText ?? ""} />
 
               <div className="mt-4 flex w-full items-center justify-center">
-                <button
+                <BareButton
                   type="button"
                   onClick={() => setOpenReadme(!openReadme)}
-                  className="inline-flex items-center rounded-full px-4 py-2 font-light text-sm text-hgray700 transition hover:bg-white/10"
+                  className="inline-flex items-center rounded-full px-4 py-2 font-light text-sm text-neutral-00/70 transition hover:bg-neutral-00/10"
                 >
                   <ChevronDown
                     size={12}
                     className={`transition-transform duration-200 ${openReadme ? "rotate-180" : ""}`}
                   />
                   {openReadme ? "접기" : "더 보기"}
-                </button>
+                </BareButton>
               </div>
             </div>
           </div>
         ) : !profileRevealed ? (
-          <div className="rounded-2xl bg-white/5 px-5 py-5 text-sm text-hgray700">
+          <div className="rounded-2xl bg-neutral-00/5 px-5 py-5 text-sm text-neutral-00/70">
             열람 후 GitHub 프로필을 확인할 수 있습니다.
           </div>
         ) : null}
@@ -685,7 +690,7 @@ function CandidateProfileDetailPage({
   }, [candidId, isProfileRevealed, runId]);
 
   if (!candidId || !userId || isLoading || error || !data)
-    return <Loading className="text-xgray800" />;
+    return <Loading className="text-neutral-muted" />;
 
   // 대충: email은 string일 수도 / JSON string일 수도 있어서 try-catch 한 번만
   let emails: string[] = [];
@@ -747,15 +752,15 @@ function CandidateProfileDetailPage({
           <div className="absolute top-2 right-2 font-normal flex flex-col gap-1 ">
             <div className="flex flex-row items-end justify-end gap-2">
               {isProfileRevealed ? (
-                <button
+                <BareButton
                   onClick={() => {
                     logEvent("open share: " + candidId);
                     setIsShareOpen(true);
                   }}
-                  className="inline-flex items-center gap-2 rounded-xl px-2 py-2 text-sm hover:bg-hgray900/5"
+                  className="inline-flex items-center gap-2 rounded-xl px-2 py-2 text-sm hover:bg-bg-weak/5"
                 >
                   <Upload className="w-4 h-4" />
-                </button>
+                </BareButton>
               ) : (
                 <RevealProfileButton candidId={candidId} />
               )}
@@ -765,12 +770,12 @@ function CandidateProfileDetailPage({
                 connection={c.connection}
               />
               {showConnectionAction && isProfileRevealed ? (
-                <button
+                <BareButton
                   onClick={() => setIsConnectionModalOpen(true)}
-                  className="inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-sm text-accentBronze hover:bg-accentBronze/10"
+                  className="inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-sm text-primary hover:bg-accent-200"
                 >
                   {isIntroRequested ? "Intro 요청됨" : "Intro 요청"}
-                </button>
+                </BareButton>
               ) : null}
             </div>
           </div>
@@ -789,7 +794,7 @@ function CandidateProfileDetailPage({
         )}
 
         {showShortlistMemo ? (
-          <Box title={visibleShortlistMemo ? "내부 메모" : ""} color="accenta1">
+          <Box title={visibleShortlistMemo ? "내부 메모" : ""} tone="accent">
             <CandidateMemoDock
               userId={userId}
               candidId={candidId}
@@ -890,12 +895,12 @@ function CandidateProfileDetailPage({
                     disableEntityClick={true}
                   />
                 ) : (
-                  <div className="text-sm text-hgray700">
+                  <div className="text-sm text-neutral-00/70">
                     열람 후 경력 정보를 확인할 수 있습니다.
                   </div>
                 )}
                 {(c.masked_experience_count ?? 0) > 0 ? (
-                  <div className="rounded-2xl bg-white/5 px-4 py-3 text-sm text-hgray700">
+                  <div className="rounded-2xl bg-neutral-00/5 px-4 py-3 text-sm text-neutral-00/70">
                     + {c.masked_experience_count}개 경력
                   </div>
                 ) : null}
@@ -939,7 +944,7 @@ function CandidateProfileDetailPage({
             <div className="space-y-6">
               {githubContributionGroups.owned.length > 0 && (
                 <div className="space-y-3">
-                  <div className="text-base font-normal text-hgray800">
+                  <div className="text-base font-normal text-neutral-00/80">
                     [소유 프로젝트]
                   </div>
                   <div className="grid grid-cols-1 gap-3">
@@ -955,7 +960,7 @@ function CandidateProfileDetailPage({
 
               {githubContributionGroups.contributed.length > 0 && (
                 <div className="space-y-3">
-                  <div className="text-base font-normal text-hgray800">
+                  <div className="text-base font-normal text-neutral-00/80">
                     [기여한 프로젝트]
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -1002,13 +1007,13 @@ function CandidateProfileDetailPage({
             </div>
 
             {!showAllPublications && remainingPublicationCount > 0 && (
-              <button
+              <BareButton
                 type="button"
                 onClick={() => setShowAllPublications(true)}
-                className="mt-3 inline-flex items-center rounded-full bg-white/5 px-5 py-2.5 font-light text-sm text-hgray700 transition hover:bg-white/10"
+                className="mt-3 inline-flex items-center rounded-full bg-neutral-00/5 px-5 py-2.5 font-light text-sm text-neutral-00/70 transition hover:bg-neutral-00/10"
               >
                 Show {remainingPublicationCount} more publications
-              </button>
+              </BareButton>
             )}
           </Box>
         ) : null}
@@ -1023,18 +1028,20 @@ export const Box = ({
   title,
   icon,
   children,
-  color,
+  tone = "default",
 }: {
   title: string;
   icon?: React.ReactNode;
   children: React.ReactNode;
-  color?: string;
+  tone?: "default" | "accent";
 }) => {
   return (
     <div className="w-full grid grid-cols-7">
       <div className="col-span-1">
         <div
-          className={`flex items-center gap-2 font-normal ${color ? `text-${color} text-sm` : "text-base"}`}
+          className={`flex items-center gap-2 font-normal ${
+            tone === "accent" ? "text-sm text-primary" : "text-base"
+          }`}
         >
           {icon}
           {title}

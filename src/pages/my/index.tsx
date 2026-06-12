@@ -37,6 +37,9 @@ import { showToast } from "@/components/toast/toast";
 import { SearchSource, isEnabledSearchSource } from "@/lib/searchSource";
 import { Tooltips } from "@/components/ui/tooltip";
 import type { ChatAttachmentPayload } from "@/types/chat";
+import { BareButton } from "@/components/ui/button";
+import { ClickablePanel } from "@/components/ui/clickable-panel";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
 const PLACEHOLDER_SWITCH_MS = 4500;
 const PLACEHOLDER_SLIDE_MS = 500;
@@ -479,13 +482,13 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
     <AppLayout initialCollapse={false}>
       <main className="relative flex flex-1 w-full flex-col items-center font-sans px-4 md:px-6 lg:px-8 pt-16 md:pt-24 lg:pt-[20vh]">
         <div className="absolute top-2 right-2 hidden md:flex flex-row items-end gap-2">
-          <button
+          <BareButton
             onClick={openFeedbackModal}
-            className="cursor-pointer hover:bg-beige500/70 transition text-sm text-beige900 px-4 py-1.5 rounded-full bg-beige500/55 font-normal flex flex-row items-center gap-2"
+            className="cursor-pointer hover:bg-bg-weak transition text-sm text-neutral-primary px-4 py-1.5 rounded-full bg-bg-floating font-normal flex flex-row items-center gap-2"
           >
             <MessageSquareIcon size={14} />
             피드백
-          </button>
+          </BareButton>
         </div>
         <div className="w-full flex flex-col items-center">
           <h1
@@ -498,7 +501,7 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
           </h1>
 
           <form className="mt-6 md:mt-8 w-full max-w-[640px]">
-            <div className="w-full relative rounded-3xl p-2 bg-beige50 border border-beige900/8 shadow-sm">
+            <div className="w-full relative rounded-3xl p-2 bg-bg-default border border-neutral-1000-a05 shadow-sm">
               <ChatAttachmentDraftList
                 attachments={attachments}
                 className="mb-2"
@@ -509,7 +512,7 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
               <div className="relative rounded-2xl backdrop-blur-xl">
                 {isQueryEmpty && (
                   <div
-                    className="pointer-events-none absolute left-4 right-24 md:right-20 top-4 h-6 overflow-hidden text-base md:text-[15px] leading-6 text-beige900/55"
+                    className="pointer-events-none absolute left-4 right-24 md:right-20 top-4 h-6 overflow-hidden text-base md:text-[15px] leading-6 text-neutral-muted"
                     aria-hidden="true"
                   >
                     <div
@@ -532,7 +535,8 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
                     </div>
                   </div>
                 )}
-                <textarea
+                <UiTextarea
+                  unstyled
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={(e) => {
@@ -547,7 +551,7 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
                   autoFocus={!isMobile}
                   className={[
                     "w-full resize-none rounded-2xl bg-transparent",
-                    "px-4 py-4 text-base md:text-[15px] leading-6 text-beige900",
+                    "px-4 py-4 text-base md:text-[15px] leading-6 text-neutral-primary",
                     "placeholder:text-transparent",
                     "outline-none",
                     "min-h-[120px] md:min-h-[140px]",
@@ -567,7 +571,7 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
                   }
                   className="h-11 w-11 md:h-9 md:w-9"
                 />
-                <button
+                <BareButton
                   type="button"
                   onClick={onSubmit}
                   disabled={!canSend}
@@ -575,8 +579,8 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
                     "inline-flex items-center justify-center rounded-[12px] cursor-pointer hover:opacity-90",
                     "h-11 w-11 md:h-9 md:w-9",
                     canSend
-                      ? "bg-beige900 text-beige100 cursor-not-allowed"
-                      : "bg-beige900/50 text-beige100",
+                      ? "bg-black text-neutral-00 cursor-not-allowed"
+                      : "bg-black/50 text-neutral-00",
                     "transition active:scale-[0.98]",
                   ].join(" ")}
                   aria-label="Send"
@@ -586,7 +590,7 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
                   ) : (
                     <ArrowUp size={18} strokeWidth={2} />
                   )}
-                </button>
+                </BareButton>
               </div>
             </div>
           </form>
@@ -597,7 +601,7 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
             }
           >
             <div
-              className="flex items-center rounded-full border border-white/5 bg-white/5 p-0.5"
+              className="flex items-center rounded-full border border-neutral-00/5 bg-neutral-00/5 p-0.5"
               role="radiogroup"
               aria-label={
                 locale === "ko" ? "검색 소스 선택" : "Choose a search source"
@@ -619,7 +623,7 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
                       {checked && (
                         <motion.span
                           layoutId="search-source-indicator"
-                          className="absolute inset-0 rounded-full bg-white shadow-[0_10px_30px_rgba(255,255,255,0.1)]"
+                          className="absolute inset-0 rounded-full bg-bg-default"
                           transition={{
                             type: "spring",
                             stiffness: 380,
@@ -630,7 +634,7 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
                       <span
                         className={[
                           "relative z-10 inline-flex items-center gap-2 whitespace-nowrap text-xs font-normal sm:text-[13px] transition-all duration-300",
-                          checked ? "text-black" : "text-hgray800",
+                          checked ? "text-neutral-primary" : "text-neutral-00/80",
                         ].join(" ")}
                       >
                         <span>{option.label}</span>
@@ -671,23 +675,21 @@ const ExampleQuery = ({
   onClick: (v: string) => void;
 }) => {
   return (
-    <div
+    <ClickablePanel
       className={[
         "group relative col-span-1 cursor-pointer",
         "rounded-2xl py-4 px-5 md:py-5 md:px-6",
-        "bg-beige50 text-beige900 text-sm",
-        "border border-beige900/8",
+        "bg-bg-default text-neutral-primary text-sm",
+        "border border-neutral-1000-a05",
         "transition-all duration-200 ease-out",
-        "hover:border-beige900/16 hover:translate-y-[-2px]",
+        "hover:border-neutral-1000-a10 hover:translate-y-[-2px]",
         "active:translate-y-0 active:scale-[0.99]",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-beige900/20",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a05",
       ].join(" ")}
-      onClick={() => onClick(query)}
-      role="button"
-      tabIndex={0}
+      onActivate={() => onClick(query)}
     >
-      <div className="text-xs text-beige900/55 mb-2">{label}</div>
+      <div className="text-xs text-neutral-muted mb-2">{label}</div>
       {query}
-    </div>
+    </ClickablePanel>
   );
 };

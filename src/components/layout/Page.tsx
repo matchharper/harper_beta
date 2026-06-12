@@ -14,10 +14,10 @@ const pageVariants = cva("flex w-full flex-col", {
     },
     background: {
       none: "",
-      beige: "bg-beige50 text-beige900",
-      beigeAlt: "bg-beige100 text-beige900",
-      paper: "bg-hgray1000 text-hblack900",
-      dark: "bg-bgDark900 text-hgray1000",
+      beige: "bg-bg-default text-neutral-primary",
+      beigeAlt: "bg-bg-basement text-neutral-primary",
+      paper: "bg-bg-default text-neutral-primary",
+      dark: "bg-neutral-1000 text-neutral-00",
     },
     safeArea: {
       none: "",

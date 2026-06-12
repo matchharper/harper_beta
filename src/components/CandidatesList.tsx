@@ -1,52 +1,24 @@
 import { useLogEvent } from "@/hooks/useLog";
 import { CandidateTypeWithConnection } from "@/hooks/useSearchChatCandidates";
 import type { CandidateMarkStatus } from "@/lib/candidateMark";
-import {
-  buildGithubDeveloperTooltip,
-  formatGithubFollowerCount,
-  formatGithubOwnerCreatorStars,
-} from "@/lib/githubPreview";
-import {
-  buildScholarResearchTooltip,
-  formatScholarCitationCount,
-  formatScholarPaperCount,
-} from "@/lib/scholarPreview";
-import {
-  buildEvidencePaperMeta,
-  buildEvidencePaperTooltip,
-  getEvidencePaper,
-} from "@/lib/searchEvidence";
-import {
-  SearchSource,
-  extractSearchSourcesFromLinks,
-  getSearchSourceLabel,
-  getSearchSourceLogoPath,
-  isScholarSearchSource,
-} from "@/lib/searchSource";
+import { buildGithubDeveloperTooltip, formatGithubFollowerCount, formatGithubOwnerCreatorStars } from "@/lib/githubPreview";
+import { buildScholarResearchTooltip, formatScholarCitationCount, formatScholarPaperCount } from "@/lib/scholarPreview";
+import { buildEvidencePaperMeta, buildEvidencePaperTooltip, getEvidencePaper } from "@/lib/searchEvidence";
+import { SearchSource, extractSearchSourcesFromLinks, getSearchSourceLabel, getSearchSourceLogoPath, isScholarSearchSource } from "@/lib/searchSource";
 import { SharedFolderViewerIdentity } from "@/lib/sharedFolder";
 import { sortCandidateItemsByLatest } from "@/lib/candidateChronology";
 import { SummaryScore } from "@/types/type";
-import {
-  companyEnToKo,
-  degreeEnToKo,
-  koreaUniversityEnToKo,
-  locationEnToKo,
-} from "@/utils/language_map";
+import { companyEnToKo, degreeEnToKo, koreaUniversityEnToKo, locationEnToKo } from "@/utils/language_map";
 import { Check, Dot, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import React, { useMemo } from "react";
-import {
-  GithubSignalBox,
-  RoleBox,
-  ScholarSignalBox,
-  SchoolBox,
-} from "./CandidatesListTable";
+import { GithubSignalBox, RoleBox, ScholarSignalBox, SchoolBox } from "./CandidatesListTable";
 import { Avatar } from "./NameProfile";
 import SharedFolderCandidateNotes from "./shared/SharedFolderCandidateNotes";
 import BookmarkButton from "@/components/candidates/BookmarkButton";
-import { Checkbox } from "./ui/Checkbox";
+import { Checkbox } from "./ui/checkbox";
 import CandidateMemoDock from "@/components/candidates/CandidateMemoDock";
 import { Tooltips } from "./ui/tooltip";
 import RevealProfileButton from "@/components/candidates/RevealProfileButton";
@@ -336,13 +308,13 @@ function CandidateCard({
               <RevealProfileButton
                 candidId={candidId}
                 overlay
-                overlayClassName={`rounded-t-[28px] ${isDark ? "group-hover/content:border-accenta1/50 group-hover/content:bg-black/15" : "group-hover/content:border-accentBronze/40 group-hover/content:bg-beige900/8"}`}
+                overlayClassName={`rounded-t-[28px] ${isDark ? "group-hover/content:border-accent-200/50 group-hover/content:bg-black/15" : "group-hover/content:border-primary/40 group-hover/content:bg-beige900/8"}`}
               />
             )}
             <div className="flex flex-row flex-1 items-start gap-4">
               <div className="w-[40%]">
                 <div className="flex flex-row flex-1 items-start gap-4">
-                  <div className={`cursor-pointer rounded-full border border-transparent transition-colors duration-100 ${isDark ? "hover:border-accenta1/80" : "hover:border-accentBronze/60"}`}>
+                  <div className={`cursor-pointer rounded-full border border-transparent transition-colors duration-100 ${isDark ? "hover:border-accent-200/80" : "hover:border-primary/60"}`}>
                     <Avatar
                       url={c.profile_picture}
                       name={c.name}
@@ -365,7 +337,7 @@ function CandidateCard({
                           <div className="mt-px">GitHub Profile</div>
                         </div>
                       ) : c.location ? (
-                        <div className={`text-sm font-normal ${isDark ? "text-hgray600" : "text-beige900/55"}`}>
+                        <div className={`text-sm font-normal ${isDark ? "text-neutral-600" : "text-beige900/55"}`}>
                           {locationEnToKo(c.location)}
                         </div>
                       ) : null}
@@ -389,7 +361,7 @@ function CandidateCard({
                           ))}
                           {c.links &&
                             c.links?.length - linkSources.length > 0 && (
-                              <span className={`text-[13px] ${isDark ? "text-hgray700" : "text-beige900/65"}`}>
+                              <span className={`text-[13px] ${isDark ? "text-neutral-500" : "text-beige900/65"}`}>
                                 +{c.links?.length - linkSources.length}
                               </span>
                             )}
@@ -522,12 +494,12 @@ function CandidateCard({
               >
                 <div className="mt-8 flex w-full items-start gap-3">
                   <div className="min-w-0">
-                    <div className={`text-xs ${isDark ? "text-hgray600" : "text-beige900/55"}`}>Related paper</div>
+                    <div className={`text-xs ${isDark ? "text-neutral-600" : "text-beige900/55"}`}>Related paper</div>
                     <div className={`mt-1 line-clamp-2 text-[15px] font-normal ${isDark ? "text-white/95" : "text-beige900"}`}>
                       {evidencePaper.title}
                     </div>
                     {evidencePaperMeta && (
-                      <div className={`mt-1 text-sm font-normal ${isDark ? "text-hgray700" : "text-beige900/65"}`}>
+                      <div className={`mt-1 text-sm font-normal ${isDark ? "text-neutral-500" : "text-beige900/65"}`}>
                         {evidencePaperMeta}
                       </div>
                     )}
@@ -538,7 +510,7 @@ function CandidateCard({
 
             {(synthesizedSummary.length !== 0 ||
               (isMyList && shortlistSummaryText.length > 0)) && (
-              <div className={`mt-6 font-light leading-relaxed ${isDark ? "text-hgray700" : "text-beige900/65"}`}>
+              <div className={`mt-6 font-light leading-relaxed ${isDark ? "text-neutral-500" : "text-beige900/65"}`}>
                 {synthesizedSummary.length !== 0 && (
                   <div>
                     {synthesizedSummary?.map((item: any, index: number) => (
@@ -640,17 +612,17 @@ const CriteriaBox = ({
   const isDark = theme === "dark";
 
   const badeStyle = useMemo(() => {
-    if (score === SummaryScore.SATISFIED) return isDark ? "text-accenta1" : "text-accentBronze";
-    if (score === SummaryScore.AMBIGUOUS) return "text-hgray900";
-    if (score === SummaryScore.UNSATISFIED) return "text-hgray900";
+    if (score === SummaryScore.SATISFIED) return isDark ? "text-accent-200" : "text-primary";
+    if (score === SummaryScore.AMBIGUOUS) return "text-neutral-200";
+    if (score === SummaryScore.UNSATISFIED) return "text-neutral-200";
     return "";
   }, [score, isDark]);
 
   const badgeIcon = useMemo(() => {
     if (score === SummaryScore.SATISFIED)
-      return <Check className={`w-3 h-3 ${isDark ? "text-accenta1" : "text-accentBronze"}`} strokeWidth={2} />;
+      return <Check className={`w-3 h-3 ${isDark ? "text-accent-200" : "text-primary"}`} strokeWidth={2} />;
     if (score === SummaryScore.AMBIGUOUS)
-      return <Dot className="w-3 h-3 text-hgray700" strokeWidth={2} />;
+      return <Dot className="w-3 h-3 text-neutral-500" strokeWidth={2} />;
     if (score === SummaryScore.UNSATISFIED)
       return <X className="w-3 h-3 text-red-700" strokeWidth={2} />;
     return null;

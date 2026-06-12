@@ -37,6 +37,7 @@ import { Download, RefreshCw } from "lucide-react";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { BareButton } from "@/components/ui/button";
 
 const DEFAULT_FIRST_MAIL_SUBJECT =
   "Harper와 함께 하시게된 것을 환영합니다. Harper에서 더 좋은 기회를 받으려면";
@@ -705,7 +706,7 @@ export default function NetworkOpsPage() {
         title="Network Leads"
         actions={
           <>
-            <button
+            <BareButton
               type="button"
               onClick={() => void handleRefresh()}
               disabled={leadsQuery.isFetching || detailQuery.isFetching}
@@ -719,8 +720,8 @@ export default function NetworkOpsPage() {
                 )}
               />
               새로고침
-            </button>
-            <button
+            </BareButton>
+            <BareButton
               type="button"
               onClick={handleExportCsv}
               disabled={visibleCurrentLeads.length === 0}
@@ -728,7 +729,7 @@ export default function NetworkOpsPage() {
             >
               <Download className="h-4 w-4" />
               현재 페이지 CSV
-            </button>
+            </BareButton>
           </>
         }
       >

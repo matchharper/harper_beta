@@ -10,7 +10,7 @@ import AdminCareerUserTable from "@/components/admin/career/AdminCareerUserTable
 import AdminMetricsExcludedEmails from "@/components/admin/metrics/AdminMetricsExcludedEmails";
 import { useAdminMetricsStore } from "@/components/admin/metrics/useAdminMetricsStore";
 import { showToast } from "@/components/toast/toast";
-import { Button } from "@/components/ui/button";
+import { Button, BareButton } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ADMIN_PAGE_PASSWORD } from "@/lib/admin";
@@ -227,14 +227,14 @@ function AdminCareerContent() {
               <nav className="mt-3 flex flex-wrap gap-2">
                 <Button
                   asChild
-                  variant="outline"
+                  variant="secondary"
                   size="sm"
                   className="h-8 rounded-none border-black/15 bg-white text-[12px] text-black shadow-none"
                 >
                   <Link href="/admin">Admin index</Link>
                 </Button>
                 <Button
-                  variant={activeTab === "overview" ? "default" : "outline"}
+                  variant={activeTab === "overview" ? "default" : "secondary"}
                   size="sm"
                   className={cn(
                     "h-8 rounded-none text-[12px]",
@@ -246,7 +246,7 @@ function AdminCareerContent() {
                   Career
                 </Button>
                 <Button
-                  variant={activeTab === "utm" ? "default" : "outline"}
+                  variant={activeTab === "utm" ? "default" : "secondary"}
                   size="sm"
                   className={cn(
                     "h-8 rounded-none text-[12px]",
@@ -258,7 +258,7 @@ function AdminCareerContent() {
                   UTM
                 </Button>
                 <Button
-                  variant={activeTab === "jobs" ? "default" : "outline"}
+                  variant={activeTab === "jobs" ? "default" : "secondary"}
                   size="sm"
                   className={cn(
                     "h-8 rounded-none text-[12px]",
@@ -271,7 +271,7 @@ function AdminCareerContent() {
                 </Button>
                 <Button
                   asChild
-                  variant="outline"
+                  variant="secondary"
                   size="sm"
                   className="h-8 rounded-none border-black/15 bg-white text-[12px] text-black shadow-none"
                 >
@@ -282,7 +282,7 @@ function AdminCareerContent() {
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 type="button"
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 className="h-8 rounded-none border-black/15 bg-white text-[12px] text-black shadow-none"
                 onClick={() => setIsExcludedEmailsModalOpen(true)}
@@ -291,7 +291,7 @@ function AdminCareerContent() {
               </Button>
               <Button
                 type="button"
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 className="h-8 rounded-none border-black/15 bg-white text-[12px] text-black shadow-none"
                 onClick={() => void handleSendSlackSummary()}
@@ -306,7 +306,7 @@ function AdminCareerContent() {
               </Button>
               <Button
                 type="button"
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 className="h-8 rounded-none border-black/15 bg-white text-[12px] text-black shadow-none"
                 onClick={() => query.refetch()}
@@ -383,7 +383,7 @@ function AdminCareerContent() {
 
         {isExcludedEmailsModalOpen ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8">
-            <button
+            <BareButton
               type="button"
               aria-label="Close excluded emails modal"
               className="absolute inset-0 bg-black/35"
@@ -405,7 +405,7 @@ function AdminCareerContent() {
                 </div>
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="secondary"
                   size="sm"
                   className="h-8 rounded-none border-black/15 bg-white text-[12px] text-black shadow-none"
                   onClick={() => setIsExcludedEmailsModalOpen(false)}

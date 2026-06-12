@@ -3,6 +3,7 @@ import ChatMessageList from "./ChatMessageList";
 import { BOTTOM_THRESHOLD_PX } from "./ChatPanel";
 import { ArrowDown } from "lucide-react";
 import { extractUiSegments } from "@/hooks/chat/useChatSession";
+import { BareButton } from "@/components/ui/button";
 
 const SharedChatPanel = ({
   title,
@@ -56,10 +57,10 @@ const SharedChatPanel = ({
   });
 
   return (
-    <div className="w-full font-sans bg-hgray200 text-white h-screen min-w-[390px] max-w-[460px] lg:w-[30%] border-r border-white/10 flex flex-col">
+    <div className="flex h-screen w-full min-w-[390px] max-w-[460px] flex-col border-r border-neutral-00/10 bg-black font-sans text-neutral-00 lg:w-[30%]">
       {/* Header (fixed) */}
-      <div className="flex items-center justify-between flex-none h-14 px-4 text-hgray900">
-        <div className="text-sm font-medium flex items-center gap-1.5 hover:gap-2 cursor-pointer hover:text-hgray900 transition-all duration-200">
+      <div className="flex items-center justify-between flex-none h-14 px-4 text-neutral-00/90">
+        <div className="text-sm font-medium flex items-center gap-1.5 hover:gap-2 cursor-pointer hover:text-neutral-00/90 transition-all duration-200">
           <div>{title}</div>
         </div>
         <div></div>
@@ -83,17 +84,17 @@ const SharedChatPanel = ({
         </div>
 
         {showJumpToBottom && (
-          <button
+          <BareButton
             type="button"
             onClick={() => {
               scrollToBottom("smooth");
               setStickToBottom(true);
               setShowJumpToBottom(false);
             }}
-            className="absolute bottom-3 right-3 flex items-center gap-1 cursor-pointer rounded-full bg-white/5 hover:bg-white/10 px-2 py-2 text-xs text-hgray900"
+            className="absolute bottom-3 right-3 flex items-center gap-1 cursor-pointer rounded-full bg-neutral-00/5 hover:bg-neutral-00/10 px-2 py-2 text-xs text-neutral-00/90"
           >
             <ArrowDown className="w-4 h-4" />
-          </button>
+          </BareButton>
         )}
       </div>
     </div>

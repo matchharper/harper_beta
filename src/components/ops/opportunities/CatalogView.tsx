@@ -12,6 +12,8 @@ import {
   Search,
 } from "lucide-react";
 import { EmptyState, PanelHeader, RoleOptionCard, Token } from "./shared";
+import { BareButton } from "@/components/ui/button";
+import { Input as UiInput } from "@/components/ui/input";
 
 type CatalogViewProps = {
   catalogErrorMessage?: string | null;
@@ -98,7 +100,7 @@ export default function CatalogView({
           title="회사"
           action={
             <div className="flex items-center gap-2">
-              <button
+              <BareButton
                 type="button"
                 onClick={onOpenWorkspaceEditModal}
                 disabled={!selectedWorkspaceId}
@@ -106,15 +108,15 @@ export default function CatalogView({
               >
                 <Pencil className="h-4 w-4" />
                 수정
-              </button>
-              <button
+              </BareButton>
+              <BareButton
                 type="button"
                 onClick={onOpenWorkspaceCreateModal}
                 className={cx(opsTheme.buttonSecondary, "h-9 px-3")}
               >
                 <Plus className="h-4 w-4" />
                 추가
-              </button>
+              </BareButton>
             </div>
           }
         />
@@ -126,24 +128,25 @@ export default function CatalogView({
           }}
         >
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-beige900/35" />
-            <input
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-soft" />
+            <UiInput
+              unstyled
               value={workspaceSearch}
               onChange={(event) => onWorkspaceSearchChange(event.target.value)}
               placeholder="회사명, 링크, 소개 검색"
               className={cx(opsTheme.input, "pl-9")}
             />
           </div>
-          <button
+          <BareButton
             type="submit"
             className={cx(opsTheme.buttonPrimary, "h-11 px-3")}
           >
             <Search className="h-4 w-4" />
             검색
-          </button>
+          </BareButton>
         </form>
         {!catalogLoading && !catalogErrorMessage ? (
-          <div className="font-geist text-xs text-beige900/45">
+          <div className="text-xs text-neutral-muted">
             {filteredWorkspaces.length} / {workspaceTotalCount}개 회사
           </div>
         ) : null}
@@ -159,7 +162,7 @@ export default function CatalogView({
               const active =
                 workspace.companyWorkspaceId === selectedWorkspaceId;
               return (
-                <button
+                <BareButton
                   key={workspace.companyWorkspaceId}
                   type="button"
                   onClick={() =>
@@ -168,19 +171,19 @@ export default function CatalogView({
                   className={cx(
                     "w-full rounded-md px-3 py-3 text-left transition",
                     active
-                      ? "bg-beige900 text-beige100"
-                      : "bg-white/65 text-beige900 hover:bg-white"
+                      ? "bg-black text-neutral-00"
+                      : "bg-bg-default/65 text-neutral-primary hover:bg-bg-default"
                   )}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="truncate font-geist text-sm font-medium">
+                      <div className="truncate text-sm font-medium">
                         {workspace.companyName}
                       </div>
                       <div
                         className={cx(
                           "mt-1 text-xs",
-                          active ? "text-beige100/70" : "text-beige900/50"
+                          active ? "text-neutral-00/70" : "text-neutral-muted"
                         )}
                       >
                         {workspace.internalRoleCount} internal roles
@@ -194,26 +197,26 @@ export default function CatalogView({
                     <div
                       className={cx(
                         "mt-2 line-clamp-2 text-xs leading-5",
-                        active ? "text-beige100/70" : "text-beige900/60"
+                        active ? "text-neutral-00/70" : "text-neutral-muted"
                       )}
                     >
                       {workspace.companyDescription}
                     </div>
                   ) : null}
-                </button>
+                </BareButton>
               );
             })
           )}
         </div>
         {hasMoreWorkspaces && !catalogLoading && !catalogErrorMessage ? (
-          <button
+          <BareButton
             type="button"
             onClick={onLoadMoreWorkspaces}
             className={cx(opsTheme.buttonSecondary, "h-10 w-full")}
           >
             <ChevronDown className="h-4 w-4" />
             더보기
-          </button>
+          </BareButton>
         ) : null}
       </div>
 
@@ -222,7 +225,7 @@ export default function CatalogView({
           title="기회"
           action={
             <div className="flex items-center gap-2">
-              <button
+              <BareButton
                 type="button"
                 disabled={
                   !selectedWorkspaceId ||
@@ -239,8 +242,8 @@ export default function CatalogView({
                   )}
                 />
                 Sync
-              </button>
-              <button
+              </BareButton>
+              <BareButton
                 type="button"
                 disabled={!selectedWorkspaceId || !selectedRoleId}
                 onClick={onOpenRoleEditModal}
@@ -248,8 +251,8 @@ export default function CatalogView({
               >
                 <Pencil className="h-4 w-4" />
                 수정
-              </button>
-              <button
+              </BareButton>
+              <BareButton
                 type="button"
                 disabled={!selectedWorkspaceId || syncRolePending}
                 onClick={onOpenRoleCreateModal}
@@ -257,7 +260,7 @@ export default function CatalogView({
               >
                 <Plus className="h-4 w-4" />
                 추가
-              </button>
+              </BareButton>
             </div>
           }
         />
@@ -269,24 +272,25 @@ export default function CatalogView({
           }}
         >
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-beige900/35" />
-            <input
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-soft" />
+            <UiInput
+              unstyled
               value={roleSearch}
               onChange={(event) => onRoleSearchChange(event.target.value)}
               placeholder="role, company, location 검색"
               className={cx(opsTheme.input, "pl-9")}
             />
           </div>
-          <button
+          <BareButton
             type="submit"
             className={cx(opsTheme.buttonPrimary, "h-11 px-3")}
           >
             <Search className="h-4 w-4" />
             검색
-          </button>
+          </BareButton>
         </form>
         {!roleLoading && selectedWorkspaceId && !catalogErrorMessage ? (
-          <div className="font-geist text-xs text-beige900/45">
+          <div className="text-xs text-neutral-muted">
             {filteredRoles.length} / {roleTotalCount}개 기회
           </div>
         ) : null}
@@ -312,14 +316,14 @@ export default function CatalogView({
           </div>
         )}
         {showLoadMoreRoles ? (
-          <button
+          <BareButton
             type="button"
             onClick={onLoadMoreRoles}
             className={cx(opsTheme.buttonSecondary, "h-10 w-full")}
           >
             <ChevronDown className="h-4 w-4" />
             더보기
-          </button>
+          </BareButton>
         ) : null}
       </div>
     </section>

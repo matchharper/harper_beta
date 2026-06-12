@@ -1,5 +1,6 @@
 import { useRouter } from "next/router";
 import { useEffect, useMemo } from "react";
+import { BareButton } from "@/components/ui/button";
 
 const REDIRECT_DELAY_MS = 3000;
 
@@ -39,20 +40,20 @@ export default function BillingSuccessPage() {
           </p>
         ) : null}
         <div className="mt-6 flex gap-3">
-          <button
+          <BareButton
             type="button"
             className="rounded-md bg-white text-black px-4 py-2 text-sm font-medium"
             onClick={() => router.replace("/my/billing")}
           >
             Go to Billing
-          </button>
-          <button
+          </BareButton>
+          <BareButton
             type="button"
             className="rounded-md border border-white/30 px-4 py-2 text-sm font-medium"
             onClick={() => router.reload()}
           >
             Refresh
-          </button>
+          </BareButton>
         </div>
       </div>
     </main>

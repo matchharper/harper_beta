@@ -1,6 +1,8 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { supabase } from "@/lib/supabase";
+import { Input as UiInput } from "@/components/ui/input";
+import { BareButton } from "@/components/ui/button";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -15,13 +17,15 @@ export default function ResetPasswordPage() {
     if (!router.isReady) return;
 
     const prepareRecovery = async () => {
-      const code = typeof router.query.code === "string" ? router.query.code : "";
+      const code =
+        typeof router.query.code === "string" ? router.query.code : "";
       if (code) {
-        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(
-          code
-        );
+        const { error: exchangeError } =
+          await supabase.auth.exchangeCodeForSession(code);
         if (exchangeError) {
-          setError("재설정 링크가 유효하지 않거나 만료되었습니다. 다시 요청해 주세요.");
+          setError(
+            "재설정 링크가 유효하지 않거나 만료되었습니다. 다시 요청해 주세요."
+          );
           return;
         }
       }
@@ -32,7 +36,9 @@ export default function ResetPasswordPage() {
       } = await supabase.auth.getSession();
 
       if (!session) {
-        setError("재설정 링크가 유효하지 않거나 만료되었습니다. 다시 요청해 주세요.");
+        setError(
+          "재설정 링크가 유효하지 않거나 만료되었습니다. 다시 요청해 주세요."
+        );
         return;
       }
 
@@ -88,7 +94,8 @@ export default function ResetPasswordPage() {
         <form onSubmit={onSubmit} className="mt-6 space-y-4">
           <div className="space-y-1">
             <label className="text-sm text-white/90">새 비밀번호</label>
-            <input
+            <UiInput
+              unstyled
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -98,7 +105,8 @@ export default function ResetPasswordPage() {
           </div>
           <div className="space-y-1">
             <label className="text-sm text-white/90">새 비밀번호 확인</label>
-            <input
+            <UiInput
+              unstyled
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
@@ -110,13 +118,13 @@ export default function ResetPasswordPage() {
           {error && <p className="text-sm text-red-400">{error}</p>}
           {success && <p className="text-sm text-green-400">{success}</p>}
 
-          <button
+          <BareButton
             type="submit"
             disabled={!isReady || isSubmitting}
-            className="w-full rounded-md bg-accenta1 text-black font-medium py-2.5 disabled:opacity-60"
+            className="w-full rounded-md bg-accent-200 text-black font-medium py-2.5 disabled:opacity-60"
           >
             {isSubmitting ? "저장 중..." : "비밀번호 변경"}
-          </button>
+          </BareButton>
         </form>
       </div>
     </main>

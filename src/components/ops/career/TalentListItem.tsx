@@ -19,6 +19,7 @@ import {
   onboardingStatusLabel,
   registeredLinkTypeLabel,
 } from "./utils";
+import { BareButton } from "@/components/ui/button";
 
 function RegisteredLinkIcon({
   type,
@@ -34,7 +35,7 @@ function RegisteredLinkIcon({
       role="img"
       aria-label={label}
       title={label}
-      className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-beige500/60 text-beige900/40"
+      className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-bg-weak text-neutral-soft"
     >
       <Icon className="h-2.5 w-2.5" aria-hidden="true" />
     </span>
@@ -80,23 +81,23 @@ export const TalentListItem = memo(function TalentListItem({
   }, [onSelect, talent.userId]);
 
   return (
-    <button
+    <BareButton
       type="button"
       onClick={handleClick}
       className={cx(
-        "w-full text-left px-4 py-3 transition border-b border-beige900/5",
-        isActive ? "bg-beige900/5" : "hover:bg-white/60"
+        "w-full text-left px-4 py-3 transition border-b border-neutral-1000-a05",
+        isActive ? "bg-bg-floating" : "hover:bg-bg-default/60"
       )}
     >
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="font-geist text-sm font-medium text-beige900 truncate">
+            <span className="text-sm font-medium text-neutral-primary truncate">
               {talent.name || talent.email || "이름 없음"}
             </span>
             <span
               className={cx(
-                "shrink-0 rounded px-1.5 py-0.5 font-geist text-[11px] font-medium",
+                "shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium",
                 onboardingStatusBadgeClass(talent.isOnboardingDone)
               )}
             >
@@ -106,7 +107,7 @@ export const TalentListItem = memo(function TalentListItem({
           {currentPositionLabel ? (
             <div
               className={cx(
-                "mt-0.5 font-geist text-xs text-beige900/80 truncate",
+                "mt-0.5 text-xs text-neutral-primary truncate",
                 expanded && expandedExperienceLabel ? "hidden" : ""
               )}
               title={currentPositionLabel}
@@ -116,7 +117,7 @@ export const TalentListItem = memo(function TalentListItem({
           ) : null}
           {expanded && expandedExperienceLabel ? (
             <div
-              className="mt-1 line-clamp-2 font-geist text-[13px] text-beige900/80"
+              className="mt-1 line-clamp-2 text-[13px] text-neutral-primary"
               title={expandedExperienceLabel}
             >
               {expandedExperienceLabel}
@@ -124,7 +125,7 @@ export const TalentListItem = memo(function TalentListItem({
           ) : null}
           {expanded && expandedEducationLabel ? (
             <div
-              className="mt-0.5 truncate font-geist text-[12px] text-black/60"
+              className="mt-0.5 truncate text-[12px] text-neutral-muted"
               title={expandedEducationLabel}
             >
               {expandedEducationLabel}
@@ -132,7 +133,7 @@ export const TalentListItem = memo(function TalentListItem({
           ) : null}
           {memoPreview ? (
             <div
-              className="mt-2 rounded-md border border-[#9bb89c]/35 bg-[#e5f1e5]/75 px-2 py-1.5 font-geist text-[#24462f]"
+              className="mt-2 rounded-md border border-positive/30 bg-positive-faded/75 px-2 py-1.5 text-positive"
               title={memoPreview}
             >
               <div
@@ -152,23 +153,23 @@ export const TalentListItem = memo(function TalentListItem({
               {profileMemoPreviews.map((preview, index) => (
                 <div
                   key={`${preview.source}-${preview.label}-${index}`}
-                  className="rounded-md border border-beige900/10 bg-white/55 px-2 py-1.5 font-geist"
+                  className="rounded-md border border-neutral-1000-a05 bg-bg-default/55 px-2 py-1.5 "
                   title={`${preview.label}: ${preview.memo}`}
                 >
-                  <div className="truncate text-[10px] font-medium text-beige900/45">
+                  <div className="truncate text-[10px] font-medium text-neutral-muted">
                     {preview.source === "experience"
                       ? "경력 메모"
                       : "학력 메모"}{" "}
                     · {preview.label}
                   </div>
-                  <div className="mt-0.5 line-clamp-2 text-[12px] leading-5 text-black/75">
+                  <div className="mt-0.5 line-clamp-2 text-[12px] leading-5 text-neutral-muted">
                     {preview.memo}
                   </div>
                 </div>
               ))}
             </div>
           ) : null}
-          <div className="mt-1 flex items-center gap-2 font-geist text-[11px] text-beige900/60">
+          <div className="mt-1 flex items-center gap-2 text-[11px] text-neutral-muted">
             <span>{formatKst(talent.lastConversationAt)}</span>
             {hasProfileInputSignal ? (
               <span className="inline-flex shrink-0 items-center gap-1">
@@ -180,7 +181,7 @@ export const TalentListItem = memo(function TalentListItem({
                     role="img"
                     aria-label="이력서 있음"
                     title="이력서 있음"
-                    className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-beige500/60 text-beige900/40"
+                    className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-bg-weak text-neutral-soft"
                   >
                     <FileText className="h-2.5 w-2.5" aria-hidden="true" />
                   </span>
@@ -189,8 +190,8 @@ export const TalentListItem = memo(function TalentListItem({
             ) : null}
           </div>
         </div>
-        <ChevronRight className="h-4 w-4 shrink-0 text-beige900/25" />
+        <ChevronRight className="h-4 w-4 shrink-0 text-neutral-soft" />
       </div>
-    </button>
+    </BareButton>
   );
 });
