@@ -13,14 +13,21 @@ import {
   upsertTalentSetting,
 } from "@/lib/talentOnboarding/server";
 import { NETWORK_WAITLIST_TYPE, buildNetworkLead } from "@/lib/networkOps";
-import { getNetworkTalentId } from "@/lib/opsNetwork";
 import { parseTalentNetworkInviteToken } from "@/lib/talentNetworkInvite";
+import { v5 as uuidv5 } from "uuid";
 
 type AdminClient = Parameters<typeof fetchTalentUserProfile>[0]["admin"];
 
 type NetworkWaitlistRow = Pick<
   Database["public"]["Tables"]["harper_waitlist"]["Row"],
-  "id" | "created_at" | "email" | "is_mobile" | "local_id" | "name" | "text" | "url"
+  | "id"
+  | "created_at"
+  | "email"
+  | "is_mobile"
+  | "local_id"
+  | "name"
+  | "text"
+  | "url"
 >;
 
 type TalentExperienceInsert =
@@ -28,13 +35,21 @@ type TalentExperienceInsert =
 type TalentEducationInsert =
   Database["public"]["Tables"]["talent_educations"]["Insert"];
 
+const NETWORK_TALENT_NAMESPACE = "8be1d393-baf3-4cb2-bb85-1f111ab7291b";
+
+function getNetworkTalentId(leadId: number) {
+  return uuidv5(`harper_waitlist:${leadId}`, NETWORK_TALENT_NAMESPACE);
+}
+
 function normalizeText(value: string | null | undefined) {
   const normalized = String(value ?? "").trim();
   return normalized.length > 0 ? normalized : null;
 }
 
 function normalizeEmail(value: string | null | undefined) {
-  return String(value ?? "").trim().toLowerCase();
+  return String(value ?? "")
+    .trim()
+    .toLowerCase();
 }
 
 function dedupeLinks(values: Array<string | null | undefined>) {
@@ -59,12 +74,7 @@ function valuesAreEqual(left: unknown, right: unknown) {
     return JSON.stringify(leftArray) === JSON.stringify(rightArray);
   }
 
-  if (
-    left &&
-    right &&
-    typeof left === "object" &&
-    typeof right === "object"
-  ) {
+  if (left && right && typeof left === "object" && typeof right === "object") {
     return JSON.stringify(left) === JSON.stringify(right);
   }
 
@@ -108,9 +118,7 @@ function collectLeadLinks(lead: ReturnType<typeof buildNetworkLead>) {
 
 function buildLeadInsightSeed(lead: ReturnType<typeof buildNetworkLead>) {
   const content = {
-    ...(lead.impactSummary
-      ? { technical_strengths: lead.impactSummary }
-      : {}),
+    ...(lead.impactSummary ? { technical_strengths: lead.impactSummary } : {}),
     ...(lead.dreamTeams ? { desired_teams: lead.dreamTeams } : {}),
   } satisfies TalentInsightContent;
 
@@ -364,8 +372,7 @@ async function copyTalentSettingIfEmpty(args: {
   });
 
   const shouldSave =
-    !currentSetting ||
-    currentSetting.engagement_types.length === 0;
+    !currentSetting || currentSetting.engagement_types.length === 0;
 
   if (!shouldSave) return;
 
@@ -453,10 +460,16 @@ function buildTalentUserMergePayload(args: {
       currentProfile?.name ??
       null;
   }
-  if (!normalizeText(currentProfile?.headline) && normalizeText(sourceProfile?.headline)) {
+  if (
+    !normalizeText(currentProfile?.headline) &&
+    normalizeText(sourceProfile?.headline)
+  ) {
     payload.headline = sourceProfile?.headline ?? null;
   }
-  if (!normalizeText(currentProfile?.bio) && normalizeText(sourceProfile?.bio)) {
+  if (
+    !normalizeText(currentProfile?.bio) &&
+    normalizeText(sourceProfile?.bio)
+  ) {
     payload.bio = sourceProfile?.bio ?? null;
   }
   if (

@@ -3,6 +3,7 @@ import type {
   CareerHistoryOpportunity,
   CareerOpportunitySavedStage,
 } from "../types";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 export type SavedOpportunityManagementStatus =
   | "saved"
@@ -13,19 +14,35 @@ export type SavedOpportunityManagementStatus =
 export const SAVED_OPPORTUNITY_STATUS_OPTIONS = [
   {
     id: "saved",
-    label: "저장됨",
+    label: careerT(
+      "ko",
+      "career.history.saved_opportunity_status.0obqas2",
+      "저장됨"
+    ),
   },
   {
     id: "active",
-    label: "프로세스 진행중",
+    label: careerT(
+      "ko",
+      "career.history.saved_opportunity_status.0rjulen",
+      "프로세스 진행중"
+    ),
   },
   {
     id: "closed",
-    label: "프로세스 종료",
+    label: careerT(
+      "ko",
+      "career.history.saved_opportunity_status.1jv953e",
+      "프로세스 종료"
+    ),
   },
   {
     id: "hidden",
-    label: "숨기기",
+    label: careerT(
+      "ko",
+      "career.history.saved_opportunity_status.0exoa8f",
+      "숨기기"
+    ),
   },
 ] as const satisfies readonly {
   id: SavedOpportunityManagementStatus;
@@ -82,4 +99,5 @@ export const getSavedOpportunityStatusLabel = (
   status: SavedOpportunityManagementStatus
 ) =>
   SAVED_OPPORTUNITY_STATUS_OPTIONS.find((option) => option.id === status)
-    ?.label ?? "저장됨";
+    ?.label ??
+  careerT("ko", "career.history.saved_opportunity_status.0obqas2", "저장됨");

@@ -3,6 +3,7 @@ import { memo } from "react";
 
 import { BareButton } from "@/components/ui/button";
 import RichText from "@/components/ui/rich-text";
+import { useCareerT } from "@/i18n/useCareerT";
 
 type OnboardingCompletionWrapupProps = {
   content: string;
@@ -16,6 +17,8 @@ export const OnboardingCompletionWrapup = memo(
     onRegenerate,
     regenerating,
   }: OnboardingCompletionWrapupProps) {
+    const t = useCareerT();
+
     const showRegenerateButton =
       process.env.NODE_ENV !== "production" ||
       process.env.NEXT_PUBLIC_ENABLE_ONBOARDING_WRAPUP_REGENERATE === "1";
@@ -26,7 +29,7 @@ export const OnboardingCompletionWrapup = memo(
           <div className="flex min-w-0 items-center gap-3">
             <CheckCircle2 className="h-[18px] w-[18px] shrink-0 text-neutral-muted" />
             <div className="text-[15px] leading-6 font-medium text-neutral-primary">
-              대화 요약
+              {t("career.common.career.1lzad2w", "대화 요약")}
             </div>
           </div>
           {showRegenerateButton && onRegenerate ? (

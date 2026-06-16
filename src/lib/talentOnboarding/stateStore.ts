@@ -22,6 +22,9 @@ import {
   type TalentProfileVisibility,
   type TalentSettingRow,
 } from "@/lib/talentOnboarding/models";
+import { normalizeCareerPromptLocale } from "@/lib/career/promptLocale";
+import { stripPostgresUnsafeChars } from "@/lib/textSanitization";
+import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
 
 const TALENT_PROFILE_VISIBILITY_LABELS: Record<
   TalentProfileVisibility,
@@ -48,7 +51,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function normalizeTalentInsightText(value: unknown, maxLength = 8000) {
   if (typeof value !== "string") return null;
-  const normalized = value.trim();
+  const normalized = stripPostgresUnsafeChars(value).trim();
   if (!normalized) return null;
   return normalized.slice(0, maxLength);
 }
@@ -221,7 +224,9 @@ export function sanitizeTalentProfileVisibility(
 }
 
 export function getTalentProfileVisibilityLabel(value: unknown) {
-  return TALENT_PROFILE_VISIBILITY_LABELS[sanitizeTalentProfileVisibility(value)];
+  return TALENT_PROFILE_VISIBILITY_LABELS[
+    sanitizeTalentProfileVisibility(value)
+  ];
 }
 
 export async function fetchTalentSetting(args: {
@@ -251,12 +256,17 @@ export async function upsertTalentSetting(args: {
   getExternalRecommendation?: boolean;
   getInternalRecommendation?: boolean;
   periodicIntervalDays?: number;
+  preferredLocale?: string | null;
   recommendationBatchSize?: number;
   recommendationSourceConversationId?: string | null;
 }) {
   const { admin, userId } = args;
   const current = await fetchTalentSetting({ admin, userId });
   const now = new Date().toISOString();
+  const preferredLocale =
+    args.preferredLocale === undefined
+      ? current?.preferred_locale
+      : normalizeCareerPromptLocale(args.preferredLocale);
   const payload = {
     user_id: userId,
     profile_visibility: sanitizeTalentProfileVisibility(
@@ -284,12 +294,13 @@ export async function upsertTalentSetting(args: {
     periodic_interval_days: normalizeTalentPeriodicIntervalDays(
       args.periodicIntervalDays ?? current?.periodic_interval_days
     ),
+    ...(preferredLocale ? { preferred_locale: preferredLocale } : {}),
     recommendation_batch_size: normalizeTalentRecommendationBatchSize(
       args.recommendationBatchSize ?? current?.recommendation_batch_size
     ),
     recommendation_source_conversation_id:
       args.recommendationSourceConversationId === undefined
-        ? current?.recommendation_source_conversation_id ?? null
+        ? (current?.recommendation_source_conversation_id ?? null)
         : args.recommendationSourceConversationId,
     updated_at: now,
   };
@@ -426,6 +437,15 @@ export async function upsertTalentInsights(args: {
     errorMessage.includes("unique or exclusion constraint");
 
   if (!canRetryWithoutConflictKey) {
+    await notifyUnsupportedUnicodeEscapeError({
+      error,
+      metadata: {
+        insightKeyCount: Object.keys(normalizedContent ?? {}).length,
+      },
+      route: "talentOnboardingStateStore",
+      stage: "talent_insights.upsert",
+      userId,
+    });
     throw new Error(errorMessage);
   }
 
@@ -438,6 +458,15 @@ export async function upsertTalentInsights(args: {
     .single();
 
   if (fallbackError) {
+    await notifyUnsupportedUnicodeEscapeError({
+      error: fallbackError,
+      metadata: {
+        insightKeyCount: Object.keys(normalizedContent ?? {}).length,
+      },
+      route: "talentOnboardingStateStore",
+      stage: "talent_insights.fallback_save",
+      userId,
+    });
     throw new Error(fallbackError.message ?? "Failed to save talent_insights");
   }
 
@@ -470,9 +499,9 @@ export type MergedChecklistItem = {
   source: "code";
 };
 
-export async function getMergedChecklist(
-  _args?: { admin?: TalentAdminClient }
-): Promise<MergedChecklistItem[]> {
+export async function getMergedChecklist(_args?: {
+  admin?: TalentAdminClient;
+}): Promise<MergedChecklistItem[]> {
   return INSIGHT_CHECKLIST.map((item) => ({
     key: item.key,
     label: item.label,

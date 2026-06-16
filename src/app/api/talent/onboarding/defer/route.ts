@@ -4,8 +4,11 @@ import {
   buildCareerInsightExtractionPrompt,
   buildCareerOnboardingDeferCloseSystemPrompt,
   CAREER_ONBOARDING_DEFER_FALLBACK_CLOSE_TEXT,
+  CAREER_ONBOARDING_DEFER_FALLBACK_CLOSE_TEXT_KEY,
   CAREER_ONBOARDING_DEFER_PROMPT_TEXT,
+  CAREER_ONBOARDING_DEFER_PROMPT_TEXT_KEY,
 } from "@/lib/career/prompts";
+import { getTranslatedCareerMessage } from "@/lib/career/translatedCareerMessage";
 import { runCareerOnboardingDeferClose } from "@/lib/career/llm";
 import { extractAndPersistChatInsights } from "@/lib/talentOnboarding/chatInsights";
 import {
@@ -19,6 +22,7 @@ import {
   TalentConversationRow,
   TalentMessageRow,
   fetchTalentInsights,
+  fetchTalentSetting,
   getTalentSupabaseAdmin,
 } from "@/lib/talentOnboarding/server";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
@@ -26,11 +30,12 @@ import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 type Body = {
   conversationId?: string;
   action?: "prompt" | "submit";
+  locale?: string | null;
   selectedOptions?: TalentOnboardingInterestOptionId[];
 };
 
-const INTEREST_OPTION_LABELS = new Map(
-  TALENT_ONBOARDING_INTEREST_OPTIONS.map((option) => [option.id, option.label])
+const INTEREST_OPTIONS_BY_ID = new Map(
+  TALENT_ONBOARDING_INTEREST_OPTIONS.map((option) => [option.id, option])
 );
 
 const normalizeSelectedOptions = (raw: unknown) => {
@@ -108,8 +113,21 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date().toISOString();
+    const talentSetting = await fetchTalentSetting({
+      admin,
+      userId: user.id,
+    });
+    const responseLocale =
+      talentSetting?.preferred_locale ??
+      body.locale ??
+      req.cookies.get("NEXT_LOCALE")?.value;
 
     if (action === "prompt") {
+      const deferPromptText = getTranslatedCareerMessage({
+        fallback: CAREER_ONBOARDING_DEFER_PROMPT_TEXT,
+        key: CAREER_ONBOARDING_DEFER_PROMPT_TEXT_KEY,
+        locale: responseLocale,
+      });
       const { data: insertedAssistantMessage, error: insertError } = await admin
         .from("talent_messages")
         .insert(
@@ -118,7 +136,7 @@ export async function POST(req: NextRequest) {
               conversation_id: conversationId,
               user_id: user.id,
               role: "assistant",
-              content: CAREER_ONBOARDING_DEFER_PROMPT_TEXT,
+              content: deferPromptText,
               message_type: TALENT_MESSAGE_TYPE_ONBOARDING_INTEREST_PROMPT,
             },
             isMobile
@@ -181,11 +199,23 @@ export async function POST(req: NextRequest) {
       string
     > | null;
 
-    const selectedLabels = selectedOptions.map(
-      (optionId) => INTEREST_OPTION_LABELS.get(optionId) ?? optionId
-    );
+    const selectedLabels = selectedOptions.map((optionId) => {
+      const option = INTEREST_OPTIONS_BY_ID.get(optionId);
+      if (!option) return optionId;
+
+      return getTranslatedCareerMessage({
+        fallback: option.label,
+        key: option.labelKey,
+        locale: responseLocale,
+      });
+    });
+    const selectedPrefix = getTranslatedCareerMessage({
+      fallback: "현재 찾고 있는 기회:",
+      key: "career.onboarding.interest.selected_prefix",
+      locale: responseLocale,
+    });
     const userContent = [
-      "현재 찾고 있는 기회:",
+      selectedPrefix,
       ...selectedLabels.map((label) => `- ${label}`),
     ].join("\n");
 
@@ -195,7 +225,9 @@ export async function POST(req: NextRequest) {
         messages: [
           {
             role: "system",
-            content: buildCareerOnboardingDeferCloseSystemPrompt(),
+            content: buildCareerOnboardingDeferCloseSystemPrompt({
+              preferredLocale: responseLocale,
+            }),
           },
           {
             role: "user",
@@ -208,7 +240,12 @@ export async function POST(req: NextRequest) {
     }
 
     const safeAssistantContent =
-      assistantContent.trim() || CAREER_ONBOARDING_DEFER_FALLBACK_CLOSE_TEXT;
+      assistantContent.trim() ||
+      getTranslatedCareerMessage({
+        fallback: CAREER_ONBOARDING_DEFER_FALLBACK_CLOSE_TEXT,
+        key: CAREER_ONBOARDING_DEFER_FALLBACK_CLOSE_TEXT_KEY,
+        locale: responseLocale,
+      });
 
     const { data: insertedMessages, error: insertError } = await admin
       .from("talent_messages")
@@ -282,6 +319,7 @@ export async function POST(req: NextRequest) {
         buildCareerInsightExtractionPrompt({
           currentChecklistCoverage: promptArgs.currentChecklistCoverage,
           currentInsightContent: promptArgs.currentInsightContent,
+          preferredLocale: responseLocale,
         }),
       conversationId,
       currentInsightContent,

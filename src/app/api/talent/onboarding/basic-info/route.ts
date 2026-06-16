@@ -4,6 +4,7 @@ import {
   ensureTalentUserRecord,
   getTalentSupabaseAdmin,
 } from "@/lib/talentOnboarding/server";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 type Body = {
   email?: string;
@@ -21,21 +22,37 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json().catch(() => ({}))) as Body;
+    const responseLocale = req.cookies.get("NEXT_LOCALE")?.value;
     const name = String(body.name ?? "")
       .replace(/\s+/g, " ")
       .trim()
       .slice(0, 240);
-    const email = String(body.email ?? "").trim().toLowerCase().slice(0, 320);
+    const email = String(body.email ?? "")
+      .trim()
+      .toLowerCase()
+      .slice(0, 320);
 
     if (!name) {
       return NextResponse.json(
-        { error: "이름을 입력해주세요." },
+        {
+          error: careerT(
+            responseLocale,
+            "career.api.basic_info.name_required",
+            "이름을 입력해주세요."
+          ),
+        },
         { status: 400 }
       );
     }
     if (!isValidEmail(email)) {
       return NextResponse.json(
-        { error: "유효한 이메일을 입력해주세요." },
+        {
+          error: careerT(
+            responseLocale,
+            "career.api.basic_info.email_invalid",
+            "유효한 이메일을 입력해주세요."
+          ),
+        },
         { status: 400 }
       );
     }

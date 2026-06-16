@@ -1,0 +1,133 @@
+.expressionSvg {
+  overflow: visible;
+}
+
+.expressionMotion {
+  animation: harperFaceListenMove 6s ease-in-out infinite;
+  will-change: transform;
+}
+
+.expressionFlip {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.expressionFlipListening {
+  animation: harperFaceListenFlip 6s linear infinite;
+  will-change: transform;
+}
+
+.openEye {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.openEyeClosing {
+  animation: harperFaceEyeClose 3s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+
+.closedEyeClosing {
+  animation: harperFaceEyelidReveal 3s ease-in-out infinite;
+  opacity: 0;
+  stroke-dasharray: 12;
+  stroke-dashoffset: 12;
+  will-change: opacity, stroke-dashoffset;
+}
+
+@keyframes harperFaceListenMove {
+  0% {
+    transform: translate(var(--face-listening-x-1), var(--face-listening-y-1));
+  }
+
+  33.333% {
+    transform: translate(var(--face-listening-x-2), var(--face-listening-y-2));
+  }
+
+  66.666% {
+    transform: translate(var(--face-listening-x-3), var(--face-listening-y-3));
+  }
+
+  100% {
+    transform: translate(var(--face-listening-x-1), var(--face-listening-y-1));
+  }
+}
+
+@keyframes harperFaceListenFlip {
+  0%,
+  16.666% {
+    transform: scaleX(-1);
+  }
+
+  16.667%,
+  50% {
+    transform: scaleX(1);
+  }
+
+  50.001%,
+  100% {
+    transform: scaleX(-1);
+  }
+}
+
+@keyframes harperFaceEyeClose {
+  0%,
+  66% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+
+  76%,
+  86% {
+    opacity: 0.08;
+    transform: scaleY(0.04);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+@keyframes harperFaceEyelidReveal {
+  0%,
+  66% {
+    opacity: 0;
+    stroke-dashoffset: 12;
+  }
+
+  76%,
+  86% {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+
+  100% {
+    opacity: 0;
+    stroke-dashoffset: 12;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .expressionMotion,
+  .expressionFlipListening,
+  .openEyeClosing,
+  .closedEyeClosing {
+    animation: none;
+  }
+
+  .expressionMotion,
+  .expressionFlipListening {
+    transform: none;
+  }
+
+  .openEyeClosing {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+
+  .closedEyeClosing {
+    opacity: 0;
+    stroke-dashoffset: 12;
+  }
+}

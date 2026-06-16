@@ -32,6 +32,12 @@ import {
   cancelSignupNoProfileSubmit,
   enqueueProfileSubmittedNoAnswer,
 } from "@/lib/contactQueue";
+import { careerT } from "@/lib/career/translatedCareerMessage";
+import {
+  sanitizeMultilineDbText,
+  sanitizeSingleLineDbText,
+} from "@/lib/textSanitization";
+import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
 
 export const runtime = "nodejs";
 export const maxDuration = 240;
@@ -90,7 +96,10 @@ const isLinkedinLink = (value: string) => {
   }
 };
 
-const getSubmittedLinkLabel = (value: string) => {
+const getSubmittedLinkLabel = (
+  value: string,
+  preferredLocale?: string | null
+) => {
   const normalized = normalizeLink(value);
   if (!normalized) return null;
 
@@ -99,10 +108,14 @@ const getSubmittedLinkLabel = (value: string) => {
     const host = url.hostname.toLowerCase();
 
     if (host === "linkedin.com" || host.endsWith(".linkedin.com")) {
-      return "링크드인";
+      return careerT(
+        preferredLocale,
+        "career.onboarding.link.linkedin",
+        "링크드인"
+      );
     }
     if (host === "github.com" || host.endsWith(".github.com")) {
-      return "깃헙";
+      return careerT(preferredLocale, "career.onboarding.link.github", "깃헙");
     }
     if (host === "huggingface.co" || host.endsWith(".huggingface.co")) {
       return "Hugging Face";
@@ -119,35 +132,73 @@ const getSubmittedLinkLabel = (value: string) => {
       return "X";
     }
 
-    return "개인 웹사이트";
+    return careerT(
+      preferredLocale,
+      "career.onboarding.link.personal_website",
+      "개인 웹사이트"
+    );
   } catch {
-    return "기타";
+    return careerT(preferredLocale, "career.onboarding.link.other", "기타");
   }
 };
 
 const buildProfileSubmitMessage = (args: {
   hasResume: boolean;
   links: string[];
+  preferredLocale?: string | null;
 }) => {
   const linkLabels = args.links.reduce<string[]>((acc, link) => {
-    const label = getSubmittedLinkLabel(link);
+    const label = getSubmittedLinkLabel(link, args.preferredLocale);
     if (label && !acc.includes(label)) {
       acc.push(label);
     }
     return acc;
   }, []);
-  const linkPart = linkLabels.length > 0 ? `${linkLabels.join("/")} 링크` : "";
+  const linkPart =
+    linkLabels.length === 1
+      ? careerT(
+          args.preferredLocale,
+          "career.onboarding.submitted.link_part_one",
+          "{labels} 링크",
+          { values: { labels: linkLabels.join("/") } }
+        )
+      : linkLabels.length > 1
+        ? careerT(
+            args.preferredLocale,
+            "career.onboarding.submitted.link_part_many",
+            "{labels} 링크",
+            { values: { labels: linkLabels.join("/") } }
+          )
+        : "";
 
   if (args.hasResume && linkPart) {
-    return `이력서와 ${linkPart}를 제출했습니다.`;
+    return careerT(
+      args.preferredLocale,
+      "career.onboarding.submitted.resume_and_links",
+      "이력서와 {linkPart}를 제출했습니다.",
+      { values: { linkPart } }
+    );
   }
   if (args.hasResume) {
-    return "이력서를 제출했습니다.";
+    return careerT(
+      args.preferredLocale,
+      "career.onboarding.submitted.resume_only",
+      "이력서를 제출했습니다."
+    );
   }
   if (linkPart) {
-    return `${linkPart}를 제출했습니다.`;
+    return careerT(
+      args.preferredLocale,
+      "career.onboarding.submitted.links_only",
+      "{linkPart}를 제출했습니다.",
+      { values: { linkPart } }
+    );
   }
-  return "프로필 정보를 제출했습니다.";
+  return careerT(
+    args.preferredLocale,
+    "career.onboarding.submitted.profile_information",
+    "프로필 정보를 제출했습니다."
+  );
 };
 
 export async function POST(req: NextRequest) {
@@ -159,14 +210,21 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json()) as Body;
     const isMobile = isMobileRequest(req);
-    const conversationId = body.conversationId?.trim();
-    const submittedName = body.name?.trim();
-    const submittedEmail = body.email?.trim().toLowerCase();
-    const resumeFileName = body.resumeFileName?.trim();
-    const resumeStoragePath = body.resumeStoragePath?.trim();
-    const resumeText = body.resumeText?.trim() ?? "";
+    const cookieLocale = req.cookies.get("NEXT_LOCALE")?.value;
+    const conversationId = sanitizeSingleLineDbText(body.conversationId, 80);
+    const submittedName = sanitizeSingleLineDbText(body.name, 240);
+    const submittedEmail = sanitizeSingleLineDbText(
+      body.email,
+      320
+    )?.toLowerCase();
+    const resumeFileName = sanitizeSingleLineDbText(body.resumeFileName, 240);
+    const resumeStoragePath = sanitizeSingleLineDbText(
+      body.resumeStoragePath,
+      2000
+    );
+    const resumeText = sanitizeMultilineDbText(body.resumeText, 20000) ?? "";
     const links = (body.links ?? [])
-      .map((link) => String(link).trim())
+      .map((link) => sanitizeSingleLineDbText(link, 2000) ?? "")
       .filter(Boolean);
     const hasResume = Boolean(
       resumeFileName || resumeStoragePath || resumeText
@@ -182,7 +240,13 @@ export async function POST(req: NextRequest) {
     }
     if (!hasResume && !hasProfileLink) {
       return NextResponse.json(
-        { error: "이력서나 주요 링크 중 하나는 꼭 입력해주세요." },
+        {
+          error: careerT(
+            cookieLocale,
+            "career.onboarding.submit.resume_or_link_required",
+            "이력서나 주요 링크 중 하나는 꼭 입력해주세요."
+          ),
+        },
         { status: 400 }
       );
     }
@@ -217,7 +281,7 @@ export async function POST(req: NextRequest) {
     };
 
     if (typeof body.resumeText === "string") {
-      profileUpdatePayload.resume_text = resumeText.slice(0, 20000);
+      profileUpdatePayload.resume_text = resumeText;
     }
     if (resumeFileName) {
       profileUpdatePayload.resume_file_name = resumeFileName;
@@ -238,19 +302,28 @@ export async function POST(req: NextRequest) {
       .eq("user_id", user.id);
 
     if (profileUpdateError) {
+      const alertMetadata = {
+        conversationId,
+        hasLinkedin,
+        hasResume,
+        hasResumeText: Boolean(resumeText),
+        linkCount: links.length,
+        resumeFileName: resumeFileName ?? null,
+      };
       await insertTalentProfileSourceErrorLog({
         admin,
         error: profileUpdateError,
         stage: "onboarding_profile_update",
         userId: user.id,
-        metadata: {
-          conversationId,
-          hasLinkedin,
-          hasResume,
-          hasResumeText: Boolean(resumeText),
-          linkCount: links.length,
-          resumeFileName: resumeFileName ?? null,
-        },
+        metadata: alertMetadata,
+      });
+      await notifyUnsupportedUnicodeEscapeError({
+        conversationId,
+        error: profileUpdateError,
+        metadata: alertMetadata,
+        route: "/api/talent/onboarding/start",
+        stage: "talent_users.update:onboarding_profile_update",
+        userId: user.id,
       });
       return NextResponse.json(
         {
@@ -263,9 +336,11 @@ export async function POST(req: NextRequest) {
 
     const displayName = submittedName || toTalentDisplayName(user);
     const talentSetting = await fetchTalentSetting({ admin, userId: user.id });
+    const preferredLocale = talentSetting?.preferred_locale ?? cookieLocale;
     const kickoffLlmPromise = generateTalentKickoff({
       displayName,
       links,
+      preferredLocale,
       talentPreferences: {
         profileVisibilityLabel: getTalentProfileVisibilityLabel(
           talentSetting?.profile_visibility
@@ -354,6 +429,17 @@ export async function POST(req: NextRequest) {
         .eq("user_id", user.id);
 
       if (submittedIdentityUpdateError) {
+        await notifyUnsupportedUnicodeEscapeError({
+          conversationId,
+          error: submittedIdentityUpdateError,
+          metadata: {
+            hasSubmittedEmail: Boolean(submittedEmail),
+            hasSubmittedName: Boolean(submittedName),
+          },
+          route: "/api/talent/onboarding/start",
+          stage: "talent_users.update:submitted_identity",
+          userId: user.id,
+        });
         return NextResponse.json(
           {
             error:
@@ -369,6 +455,7 @@ export async function POST(req: NextRequest) {
     const profileSubmitContent = buildProfileSubmitMessage({
       hasResume,
       links,
+      preferredLocale,
     });
 
     const messagePayloads = [
@@ -398,7 +485,8 @@ export async function POST(req: NextRequest) {
           user_id: user.id,
           role: "assistant",
           content: `${TALENT_PENDING_QUESTION_PREFIX}${buildTalentKickoffOpeningMessage(
-            displayName
+            displayName,
+            preferredLocale
           )}`,
           message_type: "system",
         },
@@ -412,6 +500,24 @@ export async function POST(req: NextRequest) {
       .select("*");
 
     if (messageInsertError) {
+      await notifyUnsupportedUnicodeEscapeError({
+        conversationId,
+        error: messageInsertError,
+        metadata: {
+          assistantMessageCount: messagePayloads.filter(
+            (item) => item.role === "assistant"
+          ).length,
+          hasResume,
+          hasResumeText: Boolean(resumeText),
+          linkCount: links.length,
+          userMessageCount: messagePayloads.filter(
+            (item) => item.role === "user"
+          ).length,
+        },
+        route: "/api/talent/onboarding/start",
+        stage: "talent_messages.insert:onboarding_messages",
+        userId: user.id,
+      });
       return NextResponse.json(
         {
           error:

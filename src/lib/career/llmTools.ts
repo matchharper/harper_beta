@@ -7,6 +7,7 @@ import {
   TALENT_TOOL_NAMES,
   type TalentToolChannel,
 } from "@/lib/talentOnboarding/tools";
+import { normalizeCareerPromptLocale } from "@/lib/career/promptLocale";
 
 export type CareerOpenAIChatTool = ReturnType<
   typeof getOpenAIChatTools
@@ -18,11 +19,21 @@ export type CareerChatToolSelectionArgs = {
   allowedToolNames?: readonly string[] | null;
   channel?: TalentToolChannel | null;
   isOnboardingDone?: boolean | null;
+  responseLocale?: string | null;
 };
 
 export type CareerRealtimeToolSelectionArgs = {
   candidateTools?: readonly CareerRealtimeTool[] | null;
   enabledToolNames?: readonly string[] | null;
+  preferredLocale?: string | null;
+};
+
+const EN_REALTIME_TOOL_VOICE_PREAMBLES: Partial<Record<string, string>> = {
+  [TALENT_TOOL_NAMES.WEB_SEARCH]: "Give me a moment. I'll look that up.",
+  [TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES]:
+    "Let me quickly check the opportunities I recommended.",
+  [TALENT_TOOL_NAMES.GET_ROLE_CONTEXT]:
+    "Let me quickly check the details of that position.",
 };
 
 // /career LLM에 실제로 넘길 tool 목록을 고르는 곳.
@@ -163,7 +174,9 @@ function shouldExposeCareerChatTool(
 
 export function resolveCareerChatTools(args: CareerChatToolSelectionArgs) {
   const selectedTools = applyAllowedToolNames(
-    getOpenAIChatTools("chat").filter((tool) =>
+    getOpenAIChatTools("chat", {
+      responseLocale: args.responseLocale,
+    }).filter((tool) =>
       shouldExposeCareerChatTool(getOpenAIChatToolName(tool), args)
     ),
     getOpenAIChatToolName,
@@ -196,13 +209,22 @@ export function getCareerRealtimeCandidateToolNames() {
 }
 
 export function getCareerRealtimeToolVoicePreambles(
-  toolNames: readonly string[]
+  toolNames: readonly string[],
+  preferredLocale?: string | null
 ) {
   const toolNameSet = new Set(toolNames);
-  return Object.fromEntries(
+  const preambles = Object.fromEntries(
     Object.entries(getTalentToolVoicePreambles("voice")).filter(([name]) =>
       toolNameSet.has(name)
     )
+  );
+  if (normalizeCareerPromptLocale(preferredLocale) !== "en") return preambles;
+
+  return Object.fromEntries(
+    Object.entries(preambles).map(([name, value]) => [
+      name,
+      EN_REALTIME_TOOL_VOICE_PREAMBLES[name] ?? value,
+    ])
   );
 }
 
@@ -223,6 +245,9 @@ export function resolveCareerRealtimeTools(
   return {
     toolNames,
     tools,
-    toolVoicePreambles: getCareerRealtimeToolVoicePreambles(toolNames),
+    toolVoicePreambles: getCareerRealtimeToolVoicePreambles(
+      toolNames,
+      args.preferredLocale
+    ),
   };
 }

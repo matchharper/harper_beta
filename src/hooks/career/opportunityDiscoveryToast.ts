@@ -1,7 +1,8 @@
 import { showToast } from "@/components/toast/toast";
+import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 
 export function showOpportunityDiscoveryStartedToast(
-  message = "기회 검색을 시작했습니다."
+  message: string = H.opportunityDiscoveryStarted
 ) {
   showToast({
     message,

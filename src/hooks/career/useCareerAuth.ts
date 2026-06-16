@@ -3,14 +3,10 @@ import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
 import { normalizeCareerUtmSource } from "@/lib/careerUtm";
+import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
+import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 
-const EMAIL_SIGNIN_ERROR_MESSAGE = "이메일 혹은 비밀번호가 올바르지 않습니다.";
-const EMAIL_NOT_CONFIRMED_MESSAGE =
-  "아직 이메일 인증이 완료되지 않았습니다. 받은 메일의 인증 링크를 먼저 확인해 주세요.";
-const EMAIL_ALREADY_REGISTERED_MESSAGE =
-  "이미 가입된 이메일입니다. 로그인으로 계속해 주세요.";
-const EMAIL_CONFIRMATION_SENT_MESSAGE =
-  "인증 메일을 보냈습니다. 메일의 링크를 열어 회원가입을 완료한 뒤 다시 로그인해 주세요.";
+type CareerMessageFormatter = ReturnType<typeof useCareerMessageFormatter>;
 
 const resolveSafeNextPath = (value: string | null) => {
   if (!value) return null;
@@ -37,7 +33,8 @@ function getAuthErrorDetails(error: unknown) {
 
 function getCareerEmailAuthErrorMessage(
   error: unknown,
-  mode: "signin" | "signup"
+  mode: "signin" | "signup",
+  tCareer: CareerMessageFormatter
 ) {
   const { code, message, status } = getAuthErrorDetails(error);
   const combined = `${code} ${message}`;
@@ -48,14 +45,14 @@ function getCareerEmailAuthErrorMessage(
       combined.includes("invalid_credentials") ||
       status === 400)
   ) {
-    return EMAIL_SIGNIN_ERROR_MESSAGE;
+    return tCareer(H.authEmailSigninFailed);
   }
 
   if (
     combined.includes("email not confirmed") ||
     combined.includes("email_not_confirmed")
   ) {
-    return EMAIL_NOT_CONFIRMED_MESSAGE;
+    return tCareer(H.authEmailNotConfirmed);
   }
 
   if (
@@ -64,11 +61,11 @@ function getCareerEmailAuthErrorMessage(
       combined.includes("registered") ||
       combined.includes("user_already_exists"))
   ) {
-    return EMAIL_ALREADY_REGISTERED_MESSAGE;
+    return tCareer(H.authEmailAlreadyRegistered);
   }
 
   if (combined.includes("password") && combined.includes("6")) {
-    return "비밀번호는 6자 이상 입력해 주세요.";
+    return tCareer(H.authPasswordMinLength);
   }
 
   if (
@@ -76,10 +73,10 @@ function getCareerEmailAuthErrorMessage(
     combined.includes("too many") ||
     status === 429
   ) {
-    return "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.";
+    return tCareer(H.authRateLimited);
   }
 
-  return "인증 처리 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.";
+  return tCareer(H.authGenericFailed);
 }
 
 function isAlreadyRegisteredSignUpResponse(data: {
@@ -94,6 +91,7 @@ function isAlreadyRegisteredSignUpResponse(data: {
 
 export const useCareerAuth = () => {
   const { user, loading: authLoading, signOut } = useAuthStore();
+  const tCareer = useCareerMessageFormatter();
 
   const [authPending, setAuthPending] = useState(false);
   const [authError, setAuthError] = useState("");
@@ -191,11 +189,11 @@ export const useCareerAuth = () => {
         window.location.assign(data.url);
       }
     } catch {
-      setAuthError("Google 로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      setAuthError(tCareer(H.authGoogleLoginFailed));
     } finally {
       setAuthPending(false);
     }
-  }, [authPending, buildCareerAuthCallbackUrl]);
+  }, [authPending, buildCareerAuthCallbackUrl, tCareer]);
 
   const handleEmailAuth = useCallback(
     async (args: {
@@ -207,7 +205,7 @@ export const useCareerAuth = () => {
 
       const email = args.email.trim();
       if (!email || !args.password) {
-        setAuthError("이메일과 비밀번호를 입력해 주세요.");
+        setAuthError(tCareer(H.authEmailPasswordRequired));
         return false;
       }
 
@@ -226,11 +224,11 @@ export const useCareerAuth = () => {
           });
           if (error) throw error;
           if (isAlreadyRegisteredSignUpResponse(data)) {
-            setAuthError(EMAIL_ALREADY_REGISTERED_MESSAGE);
+            setAuthError(tCareer(H.authEmailAlreadyRegistered));
             return false;
           }
           if (!data.session) {
-            setAuthInfo(EMAIL_CONFIRMATION_SENT_MESSAGE);
+            setAuthInfo(tCareer(H.authEmailConfirmationSent));
             return false;
           }
         } else {
@@ -242,13 +240,13 @@ export const useCareerAuth = () => {
         }
         return true;
       } catch (error) {
-        setAuthError(getCareerEmailAuthErrorMessage(error, args.mode));
+        setAuthError(getCareerEmailAuthErrorMessage(error, args.mode, tCareer));
         return false;
       } finally {
         setAuthPending(false);
       }
     },
-    [authPending, buildCareerAuthCallbackUrl]
+    [authPending, buildCareerAuthCallbackUrl, tCareer]
   );
 
   const handleLogout = useCallback(async () => {

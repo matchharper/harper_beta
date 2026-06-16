@@ -1,4 +1,5 @@
 import OpsShell from "@/components/ops/OpsShell";
+import { formatKstRelativeDateTime } from "@/components/ops/dateUtils";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { showToast } from "@/components/toast/toast";
 import { Switch } from "@/components/ui/switch";
@@ -169,18 +170,6 @@ function createSlug(value: string) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .replace(/-{2,}/g, "-");
-}
-
-function formatDateTime(value: string | null | undefined) {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("ko-KR", {
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    month: "2-digit",
-  });
 }
 
 function matchesFilter(job: OpsOfficialJobRecord, filter: JobFilter) {
@@ -716,19 +705,19 @@ export default function OpsOfficialJobsPage() {
                   <div>
                     <div className="text-neutral-soft">Created</div>
                     <div className="mt-1 text-neutral-primary">
-                      {formatDateTime(selectedJob?.createdAt)}
+                      {formatKstRelativeDateTime(selectedJob?.createdAt)}
                     </div>
                   </div>
                   <div>
                     <div className="text-neutral-soft">Updated</div>
                     <div className="mt-1 text-neutral-primary">
-                      {formatDateTime(selectedJob?.updatedAt)}
+                      {formatKstRelativeDateTime(selectedJob?.updatedAt)}
                     </div>
                   </div>
                   <div>
                     <div className="text-neutral-soft">Published</div>
                     <div className="mt-1 text-neutral-primary">
-                      {formatDateTime(selectedJob?.publishedAt)}
+                      {formatKstRelativeDateTime(selectedJob?.publishedAt)}
                     </div>
                   </div>
                 </div>

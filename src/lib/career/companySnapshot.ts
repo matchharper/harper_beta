@@ -1,5 +1,10 @@
 import type { Json } from "@/types/database.types";
 import { CAREER_LLM_CONFIG } from "@/lib/career/llm";
+import {
+  getCareerPromptLanguageName,
+  normalizeCareerPromptLocale,
+} from "@/lib/career/promptLocale";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 import { client } from "@/lib/llm/llm";
 
@@ -45,15 +50,31 @@ export function normalizeCompanySnapshotName(value: string) {
     .trim();
 }
 
+function getCompanySnapshotContentLocale(content: Json) {
+  if (content && typeof content === "object" && !Array.isArray(content)) {
+    return normalizeCareerPromptLocale(
+      (content as Record<string, unknown>).locale
+    );
+  }
+
+  return "ko";
+}
+
+function getCompanySnapshotRowLocale(row: CompanySnapshotRow) {
+  return getCompanySnapshotContentLocale(row.content);
+}
+
 export async function getOrCreateCompanySnapshot(args: {
   admin: AdminClient;
   companyName: string;
+  preferredLocale?: string | null;
   reason?: string | null;
   userId: string;
 }) {
   const recentSnapshot = await fetchRecentCompanySnapshot({
     admin: args.admin,
     companyName: args.companyName,
+    preferredLocale: args.preferredLocale,
   });
   if (recentSnapshot) {
     return {
@@ -69,12 +90,17 @@ export async function getOrCreateCompanySnapshot(args: {
   const content = await runCompanySnapshotResearch({
     companyName: args.companyName,
     companyDbId: companyDb?.id ?? null,
+    preferredLocale: args.preferredLocale,
     reason: args.reason ?? null,
   });
+  const contentWithLocale: Record<string, unknown> = {
+    ...content,
+    locale: normalizeCareerPromptLocale(args.preferredLocale),
+  };
 
   const researchFailed =
-    typeof (content as Record<string, unknown>)?.error === "string" &&
-    ((content as Record<string, unknown>).error as string).length > 0;
+    typeof contentWithLocale.error === "string" &&
+    contentWithLocale.error.length > 0;
   const status: CompanySnapshotStatus = researchFailed ? "failed" : "completed";
 
   const { data, error } = await ((
@@ -83,7 +109,7 @@ export async function getOrCreateCompanySnapshot(args: {
     .insert({
       company_db_id: companyDb?.id ?? null,
       company_name: args.companyName.trim(),
-      content,
+      content: contentWithLocale,
       status,
     })
     .select("*")
@@ -102,10 +128,12 @@ export async function getOrCreateCompanySnapshot(args: {
 export async function fetchRecentCompanySnapshot(args: {
   admin: AdminClient;
   companyName: string;
+  preferredLocale?: string | null;
 }) {
   const companyName = args.companyName.trim();
   const normalized = normalizeCompanySnapshotName(args.companyName);
   if (!normalized) return null;
+  const expectedLocale = normalizeCareerPromptLocale(args.preferredLocale);
 
   const companyDb = await findCompanyDbByName({
     admin: args.admin,
@@ -116,7 +144,9 @@ export async function fetchRecentCompanySnapshot(args: {
   ).toISOString();
   const findMatchingSnapshot = (rows: CompanySnapshotRow[]) =>
     rows.find(
-      (row) => normalizeCompanySnapshotName(row.company_name) === normalized
+      (row) =>
+        normalizeCompanySnapshotName(row.company_name) === normalized &&
+        getCompanySnapshotRowLocale(row) === expectedLocale
     ) ?? null;
   const readRecentSnapshotsByCompanyName = async (
     pattern: string,
@@ -148,13 +178,16 @@ export async function fetchRecentCompanySnapshot(args: {
       .eq("status", "completed")
       .gte("created_at", threshold)
       .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle() as any);
+      .limit(10) as any);
 
     if (error) {
       throw new Error(error.message ?? "Failed to read company snapshot");
     }
-    if (data) return data as CompanySnapshotRow;
+    const match =
+      (Array.isArray(data) ? (data as CompanySnapshotRow[]) : []).find(
+        (row) => getCompanySnapshotRowLocale(row) === expectedLocale
+      ) ?? null;
+    if (match) return match;
   }
 
   const exactRows = await readRecentSnapshotsByCompanyName(
@@ -174,6 +207,7 @@ export async function fetchRecentCompanySnapshot(args: {
 export async function runCompanySnapshotResearch(args: {
   companyDbId: number | null;
   companyName: string;
+  preferredLocale?: string | null;
   reason?: string | null;
 }): Promise<Record<string, unknown>> {
   const prompt = buildCompanyResearchPrompt(args);
@@ -223,6 +257,7 @@ export async function runCompanySnapshotResearch(args: {
 function buildCompanyResearchPrompt(args: {
   companyDbId: number | null;
   companyName: string;
+  preferredLocale?: string | null;
   reason?: string | null;
 }): string {
   const MAX_COMPANY_NAME_LENGTH = 100;
@@ -237,32 +272,68 @@ function buildCompanyResearchPrompt(args: {
         .trim()
         .slice(0, MAX_REASON_LENGTH)
     : null;
+  const outputLanguage = getCareerPromptLanguageName(args.preferredLocale);
   const reasonLine = safeReason
-    ? `\n사용자가 이 회사에 관심을 갖게 된 맥락: ${safeReason}`
+    ? careerT(
+        args.preferredLocale,
+        "career.company.snapshot.prompt.reason_line",
+        "\n사용자가 이 회사에 관심을 갖게 된 맥락: {reason}",
+        { values: { reason: safeReason } }
+      )
     : "";
   return [
-    `당신은 한국어 커리어 어드바이저 Harper의 회사 리서치 도우미입니다.`,
-    `대상 회사: ${safeName}`,
+    careerT(
+      args.preferredLocale,
+      "career.company.snapshot.prompt.role",
+      "당신은 한국어 커리어 어드바이저 Harper의 회사 리서치 도우미입니다."
+    ),
+    careerT(
+      args.preferredLocale,
+      "career.company.snapshot.prompt.target_company",
+      "대상 회사: {companyName}",
+      { values: { companyName: safeName } }
+    ),
     reasonLine,
     ``,
-    `Web search 도구를 적극 활용해 이 회사의 사업, 제품, 비즈니스 모델, 자금/재무 상태, 팀/문화, 채용 맥락, 리스크/논란을 조사하세요.`,
-    `최신 공개 정보를 우선시하고, 가능한 경우 한국 시장 맥락도 함께 고려하세요.`,
+    careerT(
+      args.preferredLocale,
+      "career.company.snapshot.prompt.research_scope",
+      "Web search 도구를 적극 활용해 이 회사의 사업, 제품, 비즈니스 모델, 자금/재무 상태, 팀/문화, 채용 맥락, 리스크/논란을 조사하세요."
+    ),
+    careerT(
+      args.preferredLocale,
+      "career.company.snapshot.prompt.research_priority",
+      "최신 공개 정보를 우선시하고, 가능한 경우 한국 시장 맥락도 함께 고려하세요."
+    ),
     ``,
-    `반드시 아래 JSON 스키마를 그대로 채워서 단일 JSON 객체로만 답하세요. 마크다운 코드펜스나 설명 텍스트를 추가하지 마세요.`,
-    `JSON 문법을 엄격히 지키고, 객체나 배열의 마지막 항목 뒤에 trailing comma를 넣지 마세요.`,
+    careerT(
+      args.preferredLocale,
+      "career.company.snapshot.prompt.json_only",
+      "반드시 아래 JSON 스키마를 그대로 채워서 단일 JSON 객체로만 답하세요. 마크다운 코드펜스나 설명 텍스트를 추가하지 마세요."
+    ),
+    careerT(
+      args.preferredLocale,
+      "career.company.snapshot.prompt.strict_json",
+      "JSON 문법을 엄격히 지키고, 객체나 배열의 마지막 항목 뒤에 trailing comma를 넣지 마세요."
+    ),
+    `Write all natural-language fields in ${outputLanguage}.`,
     `{`,
-    `  "summary": "한국어로 작성된 4~8문장 요약. 회사가 무엇을 하는지, 핵심 강점/리스크, 채용 맥락이 자연스럽게 녹아 있어야 합니다.",`,
+    `  "summary": "4-8 sentence summary in ${outputLanguage}. Include what the company does, key strengths or risks, and hiring context naturally.",`,
     `  "sections": {`,
-    `    "company_overview": "사업/제품/규모/투자/주요 지표를 정리한 한국어 본문.",`,
-    `    "risks": "리스크, 우려, 논란, 불확실성을 정리한 한국어 본문. 없다면 '특별히 두드러진 리스크는 확인되지 않았습니다.' 식으로 작성.",`,
-    `    "hiring_context": "채용/팀 분위기/현재 채용 트렌드/지원자 입장에서 알아두면 좋은 한국어 본문."`,
+    `    "company_overview": "Business, product, scale, funding, and key metrics in ${outputLanguage}.",`,
+    `    "risks": "Risks, concerns, controversies, or uncertainty in ${outputLanguage}. If none are clear, say so naturally.",`,
+    `    "hiring_context": "Hiring, team culture, current recruiting trends, and candidate-relevant context in ${outputLanguage}."`,
     `  },`,
     `  "sources": [`,
-    `    { "url": "https://example.com/article", "title": "출처 제목" }`,
+    `    { "url": "https://example.com/article", "title": "Source title" }`,
     `  ]`,
     `}`,
     ``,
-    `출처는 실제로 참고한 URL만 최대 10개까지 포함하세요. 정보가 부족한 섹션은 '확실한 정보를 찾지 못했습니다.' 처럼 있는 그대로 작성하세요.`,
+    careerT(
+      args.preferredLocale,
+      "career.company.snapshot.prompt.sources_rule",
+      "출처는 실제로 참고한 URL만 최대 10개까지 포함하세요. 정보가 부족한 섹션은 '확실한 정보를 찾지 못했습니다.' 처럼 있는 그대로 작성하세요."
+    ),
   ].join("\n");
 }
 
@@ -467,9 +538,15 @@ function extractSourceUrls(content: Record<string, unknown>): string[] {
 }
 
 export function formatCompanySnapshotMessage(args: {
+  preferredLocale?: string | null;
   reused: boolean;
   snapshot: CompanySnapshotRow;
 }) {
+  const followUp = careerT(
+    args.preferredLocale,
+    "career.company.snapshot.follow_up",
+    COMPANY_SNAPSHOT_FOLLOW_UP
+  );
   const rawContent =
     args.snapshot.content && typeof args.snapshot.content === "object"
       ? (args.snapshot.content as Record<string, unknown>)
@@ -484,9 +561,14 @@ export function formatCompanySnapshotMessage(args: {
   const errorReason = (content as { error?: unknown }).error;
   if (typeof errorReason === "string" && errorReason.length > 0) {
     return [
-      `${args.snapshot.company_name} 회사 조사 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.`,
+      careerT(
+        args.preferredLocale,
+        "career.company.snapshot.message.error",
+        "{companyName} 회사 조사 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.",
+        { values: { companyName: args.snapshot.company_name } }
+      ),
       "",
-      COMPANY_SNAPSHOT_FOLLOW_UP,
+      followUp,
     ].join("\n");
   }
   const summary =
@@ -503,13 +585,33 @@ export function formatCompanySnapshotMessage(args: {
   if (summary) {
     return [
       args.reused
-        ? `${args.snapshot.company_name} 회사 조사 결과를 최근 저장된 snapshot에서 불러왔습니다.`
-        : `${args.snapshot.company_name} 회사 조사를 완료했습니다.`,
+        ? careerT(
+            args.preferredLocale,
+            "career.company.snapshot.message.loaded_recent",
+            "{companyName} 회사 조사 결과를 최근 저장된 snapshot에서 불러왔습니다.",
+            { values: { companyName: args.snapshot.company_name } }
+          )
+        : careerT(
+            args.preferredLocale,
+            "career.company.snapshot.message.completed",
+            "{companyName} 회사 조사를 완료했습니다.",
+            { values: { companyName: args.snapshot.company_name } }
+          ),
       "",
       summary,
-      ...(sourceText ? ["", "출처:", sourceText] : []),
+      ...(sourceText
+        ? [
+            "",
+            careerT(
+              args.preferredLocale,
+              "career.company.snapshot.sources_label",
+              "출처:"
+            ),
+            sourceText,
+          ]
+        : []),
       "",
-      COMPANY_SNAPSHOT_FOLLOW_UP,
+      followUp,
     ]
       .filter((line) => line !== undefined && line !== null)
       .join("\n");
@@ -517,12 +619,26 @@ export function formatCompanySnapshotMessage(args: {
 
   return [
     args.reused
-      ? `${args.snapshot.company_name} 회사 조사 snapshot을 최근 저장분에서 불러왔습니다.`
-      : `${args.snapshot.company_name} 회사 조사 snapshot을 저장했습니다.`,
+      ? careerT(
+          args.preferredLocale,
+          "career.company.snapshot.message.loaded_snapshot",
+          "{companyName} 회사 조사 snapshot을 최근 저장분에서 불러왔습니다.",
+          { values: { companyName: args.snapshot.company_name } }
+        )
+      : careerT(
+          args.preferredLocale,
+          "career.company.snapshot.message.saved_snapshot",
+          "{companyName} 회사 조사 snapshot을 저장했습니다.",
+          { values: { companyName: args.snapshot.company_name } }
+        ),
     "",
-    "회사 조사 결과를 채팅용 요약으로 정리하지 못했습니다. 잠시 후 다시 시도해주세요.",
+    careerT(
+      args.preferredLocale,
+      "career.company.snapshot.message.summary_failed",
+      "회사 조사 결과를 채팅용 요약으로 정리하지 못했습니다. 잠시 후 다시 시도해주세요."
+    ),
     "",
-    COMPANY_SNAPSHOT_FOLLOW_UP,
+    followUp,
   ].join("\n");
 }
 

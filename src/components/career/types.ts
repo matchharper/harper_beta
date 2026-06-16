@@ -12,6 +12,7 @@ export type CareerCallStartRequest =
   | {
       conversationStarterId?: CareerConversationStarterId | null;
       internalCallRequestId?: string | null;
+      mock?: boolean;
       openingText?: string;
     };
 export type CallLiveTranscriptPlacement =

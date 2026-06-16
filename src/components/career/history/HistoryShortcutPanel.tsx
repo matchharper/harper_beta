@@ -14,6 +14,7 @@ import {
 } from "../CareerHistoryPanel";
 import { getCareerPositiveActionIcon } from "../opportunityTypeMeta";
 import { BareButton } from "@/components/ui/button";
+import { useCareerT } from "@/i18n/useCareerT";
 
 const ShortcutKey = ({ children }: { children: React.ReactNode }) => (
   <kbd className="inline-flex h-4 min-w-4 items-center justify-center rounded-[4px] bg-bg-weak px-1 text-[9.5px] font-medium leading-none text-neutral-muted shadow-[0_1px_0_color-mix(in_srgb,var(--color-neutral-1000)_5%,transparent)]">
@@ -92,6 +93,8 @@ const HistoryShortcutPanel = ({
   onPositive: () => void;
   onNegative: () => void;
 }) => {
+  const t = useCareerT();
+
   const PositiveActionIcon = getCareerPositiveActionIcon(item.opportunityType);
   const positiveActionClassName =
     item.isInternal || item.sourceType === "internal"
@@ -104,7 +107,10 @@ const HistoryShortcutPanel = ({
         <ShortcutNavButton
           onClick={onPrev}
           disabled={activeIndex <= 0}
-          label="이전 포지션"
+          label={t(
+            "career.history.history_shortcut_panel.1kpvg7d",
+            "이전 포지션"
+          )}
         >
           <ArrowLeft className="h-3 w-3" />
         </ShortcutNavButton>
@@ -130,7 +136,10 @@ const HistoryShortcutPanel = ({
         <ShortcutNavButton
           onClick={onNext}
           disabled={!canMoveNext || nextPending}
-          label="다음 포지션"
+          label={t(
+            "career.history.history_shortcut_panel.1s07tch",
+            "다음 포지션"
+          )}
         >
           {nextPending ? (
             <Loader2 className="h-3 w-3 animate-spin" />
@@ -144,7 +153,7 @@ const HistoryShortcutPanel = ({
         <span className="inline-flex items-center gap-2">
           <ShortcutKey>←</ShortcutKey>
           <ShortcutKey>→</ShortcutKey>
-          이동
+          {t("career.history.history_shortcut_panel.0kgqz9q", "이동")}
         </span>
         <span className="text-neutral-primary/20">·</span>
         <span className="inline-flex items-center gap-2">

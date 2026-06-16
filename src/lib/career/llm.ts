@@ -16,6 +16,7 @@ import {
   logTalentToolError,
   logTalentToolResult,
 } from "@/lib/talentOnboarding/toolLogging";
+import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 
 export const CAREER_LLM_CONFIG = {
   // 커리어 제품군의 LLM/Realtime 기본 설정 모음.
@@ -112,7 +113,7 @@ export const CAREER_LLM_CONFIG = {
   // 사용처: /api/realtime/token.
   realtime: {
     model: "gpt-realtime-2",
-    transcriptionModel: "gpt-4o-mini-transcribe",
+    transcriptionModel: "gpt-4o-transcribe",
     voice: "cedar",
   },
   // 회사 스냅샷이 캐시에 없을 때 OpenAI Responses API + web_search로 조사한다.
@@ -378,24 +379,35 @@ function buildAssistantInstructionsFromToolResults(
   ].join("\n");
 }
 
-const TOOL_RESULT_FOLLOWUP_INSTRUCTION = [
-  "Use the tool result(s) above to answer the user's latest message in Korean.",
-  "Do not return empty text, expose raw JSON, or mention internal tool names.",
-  "If the assistant already wrote a brief pre-tool preamble in the same turn, do not repeat that preamble; continue with the result or the next useful sentence.",
-  "When a tool changed saved profile or preference state, answer as Harper in a normal product conversation: acknowledge the substantive change, explain the practical consequence when it matters, and continue naturally from the user's intent.",
-  "If the result is inconclusive, say what could and could not be verified, then continue naturally from the user's question.",
-].join(" ");
+function buildToolResultFollowupInstruction(responseLocale?: string | null) {
+  const outputLanguage = getCareerPromptLanguageName(responseLocale);
 
-const EMPTY_VISIBLE_TEXT_RECOVERY_INSTRUCTION = [
-  "The previous assistant generation produced no visible user-facing text.",
-  "Continue as Harper from the exact current conversation state in Korean.",
-  "Use any tool result text already present in the conversation.",
-  "Do not call tools or mention internal errors.",
-  "If the evidence is inconclusive, say so briefly instead of inventing details.",
-].join(" ");
+  return [
+    `Use the tool result(s) above to answer the user's latest message in ${outputLanguage}.`,
+    "Do not return empty text, expose raw JSON, or mention internal tool names.",
+    "If the assistant already wrote a brief pre-tool preamble in the same turn, do not repeat that preamble; continue with the result or the next useful sentence.",
+    "When a tool changed saved profile or preference state, answer as Harper in a normal product conversation: acknowledge the substantive change, explain the practical consequence when it matters, and continue naturally from the user's intent.",
+    "If the result is inconclusive, say what could and could not be verified, then continue naturally from the user's question.",
+  ].join(" ");
+}
+
+function buildEmptyVisibleTextRecoveryInstruction(
+  responseLocale?: string | null
+) {
+  const outputLanguage = getCareerPromptLanguageName(responseLocale);
+
+  return [
+    "The previous assistant generation produced no visible user-facing text.",
+    `Continue as Harper from the exact current conversation state in ${outputLanguage}.`,
+    "Use any tool result text already present in the conversation.",
+    "Do not call tools or mention internal errors.",
+    "If the evidence is inconclusive, say so briefly instead of inventing details.",
+  ].join(" ");
+}
 
 function withToolResultFollowupInstruction(
-  blocks: AnthropicToolResultBlock[]
+  blocks: AnthropicToolResultBlock[],
+  responseLocale?: string | null
 ): AnthropicUserContentBlock[] {
   if (blocks.length === 0) return blocks;
   const assistantInstructions =
@@ -404,7 +416,10 @@ function withToolResultFollowupInstruction(
     ...blocks,
     {
       type: "text",
-      text: [TOOL_RESULT_FOLLOWUP_INSTRUCTION, assistantInstructions]
+      text: [
+        buildToolResultFollowupInstruction(responseLocale),
+        assistantInstructions,
+      ]
         .filter((text) => text.trim().length > 0)
         .join("\n\n"),
     },
@@ -476,6 +491,7 @@ function stringifyAnthropicContent(content: AnthropicMessage["content"]) {
 
 function buildDirectRecoveryMessages(args: {
   messages: AnthropicMessage[];
+  responseLocale?: string | null;
   systemBlocks: CareerChatSystemBlock[];
 }): DirectOpenAIMessage[] {
   return [
@@ -483,7 +499,7 @@ function buildDirectRecoveryMessages(args: {
       role: "system",
       content: [
         flattenCareerSystemBlocks(args.systemBlocks),
-        EMPTY_VISIBLE_TEXT_RECOVERY_INSTRUCTION,
+        buildEmptyVisibleTextRecoveryInstruction(args.responseLocale),
       ]
         .filter((text) => text.trim().length > 0)
         .join("\n\n"),
@@ -880,12 +896,14 @@ async function recoverVisibleTextFromAnthropicMessages(args: {
   modelConfig: CareerAssistantModelConfig;
   onTextDelta?: (delta: string) => void | Promise<void>;
   reason: string;
+  responseLocale?: string | null;
   skipNativeRetry?: boolean;
   systemBlocks: CareerChatSystemBlock[];
   usageLabel?: string;
 }) {
   const instruction =
-    args.instruction?.trim() || EMPTY_VISIBLE_TEXT_RECOVERY_INSTRUCTION;
+    args.instruction?.trim() ||
+    buildEmptyVisibleTextRecoveryInstruction(args.responseLocale);
   const recoveryMessages = appendUserInstructionToMessages(
     args.messages,
     instruction
@@ -933,6 +951,7 @@ async function recoverVisibleTextFromAnthropicMessages(args: {
       fallbackModel: args.modelConfig.anthropicOverloadFallbackModel,
       messages: buildDirectRecoveryMessages({
         messages: recoveryMessages,
+        responseLocale: args.responseLocale,
         systemBlocks: args.systemBlocks,
       }),
       model: args.modelConfig.fallbackModel,
@@ -1040,8 +1059,10 @@ export async function runCareerChatAssistant(args: {
     name: string;
   }) => void | Promise<void>;
   modelConfig?: CareerAssistantModelConfig;
+  responseLocale?: string | null;
 }) {
   const modelConfig = args.modelConfig ?? assistantModelConfig();
+  const outputLanguage = getCareerPromptLanguageName(args.responseLocale);
   const fallbackWithExistingClient = (
     activeModelConfig: CareerAssistantModelConfig = modelConfig
   ) => {
@@ -1099,6 +1120,7 @@ export async function runCareerChatAssistant(args: {
         messages: workingMessages,
         modelConfig,
         reason: "empty_text_without_tools",
+        responseLocale: args.responseLocale,
         systemBlocks: args.systemBlocks,
         usageLabel: "career/chat:assistant",
       });
@@ -1130,6 +1152,7 @@ export async function runCareerChatAssistant(args: {
           messages: workingMessages,
           modelConfig,
           reason: "empty_text_without_tool_use",
+          responseLocale: args.responseLocale,
           systemBlocks: args.systemBlocks,
           usageLabel: "career/chat:assistant",
         });
@@ -1221,7 +1244,10 @@ export async function runCareerChatAssistant(args: {
       if (toolResultBlocks.length > 0) {
         workingMessages.push({
           role: "user",
-          content: withToolResultFollowupInstruction(toolResultBlocks),
+          content: withToolResultFollowupInstruction(
+            toolResultBlocks,
+            args.responseLocale
+          ),
         });
       }
 
@@ -1232,7 +1258,7 @@ export async function runCareerChatAssistant(args: {
 
     const finalMessages = appendUserInstructionToMessages(
       workingMessages,
-      "Tool call budget is exhausted. Answer now in Korean without additional tool use."
+      `Tool call budget is exhausted. Answer now in ${outputLanguage} without additional tool use.`
     );
     const finalText = await createAnthropicMessageText({
       messages: finalMessages,
@@ -1246,6 +1272,7 @@ export async function runCareerChatAssistant(args: {
       messages: finalMessages,
       modelConfig,
       reason: "empty_text_after_tool_budget",
+      responseLocale: args.responseLocale,
       systemBlocks: args.systemBlocks,
       usageLabel: "career/chat:assistant",
     });
@@ -1271,6 +1298,7 @@ export async function recoverCareerChatAssistantText(args: {
     role: "user" | "assistant";
   }>;
   onTextDelta?: (delta: string) => void | Promise<void>;
+  responseLocale?: string | null;
   systemBlocks: CareerChatSystemBlock[];
 }) {
   const workingMessages: AnthropicMessage[] = args.messages
@@ -1281,7 +1309,7 @@ export async function recoverCareerChatAssistantText(args: {
     }));
   const latestUserMessage = String(args.latestUserMessage ?? "").trim();
   const instruction = [
-    EMPTY_VISIBLE_TEXT_RECOVERY_INSTRUCTION,
+    buildEmptyVisibleTextRecoveryInstruction(args.responseLocale),
     latestUserMessage ? `Latest user message: ${latestUserMessage}` : "",
   ]
     .filter((line) => line.trim().length > 0)
@@ -1293,6 +1321,7 @@ export async function recoverCareerChatAssistantText(args: {
     modelConfig: assistantModelConfig(),
     onTextDelta: args.onTextDelta,
     reason: "route_empty_assistant_text",
+    responseLocale: args.responseLocale,
     systemBlocks: args.systemBlocks,
     usageLabel: "career/chat:assistant",
   });
@@ -1314,6 +1343,7 @@ export async function runCareerChatAssistantStream(args: {
   systemBlocks: CareerChatSystemBlock[];
   tools: TalentChatTool[];
   modelConfig?: CareerAssistantModelConfig;
+  responseLocale?: string | null;
 }) {
   const modelConfig = args.modelConfig ?? assistantModelConfig();
   if (!shouldUseAnthropicNativeMessages(modelConfig.primaryModel)) {
@@ -1327,6 +1357,7 @@ export async function runCareerChatAssistantStream(args: {
       stopAfterToolNames: args.stopAfterToolNames,
       systemBlocks: args.systemBlocks,
       tools: args.tools,
+      responseLocale: args.responseLocale,
     });
     if (text) {
       await args.onTextDelta(text);
@@ -1370,6 +1401,7 @@ export async function runCareerChatAssistantStream(args: {
         modelConfig,
         onTextDelta: forwardTextDelta,
         reason: "stream_empty_text_without_tools",
+        responseLocale: args.responseLocale,
         systemBlocks: args.systemBlocks,
         usageLabel: "career/chat:assistant",
       });
@@ -1411,6 +1443,7 @@ export async function runCareerChatAssistantStream(args: {
             modelConfig,
             onTextDelta: forwardTextDelta,
             reason: "stream_empty_text_without_tool_use",
+            responseLocale: args.responseLocale,
             systemBlocks: args.systemBlocks,
             usageLabel: "career/chat:assistant",
           });
@@ -1505,7 +1538,10 @@ export async function runCareerChatAssistantStream(args: {
       if (toolResultBlocks.length > 0) {
         workingMessages.push({
           role: "user",
-          content: withToolResultFollowupInstruction(toolResultBlocks),
+          content: withToolResultFollowupInstruction(
+            toolResultBlocks,
+            args.responseLocale
+          ),
         });
       }
 
@@ -1527,6 +1563,7 @@ export async function runCareerChatAssistantStream(args: {
         modelConfig,
         onTextDelta: forwardTextDelta,
         reason: "stream_empty_text_after_tool",
+        responseLocale: args.responseLocale,
         systemBlocks: args.systemBlocks,
         usageLabel: "career/chat:assistant",
       });
@@ -1548,6 +1585,7 @@ export async function runCareerChatAssistantStream(args: {
         modelConfig,
         onTextDelta: forwardTextDelta,
         reason: "stream_empty_text_after_tool_loop",
+        responseLocale: args.responseLocale,
         systemBlocks: args.systemBlocks,
         usageLabel: "career/chat:assistant",
       });
@@ -1579,6 +1617,7 @@ export async function runCareerChatAssistantStream(args: {
         modelConfig,
         onTextDelta: forwardTextDelta,
         reason: "stream_empty_final_response",
+        responseLocale: args.responseLocale,
         systemBlocks: args.systemBlocks,
         usageLabel: "career/chat:assistant",
       });
@@ -1594,6 +1633,7 @@ export async function runCareerChatAssistantStream(args: {
         modelConfig,
         onTextDelta: forwardTextDelta,
         reason: "stream_error_after_partial_or_tool",
+        responseLocale: args.responseLocale,
         skipNativeRetry: true,
         systemBlocks: args.systemBlocks,
         usageLabel: "career/chat:assistant",
@@ -1622,6 +1662,7 @@ export async function runCareerChatAssistantStream(args: {
       stopAfterToolNames: args.stopAfterToolNames,
       systemBlocks: args.systemBlocks,
       tools: args.tools,
+      responseLocale: args.responseLocale,
     });
     if (text) {
       await args.onTextDelta(text);

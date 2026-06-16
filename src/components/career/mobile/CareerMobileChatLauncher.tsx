@@ -16,6 +16,8 @@ import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelCo
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useCareerMobileChatNotice } from "@/hooks/career/useCareerMobileChatNotice";
 import { BareButton } from "@/components/ui/button";
+import { useCareerT } from "@/i18n/useCareerT";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 type CareerMobileChatLauncherProps = {
   children: React.ReactNode;
@@ -132,11 +134,17 @@ function CareerMobileChatLauncher({
   children,
   actionBar,
   topOffsetPx = DEFAULT_TOP_OFFSET_PX,
-  placeholder = "Harper에게 답변을 입력하세요.",
+  placeholder = careerT(
+    "ko",
+    "career.chat.career_composer_section.0e686ow",
+    "Harper에게 답변을 입력하세요."
+  ),
   className,
   open: controlledOpen,
   onOpenChange,
 }: CareerMobileChatLauncherProps) {
+  const t = useCareerT();
+
   const logCareerEvent = useCareerLogEvent();
   const [internalOpen, setInternalOpen] = useState(false);
   const isControlled = controlledOpen !== undefined;
@@ -181,7 +189,11 @@ function CareerMobileChatLauncher({
       onboardingWrapupPending ||
       callWrapUpPending);
   const launcherPlaceholder = harperPreparing
-    ? "Harper가 답변을 준비하고 있습니다..."
+    ? careerT(
+        "ko",
+        "career.common.career_mobile_chat_launcher.0hu1shh",
+        "Harper가 답변을 준비하고 있습니다..."
+      )
     : placeholder;
 
   const openDrawer = () => {
@@ -235,10 +247,13 @@ function CareerMobileChatLauncher({
             >
               <MessageCircle className="h-3 w-3 text-neutral-primary" />
               <span className="min-w-0 flex-1 font-normal leading-5">
-                Harper가 답했어요
+                {t(
+                  "career.common.career_mobile_chat_launcher.0q9yygi",
+                  "Harper가 답했어요"
+                )}
               </span>
               <span className="shrink-0 text-[12px] font-normal text-neutral-soft">
-                열기
+                {t("career.common.career_mobile_chat_launcher.0pnsgrt", "열기")}
               </span>
             </motion.button>
           ) : null}
@@ -282,7 +297,19 @@ function CareerMobileChatLauncher({
                         ? "bg-black/15 text-neutral-soft"
                         : "bg-bg-floating text-neutral-primary"
                     )}
-                    aria-label={voiceMuted ? "음소거 해제" : "음소거"}
+                    aria-label={
+                      voiceMuted
+                        ? careerT(
+                            "ko",
+                            "career.chat.career_call_screen.15tfl05",
+                            "음소거 해제"
+                          )
+                        : careerT(
+                            "ko",
+                            "career.chat.career_call_screen.1914g7j",
+                            "음소거"
+                          )
+                    }
                   >
                     {voiceMuted ? (
                       <MicOff className="h-5 w-5" />
@@ -297,7 +324,10 @@ function CareerMobileChatLauncher({
                       onEndCallMode?.();
                     }}
                     className="flex h-12 w-12 items-center justify-center rounded-full bg-critical text-neutral-00 transition-opacity hover:opacity-90"
-                    aria-label="통화 종료"
+                    aria-label={t(
+                      "career.chat.career_call_screen.16d2ux9",
+                      "통화 종료"
+                    )}
                   >
                     <X className="h-5 w-5" />
                   </BareButton>
@@ -356,10 +386,16 @@ function CareerMobileChatLauncher({
             }}
           >
             <DrawerPrimitive.Title className="sr-only">
-              Harper 채팅
+              {t(
+                "career.common.career_mobile_chat_launcher.1j1ugk2",
+                "Harper 채팅"
+              )}
             </DrawerPrimitive.Title>
             <DrawerPrimitive.Description className="sr-only">
-              아래로 드래그하거나 닫기 버튼을 눌러 접을 수 있습니다.
+              {t(
+                "career.common.career_mobile_chat_launcher.1bjhre2",
+                "아래로 드래그하거나 닫기 버튼을 눌러 접을 수 있습니다."
+              )}
             </DrawerPrimitive.Description>
 
             <div className="relative flex shrink-0 items-center justify-center px-4 pt-3 pb-2">
@@ -370,7 +406,10 @@ function CareerMobileChatLauncher({
                 <div className="h-1.5 w-12 rounded-full bg-black/15" />
               </DrawerPrimitive.Handle>
               <DrawerPrimitive.Close
-                aria-label="채팅 접기"
+                aria-label={t(
+                  "career.common.career_mobile_chat_launcher.0twl8ov",
+                  "채팅 접기"
+                )}
                 className="absolute right-3 top-2 z-[60] inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-1000-a05 bg-bg-floating text-neutral-muted transition active:bg-bg-weak"
               >
                 <X className="h-4 w-4" />

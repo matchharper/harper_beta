@@ -3,7 +3,7 @@ import {
   buildCareerKickoffOpeningMessage,
   buildCareerKickoffSystemPrompt,
   buildCareerKickoffUserPrompt,
-  CAREER_KICKOFF_FALLBACK,
+  getCareerKickoffFallback,
 } from "@/lib/career/prompts";
 import { runCareerKickoff } from "@/lib/career/llm";
 import type {
@@ -26,6 +26,7 @@ import {
   toTalentDisplayName,
 } from "@/lib/talentOnboarding/server";
 import { withIsMobile } from "@/lib/requestDevice";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 type AdminClient = ReturnType<typeof getTalentSupabaseAdmin>;
 
@@ -158,6 +159,7 @@ function describeTalentPreferences(
 export async function generateTalentKickoff(args: {
   displayName: string;
   links: string[];
+  preferredLocale?: string | null;
   talentPreferences?: TalentKickoffPreferences | null;
   resumeFileName?: string | null;
   resumeText?: string | null;
@@ -166,7 +168,9 @@ export async function generateTalentKickoff(args: {
     messages: [
       {
         role: "system",
-        content: buildCareerKickoffSystemPrompt(),
+        content: buildCareerKickoffSystemPrompt({
+          preferredLocale: args.preferredLocale,
+        }),
       },
       {
         role: "user",
@@ -194,9 +198,12 @@ export async function generateTalentKickoff(args: {
     setTimeout(() => resolve(null), timeoutMs);
   });
   const llmRaw = await Promise.race([llmPromise, timeoutPromise]);
-  if (!llmRaw) return CAREER_KICKOFF_FALLBACK;
+  const fallback = getCareerKickoffFallback({
+    preferredLocale: args.preferredLocale,
+  });
+  if (!llmRaw) return fallback;
 
-  return parseKickoffPayload(llmRaw) ?? CAREER_KICKOFF_FALLBACK;
+  return parseKickoffPayload(llmRaw) ?? fallback;
 }
 
 export async function autoStartClaimedTalentConversation(args: {
@@ -280,6 +287,7 @@ export async function autoStartClaimedTalentConversation(args: {
   const kickoff = await generateTalentKickoff({
     displayName: toTalentDisplayName(user),
     links,
+    preferredLocale: talentSetting?.preferred_locale ?? null,
     talentPreferences: {
       profileVisibilityLabel,
       blockedCompanies,
@@ -290,13 +298,21 @@ export async function autoStartClaimedTalentConversation(args: {
   });
 
   const now = new Date().toISOString();
+  const preferredLocale = talentSetting?.preferred_locale ?? null;
   const messagePayloads = [
     withIsMobile(
       {
         conversation_id: conversation.id,
         user_id: user.id,
         role: "user",
-        content: "기존에 제출한 정보로 커리어 워크스페이스를 시작했습니다.",
+        content:
+          preferredLocale === "en"
+            ? "Started the career workspace with previously submitted information."
+            : careerT(
+                "ko",
+                "career.chat.career_timeline_section.0akm24y",
+                "기존에 제출한 정보로 커리어 워크스페이스를 시작했습니다."
+              ),
         message_type: "profile_submit",
       },
       args.isMobile
@@ -317,7 +333,8 @@ export async function autoStartClaimedTalentConversation(args: {
         user_id: user.id,
         role: "assistant",
         content: `${TALENT_PENDING_QUESTION_PREFIX}${buildTalentKickoffOpeningMessage(
-          toTalentDisplayName(user)
+          toTalentDisplayName(user),
+          preferredLocale
         )}`,
         message_type: "system",
       },

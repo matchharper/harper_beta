@@ -13,6 +13,9 @@ import { showOpportunityDiscoveryStartedToast } from "./opportunityDiscoveryToas
 import type { FetchWithAuth } from "./useCareerApi";
 import type { CareerConversationStarterId } from "@/lib/career/conversationStarters";
 import { createRecommendJobPostingStatusLog } from "@/lib/talentOnboarding/recommendJobPostingStatus";
+import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
+import { useMessages } from "@/i18n/useMessage";
+import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 
 type SendChatArgs = {
   allowedToolNames?: readonly string[];
@@ -212,6 +215,8 @@ export const useCareerChat = ({
   persistedMessages,
   onMessagesChanged,
 }: UseCareerChatArgs) => {
+  const tCareer = useCareerMessageFormatter();
+  const { locale } = useMessages();
   const [stage, setStage] = useState<CareerStage>("profile");
   const [localMessages, setLocalMessages] = useState<CareerMessage[]>([]);
   const [chatPending, setChatPending] = useState(false);
@@ -340,7 +345,9 @@ export const useCareerChat = ({
   );
 
   const markActiveRecommendationSearchStopped = useCallback(() => {
-    const stoppedStatus: CareerRecommendationSearchStatus = { state: "stopped" };
+    const stoppedStatus: CareerRecommendationSearchStatus = {
+      state: "stopped",
+    };
     const logs = appendRecommendationStatusToActiveLogs(stoppedStatus);
     const streamAssistantId = activeStreamAssistantIdRef.current;
 
@@ -416,7 +423,7 @@ export const useCareerChat = ({
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(
-          getErrorMessage(payload, "Call Wrap-up 재생성에 실패했습니다.")
+          getErrorMessage(payload, tCareer(H.callWrapupRegenerateFailed))
         );
       }
 
@@ -436,7 +443,7 @@ export const useCareerChat = ({
             ? [fallbackMessagePayload]
             : [];
       if (nextMessagePayloads.length === 0) {
-        throw new Error("Call Wrap-up 응답이 비어 있습니다.");
+        throw new Error(tCareer(H.callWrapupEmpty));
       }
 
       setLocalMessages((prev) =>
@@ -456,7 +463,7 @@ export const useCareerChat = ({
       setChatError(
         error instanceof Error
           ? error.message
-          : "Call Wrap-up 재생성 중 오류가 발생했습니다."
+          : tCareer(H.callWrapupRegenerateUnexpected)
       );
     } finally {
       setOnboardingWrapupPending(false);
@@ -466,6 +473,7 @@ export const useCareerChat = ({
     fetchWithAuth,
     onboardingWrapupPending,
     onMessagesChanged,
+    tCareer,
     user,
   ]);
 
@@ -497,7 +505,9 @@ export const useCareerChat = ({
       const activeConversationStarterId =
         explicitConversationStarterId ??
         activeConversationStarterRef.current?.starterId;
-      const composed = link ? `${text}\n\n참고 링크: ${link}` : text;
+      const composed = link
+        ? `${text}\n\n${tCareer(H.referenceLink, { link })}`
+        : text;
       const tempId = `temp-user-${Date.now()}`;
       const nowIso = new Date().toISOString();
 
@@ -532,6 +542,7 @@ export const useCareerChat = ({
             channel: args.channel ?? "chat",
             conversationStarterId: activeConversationStarterId,
             conversationId,
+            locale,
             message: text,
             link,
           }),
@@ -844,7 +855,9 @@ export const useCareerChat = ({
                 : null;
               onOpportunityRunChanged?.(run ?? null);
               if (isRecord(data) && data.opportunityDiscoveryQueued === true) {
-                showOpportunityDiscoveryStartedToast();
+                showOpportunityDiscoveryStartedToast(
+                  tCareer(H.opportunityDiscoveryStarted)
+                );
               }
               return;
             }
@@ -886,7 +899,7 @@ export const useCareerChat = ({
               throw new Error(
                 isRecord(data) && typeof data.error === "string"
                   ? data.error
-                  : "메시지 전송에 실패했습니다."
+                  : tCareer(H.messageSendFailed)
               );
             }
 
@@ -937,7 +950,7 @@ export const useCareerChat = ({
           }
 
           if (!streamDone) {
-            throw new Error("메시지 스트림이 완료되기 전에 종료되었습니다.");
+            throw new Error(tCareer(H.messageStreamEndedEarly));
           }
 
           return;
@@ -950,7 +963,9 @@ export const useCareerChat = ({
           );
         }
         if (payload?.opportunityDiscoveryQueued) {
-          showOpportunityDiscoveryStartedToast();
+          showOpportunityDiscoveryStartedToast(
+            tCareer(H.opportunityDiscoveryStarted)
+          );
         }
         if (isRecord(payload) && "talentPreferences" in payload) {
           onTalentPreferencesRefreshed?.(
@@ -971,7 +986,7 @@ export const useCareerChat = ({
         }
         if (!response.ok) {
           throw new Error(
-            getErrorMessage(payload, "메시지 전송에 실패했습니다.")
+            getErrorMessage(payload, tCareer(H.messageSendFailed))
           );
         }
 
@@ -1010,7 +1025,7 @@ export const useCareerChat = ({
         const message =
           error instanceof Error
             ? error.message
-            : "메시지 전송 중 오류가 발생했습니다.";
+            : tCareer(H.messageSendUnexpected);
         setLocalMessages((prev) =>
           prev.filter(
             (item) =>
@@ -1054,6 +1069,7 @@ export const useCareerChat = ({
       conversationId,
       enqueueAssistantTypewriter,
       fetchWithAuth,
+      locale,
       markActiveRecommendationSearchStopped,
       sessionPending,
       stage,
@@ -1065,6 +1081,7 @@ export const useCareerChat = ({
       onTalentPreferencesRefreshed,
       onTalentProfileRefreshed,
       resetActiveThinkingLogs,
+      tCareer,
     ]
   );
 

@@ -94,12 +94,37 @@ export type CareerTalentListResponse = {
   nextOffset: number | null;
 };
 
+export type CareerTalentPreferenceSummary = {
+  engagementTypes: string[];
+  profileVisibility: string | null;
+};
+
+export type CareerTalentMessageItem = {
+  id: number;
+  role: string;
+  content: string;
+  messageType: string | null;
+  createdAt: string;
+  thinkingLogs: string[];
+};
+
 export type CareerTalentDetailResponse = {
   userId: string;
   name: string | null;
   email: string | null;
   profilePicture: string | null;
   headline: string | null;
+  conversationStage: string | null;
+  isOnboardingDone: boolean;
+  lastConversationAt: string | null;
+  createdAt: string | null;
+  preferences: CareerTalentPreferenceSummary | null;
+  opsProfileMemo: CareerTalentOpsProfileMemo | null;
+  opsProfileMemos: CareerTalentOpsProfileMemo[];
+};
+
+export type CareerTalentProfileResponse = {
+  userId: string;
   bio: string | null;
   location: string | null;
   resumeFileName: string | null;
@@ -107,31 +132,25 @@ export type CareerTalentDetailResponse = {
   resumeDownloadUrl: string | null;
   resumeTextAvailable: boolean;
   registeredLinks: string[];
-  conversationStage: string | null;
-  isOnboardingDone: boolean;
-  lastConversationAt: string | null;
-  createdAt: string | null;
-  insights: Record<string, string> | null;
-  mergedChecklist: MergedChecklistItem[];
   structuredProfile: {
     experiences: unknown[];
     educations: unknown[];
     extras: unknown[];
   } | null;
-  preferences: {
-    engagementTypes: string[];
-    profileVisibility: string | null;
-  } | null;
-  messages: Array<{
-    id: number;
-    role: string;
-    content: string;
-    messageType: string | null;
-    createdAt: string;
-    thinkingLogs: string[];
-  }>;
-  opsProfileMemo: CareerTalentOpsProfileMemo | null;
-  opsProfileMemos: CareerTalentOpsProfileMemo[];
+};
+
+export type CareerTalentInsightsResponse = {
+  userId: string;
+  insights: Record<string, string> | null;
+  mergedChecklist: MergedChecklistItem[];
+  preferences: CareerTalentPreferenceSummary | null;
+};
+
+export type CareerTalentMessagesResponse = {
+  userId: string;
+  conversationStage: string | null;
+  lastConversationAt: string | null;
+  messages: CareerTalentMessageItem[];
 };
 
 export type CareerTalentOpsProfileMemo = {
@@ -1808,21 +1827,11 @@ export async function fetchCareerTalentDetail(
 ): Promise<CareerTalentDetailResponse> {
   const admin = getTalentSupabaseAdmin();
 
-  const [
-    profile,
-    insights,
-    structuredProfile,
-    mergedChecklist,
-    opsProfileMemos,
-  ] = await Promise.all([
+  const [profile, opsProfileMemos] = await Promise.all([
     fetchTalentUserProfile({ admin, userId }),
-    fetchTalentInsights({ admin, userId }),
-    fetchTalentStructuredProfile({ admin, userId, talentUser: null }),
-    getMergedChecklist({ admin }),
     fetchCareerTalentOpsProfileMemos({ admin, userId }),
   ]);
 
-  // Fetch latest conversation
   const { data: conversations } = await admin
     .from("talent_conversations")
     .select("id, stage, updated_at")
@@ -1832,34 +1841,41 @@ export async function fetchCareerTalentDetail(
 
   const latestConv = conversations?.[0] ?? null;
 
-  // Fetch messages from latest conversation
-  let messages: CareerTalentDetailResponse["messages"] = [];
-  if (latestConv) {
-    const { data: messageRows } = await admin
-      .from("talent_messages")
-      .select("id, role, content, message_type, thinking_logs, created_at")
-      .eq("conversation_id", latestConv.id)
-      .order("created_at", { ascending: true })
-      .limit(100);
-
-    messages = (messageRows ?? []).map((m) => ({
-      id: m.id,
-      role: m.role,
-      content: m.content,
-      messageType: m.message_type,
-      createdAt: m.created_at,
-      thinkingLogs: normalizeTalentMessageThinkingLogs(m.thinking_logs),
-    }));
-  }
-
-  // Fetch preferences
   const { data: setting } = await admin
     .from("talent_setting")
     .select("engagement_types, profile_visibility, is_onboarding_done")
     .eq("user_id", userId)
     .maybeSingle();
 
-  const normalizedInsights = normalizeTalentInsightContent(insights?.content);
+  return {
+    userId,
+    name: profile?.name ?? null,
+    email: profile?.email ?? null,
+    profilePicture: profile?.profile_picture ?? null,
+    headline: profile?.headline ?? null,
+    conversationStage: latestConv?.stage ?? null,
+    isOnboardingDone: Boolean(setting?.is_onboarding_done),
+    lastConversationAt: latestConv?.updated_at ?? null,
+    createdAt: profile?.created_at ?? null,
+    preferences: setting
+      ? {
+          engagementTypes: (setting.engagement_types as string[]) ?? [],
+          profileVisibility: (setting.profile_visibility as string) ?? null,
+        }
+      : null,
+    opsProfileMemo: opsProfileMemos[0] ?? null,
+    opsProfileMemos,
+  };
+}
+
+export async function fetchCareerTalentProfile(
+  userId: string
+): Promise<CareerTalentProfileResponse> {
+  const admin = getTalentSupabaseAdmin();
+  const [profile, structuredProfile] = await Promise.all([
+    fetchTalentUserProfile({ admin, userId }),
+    fetchTalentStructuredProfile({ admin, userId, talentUser: null }),
+  ]);
   const resumeFileName = profile?.resume_file_name?.trim() || null;
   const resumeStoragePath = profile?.resume_storage_path?.trim() || null;
   const resumeDownloadUrl = await getTalentResumeSignedUrl({
@@ -1869,10 +1885,6 @@ export async function fetchCareerTalentDetail(
 
   return {
     userId,
-    name: profile?.name ?? null,
-    email: profile?.email ?? null,
-    profilePicture: profile?.profile_picture ?? null,
-    headline: profile?.headline ?? null,
     bio: profile?.bio ?? null,
     location: profile?.location ?? null,
     resumeFileName,
@@ -1880,12 +1892,6 @@ export async function fetchCareerTalentDetail(
     resumeDownloadUrl,
     resumeTextAvailable: Boolean(profile?.resume_text?.trim()),
     registeredLinks: profile?.resume_links ?? [],
-    conversationStage: latestConv?.stage ?? null,
-    isOnboardingDone: Boolean(setting?.is_onboarding_done),
-    lastConversationAt: latestConv?.updated_at ?? null,
-    createdAt: profile?.created_at ?? null,
-    insights: normalizedInsights,
-    mergedChecklist,
     structuredProfile: structuredProfile
       ? {
           experiences: structuredProfile.talentExperiences ?? [],
@@ -1893,15 +1899,94 @@ export async function fetchCareerTalentDetail(
           extras: structuredProfile.talentExtras ?? [],
         }
       : null,
+  };
+}
+
+export async function fetchCareerTalentInsightsDetail(
+  userId: string
+): Promise<CareerTalentInsightsResponse> {
+  const admin = getTalentSupabaseAdmin();
+  const [insights, mergedChecklist, settingResult] = await Promise.all([
+    fetchTalentInsights({ admin, userId }),
+    getMergedChecklist({ admin }),
+    admin
+      .from("talent_setting")
+      .select("engagement_types, profile_visibility")
+      .eq("user_id", userId)
+      .maybeSingle(),
+  ]);
+
+  if (settingResult.error) {
+    throw new Error(
+      settingResult.error.message ?? "Failed to load talent setting"
+    );
+  }
+
+  const setting = settingResult.data;
+
+  return {
+    userId,
+    insights: normalizeTalentInsightContent(insights?.content),
+    mergedChecklist,
     preferences: setting
       ? {
           engagementTypes: (setting.engagement_types as string[]) ?? [],
           profileVisibility: (setting.profile_visibility as string) ?? null,
         }
       : null,
-    messages,
-    opsProfileMemo: opsProfileMemos[0] ?? null,
-    opsProfileMemos,
+  };
+}
+
+export async function fetchCareerTalentMessages(
+  userId: string
+): Promise<CareerTalentMessagesResponse> {
+  const admin = getTalentSupabaseAdmin();
+  const { data: conversations, error: conversationError } = await admin
+    .from("talent_conversations")
+    .select("id, stage, updated_at")
+    .eq("user_id", userId)
+    .order("updated_at", { ascending: false })
+    .limit(1);
+
+  if (conversationError) {
+    throw new Error(
+      conversationError.message ?? "Failed to load talent conversation"
+    );
+  }
+
+  const latestConv = conversations?.[0] ?? null;
+  if (!latestConv) {
+    return {
+      userId,
+      conversationStage: null,
+      lastConversationAt: null,
+      messages: [],
+    };
+  }
+
+  const { data: messageRows, error: messageError } = await admin
+    .from("talent_messages")
+    .select("id, role, content, message_type, thinking_logs, created_at")
+    .eq("conversation_id", latestConv.id)
+    .order("created_at", { ascending: true })
+    .limit(100);
+
+  if (messageError) {
+    throw new Error(messageError.message ?? "Failed to load talent messages");
+  }
+
+  return {
+    userId,
+    conversationStage: latestConv.stage ?? null,
+    lastConversationAt: latestConv.updated_at ?? null,
+    messages: (messageRows ?? []).map((message) => ({
+      id: message.id,
+      role: message.role,
+      content: message.content,
+      messageType: message.message_type,
+      createdAt: message.created_at,
+      thinkingLogs: normalizeTalentMessageThinkingLogs(message.thinking_logs),
+    })),
   };
 }
 

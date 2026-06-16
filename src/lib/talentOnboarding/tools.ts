@@ -61,6 +61,7 @@ import {
   insertTalentToolUsageLog,
 } from "./toolUsageLog";
 import type { TalentAdminClient } from "./admin";
+import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 
 export type TalentToolChannel = "chat" | "voice";
 
@@ -69,6 +70,7 @@ export type TalentToolExecutionContext = {
   abortSignal?: AbortSignal;
   conversationId?: string;
   isMobile?: boolean | null;
+  responseLocale?: string | null;
   userMessageId?: number | string | null;
   userId?: string;
 };
@@ -177,6 +179,12 @@ const normalizeToolBio = (value: unknown) => {
     .trim();
   return text ? text.slice(0, 8000) : null;
 };
+
+function getTalentToolResponseLanguage(
+  context?: TalentToolExecutionContext | null
+) {
+  return getCareerPromptLanguageName(context?.responseLocale);
+}
 
 const IMPACT_LEVEL_RANK: Record<TalentActivityImpactLevel, number> = {
   low: 0,
@@ -849,6 +857,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         admin: admin as any,
         abortSignal: context?.abortSignal,
         conversationId,
+        preferredLocale: context?.responseLocale ?? null,
         request,
         userId,
       });
@@ -1415,9 +1424,10 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         });
       }
 
+      const responseLanguage = getTalentToolResponseLanguage(context);
       return {
         assistantInstruction: [
-          "Continue the conversation naturally in Korean now. Do not mention internal tool names, JSON, or internal field names.",
+          `Continue the conversation naturally in ${responseLanguage} now. Do not mention internal tool names, JSON, or internal field names.`,
           "If recommendation delivery settings changed, explain the practical consequence in the user's language: how often Harper will send opportunities, how many, and which opportunity channels will be included or avoided.",
           "Do not make the saved-setting acknowledgement the whole answer; continue naturally from the user's intent.",
         ].join(" "),
@@ -1919,8 +1929,9 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         rowMemoActivityItems.length > 0 ? "medium" : null,
         insightImpactLevel,
       ]);
+      const responseLanguage = getTalentToolResponseLanguage(context);
       const replyInstructions = [
-        "Continue the conversation naturally in Korean now. Do not mention internal tool names, JSON, or internal field names.",
+        `Continue the conversation naturally in ${responseLanguage} now. Do not mention internal tool names, JSON, or internal field names.`,
         "If saved profile or future-matching memory changed, do not make the saved-memory acknowledgement the whole answer. Explain the user-facing consequence in the context of what the user just asked, then continue naturally.",
         "Use other tools only if independently required by the user's latest explicit request.",
         "If onboarding is still active, ask at most one relevant next question, or close naturally with the required marker when appropriate. Do not return an empty assistant message.",
@@ -1953,7 +1964,7 @@ export function getEnabledTalentTools(channel: TalentToolChannel) {
 const UI_STATUS_MESSAGE_PARAMETER = {
   type: "string",
   description:
-    "Specific English user-facing Thinking log sentence for this exact tool call. Say what is being changed, checked, searched, or prepared. If searching jobs, describe the kind of opportunities being searched for. If changing saved information, mention the concrete field/value being adjusted; old-to-new is optional only when it is naturally available. Do not use vague text like 'updating', 'checking', or 'searching' by itself. Do not mention internal tool names. Keep it under 160 characters.",
+    "Specific user-facing Thinking log sentence in the current response language for this exact tool call. Say what is being changed, checked, searched, or prepared. If searching jobs, describe the kind of opportunities being searched for. If changing saved information, mention the concrete field/value being adjusted; old-to-new is optional only when it is naturally available. Do not use vague text like 'updating', 'checking', or 'searching' by itself. Do not mention internal tool names. Keep it under 160 characters.",
 };
 
 function withUiStatusMessageParameter(parameters: Record<string, unknown>) {
@@ -1973,13 +1984,48 @@ function withUiStatusMessageParameter(parameters: Record<string, unknown>) {
   };
 }
 
-export function getOpenAIChatTools(channel: TalentToolChannel) {
+function localizeTalentToolPromptValue(
+  value: unknown,
+  responseLocale?: string | null
+): unknown {
+  const outputLanguage = getCareerPromptLanguageName(responseLocale);
+
+  if (typeof value === "string") {
+    return value.replace(/\bKorean\b/g, outputLanguage);
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) =>
+      localizeTalentToolPromptValue(item, responseLocale)
+    );
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        localizeTalentToolPromptValue(item, responseLocale),
+      ])
+    );
+  }
+
+  return value;
+}
+
+export function getOpenAIChatTools(
+  channel: TalentToolChannel,
+  options?: { responseLocale?: string | null }
+) {
   return getEnabledTalentTools(channel).map((tool) => ({
     type: "function" as const,
     function: {
       name: tool.name,
-      description: tool.description,
-      parameters: withUiStatusMessageParameter(tool.parameters),
+      description: localizeTalentToolPromptValue(
+        tool.description,
+        options?.responseLocale
+      ) as string,
+      parameters: localizeTalentToolPromptValue(
+        withUiStatusMessageParameter(tool.parameters),
+        options?.responseLocale
+      ) as Record<string, unknown>,
     },
   }));
 }
@@ -1990,12 +2036,21 @@ export function getStopAfterTalentToolNames(channel: TalentToolChannel) {
     .map((tool) => tool.name);
 }
 
-export function getRealtimeTools(channel: TalentToolChannel) {
+export function getRealtimeTools(
+  channel: TalentToolChannel,
+  options?: { responseLocale?: string | null }
+) {
   return getEnabledTalentTools(channel).map((tool) => ({
     type: "function" as const,
     name: tool.name,
-    description: tool.description,
-    parameters: withUiStatusMessageParameter(tool.parameters),
+    description: localizeTalentToolPromptValue(
+      tool.description,
+      options?.responseLocale
+    ) as string,
+    parameters: localizeTalentToolPromptValue(
+      withUiStatusMessageParameter(tool.parameters),
+      options?.responseLocale
+    ) as Record<string, unknown>,
   }));
 }
 

@@ -3,7 +3,7 @@ import { ExternalLink, FileText, LoaderCircle, RefreshCw } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { useIngestCareerProfile } from "@/hooks/useOpsCareer";
 import type {
-  CareerTalentDetailResponse,
+  CareerTalentProfileResponse,
   CareerTalentProfileIngestSource,
 } from "@/lib/opsCareerServer";
 import {
@@ -16,7 +16,7 @@ import {
 import { BareButton } from "@/components/ui/button";
 
 type ProfileTabProps = {
-  detail: CareerTalentDetailResponse;
+  detail: CareerTalentProfileResponse;
 };
 
 export const ProfileTab = memo(function ProfileTab({

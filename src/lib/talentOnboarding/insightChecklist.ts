@@ -1,3 +1,4 @@
+import { careerT } from "@/lib/career/translatedCareerMessage";
 export type InsightChecklistItem = {
   /** Normalized key for talent_insights.content, e.g. "recent_achievement_hook" */
   key: string;
@@ -65,7 +66,11 @@ const INSIGHT_BACKED_ONBOARDING_ITEMS = [
   {
     key: "next_scope",
     insightKey: "next_scope",
-    label: "다음 역할",
+    label: careerT(
+      "ko",
+      "career.profile.career_talent_profile_panel.1axs5u2",
+      "다음 역할"
+    ),
     promptHint:
       "The Role the user wants in the next role, such as current-past role, people leadership(Team manager or C-level), other role if possible, opened to any role",
     priority: 4,

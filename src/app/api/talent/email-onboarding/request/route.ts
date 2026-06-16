@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requestCareerEmailOnboarding } from "@/lib/careerEmailOnboarding/server";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 export const runtime = "nodejs";
 
@@ -14,7 +15,11 @@ function toMessage(error: Error) {
     return "올바른 이메일 주소를 입력해 주세요.";
   }
   if (error.message.startsWith("RATE_LIMIT_")) {
-    return "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.";
+    return careerT(
+      "ko",
+      "career.common.career_hook_messages.1u6tsv3",
+      "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요."
+    );
   }
   return "메일 발송에 실패했습니다. 잠시 후 다시 시도해 주세요.";
 }

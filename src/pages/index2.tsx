@@ -27,6 +27,7 @@ import { useEffect, useRef, useState } from "react";
 import type React from "react";
 import CareerLandingFooter from "@/components/landing/CareerLandingFooter";
 import GmailPhoneMockup from "@/components/landing/career/GmailMockup";
+import CareerWorkspacePreview from "@/components/career/preview/CareerWorkspacePreview";
 import { cx } from "@/components/ops/theme";
 import { cn } from "@/lib/cn";
 import { Badge } from "@/components/ui/badge";
@@ -164,8 +165,8 @@ const howRows = [
 
 function DesktopWindowMockup() {
   return (
-    <div className="absolute left-[7.2%] top-[8.5%] w-[80.5%] overflow-hidden rounded-[16px] bg-neutral-50 text-neutral-950 ring-1 ring-black/15 md:left-[8.4%] md:top-[8.6%] md:w-[78%]">
-      <div className="grid h-9 grid-cols-[64px_1fr_76px] items-center bg-neutral-100 px-3 text-[11px] text-neutral-500 ring-1 ring-black/[0.06] sm:grid-cols-[110px_1fr_110px] sm:px-4 sm:text-[13px]">
+    <div className="absolute left-1/2 top-[2%] w-[min(48vw,190px)] -translate-x-1/2 overflow-hidden rounded-[28px] bg-neutral-50 text-neutral-950 ring-1 ring-black/15 md:left-[8.4%] md:top-[8.6%] md:w-[78%] md:translate-x-0 md:rounded-[16px]">
+      <div className="hidden h-9 grid-cols-[64px_1fr_76px] items-center bg-neutral-100 px-3 text-[11px] text-neutral-500 ring-1 ring-black/[0.06] md:grid sm:grid-cols-[110px_1fr_110px] sm:px-4 sm:text-[13px]">
         <div className="flex gap-2">
           <span className="h-2 w-2 rounded-full bg-neutral-300 sm:h-2.5 sm:w-2.5" />
           <span className="h-2 w-2 rounded-full bg-neutral-300 sm:h-2.5 sm:w-2.5" />
@@ -177,14 +178,12 @@ function DesktopWindowMockup() {
         <div />
       </div>
 
-      <div className="relative aspect-[1512/827] overflow-hidden bg-neutral-50">
-        <Image
-          src="/images/career_screen.png"
-          alt="Harper desktop app screenshot"
-          fill
-          priority
-          sizes="(min-width: 1280px) 980px, (min-width: 768px) 78vw, 81vw"
-          className="object-contain object-top"
+      <div className="relative aspect-[390/844] overflow-hidden bg-neutral-50 md:aspect-[1512/827]">
+        <CareerWorkspacePreview
+          embedded
+          autoPlayConversation
+          initialTab="chat"
+          viewport="auto"
         />
       </div>
     </div>

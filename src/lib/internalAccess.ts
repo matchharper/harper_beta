@@ -4,6 +4,10 @@ export const ATS_ALLOWED_EMAILS = [
   "yijunlee.000@gmail.com",
   "khj605123@gmail.com",
 ] as const;
+export const CAREER_TRANSLATION_INSPECT_ALLOWED_EMAILS = [
+  "khj605123@gmail.com",
+  "khj6051@optimizerai.xyz",
+] as const;
 
 function normalizeEmail(value: string | null | undefined) {
   return String(value ?? "")
@@ -34,6 +38,16 @@ export function canAccessAts(value: string | null | undefined) {
     isInternalEmail(normalized) ||
     ATS_ALLOWED_EMAILS.includes(
       normalized as (typeof ATS_ALLOWED_EMAILS)[number]
+    )
+  );
+}
+
+export function canInspectCareerTranslations(value: string | null | undefined) {
+  const normalized = normalizeEmail(value);
+  return (
+    getEmailDomain(normalized) === INTERNAL_EMAIL_DOMAIN ||
+    CAREER_TRANSLATION_INSPECT_ALLOWED_EMAILS.includes(
+      normalized as (typeof CAREER_TRANSLATION_INSPECT_ALLOWED_EMAILS)[number]
     )
   );
 }

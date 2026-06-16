@@ -15,6 +15,7 @@ import {
   type SavedOpportunityManagementStatus,
 } from "./savedOpportunityStatus";
 import { BareButton } from "@/components/ui/button";
+import { useCareerT } from "@/i18n/useCareerT";
 
 const stopCardActivation = (event: React.SyntheticEvent) => {
   event.stopPropagation();
@@ -93,6 +94,8 @@ const OpportunityListCard = ({
   savedStatus?: SavedOpportunityManagementStatus;
   onSavedStatusChange?: (value: SavedOpportunityManagementStatus) => void;
 }) => {
+  const t = useCareerT();
+
   const recommendationReasons = item.recommendationReasons.slice(0, 2);
   const recommendationSummary = item.recommendationSummary?.trim() ?? "";
   const recommendationConcerns = (item.recommendationConcerns ?? []).slice(
@@ -157,7 +160,11 @@ const OpportunityListCard = ({
                 >
                   <span className="mt-[10px] h-1 w-1 shrink-0 rounded-full bg-black" />
                   <div className="text-sm leading-6 text-neutral-muted">
-                    주의 요소 : {concern}
+                    {t(
+                      "career.history.opportunity_list_card.0l12x89",
+                      "주의 요소 :"
+                    )}{" "}
+                    {concern}
                   </div>
                 </div>
               ))}

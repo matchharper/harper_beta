@@ -2,6 +2,7 @@ import { X } from "lucide-react";
 import React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { cn } from "@/lib/cn";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 type TalentCareerModalProps = {
   open: boolean;
@@ -21,6 +22,7 @@ type TalentCareerModalProps = {
   bodyClassName?: string;
   footerClassName?: string;
   closeButtonClassName?: string;
+  closeButtonAriaLabel?: string;
 };
 
 const TalentCareerModal = ({
@@ -41,6 +43,11 @@ const TalentCareerModal = ({
   bodyClassName,
   footerClassName,
   closeButtonClassName,
+  closeButtonAriaLabel = careerT(
+    "ko",
+    "career.common.talent_career_modal.18ppi14",
+    "모달 닫기"
+  ),
 }: TalentCareerModalProps) => {
   const hasTitle = title !== undefined && title !== null;
   const hasDescription = description !== undefined && description !== null;
@@ -90,7 +97,7 @@ const TalentCareerModal = ({
                   "absolute right-4 top-4 z-10 inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors",
                   closeButtonClassName
                 )}
-                aria-label="모달 닫기"
+                aria-label={closeButtonAriaLabel}
               >
                 <X className="h-4 w-4" />
               </DialogPrimitive.Close>

@@ -6,6 +6,8 @@ import type {
 } from "@/components/career/types";
 import { getErrorMessage } from "./careerHelpers";
 import type { FetchWithAuth } from "./useCareerApi";
+import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
+import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 
 type UseCareerTalentInsightsArgs = {
   fetchWithAuth: FetchWithAuth;
@@ -49,6 +51,7 @@ export const useCareerTalentInsights = ({
   fetchWithAuth,
   user,
 }: UseCareerTalentInsightsArgs) => {
+  const tCareer = useCareerMessageFormatter();
   const [talentInsights, setTalentInsights] =
     useState<CareerTalentInsights | null>(null);
   const [savedTalentInsights, setSavedTalentInsights] =
@@ -134,7 +137,7 @@ export const useCareerTalentInsights = ({
         .catch(() => ({}))) as TalentInsightsPayload;
       if (!response.ok) {
         throw new Error(
-          getErrorMessage(payload, "Harper insight 저장에 실패했습니다.")
+          getErrorMessage(payload, tCareer(H.harperInsightSaveFailed))
         );
       }
 
@@ -142,13 +145,13 @@ export const useCareerTalentInsights = ({
         payload.talentInsights ?? {},
         payload.insightUpdatedAt
       );
-      setTalentInsightsSaveInfo("Harper insight를 저장했습니다.");
+      setTalentInsightsSaveInfo(tCareer(H.harperInsightSaved));
       return true;
     } catch (error) {
       const message =
         error instanceof Error
           ? error.message
-          : "Harper insight 저장에 실패했습니다.";
+          : tCareer(H.harperInsightSaveFailed);
       setTalentInsightsSaveError(message);
       return false;
     } finally {
@@ -159,6 +162,7 @@ export const useCareerTalentInsights = ({
     fetchWithAuth,
     talentInsights,
     talentInsightsSavePending,
+    tCareer,
     user,
   ]);
 

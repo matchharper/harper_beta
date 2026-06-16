@@ -7,6 +7,7 @@ import type {
 import { useCareerVoiceInputStore } from "@/store/useCareerVoiceInputStore";
 import type { CareerConversationStarterId } from "@/lib/career/conversationStarters";
 import type { RealtimeConnectFailure } from "@/hooks/career/useRealtimeSession";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 type RealtimeControls = {
   partialTranscript: string;
@@ -27,6 +28,7 @@ type UseCareerVoiceInputArgs = {
 };
 
 const CALL_END_MARKER = "##END##";
+const MOCK_CALL_CONNECT_DELAY_MS = 700;
 const VOICE_DEBUG_STORAGE_KEY = "careerVoiceDebug";
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
@@ -50,6 +52,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   const [inputMode, setInputMode] = useState<CareerInputMode>("text");
   const [voiceListening, setVoiceListening] = useState(false);
   const [voiceMuted, setVoiceMuted] = useState(false);
+  const [mockCallActive, setMockCallActive] = useState(false);
   const [callTranscriptEntries, setCallTranscriptEntries] = useState<
     CallTranscriptEntry[]
   >([]);
@@ -310,7 +313,12 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   const clearVoiceBuffer = useCallback(() => undefined, []);
 
   useEffect(() => {
-    if (inputMode !== "call" || voiceMuted || !voiceListening) {
+    if (
+      mockCallActive ||
+      inputMode !== "call" ||
+      voiceMuted ||
+      !voiceListening
+    ) {
       stopVoiceLevelMonitor();
       return;
     }
@@ -330,6 +338,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     };
   }, [
     inputMode,
+    mockCallActive,
     startVoiceLevelMonitor,
     stopVoiceLevelMonitor,
     voiceListening,
@@ -338,6 +347,14 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
 
   const toggleVoiceMute = useCallback(() => {
     if (!canInteract) return;
+
+    if (mockCallActive) {
+      setVoiceListening(false);
+      stopVoiceLevelMonitor();
+      setVoiceMuted((current) => !current);
+      logVoiceDebug(voiceMuted ? "mock-voice-unmuted" : "mock-voice-muted");
+      return;
+    }
 
     if (voiceMuted) {
       setVoiceMuted(false);
@@ -350,11 +367,18 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     stopVoiceLevelMonitor();
     setVoiceMuted(true);
     logVoiceDebug("voice-muted");
-  }, [canInteract, logVoiceDebug, stopVoiceLevelMonitor, voiceMuted]);
+  }, [
+    canInteract,
+    logVoiceDebug,
+    mockCallActive,
+    stopVoiceLevelMonitor,
+    voiceMuted,
+  ]);
 
   const switchToTextMode = useCallback(() => {
     stopVoiceLevelMonitor();
     stopAssistantAudio();
+    setMockCallActive(false);
     setVoiceListening(false);
     setVoiceMuted(false);
     setInputMode("text");
@@ -369,6 +393,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     stopVoiceLevelMonitor();
     stopAssistantAudio();
     realtimeControls?.disconnect();
+    setMockCallActive(false);
     callAssistantTranscriptStreamingRef.current = false;
     setVoiceListening(false);
     setVoiceMuted(false);
@@ -389,14 +414,32 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     async (options?: {
       conversationStarterId?: CareerConversationStarterId | null;
       internalCallRequestId?: string | null;
+      mock?: boolean;
     }) => {
       void logEnvironmentSnapshot();
       logVoiceDebug("start-call-mode");
       setVoiceMuted(false);
+      setMockCallActive(false);
       stopAssistantAudio();
       clearVoiceBuffer();
       setCallTranscriptEntries([]);
       callAssistantTranscriptStreamingRef.current = false;
+
+      if (options?.mock) {
+        realtimeControls?.disconnect();
+        stopVoiceLevelMonitor();
+        resetVoiceInputLevel();
+        await new Promise<void>((resolve) =>
+          setTimeout(resolve, MOCK_CALL_CONNECT_DELAY_MS)
+        );
+        setVoiceListening(false);
+        setVoiceMuted(false);
+        setMockCallActive(true);
+        setInputMode("call");
+        inputModeRef.current = "call";
+        logVoiceDebug("mock-call-mode-connected");
+        return true;
+      }
 
       if (realtimeControls) {
         realtimeControls.disconnect();
@@ -421,7 +464,13 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
       }
 
       // Fallback: can't connect realtime, stay in text mode
-      onUnsupported("실시간 연결에 실패했습니다. 채팅으로 진행해 주세요.");
+      onUnsupported(
+        careerT(
+          "ko",
+          "career.common.use_career_voice_input.02eo5ko",
+          "실시간 연결에 실패했습니다. 채팅으로 진행해 주세요."
+        )
+      );
       return false;
     },
     [
@@ -430,8 +479,10 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
       logVoiceDebug,
       onUnsupported,
       realtimeControls,
+      resetVoiceInputLevel,
       startVoiceLevelMonitor,
       stopAssistantAudio,
+      stopVoiceLevelMonitor,
     ]
   );
 
@@ -442,6 +493,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     stopVoiceLevelMonitor();
     stopAssistantAudio();
     realtimeControls?.disconnect();
+    setMockCallActive(false);
     setVoiceListening(false);
     setVoiceMuted(false);
     setInputMode("text");
@@ -572,8 +624,9 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     voiceTranscript,
     voiceMuted,
     callTranscriptEntries,
-    connectionStatus:
-      realtimeControls?.connectionStatus ?? ("disconnected" as const),
+    connectionStatus: mockCallActive
+      ? ("connected" as const)
+      : (realtimeControls?.connectionStatus ?? ("disconnected" as const)),
     startCallMode,
     endCallMode,
     addCallTranscriptEntry,

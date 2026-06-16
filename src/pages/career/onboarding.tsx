@@ -46,6 +46,8 @@ import { cn } from "@/lib/cn";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
 import { getCareerSignupAttributionPayload } from "@/lib/careerSignupAttribution";
 import LoadingState from "../../components/career/OnboardingLoadingState";
+import { useCareerT } from "@/i18n/useCareerT";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 const SLIDE_VARIANTS = {
   enter: (isNext: boolean) => ({
@@ -86,29 +88,67 @@ const descriptionClassName =
 
 const ONBOARDING_STEPS: OnboardingStepDefinition[] = [
   {
-    label: "기본 정보",
-    title: ["커리어에도<br />에이전트가 필요합니다."],
-    description: ["시작은 이름과 이메일만 있으면 충분해요."],
+    label: careerT("ko", "career.onboarding.onboarding.0yf8432", "기본 정보"),
+    title: [
+      careerT(
+        "ko",
+        "career.onboarding.onboarding.0czo5rp",
+        "커리어에도<br />에이전트가 필요합니다."
+      ),
+    ],
+    description: [
+      careerT(
+        "ko",
+        "career.onboarding.onboarding.1o4hblb",
+        "시작은 이름과 이메일만 있으면 충분해요."
+      ),
+    ],
     headerClassName,
     titleClassName,
     descriptionClassName,
     bodyClassName: "grid w-full gap-5 text-left",
   },
   {
-    label: "기회 유형",
-    title: ["어떤 기회를<br />알아보고 있나요?"],
-    description: ["Harper가 맞춰서 제안할게요."],
+    label: careerT("ko", "career.onboarding.onboarding.1x0fjwc", "기회 유형"),
+    title: [
+      careerT(
+        "ko",
+        "career.onboarding.onboarding.1t9c061",
+        "어떤 기회를<br />알아보고 있나요?"
+      ),
+    ],
+    description: [
+      careerT(
+        "ko",
+        "career.onboarding.onboarding.0ghhb4f",
+        "Harper가 맞춰서 제안할게요."
+      ),
+    ],
     headerClassName,
     titleClassName,
     descriptionClassName,
     bodyClassName: "flex flex-col gap-2 w-full",
   },
   {
-    label: "프로필 연결",
-    title: ["Harper가 먼저 이해할게요."],
+    label: careerT("ko", "career.onboarding.onboarding.0zapw5l", "프로필 연결"),
+    title: [
+      careerT(
+        "ko",
+        "career.onboarding.onboarding.0j4a2qn",
+        "Harper가 먼저 이해할게요."
+      ),
+    ],
     description: [
-      "LinkedIn 또는 이력서 하나면 충분해요.",
-      "추가 정보는 방향을 더 정확히 좁히는 데 도움이 돼요.",
+      careerT(
+        "ko",
+        "career.onboarding.onboarding.17aqzmx",
+        "LinkedIn 또는 이력서 하나면 충분해요."
+      ),
+      careerT(
+        "ko",
+        "career.onboarding.onboarding.0sc411b",
+        "추가 정보는 방향을 더 정확히 좁히는 데 도움이 돼요."
+      ),
     ],
     headerClassName,
     titleClassName,
@@ -117,11 +157,25 @@ const ONBOARDING_STEPS: OnboardingStepDefinition[] = [
     secondaryBodyClassName: "mt-5 flex w-full flex-col gap-4 text-left",
   },
   {
-    label: "공개 설정",
-    title: ["회사에 프로필을 언제 공유할까요?"],
+    label: careerT("ko", "career.onboarding.onboarding.0zg5btj", "공개 설정"),
+    title: [
+      careerT(
+        "ko",
+        "career.onboarding.onboarding.0t0s7bt",
+        "회사에 프로필을 언제 공유할까요?"
+      ),
+    ],
     description: [
-      "프로필은 선택한 방식대로만 공유돼요.",
-      "대화 내용은 회사에 공개되지 않아요.",
+      careerT(
+        "ko",
+        "career.onboarding.onboarding.1n6ukfv",
+        "프로필은 선택한 방식대로만 공유돼요."
+      ),
+      careerT(
+        "ko",
+        "career.onboarding.onboarding.183d95f",
+        "대화 내용은 회사에 공개되지 않아요."
+      ),
     ],
     headerClassName,
     titleClassName,
@@ -132,9 +186,21 @@ const ONBOARDING_STEPS: OnboardingStepDefinition[] = [
 ];
 
 const DONE_STEP_DEFINITION: OnboardingStepDefinition = {
-  label: "대화 시작",
-  title: ["정보를 확인했습니다"],
-  description: ["이제 Harper와 몇 가지 기준만 정하면 돼요."],
+  label: careerT("ko", "career.onboarding.onboarding.1jkvik4", "대화 시작"),
+  title: [
+    careerT(
+      "ko",
+      "career.onboarding.onboarding.1sjsl9m",
+      "정보를 확인했습니다"
+    ),
+  ],
+  description: [
+    careerT(
+      "ko",
+      "career.onboarding.onboarding.0zc98l7",
+      "이제 Harper와 몇 가지 기준만 정하면 돼요."
+    ),
+  ],
   headerClassName,
   titleClassName,
   descriptionClassName,
@@ -220,19 +286,51 @@ type OnboardingStartPayload = {
   userMessage?: OnboardingStartMessagePayload | null;
 };
 
-const DEFAULT_DONE_USER_MESSAGE = "프로필 자료를 제출했습니다.";
+const DEFAULT_DONE_USER_MESSAGE = careerT(
+  "ko",
+  "career.onboarding.onboarding.0o7dyhc",
+  "프로필 자료를 제출했습니다."
+);
 
 const DEFAULT_DONE_KICKOFF_TEXT = [
-  "제출해주신 이력서/링크를 바탕으로 기회를 찾아 볼게요.",
+  careerT(
+    "ko",
+    "career.onboarding.onboarding.1w9rc8x",
+    "제출해주신 이력서/링크를 바탕으로 기회를 찾아 볼게요."
+  ),
 ].join("\n\n");
 
-const DONE_AGENT_INTRO_BASE =
-  "이제 제가 맞을 만한 기회들을 찾아보고, 인재 연결을 요청한 회사 중 괜찮은 곳이 있으면 소개 및 연결까지 해드릴게요. 더 좋은 연결을 도와드리기 위해 지금 어떤 상황이신지, 어떤 기회를 원하시는지 몇 가지만 더 여쭤보고 싶어요. 보통 5분 정도면 충분합니다.";
+const DONE_AGENT_INTRO_BASE = careerT(
+  "ko",
+  "career.onboarding.onboarding.1jh1j5u",
+  "이제 제가 맞을 만한 기회들을 찾아보고, 인재 연결을 요청한 회사 중 괜찮은 곳이 있으면 소개 및 연결까지 해드릴게요. 더 좋은 연결을 도와드리기 위해 지금 어떤 상황이신지, 어떤 기회를 원하시는지 몇 가지만 더 여쭤보고 싶어요. 보통 5분 정도면 충분합니다."
+);
 
-const DONE_ENGAGEMENT_COPY: Record<TalentNetworkEngagementOptionId, string> = {
-  advisor: "부담 없이 이야기 나눠볼 수 있는 어드바이저 기회",
-  fractional: "지금 하시는 일과 병행하기 좋은 파트타임/프로젝트 기회",
-  full_time: "바로 검토해볼 만한 풀타임 포지션",
+type CareerT = ReturnType<typeof useCareerT>;
+
+const getDoneEngagementCopy = (
+  id: TalentNetworkEngagementOptionId,
+  t: CareerT
+) => {
+  if (id === "advisor") {
+    return t(
+      "career.onboarding.onboarding.1gsa1bx",
+      "부담 없이 이야기 나눠볼 수 있는 어드바이저 기회"
+    );
+  }
+  if (id === "fractional") {
+    return t(
+      "career.onboarding.onboarding.1das976",
+      "지금 하시는 일과 병행하기 좋은 파트타임/프로젝트 기회"
+    );
+  }
+  if (id === "full_time") {
+    return t(
+      "career.onboarding.onboarding.13259px",
+      "바로 검토해볼 만한 풀타임 포지션"
+    );
+  }
+  return "";
 };
 
 const ONBOARDING_ENGAGEMENT_COPY: Record<
@@ -240,31 +338,57 @@ const ONBOARDING_ENGAGEMENT_COPY: Record<
   { label: string; description: string }
 > = {
   advisor: {
-    label: "어드바이저",
-    description: "초기 팀을 돕거나 전략적으로 기여하고 싶어요",
+    label: careerT("ko", "career.onboarding.onboarding.1bulcyv", "어드바이저"),
+    description: careerT(
+      "ko",
+      "career.onboarding.onboarding.1a74y8o",
+      "초기 팀을 돕거나 전략적으로 기여하고 싶어요"
+    ),
   },
   fractional: {
-    label: "파트타임·프로젝트",
-    description: "지금 자리는 유지하면서, 병행할 수 있는 일을 찾아요",
+    label: careerT(
+      "ko",
+      "career.onboarding.onboarding.1k0o8vf",
+      "파트타임·프로젝트"
+    ),
+    description: careerT(
+      "ko",
+      "career.onboarding.onboarding.06ilxsj",
+      "지금 자리는 유지하면서, 병행할 수 있는 일을 찾아요"
+    ),
   },
   full_time: {
-    label: "풀타임",
-    description: "제대로 된 기회라면 이직도 열어두고 있어요",
+    label: careerT("ko", "career.onboarding.onboarding.166o9pn", "풀타임"),
+    description: careerT(
+      "ko",
+      "career.onboarding.onboarding.15izros",
+      "제대로 된 기회라면 이직도 열어두고 있어요"
+    ),
   },
 };
 
 const buildDoneAgentIntro = (
-  selectedEngagements: TalentNetworkEngagementOptionId[]
+  selectedEngagements: TalentNetworkEngagementOptionId[],
+  t: CareerT
 ) => {
   const selectedCopies = selectedEngagements
-    .map((id) => DONE_ENGAGEMENT_COPY[id])
+    .map((id) => getDoneEngagementCopy(id, t))
     .filter(Boolean);
   const targetCopy =
     selectedCopies.length > 0
       ? selectedCopies.join(", ")
-      : "가장 좋아하실만한 기회들";
+      : t("career.onboarding.onboarding.0dus5rt", "가장 좋아하실만한 기회들");
 
-  return `${DONE_AGENT_INTRO_BASE} 대화가 끝나면 내용을 정리해서 ${targetCopy}부터 찾아볼게요.`;
+  return t(
+    "career.onboarding.onboarding.done_agent_intro",
+    "{intro} 대화가 끝나면 내용을 정리해서 {targetCopy}부터 찾아볼게요.",
+    {
+      values: {
+        intro: t("career.onboarding.onboarding.1jh1j5u", DONE_AGENT_INTRO_BASE),
+        targetCopy,
+      },
+    }
+  );
 };
 
 const getOnboardingKickoffText = (payload: OnboardingStartPayload) => {
@@ -634,18 +758,40 @@ const ONBOARDING_PROFILE_VISIBILITY_OPTIONS: Array<{
 }> = [
   {
     id: "open_to_matches",
-    label: "Harper가 먼저 공유해요",
-    description:
-      "잘 맞는 기회라고 판단되면\nHarper가 먼저 회사에 프로필을 공유해요.\n\n관심이 오면 바로 알려드려요.",
-    sub: "매칭에 필요한 프로필 정보만 공유돼요. 공개하지 않을 회사를 설정할 수 있어요.",
+    label: careerT(
+      "ko",
+      "career.onboarding.onboarding.0lliiks",
+      "Harper가 먼저 공유해요"
+    ),
+    description: careerT(
+      "ko",
+      "career.onboarding.onboarding.1at9nca",
+      "잘 맞는 기회라고 판단되면 Harper가 먼저 회사에 프로필을 공유해요. 관심이 오면 바로 알려드려요."
+    ),
+    sub: careerT(
+      "ko",
+      "career.onboarding.onboarding.03b3ba6",
+      "매칭에 필요한 프로필 정보만 공유돼요. 공개하지 않을 회사를 설정할 수 있어요."
+    ),
     Icon: ShieldCheck,
   },
   {
     id: "exceptional_only",
-    label: "내가 먼저 확인해요",
-    description:
-      "Harper가 먼저 기회를 가져오고,\n내가 확인한 뒤에만 프로필이 공유돼요.",
-    sub: "매칭에 필요한 프로필 정보만 공유돼요. 공개하지 않을 회사를 설정할 수 있어요.",
+    label: careerT(
+      "ko",
+      "career.onboarding.onboarding.0wcgte0",
+      "내가 먼저 확인해요"
+    ),
+    description: careerT(
+      "ko",
+      "career.onboarding.onboarding.0nzlxqj",
+      "Harper가 먼저 기회를 가져오고, 내가 확인한 뒤에만 프로필이 공유돼요."
+    ),
+    sub: careerT(
+      "ko",
+      "career.onboarding.onboarding.03b3ba6",
+      "매칭에 필요한 프로필 정보만 공유돼요. 공개하지 않을 회사를 설정할 수 있어요."
+    ),
     Icon: ShieldAlert,
   },
 ];
@@ -673,10 +819,19 @@ const ResumeUploadInput = ({
       )}
     </span>
     <span className="mt-1 text-sm font-normal">
-      {fileName || "이력서/CV 업로드"}
+      {fileName ||
+        careerT(
+          "ko",
+          "career.onboarding.onboarding.13vjc2d",
+          "이력서/CV 업로드"
+        )}
     </span>
     <span className="text-center text-sm font-normal text-neutral-muted">
-      PDF나 텍스트 파일을 올려주세요. 최대 10MB까지 권장합니다.
+      {careerT(
+        "ko",
+        "career.onboarding.onboarding.1xpgwgk",
+        "PDF나 텍스트 파일을 올려주세요. 최대 10MB까지 권장합니다."
+      )}
     </span>
     <UiInput
       unstyled
@@ -707,7 +862,7 @@ const OnboardingFooterControls = ({
           onClick={onPrev}
           className="min-w-[110px] font-normal"
         >
-          이전
+          {careerT("ko", "career.onboarding.onboarding.0wrohr9", "이전")}
         </AnimatedButton>
       )}
       <AnimatedButton
@@ -718,17 +873,31 @@ const OnboardingFooterControls = ({
         className="w-full px-4 font-normal"
       >
         {step === TOTAL_STEPS - 1
-          ? "기회 탐색 시작하기"
+          ? careerT(
+              "ko",
+              "career.onboarding.onboarding.0cvpvmv",
+              "기회 탐색 시작하기"
+            )
           : step === 0
-            ? "Harper 시작하기"
-            : "다음"}
+            ? careerT(
+                "ko",
+                "career.onboarding.onboarding.1gr43li",
+                "Harper 시작하기"
+              )
+            : careerT("ko", "career.onboarding.onboarding.0wbopf1", "다음")}
       </AnimatedButton>
     </div>
     <div
       className={`mt-2 flex min-h-5 items-center ${step === 0 ? "justify-center" : "justify-end"} text-[12px] leading-5 text-neutral-soft`}
     >
       {step === TOTAL_STEPS - 1 ? (
-        <span>분석까지 약 2분 걸려요</span>
+        <span>
+          {careerT(
+            "ko",
+            "career.onboarding.onboarding.0am0h8h",
+            "분석까지 약 2분 걸려요"
+          )}
+        </span>
       ) : (
         <span>
           press <Badge>Enter</Badge>
@@ -751,9 +920,11 @@ const DoneState = ({
   selectedEngagements: TalentNetworkEngagementOptionId[];
   userMessage: string;
 }) => {
+  const t = useCareerT();
+
   const doneAgentIntro = useMemo(
-    () => buildDoneAgentIntro(selectedEngagements),
-    [selectedEngagements]
+    () => buildDoneAgentIntro(selectedEngagements, t),
+    [selectedEngagements, t]
   );
   const fullHarperText = useMemo(
     () => [kickoffText.trim(), doneAgentIntro].filter(Boolean).join("\n\n"),
@@ -787,7 +958,7 @@ const DoneState = ({
                     onClick={onStartChat}
                     className="w-full px-3 text-[14px] font-normal"
                   >
-                    채팅하기
+                    {t("career.onboarding.onboarding.1onl53u", "채팅하기")}
                   </AnimatedButton>
                   <AnimatedButton
                     type="button"
@@ -796,7 +967,10 @@ const DoneState = ({
                     onClick={onStartCall}
                     className="w-full px-3 text-[14px] font-normal"
                   >
-                    Harper와 통화하기
+                    {t(
+                      "career.onboarding.onboarding.1qgquty",
+                      "Harper와 통화하기"
+                    )}
                   </AnimatedButton>
                 </div>
                 <Text
@@ -805,7 +979,10 @@ const DoneState = ({
                   tone="subtle"
                   className="mt-3 text-[12px] leading-5"
                 >
-                  통화가 어렵다면 채팅으로 이어가도 됩니다.
+                  {t(
+                    "career.onboarding.onboarding.08oczyl",
+                    "통화가 어렵다면 채팅으로 이어가도 됩니다."
+                  )}
                 </Text>
               </motion.div>
             )}
@@ -842,7 +1019,7 @@ const DoneState = ({
             tone="inverted"
             className="mt-4 max-w-[320px] rounded-xl bg-black px-4 py-2 text-left font-sans text-[13px] font-light leading-5"
           >
-            소중한 정보 감사해요.
+            {t("career.onboarding.onboarding.08ain69", "소중한 정보 감사해요.")}
           </Text>
         </motion.div>
 
@@ -877,6 +1054,8 @@ const DoneState = ({
 };
 
 const CareerNetworkOnboardingContent = () => {
+  const t = useCareerT();
+
   useHtmlClass("noneoverscroll");
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -944,7 +1123,14 @@ const CareerNetworkOnboardingContent = () => {
     if (!bootstrapRes.ok) {
       const payload = await bootstrapRes.json().catch(() => ({}));
       throw new Error(
-        getErrorMessage(payload, "로그인 정보를 초기화하지 못했습니다.")
+        getErrorMessage(
+          payload,
+          careerT(
+            "ko",
+            "career.onboarding.onboarding.1sy0934",
+            "로그인 정보를 초기화하지 못했습니다."
+          )
+        )
       );
     }
 
@@ -954,7 +1140,14 @@ const CareerNetworkOnboardingContent = () => {
       .catch(() => ({}))) as OnboardingSessionPayload;
     if (!sessionRes.ok) {
       throw new Error(
-        getErrorMessage(payload, "온보딩 세션을 불러오지 못했습니다.")
+        getErrorMessage(
+          payload,
+          careerT(
+            "ko",
+            "career.onboarding.onboarding.1sh2r2c",
+            "온보딩 세션을 불러오지 못했습니다."
+          )
+        )
       );
     }
 
@@ -1029,7 +1222,11 @@ const CareerNetworkOnboardingContent = () => {
           message:
             error instanceof Error
               ? error.message
-              : "온보딩 세션을 불러오지 못했습니다.",
+              : careerT(
+                  "ko",
+                  "career.onboarding.onboarding.1sh2r2c",
+                  "온보딩 세션을 불러오지 못했습니다."
+                ),
           variant: "error",
           duration: 5000,
         });
@@ -1080,7 +1277,14 @@ const CareerNetworkOnboardingContent = () => {
 
     if (!response.ok) {
       throw new Error(
-        getErrorMessage(payload, "기본 정보를 저장하지 못했습니다.")
+        getErrorMessage(
+          payload,
+          careerT(
+            "ko",
+            "career.onboarding.onboarding.0eumq1b",
+            "기본 정보를 저장하지 못했습니다."
+          )
+        )
       );
     }
 
@@ -1098,7 +1302,11 @@ const CareerNetworkOnboardingContent = () => {
         const message =
           error instanceof Error
             ? error.message
-            : "기본 정보를 저장하지 못했습니다.";
+            : careerT(
+                "ko",
+                "career.onboarding.onboarding.0eumq1b",
+                "기본 정보를 저장하지 못했습니다."
+              );
         showToast({ message, variant: "white" });
         throw error;
       }
@@ -1153,12 +1361,23 @@ const CareerNetworkOnboardingContent = () => {
     (currentStep: number) => {
       if (currentStep === 0) {
         if (!name.trim()) {
-          showToast({ message: "이름을 입력해주세요.", variant: "white" });
+          showToast({
+            message: careerT(
+              "ko",
+              "career.onboarding.onboarding.0ehh5yz",
+              "이름을 입력해주세요."
+            ),
+            variant: "white",
+          });
           return false;
         }
         if (!isValidEmail(email.trim())) {
           showToast({
-            message: "유효한 이메일을 입력해주세요.",
+            message: careerT(
+              "ko",
+              "career.onboarding.onboarding.09uxsj9",
+              "유효한 이메일을 입력해주세요."
+            ),
             variant: "white",
           });
           return false;
@@ -1168,7 +1387,11 @@ const CareerNetworkOnboardingContent = () => {
       if (currentStep === 1) {
         if (selectedEngagements.length === 0) {
           showToast({
-            message: "찾고 있는 업무 형태를 선택해주세요.",
+            message: careerT(
+              "ko",
+              "career.onboarding.onboarding.0w4wbae",
+              "찾고 있는 업무 형태를 선택해주세요."
+            ),
             variant: "white",
           });
           return false;
@@ -1177,7 +1400,11 @@ const CareerNetworkOnboardingContent = () => {
 
       if (currentStep === 2 && !hasRequiredProfileSignal) {
         showToast({
-          message: "이력서나 LinkedIn 링크 중 하나는 꼭 입력해주세요.",
+          message: careerT(
+            "ko",
+            "career.onboarding.onboarding.0d18cht",
+            "이력서나 LinkedIn 링크 중 하나는 꼭 입력해주세요."
+          ),
           variant: "white",
         });
         return false;
@@ -1200,7 +1427,14 @@ const CareerNetworkOnboardingContent = () => {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(
-          getErrorMessage(payload, "이력서 업로드에 실패했습니다.")
+          getErrorMessage(
+            payload,
+            careerT(
+              "ko",
+              "career.onboarding.onboarding.0yuh7d0",
+              "이력서 업로드에 실패했습니다."
+            )
+          )
         );
       }
 
@@ -1224,7 +1458,14 @@ const CareerNetworkOnboardingContent = () => {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(
-          getErrorMessage(payload, "이력서 내용을 읽지 못했습니다.")
+          getErrorMessage(
+            payload,
+            careerT(
+              "ko",
+              "career.onboarding.onboarding.010bz98",
+              "이력서 내용을 읽지 못했습니다."
+            )
+          )
         );
       }
 
@@ -1239,7 +1480,11 @@ const CareerNetworkOnboardingContent = () => {
     if (submitState === "loading") return;
     if (!conversationId) {
       showToast({
-        message: "온보딩 세션을 아직 준비하지 못했습니다.",
+        message: careerT(
+          "ko",
+          "career.onboarding.onboarding.0pijbir",
+          "온보딩 세션을 아직 준비하지 못했습니다."
+        ),
         variant: "error",
         duration: 5000,
       });
@@ -1275,13 +1520,21 @@ const CareerNetworkOnboardingContent = () => {
         throw new Error(
           getErrorMessage(
             preferencesPayload,
-            "선호 정보를 저장하지 못했습니다."
+            careerT(
+              "ko",
+              "career.onboarding.onboarding.1kdng2n",
+              "선호 정보를 저장하지 못했습니다."
+            )
           )
         );
       }
       if (preferencesPayload?.opportunityDiscoveryQueued) {
         showToast({
-          message: "기회 검색을 시작했습니다.",
+          message: careerT(
+            "ko",
+            "career.onboarding.onboarding.0hobsv6",
+            "기회 검색을 시작했습니다."
+          ),
           variant: "white",
         });
       }
@@ -1297,7 +1550,11 @@ const CareerNetworkOnboardingContent = () => {
         throw new Error(
           getErrorMessage(
             settingsPayload,
-            "프로필 공개 설정을 저장하지 못했습니다."
+            careerT(
+              "ko",
+              "career.onboarding.onboarding.01ywpeo",
+              "프로필 공개 설정을 저장하지 못했습니다."
+            )
           )
         );
       }
@@ -1319,7 +1576,14 @@ const CareerNetworkOnboardingContent = () => {
         .catch(() => ({}))) as OnboardingStartPayload;
       if (!startRes.ok) {
         throw new Error(
-          getErrorMessage(payload, "프로필 구조화를 시작하지 못했습니다.")
+          getErrorMessage(
+            payload,
+            careerT(
+              "ko",
+              "career.onboarding.onboarding.059do1c",
+              "프로필 구조화를 시작하지 못했습니다."
+            )
+          )
         );
       }
 
@@ -1338,7 +1602,11 @@ const CareerNetworkOnboardingContent = () => {
         message:
           error instanceof Error
             ? error.message
-            : "온보딩 제출 중 오류가 발생했습니다.",
+            : careerT(
+                "ko",
+                "career.onboarding.onboarding.1p04ixt",
+                "온보딩 제출 중 오류가 발생했습니다."
+              ),
         variant: "error",
         duration: 5000,
       });
@@ -1539,18 +1807,26 @@ const CareerNetworkOnboardingContent = () => {
                   <div className={currentStepDefinition.bodyClassName}>
                     <div>
                       <OnboardingFieldLabel>
-                        이름 (한글 이름의 경우 한글로 적어주세요.)
+                        {t(
+                          "career.onboarding.onboarding.1njrwx4",
+                          "이름 (한글 이름의 경우 한글로 적어주세요.)"
+                        )}
                       </OnboardingFieldLabel>
                       <Input
                         autoFocus
                         value={name}
                         onChange={(event) => setName(event.target.value)}
-                        placeholder="이름"
+                        placeholder={t(
+                          "career.onboarding.onboarding.1wh5aat",
+                          "이름"
+                        )}
                         className="h-12 text-base mt-1"
                       />
                     </div>
                     <div>
-                      <OnboardingFieldLabel>이메일</OnboardingFieldLabel>
+                      <OnboardingFieldLabel>
+                        {t("career.onboarding.onboarding.17sy1or", "이메일")}
+                      </OnboardingFieldLabel>
                       <Input
                         type="email"
                         value={email}
@@ -1628,7 +1904,10 @@ const CareerNetworkOnboardingContent = () => {
                       )}
                       {selectedProfileInputs.includes("website") && (
                         <LinkInput
-                          label="개인 페이지"
+                          label={t(
+                            "career.onboarding.onboarding.0fcepf9",
+                            "개인 페이지"
+                          )}
                           placeholder="https://..."
                           value={website}
                           onChange={(event) => setWebsite(event.target.value)}

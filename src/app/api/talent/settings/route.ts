@@ -9,18 +9,22 @@ import {
   sanitizeTalentProfileVisibility,
   upsertTalentSetting,
 } from "@/lib/talentOnboarding/server";
+import { normalizeCareerPromptLocale } from "@/lib/career/promptLocale";
 
 type Body = {
   profileVisibility?: string;
   blockedCompanies?: string[];
+  preferredLocale?: string | null;
 };
 
 const toResponseSettings = (row: {
   profile_visibility?: string | null;
   blocked_companies?: string[] | null;
+  preferred_locale?: string | null;
 }) => ({
   profileVisibility: sanitizeTalentProfileVisibility(row.profile_visibility),
   blockedCompanies: normalizeTalentBlockedCompanies(row.blocked_companies),
+  preferredLocale: normalizeCareerPromptLocale(row.preferred_locale),
 });
 
 export async function GET(req: NextRequest) {
@@ -40,6 +44,9 @@ export async function GET(req: NextRequest) {
         userId: user.id,
         profileVisibility: DEFAULT_TALENT_PROFILE_VISIBILITY,
         blockedCompanies: [],
+        preferredLocale: normalizeCareerPromptLocale(
+          req.cookies.get("NEXT_LOCALE")?.value
+        ),
       });
       return NextResponse.json({
         ok: true,
@@ -82,6 +89,10 @@ export async function POST(req: NextRequest) {
     const blockedCompanies = normalizeTalentBlockedCompanies(
       body.blockedCompanies ?? existing?.blocked_companies ?? []
     );
+    const preferredLocale =
+      body.preferredLocale === undefined
+        ? (existing?.preferred_locale ?? null)
+        : normalizeCareerPromptLocale(body.preferredLocale);
 
     const saved = await upsertTalentSetting({
       admin,
@@ -89,6 +100,7 @@ export async function POST(req: NextRequest) {
       profileVisibility,
       blockedCompanies,
       engagementTypes: existing?.engagement_types ?? [],
+      preferredLocale,
     });
 
     return NextResponse.json({

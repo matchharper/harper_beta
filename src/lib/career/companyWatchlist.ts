@@ -1,6 +1,11 @@
 import type { Json } from "@/types/database.types";
 import { CAREER_LLM_CONFIG } from "@/lib/career/llm";
 import {
+  getCareerPromptLanguageName,
+  normalizeCareerPromptLocale,
+} from "@/lib/career/promptLocale";
+import { careerT } from "@/lib/career/translatedCareerMessage";
+import {
   buildTalentProfileContext,
   fetchTalentInsights,
   fetchTalentSetting,
@@ -493,21 +498,30 @@ async function fetchActiveRoleStatsByCompanyDbIds(
 
 async function fetchLatestCompanySnapshotDossier(
   admin: AdminClient,
-  companyDbId: number
+  companyDbId: number,
+  preferredLocale?: string | null
 ): Promise<TalentCompanySnapshotDossier | null> {
+  const expectedLocale = normalizeCareerPromptLocale(preferredLocale);
   const { data, error } = await (admin.from("company_snapshot" as any) as any)
     .select("id, content, created_at, updated_at")
     .eq("company_db_id", companyDbId)
     .eq("status", "completed")
     .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(10);
 
   if (error) {
     throw new Error(error.message ?? "Failed to load company snapshot");
   }
 
-  const row = toJsonRecord(data);
+  const snapshotRows = coerceArray<Record<string, unknown>>(data);
+  const row =
+    snapshotRows.find((candidate) => {
+      const content = toJsonRecord(candidate.content);
+      const locale = normalizeCareerPromptLocale(content?.locale);
+      return locale === expectedLocale;
+    }) ?? null;
+  if (!row) return null;
+
   const content = toJsonRecord(row?.content);
   const fullMarkdown = cleanSnapshotText(content?.full_markdown);
   if (!fullMarkdown) return null;
@@ -820,6 +834,7 @@ export async function fetchTalentCompanyWatchlistPage(args: {
 export async function fetchTalentCompanyWatchlistDetail(args: {
   admin: AdminClient;
   companyDbId: number;
+  preferredLocale?: string | null;
   userId: string;
 }) {
   const companyDbId = Number(args.companyDbId);
@@ -842,7 +857,11 @@ export async function fetchTalentCompanyWatchlistDetail(args: {
       companyDbId,
     ]),
     fetchActiveRoleStatsByCompanyDbIds(args.admin, [companyDbId]),
-    fetchLatestCompanySnapshotDossier(args.admin, companyDbId),
+    fetchLatestCompanySnapshotDossier(
+      args.admin,
+      companyDbId,
+      args.preferredLocale
+    ),
   ]);
 
   const companyDb = companyDbById.get(companyDbId);
@@ -888,6 +907,7 @@ export async function updateTalentCompanyFollow(args: {
   companyDbId: number;
   companyWorkspaceId?: string | null;
   conversationId?: string | null;
+  preferredLocale?: string | null;
   source?: string | null;
   userId: string;
 }) {
@@ -899,6 +919,7 @@ export async function updateTalentCompanyFollow(args: {
   const existingDetail = await fetchTalentCompanyWatchlistDetail({
     admin: args.admin,
     companyDbId,
+    preferredLocale: args.preferredLocale,
     userId: args.userId,
   });
   if (!existingDetail) {
@@ -993,10 +1014,17 @@ export async function updateTalentCompanyFollow(args: {
     };
   }
 
-  const trackingSummary =
-    "시그널 추적 중. 펀딩, 채용, Founder 글, 팀 변화 중 의미 있는 변화만 요약합니다.";
-  const discoveryChannelSummary =
-    "회사 측 검색 노출 활성. 이 회사가 인재를 찾거나 Harper에 채용 요청을 보낼 때 팔로워 신호를 우선 반영합니다.";
+  const trackingSummary = careerT(
+    args.preferredLocale,
+    "career.company.follow.tracking_summary",
+    "시그널 추적 중. 펀딩, 채용, Founder 글, 팀 변화 중 의미 있는 변화만 요약합니다."
+  );
+  const discoveryChannelSummary = careerT(
+    args.preferredLocale,
+    "career.company.follow.discovery_channel_summary",
+    "회사 측 검색 노출 활성. 이 회사가 인재를 찾거나 Harper에 채용 요청을 보낼 때 팔로워 신호를 우선 반영합니다."
+  );
+
   const { error: upsertError } = await (
     args.admin.from("talent_company_follow" as any) as any
   ).upsert(
@@ -1045,6 +1073,7 @@ export async function updateTalentCompanyFollow(args: {
   const item = await fetchTalentCompanyWatchlistDetail({
     admin: args.admin,
     companyDbId,
+    preferredLocale: args.preferredLocale,
     userId: args.userId,
   });
 
@@ -1259,10 +1288,12 @@ function parseJsonObject(raw: string): Record<string, unknown> | null {
 
 async function rankCompanyCandidatesWithLlm(args: {
   candidates: CompanyRecommendationCandidate[];
+  preferredLocale?: string | null;
   profileContext: string;
   request: string | null;
 }) {
   if (args.candidates.length === 0) return [];
+  const outputLanguage = getCareerPromptLanguageName(args.preferredLocale);
 
   const cards = args.candidates
     .slice(0, COMPANY_RECOMMENDATION_LLM_LIMIT)
@@ -1313,7 +1344,8 @@ async function rankCompanyCandidatesWithLlm(args: {
           "Return JSON only.",
           "Pick companies, not individual roles. Prefer companies that fit the candidate's durable career direction and have current hiring signal.",
           "Do not invent facts. Use only the candidate profile and company cards.",
-          'JSON shape: {"recommendations":[{"companyDbId":123,"score":8.5,"reasonSummary":"Korean sentence","recommendationReasons":["Korean phrase","Korean phrase"],"signalSummary":"Korean sentence","latestSignal":"Korean short text","nextSignal":"Korean short text"}]}',
+          `Write reasonSummary, recommendationReasons, signalSummary, latestSignal, and nextSignal in ${outputLanguage}.`,
+          `JSON shape: {"recommendations":[{"companyDbId":123,"score":8.5,"reasonSummary":"${outputLanguage} sentence","recommendationReasons":["${outputLanguage} phrase","${outputLanguage} phrase"],"signalSummary":"${outputLanguage} sentence","latestSignal":"${outputLanguage} short text","nextSignal":"${outputLanguage} short text"}]}`,
         ].join("\n"),
       },
       {
@@ -1424,23 +1456,39 @@ async function fetchReusableFreshCompanyRecommendationPage(args: {
 function buildCompanyRecommendationAnswerDraft(args: {
   cacheHit?: boolean;
   page: TalentCompanyWatchlistPage;
+  preferredLocale?: string | null;
 }) {
-  const headline = args.cacheHit
-    ? `최근 저장된 추천 회사 ${args.page.items.length}개를 불러왔습니다.`
-    : `워치리스트에 추천 회사 ${args.page.items.length}개를 저장했습니다.`;
+  const headline = careerT(
+    args.preferredLocale,
+    args.cacheHit
+      ? "career.company.recommendation.answer.loaded_headline"
+      : "career.company.recommendation.answer.saved_headline",
+    args.cacheHit
+      ? "최근 저장된 추천 회사 {count}개를 불러왔습니다."
+      : "워치리스트에 추천 회사 {count}개를 저장했습니다.",
+    { values: { count: args.page.items.length } }
+  );
+  const fallbackReason = careerT(
+    args.preferredLocale,
+    "career.company.recommendation.answer.fallback_reason",
+    "현재 채용 신호가 있고 프로필 방향과 겹칩니다."
+  );
+  const footer = careerT(
+    args.preferredLocale,
+    "career.company.recommendation.answer.footer",
+    "워치리스트 > 추천회사에서 상세 정보와 팔로우 버튼을 볼 수 있습니다."
+  );
 
   return [
     headline,
     "",
     ...args.page.items.slice(0, 5).map((item, index) => {
       const reason =
-        item.reasonSummary ??
-        item.recommendationReasons[0] ??
-        "현재 채용 신호가 있고 프로필 방향과 겹칩니다.";
+        item.reasonSummary ?? item.recommendationReasons[0] ?? fallbackReason;
       return `${index + 1}. **${item.name}** — ${reason}`;
     }),
     "",
-    "워치리스트 > 추천회사에서 상세 정보와 팔로우 버튼을 볼 수 있습니다.",
+    footer,
   ].join("\n");
 }
 
@@ -1476,6 +1524,7 @@ export async function runCareerCompanyRecommendations(args: {
   conversationId?: string | null;
   forceRefresh?: boolean;
   limit?: number;
+  preferredLocale?: string | null;
   request?: string | null;
   source?: string | null;
   userId: string;
@@ -1506,6 +1555,7 @@ export async function runCareerCompanyRecommendations(args: {
       answerDraft: buildCompanyRecommendationAnswerDraft({
         cacheHit: true,
         page: reusablePage,
+        preferredLocale: args.preferredLocale,
       }),
       cacheHit: true,
       candidateCount: 0,
@@ -1536,6 +1586,7 @@ export async function runCareerCompanyRecommendations(args: {
   try {
     llmRanked = await rankCompanyCandidatesWithLlm({
       candidates: shortlist,
+      preferredLocale: args.preferredLocale,
       profileContext,
       request,
     });
@@ -1594,23 +1645,46 @@ export async function runCareerCompanyRecommendations(args: {
       dismissed_at: null,
       latest_signal:
         llm?.latestSignal ??
-        "최근 채용 신호가 확인되어 추적 후보로 저장했습니다.",
+        careerT(
+          args.preferredLocale,
+          "career.company.recommendation.latest_signal_fallback",
+          "최근 채용 신호가 확인되어 추적 후보로 저장했습니다."
+        ),
       next_signal:
         llm?.nextSignal ??
-        "새 채용이나 팀 변화가 생기면 워치리스트에서 업데이트합니다.",
+        careerT(
+          args.preferredLocale,
+          "career.company.recommendation.next_signal_fallback",
+          "새 채용이나 팀 변화가 생기면 워치리스트에서 업데이트합니다."
+        ),
       rank: index + 1,
       reason_summary:
         llm?.reasonSummary ??
-        `${companyName}는 현재 채용 신호가 있고 프로필 방향과 겹치는 회사입니다.`,
+        careerT(
+          args.preferredLocale,
+          "career.company.recommendation.reason_summary_fallback",
+          "{companyName}는 현재 채용 신호가 있고 프로필 방향과 겹치는 회사입니다.",
+          { values: { companyName } }
+        ),
       recommendation_reasons:
         llm?.recommendationReasons && llm.recommendationReasons.length > 0
           ? llm.recommendationReasons
           : [
-              "최근 채용 신호가 확인되어 추적 후보로 분류했습니다.",
+              careerT(
+                args.preferredLocale,
+                "career.company.recommendation.reason_one_fallback",
+                "최근 채용 신호가 확인되어 추적 후보로 분류했습니다."
+              ),
               getCompanyShortDescription({
                 companyDb: candidate.companyDb,
                 workspace: candidate.workspace,
-              }) ?? `${companyName}의 최근 채용 신호가 살아 있습니다.`,
+              }) ??
+                careerT(
+                  args.preferredLocale,
+                  "career.company.recommendation.reason_two_fallback",
+                  "{companyName}의 최근 채용 신호가 살아 있습니다.",
+                  { values: { companyName } }
+                ),
             ],
       recommended_at: now,
       score:
@@ -1624,7 +1698,11 @@ export async function runCareerCompanyRecommendations(args: {
         ),
       signal_summary:
         llm?.signalSummary ??
-        "최근 6개월 안에 활성 채용 신호가 있어 추적 대상으로 적합합니다.",
+        careerT(
+          args.preferredLocale,
+          "career.company.recommendation.signal_summary_fallback",
+          "최근 6개월 안에 활성 채용 신호가 있어 추적 대상으로 적합합니다."
+        ),
       source: cleanText(args.source, 80) || "tool",
       talent_id: args.userId,
       updated_at: now,
@@ -1651,7 +1729,10 @@ export async function runCareerCompanyRecommendations(args: {
     userId: args.userId,
   });
   return {
-    answerDraft: buildCompanyRecommendationAnswerDraft({ page }),
+    answerDraft: buildCompanyRecommendationAnswerDraft({
+      page,
+      preferredLocale: args.preferredLocale,
+    }),
     cacheHit: false,
     candidateCount: candidates.length,
     recommendedCount: page.items.length,

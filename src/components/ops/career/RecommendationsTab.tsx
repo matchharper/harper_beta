@@ -41,6 +41,7 @@ import { Select as UiSelect } from "@/components/ui/select";
 import { Radio as UiRadio } from "@/components/ui/radio";
 
 type ManualInternalRecommendationModalProps = {
+  fixedRole?: OpsManualInternalRecommendationRole | null;
   onClose: () => void;
   onQueued: (result: {
     role: OpsManualInternalRecommendationRole;
@@ -50,29 +51,29 @@ type ManualInternalRecommendationModalProps = {
   userId: string;
 };
 
-function ManualInternalRecommendationModal({
+export function ManualInternalRecommendationModal({
+  fixedRole = null,
   onClose,
   onQueued,
   open,
   userId,
 }: ManualInternalRecommendationModalProps) {
   const [roleSearch, setRoleSearch] = useState("");
-  const [selectedRole, setSelectedRole] =
-    useState<OpsManualInternalRecommendationRole | null>(null);
+  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [reasonModalOpen, setReasonModalOpen] = useState(false);
   const [error, setError] = useState("");
   const rolesQuery = useOpsManualInternalRecommendationRoles(
     roleSearch,
     40,
-    open,
+    open && !fixedRole,
     userId
   );
   const queueRecommendation = useQueueOpsManualInternalRecommendation();
 
   const resetModalState = useCallback(() => {
     setRoleSearch("");
-    setSelectedRole(null);
+    setSelectedRoleId(null);
     setReason("");
     setReasonModalOpen(false);
     setError("");
@@ -83,7 +84,9 @@ function ManualInternalRecommendationModal({
     onClose();
   }, [onClose, resetModalState]);
 
-  const roles = rolesQuery.data?.roles ?? [];
+  const roles = fixedRole ? [fixedRole] : (rolesQuery.data?.roles ?? []);
+  const selectedRole =
+    fixedRole ?? roles.find((role) => role.roleId === selectedRoleId) ?? null;
   const selectedDescriptionSummary = selectedRole?.descriptionSummary?.trim();
   const selectedDescription = selectedRole?.description?.trim();
   const showSelectedDescription =
@@ -175,17 +178,23 @@ function ManualInternalRecommendationModal({
             <div className="border-b border-neutral-1000-a05 px-5 py-4">
               <label className="block">
                 <span className={opsTheme.label}>Internal role</span>
-                <div className="relative mt-2">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-soft" />
-                  <UiInput
-                    unstyled
-                    type="text"
-                    value={roleSearch}
-                    onChange={(event) => setRoleSearch(event.target.value)}
-                    placeholder="회사, role, location 검색"
-                    className={cx(opsTheme.input, "h-10 pl-9 text-sm")}
-                  />
-                </div>
+                {fixedRole ? (
+                  <div className="mt-2 rounded-md border border-neutral-1000-a05 bg-bg-default/70 px-3 py-2 text-sm text-neutral-primary">
+                    {fixedRole.companyName} · {fixedRole.roleName}
+                  </div>
+                ) : (
+                  <div className="relative mt-2">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-soft" />
+                    <UiInput
+                      unstyled
+                      type="text"
+                      value={roleSearch}
+                      onChange={(event) => setRoleSearch(event.target.value)}
+                      placeholder="회사, role, location 검색"
+                      className={cx(opsTheme.input, "h-10 pl-9 text-sm")}
+                    />
+                  </div>
+                )}
               </label>
             </div>
 
@@ -234,14 +243,14 @@ function ManualInternalRecommendationModal({
                               role="button"
                               tabIndex={0}
                               aria-pressed={active}
-                              onClick={() => setSelectedRole(role)}
+                              onClick={() => setSelectedRoleId(role.roleId)}
                               onKeyDown={(event) => {
                                 if (
                                   event.key === "Enter" ||
                                   event.key === " "
                                 ) {
                                   event.preventDefault();
-                                  setSelectedRole(role);
+                                  setSelectedRoleId(role.roleId);
                                 }
                               }}
                               className={cx(
@@ -802,7 +811,6 @@ export const RecommendationsTab = memo(function RecommendationsTab({
               </label>
             ))}
           </div>
-          <FileText className="h-4 w-4 shrink-0 text-neutral-soft" />
         </div>
       </div>
 

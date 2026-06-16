@@ -2,6 +2,7 @@ import { BookmarkCheck, Check, Loader2, Plus } from "lucide-react";
 import type { MouseEvent } from "react";
 import { ActionButton } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 export const FollowButton = ({
   disabled,
@@ -32,6 +33,10 @@ export const FollowButton = ({
     ) : (
       <Plus className="h-3 w-3" />
     )}
-    <span>{following ? "팔로잉" : "팔로우"}</span>
+    <span>
+      {following
+        ? careerT("ko", "career.company.follow_button.19dhowc", "팔로잉")
+        : careerT("ko", "career.company.follow_button.1p6sttz", "팔로우")}
+    </span>
   </ActionButton>
 );

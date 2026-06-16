@@ -118,6 +118,75 @@ export const queryKeys = {
         talentId ?? "all",
       ] as const,
   },
+  opsMatching: {
+    all: ["opsMatching"] as const,
+    companies: (query?: string | null) =>
+      ["opsMatching", "companies", query ?? ""] as const,
+    roles: (companyWorkspaceId?: string | null) =>
+      ["opsMatching", "roles", companyWorkspaceId ?? ""] as const,
+    talents: (filters: {
+      createdFrom?: string | null;
+      createdTo?: string | null;
+      limit?: number | null;
+      offset?: number | null;
+      query?: string | null;
+      roleId?: string | null;
+      tags?: readonly string[] | null;
+    }) =>
+      [
+        "opsMatching",
+        "talents",
+        filters.roleId ?? "",
+        filters.limit ?? 20,
+        filters.offset ?? 0,
+        filters.query ?? "",
+        filters.createdFrom ?? "",
+        filters.createdTo ?? "",
+        (filters.tags ?? []).join("|"),
+      ] as const,
+    talentPool: (filters: {
+      createdFrom?: string | null;
+      createdTo?: string | null;
+      limit?: number | null;
+      offset?: number | null;
+      query?: string | null;
+      tab?: string | null;
+      tags?: readonly string[] | null;
+    }) =>
+      [
+        "opsMatching",
+        "talentPool",
+        filters.tab ?? "tailored",
+        filters.limit ?? 20,
+        filters.offset ?? 0,
+        filters.query ?? "",
+        filters.createdFrom ?? "",
+        filters.createdTo ?? "",
+        (filters.tags ?? []).join("|"),
+      ] as const,
+    progress: (talentId?: string | null, roleId?: string | null) =>
+      ["opsMatching", "progress", talentId ?? "", roleId ?? "all"] as const,
+    roleTags: (talentId?: string | null) =>
+      ["opsMatching", "roleTags", talentId ?? ""] as const,
+    reviewAll: (roleId?: string | null) =>
+      ["opsMatching", "review", roleId ?? ""] as const,
+    review: (
+      roleId?: string | null,
+      filters?: {
+        recommendedFrom?: string | null;
+        recommendedTo?: string | null;
+        tags?: readonly string[] | null;
+      }
+    ) =>
+      [
+        "opsMatching",
+        "review",
+        roleId ?? "",
+        filters?.recommendedFrom ?? "",
+        filters?.recommendedTo ?? "",
+        (filters?.tags ?? []).join("|"),
+      ] as const,
+  },
   searchHistory: {
     all: ["searchHistory"] as const,
     byUser: (userId: string) => ["searchHistory", "byUser", userId] as const,

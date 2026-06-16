@@ -18,6 +18,7 @@ import {
 } from "../opportunityTypeMeta";
 import HistoryOpportunityDetailContent from "./HistoryOpportunityDetailContent";
 import React from "react";
+import { useCareerT } from "@/i18n/useCareerT";
 
 const PositiveActionIconView = ({ icon: Icon }: { icon: LucideIcon }) => (
   <Icon className="h-4 w-4" />
@@ -48,6 +49,8 @@ const OpportunityDetailModal = ({
   onRestore?: () => void;
   onEditMemo?: () => void;
 }) => {
+  const t = useCareerT();
+
   if (!open || !item) return null;
 
   const PositiveActionIcon = getCareerPositiveActionIcon(item.opportunityType);
@@ -57,7 +60,11 @@ const OpportunityDetailModal = ({
     <TalentCareerModal
       open={open}
       onClose={onClose}
-      ariaLabel={`${item.title} 상세`}
+      ariaLabel={t(
+        "career.history.opportunity_detail_modal.aria_label",
+        "{title} 상세",
+        { values: { title: item.title } }
+      )}
       overlayClassName="items-start pt-10"
       panelClassName="w-[min(1040px,56vw)] max-w-none border border-neutral-1000-a05 bg-bg-floating"
       bodyClassName="max-h-[82svh] overflow-y-auto bg-bg-floating px-5 pb-5 pt-14"
@@ -94,7 +101,10 @@ const OpportunityDetailModal = ({
                 className={getCareerDefaultFeedbackButtonClassName(false)}
                 disabled={pending}
                 icon={<ArchiveRestore className="h-4 w-4" />}
-                label="새 기회로 되돌리기"
+                label={t(
+                  "career.history.opportunity_detail_modal.1b2ybel",
+                  "새 기회로 되돌리기"
+                )}
                 onClick={onRestore}
               />
             </div>

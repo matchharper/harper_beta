@@ -40,11 +40,15 @@ export async function GET(req: NextRequest) {
     const companyDbId =
       parseCompanyDbIdParam(req.nextUrl.searchParams.get("companyDbId")) ??
       parseCompanyDbIdParam(req.nextUrl.searchParams.get("company"));
+    const preferredLocale =
+      req.nextUrl.searchParams.get("locale") ??
+      req.cookies.get("NEXT_LOCALE")?.value;
 
     if (companyDbId) {
       const item = await fetchTalentCompanyWatchlistDetail({
         admin,
         companyDbId,
+        preferredLocale,
         userId: user.id,
       });
 

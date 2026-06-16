@@ -3,14 +3,14 @@ import { LoaderCircle, RefreshCw, Save } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { useRefreshInsights, useUpdateInsights } from "@/hooks/useOpsCareer";
 import { getInsightLabel } from "@/lib/talentOnboarding/insightChecklist";
-import type { CareerTalentDetailResponse } from "@/lib/opsCareerServer";
+import type { CareerTalentInsightsResponse } from "@/lib/opsCareerServer";
 import { BareButton } from "@/components/ui/button";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
 type InsightsTabProps = {
   insights: Record<string, string> | null;
-  mergedChecklist: CareerTalentDetailResponse["mergedChecklist"];
-  preferences: CareerTalentDetailResponse["preferences"];
+  mergedChecklist: CareerTalentInsightsResponse["mergedChecklist"];
+  preferences: CareerTalentInsightsResponse["preferences"];
   userId: string;
 };
 
@@ -93,20 +93,6 @@ export const InsightsTab = memo(function InsightsTab({
 
   return (
     <div className="space-y-4">
-      {preferences ? (
-        <div className={cx(opsTheme.panelSoft, "p-4")}>
-          <div className={cx(opsTheme.eyebrow, "mb-2")}>선호 설정</div>
-          <div className="space-y-1.5 text-sm text-neutral-primary">
-            {preferences.engagementTypes.length > 0 ? (
-              <div>
-                <span className="text-neutral-muted">근무 형태:</span>{" "}
-                {preferences.engagementTypes.join(", ")}
-              </div>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-
       <div className="flex items-center justify-between">
         <div className={opsTheme.eyebrow}>인사이트</div>
         <div className="flex items-center gap-2">

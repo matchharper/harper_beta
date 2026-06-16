@@ -1,3 +1,5 @@
+import { stripPostgresUnsafeChars } from "@/lib/textSanitization";
+
 type HeadersLike = {
   get(name: string): string | null;
 };
@@ -37,9 +39,16 @@ export function withIsMobile<T extends object>(
   payload: T,
   isMobile: boolean | null | undefined
 ): T & { is_mobile?: boolean } {
-  if (typeof isMobile !== "boolean") return payload;
+  const sanitizedPayload =
+    "content" in payload && typeof payload.content === "string"
+      ? {
+          ...payload,
+          content: stripPostgresUnsafeChars(payload.content),
+        }
+      : payload;
+  if (typeof isMobile !== "boolean") return sanitizedPayload;
   return {
-    ...payload,
+    ...sanitizedPayload,
     is_mobile: isMobile,
   };
 }

@@ -203,42 +203,6 @@ const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(
 );
 Badge.displayName = "Badge";
 
-type BadgeLinkProps = React.AnchorHTMLAttributes<HTMLAnchorElement> &
-  VariantProps<typeof badgeVariants>;
-
-const BadgeLink = React.forwardRef<HTMLAnchorElement, BadgeLinkProps>(
-  (
-    {
-      className,
-      radius,
-      size,
-      target = "_blank",
-      rel,
-      tone,
-      variant,
-      ...props
-    },
-    ref
-  ) => (
-    <Badge
-      asChild
-      radius={radius}
-      size={size ?? undefined}
-      tone={tone ?? undefined}
-      variant={variant ?? "subtle"}
-      className={className}
-    >
-      <a
-        ref={ref}
-        target={target}
-        rel={rel ?? (target === "_blank" ? "noreferrer" : undefined)}
-        {...props}
-      />
-    </Badge>
-  )
-);
-BadgeLink.displayName = "BadgeLink";
-
 const AttentionBadge = ({
   label,
   className,
@@ -258,4 +222,4 @@ const AttentionBadge = ({
   </span>
 );
 
-export { AttentionBadge, Badge, BadgeLink, badgeVariants };
+export { AttentionBadge, Badge, badgeVariants };

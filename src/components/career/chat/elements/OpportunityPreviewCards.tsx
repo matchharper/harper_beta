@@ -5,26 +5,44 @@ import type { CareerHistoryOpportunity } from "@/components/career/types";
 import { BareButton } from "@/components/ui/button";
 import { ClickablePanel } from "@/components/ui/clickable-panel";
 import { cn } from "@/lib/utils";
+import { useMessages } from "@/i18n/useMessage";
 
 import { getOpportunityPostingStatus } from "../../history/opportunityPostingStatus";
+import { useCareerT } from "@/i18n/useCareerT";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 const formatChatOpportunityWorkMode = (value: string | null) => {
   if (!value) return null;
   const normalized = value.trim().toLowerCase().replaceAll("-", "_");
   if (!normalized) return null;
-  if (normalized === "remote") return "원격";
-  if (normalized === "hybrid") return "하이브리드";
-  if (normalized === "onsite" || normalized === "on_site") return "대면";
+  if (normalized === "remote")
+    return careerT("ko", "career.common.career.1r843ma", "원격");
+  if (normalized === "hybrid")
+    return careerT("ko", "career.common.career.055fv5b", "하이브리드");
+  if (normalized === "onsite" || normalized === "on_site")
+    return careerT("ko", "career.common.career.0ketgfl", "대면");
   return value.trim().replaceAll("_", " ");
 };
 
 const formatChatOpportunityEmploymentType = (value: string) => {
   const normalized = value.trim().toLowerCase().replaceAll("-", "_");
   if (!normalized) return null;
-  if (normalized === "full_time") return "풀타임";
-  if (normalized === "part_time") return "파트타임";
-  if (normalized === "internship") return "인턴";
-  if (normalized === "contract") return "계약직";
+  if (normalized === "full_time")
+    return careerT("ko", "career.onboarding.onboarding.166o9pn", "풀타임");
+  if (normalized === "part_time")
+    return careerT(
+      "ko",
+      "career.common.career_history_panel.090irfh",
+      "파트타임"
+    );
+  if (normalized === "internship")
+    return careerT("ko", "career.common.career_history_panel.0sbhtqh", "인턴");
+  if (normalized === "contract")
+    return careerT(
+      "ko",
+      "career.common.career_history_panel.1rvnrzl",
+      "계약직"
+    );
   if (normalized === "fractional") return "Fractional";
   return value.trim().replaceAll("_", " ");
 };
@@ -45,6 +63,8 @@ export const OpportunityPreviewCards = memo(function OpportunityPreviewCards({
   items,
   onOpenOpportunity,
 }: OpportunityPreviewCardsProps) {
+  const t = useCareerT();
+
   const [activeItemState, setActiveItemState] = useState({
     index: 0,
     signature: "",
@@ -59,6 +79,7 @@ export const OpportunityPreviewCards = memo(function OpportunityPreviewCards({
   const activeItemIndex = Math.min(activeIndex, Math.max(items.length - 1, 0));
   const item = items[activeItemIndex] ?? null;
   const hasMultipleItems = items.length > 1;
+  const { locale } = useMessages();
 
   const moveActiveItem = useCallback(
     (direction: -1 | 1) => {
@@ -90,7 +111,7 @@ export const OpportunityPreviewCards = memo(function OpportunityPreviewCards({
 
   if (!item) return null;
 
-  const postingStatus = getOpportunityPostingStatus(item);
+  const postingStatus = getOpportunityPostingStatus(item, locale);
   const metaItems = getChatOpportunityMetaItems(item);
   const summary =
     item.recommendationSummary?.trim() ||
@@ -106,7 +127,11 @@ export const OpportunityPreviewCards = memo(function OpportunityPreviewCards({
           onOpenOpportunity(item);
         }}
         className="group relative flex cursor-pointer flex-col gap-4 rounded-[8px] border border-neutral-1000-a05 bg-bg-floating px-4 py-4 text-left transition-colors hover:border-neutral-400 hover:bg-bg-weak"
-        aria-label={`${item.companyName} ${item.title} 공고 열기`}
+        aria-label={t(
+          "career.chat.opportunity_preview_cards.open_posting_label",
+          "{companyName} {title} 공고 열기",
+          { values: { companyName: item.companyName, title: item.title } }
+        )}
       >
         {hasMultipleItems && (
           <div className="absolute top-3 right-3 z-10 hidden items-center gap-1 md:flex">
@@ -114,8 +139,8 @@ export const OpportunityPreviewCards = memo(function OpportunityPreviewCards({
               type="button"
               onClick={() => moveActiveItem(-1)}
               className="inline-flex h-5 w-5 cursor-pointer items-center justify-center rounded-sm bg-bg-weak text-neutral-muted hover:bg-bg-weak"
-              aria-label="이전 공고"
-              title="이전 공고"
+              aria-label={t("career.common.career.1xo6n8a", "이전 공고")}
+              title={t("career.common.career.1xo6n8a", "이전 공고")}
             >
               <ArrowLeft className="h-3.5 w-3.5" />
             </BareButton>
@@ -126,8 +151,8 @@ export const OpportunityPreviewCards = memo(function OpportunityPreviewCards({
               type="button"
               onClick={() => moveActiveItem(1)}
               className="inline-flex h-5 w-5 cursor-pointer items-center justify-center rounded-sm bg-bg-weak text-neutral-muted hover:bg-bg-weak"
-              aria-label="다음 공고"
-              title="다음 공고"
+              aria-label={t("career.common.career.0xq40c2", "다음 공고")}
+              title={t("career.common.career.0xq40c2", "다음 공고")}
             >
               <ArrowRight className="h-3.5 w-3.5" />
             </BareButton>

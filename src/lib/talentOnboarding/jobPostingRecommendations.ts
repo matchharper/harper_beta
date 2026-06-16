@@ -1,5 +1,7 @@
 import { fetchRecentTalentActivitySummaries } from "@/lib/talentOnboarding/activityEvents";
 import { CAREER_LLM_CONFIG } from "@/lib/career/llm";
+import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
 import {
   fetchTalentInsights,
@@ -212,7 +214,7 @@ The user's latest request is the primary retrieval target. Use the compact user 
 
 Output schema:
 {
-  "searchIntentSummary": "one Korean sentence focused on the current request",
+  "searchIntentSummary": "one sentence in the requested user-facing output language focused on the current request",
   "ftsKeywords": [{"terms": ["synonym", "group"], "weight": 1.0}],
   "role_titles": ["role title fragment"],
   "include_contract": false,
@@ -295,11 +297,11 @@ Output schema:
       "fitSummary": "회사와 역할에 대한 요약",
       "fitReasons": ["유저 프로필 / request를 기반으로 이 역할을 추천하는 이우"],
       "preferenceFit": {
-        "next_scope": {"status": "Satisfied|Neutral|Dissatisfied", "note": "짧은 한국어 한 문장"},
-        "location": {"status": "Satisfied|Neutral|Dissatisfied", "note": "짧은 한국어 한 문장"},
-        "compensation": {"status": "Satisfied|Neutral|Dissatisfied", "note": "짧은 한국어 한 문장"},
-        "deal_breakers": {"status": "Satisfied|Neutral|Dissatisfied", "note": "짧은 한국어 한 문장"},
-        "must_haves": {"status": "Satisfied|Neutral|Dissatisfied", "note": "짧은 한국어 한 문장"}
+        "next_scope": {"status": "Satisfied|Neutral|Dissatisfied", "note": "short note in the requested user-facing output language"},
+        "location": {"status": "Satisfied|Neutral|Dissatisfied", "note": "short note in the requested user-facing output language"},
+        "compensation": {"status": "Satisfied|Neutral|Dissatisfied", "note": "short note in the requested user-facing output language"},
+        "deal_breakers": {"status": "Satisfied|Neutral|Dissatisfied", "note": "short note in the requested user-facing output language"},
+        "must_haves": {"status": "Satisfied|Neutral|Dissatisfied", "note": "short note in the requested user-facing output language"}
       }
     },
     {
@@ -324,7 +326,7 @@ Output schema:
 - preferenceFit: 유저 insight에 명시된 선호 축만 평가한다. 없는 선호 축은 생략한다.
   - 허용 key: next_scope, location, compensation, deal_breakers, must_haves.
   - status는 Satisfied, Neutral, Dissatisfied 중 하나다.
-  - note는 role card와 user insight에 근거한 짧은 한국어 한 문장이다.
+  - note는 role card와 user insight에 근거한 짧은 문장이며, 요청된 user-facing output language로 쓴다.
   - 예:
     {
       "next_scope": {"status": "Satisfied", "note": "말씀하신 applied AI research 방향과 role scope가 맞습니다."},
@@ -701,7 +703,13 @@ function compactTimelineRows(
       if (!isEmptyForLlm(compactValue)) compact[key] = compactValue;
     }
     const start = compactPeriodDate(record.startDate ?? record.start_date);
-    const end = compactPeriodDate(record.endDate ?? record.end_date) || "현재";
+    const end =
+      compactPeriodDate(record.endDate ?? record.end_date) ||
+      careerT(
+        "ko",
+        "career.profile.career_talent_profile_panel.0p5h1wt",
+        "현재"
+      );
     if (start) compact.period = `${start} - ${end}`;
     const cleaned = cleanEmptyValues(compact);
     if (asRecord(cleaned)) rows.push(cleaned as JsonRecord);
@@ -1415,8 +1423,10 @@ function entryPreferenceField(record: JsonRecord, ...keys: string[]) {
 
 function normalizeExternalSearchPlan(
   raw: JsonRecord | null,
-  request: string
+  request: string,
+  outputLanguage = "Korean"
 ): ExternalSearchPlan {
+  const locale = outputLanguage === "English" ? "en" : "ko";
   const source = asRecord(raw?.external) ?? raw ?? {};
   const fallbackText = cleanText(request, 500) || "engineer";
   const ftsKeywords = normalizeFtsKeywords(source.ftsKeywords, fallbackText);
@@ -1469,12 +1479,17 @@ function normalizeExternalSearchPlan(
     ),
     searchIntentSummary:
       cleanText(source.searchIntentSummary ?? raw?.searchIntentSummary, 260) ||
-      "현재 유저 요청에 맞는 external job posting을 찾는다.",
+      careerT(
+        locale,
+        "career.job_posting_recommendations.search_plan.intent_fallback",
+        "현재 유저 요청에 맞는 external job posting을 찾는다."
+      ),
   };
 }
 
 async function buildSearchPlan(args: {
   llmUserProfile: JsonRecord;
+  outputLanguage: string;
   previousDeliveryTexts: string[];
   recentDeliveryMeta: string[];
   request: string;
@@ -1486,6 +1501,10 @@ async function buildSearchPlan(args: {
     jsonMode: true,
     messages: [
       { role: "system", content: PLAN_SYSTEM_PROMPT },
+      {
+        role: "system",
+        content: `User-facing output language: ${args.outputLanguage}. Write searchIntentSummary in ${args.outputLanguage}. Retrieval keywords may still mix Korean and English when useful for search recall.`,
+      },
       {
         role: "user",
         content: JSON.stringify({
@@ -1504,7 +1523,11 @@ async function buildSearchPlan(args: {
     temperature: CAREER_LLM_CONFIG.recommendJobPostings.planTemperature,
   });
 
-  return normalizeExternalSearchPlan(parseJsonObject(raw), args.request);
+  return normalizeExternalSearchPlan(
+    parseJsonObject(raw),
+    args.request,
+    args.outputLanguage
+  );
 }
 
 function sqlLiteral(value: string) {
@@ -1589,13 +1612,17 @@ function buildEmploymentTypeSql(plan: ExternalSearchPlan) {
         "contract",
         "contractor",
         "계약",
-        "계약직",
+        careerT("ko", "career.common.career_history_panel.1rvnrzl", "계약직"),
       ])
     );
   }
   if (!plan.includeIntern) {
     clauses.push(
-      buildExcludedEmploymentTypeSql(["internship", "intern", "인턴"])
+      buildExcludedEmploymentTypeSql([
+        "internship",
+        "intern",
+        careerT("ko", "career.common.career_history_panel.0sbhtqh", "인턴"),
+      ])
     );
   }
   if (!plan.includeParttime) {
@@ -1604,7 +1631,7 @@ function buildEmploymentTypeSql(plan: ExternalSearchPlan) {
         "part_time",
         "part-time",
         "part time",
-        "파트타임",
+        careerT("ko", "career.common.career_history_panel.090irfh", "파트타임"),
       ])
     );
   }
@@ -2417,6 +2444,7 @@ function normalizeSelectedRecommendation(
 async function selectFinalRecommendations(args: {
   cards: RoleCard[];
   llmUserProfile: JsonRecord;
+  outputLanguage: string;
   plan: ExternalSearchPlan;
   previousDeliveryTexts: string[];
   recentDeliveryMeta: string[];
@@ -2439,6 +2467,10 @@ async function selectFinalRecommendations(args: {
     jsonMode: true,
     messages: [
       { role: "system", content: FINAL_SELECTION_SYSTEM_PROMPT },
+      {
+        role: "system",
+        content: `User-facing output language: ${args.outputLanguage}. Write fitSummary, fitReasons, preferenceFit.note, and any other user-facing recommendation text in ${args.outputLanguage}.`,
+      },
       {
         role: "user",
         content: JSON.stringify({
@@ -2673,21 +2705,37 @@ function throwIfRecommendationSearchAborted(signal?: AbortSignal) {
 
 function formatAnswerDraft(args: {
   candidateCount: number;
+  outputLanguage: string;
   plan: ExternalSearchPlan;
   recommendations: EnrichedRankedRole[];
   requestedCount: number | null;
   supplementalRecommendationCount: number;
 }) {
+  const locale = args.outputLanguage === "English" ? "en" : "ko";
+
   if (args.recommendations.length === 0) {
-    return [
-      "지금 조건으로 바로 추천할 만한 external 채용공고를 찾지 못했습니다.",
-      "직무명, 지역, 근무 형태 중 하나를 조금 넓히면 다시 찾아볼 수 있습니다.",
-    ].join("\n");
+    return careerT(
+      locale,
+      "career.job_posting_recommendations.answer.empty",
+      [
+        "지금 조건으로 바로 추천할 만한 external 채용공고를 찾지 못했습니다.",
+        "직무명, 지역, 근무 형태 중 하나를 조금 넓히면 다시 찾아볼 수 있습니다.",
+      ].join("\n")
+    );
   }
 
   const lines = [
-    `요청 조건을 기준으로 현재 우선순위가 높은 ${args.recommendations.length}개를 포지션 탭에 저장했습니다.`,
-    `검색 의도: ${args.plan.searchIntentSummary}`,
+    careerT(
+      locale,
+      "career.job_posting_recommendations.answer.saved_headline",
+      "요청 조건을 기준으로 현재 우선순위가 높은 {count}개를 포지션 탭에 저장했습니다.",
+      { values: { count: args.recommendations.length } }
+    ),
+    careerT(
+      locale,
+      "career.job_posting_recommendations.answer.search_intent",
+      "검색 의도"
+    ) + `: ${args.plan.searchIntentSummary}`,
     "",
   ];
 
@@ -2695,7 +2743,17 @@ function formatAnswerDraft(args: {
     const directCount =
       args.recommendations.length - args.supplementalRecommendationCount;
     lines.push(
-      `요청에 바로 맞는 공고가 ${directCount}개라서, 완전히 일치하지는 않지만 좋은 공고 ${args.supplementalRecommendationCount}개를 함께 포함했습니다.`,
+      careerT(
+        locale,
+        "career.job_posting_recommendations.answer.supplemental_included",
+        "요청에 바로 맞는 공고가 {directCount}개라서, 완전히 일치하지는 않지만 좋은 공고 {supplementalCount}개를 함께 포함했습니다.",
+        {
+          values: {
+            directCount,
+            supplementalCount: args.supplementalRecommendationCount,
+          },
+        }
+      ),
       ""
     );
   }
@@ -2705,7 +2763,18 @@ function formatAnswerDraft(args: {
     args.requestedCount > FINAL_RECOMMENDATION_COUNT
   ) {
     lines.push(
-      `요청하신 ${args.requestedCount}개를 한 번에 모두 보여드리기보다는, 지금은 바로 볼 만한 최대 ${FINAL_RECOMMENDATION_COUNT}개만 먼저 골랐습니다. 이후 주기 추천에서는 한 번에 최대 ${CONTINUATION_RECOMMENDATION_BATCH_LIMIT}개씩 더 넓게 찾아보되, 기준에 못 미치는 공고는 넣지 않겠습니다.`,
+      careerT(
+        locale,
+        "career.job_posting_recommendations.answer.requested_count_trimmed",
+        "요청하신 {requestedCount}개를 한 번에 모두 보여드리기보다는, 지금은 바로 볼 만한 최대 {finalCount}개만 먼저 골랐습니다. 이후 주기 추천에서는 한 번에 최대 {batchLimit}개씩 더 넓게 찾아보되, 기준에 못 미치는 공고는 넣지 않겠습니다.",
+        {
+          values: {
+            batchLimit: CONTINUATION_RECOMMENDATION_BATCH_LIMIT,
+            finalCount: FINAL_RECOMMENDATION_COUNT,
+            requestedCount: args.requestedCount,
+          },
+        }
+      ),
       ""
     );
   }
@@ -2721,22 +2790,50 @@ function formatAnswerDraft(args: {
     const workMode = cleanText(role.work_mode, 100);
     const meta = [location, workMode].filter(Boolean).join(" / ");
     const why =
-      item.detail.fitReasons.length > 0 && item.detail.fitReasons.join(" ");
+      item.detail.fitReasons.length > 0 ? item.detail.fitReasons.join(" ") : "";
 
     const recommendationText = item.isSupplemental
-      ? "현재 요청과 완전히 일치하지는 않지만, 후보군 중 점수가 높아 참고용으로 포함했습니다."
-      : item.recommendationText || "현재 요청과 맞는 업무 범위가 있습니다.";
+      ? careerT(
+          locale,
+          "career.job_posting_recommendations.answer.supplemental_reason",
+          "현재 요청과 완전히 일치하지는 않지만, 후보군 중 점수가 높아 참고용으로 포함했습니다."
+        )
+      : item.recommendationText ||
+        careerT(
+          locale,
+          "career.job_posting_recommendations.answer.default_fit_reason",
+          "현재 요청과 맞는 업무 범위가 있습니다."
+        );
     const concern = item.detail.tradeoffs[0];
     const roleId = cleanText(item.roleId, 120);
 
     lines.push(
       `${index + 1}. ${company} - ${title} (${item.score.toFixed(1)}/10)`
     );
-    if (meta) lines.push(`   조건: ${meta}`);
+    if (meta) {
+      lines.push(
+        `   ${careerT(locale, "career.job_posting_recommendations.answer.details_label", "조건")}: ${meta}`
+      );
+    }
     lines.push(
-      `   ${item.isSupplemental ? "포함 이유" : "추천 이유"}: ${recommendationText} \n ${why}`
+      `   ${
+        item.isSupplemental
+          ? careerT(
+              locale,
+              "career.job_posting_recommendations.answer.why_included_label",
+              "포함 이유"
+            )
+          : careerT(
+              locale,
+              "career.job_posting_recommendations.answer.why_it_fits_label",
+              "추천 이유"
+            )
+      }: ${recommendationText}${why ? `\n ${why}` : ""}`
     );
-    if (concern) lines.push(`   확인할 점: ${concern}`);
+    if (concern)
+      lines.push(
+        `   ${careerT(locale, "career.job_posting_recommendations.answer.watch_for_label", "확인할 점")}: ${concern}`
+      );
     if (roleId) lines.push(`   [posting](${roleId})`);
     lines.push("");
   });
@@ -2752,6 +2849,7 @@ export async function runCareerJobPostingRecommendations(args: {
   admin: AdminClient;
   abortSignal?: AbortSignal;
   conversationId: string;
+  preferredLocale?: string | null;
   request: string;
   userId: string;
 }) {
@@ -2794,6 +2892,9 @@ export async function runCareerJobPostingRecommendations(args: {
     fetchRecentRecommendations({ admin: args.admin, userId: args.userId }),
   ]);
   throwIfRecommendationSearchAborted(args.abortSignal);
+  const outputLanguage = getCareerPromptLanguageName(
+    args.preferredLocale ?? asRecord(setting)?.preferred_locale
+  );
   const structuredProfile = await fetchTalentStructuredProfile({
     admin: args.admin,
     userId: args.userId,
@@ -2827,6 +2928,7 @@ export async function runCareerJobPostingRecommendations(args: {
   );
   const plan = await buildSearchPlan({
     llmUserProfile,
+    outputLanguage,
     previousDeliveryTexts: deliveryContext.previousDeliveryTexts,
     recentDeliveryMeta: deliveryContext.recentDeliveryMeta,
     request,
@@ -2892,6 +2994,7 @@ export async function runCareerJobPostingRecommendations(args: {
   const finalSelection = await selectFinalRecommendations({
     cards: shortlistedCards,
     llmUserProfile,
+    outputLanguage,
     plan,
     previousDeliveryTexts: deliveryContext.previousDeliveryTexts,
     recentDeliveryMeta: deliveryContext.recentDeliveryMeta,
@@ -2926,6 +3029,7 @@ export async function runCareerJobPostingRecommendations(args: {
   return {
     answerDraft: formatAnswerDraft({
       candidateCount: candidateCards.length,
+      outputLanguage,
       plan,
       recommendations,
       requestedCount,

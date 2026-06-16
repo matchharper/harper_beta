@@ -34,6 +34,7 @@ export async function buildCareerRealtimeSessionInstructions(args: {
   conversationId: string;
   conversationStarterId?: string | null;
   internalCallRequestId?: string | null;
+  preferredLocale?: string | null;
   toolNames: string[];
   userId: string;
 }) {
@@ -82,7 +83,20 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     string,
     string
   > | null;
-  const onboardingChecklistCoverage = !Boolean(talentSetting?.is_onboarding_done)
+  const currentPreferences = {
+    getExternalRecommendation:
+      talentSetting?.get_external_recommendation ?? true,
+    getInternalRecommendation:
+      talentSetting?.get_internal_recommendation ?? true,
+    periodicIntervalDays: talentSetting?.periodic_interval_days ?? null,
+    preferredLocale:
+      args.preferredLocale ?? talentSetting?.preferred_locale ?? null,
+    profileVisibility: talentSetting?.profile_visibility ?? null,
+    recommendationBatchSize: talentSetting?.recommendation_batch_size ?? null,
+  };
+  const onboardingChecklistCoverage = !Boolean(
+    talentSetting?.is_onboarding_done
+  )
     ? await getCareerOnboardingChecklistCoverage({
         admin,
         conversationId: args.conversationId,
@@ -90,7 +104,9 @@ export async function buildCareerRealtimeSessionInstructions(args: {
         userId: args.userId,
       })
     : null;
-  const promptToolNames = talentSetting?.is_onboarding_done ? args.toolNames : [];
+  const promptToolNames = talentSetting?.is_onboarding_done
+    ? args.toolNames
+    : [];
   const conversationStarterId = args.conversationStarterId?.trim();
   const conversationStarter = conversationStarterId
     ? getCareerConversationStarterPrompt(conversationStarterId)
@@ -109,18 +125,21 @@ export async function buildCareerRealtimeSessionInstructions(args: {
       ? internalCallRequest
       : null;
 
-  const recentConversationSection = buildCareerRealtimeRecentConversationSection(
-    visibleMessages.map((message) => ({
-      role: message.role,
-      content: formatTalentMessageContentForLlmPrompt(message),
-      createdAt: message.created_at,
-    }))
-  );
+  const recentConversationSection =
+    buildCareerRealtimeRecentConversationSection(
+      visibleMessages.map((message) => ({
+        role: message.role,
+        content: formatTalentMessageContentForLlmPrompt(message),
+        createdAt: message.created_at,
+      })),
+      currentPreferences.preferredLocale
+    );
 
   return buildCareerRealtimePromptPlan({
     additionalQuestionSelectionCount: null,
     callEndInstruction: getCareerCallEndInstructionPrompt(),
     currentInsightContent,
+    currentPreferences,
     interruptHandling: getCareerInterruptHandlingPrompt(),
     isOnboardingDone: talentSetting?.is_onboarding_done,
     onboardingChecklistCoverage,
@@ -129,11 +148,14 @@ export async function buildCareerRealtimeSessionInstructions(args: {
       ? "conversation_starter"
       : openInternalCallRequest
         ? "internal_opportunity_call"
-      : undefined,
+        : undefined,
     proactiveTurnInstruction: [
       conversationStarter?.voiceProactiveInstruction ?? "",
       openInternalCallRequest
-        ? buildInternalOpportunityRealtimeInstruction(openInternalCallRequest)
+        ? buildInternalOpportunityRealtimeInstruction({
+            ...openInternalCallRequest,
+            preferredLocale: currentPreferences.preferredLocale,
+          })
         : "",
     ]
       .filter((section) => section.trim().length > 0)

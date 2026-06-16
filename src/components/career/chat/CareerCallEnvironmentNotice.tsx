@@ -1,6 +1,8 @@
 import { ChevronDown, ChevronUp, Volume2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BareButton } from "@/components/ui/button";
+import { useCareerT } from "@/i18n/useCareerT";
+import React from "react";
 
 type CareerCallEnvironmentNoticeProps = {
   collapsed: boolean;
@@ -13,6 +15,8 @@ const CareerCallEnvironmentNotice = ({
   onToggle,
   className,
 }: CareerCallEnvironmentNoticeProps) => {
+  const t = useCareerT();
+
   if (collapsed) {
     return (
       <div className={cn("w-full", className)}>
@@ -27,7 +31,7 @@ const CareerCallEnvironmentNotice = ({
               <Volume2 className="h-4 w-4" />
             </span>
             <span className="text-sm font-medium text-neutral-muted">
-              통화 환경 안내
+              {t("career.call.environment_notice.title", "통화 환경 안내")}
             </span>
             <ChevronDown className="h-4 w-4 text-neutral-soft" />
           </BareButton>
@@ -47,24 +51,27 @@ const CareerCallEnvironmentNotice = ({
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="mt-1 text-sm font-semibold leading-5 text-neutral-primary">
-                      주변이 시끄러우면 통화가 정확하지 않을 수 있어요.
-                    </p>
-                  </div>
+                  <p className="mt-1 text-sm font-semibold leading-5 text-neutral-primary">
+                    {t(
+                      "career.call.environment_notice.heading",
+                      "주변이 시끄러우면 통화가 정확하지 않을 수 있어요."
+                    )}
+                  </p>
                   <BareButton
                     type="button"
                     onClick={onToggle}
                     aria-expanded
                     className="inline-flex shrink-0 items-center gap-1 rounded-full border border-neutral-1000-a05 bg-bg-floating px-3 py-1.5 text-xs font-medium text-neutral-muted transition-colors hover:border-neutral-1000-a10 hover:bg-bg-weak hover:text-neutral-muted"
                   >
-                    접기
+                    {t("career.call.environment_notice.collapse", "접기")}
                     <ChevronUp className="h-3.5 w-3.5" />
                   </BareButton>
                 </div>
                 <p className="mt-1 text-[13px] leading-5 text-neutral-muted">
-                  주변 소음이 많으면 Harper가 말을 정확히 듣지 못해 통화가
-                  매끄럽지 않을 수 있어요. 가능한 조용한 곳에서 이어주세요.
+                  {t(
+                    "career.call.environment_notice.description",
+                    "주변 소음이 많으면 Harper가 말을 정확히 듣지 못해 통화가 매끄럽지 않을 수 있어요. 가능한 조용한 곳에서 이어주세요."
+                  )}
                 </p>
               </div>
             </div>
@@ -75,4 +82,4 @@ const CareerCallEnvironmentNotice = ({
   );
 };
 
-export default CareerCallEnvironmentNotice;
+export default React.memo(CareerCallEnvironmentNotice);

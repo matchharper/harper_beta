@@ -3,6 +3,12 @@ import {
   fillPlaceholders,
   loadPrompt,
 } from "@/lib/talentOnboarding/prompts";
+import {
+  getCareerPromptLanguageName,
+  getCareerPromptToneRule,
+  normalizeCareerPromptLocale,
+} from "@/lib/career/promptLocale";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 import { TALENT_ONBOARDING_DONE_MARKER } from "@/lib/talentOnboarding/completion";
 import { TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX } from "@/lib/talentOnboarding/onboarding";
 import {
@@ -15,6 +21,7 @@ import {
 import { logger } from "@/utils/logger";
 
 const TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN = 2;
+const CAREER_PROFILE_PROMPT_TIME_ZONE = "Asia/Seoul";
 
 export type CareerPromptProfile = {
   resume_file_name?: string | null;
@@ -26,6 +33,7 @@ export type CareerPromptPreferences = {
   getExternalRecommendation?: boolean | null;
   getInternalRecommendation?: boolean | null;
   periodicIntervalDays?: number | null;
+  preferredLocale?: string | null;
   profileVisibility?: string | null;
   recommendationBatchSize?: number | null;
 };
@@ -53,6 +61,21 @@ export type CareerOpportunityFeedbackFollowUpTrigger =
   | "delayed_external_feedback"
   | "immediate_internal_feedback";
 
+export function getCareerProfilePromptCurrentDate(now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: CAREER_PROFILE_PROMPT_TIME_ZONE,
+    year: "numeric",
+  }).formatToParts(now);
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+
+  if (!year || !month || !day) return now.toISOString().slice(0, 10);
+  return `${year}-${month}-${day}`;
+}
+
 type CareerRealtimeRecentMessage = {
   content: string;
   createdAt?: string | null;
@@ -61,7 +84,8 @@ type CareerRealtimeRecentMessage = {
 
 function formatCareerRealtimeRelativeTime(
   createdAt: string | null | undefined,
-  nowMs: number
+  nowMs: number,
+  preferredLocale?: string | null
 ) {
   const createdAtMs = createdAt ? Date.parse(createdAt) : NaN;
   if (!Number.isFinite(createdAtMs)) return "";
@@ -74,11 +98,79 @@ function formatCareerRealtimeRelativeTime(
   const dayMs = 24 * hourMs;
   const monthMs = 30 * dayMs;
 
-  if (elapsedMs < minuteMs) return "방금전";
-  if (elapsedMs < hourMs) return `${Math.floor(elapsedMs / minuteMs)}분전`;
-  if (elapsedMs < dayMs) return `${Math.floor(elapsedMs / hourMs)}시간전`;
-  if (elapsedMs < monthMs) return `${Math.floor(elapsedMs / dayMs)}일전`;
-  return `${Math.floor(elapsedMs / monthMs)}개월전`;
+  if (elapsedMs < minuteMs) {
+    return careerT(
+      preferredLocale,
+      "career.call.opening.relative.just_now",
+      "방금전"
+    );
+  }
+  if (elapsedMs < hourMs) {
+    const minutes = Math.floor(elapsedMs / minuteMs);
+    if (minutes === 1) {
+      return careerT(
+        preferredLocale,
+        "career.call.opening.relative.minute_one",
+        "{count}분전",
+        { values: { count: minutes } }
+      );
+    }
+    return careerT(
+      preferredLocale,
+      "career.call.opening.relative.minute_many",
+      "{count}분전",
+      { values: { count: minutes } }
+    );
+  }
+  if (elapsedMs < dayMs) {
+    const hours = Math.floor(elapsedMs / hourMs);
+    if (hours === 1) {
+      return careerT(
+        preferredLocale,
+        "career.call.opening.relative.hour_one",
+        "{count}시간전",
+        { values: { count: hours } }
+      );
+    }
+    return careerT(
+      preferredLocale,
+      "career.call.opening.relative.hour_many",
+      "{count}시간전",
+      { values: { count: hours } }
+    );
+  }
+  if (elapsedMs < monthMs) {
+    const days = Math.floor(elapsedMs / dayMs);
+    if (days === 1) {
+      return careerT(
+        preferredLocale,
+        "career.call.opening.relative.day_one",
+        "{count}일전",
+        { values: { count: days } }
+      );
+    }
+    return careerT(
+      preferredLocale,
+      "career.call.opening.relative.day_many",
+      "{count}일전",
+      { values: { count: days } }
+    );
+  }
+  const months = Math.floor(elapsedMs / monthMs);
+  if (months === 1) {
+    return careerT(
+      preferredLocale,
+      "career.call.opening.relative.month_one",
+      "{count}개월전",
+      { values: { count: months } }
+    );
+  }
+  return careerT(
+    preferredLocale,
+    "career.call.opening.relative.month_many",
+    "{count}개월전",
+    { values: { count: months } }
+  );
 }
 
 export type CareerPromptBlock = {
@@ -106,12 +198,14 @@ export const CAREER_SESSION_START_NO_MESSAGE_MARKER = "__NO_SESSION_GREETING__";
 export const CAREER_SESSION_START_CALL_ACTION_MARKER = "[[CALL]]";
 const CAREER_HARPER_LINK_OUTPUT_RULE =
   "- Do not output Markdown links, HTML `<a>` tags, or raw clickable URLs for Harper-owned domains (`matchharper.com`, `www.matchharper.com`, or any subdomain). If you need to point to an internal Harper page, describe the location in plain text instead, such as `Career > Profile`.";
+
 const CAREER_FIRST_VISIT_TEXT = `
 안녕하세요. 하퍼에 처음 방문해주셔서 감사합니다.
 
 <<하퍼는 숨겨진 커리어 기회를 먼저 찾아 제안하고,
 후보자 관점에서 커리어 기회와 조건 협상까지 함께 돕는 AI 헤드헌터입니다.>>
 `.trim();
+
 const CAREER_INTERRUPT_HANDLING_PROMPT = `
 ## Interrupt 처리
 1. 사용자가 "아", "네", "음", "어", "응" 등 짧은 발화(1-2 음절)만 했다면, 말이 끊긴 것으로 간주한다.
@@ -120,6 +214,7 @@ const CAREER_INTERRUPT_HANDLING_PROMPT = `
 2. 사용자가 말을 하다가 중간에 잠깐 멈춘 것으로 판단된다면
 이 경우 "이어서 말씀해 주세요"라고 안내하고, 바로 다음 질문으로 넘어가지 마라. 사용자가 충분히 답변할 때까지 기다려라.
 `.trim();
+
 const CAREER_CALL_END_INSTRUCTION_PROMPT = `
 ## 통화 종료 시그널
 인터뷰를 완전히 마무리하고 마지막 인사("좋은 하루 보내세요" 등)까지 끝냈을 때에만, 응답 텍스트의 맨 끝에 ${CAREER_CALL_END_MARKER} 를 붙여라. 종료 시점에는 꼭 붙여야 한다.
@@ -285,7 +380,8 @@ You are not an interviewer, questionnaire, or form.
 Do not interrogate the candidate, ask many disconnected questions, or sound robotic.
 Make the conversation feel human and useful while collecting important recruiting signals over time.
 
-Always speak politely in Korean using 존댓말.
+Always speak in {output_language}.
+{output_language_tone_rule}
 
 ---
 
@@ -443,7 +539,7 @@ For these turns, the preferred sequence is:
 1. Update the saved profile/insights first with update_talent_profile.
 2. Mark impact high when the filter materially changes recommendations.
 3. If the candidate explicitly asked to find postings now, call the available job-search tool as a separate tool call after the saved update.
-4. In the final Korean answer, clearly say the condition was saved and will be used going forward, then summarize any found postings if a search ran.
+4. In the final {output_language} answer, clearly say the condition was saved and will be used going forward, then summarize any found postings if a search ran.
 
 For "미국 회사로만 찾아줘", a good durable memory target is must_haves when it is a hard requirement: "앞으로 미국 기반 회사만 추천받고 싶어합니다." Do not treat this as a mere one-off search unless the candidate says it is only for browsing.
 
@@ -1096,6 +1192,12 @@ function buildCareerConversationPromptPlan(args: {
   toolNames?: readonly string[] | string;
 }): CareerPromptPlan {
   const channelType = getCareerChannelType(args.channel);
+  const outputLanguage = getCareerPromptLanguageName(
+    args.currentPreferences?.preferredLocale
+  );
+  const outputLanguageToneRule = getCareerPromptToneRule(
+    args.currentPreferences?.preferredLocale
+  );
   const isOnboardingActive = !Boolean(args.isOnboardingDone);
   const isConversationStarterMode =
     args.proactiveTurnInstructionMode === "conversation_starter";
@@ -1164,6 +1266,7 @@ function buildCareerConversationPromptPlan(args: {
       ? ""
       : buildCareerToolPolicyPrompt({
           channel: args.channel,
+          preferredLocale: args.currentPreferences?.preferredLocale ?? null,
           toolNames: normalizedToolNames,
         });
   const runtimeInstruction = args.proactiveTurnInstruction?.trim().length
@@ -1172,6 +1275,7 @@ function buildCareerConversationPromptPlan(args: {
         isConversationStarterMode
           ? "The following conversation-starter instruction is the active objective for this turn/session. It overrides default career-intake and general matching guidance unless the latest user message explicitly asks to change topic."
           : "The following instruction is more specific than the generic onboarding/default conversation rules. Follow it for this turn/session unless the latest user message explicitly asks to change topic.",
+        `Response language remains ${outputLanguage}. If the instruction text includes Korean tone examples or Korean sample wording, adapt the intent naturally into ${outputLanguage} instead of copying the sample language.`,
         args.proactiveTurnInstruction.trim(),
       ].join("\n\n")
     : (args.sessionStartInstruction ?? "");
@@ -1223,7 +1327,9 @@ function buildCareerConversationPromptPlan(args: {
       text: CAREER_CHAT_CORE_SYSTEM_PROMPT.replace(
         /\{channel_type\}/g,
         channelType
-      ),
+      )
+        .replace(/\{output_language\}/g, outputLanguage)
+        .replace(/\{output_language_tone_rule\}/g, outputLanguageToneRule),
       cacheable: true,
     },
   ];
@@ -1323,7 +1429,8 @@ export function buildCareerTextChatPromptBlocks(args: {
   return plan;
 }
 export function buildCareerRealtimeRecentConversationSection(
-  messages: CareerRealtimeRecentMessage[]
+  messages: CareerRealtimeRecentMessage[],
+  preferredLocale?: string | null
 ) {
   const recentMessages = messages.filter((message) => message.content.trim());
   if (recentMessages.length === 0) return "";
@@ -1332,15 +1439,27 @@ export function buildCareerRealtimeRecentConversationSection(
   const maxPerMessage = 280;
   // let section = continuationHint ? `\n${continuationHint}\n\n` : "\n";
   let section = "";
-  section += "## 최근 대화 내역 (이전 흐름을 이어서 자연스럽게 대화)\n";
+  section += careerT(
+    preferredLocale,
+    "career.call.opening.recent_context.header",
+    "## 최근 채팅 맥락\n"
+  );
   let totalLength = section.length;
   const nowMs = Date.now();
 
   for (const message of recentMessages) {
-    const baseRoleLabel = message.role === "assistant" ? "Harper" : "사용자";
+    const baseRoleLabel =
+      message.role === "assistant"
+        ? "Harper"
+        : careerT(
+            preferredLocale,
+            "career.call.opening.recent_context.user",
+            "사용자"
+          );
     const relativeTime = formatCareerRealtimeRelativeTime(
       message.createdAt,
-      nowMs
+      nowMs,
+      preferredLocale
     );
     const roleLabel = relativeTime
       ? `${baseRoleLabel}(${relativeTime})`
@@ -1364,6 +1483,7 @@ export function buildCareerRealtimeRecentConversationSection(
 export function buildCareerRealtimePromptPlan(args: {
   additionalQuestionSelectionCount?: number | null;
   currentInsightContent: Record<string, string> | null;
+  currentPreferences?: CareerPromptPreferences | null;
   interruptHandling: string;
   isOnboardingDone?: boolean;
   callEndInstruction: string;
@@ -1382,6 +1502,7 @@ export function buildCareerRealtimePromptPlan(args: {
     additionalQuestionSelectionCount: args.additionalQuestionSelectionCount,
     channel: "voice",
     currentInsightContent: args.currentInsightContent,
+    currentPreferences: args.currentPreferences,
     interruptHandling: args.interruptHandling,
     isOnboardingDone: args.isOnboardingDone,
     onboardingChecklistCoverage: args.onboardingChecklistCoverage,
@@ -1409,11 +1530,18 @@ export function buildCareerRealtimeInstructionsPrompt(
 
 export function buildCareerToolPolicyPrompt(args: {
   channel: CareerToolPolicyChannel;
+  preferredLocale?: string | null;
   toolNames: readonly string[] | string;
 }) {
   const toolNames = normalizeToolNames(args.toolNames);
   if (toolNames.length === 0) return "";
 
+  const outputLanguage = getCareerPromptLanguageName(args.preferredLocale);
+  const acknowledgementExample = careerT(
+    args.preferredLocale,
+    "career.tool_policy.acknowledgement_example",
+    "알겠습니다. 앞으로 이 조건을 기준으로 맞는 기회를 찾아볼게요."
+  );
   const toolNameText = toolNames.join(", ");
   const hasWebSearchTool = toolNames.includes("web_search");
   const hasResearchCompanyTool = toolNames.includes("research_company");
@@ -1447,7 +1575,7 @@ export function buildCareerToolPolicyPrompt(args: {
   const channelRule =
     args.channel === "voice"
       ? "- Voice mode: if a tool is needed, call it directly. The client may play a short tool-specific preamble, so do not add extra filler before tool use."
-      : "- Chat mode: if a tool is needed, call it directly and then answer naturally in Korean using only the relevant findings.";
+      : `- Chat mode: if a tool is needed, call it directly and then answer naturally in ${outputLanguage} using only the relevant findings.`;
 
   return [
     "## Tool Use Policy",
@@ -1458,14 +1586,14 @@ export function buildCareerToolPolicyPrompt(args: {
     "- If the tool reads/searches data, mention the specific company, role, opportunity type, preference, or activity being checked. For job searches, describe what kind of jobs Harper is looking for.",
     ...(args.channel === "chat"
       ? [
-          "- When you are about to use a tool for a durable preference change or job search, start with one short Korean acknowledgement before tool use when the model/provider allows text before tool calls. Example: '알겠습니다. 앞으로 이 조건을 기준으로 맞는 기회를 찾아볼게요.'",
+          `- When you are about to use a tool for a durable preference change or job search, start with one short ${outputLanguage} acknowledgement before tool use when the model/provider allows text before tool calls. Example: '${acknowledgementExample}'`,
         ]
       : []),
     ...(args.channel === "voice"
       ? [
           "- Voice call limitation: UI-card tools are not available during a live voice call. Do not claim that you can show buttons or cards inside the call.",
-          "- If the user asks for full company snapshot/research during voice, explain in Korean that you can help after ending the call in text chat, where Harper can run real-time company research (5-15s delay).",
-          "- If the user asks to open, read, inspect, or summarize a specific URL/website during voice, explain in Korean that this requires text chat after ending the call, where Harper can open the URL.",
+          `- If the user asks for full company snapshot/research during voice, explain in ${outputLanguage} that you can help after ending the call in text chat, where Harper can run real-time company research (5-15s delay).`,
+          `- If the user asks to open, read, inspect, or summarize a specific URL/website during voice, explain in ${outputLanguage} that this requires text chat after ending the call, where Harper can open the URL.`,
         ]
       : []),
     ...(hasOpenUrlTool
@@ -1474,7 +1602,7 @@ export function buildCareerToolPolicyPrompt(args: {
           hasWebSearchTool
             ? "- Do not use `open_url` for broad discovery when no URL is provided. Use `web_search` first if the user asks for current web information but did not give a specific URL."
             : "- Do not use `open_url` for broad discovery when no URL is provided.",
-          "- After `open_url`, answer in Korean using the returned markdown. Mention the page title or URL only when it helps the user.",
+          `- After \`open_url\`, answer in ${outputLanguage} using the returned markdown. Mention the page title or URL only when it helps the user.`,
         ]
       : []),
     ...(hasResearchCompanyTool
@@ -1527,7 +1655,7 @@ export function buildCareerToolPolicyPrompt(args: {
       ? [
           "- Use `recommend_companies` when the user asks for companies to follow, company recommendations, startup/company discovery, a company watchlist, or asks Harper to find companies independent of a specific role.",
           "- Do not use `recommend_job_postings` for a pure company-watchlist request unless the user is specifically asking for roles or postings. `recommend_companies` saves company-level recommendations into Watchlist > 추천회사.",
-          "- After `recommend_companies`, answer in Korean using the tool's `answerDraft`. Mention that the user can open Watchlist > 추천회사 to view company detail and follow companies.",
+          `- After \`recommend_companies\`, answer in ${outputLanguage} using the tool's \`answerDraft\`. Mention that the user can open Watchlist > 추천회사 to view company detail and follow companies.`,
           "- If the user asks what following a company does, explain the two benefits: signal tracking for funding/hiring/Founder/team changes, and a company discovery channel where follower signal is prioritized when that company looks for talent.",
         ]
       : []),
@@ -1585,7 +1713,7 @@ export function buildCareerToolPolicyPrompt(args: {
           "- Trigger conditions: call ONLY when the user's latest statement directly maps to a writable field in this tool:",
           "  1) talentUser.bio: the user explicitly provides, rewrites, corrects, or asks to clear their profile Summary/About/Bio text. Do not invent this from assistant-only summaries.",
           "  2) rowMemos: a short fact clearly tied to exactly one visible experience/education/extra row. This includes recent/representative experience details, project descriptions, responsibilities, achievements, and education details.",
-          "  3) talentInsights: post-onboarding durable future preference/memory changes. Use descriptive English snake_case keys and final integrated Korean complete sentences as values.",
+          `  3) talentInsights: post-onboarding durable future preference/memory changes. Use descriptive English snake_case keys and final integrated ${outputLanguage} complete sentences as values.`,
           "- Do NOT call this tool during onboarding for general answers that only update insight-like understanding, such as search intensity, desired next role, compensation, must-haves, deal-breakers, team style, environment preference, career-change reason, or optional-question answers. Those are handled outside this tool until onboarding completes.",
           "- Do NOT call when:",
           "  - 사용자의 발화가 *질문*(예: '회사들이 보통 어떤 보상을 주나요?')이거나 *가정/추측*(예: '만약 연봉이 1억이면 좋겠죠')일 때.",
@@ -1596,17 +1724,17 @@ export function buildCareerToolPolicyPrompt(args: {
           "  - talentInsights.content 는 future-matching memory partial patch 이다. 기존 값과 통합된 최종 문장만 보내고, 단순 중복이면 보내지 않는다.",
           "  - 새 정보가 기존/current insight 또는 checklist 축에 속하면 새 synonym key를 만들지 말고 그 key를 업데이트해라.",
           "  - 기존 key로 표현하기 어려운 별도 축이면 새 영어 snake_case key를 만들어도 된다. 단, `representative_experience`, `recent_experience`처럼 프로필 row fact를 담는 key는 만들지 마라.",
-          "  - talentInsights value 는 완성된 한국어 문장이어야 한다. 예: `규모 선호.`가 아니라 `일정 규모가 있는 회사를 선호합니다.`",
+          `  - talentInsights value must be a complete ${outputLanguage} sentence. If writing in Korean, write \`일정 규모가 있는 회사를 선호합니다.\` rather than \`규모 선호.\``,
           "- 제외 대상:",
           "  - profileLinks(LinkedIn/GitHub/Scholar/X/개인 사이트), resume 파일은 채팅 발화에 등장해도 이 도구로 쓰지 않는다.",
           "- rowMemos (experience/education/extra profile rows 의 'Harper의 메모' 박스):",
           "  - 사용자가 프로필의 *특정* role/school/extra 하나에 분명히 연결되는 declarative 발화를 했을 때만 사용한다 (예: '삼성에서 ML 모델 만들었어요' → 시스템 프롬프트의 Experiences 블록에서 company_name이 '삼성'인 행 하나).",
           "  - experiences/educations 는 시스템 프롬프트에 노출된 그 행의 RowID 값을 verbatim 으로 사용해라. 환각 금지. extras 는 동일 블록의 Title 을 정확히 사용한다.",
-          "  - newInfo 에는 *새로 알게 된 정보 한 조각만* 짧은 한국어 자연 문장으로 적어라. 기존 memo 내용을 다시 적지 마라.",
+          `  - In newInfo, write *only one newly learned fact* as a short natural ${outputLanguage} sentence. Do not repeat the existing memo content.`,
           "  - 같은 발화의 같은 사실을 rowMemos와 talentInsights에 중복 저장하지 마라. 프로필 row에 들어갈 내용은 rowMemos만 사용한다.",
           "  - OMIT 규칙: (1) 후보 행이 두 개 이상 (예: '삼성' → Samsung Electronics + Samsung SDS 둘 다 존재) (2) 매칭되는 행이 없음 (3) 발화가 회사/학교 mention 없는 generic skill — 이런 케이스는 rowMemos 항목을 넣지 마라. 단순 프로필 사실이라면 talentInsights로 우회 저장하지도 마라.",
           "- 한 turn 에 추천 발송 설정과 프로필/미래 매칭 메모가 동시에 갱신될 수 있으면 `update_setting`과 `update_talent_profile`을 별도 호출해라. 설정 필드를 이 도구에 넣지 마라.",
-          "- After calling this tool, continue the conversation naturally in Korean: acknowledge the substance of what the user said, ask the next relevant question if onboarding is still active, or close naturally with the required marker if enough information has been collected.",
+          `- After calling this tool, continue the conversation naturally in ${outputLanguage}: acknowledge the substance of what the user said, ask the next relevant question if onboarding is still active, or close naturally with the required marker if enough information has been collected.`,
           "",
         ]
       : []),
@@ -1619,7 +1747,7 @@ export function buildCareerToolPolicyPrompt(args: {
           "- This tool may return either a profile-gap question OR a role-specific depth/preference question. Prefer concrete profile gaps, especially substantial experience rows with no description/memo. Do not keep asking broad desired role/tech-stack preference questions.",
           "- When this tool is available and you are in Additional questions phase, call it before asking the additional question. Do not invent the additional question yourself first.",
           "- Pass the user's latest message in `latestUserMessage` when available.",
-          "- If the tool result has `shouldAsk=true`, ask exactly one question using the returned `assistantMessage` naturally in Korean. Do not mention the tool, JSON, internal gap analysis, or selection rationale.",
+          `- If the tool result has \`shouldAsk=true\`, ask exactly one question using the returned \`assistantMessage\` naturally in ${outputLanguage}. Do not mention the tool, JSON, internal gap analysis, or selection rationale.`,
           "- If the tool result has `shouldAsk=false`, do not ask another additional question; use the returned `assistantMessage` as the final priority confirmation.",
           "- Do not close onboarding in the same response after this tool. Wait for the user's answer.",
           "",
@@ -1640,7 +1768,9 @@ export function buildCareerToolPolicyPrompt(args: {
 export function buildCareerInsightExtractionPrompt(args: {
   currentChecklistCoverage?: OnboardingChecklistCoverage | null;
   currentInsightContent: Record<string, string> | null;
+  preferredLocale?: string | null;
 }) {
+  const outputLanguage = getCareerPromptLanguageName(args.preferredLocale);
   const insightChecklistSection = buildExtractionInsightChecklistSection({
     checklistCoverage: args.currentChecklistCoverage,
     content: args.currentInsightContent,
@@ -1654,7 +1784,7 @@ Key selection policy:
 - Use the canonical insight keys above whenever the user's information fits one of them, even if the wording is not an exact match.
 - Do not invent synonym keys for canonical concepts. For example, if the concept belongs to a listed canonical key, output that exact key.
 - Use a new English snake_case key only when the insight is clearly meaningful for future career matching and does not reasonably fit any canonical key.
-- Values must be Korean complete sentences.
+- Values must be ${outputLanguage} complete sentences.
 
 Extraction scope:
 - Extract from User lines. Harper lines are context only.
@@ -1669,7 +1799,7 @@ Do not extract one-off browsing, curiosity, benchmarking, or informational searc
 Return a valid JSON object:
 {
   "extracted_insights": {
-    "key_name": { "value": "extracted value in Korean", "action": "new" | "update" }
+    "key_name": { "value": "extracted value in ${outputLanguage}", "action": "new" | "update" }
   },
   "covered_onboarding_checklist": ["checklist_key"]
 }
@@ -1679,14 +1809,16 @@ Return a valid JSON object:
 - covered_onboarding_checklist must contain only newly covered checklist keys from the transcript. If none, return an empty array.
 - If nothing to extract or mark covered, return: { "extracted_insights": {}, "covered_onboarding_checklist": [] }
 - Only include keys where the user provided clear information.
-- Keys must be English snake_case. Values must be complete Korean sentences, not fragments such as "규모 선호.".`;
+- Keys must be English snake_case. Values must be complete ${outputLanguage} sentences, not fragments such as "규모 선호.".`;
 }
 
 export function buildCareerInsightExtractionOnlyPrompt(args: {
   currentChecklistCoverage?: OnboardingChecklistCoverage | null;
   currentInsightContent: Record<string, string> | null;
   insightMdOverride?: string;
+  preferredLocale?: string | null;
 }) {
+  const outputLanguage = getCareerPromptLanguageName(args.preferredLocale);
   const insightChecklistSection = buildExtractionInsightChecklistSection({
     checklistCoverage: args.currentChecklistCoverage,
     content: args.currentInsightContent,
@@ -1696,7 +1828,7 @@ export function buildCareerInsightExtractionOnlyPrompt(args: {
   return [
     fillPlaceholders(extractSection(md, "extractionOnly"), {
       insightChecklistSection,
-    }),
+    }).replace(/\bKorean\b/g, outputLanguage),
     TRANSIENT_SEARCH_INSIGHT_GUARD,
   ]
     .filter((section) => section.trim().length > 0)
@@ -1816,8 +1948,10 @@ export function buildCareerCallWrapupTurnInstruction(args: {
   durationLabel: string | null;
   isBrief: boolean;
   isOnboardingDone?: boolean;
+  preferredLocale?: string | null;
   transcript: CareerTranscriptEntry[];
 }) {
+  const outputLanguage = getCareerPromptLanguageName(args.preferredLocale);
   const lines = args.transcript
     .map((entry) => {
       const role = entry.role === "user" ? "User" : "Harper";
@@ -1841,7 +1975,7 @@ export function buildCareerCallWrapupTurnInstruction(args: {
     "- Do not call search, recommendation, company research, service-help, open-role, or activity-reading tools in this wrap-up turn.",
     "",
     "Response instruction:",
-    "- Write one short natural Korean follow-up message for the chat after the call ends.",
+    `- Write one short natural ${outputLanguage} follow-up message for the chat after the call ends.`,
     "- 1-2 sentences, no heading, no bullets, no markdown card.",
     "- Do not ask a new onboarding/interview question. The call has ended.",
     "- If onboarding is not completed, say briefly that there is a little more to finish and invite the user to continue from here in this chat.",
@@ -1857,28 +1991,43 @@ export function buildCareerCallWrapupTurnInstruction(args: {
 export function buildCareerCallWrapupFallbackFollowUp(args: {
   isBrief: boolean;
   isOnboardingDone?: boolean;
+  preferredLocale?: string | null;
 }) {
   if (!args.isOnboardingDone) {
-    return "아직 온보딩이 조금 남아 있어요. 통화가 끊긴 지점부터 이 채팅에서 이어서 마무리하면, 그 기준으로 좋은 기회를 찾아드릴게요.";
+    return careerT(
+      args.preferredLocale,
+      "career.call.wrapup_fallback.onboarding_remaining",
+      "아직 온보딩이 조금 남아 있어요. 통화가 끊긴 지점부터 이 채팅에서 이어서 마무리하면, 그 기준으로 좋은 기회를 찾아드릴게요."
+    );
   }
 
   if (args.isBrief) {
-    return "오늘은 짧게 이야기 나눴네요. 다음에 편하실 때 조금만 더 들려주시면 그에 맞춰 더 잘 도와드릴게요.";
+    return careerT(
+      args.preferredLocale,
+      "career.call.wrapup_fallback.brief",
+      "오늘은 짧게 이야기 나눴네요. 다음에 편하실 때 조금만 더 들려주시면 그에 맞춰 더 잘 도와드릴게요."
+    );
   }
 
-  return "좋은 이야기 들려주셔서 감사합니다. 말씀해주신 내용을 바탕으로 만족하실 만한 기회를 잘 골라서 가져와볼게요.";
+  return careerT(
+    args.preferredLocale,
+    "career.call.wrapup_fallback.completed",
+    "좋은 이야기 들려주셔서 감사합니다. 말씀해주신 내용을 바탕으로 만족하실 만한 기회를 잘 골라서 가져와볼게요."
+  );
 }
 
 export function buildCareerOpportunityFeedbackFollowUpTurnInstruction(args: {
+  preferredLocale?: string | null;
   trigger: CareerOpportunityFeedbackFollowUpTrigger;
 }) {
+  const outputLanguage = getCareerPromptLanguageName(args.preferredLocale);
   const clearedOpportunityGuidance =
     args.trigger === "all_recommended_opportunities_cleared"
       ? [
           "",
           "Cleared-position-tab trigger:",
           "- The user has just accepted or rejected the last remaining item in the New Positions tab. There are now zero remaining newly recommended opportunities.",
-          "- Say, in natural Korean, that there are no remaining recommended opportunities to review right now.",
+          `- Say, in natural ${outputLanguage}, that there are no remaining recommended opportunities to review right now.`,
           "- Action guide: if the previous conversation and feedback history provide enough signal, call `recommend_job_postings` to find a fresh batch based on that history; if a required preference is missing or you wanna get confirmation about what you guessed based on the feedbacks before recommending, ask exactly one necessary question instead.",
           "- This should feel like Harper is using the user's prior feedback, not like a hard-coded automatic refresh.",
         ]
@@ -1911,20 +2060,56 @@ export const CAREER_KICKOFF_FALLBACK = {
     "제가 항상 더 좋은 기회를 찾고 연결시켜드릴 수 있도록 노력할게요. 거기에 앞서, 회원님이 선호하시는게 어떤건지 먼저 알려주시면 도움이 될 것 같아요.",
 };
 
-export function buildCareerKickoffOpeningMessage(displayName: string) {
+export function getCareerKickoffFallback(args?: {
+  preferredLocale?: string | null;
+}) {
+  return {
+    acknowledgement: careerT(
+      args?.preferredLocale,
+      "career.kickoff.fallback.acknowledgement",
+      CAREER_KICKOFF_FALLBACK.acknowledgement
+    ),
+    insight: careerT(
+      args?.preferredLocale,
+      "career.kickoff.fallback.insight",
+      CAREER_KICKOFF_FALLBACK.insight
+    ),
+  };
+}
+
+export function buildCareerKickoffOpeningMessage(
+  displayName: string,
+  preferredLocale?: string | null
+) {
   const normalizedName =
     String(displayName ?? "")
       .trim()
-      .replace(/\s*님$/, "") || "회원";
-  return `${normalizedName}님이 실제로 만족할만한 기회를 찾기위해서, 몇 가지만 먼저 여쭤보고 싶어요.
+      .replace(/\s*님$/, "") ||
+    careerT(preferredLocale, "career.kickoff.fallback_name", "회원");
+
+  return careerT(
+    preferredLocale,
+    "career.kickoff.opening_message",
+    `{name}님이 실제로 만족할만한 기회를 찾기위해서, 몇 가지만 먼저 여쭤보고 싶어요.
 가벼운 대화라고 생각하시고, 편하게 대답해주세요. 5분 내외로 대화가 끝날 수 있게 하고, 거의 다 질문했다면 임의로 종료하실 수도 있게 할게요.
-우선 현재 상황 혹은 본인에 대한 간단한 소개나 어떤 기회를 찾고계신지 알려주실 수 있나요?`;
+우선 현재 상황 혹은 본인에 대한 간단한 소개나 어떤 기회를 찾고계신지 알려주실 수 있나요?`,
+    { values: { name: normalizedName } }
+  );
 }
 
-export function buildCareerKickoffSystemPrompt() {
+export function buildCareerKickoffSystemPrompt(args?: {
+  preferredLocale?: string | null;
+}) {
+  const outputLanguage = getCareerPromptLanguageName(args?.preferredLocale);
+  const acknowledgementExample = careerT(
+    outputLanguage === "English" ? "en" : "ko",
+    "career.kickoff.system_prompt.acknowledgement_example",
+    "안녕하세요 OO님."
+  );
+
   return [
     "You are Harper, an AI talent agent onboarding assistant.",
-    "Always write in Korean.",
+    `Always write in ${outputLanguage}.`,
     "Return JSON only.",
     "JSON format:",
     "{",
@@ -1932,8 +2117,8 @@ export function buildCareerKickoffSystemPrompt() {
     '  "insight": "..."',
     "}",
     "Rules:",
-    '- acknowledgement should greet user naturally (e.g. "안녕하세요 OO님.") and thank for sharing.',
-    "- insight should mention one promising point from the submitted information in 1-2 natural Korean sentences.",
+    `- acknowledgement should greet user naturally (e.g. "${acknowledgementExample}") and thank for sharing.`,
+    `- insight should mention one promising point from the submitted information in 1-2 natural ${outputLanguage} sentences.`,
   ].join("\n");
 }
 
@@ -1953,6 +2138,11 @@ export function buildCareerKickoffUserPrompt(args: {
   ].join("\n");
 }
 
+export const CAREER_ONBOARDING_DEFER_PROMPT_TEXT_KEY =
+  "career.onboarding.defer_prompt_text";
+export const CAREER_ONBOARDING_DEFER_FALLBACK_CLOSE_TEXT_KEY =
+  "career.onboarding.defer_fallback_close";
+
 export const CAREER_ONBOARDING_DEFER_PROMPT_TEXT = [
   "알겠습니다. 지금은 우선 등록만 마쳐둘게요. 나중에 다시 들어와 주세요.",
   "",
@@ -1967,10 +2157,13 @@ export const CAREER_ONBOARDING_DEFER_FALLBACK_CLOSE_TEXT = [
   "원하시면 아래 버튼으로 지금 바로 계속 대화하셔도 됩니다.",
 ].join(" ");
 
-export function buildCareerOnboardingDeferCloseSystemPrompt() {
+export function buildCareerOnboardingDeferCloseSystemPrompt(args?: {
+  preferredLocale?: string | null;
+}) {
+  const outputLanguage = getCareerPromptLanguageName(args?.preferredLocale);
   return [
     "You are Harper, an AI talent agent for career onboarding.",
-    "Always answer in Korean.",
+    `Always answer in ${outputLanguage}.`,
     "The user chose to postpone the main conversation and only shared their current opportunity preferences.",
     "Write a short closing message in 2-3 sentences.",
     "Rules:",
@@ -1990,6 +2183,9 @@ export function buildCareerProfileIngestionSystemPrompt() {
     "Use the LinkedIn data and resume information to generate a full consolidated output.",
     "Do not return only delta/additional rows. Return full arrays for all sections.",
     "If resume has less information, it is valid to keep LinkedIn-derived values.",
+    "The user prompt includes Current Date in Asia/Seoul. Use it to distinguish current roles from past roles.",
+    "A role whose date range ends before Current Date is not current, even if it is the newest role.",
+    "userPatch.location means the candidate's current base/residence. Do not infer it from a past or ended job's location; put worksite or role location in experiences[].company_location.",
     "blockedCompanies must list company names the candidate has ever worked for or interned at. Use exact company names from LinkedIn/resume only.",
     "experiences must contain at most 10 rows. Prioritize the most important or most recent experiences. Drop older or low-signal roles if there are more than 10.",
     "extras must contain at most 5 grouped sections for awards, projects, publications, volunteering, certifications, patents, talks, open-source work, or other notable details.",
@@ -2041,10 +2237,14 @@ export function buildCareerProfileIngestionSystemPrompt() {
 }
 
 export function buildCareerProfileIngestionUserPrompt(args: {
+  currentDate: string;
   profileForPrompt: unknown;
   resumeText: string;
 }) {
   return [
+    "[Current Date]",
+    `${args.currentDate} (${CAREER_PROFILE_PROMPT_TIME_ZONE}, YYYY-MM-DD)`,
+    "",
     "[Current Structured LinkedIn Data]",
     JSON.stringify(args.profileForPrompt, null, 2),
     "",
@@ -2065,6 +2265,9 @@ export function buildCareerProfileUpdateMergeSystemPrompt() {
     "Existing memo fields are user/Harper notes. Never edit, rewrite, summarize, translate, or include memo in your output. The server preserves memo for rows that keep their existingId or existingTitle.",
     "Prefer preserving existing wording when new data is weaker. Use new data to add missing rows, fill missing dates/descriptions, or correct clearly better facts.",
     "Never hallucinate uncertain facts. If uncertain, leave field null or keep the existing value.",
+    "The user prompt includes Current Date in Asia/Seoul. Use it to distinguish current roles from past roles.",
+    "A role whose date range ends before Current Date is not current, even if it is the newest role.",
+    "Only update userPatch.location when the new data clearly states the candidate's current base/residence. Do not overwrite it with a past or ended job's company_location.",
     "blockedCompanies must list company names the candidate has ever worked for or interned at. Use exact company names from existing/new profile data only.",
     "experiences must contain at most 10 rows. Prioritize the most important or most recent experiences. Drop older or low-signal roles if there are more than 10.",
     "extras must contain at most 5 grouped sections for awards, projects, publications, volunteering, certifications, patents, talks, open-source work, or other notable details.",
@@ -2118,10 +2321,14 @@ export function buildCareerProfileUpdateMergeSystemPrompt() {
 }
 
 export function buildCareerProfileUpdateMergeUserPrompt(args: {
+  currentDate: string;
   existingProfile: unknown;
   latestParsedProfile: unknown;
 }) {
   return [
+    "[Current Date]",
+    `${args.currentDate} (${CAREER_PROFILE_PROMPT_TIME_ZONE}, YYYY-MM-DD)`,
+    "",
     "[Existing Saved Profile]",
     JSON.stringify(args.existingProfile, null, 2),
     "",
@@ -2132,7 +2339,9 @@ export function buildCareerProfileUpdateMergeUserPrompt(args: {
 
 export function buildCareerRefreshExtractionPrompt(args: {
   emptyKeys: Array<{ key: string; label: string; promptHint: string | null }>;
+  preferredLocale?: string | null;
 }) {
+  const outputLanguage = getCareerPromptLanguageName(args.preferredLocale);
   const keyList = args.emptyKeys
     .map((item) => {
       const hint = item.promptHint ?? `Information about: ${item.label}`;
@@ -2148,12 +2357,12 @@ You have access to:
 2. Their structured profile and resume
 
 ## Target Keys
-Extract values ONLY for these keys. Return Korean complete sentences for values.
+Extract values ONLY for these keys. Return ${outputLanguage} complete sentences for values.
 ${keyList}
 
 ## Rules
 - Only include a key if you found clear, specific information
-- Use Korean complete sentences for all values
+- Use ${outputLanguage} complete sentences for all values
 - If information is ambiguous or not found, omit the key entirely (do NOT guess)
 - Be concise but informative (1-3 sentences per key)
 - Do not store raw profile-row facts in insights. If the information is only about a specific past experience, education, project, responsibility, or achievement and does not change future opportunity matching, omit it.
@@ -2163,7 +2372,7 @@ ${keyList}
 Return a valid JSON object with exactly one field:
 {
   "extracted_insights": {
-    "key_name": "extracted Korean value"
+    "key_name": "extracted ${outputLanguage} value"
   }
 }
 

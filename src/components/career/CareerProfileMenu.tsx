@@ -10,6 +10,7 @@ import {
 import { DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { BareButton } from "@/components/ui/button";
+import { useCareerT } from "@/i18n/useCareerT";
 
 type CareerProfileMenuVariant = "desktop" | "mobile";
 
@@ -28,6 +29,8 @@ const CareerProfileMenu = ({
   onSuggestUpdate: () => void;
   variant?: CareerProfileMenuVariant;
 }) => {
+  const t = useCareerT();
+
   const logCareerEvent = useCareerLogEvent();
   const [menuOpen, setMenuOpen] = useState(false);
   const [updateNotesOpen, setUpdateNotesOpen] = useState(false);
@@ -122,7 +125,10 @@ const CareerProfileMenu = ({
         trigger={
           <BareButton
             type="button"
-            aria-label="프로필 메뉴"
+            aria-label={t(
+              "career.profile.career_profile_menu.0rpl24h",
+              "프로필 메뉴"
+            )}
             className={triggerClassName}
           >
             {avatarBody}
@@ -142,14 +148,16 @@ const CareerProfileMenu = ({
           className="flex flex-row items-center gap-2.5 mt-2"
         >
           <HelpCircle className="h-4 w-4" />
-          문의하기
+          {t("career.profile.career_profile_menu.1vjbdm5", "문의하기")}
         </ActionDropdownItem>
         <ActionDropdownItem
           onSelect={() => handleOpenUpdateNotes()}
           className="flex flex-row items-center gap-2.5"
         >
           <Scroll className="h-4 w-4" />
-          <span className="min-w-0 flex-1">업데이트 노트</span>
+          <span className="min-w-0 flex-1">
+            {t("career.profile.career_profile_menu.14ybad0", "업데이트 노트")}
+          </span>
         </ActionDropdownItem>
         <ActionDropdownSeparator />
         <ActionDropdownItem
@@ -161,7 +169,7 @@ const CareerProfileMenu = ({
           className="flex flex-row items-center gap-2.5"
         >
           <LogOut className="h-4 w-4" />
-          로그아웃
+          {t("career.profile.career_profile_menu.1k7ppv0", "로그아웃")}
         </ActionDropdownItem>
       </ActionDropdown>
       <CareerUpdateNotesModal

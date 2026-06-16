@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FetchWithAuth } from "./useCareerApi";
 import type { CareerConversationStarterId } from "@/lib/career/conversationStarters";
+import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
+import { useMessages } from "@/i18n/useMessage";
+import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 
 type UseRealtimeSessionArgs = {
   conversationId: string | null;
@@ -109,6 +112,8 @@ function getErrorText(payload: unknown, fallback: string) {
 }
 
 export function useRealtimeSession(args: UseRealtimeSessionArgs) {
+  const tCareer = useCareerMessageFormatter();
+  const { locale } = useMessages();
   const {
     conversationId,
     fetchWithAuth,
@@ -256,8 +261,8 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
           body: JSON.stringify({
             conversationId,
             conversationStarterId: options?.conversationStarterId ?? undefined,
-            internalCallRequestId:
-              options?.internalCallRequestId ?? undefined,
+            internalCallRequestId: options?.internalCallRequestId ?? undefined,
+            locale,
           }),
         });
         if (!res.ok) {
@@ -279,7 +284,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
             errorMessage === "Internal call already completed"
               ? {
                   code: "internal_call_completed",
-                  message: "이미 종료된 call입니다.",
+                  message: tCareer(H.callCompleted),
                 }
               : {
                   code: "token",
@@ -309,7 +314,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
         return null;
       }
     },
-    [conversationId, fetchWithAuth]
+    [conversationId, fetchWithAuth, locale, tCareer]
   );
 
   const sendEvent = useCallback((event: Record<string, unknown>) => {
@@ -324,11 +329,14 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
       sendEvent({
         type: "response.create",
         response: {
-          instructions: `다음 내용을 정확히 그대로 자연스럽게 말해주세요: "${text}"`,
+          instructions: tCareer(
+            '다음 내용을 정확히 그대로 자연스럽게 말해주세요: "{text}"',
+            { text }
+          ),
         },
       });
     },
-    [sendEvent]
+    [sendEvent, tCareer]
   );
 
   const requestSpeechFromInstructions = useCallback(

@@ -6,9 +6,14 @@ import ReactQueryProvider from "@/components/Provider";
 import AppErrorBoundary from "@/components/AppErrorBoundary";
 import Head from "next/head";
 import { Analytics } from "@vercel/analytics/react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import dynamic from "next/dynamic";
+import CareerLanguageDevControls from "@/i18n/CareerLanguageDevControls";
+import CareerTranslationInspectOverlay from "@/i18n/CareerTranslationInspectOverlay";
+import { CareerTranslationInspectProvider } from "@/i18n/CareerTranslationInspectProvider";
+import CareerTranslationRuntime from "@/i18n/CareerTranslationRuntime";
+import { MessagesProvider, type Locale } from "@/i18n/useMessage";
 
 const CompanyModalRoot = dynamic(
   () => import("@/components/Modal/CompanyModal"),
@@ -47,12 +52,16 @@ const CRISP_BOOTSTRAP_SCRIPT = CRISP_WEBSITE_ID
 export default function App({ Component, pageProps }: AppProps) {
   const init = useAuthStore((s) => s.init);
   const router = useRouter();
+  const [careerLocale, setCareerLocale] = useState<Locale>("ko");
   const isCareerPage =
     router.pathname === "/career" ||
     router.pathname.startsWith("/career/") ||
     router.pathname === "/career_login";
+  const isOpsPage =
+    router.pathname === "/ops" || router.pathname.startsWith("/ops/");
   const shouldHideCrisp =
     isCareerPage ||
+    isOpsPage ||
     router.pathname === "/index2" ||
     router.pathname === "/landing-ko-vf" ||
     router.pathname === "/network2";
@@ -103,49 +112,66 @@ export default function App({ Component, pageProps }: AppProps) {
     init();
   }, [init]);
 
+  const page = isCareerPage ? (
+    <CareerTranslationInspectProvider>
+      <CareerTranslationRuntime>
+        <Component {...pageProps} />
+        <CareerLanguageDevControls />
+      </CareerTranslationRuntime>
+      <CareerTranslationInspectOverlay />
+    </CareerTranslationInspectProvider>
+  ) : (
+    <Component {...pageProps} />
+  );
+
   return (
-    <ReactQueryProvider>
-      <Head>
-        <title>Harper — AI Recruiter</title>
-        <meta
-          key="description"
-          name="description"
-          content="Harper는 모든 팀들을 위한 전담 AI Recruiter입니다."
-        />
-        <meta key="theme-color" name="theme-color" content="#F7F0E8" />
-      </Head>
-      {GA_ID && (
-        <>
-          <Script
-            src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
-            strategy="afterInteractive"
+    <MessagesProvider
+      locale={isCareerPage ? careerLocale : undefined}
+      onLocaleChange={isCareerPage ? setCareerLocale : undefined}
+    >
+      <ReactQueryProvider>
+        <Head>
+          <title>Harper — AI Recruiter</title>
+          <meta
+            key="description"
+            name="description"
+            content="Harper는 모든 팀들을 위한 전담 AI Recruiter입니다."
           />
-          <Script id="ga-init" strategy="afterInteractive">
-            {`
+          <meta key="theme-color" name="theme-color" content="#F7F0E8" />
+        </Head>
+        {GA_ID && (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
+              strategy="afterInteractive"
+            />
+            <Script id="ga-init" strategy="afterInteractive">
+              {`
               window.dataLayer = window.dataLayer || [];
               function gtag(){dataLayer.push(arguments);}
               window.gtag = gtag;
               gtag('js', new Date());
               gtag('config', '${GA_ID}', { send_page_view: false });
             `}
+            </Script>
+          </>
+        )}
+        {shouldLoadCrisp && (
+          <Script id="crisp-chat" strategy="afterInteractive">
+            {CRISP_BOOTSTRAP_SCRIPT}
           </Script>
-        </>
-      )}
-      {shouldLoadCrisp && (
-        <Script id="crisp-chat" strategy="afterInteractive">
-          {CRISP_BOOTSTRAP_SCRIPT}
-        </Script>
-      )}
-      <div className="notranslate font-sans" translate="no">
-        <Analytics />
-        <AppErrorBoundary resetKey={router.asPath}>
-          <CompanyModalRoot />
-          <PaperModalRoot />
-          <RepoModalRoot />
-          <Component {...pageProps} />
-          <ToastProvider />
-        </AppErrorBoundary>
-      </div>
-    </ReactQueryProvider>
+        )}
+        <div className="notranslate font-sans" translate="no">
+          <Analytics />
+          <AppErrorBoundary resetKey={router.asPath}>
+            <CompanyModalRoot />
+            <PaperModalRoot />
+            <RepoModalRoot />
+            {page}
+            <ToastProvider />
+          </AppErrorBoundary>
+        </div>
+      </ReactQueryProvider>
+    </MessagesProvider>
   );
 }

@@ -1,4 +1,5 @@
 import OpsShell from "@/components/ops/OpsShell";
+import { formatKstRelativeDateTime } from "@/components/ops/dateUtils";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { showToast } from "@/components/toast/toast";
 import { Calendar } from "@/components/ui/calendar";
@@ -104,18 +105,6 @@ const isFixedStage = (value: string | null | undefined) =>
       value as (typeof INTERNAL_RECOMMENDATION_FIXED_STAGES)[number]
     )
   );
-
-const formatKst = (value: string | null | undefined) => {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("ko-KR", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-};
 
 const toDateOnly = (date: Date | undefined) => {
   if (!date) return "";
@@ -348,7 +337,7 @@ function RecommendationsTable({
                   <TalentLink item={item} />
                 </td>
                 <td className="px-3 py-2 align-top text-neutral-muted">
-                  {formatKst(item.recommendedAt)}
+                  {formatKstRelativeDateTime(item.recommendedAt)}
                 </td>
                 <td className="px-3 py-2 align-top">
                   <div className="min-w-0">
@@ -383,7 +372,7 @@ function RecommendationsTable({
                     }
                   >
                     {item.viewedAt
-                      ? `열람 ${formatKst(item.viewedAt)}`
+                      ? `열람 ${formatKstRelativeDateTime(item.viewedAt)}`
                       : "미열람"}
                   </div>
                   <div
@@ -395,7 +384,7 @@ function RecommendationsTable({
                     )}
                   >
                     {item.clickedAt
-                      ? `클릭 ${formatKst(item.clickedAt)}`
+                      ? `클릭 ${formatKstRelativeDateTime(item.clickedAt)}`
                       : "미클릭"}
                   </div>
                 </td>
@@ -410,7 +399,7 @@ function RecommendationsTable({
                   </span>
                   {item.feedbackAt ? (
                     <div className="mt-1 text-[11px] text-neutral-soft">
-                      {formatKst(item.feedbackAt)}
+                      {formatKstRelativeDateTime(item.feedbackAt)}
                     </div>
                   ) : null}
                   {item.feedbackReason ? (
@@ -673,7 +662,9 @@ function RecommendationsBoard({
                                   {getFeedbackLabel(item.feedback)}
                                 </span>
                                 <span className="rounded bg-bg-weak px-1.5 py-0.5 text-[11px] text-neutral-muted">
-                                  {formatKst(item.recommendedAt)}
+                                  {formatKstRelativeDateTime(
+                                    item.recommendedAt
+                                  )}
                                 </span>
                               </div>
                               <StageEditor
@@ -1201,10 +1192,7 @@ export default function OpsInternalRecommendationsPage() {
         <section className="space-y-4 px-4">
           <div className="py-2">
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-              <div className="mt-1 text-sm text-neutral-muted">
-                사람별로 추천된 internal 기회의 유저 반응과 운영 상태를
-                관리합니다.
-              </div>
+              <div className="mt-1 text-sm text-neutral-muted"></div>
               <div className="flex flex-wrap items-center gap-2">
                 <div className="relative w-full min-w-[220px] sm:w-[280px]">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-soft" />

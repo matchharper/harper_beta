@@ -1,8 +1,10 @@
 import { BadgeIcon, Loader2, Phone } from "lucide-react";
 import type { ReactNode } from "react";
+import Face from "@/components/common/Face";
 import { ActionButton } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 type CareerCallCardProps = {
   callDisabled: boolean;
@@ -18,7 +20,7 @@ type CareerCallCardProps = {
 export default function CareerCallCard({
   callDisabled,
   callStartPending,
-  ctaLabel = "통화 시작",
+  ctaLabel = careerT("ko", "career.call.career_call_card.0ocs6vv", "통화 시작"),
   className,
   description,
   isOnboardingCompleted,
@@ -34,7 +36,8 @@ export default function CareerCallCard({
     >
       {isOnboardingCompleted ? (
         <div className="flex md:flex-row flex-col items-center justify-between gap-2">
-          <div className="hidden h-12 w-12 min-w-12 items-center justify-center rounded-2xl bg-bg-weak md:flex">
+          <div className="hidden h-14 w-14 min-w-14 bg-neutral-200 rounded-lg items-center justify-center md:flex">
+            {/* <Face status="idle" size={60} aria-label="Harper" /> */}
             <Phone className="h-6 w-6 text-neutral-muted" strokeWidth={1.6} />
           </div>
           <div className="flex w-full flex-col items-start justify-center gap-2 md:gap-1 px-2">
@@ -74,7 +77,13 @@ export default function CareerCallCard({
               <Phone className="h-4 w-4 shrink-0" strokeWidth={1.6} />
             )}
             <span className="min-w-0 truncate">
-              {callStartPending ? "연결 중..." : ctaLabel}
+              {callStartPending
+                ? careerT(
+                    "ko",
+                    "career.call.career_call_card.1vn8y3k",
+                    "연결 중..."
+                  )
+                : ctaLabel}
             </span>
           </ActionButton>
         </div>
@@ -104,7 +113,13 @@ export default function CareerCallCard({
               <Phone className="h-4 w-4 shrink-0" strokeWidth={1.6} />
             )}
             <span className="min-w-0 truncate">
-              {callStartPending ? "연결 중..." : ctaLabel}
+              {callStartPending
+                ? careerT(
+                    "ko",
+                    "career.call.career_call_card.1vn8y3k",
+                    "연결 중..."
+                  )
+                : ctaLabel}
             </span>
           </ActionButton>
         </div>

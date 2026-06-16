@@ -8,6 +8,7 @@ import CareerWelcomeScreen from "./chat/CareerWelcomeScreen";
 import { cn } from "@/lib/utils";
 import { useCareerAutoStart } from "@/hooks/career/useCareerAutoStart";
 import React from "react";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 const DEFAULT_COMPOSER_OVERLAY_HEIGHT_PX = 168;
 // Extra empty space after the last timeline item, on top of the composer height.
@@ -40,7 +41,13 @@ const CareerCallLoadingScreen = ({
         className="h-16 w-auto animate-pulse"
       />
       <div className="h-px w-20 bg-neutral-1000-a05" />
-      <p className="text-sm font-medium text-neutral-muted">통화 연결 중...</p>
+      <p className="text-sm font-medium text-neutral-muted">
+        {careerT(
+          "ko",
+          "career.common.career_chat_panel.1q1egw3",
+          "통화 연결 중..."
+        )}
+      </p>
     </div>
   </div>
 );

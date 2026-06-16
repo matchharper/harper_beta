@@ -35,7 +35,7 @@ export const opsTheme = {
   successNotice:
     "rounded-md bg-positive-faded px-4 py-3 text-sm text-positive shadow-[inset_0_1px_0_color-mix(in_srgb,var(--color-neutral-00)_55%,transparent)]",
   textarea:
-    "w-full rounded-lg border border-neutral-1000-a05 bg-bg-default/80 px-4 py-4 text-sm leading-6 text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-1000-a10 focus:bg-bg-default",
+    "w-full rounded-md border border-black/10 bg-bg-default/80 px-4 py-4 text-sm leading-6 text-neutral-primary outline-none placeholder:text-neutral-placeholder focus:border-black/80 focus:bg-bg-default",
   title:
     "font-hedvig text-[2.55rem] leading-[0.92] tracking-[-0.08em] text-neutral-primary",
   titleSm:

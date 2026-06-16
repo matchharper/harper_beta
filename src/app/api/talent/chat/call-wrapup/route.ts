@@ -25,6 +25,12 @@ import { runCareerChatTurn } from "@/lib/career/chatTurn";
 import { TALENT_TOOL_NAMES } from "@/lib/talentOnboarding/tools";
 import { getCareerConversationStarterPrompt } from "@/lib/career/conversationStarterPrompts";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
+import { careerT } from "@/lib/career/translatedCareerMessage";
+import {
+  sanitizeSingleLineDbText,
+  stripPostgresUnsafeChars,
+} from "@/lib/textSanitization";
+import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
 
 type TranscriptEntry = {
   role: "user" | "assistant";
@@ -36,6 +42,7 @@ type Body = {
   conversationId: string;
   forceCompleteOnboarding?: boolean;
   internalCallRequestId?: string | null;
+  locale?: string | null;
   transcript: TranscriptEntry[];
   durationSeconds: number;
 };
@@ -51,10 +58,15 @@ const CALL_TRANSCRIPT_MESSAGE_TYPE = "call_transcript";
 const CALL_WRAPUP_MESSAGE_TYPE = "call_wrapup";
 const CALL_TRANSCRIPT_FALLBACK_LOOKBACK_MS = 60 * 60 * 1000;
 
-function formatDuration(seconds: number): string {
+function formatDuration(
+  seconds: number,
+  preferredLocale?: string | null
+): string {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
-  return `${m}분 ${s}초`;
+  return careerT(preferredLocale, "career.call.duration", "{m}분 {s}초", {
+    values: { m, s },
+  });
 }
 
 function normalizeTranscriptEntries(entries: unknown): TranscriptEntry[] {
@@ -65,7 +77,7 @@ function normalizeTranscriptEntries(entries: unknown): TranscriptEntry[] {
       if (!entry || typeof entry !== "object") return null;
       const record = entry as { role?: unknown; text?: unknown };
       const role = record.role === "user" ? "user" : "assistant";
-      const text = String(record.text ?? "").trim();
+      const text = stripPostgresUnsafeChars(String(record.text ?? "")).trim();
       if (!text) return null;
       return { role, text };
     })
@@ -163,7 +175,7 @@ function isBriefConversation(
 }
 
 function normalizeFollowUpMessage(content: string): string {
-  return content
+  return stripPostgresUnsafeChars(content)
     .replace(/^["'“”]+|["'“”]+$/g, "")
     .replace(/\s+/g, " ")
     .trim();
@@ -171,21 +183,38 @@ function normalizeFollowUpMessage(content: string): string {
 
 function buildInternalOpportunityInterruptedFollowUp(args: {
   companyName: string;
+  preferredLocale?: string | null;
   roleTitle: string;
 }) {
-  return `${args.companyName} ${args.roleTitle} 관련 통화가 중간에 끊긴 것 같아요. 연결은 계속 진행 중이고, 이어서 이야기하고 싶으시면 채팅이 아니라 Home 화면의 통화 카드에서 다시 진행해주세요.`;
+  return careerT(
+    args.preferredLocale,
+    "career.call.internal_interrupted_followup",
+    "{companyName} {roleTitle} 관련 통화가 중간에 끊긴 것 같아요. 연결은 계속 진행 중이고, 이어서 이야기하고 싶으시면 채팅이 아니라 Home 화면의 통화 카드에서 다시 진행해주세요.",
+    { values: { companyName: args.companyName, roleTitle: args.roleTitle } }
+  );
 }
 
 function buildInternalOpportunityFallbackFollowUp(args: {
   companyName: string;
   isBrief: boolean;
+  preferredLocale?: string | null;
   roleTitle: string;
 }) {
   if (args.isBrief) {
-    return `${args.companyName} ${args.roleTitle} 관련 통화가 조금 짧게 끝난 것 같아요. 연결은 계속 진행 중이고, 더 이야기하고 싶으시면 Home 화면의 통화 카드에서 이어서 진행해주세요.`;
+    return careerT(
+      args.preferredLocale,
+      "career.call.internal_brief_followup",
+      "{companyName} {roleTitle} 관련 통화가 조금 짧게 끝난 것 같아요. 연결은 계속 진행 중이고, 더 이야기하고 싶으시면 Home 화면의 통화 카드에서 이어서 진행해주세요.",
+      { values: { companyName: args.companyName, roleTitle: args.roleTitle } }
+    );
   }
 
-  return `${args.companyName} ${args.roleTitle} 관련해서 들려주신 내용은 회사 측에 전달할 때 잘 반영해둘게요. 연결은 계속 진행 중입니다.`;
+  return careerT(
+    args.preferredLocale,
+    "career.call.internal_completed_followup",
+    "{companyName} {roleTitle} 관련해서 들려주신 내용은 회사 측에 전달할 때 잘 반영해둘게요. 연결은 계속 진행 중입니다.",
+    { values: { companyName: args.companyName, roleTitle: args.roleTitle } }
+  );
 }
 
 async function insertFallbackFollowUp(args: {
@@ -204,7 +233,7 @@ async function insertFallbackFollowUp(args: {
           conversation_id: args.conversationId,
           user_id: args.userId,
           role: "assistant",
-          content: args.content,
+          content: stripPostgresUnsafeChars(args.content),
           message_type: "call_wrapup",
           created_at: now,
         },
@@ -215,6 +244,17 @@ async function insertFallbackFollowUp(args: {
     .single();
 
   if (followUpError) {
+    await notifyUnsupportedUnicodeEscapeError({
+      conversationId: args.conversationId,
+      error: followUpError,
+      metadata: {
+        contentLength: args.content.length,
+        messageType: "call_wrapup",
+      },
+      route: "/api/talent/chat/call-wrapup",
+      stage: "talent_messages.insert:fallback_follow_up",
+      userId: args.userId,
+    });
     console.error("[call-wrapup] Failed to save fallback follow-up message", {
       error: followUpError,
     });
@@ -236,7 +276,7 @@ async function insertFallbackFollowUp(args: {
     savedFollowUp ?? {
       id: `followup-${Date.now()}`,
       role: "assistant",
-      content: args.content,
+      content: stripPostgresUnsafeChars(args.content),
       messageType: "call_wrapup",
       createdAt: now,
     }
@@ -253,23 +293,23 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as Body;
     const isMobile = isMobileRequest(request);
     const {
-      conversationId,
       conversationStarterId: rawConversationStarterId,
       forceCompleteOnboarding = false,
       internalCallRequestId: rawInternalCallRequestId,
       transcript,
       durationSeconds,
     } = body;
+    const conversationId = sanitizeSingleLineDbText(body.conversationId, 80);
     const conversationStarterId =
       typeof rawConversationStarterId === "string"
-        ? rawConversationStarterId.trim()
+        ? (sanitizeSingleLineDbText(rawConversationStarterId, 120) ?? "")
         : "";
     const conversationStarter = conversationStarterId
       ? getCareerConversationStarterPrompt(conversationStarterId)
       : null;
     const internalCallRequestId =
       typeof rawInternalCallRequestId === "string"
-        ? rawInternalCallRequestId.trim()
+        ? (sanitizeSingleLineDbText(rawInternalCallRequestId, 120) ?? "")
         : "";
     const skipConversationWrites = Boolean(conversationStarter);
 
@@ -305,8 +345,6 @@ export async function POST(request: NextRequest) {
       );
     }
     const safeDurationSeconds = Math.max(0, Math.floor(durationSeconds ?? 0));
-    const durationLabel =
-      safeDurationSeconds > 0 ? formatDuration(safeDurationSeconds) : null;
     const requestTranscript = normalizeTranscriptEntries(transcript);
     const [talentSetting, currentInsights, conversation] = await Promise.all([
       fetchTalentSetting({
@@ -324,6 +362,14 @@ export async function POST(request: NextRequest) {
         .eq("user_id", user.id)
         .maybeSingle(),
     ]);
+    const responseLocale =
+      talentSetting?.preferred_locale ??
+      body.locale ??
+      request.cookies.get("NEXT_LOCALE")?.value;
+    const durationLabel =
+      safeDurationSeconds > 0
+        ? formatDuration(safeDurationSeconds, responseLocale)
+        : null;
     if (conversation.error) {
       return NextResponse.json(
         { error: conversation.error.message ?? "Failed to read conversation" },
@@ -356,6 +402,7 @@ export async function POST(request: NextRequest) {
         const fallbackMessage = await insertFallbackFollowUp({
           content: buildInternalOpportunityInterruptedFollowUp({
             companyName: internalCallRequest.companyName,
+            preferredLocale: responseLocale,
             roleTitle: internalCallRequest.roleTitle,
           }),
           conversationId,
@@ -481,11 +528,13 @@ export async function POST(request: NextRequest) {
       ? buildInternalOpportunityFallbackFollowUp({
           companyName: internalCallRequest.companyName,
           isBrief: briefConversation,
+          preferredLocale: responseLocale,
           roleTitle: internalCallRequest.roleTitle,
         })
       : buildCareerCallWrapupFallbackFollowUp({
           isBrief: briefConversation,
           isOnboardingDone: inferredOnboardingDone,
+          preferredLocale: responseLocale,
         });
     try {
       const result = await runCareerChatTurn({
@@ -503,12 +552,14 @@ export async function POST(request: NextRequest) {
               callRequest: internalCallRequest,
               durationLabel,
               isBrief: briefConversation,
+              preferredLocale: responseLocale,
               transcript: resolvedTranscript,
             })
           : buildCareerCallWrapupTurnInstruction({
               durationLabel,
               isBrief: briefConversation,
               isOnboardingDone: inferredOnboardingDone,
+              preferredLocale: responseLocale,
               transcript: resolvedTranscript,
             }),
         skipConversationWrites,

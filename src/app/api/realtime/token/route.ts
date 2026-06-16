@@ -19,7 +19,17 @@ import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 const TOKEN_RATE_LIMIT = new Map<string, { count: number; resetAt: number }>();
 const MAX_TOKENS_PER_MINUTE = 10;
 const MAX_RATE_LIMIT_ENTRIES = 1000;
-const REALTIME_TRANSCRIPTION_LANGUAGE = "ko";
+const DEFAULT_REALTIME_TRANSCRIPTION_LANGUAGE = "ko";
+
+function getRealtimeTranscriptionLanguage(locale: unknown) {
+  if (typeof locale !== "string")
+    return DEFAULT_REALTIME_TRANSCRIPTION_LANGUAGE;
+
+  const normalized = locale.trim().toLowerCase();
+  if (normalized === "en" || normalized.startsWith("en-")) return "en";
+  if (normalized === "ko" || normalized.startsWith("ko-")) return "ko";
+  return DEFAULT_REALTIME_TRANSCRIPTION_LANGUAGE;
+}
 
 function checkRateLimit(userId: string): boolean {
   const now = Date.now();
@@ -51,9 +61,16 @@ function buildRealtimeSessionBody(args: {
   instructions: string;
   realtimeConfig: ReturnType<typeof getCareerRealtimeSessionConfig>;
   tools: readonly CareerRealtimeTool[];
+  transcriptionLanguage: string;
   transcriptionModel: string;
 }) {
-  const { instructions, realtimeConfig, tools, transcriptionModel } = args;
+  const {
+    instructions,
+    realtimeConfig,
+    tools,
+    transcriptionLanguage,
+    transcriptionModel,
+  } = args;
 
   return {
     session: {
@@ -64,7 +81,7 @@ function buildRealtimeSessionBody(args: {
         input: {
           transcription: {
             model: transcriptionModel,
-            language: REALTIME_TRANSCRIPTION_LANGUAGE,
+            language: transcriptionLanguage,
           },
           turn_detection: {
             type: "semantic_vad",
@@ -127,10 +144,12 @@ export async function POST(req: NextRequest) {
       conversationId: rawConversationId,
       conversationStarterId: rawConversationStarterId,
       internalCallRequestId: rawInternalCallRequestId,
+      locale: rawLocale,
     } = body as {
       conversationId?: string;
       conversationStarterId?: string;
       internalCallRequestId?: string;
+      locale?: string;
     };
     const conversationId = rawConversationId?.trim();
     const conversationStarterId =
@@ -141,6 +160,9 @@ export async function POST(req: NextRequest) {
       typeof rawInternalCallRequestId === "string"
         ? rawInternalCallRequestId.trim()
         : "";
+    const transcriptionLanguage = getRealtimeTranscriptionLanguage(
+      rawLocale ?? req.cookies.get("NEXT_LOCALE")?.value
+    );
 
     if (!conversationId) {
       return NextResponse.json(
@@ -188,6 +210,7 @@ export async function POST(req: NextRequest) {
       conversationId,
       conversationStarterId,
       internalCallRequestId,
+      preferredLocale: rawLocale ?? req.cookies.get("NEXT_LOCALE")?.value,
       toolNames: realtimeToolCandidates.map((tool) => tool.name),
       userId: user.id,
     });
@@ -203,6 +226,7 @@ export async function POST(req: NextRequest) {
     const realtimeToolSelection = resolveCareerRealtimeTools({
       candidateTools: realtimeToolCandidates,
       enabledToolNames: realtimePromptPlan.enabledToolNames,
+      preferredLocale: rawLocale ?? req.cookies.get("NEXT_LOCALE")?.value,
     });
     const tools = realtimeToolSelection.tools;
     const toolVoicePreambles = realtimeToolSelection.toolVoicePreambles;
@@ -215,6 +239,7 @@ export async function POST(req: NextRequest) {
         instructions,
         realtimeConfig,
         tools,
+        transcriptionLanguage,
         transcriptionModel: realtimeConfig.transcriptionModel,
       }),
     });
@@ -241,6 +266,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       token,
+      transcriptionLanguage,
       toolVoicePreambles,
       transcriptionModel: realtimeConfig.transcriptionModel,
     });

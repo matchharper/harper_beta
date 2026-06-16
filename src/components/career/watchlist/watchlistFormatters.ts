@@ -1,8 +1,13 @@
 import type { ParsedUrlQuery } from "querystring";
 import { formatRelativeTime } from "@/lib/utils";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 import type { CompanyWatchlistTab } from "./watchlistTypes";
+import type { Locale } from "@/i18n/useMessage";
 
-const numberFormatter = new Intl.NumberFormat("ko-KR");
+const numberFormatters: Record<Locale, Intl.NumberFormat> = {
+  en: new Intl.NumberFormat("en-US"),
+  ko: new Intl.NumberFormat("ko-KR"),
+};
 
 export const getQueryValue = (value: string | string[] | undefined) =>
   Array.isArray(value) ? value[0] : value;
@@ -29,9 +34,22 @@ export const getBaseCareerQuery = (query: ParsedUrlQuery) => {
   return next;
 };
 
-export const formatFollowedAt = (value: string | null) => {
-  const relative = formatRelativeTime(value);
-  return relative ? `${relative}부터 팔로잉` : "팔로잉 중";
+export const formatFollowedAt = (
+  value: string | null,
+  locale: Locale = "ko"
+) => {
+  const relative = formatRelativeTime(value, locale);
+  if (!relative) {
+    return careerT(locale, "career.company.following", "팔로잉 중");
+  }
+  return careerT(
+    locale,
+    "career.company.followed_at",
+    "{relative}부터 팔로잉",
+    {
+      values: { relative },
+    }
+  );
 };
 
 export const toRecord = (value: unknown): Record<string, unknown> =>
@@ -54,19 +72,59 @@ export const splitTextList = (value: string | null | undefined, limit = 24) =>
     .filter(Boolean)
     .slice(0, limit);
 
-const formatNumber = (value: unknown) => {
+const formatNumber = (value: unknown, locale: Locale) => {
   const parsed = Number(value);
-  return Number.isFinite(parsed) ? numberFormatter.format(parsed) : "";
+  return Number.isFinite(parsed) ? numberFormatters[locale].format(parsed) : "";
 };
 
-export const formatEmployeeCountRange = (value: unknown) => {
+export const formatEmployeeCountRange = (
+  value: unknown,
+  locale: Locale = "ko"
+) => {
   const record = toRecord(value);
-  const start = formatNumber(record.start);
-  const end = formatNumber(record.end);
-  if (start && end) return `${start}-${end}명`;
-  if (start) return `${start}명 이상`;
-  if (end) return `${end}명 이하`;
+  const start = formatNumber(record.start, locale);
+  const end = formatNumber(record.end, locale);
+  if (start && end) {
+    return careerT(
+      locale,
+      "career.company.employee_count.range",
+      "{start}-{end}명",
+      {
+        values: { start, end },
+      }
+    );
+  }
+  if (start) {
+    return careerT(
+      locale,
+      "career.company.employee_count.min",
+      "{start}명 이상",
+      {
+        values: { start },
+      }
+    );
+  }
+  if (end) {
+    return careerT(
+      locale,
+      "career.company.employee_count.max",
+      "{end}명 이하",
+      {
+        values: { end },
+      }
+    );
+  }
   return "";
+};
+
+export const formatFoundedYear = (
+  value: number | null,
+  locale: Locale = "ko"
+) => {
+  if (!value) return "";
+  return careerT(locale, "career.company.founded_year", "{year}년 설립", {
+    values: { year: value },
+  });
 };
 
 export const formatCrunchbaseLabel = (value: unknown) => {

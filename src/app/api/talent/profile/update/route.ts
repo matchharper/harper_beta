@@ -12,6 +12,12 @@ import {
   mergeTalentProfileFromLatestSources,
   pickLinkedinUrl,
 } from "@/lib/talentOnboarding/profileIngestion";
+import { careerT } from "@/lib/career/translatedCareerMessage";
+import {
+  sanitizeMultilineDbText,
+  sanitizeSingleLineDbText,
+} from "@/lib/textSanitization";
+import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
 
 export const runtime = "nodejs";
 export const maxDuration = 240;
@@ -62,6 +68,7 @@ type Body = {
   resumeStoragePath?: string;
   resumeText?: string;
   links?: string[];
+  locale?: string | null;
   forceProfileIngestion?: boolean;
   structuredProfile?: StructuredProfileBody;
 };
@@ -72,24 +79,15 @@ const asRecord = (value: unknown): Record<string, unknown> | null => {
 };
 
 const sanitizeSingleLineText = (value: unknown, maxLength: number) => {
-  if (typeof value !== "string") return null;
-  const normalized = value.replace(/\s+/g, " ").trim();
-  if (!normalized) return null;
-  return normalized.slice(0, maxLength);
+  return sanitizeSingleLineDbText(value, maxLength);
 };
 
 const sanitizeMultilineText = (value: unknown, maxLength: number) => {
-  if (typeof value !== "string") return null;
-  const normalized = value.replace(/\r/g, "").trim();
-  if (!normalized) return null;
-  return normalized.slice(0, maxLength);
+  return sanitizeMultilineDbText(value, maxLength);
 };
 
 const sanitizeDateText = (value: unknown) => {
-  if (typeof value !== "string") return null;
-  const normalized = value.trim();
-  if (!normalized) return null;
-  return normalized.slice(0, 32);
+  return sanitizeSingleLineDbText(value, 32);
 };
 
 const sanitizeInteger = (
@@ -260,12 +258,15 @@ export async function POST(req: NextRequest) {
     userId = user.id;
 
     const body = (await req.json()) as Body;
-    const resumeFileName = body.resumeFileName?.trim();
-    const resumeStoragePath = body.resumeStoragePath?.trim();
-    const resumeText = body.resumeText?.trim();
+    const resumeFileName = sanitizeSingleLineText(body.resumeFileName, 240);
+    const resumeStoragePath = sanitizeSingleLineText(
+      body.resumeStoragePath,
+      2000
+    );
+    const resumeText = sanitizeMultilineText(body.resumeText, 20000);
     const forceProfileIngestion = body.forceProfileIngestion === true;
     const links = (body.links ?? [])
-      .map((link) => String(link).trim())
+      .map((link) => sanitizeSingleLineText(link, 2000) ?? "")
       .filter(Boolean);
     const structuredProfile = normalizeStructuredProfile(
       body.structuredProfile ?? null,
@@ -285,7 +286,7 @@ export async function POST(req: NextRequest) {
       updatePayload.resume_storage_path = resumeStoragePath;
     }
     if (typeof resumeText === "string") {
-      updatePayload.resume_text = resumeText.slice(0, 20000);
+      updatePayload.resume_text = resumeText;
     }
     if (structuredProfile) {
       updatePayload.name = structuredProfile.talentUser.name;
@@ -371,6 +372,13 @@ export async function POST(req: NextRequest) {
 
     if (updateError) {
       await logProfileSourceError("profile_update_talent_users", updateError);
+      await notifyUnsupportedUnicodeEscapeError({
+        error: updateError,
+        metadata: profileSourceLogMetadata,
+        route: "/api/talent/profile/update",
+        stage: "talent_users.update:profile_update",
+        userId: user.id,
+      });
       return NextResponse.json(
         { error: updateError.message ?? "Failed to update profile" },
         { status: 500 }
@@ -521,9 +529,15 @@ export async function POST(req: NextRequest) {
         };
       }
     } else if (forceProfileIngestion && !structuredProfile) {
+      const responseLocale =
+        body.locale ?? req.cookies.get("NEXT_LOCALE")?.value;
       profileIngestion = {
         ok: false,
-        error: "다시 가져올 LinkedIn 링크나 이력서 텍스트가 없습니다.",
+        error: careerT(
+          responseLocale,
+          "career.api.profile.sources_missing_refresh",
+          "다시 가져올 LinkedIn 링크나 이력서 텍스트가 없습니다."
+        ),
       };
     }
 
@@ -559,6 +573,13 @@ export async function POST(req: NextRequest) {
         stage: "profile_update_unhandled",
         userId,
         metadata: profileSourceLogMetadata,
+      });
+      await notifyUnsupportedUnicodeEscapeError({
+        error,
+        metadata: profileSourceLogMetadata,
+        route: "/api/talent/profile/update",
+        stage: "unhandled",
+        userId,
       });
     }
     return NextResponse.json({ error: message }, { status: 500 });

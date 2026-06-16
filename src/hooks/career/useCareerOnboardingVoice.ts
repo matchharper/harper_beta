@@ -30,6 +30,7 @@ import {
 import { showToast } from "@/components/toast/toast";
 import { showOpportunityDiscoveryStartedToast } from "./opportunityDiscoveryToast";
 import type { FetchWithAuth } from "./useCareerApi";
+import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
 import {
   hasTalentOnboardingCompletionMarker,
   stripTalentOnboardingCompletionMarker,
@@ -37,6 +38,9 @@ import {
 } from "@/lib/talentOnboarding/completion";
 import type { CareerConversationStarterId } from "@/lib/career/conversationStarters";
 import { INSIGHT_CHECKLIST } from "@/lib/talentOnboarding/insightChecklist";
+import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
+import { useMessages, type Locale } from "@/i18n/useMessage";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 const DEFAULT_CALL_OPENING_TEXT =
   "통화로 이야기해볼게요. 최근에 달라진 우선순위가 있으면 거기서 시작해도 좋고, 아니면 지금까지의 역할이나 경험 중 회사들이 꼭 알아야 할 부분부터 편하게 들려주세요. 정보가 많을수록 더 잘 맞는 연결 요청이나 기회를 골라드릴 수 있어요.";
@@ -69,7 +73,11 @@ const ONBOARDING_CALL_OPENING_RESPONSE_INSTRUCTION = [
   '예시: "안녕하세요. 이 5분 커리어 인터뷰는 하퍼가 더 잘 맞는 기회를 추천하고, 필요하면 회사와 연결할 때 후보자님의 맥락을 잘 전달하기 위해 짧게 확인하는 대화예요. 편하게 답해주시면 되고, 먼저 현재 탐색 온도부터 확인해볼게요. 지금 적극적으로 다음 기회를 찾고 계신 건지, 아니면 좋은 게 있으면 받아는 보고 싶다 정도인지 편하게 말씀해주세요."',
 ].join("\n");
 
-function formatCallOpeningRelativeTime(createdAt: string, nowMs: number) {
+function formatCallOpeningRelativeTime(
+  createdAt: string,
+  nowMs: number,
+  locale: Locale
+) {
   const createdAtMs = Date.parse(createdAt);
   if (!Number.isFinite(createdAtMs)) return "";
 
@@ -81,14 +89,81 @@ function formatCallOpeningRelativeTime(createdAt: string, nowMs: number) {
   const dayMs = 24 * hourMs;
   const monthMs = 30 * dayMs;
 
-  if (elapsedMs < minuteMs) return "방금전";
-  if (elapsedMs < hourMs) return `${Math.floor(elapsedMs / minuteMs)}분전`;
-  if (elapsedMs < dayMs) return `${Math.floor(elapsedMs / hourMs)}시간전`;
-  if (elapsedMs < monthMs) return `${Math.floor(elapsedMs / dayMs)}일전`;
-  return `${Math.floor(elapsedMs / monthMs)}개월전`;
+  if (elapsedMs < minuteMs) {
+    return careerT(locale, "career.call.opening.relative.just_now", "방금전");
+  }
+  if (elapsedMs < hourMs) {
+    const minutes = Math.floor(elapsedMs / minuteMs);
+    if (minutes === 1) {
+      return careerT(
+        locale,
+        "career.call.opening.relative.minute_one",
+        "{count}분전",
+        { values: { count: minutes } }
+      );
+    }
+    return careerT(
+      locale,
+      "career.call.opening.relative.minute_many",
+      "{count}분전",
+      { values: { count: minutes } }
+    );
+  }
+  if (elapsedMs < dayMs) {
+    const hours = Math.floor(elapsedMs / hourMs);
+    if (hours === 1) {
+      return careerT(
+        locale,
+        "career.call.opening.relative.hour_one",
+        "{count}시간전",
+        { values: { count: hours } }
+      );
+    }
+    return careerT(
+      locale,
+      "career.call.opening.relative.hour_many",
+      "{count}시간전",
+      { values: { count: hours } }
+    );
+  }
+  if (elapsedMs < monthMs) {
+    const days = Math.floor(elapsedMs / dayMs);
+    if (days === 1) {
+      return careerT(
+        locale,
+        "career.call.opening.relative.day_one",
+        "{count}일전",
+        { values: { count: days } }
+      );
+    }
+    return careerT(
+      locale,
+      "career.call.opening.relative.day_many",
+      "{count}일전",
+      { values: { count: days } }
+    );
+  }
+  const months = Math.floor(elapsedMs / monthMs);
+  if (months === 1) {
+    return careerT(
+      locale,
+      "career.call.opening.relative.month_one",
+      "{count}개월전",
+      { values: { count: months } }
+    );
+  }
+  return careerT(
+    locale,
+    "career.call.opening.relative.month_many",
+    "{count}개월전",
+    { values: { count: months } }
+  );
 }
 
-function buildCallOpeningRecentConversationContext(messages: CareerMessage[]) {
+function buildCallOpeningRecentConversationContext(
+  messages: CareerMessage[],
+  locale: Locale
+) {
   const recentMessages = messages
     .filter((message) => message.content.trim() && !message.typing)
     .slice(-8);
@@ -97,14 +172,22 @@ function buildCallOpeningRecentConversationContext(messages: CareerMessage[]) {
   const nowMs = Date.now();
   const maxTotal = 1600;
   const maxPerMessage = 260;
-  let section = "## 최근 채팅 맥락\n";
+  let section = careerT(
+    locale,
+    "career.call.opening.recent_context.header",
+    "## 최근 채팅 맥락\n"
+  );
   let totalLength = section.length;
 
   for (const message of recentMessages) {
-    const roleLabel = message.role === "assistant" ? "Harper" : "사용자";
+    const roleLabel =
+      message.role === "assistant"
+        ? "Harper"
+        : careerT(locale, "career.call.opening.recent_context.user", "사용자");
     const relativeTime = formatCallOpeningRelativeTime(
       message.createdAt,
-      nowMs
+      nowMs,
+      locale
     );
     const label = relativeTime ? `${roleLabel}(${relativeTime})` : roleLabel;
     const normalizedContent = message.content.replace(/\s+/g, " ").trim();
@@ -126,6 +209,7 @@ function buildCallOpeningResponseInstruction(args: {
   interviewProgress?: CareerInterviewProgress | null;
   isOnboardingDone?: boolean;
   isConversationStarter?: boolean;
+  locale: Locale;
   openingText?: string;
   recentConversationContext?: string;
 }) {
@@ -147,41 +231,71 @@ function buildCallOpeningResponseInstruction(args: {
 
   const sections = [
     shouldUseOnboardingOpening
-      ? ONBOARDING_CALL_OPENING_RESPONSE_INSTRUCTION
-      : CALL_OPENING_RESPONSE_INSTRUCTION,
+      ? careerT(
+          args.locale,
+          "career.call.opening.instruction.onboarding",
+          ONBOARDING_CALL_OPENING_RESPONSE_INSTRUCTION
+        )
+      : careerT(
+          args.locale,
+          "career.call.opening.instruction.default",
+          CALL_OPENING_RESPONSE_INSTRUCTION
+        ),
     shouldUseNearFinishOpening &&
-      [
-        "",
-        "## Incomplete onboarding near-finish opening",
-        "현재 커리어 인터뷰는 아직 완료되지 않았지만 거의 끝난 상태입니다.",
-        `- filledInsights: ${interviewProgress?.filledCount ?? "(unknown)"}/${interviewProgress?.totalCount ?? "(unknown)"}`,
-        `- remainingInsights: ${interviewProgress?.remainingCount ?? "(unknown)"}`,
-        "- 일반적인 새 통화 인사나 '오늘 어떠세요?', '최근 우선순위가 바뀐 게 있나요?' 같은 넓은 질문으로 시작하지 마세요.",
-        "- 첫 문장은 '대화가 거의 끝났고, 더 정확한 추천/연결을 위해 마지막 확인만 빠르게 하겠다'는 취지를 자연스럽게 담으세요.",
-        "- 최근 대화 맥락은 배경으로만 참고하고, 마지막으로 남은 한 가지 missing checklist question hint나 final priority confirmation으로 바로 이어가세요.",
-        "- 이미 final priority confirmation에 사용자가 답한 맥락이면 같은 확인 질문을 반복하지 말고 짧게 closing으로 넘어가세요.",
-      ].join("\n"),
+      careerT(
+        args.locale,
+        "career.call.opening.instruction.near_finish",
+        [
+          "",
+          "## Incomplete onboarding near-finish opening",
+          "현재 커리어 인터뷰는 아직 완료되지 않았지만 거의 끝난 상태입니다.",
+          "- filledInsights: {filledCount}/{totalCount}",
+          "- remainingInsights: {remainingCount}",
+          "- 일반적인 새 통화 인사나 '오늘 어떠세요?', '최근 우선순위가 바뀐 게 있나요?' 같은 넓은 질문으로 시작하지 마세요.",
+          "- 첫 문장은 '대화가 거의 끝났고, 더 정확한 추천/연결을 위해 마지막 확인만 빠르게 하겠다'는 취지를 자연스럽게 담으세요.",
+          "- 최근 대화 맥락은 배경으로만 참고하고, 마지막으로 남은 한 가지 missing checklist question hint나 final priority confirmation으로 바로 이어가세요.",
+          "- 이미 final priority confirmation에 사용자가 답한 맥락이면 같은 확인 질문을 반복하지 말고 짧게 closing으로 넘어가세요.",
+        ].join("\n"),
+        {
+          values: {
+            filledCount: interviewProgress?.filledCount ?? "(unknown)",
+            remainingCount: interviewProgress?.remainingCount ?? "(unknown)",
+            totalCount: interviewProgress?.totalCount ?? "(unknown)",
+          },
+        }
+      ),
     isConversationStarter &&
-      [
-        "",
-        "## Conversation starter opening",
-        "이번 통화는 사용자가 특정 conversation starter 버튼을 눌러 시작했습니다.",
-        "아래 starter 내용의 목적과 질문 방향을 가장 우선하세요.",
-        "최근 우선순위, 선호 조건, 일반적인 기회 탐색 질문을 임의로 고르지 마세요.",
-      ].join("\n"),
+      careerT(
+        args.locale,
+        "career.call.opening.instruction.conversation_starter",
+        [
+          "",
+          "## Conversation starter opening",
+          "이번 통화는 사용자가 특정 conversation starter 버튼을 눌러 시작했습니다.",
+          "아래 starter 내용의 목적과 질문 방향을 가장 우선하세요.",
+          "최근 우선순위, 선호 조건, 일반적인 기회 탐색 질문을 임의로 고르지 마세요.",
+        ].join("\n")
+      ),
     recentConversationContext &&
       [
         "",
         recentConversationContext,
         !shouldUseOnboardingOpening &&
-          "위 최근 채팅 맥락은 통화 첫 멘트를 정할 때 가장 먼저 참고하세요. 마지막 대화가 아직 이어지는 흐름이면 일반적인 새 인사나 새 질문으로 시작하지 마세요.",
+          careerT(
+            args.locale,
+            "career.call.opening.instruction.use_recent_context",
+            "위 최근 채팅 맥락은 통화 첫 멘트를 정할 때 가장 먼저 참고하세요. 마지막 대화가 아직 이어지는 흐름이면 일반적인 새 인사나 새 질문으로 시작하지 마세요."
+          ),
       ].join("\n"),
     normalizedOpeningText &&
       !shouldUseOnboardingOpening &&
       [
         "",
-        "## 참고할 통화 시작 내용",
-        "아래 문구나 질문의 취지를 통화 첫 멘트에 자연스럽게 반영하세요. 그대로 읽기보다 위 지시와 최근 대화 맥락에 맞게 말하세요.",
+        careerT(
+          args.locale,
+          "career.call.opening.instruction.reference_opening",
+          "## 참고할 통화 시작 내용\n아래 문구나 질문의 취지를 통화 첫 멘트에 자연스럽게 반영하세요. 그대로 읽기보다 위 지시와 최근 대화 맥락에 맞게 말하세요."
+        ),
         normalizedOpeningText,
       ].join("\n"),
   ].filter(Boolean);
@@ -199,7 +313,6 @@ function logCallOpeningResponseInstruction(instructions: string) {
 }
 
 const ASSISTANT_BUFFER_FLUSH_TIMEOUT_MS = 1_000;
-const INTERNAL_CALL_COMPLETED_TOAST_MESSAGE = "이미 종료된 call입니다.";
 const USER_TRANSCRIPTION_TIMEOUT_MS = 5_000;
 type SendChatArgs = {
   channel?: "chat" | "voice";
@@ -278,6 +391,8 @@ export const useCareerOnboardingVoice = ({
   enqueueAssistantTypewriter,
   onMessagesChanged,
 }: UseCareerOnboardingVoiceArgs) => {
+  const tCareer = useCareerMessageFormatter();
+  const { locale } = useMessages();
   const [showVoiceStartPrompt, setShowVoiceStartPrompt] = useState(false);
   const [onboardingBeginPending, setOnboardingBeginPending] = useState(false);
   const [onboardingWrapupPending, setOnboardingWrapupPending] = useState(false);
@@ -324,12 +439,13 @@ export const useCareerOnboardingVoice = ({
           method: "POST",
           body: JSON.stringify({
             conversationId,
+            locale,
           }),
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
           throw new Error(
-            getErrorMessage(payload, "대화 시작 준비에 실패했습니다.")
+            getErrorMessage(payload, tCareer(H.conversationStartPrepareFailed))
           );
         }
 
@@ -351,7 +467,7 @@ export const useCareerOnboardingVoice = ({
         const message =
           error instanceof Error
             ? error.message
-            : "대화 시작 준비 중 오류가 발생했습니다.";
+            : tCareer(H.conversationStartPrepareUnexpected);
         setChatError(message);
         return { ok: false, assistantMessage: null };
       } finally {
@@ -362,10 +478,12 @@ export const useCareerOnboardingVoice = ({
       conversationId,
       enqueueAssistantTypewriter,
       fetchWithAuth,
+      locale,
       onboardingBeginPending,
       onMessagesChanged,
       setChatError,
       setStage,
+      tCareer,
       user,
     ]
   );
@@ -567,6 +685,7 @@ export const useCareerOnboardingVoice = ({
               assistantMessage: assistantText,
               assistantEndedOnboarding: Boolean(args.assistantEndedOnboarding),
               isCallMode: args.isCallMode,
+              locale,
             }),
           });
           const payload = await response.json().catch(() => ({}));
@@ -601,9 +720,7 @@ export const useCareerOnboardingVoice = ({
             setStage("completed" as CareerStage);
             if (args.isCallMode && !pendingCallEndRef.current) {
               pendingCallEndRef.current = true;
-              generateSpeechRef.current?.(
-                "좋은 이야기 들려주셔서 감사합니다. 말씀해주신 내용을 바탕으로 잘 맞는 기회를 찾아볼게요. 오늘 대화는 여기까지 할게요."
-              );
+              generateSpeechRef.current?.(tCareer(H.callCompletionSpeech));
             }
           }
           if (response.ok && payload?.opportunityRun) {
@@ -612,7 +729,9 @@ export const useCareerOnboardingVoice = ({
             );
           }
           if (response.ok && payload?.opportunityDiscoveryQueued) {
-            showOpportunityDiscoveryStartedToast();
+            showOpportunityDiscoveryStartedToast(
+              tCareer(H.opportunityDiscoveryStarted)
+            );
           }
           if (response.ok && payload?.searchStatusMessage) {
             appendMessage(toUiMessage(payload.searchStatusMessage));
@@ -647,10 +766,12 @@ export const useCareerOnboardingVoice = ({
       appendMessage,
       conversationId,
       fetchWithAuth,
+      locale,
       onMessagesChanged,
       onTalentInsightsRefreshed,
       onOpportunityRunChanged,
       setStage,
+      tCareer,
     ]
   );
 
@@ -1003,7 +1124,7 @@ export const useCareerOnboardingVoice = ({
       !onboardingBeginPending &&
       Boolean(user && conversationId),
     onUnsupported: (message) => {
-      if (message === INTERNAL_CALL_COMPLETED_TOAST_MESSAGE) {
+      if (message === tCareer(H.callCompleted)) {
         showToast({ message, variant: "white" });
         return;
       }
@@ -1022,11 +1143,13 @@ export const useCareerOnboardingVoice = ({
   }, [addCallTranscriptEntry]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/immutability -- Ref bridge connects callbacks created before useCareerVoiceInput.
     appendCallAssistantTranscriptDeltaRef.current =
       appendCallAssistantTranscriptDelta;
   }, [appendCallAssistantTranscriptDelta]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/immutability -- Ref bridge connects callbacks created before useCareerVoiceInput.
     finalizeCallAssistantTranscriptRef.current =
       finalizeCallAssistantTranscript;
   }, [finalizeCallAssistantTranscript]);
@@ -1112,12 +1235,13 @@ export const useCareerOnboardingVoice = ({
           body: JSON.stringify({
             conversationId,
             action: "prompt",
+            locale,
           }),
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
           throw new Error(
-            getErrorMessage(payload, "나중에 이어하기 준비에 실패했습니다.")
+            getErrorMessage(payload, tCareer(H.onboardingDeferPrepareFailed))
           );
         }
 
@@ -1136,7 +1260,7 @@ export const useCareerOnboardingVoice = ({
         const message =
           error instanceof Error
             ? error.message
-            : "나중에 이어하기 준비 중 오류가 발생했습니다.";
+            : tCareer(H.onboardingDeferPrepareUnexpected);
         setChatError(message);
         setShowVoiceStartPrompt(true);
       } finally {
@@ -1147,11 +1271,13 @@ export const useCareerOnboardingVoice = ({
     conversationId,
     enqueueAssistantTypewriter,
     fetchWithAuth,
+    locale,
     onboardingPausePending,
     onMessagesChanged,
     setChatError,
     setStage,
     switchToChatOnly,
+    tCareer,
     user,
   ]);
 
@@ -1168,13 +1294,14 @@ export const useCareerOnboardingVoice = ({
           body: JSON.stringify({
             conversationId,
             action: "submit",
+            locale,
             selectedOptions,
           }),
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
           throw new Error(
-            getErrorMessage(payload, "선택 저장에 실패했습니다.")
+            getErrorMessage(payload, tCareer(H.onboardingInterestSaveFailed))
           );
         }
 
@@ -1209,7 +1336,7 @@ export const useCareerOnboardingVoice = ({
         const message =
           error instanceof Error
             ? error.message
-            : "선택 저장 중 오류가 발생했습니다.";
+            : tCareer(H.onboardingInterestSaveUnexpected);
         setChatError(message);
         return false;
       } finally {
@@ -1221,11 +1348,13 @@ export const useCareerOnboardingVoice = ({
       conversationId,
       enqueueAssistantTypewriter,
       fetchWithAuth,
+      locale,
       onboardingPausePending,
       onMessagesChanged,
       onTalentInsightsRefreshed,
       setChatError,
       setStage,
+      tCareer,
       user,
     ]
   );
@@ -1254,6 +1383,8 @@ export const useCareerOnboardingVoice = ({
 
       const customOpeningText =
         typeof startArgs === "string" ? startArgs : startArgs?.openingText;
+      const isMockCall =
+        typeof startArgs === "object" && Boolean(startArgs?.mock);
       const conversationStarterId =
         typeof startArgs === "object"
           ? (startArgs.conversationStarterId ?? null)
@@ -1262,8 +1393,12 @@ export const useCareerOnboardingVoice = ({
         typeof startArgs === "object"
           ? (startArgs.internalCallRequestId?.trim() ?? null)
           : null;
-      activeCallConversationStarterIdRef.current = conversationStarterId;
-      activeInternalCallRequestIdRef.current = internalCallRequestId;
+      activeCallConversationStarterIdRef.current = isMockCall
+        ? null
+        : conversationStarterId;
+      activeInternalCallRequestIdRef.current = isMockCall
+        ? null
+        : internalCallRequestId;
 
       setCallStartPending(true);
       let callStartedSuccessfully = false;
@@ -1275,7 +1410,7 @@ export const useCareerOnboardingVoice = ({
         clearRealtimeTurnSyncState();
 
         const shouldBeginOnboarding =
-          !customOpeningText && showVoiceStartPrompt;
+          !isMockCall && !customOpeningText && showVoiceStartPrompt;
         let openingAssistantMessage: CareerMessage | null = null;
         if (shouldBeginOnboarding) {
           setShowVoiceStartPrompt(false);
@@ -1292,8 +1427,9 @@ export const useCareerOnboardingVoice = ({
         }
 
         const callStarted = await startCallMode({
-          conversationStarterId,
-          internalCallRequestId,
+          conversationStarterId: isMockCall ? null : conversationStarterId,
+          internalCallRequestId: isMockCall ? null : internalCallRequestId,
+          mock: isMockCall,
         });
         if (!callStarted) {
           if (shouldBeginOnboarding) {
@@ -1306,8 +1442,12 @@ export const useCareerOnboardingVoice = ({
 
         callStartedAtRef.current = Date.now();
         callStartedSuccessfully = true;
+        if (isMockCall) {
+          return true;
+        }
+
         const openingRecentConversationContext =
-          buildCallOpeningRecentConversationContext(messages);
+          buildCallOpeningRecentConversationContext(messages, locale);
 
         if (!shouldBeginOnboarding) {
           const openingText = customOpeningText?.trim();
@@ -1318,6 +1458,7 @@ export const useCareerOnboardingVoice = ({
               interviewProgress: callInterviewProgress,
               isOnboardingDone,
               isConversationStarter: Boolean(conversationStarterId),
+              locale,
               openingText,
               recentConversationContext: openingRecentConversationContext,
             });
@@ -1325,14 +1466,18 @@ export const useCareerOnboardingVoice = ({
             generateSpeechFromInstructionsRef.current(openingInstructions);
           } else {
             generateSpeechRef.current?.(
-              openingText || DEFAULT_CALL_OPENING_TEXT
+              openingText ||
+                careerT(
+                  locale,
+                  "career.call.opening.default_text",
+                  DEFAULT_CALL_OPENING_TEXT
+                )
             );
           }
           return true;
         }
 
-        const greetingText =
-          "안녕하세요, 직접 통화로 이야기하게 되어 좋네요. 제가 먼저 하나씩 여쭤볼게요. 편하게 답해주시면 더 잘 맞는 기회를 찾는 데 도움이 됩니다.";
+        const greetingText = tCareer(H.callGreeting);
         const followUpText = openingAssistantMessage?.content.trim();
         const openingText = followUpText
           ? `${greetingText}\n\n${followUpText}`
@@ -1344,6 +1489,7 @@ export const useCareerOnboardingVoice = ({
             interviewProgress: callInterviewProgress,
             isOnboardingDone,
             isConversationStarter: Boolean(conversationStarterId),
+            locale,
             openingText,
             recentConversationContext: openingRecentConversationContext,
           });
@@ -1367,10 +1513,12 @@ export const useCareerOnboardingVoice = ({
       callInterviewProgress,
       clearRealtimeTurnSyncState,
       isOnboardingDone,
+      locale,
       messages,
       onboardingBeginPending,
       showVoiceStartPrompt,
       startCallMode,
+      tCareer,
     ]
   );
 
@@ -1449,12 +1597,13 @@ export const useCareerOnboardingVoice = ({
               })),
               durationSeconds,
               forceCompleteOnboarding,
+              locale,
             }),
           });
           const payload = await response.json().catch(() => ({}));
           if (!response.ok) {
             console.error("[CareerOnboardingVoice] Follow-up failed:", payload);
-            setChatError("종료 메시지 생성에 실패했습니다.");
+            setChatError(tCareer(H.callWrapupMessageFailed));
             return;
           }
 
@@ -1467,7 +1616,9 @@ export const useCareerOnboardingVoice = ({
             );
           }
           if (payload?.opportunityDiscoveryQueued) {
-            showOpportunityDiscoveryStartedToast();
+            showOpportunityDiscoveryStartedToast(
+              tCareer(H.opportunityDiscoveryStarted)
+            );
           }
           if (
             payload &&
@@ -1561,7 +1712,7 @@ export const useCareerOnboardingVoice = ({
           }
         } catch (error) {
           console.error("[CareerOnboardingVoice] Follow-up error:", error);
-          setChatError("종료 메시지 생성에 실패했습니다.");
+          setChatError(tCareer(H.callWrapupMessageFailed));
         } finally {
           setOnboardingBeginPending(false);
           callWrapUpPendingRef.current = false;
@@ -1578,6 +1729,7 @@ export const useCareerOnboardingVoice = ({
       endCallMode,
       enqueueAssistantTypewriter,
       fetchWithAuth,
+      locale,
       onMessagesChanged,
       onOpportunityRunChanged,
       onTalentPreferencesRefreshed,
@@ -1588,6 +1740,7 @@ export const useCareerOnboardingVoice = ({
       saveRealtimeTurn,
       setChatError,
       setStage,
+      tCareer,
     ]
   );
 

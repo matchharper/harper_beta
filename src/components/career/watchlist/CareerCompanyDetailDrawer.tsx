@@ -5,12 +5,15 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { getErrorMessage } from "@/hooks/career/careerHelpers";
 import { useCareerSidebarContext } from "@/components/career/CareerSidebarContext";
+import { useMessages } from "@/i18n/useMessage";
 import { CompanyDetailView } from "./CompanyDetailView";
 import type {
   CompanyDetailPayload,
   CompanyWatchlistItem,
 } from "./watchlistTypes";
 import { BareButton } from "@/components/ui/button";
+import { useCareerT } from "@/i18n/useCareerT";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 const DETAIL_QUERY_KEY = "career-company-watchlist-detail";
 
@@ -27,8 +30,11 @@ const CareerCompanyDetailDrawer = ({
   open,
   source = "position_company_detail",
 }: CareerCompanyDetailDrawerProps) => {
+  const t = useCareerT();
+
   const queryClient = useQueryClient();
   const { fetchWithAuth } = useCareerApi();
+  const { locale } = useMessages();
   const { onUpdateCompanyFollow, user } = useCareerSidebarContext();
   const userId = user?.id ?? null;
   const [updatingCompanyId, setUpdatingCompanyId] = useState<number | null>(
@@ -40,11 +46,15 @@ const CareerCompanyDetailDrawer = ({
   } | null>(null);
 
   const detailQuery = useQuery({
-    queryKey: [DETAIL_QUERY_KEY, userId, companyDbId],
+    queryKey: [DETAIL_QUERY_KEY, userId, companyDbId, locale],
     enabled: open && Boolean(user && companyDbId),
     queryFn: async () => {
+      const params = new URLSearchParams({
+        companyDbId: String(companyDbId ?? ""),
+        locale,
+      });
       const response = await fetchWithAuth(
-        `/api/talent/company-watchlist?companyDbId=${companyDbId}`
+        `/api/talent/company-watchlist?${params.toString()}`
       );
       const payload = (await response
         .json()
@@ -52,7 +62,14 @@ const CareerCompanyDetailDrawer = ({
 
       if (!response.ok) {
         throw new Error(
-          getErrorMessage(payload, "회사 정보를 불러오지 못했습니다.")
+          getErrorMessage(
+            payload,
+            careerT(
+              "ko",
+              "career.company.career_company_detail_drawer.0amy3om",
+              "회사 정보를 불러오지 못했습니다."
+            )
+          )
         );
       }
 
@@ -85,12 +102,18 @@ const CareerCompanyDetailDrawer = ({
         });
 
         if (!result) {
-          throw new Error("회사 팔로우 상태를 변경하지 못했습니다.");
+          throw new Error(
+            careerT(
+              "ko",
+              "career.common.career_flow_provider.19x0zaz",
+              "회사 팔로우 상태를 변경하지 못했습니다."
+            )
+          );
         }
 
         if (result.item) {
           queryClient.setQueryData(
-            [DETAIL_QUERY_KEY, userId, item.companyDbId],
+            [DETAIL_QUERY_KEY, userId, item.companyDbId, locale],
             { item: result.item }
           );
         }
@@ -104,13 +127,17 @@ const CareerCompanyDetailDrawer = ({
           message:
             error instanceof Error
               ? error.message
-              : "회사 팔로우 상태를 변경하지 못했습니다.",
+              : careerT(
+                  "ko",
+                  "career.common.career_flow_provider.19x0zaz",
+                  "회사 팔로우 상태를 변경하지 못했습니다."
+                ),
         });
       } finally {
         setUpdatingCompanyId(null);
       }
     },
-    [onUpdateCompanyFollow, queryClient, source, userId]
+    [locale, onUpdateCompanyFollow, queryClient, source, userId]
   );
 
   useEffect(() => {
@@ -140,7 +167,10 @@ const CareerCompanyDetailDrawer = ({
         <div className="fixed inset-0 z-[80]">
           <motion.button
             type="button"
-            aria-label="회사 정보 닫기"
+            aria-label={t(
+              "career.company.career_company_detail_drawer.1v2v38p",
+              "회사 정보 닫기"
+            )}
             className="absolute inset-0 bg-black/25 backdrop-blur-[1px]"
             onClick={handleClose}
             initial={{ opacity: 0 }}
@@ -151,7 +181,10 @@ const CareerCompanyDetailDrawer = ({
           <motion.aside
             role="dialog"
             aria-modal="true"
-            aria-label="회사 상세 정보"
+            aria-label={t(
+              "career.company.career_company_detail_drawer.0ihv86b",
+              "회사 상세 정보"
+            )}
             className="absolute right-0 top-0 flex h-full w-full max-w-[760px] flex-col border-l border-neutral-1000-a05 bg-bg-floating text-neutral-primary shadow-2xl"
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
@@ -161,7 +194,10 @@ const CareerCompanyDetailDrawer = ({
             <div className="flex h-12 shrink-0 items-center justify-end border-b border-neutral-1000-a05 px-4">
               <BareButton
                 type="button"
-                aria-label="닫기"
+                aria-label={t(
+                  "career.common.career_support_inquiry_modal.11apzn2",
+                  "닫기"
+                )}
                 onClick={handleClose}
                 className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-muted transition-colors hover:bg-bg-weak hover:text-neutral-primary"
               >

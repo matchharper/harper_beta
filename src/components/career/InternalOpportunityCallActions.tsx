@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 import { ActionButton } from "@/components/ui/button";
+import { useCareerT } from "@/i18n/useCareerT";
 import { cn } from "@/lib/utils";
 import type { CareerInternalOpportunityCallRequest } from "./types";
 
@@ -22,14 +23,6 @@ type InternalOpportunityCallActionsProps = {
     callRequest: CareerInternalOpportunityCallRequest
   ) => boolean | void | Promise<boolean | void>;
   variant?: "desktop" | "mobile";
-};
-
-const formatInternalCallLabel = (
-  callRequest: CareerInternalOpportunityCallRequest
-) => {
-  const companyName = callRequest.companyName.trim() || "회사";
-  const roleTitle = callRequest.roleTitle.trim() || "Role";
-  return `${companyName} - ${roleTitle} 통화 대기`;
 };
 
 const MessageCircleCheckIcon = ({ className }: { className?: string }) => (
@@ -50,6 +43,8 @@ export function InternalOpportunityCallActions({
   onStart,
   variant = "desktop",
 }: InternalOpportunityCallActionsProps) {
+  const t = useCareerT();
+
   const isMobile = variant === "mobile";
   const [pendingCallId, setPendingCallId] = useState<string | null>(null);
   const mountedRef = useRef(true);
@@ -94,7 +89,15 @@ export function InternalOpportunityCallActions({
     >
       {callRequests.map((callRequest) => {
         const callPending = pendingCallId === callRequest.id;
-        const label = formatInternalCallLabel(callRequest);
+        const companyName =
+          callRequest.companyName.trim() ||
+          t("career.call.internal_opportunity_call_actions.0fpx491", "회사");
+        const roleTitle = callRequest.roleTitle.trim() || "Role";
+        const label = t(
+          "career.call.internal_opportunity_call_actions.pending_call_label",
+          "{companyName} - {roleTitle} 통화 대기",
+          { values: { companyName, roleTitle } }
+        );
 
         return (
           <ActionButton

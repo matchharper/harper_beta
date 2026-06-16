@@ -9,8 +9,11 @@ import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import type {
   CareerTalentListResponse,
   CareerTalentDetailResponse,
+  CareerTalentInsightsResponse,
   CareerTalentMailHistoryResponse,
+  CareerTalentMessagesResponse,
   CareerTalentOpsProfileMemo,
+  CareerTalentProfileResponse,
   CareerTalentProfileIngestSource,
   CareerTalentProfileIngestResponse,
   CareerTalentRecommendationsResponse,
@@ -22,6 +25,7 @@ import type {
   OpsManualInternalRecommendationRolesResponse,
   OpsQueueManualInternalRecommendationResponse,
 } from "@/lib/opsCareerServer";
+import { queryKeys } from "@/lib/queryKeys";
 
 type SendCareerTalentMailResponse = {
   ok: true;
@@ -84,6 +88,12 @@ const removeInternalRecommendationFromPages = (
 export const opsCareerListKey = ["ops-career-list"] as const;
 export const opsCareerDetailKey = (userId?: string | null) =>
   ["ops-career-detail", userId] as const;
+export const opsCareerInsightsKey = (userId?: string | null) =>
+  ["ops-career-insights", userId] as const;
+export const opsCareerMessagesKey = (userId?: string | null) =>
+  ["ops-career-messages", userId] as const;
+export const opsCareerProfileKey = (userId?: string | null) =>
+  ["ops-career-profile", userId] as const;
 export const opsCareerMailHistoryKey = (userId?: string | null) =>
   ["ops-career-mail-history", userId] as const;
 export const opsCareerRecommendationsKey = (
@@ -172,12 +182,56 @@ export function useOpsCareerTalents(
 export function useOpsCareerDetail(userId?: string | null, enabled = true) {
   return useQuery({
     queryKey: opsCareerDetailKey(userId),
-    queryFn: () =>
-      fetchWithInternalAuth<CareerTalentDetailResponse>(
-        `/api/internal/career/detail?userId=${userId}`
-      ),
+    queryFn: () => {
+      const params = new URLSearchParams({ userId: userId ?? "" });
+      return fetchWithInternalAuth<CareerTalentDetailResponse>(
+        `/api/internal/career/detail?${params.toString()}`
+      );
+    },
     enabled: enabled && typeof userId === "string" && userId.length > 0,
     staleTime: 15_000,
+  });
+}
+
+export function useOpsCareerInsights(userId?: string | null, enabled = true) {
+  return useQuery({
+    queryKey: opsCareerInsightsKey(userId),
+    queryFn: () => {
+      const params = new URLSearchParams({ userId: userId ?? "" });
+      return fetchWithInternalAuth<CareerTalentInsightsResponse>(
+        `/api/internal/career/insights?${params.toString()}`
+      );
+    },
+    enabled: enabled && typeof userId === "string" && userId.length > 0,
+    staleTime: 30_000,
+  });
+}
+
+export function useOpsCareerMessages(userId?: string | null, enabled = true) {
+  return useQuery({
+    queryKey: opsCareerMessagesKey(userId),
+    queryFn: () => {
+      const params = new URLSearchParams({ userId: userId ?? "" });
+      return fetchWithInternalAuth<CareerTalentMessagesResponse>(
+        `/api/internal/career/messages?${params.toString()}`
+      );
+    },
+    enabled: enabled && typeof userId === "string" && userId.length > 0,
+    staleTime: 15_000,
+  });
+}
+
+export function useOpsCareerProfile(userId?: string | null, enabled = true) {
+  return useQuery({
+    queryKey: opsCareerProfileKey(userId),
+    queryFn: () => {
+      const params = new URLSearchParams({ userId: userId ?? "" });
+      return fetchWithInternalAuth<CareerTalentProfileResponse>(
+        `/api/internal/career/profile?${params.toString()}`
+      );
+    },
+    enabled: enabled && typeof userId === "string" && userId.length > 0,
+    staleTime: 30_000,
   });
 }
 
@@ -239,7 +293,7 @@ export function useUpdateInsights(userId: string) {
         body: JSON.stringify({ userId, updates }),
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: opsCareerDetailKey(userId) });
+      queryClient.invalidateQueries({ queryKey: opsCareerInsightsKey(userId) });
     },
   });
 }
@@ -254,7 +308,7 @@ export function useRefreshInsights(userId: string) {
         body: JSON.stringify({ userId }),
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: opsCareerDetailKey(userId) });
+      queryClient.invalidateQueries({ queryKey: opsCareerInsightsKey(userId) });
     },
   });
 }
@@ -265,6 +319,7 @@ const invalidateOpsCareerMemoQueries = (
 ) => {
   queryClient.invalidateQueries({ queryKey: opsCareerDetailKey(userId) });
   queryClient.invalidateQueries({ queryKey: opsCareerListKey });
+  queryClient.invalidateQueries({ queryKey: queryKeys.opsMatching.all });
 };
 
 export function useCreateOpsCareerProfileMemo(userId: string) {
@@ -337,7 +392,9 @@ export function useIngestCareerProfile(userId: string) {
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: opsCareerDetailKey(userId) });
+      queryClient.invalidateQueries({ queryKey: opsCareerProfileKey(userId) });
       queryClient.invalidateQueries({ queryKey: opsCareerListKey });
+      queryClient.invalidateQueries({ queryKey: queryKeys.opsMatching.all });
     },
   });
 }
@@ -446,6 +503,18 @@ export function useQueueOpsManualInternalRecommendation() {
     onSuccess: (_result, variables) => {
       queryClient.invalidateQueries({
         queryKey: ["ops-career-recommendations", variables.userId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.opsMatching.progress(variables.userId, null),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.opsMatching.progress(
+          variables.userId,
+          variables.roleId
+        ),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.opsMatching.roleTags(variables.userId),
       });
     },
   });

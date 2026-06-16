@@ -9,6 +9,7 @@ import {
   Loader2,
   Mail,
   MessageSquareText,
+  Phone,
   Plus,
   Play,
   RefreshCw,
@@ -40,6 +41,11 @@ import type {
 import { DEFAULT_OPPORTUNITY_DISCOVERY_AGENT_VARIANT } from "@/lib/opportunityDiscovery/types";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
+import {
+  formatCareerMessage,
+  formatCareerMessageByKey,
+} from "@/i18n/careerMessage";
+import { useMessages } from "@/i18n/useMessage";
 import { useCareerDevSqlPromptHistoryStore } from "@/store/useCareerDevSqlPromptHistoryStore";
 import { Text } from "@/components/ui/text";
 import {
@@ -48,6 +54,8 @@ import {
   SectionTitle,
 } from "@/components/ui/section-header";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
+import { useCareerT } from "@/i18n/useCareerT";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 const countFormatter = new Intl.NumberFormat("ko-KR");
 const devAgentVariantOptions: Array<{
@@ -64,6 +72,7 @@ const getOpportunityAgentLabel = (
   if (value === "new_rule") return "new-rule";
   if (value === "tool_agent") return "tool agent";
   if (value === "scripted" || value === "scripted_human") return "legacy agent";
+  // career-i18n-skip-next-line: dev controls text is intentionally Korean-only.
   return "agent 미지정";
 };
 
@@ -149,6 +158,8 @@ const CareerHomePanel = ({
   onOpenChat: () => void;
   onOpenHistory: (target?: HomeHistoryTarget) => void;
 }) => {
+  const t = useCareerT();
+
   const logCareerEvent = useCareerLogEvent();
   const { fetchWithAuth } = useCareerApi();
   const devSqlPromptHistory = useCareerDevSqlPromptHistoryStore(
@@ -188,6 +199,7 @@ const CareerHomePanel = ({
     pendingInternalOpportunityCallRequests = [],
     sessionReengagementTestPending,
   } = useCareerSidebarContext();
+  const { m } = useMessages();
   const [devAgentVariant, setDevAgentVariant] =
     React.useState<CareerOpportunityAgentVariant>(
       DEFAULT_OPPORTUNITY_DISCOVERY_AGENT_VARIANT
@@ -218,10 +230,21 @@ const CareerHomePanel = ({
   );
   const newPositionDescription =
     newInternalOpportunityCount > 0
-      ? `추천된 기회 · ${countFormatter.format(
-          newInternalOpportunityCount
-        )}개 연결 가능`
-      : "추천된 기회";
+      ? formatCareerMessage(
+          m,
+          careerT(
+            "ko",
+            "career.home.career_home_panel.030cbmq",
+            "추천된 기회 · {count}개 연결 가능"
+          ),
+          {
+            count: countFormatter.format(newInternalOpportunityCount),
+          }
+        )
+      : formatCareerMessage(
+          m,
+          careerT("ko", "career.home.career_home_panel.0x7lgjp", "추천된 기회")
+        );
   const savedPositionCount = historyOpportunityCounts.savedStages.saved;
   const connectedPositionCount =
     historyOpportunityCounts.savedStages.applied +
@@ -252,7 +275,11 @@ const CareerHomePanel = ({
   );
   const inProgressCompanyLabel = useMemo(() => {
     if (inProgressPositionCount === 0) {
-      return "아직 저장하거나 연결된 포지션 없음";
+      return careerT(
+        "ko",
+        "career.home.career_home_panel.1psd54b",
+        "아직 저장하거나 연결된 포지션 없음"
+      );
     }
 
     const firstCompanyName = (
@@ -263,40 +290,112 @@ const CareerHomePanel = ({
       ) ?? inProgressOpportunities[0]
     )?.item.companyName?.trim();
     const statusLabel =
-      inProgressTargetSavedStage === "saved" ? "저장함" : "연결됨";
+      inProgressTargetSavedStage === "saved"
+        ? formatCareerMessage(
+            m,
+            careerT(
+              "ko",
+              "career.common.career_history_panel.06mgpci",
+              "저장함"
+            )
+          )
+        : formatCareerMessage(
+            m,
+            careerT(
+              "ko",
+              "career.common.career_history_panel.0y27adb",
+              "연결됨"
+            )
+          );
 
     if (!firstCompanyName) {
-      return `${countFormatter.format(inProgressPositionCount)}개 ${statusLabel}`;
+      return formatCareerMessage(
+        m,
+        careerT(
+          "ko",
+          "career.home.career_home_panel.1qhpcnm",
+          "{count}개 {status}"
+        ),
+        {
+          count: countFormatter.format(inProgressPositionCount),
+          status: statusLabel,
+        }
+      );
     }
 
     if (inProgressPositionCount === 1) {
-      return `${firstCompanyName} ${statusLabel}`;
+      return formatCareerMessage(m, "{company} {status}", {
+        company: firstCompanyName,
+        status: statusLabel,
+      });
     }
 
-    return `${firstCompanyName} 외 ${countFormatter.format(
-      inProgressPositionCount - 1
-    )}개 ${statusLabel}`;
+    return formatCareerMessage(
+      m,
+      careerT(
+        "ko",
+        "career.home.career_home_panel.0ejjdwp",
+        "{company} 외 {count}개 {status}"
+      ),
+      {
+        company: firstCompanyName,
+        count: countFormatter.format(inProgressPositionCount - 1),
+        status: statusLabel,
+      }
+    );
   }, [
     inProgressOpportunities,
     inProgressPositionCount,
     inProgressTargetSavedStage,
+    m,
   ]);
 
   const activeOpportunityLabel =
     activeCompanyRoleCount > 0
-      ? `현재 Harper 네트워크에서 ${countFormatter.format(
-          activeCompanyRoleCount * 2
-        )}개의 기회를 스캔하고 있습니다. 매일매일 더 많은 기회를 발견합니다.`
-      : "현재 Harper는 새로운 기회를 계속 탐색하고 있습니다.";
+      ? formatCareerMessage(
+          m,
+          careerT(
+            "ko",
+            "career.home.career_home_panel.1jcg4hg",
+            "현재 Harper 네트워크에서 {count}개의 기회를 스캔하고 있습니다. 매일매일 더 많은 기회를 발견합니다."
+          ),
+          {
+            count: countFormatter.format(activeCompanyRoleCount * 2),
+          }
+        )
+      : formatCareerMessage(
+          m,
+          careerT(
+            "ko",
+            "career.home.career_home_panel.0rlf0ya",
+            "현재 Harper는 새로운 기회를 계속 탐색하고 있습니다."
+          )
+        );
   const recommendationSettingLabel = talentPreferences
     ? talentPreferences.getExternalRecommendation &&
       talentPreferences.getInternalRecommendation
-      ? "외부 공개 포지션 추천과 내부 회사 연결 제안을 받고 있어요."
+      ? careerT(
+          "ko",
+          "career.home.career_home_panel.1dtmpgt",
+          "외부 공개 포지션 추천과 내부 회사 연결 제안을 받고 있어요."
+        )
       : talentPreferences.getExternalRecommendation
-        ? "외부 공개 포지션 추천만 받고 있어요. 내부 회사 연결 제안은 꺼져 있어요."
+        ? careerT(
+            "ko",
+            "career.home.career_home_panel.0f1tq9x",
+            "외부 공개 포지션 추천만 받고 있어요. 내부 회사 연결 제안은 꺼져 있어요."
+          )
         : talentPreferences.getInternalRecommendation
-          ? "내부 회사 연결 제안만 받고 있어요. 외부 공개 포지션 추천은 받지 않고 있어요."
-          : "외부 공개 포지션 추천과 내부 회사 연결 제안이 모두 꺼져 있어요."
+          ? careerT(
+              "ko",
+              "career.home.career_home_panel.1l3sw8y",
+              "내부 회사 연결 제안만 받고 있어요. 외부 공개 포지션 추천은 받지 않고 있어요."
+            )
+          : careerT(
+              "ko",
+              "career.home.career_home_panel.1dfqgdw",
+              "외부 공개 포지션 추천과 내부 회사 연결 제안이 모두 꺼져 있어요."
+            )
     : null;
 
   const userEmail = String(user?.email ?? "")
@@ -322,6 +421,7 @@ const CareerHomePanel = ({
   const latestRunAgentLabel = getOpportunityAgentLabel(
     opportunityRun?.agentVariant
   );
+  // career-i18n-skip-next-line: dev controls text is intentionally Korean-only.
   const latestRunLabel = opportunityRun
     ? `${opportunityRun.id.slice(0, 8)} · ${opportunityRun.status} · ${latestRunAgentLabel}`
     : "latest run 없음";
@@ -340,41 +440,75 @@ const CareerHomePanel = ({
 
   const callCardUsesCompletedLayout = isOnboardingCompleted;
   const callCardTitle = isOnboardingCompleted
-    ? "Harper와 5분 통화"
-    : "아직 5분 커리어 인터뷰가 완료되지 않았어요";
+    ? careerT(
+        "ko",
+        "career.home.career_home_panel.0rplg97",
+        "Harper와 5분 통화"
+      )
+    : careerT(
+        "ko",
+        "career.home.career_home_panel.0c36lcv",
+        "아직 5분 커리어 인터뷰가 완료되지 않았어요"
+      );
 
   const callCardDescription = isOnboardingCompleted ? (
-    "변경된 사항이 있거나 요구사항이 있을 때 — 통화하면 빨라요"
+    careerT(
+      "ko",
+      "career.home.career_home_panel.0bq7bs7",
+      "변경된 사항이 있거나 요구사항이 있을 때 — 통화하면 빨라요"
+    )
   ) : (
     <>
-      왼쪽 채팅에서 혹은 아래 통화로 간단한 질문에만 대답해주세요.
+      {t(
+        "career.home.career_home_panel.05hgw7c",
+        "왼쪽 채팅에서 혹은 아래 통화로 간단한 질문에만 대답해주세요."
+      )}
       <br />
-      대화가 끝나면 내용을 정리하고, 딱맞는 기회를 받아보실 수 있게 할게요.
+      {t(
+        "career.home.career_home_panel.0e3tusc",
+        "대화가 끝나면 내용을 정리하고, 딱맞는 기회를 받아보실 수 있게 할게요."
+      )}
     </>
   );
 
   const onboardingChecklistItems = [
     {
       icon: UserRound,
-      label: "계정",
+      label: careerT("ko", "career.home.career_home_panel.1q70b1u", "계정"),
       meta: null,
       state: "done",
     },
     {
       icon: FileText,
-      label: "자료 제출",
+      label: careerT(
+        "ko",
+        "career.home.career_home_panel.0gj76aj",
+        "자료 제출"
+      ),
       meta: null,
       state: "done",
     },
     {
       icon: MessageSquareText,
-      label: "기준 확인",
-      meta: "역할과 조건을 짧게 확인",
+      label: careerT(
+        "ko",
+        "career.home.career_home_panel.0dha8ne",
+        "기준 확인"
+      ),
+      meta: careerT(
+        "ko",
+        "career.home.career_home_panel.19aqpg8",
+        "역할과 조건을 짧게 확인"
+      ),
       state: "current",
     },
     {
       icon: Search,
-      label: "추천 시작",
+      label: careerT(
+        "ko",
+        "career.home.career_home_panel.15tndog",
+        "추천 시작"
+      ),
       meta: null,
       state: "pending",
     },
@@ -386,6 +520,12 @@ const CareerHomePanel = ({
     void onStartCallMode?.();
   };
 
+  const handleStartMockCall = () => {
+    logCareerEvent("click_home_dev_mock_call");
+    onOpenChat();
+    void onStartCallMode?.({ mock: true });
+  };
+
   const handleStartInternalOpportunityCall = (
     callRequest: CareerInternalOpportunityCallRequest
   ) => {
@@ -394,7 +534,15 @@ const CareerHomePanel = ({
     return (
       onStartCallMode?.({
         internalCallRequestId: callRequest.id,
-        openingText: `${callRequest.companyName} ${callRequest.roleTitle} 연결 건으로, 회사에 더 잘 전달할 수 있게 짧게 몇 가지를 확인하고 싶어요.`,
+        openingText: formatCareerMessageByKey(
+          m,
+          "career.internal_opportunity.call_opening",
+          "",
+          {
+            companyName: callRequest.companyName,
+            roleTitle: callRequest.roleTitle,
+          }
+        ),
       }) ?? false
     );
   };
@@ -411,6 +559,7 @@ const CareerHomePanel = ({
     return onStartConversationStarter?.({ mode, starterId }) ?? false;
   };
 
+  // career-i18n-skip-next-line: dev controls text is intentionally Korean-only.
   const handleGenerateDevSql = React.useCallback(async () => {
     const request = devSqlRequest.trim();
     if (!request || devSqlGenerating || devSqlExecuting) return;
@@ -452,6 +601,7 @@ const CareerHomePanel = ({
     logCareerEvent,
   ]);
 
+  // career-i18n-skip-next-line: dev controls text is intentionally Korean-only.
   const handleExecuteDevSql = React.useCallback(async () => {
     const sql = devSqlText.trim();
     if (!sql || devSqlExecuting || devSqlGenerating) return;
@@ -505,10 +655,16 @@ const CareerHomePanel = ({
       {shouldShowProfileImportRecovery && (
         <div className="mt-2 mb-4 flex flex-col gap-3 rounded-3xl border border-info/30 bg-bg-floating px-3 py-3 text-info shadow-[0_8px_20px_color-mix(in_srgb,var(--color-neutral-1000)_8%,transparent)] sm:flex-row sm:items-center sm:justify-between">
           <Text as="div" type="label" className="min-w-0 pl-2">
-            정보를 가져오는데 문제가 있었던 것 같습니다.
+            {t(
+              "career.home.career_home_panel.0vplw45",
+              "정보를 가져오는데 문제가 있었던 것 같습니다."
+            )}
             <br />
             <Text as="span" type="caption">
-              오른쪽의 버튼을 통해 다시 시도해주세요. 불편을드려 죄송합니다.
+              {t(
+                "career.home.career_home_panel.0zkc0rv",
+                "오른쪽의 버튼을 통해 다시 시도해주세요. 불편을드려 죄송합니다."
+              )}
             </Text>
           </Text>
           <ActionButton
@@ -525,7 +681,17 @@ const CareerHomePanel = ({
             ) : (
               <RefreshCw className="h-3.5 w-3.5" />
             )}
-            {profileSavePending ? "가져오는 중..." : "정보 다시 가져오기"}
+            {profileSavePending
+              ? careerT(
+                  "ko",
+                  "career.home.career_home_panel.1frpdtk",
+                  "가져오는 중..."
+                )
+              : careerT(
+                  "ko",
+                  "career.home.career_home_panel.024uw9c",
+                  "정보 다시 가져오기"
+                )}
           </ActionButton>
         </div>
       )}
@@ -565,9 +731,17 @@ const CareerHomePanel = ({
       {!isOnboardingCompleted ? (
         <div className="rounded-3xl border border-neutral-1000-a05 bg-bg-floating px-6 py-5 shadow-sm">
           <SectionHeader className="gap-1">
-            <SectionTitle as="h3">커리어 인터뷰 진행 중</SectionTitle>
+            <SectionTitle as="h3">
+              {t(
+                "career.home.career_home_panel.1ol18h9",
+                "커리어 인터뷰 진행 중"
+              )}
+            </SectionTitle>
             <SectionDescription className="max-w-none">
-              원하는 기회의 기준을 확인하고 있어요.
+              {t(
+                "career.home.career_home_panel.0qe18mm",
+                "원하는 기회의 기준을 확인하고 있어요."
+              )}
             </SectionDescription>
           </SectionHeader>
           <div className="mt-4 space-y-4">
@@ -630,10 +804,10 @@ const CareerHomePanel = ({
       {isOnboardingCompleted ? (
         <div className="mt-12 grid grid-cols-1 gap-4 lg:grid-cols-2">
           <HomeOpportunitySummaryCard
-            title="새로 받은 기회"
+            title={t("career.home.career_home_panel.0sdf230", "새로 받은 기회")}
             count={newPositionCount}
             description={newPositionDescription}
-            buttonLabel="검토하기"
+            buttonLabel={t("career.common.career.1nldebx", "검토하기")}
             icon={<Mail className="h-5 w-5 text-primary" strokeWidth={1.8} />}
             iconClassName="bg-accent-200"
             onClick={() =>
@@ -644,10 +818,10 @@ const CareerHomePanel = ({
             }
           />
           <HomeOpportunitySummaryCard
-            title="저장 / 연결"
+            title={t("career.home.career_home_panel.11q0oj9", "저장 / 연결")}
             count={inProgressPositionCount}
             description={inProgressCompanyLabel}
-            buttonLabel="상세 보기"
+            buttonLabel={t("career.common.career.028kv4g", "상세 보기")}
             icon={<Check className="h-6 w-6 text-positive" strokeWidth={1.9} />}
             iconClassName="bg-positive-faded"
             onClick={() =>
@@ -664,7 +838,10 @@ const CareerHomePanel = ({
       <CareerProfileSharingSettingsSection showLastUpdated={false} />
 
       {showDevRunControls ? (
-        <div className="mt-5 rounded-2xl border border-dashed border-neutral-1000-a10 bg-bg-floating px-4 py-4 shadow-sm">
+        <div
+          data-career-i18n-skip="true"
+          className="mt-5 rounded-2xl border border-dashed border-neutral-1000-a10 bg-bg-floating px-4 py-4 shadow-sm"
+        >
           <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <Text as="div" type="eyebrow">
@@ -757,6 +934,18 @@ const CareerHomePanel = ({
                 <BriefcaseBusiness className="h-3.5 w-3.5" />
               )}
               현재 데이터로 공고 추천
+            </ActionButton>
+            <ActionButton
+              onClick={handleStartMockCall}
+              disabled={callStartPending || !onStartCallMode}
+              actionVariant="secondary"
+            >
+              {callStartPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Phone className="h-3.5 w-3.5" />
+              )}
+              통화 UI 프리뷰
             </ActionButton>
             <ActionButton
               onClick={() => {

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getErrorMessage } from "./careerHelpers";
 import type { FetchWithAuth } from "./useCareerApi";
+import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
+import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 
 export type CareerProfileVisibility =
   | "open_to_matches"
@@ -67,6 +69,7 @@ export const useCareerTalentSettings = ({
   authLoading,
   fetchWithAuth,
 }: UseCareerTalentSettingsArgs) => {
+  const tCareer = useCareerMessageFormatter();
   const fetchRequestIdRef = useRef(0);
   const saveRequestIdRef = useRef(0);
   const [settingsLoading, setSettingsLoading] = useState(false);
@@ -126,7 +129,7 @@ export const useCareerTalentSettings = ({
         .catch(() => ({}))) as SettingsPayload;
       if (!response.ok) {
         throw new Error(
-          getErrorMessage(payload, "설정 정보를 불러오지 못했습니다.")
+          getErrorMessage(payload, tCareer(H.settingsLoadFailed))
         );
       }
 
@@ -139,16 +142,14 @@ export const useCareerTalentSettings = ({
         return;
       }
       const message =
-        error instanceof Error
-          ? error.message
-          : "설정 정보를 불러오지 못했습니다.";
+        error instanceof Error ? error.message : tCareer(H.settingsLoadFailed);
       setSettingsError(message);
     } finally {
       if (requestId === fetchRequestIdRef.current) {
         setSettingsLoading(false);
       }
     }
-  }, [applyPersistedSettings, fetchWithAuth, userId]);
+  }, [applyPersistedSettings, fetchWithAuth, tCareer, userId]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -201,7 +202,7 @@ export const useCareerTalentSettings = ({
           .catch(() => ({}))) as SettingsPayload;
         if (!response.ok) {
           throw new Error(
-            getErrorMessage(payload, "설정 저장에 실패했습니다.")
+            getErrorMessage(payload, tCareer(H.settingsSaveFailed))
           );
         }
 
@@ -218,7 +219,9 @@ export const useCareerTalentSettings = ({
           return false;
         }
         const message =
-          error instanceof Error ? error.message : "설정 저장에 실패했습니다.";
+          error instanceof Error
+            ? error.message
+            : tCareer(H.settingsSaveFailed);
         setSettingsError(message);
         return false;
       } finally {
@@ -227,7 +230,7 @@ export const useCareerTalentSettings = ({
         }
       }
     },
-    [applyPersistedSettings, fetchWithAuth, settingsSaving, userId]
+    [applyPersistedSettings, fetchWithAuth, settingsSaving, tCareer, userId]
   );
 
   const saveSettings = useCallback(async () => {

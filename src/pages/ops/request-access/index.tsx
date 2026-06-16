@@ -1,4 +1,5 @@
 import OpsShell from "@/components/ops/OpsShell";
+import { formatKstRelativeDateTime } from "@/components/ops/dateUtils";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -64,20 +65,6 @@ function formatLocaleLabel(locale: RequestAccessApprovalEmailLocale) {
 
 function isBulkSelectable(status: RequestAccessReviewStatus) {
   return status !== "already_granted";
-}
-
-function formatDateTime(value: string | null | undefined) {
-  if (!value) return "-";
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "-";
-  }
-
-  return new Intl.DateTimeFormat("ko-KR", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
 }
 
 function QueueBadge({ status }: { status: RequestAccessReviewStatus }) {
@@ -685,7 +672,7 @@ export default function OpsRequestAccessPage() {
                             <div className="flex flex-wrap items-center gap-2">
                               <QueueBadge status={item.status} />
                               <div className="text-xs text-neutral-muted">
-                                제출 {formatDateTime(item.createdAt)}
+                                제출 {formatKstRelativeDateTime(item.createdAt)}
                               </div>
                               {!isBulkSelectable(item.status) ? (
                                 <div className="text-xs text-neutral-muted">
@@ -722,11 +709,15 @@ export default function OpsRequestAccessPage() {
                             <div className="mt-4 grid gap-2 text-sm text-neutral-muted md:grid-cols-2">
                               <div>
                                 승인 메일 발송:{" "}
-                                {formatDateTime(item.approvalEmailSentAt)}
+                                {formatKstRelativeDateTime(
+                                  item.approvalEmailSentAt
+                                )}
                               </div>
                               <div>
                                 활성화 완료:{" "}
-                                {formatDateTime(item.accessGrantedAt)}
+                                {formatKstRelativeDateTime(
+                                  item.accessGrantedAt
+                                )}
                               </div>
                             </div>
                           </div>

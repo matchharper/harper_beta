@@ -2,11 +2,13 @@ import { CompanyLogo } from "./CompanyLogo";
 import { FollowButton } from "./FollowButton";
 import { formatFollowedAt } from "./watchlistFormatters";
 import { BareButton } from "@/components/ui/button";
+import { useMessages } from "@/i18n/useMessage";
 import type {
   CompanyFollowClickHandler,
   CompanyWatchlistItem,
   CompanyWatchlistTab,
 } from "./watchlistTypes";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 export const CompanyCard = ({
   activeTab,
@@ -21,27 +23,40 @@ export const CompanyCard = ({
   onToggleFollow: CompanyFollowClickHandler;
   updating: boolean;
 }) => {
+  const { locale } = useMessages();
   const reasonLabel =
     activeTab === "signals"
-      ? "최근 시그널"
+      ? careerT("ko", "career.company.company_card.1m5x6m1", "최근 시그널")
       : activeTab === "following"
-        ? "추적중이에요"
-        : "추천 근거";
+        ? careerT("ko", "career.common.career.0h5494n", "추적중이에요")
+        : careerT("ko", "career.company.company_card.1qxewwj", "추천 근거");
   const reason =
     activeTab === "signals"
       ? (item.signalSummary ??
         item.latestSignal ??
         item.shortDescription ??
-        "회사 업데이트를 정리 중입니다.")
+        careerT(
+          "ko",
+          "career.company.company_card.1gncj7z",
+          "회사 업데이트를 정리 중입니다."
+        ))
       : activeTab === "following"
         ? (item.trackingSummary ??
           item.reasonSummary ??
           item.shortDescription ??
-          "회사 업데이트를 정리 중입니다.")
+          careerT(
+            "ko",
+            "career.company.company_card.1gncj7z",
+            "회사 업데이트를 정리 중입니다."
+          ))
         : (item.reasonSummary ??
           item.recommendationReasons[0] ??
           item.shortDescription ??
-          "회사 정보를 정리 중입니다.");
+          careerT(
+            "ko",
+            "career.company.company_card.17aqd6f",
+            "회사 정보를 정리 중입니다."
+          ));
 
   return (
     <BareButton
@@ -60,14 +75,18 @@ export const CompanyCard = ({
                 </h3>
                 {item.followedAt ? (
                   <span className="rounded-full bg-bg-weak px-2 py-1 text-[11px] leading-none text-neutral-muted">
-                    {formatFollowedAt(item.followedAt)}
+                    {formatFollowedAt(item.followedAt, locale)}
                   </span>
                 ) : null}
               </div>
               <p className="mt-1 line-clamp-2 text-[13px] text-neutral-muted">
                 {item.shortDescription ??
                   item.location ??
-                  "회사 설명을 정리 중입니다."}
+                  careerT(
+                    "ko",
+                    "career.company.company_card.1n9j2yp",
+                    "회사 설명을 정리 중입니다."
+                  )}
               </p>
             </div>
             <FollowButton

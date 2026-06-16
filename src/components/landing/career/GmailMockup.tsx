@@ -17,7 +17,7 @@ import {
 
 function GmailPhoneMockup() {
   return (
-    <div className="absolute bottom-[3.6%] right-[4.3%] hidden w-[218px] sm:block md:w-[248px] lg:w-[260px]">
+    <div className="absolute bottom-[3.6%] right-[4.3%] hidden w-[218px] md:block md:w-[248px] lg:w-[260px]">
       <div className="relative aspect-[434/882]">
         <Image
           src="/svgs/phone.svg"

@@ -27,7 +27,6 @@ import type {
 } from "../types";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { locationEnToKo } from "@/utils/language_map";
-import { dateToFormat } from "@/utils/textprocess";
 import {
   ActionButton,
   PrimaryButton,
@@ -48,6 +47,9 @@ import {
   INSIGHT_CHECKLIST_ORDER_MAP,
   getInsightLabel,
 } from "@/lib/talentOnboarding/insightChecklist";
+import { useMessages, type Locale } from "@/i18n/useMessage";
+import { careerT } from "@/lib/career/translatedCareerMessage";
+import { useCareerT } from "@/i18n/useCareerT";
 
 type EditableExperience = CareerTalentExperience & { clientKey: string };
 type EditableEducation = CareerTalentEducation & { clientKey: string };
@@ -61,11 +63,46 @@ type EditableTalentProfile = {
 };
 
 const PROFILE_RERANKING_INSIGHTS = [
-  { key: "next_scope", label: "다음 역할" },
-  { key: "location", label: "근무 지역" },
-  { key: "compensation", label: "보상" },
-  { key: "must_haves", label: "필수 조건" },
-  { key: "deal_breakers", label: "회피 조건" },
+  {
+    key: "next_scope",
+    label: careerT(
+      "ko",
+      "career.profile.career_talent_profile_panel.1axs5u2",
+      "다음 역할"
+    ),
+  },
+  {
+    key: "location",
+    label: careerT(
+      "ko",
+      "career.profile.career_talent_profile_panel.00infjs",
+      "근무 지역"
+    ),
+  },
+  {
+    key: "compensation",
+    label: careerT(
+      "ko",
+      "career.profile.career_talent_profile_panel.19jif2e",
+      "보상"
+    ),
+  },
+  {
+    key: "must_haves",
+    label: careerT(
+      "ko",
+      "career.profile.career_talent_profile_panel.06cga7b",
+      "필수 조건"
+    ),
+  },
+  {
+    key: "deal_breakers",
+    label: careerT(
+      "ko",
+      "career.profile.career_talent_profile_panel.0qip38b",
+      "회피 조건"
+    ),
+  },
 ] as const;
 
 type ProfileInsightItem = {
@@ -87,20 +124,104 @@ const parseDate = (value: string | null | undefined) => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
-const formatRange = (startDate?: string | null, endDate?: string | null) => {
-  const start = dateToFormat(startDate);
-  const end = dateToFormat(endDate);
+const formatProfileMonthDate = (
+  value: string | null | undefined,
+  locale: Locale
+) => {
+  if (!value || value === "Present") return "";
+
+  if (/^\d{4}-01-01$/.test(value)) {
+    return careerT(locale, "career.profile.date.year_only", "{year}년", {
+      values: { year: value.slice(0, 4) },
+    });
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  return new Intl.DateTimeFormat(locale === "en" ? "en-US" : "ko-KR", {
+    month: "short",
+    year: "numeric",
+  }).format(date);
+};
+
+const formatRange = (
+  startDate: string | null | undefined,
+  endDate: string | null | undefined,
+  locale: Locale
+) => {
+  const start = formatProfileMonthDate(startDate, locale);
+  const end = formatProfileMonthDate(endDate, locale);
   if (!start && !end) return "";
-  if (start && !end) return `${start} - 현재`;
+  if (start && !end)
+    return `${start} - ${careerT(locale, "career.profile.date.present", "현재")}`;
   if (!start && end) return end;
   return `${start} - ${end}`;
 };
 
-const formatMonth = (months?: number | null) => {
+const formatMonth = (months: number | null | undefined, locale: Locale) => {
   if (!months || months <= 0) return "";
   const years = Math.floor(months / 12);
   const remain = months % 12;
-  return `${years > 0 ? `${years}년 ` : ""}${remain}개월`;
+  if (years > 0 && remain > 0) {
+    if (years === 1 && remain === 1) {
+      return careerT(
+        locale,
+        "career.profile.duration.year_one_month_one",
+        "{years}년 {months}개월",
+        { values: { months: remain, years } }
+      );
+    }
+    if (years === 1) {
+      return careerT(
+        locale,
+        "career.profile.duration.year_one_month_many",
+        "{years}년 {months}개월",
+        { values: { months: remain, years } }
+      );
+    }
+    if (remain === 1) {
+      return careerT(
+        locale,
+        "career.profile.duration.year_many_month_one",
+        "{years}년 {months}개월",
+        { values: { months: remain, years } }
+      );
+    }
+    return careerT(
+      locale,
+      "career.profile.duration.year_many_month_many",
+      "{years}년 {months}개월",
+      { values: { months: remain, years } }
+    );
+  }
+  if (years > 0) {
+    if (years === 1) {
+      return careerT(
+        locale,
+        "career.profile.duration.year_one_month_zero",
+        "{years}년 0개월",
+        { values: { years } }
+      );
+    }
+    return careerT(
+      locale,
+      "career.profile.duration.year_many_month_zero",
+      "{years}년 0개월",
+      { values: { years } }
+    );
+  }
+  if (remain === 1) {
+    return careerT(
+      locale,
+      "career.profile.duration.month_one",
+      "{months}개월",
+      { values: { months: remain } }
+    );
+  }
+  return careerT(locale, "career.profile.duration.month_many", "{months}개월", {
+    values: { months: remain },
+  });
 };
 
 const parseProfileMonthDate = (
@@ -147,12 +268,12 @@ const calculateExperienceMonths = (
   return Math.max(0, monthDiff);
 };
 
-const formatLastUpdated = (value: string | null) => {
+const formatLastUpdated = (value: string | null, locale: Locale) => {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
 
-  return new Intl.DateTimeFormat("ko-KR", {
+  return new Intl.DateTimeFormat(locale === "en" ? "en-US" : "ko-KR", {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -404,6 +525,8 @@ const TimelineBlock = ({
   logoText?: string;
   isLast?: boolean;
 }) => {
+  const t = useCareerT();
+
   const badgeClassName =
     kind === "education"
       ? "bg-bg-weak text-neutral-muted"
@@ -478,7 +601,10 @@ const TimelineBlock = ({
             <MessageSquare className="mt-0.5 h-3 w-3 shrink-0 text-neutral-muted" />
             <div className="min-w-0">
               <div className="mb-1 text-[11px] text-neutral-muted">
-                Harper 메모
+                {t(
+                  "career.profile.career_talent_profile_panel.1d7d70h",
+                  "Harper 메모"
+                )}
               </div>
               <div className="text-[13px] leading-5 text-neutral-primary">
                 {memo}
@@ -527,7 +653,11 @@ const ItemRemoveButton = ({ onClick }: { onClick: () => void }) => (
     type="button"
     onClick={onClick}
     className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-neutral-1000-a05 bg-bg-floating text-neutral-muted transition-colors hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary md:h-8 md:w-8"
-    aria-label="항목 삭제"
+    aria-label={careerT(
+      "ko",
+      "career.profile.career_talent_profile_panel.18od9kw",
+      "항목 삭제"
+    )}
   >
     <Trash2 className="h-4 w-4" />
   </BareButton>
@@ -557,7 +687,13 @@ const RecruiterProfileNotice = ({ copy }: { copy: string }) => (
     <Eye className="h-3.5 w-3.5 shrink-0 text-neutral-muted" />
     <div>
       <strong className="font-medium text-neutral-primary">{copy}</strong>
-      <span> · 연결이 성사된 회사에만 공유돼요</span>
+      <span>
+        {careerT(
+          "ko",
+          "career.profile.career_talent_profile_panel.0rfzx4s",
+          "· 연결이 성사된 회사에만 공유돼요"
+        )}
+      </span>
     </div>
   </div>
 );
@@ -575,6 +711,8 @@ const ProfileAvatar = ({
   onFileChange?: (file: File) => void;
   uploadPending?: boolean;
 }) => {
+  const t = useCareerT();
+
   const [menuOpen, setMenuOpen] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const shouldShowImage =
@@ -607,7 +745,10 @@ const ProfileAvatar = ({
         trigger={
           <BareButton
             type="button"
-            aria-label="프로필 사진 메뉴"
+            aria-label={t(
+              "career.profile.career_talent_profile_panel.05hwq9n",
+              "프로필 사진 메뉴"
+            )}
             disabled={imageActionDisabled}
             className={cn(
               "group relative flex h-14 w-14 items-center justify-center rounded-full border border-neutral-1000-a05 bg-bg-weak text-neutral-muted transition-all focus:outline-none focus-visible:ring-4 focus-visible:ring-positive/30",
@@ -645,7 +786,10 @@ const ProfileAvatar = ({
           className="flex flex-row items-center gap-2.5 text-[13px]"
         >
           <ImagePlus className="h-4 w-4" />
-          사진 변경/업로드
+          {t(
+            "career.profile.career_talent_profile_panel.1rnsexk",
+            "사진 변경/업로드"
+          )}
         </ActionDropdownItem>
         <ActionDropdownSeparator />
         <ActionDropdownItem
@@ -658,7 +802,7 @@ const ProfileAvatar = ({
           className="flex flex-row items-center gap-2.5 text-[13px]"
         >
           <Trash2 className="h-4 w-4" />
-          사진 삭제
+          {t("career.profile.career_talent_profile_panel.1dp84h2", "사진 삭제")}
         </ActionDropdownItem>
       </ActionDropdown>
     </div>
@@ -668,6 +812,7 @@ const ProfileAvatar = ({
 const ProfileHeader = ({
   displayName,
   isEditing,
+  locale,
   onEdit,
   onFieldChange,
   onProfileImageDelete,
@@ -679,6 +824,7 @@ const ProfileHeader = ({
 }: {
   displayName: string;
   isEditing: boolean;
+  locale: Locale;
   onEdit?: () => void;
   onFieldChange?: (
     field: keyof Omit<CareerTalentUser, "user_id">,
@@ -711,8 +857,16 @@ const ProfileHeader = ({
           <Input
             value={user?.name ?? ""}
             onChange={(event) => onFieldChange?.("name", event.target.value)}
-            placeholder="이름"
-            aria-label="이름"
+            placeholder={careerT(
+              "ko",
+              "career.onboarding.onboarding.1wh5aat",
+              "이름"
+            )}
+            aria-label={careerT(
+              "ko",
+              "career.onboarding.onboarding.1wh5aat",
+              "이름"
+            )}
             className={cn(
               profileEditInputClassName,
               "h-10 max-w-[360px] font-hedvig text-[24px]"
@@ -736,8 +890,16 @@ const ProfileHeader = ({
             onChange={(event) =>
               onFieldChange?.("headline", event.target.value)
             }
-            placeholder="한 줄 소개"
-            aria-label="한 줄 소개"
+            placeholder={careerT(
+              "ko",
+              "career.profile.career_talent_profile_panel.0tgcq59",
+              "한 줄 소개"
+            )}
+            aria-label={careerT(
+              "ko",
+              "career.profile.career_talent_profile_panel.0tgcq59",
+              "한 줄 소개"
+            )}
             className={profileEditInputClassName}
           />
           <Input
@@ -745,8 +907,16 @@ const ProfileHeader = ({
             onChange={(event) =>
               onFieldChange?.("location", event.target.value)
             }
-            placeholder="지역"
-            aria-label="지역"
+            placeholder={careerT(
+              "ko",
+              "career.profile.career_talent_profile_panel.0csjlpy",
+              "지역"
+            )}
+            aria-label={careerT(
+              "ko",
+              "career.profile.career_talent_profile_panel.0csjlpy",
+              "지역"
+            )}
             className={profileEditInputClassName}
           />
         </div>
@@ -759,7 +929,7 @@ const ProfileHeader = ({
           {user?.location ? (
             <span className="inline-flex items-center gap-1.5">
               <MapPin className="h-3.5 w-3.5" />
-              {locationEnToKo(user.location)}
+              {locale === "en" ? user.location : locationEnToKo(user.location)}
             </span>
           ) : null}
         </div>
@@ -803,7 +973,11 @@ const ProfileHeader = ({
           className="h-9 gap-1.5 px-3.5 text-[12.5px]"
         >
           <Pencil className="h-3.5 w-3.5" />
-          수정하기
+          {careerT(
+            "ko",
+            "career.profile.career_talent_profile_panel.1iq5xym",
+            "수정하기"
+          )}
         </ActionButton>
       ) : null}
     </div>
@@ -827,6 +1001,8 @@ const ProfileOverviewSection = ({
   showAllInsightsButton?: boolean;
   summary: string;
 }) => {
+  const t = useCareerT();
+
   const [showAllInsights, setShowAllInsights] = useState(false);
   const canShowAllInsights =
     showAllInsightsButton &&
@@ -882,7 +1058,10 @@ const ProfileOverviewSection = ({
                   onChange={(event) =>
                     onInsightChange?.(item.key, event.target.value)
                   }
-                  placeholder="아직 확인 중"
+                  placeholder={t(
+                    "career.profile.career_talent_profile_panel.093jpik",
+                    "아직 확인 중"
+                  )}
                   aria-label={item.label}
                   className={cn(profileEditTextareaClassName, "min-h-[52px]")}
                 />
@@ -893,7 +1072,12 @@ const ProfileOverviewSection = ({
                     item.value ? "text-neutral-primary" : "text-neutral-soft"
                   )}
                 >
-                  {item.value || "아직 확인 중"}
+                  {item.value ||
+                    careerT(
+                      "ko",
+                      "career.profile.career_talent_profile_panel.093jpik",
+                      "아직 확인 중"
+                    )}
                 </div>
               )}
             </dd>
@@ -909,12 +1093,15 @@ const ProfileOverviewSection = ({
           {showAllInsights ? (
             <>
               <ChevronUp className="h-3.5 w-3.5" />
-              접기
+              {t("career.profile.career_talent_profile_panel.0tftkys", "접기")}
             </>
           ) : (
             <>
               <ChevronDown className="h-3.5 w-3.5" />
-              전체 insight 보기
+              {t(
+                "career.profile.career_talent_profile_panel.1nc9ehf",
+                "전체 insight 보기"
+              )}
             </>
           )}
         </BareButton>
@@ -976,7 +1163,15 @@ const TimelineEditBlock = ({
             "cursor-pointer transition-transform hover:scale-[1.03]",
           logoUploadPending && "pointer-events-none opacity-75"
         )}
-        aria-label={onLogoFileChange ? "로고 이미지 업로드" : undefined}
+        aria-label={
+          onLogoFileChange
+            ? careerT(
+                "ko",
+                "career.profile.career_talent_profile_panel.0a2iqu6",
+                "로고 이미지 업로드"
+              )
+            : undefined
+        }
       >
         {onLogoFileChange ? (
           <UiInput
@@ -1038,6 +1233,9 @@ const CareerTalentProfilePanel = ({
 }: {
   className?: string;
 }) => {
+  const t = useCareerT();
+
+  const { locale } = useMessages();
   const logCareerEvent = useCareerLogEvent();
   const { fetchWithAuth } = useCareerApi();
   const {
@@ -1098,10 +1296,20 @@ const CareerTalentProfilePanel = ({
     mergedExperience.length > 0 ||
     talentExtras.length > 0;
   const profileDisplayName = talentUser?.name?.trim() || "Unknown";
-  const recruiterProfileCopy = talentUser?.name?.trim()
-    ? `채용 담당자가 보는 ${talentUser.name.trim()}의 프로필`
-    : "채용 담당자가 보는 프로필";
-  const profileUpdatedText = formatLastUpdated(talentInsightsUpdatedAt);
+  const recruiterProfileName = talentUser?.name?.trim();
+  const recruiterProfileCopy = recruiterProfileName
+    ? careerT(
+        locale,
+        "career.profile.recruiter_profile.named",
+        "채용 담당자가 보는 {name}의 프로필",
+        { values: { name: recruiterProfileName } }
+      )
+    : careerT(
+        locale,
+        "career.profile.recruiter_profile.default",
+        "채용 담당자가 보는 프로필"
+      );
+  const profileUpdatedText = formatLastUpdated(talentInsightsUpdatedAt, locale);
   const lookingForItems = useMemo(
     () =>
       PROFILE_RERANKING_INSIGHTS.map((item) => ({
@@ -1210,12 +1418,24 @@ const CareerTalentProfilePanel = ({
   const uploadProfileImage = async (file: File) => {
     logCareerEvent("click_profile_upload_image");
     if (!file.type.startsWith("image/")) {
-      setProfileImageError("이미지 파일만 업로드할 수 있습니다.");
+      setProfileImageError(
+        careerT(
+          "ko",
+          "career.profile.career_talent_profile_panel.0anxi5z",
+          "이미지 파일만 업로드할 수 있습니다."
+        )
+      );
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      setProfileImageError("프로필 이미지는 5MB 이하로 업로드해 주세요.");
+      setProfileImageError(
+        careerT(
+          "ko",
+          "career.profile.career_talent_profile_panel.1dup23s",
+          "프로필 이미지는 5MB 이하로 업로드해 주세요."
+        )
+      );
       return;
     }
 
@@ -1233,18 +1453,35 @@ const CareerTalentProfilePanel = ({
       const payload = await response.json().catch(() => ({}));
 
       if (!response.ok || typeof payload?.profileImageUrl !== "string") {
-        throw new Error(payload?.error ?? "프로필 사진 업로드에 실패했습니다.");
+        throw new Error(
+          payload?.error ??
+            careerT(
+              "ko",
+              "career.profile.career_talent_profile_panel.1gsvvpp",
+              "프로필 사진 업로드에 실패했습니다."
+            )
+        );
       }
 
       const saved = await applyProfileImageUrl(payload.profileImageUrl);
       if (!saved) {
-        throw new Error("프로필 사진 저장에 실패했습니다.");
+        throw new Error(
+          careerT(
+            "ko",
+            "career.profile.career_talent_profile_panel.0seo81b",
+            "프로필 사진 저장에 실패했습니다."
+          )
+        );
       }
     } catch (error) {
       setProfileImageError(
         error instanceof Error
           ? error.message
-          : "프로필 사진 업로드에 실패했습니다."
+          : careerT(
+              "ko",
+              "career.profile.career_talent_profile_panel.1gsvvpp",
+              "프로필 사진 업로드에 실패했습니다."
+            )
       );
     } finally {
       setProfileImageUploadPending(false);
@@ -1259,13 +1496,23 @@ const CareerTalentProfilePanel = ({
     try {
       const saved = await applyProfileImageUrl(null);
       if (!saved) {
-        throw new Error("프로필 사진 삭제에 실패했습니다.");
+        throw new Error(
+          careerT(
+            "ko",
+            "career.profile.career_talent_profile_panel.0tc2iu5",
+            "프로필 사진 삭제에 실패했습니다."
+          )
+        );
       }
     } catch (error) {
       setProfileImageError(
         error instanceof Error
           ? error.message
-          : "프로필 사진 삭제에 실패했습니다."
+          : careerT(
+              "ko",
+              "career.profile.career_talent_profile_panel.0tc2iu5",
+              "프로필 사진 삭제에 실패했습니다."
+            )
       );
     } finally {
       setProfileImageUploadPending(false);
@@ -1292,12 +1539,24 @@ const CareerTalentProfilePanel = ({
   ) => {
     logCareerEvent("click_profile_upload_company_logo");
     if (!file.type.startsWith("image/")) {
-      setLogoUploadError("이미지 파일만 업로드할 수 있습니다.");
+      setLogoUploadError(
+        careerT(
+          "ko",
+          "career.profile.career_talent_profile_panel.0anxi5z",
+          "이미지 파일만 업로드할 수 있습니다."
+        )
+      );
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      setLogoUploadError("로고 이미지는 5MB 이하로 업로드해 주세요.");
+      setLogoUploadError(
+        careerT(
+          "ko",
+          "career.profile.career_talent_profile_panel.04441vu",
+          "로고 이미지는 5MB 이하로 업로드해 주세요."
+        )
+      );
       return;
     }
 
@@ -1318,13 +1577,26 @@ const CareerTalentProfilePanel = ({
       const payload = await response.json().catch(() => ({}));
 
       if (!response.ok || typeof payload?.logoUrl !== "string") {
-        throw new Error(payload?.error ?? "로고 업로드에 실패했습니다.");
+        throw new Error(
+          payload?.error ??
+            careerT(
+              "ko",
+              "career.profile.career_talent_profile_panel.0acdx91",
+              "로고 업로드에 실패했습니다."
+            )
+        );
       }
 
       updateExperienceField(index, "company_logo", payload.logoUrl);
     } catch (error) {
       setLogoUploadError(
-        error instanceof Error ? error.message : "로고 업로드에 실패했습니다."
+        error instanceof Error
+          ? error.message
+          : careerT(
+              "ko",
+              "career.profile.career_talent_profile_panel.0acdx91",
+              "로고 업로드에 실패했습니다."
+            )
       );
     } finally {
       setLogoUploadPendingKeys((current) => {
@@ -1474,7 +1746,7 @@ const CareerTalentProfilePanel = ({
             disabled={profileSavePending || talentInsightsSavePending}
             className="gap-1.5"
           >
-            취소
+            {t("career.settings.career_settings_modal.0jiry9t", "취소")}
           </SecondaryButton>
           <PrimaryButton
             type="button"
@@ -1488,8 +1760,16 @@ const CareerTalentProfilePanel = ({
           >
             <Save className="h-4 w-4" />
             {profileSavePending || talentInsightsSavePending
-              ? "저장 중..."
-              : "저장하기"}
+              ? careerT(
+                  "ko",
+                  "career.profile.career_profile_settings_section.08zy6at",
+                  "저장 중..."
+                )
+              : careerT(
+                  "ko",
+                  "career.profile.career_talent_profile_panel.0x4dx7a",
+                  "저장하기"
+                )}
           </PrimaryButton>
         </div>
       )}
@@ -1525,6 +1805,7 @@ const CareerTalentProfilePanel = ({
           <ProfileHeader
             displayName={draft.talentUser.name || "Unknown"}
             isEditing
+            locale={locale}
             onProfileImageDelete={() => void deleteProfileImage()}
             onProfileImageFileChange={(file) => void uploadProfileImage(file)}
             onFieldChange={updateTalentUserField}
@@ -1569,7 +1850,10 @@ const CareerTalentProfilePanel = ({
                 className="h-11 gap-1.5 px-4 text-[13px] md:h-8 md:px-3 md:text-xs"
               >
                 <Plus className="h-3.5 w-3.5" />
-                경력 추가
+                {t(
+                  "career.profile.career_talent_profile_panel.0efzyx5",
+                  "경력 추가"
+                )}
               </SecondaryButton>
               <SecondaryButton
                 type="button"
@@ -1577,7 +1861,10 @@ const CareerTalentProfilePanel = ({
                 className="h-11 gap-1.5 px-4 text-[13px] md:h-8 md:px-3 md:text-xs"
               >
                 <Plus className="h-3.5 w-3.5" />
-                학력 추가
+                {t(
+                  "career.profile.career_talent_profile_panel.1efofsl",
+                  "학력 추가"
+                )}
               </SecondaryButton>
               <SecondaryButton
                 type="button"
@@ -1585,7 +1872,10 @@ const CareerTalentProfilePanel = ({
                 className="h-11 gap-1.5 px-4 text-[13px] md:h-8 md:px-3 md:text-xs"
               >
                 <Plus className="h-3.5 w-3.5" />
-                추가 정보
+                {t(
+                  "career.profile.career_talent_profile_panel.0wjximy",
+                  "추가 정보"
+                )}
               </SecondaryButton>
             </div>
 
@@ -1628,8 +1918,14 @@ const CareerTalentProfilePanel = ({
                                 event.target.value
                               )
                             }
-                            placeholder="직무"
-                            aria-label="직무"
+                            placeholder={t(
+                              "career.profile.career_talent_profile_panel.1qnltk8",
+                              "직무"
+                            )}
+                            aria-label={t(
+                              "career.profile.career_talent_profile_panel.1qnltk8",
+                              "직무"
+                            )}
                             className={cn(
                               profileEditPlainInputClassName,
                               "text-[14px] font-medium leading-[1.35]"
@@ -1645,8 +1941,14 @@ const CareerTalentProfilePanel = ({
                                   event.target.value
                                 )
                               }
-                              placeholder="회사명"
-                              aria-label="회사명"
+                              placeholder={t(
+                                "career.profile.career_talent_profile_panel.0uwqvnk",
+                                "회사명"
+                              )}
+                              aria-label={t(
+                                "career.profile.career_talent_profile_panel.0uwqvnk",
+                                "회사명"
+                              )}
                               className={cn(
                                 profileEditPlainInputClassName,
                                 "w-[180px] text-[12.5px] leading-5 text-neutral-muted"
@@ -1662,8 +1964,14 @@ const CareerTalentProfilePanel = ({
                                   event.target.value
                                 )
                               }
-                              placeholder="근무 지역"
-                              aria-label="근무 지역"
+                              placeholder={t(
+                                "career.profile.career_talent_profile_panel.00infjs",
+                                "근무 지역"
+                              )}
+                              aria-label={t(
+                                "career.profile.career_talent_profile_panel.00infjs",
+                                "근무 지역"
+                              )}
                               className={cn(
                                 profileEditPlainInputClassName,
                                 "w-[150px] text-[12.5px] leading-5 text-neutral-muted"
@@ -1679,8 +1987,14 @@ const CareerTalentProfilePanel = ({
                                   event.target.value
                                 )
                               }
-                              placeholder="고용 형태"
-                              aria-label="고용 형태"
+                              placeholder={t(
+                                "career.profile.career_talent_profile_panel.0rtdf2n",
+                                "고용 형태"
+                              )}
+                              aria-label={t(
+                                "career.profile.career_talent_profile_panel.0rtdf2n",
+                                "고용 형태"
+                              )}
                               className={cn(
                                 profileEditPlainInputClassName,
                                 "w-[120px] text-[12.5px] leading-5 text-neutral-muted"
@@ -1697,8 +2011,14 @@ const CareerTalentProfilePanel = ({
                                   event.target.value
                                 )
                               }
-                              placeholder="시작일"
-                              aria-label="시작일"
+                              placeholder={t(
+                                "career.profile.career_talent_profile_panel.11cor6u",
+                                "시작일"
+                              )}
+                              aria-label={t(
+                                "career.profile.career_talent_profile_panel.11cor6u",
+                                "시작일"
+                              )}
                               className={cn(
                                 profileEditPlainInputClassName,
                                 "w-[92px] text-[11.5px] leading-5 text-neutral-soft"
@@ -1714,8 +2034,14 @@ const CareerTalentProfilePanel = ({
                                   event.target.value
                                 )
                               }
-                              placeholder="현재"
-                              aria-label="종료일 또는 현재"
+                              placeholder={t(
+                                "career.profile.career_talent_profile_panel.0p5h1wt",
+                                "현재"
+                              )}
+                              aria-label={t(
+                                "career.profile.career_talent_profile_panel.1iegi7w",
+                                "종료일 또는 현재"
+                              )}
                               className={cn(
                                 profileEditPlainInputClassName,
                                 "w-[92px] text-[11.5px] leading-5 text-neutral-soft"
@@ -1727,8 +2053,14 @@ const CareerTalentProfilePanel = ({
                                 calculateExperienceMonths(
                                   exp.start_date,
                                   exp.end_date
-                                )
-                              ) || "기간 자동 계산"}
+                                ),
+                                locale
+                              ) ||
+                                careerT(
+                                  "ko",
+                                  "career.profile.career_talent_profile_panel.1u4ajdw",
+                                  "기간 자동 계산"
+                                )}
                             </span>
                             <span className="text-neutral-1000-a10">·</span>
                             <Input
@@ -1740,8 +2072,14 @@ const CareerTalentProfilePanel = ({
                                   event.target.value
                                 )
                               }
-                              placeholder="회사 링크"
-                              aria-label="회사 링크"
+                              placeholder={t(
+                                "career.profile.career_talent_profile_panel.07x414y",
+                                "회사 링크"
+                              )}
+                              aria-label={t(
+                                "career.profile.career_talent_profile_panel.07x414y",
+                                "회사 링크"
+                              )}
                               className={cn(
                                 profileEditPlainInputClassName,
                                 "min-w-[180px] flex-1 text-[11.5px] leading-5 text-neutral-soft"
@@ -1757,8 +2095,14 @@ const CareerTalentProfilePanel = ({
                                 event.target.value
                               )
                             }
-                            placeholder="주요 업무와 성과"
-                            aria-label="주요 업무와 성과"
+                            placeholder={t(
+                              "career.profile.career_talent_profile_panel.051qjyj",
+                              "주요 업무와 성과"
+                            )}
+                            aria-label={t(
+                              "career.profile.career_talent_profile_panel.051qjyj",
+                              "주요 업무와 성과"
+                            )}
                             className={cn(
                               profileEditPlainTextareaClassName,
                               "mt-2 text-[13px] leading-6 text-neutral-muted"
@@ -1788,8 +2132,14 @@ const CareerTalentProfilePanel = ({
                               event.target.value
                             )
                           }
-                          placeholder="학교명"
-                          aria-label="학교명"
+                          placeholder={t(
+                            "career.profile.career_talent_profile_panel.1afhauj",
+                            "학교명"
+                          )}
+                          aria-label={t(
+                            "career.profile.career_talent_profile_panel.1afhauj",
+                            "학교명"
+                          )}
                           className={cn(
                             profileEditPlainInputClassName,
                             "text-[14px] font-medium leading-[1.35]"
@@ -1805,8 +2155,14 @@ const CareerTalentProfilePanel = ({
                                 event.target.value
                               )
                             }
-                            placeholder="전공"
-                            aria-label="전공"
+                            placeholder={t(
+                              "career.profile.career_talent_profile_panel.06x2f2q",
+                              "전공"
+                            )}
+                            aria-label={t(
+                              "career.profile.career_talent_profile_panel.06x2f2q",
+                              "전공"
+                            )}
                             className={cn(
                               profileEditPlainInputClassName,
                               "w-[170px] text-[12.5px] leading-5 text-neutral-muted"
@@ -1822,8 +2178,14 @@ const CareerTalentProfilePanel = ({
                                 event.target.value
                               )
                             }
-                            placeholder="학위"
-                            aria-label="학위"
+                            placeholder={t(
+                              "career.profile.career_talent_profile_panel.0a7k434",
+                              "학위"
+                            )}
+                            aria-label={t(
+                              "career.profile.career_talent_profile_panel.0a7k434",
+                              "학위"
+                            )}
                             className={cn(
                               profileEditPlainInputClassName,
                               "w-[150px] text-[12.5px] leading-5 text-neutral-muted"
@@ -1839,8 +2201,14 @@ const CareerTalentProfilePanel = ({
                                 event.target.value
                               )
                             }
-                            placeholder="학교/프로그램 링크"
-                            aria-label="학교/프로그램 링크"
+                            placeholder={t(
+                              "career.profile.career_talent_profile_panel.1ywstxy",
+                              "학교/프로그램 링크"
+                            )}
+                            aria-label={t(
+                              "career.profile.career_talent_profile_panel.1ywstxy",
+                              "학교/프로그램 링크"
+                            )}
                             className={cn(
                               profileEditPlainInputClassName,
                               "min-w-[180px] flex-1 text-[12.5px] leading-5 text-neutral-muted"
@@ -1857,8 +2225,14 @@ const CareerTalentProfilePanel = ({
                                 event.target.value
                               )
                             }
-                            placeholder="시작일"
-                            aria-label="시작일"
+                            placeholder={t(
+                              "career.profile.career_talent_profile_panel.11cor6u",
+                              "시작일"
+                            )}
+                            aria-label={t(
+                              "career.profile.career_talent_profile_panel.11cor6u",
+                              "시작일"
+                            )}
                             className={cn(
                               profileEditPlainInputClassName,
                               "w-[92px] text-[11.5px] leading-5 text-neutral-soft"
@@ -1874,8 +2248,14 @@ const CareerTalentProfilePanel = ({
                                 event.target.value
                               )
                             }
-                            placeholder="종료일"
-                            aria-label="종료일"
+                            placeholder={t(
+                              "career.profile.career_talent_profile_panel.13a39zc",
+                              "종료일"
+                            )}
+                            aria-label={t(
+                              "career.profile.career_talent_profile_panel.13a39zc",
+                              "종료일"
+                            )}
                             className={cn(
                               profileEditPlainInputClassName,
                               "w-[92px] text-[11.5px] leading-5 text-neutral-soft"
@@ -1891,8 +2271,14 @@ const CareerTalentProfilePanel = ({
                               event.target.value
                             )
                           }
-                          placeholder="학력 설명"
-                          aria-label="학력 설명"
+                          placeholder={t(
+                            "career.profile.career_talent_profile_panel.1trcux2",
+                            "학력 설명"
+                          )}
+                          aria-label={t(
+                            "career.profile.career_talent_profile_panel.1trcux2",
+                            "학력 설명"
+                          )}
                           className={cn(
                             profileEditPlainTextareaClassName,
                             "mt-2 text-[13px] leading-6 text-neutral-muted"
@@ -1921,8 +2307,14 @@ const CareerTalentProfilePanel = ({
                             event.target.value
                           )
                         }
-                        placeholder="제목"
-                        aria-label="제목"
+                        placeholder={t(
+                          "career.profile.career_talent_profile_panel.1ub2ks6",
+                          "제목"
+                        )}
+                        aria-label={t(
+                          "career.profile.career_talent_profile_panel.1ub2ks6",
+                          "제목"
+                        )}
                         className={cn(
                           profileEditPlainInputClassName,
                           "text-[14px] font-medium leading-[1.35]"
@@ -1938,8 +2330,14 @@ const CareerTalentProfilePanel = ({
                               event.target.value
                             )
                           }
-                          placeholder="날짜"
-                          aria-label="날짜"
+                          placeholder={t(
+                            "career.profile.career_talent_profile_panel.1pzl6hl",
+                            "날짜"
+                          )}
+                          aria-label={t(
+                            "career.profile.career_talent_profile_panel.1pzl6hl",
+                            "날짜"
+                          )}
                           className={cn(
                             profileEditPlainInputClassName,
                             "w-[160px] text-[12.5px] leading-5 text-neutral-muted"
@@ -1955,8 +2353,14 @@ const CareerTalentProfilePanel = ({
                             event.target.value
                           )
                         }
-                        placeholder="설명"
-                        aria-label="설명"
+                        placeholder={t(
+                          "career.profile.career_talent_profile_panel.07tjd6q",
+                          "설명"
+                        )}
+                        aria-label={t(
+                          "career.profile.career_talent_profile_panel.07tjd6q",
+                          "설명"
+                        )}
                         className={cn(
                           profileEditPlainTextareaClassName,
                           "mt-2 text-[13px] leading-6 text-neutral-muted"
@@ -1967,7 +2371,12 @@ const CareerTalentProfilePanel = ({
                 ))}
               </div>
             ) : (
-              <EmptyEditState label="경력, 학력, 추가 정보를 추가해 주세요." />
+              <EmptyEditState
+                label={t(
+                  "career.profile.career_talent_profile_panel.0x0us78",
+                  "경력, 학력, 추가 정보를 추가해 주세요."
+                )}
+              />
             )}
           </section>
         </>
@@ -1978,6 +2387,7 @@ const CareerTalentProfilePanel = ({
           <ProfileHeader
             displayName={profileDisplayName}
             isEditing={false}
+            locale={locale}
             onEdit={beginEditing}
             onProfileImageDelete={() => void deleteProfileImage()}
             onProfileImageFileChange={(file) => void uploadProfileImage(file)}
@@ -2022,8 +2432,8 @@ const CareerTalentProfilePanel = ({
                         .filter(Boolean)
                         .join(" · ");
                       const meta = [
-                        formatRange(exp.start_date, exp.end_date),
-                        formatMonth(exp.months),
+                        formatRange(exp.start_date, exp.end_date, locale),
+                        formatMonth(exp.months, locale),
                       ]
                         .filter(Boolean)
                         .join(" · ");
@@ -2055,7 +2465,7 @@ const CareerTalentProfilePanel = ({
                         subtitle={[edu.field, edu.degree]
                           .filter(Boolean)
                           .join(" · ")}
-                        meta={formatRange(edu.start_date, edu.end_date)}
+                        meta={formatRange(edu.start_date, edu.end_date, locale)}
                         description={edu.description ?? ""}
                         memo={edu.memo ?? ""}
                         icon={<SchoolIcon className="h-4 w-4" />}
@@ -2069,7 +2479,14 @@ const CareerTalentProfilePanel = ({
                   {talentExtras.map((extra, extraIndex) => (
                     <TimelineBlock
                       key={`extra-${extraIndex}-${extra.title ?? "untitled"}`}
-                      title={extra.title ?? "기타"}
+                      title={
+                        extra.title ??
+                        careerT(
+                          "ko",
+                          "career.profile.career_talent_profile_panel.1syy18d",
+                          "기타"
+                        )
+                      }
                       subtitle={extra.date ?? ""}
                       description={extra.description ?? ""}
                       memo={extra.memo ?? ""}
@@ -2087,8 +2504,10 @@ const CareerTalentProfilePanel = ({
       ) : (
         <div className="rounded-[12px] border border-dashed border-neutral-1000-a10 bg-bg-floating px-5 py-6 text-sm leading-6 text-neutral-muted shadow-sm">
           <div>
-            아직 저장된 프로필 내용이 없습니다. 수정하기를 눌러 직접 입력할 수
-            있습니다.
+            {t(
+              "career.profile.career_talent_profile_panel.0q45tnt",
+              "아직 저장된 프로필 내용이 없습니다. 수정하기를 눌러 직접 입력할 수 있습니다."
+            )}
           </div>
           <ActionButton
             type="button"
@@ -2097,7 +2516,10 @@ const CareerTalentProfilePanel = ({
             className="mt-4 h-11 gap-1.5 px-4 text-[13.5px] md:h-9 md:px-3.5 md:text-[12.5px]"
           >
             <Pencil className="h-3.5 w-3.5" />
-            수정하기
+            {t(
+              "career.profile.career_talent_profile_panel.1iq5xym",
+              "수정하기"
+            )}
           </ActionButton>
         </div>
       )}

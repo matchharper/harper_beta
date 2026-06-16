@@ -25,6 +25,9 @@ import {
   toUiMessage,
 } from "./careerHelpers";
 import type { FetchWithAuth } from "./useCareerApi";
+import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
+import { useMessages } from "@/i18n/useMessage";
+import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 
 const showProfileSaveToast = (message: string) => {
   showToast({ message, variant: "white" });
@@ -51,10 +54,9 @@ const getProfileIngestionWarningMessage = (
 };
 
 const getProfileIngestionFailureMessage = (
-  ingestion: ProfileIngestionPayload | null | undefined
-) =>
-  ingestion?.error ??
-  "LinkedIn 또는 이력서 정보를 자동으로 가져오지 못했습니다.";
+  ingestion: ProfileIngestionPayload | null | undefined,
+  fallbackMessage: string
+) => ingestion?.error ?? fallbackMessage;
 
 type UseCareerProfileArgs = {
   user: User | null;
@@ -79,12 +81,15 @@ export const useCareerProfile = ({
   setChatError,
   onMessagesChanged,
 }: UseCareerProfileArgs) => {
+  const tCareer = useCareerMessageFormatter();
+  const { locale } = useMessages();
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [profileLinks, setProfileLinks] = useState<string[]>(() =>
     toProfileLinks()
   );
-  const [savedProfileLinks, setSavedProfileLinks] =
-    useState<string[]>(() => toProfileLinks());
+  const [savedProfileLinks, setSavedProfileLinks] = useState<string[]>(() =>
+    toProfileLinks()
+  );
   const [profilePending, setProfilePending] = useState(false);
   const [profileError, setProfileError] = useState("");
   const [savedResumeFileName, setSavedResumeFileName] = useState<string | null>(
@@ -107,6 +112,15 @@ export const useCareerProfile = ({
     CareerTalentEducation[]
   >([]);
   const [talentExtras, setTalentExtras] = useState<CareerTalentExtra[]>([]);
+
+  const getTranslatedProfileIngestionFailureMessage = useCallback(
+    (ingestion: ProfileIngestionPayload | null | undefined) =>
+      getProfileIngestionFailureMessage(
+        ingestion,
+        tCareer(H.profileAutoIngestionFailed)
+      ),
+    [tCareer]
+  );
 
   const applyTalentProfileSnapshot = useCallback(
     (snapshot: SessionResponse["talentProfile"] | undefined) => {
@@ -132,7 +146,7 @@ export const useCareerProfile = ({
 
       if (!response.ok) {
         throw new Error(
-          getErrorMessage(payload, "이력서 파일 업로드에 실패했습니다.")
+          getErrorMessage(payload, tCareer(H.resumeUploadFailed))
         );
       }
 
@@ -145,7 +159,7 @@ export const useCareerProfile = ({
             : null,
       };
     },
-    [fetchWithAuth]
+    [fetchWithAuth, tCareer]
   );
 
   const readResumeText = useCallback(
@@ -162,7 +176,7 @@ export const useCareerProfile = ({
           body: formData,
         });
         if (!response.ok) {
-          throw new Error("PDF에서 텍스트를 읽지 못했습니다.");
+          throw new Error(tCareer(H.pdfTextReadFailed));
         }
         const payload = await response.json();
         text = String(payload?.text ?? "");
@@ -172,13 +186,11 @@ export const useCareerProfile = ({
 
       const normalized = normalizeText(text);
       if (!normalized) {
-        throw new Error(
-          "이력서 텍스트를 읽지 못했습니다. 다른 파일로 시도해 주세요."
-        );
+        throw new Error(tCareer(H.resumeTextReadFailed));
       }
       return normalized.slice(0, 18000);
     },
-    [fetchWithAuth]
+    [fetchWithAuth, tCareer]
   );
 
   const applySessionProfile = useCallback(
@@ -204,7 +216,7 @@ export const useCareerProfile = ({
         savedResumeFileName || savedResumeStoragePath
       );
       if (!resumeFile && !hasSavedResume && cleanedLinks.length === 0) {
-        setProfileError("이력서 혹은 주요 링크를 업로드해 주세요.");
+        setProfileError(tCareer(H.profileUploadRequired));
         return;
       }
 
@@ -239,7 +251,7 @@ export const useCareerProfile = ({
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
           throw new Error(
-            getErrorMessage(payload, "온보딩 시작에 실패했습니다.")
+            getErrorMessage(payload, tCareer(H.onboardingStartFailed))
           );
         }
 
@@ -247,11 +259,13 @@ export const useCareerProfile = ({
           payload?.profileIngestion &&
           payload.profileIngestion.ok === false
         ) {
-          const ingestionError = getProfileIngestionFailureMessage(
+          const ingestionError = getTranslatedProfileIngestionFailureMessage(
             payload.profileIngestion as ProfileIngestionPayload
           );
           showProfileSaveToast(
-            `이력서/링크는 저장했지만 자동 프로필 구성은 실패했습니다. (${ingestionError})`
+            tCareer(H.resumeLinksIngestionCreateFailed, {
+              reason: ingestionError,
+            })
           );
           console.warn(
             "[CareerProfile] profile ingestion failed:",
@@ -302,7 +316,7 @@ export const useCareerProfile = ({
         const message =
           error instanceof Error
             ? error.message
-            : "기본 정보 제출 중 오류가 발생했습니다.";
+            : tCareer(H.basicProfileSubmitFailed);
         setProfileError(message);
       } finally {
         setProfilePending(false);
@@ -314,6 +328,7 @@ export const useCareerProfile = ({
       conversationId,
       enqueueAssistantTypewriter,
       fetchWithAuth,
+      getTranslatedProfileIngestionFailureMessage,
       profileLinks,
       profilePending,
       readResumeText,
@@ -322,6 +337,7 @@ export const useCareerProfile = ({
       savedResumeStoragePath,
       setChatError,
       setStage,
+      tCareer,
       uploadResumeFile,
       user,
       onMessagesChanged,
@@ -386,6 +402,7 @@ export const useCareerProfile = ({
             resumeStoragePath: nextResumeStoragePath,
             resumeText: nextResumeText,
             links: cleanedLinks,
+            locale,
             structuredProfile,
           }),
         });
@@ -393,12 +410,13 @@ export const useCareerProfile = ({
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
           throw new Error(
-            getErrorMessage(payload, "프로필 저장에 실패했습니다.")
+            getErrorMessage(payload, tCareer(H.profileSaveFailed))
           );
         }
 
         const returnedLinks =
-          (payload?.profile?.resumeLinks as string[] | undefined) ?? cleanedLinks;
+          (payload?.profile?.resumeLinks as string[] | undefined) ??
+          cleanedLinks;
         const normalizedLinks = toProfileLinks(returnedLinks);
         setSavedResumeFileName(
           payload?.profile?.resumeFileName ?? nextResumeFileName ?? null
@@ -432,31 +450,31 @@ export const useCareerProfile = ({
           | undefined;
         if (ingestion?.ok === false) {
           showProfileSaveToast(
-            `이력서/링크는 저장했지만 자동 프로필 업데이트는 실패했습니다. (${getProfileIngestionFailureMessage(ingestion)})`
+            tCareer(H.resumeLinksIngestionUpdateFailed, {
+              reason: getTranslatedProfileIngestionFailureMessage(ingestion),
+            })
           );
         } else if (getProfileIngestionWarningMessage(ingestion)) {
           showProfileSaveToast(
             getProfileIngestionWarningMessage(ingestion) ??
-              "일부 정보를 가져오지 못했지만 가능한 범위에서 프로필을 업데이트했습니다."
+              tCareer(H.partialProfileUpdate)
           );
         } else if (ingestion?.ok === true) {
-          showProfileSaveToast(
-            "이력서/링크를 저장하고 새 정보를 프로필에 반영했습니다."
-          );
+          showProfileSaveToast(tCareer(H.resumeLinksProfileUpdated));
         } else {
           showProfileSaveToast(
             savedStructuredProfile && savedResumeOrLinks
-              ? "프로필과 이력서/링크 정보를 저장했습니다."
+              ? tCareer(H.profileAndResumeLinksSaved)
               : savedStructuredProfile
-                ? "프로필을 저장했습니다."
-                : "이력서/링크 정보를 저장했습니다."
+                ? tCareer(H.profileSaved)
+                : tCareer(H.resumeLinksSaved)
           );
         }
 
         return true;
       } catch (error) {
         const message =
-          error instanceof Error ? error.message : "프로필 저장에 실패했습니다.";
+          error instanceof Error ? error.message : tCareer(H.profileSaveFailed);
         setProfileSaveError(message);
         return false;
       } finally {
@@ -466,6 +484,7 @@ export const useCareerProfile = ({
     [
       applyTalentProfileSnapshot,
       fetchWithAuth,
+      getTranslatedProfileIngestionFailureMessage,
       profileLinks,
       profileSavePending,
       readResumeText,
@@ -474,6 +493,8 @@ export const useCareerProfile = ({
       savedResumeDownloadUrl,
       savedResumeFileName,
       savedResumeStoragePath,
+      tCareer,
+      locale,
       uploadResumeFile,
       user,
     ]
@@ -493,7 +514,7 @@ export const useCareerProfile = ({
     );
 
     if (!hasSavedResume && !hasLinkedinLink) {
-      const message = "다시 가져올 이력서나 LinkedIn 링크가 없습니다.";
+      const message = tCareer(H.profileSourcesMissing);
       setProfileSaveError(message);
       showProfileSaveToast(message);
       return false;
@@ -509,13 +530,14 @@ export const useCareerProfile = ({
         body: JSON.stringify({
           links: cleanedLinks,
           forceProfileIngestion: true,
+          locale,
         }),
       });
 
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(
-          getErrorMessage(payload, "프로필 정보를 다시 가져오지 못했습니다.")
+          getErrorMessage(payload, tCareer(H.profileRefreshFailed))
         );
       }
 
@@ -540,7 +562,9 @@ export const useCareerProfile = ({
         | null
         | undefined;
       if (ingestion?.ok === false) {
-        const message = `프로필 정보를 다시 가져오지 못했습니다. (${getProfileIngestionFailureMessage(ingestion)})`;
+        const message = tCareer(H.profileRefreshFailedWithReason, {
+          reason: getTranslatedProfileIngestionFailureMessage(ingestion),
+        });
         setProfileSaveError(message);
         showProfileSaveToast(message);
         return false;
@@ -550,7 +574,7 @@ export const useCareerProfile = ({
       if (warningMessage) {
         showProfileSaveToast(warningMessage);
       } else {
-        showProfileSaveToast("저장된 이력서/링크에서 정보를 다시 가져왔습니다.");
+        showProfileSaveToast(tCareer(H.profileSourcesRefreshed));
       }
 
       return true;
@@ -558,7 +582,7 @@ export const useCareerProfile = ({
       const message =
         error instanceof Error
           ? error.message
-          : "프로필 정보를 다시 가져오지 못했습니다.";
+          : tCareer(H.profileRefreshFailed);
       setProfileSaveError(message);
       showProfileSaveToast(message);
       return false;
@@ -568,12 +592,15 @@ export const useCareerProfile = ({
   }, [
     applyTalentProfileSnapshot,
     fetchWithAuth,
+    getTranslatedProfileIngestionFailureMessage,
     profileLinks,
     profileSavePending,
     savedProfileLinks,
     savedResumeDownloadUrl,
     savedResumeFileName,
     savedResumeStoragePath,
+    tCareer,
+    locale,
     user,
   ]);
 

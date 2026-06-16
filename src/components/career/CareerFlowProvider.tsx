@@ -48,6 +48,8 @@ import {
   type CareerConversationStarterId,
   type CareerConversationStarterMode,
 } from "@/lib/career/conversationStarters";
+import { useMessages } from "@/i18n/useMessage";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 const getCompletedOpportunityRunRefreshKey = (
   run: CareerOpportunityRun | null
@@ -60,8 +62,11 @@ const getCompletedOpportunityRunRefreshKey = (
 const CAREER_COMPANY_FOLLOW_UP_DELAY_MS = 15_000;
 const DEV_CURRENT_DATA_JOB_POSTING_RECOMMENDATION_TOOL =
   "recommend_job_postings";
-const DEV_CURRENT_DATA_JOB_POSTING_RECOMMENDATION_PROMPT =
-  "지금까지 저장된 내 프로필, 선호, 최근 피드백 데이터를 기준으로 지금 검토할 만한 공개 채용 공고를 추천해줘. 새로운 장기 선호는 저장하지 말고, 현재 데이터 기반으로 한 번만 찾아줘.";
+const DEV_CURRENT_DATA_JOB_POSTING_RECOMMENDATION_PROMPT = careerT(
+  "ko",
+  "career.common.career_flow_provider.0cjev5a",
+  "지금까지 저장된 내 프로필, 선호, 최근 피드백 데이터를 기준으로 지금 검토할 만한 공개 채용 공고를 추천해줘. 새로운 장기 선호는 저장하지 말고, 현재 데이터 기반으로 한 번만 찾아줘."
+);
 
 const normalizePendingInternalOpportunityCallRequests = (
   callRequests: CareerInternalOpportunityCallRequest[] | null | undefined
@@ -174,6 +179,7 @@ export const CareerFlowProvider = ({
   onOpenSettings: () => void;
 }) => {
   const router = useRouter();
+  const { locale } = useMessages();
   const {
     user,
     authLoading,
@@ -465,7 +471,11 @@ export const CareerFlowProvider = ({
           throw new Error(
             getErrorMessage(
               payload,
-              "회사 팔로우 후속 메시지를 만들지 못했습니다."
+              careerT(
+                "ko",
+                "career.common.career_flow_provider.1z048f4",
+                "회사 팔로우 후속 메시지를 만들지 못했습니다."
+              )
             )
           );
         }
@@ -477,7 +487,11 @@ export const CareerFlowProvider = ({
         setChatError(
           error instanceof Error
             ? error.message
-            : "회사 팔로우 후속 메시지를 만들지 못했습니다."
+            : careerT(
+                "ko",
+                "career.common.career_flow_provider.1z048f4",
+                "회사 팔로우 후속 메시지를 만들지 못했습니다."
+              )
         );
       }
     },
@@ -746,7 +760,14 @@ export const CareerFlowProvider = ({
 
         if (!response.ok) {
           throw new Error(
-            getErrorMessage(payload, "커리어 인터뷰 종료에 실패했습니다.")
+            getErrorMessage(
+              payload,
+              careerT(
+                "ko",
+                "career.common.career_flow_provider.1tnnmyb",
+                "커리어 인터뷰 종료에 실패했습니다."
+              )
+            )
           );
         }
 
@@ -781,7 +802,11 @@ export const CareerFlowProvider = ({
         const message =
           error instanceof Error
             ? error.message
-            : "커리어 인터뷰 종료 중 오류가 발생했습니다.";
+            : careerT(
+                "ko",
+                "career.common.career_flow_provider.16uupip",
+                "커리어 인터뷰 종료 중 오류가 발생했습니다."
+              );
         setChatError(message);
         return false;
       } finally {
@@ -931,6 +956,7 @@ export const CareerFlowProvider = ({
               companyDbId: args.companyDbId,
               companyWorkspaceId: args.companyWorkspaceId ?? null,
               conversationId,
+              locale,
               source: args.source ?? "watchlist",
             }),
           }
@@ -942,7 +968,14 @@ export const CareerFlowProvider = ({
 
         if (!response.ok) {
           throw new Error(
-            getErrorMessage(payload, "회사 팔로우 상태를 변경하지 못했습니다.")
+            getErrorMessage(
+              payload,
+              careerT(
+                "ko",
+                "career.common.career_flow_provider.19x0zaz",
+                "회사 팔로우 상태를 변경하지 못했습니다."
+              )
+            )
           );
         }
 
@@ -962,7 +995,11 @@ export const CareerFlowProvider = ({
         setChatError(
           error instanceof Error
             ? error.message
-            : "회사 팔로우 상태를 변경하지 못했습니다."
+            : careerT(
+                "ko",
+                "career.common.career_flow_provider.19x0zaz",
+                "회사 팔로우 상태를 변경하지 못했습니다."
+              )
         );
         return null;
       }
@@ -971,6 +1008,7 @@ export const CareerFlowProvider = ({
       cancelPendingCompanyFollowUp,
       conversationId,
       fetchWithAuth,
+      locale,
       scheduleCompanyFollowUp,
       setChatError,
       userId,
@@ -995,6 +1033,7 @@ export const CareerFlowProvider = ({
               conversationId,
               forceRefresh: args?.forceRefresh === true,
               limit: args?.limit ?? 24,
+              locale,
               request: args?.request ?? null,
             }),
           }
@@ -1006,7 +1045,14 @@ export const CareerFlowProvider = ({
 
         if (!response.ok) {
           throw new Error(
-            getErrorMessage(payload, "추천 회사를 만들지 못했습니다.")
+            getErrorMessage(
+              payload,
+              careerT(
+                "ko",
+                "career.common.career_flow_provider.0lsvl9z",
+                "추천 회사를 만들지 못했습니다."
+              )
+            )
           );
         }
 
@@ -1015,12 +1061,16 @@ export const CareerFlowProvider = ({
         setChatError(
           error instanceof Error
             ? error.message
-            : "추천 회사를 만들지 못했습니다."
+            : careerT(
+                "ko",
+                "career.common.career_flow_provider.0lsvl9z",
+                "추천 회사를 만들지 못했습니다."
+              )
         );
         return null;
       }
     },
-    [conversationId, fetchWithAuth, setChatError, userId]
+    [conversationId, fetchWithAuth, locale, setChatError, userId]
   );
 
   const handleProfileSubmit = useCallback(async () => {
@@ -1105,10 +1155,15 @@ export const CareerFlowProvider = ({
 
         if (!response.ok) {
           throw new Error(
-            getErrorMessage(payload, "6시간 인사 테스트 실행에 실패했습니다.")
+            getErrorMessage(
+              payload,
+              // career-i18n-skip-next-line: dev controls text is intentionally Korean-only.
+              "6시간 인사 테스트 실행에 실패했습니다."
+            )
           );
         }
         if (payload.skipped) {
+          // career-i18n-skip-next-line: dev controls text is intentionally Korean-only.
           throw new Error("6시간 인사 테스트가 스킵되었습니다.");
         }
 
@@ -1147,6 +1202,7 @@ export const CareerFlowProvider = ({
           }
         }
       } catch (error) {
+        // career-i18n-skip-next-line: dev controls text is intentionally Korean-only.
         setChatError(
           error instanceof Error
             ? error.message
@@ -1330,7 +1386,11 @@ export const CareerFlowProvider = ({
           throw new Error(
             isRecord(data) && typeof data.error === "string"
               ? data.error
-              : "6시간 인사 생성에 실패했습니다."
+              : careerT(
+                  "ko",
+                  "career.common.career_flow_provider.0750gye",
+                  "6시간 인사 생성에 실패했습니다."
+                )
           );
         }
 
@@ -1367,7 +1427,13 @@ export const CareerFlowProvider = ({
       }
 
       if (!streamDone) {
-        throw new Error("6시간 인사 스트림이 완료되기 전에 종료되었습니다.");
+        throw new Error(
+          careerT(
+            "ko",
+            "career.common.career_flow_provider.06f4hcx",
+            "6시간 인사 스트림이 완료되기 전에 종료되었습니다."
+          )
+        );
       }
     };
 

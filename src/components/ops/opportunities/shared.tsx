@@ -1,3 +1,7 @@
+import {
+  formatKstRelativeDate,
+  formatKstRelativeDateTime,
+} from "@/components/ops/dateUtils";
 import { cx, opsTheme } from "@/components/ops/theme";
 import type {
   OpsOpportunityCandidateRecord,
@@ -173,25 +177,11 @@ const formatDateValue = (value: string | null | undefined) => {
 };
 
 export const formatShortDate = (value: string | null | undefined) => {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("ko-KR", {
-    month: "2-digit",
-    day: "2-digit",
-  }).format(date);
+  return formatKstRelativeDate(value);
 };
 
 export const formatUpdatedAt = (value: string | null | undefined) => {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("ko-KR", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
+  return formatKstRelativeDateTime(value);
 };
 
 export const workspaceToDraft = (

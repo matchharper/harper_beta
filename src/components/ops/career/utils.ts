@@ -2,10 +2,12 @@ import type { DateRange } from "react-day-picker";
 import type {
   CareerTalentDetailResponse,
   CareerTalentMailHistoryItem,
+  CareerTalentProfileResponse,
   CareerTalentRecommendationItem,
   CareerTalentRegisteredLinkType,
   CareerTalentSummary,
 } from "@/lib/opsCareerServer";
+import { formatKstRelativeDateTime } from "@/components/ops/dateUtils";
 
 export const AUTO_RECOMMENDATION_STAGE_VALUE = "__auto__";
 export const CUSTOM_RECOMMENDATION_STAGE_VALUE = "__custom__";
@@ -50,18 +52,7 @@ export const formatDateRangeButtonLabel = (range: DateRange | undefined) => {
   return from === to ? `가입 ${from}` : `${from} - ${to}`;
 };
 
-export const formatKst = (value: string | null | undefined) => {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("ko-KR", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-};
+export const formatKst = formatKstRelativeDateTime;
 
 export const onboardingStatusLabel = (isDone: boolean) =>
   isDone ? "완료" : "온보딩 미완료";
@@ -239,7 +230,10 @@ export const formatRegisteredLinkLabel = (link: string) => {
 };
 
 export const getResumeFileDisplayName = (
-  detail: CareerTalentDetailResponse
+  detail: Pick<
+    CareerTalentProfileResponse,
+    "resumeFileName" | "resumeStoragePath"
+  >
 ) => {
   const fileName = detail.resumeFileName?.trim();
   if (fileName) return fileName;

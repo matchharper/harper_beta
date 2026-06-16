@@ -1,6 +1,7 @@
 import { Loader2, Mic, MicOff, X, Captions, PhoneOff } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
+import Face from "@/components/common/Face";
 import { Tooltips } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useCareerVoiceInputStore } from "@/store/useCareerVoiceInputStore";
@@ -10,6 +11,8 @@ import type {
 } from "../types";
 import CareerCallEnvironmentNotice from "./CareerCallEnvironmentNotice";
 import { BareButton } from "@/components/ui/button";
+import { useCareerT } from "@/i18n/useCareerT";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 /* ─── Waveform Dots ─── */
 
@@ -133,7 +136,11 @@ const TranscriptOverlay = memo(
         >
           {displayEntries.length === 0 ? (
             <p className="text-center text-sm text-neutral-disabled">
-              대화가 시작되면 여기에 표시됩니다.
+              {careerT(
+                "ko",
+                "career.chat.career_call_screen.0u4w1k5",
+                "대화가 시작되면 여기에 표시됩니다."
+              )}
             </p>
           ) : (
             <div className="flex flex-col gap-2">
@@ -177,6 +184,8 @@ const CareerCallScreen = ({
   noticeCollapsed,
   onToggleNotice,
 }: CareerCallScreenProps) => {
+  const t = useCareerT();
+
   const {
     voiceMuted,
     voiceTranscript,
@@ -196,10 +205,16 @@ const CareerCallScreen = ({
   const [isClosing, setIsClosing] = useState(false);
   const hasObservedLiveConnectionRef = useRef(false);
   const closeTimerRef = useRef<number | null>(null);
-  const hasStarted = (callTranscriptEntries ?? []).length > 0;
+  const hasStarted =
+    callConnectionStatus === "connected" ||
+    callConnectionStatus === "reconnecting" ||
+    (callTranscriptEntries ?? []).length > 0;
   const timer = useCallTimer(hasStarted);
-  const forceCompleteTooltip =
-    "커리어 인터뷰를 임의로 종료할 수 있어요. 거의 다 왔으니 2~3개의 질문에만 추가로 대답해주시면 자동으로 종료됩니다!";
+  const forceCompleteTooltip = careerT(
+    "ko",
+    "career.chat.career_call_screen.0n1pl8k",
+    "커리어 인터뷰를 임의로 종료할 수 있어요. 거의 다 왔으니 2~3개의 질문에만 추가로 대답해주시면 자동으로 종료됩니다!"
+  );
 
   const showInterviewCallProgress = !isOnboardingDone;
 
@@ -277,7 +292,7 @@ const CareerCallScreen = ({
         {callConnectionStatus === "reconnecting" && (
           <div className="flex items-center gap-2 rounded-full border border-neutral-1000-a05 bg-bg-floating px-3 py-2 text-sm text-neutral-muted shadow-[0_10px_24px_color-mix(in_srgb,var(--color-neutral-1000)_10%,transparent)] backdrop-blur">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            연결 중...
+            {t("career.call.career_call_card.1vn8y3k", "연결 중...")}
           </div>
         )}
       </div>
@@ -285,9 +300,7 @@ const CareerCallScreen = ({
       {/* Center area — pushed up from center */}
       <div className="flex flex-1 flex-col items-center justify-center pb-40">
         <span className="text-lg font-medium text-neutral-muted">Harper</span>
-        <div className="mt-4 flex h-24 w-24 items-center justify-center rounded-full bg-black/5">
-          <WaveformDots size="lg" />
-        </div>
+        <Face status="idle" className="mt-4" aria-label="Harper" />
         <span className="mt-4 text-sm tabular-nums text-neutral-soft">
           {timer}
         </span>
@@ -307,16 +320,22 @@ const CareerCallScreen = ({
           <div className="mt-4 w-full max-w-[360px] min-w-[360px] rounded-[12px] border border-neutral-1000-a05 bg-black/90 px-4 py-3 text-neutral-00 shadow-[0_14px_32px_color-mix(in_srgb,var(--color-neutral-1000)_16%,transparent)] backdrop-blur">
             <div className="flex items-center justify-between gap-3">
               <span className="career-interview-shimmer text-[13px] font-semibold">
-                커리어 인터뷰 진행 중
+                {t(
+                  "career.home.career_home_panel.1ol18h9",
+                  "커리어 인터뷰 진행 중"
+                )}
               </span>
               <span className="text-[13px] font-normal text-neutral-00/80">
-                완료율
+                {t("career.chat.career_call_screen.082qr7j", "완료율")}
               </span>
             </div>
             <div
               className="mt-2 h-1 overflow-hidden rounded-full bg-bg-default/15"
               role="progressbar"
-              aria-label="커리어 인터뷰 진행률"
+              aria-label={t(
+                "career.chat.career_call_screen.1lwovam",
+                "커리어 인터뷰 진행률"
+              )}
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={interviewProgress.percent}
@@ -357,7 +376,19 @@ const CareerCallScreen = ({
                 ? "bg-black/15 text-neutral-soft"
                 : "bg-bg-default text-neutral-primary"
             }`}
-            aria-label={voiceMuted ? "음소거 해제" : "음소거"}
+            aria-label={
+              voiceMuted
+                ? careerT(
+                    "ko",
+                    "career.chat.career_call_screen.15tfl05",
+                    "음소거 해제"
+                  )
+                : careerT(
+                    "ko",
+                    "career.chat.career_call_screen.1914g7j",
+                    "음소거"
+                  )
+            }
           >
             {voiceMuted ? (
               <MicOff className="h-5 w-5" />
@@ -376,7 +407,10 @@ const CareerCallScreen = ({
                 ? "bg-black text-neutral-00"
                 : "bg-bg-default text-neutral-muted"
             }`}
-            aria-label="자막 토글"
+            aria-label={t(
+              "career.chat.career_call_screen.0a6n15y",
+              "자막 토글"
+            )}
           >
             <Captions className="h-5 w-5" />
           </BareButton>
@@ -391,9 +425,12 @@ const CareerCallScreen = ({
                   isClosing || forceCompletePending || onboardingWrapupPending
                 }
                 className="flex h-12 items-center justify-center gap-2 rounded-full bg-critical px-4 text-sm font-semibold text-neutral-00 transition-colors hover:opacity-90 disabled:opacity-60"
-                aria-label="통화 종료 및 커리어 인터뷰 임의 종료"
+                aria-label={t(
+                  "career.chat.career_call_screen.1l3ov75",
+                  "통화 종료 및 커리어 인터뷰 임의 종료"
+                )}
               >
-                임의 종료
+                {t("career.chat.career_call_screen.0yqbta2", "임의 종료")}
                 {forceCompletePending || onboardingWrapupPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
@@ -407,7 +444,10 @@ const CareerCallScreen = ({
               onClick={handleEndCall}
               disabled={isClosing}
               className="flex h-12 w-12 items-center justify-center rounded-full bg-critical text-neutral-00 transition-opacity hover:opacity-90 disabled:opacity-60"
-              aria-label="통화 종료"
+              aria-label={t(
+                "career.chat.career_call_screen.16d2ux9",
+                "통화 종료"
+              )}
             >
               <PhoneOff className="h-4 w-4" strokeWidth={1.6} />
             </BareButton>

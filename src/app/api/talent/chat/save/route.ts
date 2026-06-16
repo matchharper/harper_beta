@@ -30,12 +30,19 @@ import { getCareerConversationStarterPrompt } from "@/lib/career/conversationSta
 import { getCareerRealtimeCandidateToolNames } from "@/lib/career/llmTools";
 import { buildCareerRealtimeSessionInstructions } from "@/lib/career/realtimeInstructions";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
+import { careerT } from "@/lib/career/translatedCareerMessage";
+import {
+  sanitizeSingleLineDbText,
+  stripPostgresUnsafeChars,
+} from "@/lib/textSanitization";
+import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
 
 type Body = {
   assistantEndedOnboarding?: boolean;
   conversationStarterId?: string | null;
   conversationId: string;
   internalCallRequestId?: string | null;
+  locale?: string | null;
   userMessage?: string;
   assistantMessage?: string;
   isCallMode?: boolean;
@@ -58,21 +65,27 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json()) as Body;
     const isMobile = isMobileRequest(req);
-    const conversationId = body.conversationId?.trim();
+    const conversationId = sanitizeSingleLineDbText(body.conversationId, 80);
     const conversationStarterId =
       typeof body.conversationStarterId === "string"
-        ? body.conversationStarterId.trim()
+        ? (sanitizeSingleLineDbText(body.conversationStarterId, 120) ?? "")
         : "";
     const internalCallRequestId =
       typeof body.internalCallRequestId === "string"
-        ? body.internalCallRequestId.trim()
+        ? (sanitizeSingleLineDbText(body.internalCallRequestId, 120) ?? "")
         : "";
     const conversationStarter = conversationStarterId
       ? getCareerConversationStarterPrompt(conversationStarterId)
       : null;
     const skipConversationWrites = Boolean(conversationStarter);
-    const userMessageText = body.userMessage?.trim() ?? "";
-    const assistantMessageTextWithMarkers = body.assistantMessage?.trim() ?? "";
+    const userMessageText =
+      typeof body.userMessage === "string"
+        ? stripPostgresUnsafeChars(body.userMessage).trim()
+        : "";
+    const assistantMessageTextWithMarkers =
+      typeof body.assistantMessage === "string"
+        ? stripPostgresUnsafeChars(body.assistantMessage).trim()
+        : "";
     const assistantMessageText = stripTalentOnboardingCompletionMarker(
       assistantMessageTextWithMarkers
     ).trim();
@@ -86,8 +99,7 @@ export async function POST(req: NextRequest) {
     if (!conversationId || (!userMessageText && !assistantMessageText)) {
       return NextResponse.json(
         {
-          error:
-            "conversationId and at least one message are required",
+          error: "conversationId and at least one message are required",
         },
         { status: 400 }
       );
@@ -138,6 +150,10 @@ export async function POST(req: NextRequest) {
       currentInsights?.content ?? null
     );
     let responseInsightUpdatedAt = currentInsights?.last_updated_at ?? null;
+    const responseLocale =
+      talentSetting?.preferred_locale ??
+      body.locale ??
+      req.cookies.get("NEXT_LOCALE")?.value;
 
     const runInsightExtraction = async () => {
       if (!shouldAutoExtractInsights) return 0;
@@ -149,6 +165,7 @@ export async function POST(req: NextRequest) {
           buildCareerInsightExtractionOnlyPrompt({
             currentChecklistCoverage: promptArgs.currentChecklistCoverage,
             currentInsightContent: promptArgs.currentInsightContent,
+            preferredLocale: responseLocale,
           }),
         conversationId,
         currentInsightContent,
@@ -200,8 +217,11 @@ export async function POST(req: NextRequest) {
     if (activeRun) {
       return NextResponse.json(
         {
-          error:
-            "기회를 찾는 중입니다. 검색이 끝나면 바로 이어서 대화할 수 있습니다.",
+          error: careerT(
+            responseLocale,
+            "career.api.chat.active_opportunity_search",
+            "기회를 찾는 중입니다. 검색이 끝나면 바로 이어서 대화할 수 있습니다."
+          ),
           opportunityRun: serializeOpportunityRun(activeRun),
         },
         { status: 423 }
@@ -228,6 +248,18 @@ export async function POST(req: NextRequest) {
         .single();
 
       if (error) {
+        await notifyUnsupportedUnicodeEscapeError({
+          conversationId,
+          error,
+          metadata: {
+            isCallMode,
+            messageType,
+            userMessageLength: userMessageText.length,
+          },
+          route: "/api/talent/chat/save",
+          stage: "talent_messages.insert:user_message",
+          userId: user.id,
+        });
         return NextResponse.json(
           { error: error.message ?? "Failed to insert user message" },
           { status: 500 }
@@ -256,6 +288,18 @@ export async function POST(req: NextRequest) {
         .single();
 
       if (error) {
+        await notifyUnsupportedUnicodeEscapeError({
+          conversationId,
+          error,
+          metadata: {
+            assistantMessageLength: assistantMessageText.length,
+            isCallMode,
+            messageType,
+          },
+          route: "/api/talent/chat/save",
+          stage: "talent_messages.insert:assistant_message",
+          userId: user.id,
+        });
         return NextResponse.json(
           {
             error: error.message ?? "Failed to insert assistant message",
@@ -324,7 +368,8 @@ export async function POST(req: NextRequest) {
             reason: "question_checklist_covered" as const,
           }
         : markerCompletion;
-    const isCompleted = Boolean(insertedAssistantMessage) && completion.completed;
+    const isCompleted =
+      Boolean(insertedAssistantMessage) && completion.completed;
     const shouldApplyCompletion = isCompleted && !skipConversationWrites;
 
     if (!skipConversationWrites) {

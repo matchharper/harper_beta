@@ -3,6 +3,10 @@ import {
   type CareerPromptPreferences,
 } from "@/lib/career/prompts";
 import { runCareerChatAssistant } from "@/lib/career/llm";
+import {
+  getCareerPromptLanguageName,
+  getCareerPromptToneRule,
+} from "@/lib/career/promptLocale";
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 import {
   buildTalentProfileContext,
@@ -39,6 +43,7 @@ import {
   fetchRecentRecommendedOpportunitiesForPrompt,
   formatRecentRecommendedOpportunitiesForPrompt,
 } from "@/lib/talentOpportunity";
+import { stripPostgresUnsafeChars } from "@/lib/textSanitization";
 
 const FALLBACK_WRAPUP_CONTENT = [
   "좋은 대화였습니다. 말씀해주신 내용을 바탕으로 다음 기회 탐색 기준을 정리했습니다.",
@@ -67,7 +72,7 @@ const ONBOARDING_COMPLETION_WRAPUP_THINKING_LOGS = [
 ];
 
 function stripNextStepsSection(content: string) {
-  return content
+  return stripPostgresUnsafeChars(content)
     .replace(
       /\n{0,2}(?:#{1,6}\s*)?(?:\*\*)?Next steps(?:\*\*)?\s*\n[\s\S]*$/i,
       ""
@@ -76,7 +81,7 @@ function stripNextStepsSection(content: string) {
 }
 
 function normalizeWrapupContent(content: string) {
-  const lines = content
+  const lines = stripPostgresUnsafeChars(content)
     .replace(/\r\n/g, "\n")
     .split("\n")
     .map((line) => line.trimEnd());
@@ -89,12 +94,15 @@ function normalizeWrapupContent(content: string) {
       : lines;
 
   return stripNextStepsSection(
-    withoutTitle.join("\n").replace(/\n{3,}/g, "\n\n").trim()
+    withoutTitle
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim()
   );
 }
 
 function normalizeNextStepsContent(content: string) {
-  const lines = content
+  const lines = stripPostgresUnsafeChars(content)
     .replace(/\r\n/g, "\n")
     .split("\n")
     .map((line) => line.trimEnd());
@@ -106,7 +114,10 @@ function normalizeNextStepsContent(content: string) {
       ? lines.slice(1)
       : lines;
 
-  return withoutTitle.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  return withoutTitle
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function isWrapupInputMessage(message: TalentMessageRow) {
@@ -126,13 +137,17 @@ function buildCurrentPreferences(
     periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
       setting?.periodic_interval_days
     ),
+    preferredLocale: setting?.preferred_locale ?? null,
     recommendationBatchSize: normalizeTalentRecommendationBatchSize(
       setting?.recommendation_batch_size
     ),
   };
 }
 
-function buildWrapupInstruction() {
+function buildWrapupInstruction(preferredLocale?: string | null) {
+  const outputLanguage = getCareerPromptLanguageName(preferredLocale);
+  const toneRule = getCareerPromptToneRule(preferredLocale);
+
   return [
     "## Onboarding completion wrap-up task",
     "The user's career onboarding conversation has just completed. This is a persisted assistant-side finalization task, not a normal chat turn.",
@@ -144,7 +159,7 @@ function buildWrapupInstruction() {
     "- For rowMemos, use only exact RowID/Title values visible in the Structured Talent Profile. Do not guess row IDs or attach generic facts to a row.",
     "- For talentInsights, prefer existing checklist-style insight keys/current insight keys when they fit. Use a new free-form English snake_case key only when the fact is important for future matching and does not reasonably fit an existing key.",
     "- Do not put profile-row facts into talentInsights. Specific experience, education, project, responsibility, or achievement details should go to rowMemos when one visible row matches; if no row matches, do not work around it with a profile-like insight key.",
-    "- talentInsights values must be complete Korean sentences, not fragments such as `규모 선호.`.",
+    `- talentInsights values must be complete ${outputLanguage} sentences, not fragments such as \`규모 선호.\`.`,
     "- Do not call any search or recommendation tool from this task.",
     "",
     "Then write ONLY the markdown body for a UI card. The UI will render the title `Call Wrap-up`, so do not include that title.",
@@ -159,13 +174,16 @@ function buildWrapupInstruction() {
     "**Key insights**",
     "- 2-4 concise bullets about recommendation-relevant signals.",
     "",
-    "Language: match the user's conversation language. If mixed or unclear, write in polite Korean.",
+    `Language: write in ${outputLanguage}. ${toneRule}`,
     "Keep it specific, useful, and grounded in the conversation. Do not invent companies, investors, locations, compensation details, or preferences that were not discussed.",
     "Do not include a `Next steps` section or any instruction about how Harper will contact the user. That belongs in the separate assistant message.",
   ].join("\n");
 }
 
-function buildNextStepsInstruction() {
+function buildNextStepsInstruction(preferredLocale?: string | null) {
+  const outputLanguage = getCareerPromptLanguageName(preferredLocale);
+  const toneRule = getCareerPromptToneRule(preferredLocale);
+
   return [
     "## Onboarding completion next message task",
     "The user's career onboarding conversation has just completed. Write the normal Harper assistant message that appears immediately below the summary card.",
@@ -179,7 +197,7 @@ function buildNextStepsInstruction() {
     "- End with a clear question asking whether Harper should regularly share external postings when they look like opportunities the user would prefer, even if Harper cannot directly connect the user, or contact only when there is a particularly strong-fit internal connection opportunity.",
     "",
     "Style:",
-    "- Use warm, clear Korean unless the conversation is clearly in another language.",
+    `- Use warm, clear ${outputLanguage}. ${toneRule}`,
     "- Markdown is allowed. Prefer 2-4 short paragraphs or compact bullets.",
     "- Be concrete and more detailed than a generic status message.",
     "- Do not include a title like `Next steps`.",
@@ -208,33 +226,35 @@ export async function generateOnboardingCompletionWrapupContent(args: {
     recentMessages,
     recentRecommendedOpportunities,
   ] = await Promise.all([
-      fetchTalentUserProfile({ admin: args.admin, userId: args.userId }),
-      fetchTalentSetting({ admin: args.admin, userId: args.userId }),
-      fetchTalentInsights({ admin: args.admin, userId: args.userId }),
-      fetchTalentStructuredProfile({
-        admin: args.admin,
-        userId: args.userId,
-      }),
-      fetchRecentMessagesWithSummary({
-        admin: args.admin,
-        conversationId: args.conversationId,
-        fallbackLimit: 80,
-        recentLimit: 40,
-        userId: args.userId,
-      }),
-      fetchRecentRecommendedOpportunitiesForPrompt({
-        admin: args.admin,
-        limit: 10,
-        userId: args.userId,
-      }),
-    ]);
+    fetchTalentUserProfile({ admin: args.admin, userId: args.userId }),
+    fetchTalentSetting({ admin: args.admin, userId: args.userId }),
+    fetchTalentInsights({ admin: args.admin, userId: args.userId }),
+    fetchTalentStructuredProfile({
+      admin: args.admin,
+      userId: args.userId,
+    }),
+    fetchRecentMessagesWithSummary({
+      admin: args.admin,
+      conversationId: args.conversationId,
+      fallbackLimit: 80,
+      recentLimit: 40,
+      userId: args.userId,
+    }),
+    fetchRecentRecommendedOpportunitiesForPrompt({
+      admin: args.admin,
+      limit: 10,
+      userId: args.userId,
+    }),
+  ]);
 
+  const responseLocale = setting?.preferred_locale ?? null;
   const wrapupToolSelection = resolveCareerChatTools({
     allowedToolNames: [
       TALENT_TOOL_NAMES.UPDATE_SETTING,
       TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
     ],
     isOnboardingDone: true,
+    responseLocale,
   });
   const wrapupTools = wrapupToolSelection.tools;
   const structuredProfileText = buildTalentProfileContext({
@@ -254,7 +274,7 @@ export async function generateOnboardingCompletionWrapupContent(args: {
     isOnboardingDone: true,
     profile,
     recentRecommendedOpportunitiesText,
-    sessionStartInstruction: buildWrapupInstruction(),
+    sessionStartInstruction: buildWrapupInstruction(responseLocale),
     structuredProfileText,
     toolNames: wrapupToolSelection.toolNames,
   });
@@ -278,6 +298,7 @@ export async function generateOnboardingCompletionWrapupContent(args: {
         context: {
           admin: args.admin,
           conversationId: args.conversationId,
+          responseLocale,
           userMessageId: args.latestUserMessageId ?? null,
           userId: args.userId,
         },
@@ -286,6 +307,7 @@ export async function generateOnboardingCompletionWrapupContent(args: {
         name,
       }),
     messages: conversationMessages,
+    responseLocale,
     stopAfterToolNames: [],
     systemBlocks: promptPlan.promptBlocks,
     tools: wrapupTools,
@@ -307,26 +329,26 @@ export async function generateOnboardingCompletionNextStepsContent(args: {
     recentMessages,
     recentRecommendedOpportunities,
   ] = await Promise.all([
-      fetchTalentUserProfile({ admin: args.admin, userId: args.userId }),
-      fetchTalentSetting({ admin: args.admin, userId: args.userId }),
-      fetchTalentInsights({ admin: args.admin, userId: args.userId }),
-      fetchTalentStructuredProfile({
-        admin: args.admin,
-        userId: args.userId,
-      }),
-      fetchRecentMessagesWithSummary({
-        admin: args.admin,
-        conversationId: args.conversationId,
-        fallbackLimit: 80,
-        recentLimit: 40,
-        userId: args.userId,
-      }),
-      fetchRecentRecommendedOpportunitiesForPrompt({
-        admin: args.admin,
-        limit: 10,
-        userId: args.userId,
-      }),
-    ]);
+    fetchTalentUserProfile({ admin: args.admin, userId: args.userId }),
+    fetchTalentSetting({ admin: args.admin, userId: args.userId }),
+    fetchTalentInsights({ admin: args.admin, userId: args.userId }),
+    fetchTalentStructuredProfile({
+      admin: args.admin,
+      userId: args.userId,
+    }),
+    fetchRecentMessagesWithSummary({
+      admin: args.admin,
+      conversationId: args.conversationId,
+      fallbackLimit: 80,
+      recentLimit: 40,
+      userId: args.userId,
+    }),
+    fetchRecentRecommendedOpportunitiesForPrompt({
+      admin: args.admin,
+      limit: 10,
+      userId: args.userId,
+    }),
+  ]);
 
   const structuredProfileText = buildTalentProfileContext({
     profile,
@@ -337,6 +359,7 @@ export async function generateOnboardingCompletionNextStepsContent(args: {
     formatRecentRecommendedOpportunitiesForPrompt(
       recentRecommendedOpportunities
     );
+  const responseLocale = setting?.preferred_locale ?? null;
   const promptPlan = buildCareerTextChatPromptBlocks({
     currentInsightContent: normalizeTalentInsightContent(
       insights?.content ?? null
@@ -345,7 +368,7 @@ export async function generateOnboardingCompletionNextStepsContent(args: {
     isOnboardingDone: true,
     profile,
     recentRecommendedOpportunitiesText,
-    sessionStartInstruction: buildNextStepsInstruction(),
+    sessionStartInstruction: buildNextStepsInstruction(responseLocale),
     structuredProfileText,
     toolNames: [],
   });
@@ -366,6 +389,7 @@ export async function generateOnboardingCompletionNextStepsContent(args: {
   const generated = await runCareerChatAssistant({
     executeTool: async () => null,
     messages: conversationMessages,
+    responseLocale,
     stopAfterToolNames: [],
     systemBlocks: promptPlan.promptBlocks,
     tools: [],
@@ -446,11 +470,14 @@ export async function createOnboardingCompletionNextStepsMessage(args: {
     });
     if (existing) return existing;
   } catch (error) {
-    console.error("[onboarding-completion-next-steps] Failed to read existing", {
-      conversationId: args.conversationId,
-      error: error instanceof Error ? error.message : String(error),
-      userId: args.userId,
-    });
+    console.error(
+      "[onboarding-completion-next-steps] Failed to read existing",
+      {
+        conversationId: args.conversationId,
+        error: error instanceof Error ? error.message : String(error),
+        userId: args.userId,
+      }
+    );
   }
 
   let content = FALLBACK_NEXT_STEPS_CONTENT;
@@ -634,12 +661,14 @@ export async function regenerateOnboardingCompletionMessages(args: {
   userId: string;
 }) {
   const wrapupMessage = await regenerateOnboardingCompletionWrapupMessage(args);
-  const nextStepsMessage = await regenerateOnboardingCompletionNextStepsMessage({
-    admin: args.admin,
-    conversationId: args.conversationId,
-    isMobile: args.isMobile,
-    userId: args.userId,
-  });
+  const nextStepsMessage = await regenerateOnboardingCompletionNextStepsMessage(
+    {
+      admin: args.admin,
+      conversationId: args.conversationId,
+      isMobile: args.isMobile,
+      userId: args.userId,
+    }
+  );
 
   return {
     nextStepsMessage,

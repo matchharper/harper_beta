@@ -1,4 +1,5 @@
 import OpsShell from "@/components/ops/OpsShell";
+import { formatKstRelativeDateTime } from "@/components/ops/dateUtils";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import type {
@@ -39,19 +40,6 @@ const EMPTY_DRAFT: Draft = {
   tagsText: "",
   userExampleText: "",
 };
-
-function formatKst(value: string | null | undefined) {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("ko-KR", {
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-}
 
 function exampleToDraft(example: OpsAnswerExampleItem): Draft {
   return {
@@ -341,7 +329,9 @@ export default function OpsAnswerExamplesPage() {
                           active ? "text-neutral-00/55" : "text-neutral-muted"
                         )}
                       >
-                        <span>{formatKst(example.updatedAt)}</span>
+                        <span>
+                          {formatKstRelativeDateTime(example.updatedAt)}
+                        </span>
                       </div>
                     </BareButton>
                   );
@@ -364,7 +354,8 @@ export default function OpsAnswerExamplesPage() {
                 </div>
                 {selectedExample ? (
                   <div className="mt-1 text-xs text-neutral-muted">
-                    updated {formatKst(selectedExample.updatedAt)} ·{" "}
+                    updated{" "}
+                    {formatKstRelativeDateTime(selectedExample.updatedAt)} ·{" "}
                     {selectedExample.embeddingModel}
                   </div>
                 ) : null}

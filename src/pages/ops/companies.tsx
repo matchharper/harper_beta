@@ -1,4 +1,5 @@
 import OpsShell from "@/components/ops/OpsShell";
+import { formatKstRelativeDateTime } from "@/components/ops/dateUtils";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { showToast } from "@/components/toast/toast";
 import {
@@ -31,19 +32,6 @@ function formatScore(value: number) {
   return Number.isInteger(value)
     ? String(value)
     : value.toLocaleString("ko-KR", { maximumFractionDigits: 2 });
-}
-
-function formatDate(value: string | null | undefined) {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-
-  return date.toLocaleString("ko-KR", {
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    month: "2-digit",
-  });
 }
 
 function CompanyLogo({
@@ -356,7 +344,7 @@ export default function OpsCompaniesPage() {
                           <QualityPill value={company.llmQualityLabel} />
                         </td>
                         <td className="px-3 py-1.5 text-xs text-neutral-muted">
-                          {formatDate(company.updatedAt)}
+                          {formatKstRelativeDateTime(company.updatedAt)}
                         </td>
                       </tr>
                     );

@@ -77,6 +77,8 @@ import {
   SAVED_OPPORTUNITY_STATUS_OPTIONS,
   type SavedOpportunityManagementStatus,
 } from "./history/savedOpportunityStatus";
+import { useCareerT } from "@/i18n/useCareerT";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 type HistoryTabId = "new" | "saved" | "archived";
 type HistoryDisplayTabId = "new" | "saved" | "archived";
@@ -119,21 +121,50 @@ const HISTORY_DISPLAY_TABS: Array<{
   id: HistoryDisplayTabId;
   label: string;
 }> = [
-  { id: "new", label: "새 포지션" },
-  { id: "saved", label: "저장함" },
-  { id: "archived", label: "선호하지 않음" },
+  {
+    id: "new",
+    label: careerT(
+      "ko",
+      "career.common.career_history_panel.02i826z",
+      "새 포지션"
+    ),
+  },
+  {
+    id: "saved",
+    label: careerT(
+      "ko",
+      "career.common.career_history_panel.06mgpci",
+      "저장함"
+    ),
+  },
+  {
+    id: "archived",
+    label: careerT(
+      "ko",
+      "career.common.career_history_panel.0paqqgp",
+      "선호하지 않음"
+    ),
+  },
 ];
 
 const SAVED_DISPLAY_MODE_OPTIONS = [
   {
     icon: List,
     id: "list",
-    label: "리스트 보기",
+    label: careerT(
+      "ko",
+      "career.common.career_history_panel.1n5k969",
+      "리스트 보기"
+    ),
   },
   {
     icon: Columns3,
     id: "board",
-    label: "보드 보기",
+    label: careerT(
+      "ko",
+      "career.common.career_history_panel.1xfuqgb",
+      "보드 보기"
+    ),
   },
 ] as const satisfies readonly {
   icon: typeof List;
@@ -149,18 +180,45 @@ const compareRecommendedAtDesc = (
 const formatEmploymentType = (value: string) => {
   const normalized = value.trim().toLowerCase().replaceAll("-", "_");
   if (!normalized) return null;
-  if (normalized === "full_time") return "풀타임";
-  if (normalized === "part_time") return "파트타임";
-  if (normalized === "internship") return "인턴";
-  if (normalized === "contract") return "계약직";
+  if (normalized === "full_time")
+    return careerT("ko", "career.onboarding.onboarding.166o9pn", "풀타임");
+  if (normalized === "part_time")
+    return careerT(
+      "ko",
+      "career.common.career_history_panel.090irfh",
+      "파트타임"
+    );
+  if (normalized === "internship")
+    return careerT("ko", "career.common.career_history_panel.0sbhtqh", "인턴");
+  if (normalized === "contract")
+    return careerT(
+      "ko",
+      "career.common.career_history_panel.1rvnrzl",
+      "계약직"
+    );
   if (normalized === "fractional") return "Fractional";
   return value.trim().replaceAll("_", " ");
 };
 
 const formatWorkMode = (value: string | null) => {
-  if (value === "remote") return "원격근무";
-  if (value === "hybrid") return "대면 + 원격";
-  if (value === "onsite") return "대면근무";
+  if (value === "remote")
+    return careerT(
+      "ko",
+      "career.common.career_history_panel.0gesjui",
+      "원격근무"
+    );
+  if (value === "hybrid")
+    return careerT(
+      "ko",
+      "career.common.career_history_panel.0taw0z7",
+      "대면 + 원격"
+    );
+  if (value === "onsite")
+    return careerT(
+      "ko",
+      "career.common.career_history_panel.06sq5fd",
+      "대면근무"
+    );
   return value;
 };
 
@@ -199,14 +257,30 @@ export const getSavedStageLabel = (
   if (stage === "applied") {
     return getCareerAppliedSavedStageLabel(item.opportunityType);
   }
-  if (stage === "connected") return "연결됨";
-  if (stage === "closed") return "종료됨";
-  if (stage === "hidden") return "숨김";
-  return "저장함";
+  if (stage === "connected")
+    return careerT(
+      "ko",
+      "career.common.career_history_panel.0y27adb",
+      "연결됨"
+    );
+  if (stage === "closed")
+    return careerT(
+      "ko",
+      "career.common.career_history_panel.1hsndwk",
+      "종료됨"
+    );
+  if (stage === "hidden")
+    return careerT("ko", "career.common.career_history_panel.1aylp85", "숨김");
+  return careerT("ko", "career.common.career_history_panel.06mgpci", "저장함");
 };
 
 export const getOpportunityStatusLabel = (item: CareerHistoryOpportunity) => {
-  if (item.feedback === "negative") return "보관됨";
+  if (item.feedback === "negative")
+    return careerT(
+      "ko",
+      "career.common.career_history_panel.1vrs10j",
+      "보관됨"
+    );
   if (item.feedback === "positive") {
     return getSavedStageLabel(getResolvedSavedStage(item), item);
   }
@@ -303,71 +377,155 @@ const HistoryEmptyStatePanel = ({
   onOpenChat: () => void;
   variant: HistoryEmptyStateVariant;
 }) => {
+  const t = useCareerT();
+
   const config =
     variant === "searching"
       ? {
           actionLabel: null,
           details: [
             {
-              body: "프로필과 대화에서 강한 경력 신호를 정리합니다.",
+              body: careerT(
+                "ko",
+                "career.common.career_history_panel.0rwgnws",
+                "프로필과 대화에서 강한 경력 신호를 정리합니다."
+              ),
               icon: <FileCheck2 className="h-3.5 w-3.5" />,
-              title: "신호 정리",
+              title: careerT(
+                "ko",
+                "career.common.career_history_panel.0cxzeie",
+                "신호 정리"
+              ),
             },
             {
-              body: "네트워크와 공개 포지션을 같은 기준으로 비교합니다.",
+              body: careerT(
+                "ko",
+                "career.common.career_history_panel.0fw7sr6",
+                "네트워크와 공개 포지션을 같은 기준으로 비교합니다."
+              ),
               icon: <Search className="h-3.5 w-3.5" />,
-              title: "포지션 탐색",
+              title: careerT(
+                "ko",
+                "career.common.career_history_panel.06l333i",
+                "포지션 탐색"
+              ),
             },
             {
-              body: "조건에 맞는 포지션만 새 목록에 남깁니다.",
+              body: careerT(
+                "ko",
+                "career.common.career_history_panel.12v6hq4",
+                "조건에 맞는 포지션만 새 목록에 남깁니다."
+              ),
               icon: <Target className="h-3.5 w-3.5" />,
-              title: "적합도 정렬",
+              title: careerT(
+                "ko",
+                "career.common.career_history_panel.0xu63p6",
+                "적합도 정렬"
+              ),
             },
           ],
-          eyebrow: "탐색 진행 중",
+          eyebrow: careerT(
+            "ko",
+            "career.common.career_history_panel.0s6myeq",
+            "탐색 진행 중"
+          ),
           icon: <Loader2 className="h-5 w-5 animate-spin" />,
-          title: "좋은 기회를 찾고 있습니다.",
+          title: careerT(
+            "ko",
+            "career.common.career_history_panel.00rerkr",
+            "좋은 기회를 찾고 있습니다."
+          ),
           toneClassName: "bg-black text-neutral-00",
-          nextStep: "검토가 끝난 포지션은 새 포지션 탭에 바로 표시됩니다.",
+          nextStep: careerT(
+            "ko",
+            "career.common.career_history_panel.1p6gpzi",
+            "검토가 끝난 포지션은 새 포지션 탭에 바로 표시됩니다."
+          ),
           body: (
             <>
-              기준에 맞는 포지션만 남기고 있습니다. 준비되면 새 포지션에
-              표시됩니다.
+              {t(
+                "career.common.career_history_panel.1ijllph",
+                "기준에 맞는 포지션만 남기고 있습니다. 준비되면 새 포지션에 표시됩니다."
+              )}
             </>
           ),
         }
       : variant === "onboarding"
         ? {
-            actionLabel: "Harper와 대화하기",
+            actionLabel: careerT(
+              "ko",
+              "career.common.career_history_panel.11oeye3",
+              "Harper와 대화하기"
+            ),
             details: [
               {
-                body: "다음에 맡고 싶은 역할과 레벨을 확인합니다.",
+                body: careerT(
+                  "ko",
+                  "career.common.career_history_panel.0jj9mjx",
+                  "다음에 맡고 싶은 역할과 레벨을 확인합니다."
+                ),
                 icon: <BriefcaseBusiness className="h-3.5 w-3.5" />,
-                title: "희망 역할",
+                title: careerT(
+                  "ko",
+                  "career.common.career_history_panel.0496lr7",
+                  "희망 역할"
+                ),
               },
               {
-                body: "지역, 근무 형태, 보상 기준을 정합니다.",
+                body: careerT(
+                  "ko",
+                  "career.common.career_history_panel.0qv04k8",
+                  "지역, 근무 형태, 보상 기준을 정합니다."
+                ),
                 icon: <MapPin className="h-3.5 w-3.5" />,
-                title: "근무 조건",
+                title: careerT(
+                  "ko",
+                  "career.common.career_history_panel.13mr3sj",
+                  "근무 조건"
+                ),
               },
               {
-                body: "관심 없는 산업, 회사 유형, 역할을 제외합니다.",
+                body: careerT(
+                  "ko",
+                  "career.common.career_history_panel.0shxyyt",
+                  "관심 없는 산업, 회사 유형, 역할을 제외합니다."
+                ),
                 icon: <SlidersHorizontal className="h-3.5 w-3.5" />,
-                title: "제외 기준",
+                title: careerT(
+                  "ko",
+                  "career.common.career_history_panel.0wrwhc3",
+                  "제외 기준"
+                ),
               },
             ],
-            eyebrow: "첫 추천 준비",
+            eyebrow: careerT(
+              "ko",
+              "career.common.career_history_panel.0mo6t6e",
+              "첫 추천 준비"
+            ),
             icon: <ClipboardCheck className="h-5 w-5" />,
-            title: "어떤 기회에 열려계신지 알려주세요..",
+            title: careerT(
+              "ko",
+              "career.common.career_history_panel.0gfcdit",
+              "어떤 기회에 열려계신지 알려주세요.."
+            ),
             toneClassName: "bg-bg-weak text-neutral-muted",
-            nextStep:
-              "대화를 통해 기준을 확인하면 첫 포지션 탐색을 시작합니다.",
+            nextStep: careerT(
+              "ko",
+              "career.common.career_history_panel.0pes81b",
+              "대화를 통해 기준을 확인하면 첫 포지션 탐색을 시작합니다."
+            ),
             body: (
               <>
-                경력/이력은 확인했습니다.
+                {t(
+                  "career.common.career_history_panel.1knq1rh",
+                  "경력/이력은 확인했습니다."
+                )}
                 <br />
-                희망 역할, 근무 방식, 제외 조건 등을 알려주시면 첫 추천을 시작할
-                수 있습니다.
+                {t(
+                  "career.common.career_history_panel.0kl8zzx",
+                  "희망 역할, 근무 방식, 제외 조건 등을 알려주시면 첫 추천을 시작할 수 있습니다."
+                )}
               </>
             ),
           }
@@ -375,31 +533,68 @@ const HistoryEmptyStatePanel = ({
             actionLabel: null,
             details: [
               {
-                body: "저장된 경력과 선호 기준을 함께 확인합니다.",
+                body: careerT(
+                  "ko",
+                  "career.common.career_history_panel.05lg6gq",
+                  "저장된 경력과 선호 기준을 함께 확인합니다."
+                ),
                 icon: <FileCheck2 className="h-3.5 w-3.5" />,
-                title: "자료 검토",
+                title: careerT(
+                  "ko",
+                  "career.common.career_history_panel.0iymhpv",
+                  "자료 검토"
+                ),
               },
               {
-                body: "조건과 맞지 않는 역할은 추천에서 제외합니다.",
+                body: careerT(
+                  "ko",
+                  "career.common.career_history_panel.0eamanf",
+                  "조건과 맞지 않는 역할은 추천에서 제외합니다."
+                ),
                 icon: <Target className="h-3.5 w-3.5" />,
-                title: "후보 압축",
+                title: careerT(
+                  "ko",
+                  "career.common.career_history_panel.0boi6up",
+                  "후보 압축"
+                ),
               },
               {
-                body: "첫 추천이 준비되면 새 포지션에 표시됩니다.",
+                body: careerT(
+                  "ko",
+                  "career.common.career_history_panel.0p8wa8t",
+                  "첫 추천이 준비되면 새 포지션에 표시됩니다."
+                ),
                 icon: <ListChecks className="h-3.5 w-3.5" />,
-                title: "결과 정리",
+                title: careerT(
+                  "ko",
+                  "career.common.career_history_panel.11est1e",
+                  "결과 정리"
+                ),
               },
             ],
-            eyebrow: "검토 진행 중",
+            eyebrow: careerT(
+              "ko",
+              "career.common.career_history_panel.0fhjm3n",
+              "검토 진행 중"
+            ),
             icon: <Search className="h-5 w-5" />,
-            title: "첫 추천 후보를 검토하고 있습니다.",
+            title: careerT(
+              "ko",
+              "career.common.career_history_panel.02jvl2x",
+              "첫 추천 후보를 검토하고 있습니다."
+            ),
             toneClassName: "bg-bg-weak text-neutral-muted",
-            nextStep:
-              "첫 추천이 준비되면 새 포지션 탭에서 바로 검토할 수 있습니다.",
+            nextStep: careerT(
+              "ko",
+              "career.common.career_history_panel.1ge5j94",
+              "첫 추천이 준비되면 새 포지션 탭에서 바로 검토할 수 있습니다."
+            ),
             body: (
               <>
-                대화에서 정리한 기준으로 실제로 보낼 만한 역할만 남기고
-                있습니다.
+                {t(
+                  "career.common.career_history_panel.17505te",
+                  "대화에서 정리한 기준으로 실제로 보낼 만한 역할만 남기고 있습니다."
+                )}
               </>
             ),
           };
@@ -439,6 +634,8 @@ const HistoryEmptyStatePanel = ({
 };
 
 const CareerHistoryPanel = () => {
+  const t = useCareerT();
+
   const logCareerEvent = useCareerLogEvent();
   const router = useRouter();
   const {
@@ -1731,7 +1928,10 @@ const CareerHistoryPanel = () => {
       <section className="px-5 py-6">
         <div className="flex items-center gap-2 text-[15px] leading-6 text-neutral-muted">
           <Loader2 className="h-4 w-4 animate-spin text-neutral-primary" />
-          저장된 정보를 불러오는 중입니다...
+          {t(
+            "career.common.career_history_panel.0s3czqf",
+            "저장된 정보를 불러오는 중입니다..."
+          )}
         </div>
       </section>
     );
@@ -1785,7 +1985,10 @@ const CareerHistoryPanel = () => {
           {activeTab === "new" && !activeOpportunity && (
             <InlinePanel className="px-5 py-5">
               <div className="text-[14px] leading-6 text-neutral-soft">
-                새로 받은 기회를 모두 검토했습니다.
+                {t(
+                  "career.common.career_history_panel.1h65j93",
+                  "새로 받은 기회를 모두 검토했습니다."
+                )}
               </div>
             </InlinePanel>
           )}
@@ -1883,7 +2086,10 @@ const CareerHistoryPanel = () => {
               {savedDisplayMode === "list" && listItems.length === 0 && (
                 <InlinePanel className="px-5 py-5">
                   <div className="text-[14px] leading-6 text-neutral-muted">
-                    이 상태에 해당하는 기회가 아직 없습니다.
+                    {t(
+                      "career.common.career_history_panel.1q435d3",
+                      "이 상태에 해당하는 기회가 아직 없습니다."
+                    )}
                   </div>
                 </InlinePanel>
               )}
@@ -1906,7 +2112,11 @@ const CareerHistoryPanel = () => {
                   {historyLoadingMore ? (
                     <Loader2 className="h-4 w-4 animate-spin text-neutral-muted" />
                   ) : (
-                    "더 불러올 항목이 있습니다."
+                    careerT(
+                      "ko",
+                      "career.common.career_history_panel.01m9cc2",
+                      "더 불러올 항목이 있습니다."
+                    )
                   )}
                 </div>
               )}
@@ -1933,7 +2143,10 @@ const CareerHistoryPanel = () => {
             <div className="space-y-3">
               <InlinePanel className="px-5 py-5">
                 <div className="text-[14px] leading-6 text-neutral-soft">
-                  이 탭에 해당하는 기회가 아직 없습니다.
+                  {t(
+                    "career.common.career_history_panel.0okcy6f",
+                    "이 탭에 해당하는 기회가 아직 없습니다."
+                  )}
                 </div>
               </InlinePanel>
             </div>
@@ -1947,7 +2160,11 @@ const CareerHistoryPanel = () => {
               {historyLoadingMore ? (
                 <Loader2 className="h-4 w-4 animate-spin text-neutral-muted" />
               ) : (
-                "더 불러올 항목이 있습니다."
+                careerT(
+                  "ko",
+                  "career.common.career_history_panel.01m9cc2",
+                  "더 불러올 항목이 있습니다."
+                )
               )}
             </div>
           )}

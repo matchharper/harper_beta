@@ -19,6 +19,8 @@ import {
   Textarea as UiTextarea,
 } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { useCareerT } from "@/i18n/useCareerT";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 const NEGATIVE_FEEDBACK_REASON_SEPARATOR = " | ";
 
@@ -154,6 +156,8 @@ export const HistoryPositiveFeedbackModal = ({
   onClose: () => void;
   onSubmit: () => void;
 }) => {
+  const t = useCareerT();
+
   if (!item) return null;
 
   const positiveFeedbackModalCopy = getCareerPositiveFeedbackModalCopy(
@@ -171,7 +175,7 @@ export const HistoryPositiveFeedbackModal = ({
       footer={
         <div className="flex items-center justify-end gap-2">
           <SecondaryButton onClick={onClose} disabled={pending}>
-            취소
+            {t("career.settings.career_settings_modal.0jiry9t", "취소")}
           </SecondaryButton>
           <PrimaryButton
             onClick={onSubmit}
@@ -181,7 +185,7 @@ export const HistoryPositiveFeedbackModal = ({
             )}
           >
             {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            제출
+            {t("career.common.career_support_inquiry_modal.1ii5ibp", "제출")}
             <EnterShortcutHint />
           </PrimaryButton>
         </div>
@@ -230,6 +234,8 @@ export const HistoryNegativeFeedbackModal = ({
   onClose: () => void;
   onSubmit: () => void;
 }) => {
+  const t = useCareerT();
+
   const options = useMemo(
     () => (item ? getCareerNegativeFeedbackOptions(item.opportunityType) : []),
     [item]
@@ -291,11 +297,11 @@ export const HistoryNegativeFeedbackModal = ({
       footer={
         <div className="flex items-center justify-end gap-2">
           <SecondaryButton onClick={onClose} disabled={pending}>
-            취소
+            {t("career.settings.career_settings_modal.0jiry9t", "취소")}
           </SecondaryButton>
           <PrimaryButton onClick={onSubmit} disabled={pending}>
             {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            제출
+            {t("career.common.career_support_inquiry_modal.1ii5ibp", "제출")}
             <EnterShortcutHint />
           </PrimaryButton>
         </div>
@@ -371,24 +377,33 @@ export const HistoryMemoModal = ({
   onClose: () => void;
   onSubmit: () => void;
 }) => {
+  const t = useCareerT();
+
   if (!item) return null;
 
   return (
     <TalentCareerModal
       open={Boolean(item)}
       onClose={onClose}
-      title={item.talentMemo?.trim() ? "메모 수정" : "메모 작성"}
-      description="해당 포지션을 다시 볼 때 참고할 내용을 적어둘 수 있습니다."
+      title={
+        item.talentMemo?.trim()
+          ? careerT("ko", "career.history.feedback_modal.109eupo", "메모 수정")
+          : careerT("ko", "career.history.feedback_modal.08qkm91", "메모 작성")
+      }
+      description={t(
+        "career.history.feedback_modal.1m0q35j",
+        "해당 포지션을 다시 볼 때 참고할 내용을 적어둘 수 있습니다."
+      )}
       panelClassName="max-w-[520px] border border-neutral-1000-a05 bg-bg-floating"
       bodyClassName="bg-bg-floating px-5 py-5"
       footer={
         <div className="flex items-center justify-end gap-2">
           <SecondaryButton onClick={onClose} disabled={pending}>
-            취소
+            {t("career.settings.career_settings_modal.0jiry9t", "취소")}
           </SecondaryButton>
           <PrimaryButton onClick={onSubmit} disabled={pending}>
             {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            저장
+            {t("career.history.feedback_modal.1xp6hfy", "저장")}
           </PrimaryButton>
         </div>
       }
@@ -399,7 +414,10 @@ export const HistoryMemoModal = ({
         autoFocus
         value={draft}
         onChange={(event) => onChangeDraft(event.target.value)}
-        placeholder="이 포지션에 대해 기억해둘 내용이나 확인할 점을 적어주세요."
+        placeholder={t(
+          "career.history.feedback_modal.12volkp",
+          "이 포지션에 대해 기억해둘 내용이나 확인할 점을 적어주세요."
+        )}
         className={cn(textareaSurfaceClassName, "min-h-[160px]")}
       />
     </TalentCareerModal>

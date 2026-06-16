@@ -9,6 +9,8 @@ import {
   type SavedOpportunityManagementStatus,
 } from "./savedOpportunityStatus";
 import { BareButton } from "@/components/ui/button";
+import { useMessages, type Locale } from "@/i18n/useMessage";
+import { useCareerT } from "@/i18n/useCareerT";
 
 type SavedOpportunityBoardProps = {
   counts: Record<SavedOpportunityManagementStatus, number>;
@@ -26,6 +28,7 @@ const BOARD_AUTO_SCROLL_MAX_STEP_PX = 28;
 
 const SavedOpportunityBoardCard = ({
   item,
+  locale,
   pending,
   dragging,
   onDragEnd,
@@ -33,13 +36,14 @@ const SavedOpportunityBoardCard = ({
   onOpenDetail,
 }: {
   item: CareerHistoryOpportunity;
+  locale: Locale;
   pending: boolean;
   dragging: boolean;
   onDragEnd: () => void;
   onDragStart: (event: React.DragEvent<HTMLButtonElement>) => void;
   onOpenDetail: () => void;
 }) => {
-  const recommendedAgo = formatRelativeTime(item.recommendedAt);
+  const recommendedAgo = formatRelativeTime(item.recommendedAt, locale);
 
   return (
     <BareButton
@@ -113,6 +117,9 @@ function SavedOpportunityBoard({
   onOpenDetail,
   onStatusChange,
 }: SavedOpportunityBoardProps) {
+  const t = useCareerT();
+
+  const { locale } = useMessages();
   const [draggingOpportunityId, setDraggingOpportunityId] = useState<
     string | null
   >(null);
@@ -204,6 +211,7 @@ function SavedOpportunityBoard({
                     <SavedOpportunityBoardCard
                       key={item.id}
                       item={item}
+                      locale={locale}
                       pending={pending}
                       dragging={draggingOpportunityId === item.id}
                       onDragStart={(event) => {
@@ -218,7 +226,10 @@ function SavedOpportunityBoard({
 
                 {columnItems.length === 0 ? (
                   <div className="rounded-[8px] border border-dashed border-neutral-1000-a10 bg-bg-floating px-3 py-8 text-center text-[13px] font-medium text-neutral-muted">
-                    여기에 드롭
+                    {t(
+                      "career.history.saved_opportunity_board.0965oie",
+                      "여기에 드롭"
+                    )}
                   </div>
                 ) : null}
               </div>

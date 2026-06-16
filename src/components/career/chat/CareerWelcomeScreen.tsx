@@ -9,15 +9,22 @@ import StaggerText from "@/components/landing/Animation/StaggerText";
 import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
 import { PrimaryButton, SecondaryButton } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useCareerT } from "@/i18n/useCareerT";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 const normalizeDisplayName = (value: string | null | undefined) => {
   const trimmed = String(value ?? "")
     .trim()
     .replace(/\s*님$/, "");
-  return trimmed || "회원";
+  return (
+    trimmed ||
+    careerT("ko", "career.chat.career_welcome_screen.0ce6b4x", "회원")
+  );
 };
 
 const CareerWelcomeScreen = () => {
+  const t = useCareerT();
+
   const {
     user,
     onboardingBeginPending,
@@ -42,23 +49,36 @@ const CareerWelcomeScreen = () => {
               <div className="flex flex-wrap items-center gap-2 text-[12px] font-medium text-neutral-muted">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-bg-default px-2.5 py-1">
                   <CheckCircle2 className="h-3.5 w-3.5 text-positive" />
-                  프로필 확인됨
+                  {t(
+                    "career.chat.career_welcome_screen.023rop8",
+                    "프로필 확인됨"
+                  )}
                 </span>
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-bg-default px-2.5 py-1">
-                  <Clock3 className="h-3.5 w-3.5 text-neutral-muted" />약 5분
+                  <Clock3 className="h-3.5 w-3.5 text-neutral-muted" />
+                  {t("career.chat.career_composer_section.02tj0kp", "약 5분")}
                 </span>
               </div>
               <div className="mt-3 text-[15px] font-medium leading-6 text-neutral-primary">
-                첫 추천 기준을 짧게 정리할게요.
+                {t(
+                  "career.chat.career_welcome_screen.1gexpus",
+                  "첫 추천 기준을 짧게 정리할게요."
+                )}
               </div>
               <p className="mt-2 text-[13px] leading-6 text-neutral-muted">
-                희망 역할, 근무 방식, 제외할 조건만 확인하면 실제 포지션
-                탐색으로 넘어갑니다.
+                {t(
+                  "career.chat.career_welcome_screen.169zgsw",
+                  "희망 역할, 근무 방식, 제외할 조건만 확인하면 실제 포지션 탐색으로 넘어갑니다."
+                )}
               </p>
             </div>
             <div className="max-w-[560px] space-y-3 text-[13px] leading-8 text-neutral-muted sm:text-[15px]">
               <StaggerText
-                text={`안녕하세요 ${displayName}님, 만나서 반갑습니다. 저는 하퍼입니다.`}
+                text={t(
+                  "career.chat.career_welcome_screen.greeting_with_name",
+                  "안녕하세요 {displayName}님, 만나서 반갑습니다. 저는 하퍼입니다.",
+                  { values: { displayName } }
+                )}
                 by="word"
                 delay={0.04}
                 stagger={0.08}
@@ -67,7 +87,10 @@ const CareerWelcomeScreen = () => {
 
               <p>
                 <StaggerText
-                  text="하퍼는 숨겨진 스타트업 기회를 먼저 찾아 추천하고,"
+                  text={t(
+                    "career.common.career.051p9x0",
+                    "하퍼는 숨겨진 스타트업 기회를 먼저 찾아 추천하고,"
+                  )}
                   by="word"
                   delay={0.34}
                   stagger={0.06}
@@ -76,7 +99,10 @@ const CareerWelcomeScreen = () => {
               </p>
               <p>
                 <StaggerText
-                  text="후보자 관점에서 커리어 기회와 조건 협상까지 함께 돕는 Career 매니저입니다."
+                  text={t(
+                    "career.common.career.1ceyibb",
+                    "후보자 관점에서 커리어 기회와 조건 협상까지 함께 돕는 Career 매니저입니다."
+                  )}
                   by="word"
                   delay={0.58}
                   stagger={0.055}
@@ -85,7 +111,11 @@ const CareerWelcomeScreen = () => {
               </p>
               <p className="pt-2 text-neutral-muted">
                 <StaggerText
-                  text={`${displayName}님에게 맞는 기회 기준을 5분 정도만 맞춰볼게요.`}
+                  text={t(
+                    "career.chat.career_welcome_screen.criteria_with_name",
+                    "{displayName}님에게 맞는 기회 기준을 5분 정도만 맞춰볼게요.",
+                    { values: { displayName } }
+                  )}
                   by="word"
                   delay={0.82}
                   stagger={0.05}
@@ -104,12 +134,15 @@ const CareerWelcomeScreen = () => {
                 {isStartingCall ? (
                   <span className="inline-flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    통화 연결 중...
+                    {t(
+                      "career.common.career_chat_panel.1q1egw3",
+                      "통화 연결 중..."
+                    )}
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-3">
                     <Phone className="h-4 w-4" />
-                    통화하기
+                    {t("career.chat.career_message_bubble.0whsa78", "통화하기")}
                   </span>
                 )}
               </PrimaryButton>
@@ -124,12 +157,18 @@ const CareerWelcomeScreen = () => {
                 {isStartingCall ? (
                   <span className="inline-flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    대화 준비 중...
+                    {t(
+                      "career.chat.career_welcome_screen.0g4sq42",
+                      "대화 준비 중..."
+                    )}
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-3">
                     <MessageSquareText className="h-4 w-4" />
-                    채팅으로 하기
+                    {t(
+                      "career.common.internal_connection_onboarding_modal.1sbmfzi",
+                      "채팅으로 하기"
+                    )}
                   </span>
                 )}
               </SecondaryButton>

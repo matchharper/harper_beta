@@ -10,6 +10,8 @@ import {
   TALENT_PENDING_QUESTION_PREFIX,
   type TalentMessageRow,
 } from "@/lib/talentOnboarding/models";
+import { stripPostgresUnsafeChars } from "@/lib/textSanitization";
+import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
 
 const HIDDEN_MESSAGE_TYPES = new Set([
   TALENT_MESSAGE_TYPE_ONBOARDING_ADDITIONAL_QUESTION_SELECTION,
@@ -103,7 +105,7 @@ export async function insertOnboardingCompletionWrapupMessage(args: {
   thinkingLogs?: string[];
   userId: string;
 }) {
-  const content = args.content.trim();
+  const content = stripPostgresUnsafeChars(args.content).trim();
   if (!content) {
     throw new Error("Onboarding completion wrap-up content is required");
   }
@@ -130,6 +132,17 @@ export async function insertOnboardingCompletionWrapupMessage(args: {
     .single();
 
   if (error || !data) {
+    await notifyUnsupportedUnicodeEscapeError({
+      conversationId: args.conversationId,
+      error,
+      metadata: {
+        contentLength: content.length,
+        messageType: TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP,
+      },
+      route: "talentOnboardingMessageStore",
+      stage: "talent_messages.insert:onboarding_completion_wrapup",
+      userId: args.userId,
+    });
     throw new Error(
       error?.message ?? "Failed to insert onboarding completion wrap-up"
     );
@@ -145,7 +158,7 @@ export async function insertOnboardingCompletionNextStepsMessage(args: {
   isMobile?: boolean | null;
   userId: string;
 }) {
-  const content = args.content.trim();
+  const content = stripPostgresUnsafeChars(args.content).trim();
   if (!content) {
     throw new Error("Onboarding completion next steps content is required");
   }
@@ -171,6 +184,17 @@ export async function insertOnboardingCompletionNextStepsMessage(args: {
     .single();
 
   if (error || !data) {
+    await notifyUnsupportedUnicodeEscapeError({
+      conversationId: args.conversationId,
+      error,
+      metadata: {
+        contentLength: content.length,
+        messageType: TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NEXT_STEPS,
+      },
+      route: "talentOnboardingMessageStore",
+      stage: "talent_messages.insert:onboarding_completion_next_steps",
+      userId: args.userId,
+    });
     throw new Error(
       error?.message ?? "Failed to insert onboarding completion next steps"
     );

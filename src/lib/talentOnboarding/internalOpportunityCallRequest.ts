@@ -1,6 +1,7 @@
 import type { Json } from "@/types/database.types";
 import { CAREER_LLM_CONFIG } from "@/lib/career/llm";
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
+import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
 import { fetchRecentMessagesWithSummary } from "@/lib/talentOnboarding/conversationSummary";
 import {
@@ -14,6 +15,9 @@ import {
 } from "@/lib/talentOnboarding/server";
 import type { TalentOpportunityHistoryItem } from "@/lib/talentOpportunity";
 import { CAREER_CALL_END_MARKER } from "../career/prompts";
+import { careerT } from "@/lib/career/translatedCareerMessage";
+import { stripPostgresUnsafeChars } from "@/lib/textSanitization";
+import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
 
 export const TALENT_CALL_KIND_INTERNAL_OPPORTUNITY_REQUEST =
   "internal_opportunity_request";
@@ -218,7 +222,13 @@ export function serializeInternalOpportunityCallRequest(
 
   return {
     companyLogoUrl: state.companyLogoUrl ?? null,
-    companyName: state.companyName ?? "회사",
+    companyName:
+      state.companyName ??
+      careerT(
+        "ko",
+        "career.call.internal_opportunity_call_actions.0fpx491",
+        "회사"
+      ),
     createdAt: row.created_at,
     id: row.id,
     opportunityId,
@@ -265,7 +275,7 @@ export async function attachInternalOpportunityCallRequestToMessage(args: {
 }) {
   const content = appendInternalOpportunityCallRequestMarker({
     callRequest: args.callRequest,
-    content: args.content,
+    content: stripPostgresUnsafeChars(args.content),
   });
   const messageId = Number(args.messageId);
   if (!Number.isFinite(messageId)) {
@@ -280,6 +290,18 @@ export async function attachInternalOpportunityCallRequestToMessage(args: {
     .eq("user_id", args.userId);
 
   if (error) {
+    await notifyUnsupportedUnicodeEscapeError({
+      conversationId: args.conversationId,
+      error,
+      metadata: {
+        callId: args.callRequest.id,
+        contentLength: content.length,
+        messageId,
+      },
+      route: "internalOpportunityCallRequest",
+      stage: "talent_messages.update:attach_call_request_marker",
+      userId: args.userId,
+    });
     throw new Error(
       error.message ?? "Failed to attach internal call request marker"
     );
@@ -498,10 +520,13 @@ function buildDecisionPrompt(args: {
   hasResume: boolean;
   insights: Record<string, string>;
   opportunity: TalentOpportunityHistoryItem;
+  preferredLocale?: string | null;
   profileContext: string;
   recentConversationContext: string;
   roleContext: InternalOpportunityCallRoleContext;
 }) {
+  const outputLanguage = getCareerPromptLanguageName(args.preferredLocale);
+
   return [
     "You decide whether Harper should offer an optional short voice call after a candidate accepted an internal opportunity.",
     "",
@@ -517,8 +542,8 @@ function buildDecisionPrompt(args: {
     "Return JSON only:",
     "{",
     '  "do_request": boolean,',
-    '  "questions": ["3-5 short Korean questions"],',
-    '  "user_facing_reason": "one short Korean reason Harper can say to the user",',
+    `  "questions": ["3-5 short ${outputLanguage} questions"],`,
+    `  "user_facing_reason": "one short ${outputLanguage} reason Harper can say to the user",`,
     '  "resume_prompt_needed": boolean,',
     '  "reasoning": "internal Korean or English rationale"',
     "}",
@@ -634,6 +659,7 @@ async function decideInternalOpportunityCallRequest(args: {
           insights:
             normalizeTalentInsightContent(insights?.content ?? null) ?? {},
           opportunity: args.opportunity,
+          preferredLocale: setting?.preferred_locale ?? null,
           profileContext,
           recentConversationContext,
           roleContext: args.roleContext,
@@ -782,22 +808,29 @@ export function buildInternalOpportunityCallProactiveInstruction(
  * Internal 수락시 추가적인 정보 질문을 위해 voice call을 진행할 때 사용되는 프롬프트
  */
 export function buildInternalOpportunityRealtimeInstruction(
-  callRequest: InternalOpportunityCallRequest
+  callRequest: InternalOpportunityCallRequest & {
+    preferredLocale?: string | null;
+  }
 ) {
+  const outputLanguage = getCareerPromptLanguageName(
+    callRequest.preferredLocale
+  );
+
   return [
     "This live voice call is specifically for an accepted internal opportunity connection.",
     `- companyName: ${callRequest.companyName}`,
     `- roleTitle: ${callRequest.roleTitle}`,
     `- roleId: ${callRequest.roleId}`,
+    `- Speak in ${outputLanguage}.`,
     "",
     "Call purpose:",
     "- This is not an interview or evaluation.",
     "- The company-side connection is already proceeding by Harper.",
     "- Ask short questions to collect better context for Harper to present the candidate to the company.",
     "- The user may also ask questions about the company or process.",
-    "- 회사에게 이렇게 전달하겠습니다.라고 직접 말하지 않는다. '말씀해주신 내용들이 도움이 되네요'같이 말하고, 필요하면 '반영되게 하겠다' 정도로만 말한다.",
-    "- 언어 질문의 경우 '영어 잘하세요?'처럼 단순하게 묻지 않는다. 구체적인 상황을 가정하고 이 때 유창하게 소통가능하신가요? 혹은 구체적인 언어 사용/해외 경험을 물어본다.",
-    "- 한 질문당 최대 한번, 유저의 답변이 2문장 이하로 짧은 경우에 파고드는 질문을 짧게 한문장으로 던질 수 있다.",
+    "- Do not directly say 'I will pass this to the company exactly like this.' Say something more natural, such as that the details are helpful, and if needed say Harper will reflect them.",
+    "- For language questions, do not simply ask 'Is your English good?' Ask about a concrete situation where fluent communication may matter, or ask about specific language use or international experience.",
+    "- For each question, at most once, if the user's answer is shorter than two sentences, you may ask one short follow-up question.",
     "",
     "Required opening:",
     "- Start by referencing the company and role.",
@@ -811,9 +844,9 @@ export function buildInternalOpportunityRealtimeInstruction(
     ),
     "",
     "Before ending:",
-    `- You must ask at least once: '${callRequest.companyName}나 다음 프로세스 관련해서 궁금하신 점은 없으세요?'`,
+    `- You must ask at least once, in ${outputLanguage}, whether the user has questions about ${callRequest.companyName} or the next process.`,
     "- End when you think the call is over or the user accepts or require to stop.",
-    `- End means '통화에 참여해주셔서 감사합니다. ${CAREER_CALL_END_MARKER}}'. Do not hesitate to end th call by ${CAREER_CALL_END_MARKER}`,
+    `- End with a natural short closing in ${outputLanguage}, then append ${CAREER_CALL_END_MARKER}. Do not hesitate to end the call with ${CAREER_CALL_END_MARKER}.`,
   ].join("\n");
 }
 
@@ -821,8 +854,10 @@ export function buildInternalOpportunityCallWrapupInstruction(args: {
   callRequest: InternalOpportunityCallRequest;
   durationLabel: string | null;
   isBrief: boolean;
+  preferredLocale?: string | null;
   transcript: Array<{ role: "user" | "assistant"; text: string }>;
 }) {
+  const outputLanguage = getCareerPromptLanguageName(args.preferredLocale);
   const transcriptText = args.transcript
     .map((entry) => {
       const role = entry.role === "user" ? "User" : "Harper";
@@ -844,7 +879,7 @@ export function buildInternalOpportunityCallWrapupInstruction(args: {
     "- Do not call search, recommendation, company research, or activity-reading tools.",
     "",
     "Response instruction:",
-    "- Write one short natural Korean follow-up message for the chat after the call ends.",
+    `- Write one short natural ${outputLanguage} follow-up message for the chat after the call ends.`,
     "- Say the connection is continuing.",
     "- If the call was substantial, say Harper will reflect the shared details when presenting them to the company.",
     "- If the call was brief/incomplete, do not ask them to continue in chat; tell them they can continue from the Home call card when convenient.",

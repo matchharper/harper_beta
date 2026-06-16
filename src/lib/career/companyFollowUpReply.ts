@@ -3,11 +3,20 @@ import {
   fetchTalentCompanyWatchlistDetail,
   type TalentCompanyWatchlistItem,
 } from "@/lib/career/companyWatchlist";
-import type { TalentAdminClient } from "@/lib/talentOnboarding/server";
+import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
+import {
+  fetchTalentSetting,
+  type TalentAdminClient,
+} from "@/lib/talentOnboarding/server";
 
 export const TALENT_MESSAGE_TYPE_COMPANY_FOLLOW_UP = "company_follow_followup";
 
-function buildCompanyFollowUpInstruction(item: TalentCompanyWatchlistItem) {
+function buildCompanyFollowUpInstruction(args: {
+  item: TalentCompanyWatchlistItem;
+  preferredLocale?: string | null;
+}) {
+  const item = args.item;
+  const outputLanguage = getCareerPromptLanguageName(args.preferredLocale);
   const details = [
     item.shortDescription ? `Short description: ${item.shortDescription}` : "",
     item.location ? `Location: ${item.location}` : "",
@@ -22,7 +31,7 @@ function buildCompanyFollowUpInstruction(item: TalentCompanyWatchlistItem) {
     `The user followed company "${item.name}" from Career Watchlist. They did not send a new chat message.`,
     details.length > 0 ? details.join("\n") : "",
     "",
-    "Write the next assistant message in Korean.",
+    `Write the next assistant message in ${outputLanguage}.`,
     "Do not mention triggers, timers, events, logs, systems, or implementation details.",
     "Do not open with a long explanation of Watchlist mechanics.",
     "Keep it to 1-2 natural sentences.",
@@ -46,9 +55,15 @@ export async function createTalentCompanyFollowFollowUpReply(args: {
     return null;
   }
 
+  const talentSetting = await fetchTalentSetting({
+    admin: args.admin,
+    userId: args.userId,
+  });
+  const preferredLocale = talentSetting?.preferred_locale ?? null;
   const item = await fetchTalentCompanyWatchlistDetail({
     admin: args.admin,
     companyDbId,
+    preferredLocale,
     userId: args.userId,
   });
   if (!item?.following) return null;
@@ -60,11 +75,15 @@ export async function createTalentCompanyFollowFollowUpReply(args: {
     conversationId,
     isMobile: args.isMobile,
     pendingOpportunityFeedbackContext: "",
-    proactiveContext: buildCompanyFollowUpInstruction(item),
+    proactiveContext: buildCompanyFollowUpInstruction({
+      item,
+      preferredLocale,
+    }),
     shouldInsertAssistantMessage: async () => {
       const latestItem = await fetchTalentCompanyWatchlistDetail({
         admin: args.admin,
         companyDbId,
+        preferredLocale,
         userId: args.userId,
       });
       return Boolean(latestItem?.following);

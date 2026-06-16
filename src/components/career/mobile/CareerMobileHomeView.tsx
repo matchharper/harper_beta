@@ -17,6 +17,11 @@ import CareerCallCard from "@/components/career/CareerCallCard";
 import { InternalOpportunityCallActions } from "@/components/career/InternalOpportunityCallActions";
 import { useCareerSidebarContext } from "@/components/career/CareerSidebarContext";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
+import {
+  formatCareerMessage,
+  formatCareerMessageByKey,
+} from "@/i18n/careerMessage";
+import { useMessages } from "@/i18n/useMessage";
 import { getCareerDefaultSavedStage } from "@/components/career/opportunityTypeMeta";
 import { ConversationStarterActions } from "@/components/career/ConversationStarterActions";
 import type { CareerInternalOpportunityCallRequest } from "@/components/career/types";
@@ -25,26 +30,58 @@ import type {
   CareerConversationStarterMode,
 } from "@/lib/career/conversationStarters";
 import { ActionButton } from "@/components/ui/button";
+import { useCareerT } from "@/i18n/useCareerT";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 const countFormatter = new Intl.NumberFormat("ko-KR");
 
 const getCurrentTimeGreeting = (date: Date) => {
   const hour = date.getHours();
 
-  if (hour < 5) return "이른 새벽이네요.";
-  if (hour < 11) return "좋은 아침입니다.";
-  if (hour < 17) return "좋은 하루 보내고 계신가요?";
-  if (hour < 21) return "오늘 하루는 어떠셨나요.";
-  return "편안한 밤입니다.";
+  if (hour < 5)
+    return careerT(
+      "ko",
+      "career.home.career_mobile_home_view.0snbgwi",
+      "이른 새벽이네요."
+    );
+  if (hour < 11)
+    return careerT(
+      "ko",
+      "career.home.career_mobile_home_view.1j9mmu9",
+      "좋은 아침입니다."
+    );
+  if (hour < 17)
+    return careerT(
+      "ko",
+      "career.home.career_mobile_home_view.0w2aiar",
+      "좋은 하루 보내고 계신가요?"
+    );
+  if (hour < 21)
+    return careerT(
+      "ko",
+      "career.home.career_mobile_home_view.1amflsx",
+      "오늘 하루는 어떠셨나요."
+    );
+  return careerT(
+    "ko",
+    "career.home.career_mobile_home_view.0rjturg",
+    "편안한 밤입니다."
+  );
 };
 
-const formatMobileHomeGreetingName = (name: string) => {
+type CareerT = ReturnType<typeof useCareerT>;
+
+const formatMobileHomeGreetingName = (name: string, t: CareerT) => {
   const trimmedName = name.trim();
 
   if (!trimmedName) return "Welcome";
   if (/[A-Za-z]/.test(trimmedName)) return `Welcome, ${trimmedName}`;
   if (/^[가-힣\s]+$/.test(trimmedName)) {
-    return `안녕하세요 ${trimmedName}님`;
+    return t(
+      "career.home.career_mobile_home_view.greeting_name_ko",
+      "안녕하세요 {name}님",
+      { values: { name: trimmedName } }
+    );
   }
   return `Welcome, ${trimmedName}`;
 };
@@ -133,7 +170,13 @@ const SummaryCard = ({
       {icon}
     </span>
     <div className="text-sm font-medium text-neutral-primary">
-      {countFormatter.format(count)}개의 {label}
+      {countFormatter.format(count)}
+      {careerT(
+        "ko",
+        "career.home.career_mobile_home_view.0ao3c3d",
+        "개의"
+      )}{" "}
+      {label}
     </div>
   </ActionButton>
 );
@@ -176,6 +219,8 @@ const CareerMobileHomeView = ({
   onOpenChat,
   onOpenHistory,
 }: CareerMobileHomeViewProps) => {
+  const t = useCareerT();
+
   const logCareerEvent = useCareerLogEvent();
   const {
     user,
@@ -190,13 +235,14 @@ const CareerMobileHomeView = ({
     pendingInternalOpportunityCallRequests = [],
     talentProfile,
   } = useCareerSidebarContext();
+  const { m } = useMessages();
 
   const displayName =
     talentProfile.talentUser?.name ??
     user?.user_metadata?.full_name ??
     user?.user_metadata?.name ??
     (typeof user?.email === "string" ? user.email.split("@")[0] : "Candidate");
-  const displayGreetingName = formatMobileHomeGreetingName(displayName);
+  const displayGreetingName = formatMobileHomeGreetingName(displayName, t);
 
   const isOnboardingCompleted = isOnboardingDone || stage === "completed";
 
@@ -210,10 +256,21 @@ const CareerMobileHomeView = ({
   );
   const newPositionDescription =
     newInternalOpportunityCount > 0
-      ? `추천된 기회 · ${countFormatter.format(
-          newInternalOpportunityCount
-        )}개 연결 가능`
-      : "추천된 기회";
+      ? formatCareerMessage(
+          m,
+          careerT(
+            "ko",
+            "career.home.career_home_panel.030cbmq",
+            "추천된 기회 · {count}개 연결 가능"
+          ),
+          {
+            count: countFormatter.format(newInternalOpportunityCount),
+          }
+        )
+      : formatCareerMessage(
+          m,
+          careerT("ko", "career.home.career_home_panel.0x7lgjp", "추천된 기회")
+        );
 
   const savedPositionCount = historyOpportunityCounts.savedStages.saved;
   const connectedPositionCount =
@@ -247,7 +304,11 @@ const CareerMobileHomeView = ({
 
   const inProgressCompanyLabel = useMemo(() => {
     if (inProgressPositionCount === 0) {
-      return "아직 저장하거나 연결된 포지션 없음";
+      return careerT(
+        "ko",
+        "career.home.career_home_panel.1psd54b",
+        "아직 저장하거나 연결된 포지션 없음"
+      );
     }
     const firstCompanyName = (
       inProgressOpportunities.find((opportunity) =>
@@ -257,39 +318,105 @@ const CareerMobileHomeView = ({
       ) ?? inProgressOpportunities[0]
     )?.item.companyName?.trim();
     const statusLabel =
-      inProgressTargetSavedStage === "saved" ? "저장함" : "연결됨";
+      inProgressTargetSavedStage === "saved"
+        ? formatCareerMessage(
+            m,
+            careerT(
+              "ko",
+              "career.common.career_history_panel.06mgpci",
+              "저장함"
+            )
+          )
+        : formatCareerMessage(
+            m,
+            careerT(
+              "ko",
+              "career.common.career_history_panel.0y27adb",
+              "연결됨"
+            )
+          );
     if (!firstCompanyName) {
-      return `${countFormatter.format(inProgressPositionCount)}개 ${statusLabel}`;
+      return formatCareerMessage(
+        m,
+        careerT(
+          "ko",
+          "career.home.career_home_panel.1qhpcnm",
+          "{count}개 {status}"
+        ),
+        {
+          count: countFormatter.format(inProgressPositionCount),
+          status: statusLabel,
+        }
+      );
     }
     if (inProgressPositionCount === 1) {
-      return `${firstCompanyName} ${statusLabel}`;
+      return formatCareerMessage(m, "{company} {status}", {
+        company: firstCompanyName,
+        status: statusLabel,
+      });
     }
-    return `${firstCompanyName} 외 ${countFormatter.format(
-      inProgressPositionCount - 1
-    )}개 ${statusLabel}`;
+    return formatCareerMessage(
+      m,
+      careerT(
+        "ko",
+        "career.home.career_home_panel.0ejjdwp",
+        "{company} 외 {count}개 {status}"
+      ),
+      {
+        company: firstCompanyName,
+        count: countFormatter.format(inProgressPositionCount - 1),
+        status: statusLabel,
+      }
+    );
   }, [
     inProgressOpportunities,
     inProgressPositionCount,
     inProgressTargetSavedStage,
+    m,
   ]);
 
   const callCardUsesCompletedLayout = isOnboardingCompleted;
   const callCardTitle = isOnboardingCompleted
-    ? "Harper와 5분 통화"
-    : "아직 5분 커리어 인터뷰가 완료되지 않았어요";
+    ? careerT(
+        "ko",
+        "career.home.career_home_panel.0rplg97",
+        "Harper와 5분 통화"
+      )
+    : careerT(
+        "ko",
+        "career.home.career_home_panel.0c36lcv",
+        "아직 5분 커리어 인터뷰가 완료되지 않았어요"
+      );
   const currentTimeGreeting = useMemo(
-    () => getCurrentTimeGreeting(new Date()),
-    []
+    () => formatCareerMessage(m, getCurrentTimeGreeting(new Date())),
+    [m]
+  );
+  const currentTimeHelpText = formatCareerMessage(
+    m,
+    careerT(
+      "ko",
+      "career.home.career_mobile_home_view.0t1cxif",
+      "필요하신게 있다면 알려주세요."
+    )
   );
 
   const callCardDescription = isOnboardingCompleted ? (
-    "변경된 사항이 있거나 요구사항이 있을 때<br /> — 통화하면 빨라요"
+    careerT(
+      "ko",
+      "career.home.career_mobile_home_view.1inys5s",
+      "변경된 사항이 있거나 요구사항이 있을 때<br /> — 통화하면 빨라요"
+    )
   ) : (
     <>
-      채팅에서 혹은 통화로 간단한 질문에만 대답해주세요.
+      {t(
+        "career.home.career_mobile_home_view.0to563z",
+        "채팅에서 혹은 통화로 간단한 질문에만 대답해주세요."
+      )}
       <br />
-      대화를 통해 회원님을 더 잘 이해하고, 좋아하실만한 기회를 받아보실 수 있게
-      할게요.
+      {t(
+        "career.home.career_mobile_home_view.0lny7ac",
+        "대화를 통해 회원님을 더 잘 이해하고, 좋아하실만한 기회를 받아보실 수 있게 할게요."
+      )}
     </>
   );
 
@@ -307,7 +434,15 @@ const CareerMobileHomeView = ({
     return (
       onStartCallMode?.({
         internalCallRequestId: callRequest.id,
-        openingText: `${callRequest.companyName} ${callRequest.roleTitle} 연결 건으로, 회사에 더 잘 전달할 수 있게 짧게 몇 가지를 확인하고 싶어요.`,
+        openingText: formatCareerMessageByKey(
+          m,
+          "career.internal_opportunity.call_opening",
+          "",
+          {
+            companyName: callRequest.companyName,
+            roleTitle: callRequest.roleTitle,
+          }
+        ),
       }) ?? false
     );
   };
@@ -350,40 +485,49 @@ const CareerMobileHomeView = ({
           {displayGreetingName}
         </h2>
         <p className="mt-2 text-[15px] font-medium text-neutral-muted">
-          {currentTimeGreeting} 필요하신게 있다면 알려주세요.
+          {currentTimeGreeting} {currentTimeHelpText}
         </p>
       </div>
 
       {!isOnboardingCompleted ? (
         <section className="rounded-3xl border border-neutral-1000-a05 bg-bg-floating px-5 py-5 shadow-sm">
           <div className="text-[15px] font-semibold text-neutral-primary">
-            커리어 인터뷰 진행 중
+            {t(
+              "career.home.career_home_panel.1ol18h9",
+              "커리어 인터뷰 진행 중"
+            )}
           </div>
           <p className="mt-1 text-[13px] leading-5 text-neutral-muted">
-            원하는 기회의 기준을 확인하고 있어요.
+            {t(
+              "career.home.career_home_panel.0qe18mm",
+              "원하는 기회의 기준을 확인하고 있어요."
+            )}
           </p>
           <div className="mt-4 space-y-4">
             <ChecklistItem
               icon={UserRound}
-              label="계정"
+              label={t("career.home.career_home_panel.1q70b1u", "계정")}
               meta={null}
               state="done"
             />
             <ChecklistItem
               icon={FileText}
-              label="자료 제출"
+              label={t("career.home.career_home_panel.0gj76aj", "자료 제출")}
               meta={null}
               state="done"
             />
             <ChecklistItem
               icon={MessageSquareText}
-              label="기준 확인"
-              meta="역할과 조건을 짧게 확인"
+              label={t("career.home.career_home_panel.0dha8ne", "기준 확인")}
+              meta={t(
+                "career.common.career.19aqpg8",
+                "역할과 조건을 짧게 확인"
+              )}
               state="current"
             />
             <ChecklistItem
               icon={Search}
-              label="추천 시작"
+              label={t("career.home.career_home_panel.15tndog", "추천 시작")}
               meta={null}
               state="pending"
             />
@@ -394,7 +538,7 @@ const CareerMobileHomeView = ({
       {isOnboardingCompleted && (
         <section className="flex flex-row items-center justify-between gap-2">
           <SummaryCard
-            label="추천된 기회"
+            label={t("career.home.career_home_panel.0x7lgjp", "추천된 기회")}
             count={newPositionCount}
             icon={
               <GalleryVerticalEnd
@@ -407,7 +551,10 @@ const CareerMobileHomeView = ({
             }
           />
           <SummaryCard
-            label="저장/연결된 기회"
+            label={t(
+              "career.home.career_mobile_home_view.1vip5ub",
+              "저장/연결된 기회"
+            )}
             count={inProgressPositionCount}
             icon={
               <Bookmark

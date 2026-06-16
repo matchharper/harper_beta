@@ -1,12 +1,11 @@
-import { ExternalLink, Linkedin, MessageSquareText } from "lucide-react";
+import { MessageSquareText } from "lucide-react";
 import React, { useEffect, useRef } from "react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { careerUpdateNotes } from "@/content/careerUpdateNotes";
-import { BadgeLink } from "@/components/ui/badge";
 import { Text } from "@/components/ui/text";
 import { ActionButton } from "@/components/ui/button";
 import Image from "next/image";
-import { Badge } from "../ops/network/shared";
+import { useCareerT } from "@/i18n/useCareerT";
 
 const harperActivityLinks = [
   {
@@ -37,6 +36,8 @@ const CareerUpdateNotesModal = ({
   onClose: () => void;
   onSuggestUpdate: () => void;
 }) => {
+  const t = useCareerT();
+
   const latestId = careerUpdateNotes[0]?.id;
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -54,7 +55,7 @@ const CareerUpdateNotesModal = ({
     <TalentCareerModal
       open={open}
       onClose={onClose}
-      ariaLabel="업데이트 노트"
+      ariaLabel={t("career.common.career.14ybad0", "업데이트 노트")}
       overlayClassName="items-start pt-14"
       panelClassName="max-w-none w-[min(720px,calc(100vw-32px))] rounded-[18px] border-neutral-1000-a05 bg-bg-floating"
       bodyClassName="p-0"
@@ -67,7 +68,10 @@ const CareerUpdateNotesModal = ({
               Update notes
             </Text>
             <Text as="h2" type="head2" className="mt-2">
-              Harper 업데이트 노트
+              {t(
+                "career.common.career_update_notes_modal.1rg2zqc",
+                "Harper 업데이트 노트"
+              )}
             </Text>
             <div className="mt-4 flex flex-row gap-2 items-center justify-between">
               <ActionButton
@@ -77,19 +81,24 @@ const CareerUpdateNotesModal = ({
                 className="h-8 shrink-0 px-3 text-xs font-normal"
               >
                 <MessageSquareText className="h-3.5 w-3.5" />
-                제안하기
+                {t(
+                  "career.common.career_update_notes_modal.0ha8vft",
+                  "제안하기"
+                )}
               </ActionButton>
               <div className="mt-2 flex flex-wrap gap-2">
                 {harperActivityLinks.map((link) => {
                   const LinkIcon = link.icon;
 
                   return (
-                    <Badge
+                    <button
+                      type="button"
                       key={link.href}
                       onClick={() => window.open(link.href, "_blank")}
+                      className="inline-flex items-center rounded-md bg-bg-weak px-2.5 py-1 text-[12px] font-medium tracking-[-0.02em] text-neutral-primary transition hover:bg-bg-default"
                     >
                       {LinkIcon} &nbsp;{link.label}
-                    </Badge>
+                    </button>
                   );
                 })}
               </div>
@@ -100,7 +109,10 @@ const CareerUpdateNotesModal = ({
         <div
           ref={contentRef}
           tabIndex={-1}
-          aria-label="업데이트 노트 내용"
+          aria-label={t(
+            "career.common.career_update_notes_modal.1e7ecir",
+            "업데이트 노트 내용"
+          )}
           className="max-h-[min(68svh,640px)] overflow-y-auto px-5 py-2 outline-none"
         >
           <div className="divide-y divide-neutral-1000-a05">

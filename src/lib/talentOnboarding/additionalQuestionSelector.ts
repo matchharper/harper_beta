@@ -1,5 +1,7 @@
 import { CAREER_LLM_CONFIG } from "@/lib/career/llm";
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
+import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 import {
   buildTalentProfileContext,
   countAdditionalOnboardingQuestionSelections,
@@ -63,12 +65,17 @@ function parseSelection(raw: string): Partial<AdditionalQuestionSelection> {
 }
 
 function normalizeSelection(
-  value: Partial<AdditionalQuestionSelection>
+  value: Partial<AdditionalQuestionSelection>,
+  preferredLocale?: string | null
 ): AdditionalQuestionSelection {
   const assistantMessage =
     typeof value.assistantMessage === "string" && value.assistantMessage.trim()
       ? value.assistantMessage.trim()
-      : "좋은 기회를 찾을 때는 실제로 맡았던 범위를 아는 게 중요해서요. 최근 역할이나 대표 경험 중에서, 밖에서 보기보다 실제로 본인이 더 많이 맡았던 부분은 어디였어요?";
+      : careerT(
+          preferredLocale,
+          "career.onboarding.additional_question.fallback_assistant_message",
+          "좋은 기회를 찾을 때는 실제로 맡았던 범위를 아는 게 중요해서요. 최근 역할이나 대표 경험 중에서, 밖에서 보기보다 실제로 본인이 더 많이 맡았던 부분은 어디였어요?"
+        );
   const gapType =
     typeof value.gapType === "string" && ALLOWED_GAP_TYPES.has(value.gapType)
       ? value.gapType
@@ -80,13 +87,23 @@ function normalizeSelection(
     rationale:
       typeof value.rationale === "string" && value.rationale.trim()
         ? clamp(value.rationale.trim(), 500)
-        : "프로필 기반 추가 확인 질문이 필요합니다.",
+        : careerT(
+            preferredLocale,
+            "career.onboarding.additional_question.fallback_rationale",
+            "프로필 기반 추가 확인 질문이 필요합니다."
+          ),
     shouldAsk: value.shouldAsk !== false,
   };
 }
 
-function buildFinalPriorityConfirmationMessage() {
-  return "여기까지 들은 내용이면 기회 매칭에 필요한 핵심 정보는 어느 정도 잡힌 것 같아요. 마지막으로, 앞으로 기회를 볼 때 제가 꼭 놓치지 말아야 할 우선순위나 지금까지 빠진 조건이 있을까요?";
+function buildFinalPriorityConfirmationMessage(
+  preferredLocale?: string | null
+) {
+  return careerT(
+    preferredLocale,
+    "career.onboarding.additional_question.final_priority_confirmation",
+    "여기까지 들은 내용이면 기회 매칭에 필요한 핵심 정보는 어느 정도 잡힌 것 같아요. 마지막으로, 앞으로 기회를 볼 때 제가 꼭 놓치지 말아야 할 우선순위나 지금까지 빠진 조건이 있을까요?"
+  );
 }
 
 function countFilledInsights(content: Record<string, unknown> | null) {
@@ -141,6 +158,7 @@ export async function selectAdditionalOnboardingQuestion(args: {
     string,
     unknown
   >;
+  const outputLanguage = getCareerPromptLanguageName(setting?.preferred_locale);
   const filledInsightCount = countFilledInsights(currentInsightContent);
   const recentConversation = recentMessages
     .map((message) => {
@@ -161,7 +179,7 @@ export async function selectAdditionalOnboardingQuestion(args: {
         "The question can be a profile gap question OR a role-specific depth/preference question.",
         "Prefer the question that would most improve future opportunity matching.",
         "Do not repeat questions already asked in the recent conversation.",
-        "Ask exactly one question. Korean 존댓말 only.",
+        `Ask exactly one question in ${outputLanguage}.`,
         `This selector is for the Additional questions phase. It should be used after the main onboarding insights are reasonably covered, normally when at least 6 insights are already filled.`,
         `At least ${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN} additional questions are required before final priority confirmation or closing.`,
         "The Structured profile omits `Description` when an experience description is empty. If an experience has a role/company/date range/months but no Description and no Memo, treat that as a missing experience-description gap.",
@@ -186,9 +204,8 @@ export async function selectAdditionalOnboardingQuestion(args: {
           shouldAsk: true,
           gapType:
             "experience_description_missing | direct_contribution_unclear | career_transition_or_timeline | profile_preference_mismatch | role_specific_depth | role_specific_preference | fallback",
-          rationale: "short Korean reason why this is the best next question",
-          assistantMessage:
-            "natural Korean message Harper should say; include a short reason then the question",
+          rationale: `short ${outputLanguage} reason why this is the best next question`,
+          assistantMessage: `natural ${outputLanguage} message Harper should say; include a short reason then the question`,
         }),
       ].join("\n"),
     },
@@ -224,7 +241,11 @@ export async function selectAdditionalOnboardingQuestion(args: {
     usageLabel: "career/onboarding:additional_question_selector",
   });
 
-  const normalizedSelection = normalizeSelection(parseSelection(raw));
+  const preferredLocale = setting?.preferred_locale ?? null;
+  const normalizedSelection = normalizeSelection(
+    parseSelection(raw),
+    preferredLocale
+  );
   const selection =
     !normalizedSelection.shouldAsk &&
     askedCount < TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN
@@ -232,30 +253,33 @@ export async function selectAdditionalOnboardingQuestion(args: {
           ...normalizedSelection,
           rationale:
             normalizedSelection.rationale +
-            ` 필수 additional 질문 ${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN}개를 아직 채우지 못해 fallback additional 질문으로 보정했습니다.`,
+            careerT(
+              preferredLocale,
+              "career.onboarding.additional_question.min_required_adjustment",
+              " 필수 additional 질문 {min}개를 아직 채우지 못해 fallback additional 질문으로 보정했습니다.",
+              { values: { min: TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN } }
+            ),
           shouldAsk: true,
         }
       : normalizedSelection;
   const assistantMessage = selection.shouldAsk
     ? selection.assistantMessage
-    : buildFinalPriorityConfirmationMessage();
+    : buildFinalPriorityConfirmationMessage(preferredLocale);
 
   if (selection.shouldAsk) {
-    const { error: markerError } = await admin
-      .from("talent_messages")
-      .insert(
-        withIsMobile(
-          {
-            conversation_id: conversationId,
-            user_id: userId,
-            role: "assistant",
-            content: assistantMessage,
-            message_type:
-              TALENT_MESSAGE_TYPE_ONBOARDING_ADDITIONAL_QUESTION_SELECTION,
-          },
-          args.isMobile
-        )
-      );
+    const { error: markerError } = await admin.from("talent_messages").insert(
+      withIsMobile(
+        {
+          conversation_id: conversationId,
+          user_id: userId,
+          role: "assistant",
+          content: assistantMessage,
+          message_type:
+            TALENT_MESSAGE_TYPE_ONBOARDING_ADDITIONAL_QUESTION_SELECTION,
+        },
+        args.isMobile
+      )
+    );
 
     if (markerError) {
       throw new Error(

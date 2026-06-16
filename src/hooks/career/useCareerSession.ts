@@ -4,6 +4,8 @@ import type { SessionResponse } from "@/components/career/types";
 import { getErrorMessage } from "./careerHelpers";
 import type { FetchWithAuth } from "./useCareerApi";
 import { getCareerSignupAttributionPayload } from "@/lib/careerSignupAttribution";
+import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
+import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 
 type SessionPayload = SessionResponse & { error?: string };
 type LoadSessionOptions = {
@@ -26,7 +28,10 @@ const shouldRetryCareerSession = (failureCount: number, error: unknown) => {
   if (failureCount >= CAREER_SESSION_MAX_RETRIES) return false;
 
   const message = error instanceof Error ? error.message : String(error ?? "");
-  return !/Unauthorized|로그인 세션/.test(message);
+  return !(
+    /Unauthorized|login session/i.test(message) ||
+    message.includes(H.loginSessionMissing)
+  );
 };
 
 export const careerSessionKey = (
@@ -51,6 +56,7 @@ export const useCareerSession = ({
   mail,
   userId,
 }: UseCareerSessionArgs) => {
+  const tCareer = useCareerMessageFormatter();
   const queryClient = useQueryClient();
   const normalizedInviteToken = inviteToken?.trim() || null;
   const normalizedMail = mail?.trim() || null;
@@ -84,7 +90,7 @@ export const useCareerSession = ({
     if (!bootstrapRes.ok) {
       const payload = await bootstrapRes.json().catch(() => ({}));
       throw new Error(
-        getErrorMessage(payload, "talent_users 초기화에 실패했습니다.")
+        getErrorMessage(payload, tCareer(H.sessionBootstrapFailed))
       );
     }
 
@@ -99,7 +105,7 @@ export const useCareerSession = ({
       .json()
       .catch(() => ({}))) as SessionPayload;
     if (!sessionRes.ok) {
-      throw new Error(getErrorMessage(payload, "세션을 불러오지 못했습니다."));
+      throw new Error(getErrorMessage(payload, tCareer(H.sessionLoadFailed)));
     }
 
     return payload;
@@ -108,6 +114,7 @@ export const useCareerSession = ({
     normalizedEmailOnboardingToken,
     normalizedInviteToken,
     normalizedMail,
+    tCareer,
   ]);
 
   const sessionQuery = useQuery({
@@ -170,7 +177,7 @@ export const useCareerSession = ({
   const sessionError = sessionQuery.error
     ? sessionQuery.error instanceof Error
       ? sessionQuery.error.message
-      : "세션을 불러오지 못했습니다."
+      : tCareer(H.sessionLoadFailed)
     : "";
 
   return {

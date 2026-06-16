@@ -15,7 +15,6 @@ import { CandidateDetail } from "@/hooks/useCandidateDetail";
 import { Skeleton } from "../ui/skeleton";
 import { useMessages } from "@/i18n/useMessage";
 import { BareButton } from "@/components/ui/button";
-import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
 export type ChatScope =
   | { type: "query"; queryId: string }

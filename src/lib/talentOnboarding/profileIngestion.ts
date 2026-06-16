@@ -4,6 +4,7 @@ import {
   buildCareerProfileIngestionUserPrompt,
   buildCareerProfileUpdateMergeSystemPrompt,
   buildCareerProfileUpdateMergeUserPrompt,
+  getCareerProfilePromptCurrentDate,
 } from "@/lib/career/prompts";
 import { runCareerProfileIngestion } from "@/lib/career/llm";
 import {
@@ -17,6 +18,11 @@ import {
   listApifyDatasetItems,
 } from "@/lib/apifyRest";
 import type { TalentStructuredProfile } from "@/lib/talentOnboarding/models";
+import {
+  sanitizeMultilineDbText,
+  sanitizeSingleLineDbText,
+} from "@/lib/textSanitization";
+import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
 
 const DEFAULT_LINKEDIN_ACTOR_ID = "LpVuK3Zozwuipa5bp";
 const NULL_CHAR_RE = /\u0000/g;
@@ -1209,6 +1215,7 @@ async function runResumeEnrichmentLlm(args: {
       {
         role: "user",
         content: buildCareerProfileIngestionUserPrompt({
+          currentDate: getCareerProfilePromptCurrentDate(),
           profileForPrompt,
           resumeText,
         }),
@@ -1486,17 +1493,20 @@ export async function ingestTalentProfileFromLinkedin(
     updated_at: now,
   };
 
-  if (typeof args.resumeFileName === "string" && args.resumeFileName.trim()) {
-    userPayload.resume_file_name = args.resumeFileName.trim();
+  const resumeFileName = sanitizeSingleLineDbText(args.resumeFileName, 240);
+  if (resumeFileName) {
+    userPayload.resume_file_name = resumeFileName;
   }
-  if (
-    typeof args.resumeStoragePath === "string" &&
-    args.resumeStoragePath.trim()
-  ) {
-    userPayload.resume_storage_path = args.resumeStoragePath.trim();
+  const resumeStoragePath = sanitizeSingleLineDbText(
+    args.resumeStoragePath,
+    2000
+  );
+  if (resumeStoragePath) {
+    userPayload.resume_storage_path = resumeStoragePath;
   }
-  if (typeof args.resumeText === "string") {
-    userPayload.resume_text = args.resumeText.trim().slice(0, 24000);
+  const resumeText = sanitizeMultilineDbText(args.resumeText, 24000);
+  if (resumeText) {
+    userPayload.resume_text = resumeText;
   }
 
   logger.log("[TalentIngest] writing talent_users");
@@ -1505,6 +1515,17 @@ export async function ingestTalentProfileFromLinkedin(
     .update(userPayload)
     .eq("user_id", userId);
   if (userUpdateError) {
+    await notifyUnsupportedUnicodeEscapeError({
+      error: userUpdateError,
+      metadata: {
+        hasResumeText: Boolean(resumeText),
+        linkCount: extracted.links.length,
+        resumeFileName: userPayload.resume_file_name ?? null,
+      },
+      route: "talentProfileIngestion",
+      stage: "talent_users.update:ingest_from_sources",
+      userId,
+    });
     throw new Error(userUpdateError.message ?? "Failed to update talent_users");
   }
 
@@ -1922,6 +1943,7 @@ async function runProfileUpdateMergeLlm(args: {
       {
         role: "user",
         content: buildCareerProfileUpdateMergeUserPrompt({
+          currentDate: getCareerProfilePromptCurrentDate(),
           existingProfile: buildExistingProfileForMergePrompt(
             args.existingProfile
           ),
@@ -2017,17 +2039,20 @@ function profileUserUpdatePayload(args: {
     }
   }
 
-  if (typeof args.resumeFileName === "string" && args.resumeFileName.trim()) {
-    payload.resume_file_name = args.resumeFileName.trim();
+  const resumeFileName = sanitizeSingleLineDbText(args.resumeFileName, 240);
+  if (resumeFileName) {
+    payload.resume_file_name = resumeFileName;
   }
-  if (
-    typeof args.resumeStoragePath === "string" &&
-    args.resumeStoragePath.trim()
-  ) {
-    payload.resume_storage_path = args.resumeStoragePath.trim();
+  const resumeStoragePath = sanitizeSingleLineDbText(
+    args.resumeStoragePath,
+    2000
+  );
+  if (resumeStoragePath) {
+    payload.resume_storage_path = resumeStoragePath;
   }
-  if (typeof args.resumeText === "string") {
-    payload.resume_text = args.resumeText.trim().slice(0, 24000);
+  const resumeText = sanitizeMultilineDbText(args.resumeText, 24000);
+  if (resumeText) {
+    payload.resume_text = resumeText;
   }
 
   return payload;
@@ -2159,6 +2184,18 @@ export async function mergeTalentProfileFromLatestSources(
     )
     .eq("user_id", userId);
   if (userUpdateError) {
+    await notifyUnsupportedUnicodeEscapeError({
+      error: userUpdateError,
+      metadata: {
+        linkCount: extracted.links.length,
+        resumeFileName: args.resumeFileName ?? null,
+        resumeTextLength:
+          typeof args.resumeText === "string" ? args.resumeText.length : 0,
+      },
+      route: "talentProfileIngestion",
+      stage: "talent_users.update:merge_latest_sources",
+      userId,
+    });
     throw new Error(userUpdateError.message ?? "Failed to update talent_users");
   }
 

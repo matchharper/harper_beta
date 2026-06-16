@@ -1,3 +1,4 @@
+import { careerT } from "@/lib/career/translatedCareerMessage";
 export const TALENT_MESSAGE_TYPE_OPPORTUNITY_FEEDBACK_NOTE =
   "opportunity_feedback_note";
 
@@ -19,9 +20,17 @@ export function buildOpportunityFeedbackNoteContent(args: {
   const actionLabel =
     args.action === "positive"
       ? args.sourceType === "internal"
-        ? "수락함"
-        : "저장함"
-      : "선호하지 않음";
+        ? careerT(
+            "ko",
+            "career.common.opportunity_feedback_note.0aslysy",
+            "수락함"
+          )
+        : careerT("ko", "career.common.career_history_panel.06mgpci", "저장함")
+      : careerT(
+          "ko",
+          "career.common.career_history_panel.0paqqgp",
+          "선호하지 않음"
+        );
 
   return `(${sourceLabel}) ${title} at ${companyName} ${actionLabel}`;
 }

@@ -39,6 +39,9 @@ import { cn } from "@/lib/utils";
 import type { CareerHistoryOpportunity } from "@/components/career/types";
 import { getOpportunityPostingStatus } from "@/components/career/history/opportunityPostingStatus";
 import { BareButton } from "@/components/ui/button";
+import { useMessages } from "@/i18n/useMessage";
+import { useCareerT } from "@/i18n/useCareerT";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 export type JobsDisplayTab = "new" | "saved" | "archived";
 
@@ -114,6 +117,8 @@ export default function CareerMobileJobsView({
   onOpenOpportunityInfo,
   onEditMemo,
 }: CareerMobileJobsViewProps) {
+  const t = useCareerT();
+
   const [internalTab, setInternalTab] = useState<JobsDisplayTab>("new");
   const tab = activeJobsTab ?? internalTab;
   const setTab = onChangeJobsTab ?? setInternalTab;
@@ -152,9 +157,33 @@ export default function CareerMobileJobsView({
   );
 
   const items: CareerInPageTabItem<JobsDisplayTab>[] = [
-    { id: "new", label: "새 포지션", count: newCount },
-    { id: "saved", label: "저장함", count: savedCount },
-    { id: "archived", label: "선호하지 않음", count: archivedCount },
+    {
+      id: "new",
+      label: careerT(
+        "ko",
+        "career.common.career_history_panel.02i826z",
+        "새 포지션"
+      ),
+      count: newCount,
+    },
+    {
+      id: "saved",
+      label: careerT(
+        "ko",
+        "career.common.career_history_panel.06mgpci",
+        "저장함"
+      ),
+      count: savedCount,
+    },
+    {
+      id: "archived",
+      label: careerT(
+        "ko",
+        "career.common.career_history_panel.0paqqgp",
+        "선호하지 않음"
+      ),
+      count: archivedCount,
+    },
   ];
 
   return (
@@ -218,7 +247,12 @@ export default function CareerMobileJobsView({
                 className="flex flex-1 items-center justify-center gap-2 px-6 py-20 text-[15px] text-neutral-muted"
               >
                 <Loader2 className="h-4 w-4 animate-spin text-neutral-primary" />
-                <span>저장된 정보를 불러오는 중입니다...</span>
+                <span>
+                  {t(
+                    "career.common.career_history_panel.0s3czqf",
+                    "저장된 정보를 불러오는 중입니다..."
+                  )}
+                </span>
               </motion.div>
             ) : (
               <motion.div
@@ -249,9 +283,23 @@ export default function CareerMobileJobsView({
 }
 
 function emptyStateMessage(tab: JobsDisplayTab) {
-  if (tab === "new") return "아직 새로 추천된 포지션이 없습니다.";
-  if (tab === "saved") return "저장한 포지션이 없습니다.";
-  return "선호하지 않음으로 보낸 포지션이 없습니다.";
+  if (tab === "new")
+    return careerT(
+      "ko",
+      "career.history.career_mobile_jobs_view.0f42kd7",
+      "아직 새로 추천된 포지션이 없습니다."
+    );
+  if (tab === "saved")
+    return careerT(
+      "ko",
+      "career.history.career_mobile_jobs_view.1m3uw9j",
+      "저장한 포지션이 없습니다."
+    );
+  return careerT(
+    "ko",
+    "career.history.career_mobile_jobs_view.0llq6g8",
+    "선호하지 않음으로 보낸 포지션이 없습니다."
+  );
 }
 
 function MobileOpportunityDetailPanel({
@@ -284,7 +332,17 @@ function MobileOpportunityDetailPanel({
             className="mt-5 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[8px] border border-neutral-1000-a10 bg-bg-floating px-3 py-2 text-sm font-medium text-neutral-primary"
           >
             <StickyNote className="h-4 w-4" />
-            {talentMemo ? "메모 수정" : "메모하기"}
+            {talentMemo
+              ? careerT(
+                  "ko",
+                  "career.history.feedback_modal.109eupo",
+                  "메모 수정"
+                )
+              : careerT(
+                  "ko",
+                  "career.history.career_mobile_jobs_view.18qduxt",
+                  "메모하기"
+                )}
           </BareButton>
         ) : null}
         <RecommendationContent
@@ -317,7 +375,8 @@ function OpportunitySummaryCard({
   onOpenCompanyInfo?: (opportunity: CareerHistoryOpportunity) => void;
   onOpenOpportunityInfo?: (type: CareerOpportunityType) => void;
 }) {
-  const postingStatus = getOpportunityPostingStatus(opportunity);
+  const { locale } = useMessages();
+  const postingStatus = getOpportunityPostingStatus(opportunity, locale);
   const metaItems = getMetaItems(opportunity);
   const companyInfoLink =
     opportunity.companyHomepageUrl ?? opportunity.companyLinkedinUrl;
@@ -423,6 +482,8 @@ function RecommendationContent({
   opportunity: CareerHistoryOpportunity;
   showTalentMemo?: boolean;
 }) {
+  const t = useCareerT();
+
   const summary = opportunity.recommendationSummary?.trim();
   const concerns = opportunity.recommendationConcerns ?? [];
   const talentMemo = opportunity.talentMemo?.trim() ?? "";
@@ -440,7 +501,7 @@ function RecommendationContent({
       {showTalentMemo && talentMemo ? (
         <div className="rounded-[8px] border border-neutral-1000-a05 bg-bg-floating px-3 py-2 shadow-sm">
           <div className="text-[12px] font-medium text-neutral-soft">
-            내 메모
+            {t("career.history.career_mobile_jobs_view.1gufjot", "내 메모")}
           </div>
           <div className="mt-1 whitespace-pre-wrap text-[13px] text-neutral-primary">
             {talentMemo}
@@ -465,7 +526,9 @@ function RecommendationContent({
           className="flex w-full items-start justify-start gap-1"
         >
           <Dot className="mt-0.5 h-4 w-4 min-w-4 text-neutral-soft" />
-          <div className="min-w-0 flex-1">불안 요소 : {concern}</div>
+          <div className="min-w-0 flex-1">
+            {t("career.common.career.0z5xpdx", "불안 요소 :")} {concern}
+          </div>
         </div>
       ))}
     </div>
@@ -477,6 +540,8 @@ function JDLinkButton({
 }: {
   opportunity: CareerHistoryOpportunity;
 }) {
+  const t = useCareerT();
+
   const logCareerEvent = useCareerLogEvent();
   const roleLink = opportunity.href;
   if (!roleLink) return null;
@@ -495,7 +560,7 @@ function JDLinkButton({
       }
       className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-black px-4 py-3 text-sm font-semibold text-neutral-00 transition-opacity active:opacity-90"
     >
-      JD 확인하기
+      {t("career.common.career.0wohsg4", "JD 확인하기")}
       <ArrowUpRight className="h-4 w-4" />
     </a>
   );
@@ -526,7 +591,9 @@ function CompanySection({
   const canOpenCompanyInfo = Boolean(
     onOpenCompanyInfo && (opportunity.companyDbId || companyInfoLink)
   );
-  const actionLabel = opportunity.companyDbId ? "회사 정보" : "링크 열기";
+  const actionLabel = opportunity.companyDbId
+    ? careerT("ko", "career.common.career.0ol21b2", "회사 정보")
+    : careerT("ko", "career.common.career.09c4j2c", "링크 열기");
 
   return (
     <section className="space-y-2">
@@ -548,7 +615,12 @@ function CompanySection({
       </div>
       <div className="h-px w-full bg-neutral-1000-a05" />
       <div className="text-sm leading-6">
-        {opportunity.companyDescription?.trim() || "아직 회사 설명이 없습니다."}
+        {opportunity.companyDescription?.trim() ||
+          careerT(
+            "ko",
+            "career.common.career.083cky2",
+            "아직 회사 설명이 없습니다."
+          )}
       </div>
     </section>
   );
@@ -559,17 +631,22 @@ function RoleDescriptionSection({
 }: {
   opportunity: CareerHistoryOpportunity;
 }) {
+  const t = useCareerT();
+
   return (
     <section className="space-y-2">
       <h3 className="flex items-center gap-2 text-[14px] font-medium leading-5 text-neutral-primary">
-        <span>역할 설명</span>
+        <span>{t("career.common.career.0f24yir", "역할 설명")}</span>
       </h3>
       <div className="h-px w-full bg-neutral-1000-a05" />
       {opportunity.description?.trim() ? (
         <RichText content={opportunity.description} />
       ) : (
         <div className="text-sm leading-6">
-          아직 상세 역할 설명이 정리되지 않았습니다.
+          {t(
+            "career.common.career.1ugn5p7",
+            "아직 상세 역할 설명이 정리되지 않았습니다."
+          )}
         </div>
       )}
     </section>
@@ -625,6 +702,8 @@ function SwipeHintOverlay({
   topInsetPx?: number;
   bottomInsetPx?: number;
 }) {
+  const t = useCareerT();
+
   const startRef = useRef<{ x: number; y: number } | null>(null);
 
   const handleTouchStart = (event: React.TouchEvent<HTMLButtonElement>) => {
@@ -681,7 +760,10 @@ function SwipeHintOverlay({
         </motion.div>
       </div>
       <p className="text-[14px] font-medium text-neutral-00">
-        좌우로 넘겨 보세요
+        {t(
+          "career.history.career_mobile_jobs_view.0ujd7dh",
+          "좌우로 넘겨 보세요"
+        )}
       </p>
     </motion.button>
   );

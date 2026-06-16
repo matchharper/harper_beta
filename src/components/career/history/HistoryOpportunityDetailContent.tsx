@@ -23,6 +23,9 @@ import OpportunityPreferenceFit from "./OpportunityPreferenceFit";
 import { Badge } from "@/components/ui/badge";
 import { getOpportunityPostingStatus } from "./opportunityPostingStatus";
 import { BareButton } from "@/components/ui/button";
+import { useMessages } from "@/i18n/useMessage";
+import { useCareerT } from "@/i18n/useCareerT";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 export const OpportunityHeader = ({
   item,
@@ -37,7 +40,8 @@ export const OpportunityHeader = ({
   onOpenOpportunityInfo: (type: CareerOpportunityType) => void;
   extraComponent?: ReactNode;
 }) => {
-  const postingStatus = getOpportunityPostingStatus(item);
+  const { locale } = useMessages();
+  const postingStatus = getOpportunityPostingStatus(item, locale);
   const companyInfoLink = item.companyHomepageUrl ?? item.companyLinkedinUrl;
   const canOpenCompanyInfo = Boolean(
     onOpenCompanyInfo || item.companyDbId || companyInfoLink
@@ -197,7 +201,11 @@ const HistoryDetailArrowButton = ({
 }) => (
   <BareButton
     type="button"
-    aria-label={direction === "prev" ? "이전 기회" : "다음 기회"}
+    aria-label={
+      direction === "prev"
+        ? careerT("ko", "career.common.career.0madjab", "이전 기회")
+        : careerT("ko", "career.common.career.18neuzv", "다음 기회")
+    }
     onClick={onClick}
     className={cn(
       "absolute top-1/2 z-10 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-neutral-1000-a10 bg-bg-floating text-neutral-muted transition-colors hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary",
@@ -228,6 +236,8 @@ const HistoryOpportunityDetailContent = ({
   onMoveNext?: () => void;
   onMovePrev?: () => void;
 }) => {
+  const t = useCareerT();
+
   const companyInfoLink = item.companyHomepageUrl ?? item.companyLinkedinUrl;
   const canOpenCompanyInfo = Boolean(item.companyDbId || companyInfoLink);
   const roleLink = item.href;
@@ -257,7 +267,9 @@ const HistoryOpportunityDetailContent = ({
               item.recommendationReasons.length > 0) && (
               <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-neutral-1000-a05 bg-bg-floating p-4 text-sm text-neutral-primary shadow-sm">
                 <div className="w-full flex flex-row items-center justify-between text-neutral-muted">
-                  <div>Harper가 요약한 정보</div>
+                  <div>
+                    {t("career.common.career.1xe09ft", "Harper가 요약한 정보")}
+                  </div>
                   <div>
                     {roleLink && (
                       <BareButton
@@ -266,7 +278,7 @@ const HistoryOpportunityDetailContent = ({
                         className="underline underline-offset-4 cursor-pointer hover:text-neutral-primary flex flex-row items-center gap-1"
                       >
                         <ArrowUpRight className="h-4 w-4" />
-                        JD 확인하기
+                        {t("career.common.career.0wohsg4", "JD 확인하기")}
                       </BareButton>
                     )}
                   </div>
@@ -292,7 +304,10 @@ const HistoryOpportunityDetailContent = ({
                       className="flex w-full flex-row items-center justify-start gap-1"
                     >
                       <Dot className="h-5 w-5 min-w-5" />
-                      <div>불안 요소 : {concern}</div>
+                      <div>
+                        {t("career.common.career.0z5xpdx", "불안 요소 :")}{" "}
+                        {concern}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -312,8 +327,16 @@ const HistoryOpportunityDetailContent = ({
                 openText={
                   canOpenCompanyInfo
                     ? item.companyDbId
-                      ? "회사 정보"
-                      : "링크 열기"
+                      ? careerT(
+                          "ko",
+                          "career.common.career.0ol21b2",
+                          "회사 정보"
+                        )
+                      : careerT(
+                          "ko",
+                          "career.common.career.09c4j2c",
+                          "링크 열기"
+                        )
                     : undefined
                 }
                 onClick={
@@ -331,18 +354,28 @@ const HistoryOpportunityDetailContent = ({
               <div className="h-px w-full bg-neutral-1000-a05" />
               <div className="text-sm leading-6">
                 {item.companyDescription?.trim() ||
-                  "아직 회사 설명이 없습니다."}
+                  careerT(
+                    "ko",
+                    "career.common.career.083cky2",
+                    "아직 회사 설명이 없습니다."
+                  )}
               </div>
             </div>
 
             <div className="space-y-2">
-              <HistorySectionTitle icon={<></>} title="역할 설명" />
+              <HistorySectionTitle
+                icon={<></>}
+                title={t("career.common.career.0f24yir", "역할 설명")}
+              />
               <div className="h-px w-full bg-neutral-1000-a05" />
               {item.description?.trim() ? (
                 <RichText content={item.description} />
               ) : (
                 <div className="text-sm leading-6">
-                  아직 상세 역할 설명이 정리되지 않았습니다.
+                  {t(
+                    "career.common.career.1ugn5p7",
+                    "아직 상세 역할 설명이 정리되지 않았습니다."
+                  )}
                 </div>
               )}
             </div>
@@ -366,10 +399,9 @@ export const HistoryOpportunityInfoTag = ({
   const isConnectionOpportunity =
     item.opportunityType === OpportunityType.InternalRecommendation ||
     item.opportunityType === OpportunityType.IntroRequest;
-  const textColor =
-    isConnectionOpportunity
-      ? "bg-black text-neutral-00"
-      : "bg-bg-weak text-neutral-primary";
+  const textColor = isConnectionOpportunity
+    ? "bg-black text-neutral-00"
+    : "bg-bg-weak text-neutral-primary";
 
   return (
     <Badge

@@ -162,8 +162,6 @@ export default function OpsCareerPage() {
       ? "내부 데이터 제외 설정으로 숨겨진 talent만 있습니다."
       : "등록된 talent가 없습니다.";
 
-  const totalCount = data?.pages[0]?.totalCount ?? 0;
-
   return (
     <>
       <Head>

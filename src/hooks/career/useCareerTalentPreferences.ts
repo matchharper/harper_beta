@@ -16,6 +16,8 @@ import {
 import { getErrorMessage } from "./careerHelpers";
 import { showOpportunityDiscoveryStartedToast } from "./opportunityDiscoveryToast";
 import type { FetchWithAuth } from "./useCareerApi";
+import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
+import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 
 type UseCareerTalentPreferencesArgs = {
   fetchWithAuth: FetchWithAuth;
@@ -99,12 +101,14 @@ export const useCareerTalentPreferences = ({
   fetchWithAuth,
   user,
 }: UseCareerTalentPreferencesArgs) => {
+  const tCareer = useCareerMessageFormatter();
   const [talentPreferences, setTalentPreferences] =
     useState<CareerTalentPreferences | null>(null);
   const [savedTalentPreferences, setSavedTalentPreferences] =
     useState<CareerTalentPreferences | null>(null);
-  const [talentPreferencesUpdatedAt, setTalentPreferencesUpdatedAt] =
-    useState<string | null>(null);
+  const [talentPreferencesUpdatedAt, setTalentPreferencesUpdatedAt] = useState<
+    string | null
+  >(null);
   const [talentPreferencesSavePending, setTalentPreferencesSavePending] =
     useState(false);
   const [talentPreferencesSaveError, setTalentPreferencesSaveError] =
@@ -166,8 +170,10 @@ export const useCareerTalentPreferences = ({
         method: "POST",
         body: JSON.stringify({
           engagementTypes: talentPreferences.engagementTypes,
-          getExternalRecommendation: talentPreferences.getExternalRecommendation,
-          getInternalRecommendation: talentPreferences.getInternalRecommendation,
+          getExternalRecommendation:
+            talentPreferences.getExternalRecommendation,
+          getInternalRecommendation:
+            talentPreferences.getInternalRecommendation,
           periodicIntervalDays: talentPreferences.periodicIntervalDays,
           recommendationBatchSize: talentPreferences.recommendationBatchSize,
         }),
@@ -177,7 +183,7 @@ export const useCareerTalentPreferences = ({
         .catch(() => ({}))) as TalentPreferencesPayload;
       if (!response.ok) {
         throw new Error(
-          getErrorMessage(payload, "프로필 선호 정보 저장에 실패했습니다.")
+          getErrorMessage(payload, tCareer(H.talentPreferencesSaveFailed))
         );
       }
 
@@ -186,15 +192,17 @@ export const useCareerTalentPreferences = ({
         payload.preferencesUpdatedAt
       );
       if (payload.opportunityDiscoveryQueued) {
-        showOpportunityDiscoveryStartedToast();
+        showOpportunityDiscoveryStartedToast(
+          tCareer(H.opportunityDiscoveryStarted)
+        );
       }
-      setTalentPreferencesSaveInfo("프로필 설정을 저장했습니다.");
+      setTalentPreferencesSaveInfo(tCareer(H.talentPreferencesSaved));
       return true;
     } catch (error) {
       const message =
         error instanceof Error
           ? error.message
-          : "프로필 선호 정보 저장에 실패했습니다.";
+          : tCareer(H.talentPreferencesSaveFailed);
       setTalentPreferencesSaveError(message);
       return false;
     } finally {
@@ -205,6 +213,7 @@ export const useCareerTalentPreferences = ({
     fetchWithAuth,
     talentPreferences,
     talentPreferencesSavePending,
+    tCareer,
     user,
   ]);
 

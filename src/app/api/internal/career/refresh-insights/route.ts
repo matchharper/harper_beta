@@ -36,7 +36,9 @@ function parseRefreshResponse(raw: string): Record<string, string> {
         const parsed = JSON.parse(match[0]);
         const insights = parsed.extracted_insights;
         if (insights && typeof insights === "object") return insights;
-      } catch { /* fall through */ }
+      } catch {
+        /* fall through */
+      }
     }
     return {};
   }
@@ -74,11 +76,11 @@ export async function POST(req: NextRequest) {
     // Fetch insights, profile, and merged checklist in parallel
     const [currentInsights, profile, talentSetting, mergedChecklist] =
       await Promise.all([
-      fetchTalentInsights({ admin, userId }),
-      fetchTalentUserProfile({ admin, userId }),
-      fetchTalentSetting({ admin, userId }),
-      getMergedChecklist({ admin }),
-    ]);
+        fetchTalentInsights({ admin, userId }),
+        fetchTalentUserProfile({ admin, userId }),
+        fetchTalentSetting({ admin, userId }),
+        getMergedChecklist({ admin }),
+      ]);
 
     // Fetch messages and structured profile in parallel
     const [allMessages, structuredProfile] = await Promise.all([
@@ -96,10 +98,14 @@ export async function POST(req: NextRequest) {
       maxResumeChars: 6000,
     });
 
-    const currentContent = (currentInsights?.content as Record<string, string> | null) ?? {};
+    const currentContent =
+      (currentInsights?.content as Record<string, string> | null) ?? {};
 
     // Get empty keys from merged checklist
-    const emptyKeys = await getEmptyInsightKeys(currentContent, mergedChecklist);
+    const emptyKeys = await getEmptyInsightKeys(
+      currentContent,
+      mergedChecklist
+    );
     if (emptyKeys.length === 0) {
       return NextResponse.json({
         ok: true,
@@ -112,7 +118,10 @@ export async function POST(req: NextRequest) {
     const llmMessages: TalentChatMessage[] = [
       {
         role: "system",
-        content: buildCareerRefreshExtractionPrompt({ emptyKeys }),
+        content: buildCareerRefreshExtractionPrompt({
+          emptyKeys,
+          preferredLocale: talentSetting?.preferred_locale ?? null,
+        }),
       },
       {
         role: "system",
@@ -136,7 +145,8 @@ export async function POST(req: NextRequest) {
 
     for (const [rawKey, value] of Object.entries(extracted)) {
       const normalizedKey = normalizeTalentInsightKey(rawKey);
-      if (!normalizedKey || typeof value !== "string" || !value.trim()) continue;
+      if (!normalizedKey || typeof value !== "string" || !value.trim())
+        continue;
 
       const existingValue = existingContent[normalizedKey];
       if (existingValue && existingValue.trim()) continue; // NEVER overwrite non-empty

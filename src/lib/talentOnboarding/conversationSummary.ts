@@ -1,4 +1,5 @@
 import { runCareerConversationSummary } from "@/lib/career/llm";
+import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import {
   TALENT_PENDING_QUESTION_PREFIX,
@@ -14,6 +15,7 @@ import {
   fetchMessages,
   fetchRecentMessages,
 } from "@/lib/talentOnboarding/messageStore";
+import { fetchTalentSetting } from "@/lib/talentOnboarding/server";
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 
 const SUMMARY_MESSAGE_TYPE = "conversation_summary";
@@ -148,13 +150,15 @@ function selectSourceMessages(messages: TalentMessageRow[]) {
   return selected;
 }
 
-function buildSummarySystemPrompt() {
+function buildSummarySystemPrompt(preferredLocale?: string | null) {
+  const outputLanguage = getCareerPromptLanguageName(preferredLocale);
+
   return [
     "You summarize Harper career-agent conversations for future context.",
     "Return a valid JSON object only.",
-    "Write Korean unless a company, role, or product name is naturally English.",
+    `Write in ${outputLanguage} unless a company, role, or product name is naturally written in another language.`,
     "Preserve durable facts: career preferences, constraints, corrections, recommendation feedback, and unresolved commitments already stated in the conversation.",
-    "Also write `segment_summary` from ONLY the new messages to fold in. It should be 4-8 concise Korean sentences and must not include facts that only come from the existing rolling summary.",
+    `Also write \`segment_summary\` from ONLY the new messages to fold in. It should be 4-8 concise ${outputLanguage} sentences and must not include facts that only come from the existing rolling summary.`,
     "Each new message includes a KST date. `segment_summary` must include date labels for the summarized message date(s).",
     'Format each `segment_summary` segment as `[YYYY.MM.DD] "summary"`. If a single summarized segment spans consecutive dates in the same month, use `[YYYY.MM.DD~DD] "summary"`, for example `[2026.05.24~26] "..."`. If a date range crosses months or years, use full endpoints like `[YYYY.MM.DD~YYYY.MM.DD] "summary"`.',
     'When `segment_summary` covers multiple non-consecutive date groups, write multiple labeled segments separated by spaces, for example `[2026.05.14] "..." [2026.05.24~26] "..."`. Do not put unlabeled text in `segment_summary`.',
@@ -172,10 +176,9 @@ function buildSummaryUserPrompt(args: {
 }) {
   return [
     args.existingSummary
-      ? [
-          "[Existing rolling summary]",
-          args.existingSummary.summary_text,
-        ].join("\n")
+      ? ["[Existing rolling summary]", args.existingSummary.summary_text].join(
+          "\n"
+        )
       : "[Existing rolling summary]\n(none)",
     "",
     "[New message date coverage - KST]",
@@ -250,9 +253,11 @@ async function fetchLatestConversationSummaryCursor(args: {
   }
 
   const summary =
-    ((data ?? []) as Array<
-      TalentConversationSummaryCursorRow & { segment_summary?: string | null }
-    >).find((row) => Boolean(normalizeText(row.segment_summary, 1))) ?? null;
+    (
+      (data ?? []) as Array<
+        TalentConversationSummaryCursorRow & { segment_summary?: string | null }
+      >
+    ).find((row) => Boolean(normalizeText(row.segment_summary, 1))) ?? null;
 
   return summary
     ? {
@@ -334,9 +339,13 @@ export async function maybeSummarizeTalentConversation(args: {
   if (summarizedMessages.length === 0) {
     return { created: false, reason: "no_messages" as const };
   }
+  const talentSetting = await fetchTalentSetting({
+    admin: args.admin,
+    userId: args.userId,
+  });
 
   const raw = await runCareerConversationSummary({
-    systemPrompt: buildSummarySystemPrompt(),
+    systemPrompt: buildSummarySystemPrompt(talentSetting?.preferred_locale),
     userPrompt: buildSummaryUserPrompt({
       existingSummary: latestSummary,
       messages: summarizedMessages,

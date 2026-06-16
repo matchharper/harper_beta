@@ -57,7 +57,7 @@ import {
 } from "@/lib/opportunityDiscovery/store";
 import {
   createRecommendJobPostingStatusLog,
-  RECOMMEND_JOB_POSTINGS_CHAT_PREAMBLE,
+  getRecommendJobPostingsChatPreamble,
   type RecommendJobPostingStatus,
 } from "@/lib/talentOnboarding/recommendJobPostingStatus";
 import {
@@ -81,8 +81,14 @@ import {
 } from "@/lib/career/companySnapshot";
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 import { getCareerConversationStarterPrompt } from "@/lib/career/conversationStarterPrompts";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 import { logger } from "@/utils/logger";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
+import {
+  sanitizeSingleLineDbText,
+  stripPostgresUnsafeChars,
+} from "@/lib/textSanitization";
+import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
 
 export const maxDuration = 180;
 
@@ -91,6 +97,7 @@ type Body = {
   channel?: string;
   conversationStarterId?: string;
   conversationId?: string;
+  locale?: string;
   message?: string;
   link?: string;
 };
@@ -200,7 +207,8 @@ async function buildTalentProfileSnapshot(args: {
 }
 
 const optionalToolString = (value: unknown) => {
-  const text = typeof value === "string" ? value.trim() : "";
+  const text =
+    typeof value === "string" ? stripPostgresUnsafeChars(value).trim() : "";
   return text || null;
 };
 
@@ -245,7 +253,10 @@ function splitToolUiStatus(input: Record<string, unknown>) {
   const { [TOOL_UI_STATUS_MESSAGE_KEY]: rawStatus, ...toolInput } = input;
   const status =
     typeof rawStatus === "string"
-      ? rawStatus.replace(/\s+/g, " ").trim().slice(0, 160)
+      ? stripPostgresUnsafeChars(rawStatus)
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 160)
       : "";
 
   return {
@@ -255,7 +266,10 @@ function splitToolUiStatus(input: Record<string, unknown>) {
 }
 
 function appendThinkingLog(logs: string[], status: string) {
-  const normalized = status.replace(/\s+/g, " ").trim().slice(0, 160);
+  const normalized = stripPostgresUnsafeChars(status)
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 160);
   if (!normalized) return logs;
   if (logs[logs.length - 1] === normalized) return logs;
   return [...logs, normalized].slice(-12);
@@ -281,18 +295,38 @@ function getOnboardingMarkerPrefixSuffixLength(value: string) {
   return 0;
 }
 
-function getToolStartThinkingLog(toolName: string) {
+function getToolStartThinkingLog(toolName: string, locale?: string | null) {
   switch (toolName) {
     case TALENT_TOOL_NAMES.UPDATE_SETTING:
-      return "추천 발송 설정을 업데이트하고 있습니다.";
+      return careerT(
+        locale,
+        "career.chat.tool.update_setting.start",
+        "추천 발송 설정을 업데이트하고 있습니다."
+      );
     case TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE:
-      return "프로필 정보를 업데이트하고 있습니다.";
+      return careerT(
+        locale,
+        "career.chat.tool.update_talent_profile.start",
+        "프로필 정보를 업데이트하고 있습니다."
+      );
     case TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION:
-      return "다음에 확인할 온보딩 질문을 고르고 있습니다.";
+      return careerT(
+        locale,
+        "career.chat.tool.select_onboarding_question.start",
+        "다음에 확인할 온보딩 질문을 고르고 있습니다."
+      );
     case TALENT_TOOL_NAMES.OPEN_URL:
-      return "공유된 링크 내용을 확인하고 있습니다.";
+      return careerT(
+        locale,
+        "career.chat.tool.open_url.start",
+        "공유된 링크 내용을 확인하고 있습니다."
+      );
     case TALENT_TOOL_NAMES.RESEARCH_COMPANY:
-      return "회사 정보를 확인하고 있습니다.";
+      return careerT(
+        locale,
+        "career.chat.tool.research_company.start",
+        "회사 정보를 확인하고 있습니다."
+      );
     default:
       return "";
   }
@@ -352,9 +386,12 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json()) as Body;
     const isMobile = isMobileRequest(req);
-    const conversationId = body.conversationId?.trim();
-    const message = body.message?.trim();
-    const link = body.link?.trim();
+    const conversationId = sanitizeSingleLineDbText(body.conversationId, 80);
+    const message =
+      typeof body.message === "string"
+        ? stripPostgresUnsafeChars(body.message).trim()
+        : "";
+    const link = sanitizeSingleLineDbText(body.link, 2000);
     const requestChannel = body.channel === "voice" ? "voice" : "chat";
     const allowedToolNames = normalizeAllowedToolNames(body.allowedToolNames);
     const conversationStarterId =
@@ -521,6 +558,10 @@ export async function POST(req: NextRequest) {
     const shouldAutoExtractInsights = !Boolean(
       talentSetting?.is_onboarding_done
     );
+    const responseLocale =
+      talentSetting?.preferred_locale ??
+      body.locale ??
+      req.cookies.get("NEXT_LOCALE")?.value;
     const extractTurnInsights = (assistantContent: string) =>
       shouldAutoExtractInsights
         ? extractAndPersistChatInsights({
@@ -530,6 +571,7 @@ export async function POST(req: NextRequest) {
               buildCareerInsightExtractionPrompt({
                 currentChecklistCoverage: promptArgs.currentChecklistCoverage,
                 currentInsightContent: promptArgs.currentInsightContent,
+                preferredLocale: responseLocale,
               }),
             conversationId,
             currentInsightContent,
@@ -561,6 +603,20 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (userMessageError) {
+      await notifyUnsupportedUnicodeEscapeError({
+        conversationId,
+        error: userMessageError,
+        metadata: {
+          channel: requestChannel,
+          hasLink: Boolean(link),
+          messageLength: message.length,
+          normalizedContentLength: normalizedContent.length,
+          streamResponse,
+        },
+        route: "/api/talent/chat",
+        stage: "talent_messages.insert:user_message",
+        userId: user.id,
+      });
       return NextResponse.json(
         { error: userMessageError.message ?? "Failed to insert user message" },
         { status: 500 }
@@ -601,6 +657,7 @@ export async function POST(req: NextRequest) {
       allowedToolNames,
       channel: requestChannel,
       isOnboardingDone: talentSetting?.is_onboarding_done,
+      responseLocale,
     });
     const toolDefinitions = toolSelection.tools;
     const currentPreferences = {
@@ -609,6 +666,7 @@ export async function POST(req: NextRequest) {
       getInternalRecommendation:
         talentSetting?.get_internal_recommendation ?? true,
       periodicIntervalDays: talentSetting?.periodic_interval_days ?? null,
+      preferredLocale: responseLocale,
       profileVisibility: talentSetting?.profile_visibility ?? null,
       recommendationBatchSize: talentSetting?.recommendation_batch_size ?? null,
     };
@@ -740,6 +798,7 @@ export async function POST(req: NextRequest) {
             abortSignal: req.signal,
             conversationId,
             isMobile,
+            responseLocale,
             userMessageId: insertedUserMessage.id,
             userId: user.id,
           },
@@ -783,6 +842,7 @@ export async function POST(req: NextRequest) {
           abortSignal: req.signal,
           conversationId,
           isMobile,
+          responseLocale,
           userMessageId: insertedUserMessage.id,
           userId: user.id,
         },
@@ -827,10 +887,9 @@ export async function POST(req: NextRequest) {
           let streamedAssistantText = "";
           let recommendationStatusAfterCharCount: number | null = null;
           const sendVisibleTextDelta = (delta: string) => {
-            pendingAssistantText = (pendingAssistantText + delta).replaceAll(
-              TALENT_ONBOARDING_DONE_MARKER,
-              ""
-            );
+            pendingAssistantText = stripPostgresUnsafeChars(
+              pendingAssistantText + delta
+            ).replaceAll(TALENT_ONBOARDING_DONE_MARKER, "");
             const heldSuffixLength =
               getOnboardingMarkerPrefixSuffixLength(pendingAssistantText);
             const safeLength = pendingAssistantText.length - heldSuffixLength;
@@ -871,9 +930,10 @@ export async function POST(req: NextRequest) {
               return;
             }
 
-            injectedRecommendationToolPreamble =
-              RECOMMEND_JOB_POSTINGS_CHAT_PREAMBLE;
-            sendVisibleTextDelta(`${RECOMMEND_JOB_POSTINGS_CHAT_PREAMBLE}\n\n`);
+            const recommendationToolPreamble =
+              getRecommendJobPostingsChatPreamble(responseLocale);
+            injectedRecommendationToolPreamble = recommendationToolPreamble;
+            sendVisibleTextDelta(`${recommendationToolPreamble}\n\n`);
           };
           const markRecommendationStatusAnchor = () => {
             if (recommendationStatusAfterCharCount !== null) return;
@@ -905,6 +965,7 @@ export async function POST(req: NextRequest) {
               tools: toolDefinitions,
               stopAfterToolNames: toolSelection.stopAfterToolNames,
               systemBlocks,
+              responseLocale,
               onTextDelta: (delta) => {
                 sendVisibleTextDelta(delta);
               },
@@ -916,7 +977,10 @@ export async function POST(req: NextRequest) {
                   return;
                 }
 
-                const status = getToolStartThinkingLog(tool.name);
+                const status = getToolStartThinkingLog(
+                  tool.name,
+                  responseLocale
+                );
                 if (status) {
                   recordThinkingLog(status);
                 }
@@ -947,12 +1011,16 @@ export async function POST(req: NextRequest) {
                   const cachedSnapshot = await fetchRecentCompanySnapshot({
                     admin,
                     companyName,
+                    preferredLocale: responseLocale,
                   });
                   if (cachedSnapshot) {
-                    const messageContent = formatCompanySnapshotMessage({
-                      reused: true,
-                      snapshot: cachedSnapshot,
-                    });
+                    const messageContent = stripPostgresUnsafeChars(
+                      formatCompanySnapshotMessage({
+                        preferredLocale: responseLocale,
+                        reused: true,
+                        snapshot: cachedSnapshot,
+                      })
+                    );
                     const { data: cacheMessage, error: cacheMessageError } =
                       await admin
                         .from("talent_messages")
@@ -992,13 +1060,17 @@ export async function POST(req: NextRequest) {
                   const result = await getOrCreateCompanySnapshot({
                     admin,
                     companyName,
+                    preferredLocale: responseLocale,
                     reason: optionalToolString(toolInput.reason),
                     userId: user.id,
                   });
-                  const messageContent = formatCompanySnapshotMessage({
-                    reused: result.reused,
-                    snapshot: result.snapshot,
-                  });
+                  const messageContent = stripPostgresUnsafeChars(
+                    formatCompanySnapshotMessage({
+                      preferredLocale: responseLocale,
+                      reused: result.reused,
+                      snapshot: result.snapshot,
+                    })
+                  );
                   const { data: researchMessage, error: researchMessageError } =
                     await admin
                       .from("talent_messages")
@@ -1090,6 +1162,7 @@ export async function POST(req: NextRequest) {
                   latestUserMessage: normalizedContent,
                   messages: llmMessages,
                   onTextDelta: sendVisibleTextDelta,
+                  responseLocale,
                   systemBlocks,
                 })
               ).trim();
@@ -1106,8 +1179,8 @@ export async function POST(req: NextRequest) {
               assistantContent: assistantTextWithMarkers,
             });
 
-            let safeAssistantText = stripTalentOnboardingCompletionMarker(
-              assistantTextWithMarkers
+            let safeAssistantText = stripPostgresUnsafeChars(
+              stripTalentOnboardingCompletionMarker(assistantTextWithMarkers)
             );
             if (!safeAssistantText) {
               const recoveredText = (
@@ -1115,6 +1188,7 @@ export async function POST(req: NextRequest) {
                   latestUserMessage: normalizedContent,
                   messages: llmMessages,
                   onTextDelta: sendVisibleTextDelta,
+                  responseLocale,
                   systemBlocks,
                 })
               ).trim();
@@ -1126,8 +1200,8 @@ export async function POST(req: NextRequest) {
               assistantTextWithMarkers = completion.completed
                 ? `${recoveredText}\n\n${TALENT_ONBOARDING_DONE_MARKER}`
                 : recoveredText;
-              safeAssistantText = stripTalentOnboardingCompletionMarker(
-                assistantTextWithMarkers
+              safeAssistantText = stripPostgresUnsafeChars(
+                stripTalentOnboardingCompletionMarker(assistantTextWithMarkers)
               );
             }
             if (
@@ -1284,11 +1358,25 @@ export async function POST(req: NextRequest) {
             send("done", { ok: true });
           } catch (error) {
             if (req.signal.aborted) return;
-            const message =
+            await notifyUnsupportedUnicodeEscapeError({
+              conversationId,
+              error,
+              metadata: {
+                channel: requestChannel,
+                hasLink: Boolean(link),
+                messageLength: message.length,
+                streamedAssistantLength: streamedAssistantText.length,
+                streamResponse: true,
+              },
+              route: "/api/talent/chat",
+              stage: "stream",
+              userId: user.id,
+            });
+            const errorMessage =
               error instanceof Error
                 ? error.message
                 : "Failed to process talent chat";
-            send("error", { error: message });
+            send("error", { error: errorMessage });
           } finally {
             emitToolStatus = null;
             emitRecommendationStatus = null;
@@ -1311,6 +1399,7 @@ export async function POST(req: NextRequest) {
       tools: toolDefinitions,
       stopAfterToolNames: toolSelection.stopAfterToolNames,
       systemBlocks,
+      responseLocale,
       executeTool: async ({ name, input }) => {
         const { status, toolInput } = splitToolUiStatus(input);
         if (status) {
@@ -1334,12 +1423,16 @@ export async function POST(req: NextRequest) {
           const cachedSnapshot = await fetchRecentCompanySnapshot({
             admin,
             companyName,
+            preferredLocale: responseLocale,
           });
           if (cachedSnapshot) {
-            const messageContent = formatCompanySnapshotMessage({
-              reused: true,
-              snapshot: cachedSnapshot,
-            });
+            const messageContent = stripPostgresUnsafeChars(
+              formatCompanySnapshotMessage({
+                preferredLocale: responseLocale,
+                reused: true,
+                snapshot: cachedSnapshot,
+              })
+            );
             const { data: cacheMessage, error: cacheMessageError } = await admin
               .from("talent_messages")
               .insert(
@@ -1357,6 +1450,19 @@ export async function POST(req: NextRequest) {
               .select("*")
               .single();
             if (cacheMessageError || !cacheMessage) {
+              await notifyUnsupportedUnicodeEscapeError({
+                conversationId,
+                error: cacheMessageError,
+                metadata: {
+                  companyName,
+                  messageContentLength: messageContent.length,
+                  reusedSnapshot: true,
+                  streamResponse: false,
+                },
+                route: "/api/talent/chat",
+                stage: "talent_messages.insert:company_snapshot_cached",
+                userId: user.id,
+              });
               throw new Error(
                 cacheMessageError?.message ??
                   "Failed to insert company_snapshot result message."
@@ -1375,13 +1481,17 @@ export async function POST(req: NextRequest) {
           const result = await getOrCreateCompanySnapshot({
             admin,
             companyName,
+            preferredLocale: responseLocale,
             reason: optionalToolString(toolInput.reason),
             userId: user.id,
           });
-          const messageContent = formatCompanySnapshotMessage({
-            reused: result.reused,
-            snapshot: result.snapshot,
-          });
+          const messageContent = stripPostgresUnsafeChars(
+            formatCompanySnapshotMessage({
+              preferredLocale: responseLocale,
+              reused: result.reused,
+              snapshot: result.snapshot,
+            })
+          );
           const { data: researchMessage, error: researchMessageError } =
             await admin
               .from("talent_messages")
@@ -1400,6 +1510,19 @@ export async function POST(req: NextRequest) {
               .select("*")
               .single();
           if (researchMessageError || !researchMessage) {
+            await notifyUnsupportedUnicodeEscapeError({
+              conversationId,
+              error: researchMessageError,
+              metadata: {
+                companyName,
+                messageContentLength: messageContent.length,
+                reusedSnapshot: result.reused,
+                streamResponse: false,
+              },
+              route: "/api/talent/chat",
+              stage: "talent_messages.insert:company_snapshot",
+              userId: user.id,
+            });
             throw new Error(
               researchMessageError?.message ??
                 "Failed to insert company_snapshot result message."
@@ -1475,6 +1598,7 @@ export async function POST(req: NextRequest) {
         await recoverCareerChatAssistantText({
           latestUserMessage: normalizedContent,
           messages: llmMessages,
+          responseLocale,
           systemBlocks,
         })
       ).trim();
@@ -1491,14 +1615,15 @@ export async function POST(req: NextRequest) {
       assistantContent: assistantTextWithMarkers,
     });
 
-    let safeAssistantText = stripTalentOnboardingCompletionMarker(
-      assistantTextWithMarkers
+    let safeAssistantText = stripPostgresUnsafeChars(
+      stripTalentOnboardingCompletionMarker(assistantTextWithMarkers)
     );
     if (!safeAssistantText) {
       const recoveredText = (
         await recoverCareerChatAssistantText({
           latestUserMessage: normalizedContent,
           messages: llmMessages,
+          responseLocale,
           systemBlocks,
         })
       ).trim();
@@ -1510,8 +1635,8 @@ export async function POST(req: NextRequest) {
       assistantTextWithMarkers = completion.completed
         ? `${recoveredText}\n\n${TALENT_ONBOARDING_DONE_MARKER}`
         : recoveredText;
-      safeAssistantText = stripTalentOnboardingCompletionMarker(
-        assistantTextWithMarkers
+      safeAssistantText = stripPostgresUnsafeChars(
+        stripTalentOnboardingCompletionMarker(assistantTextWithMarkers)
       );
     }
 
@@ -1536,6 +1661,20 @@ export async function POST(req: NextRequest) {
         .single();
 
     if (assistantError) {
+      await notifyUnsupportedUnicodeEscapeError({
+        conversationId,
+        error: assistantError,
+        metadata: {
+          assistantTextLength: safeAssistantText.length,
+          channel: requestChannel,
+          messageLength: message.length,
+          streamResponse: false,
+          thinkingLogCount: thinkingLogs.length,
+        },
+        route: "/api/talent/chat",
+        stage: "talent_messages.insert:assistant_message",
+        userId: user.id,
+      });
       return NextResponse.json(
         {
           error: assistantError.message ?? "Failed to insert assistant message",

@@ -13,7 +13,10 @@ import {
   formatOpportunityFeedbackPromptContext,
   type TalentOpportunityFeedbackActivityItem,
 } from "@/lib/talentOnboarding/activityEvents";
-import { type TalentAdminClient } from "@/lib/talentOnboarding/server";
+import {
+  fetchTalentSetting,
+  type TalentAdminClient,
+} from "@/lib/talentOnboarding/server";
 import type { TalentOpportunityHistoryItem } from "@/lib/talentOpportunity";
 
 type TalentOpportunityFeedbackAction = "negative" | "positive";
@@ -109,12 +112,18 @@ export async function createTalentOpportunityFeedbackFollowUpReply(args: {
     userId: args.userId,
   });
 
-  const pendingItems = await fetchPendingOpportunityFeedbackActivityItems({
-    admin: args.admin,
-    conversationId,
-    limit: 10,
-    userId: args.userId,
-  });
+  const [pendingItems, talentSetting] = await Promise.all([
+    fetchPendingOpportunityFeedbackActivityItems({
+      admin: args.admin,
+      conversationId,
+      limit: 10,
+      userId: args.userId,
+    }),
+    fetchTalentSetting({
+      admin: args.admin,
+      userId: args.userId,
+    }),
+  ]);
   const fallbackItem =
     args.opportunity && args.action
       ? toFeedbackActivityItem({
@@ -142,6 +151,7 @@ export async function createTalentOpportunityFeedbackFollowUpReply(args: {
   const feedbackContext = formatOpportunityFeedbackPromptContext(items);
   const proactiveContext = [
     buildCareerOpportunityFeedbackFollowUpTurnInstruction({
+      preferredLocale: talentSetting?.preferred_locale ?? null,
       trigger: args.trigger,
     }),
     buildInternalOpportunityCallProactiveInstruction(

@@ -1,9 +1,15 @@
 import { useCallback } from "react";
 import { supabase } from "@/lib/supabase";
+import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
+import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 
-export type FetchWithAuth = (url: string, init?: RequestInit) => Promise<Response>;
+export type FetchWithAuth = (
+  url: string,
+  init?: RequestInit
+) => Promise<Response>;
 
 export const useCareerApi = () => {
+  const tCareer = useCareerMessageFormatter();
   const getAccessToken = useCallback(async () => {
     const {
       data: { session },
@@ -15,13 +21,15 @@ export const useCareerApi = () => {
     async (url, init) => {
       const token = await getAccessToken();
       if (!token) {
-        throw new Error("로그인 세션을 확인할 수 없습니다. 다시 로그인해 주세요.");
+        throw new Error(tCareer(H.loginSessionMissing));
       }
 
       const headers: Record<string, string> = {
         Authorization: `Bearer ${token}`,
       };
-      const incomingHeaders = init?.headers as Record<string, string> | undefined;
+      const incomingHeaders = init?.headers as
+        | Record<string, string>
+        | undefined;
       if (incomingHeaders) {
         Object.assign(headers, incomingHeaders);
       }
@@ -38,7 +46,7 @@ export const useCareerApi = () => {
         headers,
       });
     },
-    [getAccessToken]
+    [getAccessToken, tCareer]
   );
 
   return {

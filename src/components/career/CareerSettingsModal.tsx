@@ -20,6 +20,8 @@ import { useCareerSidebarContext } from "./CareerSidebarContext";
 import CareerProfileSettingsSection from "./CareerProfileSettingsSection";
 import CareerResumeLinksSettingsSection from "./settings/CareerResumeLinksSettingsSection";
 import { BareButton } from "@/components/ui/button";
+import { useCareerT } from "@/i18n/useCareerT";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 type CareerSettingsTab = "profile" | "resume" | "account";
 type MobileSettingsView = "menu" | CareerSettingsTab;
@@ -29,9 +31,33 @@ const SETTINGS_TABS: Array<{
   label: string;
   Icon: React.ComponentType<{ className?: string }>;
 }> = [
-  { key: "profile", label: "프로필 설정", Icon: Settings2 },
-  { key: "resume", label: "내 이력서/링크", Icon: FileText },
-  { key: "account", label: "계정 관리", Icon: UserCircle2 },
+  {
+    key: "profile",
+    label: careerT(
+      "ko",
+      "career.settings.career_settings_modal.0tdjt8e",
+      "프로필 설정"
+    ),
+    Icon: Settings2,
+  },
+  {
+    key: "resume",
+    label: careerT(
+      "ko",
+      "career.settings.career_settings_modal.1u81q4e",
+      "내 이력서/링크"
+    ),
+    Icon: FileText,
+  },
+  {
+    key: "account",
+    label: careerT(
+      "ko",
+      "career.settings.career_settings_modal.1lbfn2i",
+      "계정 관리"
+    ),
+    Icon: UserCircle2,
+  },
 ];
 
 const MENU_SNAP = "340px";
@@ -43,7 +69,11 @@ const getAccountDeleteErrorMessage = (error: unknown) => {
   if (error instanceof Error && error.message.trim()) {
     return error.message;
   }
-  return "회원 탈퇴 처리 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.";
+  return careerT(
+    "ko",
+    "career.settings.career_settings_modal.1b7saeu",
+    "회원 탈퇴 처리 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요."
+  );
 };
 
 const AccountDeleteConfirmDialog = ({
@@ -59,6 +89,8 @@ const AccountDeleteConfirmDialog = ({
   onClose: () => void;
   onConfirm: () => void;
 }) => {
+  const t = useCareerT();
+
   useEffect(() => {
     if (!open || pending) return;
 
@@ -83,7 +115,10 @@ const AccountDeleteConfirmDialog = ({
     >
       <BareButton
         type="button"
-        aria-label="회원 탈퇴 확인 닫기"
+        aria-label={t(
+          "career.settings.career_settings_modal.11q4o0j",
+          "회원 탈퇴 확인 닫기"
+        )}
         className="absolute inset-0 bg-black/45"
         onClick={pending ? undefined : onClose}
       />
@@ -97,14 +132,22 @@ const AccountDeleteConfirmDialog = ({
               id="career-account-delete-title"
               className="text-base font-semibold text-neutral-primary"
             >
-              회원 탈퇴를 진행할까요?
+              {t(
+                "career.settings.career_settings_modal.0j4pj4h",
+                "회원 탈퇴를 진행할까요?"
+              )}
             </h3>
             <p className="mt-2 text-sm leading-relaxed text-neutral-muted">
-              탈퇴하면 계정 접근 권한, 커리어 프로필, 이력서, 대화 기록,
-              추천/설정 데이터가 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+              {t(
+                "career.settings.career_settings_modal.1stwtug",
+                "탈퇴하면 계정 접근 권한, 커리어 프로필, 이력서, 대화 기록, 추천/설정 데이터가 삭제됩니다. 이 작업은 되돌릴 수 없습니다."
+              )}
             </p>
             <p className="mt-2 text-sm font-medium text-critical">
-              삭제된 데이터는 복구할 수 없습니다.
+              {t(
+                "career.settings.career_settings_modal.1hdokry",
+                "삭제된 데이터는 복구할 수 없습니다."
+              )}
             </p>
           </div>
         </div>
@@ -122,7 +165,7 @@ const AccountDeleteConfirmDialog = ({
             disabled={pending}
             className="inline-flex h-10 items-center justify-center rounded-lg px-4 text-sm font-medium text-neutral-muted transition-colors hover:bg-bg-weak hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-60"
           >
-            취소
+            {t("career.settings.career_settings_modal.0jiry9t", "취소")}
           </BareButton>
           <BareButton
             type="button"
@@ -135,7 +178,17 @@ const AccountDeleteConfirmDialog = ({
             ) : (
               <Trash2 className="h-4 w-4" />
             )}
-            {pending ? "탈퇴 처리 중" : "탈퇴하기"}
+            {pending
+              ? careerT(
+                  "ko",
+                  "career.settings.career_settings_modal.1vqjolg",
+                  "탈퇴 처리 중"
+                )
+              : careerT(
+                  "ko",
+                  "career.settings.career_settings_modal.0tel9h5",
+                  "탈퇴하기"
+                )}
           </BareButton>
         </div>
       </div>
@@ -158,6 +211,8 @@ const AccountSectionContent = ({
   email: string;
   onLogout: () => void | Promise<void>;
 }) => {
+  const t = useCareerT();
+
   const { fetchWithAuth } = useCareerApi();
   const logCareerEvent = useCareerLogEvent();
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -191,7 +246,11 @@ const AccountSectionContent = ({
       if (!response.ok) {
         throw new Error(
           payload.error ??
-            "회원 탈퇴 처리 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요."
+            careerT(
+              "ko",
+              "career.settings.career_settings_modal.1b7saeu",
+              "회원 탈퇴 처리 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요."
+            )
         );
       }
 
@@ -209,10 +268,13 @@ const AccountSectionContent = ({
       <div className="space-y-4">
         <div>
           <h2 className="text-lg font-semibold text-neutral-primary">
-            계정 관리
+            {t("career.settings.career_settings_modal.1lbfn2i", "계정 관리")}
           </h2>
           <p className="mt-1 text-sm text-neutral-soft">
-            계정 세션과 가입 상태를 관리합니다.
+            {t(
+              "career.settings.career_settings_modal.1vcdzyt",
+              "계정 세션과 가입 상태를 관리합니다."
+            )}
           </p>
         </div>
 
@@ -226,14 +288,18 @@ const AccountSectionContent = ({
           className="mt-3 inline-flex h-10 items-center gap-2 rounded-lg border border-neutral-1000-a05 bg-bg-floating px-4 text-sm text-neutral-muted transition-colors hover:border-neutral-800 hover:bg-bg-weak hover:text-neutral-primary"
         >
           <LogOut className="h-4 w-4" />
-          로그아웃
+          {t("career.profile.career_profile_menu.1k7ppv0", "로그아웃")}
         </BareButton>
 
         <div className="border-t border-neutral-1000-a05 pt-4">
-          <h3 className="text-sm font-semibold text-critical">회원 탈퇴</h3>
+          <h3 className="text-sm font-semibold text-critical">
+            {t("career.settings.career_settings_modal.1ba4567", "회원 탈퇴")}
+          </h3>
           <p className="mt-1 text-sm leading-relaxed text-neutral-soft">
-            탈퇴하면 계정과 커리어 프로필, 이력서, 대화/추천 데이터가
-            삭제됩니다. 다시 되돌릴 수 없습니다.
+            {t(
+              "career.settings.career_settings_modal.0858bd9",
+              "탈퇴하면 계정과 커리어 프로필, 이력서, 대화/추천 데이터가 삭제됩니다. 다시 되돌릴 수 없습니다."
+            )}
           </p>
           <BareButton
             type="button"
@@ -241,7 +307,7 @@ const AccountSectionContent = ({
             className="mt-6 inline-flex h-9 items-center gap-2 rounded-lg bg-critical px-3 text-sm font-medium text-neutral-00 transition-colors hover:opacity-90"
           >
             <Trash2 className="h-4 w-4" />
-            회원 탈퇴
+            {t("career.settings.career_settings_modal.1ba4567", "회원 탈퇴")}
           </BareButton>
         </div>
       </div>
@@ -278,6 +344,8 @@ const CareerSettingsModal = ({
   open: boolean;
   onClose: () => void;
 }) => {
+  const t = useCareerT();
+
   const logCareerEvent = useCareerLogEvent();
   const { onLogout, user } = useCareerSidebarContext();
   const isMobile = useIsMobile();
@@ -305,7 +373,9 @@ const CareerSettingsModal = ({
     return () => window.clearTimeout(timer);
   }, [onClose, open, resetMobileSettings, user]);
 
-  const email = user?.email ?? "로그인 중";
+  const email =
+    user?.email ??
+    careerT("ko", "career.settings.career_settings_modal.0zjg8a0", "로그인 중");
 
   if (isMobile) {
     const handleOpenChange = (nextOpen: boolean) => {
@@ -342,11 +412,16 @@ const CareerSettingsModal = ({
             style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
           >
             <DrawerPrimitive.Title className="sr-only">
-              커리어 설정
+              {t(
+                "career.settings.career_settings_modal.11hatjy",
+                "커리어 설정"
+              )}
             </DrawerPrimitive.Title>
             <DrawerPrimitive.Description className="sr-only">
-              아래로 드래그하면 메뉴 크기로 축소되고, 위로 드래그하면
-              전체화면으로 확장됩니다.
+              {t(
+                "career.settings.career_settings_modal.18qhozv",
+                "아래로 드래그하면 메뉴 크기로 축소되고, 위로 드래그하면 전체화면으로 확장됩니다."
+              )}
             </DrawerPrimitive.Description>
 
             <div className="flex shrink-0 justify-center pt-3 pb-2">
@@ -357,10 +432,13 @@ const CareerSettingsModal = ({
               <>
                 <header className="flex shrink-0 items-center justify-between px-5 pb-2">
                   <h2 className="font-instrument text-[22px] leading-none text-neutral-primary">
-                    설정
+                    {t("career.settings.career_settings_modal.1338q8i", "설정")}
                   </h2>
                   <DrawerPrimitive.Close
-                    aria-label="설정 닫기"
+                    aria-label={t(
+                      "career.settings.career_settings_modal.16x7oad",
+                      "설정 닫기"
+                    )}
                     className="inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-muted transition-colors hover:bg-bg-weak hover:text-neutral-primary"
                   >
                     <X className="h-4 w-4" />
@@ -390,16 +468,22 @@ const CareerSettingsModal = ({
                     type="button"
                     onClick={handleBackToMenu}
                     className="inline-flex min-h-11 min-w-11 items-center gap-1 rounded-lg px-2 text-sm text-neutral-muted transition-colors hover:text-neutral-primary"
-                    aria-label="설정 메뉴로 돌아가기"
+                    aria-label={t(
+                      "career.settings.career_settings_modal.0qqmxjm",
+                      "설정 메뉴로 돌아가기"
+                    )}
                   >
                     <ArrowLeft className="h-4 w-4" />
-                    설정
+                    {t("career.settings.career_settings_modal.1338q8i", "설정")}
                   </BareButton>
                   <h2 className="text-[15px] font-semibold text-neutral-primary">
                     {SETTINGS_TABS.find((t) => t.key === mobileView)?.label}
                   </h2>
                   <DrawerPrimitive.Close
-                    aria-label="설정 닫기"
+                    aria-label={t(
+                      "career.settings.career_settings_modal.16x7oad",
+                      "설정 닫기"
+                    )}
                     className="inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-muted transition-colors hover:bg-bg-weak hover:text-neutral-primary"
                   >
                     <X className="h-4 w-4" />
@@ -422,11 +506,12 @@ const CareerSettingsModal = ({
     <TalentCareerModal
       open={open}
       onClose={handleClose}
-      ariaLabel="커리어 설정"
+      ariaLabel={t("career.common.career.11hatjy", "커리어 설정")}
       overlayClassName="items-start pt-14"
       panelClassName="max-w-none h-[80svh] max-h-[860px] px-0 w-[min(1040px,90vw)]"
       bodyClassName="h-full p-0"
       closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-floating text-neutral-muted transition-colors hover:border-neutral-800 hover:bg-bg-weak hover:text-neutral-primary"
+      closeButtonAriaLabel={t("career.common.career.16x7oad", "설정 닫기")}
     >
       <section className="h-full">
         <div className="grid h-full grid-cols-[260px_minmax(0,1fr)]">

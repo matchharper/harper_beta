@@ -15,6 +15,7 @@ import React, {
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { getErrorMessage } from "@/hooks/career/careerHelpers";
 import { useCareerSidebarContext } from "@/components/career/CareerSidebarContext";
+import { useMessages } from "@/i18n/useMessage";
 import CareerInPageTabs from "@/components/career/CareerInPageTabs";
 import { CompanyCard } from "./CompanyCard";
 import { CompanyDetailView } from "./CompanyDetailView";
@@ -34,11 +35,16 @@ import {
   parseCompanyDbId,
   parseWatchlistTab,
 } from "./watchlistFormatters";
+import { useCareerT } from "@/i18n/useCareerT";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 const CareerCompanyWatchlistPanel = () => {
+  const t = useCareerT();
+
   const router = useRouter();
   const queryClient = useQueryClient();
   const { fetchWithAuth } = useCareerApi();
+  const { locale } = useMessages();
   const { onGenerateCompanyRecommendations, onUpdateCompanyFollow, user } =
     useCareerSidebarContext();
   const userId = user?.id ?? null;
@@ -106,6 +112,7 @@ const CareerCompanyWatchlistPanel = () => {
     async (offset: number): Promise<CompanyWatchlistPage> => {
       const params = new URLSearchParams({
         limit: String(WATCHLIST_PAGE_SIZE),
+        locale,
         offset: String(Math.max(0, offset)),
         tab: activeTab,
       });
@@ -118,7 +125,14 @@ const CareerCompanyWatchlistPanel = () => {
 
       if (!response.ok) {
         throw new Error(
-          getErrorMessage(payload, "회사 워치리스트를 불러오지 못했습니다.")
+          getErrorMessage(
+            payload,
+            careerT(
+              "ko",
+              "career.common.career.047a363",
+              "회사 워치리스트를 불러오지 못했습니다."
+            )
+          )
         );
       }
 
@@ -131,7 +145,7 @@ const CareerCompanyWatchlistPanel = () => {
           typeof payload.nextOffset === "number" ? payload.nextOffset : null,
       };
     },
-    [activeTab, fetchWithAuth]
+    [activeTab, fetchWithAuth, locale]
   );
 
   const fetchWatchlistCount = useCallback(
@@ -152,7 +166,11 @@ const CareerCompanyWatchlistPanel = () => {
         throw new Error(
           getErrorMessage(
             payload,
-            "회사 워치리스트 개수를 불러오지 못했습니다."
+            careerT(
+              "ko",
+              "career.common.career.0cp7wph",
+              "회사 워치리스트 개수를 불러오지 못했습니다."
+            )
           )
         );
       }
@@ -163,7 +181,7 @@ const CareerCompanyWatchlistPanel = () => {
   );
 
   const listQuery = useInfiniteQuery({
-    queryKey: ["career-company-watchlist", userId, activeTab],
+    queryKey: ["career-company-watchlist", userId, activeTab, locale],
     enabled: Boolean(user) && !detailCompanyDbId && activeTab !== "signals",
     initialPageParam: 0,
     queryFn: ({ pageParam }) => fetchWatchlistPage(Number(pageParam) || 0),
@@ -220,18 +238,34 @@ const CareerCompanyWatchlistPanel = () => {
   );
 
   const detailQuery = useQuery({
-    queryKey: ["career-company-watchlist-detail", userId, detailCompanyDbId],
+    queryKey: [
+      "career-company-watchlist-detail",
+      userId,
+      detailCompanyDbId,
+      locale,
+    ],
     enabled: Boolean(user && detailCompanyDbId),
     queryFn: async () => {
+      const params = new URLSearchParams({
+        companyDbId: String(detailCompanyDbId ?? ""),
+        locale,
+      });
       const response = await fetchWithAuth(
-        `/api/talent/company-watchlist?companyDbId=${detailCompanyDbId}`
+        `/api/talent/company-watchlist?${params.toString()}`
       );
       const payload = (await response
         .json()
         .catch(() => ({}))) as CompanyDetailPayload & Record<string, unknown>;
       if (!response.ok) {
         throw new Error(
-          getErrorMessage(payload, "회사 정보를 불러오지 못했습니다.")
+          getErrorMessage(
+            payload,
+            careerT(
+              "ko",
+              "career.company.career_company_detail_drawer.0amy3om",
+              "회사 정보를 불러오지 못했습니다."
+            )
+          )
         );
       }
       return payload;
@@ -263,7 +297,12 @@ const CareerCompanyWatchlistPanel = () => {
 
         if (result?.item) {
           queryClient.setQueryData(
-            ["career-company-watchlist-detail", userId, item.companyDbId],
+            [
+              "career-company-watchlist-detail",
+              userId,
+              item.companyDbId,
+              locale,
+            ],
             { item: result.item }
           );
         }
@@ -274,7 +313,11 @@ const CareerCompanyWatchlistPanel = () => {
         setActionError(
           error instanceof Error
             ? error.message
-            : "회사 팔로우 상태를 변경하지 못했습니다."
+            : careerT(
+                "ko",
+                "career.common.career_flow_provider.19x0zaz",
+                "회사 팔로우 상태를 변경하지 못했습니다."
+              )
         );
       } finally {
         setUpdatingCompanyIds((current) =>
@@ -282,7 +325,7 @@ const CareerCompanyWatchlistPanel = () => {
         );
       }
     },
-    [detailCompanyDbId, onUpdateCompanyFollow, queryClient, userId]
+    [detailCompanyDbId, locale, onUpdateCompanyFollow, queryClient, userId]
   );
 
   const handleGenerateRecommendations = useCallback(async () => {
@@ -294,7 +337,13 @@ const CareerCompanyWatchlistPanel = () => {
         limit: 24,
       });
       if (!result) {
-        throw new Error("추천 회사를 만들지 못했습니다.");
+        throw new Error(
+          careerT(
+            "ko",
+            "career.common.career_flow_provider.0lsvl9z",
+            "추천 회사를 만들지 못했습니다."
+          )
+        );
       }
       await queryClient.invalidateQueries({
         queryKey: ["career-company-watchlist"],
@@ -306,7 +355,11 @@ const CareerCompanyWatchlistPanel = () => {
       setActionError(
         error instanceof Error
           ? error.message
-          : "추천 회사를 만들지 못했습니다."
+          : careerT(
+              "ko",
+              "career.common.career_flow_provider.0lsvl9z",
+              "추천 회사를 만들지 못했습니다."
+            )
       );
     } finally {
       setGenerating(false);
@@ -385,27 +438,37 @@ const CareerCompanyWatchlistPanel = () => {
       {activeTab === "recommended" && (
         <div className="mb-4 min-w-0 rounded-lg border border-neutral-1000-a05 bg-bg-floating px-4 py-3 shadow-sm">
           <div className="text-sm font-medium leading-5 text-neutral-primary">
-            팔로우하면 일어나는 일
+            {t("career.common.career.0yjpnrd", "팔로우하면 일어나는 일")}
           </div>
           <p className="mt-1 line-clamp-3 text-neutral-muted font-normal text-[13px]">
-            <span className="text-neutral-primary">시그널 자동 추적</span> -
-            펀딩, 채용, 팀 변화, 사업 성과 등 의미 있는 변화를 찾아서
-            알려드립니다.
+            <span className="text-neutral-primary">
+              {t("career.common.career.1bb9alt", "시그널 자동 추적")}
+            </span>
+            {t(
+              "career.common.career.0kdqsry",
+              "- 펀딩, 채용, 팀 변화, 사업 성과 등 의미 있는 변화를 찾아서 알려드립니다."
+            )}
             <br />
-            <span className="text-neutral-primary">회사 측 채널 열림</span> - 이
-            회사가 인재를 찾거나 Harper에게 채용을 요청 할 때 우선적으로
-            검토되실 수 있게 합니다.
+            <span className="text-neutral-primary">
+              {t("career.common.career.0m1nksm", "회사 측 채널 열림")}
+            </span>
+            {t(
+              "career.common.career.18q07l6",
+              "- 이 회사가 인재를 찾거나 Harper에게 채용을 요청 할 때 우선적으로 검토되실 수 있게 합니다."
+            )}
           </p>
         </div>
       )}
       {activeTab === "following" && (
         <div className="mb-4 min-w-0 rounded-lg border border-positive/30 bg-bg-floating px-4 py-3 shadow-sm">
           <div className="text-[13px] font-medium leading-5 text-positive">
-            추적중이에요
+            {t("career.common.career.0h5494n", "추적중이에요")}
           </div>
           <p className="mt-1 line-clamp-3 text-neutral-primary text-sm">
-            펀딩, 채용, 팀 변화, 사업 성과 등 의미 있는 변화를 찾아서
-            알려드립니다.
+            {t(
+              "career.common.career.0kn6r0x",
+              "펀딩, 채용, 팀 변화, 사업 성과 등 의미 있는 변화를 찾아서 알려드립니다."
+            )}
           </p>
         </div>
       )}

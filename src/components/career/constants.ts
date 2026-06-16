@@ -1,7 +1,8 @@
+import { careerT } from "@/lib/career/translatedCareerMessage";
 export const CAREER_LINK_LABELS = [
-  "링크드인",
+  careerT("ko", "career.common.constants.079mmhw", "링크드인"),
   "Github",
   "Google Scholar",
-  "개인 웹사이트",
+  careerT("ko", "career.common.constants.0iah44y", "개인 웹사이트"),
   "X.com",
 ];

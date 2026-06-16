@@ -1,3 +1,5 @@
+import { careerT } from "@/lib/career/translatedCareerMessage";
+
 export type RecommendJobPostingStatusState =
   | "running"
   | "completed"
@@ -12,6 +14,20 @@ export type RecommendJobPostingStatus = {
 
 export const RECOMMEND_JOB_POSTINGS_CHAT_PREAMBLE =
   "좋습니다. 지금까지의 대화와 피드백을 기준으로 새 포지션을 찾아볼게요.";
+export const RECOMMEND_JOB_POSTINGS_CHAT_PREAMBLE_EN =
+  "Got it. I'll look for new positions based on our conversation and your recent feedback.";
+export const RECOMMEND_JOB_POSTINGS_CHAT_PREAMBLES = [
+  RECOMMEND_JOB_POSTINGS_CHAT_PREAMBLE,
+  RECOMMEND_JOB_POSTINGS_CHAT_PREAMBLE_EN,
+] as const;
+
+export function getRecommendJobPostingsChatPreamble(locale?: string | null) {
+  return careerT(
+    locale,
+    "career.recommend_job_postings.chat_preamble",
+    RECOMMEND_JOB_POSTINGS_CHAT_PREAMBLE
+  );
+}
 
 const STATUS_LOG_PREFIX = "[[recommend_job_postings:";
 const STATUS_LOG_SUFFIX = "]]";
@@ -43,7 +59,10 @@ export function parseRecommendJobPostingStatusLog(
 ): RecommendJobPostingStatus | null {
   if (typeof value !== "string") return null;
   const text = value.trim();
-  if (!text.startsWith(STATUS_LOG_PREFIX) || !text.endsWith(STATUS_LOG_SUFFIX)) {
+  if (
+    !text.startsWith(STATUS_LOG_PREFIX) ||
+    !text.endsWith(STATUS_LOG_SUFFIX)
+  ) {
     return null;
   }
 

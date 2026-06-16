@@ -7,6 +7,7 @@ type Body = {
   conversationId?: string | null;
   forceRefresh?: boolean | null;
   limit?: number | string | null;
+  locale?: string | null;
   request?: string | null;
 };
 
@@ -68,6 +69,7 @@ export async function POST(req: NextRequest) {
         typeof body.limit === "number"
           ? body.limit
           : Number.parseInt(String(body.limit ?? ""), 10),
+      preferredLocale: body.locale ?? req.cookies.get("NEXT_LOCALE")?.value,
       request: typeof body.request === "string" ? body.request : null,
       source: "watchlist",
       userId: user.id,

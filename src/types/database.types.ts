@@ -5385,6 +5385,48 @@ export type Database = {
           },
         ]
       }
+      talent_opportunity_tag: {
+        Row: {
+          created_at: string
+          id: string
+          opportunity_id: string
+          tag: string
+          talent_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          opportunity_id: string
+          tag: string
+          talent_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          opportunity_id?: string
+          tag?: string
+          talent_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_opportunity_tag_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "company_roles"
+            referencedColumns: ["role_id"]
+          },
+          {
+            foreignKeyName: "talent_opportunity_tag_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       talent_ops_profile_memos: {
         Row: {
           content: string
@@ -5416,6 +5458,58 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "talent_ops_profile_memos_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      talent_progress: {
+        Row: {
+          created_at: string
+          id: string
+          recommendation_id: string | null
+          role_id: string
+          talent_id: string
+          text: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          recommendation_id?: string | null
+          role_id: string
+          talent_id: string
+          text: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          recommendation_id?: string | null
+          role_id?: string
+          talent_id?: string
+          text?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_progress_recommendation_id_fkey"
+            columns: ["recommendation_id"]
+            isOneToOne: false
+            referencedRelation: "talent_opportunity_recommendation"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_progress_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "company_roles"
+            referencedColumns: ["role_id"]
+          },
+          {
+            foreignKeyName: "talent_progress_talent_id_fkey"
             columns: ["talent_id"]
             isOneToOne: false
             referencedRelation: "talent_users"
@@ -5476,6 +5570,7 @@ export type Database = {
           get_internal_recommendation: boolean
           is_onboarding_done: boolean
           periodic_interval_days: number
+          preferred_locale: string
           profile_visibility: string
           recommendation_batch_size: number
           recommendation_source_conversation_id: string | null
@@ -5492,6 +5587,7 @@ export type Database = {
           get_internal_recommendation?: boolean
           is_onboarding_done?: boolean
           periodic_interval_days?: number
+          preferred_locale?: string
           profile_visibility?: string
           recommendation_batch_size?: number
           recommendation_source_conversation_id?: string | null
@@ -5508,6 +5604,7 @@ export type Database = {
           get_internal_recommendation?: boolean
           is_onboarding_done?: boolean
           periodic_interval_days?: number
+          preferred_locale?: string
           profile_visibility?: string
           recommendation_batch_size?: number
           recommendation_source_conversation_id?: string | null
@@ -5587,6 +5684,45 @@ export type Database = {
           resume_text?: string | null
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      translation_entries: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          key: string
+          locale: string
+          namespace: string
+          status: string
+          updated_at: string
+          updated_by: string | null
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          key: string
+          locale: string
+          namespace?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          key?: string
+          locale?: string
+          namespace?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: string
         }
         Relationships: []
       }
@@ -5892,6 +6028,23 @@ export type Database = {
       }
       get_scholar_candidate_ids: { Args: never; Returns: string[] }
       is_admin: { Args: never; Returns: boolean }
+      list_translation_entry_groups: {
+        Args: {
+          p_after_key?: string
+          p_limit?: number
+          p_min_ko_length?: number
+          p_namespace?: string
+          p_query?: string
+        }
+        Returns: {
+          description: string
+          en: string
+          key: string
+          ko: string
+          updated_at: string
+          updated_by: string
+        }[]
+      }
       match_service_answer_examples: {
         Args: {
           embedding_model_filter?: string

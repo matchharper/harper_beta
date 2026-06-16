@@ -6,6 +6,7 @@ import CareerTalentProfilePanel from "./CareerTalentProfilePanel";
 import CareerResumeLinksSettingsSection from "../settings/CareerResumeLinksSettingsSection";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import React from "react";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 type ProfileSectionId = "profile" | "links";
 
@@ -21,18 +22,48 @@ const PROFILE_SECTION_ITEMS: Array<{
 }> = [
   {
     id: "profile",
-    label: "프로필",
-    title: "프로필",
+    label: careerT(
+      "ko",
+      "career.common.career_workspace_screen.0b0v9cr",
+      "프로필"
+    ),
+    title: careerT(
+      "ko",
+      "career.common.career_workspace_screen.0b0v9cr",
+      "프로필"
+    ),
     description: [
-      "입력하신 정보와 대화내용을 바탕으로 Harper가 구성한 프로필입니다.",
-      "이대로 회사 측에 전달되지는 않지만, 변경하고 싶으신 사항이 있는지 확인할 수 있습니다.",
+      careerT(
+        "ko",
+        "career.profile.career_profile_workspace.16e35ps",
+        "입력하신 정보와 대화내용을 바탕으로 Harper가 구성한 프로필입니다."
+      ),
+      careerT(
+        "ko",
+        "career.profile.career_profile_workspace.116ofw4",
+        "이대로 회사 측에 전달되지는 않지만, 변경하고 싶으신 사항이 있는지 확인할 수 있습니다."
+      ),
     ],
   },
   {
     id: "links",
-    label: "이력서/링크",
-    title: "이력서/링크",
-    description: ["이력서와 나와 관련된 링크를 확인하고 수정할 수 있습니다."],
+    label: careerT(
+      "ko",
+      "career.profile.career_profile_workspace.14bifvm",
+      "이력서/링크"
+    ),
+    title: careerT(
+      "ko",
+      "career.profile.career_profile_workspace.14bifvm",
+      "이력서/링크"
+    ),
+    description: [
+      careerT(
+        "ko",
+        "career.profile.career_profile_workspace.11os0vs",
+        "이력서와 나와 관련된 링크를 확인하고 수정할 수 있습니다."
+      ),
+    ],
   },
 ];
 
@@ -50,7 +81,11 @@ const CareerProfileWorkspace = () => {
           ? {
               ...item,
               attention: !hasSavedResume,
-              attentionLabel: "저장된 이력서가 없습니다",
+              attentionLabel: careerT(
+                "ko",
+                "career.profile.career_profile_workspace.0pv1jmq",
+                "저장된 이력서가 없습니다"
+              ),
             }
           : item
       ),

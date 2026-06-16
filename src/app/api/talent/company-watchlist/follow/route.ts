@@ -8,6 +8,7 @@ type Body = {
   companyDbId?: number | string;
   companyWorkspaceId?: string | null;
   conversationId?: string | null;
+  locale?: string | null;
   source?: string | null;
 };
 
@@ -44,6 +45,7 @@ export async function POST(req: NextRequest) {
           : null,
       conversationId:
         typeof body.conversationId === "string" ? body.conversationId : null,
+      preferredLocale: body.locale ?? req.cookies.get("NEXT_LOCALE")?.value,
       source: typeof body.source === "string" ? body.source : "watchlist",
       userId: user.id,
     });

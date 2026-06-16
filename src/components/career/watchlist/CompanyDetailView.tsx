@@ -8,13 +8,13 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import RichText from "@/components/ui/rich-text";
-import { BadgeLink } from "@/components/ui/badge";
 import { CompanyLogo } from "./CompanyLogo";
 import { FollowButton } from "./FollowButton";
 import {
   formatCrunchbaseLabel,
   formatCrunchbaseMetricValue,
   formatEmployeeCountRange,
+  formatFoundedYear,
   formatFollowedAt,
   formatSignedCrunchbaseMetricValue,
   splitTextList,
@@ -28,6 +28,9 @@ import type {
 } from "./watchlistTypes";
 import { Badge } from "@/components/ui/badge";
 import { Text } from "@/components/ui/text";
+import { useMessages, type Locale } from "@/i18n/useMessage";
+import { careerT } from "@/lib/career/translatedCareerMessage";
+import { useCareerT } from "@/i18n/useCareerT";
 
 const DetailSection = ({
   children,
@@ -73,7 +76,7 @@ const stripCompanySnapshotChrome = (markdown: string) => {
   while (lines[0]?.trim() === "") {
     lines.shift();
   }
-  if (/^조사일\s*:/.test(lines[0] ?? "")) {
+  if (/^(조사일|investigation date)\s*:/i.test(lines[0] ?? "")) {
     lines.shift();
   }
   while (lines[0]?.trim() === "") {
@@ -91,6 +94,23 @@ const getFaviconUrl = (href: string) => {
   } catch {
     return "";
   }
+};
+
+const formatSnapshotInvestigationDate = (
+  value: string | null | undefined,
+  locale: Locale
+) => {
+  const normalized = value?.trim() ?? "";
+  if (!normalized) return "";
+
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) return normalized;
+
+  return new Intl.DateTimeFormat(locale === "en" ? "en-US" : "ko-KR", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(date);
 };
 
 const LinkPillIcon = ({ iconUrl }: { iconUrl: string }) => {
@@ -123,6 +143,10 @@ export const CompanyDetailView = ({
   onToggleFollow: CompanyFollowClickHandler;
   updating: boolean;
 }) => {
+  const t = useCareerT();
+
+  const { locale } = useMessages();
+
   if (loading) {
     return (
       <section className="flex min-h-[420px] items-center justify-center">
@@ -136,7 +160,10 @@ export const CompanyDetailView = ({
       <section className="rounded-[8px] border border-neutral-1000-a05 bg-bg-floating px-5 py-10 text-center shadow-sm">
         <Building2 className="mx-auto h-6 w-6 text-neutral-disabled" />
         <h2 className="mt-4 text-[16px] font-medium text-neutral-primary">
-          회사를 찾지 못했습니다.
+          {t(
+            "career.company.company_detail_view.05y0iqp",
+            "회사를 찾지 못했습니다."
+          )}
         </h2>
         {/* <ActionButton
           actionVariant="secondary"
@@ -152,9 +179,23 @@ export const CompanyDetailView = ({
   }
 
   const links = [
-    { href: item.homepageUrl ?? item.websiteUrl, label: "웹사이트" },
+    {
+      href: item.homepageUrl ?? item.websiteUrl,
+      label: careerT(
+        "ko",
+        "career.company.company_detail_view.18zvias",
+        "웹사이트"
+      ),
+    },
     { href: item.linkedinUrl, label: "LinkedIn" },
-    { href: item.careerUrl, label: "채용 페이지" },
+    {
+      href: item.careerUrl,
+      label: careerT(
+        "ko",
+        "career.company.company_detail_view.1si5hsi",
+        "채용 페이지"
+      ),
+    },
     { href: item.fundingUrl, label: "Funding" },
   ]
     .filter((entry): entry is { href: string; label: string } =>
@@ -164,7 +205,10 @@ export const CompanyDetailView = ({
       ...entry,
       iconUrl: getFaviconUrl(entry.href),
     }));
-  const employeeCount = formatEmployeeCountRange(item.employeeCountRange);
+  const employeeCount = formatEmployeeCountRange(
+    item.employeeCountRange,
+    locale
+  );
   const infoRows = [
     item.location
       ? {
@@ -174,7 +218,11 @@ export const CompanyDetailView = ({
               strokeWidth={2}
             />
           ),
-          label: "본사 위치",
+          label: careerT(
+            "ko",
+            "career.company.company_detail_view.198i5rb",
+            "본사 위치"
+          ),
           value: item.location,
         }
       : null,
@@ -186,8 +234,12 @@ export const CompanyDetailView = ({
               strokeWidth={2}
             />
           ),
-          label: "설립 연도",
-          value: `${String(item.foundedYear)}년 설립`,
+          label: careerT(
+            "ko",
+            "career.company.company_detail_view.02ioip6",
+            "설립 연도"
+          ),
+          value: formatFoundedYear(item.foundedYear, locale),
         }
       : null,
     employeeCount
@@ -195,7 +247,11 @@ export const CompanyDetailView = ({
           icon: (
             <Users className="h-3.5 w-3.5 text-neutral-muted" strokeWidth={2} />
           ),
-          label: "직원 수",
+          label: careerT(
+            "ko",
+            "career.company.company_detail_view.01kpxqk",
+            "직원 수"
+          ),
           value: employeeCount,
         }
       : null,
@@ -209,8 +265,10 @@ export const CompanyDetailView = ({
   const snapshotMarkdown = item.companySnapshot?.fullMarkdown
     ? stripCompanySnapshotChrome(item.companySnapshot.fullMarkdown)
     : "";
-  const snapshotInvestigationDate =
-    item.companySnapshot?.investigationDate?.trim() ?? "";
+  const snapshotInvestigationDate = formatSnapshotInvestigationDate(
+    item.companySnapshot?.investigationDate,
+    locale
+  );
 
   const crunchbaseInformation = toRecord(item.crunchbaseInformation);
   const crunchbaseCompany = toRecord(crunchbaseInformation.company);
@@ -218,15 +276,27 @@ export const CompanyDetailView = ({
   const crunchbaseScores = toRecord(crunchbaseInformation.scores);
   const crunchbaseStatusRows = [
     {
-      label: "운영 상태",
+      label: careerT(
+        "ko",
+        "career.company.company_detail_view.0lq2ran",
+        "운영 상태"
+      ),
       value: formatCrunchbaseLabel(crunchbaseCompany.operating_status),
     },
     {
-      label: "회사 유형",
+      label: careerT(
+        "ko",
+        "career.company.company_detail_view.0vk24i0",
+        "회사 유형"
+      ),
       value: formatCrunchbaseLabel(crunchbaseCompany.company_type),
     },
     {
-      label: "IPO 상태",
+      label: careerT(
+        "ko",
+        "career.company.company_detail_view.0d3086e",
+        "IPO 상태"
+      ),
       value: formatCrunchbaseLabel(crunchbaseCompany.ipo_status),
     },
   ].filter((row): row is CompanyDetailRow => row.value.length > 0);
@@ -293,28 +363,30 @@ export const CompanyDetailView = ({
                 </Text>
                 {item.followedAt ? (
                   <span className="rounded-full bg-bg-weak px-2.5 py-1 text-[12px] leading-none text-neutral-muted">
-                    {formatFollowedAt(item.followedAt)}
+                    {formatFollowedAt(item.followedAt, locale)}
                   </span>
                 ) : null}
               </div>
               <Text className="max-w-[780px] text-[14px]" tone="muted">
                 {item.shortDescription ??
                   item.location ??
-                  "회사 설명을 정리 중입니다."}
+                  careerT(
+                    "ko",
+                    "career.company.company_card.1n9j2yp",
+                    "회사 설명을 정리 중입니다."
+                  )}
               </Text>
 
               {links.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {links.map((link) => (
-                    <BadgeLink
+                    <Badge
+                      onClick={() => window.open(link.href, "_blank")}
                       key={link.label}
-                      href={link.href}
-                      size="sm"
-                      className="bg-bg-floating px-2.5 text-[12px] font-medium text-neutral-primary hover:border-neutral-400 hover:bg-bg-weak"
+                      icon={<LinkPillIcon iconUrl={link.iconUrl} />}
                     >
-                      <LinkPillIcon iconUrl={link.iconUrl} />
                       {link.label}
-                    </BadgeLink>
+                    </Badge>
                   ))}
                 </div>
               ) : null}
@@ -345,11 +417,21 @@ export const CompanyDetailView = ({
           </div>
         )}
         {snapshotMarkdown ? (
-          <DetailSection title="Harper가 찾아본 내용">
+          <DetailSection
+            title={t(
+              "career.company.company_detail_view.1im9ivy",
+              "Harper가 찾아본 내용"
+            )}
+          >
             <div className="">
               {snapshotInvestigationDate ? (
                 <div className="mb-4 inline-flex rounded-full bg-bg-weak px-2.5 py-1 text-[12px] font-medium leading-none text-neutral-muted">
-                  조사일 {snapshotInvestigationDate}
+                  {careerT(
+                    locale,
+                    "career.company.snapshot.investigation_date",
+                    "조사일"
+                  )}{" "}
+                  {snapshotInvestigationDate}
                 </div>
               ) : null}
               <RichText
@@ -359,24 +441,35 @@ export const CompanyDetailView = ({
             </div>
           </DetailSection>
         ) : (
-          <DetailSection title="회사 설명">
+          <DetailSection
+            title={t("career.company.company_detail_view.0izicuk", "회사 설명")}
+          >
             <Text
               className="whitespace-pre-wrap text-sm leading-6"
               tone="neutral"
             >
-              {item.description ?? "아직 회사 설명이 없습니다."}
+              {item.description ??
+                careerT(
+                  "ko",
+                  "career.common.career.083cky2",
+                  "아직 회사 설명이 없습니다."
+                )}
             </Text>
           </DetailSection>
         )}
 
         {item.specialities.length > 0 ? (
-          <DetailSection title="전문 분야">
+          <DetailSection
+            title={t("career.company.company_detail_view.0qsmhob", "전문 분야")}
+          >
             <TagList items={item.specialities} />
           </DetailSection>
         ) : null}
 
         {investorTags.length > 0 ? (
-          <DetailSection title="투자자">
+          <DetailSection
+            title={t("career.company.company_detail_view.1u6998j", "투자자")}
+          >
             <TagList items={investorTags} />
           </DetailSection>
         ) : null}
@@ -393,7 +486,10 @@ export const CompanyDetailView = ({
               {crunchbaseCategories.length > 0 ? (
                 <div>
                   <div className="mb-2 text-[12px] leading-5 text-neutral-muted">
-                    카테고리
+                    {t(
+                      "career.company.company_detail_view.199tx5d",
+                      "카테고리"
+                    )}
                   </div>
                   <TagList items={crunchbaseCategories} />
                 </div>
@@ -401,7 +497,7 @@ export const CompanyDetailView = ({
               {crunchbaseFounders.length > 0 ? (
                 <div>
                   <div className="mb-2 text-[12px] leading-5 text-neutral-muted">
-                    창업자
+                    {t("career.company.company_detail_view.1sihgzp", "창업자")}
                   </div>
                   <TagList items={crunchbaseFounders} />
                 </div>
@@ -409,7 +505,10 @@ export const CompanyDetailView = ({
               {crunchbaseLocationGroups.length > 0 ? (
                 <div>
                   <div className="mb-2 text-[12px] leading-5 text-neutral-muted">
-                    지역 그룹
+                    {t(
+                      "career.company.company_detail_view.0gx8zud",
+                      "지역 그룹"
+                    )}
                   </div>
                   <TagList items={crunchbaseLocationGroups} />
                 </div>
@@ -419,7 +518,9 @@ export const CompanyDetailView = ({
         ) : null}
 
         {relatedLinks.length > 0 ? (
-          <DetailSection title="관련 링크">
+          <DetailSection
+            title={t("career.company.company_detail_view.1gy0i9e", "관련 링크")}
+          >
             <div className="space-y-2">
               {relatedLinks.map((link) => (
                 <a

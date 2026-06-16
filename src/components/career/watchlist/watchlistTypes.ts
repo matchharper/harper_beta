@@ -1,4 +1,5 @@
 import type { MouseEvent } from "react";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 export type CompanyWatchlistTab = "recommended" | "following" | "signals";
 
@@ -88,7 +89,16 @@ export const WATCHLIST_TABS: Array<{
   id: CompanyWatchlistTab;
   label: string;
 }> = [
-  { id: "recommended", label: "추천회사" },
-  { id: "following", label: "팔로우" },
-  { id: "signals", label: "시그널" },
+  {
+    id: "recommended",
+    label: careerT("ko", "career.company.watchlist_types.0dpjqlp", "추천회사"),
+  },
+  {
+    id: "following",
+    label: careerT("ko", "career.company.follow_button.1p6sttz", "팔로우"),
+  },
+  {
+    id: "signals",
+    label: careerT("ko", "career.company.watchlist_types.0kgfx63", "시그널"),
+  },
 ];

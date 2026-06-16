@@ -7,7 +7,11 @@ import CareerSettingsModal from "@/components/career/CareerSettingsModal";
 import CareerWorkspaceScreen, {
   CareerLoadingState,
 } from "@/components/career/CareerWorkspaceScreen";
-import { getCareerWorkspaceHref, getCareerWorkspaceTabFromPath, type CareerWorkspaceTab } from "@/components/career/CareerWorkspaceNav";
+import {
+  getCareerWorkspaceHref,
+  getCareerWorkspaceTabFromPath,
+  type CareerWorkspaceTab,
+} from "@/components/career/CareerWorkspaceNav";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useCareerVisitLog } from "@/hooks/career/useCareerVisitLog";
@@ -37,6 +41,10 @@ const CareerWorkspacePage = ({
     typeof router.query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM] === "string"
       ? router.query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM]
       : null;
+  const requestedPanel =
+    isRouterReady && typeof router.query.panel === "string"
+      ? router.query.panel
+      : null;
 
   const currentActiveTab = useMemo(
     () =>
@@ -65,6 +73,21 @@ const CareerWorkspacePage = ({
     logCareerEvent("click_open_settings");
     setIsSettingsModalOpen(true);
   }, [logCareerEvent]);
+
+  const settingsPanelRequested = Boolean(user && requestedPanel === "settings");
+  const settingsModalOpen = isSettingsModalOpen || settingsPanelRequested;
+  const handleCloseSettings = useCallback(() => {
+    setIsSettingsModalOpen(false);
+
+    if (!isRouterReady || requestedPanel !== "settings") return;
+    const nextQuery = { ...router.query };
+    delete nextQuery.panel;
+    void router.replace(
+      { pathname: router.pathname, query: nextQuery },
+      undefined,
+      { shallow: true, scroll: false }
+    );
+  }, [isRouterReady, requestedPanel, router]);
 
   const handleChangeTab = useCallback(
     (
@@ -141,8 +164,8 @@ const CareerWorkspacePage = ({
           onChangeTab={handleChangeTab}
         />
         <CareerSettingsModal
-          open={isSettingsModalOpen}
-          onClose={() => setIsSettingsModalOpen(false)}
+          open={settingsModalOpen}
+          onClose={handleCloseSettings}
         />
       </CareerFlowProvider>
     );

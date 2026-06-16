@@ -11,6 +11,8 @@ import type {
 } from "@/components/career/types";
 import { getErrorMessage, toUiMessage } from "./careerHelpers";
 import type { FetchWithAuth } from "./useCareerApi";
+import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
+import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 
 type CareerMessagesPage = {
   messages: CareerMessagePayload[];
@@ -43,6 +45,7 @@ export const useCareerMessageHistory = ({
   enabled,
   initialSessionPage,
 }: UseCareerMessageHistoryArgs) => {
+  const tCareer = useCareerMessageFormatter();
   const queryClient = useQueryClient();
   const queryKey = useMemo(
     () => careerMessageHistoryKey(conversationId),
@@ -76,7 +79,7 @@ export const useCareerMessageHistory = ({
 
       if (!response.ok) {
         throw new Error(
-          getErrorMessage(payload, "대화 메시지를 불러오지 못했습니다.")
+          getErrorMessage(payload, tCareer(H.conversationMessagesLoadFailed))
         );
       }
 
@@ -90,7 +93,7 @@ export const useCareerMessageHistory = ({
             : null,
       } satisfies CareerMessagesPage;
     },
-    [conversationId, fetchWithAuth]
+    [conversationId, fetchWithAuth, tCareer]
   );
 
   const infinite = useInfiniteQuery({

@@ -38,6 +38,8 @@ import type {
 } from "@/components/career/types";
 import { AnimatePresence, motion } from "motion/react";
 import React from "react";
+import { useCareerT } from "@/i18n/useCareerT";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 type JobsDisplayTab = CareerMobileHistoryJobsTab;
 
@@ -49,6 +51,8 @@ type CareerWorkspaceHistoryTarget = {
 type CareerWorkspaceNavigationOptions = {
   historyTarget?: CareerWorkspaceHistoryTarget;
 };
+
+type CareerWorkspaceViewportMode = "desktop" | "mobile";
 
 const DESKTOP_MEDIA_QUERY = "(min-width: 720px)";
 const CHAT_PANEL_MIN_WIDTH = 34;
@@ -63,18 +67,26 @@ export const NAV_ITEMS: Array<{
 }> = [
   {
     id: "home",
-    label: "홈",
+    label: careerT("ko", "career.common.career_workspace_screen.1kr4bnb", "홈"),
     icon: House,
   },
   {
     id: "history",
-    label: "포지션",
+    label: careerT(
+      "ko",
+      "career.common.career_workspace_screen.0jpahnv",
+      "포지션"
+    ),
     icon: GalleryVerticalEnd,
   },
   // Watchlist is hidden for the deploy until the tab is ready.
   {
     id: "profile",
-    label: "프로필",
+    label: careerT(
+      "ko",
+      "career.common.career_workspace_screen.0b0v9cr",
+      "프로필"
+    ),
     icon: User,
   },
 ];
@@ -142,7 +154,13 @@ export const CareerWorkspace = () => {
 export const CareerLoadingState = () => (
   <main className="relative flex min-h-svh w-full items-center justify-center bg-bg-basement text-neutral-primary">
     <Loader2 className="h-5 w-5 animate-spin text-neutral-soft" />
-    <span className="sr-only">커리어 페이지 로딩 중</span>
+    <span className="sr-only">
+      {careerT(
+        "ko",
+        "career.common.career_workspace_screen.1nwthrd",
+        "커리어 페이지 로딩 중"
+      )}
+    </span>
   </main>
 );
 
@@ -150,17 +168,34 @@ const CareerWorkspaceScreen = ({
   activeTab,
   onChangeTab,
   children,
+  fillParent = false,
+  forcedViewport,
+  initialMobileChatOpen = false,
 }: {
   activeTab?: CareerWorkspaceTab;
   children?: React.ReactNode;
+  fillParent?: boolean;
+  forcedViewport?: CareerWorkspaceViewportMode;
+  initialMobileChatOpen?: boolean;
   onChangeTab?: (
     tab: CareerWorkspaceTab,
     options?: CareerWorkspaceNavigationOptions
   ) => void;
 }) => (
-  <main className="relative min-h-svh w-full bg-bg-basement text-neutral-primary">
+  <main
+    className={cn(
+      "relative w-full bg-bg-basement text-neutral-primary",
+      fillParent ? "h-full min-h-0 overflow-hidden" : "min-h-svh"
+    )}
+  >
     {children ?? (
-      <CareerWorkspaceRoot activeTab={activeTab} onChangeTab={onChangeTab} />
+      <CareerWorkspaceRoot
+        activeTab={activeTab}
+        fillParent={fillParent}
+        forcedViewport={forcedViewport}
+        initialMobileChatOpen={initialMobileChatOpen}
+        onChangeTab={onChangeTab}
+      />
     )}
   </main>
 );
@@ -169,17 +204,28 @@ export default React.memo(CareerWorkspaceScreen);
 
 const CareerWorkspaceRoot = ({
   activeTab: controlledActiveTab,
+  fillParent = false,
+  forcedViewport,
+  initialMobileChatOpen = false,
   onChangeTab: controlledOnChangeTab,
 }: {
   activeTab?: CareerWorkspaceTab;
+  fillParent?: boolean;
+  forcedViewport?: CareerWorkspaceViewportMode;
+  initialMobileChatOpen?: boolean;
   onChangeTab?: (
     tab: CareerWorkspaceTab,
     options?: CareerWorkspaceNavigationOptions
   ) => void;
 }) => {
+  const t = useCareerT();
+
   const [activeTabState, setActiveTabState] =
     useState<CareerWorkspaceTab>("home");
-  const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
+  const mediaIsDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
+  const isDesktop =
+    forcedViewport != null ? forcedViewport === "desktop" : mediaIsDesktop;
+  const forceDesktopLayout = forcedViewport === "desktop";
   const {
     containerRef: workspaceRef,
     widthPct: chatPanelWidth,
@@ -220,11 +266,16 @@ const CareerWorkspaceRoot = ({
     [historyOpportunities]
   );
 
-  const isMobileViewport = useIsMobile();
+  const detectedMobileViewport = useIsMobile();
+  const isMobileViewport =
+    forcedViewport != null
+      ? forcedViewport === "mobile"
+      : detectedMobileViewport;
   if (isMobileViewport) {
     return (
       <CareerWorkspaceMobileLayout
         activeTab={activeTab}
+        initialChatOpen={initialMobileChatOpen}
         onChangeTab={handleChangeTab}
         pendingInternalRoleFeedbackCount={pendingInternalRoleFeedbackCount}
       />
@@ -232,15 +283,33 @@ const CareerWorkspaceRoot = ({
   }
 
   return (
-    <div className="flex min-h-svh w-full flex-col lg:h-svh lg:overflow-hidden">
+    <div
+      className={cn(
+        "flex w-full flex-col",
+        fillParent
+          ? "h-full min-h-0 overflow-hidden"
+          : "min-h-svh lg:h-svh lg:overflow-hidden"
+      )}
+    >
       <CareerWorkspaceNav />
       <div
         ref={workspaceRef}
-        className="flex w-full flex-col lg:min-h-0 lg:flex-1 lg:flex-row lg:overflow-hidden"
+        className={cn(
+          "flex w-full flex-col lg:min-h-0 lg:flex-1 lg:flex-row lg:overflow-hidden",
+          fillParent && "min-h-0 flex-1 overflow-hidden",
+          forceDesktopLayout && "min-h-0 flex-1 flex-row overflow-hidden"
+        )}
       >
         <section
           id="career-chat-panel"
-          className="flex h-[55vh] min-h-0 min-w-0 flex-col border-b border-neutral-1000-a05 bg-bg-default lg:h-auto lg:flex-none lg:border-b-0"
+          className={cn(
+            "flex min-h-0 min-w-0 flex-col border-b border-neutral-1000-a05 bg-bg-default lg:flex-none lg:border-b-0",
+            forceDesktopLayout
+              ? "h-auto flex-none border-b-0"
+              : fillParent
+                ? "h-full"
+                : "h-[55vh] lg:h-auto"
+          )}
           style={
             isDesktop
               ? {
@@ -259,22 +328,38 @@ const CareerWorkspaceRoot = ({
         <div
           role="separator"
           tabIndex={isDesktop ? 0 : -1}
-          aria-label="채팅 패널 너비 조절"
+          aria-label={t(
+            "career.common.career_workspace_screen.18vor62",
+            "채팅 패널 너비 조절"
+          )}
           aria-orientation="vertical"
           onPointerDown={(event) => {
             event.preventDefault();
             handleResizeStart(event.clientX);
           }}
           onKeyDown={handleResizeKeyDown}
-          className="hidden cursor-col-resize items-center justify-center bg-bg-basement outline-none transition-colors hover:bg-bg-weak focus:bg-bg-weak lg:flex lg:w-2 lg:shrink-0"
+          className={cn(
+            "hidden cursor-col-resize items-center justify-center bg-bg-basement outline-none transition-colors hover:bg-bg-weak focus:bg-bg-weak lg:flex lg:w-2 lg:shrink-0",
+            forceDesktopLayout && "flex w-2 shrink-0"
+          )}
         >
           <div className="flex h-16 w-1 items-center justify-center rounded-full">
             <div className="h-10 w-[3px] rounded-full bg-black/20" />
           </div>
         </div>
 
-        <section className="min-w-0 flex-1 bg-bg-basement lg:min-h-0">
-          <div className="flex h-full min-h-[45svh] flex-col lg:min-h-0">
+        <section
+          className={cn(
+            "min-w-0 flex-1 bg-bg-basement lg:min-h-0",
+            forceDesktopLayout && "min-h-0"
+          )}
+        >
+          <div
+            className={cn(
+              "flex h-full min-h-[45svh] flex-col lg:min-h-0",
+              forceDesktopLayout && "min-h-0"
+            )}
+          >
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-8">
               <nav className="flex shrink-0 flex-wrap items-center justify-center gap-2 border-b border-neutral-1000-a05 px-3 py-3.5">
                 {NAV_ITEMS.map((item) => {
@@ -698,10 +783,12 @@ const TAB_MOTION_PROPS = {
 
 const CareerWorkspaceMobileLayout = ({
   activeTab,
+  initialChatOpen,
   onChangeTab,
   pendingInternalRoleFeedbackCount,
 }: {
   activeTab: CareerWorkspaceTab;
+  initialChatOpen?: boolean;
   onChangeTab: (
     tab: CareerWorkspaceTab,
     options?: CareerWorkspaceNavigationOptions
@@ -712,6 +799,7 @@ const CareerWorkspaceMobileLayout = ({
   const { onOpenSettings, onLogout } = useCareerSidebarContext();
   const { displayName, profilePicture, userEmail } = useMobileUserDisplay();
   const [chatOpen, setChatOpen] = useState(() => {
+    if (initialChatOpen) return true;
     if (typeof window === "undefined") return false;
     const startQuery = new URLSearchParams(window.location.search).get("start");
     return startQuery === "call" || startQuery === "chat";

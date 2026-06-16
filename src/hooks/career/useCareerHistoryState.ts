@@ -23,6 +23,8 @@ import {
   normalizeHistoryOpportunities,
 } from "@/hooks/career/careerSessionData";
 import type { FetchWithAuth } from "@/hooks/career/useCareerApi";
+import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
+import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 
 const CAREER_HISTORY_PAGE_SIZE = 10;
 const CAREER_HISTORY_GC_TIME = 30 * 60_000;
@@ -171,6 +173,7 @@ export function useCareerHistoryState(args: {
     onOpportunityFeedbackFollowUpPendingChanged,
     userId,
   } = args;
+  const tCareer = useCareerMessageFormatter();
   const queryClient = useQueryClient();
   const queryKey = useMemo(
     () => careerHistoryOpportunitiesKey(userId),
@@ -242,7 +245,7 @@ export function useCareerHistoryState(args: {
 
         if (!response.ok) {
           throw new Error(
-            getErrorMessage(payload, "피드백 후속 메시지를 만들지 못했습니다.")
+            getErrorMessage(payload, tCareer(H.feedbackFollowUpCreateFailed))
           );
         }
 
@@ -267,7 +270,7 @@ export function useCareerHistoryState(args: {
         setHistoryUpdateError(
           error instanceof Error
             ? error.message
-            : "피드백 후속 메시지를 만들지 못했습니다."
+            : tCareer(H.feedbackFollowUpCreateFailed)
         );
       } finally {
         if (feedbackFollowUpPendingSequenceRef.current === pendingSequence) {
@@ -287,6 +290,7 @@ export function useCareerHistoryState(args: {
       onPendingInternalOpportunityCallRequestsChanged,
       queryClient,
       queryKey,
+      tCareer,
     ]
   );
 
@@ -358,7 +362,7 @@ export function useCareerHistoryState(args: {
 
       if (!response.ok) {
         throw new Error(
-          getErrorMessage(payload, "기회 목록을 불러오지 못했습니다.")
+          getErrorMessage(payload, tCareer(H.opportunityListLoadFailed))
         );
       }
 
@@ -376,7 +380,7 @@ export function useCareerHistoryState(args: {
           typeof payload.nextOffset === "number" ? payload.nextOffset : null,
       } satisfies CareerHistoryPage;
     },
-    [fetchWithAuth, userId]
+    [fetchWithAuth, tCareer, userId]
   );
 
   const initialData = useMemo(() => {
@@ -682,7 +686,7 @@ export function useCareerHistoryState(args: {
 
       if (!response.ok) {
         throw new Error(
-          getErrorMessage(payload, "기회 상태를 업데이트하지 못했습니다.")
+          getErrorMessage(payload, tCareer(H.opportunityStatusUpdateFailed))
         );
       }
 
@@ -707,7 +711,7 @@ export function useCareerHistoryState(args: {
         userMessage?: CareerMessagePayload | null;
       };
     },
-    [fetchWithAuth]
+    [fetchWithAuth, tCareer]
   );
 
   const onUpdateHistoryOpportunityFeedback = useCallback(
@@ -833,7 +837,9 @@ export function useCareerHistoryState(args: {
           }
         }
         if (payload.opportunityDiscoveryQueued) {
-          showOpportunityDiscoveryStartedToast();
+          showOpportunityDiscoveryStartedToast(
+            tCareer(H.opportunityDiscoveryStarted)
+          );
         }
         if (payload.historyShouldRefresh || !shouldUpdateHistoryCache) {
           await queryClient.invalidateQueries({ queryKey });
@@ -849,7 +855,7 @@ export function useCareerHistoryState(args: {
         setHistoryUpdateError(
           error instanceof Error
             ? error.message
-            : "기회 상태를 업데이트하지 못했습니다."
+            : tCareer(H.opportunityStatusUpdateFailed)
         );
       } finally {
         endHistoryUpdate(normalizedOpportunityId);
@@ -878,6 +884,7 @@ export function useCareerHistoryState(args: {
       removeHistoryOpportunityLocally,
       restoreHistoryOpportunity,
       scheduleOpportunityFeedbackFollowUp,
+      tCareer,
       updateHistoryOpportunityLocally,
       upsertHistoryOpportunityLocally,
     ]
@@ -922,7 +929,7 @@ export function useCareerHistoryState(args: {
         setHistoryUpdateError(
           error instanceof Error
             ? error.message
-            : "기회 상태를 업데이트하지 못했습니다."
+            : tCareer(H.opportunityStatusUpdateFailed)
         );
       } finally {
         endHistoryUpdate(normalizedOpportunityId);
@@ -936,6 +943,7 @@ export function useCareerHistoryState(args: {
       applyHistoryOpportunityCountsTransition,
       patchHistoryOpportunity,
       restoreHistoryOpportunity,
+      tCareer,
       updateHistoryOpportunityLocally,
       upsertHistoryOpportunityLocally,
     ]
@@ -975,7 +983,7 @@ export function useCareerHistoryState(args: {
       } catch (error) {
         restoreHistoryOpportunity(normalizedOpportunityId, previousItem);
         setHistoryUpdateError(
-          error instanceof Error ? error.message : "메모를 저장하지 못했습니다."
+          error instanceof Error ? error.message : tCareer(H.memoSaveFailed)
         );
       } finally {
         endHistoryUpdate(normalizedOpportunityId);
@@ -987,6 +995,7 @@ export function useCareerHistoryState(args: {
       historyOpportunityById,
       patchHistoryOpportunity,
       restoreHistoryOpportunity,
+      tCareer,
       updateHistoryOpportunityLocally,
       upsertHistoryOpportunityLocally,
     ]
@@ -1016,7 +1025,7 @@ export function useCareerHistoryState(args: {
         setHistoryUpdateError(
           error instanceof Error
             ? error.message
-            : "기회 상태를 업데이트하지 못했습니다."
+            : tCareer(H.opportunityStatusUpdateFailed)
         );
       }
     },
@@ -1024,6 +1033,7 @@ export function useCareerHistoryState(args: {
       historyOpportunityById,
       patchHistoryOpportunity,
       restoreHistoryOpportunity,
+      tCareer,
       updateHistoryOpportunityLocally,
     ]
   );
@@ -1052,7 +1062,7 @@ export function useCareerHistoryState(args: {
         setHistoryUpdateError(
           error instanceof Error
             ? error.message
-            : "기회 상태를 업데이트하지 못했습니다."
+            : tCareer(H.opportunityStatusUpdateFailed)
         );
       }
     },
@@ -1060,6 +1070,7 @@ export function useCareerHistoryState(args: {
       historyOpportunityById,
       patchHistoryOpportunity,
       restoreHistoryOpportunity,
+      tCareer,
       updateHistoryOpportunityLocally,
     ]
   );
@@ -1096,10 +1107,10 @@ export function useCareerHistoryState(args: {
       setHistoryUpdateError(
         error instanceof Error
           ? error.message
-          : "기회 목록을 새로고침하지 못했습니다."
+          : tCareer(H.opportunityListRefreshFailed)
       );
     }
-  }, [enabled, fetchHistoryPage, queryClient, queryKey, userId]);
+  }, [enabled, fetchHistoryPage, queryClient, queryKey, tCareer, userId]);
 
   const appendHistoryOpportunityPage = useCallback(
     (page: CareerHistoryPage, offset: number) => {
@@ -1140,7 +1151,7 @@ export function useCareerHistoryState(args: {
 
       if (!response.ok) {
         throw new Error(
-          getErrorMessage(payload, "기회를 불러오지 못했습니다.")
+          getErrorMessage(payload, tCareer(H.opportunityLoadFailed))
         );
       }
 
@@ -1154,7 +1165,7 @@ export function useCareerHistoryState(args: {
 
       return item ?? null;
     },
-    [enabled, fetchWithAuth, upsertHistoryOpportunityLocally, userId]
+    [enabled, fetchWithAuth, tCareer, upsertHistoryOpportunityLocally, userId]
   );
 
   const loadMoreHistoryOpportunities = useCallback(
@@ -1206,7 +1217,7 @@ export function useCareerHistoryState(args: {
         setHistoryUpdateError(
           error instanceof Error
             ? error.message
-            : "기회 목록을 더 불러오지 못했습니다."
+            : tCareer(H.opportunityListLoadMoreFailed)
         );
       }
     },
@@ -1215,6 +1226,7 @@ export function useCareerHistoryState(args: {
       enabled,
       fetchHistoryPage,
       infinite,
+      tCareer,
       updateFilteredPageState,
       userId,
     ]

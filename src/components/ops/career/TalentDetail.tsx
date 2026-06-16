@@ -2,7 +2,12 @@ import { memo, useState } from "react";
 import Image from "next/image";
 import { LoaderCircle, MessageSquareText, User } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
-import { useOpsCareerDetail } from "@/hooks/useOpsCareer";
+import {
+  useOpsCareerDetail,
+  useOpsCareerInsights,
+  useOpsCareerMessages,
+  useOpsCareerProfile,
+} from "@/hooks/useOpsCareer";
 import {
   isEmailExcludedByOpsInternalTerms,
   useOpsInternalDataExclusionStore,
@@ -17,12 +22,19 @@ import {
 import { InsightsTab } from "./InsightsTab";
 import { MailTab } from "./MailTab";
 import { MessagesTab } from "./MessagesTab";
-import { OpsProfileMemoPanel } from "./OpsProfileMemoPanel";
+import { OpsProfileMemoFeed } from "./OpsProfileMemoFeed";
 import { ProfileTab } from "./ProfileTab";
 import { RecommendationsTab } from "./RecommendationsTab";
+import { TalentProgressFeed } from "./TalentProgressFeed";
+import {
+  TalentGeneralTagsPanel,
+  TalentRoleTagsPanel,
+} from "./TalentRoleTagsPanel";
 import { BareButton } from "@/components/ui/button";
+import type { CareerTalentOpsProfileMemo } from "@/lib/opsCareerServer";
 
 type TalentDetailTabId =
+  | "all_feed"
   | "insights"
   | "mail"
   | "messages"
@@ -30,6 +42,7 @@ type TalentDetailTabId =
   | "recommendations";
 
 const TALENT_DETAIL_TABS = [
+  { id: "all_feed", label: "전체 피드" },
   { id: "insights", label: "인사이트" },
   { id: "messages", label: "대화 내역" },
   { id: "profile", label: "프로필" },
@@ -44,6 +57,84 @@ type TalentDetailProps = {
   userId: string;
 };
 
+function TabLoading() {
+  return (
+    <div className="flex items-center justify-center py-14">
+      <LoaderCircle className="h-5 w-5 animate-spin text-neutral-soft" />
+    </div>
+  );
+}
+
+function TabError({ error, fallback }: { error: unknown; fallback: string }) {
+  return (
+    <div className={opsTheme.errorNotice}>
+      {error instanceof Error ? error.message : fallback}
+    </div>
+  );
+}
+
+function TalentAllFeedTab({
+  memos,
+  userId,
+}: {
+  memos: CareerTalentOpsProfileMemo[];
+  userId: string;
+}) {
+  return (
+    <div className="space-y-4">
+      <TalentGeneralTagsPanel userId={userId} />
+      <OpsProfileMemoFeed memos={memos} userId={userId} />
+      <TalentRoleTagsPanel userId={userId} />
+      <section className="rounded-md border border-neutral-1000-a05 bg-bg-floating p-4">
+        <div className="mb-4">
+          <div className="text-sm font-semibold text-neutral-primary">
+            전체 Progress
+          </div>
+        </div>
+        <TalentProgressFeed talentId={userId} showRoleContext />
+      </section>
+    </div>
+  );
+}
+
+function TalentInsightsTab({ userId }: { userId: string }) {
+  const { data, error, isLoading } = useOpsCareerInsights(userId);
+  if (isLoading) return <TabLoading />;
+  if (error || !data) {
+    return (
+      <TabError error={error} fallback="인사이트를 불러오지 못했습니다." />
+    );
+  }
+  return (
+    <InsightsTab
+      userId={userId}
+      insights={data.insights}
+      mergedChecklist={data.mergedChecklist}
+      preferences={data.preferences}
+    />
+  );
+}
+
+function TalentMessagesTab({ userId }: { userId: string }) {
+  const { data, error, isLoading } = useOpsCareerMessages(userId);
+  if (isLoading) return <TabLoading />;
+  if (error || !data) {
+    return (
+      <TabError error={error} fallback="대화 내역을 불러오지 못했습니다." />
+    );
+  }
+  return <MessagesTab messages={data.messages} />;
+}
+
+function TalentProfileTab({ userId }: { userId: string }) {
+  const { data, error, isLoading } = useOpsCareerProfile(userId);
+  if (isLoading) return <TabLoading />;
+  if (error || !data) {
+    return <TabError error={error} fallback="프로필을 불러오지 못했습니다." />;
+  }
+  return <ProfileTab detail={data} />;
+}
+
 export const TalentDetail = memo(function TalentDetail({
   userId,
 }: TalentDetailProps) {
@@ -51,7 +142,7 @@ export const TalentDetail = memo(function TalentDetail({
   const emailExclusionTerms = useOpsInternalDataExclusionStore(
     (state) => state.emailExclusionTerms
   );
-  const [activeTab, setActiveTab] = useState<TalentDetailTabId>("insights");
+  const [activeTab, setActiveTab] = useState<TalentDetailTabId>("all_feed");
 
   if (isLoading) {
     return (
@@ -146,14 +237,6 @@ export const TalentDetail = memo(function TalentDetail({
               </span>
             </div>
           </div>
-          <OpsProfileMemoPanel
-            key={detail.userId}
-            memos={
-              detail.opsProfileMemos ??
-              (detail.opsProfileMemo ? [detail.opsProfileMemo] : [])
-            }
-            userId={detail.userId}
-          />
         </div>
       </div>
 
@@ -176,18 +259,24 @@ export const TalentDetail = memo(function TalentDetail({
       </div>
 
       <div className="p-5">
-        {activeTab === "insights" ? (
-          <InsightsTab
-            userId={userId}
-            insights={detail.insights}
-            mergedChecklist={detail.mergedChecklist}
-            preferences={detail.preferences}
+        {activeTab === "all_feed" ? (
+          <TalentAllFeedTab
+            memos={
+              detail.opsProfileMemos ??
+              (detail.opsProfileMemo ? [detail.opsProfileMemo] : [])
+            }
+            userId={detail.userId}
           />
         ) : null}
-        {activeTab === "messages" ? (
-          <MessagesTab messages={detail.messages} />
+        {activeTab === "insights" ? (
+          <TalentInsightsTab userId={detail.userId} />
         ) : null}
-        {activeTab === "profile" ? <ProfileTab detail={detail} /> : null}
+        {activeTab === "messages" ? (
+          <TalentMessagesTab userId={detail.userId} />
+        ) : null}
+        {activeTab === "profile" ? (
+          <TalentProfileTab userId={detail.userId} />
+        ) : null}
         {activeTab === "mail" ? (
           <MailTab key={detail.userId} detail={detail} />
         ) : null}

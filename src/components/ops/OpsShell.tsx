@@ -6,19 +6,12 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useOpsInternalDataExclusionStore } from "@/store/useOpsInternalDataExclusionStore";
 import { INTERNAL_EMAIL_DOMAIN, isInternalEmail } from "@/lib/internalAccess";
 import {
-  Building2,
-  BriefcaseBusiness,
-  ClipboardList,
   EyeOff,
   KeyRound,
-  LayoutDashboard,
-  ListChecks,
   Lock,
-  MessageSquareText,
   Plus,
   ShieldAlert,
   Trash2,
-  Users,
   X,
 } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
@@ -29,74 +22,88 @@ type OpsNavItem = {
   description: string;
   exact?: boolean;
   href: string;
-  icon: React.ComponentType<{ className?: string }>;
   label: string;
   matchPrefix?: string;
 };
 
-export const OPS_NAV_ITEMS: OpsNavItem[] = [
+type OpsNavGroup = {
+  id: "system" | "matching";
+  label: string;
+  items: OpsNavItem[];
+};
+
+export const OPS_NAV_GROUPS: OpsNavGroup[] = [
   {
-    description: "내부 도구 허브",
-    exact: true,
-    href: "/ops",
-    icon: LayoutDashboard,
-    label: "Overview",
+    id: "system",
+    label: "시스템",
+    items: [
+      {
+        description: "공개 jobs 페이지 포지션 관리",
+        href: "/ops/jobs",
+        label: "Official Jobs",
+        matchPrefix: "/ops/jobs",
+      },
+      {
+        description: "채팅 답변 예시 관리",
+        href: "/ops/answer-examples",
+        label: "Answer Examples",
+        matchPrefix: "/ops/answer-examples",
+      },
+      {
+        description: "career 번역 문구 관리",
+        href: "/ops/translation",
+        label: "Translation",
+        matchPrefix: "/ops/translation",
+      },
+      {
+        description: "access 요청 승인 및 리뷰",
+        href: "/ops/request-access",
+        label: "Request Access",
+        matchPrefix: "/ops/request-access",
+      },
+    ],
   },
   {
-    description: "network.tsx 제출 데이터",
-    href: "/ops/network",
-    icon: Users,
-    label: "Network Leads",
-    matchPrefix: "/ops/network",
-  },
-  {
-    description: "career 온보딩 인사이트",
-    href: "/ops/career",
-    icon: MessageSquareText,
-    label: "Career Talents",
-    matchPrefix: "/ops/career",
-  },
-  {
-    description: "사람별 internal 추천 관리",
-    href: "/ops/internal-recommendations",
-    icon: ClipboardList,
-    label: "Internal Recs",
-    matchPrefix: "/ops/internal-recommendations",
-  },
-  {
-    description: "회사·기회 관리와 수동 매칭",
-    href: "/ops/opportunities",
-    icon: BriefcaseBusiness,
-    label: "Opportunities",
-    matchPrefix: "/ops/opportunities",
-  },
-  {
-    description: "company_workspace score와 quality label",
-    href: "/ops/companies",
-    icon: Building2,
-    label: "Companies",
-    matchPrefix: "/ops/companies",
-  },
-  {
-    description: "공개 jobs 페이지 포지션 관리",
-    href: "/ops/jobs",
-    icon: ListChecks,
-    label: "Official Jobs",
-    matchPrefix: "/ops/jobs",
-  },
-  {
-    description: "채팅 답변 예시 관리",
-    href: "/ops/answer-examples",
-    icon: MessageSquareText,
-    label: "Answer Examples",
-    matchPrefix: "/ops/answer-examples",
-  },
-  {
-    description: "access 요청 승인 및 리뷰",
-    href: "/ops/request-access",
-    icon: KeyRound,
-    label: "Request Access",
-    matchPrefix: "/ops/request-access",
+    id: "matching",
+    label: "매칭 관리",
+    items: [
+      {
+        description: "회사·role 단위 매칭 관리",
+        href: "/ops/matching",
+        label: "Matching",
+        matchPrefix: "/ops/matching",
+      },
+      {
+        description: "사람 단위 talent pool 관리",
+        href: "/ops/talent-pool",
+        label: "Talent Pool",
+        matchPrefix: "/ops/talent-pool",
+      },
+      {
+        description: "career 온보딩 인사이트",
+        href: "/ops/career",
+        label: "Career Talents",
+        matchPrefix: "/ops/career",
+      },
+      {
+        description: "사람별 internal 추천 관리",
+        href: "/ops/internal-recommendations",
+        label: "Internal Recs",
+        matchPrefix: "/ops/internal-recommendations",
+      },
+      {
+        description: "회사·기회 관리와 수동 매칭",
+        href: "/ops/opportunities",
+        label: "Opportunities",
+        matchPrefix: "/ops/opportunities",
+      },
+      {
+        description: "company_workspace score와 quality label",
+        href: "/ops/companies",
+        label: "Companies",
+        matchPrefix: "/ops/companies",
+      },
+    ],
   },
 ];
 
@@ -107,6 +114,14 @@ function isItemActive(item: OpsNavItem, path: string) {
 
   const prefix = item.matchPrefix ?? item.href;
   return path === prefix || path.startsWith(`${prefix}/`);
+}
+
+function getActiveNavGroup(path: string) {
+  return (
+    OPS_NAV_GROUPS.find((group) =>
+      group.items.some((item) => isItemActive(item, path))
+    ) ?? OPS_NAV_GROUPS.find((group) => group.id === "matching")!
+  );
 }
 
 function LoginGate({
@@ -121,7 +136,7 @@ function LoginGate({
   return (
     <div className={opsTheme.page}>
       <div className={opsTheme.backgroundGlow} />
-      <div className="relative flex min-h-screen items-center justify-center px-4">
+      <div className="relative flex min-h-svh items-center justify-center px-4">
         <div className="w-full max-w-md rounded-lg bg-bg-default/90 p-8 shadow-[0_28px_80px_color-mix(in_srgb,var(--color-neutral-1000)_10%,transparent)]">
           <div className="inline-flex rounded-md bg-bg-weak p-3 text-neutral-primary">
             <Lock className="h-5 w-5" />
@@ -163,7 +178,7 @@ function ForbiddenGate({
   return (
     <div className={opsTheme.page}>
       <div className={opsTheme.backgroundGlow} />
-      <div className="relative flex min-h-screen items-center justify-center px-4">
+      <div className="relative flex min-h-svh items-center justify-center px-4">
         <div className="w-full max-w-lg rounded-lg bg-bg-default/90 p-8 shadow-[0_28px_80px_color-mix(in_srgb,var(--color-neutral-1000)_10%,transparent)]">
           <div className="inline-flex rounded-md bg-critical-faded p-3 text-critical">
             <ShieldAlert className="h-5 w-5" />
@@ -345,12 +360,14 @@ export default function OpsShell({
   children,
   compactHeader = false,
   title,
+  navActions,
 }: {
   actions?: React.ReactNode;
   children: React.ReactNode;
   compactHeader?: boolean;
   description?: React.ReactNode;
   title?: string;
+  navActions?: React.ReactNode;
 }) {
   const router = useRouter();
   const { loading: authLoading, signOut, user } = useAuthStore();
@@ -396,12 +413,16 @@ export default function OpsShell({
   }, [authPending, router.asPath]);
 
   const activePath = useMemo(() => router.pathname, [router.pathname]);
+  const activeNavGroup = useMemo(
+    () => getActiveNavGroup(activePath),
+    [activePath]
+  );
 
   if (authLoading) {
     return (
       <div className={opsTheme.page}>
         <div className={opsTheme.backgroundGlow} />
-        <div className="relative flex min-h-screen items-center justify-center text-sm text-neutral-muted">
+        <div className="relative flex min-h-svh items-center justify-center text-sm text-neutral-muted">
           세션 확인 중...
         </div>
       </div>
@@ -430,13 +451,31 @@ export default function OpsShell({
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--color-neutral-00)_20%,transparent),transparent)]" />
       <div className="sticky top-0 z-30 border-b border-neutral-1000-a05 bg-bg-default/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-[1600px] flex-col gap-3 px-4 py-3 lg:px-6">
-          <div className="flex items-center justify-between gap-4">
-            <Link
-              href="/ops"
-              className="shrink-0 font-hedvig text-[1.55rem] leading-none tracking-[-0.06em] text-neutral-primary"
-            >
-              Harper Ops
-            </Link>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 flex-wrap items-center gap-3">
+              <Link
+                href="/ops"
+                className="shrink-0 font-hedvig text-lg text-neutral-primary"
+              >
+                Harper Ops
+              </Link>
+              <div className="flex flex-row gap-2 items-center">
+                {OPS_NAV_GROUPS.map((group) => (
+                  <Link
+                    key={group.id}
+                    href={group.items[0]?.href ?? "/ops"}
+                    className={cx(
+                      "inline-flex h-8 items-center rounded px-3 text-sm font-medium",
+                      activeNavGroup.id === group.id
+                        ? "text-primary"
+                        : "text-neutral-muted hover:text-neutral-primary"
+                    )}
+                  >
+                    {group.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
             <BareButton
               type="button"
               onClick={() => setExclusionModalOpen(true)}
@@ -453,7 +492,7 @@ export default function OpsShell({
           </div>
           <nav className="overflow-x-auto">
             <div className="flex min-w-max items-center gap-2">
-              {OPS_NAV_ITEMS.map((item) => {
+              {activeNavGroup.items.map((item) => {
                 const active = isItemActive(item, activePath);
 
                 return (
@@ -461,10 +500,10 @@ export default function OpsShell({
                     key={item.href}
                     href={item.href}
                     className={cx(
-                      "rounded-full px-3 py-2 text-sm font-medium transition-colors",
+                      "rounded-none border-b-0 border-neutral-500 px-2 py-2 text-sm font-medium",
                       active
-                        ? "bg-black text-neutral-00"
-                        : "bg-bg-default/55 text-neutral-muted hover:bg-bg-default/80 hover:text-neutral-primary"
+                        ? "border-primary text-primary"
+                        : "text-neutral-800 hover:border-primary hover:text-primary"
                     )}
                   >
                     {item.label}
@@ -472,24 +511,31 @@ export default function OpsShell({
                 );
               })}
             </div>
+            {navActions && (
+              <div className="flex flex-row gap-2 items-center">
+                {navActions}
+              </div>
+            )}
           </nav>
         </div>
       </div>
-      <div className="relative mx-auto max-w-[1600px] px-4 py-6 lg:px-6">
+      <div className="relative mx-auto max-w-[1600px] px-4 py-4 lg:px-6">
         <main className="min-w-0 space-y-2">
-          <section className="flex flex-col gap-4 px-4">
-            <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <h1>{title}</h1>
-              </div>
-
-              {actions ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  {actions}
+          {actions && (
+            <section className="flex flex-col gap-4 px-4">
+              <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <h1>{title}</h1>
                 </div>
-              ) : null}
-            </div>
-          </section>
+
+                {actions ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {actions}
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          )}
 
           {children}
         </main>

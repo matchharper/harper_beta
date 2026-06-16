@@ -22,7 +22,7 @@ import type {
   CareerConversationStarterMode,
 } from "@/lib/career/conversationStarters";
 import {
-  RECOMMEND_JOB_POSTINGS_CHAT_PREAMBLE,
+  RECOMMEND_JOB_POSTINGS_CHAT_PREAMBLES,
   splitRecommendJobPostingStatusLogs,
 } from "@/lib/talentOnboarding/recommendJobPostingStatus";
 import {
@@ -59,14 +59,33 @@ import { OpportunityPreviewCards } from "./elements/OpportunityPreviewCards";
 import { RecommendationSearchStatusPanel } from "./elements/RecommendationSearchStatusPanel";
 import { ThinkingLogPanel } from "./elements/ThinkingLogPanel";
 import { TimelinePendingPanel } from "./elements/TimelinePendingPanel";
+import { formatCareerMessage } from "@/i18n/careerMessage";
+import { useMessages, type Locale } from "@/i18n/useMessage";
+import { useCareerT } from "@/i18n/useCareerT";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
-const LOGIN_GREETING_TEXT =
-  "안녕하세요.\n\n회원님의 정보를 저장하기 위해서 우선 계정으로 로그인을 해주세요.";
+const LOGIN_GREETING_TEXT = careerT(
+  "ko",
+  "career.chat.career_timeline_section.0arsq09",
+  "안녕하세요. 회원님의 정보를 저장하기 위해서 우선 계정으로 로그인을 해주세요."
+);
 
 const LOADING_EXAMPLES = [
-  "미국 법인 AI Product 팀 Senior Software Engineer",
-  "글로벌 SaaS 팀 ML Engineer (비자 스폰서 가능)",
-  "국내 딥테크 스타트업 Applied AI Engineer",
+  careerT(
+    "ko",
+    "career.chat.career_timeline_section.0or3a9m",
+    "미국 법인 AI Product 팀 Senior Software Engineer"
+  ),
+  careerT(
+    "ko",
+    "career.chat.career_timeline_section.00l29f9",
+    "글로벌 SaaS 팀 ML Engineer (비자 스폰서 가능)"
+  ),
+  careerT(
+    "ko",
+    "career.chat.career_timeline_section.13lt218",
+    "국내 딥테크 스타트업 Applied AI Engineer"
+  ),
 ];
 
 const BOTTOM_THRESHOLD_PX = 120;
@@ -77,9 +96,26 @@ const TIMELINE_SCROLL_STYLE: React.CSSProperties = {
 };
 const HISTORY_TAB_QUERY_KEY = "historyTab";
 const HISTORY_ROLE_QUERY_KEY = "id";
-const CLAIMED_WORKSPACE_BOOTSTRAP_MESSAGE =
-  "기존에 제출한 정보로 커리어 워크스페이스를 시작했습니다.";
-const MESSAGE_DATE_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
+const CLAIMED_WORKSPACE_BOOTSTRAP_MESSAGE = careerT(
+  "ko",
+  "career.chat.career_timeline_section.0akm24y",
+  "기존에 제출한 정보로 커리어 워크스페이스를 시작했습니다."
+);
+const MESSAGE_DATE_FORMATTERS: Record<Locale, Intl.DateTimeFormat> = {
+  ko: new Intl.DateTimeFormat("ko-KR", {
+    day: "numeric",
+    month: "long",
+    weekday: "short",
+    year: "numeric",
+  }),
+  en: new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "short",
+    weekday: "short",
+  }),
+};
+
+const MESSAGE_DATE_FALLBACK_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
   day: "numeric",
   month: "long",
   weekday: "short",
@@ -115,9 +151,13 @@ const getPreviousMessageDateKey = (
 const getSingleQueryValue = (value: string | string[] | undefined) =>
   Array.isArray(value) ? value[0] : value;
 
-const formatMessageDateLabel = (createdAt: string) => {
+const formatMessageDateLabel = (createdAt: string, locale: Locale) => {
   const date = parseMessageDate(createdAt);
-  return date ? MESSAGE_DATE_FORMATTER.format(date) : "";
+  return date
+    ? (
+        MESSAGE_DATE_FORMATTERS[locale] ?? MESSAGE_DATE_FALLBACK_FORMATTER
+      ).format(date)
+    : "";
 };
 
 const TimelinePanel = ({
@@ -143,11 +183,17 @@ const AssistantLabel = ({ children }: { children: React.ReactNode }) => (
   </div>
 );
 
-const TimelineDateDivider = ({ label }: { label: string }) => (
+const TimelineDateDivider = ({
+  ariaPrefix,
+  label,
+}: {
+  ariaPrefix: string;
+  label: string;
+}) => (
   <div
     role="separator"
     className="flex justify-center py-2"
-    aria-label={`대화 날짜 ${label}`}
+    aria-label={`${ariaPrefix} ${label}`}
   >
     <span
       className={cn(
@@ -178,12 +224,14 @@ const getRecommendationStatusAnchor = (
   const leadingWhitespaceLength =
     message.content.length - message.content.trimStart().length;
   const trimmedContent = message.content.slice(leadingWhitespaceLength);
-  if (!trimmedContent.startsWith(RECOMMEND_JOB_POSTINGS_CHAT_PREAMBLE)) {
+  const matchedPreamble = RECOMMEND_JOB_POSTINGS_CHAT_PREAMBLES.find(
+    (preamble) => trimmedContent.startsWith(preamble)
+  );
+  if (!matchedPreamble) {
     return null;
   }
 
-  const fallbackAnchor =
-    leadingWhitespaceLength + RECOMMEND_JOB_POSTINGS_CHAT_PREAMBLE.length;
+  const fallbackAnchor = leadingWhitespaceLength + matchedPreamble.length;
   return fallbackAnchor <= message.content.length ? fallbackAnchor : null;
 };
 
@@ -257,6 +305,12 @@ const TimelineMessageList = memo(function TimelineMessageList({
   sessionReengagementActionMessageId?: string | null;
   onOpenOpportunity: (opportunity: CareerHistoryOpportunity) => void;
 }) {
+  const { locale, m } = useMessages();
+  const dateAriaPrefix = formatCareerMessage(
+    m,
+    careerT("ko", "career.chat.career_timeline_section.17u6jy7", "대화 날짜")
+  );
+
   return (
     <>
       {messages.map((message, index) => {
@@ -276,7 +330,7 @@ const TimelineMessageList = memo(function TimelineMessageList({
         );
         const dateLabel =
           messageDateKey !== previousMessageDateKey
-            ? formatMessageDateLabel(message.createdAt)
+            ? formatMessageDateLabel(message.createdAt, locale)
             : "";
         const isOnboardingCompletionNotice =
           message.messageType ===
@@ -455,7 +509,12 @@ const TimelineMessageList = memo(function TimelineMessageList({
 
         return (
           <Fragment key={String(message.id)}>
-            {dateLabel && <TimelineDateDivider label={dateLabel} />}
+            {dateLabel && (
+              <TimelineDateDivider
+                ariaPrefix={dateAriaPrefix}
+                label={dateLabel}
+              />
+            )}
             {messageNode}
           </Fragment>
         );
@@ -465,7 +524,10 @@ const TimelineMessageList = memo(function TimelineMessageList({
 });
 
 const CareerTimelineSection = () => {
+  const t = useCareerT();
+
   const router = useRouter();
+  const { m } = useMessages();
   const {
     user,
     conversationId,
@@ -571,11 +633,23 @@ const CareerTimelineSection = () => {
     stage !== "profile";
   const opportunityFeedbackFollowUpPendingDetail =
     opportunityFeedbackFollowUpTrigger === "immediate_internal_feedback"
-      ? "다음 프로세스를 확인하고 있어요."
+      ? careerT(
+          "ko",
+          "career.chat.career_timeline_section.0qzkj18",
+          "다음 프로세스를 확인하고 있어요."
+        )
       : opportunityFeedbackFollowUpTrigger ===
           "all_recommended_opportunities_cleared"
-        ? "방금 남긴 피드백을 바탕으로 다음 추천 방향을 정리하고 있어요."
-        : "남겨주신 피드백을 반영해서 다음 메시지를 준비하고 있어요.";
+        ? careerT(
+            "ko",
+            "career.chat.career_timeline_section.1ct6hfb",
+            "방금 남긴 피드백을 바탕으로 다음 추천 방향을 정리하고 있어요."
+          )
+        : careerT(
+            "ko",
+            "career.chat.career_timeline_section.0hm90b7",
+            "남겨주신 피드백을 반영해서 다음 메시지를 준비하고 있어요."
+          );
   const initialBottomSyncDoneRef = useRef(false);
 
   const handleEmailAuthSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -834,11 +908,32 @@ const CareerTimelineSection = () => {
               disabled={authPending}
               className="w-full justify-center px-4"
             >
-              {authPending ? "처리 중..." : "Google 로그인"}
+              {authPending
+                ? careerT(
+                    "ko",
+                    "career.chat.career_timeline_section.1xwvmgk",
+                    "처리 중..."
+                  )
+                : careerT(
+                    "ko",
+                    "career.chat.career_timeline_section.1sop3l6",
+                    "Google 로그인"
+                  )}
             </SecondaryButton>
 
             <div className="mt-5 text-[14px] font-medium text-neutral-muted">
-              이메일 {authMode === "signup" ? "회원가입" : "로그인"}
+              {t("career.onboarding.onboarding.17sy1or", "이메일")}{" "}
+              {authMode === "signup"
+                ? careerT(
+                    "ko",
+                    "career.chat.career_timeline_section.06wb0ci",
+                    "회원가입"
+                  )
+                : careerT(
+                    "ko",
+                    "career.chat.career_timeline_section.074rfeb",
+                    "로그인"
+                  )}
             </div>
 
             <form onSubmit={handleEmailAuthSubmit} className="mt-3 space-y-3">
@@ -846,7 +941,10 @@ const CareerTimelineSection = () => {
                 value={authEmail}
                 onChange={(event) => setAuthEmail(event.target.value)}
                 type="email"
-                placeholder="ID (이메일)"
+                placeholder={t(
+                  "career.chat.career_timeline_section.1sv2rkn",
+                  "ID (이메일)"
+                )}
                 disabled={authPending}
               />
               <Input
@@ -861,14 +959,32 @@ const CareerTimelineSection = () => {
                 disabled={authPending}
                 className="w-full justify-center"
               >
-                {authMode === "signup" ? "회원가입" : "로그인"}
+                {authMode === "signup"
+                  ? careerT(
+                      "ko",
+                      "career.chat.career_timeline_section.06wb0ci",
+                      "회원가입"
+                    )
+                  : careerT(
+                      "ko",
+                      "career.chat.career_timeline_section.074rfeb",
+                      "로그인"
+                    )}
               </PrimaryButton>
             </form>
 
             <div className="mt-4 text-sm text-neutral-muted">
               {authMode === "signup"
-                ? "이미 계정이 있으신가요?"
-                : "첫 방문이신가요?"}{" "}
+                ? careerT(
+                    "ko",
+                    "career.chat.career_timeline_section.0jstyw1",
+                    "이미 계정이 있으신가요?"
+                  )
+                : careerT(
+                    "ko",
+                    "career.chat.career_timeline_section.09zvq4w",
+                    "첫 방문이신가요?"
+                  )}{" "}
               <BareButton
                 type="button"
                 onClick={() =>
@@ -879,7 +995,17 @@ const CareerTimelineSection = () => {
                 disabled={authPending}
                 className="font-medium text-neutral-primary underline underline-offset-4"
               >
-                {authMode === "signup" ? "로그인" : "회원가입"}
+                {authMode === "signup"
+                  ? careerT(
+                      "ko",
+                      "career.chat.career_timeline_section.074rfeb",
+                      "로그인"
+                    )
+                  : careerT(
+                      "ko",
+                      "career.chat.career_timeline_section.06wb0ci",
+                      "회원가입"
+                    )}
               </BareButton>
             </div>
 
@@ -915,7 +1041,17 @@ const CareerTimelineSection = () => {
               disabled={loadingOlderMessages}
               className="inline-flex h-9 items-center justify-center rounded-[8px] border border-neutral-1000-a05 bg-bg-floating px-4 text-xs text-neutral-muted transition-colors hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loadingOlderMessages ? "불러오는 중..." : "이전 대화 더 보기"}
+              {loadingOlderMessages
+                ? careerT(
+                    "ko",
+                    "career.chat.career_timeline_section.0bh3gyc",
+                    "불러오는 중..."
+                  )
+                : careerT(
+                    "ko",
+                    "career.chat.career_timeline_section.0t1ynxd",
+                    "이전 대화 더 보기"
+                  )}
             </BareButton>
           </div>
         )}
@@ -924,7 +1060,10 @@ const CareerTimelineSection = () => {
           <div className="flex min-h-[52vh] items-center justify-center">
             <div className="flex items-center gap-2 text-sm text-neutral-muted">
               <Loader2 className="h-4 w-4 animate-spin text-neutral-primary" />
-              하퍼가 들어오고 있습니다...
+              {t(
+                "career.chat.career_timeline_section.1qh8yei",
+                "하퍼가 들어오고 있습니다..."
+              )}
             </div>
           </div>
         ) : null}
@@ -960,14 +1099,20 @@ const CareerTimelineSection = () => {
           ) : (
             <TimelinePendingPanel
               label="Thinking..."
-              detail="오랜만에 이어갈 대화를 준비하고 있어요."
+              detail={t(
+                "career.common.career.1kdjvb7",
+                "오랜만에 이어갈 대화를 준비하고 있어요."
+              )}
             />
           ))}
 
         {callWrapUpPending && !sessionPending && stage !== "profile" && (
           <TimelinePendingPanel
             label="Call wrap-up..."
-            detail="통화 내용을 정리하고 다음 메시지를 준비하고 있어요."
+            detail={t(
+              "career.common.career.1xci024",
+              "통화 내용을 정리하고 다음 메시지를 준비하고 있어요."
+            )}
           />
         )}
 
@@ -977,7 +1122,10 @@ const CareerTimelineSection = () => {
           stage !== "profile" && (
             <TimelinePendingPanel
               label="Thinking..."
-              detail="대화 내용을 정리하고 있어요."
+              detail={t(
+                "career.common.career.11j6jdx",
+                "대화 내용을 정리하고 있어요."
+              )}
             />
           )}
 
@@ -1014,7 +1162,10 @@ const CareerTimelineSection = () => {
           <TimelinePanel className="max-w-[980px]">
             <div className="flex items-center gap-2 text-sm text-neutral-soft">
               <Loader2 className="h-4 w-4 animate-spin text-neutral-primary" />
-              이력서와 링크 정보를 분석 중입니다...
+              {t(
+                "career.chat.career_timeline_section.0m1h5tz",
+                "이력서와 링크 정보를 분석 중입니다..."
+              )}
             </div>
             <div className="mt-5 grid gap-2 border-t border-neutral-1000-a05 pt-4">
               {LOADING_EXAMPLES.map((example) => (
@@ -1034,10 +1185,16 @@ const CareerTimelineSection = () => {
             <div className="grid gap-6">
               <section>
                 <div className="text-[15px] font-medium text-neutral-primary">
-                  이력서 업로드
+                  {t(
+                    "career.chat.career_timeline_section.0hahmkh",
+                    "이력서 업로드"
+                  )}
                 </div>
                 <div className="mt-1 text-[13px] leading-6 text-neutral-soft">
-                  PDF, DOC, DOCX 파일을 업로드할 수 있습니다.
+                  {t(
+                    "career.chat.career_timeline_section.0ebbrm3",
+                    "PDF, DOC, DOCX 파일을 업로드할 수 있습니다."
+                  )}
                 </div>
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                   <label
@@ -1045,7 +1202,10 @@ const CareerTimelineSection = () => {
                     className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-[8px] border border-neutral-1000-a10 bg-bg-floating px-4 text-sm text-neutral-primary transition-colors hover:border-neutral-400 hover:bg-bg-weak"
                   >
                     <Upload className="h-4 w-4" />
-                    파일 선택
+                    {t(
+                      "career.chat.career_timeline_section.1gfaiqo",
+                      "파일 선택"
+                    )}
                   </label>
                   <UiInput
                     unstyled
@@ -1058,14 +1218,22 @@ const CareerTimelineSection = () => {
                     }}
                   />
                   <div className="text-sm text-neutral-muted">
-                    {resumeFile?.name || "선택된 파일 없음"}
+                    {resumeFile?.name ||
+                      careerT(
+                        "ko",
+                        "career.chat.career_timeline_section.0cx2fkc",
+                        "선택된 파일 없음"
+                      )}
                   </div>
                 </div>
               </section>
 
               <section className="border-t border-neutral-1000-a05 pt-6">
                 <div className="text-[15px] font-medium text-neutral-primary">
-                  주요 링크
+                  {t(
+                    "career.chat.career_timeline_section.1ovt2je",
+                    "주요 링크"
+                  )}
                 </div>
                 <div className="mt-4 space-y-3">
                   {profileLinks.map((link, index) => (
@@ -1074,7 +1242,12 @@ const CareerTimelineSection = () => {
                       className="grid gap-2 md:grid-cols-[140px_minmax(0,1fr)_40px]"
                     >
                       <div className="pt-2 text-[14px] font-medium text-neutral-soft">
-                        {CAREER_LINK_LABELS[index] ?? "추가 링크"}
+                        {CAREER_LINK_LABELS[index] ??
+                          careerT(
+                            "ko",
+                            "career.chat.career_timeline_section.0ong27a",
+                            "추가 링크"
+                          )}
                       </div>
                       <Input
                         value={link}
@@ -1103,7 +1276,10 @@ const CareerTimelineSection = () => {
                   className="mt-4 inline-flex h-10 items-center gap-2 rounded-[8px] border border-neutral-1000-a10 bg-bg-floating px-4 text-sm text-neutral-primary transition-colors hover:border-neutral-400 hover:bg-bg-weak"
                 >
                   <Plus className="h-4 w-4" />
-                  링크 추가
+                  {t(
+                    "career.chat.career_timeline_section.1gvzqes",
+                    "링크 추가"
+                  )}
                 </BareButton>
               </section>
 
@@ -1115,15 +1291,27 @@ const CareerTimelineSection = () => {
 
               <div className="border-t border-neutral-1000-a05 pt-5">
                 <div className="text-[13px] leading-6 text-neutral-soft">
-                  이력서나 링크 하나만 있어도 우선 시작할 수 있습니다. 정보는
-                  언제든지 바꿀 수 있습니다.
+                  {t(
+                    "career.chat.career_timeline_section.0n6afuz",
+                    "이력서나 링크 하나만 있어도 우선 시작할 수 있습니다. 정보는 언제든지 바꿀 수 있습니다."
+                  )}
                 </div>
                 <PrimaryButton
                   onClick={() => void onProfileSubmit()}
                   disabled={profilePending}
                   className="mt-4 w-full justify-center"
                 >
-                  {profilePending ? "분석 준비 중..." : "제출하기"}
+                  {profilePending
+                    ? careerT(
+                        "ko",
+                        "career.chat.career_timeline_section.0hzihgh",
+                        "분석 준비 중..."
+                      )
+                    : careerT(
+                        "ko",
+                        "career.chat.career_timeline_section.0hfdmut",
+                        "제출하기"
+                      )}
                 </PrimaryButton>
               </div>
             </div>
@@ -1145,10 +1333,15 @@ const CareerTimelineSection = () => {
         {showVoiceStartPrompt && (
           <div className="max-w-[620px]">
             <div className="md:text-[14px] text-[15px]">
-              좋은 회사와 역할, 기회를 연결해드리기 위해 5분 커리어 인터뷰를
-              통해 몇가지 질문을 더 드리고 싶어요.
+              {t(
+                "career.chat.career_timeline_section.0ijd99q",
+                "좋은 회사와 역할, 기회를 연결해드리기 위해 5분 커리어 인터뷰를 통해 몇가지 질문을 더 드리고 싶어요."
+              )}
               <br />
-              희망 역할과 피하고 싶은 조건만 짧게 확인할게요.
+              {t(
+                "career.chat.career_timeline_section.0g10mif",
+                "희망 역할과 피하고 싶은 조건만 짧게 확인할게요."
+              )}
             </div>
             <div className="mt-5 flex flex-row gap-2">
               <PrimaryButton
@@ -1157,17 +1350,39 @@ const CareerTimelineSection = () => {
                 className="w-fit justify-center"
               >
                 {isStartingCall
-                  ? "통화 연결 중..."
+                  ? careerT(
+                      "ko",
+                      "career.common.career_chat_panel.1q1egw3",
+                      "통화 연결 중..."
+                    )
                   : callWrapUpPending
-                    ? "정리 중..."
-                    : "전화로 시작"}
+                    ? careerT(
+                        "ko",
+                        "career.chat.career_timeline_section.0twh3v7",
+                        "정리 중..."
+                      )
+                    : careerT(
+                        "ko",
+                        "career.chat.career_timeline_section.0ai2d9e",
+                        "전화로 시작"
+                      )}
               </PrimaryButton>
               <SecondaryButton
                 onClick={onUseChatOnly}
                 disabled={isConversationActionLocked}
                 className="w-fit justify-center"
               >
-                {isConversationActionLocked ? "준비 중..." : "채팅으로 시작"}
+                {isConversationActionLocked
+                  ? careerT(
+                      "ko",
+                      "career.chat.career_timeline_section.0l0nx9g",
+                      "준비 중..."
+                    )
+                  : careerT(
+                      "ko",
+                      "career.chat.career_timeline_section.1xcwt3x",
+                      "채팅으로 시작"
+                    )}
               </SecondaryButton>
               <SecondaryButton
                 onClick={() => void onPauseOnboarding()}
@@ -1175,8 +1390,16 @@ const CareerTimelineSection = () => {
                 className="w-fit justify-center"
               >
                 {onboardingPausePending
-                  ? "준비 중..."
-                  : "우선 종료하고 나중에 이어할게요."}
+                  ? careerT(
+                      "ko",
+                      "career.chat.career_timeline_section.0l0nx9g",
+                      "준비 중..."
+                    )
+                  : careerT(
+                      "ko",
+                      "career.chat.career_timeline_section.0v3ly8r",
+                      "우선 종료하고 나중에 이어할게요."
+                    )}
               </SecondaryButton>
             </div>
           </div>
@@ -1185,12 +1408,16 @@ const CareerTimelineSection = () => {
         {showInterestSelector && (
           <div className="max-w-[900px]">
             <div className="text-[12px] font-medium text-neutral-soft">
-              복수 선택 가능
+              {t(
+                "career.chat.career_timeline_section.0dm46ie",
+                "복수 선택 가능"
+              )}
             </div>
 
             <div className="mt-3 space-y-2 flex flex-col">
               {TALENT_ONBOARDING_INTEREST_OPTIONS.map((option) => {
                 const selected = selectedInterestOptions.includes(option.id);
+                const label = m.career?.[option.labelKey] ?? option.label;
                 return (
                   <InterestChoiceButton
                     key={option.id}
@@ -1198,7 +1425,7 @@ const CareerTimelineSection = () => {
                     onClick={() => handleToggleInterestOption(option.id)}
                     disabled={onboardingPausePending}
                   >
-                    {option.label}
+                    {label}
                   </InterestChoiceButton>
                 );
               })}
@@ -1211,7 +1438,17 @@ const CareerTimelineSection = () => {
               }
               className="mt-5 w-fit justify-center"
             >
-              {onboardingPausePending ? "저장 중..." : "선택 저장하기"}
+              {onboardingPausePending
+                ? careerT(
+                    "ko",
+                    "career.profile.career_profile_settings_section.08zy6at",
+                    "저장 중..."
+                  )
+                : careerT(
+                    "ko",
+                    "career.chat.career_timeline_section.1r3zjih",
+                    "선택 저장하기"
+                  )}
             </PrimaryButton>
           </div>
         )}
@@ -1219,16 +1456,32 @@ const CareerTimelineSection = () => {
         {showContinueConversation && (
           <TimelinePanel className="max-w-[620px] p-0">
             <div className="text-[14px] leading-7 text-neutral-primary">
-              5분 커리어 인터뷰가 아직 완료되지 않았어요.
+              {t(
+                "career.chat.career_timeline_section.171qysx",
+                "5분 커리어 인터뷰가 아직 완료되지 않았어요."
+              )}
               <br />
-              이어서 답변하면 맞춤 기회 탐색을 시작할 수 있습니다.
+              {t(
+                "career.chat.career_timeline_section.1go05rp",
+                "이어서 답변하면 맞춤 기회 탐색을 시작할 수 있습니다."
+              )}
             </div>
             <PrimaryButton
               onClick={() => void onContinueOnboardingConversation()}
               disabled={onboardingBeginPending}
               className="mt-4 justify-center"
             >
-              {onboardingBeginPending ? "준비 중..." : "대화 이어가기"}
+              {onboardingBeginPending
+                ? careerT(
+                    "ko",
+                    "career.chat.career_timeline_section.0l0nx9g",
+                    "준비 중..."
+                  )
+                : careerT(
+                    "ko",
+                    "career.chat.career_timeline_section.079zqvv",
+                    "대화 이어가기"
+                  )}
             </PrimaryButton>
           </TimelinePanel>
         )}

@@ -1,10 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  createElement,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { en } from "@/lang/en";
 import { ko } from "@/lang/ko";
 
 export type Locale = "ko" | "en";
+export type MessageDictionary = typeof ko & {
+  readonly career: Record<string, string>;
+};
+
+const LOCALE_STORAGE_KEY = "harper:locale";
+const LOCALE_COOKIE_NAME = "NEXT_LOCALE";
 
 function getCookie(name: string) {
   if (typeof document === "undefined") return null;
@@ -15,25 +30,87 @@ function getCookie(name: string) {
 }
 
 function getLocaleFromCookie(): Locale | null {
-  const c = getCookie("NEXT_LOCALE");
+  const c = getCookie(LOCALE_COOKIE_NAME);
   return c === "ko" || c === "en" ? c : null;
 }
 
-const DICTS = { ko, en } as const;
+function getStoredLocale(): Locale | null {
+  if (typeof window === "undefined") return null;
+
+  const stored = window.localStorage.getItem(LOCALE_STORAGE_KEY);
+  if (stored === "ko" || stored === "en") return stored;
+  return getLocaleFromCookie();
+}
+
+function persistLocale(locale: Locale) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
+  document.cookie = `${LOCALE_COOKIE_NAME}=${locale}; path=/; max-age=31536000; samesite=lax`;
+}
+
+const DICTS: Record<Locale, MessageDictionary> = {
+  ko: ko as unknown as MessageDictionary,
+  en: en as unknown as MessageDictionary,
+};
+
+type MessagesContextValue = {
+  locale: Locale;
+  m: MessageDictionary;
+  setLocale: (locale: Locale) => void;
+};
+
+const MessagesContext = createContext<MessagesContextValue | null>(null);
+
+export function MessagesProvider({
+  children,
+  locale: controlledLocale,
+  messages,
+  onLocaleChange,
+}: {
+  children: ReactNode;
+  locale?: Locale;
+  messages?: MessageDictionary;
+  onLocaleChange?: (locale: Locale) => void;
+}) {
+  const [localeState, setLocaleState] = useState<Locale>("ko");
+
+  useEffect(() => {
+    if (controlledLocale) return;
+    const storedLocale = getStoredLocale();
+    if (storedLocale) setLocaleState(storedLocale);
+  }, [controlledLocale]);
+
+  const locale = controlledLocale ?? localeState;
+  const setLocale = useCallback(
+    (nextLocale: Locale) => {
+      if (!controlledLocale) {
+        setLocaleState(nextLocale);
+        persistLocale(nextLocale);
+      }
+      onLocaleChange?.(nextLocale);
+    },
+    [controlledLocale, onLocaleChange]
+  );
+
+  const value = useMemo<MessagesContextValue>(
+    () => ({
+      locale,
+      m: messages ?? DICTS[locale],
+      setLocale,
+    }),
+    [locale, messages, setLocale]
+  );
+
+  return createElement(MessagesContext.Provider, { value }, children);
+}
 
 export function useMessages() {
-  // 1) render 단계에서는 navigator 접근 X
-  const [locale, setLocale] = useState<Locale>("ko");
+  const context = useContext(MessagesContext);
+  if (context) return context;
 
-  // 2) mount 이후에만 navigator로 보정
-  useEffect(() => {
-    const fromCookie = getLocaleFromCookie();
-    if (fromCookie) {
-      setLocale(fromCookie);
-      return;
-    }
-  }, []);
-
-  const m = useMemo(() => DICTS[locale], [locale]);
-  return { locale, m };
+  return {
+    locale: "ko" as Locale,
+    m: DICTS.ko,
+    setLocale: () => undefined,
+  };
 }

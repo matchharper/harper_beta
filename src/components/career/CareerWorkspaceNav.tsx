@@ -6,6 +6,7 @@ import CareerSupportInquiryModal from "./CareerSupportInquiryModal";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import React from "react";
 import { BareButton } from "@/components/ui/button";
+import { useCareerT } from "@/i18n/useCareerT";
 
 export type CareerWorkspaceTab = "home" | "profile" | "history" | "watchlist";
 
@@ -39,6 +40,8 @@ export const getCareerWorkspaceTabFromPath = (path: string) => {
 };
 
 const CareerWorkspaceNav = () => {
+  const t = useCareerT();
+
   const logCareerEvent = useCareerLogEvent();
   const { user, onLogout, onOpenSettings, talentProfile } =
     useCareerSidebarContext();
@@ -70,7 +73,10 @@ const CareerWorkspaceNav = () => {
                 logCareerEvent("click_open_support");
                 setInquiryOpen(true);
               }}
-              aria-label="개선사항 및 문의사항"
+              aria-label={t(
+                "career.common.career_workspace_nav.02pzw1u",
+                "개선사항 및 문의사항"
+              )}
               className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-floating text-neutral-primary hover:border-neutral-1000-a10 hover:bg-bg-weak"
             >
               <CircleHelp className="h-4 w-4" />
@@ -78,7 +84,10 @@ const CareerWorkspaceNav = () => {
             <BareButton
               type="button"
               onClick={onOpenSettings}
-              aria-label="설정"
+              aria-label={t(
+                "career.settings.career_settings_modal.1338q8i",
+                "설정"
+              )}
               className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-floating text-neutral-primary hover:border-neutral-1000-a10 hover:bg-bg-weak"
             >
               <Settings2 className="h-4 w-4" />

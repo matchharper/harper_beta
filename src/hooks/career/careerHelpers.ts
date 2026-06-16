@@ -10,12 +10,13 @@ import {
   TALENT_MESSAGE_TYPE_ONBOARDING_PAUSE_CLOSE,
   TALENT_MESSAGE_TYPE_ONBOARDING_STATUS,
 } from "@/lib/talentOnboarding/onboarding";
+import { stripPostgresUnsafeChars } from "@/lib/textSanitization";
 
 export const sleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 export const normalizeText = (raw: string) =>
-  raw
+  stripPostgresUnsafeChars(raw)
     .replace(/\r/g, "")
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")

@@ -20,6 +20,8 @@ import { AttentionBadge } from "@/components/ui/badge";
 import { SecondaryButton, BareButton } from "@/components/ui/button";
 import { Input, Input as UiInput } from "@/components/ui/input";
 import { Field, FieldLabel } from "@/components/ui/panel";
+import { useCareerT } from "@/i18n/useCareerT";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 const CAREER_LINK_ITEMS = [
   {
@@ -38,7 +40,7 @@ const CAREER_LINK_ITEMS = [
     placeholder: "https://scholar.google.com/citations?user=",
   },
   {
-    alt: "개인 웹사이트",
+    alt: careerT("ko", "career.common.constants.0iah44y", "개인 웹사이트"),
     iconSrc: null,
     placeholder: "https://yourname.com",
   },
@@ -68,6 +70,8 @@ const LinkItemIcon = ({ index }: { index: number }) => {
 };
 
 const CareerResumeLinksSettingsSection = () => {
+  const t = useCareerT();
+
   const logCareerEvent = useCareerLogEvent();
   const {
     resumeFile,
@@ -123,12 +127,20 @@ const CareerResumeLinksSettingsSection = () => {
 
   return (
     <div className="">
-      <Field label="저장된 이력서" icon={<FileText className="h-4 w-4" />}>
+      <Field
+        label={t("career.common.career.0y7cerf", "저장된 이력서")}
+        icon={<FileText className="h-4 w-4" />}
+      >
         <div className="rounded-md border border-neutral-1000-a05 bg-bg-floating px-4 py-4 shadow-sm">
           {hasSavedResume ? (
             <>
               <p className="mt-2 truncate text-sm text-neutral-primary">
-                {savedResumeFileName ?? "파일명 정보 없음"}
+                {savedResumeFileName ??
+                  careerT(
+                    "ko",
+                    "career.common.career.0w4x7qh",
+                    "파일명 정보 없음"
+                  )}
               </p>
               {savedResumeStoragePath && (
                 <p className="mt-1 truncate text-xs text-neutral-soft">
@@ -144,16 +156,18 @@ const CareerResumeLinksSettingsSection = () => {
                   className="mt-2 inline-flex items-center gap-1 text-xs text-neutral-primary underline underline-offset-2"
                 >
                   <ExternalLink className="h-3.5 w-3.5" />
-                  다운로드
+                  {t("career.common.career.07r9xc5", "다운로드")}
                 </a>
               )}
             </>
           ) : (
             <p className="mt-1 text-sm leading-6 text-neutral-muted">
-              저장된 이력서가 없습니다.
+              {t("career.common.career.0jt5nqc", "저장된 이력서가 없습니다.")}
               <br />
-              이력서를 통해 회원님에 대해 알 수 있게되는 정보는 회사와의 연결 및
-              추천에 큰 영향을 미칩니다.
+              {t(
+                "career.common.career.0vrhfby",
+                "이력서를 통해 회원님에 대해 알 수 있게되는 정보는 회사와의 연결 및 추천에 큰 영향을 미칩니다."
+              )}
             </p>
           )}
 
@@ -162,10 +176,14 @@ const CareerResumeLinksSettingsSection = () => {
               htmlFor="career-settings-resume-upload"
               className="relative inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-neutral-1000-a10 bg-bg-floating px-3 text-xs font-medium text-neutral-primary hover:bg-bg-weak"
             >
-              <Upload className="h-3.5 w-3.5" />새 이력서 선택
+              <Upload className="h-3.5 w-3.5" />
+              {t("career.common.career.0j3w14l", "새 이력서 선택")}
               {!hasSavedResume ? (
                 <AttentionBadge
-                  label="저장된 이력서가 없습니다"
+                  label={t(
+                    "career.profile.career_profile_workspace.0pv1jmq",
+                    "저장된 이력서가 없습니다"
+                  )}
                   className="-right-1 -top-1"
                 />
               ) : null}
@@ -184,14 +202,18 @@ const CareerResumeLinksSettingsSection = () => {
           </div>
           {resumeFile && (
             <p className="mt-2 truncate text-xs text-neutral-muted">
-              업로드 예정: {resumeFile.name}
+              {t("career.common.career.0yu4vbj", "업로드 예정:")}{" "}
+              {resumeFile.name}
             </p>
           )}
         </div>
       </Field>
 
       <div className="">
-        <FieldLabel icon={<Cable className="h-4 w-4" />} label="내 링크" />
+        <FieldLabel
+          icon={<Cable className="h-4 w-4" />}
+          label={t("career.common.career.1ominm4", "내 링크")}
+        />
         <div className="mt-2 space-y-2">
           {profileLinks.map((link, index) => (
             <div
@@ -201,7 +223,12 @@ const CareerResumeLinksSettingsSection = () => {
               <div className="flex w-36 shrink-0 items-center gap-2 text-sm text-neutral-muted">
                 <LinkItemIcon index={index} />
                 <span className="truncate">
-                  {CAREER_LINK_LABELS[index] ?? "추가 링크"}
+                  {CAREER_LINK_LABELS[index] ??
+                    careerT(
+                      "ko",
+                      "career.chat.career_timeline_section.0ong27a",
+                      "추가 링크"
+                    )}
                 </span>
               </div>
               <Input
@@ -238,7 +265,7 @@ const CareerResumeLinksSettingsSection = () => {
           className="mt-5"
         >
           <Plus className="h-3.5 w-3.5" />
-          링크 추가
+          {t("career.chat.career_timeline_section.1gvzqes", "링크 추가")}
         </SecondaryButton>
       </div>
 
@@ -257,15 +284,23 @@ const CareerResumeLinksSettingsSection = () => {
         >
           <Save className="h-4 w-4" />
           {profileSavePending
-            ? "저장 중..."
-            : "이력서/링크 저장 및 새로운 정보 업데이트"}
+            ? careerT(
+                "ko",
+                "career.profile.career_profile_settings_section.08zy6at",
+                "저장 중..."
+              )
+            : careerT(
+                "ko",
+                "career.common.career.07vhdpu",
+                "이력서/링크 저장 및 새로운 정보 업데이트"
+              )}
         </BareButton>
       ) : null}
 
       <TalentCareerModal
         open={isProcessingSourceUpdate}
         onClose={() => undefined}
-        ariaLabel="프로필 업데이트 중"
+        ariaLabel={t("career.common.career.0tmpcjv", "프로필 업데이트 중")}
         closeOnBackdrop={false}
         showCloseButton={false}
         overlayClassName="z-120"

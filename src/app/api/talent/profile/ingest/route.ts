@@ -7,6 +7,10 @@ import {
 import { insertTalentProfileSourceErrorLog } from "@/lib/talentOnboarding/errorLogs";
 import { ingestTalentProfileFromLinkedin } from "@/lib/talentOnboarding/profileIngestion";
 import { logger } from "@/utils/logger";
+import {
+  sanitizeMultilineDbText,
+  sanitizeSingleLineDbText,
+} from "@/lib/textSanitization";
 
 export const runtime = "nodejs";
 export const maxDuration = 240;
@@ -32,8 +36,14 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json()) as Body;
     const links = (body.links ?? [])
-      .map((link) => String(link ?? "").trim())
+      .map((link) => sanitizeSingleLineDbText(link, 2000) ?? "")
       .filter(Boolean);
+    const resumeText = sanitizeMultilineDbText(body.resumeText, 24000);
+    const resumeFileName = sanitizeSingleLineDbText(body.resumeFileName, 240);
+    const resumeStoragePath = sanitizeSingleLineDbText(
+      body.resumeStoragePath,
+      2000
+    );
 
     if (links.length === 0) {
       return NextResponse.json(
@@ -50,16 +60,16 @@ export async function POST(req: NextRequest) {
 
     logMetadata = {
       hasLinkedin: true,
-      hasResumeFile: Boolean(body.resumeFileName || body.resumeStoragePath),
-      hasResumeText: Boolean(body.resumeText?.trim()),
+      hasResumeFile: Boolean(resumeFileName || resumeStoragePath),
+      hasResumeText: Boolean(resumeText),
       linkCount: links.length,
-      resumeFileName: body.resumeFileName ?? null,
+      resumeFileName,
     };
 
     logger.log("[TalentIngestAPI] request", {
       userId: user.id,
       linkCount: links.length,
-      hasResumeText: Boolean(body.resumeText?.trim()),
+      hasResumeText: Boolean(resumeText),
     });
 
     admin = getTalentSupabaseAdmin();
@@ -69,9 +79,9 @@ export async function POST(req: NextRequest) {
       admin,
       userId: user.id,
       links,
-      resumeText: body.resumeText ?? null,
-      resumeFileName: body.resumeFileName ?? null,
-      resumeStoragePath: body.resumeStoragePath ?? null,
+      resumeText,
+      resumeFileName,
+      resumeStoragePath,
     });
 
     return NextResponse.json({

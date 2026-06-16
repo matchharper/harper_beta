@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 // @ts-ignore: pdf parser has loose types.
 import pdf from "pdf-parse-fork";
 import { getRequestUser } from "@/lib/supabaseServer";
+import { sanitizeMultilineDbText } from "@/lib/textSanitization";
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
       text = await file.text();
     }
 
-    const normalized = text.trim();
+    const normalized = sanitizeMultilineDbText(text, 24000);
     if (!normalized) {
       return NextResponse.json(
         { error: "Failed to parse resume text" },

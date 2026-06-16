@@ -4,33 +4,74 @@ import { motion } from "motion/react";
 import { Check, FileText, Linkedin, MessageCircle, Search } from "lucide-react";
 import React from "react";
 import { useEffect, useState } from "react";
+import { useCareerT } from "@/i18n/useCareerT";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 const steps = [
   {
     icon: Linkedin,
-    title: "프로필을 읽고 있어요",
-    description: "LinkedIn과 이력서에서 프로필을 확인하고 있습니다.",
+    title: careerT(
+      "ko",
+      "career.onboarding.onboarding_loading_state.19pgngy",
+      "프로필을 읽고 있어요"
+    ),
+    description: careerT(
+      "ko",
+      "career.onboarding.onboarding_loading_state.0ouyje6",
+      "LinkedIn과 이력서에서 프로필을 확인하고 있습니다."
+    ),
   },
   {
     icon: FileText,
-    title: "이력을 정리하고 있어요",
-    description: "회사, 역할, 프로젝트, 기술 스택을 구조화하고 있습니다.",
+    title: careerT(
+      "ko",
+      "career.onboarding.onboarding_loading_state.02hign3",
+      "이력을 정리하고 있어요"
+    ),
+    description: careerT(
+      "ko",
+      "career.onboarding.onboarding_loading_state.1wnee4b",
+      "회사, 역할, 프로젝트, 기술 스택을 구조화하고 있습니다."
+    ),
   },
   {
     icon: Search,
-    title: "선호 조건을 해석하고 있어요",
-    description:
-      "원하는 회사 조건과 찾아올 기회 기준을 만들고 있습니다. 다녔던 회사는 차단 목록에 넣어둘게요.",
+    title: careerT(
+      "ko",
+      "career.onboarding.onboarding_loading_state.0baqqno",
+      "선호 조건을 해석하고 있어요"
+    ),
+    description: careerT(
+      "ko",
+      "career.onboarding.onboarding_loading_state.0wdnmxx",
+      "원하는 회사 조건과 찾아올 기회 기준을 만들고 있습니다. 다녔던 회사는 차단 목록에 넣어둘게요."
+    ),
   },
   {
     icon: Check,
-    title: "강점 신호를 찾고 있어요",
-    description: "소개할 때 중요하게 볼 포인트를 추출하고 있습니다.",
+    title: careerT(
+      "ko",
+      "career.onboarding.onboarding_loading_state.1p92fsi",
+      "강점 신호를 찾고 있어요"
+    ),
+    description: careerT(
+      "ko",
+      "career.onboarding.onboarding_loading_state.14a2lmb",
+      "소개할 때 중요하게 볼 포인트를 추출하고 있습니다."
+    ),
   },
   {
     icon: MessageCircle,
-    title: "첫 대화를 준비하고 있어요",
-    description: "이제 Harper가 상황과 선호를 자연스럽게 이어서 물어볼게요.",
+    title: careerT(
+      "ko",
+      "career.onboarding.onboarding_loading_state.0hhyibm",
+      "첫 대화를 준비하고 있어요"
+    ),
+    description: careerT(
+      "ko",
+      "career.onboarding.onboarding_loading_state.1b99mcm",
+      "이제 Harper가 상황과 선호를 자연스럽게 이어서 물어볼게요."
+    ),
   },
 ];
 
@@ -186,6 +227,8 @@ const ProfilePreview = ({ activeStep }: { activeStep: number }) => {
 };
 
 const LoadingState = ({ isOnboarding = true }: { isOnboarding?: boolean }) => {
+  const t = useCareerT();
+
   const [activeStep, setActiveStep] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
@@ -287,12 +330,17 @@ const LoadingState = ({ isOnboarding = true }: { isOnboarding?: boolean }) => {
           </div>
 
           <p className="mt-8 max-w-[520px] text-sm leading-6 text-neutral-soft">
-            보통{" "}
+            {t("career.onboarding.onboarding_loading_state.0ohe7mq", "보통")}{" "}
             <span className="text-neutral-primary">
-              1분 정도 걸리고, 길어도 2분 안에 끝나요.
+              {t(
+                "career.onboarding.onboarding_loading_state.0j3lmus",
+                "1분 정도 걸리고, 길어도 2분 안에 끝나요."
+              )}
             </span>{" "}
-            확인이 끝나면 Harper와 짧게 대화하면서 현재 상황과 원하는 기회를
-            알려주세요.
+            {t(
+              "career.onboarding.onboarding_loading_state.13yg4ho",
+              "확인이 끝나면 Harper와 짧게 대화하면서 현재 상황과 원하는 기회를 알려주세요."
+            )}
           </p>
         </div>
 

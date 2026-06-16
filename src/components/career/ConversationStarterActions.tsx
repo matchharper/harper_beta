@@ -10,6 +10,7 @@ import {
   type CareerConversationStarterMode,
 } from "@/lib/career/conversationStarters";
 import { ActionButton } from "@/components/ui/button";
+import { useCareerT } from "@/i18n/useCareerT";
 
 type ConversationStarterActionsProps = {
   callStartPending?: boolean;
@@ -42,6 +43,8 @@ export function ConversationStarterActions({
   onStart,
   variant = "desktop",
 }: ConversationStarterActionsProps) {
+  const t = useCareerT();
+
   const isMobile = variant === "mobile";
   const isReengagement = variant === "reengagement";
   const [pendingAction, setPendingAction] =
@@ -99,7 +102,11 @@ export function ConversationStarterActions({
               void handleStart({ mode: "call", starterId: starter.id })
             }
             disabled={actionDisabled}
-            aria-label={`${starter.label} 통화 시작`}
+            aria-label={t(
+              "career.chat.conversation_starter_actions.start_call_label",
+              "{label} 통화 시작",
+              { values: { label: starter.label } }
+            )}
             aria-busy={callPending || undefined}
             actionVariant="secondary"
             className={cn(
@@ -137,7 +144,9 @@ export function ConversationStarterActions({
                 isReengagement && "text-[12px] leading-4"
               )}
             >
-              {callPending ? "연결 중..." : label}
+              {callPending
+                ? t("career.call.career_call_card.1vn8y3k", "연결 중...")
+                : label}
             </span>
           </ActionButton>
         );
