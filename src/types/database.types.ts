@@ -5389,7 +5389,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
-          opportunity_id: string
+          opportunity_id: string | null
           tag: string
           talent_id: string
           updated_at: string
@@ -5397,7 +5397,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
-          opportunity_id: string
+          opportunity_id?: string | null
           tag: string
           talent_id: string
           updated_at?: string
@@ -5405,7 +5405,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
-          opportunity_id?: string
+          opportunity_id?: string | null
           tag?: string
           talent_id?: string
           updated_at?: string
