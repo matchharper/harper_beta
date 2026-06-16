@@ -109,7 +109,6 @@ function getTranslationScreenPath(row: TranslationGridRow) {
 function buildTranslationScreenHref(row: TranslationGridRow) {
   const params = new URLSearchParams({
     focusTranslationKey: row.key,
-    inspectTranslations: "1",
   });
   if (row.category === "settings") params.set("panel", "settings");
   return `${getTranslationScreenPath(row)}?${params.toString()}`;

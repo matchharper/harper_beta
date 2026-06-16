@@ -72,7 +72,7 @@ export default function CareerLanguageDevControls({
 
   if (
     process.env.NODE_ENV === "production" &&
-    !translationInspect?.inspectEnabled
+    !translationInspect?.canInspect
   ) {
     return null;
   }

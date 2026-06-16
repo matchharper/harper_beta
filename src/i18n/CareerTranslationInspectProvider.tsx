@@ -236,14 +236,6 @@ function readLookupRows(payload: unknown) {
     .map(normalizeEntry);
 }
 
-function removeInspectParamFromPath(path: string) {
-  if (typeof window === "undefined") return path;
-
-  const url = new URL(path, window.location.origin);
-  url.searchParams.delete("inspectTranslations");
-  return `${url.pathname}${url.search}${url.hash}`;
-}
-
 export function CareerTranslationInspectProvider({
   children,
 }: {
@@ -276,50 +268,11 @@ export function CareerTranslationInspectProvider({
   const inFlightKeysRef = useRef<Set<string>>(new Set());
   const matchSignatureRef = useRef("");
   const canInspect = !authLoading && canInspectCareerTranslations(user?.email);
-  const queryInspectRequested =
-    router.isReady && router.query.inspectTranslations === "1";
   const focusedTranslationKey =
     router.isReady && typeof router.query.focusTranslationKey === "string"
       ? router.query.focusTranslationKey.trim()
       : "";
-  const inspectEnabled =
-    canInspect && (manualInspectEnabled || queryInspectRequested);
-
-  useEffect(() => {
-    if (
-      !router.isReady ||
-      !queryInspectRequested ||
-      authLoading ||
-      canInspect
-    ) {
-      return;
-    }
-
-    const nextPath = removeInspectParamFromPath(router.asPath);
-    if (!user) {
-      if (router.pathname === "/career_login") {
-        void router.replace(nextPath, undefined, { shallow: true });
-        return;
-      }
-
-      void router.replace({
-        pathname: "/career_login",
-        query: { next: nextPath || "/career" },
-      });
-      return;
-    }
-
-    void router.replace(nextPath, undefined, { shallow: true });
-  }, [
-    authLoading,
-    canInspect,
-    queryInspectRequested,
-    router,
-    router.asPath,
-    router.isReady,
-    router.pathname,
-    user,
-  ]);
+  const inspectEnabled = canInspect && manualInspectEnabled;
 
   const getAccessToken = useCallback(async () => {
     const {
@@ -345,28 +298,15 @@ export function CareerTranslationInspectProvider({
     [getAccessToken]
   );
 
-  const setInspectEnabled = useCallback(
-    (enabled: boolean) => {
-      writeStoredInspectEnabled(enabled);
+  const setInspectEnabled = useCallback((enabled: boolean) => {
+    writeStoredInspectEnabled(enabled);
 
-      if (!enabled) {
-        setSelectedMatch(null);
-        setError("");
-        setSaveInfo("");
-      }
-
-      if (!enabled && queryInspectRequested && router.isReady) {
-        const nextQuery = { ...router.query };
-        delete nextQuery.inspectTranslations;
-        void router.replace(
-          { pathname: router.pathname, query: nextQuery },
-          undefined,
-          { shallow: true }
-        );
-      }
-    },
-    [queryInspectRequested, router]
-  );
+    if (!enabled) {
+      setSelectedMatch(null);
+      setError("");
+      setSaveInfo("");
+    }
+  }, []);
 
   const registerMatches = useCallback(
     (nextMatches: CareerTranslationMatch[]) => {
