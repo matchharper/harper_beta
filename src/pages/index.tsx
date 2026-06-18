@@ -1913,6 +1913,11 @@ export default function LandingKoVfPage({
   const heroBody = usesCareerLandingHeroCopyB(heroCopyAbtestType)
     ? HERO_BODY_VARIANT_B[landingLocale]
     : copy.hero.body;
+  const heroTitleClassName = cn(
+    "text-center",
+    text.h1,
+    landingLocale === "en" && "text-[34px] sm:text-[56px] md:text-[66px]"
+  );
   const { careerStartHref, handleCareerStartClick } = useCareerLandingStart({
     abtestType: heroCopyAbtestType,
   });
@@ -1972,7 +1977,7 @@ export default function LandingKoVfPage({
             <div className={ui.shell}>
               <Reveal once blur={0} distance={20}>
                 <div className="flex flex-col items-center justify-center gap-4 md:gap-8">
-                  <h1 className={`text-center ${text.h1}`}>
+                  <h1 className={heroTitleClassName}>
                     {copy.hero.title[0]}
                     <br />
                     {copy.hero.title[1]}
