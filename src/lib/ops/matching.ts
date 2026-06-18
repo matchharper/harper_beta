@@ -1676,26 +1676,100 @@ function buildFallbackOpsMatchingTalentItem(talentId: string) {
   } satisfies OpsMatchingTalentItem;
 }
 
+function getTalentRolePairKey(args: {
+  roleId: string | null | undefined;
+  talentId: string | null | undefined;
+}) {
+  return `${normalizeText(args.talentId)}:${normalizeText(args.roleId)}`;
+}
+
+async function fetchFitRecommendationMap(args: {
+  admin: AdminClient;
+  rows: TalentOpportunityFitRecordRow[];
+}) {
+  const pairKeys = new Set(
+    args.rows.map((row) =>
+      getTalentRolePairKey({
+        roleId: row.opportunity_id,
+        talentId: row.talent_id,
+      })
+    )
+  );
+  const talentIds = Array.from(
+    new Set(args.rows.map((row) => normalizeText(row.talent_id)))
+  ).filter(Boolean);
+  const roleIds = Array.from(
+    new Set(args.rows.map((row) => normalizeText(row.opportunity_id)))
+  ).filter(Boolean);
+  const recommendationMap = new Map<string, OpsMatchingFitRecommendation>();
+  if (talentIds.length === 0 || roleIds.length === 0) {
+    return recommendationMap;
+  }
+
+  for (const talentChunk of chunkValues(talentIds)) {
+    for (const roleChunk of chunkValues(roleIds)) {
+      const { data, error } = await args.admin
+        .from("talent_opportunity_recommendation")
+        .select("id, talent_id, role_id, recommended_at, created_at")
+        .in("talent_id", talentChunk)
+        .in("role_id", roleChunk)
+        .order("recommended_at", {
+          ascending: false,
+          nullsFirst: false,
+        })
+        .order("created_at", { ascending: false, nullsFirst: false })
+        .limit(MAX_MATCHING_FIT_RECOMMENDATION_ROWS);
+
+      if (error) {
+        throw new Error(
+          error.message ?? "Failed to load matching recommendations"
+        );
+      }
+
+      for (const row of (data ?? []) as TalentRecommendationForFitRow[]) {
+        const pairKey = getTalentRolePairKey({
+          roleId: row.role_id,
+          talentId: row.talent_id,
+        });
+        if (!pairKeys.has(pairKey) || recommendationMap.has(pairKey)) {
+          continue;
+        }
+        recommendationMap.set(pairKey, {
+          createdAt: row.created_at,
+          recommendationId: row.id,
+          recommendedAt: row.recommended_at ?? row.created_at,
+        });
+      }
+    }
+  }
+
+  return recommendationMap;
+}
+
 async function buildOpsMatchingFitItems(args: {
   admin: AdminClient;
   rows: TalentOpportunityFitRecordRow[];
 }) {
-  const talentRowMap = await fetchTalentRowMap({
-    admin: args.admin,
-    talentIds: args.rows.map((row) => row.talent_id),
-  });
-  const talentRows = Array.from(talentRowMap.values());
-  const [talentItems, roleMap] = await Promise.all([
-    buildOpsMatchingTalentItems({
+  const [talentRowMap, roleMap, recommendationMap] = await Promise.all([
+    fetchTalentRowMap({
       admin: args.admin,
-      roleId: null,
-      rows: talentRows,
+      talentIds: args.rows.map((row) => row.talent_id),
     }),
     fetchRoleContextMap({
       admin: args.admin,
       roleIds: args.rows.map((row) => row.opportunity_id),
     }),
+    fetchFitRecommendationMap({
+      admin: args.admin,
+      rows: args.rows,
+    }),
   ]);
+  const talentRows = Array.from(talentRowMap.values());
+  const talentItems = await buildOpsMatchingTalentItems({
+    admin: args.admin,
+    roleId: null,
+    rows: talentRows,
+  });
   const talentItemMap = new Map(
     talentItems.map((talent) => [talent.userId, talent])
   );
@@ -1715,6 +1789,13 @@ async function buildOpsMatchingFitItems(args: {
       label,
       lastEvaluatedAt: row.last_evaluated_at,
       reason: normalizeText(row.reason),
+      recommendation:
+        recommendationMap.get(
+          getTalentRolePairKey({
+            roleId: row.opportunity_id,
+            talentId: row.talent_id,
+          })
+        ) ?? null,
       reevaluationCheckedAt: row.reevaluation_checked_at,
       reevaluationCriteria: row.reevaluation_criteria,
       role: {
@@ -1735,7 +1816,9 @@ async function buildOpsMatchingFitItems(args: {
 }
 
 export async function fetchOpsMatchingFits(args: {
+  humanLabels?: OpsMatchingFitLabel[];
   limit?: number;
+  llmLabels?: OpsMatchingFitLabel[];
   offset?: number;
   query?: string | null;
 }): Promise<OpsMatchingFitListResponse> {
@@ -1748,6 +1831,8 @@ export async function fetchOpsMatchingFits(args: {
   );
   const offset = Math.max(0, args.offset ?? 0);
   const searchQuery = normalizeText(args.query);
+  const llmLabels = Array.from(new Set(args.llmLabels ?? []));
+  const humanLabels = Array.from(new Set(args.humanLabels ?? []));
   const admin = getSupabaseAdmin();
 
   let fitQuery = fromOpsMatchingTable(admin, "talent_opportunity_fit").select(
@@ -1776,6 +1861,12 @@ export async function fetchOpsMatchingFits(args: {
     }
     fitQuery = fitQuery.or(filters.join(","));
   }
+  if (llmLabels.length > 0) {
+    fitQuery = fitQuery.in("label", llmLabels);
+  }
+  if (humanLabels.length > 0) {
+    fitQuery = fitQuery.in("human_label", humanLabels);
+  }
 
   const { data, error, count } = await fitQuery
     .order("last_evaluated_at", { ascending: false, nullsFirst: false })
@@ -1802,6 +1893,80 @@ export async function fetchOpsMatchingFits(args: {
     nextOffset,
     offset,
     totalCount,
+  };
+}
+
+function normalizeOpsMatchingFitHumanLabel(
+  value: unknown
+): OpsMatchingFitLabel | null {
+  if (value === null || value === undefined) return null;
+  const normalized = normalizeText(value).toLowerCase();
+  if (!normalized) return null;
+  if (OPS_MATCHING_FIT_LABEL_SET.has(normalized)) {
+    return normalized as OpsMatchingFitLabel;
+  }
+  throw new Error(
+    `humanLabel must be one of ${OPS_MATCHING_FIT_LABELS.join(", ")} or null`
+  );
+}
+
+export async function updateOpsMatchingFitHumanLabel(args: {
+  fitId: string;
+  humanLabel: unknown;
+  humanReason?: unknown;
+  reviewerEmail?: string | null;
+}): Promise<OpsMatchingFitHumanLabelUpdateResponse> {
+  const fitId = normalizeText(args.fitId);
+  if (!fitId) throw new Error("fitId is required");
+
+  const humanLabel = normalizeOpsMatchingFitHumanLabel(args.humanLabel);
+  const now = new Date().toISOString();
+  const reviewerEmail = normalizeNullableText(args.reviewerEmail);
+  const humanReason = normalizeNullableText(String(args.humanReason ?? ""));
+  const admin = getSupabaseAdmin();
+
+  const { data, error } = await fromOpsMatchingTable(
+    admin,
+    "talent_opportunity_fit"
+  )
+    .update({
+      human_label: humanLabel,
+      human_reason: humanLabel ? humanReason : null,
+      human_reviewed_at: humanLabel ? now : null,
+      human_reviewed_by: humanLabel ? reviewerEmail : null,
+    })
+    .eq("id", fitId)
+    .select(
+      "id, label, human_label, human_reason, human_reviewed_by, human_reviewed_at"
+    )
+    .single();
+
+  if (error) {
+    if (isMissingOpsMatchingTableError(error)) {
+      throw createMissingOpsMatchingTableError("talent_opportunity_fit");
+    }
+    throw new Error(error.message ?? "Failed to update human label");
+  }
+
+  const row = data as Pick<
+    TalentOpportunityFitRecordRow,
+    | "human_label"
+    | "human_reason"
+    | "human_reviewed_at"
+    | "human_reviewed_by"
+    | "id"
+    | "label"
+  >;
+  const nextHumanLabel = normalizeOpsMatchingFitHumanLabel(row.human_label);
+  const label = normalizeText(row.label);
+
+  return {
+    effectiveLabel: nextHumanLabel ?? label,
+    fitId: row.id,
+    humanLabel: nextHumanLabel,
+    humanReason: normalizeNullableText(row.human_reason),
+    humanReviewedAt: row.human_reviewed_at,
+    humanReviewedBy: normalizeNullableText(row.human_reviewed_by),
   };
 }
 

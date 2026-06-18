@@ -76,6 +76,8 @@ function parseMatchingViewMode(
 function parseMatchingUrlState(query: ParsedUrlQuery) {
   const relevantKeys = [
     "allFrom",
+    "allHumanLabels",
+    "allLlmLabels",
     "allTags",
     "allTo",
     "company",
@@ -94,6 +96,8 @@ function parseMatchingUrlState(query: ParsedUrlQuery) {
       activeTab: parseMatchingTab(query.tab),
       allCreatedFrom: firstQueryValue(query.allFrom),
       allCreatedTo: firstQueryValue(query.allTo),
+      allHumanLabelFilters: parseTagsParam(query.allHumanLabels),
+      allLlmLabelFilters: parseTagsParam(query.allLlmLabels),
       allTagFilters: parseTagsParam(query.allTags),
       reviewRecommendedFrom: firstQueryValue(query.reviewFrom),
       reviewRecommendedTo: firstQueryValue(query.reviewTo),
@@ -114,6 +118,12 @@ function buildMatchingUrlQuery(state: OpsMatchingUrlState) {
   if (state.selectedRoleId) query.role = state.selectedRoleId;
   if (state.allCreatedFrom) query.allFrom = state.allCreatedFrom;
   if (state.allCreatedTo) query.allTo = state.allCreatedTo;
+  if (state.allLlmLabelFilters.length > 0) {
+    query.allLlmLabels = state.allLlmLabelFilters.join(",");
+  }
+  if (state.allHumanLabelFilters.length > 0) {
+    query.allHumanLabels = state.allHumanLabelFilters.join(",");
+  }
   if (state.allTagFilters.length > 0) {
     query.allTags = state.allTagFilters.join(",");
   }
@@ -147,6 +157,12 @@ export default function OpsMatchingPage() {
   const activeTab = useOpsMatchingStore((state) => state.activeTab);
   const allCreatedFrom = useOpsMatchingStore((state) => state.allCreatedFrom);
   const allCreatedTo = useOpsMatchingStore((state) => state.allCreatedTo);
+  const allHumanLabelFilters = useOpsMatchingStore(
+    (state) => state.allHumanLabelFilters
+  );
+  const allLlmLabelFilters = useOpsMatchingStore(
+    (state) => state.allLlmLabelFilters
+  );
   const allTagFilters = useOpsMatchingStore((state) => state.allTagFilters);
   const hasHydrated = useOpsMatchingStore((state) => state.hasHydrated);
   const reviewRecommendedFrom = useOpsMatchingStore(
@@ -166,6 +182,12 @@ export default function OpsMatchingPage() {
   const setActiveTab = useOpsMatchingStore((state) => state.setActiveTab);
   const setAllCreatedDateRange = useOpsMatchingStore(
     (state) => state.setAllCreatedDateRange
+  );
+  const setAllHumanLabelFilters = useOpsMatchingStore(
+    (state) => state.setAllHumanLabelFilters
+  );
+  const setAllLlmLabelFilters = useOpsMatchingStore(
+    (state) => state.setAllLlmLabelFilters
   );
   const setAllTagFilters = useOpsMatchingStore(
     (state) => state.setAllTagFilters
@@ -221,6 +243,8 @@ export default function OpsMatchingPage() {
         activeTab,
         allCreatedFrom,
         allCreatedTo,
+        allHumanLabelFilters,
+        allLlmLabelFilters,
         allTagFilters,
         reviewRecommendedFrom,
         reviewRecommendedTo,
@@ -233,6 +257,8 @@ export default function OpsMatchingPage() {
       activeTab,
       allCreatedFrom,
       allCreatedTo,
+      allHumanLabelFilters,
+      allLlmLabelFilters,
       allTagFilters,
       reviewRecommendedFrom,
       reviewRecommendedTo,
@@ -382,6 +408,16 @@ export default function OpsMatchingPage() {
     replaceUrlState({ allTagFilters: tags });
   };
 
+  const handleAllLlmLabelFiltersChange = (labels: string[]) => {
+    setAllLlmLabelFilters(labels);
+    replaceUrlState({ allLlmLabelFilters: labels });
+  };
+
+  const handleAllHumanLabelFiltersChange = (labels: string[]) => {
+    setAllHumanLabelFilters(labels);
+    replaceUrlState({ allHumanLabelFilters: labels });
+  };
+
   const handleReviewRecommendedDateRangeChange = (from: string, to: string) => {
     setReviewRecommendedDateRange(from, to);
     replaceUrlState({
@@ -487,7 +523,13 @@ export default function OpsMatchingPage() {
       >
         <div className="space-y-4">
           {viewMode === "all_fits" ? (
-            <MatchingFitRecordBrowser canFetchInternal={canFetchInternal} />
+            <MatchingFitRecordBrowser
+              canFetchInternal={canFetchInternal}
+              humanLabelFilters={allHumanLabelFilters}
+              llmLabelFilters={allLlmLabelFilters}
+              onHumanLabelFiltersChange={handleAllHumanLabelFiltersChange}
+              onLlmLabelFiltersChange={handleAllLlmLabelFiltersChange}
+            />
           ) : effectiveRole ? (
             <>
               <section className="flex flex-row gap-2">

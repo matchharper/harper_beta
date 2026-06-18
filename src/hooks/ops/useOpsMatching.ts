@@ -9,6 +9,8 @@ import { queryKeys } from "@/lib/queryKeys";
 import type {
   OpsMatchingCompanyOption,
   OpsMatchingFitListResponse,
+  OpsMatchingFitHumanLabelUpdateResponse,
+  OpsMatchingFitLabel,
   OpsMatchingProgressDeleteResponse,
   OpsMatchingProgressResponse,
   OpsMatchingReviewBoardResponse,
@@ -46,7 +48,9 @@ type MatchingTalentFilters = {
 
 type MatchingFitFilters = {
   enabled?: boolean;
+  humanLabels?: OpsMatchingFitLabel[];
   limit?: number;
+  llmLabels?: OpsMatchingFitLabel[];
   query?: string;
 };
 
@@ -94,10 +98,16 @@ export function useOpsMatchingRoles(args: {
 export function useOpsMatchingFits(filters: MatchingFitFilters) {
   const limit = filters.limit ?? 20;
   const query = filters.query?.trim() ?? "";
+  const llmLabels =
+    filters.llmLabels?.map((label) => label.trim()).filter(Boolean) ?? [];
+  const humanLabels =
+    filters.humanLabels?.map((label) => label.trim()).filter(Boolean) ?? [];
 
   return useInfiniteQuery({
     queryKey: queryKeys.opsMatching.fits({
+      humanLabels,
       limit,
+      llmLabels,
       query,
     }),
     queryFn: ({ pageParam }) => {
@@ -106,6 +116,10 @@ export function useOpsMatchingFits(filters: MatchingFitFilters) {
         offset: String(pageParam),
       });
       if (query) params.set("query", query);
+      if (llmLabels.length > 0) params.set("llmLabels", llmLabels.join(","));
+      if (humanLabels.length > 0) {
+        params.set("humanLabels", humanLabels.join(","));
+      }
       return fetchWithInternalAuth<OpsMatchingFitListResponse>(
         `/api/internal/matching/fits?${params.toString()}`
       );
@@ -114,6 +128,28 @@ export function useOpsMatchingFits(filters: MatchingFitFilters) {
     initialPageParam: 0,
     enabled: filters.enabled ?? true,
     staleTime: 30_000,
+  });
+}
+
+export function useUpdateOpsMatchingFitHumanLabel() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: {
+      fitId: string;
+      humanLabel: OpsMatchingFitLabel | null;
+      humanReason?: string | null;
+    }) =>
+      fetchWithInternalAuth<OpsMatchingFitHumanLabelUpdateResponse>(
+        "/api/internal/matching/fits/human-label",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(args),
+        }
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.opsMatching.all });
+    },
   });
 }
 

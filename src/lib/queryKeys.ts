@@ -125,8 +125,10 @@ export const queryKeys = {
     roles: (companyWorkspaceId?: string | null) =>
       ["opsMatching", "roles", companyWorkspaceId ?? ""] as const,
     fits: (filters: {
+      humanLabels?: readonly string[] | null;
       limit?: number | null;
       offset?: number | null;
+      llmLabels?: readonly string[] | null;
       query?: string | null;
     }) =>
       [
@@ -135,6 +137,8 @@ export const queryKeys = {
         filters.limit ?? 20,
         filters.offset ?? 0,
         filters.query ?? "",
+        (filters.llmLabels ?? []).join("|"),
+        (filters.humanLabels ?? []).join("|"),
       ] as const,
     talents: (filters: {
       createdFrom?: string | null;

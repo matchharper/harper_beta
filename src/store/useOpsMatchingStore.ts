@@ -48,6 +48,8 @@ type OpsMatchingStoreState = {
   activeTab: OpsMatchingStageTabId;
   allCreatedFrom: string;
   allCreatedTo: string;
+  allHumanLabelFilters: string[];
+  allLlmLabelFilters: string[];
   allTagFilters: string[];
   collapsedReviewColumnIdsByRole: Record<string, string[]>;
   hasHydrated: boolean;
@@ -58,6 +60,8 @@ type OpsMatchingStoreState = {
   selectedRoleId: string;
   setActiveTab: (tab: OpsMatchingStageTabId) => void;
   setAllCreatedDateRange: (from: string, to: string) => void;
+  setAllHumanLabelFilters: (labels: string[]) => void;
+  setAllLlmLabelFilters: (labels: string[]) => void;
   setAllTagFilters: (tags: string[]) => void;
   setHasHydrated: (hasHydrated: boolean) => void;
   setReviewColumnCollapsed: (
@@ -79,6 +83,8 @@ export type OpsMatchingUrlState = {
   activeTab: OpsMatchingStageTabId;
   allCreatedFrom: string;
   allCreatedTo: string;
+  allHumanLabelFilters: string[];
+  allLlmLabelFilters: string[];
   allTagFilters: string[];
   reviewRecommendedFrom: string;
   reviewRecommendedTo: string;
@@ -98,6 +104,8 @@ export const useOpsMatchingStore = create<OpsMatchingStoreState>()(
       activeTab: "all",
       allCreatedFrom: "",
       allCreatedTo: "",
+      allHumanLabelFilters: [],
+      allLlmLabelFilters: [],
       allTagFilters: [],
       collapsedReviewColumnIdsByRole: {},
       hasHydrated: false,
@@ -113,6 +121,10 @@ export const useOpsMatchingStore = create<OpsMatchingStoreState>()(
           allCreatedFrom: normalizeText(from),
           allCreatedTo: normalizeText(to),
         }),
+      setAllHumanLabelFilters: (labels) =>
+        set({ allHumanLabelFilters: normalizeTags(labels) }),
+      setAllLlmLabelFilters: (labels) =>
+        set({ allLlmLabelFilters: normalizeTags(labels) }),
       setAllTagFilters: (tags) => set({ allTagFilters: normalizeTags(tags) }),
       setHasHydrated: (hasHydrated) => set({ hasHydrated }),
       setReviewColumnCollapsed: (roleId, columnId, collapsed) =>
@@ -151,6 +163,10 @@ export const useOpsMatchingStore = create<OpsMatchingStoreState>()(
           activeTab: state.activeTab ? normalizeTab(state.activeTab) : "all",
           allCreatedFrom: normalizeText(state.allCreatedFrom),
           allCreatedTo: normalizeText(state.allCreatedTo),
+          allHumanLabelFilters: normalizeTags(
+            state.allHumanLabelFilters ?? []
+          ),
+          allLlmLabelFilters: normalizeTags(state.allLlmLabelFilters ?? []),
           allTagFilters: normalizeTags(state.allTagFilters ?? []),
           reviewRecommendedFrom: normalizeText(state.reviewRecommendedFrom),
           reviewRecommendedTo: normalizeText(state.reviewRecommendedTo),
@@ -190,6 +206,8 @@ export const useOpsMatchingStore = create<OpsMatchingStoreState>()(
         activeTab: state.activeTab,
         allCreatedFrom: state.allCreatedFrom,
         allCreatedTo: state.allCreatedTo,
+        allHumanLabelFilters: state.allHumanLabelFilters,
+        allLlmLabelFilters: state.allLlmLabelFilters,
         allTagFilters: state.allTagFilters,
         collapsedReviewColumnIdsByRole: state.collapsedReviewColumnIdsByRole,
         reviewRecommendedFrom: state.reviewRecommendedFrom,
