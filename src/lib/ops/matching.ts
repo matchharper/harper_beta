@@ -72,6 +72,10 @@ type TalentRecommendationRow = Pick<
   | "talent_id"
   | "updated_at"
 >;
+type TalentRecommendationForFitRow = Pick<
+  Database["public"]["Tables"]["talent_opportunity_recommendation"]["Row"],
+  "created_at" | "id" | "recommended_at" | "role_id" | "talent_id"
+>;
 type TalentOpportunityFitRow = Pick<
   Database["public"]["Tables"]["talent_opportunity_fit"]["Row"],
   "human_label" | "label" | "talent_id"
@@ -104,9 +108,18 @@ const MAX_MATCHING_TAG_LENGTH = 40;
 const MAX_MATCHING_NO_TAG_SCAN_ROWS = 5000;
 const MAX_MATCHING_TALENT_ROLE_TAG_ROWS = 5000;
 const MAX_MATCHING_FIT_SEARCH_IDS = 500;
+const MAX_MATCHING_FIT_RECOMMENDATION_ROWS = 1000;
 const MAX_MATCHING_PROGRESS_TEXT_LENGTH = 2000;
 const MAX_MATCHING_RECOMMENDATION_DELIVERY_ITEMS = 5;
 const MATCHING_ID_FILTER_CHUNK_SIZE = 80;
+const OPS_MATCHING_FIT_LABELS = [
+  "ambiguous",
+  "dissatisfied",
+  "fit",
+  "hold",
+  "unfit",
+] as const;
+const OPS_MATCHING_FIT_LABEL_SET = new Set<string>(OPS_MATCHING_FIT_LABELS);
 const ACTIVE_ROLE_STATUSES = new Set(["active", "top_priority"]);
 const MATCHING_REVIEW_STAGE_TAG_BY_STAGE = {
   accepted: "내부:수락",
@@ -286,6 +299,14 @@ export type OpsMatchingFitRole = {
   updatedAt: string | null;
 };
 
+export type OpsMatchingFitLabel = (typeof OPS_MATCHING_FIT_LABELS)[number];
+
+export type OpsMatchingFitRecommendation = {
+  createdAt: string;
+  recommendationId: string;
+  recommendedAt: string;
+};
+
 export type OpsMatchingFitItem = {
   createdAt: string;
   effectiveLabel: string;
@@ -297,6 +318,7 @@ export type OpsMatchingFitItem = {
   label: string;
   lastEvaluatedAt: string;
   reason: string;
+  recommendation: OpsMatchingFitRecommendation | null;
   reevaluationCheckedAt: string | null;
   reevaluationCriteria: TalentOpportunityFitRecordRow["reevaluation_criteria"];
   role: OpsMatchingFitRole;
@@ -345,6 +367,15 @@ export type OpsMatchingProgressDeleteResponse = {
   progressId: string;
   roleId: string;
   talentId: string;
+};
+
+export type OpsMatchingFitHumanLabelUpdateResponse = {
+  effectiveLabel: string;
+  fitId: string;
+  humanLabel: OpsMatchingFitLabel | null;
+  humanReason: string | null;
+  humanReviewedAt: string | null;
+  humanReviewedBy: string | null;
 };
 
 type DateRange = {
@@ -569,6 +600,19 @@ export function parseOpsMatchingTags(value: string | null) {
         .split(",")
         .map(normalizeTag)
         .filter(Boolean)
+    )
+  );
+}
+
+export function parseOpsMatchingFitLabels(value: string | null) {
+  return Array.from(
+    new Set(
+      String(value ?? "")
+        .split(",")
+        .map((label) => normalizeText(label).toLowerCase())
+        .filter((label): label is OpsMatchingFitLabel =>
+          OPS_MATCHING_FIT_LABEL_SET.has(label)
+        )
     )
   );
 }

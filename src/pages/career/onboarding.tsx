@@ -1247,7 +1247,7 @@ const CareerNetworkOnboardingContent = () => {
       DEFAULT_ONBOARDING_PROFILE_VISIBILITY
     );
   const [submitState, setSubmitState] = useState<"form" | "loading" | "done">(
-    "done"
+    "form"
   );
   const defaultDoneUserMessage = useMemo(
     () => getDefaultDoneUserMessage(t),
@@ -1408,7 +1408,7 @@ const CareerNetworkOnboardingContent = () => {
         }
 
         setConversationId(String(payload?.conversation?.id ?? ""));
-        // setSubmitState(payload?.hasFirstSubmission ? "done" : "form");
+        setSubmitState(payload?.hasFirstSubmission ? "done" : "form");
       } catch (error) {
         if (cancelled) return;
         showToast({
