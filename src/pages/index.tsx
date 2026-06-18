@@ -1916,7 +1916,8 @@ export default function LandingKoVfPage({
   const heroTitleClassName = cn(
     "text-center",
     text.h1,
-    landingLocale === "en" && "text-[34px] sm:text-[56px] md:text-[66px]"
+    landingLocale === "en" &&
+      "text-[36px] sm:text-[56px] md:text-[66px] leading-[1.16]"
   );
   const { careerStartHref, handleCareerStartClick } = useCareerLandingStart({
     abtestType: heroCopyAbtestType,
