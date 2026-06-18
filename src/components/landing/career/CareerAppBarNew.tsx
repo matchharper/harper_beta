@@ -1,6 +1,7 @@
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { cn } from "@/lib/utils";
 import { motion } from "motion/react";
+import Image from "next/image";
 import Link from "next/link";
 import { useState, type MouseEventHandler } from "react";
 
@@ -61,7 +62,8 @@ export default function CareerAppBar({
           href={`${sectionHrefPrefix}#top`}
           className="font-hedvig text-[18px] text-black font-semibold"
         >
-          Harper
+          <Image src="/svgs/logov2.svg" alt="Harper" width={64} height={100} />
+          {/* Harper */}
         </a>
         <div
           aria-label="Section navigation"
