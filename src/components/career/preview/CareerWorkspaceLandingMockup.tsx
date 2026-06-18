@@ -1252,7 +1252,7 @@ const MobileWorkspace = ({
   copy: StaticCopy;
   onGmailMockupVisibleChange?: (visible: boolean) => void;
 }) => (
-  <main className="flex h-full w-full flex-col overflow-hidden bg-bg-basement text-neutral-primary">
+  <main className="flex h-full pt-1 w-full flex-col overflow-hidden bg-bg-basement text-neutral-primary">
     <header className="relative z-20 flex h-12 shrink-0 items-center justify-between px-2 text-neutral-primary backdrop-blur-xl overflow-hidden">
       <button
         type="button"

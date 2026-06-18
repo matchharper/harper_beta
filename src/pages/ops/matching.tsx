@@ -2,6 +2,7 @@ import Head from "next/head";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/router";
 import OpsShell from "@/components/ops/OpsShell";
+import { MatchingFitRecordBrowser } from "@/components/ops/matching/MatchingFitRecordBrowser";
 import { MatchingHarperReviewBoard } from "@/components/ops/matching/MatchingHarperReviewBoard";
 import { MatchingTalentBrowser } from "@/components/ops/matching/MatchingTalentBrowser";
 import { cx, opsTheme } from "@/components/ops/theme";
@@ -16,9 +17,10 @@ import { useAuthStore } from "@/store/useAuthStore";
 import {
   type OpsMatchingStageTabId,
   type OpsMatchingUrlState,
+  type OpsMatchingViewMode,
   useOpsMatchingStore,
 } from "@/store/useOpsMatchingStore";
-import { Building2, LoaderCircle } from "lucide-react";
+import { Building2, ListFilter, LoaderCircle } from "lucide-react";
 import type { ParsedUrlQuery } from "querystring";
 
 const MATCHING_STAGE_TABS = [
@@ -61,6 +63,16 @@ function parseMatchingTab(
   return "all";
 }
 
+function parseMatchingViewMode(
+  value: ParsedUrlQuery[string]
+): OpsMatchingViewMode {
+  const normalized = firstQueryValue(value);
+  if (normalized === "all_fits" || normalized === "allFits") {
+    return "all_fits";
+  }
+  return "role";
+}
+
 function parseMatchingUrlState(query: ParsedUrlQuery) {
   const relevantKeys = [
     "allFrom",
@@ -72,6 +84,7 @@ function parseMatchingUrlState(query: ParsedUrlQuery) {
     "reviewTo",
     "role",
     "tab",
+    "view",
   ];
   const hasUrlState = relevantKeys.some((key) => key in query);
 
@@ -87,6 +100,7 @@ function parseMatchingUrlState(query: ParsedUrlQuery) {
       reviewTagFilters: parseTagsParam(query.reviewTags),
       selectedCompanyId: firstQueryValue(query.company),
       selectedRoleId: firstQueryValue(query.role),
+      viewMode: parseMatchingViewMode(query.view),
     } satisfies OpsMatchingUrlState,
   };
 }
@@ -95,6 +109,7 @@ function buildMatchingUrlQuery(state: OpsMatchingUrlState) {
   const query: Record<string, string> = {
     tab: state.activeTab,
   };
+  if (state.viewMode === "all_fits") query.view = "all_fits";
   if (state.selectedCompanyId) query.company = state.selectedCompanyId;
   if (state.selectedRoleId) query.role = state.selectedRoleId;
   if (state.allCreatedFrom) query.allFrom = state.allCreatedFrom;
@@ -147,6 +162,7 @@ export default function OpsMatchingPage() {
     (state) => state.selectedCompanyId
   );
   const selectedRoleId = useOpsMatchingStore((state) => state.selectedRoleId);
+  const viewMode = useOpsMatchingStore((state) => state.viewMode);
   const setActiveTab = useOpsMatchingStore((state) => state.setActiveTab);
   const setAllCreatedDateRange = useOpsMatchingStore(
     (state) => state.setAllCreatedDateRange
@@ -167,6 +183,7 @@ export default function OpsMatchingPage() {
     (state) => state.setSelectedRoleId
   );
   const setStateFromUrl = useOpsMatchingStore((state) => state.setStateFromUrl);
+  const setViewMode = useOpsMatchingStore((state) => state.setViewMode);
   const companiesQuery = useOpsMatchingCompanies({
     enabled: canFetchInternal,
   });
@@ -210,6 +227,7 @@ export default function OpsMatchingPage() {
         reviewTagFilters,
         selectedCompanyId,
         selectedRoleId,
+        viewMode,
       }) satisfies OpsMatchingUrlState,
     [
       activeTab,
@@ -221,6 +239,7 @@ export default function OpsMatchingPage() {
       reviewTagFilters,
       selectedCompanyId,
       selectedRoleId,
+      viewMode,
     ]
   );
   const replaceUrlState = useCallback(
@@ -311,27 +330,43 @@ export default function OpsMatchingPage() {
 
   const handleTabChange = (tab: OpsMatchingStageTabId) => {
     setActiveTab(tab);
-    replaceUrlState({ activeTab: tab });
+    setViewMode("role");
+    replaceUrlState({ activeTab: tab, viewMode: "role" });
   };
 
   const handleCompanyChange = (companyId: string) => {
     setSelectedCompanyId(companyId);
     setSelectedRoleId("");
     setActiveTab("all");
+    setViewMode("role");
     replaceUrlState({
       activeTab: "all",
       selectedCompanyId: companyId,
       selectedRoleId: "",
+      viewMode: "role",
     });
   };
 
   const handleRoleChange = (roleId: string) => {
     setSelectedRoleId(roleId);
     setActiveTab("all");
+    setViewMode("role");
     replaceUrlState({
       activeTab: "all",
       selectedRoleId: roleId,
+      viewMode: "role",
     });
+  };
+
+  const handleAllFitsClick = () => {
+    if (viewMode === "all_fits") {
+      setViewMode("role");
+      replaceUrlState({ viewMode: "role" });
+      return;
+    }
+    setActiveTab("all");
+    setViewMode("all_fits");
+    replaceUrlState({ activeTab: "all", viewMode: "all_fits" });
   };
 
   const handleAllCreatedDateRangeChange = (from: string, to: string) => {
@@ -416,6 +451,20 @@ export default function OpsMatchingPage() {
                   )}
                 </UiSelect>
               </label>
+
+              <BareButton
+                type="button"
+                onClick={handleAllFitsClick}
+                className={cx(
+                  "mt-2 h-11 shrink-0 px-3 text-xs",
+                  viewMode === "all_fits"
+                    ? opsTheme.buttonPrimary
+                    : opsTheme.buttonSecondary
+                )}
+              >
+                <ListFilter className="h-3.5 w-3.5" />
+                전체보기
+              </BareButton>
             </div>
 
             {companiesQuery.isLoading || rolesQuery.isLoading ? (
@@ -437,7 +486,9 @@ export default function OpsMatchingPage() {
         }
       >
         <div className="space-y-4">
-          {effectiveRole ? (
+          {viewMode === "all_fits" ? (
+            <MatchingFitRecordBrowser canFetchInternal={canFetchInternal} />
+          ) : effectiveRole ? (
             <>
               <section className="flex flex-row gap-2">
                 {MATCHING_STAGE_TABS.map((tab) => (

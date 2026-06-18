@@ -8,6 +8,7 @@ import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import { queryKeys } from "@/lib/queryKeys";
 import type {
   OpsMatchingCompanyOption,
+  OpsMatchingFitListResponse,
   OpsMatchingProgressDeleteResponse,
   OpsMatchingProgressResponse,
   OpsMatchingReviewBoardResponse,
@@ -41,6 +42,12 @@ type MatchingTalentFilters = {
   query?: string;
   roleId?: string | null;
   tags?: string[];
+};
+
+type MatchingFitFilters = {
+  enabled?: boolean;
+  limit?: number;
+  query?: string;
 };
 
 type MatchingTalentPoolFilters = Omit<MatchingTalentFilters, "roleId"> & {
@@ -81,6 +88,32 @@ export function useOpsMatchingRoles(args: {
     },
     enabled: (args.enabled ?? true) && Boolean(companyWorkspaceId),
     staleTime: 60_000,
+  });
+}
+
+export function useOpsMatchingFits(filters: MatchingFitFilters) {
+  const limit = filters.limit ?? 20;
+  const query = filters.query?.trim() ?? "";
+
+  return useInfiniteQuery({
+    queryKey: queryKeys.opsMatching.fits({
+      limit,
+      query,
+    }),
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams({
+        limit: String(limit),
+        offset: String(pageParam),
+      });
+      if (query) params.set("query", query);
+      return fetchWithInternalAuth<OpsMatchingFitListResponse>(
+        `/api/internal/matching/fits?${params.toString()}`
+      );
+    },
+    getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
+    initialPageParam: 0,
+    enabled: filters.enabled ?? true,
+    staleTime: 30_000,
   });
 }
 

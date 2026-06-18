@@ -76,6 +76,23 @@ type TalentOpportunityFitRow = Pick<
   Database["public"]["Tables"]["talent_opportunity_fit"]["Row"],
   "human_label" | "label" | "talent_id"
 >;
+type TalentOpportunityFitRecordRow = Pick<
+  Database["public"]["Tables"]["talent_opportunity_fit"]["Row"],
+  | "created_at"
+  | "human_label"
+  | "human_reason"
+  | "human_reviewed_at"
+  | "human_reviewed_by"
+  | "id"
+  | "label"
+  | "last_evaluated_at"
+  | "opportunity_id"
+  | "reason"
+  | "reevaluation_checked_at"
+  | "reevaluation_criteria"
+  | "score"
+  | "talent_id"
+>;
 
 const DEFAULT_MATCHING_TALENT_LIMIT = 20;
 const MAX_MATCHING_TALENT_LIMIT = 50;
@@ -86,6 +103,7 @@ const MAX_MATCHING_REVIEW_ITEMS = 500;
 const MAX_MATCHING_TAG_LENGTH = 40;
 const MAX_MATCHING_NO_TAG_SCAN_ROWS = 5000;
 const MAX_MATCHING_TALENT_ROLE_TAG_ROWS = 5000;
+const MAX_MATCHING_FIT_SEARCH_IDS = 500;
 const MAX_MATCHING_PROGRESS_TEXT_LENGTH = 2000;
 const MAX_MATCHING_RECOMMENDATION_DELIVERY_ITEMS = 5;
 const MATCHING_ID_FILTER_CHUNK_SIZE = 80;
@@ -255,6 +273,43 @@ export type OpsMatchingReviewItem = {
 export type OpsMatchingReviewBoardResponse = {
   items: OpsMatchingReviewItem[];
   roleId: string;
+  totalCount: number;
+};
+
+export type OpsMatchingFitRole = {
+  companyName: string | null;
+  companyWorkspaceId: string | null;
+  locationText: string | null;
+  roleId: string;
+  roleName: string | null;
+  status: string | null;
+  updatedAt: string | null;
+};
+
+export type OpsMatchingFitItem = {
+  createdAt: string;
+  effectiveLabel: string;
+  fitId: string;
+  humanLabel: string | null;
+  humanReason: string | null;
+  humanReviewedAt: string | null;
+  humanReviewedBy: string | null;
+  label: string;
+  lastEvaluatedAt: string;
+  reason: string;
+  reevaluationCheckedAt: string | null;
+  reevaluationCriteria: TalentOpportunityFitRecordRow["reevaluation_criteria"];
+  role: OpsMatchingFitRole;
+  score: number;
+  talent: OpsMatchingTalentItem;
+};
+
+export type OpsMatchingFitListResponse = {
+  hasMore: boolean;
+  items: OpsMatchingFitItem[];
+  limit: number;
+  nextOffset: number | null;
+  offset: number;
   totalCount: number;
 };
 
@@ -1371,23 +1426,22 @@ export async function fetchOpsMatchingTalents(args: {
     taggedTalentIds,
     excludedTalentIds,
     holdFitTalentIds,
-  ] =
-    await Promise.all([
-      matchingTags.length > 0
-        ? fetchTagMatchedTalentIds({ admin, roleId, tags: matchingTags })
-        : Promise.resolve(null),
-      hasNoTagFilter
-        ? fetchTaggedTalentIds({ admin, roleId })
-        : Promise.resolve(null),
-      excludeNotInterested
-        ? fetchTagMatchedTalentIds({
-            admin,
-            roleId,
-            tags: [MATCHING_NOT_INTERESTED_TAG],
-          })
-        : Promise.resolve(null),
-      fetchHoldFitTalentIds({ admin, roleId }),
-    ]);
+  ] = await Promise.all([
+    matchingTags.length > 0
+      ? fetchTagMatchedTalentIds({ admin, roleId, tags: matchingTags })
+      : Promise.resolve(null),
+    hasNoTagFilter
+      ? fetchTaggedTalentIds({ admin, roleId })
+      : Promise.resolve(null),
+    excludeNotInterested
+      ? fetchTagMatchedTalentIds({
+          admin,
+          roleId,
+          tags: [MATCHING_NOT_INTERESTED_TAG],
+        })
+      : Promise.resolve(null),
+    fetchHoldFitTalentIds({ admin, roleId }),
+  ]);
 
   if (holdFitTalentIds.size === 0) {
     return {
@@ -1454,6 +1508,246 @@ export async function fetchOpsMatchingTalents(args: {
         searchQuery,
       });
   const items = await buildOpsMatchingTalentItems({ admin, roleId, rows });
+  const nextOffset =
+    offset + items.length < totalCount ? offset + items.length : null;
+
+  return {
+    hasMore: nextOffset !== null,
+    items,
+    limit,
+    nextOffset,
+    offset,
+    totalCount,
+  };
+}
+
+function emptyOpsMatchingFitResponse(args: {
+  limit: number;
+  offset: number;
+}): OpsMatchingFitListResponse {
+  return {
+    hasMore: false,
+    items: [],
+    limit: args.limit,
+    nextOffset: null,
+    offset: args.offset,
+    totalCount: 0,
+  };
+}
+
+async function fetchMatchingFitSearchTargets(args: {
+  admin: AdminClient;
+  searchQuery: string;
+}) {
+  const searchPattern = buildMatchingIlikePattern(args.searchQuery);
+  const [talentResult, roleResult, workspaceResult] = await Promise.all([
+    args.admin
+      .from("talent_users")
+      .select("user_id")
+      .or(`name.ilike.${searchPattern},email.ilike.${searchPattern}`)
+      .limit(MAX_MATCHING_FIT_SEARCH_IDS),
+    args.admin
+      .from("company_roles")
+      .select("role_id")
+      .eq("source_type", "internal")
+      .ilike("name", searchPattern)
+      .limit(MAX_MATCHING_FIT_SEARCH_IDS),
+    args.admin
+      .from("company_workspace")
+      .select("company_workspace_id")
+      .ilike("company_name", searchPattern)
+      .limit(MAX_MATCHING_FIT_SEARCH_IDS),
+  ]);
+
+  if (talentResult.error) {
+    throw new Error(talentResult.error.message ?? "Failed to search talents");
+  }
+  if (roleResult.error) {
+    throw new Error(roleResult.error.message ?? "Failed to search roles");
+  }
+  if (workspaceResult.error) {
+    throw new Error(
+      workspaceResult.error.message ?? "Failed to search companies"
+    );
+  }
+
+  const talentIds = Array.from(
+    new Set((talentResult.data ?? []).map((row) => normalizeText(row.user_id)))
+  ).filter(Boolean);
+  const roleIds = new Set(
+    (roleResult.data ?? [])
+      .map((row) => normalizeText(row.role_id))
+      .filter(Boolean)
+  );
+  const workspaceIds = Array.from(
+    new Set(
+      (workspaceResult.data ?? [])
+        .map((row) => normalizeText(row.company_workspace_id))
+        .filter(Boolean)
+    )
+  );
+
+  for (const chunk of chunkValues(workspaceIds)) {
+    const { data, error } = await args.admin
+      .from("company_roles")
+      .select("role_id")
+      .eq("source_type", "internal")
+      .in("company_workspace_id", chunk)
+      .limit(MAX_MATCHING_FIT_SEARCH_IDS);
+
+    if (error) {
+      throw new Error(error.message ?? "Failed to search company roles");
+    }
+
+    for (const row of data ?? []) {
+      const roleId = normalizeText(row.role_id);
+      if (roleId) roleIds.add(roleId);
+    }
+  }
+
+  return {
+    roleIds: Array.from(roleIds),
+    talentIds,
+  };
+}
+
+function buildFallbackOpsMatchingTalentItem(talentId: string) {
+  return {
+    createdAt: null,
+    description: null,
+    email: null,
+    hasSubmittedMaterial: false,
+    headline: null,
+    isOnboardingDone: false,
+    latestCompany: null,
+    latestSchool: null,
+    memoPreview: null,
+    name: null,
+    profilePicture: null,
+    recentCompanies: [],
+    recentSchools: [],
+    tags: [],
+    talentTags: [],
+    userId: talentId,
+  } satisfies OpsMatchingTalentItem;
+}
+
+async function buildOpsMatchingFitItems(args: {
+  admin: AdminClient;
+  rows: TalentOpportunityFitRecordRow[];
+}) {
+  const talentRowMap = await fetchTalentRowMap({
+    admin: args.admin,
+    talentIds: args.rows.map((row) => row.talent_id),
+  });
+  const talentRows = Array.from(talentRowMap.values());
+  const [talentItems, roleMap] = await Promise.all([
+    buildOpsMatchingTalentItems({
+      admin: args.admin,
+      roleId: null,
+      rows: talentRows,
+    }),
+    fetchRoleContextMap({
+      admin: args.admin,
+      roleIds: args.rows.map((row) => row.opportunity_id),
+    }),
+  ]);
+  const talentItemMap = new Map(
+    talentItems.map((talent) => [talent.userId, talent])
+  );
+
+  return args.rows.map((row) => {
+    const role = roleMap.get(row.opportunity_id);
+    const label = normalizeText(row.label);
+    const humanLabel = normalizeNullableText(row.human_label);
+    return {
+      createdAt: row.created_at,
+      effectiveLabel: humanLabel || label,
+      fitId: row.id,
+      humanLabel,
+      humanReason: normalizeNullableText(row.human_reason),
+      humanReviewedAt: row.human_reviewed_at,
+      humanReviewedBy: normalizeNullableText(row.human_reviewed_by),
+      label,
+      lastEvaluatedAt: row.last_evaluated_at,
+      reason: normalizeText(row.reason),
+      reevaluationCheckedAt: row.reevaluation_checked_at,
+      reevaluationCriteria: row.reevaluation_criteria,
+      role: {
+        companyName: role?.companyName ?? null,
+        companyWorkspaceId: role?.companyWorkspaceId ?? null,
+        locationText: role?.locationText ?? null,
+        roleId: row.opportunity_id,
+        roleName: role?.roleName ?? null,
+        status: role?.status ?? null,
+        updatedAt: role?.updatedAt ?? null,
+      },
+      score: row.score,
+      talent:
+        talentItemMap.get(row.talent_id) ??
+        buildFallbackOpsMatchingTalentItem(row.talent_id),
+    } satisfies OpsMatchingFitItem;
+  });
+}
+
+export async function fetchOpsMatchingFits(args: {
+  limit?: number;
+  offset?: number;
+  query?: string | null;
+}): Promise<OpsMatchingFitListResponse> {
+  const limit = Math.max(
+    1,
+    Math.min(
+      MAX_MATCHING_TALENT_LIMIT,
+      args.limit ?? DEFAULT_MATCHING_TALENT_LIMIT
+    )
+  );
+  const offset = Math.max(0, args.offset ?? 0);
+  const searchQuery = normalizeText(args.query);
+  const admin = getSupabaseAdmin();
+
+  let fitQuery = fromOpsMatchingTable(admin, "talent_opportunity_fit").select(
+    "id, talent_id, opportunity_id, score, label, reason, reevaluation_criteria, human_label, human_reason, human_reviewed_by, human_reviewed_at, last_evaluated_at, reevaluation_checked_at, created_at",
+    { count: "exact" }
+  );
+
+  if (searchQuery) {
+    const searchTargets = await fetchMatchingFitSearchTargets({
+      admin,
+      searchQuery,
+    });
+    if (
+      searchTargets.talentIds.length === 0 &&
+      searchTargets.roleIds.length === 0
+    ) {
+      return emptyOpsMatchingFitResponse({ limit, offset });
+    }
+
+    const filters: string[] = [];
+    if (searchTargets.talentIds.length > 0) {
+      filters.push(`talent_id.in.(${searchTargets.talentIds.join(",")})`);
+    }
+    if (searchTargets.roleIds.length > 0) {
+      filters.push(`opportunity_id.in.(${searchTargets.roleIds.join(",")})`);
+    }
+    fitQuery = fitQuery.or(filters.join(","));
+  }
+
+  const { data, error, count } = await fitQuery
+    .order("last_evaluated_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false, nullsFirst: false })
+    .range(offset, offset + limit - 1);
+
+  if (error) {
+    if (isMissingOpsMatchingTableError(error)) {
+      throw createMissingOpsMatchingTableError("talent_opportunity_fit");
+    }
+    throw new Error(error.message ?? "Failed to load internal fit records");
+  }
+
+  const rows = (data ?? []) as TalentOpportunityFitRecordRow[];
+  const items = await buildOpsMatchingFitItems({ admin, rows });
+  const totalCount = count ?? items.length;
   const nextOffset =
     offset + items.length < totalCount ? offset + items.length : null;
 

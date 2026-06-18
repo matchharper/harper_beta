@@ -8,6 +8,8 @@ export type OpsMatchingStageTabId =
   | "offered"
   | "archived";
 
+export type OpsMatchingViewMode = "all_fits" | "role";
+
 const normalizeText = (value: unknown) => String(value ?? "").trim();
 
 const normalizeTags = (values: readonly string[]) => {
@@ -36,6 +38,12 @@ const normalizeTab = (value: unknown): OpsMatchingStageTabId => {
   return "all";
 };
 
+const normalizeViewMode = (value: unknown): OpsMatchingViewMode => {
+  const normalized = normalizeText(value);
+  if (normalized === "all_fits") return "all_fits";
+  return "role";
+};
+
 type OpsMatchingStoreState = {
   activeTab: OpsMatchingStageTabId;
   allCreatedFrom: string;
@@ -62,7 +70,9 @@ type OpsMatchingStoreState = {
   setSelectedCompanyId: (companyId: string) => void;
   setSelectedRoleId: (roleId: string) => void;
   setStateFromUrl: (state: Partial<OpsMatchingUrlState>) => void;
+  setViewMode: (viewMode: OpsMatchingViewMode) => void;
   toggleReviewColumnCollapsed: (roleId: string, columnId: string) => void;
+  viewMode: OpsMatchingViewMode;
 };
 
 export type OpsMatchingUrlState = {
@@ -75,6 +85,7 @@ export type OpsMatchingUrlState = {
   reviewTagFilters: string[];
   selectedCompanyId: string;
   selectedRoleId: string;
+  viewMode: OpsMatchingViewMode;
 };
 
 function normalizeCollapsedColumnIds(values: readonly string[] | undefined) {
@@ -95,6 +106,7 @@ export const useOpsMatchingStore = create<OpsMatchingStoreState>()(
       reviewTagFilters: [],
       selectedCompanyId: "",
       selectedRoleId: "",
+      viewMode: "role",
       setActiveTab: (tab) => set({ activeTab: normalizeTab(tab) }),
       setAllCreatedDateRange: (from, to) =>
         set({
@@ -145,7 +157,9 @@ export const useOpsMatchingStore = create<OpsMatchingStoreState>()(
           reviewTagFilters: normalizeTags(state.reviewTagFilters ?? []),
           selectedCompanyId: normalizeText(state.selectedCompanyId),
           selectedRoleId: normalizeText(state.selectedRoleId),
+          viewMode: normalizeViewMode(state.viewMode),
         }),
+      setViewMode: (viewMode) => set({ viewMode: normalizeViewMode(viewMode) }),
       toggleReviewColumnCollapsed: (roleId, columnId) =>
         set((state) => {
           const normalizedRoleId = normalizeText(roleId) || "global";
@@ -183,6 +197,7 @@ export const useOpsMatchingStore = create<OpsMatchingStoreState>()(
         reviewTagFilters: state.reviewTagFilters,
         selectedCompanyId: state.selectedCompanyId,
         selectedRoleId: state.selectedRoleId,
+        viewMode: state.viewMode,
       }),
       storage: createJSONStorage(() => localStorage),
     }

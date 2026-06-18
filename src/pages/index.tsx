@@ -717,7 +717,7 @@ function DesktopWindowMockup({
   onGmailMockupVisibleChange?: (visible: boolean) => void;
 }) {
   return (
-    <div className="pointer-events-auto absolute isolate w-[min(80vw,280px)] overflow-hidden rounded-[28px] bg-neutral-50 text-neutral-950 ring-1 ring-black/15 [clip-path:inset(0_round_28px)] md:pointer-events-none md:w-[94%] md:translate-x-0 md:rounded-[16px] md:[clip-path:inset(0_round_16px)]">
+    <div className="pointer-events-auto absolute isolate w-[min(80vw,280px)] overflow-hidden rounded-[16px] bg-neutral-50 text-neutral-950 ring-1 ring-black/15 [clip-path:inset(0_round_16px)] md:pointer-events-none md:w-[94%] md:translate-x-0 md:rounded-[16px] md:[clip-path:inset(0_round_16px)]">
       <div className="hidden h-9 grid-cols-[64px_1fr_76px] items-center bg-neutral-100 px-3 text-[11px] text-neutral-500 ring-1 ring-black/[0.06] md:grid sm:grid-cols-[110px_1fr_110px] sm:px-4 sm:text-[13px]">
         <div className="flex gap-2">
           <span className="h-2 w-2 rounded-full bg-neutral-300 sm:h-2.5 sm:w-2.5" />
