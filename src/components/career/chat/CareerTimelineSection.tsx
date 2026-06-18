@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { CAREER_LINK_LABELS } from "@/components/career/constants";
+import { getCareerLinkLabels } from "@/components/career/constants";
 import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
 import type {
   CareerCallStartRequest,
@@ -59,34 +59,8 @@ import { OpportunityPreviewCards } from "./elements/OpportunityPreviewCards";
 import { RecommendationSearchStatusPanel } from "./elements/RecommendationSearchStatusPanel";
 import { ThinkingLogPanel } from "./elements/ThinkingLogPanel";
 import { TimelinePendingPanel } from "./elements/TimelinePendingPanel";
-import { formatCareerMessage } from "@/i18n/careerMessage";
 import { useMessages, type Locale } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
-import { careerT } from "@/lib/career/translatedCareerMessage";
-
-const LOGIN_GREETING_TEXT = careerT(
-  "ko",
-  "career.chat.career_timeline_section.0arsq09",
-  "안녕하세요. 회원님의 정보를 저장하기 위해서 우선 계정으로 로그인을 해주세요."
-);
-
-const LOADING_EXAMPLES = [
-  careerT(
-    "ko",
-    "career.chat.career_timeline_section.0or3a9m",
-    "미국 법인 AI Product 팀 Senior Software Engineer"
-  ),
-  careerT(
-    "ko",
-    "career.chat.career_timeline_section.00l29f9",
-    "글로벌 SaaS 팀 ML Engineer (비자 스폰서 가능)"
-  ),
-  careerT(
-    "ko",
-    "career.chat.career_timeline_section.13lt218",
-    "국내 딥테크 스타트업 Applied AI Engineer"
-  ),
-];
 
 const BOTTOM_THRESHOLD_PX = 120;
 const TIMELINE_SCROLL_STYLE: React.CSSProperties = {
@@ -96,11 +70,9 @@ const TIMELINE_SCROLL_STYLE: React.CSSProperties = {
 };
 const HISTORY_TAB_QUERY_KEY = "historyTab";
 const HISTORY_ROLE_QUERY_KEY = "id";
-const CLAIMED_WORKSPACE_BOOTSTRAP_MESSAGE = careerT(
-  "ko",
-  "career.chat.career_timeline_section.0akm24y",
-  "기존에 제출한 정보로 커리어 워크스페이스를 시작했습니다."
-);
+const CLAIMED_WORKSPACE_BOOTSTRAP_MESSAGE =
+  // career-i18n-skip-next-line system marker comparison
+  "기존에 제출한 정보로 커리어 워크스페이스를 시작했습니다.";
 const MESSAGE_DATE_FORMATTERS: Record<Locale, Intl.DateTimeFormat> = {
   ko: new Intl.DateTimeFormat("ko-KR", {
     day: "numeric",
@@ -305,10 +277,11 @@ const TimelineMessageList = memo(function TimelineMessageList({
   sessionReengagementActionMessageId?: string | null;
   onOpenOpportunity: (opportunity: CareerHistoryOpportunity) => void;
 }) {
-  const { locale, m } = useMessages();
-  const dateAriaPrefix = formatCareerMessage(
-    m,
-    careerT("ko", "career.chat.career_timeline_section.17u6jy7", "대화 날짜")
+  const t = useCareerT();
+  const { locale } = useMessages();
+  const dateAriaPrefix = t(
+    "career.chat.career_timeline_section.17u6jy7",
+    "대화 날짜"
   );
 
   return (
@@ -528,6 +501,28 @@ const CareerTimelineSection = () => {
 
   const router = useRouter();
   const { m } = useMessages();
+  const careerLinkLabels = useMemo(() => getCareerLinkLabels(t), [t]);
+  const loginGreetingText = t(
+    "career.chat.career_timeline_section.0arsq09",
+    "안녕하세요. 회원님의 정보를 저장하기 위해서 우선 계정으로 로그인을 해주세요."
+  );
+  const loadingExamples = useMemo(
+    () => [
+      t(
+        "career.chat.career_timeline_section.0or3a9m",
+        "미국 법인 AI Product 팀 Senior Software Engineer"
+      ),
+      t(
+        "career.chat.career_timeline_section.00l29f9",
+        "글로벌 SaaS 팀 ML Engineer (비자 스폰서 가능)"
+      ),
+      t(
+        "career.chat.career_timeline_section.13lt218",
+        "국내 딥테크 스타트업 Applied AI Engineer"
+      ),
+    ],
+    [t]
+  );
   const {
     user,
     conversationId,
@@ -633,20 +628,17 @@ const CareerTimelineSection = () => {
     stage !== "profile";
   const opportunityFeedbackFollowUpPendingDetail =
     opportunityFeedbackFollowUpTrigger === "immediate_internal_feedback"
-      ? careerT(
-          "ko",
+      ? t(
           "career.chat.career_timeline_section.0qzkj18",
           "다음 프로세스를 확인하고 있어요."
         )
       : opportunityFeedbackFollowUpTrigger ===
           "all_recommended_opportunities_cleared"
-        ? careerT(
-            "ko",
+        ? t(
             "career.chat.career_timeline_section.1ct6hfb",
             "방금 남긴 피드백을 바탕으로 다음 추천 방향을 정리하고 있어요."
           )
-        : careerT(
-            "ko",
+        : t(
             "career.chat.career_timeline_section.0hm90b7",
             "남겨주신 피드백을 반영해서 다음 메시지를 준비하고 있어요."
           );
@@ -894,7 +886,7 @@ const CareerTimelineSection = () => {
               message={{
                 id: "login-greeting",
                 role: "assistant",
-                content: LOGIN_GREETING_TEXT,
+                content: loginGreetingText,
                 createdAt: "",
                 messageType: "chat",
               }}
@@ -909,13 +901,8 @@ const CareerTimelineSection = () => {
               className="w-full justify-center px-4"
             >
               {authPending
-                ? careerT(
-                    "ko",
-                    "career.chat.career_timeline_section.1xwvmgk",
-                    "처리 중..."
-                  )
-                : careerT(
-                    "ko",
+                ? t("career.chat.career_timeline_section.1xwvmgk", "처리 중...")
+                : t(
                     "career.chat.career_timeline_section.1sop3l6",
                     "Google 로그인"
                   )}
@@ -924,16 +911,8 @@ const CareerTimelineSection = () => {
             <div className="mt-5 text-[14px] font-medium text-neutral-muted">
               {t("career.onboarding.onboarding.17sy1or", "이메일")}{" "}
               {authMode === "signup"
-                ? careerT(
-                    "ko",
-                    "career.chat.career_timeline_section.06wb0ci",
-                    "회원가입"
-                  )
-                : careerT(
-                    "ko",
-                    "career.chat.career_timeline_section.074rfeb",
-                    "로그인"
-                  )}
+                ? t("career.chat.career_timeline_section.06wb0ci", "회원가입")
+                : t("career.chat.career_timeline_section.074rfeb", "로그인")}
             </div>
 
             <form onSubmit={handleEmailAuthSubmit} className="mt-3 space-y-3">
@@ -960,28 +939,18 @@ const CareerTimelineSection = () => {
                 className="w-full justify-center"
               >
                 {authMode === "signup"
-                  ? careerT(
-                      "ko",
-                      "career.chat.career_timeline_section.06wb0ci",
-                      "회원가입"
-                    )
-                  : careerT(
-                      "ko",
-                      "career.chat.career_timeline_section.074rfeb",
-                      "로그인"
-                    )}
+                  ? t("career.chat.career_timeline_section.06wb0ci", "회원가입")
+                  : t("career.chat.career_timeline_section.074rfeb", "로그인")}
               </PrimaryButton>
             </form>
 
             <div className="mt-4 text-sm text-neutral-muted">
               {authMode === "signup"
-                ? careerT(
-                    "ko",
+                ? t(
                     "career.chat.career_timeline_section.0jstyw1",
                     "이미 계정이 있으신가요?"
                   )
-                : careerT(
-                    "ko",
+                : t(
                     "career.chat.career_timeline_section.09zvq4w",
                     "첫 방문이신가요?"
                   )}{" "}
@@ -996,13 +965,8 @@ const CareerTimelineSection = () => {
                 className="font-medium text-neutral-primary underline underline-offset-4"
               >
                 {authMode === "signup"
-                  ? careerT(
-                      "ko",
-                      "career.chat.career_timeline_section.074rfeb",
-                      "로그인"
-                    )
-                  : careerT(
-                      "ko",
+                  ? t("career.chat.career_timeline_section.074rfeb", "로그인")
+                  : t(
                       "career.chat.career_timeline_section.06wb0ci",
                       "회원가입"
                     )}
@@ -1042,13 +1006,11 @@ const CareerTimelineSection = () => {
               className="inline-flex h-9 items-center justify-center rounded-[8px] border border-neutral-1000-a05 bg-bg-floating px-4 text-xs text-neutral-muted transition-colors hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loadingOlderMessages
-                ? careerT(
-                    "ko",
+                ? t(
                     "career.chat.career_timeline_section.0bh3gyc",
                     "불러오는 중..."
                   )
-                : careerT(
-                    "ko",
+                : t(
                     "career.chat.career_timeline_section.0t1ynxd",
                     "이전 대화 더 보기"
                   )}
@@ -1168,7 +1130,7 @@ const CareerTimelineSection = () => {
               )}
             </div>
             <div className="mt-5 grid gap-2 border-t border-neutral-1000-a05 pt-4">
-              {LOADING_EXAMPLES.map((example) => (
+              {loadingExamples.map((example) => (
                 <div
                   key={example}
                   className="text-[14px] leading-7 text-neutral-muted"
@@ -1219,8 +1181,7 @@ const CareerTimelineSection = () => {
                   />
                   <div className="text-sm text-neutral-muted">
                     {resumeFile?.name ||
-                      careerT(
-                        "ko",
+                      t(
                         "career.chat.career_timeline_section.0cx2fkc",
                         "선택된 파일 없음"
                       )}
@@ -1242,9 +1203,8 @@ const CareerTimelineSection = () => {
                       className="grid gap-2 md:grid-cols-[140px_minmax(0,1fr)_40px]"
                     >
                       <div className="pt-2 text-[14px] font-medium text-neutral-soft">
-                        {CAREER_LINK_LABELS[index] ??
-                          careerT(
-                            "ko",
+                        {careerLinkLabels[index] ??
+                          t(
                             "career.chat.career_timeline_section.0ong27a",
                             "추가 링크"
                           )}
@@ -1256,7 +1216,7 @@ const CareerTimelineSection = () => {
                         }
                         placeholder="https://"
                       />
-                      {index >= CAREER_LINK_LABELS.length ? (
+                      {index >= careerLinkLabels.length ? (
                         <BareButton
                           type="button"
                           onClick={() => onRemoveProfileLink(index)}
@@ -1302,13 +1262,11 @@ const CareerTimelineSection = () => {
                   className="mt-4 w-full justify-center"
                 >
                   {profilePending
-                    ? careerT(
-                        "ko",
+                    ? t(
                         "career.chat.career_timeline_section.0hzihgh",
                         "분석 준비 중..."
                       )
-                    : careerT(
-                        "ko",
+                    : t(
                         "career.chat.career_timeline_section.0hfdmut",
                         "제출하기"
                       )}
@@ -1350,19 +1308,16 @@ const CareerTimelineSection = () => {
                 className="w-fit justify-center"
               >
                 {isStartingCall
-                  ? careerT(
-                      "ko",
+                  ? t(
                       "career.common.career_chat_panel.1q1egw3",
                       "통화 연결 중..."
                     )
                   : callWrapUpPending
-                    ? careerT(
-                        "ko",
+                    ? t(
                         "career.chat.career_timeline_section.0twh3v7",
                         "정리 중..."
                       )
-                    : careerT(
-                        "ko",
+                    : t(
                         "career.chat.career_timeline_section.0ai2d9e",
                         "전화로 시작"
                       )}
@@ -1373,13 +1328,11 @@ const CareerTimelineSection = () => {
                 className="w-fit justify-center"
               >
                 {isConversationActionLocked
-                  ? careerT(
-                      "ko",
+                  ? t(
                       "career.chat.career_timeline_section.0l0nx9g",
                       "준비 중..."
                     )
-                  : careerT(
-                      "ko",
+                  : t(
                       "career.chat.career_timeline_section.1xcwt3x",
                       "채팅으로 시작"
                     )}
@@ -1390,13 +1343,11 @@ const CareerTimelineSection = () => {
                 className="w-fit justify-center"
               >
                 {onboardingPausePending
-                  ? careerT(
-                      "ko",
+                  ? t(
                       "career.chat.career_timeline_section.0l0nx9g",
                       "준비 중..."
                     )
-                  : careerT(
-                      "ko",
+                  : t(
                       "career.chat.career_timeline_section.0v3ly8r",
                       "우선 종료하고 나중에 이어할게요."
                     )}
@@ -1439,13 +1390,11 @@ const CareerTimelineSection = () => {
               className="mt-5 w-fit justify-center"
             >
               {onboardingPausePending
-                ? careerT(
-                    "ko",
+                ? t(
                     "career.profile.career_profile_settings_section.08zy6at",
                     "저장 중..."
                   )
-                : careerT(
-                    "ko",
+                : t(
                     "career.chat.career_timeline_section.1r3zjih",
                     "선택 저장하기"
                   )}
@@ -1472,13 +1421,8 @@ const CareerTimelineSection = () => {
               className="mt-4 justify-center"
             >
               {onboardingBeginPending
-                ? careerT(
-                    "ko",
-                    "career.chat.career_timeline_section.0l0nx9g",
-                    "준비 중..."
-                  )
-                : careerT(
-                    "ko",
+                ? t("career.chat.career_timeline_section.0l0nx9g", "준비 중...")
+                : t(
                     "career.chat.career_timeline_section.079zqvv",
                     "대화 이어가기"
                   )}

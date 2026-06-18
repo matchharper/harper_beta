@@ -17,15 +17,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
-import { useCreateOpsCareerProfileMemo } from "@/hooks/useOpsCareer";
+import { useCreateOpsCareerProfileMemo } from "@/hooks/ops/useOpsCareer";
 import {
   useAddOpsMatchingTalentTag,
   useDeleteOpsMatchingTalentTag,
-} from "@/hooks/useOpsMatching";
+} from "@/hooks/ops/useOpsMatching";
 import type {
   OpsMatchingTalentItem,
   OpsMatchingTalentTag,
-} from "@/lib/opsMatching";
+} from "@/lib/ops/matching";
 
 type InlineActionRootProps = {
   children: ReactNode;

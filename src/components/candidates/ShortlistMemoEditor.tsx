@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Pencil, PencilLine } from "lucide-react";
-import { useUpsertShortlistMemo } from "@/hooks/useShortlistMemo";
+import { useUpsertShortlistMemo } from "@/hooks/candidates/useShortlistMemo";
 import { cn } from "@/lib/cn";
 import { showToast } from "@/components/toast/toast";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";

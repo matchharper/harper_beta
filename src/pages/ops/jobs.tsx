@@ -8,14 +8,14 @@ import {
   useOpsOfficialJobs,
   useSaveOpsOfficialJob,
   type OpsOfficialJobRecord,
-} from "@/hooks/useOpsOfficialJobs";
+} from "@/hooks/ops/useOpsOfficialJobs";
 import { isInternalEmail } from "@/lib/internalAccess";
 import {
   OFFICIAL_JOBS_INTERNAL_COPY_ROLE_TITLE,
   OFFICIAL_JOBS_INTERNAL_COPY_SLUG,
   isOfficialJobsInternalCopyIdentity,
 } from "@/lib/officialJobs";
-import type { OpsOfficialJobSaveInput } from "@/lib/opsOfficialJobs";
+import type { OpsOfficialJobSaveInput } from "@/lib/ops/officialJobs";
 import { useAuthStore } from "@/store/useAuthStore";
 import {
   ArrowUpRight,

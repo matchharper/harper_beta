@@ -3,8 +3,8 @@ import {
   requireInternalApiUser,
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
-import { fetchOpsOpportunityCatalog } from "@/lib/opsOpportunity";
-import { OPS_OPPORTUNITY_COMPANY_PAGE_SIZE } from "@/lib/opsOpportunityCompanyManagement";
+import { fetchOpsOpportunityCatalog } from "@/lib/ops/opportunity";
+import { OPS_OPPORTUNITY_COMPANY_PAGE_SIZE } from "@/lib/ops/opportunityCompanyManagement";
 
 export const runtime = "nodejs";
 

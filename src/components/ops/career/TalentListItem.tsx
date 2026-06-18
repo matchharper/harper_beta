@@ -11,7 +11,7 @@ import { cx } from "@/components/ops/theme";
 import type {
   CareerTalentRegisteredLinkType,
   CareerTalentSummary,
-} from "@/lib/opsCareerServer";
+} from "@/lib/ops/careerServer";
 import {
   formatCurrentPositionLabel,
   formatKst,

@@ -9,7 +9,7 @@ import {
   type OpportunitySourceType,
   type OpportunityStatus,
   type OpportunityWorkMode,
-} from "@/lib/opsOpportunity";
+} from "@/lib/ops/opportunity";
 
 export const runtime = "nodejs";
 

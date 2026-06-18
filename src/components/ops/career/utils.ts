@@ -6,7 +6,7 @@ import type {
   CareerTalentRecommendationItem,
   CareerTalentRegisteredLinkType,
   CareerTalentSummary,
-} from "@/lib/opsCareerServer";
+} from "@/lib/ops/careerServer";
 import { formatKstRelativeDateTime } from "@/components/ops/dateUtils";
 
 export const AUTO_RECOMMENDATION_STAGE_VALUE = "__auto__";

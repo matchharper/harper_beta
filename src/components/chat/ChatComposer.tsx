@@ -4,7 +4,7 @@ import {
   createDraftFileAttachment,
   createDraftLinkAttachment,
   type DraftChatAttachment,
-} from "@/lib/chatAttachmentClient";
+} from "@/lib/chat/attachmentClient";
 import { useMessages } from "@/i18n/useMessage";
 import React, { useCallback, useRef } from "react";
 import { ArrowUp, Square } from "lucide-react";

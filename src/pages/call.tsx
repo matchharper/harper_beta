@@ -1,6 +1,6 @@
 import RecruiterCallSummaryScreen from "@/components/call/CallEndScreen";
 import { MicPulseRings } from "@/components/call/MicPulseRing";
-import { useConversation } from "@/hooks/useConversation";
+import { useConversation } from "@/hooks/chat/useConversation";
 import { useMicRecorder } from "@/hooks/useMicRecorder";
 import { highlightDifferences2 } from "@/utils/textprocess";
 import { logger } from "@/utils/logger";

@@ -9,7 +9,7 @@ import {
   parseCareerRecommendationOffset,
   parseCareerRecommendationSourceFilter,
   updateCareerTalentRecommendationProcessedStage,
-} from "@/lib/opsCareerServer";
+} from "@/lib/ops/careerServer";
 
 export const runtime = "nodejs";
 

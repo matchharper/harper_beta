@@ -13,7 +13,6 @@ import type {
 } from "./watchlistTypes";
 import { BareButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
-import { careerT } from "@/lib/career/translatedCareerMessage";
 
 const DETAIL_QUERY_KEY = "career-company-watchlist-detail";
 
@@ -64,8 +63,7 @@ const CareerCompanyDetailDrawer = ({
         throw new Error(
           getErrorMessage(
             payload,
-            careerT(
-              "ko",
+            t(
               "career.company.career_company_detail_drawer.0amy3om",
               "회사 정보를 불러오지 못했습니다."
             )
@@ -103,8 +101,7 @@ const CareerCompanyDetailDrawer = ({
 
         if (!result) {
           throw new Error(
-            careerT(
-              "ko",
+            t(
               "career.common.career_flow_provider.19x0zaz",
               "회사 팔로우 상태를 변경하지 못했습니다."
             )
@@ -127,8 +124,7 @@ const CareerCompanyDetailDrawer = ({
           message:
             error instanceof Error
               ? error.message
-              : careerT(
-                  "ko",
+              : t(
                   "career.common.career_flow_provider.19x0zaz",
                   "회사 팔로우 상태를 변경하지 못했습니다."
                 ),
@@ -137,7 +133,7 @@ const CareerCompanyDetailDrawer = ({
         setUpdatingCompanyId(null);
       }
     },
-    [locale, onUpdateCompanyFollow, queryClient, source, userId]
+    [locale, onUpdateCompanyFollow, queryClient, source, t, userId]
   );
 
   useEffect(() => {

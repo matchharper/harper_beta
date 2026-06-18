@@ -4,7 +4,7 @@ import type {
   OpsOpportunityRecommendationRecord,
   OpsOpportunityRoleRecord,
   OpsOpportunityType,
-} from "@/lib/opsOpportunity";
+} from "@/lib/ops/opportunity";
 import { OPPORTUNITY_TYPE_LABEL } from "@/lib/opportunityType";
 import { LoaderCircle, Sparkles } from "lucide-react";
 import {

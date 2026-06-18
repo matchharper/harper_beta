@@ -24,7 +24,6 @@ import {
 import { formatCareerMessageByKey } from "@/i18n/careerMessage";
 import { useMessages } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
-import { careerT } from "@/lib/career/translatedCareerMessage";
 
 // User bubble 색상을 바꾸려면 이 클래스를 수정하세요.
 export const USER_BUBBLE_CLASS =
@@ -36,11 +35,6 @@ export const ASSISTANT_BUBBLE_CLASS =
 const HIGHLIGHT_PATTERN = /<<([\s\S]+?)>>/g;
 const URL_PATTERN = /(https?:\/\/[^\s]+)/g;
 const CALL_ACTION_MARKER = "[[CALL]]";
-const CALL_ACTION_OPENING_TEXT = careerT(
-  "ko",
-  "career.chat.career_message_bubble.0jnmgxp",
-  "좋아요. 최근 업데이트나 요즘 재밌게 하고 계신 일부터 편하게 들려주세요."
-);
 const INTERNAL_CALL_REQUEST_PATTERN =
   /\[\[INTERNAL_OPPORTUNITY_CALL_REQUEST:([^\]]+)\]\]/g;
 
@@ -221,6 +215,10 @@ const CareerMessageBubble = ({
   onStartCallMode,
 }: Props) => {
   const t = useCareerT();
+  const callActionOpeningText = t(
+    "career.chat.career_message_bubble.0jnmgxp",
+    "좋아요. 최근 업데이트나 요즘 재밌게 하고 계신 일부터 편하게 들려주세요."
+  );
 
   const router = useRouter();
   const { m } = useMessages();
@@ -324,7 +322,7 @@ const CareerMessageBubble = ({
               type="button"
               onClick={() =>
                 void onStartCallMode?.({
-                  openingText: CALL_ACTION_OPENING_TEXT,
+                  openingText: callActionOpeningText,
                 })
               }
               disabled={!onStartCallMode || isCallStartPending}
@@ -335,16 +333,8 @@ const CareerMessageBubble = ({
             >
               <Phone className="h-4 w-4" />
               {isCallStartPending
-                ? careerT(
-                    "ko",
-                    "career.call.career_call_card.1vn8y3k",
-                    "연결 중..."
-                  )
-                : careerT(
-                    "ko",
-                    "career.chat.career_message_bubble.0o5swvp",
-                    "전화하기"
-                  )}
+                ? t("career.call.career_call_card.1vn8y3k", "연결 중...")
+                : t("career.chat.career_message_bubble.0o5swvp", "전화하기")}
             </BareButton>
           )}
           {internalCallRequestMarkers.map((marker) => (
@@ -409,13 +399,11 @@ const CareerMessageBubble = ({
                       className="h-9 inline-flex items-center gap-1.5 rounded-[8px] border border-neutral-1000-a10 bg-primary px-2.5 py-1.5 text-xs text-neutral-00 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {isCallStartPending
-                        ? careerT(
-                            "ko",
+                        ? t(
                             "career.call.career_call_card.1vn8y3k",
                             "연결 중..."
                           )
-                        : careerT(
-                            "ko",
+                        : t(
                             "career.chat.career_message_bubble.0whsa78",
                             "통화하기"
                           )}

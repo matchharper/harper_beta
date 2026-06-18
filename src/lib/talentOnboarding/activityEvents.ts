@@ -18,10 +18,6 @@ export type TalentActivityEventRow = {
   summary: string;
   impact_level: TalentActivityImpactLevel;
   changed_domains: string[];
-  related_entity_type: string | null;
-  related_entity_id: string | null;
-  metadata: Record<string, unknown>;
-  occurred_at: string;
   created_at: string;
 };
 
@@ -43,26 +39,27 @@ export type TalentRowMemoActivityItem = {
   newInfo: string;
 };
 
+export type TalentProfileMaterialSnapshot = {
+  resumeFileName?: string | null;
+  resumeLinks?: readonly string[] | null;
+  resumeStoragePath?: string | null;
+  resumeText?: string | null;
+};
+
+export type TalentProfileMaterialActivity = {
+  changedDomains: string[];
+  impactLevel: TalentActivityImpactLevel;
+  summary: string;
+};
+
 export const TALENT_ACTIVITY_EVENT_TYPE_OPPORTUNITY_FEEDBACK =
   "opportunity_feedback";
 
 export type TalentOpportunityFeedbackActivityItem = {
   action: TalentOpportunityFeedback;
-  companyName: string | null;
+  createdAt: string;
   eventId: string;
-  feedbackReason: string | null;
-  href: string | null;
-  location: string | null;
-  occurredAt: string;
-  opportunityId: string | null;
-  opportunityType: string | null;
-  recommendationConcerns: string[];
-  recommendationReasons: string[];
-  recommendationSummary: string | null;
-  roleId: string | null;
-  sourceType: "internal" | "external" | null;
-  title: string | null;
-  workMode: string | null;
+  summary: string;
 };
 
 const IMPACT_LEVELS = new Set<TalentActivityImpactLevel>([
@@ -176,28 +173,6 @@ function containsHiddenTalentSettingSummary(summary: string) {
 
 function formatQuotedValue(value: string) {
   return `"${clampText(value, 180).replaceAll('"', "'")}"`;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function getOptionalString(value: unknown) {
-  const text = typeof value === "string" ? value.trim() : "";
-  return text || null;
-}
-
-function getStringList(value: unknown, limit = 4) {
-  return Array.isArray(value)
-    ? value
-        .map((entry) =>
-          String(entry ?? "")
-            .replace(/\s+/g, " ")
-            .trim()
-        )
-        .filter(Boolean)
-        .slice(0, limit)
-    : [];
 }
 
 function parseFeedbackReasonText(value: string | null | undefined) {
@@ -327,6 +302,135 @@ export function buildRowMemoActivitySummary(
   return `User added memos to profile rows: ${details.join("; ")}${suffix}.`;
 }
 
+function normalizeActivityString(value: string | null | undefined) {
+  return String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeProfileLinks(value: readonly string[] | null | undefined) {
+  return Array.from(
+    new Set(
+      (value ?? [])
+        .map((entry) => normalizeActivityString(entry).toLowerCase())
+        .filter(Boolean)
+    )
+  ).sort();
+}
+
+function hasResumeFile(snapshot: TalentProfileMaterialSnapshot) {
+  return Boolean(
+    normalizeActivityString(snapshot.resumeFileName) ||
+    normalizeActivityString(snapshot.resumeStoragePath)
+  );
+}
+
+function hasResumeText(snapshot: TalentProfileMaterialSnapshot) {
+  return Boolean(normalizeActivityString(snapshot.resumeText));
+}
+
+function sameProfileLinks(
+  left: readonly string[] | null | undefined,
+  right: readonly string[] | null | undefined
+) {
+  return (
+    JSON.stringify(normalizeProfileLinks(left)) ===
+    JSON.stringify(normalizeProfileLinks(right))
+  );
+}
+
+export function buildProfileMaterialActivity(args: {
+  next: TalentProfileMaterialSnapshot;
+  previous: TalentProfileMaterialSnapshot;
+}): TalentProfileMaterialActivity | null {
+  const previous = args.previous;
+  const next = args.next;
+  const details: string[] = [];
+  const changedDomains = new Set(["profile_materials"]);
+
+  const previousHasResumeFile = hasResumeFile(previous);
+  const nextHasResumeFile = hasResumeFile(next);
+  const previousResumeFileSignature = [
+    normalizeActivityString(previous.resumeFileName),
+    normalizeActivityString(previous.resumeStoragePath),
+  ].join("\n");
+  const nextResumeFileSignature = [
+    normalizeActivityString(next.resumeFileName),
+    normalizeActivityString(next.resumeStoragePath),
+  ].join("\n");
+
+  if (!previousHasResumeFile && nextHasResumeFile) {
+    const fileName = normalizeActivityString(next.resumeFileName);
+    details.push(
+      fileName
+        ? `uploaded resume file ${formatQuotedValue(fileName)}`
+        : "uploaded a resume file"
+    );
+    changedDomains.add("resume");
+  } else if (
+    previousHasResumeFile &&
+    nextHasResumeFile &&
+    previousResumeFileSignature !== nextResumeFileSignature
+  ) {
+    const fileName = normalizeActivityString(next.resumeFileName);
+    details.push(
+      fileName
+        ? `changed resume file to ${formatQuotedValue(fileName)}`
+        : "changed resume file"
+    );
+    changedDomains.add("resume");
+  } else if (previousHasResumeFile && !nextHasResumeFile) {
+    details.push("removed resume file");
+    changedDomains.add("resume");
+  }
+
+  const previousHasResumeText = hasResumeText(previous);
+  const nextHasResumeText = hasResumeText(next);
+  if (!previousHasResumeText && nextHasResumeText) {
+    details.push("added resume text");
+    changedDomains.add("resume");
+  } else if (
+    previousHasResumeText &&
+    nextHasResumeText &&
+    normalizeActivityString(previous.resumeText) !==
+      normalizeActivityString(next.resumeText)
+  ) {
+    details.push("changed resume text");
+    changedDomains.add("resume");
+  } else if (previousHasResumeText && !nextHasResumeText) {
+    details.push("removed resume text");
+    changedDomains.add("resume");
+  }
+
+  const previousLinks = normalizeProfileLinks(previous.resumeLinks);
+  const nextLinks = normalizeProfileLinks(next.resumeLinks);
+  const addedLinks = nextLinks.filter((link) => !previousLinks.includes(link));
+  const removedLinks = previousLinks.filter(
+    (link) => !nextLinks.includes(link)
+  );
+  if (!sameProfileLinks(previous.resumeLinks, next.resumeLinks)) {
+    if (addedLinks.length > 0) {
+      details.push(
+        `added ${addedLinks.length} profile link${addedLinks.length === 1 ? "" : "s"}`
+      );
+    }
+    if (removedLinks.length > 0) {
+      details.push(
+        `removed ${removedLinks.length} profile link${removedLinks.length === 1 ? "" : "s"}`
+      );
+    }
+    changedDomains.add("profile_links");
+  }
+
+  if (details.length === 0) return null;
+
+  return {
+    changedDomains: Array.from(changedDomains),
+    impactLevel: "medium",
+    summary: `User updated profile materials: ${details.join("; ")}.`,
+  };
+}
+
 export async function insertTalentActivityEvent(args: {
   admin: TalentAdminClient;
   changedDomains?: readonly string[] | null;
@@ -334,10 +438,6 @@ export async function insertTalentActivityEvent(args: {
   eventType: string;
   impactLevel?: TalentActivityImpactLevel | null;
   messageId?: number | string | null;
-  metadata?: Record<string, unknown> | null;
-  occurredAt?: string | null;
-  relatedEntityId?: string | number | null;
-  relatedEntityType?: string | null;
   source: string;
   summary: string | null | undefined;
   userId: string;
@@ -354,13 +454,6 @@ export async function insertTalentActivityEvent(args: {
       event_type: args.eventType,
       impact_level: normalizeImpactLevel(args.impactLevel),
       message_id: normalizeMessageId(args.messageId),
-      metadata: args.metadata ?? {},
-      occurred_at: args.occurredAt ?? new Date().toISOString(),
-      related_entity_id:
-        args.relatedEntityId === undefined || args.relatedEntityId === null
-          ? null
-          : String(args.relatedEntityId),
-      related_entity_type: args.relatedEntityType ?? null,
       source: args.source,
       summary,
       talent_id: args.userId,
@@ -412,29 +505,6 @@ export function buildOpportunityFeedbackActivitySummary(args: {
   );
 }
 
-function buildOpportunityFeedbackActivityMetadata(args: {
-  action: TalentOpportunityFeedback;
-  feedbackReason?: string | null;
-  opportunity: TalentOpportunityHistoryItem;
-}) {
-  return {
-    action: args.action,
-    companyName: args.opportunity.companyName,
-    feedbackReason: parseFeedbackReasonText(args.feedbackReason),
-    href: args.opportunity.href,
-    location: args.opportunity.location,
-    opportunityId: args.opportunity.id,
-    opportunityType: args.opportunity.opportunityType,
-    recommendationConcerns: args.opportunity.recommendationConcerns,
-    recommendationReasons: args.opportunity.recommendationReasons,
-    recommendationSummary: args.opportunity.recommendationSummary,
-    roleId: args.opportunity.roleId,
-    sourceType: args.opportunity.sourceType,
-    title: args.opportunity.title,
-    workMode: args.opportunity.workMode,
-  };
-}
-
 export async function insertTalentOpportunityFeedbackActivityEvent(args: {
   action: TalentOpportunityFeedback;
   admin: TalentAdminClient;
@@ -452,13 +522,6 @@ export async function insertTalentOpportunityFeedbackActivityEvent(args: {
       args.action === "negative" || args.opportunity.sourceType === "internal"
         ? "medium"
         : "low",
-    metadata: buildOpportunityFeedbackActivityMetadata({
-      action: args.action,
-      feedbackReason: args.feedbackReason,
-      opportunity: args.opportunity,
-    }),
-    relatedEntityId: args.opportunity.id,
-    relatedEntityType: "talent_opportunity_recommendation",
     source: "career_opportunity_feedback",
     summary: buildOpportunityFeedbackActivitySummary({
       action: args.action,
@@ -479,7 +542,6 @@ export async function fetchLatestTalentActivityEvent(args: {
     let query = (args.admin.from("talent_activity_events" as any) as any)
       .select("*")
       .eq("talent_id", args.userId)
-      .order("occurred_at", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(10);
 
@@ -521,12 +583,11 @@ export async function fetchTalentActivityEvents(args: {
     let query = (args.admin.from("talent_activity_events" as any) as any)
       .select("*")
       .eq("talent_id", args.userId)
-      .order("occurred_at", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(Math.max(1, Math.min(50, Math.floor(args.limit ?? 10))));
 
     if (args.since) {
-      query = query.gte("occurred_at", args.since);
+      query = query.gte("created_at", args.since);
     }
     if (args.conversationId) {
       query = query.eq("conversation_id", args.conversationId);
@@ -590,34 +651,23 @@ async function fetchLatestAssistantChatMessageCreatedAt(args: {
   }
 }
 
+function parseOpportunityFeedbackAction(summary: string) {
+  const normalized = summary.toLowerCase();
+  if (normalized.includes("user liked")) return "positive";
+  if (normalized.includes("user disliked")) return "negative";
+  return null;
+}
+
 function toOpportunityFeedbackActivityItem(
   row: TalentActivityEventRow
 ): TalentOpportunityFeedbackActivityItem | null {
-  const metadata = isRecord(row.metadata) ? row.metadata : {};
-  const action = metadata.action;
-  if (action !== "positive" && action !== "negative") return null;
-  const sourceType = metadata.sourceType;
-
+  const action = parseOpportunityFeedbackAction(row.summary ?? "");
+  if (!action) return null;
   return {
     action,
-    companyName: getOptionalString(metadata.companyName),
+    createdAt: row.created_at,
     eventId: row.id,
-    feedbackReason: getOptionalString(metadata.feedbackReason),
-    href: getOptionalString(metadata.href),
-    location: getOptionalString(metadata.location),
-    occurredAt: row.occurred_at,
-    opportunityId: getOptionalString(metadata.opportunityId),
-    opportunityType: getOptionalString(metadata.opportunityType),
-    recommendationConcerns: getStringList(metadata.recommendationConcerns, 3),
-    recommendationReasons: getStringList(metadata.recommendationReasons, 4),
-    recommendationSummary: getOptionalString(metadata.recommendationSummary),
-    roleId: getOptionalString(metadata.roleId),
-    sourceType:
-      sourceType === "internal" || sourceType === "external"
-        ? sourceType
-        : null,
-    title: getOptionalString(metadata.title),
-    workMode: getOptionalString(metadata.workMode),
+    summary: clampText(row.summary ?? "", 1200),
   };
 }
 
@@ -626,7 +676,7 @@ function dedupeLatestFeedbackByOpportunity(
 ) {
   const byKey = new Map<string, TalentOpportunityFeedbackActivityItem>();
   for (const item of items) {
-    const key = item.opportunityId ?? item.eventId;
+    const key = item.eventId;
     if (byKey.has(key)) {
       byKey.delete(key);
     }
@@ -660,8 +710,8 @@ export async function fetchPendingOpportunityFeedbackActivityItems(args: {
   const items = rows
     .filter((row) => {
       if (!Number.isFinite(latestAssistantTime)) return true;
-      const occurredAt = Date.parse(row.occurred_at);
-      return Number.isFinite(occurredAt) && occurredAt > latestAssistantTime;
+      const createdAt = Date.parse(row.created_at);
+      return Number.isFinite(createdAt) && createdAt > latestAssistantTime;
     })
     .map(toOpportunityFeedbackActivityItem)
     .filter(
@@ -683,34 +733,12 @@ export function formatOpportunityFeedbackPromptContext(
   const negativeCount = items.filter(
     (item) => item.action === "negative"
   ).length;
-  const missingReasonCount = items.filter(
-    (item) => !item.feedbackReason
+  const missingReasonCount = items.filter((item) =>
+    item.summary.includes("No feedback reason.")
   ).length;
 
   const lines = items.slice(0, 8).map((item, index) => {
-    const actionLabel = item.action === "positive" ? "liked" : "disliked";
-    const roleLabel = [
-      item.title,
-      item.companyName ? `at ${item.companyName}` : "",
-    ]
-      .filter(Boolean)
-      .join(" ");
-    const details = [
-      item.sourceType ? `source=${item.sourceType}` : "",
-      item.opportunityType ? `type=${item.opportunityType}` : "",
-      item.location ? `location=${item.location}` : "",
-      item.workMode ? `workMode=${item.workMode}` : "",
-      item.feedbackReason ? `reason=${item.feedbackReason}` : "reason=(none)",
-      item.recommendationSummary ? `fit=${item.recommendationSummary}` : "",
-      item.recommendationReasons[0]
-        ? `recommendedBecause=${item.recommendationReasons[0]}`
-        : "",
-      item.recommendationConcerns[0]
-        ? `concern=${item.recommendationConcerns[0]}`
-        : "",
-    ].filter(Boolean);
-
-    return `- ${index + 1}. ${actionLabel}: ${roleLabel || "(unknown opportunity)"}; ${details.join("; ")}`;
+    return `- ${index + 1}. ${item.createdAt}: ${item.summary}`;
   });
 
   logger.log(

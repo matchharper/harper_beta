@@ -12,8 +12,8 @@ import {
 } from "@/lib/talentOnboarding/server";
 import { claimTalentNetworkInvite } from "@/lib/talentOnboarding/networkClaim";
 import { parseCareerEmailOnboardingToken } from "@/lib/careerEmailOnboarding/token";
-import { normalizeCareerUtmSource } from "@/lib/careerUtm";
-import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobLandingLogs";
+import { normalizeCareerUtmSource } from "@/lib/career/utm";
+import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
 import { enqueueSignupNoProfileSubmit } from "@/lib/contactQueue";
 import type { Json } from "@/types/database.types";
 

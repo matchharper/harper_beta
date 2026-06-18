@@ -2,7 +2,7 @@ import {
   ActionDropdown,
   ActionDropdownItem,
 } from "@/components/ui/action-dropdown";
-import { normalizeAttachmentLinkUrl } from "@/lib/chatAttachmentClient";
+import { normalizeAttachmentLinkUrl } from "@/lib/chat/attachmentClient";
 import { cn } from "@/lib/cn";
 import { useMessages } from "@/i18n/useMessage";
 import { Link2, Paperclip, Plus } from "lucide-react";

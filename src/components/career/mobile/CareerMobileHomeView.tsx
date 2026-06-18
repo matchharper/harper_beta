@@ -31,45 +31,31 @@ import type {
 } from "@/lib/career/conversationStarters";
 import { ActionButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
-import { careerT } from "@/lib/career/translatedCareerMessage";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const countFormatter = new Intl.NumberFormat("ko-KR");
 
-const getCurrentTimeGreeting = (date: Date) => {
+type CareerT = ReturnType<typeof useCareerT>;
+
+const getCurrentTimeGreeting = (date: Date, t: CareerT) => {
   const hour = date.getHours();
 
   if (hour < 5)
-    return careerT(
-      "ko",
-      "career.home.career_mobile_home_view.0snbgwi",
-      "이른 새벽이네요."
-    );
+    return t("career.home.career_mobile_home_view.0snbgwi", "이른 새벽이네요.");
   if (hour < 11)
-    return careerT(
-      "ko",
-      "career.home.career_mobile_home_view.1j9mmu9",
-      "좋은 아침입니다."
-    );
+    return t("career.home.career_mobile_home_view.1j9mmu9", "좋은 아침입니다.");
   if (hour < 17)
-    return careerT(
-      "ko",
+    return t(
       "career.home.career_mobile_home_view.0w2aiar",
       "좋은 하루 보내고 계신가요?"
     );
   if (hour < 21)
-    return careerT(
-      "ko",
+    return t(
       "career.home.career_mobile_home_view.1amflsx",
       "오늘 하루는 어떠셨나요."
     );
-  return careerT(
-    "ko",
-    "career.home.career_mobile_home_view.0rjturg",
-    "편안한 밤입니다."
-  );
+  return t("career.home.career_mobile_home_view.0rjturg", "편안한 밤입니다.");
 };
-
-type CareerT = ReturnType<typeof useCareerT>;
 
 const formatMobileHomeGreetingName = (name: string, t: CareerT) => {
   const trimmedName = name.trim();
@@ -160,26 +146,25 @@ const SummaryCard = ({
   icon: React.ReactNode;
   onClick: () => void;
   label: string;
-}) => (
-  <ActionButton
-    actionVariant="secondary"
-    onClick={onClick}
-    className="w-full flex flex-col w-[50%] items-center justify-center gap-4 h-24 rounded-3xl shadow-xs"
-  >
-    <span className={cn("inline-flex items-center justify-center")}>
-      {icon}
-    </span>
-    <div className="text-sm font-medium text-neutral-primary">
-      {countFormatter.format(count)}
-      {careerT(
-        "ko",
-        "career.home.career_mobile_home_view.0ao3c3d",
-        "개의"
-      )}{" "}
-      {label}
-    </div>
-  </ActionButton>
-);
+}) => {
+  const t = useCareerT();
+
+  return (
+    <ActionButton
+      actionVariant="secondary"
+      onClick={onClick}
+      className="w-full flex flex-col w-[50%] items-center justify-center gap-4 h-24 rounded-3xl shadow-xs"
+    >
+      <span className={cn("inline-flex items-center justify-center")}>
+        {icon}
+      </span>
+      <div className="text-sm font-medium text-neutral-primary">
+        {countFormatter.format(count)}
+        {t("career.home.career_mobile_home_view.0ao3c3d", "개의")} {label}
+      </div>
+    </ActionButton>
+  );
+};
 
 const CallHero = ({
   callDisabled,
@@ -215,6 +200,51 @@ const CallHero = ({
   </section>
 );
 
+const CareerMobileHomeSkeleton = () => {
+  const t = useCareerT();
+
+  return (
+    <div
+      aria-busy="true"
+      aria-label={t("career.home.loading", "홈 로딩 중")}
+      className="flex flex-col gap-6 px-4 pb-[160px] pt-4"
+    >
+      <section className="relative flex min-h-[44svh] flex-col items-center justify-center gap-2 overflow-hidden pb-2">
+        <div className="mt-0 w-full rounded-3xl border border-neutral-1000-a05 bg-bg-floating px-4 py-5 shadow-sm">
+          <div className="flex w-full flex-col items-center justify-center gap-2 px-2 py-2">
+            <Skeleton className="h-5 w-44 rounded-full" />
+            <Skeleton className="h-4 w-full max-w-[260px] rounded-full" />
+            <Skeleton className="h-4 w-48 rounded-full" />
+            <Skeleton className="mt-4 h-11 min-w-[60%] rounded-full" />
+          </div>
+        </div>
+      </section>
+
+      <div className="px-1 text-center">
+        <Skeleton className="mx-auto h-8 w-48 rounded-full" />
+        <Skeleton className="mx-auto mt-3 h-4 w-64 max-w-full rounded-full" />
+      </div>
+
+      <section className="flex flex-row items-center justify-between gap-2">
+        {[0, 1].map((item) => (
+          <div
+            key={item}
+            className="flex h-24 w-1/2 flex-col items-center justify-center gap-4 rounded-3xl border border-neutral-1000-a10 bg-bg-floating"
+          >
+            <Skeleton className="h-5 w-5 rounded-md" />
+            <Skeleton className="h-4 w-24 rounded-full" />
+          </div>
+        ))}
+      </section>
+
+      <div className="flex w-full flex-col gap-2">
+        <Skeleton className="h-10 w-full rounded-full" />
+        <Skeleton className="h-10 w-full rounded-full" />
+      </div>
+    </div>
+  );
+};
+
 const CareerMobileHomeView = ({
   onOpenChat,
   onOpenHistory,
@@ -226,6 +256,7 @@ const CareerMobileHomeView = ({
     user,
     stage,
     isOnboardingDone,
+    workspaceDataLoading,
     activeCompanyRoleCount,
     callStartPending = false,
     historyOpportunityCounts,
@@ -258,8 +289,7 @@ const CareerMobileHomeView = ({
     newInternalOpportunityCount > 0
       ? formatCareerMessage(
           m,
-          careerT(
-            "ko",
+          t(
             "career.home.career_home_panel.030cbmq",
             "추천된 기회 · {count}개 연결 가능"
           ),
@@ -269,7 +299,7 @@ const CareerMobileHomeView = ({
         )
       : formatCareerMessage(
           m,
-          careerT("ko", "career.home.career_home_panel.0x7lgjp", "추천된 기회")
+          t("career.home.career_home_panel.0x7lgjp", "추천된 기회")
         );
 
   const savedPositionCount = historyOpportunityCounts.savedStages.saved;
@@ -304,8 +334,7 @@ const CareerMobileHomeView = ({
 
   const inProgressCompanyLabel = useMemo(() => {
     if (inProgressPositionCount === 0) {
-      return careerT(
-        "ko",
+      return t(
         "career.home.career_home_panel.1psd54b",
         "아직 저장하거나 연결된 포지션 없음"
       );
@@ -319,35 +348,15 @@ const CareerMobileHomeView = ({
     )?.item.companyName?.trim();
     const statusLabel =
       inProgressTargetSavedStage === "saved"
-        ? formatCareerMessage(
-            m,
-            careerT(
-              "ko",
-              "career.common.career_history_panel.06mgpci",
-              "저장함"
-            )
-          )
-        : formatCareerMessage(
-            m,
-            careerT(
-              "ko",
-              "career.common.career_history_panel.0y27adb",
-              "연결됨"
-            )
-          );
+        ? t("career.common.career_history_panel.06mgpci", "저장함")
+        : t("career.common.career_history_panel.0y27adb", "연결됨");
     if (!firstCompanyName) {
-      return formatCareerMessage(
-        m,
-        careerT(
-          "ko",
-          "career.home.career_home_panel.1qhpcnm",
-          "{count}개 {status}"
-        ),
-        {
+      return t("career.home.career_home_panel.1qhpcnm", "{count}개 {status}", {
+        values: {
           count: countFormatter.format(inProgressPositionCount),
           status: statusLabel,
-        }
-      );
+        },
+      });
     }
     if (inProgressPositionCount === 1) {
       return formatCareerMessage(m, "{company} {status}", {
@@ -355,17 +364,15 @@ const CareerMobileHomeView = ({
         status: statusLabel,
       });
     }
-    return formatCareerMessage(
-      m,
-      careerT(
-        "ko",
-        "career.home.career_home_panel.0ejjdwp",
-        "{company} 외 {count}개 {status}"
-      ),
+    return t(
+      "career.home.career_home_panel.0ejjdwp",
+      "{company} 외 {count}개 {status}",
       {
-        company: firstCompanyName,
-        count: countFormatter.format(inProgressPositionCount - 1),
-        status: statusLabel,
+        values: {
+          company: firstCompanyName,
+          count: countFormatter.format(inProgressPositionCount - 1),
+          status: statusLabel,
+        },
       }
     );
   }, [
@@ -373,36 +380,30 @@ const CareerMobileHomeView = ({
     inProgressPositionCount,
     inProgressTargetSavedStage,
     m,
+    t,
   ]);
 
   const callCardUsesCompletedLayout = isOnboardingCompleted;
   const callCardTitle = isOnboardingCompleted
-    ? careerT(
-        "ko",
-        "career.home.career_home_panel.0rplg97",
-        "Harper와 5분 통화"
-      )
-    : careerT(
-        "ko",
+    ? t("career.home.career_home_panel.0rplg97", "Harper와 5분 통화")
+    : t(
         "career.home.career_home_panel.0c36lcv",
         "아직 5분 커리어 인터뷰가 완료되지 않았어요"
       );
   const currentTimeGreeting = useMemo(
-    () => formatCareerMessage(m, getCurrentTimeGreeting(new Date())),
-    [m]
+    () => formatCareerMessage(m, getCurrentTimeGreeting(new Date(), t)),
+    [m, t]
   );
   const currentTimeHelpText = formatCareerMessage(
     m,
-    careerT(
-      "ko",
+    t(
       "career.home.career_mobile_home_view.0t1cxif",
       "필요하신게 있다면 알려주세요."
     )
   );
 
   const callCardDescription = isOnboardingCompleted ? (
-    careerT(
-      "ko",
+    t(
       "career.home.career_mobile_home_view.1inys5s",
       "변경된 사항이 있거나 요구사항이 있을 때<br /> — 통화하면 빨라요"
     )
@@ -458,6 +459,10 @@ const CareerMobileHomeView = ({
     onOpenChat();
     return onStartConversationStarter?.({ mode, starterId }) ?? false;
   };
+
+  if (workspaceDataLoading) {
+    return <CareerMobileHomeSkeleton />;
+  }
 
   return (
     <div className="flex flex-col gap-6 px-4 pb-[160px] pt-4">

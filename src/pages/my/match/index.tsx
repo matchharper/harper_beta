@@ -17,7 +17,7 @@ import {
   useMatchWorkspace,
   useSaveMatchRole,
   useUpdateMatchWorkspace,
-} from "@/hooks/useMatchWorkspace";
+} from "@/hooks/match/useMatchWorkspace";
 import { cn } from "@/lib/cn";
 import type { MatchRoleRecord } from "@/lib/match/shared";
 import { AnimatePresence, motion } from "motion/react";

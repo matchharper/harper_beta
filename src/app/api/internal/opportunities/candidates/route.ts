@@ -3,7 +3,7 @@ import {
   requireInternalApiUser,
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
-import { searchOpsOpportunityCandidates } from "@/lib/opsOpportunity";
+import { searchOpsOpportunityCandidates } from "@/lib/ops/opportunity";
 
 export const runtime = "nodejs";
 

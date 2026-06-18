@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useCareerT } from "@/i18n/useCareerT";
-import { careerT } from "@/lib/career/translatedCareerMessage";
 
 const NEGATIVE_FEEDBACK_REASON_SEPARATOR = " | ";
 
@@ -161,7 +160,8 @@ export const HistoryPositiveFeedbackModal = ({
   if (!item) return null;
 
   const positiveFeedbackModalCopy = getCareerPositiveFeedbackModalCopy(
-    item.opportunityType
+    item.opportunityType,
+    t
   );
 
   return (
@@ -237,8 +237,9 @@ export const HistoryNegativeFeedbackModal = ({
   const t = useCareerT();
 
   const options = useMemo(
-    () => (item ? getCareerNegativeFeedbackOptions(item.opportunityType) : []),
-    [item]
+    () =>
+      item ? getCareerNegativeFeedbackOptions(item.opportunityType, t) : [],
+    [item, t]
   );
 
   useEffect(() => {
@@ -279,7 +280,8 @@ export const HistoryNegativeFeedbackModal = ({
   if (!item) return null;
 
   const negativeFeedbackModalCopy = getCareerNegativeFeedbackModalCopy(
-    item.opportunityType
+    item.opportunityType,
+    t
   );
   const requiresTextInput = requiresNegativeFeedbackTextInput(
     item,
@@ -387,8 +389,8 @@ export const HistoryMemoModal = ({
       onClose={onClose}
       title={
         item.talentMemo?.trim()
-          ? careerT("ko", "career.history.feedback_modal.109eupo", "메모 수정")
-          : careerT("ko", "career.history.feedback_modal.08qkm91", "메모 작성")
+          ? t("career.history.feedback_modal.109eupo", "메모 수정")
+          : t("career.history.feedback_modal.08qkm91", "메모 작성")
       }
       description={t(
         "career.history.feedback_modal.1m0q35j",

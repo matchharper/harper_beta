@@ -3,7 +3,7 @@ import type {
   OpsOpportunityCandidateRecord,
   OpsOpportunityMatchRecord,
   OpsOpportunityRoleRecord,
-} from "@/lib/opsOpportunity";
+} from "@/lib/ops/opportunity";
 import { ArrowLeftRight, LoaderCircle } from "lucide-react";
 import {
   EmptyState,

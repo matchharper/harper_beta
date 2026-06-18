@@ -25,7 +25,6 @@ import { getOpportunityPostingStatus } from "./opportunityPostingStatus";
 import { BareButton } from "@/components/ui/button";
 import { useMessages } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
-import { careerT } from "@/lib/career/translatedCareerMessage";
 
 export const OpportunityHeader = ({
   item,
@@ -40,14 +39,16 @@ export const OpportunityHeader = ({
   onOpenOpportunityInfo: (type: CareerOpportunityType) => void;
   extraComponent?: ReactNode;
 }) => {
+  const t = useCareerT();
   const { locale } = useMessages();
-  const postingStatus = getOpportunityPostingStatus(item, locale);
+  const postingStatus = getOpportunityPostingStatus(item, locale, t);
   const companyInfoLink = item.companyHomepageUrl ?? item.companyLinkedinUrl;
   const canOpenCompanyInfo = Boolean(
     onOpenCompanyInfo || item.companyDbId || companyInfoLink
   );
   const metaItems: { label: string; value: string | null }[] = getMetaItems(
-    item
+    item,
+    t
   ).map((meta) => ({
     label: meta,
     value: meta,
@@ -198,24 +199,28 @@ const HistoryDetailArrowButton = ({
 }: {
   direction: "prev" | "next";
   onClick: () => void;
-}) => (
-  <BareButton
-    type="button"
-    aria-label={
-      direction === "prev"
-        ? careerT("ko", "career.common.career.0madjab", "이전 기회")
-        : careerT("ko", "career.common.career.18neuzv", "다음 기회")
-    }
-    onClick={onClick}
-    className={cn(
-      "absolute top-1/2 z-10 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-neutral-1000-a10 bg-bg-floating text-neutral-muted transition-colors hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary",
-      direction === "prev" ? "left-4" : "right-4"
-    )}
-  >
-    {direction === "prev" && <ArrowLeft className="h-4 w-4" />}
-    {direction === "next" && <ArrowRight className="h-4 w-4" />}
-  </BareButton>
-);
+}) => {
+  const t = useCareerT();
+
+  return (
+    <BareButton
+      type="button"
+      aria-label={
+        direction === "prev"
+          ? t("career.common.career.0madjab", "이전 기회")
+          : t("career.common.career.18neuzv", "다음 기회")
+      }
+      onClick={onClick}
+      className={cn(
+        "absolute top-1/2 z-10 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-neutral-1000-a10 bg-bg-floating text-neutral-muted transition-colors hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary",
+        direction === "prev" ? "left-4" : "right-4"
+      )}
+    >
+      {direction === "prev" && <ArrowLeft className="h-4 w-4" />}
+      {direction === "next" && <ArrowRight className="h-4 w-4" />}
+    </BareButton>
+  );
+};
 
 const HistoryOpportunityDetailContent = ({
   item,
@@ -323,20 +328,12 @@ const HistoryOpportunityDetailContent = ({
             <div className="space-y-2">
               <HistorySectionTitle
                 icon={<Building2 className="h-4 w-4" />}
-                title={getCareerCompanySectionTitle(item.opportunityType)}
+                title={getCareerCompanySectionTitle(item.opportunityType, t)}
                 openText={
                   canOpenCompanyInfo
                     ? item.companyDbId
-                      ? careerT(
-                          "ko",
-                          "career.common.career.0ol21b2",
-                          "회사 정보"
-                        )
-                      : careerT(
-                          "ko",
-                          "career.common.career.09c4j2c",
-                          "링크 열기"
-                        )
+                      ? t("career.common.career.0ol21b2", "회사 정보")
+                      : t("career.common.career.09c4j2c", "링크 열기")
                     : undefined
                 }
                 onClick={
@@ -354,8 +351,7 @@ const HistoryOpportunityDetailContent = ({
               <div className="h-px w-full bg-neutral-1000-a05" />
               <div className="text-sm leading-6">
                 {item.companyDescription?.trim() ||
-                  careerT(
-                    "ko",
+                  t(
                     "career.common.career.083cky2",
                     "아직 회사 설명이 없습니다."
                   )}
@@ -395,7 +391,8 @@ export const HistoryOpportunityInfoTag = ({
   item: CareerHistoryOpportunity;
   onOpenInfo: (type: CareerOpportunityType) => void;
 }) => {
-  const label = getOpportunityTypeLabel(item);
+  const t = useCareerT();
+  const label = getOpportunityTypeLabel(item, t);
   const isConnectionOpportunity =
     item.opportunityType === OpportunityType.InternalRecommendation ||
     item.opportunityType === OpportunityType.IntroRequest;

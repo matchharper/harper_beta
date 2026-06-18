@@ -1,7 +1,7 @@
 import type { MouseEvent } from "react";
-import { careerT } from "@/lib/career/translatedCareerMessage";
 
 export type CompanyWatchlistTab = "recommended" | "following" | "signals";
+type CareerTLike = (key: string, koSource: string) => string;
 
 export type CompanyRolePreview = {
   externalJdUrl: string | null;
@@ -85,20 +85,24 @@ export const WATCHLIST_PAGE_SIZE = 12;
 export const WATCHLIST_TAB_QUERY_KEY = "watchlistTab";
 export const WATCHLIST_COMPANY_QUERY_KEY = "company";
 
+const fallbackCareerT: CareerTLike = (_key, koSource) => koSource;
+
+export const getWatchlistTabs = (t: CareerTLike) => [
+  {
+    id: "recommended" as const,
+    label: t("career.company.watchlist_types.0dpjqlp", "추천회사"),
+  },
+  {
+    id: "following" as const,
+    label: t("career.company.follow_button.1p6sttz", "팔로우"),
+  },
+  {
+    id: "signals" as const,
+    label: t("career.company.watchlist_types.0kgfx63", "시그널"),
+  },
+];
+
 export const WATCHLIST_TABS: Array<{
   id: CompanyWatchlistTab;
   label: string;
-}> = [
-  {
-    id: "recommended",
-    label: careerT("ko", "career.company.watchlist_types.0dpjqlp", "추천회사"),
-  },
-  {
-    id: "following",
-    label: careerT("ko", "career.company.follow_button.1p6sttz", "팔로우"),
-  },
-  {
-    id: "signals",
-    label: careerT("ko", "career.company.watchlist_types.0kgfx63", "시그널"),
-  },
-];
+}> = getWatchlistTabs(fallbackCareerT);

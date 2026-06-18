@@ -10,16 +10,15 @@ import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelCo
 import { PrimaryButton, SecondaryButton } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCareerT } from "@/i18n/useCareerT";
-import { careerT } from "@/lib/career/translatedCareerMessage";
 
-const normalizeDisplayName = (value: string | null | undefined) => {
+const normalizeDisplayName = (
+  value: string | null | undefined,
+  fallback: string
+) => {
   const trimmed = String(value ?? "")
     .trim()
     .replace(/\s*님$/, "");
-  return (
-    trimmed ||
-    careerT("ko", "career.chat.career_welcome_screen.0ce6b4x", "회원")
-  );
+  return trimmed || fallback;
 };
 
 const CareerWelcomeScreen = () => {
@@ -37,7 +36,8 @@ const CareerWelcomeScreen = () => {
   const displayName = normalizeDisplayName(
     user?.user_metadata?.full_name ??
       user?.user_metadata?.name ??
-      (typeof user?.email === "string" ? user.email.split("@")[0] : null)
+      (typeof user?.email === "string" ? user.email.split("@")[0] : null),
+    t("career.chat.career_welcome_screen.0ce6b4x", "회원")
   );
 
   return (

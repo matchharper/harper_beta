@@ -1,7 +1,7 @@
 import CandidateCard from "@/components/CandidatesList";
 import React, { useMemo } from "react";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
-import { useConnectedCandidates } from "@/hooks/useBookMarkCandidates";
+import { useConnectedCandidates } from "@/hooks/candidates/useBookMarkCandidates";
 import PrevNextButtons from "./components/PrevNextButtons";
 import { Loading } from "@/components/ui/loading";
 

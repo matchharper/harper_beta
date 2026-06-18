@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import CreditModal from "@/components/Modal/CreditModal";
 import { showToast } from "@/components/toast/toast";
-import { useRevealCandidateProfile } from "@/hooks/useRevealCandidateProfile";
+import { useRevealCandidateProfile } from "@/hooks/candidates/useRevealCandidateProfile";
 import { cn } from "@/lib/utils";
 import { BareButton } from "@/components/ui/button";
 

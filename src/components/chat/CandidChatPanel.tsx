@@ -11,7 +11,7 @@ import ChatComposer from "@/components/chat/ChatComposer";
 import { useChatSessionDB } from "@/hooks/chat/useChatSession";
 import { ArrowDown, ArrowLeft, Loader2 } from "lucide-react";
 import { useRouter } from "next/router";
-import { CandidateDetail } from "@/hooks/useCandidateDetail";
+import { CandidateDetail } from "@/hooks/candidates/useCandidateDetail";
 import { Skeleton } from "../ui/skeleton";
 import { useMessages } from "@/i18n/useMessage";
 import { BareButton } from "@/components/ui/button";

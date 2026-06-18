@@ -46,7 +46,6 @@ import {
   insertTalentActivityEvent,
   insertTalentOpportunityFeedbackActivityEvent,
   isSameActivityValue,
-  toPreferenceActivityDisplayChanges,
   type TalentActivityChange,
   type TalentActivityImpactLevel,
   type TalentRowMemoActivityItem,
@@ -1032,9 +1031,9 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         summaries: events.map((event) => event.summary),
         events: events.map((event) => ({
           changedDomains: event.changed_domains,
+          createdAt: event.created_at,
           eventType: event.event_type,
           impactLevel: event.impact_level,
-          occurredAt: event.occurred_at,
           source: event.source,
           summary: event.summary,
         })),
@@ -1414,10 +1413,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           eventType: "preferences_changed",
           impactLevel: settingImpactLevel ?? "low",
           messageId: context?.userMessageId ?? null,
-          metadata: {
-            changes: toPreferenceActivityDisplayChanges(settingChanges),
-          },
-          relatedEntityType: "talent_setting",
           source: "chat",
           summary: settingSummary,
           userId,
@@ -1862,10 +1857,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           eventType: "profile_updated",
           impactLevel: "low",
           messageId: context?.userMessageId ?? null,
-          metadata: {
-            changes: talentUserActivityChanges,
-          },
-          relatedEntityType: "talent_users",
           source: "chat",
           summary: talentUserSummary,
           userId,
@@ -1888,7 +1879,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           eventType: "row_memo_added",
           impactLevel: "medium",
           messageId: context?.userMessageId ?? null,
-          metadata: { items: rowMemoActivityItems },
           source: "chat",
           summary: rowMemoSummary,
           userId,
@@ -1911,11 +1901,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           eventType: "insight_updated",
           impactLevel: insightImpactLevel ?? "high",
           messageId: context?.userMessageId ?? null,
-          metadata: {
-            changeSummary: insightChangeSummary,
-            changes: updatedTalentInsights,
-          },
-          relatedEntityType: "talent_insights",
           source: "chat",
           summary: insightChangeSummary
             ? `${insightSummary} Change summary: ${insightChangeSummary}`

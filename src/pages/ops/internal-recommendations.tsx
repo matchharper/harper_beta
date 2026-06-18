@@ -15,12 +15,12 @@ import {
   useBulkUpdateOpsInternalRecommendationStages,
   useHideOpsInternalRecommendation,
   useOpsInternalRecommendations,
-} from "@/hooks/useOpsCareer";
+} from "@/hooks/ops/useOpsCareer";
 import { isInternalEmail } from "@/lib/internalAccess";
 import type {
   OpsInternalRecommendationAcceptedFilter,
   OpsInternalRecommendationItem,
-} from "@/lib/opsCareerServer";
+} from "@/lib/ops/careerServer";
 import {
   isEmailExcludedByOpsInternalTerms,
   useOpsInternalDataExclusionStore,

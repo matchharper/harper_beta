@@ -23,7 +23,7 @@ import {
   CAREER_UTM_DESCRIPTION_MAX_LENGTH,
   normalizeCareerUtmDescription,
   normalizeCareerUtmSource,
-} from "@/lib/careerUtm";
+} from "@/lib/career/utm";
 import { supabaseServer } from "@/lib/supabaseServer";
 import type { Database } from "@/types/database.types";
 
@@ -59,7 +59,7 @@ type TalentMessageRow = Pick<
 >;
 type TalentActivityEventRow = Pick<
   Database["public"]["Tables"]["talent_activity_events"]["Row"],
-  "talent_id" | "event_type" | "occurred_at"
+  "talent_id" | "event_type" | "created_at"
 >;
 type RecommendationRow = Pick<
   Database["public"]["Tables"]["talent_opportunity_recommendation"]["Row"],
@@ -240,7 +240,9 @@ function parseLandingLoginEmail(type: string | null | undefined) {
 }
 
 function readExcludedEmails(req: NextRequest) {
-  return normalizeExcludedEmails(req.nextUrl.searchParams.getAll("excludedEmail"));
+  return normalizeExcludedEmails(
+    req.nextUrl.searchParams.getAll("excludedEmail")
+  );
 }
 
 function buildFunnelSteps(counts: Record<AdminCareerFunnelStepKey, number>) {
@@ -314,7 +316,9 @@ function buildLandingStats(args: {
     if (isLaterIso(log.created_at, stats.lastEnteredAt)) {
       stats.lastEnteredAt = log.created_at;
     }
-    if (isLaterIso(log.created_at, latestEntryAtByLocalId.get(localId) ?? null)) {
+    if (
+      isLaterIso(log.created_at, latestEntryAtByLocalId.get(localId) ?? null)
+    ) {
       latestEntryAtByLocalId.set(localId, log.created_at);
       latestEntrySourceByLocalId.set(localId, source);
     }
@@ -332,7 +336,7 @@ function buildLandingStats(args: {
       sourceFromType !== "unknown"
         ? sourceFromType
         : localId
-          ? latestEntrySourceByLocalId.get(localId) ?? "unknown"
+          ? (latestEntrySourceByLocalId.get(localId) ?? "unknown")
           : "unknown";
     const stats = getOrCreateSourceStats(statsBySource, source);
     stats.eventTypes.add("login_email");
@@ -454,12 +458,17 @@ function buildSelectedSourceDetail(args: {
   for (const recommendation of args.recommendations) {
     const userId = String(recommendation.talent_id ?? "").trim();
     if (!sourceUserIds.has(userId)) continue;
-    const occurredAt = recommendation.recommended_at ?? recommendation.created_at;
-    if (occurredAt) setMinIso(firstRecommendationAtByUserId, userId, occurredAt);
+    const occurredAt =
+      recommendation.recommended_at ?? recommendation.created_at;
+    if (occurredAt)
+      setMinIso(firstRecommendationAtByUserId, userId, occurredAt);
   }
 
   const returnedUserIds = new Set<string>();
-  const markReturned = (userId: string, occurredAt: string | null | undefined) => {
+  const markReturned = (
+    userId: string,
+    occurredAt: string | null | undefined
+  ) => {
     if (returnedUserIds.has(userId)) return;
     const firstRecommendationAt = firstRecommendationAtByUserId.get(userId);
     if (!firstRecommendationAt) return;
@@ -531,7 +540,8 @@ function buildSelectedSourceDetail(args: {
       for (const [step, users] of onboardingUsersByStep.entries()) {
         if (users.has(userId)) reachedSteps.add(step);
       }
-      if (completedUserIds.has(userId)) reachedSteps.add("onboarding_completed");
+      if (completedUserIds.has(userId))
+        reachedSteps.add("onboarding_completed");
       if (returnedUserIds.has(userId)) {
         reachedSteps.add("returned_after_first_recommendation");
       }
@@ -650,9 +660,9 @@ async function buildUtmResponse(req: NextRequest) {
     fetchAllRows<TalentActivityEventRow>((from, to) =>
       supabaseServer
         .from("talent_activity_events")
-        .select("talent_id,event_type,occurred_at")
+        .select("talent_id,event_type,created_at")
         .eq("event_type", "onboarding_completed")
-        .order("occurred_at", { ascending: true })
+        .order("created_at", { ascending: true })
         .range(from, to)
     ),
     fetchAllRows<RecommendationRow>((from, to) =>
@@ -758,7 +768,9 @@ export async function POST(req: NextRequest) {
       return unauthorized();
     }
 
-    const payload = readSourceMutationPayload(await req.json().catch(() => null));
+    const payload = readSourceMutationPayload(
+      await req.json().catch(() => null)
+    );
     if (!payload.source) {
       return NextResponse.json(
         {
@@ -811,7 +823,9 @@ export async function PATCH(req: NextRequest) {
       return unauthorized();
     }
 
-    const payload = readSourceMutationPayload(await req.json().catch(() => null));
+    const payload = readSourceMutationPayload(
+      await req.json().catch(() => null)
+    );
     if (!payload.id) {
       return NextResponse.json({ error: "Missing source id" }, { status: 400 });
     }
@@ -877,9 +891,9 @@ export async function DELETE(req: NextRequest) {
       return unauthorized();
     }
 
-    const payload = (await req.json().catch(() => null)) as
-      | { id?: unknown }
-      | null;
+    const payload = (await req.json().catch(() => null)) as {
+      id?: unknown;
+    } | null;
     const id = String(payload?.id ?? "").trim();
     if (!id) {
       return NextResponse.json({ error: "Missing source id" }, { status: 400 });
@@ -891,10 +905,7 @@ export async function DELETE(req: NextRequest) {
       .eq("id", id);
 
     if (error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ ok: true });

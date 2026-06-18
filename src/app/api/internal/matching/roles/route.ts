@@ -3,7 +3,7 @@ import {
   requireInternalApiUser,
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
-import { fetchOpsMatchingRoles } from "@/lib/opsMatching";
+import { fetchOpsMatchingRoles } from "@/lib/ops/matching";
 
 export const runtime = "nodejs";
 

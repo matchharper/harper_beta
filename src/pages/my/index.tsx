@@ -16,7 +16,7 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { useRouter } from "next/router";
 import { useQueryClient } from "@tanstack/react-query";
-import { refreshQueriesHistory } from "@/hooks/useSearchHistory";
+import { refreshQueriesHistory } from "@/hooks/search/useSearchHistory";
 import {
   buildAttachmentFallbackPrompt,
   buildAttachmentKeywordSource,
@@ -26,15 +26,15 @@ import {
   MAX_CHAT_ATTACHMENT_FILE_BYTES,
   readDraftAttachments,
   type DraftChatAttachment,
-} from "@/lib/chatAttachmentClient";
-import { buildUserMessageContent } from "@/lib/chatAttachments";
+} from "@/lib/chat/attachmentClient";
+import { buildUserMessageContent } from "@/lib/chat/attachments";
 import { supabase } from "@/lib/supabase";
 import { useMessages } from "@/i18n/useMessage";
 import { ensureGroupBy } from "@/utils/textprocess";
 import { firstSqlPrompt } from "@/lib/prompt";
 import { useFeedbackModalStore } from "@/store/useFeedbackModalStore";
 import { showToast } from "@/components/toast/toast";
-import { SearchSource, isEnabledSearchSource } from "@/lib/searchSource";
+import { SearchSource, isEnabledSearchSource } from "@/lib/search/source";
 import { Tooltips } from "@/components/ui/tooltip";
 import type { ChatAttachmentPayload } from "@/types/chat";
 import { BareButton } from "@/components/ui/button";

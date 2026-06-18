@@ -3,8 +3,8 @@ import { LoaderCircle, Plus } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { BareButton } from "@/components/ui/button";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
-import { useCreateOpsCareerProfileMemo } from "@/hooks/useOpsCareer";
-import type { CareerTalentOpsProfileMemo } from "@/lib/opsCareerServer";
+import { useCreateOpsCareerProfileMemo } from "@/hooks/ops/useOpsCareer";
+import type { CareerTalentOpsProfileMemo } from "@/lib/ops/careerServer";
 import { formatKst } from "./utils";
 
 type OpsProfileMemoFeedProps = {

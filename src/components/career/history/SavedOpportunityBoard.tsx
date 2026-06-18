@@ -4,8 +4,8 @@ import React, { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { CareerHistoryOpportunity } from "../types";
 import {
+  getSavedOpportunityStatusOptions,
   getSavedOpportunityManagementStatus,
-  SAVED_OPPORTUNITY_STATUS_OPTIONS,
   type SavedOpportunityManagementStatus,
 } from "./savedOpportunityStatus";
 import { BareButton } from "@/components/ui/button";
@@ -118,6 +118,7 @@ function SavedOpportunityBoard({
   onStatusChange,
 }: SavedOpportunityBoardProps) {
   const t = useCareerT();
+  const statusOptions = useMemo(() => getSavedOpportunityStatusOptions(t), [t]);
 
   const { locale } = useMessages();
   const [draggingOpportunityId, setDraggingOpportunityId] = useState<
@@ -132,14 +133,14 @@ function SavedOpportunityBoard({
       SavedOpportunityManagementStatus,
       CareerHistoryOpportunity[]
     >();
-    for (const option of SAVED_OPPORTUNITY_STATUS_OPTIONS) {
+    for (const option of statusOptions) {
       next.set(option.id, []);
     }
     for (const item of items) {
       next.get(getSavedOpportunityManagementStatus(item))?.push(item);
     }
     return next;
-  }, [items]);
+  }, [items, statusOptions]);
   const handleBoardDragOver = (event: React.DragEvent<HTMLDivElement>) => {
     if (!draggingOpportunityId) return;
 
@@ -173,7 +174,7 @@ function SavedOpportunityBoard({
   return (
     <div className="overflow-x-auto pb-2" onDragOver={handleBoardDragOver}>
       <div className="flex w-max min-w-full gap-3">
-        {SAVED_OPPORTUNITY_STATUS_OPTIONS.map((column) => {
+        {statusOptions.map((column) => {
           const columnItems = groupedItems.get(column.id) ?? [];
 
           return (

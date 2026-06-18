@@ -5,8 +5,8 @@ import { renderEmailBodyHtmlWithHarperFooter } from "@/lib/email/harperFooter";
 import {
   useOpsCareerMailHistory,
   useSendCareerTalentMail,
-} from "@/hooks/useOpsCareer";
-import type { CareerTalentDetailResponse } from "@/lib/opsCareerServer";
+} from "@/hooks/ops/useOpsCareer";
+import type { CareerTalentDetailResponse } from "@/lib/ops/careerServer";
 import {
   compactMailAddress,
   formatKst,

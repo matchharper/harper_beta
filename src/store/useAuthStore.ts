@@ -3,14 +3,14 @@ import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { postLogEvent } from "@/lib/logEvent";
 import { buildLandingLoginEmailType } from "@/lib/landingLogTypes";
-import { linkOfficialJobEventsToCurrentUser } from "@/lib/officialJobEvents";
+import { linkOfficialJobEventsToCurrentUser } from "@/lib/officialJobs/events";
 import {
   CAREER_LANDING_ABTEST_TYPE,
   CAREER_LANDING_LOCAL_ID_STORAGE_KEY,
   CAREER_UTM_LOGIN_LOGGED_STORAGE_PREFIX,
   CAREER_UTM_SOURCE_STORAGE_KEY,
   normalizeCareerUtmSource,
-} from "@/lib/careerUtm";
+} from "@/lib/career/utm";
 
 type AuthState = {
   loading: boolean;

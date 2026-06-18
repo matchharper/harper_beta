@@ -10,7 +10,7 @@ import { Select as UiSelect } from "@/components/ui/select";
 import {
   useOpsMatchingCompanies,
   useOpsMatchingRoles,
-} from "@/hooks/useOpsMatching";
+} from "@/hooks/ops/useOpsMatching";
 import { isInternalEmail } from "@/lib/internalAccess";
 import { useAuthStore } from "@/store/useAuthStore";
 import {

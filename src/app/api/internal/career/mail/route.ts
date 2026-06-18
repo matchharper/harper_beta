@@ -8,7 +8,7 @@ import {
   parseCareerMailHistoryLimit,
   parseCareerMailHistoryOffset,
   sendCareerTalentMailAndRecord,
-} from "@/lib/opsCareerServer";
+} from "@/lib/ops/careerServer";
 
 export const runtime = "nodejs";
 

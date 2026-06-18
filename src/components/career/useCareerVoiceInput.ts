@@ -7,7 +7,7 @@ import type {
 import { useCareerVoiceInputStore } from "@/store/useCareerVoiceInputStore";
 import type { CareerConversationStarterId } from "@/lib/career/conversationStarters";
 import type { RealtimeConnectFailure } from "@/hooks/career/useRealtimeSession";
-import { careerT } from "@/lib/career/translatedCareerMessage";
+import { useCareerT } from "@/i18n/useCareerT";
 
 type RealtimeControls = {
   partialTranscript: string;
@@ -48,6 +48,7 @@ const isCareerVoiceDebugEnabled = () => {
 };
 
 export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
+  const t = useCareerT();
   const { canInteract, onUnsupported, realtimeControls } = args;
   const [inputMode, setInputMode] = useState<CareerInputMode>("text");
   const [voiceListening, setVoiceListening] = useState(false);
@@ -465,8 +466,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
 
       // Fallback: can't connect realtime, stay in text mode
       onUnsupported(
-        careerT(
-          "ko",
+        t(
           "career.common.use_career_voice_input.02eo5ko",
           "실시간 연결에 실패했습니다. 채팅으로 진행해 주세요."
         )
@@ -483,6 +483,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
       startVoiceLevelMonitor,
       stopAssistantAudio,
       stopVoiceLevelMonitor,
+      t,
     ]
   );
 

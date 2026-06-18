@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 import Face from "@/components/common/Face";
 import { ActionButton } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
+import { useCareerT } from "@/i18n/useCareerT";
 import { cn } from "@/lib/utils";
-import { careerT } from "@/lib/career/translatedCareerMessage";
 
 type CareerCallCardProps = {
   callDisabled: boolean;
@@ -20,13 +20,18 @@ type CareerCallCardProps = {
 export default function CareerCallCard({
   callDisabled,
   callStartPending,
-  ctaLabel = careerT("ko", "career.call.career_call_card.0ocs6vv", "통화 시작"),
+  ctaLabel,
   className,
   description,
   isOnboardingCompleted,
   onStartCall,
   title,
 }: CareerCallCardProps) {
+  const t = useCareerT();
+  const resolvedCtaLabel =
+    ctaLabel ?? t("career.call.career_call_card.0ocs6vv", "통화 시작");
+  const pendingLabel = t("career.call.career_call_card.1vn8y3k", "연결 중...");
+
   return (
     <div
       className={cn(
@@ -77,13 +82,7 @@ export default function CareerCallCard({
               <Phone className="h-4 w-4 shrink-0" strokeWidth={1.6} />
             )}
             <span className="min-w-0 truncate">
-              {callStartPending
-                ? careerT(
-                    "ko",
-                    "career.call.career_call_card.1vn8y3k",
-                    "연결 중..."
-                  )
-                : ctaLabel}
+              {callStartPending ? pendingLabel : resolvedCtaLabel}
             </span>
           </ActionButton>
         </div>
@@ -113,13 +112,7 @@ export default function CareerCallCard({
               <Phone className="h-4 w-4 shrink-0" strokeWidth={1.6} />
             )}
             <span className="min-w-0 truncate">
-              {callStartPending
-                ? careerT(
-                    "ko",
-                    "career.call.career_call_card.1vn8y3k",
-                    "연결 중..."
-                  )
-                : ctaLabel}
+              {callStartPending ? pendingLabel : resolvedCtaLabel}
             </span>
           </ActionButton>
         </div>

@@ -5,11 +5,11 @@ import {
   OPS_COMPANY_MANAGEMENT_QUALITY_LABEL_OPTIONS,
   type OpsCompanyManagementEmployeeCountRangeFilter,
   type OpsCompanyManagementQualityLabelFilter,
-} from "@/lib/opsOpportunityCompanyManagement";
+} from "@/lib/ops/opportunityCompanyManagement";
 import type {
   OpsCompanyQualityLabel,
   OpsCompanyManagementRecord,
-} from "@/lib/opsOpportunity";
+} from "@/lib/ops/opportunity";
 import {
   ArrowLeft,
   ArrowRight,

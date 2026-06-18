@@ -3,14 +3,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import {
-  ArrowRight,
   BriefcaseBusiness,
   Clock3,
   FileText,
   Globe2,
   Handshake,
   LoaderCircle,
-  Phone,
   ShieldAlert,
   ShieldCheck,
   Upload,
@@ -31,6 +29,7 @@ import { AnimatedButton, BareButton } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input, Input as UiInput } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
+import Face from "@/components/common/Face";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
@@ -44,10 +43,11 @@ import {
 } from "@/lib/talentNetworkOptions";
 import { cn } from "@/lib/cn";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
-import { getCareerSignupAttributionPayload } from "@/lib/careerSignupAttribution";
-import LoadingState from "../../components/career/OnboardingLoadingState";
+import { getCareerSignupAttributionPayload } from "@/lib/career/signupAttribution";
+import OnboardingLoadingState from "../../components/career/OnboardingLoadingState";
 import { useCareerT } from "@/i18n/useCareerT";
-import { careerT } from "@/lib/career/translatedCareerMessage";
+
+type CareerT = ReturnType<typeof useCareerT>;
 
 const SLIDE_VARIANTS = {
   enter: (isNext: boolean) => ({
@@ -86,19 +86,17 @@ const titleClassName =
 const descriptionClassName =
   "mt-2 text-[13px] md:text-[15px] text-neutral-soft";
 
-const ONBOARDING_STEPS: OnboardingStepDefinition[] = [
+const getOnboardingSteps = (t: CareerT): OnboardingStepDefinition[] => [
   {
-    label: careerT("ko", "career.onboarding.onboarding.0yf8432", "기본 정보"),
+    label: t("career.onboarding.onboarding.0yf8432", "기본 정보"),
     title: [
-      careerT(
-        "ko",
+      t(
         "career.onboarding.onboarding.0czo5rp",
         "커리어에도<br />에이전트가 필요합니다."
       ),
     ],
     description: [
-      careerT(
-        "ko",
+      t(
         "career.onboarding.onboarding.1o4hblb",
         "시작은 이름과 이메일만 있으면 충분해요."
       ),
@@ -109,20 +107,15 @@ const ONBOARDING_STEPS: OnboardingStepDefinition[] = [
     bodyClassName: "grid w-full gap-5 text-left",
   },
   {
-    label: careerT("ko", "career.onboarding.onboarding.1x0fjwc", "기회 유형"),
+    label: t("career.onboarding.onboarding.1x0fjwc", "기회 유형"),
     title: [
-      careerT(
-        "ko",
+      t(
         "career.onboarding.onboarding.1t9c061",
         "어떤 기회를<br />알아보고 있나요?"
       ),
     ],
     description: [
-      careerT(
-        "ko",
-        "career.onboarding.onboarding.0ghhb4f",
-        "Harper가 맞춰서 제안할게요."
-      ),
+      t("career.onboarding.onboarding.0ghhb4f", "Harper가 맞춰서 제안할게요."),
     ],
     headerClassName,
     titleClassName,
@@ -130,24 +123,18 @@ const ONBOARDING_STEPS: OnboardingStepDefinition[] = [
     bodyClassName: "flex flex-col gap-2 w-full",
   },
   {
-    label: careerT("ko", "career.onboarding.onboarding.0zapw5l", "프로필 연결"),
+    label: t("career.onboarding.onboarding.0zapw5l", "프로필 연결"),
     title: [
-      careerT(
-        "ko",
-        "career.onboarding.onboarding.0j4a2qn",
-        "Harper가 먼저 이해할게요."
-      ),
+      t("career.onboarding.onboarding.0j4a2qn", "Harper가 먼저 이해할게요."),
     ],
     description: [
-      careerT(
-        "ko",
+      t(
         "career.onboarding.onboarding.17aqzmx",
         "LinkedIn 또는 이력서 하나면 충분해요."
       ),
-      careerT(
-        "ko",
+      t(
         "career.onboarding.onboarding.0sc411b",
-        "추가 정보는 방향을 더 정확히 좁히는 데 도움이 돼요."
+        "추가 정보는 회원님을 더 이해하는 데 도움이 돼요."
       ),
     ],
     headerClassName,
@@ -157,22 +144,19 @@ const ONBOARDING_STEPS: OnboardingStepDefinition[] = [
     secondaryBodyClassName: "mt-5 flex w-full flex-col gap-4 text-left",
   },
   {
-    label: careerT("ko", "career.onboarding.onboarding.0zg5btj", "공개 설정"),
+    label: t("career.onboarding.onboarding.0zg5btj", "공개 설정"),
     title: [
-      careerT(
-        "ko",
+      t(
         "career.onboarding.onboarding.0t0s7bt",
         "회사에 프로필을 언제 공유할까요?"
       ),
     ],
     description: [
-      careerT(
-        "ko",
+      t(
         "career.onboarding.onboarding.1n6ukfv",
         "프로필은 선택한 방식대로만 공유돼요."
       ),
-      careerT(
-        "ko",
+      t(
         "career.onboarding.onboarding.183d95f",
         "대화 내용은 회사에 공개되지 않아요."
       ),
@@ -185,18 +169,11 @@ const ONBOARDING_STEPS: OnboardingStepDefinition[] = [
   },
 ];
 
-const DONE_STEP_DEFINITION: OnboardingStepDefinition = {
-  label: careerT("ko", "career.onboarding.onboarding.1jkvik4", "대화 시작"),
-  title: [
-    careerT(
-      "ko",
-      "career.onboarding.onboarding.1sjsl9m",
-      "정보를 확인했습니다"
-    ),
-  ],
+const getDoneStepDefinition = (t: CareerT): OnboardingStepDefinition => ({
+  label: t("career.onboarding.onboarding.1jkvik4", "대화 시작"),
+  title: [t("career.onboarding.onboarding.1sjsl9m", "정보를 확인했습니다")],
   description: [
-    careerT(
-      "ko",
+    t(
       "career.onboarding.onboarding.0zc98l7",
       "이제 Harper와 몇 가지 기준만 정하면 돼요."
     ),
@@ -205,9 +182,9 @@ const DONE_STEP_DEFINITION: OnboardingStepDefinition = {
   titleClassName,
   descriptionClassName,
   bodyClassName: "",
-};
+});
 
-const TOTAL_STEPS = ONBOARDING_STEPS.length;
+const TOTAL_STEPS = 4;
 
 const normalizeLink = (value: string) => {
   const trimmed = value.trim();
@@ -286,27 +263,29 @@ type OnboardingStartPayload = {
   userMessage?: OnboardingStartMessagePayload | null;
 };
 
-const DEFAULT_DONE_USER_MESSAGE = careerT(
-  "ko",
-  "career.onboarding.onboarding.0o7dyhc",
-  "프로필 자료를 제출했습니다."
-);
+const getDefaultDoneUserMessage = (t: CareerT) =>
+  t(
+    "career.onboarding.onboarding_done.default_user_message_short",
+    "제 프로필을 보내드렸어요."
+  );
 
-const DEFAULT_DONE_KICKOFF_TEXT = [
-  careerT(
-    "ko",
-    "career.onboarding.onboarding.1w9rc8x",
-    "제출해주신 이력서/링크를 바탕으로 기회를 찾아 볼게요."
-  ),
-].join("\n\n");
+const getDefaultDoneKickoffText = (t: CareerT) =>
+  [
+    t(
+      "career.onboarding.onboarding_done.default_kickoff_thanks",
+      "안녕하세요, 정보를 공유해 주셔서 감사합니다."
+    ),
+    t(
+      "career.onboarding.onboarding_done.default_kickoff_profile",
+      "이제 제가 맞을 만한 기회들을 찾아보고, 인재 연결을 요청한 회사 중 괜찮은 곳이 있으면 소개 및 연결까지 해드릴게요."
+    ),
+  ].join("\n\n");
 
-const DONE_AGENT_INTRO_BASE = careerT(
-  "ko",
-  "career.onboarding.onboarding.1jh1j5u",
-  "이제 제가 맞을 만한 기회들을 찾아보고, 인재 연결을 요청한 회사 중 괜찮은 곳이 있으면 소개 및 연결까지 해드릴게요. 더 좋은 연결을 도와드리기 위해 지금 어떤 상황이신지, 어떤 기회를 원하시는지 몇 가지만 더 여쭤보고 싶어요. 보통 5분 정도면 충분합니다."
-);
-
-type CareerT = ReturnType<typeof useCareerT>;
+const getDoneAgentIntroBase = (t: CareerT) =>
+  t(
+    "career.onboarding.onboarding_done.default_agent_intro",
+    "더 좋은 연결을 도와드리기 위해 지금 어떤 상황이신지, 어떤 기회를 원하시는지 몇 가지만 더 여쭤보고 싶어요. 보통 5분 정도면 충분합니다."
+  );
 
 const getDoneEngagementCopy = (
   id: TalentNetworkEngagementOptionId,
@@ -333,39 +312,34 @@ const getDoneEngagementCopy = (
   return "";
 };
 
-const ONBOARDING_ENGAGEMENT_COPY: Record<
+const getOnboardingEngagementCopy = (
+  t: CareerT
+): Record<
   TalentNetworkEngagementOptionId,
   { label: string; description: string }
-> = {
+> => ({
   advisor: {
-    label: careerT("ko", "career.onboarding.onboarding.1bulcyv", "어드바이저"),
-    description: careerT(
-      "ko",
+    label: t("career.onboarding.onboarding.1bulcyv", "어드바이저"),
+    description: t(
       "career.onboarding.onboarding.1a74y8o",
       "초기 팀을 돕거나 전략적으로 기여하고 싶어요"
     ),
   },
   fractional: {
-    label: careerT(
-      "ko",
-      "career.onboarding.onboarding.1k0o8vf",
-      "파트타임·프로젝트"
-    ),
-    description: careerT(
-      "ko",
+    label: t("career.onboarding.onboarding.1k0o8vf", "파트타임·프로젝트"),
+    description: t(
       "career.onboarding.onboarding.06ilxsj",
       "지금 자리는 유지하면서, 병행할 수 있는 일을 찾아요"
     ),
   },
   full_time: {
-    label: careerT("ko", "career.onboarding.onboarding.166o9pn", "풀타임"),
-    description: careerT(
-      "ko",
+    label: t("career.onboarding.onboarding.166o9pn", "풀타임"),
+    description: t(
       "career.onboarding.onboarding.15izros",
       "제대로 된 기회라면 이직도 열어두고 있어요"
     ),
   },
-};
+});
 
 const buildDoneAgentIntro = (
   selectedEngagements: TalentNetworkEngagementOptionId[],
@@ -374,24 +348,23 @@ const buildDoneAgentIntro = (
   const selectedCopies = selectedEngagements
     .map((id) => getDoneEngagementCopy(id, t))
     .filter(Boolean);
-  const targetCopy =
-    selectedCopies.length > 0
-      ? selectedCopies.join(", ")
-      : t("career.onboarding.onboarding.0dus5rt", "가장 좋아하실만한 기회들");
+  if (selectedCopies.length === 0) return getDoneAgentIntroBase(t);
 
   return t(
-    "career.onboarding.onboarding.done_agent_intro",
-    "{intro} 대화가 끝나면 내용을 정리해서 {targetCopy}부터 찾아볼게요.",
+    "career.onboarding.onboarding_done.selected_agent_intro",
+    "대화가 끝나면 {targetCopy}부터 찾아보고, 소개와 연결도 도와드릴게요.",
     {
       values: {
-        intro: t("career.onboarding.onboarding.1jh1j5u", DONE_AGENT_INTRO_BASE),
-        targetCopy,
+        targetCopy: selectedCopies.join(", "),
       },
     }
   );
 };
 
-const getOnboardingKickoffText = (payload: OnboardingStartPayload) => {
+const getOnboardingKickoffText = (
+  payload: OnboardingStartPayload,
+  t: CareerT
+) => {
   const acknowledgement = payload.kickoff?.acknowledgement?.trim();
   const insight = payload.kickoff?.insight?.trim();
   const structuredText = [acknowledgement, insight]
@@ -404,7 +377,7 @@ const getOnboardingKickoffText = (payload: OnboardingStartPayload) => {
     ?.map((message) => message.content?.trim())
     .find(Boolean);
 
-  return assistantText || DEFAULT_DONE_KICKOFF_TEXT;
+  return assistantText || getDefaultDoneKickoffText(t);
 };
 
 const useStreamingText = (text: string) => {
@@ -458,10 +431,10 @@ const ProgressBar = ({
           className={cn(
             "h-full rounded-full transition-colors duration-300",
             index < currentStep
-              ? "bg-black"
+              ? "bg-neutral-1000"
               : index === currentStep
-                ? "bg-black"
-                : "bg-neutral-400"
+                ? "bg-neutral-1000"
+                : "bg-neutral-1000-a10"
           )}
         />
       ))}
@@ -469,37 +442,88 @@ const ProgressBar = ({
   );
 };
 
-const OnboardingTopBar = ({ step }: { step: number }) => (
-  <div className="flex h-16 shrink-0 flex-col justify-center gap-5">
+const OnboardingTopBar = ({
+  showProgress = true,
+  step,
+}: {
+  showProgress?: boolean;
+  step: number;
+}) => (
+  <div
+    className={cn(
+      "flex shrink-0 flex-col justify-center",
+      showProgress ? "h-16 gap-5" : "h-8"
+    )}
+  >
     <div className="font-hedvig font-bold text-[21px] leading-none text-neutral-primary">
       Harper
     </div>
-    <ProgressBar step={step} />
+    {showProgress ? <ProgressBar step={step} /> : null}
   </div>
 );
 
 const OnboardingFrame = ({
+  aside,
   children,
   footer,
   progressStep,
+  showProgress = true,
   title,
 }: {
+  aside?: ReactNode;
   children: ReactNode;
   footer: ReactNode;
   progressStep: number;
+  showProgress?: boolean;
   title: ReactNode;
-}) => (
-  <div className="mx-auto flex min-h-svh w-full justify-center px-4 py-4 md:py-16">
-    <div className="flex h-[calc(100svh-2rem)] md:h-[calc(100svh-8rem)] min-h-[520px] w-full max-w-[400px] flex-col">
-      <OnboardingTopBar step={progressStep} />
-      <div className="h-[120px] shrink-0">{title}</div>
-      <section className="min-h-0 flex-1 overflow-y-auto py-8 pr-1">
-        {children}
-      </section>
-      <footer className="shrink-0 pt-4">{footer}</footer>
+}) => {
+  const topBar = (
+    <OnboardingTopBar showProgress={showProgress} step={progressStep} />
+  );
+  const titleSlot = title ? (
+    <div className="h-[120px] shrink-0">{title}</div>
+  ) : null;
+
+  if (aside) {
+    return (
+      <div className="mx-auto flex min-h-svh w-full justify-center px-4 pb-8 pt-16 md:py-16">
+        <div className="relative grid w-full max-w-[900px] gap-6 lg:block lg:h-[calc(100svh-8rem)] lg:min-h-[520px]">
+          <div className="order-1 lg:w-[400px]">{topBar}</div>
+          <div className="order-2 mx-auto flex min-h-[360px] w-full max-w-[390px] md:max-w-[640px] lg:absolute lg:left-[480px] lg:top-0 lg:h-full lg:min-h-0 lg:w-[440px] lg:max-w-none xl:left-[560px] xl:w-[520px]">
+            {aside}
+          </div>
+          <div
+            className={cn(
+              "order-3 flex min-h-[460px] w-full flex-col lg:absolute lg:bottom-0 lg:left-0 lg:min-h-0 lg:w-[400px]",
+              showProgress ? "lg:top-16" : "lg:top-8"
+            )}
+          >
+            {titleSlot}
+            <section className="min-h-0 flex-1 overflow-visible py-6 pr-1 lg:overflow-y-auto lg:overscroll-contain lg:scrollbar-thin lg:scrollbar-track-transparent lg:scrollbar-thumb-neutral-1000-a10 lg:hover:scrollbar-thumb-neutral-1000-a50">
+              {children}
+            </section>
+            <footer className="shrink-0 pt-4">{footer}</footer>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto flex min-h-svh w-full justify-center px-4 pb-4 pt-16 md:py-16">
+      <div className="grid w-full max-w-[400px] gap-8">
+        <div className="flex h-[calc(100svh-5rem)] min-h-[520px] w-full flex-col md:h-[calc(100svh-8rem)]">
+          {topBar}
+          {titleSlot}
+          <section className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-8 pr-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10 hover:scrollbar-thumb-neutral-1000-a50">
+            {children}
+          </section>
+          <footer className="shrink-0 pt-4">{footer}</footer>
+        </div>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const OnboardingStepHeader = ({
   stepDefinition,
@@ -598,7 +622,7 @@ const ProfileInputToggle = ({
     className={cn(
       "flex relative h-[104px] w-full shrink-0 flex-col items-center justify-center gap-2 rounded-[8px] border px-3 py-3 text-center text-[13px] font-medium leading-4 transition",
       active
-        ? "border-neutral-1000 bg-bg-floating"
+        ? "border-neutral-800 bg-bg-weak"
         : "border-neutral-1000-a05 bg-bg-floating text-neutral-primary hover:border-neutral-800 hover:bg-bg-weak"
     )}
   >
@@ -656,7 +680,7 @@ const ProfileIconMask = ({
 }) => (
   <span
     aria-hidden="true"
-    className={cn("block bg-black/80", sizeClass)}
+    className={cn("block bg-neutral-1000/80", sizeClass)}
     style={{
       WebkitMaskImage: `url(${src})`,
       WebkitMaskPosition: "center",
@@ -709,8 +733,8 @@ const EngagementCardButton = ({
     className={cn(
       "flex w-full flex-row gap-4 text-neutral-primary items-center justify-center rounded-[8px] border px-4 py-5 text-center transition duration-300",
       active
-        ? "border-neutral-1000 bg-bg-basement"
-        : "border-neutral-1000-a05 bg-bg-basement text-neutral-primary hover:border-neutral-800"
+        ? "border-neutral-800 bg-bg-weak"
+        : "border-neutral-1000-a05 bg-bg-floating text-neutral-primary hover:border-neutral-800 hover:bg-bg-weak"
     )}
   >
     <div className="flex w-full items-center gap-3">
@@ -749,27 +773,23 @@ type OnboardingProfileVisibility = "open_to_matches" | "exceptional_only";
 const DEFAULT_ONBOARDING_PROFILE_VISIBILITY: OnboardingProfileVisibility =
   "open_to_matches";
 
-const ONBOARDING_PROFILE_VISIBILITY_OPTIONS: Array<{
+const getOnboardingProfileVisibilityOptions = (
+  t: CareerT
+): Array<{
   id: OnboardingProfileVisibility;
   label: string;
   description: string;
   sub: string;
   Icon: LucideIcon;
-}> = [
+}> => [
   {
     id: "open_to_matches",
-    label: careerT(
-      "ko",
-      "career.onboarding.onboarding.0lliiks",
-      "Harper가 먼저 공유해요"
-    ),
-    description: careerT(
-      "ko",
+    label: t("career.onboarding.onboarding.0lliiks", "Harper가 먼저 공유해요"),
+    description: t(
       "career.onboarding.onboarding.1at9nca",
       "잘 맞는 기회라고 판단되면 Harper가 먼저 회사에 프로필을 공유해요. 관심이 오면 바로 알려드려요."
     ),
-    sub: careerT(
-      "ko",
+    sub: t(
       "career.onboarding.onboarding.03b3ba6",
       "매칭에 필요한 프로필 정보만 공유돼요. 공개하지 않을 회사를 설정할 수 있어요."
     ),
@@ -777,18 +797,12 @@ const ONBOARDING_PROFILE_VISIBILITY_OPTIONS: Array<{
   },
   {
     id: "exceptional_only",
-    label: careerT(
-      "ko",
-      "career.onboarding.onboarding.0wcgte0",
-      "내가 먼저 확인해요"
-    ),
-    description: careerT(
-      "ko",
+    label: t("career.onboarding.onboarding.0wcgte0", "내가 먼저 확인해요"),
+    description: t(
       "career.onboarding.onboarding.0nzlxqj",
       "Harper가 먼저 기회를 가져오고, 내가 확인한 뒤에만 프로필이 공유돼요."
     ),
-    sub: careerT(
-      "ko",
+    sub: t(
       "career.onboarding.onboarding.03b3ba6",
       "매칭에 필요한 프로필 정보만 공유돼요. 공개하지 않을 회사를 설정할 수 있어요."
     ),
@@ -802,46 +816,45 @@ const ResumeUploadInput = ({
 }: {
   fileName: string;
   onChange: (event: ChangeEvent<HTMLInputElement>) => void;
-}) => (
-  <label
-    className={cn(
-      "flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-[6px] border px-4 py-10 transition",
-      fileName
-        ? "border-neutral-1000 bg-bg-basement hover:bg-bg-weak"
-        : "border-dashed border-neutral-400 bg-bg-default hover:bg-bg-weak"
-    )}
-  >
-    <span className="flex w-fit flex-wrap rounded-full border border-neutral-300 bg-bg-basement p-3">
-      {fileName ? (
-        <FileText size={20} strokeWidth={1.6} />
-      ) : (
-        <Upload size={20} strokeWidth={1.6} />
+}) => {
+  const t = useCareerT();
+
+  return (
+    <label
+      className={cn(
+        "flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-[6px] border px-4 py-10 transition",
+        fileName
+          ? "border-neutral-800 bg-bg-weak hover:bg-bg-weak"
+          : "border-dashed border-neutral-400 bg-bg-floating hover:bg-bg-weak"
       )}
-    </span>
-    <span className="mt-1 text-sm font-normal">
-      {fileName ||
-        careerT(
-          "ko",
-          "career.onboarding.onboarding.13vjc2d",
-          "이력서/CV 업로드"
+    >
+      <span className="flex w-fit flex-wrap rounded-full border border-neutral-1000-a05 bg-bg-weak p-3">
+        {fileName ? (
+          <FileText size={20} strokeWidth={1.6} />
+        ) : (
+          <Upload size={20} strokeWidth={1.6} />
         )}
-    </span>
-    <span className="text-center text-sm font-normal text-neutral-muted">
-      {careerT(
-        "ko",
-        "career.onboarding.onboarding.1xpgwgk",
-        "PDF나 텍스트 파일을 올려주세요. 최대 10MB까지 권장합니다."
-      )}
-    </span>
-    <UiInput
-      unstyled
-      type="file"
-      accept=".pdf,.txt,.md"
-      className="hidden"
-      onChange={onChange}
-    />
-  </label>
-);
+      </span>
+      <span className="mt-1 text-sm font-normal">
+        {fileName ||
+          t("career.onboarding.onboarding.13vjc2d", "이력서/CV 업로드")}
+      </span>
+      <span className="text-center text-sm font-normal text-neutral-muted">
+        {t(
+          "career.onboarding.onboarding.1xpgwgk",
+          "PDF나 텍스트 파일을 올려주세요. 최대 10MB까지 권장합니다."
+        )}
+      </span>
+      <UiInput
+        unstyled
+        type="file"
+        accept=".pdf,.txt,.md"
+        className="hidden"
+        onChange={onChange}
+      />
+    </label>
+  );
+};
 
 const OnboardingFooterControls = ({
   onNext,
@@ -851,70 +864,67 @@ const OnboardingFooterControls = ({
   onNext: () => void;
   onPrev: () => void;
   step: number;
-}) => (
-  <div className="min-h-[80px] bg-gradient-to-b from-transparent to-bg-basement">
-    <div className={cn("flex w-full gap-3 flex-row")}>
-      {step > 0 && (
+}) => {
+  const t = useCareerT();
+
+  return (
+    <div className="min-h-[80px] bg-gradient-to-b from-transparent to-bg-basement">
+      <div className={cn("flex w-full gap-3 flex-row")}>
+        {step > 0 && (
+          <AnimatedButton
+            type="button"
+            variant="secondary"
+            size="lg"
+            onClick={onPrev}
+            className="min-w-[110px] font-normal"
+          >
+            {t("career.onboarding.onboarding.0wrohr9", "이전")}
+          </AnimatedButton>
+        )}
         <AnimatedButton
           type="button"
-          variant="secondary"
+          variant="primary"
           size="lg"
-          onClick={onPrev}
-          className="min-w-[110px] font-normal"
+          onClick={onNext}
+          className="w-full px-4 font-normal bg-neutral-950"
         >
-          {careerT("ko", "career.onboarding.onboarding.0wrohr9", "이전")}
+          {step === TOTAL_STEPS - 1
+            ? t("career.onboarding.onboarding.0cvpvmv", "기회 탐색 시작하기")
+            : step === 0
+              ? t("career.onboarding.onboarding.1gr43li", "Harper 시작하기")
+              : t("career.onboarding.onboarding.0wbopf1", "다음")}
         </AnimatedButton>
-      )}
-      <AnimatedButton
-        type="button"
-        variant="primary"
-        size="lg"
-        onClick={onNext}
-        className="w-full px-4 font-normal"
+      </div>
+      <div
+        className={`mt-2 flex min-h-5 items-center ${step === 0 ? "justify-center" : "justify-end"} text-[12px] leading-5 text-neutral-soft`}
       >
-        {step === TOTAL_STEPS - 1
-          ? careerT(
-              "ko",
-              "career.onboarding.onboarding.0cvpvmv",
-              "기회 탐색 시작하기"
-            )
-          : step === 0
-            ? careerT(
-                "ko",
-                "career.onboarding.onboarding.1gr43li",
-                "Harper 시작하기"
-              )
-            : careerT("ko", "career.onboarding.onboarding.0wbopf1", "다음")}
-      </AnimatedButton>
+        {step === TOTAL_STEPS - 1 ? (
+          <span>
+            {t(
+              "career.onboarding.onboarding.0am0h8h",
+              "분석까지 약 2분 걸려요"
+            )}
+          </span>
+        ) : (
+          <span>
+            press <Badge>Enter</Badge>
+          </span>
+        )}
+      </div>
     </div>
-    <div
-      className={`mt-2 flex min-h-5 items-center ${step === 0 ? "justify-center" : "justify-end"} text-[12px] leading-5 text-neutral-soft`}
-    >
-      {step === TOTAL_STEPS - 1 ? (
-        <span>
-          {careerT(
-            "ko",
-            "career.onboarding.onboarding.0am0h8h",
-            "분석까지 약 2분 걸려요"
-          )}
-        </span>
-      ) : (
-        <span>
-          press <Badge>Enter</Badge>
-        </span>
-      )}
-    </div>
-  </div>
-);
+  );
+};
 
 const DoneState = ({
   kickoffText,
+  name,
   onStartCall,
   onStartChat,
   selectedEngagements,
   userMessage,
 }: {
   kickoffText: string;
+  name: string;
   onStartCall: () => void;
   onStartChat: () => void;
   selectedEngagements: TalentNetworkEngagementOptionId[];
@@ -930,126 +940,281 @@ const DoneState = ({
     () => [kickoffText.trim(), doneAgentIntro].filter(Boolean).join("\n\n"),
     [doneAgentIntro, kickoffText]
   );
-  const streamedText = useStreamingText(fullHarperText);
-  const isStreamComplete =
-    fullHarperText.length > 0 && streamedText.length >= fullHarperText.length;
-  const streamedParagraphs = streamedText.split(/\n{2,}/);
+  const displayName =
+    name.trim() || t("career.onboarding.onboarding_done.default_name", "회원");
 
   return (
     <OnboardingFrame
+      aside={
+        <DoneConversationPreview
+          assistantText={fullHarperText}
+          userMessage={userMessage}
+        />
+      }
       progressStep={TOTAL_STEPS}
-      title={<OnboardingStepHeader stepDefinition={DONE_STEP_DEFINITION} />}
+      showProgress={false}
+      title={null}
       footer={
-        <div className="min-h-[112px]">
-          <AnimatePresence>
-            {isStreamComplete && (
-              <motion.div
-                key="done-actions"
-                initial={{ opacity: 0, y: 18, filter: "blur(6px)" }}
-                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                exit={{ opacity: 0, y: 12 }}
-                transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-              >
-                <div className="grid grid-cols-2 gap-2">
-                  <AnimatedButton
-                    type="button"
-                    size="md"
-                    variant="secondary"
-                    onClick={onStartChat}
-                    className="w-full px-3 text-[14px] font-normal"
-                  >
-                    {t("career.onboarding.onboarding.1onl53u", "채팅하기")}
-                  </AnimatedButton>
-                  <AnimatedButton
-                    type="button"
-                    size="md"
-                    variant="primary"
-                    onClick={onStartCall}
-                    className="w-full px-3 text-[14px] font-normal"
-                  >
-                    {t(
-                      "career.onboarding.onboarding.1qgquty",
-                      "Harper와 통화하기"
-                    )}
-                  </AnimatedButton>
-                </div>
-                <Text
-                  as="p"
-                  variant="caption"
-                  tone="subtle"
-                  className="mt-3 text-[12px] leading-5"
-                >
-                  {t(
-                    "career.onboarding.onboarding.08oczyl",
-                    "통화가 어렵다면 채팅으로 이어가도 됩니다."
-                  )}
-                </Text>
-              </motion.div>
-            )}
-          </AnimatePresence>
+        <div className="min-h-[112px] bg-gradient-to-b from-transparent to-bg-basement">
+          <div className="grid grid-cols-[0.8fr_1.2fr] gap-3">
+            <AnimatedButton
+              type="button"
+              size="lg"
+              variant="secondary"
+              onClick={onStartChat}
+              className="w-full px-3 font-normal"
+            >
+              {t("career.onboarding.onboarding_done.chat_cta", "채팅으로 하기")}
+            </AnimatedButton>
+            <AnimatedButton
+              type="button"
+              size="lg"
+              variant="primary"
+              onClick={onStartCall}
+              className="w-full px-3 font-normal bg-neutral-950"
+            >
+              {t("career.onboarding.onboarding_done.call_cta", "5분 통화하기")}
+            </AnimatedButton>
+          </div>
+          <div className="mt-4 flex items-start justify-between gap-3 text-[12px] leading-5 text-neutral-soft">
+            <Text as="p" variant="caption" tone="subtle" className="min-w-0">
+              {t(
+                "career.onboarding.onboarding_done.privacy_note",
+                "대화 내용은 안전하게 보호되며, 오직 {name}님의 더 나은 커리어 기회를 찾는 데에만 활용돼요.",
+                { values: { name: displayName } }
+              )}
+            </Text>
+            <Badge
+              variant="solid"
+              size="lg"
+              radius="md"
+              className="h-8 shrink-0 px-3 text-[13px]"
+            >
+              Enter
+            </Badge>
+          </div>
         </div>
       }
     >
-      <div className="flex min-h-full flex-col">
-        <motion.div
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.12, duration: 0.45, ease: "easeOut" }}
-          className="flex justify-end"
-        >
-          <Text
-            as="p"
-            variant="caption"
-            tone="primary"
-            className="max-w-[320px] rounded-xl bg-bg-basement px-4 py-2 text-right text-[13px] leading-5"
-          >
-            {userMessage || DEFAULT_DONE_USER_MESSAGE}
-          </Text>
-        </motion.div>
+      <DoneReadyBody />
+    </OnboardingFrame>
+  );
+};
 
-        <motion.div
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.32, duration: 0.45, ease: "easeOut" }}
-          className="flex justify-start"
-        >
-          <Text
-            as="p"
-            variant="caption"
-            tone="inverted"
-            className="mt-4 max-w-[320px] rounded-xl bg-black px-4 py-2 text-left font-sans text-[13px] font-light leading-5"
-          >
-            {t("career.onboarding.onboarding.08ain69", "소중한 정보 감사해요.")}
-          </Text>
-        </motion.div>
+const DoneReadyBody = () => {
+  const t = useCareerT();
 
-        <motion.div
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.36, duration: 0.45, ease: "easeOut" }}
-          className="mt-8"
-        >
-          <div className="space-y-5 text-left text-[14px] leading-7 text-neutral-primary">
-            {streamedParagraphs.map((paragraph, index) => {
-              const isLast = index === streamedParagraphs.length - 1;
-              return (
-                <Text
-                  as="p"
-                  variant="body"
-                  tone="primary"
-                  key={`${index}-${paragraph.slice(0, 10)}`}
+  return (
+    <div className="flex min-h-full flex-col items-center justify-start pt-8 text-center">
+      <div className="relative">
+        <Face status="idle" size={160} aria-label="Harper" priority />
+        <span className="absolute -right-2 top-4 flex h-10 min-w-14 items-center justify-center rounded-[18px] bg-bg-floating px-4 shadow-[0_10px_28px_rgba(31,28,26,0.10)]">
+          <span className="flex gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-neutral-1000-a10" />
+            <span className="h-1.5 w-1.5 rounded-full bg-neutral-1000-a10" />
+            <span className="h-1.5 w-1.5 rounded-full bg-neutral-1000-a10" />
+          </span>
+        </span>
+        <span className="absolute -left-4 bottom-7 flex h-10 min-w-14 items-center justify-center rounded-[18px] bg-bg-floating px-4 shadow-[0_10px_28px_rgba(31,28,26,0.10)]">
+          <span className="flex gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-neutral-1000-a10" />
+            <span className="h-1.5 w-1.5 rounded-full bg-neutral-1000-a10" />
+            <span className="h-1.5 w-1.5 rounded-full bg-neutral-1000-a10" />
+          </span>
+        </span>
+      </div>
+
+      <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-neutral-1000-a05 bg-bg-floating px-3 py-1.5 text-[13px] font-normal leading-none text-neutral-muted shadow-sm">
+        <span className="h-2 w-2 rounded-full bg-positive" />
+        {t("career.onboarding.onboarding_done.ready_badge", "대화 준비 완료")}
+      </div>
+
+      <Text
+        as="h1"
+        variant="head2"
+        tone="primary"
+        className="mt-10 text-[18px] md:text-[22px] font-medium leading-8 tracking-normal"
+      >
+        {t(
+          "career.onboarding.onboarding_done.title",
+          "잠깐 커피챗 가능할까요?"
+        )}
+      </Text>
+      <Text
+        as="p"
+        variant="body"
+        tone="subtle"
+        className="mt-3 max-w-[390px] text-[13px] md:text-[14px] font-light leading-6"
+      >
+        {t(
+          "career.onboarding.onboarding_done.description",
+          "더 좋은 매칭을 위해 현재 상황과 희망하시는 기회에 대해 몇 가지 여쭤보고 싶어요. 솔직하게 답변을 주면 더 좋은 매칭을 해드릴 수 있어요.\n5분 정도면 충분해요."
+        )
+          .split("\n")
+          .map((line) => (
+            <span key={line} className="block">
+              {line}
+            </span>
+          ))}
+      </Text>
+    </div>
+  );
+};
+
+const DoneConversationPreview = ({
+  assistantText,
+  userMessage,
+}: {
+  assistantText: string;
+  userMessage: string;
+}) => {
+  const t = useCareerT();
+  const streamedText = useStreamingText(assistantText);
+  const isStreamComplete =
+    assistantText.length > 0 && streamedText.length >= assistantText.length;
+  const paragraphs = streamedText
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+  const userBubbleText =
+    userMessage?.trim() ||
+    t(
+      "career.onboarding.onboarding_done.default_user_message",
+      "제 프로필을 보내드렸어요."
+    );
+
+  return (
+    <aside className="relative flex h-full w-full flex-col overflow-hidden rounded-[20px] border border-neutral-1000-a05 bg-bg-weak/70 p-4 shadow-[0_18px_60px_rgba(31,28,26,0.07)] md:p-5">
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-bg-floating/45 via-transparent to-primary-faded/25" />
+      <div className="relative flex min-h-full items-center justify-center">
+        <div className="w-full max-w-[330px]">
+          <div className="flex justify-end">
+            <div className="max-w-[84%] rounded-[15px] bg-neutral-1000 px-3.5 py-2.5 text-[13px] md:text-[14px] font-normal leading-5 text-neutral-00 shadow-sm">
+              {userBubbleText}
+            </div>
+          </div>
+
+          <div className="mt-4 flex items-start gap-2.5">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-bg-floating font-hedvig text-[18px] font-bold text-neutral-primary shadow-sm">
+              h.
+            </div>
+            <div className="min-w-0 flex-1 space-y-2.5">
+              {paragraphs.map((paragraph, index) => (
+                <div
+                  key={`${index}-${paragraph.slice(0, 14)}`}
+                  className="w-fit max-w-full rounded-[15px] bg-bg-floating px-3.5 py-2.5 text-[13px] md:text-[14px] font-normal leading-6 text-neutral-primary shadow-sm"
                 >
                   {paragraph}
-                  {isLast && !isStreamComplete && (
-                    <span className="ml-1 inline-block h-4 w-px translate-y-0.5 animate-pulse bg-black/55" />
-                  )}
-                </Text>
-              );
-            })}
+                  {index === paragraphs.length - 1 && !isStreamComplete ? (
+                    <span className="ml-1 inline-block h-4 w-px translate-y-0.5 animate-pulse bg-neutral-1000-a50" />
+                  ) : null}
+                </div>
+              ))}
+              <div className="flex w-fit items-center gap-1.5 rounded-[15px] bg-bg-floating px-3.5 py-2.5 shadow-sm">
+                <span className="h-1.5 w-1.5 rounded-full bg-neutral-1000-a10" />
+                <span className="h-1.5 w-1.5 rounded-full bg-neutral-1000-a10" />
+                <span className="h-1.5 w-1.5 rounded-full bg-neutral-1000-a10" />
+              </div>
+            </div>
           </div>
-        </motion.div>
+        </div>
       </div>
-    </OnboardingFrame>
+    </aside>
+  );
+};
+
+const OnboardingLoadingBody = () => {
+  const t = useCareerT();
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="flex min-h-full flex-col items-center justify-center text-center"
+    >
+      <Face
+        status="closing"
+        size={160}
+        flipped
+        expressionOffset={{ x: -4, y: 3 }}
+        aria-label="Harper"
+        priority
+      />
+
+      <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-neutral-1000-a05 bg-bg-floating px-3 py-1.5 text-[13px] font-medium leading-none text-neutral-muted shadow-sm">
+        <span className="h-2 w-2 rounded-full bg-primary" />
+        {t(
+          "career.onboarding.onboarding_loading_state.analyzing_badge",
+          "Harper가 분석 중이에요"
+        )}
+      </div>
+
+      <Text
+        as="h1"
+        variant="head2"
+        tone="primary"
+        className="mt-6 md:mt-14 text-[18px] md:text-[22px] font-medium leading-8 tracking-normal"
+      >
+        {t(
+          "career.onboarding.onboarding_loading_state.19pgngy",
+          "프로필을 읽고 있어요"
+        )}
+      </Text>
+      <Text
+        as="p"
+        variant="body"
+        tone="subtle"
+        className="mt-2 text-[13px] md:text-[15px] leading-6"
+      >
+        {t(
+          "career.onboarding.onboarding_loading_state.0ouyje6",
+          "LinkedIn과 이력서에서 배경과 경험을 확인하고 있습니다."
+        )}
+      </Text>
+    </div>
+  );
+};
+
+const OnboardingLoadingFooter = () => {
+  const t = useCareerT();
+
+  return (
+    <div className="min-h-[112px] bg-gradient-to-b from-transparent to-bg-basement">
+      <div className="grid grid-cols-[0.8fr_1.2fr] gap-3">
+        <AnimatedButton
+          type="button"
+          variant="secondary"
+          size="lg"
+          disabled
+          className="w-full font-normal disabled:opacity-100"
+        >
+          {t("career.onboarding.onboarding.0wrohr9", "이전")}
+        </AnimatedButton>
+        <AnimatedButton
+          type="button"
+          variant="primary"
+          size="lg"
+          aria-label={t(
+            "career.onboarding.onboarding_loading_state.analyzing_badge",
+            "Harper가 분석 중이에요"
+          )}
+          className="w-full font-normal bg-neutral-950"
+        >
+          <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" />
+        </AnimatedButton>
+      </div>
+      <Text
+        as="p"
+        variant="caption"
+        tone="subtle"
+        className="mt-3 text-[12px] leading-5"
+      >
+        {t(
+          "career.onboarding.onboarding_loading_state.footer_note",
+          "분석까지 약 1분 걸려요. 하퍼가 좋은 추천을 할 수 있도록 조금만 기다려주세요."
+        )}
+      </Text>
+    </div>
   );
 };
 
@@ -1082,13 +1247,31 @@ const CareerNetworkOnboardingContent = () => {
       DEFAULT_ONBOARDING_PROFILE_VISIBILITY
     );
   const [submitState, setSubmitState] = useState<"form" | "loading" | "done">(
-    "form"
+    "done"
+  );
+  const defaultDoneUserMessage = useMemo(
+    () => getDefaultDoneUserMessage(t),
+    [t]
+  );
+  const defaultDoneKickoffText = useMemo(
+    () => getDefaultDoneKickoffText(t),
+    [t]
+  );
+  const onboardingSteps = useMemo(() => getOnboardingSteps(t), [t]);
+  const doneStepDefinition = useMemo(() => getDoneStepDefinition(t), [t]);
+  const onboardingEngagementCopy = useMemo(
+    () => getOnboardingEngagementCopy(t),
+    [t]
+  );
+  const profileVisibilityOptions = useMemo(
+    () => getOnboardingProfileVisibilityOptions(t),
+    [t]
   );
   const [doneUserMessage, setDoneUserMessage] = useState(
-    DEFAULT_DONE_USER_MESSAGE
+    defaultDoneUserMessage
   );
   const [doneKickoffText, setDoneKickoffText] = useState(
-    DEFAULT_DONE_KICKOFF_TEXT
+    defaultDoneKickoffText
   );
   const userId = user?.id ?? null;
   const inviteToken = getSingleQueryParam(router.query.invite)?.trim() || null;
@@ -1097,6 +1280,16 @@ const CareerNetworkOnboardingContent = () => {
     getSingleQueryParam(
       router.query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM]
     )?.trim() || null;
+  const previewSubmitState = useMemo(() => {
+    if (process.env.NODE_ENV === "production" || !router.isReady) return null;
+
+    const value = getSingleQueryParam(router.query.previewSubmitState);
+    return value === "form" || value === "loading" || value === "done"
+      ? value
+      : null;
+  }, [router.isReady, router.query.previewSubmitState]);
+  const isPreviewSubmitState = previewSubmitState !== null;
+  const effectiveSubmitState = previewSubmitState ?? submitState;
   const onboardingNextPath = router.asPath || "/career/onboarding";
   const sessionQueryKey = useMemo(
     () =>
@@ -1125,8 +1318,7 @@ const CareerNetworkOnboardingContent = () => {
       throw new Error(
         getErrorMessage(
           payload,
-          careerT(
-            "ko",
+          t(
             "career.onboarding.onboarding.1sy0934",
             "로그인 정보를 초기화하지 못했습니다."
           )
@@ -1142,8 +1334,7 @@ const CareerNetworkOnboardingContent = () => {
       throw new Error(
         getErrorMessage(
           payload,
-          careerT(
-            "ko",
+          t(
             "career.onboarding.onboarding.1sh2r2c",
             "온보딩 세션을 불러오지 못했습니다."
           )
@@ -1152,7 +1343,7 @@ const CareerNetworkOnboardingContent = () => {
     }
 
     return payload;
-  }, [emailOnboardingToken, fetchWithAuth, inviteToken, mail]);
+  }, [emailOnboardingToken, fetchWithAuth, inviteToken, mail, t]);
 
   useEffect(() => {
     if (!user) return;
@@ -1165,7 +1356,9 @@ const CareerNetworkOnboardingContent = () => {
   }, [user]);
 
   useEffect(() => {
-    if (authLoading || !router.isReady) return;
+    if (!router.isReady) return;
+    if (isPreviewSubmitState) return;
+    if (authLoading) return;
 
     if (!userId) {
       void router.replace(
@@ -1222,8 +1415,7 @@ const CareerNetworkOnboardingContent = () => {
           message:
             error instanceof Error
               ? error.message
-              : careerT(
-                  "ko",
+              : t(
                   "career.onboarding.onboarding.1sh2r2c",
                   "온보딩 세션을 불러오지 못했습니다."
                 ),
@@ -1248,12 +1440,14 @@ const CareerNetworkOnboardingContent = () => {
     fetchOnboardingSession,
     emailOnboardingToken,
     inviteToken,
+    isPreviewSubmitState,
     mail,
     onboardingNextPath,
     queryClient,
     router,
     router.isReady,
     sessionQueryKey,
+    t,
     userId,
   ]);
 
@@ -1279,8 +1473,7 @@ const CareerNetworkOnboardingContent = () => {
       throw new Error(
         getErrorMessage(
           payload,
-          careerT(
-            "ko",
+          t(
             "career.onboarding.onboarding.0eumq1b",
             "기본 정보를 저장하지 못했습니다."
           )
@@ -1290,7 +1483,7 @@ const CareerNetworkOnboardingContent = () => {
 
     lastSavedBasicInfoRef.current = signature;
     queryClient.removeQueries({ queryKey: ["career-session"] });
-  }, [email, fetchWithAuth, name, queryClient]);
+  }, [email, fetchWithAuth, name, queryClient, t]);
 
   const saveCurrentStep = useCallback(
     async (currentStep: number) => {
@@ -1302,8 +1495,7 @@ const CareerNetworkOnboardingContent = () => {
         const message =
           error instanceof Error
             ? error.message
-            : careerT(
-                "ko",
+            : t(
                 "career.onboarding.onboarding.0eumq1b",
                 "기본 정보를 저장하지 못했습니다."
               );
@@ -1311,7 +1503,7 @@ const CareerNetworkOnboardingContent = () => {
         throw error;
       }
     },
-    [saveBasicInfo]
+    [saveBasicInfo, t]
   );
 
   const handleProfileInputToggle = useCallback(
@@ -1362,8 +1554,7 @@ const CareerNetworkOnboardingContent = () => {
       if (currentStep === 0) {
         if (!name.trim()) {
           showToast({
-            message: careerT(
-              "ko",
+            message: t(
               "career.onboarding.onboarding.0ehh5yz",
               "이름을 입력해주세요."
             ),
@@ -1373,8 +1564,7 @@ const CareerNetworkOnboardingContent = () => {
         }
         if (!isValidEmail(email.trim())) {
           showToast({
-            message: careerT(
-              "ko",
+            message: t(
               "career.onboarding.onboarding.09uxsj9",
               "유효한 이메일을 입력해주세요."
             ),
@@ -1387,8 +1577,7 @@ const CareerNetworkOnboardingContent = () => {
       if (currentStep === 1) {
         if (selectedEngagements.length === 0) {
           showToast({
-            message: careerT(
-              "ko",
+            message: t(
               "career.onboarding.onboarding.0w4wbae",
               "찾고 있는 업무 형태를 선택해주세요."
             ),
@@ -1400,8 +1589,7 @@ const CareerNetworkOnboardingContent = () => {
 
       if (currentStep === 2 && !hasRequiredProfileSignal) {
         showToast({
-          message: careerT(
-            "ko",
+          message: t(
             "career.onboarding.onboarding.0d18cht",
             "이력서나 LinkedIn 링크 중 하나는 꼭 입력해주세요."
           ),
@@ -1412,7 +1600,7 @@ const CareerNetworkOnboardingContent = () => {
 
       return true;
     },
-    [email, hasRequiredProfileSignal, name, selectedEngagements]
+    [email, hasRequiredProfileSignal, name, selectedEngagements, t]
   );
 
   const uploadResumeFile = useCallback(
@@ -1429,8 +1617,7 @@ const CareerNetworkOnboardingContent = () => {
         throw new Error(
           getErrorMessage(
             payload,
-            careerT(
-              "ko",
+            t(
               "career.onboarding.onboarding.0yuh7d0",
               "이력서 업로드에 실패했습니다."
             )
@@ -1443,7 +1630,7 @@ const CareerNetworkOnboardingContent = () => {
         resumeStoragePath: String(payload?.resumeStoragePath ?? ""),
       };
     },
-    [fetchWithAuth]
+    [fetchWithAuth, t]
   );
 
   const parseResumeText = useCallback(
@@ -1460,8 +1647,7 @@ const CareerNetworkOnboardingContent = () => {
         throw new Error(
           getErrorMessage(
             payload,
-            careerT(
-              "ko",
+            t(
               "career.onboarding.onboarding.010bz98",
               "이력서 내용을 읽지 못했습니다."
             )
@@ -1473,15 +1659,14 @@ const CareerNetworkOnboardingContent = () => {
         .trim()
         .slice(0, 20000);
     },
-    [fetchWithAuth]
+    [fetchWithAuth, t]
   );
 
   const submitOnboarding = useCallback(async () => {
     if (submitState === "loading") return;
     if (!conversationId) {
       showToast({
-        message: careerT(
-          "ko",
+        message: t(
           "career.onboarding.onboarding.0pijbir",
           "온보딩 세션을 아직 준비하지 못했습니다."
         ),
@@ -1520,8 +1705,7 @@ const CareerNetworkOnboardingContent = () => {
         throw new Error(
           getErrorMessage(
             preferencesPayload,
-            careerT(
-              "ko",
+            t(
               "career.onboarding.onboarding.1kdng2n",
               "선호 정보를 저장하지 못했습니다."
             )
@@ -1530,8 +1714,7 @@ const CareerNetworkOnboardingContent = () => {
       }
       if (preferencesPayload?.opportunityDiscoveryQueued) {
         showToast({
-          message: careerT(
-            "ko",
+          message: t(
             "career.onboarding.onboarding.0hobsv6",
             "기회 검색을 시작했습니다."
           ),
@@ -1550,8 +1733,7 @@ const CareerNetworkOnboardingContent = () => {
         throw new Error(
           getErrorMessage(
             settingsPayload,
-            careerT(
-              "ko",
+            t(
               "career.onboarding.onboarding.01ywpeo",
               "프로필 공개 설정을 저장하지 못했습니다."
             )
@@ -1578,8 +1760,7 @@ const CareerNetworkOnboardingContent = () => {
         throw new Error(
           getErrorMessage(
             payload,
-            careerT(
-              "ko",
+            t(
               "career.onboarding.onboarding.059do1c",
               "프로필 구조화를 시작하지 못했습니다."
             )
@@ -1593,17 +1774,16 @@ const CareerNetworkOnboardingContent = () => {
       setDoneUserMessage(
         payload.profileSubmitMessage?.trim() ||
           payload.userMessage?.content?.trim() ||
-          DEFAULT_DONE_USER_MESSAGE
+          defaultDoneUserMessage
       );
-      setDoneKickoffText(getOnboardingKickoffText(payload));
+      setDoneKickoffText(getOnboardingKickoffText(payload, t));
       setSubmitState("done");
     } catch (error) {
       showToast({
         message:
           error instanceof Error
             ? error.message
-            : careerT(
-                "ko",
+            : t(
                 "career.onboarding.onboarding.1p04ixt",
                 "온보딩 제출 중 오류가 발생했습니다."
               ),
@@ -1614,6 +1794,7 @@ const CareerNetworkOnboardingContent = () => {
     }
   }, [
     conversationId,
+    defaultDoneUserMessage,
     email,
     fetchWithAuth,
     links,
@@ -1625,6 +1806,7 @@ const CareerNetworkOnboardingContent = () => {
     selectedEngagements,
     submitState,
     logCareerEvent,
+    t,
     uploadResumeFile,
   ]);
 
@@ -1686,7 +1868,7 @@ const CareerNetworkOnboardingContent = () => {
         return;
       }
 
-      const visibility = ONBOARDING_PROFILE_VISIBILITY_OPTIONS[optionIndex];
+      const visibility = profileVisibilityOptions[optionIndex];
       if (!visibility) return;
 
       event.preventDefault();
@@ -1695,14 +1877,19 @@ const CareerNetworkOnboardingContent = () => {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [handleEngagementToggle, handleProfileVisibilitySelect, step]);
+  }, [
+    handleEngagementToggle,
+    handleProfileVisibilitySelect,
+    profileVisibilityOptions,
+    step,
+  ]);
 
-  const currentStepDefinition = ONBOARDING_STEPS[step] ?? ONBOARDING_STEPS[0];
+  const currentStepDefinition = onboardingSteps[step] ?? onboardingSteps[0];
 
   const selectedVisibilityOption =
-    ONBOARDING_PROFILE_VISIBILITY_OPTIONS.find(
+    profileVisibilityOptions.find(
       (option) => option.id === profileVisibility
-    ) ?? ONBOARDING_PROFILE_VISIBILITY_OPTIONS[0];
+    ) ?? profileVisibilityOptions[0];
 
   const navigateToCareerStart = useCallback(
     (startMode: "call" | "chat") => {
@@ -1727,7 +1914,7 @@ const CareerNetworkOnboardingContent = () => {
     [logCareerEvent, router]
   );
 
-  if (authLoading || bootstrapLoading) {
+  if (!isPreviewSubmitState && (authLoading || bootstrapLoading)) {
     return (
       <main
         className={cn(
@@ -1747,15 +1934,29 @@ const CareerNetworkOnboardingContent = () => {
       </Head>
       <main
         className={cn(
-          "min-h-svh font-sans text-neutral-primary",
+          "font-sans text-neutral-primary",
+          effectiveSubmitState === "form"
+            ? "min-h-svh"
+            : "h-svh overflow-y-auto overscroll-contain scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10 hover:scrollbar-thumb-neutral-1000-a50",
           ONBOARDING_BACKGROUND_CLASS
         )}
       >
-        {submitState === "loading" && <LoadingState />}
+        {effectiveSubmitState === "loading" && (
+          <OnboardingFrame
+            aside={<OnboardingLoadingState className="h-full" />}
+            progressStep={TOTAL_STEPS}
+            showProgress={false}
+            title={null}
+            footer={<OnboardingLoadingFooter />}
+          >
+            <OnboardingLoadingBody />
+          </OnboardingFrame>
+        )}
 
-        {submitState === "done" && (
+        {effectiveSubmitState === "done" && (
           <DoneState
             kickoffText={doneKickoffText}
+            name={name}
             onStartCall={() => navigateToCareerStart("call")}
             onStartChat={() => navigateToCareerStart("chat")}
             selectedEngagements={selectedEngagements}
@@ -1763,7 +1964,7 @@ const CareerNetworkOnboardingContent = () => {
           />
         )}
 
-        {submitState === "form" && (
+        {effectiveSubmitState === "form" && (
           <OnboardingFrame
             progressStep={step}
             title={
@@ -1841,7 +2042,7 @@ const CareerNetworkOnboardingContent = () => {
                 {step === 1 && (
                   <div className={currentStepDefinition.bodyClassName}>
                     {TALENT_NETWORK_ENGAGEMENT_OPTIONS.map((option, index) => {
-                      const copy = ONBOARDING_ENGAGEMENT_COPY[option.id];
+                      const copy = onboardingEngagementCopy[option.id];
 
                       return (
                         <EngagementCardButton
@@ -1929,7 +2130,7 @@ const CareerNetworkOnboardingContent = () => {
                 {step === 3 && (
                   <>
                     <div className={currentStepDefinition.bodyClassName}>
-                      {ONBOARDING_PROFILE_VISIBILITY_OPTIONS.map((option) => (
+                      {profileVisibilityOptions.map((option) => (
                         <EngagementCardButton
                           key={option.id}
                           Icon={option.Icon}

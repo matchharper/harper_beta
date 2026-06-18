@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { en } from "@/lang/en";
 import { ko } from "@/lang/ko";
 import { useMessages } from "@/i18n/useMessage";
 import {
@@ -12,6 +13,7 @@ import {
 
 const TRANSLATABLE_ATTRS = ["aria-label", "alt", "placeholder", "title"];
 const MATCH_SCROLL_TARGET_ATTR = "data-career-i18n-scroll-id";
+const TRANSLATION_KEY_ATTR = "data-career-i18n-key";
 const SKIP_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "CODE", "PRE"]);
 const PLACEHOLDER_PATTERN = /\{([a-zA-Z0-9_]+)\}/g;
 const PARTIAL_TRANSLATION_SOURCES = new Set([
@@ -34,6 +36,7 @@ type LookupCandidate = {
   candidateKeys?: string[];
   confidence: CareerTranslationMatchConfidence;
   key: string;
+  source: string;
   sourceKo: string;
   target: string;
 };
@@ -48,6 +51,13 @@ type PartialRule = {
 type TranslationResult = {
   match: LookupCandidate | null;
   value: string;
+};
+
+type TranslationLookup = {
+  exact: Map<string, LookupCandidate[]>;
+  partials: PartialRule[];
+  templates: TemplateRule[];
+  byKey: Map<string, LookupCandidate>;
 };
 
 function preserveOuterWhitespace(original: string, translated: string) {
@@ -77,6 +87,7 @@ function compileTemplateRule({
 }) {
   const names: string[] = [];
   const normalizedSource = normalizeLookupValue(patternSource);
+  let literalLength = 0;
   let pattern = "^";
   let lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -84,14 +95,20 @@ function compileTemplateRule({
   PLACEHOLDER_PATTERN.lastIndex = 0;
   while ((match = PLACEHOLDER_PATTERN.exec(normalizedSource))) {
     names.push(match[1]);
-    pattern += escapeRegex(normalizedSource.slice(lastIndex, match.index));
+    const literal = normalizedSource.slice(lastIndex, match.index);
+    literalLength += literal.replace(/\s+/g, "").length;
+    pattern += escapeRegex(literal);
     pattern += "(.+?)";
     lastIndex = match.index + match[0].length;
   }
 
   if (names.length === 0) return null;
 
-  pattern += escapeRegex(normalizedSource.slice(lastIndex));
+  const tailLiteral = normalizedSource.slice(lastIndex);
+  literalLength += tailLiteral.replace(/\s+/g, "").length;
+  if (literalLength < 2) return null;
+
+  pattern += escapeRegex(tailLiteral);
   pattern += "$";
 
   return {
@@ -133,6 +150,25 @@ function toPlainRect(rect: DOMRect): CareerTranslationMatchRect | null {
   };
 }
 
+function uniqueValues(values: Array<string | undefined>) {
+  return Array.from(
+    new Set(
+      values
+        .filter((value): value is string => typeof value === "string")
+        .map((value) => value.trim())
+        .filter(Boolean)
+    )
+  );
+}
+
+function hasVisibleTextContent(element: Element) {
+  return Boolean(element.textContent?.replace(/\s+/g, " ").trim());
+}
+
+function getTranslationKeyElement(element: Element | null) {
+  return element?.closest(`[${TRANSLATION_KEY_ATTR}]`) ?? null;
+}
+
 export default function CareerTranslationRuntime({
   children,
 }: {
@@ -160,10 +196,12 @@ export default function CareerTranslationRuntime({
 
   const lookup = useMemo(() => {
     const source = (ko.career ?? {}) as Record<string, string>;
+    const baseEn = (en.career ?? {}) as Record<string, string>;
     const target = m.career ?? {};
     const exact = new Map<string, LookupCandidate[]>();
     const templates: TemplateRule[] = [];
     const partials: PartialRule[] = [];
+    const byKey = new Map<string, LookupCandidate>();
 
     const addExact = (value: string, candidate: LookupCandidate) => {
       const normalized = normalizeLookupValue(value);
@@ -179,46 +217,43 @@ export default function CareerTranslationRuntime({
       if (typeof koValue !== "string") continue;
       const targetValue =
         typeof target[key] === "string" ? target[key] : koValue;
+      const sourceValues = uniqueValues([koValue, baseEn[key], targetValue]);
       const candidate = {
         confidence: "exact",
         key,
+        source: koValue,
         sourceKo: koValue,
         target: targetValue,
       } satisfies LookupCandidate;
+      byKey.set(key, candidate);
 
-      addExact(koValue, candidate);
-      addExact(targetValue, candidate);
+      sourceValues.forEach((sourceValue) => {
+        addExact(sourceValue, { ...candidate, source: sourceValue });
 
-      const sourceTemplateRule = compileTemplateRule({
-        key,
-        patternSource: koValue,
-        sourceKo: koValue,
-        target: targetValue,
-      });
-      if (sourceTemplateRule) templates.push(sourceTemplateRule);
-
-      if (targetValue !== koValue) {
-        const targetTemplateRule = compileTemplateRule({
+        const templateRule = compileTemplateRule({
           key,
-          patternSource: targetValue,
+          patternSource: sourceValue,
           sourceKo: koValue,
           target: targetValue,
         });
-        if (targetTemplateRule) templates.push(targetTemplateRule);
-      }
+        if (templateRule) templates.push(templateRule);
+      });
 
       if (PARTIAL_TRANSLATION_SOURCES.has(koValue) && targetValue !== koValue) {
-        partials.push({
-          key,
-          source: koValue,
-          sourceKo: koValue,
-          target: targetValue,
+        uniqueValues([koValue, baseEn[key]]).forEach((sourceValue) => {
+          if (sourceValue === targetValue) return;
+          partials.push({
+            key,
+            source: sourceValue,
+            sourceKo: koValue,
+            target: targetValue,
+          });
         });
       }
     }
 
     partials.sort((left, right) => right.source.length - left.source.length);
-    return { exact, partials, templates };
+    return { byKey, exact, partials, templates } satisfies TranslationLookup;
   }, [m]);
 
   useEffect(() => {
@@ -250,6 +285,7 @@ export default function CareerTranslationRuntime({
               candidateKeys: [rule.key],
               confidence: "template",
               key: rule.key,
+              source: rule.sourceKo,
               sourceKo: rule.sourceKo,
               target: translated,
             },
@@ -270,6 +306,7 @@ export default function CareerTranslationRuntime({
           candidateKeys: [partial.key],
           confidence: "partial",
           key: partial.key,
+          source: partial.source,
           sourceKo: partial.sourceKo,
           target: partial.target,
         };
@@ -283,6 +320,25 @@ export default function CareerTranslationRuntime({
       }
 
       return { match: null, value };
+    };
+
+    const translateValueByKey = (
+      key: string | null | undefined,
+      value: string
+    ): TranslationResult => {
+      if (!key) return translateValue(value);
+
+      const candidate = lookup.byKey.get(key);
+      if (!candidate) return translateValue(value);
+
+      return {
+        match: {
+          ...candidate,
+          candidateKeys: [key],
+          confidence: "exact",
+        },
+        value: preserveOuterWhitespace(value, candidate.target),
+      };
     };
 
     const getTextId = (node: Text) => {
@@ -410,7 +466,11 @@ export default function CareerTranslationRuntime({
       }
 
       const original = originalTextByNode.current.get(node) ?? currentValue;
-      const translated = translateValue(original);
+      const keyElement = getTranslationKeyElement(parent);
+      const translated = translateValueByKey(
+        keyElement?.getAttribute(TRANSLATION_KEY_ATTR),
+        original
+      );
       const nextValue = translated.value;
       if (currentValue !== nextValue) {
         node.nodeValue = nextValue;
@@ -464,10 +524,13 @@ export default function CareerTranslationRuntime({
         const original = originals.get(attr) ?? currentValue;
         const translated = translateValue(original);
         const nextValue = translated.value;
+        const shouldCollectAttrMatch = !(
+          attr === "aria-label" && hasVisibleTextContent(element)
+        );
         if (currentValue !== nextValue) {
           element.setAttribute(attr, nextValue);
         }
-        if (translated.match) {
+        if (translated.match && shouldCollectAttrMatch) {
           attrMatches.set(attr, translated.match);
         } else {
           attrMatches.delete(attr);

@@ -5,7 +5,7 @@ import { ChatScope } from "@/hooks/chat/useChatSession";
 import {
   hasSerializedAttachments,
   stripSerializedAttachmentBlocks,
-} from "@/lib/chatAttachments";
+} from "@/lib/chat/attachments";
 import { buildLongDoc } from "@/utils/textprocess";
 import { logger } from "@/utils/logger";
 import { CANDID_SYSTEM_PROMPT, SYSTEM_PROMPT } from "./chat_prompt";

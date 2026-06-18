@@ -6,8 +6,8 @@ import {
   useCreateOpsCareerProfileMemo,
   useDeleteOpsCareerProfileMemo,
   useUpdateOpsCareerProfileMemo,
-} from "@/hooks/useOpsCareer";
-import type { CareerTalentOpsProfileMemo } from "@/lib/opsCareerServer";
+} from "@/hooks/ops/useOpsCareer";
+import type { CareerTalentOpsProfileMemo } from "@/lib/ops/careerServer";
 import { formatKst } from "./utils";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
 import { BareButton } from "@/components/ui/button";

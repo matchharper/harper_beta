@@ -6,7 +6,7 @@ import {
 import {
   fetchOpsOpportunityRoles,
   type OpportunitySourceType,
-} from "@/lib/opsOpportunity";
+} from "@/lib/ops/opportunity";
 
 export const runtime = "nodejs";
 

@@ -5,13 +5,13 @@ import {
   buildUserMessageContent,
   extractAttachmentPayloads,
   stripSerializedAttachmentBlocks,
-} from "@/lib/chatAttachments";
+} from "@/lib/chat/attachments";
 import {
   fetchMessages,
   insertMessage,
   updateMessageContent,
 } from "@/lib/message";
-import { CandidateDetail } from "../useCandidateDetail";
+import type { CandidateDetail } from "@/hooks/candidates/useCandidateDetail";
 import { logger } from "@/utils/logger";
 
 const CHAT_MODEL = "grok-4-fast-reasoning";

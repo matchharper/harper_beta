@@ -64,7 +64,7 @@ const HistoryOpportunityInfoModal = ({
 
   if (!opportunityType) return null;
 
-  const copy = getCareerOpportunityInfoCopy(opportunityType);
+  const copy = getCareerOpportunityInfoCopy(opportunityType, t);
 
   const content = () => {
     if (opportunityType === OpportunityType.IntroRequest) {

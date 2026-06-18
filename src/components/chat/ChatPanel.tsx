@@ -13,7 +13,7 @@ import {
   MAX_CHAT_ATTACHMENT_FILE_BYTES,
   readDraftAttachments,
   type DraftChatAttachment,
-} from "@/lib/chatAttachmentClient";
+} from "@/lib/chat/attachmentClient";
 import {
   UI_END,
   UI_START,
@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 import { logger } from "@/utils/logger";
 import { useRouter } from "next/router";
-import { CandidateDetail } from "@/hooks/useCandidateDetail";
+import { CandidateDetail } from "@/hooks/candidates/useCandidateDetail";
 import { Skeleton } from "../ui/skeleton";
 import ChatSettingsModal from "../Modal/ChatSettingsModal";
 import { useSettings } from "@/hooks/useSettings";
@@ -39,12 +39,12 @@ import {
   ACTIVE_PARALLEL_SEARCH_STATUSES,
   getMaxParallelSearchCount,
   getParallelSearchLimitMessage,
-} from "@/lib/searchParallelLimit";
+} from "@/lib/search/parallelLimit";
 import { showToast } from "../toast/toast";
 import { usePlanStore } from "@/store/usePlanStore";
 import { notifyUsageToSlack } from "@/lib/slack";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
-import { SearchSource, normalizeSearchSources } from "@/lib/searchSource";
+import { SearchSource, normalizeSearchSources } from "@/lib/search/source";
 import type { ChatAttachmentPayload, SearchStartBlock } from "@/types/chat";
 import { BareButton } from "@/components/ui/button";
 

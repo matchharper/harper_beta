@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { DEFAULT_OPS_TALENT_RECOMMENDATION_PROMPT } from "@/lib/opsOpportunityRecommendationPrompt";
+import { DEFAULT_OPS_TALENT_RECOMMENDATION_PROMPT } from "@/lib/ops/opportunityRecommendationPrompt";
 
 type OpsOpportunityRecommendationPromptStoreState = {
   promptTemplate: string;

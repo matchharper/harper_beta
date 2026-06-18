@@ -2,20 +2,20 @@ import { createClient, type User } from "@supabase/supabase-js";
 import type { NextRequest } from "next/server";
 import type { Database } from "@/types/database.types";
 import { getRequestUser } from "@/lib/supabaseServer";
-import type { CandidateMarkStatus } from "@/lib/candidateMark";
-import type { SearchSource } from "@/lib/searchSource";
+import type { CandidateMarkStatus } from "@/lib/candidates/mark";
+import type { SearchSource } from "@/lib/search/source";
 import {
   buildEvidenceMap,
   buildRankMap,
   filterPositiveScoreCandidates,
   type RunPageCandidate,
-} from "@/lib/searchEvidence";
+} from "@/lib/search/evidence";
 import {
   buildMaskedSourceLinks,
   getRevealLogoColor,
   maskFullValue,
   maskWithFirstCharacter,
-} from "@/lib/profileReveal";
+} from "@/lib/candidates/profileReveal";
 
 const REVEAL_QUERY_CHUNK_SIZE = 200;
 

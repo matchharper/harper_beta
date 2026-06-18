@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
-import { normalizeCareerUtmSource } from "@/lib/careerUtm";
+import { normalizeCareerUtmSource } from "@/lib/career/utm";
 import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
 import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 
@@ -122,6 +122,8 @@ export const useCareerAuth = () => {
     );
     const localId =
       currentUrl.searchParams.get("lid") || nextUrl.searchParams.get("lid");
+    const abtestType =
+      currentUrl.searchParams.get("ab") || nextUrl.searchParams.get("ab");
     const emailOnboardingToken =
       currentUrl.searchParams.get(CAREER_EMAIL_ONBOARDING_TOKEN_PARAM) ||
       nextUrl.searchParams.get(CAREER_EMAIL_ONBOARDING_TOKEN_PARAM);
@@ -136,6 +138,9 @@ export const useCareerAuth = () => {
     }
     if (localId) {
       nextUrl.searchParams.set("lid", localId);
+    }
+    if (abtestType) {
+      nextUrl.searchParams.set("ab", abtestType);
     }
     if (emailOnboardingToken) {
       nextUrl.searchParams.set(
@@ -162,6 +167,9 @@ export const useCareerAuth = () => {
     }
     if (localId) {
       callbackUrl.searchParams.set("lid", localId);
+    }
+    if (abtestType) {
+      callbackUrl.searchParams.set("ab", abtestType);
     }
     if (emailOnboardingToken) {
       callbackUrl.searchParams.set(

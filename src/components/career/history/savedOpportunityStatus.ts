@@ -3,7 +3,6 @@ import type {
   CareerHistoryOpportunity,
   CareerOpportunitySavedStage,
 } from "../types";
-import { careerT } from "@/lib/career/translatedCareerMessage";
 
 export type SavedOpportunityManagementStatus =
   | "saved"
@@ -11,43 +10,41 @@ export type SavedOpportunityManagementStatus =
   | "closed"
   | "hidden";
 
-export const SAVED_OPPORTUNITY_STATUS_OPTIONS = [
-  {
-    id: "saved",
-    label: careerT(
-      "ko",
-      "career.history.saved_opportunity_status.0obqas2",
-      "저장됨"
-    ),
-  },
-  {
-    id: "active",
-    label: careerT(
-      "ko",
-      "career.history.saved_opportunity_status.0rjulen",
-      "프로세스 진행중"
-    ),
-  },
-  {
-    id: "closed",
-    label: careerT(
-      "ko",
-      "career.history.saved_opportunity_status.1jv953e",
-      "프로세스 종료"
-    ),
-  },
-  {
-    id: "hidden",
-    label: careerT(
-      "ko",
-      "career.history.saved_opportunity_status.0exoa8f",
-      "숨기기"
-    ),
-  },
-] as const satisfies readonly {
-  id: SavedOpportunityManagementStatus;
-  label: string;
-}[];
+type CareerTLike = (key: string, koSource: string) => string;
+
+const fallbackCareerT: CareerTLike = (_key, koSource) => koSource;
+
+export const getSavedOpportunityStatusOptions = (t: CareerTLike) =>
+  [
+    {
+      id: "saved",
+      label: t("career.history.saved_opportunity_status.0obqas2", "저장됨"),
+    },
+    {
+      id: "active",
+      label: t(
+        "career.history.saved_opportunity_status.0rjulen",
+        "프로세스 진행중"
+      ),
+    },
+    {
+      id: "closed",
+      label: t(
+        "career.history.saved_opportunity_status.1jv953e",
+        "프로세스 종료"
+      ),
+    },
+    {
+      id: "hidden",
+      label: t("career.history.saved_opportunity_status.0exoa8f", "숨기기"),
+    },
+  ] as const satisfies readonly {
+    id: SavedOpportunityManagementStatus;
+    label: string;
+  }[];
+
+export const SAVED_OPPORTUNITY_STATUS_OPTIONS =
+  getSavedOpportunityStatusOptions(fallbackCareerT);
 
 export const isSavedOpportunityManagementStatus = (
   value: unknown
@@ -96,8 +93,12 @@ export const getSavedOpportunityManagementStatus = (
 };
 
 export const getSavedOpportunityStatusLabel = (
-  status: SavedOpportunityManagementStatus
-) =>
-  SAVED_OPPORTUNITY_STATUS_OPTIONS.find((option) => option.id === status)
-    ?.label ??
-  careerT("ko", "career.history.saved_opportunity_status.0obqas2", "저장됨");
+  status: SavedOpportunityManagementStatus,
+  tArg?: CareerTLike
+) => {
+  const t = tArg ?? fallbackCareerT;
+  return (
+    getSavedOpportunityStatusOptions(t).find((option) => option.id === status)
+      ?.label ?? t("career.history.saved_opportunity_status.0obqas2", "저장됨")
+  );
+};

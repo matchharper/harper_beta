@@ -2,7 +2,7 @@
 import {
   CANDIDATE_MARK_STATUS_VALUES,
   type CandidateMarkStatus,
-} from "@/lib/candidateMark";
+} from "@/lib/candidates/mark";
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 

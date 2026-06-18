@@ -13,6 +13,10 @@ import CareerLanguageDevControls from "@/i18n/CareerLanguageDevControls";
 import CareerTranslationInspectOverlay from "@/i18n/CareerTranslationInspectOverlay";
 import { CareerTranslationInspectProvider } from "@/i18n/CareerTranslationInspectProvider";
 import CareerTranslationRuntime from "@/i18n/CareerTranslationRuntime";
+import {
+  getCurrentCareerTranslationPath,
+  isCareerTranslationRoute,
+} from "@/i18n/careerTranslationRoutes";
 import { MessagesProvider, type Locale } from "@/i18n/useMessage";
 
 const CompanyModalRoot = dynamic(
@@ -53,16 +57,18 @@ export default function App({ Component, pageProps }: AppProps) {
   const init = useAuthStore((s) => s.init);
   const router = useRouter();
   const [careerLocale, setCareerLocale] = useState<Locale>("ko");
-  const isCareerPage =
-    router.pathname === "/career" ||
-    router.pathname.startsWith("/career/") ||
-    router.pathname === "/career_login";
+  const currentPath = getCurrentCareerTranslationPath(
+    router.asPath || router.pathname
+  );
+  const isCareerPage = isCareerTranslationRoute(currentPath);
+  const isCareerLoginPage = router.pathname === "/career_login";
   const isOpsPage =
     router.pathname === "/ops" || router.pathname.startsWith("/ops/");
   const shouldHideCrisp =
     isCareerPage ||
+    isCareerLoginPage ||
     isOpsPage ||
-    router.pathname === "/index2" ||
+    router.pathname === "/" ||
     router.pathname === "/landing-ko-vf" ||
     router.pathname === "/network2";
   const shouldLoadCrisp = Boolean(CRISP_BOOTSTRAP_SCRIPT) && !shouldHideCrisp;
@@ -131,11 +137,11 @@ export default function App({ Component, pageProps }: AppProps) {
     >
       <ReactQueryProvider>
         <Head>
-          <title>Harper — AI Recruiter</title>
+          <title>Harper — AI Career Agent</title>
           <meta
             key="description"
             name="description"
-            content="Harper는 모든 팀들을 위한 전담 AI Recruiter입니다."
+            content="Harper는 모든 인재들을 위한 AI Career Agent입니다."
           />
           <meta key="theme-color" name="theme-color" content="#F7F0E8" />
         </Head>

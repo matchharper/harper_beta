@@ -1,10 +1,34 @@
 import Image from "next/image";
 import Link from "next/link";
 import type React from "react";
+import { ChevronDown } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+type FooterLocale = "ko" | "en";
 
 type CareerLandingFooterProps = {
   careerStartHref: string;
   onCareerStartClick?: React.MouseEventHandler<HTMLAnchorElement>;
+  locale?: FooterLocale;
+  onLocaleChange?: (locale: FooterLocale) => void;
+  labels?: {
+    start: string;
+    howItWorks: string;
+    successStories: string;
+    forTalent: string;
+    forCompanies: string;
+    company: string;
+    harperForCompanies: string;
+    scheduleCall: string;
+    blog: string;
+    linkedin: string;
+    contact: string;
+  };
 };
 
 const labelStyle =
@@ -12,9 +36,122 @@ const labelStyle =
 
 const blockStyle = "flex flex-col items-start justify-start md:min-w-[140px]";
 
+const languageOptions: readonly {
+  value: FooterLocale;
+  label: string;
+  flag: string;
+  flagLabel: string;
+}[] = [
+  {
+    value: "en",
+    label: "English",
+    flag: "🇺🇸",
+    flagLabel: "United States flag",
+  },
+  { value: "ko", label: "한국어", flag: "🇰🇷", flagLabel: "South Korea flag" },
+];
+
+function CountryFlag({
+  flag,
+  label,
+  className = "",
+}: {
+  flag: string;
+  label: string;
+  className?: string;
+}) {
+  return (
+    <span
+      aria-label={label}
+      className={`inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center text-[16px] leading-none ${className}`}
+      role="img"
+    >
+      {flag}
+    </span>
+  );
+}
+
+function persistLocale(locale: FooterLocale) {
+  if (typeof window === "undefined") return;
+
+  window.localStorage.setItem("harper:locale", locale);
+  document.cookie = `NEXT_LOCALE=${locale}; path=/; max-age=31536000; samesite=lax`;
+}
+
+function FooterLanguageDropdown({
+  locale,
+  onLocaleChange,
+}: {
+  locale: FooterLocale;
+  onLocaleChange?: (locale: FooterLocale) => void;
+}) {
+  const selected = languageOptions.find((option) => option.value === locale);
+
+  const handleLocaleSelect = (nextLocale: FooterLocale) => {
+    if (nextLocale === locale) return;
+
+    persistLocale(nextLocale);
+    if (onLocaleChange) {
+      onLocaleChange(nextLocale);
+      return;
+    }
+
+    window.location.reload();
+  };
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label="Select language"
+          className="mt-5 inline-flex h-9 items-center gap-2 rounded-full border border-black/10 bg-white px-3 text-xs font-medium text-black/60 transition hover:border-black/20 hover:bg-black/[0.03] hover:text-black focus:outline-none focus:ring-2 focus:ring-black/10"
+        >
+          {selected ? (
+            <CountryFlag flag={selected.flag} label={selected.flagLabel} />
+          ) : null}
+          <span>{selected?.label ?? "English"}</span>
+          <ChevronDown className="h-3.5 w-3.5" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-[136px]">
+        {languageOptions.map((option) => (
+          <DropdownMenuItem
+            key={option.value}
+            selected={option.value === locale}
+            onSelect={() => handleLocaleSelect(option.value)}
+          >
+            <CountryFlag
+              flag={option.flag}
+              label={option.flagLabel}
+              className="h-5 w-5 text-[17px]"
+            />
+            <span>{option.label}</span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export default function CareerLandingFooter({
   careerStartHref,
   onCareerStartClick,
+  locale,
+  onLocaleChange,
+  labels = {
+    start: "시작하기",
+    howItWorks: "How it works",
+    successStories: "Success stories",
+    forTalent: "For Talent",
+    forCompanies: "For Companies",
+    company: "Company",
+    harperForCompanies: "Harper for Companies",
+    scheduleCall: "Schedule a call",
+    blog: "Blog",
+    linkedin: "LinkedIn",
+    contact: "문의하기",
+  },
 }: CareerLandingFooterProps) {
   const openCrispChat = () => {
     if (typeof window === "undefined") return;
@@ -49,12 +186,18 @@ export default function CareerLandingFooter({
               <br />
               With <span className="text-black">Harper</span>.
             </p>
+            {locale ? (
+              <FooterLanguageDropdown
+                locale={locale}
+                onLocaleChange={onLocaleChange}
+              />
+            ) : null}
           </div>
 
           <div className="grid w-full grid-cols-2 gap-8 sm:grid-cols-3 lg:w-auto lg:gap-12">
             <div className={blockStyle}>
               <div className="w-full font-medium uppercase text-black">
-                For Talent
+                {labels.forTalent}
               </div>
               <div className={`${liststyle}`}>
                 <Link
@@ -62,41 +205,41 @@ export default function CareerLandingFooter({
                   className={labelStyle}
                   onClick={onCareerStartClick}
                 >
-                  시작하기
+                  {labels.start}
                 </Link>
                 <Link href="/#workflow" className={labelStyle}>
-                  How it works
+                  {labels.howItWorks}
                 </Link>
                 <Link href="/#voices" className={labelStyle}>
-                  Success stories
+                  {labels.successStories}
                 </Link>
               </div>
             </div>
 
             <div className={blockStyle}>
               <div className="w-full font-medium uppercase text-black">
-                For Companies
+                {labels.forCompanies}
               </div>
               <div className={`${liststyle}`}>
                 <Link href="/company" className={labelStyle}>
-                  Harper for Companies
+                  {labels.harperForCompanies}
                 </Link>
                 <a
                   href="https://calendly.com/chris-matchharper/30min"
                   className={labelStyle}
                 >
-                  Schedule a call
+                  {labels.scheduleCall}
                 </a>
               </div>
             </div>
 
             <div className={blockStyle}>
               <div className="w-full font-medium uppercase text-black">
-                Company
+                {labels.company}
               </div>
               <div className={`${liststyle}`}>
                 <Link href="/blog" className={labelStyle}>
-                  Blog
+                  {labels.blog}
                 </Link>
                 <a
                   href="https://www.linkedin.com/company/matchharper/"
@@ -104,14 +247,14 @@ export default function CareerLandingFooter({
                   rel="noreferrer"
                   className={labelStyle}
                 >
-                  LinkedIn
+                  {labels.linkedin}
                 </a>
                 <button
                   type="button"
                   onClick={openCrispChat}
                   className={`${labelStyle} text-left`}
                 >
-                  문의하기
+                  {labels.contact}
                 </button>
               </div>
             </div>

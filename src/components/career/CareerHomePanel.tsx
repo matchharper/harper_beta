@@ -55,7 +55,7 @@ import {
 } from "@/components/ui/section-header";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
 import { useCareerT } from "@/i18n/useCareerT";
-import { careerT } from "@/lib/career/translatedCareerMessage";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const countFormatter = new Intl.NumberFormat("ko-KR");
 const devAgentVariantOptions: Array<{
@@ -151,6 +151,68 @@ const HomeOpportunitySummaryCard = ({
   </InteractiveCard>
 );
 
+const CareerHomePanelSkeleton = () => {
+  const t = useCareerT();
+
+  return (
+    <div
+      aria-busy="true"
+      aria-label={t("career.home.loading", "홈 로딩 중")}
+      className="space-y-4 text-neutral-primary"
+    >
+      <Skeleton className="mx-auto mt-8 h-9 w-9/12 max-w-[360px] rounded-full" />
+      <div className="space-y-2 pt-1">
+        <Skeleton className="mx-auto h-4 w-10/12 max-w-[520px] rounded-full" />
+        <Skeleton className="mx-auto h-4 w-8/12 max-w-[420px] rounded-full" />
+      </div>
+
+      <div className="mt-12 flex w-full flex-row flex-wrap items-center justify-center gap-2">
+        <Skeleton className="h-10 w-full max-w-[260px] rounded-full" />
+        <Skeleton className="h-10 w-full max-w-[260px] rounded-full" />
+      </div>
+
+      <div className="mt-6 rounded-3xl border border-neutral-1000-a05 bg-bg-floating px-4 py-5 shadow-sm md:px-6">
+        <div className="flex flex-col items-center justify-between gap-2 md:flex-row">
+          <Skeleton className="hidden h-14 w-14 min-w-14 rounded-lg md:flex" />
+          <div className="flex w-full flex-col items-start justify-center gap-2 px-2 md:gap-1">
+            <Skeleton className="h-5 w-full max-w-[220px] rounded-full" />
+            <Skeleton className="h-4 w-full max-w-[360px] rounded-full" />
+          </div>
+          <Skeleton className="mt-4 h-11 min-w-[60%] rounded-full md:mt-0 md:min-w-[130px]" />
+        </div>
+      </div>
+
+      <div className="mt-12 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {[0, 1].map((item) => (
+          <div
+            key={item}
+            className="flex min-h-[104px] w-full flex-col justify-between rounded-2xl border border-neutral-1000-a10 bg-bg-floating px-4 py-4"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <Skeleton className="h-5 w-28 rounded-full" />
+              <Skeleton className="h-9 w-9 shrink-0 rounded-[12px]" />
+            </div>
+            <div>
+              <div className="mt-0 flex items-end gap-2.5">
+                <Skeleton className="h-10 w-16 rounded-full" />
+                <Skeleton className="mb-1 h-4 w-32 rounded-full" />
+              </div>
+              <Skeleton className="mt-3 h-4 w-24 rounded-full" />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-12" />
+      <div className="rounded-3xl border border-neutral-1000-a05 bg-bg-floating px-4 py-4 shadow-sm">
+        <Skeleton className="h-4 w-40 rounded-full" />
+        <Skeleton className="mt-3 h-4 w-full max-w-[520px] rounded-full" />
+        <Skeleton className="mt-4 h-10 w-36 rounded-full" />
+      </div>
+    </div>
+  );
+};
+
 const CareerHomePanel = ({
   onOpenChat,
   onOpenHistory,
@@ -173,6 +235,7 @@ const CareerHomePanel = ({
     conversationId,
     stage,
     isOnboardingDone,
+    workspaceDataLoading,
     activeCompanyRoleCount,
     callStartPending = false,
     currentDataJobPostingRecommendationTestPending,
@@ -232,8 +295,7 @@ const CareerHomePanel = ({
     newInternalOpportunityCount > 0
       ? formatCareerMessage(
           m,
-          careerT(
-            "ko",
+          t(
             "career.home.career_home_panel.030cbmq",
             "추천된 기회 · {count}개 연결 가능"
           ),
@@ -243,7 +305,7 @@ const CareerHomePanel = ({
         )
       : formatCareerMessage(
           m,
-          careerT("ko", "career.home.career_home_panel.0x7lgjp", "추천된 기회")
+          t("career.home.career_home_panel.0x7lgjp", "추천된 기회")
         );
   const savedPositionCount = historyOpportunityCounts.savedStages.saved;
   const connectedPositionCount =
@@ -275,8 +337,7 @@ const CareerHomePanel = ({
   );
   const inProgressCompanyLabel = useMemo(() => {
     if (inProgressPositionCount === 0) {
-      return careerT(
-        "ko",
+      return t(
         "career.home.career_home_panel.1psd54b",
         "아직 저장하거나 연결된 포지션 없음"
       );
@@ -291,36 +352,16 @@ const CareerHomePanel = ({
     )?.item.companyName?.trim();
     const statusLabel =
       inProgressTargetSavedStage === "saved"
-        ? formatCareerMessage(
-            m,
-            careerT(
-              "ko",
-              "career.common.career_history_panel.06mgpci",
-              "저장함"
-            )
-          )
-        : formatCareerMessage(
-            m,
-            careerT(
-              "ko",
-              "career.common.career_history_panel.0y27adb",
-              "연결됨"
-            )
-          );
+        ? t("career.common.career_history_panel.06mgpci", "저장함")
+        : t("career.common.career_history_panel.0y27adb", "연결됨");
 
     if (!firstCompanyName) {
-      return formatCareerMessage(
-        m,
-        careerT(
-          "ko",
-          "career.home.career_home_panel.1qhpcnm",
-          "{count}개 {status}"
-        ),
-        {
+      return t("career.home.career_home_panel.1qhpcnm", "{count}개 {status}", {
+        values: {
           count: countFormatter.format(inProgressPositionCount),
           status: statusLabel,
-        }
-      );
+        },
+      });
     }
 
     if (inProgressPositionCount === 1) {
@@ -330,17 +371,15 @@ const CareerHomePanel = ({
       });
     }
 
-    return formatCareerMessage(
-      m,
-      careerT(
-        "ko",
-        "career.home.career_home_panel.0ejjdwp",
-        "{company} 외 {count}개 {status}"
-      ),
+    return t(
+      "career.home.career_home_panel.0ejjdwp",
+      "{company} 외 {count}개 {status}",
       {
-        company: firstCompanyName,
-        count: countFormatter.format(inProgressPositionCount - 1),
-        status: statusLabel,
+        values: {
+          company: firstCompanyName,
+          count: countFormatter.format(inProgressPositionCount - 1),
+          status: statusLabel,
+        },
       }
     );
   }, [
@@ -348,14 +387,14 @@ const CareerHomePanel = ({
     inProgressPositionCount,
     inProgressTargetSavedStage,
     m,
+    t,
   ]);
 
   const activeOpportunityLabel =
     activeCompanyRoleCount > 0
       ? formatCareerMessage(
           m,
-          careerT(
-            "ko",
+          t(
             "career.home.career_home_panel.1jcg4hg",
             "현재 Harper 네트워크에서 {count}개의 기회를 스캔하고 있습니다. 매일매일 더 많은 기회를 발견합니다."
           ),
@@ -365,8 +404,7 @@ const CareerHomePanel = ({
         )
       : formatCareerMessage(
           m,
-          careerT(
-            "ko",
+          t(
             "career.home.career_home_panel.0rlf0ya",
             "현재 Harper는 새로운 기회를 계속 탐색하고 있습니다."
           )
@@ -374,25 +412,21 @@ const CareerHomePanel = ({
   const recommendationSettingLabel = talentPreferences
     ? talentPreferences.getExternalRecommendation &&
       talentPreferences.getInternalRecommendation
-      ? careerT(
-          "ko",
+      ? t(
           "career.home.career_home_panel.1dtmpgt",
           "외부 공개 포지션 추천과 내부 회사 연결 제안을 받고 있어요."
         )
       : talentPreferences.getExternalRecommendation
-        ? careerT(
-            "ko",
+        ? t(
             "career.home.career_home_panel.0f1tq9x",
             "외부 공개 포지션 추천만 받고 있어요. 내부 회사 연결 제안은 꺼져 있어요."
           )
         : talentPreferences.getInternalRecommendation
-          ? careerT(
-              "ko",
+          ? t(
               "career.home.career_home_panel.1l3sw8y",
               "내부 회사 연결 제안만 받고 있어요. 외부 공개 포지션 추천은 받지 않고 있어요."
             )
-          : careerT(
-              "ko",
+          : t(
               "career.home.career_home_panel.1dfqgdw",
               "외부 공개 포지션 추천과 내부 회사 연결 제안이 모두 꺼져 있어요."
             )
@@ -440,20 +474,14 @@ const CareerHomePanel = ({
 
   const callCardUsesCompletedLayout = isOnboardingCompleted;
   const callCardTitle = isOnboardingCompleted
-    ? careerT(
-        "ko",
-        "career.home.career_home_panel.0rplg97",
-        "Harper와 5분 통화"
-      )
-    : careerT(
-        "ko",
+    ? t("career.home.career_home_panel.0rplg97", "Harper와 5분 통화")
+    : t(
         "career.home.career_home_panel.0c36lcv",
         "아직 5분 커리어 인터뷰가 완료되지 않았어요"
       );
 
   const callCardDescription = isOnboardingCompleted ? (
-    careerT(
-      "ko",
+    t(
       "career.home.career_home_panel.0bq7bs7",
       "변경된 사항이 있거나 요구사항이 있을 때 — 통화하면 빨라요"
     )
@@ -474,29 +502,20 @@ const CareerHomePanel = ({
   const onboardingChecklistItems = [
     {
       icon: UserRound,
-      label: careerT("ko", "career.home.career_home_panel.1q70b1u", "계정"),
+      label: t("career.home.career_home_panel.1q70b1u", "계정"),
       meta: null,
       state: "done",
     },
     {
       icon: FileText,
-      label: careerT(
-        "ko",
-        "career.home.career_home_panel.0gj76aj",
-        "자료 제출"
-      ),
+      label: t("career.home.career_home_panel.0gj76aj", "자료 제출"),
       meta: null,
       state: "done",
     },
     {
       icon: MessageSquareText,
-      label: careerT(
-        "ko",
-        "career.home.career_home_panel.0dha8ne",
-        "기준 확인"
-      ),
-      meta: careerT(
-        "ko",
+      label: t("career.home.career_home_panel.0dha8ne", "기준 확인"),
+      meta: t(
         "career.home.career_home_panel.19aqpg8",
         "역할과 조건을 짧게 확인"
       ),
@@ -504,11 +523,7 @@ const CareerHomePanel = ({
     },
     {
       icon: Search,
-      label: careerT(
-        "ko",
-        "career.home.career_home_panel.15tndog",
-        "추천 시작"
-      ),
+      label: t("career.home.career_home_panel.15tndog", "추천 시작"),
       meta: null,
       state: "pending",
     },
@@ -647,6 +662,10 @@ const CareerHomePanel = ({
     logCareerEvent,
   ]);
 
+  if (workspaceDataLoading) {
+    return <CareerHomePanelSkeleton />;
+  }
+
   return (
     <div className="space-y-4 text-neutral-primary">
       <Text as="h2" type="head1" className="mt-8 text-center font-hedvig">
@@ -682,13 +701,8 @@ const CareerHomePanel = ({
               <RefreshCw className="h-3.5 w-3.5" />
             )}
             {profileSavePending
-              ? careerT(
-                  "ko",
-                  "career.home.career_home_panel.1frpdtk",
-                  "가져오는 중..."
-                )
-              : careerT(
-                  "ko",
+              ? t("career.home.career_home_panel.1frpdtk", "가져오는 중...")
+              : t(
                   "career.home.career_home_panel.024uw9c",
                   "정보 다시 가져오기"
                 )}

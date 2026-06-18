@@ -4,7 +4,7 @@ import OfficialJobsEventTracker from "@/components/jobs/OfficialJobsEventTracker
 import OfficialJobsHeader from "@/components/jobs/OfficialJobsHeader";
 import { Page } from "@/components/layout/Page";
 import { PageContainer } from "@/components/layout/PageContainer";
-import { postOfficialJobEvent } from "@/lib/officialJobEvents";
+import { postOfficialJobEvent } from "@/lib/officialJobs/events";
 import { OFFICIAL_JOBS_LOGIN_HREF, type OfficialJob } from "@/lib/officialJobs";
 import {
   OFFICIAL_JOBS_CANONICAL_URL,
@@ -12,11 +12,11 @@ import {
   OFFICIAL_JOBS_LIST_TITLE,
   OFFICIAL_JOBS_OG_IMAGE_URL,
   buildOfficialJobsCollectionStructuredData,
-} from "@/lib/officialJobsSeo";
+} from "@/lib/officialJobs/seo";
 import {
   getPublicOfficialJobByAshbyId,
   getPublicOfficialJobs,
-} from "@/lib/officialJobs.server";
+} from "@/lib/officialJobs/server";
 import { ArrowRight, Building2, MapPin } from "lucide-react";
 import type { GetServerSideProps } from "next";
 import Head from "next/head";

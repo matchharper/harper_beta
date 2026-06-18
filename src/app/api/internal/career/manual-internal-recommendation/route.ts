@@ -6,7 +6,7 @@ import {
 import {
   fetchManualInternalRecommendationRoles,
   queueManualInternalRecommendationRun,
-} from "@/lib/opsCareerServer";
+} from "@/lib/ops/careerServer";
 
 export const runtime = "nodejs";
 

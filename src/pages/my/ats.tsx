@@ -47,7 +47,7 @@ import {
   useSendAtsSequenceStep,
   useSetManualAtsEmail,
   useUpdateAtsSequenceStatus,
-} from "@/hooks/useAtsWorkspace";
+} from "@/hooks/ats/useAtsWorkspace";
 import CandidateProfileDetailPage from "@/components/profile/CandidateProfileDetailPage";
 import {
   ATS_SEQUENCE_STEP_COUNT,
@@ -66,7 +66,7 @@ import {
   type AtsWorkspaceRecord,
 } from "@/lib/ats/shared";
 import { canAccessAts } from "@/lib/internalAccess";
-import { useCandidateDetail } from "@/hooks/useCandidateDetail";
+import { useCandidateDetail } from "@/hooks/candidates/useCandidateDetail";
 import { useAuthStore } from "@/store/useAuthStore";
 import {
   formatDateTime,

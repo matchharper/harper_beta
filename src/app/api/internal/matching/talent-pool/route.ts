@@ -10,7 +10,7 @@ import {
   parseOpsMatchingOffset,
   parseOpsMatchingTags,
   parseOpsMatchingTalentPoolTab,
-} from "@/lib/opsMatching";
+} from "@/lib/ops/matching";
 
 export const runtime = "nodejs";
 

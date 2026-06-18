@@ -1,11 +1,11 @@
 import { memo, useMemo, useState } from "react";
 import { ExternalLink, FileText, LoaderCircle, RefreshCw } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
-import { useIngestCareerProfile } from "@/hooks/useOpsCareer";
+import { useIngestCareerProfile } from "@/hooks/ops/useOpsCareer";
 import type {
   CareerTalentProfileResponse,
   CareerTalentProfileIngestSource,
-} from "@/lib/opsCareerServer";
+} from "@/lib/ops/careerServer";
 import {
   formatKst,
   formatRegisteredLinkLabel,

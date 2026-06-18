@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser, supabaseServer } from "@/lib/supabaseServer";
-import type { OfficialJobEventType } from "@/lib/officialJobEvents";
+import type { OfficialJobEventType } from "@/lib/officialJobs/events";
 import type { Json } from "@/types/database.types";
 import { buildLandingLoginEmailType } from "@/lib/landingLogTypes";
 import {
@@ -8,7 +8,7 @@ import {
   mapOfficialJobEventToLandingEvent,
   OFFICIAL_JOBS_LANDING_ABTEST_TYPE,
   OFFICIAL_JOBS_LANDING_SOURCE,
-} from "@/lib/officialJobLandingLogs";
+} from "@/lib/officialJobs/landingLogs";
 
 const OFFICIAL_JOB_EVENT_TYPES = new Set<OfficialJobEventType>([
   "jobs_list_view",

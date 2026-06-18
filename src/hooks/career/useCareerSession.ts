@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { SessionResponse } from "@/components/career/types";
 import { getErrorMessage } from "./careerHelpers";
 import type { FetchWithAuth } from "./useCareerApi";
-import { getCareerSignupAttributionPayload } from "@/lib/careerSignupAttribution";
+import { getCareerSignupAttributionPayload } from "@/lib/career/signupAttribution";
 import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
 import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 
@@ -30,7 +30,7 @@ const shouldRetryCareerSession = (failureCount: number, error: unknown) => {
   const message = error instanceof Error ? error.message : String(error ?? "");
   return !(
     /Unauthorized|login session/i.test(message) ||
-    message.includes(H.loginSessionMissing)
+    message.includes(H.loginSessionMissing.ko)
   );
 };
 

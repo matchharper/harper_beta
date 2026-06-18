@@ -1,5 +1,5 @@
 import React from "react";
-import { CandidateMarkStatus } from "@/lib/candidateMark";
+import { CandidateMarkStatus } from "@/lib/candidates/mark";
 import CandidateMarkButton from "./CandidateMarkButton";
 import ShortlistMemoEditor from "./ShortlistMemoEditor";
 

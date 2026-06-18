@@ -97,14 +97,10 @@ function extractPlaceholders(value) {
     .sort();
 }
 
-function placeholdersMatch(koValue, enValue) {
-  const koPlaceholders = extractPlaceholders(koValue);
-  const enPlaceholders = extractPlaceholders(enValue);
-  return (
-    koPlaceholders.length === enPlaceholders.length &&
-    koPlaceholders.every(
-      (placeholder, index) => placeholder === enPlaceholders[index]
-    )
+function getUnsupportedPlaceholders(koValue, enValue) {
+  const koPlaceholders = new Set(extractPlaceholders(koValue));
+  return extractPlaceholders(enValue).filter(
+    (placeholder) => !koPlaceholders.has(placeholder)
   );
 }
 
@@ -280,11 +276,17 @@ const translatedEn = await translateEnglish(englishRequests);
 for (const entry of englishRequests) {
   const nextValue =
     translatedEn[entry.key] ?? existingEn[entry.key] ?? entry.ko;
-  if (!placeholdersMatch(entry.ko, nextValue)) {
+  const unsupportedPlaceholders = getUnsupportedPlaceholders(
+    entry.ko,
+    nextValue
+  );
+  if (unsupportedPlaceholders.length > 0) {
     throw new Error(
-      `Placeholder mismatch after translation for ${entry.key}: ko=${extractPlaceholders(
-        entry.ko
-      ).join(",")} en=${extractPlaceholders(nextValue).join(",")}`
+      `Unsupported placeholder after translation for ${
+        entry.key
+      }: unsupported=${unsupportedPlaceholders.join(
+        ","
+      )} source=${extractPlaceholders(entry.ko).join(",")}`
     );
   }
   nextEn[entry.key] = nextValue;

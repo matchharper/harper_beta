@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser, supabaseServer } from "@/lib/supabaseServer";
-import { searchSourceToQueryType } from "@/lib/searchSource";
+import { searchSourceToQueryType } from "@/lib/search/source";
 
 export async function POST(req: NextRequest) {
   if (req.method !== "POST")

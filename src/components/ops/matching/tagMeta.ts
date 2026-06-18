@@ -1,8 +1,8 @@
-import { CANDIDATE_MARK_OPTIONS } from "@/lib/candidateMark";
+import { CANDIDATE_MARK_OPTIONS } from "@/lib/candidates/mark";
 import {
   OPS_MATCHING_EXCLUDE_NOT_INTERESTED_FILTER_VALUE,
   OPS_MATCHING_NO_TAG_FILTER_VALUE,
-} from "@/lib/opsMatchingFilters";
+} from "@/lib/ops/matchingFilters";
 
 export const MATCHING_REVIEW_STAGE_TAG_BY_STAGE = {
   accepted: "내부:수락",

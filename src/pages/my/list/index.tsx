@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import ConnectedPage from "./connectedPage";
 import BookmarkPage from "./bookmarkPage";
 import RequestedPage from "./requestedPage";
-import { useConnectionCounts } from "@/hooks/useBookMarkCandidates";
+import { useConnectionCounts } from "@/hooks/candidates/useBookMarkCandidates";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import PickedPage from "./pickedPage";
 

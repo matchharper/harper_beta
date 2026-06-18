@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
-import { normalizeCareerUtmSource } from "@/lib/careerUtm";
+import { normalizeCareerUtmSource } from "@/lib/career/utm";
 
 type OnboardingStatus = {
   needsOnboarding: boolean;

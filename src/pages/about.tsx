@@ -28,7 +28,9 @@ async function copyTextToClipboard(text: string) {
 }
 
 export default function AboutPage() {
-  const { careerStartHref, handleCareerStartClick } = useCareerLandingStart();
+  const { careerStartHref, handleCareerStartClick } = useCareerLandingStart({
+    trackingEnabled: false,
+  });
   const [isEmailCopied, setIsEmailCopied] = useState(false);
 
   useEffect(() => {
@@ -64,7 +66,7 @@ export default function AboutPage() {
         <CareerAppBar
           careerStartHref={careerStartHref}
           onCareerStartClick={handleCareerStartClick}
-          sectionHrefPrefix="/index2"
+          sectionHrefPrefix="/"
           bgColor="neutral-100"
         />
 

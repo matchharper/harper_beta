@@ -151,16 +151,18 @@ async function fetchTranslationPage(req: NextRequest, namespace: string) {
   const category = getCategoryFilter(req);
 
   if (!category) {
+    const sourceLimit = Math.min(limit + 1, MAX_PAGE_SIZE);
     const data = await fetchTranslationGroups({
       cursor,
-      limit: limit + 1,
+      limit: sourceLimit,
       minKoLength,
       namespace,
       query,
     });
 
     const rows = data.slice(0, limit).map(normalizeGroupRow);
-    const hasMore = data.length > limit;
+    const hasMore =
+      sourceLimit > limit ? data.length > limit : data.length >= limit;
 
     return {
       category,

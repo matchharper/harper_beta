@@ -9,6 +9,10 @@ import {
 } from "@/lib/talentOnboarding/server";
 import { insertTalentProfileSourceErrorLog } from "@/lib/talentOnboarding/errorLogs";
 import {
+  buildProfileMaterialActivity,
+  insertTalentActivityEvent,
+} from "@/lib/talentOnboarding/activityEvents";
+import {
   mergeTalentProfileFromLatestSources,
   pickLinkedinUrl,
 } from "@/lib/talentOnboarding/profileIngestion";
@@ -542,6 +546,31 @@ export async function POST(req: NextRequest) {
     }
 
     const profile = await fetchTalentUserProfile({ admin, userId: user.id });
+    const materialActivity = buildProfileMaterialActivity({
+      previous: {
+        resumeFileName: existingProfile?.resume_file_name ?? null,
+        resumeLinks: existingProfile?.resume_links ?? [],
+        resumeStoragePath: existingProfile?.resume_storage_path ?? null,
+        resumeText: existingProfile?.resume_text ?? null,
+      },
+      next: {
+        resumeFileName: profile?.resume_file_name ?? null,
+        resumeLinks: profile?.resume_links ?? [],
+        resumeStoragePath: profile?.resume_storage_path ?? null,
+        resumeText: profile?.resume_text ?? null,
+      },
+    });
+    if (materialActivity) {
+      await insertTalentActivityEvent({
+        admin,
+        changedDomains: materialActivity.changedDomains,
+        eventType: "profile_materials_updated",
+        impactLevel: materialActivity.impactLevel,
+        source: "profile_tab",
+        summary: materialActivity.summary,
+        userId: user.id,
+      });
+    }
     const talentProfile = await fetchTalentStructuredProfile({
       admin,
       userId: user.id,

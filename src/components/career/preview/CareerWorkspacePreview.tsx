@@ -7,7 +7,9 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type KeyboardEvent,
   type ReactNode,
+  type SyntheticEvent,
 } from "react";
 import {
   CareerChatPanelProvider,
@@ -38,7 +40,9 @@ import {
   DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
 } from "@/lib/talentOnboarding/recommendationSettings";
 import { cn } from "@/lib/utils";
-import { careerT } from "@/lib/career/translatedCareerMessage";
+import { useCareerT } from "@/i18n/useCareerT";
+
+type CareerT = ReturnType<typeof useCareerT>;
 
 const PREVIEW_NOW = Date.UTC(2026, 3, 20, 9, 0, 0);
 const previewDate = (offsetMs = 0) =>
@@ -75,27 +79,24 @@ const initialTalentPreferences: CareerTalentPreferences = {
   recommendationBatchSize: DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
 };
 
-const initialTalentInsights: CareerTalentInsights = {
-  technical_strengths: careerT(
-    "ko",
+const getInitialTalentInsights = (t: CareerT): CareerTalentInsights => ({
+  technical_strengths: t(
     "career.preview.career_workspace_preview.1c9yhl3",
     "LLM 제품을 실제 사용자와 맞닿은 환경에 배포하는 일을 주로 해왔고, 모델 품질과 제품 속도를 같이 관리하는 역할을 선호합니다."
   ),
-  desired_teams: careerT(
-    "ko",
+  desired_teams: t(
     "career.preview.career_workspace_preview.0wa8f7a",
     "작은 팀이어도 제품 방향과 기술 의사결정이 빠른 곳을 선호합니다. 의미 없는 AI 포장보다는 실제 사용량이 있는 제품이면 좋겠습니다."
   ),
-};
+});
 
-const initialTalentProfile: CareerTalentProfile = {
+const getInitialTalentProfile = (t: CareerT): CareerTalentProfile => ({
   talentUser: {
     user_id: "career-preview-user",
     name: "Preview Candidate",
     profile_picture: null,
     headline: "Applied AI Engineer focused on shipping agent products",
-    bio: careerT(
-      "ko",
+    bio: t(
       "career.preview.career_workspace_preview.1hcvc0e",
       "사용자와 맞닿은 AI 제품을 빠르게 배포하고, 모델 성능과 제품 UX 사이의 균형을 설계하는 역할을 주로 맡아왔습니다."
     ),
@@ -106,8 +107,7 @@ const initialTalentProfile: CareerTalentProfile = {
       id: 1,
       talent_id: "career-preview-user",
       role: "Senior AI Engineer",
-      description: careerT(
-        "ko",
+      description: t(
         "career.preview.career_workspace_preview.12a8e6s",
         "대화형 agent 제품을 설계하고, retrieval / evaluation / observability 파이프라인을 구축했습니다."
       ),
@@ -120,8 +120,7 @@ const initialTalentProfile: CareerTalentProfile = {
       company_name: "Applied AI Startup",
       company_location: "Seoul",
       company_logo: null,
-      memo: careerT(
-        "ko",
+      memo: t(
         "career.preview.career_workspace_preview.0ng3mak",
         "0 to 1 제품 론치 경험"
       ),
@@ -130,8 +129,7 @@ const initialTalentProfile: CareerTalentProfile = {
       id: 2,
       talent_id: "career-preview-user",
       role: "Software Engineer",
-      description: careerT(
-        "ko",
+      description: t(
         "career.preview.career_workspace_preview.19rh5dl",
         "데이터 파이프라인과 internal tooling을 개발하며 제품팀과 협업했습니다."
       ),
@@ -164,8 +162,7 @@ const initialTalentProfile: CareerTalentProfile = {
   talentExtras: [
     {
       title: "Open Source",
-      description: careerT(
-        "ko",
+      description: t(
         "career.preview.career_workspace_preview.1tenwz4",
         "LLM eval 도구와 agent workflow 패키지 유지보수"
       ),
@@ -173,15 +170,14 @@ const initialTalentProfile: CareerTalentProfile = {
       memo: null,
     },
   ],
-};
+});
 
-const previewConversationTurns: Array<
-  Pick<CareerMessage, "role" | "content" | "messageType">
-> = [
+const getPreviewConversationTurns = (
+  t: CareerT
+): Array<Pick<CareerMessage, "role" | "content" | "messageType">> => [
   {
     role: "assistant",
-    content: careerT(
-      "ko",
+    content: t(
       "career.preview.career_workspace_preview.022alch",
       "온보딩이 끝났어요. 지금은 어떤 기회를 가장 우선해서 보고 싶으세요?"
     ),
@@ -189,8 +185,7 @@ const previewConversationTurns: Array<
   },
   {
     role: "user",
-    content: careerT(
-      "ko",
+    content: t(
       "career.preview.career_workspace_preview.1j2um38",
       "글로벌 AI 제품팀에서 지금보다 보상과 책임이 큰 역할을 먼저 보고 싶어요."
     ),
@@ -198,8 +193,7 @@ const previewConversationTurns: Array<
   },
   {
     role: "assistant",
-    content: careerT(
-      "ko",
+    content: t(
       "career.preview.career_workspace_preview.0gdmtk0",
       "좋아요. 서울, Remote, SF까지 열어두고 applied AI와 agent product 중심으로 좁혀볼게요."
     ),
@@ -207,8 +201,7 @@ const previewConversationTurns: Array<
   },
   {
     role: "user",
-    content: careerT(
-      "ko",
+    content: t(
       "career.preview.career_workspace_preview.19k8ud9",
       "정규직이 우선이고, 강한 fit이면 fractional advisory도 괜찮아요."
     ),
@@ -216,8 +209,7 @@ const previewConversationTurns: Array<
   },
   {
     role: "assistant",
-    content: careerT(
-      "ko",
+    content: t(
       "career.preview.career_workspace_preview.0kof53s",
       "반영했어요. 연결 가능한 내부 기회와 공개 포지션을 함께 보고, fit이 강한 것부터 먼저 정리해둘게요."
     ),
@@ -228,13 +220,15 @@ const previewConversationTurns: Array<
 function buildPreviewConversationMessages({
   loopKey,
   typing,
+  turns,
   visibleCount,
 }: {
   loopKey: number;
   typing: boolean;
+  turns: Array<Pick<CareerMessage, "role" | "content" | "messageType">>;
   visibleCount: number;
 }): CareerMessage[] {
-  return previewConversationTurns.slice(0, visibleCount).map((turn, index) => ({
+  return turns.slice(0, visibleCount).map((turn, index) => ({
     ...turn,
     id: `preview-loop-${loopKey}-${index}`,
     createdAt: previewMinutesAfter(index),
@@ -242,21 +236,16 @@ function buildPreviewConversationMessages({
   }));
 }
 
-const initialMessages = buildPreviewConversationMessages({
-  loopKey: 0,
-  typing: false,
-  visibleCount: previewConversationTurns.length,
-});
-
-const initialRecentOpportunities: CareerRecentOpportunity[] = [
+const getInitialRecentOpportunities = (
+  t: CareerT
+): CareerRecentOpportunity[] => [
   {
     id: "preview-history-1",
     kind: "match",
     opportunityType: CareerOpportunityType.IntroRequest,
     title: "Applied AI Engineer",
     companyName: "Stealth Agent Startup",
-    summary: careerT(
-      "ko",
+    summary: t(
       "career.preview.career_workspace_preview.0r19bht",
       "작은 팀에서 제품과 모델 품질을 함께 책임질 수 있는 역할입니다."
     ),
@@ -270,8 +259,7 @@ const initialRecentOpportunities: CareerRecentOpportunity[] = [
     opportunityType: CareerOpportunityType.ExternalJd,
     title: "Founding ML Engineer",
     companyName: "Global Remote SaaS",
-    summary: careerT(
-      "ko",
+    summary: t(
       "career.preview.career_workspace_preview.1ist4od",
       "초기 제품 방향과 LLM workflow를 같이 설계할 수 있는 포지션입니다."
     ),
@@ -281,22 +269,22 @@ const initialRecentOpportunities: CareerRecentOpportunity[] = [
   },
 ];
 
-const initialHistoryOpportunities: CareerHistoryOpportunity[] = [
+const getInitialHistoryOpportunities = (
+  t: CareerT
+): CareerHistoryOpportunity[] => [
   {
     id: "preview-history-1",
     roleId: "preview-role-1",
     title: "Applied AI Engineer",
     companyName: "Harper Portfolio Team",
-    companyDescription: careerT(
-      "ko",
+    companyDescription: t(
       "career.preview.career_workspace_preview.1gp8ljf",
       "작은 제품팀에서 모델 품질과 사용자 경험을 같이 책임지는 팀입니다."
     ),
     companyHomepageUrl: "https://harper.ai",
     companyLinkedinUrl: null,
     companyLogoUrl: null,
-    description: careerT(
-      "ko",
+    description: t(
       "career.preview.career_workspace_preview.1nzus3x",
       "프로덕트 팀과 바로 붙어 agent 기능을 제품에 배포하고 운영 지표까지 같이 보는 역할입니다."
     ),
@@ -316,13 +304,11 @@ const initialHistoryOpportunities: CareerHistoryOpportunity[] = [
     postedAt: previewDaysAgo(4),
     recommendedAt: previewDaysAgo(2),
     recommendationReasons: [
-      careerT(
-        "ko",
+      t(
         "career.preview.career_workspace_preview.0r259wt",
         "LLM 제품 론치 경험이 직접적으로 연결됩니다."
       ),
-      careerT(
-        "ko",
+      t(
         "career.preview.career_workspace_preview.051gu06",
         "작은 팀에서 제품 방향과 기술 의사결정을 함께 가져갈 수 있습니다."
       ),
@@ -340,16 +326,14 @@ const initialHistoryOpportunities: CareerHistoryOpportunity[] = [
     roleId: "preview-role-2",
     title: "Founding ML Engineer",
     companyName: "Global Remote SaaS",
-    companyDescription: careerT(
-      "ko",
+    companyDescription: t(
       "career.preview.career_workspace_preview.01j68q1",
       "미국 기반 B2B SaaS 팀으로, 초기 AI 기능을 제품 핵심으로 전환하고 있습니다."
     ),
     companyHomepageUrl: "https://example.com/remote-saas",
     companyLinkedinUrl: "https://linkedin.com/company/remote-saas",
     companyLogoUrl: null,
-    description: careerT(
-      "ko",
+    description: t(
       "career.preview.career_workspace_preview.18ymrj7",
       "LLM workflow와 evaluation 체계를 만들고, 엔지니어링 팀과 함께 고객 기능을 빠르게 실험하는 포지션입니다."
     ),
@@ -369,13 +353,11 @@ const initialHistoryOpportunities: CareerHistoryOpportunity[] = [
     postedAt: previewDaysAgo(7),
     recommendedAt: previewDaysAgo(3),
     recommendationReasons: [
-      careerT(
-        "ko",
+      t(
         "career.preview.career_workspace_preview.19hvkft",
         "Remote 선호와 제품 중심 applied AI 경험이 잘 맞습니다."
       ),
-      careerT(
-        "ko",
+      t(
         "career.preview.career_workspace_preview.05fo2rr",
         "초기 시스템 설계와 품질 기준 수립 경험을 바로 활용할 수 있습니다."
       ),
@@ -393,16 +375,14 @@ const initialHistoryOpportunities: CareerHistoryOpportunity[] = [
     roleId: "preview-role-3",
     title: "Research Engineer",
     companyName: "Frontier Robotics Lab",
-    companyDescription: careerT(
-      "ko",
+    companyDescription: t(
       "career.preview.career_workspace_preview.10x4rht",
       "논문과 프로덕트 사이를 잇는 applied research 조직입니다."
     ),
     companyHomepageUrl: "https://example.com/robotics-lab",
     companyLinkedinUrl: null,
     companyLogoUrl: null,
-    description: careerT(
-      "ko",
+    description: t(
       "career.preview.career_workspace_preview.045qelm",
       "멀티모달 모델 평가 파이프라인과 배포 시스템을 만드는 역할입니다."
     ),
@@ -422,13 +402,11 @@ const initialHistoryOpportunities: CareerHistoryOpportunity[] = [
     postedAt: previewDaysAgo(8),
     recommendedAt: previewDaysAgo(4),
     recommendationReasons: [
-      careerT(
-        "ko",
+      t(
         "career.preview.career_workspace_preview.0hhw3xx",
         "논문 기반 평가 시스템 경험이 직접적으로 이어집니다."
       ),
-      careerT(
-        "ko",
+      t(
         "career.preview.career_workspace_preview.1b3wco5",
         "research와 product의 중간 지점 역할을 선호하는지 확인이 필요한 기회입니다."
       ),
@@ -446,16 +424,14 @@ const initialHistoryOpportunities: CareerHistoryOpportunity[] = [
     roleId: "preview-role-4",
     title: "Product ML Lead",
     companyName: "Stealth Commerce AI",
-    companyDescription: careerT(
-      "ko",
+    companyDescription: t(
       "career.preview.career_workspace_preview.0kxr9jl",
       "커머스 검색과 개인화 모델을 제품 KPI에 직접 연결하는 팀입니다."
     ),
     companyHomepageUrl: null,
     companyLinkedinUrl: "https://linkedin.com/company/stealth-commerce-ai",
     companyLogoUrl: null,
-    description: careerT(
-      "ko",
+    description: t(
       "career.preview.career_workspace_preview.05gbt68",
       "추천 모델과 conversational UX를 제품 조직과 함께 리드하는 포지션입니다."
     ),
@@ -475,8 +451,7 @@ const initialHistoryOpportunities: CareerHistoryOpportunity[] = [
     postedAt: previewDaysAgo(10),
     recommendedAt: previewDaysAgo(5),
     recommendationReasons: [
-      careerT(
-        "ko",
+      t(
         "career.preview.career_workspace_preview.0occyrr",
         "제품 오너십은 높지만 도메인 자체 선호가 갈릴 수 있습니다."
       ),
@@ -499,6 +474,7 @@ type CareerWorkspacePreviewViewportMode =
 type CareerWorkspacePreviewProps = {
   autoPlayConversation?: boolean;
   className?: string;
+  disableInteractions?: boolean;
   embedded?: boolean;
   initialTab?: CareerWorkspaceTab | "chat";
   viewport?: CareerWorkspacePreviewViewportMode;
@@ -583,11 +559,37 @@ const ScaledPreviewViewport = ({
 const CareerWorkspacePreview = ({
   autoPlayConversation = true,
   className,
+  disableInteractions = false,
   embedded = false,
   initialTab = "chat",
   viewport = "auto",
 }: CareerWorkspacePreviewProps) => {
   const router = useRouter();
+  const t = useCareerT();
+  const previewConversationTurns = useMemo(
+    () => getPreviewConversationTurns(t),
+    [t]
+  );
+  const initialMessages = useMemo(
+    () =>
+      buildPreviewConversationMessages({
+        loopKey: 0,
+        turns: previewConversationTurns,
+        typing: false,
+        visibleCount: previewConversationTurns.length,
+      }),
+    [previewConversationTurns]
+  );
+  const initialRecentOpportunities = useMemo(
+    () => getInitialRecentOpportunities(t),
+    [t]
+  );
+  const initialHistoryOpportunities = useMemo(
+    () => getInitialHistoryOpportunities(t),
+    [t]
+  );
+  const initialTalentInsights = useMemo(() => getInitialTalentInsights(t), [t]);
+  const initialTalentProfile = useMemo(() => getInitialTalentProfile(t), [t]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<CareerWorkspaceTab | "chat">(
     initialTab
@@ -655,12 +657,55 @@ const CareerWorkspacePreview = ({
   const [historyOpportunities, setHistoryOpportunities] = useState(
     initialHistoryOpportunities
   );
+
+  useEffect(() => {
+    setTalentInsights(initialTalentInsights);
+    setSavedTalentInsights(initialTalentInsights);
+    setTalentProfile(initialTalentProfile);
+    setHistoryOpportunities(initialHistoryOpportunities);
+    if (!autoPlayConversation) {
+      setManualMessages(initialMessages);
+    }
+  }, [
+    autoPlayConversation,
+    initialHistoryOpportunities,
+    initialMessages,
+    initialTalentInsights,
+    initialTalentProfile,
+  ]);
+
   const scrollRef = useRef<HTMLDivElement>(null);
+  const blockPreviewInteraction = useCallback(
+    (event: SyntheticEvent<HTMLElement>) => {
+      if (!disableInteractions) return;
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    [disableInteractions]
+  );
+  const blockPreviewKeyboardInteraction = useCallback(
+    (event: KeyboardEvent<HTMLElement>) => {
+      if (!disableInteractions) return;
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    [disableInteractions]
+  );
+  const interactionGuardProps = disableInteractions
+    ? {
+        onClickCapture: blockPreviewInteraction,
+        onDoubleClickCapture: blockPreviewInteraction,
+        onSubmitCapture: blockPreviewInteraction,
+        onKeyDownCapture: blockPreviewKeyboardInteraction,
+      }
+    : {};
   const messages = useMemo(
     () =>
       autoLoopEnabled
         ? buildPreviewConversationMessages({
             loopKey: conversationLoopKey,
+            turns: previewConversationTurns,
             typing: true,
             visibleCount: visibleConversationCount,
           })
@@ -668,7 +713,9 @@ const CareerWorkspacePreview = ({
     [
       autoLoopEnabled,
       conversationLoopKey,
+      initialMessages,
       manualMessages,
+      previewConversationTurns,
       visibleConversationCount,
     ]
   );
@@ -693,7 +740,11 @@ const CareerWorkspacePreview = ({
     }, delay);
 
     return () => window.clearTimeout(timeoutId);
-  }, [autoLoopEnabled, visibleConversationCount]);
+  }, [
+    autoLoopEnabled,
+    previewConversationTurns.length,
+    visibleConversationCount,
+  ]);
   const handleWorkspaceTabChange = useCallback(
     (
       nextTab: CareerWorkspaceTab,
@@ -701,6 +752,7 @@ const CareerWorkspacePreview = ({
         historyTarget?: CareerWorkspaceHistoryTarget;
       }
     ) => {
+      if (disableInteractions) return;
       setActiveTab(nextTab);
 
       if (!router.isReady || nextTab !== "history") return;
@@ -729,7 +781,7 @@ const CareerWorkspacePreview = ({
         { shallow: true, scroll: false }
       );
     },
-    [router]
+    [disableInteractions, router]
   );
 
   const sidebarContextValue: CareerSidebarContextValue = useMemo(
@@ -738,6 +790,7 @@ const CareerWorkspacePreview = ({
       conversationId: "preview-conversation",
       stage: "completed",
       isOnboardingDone: talentPreferences.isOnboardingDone,
+      workspaceDataLoading: false,
       userChatCount: 2,
       answeredCount: 8,
       targetQuestions: 8,
@@ -874,8 +927,7 @@ const CareerWorkspacePreview = ({
         if (args?.structuredProfile) {
           setTalentProfile(args.structuredProfile);
           setProfileSaveInfo(
-            careerT(
-              "ko",
+            t(
               "career.preview.career_workspace_preview.1truxm7",
               "프로필을 저장했습니다."
             )
@@ -883,8 +935,7 @@ const CareerWorkspacePreview = ({
           return true;
         }
         setProfileSaveInfo(
-          careerT(
-            "ko",
+          t(
             "career.preview.career_workspace_preview.05bnk2r",
             "이력서와 링크를 저장했습니다."
           )
@@ -893,8 +944,7 @@ const CareerWorkspacePreview = ({
       },
       onRefreshTalentProfileSources: () => {
         setProfileSaveInfo(
-          careerT(
-            "ko",
+          t(
             "career.preview.career_workspace_preview.1bdgvh5",
             "저장된 이력서/링크에서 정보를 다시 가져왔습니다."
           )
@@ -929,8 +979,7 @@ const CareerWorkspacePreview = ({
         setSavedTalentPreferences(talentPreferences);
         setTalentPreferencesUpdatedAt(new Date().toISOString());
         setTalentPreferencesSaveInfo(
-          careerT(
-            "ko",
+          t(
             "career.preview.career_workspace_preview.0o0xl6w",
             "프로필 설정을 저장했습니다."
           )
@@ -953,8 +1002,7 @@ const CareerWorkspacePreview = ({
         setSavedTalentInsights(talentInsights);
         setTalentInsightsUpdatedAt(new Date().toISOString());
         setTalentInsightsSaveInfo(
-          careerT(
-            "ko",
+          t(
             "career.preview.career_workspace_preview.1ashy8n",
             "Harper insight를 저장했습니다."
           )
@@ -1032,6 +1080,8 @@ const CareerWorkspacePreview = ({
       talentPreferencesSaveInfo,
       savedTalentInsights,
       historyOpportunities,
+      initialRecentOpportunities,
+      t,
     ]
   );
 
@@ -1106,8 +1156,7 @@ const CareerWorkspacePreview = ({
         const nextAssistantMessage: CareerMessage = {
           id: Date.now() + 1,
           role: "assistant",
-          content: careerT(
-            "ko",
+          content: t(
             "career.preview.career_workspace_preview.1dkij5s",
             "미리보기 화면입니다. 실제 연동에서는 이 입력이 서버 대화와 이어집니다."
           ),
@@ -1128,8 +1177,7 @@ const CareerWorkspacePreview = ({
         const nextAssistantMessage: CareerMessage = {
           id: now,
           role: "assistant",
-          content: careerT(
-            "ko",
+          content: t(
             "career.preview.career_workspace_preview.04a6xnr",
             "미리보기 화면입니다. 실제 연동에서는 인터뷰를 종료하고 대화 요약 카드만 여기에 렌더링합니다."
           ),
@@ -1139,8 +1187,7 @@ const CareerWorkspacePreview = ({
         const nextStepsMessage: CareerMessage = {
           id: now + 1,
           role: "assistant",
-          content: careerT(
-            "ko",
+          content: t(
             "career.preview.career_workspace_preview.1rsjscm",
             "말씀해주신 조건들을 Harper의 검색 기준에 반영했어요. 결과는 포지션 탭과 이메일로 준비되는 대로 보내드릴 거예요. 최대 1시간 정도 걸릴 수 있어요. 확인하신 뒤에는 좋아요/싫어요를 눌러주시고, 마음에 드는 회사는 track 해두시면 관련 소식이나 채용 업데이트를 챙겨드릴게요. 한 가지만 여쭤볼게요. 선호하실 만한 기회라면 제가 연결 가능한 기회가 아닌 외부 공고라도 주기적으로 알려드리면 좋을까요? 아니면 내부 연결처럼 특히 핏이 강한 기회가 있을 때만 연락드리는 쪽이 편하실까요?"
           ),
@@ -1169,6 +1216,7 @@ const CareerWorkspacePreview = ({
       messages,
       profileLinks,
       resumeFile,
+      t,
       talentPreferences.isOnboardingDone,
     ]
   );
@@ -1197,7 +1245,10 @@ const CareerWorkspacePreview = ({
 
   if (embedded) {
     return (
-      <div className={cn("h-full w-full", className)}>
+      <div
+        {...interactionGuardProps}
+        className={cn("h-full w-full", className)}
+      >
         <ScaledPreviewViewport viewport={viewport}>
           {(resolvedViewport) => renderPreviewContent(resolvedViewport)}
         </ScaledPreviewViewport>
@@ -1205,7 +1256,11 @@ const CareerWorkspacePreview = ({
     );
   }
 
-  return <div className={className}>{renderPreviewContent()}</div>;
+  return (
+    <div {...interactionGuardProps} className={className}>
+      {renderPreviewContent()}
+    </div>
+  );
 };
 
 export default CareerWorkspacePreview;

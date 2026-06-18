@@ -2,7 +2,7 @@ import { cx, opsTheme } from "@/components/ops/theme";
 import type {
   OpsOpportunityRoleRecord,
   OpsOpportunityWorkspaceRecord,
-} from "@/lib/opsOpportunity";
+} from "@/lib/ops/opportunity";
 import {
   AlertCircle,
   ChevronDown,

@@ -3,7 +3,7 @@ import {
   CandidateDetail,
   GithubContributionWithRepo,
   candidateKey,
-} from "@/hooks/useCandidateDetail";
+} from "@/hooks/candidates/useCandidateDetail";
 import ShareProfileModal from "@/components/Modal/ShareProfileModal";
 import ConnectionModal from "@/components/Modal/ConnectionModal";
 import { ChevronDown, GraduationCap, Upload } from "lucide-react";
@@ -26,11 +26,11 @@ import { useLogEvent } from "@/hooks/useLog";
 import { logger } from "@/utils/logger";
 import { Loading } from "@/components/ui/loading";
 import FeedbackBanner from "@/pages/my/p/components/FeedbackBanner";
-import { useRunDetail } from "@/hooks/useRunDetail";
+import { useRunDetail } from "@/hooks/search/useRunDetail";
 import { supabase } from "@/lib/supabase";
 import Criterias from "@/pages/my/p/components/Criterias";
 import CandidateMemoDock from "@/components/candidates/CandidateMemoDock";
-import { useShortlistMemo } from "@/hooks/useShortlistMemo";
+import { useShortlistMemo } from "@/hooks/candidates/useShortlistMemo";
 import {
   formatScholarCitationCount,
   formatScholarPaperCount,

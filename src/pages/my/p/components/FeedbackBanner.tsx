@@ -3,7 +3,7 @@ import { Heart, Send, X, Check, Zap } from "lucide-react";
 import { QueryClient } from "@tanstack/react-query";
 import SimpleAreaModal from "@/components/Modal/SimpleAreaModal";
 import ConnectionAreaModal from "@/components/Modal/ConnectionAreaModal";
-import { candidateKey } from "@/hooks/useCandidateDetail";
+import { candidateKey } from "@/hooks/candidates/useCandidateDetail";
 import { BareButton } from "@/components/ui/button";
 
 type ConnectionItem = { typed: number };

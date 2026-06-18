@@ -21,7 +21,7 @@ import {
   SEARCH_LANDING_SESSION_GAP_MS,
   usesSearchLandingBExperience,
   type SearchLandingAssignmentType,
-} from "@/lib/searchLandingLogs";
+} from "@/lib/search/landingLogs";
 import { withLandingLogSource } from "@/lib/landingLogTypes";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";

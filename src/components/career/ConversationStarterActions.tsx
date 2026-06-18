@@ -36,6 +36,41 @@ const STARTER_ICON_BY_NAME: Record<
   "sliders-horizontal": SlidersHorizontal,
 };
 
+type CareerT = ReturnType<typeof useCareerT>;
+
+function getStarterDisplayCopy(
+  t: CareerT,
+  starterId: CareerConversationStarterId
+) {
+  if (starterId === "preference_update") {
+    return {
+      label: t(
+        "career.common.conversation_starters.1sfi8z4",
+        "선호 조건 업데이트하기"
+      ),
+      labelKey: "career.common.conversation_starters.1sfi8z4",
+      shortLabel: t(
+        "career.common.conversation_starters.0o5blh4",
+        "선호 조건 업데이트"
+      ),
+      shortLabelKey: "career.common.conversation_starters.0o5blh4",
+    };
+  }
+
+  return {
+    label: t(
+      "career.common.conversation_starters.07qcswd",
+      "더 이야기하고 더 좋은 연결 받기"
+    ),
+    labelKey: "career.common.conversation_starters.07qcswd",
+    shortLabel: t(
+      "career.common.conversation_starters.1hl3ggw",
+      "경험 더 들려주기"
+    ),
+    shortLabelKey: "career.common.conversation_starters.1hl3ggw",
+  };
+}
+
 export function ConversationStarterActions({
   callStartPending = false,
   className,
@@ -89,7 +124,9 @@ export function ConversationStarterActions({
       aria-busy={pendingAction !== null || callStartPending || undefined}
     >
       {CAREER_CONVERSATION_STARTERS.map((starter) => {
-        const label = isReengagement ? starter.shortLabel : starter.label;
+        const copy = getStarterDisplayCopy(t, starter.id);
+        const label = isReengagement ? copy.shortLabel : copy.label;
+        const labelKey = isReengagement ? copy.shortLabelKey : copy.labelKey;
         const callPending =
           pendingAction?.starterId === starter.id &&
           pendingAction.mode === "call";
@@ -105,7 +142,7 @@ export function ConversationStarterActions({
             aria-label={t(
               "career.chat.conversation_starter_actions.start_call_label",
               "{label} 통화 시작",
-              { values: { label: starter.label } }
+              { values: { label: copy.label } }
             )}
             aria-busy={callPending || undefined}
             actionVariant="secondary"
@@ -139,6 +176,7 @@ export function ConversationStarterActions({
               )}
             </span>
             <span
+              data-career-i18n-key={callPending ? undefined : labelKey}
               className={cn(
                 "min-w-0 text-[14px] font-medium leading-5",
                 isReengagement && "text-[12px] leading-4"

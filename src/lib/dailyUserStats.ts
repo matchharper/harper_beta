@@ -5,7 +5,7 @@ import {
 import {
   OFFICIAL_JOBS_LANDING_SOURCE,
   parseOfficialJobLandingLogType,
-} from "@/lib/officialJobLandingLogs";
+} from "@/lib/officialJobs/landingLogs";
 import {
   OFFICIAL_JOBS_INTERNAL_COPY_ROLE_TITLE,
   OFFICIAL_JOBS_INTERNAL_COPY_SLUG,
@@ -56,7 +56,7 @@ type TalentMessageRow = Pick<
 >;
 type TalentActivityEventRow = Pick<
   Database["public"]["Tables"]["talent_activity_events"]["Row"],
-  "talent_id" | "event_type" | "occurred_at"
+  "talent_id" | "event_type" | "created_at"
 >;
 type TalentSettingRow = Pick<
   Database["public"]["Tables"]["talent_setting"]["Row"],
@@ -485,11 +485,11 @@ export async function buildDailyUserStatsReport(
     fetchAllRows<TalentActivityEventRow>((from, to) =>
       supabaseServer
         .from("talent_activity_events")
-        .select("talent_id,event_type,occurred_at")
+        .select("talent_id,event_type,created_at")
         .eq("event_type", "onboarding_completed")
-        .gte("occurred_at", startIso)
-        .lt("occurred_at", endIso)
-        .order("occurred_at", { ascending: true })
+        .gte("created_at", startIso)
+        .lt("created_at", endIso)
+        .order("created_at", { ascending: true })
         .range(from, to)
     ),
     fetchAllRows<TalentSettingRow>((from, to) =>

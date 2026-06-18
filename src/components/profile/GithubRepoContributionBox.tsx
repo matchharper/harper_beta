@@ -1,4 +1,4 @@
-import type { GithubContributionWithRepo } from "@/hooks/useCandidateDetail";
+import type { GithubContributionWithRepo } from "@/hooks/candidates/useCandidateDetail";
 import React, { useMemo, useState } from "react";
 import {
   Star,

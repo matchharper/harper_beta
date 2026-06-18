@@ -7,7 +7,7 @@ import {
   deleteOpsOpportunityRecommendation,
   fetchOpsOpportunityRecommendations,
   saveOpsOpportunityRecommendation,
-} from "@/lib/opsOpportunity";
+} from "@/lib/ops/opportunity";
 import { OpportunityType, isOpportunityType } from "@/lib/opportunityType";
 
 export const runtime = "nodejs";

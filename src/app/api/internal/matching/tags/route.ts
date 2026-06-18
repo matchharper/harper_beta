@@ -8,7 +8,7 @@ import {
   addOpsMatchingTalentTag,
   deleteOpsMatchingTalentTag,
   fetchOpsMatchingTalentRoleTags,
-} from "@/lib/opsMatching";
+} from "@/lib/ops/matching";
 
 export const runtime = "nodejs";
 

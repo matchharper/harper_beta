@@ -6,7 +6,7 @@ import { BareButton } from "@/components/ui/button";
 import type {
   OpsMatchingRoleOption,
   OpsMatchingTalentItem,
-} from "@/lib/opsMatching";
+} from "@/lib/ops/matching";
 
 type MatchingTalentDrawerProps = {
   onClose: () => void;

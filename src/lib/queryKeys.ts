@@ -3,7 +3,7 @@
 import {
   OPS_COMPANY_MANAGEMENT_PAGE_SIZE,
   OPS_OPPORTUNITY_COMPANY_PAGE_SIZE,
-} from "@/lib/opsOpportunityCompanyManagement";
+} from "@/lib/ops/opportunityCompanyManagement";
 
 export type QueryKey = readonly unknown[];
 

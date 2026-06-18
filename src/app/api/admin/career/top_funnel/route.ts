@@ -35,7 +35,7 @@ type TalentMessageRow = Pick<
 >;
 type TalentActivityEventRow = Pick<
   Database["public"]["Tables"]["talent_activity_events"]["Row"],
-  "talent_id" | "event_type" | "occurred_at"
+  "talent_id" | "event_type" | "created_at"
 >;
 type TalentSettingRow = Pick<
   Database["public"]["Tables"]["talent_setting"]["Row"],
@@ -303,11 +303,11 @@ export async function POST(req: NextRequest) {
       fetchAllRows<TalentActivityEventRow>((from, to) =>
         supabaseServer
           .from("talent_activity_events")
-          .select("talent_id,event_type,occurred_at")
+          .select("talent_id,event_type,created_at")
           .eq("event_type", "onboarding_completed")
-          .gte("occurred_at", dateRange.startIso)
-          .lt("occurred_at", dateRange.endExclusiveIso)
-          .order("occurred_at", { ascending: true })
+          .gte("created_at", dateRange.startIso)
+          .lt("created_at", dateRange.endExclusiveIso)
+          .order("created_at", { ascending: true })
           .range(from, to)
       ),
       fetchAllRows<TalentSettingRow>((from, to) =>

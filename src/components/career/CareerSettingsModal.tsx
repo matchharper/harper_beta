@@ -10,7 +10,7 @@ import {
   UserCircle2,
   X,
 } from "lucide-react";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { useIsMobile } from "@/hooks/useMediaQuery";
@@ -21,41 +21,32 @@ import CareerProfileSettingsSection from "./CareerProfileSettingsSection";
 import CareerResumeLinksSettingsSection from "./settings/CareerResumeLinksSettingsSection";
 import { BareButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
-import { careerT } from "@/lib/career/translatedCareerMessage";
 
 type CareerSettingsTab = "profile" | "resume" | "account";
 type MobileSettingsView = "menu" | CareerSettingsTab;
 
-const SETTINGS_TABS: Array<{
+type SettingsTabDefinition = {
   key: CareerSettingsTab;
   label: string;
   Icon: React.ComponentType<{ className?: string }>;
-}> = [
+};
+
+const getSettingsTabs = (
+  t: ReturnType<typeof useCareerT>
+): SettingsTabDefinition[] => [
   {
     key: "profile",
-    label: careerT(
-      "ko",
-      "career.settings.career_settings_modal.0tdjt8e",
-      "프로필 설정"
-    ),
+    label: t("career.settings.career_settings_modal.0tdjt8e", "프로필 설정"),
     Icon: Settings2,
   },
   {
     key: "resume",
-    label: careerT(
-      "ko",
-      "career.settings.career_settings_modal.1u81q4e",
-      "내 이력서/링크"
-    ),
+    label: t("career.settings.career_settings_modal.1u81q4e", "내 이력서/링크"),
     Icon: FileText,
   },
   {
     key: "account",
-    label: careerT(
-      "ko",
-      "career.settings.career_settings_modal.1lbfn2i",
-      "계정 관리"
-    ),
+    label: t("career.settings.career_settings_modal.1lbfn2i", "계정 관리"),
     Icon: UserCircle2,
   },
 ];
@@ -65,15 +56,11 @@ const FULL_SNAP = 0.95;
 const SETTINGS_SNAP_POINTS: Array<number | string> = [MENU_SNAP, FULL_SNAP];
 const ACCOUNT_DELETE_CONFIRMATION = "delete_account";
 
-const getAccountDeleteErrorMessage = (error: unknown) => {
+const getAccountDeleteErrorMessage = (error: unknown, fallback: string) => {
   if (error instanceof Error && error.message.trim()) {
     return error.message;
   }
-  return careerT(
-    "ko",
-    "career.settings.career_settings_modal.1b7saeu",
-    "회원 탈퇴 처리 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요."
-  );
+  return fallback;
 };
 
 const AccountDeleteConfirmDialog = ({
@@ -179,16 +166,11 @@ const AccountDeleteConfirmDialog = ({
               <Trash2 className="h-4 w-4" />
             )}
             {pending
-              ? careerT(
-                  "ko",
+              ? t(
                   "career.settings.career_settings_modal.1vqjolg",
                   "탈퇴 처리 중"
                 )
-              : careerT(
-                  "ko",
-                  "career.settings.career_settings_modal.0tel9h5",
-                  "탈퇴하기"
-                )}
+              : t("career.settings.career_settings_modal.0tel9h5", "탈퇴하기")}
           </BareButton>
         </div>
       </div>
@@ -246,8 +228,7 @@ const AccountSectionContent = ({
       if (!response.ok) {
         throw new Error(
           payload.error ??
-            careerT(
-              "ko",
+            t(
               "career.settings.career_settings_modal.1b7saeu",
               "회원 탈퇴 처리 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요."
             )
@@ -257,7 +238,15 @@ const AccountSectionContent = ({
       setDeleteConfirmOpen(false);
       await onLogout();
     } catch (error) {
-      setDeleteError(getAccountDeleteErrorMessage(error));
+      setDeleteError(
+        getAccountDeleteErrorMessage(
+          error,
+          t(
+            "career.settings.career_settings_modal.1b7saeu",
+            "회원 탈퇴 처리 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요."
+          )
+        )
+      );
     } finally {
       setDeletePending(false);
     }
@@ -345,6 +334,7 @@ const CareerSettingsModal = ({
   onClose: () => void;
 }) => {
   const t = useCareerT();
+  const settingsTabs = useMemo(() => getSettingsTabs(t), [t]);
 
   const logCareerEvent = useCareerLogEvent();
   const { onLogout, user } = useCareerSidebarContext();
@@ -375,7 +365,7 @@ const CareerSettingsModal = ({
 
   const email =
     user?.email ??
-    careerT("ko", "career.settings.career_settings_modal.0zjg8a0", "로그인 중");
+    t("career.settings.career_settings_modal.0zjg8a0", "로그인 중");
 
   if (isMobile) {
     const handleOpenChange = (nextOpen: boolean) => {
@@ -445,7 +435,7 @@ const CareerSettingsModal = ({
                   </DrawerPrimitive.Close>
                 </header>
                 <nav className="flex flex-col gap-1 overflow-y-auto px-3 pb-6 pt-2">
-                  {SETTINGS_TABS.map((tab) => (
+                  {settingsTabs.map((tab) => (
                     <BareButton
                       key={tab.key}
                       type="button"
@@ -477,7 +467,7 @@ const CareerSettingsModal = ({
                     {t("career.settings.career_settings_modal.1338q8i", "설정")}
                   </BareButton>
                   <h2 className="text-[15px] font-semibold text-neutral-primary">
-                    {SETTINGS_TABS.find((t) => t.key === mobileView)?.label}
+                    {settingsTabs.find((tab) => tab.key === mobileView)?.label}
                   </h2>
                   <DrawerPrimitive.Close
                     aria-label={t(
@@ -523,9 +513,9 @@ const CareerSettingsModal = ({
                 className="px-3 py-0 inline-flex items-center gap-1 text-sm text-neutral-soft transition-colors hover:text-neutral-primary"
               >
                 <ArrowLeft className="h-4 w-4" />
-                Back
+                {t("career.settings.career_settings_modal.0poe6eq", "뒤로")}
               </BareButton>
-              {SETTINGS_TABS.map((tab) => {
+              {settingsTabs.map((tab) => {
                 const isActive = tab.key === activeTab;
                 return (
                   <BareButton

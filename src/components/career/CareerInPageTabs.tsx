@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { useHideOnScroll } from "@/hooks/useHideOnScroll";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 import { BareButton } from "@/components/ui/button";
-import { careerT } from "@/lib/career/translatedCareerMessage";
+import { useCareerT } from "@/i18n/useCareerT";
 
 export type CareerInPageTabItem<T extends string> = {
   id: T;
@@ -30,6 +30,7 @@ const CareerInPageTabs = <T extends string>({
   className?: string;
   mobileFloating?: boolean;
 }) => {
+  const t = useCareerT();
   const isMobile = useIsMobile();
   const floatingEnabled = mobileFloating && isMobile;
   const visible = useHideOnScroll({
@@ -82,8 +83,7 @@ const CareerInPageTabs = <T extends string>({
               <AttentionBadge
                 label={
                   item.attentionLabel ??
-                  careerT(
-                    "ko",
+                  t(
                     "career.common.career_in_page_tabs.1h43miz",
                     "확인이 필요합니다"
                   )

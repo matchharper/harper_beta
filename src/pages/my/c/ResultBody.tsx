@@ -2,7 +2,7 @@
 import React from "react";
 import CandidateViews from "@/components/CandidateViews";
 import { useMessages } from "@/i18n/useMessage";
-import { SearchSource } from "@/lib/searchSource";
+import { SearchSource } from "@/lib/search/source";
 import { BareButton } from "@/components/ui/button";
 
 type Props = {

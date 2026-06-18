@@ -19,6 +19,14 @@ import { canInspectCareerTranslations } from "@/lib/internalAccess";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
 import {
+  notifyCareerTranslationDbPreviewChanged,
+  subscribeCareerTranslationDbPreviewChanges,
+} from "@/i18n/careerTranslationPreviewEvents";
+import {
+  getCurrentCareerTranslationPath,
+  isCareerTranslationRoute,
+} from "@/i18n/careerTranslationRoutes";
+import {
   MessagesProvider,
   useMessages,
   type Locale,
@@ -28,6 +36,10 @@ import {
 const namespace = "career";
 const INSPECT_STORAGE_KEY = "harper:careerTranslationInspect";
 const INSPECT_STORAGE_CHANGE_EVENT = "harper:careerTranslationInspectChange";
+const DB_PREVIEW_STORAGE_KEY = "harper:careerTranslationDbPreview";
+const DB_PREVIEW_STORAGE_CHANGE_EVENT =
+  "harper:careerTranslationDbPreviewChange";
+const DB_PREVIEW_REFETCH_INTERVAL_MS = 15_000;
 const translationEntryQueryKey = "careerTranslationInspectEntries";
 
 export type CareerTranslationMatchConfidence = "exact" | "partial" | "template";
@@ -66,6 +78,10 @@ export type CareerTranslationEntry = {
 type CareerTranslationInspectContextValue = {
   canInspect: boolean;
   clearSelectedMatch: () => void;
+  dbPreviewEnabled: boolean;
+  dbPreviewError: string;
+  dbPreviewLoading: boolean;
+  dbPreviewUpdatedAt: string | null;
   dirtyKeys: Set<string>;
   ensureEntries: (keys: string[]) => Promise<void>;
   error: string;
@@ -76,11 +92,13 @@ type CareerTranslationInspectContextValue = {
   isEntrySaving: (key: string) => boolean;
   matches: CareerTranslationMatch[];
   registerMatches: (matches: CareerTranslationMatch[]) => void;
+  refreshDbPreview: () => Promise<void>;
   revertEntry: (key: string) => void;
   saveEntry: (key: string) => Promise<void>;
   saveInfo: string;
   selectedMatch: CareerTranslationMatch | null;
   selectMatch: (match: CareerTranslationMatch) => void;
+  setDbPreviewEnabled: (enabled: boolean) => void;
   setInspectEnabled: (enabled: boolean) => void;
   updateEntryValue: (key: string, locale: Locale, value: string) => void;
 };
@@ -173,6 +191,21 @@ function writeStoredInspectEnabled(enabled: boolean) {
   window.dispatchEvent(new Event(INSPECT_STORAGE_CHANGE_EVENT));
 }
 
+function readStoredDbPreviewEnabled() {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(DB_PREVIEW_STORAGE_KEY) === "1";
+}
+
+function writeStoredDbPreviewEnabled(enabled: boolean) {
+  if (typeof window === "undefined") return;
+  if (enabled) {
+    window.localStorage.setItem(DB_PREVIEW_STORAGE_KEY, "1");
+  } else {
+    window.localStorage.removeItem(DB_PREVIEW_STORAGE_KEY);
+  }
+  window.dispatchEvent(new Event(DB_PREVIEW_STORAGE_CHANGE_EVENT));
+}
+
 function subscribeStoredInspectEnabled(onChange: () => void) {
   if (typeof window === "undefined") return () => undefined;
 
@@ -181,6 +214,17 @@ function subscribeStoredInspectEnabled(onChange: () => void) {
   return () => {
     window.removeEventListener("storage", onChange);
     window.removeEventListener(INSPECT_STORAGE_CHANGE_EVENT, onChange);
+  };
+}
+
+function subscribeStoredDbPreviewEnabled(onChange: () => void) {
+  if (typeof window === "undefined") return () => undefined;
+
+  window.addEventListener("storage", onChange);
+  window.addEventListener(DB_PREVIEW_STORAGE_CHANGE_EVENT, onChange);
+  return () => {
+    window.removeEventListener("storage", onChange);
+    window.removeEventListener(DB_PREVIEW_STORAGE_CHANGE_EVENT, onChange);
   };
 }
 
@@ -236,6 +280,21 @@ function readLookupRows(payload: unknown) {
     .map(normalizeEntry);
 }
 
+function readTranslationPageMeta(payload: unknown) {
+  if (!payload || typeof payload !== "object") {
+    return { hasMore: false, nextCursor: null };
+  }
+
+  const record = payload as Record<string, unknown>;
+  return {
+    hasMore: record.hasMore === true,
+    nextCursor:
+      typeof record.nextCursor === "string" && record.nextCursor.length > 0
+        ? record.nextCursor
+        : null,
+  };
+}
+
 export function CareerTranslationInspectProvider({
   children,
 }: {
@@ -251,10 +310,18 @@ export function CareerTranslationInspectProvider({
     readStoredInspectEnabled,
     readServerInspectEnabledSnapshot
   );
+  const manualDbPreviewEnabled = useSyncExternalStore(
+    subscribeStoredDbPreviewEnabled,
+    readStoredDbPreviewEnabled,
+    readServerInspectEnabledSnapshot
+  );
   const [matches, setMatches] = useState<CareerTranslationMatch[]>([]);
   const [selectedMatch, setSelectedMatch] =
     useState<CareerTranslationMatch | null>(null);
   const [entriesByKey, setEntriesByKey] = useState<
+    Map<string, CareerTranslationEntry>
+  >(() => new Map());
+  const [dbPreviewEntriesByKey, setDbPreviewEntriesByKey] = useState<
     Map<string, CareerTranslationEntry>
   >(() => new Map());
   const [savedEntriesByKey, setSavedEntriesByKey] = useState<
@@ -263,16 +330,28 @@ export function CareerTranslationInspectProvider({
   const [dirtyKeys, setDirtyKeys] = useState<Set<string>>(() => new Set());
   const [loadingKeys, setLoadingKeys] = useState<Set<string>>(() => new Set());
   const [savingKeys, setSavingKeys] = useState<Set<string>>(() => new Set());
+  const [dbPreviewLoading, setDbPreviewLoading] = useState(false);
+  const [dbPreviewError, setDbPreviewError] = useState("");
+  const [dbPreviewUpdatedAt, setDbPreviewUpdatedAt] = useState<string | null>(
+    null
+  );
   const [error, setError] = useState("");
   const [saveInfo, setSaveInfo] = useState("");
   const inFlightKeysRef = useRef<Set<string>>(new Set());
+  const dbPreviewRequestIdRef = useRef(0);
   const matchSignatureRef = useRef("");
-  const canInspect = !authLoading && canInspectCareerTranslations(user?.email);
+  const currentPath = getCurrentCareerTranslationPath(
+    router.asPath || router.pathname
+  );
+  const isCareerRoute = isCareerTranslationRoute(currentPath);
+  const canInspect =
+    isCareerRoute && !authLoading && canInspectCareerTranslations(user?.email);
   const focusedTranslationKey =
     router.isReady && typeof router.query.focusTranslationKey === "string"
       ? router.query.focusTranslationKey.trim()
       : "";
   const inspectEnabled = canInspect && manualInspectEnabled;
+  const dbPreviewEnabled = canInspect && manualDbPreviewEnabled;
 
   const getAccessToken = useCallback(async () => {
     const {
@@ -308,6 +387,18 @@ export function CareerTranslationInspectProvider({
     }
   }, []);
 
+  const setDbPreviewEnabled = useCallback((enabled: boolean) => {
+    writeStoredDbPreviewEnabled(enabled);
+
+    if (!enabled) {
+      dbPreviewRequestIdRef.current += 1;
+      setDbPreviewEntriesByKey(new Map());
+      setDbPreviewLoading(false);
+      setDbPreviewError("");
+      setDbPreviewUpdatedAt(null);
+    }
+  }, []);
+
   const registerMatches = useCallback(
     (nextMatches: CareerTranslationMatch[]) => {
       const nextSignature = buildMatchSignature(nextMatches);
@@ -332,8 +423,11 @@ export function CareerTranslationInspectProvider({
   }, []);
 
   const getEntry = useCallback(
-    (key: string) => entriesByKey.get(key) ?? fallbackEntry(key),
-    [entriesByKey]
+    (key: string) =>
+      entriesByKey.get(key) ??
+      dbPreviewEntriesByKey.get(key) ??
+      fallbackEntry(key),
+    [dbPreviewEntriesByKey, entriesByKey]
   );
 
   const fetchEntriesForKeys = useCallback(
@@ -356,6 +450,113 @@ export function CareerTranslationInspectProvider({
     },
     [fetchWithAuth]
   );
+
+  const fetchAllDbPreviewEntries = useCallback(async () => {
+    const rows: CareerTranslationEntry[] = [];
+    const seenCursors = new Set<string>();
+    let cursor: string | null = null;
+    let hasMore = true;
+
+    while (hasMore) {
+      if (
+        !isCareerTranslationRoute(getCurrentCareerTranslationPath(null)) ||
+        !readStoredDbPreviewEnabled()
+      ) {
+        return rows;
+      }
+
+      const params = new URLSearchParams({
+        limit: "100",
+        namespace,
+      });
+      if (cursor) params.set("cursor", cursor);
+
+      const response = await fetchWithAuth(
+        `/api/internal/translations?${params.toString()}`
+      );
+      const payload: unknown = await response.json();
+      if (!response.ok) {
+        throw new Error(
+          readErrorMessage(payload, "DB 검수 번역을 불러오지 못했습니다.")
+        );
+      }
+
+      rows.push(...readLookupRows(payload));
+
+      const pageMeta = readTranslationPageMeta(payload);
+      hasMore =
+        pageMeta.hasMore &&
+        Boolean(pageMeta.nextCursor) &&
+        !seenCursors.has(pageMeta.nextCursor ?? "");
+      cursor = pageMeta.nextCursor;
+      if (cursor) seenCursors.add(cursor);
+    }
+
+    return rows;
+  }, [fetchWithAuth]);
+
+  const refreshDbPreview = useCallback(async () => {
+    if (!dbPreviewEnabled) return;
+
+    const requestId = dbPreviewRequestIdRef.current + 1;
+    dbPreviewRequestIdRef.current = requestId;
+    setDbPreviewLoading(true);
+    setDbPreviewError("");
+
+    try {
+      const rows = await fetchAllDbPreviewEntries();
+      if (dbPreviewRequestIdRef.current !== requestId) return;
+
+      setDbPreviewEntriesByKey(new Map(rows.map((row) => [row.key, row])));
+      setDbPreviewUpdatedAt(new Date().toISOString());
+    } catch (fetchError) {
+      if (dbPreviewRequestIdRef.current !== requestId) return;
+      setDbPreviewError(
+        fetchError instanceof Error
+          ? fetchError.message
+          : "DB 검수 번역을 불러오지 못했습니다."
+      );
+    } finally {
+      if (dbPreviewRequestIdRef.current === requestId) {
+        setDbPreviewLoading(false);
+      }
+    }
+  }, [dbPreviewEnabled, fetchAllDbPreviewEntries]);
+
+  useEffect(() => {
+    if (!dbPreviewEnabled) return;
+
+    const timeoutId = window.setTimeout(() => {
+      void refreshDbPreview();
+    }, 0);
+
+    return () => {
+      dbPreviewRequestIdRef.current += 1;
+      window.clearTimeout(timeoutId);
+    };
+  }, [dbPreviewEnabled, refreshDbPreview]);
+
+  useEffect(() => {
+    if (!dbPreviewEnabled) return;
+
+    const refresh = () => {
+      void refreshDbPreview();
+    };
+    const unsubscribePreviewChanges =
+      subscribeCareerTranslationDbPreviewChanges(refresh);
+
+    window.addEventListener("focus", refresh);
+    const intervalId = window.setInterval(
+      refresh,
+      DB_PREVIEW_REFETCH_INTERVAL_MS
+    );
+
+    return () => {
+      unsubscribePreviewChanges();
+      window.removeEventListener("focus", refresh);
+      window.clearInterval(intervalId);
+    };
+  }, [dbPreviewEnabled, refreshDbPreview]);
 
   const ensureEntries = useCallback(
     async (keys: string[]) => {
@@ -426,7 +627,10 @@ export function CareerTranslationInspectProvider({
       setSaveInfo("");
       setError("");
       setEntriesByKey((current) => {
-        const base = current.get(key) ?? fallbackEntry(key);
+        const base =
+          current.get(key) ??
+          dbPreviewEntriesByKey.get(key) ??
+          fallbackEntry(key);
         const nextEntry =
           entryLocale === "ko"
             ? { ...base, ko: value }
@@ -441,12 +645,15 @@ export function CareerTranslationInspectProvider({
         return next;
       });
     },
-    []
+    [dbPreviewEntriesByKey]
   );
 
   const revertEntry = useCallback(
     (key: string) => {
-      const savedEntry = savedEntriesByKey.get(key) ?? fallbackEntry(key);
+      const savedEntry =
+        savedEntriesByKey.get(key) ??
+        dbPreviewEntriesByKey.get(key) ??
+        fallbackEntry(key);
       setEntriesByKey((current) => {
         const next = new Map(current);
         next.set(key, savedEntry);
@@ -460,7 +667,7 @@ export function CareerTranslationInspectProvider({
       setSaveInfo("");
       setError("");
     },
-    [savedEntriesByKey]
+    [dbPreviewEntriesByKey, savedEntriesByKey]
   );
 
   const saveEntry = useCallback(
@@ -497,11 +704,18 @@ export function CareerTranslationInspectProvider({
           next.set(key, entry);
           return next;
         });
+        setDbPreviewEntriesByKey((current) => {
+          if (!dbPreviewEnabled) return current;
+          const next = new Map(current);
+          next.set(key, entry);
+          return next;
+        });
         setDirtyKeys((current) => {
           const next = new Set(current);
           next.delete(key);
           return next;
         });
+        notifyCareerTranslationDbPreviewChanged();
         setSaveInfo(
           "저장했습니다. 로컬 파일 반영은 pnpm translation:pull로 진행합니다."
         );
@@ -519,66 +733,112 @@ export function CareerTranslationInspectProvider({
         });
       }
     },
-    [canInspect, entriesByKey, fetchWithAuth, queryClient, savingKeys]
+    [
+      canInspect,
+      dbPreviewEnabled,
+      entriesByKey,
+      fetchWithAuth,
+      queryClient,
+      savingKeys,
+    ]
   );
 
   const isEntryDirty = useCallback(
     (key: string) => {
-      const entry = entriesByKey.get(key);
-      const savedEntry = savedEntriesByKey.get(key);
+      const entry = entriesByKey.get(key) ?? dbPreviewEntriesByKey.get(key);
+      const savedEntry =
+        savedEntriesByKey.get(key) ?? dbPreviewEntriesByKey.get(key);
       return dirtyKeys.has(key) || !entriesEqual(entry, savedEntry);
     },
-    [dirtyKeys, entriesByKey, savedEntriesByKey]
+    [dbPreviewEntriesByKey, dirtyKeys, entriesByKey, savedEntriesByKey]
+  );
+
+  const previewMergedEntries = useMemo(() => {
+    const next = new Map<string, CareerTranslationEntry>();
+    if (dbPreviewEnabled) {
+      dbPreviewEntriesByKey.forEach((entry, key) => next.set(key, entry));
+    }
+    entriesByKey.forEach((entry, key) => next.set(key, entry));
+    return next;
+  }, [dbPreviewEnabled, dbPreviewEntriesByKey, entriesByKey]);
+
+  const displayedError =
+    dbPreviewEnabled && dbPreviewError ? dbPreviewError : error;
+
+  const displayedSaveInfo = dbPreviewEnabled
+    ? saveInfo || "DB 검수 모드입니다. 화면은 DB 번역값을 우선 반영합니다."
+    : saveInfo;
+
+  const isEntryLoading = useCallback(
+    (key: string) => loadingKeys.has(key),
+    [loadingKeys]
+  );
+
+  const isEntrySaving = useCallback(
+    (key: string) => savingKeys.has(key),
+    [savingKeys]
   );
 
   const value = useMemo<CareerTranslationInspectContextValue>(
     () => ({
       canInspect,
       clearSelectedMatch,
+      dbPreviewEnabled,
+      dbPreviewError: dbPreviewEnabled ? dbPreviewError : "",
+      dbPreviewLoading: dbPreviewEnabled && dbPreviewLoading,
+      dbPreviewUpdatedAt: dbPreviewEnabled ? dbPreviewUpdatedAt : null,
       dirtyKeys,
       ensureEntries,
-      error,
+      error: displayedError,
       getEntry,
       inspectEnabled,
       isEntryDirty,
-      isEntryLoading: (key) => loadingKeys.has(key),
-      isEntrySaving: (key) => savingKeys.has(key),
+      isEntryLoading,
+      isEntrySaving,
       matches,
       registerMatches,
+      refreshDbPreview,
       revertEntry,
       saveEntry,
-      saveInfo,
+      saveInfo: displayedSaveInfo,
       selectedMatch,
       selectMatch,
+      setDbPreviewEnabled,
       setInspectEnabled,
       updateEntryValue,
     }),
     [
       canInspect,
       clearSelectedMatch,
+      dbPreviewEnabled,
+      dbPreviewError,
+      dbPreviewLoading,
+      dbPreviewUpdatedAt,
+      displayedError,
+      displayedSaveInfo,
       dirtyKeys,
       ensureEntries,
-      error,
       getEntry,
       inspectEnabled,
       isEntryDirty,
-      loadingKeys,
+      isEntryLoading,
+      isEntrySaving,
       matches,
       registerMatches,
+      refreshDbPreview,
       revertEntry,
       saveEntry,
-      saveInfo,
-      savingKeys,
       selectMatch,
       selectedMatch,
+      setDbPreviewEnabled,
       setInspectEnabled,
       updateEntryValue,
     ]
   );
 
   const mergedMessages = useMemo(
-    () => mergeCareerMessages(m, entriesByKey, locale),
-    [entriesByKey, locale, m]
+    () => mergeCareerMessages(m, previewMergedEntries, locale),
+    [locale, m, previewMergedEntries]
   );
 
   return (

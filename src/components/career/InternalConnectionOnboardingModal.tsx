@@ -17,7 +17,6 @@ import { cn } from "@/lib/utils";
 import type { CareerHistoryOpportunity } from "./types";
 import { BareButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
-import { careerT } from "@/lib/career/translatedCareerMessage";
 
 export function shouldBlockInternalConnectionAcceptance(
   item: CareerHistoryOpportunity,
@@ -38,19 +37,6 @@ type InternalConnectionOnboardingModalProps = {
   open: boolean;
 };
 
-const checklistItems = [
-  careerT(
-    "ko",
-    "career.common.internal_connection_onboarding_modal.1lyfoil",
-    "회원님의 희망 역할과 근무 조건을 확인합니다."
-  ),
-  careerT(
-    "ko",
-    "career.common.internal_connection_onboarding_modal.18w9rer",
-    "회사에 전달해도 되는 소개 맥락을 정리합니다."
-  ),
-];
-
 export default function InternalConnectionOnboardingModal({
   callPending = false,
   onClose,
@@ -59,6 +45,16 @@ export default function InternalConnectionOnboardingModal({
   open,
 }: InternalConnectionOnboardingModalProps) {
   const t = useCareerT();
+  const checklistItems = [
+    t(
+      "career.common.internal_connection_onboarding_modal.1lyfoil",
+      "회원님의 희망 역할과 근무 조건을 확인합니다."
+    ),
+    t(
+      "career.common.internal_connection_onboarding_modal.18w9rer",
+      "회사에 전달해도 되는 소개 맥락을 정리합니다."
+    ),
+  ];
 
   const handleStartChat = () => {
     onClose();
@@ -133,13 +129,11 @@ export default function InternalConnectionOnboardingModal({
                 <Phone className="h-4 w-4 text-neutral-muted" />
               )}
               {callPending
-                ? careerT(
-                    "ko",
+                ? t(
                     "career.common.internal_connection_onboarding_modal.037ebaa",
                     "전화 연결 중..."
                   )
-                : careerT(
-                    "ko",
+                : t(
                     "career.common.internal_connection_onboarding_modal.1wjj1zl",
                     "전화로 하기"
                   )}

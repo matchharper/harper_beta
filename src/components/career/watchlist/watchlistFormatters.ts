@@ -1,8 +1,28 @@
 import type { ParsedUrlQuery } from "querystring";
 import { formatRelativeTime } from "@/lib/utils";
-import { careerT } from "@/lib/career/translatedCareerMessage";
 import type { CompanyWatchlistTab } from "./watchlistTypes";
 import type { Locale } from "@/i18n/useMessage";
+
+type CareerTValues = Record<string, string | number | null | undefined>;
+type CareerTLike = (
+  key: string,
+  koSource: string,
+  options?: { values?: CareerTValues }
+) => string;
+
+const interpolate = (value: string, values?: CareerTValues) => {
+  if (!values) return value;
+  return value.replace(/\{([a-zA-Z0-9_]+)\}/g, (match, name) => {
+    if (!Object.prototype.hasOwnProperty.call(values, name)) return match;
+    const nextValue = values[name];
+    return nextValue === null || nextValue === undefined
+      ? ""
+      : String(nextValue);
+  });
+};
+
+const fallbackT: CareerTLike = (_key, koSource, options) =>
+  interpolate(koSource, options?.values);
 
 const numberFormatters: Record<Locale, Intl.NumberFormat> = {
   en: new Intl.NumberFormat("en-US"),
@@ -36,20 +56,17 @@ export const getBaseCareerQuery = (query: ParsedUrlQuery) => {
 
 export const formatFollowedAt = (
   value: string | null,
-  locale: Locale = "ko"
+  locale: Locale = "ko",
+  tArg?: CareerTLike
 ) => {
+  const t: CareerTLike = tArg ?? fallbackT;
   const relative = formatRelativeTime(value, locale);
   if (!relative) {
-    return careerT(locale, "career.company.following", "팔로잉 중");
+    return t("career.company.following", "팔로잉 중", undefined);
   }
-  return careerT(
-    locale,
-    "career.company.followed_at",
-    "{relative}부터 팔로잉",
-    {
-      values: { relative },
-    }
-  );
+  return t("career.company.followed_at", "{relative}부터 팔로잉", {
+    values: { relative },
+  });
 };
 
 export const toRecord = (value: unknown): Record<string, unknown> =>
@@ -79,50 +96,39 @@ const formatNumber = (value: unknown, locale: Locale) => {
 
 export const formatEmployeeCountRange = (
   value: unknown,
-  locale: Locale = "ko"
+  locale: Locale = "ko",
+  tArg?: CareerTLike
 ) => {
+  const t: CareerTLike = tArg ?? fallbackT;
   const record = toRecord(value);
   const start = formatNumber(record.start, locale);
   const end = formatNumber(record.end, locale);
   if (start && end) {
-    return careerT(
-      locale,
-      "career.company.employee_count.range",
-      "{start}-{end}명",
-      {
-        values: { start, end },
-      }
-    );
+    return t("career.company.employee_count.range", "{start}-{end}명", {
+      values: { start, end },
+    });
   }
   if (start) {
-    return careerT(
-      locale,
-      "career.company.employee_count.min",
-      "{start}명 이상",
-      {
-        values: { start },
-      }
-    );
+    return t("career.company.employee_count.min", "{start}명 이상", {
+      values: { start },
+    });
   }
   if (end) {
-    return careerT(
-      locale,
-      "career.company.employee_count.max",
-      "{end}명 이하",
-      {
-        values: { end },
-      }
-    );
+    return t("career.company.employee_count.max", "{end}명 이하", {
+      values: { end },
+    });
   }
   return "";
 };
 
 export const formatFoundedYear = (
   value: number | null,
-  locale: Locale = "ko"
+  locale: Locale = "ko",
+  tArg?: CareerTLike
 ) => {
+  const t: CareerTLike = tArg ?? fallbackT;
   if (!value) return "";
-  return careerT(locale, "career.company.founded_year", "{year}년 설립", {
+  return t("career.company.founded_year", "{year}년 설립", {
     values: { year: value },
   });
 };

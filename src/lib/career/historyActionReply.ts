@@ -9,6 +9,7 @@ import {
   type InternalOpportunityCallRequest,
 } from "@/lib/talentOnboarding/internalOpportunityCallRequest";
 import {
+  buildOpportunityFeedbackActivitySummary,
   fetchPendingOpportunityFeedbackActivityItems,
   formatOpportunityFeedbackPromptContext,
   type TalentOpportunityFeedbackActivityItem,
@@ -23,28 +24,6 @@ type TalentOpportunityFeedbackAction = "negative" | "positive";
 
 export type TalentOpportunityFeedbackReplyTrigger =
   CareerOpportunityFeedbackFollowUpTrigger;
-
-const parseFeedbackReason = (value: string | null) => {
-  if (!value) return null;
-
-  try {
-    const parsed = JSON.parse(value) as {
-      customReason?: unknown;
-      selectedOptions?: unknown;
-    };
-    const selectedOptions = Array.isArray(parsed.selectedOptions)
-      ? parsed.selectedOptions
-          .map((item) => String(item).trim())
-          .filter(Boolean)
-      : [];
-    const customReason =
-      typeof parsed.customReason === "string" ? parsed.customReason.trim() : "";
-
-    return [...selectedOptions, customReason].filter(Boolean).join(" / ");
-  } catch {
-    return value.trim() || null;
-  }
-};
 
 async function assertConversationAccess(args: {
   admin: TalentAdminClient;
@@ -73,21 +52,13 @@ function toFeedbackActivityItem(args: {
 }): TalentOpportunityFeedbackActivityItem {
   return {
     action: args.action,
-    companyName: args.opportunity.companyName,
+    createdAt: new Date().toISOString(),
     eventId: `current:${args.opportunity.id}`,
-    feedbackReason: parseFeedbackReason(args.feedbackReason ?? null),
-    href: args.opportunity.href,
-    location: args.opportunity.location,
-    occurredAt: new Date().toISOString(),
-    opportunityId: args.opportunity.id,
-    opportunityType: args.opportunity.opportunityType,
-    recommendationConcerns: args.opportunity.recommendationConcerns,
-    recommendationReasons: args.opportunity.recommendationReasons,
-    recommendationSummary: args.opportunity.recommendationSummary,
-    roleId: args.opportunity.roleId,
-    sourceType: args.opportunity.sourceType,
-    title: args.opportunity.title,
-    workMode: args.opportunity.workMode,
+    summary: buildOpportunityFeedbackActivitySummary({
+      action: args.action,
+      feedbackReason: args.feedbackReason,
+      opportunity: args.opportunity,
+    }),
   };
 }
 
@@ -133,10 +104,8 @@ export async function createTalentOpportunityFeedbackFollowUpReply(args: {
         })
       : null;
   const hasFallbackInPending =
-    fallbackItem?.opportunityId &&
-    pendingItems.some(
-      (item) => item.opportunityId === fallbackItem.opportunityId
-    );
+    fallbackItem &&
+    pendingItems.some((item) => item.summary === fallbackItem.summary);
   const usingFallbackOnly = pendingItems.length === 0 && Boolean(fallbackItem);
   const items =
     pendingItems.length > 0

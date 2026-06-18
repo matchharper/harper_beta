@@ -1,4 +1,4 @@
-import type { DraftChatAttachment } from "@/lib/chatAttachmentClient";
+import type { DraftChatAttachment } from "@/lib/chat/attachmentClient";
 import { cn } from "@/lib/cn";
 import { useMessages } from "@/i18n/useMessage";
 import { Skeleton } from "@/components/ui/skeleton";

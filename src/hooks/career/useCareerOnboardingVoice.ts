@@ -39,8 +39,10 @@ import {
 import type { CareerConversationStarterId } from "@/lib/career/conversationStarters";
 import { INSIGHT_CHECKLIST } from "@/lib/talentOnboarding/insightChecklist";
 import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
-import { useMessages, type Locale } from "@/i18n/useMessage";
-import { careerT } from "@/lib/career/translatedCareerMessage";
+import { useMessages } from "@/i18n/useMessage";
+import { useCareerT } from "@/i18n/useCareerT";
+
+type CareerT = ReturnType<typeof useCareerT>;
 
 const DEFAULT_CALL_OPENING_TEXT =
   "통화로 이야기해볼게요. 최근에 달라진 우선순위가 있으면 거기서 시작해도 좋고, 아니면 지금까지의 역할이나 경험 중 회사들이 꼭 알아야 할 부분부터 편하게 들려주세요. 정보가 많을수록 더 잘 맞는 연결 요청이나 기회를 골라드릴 수 있어요.";
@@ -76,7 +78,7 @@ const ONBOARDING_CALL_OPENING_RESPONSE_INSTRUCTION = [
 function formatCallOpeningRelativeTime(
   createdAt: string,
   nowMs: number,
-  locale: Locale
+  t: CareerT
 ) {
   const createdAtMs = Date.parse(createdAt);
   if (!Number.isFinite(createdAtMs)) return "";
@@ -90,79 +92,55 @@ function formatCallOpeningRelativeTime(
   const monthMs = 30 * dayMs;
 
   if (elapsedMs < minuteMs) {
-    return careerT(locale, "career.call.opening.relative.just_now", "방금전");
+    return t("career.call.opening.relative.just_now", "방금전");
   }
   if (elapsedMs < hourMs) {
     const minutes = Math.floor(elapsedMs / minuteMs);
     if (minutes === 1) {
-      return careerT(
-        locale,
-        "career.call.opening.relative.minute_one",
-        "{count}분전",
-        { values: { count: minutes } }
-      );
+      return t("career.call.opening.relative.minute_one", "{count}분전", {
+        values: { count: minutes },
+      });
     }
-    return careerT(
-      locale,
-      "career.call.opening.relative.minute_many",
-      "{count}분전",
-      { values: { count: minutes } }
-    );
+    return t("career.call.opening.relative.minute_many", "{count}분전", {
+      values: { count: minutes },
+    });
   }
   if (elapsedMs < dayMs) {
     const hours = Math.floor(elapsedMs / hourMs);
     if (hours === 1) {
-      return careerT(
-        locale,
-        "career.call.opening.relative.hour_one",
-        "{count}시간전",
-        { values: { count: hours } }
-      );
+      return t("career.call.opening.relative.hour_one", "{count}시간전", {
+        values: { count: hours },
+      });
     }
-    return careerT(
-      locale,
-      "career.call.opening.relative.hour_many",
-      "{count}시간전",
-      { values: { count: hours } }
-    );
+    return t("career.call.opening.relative.hour_many", "{count}시간전", {
+      values: { count: hours },
+    });
   }
   if (elapsedMs < monthMs) {
     const days = Math.floor(elapsedMs / dayMs);
     if (days === 1) {
-      return careerT(
-        locale,
-        "career.call.opening.relative.day_one",
-        "{count}일전",
-        { values: { count: days } }
-      );
+      return t("career.call.opening.relative.day_one", "{count}일전", {
+        values: { count: days },
+      });
     }
-    return careerT(
-      locale,
-      "career.call.opening.relative.day_many",
-      "{count}일전",
-      { values: { count: days } }
-    );
+    return t("career.call.opening.relative.day_many", "{count}일전", {
+      values: { count: days },
+    });
   }
   const months = Math.floor(elapsedMs / monthMs);
   if (months === 1) {
-    return careerT(
-      locale,
-      "career.call.opening.relative.month_one",
-      "{count}개월전",
-      { values: { count: months } }
-    );
+    return t("career.call.opening.relative.month_one", "{count}개월전", {
+      values: { count: months },
+    });
   }
-  return careerT(
-    locale,
-    "career.call.opening.relative.month_many",
-    "{count}개월전",
-    { values: { count: months } }
-  );
+  return t("career.call.opening.relative.month_many", "{count}개월전", {
+    values: { count: months },
+  });
 }
 
 function buildCallOpeningRecentConversationContext(
   messages: CareerMessage[],
-  locale: Locale
+  t: CareerT
 ) {
   const recentMessages = messages
     .filter((message) => message.content.trim() && !message.typing)
@@ -172,8 +150,7 @@ function buildCallOpeningRecentConversationContext(
   const nowMs = Date.now();
   const maxTotal = 1600;
   const maxPerMessage = 260;
-  let section = careerT(
-    locale,
+  let section = t(
     "career.call.opening.recent_context.header",
     "## 최근 채팅 맥락\n"
   );
@@ -183,11 +160,11 @@ function buildCallOpeningRecentConversationContext(
     const roleLabel =
       message.role === "assistant"
         ? "Harper"
-        : careerT(locale, "career.call.opening.recent_context.user", "사용자");
+        : t("career.call.opening.recent_context.user", "사용자");
     const relativeTime = formatCallOpeningRelativeTime(
       message.createdAt,
       nowMs,
-      locale
+      t
     );
     const label = relativeTime ? `${roleLabel}(${relativeTime})` : roleLabel;
     const normalizedContent = message.content.replace(/\s+/g, " ").trim();
@@ -209,9 +186,9 @@ function buildCallOpeningResponseInstruction(args: {
   interviewProgress?: CareerInterviewProgress | null;
   isOnboardingDone?: boolean;
   isConversationStarter?: boolean;
-  locale: Locale;
   openingText?: string;
   recentConversationContext?: string;
+  t: CareerT;
 }) {
   const {
     interviewProgress,
@@ -219,6 +196,7 @@ function buildCallOpeningResponseInstruction(args: {
     isOnboardingDone,
     openingText,
     recentConversationContext,
+    t,
   } = args;
   const normalizedOpeningText = openingText?.trim();
   const shouldUseNearFinishOpening =
@@ -231,19 +209,16 @@ function buildCallOpeningResponseInstruction(args: {
 
   const sections = [
     shouldUseOnboardingOpening
-      ? careerT(
-          args.locale,
+      ? t(
           "career.call.opening.instruction.onboarding",
           ONBOARDING_CALL_OPENING_RESPONSE_INSTRUCTION
         )
-      : careerT(
-          args.locale,
+      : t(
           "career.call.opening.instruction.default",
           CALL_OPENING_RESPONSE_INSTRUCTION
         ),
     shouldUseNearFinishOpening &&
-      careerT(
-        args.locale,
+      t(
         "career.call.opening.instruction.near_finish",
         [
           "",
@@ -265,8 +240,7 @@ function buildCallOpeningResponseInstruction(args: {
         }
       ),
     isConversationStarter &&
-      careerT(
-        args.locale,
+      t(
         "career.call.opening.instruction.conversation_starter",
         [
           "",
@@ -281,8 +255,7 @@ function buildCallOpeningResponseInstruction(args: {
         "",
         recentConversationContext,
         !shouldUseOnboardingOpening &&
-          careerT(
-            args.locale,
+          t(
             "career.call.opening.instruction.use_recent_context",
             "위 최근 채팅 맥락은 통화 첫 멘트를 정할 때 가장 먼저 참고하세요. 마지막 대화가 아직 이어지는 흐름이면 일반적인 새 인사나 새 질문으로 시작하지 마세요."
           ),
@@ -291,8 +264,7 @@ function buildCallOpeningResponseInstruction(args: {
       !shouldUseOnboardingOpening &&
       [
         "",
-        careerT(
-          args.locale,
+        t(
           "career.call.opening.instruction.reference_opening",
           "## 참고할 통화 시작 내용\n아래 문구나 질문의 취지를 통화 첫 멘트에 자연스럽게 반영하세요. 그대로 읽기보다 위 지시와 최근 대화 맥락에 맞게 말하세요."
         ),
@@ -391,6 +363,7 @@ export const useCareerOnboardingVoice = ({
   enqueueAssistantTypewriter,
   onMessagesChanged,
 }: UseCareerOnboardingVoiceArgs) => {
+  const t = useCareerT();
   const tCareer = useCareerMessageFormatter();
   const { locale } = useMessages();
   const [showVoiceStartPrompt, setShowVoiceStartPrompt] = useState(false);
@@ -1447,7 +1420,7 @@ export const useCareerOnboardingVoice = ({
         }
 
         const openingRecentConversationContext =
-          buildCallOpeningRecentConversationContext(messages, locale);
+          buildCallOpeningRecentConversationContext(messages, t);
 
         if (!shouldBeginOnboarding) {
           const openingText = customOpeningText?.trim();
@@ -1458,20 +1431,16 @@ export const useCareerOnboardingVoice = ({
               interviewProgress: callInterviewProgress,
               isOnboardingDone,
               isConversationStarter: Boolean(conversationStarterId),
-              locale,
               openingText,
               recentConversationContext: openingRecentConversationContext,
+              t,
             });
             logCallOpeningResponseInstruction(openingInstructions);
             generateSpeechFromInstructionsRef.current(openingInstructions);
           } else {
             generateSpeechRef.current?.(
               openingText ||
-                careerT(
-                  locale,
-                  "career.call.opening.default_text",
-                  DEFAULT_CALL_OPENING_TEXT
-                )
+                t("career.call.opening.default_text", DEFAULT_CALL_OPENING_TEXT)
             );
           }
           return true;
@@ -1489,9 +1458,9 @@ export const useCareerOnboardingVoice = ({
             interviewProgress: callInterviewProgress,
             isOnboardingDone,
             isConversationStarter: Boolean(conversationStarterId),
-            locale,
             openingText,
             recentConversationContext: openingRecentConversationContext,
+            t,
           });
           logCallOpeningResponseInstruction(openingInstructions);
           generateSpeechFromInstructionsRef.current(openingInstructions);
@@ -1513,11 +1482,11 @@ export const useCareerOnboardingVoice = ({
       callInterviewProgress,
       clearRealtimeTurnSyncState,
       isOnboardingDone,
-      locale,
       messages,
       onboardingBeginPending,
       showVoiceStartPrompt,
       startCallMode,
+      t,
       tCareer,
     ]
   );

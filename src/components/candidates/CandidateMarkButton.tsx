@@ -5,8 +5,8 @@ import {
   CandidateMarkIconKey,
   CandidateMarkStatus,
   getCandidateMarkMeta,
-} from "@/lib/candidateMark";
-import { useSetCandidateMark } from "@/hooks/useCandidateMark";
+} from "@/lib/candidates/mark";
+import { useSetCandidateMark } from "@/hooks/candidates/useCandidateMark";
 import { showToast } from "@/components/toast/toast";
 import {
   ActionDropdown,

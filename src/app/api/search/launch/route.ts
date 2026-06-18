@@ -5,13 +5,13 @@ import {
   getMaxParallelSearchCount,
   getParallelSearchLimitMessage,
   inferSearchPlanKey,
-} from "@/lib/searchParallelLimit";
+} from "@/lib/search/parallelLimit";
 import {
   SearchSource,
   normalizeSearchSource,
   normalizeSearchSources,
   queryTypeToSearchSource,
-} from "@/lib/searchSource";
+} from "@/lib/search/source";
 import { NextRequest, NextResponse } from "next/server";
 
 const UI_START = "<<UI>>";

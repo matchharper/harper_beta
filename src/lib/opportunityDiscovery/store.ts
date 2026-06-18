@@ -199,11 +199,6 @@ export async function completeOnboardingAndQueueInitialOpportunityRun(args: {
   source: string;
   userId: string;
 }) {
-  const previousSetting = await fetchTalentSetting({
-    admin: args.admin,
-    userId: args.userId,
-  });
-
   await setTalentOnboardingDone({
     admin: args.admin,
     userId: args.userId,
@@ -240,22 +235,6 @@ export async function completeOnboardingAndQueueInitialOpportunityRun(args: {
       conversationId: args.conversationId,
       eventType: "onboarding_completed",
       impactLevel: "high",
-      metadata: {
-        completionReason: args.completionReason,
-        result: {
-          initialOpportunityRunQueued: false,
-          reason: "initial_run_already_exists",
-        },
-        source: args.source,
-        talentSetting: {
-          is_onboarding_done: {
-            from: previousSetting?.is_onboarding_done ?? null,
-            to: true,
-          },
-          recommendation_source_conversation_id: args.conversationId,
-        },
-      },
-      relatedEntityType: "talent_setting",
       source: "onboarding",
       summary:
         "Onboarding completed; initial opportunity search was not queued because an initial run already exists.",
@@ -283,23 +262,6 @@ export async function completeOnboardingAndQueueInitialOpportunityRun(args: {
     conversationId: args.conversationId,
     eventType: "onboarding_completed",
     impactLevel: "high",
-    metadata: {
-      completionReason: args.completionReason,
-      result: {
-        initialOpportunityRunId: run.id,
-        initialOpportunityRunQueued: true,
-      },
-      source: args.source,
-      talentSetting: {
-        is_onboarding_done: {
-          from: previousSetting?.is_onboarding_done ?? null,
-          to: true,
-        },
-        recommendation_source_conversation_id: args.conversationId,
-      },
-    },
-    relatedEntityId: run.id,
-    relatedEntityType: "opportunity_discovery_run",
     source: "onboarding",
     summary: `Onboarding completed; initial opportunity search ${run.id} was queued.`,
     userId: args.userId,

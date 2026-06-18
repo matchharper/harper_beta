@@ -2,7 +2,7 @@ import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import {
   useBookmarkedCandidates,
   usePickedCandidates,
-} from "@/hooks/useBookMarkCandidates";
+} from "@/hooks/candidates/useBookMarkCandidates";
 import { useMemo, useState, useEffect } from "react";
 import CandidateViews from "@/components/CandidateViews";
 import { Loading } from "@/components/ui/loading";

@@ -4,17 +4,18 @@ import { motion } from "motion/react";
 import Link from "next/link";
 import { useState, type MouseEventHandler } from "react";
 
-const sectionLinks = [
-  { href: "#workflow", label: "제품 화면" },
-  { href: "#how", label: "다른점" },
-  { href: "#voices", label: "후기" },
-] as const;
-
 type CareerAppBarProps = {
   careerStartHref: string;
   onCareerStartClick?: MouseEventHandler<HTMLAnchorElement>;
   sectionHrefPrefix?: string;
   bgColor?: string;
+  labels?: {
+    workflow: string;
+    difference: string;
+    voices: string;
+    forCompanies: string;
+    join: string;
+  };
 };
 
 export default function CareerAppBar({
@@ -22,10 +23,23 @@ export default function CareerAppBar({
   onCareerStartClick,
   sectionHrefPrefix = "",
   bgColor = "white",
+  labels = {
+    workflow: "제품 화면",
+    difference: "다른점",
+    voices: "후기",
+    forCompanies: "For Companies",
+    join: "Join",
+  },
 }: CareerAppBarProps) {
   const isMobile = useIsMobile();
   const [isMobileHeaderVisible, setIsMobileHeaderVisible] = useState(true);
   const [isAppBarBorderVisible, setIsAppBarBorderVisible] = useState(false);
+
+  const sectionLinks = [
+    { href: "#workflow", label: labels.workflow },
+    { href: "#how", label: labels.difference },
+    { href: "#voices", label: labels.voices },
+  ] as const;
 
   const pillbtn =
     "px-3.5 py-1.5 rounded-full border border-black/10 cursor-pointer text-[13px] md:text-sm font-medium shadow-xs";
@@ -68,14 +82,14 @@ export default function CareerAppBar({
             href="/company"
             className={`${pillbtn} text-black hover:bg-black/2`}
           >
-            For Companies
+            {labels.forCompanies}
           </Link>
           <Link
             href={careerStartHref}
             onClick={onCareerStartClick}
             className={`${pillbtn} text-white bg-black hover:opacity-90`}
           >
-            Join
+            {labels.join}
           </Link>
         </div>
       </div>

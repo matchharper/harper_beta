@@ -15,7 +15,7 @@ import { Loading } from "@/components/ui/loading";
 import {
   useSharedBookmarkFolderPage,
   useSharedFolderViewerIdentity,
-} from "@/hooks/useSharedBookmarkFolder";
+} from "@/hooks/candidates/useSharedBookmarkFolder";
 import { BareButton } from "@/components/ui/button";
 
 const PAGE_SIZE = 10;

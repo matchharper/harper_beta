@@ -1,6 +1,7 @@
 import OpsShell from "@/components/ops/OpsShell";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { BareButton } from "@/components/ui/button";
+import { notifyCareerTranslationDbPreviewChanged } from "@/i18n/careerTranslationPreviewEvents";
 import type { Locale } from "@/i18n/useMessage";
 import { isInternalEmail } from "@/lib/internalAccess";
 import { supabase } from "@/lib/supabase";
@@ -460,6 +461,7 @@ export default function OpsTranslationPage() {
         return next;
       });
       await queryClient.invalidateQueries({ queryKey: translationsQueryKey });
+      notifyCareerTranslationDbPreviewChanged();
       setSaveInfo(
         `${dirtyRows.length}개 문구를 저장했습니다. 로컬 파일 반영은 \`pnpm translation:pull\`로 진행합니다.`
       );

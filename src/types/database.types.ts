@@ -4403,10 +4403,6 @@ export type Database = {
           id: string
           impact_level: string
           message_id: number | null
-          metadata: Json
-          occurred_at: string
-          related_entity_id: string | null
-          related_entity_type: string | null
           source: string
           summary: string
           talent_id: string
@@ -4419,10 +4415,6 @@ export type Database = {
           id?: string
           impact_level?: string
           message_id?: number | null
-          metadata?: Json
-          occurred_at?: string
-          related_entity_id?: string | null
-          related_entity_type?: string | null
           source?: string
           summary: string
           talent_id: string
@@ -4435,10 +4427,6 @@ export type Database = {
           id?: string
           impact_level?: string
           message_id?: number | null
-          metadata?: Json
-          occurred_at?: string
-          related_entity_id?: string | null
-          related_entity_type?: string | null
           source?: string
           summary?: string
           talent_id?: string
@@ -5269,6 +5257,72 @@ export type Database = {
           },
           {
             foreignKeyName: "talent_opportunity_delivery_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      talent_opportunity_fit: {
+        Row: {
+          created_at: string
+          human_label: string | null
+          human_reason: string | null
+          human_reviewed_at: string | null
+          human_reviewed_by: string | null
+          id: string
+          label: string
+          last_evaluated_at: string
+          opportunity_id: string
+          reason: string
+          reevaluation_checked_at: string | null
+          reevaluation_criteria: Json | null
+          score: number
+          talent_id: string
+        }
+        Insert: {
+          created_at?: string
+          human_label?: string | null
+          human_reason?: string | null
+          human_reviewed_at?: string | null
+          human_reviewed_by?: string | null
+          id?: string
+          label: string
+          last_evaluated_at?: string
+          opportunity_id: string
+          reason?: string
+          reevaluation_checked_at?: string | null
+          reevaluation_criteria?: Json | null
+          score: number
+          talent_id: string
+        }
+        Update: {
+          created_at?: string
+          human_label?: string | null
+          human_reason?: string | null
+          human_reviewed_at?: string | null
+          human_reviewed_by?: string | null
+          id?: string
+          label?: string
+          last_evaluated_at?: string
+          opportunity_id?: string
+          reason?: string
+          reevaluation_checked_at?: string | null
+          reevaluation_criteria?: Json | null
+          score?: number
+          talent_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_opportunity_fit_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "company_roles"
+            referencedColumns: ["role_id"]
+          },
+          {
+            foreignKeyName: "talent_opportunity_fit_talent_id_fkey"
             columns: ["talent_id"]
             isOneToOne: false
             referencedRelation: "talent_users"

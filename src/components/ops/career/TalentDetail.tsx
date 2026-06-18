@@ -7,7 +7,7 @@ import {
   useOpsCareerInsights,
   useOpsCareerMessages,
   useOpsCareerProfile,
-} from "@/hooks/useOpsCareer";
+} from "@/hooks/ops/useOpsCareer";
 import {
   isEmailExcludedByOpsInternalTerms,
   useOpsInternalDataExclusionStore,
@@ -31,7 +31,7 @@ import {
   TalentRoleTagsPanel,
 } from "./TalentRoleTagsPanel";
 import { BareButton } from "@/components/ui/button";
-import type { CareerTalentOpsProfileMemo } from "@/lib/opsCareerServer";
+import type { CareerTalentOpsProfileMemo } from "@/lib/ops/careerServer";
 
 type TalentDetailTabId =
   | "all_feed"

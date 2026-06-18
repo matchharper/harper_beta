@@ -3,7 +3,7 @@ import {
   requireInternalApiUser,
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
-import { updateOpsCompanyHumanQualityLabel } from "@/lib/opsOpportunity";
+import { updateOpsCompanyHumanQualityLabel } from "@/lib/ops/opportunity";
 
 export const runtime = "nodejs";
 

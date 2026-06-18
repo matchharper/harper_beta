@@ -5,12 +5,12 @@ import { showToast } from "@/components/toast/toast";
 import {
   useOpsCompanies,
   useUpdateOpsCompanyTestScore,
-} from "@/hooks/useOpsCompanies";
+} from "@/hooks/ops/useOpsCompanies";
 import { isInternalEmail } from "@/lib/internalAccess";
 import type {
   OpsCompaniesQualityLabel,
   OpsCompanyWorkspaceScoreRecord,
-} from "@/lib/opsCompanies";
+} from "@/lib/ops/companies";
 import { useAuthStore } from "@/store/useAuthStore";
 import {
   AlertCircle,

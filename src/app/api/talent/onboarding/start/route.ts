@@ -21,6 +21,10 @@ import {
   normalizeTalentBlockedCompanies,
 } from "@/lib/talentOnboarding/server";
 import { insertTalentProfileSourceErrorLog } from "@/lib/talentOnboarding/errorLogs";
+import {
+  buildProfileMaterialActivity,
+  insertTalentActivityEvent,
+} from "@/lib/talentOnboarding/activityEvents";
 import { ingestTalentProfileFromLinkedin } from "@/lib/talentOnboarding/profileIngestion";
 import {
   buildTalentKickoffOpeningMessage,
@@ -253,6 +257,10 @@ export async function POST(req: NextRequest) {
 
     const admin = getTalentSupabaseAdmin();
     await ensureTalentUserRecord({ admin, user });
+    const previousProfile = await fetchTalentUserProfile({
+      admin,
+      userId: user.id,
+    });
     const { data: conversation, error: conversationError } = await admin
       .from("talent_conversations")
       .select("*")
@@ -565,6 +573,32 @@ export async function POST(req: NextRequest) {
     });
 
     const profile = await fetchTalentUserProfile({ admin, userId: user.id });
+    const materialActivity = buildProfileMaterialActivity({
+      previous: {
+        resumeFileName: previousProfile?.resume_file_name ?? null,
+        resumeLinks: previousProfile?.resume_links ?? [],
+        resumeStoragePath: previousProfile?.resume_storage_path ?? null,
+        resumeText: previousProfile?.resume_text ?? null,
+      },
+      next: {
+        resumeFileName: profile?.resume_file_name ?? null,
+        resumeLinks: profile?.resume_links ?? [],
+        resumeStoragePath: profile?.resume_storage_path ?? null,
+        resumeText: profile?.resume_text ?? null,
+      },
+    });
+    if (materialActivity) {
+      await insertTalentActivityEvent({
+        admin,
+        changedDomains: materialActivity.changedDomains,
+        conversationId,
+        eventType: "profile_materials_updated",
+        impactLevel: materialActivity.impactLevel,
+        source: "onboarding",
+        summary: materialActivity.summary,
+        userId: user.id,
+      });
+    }
     const talentProfile = await fetchTalentStructuredProfile({
       admin,
       userId: user.id,

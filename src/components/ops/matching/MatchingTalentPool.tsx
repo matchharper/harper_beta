@@ -33,16 +33,16 @@ import { Input as UiInput } from "@/components/ui/input";
 import {
   useOpsCareerInsights,
   useOpsCareerProfile,
-} from "@/hooks/useOpsCareer";
-import { useMatchingTalentPoolHotkeys } from "@/hooks/useMatchingTalentPoolHotkeys";
+} from "@/hooks/ops/useOpsCareer";
+import { useMatchingTalentPoolHotkeys } from "@/hooks/ops/useMatchingTalentPoolHotkeys";
 import {
   useAddOpsMatchingTalentTag,
   useOpsMatchingTalentPool,
-} from "@/hooks/useOpsMatching";
+} from "@/hooks/ops/useOpsMatching";
 import type {
   OpsMatchingTalentItem,
   OpsMatchingTalentPoolTabId,
-} from "@/lib/opsMatching";
+} from "@/lib/ops/matching";
 
 type MatchingTalentPoolProps = {
   canFetchInternal: boolean;

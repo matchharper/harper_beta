@@ -11,7 +11,7 @@ import {
   useCandidateBookmarkFolderIds,
   useCreateBookmarkFolder,
   useRemoveCandidateFromBookmarkFolder,
-} from "@/hooks/useBookmarkFolders";
+} from "@/hooks/candidates/useBookmarkFolders";
 import {
   ActionDropdown,
   ActionDropdownItem,

@@ -45,6 +45,19 @@ export type AdminCareerLandingSourceBreakdown = {
   eventTypes: string[];
 };
 
+export type AdminCareerLandingVariantBreakdown = {
+  abtestType: string;
+  clickStartCount: number;
+  clickStartRateFromEntry: number | null;
+  description: string;
+  entryCount: number;
+  eventTypes: string[];
+  label: string;
+  loginCount: number;
+  loginRateFromClickStart: number | null;
+  loginRateFromEntry: number | null;
+};
+
 export type AdminCareerDeviceType = "desktop" | "mobile" | "unknown";
 
 export type AdminCareerDeviceComparisonRow = {
@@ -107,6 +120,7 @@ export type AdminCareerAnalyticsResponse = {
   excludedEmails: string[];
   funnel: AdminCareerFunnelStep[];
   landingSources: AdminCareerLandingSourceBreakdown[];
+  landingVariants: AdminCareerLandingVariantBreakdown[];
   quickSignals: AdminCareerQuickSignal[];
   slackSummary?: AdminCareerSlackSummaryResult;
   summary: AdminCareerSummaryMetric[];
@@ -149,10 +163,7 @@ export type AdminCareerUtmResponse = {
   selectedSource: AdminCareerUtmSourceDetail | null;
 };
 
-export type AdminCareerJobFunnelStepKey =
-  | "job_view"
-  | "talk_click"
-  | "login";
+export type AdminCareerJobFunnelStepKey = "job_view" | "talk_click" | "login";
 
 export type AdminCareerJobFunnelStep = {
   key: AdminCareerJobFunnelStepKey;

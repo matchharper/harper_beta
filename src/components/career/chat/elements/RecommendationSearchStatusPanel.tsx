@@ -3,10 +3,8 @@ import { memo } from "react";
 
 import type { CareerRecommendationSearchStatus } from "@/components/career/types";
 import { BareButton } from "@/components/ui/button";
-import { formatCareerMessage } from "@/i18n/careerMessage";
-import { useMessages } from "@/i18n/useMessage";
+import { useCareerT } from "@/i18n/useCareerT";
 import { cn } from "@/lib/utils";
-import { careerT } from "@/lib/career/translatedCareerMessage";
 
 type RecommendationSearchStatusPanelProps = {
   active?: boolean;
@@ -20,7 +18,7 @@ export const RecommendationSearchStatusPanel = memo(
     onCancel,
     status,
   }: RecommendationSearchStatusPanelProps) {
-    const { m } = useMessages();
+    const t = useCareerT();
     const isRunning = status.state === "running";
     const isCompleted = status.state === "completed";
     const isStopped = status.state === "stopped";
@@ -34,87 +32,41 @@ export const RecommendationSearchStatusPanel = memo(
       <AlertCircle className="h-4 w-4 text-neutral-muted" />
     );
     const title = isRunning
-      ? formatCareerMessage(
-          m,
-          careerT("ko", "career.common.career.0y3ajvx", "검색중...")
-        )
+      ? t("career.common.career.0y3ajvx", "검색중...")
       : isCompleted
-        ? formatCareerMessage(
-            m,
-            careerT("ko", "career.common.career.1d6xtz2", "검색 완료")
-          )
+        ? t("career.common.career.1d6xtz2", "검색 완료")
         : isStopped
-          ? formatCareerMessage(
-              m,
-              careerT("ko", "career.common.career.1nwpekv", "검색 중지")
-            )
-          : formatCareerMessage(
-              m,
-              careerT("ko", "career.common.career.030f28a", "검색 실패")
-            );
+          ? t("career.common.career.1nwpekv", "검색 중지")
+          : t("career.common.career.030f28a", "검색 실패");
     const detail = isRunning
-      ? formatCareerMessage(
-          m,
-          careerT(
-            "ko",
-            "career.common.career.16yncp4",
-            "프로필과 최근 대화를 반영해 최적의 기회를 찾고 있습니다."
-          )
+      ? t(
+          "career.common.career.16yncp4",
+          "프로필과 최근 대화를 반영해 최적의 기회를 찾고 있습니다."
         )
       : isCompleted
         ? [
             typeof status.candidateCount === "number"
-              ? formatCareerMessage(
-                  m,
-                  careerT(
-                    "ko",
-                    "career.common.career.0dtwsdj",
-                    "{count}개 공고 검토"
-                  ),
-                  {
+              ? t("career.common.career.0dtwsdj", "{count}개 공고 검토", {
+                  values: {
                     count: status.candidateCount,
-                  }
-                )
-              : formatCareerMessage(
-                  m,
-                  careerT(
-                    "ko",
-                    "career.common.career.152e0fk",
-                    "공고 검토 완료"
-                  )
-                ),
+                  },
+                })
+              : t("career.common.career.152e0fk", "공고 검토 완료"),
             typeof status.recommendationCount === "number"
-              ? formatCareerMessage(
-                  m,
-                  careerT(
-                    "ko",
-                    "career.common.career.0beg208",
-                    "{count}개 추천"
-                  ),
-                  {
+              ? t("career.common.career.0beg208", "{count}개 추천", {
+                  values: {
                     count: status.recommendationCount,
-                  }
-                )
+                  },
+                })
               : "",
           ]
             .filter(Boolean)
             .join(" / ")
         : isStopped
-          ? formatCareerMessage(
-              m,
-              careerT(
-                "ko",
-                "career.common.career.1clmbsb",
-                "요청한 검색을 중지했습니다."
-              )
-            )
-          : formatCareerMessage(
-              m,
-              careerT(
-                "ko",
-                "career.common.career.0vbpl1c",
-                "이번 검색은 완료하지 못했습니다."
-              )
+          ? t("career.common.career.1clmbsb", "요청한 검색을 중지했습니다.")
+          : t(
+              "career.common.career.0vbpl1c",
+              "이번 검색은 완료하지 못했습니다."
             );
     const showCancel = isRunning && active && onCancel;
 
@@ -142,14 +94,8 @@ export const RecommendationSearchStatusPanel = memo(
               type="button"
               onClick={onCancel}
               className="inline-flex h-8 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-[8px] border border-neutral-1000-a05 bg-bg-floating text-[12px] font-medium text-neutral-primary transition-colors hover:bg-bg-weak"
-              aria-label={formatCareerMessage(
-                m,
-                careerT("ko", "career.common.career.1nwpekv", "검색 중지")
-              )}
-              title={formatCareerMessage(
-                m,
-                careerT("ko", "career.common.career.1nwpekv", "검색 중지")
-              )}
+              aria-label={t("career.common.career.1nwpekv", "검색 중지")}
+              title={t("career.common.career.1nwpekv", "검색 중지")}
             >
               <Square className="h-3.5 w-3.5" fill="currentColor" />
             </BareButton>

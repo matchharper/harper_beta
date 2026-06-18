@@ -51,7 +51,7 @@ function toSitemapDateTime(value: string | null | undefined) {
 export const getServerSideProps: GetServerSideProps = async ({ res }) => {
   const [{ getAllPostsMeta }, { getPublicOfficialJobs }] = await Promise.all([
     import("@/lib/blog.server"),
-    import("@/lib/officialJobs.server"),
+    import("@/lib/officialJobs/server"),
   ]);
   const posts = getAllPostsMeta();
   const jobs = await getPublicOfficialJobs();

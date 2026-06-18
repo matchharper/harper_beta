@@ -12,11 +12,11 @@ import {
   normalizeCandidateMarkFilter,
   useSettingStore,
 } from "@/store/useSettingStore";
-import { useQueryDetail } from "@/hooks/useQueryDetail";
+import { useQueryDetail } from "@/hooks/search/useQueryDetail";
 import { logger } from "@/utils/logger";
-import { useRunDetail } from "@/hooks/useRunDetail";
-import { useRunPagesInfinite } from "@/hooks/useRunResults";
-import { runSearch } from "@/hooks/useStartSearch";
+import { useRunDetail } from "@/hooks/search/useRunDetail";
+import { useRunPagesInfinite } from "@/hooks/search/useRunResults";
+import { runSearch } from "@/hooks/search/useStartSearch";
 import { Loading } from "@/components/ui/loading";
 import Head from "next/head";
 import {
@@ -24,7 +24,7 @@ import {
   normalizeSearchSource,
   normalizeSearchSources,
   queryTypeToSearchSource,
-} from "@/lib/searchSource";
+} from "@/lib/search/source";
 import { StatusEnum } from "@/types/type";
 
 function clamp(n: number, min: number, max: number) {

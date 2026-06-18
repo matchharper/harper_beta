@@ -40,8 +40,8 @@ import {
   getSearchSourceLogoPath,
   normalizeSearchSources,
   SEARCH_SOURCE_DESCRIPTIONS,
-} from "@/lib/searchSource";
-import { useRunDetail } from "@/hooks/useRunDetail";
+} from "@/lib/search/source";
+import { useRunDetail } from "@/hooks/search/useRunDetail";
 import { Tooltips } from "../ui/tooltip";
 import { useMessages } from "@/i18n/useMessage";
 import { BareButton } from "@/components/ui/button";

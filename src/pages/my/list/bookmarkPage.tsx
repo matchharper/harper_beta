@@ -6,21 +6,21 @@ import {
 } from "@/components/ui/action-dropdown";
 import { Loading } from "@/components/ui/loading";
 import { showToast } from "@/components/toast/toast";
-import { useCandidatesByConnectionTyped } from "@/hooks/useBookMarkCandidates";
-import { CandidateTypeWithConnection } from "@/hooks/useSearchChatCandidates";
+import { useCandidatesByConnectionTyped } from "@/hooks/candidates/useBookMarkCandidates";
+import { CandidateTypeWithConnection } from "@/hooks/search/useSearchChatCandidates";
 import {
   useActiveBookmarkFolderShareMap,
   useCreateBookmarkFolderShare,
   useRevokeBookmarkFolderShare,
   useSharedBookmarkFolderPage,
-} from "@/hooks/useSharedBookmarkFolder";
-import { createSharedFolderOwnerIdentity } from "@/lib/sharedFolder";
+} from "@/hooks/candidates/useSharedBookmarkFolder";
+import { createSharedFolderOwnerIdentity } from "@/lib/candidates/sharedFolder";
 import {
   BookmarkFolder,
   useBookmarkFolders,
   useDeleteBookmarkFolder,
   useUpdateBookmarkFolder,
-} from "@/hooks/useBookmarkFolders";
+} from "@/hooks/candidates/useBookmarkFolders";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import {
   Bookmark,

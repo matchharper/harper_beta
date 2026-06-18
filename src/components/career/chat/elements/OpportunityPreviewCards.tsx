@@ -9,49 +9,46 @@ import { useMessages } from "@/i18n/useMessage";
 
 import { getOpportunityPostingStatus } from "../../history/opportunityPostingStatus";
 import { useCareerT } from "@/i18n/useCareerT";
-import { careerT } from "@/lib/career/translatedCareerMessage";
 
-const formatChatOpportunityWorkMode = (value: string | null) => {
+type CareerT = ReturnType<typeof useCareerT>;
+
+const formatChatOpportunityWorkMode = (value: string | null, t: CareerT) => {
   if (!value) return null;
   const normalized = value.trim().toLowerCase().replaceAll("-", "_");
   if (!normalized) return null;
-  if (normalized === "remote")
-    return careerT("ko", "career.common.career.1r843ma", "원격");
+  if (normalized === "remote") return t("career.common.career.1r843ma", "원격");
   if (normalized === "hybrid")
-    return careerT("ko", "career.common.career.055fv5b", "하이브리드");
+    return t("career.common.career.055fv5b", "하이브리드");
   if (normalized === "onsite" || normalized === "on_site")
-    return careerT("ko", "career.common.career.0ketgfl", "대면");
+    return t("career.common.career.0ketgfl", "대면");
   return value.trim().replaceAll("_", " ");
 };
 
-const formatChatOpportunityEmploymentType = (value: string) => {
+const formatChatOpportunityEmploymentType = (value: string, t: CareerT) => {
   const normalized = value.trim().toLowerCase().replaceAll("-", "_");
   if (!normalized) return null;
   if (normalized === "full_time")
-    return careerT("ko", "career.onboarding.onboarding.166o9pn", "풀타임");
+    return t("career.onboarding.onboarding.166o9pn", "풀타임");
   if (normalized === "part_time")
-    return careerT(
-      "ko",
-      "career.common.career_history_panel.090irfh",
-      "파트타임"
-    );
+    return t("career.common.career_history_panel.090irfh", "파트타임");
   if (normalized === "internship")
-    return careerT("ko", "career.common.career_history_panel.0sbhtqh", "인턴");
+    return t("career.common.career_history_panel.0sbhtqh", "인턴");
   if (normalized === "contract")
-    return careerT(
-      "ko",
-      "career.common.career_history_panel.1rvnrzl",
-      "계약직"
-    );
+    return t("career.common.career_history_panel.1rvnrzl", "계약직");
   if (normalized === "fractional") return "Fractional";
   return value.trim().replaceAll("_", " ");
 };
 
-const getChatOpportunityMetaItems = (item: CareerHistoryOpportunity) =>
+const getChatOpportunityMetaItems = (
+  item: CareerHistoryOpportunity,
+  t: CareerT
+) =>
   [
     item.location,
-    formatChatOpportunityWorkMode(item.workMode),
-    ...item.employmentTypes.map(formatChatOpportunityEmploymentType),
+    formatChatOpportunityWorkMode(item.workMode, t),
+    ...item.employmentTypes.map((value) =>
+      formatChatOpportunityEmploymentType(value, t)
+    ),
   ].filter(Boolean) as string[];
 
 type OpportunityPreviewCardsProps = {
@@ -109,10 +106,14 @@ export const OpportunityPreviewCards = memo(function OpportunityPreviewCards({
     [itemSignature, items.length]
   );
 
+  const metaItems = useMemo(
+    () => (item ? getChatOpportunityMetaItems(item, t) : []),
+    [item, t]
+  );
+
   if (!item) return null;
 
-  const postingStatus = getOpportunityPostingStatus(item, locale);
-  const metaItems = getChatOpportunityMetaItems(item);
+  const postingStatus = getOpportunityPostingStatus(item, locale, t);
   const summary =
     item.recommendationSummary?.trim() ||
     item.recommendationReasons[0] ||

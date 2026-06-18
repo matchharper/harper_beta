@@ -30,7 +30,7 @@ import Image from "next/image";
 import { ActionDropdown, ActionDropdownItem } from "../ui/action-dropdown";
 import { Drawer, DrawerContent, DrawerTrigger } from "../ui/drawer";
 import { canAccessAts } from "@/lib/internalAccess";
-import { useMatchWorkspace } from "@/hooks/useMatchWorkspace";
+import { useMatchWorkspace } from "@/hooks/match/useMatchWorkspace";
 import MatchSidebarRoles from "@/components/match/MatchSidebarRoles";
 import { BareButton } from "@/components/ui/button";
 

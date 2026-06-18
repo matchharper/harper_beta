@@ -39,7 +39,6 @@ import type {
 import { AnimatePresence, motion } from "motion/react";
 import React from "react";
 import { useCareerT } from "@/i18n/useCareerT";
-import { careerT } from "@/lib/career/translatedCareerMessage";
 
 type JobsDisplayTab = CareerMobileHistoryJobsTab;
 
@@ -60,36 +59,35 @@ const CHAT_PANEL_MAX_WIDTH = 62;
 const CHAT_PANEL_DEFAULT_WIDTH = 52;
 const CHAT_PANEL_RESIZE_HANDLE_WIDTH_PX = 8;
 
-export const NAV_ITEMS: Array<{
+type WorkspaceTabOption = {
   id: CareerWorkspaceTab;
   label: string;
   icon: typeof House;
-}> = [
+};
+
+type CareerTLike = ReturnType<typeof useCareerT>;
+const fallbackCareerT: CareerTLike = (_key, koSource) => koSource;
+
+const getWorkspaceTabOptions = (t: CareerTLike): WorkspaceTabOption[] => [
   {
     id: "home",
-    label: careerT("ko", "career.common.career_workspace_screen.1kr4bnb", "홈"),
+    label: t("career.common.career_workspace_screen.1kr4bnb", "홈"),
     icon: House,
   },
   {
     id: "history",
-    label: careerT(
-      "ko",
-      "career.common.career_workspace_screen.0jpahnv",
-      "포지션"
-    ),
+    label: t("career.common.career_workspace_screen.0jpahnv", "포지션"),
     icon: GalleryVerticalEnd,
   },
-  // Watchlist is hidden for the deploy until the tab is ready.
   {
     id: "profile",
-    label: careerT(
-      "ko",
-      "career.common.career_workspace_screen.0b0v9cr",
-      "프로필"
-    ),
+    label: t("career.common.career_workspace_screen.0b0v9cr", "프로필"),
     icon: User,
   },
 ];
+
+export const NAV_ITEMS: WorkspaceTabOption[] =
+  getWorkspaceTabOptions(fallbackCareerT);
 
 const CareerCanvas = ({
   children,
@@ -151,18 +149,21 @@ export const CareerWorkspace = () => {
   return <CareerWorkspaceRoot />;
 };
 
-export const CareerLoadingState = () => (
-  <main className="relative flex min-h-svh w-full items-center justify-center bg-bg-basement text-neutral-primary">
-    <Loader2 className="h-5 w-5 animate-spin text-neutral-soft" />
-    <span className="sr-only">
-      {careerT(
-        "ko",
-        "career.common.career_workspace_screen.1nwthrd",
-        "커리어 페이지 로딩 중"
-      )}
-    </span>
-  </main>
-);
+export const CareerLoadingState = () => {
+  const t = useCareerT();
+
+  return (
+    <main className="relative flex min-h-svh w-full items-center justify-center bg-bg-basement text-neutral-primary">
+      <Loader2 className="h-5 w-5 animate-spin text-neutral-soft" />
+      <span className="sr-only">
+        {t(
+          "career.common.career_workspace_screen.1nwthrd",
+          "커리어 페이지 로딩 중"
+        )}
+      </span>
+    </main>
+  );
+};
 
 const CareerWorkspaceScreen = ({
   activeTab,
@@ -265,6 +266,7 @@ const CareerWorkspaceRoot = ({
       ).length,
     [historyOpportunities]
   );
+  const navItems = useMemo(() => getWorkspaceTabOptions(t), [t]);
 
   const detectedMobileViewport = useIsMobile();
   const isMobileViewport =
@@ -362,7 +364,7 @@ const CareerWorkspaceRoot = ({
           >
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-8">
               <nav className="flex shrink-0 flex-wrap items-center justify-center gap-2 border-b border-neutral-1000-a05 px-3 py-3.5">
-                {NAV_ITEMS.map((item) => {
+                {navItems.map((item) => {
                   const Icon = item.icon;
                   const active = item.id === activeTab;
 
@@ -795,6 +797,7 @@ const CareerWorkspaceMobileLayout = ({
   ) => void;
   pendingInternalRoleFeedbackCount: number;
 }) => {
+  const t = useCareerT();
   const logCareerEvent = useCareerLogEvent();
   const { onOpenSettings, onLogout } = useCareerSidebarContext();
   const { displayName, profilePicture, userEmail } = useMobileUserDisplay();
@@ -807,6 +810,7 @@ const CareerWorkspaceMobileLayout = ({
   const [inquiryOpen, setInquiryOpen] = useState(false);
   const [pendingHistoryTarget, setPendingHistoryTarget] =
     useState<CareerWorkspaceHistoryTarget | null>(null);
+  const baseWorkspaceTabOptions = useMemo(() => getWorkspaceTabOptions(t), [t]);
   const handleOpenSupport = useCallback(() => {
     logCareerEvent("click_open_support");
     setInquiryOpen(true);
@@ -828,12 +832,12 @@ const CareerWorkspaceMobileLayout = ({
   );
   const workspaceTabOptions = useMemo(
     () =>
-      WORKSPACE_TAB_OPTIONS.map((option) =>
+      baseWorkspaceTabOptions.map((option) =>
         option.id === "history" && pendingInternalRoleFeedbackCount > 0
           ? { ...option, badgeCount: pendingInternalRoleFeedbackCount }
           : option
       ),
-    [pendingInternalRoleFeedbackCount]
+    [baseWorkspaceTabOptions, pendingInternalRoleFeedbackCount]
   );
 
   const mobileHeader = (

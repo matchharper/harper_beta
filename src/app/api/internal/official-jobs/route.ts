@@ -7,7 +7,7 @@ import {
   fetchOpsOfficialJobs,
   saveOpsOfficialJob,
   type OpsOfficialJobSaveInput,
-} from "@/lib/opsOfficialJobs";
+} from "@/lib/ops/officialJobs";
 
 export const runtime = "nodejs";
 

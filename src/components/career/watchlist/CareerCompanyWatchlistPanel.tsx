@@ -24,7 +24,7 @@ import {
   WATCHLIST_COMPANY_QUERY_KEY,
   WATCHLIST_PAGE_SIZE,
   WATCHLIST_TAB_QUERY_KEY,
-  WATCHLIST_TABS,
+  getWatchlistTabs,
   type CompanyDetailPayload,
   type CompanyWatchlistItem,
   type CompanyWatchlistPage,
@@ -36,7 +36,6 @@ import {
   parseWatchlistTab,
 } from "./watchlistFormatters";
 import { useCareerT } from "@/i18n/useCareerT";
-import { careerT } from "@/lib/career/translatedCareerMessage";
 
 const CareerCompanyWatchlistPanel = () => {
   const t = useCareerT();
@@ -127,8 +126,7 @@ const CareerCompanyWatchlistPanel = () => {
         throw new Error(
           getErrorMessage(
             payload,
-            careerT(
-              "ko",
+            t(
               "career.common.career.047a363",
               "회사 워치리스트를 불러오지 못했습니다."
             )
@@ -145,7 +143,7 @@ const CareerCompanyWatchlistPanel = () => {
           typeof payload.nextOffset === "number" ? payload.nextOffset : null,
       };
     },
-    [activeTab, fetchWithAuth, locale]
+    [activeTab, fetchWithAuth, locale, t]
   );
 
   const fetchWatchlistCount = useCallback(
@@ -166,8 +164,7 @@ const CareerCompanyWatchlistPanel = () => {
         throw new Error(
           getErrorMessage(
             payload,
-            careerT(
-              "ko",
+            t(
               "career.common.career.0cp7wph",
               "회사 워치리스트 개수를 불러오지 못했습니다."
             )
@@ -177,7 +174,7 @@ const CareerCompanyWatchlistPanel = () => {
 
       return typeof payload.count === "number" ? payload.count : 0;
     },
-    [fetchWithAuth]
+    [fetchWithAuth, t]
   );
 
   const listQuery = useInfiniteQuery({
@@ -227,14 +224,15 @@ const CareerCompanyWatchlistPanel = () => {
     }),
     [activeTab, countsQuery.data, currentCount]
   );
+  const watchlistTabs = useMemo(() => getWatchlistTabs(t), [t]);
   const tabItems = useMemo(
     () =>
-      WATCHLIST_TABS.map((tab) => ({
+      watchlistTabs.map((tab) => ({
         id: tab.id,
         label: tab.label,
         count: tabCounts[tab.id],
       })),
-    [tabCounts]
+    [tabCounts, watchlistTabs]
   );
 
   const detailQuery = useQuery({
@@ -260,8 +258,7 @@ const CareerCompanyWatchlistPanel = () => {
         throw new Error(
           getErrorMessage(
             payload,
-            careerT(
-              "ko",
+            t(
               "career.company.career_company_detail_drawer.0amy3om",
               "회사 정보를 불러오지 못했습니다."
             )
@@ -313,8 +310,7 @@ const CareerCompanyWatchlistPanel = () => {
         setActionError(
           error instanceof Error
             ? error.message
-            : careerT(
-                "ko",
+            : t(
                 "career.common.career_flow_provider.19x0zaz",
                 "회사 팔로우 상태를 변경하지 못했습니다."
               )
@@ -325,7 +321,7 @@ const CareerCompanyWatchlistPanel = () => {
         );
       }
     },
-    [detailCompanyDbId, locale, onUpdateCompanyFollow, queryClient, userId]
+    [detailCompanyDbId, locale, onUpdateCompanyFollow, queryClient, t, userId]
   );
 
   const handleGenerateRecommendations = useCallback(async () => {
@@ -338,8 +334,7 @@ const CareerCompanyWatchlistPanel = () => {
       });
       if (!result) {
         throw new Error(
-          careerT(
-            "ko",
+          t(
             "career.common.career_flow_provider.0lsvl9z",
             "추천 회사를 만들지 못했습니다."
           )
@@ -355,8 +350,7 @@ const CareerCompanyWatchlistPanel = () => {
       setActionError(
         error instanceof Error
           ? error.message
-          : careerT(
-              "ko",
+          : t(
               "career.common.career_flow_provider.0lsvl9z",
               "추천 회사를 만들지 못했습니다."
             )
@@ -369,6 +363,7 @@ const CareerCompanyWatchlistPanel = () => {
     handleChangeTab,
     onGenerateCompanyRecommendations,
     queryClient,
+    t,
   ]);
 
   const fetchNextWatchlistPage = listQuery.fetchNextPage;

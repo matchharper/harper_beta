@@ -6,8 +6,14 @@ import { cn } from "@/lib/utils";
 import styles from "./Face.module.css";
 
 export type FaceStatus = "idle" | "closing" | "speaking" | "listening";
+type FaceExpressionOffset = {
+  x?: number | string;
+  y?: number | string;
+};
 
 type FaceProps = Omit<ComponentPropsWithoutRef<"div">, "children"> & {
+  expressionOffset?: FaceExpressionOffset;
+  flipped?: boolean;
   size?: number;
   status?: FaceStatus;
   priority?: boolean;
@@ -31,6 +37,8 @@ const facePath = {
 } as const;
 
 function Face({
+  expressionOffset,
+  flipped = false,
   status = "idle",
   size = 140,
   className,
@@ -54,42 +62,51 @@ function Face({
       role={role}
       style={{ width: size, height: size, ...style }}
     >
-      <Image
-        src={`${FACE_SVG_BASE_PATH}/bgblur.svg`}
-        alt=""
+      <span
         aria-hidden="true"
-        width={size}
-        height={size}
-        priority={priority}
-        draggable={false}
-        className="pointer-events-none absolute inset-0 z-0 m-auto select-none object-contain"
-        style={{ width: size, height: size }}
-      />
-      <Image
-        src={`${FACE_SVG_BASE_PATH}/bg.svg`}
-        alt=""
-        aria-hidden="true"
-        width={backgroundSize}
-        height={backgroundSize}
-        priority={priority}
-        draggable={false}
-        className="pointer-events-none absolute inset-0 z-[1] m-auto select-none object-contain"
-        style={{ width: backgroundSize, height: backgroundSize }}
-      />
-      <FaceExpression
-        offsetScale={size / 140}
-        size={expressionSize}
-        status={status}
-      />
+        className="pointer-events-none absolute inset-0 z-0 m-auto select-none"
+        style={{ transform: flipped ? "scaleX(-1)" : undefined }}
+      >
+        <Image
+          src={`${FACE_SVG_BASE_PATH}/bgblur.svg`}
+          alt=""
+          aria-hidden="true"
+          width={size}
+          height={size}
+          priority={priority}
+          draggable={false}
+          className="pointer-events-none absolute inset-0 z-0 m-auto select-none object-contain"
+          style={{ width: size, height: size }}
+        />
+        <Image
+          src={`${FACE_SVG_BASE_PATH}/bg.svg`}
+          alt=""
+          aria-hidden="true"
+          width={backgroundSize}
+          height={backgroundSize}
+          priority={priority}
+          draggable={false}
+          className="pointer-events-none absolute inset-0 z-[1] m-auto select-none object-contain"
+          style={{ width: backgroundSize, height: backgroundSize }}
+        />
+        <FaceExpression
+          expressionOffset={expressionOffset}
+          offsetScale={size / 140}
+          size={expressionSize}
+          status={status}
+        />
+      </span>
     </div>
   );
 }
 
 function FaceExpression({
+  expressionOffset,
   offsetScale,
   status,
   size,
 }: {
+  expressionOffset?: FaceExpressionOffset;
   offsetScale: number;
   status: FaceStatus;
   size: number;
@@ -101,25 +118,32 @@ function FaceExpression({
     styles.openEye,
     isClosing && styles.openEyeClosing
   );
-  const listeningStyle = isListening
-    ? ({
-        "--face-listening-x-1": `${5 * offsetScale}px`,
-        "--face-listening-y-1": `${10 * offsetScale}px`,
-        "--face-listening-x-2": `${-10 * offsetScale}px`,
-        "--face-listening-y-2": `${-2 * offsetScale}px`,
-        "--face-listening-x-3": `${10 * offsetScale}px`,
-        "--face-listening-y-3": `${-4 * offsetScale}px`,
-      } as CSSProperties)
-    : undefined;
+  const toCssLength = (value: number | string | undefined) =>
+    typeof value === "number" ? `${value}px` : value;
+  const expressionStyle = {
+    "--face-offset-x": toCssLength(expressionOffset?.x) ?? "0px",
+    "--face-offset-y": toCssLength(expressionOffset?.y) ?? "0px",
+    ...(isListening
+      ? {
+          "--face-listening-x-1": `${3 * offsetScale}px`,
+          "--face-listening-y-1": `${6 * offsetScale}px`,
+          "--face-listening-x-2": `${-6 * offsetScale}px`,
+          "--face-listening-y-2": `${-2 * offsetScale}px`,
+          "--face-listening-x-3": `${5 * offsetScale}px`,
+          "--face-listening-y-3": `${-1 * offsetScale}px`,
+        }
+      : null),
+  } as CSSProperties;
 
   return (
     <span
       aria-hidden="true"
       className={cn(
         "pointer-events-none absolute inset-0 z-[2] m-auto select-none",
+        styles.expressionFrame,
         isListening && styles.expressionMotion
       )}
-      style={{ height: size, width: size, ...listeningStyle }}
+      style={{ height: size, width: size, ...expressionStyle }}
     >
       <svg
         className={cn(

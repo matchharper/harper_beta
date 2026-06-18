@@ -5,12 +5,12 @@ import {
   buildOfficialJobsLoginHref,
   OFFICIAL_JOBS_LOGIN_HREF,
 } from "@/lib/officialJobs";
-import { getOfficialJobsAnonymousId } from "@/lib/officialJobEvents";
-import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobLandingLogs";
+import { getOfficialJobsAnonymousId } from "@/lib/officialJobs/events";
+import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
 import {
   CAREER_LANDING_LOCAL_ID_STORAGE_KEY,
   CAREER_UTM_SOURCE_STORAGE_KEY,
-} from "@/lib/careerUtm";
+} from "@/lib/career/utm";
 import { useAuthStore } from "@/store/useAuthStore";
 import { cva, type VariantProps } from "class-variance-authority";
 import Link from "next/link";

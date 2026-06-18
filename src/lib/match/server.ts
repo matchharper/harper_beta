@@ -9,7 +9,7 @@ import {
   fetchShortlistMemoMapForUser,
   getSupabaseAdmin,
 } from "@/lib/server/candidateAccess";
-import type { CandidateTypeWithConnection } from "@/hooks/useSearchChatCandidates";
+import type { CandidateTypeWithConnection } from "@/hooks/search/useSearchChatCandidates";
 import {
   normalizeMatchDecisionStatus,
   normalizeMatchEmploymentTypes,

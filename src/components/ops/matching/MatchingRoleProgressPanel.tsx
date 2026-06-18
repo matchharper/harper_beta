@@ -19,14 +19,14 @@ import {
   useCreateOpsMatchingProgress,
   useDeleteOpsMatchingProgress,
   useOpsMatchingProgress,
-} from "@/hooks/useOpsMatching";
-import type { OpsManualInternalRecommendationRole } from "@/lib/opsCareerServer";
+} from "@/hooks/ops/useOpsMatching";
+import type { OpsManualInternalRecommendationRole } from "@/lib/ops/careerServer";
 import type {
   OpsMatchingProgressItem,
   OpsMatchingRecommendationDelivery,
   OpsMatchingRecommendationSummary,
   OpsMatchingRoleOption,
-} from "@/lib/opsMatching";
+} from "@/lib/ops/matching";
 
 type MatchingRoleProgressPanelProps = {
   role: OpsMatchingRoleOption;

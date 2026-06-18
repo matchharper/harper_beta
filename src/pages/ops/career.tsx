@@ -7,7 +7,7 @@ import {
 } from "@/components/ops/career/utils";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { Calendar } from "@/components/ui/calendar";
-import { useOpsCareerTalents } from "@/hooks/useOpsCareer";
+import { useOpsCareerTalents } from "@/hooks/ops/useOpsCareer";
 import { isInternalEmail } from "@/lib/internalAccess";
 import {
   isEmailExcludedByOpsInternalTerms,

@@ -8,7 +8,8 @@ import CareerWelcomeScreen from "./chat/CareerWelcomeScreen";
 import { cn } from "@/lib/utils";
 import { useCareerAutoStart } from "@/hooks/career/useCareerAutoStart";
 import React from "react";
-import { careerT } from "@/lib/career/translatedCareerMessage";
+import { useCareerT } from "@/i18n/useCareerT";
+import Face from "../common/Face";
 
 const DEFAULT_COMPOSER_OVERLAY_HEIGHT_PX = 168;
 // Extra empty space after the last timeline item, on top of the composer height.
@@ -21,36 +22,32 @@ const CareerCallLoadingScreen = ({
 }: {
   noticeCollapsed: boolean;
   onToggleNotice: () => void;
-}) => (
-  <div className="animate-in fade-in zoom-in-95 absolute inset-0 z-10 flex flex-col items-center justify-center bg-bg-default/95 text-neutral-primary duration-500">
-    <div className="absolute inset-x-4 top-4 flex justify-center">
-      <CareerCallEnvironmentNotice
-        collapsed={noticeCollapsed}
-        onToggle={onToggleNotice}
-      />
+}) => {
+  const t = useCareerT();
+
+  return (
+    <div className="animate-in fade-in zoom-in-95 absolute inset-0 z-10 flex flex-col items-center justify-center bg-bg-default/95 text-neutral-primary duration-500">
+      <div className="absolute inset-x-4 top-4 flex justify-center">
+        <CareerCallEnvironmentNotice
+          collapsed={noticeCollapsed}
+          onToggle={onToggleNotice}
+        />
+      </div>
+      <div
+        role="status"
+        aria-live="polite"
+        className="flex flex-col items-center gap-5"
+      >
+        <Face status="closing" className="mt-4" aria-label="Harper" />
+
+        <div className="h-px w-20 bg-neutral-1000-a05" />
+        <p className="text-sm font-medium text-neutral-muted">
+          {t("career.common.career_chat_panel.1q1egw3", "통화 연결 중...")}
+        </p>
+      </div>
     </div>
-    <div
-      role="status"
-      aria-live="polite"
-      className="flex flex-col items-center gap-5"
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/images/logos/harper_beige.png"
-        alt="Harper"
-        className="h-16 w-auto animate-pulse"
-      />
-      <div className="h-px w-20 bg-neutral-1000-a05" />
-      <p className="text-sm font-medium text-neutral-muted">
-        {careerT(
-          "ko",
-          "career.common.career_chat_panel.1q1egw3",
-          "통화 연결 중..."
-        )}
-      </p>
-    </div>
-  </div>
-);
+  );
+};
 
 const CallSessionView = ({
   inputMode,

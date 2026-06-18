@@ -1,7 +1,7 @@
-import { Loader2, Mic, MicOff, X, Captions, PhoneOff } from "lucide-react";
+import { Loader2, Mic, MicOff, Captions, PhoneOff } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
-import Face from "@/components/common/Face";
+import Face, { type FaceStatus } from "@/components/common/Face";
 import { Tooltips } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useCareerVoiceInputStore } from "@/store/useCareerVoiceInputStore";
@@ -12,7 +12,6 @@ import type {
 import CareerCallEnvironmentNotice from "./CareerCallEnvironmentNotice";
 import { BareButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
-import { careerT } from "@/lib/career/translatedCareerMessage";
 
 /* ─── Waveform Dots ─── */
 
@@ -85,6 +84,7 @@ const TranscriptOverlay = memo(
     liveUserTranscriptPlacement?: CallLiveTranscriptPlacement;
     currentUserTranscript?: string;
   }) => {
+    const t = useCareerT();
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const liveUserText = currentUserTranscript?.trim() ?? "";
     const hasSameUserEntry = entries.some(
@@ -136,8 +136,7 @@ const TranscriptOverlay = memo(
         >
           {displayEntries.length === 0 ? (
             <p className="text-center text-sm text-neutral-disabled">
-              {careerT(
-                "ko",
+              {t(
                 "career.chat.career_call_screen.0u4w1k5",
                 "대화가 시작되면 여기에 표시됩니다."
               )}
@@ -210,8 +209,12 @@ const CareerCallScreen = ({
     callConnectionStatus === "reconnecting" ||
     (callTranscriptEntries ?? []).length > 0;
   const timer = useCallTimer(hasStarted);
-  const forceCompleteTooltip = careerT(
-    "ko",
+  const faceStatus: FaceStatus = isClosing
+    ? "closing"
+    : isAssistantSpeaking
+      ? "speaking"
+      : "listening";
+  const forceCompleteTooltip = t(
     "career.chat.career_call_screen.0n1pl8k",
     "커리어 인터뷰를 임의로 종료할 수 있어요. 거의 다 왔으니 2~3개의 질문에만 추가로 대답해주시면 자동으로 종료됩니다!"
   );
@@ -300,7 +303,7 @@ const CareerCallScreen = ({
       {/* Center area — pushed up from center */}
       <div className="flex flex-1 flex-col items-center justify-center pb-40">
         <span className="text-lg font-medium text-neutral-muted">Harper</span>
-        <Face status="idle" className="mt-4" aria-label="Harper" />
+        <Face status={faceStatus} className="mt-4" aria-label="Harper" />
         <span className="mt-4 text-sm tabular-nums text-neutral-soft">
           {timer}
         </span>
@@ -378,16 +381,8 @@ const CareerCallScreen = ({
             }`}
             aria-label={
               voiceMuted
-                ? careerT(
-                    "ko",
-                    "career.chat.career_call_screen.15tfl05",
-                    "음소거 해제"
-                  )
-                : careerT(
-                    "ko",
-                    "career.chat.career_call_screen.1914g7j",
-                    "음소거"
-                  )
+                ? t("career.chat.career_call_screen.15tfl05", "음소거 해제")
+                : t("career.chat.career_call_screen.1914g7j", "음소거")
             }
           >
             {voiceMuted ? (

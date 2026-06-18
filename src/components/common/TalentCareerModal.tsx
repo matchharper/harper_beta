@@ -2,7 +2,7 @@ import { X } from "lucide-react";
 import React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { cn } from "@/lib/cn";
-import { careerT } from "@/lib/career/translatedCareerMessage";
+import { useCareerT } from "@/i18n/useCareerT";
 
 type TalentCareerModalProps = {
   open: boolean;
@@ -43,14 +43,15 @@ const TalentCareerModal = ({
   bodyClassName,
   footerClassName,
   closeButtonClassName,
-  closeButtonAriaLabel = careerT(
-    "ko",
-    "career.common.talent_career_modal.18ppi14",
-    "모달 닫기"
-  ),
+  closeButtonAriaLabel,
 }: TalentCareerModalProps) => {
+  const t = useCareerT();
   const hasTitle = title !== undefined && title !== null;
   const hasDescription = description !== undefined && description !== null;
+  const resolvedCloseButtonAriaLabel =
+    closeButtonAriaLabel ??
+    t("career.common.talent_career_modal.18ppi14", "모달 닫기");
+  const fallbackAccessibleTitle = ariaLabel ?? resolvedCloseButtonAriaLabel;
 
   return (
     <DialogPrimitive.Root
@@ -97,10 +98,20 @@ const TalentCareerModal = ({
                   "absolute right-4 top-4 z-10 inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors",
                   closeButtonClassName
                 )}
-                aria-label={closeButtonAriaLabel}
+                aria-label={resolvedCloseButtonAriaLabel}
               >
                 <X className="h-4 w-4" />
               </DialogPrimitive.Close>
+            ) : null}
+            {!hasTitle ? (
+              <DialogPrimitive.Title className="sr-only">
+                {fallbackAccessibleTitle}
+              </DialogPrimitive.Title>
+            ) : null}
+            {!hasDescription ? (
+              <DialogPrimitive.Description className="sr-only">
+                {fallbackAccessibleTitle}
+              </DialogPrimitive.Description>
             ) : null}
             {eyebrow || hasTitle || hasDescription ? (
               <header

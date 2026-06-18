@@ -1,7 +1,7 @@
 "use client";
 
 import { showToast } from "@/components/toast/toast";
-import { useUpdateMatchCandidateDecision } from "@/hooks/useMatchWorkspace";
+import { useUpdateMatchCandidateDecision } from "@/hooks/match/useMatchWorkspace";
 import type { MatchCandidateDetailResponse } from "@/lib/match/shared";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowRight, Ban, Clock3 } from "lucide-react";

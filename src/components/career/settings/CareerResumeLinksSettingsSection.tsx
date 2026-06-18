@@ -12,7 +12,7 @@ import Image from "next/image";
 import React, { useMemo, useState } from "react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { useCareerSidebarContext } from "@/components/career/CareerSidebarContext";
-import { CAREER_LINK_LABELS } from "@/components/career/constants";
+import { getCareerLinkLabels } from "@/components/career/constants";
 import LoadingState from "@/components/career/OnboardingLoadingState";
 import { pickLinkedinProfileLink } from "@/hooks/career/careerHelpers";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
@@ -21,7 +21,6 @@ import { SecondaryButton, BareButton } from "@/components/ui/button";
 import { Input, Input as UiInput } from "@/components/ui/input";
 import { Field, FieldLabel } from "@/components/ui/panel";
 import { useCareerT } from "@/i18n/useCareerT";
-import { careerT } from "@/lib/career/translatedCareerMessage";
 
 const CAREER_LINK_ITEMS = [
   {
@@ -40,7 +39,7 @@ const CAREER_LINK_ITEMS = [
     placeholder: "https://scholar.google.com/citations?user=",
   },
   {
-    alt: careerT("ko", "career.common.constants.0iah44y", "개인 웹사이트"),
+    alt: "Website",
     iconSrc: null,
     placeholder: "https://yourname.com",
   },
@@ -71,6 +70,7 @@ const LinkItemIcon = ({ index }: { index: number }) => {
 
 const CareerResumeLinksSettingsSection = () => {
   const t = useCareerT();
+  const careerLinkLabels = useMemo(() => getCareerLinkLabels(t), [t]);
 
   const logCareerEvent = useCareerLogEvent();
   const {
@@ -136,11 +136,7 @@ const CareerResumeLinksSettingsSection = () => {
             <>
               <p className="mt-2 truncate text-sm text-neutral-primary">
                 {savedResumeFileName ??
-                  careerT(
-                    "ko",
-                    "career.common.career.0w4x7qh",
-                    "파일명 정보 없음"
-                  )}
+                  t("career.common.career.0w4x7qh", "파일명 정보 없음")}
               </p>
               {savedResumeStoragePath && (
                 <p className="mt-1 truncate text-xs text-neutral-soft">
@@ -223,9 +219,8 @@ const CareerResumeLinksSettingsSection = () => {
               <div className="flex w-36 shrink-0 items-center gap-2 text-sm text-neutral-muted">
                 <LinkItemIcon index={index} />
                 <span className="truncate">
-                  {CAREER_LINK_LABELS[index] ??
-                    careerT(
-                      "ko",
+                  {careerLinkLabels[index] ??
+                    t(
                       "career.chat.career_timeline_section.0ong27a",
                       "추가 링크"
                     )}
@@ -284,13 +279,11 @@ const CareerResumeLinksSettingsSection = () => {
         >
           <Save className="h-4 w-4" />
           {profileSavePending
-            ? careerT(
-                "ko",
+            ? t(
                 "career.profile.career_profile_settings_section.08zy6at",
                 "저장 중..."
               )
-            : careerT(
-                "ko",
+            : t(
                 "career.common.career.07vhdpu",
                 "이력서/링크 저장 및 새로운 정보 업데이트"
               )}

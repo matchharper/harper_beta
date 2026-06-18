@@ -10,7 +10,7 @@ import {
   parseCareerListLimit,
   parseCareerListOffset,
   parseCareerListSearchQuery,
-} from "@/lib/opsCareerServer";
+} from "@/lib/ops/careerServer";
 
 export const runtime = "nodejs";
 

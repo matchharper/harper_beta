@@ -1,20 +1,44 @@
 import {
+  CAREER_LANDING_ABTEST_TYPE,
   CAREER_LANDING_LOCAL_ID_STORAGE_KEY,
   CAREER_UTM_DEFAULT_SOURCE,
+  CAREER_UTM_LOGIN_LOGGED_STORAGE_PREFIX,
   CAREER_UTM_SOURCE_STORAGE_KEY,
   normalizeCareerUtmSource,
+  readCareerUtmSourceFromSearch,
   resolveCareerUtmSource,
-} from "@/lib/careerUtm";
+} from "@/lib/career/utm";
+import {
+  buildLandingLoginEmailType,
+  withLandingLogSource,
+} from "@/lib/landingLogTypes";
+import { supabase } from "@/lib/supabase";
+import { useCountryLang } from "@/hooks/useCountryLang";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useRouter } from "next/router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
 
 const CAREER_AUTHENTICATED_START_HREF = "/career";
 const CAREER_ONBOARDING_HREF = "/career/onboarding";
+const CAREER_LANDING_LAST_ABTEST_TYPE_KEY =
+  "harper_career_landing_last_abtest_type";
+const CAREER_LANDING_LAST_VISIT_AT_KEY = "harper_career_landing_last_visit_at";
+const CAREER_LANDING_SESSION_GAP_MS = 30 * 60 * 1000;
 
-const buildCareerLoginHref = (source: string, landingId: string) => {
+type UseCareerLandingStartOptions = {
+  abtestType?: string;
+  trackingEnabled?: boolean;
+};
+
+const buildCareerLoginHref = (
+  source: string,
+  landingId: string,
+  abtestType: string
+) => {
   const params = new URLSearchParams({
+    ab: abtestType,
     next: CAREER_ONBOARDING_HREF,
     source: resolveCareerUtmSource(source),
   });
@@ -33,7 +57,11 @@ const createCareerLandingId = () => {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
 
-const useCareerStartHref = (source: string, landingId: string) => {
+const useCareerStartHref = (
+  source: string,
+  landingId: string,
+  abtestType: string
+) => {
   const user = useAuthStore((state) => state.user);
   const session = useAuthStore((state) => state.session);
   const authLoading = useAuthStore((state) => state.loading);
@@ -41,7 +69,11 @@ const useCareerStartHref = (source: string, landingId: string) => {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user) return;
+
+    if (!user) {
+      queueMicrotask(() => setNeedsOnboarding(null));
+      return;
+    }
 
     const token = session?.access_token;
     if (!token) {
@@ -85,19 +117,26 @@ const useCareerStartHref = (source: string, landingId: string) => {
   }, [authLoading, session?.access_token, user]);
 
   if (authLoading || !user) {
-    return buildCareerLoginHref(source, landingId);
+    return buildCareerLoginHref(source, landingId, abtestType);
   }
 
-  if (needsOnboarding !== false) {
-    return CAREER_ONBOARDING_HREF;
-  }
-
-  return CAREER_AUTHENTICATED_START_HREF;
+  return needsOnboarding === false
+    ? CAREER_AUTHENTICATED_START_HREF
+    : CAREER_ONBOARDING_HREF;
 };
 
-export function useCareerLandingStart() {
+export function useCareerLandingStart({
+  abtestType = CAREER_LANDING_ABTEST_TYPE,
+  trackingEnabled = true,
+}: UseCareerLandingStartOptions = {}) {
   const router = useRouter();
+  const countryLang = useCountryLang();
+  const isMobile = useIsMobile();
+  const user = useAuthStore((state) => state.user);
+  const session = useAuthStore((state) => state.session);
+  const authLoading = useAuthStore((state) => state.loading);
   const [landingId, setLandingId] = useState("");
+  const hasLoggedFirstScrollRef = useRef(false);
   const marketingSource = useMemo(() => {
     const querySource =
       typeof router.query.source === "string"
@@ -111,15 +150,68 @@ export function useCareerLandingStart() {
       ) ?? CAREER_UTM_DEFAULT_SOURCE
     );
   }, [router.query.source]);
-  const careerStartHref = useCareerStartHref(marketingSource, landingId);
+  const careerStartHref = useCareerStartHref(
+    marketingSource,
+    landingId,
+    abtestType
+  );
+
+  const addLandingLog = useCallback(
+    async (
+      type: string,
+      overrides?: { localId?: string; source?: string | null }
+    ) => {
+      if (!trackingEnabled) return false;
+
+      const storedLocalId =
+        typeof window !== "undefined"
+          ? (localStorage.getItem(CAREER_LANDING_LOCAL_ID_STORAGE_KEY) ?? "")
+          : "";
+      const storedSource =
+        typeof window !== "undefined"
+          ? localStorage.getItem(CAREER_UTM_SOURCE_STORAGE_KEY)
+          : null;
+      const resolvedLocalId = overrides?.localId || landingId || storedLocalId;
+      const resolvedSource = resolveCareerUtmSource(
+        overrides?.source ?? marketingSource ?? storedSource
+      );
+      if (!resolvedLocalId) return false;
+
+      try {
+        const { error } = await supabase.from("landing_logs").insert({
+          local_id: resolvedLocalId,
+          type: withLandingLogSource(type, resolvedSource),
+          abtest_type: abtestType,
+          is_mobile: isMobile,
+          country_lang: countryLang,
+        });
+
+        if (error) {
+          console.error("career landing log insert error:", error);
+          return false;
+        }
+
+        return true;
+      } catch (error) {
+        console.error("career landing log insert error:", error);
+        return false;
+      }
+    },
+    [
+      abtestType,
+      countryLang,
+      isMobile,
+      landingId,
+      marketingSource,
+      trackingEnabled,
+    ]
+  );
 
   useEffect(() => {
+    if (!trackingEnabled) return;
     if (typeof window === "undefined") return;
 
-    const querySource =
-      typeof router.query.source === "string"
-        ? normalizeCareerUtmSource(router.query.source)
-        : null;
+    const querySource = readCareerUtmSourceFromSearch(window.location.search);
     const savedSource = normalizeCareerUtmSource(
       localStorage.getItem(CAREER_UTM_SOURCE_STORAGE_KEY)
     );
@@ -128,6 +220,9 @@ export function useCareerLandingStart() {
     localStorage.setItem(CAREER_UTM_SOURCE_STORAGE_KEY, resolvedSource);
 
     const savedId = localStorage.getItem(CAREER_LANDING_LOCAL_ID_STORAGE_KEY);
+    const savedAbtestType = localStorage.getItem(
+      CAREER_LANDING_LAST_ABTEST_TYPE_KEY
+    );
     const resolvedLandingId = savedId || createCareerLandingId();
 
     if (!savedId) {
@@ -135,17 +230,152 @@ export function useCareerLandingStart() {
         CAREER_LANDING_LOCAL_ID_STORAGE_KEY,
         resolvedLandingId
       );
+      localStorage.setItem(CAREER_LANDING_LAST_ABTEST_TYPE_KEY, abtestType);
+      localStorage.setItem(
+        CAREER_LANDING_LAST_VISIT_AT_KEY,
+        Date.now().toString()
+      );
+      void addLandingLog("new_visit", {
+        localId: resolvedLandingId,
+        source: resolvedSource,
+      });
     }
 
     queueMicrotask(() => setLandingId(resolvedLandingId));
-  }, [router.query.source]);
+
+    if (savedId && savedAbtestType !== abtestType) {
+      localStorage.setItem(CAREER_LANDING_LAST_ABTEST_TYPE_KEY, abtestType);
+      localStorage.setItem(
+        CAREER_LANDING_LAST_VISIT_AT_KEY,
+        Date.now().toString()
+      );
+      void addLandingLog("new_session", {
+        localId: savedId,
+        source: resolvedSource,
+      });
+      return;
+    }
+
+    if (savedId && querySource && querySource !== savedSource) {
+      localStorage.setItem(
+        CAREER_LANDING_LAST_VISIT_AT_KEY,
+        Date.now().toString()
+      );
+      void addLandingLog("new_session", {
+        localId: savedId,
+        source: querySource,
+      });
+    }
+  }, [abtestType, addLandingLog, router.asPath, trackingEnabled]);
+
+  useEffect(() => {
+    if (!trackingEnabled) return;
+    if (!landingId || typeof window === "undefined") return;
+
+    const now = Date.now();
+    const lastVisitRaw = localStorage.getItem(CAREER_LANDING_LAST_VISIT_AT_KEY);
+    const lastVisitAt = lastVisitRaw ? Number(lastVisitRaw) : null;
+
+    if (
+      lastVisitAt &&
+      Number.isFinite(lastVisitAt) &&
+      now - lastVisitAt >= CAREER_LANDING_SESSION_GAP_MS
+    ) {
+      void addLandingLog("new_session");
+    }
+
+    localStorage.setItem(CAREER_LANDING_LAST_VISIT_AT_KEY, now.toString());
+  }, [addLandingLog, landingId, trackingEnabled]);
+
+  useEffect(() => {
+    if (!trackingEnabled) return;
+    if (!landingId || typeof window === "undefined") return;
+
+    const handleScroll = () => {
+      if (hasLoggedFirstScrollRef.current || window.scrollY <= 0) return;
+
+      hasLoggedFirstScrollRef.current = true;
+      void addLandingLog("first_scroll_down");
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [addLandingLog, landingId, trackingEnabled]);
+
+  useEffect(() => {
+    if (!trackingEnabled) return;
+    if (
+      !landingId ||
+      !user?.id ||
+      !user.email ||
+      typeof window === "undefined"
+    ) {
+      return;
+    }
+
+    const email = user.email;
+    const source = resolveCareerUtmSource(marketingSource);
+    const storageKey = `${CAREER_UTM_LOGIN_LOGGED_STORAGE_PREFIX}:${user.id}:${landingId}:${source}`;
+    if (localStorage.getItem(storageKey)) return;
+
+    void (async () => {
+      const didLog = await addLandingLog(
+        buildLandingLoginEmailType(email, source)
+      );
+      if (didLog) localStorage.setItem(storageKey, "1");
+    })();
+  }, [
+    addLandingLog,
+    landingId,
+    marketingSource,
+    trackingEnabled,
+    user?.email,
+    user?.id,
+  ]);
 
   const handleCareerStartClick = useCallback(
-    (event: React.MouseEvent<HTMLAnchorElement>) => {
+    async (event: React.MouseEvent<HTMLAnchorElement>) => {
       event.preventDefault();
-      void router.push(careerStartHref);
+      void addLandingLog("click_start");
+
+      if (authLoading || !user) {
+        void router.push(careerStartHref);
+        return;
+      }
+
+      const token = session?.access_token;
+      if (!token) {
+        void router.push(CAREER_ONBOARDING_HREF);
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/talent/onboarding/status", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const payload = (await response.json().catch(() => ({}))) as {
+          needsOnboarding?: boolean;
+        };
+
+        void router.push(
+          response.ok && payload.needsOnboarding === false
+            ? CAREER_AUTHENTICATED_START_HREF
+            : CAREER_ONBOARDING_HREF
+        );
+      } catch {
+        void router.push(CAREER_ONBOARDING_HREF);
+      }
     },
-    [careerStartHref, router]
+    [
+      addLandingLog,
+      authLoading,
+      careerStartHref,
+      router,
+      session?.access_token,
+      user,
+    ]
   );
 
   return { careerStartHref, handleCareerStartClick };

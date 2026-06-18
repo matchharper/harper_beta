@@ -36,12 +36,10 @@ function extractPlaceholders(value: string) {
   return Array.from(names);
 }
 
-function getMissingPlaceholders(source: string, target: string) {
-  const sourceNames = extractPlaceholders(source);
-  if (sourceNames.length === 0) return [];
-
-  const targetNames = new Set(extractPlaceholders(target));
-  return sourceNames.filter((name) => !targetNames.has(name));
+function getUnsupportedPlaceholders(source: string, target: string) {
+  const sourceNames = new Set(extractPlaceholders(source));
+  const targetNames = extractPlaceholders(target);
+  return targetNames.filter((name) => !sourceNames.has(name));
 }
 
 function confidenceLabel(match: CareerTranslationMatch) {
@@ -60,6 +58,7 @@ function findMatchAtPoint(
   clientY: number
 ) {
   let bestMatch: CareerTranslationMatch | null = null;
+  let bestKindRank = Number.POSITIVE_INFINITY;
   let bestArea = Number.POSITIVE_INFINITY;
 
   for (const match of matches) {
@@ -73,7 +72,12 @@ function findMatchAtPoint(
       if (!containsPoint) continue;
 
       const area = rect.width * rect.height;
-      if (area < bestArea) {
+      const kindRank = match.kind === "text" ? 0 : 1;
+      if (
+        kindRank < bestKindRank ||
+        (kindRank === bestKindRank && area < bestArea)
+      ) {
+        bestKindRank = kindRank;
         bestArea = area;
         bestMatch = match;
       }
@@ -166,29 +170,33 @@ function EditorDrawer() {
   const saving = selectedKey ? inspect?.isEntrySaving(selectedKey) : false;
   const dirty = selectedKey ? inspect?.isEntryDirty(selectedKey) : false;
 
-  const missingKoPlaceholders = useMemo(
+  const unsupportedKoPlaceholders = useMemo(
     () =>
       selectedMatch && entry
-        ? getMissingPlaceholders(selectedMatch.sourceKo, entry.ko)
+        ? getUnsupportedPlaceholders(selectedMatch.sourceKo, entry.ko)
         : [],
     [entry, selectedMatch]
   );
-  const missingEnPlaceholders = useMemo(
+  const unsupportedEnPlaceholders = useMemo(
     () =>
       selectedMatch && entry
-        ? getMissingPlaceholders(selectedMatch.sourceKo, entry.en)
+        ? getUnsupportedPlaceholders(selectedMatch.sourceKo, entry.en)
         : [],
     [entry, selectedMatch]
   );
-  const missingPlaceholders = [
-    ...missingKoPlaceholders.map((name) => `${fieldLabel("ko")} {${name}}`),
-    ...missingEnPlaceholders.map((name) => `${fieldLabel("en")} {${name}}`),
+  const unsupportedPlaceholders = [
+    ...unsupportedKoPlaceholders.map(
+      (name) => `${fieldLabel("ko")} {${name}}`
+    ),
+    ...unsupportedEnPlaceholders.map(
+      (name) => `${fieldLabel("en")} {${name}}`
+    ),
   ];
   const canSave =
     Boolean(selectedKey && entry && dirty) &&
     !loading &&
     !saving &&
-    missingPlaceholders.length === 0;
+    unsupportedPlaceholders.length === 0;
 
   if (!inspect?.inspectEnabled || !selectedMatch || !entry) return null;
 
@@ -289,11 +297,12 @@ function EditorDrawer() {
           </div>
         ) : null}
 
-        {missingPlaceholders.length > 0 ? (
+        {unsupportedPlaceholders.length > 0 ? (
           <div className="flex gap-2 rounded-md border border-critical/20 bg-critical-faded px-3 py-2 text-xs leading-5 text-critical">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
-              placeholder가 빠졌습니다: {missingPlaceholders.join(", ")}
+              source에 없는 placeholder입니다:{" "}
+              {unsupportedPlaceholders.join(", ")}
             </span>
           </div>
         ) : null}

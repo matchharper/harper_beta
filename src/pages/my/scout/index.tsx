@@ -10,7 +10,7 @@ import { useCallback, useMemo, useState, useEffect } from "react";
 import { showToast } from "@/components/toast/toast";
 import { MAX_ACTIVE_AUTOMATIONS } from "./[id]";
 import CandidateViews from "@/components/CandidateViews";
-import { useAutomationResults } from "@/hooks/useAutomationResults";
+import { useAutomationResults } from "@/hooks/search/useAutomationResults";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Loading } from "@/components/ui/loading";
 import { useMessages } from "@/i18n/useMessage";

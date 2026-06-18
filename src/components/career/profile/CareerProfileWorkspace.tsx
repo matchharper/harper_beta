@@ -6,7 +6,7 @@ import CareerTalentProfilePanel from "./CareerTalentProfilePanel";
 import CareerResumeLinksSettingsSection from "../settings/CareerResumeLinksSettingsSection";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import React from "react";
-import { careerT } from "@/lib/career/translatedCareerMessage";
+import { useCareerT } from "@/i18n/useCareerT";
 
 type ProfileSectionId = "profile" | "links";
 
@@ -14,32 +14,26 @@ const isProfileSectionId = (
   value: string | null | undefined
 ): value is ProfileSectionId => value === "profile" || value === "links";
 
-const PROFILE_SECTION_ITEMS: Array<{
+type ProfileSectionItem = {
   id: ProfileSectionId;
   label: string;
   title: string;
   description: string[];
-}> = [
+};
+
+const getProfileSectionItems = (
+  t: ReturnType<typeof useCareerT>
+): ProfileSectionItem[] => [
   {
     id: "profile",
-    label: careerT(
-      "ko",
-      "career.common.career_workspace_screen.0b0v9cr",
-      "프로필"
-    ),
-    title: careerT(
-      "ko",
-      "career.common.career_workspace_screen.0b0v9cr",
-      "프로필"
-    ),
+    label: t("career.common.career_workspace_screen.0b0v9cr", "프로필"),
+    title: t("career.common.career_workspace_screen.0b0v9cr", "프로필"),
     description: [
-      careerT(
-        "ko",
+      t(
         "career.profile.career_profile_workspace.16e35ps",
         "입력하신 정보와 대화내용을 바탕으로 Harper가 구성한 프로필입니다."
       ),
-      careerT(
-        "ko",
+      t(
         "career.profile.career_profile_workspace.116ofw4",
         "이대로 회사 측에 전달되지는 않지만, 변경하고 싶으신 사항이 있는지 확인할 수 있습니다."
       ),
@@ -47,19 +41,10 @@ const PROFILE_SECTION_ITEMS: Array<{
   },
   {
     id: "links",
-    label: careerT(
-      "ko",
-      "career.profile.career_profile_workspace.14bifvm",
-      "이력서/링크"
-    ),
-    title: careerT(
-      "ko",
-      "career.profile.career_profile_workspace.14bifvm",
-      "이력서/링크"
-    ),
+    label: t("career.profile.career_profile_workspace.14bifvm", "이력서/링크"),
+    title: t("career.profile.career_profile_workspace.14bifvm", "이력서/링크"),
     description: [
-      careerT(
-        "ko",
+      t(
         "career.profile.career_profile_workspace.11os0vs",
         "이력서와 나와 관련된 링크를 확인하고 수정할 수 있습니다."
       ),
@@ -68,6 +53,7 @@ const PROFILE_SECTION_ITEMS: Array<{
 ];
 
 const CareerProfileWorkspace = () => {
+  const t = useCareerT();
   const router = useRouter();
   const logCareerEvent = useCareerLogEvent();
   const { savedResumeFileName, savedResumeStoragePath } =
@@ -76,20 +62,19 @@ const CareerProfileWorkspace = () => {
 
   const sectionItems = useMemo(
     () =>
-      PROFILE_SECTION_ITEMS.map((item) =>
+      getProfileSectionItems(t).map((item) =>
         item.id === "links"
           ? {
               ...item,
               attention: !hasSavedResume,
-              attentionLabel: careerT(
-                "ko",
+              attentionLabel: t(
                 "career.profile.career_profile_workspace.0pv1jmq",
                 "저장된 이력서가 없습니다"
               ),
             }
           : item
       ),
-    [hasSavedResume]
+    [hasSavedResume, t]
   );
 
   const activeSection: ProfileSectionId = useMemo(() => {

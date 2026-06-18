@@ -14,10 +14,78 @@ import {
   Video,
   Captions,
 } from "lucide-react";
+import Face from "@/components/common/Face";
+import { useMessages, type Locale } from "@/i18n/useMessage";
+import { cn } from "@/lib/utils";
 
-function GmailPhoneMockup() {
+type GmailMockupCopy = {
+  body: {
+    greeting: string;
+    paragraphs: string[];
+    roleBody: string;
+    roleTitle: string;
+  };
+  inboxLabel: string;
+  replyLabel: string;
+  forwardLabel: string;
+  summaryLabel: string;
+  subject: string;
+  timeLabel: string;
+  toLabel: string;
+};
+
+const GMAIL_MOCKUP_COPY: Record<Locale, GmailMockupCopy> = {
+  ko: {
+    subject: "소개: Chris & Wonderful APAC VP",
+    inboxLabel: "받은편지함",
+    summaryLabel: "이메일 요약",
+    timeLabel: "방금",
+    toLabel: "받는사람: me, daniel",
+    replyLabel: "답장",
+    forwardLabel: "전달",
+    body: {
+      greeting: "안녕하세요,",
+      paragraphs: [
+        "두분을 연결시켜드릴 수 있게되어 기쁩니다. Chris는 SF에서 일하고 있는 Forward Deployed Engineer로, 빠르게 성장하는 AI 회사에서 핵심 아키텍처를 구축할 다음 기회를 찾고 있습니다. 싱가포르와 서울 모두 가능해 relocation에도 열려 있습니다.",
+        "Chris, Daniel은 APAC 지역 VP로 현재 인재분들을 만나고 있습니다. 다른 절차 없이 연결드려요. Wonderful이 지금 아시아 전역으로 공격적으로 확장하고 있는 만큼, 타이밍이 아주 좋아 보입니다.",
+      ],
+      roleTitle: "Forward Deployed Engineer · Wonderful (APAC)",
+      roleBody:
+        "APAC 확장 팀에서 핵심 아키텍처를 맡는 역할입니다. 프리미엄 relocation 패키지와 싱가포르 또는 서울 배치가 가능하며, APAC VP에게 직접 연결됩니다. HR 절차나 공개 공고 없이 진행되는 기회입니다.",
+    },
+  },
+  en: {
+    subject: "Intro: Chris & VP of APAC, Wonderful",
+    inboxLabel: "Inbox",
+    summaryLabel: "Email summary",
+    timeLabel: "Now",
+    toLabel: "to me",
+    replyLabel: "Reply",
+    forwardLabel: "Forward",
+    body: {
+      greeting: "Hi team,",
+      paragraphs: [
+        "I'm thrilled to introduce Chris to your team at Wonderful. He's a Forward Deployed Engineer based in SF who's looking to build core architecture at a fast-scaling AI company — and he's open to relocating, with both Singapore and Seoul on the table.",
+        "I've routed this directly to your VP of APAC to skip the usual queue. Given how aggressively Wonderful is expanding across Asia right now, the timing looks ideal.",
+      ],
+      roleTitle: "Forward Deployed Engineer · Wonderful (APAC)",
+      roleBody:
+        "Core architecture role on the APAC expansion team, with a premium relocation package and placement in Singapore or Seoul. Direct line to the VP of APAC — no HR queue, no public listing.",
+    },
+  },
+};
+
+function GmailPhoneMockup({ className }: { className?: string }) {
+  const { locale } = useMessages();
+  const copy = GMAIL_MOCKUP_COPY[locale] ?? GMAIL_MOCKUP_COPY.ko;
+
   return (
-    <div className="absolute bottom-[3.6%] right-[4.3%] hidden w-[218px] md:block md:w-[248px] lg:w-[260px]">
+    <div
+      className={cn(
+        "absolute bottom-[3.6%] right-[4.3%] hidden w-[218px] md:block md:w-[248px] lg:w-[260px]",
+        className
+      )}
+    >
       <div className="relative aspect-[434/882]">
         <Image
           src="/svgs/phone.svg"
@@ -36,21 +104,21 @@ function GmailPhoneMockup() {
 
             <div className="h-[calc(100%-32px)] overflow-hidden">
               <div className="px-[14px] pb-[92px] pt-[2px]">
-                <GmailSubject />
+                <GmailSubject copy={copy} />
 
                 <div className="mt-[10px]">
-                  <GmailSummaryCard />
+                  <GmailSummaryCard copy={copy} />
                 </div>
 
                 <div className="mt-[10px]">
-                  <GmailSenderRow />
+                  <GmailSenderRow copy={copy} />
                 </div>
 
-                <GmailBody />
+                <GmailBody copy={copy} />
               </div>
             </div>
 
-            <GmailReplyActions />
+            <GmailReplyActions copy={copy} />
             <GmailBottomNav />
           </div>
         </div>
@@ -117,13 +185,13 @@ function GmailTopBar() {
   );
 }
 
-function GmailSubject() {
+function GmailSubject({ copy }: { copy: GmailMockupCopy }) {
   return (
     <div className="grid grid-cols-[1fr_16px] gap-[8px]">
       <h3 className="text-[13px] font-normal leading-[1.4] tracking-[-0.025em] text-[#202124]">
-        호진님, Canva 쪽은 Harper가 회사에 전달 진행하겠습니다
+        {copy.subject}
         <span className="ml-[5px] inline-flex translate-y-[-2px] rounded-[4px] bg-[#f1f3f4] px-[5px] py-[2px] text-[8px] font-normal leading-none tracking-[-0.02em] text-[#5f6368]">
-          받은편지함
+          {copy.inboxLabel}
         </span>
       </h3>
 
@@ -135,7 +203,7 @@ function GmailSubject() {
   );
 }
 
-function GmailSummaryCard() {
+function GmailSummaryCard({ copy }: { copy: GmailMockupCopy }) {
   return (
     <div className="flex h-[28px] items-center rounded-[12px] bg-[#eef3fb] px-[12px] text-[#5f6368]">
       <div className="flex items-center gap-[8px]">
@@ -146,19 +214,17 @@ function GmailSummaryCard() {
         </span>
 
         <span className="text-[10px] font-medium tracking-[-0.02em]">
-          이메일 요약
+          {copy.summaryLabel}
         </span>
       </div>
     </div>
   );
 }
 
-function GmailSenderRow() {
+function GmailSenderRow({ copy }: { copy: GmailMockupCopy }) {
   return (
     <div className="grid grid-cols-[28px_1fr_auto] items-start gap-[9px]">
-      <div className="flex h-[28px] w-[28px] items-center justify-center rounded-full bg-[#006c55] text-[16px] font-normal leading-none text-white">
-        H
-      </div>
+      <Face size={30} />
 
       <div className="min-w-0 pt-[2px]">
         <div className="flex min-w-0 items-center gap-[7px]">
@@ -166,12 +232,12 @@ function GmailSenderRow() {
             Harper
           </span>
           <span className="shrink-0 text-[10.5px] leading-none tracking-[-0.02em] text-[#5f6368]">
-            6월 5일
+            {copy.timeLabel}
           </span>
         </div>
 
         <div className="mt-[6px] flex items-center gap-[3px] text-[9.5px] leading-none tracking-[-0.02em] text-[#3c4043]">
-          <span>받는사람: me</span>
+          <span>{copy.toLabel}</span>
           <span className="translate-y-[-1px] text-[9px]">⌄</span>
         </div>
       </div>
@@ -185,45 +251,29 @@ function GmailSenderRow() {
   );
 }
 
-function GmailBody() {
+function GmailBody({ copy }: { copy: GmailMockupCopy }) {
   return (
     <div className="mt-[22px] space-y-[12px] text-[11px] font-normal leading-[1.43] tracking-[-0.025em] text-black">
-      <p>호진님,</p>
+      <p>{copy.body.greeting}</p>
 
-      <p>
-        저번에 추천드린 Canva Engineer 역할에 연결을 수락해주신걸 확인했습니다.
-        내부 기회라 Harper가 중간에서 회사 쪽에 직접 전달하고 일정 조율까지
-        도와드릴게요. 가장 적절한 타이밍에 넘겨드리겠습니다.
-        <br />
-        바로 매니저한테 전달될 예정이라, 아마 다음주 안에 커피챗 혹은 인터뷰
-        일정 안내가 갈 예정이에요.
-      </p>
-
-      <p>
-        그 사이 Image/TTS에 대한 관심을 이어가면서 multimodal/LLM 쪽으로도 살짝
-        넓혀, 이전에 저장하신 Cresta·Ideogram·Cohere와 겹치지 않는 역할 세 개를
-        골라봤습니다.
-      </p>
+      {copy.body.paragraphs.map((paragraph) => (
+        <p key={paragraph}>{paragraph}</p>
+      ))}
 
       <p>---</p>
 
       <div>
         <p className="font-semibold text-[#1a73e8] underline underline-offset-[2px]">
-          Agentic AI Engineer at 네오사피엔스 (타입캐스트)
+          {copy.body.roleTitle}
         </p>
 
-        <p className="mt-[13px]">
-          타입캐스트는 감정 표현 TTS와 AI 아바타로 알려진 서울 회사인데, 지금은
-          실시간 음성·영상 AI 캐릭터 플랫폼 Neona를 새로 만들고 있어요.
-          STT-LLM-TTS 파이프라인부터 turn-taking, 저지연 스트리밍까지 Voice AI
-          쪽 문제를 많이 다룹니다.
-        </p>
+        <p className="mt-[13px]">{copy.body.roleBody}</p>
       </div>
     </div>
   );
 }
 
-function GmailReplyActions() {
+function GmailReplyActions({ copy }: { copy: GmailMockupCopy }) {
   const iconSize = "h-[13px] w-[13px]";
   const pill =
     "flex h-[28px] items-center justify-center gap-[7px] rounded-full bg-white text-[10px] font-normal tracking-[-0.02em] text-[#3c4043] ring-1 ring-[#c9cccf]";
@@ -233,12 +283,12 @@ function GmailReplyActions() {
       <div className="grid grid-cols-[1fr_1fr_34px] gap-[5px]">
         <button type="button" className={pill}>
           <Reply className={iconSize} strokeWidth={2.2} />
-          답장
+          {copy.replyLabel}
         </button>
 
         <button type="button" className={pill}>
           <Forward className={iconSize} strokeWidth={2.2} />
-          전달
+          {copy.forwardLabel}
         </button>
 
         <button type="button" aria-label="Comment" className={pill}>

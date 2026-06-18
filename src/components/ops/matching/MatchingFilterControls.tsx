@@ -12,7 +12,7 @@ import { Calendar } from "@/components/ui/calendar";
 import {
   isOpsMatchingExcludeNotInterestedFilter,
   OPS_MATCHING_EXCLUDE_NOT_INTERESTED_FILTER_VALUE,
-} from "@/lib/opsMatchingFilters";
+} from "@/lib/ops/matchingFilters";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,

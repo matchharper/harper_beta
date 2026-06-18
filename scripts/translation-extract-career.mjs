@@ -374,9 +374,11 @@ function extractPlaceholders(value) {
     .sort();
 }
 
-function areArraysEqual(left, right) {
-  if (left.length !== right.length) return false;
-  return left.every((value, index) => value === right[index]);
+function getUnsupportedPlaceholders(sourceValue, targetValue) {
+  const sourcePlaceholders = new Set(extractPlaceholders(sourceValue));
+  return extractPlaceholders(targetValue).filter(
+    (placeholder) => !sourcePlaceholders.has(placeholder)
+  );
 }
 
 function runCheck(entries, existingKo, existingEn) {
@@ -412,14 +414,16 @@ function runCheck(entries, existingKo, existingEn) {
       continue;
     }
 
-    const koPlaceholders = extractPlaceholders(entry.ko);
-    const enPlaceholders = extractPlaceholders(existingEn[entry.key] ?? "");
-    if (!areArraysEqual(koPlaceholders, enPlaceholders)) {
+    const unsupportedPlaceholders = getUnsupportedPlaceholders(
+      entry.ko,
+      existingEn[entry.key] ?? ""
+    );
+    if (unsupportedPlaceholders.length > 0) {
       failures.push({
-        actual: enPlaceholders.join(", "),
-        expected: koPlaceholders.join(", "),
+        actual: unsupportedPlaceholders.join(", "),
+        expected: extractPlaceholders(entry.ko).join(", "),
         key: entry.key,
-        reason: "placeholder mismatch",
+        reason: "unsupported placeholder",
         source: entry.locations[0] ?? "",
       });
     }

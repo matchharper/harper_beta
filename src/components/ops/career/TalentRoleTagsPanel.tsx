@@ -13,16 +13,16 @@ import { Select as UiSelect } from "@/components/ui/select";
 import {
   useOpsCareerRecommendations,
   useOpsManualInternalRecommendationRoles,
-} from "@/hooks/useOpsCareer";
-import { useOpsMatchingTalentRoleTags } from "@/hooks/useOpsMatching";
+} from "@/hooks/ops/useOpsCareer";
+import { useOpsMatchingTalentRoleTags } from "@/hooks/ops/useOpsMatching";
 import type {
   CareerTalentRecommendationItem,
   OpsManualInternalRecommendationRole,
-} from "@/lib/opsCareerServer";
+} from "@/lib/ops/careerServer";
 import type {
   OpsMatchingTalentRoleTagGroup,
   OpsMatchingTalentTag,
-} from "@/lib/opsMatching";
+} from "@/lib/ops/matching";
 import {
   formatKst,
   recommendationFeedbackClass,

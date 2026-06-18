@@ -10,7 +10,7 @@ import type {
   AdminCareerUtmSourceRow,
 } from "@/lib/adminCareerAnalytics/types";
 import { ADMIN_PAGE_PASSWORD } from "@/lib/admin";
-import { buildCareerUtmUrl, normalizeCareerUtmSource } from "@/lib/careerUtm";
+import { buildCareerUtmUrl, normalizeCareerUtmSource } from "@/lib/career/utm";
 import { cn } from "@/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Copy, LoaderCircle, Pencil, Plus, RefreshCw, Shuffle, Trash2, X } from "lucide-react";

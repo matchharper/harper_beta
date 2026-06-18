@@ -401,7 +401,7 @@ Relevant Supabase public schema:
 - talent_conversations: id uuid, user_id references talent_users.user_id, stage, relief_nudge_sent, created_at, updated_at.
 - talent_messages: id bigint, conversation_id references talent_conversations.id, user_id references talent_users.user_id, role, content, message_type, thinking_logs, created_at.
 - talent_conversation_summaries: id uuid, talent_id references talent_users.user_id, conversation_id references talent_conversations.id, from_message_id, to_message_id, summary_text/json, created_at.
-- talent_activity_events: id uuid, talent_id references talent_users.user_id, conversation_id, message_id, event_type, source, summary, metadata, occurred_at, created_at.
+- talent_activity_events: id uuid, talent_id references talent_users.user_id, conversation_id, message_id, event_type, source, summary, impact_level, changed_domains, created_at.
 - talent_insights: id bigint, talent_id references talent_users.user_id, content jsonb, last_updated_at, created_at.
 - talent_experiences / talent_educations / talent_extras / talent_publications: profile tables keyed by talent_id.
 - talent_internal: internal career network metadata keyed by talent_id.

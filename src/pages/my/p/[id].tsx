@@ -4,7 +4,7 @@ import CandidateProfileDetailPage from "@/components/profile/CandidateProfileDet
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import ChatPanel, { ChatScope } from "@/components/chat/ChatPanel";
 import { useMemo, useState } from "react";
-import { useCandidateDetail } from "@/hooks/useCandidateDetail";
+import { useCandidateDetail } from "@/hooks/candidates/useCandidateDetail";
 import CandidChatPanel from "@/components/chat/CandidChatPanel";
 import AddCustomModal from "@/components/Modal/AddCustomModal";
 import { Loading } from "@/components/ui/loading";

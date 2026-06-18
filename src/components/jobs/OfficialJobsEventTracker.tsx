@@ -3,7 +3,7 @@
 import {
   postOfficialJobEvent,
   type OfficialJobEventType,
-} from "@/lib/officialJobEvents";
+} from "@/lib/officialJobs/events";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useEffect, useMemo, useRef } from "react";
 

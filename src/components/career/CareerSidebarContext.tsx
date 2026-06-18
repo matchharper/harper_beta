@@ -50,6 +50,7 @@ export type CareerSidebarContextValue = {
   conversationId: string | null;
   stage: CareerStage;
   isOnboardingDone: boolean;
+  workspaceDataLoading: boolean;
   userChatCount: number;
   answeredCount: number;
   targetQuestions: number;

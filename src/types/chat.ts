@@ -1,5 +1,5 @@
 import { UiSegment } from "@/hooks/chat/useChatSession";
-import { SearchSource } from "@/lib/searchSource";
+import { SearchSource } from "@/lib/search/source";
 
 export type CriteriaCardBlock = {
   type: "criteria_card";

@@ -3,7 +3,7 @@ import {
   requireInternalApiUser,
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
-import { generateOpsOpportunityRecommendationDraft } from "@/lib/opsOpportunity";
+import { generateOpsOpportunityRecommendationDraft } from "@/lib/ops/opportunity";
 import { OpportunityType, isOpportunityType } from "@/lib/opportunityType";
 
 export const runtime = "nodejs";

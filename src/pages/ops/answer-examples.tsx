@@ -6,7 +6,7 @@ import type {
   OpsAnswerExampleItem,
   OpsAnswerExampleSaveResponse,
   OpsAnswerExamplesResponse,
-} from "@/lib/opsAnswerExamplesServer";
+} from "@/lib/ops/answerExamplesServer";
 import {
   CheckCircle2,
   LoaderCircle,

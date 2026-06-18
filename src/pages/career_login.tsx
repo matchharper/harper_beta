@@ -15,7 +15,7 @@ import {
   CAREER_LANDING_LOCAL_ID_STORAGE_KEY,
   CAREER_UTM_SOURCE_STORAGE_KEY,
   normalizeCareerUtmSource,
-} from "@/lib/careerUtm";
+} from "@/lib/career/utm";
 import { BareButton } from "@/components/ui/button";
 import { Input as UiInput } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
@@ -86,6 +86,8 @@ const CareerLoginContent = () => {
         : null;
     const localId =
       typeof router.query.lid === "string" ? router.query.lid.trim() : "";
+    const abtestType =
+      typeof router.query.ab === "string" ? router.query.ab.trim() : "";
     const origin =
       typeof window === "undefined"
         ? "https://matchharper.com"
@@ -95,6 +97,7 @@ const CareerLoginContent = () => {
     if (mail) nextUrl.searchParams.set("mail", mail);
     if (source) nextUrl.searchParams.set("source", source);
     if (localId) nextUrl.searchParams.set("lid", localId);
+    if (abtestType) nextUrl.searchParams.set("ab", abtestType);
     if (emailOnboardingTokenParam) {
       nextUrl.searchParams.set(
         CAREER_EMAIL_ONBOARDING_TOKEN_PARAM,
@@ -109,6 +112,7 @@ const CareerLoginContent = () => {
     router.query.lid,
     router.query.mail,
     router.query.source,
+    router.query.ab,
   ]);
   const emailConfirmationSent = Boolean(authInfo);
   const submittedEmail = email.trim();

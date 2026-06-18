@@ -1,7 +1,13 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { Languages, MousePointer2 } from "lucide-react";
+import {
+  Database,
+  Languages,
+  Loader2,
+  MousePointer2,
+  RefreshCw,
+} from "lucide-react";
 import { useCareerTranslationInspect } from "@/i18n/CareerTranslationInspectProvider";
 import { useMessages, type Locale } from "@/i18n/useMessage";
 import { supabase } from "@/lib/supabase";
@@ -20,6 +26,7 @@ export default function CareerLanguageDevControls({
   const authLoading = useAuthStore((state) => state.loading);
   const user = useAuthStore((state) => state.user);
   const [pendingLocale, setPendingLocale] = useState<Locale | null>(null);
+  const dbPreviewError = translationInspect?.dbPreviewError ?? "";
 
   const persistPreferredLocale = useCallback(
     async (nextLocale: Locale) => {
@@ -104,6 +111,64 @@ export default function CareerLanguageDevControls({
           {option}
         </button>
       ))}
+      {translationInspect?.canInspect ? (
+        <button
+          type="button"
+          onClick={() =>
+            translationInspect.setDbPreviewEnabled(
+              !translationInspect.dbPreviewEnabled
+            )
+          }
+          title={
+            dbPreviewError
+              ? dbPreviewError
+              : translationInspect.dbPreviewEnabled
+                ? "DB 번역 검수 끄기"
+                : "DB 번역 검수 켜기"
+          }
+          className={cn(
+            "flex h-7 items-center gap-1.5 rounded-md px-2.5 font-medium transition",
+            dbPreviewError
+              ? "bg-critical text-neutral-00"
+              : translationInspect.dbPreviewEnabled
+                ? "bg-black text-neutral-00"
+                : "text-neutral-muted hover:bg-bg-weak hover:text-neutral-primary",
+            translationInspect.dbPreviewLoading && "opacity-70"
+          )}
+        >
+          {translationInspect.dbPreviewLoading ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Database className="h-3.5 w-3.5" />
+          )}
+          검수
+        </button>
+      ) : null}
+      {translationInspect?.canInspect && translationInspect.dbPreviewEnabled ? (
+        <button
+          type="button"
+          onClick={() => void translationInspect.refreshDbPreview()}
+          disabled={translationInspect.dbPreviewLoading}
+          title={
+            translationInspect.dbPreviewUpdatedAt
+              ? `DB 번역 다시 반영: ${new Date(
+                  translationInspect.dbPreviewUpdatedAt
+                ).toLocaleTimeString("ko-KR")}`
+              : "DB 번역 다시 반영"
+          }
+          className={cn(
+            "flex h-7 items-center gap-1.5 rounded-md px-2.5 font-medium text-neutral-muted transition hover:bg-bg-weak hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-60"
+          )}
+        >
+          <RefreshCw
+            className={cn(
+              "h-3.5 w-3.5",
+              translationInspect.dbPreviewLoading && "animate-spin"
+            )}
+          />
+          반영
+        </button>
+      ) : null}
       {translationInspect?.canInspect ? (
         <button
           type="button"

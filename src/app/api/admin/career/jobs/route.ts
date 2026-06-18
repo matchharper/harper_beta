@@ -20,7 +20,7 @@ import {
   normalizeOfficialJobSlug,
   OFFICIAL_JOBS_LANDING_SOURCE,
   parseOfficialJobLandingLogType,
-} from "@/lib/officialJobLandingLogs";
+} from "@/lib/officialJobs/landingLogs";
 import {
   OFFICIAL_JOBS_INTERNAL_COPY_ROLE_TITLE,
   OFFICIAL_JOBS_INTERNAL_COPY_SLUG,

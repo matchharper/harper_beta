@@ -2,8 +2,8 @@ import AppLayout from "@/components/layout/app";
 import MatchMemoPanel from "@/components/match/MatchMemoPanel";
 import CandidateProfileDetailPage from "@/components/profile/CandidateProfileDetailPage";
 import { Loading } from "@/components/ui/loading";
-import { useMatchCandidateDetail } from "@/hooks/useMatchWorkspace";
-import { useCandidateDetail } from "@/hooks/useCandidateDetail";
+import { useMatchCandidateDetail } from "@/hooks/match/useMatchWorkspace";
+import { useCandidateDetail } from "@/hooks/candidates/useCandidateDetail";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { useRouter } from "next/router";
 

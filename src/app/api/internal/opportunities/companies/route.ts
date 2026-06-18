@@ -7,11 +7,11 @@ import {
   OPS_COMPANY_MANAGEMENT_PAGE_SIZE,
   type OpsCompanyManagementEmployeeCountRangeFilter,
   type OpsCompanyManagementQualityLabelFilter,
-} from "@/lib/opsOpportunityCompanyManagement";
+} from "@/lib/ops/opportunityCompanyManagement";
 import {
   fetchOpsCompanyManagementPage,
   updateOpsCompanyScrapeOriginal,
-} from "@/lib/opsOpportunity";
+} from "@/lib/ops/opportunity";
 
 export const runtime = "nodejs";
 

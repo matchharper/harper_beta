@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { Command, MoreHorizontal, Pin, Trash2 } from "lucide-react";
 import { Tooltips } from "../ui/tooltip";
 import Link from "next/link";
-import { QueryHistoryItem } from "@/hooks/useSearchHistory";
+import { QueryHistoryItem } from "@/hooks/search/useSearchHistory";
 import { ActionDropdown, ActionDropdownItem } from "../ui/action-dropdown";
 import { BareButton } from "@/components/ui/button";
 

@@ -1,4 +1,4 @@
-import { useQueriesHistory } from "@/hooks/useSearchHistory";
+import { useQueriesHistory } from "@/hooks/search/useSearchHistory";
 import { supabase } from "@/lib/supabase";
 import React from "react";
 import HistoryItem from "./HistoryItem";

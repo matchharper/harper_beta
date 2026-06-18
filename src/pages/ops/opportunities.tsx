@@ -44,20 +44,20 @@ import {
   useSyncOpsOpportunityRoles,
   useUpdateOpsCompanyHumanQualityLabel,
   useUpdateOpsCompanyScrapeOriginal,
-} from "@/hooks/useOpsOpportunities";
-import { useOpsOpportunityCatalogController } from "@/hooks/useOpsOpportunityCatalogController";
+} from "@/hooks/ops/useOpsOpportunities";
+import { useOpsOpportunityCatalogController } from "@/hooks/ops/useOpsOpportunityCatalogController";
 import {
   OPS_COMPANY_MANAGEMENT_PAGE_SIZE,
   type OpsCompanyManagementEmployeeCountRangeFilter,
   type OpsCompanyManagementQualityLabelFilter,
-} from "@/lib/opsOpportunityCompanyManagement";
+} from "@/lib/ops/opportunityCompanyManagement";
 import type {
   OpsCompanyQualityLabel,
   OpsCompanyManagementRecord,
   OpsOpportunityCandidateRecord,
   OpsOpportunityRoleRecord,
   OpsOpportunityType,
-} from "@/lib/opsOpportunity";
+} from "@/lib/ops/opportunity";
 import { OpportunityType } from "@/lib/opportunityType";
 import { isInternalEmail } from "@/lib/internalAccess";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -65,7 +65,7 @@ import {
   isEmailExcludedByOpsInternalTerms,
   useOpsInternalDataExclusionStore,
 } from "@/store/useOpsInternalDataExclusionStore";
-import { DEFAULT_OPS_TALENT_RECOMMENDATION_PROMPT } from "@/lib/opsOpportunityRecommendationPrompt";
+import { DEFAULT_OPS_TALENT_RECOMMENDATION_PROMPT } from "@/lib/ops/opportunityRecommendationPrompt";
 import { useOpsOpportunityRecommendationPromptStore } from "@/store/useOpsOpportunityRecommendationPromptStore";
 import { LoaderCircle, RefreshCw } from "lucide-react";
 import Head from "next/head";

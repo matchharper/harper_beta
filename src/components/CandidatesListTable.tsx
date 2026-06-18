@@ -1,4 +1,4 @@
-import { CandidateTypeWithConnection } from "@/hooks/useSearchChatCandidates";
+import { CandidateTypeWithConnection } from "@/hooks/search/useSearchChatCandidates";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   BriefcaseBusiness,
@@ -19,25 +19,25 @@ import Link from "next/link";
 import ShortlistMemoEditor from "@/components/candidates/ShortlistMemoEditor";
 import CandidateMarkButton from "@/components/candidates/CandidateMarkButton";
 import SharedFolderCandidateNotes from "./shared/SharedFolderCandidateNotes";
-import type { CandidateMarkStatus } from "@/lib/candidateMark";
+import type { CandidateMarkStatus } from "@/lib/candidates/mark";
 import {
   SearchSource,
   extractSearchSourcesFromLinks,
   getSearchSourceLabel,
   getSearchSourceLogoPath,
   isScholarSearchSource,
-} from "@/lib/searchSource";
+} from "@/lib/search/source";
 import {
   buildEvidencePaperMeta,
   buildEvidencePaperTooltip,
   getEvidencePaper,
-} from "@/lib/searchEvidence";
+} from "@/lib/search/evidence";
 import {
   buildScholarResearchTooltip,
   formatScholarCitationCount,
   formatScholarPaperCount,
 } from "@/lib/scholarPreview";
-import { sortCandidateItemsByLatest } from "@/lib/candidateChronology";
+import { sortCandidateItemsByLatest } from "@/lib/candidates/chronology";
 import {
   buildGithubDeveloperTooltip,
   formatGithubFollowerCount,
@@ -52,7 +52,7 @@ import {
 } from "@/utils/language_map";
 import BookmarkButton from "@/components/candidates/BookmarkButton";
 import Image from "next/image";
-import { SharedFolderViewerIdentity } from "@/lib/sharedFolder";
+import { SharedFolderViewerIdentity } from "@/lib/candidates/sharedFolder";
 import {
   CandidateTableDetachedColumnLayout,
   CandidateTableStaticColumnId,

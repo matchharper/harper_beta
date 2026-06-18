@@ -1,12 +1,12 @@
 import { useLogEvent } from "@/hooks/useLog";
-import { CandidateTypeWithConnection } from "@/hooks/useSearchChatCandidates";
-import type { CandidateMarkStatus } from "@/lib/candidateMark";
+import { CandidateTypeWithConnection } from "@/hooks/search/useSearchChatCandidates";
+import type { CandidateMarkStatus } from "@/lib/candidates/mark";
 import { buildGithubDeveloperTooltip, formatGithubFollowerCount, formatGithubOwnerCreatorStars } from "@/lib/githubPreview";
 import { buildScholarResearchTooltip, formatScholarCitationCount, formatScholarPaperCount } from "@/lib/scholarPreview";
-import { buildEvidencePaperMeta, buildEvidencePaperTooltip, getEvidencePaper } from "@/lib/searchEvidence";
-import { SearchSource, extractSearchSourcesFromLinks, getSearchSourceLabel, getSearchSourceLogoPath, isScholarSearchSource } from "@/lib/searchSource";
-import { SharedFolderViewerIdentity } from "@/lib/sharedFolder";
-import { sortCandidateItemsByLatest } from "@/lib/candidateChronology";
+import { buildEvidencePaperMeta, buildEvidencePaperTooltip, getEvidencePaper } from "@/lib/search/evidence";
+import { SearchSource, extractSearchSourcesFromLinks, getSearchSourceLabel, getSearchSourceLogoPath, isScholarSearchSource } from "@/lib/search/source";
+import { SharedFolderViewerIdentity } from "@/lib/candidates/sharedFolder";
+import { sortCandidateItemsByLatest } from "@/lib/candidates/chronology";
 import { SummaryScore } from "@/types/type";
 import { companyEnToKo, degreeEnToKo, koreaUniversityEnToKo, locationEnToKo } from "@/utils/language_map";
 import { Check, Dot, X } from "lucide-react";

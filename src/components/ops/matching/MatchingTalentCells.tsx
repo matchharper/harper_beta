@@ -4,7 +4,7 @@ import { Tooltips } from "@/components/ui/tooltip";
 import type {
   OpsMatchingProfileLabel,
   OpsMatchingTalentItem,
-} from "@/lib/opsMatching";
+} from "@/lib/ops/matching";
 
 function getProfileLabelParts(item: OpsMatchingProfileLabel) {
   if (item.detail && item.detail !== item.label) {

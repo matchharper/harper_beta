@@ -41,7 +41,6 @@ import { getOpportunityPostingStatus } from "@/components/career/history/opportu
 import { BareButton } from "@/components/ui/button";
 import { useMessages } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
-import { careerT } from "@/lib/career/translatedCareerMessage";
 
 export type JobsDisplayTab = "new" | "saved" | "archived";
 
@@ -159,29 +158,17 @@ export default function CareerMobileJobsView({
   const items: CareerInPageTabItem<JobsDisplayTab>[] = [
     {
       id: "new",
-      label: careerT(
-        "ko",
-        "career.common.career_history_panel.02i826z",
-        "새 포지션"
-      ),
+      label: t("career.common.career_history_panel.02i826z", "새 포지션"),
       count: newCount,
     },
     {
       id: "saved",
-      label: careerT(
-        "ko",
-        "career.common.career_history_panel.06mgpci",
-        "저장함"
-      ),
+      label: t("career.common.career_history_panel.06mgpci", "저장함"),
       count: savedCount,
     },
     {
       id: "archived",
-      label: careerT(
-        "ko",
-        "career.common.career_history_panel.0paqqgp",
-        "선호하지 않음"
-      ),
+      label: t("career.common.career_history_panel.0paqqgp", "선호하지 않음"),
       count: archivedCount,
     },
   ];
@@ -262,7 +249,7 @@ export default function CareerMobileJobsView({
                 exit={{ opacity: 0 }}
                 className="flex flex-1 items-center justify-center px-6 py-20 text-center text-[15px] text-neutral-muted"
               >
-                {emptyStateMessage(tab)}
+                {emptyStateMessage(tab, t)}
               </motion.div>
             )}
           </AnimatePresence>
@@ -282,21 +269,21 @@ export default function CareerMobileJobsView({
   );
 }
 
-function emptyStateMessage(tab: JobsDisplayTab) {
+function emptyStateMessage(
+  tab: JobsDisplayTab,
+  t: ReturnType<typeof useCareerT>
+) {
   if (tab === "new")
-    return careerT(
-      "ko",
+    return t(
       "career.history.career_mobile_jobs_view.0f42kd7",
       "아직 새로 추천된 포지션이 없습니다."
     );
   if (tab === "saved")
-    return careerT(
-      "ko",
+    return t(
       "career.history.career_mobile_jobs_view.1m3uw9j",
       "저장한 포지션이 없습니다."
     );
-  return careerT(
-    "ko",
+  return t(
     "career.history.career_mobile_jobs_view.0llq6g8",
     "선호하지 않음으로 보낸 포지션이 없습니다."
   );
@@ -313,6 +300,7 @@ function MobileOpportunityDetailPanel({
   onOpenOpportunityInfo?: (type: CareerOpportunityType) => void;
   onEditMemo?: (opportunity: CareerHistoryOpportunity) => void;
 }) {
+  const t = useCareerT();
   const talentMemo = opportunity.talentMemo?.trim() ?? "";
 
   return (
@@ -333,16 +321,8 @@ function MobileOpportunityDetailPanel({
           >
             <StickyNote className="h-4 w-4" />
             {talentMemo
-              ? careerT(
-                  "ko",
-                  "career.history.feedback_modal.109eupo",
-                  "메모 수정"
-                )
-              : careerT(
-                  "ko",
-                  "career.history.career_mobile_jobs_view.18qduxt",
-                  "메모하기"
-                )}
+              ? t("career.history.feedback_modal.109eupo", "메모 수정")
+              : t("career.history.career_mobile_jobs_view.18qduxt", "메모하기")}
           </BareButton>
         ) : null}
         <RecommendationContent
@@ -375,9 +355,10 @@ function OpportunitySummaryCard({
   onOpenCompanyInfo?: (opportunity: CareerHistoryOpportunity) => void;
   onOpenOpportunityInfo?: (type: CareerOpportunityType) => void;
 }) {
+  const t = useCareerT();
   const { locale } = useMessages();
-  const postingStatus = getOpportunityPostingStatus(opportunity, locale);
-  const metaItems = getMetaItems(opportunity);
+  const postingStatus = getOpportunityPostingStatus(opportunity, locale, t);
+  const metaItems = getMetaItems(opportunity, t);
   const companyInfoLink =
     opportunity.companyHomepageUrl ?? opportunity.companyLinkedinUrl;
   const canOpenCompanyInfo = Boolean(
@@ -583,8 +564,10 @@ function CompanySection({
   opportunity: CareerHistoryOpportunity;
   onOpenCompanyInfo?: (opportunity: CareerHistoryOpportunity) => void;
 }) {
+  const t = useCareerT();
   const sectionTitle = getCareerCompanySectionTitle(
-    opportunity.opportunityType
+    opportunity.opportunityType,
+    t
   );
   const companyInfoLink =
     opportunity.companyHomepageUrl ?? opportunity.companyLinkedinUrl;
@@ -592,8 +575,8 @@ function CompanySection({
     onOpenCompanyInfo && (opportunity.companyDbId || companyInfoLink)
   );
   const actionLabel = opportunity.companyDbId
-    ? careerT("ko", "career.common.career.0ol21b2", "회사 정보")
-    : careerT("ko", "career.common.career.09c4j2c", "링크 열기");
+    ? t("career.common.career.0ol21b2", "회사 정보")
+    : t("career.common.career.09c4j2c", "링크 열기");
 
   return (
     <section className="space-y-2">
@@ -616,11 +599,7 @@ function CompanySection({
       <div className="h-px w-full bg-neutral-1000-a05" />
       <div className="text-sm leading-6">
         {opportunity.companyDescription?.trim() ||
-          careerT(
-            "ko",
-            "career.common.career.083cky2",
-            "아직 회사 설명이 없습니다."
-          )}
+          t("career.common.career.083cky2", "아직 회사 설명이 없습니다.")}
       </div>
     </section>
   );
@@ -664,6 +643,8 @@ export function JobActionBar({
   onDismiss?: () => void;
   className?: string;
 }) {
+  const t = useCareerT();
+
   if (!opportunity) return null;
   return (
     <div className={cn("grid grid-cols-2 gap-2", className)}>
@@ -673,7 +654,7 @@ export function JobActionBar({
         className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-neutral-1000-a10 bg-bg-floating text-[13px] font-normal text-neutral-primary/85 transition active:bg-bg-weak"
       >
         <ThumbsDown className="h-3.5 w-3.5" />
-        {getNegativeActionLabel(opportunity)}
+        {getNegativeActionLabel(opportunity, t)}
       </BareButton>
       <BareButton
         type="button"
@@ -681,7 +662,7 @@ export function JobActionBar({
         className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-black text-[13px] font-normal text-neutral-00 transition active:bg-black/85"
       >
         <ThumbsUp className="h-3.5 w-3.5" />
-        {getPositiveActionLabel(opportunity)}
+        {getPositiveActionLabel(opportunity, t)}
       </BareButton>
     </div>
   );

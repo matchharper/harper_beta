@@ -3,7 +3,7 @@ import {
   requireInternalApiUser,
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
-import { ingestCareerTalentProfileFromRegisteredLinks } from "@/lib/opsCareerServer";
+import { ingestCareerTalentProfileFromRegisteredLinks } from "@/lib/ops/careerServer";
 
 export const runtime = "nodejs";
 export const maxDuration = 240;

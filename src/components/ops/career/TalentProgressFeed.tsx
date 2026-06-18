@@ -5,7 +5,7 @@ import { BareButton } from "@/components/ui/button";
 import {
   useDeleteOpsMatchingProgress,
   useOpsMatchingProgress,
-} from "@/hooks/useOpsMatching";
+} from "@/hooks/ops/useOpsMatching";
 import { formatKst } from "./utils";
 
 type TalentProgressFeedProps = {

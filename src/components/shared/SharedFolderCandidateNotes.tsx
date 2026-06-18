@@ -4,12 +4,12 @@ import {
   useCreateSharedFolderNote,
   useDeleteSharedFolderNote,
   useUpdateSharedFolderNote,
-} from "@/hooks/useSharedBookmarkFolder";
+} from "@/hooks/candidates/useSharedBookmarkFolder";
 import {
   formatSharedFolderNoteDate,
   SharedFolderCandidateNote,
   SharedFolderViewerIdentity,
-} from "@/lib/sharedFolder";
+} from "@/lib/candidates/sharedFolder";
 import { showToast } from "../toast/toast";
 import { BareButton } from "@/components/ui/button";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";

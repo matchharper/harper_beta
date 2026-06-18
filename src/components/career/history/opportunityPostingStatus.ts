@@ -1,5 +1,4 @@
 import { formatRelativeTime } from "@/lib/utils";
-import { careerT } from "@/lib/career/translatedCareerMessage";
 import type { Locale } from "@/i18n/useMessage";
 import type { CareerHistoryOpportunity } from "../types";
 
@@ -14,6 +13,29 @@ export type OpportunityPostingStatus = {
   isExpired: boolean;
   label: string;
 };
+
+type CareerTLike = (
+  key: string,
+  koSource: string,
+  options?: { values?: Record<string, string | number | null | undefined> }
+) => string;
+
+const interpolate = (
+  value: string,
+  values?: Record<string, string | number | null | undefined>
+) => {
+  if (!values) return value;
+  return value.replace(/\{([a-zA-Z0-9_]+)\}/g, (match, name) => {
+    if (!Object.prototype.hasOwnProperty.call(values, name)) return match;
+    const nextValue = values[name];
+    return nextValue === null || nextValue === undefined
+      ? ""
+      : String(nextValue);
+  });
+};
+
+const fallbackT: CareerTLike = (_key, koSource, options) =>
+  interpolate(koSource, options?.values);
 
 export function isCareerHistoryOpportunityExpired(
   item: Pick<CareerHistoryOpportunity, "expiresAt" | "isExpired" | "status">
@@ -32,12 +54,15 @@ export function isCareerHistoryOpportunityExpired(
 
 export function getOpportunityPostingStatus(
   item: CareerHistoryOpportunity,
-  locale: Locale = "ko"
+  locale: Locale = "ko",
+  tArg?: CareerTLike
 ): OpportunityPostingStatus | null {
+  const t: CareerTLike = tArg ?? fallbackT;
+
   if (isCareerHistoryOpportunityExpired(item)) {
     return {
       isExpired: true,
-      label: careerT(locale, "career.history.posting.closed", "지난 공고."),
+      label: t("career.history.posting.closed", "지난 공고."),
     };
   }
 
@@ -46,13 +71,8 @@ export function getOpportunityPostingStatus(
 
   return {
     isExpired: false,
-    label: careerT(
-      locale,
-      "career.history.posting.posted_ago",
-      "{postedAgo}에 게시됨",
-      {
-        values: { postedAgo },
-      }
-    ),
+    label: t("career.history.posting.posted_ago", "{postedAgo}에 게시됨", {
+      values: { postedAgo },
+    }),
   };
 }

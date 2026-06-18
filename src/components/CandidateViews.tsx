@@ -1,11 +1,11 @@
-import { CandidateTypeWithConnection } from "@/hooks/useSearchChatCandidates";
+import { CandidateTypeWithConnection } from "@/hooks/search/useSearchChatCandidates";
 import {
   CANDIDATE_MARK_OPTIONS,
   type CandidateMarkStatus,
   isCandidateMarkStatus,
-} from "@/lib/candidateMark";
-import { SearchSource, isScholarSearchSource } from "@/lib/searchSource";
-import { SharedFolderViewerIdentity } from "@/lib/sharedFolder";
+} from "@/lib/candidates/mark";
+import { SearchSource, isScholarSearchSource } from "@/lib/search/source";
+import { SharedFolderViewerIdentity } from "@/lib/candidates/sharedFolder";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import CandidateRow from "./CandidatesListTable";
 import CandidateCard from "./CandidatesList";
@@ -46,7 +46,7 @@ import {
   X,
 } from "lucide-react";
 import { useLogEvent } from "@/hooks/useLog";
-import { useRevealCandidateProfiles } from "@/hooks/useRevealCandidateProfile";
+import { useRevealCandidateProfiles } from "@/hooks/candidates/useRevealCandidateProfile";
 import { showToast } from "./toast/toast";
 import { BareButton } from "@/components/ui/button";
 

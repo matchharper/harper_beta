@@ -18,13 +18,19 @@ const partnerLogos = [
   { src: "/images/logos/moloco.png", name: "Moloco", width: 90 },
 ];
 
-const TalentSocialProof = () => {
+type TalentSocialProofProps = {
+  title?: string;
+};
+
+const TalentSocialProof = ({
+  title = "이곳의 인재들이 신뢰합니다.",
+}: TalentSocialProofProps) => {
   const logoLoop = [...partnerLogos, ...partnerLogos];
 
   return (
     <div className="relative z-10 mx-auto w-full max-w-[1180px] px-4 pb-8 pt-8 text-center md:pb-10 md:pt-10">
       <h2 className="font-sans text-[13px] font-medium text-black/42 sm:text-[14px]">
-        이곳의 인재들이 신뢰합니다.
+        {title}
       </h2>
 
       <div

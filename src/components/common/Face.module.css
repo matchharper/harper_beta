@@ -2,6 +2,10 @@
   overflow: visible;
 }
 
+.expressionFrame {
+  transform: translate(var(--face-offset-x, 0px), var(--face-offset-y, 0px));
+}
+
 .expressionMotion {
   animation: harperFaceListenMove 6s ease-in-out infinite;
   will-change: transform;
@@ -23,12 +27,12 @@
 }
 
 .openEyeClosing {
-  animation: harperFaceEyeClose 3s ease-in-out infinite;
+  animation: harperFaceEyeClose 6s ease-in-out infinite;
   will-change: opacity, transform;
 }
 
 .closedEyeClosing {
-  animation: harperFaceEyelidReveal 3s ease-in-out infinite;
+  animation: harperFaceEyelidReveal 6s ease-in-out infinite;
   opacity: 0;
   stroke-dasharray: 12;
   stroke-dashoffset: 12;
@@ -37,19 +41,31 @@
 
 @keyframes harperFaceListenMove {
   0% {
-    transform: translate(var(--face-listening-x-1), var(--face-listening-y-1));
+    transform: translate(
+      calc(var(--face-offset-x, 0px) + var(--face-listening-x-1)),
+      calc(var(--face-offset-y, 0px) + var(--face-listening-y-1))
+    );
   }
 
   33.333% {
-    transform: translate(var(--face-listening-x-2), var(--face-listening-y-2));
+    transform: translate(
+      calc(var(--face-offset-x, 0px) + var(--face-listening-x-2)),
+      calc(var(--face-offset-y, 0px) + var(--face-listening-y-2))
+    );
   }
 
   66.666% {
-    transform: translate(var(--face-listening-x-3), var(--face-listening-y-3));
+    transform: translate(
+      calc(var(--face-offset-x, 0px) + var(--face-listening-x-3)),
+      calc(var(--face-offset-y, 0px) + var(--face-listening-y-3))
+    );
   }
 
   100% {
-    transform: translate(var(--face-listening-x-1), var(--face-listening-y-1));
+    transform: translate(
+      calc(var(--face-offset-x, 0px) + var(--face-listening-x-1)),
+      calc(var(--face-offset-y, 0px) + var(--face-listening-y-1))
+    );
   }
 }
 
@@ -118,7 +134,7 @@
 
   .expressionMotion,
   .expressionFlipListening {
-    transform: none;
+    transform: translate(var(--face-offset-x, 0px), var(--face-offset-y, 0px));
   }
 
   .openEyeClosing {

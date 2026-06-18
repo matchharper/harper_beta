@@ -19,11 +19,11 @@ import {
 import { cx, opsTheme } from "@/components/ops/theme";
 import { BareButton } from "@/components/ui/button";
 import { Input as UiInput } from "@/components/ui/input";
-import { useOpsMatchingTalents } from "@/hooks/useOpsMatching";
+import { useOpsMatchingTalents } from "@/hooks/ops/useOpsMatching";
 import type {
   OpsMatchingRoleOption,
   OpsMatchingTalentItem,
-} from "@/lib/opsMatching";
+} from "@/lib/ops/matching";
 
 type MatchingTalentBrowserProps = {
   canFetchInternal: boolean;

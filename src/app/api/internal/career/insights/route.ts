@@ -3,7 +3,7 @@ import {
   requireInternalApiUser,
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
-import { fetchCareerTalentInsightsDetail } from "@/lib/opsCareerServer";
+import { fetchCareerTalentInsightsDetail } from "@/lib/ops/careerServer";
 
 export const runtime = "nodejs";
 

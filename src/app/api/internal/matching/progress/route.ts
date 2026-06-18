@@ -8,7 +8,7 @@ import {
   createOpsMatchingProgress,
   deleteOpsMatchingProgress,
   fetchOpsMatchingProgress,
-} from "@/lib/opsMatching";
+} from "@/lib/ops/matching";
 
 export const runtime = "nodejs";
 

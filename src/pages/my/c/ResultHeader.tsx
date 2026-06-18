@@ -14,8 +14,8 @@ import { supabase } from "@/lib/supabase";
 import Timeline from "./timeline";
 import { useMessages } from "@/i18n/useMessage";
 import { StatusEnum } from "@/types/type";
-import { SearchSource } from "@/lib/searchSource";
-import { runKey } from "@/hooks/useRunDetail";
+import { SearchSource } from "@/lib/search/source";
+import { runKey } from "@/hooks/search/useRunDetail";
 import { BareButton } from "@/components/ui/button";
 
 type Props = {

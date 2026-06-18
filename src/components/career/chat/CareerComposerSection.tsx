@@ -14,7 +14,6 @@ import { ActionButton, BareButton } from "@/components/ui/button";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
 import { useCareerT } from "@/i18n/useCareerT";
-import { careerT } from "@/lib/career/translatedCareerMessage";
 
 const CareerComposerSection = () => {
   const t = useCareerT();
@@ -70,51 +69,43 @@ const CareerComposerSection = () => {
     isTextInputLocked || chatPending || assistantTyping;
 
   const composerPlaceholder = !user
-    ? careerT(
-        "ko",
+    ? t(
         "career.chat.career_composer_section.1g4p5ul",
         "로그인 후 대화를 시작할 수 있습니다."
       )
     : stage === "profile"
-      ? careerT(
-          "ko",
+      ? t(
           "career.chat.career_composer_section.19raxy2",
           "기본 정보 제출 후 대화가 시작됩니다."
         )
       : showVoiceStartPrompt
-        ? careerT(
-            "ko",
+        ? t(
             "career.chat.career_composer_section.1i8zl29",
             "아래 시작 버튼으로 대화를 시작해 주세요."
           )
         : callWrapUpPending
           ? "Call wrap-up..."
           : onboardingWrapupPending
-            ? careerT(
-                "ko",
+            ? t(
                 "career.chat.career_composer_section.0bxwclq",
                 "통화 내용을 정리하는 중입니다."
               )
             : onboardingPaused
-              ? careerT(
-                  "ko",
+              ? t(
                   "career.chat.career_composer_section.1rqak4s",
                   "바로 입력하면 대화가 이어집니다."
                 )
               : profilePending
-                ? careerT(
-                    "ko",
+                ? t(
                     "career.chat.career_composer_section.041n9nc",
                     "이력서와 링크를 분석 중입니다."
                   )
                 : stage === "completed"
-                  ? careerT(
-                      "ko",
+                  ? t(
                       "career.chat.career_composer_section.0e686ow",
                       "Harper에게 답변을 입력하세요."
                     )
-                  : careerT(
-                      "ko",
+                  : t(
                       "career.chat.career_composer_section.017fk2m",
                       "원하는 역할이나 조건을 편하게 알려주세요."
                     );
@@ -136,8 +127,7 @@ const CareerComposerSection = () => {
     onboardingWrapupPending ||
     chatPending ||
     assistantTyping;
-  const forceCompleteTooltip = careerT(
-    "ko",
+  const forceCompleteTooltip = t(
     "career.chat.career_call_screen.0n1pl8k",
     "커리어 인터뷰를 임의로 종료할 수 있어요. 거의 다 왔으니 2~3개의 질문에만 추가로 대답해주시면 자동으로 종료됩니다!"
   );
@@ -267,13 +257,11 @@ const CareerComposerSection = () => {
                   )}
                   aria-label={
                     hasDraftText
-                      ? careerT(
-                          "ko",
+                      ? t(
                           "career.chat.career_composer_section.1sjkx1r",
                           "메시지 보내기"
                         )
-                      : careerT(
-                          "ko",
+                      : t(
                           "career.chat.career_composer_section.1vn1k94",
                           "통화 모드"
                         )

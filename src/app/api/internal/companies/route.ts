@@ -7,7 +7,7 @@ import {
   OPS_COMPANIES_PAGE_SIZE,
   fetchOpsCompaniesPage,
   updateOpsCompanyTestScore,
-} from "@/lib/opsCompanies";
+} from "@/lib/ops/companies";
 
 export const runtime = "nodejs";
 

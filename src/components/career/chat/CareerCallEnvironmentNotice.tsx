@@ -25,7 +25,7 @@ const CareerCallEnvironmentNotice = ({
             type="button"
             onClick={onToggle}
             aria-expanded={false}
-            className="animate-in fade-in slide-in-from-top-2 inline-flex items-center gap-3 rounded-full border border-accent-300/60 bg-bg-floating/95 px-4 py-3 text-left backdrop-blur transition-transform duration-200 hover:-translate-y-0.5"
+            className="animate-in fade-in slide-in-from-top-2 inline-flex items-center gap-3 rounded-full border border-accent-300/60 bg-bg-floating/95 px-2 py-1.5 text-left backdrop-blur transition-transform duration-200 hover:-translate-y-0.5"
           >
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-300 text-primary">
               <Volume2 className="h-4 w-4" />
@@ -44,7 +44,7 @@ const CareerCallEnvironmentNotice = ({
     <div className={cn("w-full", className)}>
       <div className="flex justify-center">
         <div className="animate-in fade-in slide-in-from-top-2 w-full max-w-[560px] rounded-[24px] border border-accent-300/60 p-px backdrop-blur duration-300">
-          <div className="rounded-[23px] px-4 py-4 sm:px-5">
+          <div className="rounded-[23px] px-3 py-3 sm:px-4">
             <div className="flex items-start gap-3">
               <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent-300 text-primary">
                 <Volume2 className="h-4 w-4" />

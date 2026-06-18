@@ -13,7 +13,7 @@ import type {
   OpportunitySourceType,
   OpportunityStatus,
   OpportunityWorkMode,
-} from "@/lib/opsOpportunity";
+} from "@/lib/ops/opportunity";
 import { OpportunityType } from "@/lib/opportunityType";
 import { Mail, Pencil, Search } from "lucide-react";
 import type { KeyboardEvent, ReactNode } from "react";

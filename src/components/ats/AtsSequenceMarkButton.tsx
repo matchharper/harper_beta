@@ -11,7 +11,7 @@ import {
   Tag,
   X,
 } from "lucide-react";
-import { useSetAtsSequenceMark } from "@/hooks/useAtsWorkspace";
+import { useSetAtsSequenceMark } from "@/hooks/ats/useAtsWorkspace";
 import {
   ATS_SEQUENCE_MARK_OPTIONS,
   type AtsSequenceMarkIconKey,

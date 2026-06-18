@@ -1,4 +1,5 @@
 import AdminAccessGuard from "@/components/admin/AdminAccessGuard";
+import AdminCareerAbtestPanel from "@/components/admin/career/AdminCareerAbtestPanel";
 import AdminCareerDateRangeFilter from "@/components/admin/career/AdminCareerDateRangeFilter";
 import AdminCareerDeviceComparisonPanel from "@/components/admin/career/AdminCareerDeviceComparisonPanel";
 import AdminCareerFunnelPanel from "@/components/admin/career/AdminCareerFunnelPanel";
@@ -349,6 +350,9 @@ function AdminCareerContent() {
                 onChange={setDraftDateRange}
                 onReset={resetDateRange}
                 value={draftDateRange}
+              />
+              <AdminCareerAbtestPanel
+                variants={query.data.landingVariants ?? []}
               />
               <AdminCareerQuickSignalPanel
                 signals={query.data.quickSignals ?? []}

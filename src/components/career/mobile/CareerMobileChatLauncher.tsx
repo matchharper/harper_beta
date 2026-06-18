@@ -17,7 +17,6 @@ import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useCareerMobileChatNotice } from "@/hooks/career/useCareerMobileChatNotice";
 import { BareButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
-import { careerT } from "@/lib/career/translatedCareerMessage";
 
 type CareerMobileChatLauncherProps = {
   children: React.ReactNode;
@@ -134,11 +133,7 @@ function CareerMobileChatLauncher({
   children,
   actionBar,
   topOffsetPx = DEFAULT_TOP_OFFSET_PX,
-  placeholder = careerT(
-    "ko",
-    "career.chat.career_composer_section.0e686ow",
-    "Harper에게 답변을 입력하세요."
-  ),
+  placeholder,
   className,
   open: controlledOpen,
   onOpenChange,
@@ -188,13 +183,18 @@ function CareerMobileChatLauncher({
       opportunityFeedbackFollowUpPending ||
       onboardingWrapupPending ||
       callWrapUpPending);
+  const resolvedPlaceholder =
+    placeholder ??
+    t(
+      "career.chat.career_composer_section.0e686ow",
+      "Harper에게 답변을 입력하세요."
+    );
   const launcherPlaceholder = harperPreparing
-    ? careerT(
-        "ko",
+    ? t(
         "career.common.career_mobile_chat_launcher.0hu1shh",
         "Harper가 답변을 준비하고 있습니다..."
       )
-    : placeholder;
+    : resolvedPlaceholder;
 
   const openDrawer = () => {
     logCareerEvent("click_mobile_chat_launcher_open");
@@ -299,16 +299,11 @@ function CareerMobileChatLauncher({
                     )}
                     aria-label={
                       voiceMuted
-                        ? careerT(
-                            "ko",
+                        ? t(
                             "career.chat.career_call_screen.15tfl05",
                             "음소거 해제"
                           )
-                        : careerT(
-                            "ko",
-                            "career.chat.career_call_screen.1914g7j",
-                            "음소거"
-                          )
+                        : t("career.chat.career_call_screen.1914g7j", "음소거")
                     }
                   >
                     {voiceMuted ? (

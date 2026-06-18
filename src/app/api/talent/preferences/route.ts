@@ -25,7 +25,6 @@ import {
   getPreferenceActivityImpact,
   insertTalentActivityEvent,
   isSameActivityValue,
-  toPreferenceActivityDisplayChanges,
   type TalentActivityChange,
 } from "@/lib/talentOnboarding/activityEvents";
 
@@ -141,7 +140,11 @@ function getInsightActivityChanges(args: {
   const to = args.to ?? {};
   return Array.from(new Set([...Object.keys(from), ...Object.keys(to)]))
     .sort()
-    .map((key) => ({ field: key, from: from[key] ?? null, to: to[key] ?? null }))
+    .map((key) => ({
+      field: key,
+      from: from[key] ?? null,
+      to: to[key] ?? null,
+    }))
     .filter((change) => !isSameActivityValue(change.from, change.to));
 }
 
@@ -225,8 +228,7 @@ export async function POST(req: NextRequest) {
               existingSetting?.get_internal_recommendation
           ),
           periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
-            body.periodicIntervalDays ??
-              existingSetting?.periodic_interval_days
+            body.periodicIntervalDays ?? existingSetting?.periodic_interval_days
           ),
           recommendationBatchSize: normalizeTalentRecommendationBatchSize(
             body.recommendationBatchSize ??
@@ -252,8 +254,7 @@ export async function POST(req: NextRequest) {
           to: nextPreferences,
         })
       : [];
-    const preferenceSummary =
-      buildPreferenceActivitySummary(preferenceChanges);
+    const preferenceSummary = buildPreferenceActivitySummary(preferenceChanges);
     if (preferenceSummary) {
       await insertTalentActivityEvent({
         admin,
@@ -263,10 +264,6 @@ export async function POST(req: NextRequest) {
         ],
         eventType: "preferences_changed",
         impactLevel: getPreferenceActivityImpact(preferenceChanges),
-        metadata: {
-          changes: toPreferenceActivityDisplayChanges(preferenceChanges),
-        },
-        relatedEntityType: "talent_setting",
         source: "profile_tab",
         summary: preferenceSummary,
         userId: user.id,
@@ -293,8 +290,6 @@ export async function POST(req: NextRequest) {
         ],
         eventType: "insight_updated",
         impactLevel: "high",
-        metadata: { changes: insightChanges },
-        relatedEntityType: "talent_insights",
         source: "profile_tab",
         summary: insightSummary,
         userId: user.id,

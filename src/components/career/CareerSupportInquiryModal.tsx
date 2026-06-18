@@ -6,7 +6,6 @@ import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { BareButton } from "@/components/ui/button";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
 import { useCareerT } from "@/i18n/useCareerT";
-import { careerT } from "@/lib/career/translatedCareerMessage";
 
 const CareerSupportInquiryModal = ({
   onClose,
@@ -37,8 +36,7 @@ const CareerSupportInquiryModal = ({
 
     if (!trimmedEmail) {
       showToast({
-        message: careerT(
-          "ko",
+        message: t(
           "career.common.career_support_inquiry_modal.1kxvbd7",
           "이메일을 입력해 주세요."
         ),
@@ -49,8 +47,7 @@ const CareerSupportInquiryModal = ({
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
       showToast({
-        message: careerT(
-          "ko",
+        message: t(
           "career.common.career_support_inquiry_modal.1fep109",
           "올바른 이메일 형식으로 입력해 주세요."
         ),
@@ -61,8 +58,7 @@ const CareerSupportInquiryModal = ({
 
     if (!trimmedContent) {
       showToast({
-        message: careerT(
-          "ko",
+        message: t(
           "career.common.career_support_inquiry_modal.0snjgs4",
           "문의 내용을 입력해 주세요."
         ),
@@ -91,8 +87,7 @@ const CareerSupportInquiryModal = ({
       if (!response.ok || data?.error) {
         throw new Error(
           data?.error ??
-            careerT(
-              "ko",
+            t(
               "career.common.career_support_inquiry_modal.1o8h20r",
               "문의 저장에 실패했습니다."
             )
@@ -102,8 +97,7 @@ const CareerSupportInquiryModal = ({
       onClose();
       setContent("");
       showToast({
-        message: careerT(
-          "ko",
+        message: t(
           "career.common.career_support_inquiry_modal.17hinuj",
           "문의가 접수되었습니다."
         ),
@@ -115,8 +109,7 @@ const CareerSupportInquiryModal = ({
         message:
           error instanceof Error
             ? error.message
-            : careerT(
-                "ko",
+            : t(
                 "career.common.career_support_inquiry_modal.0ustycb",
                 "문의 접수 중 오류가 발생했습니다."
               ),
@@ -223,11 +216,7 @@ const CareerSupportInquiryModal = ({
                 )}
               </>
             ) : (
-              careerT(
-                "ko",
-                "career.common.career_support_inquiry_modal.1ii5ibp",
-                "제출"
-              )
+              t("career.common.career_support_inquiry_modal.1ii5ibp", "제출")
             )}
           </BareButton>
         </div>

@@ -634,11 +634,11 @@ export async function runCareerChatTurn(
         isInitialSearchRunning:
           Boolean(serializedActiveRun?.inputLocked) &&
           activeRun.run_mode === "initial",
-        onboardingCompletedAt: onboardingCompletionEvent?.occurred_at ?? null,
+        onboardingCompletedAt: onboardingCompletionEvent?.created_at ?? null,
       }
     : onboardingCompletionEvent
       ? {
-          onboardingCompletedAt: onboardingCompletionEvent.occurred_at,
+          onboardingCompletedAt: onboardingCompletionEvent.created_at,
         }
       : null;
 

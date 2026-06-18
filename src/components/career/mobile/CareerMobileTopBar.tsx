@@ -14,7 +14,6 @@ import type { CareerWorkspaceTab } from "@/components/career/CareerWorkspaceNav"
 import CareerProfileMenu from "@/components/career/CareerProfileMenu";
 import { BareButton } from "@/components/ui/button";
 import { useMessages, type Locale } from "@/i18n/useMessage";
-import { careerT } from "@/lib/career/translatedCareerMessage";
 import { useCareerT } from "@/i18n/useCareerT";
 
 type TabOption = {
@@ -57,8 +56,8 @@ export default function CareerMobileTopBar({
   const ActiveIcon = activeOption?.icon;
   const activeBadgeCount = activeOption?.badgeCount ?? 0;
   const todayLabel = React.useMemo(
-    () => formatTodayLabel(new Date(), locale),
-    [locale]
+    () => formatTodayLabel(new Date(), locale, t),
+    [locale, t]
   );
   const showHomeDate = activeTab === "home";
 
@@ -154,15 +153,16 @@ export default function CareerMobileTopBar({
   );
 }
 
-const KOREAN_WEEKDAY_LABELS = [
-  careerT("ko", "career.common.career_mobile_top_bar.1s93gcz", "일요일"),
-  careerT("ko", "career.common.career_mobile_top_bar.1ih373f", "월요일"),
-  careerT("ko", "career.common.career_mobile_top_bar.0kpy78r", "화요일"),
-  careerT("ko", "career.common.career_mobile_top_bar.1f1oien", "수요일"),
-  careerT("ko", "career.common.career_mobile_top_bar.1jmvi1w", "목요일"),
-  careerT("ko", "career.common.career_mobile_top_bar.0wg5ren", "금요일"),
-  careerT("ko", "career.common.career_mobile_top_bar.1xwrfxz", "토요일"),
-] as const;
+const getKoreanWeekdayLabels = (t: ReturnType<typeof useCareerT>) =>
+  [
+    t("career.common.career_mobile_top_bar.1s93gcz", "일요일"),
+    t("career.common.career_mobile_top_bar.1ih373f", "월요일"),
+    t("career.common.career_mobile_top_bar.0kpy78r", "화요일"),
+    t("career.common.career_mobile_top_bar.1f1oien", "수요일"),
+    t("career.common.career_mobile_top_bar.1jmvi1w", "목요일"),
+    t("career.common.career_mobile_top_bar.0wg5ren", "금요일"),
+    t("career.common.career_mobile_top_bar.1xwrfxz", "토요일"),
+  ] as const;
 
 const ENGLISH_TODAY_FORMATTER = new Intl.DateTimeFormat("en-US", {
   weekday: "long",
@@ -170,10 +170,15 @@ const ENGLISH_TODAY_FORMATTER = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
 });
 
-function formatTodayLabel(date: Date, locale: Locale) {
+function formatTodayLabel(
+  date: Date,
+  locale: Locale,
+  t: ReturnType<typeof useCareerT>
+) {
   if (locale === "en") return ENGLISH_TODAY_FORMATTER.format(date);
+  const weekdayLabels = getKoreanWeekdayLabels(t);
   return `${date.getMonth() + 1}월 ${date.getDate()}일 ${
-    KOREAN_WEEKDAY_LABELS[date.getDay()]
+    weekdayLabels[date.getDay()]
   }`;
 }
 

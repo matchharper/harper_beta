@@ -7,7 +7,7 @@ import {
   deleteOpsOpportunityMatch,
   fetchOpsOpportunityMatches,
   saveOpsOpportunityMatch,
-} from "@/lib/opsOpportunity";
+} from "@/lib/ops/opportunity";
 
 export const runtime = "nodejs";
 

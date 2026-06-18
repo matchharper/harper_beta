@@ -11,6 +11,7 @@ import type {
   AdminCareerDeviceComparisonRow,
   AdminCareerDeviceType,
   AdminCareerLandingSourceBreakdown,
+  AdminCareerLandingVariantBreakdown,
   AdminCareerFunnelStep,
   AdminCareerFunnelStepKey,
   AdminCareerQuickSignal,
@@ -23,9 +24,15 @@ import {
   getLandingLogBaseType,
   getLandingLogSource,
   isLandingLogEntryType,
+  isStartLandingLogType,
 } from "@/lib/landingLogTypes";
 import { supabaseServer } from "@/lib/supabaseServer";
 import type { Database } from "@/types/database.types";
+import {
+  CAREER_LANDING_HERO_COPY_ABTEST_TYPES,
+  getCareerLandingHeroCopyVariantDescription,
+  getCareerLandingHeroCopyVariantLabel,
+} from "@/lib/career/utm";
 
 export const runtime = "nodejs";
 
@@ -34,7 +41,7 @@ const CAREER_ANALYTICS_SLACK_SUMMARY_MODEL = "grok-4-1-fast-reasoning";
 
 type LandingLogRow = Pick<
   Database["public"]["Tables"]["landing_logs"]["Row"],
-  "local_id" | "type" | "created_at" | "is_mobile"
+  "abtest_type" | "local_id" | "type" | "created_at" | "is_mobile"
 >;
 type LogRow = Pick<
   Database["public"]["Tables"]["logs"]["Row"],
@@ -60,7 +67,7 @@ type TalentMessageRow = Pick<
 >;
 type TalentActivityEventRow = Pick<
   Database["public"]["Tables"]["talent_activity_events"]["Row"],
-  "talent_id" | "event_type" | "occurred_at"
+  "talent_id" | "event_type" | "created_at"
 >;
 type RecommendationRow = Pick<
   Database["public"]["Tables"]["talent_opportunity_recommendation"]["Row"],
@@ -98,6 +105,13 @@ type MutableUserStats = {
 };
 
 type MutableLandingSourceStats = {
+  entryLocalIds: Set<string>;
+  eventTypes: Set<string>;
+  loginLocalIds: Set<string>;
+};
+
+type MutableLandingVariantStats = {
+  clickStartLocalIds: Set<string>;
   entryLocalIds: Set<string>;
   eventTypes: Set<string>;
   loginLocalIds: Set<string>;
@@ -288,6 +302,24 @@ function getOrCreateLandingSourceStats(
     loginLocalIds: new Set<string>(),
   };
   map.set(normalizedSource, next);
+  return next;
+}
+
+function getOrCreateLandingVariantStats(
+  map: Map<string, MutableLandingVariantStats>,
+  abtestType: string | null
+) {
+  const normalizedAbtestType = String(abtestType ?? "").trim() || "unknown";
+  const current = map.get(normalizedAbtestType);
+  if (current) return current;
+
+  const next: MutableLandingVariantStats = {
+    clickStartLocalIds: new Set<string>(),
+    entryLocalIds: new Set<string>(),
+    eventTypes: new Set<string>(),
+    loginLocalIds: new Set<string>(),
+  };
+  map.set(normalizedAbtestType, next);
   return next;
 }
 
@@ -680,6 +712,10 @@ function buildFunnelStep(args: {
   };
 }
 
+function rateOrNull(numerator: number, denominator: number) {
+  return denominator > 0 ? numerator / denominator : null;
+}
+
 function buildSummaryMetric(
   key: string,
   label: string,
@@ -782,6 +818,7 @@ function buildCareerAnalyticsLlmInput(response: AdminCareerAnalyticsResponse) {
       rateFromPreviousLabel: formatRate(step.rateFromPrevious),
       rateFromEntryLabel: formatRate(step.rateFromEntry),
     })),
+    landingVariants: response.landingVariants,
     landingSources: response.landingSources.slice(0, 15),
     recentUserSignalSample: response.users.slice(0, 25).map((user) => ({
       userIdPrefix: user.userId.slice(0, 8),
@@ -921,9 +958,9 @@ export async function POST(req: NextRequest) {
       fetchAllRows<LandingLogRow>((from, to) =>
         supabaseServer
           .from("landing_logs")
-          .select("local_id,type,created_at,is_mobile")
+          .select("local_id,type,created_at,is_mobile,abtest_type")
           .or(
-            "type.eq.new_visit,type.like.new_visit:%,type.eq.new_session,type.like.new_session:%,type.like.login_email:%"
+            "type.eq.new_visit,type.like.new_visit:%,type.eq.new_session,type.like.new_session:%,type.like.login_email:%,type.eq.click_start,type.like.click_start:%"
           )
           .order("id", { ascending: true })
           .range(from, to)
@@ -970,9 +1007,9 @@ export async function POST(req: NextRequest) {
       fetchAllRows<TalentActivityEventRow>((from, to) =>
         supabaseServer
           .from("talent_activity_events")
-          .select("talent_id,event_type,occurred_at")
+          .select("talent_id,event_type,created_at")
           .eq("event_type", "onboarding_completed")
-          .order("occurred_at", { ascending: true })
+          .order("created_at", { ascending: true })
           .range(from, to)
       ),
       fetchAllRows<RecommendationRow>((from, to) =>
@@ -1005,13 +1042,22 @@ export async function POST(req: NextRequest) {
     const landingLoginLocalIds = new Set<string>();
     const landingLoginEmails = new Set<string>();
     const landingEntrySourceByLocalId = new Map<string, string>();
+    const landingEntryVariantByLocalId = new Map<string, string>();
     const landingSourcesBySource = new Map<string, MutableLandingSourceStats>();
+    const landingVariantsByAbtestType = new Map<
+      string,
+      MutableLandingVariantStats
+    >();
     for (const log of landingLogs) {
       const localId = String(log.local_id ?? "").trim();
       if (!localId || excludedLocalIds.has(localId)) continue;
       if (!isLandingLogEntryType(log.type)) continue;
 
       landingEntrySourceByLocalId.set(localId, getLandingLogSource(log.type));
+      landingEntryVariantByLocalId.set(
+        localId,
+        String(log.abtest_type ?? "").trim() || "unknown"
+      );
     }
 
     for (const log of landingLogs) {
@@ -1022,6 +1068,15 @@ export async function POST(req: NextRequest) {
       }
       const source = getLandingLogSource(log.type);
       const baseType = getLandingLogBaseType(log.type);
+      const resolvedAbtestType =
+        (localId ? landingEntryVariantByLocalId.get(localId) : null) ??
+        String(log.abtest_type ?? "").trim() ??
+        "unknown";
+      const variantStats = getOrCreateLandingVariantStats(
+        landingVariantsByAbtestType,
+        resolvedAbtestType
+      );
+      if (baseType) variantStats.eventTypes.add(baseType);
 
       if (isLandingLogEntryType(log.type)) {
         const sourceStats = getOrCreateLandingSourceStats(
@@ -1032,7 +1087,13 @@ export async function POST(req: NextRequest) {
         if (localId) {
           landingEntryLocalIds.add(localId);
           sourceStats.entryLocalIds.add(localId);
+          variantStats.entryLocalIds.add(localId);
         }
+        continue;
+      }
+
+      if (isStartLandingLogType(log.type)) {
+        if (localId) variantStats.clickStartLocalIds.add(localId);
         continue;
       }
 
@@ -1048,6 +1109,7 @@ export async function POST(req: NextRequest) {
         landingLoginLocalIds.add(localId);
         loginSourceStats.loginLocalIds.add(localId);
         loginSourceStats.eventTypes.add("login_email");
+        variantStats.loginLocalIds.add(localId);
       }
       landingLoginEmails.add(email);
     }
@@ -1220,7 +1282,7 @@ export async function POST(req: NextRequest) {
       addFirstOccurredAt(
         firstOnboardingCompletedAtByUserId,
         event.talent_id,
-        event.occurred_at
+        event.created_at
       );
     }
     for (const setting of talentSettings) {
@@ -1938,6 +2000,29 @@ export async function POST(req: NextRequest) {
         return a.source.localeCompare(b.source);
       });
 
+    const landingVariants: AdminCareerLandingVariantBreakdown[] =
+      CAREER_LANDING_HERO_COPY_ABTEST_TYPES.map((abtestType) => {
+        const stats = landingVariantsByAbtestType.get(abtestType);
+        const entryCount = stats?.entryLocalIds.size ?? 0;
+        const clickStartCount = stats?.clickStartLocalIds.size ?? 0;
+        const loginCount = stats?.loginLocalIds.size ?? 0;
+
+        return {
+          abtestType,
+          clickStartCount,
+          clickStartRateFromEntry: rateOrNull(clickStartCount, entryCount),
+          description: getCareerLandingHeroCopyVariantDescription(abtestType),
+          entryCount,
+          eventTypes: Array.from(stats?.eventTypes ?? []).sort((a, b) =>
+            a.localeCompare(b)
+          ),
+          label: getCareerLandingHeroCopyVariantLabel(abtestType),
+          loginCount,
+          loginRateFromClickStart: rateOrNull(loginCount, clickStartCount),
+          loginRateFromEntry: rateOrNull(loginCount, entryCount),
+        };
+      });
+
     const response: AdminCareerAnalyticsResponse = {
       generatedAt: new Date().toISOString(),
       dateRange: {
@@ -1949,6 +2034,7 @@ export async function POST(req: NextRequest) {
       excludedEmails,
       funnel,
       landingSources,
+      landingVariants,
       quickSignals,
       summary,
       users: sortedUsers,

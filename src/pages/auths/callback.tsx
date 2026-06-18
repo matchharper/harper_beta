@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { finalizePendingTalentCapture } from "@/lib/talentCapture/client";
 import { buildLandingLoginEmailType } from "@/lib/landingLogTypes";
-import { getCareerSignupAttributionPayload } from "@/lib/careerSignupAttribution";
+import { getCareerSignupAttributionPayload } from "@/lib/career/signupAttribution";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
 
 function inferLandingLogSource(args: { flow: string; nextPath: string }) {

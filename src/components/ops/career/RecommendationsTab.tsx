@@ -15,11 +15,11 @@ import {
   useOpsManualInternalRecommendationRoles,
   useQueueOpsManualInternalRecommendation,
   useUpdateOpsCareerRecommendationStage,
-} from "@/hooks/useOpsCareer";
+} from "@/hooks/ops/useOpsCareer";
 import type {
   CareerTalentRecommendationItem,
   OpsManualInternalRecommendationRole,
-} from "@/lib/opsCareerServer";
+} from "@/lib/ops/careerServer";
 import {
   AUTO_RECOMMENDATION_STAGE_VALUE,
   CUSTOM_RECOMMENDATION_STAGE_VALUE,

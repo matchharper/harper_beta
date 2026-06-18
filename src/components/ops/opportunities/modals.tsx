@@ -3,13 +3,13 @@ import { cx, opsTheme } from "@/components/ops/theme";
 import {
   DEFAULT_OPS_TALENT_RECOMMENDATION_PROMPT,
   OPS_TALENT_RECOMMENDATION_PROMPT_PLACEHOLDERS,
-} from "@/lib/opsOpportunityRecommendationPrompt";
+} from "@/lib/ops/opportunityRecommendationPrompt";
 import type {
   OpsOpportunityCandidateRecord,
   OpportunityEmploymentType,
   OpportunityStatus,
   OpportunityWorkMode,
-} from "@/lib/opsOpportunity";
+} from "@/lib/ops/opportunity";
 import { LoaderCircle, Mail, Save } from "lucide-react";
 import type { ClipboardEvent } from "react";
 import ReactMarkdown from "react-markdown";

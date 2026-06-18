@@ -5,7 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   useBulkSendOpsRequestAccessApproval,
   useOpsRequestAccessQueue,
-} from "@/hooks/useOpsRequestAccess";
+} from "@/hooks/ops/useOpsRequestAccess";
 import {
   buildBulkRequestAccessApprovedEmailTemplates,
   REQUEST_ACCESS_APPROVAL_TEMPLATE_VARIABLES,

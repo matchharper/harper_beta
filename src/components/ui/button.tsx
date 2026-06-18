@@ -13,7 +13,7 @@ const buttonVariants = cva(
         default:
           "border border-neutral-1000-a10 bg-bg-floating text-neutral-primary hover:border-neutral-400 hover:bg-bg-weak",
         primary:
-          "border border-primary bg-primary text-neutral-00 hover:bg-primary/90",
+          "border border-neutral-1000 bg-neutral-1000 text-neutral-00 hover:bg-neutral-900",
         black:
           "border border-black bg-black text-neutral-00 hover:bg-neutral-900",
         secondary:
@@ -104,7 +104,7 @@ export type ActionButtonProps = Omit<ButtonProps, "size" | "variant"> & {
 
 const actionButtonVariantClassName: Record<ActionButtonVariant, string> = {
   primary:
-    "h-11 border border-primary bg-primary px-5 text-[14px] text-neutral-00 hover:bg-primary/90 hover:text-neutral-00",
+    "h-11 border border-neutral-1000 bg-neutral-1000 px-5 text-[14px] text-neutral-00 hover:bg-neutral-900 hover:text-neutral-00",
   secondary:
     "h-10 border border-neutral-1000-a10 bg-bg-floating px-4 text-[13px] text-neutral-primary hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary",
   icon: "h-10 w-10 border border-neutral-1000-a10 bg-bg-floating p-0 text-neutral-primary hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary",
@@ -114,7 +114,7 @@ const actionButtonActiveClassName: Partial<
   Record<ActionButtonVariant, string>
 > = {
   secondary:
-    "bg-primary text-neutral-00 hover:bg-primary/90 hover:text-neutral-00 hover:border-primary/10",
+    "bg-neutral-1000 text-neutral-00 hover:bg-neutral-900 hover:text-neutral-00 hover:border-neutral-1000-a10",
 };
 
 const actionButtonRadiusClassName: Record<ActionButtonRadius, string> = {
@@ -250,7 +250,7 @@ const animatedButtonVariantClassNames: Record<AnimatedButtonVariant, string> = {
   default:
     "border border-neutral-1000-a10 bg-bg-floating text-neutral-primary hover:border-neutral-400 hover:bg-bg-weak",
   primary:
-    "border border-primary bg-primary text-neutral-00 hover:bg-primary/90",
+    "border border-neutral-1000 bg-neutral-1000 text-neutral-00 hover:bg-neutral-900",
   black: "border border-black bg-black text-neutral-00 hover:bg-neutral-900",
   secondary:
     "border border-neutral-1000-a05 bg-bg-floating text-neutral-primary hover:border-neutral-1000-a10 hover:bg-bg-weak",
@@ -262,7 +262,7 @@ const animatedButtonVariantClassNames: Record<AnimatedButtonVariant, string> = {
 
 function getAnimatedButtonSizeClassName(size: AnimatedButtonSize) {
   if (size === "icon") return "h-10 w-10 p-0";
-  if (size === "lg") return "h-12 px-6 text-base";
+  if (size === "lg") return "h-12 px-6 text-[15px] md:text-base";
   if (size === "sm") return "h-[42px] px-4 text-[14px]";
   return "h-[44px] px-4 text-base";
 }

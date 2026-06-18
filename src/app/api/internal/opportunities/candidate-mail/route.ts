@@ -4,7 +4,7 @@ import {
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
 import { sendInternalEmail } from "@/lib/internalMail";
-import { fetchOpsOpportunityCandidateContact } from "@/lib/opsOpportunity";
+import { fetchOpsOpportunityCandidateContact } from "@/lib/ops/opportunity";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 
 export const runtime = "nodejs";

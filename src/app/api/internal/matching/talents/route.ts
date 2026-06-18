@@ -10,7 +10,7 @@ import {
   parseOpsMatchingLimit,
   parseOpsMatchingOffset,
   parseOpsMatchingTags,
-} from "@/lib/opsMatching";
+} from "@/lib/ops/matching";
 
 export const runtime = "nodejs";
 

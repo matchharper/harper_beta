@@ -10,8 +10,8 @@ import { ClickablePanel } from "@/components/ui/clickable-panel";
 import { OpportunityHeader } from "./HistoryOpportunityDetailContent";
 import OpportunityPreferenceFit from "./OpportunityPreferenceFit";
 import {
+  getSavedOpportunityStatusOptions,
   getSavedOpportunityStatusLabel,
-  SAVED_OPPORTUNITY_STATUS_OPTIONS,
   type SavedOpportunityManagementStatus,
 } from "./savedOpportunityStatus";
 import { BareButton } from "@/components/ui/button";
@@ -29,39 +29,44 @@ const SavedManagementStatusDropdown = ({
   disabled: boolean;
   status: SavedOpportunityManagementStatus;
   onChange: (value: SavedOpportunityManagementStatus) => void;
-}) => (
-  <div
-    data-career-card-action="true"
-    onClick={stopCardActivation}
-    onPointerDown={stopCardActivation}
-  >
-    <ActionDropdown
-      align="end"
-      contentClassName="min-w-[190px]"
-      trigger={
-        <BareButton
-          type="button"
-          disabled={disabled}
-          className="inline-flex h-9 min-w-[156px] items-center justify-between gap-2 rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 text-sm font-medium text-neutral-primary hover:border-neutral-400 hover:bg-bg-weak disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <span>{getSavedOpportunityStatusLabel(status)}</span>
-          <ChevronDown className="h-4 w-4 text-neutral-muted" />
-        </BareButton>
-      }
+}) => {
+  const t = useCareerT();
+  const options = getSavedOpportunityStatusOptions(t);
+
+  return (
+    <div
+      data-career-card-action="true"
+      onClick={stopCardActivation}
+      onPointerDown={stopCardActivation}
     >
-      {SAVED_OPPORTUNITY_STATUS_OPTIONS.map((option) => (
-        <ActionDropdownItem
-          key={option.id}
-          selected={option.id === status}
-          disabled={disabled}
-          onSelect={() => onChange(option.id)}
-        >
-          {option.label}
-        </ActionDropdownItem>
-      ))}
-    </ActionDropdown>
-  </div>
-);
+      <ActionDropdown
+        align="end"
+        contentClassName="min-w-[190px]"
+        trigger={
+          <BareButton
+            type="button"
+            disabled={disabled}
+            className="inline-flex h-9 min-w-[156px] items-center justify-between gap-2 rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 text-sm font-medium text-neutral-primary hover:border-neutral-400 hover:bg-bg-weak disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <span>{getSavedOpportunityStatusLabel(status, t)}</span>
+            <ChevronDown className="h-4 w-4 text-neutral-muted" />
+          </BareButton>
+        }
+      >
+        {options.map((option) => (
+          <ActionDropdownItem
+            key={option.id}
+            selected={option.id === status}
+            disabled={disabled}
+            onSelect={() => onChange(option.id)}
+          >
+            {option.label}
+          </ActionDropdownItem>
+        ))}
+      </ActionDropdown>
+    </div>
+  );
+};
 
 const CardActionArea = ({ children }: { children: React.ReactNode }) => (
   <div

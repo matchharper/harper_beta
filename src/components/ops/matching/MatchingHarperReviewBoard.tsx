@@ -21,14 +21,14 @@ import { BareButton } from "@/components/ui/button";
 import {
   useOpsMatchingReviewBoard,
   useSetOpsMatchingReviewStage,
-} from "@/hooks/useOpsMatching";
+} from "@/hooks/ops/useOpsMatching";
 import { useOpsMatchingStore } from "@/store/useOpsMatchingStore";
 import type {
   OpsMatchingReviewItem,
   OpsMatchingReviewStageId,
   OpsMatchingRoleOption,
   OpsMatchingTalentItem,
-} from "@/lib/opsMatching";
+} from "@/lib/ops/matching";
 
 type MatchingHarperReviewBoardProps = {
   canFetchInternal: boolean;

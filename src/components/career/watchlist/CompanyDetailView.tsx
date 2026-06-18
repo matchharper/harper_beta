@@ -29,7 +29,6 @@ import type {
 import { Badge } from "@/components/ui/badge";
 import { Text } from "@/components/ui/text";
 import { useMessages, type Locale } from "@/i18n/useMessage";
-import { careerT } from "@/lib/career/translatedCareerMessage";
 import { useCareerT } from "@/i18n/useCareerT";
 
 const DetailSection = ({
@@ -181,20 +180,12 @@ export const CompanyDetailView = ({
   const links = [
     {
       href: item.homepageUrl ?? item.websiteUrl,
-      label: careerT(
-        "ko",
-        "career.company.company_detail_view.18zvias",
-        "웹사이트"
-      ),
+      label: t("career.company.company_detail_view.18zvias", "웹사이트"),
     },
     { href: item.linkedinUrl, label: "LinkedIn" },
     {
       href: item.careerUrl,
-      label: careerT(
-        "ko",
-        "career.company.company_detail_view.1si5hsi",
-        "채용 페이지"
-      ),
+      label: t("career.company.company_detail_view.1si5hsi", "채용 페이지"),
     },
     { href: item.fundingUrl, label: "Funding" },
   ]
@@ -207,7 +198,8 @@ export const CompanyDetailView = ({
     }));
   const employeeCount = formatEmployeeCountRange(
     item.employeeCountRange,
-    locale
+    locale,
+    t
   );
   const infoRows = [
     item.location
@@ -218,11 +210,7 @@ export const CompanyDetailView = ({
               strokeWidth={2}
             />
           ),
-          label: careerT(
-            "ko",
-            "career.company.company_detail_view.198i5rb",
-            "본사 위치"
-          ),
+          label: t("career.company.company_detail_view.198i5rb", "본사 위치"),
           value: item.location,
         }
       : null,
@@ -234,12 +222,8 @@ export const CompanyDetailView = ({
               strokeWidth={2}
             />
           ),
-          label: careerT(
-            "ko",
-            "career.company.company_detail_view.02ioip6",
-            "설립 연도"
-          ),
-          value: formatFoundedYear(item.foundedYear, locale),
+          label: t("career.company.company_detail_view.02ioip6", "설립 연도"),
+          value: formatFoundedYear(item.foundedYear, locale, t),
         }
       : null,
     employeeCount
@@ -247,11 +231,7 @@ export const CompanyDetailView = ({
           icon: (
             <Users className="h-3.5 w-3.5 text-neutral-muted" strokeWidth={2} />
           ),
-          label: careerT(
-            "ko",
-            "career.company.company_detail_view.01kpxqk",
-            "직원 수"
-          ),
+          label: t("career.company.company_detail_view.01kpxqk", "직원 수"),
           value: employeeCount,
         }
       : null,
@@ -276,27 +256,15 @@ export const CompanyDetailView = ({
   const crunchbaseScores = toRecord(crunchbaseInformation.scores);
   const crunchbaseStatusRows = [
     {
-      label: careerT(
-        "ko",
-        "career.company.company_detail_view.0lq2ran",
-        "운영 상태"
-      ),
+      label: t("career.company.company_detail_view.0lq2ran", "운영 상태"),
       value: formatCrunchbaseLabel(crunchbaseCompany.operating_status),
     },
     {
-      label: careerT(
-        "ko",
-        "career.company.company_detail_view.0vk24i0",
-        "회사 유형"
-      ),
+      label: t("career.company.company_detail_view.0vk24i0", "회사 유형"),
       value: formatCrunchbaseLabel(crunchbaseCompany.company_type),
     },
     {
-      label: careerT(
-        "ko",
-        "career.company.company_detail_view.0d3086e",
-        "IPO 상태"
-      ),
+      label: t("career.company.company_detail_view.0d3086e", "IPO 상태"),
       value: formatCrunchbaseLabel(crunchbaseCompany.ipo_status),
     },
   ].filter((row): row is CompanyDetailRow => row.value.length > 0);
@@ -363,15 +331,14 @@ export const CompanyDetailView = ({
                 </Text>
                 {item.followedAt ? (
                   <span className="rounded-full bg-bg-weak px-2.5 py-1 text-[12px] leading-none text-neutral-muted">
-                    {formatFollowedAt(item.followedAt, locale)}
+                    {formatFollowedAt(item.followedAt, locale, t)}
                   </span>
                 ) : null}
               </div>
               <Text className="max-w-[780px] text-[14px]" tone="muted">
                 {item.shortDescription ??
                   item.location ??
-                  careerT(
-                    "ko",
+                  t(
                     "career.company.company_card.1n9j2yp",
                     "회사 설명을 정리 중입니다."
                   )}
@@ -426,11 +393,7 @@ export const CompanyDetailView = ({
             <div className="">
               {snapshotInvestigationDate ? (
                 <div className="mb-4 inline-flex rounded-full bg-bg-weak px-2.5 py-1 text-[12px] font-medium leading-none text-neutral-muted">
-                  {careerT(
-                    locale,
-                    "career.company.snapshot.investigation_date",
-                    "조사일"
-                  )}{" "}
+                  {t("career.company.snapshot.investigation_date", "조사일")}{" "}
                   {snapshotInvestigationDate}
                 </div>
               ) : null}
@@ -449,11 +412,7 @@ export const CompanyDetailView = ({
               tone="neutral"
             >
               {item.description ??
-                careerT(
-                  "ko",
-                  "career.common.career.083cky2",
-                  "아직 회사 설명이 없습니다."
-                )}
+                t("career.common.career.083cky2", "아직 회사 설명이 없습니다.")}
             </Text>
           </DetailSection>
         )}

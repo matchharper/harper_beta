@@ -3,7 +3,7 @@ import {
   requireInternalApiUser,
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
-import { extractOpsOpportunityWorkspace } from "@/lib/opsOpportunity";
+import { extractOpsOpportunityWorkspace } from "@/lib/ops/opportunity";
 
 export const runtime = "nodejs";
 

@@ -647,7 +647,15 @@ function MobileDemoConversation({ visible }: { visible: boolean }) {
   );
 }
 
-function DemoSection({ header }: { header: React.ReactNode }) {
+type DemoSectionProps = {
+  disableInteractions?: boolean;
+  header: React.ReactNode;
+};
+
+function DemoSection({
+  disableInteractions = false,
+  header,
+}: DemoSectionProps) {
   const isMobile = useIsMobile();
   const sectionRef = useRef<HTMLElement | null>(null);
   const phoneRef = useRef<HTMLDivElement | null>(null);
@@ -901,9 +909,31 @@ function DemoSection({ header }: { header: React.ReactNode }) {
   ]);
 
   const visibleStepSet = useMemo(() => new Set(visibleSteps), [visibleSteps]);
+  const blockPreviewInteraction = (
+    event: React.SyntheticEvent<HTMLElement>
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+  const blockPreviewKeyboardInteraction = (
+    event: React.KeyboardEvent<HTMLElement>
+  ) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    event.stopPropagation();
+  };
+  const interactionGuardProps = disableInteractions
+    ? {
+        onClickCapture: blockPreviewInteraction,
+        onDoubleClickCapture: blockPreviewInteraction,
+        onSubmitCapture: blockPreviewInteraction,
+        onKeyDownCapture: blockPreviewKeyboardInteraction,
+      }
+    : {};
 
   return (
     <section
+      {...interactionGuardProps}
       id="demo"
       ref={sectionRef}
       className="bg-[#F4EFE7] px-4 py-14 text-center md:px-10 md:py-24"

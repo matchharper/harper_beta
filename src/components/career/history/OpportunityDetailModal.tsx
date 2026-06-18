@@ -80,7 +80,7 @@ const OpportunityDetailModal = ({
               )}
               disabled={pending}
               icon={<PositiveActionIconView icon={PositiveActionIcon} />}
-              label={getPositiveActionLabel(item)}
+              label={getPositiveActionLabel(item, t)}
               onClick={onPositive}
             />
           </div>
@@ -91,7 +91,7 @@ const OpportunityDetailModal = ({
               )}
               disabled={pending}
               icon={<ThumbsDown className="h-4 w-4" />}
-              label={getNegativeActionLabel(item)}
+              label={getNegativeActionLabel(item, t)}
               onClick={onNegative}
             />
           </div>

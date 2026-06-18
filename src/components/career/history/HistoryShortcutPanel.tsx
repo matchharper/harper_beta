@@ -121,7 +121,7 @@ const HistoryShortcutPanel = ({
           className="bg-bg-weak text-neutral-primary"
         >
           <ThumbsDown className="h-3 w-3" />
-          {getNegativeActionLabel(item)}
+          {getNegativeActionLabel(item, t)}
         </ShortcutActionButton>
 
         <ShortcutActionButton
@@ -130,7 +130,7 @@ const HistoryShortcutPanel = ({
           className={positiveActionClassName}
         >
           <ShortcutPositiveActionIcon icon={PositiveActionIcon} />
-          {getPositiveActionLabel(item)}
+          {getPositiveActionLabel(item, t)}
         </ShortcutActionButton>
 
         <ShortcutNavButton
@@ -158,12 +158,12 @@ const HistoryShortcutPanel = ({
         <span className="text-neutral-primary/20">·</span>
         <span className="inline-flex items-center gap-2">
           <ShortcutKey>S</ShortcutKey>
-          {getNegativeActionLabel(item)}
+          {getNegativeActionLabel(item, t)}
         </span>
         <span className="text-neutral-primary/20">·</span>
         <span className="inline-flex items-center gap-2">
           <ShortcutKey>T</ShortcutKey>
-          {getPositiveActionLabel(item)}
+          {getPositiveActionLabel(item, t)}
         </span>
       </div>
     </div>

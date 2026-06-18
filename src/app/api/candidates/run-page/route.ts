@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { CandidateMarkStatus } from "@/lib/candidateMark";
+import type { CandidateMarkStatus } from "@/lib/candidates/mark";
 import {
   applyListRevealState,
   fetchBaseCandidatesByIds,

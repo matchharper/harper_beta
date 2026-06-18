@@ -16,27 +16,28 @@ import { ActionButton, ChoiceCard } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/panel";
 import { useMessages, type Locale } from "@/i18n/useMessage";
-import { careerT } from "@/lib/career/translatedCareerMessage";
 import { useCareerT } from "@/i18n/useCareerT";
 
-const PROFILE_VISIBILITY_OPTIONS: Array<{
+type ProfileVisibilityOption = {
   value: CareerProfileVisibility;
   label: string;
   description: string;
   Icon: React.ComponentType<{ className?: string }>;
   sub?: string;
-}> = [
+};
+
+const getProfileVisibilityOptions = (
+  t: ReturnType<typeof useCareerT>
+): ProfileVisibilityOption[] => [
   {
     value: "open_to_matches",
     label: "Open to matches",
-    description: careerT(
-      "ko",
+    description: t(
       "career.profile.career_profile_settings_section.13fr2yp",
       "강하게 맞는 포지션으로 판단되면 회사에 먼저 프로필을 공유하고, 구체적인 제안을 받으신 뒤 판단하실 수 있도록 합니다."
     ),
     Icon: ShieldCheck,
-    sub: careerT(
-      "ko",
+    sub: t(
       "career.profile.career_profile_settings_section.13fr2yp",
       "강하게 맞는 포지션으로 판단되면 회사에 먼저 프로필을 공유하고, 구체적인 제안을 받으신 뒤 판단하실 수 있도록 합니다."
     ),
@@ -44,14 +45,12 @@ const PROFILE_VISIBILITY_OPTIONS: Array<{
   {
     value: "exceptional_only",
     label: "Exceptional only",
-    description: careerT(
-      "ko",
+    description: t(
       "career.profile.career_profile_settings_section.0vrogtc",
       "먼저 매칭된 기회/회사를 확인한 뒤 직접 허용한 경우에만 익명 프로필이 공유됩니다."
     ),
     Icon: ShieldAlert,
-    sub: careerT(
-      "ko",
+    sub: t(
       "career.profile.career_profile_settings_section.0t4q2xb",
       "먼저 매칭된 기회/회사를 확인한 뒤 직접 허용한 경우에만 익명 프로필이 회사 측에 공유됩니다. 이 경우에도 대화 내용 및 선택하신 옵션이 공개되진 않고, 매칭에 필요한 정보만 공유됩니다."
     ),
@@ -59,29 +58,19 @@ const PROFILE_VISIBILITY_OPTIONS: Array<{
   {
     value: "dont_share",
     label: "Don't share",
-    description: careerT(
-      "ko",
+    description: t(
       "career.profile.career_profile_settings_section.1easkuh",
       "절대 어떤 경우에도 프로필이 공유되지 않습니다. 잠시 모든 매칭을 차단하고 싶다면 이 옵션을 선택해주세요."
     ),
     Icon: Lock,
-    sub: careerT(
-      "ko",
+    sub: t(
       "career.profile.career_profile_settings_section.10nxtf7",
       "모든 매칭이 종료되고, 어떤 경우에도 등록하신 정보가 외부에 전달되지 않습니다. 완전히 모든 기회를 잠시 차단하고 싶으신 경우에만 이 옵션을 선택해주세요."
     ),
   },
 ];
 
-const formatUpdatedAt = (value: string | null, locale: Locale) => {
-  if (!value) {
-    return careerT(
-      locale,
-      "career.profile.settings.no_saved_changes",
-      "아직 저장된 변경 이력이 없습니다."
-    );
-  }
-
+const formatUpdatedAt = (value: string, locale: Locale) => {
   return new Intl.DateTimeFormat(locale === "en" ? "en-US" : "ko-KR", {
     year: "numeric",
     month: "short",
@@ -124,13 +113,23 @@ export const CareerProfileSharingSettingsSection = ({
   const hasUnsavedChanges = hasUnsavedTalentSettingsChanges;
   const canSaveProfileSettings = hasUnsavedChanges && !settingsLoading;
   const saveError = settingsError;
+  const profileVisibilityOptions = useMemo(
+    () => getProfileVisibilityOptions(t),
+    [t]
+  );
   const selectedVisibilityOption = useMemo(
     () =>
-      PROFILE_VISIBILITY_OPTIONS.find(
+      profileVisibilityOptions.find(
         (option) => option.value === profileVisibility
-      ) ?? PROFILE_VISIBILITY_OPTIONS[1],
-    [profileVisibility]
+      ) ?? profileVisibilityOptions[1],
+    [profileVisibility, profileVisibilityOptions]
   );
+  const lastUpdatedLabel = settingsUpdatedAt
+    ? formatUpdatedAt(settingsUpdatedAt, locale)
+    : t(
+        "career.profile.settings.no_saved_changes",
+        "아직 저장된 변경 이력이 없습니다."
+      );
 
   const handleSave = async () => {
     if (!hasUnsavedTalentSettingsChanges) return;
@@ -215,9 +214,7 @@ export const CareerProfileSharingSettingsSection = ({
       {showLastUpdated ? (
         <div className="mb-6 text-sm">
           <span className="text-neutral-soft">Last updated : </span>
-          <span className="text-neutral-primary">
-            {formatUpdatedAt(settingsUpdatedAt, locale)}
-          </span>
+          <span className="text-neutral-primary">{lastUpdatedLabel}</span>
         </div>
       ) : null}
 
@@ -249,7 +246,7 @@ export const CareerProfileSharingSettingsSection = ({
         >
           <div className="space-y-3">
             <div className="grid gap-2 md:grid-cols-3">
-              {PROFILE_VISIBILITY_OPTIONS.map((option) => {
+              {profileVisibilityOptions.map((option) => {
                 const isSelected = option.value === profileVisibility;
 
                 return (
@@ -365,13 +362,11 @@ export const CareerProfileSharingSettingsSection = ({
                   <Plus className="h-3 w-3" />
                 )}
                 {blockedCompaniesSavePending
-                  ? careerT(
-                      "ko",
+                  ? t(
                       "career.profile.career_profile_settings_section.08zy6at",
                       "저장 중..."
                     )
-                  : careerT(
-                      "ko",
+                  : t(
                       "career.profile.career_profile_settings_section.07836ex",
                       "추가"
                     )}
@@ -454,13 +449,11 @@ export const CareerProfileSharingSettingsSection = ({
                 <Save className="h-4 w-4" />
               )}
               {isSavePending
-                ? careerT(
-                    "ko",
+                ? t(
                     "career.profile.career_profile_settings_section.08zy6at",
                     "저장 중..."
                   )
-                : careerT(
-                    "ko",
+                : t(
                     "career.profile.career_profile_settings_section.18i3x5x",
                     "설정 저장"
                   )}

@@ -7,7 +7,7 @@ import {
   deleteOpsAnswerExample,
   fetchOpsAnswerExamples,
   saveOpsAnswerExample,
-} from "@/lib/opsAnswerExamplesServer";
+} from "@/lib/ops/answerExamplesServer";
 
 export const runtime = "nodejs";
 

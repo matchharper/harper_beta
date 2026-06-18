@@ -3,7 +3,7 @@ import {
   requireInternalApiUser,
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
-import { syncOpsOpportunityRoles } from "@/lib/opsOpportunity";
+import { syncOpsOpportunityRoles } from "@/lib/ops/opportunity";
 
 export const runtime = "nodejs";
 

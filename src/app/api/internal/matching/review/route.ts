@@ -8,7 +8,7 @@ import {
   fetchOpsMatchingReviewBoard,
   parseOpsMatchingTags,
   setOpsMatchingReviewStage,
-} from "@/lib/opsMatching";
+} from "@/lib/ops/matching";
 
 export const runtime = "nodejs";
 

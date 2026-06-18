@@ -1,9 +1,9 @@
 import { memo, useCallback, useMemo, useState } from "react";
 import { LoaderCircle, RefreshCw, Save } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
-import { useRefreshInsights, useUpdateInsights } from "@/hooks/useOpsCareer";
+import { useRefreshInsights, useUpdateInsights } from "@/hooks/ops/useOpsCareer";
 import { getInsightLabel } from "@/lib/talentOnboarding/insightChecklist";
-import type { CareerTalentInsightsResponse } from "@/lib/opsCareerServer";
+import type { CareerTalentInsightsResponse } from "@/lib/ops/careerServer";
 import { BareButton } from "@/components/ui/button";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
