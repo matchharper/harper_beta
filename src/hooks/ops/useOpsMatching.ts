@@ -40,7 +40,10 @@ type MatchingTalentFilters = {
   createdFrom?: string;
   createdTo?: string;
   enabled?: boolean;
+  excludeRecommended?: boolean;
+  humanLabels?: OpsMatchingFitLabel[];
   limit?: number;
+  llmLabels?: OpsMatchingFitLabel[];
   query?: string;
   roleId?: string | null;
   tags?: string[];
@@ -159,13 +162,21 @@ export function useOpsMatchingTalents(filters: MatchingTalentFilters) {
   const query = filters.query?.trim() ?? "";
   const createdFrom = filters.createdFrom?.trim() ?? "";
   const createdTo = filters.createdTo?.trim() ?? "";
+  const excludeRecommended = Boolean(filters.excludeRecommended);
+  const llmLabels =
+    filters.llmLabels?.map((label) => label.trim()).filter(Boolean) ?? [];
+  const humanLabels =
+    filters.humanLabels?.map((label) => label.trim()).filter(Boolean) ?? [];
   const tags = filters.tags?.map((tag) => tag.trim()).filter(Boolean) ?? [];
 
   return useInfiniteQuery({
     queryKey: queryKeys.opsMatching.talents({
       createdFrom,
       createdTo,
+      excludeRecommended,
+      humanLabels,
       limit,
+      llmLabels,
       query,
       roleId,
       tags,
@@ -179,6 +190,11 @@ export function useOpsMatchingTalents(filters: MatchingTalentFilters) {
       if (query) params.set("query", query);
       if (createdFrom) params.set("createdFrom", createdFrom);
       if (createdTo) params.set("createdTo", createdTo);
+      if (excludeRecommended) params.set("excludeRecommended", "1");
+      if (llmLabels.length > 0) params.set("llmLabels", llmLabels.join(","));
+      if (humanLabels.length > 0) {
+        params.set("humanLabels", humanLabels.join(","));
+      }
       if (tags.length > 0) params.set("tags", tags.join(","));
       return fetchWithInternalAuth<OpsMatchingTalentListResponse>(
         `/api/internal/matching/talents?${params.toString()}`

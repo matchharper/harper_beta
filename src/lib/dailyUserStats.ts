@@ -89,6 +89,10 @@ type TalentOpportunityDeliveryRow = Pick<
   Database["public"]["Tables"]["talent_opportunity_delivery"]["Row"],
   "channel" | "discovery_run_id" | "id" | "sent_at" | "status" | "talent_id"
 >;
+type OpportunityDiscoveryRunRow = Pick<
+  Database["public"]["Tables"]["opportunity_discovery_run"]["Row"],
+  "completed_at" | "id" | "status" | "talent_id" | "updated_at"
+>;
 type LandingLogRow = Pick<
   Database["public"]["Tables"]["landing_logs"]["Row"],
   "created_at" | "local_id" | "type"
@@ -118,16 +122,31 @@ export type DailyUserStatsJobRow = {
   viewCount: number;
 };
 
+export type DailyUserStatsInternalConnectionResponseStats = {
+  acceptedCount: number;
+  endDate: string;
+  endIso: string;
+  noResponseCount: number;
+  recommendationCount: number;
+  rejectedCount: number;
+  startDate: string;
+  startIso: string;
+};
+
 export type DailyUserStatsReport = {
   activeTalentsCount: number;
   callTranscriptMessageCount: number;
   chatMessageCount: number;
   chatUniqueTalentCount: number;
+  completedOrSubmittedNoRecommendationUserCount: number;
   cumulativeTalentsCount: number;
   date: string;
+  dateLabel: string;
+  endDateExclusive: string;
   endIso: string;
   failedToolCallCount: number;
   highIntentTalentsCount: number;
+  internalConnectionResponseStats: DailyUserStatsInternalConnectionResponseStats | null;
   internalRecommendationCount: number;
   jobs: DailyUserStatsJobRow[];
   mailReplyCount: number;
@@ -136,12 +155,15 @@ export type DailyUserStatsReport = {
   newSignupOnboardingCompletedCount: number;
   newSignupSubmittedCount: number;
   onboardingCompletedCount: number;
+  opportunityDiscoveryFailedRunCount: number;
+  period: "daily" | "weekly";
   periodicRecommendationMailUserCount: number;
   positiveFeedbackCount: number;
   recommendationCount: number;
   returningOnboardingCompletedCount: number;
   returningSubmittedCount: number;
   signupCount: number;
+  startDate: string;
   startIso: string;
   submittedCount: number;
   toolFailureRate: number | null;
@@ -149,6 +171,15 @@ export type DailyUserStatsReport = {
   userMessageCount: number;
   userMessageUniqueTalentCount: number;
   viewedRecommendationCount: number;
+};
+
+type KstDateRange = {
+  date: string;
+  dateLabel: string;
+  endDateExclusive: string;
+  endIso: string;
+  startDate: string;
+  startIso: string;
 };
 
 function normalizeDateOnly(value: unknown) {
@@ -168,30 +199,90 @@ function normalizeDateOnly(value: unknown) {
   return date;
 }
 
-export function getDefaultDailyUserStatsDate(now = new Date()) {
-  const kstNow = new Date(now.getTime() + KST_OFFSET_MS);
-  kstNow.setUTCDate(kstNow.getUTCDate() - 1);
-  return kstNow.toISOString().slice(0, 10);
-}
-
-export function resolveDailyUserStatsDate(value: unknown, now = new Date()) {
-  return normalizeDateOnly(value) ?? getDefaultDailyUserStatsDate(now);
-}
-
-function getKstDayRange(date: string) {
+function addDaysToDateOnly(date: string, days: number) {
   const normalized = normalizeDateOnly(date);
   if (!normalized) {
     throw new Error("date must be YYYY-MM-DD");
   }
 
   const [year, month, day] = normalized.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days, 12, 0, 0, 0))
+    .toISOString()
+    .slice(0, 10);
+}
+
+function getKstDateOnly(now = new Date()) {
+  return new Date(now.getTime() + KST_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+function getKstWeekStartDate(date: string) {
+  const normalized = normalizeDateOnly(date);
+  if (!normalized) {
+    throw new Error("date must be YYYY-MM-DD");
+  }
+
+  const [year, month, day] = normalized.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0));
+  const daysSinceMonday = (parsed.getUTCDay() + 6) % 7;
+  return addDaysToDateOnly(normalized, -daysSinceMonday);
+}
+
+export function getDefaultDailyUserStatsDate(now = new Date()) {
+  return addDaysToDateOnly(getKstDateOnly(now), -1);
+}
+
+export function resolveDailyUserStatsDate(value: unknown, now = new Date()) {
+  return normalizeDateOnly(value) ?? getDefaultDailyUserStatsDate(now);
+}
+
+export function getDefaultWeeklyUserStatsStartDate(now = new Date()) {
+  const currentWeekStart = getKstWeekStartDate(getKstDateOnly(now));
+  return addDaysToDateOnly(currentWeekStart, -7);
+}
+
+export function resolveWeeklyUserStatsStartDate(
+  value: unknown,
+  now = new Date()
+) {
+  const normalized = normalizeDateOnly(value);
+  if (normalized) return getKstWeekStartDate(normalized);
+  return getDefaultWeeklyUserStatsStartDate(now);
+}
+
+function getKstRange(startDate: string, dayCount: number): KstDateRange {
+  const normalizedStartDate = normalizeDateOnly(startDate);
+  if (!normalizedStartDate) {
+    throw new Error("date must be YYYY-MM-DD");
+  }
+  if (!Number.isInteger(dayCount) || dayCount <= 0) {
+    throw new Error("dayCount must be a positive integer");
+  }
+
+  const [year, month, day] = normalizedStartDate.split("-").map(Number);
   const start = new Date(Date.UTC(year, month - 1, day, -9, 0, 0, 0));
-  const end = new Date(Date.UTC(year, month - 1, day + 1, -9, 0, 0, 0));
+  const end = new Date(Date.UTC(year, month - 1, day + dayCount, -9, 0, 0, 0));
+  const endDateExclusive = addDaysToDateOnly(normalizedStartDate, dayCount);
+  const endDateInclusive = addDaysToDateOnly(endDateExclusive, -1);
+  const dateLabel =
+    dayCount === 1
+      ? normalizedStartDate
+      : `${normalizedStartDate} ~ ${endDateInclusive}`;
   return {
-    date: normalized,
+    date: normalizedStartDate,
+    dateLabel,
+    endDateExclusive,
     endIso: end.toISOString(),
+    startDate: normalizedStartDate,
     startIso: start.toISOString(),
   };
+}
+
+function getKstDayRange(date: string) {
+  return getKstRange(date, 1);
+}
+
+function getKstWeekRange(weekStartDate: string) {
+  return getKstRange(weekStartDate, 7);
 }
 
 function isInRange(
@@ -429,12 +520,40 @@ function isUserCallTranscriptMessage(message: TalentMessageRow) {
   return message.role === "user" && message.message_type === "call_transcript";
 }
 
-export async function buildDailyUserStatsReport(
-  dateInput?: string | null
-): Promise<DailyUserStatsReport> {
-  const { date, startIso, endIso } = getKstDayRange(
-    resolveDailyUserStatsDate(dateInput)
-  );
+function buildInternalConnectionResponseStats(args: {
+  endDate: string;
+  endIso: string;
+  rows: RecommendationRow[];
+  startDate: string;
+  startIso: string;
+}): DailyUserStatsInternalConnectionResponseStats {
+  const acceptedCount = args.rows.filter(
+    (row) => normalizeRecommendationFeedback(row.feedback) === "positive"
+  ).length;
+  const rejectedCount = args.rows.filter(
+    (row) => normalizeRecommendationFeedback(row.feedback) === "negative"
+  ).length;
+  const noResponseCount = args.rows.length - acceptedCount - rejectedCount;
+
+  return {
+    acceptedCount,
+    endDate: args.endDate,
+    endIso: args.endIso,
+    noResponseCount,
+    recommendationCount: args.rows.length,
+    rejectedCount,
+    startDate: args.startDate,
+    startIso: args.startIso,
+  };
+}
+
+async function buildUserStatsReport(args: {
+  internalConnectionResponseRange?: KstDateRange | null;
+  period: DailyUserStatsReport["period"];
+  range: KstDateRange;
+}): Promise<DailyUserStatsReport> {
+  const { date, dateLabel, endDateExclusive, endIso, startDate, startIso } =
+    args.range;
   const excludedEmailSet = new Set(DAILY_USER_STATS_EXCLUDED_EMAILS);
 
   const [
@@ -451,6 +570,14 @@ export async function buildDailyUserStatsReport(
     savedStageRows,
     emailRows,
     opportunityEmailDeliveries,
+    failedDiscoveryCompletedRuns,
+    failedDiscoveryLegacyRuns,
+    historicalSubmitLogs,
+    historicalProfileSubmitMessages,
+    historicalOnboardingEvents,
+    historicalOnboardingSettings,
+    historicalRecommendationTalentRows,
+    internalConnectionResponseRows,
     toolUsageLogs,
     toolFailureLogs,
     jobLandingLogs,
@@ -592,6 +719,91 @@ export async function buildDailyUserStatsReport(
         .order("sent_at", { ascending: true })
         .range(from, to)
     ),
+    fetchAllRows<OpportunityDiscoveryRunRow>((from, to) =>
+      supabaseServer
+        .from("opportunity_discovery_run")
+        .select("id,talent_id,status,completed_at,updated_at")
+        .eq("status", "failed")
+        .gte("completed_at", startIso)
+        .lt("completed_at", endIso)
+        .order("completed_at", { ascending: true })
+        .range(from, to)
+    ),
+    fetchAllRows<OpportunityDiscoveryRunRow>((from, to) =>
+      supabaseServer
+        .from("opportunity_discovery_run")
+        .select("id,talent_id,status,completed_at,updated_at")
+        .eq("status", "failed")
+        .is("completed_at", null)
+        .gte("updated_at", startIso)
+        .lt("updated_at", endIso)
+        .order("updated_at", { ascending: true })
+        .range(from, to)
+    ),
+    fetchAllRows<LogRow>((from, to) =>
+      supabaseServer
+        .from("logs")
+        .select("user_id,type,created_at")
+        .eq("type", "career_onboarding_submitted")
+        .lt("created_at", endIso)
+        .order("id", { ascending: true })
+        .range(from, to)
+    ),
+    fetchAllRows<TalentMessageRow>((from, to) =>
+      supabaseServer
+        .from("talent_messages")
+        .select("user_id,role,message_type,created_at")
+        .eq("message_type", "profile_submit")
+        .lt("created_at", endIso)
+        .order("id", { ascending: true })
+        .range(from, to)
+    ),
+    fetchAllRows<TalentActivityEventRow>((from, to) =>
+      supabaseServer
+        .from("talent_activity_events")
+        .select("talent_id,event_type,created_at")
+        .eq("event_type", "onboarding_completed")
+        .lt("created_at", endIso)
+        .order("created_at", { ascending: true })
+        .range(from, to)
+    ),
+    fetchAllRows<TalentSettingRow>((from, to) =>
+      supabaseServer
+        .from("talent_setting")
+        .select("user_id,is_onboarding_done,updated_at")
+        .eq("is_onboarding_done", true)
+        .lt("updated_at", endIso)
+        .order("updated_at", { ascending: true })
+        .range(from, to)
+    ),
+    fetchAllRows<Pick<RecommendationRow, "recommended_at" | "talent_id">>(
+      (from, to) =>
+        supabaseServer
+          .from("talent_opportunity_recommendation")
+          .select("talent_id,recommended_at")
+          .lt("recommended_at", endIso)
+          .order("recommended_at", { ascending: true })
+          .range(from, to)
+    ),
+    args.internalConnectionResponseRange
+      ? fetchAllRows<RecommendationRow>((from, to) =>
+          supabaseServer
+            .from("talent_opportunity_recommendation")
+            .select(
+              "id,talent_id,opportunity_type,recommended_at,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
+            )
+            .gte(
+              "recommended_at",
+              args.internalConnectionResponseRange?.startIso ?? startIso
+            )
+            .lt(
+              "recommended_at",
+              args.internalConnectionResponseRange?.endIso ?? endIso
+            )
+            .order("recommended_at", { ascending: true })
+            .range(from, to)
+        )
+      : Promise.resolve([]),
     fetchAllRows<LogRow>((from, to) =>
       supabaseServer
         .from("logs")
@@ -855,17 +1067,90 @@ export async function buildDailyUserStatsReport(
   );
   const failedToolCallCount = includedToolFailureLogs.length;
   const toolCallCount = toolRows.reduce((sum, row) => sum + row.callCount, 0);
+  const toolAttemptCount = toolCallCount + failedToolCallCount;
+
+  const failedDiscoveryRunIds = new Set<string>();
+  for (const row of [
+    ...failedDiscoveryCompletedRuns,
+    ...failedDiscoveryLegacyRuns,
+  ]) {
+    if (isIncludedUserId(row.talent_id) && row.id) {
+      failedDiscoveryRunIds.add(row.id);
+    }
+  }
+
+  const completedOrSubmittedUserIds = new Set<string>();
+  for (const log of historicalSubmitLogs) {
+    if (
+      log.type === "career_onboarding_submitted" &&
+      isIncludedUserId(log.user_id)
+    ) {
+      addUserId(completedOrSubmittedUserIds, log.user_id);
+    }
+  }
+  for (const message of historicalProfileSubmitMessages) {
+    if (
+      message.message_type === "profile_submit" &&
+      isIncludedUserId(message.user_id)
+    ) {
+      addUserId(completedOrSubmittedUserIds, message.user_id);
+    }
+  }
+  for (const event of historicalOnboardingEvents) {
+    if (event.event_type === "onboarding_completed") {
+      addUserId(completedOrSubmittedUserIds, event.talent_id);
+    }
+  }
+  for (const setting of historicalOnboardingSettings) {
+    if (setting.is_onboarding_done) {
+      addUserId(completedOrSubmittedUserIds, setting.user_id);
+    }
+  }
+  const historicalRecommendationTalentIds = new Set<string>();
+  for (const row of historicalRecommendationTalentRows) {
+    if (isIncludedUserId(row.talent_id)) {
+      addUserId(historicalRecommendationTalentIds, row.talent_id);
+    }
+  }
+  const completedOrSubmittedNoRecommendationUserCount = Array.from(
+    completedOrSubmittedUserIds
+  ).filter((userId) => !historicalRecommendationTalentIds.has(userId)).length;
+
+  const includedInternalConnectionResponseRows =
+    internalConnectionResponseRows.filter(
+      (row) =>
+        isIncludedUserId(row.talent_id) &&
+        isInternalOpportunity(row.opportunity_type)
+    );
+  const internalConnectionResponseStats =
+    args.internalConnectionResponseRange === null ||
+    args.internalConnectionResponseRange === undefined
+      ? null
+      : buildInternalConnectionResponseStats({
+          endDate: addDaysToDateOnly(
+            args.internalConnectionResponseRange.endDateExclusive,
+            -1
+          ),
+          endIso: args.internalConnectionResponseRange.endIso,
+          rows: includedInternalConnectionResponseRows,
+          startDate: args.internalConnectionResponseRange.startDate,
+          startIso: args.internalConnectionResponseRange.startIso,
+        });
 
   return {
     activeTalentsCount: activeTalentIds.size,
     callTranscriptMessageCount: callTranscriptMessages.length,
     chatMessageCount: chatMessages.length,
     chatUniqueTalentCount: chatUserIds.size,
+    completedOrSubmittedNoRecommendationUserCount,
     cumulativeTalentsCount: cumulativeTalentCount,
     date,
+    dateLabel,
+    endDateExclusive,
     endIso,
     failedToolCallCount,
     highIntentTalentsCount: highIntentTalentIds.size,
+    internalConnectionResponseStats,
     internalRecommendationCount: includedRecommendedRows.filter((row) =>
       isInternalOpportunity(row.opportunity_type)
     ).length,
@@ -883,20 +1168,49 @@ export async function buildDailyUserStatsReport(
     newSignupOnboardingCompletedCount,
     newSignupSubmittedCount,
     onboardingCompletedCount: onboardingCompletedUserIds.size,
+    opportunityDiscoveryFailedRunCount: failedDiscoveryRunIds.size,
+    period: args.period,
     periodicRecommendationMailUserCount: recommendationEmailUserIds.size,
     positiveFeedbackCount: positiveFeedbackRows.length,
     recommendationCount: includedRecommendedRows.length,
     returningOnboardingCompletedCount,
     returningSubmittedCount,
     signupCount: signupUserIds.size,
+    startDate,
     startIso,
     submittedCount: submittedUserIds.size,
-    toolFailureRate: countRate(failedToolCallCount, toolCallCount),
+    toolFailureRate: countRate(failedToolCallCount, toolAttemptCount),
     tools: toolRows.slice(0, 10),
     userMessageCount: chatMessages.length + callTranscriptMessages.length,
     userMessageUniqueTalentCount: userMessageUserIds.size,
     viewedRecommendationCount: includedViewedRecommendedRows.length,
   };
+}
+
+export async function buildDailyUserStatsReport(
+  dateInput?: string | null
+): Promise<DailyUserStatsReport> {
+  return buildUserStatsReport({
+    period: "daily",
+    range: getKstDayRange(resolveDailyUserStatsDate(dateInput)),
+  });
+}
+
+export async function buildWeeklyUserStatsReport(
+  weekStartDateInput?: string | null
+): Promise<DailyUserStatsReport> {
+  const range = getKstWeekRange(
+    resolveWeeklyUserStatsStartDate(weekStartDateInput)
+  );
+  const internalConnectionResponseRange = getKstWeekRange(
+    addDaysToDateOnly(range.startDate, -7)
+  );
+
+  return buildUserStatsReport({
+    internalConnectionResponseRange,
+    period: "weekly",
+    range,
+  });
 }
 
 const numberFormatter = new Intl.NumberFormat("ko-KR");
@@ -914,6 +1228,33 @@ function formatRatio(numerator: number, denominator: number) {
   return formatPercent(countRate(numerator, denominator));
 }
 
+function formatSlackSectionTitle(value: string) {
+  return `*${value}*`;
+}
+
+function formatInternalConnectionResponseStats(
+  stats: DailyUserStatsInternalConnectionResponseStats | null
+) {
+  if (!stats) return null;
+
+  return [
+    formatSlackSectionTitle("Internal 연결 제안 반응률"),
+    `${stats.startDate} ~ ${stats.endDate} 추천 cohort`,
+    `• 수락: ${formatCount(stats.acceptedCount)}개, ${formatRatio(
+      stats.acceptedCount,
+      stats.recommendationCount
+    )}`,
+    `• 거절: ${formatCount(stats.rejectedCount)}개, ${formatRatio(
+      stats.rejectedCount,
+      stats.recommendationCount
+    )}`,
+    `• 무응답: ${formatCount(stats.noResponseCount)}개, ${formatRatio(
+      stats.noResponseCount,
+      stats.recommendationCount
+    )}`,
+  ].join("\n");
+}
+
 export function formatDailyUserStatsSlackMessage(report: DailyUserStatsReport) {
   const tools =
     report.tools.length > 0
@@ -926,6 +1267,17 @@ export function formatDailyUserStatsSlackMessage(report: DailyUserStatsReport) {
           )
           .join("\n")
       : "- 없음";
+  const internalConnectionResponseStats = formatInternalConnectionResponseStats(
+    report.internalConnectionResponseStats
+  );
+  const title =
+    report.period === "weekly"
+      ? `[Weekly User Stats] ${report.dateLabel}, KST`
+      : `[Daily User Stats] ${report.date}, KST`;
+  const returningUserLabelPrefix =
+    report.period === "weekly"
+      ? "기간 내 신규 가입은 아니지만 다시 들어와서"
+      : "오늘 신규 가입이 아니지만 다시 들어와서";
   const jobs =
     report.jobs.length > 0
       ? report.jobs
@@ -938,10 +1290,10 @@ export function formatDailyUserStatsSlackMessage(report: DailyUserStatsReport) {
           .join("\n")
       : "- 없음";
 
-  return [
-    `[Daily User Stats] ${report.date}, KST`,
+  const lines = [
+    title,
     "",
-    "**신규**",
+    formatSlackSectionTitle("신규"),
     `신규 가입: ${formatCount(report.signupCount)}명`,
     `신규 가입자 중 제출 완료: ${formatCount(
       report.newSignupSubmittedCount
@@ -955,10 +1307,10 @@ export function formatDailyUserStatsSlackMessage(report: DailyUserStatsReport) {
       report.newSignupOnboardingCompletedCount,
       report.signupCount
     )}`,
-    `오늘 신규 가입이 아니지만 다시 들어와서 제출 완료한 사람: ${formatCount(
+    `${returningUserLabelPrefix} 제출 완료한 사람: ${formatCount(
       report.returningSubmittedCount
     )}명`,
-    `오늘 신규 가입이 아니지만 다시 들어와서 온보딩 완료한 사람: ${formatCount(
+    `${returningUserLabelPrefix} 온보딩 완료한 사람: ${formatCount(
       report.returningOnboardingCompletedCount
     )}명`,
     "",
@@ -966,7 +1318,7 @@ export function formatDailyUserStatsSlackMessage(report: DailyUserStatsReport) {
     // `High_intent_talents: ${formatCount(report.highIntentTalentsCount)}명`,
     `누적 talents: ${formatCount(report.cumulativeTalentsCount)}명`,
     "",
-    "**추천 통계**",
+    formatSlackSectionTitle("추천 통계"),
     `추천된 기회: ${formatCount(report.recommendationCount)}개`,
     `열람(확인): ${formatCount(
       report.viewedRecommendationCount
@@ -983,6 +1335,12 @@ export function formatDailyUserStatsSlackMessage(report: DailyUserStatsReport) {
       report.recommendationCount
     )}`,
     `추천된 내부 기회 수: ${formatCount(report.internalRecommendationCount)}개`,
+    `opportunity_discovery_run failed 종료: ${formatCount(
+      report.opportunityDiscoveryFailedRunCount
+    )}개`,
+    `• 제출/온보딩 완료했는데 추천 0개인 유저 수: ${formatCount(
+      report.completedOrSubmittedNoRecommendationUserCount
+    )}명`,
     "",
     `유저가 보낸 메시지: ${formatCount(report.userMessageCount)}개`,
     `- 채팅: ${formatCount(report.chatMessageCount)}개`,
@@ -996,13 +1354,22 @@ export function formatDailyUserStatsSlackMessage(report: DailyUserStatsReport) {
     )}명`,
     `메일 답장: ${formatCount(report.mailReplyCount)}개`,
     "",
-    "Tools",
+  ];
+
+  if (internalConnectionResponseStats) {
+    lines.push(internalConnectionResponseStats, "");
+  }
+
+  lines.push(
+    formatSlackSectionTitle("Tools"),
     tools,
     `- failed tool calls: ${formatCount(
       report.failedToolCallCount
     )}, ${formatPercent(report.toolFailureRate)}`,
     "",
-    "jobs",
-    jobs,
-  ].join("\n");
+    formatSlackSectionTitle("Jobs"),
+    jobs
+  );
+
+  return lines.join("\n");
 }

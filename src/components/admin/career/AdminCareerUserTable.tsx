@@ -15,10 +15,14 @@ import {
 } from "@/components/ui/table";
 import { Tooltips } from "@/components/ui/tooltip";
 import type { AdminCareerUserRow } from "@/lib/adminCareerAnalytics/types";
-import { ExternalLink, Info } from "lucide-react";
-import { BareButton } from "@/components/ui/button";
+import { ChevronLeft, ChevronRight, ExternalLink, Info } from "lucide-react";
+import { BareButton, Button } from "@/components/ui/button";
 
 type AdminCareerUserTableProps = {
+  currentPage: number;
+  onPageChange: (page: number) => void;
+  pageSize: number;
+  totalUsers: number;
   users: AdminCareerUserRow[];
 };
 
@@ -224,17 +228,59 @@ function MobileUserCard({ user }: { user: AdminCareerUserRow }) {
 }
 
 export default function AdminCareerUserTable({
+  currentPage,
+  onPageChange,
+  pageSize,
+  totalUsers,
   users,
 }: AdminCareerUserTableProps) {
+  const totalPages = Math.max(1, Math.ceil(totalUsers / pageSize));
+  const pageStart = totalUsers === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const pageEnd = Math.min(totalUsers, currentPage * pageSize);
+  const canGoPrevious = currentPage > 1;
+  const canGoNext = currentPage < totalPages;
+
   return (
     <Card className="rounded-md border-black/10 shadow-none">
-      <CardHeader className="p-4 pb-2">
-        <CardTitle className="text-[14px] font-semibold text-black">
-          Users
-        </CardTitle>
-        <CardDescription className="text-[12px] leading-5 text-black/50">
-          가입 날짜, 추천 소비, 피드백 신호를 유저별로 봅니다.
-        </CardDescription>
+      <CardHeader className="flex flex-col gap-3 p-4 pb-2 md:flex-row md:items-start md:justify-between">
+        <div>
+          <CardTitle className="text-[14px] font-semibold text-black">
+            Users
+          </CardTitle>
+          <CardDescription className="text-[12px] leading-5 text-black/50">
+            가입 날짜, 추천 소비, 피드백 신호를 유저별로 봅니다.
+          </CardDescription>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 md:justify-end">
+          <div className="text-[11px] text-black/45">
+            {formatCount(pageStart)}-{formatCount(pageEnd)} /{" "}
+            {formatCount(totalUsers)}명
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="h-8 rounded-none border-black/15 bg-white px-2 text-[12px] text-black shadow-none"
+              onClick={() => onPageChange(currentPage - 1)}
+              disabled={!canGoPrevious}
+            >
+              <ChevronLeft className="h-3.5 w-3.5" aria-hidden />
+              Prev
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="h-8 rounded-none border-black/15 bg-white px-2 text-[12px] text-black shadow-none"
+              onClick={() => onPageChange(currentPage + 1)}
+              disabled={!canGoNext}
+            >
+              Next
+              <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+            </Button>
+          </div>
+        </div>
       </CardHeader>
       <CardContent className="p-0">
         <div className="md:hidden">

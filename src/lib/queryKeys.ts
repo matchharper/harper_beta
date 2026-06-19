@@ -143,7 +143,10 @@ export const queryKeys = {
     talents: (filters: {
       createdFrom?: string | null;
       createdTo?: string | null;
+      excludeRecommended?: boolean | null;
+      humanLabels?: readonly string[] | null;
       limit?: number | null;
+      llmLabels?: readonly string[] | null;
       offset?: number | null;
       query?: string | null;
       roleId?: string | null;
@@ -158,6 +161,9 @@ export const queryKeys = {
         filters.query ?? "",
         filters.createdFrom ?? "",
         filters.createdTo ?? "",
+        Boolean(filters.excludeRecommended),
+        (filters.llmLabels ?? []).join("|"),
+        (filters.humanLabels ?? []).join("|"),
         (filters.tags ?? []).join("|"),
       ] as const,
     talentPool: (filters: {

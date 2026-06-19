@@ -259,6 +259,22 @@ export type CareerTalentRecommendationItem = {
   talentId: string;
   updatedAt: string;
   viewedAt: string | null;
+  matchingFit: CareerTalentRecommendationFitSummary | null;
+};
+
+export type CareerTalentRecommendationFitSummary = {
+  effectiveLabel: string;
+  fitId: string;
+  humanLabel: string | null;
+  humanReason: string | null;
+  humanReviewedAt: string | null;
+  humanReviewedBy: string | null;
+  label: string;
+  lastEvaluatedAt: string | null;
+  reason: string;
+  reevaluationCheckedAt: string | null;
+  reevaluationCriteria: unknown;
+  score: number | null;
 };
 
 export type CareerTalentRecommendationsResponse = {
@@ -360,6 +376,7 @@ const MAX_PROCESSED_STAGE_LENGTH = 200;
 const DEFAULT_MANUAL_INTERNAL_ROLE_LIMIT = 40;
 const MAX_MANUAL_INTERNAL_ROLE_LIMIT = 80;
 const MAX_MANUAL_INTERNAL_REASON_LENGTH = 2000;
+const RECOMMENDATION_FIT_PAIR_CHUNK_SIZE = 80;
 const DEFAULT_CAREER_MAIL_FROM = "Harper <hello@matchharper.com>";
 const MAX_OPS_RESUME_DOWNLOAD_BYTES = 12 * 1024 * 1024;
 const MAX_OPS_RESUME_TEXT_CHARS = 24_000;
@@ -2026,6 +2043,23 @@ type CareerRecommendationRow = {
   viewed_at?: string | null;
 };
 
+type CareerRecommendationFitRow = {
+  created_at?: string | null;
+  human_label?: string | null;
+  human_reason?: string | null;
+  human_reviewed_at?: string | null;
+  human_reviewed_by?: string | null;
+  id?: string | null;
+  label?: string | null;
+  last_evaluated_at?: string | null;
+  opportunity_id?: string | null;
+  reason?: string | null;
+  reevaluation_checked_at?: string | null;
+  reevaluation_criteria?: unknown;
+  score?: number | null;
+  talent_id?: string | null;
+};
+
 type InternalRecommendationTalentRow = {
   email?: string | null;
   headline?: string | null;
@@ -2119,7 +2153,141 @@ function mapCareerRecommendationRow(
     talentId,
     updatedAt,
     viewedAt: row.viewed_at ?? null,
+    matchingFit: null,
   };
+}
+
+function getRecommendationFitPairKey(args: {
+  roleId?: string | null;
+  talentId?: string | null;
+}) {
+  return `${String(args.talentId ?? "").trim()}:${String(args.roleId ?? "").trim()}`;
+}
+
+function isMissingTalentOpportunityFitTableError(error: unknown) {
+  const row = asRecord(error);
+  const code = typeof row.code === "string" ? row.code : "";
+  const message = typeof row.message === "string" ? row.message : "";
+  return (
+    code === "PGRST205" ||
+    code === "42P01" ||
+    (message.includes("talent_opportunity_fit") &&
+      (message.includes("schema cache") || message.includes("does not exist")))
+  );
+}
+
+function mapCareerRecommendationFitRow(
+  row: CareerRecommendationFitRow
+): CareerTalentRecommendationFitSummary | null {
+  const fitId = String(row.id ?? "").trim();
+  const label = normalizeCareerSummaryText(row.label) ?? "";
+  if (!fitId || !label) return null;
+  const humanLabel = normalizeCareerSummaryText(row.human_label);
+  return {
+    effectiveLabel: humanLabel || label,
+    fitId,
+    humanLabel,
+    humanReason: normalizeCareerSummaryText(row.human_reason),
+    humanReviewedAt: row.human_reviewed_at ?? null,
+    humanReviewedBy: normalizeCareerSummaryText(row.human_reviewed_by),
+    label,
+    lastEvaluatedAt: row.last_evaluated_at ?? null,
+    reason: normalizeCareerSummaryText(row.reason) ?? "",
+    reevaluationCheckedAt: row.reevaluation_checked_at ?? null,
+    reevaluationCriteria: row.reevaluation_criteria ?? null,
+    score: typeof row.score === "number" ? row.score : null,
+  };
+}
+
+async function fetchCareerRecommendationFitMap(args: {
+  admin: UntypedAdminClient;
+  recommendations: CareerTalentRecommendationItem[];
+}) {
+  const pairKeys = new Set(
+    args.recommendations.map((item) =>
+      getRecommendationFitPairKey({
+        roleId: item.roleId,
+        talentId: item.talentId,
+      })
+    )
+  );
+  const talentIds = Array.from(
+    new Set(args.recommendations.map((item) => item.talentId).filter(Boolean))
+  );
+  const roleIds = Array.from(
+    new Set(args.recommendations.map((item) => item.roleId).filter(Boolean))
+  );
+  const fitMap = new Map<string, CareerTalentRecommendationFitSummary>();
+  if (talentIds.length === 0 || roleIds.length === 0) return fitMap;
+
+  for (
+    let talentIndex = 0;
+    talentIndex < talentIds.length;
+    talentIndex += RECOMMENDATION_FIT_PAIR_CHUNK_SIZE
+  ) {
+    const talentChunk = talentIds.slice(
+      talentIndex,
+      talentIndex + RECOMMENDATION_FIT_PAIR_CHUNK_SIZE
+    );
+    for (
+      let roleIndex = 0;
+      roleIndex < roleIds.length;
+      roleIndex += RECOMMENDATION_FIT_PAIR_CHUNK_SIZE
+    ) {
+      const roleChunk = roleIds.slice(
+        roleIndex,
+        roleIndex + RECOMMENDATION_FIT_PAIR_CHUNK_SIZE
+      );
+      const { data, error } = await args.admin
+        .from("talent_opportunity_fit")
+        .select(
+          "id, talent_id, opportunity_id, score, label, reason, reevaluation_criteria, human_label, human_reason, human_reviewed_by, human_reviewed_at, last_evaluated_at, reevaluation_checked_at, created_at"
+        )
+        .in("talent_id", talentChunk)
+        .in("opportunity_id", roleChunk)
+        .order("last_evaluated_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false });
+
+      if (error) {
+        if (isMissingTalentOpportunityFitTableError(error)) return fitMap;
+        throw new Error(
+          error.message ?? "Failed to load recommendation fit labels"
+        );
+      }
+
+      for (const row of (Array.isArray(data)
+        ? data
+        : []) as CareerRecommendationFitRow[]) {
+        const pairKey = getRecommendationFitPairKey({
+          roleId: row.opportunity_id,
+          talentId: row.talent_id,
+        });
+        if (!pairKeys.has(pairKey) || fitMap.has(pairKey)) continue;
+        const fit = mapCareerRecommendationFitRow(row);
+        if (fit) fitMap.set(pairKey, fit);
+      }
+    }
+  }
+
+  return fitMap;
+}
+
+async function attachCareerRecommendationFitSummaries(args: {
+  admin: UntypedAdminClient;
+  recommendations: CareerTalentRecommendationItem[];
+}) {
+  if (args.recommendations.length === 0) return args.recommendations;
+  const fitMap = await fetchCareerRecommendationFitMap(args);
+  return args.recommendations.map((item) => ({
+    ...item,
+    matchingFit:
+      fitMap.get(
+        getRecommendationFitPairKey({
+          roleId: item.roleId,
+          talentId: item.talentId,
+        })
+      ) ?? null,
+  }));
 }
 
 const CAREER_RECOMMENDATION_SELECT = `
@@ -2381,9 +2549,15 @@ export async function fetchCareerTalentRecommendations(args: {
       .slice(0, limit)
       .map(mapCareerRecommendationRow)
       .filter((item): item is CareerTalentRecommendationItem => item !== null);
+    const recommendationsWithFit = await attachCareerRecommendationFitSummaries(
+      {
+        admin,
+        recommendations,
+      }
+    );
 
     return {
-      recommendations,
+      recommendations: recommendationsWithFit,
       limit,
       offset,
       hasMore,
@@ -2400,9 +2574,13 @@ export async function fetchCareerTalentRecommendations(args: {
   });
   const hasMore = filteredItems.length > limit;
   const recommendations = filteredItems.slice(0, limit);
+  const recommendationsWithFit = await attachCareerRecommendationFitSummaries({
+    admin,
+    recommendations,
+  });
 
   return {
-    recommendations,
+    recommendations: recommendationsWithFit,
     limit,
     offset,
     hasMore,
@@ -2585,14 +2763,18 @@ export async function fetchOpsInternalRecommendations(args: {
 
   const hasMore = collected.length > limit;
   const pageItems = collected.slice(0, limit);
+  const pageItemsWithFit = await attachCareerRecommendationFitSummaries({
+    admin,
+    recommendations: pageItems,
+  });
   const talentMap = await fetchInternalRecommendationTalentMap(
     admin,
-    pageItems.map((item) => item.talentId)
+    pageItemsWithFit.map((item) => item.talentId)
   );
 
   return {
     acceptedFilter,
-    recommendations: pageItems.map((item) => ({
+    recommendations: pageItemsWithFit.map((item) => ({
       ...item,
       talent: talentMap.get(item.talentId) ?? {
         email: null,

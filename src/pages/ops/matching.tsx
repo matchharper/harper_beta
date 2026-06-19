@@ -73,8 +73,14 @@ function parseMatchingViewMode(
   return "role";
 }
 
+function parseBooleanQueryParam(value: ParsedUrlQuery[string]) {
+  const normalized = firstQueryValue(value).trim().toLowerCase();
+  return normalized === "1" || normalized === "true";
+}
+
 function parseMatchingUrlState(query: ParsedUrlQuery) {
   const relevantKeys = [
+    "allExcludeRecommended",
     "allFrom",
     "allHumanLabels",
     "allLlmLabels",
@@ -96,6 +102,9 @@ function parseMatchingUrlState(query: ParsedUrlQuery) {
       activeTab: parseMatchingTab(query.tab),
       allCreatedFrom: firstQueryValue(query.allFrom),
       allCreatedTo: firstQueryValue(query.allTo),
+      allExcludeRecommended: parseBooleanQueryParam(
+        query.allExcludeRecommended
+      ),
       allHumanLabelFilters: parseTagsParam(query.allHumanLabels),
       allLlmLabelFilters: parseTagsParam(query.allLlmLabels),
       allTagFilters: parseTagsParam(query.allTags),
@@ -118,6 +127,7 @@ function buildMatchingUrlQuery(state: OpsMatchingUrlState) {
   if (state.selectedRoleId) query.role = state.selectedRoleId;
   if (state.allCreatedFrom) query.allFrom = state.allCreatedFrom;
   if (state.allCreatedTo) query.allTo = state.allCreatedTo;
+  if (state.allExcludeRecommended) query.allExcludeRecommended = "1";
   if (state.allLlmLabelFilters.length > 0) {
     query.allLlmLabels = state.allLlmLabelFilters.join(",");
   }
@@ -157,6 +167,9 @@ export default function OpsMatchingPage() {
   const activeTab = useOpsMatchingStore((state) => state.activeTab);
   const allCreatedFrom = useOpsMatchingStore((state) => state.allCreatedFrom);
   const allCreatedTo = useOpsMatchingStore((state) => state.allCreatedTo);
+  const allExcludeRecommended = useOpsMatchingStore(
+    (state) => state.allExcludeRecommended
+  );
   const allHumanLabelFilters = useOpsMatchingStore(
     (state) => state.allHumanLabelFilters
   );
@@ -182,6 +195,9 @@ export default function OpsMatchingPage() {
   const setActiveTab = useOpsMatchingStore((state) => state.setActiveTab);
   const setAllCreatedDateRange = useOpsMatchingStore(
     (state) => state.setAllCreatedDateRange
+  );
+  const setAllExcludeRecommended = useOpsMatchingStore(
+    (state) => state.setAllExcludeRecommended
   );
   const setAllHumanLabelFilters = useOpsMatchingStore(
     (state) => state.setAllHumanLabelFilters
@@ -243,6 +259,7 @@ export default function OpsMatchingPage() {
         activeTab,
         allCreatedFrom,
         allCreatedTo,
+        allExcludeRecommended,
         allHumanLabelFilters,
         allLlmLabelFilters,
         allTagFilters,
@@ -257,6 +274,7 @@ export default function OpsMatchingPage() {
       activeTab,
       allCreatedFrom,
       allCreatedTo,
+      allExcludeRecommended,
       allHumanLabelFilters,
       allLlmLabelFilters,
       allTagFilters,
@@ -406,6 +424,11 @@ export default function OpsMatchingPage() {
   const handleAllTagFiltersChange = (tags: string[]) => {
     setAllTagFilters(tags);
     replaceUrlState({ allTagFilters: tags });
+  };
+
+  const handleAllExcludeRecommendedChange = (excludeRecommended: boolean) => {
+    setAllExcludeRecommended(excludeRecommended);
+    replaceUrlState({ allExcludeRecommended: excludeRecommended });
   };
 
   const handleAllLlmLabelFiltersChange = (labels: string[]) => {
@@ -563,7 +586,13 @@ export default function OpsMatchingPage() {
                   canFetchInternal={canFetchInternal}
                   createdFrom={allCreatedFrom}
                   createdTo={allCreatedTo}
+                  excludeRecommended={allExcludeRecommended}
+                  humanLabelFilters={allHumanLabelFilters}
+                  llmLabelFilters={allLlmLabelFilters}
                   onCreatedDateRangeChange={handleAllCreatedDateRangeChange}
+                  onExcludeRecommendedChange={handleAllExcludeRecommendedChange}
+                  onHumanLabelFiltersChange={handleAllHumanLabelFiltersChange}
+                  onLlmLabelFiltersChange={handleAllLlmLabelFiltersChange}
                   onTagFiltersChange={handleAllTagFiltersChange}
                   role={effectiveRole}
                   tagFilters={allTagFilters}

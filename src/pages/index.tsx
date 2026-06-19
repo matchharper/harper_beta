@@ -202,7 +202,7 @@ const LANDING_COPY = {
       title: ["나만을 위한", "커리어 에이전트, Harper"],
       body: [
         "다음 커리어는 Harper에게 맡기세요.",
-        "한 번의 대화만으로 당신의 맥락을 이해하고, 가장 잘 맞는 기회를 선별해, 채용 담당자와 직접 연결합니다.",
+        "한 번의 대화만으로 나의 맥락을 이해하고, 가장 잘 맞는 기회를 선별해, 채용 담당자와 직접 연결합니다.",
         // "Harper가 다음 커리어로 적합한 역할을 찾고,",
         // "최종적으로 합류하기까지 필요한 모든 과정을 도와드립니다.",
       ],
@@ -306,7 +306,9 @@ const LANDING_COPY = {
         },
         {
           title: "한 번만 말하면 됩니다",
-          body: [],
+          body: [
+            "내 커리어와 선호는 한 번만 알려주세요. 반복되는 소개, 설명, 조율은 Harper가 대신합니다. 당신은 잘 맞는 제안만 확인하고 승인하면 됩니다.",
+          ],
         },
         {
           title: "복잡하고 어려운 모든 과정을 대신합니다",
@@ -1981,7 +1983,7 @@ export default function LandingKoVfPage({
                     <br />
                     {copy.hero.title[1]}
                   </h1>
-                  <p className="max-w-[520px] text-center text-[15px] leading-[1.75] text-neutral-700 md:text-[18px]">
+                  <p className="max-w-[560px] text-center text-[15px] leading-[1.75] text-neutral-700 md:text-[18px]">
                     <Lines lines={heroBody} />
                   </p>
                   <div className="mt-4 md:mt-4">

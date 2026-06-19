@@ -62,11 +62,15 @@ export default function App({ Component, pageProps }: AppProps) {
   );
   const isCareerPage = isCareerTranslationRoute(currentPath);
   const isCareerLoginPage = router.pathname === "/career_login";
+  const isAdminCareerPage =
+    router.pathname === "/admin/career" ||
+    router.pathname.startsWith("/admin/career/");
   const isOpsPage =
     router.pathname === "/ops" || router.pathname.startsWith("/ops/");
   const shouldHideCrisp =
     isCareerPage ||
     isCareerLoginPage ||
+    isAdminCareerPage ||
     isOpsPage ||
     router.pathname === "/" ||
     router.pathname === "/landing-ko-vf" ||

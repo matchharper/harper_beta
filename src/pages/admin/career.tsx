@@ -8,6 +8,10 @@ import AdminCareerJobsTab from "@/components/admin/career/AdminCareerJobsTab";
 import AdminCareerQuickSignalPanel from "@/components/admin/career/AdminCareerQuickSignalPanel";
 import AdminCareerUtmTab from "@/components/admin/career/AdminCareerUtmTab";
 import AdminCareerUserTable from "@/components/admin/career/AdminCareerUserTable";
+import {
+  type AdminCareerAnalyticsDateRange,
+  useAdminCareerAnalyticsStore,
+} from "@/components/admin/career/useAdminCareerAnalyticsStore";
 import AdminMetricsExcludedEmails from "@/components/admin/metrics/AdminMetricsExcludedEmails";
 import { useAdminMetricsStore } from "@/components/admin/metrics/useAdminMetricsStore";
 import { showToast } from "@/components/toast/toast";
@@ -25,17 +29,9 @@ import Link from "next/link";
 import React, { useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
 
-type CareerAnalyticsDateRangeInput = {
-  endDate: string;
-  startDate: string;
-};
-
 type CareerAdminTab = "overview" | "utm" | "jobs";
 
-const emptyDateRange: CareerAnalyticsDateRangeInput = {
-  endDate: "",
-  startDate: "",
-};
+const USERS_PAGE_SIZE = 20;
 
 const toDateOnly = (date: Date | undefined) => {
   if (!date) return "";
@@ -45,9 +41,46 @@ const toDateOnly = (date: Date | undefined) => {
   return `${year}-${month}-${day}`;
 };
 
+const parseDateOnly = (value: string) => {
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return undefined;
+
+  const date = new Date(year, month - 1, day);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return undefined;
+  }
+
+  return date;
+};
+
+const dateRangeInputToSelection = (
+  value: AdminCareerAnalyticsDateRange
+): DateRange | undefined => {
+  const from = parseDateOnly(value.startDate);
+  const to = parseDateOnly(value.endDate);
+  if (!from && !to) return undefined;
+
+  return {
+    from: from ?? to,
+    to: to ?? from,
+  };
+};
+
+const dateRangeSelectionToInput = (
+  value: DateRange | undefined
+): AdminCareerAnalyticsDateRange => {
+  const startDate = toDateOnly(value?.from);
+  const endDate = toDateOnly(value?.to ?? value?.from);
+  return { endDate, startDate };
+};
+
 async function fetchCareerAnalytics(
   excludedEmails: string[],
-  dateRange: CareerAnalyticsDateRangeInput
+  dateRange: AdminCareerAnalyticsDateRange
 ) {
   const response = await fetch("/api/admin/career", {
     method: "POST",
@@ -78,7 +111,7 @@ async function fetchCareerAnalytics(
 
 async function sendCareerAnalyticsSlackSummary(
   excludedEmails: string[],
-  dateRange: CareerAnalyticsDateRangeInput
+  dateRange: AdminCareerAnalyticsDateRange
 ) {
   const response = await fetch("/api/admin/career", {
     method: "POST",
@@ -111,13 +144,24 @@ async function sendCareerAnalyticsSlackSummary(
 function AdminCareerContent() {
   const { excludedEmails, setExcludedEmails, resetExcludedEmails } =
     useAdminMetricsStore();
+  const appliedDateRange = useAdminCareerAnalyticsStore(
+    (state) => state.dateRange
+  );
+  const hasHydratedDateRange = useAdminCareerAnalyticsStore(
+    (state) => state.hasHydrated
+  );
+  const setAppliedDateRange = useAdminCareerAnalyticsStore(
+    (state) => state.setDateRange
+  );
+  const resetAppliedDateRange = useAdminCareerAnalyticsStore(
+    (state) => state.resetDateRange
+  );
   const [isExcludedEmailsModalOpen, setIsExcludedEmailsModalOpen] =
     useState(false);
   const [draftDateRange, setDraftDateRange] = useState<DateRange | undefined>();
-  const [appliedDateRange, setAppliedDateRange] =
-    useState<CareerAnalyticsDateRangeInput>(emptyDateRange);
   const [isSendingSlackSummary, setIsSendingSlackSummary] = useState(false);
   const [search, setSearch] = useState("");
+  const [userPage, setUserPage] = useState(1);
   const [activeTab, setActiveTab] = useState<CareerAdminTab>("overview");
 
   const query = useQuery({
@@ -128,9 +172,15 @@ function AdminCareerContent() {
       appliedDateRange.endDate,
     ],
     queryFn: () => fetchCareerAnalytics(excludedEmails, appliedDateRange),
-    enabled: activeTab === "overview",
+    enabled: activeTab === "overview" && hasHydratedDateRange,
     placeholderData: (previousData) => previousData,
   });
+
+  const appliedDateRangeSelection = useMemo(
+    () => dateRangeInputToSelection(appliedDateRange),
+    [appliedDateRange]
+  );
+  const selectedDateRange = draftDateRange ?? appliedDateRangeSelection;
 
   const filteredUsers = useMemo(() => {
     const users = query.data?.users ?? [];
@@ -150,6 +200,26 @@ function AdminCareerContent() {
       return haystack.includes(keyword);
     });
   }, [query.data?.users, search]);
+
+  const totalUserPages = Math.max(
+    1,
+    Math.ceil(filteredUsers.length / USERS_PAGE_SIZE)
+  );
+  const currentUserPage = Math.min(userPage, totalUserPages);
+  const paginatedUsers = useMemo(() => {
+    const offset = (currentUserPage - 1) * USERS_PAGE_SIZE;
+    return filteredUsers.slice(offset, offset + USERS_PAGE_SIZE);
+  }, [currentUserPage, filteredUsers]);
+
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    setUserPage(1);
+  };
+
+  const handleUserPageChange = (page: number) => {
+    const nextPage = Math.min(Math.max(page, 1), totalUserPages);
+    setUserPage(nextPage);
+  };
 
   const saveExcludedEmails = (value: string) => {
     const nextValue = normalizeExcludedEmails(value);
@@ -171,18 +241,19 @@ function AdminCareerContent() {
   };
 
   const applyDateRange = () => {
-    const startDate = toDateOnly(draftDateRange?.from);
-    const endDate = toDateOnly(draftDateRange?.to ?? draftDateRange?.from);
-    setAppliedDateRange({ endDate, startDate });
+    setAppliedDateRange(dateRangeSelectionToInput(selectedDateRange));
+    setDraftDateRange(undefined);
+    setUserPage(1);
   };
 
   const resetDateRange = () => {
     setDraftDateRange(undefined);
-    setAppliedDateRange(emptyDateRange);
+    resetAppliedDateRange();
+    setUserPage(1);
   };
 
   const handleSendSlackSummary = async () => {
-    if (isSendingSlackSummary) return;
+    if (isSendingSlackSummary || !hasHydratedDateRange) return;
 
     setIsSendingSlackSummary(true);
     try {
@@ -296,7 +367,11 @@ function AdminCareerContent() {
                 size="sm"
                 className="h-8 rounded-none border-black/15 bg-white text-[12px] text-black shadow-none"
                 onClick={() => void handleSendSlackSummary()}
-                disabled={isSendingSlackSummary || query.isLoading}
+                disabled={
+                  isSendingSlackSummary ||
+                  !hasHydratedDateRange ||
+                  query.isLoading
+                }
               >
                 {isSendingSlackSummary ? (
                   <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
@@ -311,7 +386,7 @@ function AdminCareerContent() {
                 size="sm"
                 className="h-8 rounded-none border-black/15 bg-white text-[12px] text-black shadow-none"
                 onClick={() => query.refetch()}
-                disabled={query.isFetching}
+                disabled={!hasHydratedDateRange || query.isFetching}
               >
                 Refresh
               </Button>
@@ -334,7 +409,8 @@ function AdminCareerContent() {
             </Card>
           ) : null}
 
-          {activeTab === "overview" && query.isLoading ? (
+          {activeTab === "overview" &&
+          (!hasHydratedDateRange || query.isLoading) ? (
             <Card className="rounded-md border-black/10 shadow-none">
               <CardContent className="p-4 text-[12px] text-black/50">
                 Career analytics를 불러오는 중입니다.
@@ -349,7 +425,7 @@ function AdminCareerContent() {
                 onApply={applyDateRange}
                 onChange={setDraftDateRange}
                 onReset={resetDateRange}
-                value={draftDateRange}
+                value={selectedDateRange}
               />
               <AdminCareerAbtestPanel
                 variants={query.data.landingVariants ?? []}
@@ -374,13 +450,19 @@ function AdminCareerContent() {
                 </div>
                 <Input
                   value={search}
-                  onChange={(event) => setSearch(event.target.value)}
+                  onChange={(event) => handleSearchChange(event.target.value)}
                   placeholder="이름, 이메일, 액션 검색"
                   className="h-8 max-w-[320px] rounded-none border-black/15 bg-white text-[12px]"
                 />
               </div>
 
-              <AdminCareerUserTable users={filteredUsers} />
+              <AdminCareerUserTable
+                currentPage={currentUserPage}
+                onPageChange={handleUserPageChange}
+                pageSize={USERS_PAGE_SIZE}
+                totalUsers={filteredUsers.length}
+                users={paginatedUsers}
+              />
             </>
           ) : null}
         </div>

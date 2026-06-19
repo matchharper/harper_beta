@@ -48,6 +48,7 @@ type OpsMatchingStoreState = {
   activeTab: OpsMatchingStageTabId;
   allCreatedFrom: string;
   allCreatedTo: string;
+  allExcludeRecommended: boolean;
   allHumanLabelFilters: string[];
   allLlmLabelFilters: string[];
   allTagFilters: string[];
@@ -60,6 +61,7 @@ type OpsMatchingStoreState = {
   selectedRoleId: string;
   setActiveTab: (tab: OpsMatchingStageTabId) => void;
   setAllCreatedDateRange: (from: string, to: string) => void;
+  setAllExcludeRecommended: (excludeRecommended: boolean) => void;
   setAllHumanLabelFilters: (labels: string[]) => void;
   setAllLlmLabelFilters: (labels: string[]) => void;
   setAllTagFilters: (tags: string[]) => void;
@@ -83,6 +85,7 @@ export type OpsMatchingUrlState = {
   activeTab: OpsMatchingStageTabId;
   allCreatedFrom: string;
   allCreatedTo: string;
+  allExcludeRecommended: boolean;
   allHumanLabelFilters: string[];
   allLlmLabelFilters: string[];
   allTagFilters: string[];
@@ -104,6 +107,7 @@ export const useOpsMatchingStore = create<OpsMatchingStoreState>()(
       activeTab: "all",
       allCreatedFrom: "",
       allCreatedTo: "",
+      allExcludeRecommended: false,
       allHumanLabelFilters: [],
       allLlmLabelFilters: [],
       allTagFilters: [],
@@ -121,6 +125,8 @@ export const useOpsMatchingStore = create<OpsMatchingStoreState>()(
           allCreatedFrom: normalizeText(from),
           allCreatedTo: normalizeText(to),
         }),
+      setAllExcludeRecommended: (excludeRecommended) =>
+        set({ allExcludeRecommended: Boolean(excludeRecommended) }),
       setAllHumanLabelFilters: (labels) =>
         set({ allHumanLabelFilters: normalizeTags(labels) }),
       setAllLlmLabelFilters: (labels) =>
@@ -163,9 +169,8 @@ export const useOpsMatchingStore = create<OpsMatchingStoreState>()(
           activeTab: state.activeTab ? normalizeTab(state.activeTab) : "all",
           allCreatedFrom: normalizeText(state.allCreatedFrom),
           allCreatedTo: normalizeText(state.allCreatedTo),
-          allHumanLabelFilters: normalizeTags(
-            state.allHumanLabelFilters ?? []
-          ),
+          allExcludeRecommended: Boolean(state.allExcludeRecommended),
+          allHumanLabelFilters: normalizeTags(state.allHumanLabelFilters ?? []),
           allLlmLabelFilters: normalizeTags(state.allLlmLabelFilters ?? []),
           allTagFilters: normalizeTags(state.allTagFilters ?? []),
           reviewRecommendedFrom: normalizeText(state.reviewRecommendedFrom),
@@ -206,6 +211,7 @@ export const useOpsMatchingStore = create<OpsMatchingStoreState>()(
         activeTab: state.activeTab,
         allCreatedFrom: state.allCreatedFrom,
         allCreatedTo: state.allCreatedTo,
+        allExcludeRecommended: state.allExcludeRecommended,
         allHumanLabelFilters: state.allHumanLabelFilters,
         allLlmLabelFilters: state.allLlmLabelFilters,
         allTagFilters: state.allTagFilters,

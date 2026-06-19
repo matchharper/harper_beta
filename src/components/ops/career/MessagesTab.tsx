@@ -1,4 +1,11 @@
 import { memo } from "react";
+import {
+  FileText,
+  Mail,
+  MessageSquareText,
+  PhoneCall,
+  Settings,
+} from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { parseRecommendJobPostingStatusLog } from "@/lib/talentOnboarding/recommendJobPostingStatus";
 import { formatKst } from "./utils";
@@ -114,6 +121,64 @@ const toolLogClass = (tone: MessageToolLog["tone"]) =>
         : "border-neutral-1000-a05 bg-bg-default/55 text-neutral-muted"
   );
 
+function getMessageChannelMeta(messageType: string | null | undefined) {
+  const normalized = String(messageType ?? "chat")
+    .trim()
+    .toLowerCase();
+
+  if (
+    normalized.includes("email") ||
+    normalized.includes("mail") ||
+    normalized.includes("reply")
+  ) {
+    return {
+      Icon: Mail,
+      label: "메일",
+      className: "border-sky-200 bg-sky-50 text-sky-700",
+    };
+  }
+
+  if (
+    normalized.includes("call") ||
+    normalized.includes("voice") ||
+    normalized.includes("transcript") ||
+    normalized.includes("mock_interview")
+  ) {
+    return {
+      Icon: PhoneCall,
+      label: "Voice call",
+      className: "border-violet-200 bg-violet-50 text-violet-700",
+    };
+  }
+
+  if (normalized === "system" || normalized.includes("status")) {
+    return {
+      Icon: Settings,
+      label: "시스템",
+      className: "border-neutral-200 bg-neutral-100 text-neutral-600",
+    };
+  }
+
+  if (
+    normalized.includes("profile") ||
+    normalized.includes("summary") ||
+    normalized.includes("snapshot") ||
+    normalized.includes("notice")
+  ) {
+    return {
+      Icon: FileText,
+      label: "기록",
+      className: "border-amber-200 bg-amber-50 text-amber-700",
+    };
+  }
+
+  return {
+    Icon: MessageSquareText,
+    label: "채팅",
+    className: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  };
+}
+
 export const MessagesTab = memo(function MessagesTab({
   messages,
 }: MessagesTabProps) {
@@ -129,6 +194,8 @@ export const MessagesTab = memo(function MessagesTab({
     <div className="space-y-3 max-h-[600px] overflow-y-auto">
       {messages.map((msg) => {
         const toolLogs = getMessageToolLogs(msg.thinkingLogs);
+        const channelMeta = getMessageChannelMeta(msg.messageType);
+        const ChannelIcon = channelMeta.Icon;
 
         return (
           <div
@@ -141,8 +208,23 @@ export const MessagesTab = memo(function MessagesTab({
             )}
           >
             <div className="mb-1 flex items-center justify-between">
-              <span className={cx(opsTheme.eyebrow)}>
-                {msg.role === "assistant" ? "Harper" : "Talent"}
+              <span
+                className={cx(
+                  opsTheme.eyebrow,
+                  "inline-flex items-center gap-1.5"
+                )}
+              >
+                <span
+                  className={cx(
+                    "inline-flex h-5 w-5 items-center justify-center rounded-full border",
+                    channelMeta.className
+                  )}
+                  title={`${channelMeta.label}${msg.messageType ? ` · ${msg.messageType}` : ""}`}
+                  aria-label={`${channelMeta.label}${msg.messageType ? ` · ${msg.messageType}` : ""}`}
+                >
+                  <ChannelIcon className="h-3 w-3" aria-hidden />
+                </span>
+                <span>{msg.role === "assistant" ? "Harper" : "Talent"}</span>
               </span>
               <span className="text-[10px] text-neutral-soft">
                 {formatKst(msg.createdAt)}

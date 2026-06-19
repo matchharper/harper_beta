@@ -6,6 +6,10 @@ import {
   Sparkles,
   Tags,
 } from "lucide-react";
+import {
+  FitReasonCell,
+  MatchingFitLabelCell,
+} from "@/components/ops/matching/MatchingFitLabelControls";
 import { MatchingTagEditor } from "@/components/ops/matching/MatchingTalentInlineActions";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { BareButton } from "@/components/ui/button";
@@ -225,6 +229,7 @@ function OpportunityInteractionRow({
 }) {
   const recommendation = item.recommendation;
   const recommendableRole = recommendation ? null : item.roleOption;
+  const fit = recommendation?.matchingFit ?? null;
 
   return (
     <article className="rounded-md border border-neutral-1000-a05 bg-bg-floating p-3">
@@ -252,7 +257,41 @@ function OpportunityInteractionRow({
                 추천 {formatKst(recommendation.recommendedAt)}
               </span>
             ) : null}
+            {recommendation?.viewedAt ? (
+              <span>열람 {formatKst(recommendation.viewedAt)}</span>
+            ) : recommendation ? (
+              <span>미열람</span>
+            ) : null}
+            {recommendation?.clickedAt ? (
+              <span>클릭 {formatKst(recommendation.clickedAt)}</span>
+            ) : null}
           </div>
+          {fit ? (
+            <div className="mt-3 rounded-md border border-neutral-1000-a05 bg-bg-default/70 p-2">
+              <div className="mb-2 text-xs font-medium text-neutral-primary">
+                Score {fit.score ?? "-"}
+              </div>
+              <MatchingFitLabelCell isUpdating={false} item={fit} />
+              <div className="mt-2">
+                <FitReasonCell
+                  criteria={fit.reevaluationCriteria}
+                  reason={fit.reason}
+                />
+              </div>
+              <div className="mt-2 text-[11px] leading-5 text-neutral-soft">
+                {fit.lastEvaluatedAt ? (
+                  <div>평가 {formatKst(fit.lastEvaluatedAt)}</div>
+                ) : null}
+                {fit.humanReviewedAt ? (
+                  <div>사람 {formatKst(fit.humanReviewedAt)}</div>
+                ) : null}
+              </div>
+            </div>
+          ) : recommendation ? (
+            <div className="mt-2 text-xs text-neutral-soft">
+              matching fit 정보 없음
+            </div>
+          ) : null}
           {recommendation?.feedbackReason ? (
             <div className="mt-2 line-clamp-2 text-xs leading-5 text-neutral-muted">
               {recommendation.feedbackReason}

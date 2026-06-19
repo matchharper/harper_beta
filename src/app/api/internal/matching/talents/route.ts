@@ -7,12 +7,18 @@ import {
 import {
   fetchOpsMatchingTalents,
   parseOpsMatchingDateOnly,
+  parseOpsMatchingFitLabels,
   parseOpsMatchingLimit,
   parseOpsMatchingOffset,
   parseOpsMatchingTags,
 } from "@/lib/ops/matching";
 
 export const runtime = "nodejs";
+
+function parseBooleanParam(value: string | null) {
+  const normalized = value?.trim().toLowerCase();
+  return normalized === "1" || normalized === "true";
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -27,7 +33,16 @@ export async function GET(req: NextRequest) {
       createdTo: parseOpsMatchingDateOnly(
         req.nextUrl.searchParams.get("createdTo")
       ),
+      excludeRecommended: parseBooleanParam(
+        req.nextUrl.searchParams.get("excludeRecommended")
+      ),
+      humanLabels: parseOpsMatchingFitLabels(
+        req.nextUrl.searchParams.get("humanLabels")
+      ),
       limit: parseOpsMatchingLimit(req.nextUrl.searchParams.get("limit")),
+      llmLabels: parseOpsMatchingFitLabels(
+        req.nextUrl.searchParams.get("llmLabels")
+      ),
       offset: parseOpsMatchingOffset(req.nextUrl.searchParams.get("offset")),
       query: req.nextUrl.searchParams.get("query"),
       roleId,
