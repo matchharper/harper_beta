@@ -1,11 +1,7 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, LoaderCircle } from "lucide-react";
 import { formatKstRelativeDateTime } from "@/components/ops/dateUtils";
-import {
-  MatchingDateRangeFilter,
-  MatchingFilterTagChips,
-  MatchingTagFilter,
-} from "@/components/ops/matching/MatchingFilterControls";
+import { MatchingDateRangeFilter } from "@/components/ops/matching/MatchingFilterControls";
 import {
   TalentIdentity,
   TalentStatusBadges,
@@ -33,11 +29,9 @@ import type {
 type MatchingHarperReviewBoardProps = {
   canFetchInternal: boolean;
   onRecommendedDateRangeChange: (from: string, to: string) => void;
-  onTagFiltersChange: (tags: string[]) => void;
   recommendedFrom: string;
   recommendedTo: string;
   role: OpsMatchingRoleOption;
-  tagFilters: string[];
 };
 
 type ReviewColumn = {
@@ -184,11 +178,9 @@ function ReviewCard({
 export function MatchingHarperReviewBoard({
   canFetchInternal,
   onRecommendedDateRangeChange,
-  onTagFiltersChange,
   recommendedFrom,
   recommendedTo,
   role,
-  tagFilters,
 }: MatchingHarperReviewBoardProps) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [selectedTalent, setSelectedTalent] =
@@ -205,7 +197,6 @@ export function MatchingHarperReviewBoard({
     recommendedFrom,
     recommendedTo,
     roleId: role.roleId,
-    tags: tagFilters,
   });
   const setReviewStage = useSetOpsMatchingReviewStage();
   const items = useMemo(
@@ -236,9 +227,7 @@ export function MatchingHarperReviewBoard({
     });
     setDraggingId(null);
   };
-  const hasActiveFilters = Boolean(
-    recommendedFrom || recommendedTo || tagFilters.length > 0
-  );
+  const hasActiveFilters = Boolean(recommendedFrom || recommendedTo);
 
   if (reviewQuery.isLoading) {
     return (
@@ -270,7 +259,6 @@ export function MatchingHarperReviewBoard({
               <span>
                 {reviewQuery.data?.totalCount.toLocaleString("ko-KR") ?? 0}명
               </span>
-              <MatchingFilterTagChips tags={tagFilters} />
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -281,16 +269,11 @@ export function MatchingHarperReviewBoard({
               prefix="추천"
               to={recommendedTo}
             />
-            <MatchingTagFilter
-              selectedTags={tagFilters}
-              onChange={onTagFiltersChange}
-            />
             {hasActiveFilters ? (
               <BareButton
                 type="button"
                 onClick={() => {
                   onRecommendedDateRangeChange("", "");
-                  onTagFiltersChange([]);
                 }}
                 className={cx(opsTheme.buttonSecondary, "h-10 px-3 text-xs")}
               >

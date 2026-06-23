@@ -2,7 +2,6 @@ import {
   OFFICIAL_JOBS_INTERNAL_COPY_ROLE_TITLE,
   OFFICIAL_JOBS_INTERNAL_COPY_SLUG,
   isOfficialJobsInternalCopyIdentity,
-  normalizeOfficialJobsLandingCopy,
 } from "@/lib/officialJobs";
 import { supabaseServer } from "@/lib/supabaseServer";
 import type { Database } from "@/types/database.types";
@@ -72,18 +71,10 @@ export type { AshbyOfficialJobsSyncSummary };
 
 function mapOpsOfficialJob(row: OfficialJobRow): OpsOfficialJobRecord {
   const isInternalCopy = isOfficialJobsInternalCopyIdentity(row);
-  const landingCopy = isInternalCopy
-    ? normalizeOfficialJobsLandingCopy({
-        harperDescriptionMarkdown: row.company_description_markdown,
-        harperStepsMarkdown: row.role_description_markdown,
-      })
-    : null;
 
   return {
     ashbyJobPostingId: row.ashby_job_posting_id ?? null,
-    companyDescriptionMarkdown:
-      landingCopy?.harperDescriptionMarkdown ??
-      row.company_description_markdown,
+    companyDescriptionMarkdown: row.company_description_markdown,
     companyLogoUrl: row.company_logo_url,
     companyName: row.company_name,
     companyWebsiteUrl: row.company_website_url,
@@ -96,8 +87,7 @@ function mapOpsOfficialJob(row: OfficialJobRow): OpsOfficialJobRecord {
     isPublished: row.is_published,
     location: row.location,
     publishedAt: row.published_at,
-    roleDescriptionMarkdown:
-      landingCopy?.harperStepsMarkdown ?? row.role_description_markdown,
+    roleDescriptionMarkdown: row.role_description_markdown,
     roleTitle: row.role_title,
     seniority: row.seniority,
     shortDescription: row.short_description,

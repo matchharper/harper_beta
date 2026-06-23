@@ -12,6 +12,7 @@ type Options = {
   minPct: number;
   maxPct: number;
   defaultPct: number;
+  onResizeEnd?: (widthPct: number) => void;
   step?: number;
 };
 
@@ -22,31 +23,52 @@ type Result = {
   handleResizeKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
 };
 
+const clampPct = (value: number, minPct: number, maxPct: number) =>
+  Math.min(maxPct, Math.max(minPct, value));
+
 export function useResizableSplitPanel({
   enabled,
   minPct,
   maxPct,
   defaultPct,
+  onResizeEnd,
   step = 2,
 }: Options): Result {
   const containerRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
-  const [widthPct, setWidthPct] = useState(defaultPct);
+  const [widthPct, setWidthPct] = useState(() =>
+    clampPct(defaultPct, minPct, maxPct)
+  );
+  const widthPctRef = useRef(widthPct);
+
+  const setClampedWidthPct = useCallback(
+    (value: number) => {
+      const clamped = clampPct(value, minPct, maxPct);
+      widthPctRef.current = clamped;
+      setWidthPct(clamped);
+      return clamped;
+    },
+    [maxPct, minPct]
+  );
 
   const updateWidth = useCallback(
     (clientX: number) => {
       const container = containerRef.current;
-      if (!container) return;
+      if (!container) return null;
 
       const bounds = container.getBoundingClientRect();
-      if (bounds.width <= 0) return;
+      if (bounds.width <= 0) return null;
 
       const nextPct = ((clientX - bounds.left) / bounds.width) * 100;
-      const clamped = Math.min(maxPct, Math.max(minPct, nextPct));
-      setWidthPct(clamped);
+      return setClampedWidthPct(nextPct);
     },
-    [minPct, maxPct]
+    [setClampedWidthPct]
   );
+
+  useEffect(() => {
+    if (draggingRef.current) return;
+    setClampedWidthPct(defaultPct);
+  }, [defaultPct, setClampedWidthPct]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -62,6 +84,7 @@ export function useResizableSplitPanel({
       draggingRef.current = false;
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
+      onResizeEnd?.(widthPctRef.current);
     };
 
     window.addEventListener("pointermove", handlePointerMove);
@@ -74,7 +97,7 @@ export function useResizableSplitPanel({
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", handlePointerUp);
     };
-  }, [enabled, updateWidth]);
+  }, [enabled, onResizeEnd, updateWidth]);
 
   const handleResizeStart = useCallback(
     (clientX: number) => {
@@ -93,15 +116,17 @@ export function useResizableSplitPanel({
 
       if (event.key === "ArrowLeft") {
         event.preventDefault();
-        setWidthPct((current) => Math.max(minPct, current - step));
+        const nextWidthPct = setClampedWidthPct(widthPctRef.current - step);
+        onResizeEnd?.(nextWidthPct);
       }
 
       if (event.key === "ArrowRight") {
         event.preventDefault();
-        setWidthPct((current) => Math.min(maxPct, current + step));
+        const nextWidthPct = setClampedWidthPct(widthPctRef.current + step);
+        onResizeEnd?.(nextWidthPct);
       }
     },
-    [enabled, minPct, maxPct, step]
+    [enabled, onResizeEnd, setClampedWidthPct, step]
   );
 
   return { containerRef, widthPct, handleResizeStart, handleResizeKeyDown };

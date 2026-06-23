@@ -49,6 +49,7 @@ import {
 } from "@/lib/talentOnboarding/insightChecklist";
 import { useMessages, type Locale } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
+import Face from "@/components/common/Face";
 
 type EditableExperience = CareerTalentExperience & { clientKey: string };
 type EditableEducation = CareerTalentEducation & { clientKey: string };
@@ -588,10 +589,11 @@ const TimelineBlock = ({
           />
         )}
         {memo && (
-          <div className="mt-3 flex items-start gap-2 rounded-[10px] bg-bg-basement px-3.5 py-3">
-            <MessageSquare className="mt-0.5 h-3 w-3 shrink-0 text-neutral-muted" />
+          <div className="mt-3 flex items-start gap-2 rounded-[6px] px-1 py-2">
+            {/* <MessageSquare className="mt-[3px] h-3 w-3 shrink-0 text-neutral-muted" /> */}
+            {/* <Face size={24} /> */}
             <div className="min-w-0">
-              <div className="mb-1 text-[11px] text-neutral-muted">
+              <div className="mb-1 text-[12px] text-primary">
                 {t(
                   "career.profile.career_talent_profile_panel.1d7d70h",
                   "Harper 메모"

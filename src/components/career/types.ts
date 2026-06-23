@@ -1,6 +1,6 @@
 import { OpportunityType } from "@/lib/opportunityType";
 import type { OpportunityDiscoveryAgentVariant } from "@/lib/opportunityDiscovery/types";
-import type { CareerConversationStarterId } from "@/lib/career/conversationStarters";
+import type { CareerConversationStarterId } from "@/lib/career/prompts/conversationStarters";
 
 export { OpportunityType as CareerOpportunityType };
 

@@ -109,7 +109,10 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     : [];
   const conversationStarterId = args.conversationStarterId?.trim();
   const conversationStarter = conversationStarterId
-    ? getCareerConversationStarterPrompt(conversationStarterId)
+    ? getCareerConversationStarterPrompt(
+        conversationStarterId,
+        currentPreferences.preferredLocale
+      )
     : null;
   const internalCallRequestId = args.internalCallRequestId?.trim();
   const internalCallRequest = internalCallRequestId

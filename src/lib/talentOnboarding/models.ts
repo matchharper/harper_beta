@@ -19,8 +19,6 @@ export type TalentUserProfileRow = {
   bio: string | null;
   location: string | null;
   last_logined_at: string | null;
-  network_waitlist_id: number | null;
-  network_source_talent_id: string | null;
   resume_file_name: string | null;
   resume_storage_path: string | null;
   resume_text: string | null;

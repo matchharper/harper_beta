@@ -15,10 +15,11 @@ const markdownComponents: Components = {
     </h3>
   ),
   h3: ({ children }) => (
-    <h4 className="mt-5 text-[15px] md:text-[16px] font-semibold leading-snug text-neutral-primary first:mt-0">
+    <h4 className="mt-8 text-[20px] font-normal leading-tight text-black first:mt-0 md:text-[26px]">
       {children}
     </h4>
   ),
+  hr: () => <hr className="my-8 border-beige900/10" />,
   p: ({ children }) => (
     <p className="mt-4 break-keep text-[15px] md:text-[15px] leading-[1.6] text-neutral-primary/80 font-normal first:mt-0">
       {children}
@@ -36,9 +37,7 @@ const markdownComponents: Components = {
   ),
   li: ({ children }) => <li className="pl-1">{children}</li>,
   strong: ({ children }) => (
-    <strong className="font-semibold text-neutral-primary">
-      {children}
-    </strong>
+    <strong className="font-semibold text-neutral-primary">{children}</strong>
   ),
   em: ({ children }) => (
     <em className="italic text-neutral-primary/80">{children}</em>

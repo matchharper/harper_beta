@@ -118,8 +118,8 @@ export async function POST(req: NextRequest) {
       userId: user.id,
     });
     const responseLocale =
-      talentSetting?.preferred_locale ??
       body.locale ??
+      talentSetting?.preferred_locale ??
       req.cookies.get("NEXT_LOCALE")?.value;
 
     if (action === "prompt") {

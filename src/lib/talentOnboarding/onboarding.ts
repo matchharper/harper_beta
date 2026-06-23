@@ -13,7 +13,13 @@ export const TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NEXT_STEPS =
   "onboarding_completion_next_steps";
 export const TALENT_MESSAGE_TYPE_SESSION_REENGAGEMENT_SKIP =
   "session_reengagement_skip";
+export const TALENT_MESSAGE_TYPE_OPEN_POSITION_RECOMMENDATION_REQUEST =
+  "open_position_recommendation_request";
 export const TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX = 4;
+
+export type TalentUserChatMessageType =
+  | "chat"
+  | typeof TALENT_MESSAGE_TYPE_OPEN_POSITION_RECOMMENDATION_REQUEST;
 
 export const TALENT_ONBOARDING_INTEREST_OPTIONS = [
   {

@@ -1,8 +1,8 @@
 import {
   getCareerConversationStarter,
   type CareerConversationStarterAction,
-} from "./conversationStarters";
-import { getCareerConversationStarterTurnInstruction } from "./prompts/conversationStarters";
+  getCareerConversationStarterTurnInstruction,
+} from "./prompts/conversationStarters";
 
 type CareerConversationStarterPrompt = CareerConversationStarterAction & {
   chatProactiveInstruction: string;
@@ -10,19 +10,22 @@ type CareerConversationStarterPrompt = CareerConversationStarterAction & {
 };
 
 export function getCareerConversationStarterPrompt(
-  value: unknown
+  value: unknown,
+  locale?: string | null
 ): CareerConversationStarterPrompt | null {
-  const starter = getCareerConversationStarter(value);
+  const starter = getCareerConversationStarter(value, locale);
   if (!starter) return null;
 
   return {
     ...starter,
     chatProactiveInstruction: getCareerConversationStarterTurnInstruction({
       channel: "chat",
+      locale,
       starterId: starter.id,
     }),
     voiceProactiveInstruction: getCareerConversationStarterTurnInstruction({
       channel: "voice",
+      locale,
       starterId: starter.id,
     }),
   };

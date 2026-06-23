@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getBrowserCountryLang } from "@/i18n/localeResolution";
 
 const COUNTRY_LANG_STORAGE_KEY = "harper_country_lang_0209";
 const DEFAULT_COUNTRY_LANG = "ZZ_en";
@@ -7,31 +8,31 @@ type LandingContextResponse = {
   countryLang?: string;
 };
 
-const buildFallbackCountryLang = () => {
-  if (typeof navigator === "undefined") return DEFAULT_COUNTRY_LANG;
+function getInitialCountryLang() {
+  if (typeof window === "undefined") return DEFAULT_COUNTRY_LANG;
 
-  const locale = navigator.language || "en";
-  const [rawLanguage, rawCountry] = locale.split("-");
-  const language = (rawLanguage || "en").toLowerCase();
-  const countryCode = (rawCountry || "ZZ").toUpperCase();
-  return `${countryCode}_${language}`;
-};
+  try {
+    return (
+      localStorage.getItem(COUNTRY_LANG_STORAGE_KEY) || getBrowserCountryLang()
+    );
+  } catch {
+    return DEFAULT_COUNTRY_LANG;
+  }
+}
 
 export const useCountryLang = () => {
-  const [countryLang, setCountryLang] = useState<string>(DEFAULT_COUNTRY_LANG);
+  const [countryLang, setCountryLang] = useState<string>(getInitialCountryLang);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const cached = localStorage.getItem(COUNTRY_LANG_STORAGE_KEY);
-    if (cached) {
-      setCountryLang(cached);
-      return;
+    try {
+      if (!localStorage.getItem(COUNTRY_LANG_STORAGE_KEY)) {
+        localStorage.setItem(COUNTRY_LANG_STORAGE_KEY, getInitialCountryLang());
+      }
+    } catch {
+      // Ignore storage failures and keep the in-memory fallback.
     }
-
-    const fallback = buildFallbackCountryLang();
-    setCountryLang(fallback);
-    localStorage.setItem(COUNTRY_LANG_STORAGE_KEY, fallback);
 
     let cancelled = false;
 

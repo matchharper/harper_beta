@@ -95,13 +95,13 @@ const buildCareerOpportunityTypeMeta = (
     label: t("career.common.opportunity_type_meta.1yj6p99", "오픈 포지션"),
     negativeActionLabel: t(
       "career.common.career_history_panel.0paqqgp",
-      "선호하지 않음"
+      "제외됨"
     ),
     negativeFeedback: {
       modal: {
         description: t(
           "career.common.opportunity_type_meta.03vuko5",
-          "이 메모는 Harper가 다음 추천 방향을 조정할 때 참고합니다. 선택하지 않고 바로 제출하실 수 있습니다."
+          "이 메모는 Harper가 다음 추천 방향을 조정할 때 참고합니다. 선택하지 않고 바로 제출하실 수 있습니다. 키보드로 선택 가능합니다."
         ),
         placeholder: t(
           "career.common.opportunity_type_meta.1be34hr",
@@ -133,12 +133,21 @@ const buildCareerOpportunityTypeMeta = (
         },
         {
           label: t(
-            "career.common.opportunity_type_meta.1llzatw",
-            "선호하는 유형의 도메인/회사/서비스가 아니에요."
+            "career.common.opportunity_type_meta.external_already_applied",
+            "이미 지원했던 회사/역할입니다."
           ),
           value:
             // career-i18n-skip-next-line stable feedback storage value
-            "선호하는 유형의 도메인/회사/서비스가 아니에요.",
+            "이미 지원했던 회사/역할입니다.",
+        },
+        {
+          label: t(
+            "career.common.opportunity_type_meta.external_expired_posting",
+            "만료된 공고에요."
+          ),
+          value:
+            // career-i18n-skip-next-line stable feedback storage value
+            "만료된 공고에요.",
         },
         {
           label: t(
@@ -184,7 +193,10 @@ const buildCareerOpportunityTypeMeta = (
       requiresComment: false,
     },
     savedStageLabels: {
-      applied: t("career.common.opportunity_type_meta.0ume46n", "지원함"),
+      applied: t(
+        "career.common.opportunity_type_meta.0ume46n",
+        "지원함/진행중"
+      ),
     },
     shortLabel: t("career.common.opportunity_type_meta.16ujfch", "외부 JD"),
     sortPriority: 2,
@@ -205,7 +217,7 @@ const buildCareerOpportunityTypeMeta = (
     label: t("career.common.opportunity_type_meta.08t1dhj", "하퍼의 연결 제안"),
     negativeActionLabel: t(
       "career.common.career_history_panel.0paqqgp",
-      "선호하지 않음"
+      "제외됨"
     ),
     negativeFeedback: {
       modal: {

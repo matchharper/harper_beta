@@ -11,8 +11,9 @@ import type {
 import { getErrorMessage, sleep, toUiMessage } from "./careerHelpers";
 import { showOpportunityDiscoveryStartedToast } from "./opportunityDiscoveryToast";
 import type { FetchWithAuth } from "./useCareerApi";
-import type { CareerConversationStarterId } from "@/lib/career/conversationStarters";
+import type { CareerConversationStarterId } from "@/lib/career/prompts/conversationStarters";
 import { createRecommendJobPostingStatusLog } from "@/lib/talentOnboarding/recommendJobPostingStatus";
+import type { TalentUserChatMessageType } from "@/lib/talentOnboarding/onboarding";
 import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
 import { useMessages } from "@/i18n/useMessage";
 import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
@@ -23,6 +24,7 @@ type SendChatArgs = {
   conversationStarterId?: CareerConversationStarterId;
   text: string;
   link?: string;
+  messageType?: TalentUserChatMessageType;
   onError?: () => void;
 };
 
@@ -508,6 +510,7 @@ export const useCareerChat = ({
       const composed = link
         ? `${text}\n\n${tCareer(H.referenceLink, { link })}`
         : text;
+      const messageType = args.messageType ?? "chat";
       const tempId = `temp-user-${Date.now()}`;
       const nowIso = new Date().toISOString();
 
@@ -521,7 +524,7 @@ export const useCareerChat = ({
           id: tempId,
           role: "user",
           content: composed,
-          messageType: "chat",
+          messageType,
           createdAt: nowIso,
         },
       ]);
@@ -544,6 +547,7 @@ export const useCareerChat = ({
             conversationId,
             locale,
             message: text,
+            messageType,
             link,
           }),
         });

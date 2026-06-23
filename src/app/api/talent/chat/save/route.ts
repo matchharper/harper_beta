@@ -74,8 +74,9 @@ export async function POST(req: NextRequest) {
       typeof body.internalCallRequestId === "string"
         ? (sanitizeSingleLineDbText(body.internalCallRequestId, 120) ?? "")
         : "";
+    const requestLocale = body.locale ?? req.cookies.get("NEXT_LOCALE")?.value;
     const conversationStarter = conversationStarterId
-      ? getCareerConversationStarterPrompt(conversationStarterId)
+      ? getCareerConversationStarterPrompt(conversationStarterId, requestLocale)
       : null;
     const skipConversationWrites = Boolean(conversationStarter);
     const userMessageText =
@@ -151,8 +152,8 @@ export async function POST(req: NextRequest) {
     );
     let responseInsightUpdatedAt = currentInsights?.last_updated_at ?? null;
     const responseLocale =
-      talentSetting?.preferred_locale ??
       body.locale ??
+      talentSetting?.preferred_locale ??
       req.cookies.get("NEXT_LOCALE")?.value;
 
     const runInsightExtraction = async () => {

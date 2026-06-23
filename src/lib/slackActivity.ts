@@ -75,22 +75,27 @@ function getSlackActivityDetailValue(
 ) {
   const targetLabel = label.toLowerCase();
   return normalizeText(
-    details?.find((detail) => detail.label.toLowerCase() === targetLabel)
-      ?.value
+    details?.find((detail) => detail.label.toLowerCase() === targetLabel)?.value
   );
 }
 
-function buildSlackActivityLines(args: NotifySlackActivityArgs & {
-  email: string;
-  name: string;
-  userId: string;
-}) {
+function buildSlackActivityLines(
+  args: NotifySlackActivityArgs & {
+    email: string;
+    name: string;
+    userId: string;
+  }
+) {
   const action = escapeSlackText(args.action) || "Unknown";
 
   if (COMPACT_ACTIVITY_ACTIONS.has(args.action)) {
     const device = getSlackActivityDetailValue(args.details, "Device");
     const name = formatSlackLink(args.nameUrl, args.name);
-    const identity = [name, escapeSlackText(args.email), escapeSlackText(device)]
+    const identity = [
+      name,
+      escapeSlackText(args.email),
+      escapeSlackText(device),
+    ]
       .filter(Boolean)
       .join(", ");
     const detailLines = (args.details ?? []).flatMap((detail) => {
@@ -103,7 +108,6 @@ function buildSlackActivityLines(args: NotifySlackActivityArgs & {
     });
 
     return [
-      "*Harper activity*",
       `- *Action*: ${action}`,
       `- ${identity || escapeSlackText(args.userId) || "Unknown"}`,
       ...detailLines,
@@ -111,7 +115,6 @@ function buildSlackActivityLines(args: NotifySlackActivityArgs & {
   }
 
   const lines = [
-    "*Harper activity*",
     `- *Action*: ${action}`,
     `- *Name*: ${formatSlackLink(args.nameUrl, args.name) || "Unknown"}`,
     `- *Email*: ${escapeSlackText(args.email) || "Unknown"}`,
@@ -120,7 +123,9 @@ function buildSlackActivityLines(args: NotifySlackActivityArgs & {
   for (const detail of args.details ?? []) {
     const value = normalizeText(detail.value);
     if (!value) continue;
-    lines.push(`- *${escapeSlackText(detail.label)}*: ${escapeSlackText(value)}`);
+    lines.push(
+      `- *${escapeSlackText(detail.label)}*: ${escapeSlackText(value)}`
+    );
   }
 
   return lines;
@@ -131,7 +136,9 @@ export async function notifySlackActivity(args: NotifySlackActivityArgs) {
 
   const webhookUrl = getActivityWebhookUrl();
   if (!webhookUrl) {
-    console.warn("[slackActivity] SLACK_ACTIVITY_WEBHOOK_URL/SLACK_TOKEN missing");
+    console.warn(
+      "[slackActivity] SLACK_ACTIVITY_WEBHOOK_URL/SLACK_TOKEN missing"
+    );
     return false;
   }
 

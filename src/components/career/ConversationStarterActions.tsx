@@ -1,14 +1,17 @@
 "use client";
 
-import { Loader2, MessageCircleMore, SlidersHorizontal } from "lucide-react";
+import {
+  BriefcaseBusiness,
+  Loader2,
+  MessageCircleMore,
+  SlidersHorizontal,
+} from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
-  CAREER_CONVERSATION_STARTERS,
-  type CareerConversationStarterIcon,
   type CareerConversationStarterId,
   type CareerConversationStarterMode,
-} from "@/lib/career/conversationStarters";
+} from "@/lib/career/prompts/conversationStarters";
 import { ActionButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
 
@@ -20,16 +23,41 @@ type ConversationStarterActionsProps = {
     mode: CareerConversationStarterMode;
     starterId: CareerConversationStarterId;
   }) => boolean | void | Promise<boolean | void>;
+  onRequestMoreOpenPositions?: () => boolean | void | Promise<boolean | void>;
   variant?: "desktop" | "mobile" | "reengagement";
 };
 
-type PendingStarterAction = {
-  mode: CareerConversationStarterMode;
-  starterId: CareerConversationStarterId;
-} | null;
+type PendingAction =
+  | {
+      kind: "conversation_starter";
+      mode: CareerConversationStarterMode;
+      starterId: CareerConversationStarterId;
+    }
+  | {
+      kind: "open_position_recommendation_request";
+    }
+  | null;
+
+type ConversationStarterIcon = "sliders-horizontal" | "message-circle-more";
+
+type ConversationStarterAction = {
+  id: CareerConversationStarterId;
+  icon: ConversationStarterIcon;
+};
+
+const CONVERSATION_STARTER_ACTIONS: ConversationStarterAction[] = [
+  {
+    id: "preference_update",
+    icon: "sliders-horizontal",
+  },
+  {
+    id: "match_quality",
+    icon: "message-circle-more",
+  },
+];
 
 const STARTER_ICON_BY_NAME: Record<
-  CareerConversationStarterIcon,
+  ConversationStarterIcon,
   typeof SlidersHorizontal
 > = {
   "message-circle-more": MessageCircleMore,
@@ -75,6 +103,7 @@ export function ConversationStarterActions({
   callStartPending = false,
   className,
   disabled = false,
+  onRequestMoreOpenPositions,
   onStart,
   variant = "desktop",
 }: ConversationStarterActionsProps) {
@@ -82,8 +111,7 @@ export function ConversationStarterActions({
 
   const isMobile = variant === "mobile";
   const isReengagement = variant === "reengagement";
-  const [pendingAction, setPendingAction] =
-    useState<PendingStarterAction>(null);
+  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const mountedRef = useRef(true);
   const actionDisabled = disabled || callStartPending || pendingAction !== null;
 
@@ -93,9 +121,12 @@ export function ConversationStarterActions({
     };
   }, []);
 
-  const handleStart = async (args: NonNullable<PendingStarterAction>) => {
+  const handleStart = async (args: {
+    mode: CareerConversationStarterMode;
+    starterId: CareerConversationStarterId;
+  }) => {
     if (actionDisabled) return;
-    setPendingAction(args);
+    setPendingAction({ kind: "conversation_starter", ...args });
     try {
       await onStart(args);
     } catch (error) {
@@ -111,6 +142,32 @@ export function ConversationStarterActions({
     }
   };
 
+  const handleRequestMoreOpenPositions = async () => {
+    if (actionDisabled || !onRequestMoreOpenPositions) return;
+    setPendingAction({ kind: "open_position_recommendation_request" });
+    try {
+      await onRequestMoreOpenPositions();
+    } catch (error) {
+      console.error(
+        "[ConversationStarterActions] failed to request more open positions",
+        {
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+    } finally {
+      if (mountedRef.current) {
+        setPendingAction(null);
+      }
+    }
+  };
+
+  const openPositionRequestPending =
+    pendingAction?.kind === "open_position_recommendation_request";
+  const openPositionRequestLabel = t(
+    "career.common.conversation_starters.more_open_positions",
+    "오픈 포지션 더 추천받기"
+  );
+
   return (
     <div
       className={cn(
@@ -118,16 +175,17 @@ export function ConversationStarterActions({
           ? "career-reengagement-actions flex flex-wrap gap-2"
           : isMobile
             ? "flex w-full flex-col gap-2"
-            : "flex w-full flex-row flex-wrap items-center justify-center gap-2",
+            : "mx-auto flex w-full max-w-[560px] flex-row flex-wrap items-center justify-center gap-2",
         className
       )}
       aria-busy={pendingAction !== null || callStartPending || undefined}
     >
-      {CAREER_CONVERSATION_STARTERS.map((starter) => {
+      {CONVERSATION_STARTER_ACTIONS.map((starter) => {
         const copy = getStarterDisplayCopy(t, starter.id);
         const label = isReengagement ? copy.shortLabel : copy.label;
         const labelKey = isReengagement ? copy.shortLabelKey : copy.labelKey;
         const callPending =
+          pendingAction?.kind === "conversation_starter" &&
           pendingAction?.starterId === starter.id &&
           pendingAction.mode === "call";
         const StarterIcon = STARTER_ICON_BY_NAME[starter.icon];
@@ -189,6 +247,62 @@ export function ConversationStarterActions({
           </ActionButton>
         );
       })}
+      {onRequestMoreOpenPositions ? (
+        <ActionButton
+          onClick={() => void handleRequestMoreOpenPositions()}
+          disabled={actionDisabled}
+          aria-label={openPositionRequestLabel}
+          aria-busy={openPositionRequestPending || undefined}
+          actionVariant="secondary"
+          className={cn(
+            "text-center font-normal",
+            isMobile ? "w-full" : isReengagement ? "min-w-0" : "pl-2 pr-4",
+            isReengagement &&
+              "border-neutral-1000-a05 bg-bg-floating hover:bg-bg-weak"
+          )}
+        >
+          <span
+            className={cn(
+              "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-black/5 text-neutral-muted",
+              isReengagement && "h-5 w-5"
+            )}
+            aria-hidden="true"
+          >
+            {openPositionRequestPending ? (
+              <Loader2
+                className={cn(
+                  "h-3.5 w-3.5 animate-spin",
+                  isReengagement && "h-3 w-3"
+                )}
+                strokeWidth={1.8}
+              />
+            ) : (
+              <BriefcaseBusiness
+                className={cn("h-3.5 w-3.5", isReengagement && "h-3 w-3")}
+                strokeWidth={1.8}
+              />
+            )}
+          </span>
+          <span
+            data-career-i18n-key={
+              openPositionRequestPending
+                ? undefined
+                : "career.common.conversation_starters.more_open_positions"
+            }
+            className={cn(
+              "min-w-0 text-[14px] font-medium leading-5",
+              isReengagement && "text-[12px] leading-4"
+            )}
+          >
+            {openPositionRequestPending
+              ? t(
+                  "career.common.conversation_starters.requesting_more_open_positions",
+                  "요청 중..."
+                )
+              : openPositionRequestLabel}
+          </span>
+        </ActionButton>
+      ) : null}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { MatchingTalentBrowser } from "@/components/ops/matching/MatchingTalentB
 import { cx, opsTheme } from "@/components/ops/theme";
 import { BareButton } from "@/components/ui/button";
 import { Select as UiSelect } from "@/components/ui/select";
+import { TabBoxes } from "@/components/ui/tab-boxes";
 import {
   useOpsMatchingCompanies,
   useOpsMatchingRoles,
@@ -84,11 +85,9 @@ function parseMatchingUrlState(query: ParsedUrlQuery) {
     "allFrom",
     "allHumanLabels",
     "allLlmLabels",
-    "allTags",
     "allTo",
     "company",
     "reviewFrom",
-    "reviewTags",
     "reviewTo",
     "role",
     "tab",
@@ -107,10 +106,8 @@ function parseMatchingUrlState(query: ParsedUrlQuery) {
       ),
       allHumanLabelFilters: parseTagsParam(query.allHumanLabels),
       allLlmLabelFilters: parseTagsParam(query.allLlmLabels),
-      allTagFilters: parseTagsParam(query.allTags),
       reviewRecommendedFrom: firstQueryValue(query.reviewFrom),
       reviewRecommendedTo: firstQueryValue(query.reviewTo),
-      reviewTagFilters: parseTagsParam(query.reviewTags),
       selectedCompanyId: firstQueryValue(query.company),
       selectedRoleId: firstQueryValue(query.role),
       viewMode: parseMatchingViewMode(query.view),
@@ -134,16 +131,10 @@ function buildMatchingUrlQuery(state: OpsMatchingUrlState) {
   if (state.allHumanLabelFilters.length > 0) {
     query.allHumanLabels = state.allHumanLabelFilters.join(",");
   }
-  if (state.allTagFilters.length > 0) {
-    query.allTags = state.allTagFilters.join(",");
-  }
   if (state.reviewRecommendedFrom) {
     query.reviewFrom = state.reviewRecommendedFrom;
   }
   if (state.reviewRecommendedTo) query.reviewTo = state.reviewRecommendedTo;
-  if (state.reviewTagFilters.length > 0) {
-    query.reviewTags = state.reviewTagFilters.join(",");
-  }
   return query;
 }
 
@@ -176,16 +167,12 @@ export default function OpsMatchingPage() {
   const allLlmLabelFilters = useOpsMatchingStore(
     (state) => state.allLlmLabelFilters
   );
-  const allTagFilters = useOpsMatchingStore((state) => state.allTagFilters);
   const hasHydrated = useOpsMatchingStore((state) => state.hasHydrated);
   const reviewRecommendedFrom = useOpsMatchingStore(
     (state) => state.reviewRecommendedFrom
   );
   const reviewRecommendedTo = useOpsMatchingStore(
     (state) => state.reviewRecommendedTo
-  );
-  const reviewTagFilters = useOpsMatchingStore(
-    (state) => state.reviewTagFilters
   );
   const selectedCompanyId = useOpsMatchingStore(
     (state) => state.selectedCompanyId
@@ -205,14 +192,8 @@ export default function OpsMatchingPage() {
   const setAllLlmLabelFilters = useOpsMatchingStore(
     (state) => state.setAllLlmLabelFilters
   );
-  const setAllTagFilters = useOpsMatchingStore(
-    (state) => state.setAllTagFilters
-  );
   const setReviewRecommendedDateRange = useOpsMatchingStore(
     (state) => state.setReviewRecommendedDateRange
-  );
-  const setReviewTagFilters = useOpsMatchingStore(
-    (state) => state.setReviewTagFilters
   );
   const setSelectedCompanyId = useOpsMatchingStore(
     (state) => state.setSelectedCompanyId
@@ -262,10 +243,8 @@ export default function OpsMatchingPage() {
         allExcludeRecommended,
         allHumanLabelFilters,
         allLlmLabelFilters,
-        allTagFilters,
         reviewRecommendedFrom,
         reviewRecommendedTo,
-        reviewTagFilters,
         selectedCompanyId,
         selectedRoleId,
         viewMode,
@@ -277,10 +256,8 @@ export default function OpsMatchingPage() {
       allExcludeRecommended,
       allHumanLabelFilters,
       allLlmLabelFilters,
-      allTagFilters,
       reviewRecommendedFrom,
       reviewRecommendedTo,
-      reviewTagFilters,
       selectedCompanyId,
       selectedRoleId,
       viewMode,
@@ -421,11 +398,6 @@ export default function OpsMatchingPage() {
     });
   };
 
-  const handleAllTagFiltersChange = (tags: string[]) => {
-    setAllTagFilters(tags);
-    replaceUrlState({ allTagFilters: tags });
-  };
-
   const handleAllExcludeRecommendedChange = (excludeRecommended: boolean) => {
     setAllExcludeRecommended(excludeRecommended);
     replaceUrlState({ allExcludeRecommended: excludeRecommended });
@@ -447,11 +419,6 @@ export default function OpsMatchingPage() {
       reviewRecommendedFrom: from,
       reviewRecommendedTo: to,
     });
-  };
-
-  const handleReviewTagFiltersChange = (tags: string[]) => {
-    setReviewTagFilters(tags);
-    replaceUrlState({ reviewTagFilters: tags });
   };
 
   return (
@@ -555,30 +522,17 @@ export default function OpsMatchingPage() {
             />
           ) : effectiveRole ? (
             <>
-              <section className="flex flex-row gap-2">
-                {MATCHING_STAGE_TABS.map((tab) => (
-                  <BareButton
-                    key={tab.id}
-                    type="button"
-                    onClick={() => handleTabChange(tab.id)}
-                    className={cx(
-                      "flex min-h-16 min-w-48 items-center justify-between rounded-md border-2 px-4 py-3 text-left",
-                      activeTab === tab.id
-                        ? "border-primary text-primary"
-                        : "border-neutral-1000-a05 bg-bg-floating text-neutral-muted hover:border-primary hover:text-primary"
-                    )}
-                  >
-                    <div className="flex flex-col gap-1">
-                      <span className="text-sm font-medium">{tab.label}</span>
-                      {tab.count !== null && (
-                        <span className={cx("text-xs")}>
-                          {tab.count} applications
-                        </span>
-                      )}
-                    </div>
-                  </BareButton>
-                ))}
-              </section>
+              <TabBoxes
+                activeValue={activeTab}
+                items={MATCHING_STAGE_TABS.map((tab) => ({
+                  countLabel:
+                    tab.count !== null ? `${tab.count} applications` : null,
+                  label: tab.label,
+                  value: tab.id,
+                }))}
+                onValueChange={handleTabChange}
+                size="md"
+              />
 
               {activeTab === "all" ? (
                 <MatchingTalentBrowser
@@ -593,9 +547,7 @@ export default function OpsMatchingPage() {
                   onExcludeRecommendedChange={handleAllExcludeRecommendedChange}
                   onHumanLabelFiltersChange={handleAllHumanLabelFiltersChange}
                   onLlmLabelFiltersChange={handleAllLlmLabelFiltersChange}
-                  onTagFiltersChange={handleAllTagFiltersChange}
                   role={effectiveRole}
-                  tagFilters={allTagFilters}
                 />
               ) : activeTab === "harper_review" ? (
                 <MatchingHarperReviewBoard
@@ -604,11 +556,9 @@ export default function OpsMatchingPage() {
                   onRecommendedDateRangeChange={
                     handleReviewRecommendedDateRangeChange
                   }
-                  onTagFiltersChange={handleReviewTagFiltersChange}
                   recommendedFrom={reviewRecommendedFrom}
                   recommendedTo={reviewRecommendedTo}
                   role={effectiveRole}
-                  tagFilters={reviewTagFilters}
                 />
               ) : (
                 <EmptyStagePanel

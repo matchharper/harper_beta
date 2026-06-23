@@ -266,7 +266,7 @@ Changing this section is lower risk than adding a broad new section elsewhere.
 To avoid prompt growth, remove or compress the current example-heavy lines:
 
 ```text
-ex. 저번에 저장 or 선호하지 않음을 선택해주셨는데...
+ex. 저번에 저장 or 제외됨을 선택해주셨는데...
 ex. mismatch case) Cursor 포지션...
 ex. 하퍼가 더 정확한 추천...
 ex. 프로필에 표현되지 않은 정보...
@@ -908,7 +908,7 @@ Priority:
 Suggested questions:
 
 - `이 방향이 좋다고 느끼신 이유가 회사/도메인 때문인지, 역할 내용 때문인지에 더 가까울까요?`
-- `선호하지 않는다고 느끼신 가장 큰 이유가 위치, 역할 범위, 회사 단계, 도메인 중 어디에 가까울까요?`
+- `제외하신 가장 큰 이유가 위치, 역할 범위, 회사 단계, 도메인 중 어디에 가까울까요?`
 
 ### 15.4 resume_status
 

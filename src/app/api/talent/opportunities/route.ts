@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type { User } from "@supabase/supabase-js";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
+  fetchTalentSetting,
   getTalentSupabaseAdmin,
   toTalentMessageResponse,
   type TalentAdminClient,
@@ -100,6 +101,7 @@ async function insertOpportunityFeedbackNoteMessage(args: {
   admin: TalentAdminClient;
   conversationId: string | null;
   isMobile?: boolean | null;
+  locale?: string | null;
   opportunity: TalentOpportunityHistoryItem | null;
   userId: string;
 }) {
@@ -125,6 +127,7 @@ async function insertOpportunityFeedbackNoteMessage(args: {
           content: buildOpportunityFeedbackNoteContent({
             action: args.action,
             companyName: args.opportunity.companyName,
+            locale: args.locale,
             sourceType: args.opportunity.sourceType,
             title: args.opportunity.title,
           }),
@@ -289,6 +292,7 @@ export async function PATCH(req: NextRequest) {
       feedbackReason?: string | null;
       conversationId?: string | null;
       interactionSource?: string | null;
+      locale?: string | null;
       opportunityId?: string;
       promptImmediately?: boolean;
       savedStage?: TalentOpportunitySavedStage | null;
@@ -339,6 +343,15 @@ export async function PATCH(req: NextRequest) {
     }
 
     const admin = getTalentSupabaseAdmin();
+    let responseLocale =
+      body.locale ?? req.cookies.get("NEXT_LOCALE")?.value ?? null;
+    if (!responseLocale && action === "feedback") {
+      const talentSetting = await fetchTalentSetting({
+        admin,
+        userId: user.id,
+      });
+      responseLocale = talentSetting?.preferred_locale ?? null;
+    }
     let previousOpportunity: TalentOpportunityHistoryItem | null = null;
     if (action === "feedback") {
       try {
@@ -443,6 +456,7 @@ export async function PATCH(req: NextRequest) {
             admin,
             conversationId,
             isMobile,
+            locale: responseLocale,
             opportunity: opportunity ?? null,
             userId: user.id,
           });

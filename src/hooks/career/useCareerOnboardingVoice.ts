@@ -36,7 +36,8 @@ import {
   stripTalentOnboardingCompletionMarker,
   TALENT_ONBOARDING_DONE_MARKER,
 } from "@/lib/talentOnboarding/completion";
-import type { CareerConversationStarterId } from "@/lib/career/conversationStarters";
+import type { CareerConversationStarterId } from "@/lib/career/prompts/conversationStarters";
+import type { TalentUserChatMessageType } from "@/lib/talentOnboarding/onboarding";
 import { INSIGHT_CHECKLIST } from "@/lib/talentOnboarding/insightChecklist";
 import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 import { useMessages } from "@/i18n/useMessage";
@@ -291,6 +292,7 @@ type SendChatArgs = {
   conversationStarterId?: CareerConversationStarterId;
   text: string;
   link?: string;
+  messageType?: TalentUserChatMessageType;
   onError?: () => void;
 };
 

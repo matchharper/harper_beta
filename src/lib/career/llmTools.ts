@@ -78,7 +78,7 @@ export const CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES = [
   TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES,
   // 특정 posting roleId의 상세 role/company/recommendation context를 읽을 때.
   TALENT_TOOL_NAMES.GET_ROLE_CONTEXT,
-  // 추천된 특정 포지션을 저장함/선호하지 않음으로 보낼 때.
+  // 추천된 특정 포지션을 저장함/제외됨으로 보낼 때.
   TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK,
   // 특정 회사 자체를 조사할 때. 예: "A 회사 어떤 회사야?"
   TALENT_TOOL_NAMES.RESEARCH_COMPANY,

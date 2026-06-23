@@ -179,6 +179,13 @@ const normalizeToolBio = (value: unknown) => {
   return text ? text.slice(0, 8000) : null;
 };
 
+const normalizeToolLocation = (value: unknown) => {
+  if (value === null) return null;
+  if (typeof value !== "string") return undefined;
+  const text = value.replace(/\s+/g, " ").trim();
+  return text ? text.slice(0, 240) : null;
+};
+
 function getTalentToolResponseLanguage(
   context?: TalentToolExecutionContext | null
 ) {
@@ -1435,19 +1442,24 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE]: {
     name: TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
     description:
-      "Update saved profile state with new information about the user. It can update the user's profile summary and row memos during onboarding and after onboarding. It can update future recommendation/search memory only after onboarding is already complete, and only for matching memory, not facts that belong in profile rows. Call when the user's latest statement directly maps to writable profile or future-matching memory, including explicit durable hard-filter search commands such as '미국 회사로만 찾아줘', '앞으로 리모트만 보내줘', '대기업은 빼고 찾아줘', or '다음부터 Series B 이상만 봐줘'. If the user discusses resume/CV context that matters for future matching, such as what their resume says, omits, emphasizes, or should signal, record that as future matching memory when it is not a direct resume-file/profile-row update. Do not call this tool for recommendation delivery settings such as cadence, batch size, external recommendations, or internal recommendations; use update_setting for those. Do not call for user questions, one-off browsing/curiosity/search requests, hypotheticals/conditional speech ('만약 ~라면'), assistant statements, aspirational/off-profile role mentions without explicit future intent, or information already saved in current state. After the tool result, produce a normal user-facing chat reply in Korean; do not return an empty assistant message or only an onboarding marker.",
+      "Update saved profile state with new information about the user. It can update the user's profile summary, current primary location/base, and row memos during onboarding and after onboarding. It can update future recommendation/search memory only after onboarding is already complete, and only for matching memory, not facts that belong in profile rows. Call when the user's latest statement directly maps to writable profile or future-matching memory, including explicit durable hard-filter search commands such as '미국 회사로만 찾아줘', '앞으로 리모트만 보내줘', '대기업은 빼고 찾아줘', or '다음부터 Series B 이상만 봐줘'. If the user discusses resume/CV context that matters for future matching, such as what their resume says, omits, emphasizes, or should signal, record that as future matching memory when it is not a direct resume-file/profile-row update. Do not call this tool for recommendation delivery settings such as cadence, batch size, external recommendations, or internal recommendations; use update_setting for those. Do not call for user questions, one-off browsing/curiosity/search requests, hypotheticals/conditional speech ('만약 ~라면'), assistant statements, aspirational/off-profile role mentions without explicit future intent, or information already saved in current state. After the tool result, produce a normal user-facing chat reply in Korean; do not return an empty assistant message or only an onboarding marker.",
     parameters: {
       type: "object",
       properties: {
         talentUser: {
           type: "object",
           description:
-            "Profile-level fields. Currently supports bio only. Use when the user explicitly provides or corrects their profile summary/about text. Do not invent a bio from assistant-only summaries; write the user's intended updated summary.",
+            "Profile-level fields. Supports bio and current primary location. Use bio when the user explicitly provides or corrects their profile summary/about text. Use location only when the user explicitly provides or corrects their current main base/residence. Do not infer location from a short-term stay, travel, past job, target job location, or work-location preference.",
           properties: {
             bio: {
               anyOf: [{ type: "string" }, { type: "null" }],
               description:
                 "New profile summary. Use null or an empty string only when the user explicitly asks to clear/remove the summary.",
+            },
+            location: {
+              anyOf: [{ type: "string" }, { type: "null" }],
+              description:
+                "The user's current main base/residence shown on talent_users.location. This is where they primarily live/are based now, not a temporary location or where they want to work. Use null or an empty string only when the user explicitly asks to clear/remove their current location.",
             },
           },
           additionalProperties: false,
@@ -1613,15 +1625,29 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       }> = [];
 
       // talent_users — direct profile-level updates.
-      if (
+      const hasTalentUserBioUpdate = Boolean(
         talentUserInput &&
         Object.prototype.hasOwnProperty.call(talentUserInput, "bio")
+      );
+      const hasTalentUserLocationUpdate = Boolean(
+        talentUserInput &&
+        Object.prototype.hasOwnProperty.call(talentUserInput, "location")
+      );
+      if (
+        talentUserInput &&
+        (hasTalentUserBioUpdate || hasTalentUserLocationUpdate)
       ) {
-        const nextBio = normalizeToolBio(talentUserInput.bio);
-        if (nextBio !== undefined) {
+        const nextBio = hasTalentUserBioUpdate
+          ? normalizeToolBio(talentUserInput.bio)
+          : undefined;
+        const nextLocation = hasTalentUserLocationUpdate
+          ? normalizeToolLocation(talentUserInput.location)
+          : undefined;
+
+        if (nextBio !== undefined || nextLocation !== undefined) {
           const { data: currentUser, error: currentUserError } = await admin
             .from("talent_users")
-            .select("bio")
+            .select("bio, location")
             .eq("user_id", userId)
             .maybeSingle();
           if (currentUserError) {
@@ -1630,12 +1656,39 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             );
           }
 
-          const previousBio = normalizeToolBio(currentUser?.bio) ?? null;
-          if (previousBio !== nextBio) {
+          const talentUserPatch: Record<string, string | null> = {};
+          if (nextBio !== undefined) {
+            const previousBio = normalizeToolBio(currentUser?.bio) ?? null;
+            if (previousBio !== nextBio) {
+              talentUserPatch.bio = nextBio;
+              updatedTalentUserFields.push("bio");
+              talentUserActivityChanges.push({
+                field: "bio",
+                from: previousBio,
+                to: nextBio,
+              });
+            }
+          }
+
+          if (nextLocation !== undefined) {
+            const previousLocation =
+              normalizeToolLocation(currentUser?.location) ?? null;
+            if (previousLocation !== nextLocation) {
+              talentUserPatch.location = nextLocation;
+              updatedTalentUserFields.push("location");
+              talentUserActivityChanges.push({
+                field: "location",
+                from: previousLocation,
+                to: nextLocation,
+              });
+            }
+          }
+
+          if (Object.keys(talentUserPatch).length > 0) {
             const { error: talentUserUpdateError } = await admin
               .from("talent_users")
               .update({
-                bio: nextBio,
+                ...talentUserPatch,
                 updated_at: new Date().toISOString(),
               })
               .eq("user_id", userId);
@@ -1645,13 +1698,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
                   "Failed to update talent_users."
               );
             }
-
-            updatedTalentUserFields.push("bio");
-            talentUserActivityChanges.push({
-              field: "bio",
-              from: previousBio,
-              to: nextBio,
-            });
           }
         }
       }
@@ -1845,20 +1891,32 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
 
       const talentUserSummary =
         talentUserActivityChanges.length > 0
-          ? talentUserActivityChanges.some((change) => change.to)
-            ? "Profile summary updated."
-            : "Profile summary cleared."
+          ? talentUserActivityChanges
+              .map((change) => {
+                if (change.field === "bio") {
+                  return change.to
+                    ? "profile summary updated"
+                    : "profile summary cleared";
+                }
+                if (change.field === "location") {
+                  return change.to
+                    ? "current location updated"
+                    : "current location cleared";
+                }
+                return `${change.field} updated`;
+              })
+              .join("; ")
           : null;
       if (talentUserSummary) {
         await insertTalentActivityEvent({
           admin,
-          changedDomains: ["profile", "bio"],
+          changedDomains: ["profile", ...updatedTalentUserFields],
           conversationId: context?.conversationId ?? null,
           eventType: "profile_updated",
           impactLevel: "low",
           messageId: context?.userMessageId ?? null,
           source: "chat",
-          summary: talentUserSummary,
+          summary: `User ${talentUserSummary}.`,
           userId,
         });
       }

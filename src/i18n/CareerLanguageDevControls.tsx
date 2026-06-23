@@ -87,7 +87,7 @@ export default function CareerLanguageDevControls({
   return (
     <div
       className={cn(
-        "fixed left-4 top-[max(1rem,env(safe-area-inset-top))] z-[140] flex items-center gap-1 rounded-lg border border-neutral-1000-a10 bg-bg-floating/95 p-1 text-xs shadow-[0_16px_48px_color-mix(in_srgb,var(--color-neutral-1000)_14%,transparent)] backdrop-blur",
+        "fixed left-4 top-[max(1rem,env(safe-area-inset-top))] z-[140] hidden items-center gap-1 rounded-lg border border-neutral-1000-a10 bg-bg-floating/95 p-1 text-xs shadow-[0_16px_48px_color-mix(in_srgb,var(--color-neutral-1000)_14%,transparent)] backdrop-blur md:flex",
         className
       )}
       data-career-i18n-skip="true"

@@ -5,7 +5,7 @@ import type {
   CareerInputMode,
 } from "./types";
 import { useCareerVoiceInputStore } from "@/store/useCareerVoiceInputStore";
-import type { CareerConversationStarterId } from "@/lib/career/conversationStarters";
+import type { CareerConversationStarterId } from "@/lib/career/prompts/conversationStarters";
 import type { RealtimeConnectFailure } from "@/hooks/career/useRealtimeSession";
 import { useCareerT } from "@/i18n/useCareerT";
 

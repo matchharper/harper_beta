@@ -17,6 +17,7 @@ import {
 import React, { useCallback, useMemo, useState } from "react";
 import { BareButton } from "@/components/ui/button";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
+import Face from "../common/Face";
 
 type OpsNavItem = {
   description: string;
@@ -27,7 +28,7 @@ type OpsNavItem = {
 };
 
 type OpsNavGroup = {
-  id: "system" | "matching";
+  id: "system" | "matching" | "debugging";
   label: string;
   items: OpsNavItem[];
 };
@@ -102,6 +103,24 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
         href: "/ops/companies",
         label: "Companies",
         matchPrefix: "/ops/companies",
+      },
+    ],
+  },
+  {
+    id: "debugging",
+    label: "디버깅",
+    items: [
+      {
+        description: "career 메일 발송·수신 본문 확인",
+        href: "/ops/debugging/emails",
+        label: "메일 로그",
+        matchPrefix: "/ops/debugging/emails",
+      },
+      {
+        description: "talent call transcript 확인",
+        href: "/ops/debugging/calls",
+        label: "콜 로그",
+        matchPrefix: "/ops/debugging/calls",
       },
     ],
   },

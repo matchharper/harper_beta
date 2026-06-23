@@ -19,7 +19,8 @@ import type { TalentOnboardingInterestOptionId } from "@/lib/talentOnboarding/on
 import type {
   CareerConversationStarterId,
   CareerConversationStarterMode,
-} from "@/lib/career/conversationStarters";
+} from "@/lib/career/prompts/conversationStarters";
+import type { TalentUserChatMessageType } from "@/lib/talentOnboarding/onboarding";
 
 export type CareerChatPanelContextValue = {
   user: User | null;
@@ -86,6 +87,7 @@ export type CareerChatPanelContextValue = {
     conversationStarterId?: CareerConversationStarterId;
     text: string;
     link?: string;
+    messageType?: TalentUserChatMessageType;
     onError?: () => void;
   }) => void | Promise<void>;
   onStartConversationStarter?: (args: {

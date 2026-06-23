@@ -172,7 +172,10 @@ export async function POST(req: NextRequest) {
     }
     if (
       conversationStarterId &&
-      !getCareerConversationStarterPrompt(conversationStarterId)
+      !getCareerConversationStarterPrompt(
+        conversationStarterId,
+        rawLocale ?? req.cookies.get("NEXT_LOCALE")?.value
+      )
     ) {
       return NextResponse.json(
         { error: "Invalid conversationStarterId" },

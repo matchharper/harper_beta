@@ -6,20 +6,28 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
 import { en } from "@/lang/en";
 import { ko } from "@/lang/ko";
+import {
+  getBrowserInferredLocale,
+  normalizeLocale,
+  type ResolvedLocale,
+} from "@/i18n/localeResolution";
 
-export type Locale = "ko" | "en";
+export type Locale = ResolvedLocale;
 export type MessageDictionary = typeof ko & {
   readonly career: Record<string, string>;
 };
 
 const LOCALE_STORAGE_KEY = "harper:locale";
 const LOCALE_COOKIE_NAME = "NEXT_LOCALE";
+const useIsomorphicLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 function getCookie(name: string) {
   if (typeof document === "undefined") return null;
@@ -29,20 +37,23 @@ function getCookie(name: string) {
     ?.split("=")[1];
 }
 
-function getLocaleFromCookie(): Locale | null {
-  const c = getCookie(LOCALE_COOKIE_NAME);
-  return c === "ko" || c === "en" ? c : null;
+export function getLocaleFromCookie(): Locale | null {
+  return normalizeLocale(getCookie(LOCALE_COOKIE_NAME));
 }
 
-function getStoredLocale(): Locale | null {
+export function getStoredLocale(): Locale | null {
   if (typeof window === "undefined") return null;
 
-  const stored = window.localStorage.getItem(LOCALE_STORAGE_KEY);
-  if (stored === "ko" || stored === "en") return stored;
+  const stored = normalizeLocale(window.localStorage.getItem(LOCALE_STORAGE_KEY));
+  if (stored) return stored;
   return getLocaleFromCookie();
 }
 
-function persistLocale(locale: Locale) {
+export function getInitialClientLocalePreference(): Locale {
+  return getStoredLocale() ?? getBrowserInferredLocale();
+}
+
+export function persistLocalePreference(locale: Locale) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
   document.cookie = `${LOCALE_COOKIE_NAME}=${locale}; path=/; max-age=31536000; samesite=lax`;
@@ -74,23 +85,33 @@ export function MessagesProvider({
 }) {
   const [localeState, setLocaleState] = useState<Locale>("ko");
 
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     if (controlledLocale) return;
-    const storedLocale = getStoredLocale();
-    if (storedLocale) setLocaleState(storedLocale);
+    setLocaleState(getInitialClientLocalePreference());
   }, [controlledLocale]);
 
   const locale = controlledLocale ?? localeState;
   const setLocale = useCallback(
     (nextLocale: Locale) => {
+      persistLocalePreference(nextLocale);
       if (!controlledLocale) {
         setLocaleState(nextLocale);
-        persistLocale(nextLocale);
       }
       onLocaleChange?.(nextLocale);
     },
     [controlledLocale, onLocaleChange]
   );
+
+  useEffect(() => {
+    if (controlledLocale) {
+      persistLocalePreference(controlledLocale);
+    }
+  }, [controlledLocale]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.documentElement.lang = locale;
+  }, [locale]);
 
   const value = useMemo<MessagesContextValue>(
     () => ({

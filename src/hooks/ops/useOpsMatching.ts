@@ -11,12 +11,15 @@ import type {
   OpsMatchingFitListResponse,
   OpsMatchingFitHumanLabelUpdateResponse,
   OpsMatchingFitLabel,
+  OpsMatchingHumanLabelFilter,
   OpsMatchingProgressDeleteResponse,
   OpsMatchingProgressResponse,
   OpsMatchingReviewBoardResponse,
   OpsMatchingReviewStageId,
   OpsMatchingReviewStageUpdateResponse,
   OpsMatchingRoleOption,
+  OpsMatchingTalentHistoryResponse,
+  OpsMatchingTalentHistorySection,
   OpsMatchingTalentListResponse,
   OpsMatchingTalentPoolListResponse,
   OpsMatchingTalentPoolTabId,
@@ -41,7 +44,7 @@ type MatchingTalentFilters = {
   createdTo?: string;
   enabled?: boolean;
   excludeRecommended?: boolean;
-  humanLabels?: OpsMatchingFitLabel[];
+  humanLabels?: OpsMatchingHumanLabelFilter[];
   limit?: number;
   llmLabels?: OpsMatchingFitLabel[];
   query?: string;
@@ -49,9 +52,15 @@ type MatchingTalentFilters = {
   tags?: string[];
 };
 
+type MatchingTalentHistoryFilters = {
+  enabled?: boolean;
+  sections?: OpsMatchingTalentHistorySection[];
+  talentIds?: string[];
+};
+
 type MatchingFitFilters = {
   enabled?: boolean;
-  humanLabels?: OpsMatchingFitLabel[];
+  humanLabels?: OpsMatchingHumanLabelFilter[];
   limit?: number;
   llmLabels?: OpsMatchingFitLabel[];
   query?: string;
@@ -203,6 +212,37 @@ export function useOpsMatchingTalents(filters: MatchingTalentFilters) {
     getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
     initialPageParam: 0,
     enabled: (filters.enabled ?? true) && Boolean(roleId),
+    staleTime: 30_000,
+  });
+}
+
+export function useOpsMatchingTalentHistory(
+  filters: MatchingTalentHistoryFilters
+) {
+  const talentIds = Array.from(
+    new Set(
+      filters.talentIds?.map((talentId) => talentId.trim()).filter(Boolean)
+    )
+  );
+  const sections = Array.from(
+    new Set(filters.sections?.map((section) => section.trim()).filter(Boolean))
+  );
+
+  return useQuery({
+    queryKey: queryKeys.opsMatching.talentHistory({
+      sections,
+      talentIds,
+    }),
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (talentIds.length > 0) params.set("talentIds", talentIds.join(","));
+      if (sections.length > 0) params.set("sections", sections.join(","));
+      return fetchWithInternalAuth<OpsMatchingTalentHistoryResponse>(
+        `/api/internal/matching/talent-history?${params.toString()}`
+      );
+    },
+    enabled:
+      (filters.enabled ?? true) && talentIds.length > 0 && sections.length > 0,
     staleTime: 30_000,
   });
 }

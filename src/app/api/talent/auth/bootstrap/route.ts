@@ -9,6 +9,7 @@ import {
   getTalentSupabaseAdmin,
   markTalentUserLoggedIn,
   toTalentDisplayName,
+  upsertTalentSetting,
 } from "@/lib/talentOnboarding/server";
 import { claimTalentNetworkInvite } from "@/lib/talentOnboarding/networkClaim";
 import { parseCareerEmailOnboardingToken } from "@/lib/careerEmailOnboarding/token";
@@ -16,6 +17,7 @@ import { normalizeCareerUtmSource } from "@/lib/career/utm";
 import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
 import { enqueueSignupNoProfileSubmit } from "@/lib/contactQueue";
 import type { Json } from "@/types/database.types";
+import { normalizeCareerPromptLocale } from "@/lib/career/promptLocale";
 
 type Body = {
   emailOnboardingToken?: string;
@@ -23,10 +25,12 @@ type Body = {
   landingLocalId?: string;
   landingPath?: string;
   landingSource?: string;
+  locale?: string;
   mail?: string;
 };
 
 const CAREER_SIGNUP_EVENT_TYPE = "career_signup_completed";
+const OPS_CAREER_USER_URL_BASE = "https://matchharper.com/ops/career";
 const OFFICIAL_JOB_SOURCE_EVENT_TYPES = [
   "job_apply_click",
   "jobs_cta_click",
@@ -142,6 +146,9 @@ export async function POST(req: NextRequest) {
     const landingLocalId = normalizeOptionalText(body?.landingLocalId, 120);
     const landingPath = normalizeOptionalText(body?.landingPath, 500);
     const landingSource = normalizeCareerUtmSource(body?.landingSource);
+    const preferredLocale = normalizeCareerPromptLocale(
+      body?.locale ?? req.cookies.get("NEXT_LOCALE")?.value
+    );
     const mail = String(body?.mail ?? "").trim();
     const admin = getTalentSupabaseAdmin();
 
@@ -237,6 +244,11 @@ export async function POST(req: NextRequest) {
       admin,
       userId: user.id,
     });
+    await upsertTalentSetting({
+      admin,
+      preferredLocale,
+      userId: user.id,
+    });
 
     if (!existingTalentUser) {
       const signupSourceDetail = await resolveSignupSourceDetail({
@@ -294,6 +306,9 @@ export async function POST(req: NextRequest) {
               : []),
             ...(mail ? [{ label: "Mail alias", value: mail }] : []),
           ],
+          nameUrl: `${OPS_CAREER_USER_URL_BASE}?userId=${encodeURIComponent(
+            user.id
+          )}`,
           user,
         });
       } catch (slackError) {

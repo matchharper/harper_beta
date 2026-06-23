@@ -49,6 +49,7 @@ export const maxDuration = 240;
 type Body = {
   conversationId?: string;
   email?: string;
+  locale?: string;
   name?: string;
   resumeFileName?: string;
   resumeStoragePath?: string;
@@ -344,7 +345,8 @@ export async function POST(req: NextRequest) {
 
     const displayName = submittedName || toTalentDisplayName(user);
     const talentSetting = await fetchTalentSetting({ admin, userId: user.id });
-    const preferredLocale = talentSetting?.preferred_locale ?? cookieLocale;
+    const preferredLocale =
+      body.locale ?? talentSetting?.preferred_locale ?? cookieLocale;
     const kickoffLlmPromise = generateTalentKickoff({
       displayName,
       links,
@@ -658,7 +660,10 @@ export async function POST(req: NextRequest) {
     try {
       await notifySlackActivity({
         action: "/career/onboarding 제출 완료",
-        details: [{ label: "Device", value: getSlackActivityDeviceLabel(req) }],
+        details: [
+          { label: "Device", value: getSlackActivityDeviceLabel(req) },
+          { label: "Headline", value: profile?.headline },
+        ],
         email: submittedEmail || profile?.email || user.email,
         name: submittedName || profile?.name || displayName,
         user,

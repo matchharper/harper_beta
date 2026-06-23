@@ -6,6 +6,7 @@ import {
 import {
   fetchOpsMatchingFits,
   parseOpsMatchingFitLabels,
+  parseOpsMatchingHumanLabelFilters,
   parseOpsMatchingLimit,
   parseOpsMatchingOffset,
 } from "@/lib/ops/matching";
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest) {
   try {
     await requireInternalApiUser(req);
     const payload = await fetchOpsMatchingFits({
-      humanLabels: parseOpsMatchingFitLabels(
+      humanLabels: parseOpsMatchingHumanLabelFilters(
         req.nextUrl.searchParams.get("humanLabels")
       ),
       limit: parseOpsMatchingLimit(req.nextUrl.searchParams.get("limit")),

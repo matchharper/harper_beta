@@ -304,8 +304,10 @@ export async function POST(request: NextRequest) {
       typeof rawConversationStarterId === "string"
         ? (sanitizeSingleLineDbText(rawConversationStarterId, 120) ?? "")
         : "";
+    const requestLocale =
+      body.locale ?? request.cookies.get("NEXT_LOCALE")?.value;
     const conversationStarter = conversationStarterId
-      ? getCareerConversationStarterPrompt(conversationStarterId)
+      ? getCareerConversationStarterPrompt(conversationStarterId, requestLocale)
       : null;
     const internalCallRequestId =
       typeof rawInternalCallRequestId === "string"
@@ -363,8 +365,8 @@ export async function POST(request: NextRequest) {
         .maybeSingle(),
     ]);
     const responseLocale =
-      talentSetting?.preferred_locale ??
       body.locale ??
+      talentSetting?.preferred_locale ??
       request.cookies.get("NEXT_LOCALE")?.value;
     const durationLabel =
       safeDurationSeconds > 0

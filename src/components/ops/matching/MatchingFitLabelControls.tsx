@@ -3,6 +3,10 @@ import { BadgeCheck, Check, ChevronDown, LoaderCircle } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { BareButton } from "@/components/ui/button";
 import {
+  isOpsMatchingNoHumanLabelFilter,
+  OPS_MATCHING_NO_HUMAN_LABEL_FILTER_VALUE,
+} from "@/lib/ops/matchingFilters";
+import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
@@ -10,7 +14,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { OpsMatchingFitLabel } from "@/lib/ops/matching";
+import type {
+  OpsMatchingFitLabel,
+  OpsMatchingHumanLabelFilter,
+} from "@/lib/ops/matching";
 
 export const FIT_LABEL_OPTIONS = [
   { label: "적합", value: "fit" },
@@ -19,6 +26,11 @@ export const FIT_LABEL_OPTIONS = [
   { label: "불만족", value: "dissatisfied" },
   { label: "부적합", value: "unfit" },
 ] as const satisfies readonly { label: string; value: OpsMatchingFitLabel }[];
+
+const HUMAN_LABEL_MISSING_OPTION = {
+  label: "Human label 없음",
+  value: OPS_MATCHING_NO_HUMAN_LABEL_FILTER_VALUE,
+} as const;
 
 const FIT_LABEL_META: Record<
   string,
@@ -79,7 +91,24 @@ export function normalizeFitLabelFilters(values: readonly string[]) {
   return labels;
 }
 
+export function normalizeHumanLabelFilters(
+  values: readonly string[]
+): OpsMatchingHumanLabelFilter[] {
+  const labels = normalizeFitLabelFilters(values);
+  if (values.some(isOpsMatchingNoHumanLabelFilter)) {
+    return [OPS_MATCHING_NO_HUMAN_LABEL_FILTER_VALUE];
+  }
+  return labels;
+}
+
 export function getFitLabelMeta(label: string | null | undefined) {
+  if (isOpsMatchingNoHumanLabelFilter(label)) {
+    return {
+      className: "border-neutral-200 bg-neutral-50 text-neutral-700",
+      label: "없음",
+    };
+  }
+
   const normalized = normalizeFitLabel(label);
   return (
     FIT_LABEL_META[normalized] ?? {
@@ -112,29 +141,41 @@ export function FitLabelBadge({
 
 export function MatchingFitLabelFilter({
   emptyLabel,
+  includeMissingOption = false,
   onChange,
   selectedLabels,
 }: {
   emptyLabel: string;
-  onChange: (labels: OpsMatchingFitLabel[]) => void;
-  selectedLabels: OpsMatchingFitLabel[];
+  includeMissingOption?: boolean;
+  onChange: (labels: string[]) => void;
+  selectedLabels: string[];
 }) {
   const [open, setOpen] = useState(false);
-  const [draftLabels, setDraftLabels] = useState<OpsMatchingFitLabel[]>([]);
+  const [draftLabels, setDraftLabels] = useState<string[]>([]);
+  const options = includeMissingOption
+    ? [HUMAN_LABEL_MISSING_OPTION, ...FIT_LABEL_OPTIONS]
+    : FIT_LABEL_OPTIONS;
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (nextOpen) setDraftLabels(selectedLabels);
     setOpen(nextOpen);
   };
 
-  const toggleDraftLabel = (label: OpsMatchingFitLabel, checked: boolean) => {
+  const toggleDraftLabel = (label: string, checked: boolean) => {
     setDraftLabels((current) => {
+      if (includeMissingOption && isOpsMatchingNoHumanLabelFilter(label)) {
+        return checked ? [OPS_MATCHING_NO_HUMAN_LABEL_FILTER_VALUE] : [];
+      }
+
       const next = new Set(current);
+      if (includeMissingOption) {
+        next.delete(OPS_MATCHING_NO_HUMAN_LABEL_FILTER_VALUE);
+      }
       if (checked) next.add(label);
       else next.delete(label);
-      return FIT_LABEL_OPTIONS.map((option) => option.value).filter((value) =>
-        next.has(value)
-      );
+      return options
+        .map((option) => option.value)
+        .filter((value) => next.has(value));
     });
   };
 
@@ -165,7 +206,7 @@ export function MatchingFitLabelFilter({
         </BareButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-48">
-        {FIT_LABEL_OPTIONS.map((option) => (
+        {options.map((option) => (
           <DropdownMenuCheckboxItem
             key={option.value}
             checked={draftLabels.includes(option.value)}
@@ -210,7 +251,7 @@ export function MatchingFitLabelChips({
   labels,
   prefix,
 }: {
-  labels: OpsMatchingFitLabel[];
+  labels: string[];
   prefix: string;
 }) {
   if (labels.length === 0) return null;
@@ -237,19 +278,31 @@ function formatJsonValue(value: unknown) {
 
 export function FitReasonCell({
   criteria,
+  expanded = false,
   reason,
 }: {
   criteria: unknown;
+  expanded?: boolean;
   reason: string | null;
 }) {
   const criteriaText = formatJsonValue(criteria);
   return (
     <div className="space-y-2">
-      <div className="line-clamp-4 whitespace-pre-wrap break-words text-[12px] leading-5 text-neutral-muted">
+      <div
+        className={cx(
+          "whitespace-pre-wrap break-words text-[13px] leading-5 text-neutral-900",
+          expanded ? "" : "line-clamp-4"
+        )}
+      >
         {reason || "-"}
       </div>
       {criteriaText ? (
-        <pre className="max-h-32 overflow-auto whitespace-pre-wrap break-words rounded bg-bg-weak p-2 font-sans text-[11px] leading-5 text-neutral-soft">
+        <pre
+          className={cx(
+            "overflow-auto whitespace-pre-wrap break-words rounded bg-bg-weak p-2 font-sans text-[11px] leading-5 text-neutral-soft",
+            expanded ? "max-h-64" : "max-h-32"
+          )}
+        >
           {criteriaText}
         </pre>
       ) : null}

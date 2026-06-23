@@ -21,7 +21,7 @@ import type { CareerProfileVisibility } from "@/hooks/career/useCareerTalentSett
 import type {
   CareerConversationStarterId,
   CareerConversationStarterMode,
-} from "@/lib/career/conversationStarters";
+} from "@/lib/career/prompts/conversationStarters";
 import type { TalentCompanyWatchlistItem } from "@/lib/career/companyWatchlist";
 
 export type CareerCompanyFollowActionResult = {
@@ -83,6 +83,7 @@ export type CareerSidebarContextValue = {
     mode: CareerConversationStarterMode;
     starterId: CareerConversationStarterId;
   }) => boolean | Promise<boolean>;
+  onRequestMoreOpenPositions?: () => boolean | Promise<boolean>;
   recentOpportunities: CareerRecentOpportunity[];
   pendingInternalOpportunityCallRequest?: CareerInternalOpportunityCallRequest | null;
   pendingInternalOpportunityCallRequests?: CareerInternalOpportunityCallRequest[];
@@ -155,7 +156,9 @@ export type CareerSidebarContextValue = {
   onSaveTalentProfile: (args?: {
     structuredProfile?: CareerTalentProfile | null;
   }) => boolean | Promise<boolean>;
-  onRefreshTalentProfileSources: () => boolean | Promise<boolean>;
+  onRefreshTalentProfileSources: (args?: {
+    links?: string[];
+  }) => boolean | Promise<boolean>;
   talentProfile: CareerTalentProfile;
   talentPreferences: CareerTalentPreferences | null;
   talentInsights: CareerTalentInsights | null;

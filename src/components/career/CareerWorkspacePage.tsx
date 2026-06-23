@@ -12,6 +12,7 @@ import {
   getCareerWorkspaceTabFromPath,
   type CareerWorkspaceTab,
 } from "@/components/career/CareerWorkspaceNav";
+import type { CareerOpportunitySavedStage } from "@/components/career/types";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useCareerVisitLog } from "@/hooks/career/useCareerVisitLog";
@@ -95,7 +96,7 @@ const CareerWorkspacePage = ({
       options?: {
         historyTarget?: {
           historyTab: "new" | "saved" | "archived";
-          savedStage?: "saved" | "applied" | "connected" | "closed";
+          savedStage?: CareerOpportunitySavedStage;
         };
       }
     ) => {

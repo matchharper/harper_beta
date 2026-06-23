@@ -1,7 +1,10 @@
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
+import { getInsightLabel } from "@/lib/talentOnboarding/insightChecklist";
 import {
   isOpsMatchingExcludeNotInterestedFilter,
+  isOpsMatchingNoHumanLabelFilter,
   isOpsMatchingNoTagFilter,
+  OPS_MATCHING_NO_HUMAN_LABEL_FILTER_VALUE,
 } from "@/lib/ops/matchingFilters";
 import type { Database } from "@/types/database.types";
 
@@ -20,11 +23,34 @@ type TalentUserRow = Pick<
 >;
 type TalentExperienceRow = Pick<
   Database["public"]["Tables"]["talent_experiences"]["Row"],
-  "company_name" | "end_date" | "id" | "role" | "start_date" | "talent_id"
+  | "company_name"
+  | "description"
+  | "employment_type"
+  | "end_date"
+  | "id"
+  | "role"
+  | "start_date"
+  | "talent_id"
 >;
 type TalentEducationRow = Pick<
   Database["public"]["Tables"]["talent_educations"]["Row"],
-  "degree" | "end_date" | "field" | "id" | "school" | "start_date" | "talent_id"
+  | "degree"
+  | "description"
+  | "end_date"
+  | "field"
+  | "id"
+  | "school"
+  | "start_date"
+  | "talent_id"
+  | "url"
+>;
+type TalentExtraRow = Pick<
+  Database["public"]["Tables"]["talent_extras"]["Row"],
+  "content" | "talent_id"
+>;
+type TalentInsightRow = Pick<
+  Database["public"]["Tables"]["talent_insights"]["Row"],
+  "content" | "talent_id"
 >;
 type TalentOpportunityTagRow = {
   created_at: string;
@@ -76,6 +102,23 @@ type TalentRecommendationForFitRow = Pick<
   Database["public"]["Tables"]["talent_opportunity_recommendation"]["Row"],
   "created_at" | "id" | "recommended_at" | "role_id" | "talent_id"
 >;
+type TalentRecommendationHistoryRow = Pick<
+  Database["public"]["Tables"]["talent_opportunity_recommendation"]["Row"],
+  | "created_at"
+  | "discovery_run_id"
+  | "feedback"
+  | "feedback_at"
+  | "feedback_reason"
+  | "fit_summary"
+  | "id"
+  | "processed_stage"
+  | "recommended_at"
+  | "role_id"
+  | "saved_stage"
+  | "score"
+  | "talent_id"
+  | "updated_at"
+>;
 type TalentOpportunityFitRecordRow = Pick<
   Database["public"]["Tables"]["talent_opportunity_fit"]["Row"],
   | "created_at"
@@ -107,6 +150,9 @@ const MAX_MATCHING_FIT_SEARCH_IDS = 500;
 const MAX_MATCHING_FIT_RECOMMENDATION_ROWS = 1000;
 const MAX_MATCHING_PROGRESS_TEXT_LENGTH = 2000;
 const MAX_MATCHING_RECOMMENDATION_DELIVERY_ITEMS = 5;
+const MAX_MATCHING_TALENT_HISTORY_ITEMS = 5;
+const MAX_MATCHING_TALENT_HISTORY_ROWS = 1000;
+const MAX_MATCHING_TALENT_HISTORY_TALENTS = 100;
 const MATCHING_ID_FILTER_CHUNK_SIZE = 80;
 const OPS_MATCHING_FIT_LABELS = [
   "ambiguous",
@@ -116,6 +162,13 @@ const OPS_MATCHING_FIT_LABELS = [
   "unfit",
 ] as const;
 const OPS_MATCHING_FIT_LABEL_SET = new Set<string>(OPS_MATCHING_FIT_LABELS);
+const OPS_MATCHING_TALENT_HISTORY_SECTIONS = [
+  "external_positive",
+  "internal_recommendations",
+] as const;
+const OPS_MATCHING_TALENT_HISTORY_SECTION_SET = new Set<string>(
+  OPS_MATCHING_TALENT_HISTORY_SECTIONS
+);
 const ACTIVE_ROLE_STATUSES = new Set(["active", "top_priority"]);
 const MATCHING_REVIEW_STAGE_TAG_BY_STAGE = {
   accepted: "내부:수락",
@@ -168,6 +221,83 @@ export type OpsMatchingProfileLabel = {
   period: string | null;
 };
 
+export type OpsMatchingProfileExperience = {
+  companyName: string | null;
+  description: string | null;
+  employmentType: string | null;
+  period: string | null;
+  role: string | null;
+};
+
+export type OpsMatchingProfileEducation = {
+  degree: string | null;
+  description: string | null;
+  field: string | null;
+  period: string | null;
+  school: string | null;
+  url: string | null;
+};
+
+export type OpsMatchingProfileExtra = {
+  date: string | null;
+  description: string | null;
+  title: string | null;
+};
+
+export type OpsMatchingTalentInsight = {
+  key: string;
+  label: string;
+  value: string;
+};
+
+export type OpsMatchingRecommendationResponseStatus =
+  | "accepted"
+  | "no_response"
+  | "rejected";
+
+export type OpsMatchingTalentHistorySection =
+  (typeof OPS_MATCHING_TALENT_HISTORY_SECTIONS)[number];
+
+export type OpsMatchingTalentExternalPositiveOpportunity = {
+  companyName: string | null;
+  feedback: string | null;
+  feedbackAt: string | null;
+  feedbackReason: string | null;
+  fitSummary: string | null;
+  recommendationId: string;
+  recommendedAt: string;
+  responseStatus: OpsMatchingRecommendationResponseStatus;
+  roleId: string;
+  roleName: string | null;
+  score: number | null;
+};
+
+export type OpsMatchingTalentInternalRecommendationHistoryItem = {
+  companyName: string | null;
+  discoveryRunId: string | null;
+  feedback: string | null;
+  feedbackAt: string | null;
+  feedbackReason: string | null;
+  fitSummary: string | null;
+  recommendationId: string;
+  recommendedAt: string;
+  responseStatus: OpsMatchingRecommendationResponseStatus;
+  roleId: string;
+  roleName: string | null;
+  score: number | null;
+};
+
+export type OpsMatchingTalentHistoryItem = {
+  externalPositiveOpportunities: OpsMatchingTalentExternalPositiveOpportunity[];
+  internalRecommendations: OpsMatchingTalentInternalRecommendationHistoryItem[];
+  talentId: string;
+};
+
+export type OpsMatchingTalentHistoryResponse = {
+  items: OpsMatchingTalentHistoryItem[];
+  talentIds: string[];
+};
+
 export type OpsMatchingTalentTag = {
   id: string;
   tag: string;
@@ -211,10 +341,14 @@ export type OpsMatchingTalentItem = {
   createdAt: string | null;
   description: string | null;
   email: string | null;
+  experiences: OpsMatchingProfileExperience[];
   fit: OpsMatchingTalentFitSummary | null;
   hasSubmittedMaterial: boolean;
   headline: string | null;
+  insights: OpsMatchingTalentInsight[];
   isOnboardingDone: boolean;
+  educations: OpsMatchingProfileEducation[];
+  extras: OpsMatchingProfileExtra[];
   latestCompany: OpsMatchingProfileLabel | null;
   latestSchool: OpsMatchingProfileLabel | null;
   memoPreview: string | null;
@@ -314,6 +448,9 @@ export type OpsMatchingFitRole = {
 };
 
 export type OpsMatchingFitLabel = (typeof OPS_MATCHING_FIT_LABELS)[number];
+export type OpsMatchingHumanLabelFilter =
+  | OpsMatchingFitLabel
+  | typeof OPS_MATCHING_NO_HUMAN_LABEL_FILTER_VALUE;
 
 export type OpsMatchingFitRecommendation = {
   createdAt: string;
@@ -531,6 +668,28 @@ function getJsonString(record: Record<string, unknown> | null, key: string) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+function normalizePrimitiveText(value: unknown) {
+  if (
+    typeof value !== "string" &&
+    typeof value !== "number" &&
+    typeof value !== "boolean"
+  ) {
+    return null;
+  }
+  return normalizeNullableText(String(value));
+}
+
+function getRecordPrimitiveText(
+  record: Record<string, unknown>,
+  keys: string[]
+) {
+  for (const key of keys) {
+    const text = normalizePrimitiveText(record[key]);
+    if (text) return text;
+  }
+  return null;
+}
+
 function isManualInternalRecommendationPayload(value: unknown) {
   const payload = parseJsonRecord(value);
   if (!payload) return false;
@@ -631,6 +790,61 @@ export function parseOpsMatchingFitLabels(value: string | null) {
   );
 }
 
+export function parseOpsMatchingHumanLabelFilters(
+  value: string | null
+): OpsMatchingHumanLabelFilter[] {
+  const seen = new Set<string>();
+  const labels: OpsMatchingHumanLabelFilter[] = [];
+
+  for (const rawLabel of String(value ?? "").split(",")) {
+    const normalized = normalizeText(rawLabel).toLowerCase();
+    if (!normalized || seen.has(normalized)) continue;
+
+    if (isOpsMatchingNoHumanLabelFilter(normalized)) {
+      return [OPS_MATCHING_NO_HUMAN_LABEL_FILTER_VALUE];
+    }
+
+    if (OPS_MATCHING_FIT_LABEL_SET.has(normalized)) {
+      seen.add(normalized);
+      labels.push(normalized as OpsMatchingFitLabel);
+    }
+  }
+
+  return labels;
+}
+
+export function parseOpsMatchingTalentHistorySections(
+  value: string | null
+): OpsMatchingTalentHistorySection[] {
+  const seen = new Set<string>();
+  const sections: OpsMatchingTalentHistorySection[] = [];
+
+  for (const rawSection of String(value ?? "").split(",")) {
+    const section = normalizeText(rawSection).toLowerCase();
+    if (!section || seen.has(section)) continue;
+    if (!OPS_MATCHING_TALENT_HISTORY_SECTION_SET.has(section)) continue;
+    seen.add(section);
+    sections.push(section as OpsMatchingTalentHistorySection);
+  }
+
+  return sections;
+}
+
+export function parseOpsMatchingTalentIds(value: string | null) {
+  const seen = new Set<string>();
+  const talentIds: string[] = [];
+
+  for (const rawTalentId of String(value ?? "").split(",")) {
+    const talentId = normalizeText(rawTalentId);
+    if (!talentId || seen.has(talentId)) continue;
+    seen.add(talentId);
+    talentIds.push(talentId);
+    if (talentIds.length >= MAX_MATCHING_TALENT_HISTORY_TALENTS) break;
+  }
+
+  return talentIds;
+}
+
 export function parseOpsMatchingTalentPoolTab(
   value: string | null
 ): OpsMatchingTalentPoolTabId {
@@ -660,6 +874,32 @@ function normalizeDateRange(args: {
   return {
     startIso: startDate ? toKstDayStartIso(startDate) : null,
     endExclusiveIso: endDate ? toKstNextDayStartIso(endDate) : null,
+  };
+}
+
+function normalizeHumanLabelFilterState(
+  values: readonly OpsMatchingHumanLabelFilter[] | undefined
+) {
+  const labels = Array.from(
+    new Set(
+      (values ?? []).filter(
+        (label): label is OpsMatchingFitLabel =>
+          !isOpsMatchingNoHumanLabelFilter(label) &&
+          OPS_MATCHING_FIT_LABEL_SET.has(label)
+      )
+    )
+  );
+  const includeMissing = (values ?? []).some(isOpsMatchingNoHumanLabelFilter);
+  if (includeMissing) {
+    return {
+      includeMissing: true,
+      labels: [] as OpsMatchingFitLabel[],
+    };
+  }
+
+  return {
+    includeMissing: false,
+    labels,
   };
 }
 
@@ -743,6 +983,122 @@ function buildEducationLabel(
       startDate: row.start_date,
     }),
   };
+}
+
+function buildExperienceProfile(
+  row: TalentExperienceRow
+): OpsMatchingProfileExperience | null {
+  const companyName = normalizeNullableText(row.company_name);
+  const role = normalizeNullableText(row.role);
+  const description = normalizeNullableText(row.description);
+  const employmentType = normalizeNullableText(row.employment_type);
+  const period = formatPeriod({
+    endDate: row.end_date,
+    startDate: row.start_date,
+  });
+  if (!companyName && !role && !description && !employmentType && !period) {
+    return null;
+  }
+  return {
+    companyName,
+    description,
+    employmentType,
+    period,
+    role,
+  };
+}
+
+function buildEducationProfile(
+  row: TalentEducationRow
+): OpsMatchingProfileEducation | null {
+  const degree = normalizeNullableText(row.degree);
+  const description = normalizeNullableText(row.description);
+  const field = normalizeNullableText(row.field);
+  const period = formatPeriod({
+    endDate: row.end_date,
+    startDate: row.start_date,
+  });
+  const school = normalizeNullableText(row.school);
+  const url = normalizeNullableText(row.url);
+  if (!degree && !description && !field && !period && !school && !url) {
+    return null;
+  }
+  return {
+    degree,
+    description,
+    field,
+    period,
+    school,
+    url,
+  };
+}
+
+function getProfileExtraEntries(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  const record = parseJsonRecord(value);
+  if (!record) return [];
+  const listKeys = ["extras", "items", "projects", "activities"];
+  for (const key of listKeys) {
+    const list = record[key];
+    if (Array.isArray(list)) return list;
+  }
+  return [record];
+}
+
+function normalizeProfileExtras(value: unknown): OpsMatchingProfileExtra[] {
+  return getProfileExtraEntries(value)
+    .map((entry) => {
+      if (typeof entry === "string") {
+        const description = normalizeNullableText(entry);
+        return description ? { date: null, description, title: null } : null;
+      }
+      if (!isRecord(entry)) return null;
+      const title = getRecordPrimitiveText(entry, ["title", "name", "label"]);
+      const date = getRecordPrimitiveText(entry, ["date", "period", "year"]);
+      const description = getRecordPrimitiveText(entry, [
+        "description",
+        "content",
+        "text",
+        "summary",
+      ]);
+      if (!title && !date && !description) return null;
+      return { date, description, title };
+    })
+    .filter((extra): extra is OpsMatchingProfileExtra => extra !== null);
+}
+
+function formatInsightValue(value: unknown) {
+  const primitiveText = normalizePrimitiveText(value);
+  if (primitiveText) return primitiveText;
+  if (Array.isArray(value)) {
+    return value.map(normalizePrimitiveText).filter(Boolean).join(", ");
+  }
+  if (!isRecord(value)) return "";
+  return (
+    getRecordPrimitiveText(value, [
+      "value",
+      "answer",
+      "description",
+      "summary",
+      "text",
+    ]) ?? ""
+  );
+}
+
+function normalizeTalentInsights(value: unknown): OpsMatchingTalentInsight[] {
+  const record = parseJsonRecord(value);
+  if (!record) return [];
+  return Object.entries(record)
+    .map(([key, rawValue]) => {
+      const insightValue = formatInsightValue(rawValue);
+      if (!insightValue) return null;
+      return {
+        key,
+        label: getInsightLabel(key),
+        value: insightValue,
+      };
+    })
+    .filter((insight): insight is OpsMatchingTalentInsight => insight !== null);
 }
 
 function getHasActiveRole(status: string | null | undefined) {
@@ -892,6 +1248,7 @@ async function fetchSearchMatchedTalentIds(args: {
 
 async function loadRoleFitRows(args: {
   admin: AdminClient;
+  humanLabelMissing: boolean;
   humanLabels: OpsMatchingFitLabel[];
   limit: number;
   llmLabels: OpsMatchingFitLabel[];
@@ -908,6 +1265,9 @@ async function loadRoleFitRows(args: {
 
   if (args.llmLabels.length > 0) {
     fitQuery = fitQuery.in("label", args.llmLabels);
+  }
+  if (args.humanLabelMissing) {
+    fitQuery = fitQuery.is("human_label", null);
   }
   if (args.humanLabels.length > 0) {
     fitQuery = fitQuery.in("human_label", args.humanLabels);
@@ -1045,21 +1405,34 @@ async function fetchProfileMaps(args: {
 }) {
   const companyMap = new Map<string, OpsMatchingProfileLabel[]>();
   const schoolMap = new Map<string, OpsMatchingProfileLabel[]>();
-  if (args.talentIds.length === 0) return { companyMap, schoolMap };
+  const experienceMap = new Map<string, OpsMatchingProfileExperience[]>();
+  const educationMap = new Map<string, OpsMatchingProfileEducation[]>();
+  const extraMap = new Map<string, OpsMatchingProfileExtra[]>();
+  if (args.talentIds.length === 0) {
+    return { companyMap, educationMap, experienceMap, extraMap, schoolMap };
+  }
 
-  const [experienceResult, educationResult] = await Promise.all([
+  const [experienceResult, educationResult, extraResult] = await Promise.all([
     args.admin
       .from("talent_experiences")
-      .select("id, talent_id, company_name, role, start_date, end_date")
+      .select(
+        "id, talent_id, company_name, role, employment_type, description, start_date, end_date"
+      )
       .in("talent_id", args.talentIds)
       .order("start_date", { ascending: false, nullsFirst: false })
       .order("id", { ascending: false }),
     args.admin
       .from("talent_educations")
-      .select("id, talent_id, school, degree, field, start_date, end_date")
+      .select(
+        "id, talent_id, school, degree, field, description, url, start_date, end_date"
+      )
       .in("talent_id", args.talentIds)
       .order("start_date", { ascending: false, nullsFirst: false })
       .order("id", { ascending: false }),
+    args.admin
+      .from("talent_extras")
+      .select("talent_id, content")
+      .in("talent_id", args.talentIds),
   ]);
 
   if (experienceResult.error) {
@@ -1072,24 +1445,273 @@ async function fetchProfileMaps(args: {
       educationResult.error.message ?? "Failed to load talent educations"
     );
   }
+  if (extraResult.error) {
+    throw new Error(
+      extraResult.error.message ?? "Failed to load talent extras"
+    );
+  }
 
   for (const row of (experienceResult.data ?? []) as TalentExperienceRow[]) {
     const label = buildExperienceLabel(row);
-    if (!label) continue;
-    const list = companyMap.get(row.talent_id) ?? [];
-    list.push(label);
-    companyMap.set(row.talent_id, list);
+    if (label) {
+      const list = companyMap.get(row.talent_id) ?? [];
+      list.push(label);
+      companyMap.set(row.talent_id, list);
+    }
+    const experience = buildExperienceProfile(row);
+    if (experience) {
+      const list = experienceMap.get(row.talent_id) ?? [];
+      list.push(experience);
+      experienceMap.set(row.talent_id, list);
+    }
   }
 
   for (const row of (educationResult.data ?? []) as TalentEducationRow[]) {
     const label = buildEducationLabel(row);
-    if (!label) continue;
-    const list = schoolMap.get(row.talent_id) ?? [];
-    list.push(label);
-    schoolMap.set(row.talent_id, list);
+    if (label) {
+      const list = schoolMap.get(row.talent_id) ?? [];
+      list.push(label);
+      schoolMap.set(row.talent_id, list);
+    }
+    const education = buildEducationProfile(row);
+    if (education) {
+      const list = educationMap.get(row.talent_id) ?? [];
+      list.push(education);
+      educationMap.set(row.talent_id, list);
+    }
   }
 
-  return { companyMap, schoolMap };
+  for (const row of (extraResult.data ?? []) as TalentExtraRow[]) {
+    const extras = normalizeProfileExtras(row.content);
+    if (extras.length > 0) {
+      extraMap.set(row.talent_id, extras);
+    }
+  }
+
+  return { companyMap, educationMap, experienceMap, extraMap, schoolMap };
+}
+
+async function fetchInsightMap(args: {
+  admin: AdminClient;
+  talentIds: string[];
+}) {
+  const insightMap = new Map<string, OpsMatchingTalentInsight[]>();
+  if (args.talentIds.length === 0) return insightMap;
+
+  const { data, error } = await args.admin
+    .from("talent_insights")
+    .select("talent_id, content")
+    .in("talent_id", args.talentIds);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load talent insights");
+  }
+
+  for (const row of (data ?? []) as TalentInsightRow[]) {
+    const talentId = normalizeText(row.talent_id);
+    if (!talentId) continue;
+    const nextInsights = normalizeTalentInsights(row.content);
+    if (nextInsights.length === 0) continue;
+    const existing = insightMap.get(talentId) ?? [];
+    const existingKeys = new Set(existing.map((insight) => insight.key));
+    const merged = [
+      ...existing,
+      ...nextInsights.filter((insight) => !existingKeys.has(insight.key)),
+    ];
+    insightMap.set(talentId, merged);
+  }
+
+  return insightMap;
+}
+
+function isPositiveRecommendationRow(row: TalentRecommendationHistoryRow) {
+  return (
+    isAcceptedFeedback(row.feedback) ||
+    normalizeText(row.saved_stage) === "accepted" ||
+    normalizeText(row.processed_stage) === "accepted"
+  );
+}
+
+function getRecommendationPositiveSortTime(
+  row: TalentRecommendationHistoryRow
+) {
+  return row.feedback_at ?? row.recommended_at ?? row.created_at;
+}
+
+function getRecommendationResponseStatus(
+  row: TalentRecommendationHistoryRow
+): OpsMatchingRecommendationResponseStatus {
+  const savedStage = normalizeText(row.saved_stage).toLowerCase();
+  const processedStage = normalizeText(row.processed_stage).toLowerCase();
+
+  if (
+    isAcceptedFeedback(row.feedback) ||
+    savedStage === "accepted" ||
+    processedStage === "accepted"
+  ) {
+    return "accepted";
+  }
+
+  if (
+    isRejectedFeedback(row.feedback) ||
+    savedStage === "rejected" ||
+    savedStage === "archived" ||
+    processedStage === "rejected" ||
+    processedStage === "archived"
+  ) {
+    return "rejected";
+  }
+
+  return "no_response";
+}
+
+function buildExternalPositiveOpportunity(args: {
+  role: CompanyRoleName | undefined;
+  row: TalentRecommendationHistoryRow;
+}): OpsMatchingTalentExternalPositiveOpportunity {
+  return {
+    companyName: args.role?.companyName ?? null,
+    feedback: normalizeNullableText(args.row.feedback),
+    feedbackAt: args.row.feedback_at,
+    feedbackReason: normalizeNullableText(args.row.feedback_reason),
+    fitSummary: normalizeNullableText(args.row.fit_summary),
+    recommendationId: args.row.id,
+    recommendedAt: args.row.recommended_at,
+    responseStatus: getRecommendationResponseStatus(args.row),
+    roleId: args.row.role_id,
+    roleName: args.role?.roleName ?? null,
+    score: typeof args.row.score === "number" ? args.row.score : null,
+  };
+}
+
+function buildInternalRecommendationHistoryItem(args: {
+  role: CompanyRoleName | undefined;
+  row: TalentRecommendationHistoryRow;
+}): OpsMatchingTalentInternalRecommendationHistoryItem {
+  return {
+    companyName: args.role?.companyName ?? null,
+    discoveryRunId: args.row.discovery_run_id ?? null,
+    feedback: normalizeNullableText(args.row.feedback),
+    feedbackAt: args.row.feedback_at,
+    feedbackReason: normalizeNullableText(args.row.feedback_reason),
+    fitSummary: normalizeNullableText(args.row.fit_summary),
+    recommendationId: args.row.id,
+    recommendedAt: args.row.recommended_at,
+    responseStatus: getRecommendationResponseStatus(args.row),
+    roleId: args.row.role_id,
+    roleName: args.role?.roleName ?? null,
+    score: typeof args.row.score === "number" ? args.row.score : null,
+  };
+}
+
+export async function fetchOpsMatchingTalentHistory(args: {
+  sections?: OpsMatchingTalentHistorySection[];
+  talentIds: string[];
+}): Promise<OpsMatchingTalentHistoryResponse> {
+  const talentIds = parseOpsMatchingTalentIds(args.talentIds.join(","));
+  const sections = new Set(args.sections ?? []);
+  const wantsExternalPositive = sections.has("external_positive");
+  const wantsInternalRecommendations = sections.has("internal_recommendations");
+  const itemMap = new Map<string, OpsMatchingTalentHistoryItem>(
+    talentIds.map((talentId) => [
+      talentId,
+      {
+        externalPositiveOpportunities: [],
+        internalRecommendations: [],
+        talentId,
+      },
+    ])
+  );
+
+  if (
+    talentIds.length === 0 ||
+    (!wantsExternalPositive && !wantsInternalRecommendations)
+  ) {
+    return {
+      items: Array.from(itemMap.values()),
+      talentIds,
+    };
+  }
+
+  const admin = getSupabaseAdmin();
+  let query = admin
+    .from("talent_opportunity_recommendation")
+    .select(
+      "id, talent_id, role_id, discovery_run_id, feedback, feedback_at, feedback_reason, fit_summary, score, recommended_at, created_at, updated_at, processed_stage, saved_stage"
+    )
+    .in("talent_id", talentIds)
+    .order("recommended_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false, nullsFirst: false })
+    .limit(
+      Math.max(
+        50,
+        Math.min(talentIds.length * 50, MAX_MATCHING_TALENT_HISTORY_ROWS)
+      )
+    );
+
+  if (wantsExternalPositive && !wantsInternalRecommendations) {
+    query = query.or(
+      "feedback.in.(like,positive),saved_stage.eq.accepted,processed_stage.eq.accepted"
+    );
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load matching talent history");
+  }
+
+  const rows = ((data ?? []) as TalentRecommendationHistoryRow[]).sort(
+    (left, right) =>
+      getRecommendationPositiveSortTime(right).localeCompare(
+        getRecommendationPositiveSortTime(left)
+      )
+  );
+  const manualRunIds = await fetchManualInternalRecommendationRunIds({
+    admin,
+    runIds: rows.map((row) => row.discovery_run_id ?? ""),
+  });
+  const roleIds = Array.from(
+    new Set(rows.map((row) => normalizeText(row.role_id)).filter(Boolean))
+  );
+  const roleMap = await fetchRoleNameMap({ admin, roleIds });
+
+  for (const row of rows) {
+    const talentId = normalizeText(row.talent_id);
+    const item = itemMap.get(talentId);
+    if (!item) continue;
+    const discoveryRunId = row.discovery_run_id ?? null;
+    const isManualInternal =
+      discoveryRunId !== null && manualRunIds.has(discoveryRunId);
+    const role = roleMap.get(row.role_id);
+
+    if (
+      wantsExternalPositive &&
+      !isManualInternal &&
+      isPositiveRecommendationRow(row) &&
+      item.externalPositiveOpportunities.length <
+        MAX_MATCHING_TALENT_HISTORY_ITEMS
+    ) {
+      item.externalPositiveOpportunities.push(
+        buildExternalPositiveOpportunity({ role, row })
+      );
+    }
+
+    if (
+      wantsInternalRecommendations &&
+      isManualInternal &&
+      item.internalRecommendations.length < MAX_MATCHING_TALENT_HISTORY_ITEMS
+    ) {
+      item.internalRecommendations.push(
+        buildInternalRecommendationHistoryItem({ role, row })
+      );
+    }
+  }
+
+  return {
+    items: Array.from(itemMap.values()),
+    talentIds,
+  };
 }
 
 async function loadTalentRowsByIds(args: {
@@ -1349,6 +1971,7 @@ async function buildOpsMatchingTalentItems(args: {
     scopedTagMap,
     talentTagMap,
     profileMaps,
+    insightMap,
     onboardingDoneMap,
   ] = await Promise.all([
     fetchMemoPreviewMap({ admin: args.admin, talentIds }),
@@ -1357,6 +1980,7 @@ async function buildOpsMatchingTalentItems(args: {
       ? fetchTagMap({ admin: args.admin, roleId: null, talentIds })
       : scopedTagsPromise,
     fetchProfileMaps({ admin: args.admin, talentIds }),
+    fetchInsightMap({ admin: args.admin, talentIds }),
     fetchOnboardingDoneMap({ admin: args.admin, talentIds }),
   ]);
 
@@ -1367,9 +1991,13 @@ async function buildOpsMatchingTalentItems(args: {
       createdAt: row.created_at,
       description: null,
       email: row.email,
+      educations: profileMaps.educationMap.get(row.user_id) ?? [],
+      experiences: profileMaps.experienceMap.get(row.user_id) ?? [],
+      extras: profileMaps.extraMap.get(row.user_id) ?? [],
       fit: args.fitMap?.get(row.user_id) ?? null,
       hasSubmittedMaterial: hasSubmittedMaterial(row),
       headline: row.headline,
+      insights: insightMap.get(row.user_id) ?? [],
       isOnboardingDone: onboardingDoneMap.get(row.user_id) ?? false,
       latestCompany: recentCompanies[0] ?? null,
       latestSchool: recentSchools[0] ?? null,
@@ -1531,7 +2159,7 @@ export async function fetchOpsMatchingRoles(args: {
 export async function fetchOpsMatchingTalents(args: {
   createdFrom?: string | null;
   excludeRecommended?: boolean;
-  humanLabels?: OpsMatchingFitLabel[];
+  humanLabels?: OpsMatchingHumanLabelFilter[];
   createdTo?: string | null;
   limit?: number;
   llmLabels?: OpsMatchingFitLabel[];
@@ -1554,7 +2182,9 @@ export async function fetchOpsMatchingTalents(args: {
   const searchQuery = normalizeText(args.query).toLowerCase();
   const excludeRecommended = Boolean(args.excludeRecommended);
   const llmLabels = Array.from(new Set(args.llmLabels ?? []));
-  const humanLabels = Array.from(new Set(args.humanLabels ?? []));
+  const humanLabelFilterState = normalizeHumanLabelFilterState(
+    args.humanLabels
+  );
   const tags = Array.from(new Set((args.tags ?? []).map(normalizeTag))).filter(
     Boolean
   );
@@ -1604,7 +2234,8 @@ export async function fetchOpsMatchingTalents(args: {
       : Promise.resolve(null),
     loadRoleFitRows({
       admin,
-      humanLabels,
+      humanLabelMissing: humanLabelFilterState.includeMissing,
+      humanLabels: humanLabelFilterState.labels,
       limit,
       llmLabels,
       offset,
@@ -1833,9 +2464,13 @@ function buildFallbackOpsMatchingTalentItem(talentId: string) {
     createdAt: null,
     description: null,
     email: null,
+    educations: [],
+    experiences: [],
+    extras: [],
     fit: null,
     hasSubmittedMaterial: false,
     headline: null,
+    insights: [],
     isOnboardingDone: false,
     latestCompany: null,
     latestSchool: null,
@@ -1990,7 +2625,7 @@ async function buildOpsMatchingFitItems(args: {
 }
 
 export async function fetchOpsMatchingFits(args: {
-  humanLabels?: OpsMatchingFitLabel[];
+  humanLabels?: OpsMatchingHumanLabelFilter[];
   limit?: number;
   llmLabels?: OpsMatchingFitLabel[];
   offset?: number;
@@ -2006,7 +2641,9 @@ export async function fetchOpsMatchingFits(args: {
   const offset = Math.max(0, args.offset ?? 0);
   const searchQuery = normalizeText(args.query);
   const llmLabels = Array.from(new Set(args.llmLabels ?? []));
-  const humanLabels = Array.from(new Set(args.humanLabels ?? []));
+  const humanLabelFilterState = normalizeHumanLabelFilterState(
+    args.humanLabels
+  );
   const admin = getSupabaseAdmin();
 
   let fitQuery = fromOpsMatchingTable(admin, "talent_opportunity_fit").select(
@@ -2038,8 +2675,11 @@ export async function fetchOpsMatchingFits(args: {
   if (llmLabels.length > 0) {
     fitQuery = fitQuery.in("label", llmLabels);
   }
-  if (humanLabels.length > 0) {
-    fitQuery = fitQuery.in("human_label", humanLabels);
+  if (humanLabelFilterState.includeMissing) {
+    fitQuery = fitQuery.is("human_label", null);
+  }
+  if (humanLabelFilterState.labels.length > 0) {
+    fitQuery = fitQuery.in("human_label", humanLabelFilterState.labels);
   }
 
   const { data, error, count } = await fitQuery

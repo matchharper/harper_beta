@@ -5693,8 +5693,6 @@ export type Database = {
           last_logined_at: string | null
           location: string | null
           name: string | null
-          network_source_talent_id: string | null
-          network_waitlist_id: number | null
           profile_picture: string | null
           resume_file_name: string | null
           resume_links: string[]
@@ -5711,8 +5709,6 @@ export type Database = {
           last_logined_at?: string | null
           location?: string | null
           name?: string | null
-          network_source_talent_id?: string | null
-          network_waitlist_id?: number | null
           profile_picture?: string | null
           resume_file_name?: string | null
           resume_links?: string[]
@@ -5729,8 +5725,6 @@ export type Database = {
           last_logined_at?: string | null
           location?: string | null
           name?: string | null
-          network_source_talent_id?: string | null
-          network_waitlist_id?: number | null
           profile_picture?: string | null
           resume_file_name?: string | null
           resume_links?: string[]

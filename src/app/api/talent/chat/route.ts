@@ -21,8 +21,10 @@ import {
 } from "@/lib/talentOnboarding/recommendationSettings";
 import { TALENT_INTERVIEW_FINAL_STEP } from "@/lib/talentOnboarding/progress";
 import {
+  TALENT_MESSAGE_TYPE_OPEN_POSITION_RECOMMENDATION_REQUEST,
   TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NOTICE,
   TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP,
+  type TalentUserChatMessageType,
 } from "@/lib/talentOnboarding/onboarding";
 import {
   buildCareerTextChatPromptBlocks,
@@ -99,6 +101,7 @@ type Body = {
   conversationId?: string;
   locale?: string;
   message?: string;
+  messageType?: unknown;
   link?: string;
 };
 
@@ -107,6 +110,15 @@ type CompanySnapshotToolResult = {
 };
 
 const toResponseMessage = toTalentMessageResponse;
+
+function normalizeUserChatMessageType(
+  value: unknown
+): TalentUserChatMessageType {
+  if (value === TALENT_MESSAGE_TYPE_OPEN_POSITION_RECOMMENDATION_REQUEST) {
+    return TALENT_MESSAGE_TYPE_OPEN_POSITION_RECOMMENDATION_REQUEST;
+  }
+  return "chat";
+}
 
 async function attachPostingPreviewsToMessages(args: {
   admin: ReturnType<typeof getTalentSupabaseAdmin>;
@@ -392,17 +404,20 @@ export async function POST(req: NextRequest) {
         ? stripPostgresUnsafeChars(body.message).trim()
         : "";
     const link = sanitizeSingleLineDbText(body.link, 2000);
+    const userMessageType = normalizeUserChatMessageType(body.messageType);
     const requestChannel = body.channel === "voice" ? "voice" : "chat";
     const allowedToolNames = normalizeAllowedToolNames(body.allowedToolNames);
     const conversationStarterId =
       typeof body.conversationStarterId === "string"
         ? body.conversationStarterId.trim()
         : "";
-    const conversationStarter = conversationStarterId
-      ? getCareerConversationStarterPrompt(conversationStarterId)
+    const requestLocale = body.locale ?? req.cookies.get("NEXT_LOCALE")?.value;
+    const requestConversationStarter = conversationStarterId
+      ? getCareerConversationStarterPrompt(conversationStarterId, requestLocale)
       : null;
     const skipConversationWrites = Boolean(
-      conversationStarter && message === conversationStarter.chatMessage
+      requestConversationStarter &&
+        message === requestConversationStarter.chatMessage
     );
     const streamResponse = wantsSseStream(req);
 
@@ -418,7 +433,7 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    if (conversationStarterId && !conversationStarter) {
+    if (conversationStarterId && !requestConversationStarter) {
       return NextResponse.json(
         { error: "Invalid conversationStarterId" },
         { status: 400 }
@@ -559,9 +574,12 @@ export async function POST(req: NextRequest) {
       talentSetting?.is_onboarding_done
     );
     const responseLocale =
-      talentSetting?.preferred_locale ??
       body.locale ??
+      talentSetting?.preferred_locale ??
       req.cookies.get("NEXT_LOCALE")?.value;
+    const conversationStarter = conversationStarterId
+      ? getCareerConversationStarterPrompt(conversationStarterId, responseLocale)
+      : null;
     const extractTurnInsights = (assistantContent: string) =>
       shouldAutoExtractInsights
         ? extractAndPersistChatInsights({
@@ -594,7 +612,7 @@ export async function POST(req: NextRequest) {
             user_id: user.id,
             role: "user",
             content: normalizedContent,
-            message_type: "chat",
+            message_type: userMessageType,
           },
           isMobile
         )

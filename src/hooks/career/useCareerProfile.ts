@@ -246,6 +246,7 @@ export const useCareerProfile = ({
             resumeStoragePath: nextResumeStoragePath,
             resumeText,
             links: cleanedLinks,
+            locale,
           }),
         });
         const payload = await response.json().catch(() => ({}));
@@ -329,6 +330,7 @@ export const useCareerProfile = ({
       enqueueAssistantTypewriter,
       fetchWithAuth,
       getTranslatedProfileIngestionFailureMessage,
+      locale,
       profileLinks,
       profilePending,
       readResumeText,
@@ -500,11 +502,14 @@ export const useCareerProfile = ({
     ]
   );
 
-  const handleRefreshTalentProfileSources = useCallback(async () => {
+  const handleRefreshTalentProfileSources = useCallback(async (args?: {
+    links?: string[];
+  }) => {
     if (!user || profileSavePending) return false;
 
     const cleanedLinks = compactProfileLinks(
-      savedProfileLinks.length > 0 ? savedProfileLinks : profileLinks
+      args?.links ??
+        (savedProfileLinks.length > 0 ? savedProfileLinks : profileLinks)
     );
     const hasSavedResume = Boolean(
       savedResumeFileName || savedResumeStoragePath || savedResumeDownloadUrl

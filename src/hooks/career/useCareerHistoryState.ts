@@ -24,6 +24,7 @@ import {
 } from "@/hooks/career/careerSessionData";
 import type { FetchWithAuth } from "@/hooks/career/useCareerApi";
 import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
+import { useMessages } from "@/i18n/useMessage";
 import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 
 const CAREER_HISTORY_PAGE_SIZE = 10;
@@ -174,6 +175,7 @@ export function useCareerHistoryState(args: {
     userId,
   } = args;
   const tCareer = useCareerMessageFormatter();
+  const { locale } = useMessages();
   const queryClient = useQueryClient();
   const queryKey = useMemo(
     () => careerHistoryOpportunitiesKey(userId),
@@ -672,6 +674,7 @@ export function useCareerHistoryState(args: {
       conversationId?: string | null;
       feedback?: CareerHistoryOpportunityFeedback | null;
       feedbackReason?: string | null;
+      locale?: string;
       opportunityId: string;
       promptImmediately?: boolean;
       savedStage?: CareerOpportunitySavedStage | null;
@@ -680,7 +683,7 @@ export function useCareerHistoryState(args: {
     }) => {
       const response = await fetchWithAuth("/api/talent/opportunities", {
         method: "PATCH",
-        body: JSON.stringify(body),
+        body: JSON.stringify({ ...body, locale }),
       });
       const payload = await response.json().catch(() => ({}));
 
@@ -711,7 +714,7 @@ export function useCareerHistoryState(args: {
         userMessage?: CareerMessagePayload | null;
       };
     },
-    [fetchWithAuth, tCareer]
+    [fetchWithAuth, locale, tCareer]
   );
 
   const onUpdateHistoryOpportunityFeedback = useCallback(

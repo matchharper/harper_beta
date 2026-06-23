@@ -31,7 +31,7 @@ import {
 import Head from "next/head";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { BareButton } from "@/components/ui/button";
 import { Input as UiInput } from "@/components/ui/input";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
@@ -105,6 +105,35 @@ const OFFICIAL_JOB_DRAFT_FIELDS: Array<keyof OfficialJobDraft> = [
   "vertical",
 ];
 
+const ROLE_DESCRIPTION_MARKDOWN_TEMPLATES = [
+  {
+    label: "How Harper Helps",
+    content: `### How Harper Helps
+
+'스포츠 선수들은 대신해서 이적과 연봉 협상을 책임져주는 에이전트가 있는데, 왜 직장인들은 없을까?' 상상해 본 적 있으시나요? 잡보드를 뒤지며 수십 시간을 낭비하고, 이력서를 고치며 무한정 지원을 반복하는 기존의 구직 방식은 지난 30년간 본질적으로 바뀐 게 없습니다.
+
+Harper는 글로벌 VC의 투자를 받아 이 비효율적인 파이프라인과 구직 탐색 비용을 완전히 지우기 위해 탄생한 당신의 전속 AI 탤런트 에이전트입니다. 지원을 위해 정형화된 이력서를 밤새워 쓸 필요가 없습니다. Harper와 가볍게 이야기하며 지금 어떤 상황이고 다음으로는 어떤 기회를 찾고 계신지 알려주세요. 대화를 통해 정적인 이력서 이면에 담긴 진짜 맥락과 잠재력을 깊이 있게 추출해 냅니다.
+
+여러분이 할 일은 가만히 앉아 Harper가 고른 완벽하게 핏이 맞는 포지션 제안을 수락하는 것뿐입니다. 그럼 여러분의 프로필은 채용 결정권자의 책상 위로 즉시 올라갑니다.
+
+**포지션에 대하여** : 이 공고는 여러분의 전속 탤런트 에이전트 Harper가 파트너사를 대신해 진행하는 비공개 채용 건입니다. 지원자님의 엔지니어링 역량을 정밀하게 분석해 가장 완벽한 핏을 가진 포지션을 제안해 드립니다. Harper를 통해 지원하시면 그 다음 과정은 저희가 알아서 진행합니다.`,
+  },
+  {
+    label: "Process",
+    content: `### Process
+
+**Step 1.** Harper 링크를 통해 이 포지션에 지원해 주세요.
+
+**Step 2.** 정형화된 이력서를 작성할 필요 없이, Harper와 가볍게 이야기하며 지금 어떤 상황이고 다음으로는 어떤 기회를 찾고 계신지 알려주세요.
+
+**Step 3.** Harper가 대화 속에서 추출한 진짜 맥락을 바탕으로 지원자님이 이 포지션과 완벽한 핏이라고 분석되면, 즉시 고객사에 여러분을 추천합니다.
+
+**Step 4.** 조건 및 일정 조율, 회사와 포지션에 대한 궁금한 사항 등을 중간에서 Harper가 전부 조율해 드립니다.
+
+**Step 5.** 만약 이번 포지션이 지원자님과 맞지 않더라도 걱정하지 마세요. Harper 네트워크 내의 다른 훌륭한 포지션들을 자동으로 찾아 제안해 드립니다. 지원자에게는 전 과정이 무료입니다.`,
+  },
+] as const;
+
 function jobToDraft(job: OpsOfficialJobRecord): OfficialJobDraft {
   return {
     ashbyJobPostingId: job.ashbyJobPostingId ?? "",
@@ -138,6 +167,8 @@ function areOfficialJobDraftsEqual(
 
 function draftToPayload(draft: OfficialJobDraft): OpsOfficialJobSaveInput {
   const isInternalCopy = isOfficialJobsInternalCopyIdentity(draft);
+  const slug =
+    draft.slug.trim() || createSlug(`${draft.companyName} ${draft.roleTitle}`);
 
   return {
     ashbyJobPostingId: isInternalCopy ? null : draft.ashbyJobPostingId,
@@ -157,7 +188,7 @@ function draftToPayload(draft: OfficialJobDraft): OpsOfficialJobSaveInput {
       : draft.roleTitle,
     seniority: draft.seniority,
     shortDescription: draft.shortDescription,
-    slug: isInternalCopy ? OFFICIAL_JOBS_INTERNAL_COPY_SLUG : draft.slug,
+    slug: isInternalCopy ? OFFICIAL_JOBS_INTERNAL_COPY_SLUG : slug,
     vertical: draft.vertical,
   };
 }
@@ -170,6 +201,12 @@ function createSlug(value: string) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .replace(/-{2,}/g, "-");
+}
+
+function resizeTextareaToContent(textarea: HTMLTextAreaElement | null) {
+  if (!textarea) return;
+  textarea.style.height = "auto";
+  textarea.style.height = `${textarea.scrollHeight}px`;
 }
 
 function matchesFilter(job: OpsOfficialJobRecord, filter: JobFilter) {
@@ -255,6 +292,7 @@ export default function OpsOfficialJobsPage() {
     initialDraft: EMPTY_DRAFT,
     key: NEW_JOB_ID,
   });
+  const roleDescriptionTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const jobsQuery = useOpsOfficialJobs(canFetchInternal);
   const saveJob = useSaveOpsOfficialJob();
@@ -282,6 +320,10 @@ export default function OpsOfficialJobsPage() {
   const isInternalCopyDraft = isOfficialJobsInternalCopyIdentity(draft);
   const isAshbyConnectedDraft = hasAshbyConnection(draft);
   const effectiveIsPublished = isInternalCopyDraft ? false : draft.isPublished;
+
+  useEffect(() => {
+    resizeTextareaToContent(roleDescriptionTextareaRef.current);
+  }, [draft.roleDescriptionMarkdown, activeDraftKey]);
 
   const filteredJobs = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -353,6 +395,21 @@ export default function OpsOfficialJobsPage() {
         message:
           error instanceof Error ? error.message : "Official job 저장 실패",
         variant: "error",
+      });
+    }
+  };
+
+  const handleCopyRoleDescriptionTemplate = async (
+    template: (typeof ROLE_DESCRIPTION_MARKDOWN_TEMPLATES)[number]
+  ) => {
+    try {
+      await navigator.clipboard.writeText(template.content);
+      showToast({
+        message: `${template.label} markdown 복사 완료`,
+      });
+    } catch {
+      showToast({
+        message: `${template.label} markdown 복사 실패`,
       });
     }
   };
@@ -567,7 +624,7 @@ export default function OpsOfficialJobsPage() {
                           )}
                         >
                           {job.isInternalCopy
-                            ? "Landing copy"
+                            ? "Internal"
                             : job.isPublished
                               ? "Published"
                               : "Draft"}
@@ -582,7 +639,7 @@ export default function OpsOfficialJobsPage() {
                         )}
                       >
                         {job.isInternalCopy
-                          ? "How Harper helps / 진행과정"
+                          ? "Not shown on /jobs"
                           : isAshbyConnected
                             ? `Ashby ID · ${job.ashbyJobPostingId}`
                             : job.location}
@@ -604,8 +661,8 @@ export default function OpsOfficialJobsPage() {
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-neutral-muted">
                   {isInternalCopyDraft
-                    ? "이 row는 공통 landing copy 전용입니다. 저장해도 public job으로 공개되지 않습니다."
-                    : "공개 페이지에는 `is_published=true`인 job만 노출됩니다."}
+                    ? "이 row는 public job으로 공개되지 않습니다."
+                    : "공개 상세 페이지 본문에는 Role description markdown만 노출됩니다."}
                 </p>
               </div>
 
@@ -726,7 +783,7 @@ export default function OpsOfficialJobsPage() {
 
             <div className="mt-5 grid gap-4 lg:grid-cols-2">
               <Field
-                label="Role title"
+                label="Job title"
                 sourceLabel={isAshbyConnectedDraft ? "Ashby" : undefined}
               >
                 <UiInput
@@ -758,62 +815,6 @@ export default function OpsOfficialJobsPage() {
                     opsTheme.input,
                     isAshbyConnectedDraft && ashbySourcedFieldClass
                   )}
-                />
-              </Field>
-              <Field label="Slug">
-                <div className="flex gap-2">
-                  <UiInput
-                    unstyled
-                    value={draft.slug}
-                    disabled={isInternalCopyDraft}
-                    onChange={(event) =>
-                      updateDraft("slug", event.target.value)
-                    }
-                    className={cx(
-                      opsTheme.input,
-                      isInternalCopyDraft &&
-                        "cursor-not-allowed bg-bg-weak text-neutral-muted"
-                    )}
-                  />
-                  <BareButton
-                    type="button"
-                    onClick={handleGenerateSlug}
-                    disabled={isInternalCopyDraft}
-                    className={cx(
-                      opsTheme.buttonSecondary,
-                      "h-11 px-3",
-                      isInternalCopyDraft && "cursor-not-allowed opacity-55"
-                    )}
-                  >
-                    Generate
-                  </BareButton>
-                </div>
-              </Field>
-              <Field label="Ashby job posting ID">
-                <UiInput
-                  unstyled
-                  value={draft.ashbyJobPostingId}
-                  disabled={isInternalCopyDraft}
-                  onChange={(event) =>
-                    updateDraft("ashbyJobPostingId", event.target.value)
-                  }
-                  className={cx(
-                    opsTheme.input,
-                    isInternalCopyDraft &&
-                      "cursor-not-allowed bg-bg-weak text-neutral-muted"
-                  )}
-                  placeholder="45134452-f53b-4d4c-915e-4a4615fb6c93"
-                />
-              </Field>
-              <Field label="Display order">
-                <UiInput
-                  unstyled
-                  type="number"
-                  value={draft.displayOrder}
-                  onChange={(event) =>
-                    updateDraft("displayOrder", event.target.value)
-                  }
-                  className={opsTheme.input}
                 />
               </Field>
               <Field
@@ -859,47 +860,6 @@ export default function OpsOfficialJobsPage() {
                   placeholder="Full-time"
                 />
               </Field>
-              <Field label="Seniority">
-                <UiInput
-                  unstyled
-                  value={draft.seniority}
-                  onChange={(event) =>
-                    updateDraft("seniority", event.target.value)
-                  }
-                  className={opsTheme.input}
-                  placeholder="Senior / Staff"
-                />
-              </Field>
-              <Field label="Compensation">
-                <UiInput
-                  unstyled
-                  value={draft.compensation}
-                  onChange={(event) =>
-                    updateDraft("compensation", event.target.value)
-                  }
-                  className={opsTheme.input}
-                />
-              </Field>
-              <Field label="Company website URL">
-                <UiInput
-                  unstyled
-                  value={draft.companyWebsiteUrl}
-                  onChange={(event) =>
-                    updateDraft("companyWebsiteUrl", event.target.value)
-                  }
-                  className={opsTheme.input}
-                />
-              </Field>
-              <Field label="Company logo URL">
-                <UiInput
-                  unstyled
-                  value={draft.companyLogoUrl}
-                  onChange={(event) =>
-                    updateDraft("companyLogoUrl", event.target.value)
-                  }
-                  className={opsTheme.input}
-                />
-              </Field>
             </div>
 
             <div className="mt-5 grid gap-4">
@@ -923,54 +883,107 @@ export default function OpsOfficialJobsPage() {
                 />
               </Field>
               <Field
-                label={
-                  isInternalCopyDraft
-                    ? "진행과정 markdown"
-                    : "Role description markdown"
-                }
+                label="Role description markdown   (큰글씨: ### 텍스트, 가로선:---, bold: **텍스트**)"
                 sourceLabel={
                   isAshbyConnectedDraft ? "Ashby description" : undefined
                 }
               >
                 <UiTextarea
+                  ref={roleDescriptionTextareaRef}
                   unstyled
                   value={draft.roleDescriptionMarkdown}
-                  onChange={(event) =>
-                    updateDraft("roleDescriptionMarkdown", event.target.value)
-                  }
+                  onChange={(event) => {
+                    updateDraft("roleDescriptionMarkdown", event.target.value);
+                    resizeTextareaToContent(event.currentTarget);
+                  }}
                   className={cx(
                     opsTheme.textarea,
-                    "min-h-[480px] resize-y",
+                    "min-h-[480px] resize-none overflow-hidden",
                     isAshbyConnectedDraft && ashbySourcedFieldClass
                   )}
                 />
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {ROLE_DESCRIPTION_MARKDOWN_TEMPLATES.map((template) => (
+                    <BareButton
+                      key={template.label}
+                      type="button"
+                      onClick={() =>
+                        handleCopyRoleDescriptionTemplate(template)
+                      }
+                      className={cx(
+                        opsTheme.buttonSecondary,
+                        "h-10 px-3 text-xs"
+                      )}
+                    >
+                      ### {template.label} 복사
+                    </BareButton>
+                  ))}
+                </div>
               </Field>
-              <Field
-                label={
-                  isInternalCopyDraft
-                    ? "How Harper helps markdown"
-                    : "Company description markdown"
-                }
-                sourceLabel={
-                  isAshbyConnectedDraft
-                    ? "Ashby company description"
-                    : undefined
-                }
-              >
-                <UiTextarea
+            </div>
+
+            <div className="mt-88 grid gap-4 lg:grid-cols-2">
+              <div>이거 안건드리셔도 됩니다</div>
+              <Field label="Slug">
+                <div className="flex gap-2">
+                  <UiInput
+                    unstyled
+                    value={draft.slug}
+                    disabled={isInternalCopyDraft}
+                    onChange={(event) =>
+                      updateDraft("slug", event.target.value)
+                    }
+                    className={cx(
+                      opsTheme.input,
+                      isInternalCopyDraft &&
+                        "cursor-not-allowed bg-bg-weak text-neutral-muted"
+                    )}
+                    placeholder="Auto-generates from company and role on save"
+                  />
+                  <BareButton
+                    type="button"
+                    onClick={handleGenerateSlug}
+                    disabled={isInternalCopyDraft}
+                    className={cx(
+                      opsTheme.buttonSecondary,
+                      "h-11 px-3",
+                      isInternalCopyDraft && "cursor-not-allowed opacity-55"
+                    )}
+                  >
+                    Generate
+                  </BareButton>
+                </div>
+              </Field>
+              <Field label="Display order">
+                <UiInput
                   unstyled
-                  value={draft.companyDescriptionMarkdown}
+                  type="number"
+                  value={draft.displayOrder}
                   onChange={(event) =>
-                    updateDraft(
-                      "companyDescriptionMarkdown",
-                      event.target.value
-                    )
+                    updateDraft("displayOrder", event.target.value)
                   }
-                  className={cx(
-                    opsTheme.textarea,
-                    "min-h-[360px] resize-y",
-                    isAshbyConnectedDraft && ashbySourcedFieldClass
-                  )}
+                  className={opsTheme.input}
+                />
+              </Field>
+              <Field label="Seniority">
+                <UiInput
+                  unstyled
+                  value={draft.seniority}
+                  onChange={(event) =>
+                    updateDraft("seniority", event.target.value)
+                  }
+                  className={opsTheme.input}
+                  placeholder="Senior / Staff"
+                />
+              </Field>
+              <Field label="Compensation">
+                <UiInput
+                  unstyled
+                  value={draft.compensation}
+                  onChange={(event) =>
+                    updateDraft("compensation", event.target.value)
+                  }
+                  className={opsTheme.input}
                 />
               </Field>
             </div>

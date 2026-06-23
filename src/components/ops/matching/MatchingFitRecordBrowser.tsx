@@ -7,6 +7,7 @@ import {
   MatchingFitLabelChips,
   MatchingFitLabelFilter,
   normalizeFitLabelFilters,
+  normalizeHumanLabelFilters,
 } from "@/components/ops/matching/MatchingFitLabelControls";
 import {
   TalentIdentity,
@@ -189,7 +190,7 @@ export function MatchingFitRecordBrowser({
     [llmLabelFilters]
   );
   const normalizedHumanLabelFilters = useMemo(
-    () => normalizeFitLabelFilters(humanLabelFilters),
+    () => normalizeHumanLabelFilters(humanLabelFilters),
     [humanLabelFilters]
   );
   const fitsQuery = useOpsMatchingFits({
@@ -252,6 +253,7 @@ export function MatchingFitRecordBrowser({
             />
             <MatchingFitLabelFilter
               emptyLabel="Human label 전체"
+              includeMissingOption
               selectedLabels={normalizedHumanLabelFilters}
               onChange={onHumanLabelFiltersChange}
             />

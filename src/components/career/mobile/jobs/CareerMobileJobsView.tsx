@@ -10,17 +10,15 @@ import {
   Building2,
   Dot,
   Hand,
-  Loader2,
   MapPin,
-  StickyNote,
   ThumbsDown,
   ThumbsUp,
 } from "lucide-react";
 import CareerMobileShell from "../CareerMobileShell";
-import CareerMobileTopBar from "../CareerMobileTopBar";
-import CareerInPageTabs, {
-  type CareerInPageTabItem,
-} from "@/components/career/CareerInPageTabs";
+import CareerMobileTopBar, {
+  type CareerMobileTopBarOption,
+  type CareerMobileTopBarOptionId,
+} from "../CareerMobileTopBar";
 import type { CareerWorkspaceTab } from "@/components/career/CareerWorkspaceNav";
 import {
   getMetaItems,
@@ -28,9 +26,11 @@ import {
   getOpportunityPanelTone,
   getPositiveActionLabel,
 } from "@/components/career/CareerHistoryPanel";
-import { HistoryOpportunityInfoTag } from "@/components/career/history/HistoryOpportunityDetailContent";
+import {
+  HistoryOpportunityInfoTag,
+  HistoryOpportunityInlinePage,
+} from "@/components/career/history/HistoryOpportunityDetailContent";
 import { getCareerCompanySectionTitle } from "@/components/career/opportunityTypeMeta";
-import OpportunityPreferenceFit from "@/components/career/history/OpportunityPreferenceFit";
 import RichText from "@/components/ui/rich-text";
 import type { CareerOpportunityType } from "@/components/career/types";
 import { useKeyboardArrows } from "@/hooks/useKeyboardArrows";
@@ -41,26 +41,34 @@ import { getOpportunityPostingStatus } from "@/components/career/history/opportu
 import { BareButton } from "@/components/ui/button";
 import { useMessages } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
-
-export type JobsDisplayTab = "new" | "saved" | "archived";
-
-type WorkspaceTabOption = {
-  badgeCount?: number;
-  id: CareerWorkspaceTab;
-  label: string;
-};
+import { TabBoxes, type TabBoxItem } from "@/components/ui/tab-boxes";
+import {
+  getCareerOpportunityManagementStatus,
+  getCareerOpportunityManagementStatusOptions,
+  type CareerOpportunityManagementStatus,
+} from "@/components/career/history/savedOpportunityStatus";
+import { CareerMobileJobsList } from "@/components/career/mobile/jobs/CareerMobileJobsList";
+import { getCareerMobileJobsEmptyStateMessage } from "@/components/career/mobile/jobs/careerMobileJobsCopy";
+import { CareerMobileJobsEmptyState } from "@/components/career/mobile/jobs/CareerMobileJobsEmptyState";
+import { CareerMobileJobsLoadingState } from "@/components/career/mobile/jobs/CareerMobileJobsLoadingState";
+import type {
+  JobsDisplayTab,
+  JobsStatusCounts,
+  JobsStatusTab,
+} from "@/components/career/mobile/jobs/types";
 
 type CareerMobileJobsViewProps = {
-  activeWorkspaceTab: CareerWorkspaceTab;
   onChangeWorkspaceTab: (tab: CareerWorkspaceTab) => void;
-  workspaceTabOptions: WorkspaceTabOption[];
-  newCount?: number;
-  savedCount?: number;
-  archivedCount?: number;
+  workspaceTabOptions: CareerMobileTopBarOption[];
+  statusCounts: JobsStatusCounts;
+  opportunities: CareerHistoryOpportunity[];
   selectedOpportunity: CareerHistoryOpportunity | null;
   selectionIndex: number;
   selectionTotal: number;
   onNavigate: (delta: -1 | 1) => void;
+  hasMoreOpportunities?: boolean;
+  onLoadMoreOpportunities?: () => void;
+  pendingOpportunityIds?: Set<string>;
   profilePicture?: string | null;
   userName?: string | null;
   userEmail?: string | null;
@@ -73,9 +81,23 @@ type CareerMobileJobsViewProps = {
   isLoading?: boolean;
   showSwipeHint?: boolean;
   onDismissSwipeHint?: () => void;
+  detailOpportunity?: CareerHistoryOpportunity | null;
+  onCloseDetail?: () => void;
   onOpenCompanyInfo?: (opportunity: CareerHistoryOpportunity) => void;
+  onOpenDetail?: (opportunity: CareerHistoryOpportunity) => void;
+  onOpenLink?: (
+    opportunity: CareerHistoryOpportunity,
+    url: string | null | undefined
+  ) => void;
   onOpenOpportunityInfo?: (type: CareerOpportunityType) => void;
-  onEditMemo?: (opportunity: CareerHistoryOpportunity) => void;
+  onStatusChange?: (
+    opportunity: CareerHistoryOpportunity,
+    status: CareerOpportunityManagementStatus
+  ) => void;
+  onUpdateTalentMemo?: (
+    opportunity: CareerHistoryOpportunity,
+    talentMemo: string | null
+  ) => void | Promise<void>;
 };
 
 const SWIPE_THRESHOLD_PX = 40;
@@ -90,16 +112,17 @@ const resetMobileScrollOnMount = (el: HTMLDivElement | null) => {
 };
 
 export default function CareerMobileJobsView({
-  activeWorkspaceTab,
   onChangeWorkspaceTab,
   workspaceTabOptions,
-  newCount,
-  savedCount,
-  archivedCount,
+  statusCounts,
+  opportunities,
   selectedOpportunity,
   selectionIndex,
   selectionTotal,
   onNavigate,
+  hasMoreOpportunities = false,
+  onLoadMoreOpportunities,
+  pendingOpportunityIds,
   profilePicture,
   userName,
   userEmail,
@@ -112,15 +135,21 @@ export default function CareerMobileJobsView({
   isLoading = false,
   showSwipeHint = false,
   onDismissSwipeHint,
+  detailOpportunity,
+  onCloseDetail,
   onOpenCompanyInfo,
+  onOpenDetail,
+  onOpenLink,
   onOpenOpportunityInfo,
-  onEditMemo,
+  onStatusChange,
+  onUpdateTalentMemo,
 }: CareerMobileJobsViewProps) {
   const t = useCareerT();
 
   const [internalTab, setInternalTab] = useState<JobsDisplayTab>("new");
   const tab = activeJobsTab ?? internalTab;
   const setTab = onChangeJobsTab ?? setInternalTab;
+  const isInboxTab = tab === "new";
 
   const canPrev = selectionIndex > 0;
   const canNext = selectionTotal > 0 && selectionIndex < selectionTotal - 1;
@@ -135,10 +164,27 @@ export default function CareerMobileJobsView({
   }, [canNext, onNavigate, onDismissSwipeHint]);
 
   useKeyboardArrows({
-    enabled: Boolean(selectedOpportunity),
+    enabled: isInboxTab && Boolean(selectedOpportunity),
     onArrowLeft: handlePrev,
     onArrowRight: handleNext,
   });
+
+  const handleTopBarChange = useCallback(
+    (nextOption: CareerMobileTopBarOptionId) => {
+      if (nextOption === "inbox") {
+        setTab("new");
+        return;
+      }
+
+      if (nextOption === "jobs") {
+        setTab(tab === "new" ? "saved" : tab);
+        return;
+      }
+
+      onChangeWorkspaceTab(nextOption);
+    },
+    [onChangeWorkspaceTab, setTab, tab]
+  );
 
   const handleDragEnd = useCallback(
     (
@@ -155,31 +201,20 @@ export default function CareerMobileJobsView({
     [handlePrev, handleNext]
   );
 
-  const items: CareerInPageTabItem<JobsDisplayTab>[] = [
-    {
-      id: "new",
-      label: t("career.common.career_history_panel.02i826z", "새 포지션"),
-      count: newCount,
-    },
-    {
-      id: "saved",
-      label: t("career.common.career_history_panel.06mgpci", "저장함"),
-      count: savedCount,
-    },
-    {
-      id: "archived",
-      label: t("career.common.career_history_panel.0paqqgp", "선호하지 않음"),
-      count: archivedCount,
-    },
-  ];
+  const statusTabItems: TabBoxItem<JobsStatusTab>[] =
+    getCareerOpportunityManagementStatusOptions(t).map((option) => ({
+      // count: statusCounts[option.id],
+      label: option.label,
+      value: option.id,
+    }));
 
   return (
     <CareerMobileShell
       header={
         <CareerMobileTopBar
-          activeTab={activeWorkspaceTab}
+          activeTab={isInboxTab ? "inbox" : "jobs"}
           options={workspaceTabOptions}
-          onChangeTab={onChangeWorkspaceTab}
+          onChangeTab={handleTopBarChange}
           profilePicture={profilePicture}
           userName={userName}
           userEmail={userEmail}
@@ -190,72 +225,97 @@ export default function CareerMobileJobsView({
       }
     >
       <div className="relative flex flex-1 flex-col">
-        <CareerInPageTabs
-          items={items}
-          activeId={tab}
-          onChange={setTab}
-          mobileFloating
-        />
+        {!isInboxTab ? (
+          <div className="sticky top-0 z-20 bg-bg-basement px-3 py-2">
+            <TabBoxes
+              activeValue={tab}
+              items={statusTabItems}
+              onValueChange={setTab}
+              size="xs"
+              className="[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+            />
+          </div>
+        ) : null}
 
         <div className="relative flex flex-1 flex-col text-sm">
-          <AnimatePresence mode="wait" initial={false}>
-            {selectedOpportunity ? (
-              <motion.div
-                key={selectedOpportunity.id}
-                ref={resetMobileScrollOnMount}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: FADE_DURATION, ease: "easeOut" }}
-                drag="x"
-                dragConstraints={{ left: 0, right: 0 }}
-                dragElastic={0.2}
-                dragMomentum={false}
-                onDragEnd={handleDragEnd}
-                className="flex flex-col px-2 pt-4"
-                style={{
-                  paddingBottom: `${bottomReservePx}px`,
-                  touchAction: "pan-y",
-                }}
-              >
-                <MobileOpportunityDetailPanel
-                  opportunity={selectedOpportunity}
-                  onOpenCompanyInfo={onOpenCompanyInfo}
-                  onOpenOpportunityInfo={onOpenOpportunityInfo}
-                  onEditMemo={tab === "new" ? undefined : onEditMemo}
-                />
-              </motion.div>
-            ) : isLoading ? (
-              <motion.div
-                key="loading"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex flex-1 items-center justify-center gap-2 px-6 py-20 text-[15px] text-neutral-muted"
-              >
-                <Loader2 className="h-4 w-4 animate-spin text-neutral-primary" />
-                <span>
-                  {t(
-                    "career.common.career_history_panel.0s3czqf",
-                    "저장된 정보를 불러오는 중입니다..."
-                  )}
-                </span>
-              </motion.div>
-            ) : (
-              <motion.div
-                key={`empty-${tab}`}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex flex-1 items-center justify-center px-6 py-20 text-center text-[15px] text-neutral-muted"
-              >
-                {emptyStateMessage(tab, t)}
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {isInboxTab ? (
+            <AnimatePresence mode="wait" initial={false}>
+              {selectedOpportunity ? (
+                <motion.div
+                  key={selectedOpportunity.id}
+                  ref={resetMobileScrollOnMount}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: FADE_DURATION, ease: "easeOut" }}
+                  drag="x"
+                  dragConstraints={{ left: 0, right: 0 }}
+                  dragElastic={0.2}
+                  dragMomentum={false}
+                  onDragEnd={handleDragEnd}
+                  className="flex flex-col px-2 pt-4"
+                  style={{
+                    paddingBottom: `${bottomReservePx}px`,
+                    touchAction: "pan-y",
+                  }}
+                >
+                  <MobileOpportunityDetailPanel
+                    opportunity={selectedOpportunity}
+                    onOpenCompanyInfo={onOpenCompanyInfo}
+                    onOpenOpportunityInfo={onOpenOpportunityInfo}
+                  />
+                </motion.div>
+              ) : isLoading ? (
+                <CareerMobileJobsLoadingState />
+              ) : (
+                <CareerMobileJobsEmptyState>
+                  {getCareerMobileJobsEmptyStateMessage(tab, t)}
+                </CareerMobileJobsEmptyState>
+              )}
+            </AnimatePresence>
+          ) : detailOpportunity ? (
+            <div
+              className="px-3 pt-3"
+              style={{ paddingBottom: `${bottomReservePx}px` }}
+            >
+              <HistoryOpportunityInlinePage
+                item={detailOpportunity}
+                pending={Boolean(
+                  pendingOpportunityIds?.has(detailOpportunity.id)
+                )}
+                savedStatus={getCareerOpportunityManagementStatus(
+                  detailOpportunity
+                )}
+                onBack={onCloseDetail ?? (() => undefined)}
+                onOpenCompanyInfo={onOpenCompanyInfo}
+                onOpenLink={(url) => onOpenLink?.(detailOpportunity, url)}
+                onOpenOpportunityInfo={
+                  onOpenOpportunityInfo ?? (() => undefined)
+                }
+                onSavedStatusChange={(status) =>
+                  onStatusChange?.(detailOpportunity, status)
+                }
+                onUpdateTalentMemo={onUpdateTalentMemo}
+              />
+            </div>
+          ) : (
+            <CareerMobileJobsList
+              activeTab={tab}
+              hasMore={hasMoreOpportunities}
+              isLoading={isLoading}
+              onLoadMore={onLoadMoreOpportunities}
+              onOpenCompanyInfo={onOpenCompanyInfo}
+              onOpenDetail={onOpenDetail}
+              onOpenOpportunityInfo={onOpenOpportunityInfo}
+              onStatusChange={onStatusChange}
+              opportunities={opportunities}
+              pendingOpportunityIds={pendingOpportunityIds}
+              bottomReservePx={bottomReservePx}
+            />
+          )}
         </div>
       </div>
-      {showSwipeHint && selectedOpportunity ? (
+      {showSwipeHint && isInboxTab && selectedOpportunity ? (
         <SwipeHintOverlay
           onDismiss={onDismissSwipeHint}
           onNavigate={onNavigate}
@@ -269,72 +329,34 @@ export default function CareerMobileJobsView({
   );
 }
 
-function emptyStateMessage(
-  tab: JobsDisplayTab,
-  t: ReturnType<typeof useCareerT>
-) {
-  if (tab === "new")
-    return t(
-      "career.history.career_mobile_jobs_view.0f42kd7",
-      "아직 새로 추천된 포지션이 없습니다."
-    );
-  if (tab === "saved")
-    return t(
-      "career.history.career_mobile_jobs_view.1m3uw9j",
-      "저장한 포지션이 없습니다."
-    );
-  return t(
-    "career.history.career_mobile_jobs_view.0llq6g8",
-    "선호하지 않음으로 보낸 포지션이 없습니다."
-  );
-}
-
 function MobileOpportunityDetailPanel({
   opportunity,
   onOpenCompanyInfo,
   onOpenOpportunityInfo,
-  onEditMemo,
 }: {
   opportunity: CareerHistoryOpportunity;
   onOpenCompanyInfo?: (opportunity: CareerHistoryOpportunity) => void;
   onOpenOpportunityInfo?: (type: CareerOpportunityType) => void;
-  onEditMemo?: (opportunity: CareerHistoryOpportunity) => void;
 }) {
-  const t = useCareerT();
-  const talentMemo = opportunity.talentMemo?.trim() ?? "";
-
   return (
     <section
       className={cn("rounded-2xl p-1", getOpportunityPanelTone(opportunity))}
     >
-      <div className="flex w-full flex-col items-start justify-between rounded-2xl bg-bg-floating px-4 py-5">
+      <div className="flex w-full flex-col items-start justify-between rounded-xl bg-bg-floating px-3 py-3">
         <OpportunitySummaryCard
           opportunity={opportunity}
           onOpenCompanyInfo={onOpenCompanyInfo}
           onOpenOpportunityInfo={onOpenOpportunityInfo}
         />
-        {onEditMemo ? (
-          <BareButton
-            type="button"
-            onClick={() => onEditMemo(opportunity)}
-            className="mt-5 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[8px] border border-neutral-1000-a10 bg-bg-floating px-3 py-2 text-sm font-medium text-neutral-primary"
-          >
-            <StickyNote className="h-4 w-4" />
-            {talentMemo
-              ? t("career.history.feedback_modal.109eupo", "메모 수정")
-              : t("career.history.career_mobile_jobs_view.18qduxt", "메모하기")}
-          </BareButton>
-        ) : null}
         <RecommendationContent
           opportunity={opportunity}
-          showTalentMemo={Boolean(onEditMemo)}
+          showTalentMemo={false}
         />
       </div>
 
       <div className="flex flex-col gap-6 px-4 py-4 font-inter text-[14px] font-normal text-neutral-primary">
         <div className="space-y-3">
           <JDLinkButton opportunity={opportunity} />
-          <PreferenceFitSection opportunity={opportunity} />
         </div>
         <CompanySection
           opportunity={opportunity}
@@ -380,15 +402,25 @@ function OpportunitySummaryCard({
 
   return (
     <article className="w-full">
+      <div className="flex items-end justify-start w-full mb-4">
+        <div className="w-fit">
+          {onOpenOpportunityInfo && (
+            <HistoryOpportunityInfoTag
+              item={opportunity}
+              onOpenInfo={onOpenOpportunityInfo}
+            />
+          )}
+        </div>
+      </div>
       <header className="flex items-start gap-3">
         <div className="flex shrink-0 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-floating p-1">
           {opportunity.companyLogoUrl ? (
             <Image
               src={opportunity.companyLogoUrl}
               alt={opportunity.companyName}
-              width={40}
-              height={40}
-              className="h-10 w-10 rounded-lg object-cover"
+              width={32}
+              height={32}
+              className="h-8 w-8 rounded-lg object-cover"
             />
           ) : (
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-black text-neutral-00">
@@ -397,7 +429,7 @@ function OpportunitySummaryCard({
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <h2 className="wrap-break-word text-[17px] font-medium leading-tight text-neutral-primary">
+          <h2 className="wrap-break-word text-[16px] font-medium leading-tight text-neutral-primary">
             {opportunity.title}
           </h2>
           <div className="mt-2 flex min-w-0 flex-row items-center justify-between gap-1 text-[13px]">
@@ -445,12 +477,6 @@ function OpportunitySummaryCard({
             </span>
           ))}
         </div>
-        {onOpenOpportunityInfo ? (
-          <HistoryOpportunityInfoTag
-            item={opportunity}
-            onOpenInfo={(type) => onOpenOpportunityInfo(type)}
-          />
-        ) : null}
       </div>
     </article>
   );
@@ -477,7 +503,7 @@ function RecommendationContent({
   if (!hasContent) return null;
 
   return (
-    <div className="mt-6 flex flex-col gap-2.5 text-[15px] leading-[1.7] text-neutral-primary">
+    <div className="mt-6 flex flex-col gap-2.5 text-[14px] leading-[1.7] text-neutral-primary">
       {summary ? <div>{summary}</div> : null}
       {showTalentMemo && talentMemo ? (
         <div className="rounded-[8px] border border-neutral-1000-a05 bg-bg-floating px-3 py-2 shadow-sm">
@@ -545,16 +571,6 @@ function JDLinkButton({
       <ArrowUpRight className="h-4 w-4" />
     </a>
   );
-}
-
-function PreferenceFitSection({
-  opportunity,
-}: {
-  opportunity: CareerHistoryOpportunity;
-}) {
-  const items = opportunity.preferenceFit;
-  if (!items || items.length === 0) return null;
-  return <OpportunityPreferenceFit items={items} variant="detail" />;
 }
 
 function CompanySection({

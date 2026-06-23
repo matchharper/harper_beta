@@ -5,18 +5,14 @@ import { useCountryLang } from "@/hooks/useCountryLang";
 import { en } from "@/lang/en";
 import { ko } from "@/lang/ko";
 import type { Locale } from "@/i18n/useMessage";
+import {
+  resolveLocaleFromCountryLang as resolveSharedLocaleFromCountryLang,
+} from "@/i18n/localeResolution";
 
 const DICTS = { ko, en } as const;
 
 function resolveLocaleFromCountryLang(countryLang?: string | null): Locale {
-  const [rawCountry, rawLanguage] = String(countryLang ?? "").split("_");
-  const country = (rawCountry || "ZZ").toUpperCase();
-  const language = (rawLanguage || "").toLowerCase();
-
-  if (country === "KR") return "ko";
-  if (country !== "ZZ") return "en";
-  if (language === "ko") return "ko";
-  return "en";
+  return resolveSharedLocaleFromCountryLang(countryLang);
 }
 
 export function useCountryMessages() {

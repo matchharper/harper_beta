@@ -109,7 +109,7 @@ export async function fetchTalentUserProfile(args: {
   const { data, error } = await admin
     .from("talent_users")
     .select(
-      "user_id, email, name, profile_picture, headline, bio, location, last_logined_at, network_waitlist_id, network_source_talent_id, resume_file_name, resume_storage_path, resume_text, resume_links, created_at, updated_at"
+      "user_id, email, name, profile_picture, headline, bio, location, last_logined_at, resume_file_name, resume_storage_path, resume_text, resume_links, created_at, updated_at"
     )
     .eq("user_id", userId)
     .maybeSingle();

@@ -7,9 +7,22 @@ import { Page } from "@/components/layout/Page";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { postOfficialJobEvent } from "@/lib/officialJobs/events";
 import { OFFICIAL_JOBS_LOGIN_HREF, type OfficialJob } from "@/lib/officialJobs";
-import { OFFICIAL_JOBS_OG_IMAGE_URL, buildOfficialJobCanonicalUrl, buildOfficialJobDescription, buildOfficialJobStructuredData, buildOfficialJobTitle, toIsoDateTime } from "@/lib/officialJobs/seo";
+import {
+  OFFICIAL_JOBS_OG_IMAGE_URL,
+  buildOfficialJobCanonicalUrl,
+  buildOfficialJobDescription,
+  buildOfficialJobStructuredData,
+  buildOfficialJobTitle,
+  toIsoDateTime,
+} from "@/lib/officialJobs/seo";
 import { getPublicOfficialJobBySlug } from "@/lib/officialJobs/server";
-import { BriefcaseBusiness, ChevronLeft, MapPin, ShieldCheck, Users } from "lucide-react";
+import {
+  BriefcaseBusiness,
+  ChevronLeft,
+  MapPin,
+  ShieldCheck,
+  Users,
+} from "lucide-react";
 import type { GetServerSideProps } from "next";
 import Head from "next/head";
 import Link from "next/link";
@@ -51,25 +64,6 @@ function JobFact({
         {value}
       </dd>
     </div>
-  );
-}
-
-function DetailSection({
-  id,
-  title,
-  children,
-}: {
-  id?: string;
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <section id={id} className="">
-      <h2 className="mt-4 text-[20px] font-normal leading-tight text-black md:text-[26px]">
-        {title}
-      </h2>
-      <div className="mt-6">{children}</div>
-    </section>
   );
 }
 
@@ -199,43 +193,9 @@ export default function OfficialJobDetailPage({
                     size="lg"
                     onClick={() => trackApplyClick("detail_primary")}
                   />
-                  <a
-                    href="#official-job-steps"
-                    className="text-center md:text-left mt-2 text-[14px] underline-offset-4 font-normal text-black/60 underline decoration-dotted cursor-pointer hover:underline hover:decoration-solid"
-                  >
-                    어떻게 지원하나요?
-                  </a>
                 </div>
                 <div className="mt-14 space-y-8 rounded-[4px] border border-white/0 md:border-beige900/10 bg-white/0 md:bg-white/35 p-0 md:p-8">
-                  <DetailSection title="How Harper Helps">
-                    <OfficialJobMarkdown
-                      content={job.harperDescriptionMarkdown}
-                    />
-                  </DetailSection>
-                  <hr />
-
-                  <DetailSection title="">
-                    <OfficialJobMarkdown
-                      content={job.roleDescriptionMarkdown}
-                    />
-                  </DetailSection>
-
-                  {job.companyDescriptionMarkdown &&
-                    job.companyDescriptionMarkdown.length > 10 && (
-                      <>
-                        <hr />
-                        <DetailSection title="Company overview">
-                          <OfficialJobMarkdown
-                            content={job.companyDescriptionMarkdown}
-                          />
-                        </DetailSection>
-                      </>
-                    )}
-                  <hr />
-
-                  <DetailSection id="official-job-steps" title="Process">
-                    <OfficialJobMarkdown content={job.harperStepsMarkdown} />
-                  </DetailSection>
+                  <OfficialJobMarkdown content={job.roleDescriptionMarkdown} />
                 </div>
               </div>
 

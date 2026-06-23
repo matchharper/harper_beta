@@ -166,6 +166,16 @@ export const queryKeys = {
         (filters.humanLabels ?? []).join("|"),
         (filters.tags ?? []).join("|"),
       ] as const,
+    talentHistory: (filters: {
+      sections?: readonly string[] | null;
+      talentIds?: readonly string[] | null;
+    }) =>
+      [
+        "opsMatching",
+        "talentHistory",
+        (filters.talentIds ?? []).join("|"),
+        (filters.sections ?? []).join("|"),
+      ] as const,
     talentPool: (filters: {
       createdFrom?: string | null;
       createdTo?: string | null;

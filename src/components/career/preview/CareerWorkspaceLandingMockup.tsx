@@ -128,6 +128,7 @@ type StaticCopy = {
   };
 };
 
+// career-i18n-skip
 const COPY: Record<Locale, StaticCopy> = {
   ko: {
     activeLabel: "온보딩 완료",

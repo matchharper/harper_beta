@@ -31,11 +31,18 @@ t("career.profile.links.improve_resume", "이력서 보강하기", {
 ## Commands
 
 ```bash
+pnpm translation:pull
 pnpm translation:sync:dry
 pnpm translation:sync
 pnpm translation:check-career
 pnpm exec tsc --noEmit --pretty false --incremental false
 ```
+
+`translation:pull` is a mandatory first step before every `translation:sync`
+run. Do not run `translation:sync`, `translation:sync:dry`, or
+`translation:push` against stale local language files. `/ops/translation` is a
+human-editable source for English copy, and those DB edits must be pulled into
+`src/lang/en.ts` before any sync can write back to `translation_entries`.
 
 `translation:sync` does all of this:
 
@@ -45,25 +52,40 @@ pnpm exec tsc --noEmit --pretty false --incremental false
 - removes `retranslate` / `meaningChanged` from the source call after processing
 - upserts changed `ko` / `en` rows into `translation_entries`
 
+`translation:sync` should preserve existing English copy unless the key is new,
+the English value is empty, or the source call explicitly has
+`retranslate: true` / `meaningChanged: true`. If English was manually edited in
+`/ops/translation`, `translation:pull` is what makes that edited English the
+local value that sync preserves.
+
 `translation:pull` does this:
 
 - pulls DB values into `src/lang/ko.ts` and `src/lang/en.ts`
 - updates Korean fallback arguments in `t(key, koSource)` from DB `ko` values
 
+`translation:push` is not part of the normal sync workflow. Use it only when you
+intentionally want local `src/lang/ko.ts` / `src/lang/en.ts` to overwrite DB
+rows, because it can overwrite human edits that exist only in `/ops/translation`.
+
 ## Codex Checklist
 
-1. Run `pnpm translation:sync:dry`.
-2. Inspect the reported new keys and touched keys.
-3. Run `pnpm translation:sync` when the changes are expected.
-4. Review generated English against Harper tone:
+1. Run `pnpm translation:pull`.
+2. Inspect the pull diff. If it changes unrelated English copy, keep it unless
+   the user explicitly asks to discard the DB edit.
+3. Run `pnpm translation:sync:dry`.
+4. Inspect the reported new keys and touched keys. Existing manually edited
+   English should not be rewritten unless the source has `retranslate: true` /
+   `meaningChanged: true`.
+5. Run `pnpm translation:sync` when the changes are expected.
+6. Review generated English against Harper tone:
    - conversational Harper text uses “I” for Harper actions
    - product UI refers to Harper in third person
    - keep placeholders like `{count}` exactly
    - keep Harper and named entities unchanged
-5. If a generated key is too vague, rename it in code and lang files before pushing.
-6. Run `pnpm translation:check-career`.
-7. Run `pnpm exec tsc --noEmit --pretty false --incremental false`.
-8. Run a focused eslint command for touched source files.
+7. If a generated key is too vague, rename it in code and lang files before pushing.
+8. Run `pnpm translation:check-career`.
+9. Run `pnpm exec tsc --noEmit --pretty false --incremental false`.
+10. Run a focused eslint command for touched source files.
 
 ## Deletion Policy
 

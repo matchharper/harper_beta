@@ -17,6 +17,7 @@ type UseCareerSessionArgs = {
   enabled: boolean;
   fetchWithAuth: FetchWithAuth;
   inviteToken?: string | null;
+  locale: string;
   mail?: string | null;
   userId: string | null;
 };
@@ -53,6 +54,7 @@ export const useCareerSession = ({
   enabled,
   fetchWithAuth,
   inviteToken,
+  locale,
   mail,
   userId,
 }: UseCareerSessionArgs) => {
@@ -84,6 +86,7 @@ export const useCareerSession = ({
         ...getCareerSignupAttributionPayload(),
         emailOnboardingToken: normalizedEmailOnboardingToken || undefined,
         inviteToken: normalizedInviteToken || undefined,
+        locale,
         mail: normalizedMail || undefined,
       }),
     });
@@ -111,6 +114,7 @@ export const useCareerSession = ({
     return payload;
   }, [
     fetchWithAuth,
+    locale,
     normalizedEmailOnboardingToken,
     normalizedInviteToken,
     normalizedMail,

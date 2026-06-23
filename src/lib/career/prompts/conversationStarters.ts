@@ -1,12 +1,34 @@
-import type { CareerConversationStarterId } from "@/lib/career/conversationStarters";
+import { careerT } from "@/lib/career/translatedCareerMessage";
+import { normalizeCareerPromptLocale } from "@/lib/career/promptLocale";
+
+export const CAREER_CONVERSATION_STARTER_IDS = [
+  "preference_update",
+  "match_quality",
+] as const;
+
+export type CareerConversationStarterId =
+  (typeof CAREER_CONVERSATION_STARTER_IDS)[number];
+
+export type CareerConversationStarterMode = "chat" | "call";
+
+export type CareerConversationStarterAction = {
+  id: CareerConversationStarterId;
+  chatMessage: string;
+  callOpeningText: string;
+};
 
 export type CareerConversationStarterPromptChannel = "chat" | "voice";
 
+type LocalizedConversationStarterText = {
+  en: string;
+  ko: string;
+};
+
 type CareerConversationStarterPromptCopy = {
-  callOpeningText: string;
+  callOpeningText: LocalizedConversationStarterText;
   turnInstructionByChannel: Record<
     CareerConversationStarterPromptChannel,
-    string
+    LocalizedConversationStarterText
   >;
 };
 
@@ -32,6 +54,28 @@ Follow-up behavior:
 - Keep it light; this starter exists so the user can quickly correct matching criteria.
 `.trim();
 
+const PREFERENCE_UPDATE_TURN_INSTRUCTION_EN = `
+## Conversation starter: preference_update
+The user intentionally clicked "Update preferences".
+
+Goal:
+- Help the user add, remove, or correct matching preferences and constraints.
+- Treat new information from this thread as durable matching context when it is clearly stable.
+- Most important: speak like a natural, thoughtful career agent. Avoid stiff system language, product language, or robotic phrasing.
+
+Scope:
+- This is an active conversation mode, not a one-shot opening line.
+- Keep follow-up questions inside preference update unless the user explicitly changes topic.
+- Do not drift into generic onboarding or opportunity-intake questions like "what kind of opportunities are you looking for" unless the user asks to start a broad search.
+
+Follow-up behavior:
+- Ask one question at a time.
+- Prefer short confirmation loops: "Got it, I will avoid X and prioritize Y going forward." Then ask only one useful next question if needed.
+- When the user gives a new or changed preference, use available profile or memory update tools when appropriate, then explain briefly how Harper will use it for future recommendations.
+- Do not launch a broad job search unless the user explicitly asks to see roles now.
+- Keep it light. This starter exists so the user can quickly correct matching criteria.
+`.trim();
+
 const PREFERENCE_UPDATE_CALL_OPENING_TEXT = `
 ## Conversation starter: preference_update
 The user intentionally clicked "선호 조건 업데이트하기".
@@ -52,6 +96,28 @@ First response:
 First response Example:
 - 안녕하세요 호진님, 좋은 아침입니다. 이전에는 제가 미국 회사랑 국내 스타트업 몇개 소개드렸었는데, 작은 다음 연결 혹은 추천에 있어서 어떤 것들을 새로 반영하고 싶으세요?
 - 좋습니다, 호진님. 선호도를 변경하고 싶다고 하셨는데 최근에 \"이런 회사는 좋다\" 또는 \"이런 조건은 빼고 싶다\" 싶은 게 있으면 편하게 말해주세요.
+`;
+
+const PREFERENCE_UPDATE_CALL_OPENING_TEXT_EN = `
+## Conversation starter: preference_update
+The user intentionally clicked "Update preferences".
+
+Goal:
+- Help the user add, remove, or correct matching preferences and constraints.
+- Treat new information from this thread as durable matching context when it is clearly stable.
+- Most important: speak like a natural, thoughtful career agent. Avoid stiff system language, product language, or robotic phrasing.
+
+First response:
+- Start like Harper intentionally began this thread, not like a generic assistant reply.
+- A slightly warmer opening than normal chat is okay: 2-3 short setup sentences before the question.
+- Briefly explain that preferences change over time and Harper wants to update the matching criteria before making future recommendations.
+- If a clear current preference is visible in Known Insights, Structured Talent Profile, or recent conversation, briefly reference at most one item in plain English. Do not summarize the whole profile.
+- Ask one easy question about what the user wants to add or change now.
+- Good areas: target role, company stage, domain, location or remote setup, compensation, engagement type, timeline, visa, privacy, blocked companies, must-haves, and deal-breakers.
+
+First response examples:
+- Hi, good morning. Last time we were looking at a mix of US companies and local startups. Before I make the next recommendations, what should I reflect differently now?
+- Got it. Since you want to update your preferences, is there any kind of company you would like me to prioritize, or any condition you want me to filter out going forward?
 `;
 
 const MATCH_QUALITY_TURN_INSTRUCTION = `
@@ -83,6 +149,37 @@ Follow-up behavior:
 - Do not drift into generic onboarding or opportunity-intake questions like "어떤 기회를 찾고 계신지 알려주세요" unless the user asks to talk about target opportunities.
 - When the user shares useful background, strengths, achievements, or transition context, use available profile/memory update tools when appropriate.
 - Do not turn this into a long interview; keep a natural, optional conversation pace.
+`.trim();
+
+const MATCH_QUALITY_TURN_INSTRUCTION_EN = `
+## Conversation starter: match_quality
+The user intentionally clicked the starter for sharing more background and experience.
+
+Goal:
+- Understand the context behind the user's resume: strengths, achievements, decisions, and career transitions.
+- Help company introductions feel like a clear explanation of why this person is worth meeting, not just a list of roles.
+- Most important: speak naturally like a thoughtful career agent. Avoid stiff consultant language, product language, or system-message phrasing.
+- Do not make Harper the subject too often. When useful, speak from the assistant's perspective with "I".
+
+Tone:
+- Warm and professional, but not overly formal.
+- Natural connectors like "that makes sense", "from a company's point of view", and "feel free to answer casually" are okay.
+- Sentences may be a little longer when the flow needs it, but the response should still feel human.
+- Do not repeatedly use the same structure like "if I understand you better, recommendations become more accurate".
+- Avoid mechanical phrases like "accurate introduction", "better recommendation", or "background sharing" when a more natural phrase fits.
+
+Good question topics:
+1. Strong experiences, achievements, or details the user wants to explain beyond the profile.
+2. Reasons behind job changes, transitions, founding, short tenures, or career gaps.
+3. Personal strengths, domains the user knows well, working style, and job-related habits or interests.
+
+Follow-up behavior:
+- Ask one concrete question at a time.
+- Avoid generic "tell me more" prompts. Make the next question answerable.
+- This is an active conversation mode, not a one-shot opening line. The next assistant question after each user answer must continue the background and experience thread unless the user explicitly changes topic.
+- Do not drift into generic onboarding or opportunity-intake questions like "what kind of opportunities are you looking for" unless the user asks to talk about target opportunities.
+- When the user shares useful background, strengths, achievements, or transition context, use available profile or memory update tools when appropriate.
+- Do not turn this into a long interview. Keep a natural, optional conversation pace.
 `.trim();
 
 const MATCH_QUALITY_CALL_OPENING_TEXT = `
@@ -121,36 +218,160 @@ First response Example:
 - 안녕하세요 호진님, 오랜만이에요. 저번에 초기 팀처럼 빠르게 움직이는 환경이 좋다고 하셨는데, 보통 그런 회사들은 “이분이 스스로 새로운 문제를 정의하고 해결해봤는지”를 되게 궁금해하거든요. 호진님의 프로필을 봤을 때 이력에 있어서 더 구체적인 사항들 보다도 회사 일이 아니더라도 본인이 직접 시작해서 서비스를 만들어본 경험같은게 있으신지 여쭤보고 싶어요. 꼭 이게 아니더라도 그냥 이야기하고싶으신 것들이 있으면 다 얘기해주셔도 좋아요.
 `;
 
+const MATCH_QUALITY_CALL_OPENING_TEXT_EN = `
+## Conversation starter: match_quality
+The user intentionally clicked the starter for sharing more background and experience.
+
+Goal:
+- Understand the context behind the user's resume: strengths, achievements, decisions, and career transitions.
+- Help company introductions feel like a clear explanation of why this person is worth meeting, not just a list of roles.
+- Most important: speak naturally like a thoughtful career agent. Avoid stiff consultant language, product language, or system-message phrasing.
+- Do not make Harper the subject too often. When useful, speak from the assistant's perspective with "I".
+
+Tone:
+- Warm and professional, but not overly formal.
+- Natural connectors like "that makes sense", "from a company's point of view", and "feel free to answer casually" are okay.
+- Sentences may be a little longer when the flow needs it, but the response should still feel human.
+- Do not repeatedly use the same structure like "if I understand you better, recommendations become more accurate".
+- Avoid mechanical phrases like "accurate introduction", "better recommendation", or "background sharing" when a more natural phrase fits.
+
+Natural first response flow:
+- Start with a greeting.
+- Naturally acknowledge that the user started this call to share more background.
+- Say in one sentence why this helps from your perspective.
+- The first question should be concrete. It is also okay to leave room for the user to answer with something else they feel is important.
+- It can be natural to briefly reference prior conversation or context if it is clearly available. Do not invent context.
+
+Good question topics:
+1. Strong experiences, achievements, or details the user wants to explain beyond the profile.
+2. Reasons behind job changes, transitions, founding, short tenures, or career gaps.
+3. Personal strengths, domains the user knows well, working style, and job-related habits or interests.
+
+First response examples:
+- Hi, thanks for being open to talking through this. From my side, the more context I have behind your roles and decisions, the easier it is to introduce you well to the right companies. Looking at your profile, one thing companies may wonder about is the story behind your transition from A to B. Would you like to start there, or is there another experience you want me to understand better?
+- Hi, good to speak with you again. Last time you mentioned liking fast-moving early teams, and companies like that often care about whether someone can define and solve ambiguous problems independently. Is there a project or experience outside the basic resume bullets that shows that side of you?
+`;
+
 export const CAREER_CONVERSATION_STARTER_PROMPT_COPY: Record<
   CareerConversationStarterId,
   CareerConversationStarterPromptCopy
 > = {
   match_quality: {
-    callOpeningText: MATCH_QUALITY_CALL_OPENING_TEXT,
+    callOpeningText: {
+      en: MATCH_QUALITY_CALL_OPENING_TEXT_EN,
+      ko: MATCH_QUALITY_CALL_OPENING_TEXT,
+    },
     turnInstructionByChannel: {
-      chat: MATCH_QUALITY_TURN_INSTRUCTION,
-      voice: MATCH_QUALITY_TURN_INSTRUCTION,
+      chat: {
+        en: MATCH_QUALITY_TURN_INSTRUCTION_EN,
+        ko: MATCH_QUALITY_TURN_INSTRUCTION,
+      },
+      voice: {
+        en: MATCH_QUALITY_TURN_INSTRUCTION_EN,
+        ko: MATCH_QUALITY_TURN_INSTRUCTION,
+      },
     },
   },
   preference_update: {
-    callOpeningText: PREFERENCE_UPDATE_CALL_OPENING_TEXT,
+    callOpeningText: {
+      en: PREFERENCE_UPDATE_CALL_OPENING_TEXT_EN,
+      ko: PREFERENCE_UPDATE_CALL_OPENING_TEXT,
+    },
     turnInstructionByChannel: {
-      chat: PREFERENCE_UPDATE_TURN_INSTRUCTION,
-      voice: PREFERENCE_UPDATE_TURN_INSTRUCTION,
+      chat: {
+        en: PREFERENCE_UPDATE_TURN_INSTRUCTION_EN,
+        ko: PREFERENCE_UPDATE_TURN_INSTRUCTION,
+      },
+      voice: {
+        en: PREFERENCE_UPDATE_TURN_INSTRUCTION_EN,
+        ko: PREFERENCE_UPDATE_TURN_INSTRUCTION,
+      },
     },
   },
 };
 
-export function getCareerConversationStarterCallOpeningText(
-  starterId: CareerConversationStarterId
+function resolveLocalizedStarterText(
+  copy: LocalizedConversationStarterText,
+  locale?: string | null
 ) {
-  return CAREER_CONVERSATION_STARTER_PROMPT_COPY[starterId].callOpeningText;
+  return normalizeCareerPromptLocale(locale) === "en" ? copy.en : copy.ko;
+}
+
+function toCareerConversationStarterId(
+  value: unknown
+): CareerConversationStarterId | null {
+  if (
+    typeof value === "string" &&
+    CAREER_CONVERSATION_STARTER_IDS.includes(
+      value as CareerConversationStarterId
+    )
+  ) {
+    return value as CareerConversationStarterId;
+  }
+  return null;
+}
+
+function getCareerConversationStarterChatMessage(
+  starterId: CareerConversationStarterId,
+  locale?: string | null
+) {
+  switch (starterId) {
+    case "match_quality":
+      return careerT(
+        locale,
+        "career.common.conversation_starters.1qmlix7",
+        "제 정보와 경험을 조금 더 자세히 이야기할 수 있어요."
+      );
+    case "preference_update":
+      return careerT(
+        locale,
+        "career.common.conversation_starters.1gwajda",
+        "선호 조건을 업데이트하고 싶어요."
+      );
+  }
+}
+
+export function getCareerConversationStarterCallOpeningText(
+  starterId: CareerConversationStarterId,
+  locale?: string | null
+) {
+  return resolveLocalizedStarterText(
+    CAREER_CONVERSATION_STARTER_PROMPT_COPY[starterId].callOpeningText,
+    locale
+  );
+}
+
+export function getCareerConversationStarter(
+  value: unknown,
+  locale?: string | null
+): CareerConversationStarterAction | null {
+  const starterId = toCareerConversationStarterId(value);
+  if (!starterId) return null;
+
+  return {
+    id: starterId,
+    chatMessage: getCareerConversationStarterChatMessage(starterId, locale),
+    callOpeningText: getCareerConversationStarterCallOpeningText(
+      starterId,
+      locale
+    ),
+  };
+}
+
+export function isCareerConversationStarterId(
+  value: unknown
+): value is CareerConversationStarterId {
+  return Boolean(getCareerConversationStarter(value));
 }
 
 export function getCareerConversationStarterTurnInstruction(args: {
   channel: CareerConversationStarterPromptChannel;
+  locale?: string | null;
   starterId: CareerConversationStarterId;
 }) {
-  return CAREER_CONVERSATION_STARTER_PROMPT_COPY[args.starterId]
-    .turnInstructionByChannel[args.channel];
+  return resolveLocalizedStarterText(
+    CAREER_CONVERSATION_STARTER_PROMPT_COPY[args.starterId]
+      .turnInstructionByChannel[args.channel],
+    args.locale
+  );
 }

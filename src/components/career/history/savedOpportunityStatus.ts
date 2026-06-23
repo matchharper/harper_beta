@@ -10,6 +10,10 @@ export type SavedOpportunityManagementStatus =
   | "closed"
   | "hidden";
 
+export type CareerOpportunityManagementStatus =
+  | SavedOpportunityManagementStatus
+  | "archived";
+
 type CareerTLike = (key: string, koSource: string) => string;
 
 const fallbackCareerT: CareerTLike = (_key, koSource) => koSource;
@@ -24,19 +28,16 @@ export const getSavedOpportunityStatusOptions = (t: CareerTLike) =>
       id: "active",
       label: t(
         "career.history.saved_opportunity_status.0rjulen",
-        "프로세스 진행중"
+        "지원함/진행중"
       ),
     },
     {
       id: "closed",
-      label: t(
-        "career.history.saved_opportunity_status.1jv953e",
-        "프로세스 종료"
-      ),
+      label: t("career.history.saved_opportunity_status.1jv953e", "종료됨"),
     },
     {
       id: "hidden",
-      label: t("career.history.saved_opportunity_status.0exoa8f", "숨기기"),
+      label: t("career.history.saved_opportunity_status.0exoa8f", "보관함"),
     },
   ] as const satisfies readonly {
     id: SavedOpportunityManagementStatus;
@@ -92,6 +93,13 @@ export const getSavedOpportunityManagementStatus = (
   return "saved";
 };
 
+export const getCareerOpportunityManagementStatus = (
+  item: CareerHistoryOpportunity
+): CareerOpportunityManagementStatus => {
+  if (item.feedback === "negative") return "archived";
+  return getSavedOpportunityManagementStatus(item);
+};
+
 export const getSavedOpportunityStatusLabel = (
   status: SavedOpportunityManagementStatus,
   tArg?: CareerTLike
@@ -101,4 +109,33 @@ export const getSavedOpportunityStatusLabel = (
     getSavedOpportunityStatusOptions(t).find((option) => option.id === status)
       ?.label ?? t("career.history.saved_opportunity_status.0obqas2", "저장됨")
   );
+};
+
+export const getCareerOpportunityManagementStatusOptions = (t: CareerTLike) =>
+  [
+    ...getSavedOpportunityStatusOptions(t),
+    {
+      id: "archived",
+      label: t(
+        "career.history.saved_opportunity_status.archived",
+        "제외됨"
+      ),
+    },
+  ] as const satisfies readonly {
+    id: CareerOpportunityManagementStatus;
+    label: string;
+  }[];
+
+export const getCareerOpportunityManagementStatusLabel = (
+  status: CareerOpportunityManagementStatus,
+  tArg?: CareerTLike
+) => {
+  const t = tArg ?? fallbackCareerT;
+  if (status === "archived") {
+    return t(
+      "career.history.saved_opportunity_status.archived",
+      "제외됨"
+    );
+  }
+  return getSavedOpportunityStatusLabel(status, t);
 };

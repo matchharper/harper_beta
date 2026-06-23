@@ -1,14 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { getCareerOpportunitySortPriority } from "@/components/career/opportunityTypeMeta";
+import {
+  getCareerDefaultSavedStage,
+  getCareerOpportunitySortPriority,
+} from "@/components/career/opportunityTypeMeta";
+import { getSavedOpportunityManagementStatus } from "@/components/career/history/savedOpportunityStatus";
 import type {
   CareerHistoryOpportunity,
   CareerHistoryOpportunityCounts,
   CareerHistoryOpportunityPageFilter,
+  CareerOpportunitySavedStage,
 } from "@/components/career/types";
 
 export type CareerMobileHistoryJobsTab =
   | "new"
   | "saved"
+  | "active"
+  | "closed"
+  | "hidden"
   | "archived";
 
 const compareRecommendedAtDesc = (
@@ -16,16 +24,28 @@ const compareRecommendedAtDesc = (
   right: CareerHistoryOpportunity
 ) => Date.parse(right.recommendedAt) - Date.parse(left.recommendedAt);
 
-const getHistoryFilterForJobsTab = (
+const getHistoryFiltersForJobsTab = (
   tab: CareerMobileHistoryJobsTab
-): CareerHistoryOpportunityPageFilter => {
+): CareerHistoryOpportunityPageFilter[] => {
   if (tab === "saved") {
-    return { historyTab: "saved" };
+    return [{ historyTab: "saved", savedStage: "saved" }];
+  }
+  if (tab === "active") {
+    return [
+      { historyTab: "saved", savedStage: "applied" },
+      { historyTab: "saved", savedStage: "connected" },
+    ];
+  }
+  if (tab === "closed") {
+    return [{ historyTab: "saved", savedStage: "closed" }];
+  }
+  if (tab === "hidden") {
+    return [{ historyTab: "saved", savedStage: "hidden" }];
   }
   if (tab === "archived") {
-    return { historyTab: "archived" };
+    return [{ historyTab: "archived" }];
   }
-  return { historyTab: "new" };
+  return [{ historyTab: "new" }];
 };
 
 const getHistoryFilterKey = (filter: CareerHistoryOpportunityPageFilter) =>
@@ -38,7 +58,12 @@ const getJobsTabTotal = (
   counts: CareerHistoryOpportunityCounts
 ) => {
   if (tab === "new") return counts.new;
-  if (tab === "saved") return counts.saved;
+  if (tab === "saved") return counts.savedStages.saved;
+  if (tab === "active") {
+    return counts.savedStages.applied + counts.savedStages.connected;
+  }
+  if (tab === "closed") return counts.savedStages.closed;
+  if (tab === "hidden") return counts.savedStages.hidden;
   return counts.archived;
 };
 
@@ -48,7 +73,44 @@ const isOpportunityInJobsTab = (
 ) => {
   if (tab === "new") return item.feedback === null;
   if (tab === "archived") return item.feedback === "negative";
-  return item.feedback === "positive";
+  if (item.feedback !== "positive") return false;
+  return getSavedOpportunityManagementStatus(item) === tab;
+};
+
+const getSavedStageLoadedCount = (
+  items: CareerHistoryOpportunity[],
+  stage: CareerOpportunitySavedStage
+) =>
+  items.filter(
+    (item) =>
+      item.feedback === "positive" &&
+      (item.savedStage ?? getCareerDefaultSavedStage(item.opportunityType)) ===
+        stage
+  ).length;
+
+const getFilterLoadedCount = (
+  items: CareerHistoryOpportunity[],
+  filter: CareerHistoryOpportunityPageFilter
+) => {
+  if (filter.historyTab === "new") {
+    return items.filter((item) => item.feedback === null).length;
+  }
+  if (filter.historyTab === "archived") {
+    return items.filter((item) => item.feedback === "negative").length;
+  }
+  if (filter.savedStage)
+    return getSavedStageLoadedCount(items, filter.savedStage);
+  return items.filter((item) => item.feedback === "positive").length;
+};
+
+const getFilterTotal = (
+  filter: CareerHistoryOpportunityPageFilter,
+  counts: CareerHistoryOpportunityCounts
+) => {
+  if (filter.historyTab === "new") return counts.new;
+  if (filter.historyTab === "archived") return counts.archived;
+  if (filter.savedStage) return counts.savedStages[filter.savedStage];
+  return counts.saved;
 };
 
 const sortOpportunitiesForJobsTab =
@@ -85,11 +147,10 @@ export function useCareerMobileHistoryOpportunities(args: {
     onLoadMoreHistoryOpportunities,
   } = args;
   const requestedInitialPageKeysRef = useRef<Set<string>>(new Set());
-  const filter = useMemo(
-    () => getHistoryFilterForJobsTab(activeTab),
+  const filters = useMemo(
+    () => getHistoryFiltersForJobsTab(activeTab),
     [activeTab]
   );
-  const filterKey = useMemo(() => getHistoryFilterKey(filter), [filter]);
   const totalCount = getJobsTabTotal(activeTab, historyOpportunityCounts);
   const opportunities = useMemo(
     () =>
@@ -98,32 +159,50 @@ export function useCareerMobileHistoryOpportunities(args: {
         .sort(sortOpportunitiesForJobsTab(activeTab)),
     [activeTab, historyOpportunities]
   );
-  const hasMore = opportunities.length < totalCount;
+  const nextLoadFilter = useMemo(
+    () =>
+      filters.find(
+        (candidate) =>
+          getFilterLoadedCount(historyOpportunities, candidate) <
+          getFilterTotal(candidate, historyOpportunityCounts)
+      ) ?? null,
+    [filters, historyOpportunities, historyOpportunityCounts]
+  );
+  const hasMore = Boolean(nextLoadFilter);
 
   const loadMore = useCallback(() => {
-    if (!hasMore || historyLoading || historyLoadingMore) return;
-    void onLoadMoreHistoryOpportunities(filter);
+    if (!nextLoadFilter || historyLoading || historyLoadingMore) return;
+    void onLoadMoreHistoryOpportunities(nextLoadFilter);
   }, [
-    filter,
-    hasMore,
     historyLoading,
     historyLoadingMore,
+    nextLoadFilter,
     onLoadMoreHistoryOpportunities,
   ]);
 
   useEffect(() => {
     if (!hasMore || opportunities.length > 0) return;
     if (historyLoading || historyLoadingMore) return;
-    if (requestedInitialPageKeysRef.current.has(filterKey)) return;
 
-    requestedInitialPageKeysRef.current.add(filterKey);
-    void onLoadMoreHistoryOpportunities(filter);
+    const filterToLoad = filters.find((candidate) => {
+      const filterKey = getHistoryFilterKey(candidate);
+      return (
+        !requestedInitialPageKeysRef.current.has(filterKey) &&
+        getFilterLoadedCount(historyOpportunities, candidate) <
+          getFilterTotal(candidate, historyOpportunityCounts)
+      );
+    });
+    if (!filterToLoad) return;
+
+    requestedInitialPageKeysRef.current.add(getHistoryFilterKey(filterToLoad));
+    void onLoadMoreHistoryOpportunities(filterToLoad);
   }, [
-    filter,
-    filterKey,
+    filters,
     hasMore,
     historyLoading,
     historyLoadingMore,
+    historyOpportunities,
+    historyOpportunityCounts,
     onLoadMoreHistoryOpportunities,
     opportunities.length,
   ]);

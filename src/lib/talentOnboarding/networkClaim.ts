@@ -437,10 +437,9 @@ function buildTalentUserMergePayload(args: {
   currentProfile: TalentUserProfileRow | null;
   sourceProfile: TalentUserProfileRow | null;
   lead: ReturnType<typeof buildNetworkLead>;
-  sourceTalentId: string;
   user: User;
 }) {
-  const { currentProfile, sourceProfile, lead, sourceTalentId, user } = args;
+  const { currentProfile, sourceProfile, lead, user } = args;
   const mergedLinks = dedupeLinks([
     ...(currentProfile?.resume_links ?? []),
     ...(sourceProfile?.resume_links ?? []),
@@ -448,8 +447,6 @@ function buildTalentUserMergePayload(args: {
   ]);
   const payload: Database["public"]["Tables"]["talent_users"]["Update"] = {
     email: user.email ?? currentProfile?.email ?? lead.email ?? null,
-    network_source_talent_id: sourceTalentId,
-    network_waitlist_id: lead.id,
     resume_links: mergedLinks,
   };
 
@@ -500,25 +497,6 @@ function buildTalentUserMergePayload(args: {
   return payload;
 }
 
-export async function findClaimedTalentUserByWaitlistId(args: {
-  admin: AdminClient;
-  waitlistId: number;
-}) {
-  const { data, error } = await args.admin
-    .from("talent_users")
-    .select(
-      "user_id, email, name, profile_picture, headline, bio, location, last_logined_at, network_waitlist_id, network_source_talent_id, resume_file_name, resume_storage_path, resume_text, resume_links, created_at, updated_at"
-    )
-    .eq("network_waitlist_id", args.waitlistId)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(error.message ?? "Failed to load claimed talent user");
-  }
-
-  return (data ?? null) as TalentUserProfileRow | null;
-}
-
 export async function claimTalentNetworkInvite(args: {
   admin: AdminClient;
   inviteToken: string;
@@ -543,29 +521,11 @@ export async function claimTalentNetworkInvite(args: {
     fetchTalentUserProfile({ admin, userId: user.id }),
     fetchTalentUserProfile({ admin, userId: sourceTalentId }).catch(() => null),
   ]);
-  const existingClaim =
-    currentProfile?.network_waitlist_id &&
-    currentProfile.network_waitlist_id !== lead.id
-      ? await findClaimedTalentUserByWaitlistId({
-          admin,
-          waitlistId: lead.id,
-        })
-      : currentProfile?.network_waitlist_id === lead.id
-        ? currentProfile
-        : await findClaimedTalentUserByWaitlistId({
-            admin,
-            waitlistId: lead.id,
-          });
-
-  if (existingClaim && existingClaim.user_id !== user.id) {
-    throw new Error("이 초대 링크는 이미 다른 계정에 연결되었습니다.");
-  }
 
   const payload = buildTalentUserMergePayload({
     currentProfile,
     sourceProfile,
     lead,
-    sourceTalentId,
     user,
   });
 

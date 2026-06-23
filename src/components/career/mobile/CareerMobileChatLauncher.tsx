@@ -21,14 +21,12 @@ import { useCareerT } from "@/i18n/useCareerT";
 type CareerMobileChatLauncherProps = {
   children: React.ReactNode;
   actionBar?: React.ReactNode;
-  topOffsetPx?: number;
   placeholder?: string;
   className?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 };
 
-const DEFAULT_TOP_OFFSET_PX = 48;
 const SWIPE_UP_THRESHOLD_PX = 24;
 const KEYBOARD_OPEN_THRESHOLD_PX = 80;
 
@@ -132,7 +130,6 @@ function useMobileChatViewport(open: boolean) {
 function CareerMobileChatLauncher({
   children,
   actionBar,
-  topOffsetPx = DEFAULT_TOP_OFFSET_PX,
   placeholder,
   className,
   open: controlledOpen,
@@ -368,14 +365,14 @@ function CareerMobileChatLauncher({
           <DrawerPrimitive.Overlay
             className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[2px]"
             style={{
-              top: `calc(var(--career-mobile-chat-viewport-top, 0px) + env(safe-area-inset-top) + ${topOffsetPx}px)`,
+              top: "var(--career-mobile-chat-viewport-top, 0px)",
             }}
           />
           <DrawerPrimitive.Content
             className="fixed inset-x-0 z-50 flex flex-col border-t border-neutral-1000-a05 bg-bg-floating text-neutral-primary outline-none"
             style={{
-              top: `calc(var(--career-mobile-chat-viewport-top, 0px) + env(safe-area-inset-top) + ${topOffsetPx}px)`,
-              height: `calc(var(--career-mobile-chat-viewport-height, 100svh) - ${topOffsetPx}px - env(safe-area-inset-top))`,
+              top: "var(--career-mobile-chat-viewport-top, 0px)",
+              height: "var(--career-mobile-chat-viewport-height, 100svh)",
               paddingBottom:
                 "var(--career-mobile-chat-safe-bottom, env(safe-area-inset-bottom))",
             }}
@@ -393,7 +390,12 @@ function CareerMobileChatLauncher({
               )}
             </DrawerPrimitive.Description>
 
-            <div className="relative flex shrink-0 items-center justify-center px-4 pt-3 pb-2">
+            <div
+              className="relative flex shrink-0 items-center justify-center px-4 pb-2"
+              style={{
+                paddingTop: "calc(env(safe-area-inset-top) + 0.75rem)",
+              }}
+            >
               <DrawerPrimitive.Handle
                 preventCycle
                 className="flex h-6 w-24 items-center justify-center"
@@ -406,6 +408,9 @@ function CareerMobileChatLauncher({
                   "채팅 접기"
                 )}
                 className="absolute right-3 top-2 z-[60] inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-1000-a05 bg-bg-floating text-neutral-muted transition active:bg-bg-weak"
+                style={{
+                  top: "calc(env(safe-area-inset-top) + 0.5rem)",
+                }}
               >
                 <X className="h-4 w-4" />
               </DrawerPrimitive.Close>

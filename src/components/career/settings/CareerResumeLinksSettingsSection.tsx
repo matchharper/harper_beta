@@ -3,7 +3,9 @@ import {
   ExternalLink,
   FileText,
   Globe2,
+  Loader2,
   Plus,
+  RefreshCw,
   Save,
   Upload,
   X,
@@ -20,6 +22,7 @@ import { AttentionBadge } from "@/components/ui/badge";
 import { SecondaryButton, BareButton } from "@/components/ui/button";
 import { Input, Input as UiInput } from "@/components/ui/input";
 import { Field, FieldLabel } from "@/components/ui/panel";
+import { Tooltips } from "@/components/ui/tooltip";
 import { useCareerT } from "@/i18n/useCareerT";
 
 const CAREER_LINK_ITEMS = [
@@ -50,17 +53,25 @@ const CAREER_LINK_ITEMS = [
   },
 ] as const;
 
+const LINKEDIN_LINK_INDEX = 0;
+
 const LinkItemIcon = ({ index }: { index: number }) => {
   const item = CAREER_LINK_ITEMS[index];
 
   if (item?.iconSrc) {
+    const isLinkedin = index === LINKEDIN_LINK_INDEX;
+
     return (
       <Image
         src={item.iconSrc}
         alt={item.alt}
-        width={16}
-        height={16}
-        className="h-4 w-4 rounded-[4px] object-contain"
+        width={isLinkedin ? 19 : 16}
+        height={isLinkedin ? 19 : 16}
+        className={
+          isLinkedin
+            ? "h-[19px] w-[19px] rounded-[4px] object-contain"
+            : "h-4 w-4 rounded-[4px] object-contain"
+        }
       />
     );
   }
@@ -87,6 +98,7 @@ const CareerResumeLinksSettingsSection = () => {
     onAddProfileLink,
     onRemoveProfileLink,
     onSaveTalentProfile,
+    onRefreshTalentProfileSources,
   } = useCareerSidebarContext();
   const [isProcessingSourceUpdate, setIsProcessingSourceUpdate] =
     useState(false);
@@ -120,6 +132,16 @@ const CareerResumeLinksSettingsSection = () => {
 
     try {
       await onSaveTalentProfile();
+    } finally {
+      setIsProcessingSourceUpdate(false);
+    }
+  };
+
+  const handleLinkedinRefreshClick = async () => {
+    logCareerEvent("click_resume_links_refresh_linkedin");
+    setIsProcessingSourceUpdate(true);
+    try {
+      await onRefreshTalentProfileSources({ links: profileLinks });
     } finally {
       setIsProcessingSourceUpdate(false);
     }
@@ -216,15 +238,43 @@ const CareerResumeLinksSettingsSection = () => {
               key={`settings-profile-link-${index}`}
               className="flex items-center gap-2"
             >
-              <div className="flex w-36 shrink-0 items-center gap-2 text-sm text-neutral-muted">
-                <LinkItemIcon index={index} />
-                <span className="truncate">
-                  {careerLinkLabels[index] ??
-                    t(
-                      "career.chat.career_timeline_section.0ong27a",
-                      "추가 링크"
+              <div className="flex w-36 shrink-0 items-center justify-between gap-2 text-sm text-neutral-muted">
+                <div className="flex items-center gap-1">
+                  <LinkItemIcon index={index} />
+                  <span className="truncate">
+                    {careerLinkLabels[index] ??
+                      t(
+                        "career.chat.career_timeline_section.0ong27a",
+                        "추가 링크"
+                      )}
+                  </span>
+                </div>
+                {index === LINKEDIN_LINK_INDEX ? (
+                  <Tooltips
+                    text={t(
+                      "career.profile.resume_links.linkedin_refresh_tooltip",
+                      "업데이트된 링크드인 정보를 가져옵니다."
                     )}
-                </span>
+                    side="top"
+                  >
+                    <BareButton
+                      type="button"
+                      onClick={() => void handleLinkedinRefreshClick()}
+                      disabled={profileSavePending}
+                      aria-label={t(
+                        "career.profile.resume_links.linkedin_refresh_label",
+                        "링크드인 정보 새로고침"
+                      )}
+                      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-info-200 text-info-600 transition-colors hover:bg-info-400 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {profileSavePending ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-3.5 w-3.5" />
+                      )}
+                    </BareButton>
+                  </Tooltips>
+                ) : null}
               </div>
               <Input
                 value={link}

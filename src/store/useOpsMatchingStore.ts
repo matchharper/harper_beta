@@ -51,12 +51,10 @@ type OpsMatchingStoreState = {
   allExcludeRecommended: boolean;
   allHumanLabelFilters: string[];
   allLlmLabelFilters: string[];
-  allTagFilters: string[];
   collapsedReviewColumnIdsByRole: Record<string, string[]>;
   hasHydrated: boolean;
   reviewRecommendedFrom: string;
   reviewRecommendedTo: string;
-  reviewTagFilters: string[];
   selectedCompanyId: string;
   selectedRoleId: string;
   setActiveTab: (tab: OpsMatchingStageTabId) => void;
@@ -64,7 +62,6 @@ type OpsMatchingStoreState = {
   setAllExcludeRecommended: (excludeRecommended: boolean) => void;
   setAllHumanLabelFilters: (labels: string[]) => void;
   setAllLlmLabelFilters: (labels: string[]) => void;
-  setAllTagFilters: (tags: string[]) => void;
   setHasHydrated: (hasHydrated: boolean) => void;
   setReviewColumnCollapsed: (
     roleId: string,
@@ -72,7 +69,6 @@ type OpsMatchingStoreState = {
     collapsed: boolean
   ) => void;
   setReviewRecommendedDateRange: (from: string, to: string) => void;
-  setReviewTagFilters: (tags: string[]) => void;
   setSelectedCompanyId: (companyId: string) => void;
   setSelectedRoleId: (roleId: string) => void;
   setStateFromUrl: (state: Partial<OpsMatchingUrlState>) => void;
@@ -88,10 +84,8 @@ export type OpsMatchingUrlState = {
   allExcludeRecommended: boolean;
   allHumanLabelFilters: string[];
   allLlmLabelFilters: string[];
-  allTagFilters: string[];
   reviewRecommendedFrom: string;
   reviewRecommendedTo: string;
-  reviewTagFilters: string[];
   selectedCompanyId: string;
   selectedRoleId: string;
   viewMode: OpsMatchingViewMode;
@@ -110,12 +104,10 @@ export const useOpsMatchingStore = create<OpsMatchingStoreState>()(
       allExcludeRecommended: false,
       allHumanLabelFilters: [],
       allLlmLabelFilters: [],
-      allTagFilters: [],
       collapsedReviewColumnIdsByRole: {},
       hasHydrated: false,
       reviewRecommendedFrom: "",
       reviewRecommendedTo: "",
-      reviewTagFilters: [],
       selectedCompanyId: "",
       selectedRoleId: "",
       viewMode: "role",
@@ -131,7 +123,6 @@ export const useOpsMatchingStore = create<OpsMatchingStoreState>()(
         set({ allHumanLabelFilters: normalizeTags(labels) }),
       setAllLlmLabelFilters: (labels) =>
         set({ allLlmLabelFilters: normalizeTags(labels) }),
-      setAllTagFilters: (tags) => set({ allTagFilters: normalizeTags(tags) }),
       setHasHydrated: (hasHydrated) => set({ hasHydrated }),
       setReviewColumnCollapsed: (roleId, columnId, collapsed) =>
         set((state) => {
@@ -158,8 +149,6 @@ export const useOpsMatchingStore = create<OpsMatchingStoreState>()(
           reviewRecommendedFrom: normalizeText(from),
           reviewRecommendedTo: normalizeText(to),
         }),
-      setReviewTagFilters: (tags) =>
-        set({ reviewTagFilters: normalizeTags(tags) }),
       setSelectedCompanyId: (companyId) =>
         set({ selectedCompanyId: normalizeText(companyId) }),
       setSelectedRoleId: (roleId) =>
@@ -172,10 +161,8 @@ export const useOpsMatchingStore = create<OpsMatchingStoreState>()(
           allExcludeRecommended: Boolean(state.allExcludeRecommended),
           allHumanLabelFilters: normalizeTags(state.allHumanLabelFilters ?? []),
           allLlmLabelFilters: normalizeTags(state.allLlmLabelFilters ?? []),
-          allTagFilters: normalizeTags(state.allTagFilters ?? []),
           reviewRecommendedFrom: normalizeText(state.reviewRecommendedFrom),
           reviewRecommendedTo: normalizeText(state.reviewRecommendedTo),
-          reviewTagFilters: normalizeTags(state.reviewTagFilters ?? []),
           selectedCompanyId: normalizeText(state.selectedCompanyId),
           selectedRoleId: normalizeText(state.selectedRoleId),
           viewMode: normalizeViewMode(state.viewMode),
@@ -214,11 +201,9 @@ export const useOpsMatchingStore = create<OpsMatchingStoreState>()(
         allExcludeRecommended: state.allExcludeRecommended,
         allHumanLabelFilters: state.allHumanLabelFilters,
         allLlmLabelFilters: state.allLlmLabelFilters,
-        allTagFilters: state.allTagFilters,
         collapsedReviewColumnIdsByRole: state.collapsedReviewColumnIdsByRole,
         reviewRecommendedFrom: state.reviewRecommendedFrom,
         reviewRecommendedTo: state.reviewRecommendedTo,
-        reviewTagFilters: state.reviewTagFilters,
         selectedCompanyId: state.selectedCompanyId,
         selectedRoleId: state.selectedRoleId,
         viewMode: state.viewMode,

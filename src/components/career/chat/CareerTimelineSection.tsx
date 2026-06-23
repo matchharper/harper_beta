@@ -20,7 +20,7 @@ import type {
 import type {
   CareerConversationStarterId,
   CareerConversationStarterMode,
-} from "@/lib/career/conversationStarters";
+} from "@/lib/career/prompts/conversationStarters";
 import {
   RECOMMEND_JOB_POSTINGS_CHAT_PREAMBLES,
   splitRecommendJobPostingStatusLogs,

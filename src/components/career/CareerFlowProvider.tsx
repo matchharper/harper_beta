@@ -42,12 +42,16 @@ import { useCareerHistoryState } from "@/hooks/career/useCareerHistoryState";
 import { useCareerRuntimeActions } from "@/hooks/career/useCareerRuntimeActions";
 import { showOpportunityDiscoveryStartedToast } from "@/hooks/career/opportunityDiscoveryToast";
 import { INSIGHT_CHECKLIST } from "@/lib/talentOnboarding/insightChecklist";
+import {
+  TALENT_MESSAGE_TYPE_OPEN_POSITION_RECOMMENDATION_REQUEST,
+  type TalentUserChatMessageType,
+} from "@/lib/talentOnboarding/onboarding";
 import { TALENT_INTERVIEW_FINAL_STEP } from "@/lib/talentOnboarding/progress";
 import {
   getCareerConversationStarter,
   type CareerConversationStarterId,
   type CareerConversationStarterMode,
-} from "@/lib/career/conversationStarters";
+} from "@/lib/career/prompts/conversationStarters";
 import { useMessages } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
 
@@ -302,6 +306,7 @@ export const CareerFlowProvider = ({
     enabled: !authLoading && Boolean(userId),
     fetchWithAuth,
     inviteToken,
+    locale,
     mail,
     userId,
   });
@@ -682,6 +687,7 @@ export const CareerFlowProvider = ({
       conversationStarterId?: CareerConversationStarterId;
       text: string;
       link?: string;
+      messageType?: TalentUserChatMessageType;
       onError?: () => void;
     }) => {
       clearSessionReengagementAction();
@@ -924,7 +930,7 @@ export const CareerFlowProvider = ({
       starterId: CareerConversationStarterId;
     }) => {
       clearSessionReengagementAction();
-      const starter = getCareerConversationStarter(args.starterId);
+      const starter = getCareerConversationStarter(args.starterId, locale);
       if (!starter) return false;
 
       if (args.mode === "call") {
@@ -940,8 +946,25 @@ export const CareerFlowProvider = ({
       });
       return true;
     },
-    [clearSessionReengagementAction, handleStartCallModeFromUi, sendChatMessage]
+    [
+      clearSessionReengagementAction,
+      handleStartCallModeFromUi,
+      locale,
+      sendChatMessage,
+    ]
   );
+
+  const handleRequestMoreOpenPositions = useCallback(async () => {
+    clearSessionReengagementAction();
+    await sendChatMessage({
+      messageType: TALENT_MESSAGE_TYPE_OPEN_POSITION_RECOMMENDATION_REQUEST,
+      text: t(
+        "career.common.career_flow_provider.request_more_open_positions",
+        "다른 오픈 포지션 더 추천해줘"
+      ),
+    });
+    return true;
+  }, [clearSessionReengagementAction, sendChatMessage, t]);
 
   const handleUpdateCompanyFollow = useCallback(
     async (args: {
@@ -1876,6 +1899,7 @@ export const CareerFlowProvider = ({
       onStartCallMode: handleStartCallModeFromUi,
       onUseChatOnly: handleUseChatOnly,
       onStartConversationStarter: handleStartConversationStarter,
+      onRequestMoreOpenPositions: handleRequestMoreOpenPositions,
       recentOpportunities,
       pendingInternalOpportunityCallRequest,
       pendingInternalOpportunityCallRequests,
@@ -1959,6 +1983,7 @@ export const CareerFlowProvider = ({
       handleAddProfileLink,
       handleRunPeriodicOpportunityDiscoveryTest,
       handleRunOpportunityDiscoveryTest,
+      handleRequestMoreOpenPositions,
       handleStartConversationStarter,
       handleStartCallModeFromUi,
       handleUseChatOnly,

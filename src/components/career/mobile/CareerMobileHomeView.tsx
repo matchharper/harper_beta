@@ -28,7 +28,7 @@ import type { CareerInternalOpportunityCallRequest } from "@/components/career/t
 import type {
   CareerConversationStarterId,
   CareerConversationStarterMode,
-} from "@/lib/career/conversationStarters";
+} from "@/lib/career/prompts/conversationStarters";
 import { ActionButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -263,6 +263,7 @@ const CareerMobileHomeView = ({
     historyOpportunities,
     onStartCallMode,
     onStartConversationStarter,
+    onRequestMoreOpenPositions,
     pendingInternalOpportunityCallRequests = [],
     talentProfile,
   } = useCareerSidebarContext();
@@ -285,22 +286,10 @@ const CareerMobileHomeView = ({
       ).length,
     [historyOpportunities]
   );
-  const newPositionDescription =
-    newInternalOpportunityCount > 0
-      ? formatCareerMessage(
-          m,
-          t(
-            "career.home.career_home_panel.030cbmq",
-            "추천된 기회 · {count}개 연결 가능"
-          ),
-          {
-            count: countFormatter.format(newInternalOpportunityCount),
-          }
-        )
-      : formatCareerMessage(
-          m,
-          t("career.home.career_home_panel.0x7lgjp", "추천된 기회")
-        );
+  const newPositionDescription = formatCareerMessage(
+    m,
+    t("career.home.career_home_panel.0x7lgjp", "추천된 기회")
+  );
 
   const savedPositionCount = historyOpportunityCounts.savedStages.saved;
   const connectedPositionCount =
@@ -460,6 +449,12 @@ const CareerMobileHomeView = ({
     return onStartConversationStarter?.({ mode, starterId }) ?? false;
   };
 
+  const handleRequestMoreOpenPositions = () => {
+    logCareerEvent("click_mobile_home_more_open_positions");
+    onOpenChat();
+    return onRequestMoreOpenPositions?.() ?? false;
+  };
+
   if (workspaceDataLoading) {
     return <CareerMobileHomeSkeleton />;
   }
@@ -489,7 +484,7 @@ const CareerMobileHomeView = ({
         <h2 className="text-neutral-primary font-hedvig text-[24px] font-normal">
           {displayGreetingName}
         </h2>
-        <p className="mt-2 text-[15px] font-medium text-neutral-muted">
+        <p className="mt-2 text-[15px] font-normal text-neutral-muted">
           {currentTimeGreeting} {currentTimeHelpText}
         </p>
       </div>
@@ -579,6 +574,11 @@ const CareerMobileHomeView = ({
       <ConversationStarterActions
         callStartPending={callStartPending}
         disabled={!onStartConversationStarter}
+        onRequestMoreOpenPositions={
+          isOnboardingCompleted && onRequestMoreOpenPositions
+            ? handleRequestMoreOpenPositions
+            : undefined
+        }
         onStart={handleStartConversationStarter}
         variant="mobile"
       />

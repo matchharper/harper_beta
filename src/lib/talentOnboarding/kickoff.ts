@@ -100,7 +100,6 @@ function hasStoredProfileSeed(profile: TalentUserProfileRow | null) {
   if (!profile) return false;
 
   return Boolean(
-    profile.network_waitlist_id ||
     hasText(profile.resume_file_name) ||
     hasText(profile.resume_storage_path) ||
     hasText(profile.resume_text) ||

@@ -16,17 +16,19 @@ import { BareButton } from "@/components/ui/button";
 import { useMessages, type Locale } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
 
-type TabOption = {
+export type CareerMobileTopBarOptionId = CareerWorkspaceTab | "inbox" | "jobs";
+
+export type CareerMobileTopBarOption = {
   badgeCount?: number;
-  id: CareerWorkspaceTab;
+  id: CareerMobileTopBarOptionId;
   label: string;
   icon?: LucideIcon;
 };
 
 type CareerMobileTopBarProps = {
-  activeTab: CareerWorkspaceTab;
-  options: TabOption[];
-  onChangeTab: (tab: CareerWorkspaceTab) => void;
+  activeTab: CareerMobileTopBarOptionId;
+  options: CareerMobileTopBarOption[];
+  onChangeTab: (tab: CareerMobileTopBarOptionId) => void;
   profilePicture?: string | null;
   userName?: string | null;
   userEmail?: string | null;
@@ -85,11 +87,6 @@ export default function CareerMobileTopBar({
               </span>
             )}
             <span className="min-w-0 truncate">{activeOption?.label}</span>
-            {activeBadgeCount > 0 ? (
-              <span className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-black text-[11px] leading-none text-neutral-00">
-                {activeBadgeCount}
-              </span>
-            ) : null}
             <ChevronDown className="h-5 w-5 shrink-0 text-neutral-muted" />
           </BareButton>
         </DropdownMenuTrigger>
@@ -106,6 +103,7 @@ export default function CareerMobileTopBar({
             return (
               <DropdownMenuItem
                 key={opt.id}
+                data-career-topbar-option-id={opt.id}
                 onSelect={() => onChangeTab(opt.id)}
                 className={cn(
                   "cursor-pointer rounded-lg px-2.5 py-2.5 text-sm text-neutral-primary focus:bg-bg-weak/70 focus:text-neutral-primary",
@@ -119,7 +117,7 @@ export default function CareerMobileTopBar({
                 )}
                 <span className="min-w-0 flex-1 truncate">{opt.label}</span>
                 {badgeCount > 0 ? (
-                  <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-black px-1.5 text-[11px] leading-none text-neutral-00">
+                  <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-sky-600 px-2.5 text-[11px] leading-none text-neutral-00">
                     {badgeCount}
                   </span>
                 ) : null}

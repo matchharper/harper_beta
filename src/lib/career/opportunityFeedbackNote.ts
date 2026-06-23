@@ -10,6 +10,7 @@ const OPPORTUNITY_FEEDBACK_SYSTEM_ACTION_LOG_PREFIX = [
 export function buildOpportunityFeedbackNoteContent(args: {
   action: "positive" | "negative";
   companyName: string;
+  locale?: string | null;
   sourceType: "external" | "internal" | string | null | undefined;
   title: string;
 }) {
@@ -21,15 +22,19 @@ export function buildOpportunityFeedbackNoteContent(args: {
     args.action === "positive"
       ? args.sourceType === "internal"
         ? careerT(
-            "ko",
+            args.locale,
             "career.common.opportunity_feedback_note.0aslysy",
             "수락함"
           )
-        : careerT("ko", "career.common.career_history_panel.06mgpci", "저장함")
+        : careerT(
+            args.locale,
+            "career.common.career_history_panel.06mgpci",
+            "저장함"
+          )
       : careerT(
-          "ko",
+          args.locale,
           "career.common.career_history_panel.0paqqgp",
-          "선호하지 않음"
+          "제외됨"
         );
 
   return `(${sourceLabel}) ${title} at ${companyName} ${actionLabel}`;

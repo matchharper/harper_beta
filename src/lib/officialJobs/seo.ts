@@ -122,7 +122,6 @@ export function buildOfficialJobStructuredData(job: OfficialJob) {
   const description = [
     buildOfficialJobDescription(job),
     toText(job.roleDescriptionMarkdown),
-    toText(job.companyDescriptionMarkdown),
   ]
     .filter(Boolean)
     .join(" ");

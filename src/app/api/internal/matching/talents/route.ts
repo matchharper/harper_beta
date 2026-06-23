@@ -8,6 +8,7 @@ import {
   fetchOpsMatchingTalents,
   parseOpsMatchingDateOnly,
   parseOpsMatchingFitLabels,
+  parseOpsMatchingHumanLabelFilters,
   parseOpsMatchingLimit,
   parseOpsMatchingOffset,
   parseOpsMatchingTags,
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest) {
       excludeRecommended: parseBooleanParam(
         req.nextUrl.searchParams.get("excludeRecommended")
       ),
-      humanLabels: parseOpsMatchingFitLabels(
+      humanLabels: parseOpsMatchingHumanLabelFilters(
         req.nextUrl.searchParams.get("humanLabels")
       ),
       limit: parseOpsMatchingLimit(req.nextUrl.searchParams.get("limit")),

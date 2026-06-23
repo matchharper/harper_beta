@@ -142,8 +142,6 @@ type JobPostingTalentUserProfile = {
   last_logined_at?: string | null;
   location?: string | null;
   name?: string | null;
-  network_source_talent_id?: string | null;
-  network_waitlist_id?: string | null;
   profile_picture?: string | null;
   resume_file_name?: string | null;
   resume_links?: unknown;
@@ -424,8 +422,6 @@ async function fetchJobPostingTalentUserProfile(args: {
         "bio",
         "location",
         "last_logined_at",
-        "network_waitlist_id",
-        "network_source_talent_id",
         "resume_file_name",
         "resume_links",
         "created_at",
@@ -1756,6 +1752,7 @@ function buildRoleSearchSql(args: {
   const searchRankSql = `(${ftsRankSql(args.plan.ftsKeywords, "tc.opportunity_search_tsv")} + ${companyTestScoreRankSql} + ${entryPreferenceRankSql(args.plan.isPreferEntry, "tc.role_name", "tc.seniority_level")})`;
   const where = [
     "COALESCE(cr.is_expired, false) = false",
+    "(cr.expires_at IS NULL OR cr.expires_at > now())",
     "cr.status NOT IN ('expired', 'closed', 'inactive', 'archived')",
     "cr.source_type = 'external'",
     previouslyRecommendedRoleExclusionSql(args.userId),

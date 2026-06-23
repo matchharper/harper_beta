@@ -12,8 +12,14 @@ import { buildCareerEmailOnboardingToken } from "@/lib/careerEmailOnboarding/tok
 import {
   getTalentSupabaseAdmin,
   type TalentAdminClient,
+  upsertTalentSetting,
 } from "@/lib/talentOnboarding/server";
 import { withIsMobile } from "@/lib/requestDevice";
+import {
+  normalizeLocale,
+  resolveLocaleFromCountryLang,
+  type ResolvedLocale,
+} from "@/i18n/localeResolution";
 
 const CAREER_EMAIL_ONBOARDING_NAMESPACE =
   "7c73b4d7-9fef-4f41-a7ff-e8d90db79749";
@@ -32,6 +38,7 @@ export type CareerEmailOnboardingRequest = {
   forceResend?: boolean | null;
   isMobile?: boolean | null;
   localId?: string | null;
+  locale?: string | null;
   pagePath?: string | null;
   source?: string | null;
   variant?: string | null;
@@ -52,6 +59,33 @@ function normalizeText(value: unknown, maxLength: number) {
   return String(value ?? "")
     .trim()
     .slice(0, maxLength);
+}
+
+export function resolveCareerEmailOnboardingLocale(
+  body: Partial<CareerEmailOnboardingRequest> | null | undefined
+): ResolvedLocale {
+  return normalizeLocale(body?.locale) ?? resolveLocaleFromCountryLang(body?.countryLang);
+}
+
+function toRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function withLocaleMetadata(value: unknown, locale: ResolvedLocale) {
+  const metadata = toRecord(value);
+  const settings = toRecord(metadata.settings);
+
+  return {
+    ...metadata,
+    locale,
+    preferred_locale: locale,
+    settings: {
+      ...settings,
+      preferred_locale: locale,
+    },
+  };
 }
 
 function isUniqueViolation(error: { code?: string; message?: string } | null) {
@@ -290,6 +324,7 @@ async function ensureLeadBase(args: {
   email: string;
 }) {
   const now = new Date().toISOString();
+  const locale = resolveCareerEmailOnboardingLocale(args.body);
   const { data: existing, error: existingError } = await args.admin
     .from("career_email_onboarding_leads")
     .select("*")
@@ -322,6 +357,7 @@ async function ensureLeadBase(args: {
           normalizeText(args.body.localId, 200) || existing.local_id || null,
         page_path:
           normalizeText(args.body.pagePath, 500) || existing.page_path || null,
+        metadata: withLocaleMetadata(existing.metadata, locale),
         source:
           normalizeText(args.body.source, 80) ||
           existing.source ||
@@ -355,6 +391,7 @@ async function ensureLeadBase(args: {
       is_mobile:
         typeof args.body.isMobile === "boolean" ? args.body.isMobile : null,
       local_id: normalizeText(args.body.localId, 200) || null,
+      metadata: withLocaleMetadata(null, locale),
       normalized_email: args.email,
       page_path: normalizeText(args.body.pagePath, 500) || null,
       source:
@@ -388,6 +425,7 @@ async function ensureTalentAndConversation(args: {
   displayName: string | null;
   email: string;
   lead: Record<string, any>;
+  locale: ResolvedLocale;
 }) {
   const now = new Date().toISOString();
   const talentId = String(
@@ -406,6 +444,11 @@ async function ensureTalentAndConversation(args: {
   if (talentError) {
     throw new Error(talentError.message ?? "Failed to create temp talent user");
   }
+  await upsertTalentSetting({
+    admin: args.admin,
+    preferredLocale: args.locale,
+    userId: talentId,
+  });
 
   let conversationId = String(args.lead.conversation_id || "");
   if (!conversationId) {
@@ -432,9 +475,37 @@ async function ensureTalentAndConversation(args: {
 
 function buildFirstEmail(args: {
   displayName: string | null;
+  locale: ResolvedLocale;
   loginUrl: string;
 }) {
   const name = args.displayName?.trim();
+  if (args.locale === "en") {
+    const greeting = name
+      ? `Hi ${name}, this is Harper.`
+      : "Hello, this is Harper.";
+    const subject = name ? `From Harper to ${name}` : "A quick hello from Harper";
+    const coreText = `${greeting}
+
+Thanks for leaving your email. Instead of asking you to fill out a long signup form first, we can start lightly over email.
+
+I can help you find strong opportunities, prepare for them, and handle introductions when there is a fit.
+
+If you're open to it, just reply "Sounds good". If you already know what direction you're exploring, add one short line too. For example: full-time roles, part-time or project work alongside your current job, or light technical advisory.
+
+If you're not sure yet, "Sounds good" is enough. I'll follow up with the profile material I need and how you'd like me to handle company introductions.`;
+    const text = `${coreText}
+
+If you'd rather continue on the website, you can use this link.
+Continue on the website: ${args.loginUrl}`;
+    const html = `${textToHtml(coreText)}<br /><p>${htmlLink("Continue on the website", args.loginUrl)}</p>`;
+
+    return {
+      subject,
+      text,
+      html,
+    };
+  }
+
   const greeting = name
     ? `안녕하세요, ${name}님. Harper입니다.`
     : "안녕하세요. Harper입니다.";
@@ -474,6 +545,7 @@ export async function requestCareerEmailOnboarding(args: {
   }
 
   const admin = toUntypedAdmin(getTalentSupabaseAdmin());
+  const locale = resolveCareerEmailOnboardingLocale(args.body);
   const ip = getClientIp(args.request);
   const emailHash = hashCareerEmailForLogs(email);
   const forceResend = shouldForceResend(args);
@@ -517,6 +589,7 @@ export async function requestCareerEmailOnboarding(args: {
     displayName,
     email,
     lead,
+    locale,
   });
   const alias = lead.reply_alias
     ? { address: String(lead.reply_alias) }
@@ -533,7 +606,7 @@ export async function requestCareerEmailOnboarding(args: {
     email,
     leadId: String(lead.id),
   });
-  const firstEmail = buildFirstEmail({ displayName, loginUrl });
+  const firstEmail = buildFirstEmail({ displayName, locale, loginUrl });
   const sendResult = await sendResendEmail({
     to: email,
     subject: firstEmail.subject,
@@ -557,7 +630,9 @@ export async function requestCareerEmailOnboarding(args: {
         ...(lead.metadata && typeof lead.metadata === "object"
           ? lead.metadata
           : {}),
+        locale,
         loginUrl,
+        preferred_locale: locale,
       },
       reply_alias: alias.address,
       status: "active",
@@ -579,6 +654,7 @@ export async function requestCareerEmailOnboarding(args: {
     metadata: {
       ip,
       forceResend,
+      locale,
       pagePath: args.body.pagePath ?? null,
       source: args.body.source ?? null,
       variant: args.body.variant ?? null,

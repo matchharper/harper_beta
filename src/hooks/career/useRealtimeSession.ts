@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FetchWithAuth } from "./useCareerApi";
-import type { CareerConversationStarterId } from "@/lib/career/conversationStarters";
+import type { CareerConversationStarterId } from "@/lib/career/prompts/conversationStarters";
 import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
 import { useMessages } from "@/i18n/useMessage";
 import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";

@@ -6,7 +6,7 @@ import ReactQueryProvider from "@/components/Provider";
 import AppErrorBoundary from "@/components/AppErrorBoundary";
 import Head from "next/head";
 import { Analytics } from "@vercel/analytics/react";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import dynamic from "next/dynamic";
 import CareerLanguageDevControls from "@/i18n/CareerLanguageDevControls";
@@ -17,7 +17,11 @@ import {
   getCurrentCareerTranslationPath,
   isCareerTranslationRoute,
 } from "@/i18n/careerTranslationRoutes";
-import { MessagesProvider, type Locale } from "@/i18n/useMessage";
+import {
+  getInitialClientLocalePreference,
+  MessagesProvider,
+  type Locale,
+} from "@/i18n/useMessage";
 
 const CompanyModalRoot = dynamic(
   () => import("@/components/Modal/CompanyModal"),
@@ -52,6 +56,8 @@ const CRISP_BOOTSTRAP_SCRIPT = CRISP_WEBSITE_ID
       })();
     `
   : null;
+const useIsomorphicLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 export default function App({ Component, pageProps }: AppProps) {
   const init = useAuthStore((s) => s.init);
@@ -76,6 +82,15 @@ export default function App({ Component, pageProps }: AppProps) {
     router.pathname === "/landing-ko-vf" ||
     router.pathname === "/network2";
   const shouldLoadCrisp = Boolean(CRISP_BOOTSTRAP_SCRIPT) && !shouldHideCrisp;
+  const appDescription =
+    isCareerPage && careerLocale === "en"
+      ? "Harper is an AI Career Agent for every talented professional."
+      : "Harper는 모든 인재들을 위한 AI Career Agent입니다.";
+
+  useIsomorphicLayoutEffect(() => {
+    if (!isCareerPage) return;
+    setCareerLocale(getInitialClientLocalePreference());
+  }, [isCareerPage]);
 
   useEffect(() => {
     if (!GA_ID) return;
@@ -145,7 +160,7 @@ export default function App({ Component, pageProps }: AppProps) {
           <meta
             key="description"
             name="description"
-            content="Harper는 모든 인재들을 위한 AI Career Agent입니다."
+            content={appDescription}
           />
           <meta key="theme-color" name="theme-color" content="#F7F0E8" />
         </Head>

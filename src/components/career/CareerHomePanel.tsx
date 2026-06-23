@@ -37,7 +37,7 @@ import {
 import type {
   CareerConversationStarterId,
   CareerConversationStarterMode,
-} from "@/lib/career/conversationStarters";
+} from "@/lib/career/prompts/conversationStarters";
 import { DEFAULT_OPPORTUNITY_DISCOVERY_AGENT_VARIANT } from "@/lib/opportunityDiscovery/types";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
@@ -259,6 +259,7 @@ const CareerHomePanel = ({
     onRunSessionReengagementTest,
     onStartCallMode,
     onStartConversationStarter,
+    onRequestMoreOpenPositions,
     pendingInternalOpportunityCallRequests = [],
     sessionReengagementTestPending,
   } = useCareerSidebarContext();
@@ -291,22 +292,10 @@ const CareerHomePanel = ({
       ).length,
     [historyOpportunities]
   );
-  const newPositionDescription =
-    newInternalOpportunityCount > 0
-      ? formatCareerMessage(
-          m,
-          t(
-            "career.home.career_home_panel.030cbmq",
-            "추천된 기회 · {count}개 연결 가능"
-          ),
-          {
-            count: countFormatter.format(newInternalOpportunityCount),
-          }
-        )
-      : formatCareerMessage(
-          m,
-          t("career.home.career_home_panel.0x7lgjp", "추천된 기회")
-        );
+  const newPositionDescription = formatCareerMessage(
+    m,
+    t("career.home.career_home_panel.0x7lgjp", "추천된 기회")
+  );
   const savedPositionCount = historyOpportunityCounts.savedStages.saved;
   const connectedPositionCount =
     historyOpportunityCounts.savedStages.applied +
@@ -574,6 +563,12 @@ const CareerHomePanel = ({
     return onStartConversationStarter?.({ mode, starterId }) ?? false;
   };
 
+  const handleRequestMoreOpenPositions = () => {
+    logCareerEvent("click_home_more_open_positions");
+    onOpenChat();
+    return onRequestMoreOpenPositions?.() ?? false;
+  };
+
   // career-i18n-skip-next-line: dev controls text is intentionally Korean-only.
   const handleGenerateDevSql = React.useCallback(async () => {
     const request = devSqlRequest.trim();
@@ -724,6 +719,11 @@ const CareerHomePanel = ({
           callStartPending={callStartPending}
           className="mt-12"
           disabled={!onStartConversationStarter}
+          onRequestMoreOpenPositions={
+            onRequestMoreOpenPositions
+              ? handleRequestMoreOpenPositions
+              : undefined
+          }
           onStart={handleStartConversationStarter}
         />
       )}

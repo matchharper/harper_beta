@@ -22,7 +22,14 @@ export const CAREER_T_SOURCE_FILES = [
     "TalentCareerModal.tsx"
   ),
   path.join(PROJECT_ROOT, "src", "hooks", "career", "careerHookMessages.ts"),
-  path.join(PROJECT_ROOT, "src", "lib", "career", "conversationStarters.ts"),
+  path.join(
+    PROJECT_ROOT,
+    "src",
+    "lib",
+    "career",
+    "prompts",
+    "conversationStarters.ts"
+  ),
   path.join(PROJECT_ROOT, "src", "lib", "career", "opportunityFeedbackNote.ts"),
 ];
 

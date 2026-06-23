@@ -158,12 +158,14 @@ function FaceExpression({
         width={size}
         xmlns="http://www.w3.org/2000/svg"
       >
-        <path
-          d={isSpeaking ? facePath.speakingMouth : facePath.idleMouth}
-          stroke={FACE_STROKE_COLOR}
-          strokeLinecap="round"
-          strokeWidth="2"
-        />
+        <g className={isSpeaking ? styles.speakingMouth : undefined}>
+          <path
+            d={isSpeaking ? facePath.speakingMouth : facePath.idleMouth}
+            stroke={FACE_STROKE_COLOR}
+            strokeLinecap="round"
+            strokeWidth="2"
+          />
+        </g>
         <path
           d={facePath.nose}
           stroke={FACE_STROKE_COLOR}
@@ -207,12 +209,14 @@ function FaceExpression({
           </>
         ) : null}
         <path
+          className={isSpeaking ? styles.speakingBrowLeft : undefined}
           d={facePath.browLeft}
           stroke={FACE_STROKE_COLOR}
           strokeLinecap="round"
           strokeWidth="2"
         />
         <path
+          className={isSpeaking ? styles.speakingBrowRight : undefined}
           d={facePath.browRight}
           stroke={FACE_STROKE_COLOR}
           strokeLinecap="round"
