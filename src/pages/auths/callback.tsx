@@ -7,6 +7,7 @@ import { finalizePendingTalentCapture } from "@/lib/talentCapture/client";
 import { buildLandingLoginEmailType } from "@/lib/landingLogTypes";
 import { getCareerSignupAttributionPayload } from "@/lib/career/signupAttribution";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
+import { getInitialClientLocalePreference } from "@/i18n/useMessage";
 
 function inferLandingLogSource(args: { flow: string; nextPath: string }) {
   if (args.nextPath.startsWith("/search")) return "search";
@@ -127,6 +128,7 @@ export default function AuthCallback() {
               source: querySource,
             }),
             ...(inviteToken ? { inviteToken } : {}),
+            locale: getInitialClientLocalePreference(),
             ...(mail ? { mail } : {}),
             ...(emailOnboardingToken ? { emailOnboardingToken } : {}),
           }),

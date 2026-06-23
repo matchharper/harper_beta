@@ -1,10 +1,10 @@
 import AdminAccessGuard from "@/components/admin/AdminAccessGuard";
+import AdminMetricsNavigation from "@/components/admin/AdminMetricsNavigation";
 import AdminCareerDateRangeFilter from "@/components/admin/career/AdminCareerDateRangeFilter";
 import { useAdminMetricsStore } from "@/components/admin/metrics/useAdminMetricsStore";
 import { ADMIN_PAGE_PASSWORD } from "@/lib/admin";
 import { useQuery } from "@tanstack/react-query";
 import Head from "next/head";
-import Link from "next/link";
 import { useState } from "react";
 import type { DateRange } from "react-day-picker";
 
@@ -57,6 +57,34 @@ const formatPercent = (value: number | null) => {
   if (value === null) return "-";
   return `${Math.round(value * 1000) / 10}%`;
 };
+
+const careerTabs = [
+  {
+    active: false,
+    href: "/admin/career?tab=overview",
+    label: "Overview",
+  },
+  {
+    active: false,
+    href: "/admin/career?tab=utm",
+    label: "UTM",
+  },
+  {
+    active: false,
+    href: "/admin/career?tab=jobs",
+    label: "Jobs",
+  },
+  {
+    active: false,
+    href: "/admin/career?tab=company",
+    label: "Company",
+  },
+  {
+    active: true,
+    href: "/admin/career/top_funnel",
+    label: "Top Funnel",
+  },
+];
 
 async function fetchTopFunnel(
   excludedEmails: string[],
@@ -118,27 +146,17 @@ function AdminCareerTopFunnelContent() {
   return (
     <>
       <Head>
-        <title>Career Top Funnel Admin</title>
+        <title>Career Top Funnel | Harper Admin</title>
       </Head>
       <main className="min-h-svh bg-white text-black">
-        <header className="border-b border-black/10 bg-white">
-          <div className="mx-auto flex max-w-[960px] flex-col gap-3 px-4 py-5 md:flex-row md:items-end md:justify-between">
-            <div>
-              <div className="text-[15px] font-semibold">Career top funnel</div>
-              <div className="mt-1 text-[12px] text-black/50">
-                career 진입 → 로그인 클릭 → 가입 → 제출 → 온보딩 완료
-              </div>
-            </div>
-            <Link
-              href="/admin/career"
-              className="text-[12px] font-medium text-black/55 underline underline-offset-4 hover:text-black"
-            >
-              Back to Career Admin
-            </Link>
-          </div>
-        </header>
+        <AdminMetricsNavigation
+          activeSection="career"
+          title="Career Top Funnel"
+          subtitle="career 진입 -> 로그인 클릭 -> 가입 -> 제출 -> 온보딩 완료 흐름입니다."
+          tabs={careerTabs}
+        />
 
-        <div className="mx-auto max-w-[960px] px-4 py-5">
+        <div className="mx-auto max-w-[1180px] px-4 py-5 md:px-6">
           <AdminCareerDateRangeFilter
             appliedEndDate={appliedRange.endDate}
             appliedStartDate={appliedRange.startDate}

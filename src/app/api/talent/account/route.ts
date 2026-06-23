@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  getSlackActivityDeviceLabel,
+  notifySlackActivity,
+} from "@/lib/slackActivity";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   TALENT_RESUME_BUCKET,
@@ -19,6 +23,7 @@ type DeleteAccountBody = {
 };
 
 type AccountDeletionContext = {
+  bookmarkFolderIds: number[];
   companyQueryIds: string[];
   companyRunIds: string[];
   conversationIds: string[];
@@ -231,6 +236,7 @@ async function collectAccountDeletionContext(
     emailReplyRowsByTalent,
     companyQueryIds,
     directCompanyRunIds,
+    bookmarkFolderIds,
     waitlistRows,
   ] = await Promise.all([
     selectRows<{ resume_storage_path: string | null }>(
@@ -263,7 +269,7 @@ async function collectAccountDeletionContext(
           `talent_id.eq.${userId}`,
           `converted_user_id.eq.${userId}`,
         ];
-        if (email) filters.push(`normalized_email.eq.${email.toLowerCase()}`);
+        if (email) filters.push(`normalized_email.eq.${email}`);
         return query.or(filters.join(","));
       }
     ),
@@ -277,6 +283,9 @@ async function collectAccountDeletionContext(
       query.eq("user_id", userId)
     ),
     selectValues<string>(admin, "runs", "id", (query) =>
+      query.eq("user_id", userId)
+    ),
+    selectValues<number>(admin, "bookmark_folder", "id", (query) =>
       query.eq("user_id", userId)
     ),
     email
@@ -325,6 +334,7 @@ async function collectAccountDeletionContext(
   ];
 
   return {
+    bookmarkFolderIds,
     companyQueryIds,
     companyRunIds: uniqueValues<string>([
       ...directCompanyRunIds,
@@ -435,6 +445,8 @@ async function deleteCareerRows(
   admin: UntypedAdminClient,
   context: AccountDeletionContext
 ) {
+  await deleteEq(admin, "contact_queue", "user_id", context.userId);
+
   await deleteIn(
     admin,
     "career_email_onboarding_events",
@@ -461,6 +473,7 @@ async function deleteCareerRows(
     "reply_job_id",
     context.emailReplyJobIds
   );
+
   await deleteEq(admin, "email_reply_aliases", "talent_id", context.userId);
   await deleteIn(
     admin,
@@ -502,6 +515,7 @@ async function deleteCareerRows(
   );
 
   await deleteEq(admin, "talent_activity_events", "talent_id", context.userId);
+  await deleteEq(admin, "talent_calls", "user_id", context.userId);
   await deleteEq(
     admin,
     "talent_conversation_summaries",
@@ -521,12 +535,28 @@ async function deleteCareerRows(
     "talent_id",
     context.userId
   );
+  await deleteEq(admin, "talent_opportunity_fit", "talent_id", context.userId);
+  await deleteEq(admin, "talent_opportunity_tag", "talent_id", context.userId);
+  await deleteEq(
+    admin,
+    "talent_ops_profile_memos",
+    "talent_id",
+    context.userId
+  );
+  await deleteEq(admin, "talent_progress", "talent_id", context.userId);
+  await deleteIn(
+    admin,
+    "ops_internal_recommendation_hidden",
+    "recommendation_id",
+    context.recommendationIds
+  );
   await deleteEq(
     admin,
     "talent_opportunity_recommendation",
     "talent_id",
     context.userId
   );
+
   await updateIn(
     admin,
     "opportunity_source_registry",
@@ -584,7 +614,18 @@ async function deleteCompanyWorkspaceRows(
   );
 
   await deleteEq(admin, "bookmark_folder_item", "user_id", context.userId);
-  await deleteEq(admin, "bookmark_folder_share", "user_id", context.userId);
+  await deleteIn(
+    admin,
+    "bookmark_folder_share_note",
+    "folder_id",
+    context.bookmarkFolderIds
+  );
+  await deleteIn(
+    admin,
+    "bookmark_folder_share",
+    "folder_id",
+    context.bookmarkFolderIds
+  );
   await deleteEq(admin, "bookmark_folder_share", "created_by", context.userId);
   await deleteEq(admin, "bookmark_folder", "user_id", context.userId);
 
@@ -605,8 +646,8 @@ async function deleteCompanyWorkspaceRows(
   await deleteEq(admin, "unlock_profile", "company_user_id", context.userId);
 
   await deleteEq(admin, "payment_attempts", "user_id", context.userId);
-  await deleteEq(admin, "payments", "user_id", context.userId);
   await deleteEq(admin, "billing_sessions", "user_id", context.userId);
+  await deleteEq(admin, "payments", "user_id", context.userId);
   await deleteEq(admin, "credits_history", "user_id", context.userId);
   await deleteEq(admin, "credits", "user_id", context.userId);
 
@@ -628,7 +669,6 @@ async function deleteLooseUserRows(
   await deleteEq(admin, "logs", "user_id", context.userId);
   await deleteEq(admin, "feedback", "user_id", context.userId);
   await deleteEq(admin, "official_job_events", "user_id", context.userId);
-  await deleteEq(admin, "prompt_test_flags", "user_id", context.userId);
   await deleteEq(admin, "profile_shares", "created_by", context.userId);
 
   if (!context.email) return;
@@ -659,6 +699,27 @@ async function deleteAccountData(
   await deleteCareerRows(admin, context);
   await deleteCompanyWorkspaceRows(admin, context);
   await deleteEmailMatchedRows(admin, context);
+}
+
+async function notifyAccountDeletionSlack(
+  req: NextRequest,
+  context: AccountDeletionContext,
+  user: NonNullable<Awaited<ReturnType<typeof getRequestUser>>>
+) {
+  try {
+    await notifySlackActivity({
+      action: "회원 탈퇴 완료",
+      details: [
+        { label: "Device", value: getSlackActivityDeviceLabel(req) },
+        { label: "Source", value: "/career/settings" },
+      ],
+      email: context.email ?? user.email,
+      user,
+      userId: context.userId,
+    });
+  } catch (slackError) {
+    console.error("[talent-account-delete] slack notify failed:", slackError);
+  }
 }
 
 export async function DELETE(req: NextRequest) {
@@ -695,6 +756,8 @@ export async function DELETE(req: NextRequest) {
         authDeleteError.message ?? "Failed to delete Supabase auth user"
       );
     }
+
+    await notifyAccountDeletionSlack(req, context, user);
 
     return NextResponse.json({ ok: true });
   } catch (error) {

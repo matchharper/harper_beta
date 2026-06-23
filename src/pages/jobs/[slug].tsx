@@ -15,6 +15,12 @@ import {
   buildOfficialJobTitle,
   toIsoDateTime,
 } from "@/lib/officialJobs/seo";
+import {
+  formatOfficialJobEmploymentType,
+  getOfficialJobsCopy,
+  resolveOfficialJobsLocaleFromRequest,
+  type OfficialJobsLocale,
+} from "@/lib/officialJobs/copy";
 import { getPublicOfficialJobBySlug } from "@/lib/officialJobs/server";
 import {
   BriefcaseBusiness,
@@ -28,19 +34,9 @@ import Head from "next/head";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-function formatEmploymentType(value: string) {
-  const normalized = value.trim().toLowerCase().replaceAll("-", "_");
-  if (!normalized) return null;
-  if (normalized === "full_time") return "풀타임";
-  if (normalized === "part_time") return "파트타임";
-  if (normalized === "internship") return "인턴";
-  if (normalized === "contract") return "계약직";
-  if (normalized === "fractional") return "Fractional";
-  return value.trim().replaceAll("_", " ");
-}
-
 type OfficialJobDetailPageProps = {
   job: OfficialJob;
+  locale: OfficialJobsLocale;
 };
 
 function JobFact({
@@ -69,13 +65,15 @@ function JobFact({
 
 export default function OfficialJobDetailPage({
   job,
+  locale,
 }: OfficialJobDetailPageProps) {
-  const pageTitle = buildOfficialJobTitle(job);
-  const pageDescription = buildOfficialJobDescription(job);
+  const copy = getOfficialJobsCopy(locale);
+  const pageTitle = buildOfficialJobTitle(job, locale);
+  const pageDescription = buildOfficialJobDescription(job, locale);
   const canonicalUrl = buildOfficialJobCanonicalUrl(job.slug);
   const publishedIsoDate = toIsoDateTime(job.publishedAt);
   const updatedIsoDate = toIsoDateTime(job.updatedAt);
-  const structuredData = buildOfficialJobStructuredData(job);
+  const structuredData = buildOfficialJobStructuredData(job, locale);
   const trackApplyClick = (source: string) => {
     void postOfficialJobEvent({
       eventType: "job_apply_click",
@@ -110,7 +108,7 @@ export default function OfficialJobDetailPage({
         <link rel="alternate" hrefLang="x-default" href={canonicalUrl} />
         <meta property="og:type" content="article" />
         <meta property="og:site_name" content="Harper" />
-        <meta property="og:locale" content="ko_KR" />
+        <meta property="og:locale" content={copy.seo.ogLocale} />
         <meta property="og:title" content={pageTitle} />
         <meta property="og:description" content={pageDescription} />
         <meta property="og:url" content={canonicalUrl} />
@@ -139,7 +137,7 @@ export default function OfficialJobDetailPage({
         />
       </Head>
       <Page as="div" background="beige" minHeight="svh" safeArea="bottom">
-        <OfficialJobsHeader />
+        <OfficialJobsHeader locale={locale} />
         <main>
           <PageContainer
             as="article"
@@ -152,7 +150,7 @@ export default function OfficialJobDetailPage({
               className="inline-flex items-center gap-2 text-[13px] font-medium text-beige900/55 transition hover:text-beige900"
             >
               <ChevronLeft className="h-4 w-4" />
-              역할 목록
+              {copy.detail.backToList}
             </Link>
 
             <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
@@ -169,7 +167,10 @@ export default function OfficialJobDetailPage({
                   {job.employmentType && (
                     <span className="inline-flex items-center gap-2 whitespace-nowrap">
                       <BriefcaseBusiness className="h-3.5 w-3.5 shrink-0" />
-                      {formatEmploymentType(job.employmentType)}
+                      {formatOfficialJobEmploymentType(
+                        job.employmentType,
+                        locale
+                      )}
                     </span>
                   )}
                   {job.seniority && (
@@ -190,6 +191,7 @@ export default function OfficialJobDetailPage({
                 </p>
                 <div className="mt-8 flex flex-col gap-2 w-full md:w-fit">
                   <OfficialJobsCtaLink
+                    locale={locale}
                     size="lg"
                     onClick={() => trackApplyClick("detail_primary")}
                   />
@@ -204,7 +206,7 @@ export default function OfficialJobDetailPage({
                   <div className="flex items-start gap-4">
                     <div className="min-w-0 p-1">
                       <h2 className="text-[18px] font-medium leading-snug text-beige900">
-                        {job.companyName} Company
+                        {job.companyName} {copy.detail.companySuffix}
                       </h2>
                     </div>
                   </div>
@@ -212,22 +214,22 @@ export default function OfficialJobDetailPage({
                   <dl className="mt-5 overflow-hidden rounded-[4px] border border-beige900/5 bg-beige50/65">
                     <JobFact
                       icon={<MapPin className="h-3.5 w-3.5" />}
-                      label="Location"
+                      label={copy.detail.facts.location}
                       value={job.location}
                     />
                     <JobFact
                       icon={<BriefcaseBusiness className="h-3.5 w-3.5" />}
-                      label="Vertical"
+                      label={copy.detail.facts.vertical}
                       value={job.vertical}
                     />
                     <JobFact
                       icon={<ShieldCheck className="h-3.5 w-3.5" />}
-                      label="Compensation"
+                      label={copy.detail.facts.compensation}
                       value={job.compensation}
                     />
                     <JobFact
                       icon={<Users className="h-3.5 w-3.5" />}
-                      label="Seniority"
+                      label={copy.detail.facts.seniority}
                       value={job.seniority}
                     />
                   </dl>
@@ -235,6 +237,7 @@ export default function OfficialJobDetailPage({
                   <div className="mt-5">
                     <OfficialJobsCtaLink
                       fullWidth
+                      locale={locale}
                       size="lg"
                       onClick={() => trackApplyClick("detail_sidebar")}
                     />
@@ -263,7 +266,11 @@ export default function OfficialJobDetailPage({
             </div>
           </PageContainer>
         </main>
-        <CareerLandingFooter careerStartHref={OFFICIAL_JOBS_LOGIN_HREF} />
+        <CareerLandingFooter
+          careerStartHref={OFFICIAL_JOBS_LOGIN_HREF}
+          labels={copy.footerLabels}
+          locale={locale}
+        />
       </Page>
     </>
   );
@@ -287,6 +294,7 @@ export const getServerSideProps: GetServerSideProps<
   return {
     props: {
       job,
+      locale: resolveOfficialJobsLocaleFromRequest(context.req),
     },
   };
 };

@@ -13,7 +13,7 @@ export function getCareerMobileJobsEmptyStateMessage(
   if (tab === "saved")
     return t(
       "career.history.career_mobile_jobs_view.1m3uw9j",
-      "저장된 포지션이 없습니다."
+      "저장한 포지션이 없습니다."
     );
   if (tab === "active")
     return t(

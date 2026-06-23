@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { IncomingWebhook } from "@slack/webhook";
 import { getRequestUser, supabaseServer } from "@/lib/supabaseServer";
-import { notifySlack } from "../../hello/utils";
 
 const CAREER_INQUIRY_SOURCE = "career-inquiry";
 
@@ -12,6 +12,21 @@ type CareerInquiryBody = {
 
 const isValidEmail = (value: string) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
+function getInternalSlackWebhook() {
+  const webhookUrl = process.env.SLACK_INTERNAL_NOTI_TOKEN?.trim();
+  if (!webhookUrl) {
+    throw new Error("SLACK_INTERNAL_NOTI_TOKEN is required");
+  }
+
+  return new IncomingWebhook(webhookUrl);
+}
+
+function getKstTimestamp() {
+  return new Date().toLocaleString("ko-KR", {
+    timeZone: "Asia/Seoul",
+  });
+}
 
 export async function POST(req: NextRequest) {
   const user = await getRequestUser(req);
@@ -71,13 +86,15 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    await notifySlack(`✉️ *Career Inquiry*
+    await getInternalSlackWebhook().send({
+      text: `✉️ *Career Inquiry*
 
 • *User ID*: ${user.id}
 • *Email*: ${email}
 • *Page*: ${pagePath}
 • *Content*: ${content}
-• *Time(Standard Korea Time)*: ${new Date().toLocaleString("ko-KR")}`);
+• *Time(Standard Korea Time)*: ${getKstTimestamp()}`,
+    });
   } catch (slackError) {
     console.error("career inquiry slack notify failed:", slackError);
   }

@@ -39,6 +39,11 @@ type PendingFunctionCallOutput = {
   output: unknown;
 };
 
+type RealtimeUsageLogOptions = {
+  hadAudioInResponse: boolean;
+  status: string;
+};
+
 const VOICE_DEBUG_STORAGE_KEY = "careerVoiceDebug";
 const PLAYBACK_DRAIN_GRACE_MS = 900;
 const PLAYBACK_RESPONSE_DONE_GRACE_MS = 700;
@@ -109,6 +114,38 @@ function getErrorText(payload: unknown, fallback: string) {
   if (typeof error === "string" && error.trim()) return error.trim();
 
   return fallback;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function getRealtimeResponseUsage(
+  response: Record<string, unknown> | undefined
+) {
+  const usage = response?.usage;
+  return isRecord(usage) ? usage : null;
+}
+
+function scheduleRealtimeUsageLogTask(task: () => void) {
+  if (typeof window === "undefined") {
+    setTimeout(task, 0);
+    return;
+  }
+
+  const idleWindow = window as Window & {
+    requestIdleCallback?: (
+      callback: () => void,
+      options?: { timeout?: number }
+    ) => number;
+  };
+
+  if (typeof idleWindow.requestIdleCallback === "function") {
+    idleWindow.requestIdleCallback(task, { timeout: 10_000 });
+    return;
+  }
+
+  window.setTimeout(task, 3_000);
 }
 
 export function useRealtimeSession(args: UseRealtimeSessionArgs) {
@@ -322,6 +359,46 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     if (!dataChannel || dataChannel.readyState !== "open") return;
     dataChannel.send(JSON.stringify(event));
   }, []);
+
+  const scheduleRealtimeUsageLog = useCallback(
+    (
+      response: Record<string, unknown> | undefined,
+      options: RealtimeUsageLogOptions
+    ) => {
+      if (!conversationId) return;
+
+      const usage = getRealtimeResponseUsage(response);
+      if (!usage) return;
+
+      const responseId =
+        typeof response?.id === "string" ? response.id.trim() : "";
+      const payload = {
+        conversationId,
+        eventType: "response.done",
+        hadAudioInResponse: options.hadAudioInResponse,
+        responseId,
+        status: options.status,
+        usage,
+      };
+
+      scheduleRealtimeUsageLogTask(() => {
+        void fetchWithAuth("/api/realtime/usage", {
+          method: "POST",
+          keepalive: true,
+          body: JSON.stringify(payload),
+        })
+          .then((res) => {
+            if (!res.ok) {
+              console.warn("[RealtimeSession] Usage log failed:", res.status);
+            }
+          })
+          .catch((error) => {
+            console.warn("[RealtimeSession] Usage log failed:", error);
+          });
+      });
+    },
+    [conversationId, fetchWithAuth]
+  );
 
   const requestExactSpeech = useCallback(
     (text: string) => {
@@ -686,6 +763,10 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
               typeof response?.status === "string"
                 ? response.status
                 : "completed";
+            scheduleRealtimeUsageLog(response, {
+              hadAudioInResponse,
+              status,
+            });
 
             if (
               status === "cancelled" &&
@@ -799,6 +880,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
       markAssistantPlaybackDone,
       markAssistantPlaybackStarted,
       runAfterCurrentPlayback,
+      scheduleRealtimeUsageLog,
       stopNativePlayback,
     ]
   );

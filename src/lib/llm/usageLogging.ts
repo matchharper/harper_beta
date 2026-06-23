@@ -1,11 +1,29 @@
+import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/admin";
+
 type OpenAICompatibleUsage = {
   cache_creation_input_tokens?: number | null;
   cache_read_input_tokens?: number | null;
   completion_tokens?: number | null;
+  input_token_details?: {
+    audio_tokens?: number | null;
+    cached_tokens?: number | null;
+    cached_tokens_details?: {
+      audio_tokens?: number | null;
+      image_tokens?: number | null;
+      text_tokens?: number | null;
+    } | null;
+    image_tokens?: number | null;
+    text_tokens?: number | null;
+  } | null;
   input_tokens_details?: {
     cached_tokens?: number | null;
   } | null;
   input_tokens?: number | null;
+  output_token_details?: {
+    audio_tokens?: number | null;
+    image_tokens?: number | null;
+    text_tokens?: number | null;
+  } | null;
   output_tokens?: number | null;
   prompt_tokens_details?: {
     cached_tokens?: number | null;
@@ -32,6 +50,36 @@ type LlmTokenUsage = {
   outputTokens: number | null;
   totalProcessedInputTokens: number | null;
   totalTokens: number | null;
+};
+
+type RealtimeModelPricing = {
+  audioCachedInputUsdPerMtok: number;
+  audioInputUsdPerMtok: number;
+  audioOutputUsdPerMtok: number;
+  imageCachedInputUsdPerMtok: number;
+  imageInputUsdPerMtok: number;
+  textCachedInputUsdPerMtok: number;
+  textInputUsdPerMtok: number;
+  textOutputUsdPerMtok: number;
+};
+
+type RealtimeTokenUsage = {
+  cachedAudioInputTokens: number | null;
+  cachedImageInputTokens: number | null;
+  cachedInputTokens: number | null;
+  cachedTextInputTokens: number | null;
+  inputAudioTokens: number | null;
+  inputImageTokens: number | null;
+  inputTextTokens: number | null;
+  inputTokens: number | null;
+  outputAudioTokens: number | null;
+  outputImageTokens: number | null;
+  outputTextTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+  unattributedCachedInputTokens: number;
+  unattributedInputTokens: number;
+  unattributedOutputTokens: number;
 };
 
 const MODEL_PRICING_USD_PER_MTOK: Record<string, LlmModelPricing> = {
@@ -79,6 +127,22 @@ const MODEL_PRICING_USD_PER_MTOK: Record<string, LlmModelPricing> = {
   },
 };
 
+const REALTIME_MODEL_PRICING_USD_PER_MTOK: Record<
+  string,
+  RealtimeModelPricing
+> = {
+  "gpt-realtime-2": {
+    audioCachedInputUsdPerMtok: 0.4,
+    audioInputUsdPerMtok: 32,
+    audioOutputUsdPerMtok: 64,
+    imageCachedInputUsdPerMtok: 0.5,
+    imageInputUsdPerMtok: 5,
+    textCachedInputUsdPerMtok: 0.4,
+    textInputUsdPerMtok: 4,
+    textOutputUsdPerMtok: 24,
+  },
+};
+
 function toNullableNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
@@ -93,6 +157,18 @@ function getModelPricing(model: string): LlmModelPricing | null {
     normalized.startsWith(key)
   );
   return matchedKey ? MODEL_PRICING_USD_PER_MTOK[matchedKey] : null;
+}
+
+function getRealtimeModelPricing(model: string): RealtimeModelPricing | null {
+  const normalized = model.trim().toLowerCase();
+  if (REALTIME_MODEL_PRICING_USD_PER_MTOK[normalized]) {
+    return REALTIME_MODEL_PRICING_USD_PER_MTOK[normalized];
+  }
+
+  const matchedKey = Object.keys(REALTIME_MODEL_PRICING_USD_PER_MTOK).find(
+    (key) => normalized.startsWith(key)
+  );
+  return matchedKey ? REALTIME_MODEL_PRICING_USD_PER_MTOK[matchedKey] : null;
 }
 
 function resolvePricingForUsage(
@@ -128,7 +204,8 @@ function roundCost(value: number) {
 export function extractLlmTokenUsage(response: any): LlmTokenUsage {
   const usage = (response?.usage ?? null) as OpenAICompatibleUsage | null;
   const responseInputCacheReadTokens = toNullableNumber(
-    usage?.input_tokens_details?.cached_tokens
+    usage?.input_tokens_details?.cached_tokens ??
+      usage?.input_token_details?.cached_tokens
   );
   const chatInputCacheReadTokens = toNullableNumber(
     usage?.prompt_tokens_details?.cached_tokens
@@ -219,6 +296,173 @@ export function estimateLlmUsageCost(model: string, usage: LlmTokenUsage) {
   };
 }
 
+function numberOrZero(value: number | null | undefined) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+export function extractRealtimeLlmTokenUsage(
+  response: any
+): RealtimeTokenUsage {
+  const usage = (response?.usage ??
+    response ??
+    null) as OpenAICompatibleUsage | null;
+  const inputDetails = usage?.input_token_details ?? null;
+  const outputDetails = usage?.output_token_details ?? null;
+  const cachedDetails = inputDetails?.cached_tokens_details ?? null;
+
+  const inputTokens = toNullableNumber(usage?.input_tokens);
+  const outputTokens = toNullableNumber(usage?.output_tokens);
+  const totalTokens = toNullableNumber(usage?.total_tokens);
+  const inputTextTokens = toNullableNumber(inputDetails?.text_tokens);
+  const inputAudioTokens = toNullableNumber(inputDetails?.audio_tokens);
+  const inputImageTokens = toNullableNumber(inputDetails?.image_tokens);
+  const cachedInputTokens = toNullableNumber(inputDetails?.cached_tokens);
+  const cachedTextInputTokens = toNullableNumber(cachedDetails?.text_tokens);
+  const cachedAudioInputTokens = toNullableNumber(cachedDetails?.audio_tokens);
+  const cachedImageInputTokens = toNullableNumber(cachedDetails?.image_tokens);
+  const outputTextTokens = toNullableNumber(outputDetails?.text_tokens);
+  const outputAudioTokens = toNullableNumber(outputDetails?.audio_tokens);
+  const outputImageTokens = toNullableNumber(outputDetails?.image_tokens);
+
+  const knownInputTokens =
+    numberOrZero(inputTextTokens) +
+    numberOrZero(inputAudioTokens) +
+    numberOrZero(inputImageTokens);
+  const knownCachedInputTokens =
+    numberOrZero(cachedTextInputTokens) +
+    numberOrZero(cachedAudioInputTokens) +
+    numberOrZero(cachedImageInputTokens);
+  const knownOutputTokens =
+    numberOrZero(outputTextTokens) +
+    numberOrZero(outputAudioTokens) +
+    numberOrZero(outputImageTokens);
+
+  return {
+    cachedAudioInputTokens,
+    cachedImageInputTokens,
+    cachedInputTokens,
+    cachedTextInputTokens,
+    inputAudioTokens,
+    inputImageTokens,
+    inputTextTokens,
+    inputTokens,
+    outputAudioTokens,
+    outputImageTokens,
+    outputTextTokens,
+    outputTokens,
+    totalTokens,
+    unattributedCachedInputTokens: Math.max(
+      numberOrZero(cachedInputTokens) - knownCachedInputTokens,
+      0
+    ),
+    unattributedInputTokens: Math.max(
+      numberOrZero(inputTokens) - knownInputTokens,
+      0
+    ),
+    unattributedOutputTokens: Math.max(
+      numberOrZero(outputTokens) - knownOutputTokens,
+      0
+    ),
+  };
+}
+
+export function estimateRealtimeLlmUsageCost(
+  model: string,
+  usage: RealtimeTokenUsage
+) {
+  const pricing = getRealtimeModelPricing(model);
+  if (!pricing) return null;
+
+  const cachedTextInputTokens = numberOrZero(usage.cachedTextInputTokens);
+  const cachedAudioInputTokens = numberOrZero(usage.cachedAudioInputTokens);
+  const cachedImageInputTokens = numberOrZero(usage.cachedImageInputTokens);
+  const uncachedTextInputTokens = Math.max(
+    numberOrZero(usage.inputTextTokens) - cachedTextInputTokens,
+    0
+  );
+  const uncachedAudioInputTokens = Math.max(
+    numberOrZero(usage.inputAudioTokens) - cachedAudioInputTokens,
+    0
+  );
+  const uncachedImageInputTokens = Math.max(
+    numberOrZero(usage.inputImageTokens) - cachedImageInputTokens,
+    0
+  );
+
+  const textInputCostUsd =
+    (uncachedTextInputTokens / 1_000_000) * pricing.textInputUsdPerMtok;
+  const audioInputCostUsd =
+    (uncachedAudioInputTokens / 1_000_000) * pricing.audioInputUsdPerMtok;
+  const imageInputCostUsd =
+    (uncachedImageInputTokens / 1_000_000) * pricing.imageInputUsdPerMtok;
+  const cachedTextInputCostUsd =
+    (cachedTextInputTokens / 1_000_000) * pricing.textCachedInputUsdPerMtok;
+  const cachedAudioInputCostUsd =
+    (cachedAudioInputTokens / 1_000_000) * pricing.audioCachedInputUsdPerMtok;
+  const cachedImageInputCostUsd =
+    (cachedImageInputTokens / 1_000_000) * pricing.imageCachedInputUsdPerMtok;
+  const unattributedInputCostUsd =
+    (usage.unattributedInputTokens / 1_000_000) * pricing.textInputUsdPerMtok;
+  const unattributedCachedInputCostUsd =
+    (usage.unattributedCachedInputTokens / 1_000_000) *
+    pricing.textCachedInputUsdPerMtok;
+  const textOutputCostUsd =
+    (numberOrZero(usage.outputTextTokens) / 1_000_000) *
+    pricing.textOutputUsdPerMtok;
+  const audioOutputCostUsd =
+    (numberOrZero(usage.outputAudioTokens) / 1_000_000) *
+    pricing.audioOutputUsdPerMtok;
+  const unattributedOutputCostUsd =
+    (usage.unattributedOutputTokens / 1_000_000) * pricing.textOutputUsdPerMtok;
+
+  const estimatedCostUsd =
+    textInputCostUsd +
+    audioInputCostUsd +
+    imageInputCostUsd +
+    cachedTextInputCostUsd +
+    cachedAudioInputCostUsd +
+    cachedImageInputCostUsd +
+    unattributedInputCostUsd +
+    unattributedCachedInputCostUsd +
+    textOutputCostUsd +
+    audioOutputCostUsd +
+    unattributedOutputCostUsd;
+
+  return {
+    audioInputCostUsd: roundCost(audioInputCostUsd),
+    audioInputTokens: uncachedAudioInputTokens,
+    audioInputUsdPerMtok: pricing.audioInputUsdPerMtok,
+    audioOutputCostUsd: roundCost(audioOutputCostUsd),
+    audioOutputTokens: numberOrZero(usage.outputAudioTokens),
+    audioOutputUsdPerMtok: pricing.audioOutputUsdPerMtok,
+    cachedAudioInputCostUsd: roundCost(cachedAudioInputCostUsd),
+    cachedAudioInputTokens,
+    cachedAudioInputUsdPerMtok: pricing.audioCachedInputUsdPerMtok,
+    cachedImageInputCostUsd: roundCost(cachedImageInputCostUsd),
+    cachedImageInputTokens,
+    cachedImageInputUsdPerMtok: pricing.imageCachedInputUsdPerMtok,
+    cachedTextInputCostUsd: roundCost(cachedTextInputCostUsd),
+    cachedTextInputTokens,
+    cachedTextInputUsdPerMtok: pricing.textCachedInputUsdPerMtok,
+    estimatedCostUsd: roundCost(estimatedCostUsd),
+    imageInputCostUsd: roundCost(imageInputCostUsd),
+    imageInputTokens: uncachedImageInputTokens,
+    imageInputUsdPerMtok: pricing.imageInputUsdPerMtok,
+    textInputCostUsd: roundCost(textInputCostUsd),
+    textInputTokens: uncachedTextInputTokens,
+    textInputUsdPerMtok: pricing.textInputUsdPerMtok,
+    textOutputCostUsd: roundCost(textOutputCostUsd),
+    textOutputTokens: numberOrZero(usage.outputTextTokens),
+    textOutputUsdPerMtok: pricing.textOutputUsdPerMtok,
+    unattributedCachedInputCostUsd: roundCost(unattributedCachedInputCostUsd),
+    unattributedCachedInputTokens: usage.unattributedCachedInputTokens,
+    unattributedInputCostUsd: roundCost(unattributedInputCostUsd),
+    unattributedInputTokens: usage.unattributedInputTokens,
+    unattributedOutputCostUsd: roundCost(unattributedOutputCostUsd),
+    unattributedOutputTokens: usage.unattributedOutputTokens,
+  };
+}
+
 export function logLlmTokenUsage(args: {
   label?: string;
   model: string;
@@ -228,6 +472,19 @@ export function logLlmTokenUsage(args: {
 
   const usage = extractLlmTokenUsage(args.response);
   const cost = estimateLlmUsageCost(args.model, usage);
+  const target = resolveLlmLogTarget(args.label);
+  if (!target) return;
+
+  void insertLlmLog({
+    estimatedCostUsd: cost?.estimatedCostUsd ?? 0,
+    meta: {
+      label: args.label,
+      step: target.step,
+      usage,
+    },
+    model: args.model,
+    source: target.source,
+  });
   // console.info("[llm-usage]", {
   //   label: args.label,
   //   model: args.model,
@@ -241,4 +498,70 @@ export function logLlmTokenUsage(args: {
   //   estimatedCostUsd: cost?.estimatedCostUsd ?? null,
   //   costBreakdown: cost,
   // });
+}
+
+export async function insertRealtimeLlmUsageLog(args: {
+  meta?: Record<string, unknown>;
+  model: string;
+  response: any;
+}) {
+  const usage = extractRealtimeLlmTokenUsage(args.response);
+  const cost = estimateRealtimeLlmUsageCost(args.model, usage);
+
+  await insertLlmLog({
+    estimatedCostUsd: cost?.estimatedCostUsd ?? 0,
+    meta: {
+      label: "career/realtime:response",
+      step: "response",
+      usage,
+      costBreakdown: cost,
+      ...(args.meta ?? {}),
+    },
+    model: args.model,
+    source: "career/realtime",
+  });
+}
+
+function resolveLlmLogTarget(label: string) {
+  const normalized = label.trim();
+  for (const source of [
+    "career/profile_ingestion",
+    "career_tool:recommend_job_postings",
+  ]) {
+    const prefix = `${source}:`;
+    if (normalized.startsWith(prefix)) {
+      return {
+        source,
+        step: normalized.slice(prefix.length) || null,
+      };
+    }
+  }
+  return null;
+}
+
+async function insertLlmLog(args: {
+  estimatedCostUsd: number;
+  meta: Record<string, unknown>;
+  model: string;
+  source: string;
+}) {
+  try {
+    const admin = getTalentSupabaseAdmin() as any;
+    const { error } = await admin.from("llm_logs").insert({
+      estimated_cost_usd: Number.isFinite(args.estimatedCostUsd)
+        ? args.estimatedCostUsd
+        : 0,
+      meta: args.meta,
+      model: args.model,
+      source: args.source,
+    });
+    if (error) {
+      console.warn("[llm-logs] insert skipped:", error.message);
+    }
+  } catch (error) {
+    console.warn(
+      "[llm-logs] insert skipped:",
+      error instanceof Error ? error.message : String(error)
+    );
+  }
 }

@@ -149,6 +149,36 @@ function EmptyStagePanel({ label }: { label: string }) {
   );
 }
 
+function InlineToggleIndicator({ checked }: { checked: boolean }) {
+  return (
+    <span
+      className={cx(
+        "relative inline-flex h-4 w-7 shrink-0 items-center rounded-full border transition",
+        checked
+          ? "border-positive bg-positive"
+          : "border-neutral-1000-a10 bg-bg-floating"
+      )}
+      aria-hidden
+    >
+      <span
+        className={cx(
+          "h-3 w-3 rounded-full bg-neutral-00 shadow-sm transition-transform",
+          checked ? "translate-x-3.5" : "translate-x-0.5 bg-neutral-400"
+        )}
+      />
+    </span>
+  );
+}
+
+function toggleButtonClass(checked: boolean) {
+  return cx(
+    "inline-flex items-center justify-center gap-2 rounded-md border font-medium transition disabled:cursor-not-allowed disabled:opacity-50",
+    checked
+      ? "border-positive/30 bg-positive-faded text-positive hover:bg-positive-faded"
+      : "border-transparent bg-bg-weak text-neutral-primary shadow-[inset_0_1px_0_color-mix(in_srgb,var(--color-neutral-00)_70%,transparent)] hover:bg-bg-weak"
+  );
+}
+
 export default function OpsMatchingPage() {
   const router = useRouter();
   const authLoading = useAuthStore((state) => state.loading);
@@ -480,14 +510,14 @@ export default function OpsMatchingPage() {
 
               <BareButton
                 type="button"
+                aria-pressed={viewMode === "all_fits"}
                 onClick={handleAllFitsClick}
                 className={cx(
-                  "mt-2 h-11 shrink-0 px-3 text-xs",
-                  viewMode === "all_fits"
-                    ? opsTheme.buttonPrimary
-                    : opsTheme.buttonSecondary
+                  toggleButtonClass(viewMode === "all_fits"),
+                  "mt-2 h-11 shrink-0 px-3 text-xs"
                 )}
               >
+                <InlineToggleIndicator checked={viewMode === "all_fits"} />
                 <ListFilter className="h-3.5 w-3.5" />
                 전체보기
               </BareButton>
@@ -525,8 +555,6 @@ export default function OpsMatchingPage() {
               <TabBoxes
                 activeValue={activeTab}
                 items={MATCHING_STAGE_TABS.map((tab) => ({
-                  countLabel:
-                    tab.count !== null ? `${tab.count} applications` : null,
                   label: tab.label,
                   value: tab.id,
                 }))}

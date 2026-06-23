@@ -1,9 +1,11 @@
 import AdminAccessGuard from "@/components/admin/AdminAccessGuard";
+import AdminMetricsNavigation from "@/components/admin/AdminMetricsNavigation";
 import AdminCareerAbtestPanel from "@/components/admin/career/AdminCareerAbtestPanel";
 import AdminCareerDateRangeFilter from "@/components/admin/career/AdminCareerDateRangeFilter";
 import AdminCareerDeviceComparisonPanel from "@/components/admin/career/AdminCareerDeviceComparisonPanel";
 import AdminCareerFunnelPanel from "@/components/admin/career/AdminCareerFunnelPanel";
 import AdminCareerMetricGrid from "@/components/admin/career/AdminCareerMetricGrid";
+import AdminCareerCompanyTab from "@/components/admin/career/AdminCareerCompanyTab";
 import AdminCareerJobsTab from "@/components/admin/career/AdminCareerJobsTab";
 import AdminCareerQuickSignalPanel from "@/components/admin/career/AdminCareerQuickSignalPanel";
 import AdminCareerUtmTab from "@/components/admin/career/AdminCareerUtmTab";
@@ -25,11 +27,47 @@ import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { LoaderCircle, Send } from "lucide-react";
 import Head from "next/head";
-import Link from "next/link";
-import React, { useMemo, useState } from "react";
+import { useRouter } from "next/router";
+import { useEffect, useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
 
-type CareerAdminTab = "overview" | "utm" | "jobs";
+type CareerAdminTab = "overview" | "utm" | "jobs" | "company";
+const CAREER_ADMIN_TABS: CareerAdminTab[] = [
+  "overview",
+  "utm",
+  "jobs",
+  "company",
+];
+
+const CAREER_ADMIN_TAB_META: Record<
+  CareerAdminTab,
+  {
+    label: string;
+    title: string;
+    subtitle: string;
+  }
+> = {
+  overview: {
+    label: "Overview",
+    title: "Career Analytics",
+    subtitle: "랜딩부터 온보딩, 추천 소비와 피드백까지 봅니다.",
+  },
+  utm: {
+    label: "UTM",
+    title: "Career UTM",
+    subtitle: "career 랜딩 source별 진입과 전환을 봅니다.",
+  },
+  jobs: {
+    label: "Jobs",
+    title: "Career Jobs",
+    subtitle: "jobs 페이지별 view, CTA click, login 흐름을 봅니다.",
+  },
+  company: {
+    label: "Company",
+    title: "Company Landing",
+    subtitle: "/company 랜딩 진입 대비 Search 이동과 메인 CTA 클릭을 봅니다.",
+  },
+};
 
 const USERS_PAGE_SIZE = 20;
 
@@ -55,6 +93,18 @@ const parseDateOnly = (value: string) => {
   }
 
   return date;
+};
+
+const readQueryValue = (value: string | string[] | undefined) => {
+  if (Array.isArray(value)) return value[0] ?? "";
+  return value ?? "";
+};
+
+const normalizeCareerAdminTab = (value: string | string[] | undefined) => {
+  const normalized = readQueryValue(value).trim();
+  return CAREER_ADMIN_TABS.includes(normalized as CareerAdminTab)
+    ? (normalized as CareerAdminTab)
+    : "overview";
 };
 
 const dateRangeInputToSelection = (
@@ -142,6 +192,8 @@ async function sendCareerAnalyticsSlackSummary(
 }
 
 function AdminCareerContent() {
+  const router = useRouter();
+  const activeTab = normalizeCareerAdminTab(router.query.tab);
   const { excludedEmails, setExcludedEmails, resetExcludedEmails } =
     useAdminMetricsStore();
   const appliedDateRange = useAdminCareerAnalyticsStore(
@@ -162,7 +214,25 @@ function AdminCareerContent() {
   const [isSendingSlackSummary, setIsSendingSlackSummary] = useState(false);
   const [search, setSearch] = useState("");
   const [userPage, setUserPage] = useState(1);
-  const [activeTab, setActiveTab] = useState<CareerAdminTab>("overview");
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    const rawTab = readQueryValue(router.query.tab).trim();
+    if (rawTab === "" || CAREER_ADMIN_TABS.includes(rawTab as CareerAdminTab)) {
+      return;
+    }
+
+    void router.replace(
+      {
+        pathname: "/admin/career",
+        query: {
+          tab: activeTab,
+        },
+      },
+      undefined,
+      { shallow: true }
+    );
+  }, [activeTab, router]);
 
   const query = useQuery({
     queryKey: [
@@ -283,75 +353,27 @@ function AdminCareerContent() {
   return (
     <>
       <Head>
-        <title>Career Analytics Admin</title>
+        <title>{CAREER_ADMIN_TAB_META[activeTab].title} | Harper Admin</title>
       </Head>
       <main className="min-h-svh bg-white text-black">
-        <header className="sticky top-0 z-10 border-b border-black/10 bg-white/90 backdrop-blur">
-          <div className="mx-auto flex max-w-[1180px] flex-col gap-3 px-4 py-4 md:flex-row md:items-center md:justify-between md:px-6">
-            <div>
-              <div className="text-[15px] font-semibold tracking-tight">
-                Career Analytics
-              </div>
-              <div className="mt-1 text-[12px] leading-5 text-black/50">
-                랜딩부터 온보딩, 추천 소비와 피드백까지 내부 이메일 제외
-                기준으로 봅니다.
-              </div>
-              <nav className="mt-3 flex flex-wrap gap-2">
-                <Button
-                  asChild
-                  variant="secondary"
-                  size="sm"
-                  className="h-8 rounded-none border-black/15 bg-white text-[12px] text-black shadow-none"
-                >
-                  <Link href="/admin">Admin index</Link>
-                </Button>
-                <Button
-                  variant={activeTab === "overview" ? "default" : "secondary"}
-                  size="sm"
-                  className={cn(
-                    "h-8 rounded-none text-[12px]",
-                    activeTab !== "overview" &&
-                      "border-black/15 bg-white text-black shadow-none"
-                  )}
-                  onClick={() => setActiveTab("overview")}
-                >
-                  Career
-                </Button>
-                <Button
-                  variant={activeTab === "utm" ? "default" : "secondary"}
-                  size="sm"
-                  className={cn(
-                    "h-8 rounded-none text-[12px]",
-                    activeTab !== "utm" &&
-                      "border-black/15 bg-white text-black shadow-none"
-                  )}
-                  onClick={() => setActiveTab("utm")}
-                >
-                  UTM
-                </Button>
-                <Button
-                  variant={activeTab === "jobs" ? "default" : "secondary"}
-                  size="sm"
-                  className={cn(
-                    "h-8 rounded-none text-[12px]",
-                    activeTab !== "jobs" &&
-                      "border-black/15 bg-white text-black shadow-none"
-                  )}
-                  onClick={() => setActiveTab("jobs")}
-                >
-                  Jobs
-                </Button>
-                <Button
-                  asChild
-                  variant="secondary"
-                  size="sm"
-                  className="h-8 rounded-none border-black/15 bg-white text-[12px] text-black shadow-none"
-                >
-                  <Link href="/admin/career/top_funnel">Top funnel</Link>
-                </Button>
-              </nav>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
+        <AdminMetricsNavigation
+          activeSection="career"
+          title={CAREER_ADMIN_TAB_META[activeTab].title}
+          subtitle={CAREER_ADMIN_TAB_META[activeTab].subtitle}
+          tabs={[
+            ...CAREER_ADMIN_TABS.map((tab) => ({
+              active: activeTab === tab,
+              href: `/admin/career?tab=${tab}`,
+              label: CAREER_ADMIN_TAB_META[tab].label,
+            })),
+            {
+              active: false,
+              href: "/admin/career/top_funnel",
+              label: "Top Funnel",
+            },
+          ]}
+          actions={
+            <>
               <Button
                 type="button"
                 variant="secondary"
@@ -368,6 +390,7 @@ function AdminCareerContent() {
                 className="h-8 rounded-none border-black/15 bg-white text-[12px] text-black shadow-none"
                 onClick={() => void handleSendSlackSummary()}
                 disabled={
+                  activeTab !== "overview" ||
                   isSendingSlackSummary ||
                   !hasHydratedDateRange ||
                   query.isLoading
@@ -386,19 +409,25 @@ function AdminCareerContent() {
                 size="sm"
                 className="h-8 rounded-none border-black/15 bg-white text-[12px] text-black shadow-none"
                 onClick={() => query.refetch()}
-                disabled={!hasHydratedDateRange || query.isFetching}
+                disabled={
+                  activeTab !== "overview" ||
+                  !hasHydratedDateRange ||
+                  query.isFetching
+                }
               >
                 Refresh
               </Button>
-            </div>
-          </div>
-        </header>
+            </>
+          }
+        />
 
         <div className="mx-auto w-full max-w-[1180px] space-y-4 px-4 py-5 md:px-6">
           {activeTab === "utm" ? (
             <AdminCareerUtmTab excludedEmails={excludedEmails} />
           ) : activeTab === "jobs" ? (
             <AdminCareerJobsTab excludedEmails={excludedEmails} />
+          ) : activeTab === "company" ? (
+            <AdminCareerCompanyTab />
           ) : query.error ? (
             <Card className="rounded-md border-red-200 bg-red-50 shadow-none">
               <CardContent className="p-4 text-[12px] text-red-700">

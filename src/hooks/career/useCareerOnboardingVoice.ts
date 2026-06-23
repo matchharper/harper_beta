@@ -39,6 +39,7 @@ import {
 import type { CareerConversationStarterId } from "@/lib/career/prompts/conversationStarters";
 import type { TalentUserChatMessageType } from "@/lib/talentOnboarding/onboarding";
 import { INSIGHT_CHECKLIST } from "@/lib/talentOnboarding/insightChecklist";
+import { TALENT_INTERVIEW_FINAL_STEP } from "@/lib/talentOnboarding/progress";
 import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 import { useMessages } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
@@ -382,19 +383,43 @@ export const useCareerOnboardingVoice = ({
       const value = talentInsights?.[item.key];
       return String(value ?? "").trim().length > 0 ? count + 1 : count;
     }, 0);
-    const percent =
+    const insightPercent =
       totalCount > 0
         ? Math.min(100, Math.round((filledCount / totalCount) * 100))
         : 0;
+    const userChatCount = messages.filter(
+      (message) =>
+        message.role === "user" && (message.messageType ?? "chat") === "chat"
+    ).length;
+    const turnPercent = Math.round(
+      (Math.min(userChatCount, TALENT_INTERVIEW_FINAL_STEP) /
+        TALENT_INTERVIEW_FINAL_STEP) *
+        100
+    );
+    const turnFilledCount = Math.min(
+      userChatCount,
+      TALENT_INTERVIEW_FINAL_STEP
+    );
+    const displayProgress =
+      turnPercent > insightPercent
+        ? {
+            filledCount: turnFilledCount,
+            percent: turnPercent,
+            totalCount: TALENT_INTERVIEW_FINAL_STEP,
+          }
+        : { filledCount, percent: insightPercent, totalCount };
 
     return {
-      canForceComplete: !isOnboardingDone && percent >= 85,
-      filledCount,
-      percent,
-      remainingCount: Math.max(totalCount - filledCount, 0),
-      totalCount,
+      canForceComplete: !isOnboardingDone && insightPercent >= 85,
+      filledCount: displayProgress.filledCount,
+      percent: displayProgress.percent,
+      remainingCount: Math.max(
+        displayProgress.totalCount - displayProgress.filledCount,
+        0
+      ),
+      totalCount: displayProgress.totalCount,
     };
-  }, [isOnboardingDone, talentInsights]);
+  }, [isOnboardingDone, messages, talentInsights]);
 
   const beginOnboardingConversation = useCallback(
     async (options?: {

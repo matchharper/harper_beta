@@ -17,6 +17,7 @@ import type { Database } from "@/types/database.types";
 
 const BATCH_SIZE = 1000;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+const NO_RECOMMENDATION_GRACE_PERIOD_MS = 60 * 60 * 1000;
 const TOOL_USAGE_LOG_PREFIX = "career_tool_call:";
 const TOOL_FAILURE_LOG_PREFIX = "career_tool_call_failed:";
 const DAILY_USER_STATS_EXTRA_EXCLUDED_EMAILS = [
@@ -293,6 +294,10 @@ function isInRange(
   return Boolean(value && value >= startIso && value < endIso);
 }
 
+function addMillisecondsToIso(value: string, milliseconds: number) {
+  return new Date(new Date(value).getTime() + milliseconds).toISOString();
+}
+
 async function fetchAllRows<T>(
   loadPage: (from: number, to: number) => PromiseLike<FetchPageResult<T>>
 ) {
@@ -554,6 +559,16 @@ async function buildUserStatsReport(args: {
 }): Promise<DailyUserStatsReport> {
   const { date, dateLabel, endDateExclusive, endIso, startDate, startIso } =
     args.range;
+  // The stats cron runs at KST 01:00, so this metric observes recommendations
+  // for one hour after the daily/weekly period closes.
+  const noRecommendationObservationEndIso = addMillisecondsToIso(
+    endIso,
+    NO_RECOMMENDATION_GRACE_PERIOD_MS
+  );
+  const noRecommendationEligibleEventEndIso = addMillisecondsToIso(
+    noRecommendationObservationEndIso,
+    -NO_RECOMMENDATION_GRACE_PERIOD_MS
+  );
   const excludedEmailSet = new Set(DAILY_USER_STATS_EXCLUDED_EMAILS);
 
   const [
@@ -572,11 +587,11 @@ async function buildUserStatsReport(args: {
     opportunityEmailDeliveries,
     failedDiscoveryCompletedRuns,
     failedDiscoveryLegacyRuns,
-    historicalSubmitLogs,
-    historicalProfileSubmitMessages,
-    historicalOnboardingEvents,
-    historicalOnboardingSettings,
-    historicalRecommendationTalentRows,
+    noRecommendationSubmitLogs,
+    noRecommendationProfileSubmitMessages,
+    noRecommendationOnboardingEvents,
+    noRecommendationOnboardingSettings,
+    recommendationTalentRowsBeforeObservationEnd,
     internalConnectionResponseRows,
     toolUsageLogs,
     toolFailureLogs,
@@ -745,7 +760,8 @@ async function buildUserStatsReport(args: {
         .from("logs")
         .select("user_id,type,created_at")
         .eq("type", "career_onboarding_submitted")
-        .lt("created_at", endIso)
+        .gte("created_at", startIso)
+        .lt("created_at", noRecommendationEligibleEventEndIso)
         .order("id", { ascending: true })
         .range(from, to)
     ),
@@ -754,7 +770,8 @@ async function buildUserStatsReport(args: {
         .from("talent_messages")
         .select("user_id,role,message_type,created_at")
         .eq("message_type", "profile_submit")
-        .lt("created_at", endIso)
+        .gte("created_at", startIso)
+        .lt("created_at", noRecommendationEligibleEventEndIso)
         .order("id", { ascending: true })
         .range(from, to)
     ),
@@ -763,7 +780,8 @@ async function buildUserStatsReport(args: {
         .from("talent_activity_events")
         .select("talent_id,event_type,created_at")
         .eq("event_type", "onboarding_completed")
-        .lt("created_at", endIso)
+        .gte("created_at", startIso)
+        .lt("created_at", noRecommendationEligibleEventEndIso)
         .order("created_at", { ascending: true })
         .range(from, to)
     ),
@@ -772,7 +790,8 @@ async function buildUserStatsReport(args: {
         .from("talent_setting")
         .select("user_id,is_onboarding_done,updated_at")
         .eq("is_onboarding_done", true)
-        .lt("updated_at", endIso)
+        .gte("updated_at", startIso)
+        .lt("updated_at", noRecommendationEligibleEventEndIso)
         .order("updated_at", { ascending: true })
         .range(from, to)
     ),
@@ -781,7 +800,7 @@ async function buildUserStatsReport(args: {
         supabaseServer
           .from("talent_opportunity_recommendation")
           .select("talent_id,recommended_at")
-          .lt("recommended_at", endIso)
+          .lt("recommended_at", noRecommendationObservationEndIso)
           .order("recommended_at", { ascending: true })
           .range(from, to)
     ),
@@ -1080,7 +1099,7 @@ async function buildUserStatsReport(args: {
   }
 
   const completedOrSubmittedUserIds = new Set<string>();
-  for (const log of historicalSubmitLogs) {
+  for (const log of noRecommendationSubmitLogs) {
     if (
       log.type === "career_onboarding_submitted" &&
       isIncludedUserId(log.user_id)
@@ -1088,7 +1107,7 @@ async function buildUserStatsReport(args: {
       addUserId(completedOrSubmittedUserIds, log.user_id);
     }
   }
-  for (const message of historicalProfileSubmitMessages) {
+  for (const message of noRecommendationProfileSubmitMessages) {
     if (
       message.message_type === "profile_submit" &&
       isIncludedUserId(message.user_id)
@@ -1096,25 +1115,30 @@ async function buildUserStatsReport(args: {
       addUserId(completedOrSubmittedUserIds, message.user_id);
     }
   }
-  for (const event of historicalOnboardingEvents) {
-    if (event.event_type === "onboarding_completed") {
+  for (const event of noRecommendationOnboardingEvents) {
+    if (
+      event.event_type === "onboarding_completed" &&
+      isIncludedUserId(event.talent_id)
+    ) {
       addUserId(completedOrSubmittedUserIds, event.talent_id);
     }
   }
-  for (const setting of historicalOnboardingSettings) {
-    if (setting.is_onboarding_done) {
+  for (const setting of noRecommendationOnboardingSettings) {
+    if (setting.is_onboarding_done && isIncludedUserId(setting.user_id)) {
       addUserId(completedOrSubmittedUserIds, setting.user_id);
     }
   }
-  const historicalRecommendationTalentIds = new Set<string>();
-  for (const row of historicalRecommendationTalentRows) {
+  const recommendationTalentIdsBeforeObservationEnd = new Set<string>();
+  for (const row of recommendationTalentRowsBeforeObservationEnd) {
     if (isIncludedUserId(row.talent_id)) {
-      addUserId(historicalRecommendationTalentIds, row.talent_id);
+      addUserId(recommendationTalentIdsBeforeObservationEnd, row.talent_id);
     }
   }
   const completedOrSubmittedNoRecommendationUserCount = Array.from(
     completedOrSubmittedUserIds
-  ).filter((userId) => !historicalRecommendationTalentIds.has(userId)).length;
+  ).filter(
+    (userId) => !recommendationTalentIdsBeforeObservationEnd.has(userId)
+  ).length;
 
   const includedInternalConnectionResponseRows =
     internalConnectionResponseRows.filter(
@@ -1338,7 +1362,7 @@ export function formatDailyUserStatsSlackMessage(report: DailyUserStatsReport) {
     `opportunity_discovery_run failed 종료: ${formatCount(
       report.opportunityDiscoveryFailedRunCount
     )}개`,
-    `• 제출/온보딩 완료했는데 추천 0개인 유저 수: ${formatCount(
+    `• 기간 내 제출/온보딩 완료 후 1시간+ 추천 0개인 유저 수: ${formatCount(
       report.completedOrSubmittedNoRecommendationUserCount
     )}명`,
     "",

@@ -158,11 +158,14 @@ const CareerSupportInquiryModal = ({
             )}
           </h2>
           <p className="mt-2 text-sm leading-6 text-neutral-muted">
-            {t("career.common.career_support_inquiry_modal.0mo6mro", "확인 후")}{" "}
-            {email}
             {t(
-              "career.common.career_support_inquiry_modal.0s26aoz",
-              "로 답변드리겠습니다."
+              "career.common.career_support_inquiry_modal.reply_email_notice",
+              "확인 후 {email}로 답변드리겠습니다.",
+              {
+                values: {
+                  email,
+                },
+              }
             )}
           </p>
         </div>

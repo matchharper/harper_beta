@@ -1733,11 +1733,13 @@ export async function runCareerOnboardingDeferClose(args: {
 
 export async function runCareerProfileIngestion(args: {
   messages: TalentChatMessage[];
+  usageLabel?: string;
 }) {
   return runTalentAssistantCompletion({
     ...assistantModelConfig(),
     messages: args.messages,
     temperature: CAREER_LLM_CONFIG.profileIngestion.temperature,
+    usageLabel: args.usageLabel,
   });
 }
 

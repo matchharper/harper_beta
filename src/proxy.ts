@@ -39,9 +39,10 @@ export function proxy(req: NextRequest) {
   const existingLocale = normalizeLocale(
     req.cookies.get(LOCALE_COOKIE_NAME)?.value
   );
+  const inferredLocale = inferRequestLocale(req);
 
-  if (!existingLocale) {
-    response.cookies.set(LOCALE_COOKIE_NAME, inferRequestLocale(req), {
+  if (existingLocale !== inferredLocale) {
+    response.cookies.set(LOCALE_COOKIE_NAME, inferredLocale, {
       maxAge: ONE_YEAR_SECONDS,
       path: "/",
       sameSite: "lax",

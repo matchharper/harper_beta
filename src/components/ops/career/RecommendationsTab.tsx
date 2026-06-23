@@ -695,7 +695,9 @@ export const RecommendationsTab = memo(function RecommendationsTab({
   const emptyRecommendationMessage =
     sourceFilter === "internal"
       ? "연결된 Internal 기회가 없습니다."
-      : "저장된 추천 기록이 없습니다.";
+      : sourceFilter === "external"
+        ? "저장된 External 추천 기록이 없습니다."
+        : "저장된 추천 기록이 없습니다.";
 
   const saveStage = useCallback(
     async (

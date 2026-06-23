@@ -14,7 +14,10 @@ import {
   isOpenInternalOpportunityCallRequestStatus,
   touchInternalOpportunityCallRequest,
 } from "@/lib/talentOnboarding/internalOpportunityCallRequest";
-import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
+import {
+  fetchTalentSetting,
+  getTalentSupabaseAdmin,
+} from "@/lib/talentOnboarding/server";
 
 const TOKEN_RATE_LIMIT = new Map<string, { count: number; resetAt: number }>();
 const MAX_TOKENS_PER_MINUTE = 10;
@@ -160,9 +163,6 @@ export async function POST(req: NextRequest) {
       typeof rawInternalCallRequestId === "string"
         ? rawInternalCallRequestId.trim()
         : "";
-    const transcriptionLanguage = getRealtimeTranscriptionLanguage(
-      rawLocale ?? req.cookies.get("NEXT_LOCALE")?.value
-    );
 
     if (!conversationId) {
       return NextResponse.json(
@@ -170,12 +170,19 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    const admin = getTalentSupabaseAdmin();
+    const talentSetting = await fetchTalentSetting({ admin, userId: user.id });
+    const responseLocale =
+      talentSetting?.preferred_locale ??
+      rawLocale ??
+      req.cookies.get("NEXT_LOCALE")?.value;
+    const transcriptionLanguage =
+      getRealtimeTranscriptionLanguage(responseLocale);
+
     if (
       conversationStarterId &&
-      !getCareerConversationStarterPrompt(
-        conversationStarterId,
-        rawLocale ?? req.cookies.get("NEXT_LOCALE")?.value
-      )
+      !getCareerConversationStarterPrompt(conversationStarterId, responseLocale)
     ) {
       return NextResponse.json(
         { error: "Invalid conversationStarterId" },
@@ -183,7 +190,6 @@ export async function POST(req: NextRequest) {
       );
     }
     if (internalCallRequestId) {
-      const admin = getTalentSupabaseAdmin();
       const callRequest = await fetchInternalOpportunityCallRequestById({
         admin,
         callId: internalCallRequestId,
@@ -208,12 +214,13 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const realtimeToolCandidates = getCareerRealtimeToolCandidates();
+    const realtimeToolCandidates =
+      getCareerRealtimeToolCandidates(responseLocale);
     const realtimePromptPlan = await buildCareerRealtimeSessionInstructions({
       conversationId,
       conversationStarterId,
       internalCallRequestId,
-      preferredLocale: rawLocale ?? req.cookies.get("NEXT_LOCALE")?.value,
+      preferredLocale: responseLocale,
       toolNames: realtimeToolCandidates.map((tool) => tool.name),
       userId: user.id,
     });
@@ -229,7 +236,7 @@ export async function POST(req: NextRequest) {
     const realtimeToolSelection = resolveCareerRealtimeTools({
       candidateTools: realtimeToolCandidates,
       enabledToolNames: realtimePromptPlan.enabledToolNames,
-      preferredLocale: rawLocale ?? req.cookies.get("NEXT_LOCALE")?.value,
+      preferredLocale: responseLocale,
     });
     const tools = realtimeToolSelection.tools;
     const toolVoicePreambles = realtimeToolSelection.toolVoicePreambles;

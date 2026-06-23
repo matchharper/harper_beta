@@ -411,14 +411,6 @@ export async function POST(req: NextRequest) {
       typeof body.conversationStarterId === "string"
         ? body.conversationStarterId.trim()
         : "";
-    const requestLocale = body.locale ?? req.cookies.get("NEXT_LOCALE")?.value;
-    const requestConversationStarter = conversationStarterId
-      ? getCareerConversationStarterPrompt(conversationStarterId, requestLocale)
-      : null;
-    const skipConversationWrites = Boolean(
-      requestConversationStarter &&
-        message === requestConversationStarter.chatMessage
-    );
     const streamResponse = wantsSseStream(req);
 
     if (!conversationId) {
@@ -433,14 +425,25 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    if (conversationStarterId && !requestConversationStarter) {
+    const admin = getTalentSupabaseAdmin();
+    const talentSetting = await fetchTalentSetting({ admin, userId: user.id });
+    const responseLocale =
+      talentSetting?.preferred_locale ??
+      body.locale ??
+      req.cookies.get("NEXT_LOCALE")?.value;
+    const conversationStarter = conversationStarterId
+      ? getCareerConversationStarterPrompt(conversationStarterId, responseLocale)
+      : null;
+    const skipConversationWrites = Boolean(
+      conversationStarter && message === conversationStarter.chatMessage
+    );
+    if (conversationStarterId && !conversationStarter) {
       return NextResponse.json(
         { error: "Invalid conversationStarterId" },
         { status: 400 }
       );
     }
 
-    const admin = getTalentSupabaseAdmin();
     const touchConversationIfAllowed = async () => {
       if (skipConversationWrites) return;
       await touchConversation(admin, conversationId, user.id);
@@ -503,7 +506,6 @@ export async function POST(req: NextRequest) {
     const [
       profile,
       currentInsights,
-      talentSetting,
       additionalQuestionSelectionCount,
       onboardingCompletionEvent,
       pendingOpportunityFeedbackContext,
@@ -512,7 +514,6 @@ export async function POST(req: NextRequest) {
     ] = await Promise.all([
       fetchTalentUserProfile({ admin, userId: user.id }),
       fetchTalentInsights({ admin, userId: user.id }),
-      fetchTalentSetting({ admin, userId: user.id }),
       countAdditionalOnboardingQuestionSelections({
         admin,
         conversationId,
@@ -573,13 +574,6 @@ export async function POST(req: NextRequest) {
     const shouldAutoExtractInsights = !Boolean(
       talentSetting?.is_onboarding_done
     );
-    const responseLocale =
-      body.locale ??
-      talentSetting?.preferred_locale ??
-      req.cookies.get("NEXT_LOCALE")?.value;
-    const conversationStarter = conversationStarterId
-      ? getCareerConversationStarterPrompt(conversationStarterId, responseLocale)
-      : null;
     const extractTurnInsights = (assistantContent: string) =>
       shouldAutoExtractInsights
         ? extractAndPersistChatInsights({
@@ -589,18 +583,21 @@ export async function POST(req: NextRequest) {
               buildCareerInsightExtractionPrompt({
                 currentChecklistCoverage: promptArgs.currentChecklistCoverage,
                 currentInsightContent: promptArgs.currentInsightContent,
+                onboardingChecklistContext:
+                  promptArgs.onboardingChecklistContext,
                 preferredLocale: responseLocale,
               }),
             conversationId,
             currentInsightContent,
             logPrefix: "TalentChat",
+            onboardingChecklistContext: profile,
             sourceChannel: "text_chat",
             userId: user.id,
           })
         : Promise.resolve(0);
 
     const normalizedContent = link
-      ? `${message}\n\n참고 링크: ${link}`
+      ? `${message}\n\nReference link: ${link}`
       : message;
 
     const { data: insertedUserMessage, error: userMessageError } = await admin

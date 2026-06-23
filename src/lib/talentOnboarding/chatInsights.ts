@@ -17,6 +17,7 @@ import {
 import {
   ONBOARDING_QUESTION_BY_INSIGHT_KEY,
   ONBOARDING_QUESTION_CHECKLIST_KEY_SET,
+  type OnboardingChecklistLocationContext,
 } from "@/lib/talentOnboarding/insightChecklist";
 import { logger } from "@/utils/logger";
 
@@ -32,6 +33,7 @@ type ExtractionConversationMessage = {
 type BuildPromptArgs = {
   currentChecklistCoverage: Record<string, "covered"> | null;
   currentInsightContent: Record<string, string> | null;
+  onboardingChecklistContext?: OnboardingChecklistLocationContext;
 };
 
 function clamp(value: string, maxLength: number) {
@@ -237,6 +239,7 @@ export async function extractAndPersistChatInsights(args: {
   conversationId: string;
   currentInsightContent: Record<string, string> | null;
   logPrefix: string;
+  onboardingChecklistContext?: OnboardingChecklistLocationContext;
   sourceChannel?: "text_chat" | "voice_call" | "unknown";
   userId: string;
 }) {
@@ -281,6 +284,7 @@ export async function extractAndPersistChatInsights(args: {
     const systemPrompt = args.buildPrompt({
       currentChecklistCoverage,
       currentInsightContent: args.currentInsightContent,
+      onboardingChecklistContext: args.onboardingChecklistContext,
     });
     let rawExtraction = await runCareerInsightExtraction({
       systemPrompt,

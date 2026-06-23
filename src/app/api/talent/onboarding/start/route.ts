@@ -346,7 +346,7 @@ export async function POST(req: NextRequest) {
     const displayName = submittedName || toTalentDisplayName(user);
     const talentSetting = await fetchTalentSetting({ admin, userId: user.id });
     const preferredLocale =
-      body.locale ?? talentSetting?.preferred_locale ?? cookieLocale;
+      talentSetting?.preferred_locale ?? body.locale ?? cookieLocale;
     const kickoffLlmPromise = generateTalentKickoff({
       displayName,
       links,

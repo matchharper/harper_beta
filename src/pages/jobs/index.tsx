@@ -8,11 +8,16 @@ import { postOfficialJobEvent } from "@/lib/officialJobs/events";
 import { OFFICIAL_JOBS_LOGIN_HREF, type OfficialJob } from "@/lib/officialJobs";
 import {
   OFFICIAL_JOBS_CANONICAL_URL,
-  OFFICIAL_JOBS_LIST_DESCRIPTION,
-  OFFICIAL_JOBS_LIST_TITLE,
   OFFICIAL_JOBS_OG_IMAGE_URL,
   buildOfficialJobsCollectionStructuredData,
+  getOfficialJobsListSeo,
 } from "@/lib/officialJobs/seo";
+import {
+  formatOfficialJobsCopy,
+  getOfficialJobsCopy,
+  resolveOfficialJobsLocaleFromRequest,
+  type OfficialJobsLocale,
+} from "@/lib/officialJobs/copy";
 import {
   getPublicOfficialJobByAshbyId,
   getPublicOfficialJobs,
@@ -25,6 +30,7 @@ import { useRouter } from "next/router";
 
 type OfficialJobsPageProps = {
   jobs: OfficialJob[];
+  locale: OfficialJobsLocale;
 };
 
 function getSingleQueryParam(value: string | string[] | undefined) {
@@ -53,8 +59,15 @@ function buildRedirectDestination(
   return `/jobs/${encodeURIComponent(slug)}${search ? `?${search}` : ""}`;
 }
 
-function OfficialJobsTable({ jobs }: { jobs: OfficialJob[] }) {
+function OfficialJobsTable({
+  jobs,
+  locale,
+}: {
+  jobs: OfficialJob[];
+  locale: OfficialJobsLocale;
+}) {
   const router = useRouter();
+  const copy = getOfficialJobsCopy(locale);
 
   const trackJobClick = (
     job: OfficialJob,
@@ -82,7 +95,7 @@ function OfficialJobsTable({ jobs }: { jobs: OfficialJob[] }) {
   if (jobs.length === 0) {
     return (
       <div className="rounded-[8px] border border-beige900/10 bg-white/45 px-4 py-5 text-[14px] leading-6 text-black/62">
-        아직 공개된 역할은 없어요. Harper는 계속 시장을 살펴보고 있습니다.
+        {copy.list.empty}
       </div>
     );
   }
@@ -95,7 +108,10 @@ function OfficialJobsTable({ jobs }: { jobs: OfficialJob[] }) {
             <Link
               key={job.id}
               href={`/jobs/${job.slug}`}
-              aria-label={`${job.roleTitle}, ${job.companyName} 자세히 보기`}
+              aria-label={formatOfficialJobsCopy(copy.list.viewDetailsAria, {
+                company: job.companyName,
+                role: job.roleTitle,
+              })}
               className="group relative block w-full overflow-hidden rounded-[0px] border border-beige900/10 border-b-0 bg-white/50 px-4 py-5 pl-5 text-left transition hover:-translate-y-0.5 hover:border-beige900/20 hover:bg-white/90 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-beige700/15 active:translate-y-0"
               onClick={() => trackJobClick(job, "jobs_mobile_card")}
             >
@@ -138,11 +154,21 @@ function OfficialJobsTable({ jobs }: { jobs: OfficialJob[] }) {
           </colgroup>
           <thead>
             <tr className="border-b border-beige900/10 text-[11px] uppercase text-neutral-muted">
-              <th className="px-4 py-3 font-medium">Role</th>
-              <th className="px-4 py-3 font-medium">Company</th>
-              <th className="px-4 py-3 font-medium">Location</th>
-              <th className="px-4 py-3 font-medium">Vertical</th>
-              <th className="px-4 py-3 font-medium text-right">Apply</th>
+              <th className="px-4 py-3 font-medium">
+                {copy.list.tableHeaders.role}
+              </th>
+              <th className="px-4 py-3 font-medium">
+                {copy.list.tableHeaders.company}
+              </th>
+              <th className="px-4 py-3 font-medium">
+                {copy.list.tableHeaders.location}
+              </th>
+              <th className="px-4 py-3 font-medium">
+                {copy.list.tableHeaders.vertical}
+              </th>
+              <th className="px-4 py-3 font-medium text-right">
+                {copy.list.tableHeaders.apply}
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-beige900/10">
@@ -190,8 +216,18 @@ function OfficialJobsTable({ jobs }: { jobs: OfficialJob[] }) {
   );
 }
 
-export default function OfficialJobsPage({ jobs }: OfficialJobsPageProps) {
-  const structuredData = buildOfficialJobsCollectionStructuredData(jobs);
+export default function OfficialJobsPage({
+  jobs,
+  locale,
+}: OfficialJobsPageProps) {
+  const copy = getOfficialJobsCopy(locale);
+  const seo = getOfficialJobsListSeo(locale);
+  const structuredData = buildOfficialJobsCollectionStructuredData(
+    jobs,
+    locale
+  );
+  const heroTitleLines = copy.list.heroTitle.split("\n");
+  const heroBodyLines = copy.list.heroBody.split("\n");
 
   return (
     <>
@@ -200,11 +236,11 @@ export default function OfficialJobsPage({ jobs }: OfficialJobsPageProps) {
         metadata={{ jobCount: jobs.length }}
       />
       <Head>
-        <title>{OFFICIAL_JOBS_LIST_TITLE}</title>
+        <title>{seo.listTitle}</title>
         <meta
           key="description"
           name="description"
-          content={OFFICIAL_JOBS_LIST_DESCRIPTION}
+          content={seo.listDescription}
         />
         <meta
           key="robots"
@@ -219,21 +255,15 @@ export default function OfficialJobsPage({ jobs }: OfficialJobsPageProps) {
         />
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="Harper" />
-        <meta property="og:locale" content="ko_KR" />
-        <meta property="og:title" content={OFFICIAL_JOBS_LIST_TITLE} />
-        <meta
-          property="og:description"
-          content={OFFICIAL_JOBS_LIST_DESCRIPTION}
-        />
+        <meta property="og:locale" content={seo.ogLocale} />
+        <meta property="og:title" content={seo.listTitle} />
+        <meta property="og:description" content={seo.listDescription} />
         <meta property="og:url" content={OFFICIAL_JOBS_CANONICAL_URL} />
         <meta property="og:image" content={OFFICIAL_JOBS_OG_IMAGE_URL} />
-        <meta property="og:image:alt" content={OFFICIAL_JOBS_LIST_TITLE} />
+        <meta property="og:image:alt" content={seo.listTitle} />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={OFFICIAL_JOBS_LIST_TITLE} />
-        <meta
-          name="twitter:description"
-          content={OFFICIAL_JOBS_LIST_DESCRIPTION}
-        />
+        <meta name="twitter:title" content={seo.listTitle} />
+        <meta name="twitter:description" content={seo.listDescription} />
         <meta name="twitter:image" content={OFFICIAL_JOBS_OG_IMAGE_URL} />
         <link rel="icon" href="/images/logo.ico" />
         <script
@@ -245,7 +275,7 @@ export default function OfficialJobsPage({ jobs }: OfficialJobsPageProps) {
         />
       </Head>
       <Page as="div" background="beige" minHeight="svh" safeArea="bottom">
-        <OfficialJobsHeader />
+        <OfficialJobsHeader locale={locale} />
         <main>
           <PageContainer
             as="section"
@@ -256,18 +286,25 @@ export default function OfficialJobsPage({ jobs }: OfficialJobsPageProps) {
             <div className="flex md:flex-row flex-col items-center justify-between">
               <div className="max-w-[820px]">
                 <h1 className="mt-5 max-w-[680px] break-keep text-[32px] font-medium leading-[1.42] text-black text-balance">
-                  안녕하세요 Harper입니다.
-                  <br />
-                  제가 먼저 살펴보는 역할들이에요.
+                  {heroTitleLines.map((line, index) => (
+                    <span key={`${index}-${line}`}>
+                      {index > 0 ? <br /> : null}
+                      {line}
+                    </span>
+                  ))}
                 </h1>
                 <p className="mt-4 max-w-[620px] break-keep text-[15px] leading-7 text-black/70">
-                  충분히 흥미로운 기회만 소개시켜드리고 있어요.
-                  <br />
-                  관심 있는 역할이 보이면 저에게 알려주세요.
+                  {heroBodyLines.map((line, index) => (
+                    <span key={`${index}-${line}`}>
+                      {index > 0 ? <br /> : null}
+                      {line}
+                    </span>
+                  ))}
                 </p>
                 <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                   <OfficialJobsCtaLink
                     className="bg-primary border-none"
+                    locale={locale}
                     size="lg"
                     onClick={() => {
                       void postOfficialJobEvent({
@@ -280,22 +317,22 @@ export default function OfficialJobsPage({ jobs }: OfficialJobsPageProps) {
                     href="/"
                     className="inline-flex min-h-11 items-center justify-center rounded-[4px] border border-beige900/15 bg-white/45 px-5 text-[14px] font-medium text-black transition hover:border-beige900/25 hover:bg-white/70"
                   >
-                    Harper 더 알아보기
+                    {copy.list.learnMore}
                   </Link>
                 </div>
-              </div>
-              <div>
-                <div></div>
-                <div></div>
               </div>
             </div>
 
             <div className="mt-10">
-              <OfficialJobsTable jobs={jobs} />
+              <OfficialJobsTable jobs={jobs} locale={locale} />
             </div>
           </PageContainer>
         </main>
-        <CareerLandingFooter careerStartHref={OFFICIAL_JOBS_LOGIN_HREF} />
+        <CareerLandingFooter
+          careerStartHref={OFFICIAL_JOBS_LOGIN_HREF}
+          labels={copy.footerLabels}
+          locale={locale}
+        />
       </Page>
     </>
   );
@@ -322,10 +359,12 @@ export const getServerSideProps: GetServerSideProps<
   }
 
   const jobs = await getPublicOfficialJobs();
+  const locale = resolveOfficialJobsLocaleFromRequest(context.req);
 
   return {
     props: {
       jobs,
+      locale,
     },
   };
 };

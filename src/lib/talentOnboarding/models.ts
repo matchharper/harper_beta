@@ -17,6 +17,7 @@ export type TalentUserProfileRow = {
   profile_picture: string | null;
   headline: string | null;
   bio: string | null;
+  current_location: string | null;
   location: string | null;
   last_logined_at: string | null;
   resume_file_name: string | null;
@@ -42,10 +43,12 @@ export type TalentExtraItem = {
 };
 
 export type TalentStructuredProfile = {
-  talentUser: Pick<
-    TalentUserProfileRow,
-    "user_id" | "name" | "profile_picture" | "headline" | "bio" | "location"
-  > | null;
+  talentUser:
+    | (Pick<
+        TalentUserProfileRow,
+        "user_id" | "name" | "profile_picture" | "headline" | "bio" | "location"
+      > & { current_location?: string | null })
+    | null;
   talentExperiences: TalentExperienceRow[];
   talentEducations: TalentEducationRow[];
   talentExtras: TalentExtraItem[];

@@ -44,9 +44,12 @@ export function getLocaleFromCookie(): Locale | null {
 export function getStoredLocale(): Locale | null {
   if (typeof window === "undefined") return null;
 
+  const cookieLocale = getLocaleFromCookie();
+  if (cookieLocale) return cookieLocale;
+
   const stored = normalizeLocale(window.localStorage.getItem(LOCALE_STORAGE_KEY));
   if (stored) return stored;
-  return getLocaleFromCookie();
+  return null;
 }
 
 export function getInitialClientLocalePreference(): Locale {

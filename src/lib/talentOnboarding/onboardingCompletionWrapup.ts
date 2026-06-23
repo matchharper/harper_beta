@@ -6,6 +6,7 @@ import { runCareerChatAssistant } from "@/lib/career/llm";
 import {
   getCareerPromptLanguageName,
   getCareerPromptToneRule,
+  normalizeCareerPromptLocale,
 } from "@/lib/career/promptLocale";
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 import {
@@ -45,7 +46,7 @@ import {
 } from "@/lib/talentOpportunity";
 import { stripPostgresUnsafeChars } from "@/lib/textSanitization";
 
-const FALLBACK_WRAPUP_CONTENT = [
+const FALLBACK_WRAPUP_CONTENT_KO = [
   "좋은 대화였습니다. 말씀해주신 내용을 바탕으로 다음 기회 탐색 기준을 정리했습니다.",
   "",
   "**What we covered**",
@@ -57,7 +58,19 @@ const FALLBACK_WRAPUP_CONTENT = [
   "- 명확히 맞는 기회만 추려서 보여드리는 방향으로 탐색합니다.",
 ].join("\n");
 
-const FALLBACK_NEXT_STEPS_CONTENT = [
+const FALLBACK_WRAPUP_CONTENT_EN = [
+  "That was a helpful conversation. I summarized your next opportunity search criteria based on what you shared.",
+  "",
+  "**What we covered**",
+  "- Your current career priorities and preferences.",
+  "- The roles, environments, and constraints you want Harper to consider next.",
+  "",
+  "**Key insights**",
+  "- Future recommendations will prioritize what came through in this conversation.",
+  "- Harper will focus on filtering for clearly relevant opportunities instead of sending broad noise.",
+].join("\n");
+
+const FALLBACK_NEXT_STEPS_CONTENT_KO = [
   "말씀해주신 조건들을 Harper의 검색 기준에 반영했어요. 이제 대화에서 확인한 역할, 산업, 지역, 근무 형태 기준을 중심으로 새로운 기회를 찾기 시작할게요. 결과는 포지션 탭과 이메일로 준비되는 대로 보내드릴 거예요. 최대 1시간 정도 걸릴 수 있어요.",
   "",
   "확인하신 뒤에는 각 기회에 대해 좋아요/싫어요를 눌러주세요. 마음에 드는 회사가 있으면 회사명을 눌러 자세히 보고, 계속 지켜보고 싶은 회사는 track 해두시면 관련 소식이나 채용 업데이트가 있을 때 챙겨드릴게요.",
@@ -65,11 +78,58 @@ const FALLBACK_NEXT_STEPS_CONTENT = [
   "한 가지만 여쭤볼게요. 선호하실 만한 기회라면 제가 연결 가능한 기회가 아닌 외부 공고라도 주기적으로 알려드리면 좋을까요? 아니면 내부 연결처럼 특히 핏이 강한 기회가 있을 때만 연락드리는 쪽이 편하실까요?",
 ].join("\n\n");
 
-const ONBOARDING_COMPLETION_WRAPUP_THINKING_LOGS = [
+const FALLBACK_NEXT_STEPS_CONTENT_EN = [
+  "I added what you shared to Harper's search criteria. Harper will start looking around the roles, industries, locations, and work styles we discussed. New opportunities will appear in the Positions tab and may also be sent by email when they are ready. This can take up to about an hour.",
+  "",
+  "After you review them, use like or dislike on each opportunity so Harper can calibrate future recommendations. If a company looks interesting, open the company name for more context. You can also track companies you want Harper to keep watching for relevant updates or new roles.",
+  "",
+  "One quick question: would you like Harper to periodically send strong external job postings too, or would you prefer to hear only when there is a particularly high-fit opportunity Harper can help connect you with?",
+].join("\n\n");
+
+const ONBOARDING_COMPLETION_WRAPUP_THINKING_LOGS_KO = [
   "온보딩이 종료되었습니다.",
   "대화 내용을 바탕으로 프로필 업데이트가 필요한지 확인했습니다.",
   "대화 요약을 작성했습니다.",
 ];
+
+const ONBOARDING_COMPLETION_WRAPUP_THINKING_LOGS_EN = [
+  "Onboarding is complete.",
+  "Checked whether the profile should be updated based on the conversation.",
+  "Prepared the conversation summary.",
+];
+
+const resolveFallbackLocale = (preferredLocale?: string | null): "ko" | "en" => {
+  if (!preferredLocale) return "en";
+  return normalizeCareerPromptLocale(preferredLocale);
+};
+
+async function getOnboardingCompletionFallbackLocale(args: {
+  admin: TalentAdminClient;
+  userId: string;
+}): Promise<"ko" | "en"> {
+  try {
+    const setting = await fetchTalentSetting({
+      admin: args.admin,
+      userId: args.userId,
+    });
+    return resolveFallbackLocale(setting?.preferred_locale);
+  } catch {
+    return "en";
+  }
+}
+
+const getFallbackWrapupContent = (locale: "ko" | "en") =>
+  locale === "ko" ? FALLBACK_WRAPUP_CONTENT_KO : FALLBACK_WRAPUP_CONTENT_EN;
+
+const getFallbackNextStepsContent = (locale: "ko" | "en") =>
+  locale === "ko"
+    ? FALLBACK_NEXT_STEPS_CONTENT_KO
+    : FALLBACK_NEXT_STEPS_CONTENT_EN;
+
+const getOnboardingCompletionWrapupThinkingLogs = (locale: "ko" | "en") =>
+  locale === "ko"
+    ? ONBOARDING_COMPLETION_WRAPUP_THINKING_LOGS_KO
+    : ONBOARDING_COMPLETION_WRAPUP_THINKING_LOGS_EN;
 
 function stripNextStepsSection(content: string) {
   return stripPostgresUnsafeChars(content)
@@ -404,7 +464,8 @@ export async function regenerateOnboardingCompletionNextStepsMessage(args: {
   isMobile?: boolean | null;
   userId: string;
 }) {
-  let content = FALLBACK_NEXT_STEPS_CONTENT;
+  const fallbackLocale = await getOnboardingCompletionFallbackLocale(args);
+  let content = getFallbackNextStepsContent(fallbackLocale);
 
   try {
     const generated = await generateOnboardingCompletionNextStepsContent(args);
@@ -480,7 +541,8 @@ export async function createOnboardingCompletionNextStepsMessage(args: {
     );
   }
 
-  let content = FALLBACK_NEXT_STEPS_CONTENT;
+  const fallbackLocale = await getOnboardingCompletionFallbackLocale(args);
+  let content = getFallbackNextStepsContent(fallbackLocale);
 
   try {
     const generated = await generateOnboardingCompletionNextStepsContent(args);
@@ -520,7 +582,9 @@ export async function regenerateOnboardingCompletionWrapupMessage(args: {
   latestUserMessageId?: number | string | null;
   userId: string;
 }) {
-  let content = FALLBACK_WRAPUP_CONTENT;
+  const fallbackLocale = await getOnboardingCompletionFallbackLocale(args);
+  const thinkingLogs = getOnboardingCompletionWrapupThinkingLogs(fallbackLocale);
+  let content = getFallbackWrapupContent(fallbackLocale);
 
   try {
     const generated = await generateOnboardingCompletionWrapupContent(args);
@@ -550,7 +614,7 @@ export async function regenerateOnboardingCompletionWrapupMessage(args: {
       content,
       conversationId: args.conversationId,
       isMobile: args.isMobile,
-      thinkingLogs: ONBOARDING_COMPLETION_WRAPUP_THINKING_LOGS,
+      thinkingLogs,
       userId: args.userId,
     });
   }
@@ -559,7 +623,7 @@ export async function regenerateOnboardingCompletionWrapupMessage(args: {
     .from("talent_messages")
     .update({
       content,
-      thinking_logs: ONBOARDING_COMPLETION_WRAPUP_THINKING_LOGS,
+      thinking_logs: thinkingLogs,
     })
     .eq("id", existing.id)
     .eq("conversation_id", args.conversationId)
@@ -598,7 +662,9 @@ export async function createOnboardingCompletionWrapupMessage(args: {
     });
   }
 
-  let content = FALLBACK_WRAPUP_CONTENT;
+  const fallbackLocale = await getOnboardingCompletionFallbackLocale(args);
+  const thinkingLogs = getOnboardingCompletionWrapupThinkingLogs(fallbackLocale);
+  let content = getFallbackWrapupContent(fallbackLocale);
 
   try {
     const generated = await generateOnboardingCompletionWrapupContent(args);
@@ -619,7 +685,7 @@ export async function createOnboardingCompletionWrapupMessage(args: {
       content,
       conversationId: args.conversationId,
       isMobile: args.isMobile,
-      thinkingLogs: ONBOARDING_COMPLETION_WRAPUP_THINKING_LOGS,
+      thinkingLogs,
       userId: args.userId,
     });
   } catch (error) {

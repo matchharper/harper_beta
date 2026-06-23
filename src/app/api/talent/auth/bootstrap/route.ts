@@ -18,6 +18,7 @@ import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
 import { enqueueSignupNoProfileSubmit } from "@/lib/contactQueue";
 import type { Json } from "@/types/database.types";
 import { normalizeCareerPromptLocale } from "@/lib/career/promptLocale";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 type Body = {
   emailOnboardingToken?: string;
@@ -50,6 +51,47 @@ const normalizeOptionalText = (value: unknown, maxLength: number) => {
   const normalized = String(value ?? "").trim();
   return normalized ? normalized.slice(0, maxLength) : null;
 };
+
+function decodeLocationHeader(value: string | null) {
+  const normalized = normalizeOptionalText(value, 120);
+  if (!normalized) return null;
+
+  try {
+    return decodeURIComponent(normalized.replace(/\+/g, " "));
+  } catch {
+    return normalized;
+  }
+}
+
+function getCountryName(countryCode: string | null) {
+  const normalized = normalizeOptionalText(countryCode, 2)?.toUpperCase();
+  if (!normalized || normalized === "ZZ") return null;
+
+  try {
+    return (
+      new Intl.DisplayNames(["en"], { type: "region" }).of(normalized) ??
+      normalized
+    );
+  } catch {
+    return normalized;
+  }
+}
+
+function resolveSignupCurrentLocation(req: NextRequest) {
+  const countryCode =
+    req.headers.get("x-vercel-ip-country") ||
+    req.headers.get("cf-ipcountry") ||
+    null;
+  const countryName = getCountryName(countryCode);
+  const city =
+    decodeLocationHeader(req.headers.get("x-vercel-ip-city")) ||
+    decodeLocationHeader(req.headers.get("cf-ipcity"));
+  const parts = [countryName, city]
+    .filter((value): value is string => Boolean(value))
+    .filter((value, index, values) => values.indexOf(value) === index);
+
+  return parts.length > 0 ? parts.join(", ").slice(0, 200) : null;
+}
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -149,6 +191,7 @@ export async function POST(req: NextRequest) {
     const preferredLocale = normalizeCareerPromptLocale(
       body?.locale ?? req.cookies.get("NEXT_LOCALE")?.value
     );
+    const currentLocation = resolveSignupCurrentLocation(req);
     const mail = String(body?.mail ?? "").trim();
     const admin = getTalentSupabaseAdmin();
 
@@ -182,8 +225,11 @@ export async function POST(req: NextRequest) {
       } catch {
         return NextResponse.json(
           {
-            error:
-              "이메일 온보딩 링크가 만료되었거나 올바르지 않습니다. 랜딩페이지에서 다시 이메일을 남겨주세요.",
+            error: careerT(
+              preferredLocale,
+              "career.api.auth.email_onboarding_link_invalid",
+              "이메일 온보딩 링크가 만료되었거나 올바르지 않습니다. 랜딩페이지에서 다시 이메일을 남겨주세요."
+            ),
           },
           { status: 400 }
         );
@@ -194,8 +240,11 @@ export async function POST(req: NextRequest) {
       if (!authEmail || authEmail !== parsed.email) {
         return NextResponse.json(
           {
-            error:
-              "이메일 온보딩 링크의 이메일과 로그인 계정의 이메일이 일치하지 않습니다.",
+            error: careerT(
+              preferredLocale,
+              "career.api.auth.email_onboarding_email_mismatch",
+              "이메일 온보딩 링크의 이메일과 로그인 계정의 이메일이 일치하지 않습니다."
+            ),
           },
           { status: 400 }
         );
@@ -229,6 +278,7 @@ export async function POST(req: NextRequest) {
 
     await ensureTalentUserRecord({
       admin,
+      currentLocation,
       user,
       mail: emailOnboardingClaim?.claimed ? null : mail || null,
     });
@@ -237,6 +287,7 @@ export async function POST(req: NextRequest) {
         ? await claimTalentNetworkInvite({
             admin,
             inviteToken,
+            preferredLocale,
             user,
           })
         : null;

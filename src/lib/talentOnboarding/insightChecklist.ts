@@ -31,6 +31,51 @@ export type OnboardingQuestionChecklistItem = {
   kind: OnboardingQuestionChecklistKind;
 };
 
+export type OnboardingChecklistLocationContext =
+  | string
+  | {
+      current_location?: string | null;
+      currentLocation?: string | null;
+      location?: string | null;
+    }
+  | null
+  | undefined;
+
+const ONBOARDING_WORK_AUTHORIZATION_COUNTRY_TOKENS = new Set([
+  "australia",
+  "au",
+  "singapore",
+  "sg",
+]);
+
+function getOnboardingLocationContextText(
+  context: OnboardingChecklistLocationContext
+) {
+  if (typeof context === "string") return context;
+  if (!context || typeof context !== "object") return "";
+  return [
+    context.current_location,
+    context.currentLocation,
+    context.location,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join(", ");
+}
+
+export function isPermanentResidencyOnboardingCountry(
+  context: OnboardingChecklistLocationContext
+) {
+  const text = getOnboardingLocationContextText(context)
+    .toLocaleLowerCase("en-US")
+    .trim();
+  if (!text) return false;
+
+  return text
+    .split(/[^a-z]+/i)
+    .filter(Boolean)
+    .some((token) => ONBOARDING_WORK_AUTHORIZATION_COUNTRY_TOKENS.has(token));
+}
+
 /**
  * 10 data slots aligned with the Harper career system prompt.
  * Each slot maps to a conversation topic the AI should naturally explore.
@@ -59,7 +104,7 @@ const INSIGHT_BACKED_ONBOARDING_ITEMS = [
     insightKey: "language",
     label: "외국어 능력",
     promptHint:
-      "외국어(대부분의 경우 영어) 실력 파악. 하퍼에 글로벌 기업이 많아서 묻는다는걸 알려주고, 영어에 얼마나 익숙한지, 회의에서 어떤 수준으로 대화가 되는지, 해외 경험이 있는지 물어봐라.",
+      "Ask which languages the user can use in work conversations, the level for each language, and concrete situations where they can communicate at that level. Ask for examples such as 1:1 meetings, team meetings, interviews, technical/product discussions, negotiation, client communication, or async writing. Briefly explain that Harper asks because many opportunities involve global teams.",
     priority: 3,
     kind: "question",
   },
@@ -114,6 +159,43 @@ const INSIGHT_BACKED_ONBOARDING_ITEMS = [
   },
 ] satisfies OnboardingQuestionChecklistItem[];
 
+const PERMANENT_RESIDENCY_ONBOARDING_ITEM = {
+  key: "permanent_residency",
+  insightKey: "permanent_residency",
+  label: "영주권/체류 자격",
+  promptHint:
+    "For Singapore/Australia onboarding only: ask separately whether the user has permanent residency, citizenship, or another local work authorization status, and whether they would need visa sponsorship for local roles. Keep it factual and separate from general location preference.",
+  priority: 3.5,
+  kind: "question",
+} satisfies OnboardingQuestionChecklistItem;
+
+const ADDITIONAL_QUESTION_ONE_ITEM = {
+  key: "additional_question_one",
+  label: "추가 질문 1",
+  promptHint:
+    "Insight checklist와 별개로 프로필 gap, 직무 depth/preference, 이력 전환/타임라인 등 헤드헌트가 보통 인재측에 물어보는 추가적인 질문",
+  priority: 8,
+  kind: "additional_question",
+} satisfies OnboardingQuestionChecklistItem;
+
+const ADDITIONAL_QUESTION_TWO_ITEM = {
+  key: "additional_question_two",
+  label: "추가 질문 2",
+  promptHint:
+    "첫 번째 additional question과 다른 프로필 gap, 직무 depth/preference, 이력 전환/타임라인 등 헤드헌트가 보통 인재측에 물어보는 추가적인 질문",
+  priority: 9,
+  kind: "additional_question",
+} satisfies OnboardingQuestionChecklistItem;
+
+const FINAL_PRIORITY_CONFIRMATION_ITEM = {
+  key: "final_priority_confirmation",
+  label: "마지막 우선순위 확인",
+  promptHint:
+    "지금까지의 우선순위와 제약을 짧게 정리한 뒤 빠진 것이 있는지 물었고 사용자가 그 확인에 답했는지",
+  priority: 11,
+  kind: "final_confirmation",
+} satisfies OnboardingQuestionChecklistItem;
+
 export const ONBOARDING_QUESTION_CHECKLIST: OnboardingQuestionChecklistItem[] =
   [
     ...INSIGHT_BACKED_ONBOARDING_ITEMS,
@@ -125,33 +207,68 @@ export const ONBOARDING_QUESTION_CHECKLIST: OnboardingQuestionChecklistItem[] =
     //   priority: 2,
     //   kind: "additional_question",
     // },
-    {
-      key: "additional_question_one",
-      label: "추가 질문 1",
-      promptHint:
-        "Insight checklist와 별개로 프로필 gap, 직무 depth/preference, 이력 전환/타임라인 등 헤드헌트가 보통 인재측에 물어보는 추가적인 질문",
-      priority: 8,
-      kind: "additional_question",
-    },
-    {
-      key: "additional_question_two",
-      label: "추가 질문 2",
-      promptHint:
-        "첫 번째 additional question과 다른 프로필 gap, 직무 depth/preference, 이력 전환/타임라인 등 헤드헌트가 보통 인재측에 물어보는 추가적인 질문",
-      priority: 9,
-      kind: "additional_question",
-    },
-    {
-      key: "final_priority_confirmation",
-      label: "마지막 우선순위 확인",
-      promptHint:
-        "지금까지의 우선순위와 제약을 짧게 정리한 뒤 빠진 것이 있는지 물었고 사용자가 그 확인에 답했는지",
-      priority: 11,
-      kind: "final_confirmation",
-    },
+    ADDITIONAL_QUESTION_ONE_ITEM,
+    ADDITIONAL_QUESTION_TWO_ITEM,
+    FINAL_PRIORITY_CONFIRMATION_ITEM,
   ];
 
 export const ONBOARDING_QUESTION_MIN_COVERED_COUNT = 8;
+
+export const PERMANENT_RESIDENCY_ONBOARDING_CHECKLIST_KEY =
+  PERMANENT_RESIDENCY_ONBOARDING_ITEM.key;
+
+const WORK_AUTHORIZATION_ONBOARDING_QUESTION_CHECKLIST: OnboardingQuestionChecklistItem[] =
+  [
+    ...INSIGHT_BACKED_ONBOARDING_ITEMS,
+    PERMANENT_RESIDENCY_ONBOARDING_ITEM,
+    ADDITIONAL_QUESTION_ONE_ITEM,
+    FINAL_PRIORITY_CONFIRMATION_ITEM,
+  ];
+
+const ALL_ONBOARDING_QUESTION_CHECKLIST: OnboardingQuestionChecklistItem[] = [
+  ...ONBOARDING_QUESTION_CHECKLIST,
+  PERMANENT_RESIDENCY_ONBOARDING_ITEM,
+];
+
+export function getOnboardingQuestionChecklist(
+  context?: OnboardingChecklistLocationContext
+): OnboardingQuestionChecklistItem[] {
+  return isPermanentResidencyOnboardingCountry(context)
+    ? WORK_AUTHORIZATION_ONBOARDING_QUESTION_CHECKLIST
+    : ONBOARDING_QUESTION_CHECKLIST;
+}
+
+export function getOnboardingAdditionalQuestionKeys(
+  context?: OnboardingChecklistLocationContext
+) {
+  return getOnboardingQuestionChecklist(context)
+    .filter((item) => item.kind === "additional_question")
+    .map((item) => item.key);
+}
+
+export function getOnboardingAdditionalQuestionMin(
+  context?: OnboardingChecklistLocationContext
+) {
+  return getOnboardingAdditionalQuestionKeys(context).length;
+}
+
+export function getOnboardingRequiredQuestionKeys(
+  context?: OnboardingChecklistLocationContext
+) {
+  return isPermanentResidencyOnboardingCountry(context)
+    ? [PERMANENT_RESIDENCY_ONBOARDING_ITEM.key]
+    : [];
+}
+
+export function getOnboardingQuestionByInsightKey(
+  context?: OnboardingChecklistLocationContext
+) {
+  return new Map(
+    getOnboardingQuestionChecklist(context)
+      .filter((item) => item.insightKey)
+      .map((item) => [item.insightKey as string, item.key])
+  );
+}
 
 export const ONBOARDING_ADDITIONAL_QUESTION_KEYS =
   ONBOARDING_QUESTION_CHECKLIST.filter(
@@ -161,14 +278,28 @@ export const ONBOARDING_ADDITIONAL_QUESTION_KEYS =
 export const ONBOARDING_FINAL_CONFIRMATION_KEY = "final_priority_confirmation";
 
 export const ONBOARDING_QUESTION_CHECKLIST_KEY_SET = new Set(
-  ONBOARDING_QUESTION_CHECKLIST.map((item) => item.key)
+  ALL_ONBOARDING_QUESTION_CHECKLIST.map((item) => item.key)
 );
 
 export const ONBOARDING_QUESTION_BY_INSIGHT_KEY = new Map(
-  ONBOARDING_QUESTION_CHECKLIST.filter((item) => item.insightKey).map(
+  ALL_ONBOARDING_QUESTION_CHECKLIST.filter((item) => item.insightKey).map(
     (item) => [item.insightKey as string, item.key]
   )
 );
+
+export function getInsightChecklist(
+  context?: OnboardingChecklistLocationContext
+): InsightChecklistItem[] {
+  const items = isPermanentResidencyOnboardingCountry(context)
+    ? [...INSIGHT_BACKED_ONBOARDING_ITEMS, PERMANENT_RESIDENCY_ONBOARDING_ITEM]
+    : INSIGHT_BACKED_ONBOARDING_ITEMS;
+  return items.map((item) => ({
+    key: item.insightKey ?? item.key,
+    label: item.label,
+    promptHint: item.promptHint,
+    priority: item.priority,
+  }));
+}
 
 /** Backward-compatible view of durable insight-backed onboarding items. */
 export const INSIGHT_CHECKLIST: InsightChecklistItem[] =
@@ -181,7 +312,13 @@ export const INSIGHT_CHECKLIST: InsightChecklistItem[] =
 
 /** Map of checklist key -> Korean label for UI display */
 export const INSIGHT_CHECKLIST_LABEL_MAP = new Map(
-  INSIGHT_CHECKLIST.map((item) => [item.key, item.label])
+  [
+    ...INSIGHT_CHECKLIST.map((item) => [item.key, item.label] as const),
+    [
+      PERMANENT_RESIDENCY_ONBOARDING_ITEM.insightKey,
+      PERMANENT_RESIDENCY_ONBOARDING_ITEM.label,
+    ] as const,
+  ]
 );
 
 /** Map of checklist key -> priority index for UI ordering */

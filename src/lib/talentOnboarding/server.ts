@@ -123,12 +123,11 @@ export type {
 };
 
 /** Get first-visit text from the career prompt constants. */
-export function getTalentFirstVisitText(): string {
-  return getCareerFirstVisitText();
+export function getTalentFirstVisitText(
+  preferredLocale?: string | null
+): string {
+  return getCareerFirstVisitText(preferredLocale);
 }
-
-/** @deprecated Use getTalentFirstVisitText() */
-export const TALENT_FIRST_VISIT_TEXT = getTalentFirstVisitText();
 
 export function isPendingQuestionContent(content: string | null | undefined) {
   if (!content) return false;
@@ -229,16 +228,19 @@ export async function ensureTalentUserRecord(args: {
   admin: TalentAdminClient;
   user: User;
   mail?: string | null;
+  currentLocation?: string | null;
 }) {
-  const { admin, user, mail } = args;
+  const { admin, user, mail, currentLocation } = args;
   const email = normalizeComparableString(user.email);
   const name = normalizeComparableString(toTalentDisplayName(user));
   const profilePicture = normalizeComparableString(
     user.user_metadata?.avatar_url
   );
+  const normalizedCurrentLocation =
+    normalizeComparableString(currentLocation)?.slice(0, 200) ?? null;
   const { data: existing, error: existingError } = await admin
     .from("talent_users")
-    .select("user_id, email, name, profile_picture")
+    .select("user_id, email, name, profile_picture, current_location")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -253,11 +255,29 @@ export async function ensureTalentUserRecord(args: {
       mail,
     });
     if (claimed) {
+      if (normalizedCurrentLocation) {
+        const { error: claimLocationError } = await admin
+          .from("talent_users")
+          .update({
+            current_location: normalizedCurrentLocation,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("user_id", user.id)
+          .is("current_location", null);
+
+        if (claimLocationError) {
+          throw new Error(
+            claimLocationError.message ??
+              "Failed to update talent current location"
+          );
+        }
+      }
       return;
     }
 
     const { error: insertError } = await admin.from("talent_users").insert({
       user_id: user.id,
+      current_location: normalizedCurrentLocation,
       email,
       name,
       profile_picture: profilePicture,
@@ -288,6 +308,12 @@ export async function ensureTalentUserRecord(args: {
     normalizeComparableString(profilePicture)
   ) {
     nextPayload.profile_picture = profilePicture;
+  }
+  if (
+    !normalizeComparableString(existing.current_location) &&
+    normalizedCurrentLocation
+  ) {
+    nextPayload.current_location = normalizedCurrentLocation;
   }
 
   if (Object.keys(nextPayload).length === 0) {

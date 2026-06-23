@@ -179,10 +179,12 @@ export function MatchingMemoQuickAdd({
 export function MatchingTagEditor({
   compact = false,
   roleId,
+  showAddButton = true,
   talent,
 }: {
   compact?: boolean;
   roleId?: string | null;
+  showAddButton?: boolean;
   talent: {
     tags: OpsMatchingTalentTag[];
     userId: OpsMatchingTalentItem["userId"];
@@ -221,52 +223,54 @@ export function MatchingTagEditor({
           ))}
         </div>
       ) : null}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <BareButton
-            type="button"
-            disabled={pending}
-            className={cx(
-              opsTheme.buttonSecondary,
-              "h-8 px-2 text-[11px]",
-              talent.tags.length > 0 && "mt-2"
-            )}
-          >
-            {addTag.isPending ? (
-              <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Plus className="h-3.5 w-3.5" />
-            )}
-            태그 추가
-          </BareButton>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-40">
-          {MATCHING_TAG_OPTIONS.map((option) => {
-            const selected = selectedTagValues.has(option.value);
-            return (
-              <DropdownMenuItem
-                key={option.value}
-                disabled={selected || pending}
-                onSelect={() => addFixedTag(option.value)}
-              >
-                <span
-                  className={cx(
-                    "h-2 w-2 shrink-0 rounded-full",
-                    option.dotClassName
-                  )}
-                  aria-hidden
-                />
-                <span>{option.label}</span>
-                {selected ? (
-                  <span className="ml-auto text-[11px] text-neutral-soft">
-                    선택됨
-                  </span>
-                ) : null}
-              </DropdownMenuItem>
-            );
-          })}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {showAddButton ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <BareButton
+              type="button"
+              disabled={pending}
+              className={cx(
+                opsTheme.buttonSecondary,
+                "h-8 px-2 text-[11px]",
+                talent.tags.length > 0 && "mt-2"
+              )}
+            >
+              {addTag.isPending ? (
+                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Plus className="h-3.5 w-3.5" />
+              )}
+              태그 추가
+            </BareButton>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-40">
+            {MATCHING_TAG_OPTIONS.map((option) => {
+              const selected = selectedTagValues.has(option.value);
+              return (
+                <DropdownMenuItem
+                  key={option.value}
+                  disabled={selected || pending}
+                  onSelect={() => addFixedTag(option.value)}
+                >
+                  <span
+                    className={cx(
+                      "h-2 w-2 shrink-0 rounded-full",
+                      option.dotClassName
+                    )}
+                    aria-hidden
+                  />
+                  <span>{option.label}</span>
+                  {selected ? (
+                    <span className="ml-auto text-[11px] text-neutral-soft">
+                      선택됨
+                    </span>
+                  ) : null}
+                </DropdownMenuItem>
+              );
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
     </InlineActionRoot>
   );
 }

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import {
   BookOpen,
   BriefcaseBusiness,
+  CalendarDays,
   ChevronDown,
   Columns3,
   Eye,
@@ -9,6 +10,7 @@ import {
   GraduationCap,
   History,
   LoaderCircle,
+  LogIn,
   Search,
   Sparkles,
   StickyNote,
@@ -79,9 +81,13 @@ type CardViewSectionId =
   | "externalPositiveOpportunities"
   | "experience"
   | "extra"
-  | "internalRecommendationHistory";
+  | "internalRecommendationHistory"
+  | "joinedAt"
+  | "lastLoginAt";
 
 const CARD_VIEW_SECTION_OPTIONS = [
+  { icon: CalendarDays, id: "joinedAt", label: "가입 날짜" },
+  { icon: LogIn, id: "lastLoginAt", label: "최근 로그인 날짜" },
   { icon: BriefcaseBusiness, id: "experience", label: "Experience" },
   { icon: GraduationCap, id: "education", label: "Education" },
   { icon: FileText, id: "extra", label: "Extra" },
@@ -102,10 +108,48 @@ const CARD_VIEW_SECTION_OPTIONS = [
 }[];
 
 const DEFAULT_CARD_VIEW_SECTIONS: CardViewSectionId[] = [
+  "joinedAt",
   "experience",
   "education",
   "extra",
 ];
+const PROFILE_CARD_VIEW_SECTION_IDS = [
+  "education",
+  "externalPositiveOpportunities",
+  "experience",
+  "extra",
+  "internalRecommendationHistory",
+] as const satisfies readonly CardViewSectionId[];
+
+function InlineToggleIndicator({ checked }: { checked: boolean }) {
+  return (
+    <span
+      className={cx(
+        "relative inline-flex h-4 w-7 shrink-0 items-center rounded-full border transition",
+        checked
+          ? "border-positive bg-positive"
+          : "border-neutral-1000-a10 bg-bg-floating"
+      )}
+      aria-hidden
+    >
+      <span
+        className={cx(
+          "h-3 w-3 rounded-full bg-neutral-00 shadow-sm transition-transform",
+          checked ? "translate-x-3.5" : "translate-x-0.5 bg-neutral-400"
+        )}
+      />
+    </span>
+  );
+}
+
+function toggleButtonClass(checked: boolean) {
+  return cx(
+    "inline-flex items-center justify-center gap-2 rounded-md border font-medium transition disabled:cursor-not-allowed disabled:opacity-50",
+    checked
+      ? "border-positive/30 bg-positive-faded text-positive hover:bg-positive-faded"
+      : "border-transparent bg-bg-weak text-neutral-primary shadow-[inset_0_1px_0_color-mix(in_srgb,var(--color-neutral-00)_70%,transparent)] hover:bg-bg-weak"
+  );
+}
 
 function getSelectedHistorySections(
   sections: readonly CardViewSectionId[]
@@ -121,10 +165,21 @@ function getSelectedHistorySections(
   return historySections;
 }
 
-function RecommendedTalentBadge({ recommendedAt }: { recommendedAt: string }) {
+function RecommendedTalentBadge({
+  isManualInternalRecommendation,
+  recommendedAt,
+}: {
+  isManualInternalRecommendation?: boolean;
+  recommendedAt: string;
+}) {
   return (
-    <div className="mt-2 inline-flex max-w-full items-center rounded bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-700">
-      추천됨 · {formatKstRelativeDate(recommendedAt)}
+    <div className="mt-2 inline-flex max-w-full flex-wrap items-center gap-1 rounded bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-700">
+      <span>추천됨 · {formatKstRelativeDate(recommendedAt)}</span>
+      {isManualInternalRecommendation ? (
+        <span className="rounded bg-primary-faded px-1.5 py-0.5 text-primary">
+          Ops 직접 추천
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -134,6 +189,7 @@ function MatchingTalentTable({
   onSelect,
   talents,
   updatingFitId,
+  visibleSections,
 }: {
   onHumanLabelChange: (
     talent: OpsMatchingTalentItem,
@@ -142,7 +198,9 @@ function MatchingTalentTable({
   onSelect: (talent: OpsMatchingTalentItem) => void;
   talents: OpsMatchingTalentItem[];
   updatingFitId: string | null;
+  visibleSections: CardViewSectionId[];
 }) {
+  const visibleSectionSet = new Set(visibleSections);
   return (
     <div className="overflow-x-auto rounded-md border border-neutral-1000-a05 bg-bg-floating">
       <table className="w-full min-w-[1820px] table-fixed border-collapse text-left text-xs">
@@ -177,12 +235,22 @@ function MatchingTalentTable({
                 <TalentStatusBadges talent={talent} />
                 {talent.fit?.recommendation ? (
                   <RecommendedTalentBadge
+                    isManualInternalRecommendation={
+                      talent.fit.recommendation.isManualInternalRecommendation
+                    }
                     recommendedAt={talent.fit.recommendation.recommendedAt}
                   />
                 ) : null}
-                <div className="mt-1 text-[11px] text-neutral-soft">
-                  가입 {formatKstRelativeDate(talent.createdAt)}
-                </div>
+                {visibleSectionSet.has("joinedAt") ? (
+                  <div className="mt-1 text-[11px] text-neutral-soft">
+                    가입 {formatKstRelativeDate(talent.createdAt)}
+                  </div>
+                ) : null}
+                {visibleSectionSet.has("lastLoginAt") ? (
+                  <div className="mt-1 text-[11px] text-neutral-soft">
+                    최근 로그인 {formatKstRelativeDate(talent.lastLoginedAt)}
+                  </div>
+                ) : null}
               </td>
               <td className="px-3 py-3 align-top">
                 <ProfileLabelCell
@@ -284,7 +352,10 @@ function MatchingTalentCards({
           )}
         >
           <div className="grid gap-4 xl:grid-cols-[minmax(240px,0.85fr)_minmax(420px,1.35fr)_minmax(360px,1fr)]">
-            <MatchingTalentCardIdentity talent={talent} />
+            <MatchingTalentCardIdentity
+              talent={talent}
+              visibleSections={visibleSectionSet}
+            />
             <MatchingTalentCardProfile
               history={historyByTalentId.get(talent.userId) ?? null}
               historyErrorMessage={historyErrorMessage}
@@ -378,8 +449,10 @@ function CardEmptyState({ label }: { label: string }) {
 
 function MatchingTalentCardIdentity({
   talent,
+  visibleSections,
 }: {
   talent: OpsMatchingTalentItem;
+  visibleSections: Set<CardViewSectionId>;
 }) {
   return (
     <div className="min-w-0 space-y-4">
@@ -388,6 +461,9 @@ function MatchingTalentCardIdentity({
         <TalentStatusBadges talent={talent} />
         {talent.fit?.recommendation ? (
           <RecommendedTalentBadge
+            isManualInternalRecommendation={
+              talent.fit.recommendation.isManualInternalRecommendation
+            }
             recommendedAt={talent.fit.recommendation.recommendedAt}
           />
         ) : null}
@@ -396,10 +472,17 @@ function MatchingTalentCardIdentity({
             {talent.headline}
           </div>
         ) : null}
-        <div className="text-[11px] text-neutral-soft">
-          가입{" "}
-          {talent.createdAt ? formatKstRelativeDate(talent.createdAt) : "-"}
-        </div>
+        {visibleSections.has("joinedAt") ? (
+          <div className="text-[11px] text-neutral-soft">
+            가입{" "}
+            {talent.createdAt ? formatKstRelativeDate(talent.createdAt) : "-"}
+          </div>
+        ) : null}
+        {visibleSections.has("lastLoginAt") ? (
+          <div className="text-[11px] text-neutral-soft">
+            최근 로그인 {formatKstRelativeDate(talent.lastLoginedAt)}
+          </div>
+        ) : null}
       </section>
 
       <section className="border-t border-neutral-1000-a05 pt-3">
@@ -442,8 +525,8 @@ function MatchingTalentCardProfile({
   talent: OpsMatchingTalentItem;
   visibleSections: Set<CardViewSectionId>;
 }) {
-  const hasVisibleSection = CARD_VIEW_SECTION_OPTIONS.some((option) =>
-    visibleSections.has(option.id)
+  const hasVisibleSection = PROFILE_CARD_VIEW_SECTION_IDS.some((sectionId) =>
+    visibleSections.has(sectionId)
   );
 
   return (
@@ -1109,12 +1192,11 @@ export function MatchingTalentBrowser({
               aria-pressed={excludeRecommended}
               onClick={() => onExcludeRecommendedChange(!excludeRecommended)}
               className={cx(
-                "h-10 shrink-0 px-3 text-xs",
-                excludeRecommended
-                  ? opsTheme.buttonPrimary
-                  : opsTheme.buttonSecondary
+                toggleButtonClass(excludeRecommended),
+                "h-10 shrink-0 px-3 text-xs"
               )}
             >
+              <InlineToggleIndicator checked={excludeRecommended} />
               추천된 사람 제외
             </BareButton>
           </div>
@@ -1228,6 +1310,7 @@ export function MatchingTalentBrowser({
           talents={talents}
           onSelect={setSelectedTalent}
           updatingFitId={updateHumanLabel.variables?.fitId ?? null}
+          visibleSections={cardViewSections}
         />
       ) : (
         <MatchingTalentCards

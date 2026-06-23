@@ -1,8 +1,18 @@
 import OfficialJobsCtaLink from "@/components/jobs/OfficialJobsCtaLink";
+import {
+  getOfficialJobsCopy,
+  type OfficialJobsLocale,
+} from "@/lib/officialJobs/copy";
 import Image from "next/image";
 import Link from "next/link";
 
-export default function OfficialJobsHeader() {
+export default function OfficialJobsHeader({
+  locale = "ko",
+}: {
+  locale?: OfficialJobsLocale;
+}) {
+  const copy = getOfficialJobsCopy(locale);
+
   return (
     <header className="sticky top-0 z-40 border-b border-neutral-1000-a05 bg-bg-default backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-[1160px] items-center justify-between px-4 md:px-6 lg:px-8">
@@ -20,15 +30,19 @@ export default function OfficialJobsHeader() {
             href="/jobs"
             className="hidden transition hover:text-neutral-primary sm:block"
           >
-            Jobs
+            {copy.header.jobs}
           </Link>
           <Link
             href="/company"
             className="hidden transition hover:text-neutral-primary sm:block"
           >
-            For Companies
+            {copy.header.forCompanies}
           </Link>
-          <OfficialJobsCtaLink variant="secondary" size="sm" />
+          <OfficialJobsCtaLink
+            variant="secondary"
+            size="sm"
+            locale={locale}
+          />
         </nav>
       </div>
     </header>

@@ -4,6 +4,7 @@ import {
   countUserChatTurns,
   fetchTalentInsights,
   fetchTalentSetting,
+  fetchTalentUserProfile,
   getCareerOnboardingChecklistCoverage,
   getOnboardingChecklistCoverageStats,
   getTalentSupabaseAdmin,
@@ -74,11 +75,6 @@ export async function POST(req: NextRequest) {
       typeof body.internalCallRequestId === "string"
         ? (sanitizeSingleLineDbText(body.internalCallRequestId, 120) ?? "")
         : "";
-    const requestLocale = body.locale ?? req.cookies.get("NEXT_LOCALE")?.value;
-    const conversationStarter = conversationStarterId
-      ? getCareerConversationStarterPrompt(conversationStarterId, requestLocale)
-      : null;
-    const skipConversationWrites = Boolean(conversationStarter);
     const userMessageText =
       typeof body.userMessage === "string"
         ? stripPostgresUnsafeChars(body.userMessage).trim()
@@ -105,12 +101,6 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    if (conversationStarterId && !conversationStarter) {
-      return NextResponse.json(
-        { error: "Invalid conversationStarterId" },
-        { status: 400 }
-      );
-    }
 
     const admin = getTalentSupabaseAdmin();
 
@@ -129,12 +119,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const [currentInsights, talentSetting] = await Promise.all([
+    const [currentInsights, talentSetting, profile] = await Promise.all([
       fetchTalentInsights({
         admin,
         userId: user.id,
       }),
       fetchTalentSetting({
+        admin,
+        userId: user.id,
+      }),
+      fetchTalentUserProfile({
         admin,
         userId: user.id,
       }),
@@ -152,9 +146,19 @@ export async function POST(req: NextRequest) {
     );
     let responseInsightUpdatedAt = currentInsights?.last_updated_at ?? null;
     const responseLocale =
-      body.locale ??
       talentSetting?.preferred_locale ??
+      body.locale ??
       req.cookies.get("NEXT_LOCALE")?.value;
+    const conversationStarter = conversationStarterId
+      ? getCareerConversationStarterPrompt(conversationStarterId, responseLocale)
+      : null;
+    const skipConversationWrites = Boolean(conversationStarter);
+    if (conversationStarterId && !conversationStarter) {
+      return NextResponse.json(
+        { error: "Invalid conversationStarterId" },
+        { status: 400 }
+      );
+    }
 
     const runInsightExtraction = async () => {
       if (!shouldAutoExtractInsights) return 0;
@@ -166,11 +170,13 @@ export async function POST(req: NextRequest) {
           buildCareerInsightExtractionOnlyPrompt({
             currentChecklistCoverage: promptArgs.currentChecklistCoverage,
             currentInsightContent: promptArgs.currentInsightContent,
+            onboardingChecklistContext: promptArgs.onboardingChecklistContext,
             preferredLocale: responseLocale,
           }),
         conversationId,
         currentInsightContent,
         logPrefix: "ChatSave",
+        onboardingChecklistContext: profile,
         sourceChannel: isCallMode ? "voice_call" : "text_chat",
         userId: user.id,
       });
@@ -360,7 +366,8 @@ export async function POST(req: NextRequest) {
       : null;
     const checklistCompletion =
       latestChecklistCoverage &&
-      getOnboardingChecklistCoverageStats(latestChecklistCoverage).isComplete;
+      getOnboardingChecklistCoverageStats(latestChecklistCoverage, profile)
+        .isComplete;
     const completion = markerCompletion.completed
       ? markerCompletion
       : checklistCompletion
@@ -434,7 +441,8 @@ export async function POST(req: NextRequest) {
             conversationId,
             conversationStarterId,
             internalCallRequestId,
-            toolNames: getCareerRealtimeCandidateToolNames(),
+            preferredLocale: responseLocale,
+            toolNames: getCareerRealtimeCandidateToolNames(responseLocale),
             userId: user.id,
           })
         ).instructions;

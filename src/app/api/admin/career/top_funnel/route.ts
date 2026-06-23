@@ -257,6 +257,7 @@ export async function POST(req: NextRequest) {
       talentMessages,
       talentActivityEvents,
       talentSettings,
+      excludedIdentityLogs,
     ] = await Promise.all([
       fetchAllRows<LandingLogRow>((from, to) =>
         supabaseServer
@@ -320,6 +321,16 @@ export async function POST(req: NextRequest) {
           .order("updated_at", { ascending: true })
           .range(from, to)
       ),
+      excludedEmails.length > 0
+        ? fetchAllRows<LandingLogRow>((from, to) =>
+            supabaseServer
+              .from("landing_logs")
+              .select("local_id,type,created_at")
+              .like("type", "login_email:%")
+              .order("id", { ascending: true })
+              .range(from, to)
+          )
+        : Promise.resolve([]),
     ]);
 
     const includedTalentUsers = talentUsers.filter(
@@ -330,7 +341,7 @@ export async function POST(req: NextRequest) {
     );
 
     const excludedLocalIds = new Set<string>();
-    for (const log of landingLogs) {
+    for (const log of excludedIdentityLogs) {
       const localId = String(log.local_id ?? "").trim();
       const email = parseLandingLoginEmail(log.type);
       if (localId && email && isEmailExcluded(email, excludedEmailSet)) {

@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
     const body = (await req.json().catch(() => ({}))) as TagBody;
     const roleId = typeof body.roleId === "string" ? body.roleId.trim() : null;
     const talentId = String(body.talentId ?? "").trim();
+    if (!roleId) throw new InternalApiError(400, "roleId is required");
     if (!talentId) throw new InternalApiError(400, "talentId is required");
     if (typeof body.tag !== "string") {
       throw new InternalApiError(400, "tag is required");

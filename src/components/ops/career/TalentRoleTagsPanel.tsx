@@ -1,14 +1,14 @@
 import { useMemo, useState } from "react";
 import {
   BriefcaseBusiness,
-  CalendarDays,
   LoaderCircle,
+  MapPin,
   Sparkles,
   Tags,
 } from "lucide-react";
 import {
-  FitReasonCell,
-  MatchingFitLabelCell,
+  FitLabelBadge,
+  formatFitReasonText,
 } from "@/components/ops/matching/MatchingFitLabelControls";
 import { MatchingTagEditor } from "@/components/ops/matching/MatchingTalentInlineActions";
 import { cx, opsTheme } from "@/components/ops/theme";
@@ -110,6 +110,82 @@ function recommendationStatusClass(
     return recommendationFeedbackClass(recommendation.feedback);
   }
   return "bg-info-faded text-info";
+}
+
+function OpportunityActivityCell({
+  label,
+  muted = false,
+  value,
+}: {
+  label: string;
+  muted?: boolean;
+  value: string;
+}) {
+  return (
+    <div className="min-w-0 border-l border-neutral-1000-a05 px-2 py-2 first:border-l-0">
+      <div className="truncate text-[11px] font-medium leading-4 text-neutral-soft">
+        {label}
+      </div>
+      <div
+        className={cx(
+          "mt-0.5 truncate text-[13px] font-medium leading-5",
+          muted ? "text-neutral-soft" : "text-neutral-primary"
+        )}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function OpportunityFitSummary({
+  fit,
+  recommendation,
+}: {
+  fit: CareerTalentRecommendationItem["matchingFit"];
+  recommendation: CareerTalentRecommendationItem | null;
+}) {
+  const reasonText = formatFitReasonText(fit?.reason);
+
+  if (!fit) {
+    return (
+      <div className="text-[12px] leading-5 text-neutral-soft">
+        {recommendation
+          ? "Matching fit 정보 없음"
+          : "추천 전입니다. 태그로만 연결되어 있습니다."}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="inline-flex items-center rounded-sm bg-bg-weak px-1.5 py-0.5 text-[11px] font-medium text-neutral-muted">
+          Score {fit.score ?? "-"}
+        </span>
+        <FitLabelBadge label={fit.effectiveLabel} prefix="현재" />
+        <FitLabelBadge label={fit.label} prefix="LLM" />
+        {fit.humanLabel ? (
+          <FitLabelBadge label={fit.humanLabel} prefix="Human" />
+        ) : (
+          <span className="inline-flex items-center rounded border border-neutral-1000-a05 px-2 py-0.5 text-[11px] font-medium text-neutral-soft">
+            Human 미지정
+          </span>
+        )}
+      </div>
+      <div className="line-clamp-3 whitespace-pre-wrap break-words text-[13px] font-medium leading-5 text-neutral-primary">
+        {reasonText || "Fit reason 없음"}
+      </div>
+      <div className="flex flex-wrap gap-x-2 gap-y-1 text-[11px] leading-4 text-neutral-soft">
+        {fit.lastEvaluatedAt ? (
+          <span>평가 {formatKst(fit.lastEvaluatedAt)}</span>
+        ) : null}
+        {fit.humanReviewedAt ? (
+          <span>사람 {formatKst(fit.humanReviewedAt)}</span>
+        ) : null}
+      </div>
+    </div>
+  );
 }
 
 function getSortTime(item: OpportunityInteractionItem) {
@@ -232,89 +308,101 @@ function OpportunityInteractionRow({
   const fit = recommendation?.matchingFit ?? null;
 
   return (
-    <article className="rounded-md border border-neutral-1000-a05 bg-bg-floating p-3">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <div className="truncate text-sm font-medium text-neutral-primary">
-              {formatRoleLabel(item)}
-            </div>
-            <span
-              className={cx(
-                "inline-flex shrink-0 rounded-sm px-1.5 py-0.5 text-[11px] font-medium",
-                recommendationStatusClass(recommendation)
-              )}
-            >
-              {recommendationStatusLabel(recommendation)}
-            </span>
-          </div>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-neutral-soft">
-            {item.locationText ? <span>{item.locationText}</span> : null}
-            {item.status ? <span>{item.status}</span> : null}
-            {recommendation ? (
-              <span className="inline-flex items-center gap-1">
-                <CalendarDays className="h-3 w-3" />
-                추천 {formatKst(recommendation.recommendedAt)}
+    <article className="px-4 py-4 transition hover:bg-bg-floating/55">
+      <div className="min-w-0">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex min-w-0 flex-wrap items-start gap-2">
+              <div className="min-w-0 flex-1 truncate text-sm font-semibold text-neutral-primary">
+                {formatRoleLabel(item)}
+              </div>
+              <span
+                className={cx(
+                  "inline-flex shrink-0 rounded-sm px-1.5 py-0.5 text-[11px] font-medium",
+                  recommendationStatusClass(recommendation)
+                )}
+              >
+                {recommendationStatusLabel(recommendation)}
               </span>
-            ) : null}
-            {recommendation?.viewedAt ? (
-              <span>열람 {formatKst(recommendation.viewedAt)}</span>
-            ) : recommendation ? (
-              <span>미열람</span>
-            ) : null}
-            {recommendation?.clickedAt ? (
-              <span>클릭 {formatKst(recommendation.clickedAt)}</span>
-            ) : null}
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-5 text-neutral-muted">
+              {item.locationText ? (
+                <span className="inline-flex min-w-0 items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 shrink-0 text-neutral-soft" />
+                  <span className="truncate">{item.locationText}</span>
+                </span>
+              ) : null}
+              {item.status ? (
+                <span className="text-neutral-soft">Status {item.status}</span>
+              ) : null}
+            </div>
           </div>
-          {fit ? (
-            <div className="mt-3 rounded-md border border-neutral-1000-a05 bg-bg-default/70 p-2">
-              <div className="mb-2 text-xs font-medium text-neutral-primary">
-                Score {fit.score ?? "-"}
-              </div>
-              <MatchingFitLabelCell isUpdating={false} item={fit} />
-              <div className="mt-2">
-                <FitReasonCell
-                  criteria={fit.reevaluationCriteria}
-                  reason={fit.reason}
-                />
-              </div>
-              <div className="mt-2 text-[11px] leading-5 text-neutral-soft">
-                {fit.lastEvaluatedAt ? (
-                  <div>평가 {formatKst(fit.lastEvaluatedAt)}</div>
-                ) : null}
-                {fit.humanReviewedAt ? (
-                  <div>사람 {formatKst(fit.humanReviewedAt)}</div>
-                ) : null}
-              </div>
-            </div>
-          ) : recommendation ? (
-            <div className="mt-2 text-xs text-neutral-soft">
-              matching fit 정보 없음
-            </div>
-          ) : null}
-          {recommendation?.feedbackReason ? (
-            <div className="mt-2 line-clamp-2 text-xs leading-5 text-neutral-muted">
-              {recommendation.feedbackReason}
-            </div>
-          ) : null}
-        </div>
-        <div className="flex min-w-0 flex-col items-start gap-2 lg:w-[52%]">
-          <MatchingTagEditor
-            compact
-            roleId={item.roleId}
-            talent={{ tags: item.tags, userId }}
-          />
           {recommendableRole ? (
             <BareButton
               type="button"
               onClick={() => onRecommend(recommendableRole)}
-              className={cx(opsTheme.buttonPrimary, "h-8 px-2.5 text-[11px]")}
+              className={cx(
+                opsTheme.buttonPrimary,
+                "h-8 shrink-0 px-3 text-xs"
+              )}
             >
               <Sparkles className="h-3.5 w-3.5" />
               추천하기
             </BareButton>
           ) : null}
         </div>
+
+        <div className="mt-3 grid grid-cols-4 overflow-hidden bg-neutral-100">
+          <OpportunityActivityCell
+            label="추천"
+            muted={!recommendation}
+            value={
+              recommendation
+                ? formatKst(recommendation.recommendedAt)
+                : "추천 전"
+            }
+          />
+          <OpportunityActivityCell
+            label="열람"
+            muted={!recommendation?.viewedAt}
+            value={
+              recommendation?.viewedAt
+                ? formatKst(recommendation.viewedAt)
+                : "미열람"
+            }
+          />
+          <OpportunityActivityCell
+            label="공고/회사 클릭"
+            muted={!recommendation?.clickedAt}
+            value={
+              recommendation?.clickedAt
+                ? formatKst(recommendation.clickedAt)
+                : "미클릭"
+            }
+          />
+          <OpportunityActivityCell
+            label="응답"
+            muted={!recommendation?.feedbackAt}
+            value={
+              recommendation?.feedbackAt
+                ? `${recommendationFeedbackLabel(
+                    recommendation.feedback
+                  )} ${formatKst(recommendation.feedbackAt)}`
+                : "아직 응답 없음"
+            }
+          />
+        </div>
+
+        <div className="mt-3 border-t border-neutral-1000-a05 pt-3">
+          <OpportunityFitSummary fit={fit} recommendation={recommendation} />
+        </div>
+
+        {recommendation?.feedbackReason ? (
+          <div className="mt-3 border-t border-neutral-1000-a05 pt-2 text-[12px] leading-5 text-neutral-muted">
+            <div className="font-medium text-neutral-primary">피드백</div>
+            <div className="line-clamp-2">{recommendation.feedbackReason}</div>
+          </div>
+        ) : null}
       </div>
     </article>
   );
@@ -328,7 +416,7 @@ export function TalentGeneralTagsPanel({ userId }: TalentRoleTagsPanelProps) {
     <section className="rounded-md border border-neutral-1000-a05 bg-bg-floating p-4">
       <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-neutral-primary">
         <Tags className="h-4 w-4 text-neutral-soft" />
-        Talent 태그
+        Talent 태그 (역할과 관계없이 개인에게 부여된 태그입니다.)
       </div>
       {roleTagsQuery.isLoading ? (
         <div className="flex items-center justify-center py-6">
@@ -558,7 +646,7 @@ export function TalentRoleTagsPanel({ userId }: TalentRoleTagsPanelProps) {
             아직 추천되었거나 태그가 달린 internal 기회가 없습니다.
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="overflow-hidden rounded-md border border-neutral-1000-a05 bg-bg-default/45 divide-y divide-neutral-1000-a05">
             {opportunityItems.map((item) => (
               <OpportunityInteractionRow
                 key={item.roleId}

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
-import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
+import {
+  fetchTalentSetting,
+  getTalentSupabaseAdmin,
+} from "@/lib/talentOnboarding/server";
 import { runCareerCompanyRecommendations } from "@/lib/career/companyWatchlist";
 
 type Body = {
@@ -61,6 +64,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    const talentSetting = await fetchTalentSetting({ admin, userId: user.id });
     const result = await runCareerCompanyRecommendations({
       admin,
       conversationId,
@@ -69,7 +73,10 @@ export async function POST(req: NextRequest) {
         typeof body.limit === "number"
           ? body.limit
           : Number.parseInt(String(body.limit ?? ""), 10),
-      preferredLocale: body.locale ?? req.cookies.get("NEXT_LOCALE")?.value,
+      preferredLocale:
+        talentSetting?.preferred_locale ??
+        body.locale ??
+        req.cookies.get("NEXT_LOCALE")?.value,
       request: typeof body.request === "string" ? body.request : null,
       source: "watchlist",
       userId: user.id,

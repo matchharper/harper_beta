@@ -32,6 +32,7 @@ function toDrawerRole(role: OpsMatchingFitRole): OpsMatchingRoleOption {
   return {
     companyName: role.companyName ?? "회사명 없음",
     companyWorkspaceId: role.companyWorkspaceId ?? "",
+    description: null,
     descriptionSummary: null,
     locationText: role.locationText,
     roleId: role.roleId,

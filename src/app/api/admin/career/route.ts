@@ -115,6 +115,7 @@ type MutableLandingVariantStats = {
   entryLocalIds: Set<string>;
   eventTypes: Set<string>;
   loginLocalIds: Set<string>;
+  loggedInUserIds: Set<string>;
 };
 
 type MutableDeviceStats = {
@@ -277,17 +278,6 @@ function parseLandingLoginEmail(type: string | null) {
   return normalizeEmail(extractEmailFromLandingLoginType(type)) || null;
 }
 
-function addToSetMap(
-  map: Map<string, Set<string>>,
-  key: string,
-  value: string
-) {
-  if (!key || !value) return;
-  const set = map.get(key) ?? new Set<string>();
-  set.add(value);
-  map.set(key, set);
-}
-
 function getOrCreateLandingSourceStats(
   map: Map<string, MutableLandingSourceStats>,
   source: string
@@ -318,6 +308,7 @@ function getOrCreateLandingVariantStats(
     entryLocalIds: new Set<string>(),
     eventTypes: new Set<string>(),
     loginLocalIds: new Set<string>(),
+    loggedInUserIds: new Set<string>(),
   };
   map.set(normalizedAbtestType, next);
   return next;
@@ -1023,8 +1014,21 @@ export async function POST(req: NextRequest) {
       ),
     ]);
 
+    const includedTalentUsers = talentUsers.filter((user) =>
+      isIncludedUser(user, excludedEmailSet)
+    );
+    const talentByEmail = new Map<string, TalentUserRow>();
+    for (const user of includedTalentUsers) {
+      const email = normalizeEmail(user.email);
+      if (email && !talentByEmail.has(email)) {
+        talentByEmail.set(email, user);
+      }
+    }
+    const includedUserIds = new Set(
+      includedTalentUsers.map((user) => user.user_id).filter(Boolean)
+    );
+
     const excludedLocalIds = new Set<string>();
-    const loginEmailsByLocalId = new Map<string, Set<string>>();
     for (const log of landingLogs) {
       const localId = String(log.local_id ?? "").trim();
       if (!localId) continue;
@@ -1032,13 +1036,13 @@ export async function POST(req: NextRequest) {
       const email = parseLandingLoginEmail(log.type);
       if (!email) continue;
 
-      addToSetMap(loginEmailsByLocalId, localId, email);
       if (isEmailExcluded(email, excludedEmailSet)) {
         excludedLocalIds.add(localId);
       }
     }
 
     const landingEntryLocalIds = new Set<string>();
+    const landingClickStartLocalIds = new Set<string>();
     const landingLoginLocalIds = new Set<string>();
     const landingLoginEmails = new Set<string>();
     const landingEntrySourceByLocalId = new Map<string, string>();
@@ -1093,7 +1097,10 @@ export async function POST(req: NextRequest) {
       }
 
       if (isStartLandingLogType(log.type)) {
-        if (localId) variantStats.clickStartLocalIds.add(localId);
+        if (localId) {
+          landingClickStartLocalIds.add(localId);
+          variantStats.clickStartLocalIds.add(localId);
+        }
         continue;
       }
 
@@ -1112,21 +1119,9 @@ export async function POST(req: NextRequest) {
         variantStats.loginLocalIds.add(localId);
       }
       landingLoginEmails.add(email);
+      const talent = talentByEmail.get(email);
+      if (talent?.user_id) variantStats.loggedInUserIds.add(talent.user_id);
     }
-
-    const includedTalentUsers = talentUsers.filter((user) =>
-      isIncludedUser(user, excludedEmailSet)
-    );
-    const talentByEmail = new Map<string, TalentUserRow>();
-    for (const user of includedTalentUsers) {
-      const email = normalizeEmail(user.email);
-      if (email && !talentByEmail.has(email)) {
-        talentByEmail.set(email, user);
-      }
-    }
-    const includedUserIds = new Set(
-      includedTalentUsers.map((user) => user.user_id).filter(Boolean)
-    );
 
     const settingByUserId = new Map<string, TalentSettingRow>();
     for (const setting of talentSettings) {
@@ -1470,6 +1465,9 @@ export async function POST(req: NextRequest) {
     }
 
     const entryCount = landingEntryLocalIds.size;
+    const signupCount = analyticsDateRange.isActive
+      ? rangedSignupUserIds.size
+      : signupUserIds.size;
     const onboardingCompletedCount = analyticsDateRange.isActive
       ? rangedOnboardingCompletedUserIds.size
       : onboardingCompletedUserIds.size;
@@ -1497,10 +1495,22 @@ export async function POST(req: NextRequest) {
         detail: "landing_logs.type=new_visit[:source] / new_session[:source]",
       },
       {
+        key: "login_click" as const,
+        label: "Login CTA click",
+        count: landingClickStartLocalIds.size,
+        detail: "landing_logs.type=click_start[:source]",
+      },
+      {
         key: "login" as const,
-        label: "Landing login",
+        label: "Login email",
         count: landingLoginLocalIds.size || landingLoginEmails.size,
         detail: "landing_logs.type=login_email:<email>[:source]",
+      },
+      {
+        key: "signup" as const,
+        label: "Signup",
+        count: signupCount,
+        detail: "career_signup_completed + talent_users.created_at 보정",
       },
       {
         key: "onboarding_basic" as const,
@@ -2006,6 +2016,11 @@ export async function POST(req: NextRequest) {
         const entryCount = stats?.entryLocalIds.size ?? 0;
         const clickStartCount = stats?.clickStartLocalIds.size ?? 0;
         const loginCount = stats?.loginLocalIds.size ?? 0;
+        const loggedInUserIds = stats?.loggedInUserIds ?? new Set<string>();
+        const signupCount = countIntersection(
+          loggedInUserIds,
+          selectedSignupUserIds
+        );
 
         return {
           abtestType,
@@ -2020,6 +2035,9 @@ export async function POST(req: NextRequest) {
           loginCount,
           loginRateFromClickStart: rateOrNull(loginCount, clickStartCount),
           loginRateFromEntry: rateOrNull(loginCount, entryCount),
+          signupCount,
+          signupRateFromEntry: rateOrNull(signupCount, entryCount),
+          signupRateFromLogin: rateOrNull(signupCount, loginCount),
         };
       });
 

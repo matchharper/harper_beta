@@ -16,14 +16,18 @@ import {
   CAREER_UTM_SOURCE_STORAGE_KEY,
   normalizeCareerUtmSource,
 } from "@/lib/career/utm";
+import { useCountryLang } from "@/hooks/useCountryLang";
 import { BareButton } from "@/components/ui/button";
 import { Input as UiInput } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
+import { isOverseasCountryLang } from "@/i18n/localeResolution";
+import { useMessages, type Locale } from "@/i18n/useMessage";
 
 type PartnerLogo = {
   src: string;
   name: string;
   width: number;
+  filter?: string;
   invert?: boolean;
 };
 
@@ -33,9 +37,139 @@ const partnerLogos: PartnerLogo[] = [
   { src: "/images/logos/stan.png", name: "stanford", width: 86, invert: true },
   { src: "/svgs/cohere.svg", name: "cohere", width: 78, invert: true },
   { src: "/svgs/yc.svg", name: "ycombinator", width: 100, invert: true },
+  {
+    src: "/images/logos/amazon.svg",
+    name: "amazon",
+    width: 82,
+    filter: "brightness(0) invert(1)",
+  },
   { src: "/images/logos/naver.svg", name: "naver", width: 64, invert: true },
   { src: "/images/logos/moloco.png", name: "moloco", width: 78, invert: true },
 ];
+
+const overseasPartnerLogos: PartnerLogo[] = [
+  { src: "/images/logos/stan.png", name: "stanford", width: 86, invert: true },
+  {
+    src: "/images/logos/harvard.svg",
+    name: "harvard",
+    width: 86,
+    filter: "brightness(0) invert(1)",
+  },
+  { src: "/svgs/cohere.svg", name: "cohere", width: 78, invert: true },
+  { src: "/svgs/yc.svg", name: "ycombinator", width: 100, invert: true },
+  {
+    src: "/images/logos/nvidia.svg",
+    name: "nvidia",
+    width: 92,
+    filter: "brightness(0) invert(1)",
+  },
+  {
+    src: "/images/logos/microsoft.svg",
+    name: "microsoft",
+    width: 104,
+    filter: "brightness(0) invert(1)",
+  },
+  {
+    src: "/images/logos/amazon.svg",
+    name: "amazon",
+    width: 82,
+    filter: "brightness(0) invert(1)",
+  },
+  {
+    src: "/images/logos/bcg.svg",
+    name: "bcg",
+    width: 82,
+    filter: "brightness(0) invert(1)",
+  },
+];
+
+const CAREER_LOGIN_COPY: Record<
+  Locale,
+  {
+    loadingLabel: string;
+    passwordMismatch: string;
+    heroLineOne: string;
+    heroLineTwo: string;
+    heroLineThree: string;
+    heroDescription: string;
+    confirmationTitle: string;
+    confirmationEmailPrefix: (email: string) => string;
+    confirmationDescription: string;
+    confirmationHelp: string;
+    pending: string;
+    continueWithGoogle: string;
+    divider: string;
+    emailPlaceholder: string;
+    passwordPlaceholder: string;
+    passwordConfirmPlaceholder: string;
+    continueWithEmail: string;
+    signIn: string;
+    signUp: string;
+    switchToSignUp: string;
+    switchToSignIn: string;
+    termsNotice: string;
+    trustedBy: string;
+  }
+> = {
+  ko: {
+    loadingLabel: "커리어 로그인 페이지 로딩 중",
+    passwordMismatch: "비밀번호가 일치하지 않습니다.",
+    heroLineOne: "당신만을 위한",
+    heroLineTwo: "커리어 에이전트",
+    heroLineThree: "Harper",
+    heroDescription:
+      "하나의 프로필에서 대화, 선호, 추천까지. 인재를 위한 커리어 에이전트 Harper와 함께 시작하세요.",
+    confirmationTitle: "인증 메일을 보냈습니다",
+    confirmationEmailPrefix: (email) => `${email}로 `,
+    confirmationDescription:
+      "보낸 메일의 인증 링크를 열어 회원가입을 완료해 주세요. 인증이 끝나면 다시 이 페이지로 돌아와 이메일 로그인으로 계속할 수 있습니다.",
+    confirmationHelp:
+      "메일이 보이지 않으면 스팸함이나 프로모션함도 확인해 주세요.",
+    pending: "처리 중...",
+    continueWithGoogle: "Google 계정으로 계속하기",
+    divider: "또는",
+    emailPlaceholder: "이메일 입력",
+    passwordPlaceholder: "비밀번호 입력",
+    passwordConfirmPlaceholder: "비밀번호 확인",
+    continueWithEmail: "이메일로 계속하기",
+    signIn: "로그인",
+    signUp: "회원가입",
+    switchToSignUp: "처음이라면 회원가입",
+    switchToSignIn: "이미 계정이 있다면 로그인",
+    termsNotice:
+      "계속 진행하면 Harper의 이용 약관 및 개인정보 처리방침에 동의한 것으로 간주됩니다.",
+    trustedBy: "이곳의 인재들이 신뢰합니다.",
+  },
+  en: {
+    loadingLabel: "Loading Harper Career login",
+    passwordMismatch: "Passwords do not match.",
+    heroLineOne: "Your personal",
+    heroLineTwo: "career agent",
+    heroLineThree: "Harper",
+    heroDescription:
+      "Start with Harper, the career agent that keeps your profile, conversations, preferences, and recommendations in one place.",
+    confirmationTitle: "Verification email sent",
+    confirmationEmailPrefix: (email) => `We sent it to ${email}. `,
+    confirmationDescription:
+      "Open the verification link in your email to finish signing up. Once verified, return to this page and continue with email login.",
+    confirmationHelp:
+      "If you do not see the email, check your spam or promotions folder.",
+    pending: "Processing...",
+    continueWithGoogle: "Continue with Google",
+    divider: "or",
+    emailPlaceholder: "Enter your email",
+    passwordPlaceholder: "Enter your password",
+    passwordConfirmPlaceholder: "Confirm your password",
+    continueWithEmail: "Continue with email",
+    signIn: "Log in",
+    signUp: "Sign up",
+    switchToSignUp: "New here? Sign up",
+    switchToSignIn: "Already have an account? Log in",
+    termsNotice:
+      "By continuing, you agree to Harper's Terms of Service and Privacy Policy.",
+    trustedBy: "Trusted by talent from these communities.",
+  },
+};
 
 const resolveSafeNextPath = (value: string | string[] | undefined) => {
   const raw = Array.isArray(value) ? value[0] : value;
@@ -46,12 +180,26 @@ const resolveSafeNextPath = (value: string | string[] | undefined) => {
 const CareerLoginLoadingState = () => (
   <main className="relative flex min-h-svh w-full items-center justify-center bg-bg-basement text-neutral-primary">
     <Loader2 className="h-5 w-5 animate-spin text-neutral-muted" />
-    <span className="sr-only">커리어 로그인 페이지 로딩 중</span>
+    <CareerLoginLoadingLabel />
   </main>
 );
 
+const CareerLoginLoadingLabel = () => {
+  const { locale } = useMessages();
+  const copy = CAREER_LOGIN_COPY[locale];
+  return <span className="sr-only">{copy.loadingLabel}</span>;
+};
+
 const CareerLoginContent = () => {
   const router = useRouter();
+  const countryLang = useCountryLang();
+  const { locale } = useMessages();
+  const copy = CAREER_LOGIN_COPY[locale];
+  const [hasResolvedLogoRegion, setHasResolvedLogoRegion] = useState(false);
+  const trustedLogos =
+    hasResolvedLogoRegion && isOverseasCountryLang(countryLang)
+      ? overseasPartnerLogos
+      : partnerLogos;
   const {
     user,
     authLoading,
@@ -67,6 +215,16 @@ const CareerLoginContent = () => {
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [emailMode, setEmailMode] = useState<"signin" | "signup">("signin");
   const [formError, setFormError] = useState("");
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setHasResolvedLogoRegion(true);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, []);
 
   const nextPath = useMemo(
     () => resolveSafeNextPath(router.query.next) ?? "/career",
@@ -151,7 +309,7 @@ const CareerLoginContent = () => {
     }
 
     if (emailMode === "signup" && password !== passwordConfirm) {
-      setFormError("비밀번호가 일치하지 않습니다.");
+      setFormError(copy.passwordMismatch);
       return;
     }
 
@@ -220,19 +378,18 @@ const CareerLoginContent = () => {
             tone="primary"
             className="text-balance text-[26px] font-medium leading-[1.24] tracking-[-0.035em] sm:text-[34px] md:text-[38px]"
           >
-            <span className="block sm:inline">당신만을 위한</span>
+            <span className="block sm:inline">{copy.heroLineOne}</span>
             <br className="hidden sm:block" />
-            <span className="block sm:inline">커리어 에이전트</span>{" "}
-            <span className="block sm:inline">Harper</span>
+            <span className="block sm:inline">{copy.heroLineTwo}</span>{" "}
+            <span className="block sm:inline">{copy.heroLineThree}</span>
           </Text>
           <Text
             as="p"
             variant="body"
             tone="muted"
-            className="mt-4 max-w-[430px] text-xs font-medium leading-5 sm:text-sm"
+            className="mt-4 max-w-[480px] text-sm font-normal leading-5 sm:text-base"
           >
-            하나의 프로필에서 대화, 선호, 추천까지. 인재를 위한 커리어 에이전트
-            Harper와 함께 시작하세요.
+            {copy.heroDescription}
           </Text>
 
           <div className="mt-7 w-full max-w-[420px] rounded-[22px] border border-neutral-1000-a05 bg-bg-floating/90 p-4 shadow-[0_18px_54px_rgba(31,28,26,0.07)] backdrop-blur-sm sm:p-6">
@@ -249,9 +406,9 @@ const CareerLoginContent = () => {
                   as="h2"
                   variant="head2"
                   tone="primary"
-                  className="mt-4 text-[20px] font-semibold tracking-[-0.04em]"
+                  className="mt-4 text-[20px] font-medium tracking-[-0.04em]"
                 >
-                  인증 메일을 보냈습니다
+                  {copy.confirmationTitle}
                 </Text>
                 <Text
                   as="p"
@@ -259,10 +416,10 @@ const CareerLoginContent = () => {
                   tone="muted"
                   className="mx-auto mt-3 max-w-[320px] text-[12px] leading-5"
                 >
-                  {submittedEmail ? `${submittedEmail}로 ` : ""}
-                  보낸 메일의 인증 링크를 열어 회원가입을 완료해 주세요. 인증이
-                  끝나면 다시 이 페이지로 돌아와 이메일 로그인으로 계속할 수
-                  있습니다.
+                  {submittedEmail
+                    ? copy.confirmationEmailPrefix(submittedEmail)
+                    : ""}
+                  {copy.confirmationDescription}
                 </Text>
                 <Text
                   as="p"
@@ -270,7 +427,7 @@ const CareerLoginContent = () => {
                   tone="subtle"
                   className="mt-2 text-[11px] leading-5"
                 >
-                  메일이 보이지 않으면 스팸함이나 프로모션함도 확인해 주세요.
+                  {copy.confirmationHelp}
                 </Text>
               </div>
             ) : (
@@ -279,7 +436,7 @@ const CareerLoginContent = () => {
                   type="button"
                   onClick={() => void handleGoogleLogin()}
                   disabled={authPending}
-                  className="flex h-11 w-full items-center justify-center gap-2 rounded-[9px] border border-neutral-1000-a10 bg-bg-floating px-4 text-[14px] font-semibold tracking-[-0.015em] text-neutral-primary outline-none transition hover:border-neutral-400 hover:bg-bg-weak focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="flex h-11 w-full items-center justify-center gap-2 rounded-[9px] border border-neutral-1000-a10 bg-bg-floating px-4 text-[14px] font-medium tracking-[-0.015em] text-neutral-primary outline-none transition hover:border-neutral-400 hover:bg-bg-weak focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {authPending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -294,12 +451,12 @@ const CareerLoginContent = () => {
                     />
                   )}
                   <span>
-                    {authPending ? "처리 중..." : "Google 계정으로 계속하기"}
+                    {authPending ? copy.pending : copy.continueWithGoogle}
                   </span>
                 </BareButton>
 
                 <div className="flex h-10 items-center justify-center text-[12px] font-medium text-neutral-soft">
-                  또는
+                  {copy.divider}
                 </div>
 
                 <form
@@ -309,7 +466,7 @@ const CareerLoginContent = () => {
                   <UiInput
                     unstyled
                     type="email"
-                    placeholder="이메일 입력"
+                    placeholder={copy.emailPlaceholder}
                     value={email}
                     onChange={(event) => {
                       setEmail(event.target.value);
@@ -326,7 +483,7 @@ const CareerLoginContent = () => {
                       <UiInput
                         unstyled
                         type="password"
-                        placeholder="비밀번호 입력"
+                        placeholder={copy.passwordPlaceholder}
                         value={password}
                         onChange={(event) => {
                           setPassword(event.target.value);
@@ -345,7 +502,7 @@ const CareerLoginContent = () => {
                         <UiInput
                           unstyled
                           type="password"
-                          placeholder="비밀번호 확인"
+                          placeholder={copy.passwordConfirmPlaceholder}
                           value={passwordConfirm}
                           onChange={(event) => {
                             setPasswordConfirm(event.target.value);
@@ -363,19 +520,19 @@ const CareerLoginContent = () => {
                   <BareButton
                     type="submit"
                     disabled={authPending}
-                    className="flex h-11 w-full items-center justify-center gap-2 rounded-[9px] bg-black px-4 text-[14px] font-semibold tracking-[-0.015em] text-neutral-00 outline-none transition hover:bg-neutral-primary focus-visible:ring-2 focus-visible:ring-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="flex h-11 w-full items-center justify-center gap-2 rounded-[9px] bg-black px-4 text-[14px] font-medium tracking-[-0.015em] text-neutral-00 outline-none transition hover:bg-neutral-primary focus-visible:ring-2 focus-visible:ring-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {authPending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : null}
                     <span>
                       {authPending
-                        ? "처리 중..."
+                        ? copy.pending
                         : !showEmailForm
-                          ? "이메일로 계속하기"
+                          ? copy.continueWithEmail
                           : emailMode === "signin"
-                            ? "로그인"
-                            : "회원가입"}
+                            ? copy.signIn
+                            : copy.signUp}
                     </span>
                   </BareButton>
 
@@ -392,8 +549,8 @@ const CareerLoginContent = () => {
                       className="w-full pt-0.5 text-center text-[12px] font-medium text-neutral-muted underline underline-offset-4 transition hover:text-neutral-primary"
                     >
                       {emailMode === "signin"
-                        ? "처음이라면 회원가입"
-                        : "이미 계정이 있다면 로그인"}
+                        ? copy.switchToSignUp
+                        : copy.switchToSignIn}
                     </BareButton>
                   ) : null}
                 </form>
@@ -413,10 +570,9 @@ const CareerLoginContent = () => {
                   as="p"
                   variant="caption"
                   tone="subtle"
-                  className="mx-auto mt-4 max-w-[340px] text-center text-[10px] font-medium leading-5"
+                  className="mx-auto mt-4 max-w-[370px] text-center text-[12px] font-normal leading-5"
                 >
-                  계속 진행하면 Harper의 이용 약관 및 개인정보 처리방침에 동의한
-                  것으로 간주됩니다.
+                  {copy.termsNotice}
                 </Text>
               </>
             )}
@@ -431,10 +587,10 @@ const CareerLoginContent = () => {
               tone="muted"
               className="font-sans text-[13px] font-medium tracking-[-0.02em] sm:text-[14px]"
             >
-              이곳의 인재들이 신뢰합니다.
+              {copy.trustedBy}
             </Text>
-            <div className="mt-6 grid grid-cols-3 items-center justify-center gap-x-6 gap-y-5 sm:grid-cols-3 lg:grid-cols-7">
-              {partnerLogos.map((logo) => (
+            <div className="mt-6 grid grid-cols-3 items-center justify-center gap-x-6 gap-y-5 sm:grid-cols-3 lg:grid-cols-8">
+              {trustedLogos.map((logo) => (
                 <span
                   key={logo.name}
                   className="relative mx-auto block h-7 opacity-80 grayscale transition hover:opacity-100 hover:grayscale-0"
@@ -446,7 +602,13 @@ const CareerLoginContent = () => {
                     fill
                     sizes={`${logo.width}px`}
                     className="object-contain"
-                    style={logo.invert ? { filter: "invert(1)" } : undefined}
+                    style={
+                      logo.filter
+                        ? { filter: logo.filter }
+                        : logo.invert
+                          ? { filter: "invert(1)" }
+                          : undefined
+                    }
                   />
                 </span>
               ))}

@@ -195,17 +195,21 @@ export function resolveCareerChatTools(args: CareerChatToolSelectionArgs) {
   };
 }
 
-export function getCareerRealtimeToolCandidates() {
+export function getCareerRealtimeToolCandidates(preferredLocale?: string | null) {
   const enabledVoiceToolNames = new Set<string>(
     CAREER_REALTIME_VOICE_POST_ONBOARDING_TOOL_NAMES
   );
-  return getRealtimeTools("voice").filter((tool) =>
-    enabledVoiceToolNames.has(tool.name)
+  return getRealtimeTools("voice", { responseLocale: preferredLocale }).filter(
+    (tool) => enabledVoiceToolNames.has(tool.name)
   );
 }
 
-export function getCareerRealtimeCandidateToolNames() {
-  return getCareerRealtimeToolCandidates().map((tool) => tool.name);
+export function getCareerRealtimeCandidateToolNames(
+  preferredLocale?: string | null
+) {
+  return getCareerRealtimeToolCandidates(preferredLocale).map(
+    (tool) => tool.name
+  );
 }
 
 export function getCareerRealtimeToolVoicePreambles(
@@ -234,7 +238,8 @@ export function resolveCareerRealtimeTools(
   const enabledToolNames = normalizeToolNames(args.enabledToolNames);
   const enabledToolNameSet = new Set(enabledToolNames);
   const candidateTools = [
-    ...(args.candidateTools ?? getCareerRealtimeToolCandidates()),
+    ...(args.candidateTools ??
+      getCareerRealtimeToolCandidates(args.preferredLocale)),
   ];
   const tools =
     enabledToolNames.length > 0

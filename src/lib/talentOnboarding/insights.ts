@@ -11,7 +11,6 @@ export type ExtractedInsightValue = {
 
 export type GeneratedTalentInsightValidationReason =
   | "empty_value"
-  | "incomplete_sentence"
   | "invalid_english_snake_case_key"
   | "profile_row_fact_key";
 
@@ -23,8 +22,7 @@ export type NormalizedGeneratedTalentInsightEntry =
       reason: GeneratedTalentInsightValidationReason;
     };
 
-const GENERATED_TALENT_INSIGHT_KEY_PATTERN =
-  /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/;
+const GENERATED_TALENT_INSIGHT_KEY_PATTERN = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/;
 
 const PROFILE_ROW_FACT_INSIGHT_KEYS = new Set([
   "career_history",
@@ -48,9 +46,6 @@ const PROFILE_ROW_FACT_INSIGHT_KEYS = new Set([
 const PROFILE_ROW_FACT_INSIGHT_KEY_PATTERN =
   /^(?:latest|main|primary|profile|recent|representative)_(?:achievement|career|education|experience|project|work)$/;
 
-const COMPLETE_KOREAN_SENTENCE_ENDING_PATTERN =
-  /(?:습니다|합니다|입니다|됩니다|였습니다|했습니다|같습니다|싶습니다|있습니다|없습니다|해요|어요|아요|예요|이에요|돼요|되요|죠|다)(?:[.!?。！？…]+)?$/;
-
 export function isProfileRowFactInsightKey(key: string) {
   return (
     PROFILE_ROW_FACT_INSIGHT_KEYS.has(key) ||
@@ -58,18 +53,10 @@ export function isProfileRowFactInsightKey(key: string) {
   );
 }
 
-export function isCompleteGeneratedTalentInsightSentence(value: string) {
-  const text = value.trim();
-  if (text.length < 8) return false;
-  if (!/[가-힣]/.test(text)) return false;
-  return COMPLETE_KOREAN_SENTENCE_ENDING_PATTERN.test(text);
-}
-
 export function normalizeGeneratedTalentInsightEntry(args: {
   rawKey: unknown;
   rawValue: unknown;
   rejectProfileRowFactKeys?: boolean;
-  requireCompleteSentence?: boolean;
 }): NormalizedGeneratedTalentInsightEntry {
   const rawKey = typeof args.rawKey === "string" ? args.rawKey.trim() : "";
   if (!rawKey || !GENERATED_TALENT_INSIGHT_KEY_PATTERN.test(rawKey)) {
@@ -95,13 +82,6 @@ export function normalizeGeneratedTalentInsightEntry(args: {
 
   const value = typeof args.rawValue === "string" ? args.rawValue.trim() : "";
   if (!value) return { key, ok: false, reason: "empty_value" };
-
-  if (
-    args.requireCompleteSentence !== false &&
-    !isCompleteGeneratedTalentInsightSentence(value)
-  ) {
-    return { key, ok: false, reason: "incomplete_sentence" };
-  }
 
   return { key, ok: true, value: value.slice(0, 8000) };
 }

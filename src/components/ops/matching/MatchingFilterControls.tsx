@@ -22,6 +22,7 @@ import {
 import type { DateRange } from "react-day-picker";
 
 type MatchingDateRangeFilterProps = {
+  align?: "end" | "start";
   emptyLabel: string;
   from: string;
   onChange: (from: string, to: string) => void;
@@ -85,6 +86,7 @@ function formatDateRangeLabel(args: {
 }
 
 export function MatchingDateRangeFilter({
+  align = "start",
   emptyLabel,
   from,
   onChange,
@@ -141,7 +143,12 @@ export function MatchingDateRangeFilter({
         />
       </BareButton>
       {open ? (
-        <div className="absolute left-0 top-[calc(100%+6px)] z-50 w-[300px] rounded-md border border-neutral-1000-a10 bg-bg-floating p-2 shadow-[0_18px_48px_color-mix(in_srgb,var(--color-neutral-1000)_16%,transparent)]">
+        <div
+          className={cx(
+            "absolute top-[calc(100%+6px)] z-50 w-[300px] rounded-md border border-neutral-1000-a10 bg-bg-floating p-2 shadow-[0_18px_48px_color-mix(in_srgb,var(--color-neutral-1000)_16%,transparent)]",
+            align === "end" ? "right-0" : "left-0"
+          )}
+        >
           <Calendar
             mode="range"
             selected={dateRange}

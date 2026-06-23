@@ -101,7 +101,7 @@ const buildCareerOpportunityTypeMeta = (
       modal: {
         description: t(
           "career.common.opportunity_type_meta.03vuko5",
-          "이 메모는 Harper가 다음 추천 방향을 조정할 때 참고합니다. 선택하지 않고 바로 제출하실 수 있습니다. 키보드로 선택 가능합니다."
+          "이 메모는 Harper가 다음 추천 방향을 조정할 때 참고합니다. 선택하지 않고 바로 제출하실 수 있습니다."
         ),
         placeholder: t(
           "career.common.opportunity_type_meta.1be34hr",

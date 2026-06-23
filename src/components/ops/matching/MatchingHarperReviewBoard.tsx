@@ -1,6 +1,18 @@
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, LoaderCircle } from "lucide-react";
-import { formatKstRelativeDateTime } from "@/components/ops/dateUtils";
+import {
+  CalendarDays,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  LoaderCircle,
+  LogIn,
+  type LucideIcon,
+} from "lucide-react";
+import {
+  formatKstRelativeDate,
+  formatKstRelativeDateTime,
+} from "@/components/ops/dateUtils";
 import { MatchingDateRangeFilter } from "@/components/ops/matching/MatchingFilterControls";
 import {
   TalentIdentity,
@@ -14,6 +26,12 @@ import {
 } from "@/components/ops/matching/MatchingTalentInlineActions";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { BareButton } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   useOpsMatchingReviewBoard,
   useSetOpsMatchingReviewStage,
@@ -39,6 +57,7 @@ type ReviewColumn = {
   label: string;
   locked?: boolean;
 };
+type ReviewViewFieldId = "joinedAt" | "lastLoginAt" | "viewedAt";
 
 const REVIEW_COLUMNS: readonly ReviewColumn[] = [
   { id: "recommended", label: "추천된 사람", locked: true },
@@ -48,6 +67,16 @@ const REVIEW_COLUMNS: readonly ReviewColumn[] = [
   { id: "pending_connection", label: "연결 대기" },
   { id: "archived", label: "아카이브" },
 ];
+const REVIEW_VIEW_FIELD_OPTIONS = [
+  { icon: Eye, id: "viewedAt", label: "열람 날짜" },
+  { icon: CalendarDays, id: "joinedAt", label: "회원가입 날짜" },
+  { icon: LogIn, id: "lastLoginAt", label: "최근 로그인 날짜" },
+] as const satisfies readonly {
+  icon: LucideIcon;
+  id: ReviewViewFieldId;
+  label: string;
+}[];
+const DEFAULT_REVIEW_VIEW_FIELDS: ReviewViewFieldId[] = ["viewedAt"];
 
 function getFeedbackLabel(feedback: string | null | undefined) {
   const normalized = String(feedback ?? "").toLowerCase();
@@ -74,6 +103,7 @@ function ReviewCard({
   onDragStart,
   onSelect,
   pending,
+  visibleFields,
 }: {
   draggingId: string | null;
   item: OpsMatchingReviewItem;
@@ -81,7 +111,11 @@ function ReviewCard({
   onDragStart: (item: OpsMatchingReviewItem) => void;
   onSelect: (talent: OpsMatchingTalentItem) => void;
   pending: boolean;
+  visibleFields: Set<ReviewViewFieldId>;
 }) {
+  const showTalentDateRow =
+    visibleFields.has("joinedAt") || visibleFields.has("lastLoginAt");
+
   return (
     <div
       role="button"
@@ -120,6 +154,13 @@ function ReviewCard({
         <span className="rounded-sm bg-bg-weak px-1.5 py-0.5 text-[10px] leading-4 text-neutral-muted">
           추천 {formatKstRelativeDateTime(item.recommendedAt)}
         </span>
+        {visibleFields.has("viewedAt") ? (
+          <span className="rounded-sm bg-bg-weak px-1.5 py-0.5 text-[10px] leading-4 text-neutral-muted">
+            {item.viewedAt
+              ? `열람 ${formatKstRelativeDateTime(item.viewedAt)}`
+              : "미열람"}
+          </span>
+        ) : null}
         {item.isManualInternalRecommendation ? (
           <span className="rounded-sm bg-primary-faded px-1.5 py-0.5 text-[10px] font-medium leading-4 text-primary">
             Ops 직접 추천
@@ -127,6 +168,32 @@ function ReviewCard({
         ) : null}
         {item.stageTag ? <MatchingTagPill tag={item.stageTag} /> : null}
       </div>
+
+      {showTalentDateRow ? (
+        <div
+          className={cx(
+            "mt-3 grid gap-2 rounded-sm border border-neutral-1000-a05 bg-bg-weak px-2.5 py-2 text-[11px] leading-4 text-neutral-muted",
+            visibleFields.has("joinedAt") && visibleFields.has("lastLoginAt")
+              ? "grid-cols-2"
+              : "grid-cols-1"
+          )}
+        >
+          {visibleFields.has("joinedAt") ? (
+            <div className="min-w-0 truncate">
+              <span className="font-medium text-neutral-primary">가입</span>{" "}
+              {formatKstRelativeDate(item.talent.createdAt)}
+            </div>
+          ) : null}
+          {visibleFields.has("lastLoginAt") ? (
+            <div className="min-w-0 truncate">
+              <span className="font-medium text-neutral-primary">
+                최근 로그인
+              </span>{" "}
+              {formatKstRelativeDate(item.talent.lastLoginedAt)}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {item.talent.latestCompany || item.talent.latestSchool ? (
         <div className="mt-3 space-y-2 text-[11px] leading-4">
@@ -169,9 +236,62 @@ function ReviewCard({
           memoPreview={item.talent.memoPreview}
           talentId={item.talent.userId}
         />
-        <MatchingTagEditor compact roleId={item.roleId} talent={item.talent} />
+        <MatchingTagEditor
+          compact
+          roleId={item.roleId}
+          showAddButton={false}
+          talent={item.talent}
+        />
       </div>
     </div>
+  );
+}
+
+function ReviewViewDropdown({
+  selectedFields,
+  onFieldToggle,
+}: {
+  onFieldToggle: (fieldId: ReviewViewFieldId, selected: boolean) => void;
+  selectedFields: ReviewViewFieldId[];
+}) {
+  const selectedSet = new Set(selectedFields);
+  const label =
+    selectedFields.length === REVIEW_VIEW_FIELD_OPTIONS.length
+      ? "View 전체"
+      : `View ${selectedFields.length}`;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <BareButton
+          type="button"
+          className="inline-flex h-10 items-center gap-2 rounded-md border border-neutral-1000-a05 bg-bg-default/65 px-3 text-xs font-medium text-neutral-muted transition hover:bg-bg-default hover:text-neutral-primary"
+        >
+          <Eye className="h-3.5 w-3.5" />
+          <span>{label}</span>
+          <ChevronDown className="h-3.5 w-3.5" />
+        </BareButton>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        {REVIEW_VIEW_FIELD_OPTIONS.map((option) => {
+          const Icon = option.icon;
+          return (
+            <DropdownMenuCheckboxItem
+              key={option.id}
+              checked={selectedSet.has(option.id)}
+              className="gap-2 text-xs"
+              onSelect={(event) => event.preventDefault()}
+              onCheckedChange={(checked) =>
+                onFieldToggle(option.id, checked === true)
+              }
+            >
+              <Icon className="h-3.5 w-3.5 text-neutral-soft" />
+              {option.label}
+            </DropdownMenuCheckboxItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -185,6 +305,9 @@ export function MatchingHarperReviewBoard({
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [selectedTalent, setSelectedTalent] =
     useState<OpsMatchingTalentItem | null>(null);
+  const [reviewViewFields, setReviewViewFields] = useState<ReviewViewFieldId[]>(
+    DEFAULT_REVIEW_VIEW_FIELDS
+  );
   const collapsedColumnIds =
     useOpsMatchingStore(
       (state) => state.collapsedReviewColumnIdsByRole[role.roleId]
@@ -215,6 +338,23 @@ export function MatchingHarperReviewBoard({
     }
     return next;
   }, [items]);
+  const visibleReviewFields = useMemo(
+    () => new Set(reviewViewFields),
+    [reviewViewFields]
+  );
+  const handleReviewViewFieldToggle = (
+    fieldId: ReviewViewFieldId,
+    selected: boolean
+  ) => {
+    setReviewViewFields((current) => {
+      const next = new Set(current);
+      if (selected) next.add(fieldId);
+      else next.delete(fieldId);
+      return REVIEW_VIEW_FIELD_OPTIONS.map((option) => option.id).filter((id) =>
+        next.has(id)
+      );
+    });
+  };
 
   const handleDrop = (column: ReviewColumn) => {
     if (!draggingId || column.locked) return;
@@ -263,11 +403,16 @@ export function MatchingHarperReviewBoard({
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <MatchingDateRangeFilter
+              align="end"
               emptyLabel="추천일 전체"
               from={recommendedFrom}
               onChange={onRecommendedDateRangeChange}
               prefix="추천"
               to={recommendedTo}
+            />
+            <ReviewViewDropdown
+              selectedFields={reviewViewFields}
+              onFieldToggle={handleReviewViewFieldToggle}
             />
             {hasActiveFilters ? (
               <BareButton
@@ -383,6 +528,7 @@ export function MatchingHarperReviewBoard({
                           }
                           onSelect={setSelectedTalent}
                           pending={setReviewStage.isPending}
+                          visibleFields={visibleReviewFields}
                         />
                       ))}
                       {columnItems.length === 0 ? (

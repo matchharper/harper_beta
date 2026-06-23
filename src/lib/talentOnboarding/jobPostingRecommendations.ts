@@ -1517,6 +1517,7 @@ async function buildSearchPlan(args: {
     ],
     primaryModel: RECOMMEND_JOB_POSTINGS_PLAN_MODEL,
     temperature: CAREER_LLM_CONFIG.recommendJobPostings.planTemperature,
+    usageLabel: "career_tool:recommend_job_postings:plan",
   });
 
   return normalizeExternalSearchPlan(
@@ -2335,6 +2336,7 @@ async function shortlistRoles(args: {
     ],
     primaryModel: RECOMMEND_JOB_POSTINGS_PRIMARY_MODEL,
     temperature: CAREER_LLM_CONFIG.recommendJobPostings.shortlistTemperature,
+    usageLabel: "career_tool:recommend_job_postings:shortlist",
   });
   // logger.log(
   //   "\n\n\n",
@@ -2484,6 +2486,7 @@ async function selectFinalRecommendations(args: {
     primaryModel: RECOMMEND_JOB_POSTINGS_FINAL_SELECTION_MODEL,
     temperature:
       CAREER_LLM_CONFIG.recommendJobPostings.finalSelectionTemperature,
+    usageLabel: "career_tool:recommend_job_postings:final_selection",
   });
   const parsed = parseJsonObject(raw);
   const selectedRaw = Array.isArray(parsed?.selectedRecommendations)

@@ -1,11 +1,24 @@
 import { memo } from "react";
-import { LoaderCircle, Trash2 } from "lucide-react";
+import {
+  CheckCircle2,
+  Eye,
+  LoaderCircle,
+  Mail,
+  Sparkles,
+  Trash2,
+  XCircle,
+} from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { BareButton } from "@/components/ui/button";
 import {
   useDeleteOpsMatchingProgress,
   useOpsMatchingProgress,
 } from "@/hooks/ops/useOpsMatching";
+import type {
+  OpsMatchingProgressItem,
+  OpsMatchingRecommendationDelivery,
+  OpsMatchingRecommendationSummary,
+} from "@/lib/ops/matching";
 import { formatKst } from "./utils";
 
 type TalentProgressFeedProps = {
@@ -15,6 +28,137 @@ type TalentProgressFeedProps = {
   showRoleContext?: boolean;
   talentId: string;
 };
+
+function isAcceptedFeedback(feedback: string | null | undefined) {
+  const normalized = String(feedback ?? "").toLowerCase();
+  return normalized === "like" || normalized === "positive";
+}
+
+function isRejectedFeedback(feedback: string | null | undefined) {
+  const normalized = String(feedback ?? "").toLowerCase();
+  return normalized === "dislike" || normalized === "negative";
+}
+
+function getPrimaryDelivery(
+  recommendation: OpsMatchingRecommendationSummary
+): OpsMatchingRecommendationDelivery | null {
+  return (
+    recommendation.deliveries.find(
+      (delivery) =>
+        delivery.channel === "email" &&
+        Boolean(delivery.subject || delivery.bodyText)
+    ) ??
+    recommendation.deliveries.find((delivery) =>
+      Boolean(delivery.subject || delivery.bodyText)
+    ) ??
+    null
+  );
+}
+
+type TimelineItem =
+  | {
+      createdAt: string;
+      delivery: OpsMatchingRecommendationDelivery | null;
+      id: string;
+      kind: "recommendation" | "feedback" | "viewed";
+      roleContext: string;
+      text: string;
+      title: string;
+    }
+  | {
+      createdAt: string;
+      item: OpsMatchingProgressItem;
+      kind: "progress";
+      roleContext: string;
+    };
+
+function buildRecommendationTimelineItems(
+  recommendations: OpsMatchingRecommendationSummary[]
+): TimelineItem[] {
+  const items: TimelineItem[] = [];
+
+  for (const recommendation of recommendations) {
+    const roleContext = [recommendation.companyName, recommendation.roleName]
+      .filter(Boolean)
+      .join(" · ");
+
+    items.push({
+      createdAt: recommendation.recommendedAt ?? recommendation.createdAt,
+      delivery: getPrimaryDelivery(recommendation),
+      id: `recommendation:${recommendation.recommendationId}`,
+      kind: "recommendation",
+      roleContext,
+      text: recommendation.isManualInternalRecommendation
+        ? "Ops에서 이 internal 기회를 직접 추천했습니다."
+        : "Harper가 이 기회를 추천했습니다.",
+      title: "추천 제안됨",
+    });
+
+    if (recommendation.viewedAt) {
+      items.push({
+        createdAt: recommendation.viewedAt,
+        delivery: null,
+        id: `viewed:${recommendation.recommendationId}`,
+        kind: "viewed",
+        roleContext,
+        text: "추천된 역할을 확인했습니다.",
+        title: "추천 확인",
+      });
+    }
+
+    if (recommendation.feedback) {
+      const accepted = isAcceptedFeedback(recommendation.feedback);
+      const rejected = isRejectedFeedback(recommendation.feedback);
+      items.push({
+        createdAt:
+          recommendation.feedbackAt ??
+          recommendation.updatedAt ??
+          recommendation.recommendedAt,
+        delivery: null,
+        id: `feedback:${recommendation.recommendationId}`,
+        kind: "feedback",
+        roleContext,
+        text:
+          recommendation.feedbackReason?.trim() ||
+          (accepted
+            ? "Talent가 이 추천을 수락했습니다."
+            : rejected
+              ? "Talent가 이 추천을 거절했습니다."
+              : "Talent가 이 추천에 피드백을 남겼습니다."),
+        title: accepted ? "추천 수락" : rejected ? "추천 거절" : "추천 피드백",
+      });
+    }
+  }
+
+  return items;
+}
+
+function DeliveryPreview({
+  delivery,
+}: {
+  delivery: OpsMatchingRecommendationDelivery;
+}) {
+  return (
+    <div className="mt-2 rounded-md border border-neutral-1000-a05 bg-bg-default/70 p-3 text-xs leading-5 text-neutral-muted">
+      <div className="mb-2 flex items-center gap-1.5 font-medium text-neutral-primary">
+        <Mail className="h-3.5 w-3.5 text-neutral-soft" />
+        메일
+      </div>
+      {delivery.subject ? (
+        <div className="mb-2 font-medium text-neutral-primary">
+          {delivery.subject}
+        </div>
+      ) : null}
+      {delivery.bodyText ? (
+        <div className="max-h-72 overflow-y-auto whitespace-pre-wrap pr-1">
+          {delivery.bodyText}
+        </div>
+      ) : (
+        <div>표시할 메일 본문이 없습니다.</div>
+      )}
+    </div>
+  );
+}
 
 export const TalentProgressFeed = memo(function TalentProgressFeed({
   emptyLabel = "아직 Progress가 없습니다.",
@@ -50,7 +194,26 @@ export const TalentProgressFeed = memo(function TalentProgressFeed({
   }
 
   const items = progressQuery.data?.items ?? [];
-  if (items.length === 0) {
+  const recommendations = progressQuery.data?.recommendations ?? [];
+  const timelineItems = [
+    ...buildRecommendationTimelineItems(recommendations),
+    ...items.map((item) => ({
+      createdAt: item.createdAt,
+      item,
+      kind: "progress" as const,
+      roleContext: [item.companyName, item.roleName]
+        .filter(Boolean)
+        .join(" · "),
+    })),
+  ].sort((left, right) => {
+    const leftTime = Date.parse(left.createdAt);
+    const rightTime = Date.parse(right.createdAt);
+    const safeLeftTime = Number.isFinite(leftTime) ? leftTime : 0;
+    const safeRightTime = Number.isFinite(rightTime) ? rightTime : 0;
+    return safeRightTime - safeLeftTime;
+  });
+
+  if (timelineItems.length === 0) {
     return (
       <div className="rounded-md border border-dashed border-neutral-1000-a10 bg-bg-floating px-4 py-6 text-center text-sm text-neutral-soft">
         {emptyLabel}
@@ -60,10 +223,57 @@ export const TalentProgressFeed = memo(function TalentProgressFeed({
 
   return (
     <div className="space-y-2">
-      {items.map((item) => {
-        const roleContext = [item.companyName, item.roleName]
-          .filter(Boolean)
-          .join(" · ");
+      {timelineItems.map((timelineItem) => {
+        if (timelineItem.kind !== "progress") {
+          const Icon =
+            timelineItem.kind === "feedback"
+              ? timelineItem.title.includes("거절")
+                ? XCircle
+                : CheckCircle2
+              : timelineItem.kind === "viewed"
+                ? Eye
+                : Sparkles;
+          return (
+            <article
+              key={timelineItem.id}
+              className="rounded-md border border-neutral-1000-a05 bg-bg-floating px-3.5 py-3 text-sm text-neutral-primary"
+            >
+              <div className="flex items-start gap-2.5">
+                <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-bg-weak text-neutral-muted">
+                  <Icon className="h-3.5 w-3.5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  {showRoleContext && timelineItem.roleContext ? (
+                    <div className="truncate text-xs font-medium text-neutral-primary">
+                      {timelineItem.roleContext}
+                    </div>
+                  ) : null}
+                  <div
+                    className={cx(
+                      "flex flex-wrap items-center gap-x-2 gap-y-1",
+                      showRoleContext && timelineItem.roleContext && "mt-1"
+                    )}
+                  >
+                    <div className="text-sm font-medium text-neutral-primary">
+                      {timelineItem.title}
+                    </div>
+                    <div className="text-[11px] text-neutral-soft">
+                      {formatKst(timelineItem.createdAt)}
+                    </div>
+                  </div>
+                  <div className="mt-1 whitespace-pre-wrap leading-6 text-neutral-muted">
+                    {timelineItem.text}
+                  </div>
+                  {timelineItem.delivery ? (
+                    <DeliveryPreview delivery={timelineItem.delivery} />
+                  ) : null}
+                </div>
+              </div>
+            </article>
+          );
+        }
+
+        const item = timelineItem.item;
         const isDeleting =
           deleteProgress.isPending && pendingDeleteId === item.id;
         return (
@@ -73,15 +283,15 @@ export const TalentProgressFeed = memo(function TalentProgressFeed({
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                {showRoleContext && roleContext ? (
+                {showRoleContext && timelineItem.roleContext ? (
                   <div className="truncate text-xs font-medium text-neutral-primary">
-                    {roleContext}
+                    {timelineItem.roleContext}
                   </div>
                 ) : null}
                 <div
                   className={cx(
                     "text-[11px] text-neutral-soft",
-                    showRoleContext && roleContext && "mt-1"
+                    showRoleContext && timelineItem.roleContext && "mt-1"
                   )}
                 >
                   {formatKst(item.createdAt)}

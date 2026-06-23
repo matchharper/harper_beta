@@ -18,6 +18,7 @@ import {
   getLandingLogBaseType,
   getLandingLogSource,
   isLandingLogEntryType,
+  isStartLandingLogType,
 } from "@/lib/landingLogTypes";
 import {
   CAREER_UTM_DESCRIPTION_MAX_LENGTH,
@@ -80,6 +81,7 @@ type FetchPageResult<T> = {
 };
 
 type MutableSourceStats = {
+  clickStartLocalIds: Set<string>;
   emailsByLocalId: Map<string, Set<string>>;
   entryLocalIds: Set<string>;
   eventTypes: Set<string>;
@@ -102,9 +104,19 @@ const FUNNEL_META: Array<{
     detail: "source URL로 들어온 local_id",
   },
   {
+    key: "login_click",
+    label: "Login CTA click",
+    detail: "해당 source에서 로그인 CTA를 클릭한 local_id",
+  },
+  {
     key: "login",
-    label: "Landing login",
+    label: "Login email",
     detail: "해당 source에서 로그인까지 이어진 이메일/local_id",
+  },
+  {
+    key: "signup",
+    label: "Signup",
+    detail: "login email이 talent_user로 식별된 유저",
   },
   {
     key: "onboarding_basic",
@@ -194,6 +206,7 @@ function getOrCreateSourceStats(
   if (existing) return existing;
 
   const next: MutableSourceStats = {
+    clickStartLocalIds: new Set(),
     emailsByLocalId: new Map(),
     entryLocalIds: new Set(),
     eventTypes: new Set(),
@@ -327,6 +340,21 @@ function buildLandingStats(args: {
   for (const log of args.landingLogs) {
     const localId = String(log.local_id ?? "").trim();
     if (localId && excludedLocalIds.has(localId)) continue;
+
+    if (isStartLandingLogType(log.type)) {
+      const sourceFromType = getLandingLogSource(log.type);
+      const source =
+        sourceFromType !== "unknown"
+          ? sourceFromType
+          : localId
+            ? (latestEntrySourceByLocalId.get(localId) ?? "unknown")
+            : "unknown";
+      const stats = getOrCreateSourceStats(statsBySource, source);
+      const baseType = getLandingLogBaseType(log.type);
+      if (baseType) stats.eventTypes.add(baseType);
+      if (localId) stats.clickStartLocalIds.add(localId);
+      continue;
+    }
 
     const email = parseLandingLoginEmail(log.type);
     if (!email || isEmailExcluded(email, excludedEmailSet)) continue;
@@ -511,7 +539,9 @@ function buildSelectedSourceDetail(args: {
 
   const counts: Record<AdminCareerFunnelStepKey, number> = {
     landing_entry: stats.entryLocalIds.size,
+    login_click: stats.clickStartLocalIds.size,
     login: Math.max(stats.loginLocalIds.size, stats.loginEmails.size),
+    signup: sourceUserIds.size,
     onboarding_basic: onboardingUsersByStep.get("onboarding_basic")?.size ?? 0,
     onboarding_role: onboardingUsersByStep.get("onboarding_role")?.size ?? 0,
     onboarding_profile:
@@ -525,6 +555,7 @@ function buildSelectedSourceDetail(args: {
   const people: AdminCareerUtmPerson[] = [];
   const localIds = new Set([
     ...Array.from(stats.entryLocalIds),
+    ...Array.from(stats.clickStartLocalIds),
     ...Array.from(stats.loginLocalIds),
   ]);
 
@@ -535,8 +566,10 @@ function buildSelectedSourceDetail(args: {
       null;
     const userId = talent?.user_id ?? null;
     const reachedSteps = new Set<AdminCareerFunnelStepKey>(["landing_entry"]);
+    if (stats.clickStartLocalIds.has(localId)) reachedSteps.add("login_click");
     if (emails.length > 0) reachedSteps.add("login");
     if (userId) {
+      reachedSteps.add("signup");
       for (const [step, users] of onboardingUsersByStep.entries()) {
         if (users.has(userId)) reachedSteps.add(step);
       }

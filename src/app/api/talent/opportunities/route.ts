@@ -343,15 +343,18 @@ export async function PATCH(req: NextRequest) {
     }
 
     const admin = getTalentSupabaseAdmin();
-    let responseLocale =
-      body.locale ?? req.cookies.get("NEXT_LOCALE")?.value ?? null;
-    if (!responseLocale && action === "feedback") {
-      const talentSetting = await fetchTalentSetting({
-        admin,
-        userId: user.id,
-      });
-      responseLocale = talentSetting?.preferred_locale ?? null;
-    }
+    const talentSetting =
+      action === "feedback"
+        ? await fetchTalentSetting({
+            admin,
+            userId: user.id,
+          })
+        : null;
+    const responseLocale =
+      talentSetting?.preferred_locale ??
+      body.locale ??
+      req.cookies.get("NEXT_LOCALE")?.value ??
+      null;
     let previousOpportunity: TalentOpportunityHistoryItem | null = null;
     if (action === "feedback") {
       try {

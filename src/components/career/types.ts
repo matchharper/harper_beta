@@ -117,6 +117,17 @@ export type CareerInterviewProgress = {
   totalCount: number;
 };
 
+export type CareerOnboardingChecklistProgress = {
+  additionalCoveredCount: number;
+  completed: boolean;
+  coveredCount: number;
+  finalConfirmationCovered: boolean;
+  minCoveredCount: number;
+  percent: number;
+  requiredQuestionsCovered: boolean;
+  totalCount: number;
+};
+
 export type CareerOpportunitySavedStage =
   | "saved"
   | "applied"
@@ -302,6 +313,7 @@ export type SessionResponse = {
   historyOpportunities?: CareerHistoryOpportunity[];
   talentPreferences?: CareerTalentPreferences | null;
   talentInsights?: CareerTalentInsights | null;
+  onboardingChecklistProgress?: CareerOnboardingChecklistProgress | null;
   recentOpportunities?: CareerRecentOpportunity[];
   profileSettingsMeta?: CareerProfileSettingsMeta;
   talentProfile?: CareerTalentProfile;

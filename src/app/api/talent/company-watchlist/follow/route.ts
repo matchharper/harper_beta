@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
-import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
+import {
+  fetchTalentSetting,
+  getTalentSupabaseAdmin,
+} from "@/lib/talentOnboarding/server";
 import { updateTalentCompanyFollow } from "@/lib/career/companyWatchlist";
 
 type Body = {
@@ -35,9 +38,11 @@ export async function POST(req: NextRequest) {
     }
 
     const action = body.action === "unfollow" ? "unfollow" : "follow";
+    const admin = getTalentSupabaseAdmin();
+    const talentSetting = await fetchTalentSetting({ admin, userId: user.id });
     const result = await updateTalentCompanyFollow({
       action,
-      admin: getTalentSupabaseAdmin(),
+      admin,
       companyDbId,
       companyWorkspaceId:
         typeof body.companyWorkspaceId === "string"
@@ -45,7 +50,10 @@ export async function POST(req: NextRequest) {
           : null,
       conversationId:
         typeof body.conversationId === "string" ? body.conversationId : null,
-      preferredLocale: body.locale ?? req.cookies.get("NEXT_LOCALE")?.value,
+      preferredLocale:
+        talentSetting?.preferred_locale ??
+        body.locale ??
+        req.cookies.get("NEXT_LOCALE")?.value,
       source: typeof body.source === "string" ? body.source : "watchlist",
       userId: user.id,
     });

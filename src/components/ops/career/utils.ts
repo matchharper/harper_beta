@@ -19,11 +19,12 @@ export const INTERNAL_RECOMMENDATION_FIXED_STAGES = [
   "프로세스종료됨",
 ] as const;
 
-export type RecommendationSourceFilter = "all" | "internal";
+export type RecommendationSourceFilter = "all" | "internal" | "external";
 
 export const RECOMMENDATION_SOURCE_FILTER_OPTIONS = [
   { id: "all", label: "전체 보기" },
   { id: "internal", label: "Internal만 보기" },
+  { id: "external", label: "External만 보기" },
 ] as const satisfies readonly {
   id: RecommendationSourceFilter;
   label: string;
@@ -178,7 +179,12 @@ export const recommendationFeedbackClass = (
 
 export const getAutoRecommendationStageLabel = (
   item: CareerTalentRecommendationItem
-) => (item.feedback ? "수락-거절함" : "추천됨");
+) => {
+  const normalized = String(item.feedback ?? "").toLowerCase();
+  if (normalized === "like" || normalized === "positive") return "수락";
+  if (normalized === "dislike" || normalized === "negative") return "거절";
+  return normalized ? "피드백 있음" : "추천됨";
+};
 
 export const getRecommendationStageSelectValue = (
   item: CareerTalentRecommendationItem

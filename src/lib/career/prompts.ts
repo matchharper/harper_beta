@@ -6,27 +6,29 @@ import {
 import {
   getCareerPromptLanguageName,
   getCareerPromptToneRule,
-  normalizeCareerPromptLocale,
 } from "@/lib/career/promptLocale";
 import { careerT } from "@/lib/career/translatedCareerMessage";
 import { TALENT_ONBOARDING_DONE_MARKER } from "@/lib/talentOnboarding/completion";
-import { TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX } from "@/lib/talentOnboarding/onboarding";
 import {
-  INSIGHT_CHECKLIST,
-  ONBOARDING_ADDITIONAL_QUESTION_KEYS,
   ONBOARDING_FINAL_CONFIRMATION_KEY,
-  ONBOARDING_QUESTION_CHECKLIST,
   ONBOARDING_QUESTION_MIN_COVERED_COUNT,
+  getInsightChecklist,
+  getOnboardingAdditionalQuestionKeys,
+  getOnboardingAdditionalQuestionMin,
+  getOnboardingQuestionChecklist,
+  getOnboardingRequiredQuestionKeys,
+  type OnboardingChecklistLocationContext,
 } from "@/lib/talentOnboarding/insightChecklist";
 import { logger } from "@/utils/logger";
 
-const TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN = 2;
 const CAREER_PROFILE_PROMPT_TIME_ZONE = "Asia/Seoul";
 
 export type CareerPromptProfile = {
+  current_location?: string | null;
   resume_file_name?: string | null;
   resume_links?: string[] | null;
   resume_text?: string | null;
+  location?: string | null;
 };
 
 export type CareerPromptPreferences = {
@@ -199,11 +201,18 @@ export const CAREER_SESSION_START_CALL_ACTION_MARKER = "[[CALL]]";
 const CAREER_HARPER_LINK_OUTPUT_RULE =
   "- Do not output Markdown links, HTML `<a>` tags, or raw clickable URLs for Harper-owned domains (`matchharper.com`, `www.matchharper.com`, or any subdomain). If you need to point to an internal Harper page, describe the location in plain text instead, such as `Career > Profile`.";
 
-const CAREER_FIRST_VISIT_TEXT = `
+const CAREER_FIRST_VISIT_TEXT_KO = `
 안녕하세요. 하퍼에 처음 방문해주셔서 감사합니다.
 
 <<하퍼는 숨겨진 커리어 기회를 먼저 찾아 제안하고,
 후보자 관점에서 커리어 기회와 조건 협상까지 함께 돕는 AI 헤드헌터입니다.>>
+`.trim();
+
+const CAREER_FIRST_VISIT_TEXT_EN = `
+Hi, welcome to Harper.
+
+<<Harper is an AI headhunter that proactively finds hidden career opportunities,
+then helps from the candidate's side with career options and offer negotiation.>>
 `.trim();
 
 const CAREER_INTERRUPT_HANDLING_PROMPT = `
@@ -279,8 +288,10 @@ const CAREER_VOICE_CALL_STARTER_MODE_PROMPT = `
 - 통화 종료 의사가 보이면 종료 시그널 규칙을 따른다.
 `.trim();
 
-export function getCareerFirstVisitText(): string {
-  return CAREER_FIRST_VISIT_TEXT;
+export function getCareerFirstVisitText(preferredLocale?: string | null): string {
+  return getCareerPromptLanguageName(preferredLocale) === "English"
+    ? CAREER_FIRST_VISIT_TEXT_EN
+    : CAREER_FIRST_VISIT_TEXT_KO;
 }
 
 export function getCareerInterruptHandlingPrompt(): string {
@@ -298,7 +309,7 @@ Harper는 짧은 온보딩 대화에서 후보자의 현재 상황, 다음 기�
 
 ### 진행 순서
 1. Question coverage: Onboarding question checklist에서 아직 covered가 아닌 항목을 자연스럽게 채운다. insight 저장 여부만으로 질문 완료 여부를 판단하지 않는다.
-2. Additional questions: checklist와 별개가 아니라 checklist 안의 additional_question 항목으로 관리한다. 프로필 기반 추가 질문을 최소 ${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN}개, 최대 ${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX}개 묻는다.
+2. Additional questions: checklist와 별개가 아니라 checklist 안의 additional_question 항목으로 관리한다. 프로필 기반 추가 질문은 runtime checklist에 표시된 additional_question 항목만 모두 covered로 만들고, 표시되지 않은 additional_question key는 묻지 않는다.
 3. Final priority confirmation: 위 조건을 채운 뒤에만, 우선순위를 짧게 요약하고 빠뜨린 것이 있는지 묻는다.
 4. Closing: 사용자가 final priority confirmation에 답한 뒤에만 종료한다.
    - Final priority confirmation은 한 번만 묻는다. 사용자가 "네", "맞아요", "없어요", "좋아요", "빠뜨린 것 없어요"처럼 동의하거나 추가사항이 없다고 답하면, 다음 assistant 응답에서는 같은 확인 질문을 반복하지 말고 짧게 마무리한다.
@@ -333,9 +344,10 @@ Additional question은 insight checklist를 직접 채우는 일반 선호 질�
 ### 종료 판단 조건
 온보딩을 종료하려면 아래 조건을 모두 만족해야 한다.
 1. Onboarding question checklist에서 covered 항목이 최소 ${ONBOARDING_QUESTION_MIN_COVERED_COUNT}개 이상이어야 한다.
-2. Additional question checklist 항목(${ONBOARDING_ADDITIONAL_QUESTION_KEYS.join(", ")})이 모두 covered여야 한다.
+2. Runtime onboarding checklist에 표시된 additional_question 항목이 모두 covered여야 한다.
 3. final priority confirmation checklist 항목(${ONBOARDING_FINAL_CONFIRMATION_KEY})이 covered여야 한다.
 4. language-외국어 능력 관련 checklist 항목이 covered여야 한다.
+5. Runtime state에 country-specific required question key가 표시되면 해당 key도 covered여야 한다.
 Voice Call에서도 최근 대화 추론으로 additional question 개수를 다시 세지 말고, prompt에 제공되는 checklist coverage 상태를 기준으로 진행한다.
 
 ### 종료 금지 규칙
@@ -738,12 +750,14 @@ function normalizePromptChecklistCoverage(
 }
 
 function buildKnownInsightsSection(args: {
+  checklistContext?: OnboardingChecklistLocationContext;
   checklistCoverage?: OnboardingChecklistCoverage | null;
   content: Record<string, string> | null;
   includeAdditionalQuestions: boolean;
   quoteKeys?: boolean;
 }) {
   const {
+    checklistContext,
     checklistCoverage,
     content,
     includeAdditionalQuestions,
@@ -751,24 +765,34 @@ function buildKnownInsightsSection(args: {
   } = args;
   const currentContent = content ?? {};
   const coverage = normalizePromptChecklistCoverage(checklistCoverage);
-  const coveredChecklistItems = ONBOARDING_QUESTION_CHECKLIST.filter(
+  const insightChecklist = getInsightChecklist(checklistContext);
+  const onboardingChecklist = getOnboardingQuestionChecklist(checklistContext);
+  const additionalQuestionKeys =
+    getOnboardingAdditionalQuestionKeys(checklistContext);
+  const requiredQuestionKeys = getOnboardingRequiredQuestionKeys(
+    checklistContext
+  );
+  const additionalQuestionMin =
+    getOnboardingAdditionalQuestionMin(checklistContext);
+  const additionalQuestionMax = additionalQuestionMin;
+  const coveredChecklistItems = onboardingChecklist.filter(
     (item) => coverage[item.key] === "covered"
   );
-  const missingChecklistItems = ONBOARDING_QUESTION_CHECKLIST.filter(
+  const missingChecklistItems = onboardingChecklist.filter(
     (item) => coverage[item.key] !== "covered"
   );
-  const additionalCoveredCount = ONBOARDING_ADDITIONAL_QUESTION_KEYS.filter(
+  const additionalCoveredCount = additionalQuestionKeys.filter(
     (key) => coverage[key] === "covered"
   ).length;
   const filledInsightCount = Object.values(currentContent).filter(
     (value) => typeof value === "string" && value.trim().length > 0
   ).length;
-  const canonicalFilledInsightCount = INSIGHT_CHECKLIST.filter((item) => {
+  const canonicalFilledInsightCount = insightChecklist.filter((item) => {
     const value = currentContent[item.key];
     return typeof value === "string" && value.trim().length > 0;
   }).length;
-  const checklistKeys = new Set(INSIGHT_CHECKLIST.map((item) => item.key));
-  const checklistLines = [...ONBOARDING_QUESTION_CHECKLIST]
+  const checklistKeys = new Set(insightChecklist.map((item) => item.key));
+  const checklistLines = [...onboardingChecklist]
     .sort((left, right) => left.priority - right.priority)
     .map((item) => {
       const value = currentContent[item.insightKey ?? item.key]?.trim();
@@ -793,9 +817,24 @@ function buildKnownInsightsSection(args: {
 
   const dynamicPomrpt = [
     "## Onboarding question coverage runtime state",
-    `- Covered checklist items: ${coveredChecklistItems.length}/${ONBOARDING_QUESTION_CHECKLIST.length}`,
+    `- Covered checklist items: ${coveredChecklistItems.length}/${onboardingChecklist.length}`,
     `- Minimum covered checklist items before closing: ${ONBOARDING_QUESTION_MIN_COVERED_COUNT}`,
-    `- Additional questions covered: ${additionalCoveredCount}/${ONBOARDING_ADDITIONAL_QUESTION_KEYS.length}`,
+    `- Required additional question keys: ${
+      additionalQuestionKeys.length > 0
+        ? additionalQuestionKeys.join(", ")
+        : "(none)"
+    }`,
+    `- Required country-specific question keys: ${
+      requiredQuestionKeys.length > 0
+        ? requiredQuestionKeys.join(", ")
+        : "(none)"
+    }`,
+    `- Country-specific required questions covered: ${
+      requiredQuestionKeys.every((key) => coverage[key] === "covered")
+        ? "yes"
+        : "no"
+    }`,
+    `- Additional questions covered: ${additionalCoveredCount}/${additionalQuestionKeys.length}`,
     `- Final priority confirmation: ${coverage[ONBOARDING_FINAL_CONFIRMATION_KEY] === "covered" ? "covered" : "missing"}`,
     coveredChecklistItems.length > 0
       ? `- Covered keys: ${coveredChecklistItems.map((item) => item.key).join(", ")}`
@@ -809,7 +848,7 @@ function buildKnownInsightsSection(args: {
     "- Do not ask a checklist item whose status is covered again. Use missing checklist items and their promptHint to decide the next question.",
     "## Current insight values",
     `- Filled insights: ${filledInsightCount}`,
-    `- Filled canonical checklist insights: ${canonicalFilledInsightCount}/${INSIGHT_CHECKLIST.length}`,
+    `- Filled canonical checklist insights: ${canonicalFilledInsightCount}/${insightChecklist.length}`,
     "## Onboarding Question Checklist",
     checklistLines.join("\n"),
     extraLines.length > 0
@@ -826,7 +865,8 @@ function buildKnownInsightsSection(args: {
       ? `
 	## Additional questions
 - Additional question은 일반 선호 질문이 아니라, 프로필 gap / 직무 관련 depth / 이력 전환 맥락을 확인하는 질문이다.
-- 종료 전 필수 조건: additional question checklist 항목을 최소 ${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN}개 이상 covered로 만든다. 최대 ${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX}개까지만 묻는다.
+- 종료 전 필수 조건: runtime checklist에 표시된 additional_question 항목을 모두 covered로 만든다. 현재 variant에서는 최소 ${additionalQuestionMin}개, 최대 ${additionalQuestionMax}개다.
+- Runtime checklist에 표시되지 않은 additional_question key는 묻지 않는다.
 - select_additional_onboarding_question tool이 사용 가능하면 직접 고르지 말고 반드시 tool을 먼저 호출한다.
 
 ### Additional question selection policy
@@ -853,23 +893,26 @@ function buildKnownInsightsSection(args: {
 }
 
 function buildExtractionInsightChecklistSection(args: {
+  checklistContext?: OnboardingChecklistLocationContext;
   checklistCoverage?: OnboardingChecklistCoverage | null;
   content: Record<string, string> | null;
 }) {
-  const { checklistCoverage, content } = args;
+  const { checklistContext, checklistCoverage, content } = args;
   const currentContent = content ?? {};
   const coverage = normalizePromptChecklistCoverage(checklistCoverage);
-  const canonicalKeys = [...INSIGHT_CHECKLIST]
+  const insightChecklist = getInsightChecklist(checklistContext);
+  const onboardingChecklist = getOnboardingQuestionChecklist(checklistContext);
+  const canonicalKeys = [...insightChecklist]
     .sort((left, right) => left.priority - right.priority)
     .map((item) => `"${item.key}"`);
-  const checklistKeys = new Set(INSIGHT_CHECKLIST.map((item) => item.key));
-  const checklistLines = [...INSIGHT_CHECKLIST]
+  const checklistKeys = new Set(insightChecklist.map((item) => item.key));
+  const checklistLines = [...insightChecklist]
     .sort((left, right) => left.priority - right.priority)
     .map((item) => {
       const value = currentContent[item.key]?.trim();
       return `- "${item.key}" (${item.label}): ${item.promptHint}\n  current_value: ${value ? `"${value}"` : "null"}`;
     });
-  const onboardingChecklistLines = [...ONBOARDING_QUESTION_CHECKLIST]
+  const onboardingChecklistLines = [...onboardingChecklist]
     .sort((left, right) => left.priority - right.priority)
     .map((item) => {
       const currentValue = item.insightKey
@@ -1202,6 +1245,7 @@ function buildCareerConversationPromptPlan(args: {
   const isConversationStarterMode =
     args.proactiveTurnInstructionMode === "conversation_starter";
   const insightGuidanceSection = buildKnownInsightsSection({
+    checklistContext: args.profile,
     checklistCoverage: args.onboardingChecklistCoverage,
     content: args.currentInsightContent,
     includeAdditionalQuestions: isOnboardingActive,
@@ -1236,19 +1280,10 @@ function buildCareerConversationPromptPlan(args: {
     Number.isFinite(args.additionalQuestionSelectionCount)
       ? Math.max(0, Math.floor(args.additionalQuestionSelectionCount))
       : null;
-  const onboardingChecklistCoverage = normalizePromptChecklistCoverage(
-    args.onboardingChecklistCoverage
+  const onboardingAdditionalQuestionMin = getOnboardingAdditionalQuestionMin(
+    args.profile
   );
-  const onboardingCoverageCoveredCount = ONBOARDING_QUESTION_CHECKLIST.filter(
-    (item) => onboardingChecklistCoverage[item.key] === "covered"
-  ).length;
-  const onboardingAdditionalCoveredCount =
-    ONBOARDING_ADDITIONAL_QUESTION_KEYS.filter(
-      (key) => onboardingChecklistCoverage[key] === "covered"
-    ).length;
-  const onboardingFinalConfirmationCovered =
-    onboardingChecklistCoverage[ONBOARDING_FINAL_CONFIRMATION_KEY] ===
-    "covered";
+  const onboardingAdditionalQuestionMax = onboardingAdditionalQuestionMin;
 
   // During onboarding, suppress the standard tool policy block UNLESS silent
   // state-writers are enabled — those run during onboarding too and need their
@@ -1286,13 +1321,13 @@ function buildCareerConversationPromptPlan(args: {
     isOnboardingActive && additionalQuestionSelectionCount !== null
       ? [
           "## Additional question runtime state",
-          `- Additional questions already selected: ${additionalQuestionSelectionCount}/${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX}`,
-          `- Minimum required before final priority confirmation or closing: ${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN}`,
+          `- Additional questions already selected: ${additionalQuestionSelectionCount}/${onboardingAdditionalQuestionMax}`,
+          `- Minimum required before final priority confirmation or closing: ${onboardingAdditionalQuestionMin}`,
           additionalQuestionSelectionCount >=
-          TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX
+          onboardingAdditionalQuestionMax
             ? "- The maximum has been reached. Do not ask another additional question; move to final priority confirmation instead."
             : additionalQuestionSelectionCount <
-                TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN
+                onboardingAdditionalQuestionMin
               ? args.channel === "voice"
                 ? "- In voice, use the onboarding checklist coverage state above. Ask a missing additional_question checklist item only when that item is not covered."
                 : hasAdditionalQuestionSelectorTool
@@ -1770,10 +1805,12 @@ export function buildCareerToolPolicyPrompt(args: {
 export function buildCareerInsightExtractionPrompt(args: {
   currentChecklistCoverage?: OnboardingChecklistCoverage | null;
   currentInsightContent: Record<string, string> | null;
+  onboardingChecklistContext?: OnboardingChecklistLocationContext;
   preferredLocale?: string | null;
 }) {
   const outputLanguage = getCareerPromptLanguageName(args.preferredLocale);
   const insightChecklistSection = buildExtractionInsightChecklistSection({
+    checklistContext: args.onboardingChecklistContext,
     checklistCoverage: args.currentChecklistCoverage,
     content: args.currentInsightContent,
   });
@@ -1818,10 +1855,12 @@ export function buildCareerInsightExtractionOnlyPrompt(args: {
   currentChecklistCoverage?: OnboardingChecklistCoverage | null;
   currentInsightContent: Record<string, string> | null;
   insightMdOverride?: string;
+  onboardingChecklistContext?: OnboardingChecklistLocationContext;
   preferredLocale?: string | null;
 }) {
   const outputLanguage = getCareerPromptLanguageName(args.preferredLocale);
   const insightChecklistSection = buildExtractionInsightChecklistSection({
+    checklistContext: args.onboardingChecklistContext,
     checklistCoverage: args.currentChecklistCoverage,
     content: args.currentInsightContent,
   });
@@ -1893,8 +1932,10 @@ const formatCareerPromptKoreanDateTime = (value: string | null | undefined) => {
 export function buildCareerSessionStartTurnInstruction(args: {
   currentAccessAt: string;
   idleMs: number;
+  preferredLocale?: string | null;
   previousChatAt: string | null;
 }) {
+  const outputLanguage = getCareerPromptLanguageName(args.preferredLocale);
   const anchorIdleHours = Math.max(
     0,
     Math.floor(args.idleMs / (60 * 60 * 1000))
@@ -1924,6 +1965,7 @@ export function buildCareerSessionStartTurnInstruction(args: {
 
   return [
     "## Session-start assistant turn",
+    `Always write the user-visible reply in ${outputLanguage}.`,
     "사용자가 방금 Career 화면에 다시 접속했다. 사용자가 아직 새 메시지를 보내지 않았지만, Harper가 먼저 짧게 말을 건넬 수 있는 차례다.",
     `- currentAccessAt: ${currentAccessAtLabel}`,
     `- previousChatAt: ${previousChatAtLabel}`,
@@ -2037,6 +2079,7 @@ export function buildCareerOpportunityFeedbackFollowUpTurnInstruction(args: {
 
   return [
     "## Opportunity feedback proactive assistant turn",
+    `Always write the user-visible reply in ${outputLanguage}.`,
     "The user clicked like/dislike on one or more recommended opportunities. They did not send a new chat message. It is Harper's turn to proactively respond using the normal career/chat behavior and tool policy.",
     `TRIGGER: ${args.trigger}`,
     ...clearedOpportunityGuidance,

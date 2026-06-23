@@ -5,8 +5,14 @@ import StaggerText from "@/components/landing/Animation/StaggerText";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowUpRight, Check, Dot, Plus, Quote, X } from "lucide-react";
 import Head from "next/head";
-import React, { CSSProperties, useEffect, useMemo, useState } from "react";
-import { useMessages } from "@/i18n/useMessage";
+import React, {
+  CSSProperties,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { useMessages, type Locale } from "@/i18n/useMessage";
 import {
   LANDING_CANONICAL_URL,
   LANDING_OG_IMAGE_URL,
@@ -15,7 +21,33 @@ import {
 import { showToast } from "@/components/toast/toast";
 import Link from "next/link";
 import router from "next/router";
-import { MATCH_BOOKING_URL } from "@/lib/booking";
+import { useCountryLang } from "@/hooks/useCountryLang";
+import { useIsMobile } from "@/hooks/useIsMobile";
+import { supabase } from "@/lib/supabase";
+
+const COMPANY_LANDING_LOCAL_ID_STORAGE_KEY =
+  "harper_company_landing_local_id_2026_06";
+const COMPANY_LANDING_LAST_VISIT_AT_KEY =
+  "harper_company_landing_last_visit_at_2026_06";
+const COMPANY_LANDING_SESSION_GAP_MS = 30 * 60 * 1000;
+const COMPANY_LANDING_ABTEST_TYPE = "company_landing";
+const COMPANY_LOG_ENTRY_TYPE = "company_new_visit";
+const COMPANY_LOG_SESSION_TYPE = "company_new_session";
+const COMPANY_LOG_SEARCH_CLICK_TYPE = "company_click_search";
+const COMPANY_LOG_MAIN_CLICK_TYPE = "company_click_main";
+
+const createCompanyLandingId = () => {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2, 10)}`;
+};
 
 const papers = [
   {
@@ -27,8 +59,6 @@ const papers = [
     is_featured: true,
   },
 ];
-
-const BOOKING_URL = MATCH_BOOKING_URL;
 
 const trustedCompanies = [
   {
@@ -148,7 +178,7 @@ We believe the best sales people are the hiring managers themselves. We do a qui
   {
     question: "What are next steps?",
     answer:
-      "Use any CTA on the page to open the Calendly link and start the conversation. All major buttons in this page point to your requested booking URL.",
+      "Use any CTA on the page to request a meeting and start the conversation. We will follow up by email.",
   },
 ];
 
@@ -164,12 +194,108 @@ type ButtonProps = {
   className?: string;
   size?: "sm" | "md";
   href?: string;
+  onClick?: React.MouseEventHandler<HTMLElement>;
+};
+
+type MeetingRequestFormState = {
+  name: string;
+  email: string;
+  organization: string;
+  purpose: string;
 };
 
 type PlaceholderProps = {
   children?: React.ReactNode;
   className?: string;
   style?: CSSProperties;
+};
+
+const meetingRequestCopy: Record<
+  Locale,
+  {
+    closeOverlayLabel: string;
+    closeLabel: string;
+    title: string;
+    description: string;
+    nameLabel: string;
+    namePlaceholder: string;
+    emailLabel: string;
+    emailPlaceholder: string;
+    companyLabel: string;
+    companyPlaceholder: string;
+    goalLabel: string;
+    goalPlaceholder: string;
+    cancel: string;
+    submit: string;
+    submitting: string;
+    errors: {
+      name: string;
+      email: string;
+      emailInvalid: string;
+      company: string;
+      goal: string;
+      failed: string;
+    };
+    success: string;
+  }
+> = {
+  ko: {
+    closeOverlayLabel: "미팅 신청 폼 닫기",
+    closeLabel: "닫기",
+    title: "통화 요청하기",
+    description:
+      "팀의 상황, 찾고 있는 역할, 지금 채용에서 막히는 지점을 간단히 남겨주세요. Harper 팀이 직접 검토해 어떤 후보 풀을 볼 수 있을지와 가장 빠른 다음 액션을 정리해 1영업일 내 연락드립니다.",
+    nameLabel: "이름",
+    namePlaceholder: "김하퍼",
+    emailLabel: "이메일",
+    emailPlaceholder: "jane@company.com",
+    companyLabel: "회사",
+    companyPlaceholder: "회사 또는 팀명",
+    goalLabel: "채용 목표",
+    goalPlaceholder:
+      "예: AI/ML 엔지니어 2명을 빠르게 찾고 싶고, GitHub/논문 기반으로 실제 역량을 보고 싶어요.",
+    cancel: "취소",
+    submit: "신청하기",
+    submitting: "신청 중...",
+    errors: {
+      name: "이름을 입력해주세요.",
+      email: "이메일을 입력해주세요.",
+      emailInvalid: "유효한 이메일 주소를 입력해주세요.",
+      company: "회사명을 입력해주세요.",
+      goal: "채용 목표를 입력해주세요.",
+      failed: "미팅 신청 제출에 실패했습니다.",
+    },
+    success: "미팅 신청이 접수되었습니다. 1일 내에 연락드리겠습니다.",
+  },
+  en: {
+    closeOverlayLabel: "Close meeting request form",
+    closeLabel: "Close",
+    title: "Request a call",
+    description:
+      "Share a few details about your team, the roles you need to fill, and what has made the search hard so far. Harper's team will review it and follow up within one business day with the candidate pool we can unlock and the fastest next step.",
+    nameLabel: "Name",
+    namePlaceholder: "Jane Kim",
+    emailLabel: "Email",
+    emailPlaceholder: "jane@company.com",
+    companyLabel: "Company",
+    companyPlaceholder: "Company or team",
+    goalLabel: "Goal",
+    goalPlaceholder:
+      "For example: We need 2 AI/ML engineers and want to evaluate real ability through GitHub or research evidence.",
+    cancel: "Cancel",
+    submit: "Submit",
+    submitting: "Submitting...",
+    errors: {
+      name: "Please enter your name.",
+      email: "Please enter your email.",
+      emailInvalid: "Please enter a valid email address.",
+      company: "Please enter your company.",
+      goal: "Please enter your goal.",
+      failed: "Failed to submit meeting request.",
+    },
+    success:
+      "Your request has been received. We'll follow up within one business day.",
+  },
 };
 
 const SectionTag = ({ children }: { children: React.ReactNode }) => (
@@ -179,12 +305,15 @@ const SectionTag = ({ children }: { children: React.ReactNode }) => (
 const RadarButton = ({
   className = "",
   label = "Explore Harper Search",
+  onClick,
 }: {
   className?: string;
   label?: string;
+  onClick?: React.MouseEventHandler<HTMLAnchorElement>;
 }) => (
   <motion.a
     href="/search"
+    onClick={onClick}
     whileHover={{ y: -1 }}
     whileTap={{ scale: 0.985 }}
     className={`group inline-flex h-[50px] items-center gap-2 rounded-full bg-beige100 px-6 text-[15px] font-medium tracking-[-0.03em] text-black shadow-[0_14px_30px_rgba(0,0,0,0.22)] transition-shadow duration-300 hover:shadow-[0_18px_40px_rgba(0,0,0,0.3)] ${className}`}
@@ -199,28 +328,13 @@ const CalendlyButton = ({
   variant = "primary",
   className = "",
   size = "md",
-  href = BOOKING_URL,
+  href,
+  onClick,
 }: ButtonProps) => {
   const isPrimary = variant === "primary";
   const isSmall = size === "sm";
-
-  return (
-    <motion.a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      whileHover={{ y: -1 }}
-      whileTap={{ scale: 0.985 }}
-      className={`group relative inline-flex items-center justify-center overflow-hidden font-medium tracking-[-0.03em] transition-shadow duration-300 ${
-        isPrimary
-          ? "bg-beige900 text-beige100 shadow-[0_10px_20px_rgba(46,23,6,0.08)]"
-          : "bg-beige500/70 text-beige900 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]"
-      } ${
-        isSmall
-          ? "h-[42px] rounded-[12px] px-4 text-[15px]"
-          : "h-[58px] rounded-[14px] px-7 text-[15px]"
-      } ${className}`}
-    >
+  const content = (
+    <>
       <span className="absolute inset-0 bg-white/10 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
       <span className="relative flex h-full items-start overflow-hidden">
         <span className="flex flex-col transition-transform duration-500 ease-out-expo group-hover:-translate-y-1/2">
@@ -240,7 +354,215 @@ const CalendlyButton = ({
           </span>
         </span>
       </span>
-    </motion.a>
+    </>
+  );
+
+  const buttonClassName = `group relative inline-flex items-center justify-center overflow-hidden font-medium tracking-[-0.03em] transition-shadow duration-300 ${
+    isPrimary
+      ? "bg-beige900 text-beige100 shadow-[0_10px_20px_rgba(46,23,6,0.08)]"
+      : "bg-beige500/70 text-beige900 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]"
+  } ${
+    isSmall
+      ? "h-[42px] rounded-[12px] px-4 text-[15px]"
+      : "h-[58px] rounded-[14px] px-7 text-[15px]"
+  } ${className}`;
+
+  if (href) {
+    return (
+      <motion.a
+        href={href}
+        onClick={(event) => onClick?.(event)}
+        target="_blank"
+        rel="noreferrer"
+        whileHover={{ y: -1 }}
+        whileTap={{ scale: 0.985 }}
+        className={buttonClassName}
+      >
+        {content}
+      </motion.a>
+    );
+  }
+
+  return (
+    <motion.button
+      type="button"
+      onClick={(event) => onClick?.(event)}
+      whileHover={{ y: -1 }}
+      whileTap={{ scale: 0.985 }}
+      className={buttonClassName}
+    >
+      {content}
+    </motion.button>
+  );
+};
+
+const INITIAL_MEETING_REQUEST_FORM: MeetingRequestFormState = {
+  name: "",
+  email: "",
+  organization: "",
+  purpose: "",
+};
+
+const isValidMeetingEmail = (value: string) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
+const CompanyMeetingRequestModal = ({
+  open,
+  form,
+  isSubmitting,
+  locale,
+  onClose,
+  onChange,
+  onSubmit,
+}: {
+  open: boolean;
+  form: MeetingRequestFormState;
+  isSubmitting: boolean;
+  locale: Locale;
+  onClose: () => void;
+  onChange: (field: keyof MeetingRequestFormState, value: string) => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+}) => {
+  const copy = meetingRequestCopy[locale];
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [onClose, open]);
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          className="fixed inset-0 z-100 flex items-center justify-center px-3 py-3 md:px-4 md:py-8"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="company-meeting-request-title"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          <button
+            type="button"
+            aria-label={copy.closeOverlayLabel}
+            className="absolute inset-0 bg-black/45 backdrop-blur-sm"
+            onClick={onClose}
+          />
+          <motion.div
+            initial={{ opacity: 0, y: 18, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 18, scale: 0.98 }}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            className="relative max-h-[calc(100dvh-24px)] w-full max-w-[520px] overflow-y-auto rounded-[20px] border border-white/50 bg-beige100 p-5 shadow-[0_30px_100px_rgba(31,18,7,0.28)] md:max-h-[calc(100dvh-64px)] md:rounded-[24px] md:p-8"
+          >
+            <button
+              type="button"
+              aria-label={copy.closeLabel}
+              onClick={onClose}
+              className="absolute right-5 top-5 flex h-9 w-9 items-center justify-center rounded-full bg-beige500/70 text-beige900 transition-colors hover:bg-beige500"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <div className="pr-10">
+              <h2
+                id="company-meeting-request-title"
+                className="font-hedvig text-[30px] leading-[0.98] tracking-[-0.07em] text-beige900 md:text-[34px]"
+              >
+                {copy.title}
+              </h2>
+              <p className="mt-2 text-[15px] leading-[1.45] tracking-[-0.03em] text-beige900/55 md:mt-3 md:text-[16px] md:leading-[1.5]">
+                {copy.description}
+              </p>
+            </div>
+            <form onSubmit={onSubmit} className="mt-5 space-y-3 md:mt-7 md:space-y-4">
+              <label className="block">
+                <span className="text-[13px] font-medium tracking-[-0.02em] text-beige900/70">
+                  {copy.nameLabel}
+                </span>
+                <input
+                  value={form.name}
+                  onChange={(event) => onChange("name", event.target.value)}
+                  className="mt-1.5 h-11 w-full rounded-[14px] border border-beige900/10 bg-white/70 px-4 text-[15px] tracking-[-0.02em] text-beige900 outline-none transition-colors placeholder:text-beige900/30 focus:border-beige900/30 md:mt-2 md:h-12"
+                  placeholder={copy.namePlaceholder}
+                  autoComplete="name"
+                  required
+                />
+              </label>
+              <label className="block">
+                <span className="text-[13px] font-medium tracking-[-0.02em] text-beige900/70">
+                  {copy.emailLabel}
+                </span>
+                <input
+                  value={form.email}
+                  onChange={(event) => onChange("email", event.target.value)}
+                  className="mt-1.5 h-11 w-full rounded-[14px] border border-beige900/10 bg-white/70 px-4 text-[15px] tracking-[-0.02em] text-beige900 outline-none transition-colors placeholder:text-beige900/30 focus:border-beige900/30 md:mt-2 md:h-12"
+                  placeholder={copy.emailPlaceholder}
+                  type="email"
+                  autoComplete="email"
+                  required
+                />
+              </label>
+              <label className="block">
+                <span className="text-[13px] font-medium tracking-[-0.02em] text-beige900/70">
+                  {copy.companyLabel}
+                </span>
+                <input
+                  value={form.organization}
+                  onChange={(event) =>
+                    onChange("organization", event.target.value)
+                  }
+                  className="mt-1.5 h-11 w-full rounded-[14px] border border-beige900/10 bg-white/70 px-4 text-[15px] tracking-[-0.02em] text-beige900 outline-none transition-colors placeholder:text-beige900/30 focus:border-beige900/30 md:mt-2 md:h-12"
+                  placeholder={copy.companyPlaceholder}
+                  autoComplete="organization"
+                  required
+                />
+              </label>
+              <label className="block">
+                <span className="text-[13px] font-medium tracking-[-0.02em] text-beige900/70">
+                  {copy.goalLabel}
+                </span>
+                <textarea
+                  value={form.purpose}
+                  onChange={(event) => onChange("purpose", event.target.value)}
+                  className="mt-1.5 min-h-24 w-full resize-none rounded-[14px] border border-beige900/10 bg-white/70 px-4 py-3 text-[15px] leading-[1.45] tracking-[-0.02em] text-beige900 outline-none transition-colors placeholder:text-beige900/30 focus:border-beige900/30 md:mt-2 md:min-h-28 md:leading-[1.5]"
+                  placeholder={copy.goalPlaceholder}
+                  required
+                />
+              </label>
+              <div className="flex items-center justify-end gap-2 pt-1 md:gap-3 md:pt-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={isSubmitting}
+                  className="h-12 rounded-[14px] bg-beige500/70 px-5 text-[15px] font-medium tracking-[-0.03em] text-beige900 transition-colors hover:bg-beige500 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {copy.cancel}
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="h-12 rounded-[14px] bg-beige900 px-6 text-[15px] font-medium tracking-[-0.03em] text-beige100 transition-colors hover:bg-beige900/90 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSubmitting ? copy.submitting : copy.submit}
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };
 
@@ -370,9 +692,49 @@ const ComparisonCard = ({
 );
 
 const Beige = () => {
+  const countryLang = useCountryLang();
+  const isMobile = useIsMobile();
   const [activeProcessIndex, setActiveProcessIndex] = useState(0);
   const [openFaqIndex, setOpenFaqIndex] = useState(0);
   const [showPreloader, setShowPreloader] = useState(true);
+  const [isMeetingRequestOpen, setIsMeetingRequestOpen] = useState(false);
+  const [isMeetingRequestSubmitting, setIsMeetingRequestSubmitting] =
+    useState(false);
+  const [meetingRequestForm, setMeetingRequestForm] =
+    useState<MeetingRequestFormState>(INITIAL_MEETING_REQUEST_FORM);
+  const [landingId, setLandingId] = useState("");
+
+  const addCompanyLandingLog = useCallback(
+    async (type: string, overrides?: { localId?: string }) => {
+      const storedLocalId =
+        typeof window !== "undefined"
+          ? (localStorage.getItem(COMPANY_LANDING_LOCAL_ID_STORAGE_KEY) ?? "")
+          : "";
+      const resolvedLocalId = overrides?.localId || landingId || storedLocalId;
+      if (!resolvedLocalId) return false;
+
+      try {
+        const { error } = await supabase.from("landing_logs").insert({
+          local_id: resolvedLocalId,
+          type,
+          abtest_type: COMPANY_LANDING_ABTEST_TYPE,
+          is_mobile: isMobile,
+          country_lang: countryLang,
+        });
+
+        if (error) {
+          console.error("company landing log insert error:", error);
+          return false;
+        }
+
+        return true;
+      } catch (error) {
+        console.error("company landing log insert error:", error);
+        return false;
+      }
+    },
+    [countryLang, isMobile, landingId]
+  );
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -382,11 +744,188 @@ const Beige = () => {
     return () => window.clearTimeout(timeout);
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const savedId = localStorage.getItem(COMPANY_LANDING_LOCAL_ID_STORAGE_KEY);
+    const resolvedLandingId = savedId || createCompanyLandingId();
+
+    if (!savedId) {
+      localStorage.setItem(
+        COMPANY_LANDING_LOCAL_ID_STORAGE_KEY,
+        resolvedLandingId
+      );
+      localStorage.setItem(
+        COMPANY_LANDING_LAST_VISIT_AT_KEY,
+        Date.now().toString()
+      );
+      void addCompanyLandingLog(COMPANY_LOG_ENTRY_TYPE, {
+        localId: resolvedLandingId,
+      });
+    }
+
+    queueMicrotask(() => setLandingId(resolvedLandingId));
+  }, [addCompanyLandingLog]);
+
+  useEffect(() => {
+    if (!landingId || typeof window === "undefined") return;
+
+    const now = Date.now();
+    const lastVisitRaw = localStorage.getItem(
+      COMPANY_LANDING_LAST_VISIT_AT_KEY
+    );
+    const lastVisitAt = lastVisitRaw ? Number(lastVisitRaw) : null;
+
+    if (
+      lastVisitAt &&
+      Number.isFinite(lastVisitAt) &&
+      now - lastVisitAt >= COMPANY_LANDING_SESSION_GAP_MS
+    ) {
+      void addCompanyLandingLog(COMPANY_LOG_SESSION_TYPE);
+    }
+
+    localStorage.setItem(COMPANY_LANDING_LAST_VISIT_AT_KEY, now.toString());
+  }, [addCompanyLandingLog, landingId]);
+
   const activeProcess = useMemo(
     () => processSteps[activeProcessIndex],
     [activeProcessIndex]
   );
   const { m, locale } = useMessages();
+  const meetingCopy = meetingRequestCopy[locale];
+
+  const openMeetingRequestModal = useCallback(() => {
+    setIsMeetingRequestOpen(true);
+  }, []);
+
+  const handleCompanySearchClick = useCallback<
+    React.MouseEventHandler<HTMLElement>
+  >(
+    (event) => {
+      if (event.defaultPrevented) return;
+
+      const logSearchClick = addCompanyLandingLog(COMPANY_LOG_SEARCH_CLICK_TYPE);
+      const isModifiedClick =
+        event.altKey || event.ctrlKey || event.metaKey || event.shiftKey;
+
+      if (event.button !== 0 || isModifiedClick) {
+        void logSearchClick;
+        return;
+      }
+
+      event.preventDefault();
+      void (async () => {
+        await Promise.race([
+          logSearchClick,
+          new Promise((resolve) => window.setTimeout(resolve, 450)),
+        ]);
+        void router.push("/search");
+      })();
+    },
+    [addCompanyLandingLog]
+  );
+
+  const handleCompanyMainClick = useCallback(() => {
+    void addCompanyLandingLog(COMPANY_LOG_MAIN_CLICK_TYPE);
+    openMeetingRequestModal();
+  }, [addCompanyLandingLog, openMeetingRequestModal]);
+
+  const closeMeetingRequestModal = () => {
+    if (isMeetingRequestSubmitting) return;
+    setIsMeetingRequestOpen(false);
+  };
+
+  const updateMeetingRequestForm = (
+    field: keyof MeetingRequestFormState,
+    value: string
+  ) => {
+    setMeetingRequestForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  };
+
+  const handleSubmitMeetingRequest = async (
+    event: React.FormEvent<HTMLFormElement>
+  ) => {
+    event.preventDefault();
+
+    if (isMeetingRequestSubmitting) return;
+
+    const payload = {
+      name: meetingRequestForm.name.trim(),
+      email: meetingRequestForm.email.trim(),
+      organization: meetingRequestForm.organization.trim(),
+      purpose: meetingRequestForm.purpose.trim(),
+      pagePath:
+        typeof window !== "undefined" ? window.location.pathname : "/company",
+    };
+
+    if (!payload.name) {
+      showToast({ message: meetingCopy.errors.name, variant: "white" });
+      return;
+    }
+
+    if (!payload.email) {
+      showToast({ message: meetingCopy.errors.email, variant: "white" });
+      return;
+    }
+
+    if (!isValidMeetingEmail(payload.email)) {
+      showToast({
+        message: meetingCopy.errors.emailInvalid,
+        variant: "white",
+      });
+      return;
+    }
+
+    if (!payload.organization) {
+      showToast({ message: meetingCopy.errors.company, variant: "white" });
+      return;
+    }
+
+    if (!payload.purpose) {
+      showToast({ message: meetingCopy.errors.goal, variant: "white" });
+      return;
+    }
+
+    setIsMeetingRequestSubmitting(true);
+
+    try {
+      const response = await fetch("/api/feedback/company-demo-request", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok || data?.error) {
+        throw new Error(data?.error ?? meetingCopy.errors.failed);
+      }
+
+      setIsMeetingRequestOpen(false);
+      setMeetingRequestForm(INITIAL_MEETING_REQUEST_FORM);
+      showToast({
+        message: meetingCopy.success,
+        variant: "white",
+        duration: 5000,
+      });
+    } catch (error) {
+      console.error("company meeting request submit failed:", error);
+      showToast({
+        message:
+          error instanceof Error
+            ? error.message
+            : meetingCopy.errors.failed,
+        variant: "error",
+      });
+    } finally {
+      setIsMeetingRequestSubmitting(false);
+    }
+  };
 
   const seoMeta = useMemo(() => {
     if (locale === "ko") {
@@ -479,6 +1018,15 @@ const Beige = () => {
           }}
         />
       </Head>
+      <CompanyMeetingRequestModal
+        open={isMeetingRequestOpen}
+        form={meetingRequestForm}
+        isSubmitting={isMeetingRequestSubmitting}
+        locale={locale}
+        onClose={closeMeetingRequestModal}
+        onChange={updateMeetingRequestForm}
+        onSubmit={handleSubmitMeetingRequest}
+      />
       <div className="min-h-screen overflow-x-clip bg-beige200 text-beige900 antialiased">
         <div className="w-full">
           <AnimatePresence>
@@ -511,14 +1059,20 @@ const Beige = () => {
               </a>
               <div className="justify-self-end">
                 <div className="flex items-center gap-3 max-[809px]:flex-wrap max-[809px]:justify-center">
+                  <div className="hidden md:block">
+                    <CalendlyButton
+                      label="Use Search"
+                      variant="secondary"
+                      size="sm"
+                      href="/search"
+                      onClick={handleCompanySearchClick}
+                    />
+                  </div>
                   <CalendlyButton
-                    label="Use Search"
-                    variant="secondary"
+                    label="Schedule Demo"
                     size="sm"
-                    href="/search"
-                    className="hidden md:block"
+                    onClick={handleCompanyMainClick}
                   />
-                  <CalendlyButton label="Schedule Demo" size="sm" />
                 </div>
               </div>
             </div>
@@ -534,7 +1088,7 @@ const Beige = () => {
               </Reveal>
 
               <Reveal once delay={0.06} className="mt-10 max-w-[1040px]">
-                <h1 className="font-hedvig text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.93] tracking-[-0.08em] text-beige900">
+                <h1 className="font-hedvig text-3xl sm:text-4xl md:text-5xl lg:text-6xl leading-[0.93] tracking-[-0.08em] text-beige900">
                   <span className="block">
                     <StaggerText text="Hire the top 1% of AI/ML talent" />
                   </span>
@@ -561,6 +1115,7 @@ const Beige = () => {
               >
                 <CalendlyButton
                   label="Get Started Now"
+                  onClick={handleCompanyMainClick}
                   className="h-[58px] px-8 text-lg font-medium max-[809px]:h-[58px] max-[809px]:px-6 max-[809px]:text-[15px]"
                 />
                 <CalendlyButton
@@ -568,6 +1123,7 @@ const Beige = () => {
                   variant="secondary"
                   size="md"
                   href="/search"
+                  onClick={handleCompanySearchClick}
                   className="font-medium"
                 />
               </Reveal>
@@ -627,6 +1183,7 @@ const Beige = () => {
                 <div className="mt-10">
                   <CalendlyButton
                     label="Get Started"
+                    onClick={handleCompanyMainClick}
                     className="text-lg font-medium"
                   />
                 </div>
@@ -923,7 +1480,7 @@ const Beige = () => {
                   mapping research footprints and code contributions directly.
                 </p>
                 <div className="mt-10">
-                  <RadarButton />
+                  <RadarButton onClick={handleCompanySearchClick} />
                 </div>
               </Reveal>
 
@@ -1141,6 +1698,7 @@ const Beige = () => {
                 <div className="mt-10">
                   <CalendlyButton
                     label="Get Started Now"
+                    onClick={handleCompanyMainClick}
                     className="text-lg font-medium"
                   />
                 </div>

@@ -20,7 +20,10 @@ import type {
 } from "@/lib/ops/matching";
 
 export const FIT_LABEL_OPTIONS = [
-  { label: "적합", value: "fit" },
+  {
+    label: "적합",
+    value: "fit",
+  },
   { label: "보류", value: "hold" },
   { label: "애매", value: "ambiguous" },
   { label: "불만족", value: "dissatisfied" },
@@ -266,14 +269,63 @@ export function MatchingFitLabelChips({
   );
 }
 
-function formatJsonValue(value: unknown) {
+function getRecordSummaryText(value: unknown): string | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  if (!Object.prototype.hasOwnProperty.call(record, "summary")) {
+    return undefined;
+  }
+
+  return typeof record.summary === "string" ? record.summary.trim() : "";
+}
+
+function formatCriteriaText(value: unknown) {
   if (value === null || value === undefined) return "";
-  if (typeof value === "string") return value;
+
+  if (typeof value === "string") {
+    const text = value.trim();
+    if (!text) return "";
+    if (text.startsWith("{") || text.startsWith("[")) {
+      try {
+        const parsed = JSON.parse(text) as unknown;
+        const summary = getRecordSummaryText(parsed);
+        if (summary !== undefined) return summary;
+      } catch {
+        return text;
+      }
+    }
+    return text;
+  }
+
+  const summary = getRecordSummaryText(value);
+  if (summary !== undefined) return summary;
+
   try {
     return JSON.stringify(value, null, 2);
   } catch {
     return String(value);
   }
+}
+
+export function formatFitReasonText(reason: string | null | undefined) {
+  const text = String(reason ?? "").trim();
+  if (!text) return "";
+
+  if (text.startsWith("{") || text.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(text) as unknown;
+      const summary = getRecordSummaryText(parsed);
+      if (summary !== undefined) return summary;
+      if (typeof parsed === "object" && parsed !== null) return "";
+    } catch {
+      return text;
+    }
+  }
+
+  return text;
 }
 
 export function FitReasonCell({
@@ -285,27 +337,27 @@ export function FitReasonCell({
   expanded?: boolean;
   reason: string | null;
 }) {
-  const criteriaText = formatJsonValue(criteria);
+  const criteriaText = formatCriteriaText(criteria);
+  const reasonText = formatFitReasonText(reason);
   return (
     <div className="space-y-2">
       <div
         className={cx(
-          "whitespace-pre-wrap break-words text-[13px] leading-5 text-neutral-900",
-          expanded ? "" : "line-clamp-4"
+          "whitespace-pre-wrap break-words text-[13px] font-normal leading-5 text-neutral-primary"
         )}
       >
-        {reason || "-"}
+        {reasonText || "-"}
       </div>
-      {criteriaText ? (
-        <pre
+      {criteriaText && (
+        <div
           className={cx(
-            "overflow-auto whitespace-pre-wrap break-words rounded bg-bg-weak p-2 font-sans text-[11px] leading-5 text-neutral-soft",
+            "overflow-auto whitespace-pre-wrap break-words rounded bg-bg-weak p-2 text-[12px] leading-5 text-neutral-primary",
             expanded ? "max-h-64" : "max-h-32"
           )}
         >
           {criteriaText}
-        </pre>
-      ) : null}
+        </div>
+      )}
     </div>
   );
 }
@@ -330,14 +382,16 @@ function HumanLabelDropdown<TItem extends { humanLabel: string | null }>({
           onKeyDown={(event) => event.stopPropagation()}
           className={cx(
             opsTheme.buttonSecondary,
-            "mt-2 h-7 px-2 text-[11px] disabled:cursor-wait"
+            "mt-2 h-[40px] px-[13px] text-[14px] disabled:cursor-wait"
           )}
         >
-          {disabled ? <LoaderCircle className="h-3 w-3 animate-spin" /> : null}
+          {disabled ? (
+            <LoaderCircle className="h-[16px] w-[16px] animate-spin" />
+          ) : null}
           Human label {label}
         </BareButton>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-44">
+      <DropdownMenuContent align="start" className="w-56">
         {FIT_LABEL_OPTIONS.map((option) => (
           <DropdownMenuItem
             key={option.value}
@@ -375,16 +429,12 @@ export function MatchingFitLabelCell<TItem extends MatchingFitLabelCellValue>({
         <FitLabelBadge label={item.effectiveLabel} prefix="현재" />
         <FitLabelBadge label={item.label} prefix="LLM" />
       </div>
-      <div className="rounded-md border border-neutral-1000-a05 bg-bg-default/70 px-2 py-2">
+      <div className="mt-1">
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] font-semibold uppercase text-neutral-soft">
-            Human
+          <span className="text-[11px] font-normal uppercase text-neutral-soft">
+            Human 평가
           </span>
-          {item.humanLabel ? (
-            <FitLabelBadge label={item.humanLabel} />
-          ) : (
-            <span className="text-[11px] text-neutral-soft">미지정</span>
-          )}
+          {item.humanLabel && <FitLabelBadge label={item.humanLabel} />}
         </div>
         {item.humanReviewedBy ? (
           <div className="mt-1 truncate text-[11px] text-neutral-soft">

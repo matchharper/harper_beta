@@ -1,6 +1,8 @@
 export type AdminCareerFunnelStepKey =
   | "landing_entry"
+  | "login_click"
   | "login"
+  | "signup"
   | "onboarding_basic"
   | "onboarding_role"
   | "onboarding_profile"
@@ -56,6 +58,9 @@ export type AdminCareerLandingVariantBreakdown = {
   loginCount: number;
   loginRateFromClickStart: number | null;
   loginRateFromEntry: number | null;
+  signupCount: number;
+  signupRateFromEntry: number | null;
+  signupRateFromLogin: number | null;
 };
 
 export type AdminCareerDeviceType = "desktop" | "mobile" | "unknown";

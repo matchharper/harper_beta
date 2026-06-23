@@ -1,3 +1,8 @@
+import {
+  normalizeLocaleOrDefault,
+  type ResolvedLocale,
+} from "@/i18n/localeResolution";
+
 export type TalentNetworkProfileInputType =
   | "linkedin"
   | "github"
@@ -15,6 +20,47 @@ export const TALENT_NETWORK_PROFILE_INPUT_OPTIONS: Array<{
   { id: "scholar", label: "Google Scholar" },
   { id: "website", label: "개인 사이트" },
 ];
+
+const TALENT_NETWORK_PROFILE_INPUT_LABELS: Record<
+  TalentNetworkProfileInputType,
+  Record<ResolvedLocale, string>
+> = {
+  cv: {
+    ko: "CV/이력서",
+    en: "CV / Resume",
+  },
+  linkedin: {
+    ko: "LinkedIn",
+    en: "LinkedIn",
+  },
+  github: {
+    ko: "GitHub / Hugging Face",
+    en: "GitHub / Hugging Face",
+  },
+  scholar: {
+    ko: "Google Scholar",
+    en: "Google Scholar",
+  },
+  website: {
+    ko: "개인 사이트",
+    en: "Personal website",
+  },
+};
+
+export function getTalentNetworkProfileInputLabel(
+  id: TalentNetworkProfileInputType,
+  locale?: string | null
+) {
+  const resolvedLocale = normalizeLocaleOrDefault(locale, "ko");
+  return TALENT_NETWORK_PROFILE_INPUT_LABELS[id][resolvedLocale];
+}
+
+export function getTalentNetworkProfileInputOptions(locale?: string | null) {
+  return TALENT_NETWORK_PROFILE_INPUT_OPTIONS.map((option) => ({
+    ...option,
+    label: getTalentNetworkProfileInputLabel(option.id, locale),
+  }));
+}
 
 export const TALENT_NETWORK_ENGAGEMENT_OPTIONS = [
   {

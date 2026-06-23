@@ -23,6 +23,7 @@ import {
   TalentMessageRow,
   fetchTalentInsights,
   fetchTalentSetting,
+  fetchTalentUserProfile,
   getTalentSupabaseAdmin,
 } from "@/lib/talentOnboarding/server";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
@@ -118,8 +119,8 @@ export async function POST(req: NextRequest) {
       userId: user.id,
     });
     const responseLocale =
-      body.locale ??
       talentSetting?.preferred_locale ??
+      body.locale ??
       req.cookies.get("NEXT_LOCALE")?.value;
 
     if (action === "prompt") {
@@ -190,10 +191,16 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    const currentInsights = await fetchTalentInsights({
-      admin,
-      userId: user.id,
-    });
+    const [currentInsights, profile] = await Promise.all([
+      fetchTalentInsights({
+        admin,
+        userId: user.id,
+      }),
+      fetchTalentUserProfile({
+        admin,
+        userId: user.id,
+      }),
+    ]);
     const currentInsightContent = (currentInsights?.content ?? null) as Record<
       string,
       string
@@ -319,11 +326,13 @@ export async function POST(req: NextRequest) {
         buildCareerInsightExtractionPrompt({
           currentChecklistCoverage: promptArgs.currentChecklistCoverage,
           currentInsightContent: promptArgs.currentInsightContent,
+          onboardingChecklistContext: promptArgs.onboardingChecklistContext,
           preferredLocale: responseLocale,
         }),
       conversationId,
       currentInsightContent,
       logPrefix: "TalentOnboardingDefer",
+      onboardingChecklistContext: profile,
       sourceChannel: "text_chat",
       userId: user.id,
     });

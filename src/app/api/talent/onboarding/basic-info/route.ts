@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   ensureTalentUserRecord,
+  fetchTalentSetting,
   getTalentSupabaseAdmin,
 } from "@/lib/talentOnboarding/server";
 import { careerT } from "@/lib/career/translatedCareerMessage";
 
 type Body = {
   email?: string;
+  locale?: string | null;
   name?: string;
 };
 
@@ -22,7 +24,12 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json().catch(() => ({}))) as Body;
-    const responseLocale = req.cookies.get("NEXT_LOCALE")?.value;
+    const admin = getTalentSupabaseAdmin();
+    const talentSetting = await fetchTalentSetting({ admin, userId: user.id });
+    const responseLocale =
+      talentSetting?.preferred_locale ??
+      body.locale ??
+      req.cookies.get("NEXT_LOCALE")?.value;
     const name = String(body.name ?? "")
       .replace(/\s+/g, " ")
       .trim()
@@ -57,7 +64,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const admin = getTalentSupabaseAdmin();
     await ensureTalentUserRecord({ admin, user });
 
     const { data, error } = await admin

@@ -2448,27 +2448,6 @@ export type Database = {
           },
         ]
       }
-      harper_system: {
-        Row: {
-          content: Json | null
-          created_at: string
-          id: number
-          key: string | null
-        }
-        Insert: {
-          content?: Json | null
-          created_at?: string
-          id?: number
-          key?: string | null
-        }
-        Update: {
-          content?: Json | null
-          created_at?: string
-          id?: number
-          key?: string | null
-        }
-        Relationships: []
-      }
       harper_waitlist: {
         Row: {
           abtest: string | null
@@ -4201,51 +4180,6 @@ export type Database = {
         }
         Relationships: []
       }
-      service_help_chunks: {
-        Row: {
-          chunk_index: number
-          chunk_text: string
-          content_hash: string
-          created_at: string
-          doc_path: string
-          embedding: string
-          embedding_model: string
-          id: string
-          metadata: Json
-          source_doc_title: string | null
-          ui_target: string | null
-          updated_at: string
-        }
-        Insert: {
-          chunk_index: number
-          chunk_text: string
-          content_hash: string
-          created_at?: string
-          doc_path: string
-          embedding: string
-          embedding_model?: string
-          id?: string
-          metadata?: Json
-          source_doc_title?: string | null
-          ui_target?: string | null
-          updated_at?: string
-        }
-        Update: {
-          chunk_index?: number
-          chunk_text?: string
-          content_hash?: string
-          created_at?: string
-          doc_path?: string
-          embedding?: string
-          embedding_model?: string
-          id?: string
-          metadata?: Json
-          source_doc_title?: string | null
-          ui_target?: string | null
-          updated_at?: string
-        }
-        Relationships: []
-      }
       settings: {
         Row: {
           created_at: string
@@ -4403,6 +4337,10 @@ export type Database = {
           id: string
           impact_level: string
           message_id: number | null
+          metadata: Json
+          occurred_at: string
+          related_entity_id: string | null
+          related_entity_type: string | null
           source: string
           summary: string
           talent_id: string
@@ -4415,6 +4353,10 @@ export type Database = {
           id?: string
           impact_level?: string
           message_id?: number | null
+          metadata?: Json
+          occurred_at?: string
+          related_entity_id?: string | null
+          related_entity_type?: string | null
           source?: string
           summary: string
           talent_id: string
@@ -4427,6 +4369,10 @@ export type Database = {
           id?: string
           impact_level?: string
           message_id?: number | null
+          metadata?: Json
+          occurred_at?: string
+          related_entity_id?: string | null
+          related_entity_type?: string | null
           source?: string
           summary?: string
           talent_id?: string
@@ -5443,7 +5389,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
-          opportunity_id: string | null
+          opportunity_id: string
           tag: string
           talent_id: string
           updated_at: string
@@ -5451,7 +5397,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
-          opportunity_id?: string | null
+          opportunity_id: string
           tag: string
           talent_id: string
           updated_at?: string
@@ -5459,7 +5405,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
-          opportunity_id?: string | null
+          opportunity_id?: string
           tag?: string
           talent_id?: string
           updated_at?: string
@@ -5688,6 +5634,7 @@ export type Database = {
         Row: {
           bio: string | null
           created_at: string
+          current_location: string | null
           email: string | null
           headline: string | null
           last_logined_at: string | null
@@ -5704,6 +5651,7 @@ export type Database = {
         Insert: {
           bio?: string | null
           created_at?: string
+          current_location?: string | null
           email?: string | null
           headline?: string | null
           last_logined_at?: string | null
@@ -5720,6 +5668,7 @@ export type Database = {
         Update: {
           bio?: string | null
           created_at?: string
+          current_location?: string | null
           email?: string | null
           headline?: string | null
           last_logined_at?: string | null
@@ -5882,10 +5831,6 @@ export type Database = {
       can_access_candidate_profile: {
         Args: { target_candid_id: string }
         Returns: boolean
-      }
-      candid_ids_scholar_and_pattern: {
-        Args: { pattern: string }
-        Returns: string[]
       }
       candid_with_github: {
         Args: never
@@ -6064,18 +6009,6 @@ export type Database = {
         }
         Returns: Json[]
       }
-      filter_candidates_by_pattern: {
-        Args: { candidate_ids: string[]; pattern: string }
-        Returns: string[]
-      }
-      find_candid_ids_by_link_pattern: {
-        Args: { p_pattern: string }
-        Returns: {
-          id: string
-        }[]
-      }
-      get_scholar_candidate_ids: { Args: never; Returns: string[] }
-      is_admin: { Args: never; Returns: boolean }
       list_translation_entry_groups: {
         Args: {
           p_after_key?: string
@@ -6108,16 +6041,6 @@ export type Database = {
           user_example_text: string
         }[]
       }
-      match_service_help_chunks: {
-        Args: { match_count?: number; query_embedding: string }
-        Returns: {
-          chunk_text: string
-          score: number
-          source_doc_title: string
-          ui_target: string
-        }[]
-      }
-      reset_org_db_seq: { Args: never; Returns: undefined }
       reveal_candidate_profile: {
         Args: { target_candid_id: string }
         Returns: {

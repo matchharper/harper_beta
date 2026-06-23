@@ -173,9 +173,6 @@ export type AdminUserAnalyticsProfile = {
 };
 
 export type AdminTab =
-  | "landingLogs"
-  | "networkAnalytics"
-  | "waitlistCompany"
   | "blogMetrics"
   | "bookmarkFolders"
   | "userAnalytics"

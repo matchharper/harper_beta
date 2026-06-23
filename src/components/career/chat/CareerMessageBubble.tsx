@@ -352,13 +352,13 @@ const CareerMessageBubble = ({
                   </div>
                   <div className="mt-1 max-w-[480px] text-[14px] md:text-[13px] leading-relaxed text-neutral-muted">
                     {t(
-                      "career.chat.career_message_bubble.1ac1x4s",
-                      "꼭 해야하는 대화는 아니고, 연결 시에 도움이될 정보를 몇가지 여쭤보기 위한 통화에요. 진행하지 않으셔도"
-                    )}{" "}
-                    {marker.companyName}
-                    {t(
-                      "career.chat.career_message_bubble.0vdatv0",
-                      "측과의 연결은 제가 계속 진행할게요."
+                      "career.chat.career_message_bubble.optional_call_notice",
+                      "꼭 해야하는 대화는 아니고, 연결 시에 도움이될 정보를 몇가지 여쭤보기 위한 통화에요. 진행하지 않으셔도 {companyName} 측과의 연결은 제가 계속 진행할게요.",
+                      {
+                        values: {
+                          companyName: marker.companyName,
+                        },
+                      }
                     )}
                   </div>
                   <div className="flex items-center gap-2 mt-2">

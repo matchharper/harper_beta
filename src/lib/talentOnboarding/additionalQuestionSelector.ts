@@ -13,12 +13,12 @@ import {
 } from "@/lib/talentOnboarding/server";
 import {
   TALENT_MESSAGE_TYPE_ONBOARDING_ADDITIONAL_QUESTION_SELECTION,
-  TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX,
 } from "./onboarding";
 import { runTalentAssistantCompletion, type TalentChatMessage } from "./llm";
 import { withIsMobile } from "@/lib/requestDevice";
+import { getOnboardingAdditionalQuestionMin } from "@/lib/talentOnboarding/insightChecklist";
 
-const TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN = 2;
+const DEFAULT_TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN = 2;
 
 type AdditionalQuestionSelection = {
   assistantMessage: string;
@@ -124,25 +124,28 @@ export async function selectAdditionalOnboardingQuestion(args: {
     admin,
     conversationId,
   });
-
-  if (askedCount >= TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX) {
-    return {
-      assistantInstruction:
-        "The additional onboarding question limit has already been reached. Do not ask another additional onboarding question. Move to the final priority confirmation or close onboarding only if the final confirmation has already been answered.",
-      assistantMessage: "",
-      gapType: "fallback",
-      ok: true,
-      rationale: `Additional onboarding question limit reached (${askedCount}/${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX}).`,
-      shouldAsk: false,
-    };
-  }
-
   const [profile, setting, insights, recentMessages] = await Promise.all([
     fetchTalentUserProfile({ admin, userId }),
     fetchTalentSetting({ admin, userId }),
     fetchTalentInsights({ admin, userId }),
     fetchRecentMessages({ admin, conversationId, limit: 18 }),
   ]);
+  const requiredAdditionalQuestionCount =
+    getOnboardingAdditionalQuestionMin(profile) ||
+    DEFAULT_TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN;
+
+  if (askedCount >= requiredAdditionalQuestionCount) {
+    return {
+      assistantInstruction:
+        "The additional onboarding question limit for this onboarding checklist variant has already been reached. Do not ask another additional onboarding question. Move to the final priority confirmation or close onboarding only if the final confirmation has already been answered.",
+      assistantMessage: "",
+      gapType: "fallback",
+      ok: true,
+      rationale: `Additional onboarding question limit reached (${askedCount}/${requiredAdditionalQuestionCount}).`,
+      shouldAsk: false,
+    };
+  }
+
   const structuredProfile = await fetchTalentStructuredProfile({
     admin,
     userId,
@@ -181,7 +184,7 @@ export async function selectAdditionalOnboardingQuestion(args: {
         "Do not repeat questions already asked in the recent conversation.",
         `Ask exactly one question in ${outputLanguage}.`,
         `This selector is for the Additional questions phase. It should be used after the main onboarding insights are reasonably covered, normally when at least 6 insights are already filled.`,
-        `At least ${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN} additional questions are required before final priority confirmation or closing.`,
+        `This onboarding checklist variant requires ${requiredAdditionalQuestionCount} additional question(s) before final priority confirmation or closing.`,
         "The Structured profile omits `Description` when an experience description is empty. If an experience has a role/company/date range/months but no Description and no Memo, treat that as a missing experience-description gap.",
         "",
         "Selection priority:",
@@ -216,8 +219,8 @@ export async function selectAdditionalOnboardingQuestion(args: {
         profileContext || "(none)",
         "",
         "## Additional question state",
-        `Already selected: ${askedCount}/${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX}`,
-        `Minimum required before final priority confirmation or closing: ${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN}`,
+        `Already selected: ${askedCount}/${requiredAdditionalQuestionCount}`,
+        `Minimum required before final priority confirmation or closing: ${requiredAdditionalQuestionCount}`,
         "",
         "## Current insights",
         `Filled insight count: ${filledInsightCount}`,
@@ -248,7 +251,7 @@ export async function selectAdditionalOnboardingQuestion(args: {
   );
   const selection =
     !normalizedSelection.shouldAsk &&
-    askedCount < TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN
+    askedCount < requiredAdditionalQuestionCount
       ? {
           ...normalizedSelection,
           rationale:
@@ -257,7 +260,7 @@ export async function selectAdditionalOnboardingQuestion(args: {
               preferredLocale,
               "career.onboarding.additional_question.min_required_adjustment",
               " 필수 additional 질문 {min}개를 아직 채우지 못해 fallback additional 질문으로 보정했습니다.",
-              { values: { min: TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN } }
+              { values: { min: requiredAdditionalQuestionCount } }
             ),
           shouldAsk: true,
         }

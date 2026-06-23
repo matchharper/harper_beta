@@ -8,6 +8,8 @@ import {
   fetchVisibleMessagesPage,
   fetchTalentStructuredProfile,
   fetchTalentUserProfile,
+  getCareerOnboardingChecklistCoverage,
+  getOnboardingChecklistCoverageStats,
   getTalentResumeSignedUrl,
   getTalentSupabaseAdmin,
   markTalentUserLoggedIn,
@@ -90,6 +92,26 @@ const parseOffsetParam = (value: string | null) => {
 
 const normalizeProfileSignalText = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
+
+const serializeOnboardingChecklistProgress = (
+  stats: ReturnType<typeof getOnboardingChecklistCoverageStats>
+) => {
+  const percent =
+    stats.totalCount > 0
+      ? Math.min(100, Math.round((stats.coveredCount / stats.totalCount) * 100))
+      : 0;
+
+  return {
+    additionalCoveredCount: stats.additionalCoveredCount,
+    completed: stats.isComplete,
+    coveredCount: stats.coveredCount,
+    finalConfirmationCovered: stats.finalConfirmationCovered,
+    minCoveredCount: stats.minCoveredCount,
+    percent,
+    requiredQuestionsCovered: stats.requiredQuestionsCovered,
+    totalCount: stats.totalCount,
+  };
+};
 
 const hasProfileResumeLink = (value: unknown) =>
   Array.isArray(value) &&
@@ -193,6 +215,7 @@ async function generateSessionStartGreeting(args: {
   currentAccessAt: string;
   idleMs: number;
   isMobile?: boolean | null;
+  preferredLocale?: string | null;
   previousChatAt: string | null;
   userId: string;
 }) {
@@ -213,6 +236,7 @@ async function generateSessionStartGreeting(args: {
     proactiveContext: buildCareerSessionStartTurnInstruction({
       currentAccessAt,
       idleMs,
+      preferredLocale: args.preferredLocale,
       previousChatAt,
     }),
     userId,
@@ -232,6 +256,19 @@ export async function GET(req: NextRequest) {
     const isMobile = isMobileRequest(req);
     await ensureTalentUserRecord({ admin, user });
     await markTalentUserLoggedIn({ admin, userId: user.id });
+    const initialTalentSetting = await withSessionFallback({
+      fallback: null,
+      label: "initial talent setting",
+      promise: fetchTalentSetting({
+        admin,
+        userId: user.id,
+      }),
+      userId: user.id,
+    });
+    const firstVisitLocale =
+      initialTalentSetting?.preferred_locale ??
+      req.nextUrl.searchParams.get("locale") ??
+      req.cookies.get("NEXT_LOCALE")?.value;
 
     const { data: existing, error: existingError } = await admin
       .from("talent_conversations")
@@ -282,7 +319,7 @@ export async function GET(req: NextRequest) {
               conversation_id: conversation.id,
               user_id: user.id,
               role: "assistant",
-              content: getTalentFirstVisitText(),
+              content: getTalentFirstVisitText(firstVisitLocale),
               message_type: "system",
             },
             isMobile
@@ -368,7 +405,7 @@ export async function GET(req: NextRequest) {
 
     if (allowReengagement && conversation.stage !== "profile") {
       try {
-        const [latestChatResult, latestReengagementSkipResult] =
+        const [latestChatResult, latestReengagementSkipResult, talentSetting] =
           await Promise.all([
             admin
               .from("talent_messages")
@@ -388,6 +425,15 @@ export async function GET(req: NextRequest) {
               .order("id", { ascending: false })
               .limit(1)
               .maybeSingle(),
+            withSessionFallback({
+              fallback: null,
+              label: "talent setting",
+              promise: fetchTalentSetting({
+                admin,
+                userId: user.id,
+              }),
+              userId: user.id,
+            }),
           ]);
 
         const { data: latestChatMessage, error: latestChatError } =
@@ -430,6 +476,7 @@ export async function GET(req: NextRequest) {
             currentAccessAt: now,
             idleMs,
             isMobile,
+            preferredLocale: talentSetting?.preferred_locale ?? null,
             previousChatAt: latestChatMessage?.created_at ?? null,
             userId: user.id,
           });
@@ -601,6 +648,26 @@ export async function GET(req: NextRequest) {
     const normalizedInsights = normalizeTalentInsightContent(
       talentInsights?.content
     );
+    const onboardingChecklistProgress = !Boolean(
+      talentSetting?.is_onboarding_done
+    )
+      ? await withSessionFallback({
+          fallback: null,
+          label: "onboarding checklist progress",
+          promise: (async () => {
+            const coverage = await getCareerOnboardingChecklistCoverage({
+              admin,
+              conversationId: conversation.id,
+              currentInsightContent: normalizedInsights,
+              userId: user.id,
+            });
+            return serializeOnboardingChecklistProgress(
+              getOnboardingChecklistCoverageStats(coverage, profile)
+            );
+          })(),
+          userId: user.id,
+        })
+      : null;
     const historyOpportunities = historyOpportunitiesPage.items;
     const talentSettingsUpdatedAt = talentSetting?.updated_at ?? null;
     const talentPreferencesUpdatedAt = talentSetting?.updated_at ?? null;
@@ -749,6 +816,7 @@ export async function GET(req: NextRequest) {
         ),
       },
       talentInsights: normalizedInsights,
+      onboardingChecklistProgress,
       recentOpportunities,
       profileSettingsMeta: {
         talentPreferencesUpdatedAt,

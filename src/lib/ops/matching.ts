@@ -14,6 +14,7 @@ type TalentUserRow = Pick<
   | "created_at"
   | "email"
   | "headline"
+  | "last_logined_at"
   | "name"
   | "profile_picture"
   | "resume_file_name"
@@ -64,6 +65,7 @@ type TalentOpportunityDeliveryRow = Pick<
   Database["public"]["Tables"]["talent_opportunity_delivery"]["Row"],
   | "channel"
   | "created_at"
+  | "discovery_run_id"
   | "id"
   | "payload"
   | "sent_at"
@@ -97,10 +99,16 @@ type TalentRecommendationRow = Pick<
   | "saved_stage"
   | "talent_id"
   | "updated_at"
+  | "viewed_at"
 >;
 type TalentRecommendationForFitRow = Pick<
   Database["public"]["Tables"]["talent_opportunity_recommendation"]["Row"],
-  "created_at" | "id" | "recommended_at" | "role_id" | "talent_id"
+  | "created_at"
+  | "discovery_run_id"
+  | "id"
+  | "recommended_at"
+  | "role_id"
+  | "talent_id"
 >;
 type TalentRecommendationHistoryRow = Pick<
   Database["public"]["Tables"]["talent_opportunity_recommendation"]["Row"],
@@ -192,7 +200,7 @@ const MATCHING_NOT_INTERESTED_TAG = "관심없음";
 const TALENT_POOL_TAILORED_TAG = "적합";
 
 const TALENT_LIST_SELECT =
-  "user_id, name, email, profile_picture, headline, created_at, resume_file_name, resume_storage_path, resume_links";
+  "user_id, name, email, profile_picture, headline, created_at, last_logined_at, resume_file_name, resume_storage_path, resume_links";
 
 export type OpsMatchingCompanyOption = {
   activeRoleCount: number;
@@ -206,6 +214,7 @@ export type OpsMatchingCompanyOption = {
 export type OpsMatchingRoleOption = {
   companyName: string;
   companyWorkspaceId: string;
+  description: string | null;
   descriptionSummary: string | null;
   locationText: string | null;
   roleId: string;
@@ -351,6 +360,7 @@ export type OpsMatchingTalentItem = {
   extras: OpsMatchingProfileExtra[];
   latestCompany: OpsMatchingProfileLabel | null;
   latestSchool: OpsMatchingProfileLabel | null;
+  lastLoginedAt: string | null;
   memoPreview: string | null;
   name: string | null;
   profilePicture: string | null;
@@ -386,6 +396,7 @@ export type OpsMatchingReviewStageId =
   | "rejected";
 
 export type OpsMatchingRecommendationSummary = {
+  companyName: string | null;
   createdAt: string;
   deliveries: OpsMatchingRecommendationDelivery[];
   discoveryRunId: string | null;
@@ -397,9 +408,13 @@ export type OpsMatchingRecommendationSummary = {
   recommendationId: string;
   recommendedAt: string;
   roleId: string;
+  roleName: string | null;
   savedStage: string | null;
+  sourceType: string | null;
   talentId: string;
   updatedAt: string;
+  viewedAt: string | null;
+  workspaceIsInternal: boolean | null;
 };
 
 export type OpsMatchingRecommendationDelivery = {
@@ -429,6 +444,7 @@ export type OpsMatchingReviewItem = {
   stageTag: string | null;
   talent: OpsMatchingTalentItem;
   updatedAt: string;
+  viewedAt: string | null;
 };
 
 export type OpsMatchingReviewBoardResponse = {
@@ -454,6 +470,7 @@ export type OpsMatchingHumanLabelFilter =
 
 export type OpsMatchingFitRecommendation = {
   createdAt: string;
+  isManualInternalRecommendation: boolean;
   recommendationId: string;
   recommendedAt: string;
 };
@@ -509,6 +526,7 @@ export type OpsMatchingProgressItem = {
 export type OpsMatchingProgressResponse = {
   items: OpsMatchingProgressItem[];
   recommendation: OpsMatchingRecommendationSummary | null;
+  recommendations: OpsMatchingRecommendationSummary[];
   roleId: string | null;
   talentId: string;
 };
@@ -537,6 +555,8 @@ type DateRange = {
 type CompanyRoleName = {
   companyName: string | null;
   roleName: string | null;
+  sourceType: string | null;
+  workspaceIsInternal: boolean | null;
 };
 
 type CompanyRoleContext = CompanyRoleName & {
@@ -545,6 +565,13 @@ type CompanyRoleContext = CompanyRoleName & {
   status: string | null;
   updatedAt: string | null;
 };
+
+function isInternalCompanyRole(role: CompanyRoleName | null | undefined) {
+  return (
+    normalizeText(role?.sourceType).toLowerCase() === "internal" ||
+    role?.workspaceIsInternal === true
+  );
+}
 
 function fromOpsMatchingTable<
   TTableName extends
@@ -1684,10 +1711,12 @@ export async function fetchOpsMatchingTalentHistory(args: {
     const isManualInternal =
       discoveryRunId !== null && manualRunIds.has(discoveryRunId);
     const role = roleMap.get(row.role_id);
+    const isInternalRole = isInternalCompanyRole(role);
+    const isInternalRecommendation = isInternalRole || isManualInternal;
 
     if (
       wantsExternalPositive &&
-      !isManualInternal &&
+      !isInternalRecommendation &&
       isPositiveRecommendationRow(row) &&
       item.externalPositiveOpportunities.length <
         MAX_MATCHING_TALENT_HISTORY_ITEMS
@@ -1699,7 +1728,7 @@ export async function fetchOpsMatchingTalentHistory(args: {
 
     if (
       wantsInternalRecommendations &&
-      isManualInternal &&
+      isInternalRecommendation &&
       item.internalRecommendations.length < MAX_MATCHING_TALENT_HISTORY_ITEMS
     ) {
       item.internalRecommendations.push(
@@ -2001,6 +2030,7 @@ async function buildOpsMatchingTalentItems(args: {
       isOnboardingDone: onboardingDoneMap.get(row.user_id) ?? false,
       latestCompany: recentCompanies[0] ?? null,
       latestSchool: recentSchools[0] ?? null,
+      lastLoginedAt: row.last_logined_at,
       memoPreview: memoPreviewMap.get(row.user_id) ?? null,
       name: row.name,
       profilePicture: row.profile_picture,
@@ -2126,7 +2156,7 @@ export async function fetchOpsMatchingRoles(args: {
       admin
         .from("company_roles")
         .select(
-          "role_id, company_workspace_id, name, description_summary, location_text, source_type, status, updated_at"
+          "role_id, company_workspace_id, name, description, description_summary, location_text, source_type, status, updated_at"
         )
         .eq("company_workspace_id", companyWorkspaceId)
         .eq("source_type", "internal")
@@ -2146,6 +2176,7 @@ export async function fetchOpsMatchingRoles(args: {
   return (data ?? []).map((role) => ({
     companyName,
     companyWorkspaceId: role.company_workspace_id,
+    description: role.description,
     descriptionSummary: role.description_summary,
     locationText: role.location_text,
     roleId: role.role_id,
@@ -2474,6 +2505,7 @@ function buildFallbackOpsMatchingTalentItem(talentId: string) {
     isOnboardingDone: false,
     latestCompany: null,
     latestSchool: null,
+    lastLoginedAt: null,
     memoPreview: null,
     name: null,
     profilePicture: null,
@@ -2515,11 +2547,14 @@ async function fetchFitRecommendationMap(args: {
     return recommendationMap;
   }
 
+  const recommendationRows: TalentRecommendationForFitRow[] = [];
   for (const talentChunk of chunkValues(talentIds)) {
     for (const roleChunk of chunkValues(roleIds)) {
       const { data, error } = await args.admin
         .from("talent_opportunity_recommendation")
-        .select("id, talent_id, role_id, recommended_at, created_at")
+        .select(
+          "id, talent_id, role_id, discovery_run_id, recommended_at, created_at"
+        )
         .in("talent_id", talentChunk)
         .in("role_id", roleChunk)
         .order("recommended_at", {
@@ -2535,21 +2570,33 @@ async function fetchFitRecommendationMap(args: {
         );
       }
 
-      for (const row of (data ?? []) as TalentRecommendationForFitRow[]) {
-        const pairKey = getTalentRolePairKey({
-          roleId: row.role_id,
-          talentId: row.talent_id,
-        });
-        if (!pairKeys.has(pairKey) || recommendationMap.has(pairKey)) {
-          continue;
-        }
-        recommendationMap.set(pairKey, {
-          createdAt: row.created_at,
-          recommendationId: row.id,
-          recommendedAt: row.recommended_at ?? row.created_at,
-        });
-      }
+      recommendationRows.push(
+        ...((data ?? []) as TalentRecommendationForFitRow[])
+      );
     }
+  }
+
+  const manualRunIds = await fetchManualInternalRecommendationRunIds({
+    admin: args.admin,
+    runIds: recommendationRows.map((row) => row.discovery_run_id ?? ""),
+  });
+
+  for (const row of recommendationRows) {
+    const pairKey = getTalentRolePairKey({
+      roleId: row.role_id,
+      talentId: row.talent_id,
+    });
+    if (!pairKeys.has(pairKey) || recommendationMap.has(pairKey)) {
+      continue;
+    }
+    const discoveryRunId = row.discovery_run_id ?? null;
+    recommendationMap.set(pairKey, {
+      createdAt: row.created_at,
+      isManualInternalRecommendation:
+        discoveryRunId !== null && manualRunIds.has(discoveryRunId),
+      recommendationId: row.id,
+      recommendedAt: row.recommended_at ?? row.created_at,
+    });
   }
 
   return recommendationMap;
@@ -3020,7 +3067,7 @@ export async function fetchOpsMatchingReviewBoard(args: {
   let query = admin
     .from("talent_opportunity_recommendation")
     .select(
-      "id, talent_id, role_id, discovery_run_id, feedback, feedback_at, feedback_reason, processed_stage, saved_stage, recommended_at, created_at, updated_at"
+      "id, talent_id, role_id, discovery_run_id, feedback, feedback_at, feedback_reason, processed_stage, saved_stage, viewed_at, recommended_at, created_at, updated_at"
     )
     .eq("role_id", roleId)
     .order("recommended_at", { ascending: false, nullsFirst: false })
@@ -3111,6 +3158,7 @@ export async function fetchOpsMatchingReviewBoard(args: {
         stageTag: stage.stageTag,
         talent,
         updatedAt: row.updated_at,
+        viewedAt: row.viewed_at,
       };
     })
     .filter((item): item is OpsMatchingReviewItem => item !== null);
@@ -3131,6 +3179,7 @@ export async function addOpsMatchingTalentTag(args: {
   const talentId = normalizeText(args.talentId);
   const tag = normalizeTag(args.tag);
   if (!talentId) throw new Error("talentId is required");
+  if (!roleId) throw new Error("roleId is required");
   if (!tag) throw new Error("tag is required");
 
   const admin = getSupabaseAdmin();
@@ -3163,7 +3212,7 @@ export async function addOpsMatchingTalentTag(args: {
     admin,
     "talent_opportunity_tag"
   ).insert({
-    opportunity_id: roleId || null,
+    opportunity_id: roleId,
     tag,
     talent_id: talentId,
     updated_at: new Date().toISOString(),
@@ -3364,6 +3413,99 @@ export async function setOpsMatchingReviewStage(args: {
   };
 }
 
+async function buildOpsMatchingRecommendationSummaries(args: {
+  admin: AdminClient;
+  rows: TalentRecommendationRow[];
+  talentId: string;
+}): Promise<OpsMatchingRecommendationSummary[]> {
+  if (args.rows.length === 0) return [];
+  const discoveryRunIds = args.rows
+    .map((row) => row.discovery_run_id ?? "")
+    .filter(Boolean);
+  const [manualRunIds, deliveryMap, roleMap] = await Promise.all([
+    fetchManualInternalRecommendationRunIds({
+      admin: args.admin,
+      runIds: discoveryRunIds,
+    }),
+    fetchRecommendationDeliveryMap({
+      admin: args.admin,
+      discoveryRunIds,
+      talentId: args.talentId,
+    }),
+    fetchRoleNameMap({
+      admin: args.admin,
+      roleIds: args.rows.map((row) => row.role_id),
+    }),
+  ]);
+
+  return args.rows.map((row) => {
+    const discoveryRunId = row.discovery_run_id ?? null;
+    const role = roleMap.get(row.role_id);
+    return {
+      companyName: role?.companyName ?? null,
+      createdAt: row.created_at,
+      deliveries: discoveryRunId ? (deliveryMap.get(discoveryRunId) ?? []) : [],
+      discoveryRunId,
+      feedback: row.feedback,
+      feedbackAt: row.feedback_at,
+      feedbackReason: row.feedback_reason,
+      isManualInternalRecommendation:
+        discoveryRunId !== null && manualRunIds.has(discoveryRunId),
+      processedStage: row.processed_stage,
+      recommendationId: row.id,
+      recommendedAt: row.recommended_at,
+      roleId: row.role_id,
+      roleName: role?.roleName ?? null,
+      savedStage: row.saved_stage,
+      sourceType: role?.sourceType ?? null,
+      talentId: row.talent_id,
+      updatedAt: row.updated_at,
+      viewedAt: row.viewed_at,
+      workspaceIsInternal: role?.workspaceIsInternal ?? null,
+    };
+  });
+}
+
+function isInternalRecommendationSummary(
+  recommendation: OpsMatchingRecommendationSummary
+) {
+  return (
+    recommendation.isManualInternalRecommendation ||
+    normalizeText(recommendation.sourceType).toLowerCase() === "internal" ||
+    recommendation.workspaceIsInternal === true
+  );
+}
+
+async function fetchRecentRecommendations(args: {
+  admin: AdminClient;
+  limit: number;
+  talentId: string;
+}): Promise<OpsMatchingRecommendationSummary[]> {
+  const { data, error } = await args.admin
+    .from("talent_opportunity_recommendation")
+    .select(
+      "id, talent_id, role_id, discovery_run_id, processed_stage, feedback, feedback_at, feedback_reason, saved_stage, viewed_at, recommended_at, created_at, updated_at"
+    )
+    .eq("talent_id", args.talentId)
+    .order("recommended_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(args.limit * 3);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load recommendations");
+  }
+
+  const recommendations = await buildOpsMatchingRecommendationSummaries({
+    admin: args.admin,
+    rows: (data ?? []) as TalentRecommendationRow[],
+    talentId: args.talentId,
+  });
+
+  return recommendations
+    .filter(isInternalRecommendationSummary)
+    .slice(0, args.limit);
+}
+
 async function fetchLatestRecommendation(args: {
   admin: AdminClient;
   roleId: string;
@@ -3373,7 +3515,7 @@ async function fetchLatestRecommendation(args: {
   const { data, error } = await args.admin
     .from("talent_opportunity_recommendation")
     .select(
-      "id, talent_id, role_id, discovery_run_id, processed_stage, feedback, feedback_at, feedback_reason, saved_stage, recommended_at, created_at, updated_at"
+      "id, talent_id, role_id, discovery_run_id, processed_stage, feedback, feedback_at, feedback_reason, saved_stage, viewed_at, recommended_at, created_at, updated_at"
     )
     .eq("talent_id", args.talentId)
     .eq("role_id", args.roleId)
@@ -3386,38 +3528,13 @@ async function fetchLatestRecommendation(args: {
 
   const row = (data ?? [])[0] as TalentRecommendationRow | undefined;
   if (!row) return null;
-  const discoveryRunId = row.discovery_run_id ?? null;
-  const [manualRunIds, deliveries] = await Promise.all([
-    discoveryRunId
-      ? fetchManualInternalRecommendationRunIds({
-          admin: args.admin,
-          runIds: [discoveryRunId],
-        })
-      : Promise.resolve(new Set<string>()),
-    fetchRecommendationDeliveries({
-      admin: args.admin,
-      discoveryRunId,
-      talentId: args.talentId,
-    }),
-  ]);
+  const summaries = await buildOpsMatchingRecommendationSummaries({
+    admin: args.admin,
+    rows: [row],
+    talentId: args.talentId,
+  });
 
-  return {
-    createdAt: row.created_at,
-    deliveries,
-    discoveryRunId,
-    feedback: row.feedback,
-    feedbackAt: row.feedback_at,
-    feedbackReason: row.feedback_reason,
-    isManualInternalRecommendation:
-      discoveryRunId !== null && manualRunIds.has(discoveryRunId),
-    processedStage: row.processed_stage,
-    recommendationId: row.id,
-    recommendedAt: row.recommended_at,
-    roleId: row.role_id,
-    savedStage: row.saved_stage,
-    talentId: row.talent_id,
-    updatedAt: row.updated_at,
-  };
+  return summaries[0] ?? null;
 }
 
 async function fetchRoleNameMap(args: {
@@ -3430,7 +3547,7 @@ async function fetchRoleNameMap(args: {
 
   const { data: roleRows, error: roleError } = await args.admin
     .from("company_roles")
-    .select("role_id, name, company_workspace_id")
+    .select("role_id, name, company_workspace_id, source_type")
     .in("role_id", uniqueRoleIds);
 
   if (roleError) {
@@ -3440,11 +3557,14 @@ async function fetchRoleNameMap(args: {
   const workspaceIds = Array.from(
     new Set((roleRows ?? []).map((row) => row.company_workspace_id))
   );
-  const companyMap = new Map<string, string>();
+  const companyMap = new Map<
+    string,
+    { companyName: string | null; isInternal: boolean | null }
+  >();
   if (workspaceIds.length > 0) {
     const { data: workspaceRows, error: workspaceError } = await args.admin
       .from("company_workspace")
-      .select("company_workspace_id, company_name")
+      .select("company_workspace_id, company_name, is_internal")
       .in("company_workspace_id", workspaceIds);
 
     if (workspaceError) {
@@ -3452,14 +3572,21 @@ async function fetchRoleNameMap(args: {
     }
 
     for (const row of workspaceRows ?? []) {
-      companyMap.set(row.company_workspace_id, row.company_name);
+      companyMap.set(row.company_workspace_id, {
+        companyName: row.company_name,
+        isInternal:
+          typeof row.is_internal === "boolean" ? row.is_internal : null,
+      });
     }
   }
 
   for (const row of roleRows ?? []) {
+    const workspace = companyMap.get(row.company_workspace_id);
     roleMap.set(row.role_id, {
-      companyName: companyMap.get(row.company_workspace_id) ?? null,
+      companyName: workspace?.companyName ?? null,
       roleName: row.name,
+      sourceType: row.source_type ?? null,
+      workspaceIsInternal: workspace?.isInternal ?? null,
     });
   }
 
@@ -3479,6 +3606,7 @@ async function fetchRoleContextMap(args: {
     location_text: string | null;
     name: string;
     role_id: string;
+    source_type: string | null;
     status: string | null;
     updated_at: string | null;
   }> = [];
@@ -3486,7 +3614,7 @@ async function fetchRoleContextMap(args: {
     const { data, error } = await args.admin
       .from("company_roles")
       .select(
-        "role_id, name, company_workspace_id, location_text, status, updated_at"
+        "role_id, name, company_workspace_id, location_text, source_type, status, updated_at"
       )
       .in("role_id", chunk);
 
@@ -3500,11 +3628,14 @@ async function fetchRoleContextMap(args: {
   const workspaceIds = Array.from(
     new Set(roleRows.map((row) => row.company_workspace_id).filter(Boolean))
   );
-  const companyMap = new Map<string, string>();
+  const companyMap = new Map<
+    string,
+    { companyName: string | null; isInternal: boolean | null }
+  >();
   for (const chunk of chunkValues(workspaceIds)) {
     const { data, error } = await args.admin
       .from("company_workspace")
-      .select("company_workspace_id, company_name")
+      .select("company_workspace_id, company_name, is_internal")
       .in("company_workspace_id", chunk);
 
     if (error) {
@@ -3512,53 +3643,75 @@ async function fetchRoleContextMap(args: {
     }
 
     for (const row of data ?? []) {
-      companyMap.set(row.company_workspace_id, row.company_name);
+      companyMap.set(row.company_workspace_id, {
+        companyName: row.company_name,
+        isInternal:
+          typeof row.is_internal === "boolean" ? row.is_internal : null,
+      });
     }
   }
 
   for (const row of roleRows) {
+    const workspace = companyMap.get(row.company_workspace_id);
     roleMap.set(row.role_id, {
-      companyName: companyMap.get(row.company_workspace_id) ?? null,
+      companyName: workspace?.companyName ?? null,
       companyWorkspaceId: row.company_workspace_id,
       locationText: row.location_text,
       roleName: row.name,
+      sourceType: row.source_type,
       status: row.status,
       updatedAt: row.updated_at,
+      workspaceIsInternal: workspace?.isInternal ?? null,
     });
   }
 
   return roleMap;
 }
 
-async function fetchRecommendationDeliveries(args: {
+async function fetchRecommendationDeliveryMap(args: {
   admin: AdminClient;
-  discoveryRunId: string | null;
+  discoveryRunIds: string[];
   talentId: string;
-}): Promise<OpsMatchingRecommendationDelivery[]> {
-  const discoveryRunId = normalizeText(args.discoveryRunId);
+}) {
   const talentId = normalizeText(args.talentId);
-  if (!discoveryRunId || !talentId) return [];
+  const discoveryRunIds = Array.from(
+    new Set(args.discoveryRunIds.map(normalizeText))
+  ).filter(Boolean);
+  const deliveryMap = new Map<string, OpsMatchingRecommendationDelivery[]>();
+  if (!talentId || discoveryRunIds.length === 0) return deliveryMap;
 
   const { data, error } = await args.admin
     .from("talent_opportunity_delivery")
-    .select("id, talent_id, channel, status, payload, sent_at, created_at")
+    .select(
+      "id, discovery_run_id, talent_id, channel, status, payload, sent_at, created_at"
+    )
     .eq("talent_id", talentId)
-    .eq("discovery_run_id", discoveryRunId)
+    .in("discovery_run_id", discoveryRunIds)
     .order("created_at", { ascending: false })
-    .limit(MAX_MATCHING_RECOMMENDATION_DELIVERY_ITEMS);
+    .limit(discoveryRunIds.length * MAX_MATCHING_RECOMMENDATION_DELIVERY_ITEMS);
 
   if (error) {
     throw new Error(error.message ?? "Failed to load recommendation delivery");
   }
 
-  return ((data ?? []) as TalentOpportunityDeliveryRow[]).map((row) => {
+  for (const row of (data ?? []) as TalentOpportunityDeliveryRow[]) {
+    const rowDiscoveryRunId = normalizeText(row.discovery_run_id);
+    if (!rowDiscoveryRunId) continue;
+    const deliveries = deliveryMap.get(rowDiscoveryRunId) ?? [];
+    if (deliveries.length >= MAX_MATCHING_RECOMMENDATION_DELIVERY_ITEMS) {
+      continue;
+    }
     const payload = parseJsonRecord(row.payload);
-    return {
+    deliveries.push({
       bodyText:
         getJsonString(payload, "textBody") ??
+        getJsonString(payload, "bodyText") ??
         getJsonString(payload, "emailBody") ??
+        getJsonString(payload, "body") ??
         getJsonString(payload, "message") ??
-        getJsonString(payload, "chatMessage"),
+        getJsonString(payload, "chatMessage") ??
+        getJsonString(payload, "text") ??
+        getJsonString(payload, "content"),
       channel: row.channel,
       createdAt: row.created_at,
       id: row.id,
@@ -3568,8 +3721,11 @@ async function fetchRecommendationDeliveries(args: {
         getJsonString(payload, "subject") ??
         getJsonString(payload, "emailSubject"),
       toEmail: getJsonString(payload, "toEmail"),
-    };
-  });
+    });
+    deliveryMap.set(rowDiscoveryRunId, deliveries);
+  }
+
+  return deliveryMap;
 }
 
 export async function fetchOpsMatchingTalentRoleTags(args: {
@@ -3666,23 +3822,33 @@ export async function fetchOpsMatchingProgress(args: {
   if (!talentId) throw new Error("talentId is required");
 
   const admin = getSupabaseAdmin();
+  const progressLimit = roleId
+    ? MAX_MATCHING_PROGRESS_ITEMS
+    : MAX_MATCHING_PROGRESS_ITEMS * 3;
   let query = fromOpsMatchingTable(admin, "talent_progress")
     .select(
       "id, talent_id, role_id, recommendation_id, text, user_id, created_at"
     )
     .eq("talent_id", talentId)
     .order("created_at", { ascending: false })
-    .limit(MAX_MATCHING_PROGRESS_ITEMS);
+    .limit(progressLimit);
 
   if (roleId) {
     query = query.eq("role_id", roleId);
   }
 
-  const [progressResult, recommendation] = await Promise.all([
+  const [progressResult, recommendation, recommendations] = await Promise.all([
     query,
     roleId
       ? fetchLatestRecommendation({ admin, roleId, talentId })
       : Promise.resolve(null),
+    roleId
+      ? Promise.resolve([])
+      : fetchRecentRecommendations({
+          admin,
+          limit: MAX_MATCHING_PROGRESS_ITEMS,
+          talentId,
+        }),
   ]);
 
   if (
@@ -3697,17 +3863,30 @@ export async function fetchOpsMatchingProgress(args: {
   const rows = progressResult.error
     ? []
     : ((progressResult.data ?? []) as TalentProgressRow[]);
+  const timelineRecommendations = roleId
+    ? recommendation
+      ? [recommendation]
+      : []
+    : recommendations;
   const roleMap = await fetchRoleNameMap({
     admin,
     roleIds: [
       ...rows.map((row) => row.role_id),
-      recommendation?.roleId ?? "",
+      ...timelineRecommendations.map((item) => item.roleId),
       roleId,
     ],
   });
+  const visibleRows = (
+    roleId
+      ? rows
+      : rows.filter((row) => {
+          const rowRoleId = normalizeText(row.role_id);
+          return !rowRoleId || isInternalCompanyRole(roleMap.get(rowRoleId));
+        })
+  ).slice(0, MAX_MATCHING_PROGRESS_ITEMS);
 
   return {
-    items: rows.map((row) => {
+    items: visibleRows.map((row) => {
       const role = roleMap.get(row.role_id);
       return {
         companyName: role?.companyName ?? null,
@@ -3722,6 +3901,7 @@ export async function fetchOpsMatchingProgress(args: {
       };
     }),
     recommendation,
+    recommendations: timelineRecommendations,
     roleId: roleId || null,
     talentId,
   };

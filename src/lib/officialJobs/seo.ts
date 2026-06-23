@@ -1,4 +1,9 @@
 import type { OfficialJob } from "@/lib/officialJobs";
+import {
+  formatOfficialJobsCopy,
+  getOfficialJobsCopy,
+  type OfficialJobsLocale,
+} from "@/lib/officialJobs/copy";
 
 export const SITE_URL = (
   process.env.NEXT_PUBLIC_SITE_URL || "https://matchharper.com"
@@ -6,9 +11,10 @@ export const SITE_URL = (
   .trim()
   .replace(/\/$/, "");
 
-export const OFFICIAL_JOBS_LIST_TITLE = "Jobs Harper Is Watching | Harper";
+export const OFFICIAL_JOBS_LIST_TITLE =
+  getOfficialJobsCopy("ko").seo.listTitle;
 export const OFFICIAL_JOBS_LIST_DESCRIPTION =
-  "Harper가 먼저 살펴보는 역할을 보고, 관심 있는 기회가 있으면 대화로 더 좁혀보세요.";
+  getOfficialJobsCopy("ko").seo.listDescription;
 export const OFFICIAL_JOBS_CANONICAL_URL = `${SITE_URL}/jobs`;
 export const OFFICIAL_JOBS_OG_IMAGE_URL = `${SITE_URL}/images/usemain.png`;
 
@@ -48,14 +54,33 @@ export function buildOfficialJobCanonicalUrl(slug: string) {
   return `${OFFICIAL_JOBS_CANONICAL_URL}/${encodeURIComponent(slug)}`;
 }
 
-export function buildOfficialJobTitle(job: OfficialJob) {
-  return `${job.roleTitle} at ${job.companyName} | Harper Jobs`;
+export function getOfficialJobsListSeo(locale: OfficialJobsLocale) {
+  return getOfficialJobsCopy(locale).seo;
 }
 
-export function buildOfficialJobDescription(job: OfficialJob) {
+export function buildOfficialJobTitle(
+  job: OfficialJob,
+  locale: OfficialJobsLocale = "ko"
+) {
+  return formatOfficialJobsCopy(getOfficialJobsCopy(locale).seo.detailTitle, {
+    company: job.companyName,
+    role: job.roleTitle,
+  });
+}
+
+export function buildOfficialJobDescription(
+  job: OfficialJob,
+  locale: OfficialJobsLocale = "ko"
+) {
   return (
     toText(job.shortDescription) ||
-    `${job.companyName}의 ${job.roleTitle} 포지션을 Harper를 통해 확인하고 지원하세요.`
+    formatOfficialJobsCopy(
+      getOfficialJobsCopy(locale).seo.detailDescriptionFallback,
+      {
+        company: job.companyName,
+        role: job.roleTitle,
+      }
+    )
   );
 }
 
@@ -97,14 +122,18 @@ function buildJobLocation(location: string) {
   };
 }
 
-export function buildOfficialJobsCollectionStructuredData(jobs: OfficialJob[]) {
+export function buildOfficialJobsCollectionStructuredData(
+  jobs: OfficialJob[],
+  locale: OfficialJobsLocale = "ko"
+) {
+  const copy = getOfficialJobsCopy(locale);
   return {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
-    name: OFFICIAL_JOBS_LIST_TITLE,
-    description: OFFICIAL_JOBS_LIST_DESCRIPTION,
+    name: copy.seo.listTitle,
+    description: copy.seo.listDescription,
     url: OFFICIAL_JOBS_CANONICAL_URL,
-    inLanguage: "ko-KR",
+    inLanguage: copy.seo.inLanguage,
     mainEntity: {
       "@type": "ItemList",
       itemListElement: jobs.map((job, index) => ({
@@ -117,10 +146,14 @@ export function buildOfficialJobsCollectionStructuredData(jobs: OfficialJob[]) {
   };
 }
 
-export function buildOfficialJobStructuredData(job: OfficialJob) {
+export function buildOfficialJobStructuredData(
+  job: OfficialJob,
+  locale: OfficialJobsLocale = "ko"
+) {
   const canonicalUrl = buildOfficialJobCanonicalUrl(job.slug);
+  const copy = getOfficialJobsCopy(locale);
   const description = [
-    buildOfficialJobDescription(job),
+    buildOfficialJobDescription(job, locale),
     toText(job.roleDescriptionMarkdown),
   ]
     .filter(Boolean)
@@ -143,7 +176,7 @@ export function buildOfficialJobStructuredData(job: OfficialJob) {
     occupationalCategory: toText(job.vertical) || undefined,
     identifier: {
       "@type": "PropertyValue",
-      name: "Harper official job",
+      name: copy.seo.structuredDataName,
       value: job.ashbyJobPostingId ?? job.id,
     },
     hiringOrganization: cleanUndefined({

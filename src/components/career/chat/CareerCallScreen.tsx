@@ -212,7 +212,7 @@ const CareerCallScreen = ({
   const faceStatus: FaceStatus = isClosing
     ? "closing"
     : isAssistantSpeaking
-      ? "speaking"
+      ? "idle"
       : "listening";
   const forceCompleteTooltip = t(
     "career.chat.career_call_screen.0n1pl8k",
@@ -322,7 +322,7 @@ const CareerCallScreen = ({
         {showInterviewCallProgress ? (
           <div className="mt-4 w-full max-w-[360px] min-w-[360px] rounded-[12px] border border-neutral-1000-a05 bg-black/90 px-4 py-3 text-neutral-00 shadow-[0_14px_32px_color-mix(in_srgb,var(--color-neutral-1000)_16%,transparent)] backdrop-blur">
             <div className="flex items-center justify-between gap-3">
-              <span className="career-interview-shimmer text-[13px] font-semibold">
+              <span className="career-interview-shimmer text-[13px] font-medium">
                 {t(
                   "career.home.career_home_panel.1ol18h9",
                   "커리어 인터뷰 진행 중"

@@ -56,6 +56,12 @@ export function resolveLocaleFromCountryLang(
   });
 }
 
+export function isOverseasCountryLang(countryLang?: string | null) {
+  const [rawCountry] = String(countryLang ?? "").split("_");
+  const countryCode = normalizeCountryCode(rawCountry);
+  return Boolean(countryCode && countryCode !== "ZZ" && countryCode !== "KR");
+}
+
 export function getBrowserCountryLang() {
   if (typeof navigator === "undefined") return "ZZ_en";
 

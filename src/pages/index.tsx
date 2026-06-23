@@ -39,6 +39,10 @@ import {
 import { Fragment, useEffect, useRef, useState } from "react";
 import type React from "react";
 import CareerLandingFooter from "@/components/landing/CareerLandingFooter";
+import {
+  CompanyMeetingRequestModal,
+  useCompanyMeetingRequestModal,
+} from "@/components/landing/CompanyMeetingRequestModal";
 import GmailPhoneMockup from "@/components/landing/career/GmailMockup";
 import CareerWorkspacePreview from "@/components/career/preview/CareerWorkspaceLandingMockup";
 import { cx } from "@/components/ops/theme";
@@ -1922,6 +1926,10 @@ export default function LandingKoVfPage({
   const { careerStartHref, handleCareerStartClick } = useCareerLandingStart({
     abtestType: heroCopyAbtestType,
   });
+  const companyMeetingRequestModal = useCompanyMeetingRequestModal({
+    locale: landingLocale,
+    defaultPagePath: "/",
+  });
 
   return (
     <MessagesProvider locale={landingLocale}>
@@ -1937,6 +1945,15 @@ export default function LandingKoVfPage({
         />
         <link rel="icon" href="/images/logo.ico" />
       </Head>
+      <CompanyMeetingRequestModal
+        open={companyMeetingRequestModal.isOpen}
+        form={companyMeetingRequestModal.form}
+        isSubmitting={companyMeetingRequestModal.isSubmitting}
+        locale={landingLocale}
+        onClose={companyMeetingRequestModal.closeModal}
+        onChange={companyMeetingRequestModal.updateForm}
+        onSubmit={companyMeetingRequestModal.submitForm}
+      />
       <style jsx global>{`
         html,
         body {
@@ -2315,6 +2332,7 @@ export default function LandingKoVfPage({
         <CareerLandingFooter
           careerStartHref={careerStartHref}
           onCareerStartClick={handleCareerStartClick}
+          onScheduleCallClick={companyMeetingRequestModal.openModal}
           locale={landingLocale}
           onLocaleChange={setLandingLocale}
           labels={copy.footer}

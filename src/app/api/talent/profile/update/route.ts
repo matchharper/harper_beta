@@ -3,6 +3,7 @@ import { getRequestUser } from "@/lib/supabaseServer";
 import {
   ensureTalentUserRecord,
   fetchTalentStructuredProfile,
+  fetchTalentSetting,
   fetchTalentUserProfile,
   getTalentResumeSignedUrl,
   getTalentSupabaseAdmin,
@@ -533,8 +534,14 @@ export async function POST(req: NextRequest) {
         };
       }
     } else if (forceProfileIngestion && !structuredProfile) {
+      const talentSetting = await fetchTalentSetting({
+        admin,
+        userId: user.id,
+      });
       const responseLocale =
-        body.locale ?? req.cookies.get("NEXT_LOCALE")?.value;
+        talentSetting?.preferred_locale ??
+        body.locale ??
+        req.cookies.get("NEXT_LOCALE")?.value;
       profileIngestion = {
         ok: false,
         error: careerT(

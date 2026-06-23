@@ -14,6 +14,7 @@ import {
 } from "@/lib/talentOnboarding/server";
 import { NETWORK_WAITLIST_TYPE, buildNetworkLead } from "@/lib/networkOps";
 import { parseTalentNetworkInviteToken } from "@/lib/talentNetworkInvite";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 import { v5 as uuidv5 } from "uuid";
 
 type AdminClient = Parameters<typeof fetchTalentUserProfile>[0]["admin"];
@@ -134,7 +135,11 @@ function toStableInsightSignature(content: TalentInsightContent | null) {
     .join("\n");
 }
 
-async function fetchWaitlistLead(admin: AdminClient, waitlistId: number) {
+async function fetchWaitlistLead(
+  admin: AdminClient,
+  waitlistId: number,
+  preferredLocale?: string | null
+) {
   const { data, error } = await admin
     .from("harper_waitlist")
     .select("id, created_at, email, is_mobile, local_id, name, text, url")
@@ -146,7 +151,13 @@ async function fetchWaitlistLead(admin: AdminClient, waitlistId: number) {
     throw new Error(error.message ?? "Failed to load network waitlist entry");
   }
   if (!data) {
-    throw new Error("초대 정보를 찾지 못했습니다.");
+    throw new Error(
+      careerT(
+        preferredLocale,
+        "career.api.auth.network_invite_not_found",
+        "초대 정보를 찾지 못했습니다."
+      )
+    );
   }
 
   return buildNetworkLead(data as NetworkWaitlistRow);
@@ -500,20 +511,37 @@ function buildTalentUserMergePayload(args: {
 export async function claimTalentNetworkInvite(args: {
   admin: AdminClient;
   inviteToken: string;
+  preferredLocale?: string | null;
   user: User;
 }) {
-  const { admin, inviteToken, user } = args;
+  const { admin, inviteToken, preferredLocale, user } = args;
   const invite = parseTalentNetworkInviteToken(inviteToken);
   const currentUserEmail = normalizeEmail(user.email);
 
   if (!currentUserEmail || currentUserEmail !== invite.email) {
-    throw new Error("초대 메일과 동일한 Google 계정으로 로그인해 주세요.");
+    throw new Error(
+      careerT(
+        preferredLocale,
+        "career.api.auth.network_invite_email_mismatch",
+        "초대 메일과 동일한 Google 계정으로 로그인해 주세요."
+      )
+    );
   }
 
-  const lead = await fetchWaitlistLead(admin, invite.waitlistId);
+  const lead = await fetchWaitlistLead(
+    admin,
+    invite.waitlistId,
+    preferredLocale
+  );
   const leadEmail = normalizeEmail(lead.email);
   if (leadEmail && leadEmail !== currentUserEmail) {
-    throw new Error("초대 메일과 동일한 Google 계정으로 로그인해 주세요.");
+    throw new Error(
+      careerT(
+        preferredLocale,
+        "career.api.auth.network_invite_email_mismatch",
+        "초대 메일과 동일한 Google 계정으로 로그인해 주세요."
+      )
+    );
   }
 
   const sourceTalentId = getNetworkTalentId(lead.id);

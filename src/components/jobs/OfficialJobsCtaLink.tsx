@@ -5,6 +5,10 @@ import {
   buildOfficialJobsLoginHref,
   OFFICIAL_JOBS_LOGIN_HREF,
 } from "@/lib/officialJobs";
+import {
+  getOfficialJobsCopy,
+  type OfficialJobsLocale,
+} from "@/lib/officialJobs/copy";
 import { getOfficialJobsAnonymousId } from "@/lib/officialJobs/events";
 import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
 import {
@@ -47,13 +51,15 @@ const ctaLinkVariants = cva(
 type OfficialJobsCtaLinkProps = VariantProps<typeof ctaLinkVariants> & {
   children?: ReactNode;
   className?: string;
+  locale?: OfficialJobsLocale;
   onClick?: MouseEventHandler<HTMLAnchorElement>;
 };
 
 export default function OfficialJobsCtaLink({
-  children = "Talk to Harper",
+  children,
   className,
   fullWidth,
+  locale = "ko",
   onClick,
   size,
   variant,
@@ -98,7 +104,7 @@ export default function OfficialJobsCtaLink({
       onClick={handleClick}
       className={cn(ctaLinkVariants({ fullWidth, size, variant }), className)}
     >
-      <span>{children}</span>
+      <span>{children ?? getOfficialJobsCopy(locale).cta}</span>
     </Link>
   );
 }

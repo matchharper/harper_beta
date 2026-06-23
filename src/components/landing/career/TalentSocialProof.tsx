@@ -1,10 +1,18 @@
 import Image from "next/image";
 import React from "react";
+import { useCountryLang } from "@/hooks/useCountryLang";
+import { isOverseasCountryLang } from "@/i18n/localeResolution";
 
-const partnerLogos = [
+type PartnerLogo = {
+  src: string;
+  name: string;
+  width: number;
+};
+
+const partnerLogos: PartnerLogo[] = [
   { src: "/images/logos/sn.png", name: "SNU", width: 34 },
   { src: "/images/logos/kai.png", name: "KAIST", width: 36 },
-  { src: "/images/logos/cmu.png", name: "CMU", width: 36 },
+  { src: "/images/logos/cmu.png", name: "CMU", width: 48 },
   { src: "/images/logos/stan.png", name: "Stanford", width: 38 },
   {
     src: "/images/logos/utoronto.svg",
@@ -13,9 +21,24 @@ const partnerLogos = [
   },
   { src: "/images/logos/toss.png", name: "Toss", width: 82 },
   { src: "/svgs/cohere.svg", name: "Cohere", width: 82 },
-  { src: "/svgs/yc.svg", name: "Y Combinator", width: 98 },
+  { src: "/images/logos/amazon.svg", name: "Amazon", width: 82 },
   { src: "/images/logos/naver.svg", name: "Naver", width: 68 },
   { src: "/images/logos/moloco.png", name: "Moloco", width: 90 },
+];
+
+const overseasPartnerLogos: PartnerLogo[] = [
+  { src: "/images/logos/cmu.png", name: "CMU", width: 52 },
+  { src: "/images/logos/stan.png", name: "Stanford", width: 44 },
+  { src: "/images/logos/harvard.svg", name: "Harvard", width: 72 },
+  {
+    src: "/images/logos/utoronto.svg",
+    name: "University of Toronto",
+    width: 38,
+  },
+  { src: "/svgs/cohere.svg", name: "Cohere", width: 82 },
+  { src: "/images/logos/nvidia.svg", name: "NVIDIA", width: 82 },
+  { src: "/images/logos/microsoft.svg", name: "Microsoft", width: 76 },
+  { src: "/images/logos/amazon.svg", name: "Amazon", width: 64 },
 ];
 
 type TalentSocialProofProps = {
@@ -25,7 +48,24 @@ type TalentSocialProofProps = {
 const TalentSocialProof = ({
   title = "이곳의 인재들이 신뢰합니다.",
 }: TalentSocialProofProps) => {
-  const logoLoop = [...partnerLogos, ...partnerLogos];
+  const countryLang = useCountryLang();
+  const [hasResolvedLogoRegion, setHasResolvedLogoRegion] =
+    React.useState(false);
+  const logos =
+    hasResolvedLogoRegion && isOverseasCountryLang(countryLang)
+      ? overseasPartnerLogos
+      : partnerLogos;
+  const logoLoop = [...logos, ...logos];
+
+  React.useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setHasResolvedLogoRegion(true);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, []);
 
   return (
     <div className="relative z-10 mx-auto w-full max-w-[1180px] px-4 pb-8 pt-8 text-center md:pb-10 md:pt-10">

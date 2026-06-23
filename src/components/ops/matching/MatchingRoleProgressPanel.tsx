@@ -3,6 +3,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  Eye,
   LoaderCircle,
   Mail,
   Plus,
@@ -41,7 +42,7 @@ function toManualRole(
     alreadyRecommended: false,
     companyName: role.companyName,
     companyWorkspaceId: role.companyWorkspaceId,
-    description: null,
+    description: role.description,
     descriptionSummary: role.descriptionSummary,
     locationText: role.locationText,
     roleId: role.roleId,
@@ -82,7 +83,7 @@ type TimelineItem =
       createdAt: string;
       delivery: OpsMatchingRecommendationDelivery | null;
       id: string;
-      kind: "recommendation" | "feedback" | "queued";
+      kind: "recommendation" | "feedback" | "queued" | "viewed";
       text: string;
       title: string;
     }
@@ -114,6 +115,17 @@ function buildRecommendationTimelineItems(args: {
         : "Harper가 이 internal 기회를 추천했습니다.",
       title: "추천 제안됨",
     });
+
+    if (recommendation.viewedAt) {
+      items.push({
+        createdAt: recommendation.viewedAt,
+        delivery: null,
+        id: `viewed:${recommendation.recommendationId}`,
+        kind: "viewed",
+        text: "추천된 역할을 확인했습니다.",
+        title: "추천 확인",
+      });
+    }
 
     if (recommendation.feedback) {
       const accepted = isAcceptedFeedback(recommendation.feedback);
@@ -191,7 +203,8 @@ export const MatchingRoleProgressPanel = memo(
     const manualRole = toManualRole(role);
     const timelineItems = [
       ...buildRecommendationTimelineItems({
-        queuedAt: hasApplication ? null : queuedRecommendationAt,
+        queuedAt:
+          hasApplication || hasQueuedProgress ? null : queuedRecommendationAt,
         recommendation,
         role,
       }),
@@ -345,7 +358,9 @@ export const MatchingRoleProgressPanel = memo(
                       ? timelineItem.title.includes("거절")
                         ? XCircle
                         : CheckCircle2
-                      : Sparkles;
+                      : timelineItem.kind === "viewed"
+                        ? Eye
+                        : Sparkles;
                   return (
                     <article
                       key={timelineItem.id}

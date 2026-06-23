@@ -109,7 +109,7 @@ export async function fetchTalentUserProfile(args: {
   const { data, error } = await admin
     .from("talent_users")
     .select(
-      "user_id, email, name, profile_picture, headline, bio, location, last_logined_at, resume_file_name, resume_storage_path, resume_text, resume_links, created_at, updated_at"
+      "user_id, email, name, profile_picture, headline, bio, current_location, location, last_logined_at, resume_file_name, resume_storage_path, resume_text, resume_links, created_at, updated_at"
     )
     .eq("user_id", userId)
     .maybeSingle();
@@ -173,7 +173,9 @@ export async function fetchTalentStructuredProfile(args: {
         ? Promise.resolve({ data: talentUser, error: null })
         : admin
             .from("talent_users")
-            .select("user_id, name, profile_picture, headline, bio, location")
+            .select(
+              "user_id, name, profile_picture, headline, bio, current_location, location"
+            )
             .eq("user_id", userId)
             .maybeSingle(),
     ]);
@@ -199,7 +201,13 @@ export async function fetchTalentStructuredProfile(args: {
 
   const userRow = (fallbackUser.data ?? null) as Pick<
     TalentUserProfileRow,
-    "user_id" | "name" | "profile_picture" | "headline" | "bio" | "location"
+    | "user_id"
+    | "name"
+    | "profile_picture"
+    | "headline"
+    | "bio"
+    | "current_location"
+    | "location"
   > | null;
 
   return {
@@ -249,6 +257,13 @@ export function buildTalentProfileContext(args: {
     if (talentUser.name) lines.push(`- Name: ${talentUser.name}`);
     if (talentUser.headline) lines.push(`- Headline: ${talentUser.headline}`);
     if (talentUser.location) lines.push(`- Location: ${talentUser.location}`);
+    const currentLocation = clampPromptText(
+      talentUser.current_location ?? profile?.current_location,
+      240
+    );
+    if (currentLocation && currentLocation !== talentUser.location) {
+      lines.push(`- Signup/current location: ${currentLocation}`);
+    }
     const bio = clampPromptText(talentUser.bio, 1200);
     if (bio) lines.push(`- Bio: ${bio}`);
   }

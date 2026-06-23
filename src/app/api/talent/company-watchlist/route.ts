@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
-import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
+import {
+  fetchTalentSetting,
+  getTalentSupabaseAdmin,
+} from "@/lib/talentOnboarding/server";
 import {
   fetchTalentCompanyWatchlistDetail,
   fetchTalentCompanyWatchlistPage,
@@ -41,6 +44,8 @@ export async function GET(req: NextRequest) {
       parseCompanyDbIdParam(req.nextUrl.searchParams.get("companyDbId")) ??
       parseCompanyDbIdParam(req.nextUrl.searchParams.get("company"));
     const preferredLocale =
+      (await fetchTalentSetting({ admin, userId: user.id }))
+        ?.preferred_locale ??
       req.nextUrl.searchParams.get("locale") ??
       req.cookies.get("NEXT_LOCALE")?.value;
 

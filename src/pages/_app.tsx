@@ -68,6 +68,7 @@ export default function App({ Component, pageProps }: AppProps) {
   );
   const isCareerPage = isCareerTranslationRoute(currentPath);
   const isCareerLoginPage = router.pathname === "/career_login";
+  const isCareerLocalePage = isCareerPage || isCareerLoginPage;
   const isAdminCareerPage =
     router.pathname === "/admin/career" ||
     router.pathname.startsWith("/admin/career/");
@@ -83,14 +84,14 @@ export default function App({ Component, pageProps }: AppProps) {
     router.pathname === "/network2";
   const shouldLoadCrisp = Boolean(CRISP_BOOTSTRAP_SCRIPT) && !shouldHideCrisp;
   const appDescription =
-    isCareerPage && careerLocale === "en"
+    isCareerLocalePage && careerLocale === "en"
       ? "Harper is an AI Career Agent for every talented professional."
       : "Harper는 모든 인재들을 위한 AI Career Agent입니다.";
 
   useIsomorphicLayoutEffect(() => {
-    if (!isCareerPage) return;
+    if (!isCareerLocalePage) return;
     setCareerLocale(getInitialClientLocalePreference());
-  }, [isCareerPage]);
+  }, [isCareerLocalePage]);
 
   useEffect(() => {
     if (!GA_ID) return;
@@ -151,8 +152,8 @@ export default function App({ Component, pageProps }: AppProps) {
 
   return (
     <MessagesProvider
-      locale={isCareerPage ? careerLocale : undefined}
-      onLocaleChange={isCareerPage ? setCareerLocale : undefined}
+      locale={isCareerLocalePage ? careerLocale : undefined}
+      onLocaleChange={isCareerLocalePage ? setCareerLocale : undefined}
     >
       <ReactQueryProvider>
         <Head>

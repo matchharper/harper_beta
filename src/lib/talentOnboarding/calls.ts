@@ -1,12 +1,14 @@
 import type { Json } from "@/types/database.types";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import {
-  ONBOARDING_ADDITIONAL_QUESTION_KEYS,
   ONBOARDING_FINAL_CONFIRMATION_KEY,
   ONBOARDING_QUESTION_BY_INSIGHT_KEY,
-  ONBOARDING_QUESTION_CHECKLIST,
   ONBOARDING_QUESTION_CHECKLIST_KEY_SET,
   ONBOARDING_QUESTION_MIN_COVERED_COUNT,
+  getOnboardingAdditionalQuestionKeys,
+  getOnboardingQuestionChecklist,
+  getOnboardingRequiredQuestionKeys,
+  type OnboardingChecklistLocationContext,
 } from "@/lib/talentOnboarding/insightChecklist";
 
 export const TALENT_CALL_KIND_CAREER_ONBOARDING = "career_onboarding";
@@ -293,17 +295,24 @@ export async function completeActiveCareerOnboardingCall(args: {
 }
 
 export function getOnboardingChecklistCoverageStats(
-  coverage: OnboardingChecklistCoverage | null | undefined
+  coverage: OnboardingChecklistCoverage | null | undefined,
+  context?: OnboardingChecklistLocationContext
 ) {
   const normalized = normalizeOnboardingChecklistCoverage(coverage);
-  const coveredCount = ONBOARDING_QUESTION_CHECKLIST.filter(
+  const checklist = getOnboardingQuestionChecklist(context);
+  const additionalQuestionKeys = getOnboardingAdditionalQuestionKeys(context);
+  const requiredQuestionKeys = getOnboardingRequiredQuestionKeys(context);
+  const coveredCount = checklist.filter(
     (item) => normalized[item.key] === "covered"
   ).length;
-  const additionalCoveredCount = ONBOARDING_ADDITIONAL_QUESTION_KEYS.filter(
+  const additionalCoveredCount = additionalQuestionKeys.filter(
     (key) => normalized[key] === "covered"
   ).length;
   const finalConfirmationCovered =
     normalized[ONBOARDING_FINAL_CONFIRMATION_KEY] === "covered";
+  const requiredQuestionsCovered = requiredQuestionKeys.every(
+    (key) => normalized[key] === "covered"
+  );
 
   return {
     additionalCoveredCount,
@@ -311,12 +320,15 @@ export function getOnboardingChecklistCoverageStats(
     finalConfirmationCovered,
     isComplete:
       coveredCount >= ONBOARDING_QUESTION_MIN_COVERED_COUNT &&
-      additionalCoveredCount >= ONBOARDING_ADDITIONAL_QUESTION_KEYS.length &&
-      finalConfirmationCovered,
+      additionalCoveredCount >= additionalQuestionKeys.length &&
+      finalConfirmationCovered &&
+      requiredQuestionsCovered,
     minCoveredCount: ONBOARDING_QUESTION_MIN_COVERED_COUNT,
-    missingItems: ONBOARDING_QUESTION_CHECKLIST.filter(
+    missingItems: checklist.filter(
       (item) => normalized[item.key] !== "covered"
     ),
-    totalCount: ONBOARDING_QUESTION_CHECKLIST.length,
+    requiredQuestionKeys,
+    requiredQuestionsCovered,
+    totalCount: checklist.length,
   };
 }

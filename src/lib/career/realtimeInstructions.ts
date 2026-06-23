@@ -90,7 +90,7 @@ export async function buildCareerRealtimeSessionInstructions(args: {
       talentSetting?.get_internal_recommendation ?? true,
     periodicIntervalDays: talentSetting?.periodic_interval_days ?? null,
     preferredLocale:
-      args.preferredLocale ?? talentSetting?.preferred_locale ?? null,
+      talentSetting?.preferred_locale ?? args.preferredLocale ?? null,
     profileVisibility: talentSetting?.profile_visibility ?? null,
     recommendationBatchSize: talentSetting?.recommendation_batch_size ?? null,
   };

@@ -11,7 +11,6 @@ import {
   LoaderCircle,
   ShieldAlert,
   ShieldCheck,
-  Upload,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -27,9 +26,12 @@ import { showToast } from "@/components/toast/toast";
 import { Badge } from "@/components/ui/badge";
 import { AnimatedButton, BareButton } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input, Input as UiInput } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import Face from "@/components/common/Face";
+import ResumeDropzone, {
+  type ResumeFileSelectSource,
+} from "@/components/career/ResumeDropzone";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
@@ -37,7 +39,7 @@ import { useHtmlClass } from "@/hooks/useHtmlClass";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import {
   TALENT_NETWORK_ENGAGEMENT_OPTIONS,
-  TALENT_NETWORK_PROFILE_INPUT_OPTIONS,
+  getTalentNetworkProfileInputOptions,
   type TalentNetworkEngagementOptionId,
   type TalentNetworkProfileInputType,
 } from "@/lib/talentNetworkOptions";
@@ -46,6 +48,7 @@ import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding
 import { getCareerSignupAttributionPayload } from "@/lib/career/signupAttribution";
 import OnboardingLoadingState from "../../components/career/OnboardingLoadingState";
 import { useCareerT } from "@/i18n/useCareerT";
+import { useMessages } from "@/i18n/useMessage";
 
 type CareerT = ReturnType<typeof useCareerT>;
 
@@ -812,47 +815,46 @@ const getOnboardingProfileVisibilityOptions = (
 
 const ResumeUploadInput = ({
   fileName,
-  onChange,
+  onFileSelect,
 }: {
   fileName: string;
-  onChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  onFileSelect: (file: File | null, source: ResumeFileSelectSource) => void;
 }) => {
   const t = useCareerT();
 
   return (
-    <label
-      className={cn(
-        "flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-[6px] border px-4 py-10 transition",
-        fileName
-          ? "border-neutral-800 bg-bg-weak hover:bg-bg-weak"
-          : "border-dashed border-neutral-400 bg-bg-floating hover:bg-bg-weak"
+    <ResumeDropzone
+      inputId="career-onboarding-resume-upload"
+      accept=".pdf,.txt,.md"
+      fileName={fileName}
+      onFileSelect={onFileSelect}
+      onFileReject={() => {
+        showToast({
+          message: t(
+            "career.resume_dropzone.unsupported_file",
+            "지원하는 이력서 파일 형식만 업로드해 주세요."
+          ),
+          variant: "white",
+        });
+      }}
+      title={t("career.onboarding.onboarding.13vjc2d", "이력서/CV 업로드")}
+      description={t(
+        "career.onboarding.onboarding.1xpgwgk",
+        "PDF나 텍스트 파일을 올려주세요. 최대 10MB까지 권장합니다."
       )}
-    >
-      <span className="flex w-fit flex-wrap rounded-full border border-neutral-1000-a05 bg-bg-weak p-3">
-        {fileName ? (
-          <FileText size={20} strokeWidth={1.6} />
-        ) : (
-          <Upload size={20} strokeWidth={1.6} />
-        )}
-      </span>
-      <span className="mt-1 text-sm font-normal">
-        {fileName ||
-          t("career.onboarding.onboarding.13vjc2d", "이력서/CV 업로드")}
-      </span>
-      <span className="text-center text-sm font-normal text-neutral-muted">
-        {t(
-          "career.onboarding.onboarding.1xpgwgk",
-          "PDF나 텍스트 파일을 올려주세요. 최대 10MB까지 권장합니다."
-        )}
-      </span>
-      <UiInput
-        unstyled
-        type="file"
-        accept=".pdf,.txt,.md"
-        className="hidden"
-        onChange={onChange}
-      />
-    </label>
+      dragTitle={t(
+        "career.resume_dropzone.drag_title",
+        "여기에 놓으면 업로드됩니다"
+      )}
+      dragDescription={t(
+        "career.resume_dropzone.drag_description",
+        "파일을 놓아 이력서를 선택하세요."
+      )}
+      selectedDescription={t(
+        "career.resume_dropzone.selected_description",
+        "다른 파일로 바꾸려면 클릭하거나 다시 드롭하세요."
+      )}
+    />
   );
 };
 
@@ -1220,6 +1222,7 @@ const OnboardingLoadingFooter = () => {
 
 const CareerNetworkOnboardingContent = () => {
   const t = useCareerT();
+  const { locale } = useMessages();
 
   useHtmlClass("noneoverscroll");
   const router = useRouter();
@@ -1262,6 +1265,10 @@ const CareerNetworkOnboardingContent = () => {
   const onboardingEngagementCopy = useMemo(
     () => getOnboardingEngagementCopy(t),
     [t]
+  );
+  const profileInputOptions = useMemo(
+    () => getTalentNetworkProfileInputOptions(locale),
+    [locale]
   );
   const profileVisibilityOptions = useMemo(
     () => getOnboardingProfileVisibilityOptions(t),
@@ -1310,6 +1317,7 @@ const CareerNetworkOnboardingContent = () => {
         ...getCareerSignupAttributionPayload(),
         emailOnboardingToken: emailOnboardingToken || undefined,
         inviteToken: inviteToken || undefined,
+        locale,
         mail: mail || undefined,
       }),
     });
@@ -1343,7 +1351,7 @@ const CareerNetworkOnboardingContent = () => {
     }
 
     return payload;
-  }, [emailOnboardingToken, fetchWithAuth, inviteToken, mail, t]);
+  }, [emailOnboardingToken, fetchWithAuth, inviteToken, locale, mail, t]);
 
   useEffect(() => {
     if (!user) return;
@@ -1464,6 +1472,7 @@ const CareerNetworkOnboardingContent = () => {
       method: "POST",
       body: JSON.stringify({
         email: trimmedEmail,
+        locale,
         name: trimmedName,
       }),
     });
@@ -1483,7 +1492,7 @@ const CareerNetworkOnboardingContent = () => {
 
     lastSavedBasicInfoRef.current = signature;
     queryClient.removeQueries({ queryKey: ["career-session"] });
-  }, [email, fetchWithAuth, name, queryClient, t]);
+  }, [email, fetchWithAuth, locale, name, queryClient, t]);
 
   const saveCurrentStep = useCallback(
     async (currentStep: number) => {
@@ -1725,6 +1734,7 @@ const CareerNetworkOnboardingContent = () => {
       const settingsRes = await fetchWithAuth("/api/talent/settings", {
         method: "POST",
         body: JSON.stringify({
+          preferredLocale: locale,
           profileVisibility,
         }),
       });
@@ -1747,6 +1757,7 @@ const CareerNetworkOnboardingContent = () => {
           conversationId,
           email: email.trim().toLowerCase(),
           links,
+          locale,
           name: name.trim(),
           resumeFileName,
           resumeStoragePath,
@@ -1798,6 +1809,7 @@ const CareerNetworkOnboardingContent = () => {
     email,
     fetchWithAuth,
     links,
+    locale,
     name,
     parseResumeText,
     profileVisibility,
@@ -2061,7 +2073,7 @@ const CareerNetworkOnboardingContent = () => {
                 {step === 2 && (
                   <>
                     <div className={currentStepDefinition.bodyClassName}>
-                      {TALENT_NETWORK_PROFILE_INPUT_OPTIONS.map((option) => (
+                      {profileInputOptions.map((option) => (
                         <ProfileInputToggle
                           key={option.id}
                           id={option.id}
@@ -2117,9 +2129,13 @@ const CareerNetworkOnboardingContent = () => {
                       {selectedProfileInputs.includes("cv") && (
                         <ResumeUploadInput
                           fileName={resumeFile?.name ?? ""}
-                          onChange={(event) => {
-                            logCareerEvent("click_onboarding_resume_select");
-                            setResumeFile(event.target.files?.[0] ?? null);
+                          onFileSelect={(file, source) => {
+                            logCareerEvent(
+                              source === "drop"
+                                ? "drop_onboarding_resume_select"
+                                : "click_onboarding_resume_select"
+                            );
+                            setResumeFile(file);
                           }}
                         />
                       )}

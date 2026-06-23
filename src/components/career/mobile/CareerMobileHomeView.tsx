@@ -159,8 +159,16 @@ const SummaryCard = ({
         {icon}
       </span>
       <div className="text-sm font-medium text-neutral-primary">
-        {countFormatter.format(count)}
-        {t("career.home.career_mobile_home_view.0ao3c3d", "개의")} {label}
+        {t(
+          "career.home.career_mobile_home_view.summary_count_label",
+          "{count}개의 {label}",
+          {
+            values: {
+              count: countFormatter.format(count),
+              label,
+            },
+          }
+        )}
       </div>
     </ActionButton>
   );
@@ -491,7 +499,7 @@ const CareerMobileHomeView = ({
 
       {!isOnboardingCompleted ? (
         <section className="rounded-3xl border border-neutral-1000-a05 bg-bg-floating px-5 py-5 shadow-sm">
-          <div className="text-[15px] font-semibold text-neutral-primary">
+          <div className="text-[15px] font-medium text-neutral-primary">
             {t(
               "career.home.career_home_panel.1ol18h9",
               "커리어 인터뷰 진행 중"

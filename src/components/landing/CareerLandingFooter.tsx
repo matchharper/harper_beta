@@ -14,6 +14,7 @@ type FooterLocale = "ko" | "en";
 type CareerLandingFooterProps = {
   careerStartHref: string;
   onCareerStartClick?: React.MouseEventHandler<HTMLAnchorElement>;
+  onScheduleCallClick?: React.MouseEventHandler<HTMLButtonElement>;
   locale?: FooterLocale;
   onLocaleChange?: (locale: FooterLocale) => void;
   labels?: {
@@ -137,6 +138,7 @@ function FooterLanguageDropdown({
 export default function CareerLandingFooter({
   careerStartHref,
   onCareerStartClick,
+  onScheduleCallClick,
   locale,
   onLocaleChange,
   labels = {
@@ -224,12 +226,22 @@ export default function CareerLandingFooter({
                 <Link href="/company" className={labelStyle}>
                   {labels.harperForCompanies}
                 </Link>
-                <a
-                  href="https://calendly.com/chris-matchharper/30min"
-                  className={labelStyle}
-                >
-                  {labels.scheduleCall}
-                </a>
+                {onScheduleCallClick ? (
+                  <button
+                    type="button"
+                    onClick={onScheduleCallClick}
+                    className={`${labelStyle} text-left`}
+                  >
+                    {labels.scheduleCall}
+                  </button>
+                ) : (
+                  <a
+                    href="https://calendly.com/chris-matchharper/30min"
+                    className={labelStyle}
+                  >
+                    {labels.scheduleCall}
+                  </a>
+                )}
               </div>
             </div>
 

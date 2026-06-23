@@ -1221,6 +1221,7 @@ async function runResumeEnrichmentLlm(args: {
         }),
       },
     ],
+    usageLabel: "career/profile_ingestion:resume_enrichment",
   });
 
   logger.log("[TalentIngest] LLM enrichment done");
@@ -1953,6 +1954,7 @@ async function runProfileUpdateMergeLlm(args: {
         }),
       },
     ],
+    usageLabel: "career/profile_ingestion:profile_update_merge",
   });
 
   logger.log("[TalentIngest] profile update merge LLM done");

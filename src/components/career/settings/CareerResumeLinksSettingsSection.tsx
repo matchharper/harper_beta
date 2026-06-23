@@ -7,20 +7,21 @@ import {
   Plus,
   RefreshCw,
   Save,
-  Upload,
   X,
 } from "lucide-react";
 import Image from "next/image";
 import React, { useMemo, useState } from "react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
+import ResumeDropzone from "@/components/career/ResumeDropzone";
 import { useCareerSidebarContext } from "@/components/career/CareerSidebarContext";
 import { getCareerLinkLabels } from "@/components/career/constants";
 import LoadingState from "@/components/career/OnboardingLoadingState";
+import { showToast } from "@/components/toast/toast";
 import { pickLinkedinProfileLink } from "@/hooks/career/careerHelpers";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { AttentionBadge } from "@/components/ui/badge";
 import { SecondaryButton, BareButton } from "@/components/ui/button";
-import { Input, Input as UiInput } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
 import { Field, FieldLabel } from "@/components/ui/panel";
 import { Tooltips } from "@/components/ui/tooltip";
 import { useCareerT } from "@/i18n/useCareerT";
@@ -189,41 +190,64 @@ const CareerResumeLinksSettingsSection = () => {
             </p>
           )}
 
-          <div className="mt-3 flex items-center gap-2">
-            <label
-              htmlFor="career-settings-resume-upload"
-              className="relative inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-neutral-1000-a10 bg-bg-floating px-3 text-xs font-medium text-neutral-primary hover:bg-bg-weak"
-            >
-              <Upload className="h-3.5 w-3.5" />
-              {t("career.common.career.0j3w14l", "새 이력서 선택")}
-              {!hasSavedResume ? (
-                <AttentionBadge
-                  label={t(
-                    "career.profile.career_profile_workspace.0pv1jmq",
-                    "저장된 이력서가 없습니다"
-                  )}
-                  className="-right-1 -top-1"
-                />
-              ) : null}
-            </label>
-            <UiInput
-              unstyled
-              id="career-settings-resume-upload"
-              type="file"
+          <div className="relative mt-4">
+            <ResumeDropzone
+              inputId="career-settings-resume-upload"
+              variant="compact"
               accept=".pdf,.doc,.docx,.txt"
-              className="hidden"
-              onChange={(event) => {
-                logCareerEvent("click_resume_select_file");
-                onResumeFileChange(event.target.files?.[0] ?? null);
+              fileName={resumeFile?.name ?? ""}
+              onFileSelect={(file, source) => {
+                logCareerEvent(
+                  source === "drop"
+                    ? "drop_resume_select_file"
+                    : "click_resume_select_file"
+                );
+                onResumeFileChange(file);
               }}
+              onFileReject={() => {
+                showToast({
+                  message: t(
+                    "career.resume_dropzone.unsupported_file",
+                    "지원하는 이력서 파일 형식만 업로드해 주세요."
+                  ),
+                  variant: "white",
+                });
+              }}
+              title={
+                hasSavedResume
+                  ? t("career.common.career.0j3w14l", "새 이력서 선택")
+                  : t(
+                      "career.resume_dropzone.empty_title",
+                      "이력서를 끌어다 놓거나 선택하세요"
+                    )
+              }
+              description={t(
+                "career.resume_dropzone.settings_description",
+                "PDF, DOC, DOCX, TXT 파일을 업로드할 수 있습니다."
+              )}
+              dragTitle={t(
+                "career.resume_dropzone.drag_title",
+                "여기에 놓으면 업로드됩니다"
+              )}
+              dragDescription={t(
+                "career.resume_dropzone.drag_description",
+                "파일을 놓아 이력서를 선택하세요."
+              )}
+              selectedDescription={t(
+                "career.resume_dropzone.settings_selected_description",
+                "저장 버튼을 누르면 이 파일로 업데이트됩니다."
+              )}
             />
+            {!hasSavedResume ? (
+              <AttentionBadge
+                label={t(
+                  "career.profile.career_profile_workspace.0pv1jmq",
+                  "저장된 이력서가 없습니다"
+                )}
+                className="right-2 top-2"
+              />
+            ) : null}
           </div>
-          {resumeFile && (
-            <p className="mt-2 truncate text-xs text-neutral-muted">
-              {t("career.common.career.0yu4vbj", "업로드 예정:")}{" "}
-              {resumeFile.name}
-            </p>
-          )}
         </div>
       </Field>
 

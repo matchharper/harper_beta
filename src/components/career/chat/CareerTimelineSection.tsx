@@ -61,6 +61,7 @@ import { ThinkingLogPanel } from "./elements/ThinkingLogPanel";
 import { TimelinePendingPanel } from "./elements/TimelinePendingPanel";
 import { useMessages, type Locale } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
+import Face from "@/components/common/Face";
 
 const BOTTOM_THRESHOLD_PX = 120;
 const TIMELINE_SCROLL_STYLE: React.CSSProperties = {
@@ -1018,8 +1019,9 @@ const CareerTimelineSection = () => {
           </div>
         )}
 
-        {sessionPending && !hasTimelineMessages ? (
-          <div className="flex min-h-[52vh] items-center justify-center">
+        {sessionPending && !hasTimelineMessages && (
+          <div className="flex flex-col gap-2 min-h-[52vh] items-center justify-center">
+            <Face size={96} />
             <div className="flex items-center gap-2 text-sm text-neutral-muted">
               <Loader2 className="h-4 w-4 animate-spin text-neutral-primary" />
               {t(
@@ -1028,7 +1030,7 @@ const CareerTimelineSection = () => {
               )}
             </div>
           </div>
-        ) : null}
+        )}
 
         {hasTimelineMessages ? (
           <TimelineMessageList

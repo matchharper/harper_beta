@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { OpportunityType } from "@/lib/opportunityType";
 import { Badge } from "@/components/ui/badge";
 import { getOpportunityPostingStatus } from "./opportunityPostingStatus";
+import OpportunityPreferenceFit from "./OpportunityPreferenceFit";
 import { BareButton } from "@/components/ui/button";
 import { useMessages } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
@@ -204,6 +205,9 @@ export const HistoryOpportunityOverview = ({
   const roleLink = item.href;
   const recommendationSummary = item.recommendationSummary?.trim() ?? "";
   const recommendationConcerns = item.recommendationConcerns ?? [];
+  const hasRecommendationContent =
+    Boolean(recommendationSummary) || item.recommendationReasons.length > 0;
+  const hasStandaloneJdButton = Boolean(roleLink) && !hasRecommendationContent;
 
   return (
     <div className={cn("flex w-full flex-col items-start", className)}>
@@ -213,7 +217,7 @@ export const HistoryOpportunityOverview = ({
         onOpenOpportunityInfo={onOpenOpportunityInfo}
       />
 
-      {(recommendationSummary || item.recommendationReasons.length > 0) && (
+      {hasRecommendationContent && (
         <div className="mt-6 flex w-full flex-col gap-3 rounded-xl border border-neutral-1000-a05 bg-bg-floating p-3 text-[13px] leading-6 text-neutral-primary shadow-sm sm:rounded-2xl sm:p-4 sm:text-sm">
           <div className="flex w-full flex-row items-center justify-between gap-3 text-neutral-muted">
             <div className="min-w-0">
@@ -261,6 +265,25 @@ export const HistoryOpportunityOverview = ({
           </div>
         </div>
       )}
+
+      {hasStandaloneJdButton && (
+        <BareButton
+          type="button"
+          onClick={() => {
+            if (roleLink) onOpenLink(roleLink);
+          }}
+          className="mt-5 bg-neutral-200 hover:bg-neutral-300 inline-flex min-h-10 items-center justify-center w-full gap-2 rounded-md px-4 text-[13px] font-normal"
+        >
+          {t("career.common.career.0wohsg4", "JD 확인하기")}
+          <ArrowUpRight className="h-4 w-4" />
+        </BareButton>
+      )}
+
+      <OpportunityPreferenceFit
+        className="mt-4"
+        items={item.preferenceFit}
+        variant="detail"
+      />
     </div>
   );
 };
@@ -320,24 +343,6 @@ const HistoryDetailArrowButton = ({
       {direction === "prev" && <ArrowLeft className="h-4 w-4" />}
       {direction === "next" && <ArrowRight className="h-4 w-4" />}
     </BareButton>
-  );
-};
-
-const getOpportunitySourceLabel = (
-  item: CareerHistoryOpportunity,
-  t: ReturnType<typeof useCareerT>
-) => {
-  const provider = item.sourceProvider?.trim();
-  if (provider) return provider;
-  if (item.sourceType === "internal") {
-    return t(
-      "career.history.opportunity_detail_content.internal_source",
-      "Harper 네트워크"
-    );
-  }
-  return t(
-    "career.history.opportunity_detail_content.external_source",
-    "외부 채용공고"
   );
 };
 
@@ -540,7 +545,7 @@ const HistoryOpportunityMemoSection = ({
             disabled={pending}
             placeholder={t(
               "career.history.feedback_modal.12volkp",
-              "이 포지션에 대해 기억해둘 내용이나 기록할 점을 적어주세요."
+              "이 포지션에 대해 기억해둘 내용이나 확인할 점을 적어주세요."
             )}
             className="min-h-[128px]"
           />

@@ -10,6 +10,7 @@ import type {
   CareerInterviewProgress,
   CareerInternalOpportunityCallRequest,
   CareerMessagePayload,
+  CareerOnboardingChecklistProgress,
   CareerOpportunityFeedbackFollowUpTrigger,
   CareerOpportunityRun,
   CareerRecommendationSearchStatus,
@@ -74,6 +75,9 @@ const getDevCurrentDataJobPostingRecommendationPrompt = (
     "지금까지 저장된 내 프로필, 선호, 최근 피드백 데이터를 기준으로 지금 검토할 만한 공개 채용 공고를 추천해줘. 새로운 장기 선호는 저장하지 말고, 현재 데이터 기반으로 한 번만 찾아줘."
   );
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
 const normalizePendingInternalOpportunityCallRequests = (
   callRequests: CareerInternalOpportunityCallRequest[] | null | undefined
 ) => {
@@ -83,6 +87,35 @@ const normalizePendingInternalOpportunityCallRequests = (
     seen.add(callRequest.id);
     return true;
   });
+};
+
+const normalizeOnboardingChecklistProgress = (
+  value: unknown
+): CareerOnboardingChecklistProgress | null => {
+  if (!isRecord(value)) return null;
+
+  const totalCount = Math.max(0, Number(value.totalCount ?? 0) || 0);
+  const coveredCount = Math.max(0, Number(value.coveredCount ?? 0) || 0);
+  const percent =
+    typeof value.percent === "number"
+      ? Math.max(0, Math.min(100, Math.round(value.percent)))
+      : totalCount > 0
+        ? Math.min(100, Math.round((coveredCount / totalCount) * 100))
+        : 0;
+
+  return {
+    additionalCoveredCount: Math.max(
+      0,
+      Number(value.additionalCoveredCount ?? 0) || 0
+    ),
+    completed: value.completed === true,
+    coveredCount,
+    finalConfirmationCovered: value.finalConfirmationCovered === true,
+    minCoveredCount: Math.max(0, Number(value.minCoveredCount ?? 0) || 0),
+    percent,
+    requiredQuestionsCovered: value.requiredQuestionsCovered === true,
+    totalCount,
+  };
 };
 
 type SessionReengagementPayload = {
@@ -129,9 +162,6 @@ const parseCareerSseEvent = (rawEvent: string): CareerSseEvent | null => {
     return { event, data: rawData };
   }
 };
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
 const toRecommendationSearchStatus = (
   value: unknown
@@ -207,6 +237,8 @@ export const CareerFlowProvider = ({
   >([]);
   const [opportunityRun, setOpportunityRun] =
     useState<CareerOpportunityRun | null>(null);
+  const [onboardingChecklistProgress, setOnboardingChecklistProgress] =
+    useState<CareerOnboardingChecklistProgress | null>(null);
   const [
     pendingInternalOpportunityCallRequest,
     setPendingInternalOpportunityCallRequest,
@@ -1111,6 +1143,11 @@ export const CareerFlowProvider = ({
       applySessionProfile(payload);
       applySessionTalentPreferences(payload);
       applySessionTalentInsights(payload);
+      setOnboardingChecklistProgress(
+        normalizeOnboardingChecklistProgress(
+          payload.onboardingChecklistProgress
+        )
+      );
       applySessionPrompt(payload);
       hydrateHistoryOpportunities(
         payload.historyOpportunities,
@@ -1290,6 +1327,7 @@ export const CareerFlowProvider = ({
       resetRuntimeActionsState();
       setRecentOpportunities([]);
       setActiveCompanyRoleCount(0);
+      setOnboardingChecklistProgress(null);
       replacePendingInternalOpportunityCallRequests([]);
       clearSessionReengagementAction();
       sessionReengagementRef.current = null;
@@ -1692,36 +1730,78 @@ export const CareerFlowProvider = ({
     Boolean(sessionData?.talentPreferences?.isOnboardingDone);
   const sessionDataNeedsLocalHydration =
     Boolean(
-      sessionData &&
-        stage === "profile" &&
-        sessionDataStage !== "profile"
-    ) ||
-    Boolean(sessionDataOnboardingDone && !isOnboardingDone);
-  const workspaceDataLoading =
-    sessionPending || sessionDataNeedsLocalHydration;
+      sessionData && stage === "profile" && sessionDataStage !== "profile"
+    ) || Boolean(sessionDataOnboardingDone && !isOnboardingDone);
+  const workspaceDataLoading = sessionPending || sessionDataNeedsLocalHydration;
 
   const progressPercent = Math.round(
     (answeredCount / TALENT_INTERVIEW_FINAL_STEP) * 100
   );
   const interviewProgress: CareerInterviewProgress = useMemo(() => {
-    const totalCount = INSIGHT_CHECKLIST.length;
-    const filledCount = INSIGHT_CHECKLIST.reduce((count, item) => {
+    const insightTotalCount = INSIGHT_CHECKLIST.length;
+    const insightFilledCount = INSIGHT_CHECKLIST.reduce((count, item) => {
       const value = talentInsights?.[item.key];
       return String(value ?? "").trim().length > 0 ? count + 1 : count;
     }, 0);
-    const percent =
-      totalCount > 0
-        ? Math.min(100, Math.round((filledCount / totalCount) * 100))
+    const insightPercent =
+      insightTotalCount > 0
+        ? Math.min(
+            100,
+            Math.round((insightFilledCount / insightTotalCount) * 100)
+          )
         : 0;
+    const checklistPercent = onboardingChecklistProgress?.percent ?? 0;
+    const displayProgressCandidates = [
+      {
+        filledCount: insightFilledCount,
+        percent: insightPercent,
+        totalCount: insightTotalCount,
+      },
+      onboardingChecklistProgress
+        ? {
+            filledCount: onboardingChecklistProgress.coveredCount,
+            percent: checklistPercent,
+            totalCount: onboardingChecklistProgress.totalCount,
+          }
+        : null,
+      {
+        filledCount: answeredCount,
+        percent: progressPercent,
+        totalCount: TALENT_INTERVIEW_FINAL_STEP,
+      },
+    ].filter(
+      (
+        item
+      ): item is {
+        filledCount: number;
+        percent: number;
+        totalCount: number;
+      } => item !== null
+    );
+    const displayProgress = displayProgressCandidates.reduce((best, item) =>
+      item.percent > best.percent ? item : best
+    );
+    const forceCompletePercent = Math.max(insightPercent, checklistPercent);
 
     return {
-      canForceComplete: !isOnboardingDone && stage === "chat" && percent >= 85,
-      filledCount,
-      percent,
-      remainingCount: Math.max(totalCount - filledCount, 0),
-      totalCount,
+      canForceComplete:
+        !isOnboardingDone && stage === "chat" && forceCompletePercent >= 85,
+      filledCount: displayProgress.filledCount,
+      percent: displayProgress.percent,
+      remainingCount: Math.max(
+        displayProgress.totalCount - displayProgress.filledCount,
+        0
+      ),
+      totalCount: displayProgress.totalCount,
     };
-  }, [isOnboardingDone, stage, talentInsights]);
+  }, [
+    answeredCount,
+    isOnboardingDone,
+    onboardingChecklistProgress,
+    progressPercent,
+    stage,
+    talentInsights,
+  ]);
 
   const chatPanelContextValue: CareerChatPanelContextValue = useMemo(
     () => ({

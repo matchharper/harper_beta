@@ -208,7 +208,7 @@ export const CAREER_HOOK_MESSAGES = {
   ),
   referenceLink: t(
     "career.common.career_hook_messages.09wz9hs",
-    "참고 링크: {link}"
+    "Reference link: {link}"
   ),
   resumeLinksIngestionCreateFailed: t(
     "career.common.career_hook_messages.09pr3ij",

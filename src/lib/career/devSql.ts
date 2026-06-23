@@ -396,7 +396,7 @@ Hard rules:
 - Keep SQL readable. Comments are allowed, but the actual predicates must contain current_setting('app.current_talent_id', true)::uuid.
 
 Relevant Supabase public schema:
-- talent_users: user_id uuid/text primary account id; email, name, headline, bio, location, resume_file_name, resume_storage_path, resume_links, resume_text, last_logined_at, created_at, updated_at.
+- talent_users: user_id uuid/text primary account id; email, name, headline, bio, current_location, location, resume_file_name, resume_storage_path, resume_links, resume_text, last_logined_at, created_at, updated_at.
 - talent_setting: user_id references talent_users.user_id; is_onboarding_done, status ('active'/'passive'/'stopped'), status_updated_at, engagement_types, blocked_companies, profile_visibility, periodic_interval_days, recommendation_batch_size, recommendation_source_conversation_id, created_at, updated_at.
 - talent_conversations: id uuid, user_id references talent_users.user_id, stage, relief_nudge_sent, created_at, updated_at.
 - talent_messages: id bigint, conversation_id references talent_conversations.id, user_id references talent_users.user_id, role, content, message_type, thinking_logs, created_at.
@@ -404,7 +404,6 @@ Relevant Supabase public schema:
 - talent_activity_events: id uuid, talent_id references talent_users.user_id, conversation_id, message_id, event_type, source, summary, impact_level, changed_domains, created_at.
 - talent_insights: id bigint, talent_id references talent_users.user_id, content jsonb, last_updated_at, created_at.
 - talent_experiences / talent_educations / talent_extras / talent_publications: profile tables keyed by talent_id.
-- talent_internal: internal career network metadata keyed by talent_id.
 - opportunity_discovery_run: id uuid, talent_id references talent_users.user_id, conversation_id, trigger, trigger_payload, status, query_plan, user_brief, coverage, settings_snapshot, message, run_mode, created_at, updated_at, started_at, completed_at, error_message.
 - talent_opportunity_recommendation: id uuid, talent_id references talent_users.user_id, discovery_run_id references opportunity_discovery_run.id, role_id references company_roles.role_id, kind, opportunity_type, fit_summary, fit_reasons, tradeoffs, preference_fit, feedback ('like'/'dislike'/null), saved_stage, viewed_at, clicked_at, dismissed_at, recommended_at, created_at, updated_at.
 - talent_opportunity_chat_preview: id uuid, recommendation_id references talent_opportunity_recommendation.id, discovery_run_id references opportunity_discovery_run.id, conversation_id references talent_conversations.id, assistant_message_id references talent_messages.id, rank, created_at. Delete this before deleting matching recommendations/messages/runs.
@@ -419,7 +418,7 @@ Relevant Supabase public schema:
 Common examples:
 - "추천된 기회 전부 삭제" means delete talent_opportunity_chat_preview rows for this user's recommendations, then delete talent_opportunity_recommendation rows for this talent_id. Usually keep company_roles.
 - "최근 3일간 모든 추천 데이터 삭제" means filter recommended_at/created_at >= now() - interval '3 days' on this user's recommendation/run/delivery/snapshot rows.
-- "최근 3일간 모든 데이터 삭제" means include every current-account table above that has created_at and is scoped by talent_id/user_id, including messages, conversations, summaries, activity events, opportunity data, company recommendation/follow data, email data, profile data, talent_internal, and reply-email data. Do not delete talent_users unless explicitly requested. Usually keep talent_setting unless the request says to reset settings.
+- "최근 3일간 모든 데이터 삭제" means include every current-account table above that has created_at and is scoped by talent_id/user_id, including messages, conversations, summaries, activity events, opportunity data, company recommendation/follow data, email data, profile data, and reply-email data. Do not delete talent_users unless explicitly requested. Usually keep talent_setting unless the request says to reset settings.
 - "온보딩 다시 하게 만들기" usually update talent_conversations.stage='profile' or talent_setting.is_onboarding_done=false for current user, depending on the request.
 
 Current account summary:

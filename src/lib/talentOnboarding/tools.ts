@@ -2007,7 +2007,7 @@ export function getEnabledTalentTools(channel: TalentToolChannel) {
 const UI_STATUS_MESSAGE_PARAMETER = {
   type: "string",
   description:
-    "Specific user-facing Thinking log sentence in the current response language for this exact tool call. Say what is being changed, checked, searched, or prepared. If searching jobs, describe the kind of opportunities being searched for. If changing saved information, mention the concrete field/value being adjusted; old-to-new is optional only when it is naturally available. Do not use vague text like 'updating', 'checking', or 'searching' by itself. Do not mention internal tool names. Keep it under 160 characters.",
+    "Specific English user-facing Thinking log sentence for this exact tool call. Say what is being changed, checked, searched, or prepared. If searching jobs, describe the kind of opportunities being searched for. If changing saved information, mention the concrete field/value being adjusted; old-to-new is optional only when it is naturally available. Do not use vague text like 'updating', 'checking', or 'searching' by itself. Do not mention internal tool names. Keep it under 160 characters.",
 };
 
 function withUiStatusMessageParameter(parameters: Record<string, unknown>) {

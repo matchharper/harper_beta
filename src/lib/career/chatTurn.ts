@@ -512,11 +512,14 @@ export async function runCareerChatTurn(
             buildCareerInsightExtractionPrompt({
               currentChecklistCoverage: promptArgs.currentChecklistCoverage,
               currentInsightContent: promptArgs.currentInsightContent,
+              onboardingChecklistContext:
+                promptArgs.onboardingChecklistContext,
               preferredLocale: responseLocale,
             }),
           conversationId,
           currentInsightContent,
           logPrefix: "TalentChatTurn",
+          onboardingChecklistContext: profile,
           sourceChannel:
             requestChannel === "voice" ? "voice_call" : "text_chat",
           userId,
@@ -525,7 +528,7 @@ export async function runCareerChatTurn(
 
   let insertedUserMessage: TalentMessageRow | null = null;
   const normalizedContent = link
-    ? `${rawUserMessage}\n\n참고 링크: ${link}`
+    ? `${rawUserMessage}\n\nReference link: ${link}`
     : rawUserMessage;
 
   if (rawUserMessage) {
@@ -1187,7 +1190,8 @@ export async function runCareerChatTurn(
     : null;
   const checklistCompleted =
     latestChecklistCoverage &&
-    getOnboardingChecklistCoverageStats(latestChecklistCoverage).isComplete;
+    getOnboardingChecklistCoverageStats(latestChecklistCoverage, profile)
+      .isComplete;
   const resolvedCompletion = completion.completed
     ? completion
     : checklistCompleted

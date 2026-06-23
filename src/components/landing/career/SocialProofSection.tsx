@@ -13,6 +13,7 @@ const partnerLogos = [
   { key: "wonderful", src: "/images/wonderful.png", width: 154, height: 55 },
   { key: "mistral", src: "/images/mistral.png", width: 142, height: 40 },
   { key: "cohere", src: "/svgs/cohere.svg", width: 124, height: 21 },
+  { key: "amazon", src: "/images/logos/amazon.svg", width: 118, height: 36 },
 ] as const;
 
 export default function SocialProofSection() {

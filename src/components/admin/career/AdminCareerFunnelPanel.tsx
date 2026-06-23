@@ -29,8 +29,12 @@ type AdminCareerFunnelPanelProps = {
 const FUNNEL_TOOLTIPS: Record<string, string> = {
   landing_entry:
     "landing_logs에서 new_visit/new_session 계열 type을 unique local_id로 센 값입니다. 새 로그는 new_visit:career처럼 source suffix가 붙고, 과거 로그는 source가 unknown으로 표시됩니다.",
+  login_click:
+    "landing_logs에서 click_start 계열 type을 unique local_id로 센 값입니다. /admin/career/top_funnel의 로그인 버튼 클릭과 같은 기준입니다.",
   login:
     "landing_logs에서 login_email:<email> 계열 type을 unique local_id로 센 값입니다. 새 로그는 login_email:<email>:search처럼 source suffix가 붙습니다.",
+  signup:
+    "logs.type='career_signup_completed'의 첫 발생과 talent_users.created_at으로 보정한 가입 유저 수입니다. /admin/career/top_funnel의 회원 가입과 같은 기준입니다.",
   onboarding_basic:
     "logs.type='career_click_onboarding_next_step_1' 유저 수입니다. 완료 유저가 로그보다 많으면 talent_setting.is_onboarding_done으로 보정합니다.",
   onboarding_role:
@@ -47,7 +51,7 @@ const FUNNEL_TOOLTIPS: Record<string, string> = {
 
 const formatRate = (value: number | null) => {
   if (value === null) return "-";
-  return `${Math.round(value * 100).toLocaleString("ko-KR")}%`;
+  return `${Math.round(value * 1000) / 10}%`;
 };
 
 export default function AdminCareerFunnelPanel({

@@ -2011,9 +2011,11 @@ type CareerRecommendationRoleRow = {
   company_workspace?:
     | {
         company_name?: string | null;
+        is_internal?: boolean | null;
       }
     | Array<{
         company_name?: string | null;
+        is_internal?: boolean | null;
       }>
     | null;
 };
@@ -2071,9 +2073,11 @@ type InternalRecommendationTalentRow = {
 type CareerRecommendationStageLookupRow = {
   company_role?:
     | {
+        company_workspace?: { is_internal?: boolean | null } | null;
         source_type?: string | null;
       }
     | Array<{
+        company_workspace?: { is_internal?: boolean | null } | null;
         source_type?: string | null;
       }>
     | null;
@@ -2083,13 +2087,16 @@ type CareerRecommendationStageLookupRow = {
 function normalizeRecommendationSourceType(args: {
   opportunityType?: string | null;
   roleSourceType?: string | null;
+  workspaceIsInternal?: boolean | null;
 }): CareerTalentRecommendationSourceType {
   const roleSourceType = String(args.roleSourceType ?? "").toLowerCase();
   const opportunityType = String(args.opportunityType ?? "").toLowerCase();
+  if (roleSourceType === "external") return "external";
   if (
     roleSourceType === "internal" ||
     opportunityType === "internal_recommendation" ||
-    opportunityType === "intro_request"
+    opportunityType === "intro_request" ||
+    args.workspaceIsInternal === true
   ) {
     return "internal";
   }
@@ -2102,7 +2109,12 @@ function getEffectiveRecommendationStage(row: {
 }) {
   const processedStage = row.processed_stage?.trim();
   if (processedStage) return processedStage;
-  return row.feedback?.trim() ? "수락-거절함" : "추천됨";
+  const feedback = String(row.feedback ?? "")
+    .trim()
+    .toLowerCase();
+  if (feedback === "like" || feedback === "positive") return "수락";
+  if (feedback === "dislike" || feedback === "negative") return "거절";
+  return feedback ? "피드백 있음" : "추천됨";
 }
 
 function mapCareerRecommendationRow(
@@ -2149,6 +2161,10 @@ function mapCareerRecommendationRow(
     sourceType: normalizeRecommendationSourceType({
       opportunityType,
       roleSourceType: role.source_type ?? null,
+      workspaceIsInternal:
+        typeof workspace?.is_internal === "boolean"
+          ? workspace.is_internal
+          : null,
     }),
     talentId,
     updatedAt,
@@ -2317,7 +2333,8 @@ const CAREER_RECOMMENDATION_SELECT = `
     source_type,
     status,
     company_workspace:company_workspace (
-      company_name
+      company_name,
+      is_internal
     )
   )
 `;
@@ -2613,7 +2630,10 @@ export async function updateCareerTalentRecommendationProcessedStage(args: {
         id,
         opportunity_type,
         company_role:company_roles (
-          source_type
+          source_type,
+          company_workspace:company_workspace (
+            is_internal
+          )
         )
       `
     )
@@ -2634,6 +2654,10 @@ export async function updateCareerTalentRecommendationProcessedStage(args: {
   const sourceType = normalizeRecommendationSourceType({
     opportunityType: lookupRow.opportunity_type,
     roleSourceType: role?.source_type ?? null,
+    workspaceIsInternal:
+      typeof role?.company_workspace?.is_internal === "boolean"
+        ? role.company_workspace.is_internal
+        : null,
   });
   if (sourceType !== "internal") {
     throw new Error("Only internal recommendations can update processedStage");
@@ -3085,6 +3109,38 @@ async function fetchLatestTalentConversationId(args: {
   return String(data?.[0]?.id ?? "").trim() || null;
 }
 
+async function insertManualInternalRecommendationProgress(args: {
+  admin: UntypedAdminClient;
+  requestedBy?: string | null;
+  role: OpsManualInternalRecommendationRole;
+  runId: string;
+  userId: string;
+}) {
+  const requestedBy = String(args.requestedBy ?? "").trim() || null;
+
+  try {
+    const { error } = await args.admin.from("talent_progress").insert({
+      recommendation_id: null,
+      role_id: args.role.roleId,
+      talent_id: args.userId,
+      text: `${args.role.companyName} · ${args.role.roleName} 연결 제안이 등록되었습니다. 추천 생성/발송 대기 중입니다.`,
+      user_id: requestedBy,
+    });
+
+    if (error) throw error;
+  } catch (error) {
+    console.warn(
+      "[ops-career] failed to create manual recommendation progress",
+      {
+        error,
+        roleId: args.role.roleId,
+        runId: args.runId,
+        userId: args.userId,
+      }
+    );
+  }
+}
+
 export async function queueManualInternalRecommendationRun(args: {
   reason?: string | null;
   requestedBy?: string | null;
@@ -3149,6 +3205,14 @@ export async function queueManualInternalRecommendationRun(args: {
         internal: "forced_single_role",
       },
     },
+  });
+
+  await insertManualInternalRecommendationProgress({
+    admin,
+    requestedBy: args.requestedBy,
+    role,
+    runId: run.id,
+    userId,
   });
 
   await insertTalentActivityEvent({

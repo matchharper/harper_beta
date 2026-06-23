@@ -3,6 +3,7 @@ import { getRequestUser } from "@/lib/supabaseServer";
 import {
   fetchTalentInsights,
   fetchTalentSetting,
+  fetchTalentUserProfile,
   getCareerOnboardingChecklistCoverage,
   getOnboardingChecklistCoverageStats,
   getTalentSupabaseAdmin,
@@ -304,26 +305,14 @@ export async function POST(request: NextRequest) {
       typeof rawConversationStarterId === "string"
         ? (sanitizeSingleLineDbText(rawConversationStarterId, 120) ?? "")
         : "";
-    const requestLocale =
-      body.locale ?? request.cookies.get("NEXT_LOCALE")?.value;
-    const conversationStarter = conversationStarterId
-      ? getCareerConversationStarterPrompt(conversationStarterId, requestLocale)
-      : null;
     const internalCallRequestId =
       typeof rawInternalCallRequestId === "string"
         ? (sanitizeSingleLineDbText(rawInternalCallRequestId, 120) ?? "")
         : "";
-    const skipConversationWrites = Boolean(conversationStarter);
 
     if (!conversationId || !Array.isArray(transcript)) {
       return NextResponse.json(
         { error: "Missing required fields" },
-        { status: 400 }
-      );
-    }
-    if (conversationStarterId && !conversationStarter) {
-      return NextResponse.json(
-        { error: "Invalid conversationStarterId" },
         { status: 400 }
       );
     }
@@ -348,26 +337,41 @@ export async function POST(request: NextRequest) {
     }
     const safeDurationSeconds = Math.max(0, Math.floor(durationSeconds ?? 0));
     const requestTranscript = normalizeTranscriptEntries(transcript);
-    const [talentSetting, currentInsights, conversation] = await Promise.all([
-      fetchTalentSetting({
-        admin: supabase,
-        userId: user.id,
-      }),
-      fetchTalentInsights({
-        admin: supabase,
-        userId: user.id,
-      }),
-      supabase
-        .from("talent_conversations")
-        .select("stage")
-        .eq("id", conversationId)
-        .eq("user_id", user.id)
-        .maybeSingle(),
-    ]);
+    const [talentSetting, currentInsights, profile, conversation] =
+      await Promise.all([
+        fetchTalentSetting({
+          admin: supabase,
+          userId: user.id,
+        }),
+        fetchTalentInsights({
+          admin: supabase,
+          userId: user.id,
+        }),
+        fetchTalentUserProfile({
+          admin: supabase,
+          userId: user.id,
+        }),
+        supabase
+          .from("talent_conversations")
+          .select("stage")
+          .eq("id", conversationId)
+          .eq("user_id", user.id)
+          .maybeSingle(),
+      ]);
     const responseLocale =
-      body.locale ??
       talentSetting?.preferred_locale ??
+      body.locale ??
       request.cookies.get("NEXT_LOCALE")?.value;
+    const conversationStarter = conversationStarterId
+      ? getCareerConversationStarterPrompt(conversationStarterId, responseLocale)
+      : null;
+    const skipConversationWrites = Boolean(conversationStarter);
+    if (conversationStarterId && !conversationStarter) {
+      return NextResponse.json(
+        { error: "Invalid conversationStarterId" },
+        { status: 400 }
+      );
+    }
     const durationLabel =
       safeDurationSeconds > 0
         ? formatDuration(safeDurationSeconds, responseLocale)
@@ -453,7 +457,8 @@ export async function POST(request: NextRequest) {
               conversationId,
               currentInsightContent,
               userId: user.id,
-            })
+            }),
+            profile
           ).isComplete
         : false;
     if (coverageCompletion) {

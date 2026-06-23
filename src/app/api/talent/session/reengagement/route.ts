@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   ensureTalentUserRecord,
+  fetchTalentSetting,
   getTalentSupabaseAdmin,
   type TalentConversationRow,
 } from "@/lib/talentOnboarding/server";
@@ -229,7 +230,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const [latestChatResult, latestReengagementSkipResult] = await Promise.all([
+    const [latestChatResult, latestReengagementSkipResult, talentSetting] =
+      await Promise.all([
       admin
         .from("talent_messages")
         .select(
@@ -248,6 +250,13 @@ export async function POST(req: NextRequest) {
         .order("id", { ascending: false })
         .limit(1)
         .maybeSingle(),
+      fetchTalentSetting({ admin, userId: user.id }).catch((error) => {
+        console.warn("[TalentSessionReengagement] setting load failed", {
+          error: error instanceof Error ? error.message : "Unknown error",
+          userId: user.id,
+        });
+        return null;
+      }),
     ]);
 
     const { data: latestChatMessage, error: latestChatError } =
@@ -332,6 +341,7 @@ export async function POST(req: NextRequest) {
     const proactiveContext = buildCareerSessionStartTurnInstruction({
       currentAccessAt: now,
       idleMs: effectiveIdleMs,
+      preferredLocale: talentSetting?.preferred_locale ?? null,
       previousChatAt: latestChatMessage?.created_at ?? null,
     });
 

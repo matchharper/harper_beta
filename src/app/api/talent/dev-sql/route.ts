@@ -24,7 +24,6 @@ const COUNT_SPECS = [
   { table: "talent_educations", column: "talent_id" },
   { table: "talent_extras", column: "talent_id" },
   { table: "talent_publications", column: "talent_id" },
-  { table: "talent_internal", column: "talent_id" },
   { table: "talent_activity_events", column: "talent_id" },
   { table: "opportunity_discovery_run", column: "talent_id" },
   { table: "talent_opportunity_recommendation", column: "talent_id" },
