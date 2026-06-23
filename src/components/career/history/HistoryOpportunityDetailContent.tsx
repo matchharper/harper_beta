@@ -80,7 +80,7 @@ export const OpportunityHeader = ({
   const stacked = layout === "stacked";
 
   return (
-    <div>
+    <div className="w-full">
       <div className="w-fit mb-4">
         <HistoryOpportunityInfoTag
           item={item}
