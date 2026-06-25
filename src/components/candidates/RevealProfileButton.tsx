@@ -68,7 +68,6 @@ export default function RevealProfileButton({
       {overlay ? (
         <BareButton
           type="button"
-          aria-label={label}
           aria-busy={revealMutation.isPending}
           onClick={(event) => {
             event.preventDefault();

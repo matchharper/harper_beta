@@ -9,6 +9,7 @@ import {
   fetchTalentUserProfile,
   mergeTalentInsightContent,
   mergeTalentSettingSeed,
+  refreshTalentPreferredLocale,
   upsertTalentInsights,
   upsertTalentSetting,
 } from "@/lib/talentOnboarding/server";
@@ -588,6 +589,10 @@ export async function claimTalentNetworkInvite(args: {
 
     if (updateError) {
       throw new Error(updateError.message ?? "Failed to claim network invite");
+    }
+
+    if (Object.prototype.hasOwnProperty.call(payload, "location")) {
+      await refreshTalentPreferredLocale({ admin, userId: user.id });
     }
   }
 

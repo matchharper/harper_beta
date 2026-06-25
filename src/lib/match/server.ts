@@ -1,14 +1,5 @@
 import { MATCH_BOOKING_URL } from "@/lib/booking";
-import {
-  applyListRevealState,
-  fetchBaseCandidatesByIds,
-  fetchCandidateMarkMapForUser,
-  fetchGithubPreviewByCandidateIds,
-  fetchRevealMapForUser,
-  fetchScholarPreviewByCandidateIds,
-  fetchShortlistMemoMapForUser,
-  getSupabaseAdmin,
-} from "@/lib/server/candidateAccess";
+import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import type { CandidateTypeWithConnection } from "@/hooks/search/useSearchChatCandidates";
 import {
   normalizeMatchDecisionStatus,
@@ -55,24 +46,6 @@ type MembershipRow = {
   role: string | null;
 };
 
-type MatchRow = {
-  candid_id: string;
-  company_role: {
-    company_workspace_id: string;
-    name: string;
-    role_id: string;
-    status: string;
-    updated_at: string;
-  } | null;
-  created_at: string;
-  feedback_text: string | null;
-  harper_memo: string | null;
-  id: string;
-  role_id: string;
-  status: string;
-  updated_at: string;
-};
-
 type CompanyDbRow = {
   linkedin_url: string | null;
   logo: string | null;
@@ -80,13 +53,6 @@ type CompanyDbRow = {
 
 export type MatchCandidateListItem = CandidateTypeWithConnection & {
   match: MatchCandidateRecord;
-};
-
-const ROLE_STATUS_WEIGHT: Record<MatchRoleStatus, number> = {
-  top_priority: 0,
-  active: 1,
-  paused: 2,
-  ended: 3,
 };
 
 function ensureNonEmptyString(value: unknown, fieldName: string) {
@@ -221,7 +187,6 @@ function mapWorkspaceRecord(args: {
 }
 
 function mapRoleRecord(args: {
-  matchedCandidateCountByRoleId: Map<string, number>;
   row: RoleRow;
 }): MatchRoleRecord {
   const roleId = String(args.row.role_id ?? "");
@@ -231,30 +196,9 @@ function mapRoleRecord(args: {
     description: args.row.description ?? null,
     employmentTypes: normalizeMatchEmploymentTypes(args.row.type),
     externalJdUrl: args.row.external_jd_url ?? null,
-    matchedCandidateCount: args.matchedCandidateCountByRoleId.get(roleId) ?? 0,
     name: String(args.row.name ?? ""),
     roleId,
     status: normalizeMatchRoleStatus(args.row.status),
-    updatedAt: String(args.row.updated_at ?? args.row.created_at ?? ""),
-  };
-}
-
-function mapMatchRecord(args: {
-  relatedRoleIds?: string[];
-  relatedRoleNames?: string[];
-  row: MatchRow;
-}): MatchCandidateRecord {
-  return {
-    candidId: String(args.row.candid_id ?? ""),
-    feedbackText: args.row.feedback_text ?? null,
-    harperMemo: args.row.harper_memo ?? null,
-    matchId: String(args.row.id ?? ""),
-    relatedRoleIds: args.relatedRoleIds ?? [String(args.row.role_id ?? "")],
-    relatedRoleNames:
-      args.relatedRoleNames ?? [String(args.row.company_role?.name ?? "")],
-    roleId: String(args.row.role_id ?? ""),
-    roleName: String(args.row.company_role?.name ?? ""),
-    status: normalizeMatchDecisionStatus(args.row.status),
     updatedAt: String(args.row.updated_at ?? args.row.created_at ?? ""),
   };
 }
@@ -360,30 +304,6 @@ async function resolveWorkspaceContext(args: {
   };
 }
 
-async function fetchMatchedCandidateCountByRoleId(
-  admin: AdminClient,
-  roleIds: string[]
-) {
-  const countByRoleId = new Map<string, number>();
-  if (roleIds.length === 0) return countByRoleId;
-
-  const { data, error } = await ((admin.from("company_role_matched" as any) as any)
-    .select("role_id")
-    .in("role_id", roleIds));
-
-  if (error) {
-    throw new Error(error.message ?? "Failed to load matched candidate counts");
-  }
-
-  for (const row of coerceJsonArray<any>(data)) {
-    const roleId = String(row?.role_id ?? "").trim();
-    if (!roleId) continue;
-    countByRoleId.set(roleId, (countByRoleId.get(roleId) ?? 0) + 1);
-  }
-
-  return countByRoleId;
-}
-
 export async function fetchWorkspaceRoles(args: {
   admin: AdminClient;
   workspaceId: string;
@@ -400,15 +320,9 @@ export async function fetchWorkspaceRoles(args: {
   }
 
   const roleRows = coerceJsonArray<RoleRow>(data);
-  const roleIds = roleRows.map((row) => String(row.role_id ?? "")).filter(Boolean);
-  const matchedCandidateCountByRoleId = await fetchMatchedCandidateCountByRoleId(
-    args.admin,
-    roleIds
-  );
 
   return roleRows.map((row) =>
     mapRoleRecord({
-      matchedCandidateCountByRoleId,
       row,
     })
   );
@@ -617,96 +531,8 @@ export async function saveMatchRole(args: {
   }
 
   return mapRoleRecord({
-    matchedCandidateCountByRoleId: new Map(),
     row: data as RoleRow,
   });
-}
-
-async function fetchRawMatchRows(args: {
-  admin: AdminClient;
-  roleId?: string | null;
-  roleIds: string[];
-}) {
-  if (args.roleIds.length === 0) return [] as MatchRow[];
-
-  let query = ((args.admin.from("company_role_matched" as any) as any)
-    .select(
-      `
-        id,
-        candid_id,
-        role_id,
-        harper_memo,
-        status,
-        feedback_text,
-        created_at,
-        updated_at,
-        company_role:company_roles (
-          role_id,
-          company_workspace_id,
-          name,
-          status,
-          updated_at
-        )
-      `
-    )
-    .in("role_id", args.roleIds)
-    .order("updated_at", { ascending: false })) as any;
-
-  const requestedRoleId = String(args.roleId ?? "").trim();
-  if (requestedRoleId) {
-    query = query.eq("role_id", requestedRoleId);
-  }
-
-  const { data, error } = await query;
-
-  if (error) {
-    throw new Error(error.message ?? "Failed to load matched candidates");
-  }
-
-  return coerceJsonArray<MatchRow>(data);
-}
-
-function compareMatchRows(a: MatchRow, b: MatchRow) {
-  const aWeight =
-    ROLE_STATUS_WEIGHT[normalizeMatchRoleStatus(a.company_role?.status)] ?? 99;
-  const bWeight =
-    ROLE_STATUS_WEIGHT[normalizeMatchRoleStatus(b.company_role?.status)] ?? 99;
-
-  if (aWeight !== bWeight) return aWeight - bWeight;
-
-  const aUpdated = new Date(a.updated_at ?? a.created_at ?? 0).getTime();
-  const bUpdated = new Date(b.updated_at ?? b.created_at ?? 0).getTime();
-  return bUpdated - aUpdated;
-}
-
-function dedupeWorkspaceMatchRows(rows: MatchRow[]) {
-  const grouped = new Map<string, MatchRow[]>();
-
-  for (const row of rows) {
-    const candidId = String(row.candid_id ?? "").trim();
-    if (!candidId) continue;
-    grouped.set(candidId, [...(grouped.get(candidId) ?? []), row]);
-  }
-
-  const deduped: Array<{
-    primary: MatchRow;
-    relatedRoleIds: string[];
-    relatedRoleNames: string[];
-  }> = [];
-
-  for (const candidateRows of Array.from(grouped.values())) {
-    const sorted = [...candidateRows].sort(compareMatchRows);
-    const primary = sorted[0];
-    deduped.push({
-      primary,
-      relatedRoleIds: sorted.map((row) => String(row.role_id ?? "")).filter(Boolean),
-      relatedRoleNames: sorted
-        .map((row) => String(row.company_role?.name ?? "").trim())
-        .filter(Boolean),
-    });
-  }
-
-  return deduped.sort((a, b) => compareMatchRows(a.primary, b.primary));
 }
 
 export async function fetchMatchCandidates(args: {
@@ -742,91 +568,10 @@ export async function fetchMatchCandidates(args: {
     throw new Error("Role not found");
   }
 
-  const rawRows = await fetchRawMatchRows({
-    admin,
-    roleId: requestedRoleId || null,
-    roleIds,
-  });
-  const groupedRows = requestedRoleId
-    ? rawRows.map((row) => ({
-        primary: row,
-        relatedRoleIds: [String(row.role_id ?? "")],
-        relatedRoleNames: [String(row.company_role?.name ?? "")],
-      }))
-    : dedupeWorkspaceMatchRows(rawRows);
-
-  const pageIdx = Math.max(0, Number(args.pageIdx ?? 0) || 0);
-  const pageSize = Math.min(50, Math.max(1, Number(args.pageSize ?? 24) || 24));
-  const start = pageIdx * pageSize;
-  const pagedRows = groupedRows.slice(start, start + pageSize);
-  const candidateIds = pagedRows
-    .map((row) => String(row.primary.candid_id ?? "").trim())
-    .filter(Boolean);
-
-  if (candidateIds.length === 0) {
-    return {
-      hasNext: false,
-      items: [] as MatchCandidateListItem[],
-      total: groupedRows.length,
-      workspace: mapWorkspaceRecord({
-        membershipRole: resolved.membership?.role ?? null,
-        row: resolved.workspace,
-      }),
-    };
-  }
-
-  const [
-    candidates,
-    revealMap,
-    candidateMarkMap,
-    shortlistMemoMap,
-    scholarPreviewByCandidateId,
-    githubPreviewByCandidateId,
-  ] = await Promise.all([
-    fetchBaseCandidatesByIds({
-      ids: candidateIds,
-      supabaseAdmin: admin,
-      userId: args.userId,
-    }),
-    fetchRevealMapForUser(admin, args.userId, candidateIds),
-    fetchCandidateMarkMapForUser(admin, args.userId, candidateIds),
-    fetchShortlistMemoMapForUser(admin, args.userId, candidateIds),
-    fetchScholarPreviewByCandidateIds(admin, candidateIds),
-    fetchGithubPreviewByCandidateIds(admin, candidateIds),
-  ]);
-
-  const candidateById = new Map(
-    candidates.map((candidate: any) => [String(candidate.id), candidate] as const)
-  );
-
-  const items = pagedRows
-    .map(({ primary, relatedRoleIds, relatedRoleNames }) => {
-      const candidId = String(primary.candid_id ?? "").trim();
-      const candidate = candidateById.get(candidId);
-      if (!candidate) return null;
-
-      const isRevealed = revealMap.get(candidId) === true;
-      const payload = {
-        ...candidate,
-        candidate_mark: candidateMarkMap.get(candidId) ?? null,
-        github_profile_preview: githubPreviewByCandidateId.get(candidId) ?? null,
-        match: mapMatchRecord({
-          relatedRoleIds,
-          relatedRoleNames,
-          row: primary,
-        }),
-        scholar_profile_preview: scholarPreviewByCandidateId.get(candidId) ?? null,
-        shortlist_memo: isRevealed ? shortlistMemoMap.get(candidId) ?? "" : "",
-      };
-
-      return applyListRevealState(payload, isRevealed) as MatchCandidateListItem;
-    })
-    .filter(Boolean) as MatchCandidateListItem[];
-
   return {
-    hasNext: start + pageSize < groupedRows.length,
-    items,
-    total: groupedRows.length,
+    hasNext: false,
+    items: [] as MatchCandidateListItem[],
+    total: 0,
     workspace: mapWorkspaceRecord({
       membershipRole: resolved.membership?.role ?? null,
       row: resolved.workspace,
@@ -851,50 +596,9 @@ export async function fetchMatchCandidateDetail(args: {
     throw new Error("Workspace not found");
   }
 
-  const roles = await fetchWorkspaceRoles({
-    admin,
-    workspaceId: resolved.workspace.company_workspace_id,
-  });
-  const roleIds = roles.map((role) => role.roleId);
-  const rawRows = await fetchRawMatchRows({
-    admin,
-    roleId: args.roleId,
-    roleIds,
-  });
-  const candidId = ensureNonEmptyString(args.candidId, "candidId");
-  const candidateRows = rawRows.filter(
-    (row) => String(row.candid_id ?? "").trim() === candidId
-  );
+  ensureNonEmptyString(args.candidId, "candidId");
 
-  if (candidateRows.length === 0) {
-    throw new Error("Matched candidate not found");
-  }
-
-  const sortedRows = [...candidateRows].sort(compareMatchRows);
-  const primary = sortedRows[0];
-  const relatedRoleIds = sortedRows
-    .map((row) => String(row.role_id ?? "").trim())
-    .filter(Boolean);
-  const relatedRoleNames = sortedRows
-    .map((row) => String(row.company_role?.name ?? "").trim())
-    .filter(Boolean);
-  const role =
-    roles.find((item) => item.roleId === String(primary.role_id ?? "")) ?? null;
-
-  return {
-    match: mapMatchRecord({
-      relatedRoleIds,
-      relatedRoleNames,
-      row: primary,
-    }),
-    relatedRoles: roles.filter((item) => relatedRoleIds.includes(item.roleId)),
-    role,
-    roles,
-    workspace: mapWorkspaceRecord({
-      membershipRole: resolved.membership?.role ?? null,
-      row: resolved.workspace,
-    }),
-  };
+  throw new Error("Matched candidate not found");
 }
 
 export async function updateMatchCandidateDecision(args: {
@@ -925,29 +629,10 @@ export async function updateMatchCandidateDecision(args: {
     throw new Error("Workspace not found");
   }
 
-  const { data, error } = await ((admin.from("company_role_matched" as any) as any)
-    .update({
-      feedback_text: feedbackText,
-      status,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("role_id", roleId)
-    .eq("candid_id", candidId)
-    .select("id")
-    .single());
+  void feedbackText;
+  void roleId;
+  void candidId;
+  void status;
 
-  if (error) {
-    throw new Error(error.message ?? "Failed to update match decision");
-  }
-
-  if (!data) {
-    throw new Error("Matched candidate not found");
-  }
-
-  return fetchMatchCandidateDetail({
-    candidId,
-    roleId,
-    userId: args.userId,
-    workspaceId: resolved.workspace.company_workspace_id,
-  });
+  throw new Error("Matched candidate not found");
 }

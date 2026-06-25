@@ -47,8 +47,33 @@ import { fetchPendingInternalOpportunityCallRequests } from "@/lib/talentOnboard
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 
 // const REENGAGEMENT_IDLE_MS = 60 * 1000;
-const REENGAGEMENT_IDLE_MS = 6 * 60 * 60 * 1000; // 6시간 지나서 접속시 인사
+const REENGAGEMENT_IDLE_MS = 12 * 60 * 60 * 1000; // 12시간 지나서 접속시 인사
 const DEFAULT_OPPORTUNITY_LIMIT = 10;
+
+function resolveRequestLocale(req: NextRequest) {
+  const countryCode = String(
+    req.headers.get("x-vercel-ip-country") ||
+      req.headers.get("cf-ipcountry") ||
+      ""
+  )
+    .trim()
+    .toUpperCase();
+
+  if (countryCode === "KR") return "ko";
+  if (countryCode && countryCode !== "ZZ") return "en";
+
+  const acceptedLanguages = String(req.headers.get("accept-language") ?? "")
+    .split(",")
+    .map((item) => item.split(";")[0]?.trim().toLowerCase())
+    .filter(Boolean);
+
+  for (const language of acceptedLanguages) {
+    if (language === "ko" || language?.startsWith("ko-")) return "ko";
+    if (language === "en" || language?.startsWith("en-")) return "en";
+  }
+
+  return null;
+}
 
 const getLatestUpdatedAt = (...values: Array<string | null | undefined>) => {
   const timestamps = values
@@ -138,6 +163,7 @@ const createEmptyHistoryCounts = () => ({
   saved: 0,
   savedStages: {
     saved: 0,
+    planned: 0,
     applied: 0,
     connected: 0,
     closed: 0,
@@ -268,7 +294,8 @@ export async function GET(req: NextRequest) {
     const firstVisitLocale =
       initialTalentSetting?.preferred_locale ??
       req.nextUrl.searchParams.get("locale") ??
-      req.cookies.get("NEXT_LOCALE")?.value;
+      req.cookies.get("NEXT_LOCALE")?.value ??
+      resolveRequestLocale(req);
 
     const { data: existing, error: existingError } = await admin
       .from("talent_conversations")

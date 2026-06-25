@@ -82,6 +82,22 @@ type RealtimeTokenUsage = {
   unattributedOutputTokens: number;
 };
 
+const LLM_LOG_SOURCES = [
+  "career/profile_ingestion",
+  "career_tool:recommend_job_postings",
+  "career_tool:update_talent_profile",
+  "career_tool:select_additional_onboarding_question",
+  "career_tool:web_search",
+  "career_tool:read_recommended_opportunities",
+] as const;
+
+const TOOL_LLM_LOG_NAMES = new Set([
+  "update_talent_profile",
+  "select_additional_onboarding_question",
+  "web_search",
+  "read_recommended_opportunities",
+]);
+
 const MODEL_PRICING_USD_PER_MTOK: Record<string, LlmModelPricing> = {
   "claude-sonnet-4-6": {
     cacheReadUsdPerMtok: 0.3,
@@ -464,7 +480,9 @@ export function estimateRealtimeLlmUsageCost(
 }
 
 export function logLlmTokenUsage(args: {
+  extraEstimatedCostUsd?: number;
   label?: string;
+  meta?: Record<string, unknown>;
   model: string;
   response: any;
 }) {
@@ -472,12 +490,19 @@ export function logLlmTokenUsage(args: {
 
   const usage = extractLlmTokenUsage(args.response);
   const cost = estimateLlmUsageCost(args.model, usage);
+  const extraEstimatedCostUsd =
+    typeof args.extraEstimatedCostUsd === "number" &&
+    Number.isFinite(args.extraEstimatedCostUsd)
+      ? args.extraEstimatedCostUsd
+      : 0;
   const target = resolveLlmLogTarget(args.label);
   if (!target) return;
 
   void insertLlmLog({
-    estimatedCostUsd: cost?.estimatedCostUsd ?? 0,
+    estimatedCostUsd: (cost?.estimatedCostUsd ?? 0) + extraEstimatedCostUsd,
     meta: {
+      ...(args.meta ?? {}),
+      ...(extraEstimatedCostUsd > 0 ? { extraEstimatedCostUsd } : {}),
       label: args.label,
       step: target.step,
       usage,
@@ -498,6 +523,44 @@ export function logLlmTokenUsage(args: {
   //   estimatedCostUsd: cost?.estimatedCostUsd ?? null,
   //   costBreakdown: cost,
   // });
+}
+
+export function logLlmTokenUsageForToolCalls(args: {
+  baseLabel?: string | null;
+  model: string;
+  response: any;
+  step: string;
+  toolNames: readonly string[];
+}) {
+  const toolNames = Array.from(
+    new Set(
+      args.toolNames
+        .map((name) => String(name ?? "").trim())
+        .filter((name) => TOOL_LLM_LOG_NAMES.has(name))
+    )
+  );
+  if (toolNames.length === 0) return;
+
+  const usage = extractLlmTokenUsage(args.response);
+  const cost = estimateLlmUsageCost(args.model, usage);
+  const estimatedCostUsd = (cost?.estimatedCostUsd ?? 0) / toolNames.length;
+
+  for (const toolName of toolNames) {
+    const source = `career_tool:${toolName}`;
+    void insertLlmLog({
+      estimatedCostUsd,
+      meta: {
+        attributionCount: toolNames.length,
+        label: `${source}:${args.step}`,
+        parentLabel: args.baseLabel ?? null,
+        step: args.step,
+        toolName,
+        usage,
+      },
+      model: args.model,
+      source,
+    });
+  }
 }
 
 export async function insertRealtimeLlmUsageLog(args: {
@@ -524,10 +587,7 @@ export async function insertRealtimeLlmUsageLog(args: {
 
 function resolveLlmLogTarget(label: string) {
   const normalized = label.trim();
-  for (const source of [
-    "career/profile_ingestion",
-    "career_tool:recommend_job_postings",
-  ]) {
+  for (const source of LLM_LOG_SOURCES) {
     const prefix = `${source}:`;
     if (normalized.startsWith(prefix)) {
       return {

@@ -130,16 +130,21 @@ export type CareerOnboardingChecklistProgress = {
 
 export type CareerOpportunitySavedStage =
   | "saved"
+  | "planned"
   | "applied"
   | "connected"
   | "closed"
   | "hidden";
 
+export type CareerOpportunitySavedStageFilter =
+  | CareerOpportunitySavedStage
+  | "all";
+
 export type CareerHistoryTabId = "new" | "saved" | "archived";
 
 export type CareerHistoryOpportunityPageFilter = {
   historyTab: CareerHistoryTabId;
-  savedStage?: CareerOpportunitySavedStage;
+  savedStage?: CareerOpportunitySavedStageFilter;
 };
 
 export type CareerHistoryOpportunityCounts = {

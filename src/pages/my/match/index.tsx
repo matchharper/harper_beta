@@ -1,4 +1,4 @@
-import { formatDateInputValue, formatDateTime } from "@/components/ats/utils";
+import { formatDateInputValue } from "@/lib/dateFormat";
 import CandidateViews from "@/components/CandidateViews";
 import Reveal from "@/components/landing/Animation/Reveal";
 import AppLayout from "@/components/layout/app";
@@ -686,7 +686,6 @@ export default function MatchPage() {
                                         </span>
                                       ))} */}
                                       <span className="inline-flex text-[13px] items-center text-neutral-primary">
-                                        {role.matchedCandidateCount} 매칭됨 ᐧ{" "}
                                         {formatDateInputValue(
                                           new Date(role.createdAt)
                                         )}{" "}

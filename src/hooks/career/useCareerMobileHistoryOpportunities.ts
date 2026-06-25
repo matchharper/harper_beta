@@ -14,7 +14,8 @@ import type {
 export type CareerMobileHistoryJobsTab =
   | "new"
   | "saved"
-  | "active"
+  | "applied"
+  | "connected"
   | "closed"
   | "hidden"
   | "archived";
@@ -30,11 +31,11 @@ const getHistoryFiltersForJobsTab = (
   if (tab === "saved") {
     return [{ historyTab: "saved", savedStage: "saved" }];
   }
-  if (tab === "active") {
-    return [
-      { historyTab: "saved", savedStage: "applied" },
-      { historyTab: "saved", savedStage: "connected" },
-    ];
+  if (tab === "applied") {
+    return [{ historyTab: "saved", savedStage: "applied" }];
+  }
+  if (tab === "connected") {
+    return [{ historyTab: "saved", savedStage: "connected" }];
   }
   if (tab === "closed") {
     return [{ historyTab: "saved", savedStage: "closed" }];
@@ -58,10 +59,11 @@ const getJobsTabTotal = (
   counts: CareerHistoryOpportunityCounts
 ) => {
   if (tab === "new") return counts.new;
-  if (tab === "saved") return counts.savedStages.saved;
-  if (tab === "active") {
-    return counts.savedStages.applied + counts.savedStages.connected;
+  if (tab === "saved") {
+    return counts.savedStages.saved + counts.savedStages.planned;
   }
+  if (tab === "applied") return counts.savedStages.applied;
+  if (tab === "connected") return counts.savedStages.connected;
   if (tab === "closed") return counts.savedStages.closed;
   if (tab === "hidden") return counts.savedStages.hidden;
   return counts.archived;
@@ -74,7 +76,9 @@ const isOpportunityInJobsTab = (
   if (tab === "new") return item.feedback === null;
   if (tab === "archived") return item.feedback === "negative";
   if (item.feedback !== "positive") return false;
-  return getSavedOpportunityManagementStatus(item) === tab;
+  const status = getSavedOpportunityManagementStatus(item);
+  if (tab === "saved") return status === "saved" || status === "planned";
+  return status === tab;
 };
 
 const getSavedStageLoadedCount = (
@@ -88,6 +92,14 @@ const getSavedStageLoadedCount = (
         stage
   ).length;
 
+const getSavedOpenLoadedCount = (items: CareerHistoryOpportunity[]) =>
+  items.filter((item) => {
+    if (item.feedback !== "positive") return false;
+    const stage =
+      item.savedStage ?? getCareerDefaultSavedStage(item.opportunityType);
+    return stage !== "hidden";
+  }).length;
+
 const getFilterLoadedCount = (
   items: CareerHistoryOpportunity[],
   filter: CareerHistoryOpportunityPageFilter
@@ -98,6 +110,7 @@ const getFilterLoadedCount = (
   if (filter.historyTab === "archived") {
     return items.filter((item) => item.feedback === "negative").length;
   }
+  if (filter.savedStage === "all") return getSavedOpenLoadedCount(items);
   if (filter.savedStage)
     return getSavedStageLoadedCount(items, filter.savedStage);
   return items.filter((item) => item.feedback === "positive").length;
@@ -109,6 +122,9 @@ const getFilterTotal = (
 ) => {
   if (filter.historyTab === "new") return counts.new;
   if (filter.historyTab === "archived") return counts.archived;
+  if (filter.savedStage === "all") {
+    return Math.max(0, counts.saved - counts.savedStages.hidden);
+  }
   if (filter.savedStage) return counts.savedStages[filter.savedStage];
   return counts.saved;
 };

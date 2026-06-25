@@ -241,7 +241,7 @@ export async function selectAdditionalOnboardingQuestion(args: {
     messages,
     primaryModel: CAREER_LLM_CONFIG.assistant.primaryModel,
     temperature: CAREER_LLM_CONFIG.additionalQuestionSelector.temperature,
-    usageLabel: "career/onboarding:additional_question_selector",
+    usageLabel: "career_tool:select_additional_onboarding_question:select",
   });
 
   const preferredLocale = setting?.preferred_locale ?? null;

@@ -1,7 +1,8 @@
 export type JobsDisplayTab =
   | "new"
   | "saved"
-  | "active"
+  | "applied"
+  | "connected"
   | "closed"
   | "hidden"
   | "archived";

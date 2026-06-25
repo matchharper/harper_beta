@@ -171,7 +171,7 @@ const CareerSupportInquiryModal = ({
         </div>
         <div className="mt-5 space-y-4">
           <label className="block">
-            <span className="mb-2 block text-sm font-medium text-neutral-muted">
+            <span className="mb-2 block text-sm font-normal text-neutral-muted">
               {t(
                 "career.common.career_support_inquiry_modal.1x7y6fe",
                 "Harper가 커리어 에이전트로써 어떤걸 해주기를 원하시나요?"

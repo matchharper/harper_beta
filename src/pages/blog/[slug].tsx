@@ -435,7 +435,6 @@ export default function BlogPostPage({ post }: BlogPostPageProps) {
                 type="button"
                 onClick={copyPostLink}
                 className="flex flex-row items-center gap-2 text-accent-200 bg-transparent border-0 p-0 cursor-pointer transition-colors hover:text-accent-200/80"
-                aria-label="게시글 링크 복사"
               >
                 <LinkIcon className="w-3.5 h-3.5" strokeWidth={2} />
                 <span>링크 복사</span>

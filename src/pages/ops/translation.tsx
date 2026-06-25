@@ -736,11 +736,6 @@ export default function OpsTranslationPage() {
                                     "h-8 px-2.5 text-xs"
                                   )}
                                   aria-expanded={isExpanded}
-                                  aria-label={
-                                    isExpanded
-                                      ? `${row.key} 번역 접기`
-                                      : `${row.key} 번역 확장`
-                                  }
                                   title={isExpanded ? "문구 접기" : "문구 확장"}
                                 >
                                   {isExpanded ? (

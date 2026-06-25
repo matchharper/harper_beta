@@ -1,6 +1,6 @@
-const UNDERLINE_OPEN_TOKEN = "ATS_UNDERLINE_OPEN_TOKEN";
-const UNDERLINE_CLOSE_TOKEN = "ATS_UNDERLINE_CLOSE_TOKEN";
-const SAFE_SPAN_TOKEN_PREFIX = "ATSSAFESPANTOKEN";
+const UNDERLINE_OPEN_TOKEN = "EMAIL_UNDERLINE_OPEN_TOKEN";
+const UNDERLINE_CLOSE_TOKEN = "EMAIL_UNDERLINE_CLOSE_TOKEN";
+const SAFE_SPAN_TOKEN_PREFIX = "EMAILSAFESPANTOKEN";
 
 function normalizeSource(value: string) {
   return value.replace(/\r/g, "").trim();
@@ -90,16 +90,13 @@ function tokenizeSafeInlineSpans(value: string) {
 
 function isSafeUrl(value: string) {
   const normalized = value.trim();
-  return (
-    /^https?:\/\//i.test(normalized) ||
-    /^mailto:/i.test(normalized)
-  );
+  return /^https?:\/\//i.test(normalized) || /^mailto:/i.test(normalized);
 }
 
 function tokenizeLinks(value: string) {
   const links: Array<{ label: string; token: string; url: string }> = [];
   const text = value.replace(/\[([^\]\n]+)\]\(([^)\n]+)\)/g, (_, label, url) => {
-    const token = `ATSLINKTOKEN${links.length}PLACEHOLDER`;
+    const token = `EMAILLINKTOKEN${links.length}PLACEHOLDER`;
     links.push({
       label: String(label ?? ""),
       token,
@@ -186,10 +183,7 @@ function renderList(type: "ol" | "ul", items: string[]) {
   const tag = type === "ol" ? "ol" : "ul";
   const listStyle = type === "ol" ? "decimal" : "disc";
   return `<${tag} style="margin: 0 0 16px; padding-left: 24px; list-style-type: ${listStyle};">${items
-    .map(
-      (item) =>
-        `<li style="margin: 0 0 8px;">${formatInline(item)}</li>`
-    )
+    .map((item) => `<li style="margin: 0 0 8px;">${formatInline(item)}</li>`)
     .join("")}</${tag}>`;
 }
 

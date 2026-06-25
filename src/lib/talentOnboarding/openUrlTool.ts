@@ -88,6 +88,70 @@ function isUniqueViolation(error: { code?: string; message?: string } | null) {
   );
 }
 
+function getLinkedinUrlKind(normalizedUrl: string) {
+  let url: URL;
+  try {
+    url = new URL(normalizedUrl);
+  } catch {
+    return null;
+  }
+
+  const hostname = url.hostname.toLowerCase();
+  if (hostname !== "linkedin.com" && !hostname.endsWith(".linkedin.com")) {
+    return null;
+  }
+
+  const firstPathSegment = url.pathname
+    .split("/")
+    .map((segment) => segment.trim().toLowerCase())
+    .find(Boolean);
+
+  if (firstPathSegment === "in" || firstPathSegment === "pub") {
+    return "profile";
+  }
+  if (firstPathSegment === "jobs") {
+    return "job";
+  }
+  if (firstPathSegment === "company") {
+    return "company";
+  }
+  return "generic";
+}
+
+function formatLinkedinUnsupportedResult(args: {
+  kind: NonNullable<ReturnType<typeof getLinkedinUrlKind>>;
+  url: string;
+}) {
+  const guidanceByKind = {
+    profile:
+      "LinkedIn 프로필 링크는 직접 열람할 수 없습니다. 본인 프로필 정보라면 프로필 탭의 이력서/링크에 LinkedIn 링크를 등록하거나 이력서를 업로드해 주세요. 다른 사람의 프로필을 확인하려는 용도라면 핵심 경력이나 프로필 내용을 붙여주시면 그 내용을 기준으로 도와드릴게요.",
+    job: "LinkedIn 채용공고 링크는 직접 열람할 수 없습니다. 어떤 회사의 어떤 포지션인지 설명해주시거나, 공고 내용/JD를 붙여주시면 그 내용을 기준으로 핏 분석이나 지원 전략을 도와드릴게요.",
+    company:
+      "LinkedIn 회사 페이지는 직접 열람할 수 없습니다. 어떤 회사에 대해 무엇을 확인하고 싶은지 알려주시거나, 회사명/홈페이지/채용 페이지 링크를 보내주시면 확인 가능한 자료를 기준으로 도와드릴게요.",
+    generic:
+      "LinkedIn 링크는 직접 열람할 수 없습니다. 어떤 용도로 확인하려는 링크인지 알려주시고, 확인해야 할 핵심 내용이나 다른 공개 링크를 보내주시면 그 내용을 기준으로 도와드릴게요.",
+  } satisfies Record<
+    NonNullable<ReturnType<typeof getLinkedinUrlKind>>,
+    string
+  >;
+  const markdown = guidanceByKind[args.kind];
+
+  return {
+    ok: false,
+    blocked: true,
+    blockedReason: "linkedin_unsupported",
+    cached: false,
+    excerpt: markdown,
+    markdown,
+    markdownCharCount: markdown.length,
+    provider: "linkedin",
+    title: "LinkedIn links cannot be opened directly",
+    truncated: false,
+    url: args.url,
+    urlKind: args.kind,
+  };
+}
+
 async function fetchCachedDocument(args: {
   admin: TalentAdminClient;
   urlVariants: string[];
@@ -124,7 +188,10 @@ async function scrapeUrlWithFirecrawl(url: string) {
   }
 
   const app = new Firecrawl({ apiKey }) as Firecrawl & {
-    scrape?: (url: string, params?: Record<string, unknown>) => Promise<unknown>;
+    scrape?: (
+      url: string,
+      params?: Record<string, unknown>
+    ) => Promise<unknown>;
   };
   const scrape =
     typeof app.scrape === "function"
@@ -177,8 +244,16 @@ export async function openUrlWithDocumentsCache(args: {
   url: string;
 }) {
   const normalizedUrl = normalizeOpenUrl(args.url);
-  const urlVariants = getUrlCacheVariants(args.url, normalizedUrl);
   const maxMarkdownChars = normalizeMaxMarkdownChars(args.maxMarkdownChars);
+  const linkedinUrlKind = getLinkedinUrlKind(normalizedUrl);
+  if (linkedinUrlKind) {
+    return formatLinkedinUnsupportedResult({
+      kind: linkedinUrlKind,
+      url: normalizedUrl,
+    });
+  }
+
+  const urlVariants = getUrlCacheVariants(args.url, normalizedUrl);
   const cached = await fetchCachedDocument({
     admin: args.admin,
     urlVariants,

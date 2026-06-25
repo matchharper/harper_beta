@@ -239,7 +239,6 @@ const TalentIdentifierModal = ({
             return (
               <BareButton
                 key={value}
-                aria-label="linkedin"
                 type="button"
                 onClick={() => handleSourceChange(value)}
                 className={cn(

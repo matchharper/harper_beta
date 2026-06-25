@@ -139,7 +139,7 @@ export type DailyUserStatsReport = {
   callTranscriptMessageCount: number;
   chatMessageCount: number;
   chatUniqueTalentCount: number;
-  completedOrSubmittedNoRecommendationUserCount: number;
+  onboardingCompletedNoRecommendationUserCount: number;
   cumulativeTalentsCount: number;
   date: string;
   dateLabel: string;
@@ -153,6 +153,7 @@ export type DailyUserStatsReport = {
   mailReplyCount: number;
   mailSentCount: number;
   negativeFeedbackCount: number;
+  negativeFeedbackClickedCount: number;
   newSignupOnboardingCompletedCount: number;
   newSignupSubmittedCount: number;
   onboardingCompletedCount: number;
@@ -587,8 +588,6 @@ async function buildUserStatsReport(args: {
     opportunityEmailDeliveries,
     failedDiscoveryCompletedRuns,
     failedDiscoveryLegacyRuns,
-    noRecommendationSubmitLogs,
-    noRecommendationProfileSubmitMessages,
     noRecommendationOnboardingEvents,
     noRecommendationOnboardingSettings,
     recommendationTalentRowsBeforeObservationEnd,
@@ -753,26 +752,6 @@ async function buildUserStatsReport(args: {
         .gte("updated_at", startIso)
         .lt("updated_at", endIso)
         .order("updated_at", { ascending: true })
-        .range(from, to)
-    ),
-    fetchAllRows<LogRow>((from, to) =>
-      supabaseServer
-        .from("logs")
-        .select("user_id,type,created_at")
-        .eq("type", "career_onboarding_submitted")
-        .gte("created_at", startIso)
-        .lt("created_at", noRecommendationEligibleEventEndIso)
-        .order("id", { ascending: true })
-        .range(from, to)
-    ),
-    fetchAllRows<TalentMessageRow>((from, to) =>
-      supabaseServer
-        .from("talent_messages")
-        .select("user_id,role,message_type,created_at")
-        .eq("message_type", "profile_submit")
-        .gte("created_at", startIso)
-        .lt("created_at", noRecommendationEligibleEventEndIso)
-        .order("id", { ascending: true })
         .range(from, to)
     ),
     fetchAllRows<TalentActivityEventRow>((from, to) =>
@@ -996,6 +975,9 @@ async function buildUserStatsReport(args: {
   const negativeFeedbackRows = includedFeedbackRecommendedRows.filter(
     (row) => normalizeRecommendationFeedback(row.feedback) === "negative"
   );
+  const negativeFeedbackClickedRows = negativeFeedbackRows.filter(
+    (row) => Boolean(row.clicked_at)
+  );
 
   const outboundEmailRows = emailRows.filter(
     (row) =>
@@ -1098,34 +1080,24 @@ async function buildUserStatsReport(args: {
     }
   }
 
-  const completedOrSubmittedUserIds = new Set<string>();
-  for (const log of noRecommendationSubmitLogs) {
-    if (
-      log.type === "career_onboarding_submitted" &&
-      isIncludedUserId(log.user_id)
-    ) {
-      addUserId(completedOrSubmittedUserIds, log.user_id);
-    }
-  }
-  for (const message of noRecommendationProfileSubmitMessages) {
-    if (
-      message.message_type === "profile_submit" &&
-      isIncludedUserId(message.user_id)
-    ) {
-      addUserId(completedOrSubmittedUserIds, message.user_id);
-    }
-  }
+  const noRecommendationEligibleOnboardingCompletedUserIds = new Set<string>();
   for (const event of noRecommendationOnboardingEvents) {
     if (
       event.event_type === "onboarding_completed" &&
       isIncludedUserId(event.talent_id)
     ) {
-      addUserId(completedOrSubmittedUserIds, event.talent_id);
+      addUserId(
+        noRecommendationEligibleOnboardingCompletedUserIds,
+        event.talent_id
+      );
     }
   }
   for (const setting of noRecommendationOnboardingSettings) {
     if (setting.is_onboarding_done && isIncludedUserId(setting.user_id)) {
-      addUserId(completedOrSubmittedUserIds, setting.user_id);
+      addUserId(
+        noRecommendationEligibleOnboardingCompletedUserIds,
+        setting.user_id
+      );
     }
   }
   const recommendationTalentIdsBeforeObservationEnd = new Set<string>();
@@ -1134,8 +1106,8 @@ async function buildUserStatsReport(args: {
       addUserId(recommendationTalentIdsBeforeObservationEnd, row.talent_id);
     }
   }
-  const completedOrSubmittedNoRecommendationUserCount = Array.from(
-    completedOrSubmittedUserIds
+  const onboardingCompletedNoRecommendationUserCount = Array.from(
+    noRecommendationEligibleOnboardingCompletedUserIds
   ).filter(
     (userId) => !recommendationTalentIdsBeforeObservationEnd.has(userId)
   ).length;
@@ -1166,7 +1138,7 @@ async function buildUserStatsReport(args: {
     callTranscriptMessageCount: callTranscriptMessages.length,
     chatMessageCount: chatMessages.length,
     chatUniqueTalentCount: chatUserIds.size,
-    completedOrSubmittedNoRecommendationUserCount,
+    onboardingCompletedNoRecommendationUserCount,
     cumulativeTalentsCount: cumulativeTalentCount,
     date,
     dateLabel,
@@ -1189,6 +1161,7 @@ async function buildUserStatsReport(args: {
       outboundEmailRowsForSentCount.length +
       includedOpportunityEmailDeliveries.length,
     negativeFeedbackCount: negativeFeedbackRows.length,
+    negativeFeedbackClickedCount: negativeFeedbackClickedRows.length,
     newSignupOnboardingCompletedCount,
     newSignupSubmittedCount,
     onboardingCompletedCount: onboardingCompletedUserIds.size,
@@ -1358,12 +1331,18 @@ export function formatDailyUserStatsSlackMessage(report: DailyUserStatsReport) {
       report.negativeFeedbackCount,
       report.recommendationCount
     )}`,
+    `  ㄴ JD 확인 오픈: ${formatCount(
+      report.negativeFeedbackClickedCount
+    )}개, ${formatRatio(
+      report.negativeFeedbackClickedCount,
+      report.negativeFeedbackCount
+    )}`,
     `추천된 내부 기회 수: ${formatCount(report.internalRecommendationCount)}개`,
     `opportunity_discovery_run failed 종료: ${formatCount(
       report.opportunityDiscoveryFailedRunCount
     )}개`,
-    `• 기간 내 제출/온보딩 완료 후 1시간+ 추천 0개인 유저 수: ${formatCount(
-      report.completedOrSubmittedNoRecommendationUserCount
+    `• 기간 내 온보딩 완료 후 1시간+ 추천 0개인 유저 수: ${formatCount(
+      report.onboardingCompletedNoRecommendationUserCount
     )}명`,
     "",
     `유저가 보낸 메시지: ${formatCount(report.userMessageCount)}개`,

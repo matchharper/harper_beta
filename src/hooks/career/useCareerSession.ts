@@ -5,6 +5,7 @@ import { getErrorMessage } from "./careerHelpers";
 import type { FetchWithAuth } from "./useCareerApi";
 import { getCareerSignupAttributionPayload } from "@/lib/career/signupAttribution";
 import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
+import { getInitialClientLocalePreference } from "@/i18n/useMessage";
 import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 
 type SessionPayload = SessionResponse & { error?: string };
@@ -37,6 +38,7 @@ const shouldRetryCareerSession = (failureCount: number, error: unknown) => {
 
 export const careerSessionKey = (
   userId: string | null,
+  locale?: string | null,
   inviteToken?: string | null,
   mail?: string | null,
   emailOnboardingToken?: string | null
@@ -44,6 +46,7 @@ export const careerSessionKey = (
   [
     "career-session",
     userId,
+    locale?.trim() || null,
     inviteToken?.trim() || null,
     mail?.trim() || null,
     emailOnboardingToken?.trim() || null,
@@ -63,10 +66,16 @@ export const useCareerSession = ({
   const normalizedInviteToken = inviteToken?.trim() || null;
   const normalizedMail = mail?.trim() || null;
   const normalizedEmailOnboardingToken = emailOnboardingToken?.trim() || null;
+  const requestLocale = useMemo(
+    () =>
+      typeof window === "undefined" ? locale : getInitialClientLocalePreference(),
+    [locale]
+  );
   const queryKey = useMemo(
     () =>
       careerSessionKey(
         userId,
+        requestLocale,
         normalizedInviteToken,
         normalizedMail,
         normalizedEmailOnboardingToken
@@ -75,6 +84,7 @@ export const useCareerSession = ({
       normalizedEmailOnboardingToken,
       normalizedInviteToken,
       normalizedMail,
+      requestLocale,
       userId,
     ]
   );
@@ -86,7 +96,7 @@ export const useCareerSession = ({
         ...getCareerSignupAttributionPayload(),
         emailOnboardingToken: normalizedEmailOnboardingToken || undefined,
         inviteToken: normalizedInviteToken || undefined,
-        locale,
+        locale: requestLocale,
         mail: normalizedMail || undefined,
       }),
     });
@@ -98,6 +108,7 @@ export const useCareerSession = ({
     }
 
     const sessionParams = new URLSearchParams({
+      locale: requestLocale,
       messageLimit: "20",
       opportunityLimit: "20",
     });
@@ -114,10 +125,10 @@ export const useCareerSession = ({
     return payload;
   }, [
     fetchWithAuth,
-    locale,
     normalizedEmailOnboardingToken,
     normalizedInviteToken,
     normalizedMail,
+    requestLocale,
     tCareer,
   ]);
 

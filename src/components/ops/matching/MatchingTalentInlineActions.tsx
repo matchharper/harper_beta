@@ -6,6 +6,7 @@ import {
   DEFAULT_MATCHING_TAG_DOT_CLASS,
   getMatchingTagLabel,
   getMatchingTagOption,
+  isMatchingReviewStageTag,
   MATCHING_TAG_OPTIONS,
 } from "@/components/ops/matching/tagMeta";
 import { cx, opsTheme } from "@/components/ops/theme";
@@ -178,11 +179,13 @@ export function MatchingMemoQuickAdd({
 
 export function MatchingTagEditor({
   compact = false,
+  hideReviewStageTags = false,
   roleId,
   showAddButton = true,
   talent,
 }: {
   compact?: boolean;
+  hideReviewStageTags?: boolean;
   roleId?: string | null;
   showAddButton?: boolean;
   talent: {
@@ -197,17 +200,24 @@ export function MatchingTagEditor({
     () => new Set(talent.tags.map((tag) => tag.tag)),
     [talent.tags]
   );
+  const visibleTags = hideReviewStageTags
+    ? talent.tags.filter((tag) => !isMatchingReviewStageTag(tag.tag))
+    : talent.tags;
 
   const addFixedTag = (tag: string) => {
     if (!tag || selectedTagValues.has(tag) || pending) return;
     addTag.mutate({ roleId: roleId ?? null, tag, talentId: talent.userId });
   };
 
+  if (visibleTags.length === 0 && !showAddButton) {
+    return null;
+  }
+
   return (
     <InlineActionRoot compact={compact}>
-      {talent.tags.length > 0 ? (
+      {visibleTags.length > 0 ? (
         <div className="flex flex-wrap gap-1.5">
-          {talent.tags.map((tag) => (
+          {visibleTags.map((tag) => (
             <MatchingTagPill
               key={tag.id}
               tag={tag.tag}
@@ -232,7 +242,7 @@ export function MatchingTagEditor({
               className={cx(
                 opsTheme.buttonSecondary,
                 "h-8 px-2 text-[11px]",
-                talent.tags.length > 0 && "mt-2"
+                visibleTags.length > 0 && "mt-2"
               )}
             >
               {addTag.isPending ? (

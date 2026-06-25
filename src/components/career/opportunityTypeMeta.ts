@@ -94,8 +94,8 @@ const buildCareerOpportunityTypeMeta = (
     },
     label: t("career.common.opportunity_type_meta.1yj6p99", "오픈 포지션"),
     negativeActionLabel: t(
-      "career.common.career_history_panel.0paqqgp",
-      "제외됨"
+      "career.common.opportunity_type_meta.external_negative_action",
+      "나와 안맞아요"
     ),
     negativeFeedback: {
       modal: {
@@ -172,8 +172,8 @@ const buildCareerOpportunityTypeMeta = (
     panelToneClassName: "bg-bg-floating",
     positiveActionIcon: ThumbsUp,
     positiveActionLabel: t(
-      "career.common.career_history_panel.06mgpci",
-      "저장함"
+      "career.common.opportunity_type_meta.external_positive_action",
+      "관심 있어요"
     ),
     positiveFeedback: {
       modal: {
@@ -195,7 +195,7 @@ const buildCareerOpportunityTypeMeta = (
     savedStageLabels: {
       applied: t(
         "career.common.opportunity_type_meta.0ume46n",
-        "지원함/진행중"
+        "지원함"
       ),
     },
     shortLabel: t("career.common.opportunity_type_meta.16ujfch", "외부 JD"),

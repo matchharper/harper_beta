@@ -485,7 +485,6 @@ export function TalentOptionCard({
             </BareButton>
           )}
           <div className="flex flex-wrap justify-end gap-1.5">
-            {item.matched && <Token active={active}>matched</Token>}
             {!item.candidId && <Token active={active}>candid 없음</Token>}
           </div>
         </div>

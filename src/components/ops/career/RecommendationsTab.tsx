@@ -8,10 +8,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
-import {
-  FitReasonCell,
-  MatchingFitLabelCell,
-} from "@/components/ops/matching/MatchingFitLabelControls";
+import { MatchingFitLabelCell } from "@/components/ops/matching/MatchingFitLabelControls";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { Tooltips } from "@/components/ui/tooltip";
 import {
@@ -487,7 +484,6 @@ function RecommendationFitCell({
         Score {fit.score ?? "-"}
       </div>
       <MatchingFitLabelCell isUpdating={false} item={fit} />
-      <FitReasonCell criteria={fit.reevaluationCriteria} reason={fit.reason} />
       <div className="text-[11px] leading-5 text-neutral-soft">
         {fit.lastEvaluatedAt ? (
           <div>평가 {formatKst(fit.lastEvaluatedAt)}</div>
@@ -876,13 +872,13 @@ export const RecommendationsTab = memo(function RecommendationsTab({
       ) : (
         <>
           <div className="mt-4 overflow-x-auto rounded-md border border-neutral-1000-a05 bg-bg-default/55">
-            <table className="min-w-[1380px] w-full table-fixed border-collapse text-xs">
+            <table className="min-w-[1300px] w-full table-fixed border-collapse text-xs">
               <thead className="bg-bg-weak text-left text-neutral-muted">
                 <tr>
                   <th className="w-[135px] px-2 py-2 font-medium">추천일</th>
                   <th className="w-[90px] px-2 py-2 font-medium">구분</th>
                   <th className="px-2 py-2 font-medium">회사 / 역할</th>
-                  <th className="w-[300px] px-2 py-2 font-medium">Fit</th>
+                  <th className="w-[220px] px-2 py-2 font-medium">Fit</th>
                   <th className="w-[150px] px-2 py-2 font-medium">
                     열람 / 클릭
                   </th>

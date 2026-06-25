@@ -18,7 +18,7 @@ Input from `/api/talent/chat`:
 
 ```json
 {
-  "request": "서울/리모트 가능한 LLM infra engineer 포지션 찾아줘. Series B 이상이면 좋고 대기업은 빼줘."
+  "request": "서울 기반 LLM infra engineer 포지션 찾아줘. Series B 이상이면 좋고 대기업은 빼줘."
 }
 ```
 
@@ -31,7 +31,7 @@ Output returned by `runCareerJobPostingRecommendations`:
   "recommendationCount": 5,
   "searchPlan": {
     "sourceType": "external",
-    "searchIntentSummary": "서울 또는 리모트 가능한 LLM 인프라 역할을 찾는다.",
+    "searchIntentSummary": "서울 기반 LLM 인프라 역할을 찾는다.",
     "ftsKeywords": [
       { "terms": ["LLM infrastructure", "AI infra", "inference platform"], "weight": 4 },
       { "terms": ["ML platform engineer", "platform engineer"], "weight": 2.5 }
@@ -63,7 +63,7 @@ Input:
 
 ```json
 {
-  "request": "서울/리모트 가능한 LLM infra engineer 포지션 찾아줘. Series B 이상이면 좋고 대기업은 빼줘.",
+  "request": "서울 기반 LLM infra engineer 포지션 찾아줘. Series B 이상이면 좋고 대기업은 빼줘.",
   "user_profile": "{compact llm_user_profile JSON}",
   "previousDeliveryTexts": ["[previous external role] 관련 이전 메시지..."],
   "recentDeliveryMeta": ["roles:5 | cta:view_positions"],
@@ -88,7 +88,7 @@ Output schema:
   "include_intern": false,
   "is_prefer_entry": 0,
   "locations": [],
-  "includeRemote": false,
+  "includeRemote": true,
   "remoteOnly": false
 }
 ```
@@ -97,7 +97,7 @@ Concrete output example:
 
 ```json
 {
-  "searchIntentSummary": "서울 또는 리모트 가능한 LLM 인프라/ML 플랫폼 역할을 찾는다.",
+  "searchIntentSummary": "서울 기반 LLM 인프라/ML 플랫폼 역할을 찾는다.",
   "ftsKeywords": [
     { "terms": ["LLM infrastructure", "AI infrastructure", "inference platform"], "weight": 4 },
     { "terms": ["ML platform engineer", "Machine Learning Platform Engineer"], "weight": 3 },
@@ -129,7 +129,11 @@ Normalization:
 - `is_prefer_entry`: `1` for entry/junior preference, `-1` for non-entry/mid+
   preference, `0` for unknown/neutral. This is a soft rank/LLM signal, not a
   hard filter.
-- `locations`: max 8.
+- `locations`: max 8. Geographic filters only.
+- `includeRemote`: true allows remote rows if they otherwise match the query;
+  false excludes rows whose `work_mode` is `remote`. It does not add a
+  `remote OR location` expansion.
+- `remoteOnly`: true requires `work_mode = remote`.
 - Counts are not trusted from the LLM.
 
 ## User Context Sent To LLM

@@ -19,9 +19,14 @@ type SavedOpportunityBoardProps = {
   onOpenDetail: (item: CareerHistoryOpportunity) => void;
   onStatusChange: (
     item: CareerHistoryOpportunity,
-    status: SavedOpportunityManagementStatus
+    status: SavedOpportunityBoardStatus
   ) => void;
 };
+
+type SavedOpportunityBoardStatus = Exclude<
+  SavedOpportunityManagementStatus,
+  "all" | "planned" | "hidden"
+>;
 
 const BOARD_AUTO_SCROLL_EDGE_PX = 72;
 const BOARD_AUTO_SCROLL_MAX_STEP_PX = 28;
@@ -118,7 +123,18 @@ function SavedOpportunityBoard({
   onStatusChange,
 }: SavedOpportunityBoardProps) {
   const t = useCareerT();
-  const statusOptions = useMemo(() => getSavedOpportunityStatusOptions(t), [t]);
+  const statusOptions = useMemo(
+    () =>
+      getSavedOpportunityStatusOptions(t, { includePlanned: false }).filter(
+        (
+          option
+        ): option is {
+          id: SavedOpportunityBoardStatus;
+          label: string;
+        } => option.id !== "all" && option.id !== "hidden"
+      ),
+    [t]
+  );
 
   const { locale } = useMessages();
   const [draggingOpportunityId, setDraggingOpportunityId] = useState<
@@ -130,14 +146,17 @@ function SavedOpportunityBoard({
   );
   const groupedItems = useMemo(() => {
     const next = new Map<
-      SavedOpportunityManagementStatus,
+      SavedOpportunityBoardStatus,
       CareerHistoryOpportunity[]
     >();
     for (const option of statusOptions) {
       next.set(option.id, []);
     }
     for (const item of items) {
-      next.get(getSavedOpportunityManagementStatus(item))?.push(item);
+      const status = getSavedOpportunityManagementStatus(item);
+      if (status !== "hidden") {
+        next.get(status === "planned" ? "saved" : status)?.push(item);
+      }
     }
     return next;
   }, [items, statusOptions]);

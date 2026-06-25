@@ -23,6 +23,7 @@ import { CareerProfileSharingSettingsSection } from "./CareerProfileSettingsSect
 import type {
   CareerInternalOpportunityCallRequest,
   CareerOpportunityAgentVariant,
+  CareerOpportunitySavedStageFilter,
 } from "./types";
 import React from "react";
 import CareerCallCard from "./CareerCallCard";
@@ -95,7 +96,7 @@ type CareerDevSqlExecutionResult = {
 
 type HomeHistoryTarget = {
   historyTab: "new" | "saved" | "archived";
-  savedStage?: "saved" | "applied" | "connected" | "closed";
+  savedStage?: CareerOpportunitySavedStageFilter;
 };
 
 const HomeOpportunitySummaryCard = ({
@@ -275,6 +276,7 @@ const CareerHomePanel = ({
   const [devSqlError, setDevSqlError] = React.useState("");
   const [devSqlGenerating, setDevSqlGenerating] = React.useState(false);
   const [devSqlExecuting, setDevSqlExecuting] = React.useState(false);
+  const [devManualRunId, setDevManualRunId] = React.useState("");
   const [devSqlResult, setDevSqlResult] =
     React.useState<CareerDevSqlExecutionResult | null>(null);
 
@@ -296,7 +298,9 @@ const CareerHomePanel = ({
     m,
     t("career.home.career_home_panel.0x7lgjp", "추천된 기회")
   );
-  const savedPositionCount = historyOpportunityCounts.savedStages.saved;
+  const savedPositionCount =
+    historyOpportunityCounts.savedStages.saved +
+    historyOpportunityCounts.savedStages.planned;
   const connectedPositionCount =
     historyOpportunityCounts.savedStages.applied +
     historyOpportunityCounts.savedStages.connected +
@@ -314,6 +318,7 @@ const CareerHomePanel = ({
           item.savedStage ?? getCareerDefaultSavedStage(item.opportunityType);
         if (
           savedStage !== "saved" &&
+          savedStage !== "planned" &&
           savedStage !== "applied" &&
           savedStage !== "connected" &&
           savedStage !== "closed"
@@ -341,8 +346,8 @@ const CareerHomePanel = ({
     )?.item.companyName?.trim();
     const statusLabel =
       inProgressTargetSavedStage === "saved"
-        ? t("career.common.career_history_panel.06mgpci", "저장함")
-        : t("career.common.career_history_panel.0y27adb", "연결됨");
+        ? t("career.common.career_history_panel.06mgpci", "관심 있음")
+        : t("career.common.career_history_panel.0y27adb", "진행중");
 
     if (!firstCompanyName) {
       return t("career.home.career_home_panel.1qhpcnm", "{count}개 {status}", {
@@ -431,6 +436,7 @@ const CareerHomePanel = ({
     userEmail === "hyunbin.bk@gmail.com" ||
     userEmail === "khj6051@optimizerai.xyz" ||
     userEmail === "khj605123@gmail.com";
+  const showLocalWorkerRunControls = process.env.NODE_ENV !== "production";
 
   const opportunityRunLocked =
     opportunityRunTriggerPending || Boolean(opportunityRun?.inputLocked);
@@ -448,6 +454,12 @@ const CareerHomePanel = ({
   const latestRunLabel = opportunityRun
     ? `${opportunityRun.id.slice(0, 8)} · ${opportunityRun.status} · ${latestRunAgentLabel}`
     : "latest run 없음";
+  const devManualWorkerCommand = devManualRunId
+    ? [
+        "cd /Users/gimhojin/Desktop/harper/harper_worker",
+        `python3.11 opportunity_worker.py discovery --run-id ${devManualRunId}`,
+      ].join("\n")
+    : "";
 
   const isOnboardingCompleted = isOnboardingDone || stage === "completed";
   const hasSavedProfileSource =
@@ -832,7 +844,10 @@ const CareerHomePanel = ({
             }
           />
           <HomeOpportunitySummaryCard
-            title={t("career.home.career_home_panel.11q0oj9", "저장 / 연결")}
+            title={t(
+              "career.home.career_home_panel.11q0oj9",
+              "저장한 포지션"
+            )}
             count={inProgressPositionCount}
             description={inProgressCompanyLabel}
             buttonLabel={t("career.common.career.028kv4g", "상세 보기")}
@@ -841,7 +856,7 @@ const CareerHomePanel = ({
             onClick={() =>
               onOpenHistory({
                 historyTab: "saved",
-                savedStage: inProgressTargetSavedStage,
+                savedStage: "all",
               })
             }
           />
@@ -931,6 +946,38 @@ const CareerHomePanel = ({
               )}
               3일 경과 run 큐잉
             </ActionButton>
+            {showLocalWorkerRunControls ? (
+              <ActionButton
+                onClick={() => {
+                  logCareerEvent(
+                  "click_home_dev_deepseek_fit_rerank_periodic_discovery_run"
+                );
+                setDevManualRunId("");
+                void Promise.resolve(
+                  onRunPeriodicOpportunityDiscoveryTest(devAgentVariant, {
+                    claimForManualProcessing: true,
+                    externalSelectorMode: "deepseek_fit_rerank",
+                    forceNew: true,
+                  })
+                ).then((run) => {
+                  const runId =
+                    run && typeof run === "object" && "id" in run
+                      ? String(run.id ?? "").trim()
+                      : "";
+                  if (runId) setDevManualRunId(runId);
+                });
+              }}
+              disabled={opportunityRunTriggerPending}
+              actionVariant="secondary"
+              >
+                {opportunityRunTriggerPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                <Search className="h-3.5 w-3.5" />
+              )}
+              변경된 방식 periodic run 만들기
+            </ActionButton>
+            ) : null}
             <ActionButton
               onClick={() => {
                 logCareerEvent(
@@ -1013,6 +1060,16 @@ const CareerHomePanel = ({
               6시간 인사만
             </ActionButton>
           </div>
+          {devManualRunId ? (
+            <div className="mt-3 rounded-xl border border-neutral-1000-a10 bg-bg-weak px-3 py-3">
+              <Text as="div" type="subtle">
+                생성된 run_id: {devManualRunId}
+              </Text>
+              <pre className="mt-2 max-w-full whitespace-pre-wrap break-all rounded-lg border border-neutral-1000-a05 bg-bg-floating px-3 py-2 text-[12px] leading-5 text-neutral-primary">
+                {devManualWorkerCommand}
+              </pre>
+            </div>
+          ) : null}
           <div className="mt-4 border-t border-neutral-1000-a05 pt-4">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>

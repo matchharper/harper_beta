@@ -100,7 +100,7 @@ const OpportunityListCard = ({
   const hasActionArea = Boolean(savedStatus && onSavedStatusChange);
 
   return (
-    <InlinePanel className="relative rounded-[8px] border border-neutral-1000-a05 bg-bg-floating p-2 transition-colors hover:bg-bg-weak">
+    <InlinePanel className="relative rounded-[8px] border border-neutral-1000-a05 bg-bg-floating p-2 transition-colors hover:bg-neutral-100">
       {hasActionArea && (
         <div className="absolute right-2 top-2 z-10">
           {savedStatus && onSavedStatusChange ? (

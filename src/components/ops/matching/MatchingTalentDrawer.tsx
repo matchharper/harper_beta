@@ -68,6 +68,7 @@ export function MatchingTalentDrawer({
           </div>
           {role ? (
             <MatchingRoleProgressPanel
+              initialFit={talent.fit}
               role={role}
               talentDisplayName={talentDisplayName}
               talentId={talent.userId}

@@ -1,5 +1,8 @@
 import {
+  Archive,
+  ArchiveX,
   ArrowRight,
+  Ban,
   BriefcaseBusiness,
   ChevronDown,
   ClipboardCheck,
@@ -23,7 +26,7 @@ import {
 } from "react";
 import { useRouter } from "next/router";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
-import CareerInPageTabs from "./CareerInPageTabs";
+import CareerInPageTabs, { type CareerInPageTabItem } from "./CareerInPageTabs";
 import { PrimaryButton, BareButton } from "@/components/ui/button";
 import { InlinePanel } from "@/components/ui/panel";
 import { cn } from "@/lib/utils";
@@ -35,7 +38,6 @@ import {
   type CareerOpportunitySavedStage,
 } from "./types";
 import {
-  getCareerAppliedSavedStageLabel,
   getCareerDefaultSavedStage,
   getCareerNegativeActionLabel,
   getCareerOpportunityInfoCopy,
@@ -68,6 +70,7 @@ import {
   ActionDropdown,
   ActionDropdownItem,
 } from "@/components/ui/action-dropdown";
+import { Tooltips } from "@/components/ui/tooltip";
 import {
   getSavedOpportunityStatusOptions,
   getSavedOpportunityStatusLabel,
@@ -86,7 +89,7 @@ import {
 } from "@/store/useCareerWorkspaceUiStore";
 
 type HistoryTabId = "new" | "saved" | "archived";
-type HistoryDisplayTabId = "new" | "saved" | "archived";
+type HistoryDisplayTabId = "new" | "saved" | "hidden" | "archived";
 type SavedHistoryDisplayMode = CareerSavedHistoryDisplayMode;
 
 const HISTORY_TAB_QUERY_KEY = "historyTab";
@@ -129,11 +132,14 @@ const getHistoryDisplayTabs = (t: ReturnType<typeof useCareerT>) => [
   },
   {
     id: "saved" as const,
-    label: t("career.common.career_history_panel.06mgpci", "저장함"),
+    label: t(
+      "career.common.career_history_panel.saved_positions_tab",
+      "저장한 포지션"
+    ),
   },
   {
-    id: "archived" as const,
-    label: t("career.common.career_history_panel.0paqqgp", "제외됨"),
+    id: "hidden" as const,
+    label: t("career.common.career_history_panel.hidden_tab", "보관함"),
   },
 ];
 
@@ -233,15 +239,17 @@ export const getSavedStageLabel = (
 ) => {
   const t = tArg ?? fallbackCareerT;
   if (stage === "applied") {
-    return getCareerAppliedSavedStageLabel(item.opportunityType, t);
+    return t("career.common.career_history_panel.applied", "지원함");
   }
+  if (stage === "planned")
+    return t("career.common.career_history_panel.planned", "지원 예정");
   if (stage === "connected")
-    return t("career.common.career_history_panel.0y27adb", "연결됨");
+    return t("career.common.career_history_panel.0y27adb", "진행중");
   if (stage === "closed")
-    return t("career.common.career_history_panel.1hsndwk", "종료됨");
+    return t("career.common.career_history_panel.1hsndwk", "진행 종료");
   if (stage === "hidden")
     return t("career.common.career_history_panel.1aylp85", "보관함");
-  return t("career.common.career_history_panel.06mgpci", "저장함");
+  return t("career.common.career_history_panel.06mgpci", "관심 있음");
 };
 
 export const getOpportunityStatusLabel = (
@@ -250,7 +258,7 @@ export const getOpportunityStatusLabel = (
 ) => {
   const t = tArg ?? fallbackCareerT;
   if (item.feedback === "negative")
-    return t("career.common.career_history_panel.1vrs10j", "제외됨");
+    return t("career.common.career_history_panel.1vrs10j", "제외한 포지션");
   if (item.feedback === "positive") {
     return getSavedStageLabel(getResolvedSavedStage(item), item, t);
   }
@@ -586,7 +594,11 @@ const CareerHistoryPanel = () => {
     [t]
   );
   const savedOpportunityStatusOptions = useMemo(
-    () => getSavedOpportunityStatusOptions(t),
+    () =>
+      getSavedOpportunityStatusOptions(t, {
+        includeAll: true,
+        includePlanned: false,
+      }),
     [t]
   );
 
@@ -616,7 +628,7 @@ const CareerHistoryPanel = () => {
   } = useCareerSidebarContext();
   const [activeTab, setActiveTab] = useState<HistoryTabId>("new");
   const [activeSavedStatus, setActiveSavedStatus] =
-    useState<SavedOpportunityManagementStatus>("saved");
+    useState<SavedOpportunityManagementStatus>("all");
   const savedDisplayMode = useCareerWorkspaceUiStore(
     (state) => state.savedHistoryDisplayMode
   );
@@ -845,6 +857,7 @@ const CareerHistoryPanel = () => {
       CareerHistoryOpportunity[]
     > = {
       saved: [],
+      planned: [],
       applied: [],
       connected: [],
       closed: [],
@@ -886,6 +899,7 @@ const CareerHistoryPanel = () => {
     () =>
       [
         ...savedItemsByStage.saved,
+        ...savedItemsByStage.planned,
         ...savedItemsByStage.applied,
         ...savedItemsByStage.connected,
         ...savedItemsByStage.closed,
@@ -893,6 +907,7 @@ const CareerHistoryPanel = () => {
       ].sort(compareRecommendedAtDesc),
     [
       savedItemsByStage.saved,
+      savedItemsByStage.planned,
       savedItemsByStage.applied,
       savedItemsByStage.connected,
       savedItemsByStage.closed,
@@ -1592,25 +1607,40 @@ const CareerHistoryPanel = () => {
     positivePromptOpportunity,
   ]);
 
-  const tabs = useMemo(
+  const tabs = useMemo<CareerInPageTabItem<HistoryDisplayTabId>[]>(
     () =>
       historyDisplayTabs.map(({ id, label }) => ({
         id,
         label,
         count: (() => {
           if (id === "new") return historyOpportunityCounts.new;
-          if (id === "saved") return historyOpportunityCounts.saved;
-          return historyOpportunityCounts.archived;
+          if (id === "saved") {
+            return (
+              historyOpportunityCounts.savedStages.saved +
+              historyOpportunityCounts.savedStages.planned +
+              historyOpportunityCounts.savedStages.applied +
+              historyOpportunityCounts.savedStages.connected +
+              historyOpportunityCounts.savedStages.closed
+            );
+          }
+          return historyOpportunityCounts.savedStages.hidden;
         })(),
       })),
     [
-      historyOpportunityCounts.archived,
       historyOpportunityCounts.new,
-      historyOpportunityCounts.saved,
+      historyOpportunityCounts.savedStages.applied,
+      historyOpportunityCounts.savedStages.closed,
+      historyOpportunityCounts.savedStages.connected,
+      historyOpportunityCounts.savedStages.hidden,
+      historyOpportunityCounts.savedStages.planned,
+      historyOpportunityCounts.savedStages.saved,
       historyDisplayTabs,
     ]
   );
-  const activeDisplayTab: HistoryDisplayTabId = activeTab;
+  const activeDisplayTab: HistoryDisplayTabId =
+    activeTab === "saved" && activeSavedStatus === "hidden"
+      ? "hidden"
+      : activeTab;
 
   const handleDisplayTabChange = useCallback(
     (nextTab: HistoryDisplayTabId) => {
@@ -1624,7 +1654,11 @@ const CareerHistoryPanel = () => {
         return;
       }
       if (nextTab === "saved") {
-        updateHistoryLocation("saved", "saved");
+        updateHistoryLocation("saved", "all");
+        return;
+      }
+      if (nextTab === "hidden") {
+        updateHistoryLocation("saved", "hidden");
         return;
       }
       updateHistoryLocation("archived", activeSavedStatus);
@@ -1708,28 +1742,47 @@ const CareerHistoryPanel = () => {
     number
   > = useMemo(
     () => ({
-      active:
+      all:
+        historyOpportunityCounts.savedStages.saved +
+        historyOpportunityCounts.savedStages.planned +
         historyOpportunityCounts.savedStages.applied +
-        historyOpportunityCounts.savedStages.connected,
+        historyOpportunityCounts.savedStages.connected +
+        historyOpportunityCounts.savedStages.closed,
+      applied: historyOpportunityCounts.savedStages.applied,
       closed: historyOpportunityCounts.savedStages.closed,
+      connected: historyOpportunityCounts.savedStages.connected,
       hidden: historyOpportunityCounts.savedStages.hidden,
-      saved: historyOpportunityCounts.savedStages.saved,
+      planned: historyOpportunityCounts.savedStages.planned,
+      saved:
+        historyOpportunityCounts.savedStages.saved +
+        historyOpportunityCounts.savedStages.planned,
     }),
     [
       historyOpportunityCounts.savedStages.applied,
       historyOpportunityCounts.savedStages.closed,
       historyOpportunityCounts.savedStages.connected,
       historyOpportunityCounts.savedStages.hidden,
+      historyOpportunityCounts.savedStages.planned,
       historyOpportunityCounts.savedStages.saved,
     ]
   );
   const savedManagementItems = useMemo(() => {
-    return savedItems.filter(
-      (item) => getSavedOpportunityManagementStatus(item) === activeSavedStatus
-    );
+    return savedItems.filter((item) => {
+      const status = getSavedOpportunityManagementStatus(item);
+      if (activeSavedStatus === "all") return status !== "hidden";
+      if (activeSavedStatus === "saved") {
+        return status === "saved" || status === "planned";
+      }
+      return status === activeSavedStatus;
+    });
   }, [activeSavedStatus, savedItems]);
   const savedBoardItems = useMemo(
-    () => [...savedItems].sort(compareRecommendedAtDesc),
+    () =>
+      savedItems
+        .filter(
+          (item) => getSavedOpportunityManagementStatus(item) !== "hidden"
+        )
+        .sort(compareRecommendedAtDesc),
     [savedItems]
   );
   const listItems =
@@ -1752,7 +1805,8 @@ const CareerHistoryPanel = () => {
         const savedStage = getSavedStageForManagementStatus(activeSavedStatus);
         return {
           historyTab: "saved",
-          savedStage: savedStage ?? undefined,
+          savedStage:
+            activeSavedStatus === "all" ? "all" : (savedStage ?? undefined),
         };
       }
       return null;
@@ -1829,12 +1883,40 @@ const CareerHistoryPanel = () => {
 
   return (
     <div className="flex min-h-full flex-col">
-      <div className="my-4">
+      <div className="my-4 flex items-center justify-between gap-3">
         <CareerInPageTabs
           items={tabs}
           activeId={activeDisplayTab}
           onChange={handleDisplayTabChange}
         />
+        <Tooltips
+          text={t(
+            "career.common.career_history_panel.archived_tooltip",
+            "제외한 포지션"
+          )}
+        >
+          <BareButton
+            type="button"
+            aria-label={t(
+              "career.common.career_history_panel.archived_tooltip",
+              "제외한 포지션"
+            )}
+            onClick={() => handleDisplayTabChange("archived")}
+            className={cn(
+              "inline-flex h-7 min-w-7 shrink-0 items-center justify-center gap-1.5 rounded-md border border-neutral-1000-a05 px-2 text-[12px] font-medium transition-colors",
+              activeDisplayTab === "archived"
+                ? "bg-bg-floating text-neutral-primary"
+                : "bg-bg-weak/80 text-neutral-muted hover:bg-bg-floating hover:text-neutral-primary"
+            )}
+          >
+            <Archive className="h-3.5 w-3.5" />
+            {/* {!historyOpportunityCounts.archived ? null : (
+              <span className="hidden min-w-4 text-center md:inline">
+                {historyOpportunityCounts.archived}
+              </span>
+            )} */}
+          </BareButton>
+        </Tooltips>
       </div>
 
       <div className="relative flex flex-1 flex-col gap-6">
@@ -1894,128 +1976,151 @@ const CareerHistoryPanel = () => {
           {activeTab === "saved" && !showInlineOpportunityPage && (
             <div className="space-y-4">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div className="min-w-0">
-                  <ActionDropdown
-                    align="start"
-                    contentClassName="min-w-[180px]"
-                    trigger={
-                      <BareButton
-                        type="button"
-                        className="inline-flex h-8 min-w-[160px] items-center justify-between gap-2 rounded-md border border-neutral-1000-a05 bg-bg-floating px-2.5 text-[13px] font-medium text-neutral-primary transition-colors hover:border-neutral-400 hover:bg-bg-weak"
-                      >
-                        <span>
-                          {getSavedOpportunityStatusLabel(activeSavedStatus, t)}
-                          {activeSavedStatusCount > 0
-                            ? ` (${activeSavedStatusCount})`
-                            : ""}
-                        </span>
-                        <ChevronDown className="h-4 w-4 text-neutral-muted" />
-                      </BareButton>
-                    }
-                  >
-                    {savedOpportunityStatusOptions.map((option) => {
-                      const count = savedManagementCounts[option.id];
-                      return (
-                        <ActionDropdownItem
-                          key={option.id}
-                          selected={option.id === activeSavedStatus}
-                          onSelect={() =>
-                            handleSavedStatusFilterChange(option.id)
-                          }
+                {savedDisplayMode === "list" &&
+                activeSavedStatus !== "hidden" ? (
+                  <div className="min-w-0">
+                    <ActionDropdown
+                      align="start"
+                      contentClassName="min-w-[180px]"
+                      trigger={
+                        <BareButton
+                          type="button"
+                          className="inline-flex h-8 min-w-[160px] items-center justify-between gap-2 rounded-md border border-neutral-1000-a05 bg-bg-floating px-2.5 text-[13px] font-medium text-neutral-primary transition-colors hover:border-neutral-400 hover:bg-bg-weak"
                         >
-                          {count > 0
-                            ? `${option.label} (${count})`
-                            : option.label}
-                        </ActionDropdownItem>
+                          <span className="truncate">
+                            {getSavedOpportunityStatusLabel(
+                              activeSavedStatus,
+                              t
+                            )}
+                          </span>
+                          <span className="ml-auto flex shrink-0 items-center gap-1.5">
+                            <span className="min-w-4 text-right text-[11px] font-medium tabular-nums text-neutral-muted">
+                              {activeSavedStatusCount}
+                            </span>
+                            <ChevronDown className="h-4 w-4 text-neutral-muted" />
+                          </span>
+                        </BareButton>
+                      }
+                    >
+                      {savedOpportunityStatusOptions.map((option) => {
+                        const count = savedManagementCounts[option.id];
+                        return (
+                          <ActionDropdownItem
+                            key={option.id}
+                            className="flex min-w-[180px] items-center justify-between gap-4"
+                            selected={option.id === activeSavedStatus}
+                            onSelect={() =>
+                              handleSavedStatusFilterChange(option.id)
+                            }
+                          >
+                            <span className="truncate">{option.label}</span>
+                            <span className="shrink-0 text-right text-[11px] font-medium tabular-nums text-neutral-muted">
+                              {count}
+                            </span>
+                          </ActionDropdownItem>
+                        );
+                      })}
+                    </ActionDropdown>
+                  </div>
+                ) : (
+                  <div className="hidden md:block" />
+                )}
+
+                {activeSavedStatus !== "hidden" ? (
+                  <div className="inline-flex h-9 w-fit items-center rounded-md border border-neutral-1000-a05 bg-bg-weak p-1">
+                    {savedDisplayModeOptions.map((option) => {
+                      const Icon = option.icon;
+                      const active = option.id === savedDisplayMode;
+                      return (
+                        <BareButton
+                          key={option.id}
+                          type="button"
+                          aria-label={option.label}
+                          title={option.label}
+                          onClick={() =>
+                            handleSavedDisplayModeChange(option.id)
+                          }
+                          className={cn(
+                            "inline-flex h-7 w-8 items-center justify-center rounded text-neutral-primary transition-colors",
+                            active
+                              ? "bg-black text-neutral-00"
+                              : "text-neutral-muted hover:bg-bg-floating hover:text-neutral-primary"
+                          )}
+                        >
+                          <Icon className="h-4 w-4" />
+                        </BareButton>
                       );
                     })}
-                  </ActionDropdown>
-                </div>
-
-                <div className="inline-flex h-9 w-fit items-center rounded-md border border-neutral-1000-a05 bg-bg-weak p-1">
-                  {savedDisplayModeOptions.map((option) => {
-                    const Icon = option.icon;
-                    const active = option.id === savedDisplayMode;
-                    return (
-                      <BareButton
-                        key={option.id}
-                        type="button"
-                        aria-label={option.label}
-                        title={option.label}
-                        onClick={() => handleSavedDisplayModeChange(option.id)}
-                        className={cn(
-                          "inline-flex h-7 w-8 items-center justify-center rounded text-neutral-primary transition-colors",
-                          active
-                            ? "bg-black text-neutral-00"
-                            : "text-neutral-muted hover:bg-bg-floating hover:text-neutral-primary"
-                        )}
-                      >
-                        <Icon className="h-4 w-4" />
-                      </BareButton>
-                    );
-                  })}
-                </div>
+                  </div>
+                ) : null}
               </div>
 
-              {savedDisplayMode === "list" && listItems.length > 0 && (
-                <div className="space-y-3 overflow-y-auto pr-1">
-                  {listItems.map((item) => {
-                    const savedStatus =
-                      getCareerOpportunityManagementStatus(item);
-                    return (
-                      <OpportunityListCard
-                        key={item.id}
-                        item={item}
-                        pending={pendingOpportunityIds.has(item.id)}
-                        onOpenOpportunityInfo={openOpportunityInfo}
-                        onOpenCompanyInfo={openHistoryCompanyInfo}
-                        savedStatus={savedStatus}
-                        onSavedStatusChange={(status) =>
-                          handleSavedStatusChange(item, status)
-                        }
-                        onOpenDetail={() => openModalForItem(item)}
-                      />
-                    );
-                  })}
-                </div>
-              )}
+              {(savedDisplayMode === "list" ||
+                activeSavedStatus === "hidden") &&
+                listItems.length > 0 && (
+                  <div className="space-y-3 overflow-y-auto pr-1">
+                    {listItems.map((item) => {
+                      const savedStatus =
+                        getCareerOpportunityManagementStatus(item);
+                      return (
+                        <OpportunityListCard
+                          key={item.id}
+                          item={item}
+                          pending={pendingOpportunityIds.has(item.id)}
+                          onOpenOpportunityInfo={openOpportunityInfo}
+                          onOpenCompanyInfo={openHistoryCompanyInfo}
+                          savedStatus={savedStatus}
+                          onSavedStatusChange={(status) =>
+                            handleSavedStatusChange(item, status)
+                          }
+                          onOpenDetail={() => openModalForItem(item)}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
 
-              {savedDisplayMode === "list" && listItems.length === 0 && (
-                <InlinePanel className="px-5 py-5">
-                  <div className="text-[14px] leading-6 text-neutral-muted">
-                    {t(
-                      "career.common.career_history_panel.1q435d3",
-                      "이 상태에 해당하는 기회가 아직 없습니다."
+              {(savedDisplayMode === "list" ||
+                activeSavedStatus === "hidden") &&
+                listItems.length === 0 && (
+                  <InlinePanel className="px-5 py-5">
+                    <div className="text-[14px] leading-6 text-neutral-muted">
+                      {t(
+                        "career.common.career_history_panel.1q435d3",
+                        "이 상태에 해당하는 기회가 아직 없습니다."
+                      )}
+                    </div>
+                  </InlinePanel>
+                )}
+
+              {savedDisplayMode === "board" &&
+                activeSavedStatus !== "hidden" && (
+                  <SavedOpportunityBoard
+                    counts={savedManagementCounts}
+                    items={savedBoardItems}
+                    pendingOpportunityIds={pendingOpportunityIds}
+                    onOpenDetail={openModalForItem}
+                    onStatusChange={handleSavedStatusChange}
+                  />
+                )}
+
+              {(savedDisplayMode === "list" ||
+                activeSavedStatus === "hidden") &&
+                hasMoreListItems && (
+                  <div
+                    ref={loadMoreSentinelRef}
+                    className="flex min-h-12 items-center justify-center text-[13px] text-neutral-muted"
+                  >
+                    {historyLoadingMore ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-neutral-muted" />
+                    ) : (
+                      t(
+                        "career.common.career_history_panel.01m9cc2",
+                        "더 불러올 항목이 있습니다."
+                      )
                     )}
                   </div>
-                </InlinePanel>
-              )}
-
-              {savedDisplayMode === "board" && (
-                <SavedOpportunityBoard
-                  counts={savedManagementCounts}
-                  items={savedBoardItems}
-                  pendingOpportunityIds={pendingOpportunityIds}
-                  onOpenDetail={openModalForItem}
-                  onStatusChange={handleSavedStatusChange}
-                />
-              )}
-
-              {savedDisplayMode === "list" && hasMoreListItems && (
-                <div
-                  ref={loadMoreSentinelRef}
-                  className="flex min-h-12 items-center justify-center text-[13px] text-neutral-muted"
-                >
-                  {historyLoadingMore ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-neutral-muted" />
-                  ) : (
-                    t(
-                      "career.common.career_history_panel.01m9cc2",
-                      "더 불러올 항목이 있습니다."
-                    )
-                  )}
-                </div>
-              )}
+                )}
             </div>
           )}
 

@@ -22,7 +22,10 @@ import {
   type TalentProfileVisibility,
   type TalentSettingRow,
 } from "@/lib/talentOnboarding/models";
-import { normalizeCareerPromptLocale } from "@/lib/career/promptLocale";
+import {
+  normalizeCareerPromptLocale,
+  type CareerPromptLocale,
+} from "@/lib/career/promptLocale";
 import { stripPostgresUnsafeChars } from "@/lib/textSanitization";
 import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
 
@@ -44,9 +47,48 @@ const TALENT_ALLOWED_ENGAGEMENT_TYPES =
   new Set<TalentNetworkEngagementOptionId>(
     TALENT_NETWORK_ENGAGEMENT_OPTIONS.map((option) => option.id)
   );
+const KOREA_LOCATION_TERMS = ["korea", "대한민국", "한국"];
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
+}
+
+function hasKoreaLocationSignal(value: string | null | undefined) {
+  const normalized = String(value ?? "").trim().toLocaleLowerCase("ko-KR");
+  if (!normalized) return false;
+  return KOREA_LOCATION_TERMS.some((term) => normalized.includes(term));
+}
+
+export function resolveTalentPreferredLocale(args: {
+  currentLocation?: string | null;
+  location?: string | null;
+  settingLocale?: string | null;
+}): CareerPromptLocale {
+  if (
+    hasKoreaLocationSignal(args.location) ||
+    hasKoreaLocationSignal(args.currentLocation)
+  ) {
+    return "ko";
+  }
+  return normalizeCareerPromptLocale(args.settingLocale);
+}
+
+async function fetchTalentLocaleProfile(args: {
+  admin: TalentAdminClient;
+  userId: string;
+}) {
+  const { data, error } = await args.admin
+    .from("talent_users")
+    .select("location, current_location")
+    .eq("user_id", args.userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load talent locale profile");
+  }
+
+  return data ?? null;
 }
 
 function normalizeTalentInsightText(value: unknown, maxLength = 8000) {
@@ -263,10 +305,16 @@ export async function upsertTalentSetting(args: {
   const { admin, userId } = args;
   const current = await fetchTalentSetting({ admin, userId });
   const now = new Date().toISOString();
-  const preferredLocale =
+  const settingLocale =
     args.preferredLocale === undefined
-      ? current?.preferred_locale
+      ? (current?.setting_locale ?? current?.preferred_locale ?? null)
       : normalizeCareerPromptLocale(args.preferredLocale);
+  const localeProfile = await fetchTalentLocaleProfile({ admin, userId });
+  const preferredLocale = resolveTalentPreferredLocale({
+    currentLocation: localeProfile?.current_location,
+    location: localeProfile?.location,
+    settingLocale,
+  });
   const payload = {
     user_id: userId,
     profile_visibility: sanitizeTalentProfileVisibility(
@@ -294,7 +342,8 @@ export async function upsertTalentSetting(args: {
     periodic_interval_days: normalizeTalentPeriodicIntervalDays(
       args.periodicIntervalDays ?? current?.periodic_interval_days
     ),
-    ...(preferredLocale ? { preferred_locale: preferredLocale } : {}),
+    preferred_locale: preferredLocale,
+    setting_locale: settingLocale,
     recommendation_batch_size: normalizeTalentRecommendationBatchSize(
       args.recommendationBatchSize ?? current?.recommendation_batch_size
     ),
@@ -313,6 +362,50 @@ export async function upsertTalentSetting(args: {
 
   if (error) {
     throw new Error(error.message ?? "Failed to save talent_setting");
+  }
+
+  return data as TalentSettingRow;
+}
+
+export async function refreshTalentPreferredLocale(args: {
+  admin: TalentAdminClient;
+  userId: string;
+}) {
+  const { admin, userId } = args;
+  const current = await fetchTalentSetting({ admin, userId });
+  if (!current) return null;
+
+  const settingLocale =
+    current.setting_locale ?? current.preferred_locale ?? null;
+  const localeProfile = await fetchTalentLocaleProfile({ admin, userId });
+  const preferredLocale = resolveTalentPreferredLocale({
+    currentLocation: localeProfile?.current_location,
+    location: localeProfile?.location,
+    settingLocale,
+  });
+
+  if (
+    current.preferred_locale === preferredLocale &&
+    current.setting_locale === settingLocale
+  ) {
+    return current;
+  }
+
+  const { data, error } = await admin
+    .from("talent_setting")
+    .update({
+      preferred_locale: preferredLocale,
+      setting_locale: settingLocale,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", userId)
+    .select(TALENT_SETTING_SELECT_QUERY)
+    .single();
+
+  if (error) {
+    throw new Error(
+      error.message ?? "Failed to refresh talent preferred locale"
+    );
   }
 
   return data as TalentSettingRow;
@@ -355,6 +448,14 @@ export async function setTalentOnboardingDone(args: {
     return updated as TalentSettingRow;
   }
 
+  const settingLocale: CareerPromptLocale = "ko";
+  const localeProfile = await fetchTalentLocaleProfile({ admin, userId });
+  const preferredLocale = resolveTalentPreferredLocale({
+    currentLocation: localeProfile?.current_location,
+    location: localeProfile?.location,
+    settingLocale,
+  });
+
   const { data: inserted, error: insertError } = await admin
     .from("talent_setting")
     .insert({
@@ -366,9 +467,11 @@ export async function setTalentOnboardingDone(args: {
       get_internal_recommendation: DEFAULT_TALENT_GET_INTERNAL_RECOMMENDATION,
       is_onboarding_done: isOnboardingDone,
       periodic_interval_days: DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS,
+      preferred_locale: preferredLocale,
       recommendation_batch_size: DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
       recommendation_source_conversation_id:
         recommendationSourceConversationId ?? null,
+      setting_locale: settingLocale,
       updated_at: now,
     })
     .select(TALENT_SETTING_SELECT_QUERY)

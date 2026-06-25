@@ -3,6 +3,7 @@ import { CareerOpportunityType, type CareerHistoryOpportunity } from "../types";
 import {
   getMetaItems,
   getOpportunityPanelTone,
+  getOpportunityStatusLabel,
   getOpportunityTypeLabel,
 } from "../CareerHistoryPanel";
 import { getCareerCompanySectionTitle } from "../opportunityTypeMeta";
@@ -15,6 +16,7 @@ import {
   ChevronDown,
   ChevronRight,
   Dot,
+  EllipsisVertical,
   FileText,
   HeartHandshake,
   Loader2,
@@ -82,11 +84,12 @@ export const OpportunityHeader = ({
 
   return (
     <div className="w-full">
-      <div className="w-fit mb-4">
+      <div className="mb-4 flex w-fit flex-wrap items-center gap-2">
         <HistoryOpportunityInfoTag
           item={item}
           onOpenInfo={onOpenOpportunityInfo}
         />
+        <HistoryOpportunityStatusTag item={item} />
       </div>
 
       <div
@@ -449,11 +452,15 @@ const OpportunityManagementStatusDropdown = ({
       trigger={
         <BareButton
           type="button"
+          aria-label={t(
+            "career.history.opportunity_detail_content.status_menu",
+            "{status} 상태 변경",
+            { values: { status: statusLabel } }
+          )}
           disabled={disabled}
-          className="inline-flex h-8 max-w-full items-center justify-between gap-2 rounded-md border border-neutral-1000-a05 bg-bg-floating px-2.5 text-[13px] font-medium text-neutral-primary transition-colors hover:border-neutral-400 hover:bg-bg-weak disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-neutral-200 text-neutral-primary transition-colors hover:bg-neutral-400 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <span className="truncate">{statusLabel}</span>
-          <ChevronDown className="h-4 w-4 shrink-0 text-neutral-muted" />
+          <EllipsisVertical className="h-4 w-4" />
         </BareButton>
       }
     >
@@ -777,6 +784,23 @@ export const HistoryOpportunityInfoTag = ({
       }
       className={`flex shrink-0 flex-row items-center gap-2 text-xs md:text-[13px] transition-colors hover:opacity-90 ${textColor}`}
     >
+      {label}
+    </Badge>
+  );
+};
+
+export const HistoryOpportunityStatusTag = ({
+  item,
+}: {
+  item: CareerHistoryOpportunity;
+}) => {
+  const t = useCareerT();
+  const label = getOpportunityStatusLabel(item, t);
+
+  if (!label) return null;
+
+  return (
+    <Badge className="flex shrink-0 flex-row items-center gap-2 bg-bg-weak text-xs text-neutral-muted md:text-[13px]">
       {label}
     </Badge>
   );

@@ -196,12 +196,6 @@ export const OpsProfileMemoPanel = memo(function OpsProfileMemoPanel({
       <div className="mt-2 flex flex-col gap-2">
         {editing?.mode === "create" ? renderEditor("새 메모") : null}
 
-        {sortedMemos.length === 0 && editing?.mode !== "create" ? (
-          <div className="rounded-md border border-dashed border-neutral-1000-a10 bg-bg-floating px-3 py-2 text-xs text-neutral-soft">
-            아직 메모가 없습니다.
-          </div>
-        ) : null}
-
         {sortedMemos.map((memo) => {
           const isEditingMemo =
             editing?.mode === "edit" && editing.memoId === memo.id;

@@ -54,6 +54,8 @@ export async function POST(req: NextRequest) {
     const body = (await req.json().catch(() => ({}))) as {
       conversationId?: string;
       agentVariant?: unknown;
+      claimForManualProcessing?: unknown;
+      forceNew?: unknown;
       trigger?: unknown;
       triggerPayload?: Record<string, unknown>;
     };
@@ -73,11 +75,15 @@ export async function POST(req: NextRequest) {
       ? body.triggerPayload.opportunityAgentVariant
       : null;
     const agentVariant = bodyAgentVariant ?? payloadAgentVariant;
+    const isLocalDev = process.env.NODE_ENV !== "production";
+    const forceNew = body.forceNew === true && isLocalDev;
+    const claimForManualProcessing =
+      body.claimForManualProcessing === true && isLocalDev;
     const triggerPayload = {
       ...(body.triggerPayload ?? {}),
       ...(agentVariant ? { opportunityAgentVariant: agentVariant } : {}),
     };
-    if (conversationId) {
+    if (conversationId && !forceNew) {
       const activeRun = await getActiveOpportunityRun({
         admin,
         conversationId,
@@ -95,6 +101,7 @@ export async function POST(req: NextRequest) {
     const run = await createOpportunityDiscoveryRun({
       admin,
       conversationId,
+      initialStatus: claimForManualProcessing ? "running" : undefined,
       talentId: user.id,
       trigger: body.trigger,
       triggerPayload,

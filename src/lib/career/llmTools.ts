@@ -46,8 +46,6 @@ const EN_REALTIME_TOOL_VOICE_PREAMBLES: Partial<Record<string, string>> = {
 export const CAREER_CHAT_ONBOARDING_TOOL_NAMES = [
   // 온보딩 중에도 사용자가 최신/외부 정보가 필요한 질문을 하면 웹 검색 허용.
   TALENT_TOOL_NAMES.WEB_SEARCH,
-  // 온보딩 중 사용자가 말한 추천 발송 설정 기록.
-  TALENT_TOOL_NAMES.UPDATE_SETTING,
   // 온보딩 중 사용자가 말한 프로필 row memo 같은 저장 가능한 정보 기록.
   TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
   // 온보딩 텍스트 채팅에서 사용자가 URL을 줬을 때만 페이지 본문 확인.
@@ -59,8 +57,7 @@ export const CAREER_CHAT_ONBOARDING_TOOL_NAMES = [
 
 export const CAREER_CHAT_VOICE_ONBOARDING_TOOL_NAMES = [
   // /api/talent/chat 이 voice channel로 호출될 때의 온보딩 tool.
-  // voice 온보딩에서는 URL 열기나 additional-question selector를 노출하지 않는다.
-  TALENT_TOOL_NAMES.UPDATE_SETTING,
+  // voice 온보딩에서는 URL 열기, 추천 발송 설정 writer, additional-question selector를 노출하지 않는다.
   TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
 ] as const;
 

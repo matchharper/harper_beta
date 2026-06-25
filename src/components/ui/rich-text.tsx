@@ -361,7 +361,6 @@ export default function RichText({
                     type="button"
                     onClick={() => onHarperLinkClick(href)}
                     title={href}
-                    aria-label={href}
                     className={cn(
                       "inline cursor-pointer border-0 bg-transparent p-0 text-left font-[inherit] wrap-break-word underline decoration-dotted underline-offset-2 text-neutral-primary transition-colors hover:text-neutral-muted",
                       shouldShowHrefText &&

@@ -65,9 +65,6 @@ export default function MatchSidebarRoles({
                       ].join(" ")}
                     >
                       <span className="truncate">{role.name}</span>
-                      <span className="shrink-0 text-[10px] text-neutral-soft">
-                        {role.matchedCandidateCount}
-                      </span>
                     </Link>
                   </motion.div>
                 );

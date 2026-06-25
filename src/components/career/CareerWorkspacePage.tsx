@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
@@ -12,12 +12,20 @@ import {
   getCareerWorkspaceTabFromPath,
   type CareerWorkspaceTab,
 } from "@/components/career/CareerWorkspaceNav";
-import type { CareerOpportunitySavedStage } from "@/components/career/types";
+import type { CareerOpportunitySavedStageFilter } from "@/components/career/types";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useCareerVisitLog } from "@/hooks/career/useCareerVisitLog";
 import { useTalentOnboardingRedirect } from "@/hooks/career/useTalentOnboardingStatus";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
+
+const DELIVERY_EMAIL_HISTORY_LINK_ENTRY_PARAM = "entryPoint";
+const DELIVERY_EMAIL_HISTORY_LINK_ENTRY_VALUE = "delivery_email_history_link";
+const DELIVERY_EMAIL_HISTORY_LINK_EVENT =
+  "opened_from_delivery_email_history_link";
+
+const getSingleQueryParam = (value: string | string[] | undefined) =>
+  Array.isArray(value) ? value[0] : value;
 
 const CareerWorkspacePage = ({
   activeTab,
@@ -28,6 +36,7 @@ const CareerWorkspacePage = ({
   const logCareerEvent = useCareerLogEvent();
   const { user, authLoading } = useCareerAuth();
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const deliveryEmailHistoryLinkLoggedRef = useRef(false);
   const isRouterReady = router.isReady;
   const inviteToken =
     isRouterReady && typeof router.query.invite === "string"
@@ -46,6 +55,14 @@ const CareerWorkspacePage = ({
     isRouterReady && typeof router.query.panel === "string"
       ? router.query.panel
       : null;
+  const deliveryEmailHistoryLinkEntry =
+    isRouterReady
+      ? getSingleQueryParam(
+          router.query[DELIVERY_EMAIL_HISTORY_LINK_ENTRY_PARAM]
+        )
+      : null;
+  const isDeliveryEmailHistoryLinkEntry =
+    deliveryEmailHistoryLinkEntry === DELIVERY_EMAIL_HISTORY_LINK_ENTRY_VALUE;
 
   const currentActiveTab = useMemo(
     () =>
@@ -60,6 +77,34 @@ const CareerWorkspacePage = ({
     mail,
   });
   useCareerVisitLog(!authLoading && isRouterReady && Boolean(user));
+
+  useEffect(() => {
+    if (
+      authLoading ||
+      !isRouterReady ||
+      !user ||
+      currentActiveTab !== "history" ||
+      !isDeliveryEmailHistoryLinkEntry ||
+      deliveryEmailHistoryLinkLoggedRef.current
+    ) {
+      return;
+    }
+
+    deliveryEmailHistoryLinkLoggedRef.current = true;
+    const historyTab = getSingleQueryParam(router.query.historyTab);
+    logCareerEvent(
+      DELIVERY_EMAIL_HISTORY_LINK_EVENT,
+      historyTab ? { historyTab } : undefined
+    );
+  }, [
+    authLoading,
+    currentActiveTab,
+    isDeliveryEmailHistoryLinkEntry,
+    isRouterReady,
+    logCareerEvent,
+    router.query.historyTab,
+    user,
+  ]);
 
   useEffect(() => {
     if (authLoading || !isRouterReady || user) return;
@@ -96,7 +141,7 @@ const CareerWorkspacePage = ({
       options?: {
         historyTarget?: {
           historyTab: "new" | "saved" | "archived";
-          savedStage?: CareerOpportunitySavedStage;
+          savedStage?: CareerOpportunitySavedStageFilter;
         };
       }
     ) => {

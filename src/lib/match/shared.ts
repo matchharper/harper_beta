@@ -39,7 +39,6 @@ export type MatchRoleRecord = {
   description: string | null;
   employmentTypes: MatchEmploymentType[];
   externalJdUrl: string | null;
-  matchedCandidateCount: number;
   name: string;
   roleId: string;
   status: MatchRoleStatus;

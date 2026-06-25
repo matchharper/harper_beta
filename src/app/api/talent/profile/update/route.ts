@@ -7,6 +7,7 @@ import {
   fetchTalentUserProfile,
   getTalentResumeSignedUrl,
   getTalentSupabaseAdmin,
+  refreshTalentPreferredLocale,
 } from "@/lib/talentOnboarding/server";
 import { insertTalentProfileSourceErrorLog } from "@/lib/talentOnboarding/errorLogs";
 import {
@@ -388,6 +389,10 @@ export async function POST(req: NextRequest) {
         { error: updateError.message ?? "Failed to update profile" },
         { status: 500 }
       );
+    }
+
+    if (Object.prototype.hasOwnProperty.call(updatePayload, "location")) {
+      await refreshTalentPreferredLocale({ admin, userId: user.id });
     }
 
     if (structuredProfile) {

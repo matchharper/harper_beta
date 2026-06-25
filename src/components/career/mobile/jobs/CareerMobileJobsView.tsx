@@ -202,11 +202,23 @@ export default function CareerMobileJobsView({
   );
 
   const statusTabItems: TabBoxItem<JobsStatusTab>[] =
-    getCareerOpportunityManagementStatusOptions(t).map((option) => ({
-      // count: statusCounts[option.id],
-      label: option.label,
-      value: option.id,
-    }));
+    getCareerOpportunityManagementStatusOptions(t, {
+      hiddenLabel: t(
+        "career.history.saved_opportunity_status.0exoa8f",
+        "보관함"
+      ),
+      includeArchived: true,
+      includePlanned: false,
+    })
+      .filter(
+        (option): option is { label: string; id: JobsStatusTab } =>
+          option.id !== "planned"
+      )
+      .map((option) => ({
+        // count: statusCounts[option.id],
+        label: option.label,
+        value: option.id,
+      }));
 
   return (
     <CareerMobileShell

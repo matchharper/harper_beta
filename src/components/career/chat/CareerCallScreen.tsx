@@ -420,10 +420,6 @@ const CareerCallScreen = ({
                   isClosing || forceCompletePending || onboardingWrapupPending
                 }
                 className="flex h-12 items-center justify-center gap-2 rounded-full bg-critical px-4 text-sm font-semibold text-neutral-00 transition-colors hover:opacity-90 disabled:opacity-60"
-                aria-label={t(
-                  "career.chat.career_call_screen.1l3ov75",
-                  "통화 종료 및 커리어 인터뷰 임의 종료"
-                )}
               >
                 {t("career.chat.career_call_screen.0yqbta2", "임의 종료")}
                 {forceCompletePending || onboardingWrapupPending ? (

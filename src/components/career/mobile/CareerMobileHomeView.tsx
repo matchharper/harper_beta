@@ -24,7 +24,10 @@ import {
 import { useMessages } from "@/i18n/useMessage";
 import { getCareerDefaultSavedStage } from "@/components/career/opportunityTypeMeta";
 import { ConversationStarterActions } from "@/components/career/ConversationStarterActions";
-import type { CareerInternalOpportunityCallRequest } from "@/components/career/types";
+import type {
+  CareerInternalOpportunityCallRequest,
+  CareerOpportunitySavedStageFilter,
+} from "@/components/career/types";
 import type {
   CareerConversationStarterId,
   CareerConversationStarterMode,
@@ -74,7 +77,7 @@ const formatMobileHomeGreetingName = (name: string, t: CareerT) => {
 
 type HomeHistoryTarget = {
   historyTab: "new" | "saved" | "archived";
-  savedStage?: "saved" | "applied" | "connected" | "closed";
+  savedStage?: CareerOpportunitySavedStageFilter;
 };
 
 type CareerMobileHomeViewProps = {
@@ -299,7 +302,9 @@ const CareerMobileHomeView = ({
     t("career.home.career_home_panel.0x7lgjp", "추천된 기회")
   );
 
-  const savedPositionCount = historyOpportunityCounts.savedStages.saved;
+  const savedPositionCount =
+    historyOpportunityCounts.savedStages.saved +
+    historyOpportunityCounts.savedStages.planned;
   const connectedPositionCount =
     historyOpportunityCounts.savedStages.applied +
     historyOpportunityCounts.savedStages.connected +
@@ -318,6 +323,7 @@ const CareerMobileHomeView = ({
           item.savedStage ?? getCareerDefaultSavedStage(item.opportunityType);
         if (
           savedStage !== "saved" &&
+          savedStage !== "planned" &&
           savedStage !== "applied" &&
           savedStage !== "connected" &&
           savedStage !== "closed"
@@ -345,8 +351,8 @@ const CareerMobileHomeView = ({
     )?.item.companyName?.trim();
     const statusLabel =
       inProgressTargetSavedStage === "saved"
-        ? t("career.common.career_history_panel.06mgpci", "저장함")
-        : t("career.common.career_history_panel.0y27adb", "연결됨");
+        ? t("career.common.career_history_panel.06mgpci", "관심 있음")
+        : t("career.common.career_history_panel.0y27adb", "진행중");
     if (!firstCompanyName) {
       return t("career.home.career_home_panel.1qhpcnm", "{count}개 {status}", {
         values: {
@@ -561,7 +567,7 @@ const CareerMobileHomeView = ({
           <SummaryCard
             label={t(
               "career.home.career_mobile_home_view.1vip5ub",
-              "저장/연결된 기회"
+              "저장한 포지션"
             )}
             count={inProgressPositionCount}
             icon={
@@ -573,7 +579,7 @@ const CareerMobileHomeView = ({
             onClick={() =>
               onOpenHistory({
                 historyTab: "saved",
-                savedStage: inProgressTargetSavedStage,
+                savedStage: "all",
               })
             }
           />

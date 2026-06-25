@@ -181,8 +181,10 @@ const ACTIVE_ROLE_STATUSES = new Set(["active", "top_priority"]);
 const MATCHING_REVIEW_STAGE_TAG_BY_STAGE = {
   accepted: "내부:수락",
   archived: "내부:아카이브",
+  final_offer: "내부:최종오퍼",
   hold: "내부:보류",
   pending_connection: "내부:연결대기",
+  process_stopped: "내부:프로세스중단",
   rejected: "내부:거절",
 } as const;
 const MATCHING_REVIEW_STAGE_LABEL_BY_STAGE: Record<
@@ -191,8 +193,10 @@ const MATCHING_REVIEW_STAGE_LABEL_BY_STAGE: Record<
 > = {
   accepted: "수락",
   archived: "아카이브",
+  final_offer: "최종 오퍼",
   hold: "보류",
   pending_connection: "연결 대기",
+  process_stopped: "프로세스 중단",
   recommended: "추천된 사람",
   rejected: "거절",
 };
@@ -322,6 +326,7 @@ export type OpsMatchingTalentFitSummary = {
   humanReviewedBy: string | null;
   label: string;
   lastEvaluatedAt: string | null;
+  manualInternalRecommendationQueuedAt: string | null;
   recommendation: OpsMatchingFitRecommendation | null;
   reason: string;
   reevaluationCheckedAt: string | null;
@@ -390,8 +395,10 @@ export type OpsMatchingTalentPoolListResponse =
 export type OpsMatchingReviewStageId =
   | "accepted"
   | "archived"
+  | "final_offer"
   | "hold"
   | "pending_connection"
+  | "process_stopped"
   | "recommended"
   | "rejected";
 
@@ -485,6 +492,7 @@ export type OpsMatchingFitItem = {
   humanReviewedBy: string | null;
   label: string;
   lastEvaluatedAt: string;
+  manualInternalRecommendationQueuedAt: string | null;
   reason: string;
   recommendation: OpsMatchingFitRecommendation | null;
   reevaluationCheckedAt: string | null;
@@ -524,6 +532,7 @@ export type OpsMatchingProgressItem = {
 };
 
 export type OpsMatchingProgressResponse = {
+  fit: OpsMatchingTalentFitSummary | null;
   items: OpsMatchingProgressItem[];
   recommendation: OpsMatchingRecommendationSummary | null;
   recommendations: OpsMatchingRecommendationSummary[];
@@ -670,9 +679,9 @@ function buildReviewStageProgressText(args: {
   const previousLabel =
     MATCHING_REVIEW_STAGE_LABEL_BY_STAGE[args.previousStage];
   if (args.previousStage === "recommended") {
-    return `Harper Review 보드에서 ${nextLabel}로 옮겼습니다.`;
+    return `${nextLabel}로 옮겼습니다.`;
   }
-  return `Harper Review 보드에서 ${previousLabel}에서 ${nextLabel}로 옮겼습니다.`;
+  return `${previousLabel}에서 ${nextLabel}로 옮겼습니다.`;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -828,7 +837,9 @@ export function parseOpsMatchingHumanLabelFilters(
     if (!normalized || seen.has(normalized)) continue;
 
     if (isOpsMatchingNoHumanLabelFilter(normalized)) {
-      return [OPS_MATCHING_NO_HUMAN_LABEL_FILTER_VALUE];
+      seen.add(normalized);
+      labels.push(OPS_MATCHING_NO_HUMAN_LABEL_FILTER_VALUE);
+      continue;
     }
 
     if (OPS_MATCHING_FIT_LABEL_SET.has(normalized)) {
@@ -917,15 +928,8 @@ function normalizeHumanLabelFilterState(
     )
   );
   const includeMissing = (values ?? []).some(isOpsMatchingNoHumanLabelFilter);
-  if (includeMissing) {
-    return {
-      includeMissing: true,
-      labels: [] as OpsMatchingFitLabel[],
-    };
-  }
-
   return {
-    includeMissing: false,
+    includeMissing,
     labels,
   };
 }
@@ -1202,10 +1206,15 @@ async function fetchTaggedTalentIds(args: {
 
 function buildOpsMatchingTalentFitSummary(
   row: TalentOpportunityFitRecordRow,
-  recommendationMap?: Map<string, OpsMatchingFitRecommendation>
+  recommendationMap?: Map<string, OpsMatchingFitRecommendation>,
+  queuedManualRecommendationMap?: Map<string, string>
 ): OpsMatchingTalentFitSummary {
   const label = normalizeText(row.label);
   const humanLabel = normalizeNullableText(row.human_label);
+  const pairKey = getTalentRolePairKey({
+    roleId: row.opportunity_id,
+    talentId: row.talent_id,
+  });
   return {
     createdAt: row.created_at,
     effectiveLabel: humanLabel || label,
@@ -1216,13 +1225,9 @@ function buildOpsMatchingTalentFitSummary(
     humanReviewedBy: normalizeNullableText(row.human_reviewed_by),
     label,
     lastEvaluatedAt: row.last_evaluated_at,
-    recommendation:
-      recommendationMap?.get(
-        getTalentRolePairKey({
-          roleId: row.opportunity_id,
-          talentId: row.talent_id,
-        })
-      ) ?? null,
+    manualInternalRecommendationQueuedAt:
+      queuedManualRecommendationMap?.get(pairKey) ?? null,
+    recommendation: recommendationMap?.get(pairKey) ?? null,
     reason: normalizeText(row.reason),
     reevaluationCheckedAt: row.reevaluation_checked_at,
     reevaluationCriteria: row.reevaluation_criteria,
@@ -1232,7 +1237,8 @@ function buildOpsMatchingTalentFitSummary(
 
 function buildOpsMatchingTalentFitMap(
   rows: TalentOpportunityFitRecordRow[],
-  recommendationMap?: Map<string, OpsMatchingFitRecommendation>
+  recommendationMap?: Map<string, OpsMatchingFitRecommendation>,
+  queuedManualRecommendationMap?: Map<string, string>
 ) {
   const fitMap = new Map<string, OpsMatchingTalentFitSummary>();
   for (const row of rows) {
@@ -1240,7 +1246,11 @@ function buildOpsMatchingTalentFitMap(
     if (!talentId || fitMap.has(talentId)) continue;
     fitMap.set(
       talentId,
-      buildOpsMatchingTalentFitSummary(row, recommendationMap)
+      buildOpsMatchingTalentFitSummary(
+        row,
+        recommendationMap,
+        queuedManualRecommendationMap
+      )
     );
   }
   return fitMap;
@@ -1293,10 +1303,13 @@ async function loadRoleFitRows(args: {
   if (args.llmLabels.length > 0) {
     fitQuery = fitQuery.in("label", args.llmLabels);
   }
-  if (args.humanLabelMissing) {
+  if (args.humanLabelMissing && args.humanLabels.length > 0) {
+    fitQuery = fitQuery.or(
+      `human_label.is.null,human_label.in.(${args.humanLabels.join(",")})`
+    );
+  } else if (args.humanLabelMissing) {
     fitQuery = fitQuery.is("human_label", null);
-  }
-  if (args.humanLabels.length > 0) {
+  } else if (args.humanLabels.length > 0) {
     fitQuery = fitQuery.in("human_label", args.humanLabels);
   }
 
@@ -2370,6 +2383,11 @@ export async function fetchOpsMatchingTalents(args: {
       rows: pagedFitRows,
     });
   }
+  const queuedManualRecommendationMap =
+    await fetchQueuedManualRecommendationMap({
+      admin,
+      rows: pagedFitRows,
+    });
   const talentRowMap =
     filteredTalentRowMap ??
     (await fetchTalentRowMap({
@@ -2381,7 +2399,11 @@ export async function fetchOpsMatchingTalents(args: {
     .filter((row): row is TalentUserRow => Boolean(row));
   const items = await buildOpsMatchingTalentItems({
     admin,
-    fitMap: buildOpsMatchingTalentFitMap(pagedFitRows, recommendationMap),
+    fitMap: buildOpsMatchingTalentFitMap(
+      pagedFitRows,
+      recommendationMap,
+      queuedManualRecommendationMap
+    ),
     roleId,
     rows,
   });
@@ -2602,11 +2624,116 @@ async function fetchFitRecommendationMap(args: {
   return recommendationMap;
 }
 
+async function fetchQueuedManualRecommendationMap(args: {
+  admin: AdminClient;
+  rows: TalentOpportunityFitRecordRow[];
+}) {
+  const pairKeys = new Set(
+    args.rows.map((row) =>
+      getTalentRolePairKey({
+        roleId: row.opportunity_id,
+        talentId: row.talent_id,
+      })
+    )
+  );
+  const talentIds = Array.from(
+    new Set(args.rows.map((row) => normalizeText(row.talent_id)))
+  ).filter(Boolean);
+  const roleIds = Array.from(
+    new Set(args.rows.map((row) => normalizeText(row.opportunity_id)))
+  ).filter(Boolean);
+  const queuedMap = new Map<string, string>();
+  if (talentIds.length === 0 || roleIds.length === 0) return queuedMap;
+
+  for (const talentChunk of chunkValues(talentIds)) {
+    for (const roleChunk of chunkValues(roleIds)) {
+      const { data, error } = await fromOpsMatchingTable(
+        args.admin,
+        "talent_progress"
+      )
+        .select("talent_id, role_id, created_at, recommendation_id, text")
+        .in("talent_id", talentChunk)
+        .in("role_id", roleChunk)
+        .is("recommendation_id", null)
+        .ilike("text", "%추천 생성/발송 대기 중입니다.%")
+        .order("created_at", { ascending: false })
+        .limit(MAX_MATCHING_PROGRESS_ITEMS);
+
+      if (error) {
+        if (isMissingOpsMatchingTableError(error)) {
+          return queuedMap;
+        }
+        throw new Error(
+          error.message ?? "Failed to load queued manual recommendations"
+        );
+      }
+
+      for (const row of (data ?? []) as TalentProgressRow[]) {
+        const pairKey = getTalentRolePairKey({
+          roleId: row.role_id,
+          talentId: row.talent_id,
+        });
+        if (!pairKeys.has(pairKey) || queuedMap.has(pairKey)) continue;
+        queuedMap.set(pairKey, row.created_at);
+      }
+    }
+  }
+
+  return queuedMap;
+}
+
+async function fetchRoleTalentFitSummary(args: {
+  admin: AdminClient;
+  roleId: string;
+  talentId: string;
+}): Promise<OpsMatchingTalentFitSummary | null> {
+  const roleId = normalizeText(args.roleId);
+  const talentId = normalizeText(args.talentId);
+  if (!roleId || !talentId) return null;
+
+  const { data, error } = await fromOpsMatchingTable(
+    args.admin,
+    "talent_opportunity_fit"
+  )
+    .select(
+      "id, talent_id, opportunity_id, score, label, reason, reevaluation_criteria, human_label, human_reason, human_reviewed_by, human_reviewed_at, last_evaluated_at, reevaluation_checked_at, created_at"
+    )
+    .eq("opportunity_id", roleId)
+    .eq("talent_id", talentId)
+    .order("last_evaluated_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false, nullsFirst: false })
+    .limit(1);
+
+  if (error) {
+    if (isMissingOpsMatchingTableError(error)) return null;
+    throw new Error(error.message ?? "Failed to load role fit summary");
+  }
+
+  const row = ((data ?? []) as TalentOpportunityFitRecordRow[])[0];
+  if (!row) return null;
+
+  const [recommendationMap, queuedManualRecommendationMap] = await Promise.all([
+    fetchFitRecommendationMap({ admin: args.admin, rows: [row] }),
+    fetchQueuedManualRecommendationMap({ admin: args.admin, rows: [row] }),
+  ]);
+
+  return buildOpsMatchingTalentFitSummary(
+    row,
+    recommendationMap,
+    queuedManualRecommendationMap
+  );
+}
+
 async function buildOpsMatchingFitItems(args: {
   admin: AdminClient;
   rows: TalentOpportunityFitRecordRow[];
 }) {
-  const [talentRowMap, roleMap, recommendationMap] = await Promise.all([
+  const [
+    talentRowMap,
+    roleMap,
+    recommendationMap,
+    queuedManualRecommendationMap,
+  ] = await Promise.all([
     fetchTalentRowMap({
       admin: args.admin,
       talentIds: args.rows.map((row) => row.talent_id),
@@ -2616,6 +2743,10 @@ async function buildOpsMatchingFitItems(args: {
       roleIds: args.rows.map((row) => row.opportunity_id),
     }),
     fetchFitRecommendationMap({
+      admin: args.admin,
+      rows: args.rows,
+    }),
+    fetchQueuedManualRecommendationMap({
       admin: args.admin,
       rows: args.rows,
     }),
@@ -2644,6 +2775,13 @@ async function buildOpsMatchingFitItems(args: {
       humanReviewedBy: normalizeNullableText(row.human_reviewed_by),
       label,
       lastEvaluatedAt: row.last_evaluated_at,
+      manualInternalRecommendationQueuedAt:
+        queuedManualRecommendationMap.get(
+          getTalentRolePairKey({
+            roleId: row.opportunity_id,
+            talentId: row.talent_id,
+          })
+        ) ?? null,
       reason: normalizeText(row.reason),
       recommendation:
         recommendationMap.get(
@@ -2722,10 +2860,16 @@ export async function fetchOpsMatchingFits(args: {
   if (llmLabels.length > 0) {
     fitQuery = fitQuery.in("label", llmLabels);
   }
-  if (humanLabelFilterState.includeMissing) {
+  if (
+    humanLabelFilterState.includeMissing &&
+    humanLabelFilterState.labels.length > 0
+  ) {
+    fitQuery = fitQuery.or(
+      `human_label.is.null,human_label.in.(${humanLabelFilterState.labels.join(",")})`
+    );
+  } else if (humanLabelFilterState.includeMissing) {
     fitQuery = fitQuery.is("human_label", null);
-  }
-  if (humanLabelFilterState.labels.length > 0) {
+  } else if (humanLabelFilterState.labels.length > 0) {
     fitQuery = fitQuery.in("human_label", humanLabelFilterState.labels);
   }
 
@@ -3179,7 +3323,6 @@ export async function addOpsMatchingTalentTag(args: {
   const talentId = normalizeText(args.talentId);
   const tag = normalizeTag(args.tag);
   if (!talentId) throw new Error("talentId is required");
-  if (!roleId) throw new Error("roleId is required");
   if (!tag) throw new Error("tag is required");
 
   const admin = getSupabaseAdmin();
@@ -3837,19 +3980,23 @@ export async function fetchOpsMatchingProgress(args: {
     query = query.eq("role_id", roleId);
   }
 
-  const [progressResult, recommendation, recommendations] = await Promise.all([
-    query,
-    roleId
-      ? fetchLatestRecommendation({ admin, roleId, talentId })
-      : Promise.resolve(null),
-    roleId
-      ? Promise.resolve([])
-      : fetchRecentRecommendations({
-          admin,
-          limit: MAX_MATCHING_PROGRESS_ITEMS,
-          talentId,
-        }),
-  ]);
+  const [progressResult, recommendation, recommendations, fit] =
+    await Promise.all([
+      query,
+      roleId
+        ? fetchLatestRecommendation({ admin, roleId, talentId })
+        : Promise.resolve(null),
+      roleId
+        ? Promise.resolve([])
+        : fetchRecentRecommendations({
+            admin,
+            limit: MAX_MATCHING_PROGRESS_ITEMS,
+            talentId,
+          }),
+      roleId
+        ? fetchRoleTalentFitSummary({ admin, roleId, talentId })
+        : Promise.resolve(null),
+    ]);
 
   if (
     progressResult.error &&
@@ -3886,6 +4033,7 @@ export async function fetchOpsMatchingProgress(args: {
   ).slice(0, MAX_MATCHING_PROGRESS_ITEMS);
 
   return {
+    fit,
     items: visibleRows.map((row) => {
       const role = roleMap.get(row.role_id);
       return {

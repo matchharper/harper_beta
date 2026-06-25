@@ -1,7 +1,7 @@
 import {
   renderEmailBodyHtml,
   renderEmailBodyText,
-} from "@/lib/ats/emailBodyFormat";
+} from "@/lib/email/bodyFormat";
 
 function readEnv(name: string) {
   const value = process.env[name];

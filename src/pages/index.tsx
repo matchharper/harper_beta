@@ -56,6 +56,36 @@ import {
   usesCareerLandingHeroCopyB,
   type CareerLandingHeroCopyAbtestType,
 } from "@/lib/career/utm";
+import { useRouter } from "next/router";
+
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://matchharper.com")
+  .trim()
+  .replace(/\/$/, "");
+const LANDING_HOME_URL = `${SITE_URL}/`;
+const LANDING_OG_IMAGE_URL = `${SITE_URL}/images/usemain.png`;
+const LANDING_LOGO_URL = `${SITE_URL}/images/logo.png`;
+const LINKEDIN_COMPANY_URL = "https://www.linkedin.com/company/matchharper/";
+const LANDING_LOCALE_PATHS: Record<Locale, string> = {
+  en: "/en",
+  ko: "/ko",
+};
+
+function buildSiteUrl(path: string) {
+  if (path === "/") return LANDING_HOME_URL;
+  return `${SITE_URL}${path}`;
+}
+
+function getLandingLocaleUrl(locale: Locale) {
+  return buildSiteUrl(LANDING_LOCALE_PATHS[locale]);
+}
+
+function getLandingLanguage(locale: Locale) {
+  return locale === "ko" ? "ko-KR" : "en-US";
+}
+
+function getLandingOgLocale(locale: Locale) {
+  return locale === "ko" ? "ko_KR" : "en_US";
+}
 
 const text = {
   h1: "text-[30px] font-bold leading-[1.28] text-neutral-950 sm:text-[48px] md:text-[56px]",
@@ -1840,9 +1870,10 @@ function SectionHeader({
   );
 }
 
-type LandingKoVfPageProps = {
+export type LandingKoVfPageProps = {
   heroCopyAbtestType: CareerLandingHeroCopyAbtestType;
   locale: Locale;
+  routeLocale: Locale | null;
 };
 
 type RequestHeaders = Record<string, string | string[] | undefined>;
@@ -1892,28 +1923,115 @@ function buildHeroCopyAbtestCookie(value: CareerLandingHeroCopyAbtestType) {
   ].join("; ");
 }
 
-export const getServerSideProps: GetServerSideProps<
-  LandingKoVfPageProps
-> = async ({ req, res }) => {
-  const heroCopyAbtestType = resolveCareerLandingHeroCopyAbtestType(
-    req.cookies[CAREER_LANDING_HERO_COPY_ABTEST_COOKIE]
-  );
-  res.setHeader("Set-Cookie", buildHeroCopyAbtestCookie(heroCopyAbtestType));
+export function getLandingPageServerSideProps(
+  routeLocale: Locale | null = null
+): GetServerSideProps<LandingKoVfPageProps> {
+  return async ({ req, res }) => {
+    const heroCopyAbtestType = resolveCareerLandingHeroCopyAbtestType(
+      req.cookies[CAREER_LANDING_HERO_COPY_ABTEST_COOKIE]
+    );
+    res.setHeader("Set-Cookie", buildHeroCopyAbtestCookie(heroCopyAbtestType));
 
-  return {
-    props: {
-      heroCopyAbtestType,
-      locale: resolveLandingLocale(req.headers, req.cookies),
-    },
+    return {
+      props: {
+        heroCopyAbtestType,
+        locale: routeLocale ?? resolveLandingLocale(req.headers, req.cookies),
+        routeLocale,
+      },
+    };
   };
-};
+}
+
+export const getServerSideProps: GetServerSideProps<LandingKoVfPageProps> =
+  getLandingPageServerSideProps();
+
+function buildLandingStructuredData(args: {
+  canonicalUrl: string;
+  description: string;
+  language: string;
+  title: string;
+}) {
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": `${SITE_URL}/#organization`,
+        name: "Harper",
+        url: LANDING_HOME_URL,
+        logo: {
+          "@type": "ImageObject",
+          url: LANDING_LOGO_URL,
+          width: 138,
+          height: 153,
+        },
+        sameAs: [LINKEDIN_COMPANY_URL],
+      },
+      {
+        "@type": "WebSite",
+        "@id": `${SITE_URL}/#website`,
+        name: "Harper",
+        url: LANDING_HOME_URL,
+        inLanguage: args.language,
+        publisher: {
+          "@id": `${SITE_URL}/#organization`,
+        },
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": `${args.canonicalUrl}#software-application`,
+        name: "Harper",
+        applicationCategory: "BusinessApplication",
+        operatingSystem: "Web",
+        url: args.canonicalUrl,
+        image: LANDING_OG_IMAGE_URL,
+        inLanguage: args.language,
+        description: args.description,
+        publisher: {
+          "@id": `${SITE_URL}/#organization`,
+        },
+      },
+      {
+        "@type": "WebPage",
+        "@id": `${args.canonicalUrl}#webpage`,
+        name: args.title,
+        url: args.canonicalUrl,
+        description: args.description,
+        inLanguage: args.language,
+        isPartOf: {
+          "@id": `${SITE_URL}/#website`,
+        },
+        primaryImageOfPage: {
+          "@type": "ImageObject",
+          url: LANDING_OG_IMAGE_URL,
+          width: 2906,
+          height: 1898,
+        },
+      },
+    ],
+  };
+}
 
 export default function LandingKoVfPage({
   heroCopyAbtestType,
   locale,
+  routeLocale,
 }: LandingKoVfPageProps) {
   const [landingLocale, setLandingLocale] = useState<Locale>(locale);
   const copy = LANDING_COPY[landingLocale];
+  const router = useRouter();
+  const canonicalUrl = routeLocale
+    ? getLandingLocaleUrl(routeLocale)
+    : LANDING_HOME_URL;
+  const language = getLandingLanguage(landingLocale);
+  const ogLocale = getLandingOgLocale(landingLocale);
+  const alternateOgLocale = landingLocale === "ko" ? "en_US" : "ko_KR";
+  const landingStructuredData = buildLandingStructuredData({
+    canonicalUrl,
+    description: copy.meta.description,
+    language,
+    title: copy.meta.title,
+  });
   const heroBody = usesCareerLandingHeroCopyB(heroCopyAbtestType)
     ? HERO_BODY_VARIANT_B[landingLocale]
     : copy.hero.body;
@@ -1930,18 +2048,112 @@ export default function LandingKoVfPage({
     locale: landingLocale,
     defaultPagePath: "/",
   });
+  const handleLandingLocaleChange = (nextLocale: Locale) => {
+    setLandingLocale(nextLocale);
+    void router.push(LANDING_LOCALE_PATHS[nextLocale]);
+  };
 
   return (
     <MessagesProvider locale={landingLocale}>
       <Head>
         <title>{copy.meta.title}</title>
-        <meta name="description" content={copy.meta.description} />
-        <link rel="alternate" hrefLang="en" href="https://matchharper.com/" />
-        <link rel="alternate" hrefLang="ko" href="https://matchharper.com/ko" />
+        <meta
+          key="description"
+          name="description"
+          content={copy.meta.description}
+        />
+        <meta
+          key="robots"
+          name="robots"
+          content="index,follow,max-image-preview:large"
+        />
+        <link key="canonical" rel="canonical" href={canonicalUrl} />
         <link
+          key="alternate-en"
+          rel="alternate"
+          hrefLang="en"
+          href={getLandingLocaleUrl("en")}
+        />
+        <link
+          key="alternate-ko"
+          rel="alternate"
+          hrefLang="ko"
+          href={getLandingLocaleUrl("ko")}
+        />
+        <link
+          key="alternate-x-default"
           rel="alternate"
           hrefLang="x-default"
-          href="https://matchharper.com/"
+          href={LANDING_HOME_URL}
+        />
+        <meta key="og:type" property="og:type" content="website" />
+        <meta key="og:site_name" property="og:site_name" content="Harper" />
+        <meta key="og:locale" property="og:locale" content={ogLocale} />
+        <meta
+          key="og:locale:alternate"
+          property="og:locale:alternate"
+          content={alternateOgLocale}
+        />
+        <meta key="og:title" property="og:title" content={copy.meta.title} />
+        <meta
+          key="og:description"
+          property="og:description"
+          content={copy.meta.description}
+        />
+        <meta key="og:url" property="og:url" content={canonicalUrl} />
+        <meta
+          key="og:image"
+          property="og:image"
+          content={LANDING_OG_IMAGE_URL}
+        />
+        <meta
+          key="og:image:secure_url"
+          property="og:image:secure_url"
+          content={LANDING_OG_IMAGE_URL}
+        />
+        <meta
+          key="og:image:alt"
+          property="og:image:alt"
+          content={copy.meta.title}
+        />
+        <meta
+          key="og:image:type"
+          property="og:image:type"
+          content="image/png"
+        />
+        <meta key="og:image:width" property="og:image:width" content="2906" />
+        <meta key="og:image:height" property="og:image:height" content="1898" />
+        <meta
+          key="twitter:card"
+          name="twitter:card"
+          content="summary_large_image"
+        />
+        <meta
+          key="twitter:title"
+          name="twitter:title"
+          content={copy.meta.title}
+        />
+        <meta
+          key="twitter:description"
+          name="twitter:description"
+          content={copy.meta.description}
+        />
+        <meta
+          key="twitter:image"
+          name="twitter:image"
+          content={LANDING_OG_IMAGE_URL}
+        />
+        <meta
+          key="twitter:image:alt"
+          name="twitter:image:alt"
+          content={copy.meta.title}
+        />
+        <script
+          key="ld-landing"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(landingStructuredData),
+          }}
         />
         <link rel="icon" href="/images/logo.ico" />
       </Head>
@@ -2334,7 +2546,7 @@ export default function LandingKoVfPage({
           onCareerStartClick={handleCareerStartClick}
           onScheduleCallClick={companyMeetingRequestModal.openModal}
           locale={landingLocale}
-          onLocaleChange={setLandingLocale}
+          onLocaleChange={handleLandingLocaleChange}
           labels={copy.footer}
         />
       </div>

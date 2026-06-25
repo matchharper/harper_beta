@@ -252,7 +252,7 @@ export const ProfileTab = memo(function ProfileTab({
                   href={normalizeRegisteredLinkHref(link)}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center justify-between gap-3 rounded-md border border-neutral-1000-a05 bg-bg-default/45 px-3 py-2 text-xs text-neutral-muted transition hover:border-neutral-1000-a10 hover:bg-bg-default/70"
+                  className="flex items-center justify-between gap-3 rounded-md border border-neutral-1000-a05 bg-bg-default/45 px-3 py-2 text-xs text-neutral-muted transition hover:border-neutral-1000-a10 hover:bg-blue-200/50"
                 >
                   <span className="min-w-0 truncate">
                     {isLinkedin ? "LinkedIn · " : ""}
@@ -307,8 +307,10 @@ export const ProfileTab = memo(function ProfileTab({
                 <div className="text-sm font-medium text-neutral-primary">
                   {exp.role ?? "역할 미상"}
                 </div>
-                <div className="text-xs text-neutral-muted">
-                  {exp.company_name ?? ""}{" "}
+                <div className="mt-1 text-[13px] text-neutral-muted">
+                  <span className="text-neutral-primary">
+                    {exp.company_name ?? ""}{" "}
+                  </span>
                   {exp.start_date
                     ? `(${exp.start_date} ~ ${exp.end_date ?? "현재"})`
                     : ""}

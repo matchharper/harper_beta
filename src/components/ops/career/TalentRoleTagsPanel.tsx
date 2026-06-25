@@ -628,8 +628,8 @@ export function TalentRoleTagsPanel({ userId }: TalentRoleTagsPanelProps) {
       ) : null}
 
       <div className="mt-5">
-        <div className="mb-2 text-xs font-medium text-neutral-muted">
-          Internal 기회 이력
+        <div className="mb-2 text-sm font-normal text-neutral-muted">
+          이 사람에게 추천된 다른 내부 기회들
         </div>
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
@@ -643,7 +643,7 @@ export function TalentRoleTagsPanel({ userId }: TalentRoleTagsPanelProps) {
           </div>
         ) : opportunityItems.length === 0 ? (
           <div className="rounded-md border border-dashed border-neutral-1000-a10 bg-bg-floating px-4 py-6 text-center text-sm text-neutral-soft">
-            아직 추천되었거나 태그가 달린 internal 기회가 없습니다.
+            아직 추천된 내부 기회가 없습니다.
           </div>
         ) : (
           <div className="overflow-hidden rounded-md border border-neutral-1000-a05 bg-bg-default/45 divide-y divide-neutral-1000-a05">

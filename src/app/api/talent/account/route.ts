@@ -593,26 +593,6 @@ async function deleteCompanyWorkspaceRows(
   admin: UntypedAdminClient,
   context: AccountDeletionContext
 ) {
-  await deleteEq(
-    admin,
-    "candidate_outreach_message",
-    "user_id",
-    context.userId
-  );
-  await deleteEq(
-    admin,
-    "candidate_outreach_message",
-    "created_by",
-    context.userId
-  );
-  await deleteEq(admin, "candidate_outreach", "user_id", context.userId);
-  await deleteEq(
-    admin,
-    "candidate_outreach_workspace",
-    "user_id",
-    context.userId
-  );
-
   await deleteEq(admin, "bookmark_folder_item", "user_id", context.userId);
   await deleteIn(
     admin,

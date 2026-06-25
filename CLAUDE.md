@@ -30,12 +30,12 @@ Path alias `@/*` → `src/*` (see `tsconfig.json`).
 - **`src/lib/supabase.ts`** — browser client, uses `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Import this in client components / pages.
 - **`src/lib/supabaseServer.ts`** — server client, prefers `SUPABASE_SERVICE_ROLE_KEY` and falls back to the anon key. Also exports `getRequestUser(req)` which validates a `Authorization: Bearer <token>` header and returns the Supabase user. API routes that need per-user authorization should call `getRequestUser` rather than trusting request bodies.
 - **Never** expose the service-role client or `SUPABASE_SERVICE_ROLE_KEY` to the browser bundle.
-- **`supabase/migrations/`** holds dated SQL migrations (e.g. `20260403_candidate_outreach_message_sending.sql`). Generated DB types live in `src/types/database.types.ts` and are imported as `Database` generic into both clients.
+- **`supabase/migrations/`** holds dated SQL migrations. Generated DB types live in `src/types/database.types.ts` and are imported as `Database` generic into both clients.
 
 ### Domain-organized libraries
 `src/lib/` is split by product domain, not by technical layer. The main domains (each has its own subdirectory or file cluster):
 
-- **ats / talent network** — candidate outreach, sequencing, workspace bookmarks (`lib/ats/`, `talentNetwork*.ts`, `candidateMark.ts`, `profileReveal.ts`)
+- **talent network** — candidate bookmarks, marks, profile reveal, and network flows (`talentNetwork*.ts`, `candidateMark.ts`, `profileReveal.ts`)
 - **llm + search** — model calls, parsing, cursor/evidence for candidate search (`lib/llm/`, `lib/server/search.ts`, `lib/server/cursor.ts`, `searchEvidence.ts`, `searchSource.ts`, `searchParallelLimit.ts`)
 - **billing** — Toss Payments integration (`lib/billing/`, `lib/toss/`, `@tosspayments/tosspayments-sdk`)
 - **voice** — career voice runs through OpenAI Realtime over WebRTC (`hooks/career/useRealtimeSession.ts`)
@@ -46,14 +46,12 @@ Path alias `@/*` → `src/*` (see `tsconfig.json`).
 When extending a feature, prefer adding to the existing domain module over creating new top-level ones.
 
 ### State / data-fetching
-- **TanStack Query v5** is the primary client-data layer. Hooks in `src/hooks/` (e.g. `useCandidateDetail`, `useBookmarkFolders`, `useAtsWorkspace`) wrap `useQuery`/`useMutation` around the API routes.
+- **TanStack Query v5** is the primary client-data layer. Hooks in `src/hooks/` (e.g. `useCandidateDetail`, `useBookmarkFolders`) wrap `useQuery`/`useMutation` around the API routes.
 - **Zustand** (`src/store/`) for cross-page UI state.
 - `src/components/Provider.tsx` wires the QueryClient and context providers into `_app.tsx`.
 
 ### Scheduled jobs
-Vercel Cron runs two endpoints (`vercel.json`):
-- `/api/internal/ats/sweep` — every minute
-- `/api/internal/billing/sweep` — every 15 min
+Vercel Cron endpoints are configured in `vercel.json`.
 
 Endpoints under `src/app/api/internal/**` are privileged. They should authenticate via the helpers in `lib/internalAccess.ts` / `lib/internalApi.ts` rather than user sessions.
 

@@ -260,17 +260,6 @@ const CareerMessageBubble = ({
         isUser ? USER_BUBBLE_CLASS : ASSISTANT_BUBBLE_CLASS,
         !isUser && isAssistantSpeaking && "ring-1 ring-neutral-1000-a05"
       );
-  const typingCursor = message.typing ? (
-    <span
-      className={[
-        "inline-block w-2 animate-pulse align-baseline",
-        isUser ? "text-neutral-00" : "text-neutral-primary",
-      ].join(" ")}
-    >
-      ▍
-    </span>
-  ) : null;
-
   return (
     <article className={articleClassName}>
       <div className="flex items-start gap-2">
@@ -307,13 +296,11 @@ const CareerMessageBubble = ({
           {isUser ? (
             <div className="whitespace-pre-wrap wrap-break-word">
               {renderHighlightedContent(displayContent, handleHarperLinkClick)}
-              {typingCursor}
             </div>
           ) : (
             <RichText
               content={assistantContent}
               className={careerTimelineAssistantRichTextClassName}
-              trailingInlineNode={typingCursor}
               onHarperLinkClick={handleHarperLinkClick}
             />
           )}

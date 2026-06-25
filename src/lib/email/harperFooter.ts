@@ -1,4 +1,4 @@
-import { renderEmailBodyHtml } from "@/lib/ats/emailBodyFormat";
+import { renderEmailBodyHtml } from "@/lib/email/bodyFormat";
 
 export const HARPER_EMAIL_FOOTER_TEXT = `If you have any issues, feedback or want to talk to a human email chris@matchharper.com. Keep in mind that Harper is still learning, can make mistakes, and "hallucinate".
 

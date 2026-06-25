@@ -7,8 +7,10 @@ import {
 export const MATCHING_REVIEW_STAGE_TAG_BY_STAGE = {
   accepted: "내부:수락",
   archived: "내부:아카이브",
+  final_offer: "내부:최종오퍼",
   hold: "내부:보류",
   pending_connection: "내부:연결대기",
+  process_stopped: "내부:프로세스중단",
   rejected: "내부:거절",
 } as const;
 
@@ -133,4 +135,12 @@ export function getMatchingTagOption(value: string | null | undefined) {
 
 export function getMatchingTagLabel(value: string) {
   return getMatchingTagOption(value)?.label ?? value;
+}
+
+const MATCHING_REVIEW_STAGE_TAG_SET: ReadonlySet<string> = new Set(
+  Object.values(MATCHING_REVIEW_STAGE_TAG_BY_STAGE)
+);
+
+export function isMatchingReviewStageTag(value: string | null | undefined) {
+  return MATCHING_REVIEW_STAGE_TAG_SET.has(String(value ?? "").trim());
 }

@@ -2,7 +2,10 @@ import {
   createChatCompletionWithFallback,
   supportsResponseFormatForModel,
 } from "@/lib/llm/llm";
-import { logLlmTokenUsage } from "@/lib/llm/usageLogging";
+import {
+  logLlmTokenUsage,
+  logLlmTokenUsageForToolCalls,
+} from "@/lib/llm/usageLogging";
 import {
   logTalentToolCall,
   logTalentToolError,
@@ -39,6 +42,11 @@ type TalentAssistantModelConfig = {
   primaryModel?: string;
 };
 
+type LlmToolCostAttribution = {
+  step: string;
+  toolNames: readonly string[];
+};
+
 const DEFAULT_TALENT_PRIMARY_MODEL = "grok-4-1-fast-non-reasoning";
 const DEFAULT_TALENT_FALLBACK_MODEL = "gpt-4.1-mini";
 const DEFAULT_TALENT_ANTHROPIC_OVERLOAD_FALLBACK_MODEL =
@@ -70,12 +78,21 @@ function getMessageContent(message: any) {
   return "";
 }
 
+function getOpenAiResponseToolCallNames(response: any) {
+  const toolCalls = response?.choices?.[0]?.message?.tool_calls;
+  if (!Array.isArray(toolCalls)) return [];
+  return toolCalls
+    .map((toolCall) => String(toolCall?.function?.name ?? "").trim())
+    .filter(Boolean);
+}
+
 async function createTalentChatCompletion(args: {
   anthropicOverloadFallbackModel?: string;
   fallbackModel?: string;
   messages: TalentChatMessage[];
   primaryModel?: string;
   temperature: number;
+  toolCostAttribution?: LlmToolCostAttribution;
   tools?: TalentChatTool[];
   usageLabel?: string;
 }) {
@@ -110,6 +127,24 @@ async function createTalentChatCompletion(args: {
     model,
     response,
   });
+  const toolCallNames = getOpenAiResponseToolCallNames(response);
+  if (toolCallNames.length > 0) {
+    logLlmTokenUsageForToolCalls({
+      baseLabel: usageLabel,
+      model,
+      response,
+      step: "tool_call",
+      toolNames: toolCallNames,
+    });
+  } else if (args.toolCostAttribution) {
+    logLlmTokenUsageForToolCalls({
+      baseLabel: usageLabel,
+      model,
+      response,
+      step: args.toolCostAttribution.step,
+      toolNames: args.toolCostAttribution.toolNames,
+    });
+  }
   return response;
 }
 
@@ -202,8 +237,17 @@ export async function runTalentAssistantToolLoop(args: {
   const workingMessages = [...messages];
   const stopAfterToolNameSet = new Set(stopAfterToolNames);
   let totalToolCalls = 0;
+  let pendingToolResultAttribution: string[] = [];
 
   for (let loop = 0; loop < maxToolLoops; loop += 1) {
+    const toolCostAttribution =
+      pendingToolResultAttribution.length > 0
+        ? {
+            step: "tool_result_response",
+            toolNames: pendingToolResultAttribution,
+          }
+        : undefined;
+    pendingToolResultAttribution = [];
     const response = await createTalentChatCompletion({
       anthropicOverloadFallbackModel:
         modelConfig?.anthropicOverloadFallbackModel,
@@ -211,6 +255,7 @@ export async function runTalentAssistantToolLoop(args: {
       messages: workingMessages,
       primaryModel: modelConfig?.primaryModel,
       temperature,
+      toolCostAttribution,
       tools,
       usageLabel,
     });
@@ -242,6 +287,7 @@ export async function runTalentAssistantToolLoop(args: {
     const executableToolCalls =
       remainingToolCalls > 0 ? toolCalls.slice(0, remainingToolCalls) : [];
     const skippedToolCalls = toolCalls.slice(executableToolCalls.length);
+    const attemptedToolNames: string[] = [];
 
     for (const skippedToolCall of skippedToolCalls) {
       workingMessages.push({
@@ -258,6 +304,7 @@ export async function runTalentAssistantToolLoop(args: {
       totalToolCalls += 1;
 
       const toolName = String(toolCall.function?.name ?? "").trim();
+      attemptedToolNames.push(toolName);
       const toolCallId = String(toolCall.id ?? crypto.randomUUID());
       const rawArguments = String(toolCall.function?.arguments ?? "{}");
 
@@ -323,6 +370,7 @@ export async function runTalentAssistantToolLoop(args: {
         });
       }
     }
+    pendingToolResultAttribution = attemptedToolNames;
   }
 
   const fallback = await createTalentChatCompletion({
@@ -331,6 +379,13 @@ export async function runTalentAssistantToolLoop(args: {
     messages: workingMessages,
     primaryModel: modelConfig?.primaryModel,
     temperature,
+    toolCostAttribution:
+      pendingToolResultAttribution.length > 0
+        ? {
+            step: "tool_result_response",
+            toolNames: pendingToolResultAttribution,
+          }
+        : undefined,
     usageLabel,
   });
 

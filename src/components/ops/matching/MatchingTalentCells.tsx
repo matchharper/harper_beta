@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { MatchingTagPill } from "@/components/ops/matching/MatchingTalentInlineActions";
+import { isMatchingReviewStageTag } from "@/components/ops/matching/tagMeta";
 import { Tooltips } from "@/components/ui/tooltip";
 import type {
   OpsMatchingProfileLabel,
@@ -67,14 +68,20 @@ export function ProfileLabelCell({
 }
 
 export function TalentStatusBadges({
+  hideReviewStageTags = false,
   talent,
 }: {
+  hideReviewStageTags?: boolean;
   talent: OpsMatchingTalentItem;
 }) {
+  const visibleTalentTags = hideReviewStageTags
+    ? talent.talentTags.filter((tag) => !isMatchingReviewStageTag(tag.tag))
+    : talent.talentTags;
+
   if (
     !talent.hasSubmittedMaterial &&
     !talent.isOnboardingDone &&
-    talent.talentTags.length === 0
+    visibleTalentTags.length === 0
   ) {
     return null;
   }
@@ -91,7 +98,7 @@ export function TalentStatusBadges({
           온보딩 완료
         </span>
       ) : null}
-      {talent.talentTags.map((tag) => (
+      {visibleTalentTags.map((tag) => (
         <MatchingTagPill key={tag.id} tag={tag.tag} />
       ))}
     </div>

@@ -17,6 +17,10 @@ import { cx, opsTheme } from "@/components/ops/theme";
 import { BareButton } from "@/components/ui/button";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
 import {
+  FitLabelBadge,
+  FitReasonCell,
+} from "@/components/ops/matching/MatchingFitLabelControls";
+import {
   useCreateOpsMatchingProgress,
   useDeleteOpsMatchingProgress,
   useOpsMatchingProgress,
@@ -27,9 +31,11 @@ import type {
   OpsMatchingRecommendationDelivery,
   OpsMatchingRecommendationSummary,
   OpsMatchingRoleOption,
+  OpsMatchingTalentFitSummary,
 } from "@/lib/ops/matching";
 
 type MatchingRoleProgressPanelProps = {
+  initialFit?: OpsMatchingTalentFitSummary | null;
   role: OpsMatchingRoleOption;
   talentDisplayName: string;
   talentId: string;
@@ -167,8 +173,49 @@ function buildRecommendationTimelineItems(args: {
   return items;
 }
 
+function RoleFitJudgmentPanel({
+  fit,
+}: {
+  fit: OpsMatchingTalentFitSummary | null;
+}) {
+  if (!fit) return null;
+
+  return (
+    <section className="mt-4 rounded-md border border-neutral-1000-a05 bg-bg-floating p-4">
+      <div className="flex items-start gap-2.5">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="text-sm font-medium text-neutral-primary">
+              LLM 판단
+            </div>
+            <FitLabelBadge label={fit.label} prefix="LLM" />
+            {typeof fit.score === "number" ? (
+              <span className="rounded-sm bg-bg-weak px-2 py-0.5 text-[11px] font-medium text-neutral-muted">
+                Score {fit.score}
+              </span>
+            ) : null}
+          </div>
+          <div className="mt-1 text-[11px] text-neutral-soft">
+            {fit.lastEvaluatedAt
+              ? `평가 ${formatKst(fit.lastEvaluatedAt)}`
+              : "평가 시각 없음"}
+          </div>
+          <div className="mt-3">
+            <FitReasonCell
+              expanded
+              criteria={fit.reevaluationCriteria}
+              reason={fit.reason}
+            />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export const MatchingRoleProgressPanel = memo(
   function MatchingRoleProgressPanel({
+    initialFit = null,
     role,
     talentDisplayName,
     talentId,
@@ -188,6 +235,7 @@ export const MatchingRoleProgressPanel = memo(
     const createProgress = useCreateOpsMatchingProgress();
     const deleteProgress = useDeleteOpsMatchingProgress();
     const items = progressQuery.data?.items ?? [];
+    const fit = progressQuery.data?.fit ?? initialFit;
     const recommendation = progressQuery.data?.recommendation ?? null;
     const hasApplication = Boolean(recommendation);
     const hasQueuedProgress = items.some((item) =>
@@ -301,20 +349,18 @@ export const MatchingRoleProgressPanel = memo(
           </div>
 
           {showConnectionButton ? (
-            <div className="mt-4 rounded-md border border-neutral-1000-a05 bg-bg-floating p-4">
-              <div className="text-sm font-medium text-neutral-primary">
-                아직 이 후보자와 role이 연결되지 않았습니다.
-              </div>
-              <BareButton
-                type="button"
-                onClick={() => setManualModalOpen(true)}
-                className={cx(opsTheme.buttonPrimary, "mt-3 h-9 px-3 text-xs")}
-              >
-                <Sparkles className="h-3.5 w-3.5" />
-                {talentDisplayName}에게 {role.companyName} - {role.roleName}{" "}
-                연결 제안하기
-              </BareButton>
-            </div>
+            <BareButton
+              type="button"
+              onClick={() => setManualModalOpen(true)}
+              className={cx(
+                opsTheme.buttonPrimary,
+                "mt-3 h-9 px-3 text-xs my-4"
+              )}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              {talentDisplayName}에게 {role.companyName} - {role.roleName} 연결
+              제안하기
+            </BareButton>
           ) : null}
 
           {createProgress.error || deleteProgress.error ? (
@@ -460,6 +506,8 @@ export const MatchingRoleProgressPanel = memo(
               })
             )}
           </div>
+
+          <RoleFitJudgmentPanel fit={fit} />
         </div>
 
         <ManualInternalRecommendationModal

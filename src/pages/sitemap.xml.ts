@@ -63,6 +63,16 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
       priority: 1.0,
     },
     {
+      loc: `${SITE_URL}/ko`,
+      changefreq: "weekly",
+      priority: 1.0,
+    },
+    {
+      loc: `${SITE_URL}/en`,
+      changefreq: "weekly",
+      priority: 1.0,
+    },
+    {
       loc: `${SITE_URL}/search`,
       changefreq: "weekly",
       priority: 0.9,

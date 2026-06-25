@@ -31,7 +31,6 @@ import {
 } from "@/lib/opportunityType";
 
 type AdminClient = ReturnType<typeof getSupabaseAdmin>;
-const MATCH_COUNT_ROLE_ID_BATCH_SIZE = 200;
 
 type WorkspaceRow = {
   career_url: string | null;
@@ -101,24 +100,6 @@ type TalentEducationPromptRow = {
   memo: string | null;
   school: string | null;
   start_date: string | null;
-};
-
-type MatchRow = {
-  candid?: {
-    headline: string | null;
-    id: string;
-    linkedin_url: string | null;
-    location: string | null;
-    name: string | null;
-    profile_picture: string | null;
-  } | null;
-  candid_id: string;
-  created_at: string;
-  harper_memo: string | null;
-  id: string;
-  role_id: string;
-  status: string;
-  updated_at: string;
 };
 
 type RecommendationRow = {
@@ -293,7 +274,6 @@ export type OpsOpportunityRoleRecord = {
   expiresAt: string | null;
   externalJdUrl: string | null;
   locationText: string | null;
-  matchedCandidateCount: number;
   name: string;
   postedAt: string | null;
   request: string | null;
@@ -404,7 +384,6 @@ export type OpsOpportunityCandidateRecord = {
   headline: string | null;
   linkedinUrl: string | null;
   location: string | null;
-  matched: boolean;
   name: string | null;
   profilePicture: string | null;
   summary: string | null;
@@ -1604,7 +1583,6 @@ function mapWorkspaceRecord(args: {
 
 function mapRoleRecord(args: {
   companyName: string;
-  matchedCandidateCount: number;
   row: RoleRow;
 }): OpsOpportunityRoleRecord {
   return {
@@ -1617,7 +1595,6 @@ function mapRoleRecord(args: {
     expiresAt: args.row.expires_at ?? null,
     externalJdUrl: args.row.external_jd_url ?? null,
     locationText: args.row.location_text ?? null,
-    matchedCandidateCount: args.matchedCandidateCount,
     name: String(args.row.name ?? ""),
     postedAt: args.row.posted_at ?? null,
     request: args.row.request ?? null,
@@ -1629,47 +1606,6 @@ function mapRoleRecord(args: {
     updatedAt: String(args.row.updated_at ?? args.row.created_at ?? ""),
     workMode: normalizeOpportunityWorkMode(args.row.work_mode),
   };
-}
-
-async function fetchMatchedCandidateCountByRoleId(
-  admin: AdminClient,
-  roleIds: string[]
-) {
-  const counts = new Map<string, number>();
-  const uniqueRoleIds = Array.from(new Set(roleIds.filter(Boolean)));
-  if (uniqueRoleIds.length === 0) return counts;
-
-  for (
-    let index = 0;
-    index < uniqueRoleIds.length;
-    index += MATCH_COUNT_ROLE_ID_BATCH_SIZE
-  ) {
-    const roleIdBatch = uniqueRoleIds.slice(
-      index,
-      index + MATCH_COUNT_ROLE_ID_BATCH_SIZE
-    );
-    const { data, error, status, statusText } = await (
-      admin.from("company_role_matched" as any) as any
-    )
-      .select("role_id")
-      .in("role_id", roleIdBatch);
-
-    if (error) {
-      throw new Error(
-        error.message ||
-          statusText ||
-          `Failed to load match counts (${status ?? "unknown status"})`
-      );
-    }
-
-    for (const row of coerceJsonArray<{ role_id?: string | null }>(data)) {
-      const roleId = String(row.role_id ?? "").trim();
-      if (!roleId) continue;
-      counts.set(roleId, (counts.get(roleId) ?? 0) + 1);
-    }
-  }
-
-  return counts;
 }
 
 export async function fetchOpsOpportunityCatalog(
@@ -1760,11 +1696,6 @@ export async function fetchOpsOpportunityCatalog(
     );
   }
 
-  const roleIds = roleRows
-    .map((row) => String(row.role_id ?? ""))
-    .filter(Boolean);
-  const matchedCandidateCountByRoleId =
-    await fetchMatchedCandidateCountByRoleId(admin, roleIds);
   const workspaceById = new Map(
     workspaceRows.map(
       (row) => [String(row.company_workspace_id ?? ""), row] as const
@@ -1821,8 +1752,6 @@ export async function fetchOpsOpportunityCatalog(
           companyName:
             workspaceById.get(String(row.company_workspace_id ?? ""))
               ?.company_name ?? "",
-          matchedCandidateCount:
-            matchedCandidateCountByRoleId.get(String(row.role_id ?? "")) ?? 0,
           row,
         })
       )
@@ -2009,11 +1938,6 @@ export async function fetchOpsOpportunityRoles(
     );
   }
 
-  const roleIds = roleRows
-    .map((row) => String(row.role_id ?? ""))
-    .filter(Boolean);
-  const matchedCandidateCountByRoleId =
-    await fetchMatchedCandidateCountByRoleId(admin, roleIds);
   const totalCount =
     typeof (roleResponse as { count?: unknown }).count === "number"
       ? (roleResponse as { count: number }).count
@@ -2033,8 +1957,6 @@ export async function fetchOpsOpportunityRoles(
       mapRoleRecord({
         companyName:
           workspaceNameById.get(String(row.company_workspace_id ?? "")) ?? "",
-        matchedCandidateCount:
-          matchedCandidateCountByRoleId.get(String(row.role_id ?? "")) ?? 0,
         row,
       })
     ),
@@ -3194,18 +3116,11 @@ export async function saveOpsOpportunityRole(args: {
     throw new Error(error.message ?? "Failed to save role");
   }
 
-  const savedRole = data as RoleRow;
-  const matchedCounts = await fetchMatchedCandidateCountByRoleId(admin, [
-    String(savedRole.role_id ?? ""),
-  ]);
-
   return mapRoleRecord({
     companyName: String(
       (workspaceData as { company_name?: string }).company_name ?? ""
     ),
-    matchedCandidateCount:
-      matchedCounts.get(String(savedRole.role_id ?? "")) ?? 0,
-    row: savedRole,
+    row: data as RoleRow,
   });
 }
 
@@ -3371,44 +3286,7 @@ export async function searchOpsOpportunityCandidates(args: {
       Array.from(linkedinProfileIdByTalentId.values())
     );
 
-  const roleId = String(args.roleId ?? "").trim();
-  const matchedIds = new Set<string>();
-
-  if (roleId && rows.length > 0) {
-    const candidateIds = rows
-      .map((row) => {
-        const talentId = String(row.user_id ?? "").trim();
-        const linkedinProfileId = linkedinProfileIdByTalentId.get(talentId);
-        if (!linkedinProfileId) return "";
-        return (
-          candidateIdByLinkedinProfileId.get(linkedinProfileId) ?? ""
-        ).trim();
-      })
-      .filter(Boolean);
-
-    if (candidateIds.length > 0) {
-      const { data: matchData, error: matchError } = await (
-        admin.from("company_role_matched" as any) as any
-      )
-        .select("candid_id")
-        .eq("role_id", roleId)
-        .in("candid_id", candidateIds);
-
-      if (matchError) {
-        throw new Error(
-          matchError.message ?? "Failed to load existing matches"
-        );
-      }
-
-      for (const row of coerceJsonArray<{ candid_id?: string | null }>(
-        matchData
-      )) {
-        const candidId = String(row.candid_id ?? "").trim();
-        if (!candidId) continue;
-        matchedIds.add(candidId);
-      }
-    }
-  }
+  void args.roleId;
 
   return {
     items: rows.map((row) => ({
@@ -3422,12 +3300,6 @@ export async function searchOpsOpportunityCandidates(args: {
       linkedinUrl:
         linkedinUrlByTalentId.get(String(row.user_id ?? "").trim()) ?? null,
       location: row.location ?? null,
-      matched: matchedIds.has(
-        candidateIdByLinkedinProfileId.get(
-          linkedinProfileIdByTalentId.get(String(row.user_id ?? "").trim()) ??
-            ""
-        ) ?? ""
-      ),
       name: row.name ?? null,
       profilePicture: row.profile_picture ?? null,
       summary: row.bio ?? row.resume_text ?? null,
@@ -3467,134 +3339,12 @@ export async function fetchOpsOpportunityCandidateContact(args: {
   };
 }
 
-async function fetchRoleLookupByIds(admin: AdminClient, roleIds: string[]) {
-  if (roleIds.length === 0) return new Map<string, OpsOpportunityRoleRecord>();
-
-  const { data, error } = await (admin.from("company_roles" as any) as any)
-    .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, description_summary, type, status, request, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode"
-    )
-    .in("role_id", roleIds);
-
-  if (error) {
-    throw new Error(error.message ?? "Failed to load roles");
-  }
-
-  const roleRows = coerceJsonArray<RoleRow>(data);
-  const workspaceIds = Array.from(
-    new Set(
-      roleRows
-        .map((row) => String(row.company_workspace_id ?? ""))
-        .filter(Boolean)
-    )
-  );
-  const { data: workspaceData, error: workspaceError } = await (
-    admin.from("company_workspace" as any) as any
-  )
-    .select("company_workspace_id, company_name")
-    .in("company_workspace_id", workspaceIds);
-
-  if (workspaceError) {
-    throw new Error(workspaceError.message ?? "Failed to load companies");
-  }
-
-  const workspaceNameById = new Map(
-    coerceJsonArray<{
-      company_name?: string | null;
-      company_workspace_id?: string | null;
-    }>(workspaceData).map((row) => [
-      String(row.company_workspace_id ?? ""),
-      String(row.company_name ?? ""),
-    ])
-  );
-
-  const counts = await fetchMatchedCandidateCountByRoleId(admin, roleIds);
-
-  return new Map(
-    roleRows.map((row) => [
-      String(row.role_id ?? ""),
-      mapRoleRecord({
-        companyName:
-          workspaceNameById.get(String(row.company_workspace_id ?? "")) ?? "",
-        matchedCandidateCount: counts.get(String(row.role_id ?? "")) ?? 0,
-        row,
-      }),
-    ])
-  );
-}
-
 export async function fetchOpsOpportunityMatches(args: {
   candidId?: string | null;
   roleId?: string | null;
 }): Promise<OpsOpportunityMatchListResponse> {
-  const admin = getSupabaseAdmin();
-  const roleId = String(args.roleId ?? "").trim();
-  const candidId = String(args.candidId ?? "").trim();
-
-  let query = (admin.from("company_role_matched" as any) as any)
-    .select(
-      `
-        id,
-        candid_id,
-        role_id,
-        harper_memo,
-        status,
-        created_at,
-        updated_at,
-        candid:candid (
-          id,
-          name,
-          headline,
-          location,
-          linkedin_url,
-          profile_picture
-        )
-      `
-    )
-    .order("updated_at", { ascending: false }) as any;
-
-  if (roleId) {
-    query = query.eq("role_id", roleId);
-  }
-  if (candidId) {
-    query = query.eq("candid_id", candidId);
-  }
-
-  const { data, error } = await query;
-  if (error) {
-    throw new Error(error.message ?? "Failed to load matches");
-  }
-
-  const rows = coerceJsonArray<MatchRow>(data);
-  const roleLookup = await fetchRoleLookupByIds(
-    admin,
-    Array.from(
-      new Set(rows.map((row) => String(row.role_id ?? "")).filter(Boolean))
-    )
-  );
-
-  return {
-    items: rows.map((row) => {
-      const role = roleLookup.get(String(row.role_id ?? ""));
-
-      return {
-        candidateHeadline: row.candid?.headline ?? null,
-        candidateId: String(row.candid_id ?? ""),
-        candidateLinkedinUrl: row.candid?.linkedin_url ?? null,
-        candidateLocation: row.candid?.location ?? null,
-        candidateName: row.candid?.name ?? null,
-        candidateProfilePicture: row.candid?.profile_picture ?? null,
-        companyName: role?.companyName ?? "",
-        createdAt: String(row.created_at ?? ""),
-        harperMemo: row.harper_memo ?? null,
-        matchId: String(row.id ?? ""),
-        roleId: String(row.role_id ?? ""),
-        roleName: role?.name ?? "",
-        status: String(row.status ?? "pending"),
-        updatedAt: String(row.updated_at ?? row.created_at ?? ""),
-      };
-    }),
-  };
+  void args;
+  return { items: [] };
 }
 
 export async function saveOpsOpportunityMatch(args: {
@@ -3602,50 +3352,18 @@ export async function saveOpsOpportunityMatch(args: {
   harperMemo?: string | null;
   roleId: string;
 }) {
-  const admin = getSupabaseAdmin();
-  const candidId = ensureNonEmptyString(args.candidId, "candidId");
-  const roleId = ensureNonEmptyString(args.roleId, "roleId");
-  const now = new Date().toISOString();
-
-  const { error } = await (
-    admin.from("company_role_matched" as any) as any
-  ).upsert(
-    {
-      candid_id: candidId,
-      harper_memo: String(args.harperMemo ?? "").trim() || null,
-      role_id: roleId,
-      status: "pending",
-      updated_at: now,
-    },
-    {
-      onConflict: "candid_id,role_id",
-    }
-  );
-
-  if (error) {
-    throw new Error(error.message ?? "Failed to save match");
-  }
-
-  return fetchOpsOpportunityMatches({ roleId });
+  ensureNonEmptyString(args.candidId, "candidId");
+  ensureNonEmptyString(args.roleId, "roleId");
+  void args.harperMemo;
+  return { items: [] };
 }
 
 export async function deleteOpsOpportunityMatch(args: {
   candidId: string;
   roleId: string;
 }) {
-  const admin = getSupabaseAdmin();
-  const candidId = ensureNonEmptyString(args.candidId, "candidId");
-  const roleId = ensureNonEmptyString(args.roleId, "roleId");
-
-  const { error } = await (admin.from("company_role_matched" as any) as any)
-    .delete()
-    .eq("candid_id", candidId)
-    .eq("role_id", roleId);
-
-  if (error) {
-    throw new Error(error.message ?? "Failed to delete match");
-  }
-
+  ensureNonEmptyString(args.candidId, "candidId");
+  ensureNonEmptyString(args.roleId, "roleId");
   return { ok: true };
 }
 

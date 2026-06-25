@@ -288,7 +288,9 @@ const CAREER_VOICE_CALL_STARTER_MODE_PROMPT = `
 - 통화 종료 의사가 보이면 종료 시그널 규칙을 따른다.
 `.trim();
 
-export function getCareerFirstVisitText(preferredLocale?: string | null): string {
+export function getCareerFirstVisitText(
+  preferredLocale?: string | null
+): string {
   return getCareerPromptLanguageName(preferredLocale) === "English"
     ? CAREER_FIRST_VISIT_TEXT_EN
     : CAREER_FIRST_VISIT_TEXT_KO;
@@ -769,9 +771,8 @@ function buildKnownInsightsSection(args: {
   const onboardingChecklist = getOnboardingQuestionChecklist(checklistContext);
   const additionalQuestionKeys =
     getOnboardingAdditionalQuestionKeys(checklistContext);
-  const requiredQuestionKeys = getOnboardingRequiredQuestionKeys(
-    checklistContext
-  );
+  const requiredQuestionKeys =
+    getOnboardingRequiredQuestionKeys(checklistContext);
   const additionalQuestionMin =
     getOnboardingAdditionalQuestionMin(checklistContext);
   const additionalQuestionMax = additionalQuestionMin;
@@ -1019,10 +1020,7 @@ function buildKnownPreferencesSection(
   }
   if (lines.length === 0) return "";
 
-  return [
-    "## 현재 recommendation/profile settings (구조화 필드: 추천 발송 설정은 update_setting, 미래 매칭 메모는 update_talent_profile 사용)",
-    ...lines,
-  ].join("\n");
+  return ["## 현재 recommendation/profile settings", ...lines].join("\n");
 }
 
 function buildOpportunityStatusSection(
@@ -1323,11 +1321,9 @@ function buildCareerConversationPromptPlan(args: {
           "## Additional question runtime state",
           `- Additional questions already selected: ${additionalQuestionSelectionCount}/${onboardingAdditionalQuestionMax}`,
           `- Minimum required before final priority confirmation or closing: ${onboardingAdditionalQuestionMin}`,
-          additionalQuestionSelectionCount >=
-          onboardingAdditionalQuestionMax
+          additionalQuestionSelectionCount >= onboardingAdditionalQuestionMax
             ? "- The maximum has been reached. Do not ask another additional question; move to final priority confirmation instead."
-            : additionalQuestionSelectionCount <
-                onboardingAdditionalQuestionMin
+            : additionalQuestionSelectionCount < onboardingAdditionalQuestionMin
               ? args.channel === "voice"
                 ? "- In voice, use the onboarding checklist coverage state above. Ask a missing additional_question checklist item only when that item is not covered."
                 : hasAdditionalQuestionSelectorTool
@@ -1611,6 +1607,18 @@ export function buildCareerToolPolicyPrompt(args: {
     args.channel === "voice"
       ? "- Voice mode: if a tool is needed, call it directly. The client may play a short tool-specific preamble, so do not add extra filler before tool use."
       : `- Chat mode: if a tool is needed, call it directly and then answer naturally in ${outputLanguage} using only the relevant findings.`;
+  const onboardingToolExceptionNames = [
+    hasUpdateSettingTool ? "`update_setting`" : null,
+    hasUpdateTalentProfileTool ? "`update_talent_profile`" : null,
+    hasAdditionalQuestionSelectorTool
+      ? "`select_additional_onboarding_question`"
+      : null,
+  ]
+    .filter((name): name is string => Boolean(name))
+    .join(", ");
+  const onboardingToolExceptionRule = onboardingToolExceptionNames
+    ? `- Do not use tools for the normal onboarding interview flow if you can continue from the existing conversation context. Exceptions available in this turn: ${onboardingToolExceptionNames}.`
+    : "- Do not use tools for the normal onboarding interview flow if you can continue from the existing conversation context.";
 
   return [
     "## Tool Use Policy",
@@ -1686,14 +1694,14 @@ export function buildCareerToolPolicyPrompt(args: {
           "- Use `read_talent_activity_events` when the answer depends on recent Career activity or profile changes, such as what the user changed since the last conversation, what Harper should remember from recent updates, whether the user followed or unfollowed a company, or whether there were major updates before discussing recommendations. Prefer a small `limit` such as 3-5 unless the user asks for more.",
         ]
       : []),
-    ...(hasCompanyRecommendationTool
-      ? [
-          "- Use `recommend_companies` when the user asks for companies to follow, company recommendations, startup/company discovery, a company watchlist, or asks Harper to find companies independent of a specific role.",
-          "- Do not use `recommend_job_postings` for a pure company-watchlist request unless the user is specifically asking for roles or postings. `recommend_companies` saves company-level recommendations into Watchlist > 추천회사.",
-          `- After \`recommend_companies\`, answer in ${outputLanguage} using the tool's \`answerDraft\`. Mention that the user can open Watchlist > 추천회사 to view company detail and follow companies.`,
-          "- If the user asks what following a company does, explain the two benefits: signal tracking for funding/hiring/Founder/team changes, and a company discovery channel where follower signal is prioritized when that company looks for talent.",
-        ]
-      : []),
+    // ...(hasCompanyRecommendationTool
+    //   ? [
+    //       "- Use `recommend_companies` when the user asks for companies to follow, company recommendations, startup/company discovery, a company watchlist, or asks Harper to find companies independent of a specific role.",
+    //       "- Do not use `recommend_job_postings` for a pure company-watchlist request unless the user is specifically asking for roles or postings. `recommend_companies` saves company-level recommendations into Watchlist > 추천회사.",
+    //       `- After \`recommend_companies\`, answer in ${outputLanguage} using the tool's \`answerDraft\`. Mention that the user can open Watchlist > 추천회사 to view company detail and follow companies.`,
+    //       "- If the user asks what following a company does, explain the two benefits: signal tracking for funding/hiring/Founder/team changes, and a company discovery channel where follower signal is prioritized when that company looks for talent.",
+    //     ]
+    //   : []),
     ...(hasJobPostingRecommendationTool
       ? [
           "- Use `recommend_job_postings` when the user asks you to find, recommend, or match new job postings, open roles, positions, or opportunities. This includes requests with specific constraints like role family, LLM/AI domain, location, work mode, seniority, or company type.",
@@ -1735,8 +1743,15 @@ export function buildCareerToolPolicyPrompt(args: {
           "",
           "### update_talent_profile (profile writer)",
           "- Purpose: update saved profile state with new info the user just shared: talentUser.bio, talentUser.location, row memos, and post-onboarding future-matching memory.",
+          "- talentUser.location writes the user's current main base/residence to talent_users.location; it is not a desired work location, target geography, relocation preference, or job-search location filter.",
           "- Boundary: facts about a specific past role, school, project, responsibility, achievement, or education belong in the structured profile row memo when one visible row matches. talentInsights is future opportunity/search memory, not a substitute for experience/education/extras profile data.",
-          "- Do NOT use this tool for recommendation delivery settings such as cadence/frequency, batch size, external recommendations, or internal recommendations. Use `update_setting` for those.",
+          ...(hasUpdateSettingTool
+            ? [
+                "- Do NOT use this tool for recommendation delivery settings such as cadence/frequency, batch size, external recommendations, or internal recommendations. Use `update_setting` for those.",
+              ]
+            : [
+                "- Do NOT use this tool for recommendation delivery settings such as cadence/frequency, batch size, external recommendations, or internal recommendations. If the user asks for those while this tool is unavailable, answer naturally and do not write them through `update_talent_profile`.",
+              ]),
           "- During onboarding: use only talentUser.bio, talentUser.location, and rowMemos. Do NOT send talentInsights; onboarding insight extraction is handled separately.",
           "- After onboarding is complete: send talentInsights only when the user's latest message clearly changes durable future recommendation memory, such as desired next role, search intensity, compensation, must-haves, deal-breakers, team style, company/domain preference, company size/stage preference, or corrections to prior matching preferences.",
           "- Search requests with explicit hard-filter language count as durable future recommendation memory even when phrased as 'find/search'. Examples: '미국 회사로만 찾아줘', '앞으로 리모트만 보내줘', '대기업은 빼고 찾아줘', '다음부터 Series B 이상만 봐줘'. In these cases, call this tool before job search.",
@@ -1770,7 +1785,13 @@ export function buildCareerToolPolicyPrompt(args: {
           `  - In newInfo, write *only one newly learned fact* as a short natural ${outputLanguage} sentence. Do not repeat the existing memo content.`,
           "  - 같은 발화의 같은 사실을 rowMemos와 talentInsights에 중복 저장하지 마라. 프로필 row에 들어갈 내용은 rowMemos만 사용한다.",
           "  - OMIT 규칙: (1) 후보 행이 두 개 이상 (예: '삼성' → Samsung Electronics + Samsung SDS 둘 다 존재) (2) 매칭되는 행이 없음 (3) 발화가 회사/학교 mention 없는 generic skill — 이런 케이스는 rowMemos 항목을 넣지 마라. 단순 프로필 사실이라면 talentInsights로 우회 저장하지도 마라.",
-          "- 한 turn 에 추천 발송 설정과 프로필/미래 매칭 메모가 동시에 갱신될 수 있으면 `update_setting`과 `update_talent_profile`을 별도 호출해라. 설정 필드를 이 도구에 넣지 마라.",
+          ...(hasUpdateSettingTool
+            ? [
+                "- 한 turn 에 추천 발송 설정과 프로필/미래 매칭 메모가 동시에 갱신될 수 있으면 `update_setting`과 `update_talent_profile`을 별도 호출해라. 설정 필드를 이 도구에 넣지 마라.",
+              ]
+            : [
+                "- 추천 발송 설정과 프로필/미래 매칭 메모를 섞지 마라. 이 도구에는 추천 발송 설정 필드를 넣지 말고, 프로필/row memo/future matching memory만 저장해라.",
+              ]),
           `- After calling this tool, continue the conversation naturally in ${outputLanguage}: acknowledge the substance of what the user said, ask the next relevant question if onboarding is still active, or close naturally with the required marker if enough information has been collected.`,
           "",
         ]
@@ -1795,7 +1816,7 @@ export function buildCareerToolPolicyPrompt(args: {
           "- Use `web_search` only when the user needs current, factual, or web-dependent information.",
         ]
       : []),
-    "- Do not use tools for the normal onboarding interview flow if you can continue from the existing conversation context. (Exceptions: `update_setting` and `update_talent_profile` are the background state-writers above; `select_additional_onboarding_question` is required for Additional questions phase when available.)",
+    onboardingToolExceptionRule,
     "- After tool use, summarize only the useful findings. Do not dump raw JSON.",
     "- Mention source names or URLs only when they materially help the user.",
     channelRule,

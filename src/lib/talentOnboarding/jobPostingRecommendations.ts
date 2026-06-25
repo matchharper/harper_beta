@@ -220,7 +220,7 @@ Output schema:
   "include_intern": false,
   "is_prefer_entry": 0,
   "locations": [],
-  "includeRemote": false,
+  "includeRemote": true,
   "remoteOnly": false
 }
 
@@ -233,10 +233,11 @@ Rules:
 - locations: Geographic location filters or preferences only. Never put "remote" here. Keep empty if location preference is unknown.
   - Examples: "Seoul", "Korea", ", CA", "United States",  "Japan"
   - 유저가 명시적으로 한국만을 원한다고 하지 않은 경우에는 기본적으로 한국과 미국 둘다 열어둬라. 
-- includeRemote: true only when remote roles should be included alongside geographic locations, e.g. "remote or San Francisco", "원격도 좋아".
+- includeRemote: true means remote rows are allowed if they otherwise match the query. It must not broaden location SQL with "remote OR location". false means SQL must exclude rows where work_mode is remote.
 - remoteOnly: true only when remote is a hard requirement, e.g. "remote only", "완전 원격만", "원격 아니면 제외".
   - If remoteOnly=true and locations has geo values, SQL will require both remote work mode and one of those geographies, e.g. "US remote only".
-  - If the user only mildly prefers remote, keep both booleans false and let shortlist/final selection handle it as a preference.
+  - If remoteOnly=true, includeRemote is effectively true because remote is required.
+  - If the user only mildly prefers remote, set includeRemote=true and remoteOnly=false, then let shortlist/final selection handle it as a preference.
 ## role_titles rules
 - role_titles are a hard role-title gate over company_roles.name using ILIKE. Always output 1-15 title fragments.
   - They must be role/title fragments likely to appear in cr.name, not company names, domains, skills, locations, company stage, or preferences.
@@ -1438,18 +1439,15 @@ function normalizeExternalSearchPlan(
     "isRemoteOnly",
     "is_remote_only"
   );
+  const remoteOnly =
+    explicitRemoteOnly ?? (hasRemoteLocation && geoLocations.length === 0);
   const explicitIncludeRemote = booleanField(
     source,
     "includeRemote",
     "include_remote"
   );
-  const remoteOnly =
-    explicitRemoteOnly ?? (hasRemoteLocation && geoLocations.length === 0);
   const includeRemote =
-    remoteOnly === true
-      ? false
-      : (explicitIncludeRemote ??
-        (hasRemoteLocation && geoLocations.length > 0));
+    remoteOnly === true ? true : (explicitIncludeRemote ?? true);
   return {
     ftsKeywords,
     includeContract:
@@ -1718,16 +1716,17 @@ function buildLocationSql(plan: ExternalSearchPlan) {
       return `COALESCE(cr.location_text, '') ILIKE ${pattern}`;
     });
   const remotePart = "LOWER(COALESCE(cr.work_mode, '')) = 'remote'";
+  const excludeRemotePart = "LOWER(COALESCE(cr.work_mode, '')) <> 'remote'";
   if (plan.remoteOnly) {
     return [
       remotePart,
       ...(locationParts.length > 0 ? [`(${locationParts.join(" OR ")})`] : []),
     ];
   }
-  if (plan.includeRemote) {
-    return [`(${[remotePart, ...locationParts].join(" OR ")})`];
-  }
-  return locationParts.length > 0 ? [`(${locationParts.join(" OR ")})`] : [];
+  return [
+    ...(locationParts.length > 0 ? [`(${locationParts.join(" OR ")})`] : []),
+    ...(plan.includeRemote ? [] : [excludeRemotePart]),
+  ];
 }
 
 function previouslyRecommendedRoleExclusionSql(userId: string) {

@@ -104,7 +104,6 @@ export function InternalOpportunityCallActions({
             key={callRequest.id}
             onClick={() => void handleStart(callRequest)}
             disabled={actionDisabled}
-            aria-label={label}
             aria-busy={callPending || undefined}
             actionVariant="secondary"
             className={cn(

@@ -93,6 +93,31 @@ function resolveSignupCurrentLocation(req: NextRequest) {
   return parts.length > 0 ? parts.join(", ").slice(0, 200) : null;
 }
 
+function resolveSignupLocale(req: NextRequest) {
+  const countryCode = String(
+    req.headers.get("x-vercel-ip-country") ||
+      req.headers.get("cf-ipcountry") ||
+      ""
+  )
+    .trim()
+    .toUpperCase();
+
+  if (countryCode === "KR") return "ko";
+  if (countryCode && countryCode !== "ZZ") return "en";
+
+  const acceptedLanguages = String(req.headers.get("accept-language") ?? "")
+    .split(",")
+    .map((item) => item.split(";")[0]?.trim().toLowerCase())
+    .filter(Boolean);
+
+  for (const language of acceptedLanguages) {
+    if (language === "ko" || language?.startsWith("ko-")) return "ko";
+    if (language === "en" || language?.startsWith("en-")) return "en";
+  }
+
+  return null;
+}
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
@@ -189,7 +214,9 @@ export async function POST(req: NextRequest) {
     const landingPath = normalizeOptionalText(body?.landingPath, 500);
     const landingSource = normalizeCareerUtmSource(body?.landingSource);
     const preferredLocale = normalizeCareerPromptLocale(
-      body?.locale ?? req.cookies.get("NEXT_LOCALE")?.value
+      body?.locale ??
+        req.cookies.get("NEXT_LOCALE")?.value ??
+        resolveSignupLocale(req)
     );
     const currentLocation = resolveSignupCurrentLocation(req);
     const mail = String(body?.mail ?? "").trim();

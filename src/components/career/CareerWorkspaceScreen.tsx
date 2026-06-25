@@ -49,7 +49,7 @@ import {
 } from "@/hooks/career/useCareerMobileHistoryOpportunities";
 import type {
   CareerHistoryOpportunity,
-  CareerOpportunitySavedStage,
+  CareerOpportunitySavedStageFilter,
   CareerOpportunityType,
 } from "@/components/career/types";
 import { AnimatePresence, motion } from "motion/react";
@@ -65,7 +65,7 @@ type JobsDisplayTab = CareerMobileHistoryJobsTab;
 
 type CareerWorkspaceHistoryTarget = {
   historyTab: "new" | "saved" | "archived";
-  savedStage?: Exclude<CareerOpportunitySavedStage, "hidden">;
+  savedStage?: CareerOpportunitySavedStageFilter;
 };
 
 type CareerWorkspaceNavigationOptions = {
@@ -527,11 +527,12 @@ const CareerWorkspaceMobileHistoryView = ({
     if (initialHistoryTarget?.historyTab === "saved") {
       if (
         initialHistoryTarget.savedStage === "applied" ||
-        initialHistoryTarget.savedStage === "connected"
+        initialHistoryTarget.savedStage === "connected" ||
+        initialHistoryTarget.savedStage === "closed" ||
+        initialHistoryTarget.savedStage === "hidden"
       ) {
-        return "active";
+        return initialHistoryTarget.savedStage;
       }
-      if (initialHistoryTarget.savedStage === "closed") return "closed";
       return "saved";
     }
     if (initialHistoryTarget?.historyTab === "archived") return "archived";
@@ -599,13 +600,14 @@ const CareerWorkspaceMobileHistoryView = ({
   });
   const mobileJobsStatusCounts = useMemo(
     () => ({
-      active:
-        historyOpportunityCounts.savedStages.applied +
-        historyOpportunityCounts.savedStages.connected,
+      applied: historyOpportunityCounts.savedStages.applied,
       archived: historyOpportunityCounts.archived,
       closed: historyOpportunityCounts.savedStages.closed,
+      connected: historyOpportunityCounts.savedStages.connected,
       hidden: historyOpportunityCounts.savedStages.hidden,
-      saved: historyOpportunityCounts.savedStages.saved,
+      saved:
+        historyOpportunityCounts.savedStages.saved +
+        historyOpportunityCounts.savedStages.planned,
     }),
     [
       historyOpportunityCounts.archived,
@@ -613,6 +615,7 @@ const CareerWorkspaceMobileHistoryView = ({
       historyOpportunityCounts.savedStages.closed,
       historyOpportunityCounts.savedStages.connected,
       historyOpportunityCounts.savedStages.hidden,
+      historyOpportunityCounts.savedStages.planned,
       historyOpportunityCounts.savedStages.saved,
     ]
   );

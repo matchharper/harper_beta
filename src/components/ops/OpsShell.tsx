@@ -20,6 +20,7 @@ import { Textarea as UiTextarea } from "@/components/ui/textarea";
 import Face from "../common/Face";
 
 type OpsNavItem = {
+  align?: "start" | "end";
   description: string;
   exact?: boolean;
   href: string;
@@ -71,21 +72,29 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
       {
         description: "회사·role 단위 매칭 관리",
         href: "/ops/matching",
-        label: "Matching",
+        label: "Main",
         matchPrefix: "/ops/matching",
       },
       {
+        align: "end",
         description: "사람 단위 talent pool 관리",
         href: "/ops/talent-pool",
         label: "Talent Pool",
         matchPrefix: "/ops/talent-pool",
       },
       {
+        align: "end",
         description: "career 온보딩 인사이트",
         href: "/ops/career",
         label: "Career Talents",
         matchPrefix: "/ops/career",
       },
+    ],
+  },
+  {
+    id: "debugging",
+    label: "디버깅",
+    items: [
       {
         description: "사람별 internal 추천 관리",
         href: "/ops/internal-recommendations",
@@ -104,12 +113,6 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
         label: "Companies",
         matchPrefix: "/ops/companies",
       },
-    ],
-  },
-  {
-    id: "debugging",
-    label: "디버깅",
-    items: [
       {
         description: "career 메일 발송·수신 본문 확인",
         href: "/ops/debugging/emails",
@@ -436,6 +439,12 @@ export default function OpsShell({
     () => getActiveNavGroup(activePath),
     [activePath]
   );
+  const activeNavStartItems = activeNavGroup.items.filter(
+    (item) => item.align !== "end"
+  );
+  const activeNavEndItems = activeNavGroup.items.filter(
+    (item) => item.align === "end"
+  );
 
   if (authLoading) {
     return (
@@ -510,25 +519,49 @@ export default function OpsShell({
             </BareButton>
           </div>
           <nav className="overflow-x-auto">
-            <div className="flex min-w-max items-center gap-2">
-              {activeNavGroup.items.map((item) => {
-                const active = isItemActive(item, activePath);
+            <div className="flex min-w-full items-center justify-between gap-6">
+              <div className="flex min-w-max items-center gap-2">
+                {activeNavStartItems.map((item) => {
+                  const active = isItemActive(item, activePath);
 
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cx(
-                      "rounded-none border-b-0 border-neutral-500 px-2 py-2 text-sm font-medium",
-                      active
-                        ? "border-primary text-primary"
-                        : "text-neutral-800 hover:border-primary hover:text-primary"
-                    )}
-                  >
-                    {item.label}
-                  </Link>
-                );
-              })}
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={cx(
+                        "rounded-none border-b-0 border-neutral-500 px-2 py-2 text-sm font-medium",
+                        active
+                          ? "border-primary text-primary"
+                          : "text-neutral-800 hover:border-primary hover:text-primary"
+                      )}
+                    >
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+              {activeNavEndItems.length > 0 ? (
+                <div className="ml-auto flex min-w-max items-center gap-2">
+                  {activeNavEndItems.map((item) => {
+                    const active = isItemActive(item, activePath);
+
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={cx(
+                          "rounded-none border-b-0 border-neutral-500 px-2 py-2 text-sm font-medium",
+                          active
+                            ? "border-primary text-primary"
+                            : "text-neutral-800 hover:border-primary hover:text-primary"
+                        )}
+                      >
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              ) : null}
             </div>
             {navActions && (
               <div className="flex flex-row gap-2 items-center">

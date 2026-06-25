@@ -43,9 +43,7 @@ export const OpsProfileMemoFeed = memo(function OpsProfileMemoFeed({
 
       <div className="mt-4 space-y-2">
         {sortedMemos.length === 0 ? (
-          <div className="rounded-md border border-dashed border-neutral-1000-a10 bg-bg-floating px-4 py-5 text-center text-sm text-neutral-soft">
-            아직 메모가 없습니다.
-          </div>
+          <></>
         ) : (
           sortedMemos.map((memo) => (
             <div
@@ -72,7 +70,7 @@ export const OpsProfileMemoFeed = memo(function OpsProfileMemoFeed({
           rows={4}
           maxLength={4000}
           className="min-h-[112px] w-full resize-y rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 py-3 text-sm leading-6 text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:ring-2 focus:ring-neutral-1000-a10"
-          placeholder="메모를 입력하세요."
+          placeholder="이 사람에 관련된 메모를 입력하세요."
         />
         <div className="mt-2 flex justify-end">
           <BareButton

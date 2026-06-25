@@ -5,6 +5,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
+import type { OpsQueueManualInternalRecommendationResponse } from "@/lib/ops/careerServer";
 import { queryKeys } from "@/lib/queryKeys";
 import type {
   OpsMatchingCompanyOption,
@@ -348,6 +349,46 @@ export function useSetOpsMatchingReviewStage() {
           variables.talentId,
           variables.roleId
         ),
+      });
+    },
+  });
+}
+
+export function useQueueOpsMatchingManualInternalRecommendation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: {
+      reason?: string | null;
+      roleId: string;
+      userId: string;
+    }) =>
+      fetchWithInternalAuth<OpsQueueManualInternalRecommendationResponse>(
+        "/api/internal/career/manual-internal-recommendation",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(args),
+        }
+      ),
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.opsMatching.all });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.opsMatching.reviewAll(variables.roleId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.opsMatching.progress(variables.userId, null),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.opsMatching.progress(
+          variables.userId,
+          variables.roleId
+        ),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.opsMatching.roleTags(variables.userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["ops-career-recommendations", variables.userId],
       });
     },
   });

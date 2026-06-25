@@ -281,7 +281,7 @@ const HistoryOpportunityInfoModal = ({
           <DocumentNote>
             {t(
               "career.history.history_oppotunity_info_modal.1ucb8t9",
-              "수락 후에도 마음이 바뀌면 하퍼에게 알려주시면 됩니다. 제외됨을 누른 경우에는 맞지 않는 이유를 다음 추천에서 비슷한 기회를 줄이는 데 반영합니다."
+              "수락 후에도 마음이 바뀌면 하퍼에게 알려주시면 됩니다. 나와 안맞아요를 누른 경우에는 맞지 않는 이유를 다음 추천에서 비슷한 기회를 줄이는 데 반영합니다."
             )}
           </DocumentNote>
         </div>

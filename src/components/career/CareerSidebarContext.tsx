@@ -18,6 +18,7 @@ import type {
   CareerOpportunityAgentVariant,
 } from "./types";
 import type { CareerProfileVisibility } from "@/hooks/career/useCareerTalentSettings";
+import type { RunOpportunityDiscoveryTestOptions } from "@/hooks/career/useCareerRuntimeActions";
 import type {
   CareerConversationStarterId,
   CareerConversationStarterMode,
@@ -69,11 +70,21 @@ export type CareerSidebarContextValue = {
     deleteLatestMessage?: boolean;
   }) => boolean | void | Promise<boolean | void>;
   onRunPeriodicOpportunityDiscoveryTest: (
-    agentVariant?: CareerOpportunityAgentVariant
-  ) => void | Promise<void>;
+    agentVariant?: CareerOpportunityAgentVariant,
+    options?: RunOpportunityDiscoveryTestOptions
+  ) =>
+    | CareerOpportunityRun
+    | null
+    | void
+    | Promise<CareerOpportunityRun | null | void>;
   onRunOpportunityDiscoveryTest: (
-    agentVariant?: CareerOpportunityAgentVariant
-  ) => void | Promise<void>;
+    agentVariant?: CareerOpportunityAgentVariant,
+    options?: RunOpportunityDiscoveryTestOptions
+  ) =>
+    | CareerOpportunityRun
+    | null
+    | void
+    | Promise<CareerOpportunityRun | null | void>;
   callStartPending?: boolean;
   onStartCallMode?: (
     args?: CareerCallStartRequest

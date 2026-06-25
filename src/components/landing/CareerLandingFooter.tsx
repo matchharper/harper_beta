@@ -105,7 +105,6 @@ function FooterLanguageDropdown({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          aria-label="Select language"
           className="mt-5 inline-flex h-9 items-center gap-2 rounded-full border border-black/10 bg-white px-3 text-xs font-medium text-black/60 transition hover:border-black/20 hover:bg-black/[0.03] hover:text-black focus:outline-none focus:ring-2 focus:ring-black/10"
         >
           {selected ? (

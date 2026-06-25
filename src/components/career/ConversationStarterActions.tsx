@@ -197,11 +197,6 @@ export function ConversationStarterActions({
               void handleStart({ mode: "call", starterId: starter.id })
             }
             disabled={actionDisabled}
-            aria-label={t(
-              "career.chat.conversation_starter_actions.start_call_label",
-              "{label} 통화 시작",
-              { values: { label: copy.label } }
-            )}
             aria-busy={callPending || undefined}
             actionVariant="secondary"
             className={cn(
@@ -251,7 +246,6 @@ export function ConversationStarterActions({
         <ActionButton
           onClick={() => void handleRequestMoreOpenPositions()}
           disabled={actionDisabled}
-          aria-label={openPositionRequestLabel}
           aria-busy={openPositionRequestPending || undefined}
           actionVariant="secondary"
           className={cn(

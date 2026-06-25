@@ -2,11 +2,8 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 export type OpsMatchingStageTabId =
-  | "active"
   | "all"
-  | "harper_review"
-  | "offered"
-  | "archived";
+  | "harper_review";
 
 export type OpsMatchingViewMode = "all_fits" | "role";
 
@@ -26,13 +23,7 @@ const normalizeTags = (values: readonly string[]) => {
 
 const normalizeTab = (value: unknown): OpsMatchingStageTabId => {
   const normalized = normalizeText(value);
-  if (
-    normalized === "active" ||
-    normalized === "all" ||
-    normalized === "harper_review" ||
-    normalized === "offered" ||
-    normalized === "archived"
-  ) {
+  if (normalized === "all" || normalized === "harper_review") {
     return normalized;
   }
   return "all";
@@ -97,7 +88,7 @@ function normalizeCollapsedColumnIds(values: readonly string[] | undefined) {
 
 export const useOpsMatchingStore = create<OpsMatchingStoreState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       activeTab: "all",
       allCreatedFrom: "",
       allCreatedTo: "",
@@ -123,7 +114,12 @@ export const useOpsMatchingStore = create<OpsMatchingStoreState>()(
         set({ allHumanLabelFilters: normalizeTags(labels) }),
       setAllLlmLabelFilters: (labels) =>
         set({ allLlmLabelFilters: normalizeTags(labels) }),
-      setHasHydrated: (hasHydrated) => set({ hasHydrated }),
+      setHasHydrated: (hasHydrated) =>
+        set({
+          activeTab: normalizeTab(get().activeTab),
+          hasHydrated,
+          viewMode: normalizeViewMode(get().viewMode),
+        }),
       setReviewColumnCollapsed: (roleId, columnId, collapsed) =>
         set((state) => {
           const normalizedRoleId = normalizeText(roleId) || "global";

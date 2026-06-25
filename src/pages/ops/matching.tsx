@@ -25,11 +25,8 @@ import { Building2, ListFilter, LoaderCircle } from "lucide-react";
 import type { ParsedUrlQuery } from "querystring";
 
 const MATCHING_STAGE_TABS = [
-  { count: null, id: "all", label: "All" },
-  { count: 0, id: "harper_review", label: "Harper Review" },
-  { count: 0, id: "active", label: "Active" },
-  { count: 0, id: "offered", label: "Offered" },
-  { count: 0, id: "archived", label: "Archived" },
+  { count: 0, id: "harper_review", label: "Pipeline" },
+  { count: null, id: "all", label: "All(보지 않아도 됨)" },
 ] as const satisfies readonly {
   count: number | null;
   id: OpsMatchingStageTabId;
@@ -52,13 +49,7 @@ function parseMatchingTab(
   value: ParsedUrlQuery[string]
 ): OpsMatchingStageTabId {
   const normalized = firstQueryValue(value);
-  if (
-    normalized === "active" ||
-    normalized === "all" ||
-    normalized === "harper_review" ||
-    normalized === "offered" ||
-    normalized === "archived"
-  ) {
+  if (normalized === "all" || normalized === "harper_review") {
     return normalized;
   }
   return "all";
@@ -136,17 +127,6 @@ function buildMatchingUrlQuery(state: OpsMatchingUrlState) {
   }
   if (state.reviewRecommendedTo) query.reviewTo = state.reviewRecommendedTo;
   return query;
-}
-
-function EmptyStagePanel({ label }: { label: string }) {
-  return (
-    <div className="rounded-md border border-dashed border-neutral-1000-a10 bg-bg-floating px-4 py-16 text-center">
-      <div className="text-sm font-medium text-neutral-primary">{label}</div>
-      <div className="mt-2 text-sm text-neutral-muted">
-        이 단계는 아직 비어 있습니다.
-      </div>
-    </div>
-  );
 }
 
 function InlineToggleIndicator({ checked }: { checked: boolean }) {
@@ -454,12 +434,12 @@ export default function OpsMatchingPage() {
   return (
     <>
       <Head>
-        <title>Matching | Harper Ops</title>
+        <title>Main | Harper Ops</title>
       </Head>
 
       <OpsShell
         compactHeader
-        title="Matching"
+        title="Main"
         navActions={
           <section className="p-0">
             <div className="flex flex-row gap-3">
@@ -558,6 +538,10 @@ export default function OpsMatchingPage() {
                   label: tab.label,
                   value: tab.id,
                 }))}
+                getItemClassName={(item) =>
+                  item.value === "all" ? "ml-auto" : ""
+                }
+                listClassName="min-w-full justify-between"
                 onValueChange={handleTabChange}
                 size="md"
               />
@@ -588,14 +572,7 @@ export default function OpsMatchingPage() {
                   recommendedTo={reviewRecommendedTo}
                   role={effectiveRole}
                 />
-              ) : (
-                <EmptyStagePanel
-                  label={
-                    MATCHING_STAGE_TABS.find((tab) => tab.id === activeTab)
-                      ?.label ?? "Stage"
-                  }
-                />
-              )}
+              ) : null}
             </>
           ) : (
             <div className="flex flex-col items-center justify-center rounded-md border border-dashed border-neutral-1000-a10 bg-bg-floating px-4 py-16 text-center">

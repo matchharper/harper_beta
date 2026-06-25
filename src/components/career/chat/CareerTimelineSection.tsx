@@ -791,15 +791,7 @@ const CareerTimelineSection = () => {
     if (!hasTimelineMessages) return;
 
     const id = window.requestAnimationFrame(() => {
-      scrollToBottom(
-        assistantTyping ||
-          chatPending ||
-          callWrapUpPending ||
-          showOpportunityFeedbackFollowUpPending ||
-          showSessionReengagementPending
-          ? "auto"
-          : "smooth"
-      );
+      scrollToBottom("smooth");
       syncScrollState();
     });
     return () => window.cancelAnimationFrame(id);

@@ -207,7 +207,6 @@ function InlineQualityLabelButton({
         "hover:border-neutral-400 hover:bg-bg-default"
       )}
       title={`human quality ${label}`}
-      aria-label={`human quality ${label} 설정`}
     >
       {label}
     </BareButton>

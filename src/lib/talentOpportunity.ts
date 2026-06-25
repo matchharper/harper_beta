@@ -255,10 +255,15 @@ export { OpportunityType as TalentOpportunityType };
 
 export type TalentOpportunitySavedStage =
   | "saved"
+  | "planned"
   | "applied"
   | "connected"
   | "closed"
   | "hidden";
+
+export type TalentOpportunitySavedStageFilter =
+  | TalentOpportunitySavedStage
+  | "all";
 
 export type TalentOpportunityHistoryTab = "new" | "saved" | "archived";
 
@@ -410,6 +415,7 @@ function normalizeSavedStage(
 ): TalentOpportunitySavedStage | null {
   if (
     value === "saved" ||
+    value === "planned" ||
     value === "applied" ||
     value === "connected" ||
     value === "closed" ||
@@ -628,6 +634,7 @@ const createEmptyHistoryCounts = (): TalentOpportunityHistoryCounts => ({
   saved: 0,
   savedStages: {
     saved: 0,
+    planned: 0,
     applied: 0,
     connected: 0,
     closed: 0,
@@ -789,6 +796,7 @@ export async function fetchTalentOpportunityHistoryCounts(args: {
     savedCount,
     archivedCount,
     savedStageCount,
+    plannedStageCount,
     appliedStageCount,
     connectedStageCount,
     closedStageCount,
@@ -814,6 +822,12 @@ export async function fetchTalentOpportunityHistoryCounts(args: {
       admin: args.admin,
       feedback: "like",
       savedStage: "saved",
+      userId: args.userId,
+    }),
+    countTalentOpportunityRecommendations({
+      admin: args.admin,
+      feedback: "like",
+      savedStage: "planned",
       userId: args.userId,
     }),
     countTalentOpportunityRecommendations({
@@ -852,6 +866,7 @@ export async function fetchTalentOpportunityHistoryCounts(args: {
   counts.archived = archivedCount;
   counts.total = newCount + savedCount + archivedCount;
   counts.savedStages.saved = savedStageCount;
+  counts.savedStages.planned = plannedStageCount;
   counts.savedStages.applied = appliedStageCount;
   counts.savedStages.connected = connectedStageCount;
   counts.savedStages.closed = closedStageCount;
@@ -1123,14 +1138,15 @@ function getDatabaseFeedbackForHistoryTab(
 
 function filterHistoryItemsForSavedStage(
   items: TalentOpportunityHistoryItem[],
-  savedStage?: TalentOpportunitySavedStage
+  savedStage?: TalentOpportunitySavedStageFilter
 ) {
   if (!savedStage) return items;
 
   return items.filter((item) => {
     const resolvedStage = getResolvedTalentOpportunitySavedStage(item);
-    if (savedStage === "connected") {
-      return resolvedStage !== "saved";
+    if (savedStage === "all") return resolvedStage !== "hidden";
+    if (savedStage === "saved") {
+      return resolvedStage === "saved" || resolvedStage === "planned";
     }
     return resolvedStage === savedStage;
   });
@@ -1141,7 +1157,7 @@ async function fetchFilteredTalentOpportunityHistoryPage(args: {
   historyTab: TalentOpportunityHistoryTab;
   limit: number;
   offset: number;
-  savedStage?: TalentOpportunitySavedStage;
+  savedStage?: TalentOpportunitySavedStageFilter;
   userId: string;
 }): Promise<TalentOpportunityHistoryPage> {
   const [allItems, counts] = await Promise.all([
@@ -1178,7 +1194,7 @@ export async function fetchTalentOpportunityHistoryPage(args: {
   historyTab?: TalentOpportunityHistoryTab;
   limit?: number;
   offset?: number;
-  savedStage?: TalentOpportunitySavedStage;
+  savedStage?: TalentOpportunitySavedStageFilter;
   userId: string;
 }): Promise<TalentOpportunityHistoryPage> {
   const limit =

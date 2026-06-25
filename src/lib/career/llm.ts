@@ -4,7 +4,10 @@ import {
   resolveChatCompletionFallbackModelForError,
   supportsResponseFormatForModel,
 } from "@/lib/llm/llm";
-import { logLlmTokenUsage } from "@/lib/llm/usageLogging";
+import {
+  logLlmTokenUsage,
+  logLlmTokenUsageForToolCalls,
+} from "@/lib/llm/usageLogging";
 import {
   runTalentAssistantCompletion,
   runTalentAssistantToolLoop,
@@ -248,6 +251,11 @@ type AnthropicToolUseStart = {
   name: string;
 };
 
+type LlmToolCostAttribution = {
+  step: string;
+  toolNames: readonly string[];
+};
+
 function cleanModelText(raw: string) {
   return raw
     .replace(/^```json\s*/i, "")
@@ -325,6 +333,16 @@ function extractAnthropicText(
     .filter((block): block is AnthropicTextBlock => block.type === "text")
     .map((block) => block.text)
     .join("");
+}
+
+function getAnthropicToolUseNames(
+  blocks: AnthropicAssistantContentBlock[] | undefined
+) {
+  if (!Array.isArray(blocks)) return [];
+  return blocks
+    .filter((block): block is AnthropicToolUseBlock => block.type === "tool_use")
+    .map((block) => String(block.name ?? "").trim())
+    .filter(Boolean);
 }
 
 function serializeToolResult(result: unknown) {
@@ -541,6 +559,7 @@ async function createAnthropicMessage(args: {
   model: string;
   systemBlocks: CareerChatSystemBlock[];
   temperature: number;
+  toolCostAttribution?: LlmToolCostAttribution;
   tools?: TalentChatTool[];
   usageLabel?: string;
 }) {
@@ -593,6 +612,24 @@ async function createAnthropicMessage(args: {
     model: args.model,
     response: json,
   });
+  const toolUseNames = getAnthropicToolUseNames(json.content);
+  if (toolUseNames.length > 0) {
+    logLlmTokenUsageForToolCalls({
+      baseLabel: args.usageLabel,
+      model: args.model,
+      response: json,
+      step: "tool_call",
+      toolNames: toolUseNames,
+    });
+  } else if (args.toolCostAttribution) {
+    logLlmTokenUsageForToolCalls({
+      baseLabel: args.usageLabel,
+      model: args.model,
+      response: json,
+      step: args.toolCostAttribution.step,
+      toolNames: args.toolCostAttribution.toolNames,
+    });
+  }
 
   console.info("[career-chat:anthropic-request]", {
     label: args.usageLabel,
@@ -615,6 +652,7 @@ async function createAnthropicMessageText(args: {
   model: string;
   systemBlocks: CareerChatSystemBlock[];
   temperature: number;
+  toolCostAttribution?: LlmToolCostAttribution;
   tools?: TalentChatTool[];
   usageLabel?: string;
 }) {
@@ -629,6 +667,7 @@ async function createAnthropicMessageStreamResponse(args: {
   onToolUseStart?: (tool: AnthropicToolUseStart) => void | Promise<void>;
   systemBlocks: CareerChatSystemBlock[];
   temperature: number;
+  toolCostAttribution?: LlmToolCostAttribution;
   tools?: TalentChatTool[];
   usageLabel?: string;
 }): Promise<AnthropicMessageResponse> {
@@ -855,6 +894,28 @@ async function createAnthropicMessageStreamResponse(args: {
     model: args.model,
     response: { usage },
   });
+  const responseForUsage = {
+    content: contentBlocks.filter(Boolean),
+    usage,
+  };
+  const toolUseNames = getAnthropicToolUseNames(responseForUsage.content);
+  if (toolUseNames.length > 0) {
+    logLlmTokenUsageForToolCalls({
+      baseLabel: args.usageLabel,
+      model: args.model,
+      response: responseForUsage,
+      step: "tool_call",
+      toolNames: toolUseNames,
+    });
+  } else if (args.toolCostAttribution) {
+    logLlmTokenUsageForToolCalls({
+      baseLabel: args.usageLabel,
+      model: args.model,
+      response: responseForUsage,
+      step: args.toolCostAttribution.step,
+      toolNames: args.toolCostAttribution.toolNames,
+    });
+  }
 
   console.info("[career-chat:anthropic-stream]", {
     label: args.usageLabel,
@@ -883,6 +944,7 @@ async function createAnthropicMessageStream(args: {
   onTextDelta: (delta: string) => void | Promise<void>;
   systemBlocks: CareerChatSystemBlock[];
   temperature: number;
+  toolCostAttribution?: LlmToolCostAttribution;
   tools?: TalentChatTool[];
   usageLabel?: string;
 }) {
@@ -1106,6 +1168,7 @@ export async function runCareerChatAssistant(args: {
       }));
     const stopAfterToolNameSet = new Set(args.stopAfterToolNames ?? []);
     let totalToolCalls = 0;
+    let pendingToolResultAttribution: string[] = [];
 
     if (args.tools.length === 0) {
       const text = await createAnthropicMessageText({
@@ -1127,11 +1190,20 @@ export async function runCareerChatAssistant(args: {
     }
 
     for (let loop = 0; loop < 3; loop += 1) {
+      const toolCostAttribution =
+        pendingToolResultAttribution.length > 0
+          ? {
+              step: "tool_result_response",
+              toolNames: pendingToolResultAttribution,
+            }
+          : undefined;
+      pendingToolResultAttribution = [];
       const response = await createAnthropicMessage({
         messages: workingMessages,
         model: modelConfig.primaryModel,
         systemBlocks: args.systemBlocks,
         temperature: CAREER_LLM_CONFIG.chat.temperature,
+        toolCostAttribution,
         tools: args.tools,
         usageLabel: "career/chat:assistant",
       });
@@ -1170,6 +1242,7 @@ export async function runCareerChatAssistant(args: {
           : [];
       const skippedToolCalls = toolUseBlocks.slice(executableToolCalls.length);
       const toolResultBlocks: AnthropicToolResultBlock[] = [];
+      const attemptedToolNames: string[] = [];
       let shouldStopAfterTool = false;
 
       for (const skippedToolCall of skippedToolCalls) {
@@ -1185,6 +1258,7 @@ export async function runCareerChatAssistant(args: {
 
       for (const toolCall of executableToolCalls) {
         totalToolCalls += 1;
+        attemptedToolNames.push(toolCall.name);
 
         const toolInput =
           toolCall.input && typeof toolCall.input === "object"
@@ -1254,6 +1328,7 @@ export async function runCareerChatAssistant(args: {
       if (shouldStopAfterTool) {
         return "";
       }
+      pendingToolResultAttribution = attemptedToolNames;
     }
 
     const finalMessages = appendUserInstructionToMessages(
@@ -1265,6 +1340,13 @@ export async function runCareerChatAssistant(args: {
       model: modelConfig.primaryModel,
       systemBlocks: args.systemBlocks,
       temperature: CAREER_LLM_CONFIG.chat.temperature,
+      toolCostAttribution:
+        pendingToolResultAttribution.length > 0
+          ? {
+              step: "tool_result_response",
+              toolNames: pendingToolResultAttribution,
+            }
+          : undefined,
       usageLabel: "career/chat:assistant",
     });
     if (finalText) return finalText;
@@ -1408,7 +1490,16 @@ export async function runCareerChatAssistantStream(args: {
     }
 
     let totalToolCalls = 0;
+    let pendingToolResultAttribution: string[] = [];
     for (let loop = 0; loop < 3; loop += 1) {
+      const toolCostAttribution =
+        pendingToolResultAttribution.length > 0
+          ? {
+              step: "tool_result_response",
+              toolNames: pendingToolResultAttribution,
+            }
+          : undefined;
+      pendingToolResultAttribution = [];
       const response = await createAnthropicMessageStreamResponse({
         messages: workingMessages,
         model: modelConfig.primaryModel,
@@ -1422,6 +1513,7 @@ export async function runCareerChatAssistantStream(args: {
         onTextDelta: forwardTextDelta,
         systemBlocks: args.systemBlocks,
         temperature: CAREER_LLM_CONFIG.chat.temperature,
+        toolCostAttribution,
         tools: args.tools,
         usageLabel: "career/chat:assistant",
       });
@@ -1467,6 +1559,7 @@ export async function runCareerChatAssistantStream(args: {
           : [];
       const skippedToolCalls = toolUseBlocks.slice(executableToolCalls.length);
       const toolResultBlocks: AnthropicToolResultBlock[] = [];
+      const attemptedToolNames: string[] = [];
       let shouldStopAfterTool = false;
 
       for (const skippedToolCall of skippedToolCalls) {
@@ -1482,6 +1575,7 @@ export async function runCareerChatAssistantStream(args: {
 
       for (const toolCall of executableToolCalls) {
         totalToolCalls += 1;
+        attemptedToolNames.push(toolCall.name);
 
         const toolInput =
           toolCall.input && typeof toolCall.input === "object"
@@ -1555,6 +1649,13 @@ export async function runCareerChatAssistantStream(args: {
         onTextDelta: forwardTextDelta,
         systemBlocks: args.systemBlocks,
         temperature: CAREER_LLM_CONFIG.chat.temperature,
+        toolCostAttribution:
+          attemptedToolNames.length > 0
+            ? {
+                step: "tool_result_response",
+                toolNames: attemptedToolNames,
+              }
+            : undefined,
         usageLabel: "career/chat:assistant",
       });
       if (finalText) return getForwardedVisibleText() || finalText;

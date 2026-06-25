@@ -458,10 +458,6 @@ const CareerSettingsModal = ({
                     type="button"
                     onClick={handleBackToMenu}
                     className="inline-flex min-h-11 min-w-11 items-center gap-1 rounded-lg px-2 text-sm text-neutral-muted transition-colors hover:text-neutral-primary"
-                    aria-label={t(
-                      "career.settings.career_settings_modal.0qqmxjm",
-                      "설정 메뉴로 돌아가기"
-                    )}
                   >
                     <ArrowLeft className="h-4 w-4" />
                     {t("career.settings.career_settings_modal.1338q8i", "설정")}

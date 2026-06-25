@@ -1222,13 +1222,13 @@ export const CareerFlowProvider = ({
             getErrorMessage(
               payload,
               // career-i18n-skip-next-line: dev controls text is intentionally Korean-only.
-              "6시간 인사 테스트 실행에 실패했습니다."
+              "12시간 인사 테스트 실행에 실패했습니다."
             )
           );
         }
         if (payload.skipped) {
           // career-i18n-skip-next-line: dev controls text is intentionally Korean-only.
-          throw new Error("6시간 인사 테스트가 스킵되었습니다.");
+          throw new Error("12시간 인사 테스트가 스킵되었습니다.");
         }
 
         if (payload.opportunityRun) {
@@ -1270,7 +1270,7 @@ export const CareerFlowProvider = ({
         setChatError(
           error instanceof Error
             ? error.message
-            : "6시간 인사 테스트 실행 중 오류가 발생했습니다."
+            : "12시간 인사 테스트 실행 중 오류가 발생했습니다."
         );
       } finally {
         setSessionReengagementTestPending(false);
@@ -1453,7 +1453,7 @@ export const CareerFlowProvider = ({
               ? data.error
               : t(
                   "career.common.career_flow_provider.0750gye",
-                  "6시간 인사 생성에 실패했습니다."
+                  "12시간 인사 생성에 실패했습니다."
                 )
           );
         }
@@ -1494,7 +1494,7 @@ export const CareerFlowProvider = ({
         throw new Error(
           t(
             "career.common.career_flow_provider.06f4hcx",
-            "6시간 인사 스트림이 완료되기 전에 종료되었습니다."
+            "12시간 인사 스트림이 완료되기 전에 종료되었습니다."
           )
         );
       }
@@ -1704,7 +1704,7 @@ export const CareerFlowProvider = ({
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    el.scrollTo({ top: el.scrollHeight });
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, [scrollTick]);
 
   const userChatCount = useMemo(

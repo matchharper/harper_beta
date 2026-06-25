@@ -17,7 +17,7 @@ import {
 } from "@/lib/career/prompts";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 
-const REENGAGEMENT_IDLE_MS = 6 * 60 * 60 * 1000;
+const REENGAGEMENT_IDLE_MS = 8 * 60 * 60 * 1000; // 8시간
 
 const parseTimestampMs = (value: string | null | undefined) => {
   if (typeof value !== "string") return 0;
@@ -232,32 +232,32 @@ export async function POST(req: NextRequest) {
 
     const [latestChatResult, latestReengagementSkipResult, talentSetting] =
       await Promise.all([
-      admin
-        .from("talent_messages")
-        .select(
-          "id, conversation_id, user_id, role, content, message_type, thinking_logs, created_at"
-        )
-        .eq("conversation_id", conversation.id)
-        .eq("message_type", "chat")
-        .order("id", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      admin
-        .from("talent_messages")
-        .select("id, created_at")
-        .eq("conversation_id", conversation.id)
-        .eq("message_type", TALENT_MESSAGE_TYPE_SESSION_REENGAGEMENT_SKIP)
-        .order("id", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      fetchTalentSetting({ admin, userId: user.id }).catch((error) => {
-        console.warn("[TalentSessionReengagement] setting load failed", {
-          error: error instanceof Error ? error.message : "Unknown error",
-          userId: user.id,
-        });
-        return null;
-      }),
-    ]);
+        admin
+          .from("talent_messages")
+          .select(
+            "id, conversation_id, user_id, role, content, message_type, thinking_logs, created_at"
+          )
+          .eq("conversation_id", conversation.id)
+          .eq("message_type", "chat")
+          .order("id", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        admin
+          .from("talent_messages")
+          .select("id, created_at")
+          .eq("conversation_id", conversation.id)
+          .eq("message_type", TALENT_MESSAGE_TYPE_SESSION_REENGAGEMENT_SKIP)
+          .order("id", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        fetchTalentSetting({ admin, userId: user.id }).catch((error) => {
+          console.warn("[TalentSessionReengagement] setting load failed", {
+            error: error instanceof Error ? error.message : "Unknown error",
+            userId: user.id,
+          });
+          return null;
+        }),
+      ]);
 
     const { data: latestChatMessage, error: latestChatError } =
       latestChatResult;

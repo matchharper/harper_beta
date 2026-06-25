@@ -25,6 +25,7 @@ import {
   normalizeTalentEngagementTypes,
   normalizeTalentInsightContent,
   normalizeTalentInsightKey,
+  refreshTalentPreferredLocale,
   sanitizeTalentProfileVisibility,
   setTalentOnboardingDone,
   upsertTalentInsights,
@@ -96,6 +97,7 @@ export {
   normalizeTalentEngagementTypes,
   normalizeTalentInsightContent,
   normalizeTalentInsightKey,
+  refreshTalentPreferredLocale,
   sanitizeTalentProfileVisibility,
   setTalentOnboardingDone,
   toTalentMessageResponse,
@@ -271,6 +273,8 @@ export async function ensureTalentUserRecord(args: {
               "Failed to update talent current location"
           );
         }
+
+        await refreshTalentPreferredLocale({ admin, userId: user.id });
       }
       return;
     }
@@ -329,5 +333,9 @@ export async function ensureTalentUserRecord(args: {
 
   if (updateError) {
     throw new Error(updateError.message ?? "Failed to update talent_users");
+  }
+
+  if (nextPayload.current_location !== undefined) {
+    await refreshTalentPreferredLocale({ admin, userId: user.id });
   }
 }

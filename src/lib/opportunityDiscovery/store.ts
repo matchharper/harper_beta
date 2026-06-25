@@ -72,6 +72,7 @@ function isOpportunityRunLockExpired(run: OpportunityRunRow) {
 
 export type CreateDiscoveryRunArgs = {
   conversationId?: string | null;
+  initialStatus?: "queued" | "running";
   runMode?: OpportunityRunMode;
   talentId: string;
   trigger: OpportunityDiscoveryTrigger;
@@ -318,7 +319,10 @@ export async function createOpportunityDiscoveryRun(
       periodicIntervalDays: settings.periodicIntervalDays,
       recommendationBatchSize: settings.recommendationBatchSize,
     },
-    status: "queued",
+    status: args.initialStatus ?? "queued",
+    ...(args.initialStatus === "running"
+      ? { started_at: new Date().toISOString() }
+      : {}),
     talent_id: args.talentId,
     trigger: args.trigger,
     trigger_payload: triggerPayload,

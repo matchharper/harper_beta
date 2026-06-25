@@ -9,7 +9,6 @@ import {
   LogOut,
   HelpCircle,
   MessageSquareMore,
-  Mail,
   UserSearch,
   Menu,
 } from "lucide-react";
@@ -29,7 +28,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { ActionDropdown, ActionDropdownItem } from "../ui/action-dropdown";
 import { Drawer, DrawerContent, DrawerTrigger } from "../ui/drawer";
-import { canAccessAts } from "@/lib/internalAccess";
 import { useMatchWorkspace } from "@/hooks/match/useMatchWorkspace";
 import MatchSidebarRoles from "@/components/match/MatchSidebarRoles";
 import { BareButton } from "@/components/ui/button";
@@ -138,9 +136,7 @@ const AppLayout = ({ children, initialCollapse = true }: AppLayoutProps) => {
 
   const isHome = pathname === "/my";
   const isList = pathname === "/my/list";
-  const isAts = pathname === "/my/ats";
   const isMatch = pathname?.startsWith("/my/match");
-  const hasAtsAccess = canAccessAts(user?.email);
   const userId = companyUser?.user_id;
   const requestedWorkspaceId =
     typeof router.query.workspaceId === "string"
@@ -228,19 +224,6 @@ const AppLayout = ({ children, initialCollapse = true }: AppLayoutProps) => {
           handleMobileNavigate();
         }}
       />
-      {hasAtsAccess ? (
-        <NavItem
-          collapsed={collapsed}
-          active={isAts}
-          label="ATS"
-          icon={<Mail size={16} />}
-          href="/my/ats"
-          onNavigate={() => {
-            logEvent("enter_ats");
-            handleMobileNavigate();
-          }}
-        />
-      ) : null}
     </>
   );
 

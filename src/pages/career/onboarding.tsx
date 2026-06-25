@@ -48,7 +48,10 @@ import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding
 import { getCareerSignupAttributionPayload } from "@/lib/career/signupAttribution";
 import OnboardingLoadingState from "../../components/career/OnboardingLoadingState";
 import { useCareerT } from "@/i18n/useCareerT";
-import { useMessages } from "@/i18n/useMessage";
+import {
+  getInitialClientLocalePreference,
+  useMessages,
+} from "@/i18n/useMessage";
 
 type CareerT = ReturnType<typeof useCareerT>;
 
@@ -229,6 +232,7 @@ const getSingleQueryParam = (value: string | string[] | undefined) =>
 
 const careerOnboardingSessionKey = (
   userId: string | null,
+  locale?: string | null,
   inviteToken?: string | null,
   mail?: string | null,
   emailOnboardingToken?: string | null
@@ -236,6 +240,7 @@ const careerOnboardingSessionKey = (
   [
     "career-onboarding-session",
     userId,
+    locale?.trim() || null,
     inviteToken?.trim() || null,
     mail?.trim() || null,
     emailOnboardingToken?.trim() || null,
@@ -1298,15 +1303,21 @@ const CareerNetworkOnboardingContent = () => {
   const isPreviewSubmitState = previewSubmitState !== null;
   const effectiveSubmitState = previewSubmitState ?? submitState;
   const onboardingNextPath = router.asPath || "/career/onboarding";
+  const requestLocale = useMemo(
+    () =>
+      typeof window === "undefined" ? locale : getInitialClientLocalePreference(),
+    [locale]
+  );
   const sessionQueryKey = useMemo(
     () =>
       careerOnboardingSessionKey(
         userId,
+        requestLocale,
         inviteToken,
         mail,
         emailOnboardingToken
       ),
-    [emailOnboardingToken, inviteToken, mail, userId]
+    [emailOnboardingToken, inviteToken, mail, requestLocale, userId]
   );
   const lastSavedBasicInfoRef = useRef("");
 
@@ -1317,7 +1328,7 @@ const CareerNetworkOnboardingContent = () => {
         ...getCareerSignupAttributionPayload(),
         emailOnboardingToken: emailOnboardingToken || undefined,
         inviteToken: inviteToken || undefined,
-        locale,
+        locale: requestLocale,
         mail: mail || undefined,
       }),
     });
@@ -1334,7 +1345,13 @@ const CareerNetworkOnboardingContent = () => {
       );
     }
 
-    const sessionRes = await fetchWithAuth("/api/talent/session?statusOnly=1");
+    const sessionParams = new URLSearchParams({
+      locale: requestLocale,
+      statusOnly: "1",
+    });
+    const sessionRes = await fetchWithAuth(
+      `/api/talent/session?${sessionParams.toString()}`
+    );
     const payload = (await sessionRes
       .json()
       .catch(() => ({}))) as OnboardingSessionPayload;
@@ -1351,7 +1368,7 @@ const CareerNetworkOnboardingContent = () => {
     }
 
     return payload;
-  }, [emailOnboardingToken, fetchWithAuth, inviteToken, locale, mail, t]);
+  }, [emailOnboardingToken, fetchWithAuth, inviteToken, mail, requestLocale, t]);
 
   useEffect(() => {
     if (!user) return;

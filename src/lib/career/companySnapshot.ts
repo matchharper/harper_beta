@@ -7,6 +7,7 @@ import {
 import { careerT } from "@/lib/career/translatedCareerMessage";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 import { client } from "@/lib/llm/llm";
+import { logLlmTokenUsage } from "@/lib/llm/usageLogging";
 
 /**
  * Escapes LIKE/ILIKE special characters (%, _, \) so that user-supplied
@@ -35,6 +36,8 @@ export type CompanySnapshotRow = {
   status: CompanySnapshotStatus;
   updated_at: string;
 };
+
+const OPENAI_WEB_SEARCH_COST_USD_PER_CALL = 0.01;
 
 export function normalizeCompanySnapshotName(value: string) {
   return value
@@ -240,6 +243,19 @@ export async function runCompanySnapshotResearch(args: {
       response = await callResponses(fallbackModel);
       modelUsed = fallbackModel;
     }
+    const webSearchCallCount = countOpenAiWebSearchCalls(response);
+    logLlmTokenUsage({
+      extraEstimatedCostUsd:
+        webSearchCallCount * OPENAI_WEB_SEARCH_COST_USD_PER_CALL,
+      label: "career_tool:web_search:company_snapshot_research",
+      meta: {
+        openaiWebSearchCallCount: webSearchCallCount,
+        openaiWebSearchCostUsd:
+          webSearchCallCount * OPENAI_WEB_SEARCH_COST_USD_PER_CALL,
+      },
+      model: modelUsed,
+      response,
+    });
     console.info("[research_company] OpenAI Responses API ok", {
       companyName: args.companyName,
       modelUsed,
@@ -252,6 +268,15 @@ export async function runCompanySnapshotResearch(args: {
       reason: "external_api_error",
     };
   }
+}
+
+function countOpenAiWebSearchCalls(response: any) {
+  const output = Array.isArray(response?.output) ? response.output : [];
+  return output.filter((item: any) =>
+    String(item?.type ?? "")
+      .toLowerCase()
+      .includes("web_search")
+  ).length;
 }
 
 function buildCompanyResearchPrompt(args: {

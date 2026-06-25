@@ -10,6 +10,7 @@ import { runCareerProfileIngestion } from "@/lib/career/llm";
 import {
   fetchTalentSetting,
   normalizeTalentBlockedCompanies,
+  refreshTalentPreferredLocale,
   upsertTalentSetting,
 } from "@/lib/talentOnboarding/stateStore";
 import {
@@ -1529,6 +1530,7 @@ export async function ingestTalentProfileFromLinkedin(
     });
     throw new Error(userUpdateError.message ?? "Failed to update talent_users");
   }
+  await refreshTalentPreferredLocale({ admin, userId });
 
   logger.log("[TalentIngest] replacing child rows", {
     experiences: extracted.experiences.length,
@@ -2172,18 +2174,18 @@ export async function mergeTalentProfileFromLatestSources(
     extras: mergedRaw.talentExtras.length,
   });
 
+  const userUpdatePayload = profileUserUpdatePayload({
+    extracted,
+    mergedUserPatch: mergedRaw.talentUserPatch,
+    resumeFileName: args.resumeFileName,
+    resumeStoragePath: args.resumeStoragePath,
+    resumeText: args.resumeText,
+    now,
+  });
+
   const { error: userUpdateError } = await db
     .from("talent_users")
-    .update(
-      profileUserUpdatePayload({
-        extracted,
-        mergedUserPatch: mergedRaw.talentUserPatch,
-        resumeFileName: args.resumeFileName,
-        resumeStoragePath: args.resumeStoragePath,
-        resumeText: args.resumeText,
-        now,
-      })
-    )
+    .update(userUpdatePayload)
     .eq("user_id", userId);
   if (userUpdateError) {
     await notifyUnsupportedUnicodeEscapeError({
@@ -2199,6 +2201,9 @@ export async function mergeTalentProfileFromLatestSources(
       userId,
     });
     throw new Error(userUpdateError.message ?? "Failed to update talent_users");
+  }
+  if (Object.prototype.hasOwnProperty.call(userUpdatePayload, "location")) {
+    await refreshTalentPreferredLocale({ admin, userId });
   }
 
   const finalExperienceIds = new Set(

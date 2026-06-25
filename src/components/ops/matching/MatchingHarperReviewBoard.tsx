@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import {
+  Archive,
   CalendarDays,
   ChevronDown,
   ChevronLeft,
@@ -7,7 +8,9 @@ import {
   Eye,
   LoaderCircle,
   LogIn,
+  Send,
   type LucideIcon,
+  XCircle,
 } from "lucide-react";
 import {
   formatKstRelativeDate,
@@ -22,7 +25,6 @@ import { MatchingTalentDrawer } from "@/components/ops/matching/MatchingTalentDr
 import {
   MatchingMemoQuickAdd,
   MatchingTagEditor,
-  MatchingTagPill,
 } from "@/components/ops/matching/MatchingTalentInlineActions";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { BareButton } from "@/components/ui/button";
@@ -33,9 +35,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  useOpsMatchingTalents,
   useOpsMatchingReviewBoard,
+  useQueueOpsMatchingManualInternalRecommendation,
   useSetOpsMatchingReviewStage,
+  useUpdateOpsMatchingFitHumanLabel,
 } from "@/hooks/ops/useOpsMatching";
+import {
+  OPS_MATCHING_NO_HUMAN_LABEL_FILTER_VALUE,
+} from "@/lib/ops/matchingFilters";
 import { useOpsMatchingStore } from "@/store/useOpsMatchingStore";
 import type {
   OpsMatchingReviewItem,
@@ -43,6 +51,14 @@ import type {
   OpsMatchingRoleOption,
   OpsMatchingTalentItem,
 } from "@/lib/ops/matching";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type MatchingHarperReviewBoardProps = {
   canFetchInternal: boolean;
@@ -58,15 +74,26 @@ type ReviewColumn = {
   locked?: boolean;
 };
 type ReviewViewFieldId = "joinedAt" | "lastLoginAt" | "viewedAt";
+type DroppableReviewStageId = Exclude<
+  OpsMatchingReviewStageId,
+  "hold" | "recommended"
+>;
 
-const REVIEW_COLUMNS: readonly ReviewColumn[] = [
+const BASE_REVIEW_COLUMNS: readonly ReviewColumn[] = [
   { id: "recommended", label: "추천된 사람", locked: true },
-  { id: "rejected", label: "거절" },
   { id: "accepted", label: "수락" },
-  { id: "hold", label: "보류(정보가 더 필요)" },
   { id: "pending_connection", label: "연결 대기" },
-  { id: "archived", label: "아카이브" },
+  { id: "final_offer", label: "최종 오퍼" },
+  { id: "process_stopped", label: "프로세스 중단" },
 ];
+const REVIEW_LIST_TOGGLE_CONTROLS = [
+  { icon: XCircle, id: "rejected", label: "연결을 거절한 목록" },
+  { icon: Archive, id: "archived", label: "아카이브" },
+] as const satisfies readonly {
+  icon: LucideIcon;
+  id: DroppableReviewStageId;
+  label: string;
+}[];
 const REVIEW_VIEW_FIELD_OPTIONS = [
   { icon: Eye, id: "viewedAt", label: "열람 날짜" },
   { icon: CalendarDays, id: "joinedAt", label: "회원가입 날짜" },
@@ -94,6 +121,16 @@ function getFeedbackClass(feedback: string | null | undefined) {
     return "bg-critical-faded text-critical";
   }
   return "bg-bg-weak text-neutral-soft";
+}
+
+function getFitLabelText(label: string | null | undefined) {
+  const normalized = String(label ?? "").trim().toLowerCase();
+  if (normalized === "fit") return "적합";
+  if (normalized === "hold") return "보류";
+  if (normalized === "ambiguous") return "애매";
+  if (normalized === "unfit") return "부적합";
+  if (normalized === "dissatisfied") return "불만족";
+  return normalized || "없음";
 }
 
 function ReviewCard({
@@ -141,7 +178,7 @@ function ReviewCard({
       )}
     >
       <TalentIdentity talent={item.talent} />
-      <TalentStatusBadges talent={item.talent} />
+      <TalentStatusBadges talent={item.talent} hideReviewStageTags />
       <div className="mt-3 flex flex-wrap gap-1.5">
         <span
           className={cx(
@@ -166,7 +203,6 @@ function ReviewCard({
             Ops 직접 추천
           </span>
         ) : null}
-        {item.stageTag ? <MatchingTagPill tag={item.stageTag} /> : null}
       </div>
 
       {showTalentDateRow ? (
@@ -247,6 +283,220 @@ function ReviewCard({
   );
 }
 
+function ReviewListToggleBox({
+  active,
+  canDrop,
+  count,
+  icon: Icon,
+  isDropTarget,
+  label,
+  onClick,
+  onDrop,
+  onTargetLeave,
+  onTargetOver,
+  pending,
+}: {
+  active: boolean;
+  canDrop: boolean;
+  count: number;
+  icon: LucideIcon;
+  isDropTarget: boolean;
+  label: string;
+  onClick: () => void;
+  onDrop: () => void;
+  onTargetLeave: () => void;
+  onTargetOver: () => void;
+  pending: boolean;
+}) {
+  return (
+    <BareButton
+      type="button"
+      onClick={onClick}
+      onDragOver={(event) => {
+        if (canDrop && !pending) {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "move";
+          onTargetOver();
+        }
+      }}
+      onDragLeave={(event) => {
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          return;
+        }
+        onTargetLeave();
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        if (!pending && canDrop) onDrop();
+      }}
+      aria-pressed={active}
+      className={cx(
+        "inline-flex min-h-10 items-center gap-2 rounded-md border px-3 text-xs font-medium transition",
+        isDropTarget
+          ? "border-primary bg-primary-faded text-primary shadow-[0_0_0_2px_rgba(37,99,235,0.18)]"
+          : active
+          ? "border-primary/30 bg-primary-faded text-primary"
+          : "border-neutral-1000-a05 bg-bg-default/65 text-neutral-muted hover:bg-bg-default hover:text-neutral-primary",
+        canDrop && !isDropTarget && "border-primary/50 bg-primary-faded/30 text-primary",
+        pending && "cursor-wait opacity-60"
+      )}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      <span>{isDropTarget ? `${label}로 이동` : label}</span>
+      <span className="rounded-sm bg-bg-floating px-1.5 py-0.5 text-[10px] text-neutral-muted">
+        {count}
+      </span>
+    </BareButton>
+  );
+}
+
+function AmbiguousReviewCard({
+  isQueued,
+  onDismiss,
+  onRecommend,
+  onSelect,
+  pending,
+  roleId,
+  talent,
+  visibleFields,
+}: {
+  isQueued: boolean;
+  onDismiss: (talent: OpsMatchingTalentItem) => void;
+  onRecommend: (talent: OpsMatchingTalentItem) => void;
+  onSelect: (talent: OpsMatchingTalentItem) => void;
+  pending: boolean;
+  roleId: string;
+  talent: OpsMatchingTalentItem;
+  visibleFields: Set<ReviewViewFieldId>;
+}) {
+  const fit = talent.fit;
+  const showTalentDateRow =
+    visibleFields.has("joinedAt") || visibleFields.has("lastLoginAt");
+
+  return (
+    <div className="rounded-sm border border-neutral-1000-a05 bg-bg-floating p-3 transition hover:border-neutral-1000-a10">
+      <button
+        type="button"
+        onClick={() => onSelect(talent)}
+        className="block w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
+      >
+        <TalentIdentity talent={talent} />
+        <TalentStatusBadges talent={talent} hideReviewStageTags />
+      </button>
+
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        <span className="rounded-sm bg-primary-faded px-1.5 py-0.5 text-[10px] font-medium leading-4 text-primary">
+          LLM {getFitLabelText(fit?.label)}
+        </span>
+      </div>
+
+      {showTalentDateRow ? (
+        <div
+          className={cx(
+            "mt-3 grid gap-2 rounded-sm border border-neutral-1000-a05 bg-bg-weak px-2.5 py-2 text-[11px] leading-4 text-neutral-muted",
+            visibleFields.has("joinedAt") && visibleFields.has("lastLoginAt")
+              ? "grid-cols-2"
+              : "grid-cols-1"
+          )}
+        >
+          {visibleFields.has("joinedAt") ? (
+            <div className="min-w-0 truncate">
+              <span className="font-medium text-neutral-primary">가입</span>{" "}
+              {formatKstRelativeDate(talent.createdAt)}
+            </div>
+          ) : null}
+          {visibleFields.has("lastLoginAt") ? (
+            <div className="min-w-0 truncate">
+              <span className="font-medium text-neutral-primary">
+                최근 로그인
+              </span>{" "}
+              {formatKstRelativeDate(talent.lastLoginedAt)}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {talent.latestCompany || talent.latestSchool ? (
+        <div className="mt-3 space-y-2 text-[11px] leading-4">
+          {talent.latestCompany ? (
+            <div className="min-w-0">
+              <div className="truncate font-medium text-neutral-primary">
+                {talent.latestCompany.label}
+              </div>
+              {talent.latestCompany.detail ? (
+                <div className="truncate text-neutral-muted">
+                  {talent.latestCompany.detail}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          {talent.latestSchool ? (
+            <div className="min-w-0">
+              <div className="truncate font-medium text-neutral-primary">
+                {talent.latestSchool.label}
+              </div>
+              {talent.latestSchool.detail ? (
+                <div className="truncate text-neutral-muted">
+                  {talent.latestSchool.detail}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="mt-3 space-y-2 border-t border-neutral-1000-a05 pt-3">
+        <MatchingMemoQuickAdd
+          compact
+          memoPreview={talent.memoPreview}
+          talentId={talent.userId}
+        />
+        <MatchingTagEditor
+          compact
+          hideReviewStageTags
+          roleId={roleId}
+          showAddButton={false}
+          talent={talent}
+        />
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <BareButton
+          type="button"
+          onClick={() => onRecommend(talent)}
+          disabled={pending || !fit?.fitId || isQueued}
+          className={cx(
+            "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-70",
+            isQueued
+              ? "bg-positive-faded text-positive"
+              : "bg-primary text-neutral-00 hover:bg-primary/90"
+          )}
+        >
+          {pending ? (
+            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Send className="h-3.5 w-3.5" />
+          )}
+          추천 발송하기
+        </BareButton>
+        <BareButton
+          type="button"
+          onClick={() => onDismiss(talent)}
+          disabled={pending || !fit?.fitId}
+          className="inline-flex min-h-9 items-center justify-center rounded-md border border-neutral-1000-a10 bg-bg-default px-2 text-xs font-medium text-neutral-muted transition hover:bg-bg-weak hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          추천하지 않음
+        </BareButton>
+      </div>
+      {isQueued ? (
+        <div className="mt-2 rounded-sm bg-positive-faded px-2 py-1.5 text-[11px] leading-4 text-positive">
+          며칠 뒤 추천 메일이 발송됩니다.
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function ReviewViewDropdown({
   selectedFields,
   onFieldToggle,
@@ -295,6 +545,20 @@ function ReviewViewDropdown({
   );
 }
 
+function isDroppableReviewStageId(
+  stage: OpsMatchingReviewStageId
+): stage is DroppableReviewStageId {
+  return stage !== "hold" && stage !== "recommended";
+}
+
+function DropTargetHint({ label }: { label: string }) {
+  return (
+    <div className="rounded-md border border-dashed border-primary/45 bg-primary-faded px-3 py-2 text-center text-xs font-medium text-primary">
+      드롭하면 {label}로 이동
+    </div>
+  );
+}
+
 export function MatchingHarperReviewBoard({
   canFetchInternal,
   onRecommendedDateRangeChange,
@@ -303,11 +567,25 @@ export function MatchingHarperReviewBoard({
   role,
 }: MatchingHarperReviewBoardProps) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropTargetStageId, setDropTargetStageId] =
+    useState<DroppableReviewStageId | null>(null);
   const [selectedTalent, setSelectedTalent] =
     useState<OpsMatchingTalentItem | null>(null);
   const [reviewViewFields, setReviewViewFields] = useState<ReviewViewFieldId[]>(
     DEFAULT_REVIEW_VIEW_FIELDS
   );
+  const [visibleArchiveStageIds, setVisibleArchiveStageIds] = useState<
+    DroppableReviewStageId[]
+  >([]);
+  const [confirmRecommendTalent, setConfirmRecommendTalent] =
+    useState<OpsMatchingTalentItem | null>(null);
+  const [queuedAmbiguousTalentIds, setQueuedAmbiguousTalentIds] = useState<
+    string[]
+  >([]);
+  const [pendingAmbiguousTalentId, setPendingAmbiguousTalentId] = useState<
+    string | null
+  >(null);
+  const [ambiguousActionError, setAmbiguousActionError] = useState("");
   const collapsedColumnIds =
     useOpsMatchingStore(
       (state) => state.collapsedReviewColumnIdsByRole[role.roleId]
@@ -321,26 +599,60 @@ export function MatchingHarperReviewBoard({
     recommendedTo,
     roleId: role.roleId,
   });
+  const ambiguousTalentsQuery = useOpsMatchingTalents({
+    enabled: canFetchInternal,
+    excludeRecommended: true,
+    humanLabels: ["fit", OPS_MATCHING_NO_HUMAN_LABEL_FILTER_VALUE],
+    limit: 50,
+    llmLabels: ["hold", "ambiguous"],
+    roleId: role.roleId,
+  });
   const setReviewStage = useSetOpsMatchingReviewStage();
+  const updateFitHumanLabel = useUpdateOpsMatchingFitHumanLabel();
+  const queueManualInternalRecommendation =
+    useQueueOpsMatchingManualInternalRecommendation();
   const items = useMemo(
     () => reviewQuery.data?.items ?? [],
     [reviewQuery.data?.items]
+  );
+  const ambiguousTalents = useMemo(
+    () =>
+      ambiguousTalentsQuery.data?.pages.flatMap((page) => page.items) ?? [],
+    [ambiguousTalentsQuery.data?.pages]
   );
   const itemById = useMemo(
     () => new Map(items.map((item) => [item.recommendationId, item])),
     [items]
   );
+  const draggingItem = draggingId ? itemById.get(draggingId) : null;
   const groupedItems = useMemo(() => {
     const next = new Map<OpsMatchingReviewStageId, OpsMatchingReviewItem[]>();
-    for (const column of REVIEW_COLUMNS) next.set(column.id, []);
+    for (const column of BASE_REVIEW_COLUMNS) next.set(column.id, []);
+    for (const control of REVIEW_LIST_TOGGLE_CONTROLS) {
+      next.set(control.id, []);
+    }
     for (const item of items) {
       next.get(item.stage)?.push(item);
     }
     return next;
   }, [items]);
+  const visibleArchiveColumns = useMemo(
+    () =>
+      REVIEW_LIST_TOGGLE_CONTROLS.filter((control) =>
+        visibleArchiveStageIds.includes(control.id)
+      ).map((control) => ({
+        id: control.id,
+        label: control.label,
+      })),
+    [visibleArchiveStageIds]
+  );
   const visibleReviewFields = useMemo(
     () => new Set(reviewViewFields),
     [reviewViewFields]
+  );
+  const queuedAmbiguousTalentIdSet = useMemo(
+    () => new Set(queuedAmbiguousTalentIds),
+    [queuedAmbiguousTalentIds]
   );
   const handleReviewViewFieldToggle = (
     fieldId: ReviewViewFieldId,
@@ -356,18 +668,231 @@ export function MatchingHarperReviewBoard({
     });
   };
 
-  const handleDrop = (column: ReviewColumn) => {
-    if (!draggingId || column.locked) return;
+  const handleDropToStage = (stage: DroppableReviewStageId) => {
+    if (!draggingId) return;
     const item = itemById.get(draggingId);
-    if (!item || item.stage === column.id) return;
+    if (!item || item.stage === stage) {
+      setDraggingId(null);
+      setDropTargetStageId(null);
+      return;
+    }
     setReviewStage.mutate({
       roleId: role.roleId,
-      stage: column.id as Exclude<OpsMatchingReviewStageId, "recommended">,
+      stage,
       talentId: item.talent.userId,
     });
     setDraggingId(null);
+    setDropTargetStageId(null);
+  };
+  const handleDrop = (column: ReviewColumn) => {
+    if (column.locked || column.id === "hold" || column.id === "recommended") {
+      return;
+    }
+    handleDropToStage(column.id);
+  };
+  const handleDropTargetLeave = (stage: DroppableReviewStageId) => {
+    setDropTargetStageId((current) => (current === stage ? null : current));
+  };
+  const handleArchiveStageToggle = (stage: DroppableReviewStageId) => {
+    setVisibleArchiveStageIds((current) =>
+      current.includes(stage)
+        ? current.filter((item) => item !== stage)
+        : [...current, stage]
+    );
+  };
+  const handleAmbiguousDismiss = async (talent: OpsMatchingTalentItem) => {
+    const fitId = talent.fit?.fitId;
+    if (!fitId) return;
+    setAmbiguousActionError("");
+    setPendingAmbiguousTalentId(talent.userId);
+    try {
+      await updateFitHumanLabel.mutateAsync({
+        fitId,
+        humanLabel: "hold",
+        humanReason: "Ops에서 추천하지 않음",
+      });
+    } catch (error) {
+      setAmbiguousActionError(
+        error instanceof Error
+          ? error.message
+          : "추천하지 않음 처리에 실패했습니다."
+      );
+    } finally {
+      setPendingAmbiguousTalentId(null);
+    }
+  };
+  const handleConfirmRecommend = async () => {
+    const talent = confirmRecommendTalent;
+    const fitId = talent?.fit?.fitId;
+    if (!talent || !fitId) return;
+
+    setAmbiguousActionError("");
+    setPendingAmbiguousTalentId(talent.userId);
+    try {
+      if (talent.fit?.humanLabel !== "fit") {
+        await updateFitHumanLabel.mutateAsync({
+          fitId,
+          humanLabel: "fit",
+          humanReason: "Ops에서 직접 추천 발송 승인",
+        });
+      }
+      await queueManualInternalRecommendation.mutateAsync({
+        reason: "Ops matching Pipeline에서 Harper 애매 판단 후보를 직접 추천",
+        roleId: role.roleId,
+        userId: talent.userId,
+      });
+      setQueuedAmbiguousTalentIds((current) =>
+        current.includes(talent.userId) ? current : [...current, talent.userId]
+      );
+      setConfirmRecommendTalent(null);
+    } catch (error) {
+      setAmbiguousActionError(
+        error instanceof Error
+          ? error.message
+          : "추천 발송 요청에 실패했습니다."
+      );
+    } finally {
+      setPendingAmbiguousTalentId(null);
+    }
   };
   const hasActiveFilters = Boolean(recommendedFrom || recommendedTo);
+  const hasAnyBoardRows =
+    items.length > 0 ||
+    ambiguousTalents.length > 0 ||
+    ambiguousTalentsQuery.isLoading ||
+    Boolean(ambiguousTalentsQuery.error);
+
+  const renderReviewColumn = (
+    column: ReviewColumn,
+    index: number,
+    totalColumns: number
+  ) => {
+    const columnItems = groupedItems.get(column.id) ?? [];
+    const canDrop =
+      Boolean(draggingItem) &&
+      !column.locked &&
+      isDroppableReviewStageId(column.id) &&
+      draggingItem?.stage !== column.id;
+    const isDropTarget =
+      canDrop &&
+      isDroppableReviewStageId(column.id) &&
+      dropTargetStageId === column.id;
+    const isCollapsed = collapsedColumnIds.includes(column.id);
+    return (
+      <section
+        key={column.id}
+        onDragOver={(event) => {
+          if (canDrop && isDroppableReviewStageId(column.id)) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "move";
+            setDropTargetStageId(column.id);
+          }
+        }}
+        onDragLeave={(event) => {
+          if (
+            event.currentTarget.contains(event.relatedTarget as Node | null) ||
+            !isDroppableReviewStageId(column.id)
+          ) {
+            return;
+          }
+          handleDropTargetLeave(column.id);
+        }}
+        onDrop={(event) => {
+          event.preventDefault();
+          handleDrop(column);
+        }}
+        className={cx(
+          "min-h-[560px] shrink-0 border-y border-l border-neutral-1000-a10 transition-colors",
+          isCollapsed ? "w-14" : "w-[300px]",
+          index === totalColumns - 1 && "border-r",
+          isDropTarget
+            ? "bg-primary-faded/55 ring-2 ring-inset ring-primary/55"
+            : canDrop
+              ? "bg-primary-faded/20"
+            : column.id === "accepted"
+              ? "bg-positive-faded"
+              : column.id === "rejected"
+                ? "bg-critical-faded/40"
+              : "bg-bg-default"
+        )}
+      >
+        <div className="border-b border-neutral-1000-a10 bg-bg-floating px-3 py-2.5">
+          {isCollapsed ? (
+            <div className="flex flex-col items-center gap-2">
+              <BareButton
+                type="button"
+                onClick={() =>
+                  toggleReviewColumnCollapsed(role.roleId, column.id)
+                }
+                aria-label={`${column.label} 펼치기`}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-neutral-muted transition hover:bg-bg-weak hover:text-neutral-primary"
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </BareButton>
+              <div className="max-h-[180px] truncate text-[11px] font-semibold text-neutral-primary [writing-mode:vertical-rl]">
+                {column.label}
+              </div>
+              <span className="rounded-sm bg-bg-default px-1.5 py-0.5 text-[10px] text-neutral-muted">
+                {columnItems.length}
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-2">
+              <div className="truncate text-xs font-semibold text-neutral-primary">
+                {column.label}
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                <span className="rounded-sm bg-bg-default px-1.5 py-0.5 text-[10px] text-neutral-muted">
+                  {columnItems.length}
+                </span>
+                <BareButton
+                  type="button"
+                  onClick={() =>
+                    toggleReviewColumnCollapsed(role.roleId, column.id)
+                  }
+                  aria-label={`${column.label} 접기`}
+                  className="flex h-6 w-6 items-center justify-center rounded-md text-neutral-soft transition hover:bg-bg-weak hover:text-neutral-primary"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </BareButton>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {!isCollapsed ? (
+          <div className="space-y-2 p-2">
+            {isDropTarget ? <DropTargetHint label={column.label} /> : null}
+            {columnItems.map((item) => (
+              <ReviewCard
+                key={item.recommendationId}
+                draggingId={draggingId}
+                item={item}
+                onDragEnd={() => {
+                  setDraggingId(null);
+                  setDropTargetStageId(null);
+                }}
+                onDragStart={(dragItem) => {
+                  setDraggingId(dragItem.recommendationId);
+                  setDropTargetStageId(null);
+                }}
+                onSelect={setSelectedTalent}
+                pending={setReviewStage.isPending}
+                visibleFields={visibleReviewFields}
+              />
+            ))}
+            {columnItems.length === 0 ? (
+              <div className="border border-dashed border-neutral-1000-a10 bg-bg-floating px-3 py-8 text-center text-xs text-neutral-soft">
+                비어 있음
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <div className="h-full" />
+        )}
+      </section>
+    );
+  };
 
   if (reviewQuery.isLoading) {
     return (
@@ -382,7 +907,7 @@ export function MatchingHarperReviewBoard({
       <div className={opsTheme.errorNotice}>
         {reviewQuery.error instanceof Error
           ? reviewQuery.error.message
-          : "Harper Review 보드를 불러오지 못했습니다."}
+          : "보드를 불러오지 못했습니다."}
       </div>
     );
   }
@@ -393,7 +918,7 @@ export function MatchingHarperReviewBoard({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-neutral-primary">
-              Harper Review
+              Pipeline
             </div>
             <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-neutral-muted">
               <span>
@@ -435,117 +960,157 @@ export function MatchingHarperReviewBoard({
         </div>
       </div>
 
-      {items.length === 0 ? (
+      <div className="flex flex-wrap items-center gap-2">
+        {REVIEW_LIST_TOGGLE_CONTROLS.map((control) => (
+          <ReviewListToggleBox
+            key={control.id}
+            active={visibleArchiveStageIds.includes(control.id)}
+            canDrop={draggingItem ? draggingItem.stage !== control.id : false}
+            count={groupedItems.get(control.id)?.length ?? 0}
+            icon={control.icon}
+            isDropTarget={dropTargetStageId === control.id}
+            label={control.label}
+            onClick={() => handleArchiveStageToggle(control.id)}
+            onDrop={() => handleDropToStage(control.id)}
+            onTargetLeave={() => handleDropTargetLeave(control.id)}
+            onTargetOver={() => setDropTargetStageId(control.id)}
+            pending={setReviewStage.isPending}
+          />
+        ))}
+      </div>
+
+      {ambiguousActionError ? (
+        <div className={opsTheme.errorNotice}>{ambiguousActionError}</div>
+      ) : null}
+
+      {!hasAnyBoardRows ? (
         <div className="rounded-md border border-dashed border-neutral-1000-a10 bg-bg-floating px-4 py-16 text-center text-sm text-neutral-soft">
-          아직 이 role에 추천된 사람이 없습니다.
+          아직 이 role에 표시할 사람이 없습니다.
         </div>
       ) : (
         <div className="overflow-x-auto pb-2">
           <div className="flex min-w-max gap-0">
-            {REVIEW_COLUMNS.map((column, index) => {
-              const columnItems = groupedItems.get(column.id) ?? [];
-              const canDrop = Boolean(draggingId) && !column.locked;
-              const isCollapsed = collapsedColumnIds.includes(column.id);
-              return (
-                <section
-                  key={column.id}
-                  onDragOver={(event) => {
-                    if (!column.locked) {
-                      event.preventDefault();
-                      event.dataTransfer.dropEffect = "move";
-                    }
-                  }}
-                  onDrop={(event) => {
-                    event.preventDefault();
-                    handleDrop(column);
-                  }}
-                  className={cx(
-                    "min-h-[560px] shrink-0 border-y border-l border-neutral-1000-a10 bg-bg-default transition-colors",
-                    isCollapsed ? "w-14" : "w-[300px]",
-                    index === REVIEW_COLUMNS.length - 1 && "border-r",
-                    canDrop && "bg-primary-faded/30"
-                  )}
-                >
-                  <div className="border-b border-neutral-1000-a10 bg-bg-floating px-3 py-2.5">
-                    {isCollapsed ? (
-                      <div className="flex flex-col items-center gap-2">
-                        <BareButton
-                          type="button"
-                          onClick={() =>
-                            toggleReviewColumnCollapsed(role.roleId, column.id)
-                          }
-                          aria-label={`${column.label} 펼치기`}
-                          className="flex h-7 w-7 items-center justify-center rounded-md text-neutral-muted transition hover:bg-bg-weak hover:text-neutral-primary"
-                        >
-                          <ChevronRight className="h-3.5 w-3.5" />
-                        </BareButton>
-                        <div className="max-h-[180px] truncate text-[11px] font-semibold text-neutral-primary [writing-mode:vertical-rl]">
-                          {column.label}
-                        </div>
-                        <span className="rounded-sm bg-bg-default px-1.5 py-0.5 text-[10px] text-neutral-muted">
-                          {columnItems.length}
-                        </span>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="truncate text-xs font-semibold text-neutral-primary">
-                            {column.label}
-                          </div>
-                          <div className="flex shrink-0 items-center gap-1">
-                            <span className="rounded-sm bg-bg-default px-1.5 py-0.5 text-[10px] text-neutral-muted">
-                              {columnItems.length}
-                            </span>
-                            <BareButton
-                              type="button"
-                              onClick={() =>
-                                toggleReviewColumnCollapsed(
-                                  role.roleId,
-                                  column.id
-                                )
-                              }
-                              aria-label={`${column.label} 접기`}
-                              className="flex h-6 w-6 items-center justify-center rounded-md text-neutral-soft transition hover:bg-bg-weak hover:text-neutral-primary"
-                            >
-                              <ChevronLeft className="h-3.5 w-3.5" />
-                            </BareButton>
-                          </div>
-                        </div>
-                      </>
-                    )}
+            {visibleArchiveColumns.map((column, index) =>
+              renderReviewColumn(
+                column,
+                index,
+                visibleArchiveColumns.length + BASE_REVIEW_COLUMNS.length + 1
+              )
+            )}
+            <section className="min-h-[560px] w-[320px] shrink-0 border-y border-l border-neutral-1000-a10 bg-bg-default">
+              <div className="border-b border-neutral-1000-a10 bg-bg-floating px-3 py-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="truncate text-xs font-semibold text-neutral-primary">
+                    Harper가 애매하다고 판단
                   </div>
-
-                  {!isCollapsed ? (
-                    <div className="space-y-2 p-2">
-                      {columnItems.map((item) => (
-                        <ReviewCard
-                          key={item.recommendationId}
-                          draggingId={draggingId}
-                          item={item}
-                          onDragEnd={() => setDraggingId(null)}
-                          onDragStart={(dragItem) =>
-                            setDraggingId(dragItem.recommendationId)
-                          }
-                          onSelect={setSelectedTalent}
-                          pending={setReviewStage.isPending}
-                          visibleFields={visibleReviewFields}
-                        />
-                      ))}
-                      {columnItems.length === 0 ? (
-                        <div className="border border-dashed border-neutral-1000-a10 bg-bg-floating px-3 py-8 text-center text-xs text-neutral-soft">
-                          비어 있음
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <div className="h-full" />
-                  )}
-                </section>
-              );
-            })}
+                  <span className="rounded-sm bg-bg-default px-1.5 py-0.5 text-[10px] text-neutral-muted">
+                    {ambiguousTalentsQuery.data?.pages[0]?.totalCount ??
+                      ambiguousTalents.length}
+                  </span>
+                </div>
+              </div>
+              <div className="space-y-2 p-2">
+                {ambiguousTalentsQuery.isLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <LoaderCircle className="h-4 w-4 animate-spin text-neutral-soft" />
+                  </div>
+                ) : ambiguousTalentsQuery.error ? (
+                  <div className={opsTheme.errorNotice}>
+                    {ambiguousTalentsQuery.error instanceof Error
+                      ? ambiguousTalentsQuery.error.message
+                      : "애매 판단 목록을 불러오지 못했습니다."}
+                  </div>
+                ) : ambiguousTalents.length === 0 ? (
+                  <div className="border border-dashed border-neutral-1000-a10 bg-bg-floating px-3 py-8 text-center text-xs text-neutral-soft">
+                    비어 있음
+                  </div>
+                ) : (
+                  ambiguousTalents.map((talent) => (
+                    <AmbiguousReviewCard
+                      key={talent.userId}
+                      isQueued={
+                        queuedAmbiguousTalentIdSet.has(talent.userId) ||
+                        Boolean(
+                          talent.fit?.manualInternalRecommendationQueuedAt
+                        )
+                      }
+                      onDismiss={(item) => void handleAmbiguousDismiss(item)}
+                      onRecommend={setConfirmRecommendTalent}
+                      onSelect={setSelectedTalent}
+                      pending={pendingAmbiguousTalentId === talent.userId}
+                      roleId={role.roleId}
+                      talent={talent}
+                      visibleFields={visibleReviewFields}
+                    />
+                  ))
+                )}
+                {ambiguousTalentsQuery.hasNextPage ? (
+                  <BareButton
+                    type="button"
+                    onClick={() => void ambiguousTalentsQuery.fetchNextPage()}
+                    disabled={ambiguousTalentsQuery.isFetchingNextPage}
+                    className={cx(
+                      opsTheme.buttonSecondary,
+                      "h-9 w-full text-xs"
+                    )}
+                  >
+                    {ambiguousTalentsQuery.isFetchingNextPage
+                      ? "불러오는 중..."
+                      : "더 보기"}
+                  </BareButton>
+                ) : null}
+              </div>
+            </section>
+            {BASE_REVIEW_COLUMNS.map((column, index) =>
+              renderReviewColumn(
+                column,
+                visibleArchiveColumns.length + 1 + index,
+                visibleArchiveColumns.length + BASE_REVIEW_COLUMNS.length + 1
+              )
+            )}
           </div>
         </div>
       )}
+
+      <Dialog
+        open={Boolean(confirmRecommendTalent)}
+        onOpenChange={(open) => {
+          if (!open) setConfirmRecommendTalent(null);
+        }}
+      >
+        <DialogContent className="max-w-md rounded-lg" hideCloseButton>
+          <DialogHeader>
+            <DialogTitle>추천 발송하기</DialogTitle>
+            <DialogDescription>
+              이 후보에게 현재 role 추천을 발송하도록 큐에 넣을까요?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-md border border-neutral-1000-a05 bg-bg-weak px-3 py-2 text-sm text-neutral-primary">
+            {confirmRecommendTalent?.name ||
+              confirmRecommendTalent?.email ||
+              "이 후보"}{" "}
+            · {role.companyName} · {role.roleName}
+          </div>
+          <DialogFooter>
+            <BareButton
+              type="button"
+              onClick={() => setConfirmRecommendTalent(null)}
+              disabled={Boolean(pendingAmbiguousTalentId)}
+              className={cx(opsTheme.buttonSecondary, "h-10 px-4 text-sm")}
+            >
+              취소
+            </BareButton>
+            <BareButton
+              type="button"
+              onClick={() => void handleConfirmRecommend()}
+              disabled={Boolean(pendingAmbiguousTalentId)}
+              className={cx(opsTheme.buttonPrimary, "h-10 px-4 text-sm")}
+            >
+              {pendingAmbiguousTalentId ? "처리 중..." : "확인"}
+            </BareButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <MatchingTalentDrawer
         onClose={() => setSelectedTalent(null)}

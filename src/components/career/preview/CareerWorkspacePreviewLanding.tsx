@@ -56,7 +56,14 @@ const previewMinutesAfter = (minutes: number) =>
 
 type CareerWorkspaceHistoryTarget = {
   historyTab: "new" | "saved" | "archived";
-  savedStage?: "saved" | "applied" | "connected" | "closed";
+  savedStage?:
+    | "all"
+    | "saved"
+    | "planned"
+    | "applied"
+    | "connected"
+    | "closed"
+    | "hidden";
 };
 
 const mockUser = {

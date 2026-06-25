@@ -26,6 +26,7 @@ import {
   fetchTalentInsights,
   fetchTalentSetting,
   normalizeTalentInsightContent,
+  refreshTalentPreferredLocale,
   upsertTalentInsights,
   upsertTalentSetting,
 } from "./server";
@@ -1442,7 +1443,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE]: {
     name: TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
     description:
-      "Update saved profile state with new information about the user. It can update the user's profile summary, current primary location/base, and row memos during onboarding and after onboarding. It can update future recommendation/search memory only after onboarding is already complete, and only for matching memory, not facts that belong in profile rows. Call when the user's latest statement directly maps to writable profile or future-matching memory, including explicit durable hard-filter search commands such as '미국 회사로만 찾아줘', '앞으로 리모트만 보내줘', '대기업은 빼고 찾아줘', or '다음부터 Series B 이상만 봐줘'. If the user discusses resume/CV context that matters for future matching, such as what their resume says, omits, emphasizes, or should signal, record that as future matching memory when it is not a direct resume-file/profile-row update. Do not call this tool for recommendation delivery settings such as cadence, batch size, external recommendations, or internal recommendations; use update_setting for those. Do not call for user questions, one-off browsing/curiosity/search requests, hypotheticals/conditional speech ('만약 ~라면'), assistant statements, aspirational/off-profile role mentions without explicit future intent, or information already saved in current state. After the tool result, produce a normal user-facing chat reply in Korean; do not return an empty assistant message or only an onboarding marker.",
+      "Update saved profile state with new information about the user. It can update the user's profile summary, current primary location/base, and row memos during onboarding and after onboarding. It can update future recommendation/search memory only after onboarding is already complete, and only for matching memory, not facts that belong in profile rows. Call when the user's latest statement directly maps to writable profile or future-matching memory, including explicit durable hard-filter search commands such as '미국 회사로만 찾아줘', '앞으로 리모트만 보내줘', '대기업은 빼고 찾아줘', or '다음부터 Series B 이상만 봐줘'. If the user discusses resume/CV context that matters for future matching, such as what their resume says, omits, emphasizes, or should signal, record that as future matching memory when it is not a direct resume-file/profile-row update. Do not call this tool for recommendation delivery settings such as cadence, batch size, external recommendations, or internal recommendations; those are not profile state. Do not call for user questions, one-off browsing/curiosity/search requests, hypotheticals/conditional speech ('만약 ~라면'), assistant statements, aspirational/off-profile role mentions without explicit future intent, or information already saved in current state. After the tool result, produce a normal user-facing chat reply in Korean; do not return an empty assistant message or only an onboarding marker.",
     parameters: {
       type: "object",
       properties: {
@@ -1697,6 +1698,11 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
                 talentUserUpdateError.message ??
                   "Failed to update talent_users."
               );
+            }
+            if (
+              Object.prototype.hasOwnProperty.call(talentUserPatch, "location")
+            ) {
+              await refreshTalentPreferredLocale({ admin, userId });
             }
           }
         }

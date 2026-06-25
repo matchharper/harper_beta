@@ -1,4 +1,4 @@
-import { CircleHelp, Settings2 } from "lucide-react";
+import { CircleHelp, MessageSquare, Settings, Settings2 } from "lucide-react";
 import { useState } from "react";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
 import CareerProfileMenu from "./CareerProfileMenu";
@@ -79,7 +79,7 @@ const CareerWorkspaceNav = () => {
               )}
               className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-floating text-neutral-primary hover:border-neutral-1000-a10 hover:bg-bg-weak"
             >
-              <CircleHelp className="h-4 w-4" />
+              <MessageSquare className="h-4 w-4" />
             </BareButton>
             <BareButton
               type="button"
@@ -90,7 +90,7 @@ const CareerWorkspaceNav = () => {
               )}
               className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-floating text-neutral-primary hover:border-neutral-1000-a10 hover:bg-bg-weak"
             >
-              <Settings2 className="h-4 w-4" />
+              <Settings className="h-4 w-4" />
             </BareButton>
             <CareerProfileMenu
               variant="desktop"

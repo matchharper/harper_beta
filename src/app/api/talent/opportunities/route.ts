@@ -14,6 +14,7 @@ import {
   fetchTalentOpportunityHistoryCounts,
   fetchTalentOpportunityHistoryPage,
   type TalentOpportunityHistoryTab,
+  type TalentOpportunitySavedStageFilter,
   type TalentOpportunitySavedStage,
   updateTalentOpportunityHistoryItem,
   type TalentOpportunityFeedback,
@@ -63,9 +64,11 @@ const parseHistoryTabParam = (
 
 const parseSavedStageParam = (
   value: string | null
-): TalentOpportunitySavedStage | undefined => {
+): TalentOpportunitySavedStageFilter | undefined => {
   if (
+    value === "all" ||
     value === "saved" ||
+    value === "planned" ||
     value === "applied" ||
     value === "connected" ||
     value === "closed" ||
@@ -331,6 +334,7 @@ export async function PATCH(req: NextRequest) {
     if (
       action === "saved_stage" &&
       body.savedStage !== "saved" &&
+      body.savedStage !== "planned" &&
       body.savedStage !== "applied" &&
       body.savedStage !== "connected" &&
       body.savedStage !== "closed" &&
