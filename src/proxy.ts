@@ -41,7 +41,7 @@ export function proxy(req: NextRequest) {
   );
   const inferredLocale = inferRequestLocale(req);
 
-  if (existingLocale !== inferredLocale) {
+  if (!existingLocale) {
     response.cookies.set(LOCALE_COOKIE_NAME, inferredLocale, {
       maxAge: ONE_YEAR_SECONDS,
       path: "/",

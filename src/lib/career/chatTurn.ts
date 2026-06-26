@@ -636,9 +636,19 @@ export async function runCareerChatTurn(
       talentSetting?.get_external_recommendation ?? true,
     getInternalRecommendation:
       talentSetting?.get_internal_recommendation ?? true,
+    periodicIntervalDays: talentSetting
+      ? normalizeTalentPeriodicIntervalDays(
+          talentSetting.periodic_interval_days
+        )
+      : null,
     preferredLocale: responseLocale,
     profileVisibility: talentSetting?.profile_visibility ?? null,
-    recommendationBatchSize: talentSetting?.recommendation_batch_size ?? null,
+    recommendationBatchSize: talentSetting
+      ? normalizeTalentRecommendationBatchSize(
+          talentSetting.recommendation_batch_size
+        )
+      : null,
+    talentSettingStatus: talentSetting?.status ?? null,
   };
   const serializedActiveRun = serializeOpportunityRun(activeRun);
   const opportunityStatus = activeRun

@@ -1411,6 +1411,8 @@ export const ko = {
     "career.profile.duration.year_one_month_many": "{years}년 {months}개월",
     "career.profile.duration.year_one_month_one": "{years}년 {months}개월",
     "career.profile.duration.year_one_month_zero": "{years}년 0개월",
+    "career.profile.language_selector.label": "언어",
+    "career.profile.language_selector.save_failed": "언어 설정을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.",
     "career.profile.recruiter_profile.default": "채용 담당자가 보는 프로필",
     "career.profile.recruiter_profile.named": "채용 담당자가 보는 {name}의 프로필",
     "career.profile.resume_links.linkedin_refresh_label": "링크드인 정보 새로고침",

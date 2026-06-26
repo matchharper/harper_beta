@@ -1383,6 +1383,8 @@ export const en = {
     "career.profile.duration.year_one_month_many": "{years} year {months} months",
     "career.profile.duration.year_one_month_one": "{years} year {months} month",
     "career.profile.duration.year_one_month_zero": "{years} year",
+    "career.profile.language_selector.label": "Language",
+    "career.profile.language_selector.save_failed": "Failed to save your language setting. Please try again shortly.",
     "career.profile.recruiter_profile.default": "Profile as seen by recruiters",
     "career.profile.recruiter_profile.named": "How companies see your profile",
     "career.profile.resume_links.linkedin_refresh_label": "Refresh LinkedIn Info",

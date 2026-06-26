@@ -1,14 +1,22 @@
 export type CareerPromptLocale = "ko" | "en";
 
-export function normalizeCareerPromptLocale(
+export function parseCareerPromptLocale(
   value: unknown
-): CareerPromptLocale {
+): CareerPromptLocale | null {
   const normalized = String(value ?? "")
     .trim()
     .toLowerCase()
     .replace(/_/g, "-");
 
-  return normalized === "en" || normalized.startsWith("en-") ? "en" : "ko";
+  if (normalized === "en" || normalized.startsWith("en-")) return "en";
+  if (normalized === "ko" || normalized.startsWith("ko-")) return "ko";
+  return null;
+}
+
+export function normalizeCareerPromptLocale(
+  value: unknown
+): CareerPromptLocale {
+  return parseCareerPromptLocale(value) ?? "ko";
 }
 
 export function getCareerPromptLanguageName(value: unknown) {

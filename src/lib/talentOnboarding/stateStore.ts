@@ -24,6 +24,7 @@ import {
 } from "@/lib/talentOnboarding/models";
 import {
   normalizeCareerPromptLocale,
+  parseCareerPromptLocale,
   type CareerPromptLocale,
 } from "@/lib/career/promptLocale";
 import { stripPostgresUnsafeChars } from "@/lib/textSanitization";
@@ -55,7 +56,9 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 }
 
 function hasKoreaLocationSignal(value: string | null | undefined) {
-  const normalized = String(value ?? "").trim().toLocaleLowerCase("ko-KR");
+  const normalized = String(value ?? "")
+    .trim()
+    .toLocaleLowerCase("ko-KR");
   if (!normalized) return false;
   return KOREA_LOCATION_TERMS.some((term) => normalized.includes(term));
 }
@@ -65,13 +68,17 @@ export function resolveTalentPreferredLocale(args: {
   location?: string | null;
   settingLocale?: string | null;
 }): CareerPromptLocale {
+  const explicitLocale = parseCareerPromptLocale(args.settingLocale);
+  if (explicitLocale) return explicitLocale;
+
   if (
     hasKoreaLocationSignal(args.location) ||
     hasKoreaLocationSignal(args.currentLocation)
   ) {
     return "ko";
   }
-  return normalizeCareerPromptLocale(args.settingLocale);
+
+  return "en";
 }
 
 async function fetchTalentLocaleProfile(args: {

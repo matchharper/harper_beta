@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DateRange } from "react-day-picker";
 import {
   AlertTriangle,
+  BriefcaseBusiness,
   CalendarDays,
   ChevronDown,
   Copy,
@@ -35,6 +36,7 @@ import { Input as UiInput } from "@/components/ui/input";
 import { Select as UiSelect } from "@/components/ui/select";
 import { useOpsDebugCalls } from "@/hooks/ops/useOpsDebugCalls";
 import { useOpsDebugEmails } from "@/hooks/ops/useOpsDebugEmails";
+import { useOpsDebugOpportunityRuns } from "@/hooks/ops/useOpsDebugOpportunityRuns";
 import { isInternalEmail } from "@/lib/internalAccess";
 import type {
   OpsDebugCallItem,
@@ -45,11 +47,16 @@ import type {
   OpsDebugEmailItem,
   OpsDebugEmailScope,
 } from "@/lib/ops/debugEmailServer";
+import type {
+  OpsDebugOpportunityRunOutcome,
+  OpsDebugOpportunityRunItem,
+} from "@/lib/ops/debugOpportunityRunServer";
 import { useAuthStore } from "@/store/useAuthStore";
 
 const FETCH_LIMIT = 40;
+const OPPORTUNITY_RUN_FETCH_LIMIT = 20;
 
-export type DebugTabId = "emails" | "calls";
+export type DebugTabId = "emails" | "calls" | "opportunityRuns";
 
 const SCOPE_OPTIONS = [
   { id: "internal_opportunity", label: "Internal 제안만" },
@@ -107,6 +114,21 @@ const CALL_KIND_OPTIONS = [
     label: "internal_opportunity_request",
   },
 ] as const;
+
+const OPPORTUNITY_RUN_OUTCOME_OPTIONS = [
+  { id: "all", label: "전체 결과" },
+  { id: "sent", label: "발송됨" },
+  { id: "skipped", label: "스킵" },
+  { id: "partial", label: "Partial" },
+  { id: "failed", label: "실패" },
+  { id: "recommend_only", label: "추천만 저장" },
+  { id: "running", label: "진행중" },
+  { id: "queued", label: "대기" },
+  { id: "no_action", label: "액션 없음" },
+] as const satisfies readonly {
+  id: OpsDebugOpportunityRunOutcome;
+  label: string;
+}[];
 
 function parseDateOnlyToLocal(value: string) {
   const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -216,6 +238,52 @@ function callStatusClass(status: string) {
   if (status === "pending") return "bg-bg-weak text-neutral-soft";
   if (status === "abandoned") return "bg-critical-faded text-critical";
   return "bg-bg-weak text-neutral-soft";
+}
+
+function debugTabTitle(tab: DebugTabId) {
+  if (tab === "emails") return "메일 로그";
+  if (tab === "calls") return "콜 로그";
+  return "Opportunity Runs";
+}
+
+function debugTabDescription(tab: DebugTabId) {
+  if (tab === "emails") {
+    return "career 유저에게 저장된 메일 본문과 internal role 제안 메일을 확인합니다.";
+  }
+  if (tab === "calls") {
+    return "talent_calls별로 저장된 통화 transcript와 wrap-up 메시지를 확인합니다.";
+  }
+  return "최근 opportunity_discovery_run의 추천 저장, 발송, action, partial 사유를 확인합니다.";
+}
+
+function opportunityRunOutcomeClass(outcome: string) {
+  if (outcome === "sent") return "bg-positive-faded text-positive";
+  if (outcome === "skipped") return "bg-bg-weak text-neutral-muted";
+  if (outcome === "recommend_only") return "bg-info-faded text-info";
+  if (outcome === "failed") return "bg-critical-faded text-critical";
+  if (outcome === "running") return "bg-info-faded text-info";
+  if (outcome === "queued") return "bg-bg-weak text-neutral-soft";
+  if (outcome === "partial") return "bg-info-faded text-info";
+  return "bg-bg-weak text-neutral-soft";
+}
+
+function opportunityRunReviewClass(review: string) {
+  if (review === "ok") return "bg-positive-faded text-positive";
+  if (review === "retry") return "bg-critical-faded text-critical";
+  if (review === "review") return "bg-info-faded text-info";
+  if (review === "waiting") return "bg-info-faded text-info";
+  return "bg-bg-weak text-neutral-muted";
+}
+
+function opportunityRunDeliveryClass(status: string) {
+  if (status === "sent") return "bg-positive-faded text-positive";
+  if (status === "failed") return "bg-critical-faded text-critical";
+  if (status === "skipped") return "bg-bg-weak text-neutral-muted";
+  return "bg-bg-weak text-neutral-soft";
+}
+
+function getOpportunityRunDisplayName(item: OpsDebugOpportunityRunItem) {
+  return item.talent.name || item.talent.email || "이름 없음";
 }
 
 function buildCallTranscriptText(item: OpsDebugCallItem) {
@@ -894,6 +962,255 @@ function CallDetail({
   );
 }
 
+function OpportunityRunsTable({
+  error,
+  hasNextPage,
+  isFetching,
+  isFetchingNextPage,
+  isLoading,
+  onFetchNextPage,
+  onRefresh,
+  runs,
+}: {
+  error: unknown;
+  hasNextPage: boolean;
+  isFetching: boolean;
+  isFetchingNextPage: boolean;
+  isLoading: boolean;
+  onFetchNextPage: () => void;
+  onRefresh: () => void;
+  runs: OpsDebugOpportunityRunItem[];
+}) {
+  const renderChannelBadges = (item: OpsDebugOpportunityRunItem) => {
+    const statuses = item.deliveries.map((delivery) => ({
+      channel: delivery.channel,
+      id: delivery.id,
+      status: delivery.status,
+    }));
+
+    if (statuses.length === 0) {
+      return <span className="text-xs text-neutral-soft">발송 없음</span>;
+    }
+
+    return (
+      <div className="flex flex-wrap gap-1">
+        {statuses.map((delivery) => (
+          <span
+            key={delivery.id || `${delivery.channel}-${delivery.status}`}
+            className={cx(
+              "inline-flex rounded px-2 py-0.5 text-[11px] font-medium",
+              opportunityRunDeliveryClass(delivery.status)
+            )}
+          >
+            {delivery.channel} {delivery.status}
+          </span>
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <div className={cx(opsTheme.panel, "overflow-hidden")}>
+      <div className="flex items-center justify-between gap-3 border-b border-neutral-1000-a05 px-4 py-3">
+        <div>
+          <div className={opsTheme.eyebrow}>Runs</div>
+          <div className="mt-1 text-sm text-neutral-muted">
+            {runs.length}개 로드됨
+          </div>
+        </div>
+        <BareButton
+          type="button"
+          onClick={onRefresh}
+          disabled={isFetching}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-muted transition hover:bg-bg-weak hover:text-neutral-primary disabled:opacity-50"
+          aria-label="새로고침"
+        >
+          <RefreshCw
+            className={cx("h-4 w-4", isFetching ? "animate-spin" : "")}
+          />
+        </BareButton>
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-24">
+          <LoaderCircle className="h-5 w-5 animate-spin text-neutral-soft" />
+        </div>
+      ) : error ? (
+        <div className="p-4">
+          <div className={opsTheme.errorNotice}>
+            {error instanceof Error
+              ? error.message
+              : "opportunity run을 불러오지 못했습니다."}
+          </div>
+        </div>
+      ) : runs.length === 0 ? (
+        <div className="px-4 py-20 text-center">
+          <BriefcaseBusiness className="mx-auto h-6 w-6 text-neutral-soft" />
+          <div className="mt-3 text-sm font-medium text-neutral-primary">
+            조건에 맞는 run이 없습니다.
+          </div>
+          <div className="mt-1 text-sm text-neutral-muted">
+            날짜, 결과, 검색어를 바꿔보세요.
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="overflow-x-auto">
+            <table className="min-w-[1240px] table-fixed border-collapse text-left text-sm">
+              <thead className="bg-bg-weak/70 text-[11px] uppercase tracking-[0.06em] text-neutral-soft">
+                <tr>
+                  <th className="w-[118px] px-4 py-3 font-medium">시간</th>
+                  <th className="w-[210px] px-4 py-3 font-medium">유저</th>
+                  <th className="w-[150px] px-4 py-3 font-medium">결과</th>
+                  <th className="w-[330px] px-4 py-3 font-medium">
+                    왜 / 맥락
+                  </th>
+                  <th className="w-[220px] px-4 py-3 font-medium">추천</th>
+                  <th className="w-[250px] px-4 py-3 font-medium">발송</th>
+                  <th className="w-[122px] px-4 py-3 font-medium">확인</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-1000-a05">
+                {runs.map((item) => (
+                  <tr key={item.id} className="align-top hover:bg-bg-weak/40">
+                    <td className="px-4 py-4">
+                      <div className="font-mono text-xs text-neutral-primary">
+                        {formatKstRelativeDateTime(item.createdAt)}
+                      </div>
+                      <div className="mt-1 text-[11px] leading-4 text-neutral-soft">
+                        {formatAbsoluteKst(item.createdAt)}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <Link
+                        href={{
+                          pathname: "/ops/career",
+                          query: { userId: item.talent.userId },
+                        }}
+                        className="font-medium text-neutral-primary transition hover:text-black"
+                      >
+                        {getOpportunityRunDisplayName(item)}
+                      </Link>
+                      <div className="mt-1 break-all text-xs text-neutral-muted">
+                        {item.talent.email ?? "-"}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span
+                        className={cx(
+                          "inline-flex rounded px-2 py-0.5 text-[11px] font-medium",
+                          opportunityRunOutcomeClass(item.outcome.id)
+                        )}
+                      >
+                        {item.outcome.label}
+                      </span>
+                      {item.status === "partial" &&
+                      item.outcome.id !== "partial" ? (
+                        <div className="mt-2 text-[11px] text-neutral-soft">
+                          status: partial
+                        </div>
+                      ) : null}
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {item.actionLabels.slice(0, 3).map((label) => (
+                          <span
+                            key={label}
+                            className="rounded bg-bg-weak px-1.5 py-0.5 text-[10px] font-medium text-neutral-muted"
+                          >
+                            {label}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="line-clamp-2 text-xs font-medium leading-5 text-neutral-primary">
+                        {item.primaryReason}
+                      </div>
+                      {item.deliveryMetaSummary ? (
+                        <div className="mt-2 line-clamp-3 text-[11px] leading-5 text-neutral-muted">
+                          {item.deliveryMetaSummary}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="text-xs font-semibold tabular-nums text-neutral-primary">
+                        {item.recommendationCount}개
+                      </div>
+                      {item.recommendations.length > 0 ? (
+                        <div className="mt-2 space-y-1">
+                          {item.recommendations.slice(0, 3).map((rec) => (
+                            <div
+                              key={rec.id}
+                              className="truncate rounded bg-bg-weak px-2 py-1 text-[11px] text-neutral-muted"
+                            >
+                              {[rec.roleName, rec.companyName]
+                                .filter(Boolean)
+                                .join(" @ ") || rec.roleId}
+                            </div>
+                          ))}
+                          {item.recommendations.length > 3 ? (
+                            <div className="text-[11px] text-neutral-soft">
+                              +{item.recommendations.length - 3}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <div className="mt-1 text-xs text-neutral-soft">
+                          추천 없음
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-4">
+                      {renderChannelBadges(item)}
+                      {item.emailSubject ? (
+                        <div className="mt-2 line-clamp-2 text-[11px] leading-4 text-neutral-soft">
+                          {item.emailSubject}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-4">
+                      <span
+                        className={cx(
+                          "inline-flex rounded px-2 py-0.5 text-[11px] font-medium",
+                          opportunityRunReviewClass(item.reviewAction.id)
+                        )}
+                      >
+                        {item.reviewAction.label}
+                      </span>
+                      {item.reviewAction.reason ? (
+                        <div className="mt-2 line-clamp-3 text-[11px] leading-5 text-neutral-soft">
+                          {item.reviewAction.reason}
+                        </div>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {hasNextPage ? (
+            <div className="flex justify-center border-t border-neutral-1000-a05 px-4 py-3">
+              <BareButton
+                type="button"
+                onClick={onFetchNextPage}
+                disabled={isFetchingNextPage}
+                className={cx(opsTheme.buttonSecondary, "h-10 px-4 text-xs")}
+              >
+                {isFetchingNextPage ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                ) : (
+                  <BriefcaseBusiness className="h-4 w-4" />
+                )}
+                20개 더 보기
+              </BareButton>
+            </div>
+          ) : null}
+        </>
+      )}
+    </div>
+  );
+}
+
 export function OpsDebuggingPageView({ mode }: { mode: DebugTabId }) {
   const authLoading = useAuthStore((state) => state.loading);
   const user = useAuthStore((state) => state.user);
@@ -917,6 +1234,12 @@ export function OpsDebuggingPageView({ mode }: { mode: DebugTabId }) {
   const [callSearchDraft, setCallSearchDraft] = useState("");
   const [callSearchQuery, setCallSearchQuery] = useState("");
   const [selectedCallId, setSelectedCallId] = useState<string | null>(null);
+  const [runOutcome, setRunOutcome] =
+    useState<OpsDebugOpportunityRunOutcome>("all");
+  const [runCreatedFrom, setRunCreatedFrom] = useState("");
+  const [runCreatedTo, setRunCreatedTo] = useState("");
+  const [runSearchDraft, setRunSearchDraft] = useState("");
+  const [runSearchQuery, setRunSearchQuery] = useState("");
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -931,6 +1254,13 @@ export function OpsDebuggingPageView({ mode }: { mode: DebugTabId }) {
     }, 250);
     return () => window.clearTimeout(timer);
   }, [callSearchDraft]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setRunSearchQuery(runSearchDraft.trim());
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [runSearchDraft]);
 
   const query = useOpsDebugEmails(
     FETCH_LIMIT,
@@ -956,6 +1286,16 @@ export function OpsDebuggingPageView({ mode }: { mode: DebugTabId }) {
       status: callStatus,
     }
   );
+  const opportunityRunQuery = useOpsDebugOpportunityRuns(
+    OPPORTUNITY_RUN_FETCH_LIMIT,
+    canFetchInternal && activeDebugTab === "opportunityRuns",
+    {
+      createdFrom: runCreatedFrom,
+      createdTo: runCreatedTo,
+      outcome: runOutcome,
+      query: runSearchQuery,
+    }
+  );
 
   const emails = useMemo(
     () => query.data?.pages.flatMap((page) => page.emails) ?? [],
@@ -976,6 +1316,13 @@ export function OpsDebuggingPageView({ mode }: { mode: DebugTabId }) {
     () => calls.find((item) => item.id === selectedCallId) ?? calls[0] ?? null,
     [calls, selectedCallId]
   );
+  const opportunityRuns = useMemo(
+    () =>
+      opportunityRunQuery.data?.pages.flatMap((page) => page.runs) ?? [],
+    [opportunityRunQuery.data]
+  );
+  const opportunityRunStats =
+    opportunityRunQuery.data?.pages[0]?.stats ?? null;
 
   const handleScopeChange = useCallback((nextScope: OpsDebugEmailScope) => {
     setScope(nextScope);
@@ -1005,6 +1352,14 @@ export function OpsDebuggingPageView({ mode }: { mode: DebugTabId }) {
     setCallSearchQuery("");
   }, []);
 
+  const resetRunFilters = useCallback(() => {
+    setRunOutcome("all");
+    setRunCreatedFrom("");
+    setRunCreatedTo("");
+    setRunSearchDraft("");
+    setRunSearchQuery("");
+  }, []);
+
   const copyToClipboard = useCallback(
     async (value: string | null | undefined, label: string) => {
       const text = value?.trim();
@@ -1023,9 +1378,7 @@ export function OpsDebuggingPageView({ mode }: { mode: DebugTabId }) {
   return (
     <>
       <Head>
-        <title>
-          {activeDebugTab === "emails" ? "메일 로그" : "콜 로그"} · Harper Ops
-        </title>
+        <title>{`${debugTabTitle(activeDebugTab)} · Harper Ops`}</title>
         <meta name="description" content="Harper internal debugging tools" />
       </Head>
 
@@ -1036,12 +1389,10 @@ export function OpsDebuggingPageView({ mode }: { mode: DebugTabId }) {
               <div>
                 <div className={opsTheme.eyebrow}>Debugging</div>
                 <h1 className="mt-1 text-xl font-semibold text-neutral-primary">
-                  {activeDebugTab === "emails" ? "메일 로그" : "콜 로그"}
+                  {debugTabTitle(activeDebugTab)}
                 </h1>
                 <p className="mt-1 text-sm leading-6 text-neutral-muted">
-                  {activeDebugTab === "emails"
-                    ? "career 유저에게 저장된 메일 본문과 internal role 제안 메일을 확인합니다."
-                    : "talent_calls별로 저장된 통화 transcript와 wrap-up 메시지를 확인합니다."}
+                  {debugTabDescription(activeDebugTab)}
                 </p>
               </div>
             </div>
@@ -1186,7 +1537,7 @@ export function OpsDebuggingPageView({ mode }: { mode: DebugTabId }) {
                   </BareButton>
                 </div>
               </div>
-            ) : (
+            ) : activeDebugTab === "calls" ? (
               <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto_auto_auto] lg:items-end">
                 <div>
                   <label
@@ -1273,6 +1624,81 @@ export function OpsDebuggingPageView({ mode }: { mode: DebugTabId }) {
                   <BareButton
                     type="button"
                     onClick={resetCallFilters}
+                    className={cx(
+                      opsTheme.buttonSecondary,
+                      "h-10 px-3 text-xs"
+                    )}
+                  >
+                    초기화
+                  </BareButton>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto_auto_auto] lg:items-end">
+                <div>
+                  <label
+                    htmlFor="ops-debug-opportunity-run-search"
+                    className={opsTheme.label}
+                  >
+                    검색
+                  </label>
+                  <div className="relative mt-2">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-soft" />
+                    <UiInput
+                      unstyled
+                      id="ops-debug-opportunity-run-search"
+                      value={runSearchDraft}
+                      onChange={(event) =>
+                        setRunSearchDraft(event.target.value)
+                      }
+                      placeholder="이름, 이메일, 결과, 추천, 발송 맥락 검색"
+                      className={cx(opsTheme.input, "h-10 pl-9")}
+                    />
+                  </div>
+                </div>
+
+                <DebugDateRangeFilter
+                  emptyLabel="생성일 전체"
+                  from={runCreatedFrom}
+                  label="생성일"
+                  onChange={(from, to) => {
+                    setRunCreatedFrom(from);
+                    setRunCreatedTo(to);
+                  }}
+                  prefix="생성"
+                  to={runCreatedTo}
+                />
+
+                <div>
+                  <label
+                    htmlFor="ops-debug-opportunity-run-outcome"
+                    className={opsTheme.label}
+                  >
+                    결과
+                  </label>
+                  <UiSelect
+                    unstyled
+                    id="ops-debug-opportunity-run-outcome"
+                    value={runOutcome}
+                    onChange={(event) =>
+                      setRunOutcome(
+                        event.target.value as OpsDebugOpportunityRunOutcome
+                      )
+                    }
+                    className={cx(opsTheme.input, "mt-2 h-10 min-w-[132px]")}
+                  >
+                    {OPPORTUNITY_RUN_OUTCOME_OPTIONS.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </UiSelect>
+                </div>
+
+                <div className="flex items-end">
+                  <BareButton
+                    type="button"
+                    onClick={resetRunFilters}
                     className={cx(
                       opsTheme.buttonSecondary,
                       "h-10 px-3 text-xs"
@@ -1401,7 +1827,7 @@ export function OpsDebuggingPageView({ mode }: { mode: DebugTabId }) {
                 </div>
               </div>
             </>
-          ) : (
+          ) : activeDebugTab === "calls" ? (
             <>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
                 <StatTile
@@ -1525,6 +1951,57 @@ export function OpsDebuggingPageView({ mode }: { mode: DebugTabId }) {
                   <CallDetail item={selectedCall} onCopy={copyToClipboard} />
                 </div>
               </div>
+            </>
+          ) : (
+            <>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                <StatTile
+                  label="Sent"
+                  value={opportunityRunStats?.sentCount ?? "-"}
+                />
+                <StatTile
+                  label="Skipped"
+                  value={opportunityRunStats?.skippedCount ?? "-"}
+                />
+                <StatTile
+                  label="Partial"
+                  value={opportunityRunStats?.partialCount ?? "-"}
+                />
+                <StatTile
+                  label="Failed"
+                  value={opportunityRunStats?.failedCount ?? "-"}
+                />
+                <StatTile
+                  label="Needs Review"
+                  value={opportunityRunStats?.reviewNeededCount ?? "-"}
+                />
+              </div>
+
+              {opportunityRunStats?.sourceLimitReached ? (
+                <div
+                  className={cx(
+                    opsTheme.errorNotice,
+                    "flex items-center gap-2"
+                  )}
+                >
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  일부 결과가 디버그 조회 한도를 넘어섰을 수 있습니다. 날짜나
+                  검색어로 범위를 좁혀 확인하세요.
+                </div>
+              ) : null}
+
+              <OpportunityRunsTable
+                error={opportunityRunQuery.error}
+                hasNextPage={Boolean(opportunityRunQuery.hasNextPage)}
+                isFetching={opportunityRunQuery.isFetching}
+                isFetchingNextPage={opportunityRunQuery.isFetchingNextPage}
+                isLoading={opportunityRunQuery.isLoading}
+                onFetchNextPage={() =>
+                  void opportunityRunQuery.fetchNextPage()
+                }
+                onRefresh={() => void opportunityRunQuery.refetch()}
+                runs={opportunityRuns}
+              />
             </>
           )}
         </section>

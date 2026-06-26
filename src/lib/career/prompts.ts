@@ -35,9 +35,11 @@ export type CareerPromptProfile = {
 export type CareerPromptPreferences = {
   getExternalRecommendation?: boolean | null;
   getInternalRecommendation?: boolean | null;
+  periodicIntervalDays?: number | null;
   preferredLocale?: string | null;
   profileVisibility?: string | null;
   recommendationBatchSize?: number | null;
+  talentSettingStatus?: string | null;
 };
 
 export type CareerPromptOpportunityStatus = {
@@ -198,7 +200,7 @@ export type CareerPromptPlan = {
 export const CAREER_CALL_END_MARKER = "##END##";
 export const CAREER_SESSION_START_NO_MESSAGE_MARKER = "__NO_SESSION_GREETING__";
 export const CAREER_SESSION_START_CALL_ACTION_MARKER = "[[CALL]]";
-const CAREER_HARPER_LINK_OUTPUT_RULE =
+export const CAREER_HARPER_LINK_OUTPUT_RULE =
   "- Do not output Markdown links, HTML `<a>` tags, or raw clickable URLs for Harper-owned domains (`matchharper.com`, `www.matchharper.com`, or any subdomain). If you need to point to an internal Harper page, describe the location in plain text instead, such as `Career > Profile`.";
 
 const CAREER_FIRST_VISIT_TEXT_KO = `
@@ -751,18 +753,39 @@ function normalizePromptChecklistCoverage(
   return normalized;
 }
 
-function buildKnownInsightsSection(args: {
+function buildKnownFutureMatchingInsightsSection(args: {
+  content: Record<string, string> | null;
+  quoteKeys?: boolean;
+}) {
+  const { content, quoteKeys = false } = args;
+  const insightLines = Object.entries(content ?? {})
+    .map(([key, value]) => [key, value.trim()] as const)
+    .filter(([, value]) => value.length > 0)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(
+      ([key, value]) =>
+        `- ${renderInsightKey(key, quoteKeys)}\n  - current value: ${value}`
+    );
+
+  if (insightLines.length === 0) return "";
+
+  return [
+    "## Known future-matching insights/preferences",
+    "Saved durable matching memory from talent_insights.content. Use this to understand the user's current preferences, avoid duplicate writes, and merge only genuinely new future-matching updates.",
+    insightLines.join("\n"),
+  ].join("\n");
+}
+
+function buildOnboardingKnownInsightsSection(args: {
   checklistContext?: OnboardingChecklistLocationContext;
   checklistCoverage?: OnboardingChecklistCoverage | null;
   content: Record<string, string> | null;
-  includeAdditionalQuestions: boolean;
   quoteKeys?: boolean;
 }) {
   const {
     checklistContext,
     checklistCoverage,
     content,
-    includeAdditionalQuestions,
     quoteKeys = false,
   } = args;
   const currentContent = content ?? {};
@@ -806,6 +829,7 @@ function buildKnownInsightsSection(args: {
           `  - current insight value: ${value || "(아직 없음)"}`,
       ].join("\n");
     });
+
   const extraLines = Object.entries(currentContent)
     .filter(
       ([key, value]) => !checklistKeys.has(key) && value.trim().length > 0
@@ -816,7 +840,7 @@ function buildKnownInsightsSection(args: {
         `- ${renderInsightKey(key, quoteKeys)}\n  - 현재 값: ${value.trim()}`
     );
 
-  const dynamicPomrpt = [
+  const onboardingGuide = [
     "## Onboarding question coverage runtime state",
     `- Covered checklist items: ${coveredChecklistItems.length}/${onboardingChecklist.length}`,
     `- Minimum covered checklist items before closing: ${ONBOARDING_QUESTION_MIN_COVERED_COUNT}`,
@@ -850,6 +874,10 @@ function buildKnownInsightsSection(args: {
     "## Current insight values",
     `- Filled insights: ${filledInsightCount}`,
     `- Filled canonical checklist insights: ${canonicalFilledInsightCount}/${insightChecklist.length}`,
+  ].join("\n");
+
+  const dynamicPrompt = [
+    onboardingGuide,
     "## Onboarding Question Checklist",
     checklistLines.join("\n"),
     extraLines.length > 0
@@ -859,11 +887,8 @@ function buildKnownInsightsSection(args: {
     .filter((line) => line.trim().length > 0)
     .join("\n");
 
-  console.info("\n\n", dynamicPomrpt, "\n\n");
-
   return [
-    includeAdditionalQuestions
-      ? `
+    `
 	## Additional questions
 - Additional question은 일반 선호 질문이 아니라, 프로필 gap / 직무 관련 depth / 이력 전환 맥락을 확인하는 질문이다.
 - 종료 전 필수 조건: runtime checklist에 표시된 additional_question 항목을 모두 covered로 만든다. 현재 variant에서는 최소 ${additionalQuestionMin}개, 최대 ${additionalQuestionMax}개다.
@@ -885,9 +910,8 @@ function buildKnownInsightsSection(args: {
 - 최근 경험에서 본인이 직접 만든 변화나 결과를 하나만 꼽으면 뭐가 있을까요?
 
 ---
-	`
-      : "",
-    dynamicPomrpt,
+	`,
+    dynamicPrompt,
   ]
     .filter((line) => line.trim().length > 0)
     .join("\n");
@@ -989,6 +1013,10 @@ function buildKnownPreferencesSection(
   ) {
     lines.push(`- recommendationBatchSize: ${prefs.recommendationBatchSize}`);
   }
+  const cadenceGuidance = buildRecommendationCadenceGuidance(prefs);
+  if (cadenceGuidance) {
+    lines.push(`- recommendationCadenceGuidance: ${cadenceGuidance}`);
+  }
   if (
     prefs.getExternalRecommendation === false &&
     prefs.getInternalRecommendation === false
@@ -1015,6 +1043,32 @@ function buildKnownPreferencesSection(
   if (lines.length === 0) return "";
 
   return ["## 현재 recommendation/profile settings", ...lines].join("\n");
+}
+
+function buildRecommendationCadenceGuidance(
+  prefs: CareerPromptPreferences
+): string | null {
+  const status = String(prefs.talentSettingStatus ?? "")
+    .trim()
+    .toLowerCase();
+  const periodicIntervalDays =
+    typeof prefs.periodicIntervalDays === "number" &&
+    Number.isFinite(prefs.periodicIntervalDays)
+      ? Math.max(1, Math.min(7, Math.floor(prefs.periodicIntervalDays)))
+      : 3;
+  const recommendationBatchSize =
+    typeof prefs.recommendationBatchSize === "number" &&
+    Number.isFinite(prefs.recommendationBatchSize)
+      ? Math.max(3, Math.min(10, Math.floor(prefs.recommendationBatchSize)))
+      : 3;
+
+  if (status === "active") {
+    return `현재 유저는 active 상태로, ${periodicIntervalDays}일마다 한번 오픈포지션을 ${recommendationBatchSize}개 보내드리려고 합니다.`;
+  }
+  if (status === "passive") {
+    return `현재 유저는 passive 상태로, ${periodicIntervalDays * 2}일마다 한번 오픈포지션을 ${recommendationBatchSize}개 보내드리려고 합니다.`;
+  }
+  return null;
 }
 
 function buildOpportunityStatusSection(
@@ -1259,13 +1313,19 @@ function buildCareerConversationPromptPlan(args: {
   const isOnboardingActive = !Boolean(args.isOnboardingDone);
   const isConversationStarterMode =
     args.proactiveTurnInstructionMode === "conversation_starter";
-  const insightGuidanceSection = buildKnownInsightsSection({
-    checklistContext: args.profile,
-    checklistCoverage: args.onboardingChecklistCoverage,
-    content: args.currentInsightContent,
-    includeAdditionalQuestions: isOnboardingActive,
-    quoteKeys: args.channel === "chat",
-  });
+  const insightGuidanceSection = isOnboardingActive
+    ? buildOnboardingKnownInsightsSection({
+        checklistContext: args.profile,
+        checklistCoverage: args.onboardingChecklistCoverage,
+        content: args.currentInsightContent,
+        quoteKeys: args.channel === "chat",
+      })
+    : buildKnownFutureMatchingInsightsSection({
+        content: args.currentInsightContent,
+        quoteKeys: args.channel === "chat",
+      });
+
+  logger.log("\n\n ", insightGuidanceSection, "\n\n");
 
   const existingPreferencesSection = buildKnownPreferencesSection(
     args.currentPreferences

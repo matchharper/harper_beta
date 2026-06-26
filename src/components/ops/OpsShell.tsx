@@ -125,6 +125,12 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
         label: "콜 로그",
         matchPrefix: "/ops/debugging/calls",
       },
+      {
+        description: "opportunity discovery run 실행 결과 확인",
+        href: "/ops/debugging/opportunity-runs",
+        label: "Opp Runs",
+        matchPrefix: "/ops/debugging/opportunity-runs",
+      },
     ],
   },
 ];

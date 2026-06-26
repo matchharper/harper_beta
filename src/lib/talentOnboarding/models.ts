@@ -119,6 +119,7 @@ export type TalentSettingRow = {
   setting_locale: string | null;
   recommendation_batch_size: number;
   recommendation_source_conversation_id: string | null;
+  status: "active" | "passive" | "stopped";
   created_at: string;
   updated_at: string;
 };
@@ -136,4 +137,4 @@ export type TalentInsightRow = {
 export const TALENT_RESUME_BUCKET = "talent-resumes";
 export const TALENT_PENDING_QUESTION_PREFIX = "__PENDING_Q__::";
 export const TALENT_SETTING_SELECT_QUERY =
-  "user_id, profile_visibility, blocked_companies, engagement_types, get_external_recommendation, get_internal_recommendation, is_onboarding_done, periodic_interval_days, preferred_locale, setting_locale, recommendation_batch_size, recommendation_source_conversation_id, created_at, updated_at";
+  "user_id, profile_visibility, blocked_companies, engagement_types, get_external_recommendation, get_internal_recommendation, is_onboarding_done, periodic_interval_days, preferred_locale, setting_locale, recommendation_batch_size, recommendation_source_conversation_id, status, created_at, updated_at";

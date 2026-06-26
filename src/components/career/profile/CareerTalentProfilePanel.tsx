@@ -7,6 +7,7 @@ import {
   Eye,
   FileText,
   ImagePlus,
+  Languages,
   Loader2,
   MapPin,
   MessageSquare,
@@ -63,6 +64,13 @@ type EditableTalentProfile = {
 };
 
 type CareerT = ReturnType<typeof useCareerT>;
+const PROFILE_LOCALE_OPTIONS: readonly {
+  label: string;
+  value: Locale;
+}[] = [
+  { label: "English", value: "en" },
+  { label: "한국어", value: "ko" },
+];
 
 const getProfileRerankingInsights = (t: CareerT) =>
   [
@@ -837,6 +845,55 @@ const ProfileHeader = ({
   user: CareerTalentUser | null | undefined;
 }) => {
   const t = useCareerT();
+  const { setLocale } = useMessages();
+  const { fetchWithAuth } = useCareerApi();
+  const logCareerEvent = useCareerLogEvent();
+  const [languagePending, setLanguagePending] = useState<Locale | null>(null);
+  const [languageError, setLanguageError] = useState("");
+
+  const handleLocaleSelect = async (nextLocale: Locale) => {
+    if (languagePending || nextLocale === locale) return;
+
+    const previousLocale = locale;
+    setLanguagePending(nextLocale);
+    setLanguageError("");
+    setLocale(nextLocale);
+    logCareerEvent(`click_profile_language_${nextLocale}`);
+
+    try {
+      const response = await fetchWithAuth("/api/talent/settings", {
+        method: "POST",
+        body: JSON.stringify({ preferredLocale: nextLocale }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(
+          payload.error ||
+            t(
+              "career.profile.language_selector.save_failed",
+              "언어 설정을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요."
+            )
+        );
+      }
+    } catch (error) {
+      setLocale(previousLocale);
+      setLanguageError(
+        error instanceof Error
+          ? error.message
+          : t(
+              "career.profile.language_selector.save_failed",
+              "언어 설정을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요."
+            )
+      );
+    } finally {
+      setLanguagePending((current) =>
+        current === nextLocale ? null : current
+      );
+    }
+  };
 
   return (
     <section
@@ -926,6 +983,47 @@ const ProfileHeader = ({
             ) : null}
           </div>
         )}
+
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-neutral-soft">
+            <Languages className="h-3.5 w-3.5" />
+            {t("career.profile.language_selector.label", "언어")}
+          </span>
+          <div className="inline-flex rounded-lg border border-neutral-1000-a05 bg-bg-floating p-0.5 shadow-sm">
+            {PROFILE_LOCALE_OPTIONS.map((option) => {
+              const selected = locale === option.value;
+              const pending = languagePending === option.value;
+
+              return (
+                <BareButton
+                  key={option.value}
+                  type="button"
+                  onClick={() => void handleLocaleSelect(option.value)}
+                  disabled={Boolean(languagePending)}
+                  aria-label={option.label}
+                  className={cn(
+                    "inline-flex h-7 min-w-[72px] items-center justify-center gap-1.5 rounded-md px-2 text-[11.5px] font-semibold transition",
+                    selected
+                      ? "bg-neutral-1000 text-neutral-00"
+                      : "text-neutral-muted hover:bg-bg-weak hover:text-neutral-primary",
+                    pending && "opacity-70"
+                  )}
+                >
+                  {pending ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : null}
+                  <span>{option.label}</span>
+                </BareButton>
+              );
+            })}
+          </div>
+        </div>
+
+        {languageError ? (
+          <div className="mt-1 text-[11.5px] leading-5 text-critical">
+            {languageError}
+          </div>
+        ) : null}
 
         {profileUpdatedText ? (
           <div

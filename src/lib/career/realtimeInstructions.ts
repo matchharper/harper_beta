@@ -25,6 +25,10 @@ import {
   fetchInternalOpportunityCallRequestById,
   isOpenInternalOpportunityCallRequestStatus,
 } from "@/lib/talentOnboarding/internalOpportunityCallRequest";
+import {
+  normalizeTalentPeriodicIntervalDays,
+  normalizeTalentRecommendationBatchSize,
+} from "@/lib/talentOnboarding/recommendationSettings";
 
 /**
  * Build realtime instructions from the shared Harper system prompt plus
@@ -88,10 +92,20 @@ export async function buildCareerRealtimeSessionInstructions(args: {
       talentSetting?.get_external_recommendation ?? true,
     getInternalRecommendation:
       talentSetting?.get_internal_recommendation ?? true,
+    periodicIntervalDays: talentSetting
+      ? normalizeTalentPeriodicIntervalDays(
+          talentSetting.periodic_interval_days
+        )
+      : null,
     preferredLocale:
       talentSetting?.preferred_locale ?? args.preferredLocale ?? null,
     profileVisibility: talentSetting?.profile_visibility ?? null,
-    recommendationBatchSize: talentSetting?.recommendation_batch_size ?? null,
+    recommendationBatchSize: talentSetting
+      ? normalizeTalentRecommendationBatchSize(
+          talentSetting.recommendation_batch_size
+        )
+      : null,
+    talentSettingStatus: talentSetting?.status ?? null,
   };
   const onboardingChecklistCoverage = !Boolean(
     talentSetting?.is_onboarding_done
