@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
       engagementTypes: existing?.engagement_types ?? [],
       ...(body.preferredLocale === undefined
         ? {}
-        : { preferredLocale: normalizeCareerPromptLocale(body.preferredLocale) }),
+        : { settingLocale: normalizeCareerPromptLocale(body.preferredLocale) }),
     });
 
     return NextResponse.json({

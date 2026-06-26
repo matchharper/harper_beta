@@ -65,16 +65,15 @@ function hasKoreaLocationSignal(value: string | null | undefined) {
 
 export function resolveTalentPreferredLocale(args: {
   currentLocation?: string | null;
-  location?: string | null;
+  nextLocale?: string | null;
   settingLocale?: string | null;
 }): CareerPromptLocale {
   const explicitLocale = parseCareerPromptLocale(args.settingLocale);
   if (explicitLocale) return explicitLocale;
 
-  if (
-    hasKoreaLocationSignal(args.location) ||
-    hasKoreaLocationSignal(args.currentLocation)
-  ) {
+  if (parseCareerPromptLocale(args.nextLocale) === "ko") return "ko";
+
+  if (hasKoreaLocationSignal(args.currentLocation)) {
     return "ko";
   }
 
@@ -308,20 +307,24 @@ export async function upsertTalentSetting(args: {
   preferredLocale?: string | null;
   recommendationBatchSize?: number;
   recommendationSourceConversationId?: string | null;
+  settingLocale?: string | null;
 }) {
   const { admin, userId } = args;
   const current = await fetchTalentSetting({ admin, userId });
   const now = new Date().toISOString();
   const settingLocale =
-    args.preferredLocale === undefined
-      ? (current?.setting_locale ?? current?.preferred_locale ?? null)
-      : normalizeCareerPromptLocale(args.preferredLocale);
+    args.settingLocale === undefined
+      ? parseCareerPromptLocale(current?.setting_locale)
+      : parseCareerPromptLocale(args.settingLocale);
   const localeProfile = await fetchTalentLocaleProfile({ admin, userId });
-  const preferredLocale = resolveTalentPreferredLocale({
-    currentLocation: localeProfile?.current_location,
-    location: localeProfile?.location,
-    settingLocale,
-  });
+  const preferredLocale =
+    args.settingLocale === undefined && settingLocale
+      ? (parseCareerPromptLocale(current?.preferred_locale) ?? settingLocale)
+      : resolveTalentPreferredLocale({
+          currentLocation: localeProfile?.current_location,
+          nextLocale: args.preferredLocale,
+          settingLocale,
+        });
   const payload = {
     user_id: userId,
     profile_visibility: sanitizeTalentProfileVisibility(
@@ -382,12 +385,12 @@ export async function refreshTalentPreferredLocale(args: {
   const current = await fetchTalentSetting({ admin, userId });
   if (!current) return null;
 
-  const settingLocale =
-    current.setting_locale ?? current.preferred_locale ?? null;
+  const settingLocale = parseCareerPromptLocale(current.setting_locale);
+  if (settingLocale) return current;
+
   const localeProfile = await fetchTalentLocaleProfile({ admin, userId });
   const preferredLocale = resolveTalentPreferredLocale({
     currentLocation: localeProfile?.current_location,
-    location: localeProfile?.location,
     settingLocale,
   });
 
@@ -455,11 +458,10 @@ export async function setTalentOnboardingDone(args: {
     return updated as TalentSettingRow;
   }
 
-  const settingLocale: CareerPromptLocale = "ko";
+  const settingLocale = null;
   const localeProfile = await fetchTalentLocaleProfile({ admin, userId });
   const preferredLocale = resolveTalentPreferredLocale({
     currentLocation: localeProfile?.current_location,
-    location: localeProfile?.location,
     settingLocale,
   });
 
