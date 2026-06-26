@@ -32,8 +32,6 @@ import {
 } from "./server";
 import { selectAdditionalOnboardingQuestion } from "./additionalQuestionSelector";
 import {
-  TALENT_PERIODIC_INTERVAL_DAYS_MAX,
-  TALENT_PERIODIC_INTERVAL_DAYS_MIN,
   TALENT_RECOMMENDATION_BATCH_SIZE_MAX,
   TALENT_RECOMMENDATION_BATCH_SIZE_MIN,
 } from "./recommendationSettings";
@@ -60,6 +58,7 @@ import {
   insertTalentToolFailureLog,
   insertTalentToolUsageLog,
 } from "./toolUsageLog";
+import { recordInternalFitReevaluationInformation } from "./internalFitHoldQuestion";
 import type { TalentAdminClient } from "./admin";
 import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 
@@ -142,6 +141,8 @@ export const TALENT_TOOL_NAMES = {
   READ_TALENT_ACTIVITY_EVENTS: "read_talent_activity_events",
   UPDATE_SETTING: "update_setting",
   UPDATE_TALENT_PROFILE: "update_talent_profile",
+  RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION:
+    "record_internal_fit_reevaluation_information",
 } as const;
 
 export type TalentToolName =
@@ -162,6 +163,7 @@ export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   TALENT_TOOL_NAMES.READ_TALENT_ACTIVITY_EVENTS,
   TALENT_TOOL_NAMES.UPDATE_SETTING,
   TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
+  TALENT_TOOL_NAMES.RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION,
 ] as const;
 
 const optionalToolString = (value: unknown) => {
@@ -1190,6 +1192,56 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       });
     },
   },
+  [TALENT_TOOL_NAMES.RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION]: {
+    name: TALENT_TOOL_NAMES.RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION,
+    description:
+      "Private writer for one active hidden internal fit hold question. Use only when the user's latest message clearly answers that hidden question. It saves the new evidence for later reevaluation and does not reveal or recommend the internal role.",
+    parameters: {
+      type: "object",
+      properties: {
+        fitId: {
+          type: "string",
+          description:
+            "The fitId from the current hidden hold question prompt block.",
+        },
+        newInformation: {
+          type: "string",
+          description:
+            "A concise summary of the newly provided user evidence that answers the hidden hold question.",
+        },
+      },
+      required: ["fitId", "newInformation"],
+      additionalProperties: false,
+    },
+    channels: ["chat"],
+    async execute(input, context) {
+      const admin = context?.admin;
+      const userId = context?.userId;
+      if (!admin || !userId) {
+        throw new TalentToolError(
+          "record_internal_fit_reevaluation_information requires user context."
+        );
+      }
+
+      const fitId = optionalToolString(input.fitId);
+      const newInformation = optionalToolString(input.newInformation);
+      if (!fitId || !newInformation) {
+        throw new TalentToolError(
+          "record_internal_fit_reevaluation_information requires fitId and newInformation."
+        );
+      }
+
+      return recordInternalFitReevaluationInformation({
+        admin: admin as TalentAdminClient,
+        conversationId: context?.conversationId ?? null,
+        fitId,
+        newInformation,
+        source: "chat",
+        userId,
+        userMessageId: context?.userMessageId ?? null,
+      });
+    },
+  },
   [TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK]: {
     name: TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK,
     description:
@@ -1273,7 +1325,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.UPDATE_SETTING]: {
     name: TALENT_TOOL_NAMES.UPDATE_SETTING,
     description:
-      "Update recommendation delivery settings only. Use when the user's latest statement directly asks to change how often Harper sends opportunity recommendations, how many opportunities are in each batch, or whether Harper should include external/public job postings and/or internal Harper-connected opportunities. Do not use for profile facts, row memos, future matching criteria such as role/company/location preferences, one-off browsing/search requests, hypotheticals, or information already saved in current state. If the user wants to stop all opportunity recommendations, set both getExternalRecommendation=false and getInternalRecommendation=false. If the user wants no public/external job-posting recommendations or wants only internal Harper-connected opportunities, set getExternalRecommendation=false and keep cadence fields unchanged. After the tool result, produce a normal user-facing chat reply in Korean; do not expose internal setting names.",
+      "Update recommendation delivery settings only. Use when the user's latest statement directly asks to change how many opportunities are in each batch, or whether Harper should include external/public job postings and/or internal Harper-connected opportunities. Do not use for delivery cadence/frequency, profile facts, row memos, future matching criteria such as role/company/location preferences, one-off browsing/search requests, hypotheticals, or information already saved in current state. If the user wants to stop all opportunity recommendations, set both getExternalRecommendation=false and getInternalRecommendation=false. If the user wants no public/external job-posting recommendations or wants only internal Harper-connected opportunities, set getExternalRecommendation=false. After the tool result, produce a normal user-facing chat reply in Korean; do not expose internal setting names.",
     parameters: {
       type: "object",
       properties: {
@@ -1286,13 +1338,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           type: "boolean",
           description:
             "Whether Harper may recommend internal Harper-connected opportunities. Set true when the user says they still want internal/connected opportunities; set false only when they explicitly do not want these. Default is true.",
-        },
-        periodicIntervalDays: {
-          type: "integer",
-          minimum: TALENT_PERIODIC_INTERVAL_DAYS_MIN,
-          maximum: TALENT_PERIODIC_INTERVAL_DAYS_MAX,
-          description:
-            "How often (in days) the user wants opportunity batches. Values must be 1-7.",
         },
         recommendationBatchSize: {
           type: "integer",
@@ -1358,27 +1403,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         }
       }
       if (
-        typeof input.periodicIntervalDays === "number" &&
-        Number.isFinite(input.periodicIntervalDays)
-      ) {
-        const nextPeriodicIntervalDays = input.periodicIntervalDays;
-        updatePayload.periodicIntervalDays = nextPeriodicIntervalDays;
-        didUpdate = true;
-        updatedSettingFields.push("periodicIntervalDays");
-        if (
-          !isSameActivityValue(
-            existingSetting?.periodic_interval_days ?? null,
-            nextPeriodicIntervalDays
-          )
-        ) {
-          settingActivityChanges.push({
-            field: "periodicIntervalDays",
-            from: existingSetting?.periodic_interval_days ?? null,
-            to: nextPeriodicIntervalDays,
-          });
-        }
-      }
-      if (
         typeof input.recommendationBatchSize === "number" &&
         Number.isFinite(input.recommendationBatchSize)
       ) {
@@ -1431,7 +1455,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       return {
         assistantInstruction: [
           `Continue the conversation naturally in ${responseLanguage} now. Do not mention internal tool names, JSON, or internal field names.`,
-          "If recommendation delivery settings changed, explain the practical consequence in the user's language: how often Harper will send opportunities, how many, and which opportunity channels will be included or avoided.",
+          "If recommendation delivery settings changed, explain the practical consequence in the user's language: how many opportunities Harper will include per batch and which opportunity channels will be included or avoided.",
           "Do not make the saved-setting acknowledgement the whole answer; continue naturally from the user's intent.",
         ].join(" "),
         impactLevel: settingImpactLevel ?? "low",

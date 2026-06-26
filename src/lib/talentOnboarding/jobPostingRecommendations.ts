@@ -85,8 +85,17 @@ type RoleCard = {
   searchRank: number;
   seniorityLevel: string | null;
   workMode: string | null;
+  externalFitCache?: ExternalFitCache;
   row: RawRoleRow;
   _shortlistCandidateId?: number;
+};
+
+type ExternalFitCache = {
+  createdAt: string | null;
+  fitSummary: string;
+  reason: string;
+  score100: number;
+  tradeoff: string;
 };
 
 type PreferenceFitStatus = "Satisfied" | "Neutral" | "Dissatisfied";
@@ -171,6 +180,9 @@ const TALENT_EXPERIENCE_DESCRIPTION_MAX_LENGTH = 5000;
 const TALENT_TIMELINE_DESCRIPTION_MAX_LENGTH = 900;
 const FINAL_RECOMMENDATION_COUNT = 5;
 const CONTINUATION_RECOMMENDATION_BATCH_LIMIT = 10;
+const EXTERNAL_FIT_CACHE_TTL_DAYS = 10;
+const EXTERNAL_FIT_CACHE_SHORTLIST_SKIP_MIN_SCORE100 = 70;
+const EXTERNAL_FIT_CACHE_SHORTLIST_SKIP_MIN_COUNT = 20;
 const RECOMMEND_JOB_POSTINGS_MODEL_VERSION =
   "career_chat_recommend_job_postings_external_v5";
 const PREFERENCE_FIT_KEYS = [
@@ -336,6 +348,7 @@ Output schema:
 규칙:
 - roleId는 detailedExternalCandidates 안에 있는 roleId만 사용한다.
 - score는 0~1 사이의 추천 confidence다. retrieval 점수, searchRank, company_score, test_score를 복사하지 않는다.
+- detailedExternalCandidates item에 cachedExternalFit이 있으면 jd는 제공되지 않는다. 이 경우 cachedExternalFit.fitSummary를 fitSummary로 재사용하고, cachedExternalFit.reason/score/tradeoff는 prior evidence로만 사용한다. 그래도 최종 선택과 score는 현재 request/searchPlan 기준으로 판단한다.
 - 현재 요청과 충분히 fit한 후보에는 fitSummary, fitReasons, preferenceFit을 작성한다.
 - 현재 요청과 완전히 일치하지 않거나 바로 추천할 정도의 fit은 아닌 후보는 roleId와 score만 반환한다. fitSummary, fitReasons, preferenceFit을 쓰지 않는다.
 - 코드가 fitSummary/fitReasons/preferenceFit이 있는 후보를 우선 추천하고, targetRecommendationCount보다 부족하면 roleId+score만 있는 후보 중 score가 높은 순서로 나머지를 채운다.
@@ -2146,6 +2159,150 @@ function roleCard(row: RawRoleRow): RoleCard {
   };
 }
 
+function normalizeExternalFitCacheScore100(meta: JsonRecord) {
+  const raw =
+    meta.score ?? meta.score100 ?? meta.fitScore ?? meta.fit_score ?? null;
+  const number = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isFinite(number)) return 0;
+  const score100 = number >= 0 && number <= 1 ? number * 100 : number;
+  return Math.round(clampNumber(score100, 0, 100, 0));
+}
+
+function normalizeExternalFitCacheReason(meta: JsonRecord) {
+  const direct =
+    normalizeMultiline(meta.reason ?? meta.fitReason ?? meta.fit_reason, 900) ||
+    "";
+  if (direct) return direct;
+  return coerceList(meta.fitReasons ?? meta.fit_reasons, 3)
+    .map((item) => normalizeMultiline(item, 300))
+    .filter(Boolean)
+    .join(" ");
+}
+
+function normalizeExternalFitCacheTradeoff(meta: JsonRecord) {
+  const direct = normalizeMultiline(
+    meta.tradeoff ?? meta.tradeoffs ?? meta.concerns ?? meta.tradeOffs,
+    320
+  );
+  if (direct) return direct;
+  return (
+    coerceList(meta.tradeoff ?? meta.tradeoffs ?? meta.concerns, 1)
+      .map((item) => normalizeMultiline(item, 320))
+      .find(Boolean) ?? ""
+  );
+}
+
+function normalizeExternalFitCache(
+  metaValue: unknown,
+  createdAtValue: unknown
+): ExternalFitCache | null {
+  const meta = asRecord(parseMaybeJsonValue(metaValue));
+  if (!meta) return null;
+  const fitSummary = normalizeMultiline(
+    meta.fitSummary ?? meta.fit_summary,
+    1000
+  );
+  const reason = normalizeExternalFitCacheReason(meta);
+  const tradeoff = normalizeExternalFitCacheTradeoff(meta);
+  if (!fitSummary && !reason && !tradeoff) return null;
+  return {
+    createdAt: cleanText(createdAtValue, 120) || null,
+    fitSummary,
+    reason,
+    score100: normalizeExternalFitCacheScore100(meta),
+    tradeoff,
+  };
+}
+
+async function fetchRecentExternalFitCache(args: {
+  admin: AdminClient;
+  roleIds: string[];
+  userId: string;
+}) {
+  const roleIds = Array.from(
+    new Set(args.roleIds.map((roleId) => cleanText(roleId, 120)))
+  ).filter(isUuid);
+  if (roleIds.length === 0) return new Map<string, ExternalFitCache>();
+
+  const cutoff = new Date(
+    Date.now() - EXTERNAL_FIT_CACHE_TTL_DAYS * 24 * 60 * 60 * 1000
+  ).toISOString();
+
+  try {
+    const { data, error } = await ((
+      args.admin.from("talent_external_fit" as any) as any
+    )
+      .select("role_id, meta, created_at")
+      .eq("talent_id", args.userId)
+      .gte("created_at", cutoff)
+      .in("role_id", roleIds) as unknown as Promise<{
+      data: unknown;
+      error: { message?: string } | null;
+    }>);
+
+    if (error) {
+      infoJson("external fit cache fetch failed", {
+        message: error.message,
+        requestedRoleCount: roleIds.length,
+      });
+      return new Map<string, ExternalFitCache>();
+    }
+
+    const result = new Map<string, ExternalFitCache>();
+    for (const row of Array.isArray(data) ? data : []) {
+      const record = asRecord(row);
+      const roleId = cleanText(record?.role_id, 120);
+      const cache = normalizeExternalFitCache(record?.meta, record?.created_at);
+      if (roleId && cache) result.set(roleId, cache);
+    }
+    return result;
+  } catch (error) {
+    infoJson("external fit cache fetch failed", {
+      message: error instanceof Error ? error.message : String(error),
+      requestedRoleCount: roleIds.length,
+    });
+    return new Map<string, ExternalFitCache>();
+  }
+}
+
+function attachExternalFitCache(
+  cards: RoleCard[],
+  cacheByRoleId: Map<string, ExternalFitCache>
+) {
+  return cards.map((card) => {
+    const cache = cacheByRoleId.get(card.roleId);
+    return cache ? { ...card, externalFitCache: cache } : card;
+  });
+}
+
+function selectCachedHighScoreShortlist(
+  cards: RoleCard[],
+  selectionLimit: number
+) {
+  const highScoreCachedCards = cards.filter(
+    (card) =>
+      (card.externalFitCache?.score100 ?? -1) >=
+      EXTERNAL_FIT_CACHE_SHORTLIST_SKIP_MIN_SCORE100
+  );
+  if (
+    highScoreCachedCards.length < EXTERNAL_FIT_CACHE_SHORTLIST_SKIP_MIN_COUNT
+  ) {
+    return null;
+  }
+  return [...highScoreCachedCards]
+    .sort((left, right) => {
+      const scoreDiff =
+        (right.externalFitCache?.score100 ?? 0) -
+        (left.externalFitCache?.score100 ?? 0);
+      if (scoreDiff !== 0) return scoreDiff;
+      if (right.searchRank !== left.searchRank) {
+        return right.searchRank - left.searchRank;
+      }
+      return (right.score ?? 0) - (left.score ?? 0);
+    })
+    .slice(0, selectionLimit);
+}
+
 function compactDateForRoleCard(value: unknown) {
   const text = cleanText(value, 120);
   if (!text) return "";
@@ -2221,6 +2378,22 @@ function roleDetailCardForLlm(card: RoleCard) {
   return cleanEmptyValues({
     company: companyLineForLlm(card, false),
     jd: normalizeMultiline(card.roleDescription, 4000),
+    role: roleLineForLlm(card),
+    roleId: card.roleId,
+  }) as JsonRecord;
+}
+
+function roleFinalSelectionCardForLlm(card: RoleCard) {
+  const cached = card.externalFitCache;
+  if (!cached) return roleDetailCardForLlm(card);
+  return cleanEmptyValues({
+    cachedExternalFit: {
+      fitSummary: cached.fitSummary,
+      reason: cached.reason,
+      score: cached.score100,
+      tradeoff: cached.tradeoff,
+    },
+    company: companyLineForLlm(card, false),
     role: roleLineForLlm(card),
     roleId: card.roleId,
   }) as JsonRecord;
@@ -2419,6 +2592,7 @@ function normalizeSelectedRecommendation(
   const score = clampNumber(record.score, 0, 1, 0);
   const fitReasons = asStringArray(record.fitReasons, 3, 180);
   const fitSummary = cleanText(record.fitSummary, 700);
+  const cachedFitSummary = cleanText(card.externalFitCache?.fitSummary, 700);
   const preferenceFit = normalizeRecommendationPreferenceFit(
     record.preferenceFit
   );
@@ -2429,7 +2603,8 @@ function normalizeSelectedRecommendation(
   return {
     fitReasons,
     fitSummary:
-      fitSummary || (isSupplemental ? null : fallbackFitSummary(card)),
+      fitSummary ||
+      (isSupplemental ? null : cachedFitSummary || fallbackFitSummary(card)),
     isSupplemental,
     preferenceFit,
     rank: normalizeInt(record.rank, index + 1, 1, FINAL_RECOMMENDATION_COUNT),
@@ -2457,7 +2632,9 @@ async function selectFinalRecommendations(args: {
       supplementalCount: 0,
     };
   }
-  const detailedExternalCandidates = args.cards.map(roleDetailCardForLlm);
+  const detailedExternalCandidates = args.cards.map(
+    roleFinalSelectionCardForLlm
+  );
   const raw = await runTalentAssistantCompletion({
     anthropicOverloadFallbackModel:
       RECOMMEND_JOB_POSTINGS_ANTHROPIC_OVERLOAD_FALLBACK_MODEL,
@@ -2978,18 +3155,58 @@ export async function runCareerJobPostingRecommendations(args: {
     sql: strictSearch.sql,
   });
 
-  const candidateCards = roleRowsToCards(rows);
+  const candidateCardsWithoutCache = roleRowsToCards(rows);
+  const externalFitCacheByRoleId = await fetchRecentExternalFitCache({
+    admin: args.admin,
+    roleIds: candidateCardsWithoutCache.map((card) => card.roleId),
+    userId: args.userId,
+  });
+  throwIfRecommendationSearchAborted(args.abortSignal);
+  const candidateCards = attachExternalFitCache(
+    candidateCardsWithoutCache,
+    externalFitCacheByRoleId
+  );
+  const cacheHitCount = candidateCards.filter((card) =>
+    Boolean(card.externalFitCache)
+  ).length;
+  const highScoreCacheHitCount = candidateCards.filter(
+    (card) =>
+      (card.externalFitCache?.score100 ?? -1) >=
+      EXTERNAL_FIT_CACHE_SHORTLIST_SKIP_MIN_SCORE100
+  ).length;
+  const selectionLimit = shortlistLimit(targetRecommendationCount);
+  const cachedShortlistCards =
+    candidateCards.length > 0
+      ? selectCachedHighScoreShortlist(candidateCards, selectionLimit)
+      : null;
+  let shortlistSkippedByCache = false;
   const shortlistedCards =
     candidateCards.length > 0
-      ? await shortlistRoles({
-          cards: candidateCards,
-          llmUserProfile,
-          plan,
-          request,
-          targetRecommendationCount,
-        })
+      ? cachedShortlistCards
+        ? (() => {
+            shortlistSkippedByCache = true;
+            infoJson("shortlist skipped", {
+              cacheHitCount,
+              highScoreCacheHitCount,
+              reason: "external_fit_cache_high_score_threshold",
+              selectedExternal: cachedShortlistCards.length,
+              selectionLimit,
+              ttlDays: EXTERNAL_FIT_CACHE_TTL_DAYS,
+            });
+            return cachedShortlistCards;
+          })()
+        : await shortlistRoles({
+            cards: candidateCards,
+            llmUserProfile,
+            plan,
+            request,
+            targetRecommendationCount,
+          })
       : [];
   throwIfRecommendationSearchAborted(args.abortSignal);
+  const shortlistedCacheHitCount = shortlistedCards.filter((card) =>
+    Boolean(card.externalFitCache)
+  ).length;
   const finalSelection = await selectFinalRecommendations({
     cards: shortlistedCards,
     llmUserProfile,
@@ -3014,9 +3231,13 @@ export async function runCareerJobPostingRecommendations(args: {
 
   infoJson("completed", {
     candidateCount: candidateCards.length,
+    externalFitCacheHitCount: cacheHitCount,
+    externalFitCacheHighScoreHitCount: highScoreCacheHitCount,
     durationMs: Date.now() - startedAt,
     recommendationCount: recommendations.length,
     scoredFinalCandidateCount: finalSelection.scoredCount,
+    shortlistSkippedByCache,
+    shortlistedCacheHitCount,
     shortlistCandidateCount: shortlistedCards.length,
     supplementalRecommendationCount: finalSelection.supplementalCount,
     topScores: recommendations.slice(0, 5).map((item) => ({

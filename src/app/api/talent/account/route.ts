@@ -579,7 +579,6 @@ async function deleteCareerRows(
 
   await deleteEq(admin, "talent_setting", "user_id", context.userId);
   await deleteEq(admin, "talent_insights", "talent_id", context.userId);
-  await deleteEq(admin, "talent_internal", "talent_id", context.userId);
   await deleteEq(admin, "talent_publications", "talent_id", context.userId);
   await deleteEq(admin, "talent_extras", "talent_id", context.userId);
   await deleteEq(admin, "talent_educations", "talent_id", context.userId);

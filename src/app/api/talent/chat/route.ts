@@ -39,6 +39,7 @@ import {
   executeTalentTool,
   TALENT_TOOL_NAMES,
 } from "@/lib/talentOnboarding/tools";
+import { fetchActiveInternalFitHoldQuestion } from "@/lib/talentOnboarding/internalFitHoldQuestion";
 import { insertTalentToolUsageLog } from "@/lib/talentOnboarding/toolUsageLog";
 import { resolveCareerChatTools } from "@/lib/career/llmTools";
 import {
@@ -432,7 +433,10 @@ export async function POST(req: NextRequest) {
       body.locale ??
       req.cookies.get("NEXT_LOCALE")?.value;
     const conversationStarter = conversationStarterId
-      ? getCareerConversationStarterPrompt(conversationStarterId, responseLocale)
+      ? getCareerConversationStarterPrompt(
+          conversationStarterId,
+          responseLocale
+        )
       : null;
     const skipConversationWrites = Boolean(
       conversationStarter && message === conversationStarter.chatMessage
@@ -667,7 +671,19 @@ export async function POST(req: NextRequest) {
       }))
       .filter((item) => item.content.trim().length > 0);
 
+    const canUseInternalFitHoldQuestionTool =
+      !Array.isArray(allowedToolNames) ||
+      allowedToolNames.includes(
+        TALENT_TOOL_NAMES.RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION
+      );
+    const activeInternalFitHoldQuestion =
+      talentSetting?.is_onboarding_done &&
+      (talentSetting?.get_internal_recommendation ?? true) &&
+      canUseInternalFitHoldQuestionTool
+        ? await fetchActiveInternalFitHoldQuestion({ admin, userId: user.id })
+        : null;
     const toolSelection = resolveCareerChatTools({
+      activeInternalFitHoldQuestion: Boolean(activeInternalFitHoldQuestion),
       additionalQuestionSelectionCount,
       allowedToolNames,
       channel: requestChannel,
@@ -680,7 +696,6 @@ export async function POST(req: NextRequest) {
         talentSetting?.get_external_recommendation ?? true,
       getInternalRecommendation:
         talentSetting?.get_internal_recommendation ?? true,
-      periodicIntervalDays: talentSetting?.periodic_interval_days ?? null,
       preferredLocale: responseLocale,
       profileVisibility: talentSetting?.profile_visibility ?? null,
       recommendationBatchSize: talentSetting?.recommendation_batch_size ?? null,
@@ -701,6 +716,7 @@ export async function POST(req: NextRequest) {
           }
         : null;
     const { promptBlocks } = buildCareerTextChatPromptBlocks({
+      activeInternalFitHoldQuestion,
       additionalQuestionSelectionCount,
       onboardingChecklistCoverage,
       currentInsightContent,

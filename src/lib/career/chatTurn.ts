@@ -36,6 +36,7 @@ import {
   executeTalentTool,
   TALENT_TOOL_NAMES,
 } from "@/lib/talentOnboarding/tools";
+import { fetchActiveInternalFitHoldQuestion } from "@/lib/talentOnboarding/internalFitHoldQuestion";
 import { insertTalentToolUsageLog } from "@/lib/talentOnboarding/toolUsageLog";
 import { resolveCareerChatTools } from "@/lib/career/llmTools";
 import {
@@ -503,6 +504,17 @@ export async function runCareerChatTurn(
       })
     : null;
   const shouldAutoExtractInsights = !Boolean(talentSetting?.is_onboarding_done);
+  const canUseInternalFitHoldQuestionTool =
+    !Array.isArray(args.allowedToolNames) ||
+    args.allowedToolNames.includes(
+      TALENT_TOOL_NAMES.RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION
+    );
+  const activeInternalFitHoldQuestion =
+    talentSetting?.is_onboarding_done &&
+    (talentSetting?.get_internal_recommendation ?? true) &&
+    canUseInternalFitHoldQuestionTool
+      ? await fetchActiveInternalFitHoldQuestion({ admin, userId })
+      : null;
   const extractTurnInsights = (assistantContent: string) =>
     shouldAutoExtractInsights
       ? extractAndPersistChatInsights({
@@ -512,8 +524,7 @@ export async function runCareerChatTurn(
             buildCareerInsightExtractionPrompt({
               currentChecklistCoverage: promptArgs.currentChecklistCoverage,
               currentInsightContent: promptArgs.currentInsightContent,
-              onboardingChecklistContext:
-                promptArgs.onboardingChecklistContext,
+              onboardingChecklistContext: promptArgs.onboardingChecklistContext,
               preferredLocale: responseLocale,
             }),
           conversationId,
@@ -612,6 +623,7 @@ export async function runCareerChatTurn(
   }
 
   const toolSelection = resolveCareerChatTools({
+    activeInternalFitHoldQuestion: Boolean(activeInternalFitHoldQuestion),
     additionalQuestionSelectionCount,
     allowedToolNames: args.allowedToolNames,
     channel: requestChannel,
@@ -624,7 +636,6 @@ export async function runCareerChatTurn(
       talentSetting?.get_external_recommendation ?? true,
     getInternalRecommendation:
       talentSetting?.get_internal_recommendation ?? true,
-    periodicIntervalDays: talentSetting?.periodic_interval_days ?? null,
     preferredLocale: responseLocale,
     profileVisibility: talentSetting?.profile_visibility ?? null,
     recommendationBatchSize: talentSetting?.recommendation_batch_size ?? null,
@@ -646,6 +657,7 @@ export async function runCareerChatTurn(
       : null;
 
   const { promptBlocks } = buildCareerTextChatPromptBlocks({
+    activeInternalFitHoldQuestion,
     additionalQuestionSelectionCount,
     currentInsightContent,
     currentPreferences,

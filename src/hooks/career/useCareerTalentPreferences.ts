@@ -174,7 +174,6 @@ export const useCareerTalentPreferences = ({
             talentPreferences.getExternalRecommendation,
           getInternalRecommendation:
             talentPreferences.getInternalRecommendation,
-          periodicIntervalDays: talentPreferences.periodicIntervalDays,
           recommendationBatchSize: talentPreferences.recommendationBatchSize,
         }),
       });

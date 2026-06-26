@@ -516,6 +516,232 @@ export type Database = {
           },
         ]
       }
+      candidate_outreach: {
+        Row: {
+          active_step: number
+          candid_id: string
+          created_at: string
+          email_discovery_cancel_requested_at: string | null
+          email_discovery_evidence: Json
+          email_discovery_status: string
+          email_discovery_summary: string | null
+          email_discovery_trace: Json
+          email_recipient_name: string | null
+          email_source_label: string | null
+          email_source_type: string | null
+          email_source_url: string | null
+          history: Json | null
+          id: number
+          last_sent_at: string | null
+          memo: string | null
+          next_due_at: string | null
+          sequence_mark: string | null
+          sequence_schedule: Json | null
+          sequence_status: string
+          stopped_at: string | null
+          target_email: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active_step?: number
+          candid_id: string
+          created_at?: string
+          email_discovery_cancel_requested_at?: string | null
+          email_discovery_evidence?: Json
+          email_discovery_status?: string
+          email_discovery_summary?: string | null
+          email_discovery_trace?: Json
+          email_recipient_name?: string | null
+          email_source_label?: string | null
+          email_source_type?: string | null
+          email_source_url?: string | null
+          history?: Json | null
+          id?: number
+          last_sent_at?: string | null
+          memo?: string | null
+          next_due_at?: string | null
+          sequence_mark?: string | null
+          sequence_schedule?: Json | null
+          sequence_status?: string
+          stopped_at?: string | null
+          target_email?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active_step?: number
+          candid_id?: string
+          created_at?: string
+          email_discovery_cancel_requested_at?: string | null
+          email_discovery_evidence?: Json
+          email_discovery_status?: string
+          email_discovery_summary?: string | null
+          email_discovery_trace?: Json
+          email_recipient_name?: string | null
+          email_source_label?: string | null
+          email_source_type?: string | null
+          email_source_url?: string | null
+          history?: Json | null
+          id?: number
+          last_sent_at?: string | null
+          memo?: string | null
+          next_due_at?: string | null
+          sequence_mark?: string | null
+          sequence_schedule?: Json | null
+          sequence_status?: string
+          stopped_at?: string | null
+          target_email?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candidate_outreach_candid_id_fkey"
+            columns: ["candid_id"]
+            isOneToOne: false
+            referencedRelation: "candid"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidate_outreach_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      candidate_outreach_message: {
+        Row: {
+          body: string
+          candid_id: string
+          created_at: string
+          created_by: string
+          id: number
+          kind: string
+          outreach_id: number | null
+          rendered_body: string | null
+          rendered_subject: string | null
+          scheduled_for: string | null
+          sent_at: string | null
+          status: string
+          step_number: number | null
+          subject: string
+          to_email: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          candid_id: string
+          created_at?: string
+          created_by: string
+          id?: number
+          kind: string
+          outreach_id?: number | null
+          rendered_body?: string | null
+          rendered_subject?: string | null
+          scheduled_for?: string | null
+          sent_at?: string | null
+          status?: string
+          step_number?: number | null
+          subject: string
+          to_email?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          candid_id?: string
+          created_at?: string
+          created_by?: string
+          id?: number
+          kind?: string
+          outreach_id?: number | null
+          rendered_body?: string | null
+          rendered_subject?: string | null
+          scheduled_for?: string | null
+          sent_at?: string | null
+          status?: string
+          step_number?: number | null
+          subject?: string
+          to_email?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candidate_outreach_message_candid_id_fkey"
+            columns: ["candid_id"]
+            isOneToOne: false
+            referencedRelation: "candid"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidate_outreach_message_outreach_id_fkey"
+            columns: ["outreach_id"]
+            isOneToOne: false
+            referencedRelation: "candidate_outreach"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidate_outreach_message_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      candidate_outreach_workspace: {
+        Row: {
+          bookmark_folder_id: number | null
+          company_pitch: string | null
+          created_at: string
+          job_description: string | null
+          sender_email: string | null
+          signature: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bookmark_folder_id?: number | null
+          company_pitch?: string | null
+          created_at?: string
+          job_description?: string | null
+          sender_email?: string | null
+          signature?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bookmark_folder_id?: number | null
+          company_pitch?: string | null
+          created_at?: string
+          job_description?: string | null
+          sender_email?: string | null
+          signature?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candidate_outreach_workspace_bookmark_folder_id_fkey"
+            columns: ["bookmark_folder_id"]
+            isOneToOne: false
+            referencedRelation: "bookmark_folder"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidate_outreach_workspace_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       career_email_messages: {
         Row: {
           body_text: string | null
@@ -4747,60 +4973,6 @@ export type Database = {
           },
         ]
       }
-      talent_internal: {
-        Row: {
-          content: string
-          created_at: string
-          created_by: string
-          from_email: string | null
-          id: number
-          subject: string | null
-          talent_id: string | null
-          to_email: string | null
-          type: string
-          waitlist_id: number
-        }
-        Insert: {
-          content: string
-          created_at?: string
-          created_by: string
-          from_email?: string | null
-          id?: number
-          subject?: string | null
-          talent_id?: string | null
-          to_email?: string | null
-          type: string
-          waitlist_id: number
-        }
-        Update: {
-          content?: string
-          created_at?: string
-          created_by?: string
-          from_email?: string | null
-          id?: number
-          subject?: string | null
-          talent_id?: string | null
-          to_email?: string | null
-          type?: string
-          waitlist_id?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "talent_internal_talent_id_fkey"
-            columns: ["talent_id"]
-            isOneToOne: false
-            referencedRelation: "talent_users"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "talent_internal_waitlist_id_fkey"
-            columns: ["waitlist_id"]
-            isOneToOne: false
-            referencedRelation: "harper_waitlist"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       talent_messages: {
         Row: {
           content: string
@@ -5299,6 +5471,8 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          kind: string
+          metadata: Json
           recommendation_id: string | null
           role_id: string
           talent_id: string
@@ -5308,6 +5482,8 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          kind?: string
+          metadata?: Json
           recommendation_id?: string | null
           role_id: string
           talent_id: string
@@ -5317,6 +5493,8 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          kind?: string
+          metadata?: Json
           recommendation_id?: string | null
           role_id?: string
           talent_id?: string

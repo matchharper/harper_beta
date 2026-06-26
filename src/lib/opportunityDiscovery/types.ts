@@ -62,6 +62,5 @@ export type OpportunityIngestionRunRow = {
 export type RecommendationSettings = {
   getExternalRecommendation: boolean;
   getInternalRecommendation: boolean;
-  periodicIntervalDays: number;
   recommendationBatchSize: number;
 };

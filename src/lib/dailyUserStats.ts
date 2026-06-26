@@ -45,7 +45,7 @@ const DAILY_USER_STATS_EXCLUDED_EMAILS = Array.from(
 
 type TalentUserRow = Pick<
   Database["public"]["Tables"]["talent_users"]["Row"],
-  "user_id" | "email" | "created_at"
+  "user_id" | "email" | "created_at" | "last_logined_at"
 >;
 type LogRow = Pick<
   Database["public"]["Tables"]["logs"]["Row"],
@@ -58,10 +58,6 @@ type TalentMessageRow = Pick<
 type TalentActivityEventRow = Pick<
   Database["public"]["Tables"]["talent_activity_events"]["Row"],
   "talent_id" | "event_type" | "created_at"
->;
-type TalentSettingRow = Pick<
-  Database["public"]["Tables"]["talent_setting"]["Row"],
-  "user_id" | "is_onboarding_done" | "updated_at"
 >;
 type RecommendationRow = Pick<
   Database["public"]["Tables"]["talent_opportunity_recommendation"]["Row"],
@@ -134,7 +130,20 @@ export type DailyUserStatsInternalConnectionResponseStats = {
   startIso: string;
 };
 
+export type DailyUserStatsActiveTalentBreakdown = {
+  callTranscriptTalentCount: number;
+  chatTalentCount: number;
+  clickedRecommendationTalentCount: number;
+  feedbackRecommendationTalentCount: number;
+  inboundEmailTalentCount: number;
+  loggedInTalentCount: number;
+  savedRecommendationTalentCount: number;
+  signupTalentCount: number;
+  viewedRecommendationTalentCount: number;
+};
+
 export type DailyUserStatsReport = {
+  activeTalentBreakdown: DailyUserStatsActiveTalentBreakdown;
   activeTalentsCount: number;
   callTranscriptMessageCount: number;
   chatMessageCount: number;
@@ -349,6 +358,12 @@ function isInternalOpportunity(value: string | null | undefined) {
 function addUserId(set: Set<string>, userId: string | null | undefined) {
   const normalized = String(userId ?? "").trim();
   if (normalized) set.add(normalized);
+}
+
+function buildUserIdSet(userIds: Iterable<string | null | undefined>) {
+  const set = new Set<string>();
+  for (const userId of userIds) addUserId(set, userId);
+  return set;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -575,9 +590,9 @@ async function buildUserStatsReport(args: {
   const [
     talentUsers,
     signupAndSubmitLogs,
+    loginCompletedLogs,
     messages,
     onboardingEvents,
-    onboardingSettings,
     recommendedRows,
     viewedRows,
     clickedRows,
@@ -589,7 +604,6 @@ async function buildUserStatsReport(args: {
     failedDiscoveryCompletedRuns,
     failedDiscoveryLegacyRuns,
     noRecommendationOnboardingEvents,
-    noRecommendationOnboardingSettings,
     recommendationTalentRowsBeforeObservationEnd,
     internalConnectionResponseRows,
     toolUsageLogs,
@@ -600,7 +614,7 @@ async function buildUserStatsReport(args: {
     fetchAllRows<TalentUserRow>((from, to) =>
       supabaseServer
         .from("talent_users")
-        .select("user_id,email,created_at")
+        .select("user_id,email,created_at,last_logined_at")
         .order("created_at", { ascending: true })
         .range(from, to)
     ),
@@ -609,6 +623,16 @@ async function buildUserStatsReport(args: {
         .from("logs")
         .select("user_id,type,created_at")
         .in("type", ["career_signup_completed", "career_onboarding_submitted"])
+        .gte("created_at", startIso)
+        .lt("created_at", endIso)
+        .order("id", { ascending: true })
+        .range(from, to)
+    ),
+    fetchAllRows<LogRow>((from, to) =>
+      supabaseServer
+        .from("logs")
+        .select("user_id,type,created_at")
+        .eq("type", "login_completed")
         .gte("created_at", startIso)
         .lt("created_at", endIso)
         .order("id", { ascending: true })
@@ -631,16 +655,6 @@ async function buildUserStatsReport(args: {
         .gte("created_at", startIso)
         .lt("created_at", endIso)
         .order("created_at", { ascending: true })
-        .range(from, to)
-    ),
-    fetchAllRows<TalentSettingRow>((from, to) =>
-      supabaseServer
-        .from("talent_setting")
-        .select("user_id,is_onboarding_done,updated_at")
-        .eq("is_onboarding_done", true)
-        .gte("updated_at", startIso)
-        .lt("updated_at", endIso)
-        .order("updated_at", { ascending: true })
         .range(from, to)
     ),
     fetchAllRows<RecommendationRow>((from, to) =>
@@ -764,16 +778,6 @@ async function buildUserStatsReport(args: {
         .order("created_at", { ascending: true })
         .range(from, to)
     ),
-    fetchAllRows<TalentSettingRow>((from, to) =>
-      supabaseServer
-        .from("talent_setting")
-        .select("user_id,is_onboarding_done,updated_at")
-        .eq("is_onboarding_done", true)
-        .gte("updated_at", startIso)
-        .lt("updated_at", noRecommendationEligibleEventEndIso)
-        .order("updated_at", { ascending: true })
-        .range(from, to)
-    ),
     fetchAllRows<Pick<RecommendationRow, "recommended_at" | "talent_id">>(
       (from, to) =>
         supabaseServer
@@ -887,15 +891,12 @@ async function buildUserStatsReport(args: {
     }
   }
 
+  // Completion counts must use immutable activity events. talent_setting.updated_at
+  // also changes on login/settings writes, so it cannot represent completion time.
   const onboardingCompletedUserIds = new Set<string>();
   for (const event of onboardingEvents) {
     if (isIncludedUserId(event.talent_id)) {
       addUserId(onboardingCompletedUserIds, event.talent_id);
-    }
-  }
-  for (const setting of onboardingSettings) {
-    if (setting.is_onboarding_done && isIncludedUserId(setting.user_id)) {
-      addUserId(onboardingCompletedUserIds, setting.user_id);
     }
   }
   const returningSubmittedCount = Array.from(submittedUserIds).filter(
@@ -975,8 +976,8 @@ async function buildUserStatsReport(args: {
   const negativeFeedbackRows = includedFeedbackRecommendedRows.filter(
     (row) => normalizeRecommendationFeedback(row.feedback) === "negative"
   );
-  const negativeFeedbackClickedRows = negativeFeedbackRows.filter(
-    (row) => Boolean(row.clicked_at)
+  const negativeFeedbackClickedRows = negativeFeedbackRows.filter((row) =>
+    Boolean(row.clicked_at)
   );
 
   const outboundEmailRows = emailRows.filter(
@@ -1032,15 +1033,41 @@ async function buildUserStatsReport(args: {
     addUserId(inboundEmailUserIds, row.talent_id);
   }
 
+  const loggedInUserIds = new Set<string>();
+  for (const user of includedTalentUsers) {
+    if (isInRange(user.last_logined_at, startIso, endIso)) {
+      addUserId(loggedInUserIds, user.user_id);
+    }
+  }
+  for (const log of loginCompletedLogs) {
+    if (log.type === "login_completed" && isIncludedUserId(log.user_id)) {
+      addUserId(loggedInUserIds, log.user_id);
+    }
+  }
+
+  const viewedRecommendationTalentIds = buildUserIdSet(
+    includedViewedRows.map((row) => row.talent_id)
+  );
+  const clickedRecommendationTalentIds = buildUserIdSet(
+    includedClickedRows.map((row) => row.talent_id)
+  );
+  const feedbackRecommendationTalentIds = buildUserIdSet(
+    includedFeedbackRows.map((row) => row.talent_id)
+  );
+  const savedRecommendationTalentIds = buildUserIdSet(
+    includedSavedStageRows.map((row) => row.talent_id)
+  );
+
   const activeTalentIds = new Set<string>();
   for (const source of [
     signupUserIds,
+    loggedInUserIds,
     userMessageUserIds,
     inboundEmailUserIds,
-    new Set(includedViewedRows.map((row) => row.talent_id)),
-    new Set(includedClickedRows.map((row) => row.talent_id)),
-    new Set(includedFeedbackRows.map((row) => row.talent_id)),
-    new Set(includedSavedStageRows.map((row) => row.talent_id)),
+    viewedRecommendationTalentIds,
+    clickedRecommendationTalentIds,
+    feedbackRecommendationTalentIds,
+    savedRecommendationTalentIds,
   ]) {
     for (const userId of source) activeTalentIds.add(userId);
   }
@@ -1049,9 +1076,9 @@ async function buildUserStatsReport(args: {
   for (const source of [
     userMessageUserIds,
     inboundEmailUserIds,
-    new Set(includedClickedRows.map((row) => row.talent_id)),
-    new Set(includedFeedbackRows.map((row) => row.talent_id)),
-    new Set(includedSavedStageRows.map((row) => row.talent_id)),
+    clickedRecommendationTalentIds,
+    feedbackRecommendationTalentIds,
+    savedRecommendationTalentIds,
   ]) {
     for (const userId of source) highIntentTalentIds.add(userId);
   }
@@ -1092,14 +1119,6 @@ async function buildUserStatsReport(args: {
       );
     }
   }
-  for (const setting of noRecommendationOnboardingSettings) {
-    if (setting.is_onboarding_done && isIncludedUserId(setting.user_id)) {
-      addUserId(
-        noRecommendationEligibleOnboardingCompletedUserIds,
-        setting.user_id
-      );
-    }
-  }
   const recommendationTalentIdsBeforeObservationEnd = new Set<string>();
   for (const row of recommendationTalentRowsBeforeObservationEnd) {
     if (isIncludedUserId(row.talent_id)) {
@@ -1134,6 +1153,17 @@ async function buildUserStatsReport(args: {
         });
 
   return {
+    activeTalentBreakdown: {
+      callTranscriptTalentCount: callTranscriptUserIds.size,
+      chatTalentCount: chatUserIds.size,
+      clickedRecommendationTalentCount: clickedRecommendationTalentIds.size,
+      feedbackRecommendationTalentCount: feedbackRecommendationTalentIds.size,
+      inboundEmailTalentCount: inboundEmailUserIds.size,
+      loggedInTalentCount: loggedInUserIds.size,
+      savedRecommendationTalentCount: savedRecommendationTalentIds.size,
+      signupTalentCount: signupUserIds.size,
+      viewedRecommendationTalentCount: viewedRecommendationTalentIds.size,
+    },
     activeTalentsCount: activeTalentIds.size,
     callTranscriptMessageCount: callTranscriptMessages.length,
     chatMessageCount: chatMessages.length,
@@ -1311,7 +1341,34 @@ export function formatDailyUserStatsSlackMessage(report: DailyUserStatsReport) {
       report.returningOnboardingCompletedCount
     )}명`,
     "",
-    `Active talents: ${formatCount(report.activeTalentsCount)}명`,
+    `Active talents: ${formatCount(
+      report.activeTalentsCount
+    )}명 (상세 항목은 중복 포함)`,
+    `- 접속: ${formatCount(
+      report.activeTalentBreakdown.loggedInTalentCount
+    )}명`,
+    `- 신규 가입: ${formatCount(
+      report.activeTalentBreakdown.signupTalentCount
+    )}명`,
+    `- 채팅: ${formatCount(report.activeTalentBreakdown.chatTalentCount)}명`,
+    `- 통화: ${formatCount(
+      report.activeTalentBreakdown.callTranscriptTalentCount
+    )}명`,
+    `- 메일 답장: ${formatCount(
+      report.activeTalentBreakdown.inboundEmailTalentCount
+    )}명`,
+    `- 추천 열람: ${formatCount(
+      report.activeTalentBreakdown.viewedRecommendationTalentCount
+    )}명`,
+    `- 추천 클릭: ${formatCount(
+      report.activeTalentBreakdown.clickedRecommendationTalentCount
+    )}명`,
+    `- 추천 피드백: ${formatCount(
+      report.activeTalentBreakdown.feedbackRecommendationTalentCount
+    )}명`,
+    `- 추천 저장/상태 변경: ${formatCount(
+      report.activeTalentBreakdown.savedRecommendationTalentCount
+    )}명`,
     // `High_intent_talents: ${formatCount(report.highIntentTalentsCount)}명`,
     `누적 talents: ${formatCount(report.cumulativeTalentsCount)}명`,
     "",

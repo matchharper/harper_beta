@@ -88,7 +88,6 @@ export async function buildCareerRealtimeSessionInstructions(args: {
       talentSetting?.get_external_recommendation ?? true,
     getInternalRecommendation:
       talentSetting?.get_internal_recommendation ?? true,
-    periodicIntervalDays: talentSetting?.periodic_interval_days ?? null,
     preferredLocale:
       talentSetting?.preferred_locale ?? args.preferredLocale ?? null,
     profileVisibility: talentSetting?.profile_visibility ?? null,

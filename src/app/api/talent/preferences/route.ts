@@ -50,7 +50,6 @@ type Body = {
   engagementTypes?: string[];
   getExternalRecommendation?: boolean;
   getInternalRecommendation?: boolean;
-  periodicIntervalDays?: number;
   recommendationBatchSize?: number;
   insightContent?: Record<string, unknown> | null;
 };
@@ -113,13 +112,6 @@ function getPreferenceActivityChanges(args: {
       field: "getInternalRecommendation",
       from: args.from.getInternalRecommendation,
       to: args.to.getInternalRecommendation,
-    });
-  }
-  if (args.body.periodicIntervalDays !== undefined) {
-    changes.push({
-      field: "periodicIntervalDays",
-      from: args.from.periodicIntervalDays,
-      to: args.to.periodicIntervalDays,
     });
   }
   if (args.body.recommendationBatchSize !== undefined) {
@@ -201,7 +193,6 @@ export async function POST(req: NextRequest) {
       body.engagementTypes !== undefined ||
       body.getExternalRecommendation !== undefined ||
       body.getInternalRecommendation !== undefined ||
-      body.periodicIntervalDays !== undefined ||
       body.recommendationBatchSize !== undefined;
     const hasInsightUpdate = body.insightContent !== undefined;
 
@@ -226,9 +217,6 @@ export async function POST(req: NextRequest) {
           getInternalRecommendation: normalizeTalentRecommendationToggle(
             body.getInternalRecommendation ??
               existingSetting?.get_internal_recommendation
-          ),
-          periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
-            body.periodicIntervalDays ?? existingSetting?.periodic_interval_days
           ),
           recommendationBatchSize: normalizeTalentRecommendationBatchSize(
             body.recommendationBatchSize ??

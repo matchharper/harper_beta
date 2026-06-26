@@ -18,6 +18,9 @@ import type {
   OpsMatchingReviewBoardResponse,
   OpsMatchingReviewStageId,
   OpsMatchingReviewStageUpdateResponse,
+  OpsMatchingRoleReviewStageCreateResponse,
+  OpsMatchingRoleReviewStageDeleteResponse,
+  OpsMatchingRoleReviewStageUpdateResponse,
   OpsMatchingRoleOption,
   OpsMatchingTalentHistoryResponse,
   OpsMatchingTalentHistorySection,
@@ -350,6 +353,69 @@ export function useSetOpsMatchingReviewStage() {
           variables.roleId
         ),
       });
+    },
+  });
+}
+
+export function useCreateOpsMatchingReviewStage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { label: string; roleId: string }) =>
+      fetchWithInternalAuth<OpsMatchingRoleReviewStageCreateResponse>(
+        "/api/internal/matching/review/stages",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(args),
+        }
+      ),
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.opsMatching.reviewAll(variables.roleId),
+      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.opsMatching.all });
+    },
+  });
+}
+
+export function useUpdateOpsMatchingReviewStage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { label: string; roleId: string; stageId: string }) =>
+      fetchWithInternalAuth<OpsMatchingRoleReviewStageUpdateResponse>(
+        "/api/internal/matching/review/stages",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(args),
+        }
+      ),
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.opsMatching.reviewAll(variables.roleId),
+      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.opsMatching.all });
+    },
+  });
+}
+
+export function useDeleteOpsMatchingReviewStage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { roleId: string; stageId: string }) =>
+      fetchWithInternalAuth<OpsMatchingRoleReviewStageDeleteResponse>(
+        "/api/internal/matching/review/stages",
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(args),
+        }
+      ),
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.opsMatching.reviewAll(variables.roleId),
+      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.opsMatching.all });
     },
   });
 }

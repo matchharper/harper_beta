@@ -19,10 +19,7 @@ import {
   type TalentAdminClient,
   type TalentMessageRow,
 } from "@/lib/talentOnboarding/server";
-import {
-  normalizeTalentPeriodicIntervalDays,
-  normalizeTalentRecommendationBatchSize,
-} from "@/lib/talentOnboarding/recommendationSettings";
+import { normalizeTalentRecommendationBatchSize } from "@/lib/talentOnboarding/recommendationSettings";
 import { fetchRecentMessagesWithSummary } from "@/lib/talentOnboarding/conversationSummary";
 import {
   fetchOnboardingCompletionNextStepsMessage,
@@ -194,9 +191,6 @@ function buildCurrentPreferences(
   setting: Awaited<ReturnType<typeof fetchTalentSetting>>
 ): CareerPromptPreferences {
   return {
-    periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
-      setting?.periodic_interval_days
-    ),
     preferredLocale: setting?.preferred_locale ?? null,
     recommendationBatchSize: normalizeTalentRecommendationBatchSize(
       setting?.recommendation_batch_size

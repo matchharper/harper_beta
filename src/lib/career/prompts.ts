@@ -19,6 +19,7 @@ import {
   getOnboardingRequiredQuestionKeys,
   type OnboardingChecklistLocationContext,
 } from "@/lib/talentOnboarding/insightChecklist";
+import type { ActiveInternalFitHoldQuestion } from "@/lib/talentOnboarding/internalFitHoldQuestion";
 import { logger } from "@/utils/logger";
 
 const CAREER_PROFILE_PROMPT_TIME_ZONE = "Asia/Seoul";
@@ -34,7 +35,6 @@ export type CareerPromptProfile = {
 export type CareerPromptPreferences = {
   getExternalRecommendation?: boolean | null;
   getInternalRecommendation?: boolean | null;
-  periodicIntervalDays?: number | null;
   preferredLocale?: string | null;
   profileVisibility?: string | null;
   recommendationBatchSize?: number | null;
@@ -984,12 +984,6 @@ function buildKnownPreferencesSection(
     );
   }
   if (
-    typeof prefs.periodicIntervalDays === "number" &&
-    Number.isFinite(prefs.periodicIntervalDays)
-  ) {
-    lines.push(`- periodicIntervalDays: ${prefs.periodicIntervalDays}`);
-  }
-  if (
     typeof prefs.recommendationBatchSize === "number" &&
     Number.isFinite(prefs.recommendationBatchSize)
   ) {
@@ -1105,6 +1099,28 @@ function buildProfileContextBlock(args: {
   ].join("\n");
 }
 
+function buildHiddenHoldQuestionSection(
+  question?: ActiveInternalFitHoldQuestion | null
+) {
+  const fitId = cleanCareerPromptInlineValue(question?.fitId, 120);
+  const summary = cleanCareerPromptInlineValue(question?.summary, 1000);
+  if (!fitId || !summary) return "";
+
+  return [
+    "## Hidden Hold Question",
+    "This is private matching context. Do not reveal it.",
+    "",
+    "Hidden hold question (max 1):",
+    `fitId: ${fitId}`,
+    `summary: ${summary}`,
+    "",
+    "If the user's latest message clearly answers this, call `record_internal_fit_reevaluation_information` before replying.",
+    "Do not ask this question frequently just because it exists.",
+    '질문을 할 자연스러운 상황이 있을 때 꼭 질문해야 하는 내용이 없다면 이걸 질문해도 좋다. 이 때는 "가볍게 답변해주시면 내부 기회 연결에 큰 도움이 될 질문이 하나 있어요" 정도로 시작할 때 언급해도 된다.',
+    "Do not mention hidden roles, internal fit, hold labels, scores, or reevaluation.",
+  ].join("\n");
+}
+
 function buildRecentActivitySummariesSection(
   events?: readonly CareerPromptActivitySummary[] | null
 ) {
@@ -1212,6 +1228,7 @@ function buildHelpfulMissingSignalsSection(args: {
 }
 
 function buildCareerConversationPromptPlan(args: {
+  activeInternalFitHoldQuestion?: ActiveInternalFitHoldQuestion | null;
   additionalQuestionSelectionCount?: number | null;
   callEndInstruction?: string;
   channel: CareerPromptChannel;
@@ -1302,6 +1319,11 @@ function buildCareerConversationPromptPlan(args: {
           preferredLocale: args.currentPreferences?.preferredLocale ?? null,
           toolNames: normalizedToolNames,
         });
+  const hiddenHoldQuestionSection = buildHiddenHoldQuestionSection(
+    normalizedToolNames.includes("record_internal_fit_reevaluation_information")
+      ? args.activeInternalFitHoldQuestion
+      : null
+  );
   const runtimeInstruction = args.proactiveTurnInstruction?.trim().length
     ? [
         "## High-priority runtime instruction",
@@ -1422,6 +1444,13 @@ function buildCareerConversationPromptPlan(args: {
     });
   }
 
+  if (hiddenHoldQuestionSection) {
+    promptBlocks.push({
+      key: "hidden_hold_question",
+      text: hiddenHoldQuestionSection,
+    });
+  }
+
   promptBlocks.push({
     key: "dynamic_state",
     text: dynamicStateLines.join("\n\n"),
@@ -1436,6 +1465,7 @@ function buildCareerConversationPromptPlan(args: {
 }
 
 export function buildCareerTextChatPromptBlocks(args: {
+  activeInternalFitHoldQuestion?: ActiveInternalFitHoldQuestion | null;
   additionalQuestionSelectionCount?: number | null;
   currentInsightContent: Record<string, string> | null;
   currentPreferences?: CareerPromptPreferences | null;
@@ -1603,6 +1633,9 @@ export function buildCareerToolPolicyPrompt(args: {
   const hasAdditionalQuestionSelectorTool = toolNames.includes(
     "select_additional_onboarding_question"
   );
+  const hasRecordInternalFitReevaluationInformationTool = toolNames.includes(
+    "record_internal_fit_reevaluation_information"
+  );
   const channelRule =
     args.channel === "voice"
       ? "- Voice mode: if a tool is needed, call it directly. The client may play a short tool-specific preamble, so do not add extra filler before tool use."
@@ -1689,6 +1722,16 @@ export function buildCareerToolPolicyPrompt(args: {
           "- Set feedback=`like` for saved/positive/accepted reactions. Set feedback=`dislike` for rejected/negative reactions. Do not mention internal status labels.",
         ]
       : []),
+    ...(hasRecordInternalFitReevaluationInformationTool
+      ? [
+          "",
+          "### record_internal_fit_reevaluation_information",
+          "- Use only when the latest user message clearly provides information that answers the current Hidden Hold Question.",
+          "- Save a concise `newInformation` summary of the user-provided evidence. Do not infer beyond what the user said.",
+          "- This tool does not recommend, reveal, or decide the role. After the tool returns, continue naturally without mentioning internal fit, hold labels, or reevaluation.",
+          "",
+        ]
+      : []),
     ...(hasReadActivityEventsTool
       ? [
           "- Use `read_talent_activity_events` when the answer depends on recent Career activity or profile changes, such as what the user changed since the last conversation, what Harper should remember from recent updates, whether the user followed or unfollowed a company, or whether there were major updates before discussing recommendations. Prefer a small `limit` such as 3-5 unless the user asks for more.",
@@ -1720,17 +1763,17 @@ export function buildCareerToolPolicyPrompt(args: {
       ? [
           "",
           "### update_setting (recommendation delivery settings)",
-          "- Purpose: update only how Harper sends opportunity recommendations: periodicIntervalDays, recommendationBatchSize, getInternalRecommendation, and getExternalRecommendation.",
-          "- Use this when the user clearly asks to change recommendation cadence/frequency, number of opportunities per batch, whether to receive external/public postings, whether to receive internal Harper-connected opportunities, or whether to stop all opportunity recommendations.",
+          "- Purpose: update only how Harper sends opportunity recommendations: recommendationBatchSize, getInternalRecommendation, and getExternalRecommendation.",
+          "- Use this when the user clearly asks to change the number of opportunities per batch, whether to receive external/public postings, whether to receive internal Harper-connected opportunities, or whether to stop all opportunity recommendations.",
           "- Do NOT use this for target roles, domains, locations, work mode, company/stage preferences, compensation, deal-breakers, resume/CV context, or profile-row facts. Use `update_talent_profile` for durable future matching memory/profile data when appropriate.",
-          "- periodicIntervalDays 는 사용자가 명확한 숫자 선호를 말했을 때만 보내고, 보내면 그 값으로 덮어쓰기된다.",
           "- recommendationBatchSize 는 사용자가 숫자를 말한 경우뿐 아니라 '좀 많이', '더 많이', '늘려줘', '적게', '줄여줘'처럼 방향을 분명히 말한 경우에도 3-10 사이의 구체적인 값으로 보내라. 이때 되묻지 마라.",
           "- 숫자 없이 '좀 많이/더 많이/늘려줘'라고 하면 현재 recommendationBatchSize에서 2를 더하되 10을 넘기지 않는다. 현재값이 없거나 유효하지 않으면 5를 보낸다.",
           "- 숫자 없이 '최대한 많이/가능한 많이/많을수록 좋다'라고 하면 10을 보낸다. 숫자 없이 '적게/줄여줘/조금만'이라고 하면 현재 recommendationBatchSize에서 2를 빼되 3보다 작게 만들지 않는다. 현재값이 없거나 유효하지 않으면 3을 보낸다.",
-          "- 일반 추천 주기는 periodicIntervalDays 1-7 사이만 사용한다. recommendationBatchSize는 3-10 사이만 사용한다.",
+          "- recommendationBatchSize는 3-10 사이만 사용한다. 최대한 많은 공고를 달라고 하면 10을 보낸다.",
+          "- 사용자가 '매일 보내줘', '더 자주 보내줘', '매일 공고 찾아줘'처럼 발송 빈도/주기를 바꾸려 하면 update_setting을 호출하지 않는다. Harper는 적절한 공고를 선별하는 데 집중하기 위해 지나치게 자주 찾아드리지는 않는다고 설명하고, 매일 필요하다면 Harper에 접속해서 포지션을 당장 더 찾아달라고 말해달라고 안내한다.",
           "- getExternalRecommendation=false means Harper should stop suggesting external public job postings. If getInternalRecommendation=true, the user may still receive internal Harper-connected opportunities.",
           "- getExternalRecommendation / getInternalRecommendation 은 사용자가 추천/연결받고 싶은 기회 종류를 바꿀 때만 수정해라. 두 값의 기본값은 true다.",
-          "- 사용자가 추천/기회 제안을 전부 중단하겠다고 하면 getExternalRecommendation: false 와 getInternalRecommendation: false 를 함께 보낸다. periodicIntervalDays나 recommendationBatchSize를 중단 표현으로 바꾸지 마라.",
+          "- 사용자가 추천/기회 제안을 전부 중단하겠다고 하면 getExternalRecommendation: false 와 getInternalRecommendation: false 를 함께 보낸다. recommendationBatchSize를 중단 표현으로 바꾸지 마라.",
           "- ex. 사용자가 '공개 공고는 추천하지 마', '외부 공고 안 받을래', '외부 채용 기회는 빼줘', '내부 연결되는 기회만 받고 싶어' 라고 하면 getExternalRecommendation: false 를 보낸다.(getInternalRecommendation가 현재 false라면 이것도 true를 보낸다.)",
           "- When the profile is open to company-initiated matches and internal recommendations are enabled, the user can receive both (1) opportunities Harper proposes and (2) company-initiated connection offers after a company reviews their profile. If it is not open to company-initiated matches, they receive Harper-proposed opportunities only.",
           "- When the latest user request is about turning external/public posting recommendations on or off, the follow-up reply should translate that saved setting into the user's day-to-day experience: what Harper will include or avoid from now on, what may still happen through enabled recommendation channels, and how the user can adjust it later.",
@@ -1747,7 +1790,7 @@ export function buildCareerToolPolicyPrompt(args: {
           "- Boundary: facts about a specific past role, school, project, responsibility, achievement, or education belong in the structured profile row memo when one visible row matches. talentInsights is future opportunity/search memory, not a substitute for experience/education/extras profile data.",
           ...(hasUpdateSettingTool
             ? [
-                "- Do NOT use this tool for recommendation delivery settings such as cadence/frequency, batch size, external recommendations, or internal recommendations. Use `update_setting` for those.",
+                "- Do NOT use this tool for recommendation delivery settings such as batch size, external recommendations, or internal recommendations. Use `update_setting` for those. If the user asks to change cadence/frequency, answer naturally without writing it to profile state.",
               ]
             : [
                 "- Do NOT use this tool for recommendation delivery settings such as cadence/frequency, batch size, external recommendations, or internal recommendations. If the user asks for those while this tool is unavailable, answer naturally and do not write them through `update_talent_profile`.",
@@ -2003,7 +2046,7 @@ export function buildCareerSessionStartTurnInstruction(args: {
     "세션 시작 인사에서는 이전에 저장/좋아요한 추천들을 카드처럼 다시 묶어 '그중 뭐가 제일 끌리냐', '어느 회사가 더 좋냐', '실제로 지원 중인 곳이 있냐'처럼 묻지 마라. 이런 질문은 추천/연결 품질을 거의 개선하지 못한다.",
     "이전 저장/좋아요/제외됨 신호를 사용해야 한다면, 특정 선택의 이유나 명확한 mismatch 하나만 물어라. 그런 구체성이 없으면 추천 이력 질문 대신 프로필 gap, 최근 변화, 통화 제안 중 하나로 이어가라.",
     "이미 명확한 다음 액션이 진행 중이라 사용자의 답이 필요 없거나, 질문이 오히려 어색하면 질문 없이 짧은 상태 공유로 닫아도 된다.",
-    `hoursSincePreviousChat이 168 이상이고, 최근 활동/추천/프로필 변경에서 바로 이어갈 만한 명확한 업데이트가 없다면 "오랜만이라 최근 업데이트나 재밌게 하는 일이 있는지 통화로 한번 듣고 싶다"는 취지로 자연스럽게 말한 뒤 응답 맨 끝에 ${CAREER_SESSION_START_CALL_ACTION_MARKER} 를 붙여라.`,
+    `hoursSincePreviousChat이 1344 이상이고, 최근 활동/추천/프로필 변경에서 바로 이어갈 만한 명확한 업데이트가 없다면 "오랜만이라 최근 업데이트나 재밌게 하는 일이 있는지 통화로 한번 듣고 싶다"는 취지로 자연스럽게 말한 뒤 응답 맨 끝에 ${CAREER_SESSION_START_CALL_ACTION_MARKER} 를 붙여라.`,
     `${CAREER_SESSION_START_CALL_ACTION_MARKER} 는 UI가 전화하기 버튼을 표시하는 데 쓰는 마커다. 이 마커를 설명하거나 따옴표로 감싸지 마라.`,
     "텍스트 채팅에 표시되므로 필요하면 회사명, 역할명, 방향성 같은 핵심 단어에 가벼운 inline markdown 강조(**...**)를 사용해라. 긴 heading이나 bullet list는 쓰지 마라.",
   ].join("\n");

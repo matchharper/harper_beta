@@ -737,7 +737,7 @@ export const ko = {
     "career.common.career.0y3ajvx": "검색중...",
     "career.common.career.0y7cerf": "저장된 이력서",
     "career.common.career.0yjpnrd": "팔로우하면 일어나는 일",
-    "career.common.career.0z5xpdx": "불안 요소 :",
+    "career.common.career.0z5xpdx": "지원전 검토 사항",
     "career.common.career.11hatjy": "커리어 설정",
     "career.common.career.11j6jdx": "대화 내용을 정리하고 있어요.",
     "career.common.career.1338q8i": "설정",

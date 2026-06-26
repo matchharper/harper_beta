@@ -22,9 +22,7 @@ import { cancelCareerOnboardingContactQueue } from "@/lib/contactQueue";
 import {
   DEFAULT_TALENT_GET_EXTERNAL_RECOMMENDATION,
   DEFAULT_TALENT_GET_INTERNAL_RECOMMENDATION,
-  DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS,
   DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
-  normalizeTalentPeriodicIntervalDays,
   normalizeTalentRecommendationBatchSize,
   normalizeTalentRecommendationToggle,
 } from "@/lib/talentOnboarding/recommendationSettings";
@@ -38,7 +36,6 @@ type AdminClient = ReturnType<typeof getTalentSupabaseAdmin>;
 const DEFAULT_SETTINGS: RecommendationSettings = {
   getExternalRecommendation: DEFAULT_TALENT_GET_EXTERNAL_RECOMMENDATION,
   getInternalRecommendation: DEFAULT_TALENT_GET_INTERNAL_RECOMMENDATION,
-  periodicIntervalDays: DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS,
   recommendationBatchSize: DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
 };
 
@@ -100,9 +97,6 @@ export async function fetchRecommendationSettings(args: {
     getInternalRecommendation: normalizeTalentRecommendationToggle(
       data.get_internal_recommendation
     ),
-    periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
-      data.periodic_interval_days
-    ),
     recommendationBatchSize: normalizeTalentRecommendationBatchSize(
       data.recommendation_batch_size
     ),
@@ -111,7 +105,6 @@ export async function fetchRecommendationSettings(args: {
 
 export async function upsertRecommendationSettings(args: {
   admin: AdminClient;
-  periodicIntervalDays?: number;
   recommendationBatchSize?: number;
   sourceConversationId?: string | null;
   userId: string;
@@ -119,15 +112,11 @@ export async function upsertRecommendationSettings(args: {
   const saved = await upsertTalentSetting({
     admin: args.admin,
     userId: args.userId,
-    periodicIntervalDays: args.periodicIntervalDays,
     recommendationBatchSize: args.recommendationBatchSize,
     recommendationSourceConversationId: args.sourceConversationId,
   });
 
   return {
-    periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
-      saved.periodic_interval_days
-    ),
     recommendationBatchSize: normalizeTalentRecommendationBatchSize(
       saved.recommendation_batch_size
     ),
@@ -316,7 +305,6 @@ export async function createOpportunityDiscoveryRun(
     settings_snapshot: {
       getExternalRecommendation: settings.getExternalRecommendation,
       getInternalRecommendation: settings.getInternalRecommendation,
-      periodicIntervalDays: settings.periodicIntervalDays,
       recommendationBatchSize: settings.recommendationBatchSize,
     },
     status: args.initialStatus ?? "queued",

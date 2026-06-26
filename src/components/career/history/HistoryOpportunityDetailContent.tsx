@@ -261,7 +261,7 @@ export const HistoryOpportunityOverview = ({
               >
                 <Dot className="mt-0.5 h-5 w-5 min-w-5" />
                 <div className="min-w-0">
-                  {t("career.common.career.0z5xpdx", "불안 요소 :")} {concern}
+                  {t("career.common.career.0z5xpdx", "지원전 검토 사항")} {concern}
                 </div>
               </div>
             ))}

@@ -1,0 +1,4 @@
+-- No-op.
+--
+-- periodic_interval_days should not be hard-constrained to one value at the
+-- database layer. Cadence changes are controlled by the product/tool surface.

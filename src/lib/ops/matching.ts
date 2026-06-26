@@ -61,6 +61,10 @@ type TalentOpportunityTagRow = {
   talent_id: string;
   updated_at: string;
 };
+type OpsMatchingRoleStageRow = Pick<
+  Database["public"]["Tables"]["ops_matching_role_stages"]["Row"],
+  "id" | "label" | "role_id" | "sort_order"
+>;
 type TalentOpportunityDeliveryRow = Pick<
   Database["public"]["Tables"]["talent_opportunity_delivery"]["Row"],
   | "channel"
@@ -152,6 +156,7 @@ const MAX_MATCHING_ROLE_OPTIONS = 500;
 const MAX_MATCHING_PROGRESS_ITEMS = 120;
 const MAX_MATCHING_REVIEW_ITEMS = 500;
 const MAX_MATCHING_TAG_LENGTH = 40;
+const MAX_MATCHING_ROLE_STAGE_LABEL_LENGTH = 40;
 const MAX_MATCHING_NO_TAG_SCAN_ROWS = 5000;
 const MAX_MATCHING_TALENT_ROLE_TAG_ROWS = 5000;
 const MAX_MATCHING_FIT_SEARCH_IDS = 500;
@@ -178,6 +183,8 @@ const OPS_MATCHING_TALENT_HISTORY_SECTION_SET = new Set<string>(
   OPS_MATCHING_TALENT_HISTORY_SECTIONS
 );
 const ACTIVE_ROLE_STATUSES = new Set(["active", "top_priority"]);
+const CUSTOM_REVIEW_STAGE_ID_PREFIX = "custom:";
+const CUSTOM_REVIEW_STAGE_TAG_PREFIX = "내부단계:";
 const MATCHING_REVIEW_STAGE_TAG_BY_STAGE = {
   accepted: "내부:수락",
   archived: "내부:아카이브",
@@ -188,7 +195,7 @@ const MATCHING_REVIEW_STAGE_TAG_BY_STAGE = {
   rejected: "내부:거절",
 } as const;
 const MATCHING_REVIEW_STAGE_LABEL_BY_STAGE: Record<
-  OpsMatchingReviewStageId,
+  OpsMatchingBuiltInReviewStageId,
   string
 > = {
   accepted: "수락",
@@ -392,7 +399,7 @@ export type OpsMatchingTalentPoolListResponse =
     tab: OpsMatchingTalentPoolTabId;
   };
 
-export type OpsMatchingReviewStageId =
+export type OpsMatchingBuiltInReviewStageId =
   | "accepted"
   | "archived"
   | "final_offer"
@@ -401,6 +408,13 @@ export type OpsMatchingReviewStageId =
   | "process_stopped"
   | "recommended"
   | "rejected";
+
+export type OpsMatchingCustomReviewStageId =
+  `${typeof CUSTOM_REVIEW_STAGE_ID_PREFIX}${string}`;
+
+export type OpsMatchingReviewStageId =
+  | OpsMatchingBuiltInReviewStageId
+  | OpsMatchingCustomReviewStageId;
 
 export type OpsMatchingRecommendationSummary = {
   companyName: string | null;
@@ -454,7 +468,16 @@ export type OpsMatchingReviewItem = {
   viewedAt: string | null;
 };
 
+export type OpsMatchingRoleReviewStage = {
+  id: string;
+  label: string;
+  roleId: string;
+  sortOrder: number;
+  stage: OpsMatchingCustomReviewStageId;
+};
+
 export type OpsMatchingReviewBoardResponse = {
+  customStages: OpsMatchingRoleReviewStage[];
   items: OpsMatchingReviewItem[];
   roleId: string;
   totalCount: number;
@@ -517,6 +540,21 @@ export type OpsMatchingReviewStageUpdateResponse = {
   stage: Exclude<OpsMatchingReviewStageId, "recommended">;
   tags: OpsMatchingTalentTag[];
   talentId: string;
+};
+
+export type OpsMatchingRoleReviewStageCreateResponse = {
+  ok: true;
+  roleId: string;
+  stage: OpsMatchingRoleReviewStage;
+};
+
+export type OpsMatchingRoleReviewStageUpdateResponse =
+  OpsMatchingRoleReviewStageCreateResponse;
+
+export type OpsMatchingRoleReviewStageDeleteResponse = {
+  ok: true;
+  roleId: string;
+  stageId: string;
 };
 
 export type OpsMatchingProgressItem = {
@@ -584,6 +622,7 @@ function isInternalCompanyRole(role: CompanyRoleName | null | undefined) {
 
 function fromOpsMatchingTable<
   TTableName extends
+    | "ops_matching_role_stages"
     | "talent_opportunity_fit"
     | "talent_opportunity_tag"
     | "talent_progress",
@@ -607,7 +646,8 @@ function isMissingOpsMatchingTableError(error: unknown) {
     (error as { message?: unknown } | null)?.message ?? error ?? ""
   ).toLowerCase();
   return (
-    (message.includes("talent_opportunity_tag") ||
+    (message.includes("ops_matching_role_stages") ||
+      message.includes("talent_opportunity_tag") ||
       message.includes("talent_opportunity_fit") ||
       message.includes("talent_progress")) &&
     (message.includes("schema cache") ||
@@ -630,16 +670,78 @@ function normalizeTagKey(value: unknown) {
   return normalizeTag(value).toLowerCase();
 }
 
+function normalizeStageTagKey(value: unknown) {
+  return normalizeText(value).toLowerCase();
+}
+
+function buildCustomReviewStageId(
+  stageId: string
+): OpsMatchingCustomReviewStageId {
+  return `${CUSTOM_REVIEW_STAGE_ID_PREFIX}${stageId}` as OpsMatchingCustomReviewStageId;
+}
+
+function getCustomReviewStageDbId(stage: string) {
+  return stage.startsWith(CUSTOM_REVIEW_STAGE_ID_PREFIX)
+    ? normalizeText(stage.slice(CUSTOM_REVIEW_STAGE_ID_PREFIX.length))
+    : "";
+}
+
+function buildCustomReviewStageTag(stageId: string) {
+  return `${CUSTOM_REVIEW_STAGE_TAG_PREFIX}${normalizeText(stageId).replace(/-/g, "").toLowerCase()}`;
+}
+
+function isCustomReviewStageTag(tag: unknown) {
+  return normalizeStageTagKey(tag).startsWith(
+    normalizeStageTagKey(CUSTOM_REVIEW_STAGE_TAG_PREFIX)
+  );
+}
+
 const MATCHING_REVIEW_STAGE_BY_TAG_KEY = new Map(
   Object.entries(MATCHING_REVIEW_STAGE_TAG_BY_STAGE).map(([stage, tag]) => [
-    normalizeTagKey(tag),
+    normalizeStageTagKey(tag),
     stage as Exclude<OpsMatchingReviewStageId, "recommended">,
   ])
 );
 
 const MATCHING_REVIEW_STAGE_TAG_KEYS = new Set(
-  Object.values(MATCHING_REVIEW_STAGE_TAG_BY_STAGE).map(normalizeTagKey)
+  Object.values(MATCHING_REVIEW_STAGE_TAG_BY_STAGE).map(normalizeStageTagKey)
 );
+
+function isInternalReviewStageTag(tag: unknown) {
+  const tagKey = normalizeStageTagKey(tag);
+  return MATCHING_REVIEW_STAGE_TAG_KEYS.has(tagKey) || isCustomReviewStageTag(tag);
+}
+
+function buildCustomReviewStageByTagKey(
+  customStages: readonly OpsMatchingRoleReviewStage[]
+) {
+  return new Map(
+    customStages.map((stage) => [
+      normalizeStageTagKey(buildCustomReviewStageTag(stage.id)),
+      stage.stage,
+    ])
+  );
+}
+
+function buildReviewStageLabelMap(
+  customStages: readonly OpsMatchingRoleReviewStage[]
+) {
+  return new Map<OpsMatchingReviewStageId, string>(
+    customStages.map((stage) => [stage.stage, stage.label])
+  );
+}
+
+function getReviewStageLabel(
+  stage: OpsMatchingReviewStageId,
+  customStageLabelByStage?: ReadonlyMap<OpsMatchingReviewStageId, string>
+) {
+  if (stage in MATCHING_REVIEW_STAGE_LABEL_BY_STAGE) {
+    return MATCHING_REVIEW_STAGE_LABEL_BY_STAGE[
+      stage as OpsMatchingBuiltInReviewStageId
+    ];
+  }
+  return customStageLabelByStage?.get(stage) ?? "커스텀 단계";
+}
 
 function isAcceptedFeedback(feedback: string | null | undefined) {
   const normalized = normalizeText(feedback).toLowerCase();
@@ -652,14 +754,16 @@ function isRejectedFeedback(feedback: string | null | undefined) {
 }
 
 function getOpsMatchingReviewStage(args: {
+  customStageByTagKey?: ReadonlyMap<string, OpsMatchingCustomReviewStageId>;
   feedback: string | null | undefined;
   tags: OpsMatchingTalentTag[];
 }): { stage: OpsMatchingReviewStageId; stageTag: string | null } {
   for (const tag of args.tags) {
-    const stage = MATCHING_REVIEW_STAGE_BY_TAG_KEY.get(
-      normalizeTagKey(tag.tag)
-    );
+    const tagKey = normalizeStageTagKey(tag.tag);
+    const stage = MATCHING_REVIEW_STAGE_BY_TAG_KEY.get(tagKey);
     if (stage) return { stage, stageTag: tag.tag };
+    const customStage = args.customStageByTagKey?.get(tagKey);
+    if (customStage) return { stage: customStage, stageTag: tag.tag };
   }
 
   if (isAcceptedFeedback(args.feedback)) {
@@ -672,12 +776,18 @@ function getOpsMatchingReviewStage(args: {
 }
 
 function buildReviewStageProgressText(args: {
+  customStageLabelByStage?: ReadonlyMap<OpsMatchingReviewStageId, string>;
   nextStage: Exclude<OpsMatchingReviewStageId, "recommended">;
   previousStage: OpsMatchingReviewStageId;
 }) {
-  const nextLabel = MATCHING_REVIEW_STAGE_LABEL_BY_STAGE[args.nextStage];
-  const previousLabel =
-    MATCHING_REVIEW_STAGE_LABEL_BY_STAGE[args.previousStage];
+  const nextLabel = getReviewStageLabel(
+    args.nextStage,
+    args.customStageLabelByStage
+  );
+  const previousLabel = getReviewStageLabel(
+    args.previousStage,
+    args.customStageLabelByStage
+  );
   if (args.previousStage === "recommended") {
     return `${nextLabel}로 옮겼습니다.`;
   }
@@ -3152,6 +3262,206 @@ async function fetchManualInternalRecommendationRunIds(args: {
   return manualRunIds;
 }
 
+function buildOpsMatchingRoleReviewStage(
+  row: OpsMatchingRoleStageRow
+): OpsMatchingRoleReviewStage {
+  return {
+    id: row.id,
+    label: normalizeText(row.label),
+    roleId: row.role_id,
+    sortOrder: row.sort_order,
+    stage: buildCustomReviewStageId(row.id),
+  };
+}
+
+async function fetchOpsMatchingRoleReviewStagesWithAdmin(args: {
+  admin: AdminClient;
+  roleId: string;
+}) {
+  const roleId = normalizeText(args.roleId);
+  if (!roleId) return [];
+
+  const { data, error } = await fromOpsMatchingTable(
+    args.admin,
+    "ops_matching_role_stages"
+  )
+    .select("id, role_id, label, sort_order")
+    .eq("role_id", roleId)
+    .order("sort_order", { ascending: true })
+    .order("label", { ascending: true });
+
+  if (error) {
+    if (isMissingOpsMatchingTableError(error)) return [];
+    throw new Error(error.message ?? "Failed to load matching role stages");
+  }
+
+  return ((data ?? []) as OpsMatchingRoleStageRow[]).map(
+    buildOpsMatchingRoleReviewStage
+  );
+}
+
+export async function fetchOpsMatchingRoleReviewStages(args: {
+  roleId?: string | null;
+}): Promise<OpsMatchingRoleReviewStage[]> {
+  const roleId = normalizeText(args.roleId);
+  if (!roleId) throw new Error("roleId is required");
+  return fetchOpsMatchingRoleReviewStagesWithAdmin({
+    admin: getSupabaseAdmin(),
+    roleId,
+  });
+}
+
+export async function createOpsMatchingRoleReviewStage(args: {
+  label: unknown;
+  roleId?: string | null;
+}): Promise<OpsMatchingRoleReviewStageCreateResponse> {
+  const roleId = normalizeText(args.roleId);
+  const label = normalizeText(args.label).slice(
+    0,
+    MAX_MATCHING_ROLE_STAGE_LABEL_LENGTH
+  );
+  if (!roleId) throw new Error("roleId is required");
+  if (!label) throw new Error("label is required");
+
+  const admin = getSupabaseAdmin();
+  const { data: latestRows, error: latestError } = await fromOpsMatchingTable(
+    admin,
+    "ops_matching_role_stages"
+  )
+    .select("sort_order")
+    .eq("role_id", roleId)
+    .order("sort_order", { ascending: false })
+    .limit(1);
+
+  if (latestError) {
+    if (isMissingOpsMatchingTableError(latestError)) {
+      throw createMissingOpsMatchingTableError("ops_matching_role_stages");
+    }
+    throw new Error(latestError.message ?? "Failed to load matching role stage");
+  }
+
+  const latestSortOrder =
+    ((latestRows ?? []) as Pick<OpsMatchingRoleStageRow, "sort_order">[])[0]
+      ?.sort_order ?? 0;
+  const { data, error } = await fromOpsMatchingTable(
+    admin,
+    "ops_matching_role_stages"
+  )
+    .insert({
+      label,
+      role_id: roleId,
+      sort_order: latestSortOrder + 1,
+    })
+    .select("id, role_id, label, sort_order")
+    .single();
+
+  if (error) {
+    if (isMissingOpsMatchingTableError(error)) {
+      throw createMissingOpsMatchingTableError("ops_matching_role_stages");
+    }
+    if (error.code === "23505") {
+      throw new Error("이미 같은 이름의 칼럼이 있습니다.");
+    }
+    throw new Error(error.message ?? "Failed to create matching role stage");
+  }
+
+  return {
+    ok: true,
+    roleId,
+    stage: buildOpsMatchingRoleReviewStage(data as OpsMatchingRoleStageRow),
+  };
+}
+
+export async function updateOpsMatchingRoleReviewStage(args: {
+  label: unknown;
+  roleId?: string | null;
+  stageId?: string | null;
+}): Promise<OpsMatchingRoleReviewStageUpdateResponse> {
+  const roleId = normalizeText(args.roleId);
+  const stageId = normalizeText(args.stageId);
+  const label = normalizeText(args.label).slice(
+    0,
+    MAX_MATCHING_ROLE_STAGE_LABEL_LENGTH
+  );
+  if (!roleId) throw new Error("roleId is required");
+  if (!stageId) throw new Error("stageId is required");
+  if (!label) throw new Error("label is required");
+
+  const { data, error } = await fromOpsMatchingTable(
+    getSupabaseAdmin(),
+    "ops_matching_role_stages"
+  )
+    .update({ label })
+    .eq("id", stageId)
+    .eq("role_id", roleId)
+    .select("id, role_id, label, sort_order")
+    .single();
+
+  if (error) {
+    if (isMissingOpsMatchingTableError(error)) {
+      throw createMissingOpsMatchingTableError("ops_matching_role_stages");
+    }
+    if (error.code === "23505") {
+      throw new Error("이미 같은 이름의 칼럼이 있습니다.");
+    }
+    throw new Error(error.message ?? "Failed to update matching role stage");
+  }
+
+  return {
+    ok: true,
+    roleId,
+    stage: buildOpsMatchingRoleReviewStage(data as OpsMatchingRoleStageRow),
+  };
+}
+
+export async function deleteOpsMatchingRoleReviewStage(args: {
+  roleId?: string | null;
+  stageId?: string | null;
+}): Promise<OpsMatchingRoleReviewStageDeleteResponse> {
+  const roleId = normalizeText(args.roleId);
+  const stageId = normalizeText(args.stageId);
+  if (!roleId) throw new Error("roleId is required");
+  if (!stageId) throw new Error("stageId is required");
+
+  const admin = getSupabaseAdmin();
+  const stageTag = buildCustomReviewStageTag(stageId);
+  const { error: stageError } = await fromOpsMatchingTable(
+    admin,
+    "ops_matching_role_stages"
+  )
+    .delete()
+    .eq("id", stageId)
+    .eq("role_id", roleId);
+
+  if (stageError) {
+    if (isMissingOpsMatchingTableError(stageError)) {
+      throw createMissingOpsMatchingTableError("ops_matching_role_stages");
+    }
+    throw new Error(stageError.message ?? "Failed to delete matching stage");
+  }
+
+  const { error: tagError } = await fromOpsMatchingTable(
+    admin,
+    "talent_opportunity_tag"
+  )
+    .delete()
+    .eq("opportunity_id", roleId)
+    .eq("tag", stageTag);
+
+  if (tagError) {
+    if (isMissingOpsMatchingTableError(tagError)) {
+      throw createMissingOpsMatchingTableError("talent_opportunity_tag");
+    }
+    throw new Error(tagError.message ?? "Failed to delete matching stage tags");
+  }
+
+  return {
+    ok: true,
+    roleId,
+    stageId,
+  };
+}
+
 export async function fetchOpsMatchingReviewBoard(args: {
   recommendedFrom?: string | null;
   recommendedTo?: string | null;
@@ -3178,8 +3488,12 @@ export async function fetchOpsMatchingReviewBoard(args: {
     createdFrom: args.recommendedFrom,
     createdTo: args.recommendedTo,
   });
-  const [matchedTagTalentIds, taggedTalentIds, excludedTalentIds] =
-    await Promise.all([
+  const [
+    matchedTagTalentIds,
+    taggedTalentIds,
+    excludedTalentIds,
+    customStages,
+  ] = await Promise.all([
       matchingTags.length > 0
         ? fetchTagMatchedTalentIds({ admin, roleId, tags: matchingTags })
         : Promise.resolve(null),
@@ -3193,7 +3507,9 @@ export async function fetchOpsMatchingReviewBoard(args: {
             tags: [MATCHING_NOT_INTERESTED_TAG],
           })
         : Promise.resolve(null),
+      fetchOpsMatchingRoleReviewStagesWithAdmin({ admin, roleId }),
     ]);
+  const customStageByTagKey = buildCustomReviewStageByTagKey(customStages);
 
   if (
     matchingTags.length > 0 &&
@@ -3202,6 +3518,7 @@ export async function fetchOpsMatchingReviewBoard(args: {
     !hasNoTagFilter
   ) {
     return {
+      customStages,
       items: [],
       roleId,
       totalCount: 0,
@@ -3282,6 +3599,7 @@ export async function fetchOpsMatchingReviewBoard(args: {
       if (!talent) return null;
       const discoveryRunId = row.discovery_run_id ?? null;
       const stage = getOpsMatchingReviewStage({
+        customStageByTagKey,
         feedback: row.feedback,
         tags: talent.tags,
       });
@@ -3308,6 +3626,7 @@ export async function fetchOpsMatchingReviewBoard(args: {
     .filter((item): item is OpsMatchingReviewItem => item !== null);
 
   return {
+    customStages,
     items,
     roleId,
     totalCount: items.length,
@@ -3448,13 +3767,26 @@ export async function setOpsMatchingReviewStage(args: {
     throw new Error("recommended stage cannot be set manually");
   }
 
+  const admin = getSupabaseAdmin();
+  const customStages = await fetchOpsMatchingRoleReviewStagesWithAdmin({
+    admin,
+    roleId,
+  });
+  const customStageByTagKey = buildCustomReviewStageByTagKey(customStages);
+  const customStageLabelByStage = buildReviewStageLabelMap(customStages);
   const stageTag =
     MATCHING_REVIEW_STAGE_TAG_BY_STAGE[
       stage as keyof typeof MATCHING_REVIEW_STAGE_TAG_BY_STAGE
-    ];
+    ] ??
+    (() => {
+      const customStageId = getCustomReviewStageDbId(stage);
+      const customStage = customStages.find(
+        (item) => item.id === customStageId
+      );
+      return customStage ? buildCustomReviewStageTag(customStage.id) : "";
+    })();
   if (!stageTag) throw new Error("Unsupported review stage");
 
-  const admin = getSupabaseAdmin();
   const [existingResult, recommendation] = await Promise.all([
     fromOpsMatchingTable(admin, "talent_opportunity_tag")
       .select("id, tag")
@@ -3477,13 +3809,12 @@ export async function setOpsMatchingReviewStage(args: {
     "id" | "tag"
   >[];
   const previousStage = getOpsMatchingReviewStage({
+    customStageByTagKey,
     feedback: recommendation?.feedback,
     tags: rows.map((row) => ({ id: row.id, tag: row.tag })),
   }).stage;
   const internalStageTagIds = rows
-    .filter((row) =>
-      MATCHING_REVIEW_STAGE_TAG_KEYS.has(normalizeTagKey(row.tag))
-    )
+    .filter((row) => isInternalReviewStageTag(row.tag))
     .map((row) => row.id)
     .filter(Boolean);
 
@@ -3531,6 +3862,7 @@ export async function setOpsMatchingReviewStage(args: {
       role_id: roleId,
       talent_id: talentId,
       text: buildReviewStageProgressText({
+        customStageLabelByStage,
         nextStage: stage as Exclude<OpsMatchingReviewStageId, "recommended">,
         previousStage,
       }),

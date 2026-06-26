@@ -17,6 +17,7 @@ export type CareerRealtimeTool = ReturnType<typeof getRealtimeTools>[number];
 export type CareerChatToolSelectionArgs = {
   additionalQuestionSelectionCount?: number | null;
   allowedToolNames?: readonly string[] | null;
+  activeInternalFitHoldQuestion?: boolean | null;
   channel?: TalentToolChannel | null;
   isOnboardingDone?: boolean | null;
   responseLocale?: string | null;
@@ -166,6 +167,12 @@ function shouldExposeCareerChatTool(
     return isListedToolName(CAREER_CHAT_ONBOARDING_TOOL_NAMES, toolName);
   }
 
+  if (
+    toolName === TALENT_TOOL_NAMES.RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION
+  ) {
+    return args.activeInternalFitHoldQuestion === true;
+  }
+
   return isListedToolName(CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES, toolName);
 }
 
@@ -192,7 +199,9 @@ export function resolveCareerChatTools(args: CareerChatToolSelectionArgs) {
   };
 }
 
-export function getCareerRealtimeToolCandidates(preferredLocale?: string | null) {
+export function getCareerRealtimeToolCandidates(
+  preferredLocale?: string | null
+) {
   const enabledVoiceToolNames = new Set<string>(
     CAREER_REALTIME_VOICE_POST_ONBOARDING_TOOL_NAMES
   );

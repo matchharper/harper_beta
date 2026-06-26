@@ -72,13 +72,14 @@ const PREFERENCE_FIELD_LABELS: Record<string, string> = {
   engagementTypes: "engagement types",
   getExternalRecommendation: "external recommendations",
   getInternalRecommendation: "internal recommendations",
-  periodicIntervalDays: "periodic interval days",
   recommendationBatchSize: "recommendation batch size",
 };
 
 const HIDDEN_TALENT_SETTING_SUMMARY_PATTERNS = [
   "engagement types",
   "engagementtypes",
+  "periodic interval days",
+  "periodicintervaldays",
 ];
 
 function normalizeMessageId(value: unknown) {
@@ -146,10 +147,6 @@ function formatPreferenceActivityValue(field: string, value: unknown) {
   if (field === "engagementTypes") {
     return formatLabeledArray(getTalentEngagementLabels(value), value);
   }
-  if (field === "periodicIntervalDays") {
-    const formatted = formatActivityValue(value);
-    return formatted === "none" ? formatted : `${formatted} days`;
-  }
   if (field === "recommendationBatchSize") {
     const formatted = formatActivityValue(value);
     return formatted === "none" ? formatted : `${formatted} opportunities`;
@@ -215,7 +212,9 @@ export function compactActivityChanges(
   changes: readonly TalentActivityChange[]
 ) {
   return changes.filter(
-    (change) => !isSameActivityValue(change.from, change.to)
+    (change) =>
+      change.field !== "periodicIntervalDays" &&
+      !isSameActivityValue(change.from, change.to)
   );
 }
 

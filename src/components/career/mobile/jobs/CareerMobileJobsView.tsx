@@ -546,7 +546,7 @@ function RecommendationContent({
         >
           <Dot className="mt-0.5 h-4 w-4 min-w-4 text-neutral-soft" />
           <div className="min-w-0 flex-1">
-            {t("career.common.career.0z5xpdx", "불안 요소 :")} {concern}
+            {t("career.common.career.0z5xpdx", "지원전 검토 사항")} {concern}
           </div>
         </div>
       ))}
