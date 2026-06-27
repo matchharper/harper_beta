@@ -195,6 +195,13 @@ type LandingCopy = {
     title: string;
     aboutLabel: string;
     items: readonly { id: string; label: string }[];
+    modeCards: readonly {
+      id: "active" | "passive";
+      eyebrow: string;
+      title: string;
+      body: string;
+      imageSrc: string;
+    }[];
   };
   cta: {
     title: readonly string[];
@@ -431,6 +438,22 @@ const LANDING_COPY = {
     audience: {
       title: "Harper는 누구를 위한 건가요?",
       aboutLabel: "우리가 Harper를 만든 이유",
+      modeCards: [
+        {
+          id: "active",
+          eyebrow: "Active",
+          title: "적극적으로 구직중인 사람",
+          body: "직접 연결뿐만 아니라 조건을 만족하는, 지원해볼만한 오픈포지션도 찾아서 전달해드려요.",
+          imageSrc: "/images/orange.png",
+        },
+        {
+          id: "passive",
+          eyebrow: "Passive",
+          title: "특별한 기회라면 제안을 받아보고 싶은 사람",
+          body: "Harper와 한번만 대화하세요. 내 기준을 넘는 제안이 있을 때만 조용히 알려드리고, 원할 때만 연결합니다.",
+          imageSrc: "/images/yellowgreen.webp",
+        },
+      ],
       items: [
         {
           id: "linkedin-open-to-work-primary",
@@ -684,6 +707,22 @@ const LANDING_COPY = {
     audience: {
       title: "Built for talents.",
       aboutLabel: "Why we built Harper",
+      modeCards: [
+        {
+          id: "active",
+          eyebrow: "Active",
+          title: "For people actively looking",
+          body: "Harper shares not only direct intros, but also open roles that match your criteria and are worth applying to.",
+          imageSrc: "/images/orange.png",
+        },
+        {
+          id: "passive",
+          eyebrow: "Passive",
+          title: "For people who would consider the right opportunity",
+          body: "Talk to Harper once. We will quietly let you know only when an opportunity clears your bar, and connect you only when you want to.",
+          imageSrc: "/images/yellowgreen.webp",
+        },
+      ],
       items: [
         {
           id: "linkedin-open-to-work-primary",
@@ -1728,106 +1767,81 @@ function OpportunityScroller({
   );
 }
 
-function AudiencePreviewCard({ label }: { label: string }) {
-  const verticalWaves = Array.from({ length: 8 }, (_, index) => index);
-  const horizontalWaves = Array.from({ length: 5 }, (_, index) => index);
-  const verticalWavePath = (x: number) =>
-    `M ${x} -24 C ${x + 34} -2 ${x + 34} 30 ${x} 48 C ${
-      x - 34
-    } 66 ${x - 34} 98 ${x} 116 C ${x + 34} 134 ${
-      x + 34
-    } 166 ${x} 184 C ${x - 34} 202 ${x - 34} 234 ${x} 252`;
-  const verticalGridPath = (x: number) =>
-    `M ${x} -24 C ${x} -2 ${x} 30 ${x} 48 C ${x} 66 ${x} 98 ${x} 116 C ${x} 134 ${x} 166 ${x} 184 C ${x} 202 ${x} 234 ${x} 252`;
-  const horizontalWavePath = (y: number) =>
-    `M -42 ${y} C 42 ${y - 18} 96 ${y + 18} 168 ${y} C 240 ${
-      y - 18
-    } 294 ${y + 18} 366 ${y} C 418 ${y - 13} 450 ${y - 2} 470 ${y + 8}`;
-  const horizontalGridPath = (y: number) =>
-    `M -42 ${y} C 42 ${y} 96 ${y} 168 ${y} C 240 ${y} 294 ${y} 366 ${y} C 418 ${y} 450 ${y} 470 ${y}`;
+function AudienceModeCard({
+  card,
+  priorityImage = false,
+}: {
+  card: LandingCopy["audience"]["modeCards"][number];
+  priorityImage?: boolean;
+}) {
+  const imageClassName =
+    card.id === "active"
+      ? "object-[50%_50%] brightness-[0.82] contrast-[1.04] saturate-[0.9]"
+      : "object-[50%_44%] brightness-[0.74] contrast-[1.06] saturate-[0.95]";
 
   return (
-    <Link
-      href="/about"
-      className="group block overflow-hidden rounded-[18px] bg-white h-full ring-1 ring-black/[0.06] cursor-pointer hover:bg-neutral-100 transition-colors"
-    >
-      <div className="relative h-[170px] overflow-hidden bg-emerald-950 md:h-[80%]">
-        <Image
-          src="/images/orange.png"
-          alt=""
-          fill
-          sizes="(min-width: 768px) 32vw, 100vw"
-          className="object-cover brightness-[1.18] contrast-[0.88] saturate-[0.82]"
-        />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_34%_18%,rgba(106,79,0,0.62),transparent_34%),linear-gradient(105deg,rgba(255,255,255,0.14),transparent_46%,rgba(0,92,72,0.18))]" />
-        <svg
-          aria-hidden="true"
-          viewBox="0 0 420 220"
-          preserveAspectRatio="none"
-          className="absolute inset-0 h-full w-full"
-        >
-          <g
-            fill="none"
-            stroke="rgba(255,255,255,0.62)"
-            strokeLinecap="round"
-            strokeWidth="1.1"
-          >
-            <g className="transition-opacity duration-500 ease-out group-hover:opacity-0">
-              {verticalWaves.map((index) => {
-                const x = -46 + index * 72;
-
-                return (
-                  <path
-                    key={`vertical-wave-${index}`}
-                    d={verticalWavePath(x)}
-                  />
-                );
-              })}
-              {horizontalWaves.map((index) => {
-                const y = 26 + index * 46;
-
-                return (
-                  <path
-                    key={`horizontal-wave-${index}`}
-                    d={horizontalWavePath(y)}
-                  />
-                );
-              })}
-            </g>
-            <g className="opacity-0 transition-opacity duration-500 ease-out group-hover:opacity-100">
-              {verticalWaves.map((index) => {
-                const x = -46 + index * 72;
-
-                return (
-                  <path
-                    key={`vertical-grid-${index}`}
-                    d={verticalGridPath(x)}
-                    className="[stroke-dasharray:560] [stroke-dashoffset:560] transition-[stroke-dashoffset] duration-700 ease-out group-hover:[stroke-dashoffset:0]"
-                    style={{ transitionDelay: `${index * 18}ms` }}
-                  />
-                );
-              })}
-              {horizontalWaves.map((index) => {
-                const y = 26 + index * 46;
-
-                return (
-                  <path
-                    key={`horizontal-grid-${index}`}
-                    d={horizontalGridPath(y)}
-                    className="[stroke-dasharray:560] [stroke-dashoffset:560] transition-[stroke-dashoffset] duration-700 ease-out group-hover:[stroke-dashoffset:0]"
-                    style={{ transitionDelay: `${(index + 2) * 22}ms` }}
-                  />
-                );
-              })}
-            </g>
-          </g>
-        </svg>
+    <div className="relative flex min-h-[300px] overflow-hidden rounded-[12px] bg-neutral-950 p-4 text-white ring-1 ring-black/[0.06] md:min-h-[340px] md:p-5">
+      <Image
+        src={card.imageSrc}
+        alt=""
+        fill
+        loading={priorityImage ? "eager" : "lazy"}
+        fetchPriority={priorityImage ? "high" : undefined}
+        sizes="(min-width: 512px) 20vw, 100vw"
+        className={cn("object-cover", imageClassName)}
+      />
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.04)_0%,rgba(0,0,0,0.3)_44%,rgba(0,0,0,0.8)_100%)]" />
+      <div className="relative flex min-h-full w-full flex-col justify-between">
+        <div className="flex items-start justify-between gap-3">
+          <span className="inline-flex min-h-7 items-center rounded-full bg-white/88 px-2.5 py-1 text-[11px] font-medium leading-tight text-neutral-950 backdrop-blur-sm">
+            {card.eyebrow}
+          </span>
+        </div>
+        <div className="pt-16">
+          <h3 className="max-w-[330px] text-[17px] font-medium leading-[1.3] text-white md:text-[18px]">
+            {card.title}
+          </h3>
+          <p className="mt-3 max-w-[330px] text-[13px] leading-[1.42] text-white/84 md:text-sm">
+            {card.body}
+          </p>
+        </div>
       </div>
-      <div className="flex flex-row gap-2 items-center justify-start px-3 py-3.5 text-[14px] font-normal leading-tight text-black md:px-5 md:py-5">
-        <span>{label}</span>
-        <ArrowRight className="h-3.5 w-3.5" />
+    </div>
+  );
+}
+
+function AudienceSection({
+  audience,
+  priorityImages = false,
+}: {
+  audience: LandingCopy["audience"];
+  priorityImages?: boolean;
+}) {
+  return (
+    <div className={`${ui.pageX} ${ui.sectionY} bg-white`}>
+      <div className="mx-auto grid w-full max-w-[1120px] grid-cols-1 gap-2 px-0 md:grid-cols-[minmax(0,1fr)_minmax(220px,0.5fr)_minmax(220px,0.5fr)] md:items-stretch md:px-4">
+        <div className="max-w-[720px] flex flex-col w-full items-start justify-between min-h-[300px] bg-neutral-100 p-6 rounded-lg">
+          <div className={`${text.h3}`}>{audience.title}</div>
+          <div className="mt-6 grid w-full auto-rows-max grid-cols-1 gap-3 sm:grid-cols-2">
+            {audience.items.map((item) => (
+              <div
+                key={item.id}
+                className="flex w-full items-center rounded-full text-[13px] leading-snug md:text-sm"
+              >
+                {item.label}
+              </div>
+            ))}
+          </div>
+        </div>
+        {audience.modeCards.map((card) => (
+          <AudienceModeCard
+            key={card.id}
+            card={card}
+            priorityImage={priorityImages}
+          />
+        ))}
       </div>
-    </Link>
+    </div>
   );
 }
 
@@ -2203,7 +2217,7 @@ export default function LandingKoVfPage({
         />
 
         <main>
-          <section className={`${ui.pageX} pt-32 md:pt-48`}>
+          <section className={`${ui.pageX} pt-32 md:pt-44`}>
             <div className={ui.shell}>
               <Reveal once blur={0} distance={20}>
                 <div className="flex flex-col items-center justify-center gap-4 md:gap-8">
@@ -2489,26 +2503,7 @@ export default function LandingKoVfPage({
             onCareerStartClick={handleCareerStartClick}
           />
 
-          <div className={`${ui.pageX} ${ui.sectionY} bg-white`}>
-            <div className={cn("flex items-center justify-center w-full px-4")}>
-              <div className="max-w-[720px] flex flex-col w-full items-start justify-between min-h-[300px] bg-neutral-100 p-6 rounded-3xl">
-                <div className={`${text.h3}`}>{copy.audience.title}</div>
-                <div className="mt-6 grid w-full auto-rows-max grid-cols-1 gap-3 sm:grid-cols-2">
-                  {copy.audience.items.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex w-full items-center rounded-full text-[13px] leading-snug md:text-sm"
-                    >
-                      {item.label}
-                    </div>
-                  ))}
-                </div>
-              </div>
-              {/* <div className="w-full flex-1 h-full">
-                  <AudiencePreviewCard label={copy.audience.aboutLabel} />
-                </div> */}
-            </div>
-          </div>
+          <AudienceSection audience={copy.audience} />
 
           <section id="cta" className={`${ui.pageX} ${ui.sectionY}`}>
             <div className={ui.shell}>

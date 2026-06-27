@@ -68,11 +68,10 @@ export function getRandomCareerLandingHeroCopyAbtestType(): CareerLandingHeroCop
 }
 
 export function resolveCareerLandingHeroCopyAbtestType(
-  value: string | null | undefined
+  _value: string | null | undefined
 ): CareerLandingHeroCopyAbtestType {
-  return isCareerLandingHeroCopyAbtestType(value)
-    ? value
-    : getRandomCareerLandingHeroCopyAbtestType();
+  // The hero-copy experiment is closed; overwrite older B cookies with A.
+  return CAREER_LANDING_HERO_COPY_ABTEST_TYPE_A;
 }
 
 export function usesCareerLandingHeroCopyB(value: string | null | undefined) {

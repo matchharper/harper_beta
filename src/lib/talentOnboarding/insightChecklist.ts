@@ -41,12 +41,16 @@ export type OnboardingChecklistLocationContext =
   | null
   | undefined;
 
-const ONBOARDING_WORK_AUTHORIZATION_COUNTRY_TOKENS = new Set([
-  "australia",
-  "au",
-  "singapore",
-  "sg",
-]);
+type CountryScopedOnboardingCountry = "SG" | "JP" | "AU";
+
+const COUNTRY_SCOPED_ONBOARDING_COUNTRY_TOKENS: Record<
+  CountryScopedOnboardingCountry,
+  Set<string>
+> = {
+  SG: new Set(["singapore"]),
+  JP: new Set(["japan"]),
+  AU: new Set(["australia"]),
+};
 
 function getOnboardingLocationContextText(
   context: OnboardingChecklistLocationContext
@@ -62,18 +66,28 @@ function getOnboardingLocationContextText(
     .join(", ");
 }
 
-export function isPermanentResidencyOnboardingCountry(
+export function getCountryScopedOnboardingCountry(
   context: OnboardingChecklistLocationContext
-) {
+): CountryScopedOnboardingCountry | null {
   const text = getOnboardingLocationContextText(context)
     .toLocaleLowerCase("en-US")
     .trim();
-  if (!text) return false;
+  if (!text) return null;
 
-  return text
-    .split(/[^a-z]+/i)
-    .filter(Boolean)
-    .some((token) => ONBOARDING_WORK_AUTHORIZATION_COUNTRY_TOKENS.has(token));
+  const tokens = text.split(/[^a-z]+/i).filter(Boolean);
+  for (const [country, countryTokens] of Object.entries(
+    COUNTRY_SCOPED_ONBOARDING_COUNTRY_TOKENS
+  ) as Array<[CountryScopedOnboardingCountry, Set<string>]>) {
+    if (tokens.some((token) => countryTokens.has(token))) return country;
+  }
+
+  return null;
+}
+
+export function isCountryScopedOnboardingCountry(
+  context: OnboardingChecklistLocationContext
+) {
+  return Boolean(getCountryScopedOnboardingCountry(context));
 }
 
 /**
@@ -159,16 +173,6 @@ const INSIGHT_BACKED_ONBOARDING_ITEMS = [
   },
 ] satisfies OnboardingQuestionChecklistItem[];
 
-const PERMANENT_RESIDENCY_ONBOARDING_ITEM = {
-  key: "permanent_residency",
-  insightKey: "permanent_residency",
-  label: "영주권/체류 자격",
-  promptHint:
-    "For Singapore/Australia onboarding only: ask separately whether the user has permanent residency, citizenship, or another local work authorization status, and whether they would need visa sponsorship for local roles. Keep it factual and separate from general location preference.",
-  priority: 3.5,
-  kind: "question",
-} satisfies OnboardingQuestionChecklistItem;
-
 const ADDITIONAL_QUESTION_ONE_ITEM = {
   key: "additional_question_one",
   label: "추가 질문 1",
@@ -196,6 +200,25 @@ const FINAL_PRIORITY_CONFIRMATION_ITEM = {
   kind: "final_confirmation",
 } satisfies OnboardingQuestionChecklistItem;
 
+const PERMANENT_RESIDENCY_ONBOARDING_ITEM = {
+  key: "permanent_residency",
+  insightKey: "permanent_residency",
+  label: "영주권 여부",
+  promptHint:
+    "For Singapore/Australia onboarding only: ask whether the user has permanent residency in their current country. Keep it factual and do not expand into broad visa advice unless the user volunteers related context.",
+  priority: 6,
+  kind: "question",
+} satisfies OnboardingQuestionChecklistItem;
+
+const CURRENT_OR_RECENT_WORK_DETAIL_ITEM = {
+  key: "current_or_recent_work_detail",
+  label: "현재/직전 업무 상세",
+  promptHint:
+    "For Singapore/Japan/Australia onboarding only: if the visible profile, resume, or recent conversation does not clearly explain what the user currently does or most recently did, ask them to describe their current or immediately previous work in a bit more detail. If that work is already clear enough, do not force this question.",
+  priority: 7,
+  kind: "question",
+} satisfies OnboardingQuestionChecklistItem;
+
 export const ONBOARDING_QUESTION_CHECKLIST: OnboardingQuestionChecklistItem[] =
   [
     ...INSIGHT_BACKED_ONBOARDING_ITEMS,
@@ -212,30 +235,61 @@ export const ONBOARDING_QUESTION_CHECKLIST: OnboardingQuestionChecklistItem[] =
     FINAL_PRIORITY_CONFIRMATION_ITEM,
   ];
 
-export const ONBOARDING_QUESTION_MIN_COVERED_COUNT = 8;
+const COUNTRY_SCOPED_ONBOARDING_REMOVED_KEYS = new Set([
+  "deal_breakers",
+  "team_style_fit",
+]);
 
-export const PERMANENT_RESIDENCY_ONBOARDING_CHECKLIST_KEY =
-  PERMANENT_RESIDENCY_ONBOARDING_ITEM.key;
-
-const WORK_AUTHORIZATION_ONBOARDING_QUESTION_CHECKLIST: OnboardingQuestionChecklistItem[] =
-  [
-    ...INSIGHT_BACKED_ONBOARDING_ITEMS,
+const COUNTRY_SCOPED_ONBOARDING_QUESTION_CHECKLIST_BY_COUNTRY: Record<
+  CountryScopedOnboardingCountry,
+  OnboardingQuestionChecklistItem[]
+> = {
+  SG: [
+    ...INSIGHT_BACKED_ONBOARDING_ITEMS.filter(
+      (item) => !COUNTRY_SCOPED_ONBOARDING_REMOVED_KEYS.has(item.key)
+    ),
     PERMANENT_RESIDENCY_ONBOARDING_ITEM,
+    CURRENT_OR_RECENT_WORK_DETAIL_ITEM,
     ADDITIONAL_QUESTION_ONE_ITEM,
     FINAL_PRIORITY_CONFIRMATION_ITEM,
-  ];
+  ],
+  JP: [
+    ...INSIGHT_BACKED_ONBOARDING_ITEMS.filter(
+      (item) => !COUNTRY_SCOPED_ONBOARDING_REMOVED_KEYS.has(item.key)
+    ),
+    CURRENT_OR_RECENT_WORK_DETAIL_ITEM,
+    ADDITIONAL_QUESTION_ONE_ITEM,
+    FINAL_PRIORITY_CONFIRMATION_ITEM,
+  ],
+  AU: [
+    ...INSIGHT_BACKED_ONBOARDING_ITEMS.filter(
+      (item) => !COUNTRY_SCOPED_ONBOARDING_REMOVED_KEYS.has(item.key)
+    ),
+    PERMANENT_RESIDENCY_ONBOARDING_ITEM,
+    CURRENT_OR_RECENT_WORK_DETAIL_ITEM,
+    ADDITIONAL_QUESTION_ONE_ITEM,
+    FINAL_PRIORITY_CONFIRMATION_ITEM,
+  ],
+};
+
+export const ONBOARDING_QUESTION_MIN_COVERED_COUNT = 8;
 
 const ALL_ONBOARDING_QUESTION_CHECKLIST: OnboardingQuestionChecklistItem[] = [
   ...ONBOARDING_QUESTION_CHECKLIST,
-  PERMANENT_RESIDENCY_ONBOARDING_ITEM,
+  ...COUNTRY_SCOPED_ONBOARDING_QUESTION_CHECKLIST_BY_COUNTRY.SG,
+  ...COUNTRY_SCOPED_ONBOARDING_QUESTION_CHECKLIST_BY_COUNTRY.JP,
+  ...COUNTRY_SCOPED_ONBOARDING_QUESTION_CHECKLIST_BY_COUNTRY.AU,
 ];
 
 export function getOnboardingQuestionChecklist(
   context?: OnboardingChecklistLocationContext
 ): OnboardingQuestionChecklistItem[] {
-  return isPermanentResidencyOnboardingCountry(context)
-    ? WORK_AUTHORIZATION_ONBOARDING_QUESTION_CHECKLIST
-    : ONBOARDING_QUESTION_CHECKLIST;
+  const country = getCountryScopedOnboardingCountry(context);
+  if (country) {
+    return COUNTRY_SCOPED_ONBOARDING_QUESTION_CHECKLIST_BY_COUNTRY[country];
+  }
+
+  return ONBOARDING_QUESTION_CHECKLIST;
 }
 
 export function getOnboardingAdditionalQuestionKeys(
@@ -255,9 +309,12 @@ export function getOnboardingAdditionalQuestionMin(
 export function getOnboardingRequiredQuestionKeys(
   context?: OnboardingChecklistLocationContext
 ) {
-  return isPermanentResidencyOnboardingCountry(context)
-    ? [PERMANENT_RESIDENCY_ONBOARDING_ITEM.key]
-    : [];
+  const country = getCountryScopedOnboardingCountry(context);
+  if (country === "SG" || country === "AU") {
+    return [PERMANENT_RESIDENCY_ONBOARDING_ITEM.key];
+  }
+
+  return [];
 }
 
 export function getOnboardingQuestionByInsightKey(
@@ -290,8 +347,11 @@ export const ONBOARDING_QUESTION_BY_INSIGHT_KEY = new Map(
 export function getInsightChecklist(
   context?: OnboardingChecklistLocationContext
 ): InsightChecklistItem[] {
-  const items = isPermanentResidencyOnboardingCountry(context)
-    ? [...INSIGHT_BACKED_ONBOARDING_ITEMS, PERMANENT_RESIDENCY_ONBOARDING_ITEM]
+  const country = getCountryScopedOnboardingCountry(context);
+  const items = country
+    ? COUNTRY_SCOPED_ONBOARDING_QUESTION_CHECKLIST_BY_COUNTRY[country].filter(
+        (item) => item.insightKey
+      )
     : INSIGHT_BACKED_ONBOARDING_ITEMS;
   return items.map((item) => ({
     key: item.insightKey ?? item.key,
