@@ -826,9 +826,7 @@ function compactRecentRecommendation(
     220
   );
   if (feedbackReason) parts.push(`reason: ${feedbackReason}`);
-  if (includeReuseNote) {
-    parts.push("prev external; signal only; do not repeat");
-  }
+
   return parts.join(" | ");
 }
 

@@ -1,4 +1,4 @@
-import { type FormEvent, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import {
   Archive,
   CalendarDays,
@@ -36,6 +36,7 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
@@ -71,9 +72,12 @@ import {
 type MatchingHarperReviewBoardProps = {
   canFetchInternal: boolean;
   onRecommendedDateRangeChange: (from: string, to: string) => void;
+  onSelectedTalentChange: (talentId: string) => void;
+  onSelectedTalentClose: () => void;
   recommendedFrom: string;
   recommendedTo: string;
   role: OpsMatchingRoleOption;
+  selectedTalentId: string;
 };
 
 type ReviewColumn = {
@@ -165,7 +169,21 @@ function ReviewDateChip({
   );
 }
 
-function ReviewCardMenu({ onAddMemo }: { onAddMemo: () => void }) {
+function ReviewCardMenu({
+  archiveDisabled,
+  archivePending,
+  isArchived,
+  onAddMemo,
+  onArchive,
+  showArchiveAction = true,
+}: {
+  archiveDisabled: boolean;
+  archivePending: boolean;
+  isArchived: boolean;
+  onAddMemo: () => void;
+  onArchive: () => void;
+  showArchiveAction?: boolean;
+}) {
   return (
     <div
       className="shrink-0"
@@ -184,11 +202,28 @@ function ReviewCardMenu({ onAddMemo }: { onAddMemo: () => void }) {
             <MoreHorizontal className="h-4 w-4" />
           </BareButton>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-36">
+        <DropdownMenuContent align="end" className="w-44">
           <DropdownMenuItem onSelect={onAddMemo}>
             <StickyNote className="h-3.5 w-3.5 text-neutral-soft" />
             메모 추가
           </DropdownMenuItem>
+          {showArchiveAction ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                disabled={archiveDisabled}
+                onSelect={onArchive}
+                tone="danger"
+              >
+                {archivePending ? (
+                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Archive className="h-3.5 w-3.5" />
+                )}
+                {isArchived ? "이미 아카이브" : "아카이브로 보내기"}
+              </DropdownMenuItem>
+            </>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
@@ -294,18 +329,22 @@ function PipelineMemoDialog({
 }
 
 function ReviewCard({
+  archivePending,
   draggingId,
   item,
   onAddMemo,
+  onArchive,
   onDragEnd,
   onDragStart,
   onSelect,
   pending,
   visibleFields,
 }: {
+  archivePending: boolean;
   draggingId: string | null;
   item: OpsMatchingReviewItem;
   onAddMemo: (talent: OpsMatchingTalentItem) => void;
+  onArchive: (item: OpsMatchingReviewItem) => void;
   onDragEnd: () => void;
   onDragStart: (item: OpsMatchingReviewItem) => void;
   onSelect: (talent: OpsMatchingTalentItem) => void;
@@ -347,7 +386,13 @@ function ReviewCard({
           <TalentIdentity talent={item.talent} />
           <TalentStatusBadges talent={item.talent} hideReviewStageTags />
         </div>
-        <ReviewCardMenu onAddMemo={() => onAddMemo(item.talent)} />
+        <ReviewCardMenu
+          archiveDisabled={pending || item.stage === "archived"}
+          archivePending={archivePending}
+          isArchived={item.stage === "archived"}
+          onAddMemo={() => onAddMemo(item.talent)}
+          onArchive={() => onArchive(item)}
+        />
       </div>
       <div className="mt-3 flex flex-wrap gap-1.5">
         <span
@@ -575,7 +620,14 @@ function AmbiguousReviewCard({
           <TalentIdentity talent={talent} />
           <TalentStatusBadges talent={talent} hideReviewStageTags />
         </div>
-        <ReviewCardMenu onAddMemo={() => onAddMemo(talent)} />
+        <ReviewCardMenu
+          archiveDisabled
+          archivePending={false}
+          isArchived={false}
+          onAddMemo={() => onAddMemo(talent)}
+          onArchive={() => undefined}
+          showArchiveAction={false}
+        />
       </div>
 
       <div className="mt-3 flex flex-wrap gap-1.5">
@@ -791,15 +843,17 @@ function ReviewColumnAddRail({ onClick }: { onClick: () => void }) {
 export function MatchingHarperReviewBoard({
   canFetchInternal,
   onRecommendedDateRangeChange,
+  onSelectedTalentChange,
+  onSelectedTalentClose,
   recommendedFrom,
   recommendedTo,
   role,
+  selectedTalentId,
 }: MatchingHarperReviewBoardProps) {
+  const [stickyTop, setStickyTop] = useState(0);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTargetStageId, setDropTargetStageId] =
     useState<DroppableReviewStageId | null>(null);
-  const [selectedTalent, setSelectedTalent] =
-    useState<OpsMatchingTalentItem | null>(null);
   const [selectedMemoTalent, setSelectedMemoTalent] =
     useState<OpsMatchingTalentItem | null>(null);
   const [reviewViewFields, setReviewViewFields] = useState<ReviewViewFieldId[]>(
@@ -861,6 +915,17 @@ export function MatchingHarperReviewBoard({
     () => ambiguousTalentsQuery.data?.pages.flatMap((page) => page.items) ?? [],
     [ambiguousTalentsQuery.data?.pages]
   );
+  const selectableTalentById = useMemo(() => {
+    const next = new Map<string, OpsMatchingTalentItem>();
+    for (const item of items) next.set(item.talent.userId, item.talent);
+    for (const talent of ambiguousTalents) next.set(talent.userId, talent);
+    return next;
+  }, [ambiguousTalents, items]);
+  const selectedTalent = useMemo(() => {
+    const normalizedTalentId = selectedTalentId.trim();
+    if (!normalizedTalentId) return null;
+    return selectableTalentById.get(normalizedTalentId) ?? null;
+  }, [selectableTalentById, selectedTalentId]);
   const customReviewColumns = useMemo(
     () =>
       (reviewQuery.data?.customStages ?? []).map((stage) => ({
@@ -915,6 +980,39 @@ export function MatchingHarperReviewBoard({
     null;
   const isCustomStageSubmitting =
     createReviewStage.isPending || updateReviewStage.isPending;
+  const archivePendingTalentId =
+    setReviewStage.isPending && setReviewStage.variables?.stage === "archived"
+      ? setReviewStage.variables.talentId
+      : null;
+
+  useEffect(() => {
+    const header = document.querySelector<HTMLElement>(
+      "[data-ops-shell-header]"
+    );
+    if (!header) return;
+
+    const updateStickyTop = () => {
+      setStickyTop(Math.ceil(header.getBoundingClientRect().height));
+    };
+
+    updateStickyTop();
+    const observer = new ResizeObserver(updateStickyTop);
+    observer.observe(header);
+    window.addEventListener("resize", updateStickyTop);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateStickyTop);
+    };
+  }, []);
+
+  const handleSelectedTalentChange = (talent: OpsMatchingTalentItem) => {
+    onSelectedTalentChange(talent.userId);
+  };
+
+  const handleSelectedTalentClose = () => {
+    onSelectedTalentClose();
+  };
+
   const handleReviewViewFieldToggle = (
     fieldId: ReviewViewFieldId,
     selected: boolean
@@ -944,6 +1042,14 @@ export function MatchingHarperReviewBoard({
     });
     setDraggingId(null);
     setDropTargetStageId(null);
+  };
+  const handleArchiveItem = (item: OpsMatchingReviewItem) => {
+    if (item.stage === "archived" || setReviewStage.isPending) return;
+    setReviewStage.mutate({
+      roleId: role.roleId,
+      stage: "archived",
+      talentId: item.talent.userId,
+    });
   };
   const handleDrop = (column: ReviewColumn) => {
     if (column.locked || column.id === "hold" || column.id === "recommended") {
@@ -1238,12 +1344,14 @@ export function MatchingHarperReviewBoard({
                   setDraggingId(null);
                   setDropTargetStageId(null);
                 }}
+                archivePending={archivePendingTalentId === item.talent.userId}
                 onDragStart={(dragItem) => {
                   setDraggingId(dragItem.recommendationId);
                   setDropTargetStageId(null);
                 }}
                 onAddMemo={setSelectedMemoTalent}
-                onSelect={setSelectedTalent}
+                onArchive={handleArchiveItem}
+                onSelect={handleSelectedTalentChange}
                 pending={setReviewStage.isPending}
                 visibleFields={visibleReviewFields}
               />
@@ -1327,23 +1435,30 @@ export function MatchingHarperReviewBoard({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        {REVIEW_LIST_TOGGLE_CONTROLS.map((control) => (
-          <ReviewListToggleBox
-            key={control.id}
-            active={visibleArchiveStageIds.includes(control.id)}
-            canDrop={draggingItem ? draggingItem.stage !== control.id : false}
-            count={groupedItems.get(control.id)?.length ?? 0}
-            icon={control.icon}
-            isDropTarget={dropTargetStageId === control.id}
-            label={control.label}
-            onClick={() => handleArchiveStageToggle(control.id)}
-            onDrop={() => handleDropToStage(control.id)}
-            onTargetLeave={() => handleDropTargetLeave(control.id)}
-            onTargetOver={() => setDropTargetStageId(control.id)}
-            pending={setReviewStage.isPending}
-          />
-        ))}
+      <div
+        className="sticky z-20 -mx-1 rounded-md border border-neutral-1000-a05 bg-bg-default/90 px-1 py-2 shadow-[0_10px_30px_color-mix(in_srgb,var(--color-neutral-1000)_8%,transparent)] backdrop-blur-xl"
+        style={{ top: stickyTop }}
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          {REVIEW_LIST_TOGGLE_CONTROLS.map((control) => (
+            <ReviewListToggleBox
+              key={control.id}
+              active={visibleArchiveStageIds.includes(control.id)}
+              canDrop={
+                draggingItem ? draggingItem.stage !== control.id : false
+              }
+              count={groupedItems.get(control.id)?.length ?? 0}
+              icon={control.icon}
+              isDropTarget={dropTargetStageId === control.id}
+              label={control.label}
+              onClick={() => handleArchiveStageToggle(control.id)}
+              onDrop={() => handleDropToStage(control.id)}
+              onTargetLeave={() => handleDropTargetLeave(control.id)}
+              onTargetOver={() => setDropTargetStageId(control.id)}
+              pending={setReviewStage.isPending}
+            />
+          ))}
+        </div>
       </div>
 
       {ambiguousActionError ? (
@@ -1396,7 +1511,7 @@ export function MatchingHarperReviewBoard({
                     onAddMemo={setSelectedMemoTalent}
                     onDismiss={(item) => void handleAmbiguousDismiss(item)}
                     onRecommend={setConfirmRecommendTalent}
-                    onSelect={setSelectedTalent}
+                    onSelect={handleSelectedTalentChange}
                     pending={pendingAmbiguousTalentId === talent.userId}
                     roleId={role.roleId}
                     talent={talent}
@@ -1558,7 +1673,7 @@ export function MatchingHarperReviewBoard({
         onClose={() => setSelectedMemoTalent(null)}
       />
       <MatchingTalentDrawer
-        onClose={() => setSelectedTalent(null)}
+        onClose={handleSelectedTalentClose}
         role={role}
         talent={selectedTalent}
       />

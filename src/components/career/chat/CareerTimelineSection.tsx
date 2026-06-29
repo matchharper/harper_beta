@@ -263,11 +263,15 @@ const TimelineMessageList = memo(function TimelineMessageList({
   onboardingWrapupPending,
   onStartCallMode,
   isStartingCall,
+  assistantChoiceActionsDisabled,
+  onSelectAssistantChoice,
 }: {
   messages: CareerMessage[];
   assistantTyping: boolean;
   thinkingLogsByMessageId: Record<string, string[]>;
   isStartingCall: boolean;
+  assistantChoiceActionsDisabled: boolean;
+  onSelectAssistantChoice?: (choice: string) => void | Promise<void>;
   onRegenerateOnboardingWrapup?: () => void | Promise<void>;
   onCancelActiveRecommendationSearch?: () => void;
   onboardingWrapupPending: boolean;
@@ -316,6 +320,10 @@ const TimelineMessageList = memo(function TimelineMessageList({
           !isUser && index === messages.length - 1;
         const isAssistantStreamActive =
           isLatestAssistantMessage && assistantTyping;
+        const disableAssistantChoiceActions =
+          assistantChoiceActionsDisabled ||
+          !isLatestAssistantMessage ||
+          isAssistantStreamActive;
         const shouldRenderChatBubble =
           isUser ||
           Boolean(message.typing) ||
@@ -382,7 +390,9 @@ const TimelineMessageList = memo(function TimelineMessageList({
                 <CareerMessageBubble
                   message={recommendationSearchPreambleMessage}
                   isUser={false}
+                  choiceActionsDisabled={disableAssistantChoiceActions}
                   isCallStartPending={isStartingCall}
+                  onSelectAssistantChoice={onSelectAssistantChoice}
                   onStartCallMode={
                     onStartCallMode
                       ? (openingText) => {
@@ -404,7 +414,9 @@ const TimelineMessageList = memo(function TimelineMessageList({
                   <CareerMessageBubble
                     message={recommendationSearchResultMessage}
                     isUser={false}
+                    choiceActionsDisabled={disableAssistantChoiceActions}
                     isCallStartPending={isStartingCall}
+                    onSelectAssistantChoice={onSelectAssistantChoice}
                     onStartCallMode={
                       onStartCallMode
                         ? (openingText) => {
@@ -439,7 +451,9 @@ const TimelineMessageList = memo(function TimelineMessageList({
                 <CareerMessageBubble
                   message={message}
                   isUser={isUser}
+                  choiceActionsDisabled={disableAssistantChoiceActions}
                   isCallStartPending={isStartingCall}
+                  onSelectAssistantChoice={onSelectAssistantChoice}
                   onStartCallMode={
                     onStartCallMode
                       ? (openingText) => {
@@ -568,6 +582,7 @@ const CareerTimelineSection = () => {
     onProfileSubmit,
     onLoadOlderMessages,
     onRegenerateOnboardingWrapup,
+    onSendChatMessage,
     onStartConversationStarter,
     showVoiceStartPrompt,
     onStartCallMode,
@@ -593,6 +608,15 @@ const CareerTimelineSection = () => {
   const isStartingCall =
     (onboardingBeginPending && !callWrapUpPending) || callStartPending;
   const isConversationActionLocked = isStartingCall || callWrapUpPending;
+  const assistantChoiceActionsDisabled =
+    isConversationActionLocked ||
+    chatPending ||
+    assistantTyping ||
+    onboardingWrapupPending ||
+    onboardingPausePending ||
+    profilePending ||
+    sessionPending ||
+    inputMode === "call";
   const showSessionReengagementPending =
     sessionReengagementPending &&
     !isConversationActionLocked &&
@@ -866,6 +890,19 @@ const CareerTimelineSection = () => {
     [router]
   );
 
+  const handleSelectAssistantChoice = useCallback(
+    async (choice: string) => {
+      const text = choice.trim();
+      if (!text || assistantChoiceActionsDisabled) return;
+
+      await onSendChatMessage({
+        channel: "chat",
+        text,
+      });
+    },
+    [assistantChoiceActionsDisabled, onSendChatMessage]
+  );
+
   if (!user) {
     return (
       <div
@@ -1029,6 +1066,8 @@ const CareerTimelineSection = () => {
             messages={timelineMessages}
             assistantTyping={assistantTyping}
             thinkingLogsByMessageId={thinkingLogsByMessageId}
+            assistantChoiceActionsDisabled={assistantChoiceActionsDisabled}
+            onSelectAssistantChoice={handleSelectAssistantChoice}
             onRegenerateOnboardingWrapup={onRegenerateOnboardingWrapup}
             onCancelActiveRecommendationSearch={
               onCancelActiveRecommendationSearch

@@ -1,7 +1,14 @@
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 
 type TalentSummary = {
+  createdAt: string | null;
   email: string | null;
+  getExternalRecommendation: boolean | null;
+  getExternalRecommendationCurrent: boolean | null;
+  getExternalRecommendationRunSnapshot: boolean | null;
+  getExternalRecommendationUpdatedAt: string | null;
+  lastLoginAt: string | null;
+  latestActionAt: string | null;
   name: string | null;
   userId: string;
 };
@@ -27,6 +34,15 @@ type RecommendationSummary = {
   roleId: string | null;
   roleName: string | null;
   sourceType: string | null;
+};
+
+type TalentSettingSummary = {
+  getExternalRecommendation: boolean | null;
+  updatedAt: string | null;
+};
+
+type TalentActivitySummary = {
+  latestActionAt: string | null;
 };
 
 export type OpsDebugOpportunityRunOutcome =
@@ -165,6 +181,10 @@ function getNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+function getBoolean(value: unknown) {
+  return typeof value === "boolean" ? value : null;
+}
+
 function normalizeSearchQuery(value: string | null | undefined) {
   return String(value ?? "")
     .replace(/\s+/g, " ")
@@ -276,11 +296,28 @@ function runCreatedAt(row: any) {
   return getString(row.created_at) ?? new Date(0).toISOString();
 }
 
-function parseTalent(row: any): TalentSummary {
+function parseTalent(
+  row: any,
+  setting: TalentSettingSummary | null,
+  activity: TalentActivitySummary | null
+): TalentSummary {
   const talent = getFirstRecord(row.talent);
   const fallbackUserId = getString(row.talent_id) ?? "";
+  const settingsSnapshot = asRecord(row.settings_snapshot);
+  const runSnapshot = getBoolean(
+    settingsSnapshot.getExternalRecommendation ??
+      settingsSnapshot.get_external_recommendation
+  );
+  const current = setting?.getExternalRecommendation ?? null;
   return {
+    createdAt: getString(talent.created_at),
     email: getString(talent.email),
+    getExternalRecommendation: current ?? runSnapshot,
+    getExternalRecommendationCurrent: current,
+    getExternalRecommendationRunSnapshot: runSnapshot,
+    getExternalRecommendationUpdatedAt: setting?.updatedAt ?? null,
+    lastLoginAt: getString(talent.last_logined_at),
+    latestActionAt: activity?.latestActionAt ?? null,
     name: getString(talent.name),
     userId: getString(talent.user_id) ?? fallbackUserId,
   };
@@ -328,7 +365,8 @@ function getEmailSubject(args: {
 
 function getDeliveryBodyPreview(plan: Record<string, unknown>) {
   const delivery = getDelivery(plan);
-  const value = getString(delivery.emailBody) ?? getString(delivery.chatMessage);
+  const value =
+    getString(delivery.emailBody) ?? getString(delivery.chatMessage);
   if (!value) return null;
   const normalized = value.replace(/\s+/g, " ").trim();
   return normalized ? normalized.slice(0, 220) : null;
@@ -347,7 +385,14 @@ function deliveryFromRow(row: any): DeliverySummary {
 
 function recommendationFromRow(
   row: any,
-  roleMap: Map<string, { companyName: string | null; name: string | null; sourceType: string | null }>
+  roleMap: Map<
+    string,
+    {
+      companyName: string | null;
+      name: string | null;
+      sourceType: string | null;
+    }
+  >
 ): RecommendationSummary {
   const roleId = getString(row.role_id);
   const role = roleId ? roleMap.get(roleId) : null;
@@ -364,9 +409,7 @@ function recommendationFromRow(
 
 function buildDeliverySummary(deliveries: DeliverySummary[]) {
   if (deliveries.length === 0) return "delivery 없음";
-  return deliveries
-    .map((item) => `${item.channel}:${item.status}`)
-    .join(" · ");
+  return deliveries.map((item) => `${item.channel}:${item.status}`).join(" · ");
 }
 
 function buildActionSummary(args: {
@@ -460,6 +503,10 @@ function getDecisionTypes(plan: Record<string, unknown>) {
 }
 
 function getV2Actions(plan: Record<string, unknown>) {
+  const orchestration = asRecord(plan.v2Orchestration);
+  const orchestrationActions = coerceStringList(orchestration.actions, 8);
+  if (orchestrationActions.length > 0) return orchestrationActions;
+
   const policy = getPolicyDecision(plan);
   const strategy = asRecord(
     policy.recommendationStrategy ?? policy.recommendation_strategy
@@ -467,10 +514,38 @@ function getV2Actions(plan: Record<string, unknown>) {
   return coerceStringList(strategy.v2Actions, 8);
 }
 
+function isGenericOrchestrationSkipReason(value: string | null) {
+  return (
+    value?.trim().toLowerCase() ===
+    "orchestration chose not to contact the user."
+  );
+}
+
+function getOrchestrationRawReason(plan: Record<string, unknown>) {
+  const orchestration = asRecord(plan.v2Orchestration);
+  const raw = asRecord(
+    orchestration.rawOutput ?? orchestration.raw_output ?? orchestration.raw
+  );
+  for (const key of [
+    "intent",
+    "reason",
+    "skipReason",
+    "skip_reason",
+    "contactIntent",
+    "deliveryIntent",
+    "userFacingIntent",
+  ]) {
+    const value = normalizeText(raw[key], 700);
+    if (value) return value;
+  }
+  return null;
+}
+
 function shouldTreatAsSkipped(plan: Record<string, unknown>) {
   const delivery = getDelivery(plan);
   const decisionTypes = getDecisionTypes(plan);
-  const shouldSendEmail = delivery.shouldSendEmail ?? delivery.should_send_email;
+  const shouldSendEmail =
+    delivery.shouldSendEmail ?? delivery.should_send_email;
   return (
     decisionTypes.includes("skip_send") ||
     shouldSendEmail === false ||
@@ -499,7 +574,10 @@ function buildActionLabels(args: {
   if (args.channelSummary.failed.includes("email")) add("메일 실패");
   if (args.channelSummary.failed.includes("chat")) add("채팅 실패");
 
-  const allActions = [...getDecisionTypes(args.plan), ...getV2Actions(args.plan)];
+  const allActions = [
+    ...getDecisionTypes(args.plan),
+    ...getV2Actions(args.plan),
+  ];
   if (allActions.includes("held_role_question")) add("질문 포함");
   if (allActions.includes("should-ask")) add("추가 질문");
   if (allActions.includes("lifecycle_notice")) add("중단 안내");
@@ -522,7 +600,10 @@ function buildOutcome(args: {
   if (args.channelSummary.sent.length > 0) {
     return { id: "sent", label: "발송됨" };
   }
-  if (args.channelSummary.skipped.length > 0 || shouldTreatAsSkipped(args.plan)) {
+  if (
+    args.channelSummary.skipped.length > 0 ||
+    shouldTreatAsSkipped(args.plan)
+  ) {
     return { id: "skipped", label: "스킵" };
   }
   if (args.recommendationCount > 0) {
@@ -554,9 +635,17 @@ function buildPartialReason(args: {
   status: string;
 }) {
   if (args.status !== "partial") return null;
+  const deliveryReason = getDeliveryReason(args.plan);
+  const decisionReason = getFirstDecisionReason(args.plan);
+  const orchestrationRawReason = getOrchestrationRawReason(args.plan);
   const explicitReason =
-    getDeliveryReason(args.plan) ??
-    getFirstDecisionReason(args.plan) ??
+    (isGenericOrchestrationSkipReason(deliveryReason)
+      ? orchestrationRawReason
+      : deliveryReason) ??
+    (isGenericOrchestrationSkipReason(decisionReason)
+      ? orchestrationRawReason
+      : decisionReason) ??
+    orchestrationRawReason ??
     getString(getEmailCoverage(args.coverage).reason) ??
     args.errorMessage;
   if (explicitReason) return explicitReason;
@@ -591,7 +680,9 @@ function buildPrimaryReason(args: {
   if (args.outcome.id === "queued") return "실행 대기 중입니다.";
   if (args.outcome.id === "sent") {
     const channels = args.channelSummary.sent
-      .map((channel) => (channel === "email" ? "Email" : channel === "chat" ? "Chat" : channel))
+      .map((channel) =>
+        channel === "email" ? "Email" : channel === "chat" ? "Chat" : channel
+      )
       .join("/");
     return `${args.recommendationCount}개 추천 후 ${channels || "delivery"} 발송`;
   }
@@ -633,16 +724,28 @@ function buildReviewAction(args: {
     reason.includes("selected contact") ||
     reason.includes("발송 가능한")
   ) {
-    return { id: "review" as const, label: "Review", reason: args.primaryReason };
+    return {
+      id: "review" as const,
+      label: "Review",
+      reason: args.primaryReason,
+    };
   }
   if (args.outcome.id === "sent") {
     return { id: "ok" as const, label: "OK", reason: null };
   }
   if (args.outcome.id === "skipped" && args.status === "partial") {
-    return { id: "no_action" as const, label: "No action", reason: args.primaryReason };
+    return {
+      id: "no_action" as const,
+      label: "No action",
+      reason: args.primaryReason,
+    };
   }
   if (args.outcome.id === "recommend_only" || args.outcome.id === "partial") {
-    return { id: "review" as const, label: "Review", reason: args.primaryReason };
+    return {
+      id: "review" as const,
+      label: "Review",
+      reason: args.primaryReason,
+    };
   }
   return { id: "no_action" as const, label: "No action", reason: null };
 }
@@ -650,7 +753,10 @@ function buildReviewAction(args: {
 function buildSearchSummary(plan: Record<string, unknown>) {
   const external = getSearchPlan(plan);
   const intent = getString(external.searchIntentSummary);
-  const titles = coerceStringList(external.role_titles ?? external.roleTitles, 4);
+  const titles = coerceStringList(
+    external.role_titles ?? external.roleTitles,
+    4
+  );
   const locations = coerceStringList(external.locations, 4);
   const parts = [
     titles.length > 0 ? `titles: ${titles.join(", ")}` : null,
@@ -658,6 +764,13 @@ function buildSearchSummary(plan: Record<string, unknown>) {
     intent,
   ].filter(Boolean);
   return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+function externalRecommendationSearchText(value: boolean | null) {
+  if (value === true) return "getExternalRecommendation true 오픈 포지션 받음";
+  if (value === false)
+    return "getExternalRecommendation false 오픈 포지션 안받음";
+  return "getExternalRecommendation unknown";
 }
 
 function includesSearchQuery(item: OpsDebugOpportunityRunItem, query: string) {
@@ -679,7 +792,17 @@ function includesSearchQuery(item: OpsDebugOpportunityRunItem, query: string) {
     item.runMode,
     item.searchSummary,
     item.status,
+    item.talent.createdAt,
     item.talent.email,
+    item.talent.lastLoginAt,
+    item.talent.latestActionAt,
+    externalRecommendationSearchText(item.talent.getExternalRecommendation),
+    externalRecommendationSearchText(
+      item.talent.getExternalRecommendationCurrent
+    ),
+    externalRecommendationSearchText(
+      item.talent.getExternalRecommendationRunSnapshot
+    ),
     item.talent.name,
     item.trigger,
     ...item.actionLabels,
@@ -752,7 +875,11 @@ async function fetchRoleMap(args: {
 }) {
   const roleMap = new Map<
     string,
-    { companyName: string | null; name: string | null; sourceType: string | null }
+    {
+      companyName: string | null;
+      name: string | null;
+      sourceType: string | null;
+    }
   >();
   const roleIds = Array.from(new Set(args.roleIds.filter(Boolean)));
   if (roleIds.length === 0) return roleMap;
@@ -806,14 +933,18 @@ async function fetchRecommendations(args: {
       .order("rank", { ascending: true });
 
     if (error) {
-      throw new Error(error.message ?? "Failed to load opportunity recommendations");
+      throw new Error(
+        error.message ?? "Failed to load opportunity recommendations"
+      );
     }
     rows.push(...(data ?? []));
   }
 
   const roleMap = await fetchRoleMap({
     admin: args.admin,
-    roleIds: rows.map((row) => getString(row.role_id)).filter(Boolean) as string[],
+    roleIds: rows
+      .map((row) => getString(row.role_id))
+      .filter(Boolean) as string[],
   });
 
   for (const row of rows) {
@@ -826,10 +957,74 @@ async function fetchRecommendations(args: {
   return byRunId;
 }
 
+async function fetchTalentSettings(args: {
+  admin: UntypedAdminClient;
+  userIds: string[];
+}) {
+  const byUserId = new Map<string, TalentSettingSummary>();
+  const userIds = Array.from(new Set(args.userIds.filter(Boolean)));
+  if (userIds.length === 0) return byUserId;
+
+  for (const page of chunk(userIds, 200)) {
+    const { data, error } = await args.admin
+      .from("talent_setting")
+      .select("user_id, get_external_recommendation, updated_at")
+      .in("user_id", page);
+
+    if (error) {
+      throw new Error(error.message ?? "Failed to load talent settings");
+    }
+
+    for (const row of data ?? []) {
+      const userId = getString(row.user_id);
+      if (!userId) continue;
+      byUserId.set(userId, {
+        getExternalRecommendation: getBoolean(row.get_external_recommendation),
+        updatedAt: getString(row.updated_at),
+      });
+    }
+  }
+
+  return byUserId;
+}
+
+async function fetchTalentActivities(args: {
+  admin: UntypedAdminClient;
+  userIds: string[];
+}) {
+  const byUserId = new Map<string, TalentActivitySummary>();
+  const userIds = Array.from(new Set(args.userIds.filter(Boolean)));
+  if (userIds.length === 0) return byUserId;
+
+  for (const page of chunk(userIds, 200)) {
+    const { data, error } = await args.admin
+      .from("talent_activity_events")
+      .select("talent_id, created_at")
+      .in("talent_id", page)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      throw new Error(error.message ?? "Failed to load talent activities");
+    }
+
+    for (const row of data ?? []) {
+      const userId = getString(row.talent_id);
+      if (!userId || byUserId.has(userId)) continue;
+      byUserId.set(userId, {
+        latestActionAt: getString(row.created_at),
+      });
+    }
+  }
+
+  return byUserId;
+}
+
 function runFromRow(args: {
+  activity: TalentActivitySummary | null;
   deliveries: DeliverySummary[];
   recommendations: RecommendationSummary[];
   row: any;
+  talentSetting: TalentSettingSummary | null;
 }): OpsDebugOpportunityRunItem {
   const queryPlan = asRecord(args.row.query_plan);
   const coverage = asRecord(args.row.coverage);
@@ -916,7 +1111,7 @@ function runFromRow(args: {
     runMode: getString(args.row.run_mode),
     searchSummary: buildSearchSummary(queryPlan),
     status,
-    talent: parseTalent(args.row),
+    talent: parseTalent(args.row, args.talentSetting, args.activity),
     trigger: getString(args.row.trigger),
   };
 }
@@ -956,10 +1151,7 @@ function buildStats(args: {
 export function parseOpsDebugOpportunityRunLimit(value: string | null) {
   const n = Number(value ?? DEFAULT_DEBUG_OPPORTUNITY_RUN_LIMIT);
   if (!Number.isFinite(n)) return DEFAULT_DEBUG_OPPORTUNITY_RUN_LIMIT;
-  return Math.max(
-    1,
-    Math.min(MAX_DEBUG_OPPORTUNITY_RUN_LIMIT, Math.floor(n))
-  );
+  return Math.max(1, Math.min(MAX_DEBUG_OPPORTUNITY_RUN_LIMIT, Math.floor(n)));
 }
 
 export function parseOpsDebugOpportunityRunOffset(value: string | null) {
@@ -1043,7 +1235,9 @@ export async function fetchOpsDebugOpportunityRuns(args: {
         talent:talent_users!opportunity_discovery_run_talent_id_fkey (
           user_id,
           name,
-          email
+          email,
+          created_at,
+          last_logined_at
         )
       `
     )
@@ -1066,19 +1260,34 @@ export async function fetchOpsDebugOpportunityRuns(args: {
   }
 
   const rows = data ?? [];
-  const runIds = rows.map((row: any) => getString(row.id)).filter(Boolean) as string[];
-  const [deliveriesByRunId, recommendationsByRunId] = await Promise.all([
+  const runIds = rows
+    .map((row: any) => getString(row.id))
+    .filter(Boolean) as string[];
+  const userIds = rows
+    .map((row: any) => getString(row.talent_id))
+    .filter(Boolean) as string[];
+  const [
+    deliveriesByRunId,
+    recommendationsByRunId,
+    talentSettingsByUserId,
+    talentActivitiesByUserId,
+  ] = await Promise.all([
     fetchDeliveries({ admin, runIds }),
     fetchRecommendations({ admin, runIds }),
+    fetchTalentSettings({ admin, userIds }),
+    fetchTalentActivities({ admin, userIds }),
   ]);
 
   const allRuns = rows
     .map((row: any) => {
       const runId = getString(row.id) ?? "";
+      const userId = getString(row.talent_id) ?? "";
       return runFromRow({
+        activity: talentActivitiesByUserId.get(userId) ?? null,
         deliveries: deliveriesByRunId.get(runId) ?? [],
         recommendations: recommendationsByRunId.get(runId) ?? [],
         row,
+        talentSetting: talentSettingsByUserId.get(userId) ?? null,
       });
     })
     .filter((item) => matchesOutcomeFilter(item, outcome))

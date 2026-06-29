@@ -39,21 +39,17 @@ export function buildCareerChannelContextRules(channel: CareerPromptChannel) {
 
   return [
     "The candidate is currently communicating through Text Chat.",
-    "- Use Markdown.",
-    "- Use short headings, bullets, bold text for important terms such as role or company names, lists, links, or code blocks when helpful.",
-    "- Do not use emojis or emoji-like decorative symbols.",
+    "- Use Markdown for better readability.",
+    "- Use short headings, bullets, bold text for important terms such as role or company names, lists, links, or code blocks.",
+    "- Do not use emojis.",
+    "- When asking a question to the user to choose one of 2-3 answer options, you can append exactly one raw choice button block after the visible question:",
+    "  [[CAREER_CHOICE_BUTTONS]]",
+    '  {"choices":["Option A","Option B","Option C"]}',
+    "  [[/CAREER_CHOICE_BUTTONS]]",
+    "- Keep each choice short and self-contained, including simple yes/no choices. The front end will render the choices as vertical full-width buttons and send the selected choice text back as the user's reply.",
+    "- Do not put the choice button block inside a Markdown code block.",
     CAREER_HARPER_LINK_OUTPUT_RULE,
     "",
-    "[Example]",
-    '"""',
-    "Could you give me the highlights of what you've been building there? Specifically:",
-    "",
-    "- What does the **agentic architecture** look like (e.g., multi-agent orchestration, tool-use patterns)?",
-    "- Which **LLMs and frameworks** are you leveraging?",
-    "- What's the most significant **product impact** or technical hurdle you've cleared so far?",
-    "",
-    "Once I have those, I'll use that signal to prioritize similar opportunities and help you evaluate the strongest matches.",
-    '"""',
   ].join("\n");
 }
 

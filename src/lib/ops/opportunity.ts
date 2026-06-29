@@ -1787,6 +1787,7 @@ export async function fetchOpsOpportunityRoles(
     limit?: number;
     offset?: number;
     query?: string | null;
+    roleId?: string | null;
     sourceType?: OpportunitySourceType | null;
     workspaceId?: string | null;
   } = {}
@@ -1802,6 +1803,7 @@ export async function fetchOpsOpportunityRoles(
     args.sourceType === "internal" || args.sourceType === "external"
       ? args.sourceType
       : null;
+  const roleId = String(args.roleId ?? "").trim() || null;
   const workspaceId = String(args.workspaceId ?? "").trim() || null;
 
   let workspaceNameById = new Map<string, string>();
@@ -1849,6 +1851,10 @@ export async function fetchOpsOpportunityRoles(
 
   if (workspaceId) {
     roleQuery = roleQuery.eq("company_workspace_id", workspaceId);
+  }
+
+  if (roleId) {
+    roleQuery = roleQuery.eq("role_id", roleId);
   }
 
   if (sourceType) {

@@ -495,8 +495,7 @@ export function buildOpportunityFeedbackActivitySummary(args: {
   return clampText(
     [
       `User ${actionLabel} ${sourceLabel} opportunity "${args.opportunity.title}" at "${args.opportunity.companyName}".`,
-      reasonText ? `Feedback reason: ${reasonText}.` : "No feedback reason.",
-      details.length > 0 ? `Opportunity details: ${details.join("; ")}.` : "",
+      reasonText ? `Feedback reason: ${reasonText}.` : "",
     ]
       .filter(Boolean)
       .join(" "),

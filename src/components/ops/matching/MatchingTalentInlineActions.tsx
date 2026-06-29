@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { ReactNode } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { LoaderCircle, Plus, X } from "lucide-react";
 import {
   DEFAULT_MATCHING_TAG_BADGE_CLASS,
@@ -7,21 +7,23 @@ import {
   getMatchingTagLabel,
   getMatchingTagOption,
   isMatchingReviewStageTag,
-  MATCHING_TAG_OPTIONS,
 } from "@/components/ops/matching/tagMeta";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { BareButton } from "@/components/ui/button";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input as UiInput } from "@/components/ui/input";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
 import { useCreateOpsCareerProfileMemo } from "@/hooks/ops/useOpsCareer";
 import {
   useAddOpsMatchingTalentTag,
   useDeleteOpsMatchingTalentTag,
+  useOpsMatchingTagOptions,
 } from "@/hooks/ops/useOpsMatching";
 import type {
   OpsMatchingTalentItem,
@@ -45,6 +47,10 @@ function InlineActionRoot({ children, compact }: InlineActionRootProps) {
       {children}
     </div>
   );
+}
+
+function normalizeTagKey(value: string) {
+  return value.trim().toLowerCase();
 }
 
 export function MatchingTagPill({
@@ -193,20 +199,73 @@ export function MatchingTagEditor({
     userId: OpsMatchingTalentItem["userId"];
   };
 }) {
+  const [newTagDraft, setNewTagDraft] = useState("");
   const addTag = useAddOpsMatchingTalentTag();
   const deleteTag = useDeleteOpsMatchingTalentTag();
+  const tagOptionsQuery = useOpsMatchingTagOptions(showAddButton);
   const pending = addTag.isPending || deleteTag.isPending;
-  const selectedTagValues = useMemo(
-    () => new Set(talent.tags.map((tag) => tag.tag)),
+  const selectedTagKeys = useMemo(
+    () => new Set(talent.tags.map((tag) => normalizeTagKey(tag.tag))),
     [talent.tags]
   );
-  const visibleTags = hideReviewStageTags
-    ? talent.tags.filter((tag) => !isMatchingReviewStageTag(tag.tag))
-    : talent.tags;
+  const visibleTags = useMemo(
+    () =>
+      hideReviewStageTags
+        ? talent.tags.filter((tag) => !isMatchingReviewStageTag(tag.tag))
+        : talent.tags,
+    [hideReviewStageTags, talent.tags]
+  );
+  const tagOptionItems = useMemo(() => {
+    const items: { count: number | null; tag: string }[] = [];
+    const seenKeys = new Set<string>();
+    for (const option of tagOptionsQuery.data?.items ?? []) {
+      const tag = option.tag.trim();
+      const tagKey = normalizeTagKey(tag);
+      if (!tagKey || seenKeys.has(tagKey)) continue;
+      seenKeys.add(tagKey);
+      items.push({ count: option.count, tag });
+    }
+    for (const tag of visibleTags) {
+      const tagKey = normalizeTagKey(tag.tag);
+      if (!tagKey || seenKeys.has(tagKey)) continue;
+      seenKeys.add(tagKey);
+      items.push({ count: null, tag: tag.tag });
+    }
+    return items;
+  }, [tagOptionsQuery.data?.items, visibleTags]);
 
-  const addFixedTag = (tag: string) => {
-    if (!tag || selectedTagValues.has(tag) || pending) return;
-    addTag.mutate({ roleId: roleId ?? null, tag, talentId: talent.userId });
+  const addTagValue = (tag: string, onSuccess?: () => void) => {
+    const normalizedTag = tag.trim();
+    if (!normalizedTag || selectedTagKeys.has(normalizeTagKey(normalizedTag))) {
+      onSuccess?.();
+      return;
+    }
+    if (pending) return;
+    addTag.mutate(
+      { roleId: roleId ?? null, tag: normalizedTag, talentId: talent.userId },
+      { onSuccess }
+    );
+  };
+
+  const deleteTagValue = (tag: string) => {
+    if (pending) return;
+    const tagKey = normalizeTagKey(tag);
+    const currentTag = talent.tags.find(
+      (item) => normalizeTagKey(item.tag) === tagKey
+    );
+    if (!currentTag) return;
+    deleteTag.mutate({
+      roleId: roleId ?? null,
+      tagId: currentTag.id,
+      talentId: talent.userId,
+    });
+  };
+
+  const handleCreateTag = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const tag = newTagDraft.trim();
+    if (!tag || pending) return;
+    addTagValue(tag, () => setNewTagDraft(""));
   };
 
   if (visibleTags.length === 0 && !showAddButton) {
@@ -253,31 +312,84 @@ export function MatchingTagEditor({
               태그 추가
             </BareButton>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-40">
-            {MATCHING_TAG_OPTIONS.map((option) => {
-              const selected = selectedTagValues.has(option.value);
-              return (
-                <DropdownMenuItem
-                  key={option.value}
-                  disabled={selected || pending}
-                  onSelect={() => addFixedTag(option.value)}
-                >
-                  <span
-                    className={cx(
-                      "h-2 w-2 shrink-0 rounded-full",
-                      option.dotClassName
-                    )}
-                    aria-hidden
-                  />
-                  <span>{option.label}</span>
-                  {selected ? (
-                    <span className="ml-auto text-[11px] text-neutral-soft">
-                      선택됨
-                    </span>
-                  ) : null}
-                </DropdownMenuItem>
-              );
-            })}
+          <DropdownMenuContent align="start" className="w-[180px]">
+            <form
+              className="space-y-2 p-1"
+              onSubmit={handleCreateTag}
+              onKeyDown={(event) => event.stopPropagation()}
+            >
+              <UiInput
+                unstyled
+                value={newTagDraft}
+                onChange={(event) => setNewTagDraft(event.target.value)}
+                maxLength={40}
+                className="h-8 w-full rounded-md border border-neutral-1000-a10 bg-bg-default px-2 text-xs text-neutral-primary outline-none placeholder:text-neutral-placeholder focus:border-neutral-400 focus:ring-2 focus:ring-neutral-1000-a05"
+                placeholder="새 태그"
+              />
+              <BareButton
+                type="submit"
+                disabled={!newTagDraft.trim() || pending}
+                className={cx(opsTheme.buttonPrimary, "h-7 w-full text-[11px]")}
+              >
+                {addTag.isPending ? (
+                  <LoaderCircle className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Plus className="h-3 w-3" />
+                )}
+                추가
+              </BareButton>
+            </form>
+            <DropdownMenuSeparator />
+            {tagOptionsQuery.isLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <LoaderCircle className="h-4 w-4 animate-spin text-neutral-soft" />
+              </div>
+            ) : tagOptionsQuery.error ? (
+              <div className="px-2 py-3 text-xs leading-5 text-critical">
+                태그 목록을 불러오지 못했습니다.
+              </div>
+            ) : tagOptionItems.length === 0 ? (
+              <div className="px-2 py-3 text-xs leading-5 text-neutral-soft">
+                기존 태그가 없습니다.
+              </div>
+            ) : (
+              tagOptionItems.map((option) => {
+                const selected = selectedTagKeys.has(
+                  normalizeTagKey(option.tag)
+                );
+                const tagOption = getMatchingTagOption(option.tag);
+                const dotClassName =
+                  tagOption?.dotClassName ?? DEFAULT_MATCHING_TAG_DOT_CLASS;
+                const label = getMatchingTagLabel(option.tag);
+                return (
+                  <DropdownMenuCheckboxItem
+                    key={option.tag}
+                    checked={selected}
+                    disabled={pending}
+                    className="gap-2 pl-7 pr-2 text-xs"
+                    onSelect={(event) => event.preventDefault()}
+                    onCheckedChange={(checked) => {
+                      if (checked === true) addTagValue(option.tag);
+                      else deleteTagValue(option.tag);
+                    }}
+                  >
+                    <span
+                      className={cx(
+                        "h-2 w-2 shrink-0 rounded-full",
+                        dotClassName
+                      )}
+                      aria-hidden
+                    />
+                    <span className="min-w-0 flex-1 truncate">{label}</span>
+                    {option.count !== null ? (
+                      <span className="text-[10px] text-neutral-soft">
+                        {option.count}
+                      </span>
+                    ) : null}
+                  </DropdownMenuCheckboxItem>
+                );
+              })
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       ) : null}

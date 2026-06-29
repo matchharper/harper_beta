@@ -22,8 +22,10 @@ import type {
   OpsMatchingRoleReviewStageDeleteResponse,
   OpsMatchingRoleReviewStageUpdateResponse,
   OpsMatchingRoleOption,
+  OpsMatchingTagOptionsResponse,
   OpsMatchingTalentHistoryResponse,
   OpsMatchingTalentHistorySection,
+  OpsMatchingTalentFitsResponse,
   OpsMatchingTalentListResponse,
   OpsMatchingTalentPoolListResponse,
   OpsMatchingTalentPoolTabId,
@@ -247,6 +249,25 @@ export function useOpsMatchingTalentHistory(
     },
     enabled:
       (filters.enabled ?? true) && talentIds.length > 0 && sections.length > 0,
+    staleTime: 30_000,
+  });
+}
+
+export function useOpsMatchingTalentFits(
+  talentId?: string | null,
+  enabled = true
+) {
+  const normalizedTalentId = talentId?.trim() ?? "";
+
+  return useQuery({
+    queryKey: queryKeys.opsMatching.talentFits(normalizedTalentId),
+    queryFn: () => {
+      const params = new URLSearchParams({ talentId: normalizedTalentId });
+      return fetchWithInternalAuth<OpsMatchingTalentFitsResponse>(
+        `/api/internal/matching/talent-fits?${params.toString()}`
+      );
+    },
+    enabled: enabled && normalizedTalentId.length > 0,
     staleTime: 30_000,
   });
 }
@@ -478,6 +499,18 @@ export function useOpsMatchingTalentRoleTags(args: {
   });
 }
 
+export function useOpsMatchingTagOptions(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.opsMatching.tagOptions,
+    queryFn: () =>
+      fetchWithInternalAuth<OpsMatchingTagOptionsResponse>(
+        "/api/internal/matching/tag-options"
+      ),
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
 export function useAddOpsMatchingTalentTag() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -496,6 +529,9 @@ export function useAddOpsMatchingTalentTag() {
       ),
     onSuccess: (_result, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.opsMatching.all });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.opsMatching.tagOptions,
+      });
       queryClient.invalidateQueries({
         queryKey: queryKeys.opsMatching.roleTags(variables.talentId),
       });
@@ -526,6 +562,9 @@ export function useDeleteOpsMatchingTalentTag() {
       ),
     onSuccess: (_result, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.opsMatching.all });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.opsMatching.tagOptions,
+      });
       queryClient.invalidateQueries({
         queryKey: queryKeys.opsMatching.roleTags(variables.talentId),
       });

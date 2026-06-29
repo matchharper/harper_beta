@@ -35,8 +35,16 @@ export const ASSISTANT_BUBBLE_CLASS =
 const HIGHLIGHT_PATTERN = /<<([\s\S]+?)>>/g;
 const URL_PATTERN = /(https?:\/\/[^\s]+)/g;
 const CALL_ACTION_MARKER = "[[CALL]]";
+const CAREER_CHOICE_BUTTONS_START_FRAGMENT = "[[CAREER_CHOICE_BUTTONS";
+const CAREER_CHOICE_BUTTONS_PATTERN =
+  /\[\[CAREER_CHOICE_BUTTONS\]\]\s*([\s\S]*?)\s*\[\[\/CAREER_CHOICE_BUTTONS\]\]/g;
 const INTERNAL_CALL_REQUEST_PATTERN =
   /\[\[INTERNAL_OPPORTUNITY_CALL_REQUEST:([^\]]+)\]\]/g;
+
+type AssistantChoice = {
+  label: string;
+  value: string;
+};
 
 type InternalCallRequestMarker = {
   callId: string;
@@ -49,12 +57,80 @@ type Props = {
   message: CareerMessage;
   isUser: boolean;
   isAssistantSpeaking?: boolean;
+  choiceActionsDisabled?: boolean;
   isCallStartPending?: boolean;
+  onSelectAssistantChoice?: (choice: string) => void | Promise<void>;
   onStartCallMode?: (args?: CareerCallStartRequest) => void | Promise<void>;
 };
 
 function stripCallActionMarker(content: string) {
   return content.replaceAll(CALL_ACTION_MARKER, "").trim();
+}
+
+function normalizeAssistantChoice(value: unknown): AssistantChoice | null {
+  if (typeof value === "string") {
+    const label = value.trim();
+    return label ? { label, value: label } : null;
+  }
+
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const label = typeof record.label === "string" ? record.label.trim() : "";
+  const choiceValue =
+    typeof record.value === "string" ? record.value.trim() : label;
+
+  if (!label || !choiceValue) return null;
+  return { label, value: choiceValue };
+}
+
+function extractAssistantChoiceBlocks(content: string) {
+  const choices: AssistantChoice[] = [];
+  const seenValues = new Set<string>();
+
+  let strippedContent = content.replace(
+    CAREER_CHOICE_BUTTONS_PATTERN,
+    (_match, payload: string) => {
+      try {
+        const parsed = JSON.parse(payload.trim()) as unknown;
+        const rawChoices = Array.isArray(parsed)
+          ? parsed
+          : parsed && typeof parsed === "object"
+            ? (parsed as Record<string, unknown>).choices
+            : null;
+
+        if (!Array.isArray(rawChoices)) return "";
+
+        for (const rawChoice of rawChoices) {
+          const choice = normalizeAssistantChoice(rawChoice);
+          if (!choice || seenValues.has(choice.value)) continue;
+          seenValues.add(choice.value);
+          choices.push(choice);
+          if (choices.length >= 3) break;
+        }
+      } catch {
+        // Hide malformed UI metadata instead of exposing raw markers in chat.
+      }
+
+      return "";
+    }
+  );
+
+  const incompleteBlockStart = strippedContent.indexOf(
+    CAREER_CHOICE_BUTTONS_START_FRAGMENT
+  );
+  if (incompleteBlockStart !== -1) {
+    strippedContent = strippedContent.slice(0, incompleteBlockStart);
+  }
+
+  strippedContent = strippedContent.trim();
+
+  return {
+    choices: choices.length >= 2 ? choices : [],
+    content: strippedContent,
+  };
 }
 
 function toInternalCallRequestMarker(
@@ -211,7 +287,9 @@ const CareerMessageBubble = ({
   message,
   isUser,
   isAssistantSpeaking = false,
+  choiceActionsDisabled = false,
   isCallStartPending = false,
+  onSelectAssistantChoice,
   onStartCallMode,
 }: Props) => {
   const t = useCareerT();
@@ -243,7 +321,11 @@ const CareerMessageBubble = ({
   const internalCallRequestExtraction = !isUser
     ? extractInternalCallRequestMarkers(callActionStrippedContent)
     : { content: callActionStrippedContent, markers: [] };
-  const displayContent = internalCallRequestExtraction.content;
+  const choiceBlockExtraction = !isUser
+    ? extractAssistantChoiceBlocks(internalCallRequestExtraction.content)
+    : { content: internalCallRequestExtraction.content, choices: [] };
+  const displayContent = choiceBlockExtraction.content;
+  const assistantChoices = choiceBlockExtraction.choices;
   const internalCallRequestMarkers = internalCallRequestExtraction.markers;
   const assistantContent =
     !isUser && (message.opportunityPreview?.length ?? 0) > 0
@@ -303,6 +385,26 @@ const CareerMessageBubble = ({
               className={careerTimelineAssistantRichTextClassName}
               onHarperLinkClick={handleHarperLinkClick}
             />
+          )}
+          {!isUser && assistantChoices.length > 0 && (
+            <div className="mt-3 flex max-w-[520px] min-w-[320px] w-full flex-col gap-2">
+              {assistantChoices.map((choice, index) => (
+                <BareButton
+                  key={`${message.id}-choice-${index}-${choice.value}`}
+                  type="button"
+                  onClick={() => void onSelectAssistantChoice?.(choice.value)}
+                  disabled={choiceActionsDisabled || !onSelectAssistantChoice}
+                  className={cn(
+                    "flex cursor-pointer min-h-11 w-full items-center justify-start rounded-md border border-neutral-1000-a10 bg-bg-floating px-2.5 py-2 text-left text-base font-medium leading-5 text-neutral-primary transition-colors hover:border-neutral-400 hover:bg-bg-weak disabled:cursor-not-allowed disabled:opacity-55",
+                    careerTimelineMetaTextClassName
+                  )}
+                >
+                  <span className="wrap-break-word min-w-0">
+                    {choice.label}
+                  </span>
+                </BareButton>
+              ))}
+            </div>
           )}
           {hasCallAction && (
             <BareButton

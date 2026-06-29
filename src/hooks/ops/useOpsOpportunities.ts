@@ -172,6 +172,7 @@ export function useOpsOpportunityRoles(
     internalOnly?: boolean;
     limit?: number;
     query?: string | null;
+    roleId?: string | null;
     sourceType?: OpportunitySourceType | null;
     workspaceId?: string | null;
   } = {}
@@ -182,6 +183,7 @@ export function useOpsOpportunityRoles(
     args.sourceType === "internal" || args.sourceType === "external"
       ? args.sourceType
       : null;
+  const roleId = String(args.roleId ?? "").trim();
   const workspaceId = String(args.workspaceId ?? "").trim();
   const internalOnly = Boolean(args.internalOnly);
 
@@ -190,6 +192,7 @@ export function useOpsOpportunityRoles(
       internalOnly,
       limit,
       query,
+      roleId,
       sourceType,
       workspaceId,
     }),
@@ -203,6 +206,9 @@ export function useOpsOpportunityRoles(
       }
       if (query) {
         params.set("query", query);
+      }
+      if (roleId) {
+        params.set("roleId", roleId);
       }
       if (sourceType) {
         params.set("sourceType", sourceType);

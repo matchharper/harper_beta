@@ -78,11 +78,13 @@ Provider selection:
 
 - model starts with `claude-`: Anthropic-compatible endpoint, requires `ANTHROPIC_API_KEY`
 - model starts with `grok-`: xAI OpenAI-compatible endpoint, requires `GROK_API_KEY`
+- model starts with `deepseek-`: DeepSeek OpenAI-compatible endpoint, requires `DEEPSEEK_API_KEY`
 - otherwise: OpenAI endpoint, requires `OPENAI_API_KEY`
 
 Generation parameters:
 
 - `temperature`: `EMAIL_REPLY_TEMPERATURE`, default `0.35`
+- DeepSeek thinking mode: enabled with `EMAIL_REPLY_DEEPSEEK_REASONING_EFFORT`, default `high`; temperature is omitted
 - timeout: `EMAIL_REPLY_LLM_TIMEOUT_SEC`, default `60`
 - max tool-call turns: up to `4`
 - no explicit `max_tokens` is currently passed for this generic reply call

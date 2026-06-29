@@ -11,6 +11,7 @@ import {
   Copy,
   ExternalLink,
   Inbox,
+  Info,
   LoaderCircle,
   Mail,
   MailCheck,
@@ -34,6 +35,7 @@ import { BareButton } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Input as UiInput } from "@/components/ui/input";
 import { Select as UiSelect } from "@/components/ui/select";
+import { Tooltips } from "@/components/ui/tooltip";
 import { useOpsDebugCalls } from "@/hooks/ops/useOpsDebugCalls";
 import { useOpsDebugEmails } from "@/hooks/ops/useOpsDebugEmails";
 import { useOpsDebugOpportunityRuns } from "@/hooks/ops/useOpsDebugOpportunityRuns";
@@ -194,6 +196,22 @@ function formatAbsoluteKst(value: string | null | undefined) {
   });
 }
 
+function formatDateOnlyKst(value: string | null | undefined) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+  }).formatToParts(date);
+  const values = Object.fromEntries(
+    parts.map((part) => [part.type, part.value])
+  );
+  return `${values.year}.${values.month}.${values.day}`;
+}
+
 function formatDuration(seconds: number | null | undefined) {
   if (!seconds || seconds < 0) return "-";
   const minutes = Math.floor(seconds / 60);
@@ -284,6 +302,49 @@ function opportunityRunDeliveryClass(status: string) {
 
 function getOpportunityRunDisplayName(item: OpsDebugOpportunityRunItem) {
   return item.talent.name || item.talent.email || "이름 없음";
+}
+
+function externalRecommendationLabel(value: boolean | null) {
+  if (value === true) return "오픈 포지션 받음";
+  if (value === false) return "오픈 포지션 안받음";
+  return "오픈 포지션 설정 없음";
+}
+
+function externalRecommendationClass(value: boolean | null) {
+  if (value === true) return "bg-positive-faded text-positive";
+  if (value === false) return "bg-bg-weak text-neutral-muted";
+  return "bg-critical-faded text-critical";
+}
+
+function formatNullableBoolean(value: boolean | null) {
+  if (value === true) return "true";
+  if (value === false) return "false";
+  return "값 없음";
+}
+
+function buildExternalRecommendationTooltip(item: OpsDebugOpportunityRunItem) {
+  return [
+    `회원가입: ${formatDateOnlyKst(item.talent.createdAt)}`,
+    `최근 로그인: ${formatAbsoluteKst(item.talent.lastLoginAt)} KST`,
+    `최근 action: ${formatAbsoluteKst(item.talent.latestActionAt)} KST`,
+    `표시값: ${externalRecommendationLabel(
+      item.talent.getExternalRecommendation
+    )}`,
+    `현재 talent_setting.get_external_recommendation: ${formatNullableBoolean(
+      item.talent.getExternalRecommendationCurrent
+    )}`,
+    `run settings_snapshot.getExternalRecommendation: ${formatNullableBoolean(
+      item.talent.getExternalRecommendationRunSnapshot
+    )}`,
+    item.talent.getExternalRecommendationUpdatedAt
+      ? `설정 업데이트: ${formatAbsoluteKst(
+          item.talent.getExternalRecommendationUpdatedAt
+        )} KST`
+      : null,
+    "true면 외부 공개 오픈 포지션 추천을 받는 상태이고, false면 받지 않는 상태입니다.",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function buildCallTranscriptText(item: OpsDebugCallItem) {
@@ -1056,18 +1117,16 @@ function OpportunityRunsTable({
       ) : (
         <>
           <div className="overflow-x-auto">
-            <table className="min-w-[1240px] table-fixed border-collapse text-left text-sm">
+            <table className="min-w-[1500px] table-fixed border-collapse text-left text-sm">
               <thead className="bg-bg-weak/70 text-[11px] uppercase tracking-[0.06em] text-neutral-soft">
                 <tr>
-                  <th className="w-[118px] px-4 py-3 font-medium">시간</th>
-                  <th className="w-[210px] px-4 py-3 font-medium">유저</th>
-                  <th className="w-[150px] px-4 py-3 font-medium">결과</th>
-                  <th className="w-[330px] px-4 py-3 font-medium">
-                    왜 / 맥락
-                  </th>
-                  <th className="w-[220px] px-4 py-3 font-medium">추천</th>
-                  <th className="w-[250px] px-4 py-3 font-medium">발송</th>
-                  <th className="w-[122px] px-4 py-3 font-medium">확인</th>
+                  <th className="w-[130px] px-4 py-3 font-medium">시간</th>
+                  <th className="w-[320px] px-4 py-3 font-medium">유저</th>
+                  <th className="w-[165px] px-4 py-3 font-medium">결과</th>
+                  <th className="w-[360px] px-4 py-3 font-medium">왜 / 맥락</th>
+                  <th className="w-[110px] px-4 py-3 font-medium">추천</th>
+                  <th className="w-[280px] px-4 py-3 font-medium">발송</th>
+                  <th className="w-[135px] px-4 py-3 font-medium">확인</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-1000-a05">
@@ -1087,13 +1146,38 @@ function OpportunityRunsTable({
                           pathname: "/ops/career",
                           query: { userId: item.talent.userId },
                         }}
-                        className="font-medium text-neutral-primary transition hover:text-black"
+                        className="text-sm font-semibold text-neutral-primary transition hover:text-black"
                       >
                         {getOpportunityRunDisplayName(item)}
                       </Link>
-                      <div className="mt-1 break-all text-xs text-neutral-muted">
+                      <div className="mt-1 break-all text-xs font-medium text-neutral-muted">
                         {item.talent.email ?? "-"}
                       </div>
+                      <div className="mt-1 text-xs font-semibold leading-4 text-neutral-muted">
+                        가입 {formatDateOnlyKst(item.talent.createdAt)}
+                      </div>
+                      <Tooltips
+                        text={buildExternalRecommendationTooltip(item)}
+                        side="bottom"
+                      >
+                        <BareButton
+                          type="button"
+                          className={cx(
+                            "mt-1 inline-flex max-w-full items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold",
+                            "cursor-help truncate",
+                            externalRecommendationClass(
+                              item.talent.getExternalRecommendation
+                            )
+                          )}
+                        >
+                          <Info className="h-3 w-3 shrink-0" aria-hidden />
+                          <span className="truncate">
+                            {externalRecommendationLabel(
+                              item.talent.getExternalRecommendation
+                            )}
+                          </span>
+                        </BareButton>
+                      </Tooltips>
                     </td>
                     <td className="px-4 py-4">
                       <span
@@ -1317,12 +1401,10 @@ export function OpsDebuggingPageView({ mode }: { mode: DebugTabId }) {
     [calls, selectedCallId]
   );
   const opportunityRuns = useMemo(
-    () =>
-      opportunityRunQuery.data?.pages.flatMap((page) => page.runs) ?? [],
+    () => opportunityRunQuery.data?.pages.flatMap((page) => page.runs) ?? [],
     [opportunityRunQuery.data]
   );
-  const opportunityRunStats =
-    opportunityRunQuery.data?.pages[0]?.stats ?? null;
+  const opportunityRunStats = opportunityRunQuery.data?.pages[0]?.stats ?? null;
 
   const handleScopeChange = useCallback((nextScope: OpsDebugEmailScope) => {
     setScope(nextScope);
@@ -1996,9 +2078,7 @@ export function OpsDebuggingPageView({ mode }: { mode: DebugTabId }) {
                 isFetching={opportunityRunQuery.isFetching}
                 isFetchingNextPage={opportunityRunQuery.isFetchingNextPage}
                 isLoading={opportunityRunQuery.isLoading}
-                onFetchNextPage={() =>
-                  void opportunityRunQuery.fetchNextPage()
-                }
+                onFetchNextPage={() => void opportunityRunQuery.fetchNextPage()}
                 onRefresh={() => void opportunityRunQuery.refetch()}
                 runs={opportunityRuns}
               />

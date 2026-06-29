@@ -21,6 +21,7 @@ import {
 } from "./utils";
 import { InsightsTab } from "./InsightsTab";
 import { MailTab } from "./MailTab";
+import { MatchingTab } from "./MatchingTab";
 import { MessagesTab } from "./MessagesTab";
 import { OpsProfileMemoFeed } from "./OpsProfileMemoFeed";
 import { ProfileTab } from "./ProfileTab";
@@ -37,6 +38,7 @@ type TalentDetailTabId =
   | "all_feed"
   | "insights"
   | "mail"
+  | "matching"
   | "messages"
   | "profile"
   | "recommendations";
@@ -48,6 +50,7 @@ const TALENT_DETAIL_TABS = [
   { id: "profile", label: "프로필" },
   { id: "mail", label: "메일" },
   { id: "recommendations", label: "추천" },
+  { id: "matching", label: "매칭" },
 ] as const satisfies readonly {
   id: TalentDetailTabId;
   label: string;
@@ -283,6 +286,9 @@ export const TalentDetail = memo(function TalentDetail({
         ) : null}
         {activeTab === "recommendations" ? (
           <RecommendationsTab key={detail.userId} userId={detail.userId} />
+        ) : null}
+        {activeTab === "matching" ? (
+          <MatchingTab key={detail.userId} userId={detail.userId} />
         ) : null}
       </div>
     </div>

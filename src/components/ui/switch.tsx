@@ -55,7 +55,7 @@ const Switch = React.forwardRef<HTMLButtonElement, SwitchProps>(
         data-state={resolvedChecked ? "checked" : "unchecked"}
         disabled={disabled}
         className={cn(
-          "inline-flex h-6 w-10 shrink-0 items-center rounded-full border border-transparent bg-bg-weak p-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:cursor-not-allowed disabled:opacity-55 data-[state=checked]:bg-black",
+          "inline-flex h-6 w-10 shrink-0 items-center rounded-full border border-transparent bg-neutral-400 p-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:cursor-not-allowed disabled:opacity-55 data-[state=checked]:bg-black",
           className
         )}
         {...props}

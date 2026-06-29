@@ -13,6 +13,7 @@ import {
   CAREER_VOICE_CALL_STARTER_MODE_PROMPT,
 } from "@/lib/career/prompts/rawPrompts";
 import {
+  interpolateCareerPromptText,
   normalizeToolNames,
   renderCareerPromptBlocks,
 } from "@/lib/career/prompts/promptUtils";
@@ -167,34 +168,46 @@ function buildCareerConversationPromptPlan(args: {
   // 블록 순서는 중요하다: 안정적인 시스템 규칙, 프로필/tool 맥락,
   // 매 턴 바뀌는 runtime state 순서로 넣는다.
   const promptBlocks: CareerPromptBlock[] = [];
+  const promptVars = {
+    channel_context_rules: channelContextRules,
+    output_language: outputLanguage,
+    output_language_tone_rule: outputLanguageToneRule,
+    positions_tab_label: positionsTabLabel,
+  };
 
   const coreSystemPrompt = {
     key: "chat_core",
-    text: CAREER_CHAT_CORE_SYSTEM_PROMPT.replace(
-      /\{channel_context_rules\}/g,
-      channelContextRules
-    )
-      .replace(/\{output_language\}/g, outputLanguage)
-      .replace(/\{output_language_tone_rule\}/g, outputLanguageToneRule)
-      .replace(/\{positions_tab_label\}/g, positionsTabLabel),
+    text: interpolateCareerPromptText(
+      CAREER_CHAT_CORE_SYSTEM_PROMPT,
+      promptVars
+    ),
     cacheable: true,
   };
 
   const conversationGuidePrompt = isConversationStarterMode
     ? {
         key: "conversation_starter_mode",
-        text: CAREER_CONVERSATION_STARTER_MODE_PROMPT,
+        text: interpolateCareerPromptText(
+          CAREER_CONVERSATION_STARTER_MODE_PROMPT,
+          promptVars
+        ),
         cacheable: true,
       }
     : isOnboardingActive
       ? {
           key: "core_response_guidance",
-          text: CAREER_CORE_RESPONSE_GUIDANCE_PROMPT,
+          text: interpolateCareerPromptText(
+            CAREER_CORE_RESPONSE_GUIDANCE_PROMPT,
+            promptVars
+          ),
           cacheable: true,
         }
       : {
           key: "default_conversation_guidance",
-          text: CAREER_DEFAULT_CONVERSATION_GUIDANCE_PROMPT,
+          text: interpolateCareerPromptText(
+            CAREER_DEFAULT_CONVERSATION_GUIDANCE_PROMPT,
+            promptVars
+          ),
           cacheable: true,
         };
 

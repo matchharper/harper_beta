@@ -1,3 +1,7 @@
+import {
+  getChatClientForModel,
+  supportsResponseFormatForModel,
+} from "@/lib/llm/llm";
 import type { TalentAdminClient } from "./admin";
 
 export type ActiveInternalFitHoldQuestion = {
@@ -7,6 +11,14 @@ export type ActiveInternalFitHoldQuestion = {
 
 const ACTIVE_HOLD_CANDIDATE_LIMIT = 20;
 const NEW_INFORMATION_MAX_CHARS = 700;
+const PROPAGATION_MODEL = "grok-4-1-fast-non-reasoning";
+const PROPAGATION_TEMPERATURE = 0.3;
+const PROPAGATION_METHOD = "llm_criteria_match_v1";
+
+type InternalFitHoldQuestionCandidate = ActiveInternalFitHoldQuestion & {
+  criteria: unknown;
+  roleId: string;
+};
 
 function cleanText(value: unknown, maxChars: number) {
   if (typeof value !== "string") return "";
@@ -48,10 +60,11 @@ export function normalizeInternalFitReevaluationInformation(value: unknown) {
   return cleanText(value, NEW_INFORMATION_MAX_CHARS);
 }
 
-export async function fetchActiveInternalFitHoldQuestion(args: {
+async function fetchUnansweredInternalFitHoldQuestionCandidates(args: {
   admin: TalentAdminClient;
+  limit?: number;
   userId: string;
-}): Promise<ActiveInternalFitHoldQuestion | null> {
+}): Promise<InternalFitHoldQuestionCandidate[]> {
   const { data, error } = await (
     args.admin.from("talent_opportunity_fit" as any) as any
   )
@@ -63,14 +76,14 @@ export async function fetchActiveInternalFitHoldQuestion(args: {
     .is("human_label", null)
     .order("score", { ascending: false })
     .order("last_evaluated_at", { ascending: true })
-    .limit(ACTIVE_HOLD_CANDIDATE_LIMIT);
+    .limit(args.limit ?? ACTIVE_HOLD_CANDIDATE_LIMIT);
 
   if (error) {
     console.error("[InternalFitHoldQuestion] Failed to load hold fits", {
       error: error.message,
       userId: args.userId,
     });
-    return null;
+    return [];
   }
 
   const candidates = Array.isArray(data)
@@ -87,15 +100,17 @@ export async function fetchActiveInternalFitHoldQuestion(args: {
           ) {
             return null;
           }
-          return { fitId, roleId, summary };
+          return {
+            criteria: row.reevaluation_criteria,
+            fitId,
+            roleId,
+            summary,
+          };
         })
-        .filter(
-          (row): row is { fitId: string; roleId: string; summary: string } =>
-            Boolean(row)
-        )
+        .filter((row): row is InternalFitHoldQuestionCandidate => Boolean(row))
     : [];
 
-  if (candidates.length === 0) return null;
+  if (candidates.length === 0) return [];
 
   const roleIds = candidates.map((row) => row.roleId);
   const [rolesResponse, recommendationResponse] = await Promise.all([
@@ -114,7 +129,7 @@ export async function fetchActiveInternalFitHoldQuestion(args: {
       roleError: rolesResponse.error?.message,
       userId: args.userId,
     });
-    return null;
+    return [];
   }
 
   const recommendedRoleIds = new Set(
@@ -137,11 +152,20 @@ export async function fetchActiveInternalFitHoldQuestion(args: {
       .map((row: Record<string, unknown>) => normalizeRoleId(row.role_id))
   );
 
-  const active = candidates.find(
+  return candidates.filter(
     (candidate) =>
       activeInternalRoleIds.has(candidate.roleId) &&
       !recommendedRoleIds.has(candidate.roleId)
   );
+}
+
+export async function fetchActiveInternalFitHoldQuestion(args: {
+  admin: TalentAdminClient;
+  userId: string;
+}): Promise<ActiveInternalFitHoldQuestion | null> {
+  const active = (
+    await fetchUnansweredInternalFitHoldQuestionCandidates(args)
+  )[0];
 
   return active
     ? {
@@ -149,6 +173,207 @@ export async function fetchActiveInternalFitHoldQuestion(args: {
         summary: active.summary,
       }
     : null;
+}
+
+function extractPropagationFitIds(
+  payload: unknown,
+  candidateFitIds: Set<string>
+) {
+  const record = asRecord(payload);
+  if (!record) return [];
+
+  const rawFitIds = Array.isArray(record.fitIds)
+    ? record.fitIds
+    : Array.isArray(record.propagations)
+      ? record.propagations
+          .filter((item) => {
+            const itemRecord = asRecord(item);
+            const confidence = cleanText(
+              itemRecord?.confidence,
+              40
+            ).toLowerCase();
+            return (
+              itemRecord?.applies === true &&
+              (!confidence || confidence === "high")
+            );
+          })
+          .map((item) => asRecord(item)?.fitId)
+      : [];
+
+  const seen = new Set<string>();
+  return rawFitIds
+    .map((fitId) => cleanText(fitId, 120))
+    .filter((fitId) => {
+      if (!fitId || !candidateFitIds.has(fitId) || seen.has(fitId))
+        return false;
+      seen.add(fitId);
+      return true;
+    });
+}
+
+async function fetchRecentConversationMessages(args: {
+  admin: TalentAdminClient;
+  conversationId?: string | null;
+  userId: string;
+}) {
+  if (!args.conversationId) return [];
+
+  const { data, error } = await (
+    args.admin.from("talent_messages" as any) as any
+  )
+    .select("id, role, content, created_at")
+    .eq("conversation_id", args.conversationId)
+    .eq("user_id", args.userId)
+    .order("id", { ascending: false })
+    .limit(4);
+
+  if (error) {
+    console.error("[InternalFitHoldQuestion] Failed to load recent messages", {
+      conversationId: args.conversationId,
+      error: error.message,
+      userId: args.userId,
+    });
+    return [];
+  }
+
+  return (Array.isArray(data) ? data : [])
+    .reverse()
+    .map((row: Record<string, unknown>) => ({
+      content: cleanText(row.content, 1000),
+      role: cleanText(row.role, 40),
+    }))
+    .filter((row) => row.content);
+}
+
+async function selectInternalFitPropagationTargets(args: {
+  candidates: InternalFitHoldQuestionCandidate[];
+  changedFitId: string;
+  changedSummary: string;
+  newInformation: string;
+  recentConversation: Array<{ content: string; role: string }>;
+}) {
+  if (args.candidates.length === 0) return [];
+
+  const candidateFitIds = new Set(
+    args.candidates.map((candidate) => candidate.fitId)
+  );
+  const systemPrompt = [
+    "You are a conservative classifier for hidden internal opportunity follow-up questions.",
+    "Decide whether the user's newly saved answer directly and fully answers any other hidden clarification criteria.",
+    'Return JSON only with this exact shape: {"fitIds":["..."]}.',
+    "Include a fitId only when the answer clearly resolves the same missing candidate-side fact.",
+    "Do not include related, inferred, partial, or broader/narrower cases.",
+    "Different countries, locations, companies, compensation constraints, engagement types, functions, or ability checks are not the same criterion unless the user's answer explicitly covers them.",
+  ].join("\n");
+  const userPayload = {
+    candidates: args.candidates.map((candidate) => ({
+      fitId: candidate.fitId,
+      summary: candidate.summary,
+    })),
+    changed: {
+      fitId: args.changedFitId,
+      newInformation: args.newInformation,
+      summary: args.changedSummary,
+    },
+    recentConversation: args.recentConversation,
+  };
+
+  try {
+    const llmClient = getChatClientForModel(PROPAGATION_MODEL);
+    const response = await llmClient.chat.completions.create({
+      model: PROPAGATION_MODEL,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: JSON.stringify(userPayload) },
+      ],
+      ...(supportsResponseFormatForModel(PROPAGATION_MODEL) && {
+        response_format: { type: "json_object" as const },
+      }),
+      temperature: PROPAGATION_TEMPERATURE,
+    } as any);
+    const content = response.choices[0]?.message?.content ?? "{}";
+    return extractPropagationFitIds(JSON.parse(content), candidateFitIds);
+  } catch (error) {
+    console.error("[InternalFitHoldQuestion] Propagation classifier failed", {
+      error,
+    });
+    return [];
+  }
+}
+
+async function propagateInternalFitReevaluationInformation(args: {
+  admin: TalentAdminClient;
+  conversationId?: string | null;
+  changedFitId: string;
+  changedSummary: string;
+  newInformation: string;
+  userId: string;
+}) {
+  const candidates = (
+    await fetchUnansweredInternalFitHoldQuestionCandidates({
+      admin: args.admin,
+      limit: ACTIVE_HOLD_CANDIDATE_LIMIT,
+      userId: args.userId,
+    })
+  ).filter((candidate) => candidate.fitId !== args.changedFitId);
+  if (candidates.length === 0) return [];
+
+  const recentConversation = await fetchRecentConversationMessages({
+    admin: args.admin,
+    conversationId: args.conversationId,
+    userId: args.userId,
+  });
+  const selectedFitIds = await selectInternalFitPropagationTargets({
+    candidates,
+    changedFitId: args.changedFitId,
+    changedSummary: args.changedSummary,
+    newInformation: args.newInformation,
+    recentConversation,
+  });
+  if (selectedFitIds.length === 0) return [];
+
+  const selectedCandidates = candidates.filter((candidate) =>
+    selectedFitIds.includes(candidate.fitId)
+  );
+  const propagatedAt = new Date().toISOString();
+  const updatedFitIds: string[] = [];
+  for (const candidate of selectedCandidates) {
+    const previousCriteria = asRecord(candidate.criteria);
+    const nextCriteria = {
+      ...(previousCriteria ?? {}),
+      answered_at: propagatedAt,
+      new_information: args.newInformation,
+      propagated_from_fit_id: args.changedFitId,
+      propagation_method: PROPAGATION_METHOD,
+      summary:
+        cleanText(previousCriteria?.summary, 1000) ||
+        extractHoldQuestionSummary(candidate.criteria) ||
+        candidate.summary,
+    };
+    const { error } = await (
+      args.admin.from("talent_opportunity_fit" as any) as any
+    )
+      .update({
+        reevaluation_checked_at: null,
+        reevaluation_criteria: nextCriteria,
+      })
+      .eq("id", candidate.fitId)
+      .eq("talent_id", args.userId)
+      .eq("label", "hold")
+      .is("human_label", null);
+
+    if (error) {
+      console.error("[InternalFitHoldQuestion] Failed to propagate answer", {
+        error: error.message,
+        fitId: candidate.fitId,
+        userId: args.userId,
+      });
+      continue;
+    }
+    updatedFitIds.push(candidate.fitId);
+  }
+
+  return updatedFitIds;
 }
 
 export async function recordInternalFitReevaluationInformation(args: {
@@ -233,9 +458,19 @@ export async function recordInternalFitReevaluationInformation(args: {
     );
   }
 
+  const propagatedFitIds = await propagateInternalFitReevaluationInformation({
+    admin: args.admin,
+    changedFitId: args.fitId,
+    changedSummary: nextCriteria.summary,
+    conversationId: args.conversationId,
+    newInformation,
+    userId: args.userId,
+  });
+
   return {
     ok: true,
     fitId: args.fitId,
     newInformation,
+    propagatedFitIds,
   };
 }

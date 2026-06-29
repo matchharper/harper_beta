@@ -62,6 +62,7 @@ export const queryKeys = {
       internalOnly?: boolean | null;
       limit?: number | null;
       query?: string | null;
+      roleId?: string | null;
       sourceType?: string | null;
       workspaceId?: string | null;
     }) =>
@@ -70,6 +71,7 @@ export const queryKeys = {
         "roles",
         filters?.workspaceId ?? "all",
         filters?.query ?? "",
+        filters?.roleId ?? "all",
         filters?.sourceType ?? "all",
         Boolean(filters?.internalOnly),
         filters?.limit ?? 25,
@@ -176,6 +178,9 @@ export const queryKeys = {
         (filters.talentIds ?? []).join("|"),
         (filters.sections ?? []).join("|"),
       ] as const,
+    talentFits: (talentId?: string | null) =>
+      ["opsMatching", "talentFits", talentId ?? ""] as const,
+    tagOptions: ["opsMatching", "tagOptions"] as const,
     talentPool: (filters: {
       createdFrom?: string | null;
       createdTo?: string | null;

@@ -9,7 +9,6 @@ import {
   ImagePlus,
   Loader2,
   MapPin,
-  MessageSquare,
   Pencil,
   Plus,
   Save,

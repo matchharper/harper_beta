@@ -105,6 +105,7 @@ PYTHONPATH=. ../myenv/bin/python email_reply_worker.py once
 - `EMAIL_WORKER_POLL_INTERVAL_SEC`: polling 주기, 기본 1초
 - `EMAIL_MAX_RETRY_COUNT`: job retry 횟수, 기본 3
 - `EMAIL_REPLY_MODEL`: reply 생성 모델, 기본 `OPP_DELIVERY_COPY_MODEL` 또는 `claude-sonnet-4-6`
+- `EMAIL_REPLY_DEEPSEEK_REASONING_EFFORT`: DeepSeek reply 생성 reasoning effort, 기본 `DEEPSEEK_REASONING_EFFORT` 또는 `high`
 - `EMAIL_REPLY_MAX_THREAD_CHARS`: 수신 메일 안에 포함된 이전 thread context 한도, 기본 16000자
 - `EMAIL_REPLY_DRY_RUN=true`: 발송 없이 DB 저장까지만 확인
 
@@ -114,6 +115,7 @@ Reply alias domain은 `EMAIL_REPLY_DOMAIN`을 사용하며 기본값은 `reply.m
 
 - `claude-*`: Anthropic, `ANTHROPIC_API_KEY` 사용
 - `grok-*`: xAI, `GROK_API_KEY` 사용
+- `deepseek-*`: DeepSeek, `DEEPSEEK_API_KEY` 사용
 - 그 외: OpenAI, `OPENAI_API_KEY` 사용
 
 ### DB 구조

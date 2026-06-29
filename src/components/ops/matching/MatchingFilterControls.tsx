@@ -1,14 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, Check, ChevronDown, Tag } from "lucide-react";
+import {
+  CalendarDays,
+  Check,
+  ChevronDown,
+  LoaderCircle,
+  Tag,
+} from "lucide-react";
 import { toDateOnly } from "@/components/ops/career/utils";
 import {
+  DEFAULT_MATCHING_TAG_DOT_CLASS,
   getMatchingTagLabel,
   getMatchingTagOption,
-  MATCHING_TAG_FILTER_OPTIONS,
+  MATCHING_EXCLUDE_NOT_INTERESTED_FILTER_OPTION,
+  MATCHING_NO_TAG_FILTER_OPTION,
 } from "@/components/ops/matching/tagMeta";
 import { cx } from "@/components/ops/theme";
 import { BareButton } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
+import { useOpsMatchingTagOptions } from "@/hooks/ops/useOpsMatching";
 import {
   isOpsMatchingExcludeNotInterestedFilter,
   OPS_MATCHING_EXCLUDE_NOT_INTERESTED_FILTER_VALUE,
@@ -83,6 +92,10 @@ function formatDateRangeLabel(args: {
   return from === to
     ? `${args.prefix} ${from}`
     : `${args.prefix} ${from} - ${to}`;
+}
+
+function normalizeTagKey(value: string) {
+  return value.trim().toLowerCase();
 }
 
 export function MatchingDateRangeFilter({
@@ -191,6 +204,43 @@ export function MatchingTagFilter({
 }: MatchingTagFilterProps) {
   const [open, setOpen] = useState(false);
   const [draftTags, setDraftTags] = useState<string[]>([]);
+  const tagOptionsQuery = useOpsMatchingTagOptions(open);
+  const filterOptions = useMemo(() => {
+    const options: {
+      count: number | null;
+      dotClassName: string;
+      label: string;
+      value: string;
+    }[] = [
+      { ...MATCHING_EXCLUDE_NOT_INTERESTED_FILTER_OPTION, count: null },
+      { ...MATCHING_NO_TAG_FILTER_OPTION, count: null },
+    ];
+    const seenKeys = new Set(
+      options.map((option) => normalizeTagKey(option.value))
+    );
+    const addTagOption = (tag: string, count: number | null) => {
+      const value = tag.trim();
+      const tagKey = normalizeTagKey(value);
+      if (!tagKey || seenKeys.has(tagKey)) return;
+      const tagOption = getMatchingTagOption(value);
+      seenKeys.add(tagKey);
+      options.push({
+        count,
+        dotClassName: tagOption?.dotClassName ?? DEFAULT_MATCHING_TAG_DOT_CLASS,
+        label: getMatchingTagLabel(value),
+        value,
+      });
+    };
+
+    for (const option of tagOptionsQuery.data?.items ?? []) {
+      addTagOption(option.tag, option.count);
+    }
+    for (const tag of selectedTags) {
+      addTagOption(tag, null);
+    }
+
+    return options;
+  }, [selectedTags, tagOptionsQuery.data?.items]);
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (nextOpen) setDraftTags(selectedTags);
@@ -206,9 +256,9 @@ export function MatchingTagFilter({
       next.delete(OPS_MATCHING_EXCLUDE_NOT_INTERESTED_FILTER_VALUE);
       if (checked) next.add(tag);
       else next.delete(tag);
-      return MATCHING_TAG_FILTER_OPTIONS.map((option) => option.value).filter(
-        (value) => next.has(value)
-      );
+      return filterOptions
+        .map((option) => option.value)
+        .filter((value) => next.has(value));
     });
   };
 
@@ -239,7 +289,7 @@ export function MatchingTagFilter({
         </BareButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-48">
-        {MATCHING_TAG_FILTER_OPTIONS.map((option) => (
+        {filterOptions.map((option) => (
           <DropdownMenuCheckboxItem
             key={option.value}
             checked={draftTags.includes(option.value)}
@@ -256,12 +306,26 @@ export function MatchingTagFilter({
               )}
               aria-hidden
             />
-            {option.label}
+            <span className="min-w-0 flex-1 truncate">{option.label}</span>
+            {option.count !== null ? (
+              <span className="text-[10px] text-neutral-soft">
+                {option.count}
+              </span>
+            ) : null}
             {draftTags.includes(option.value) ? (
-              <Check className="ml-auto h-3.5 w-3.5 text-neutral-primary" />
+              <Check className="h-3.5 w-3.5 text-neutral-primary" />
             ) : null}
           </DropdownMenuCheckboxItem>
         ))}
+        {tagOptionsQuery.isLoading ? (
+          <div className="flex items-center justify-center py-3">
+            <LoaderCircle className="h-4 w-4 animate-spin text-neutral-soft" />
+          </div>
+        ) : tagOptionsQuery.error ? (
+          <div className="px-2 py-2 text-xs leading-5 text-critical">
+            태그 목록을 불러오지 못했습니다.
+          </div>
+        ) : null}
         <div className="mt-1 flex items-center justify-end gap-2 border-t border-neutral-1000-a05 px-1 pt-2">
           <BareButton
             type="button"

@@ -156,6 +156,7 @@ const MAX_MATCHING_ROLE_OPTIONS = 500;
 const MAX_MATCHING_PROGRESS_ITEMS = 120;
 const MAX_MATCHING_REVIEW_ITEMS = 500;
 const MAX_MATCHING_TAG_LENGTH = 40;
+const MAX_MATCHING_TAG_OPTION_ROWS = 5000;
 const MAX_MATCHING_ROLE_STAGE_LABEL_LENGTH = 40;
 const MAX_MATCHING_NO_TAG_SCAN_ROWS = 5000;
 const MAX_MATCHING_TALENT_ROLE_TAG_ROWS = 5000;
@@ -163,6 +164,8 @@ const MAX_MATCHING_FIT_SEARCH_IDS = 500;
 const MAX_MATCHING_FIT_RECOMMENDATION_ROWS = 1000;
 const MAX_MATCHING_PROGRESS_TEXT_LENGTH = 2000;
 const MAX_MATCHING_RECOMMENDATION_DELIVERY_ITEMS = 5;
+const MAX_MATCHING_TALENT_DETAIL_FIT_ROWS = 5000;
+const MATCHING_TALENT_DETAIL_FIT_PAGE_SIZE = 1000;
 const MAX_MATCHING_TALENT_HISTORY_ITEMS = 5;
 const MAX_MATCHING_TALENT_HISTORY_ROWS = 1000;
 const MAX_MATCHING_TALENT_HISTORY_TALENTS = 100;
@@ -323,6 +326,16 @@ export type OpsMatchingTalentTag = {
   tag: string;
 };
 
+export type OpsMatchingTagOption = {
+  count: number;
+  tag: string;
+  updatedAt: string | null;
+};
+
+export type OpsMatchingTagOptionsResponse = {
+  items: OpsMatchingTagOption[];
+};
+
 export type OpsMatchingTalentFitSummary = {
   createdAt: string;
   effectiveLabel: string;
@@ -392,7 +405,7 @@ export type OpsMatchingTalentListResponse = {
   totalCount: number;
 };
 
-export type OpsMatchingTalentPoolTabId = "all" | "tailored" | "needs_review";
+export type OpsMatchingTalentPoolTabId = "all" | "tailored";
 
 export type OpsMatchingTalentPoolListResponse =
   OpsMatchingTalentListResponse & {
@@ -531,6 +544,12 @@ export type OpsMatchingFitListResponse = {
   limit: number;
   nextOffset: number | null;
   offset: number;
+  totalCount: number;
+};
+
+export type OpsMatchingTalentFitsResponse = {
+  items: OpsMatchingFitItem[];
+  talentId: string;
   totalCount: number;
 };
 
@@ -709,7 +728,9 @@ const MATCHING_REVIEW_STAGE_TAG_KEYS = new Set(
 
 function isInternalReviewStageTag(tag: unknown) {
   const tagKey = normalizeStageTagKey(tag);
-  return MATCHING_REVIEW_STAGE_TAG_KEYS.has(tagKey) || isCustomReviewStageTag(tag);
+  return (
+    MATCHING_REVIEW_STAGE_TAG_KEYS.has(tagKey) || isCustomReviewStageTag(tag)
+  );
 }
 
 function buildCustomReviewStageByTagKey(
@@ -997,11 +1018,7 @@ export function parseOpsMatchingTalentPoolTab(
   value: string | null
 ): OpsMatchingTalentPoolTabId {
   const normalized = normalizeText(value);
-  if (
-    normalized === "all" ||
-    normalized === "tailored" ||
-    normalized === "needs_review"
-  ) {
+  if (normalized === "all" || normalized === "tailored") {
     return normalized;
   }
   return "tailored";
@@ -3011,6 +3028,59 @@ export async function fetchOpsMatchingFits(args: {
   };
 }
 
+export async function fetchOpsMatchingTalentFits(args: {
+  talentId: string;
+}): Promise<OpsMatchingTalentFitsResponse> {
+  const talentId = normalizeText(args.talentId);
+  if (!talentId) {
+    return {
+      items: [],
+      talentId,
+      totalCount: 0,
+    };
+  }
+
+  const admin = getSupabaseAdmin();
+  const rows: TalentOpportunityFitRecordRow[] = [];
+
+  for (
+    let offset = 0;
+    offset < MAX_MATCHING_TALENT_DETAIL_FIT_ROWS;
+    offset += MATCHING_TALENT_DETAIL_FIT_PAGE_SIZE
+  ) {
+    const { data, error } = await fromOpsMatchingTable(
+      admin,
+      "talent_opportunity_fit"
+    )
+      .select(
+        "id, talent_id, opportunity_id, score, label, reason, reevaluation_criteria, human_label, human_reason, human_reviewed_by, human_reviewed_at, last_evaluated_at, reevaluation_checked_at, created_at"
+      )
+      .eq("talent_id", talentId)
+      .order("last_evaluated_at", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false, nullsFirst: false })
+      .range(offset, offset + MATCHING_TALENT_DETAIL_FIT_PAGE_SIZE - 1);
+
+    if (error) {
+      if (isMissingOpsMatchingTableError(error)) {
+        throw createMissingOpsMatchingTableError("talent_opportunity_fit");
+      }
+      throw new Error(error.message ?? "Failed to load talent fit records");
+    }
+
+    const pageRows = (data ?? []) as TalentOpportunityFitRecordRow[];
+    rows.push(...pageRows);
+    if (pageRows.length < MATCHING_TALENT_DETAIL_FIT_PAGE_SIZE) break;
+  }
+
+  const items = await buildOpsMatchingFitItems({ admin, rows });
+
+  return {
+    items,
+    talentId,
+    totalCount: items.length,
+  };
+}
+
 function normalizeOpsMatchingFitHumanLabel(
   value: unknown
 ): OpsMatchingFitLabel | null {
@@ -3123,8 +3193,7 @@ export async function fetchOpsMatchingTalentPool(args: {
   const tags = Array.from(new Set((args.tags ?? []).map(normalizeTag))).filter(
     Boolean
   );
-  const hasNoTagFilter =
-    tab === "needs_review" || tags.some(isOpsMatchingNoTagFilter);
+  const hasNoTagFilter = tags.some(isOpsMatchingNoTagFilter);
   const excludeNotInterested = tags.some(
     isOpsMatchingExcludeNotInterestedFilter
   );
@@ -3337,7 +3406,9 @@ export async function createOpsMatchingRoleReviewStage(args: {
     if (isMissingOpsMatchingTableError(latestError)) {
       throw createMissingOpsMatchingTableError("ops_matching_role_stages");
     }
-    throw new Error(latestError.message ?? "Failed to load matching role stage");
+    throw new Error(
+      latestError.message ?? "Failed to load matching role stage"
+    );
   }
 
   const latestSortOrder =
@@ -3494,21 +3565,21 @@ export async function fetchOpsMatchingReviewBoard(args: {
     excludedTalentIds,
     customStages,
   ] = await Promise.all([
-      matchingTags.length > 0
-        ? fetchTagMatchedTalentIds({ admin, roleId, tags: matchingTags })
-        : Promise.resolve(null),
-      hasNoTagFilter
-        ? fetchTaggedTalentIds({ admin, roleId })
-        : Promise.resolve(null),
-      excludeNotInterested
-        ? fetchTagMatchedTalentIds({
-            admin,
-            roleId,
-            tags: [MATCHING_NOT_INTERESTED_TAG],
-          })
-        : Promise.resolve(null),
-      fetchOpsMatchingRoleReviewStagesWithAdmin({ admin, roleId }),
-    ]);
+    matchingTags.length > 0
+      ? fetchTagMatchedTalentIds({ admin, roleId, tags: matchingTags })
+      : Promise.resolve(null),
+    hasNoTagFilter
+      ? fetchTaggedTalentIds({ admin, roleId })
+      : Promise.resolve(null),
+    excludeNotInterested
+      ? fetchTagMatchedTalentIds({
+          admin,
+          roleId,
+          tags: [MATCHING_NOT_INTERESTED_TAG],
+        })
+      : Promise.resolve(null),
+    fetchOpsMatchingRoleReviewStagesWithAdmin({ admin, roleId }),
+  ]);
   const customStageByTagKey = buildCustomReviewStageByTagKey(customStages);
 
   if (
@@ -3751,6 +3822,61 @@ export async function fetchOpsMatchingTalentTags(args: {
   return ((data ?? []) as Pick<TalentOpportunityTagRow, "id" | "tag">[]).map(
     (row) => ({ id: row.id, tag: row.tag })
   );
+}
+
+export async function fetchOpsMatchingTagOptions(): Promise<OpsMatchingTagOptionsResponse> {
+  const admin = getSupabaseAdmin();
+  const { data, error } = await fromOpsMatchingTable(
+    admin,
+    "talent_opportunity_tag"
+  )
+    .select("tag, updated_at")
+    .order("updated_at", { ascending: false })
+    .limit(MAX_MATCHING_TAG_OPTION_ROWS);
+
+  if (error) {
+    if (isMissingOpsMatchingTableError(error)) {
+      return { items: [] };
+    }
+    throw new Error(error.message ?? "Failed to load matching tag options");
+  }
+
+  const optionMap = new Map<string, OpsMatchingTagOption>();
+  for (const row of (data ?? []) as Pick<
+    TalentOpportunityTagRow,
+    "tag" | "updated_at"
+  >[]) {
+    const tag = normalizeTag(row.tag);
+    const tagKey = normalizeTagKey(tag);
+    if (!tagKey || isInternalReviewStageTag(tag)) continue;
+    const existing = optionMap.get(tagKey);
+    if (existing) {
+      existing.count += 1;
+      if (
+        row.updated_at &&
+        (!existing.updatedAt || row.updated_at > existing.updatedAt)
+      ) {
+        existing.updatedAt = row.updated_at;
+      }
+      continue;
+    }
+    optionMap.set(tagKey, {
+      count: 1,
+      tag,
+      updatedAt: row.updated_at ?? null,
+    });
+  }
+
+  return {
+    items: Array.from(optionMap.values()).sort((a, b) => {
+      if (a.updatedAt && b.updatedAt) {
+        return b.updatedAt.localeCompare(a.updatedAt);
+      }
+      if (a.updatedAt) return -1;
+      if (b.updatedAt) return 1;
+      return a.tag.localeCompare(b.tag);
+    }),
+  };
 }
 
 export async function setOpsMatchingReviewStage(args: {

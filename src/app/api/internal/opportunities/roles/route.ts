@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
       limit: Number(searchParams.get("limit") ?? "25"),
       offset: Number(searchParams.get("offset") ?? "0"),
       query: searchParams.get("query") ?? "",
+      roleId: searchParams.get("roleId") ?? null,
       sourceType: parseSourceType(searchParams.get("sourceType")),
       workspaceId: searchParams.get("workspaceId") ?? null,
     });

@@ -1,11 +1,22 @@
 import Head from "next/head";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import OpsShell from "@/components/ops/OpsShell";
 import { MatchingFitRecordBrowser } from "@/components/ops/matching/MatchingFitRecordBrowser";
 import { MatchingHarperReviewBoard } from "@/components/ops/matching/MatchingHarperReviewBoard";
 import { MatchingTalentBrowser } from "@/components/ops/matching/MatchingTalentBrowser";
+import { RoleCreateModal } from "@/components/ops/opportunities/modals";
+import {
+  EMPTY_ROLE_DRAFT,
+  type RoleDraft,
+  roleToDraft,
+} from "@/components/ops/opportunities/shared";
 import { cx, opsTheme } from "@/components/ops/theme";
+import { showToast } from "@/components/toast/toast";
+import {
+  useOpsOpportunityRoles as useOpsOpportunityRoleRecords,
+  useSaveOpsOpportunityRole,
+} from "@/hooks/ops/useOpsOpportunities";
 import { BareButton } from "@/components/ui/button";
 import { Select as UiSelect } from "@/components/ui/select";
 import { TabBoxes } from "@/components/ui/tab-boxes";
@@ -21,7 +32,7 @@ import {
   type OpsMatchingViewMode,
   useOpsMatchingStore,
 } from "@/store/useOpsMatchingStore";
-import { Building2, ListFilter, LoaderCircle } from "lucide-react";
+import { Building2, ListFilter, LoaderCircle, Pencil } from "lucide-react";
 import type { ParsedUrlQuery } from "querystring";
 
 const MATCHING_STAGE_TABS = [
@@ -82,6 +93,7 @@ function parseMatchingUrlState(query: ParsedUrlQuery) {
     "reviewTo",
     "role",
     "tab",
+    "talent",
     "view",
   ];
   const hasUrlState = relevantKeys.some((key) => key in query);
@@ -106,7 +118,11 @@ function parseMatchingUrlState(query: ParsedUrlQuery) {
   };
 }
 
-function buildMatchingUrlQuery(state: OpsMatchingUrlState) {
+type MatchingUrlQueryState = OpsMatchingUrlState & {
+  selectedTalentId?: string;
+};
+
+function buildMatchingUrlQuery(state: MatchingUrlQueryState) {
   const query: Record<string, string> = {
     tab: state.activeTab,
   };
@@ -126,6 +142,7 @@ function buildMatchingUrlQuery(state: OpsMatchingUrlState) {
     query.reviewFrom = state.reviewRecommendedFrom;
   }
   if (state.reviewRecommendedTo) query.reviewTo = state.reviewRecommendedTo;
+  if (state.selectedTalentId) query.talent = state.selectedTalentId;
   return query;
 }
 
@@ -165,6 +182,8 @@ export default function OpsMatchingPage() {
   const user = useAuthStore((state) => state.user);
   const canFetchInternal = !authLoading && isInternalEmail(user?.email);
   const hasInitializedUrlStateRef = useRef(false);
+  const [isRoleEditModalOpen, setIsRoleEditModalOpen] = useState(false);
+  const [roleDraft, setRoleDraft] = useState<RoleDraft>(EMPTY_ROLE_DRAFT);
   const activeTab = useOpsMatchingStore((state) => state.activeTab);
   const allCreatedFrom = useOpsMatchingStore((state) => state.allCreatedFrom);
   const allCreatedTo = useOpsMatchingStore((state) => state.allCreatedTo);
@@ -189,6 +208,9 @@ export default function OpsMatchingPage() {
   );
   const selectedRoleId = useOpsMatchingStore((state) => state.selectedRoleId);
   const viewMode = useOpsMatchingStore((state) => state.viewMode);
+  const selectedTalentId = router.isReady
+    ? firstQueryValue(router.query.talent)
+    : "";
   const setActiveTab = useOpsMatchingStore((state) => state.setActiveTab);
   const setAllCreatedDateRange = useOpsMatchingStore(
     (state) => state.setAllCreatedDateRange
@@ -244,6 +266,24 @@ export default function OpsMatchingPage() {
     }
     return roles[0] ?? null;
   }, [roles, selectedRoleId]);
+  const roleRecordQuery = useOpsOpportunityRoleRecords({
+    enabled: canFetchInternal && Boolean(effectiveCompanyId && effectiveRole),
+    internalOnly: true,
+    limit: 1,
+    roleId: effectiveRole?.roleId ?? "",
+    sourceType: "internal",
+    workspaceId: effectiveCompanyId,
+  });
+  const saveRole = useSaveOpsOpportunityRole();
+  const selectedRoleRecord = useMemo(() => {
+    const roleId = effectiveRole?.roleId ?? "";
+    if (!roleId) return null;
+    return (
+      roleRecordQuery.data?.pages
+        .flatMap((page) => page.items)
+        .find((role) => role.roleId === roleId) ?? null
+    );
+  }, [effectiveRole?.roleId, roleRecordQuery.data?.pages]);
   const currentUrlState = useMemo(
     () =>
       ({
@@ -257,8 +297,9 @@ export default function OpsMatchingPage() {
         reviewRecommendedTo,
         selectedCompanyId,
         selectedRoleId,
+        selectedTalentId,
         viewMode,
-      }) satisfies OpsMatchingUrlState,
+      }) satisfies MatchingUrlQueryState,
     [
       activeTab,
       allCreatedFrom,
@@ -270,17 +311,36 @@ export default function OpsMatchingPage() {
       reviewRecommendedTo,
       selectedCompanyId,
       selectedRoleId,
+      selectedTalentId,
       viewMode,
     ]
   );
   const replaceUrlState = useCallback(
-    (patch: Partial<OpsMatchingUrlState>) => {
+    (patch: Partial<MatchingUrlQueryState>) => {
       if (!router.isReady) return;
       const next = {
         ...currentUrlState,
         ...patch,
-      } satisfies OpsMatchingUrlState;
+      } satisfies MatchingUrlQueryState;
       void router.replace(
+        {
+          pathname: router.pathname,
+          query: buildMatchingUrlQuery(next),
+        },
+        undefined,
+        { shallow: true, scroll: false }
+      );
+    },
+    [currentUrlState, router]
+  );
+  const pushUrlState = useCallback(
+    (patch: Partial<MatchingUrlQueryState>) => {
+      if (!router.isReady) return;
+      const next = {
+        ...currentUrlState,
+        ...patch,
+      } satisfies MatchingUrlQueryState;
+      void router.push(
         {
           pathname: router.pathname,
           query: buildMatchingUrlQuery(next),
@@ -362,7 +422,7 @@ export default function OpsMatchingPage() {
   const handleTabChange = (tab: OpsMatchingStageTabId) => {
     setActiveTab(tab);
     setViewMode("role");
-    replaceUrlState({ activeTab: tab, viewMode: "role" });
+    replaceUrlState({ activeTab: tab, selectedTalentId: "", viewMode: "role" });
   };
 
   const handleCompanyChange = (companyId: string) => {
@@ -374,17 +434,17 @@ export default function OpsMatchingPage() {
       activeTab: "all",
       selectedCompanyId: companyId,
       selectedRoleId: "",
+      selectedTalentId: "",
       viewMode: "role",
     });
   };
 
   const handleRoleChange = (roleId: string) => {
     setSelectedRoleId(roleId);
-    setActiveTab("all");
     setViewMode("role");
     replaceUrlState({
-      activeTab: "all",
       selectedRoleId: roleId,
+      selectedTalentId: "",
       viewMode: "role",
     });
   };
@@ -392,12 +452,92 @@ export default function OpsMatchingPage() {
   const handleAllFitsClick = () => {
     if (viewMode === "all_fits") {
       setViewMode("role");
-      replaceUrlState({ viewMode: "role" });
+      replaceUrlState({ selectedTalentId: "", viewMode: "role" });
       return;
     }
     setActiveTab("all");
     setViewMode("all_fits");
-    replaceUrlState({ activeTab: "all", viewMode: "all_fits" });
+    replaceUrlState({
+      activeTab: "all",
+      selectedTalentId: "",
+      viewMode: "all_fits",
+    });
+  };
+
+  const handleReviewTalentSelect = (talentId: string) => {
+    pushUrlState({
+      activeTab: "harper_review",
+      selectedTalentId: talentId,
+      viewMode: "role",
+    });
+  };
+
+  const handleReviewTalentClose = () => {
+    replaceUrlState({ selectedTalentId: "" });
+  };
+
+  const handleRoleEditClick = async () => {
+    if (!effectiveRole) {
+      showToast({
+        message: "수정할 role을 먼저 선택해 주세요.",
+        variant: "white",
+      });
+      return;
+    }
+
+    let role = selectedRoleRecord;
+    if (!role) {
+      const refreshed = await roleRecordQuery.refetch();
+      role =
+        refreshed.data?.pages
+          .flatMap((page) => page.items)
+          .find((item) => item.roleId === effectiveRole.roleId) ?? null;
+    }
+
+    if (!role) {
+      showToast({
+        message: "role 정보를 불러오지 못했습니다.",
+        variant: "white",
+      });
+      return;
+    }
+
+    setRoleDraft(roleToDraft(role));
+    setIsRoleEditModalOpen(true);
+  };
+
+  const closeRoleEditModal = () => {
+    if (saveRole.isPending) return;
+    setIsRoleEditModalOpen(false);
+    setRoleDraft(roleToDraft(selectedRoleRecord));
+  };
+
+  const handleRoleSave = async () => {
+    if (!effectiveRole) return;
+
+    try {
+      await saveRole.mutateAsync({
+        ...roleDraft,
+        companyWorkspaceId: effectiveRole.companyWorkspaceId,
+        roleId: effectiveRole.roleId,
+      });
+      await Promise.all([
+        companiesQuery.refetch(),
+        rolesQuery.refetch(),
+        roleRecordQuery.refetch(),
+      ]);
+      setIsRoleEditModalOpen(false);
+      showToast({
+        message: "role이 수정되었습니다.",
+        variant: "white",
+      });
+    } catch (error) {
+      showToast({
+        message:
+          error instanceof Error ? error.message : "role 수정에 실패했습니다.",
+        variant: "white",
+      });
+    }
   };
 
   const handleAllCreatedDateRangeChange = (from: string, to: string) => {
@@ -501,6 +641,22 @@ export default function OpsMatchingPage() {
                 <ListFilter className="h-3.5 w-3.5" />
                 전체보기
               </BareButton>
+              <BareButton
+                type="button"
+                onClick={() => void handleRoleEditClick()}
+                disabled={!effectiveRole || roleRecordQuery.isLoading}
+                className={cx(
+                  opsTheme.buttonSecondary,
+                  "mt-2 h-11 shrink-0 px-3 text-xs"
+                )}
+              >
+                {roleRecordQuery.isLoading ? (
+                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Pencil className="h-3.5 w-3.5" />
+                )}
+                수정하기
+              </BareButton>
             </div>
 
             {companiesQuery.isLoading || rolesQuery.isLoading ? (
@@ -562,16 +718,19 @@ export default function OpsMatchingPage() {
                   role={effectiveRole}
                 />
               ) : activeTab === "harper_review" ? (
-                <MatchingHarperReviewBoard
-                  key={effectiveRole.roleId}
-                  canFetchInternal={canFetchInternal}
-                  onRecommendedDateRangeChange={
-                    handleReviewRecommendedDateRangeChange
-                  }
-                  recommendedFrom={reviewRecommendedFrom}
-                  recommendedTo={reviewRecommendedTo}
-                  role={effectiveRole}
-                />
+	                <MatchingHarperReviewBoard
+	                  key={effectiveRole.roleId}
+	                  canFetchInternal={canFetchInternal}
+	                  onRecommendedDateRangeChange={
+	                    handleReviewRecommendedDateRangeChange
+	                  }
+	                  recommendedFrom={reviewRecommendedFrom}
+	                  recommendedTo={reviewRecommendedTo}
+	                  role={effectiveRole}
+	                  selectedTalentId={selectedTalentId}
+	                  onSelectedTalentChange={handleReviewTalentSelect}
+	                  onSelectedTalentClose={handleReviewTalentClose}
+	                />
               ) : null}
             </>
           ) : (
@@ -584,6 +743,16 @@ export default function OpsMatchingPage() {
           )}
         </div>
       </OpsShell>
+      <RoleCreateModal
+        open={isRoleEditModalOpen}
+        draft={roleDraft}
+        mode="edit"
+        onChange={setRoleDraft}
+        onClose={closeRoleEditModal}
+        onSubmit={() => void handleRoleSave()}
+        pending={saveRole.isPending}
+        workspaceName={selectedRoleRecord?.companyName ?? null}
+      />
     </>
   );
 }

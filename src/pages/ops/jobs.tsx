@@ -730,7 +730,7 @@ export default function OpsOfficialJobsPage() {
                         ? "cursor-not-allowed opacity-70"
                         : effectiveIsPublished
                           ? "bg-black"
-                          : "bg-bg-floating"
+                          : "bg-neutral-400"
                     )}
                   />
                 </div>

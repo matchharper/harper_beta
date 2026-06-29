@@ -30,11 +30,11 @@ export const CAREER_TIMELINE_TYPOGRAPHY = {
   },
   meta: {
     mobile: {
-      fontSize: "12px",
+      fontSize: "13px",
       lineHeight: "1.55",
     },
     desktop: {
-      fontSize: "12px",
+      fontSize: "13px",
       lineHeight: "1.55",
     },
   },
