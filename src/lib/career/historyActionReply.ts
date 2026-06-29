@@ -129,6 +129,7 @@ export async function createTalentOpportunityFeedbackFollowUpReply(args: {
   ]
     .filter((section) => section.trim().length > 0)
     .join("\n\n");
+
   const result = await runCareerChatTurn({
     allowedToolNames: args.allowedToolNames,
     admin: args.admin,

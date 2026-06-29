@@ -3,10 +3,8 @@ import { getRequestUser } from "@/lib/supabaseServer";
 import {
   buildCareerInsightExtractionPrompt,
   buildCareerOnboardingDeferCloseSystemPrompt,
-  CAREER_ONBOARDING_DEFER_FALLBACK_CLOSE_TEXT,
-  CAREER_ONBOARDING_DEFER_FALLBACK_CLOSE_TEXT_KEY,
-  CAREER_ONBOARDING_DEFER_PROMPT_TEXT,
-  CAREER_ONBOARDING_DEFER_PROMPT_TEXT_KEY,
+  getCareerOnboardingDeferFallbackCloseText,
+  getCareerOnboardingDeferPromptText,
 } from "@/lib/career/prompts";
 import { getTranslatedCareerMessage } from "@/lib/career/translatedCareerMessage";
 import { runCareerOnboardingDeferClose } from "@/lib/career/llm";
@@ -124,10 +122,8 @@ export async function POST(req: NextRequest) {
       req.cookies.get("NEXT_LOCALE")?.value;
 
     if (action === "prompt") {
-      const deferPromptText = getTranslatedCareerMessage({
-        fallback: CAREER_ONBOARDING_DEFER_PROMPT_TEXT,
-        key: CAREER_ONBOARDING_DEFER_PROMPT_TEXT_KEY,
-        locale: responseLocale,
+      const deferPromptText = getCareerOnboardingDeferPromptText({
+        preferredLocale: responseLocale,
       });
       const { data: insertedAssistantMessage, error: insertError } = await admin
         .from("talent_messages")
@@ -248,10 +244,8 @@ export async function POST(req: NextRequest) {
 
     const safeAssistantContent =
       assistantContent.trim() ||
-      getTranslatedCareerMessage({
-        fallback: CAREER_ONBOARDING_DEFER_FALLBACK_CLOSE_TEXT,
-        key: CAREER_ONBOARDING_DEFER_FALLBACK_CLOSE_TEXT_KEY,
-        locale: responseLocale,
+      getCareerOnboardingDeferFallbackCloseText({
+        preferredLocale: responseLocale,
       });
 
     const { data: insertedMessages, error: insertError } = await admin

@@ -190,9 +190,11 @@ export async function generateTalentKickoff(args: {
     });
     return null;
   });
+
   const timeoutMs = Number.isFinite(CAREER_KICKOFF_TIMEOUT_MS)
     ? Math.max(1000, CAREER_KICKOFF_TIMEOUT_MS)
     : 3500;
+
   const timeoutPromise = new Promise<null>((resolve) => {
     setTimeout(() => resolve(null), timeoutMs);
   });

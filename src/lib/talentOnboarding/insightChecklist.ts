@@ -57,11 +57,7 @@ function getOnboardingLocationContextText(
 ) {
   if (typeof context === "string") return context;
   if (!context || typeof context !== "object") return "";
-  return [
-    context.current_location,
-    context.currentLocation,
-    context.location,
-  ]
+  return [context.current_location, context.currentLocation, context.location]
     .filter((value): value is string => Boolean(value))
     .join(", ");
 }
@@ -300,12 +296,6 @@ export function getOnboardingAdditionalQuestionKeys(
     .map((item) => item.key);
 }
 
-export function getOnboardingAdditionalQuestionMin(
-  context?: OnboardingChecklistLocationContext
-) {
-  return getOnboardingAdditionalQuestionKeys(context).length;
-}
-
 export function getOnboardingRequiredQuestionKeys(
   context?: OnboardingChecklistLocationContext
 ) {
@@ -371,15 +361,13 @@ export const INSIGHT_CHECKLIST: InsightChecklistItem[] =
   }));
 
 /** Map of checklist key -> Korean label for UI display */
-export const INSIGHT_CHECKLIST_LABEL_MAP = new Map(
+export const INSIGHT_CHECKLIST_LABEL_MAP = new Map([
+  ...INSIGHT_CHECKLIST.map((item) => [item.key, item.label] as const),
   [
-    ...INSIGHT_CHECKLIST.map((item) => [item.key, item.label] as const),
-    [
-      PERMANENT_RESIDENCY_ONBOARDING_ITEM.insightKey,
-      PERMANENT_RESIDENCY_ONBOARDING_ITEM.label,
-    ] as const,
-  ]
-);
+    PERMANENT_RESIDENCY_ONBOARDING_ITEM.insightKey,
+    PERMANENT_RESIDENCY_ONBOARDING_ITEM.label,
+  ] as const,
+]);
 
 /** Map of checklist key -> priority index for UI ordering */
 export const INSIGHT_CHECKLIST_ORDER_MAP = new Map(

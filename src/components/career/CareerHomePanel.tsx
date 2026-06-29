@@ -94,6 +94,16 @@ type CareerDevSqlExecutionResult = {
   rows?: unknown[];
 };
 
+type CareerDevPromptDebugPayload = {
+  channel?: "text" | "voice";
+  error?: string;
+  ok?: boolean;
+  renderedPrompt?: string;
+  summary?: Record<string, unknown>;
+};
+
+type CareerDevPromptLogKind = "text" | "voice";
+
 type HomeHistoryTarget = {
   historyTab: "new" | "saved" | "archived";
   savedStage?: CareerOpportunitySavedStageFilter;
@@ -279,6 +289,9 @@ const CareerHomePanel = ({
   const [devManualRunId, setDevManualRunId] = React.useState("");
   const [devSqlResult, setDevSqlResult] =
     React.useState<CareerDevSqlExecutionResult | null>(null);
+  const [devPromptLoggingKind, setDevPromptLoggingKind] =
+    React.useState<CareerDevPromptLogKind | null>(null);
+  const [devPromptLogStatus, setDevPromptLogStatus] = React.useState("");
 
   const displayName =
     talentProfile.talentUser?.name ??
@@ -577,6 +590,65 @@ const CareerHomePanel = ({
     onOpenChat();
     return onRequestMoreOpenPositions?.() ?? false;
   };
+
+  // career-i18n-skip-next-line: dev controls text is intentionally Korean-only.
+  const handleLogDevPrompt = React.useCallback(
+    async (kind: CareerDevPromptLogKind) => {
+      if (!conversationId || devPromptLoggingKind) return;
+
+      logCareerEvent(`click_home_dev_${kind}_prompt_log`);
+      setDevPromptLoggingKind(kind);
+      setDevPromptLogStatus("");
+
+      try {
+        const response = await fetchWithAuth("/api/talent/debug-prompt", {
+          method: "POST",
+          body: JSON.stringify({
+            conversationId,
+            kind,
+          }),
+        });
+        const payload = (await response.json().catch(() => ({}))) as
+          | CareerDevPromptDebugPayload
+          | Record<string, never>;
+
+        if (!response.ok || !payload.ok) {
+          throw new Error(
+            "error" in payload && typeof payload.error === "string"
+              ? payload.error
+              : "프롬프트 로그 생성에 실패했습니다."
+          );
+        }
+
+        const channel = payload.channel ?? kind;
+        const label = `[CareerPromptDebug:${channel}]`;
+        console.groupCollapsed(`${label} ${conversationId}`);
+        console.info("summary", payload.summary ?? null);
+        console.log(payload.renderedPrompt ?? "(empty prompt)");
+        console.log("raw payload", payload);
+        console.groupEnd();
+
+        setDevPromptLogStatus(
+          `${channel === "voice" ? "Voice" : "Text"} 프롬프트를 브라우저 콘솔과 서버 로그에 출력했습니다.`
+        );
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "프롬프트 로그 생성에 실패했습니다.";
+        console.error("[CareerPromptDebug] browser log failed", error);
+        setDevPromptLogStatus(message);
+      } finally {
+        setDevPromptLoggingKind(null);
+      }
+    },
+    [
+      conversationId,
+      devPromptLoggingKind,
+      fetchWithAuth,
+      logCareerEvent,
+    ]
+  );
 
   // career-i18n-skip-next-line: dev controls text is intentionally Korean-only.
   const handleGenerateDevSql = React.useCallback(async () => {
@@ -1003,6 +1075,30 @@ const CareerHomePanel = ({
               통화 UI 프리뷰
             </ActionButton>
             <ActionButton
+              onClick={() => void handleLogDevPrompt("text")}
+              disabled={!conversationId || Boolean(devPromptLoggingKind)}
+              actionVariant="secondary"
+            >
+              {devPromptLoggingKind === "text" ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <MessageSquareText className="h-3.5 w-3.5" />
+              )}
+              Text 프롬프트 로그
+            </ActionButton>
+            <ActionButton
+              onClick={() => void handleLogDevPrompt("voice")}
+              disabled={!conversationId || Boolean(devPromptLoggingKind)}
+              actionVariant="secondary"
+            >
+              {devPromptLoggingKind === "voice" ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Phone className="h-3.5 w-3.5" />
+              )}
+              Voice 프롬프트 로그
+            </ActionButton>
+            <ActionButton
               onClick={() => {
                 logCareerEvent("click_home_dev_onboarding_completion_test");
                 void Promise.resolve(onRunOnboardingCompletionTest()).then(
@@ -1054,6 +1150,11 @@ const CareerHomePanel = ({
               6시간 인사만
             </ActionButton>
           </div>
+          {devPromptLogStatus ? (
+            <Text as="div" type="subtle" className="mt-2">
+              {devPromptLogStatus}
+            </Text>
+          ) : null}
           {devManualRunId ? (
             <div className="mt-3 rounded-xl border border-neutral-1000-a10 bg-bg-weak px-3 py-3">
               <Text as="div" type="subtle">

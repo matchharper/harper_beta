@@ -95,7 +95,9 @@ const ONBOARDING_COMPLETION_WRAPUP_THINKING_LOGS_EN = [
   "Prepared the conversation summary.",
 ];
 
-const resolveFallbackLocale = (preferredLocale?: string | null): "ko" | "en" => {
+const resolveFallbackLocale = (
+  preferredLocale?: string | null
+): "ko" | "en" => {
   if (!preferredLocale) return "en";
   return normalizeCareerPromptLocale(preferredLocale);
 };
@@ -237,6 +239,24 @@ function buildWrapupInstruction(preferredLocale?: string | null) {
 function buildNextStepsInstruction(preferredLocale?: string | null) {
   const outputLanguage = getCareerPromptLanguageName(preferredLocale);
   const toneRule = getCareerPromptToneRule(preferredLocale);
+  const requiredContent =
+    outputLanguage === "English"
+      ? [
+          "- Say Harper reflected the user's stated criteria into Harper's search criteria. Mention the most important role/domain/location/company-stage/work-style criteria from the conversation, but only when grounded in the conversation or saved profile.",
+          "- Say Harper is starting a fresh search now. Explain that results will appear in the Positions tab and by email as soon as they are ready, and that it can take up to 1 hour.",
+          "- Explain what the user should do after seeing opportunities: use like/dislike, open company details, and track/follow companies they want Harper to monitor for company news or hiring updates.",
+          "- End with a clear question asking whether Harper should regularly share external postings when they look like opportunities the user would prefer, even if Harper cannot directly connect the user, or contact only when there is a particularly strong-fit internal connection opportunity.",
+        ]
+      : [
+          "- Say Harper reflected the user's stated criteria into Harper의 검색 기준. Mention the most important role/domain/location/company-stage/work-style criteria from the conversation, but only when grounded in the conversation or saved profile.",
+          "- Say Harper is starting a fresh search now. Explain that results will appear in the 포지션 탭 and by email as soon as they are ready, and that it can take up to 1 hour.",
+          "- Explain what the user should do after seeing opportunities: use 좋아요/싫어요, open company details, and track/follow companies they want Harper to monitor for company news or hiring updates.",
+          "- End with a clear question asking whether Harper should regularly share external postings when they look like opportunities the user would prefer, even if Harper cannot directly connect the user, or contact only when there is a particularly strong-fit internal connection opportunity.",
+        ];
+  const finalQuestionExample =
+    outputLanguage === "English"
+      ? "If an external posting looks like an opportunity you would genuinely prefer, would you like Harper to share those regularly too, even when Harper cannot directly connect you? Or would you rather hear only when there is a particularly strong-fit internal connection opportunity?"
+      : "선호하실 만한 기회라면 제가 연결 가능한 기회가 아닌 외부 공고라도 주기적으로 알려드리면 좋을까요? 아니면 내부 연결처럼 특히 핏이 강한 기회가 있을 때만 연락드리는 쪽이 편하실까요?";
 
   return [
     "## Onboarding completion next message task",
@@ -245,10 +265,7 @@ function buildNextStepsInstruction(preferredLocale?: string | null) {
     "This message is NOT part of the summary card. It should explain what happens next and ask the user about contact preferences.",
     "",
     "Required content:",
-    "- Say Harper reflected the user's stated criteria into the search 기준. Mention the most important role/domain/location/company-stage/work-style criteria from the conversation, but only when grounded in the conversation or saved profile.",
-    "- Say Harper is starting a fresh search now. Explain that results will appear in the position tab and by email as soon as they are ready, and that it can take up to 1 hour.",
-    "- Explain what the user should do after seeing opportunities: use 좋아요/싫어요, open company details, and track/follow companies they want Harper to monitor for company news or hiring updates.",
-    "- End with a clear question asking whether Harper should regularly share external postings when they look like opportunities the user would prefer, even if Harper cannot directly connect the user, or contact only when there is a particularly strong-fit internal connection opportunity.",
+    ...requiredContent,
     "",
     "Style:",
     `- Use warm, clear ${outputLanguage}. ${toneRule}`,
@@ -256,7 +273,7 @@ function buildNextStepsInstruction(preferredLocale?: string | null) {
     "- Be concrete and more detailed than a generic status message.",
     "- Do not include a title like `Next steps`.",
     "- Do not claim a search has already found specific companies or roles unless those appeared in the conversation.",
-    "- The final question should be close in meaning to: `선호하실 만한 기회라면 제가 연결 가능한 기회가 아닌 외부 공고라도 주기적으로 알려드리면 좋을까요? 아니면 내부 연결처럼 특히 핏이 강한 기회가 있을 때만 연락드리는 쪽이 편하실까요?`",
+    `- The final question should be close in meaning to: \`${finalQuestionExample}\``,
   ].join("\n");
 }
 
@@ -577,7 +594,8 @@ export async function regenerateOnboardingCompletionWrapupMessage(args: {
   userId: string;
 }) {
   const fallbackLocale = await getOnboardingCompletionFallbackLocale(args);
-  const thinkingLogs = getOnboardingCompletionWrapupThinkingLogs(fallbackLocale);
+  const thinkingLogs =
+    getOnboardingCompletionWrapupThinkingLogs(fallbackLocale);
   let content = getFallbackWrapupContent(fallbackLocale);
 
   try {
@@ -657,7 +675,8 @@ export async function createOnboardingCompletionWrapupMessage(args: {
   }
 
   const fallbackLocale = await getOnboardingCompletionFallbackLocale(args);
-  const thinkingLogs = getOnboardingCompletionWrapupThinkingLogs(fallbackLocale);
+  const thinkingLogs =
+    getOnboardingCompletionWrapupThinkingLogs(fallbackLocale);
   let content = getFallbackWrapupContent(fallbackLocale);
 
   try {

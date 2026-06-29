@@ -11,14 +11,10 @@ import {
   fetchTalentStructuredProfile,
   fetchTalentUserProfile,
 } from "@/lib/talentOnboarding/server";
-import {
-  TALENT_MESSAGE_TYPE_ONBOARDING_ADDITIONAL_QUESTION_SELECTION,
-} from "./onboarding";
+import { TALENT_MESSAGE_TYPE_ONBOARDING_ADDITIONAL_QUESTION_SELECTION } from "./onboarding";
 import { runTalentAssistantCompletion, type TalentChatMessage } from "./llm";
 import { withIsMobile } from "@/lib/requestDevice";
-import { getOnboardingAdditionalQuestionMin } from "@/lib/talentOnboarding/insightChecklist";
-
-const DEFAULT_TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN = 2;
+import { getOnboardingAdditionalQuestionKeys } from "@/lib/talentOnboarding/insightChecklist";
 
 type AdditionalQuestionSelection = {
   assistantMessage: string;
@@ -130,9 +126,13 @@ export async function selectAdditionalOnboardingQuestion(args: {
     fetchTalentInsights({ admin, userId }),
     fetchRecentMessages({ admin, conversationId, limit: 18 }),
   ]);
-  const requiredAdditionalQuestionCount =
-    getOnboardingAdditionalQuestionMin(profile) ||
-    DEFAULT_TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN;
+  const requiredAdditionalQuestionKeys =
+    getOnboardingAdditionalQuestionKeys(profile);
+  const requiredAdditionalQuestionCount = requiredAdditionalQuestionKeys.length;
+  const requiredAdditionalQuestionKeysText =
+    requiredAdditionalQuestionKeys.length > 0
+      ? requiredAdditionalQuestionKeys.join(", ")
+      : "(none)";
 
   if (askedCount >= requiredAdditionalQuestionCount) {
     return {
@@ -184,7 +184,7 @@ export async function selectAdditionalOnboardingQuestion(args: {
         "Do not repeat questions already asked in the recent conversation.",
         `Ask exactly one question in ${outputLanguage}.`,
         `This selector is for the Additional questions phase. It should be used after the main onboarding insights are reasonably covered, normally when at least 6 insights are already filled.`,
-        `This onboarding checklist variant requires ${requiredAdditionalQuestionCount} additional question(s) before final priority confirmation or closing.`,
+        `This onboarding checklist variant requires these additional_question key(s) before final priority confirmation or closing: ${requiredAdditionalQuestionKeysText}.`,
         "The Structured profile omits `Description` when an experience description is empty. If an experience has a role/company/date range/months but no Description and no Memo, treat that as a missing experience-description gap.",
         "",
         "Selection priority:",
@@ -219,8 +219,9 @@ export async function selectAdditionalOnboardingQuestion(args: {
         profileContext || "(none)",
         "",
         "## Additional question state",
+        `Required additional_question keys: ${requiredAdditionalQuestionKeysText}`,
         `Already selected: ${askedCount}/${requiredAdditionalQuestionCount}`,
-        `Minimum required before final priority confirmation or closing: ${requiredAdditionalQuestionCount}`,
+        "Completion rule: every required additional_question checklist key must be covered before final priority confirmation or closing.",
         "",
         "## Current insights",
         `Filled insight count: ${filledInsightCount}`,

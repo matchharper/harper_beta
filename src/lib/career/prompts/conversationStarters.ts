@@ -358,12 +358,6 @@ export function getCareerConversationStarter(
   };
 }
 
-export function isCareerConversationStarterId(
-  value: unknown
-): value is CareerConversationStarterId {
-  return Boolean(getCareerConversationStarter(value));
-}
-
 export function getCareerConversationStarterTurnInstruction(args: {
   channel: CareerConversationStarterPromptChannel;
   locale?: string | null;
