@@ -605,9 +605,7 @@ const CareerWorkspaceMobileHistoryView = ({
       closed: historyOpportunityCounts.savedStages.closed,
       connected: historyOpportunityCounts.savedStages.connected,
       hidden: historyOpportunityCounts.savedStages.hidden,
-      saved:
-        historyOpportunityCounts.savedStages.saved +
-        historyOpportunityCounts.savedStages.planned,
+      saved: historyOpportunityCounts.savedStages.saved,
     }),
     [
       historyOpportunityCounts.archived,
@@ -615,7 +613,6 @@ const CareerWorkspaceMobileHistoryView = ({
       historyOpportunityCounts.savedStages.closed,
       historyOpportunityCounts.savedStages.connected,
       historyOpportunityCounts.savedStages.hidden,
-      historyOpportunityCounts.savedStages.planned,
       historyOpportunityCounts.savedStages.saved,
     ]
   );

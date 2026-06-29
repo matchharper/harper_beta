@@ -302,9 +302,7 @@ const CareerMobileHomeView = ({
     t("career.home.career_home_panel.0x7lgjp", "추천된 기회")
   );
 
-  const savedPositionCount =
-    historyOpportunityCounts.savedStages.saved +
-    historyOpportunityCounts.savedStages.planned;
+  const savedPositionCount = historyOpportunityCounts.savedStages.saved;
   const connectedPositionCount =
     historyOpportunityCounts.savedStages.applied +
     historyOpportunityCounts.savedStages.connected +
@@ -323,7 +321,6 @@ const CareerMobileHomeView = ({
           item.savedStage ?? getCareerDefaultSavedStage(item.opportunityType);
         if (
           savedStage !== "saved" &&
-          savedStage !== "planned" &&
           savedStage !== "applied" &&
           savedStage !== "connected" &&
           savedStage !== "closed"
@@ -351,7 +348,7 @@ const CareerMobileHomeView = ({
     )?.item.companyName?.trim();
     const statusLabel =
       inProgressTargetSavedStage === "saved"
-        ? t("career.common.career_history_panel.06mgpci", "관심 있음")
+        ? t("career.common.career_history_panel.interested_status", "관심 있음")
         : t("career.common.career_history_panel.0y27adb", "진행중");
     if (!firstCompanyName) {
       return t("career.home.career_home_panel.1qhpcnm", "{count}개 {status}", {

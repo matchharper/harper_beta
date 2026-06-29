@@ -156,7 +156,9 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     callEndInstruction: getCareerCallEndInstructionPrompt(),
     currentInsightContent,
     currentPreferences,
-    interruptHandling: getCareerInterruptHandlingPrompt(),
+    interruptHandling: getCareerInterruptHandlingPrompt(
+      currentPreferences.preferredLocale
+    ),
     isOnboardingDone: talentSetting?.is_onboarding_done,
     onboardingChecklistCoverage,
     profile,

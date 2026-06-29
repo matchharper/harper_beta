@@ -14,7 +14,6 @@ export const getDefaultSavedStage = (
 
 const SAVED_STAGES: CareerOpportunitySavedStage[] = [
   "saved",
-  "planned",
   "applied",
   "connected",
   "closed",
@@ -28,7 +27,6 @@ export const createEmptyHistoryOpportunityCounts =
     saved: 0,
     savedStages: {
       saved: 0,
-      planned: 0,
       applied: 0,
       connected: 0,
       closed: 0,
@@ -161,7 +159,6 @@ export const normalizeHistoryOpportunities = (
     if (
       item.savedStage !== null &&
       item.savedStage !== "saved" &&
-      item.savedStage !== "planned" &&
       item.savedStage !== "applied" &&
       item.savedStage !== "connected" &&
       item.savedStage !== "closed" &&

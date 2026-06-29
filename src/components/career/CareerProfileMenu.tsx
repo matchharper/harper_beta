@@ -26,12 +26,19 @@ import { Text } from "@/components/ui/text";
 type CareerProfileMenuVariant = "desktop" | "mobile";
 
 const PROFILE_LOCALE_OPTIONS: readonly {
-  label: string;
   value: Locale;
 }[] = [
-  { label: "English", value: "en" },
-  { label: "한국어", value: "ko" },
+  { value: "en" },
+  { value: "ko" },
 ];
+
+const getProfileLocaleOptionLabel = (
+  value: Locale,
+  t: ReturnType<typeof useCareerT>
+) => {
+  if (value === "ko") return t("ui.1787f9e", "한국어");
+  return "English";
+};
 
 const CareerProfileMenu = ({
   profileImageUrl,
@@ -314,7 +321,7 @@ const CareerProfileMenu = ({
                       {option.value.toUpperCase()}
                     </span>
                     <span className="min-w-0 text-[13px] font-medium text-neutral-primary">
-                      {option.label}
+                      {getProfileLocaleOptionLabel(option.value, t)}
                     </span>
                   </span>
                   {pending ? (

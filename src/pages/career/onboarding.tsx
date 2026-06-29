@@ -35,6 +35,7 @@ import ResumeDropzone, {
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
+import { talentOnboardingStatusQueryKey } from "@/hooks/career/useTalentOnboardingStatus";
 import { useHtmlClass } from "@/hooks/useHtmlClass";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import {
@@ -1305,7 +1306,9 @@ const CareerNetworkOnboardingContent = () => {
   const onboardingNextPath = router.asPath || "/career/onboarding";
   const requestLocale = useMemo(
     () =>
-      typeof window === "undefined" ? locale : getInitialClientLocalePreference(),
+      typeof window === "undefined"
+        ? locale
+        : getInitialClientLocalePreference(),
     [locale]
   );
   const sessionQueryKey = useMemo(
@@ -1368,7 +1371,14 @@ const CareerNetworkOnboardingContent = () => {
     }
 
     return payload;
-  }, [emailOnboardingToken, fetchWithAuth, inviteToken, mail, requestLocale, t]);
+  }, [
+    emailOnboardingToken,
+    fetchWithAuth,
+    inviteToken,
+    mail,
+    requestLocale,
+    t,
+  ]);
 
   useEffect(() => {
     if (!user) return;
@@ -1797,8 +1807,12 @@ const CareerNetworkOnboardingContent = () => {
       }
 
       queryClient.removeQueries({ queryKey: ["career-session"] });
+      queryClient.removeQueries({ queryKey: sessionQueryKey });
       queryClient.removeQueries({ queryKey: ["career-message-history"] });
       queryClient.removeQueries({ queryKey: ["career-history-opportunities"] });
+      queryClient.setQueryData(talentOnboardingStatusQueryKey(userId), {
+        needsOnboarding: false,
+      });
       setDoneUserMessage(
         payload.profileSubmitMessage?.trim() ||
           payload.userMessage?.content?.trim() ||
@@ -1833,6 +1847,7 @@ const CareerNetworkOnboardingContent = () => {
     queryClient,
     resumeFile,
     selectedEngagements,
+    sessionQueryKey,
     submitState,
     logCareerEvent,
     t,
@@ -1923,6 +1938,9 @@ const CareerNetworkOnboardingContent = () => {
   const navigateToCareerStart = useCallback(
     (startMode: "call" | "chat") => {
       logCareerEvent(`click_onboarding_done_start_${startMode}`);
+      queryClient.setQueryData(talentOnboardingStatusQueryKey(userId), {
+        needsOnboarding: false,
+      });
       const invite = getSingleQueryParam(router.query.invite);
       const mail = getSingleQueryParam(router.query.mail);
       const emailOnboarding = getSingleQueryParam(
@@ -1940,7 +1958,7 @@ const CareerNetworkOnboardingContent = () => {
         query,
       });
     },
-    [logCareerEvent, router]
+    [logCareerEvent, queryClient, router, userId]
   );
 
   if (!isPreviewSubmitState && (authLoading || bootstrapLoading)) {

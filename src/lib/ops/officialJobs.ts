@@ -126,12 +126,64 @@ function normalizeDisplayOrder(value: unknown) {
   return Math.trunc(numberValue);
 }
 
-function normalizeSlug(value: unknown) {
-  const slug = normalizeRequiredString(value, "slug").toLowerCase();
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
-    throw new Error("slug must use lowercase letters, numbers, and hyphens");
+function createOfficialJobSlug(value: string) {
+  const slug = value
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+
+  return slug || "official-job";
+}
+
+async function fetchOfficialJobSlugRows() {
+  const { data, error } = await supabaseServer
+    .from("official_jobs")
+    .select("id,slug");
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load official job slugs");
   }
-  return slug;
+
+  return data ?? [];
+}
+
+function resolveUniqueOfficialJobSlug(args: {
+  baseSlug: string;
+  currentId: string | null;
+  existingRows: Array<Pick<OfficialJobRow, "id" | "slug">>;
+}) {
+  const usedSlugs = new Set<string>([OFFICIAL_JOBS_INTERNAL_COPY_SLUG]);
+
+  for (const row of args.existingRows) {
+    if (args.currentId && row.id === args.currentId) continue;
+    usedSlugs.add(row.slug);
+  }
+
+  if (!usedSlugs.has(args.baseSlug)) return args.baseSlug;
+
+  for (let suffix = 1; ; suffix += 1) {
+    const candidate = `${args.baseSlug}-${suffix}`;
+    if (!usedSlugs.has(candidate)) return candidate;
+  }
+}
+
+async function buildUniqueOfficialJobSlug(args: {
+  companyName: string;
+  roleTitle: string;
+  currentId: string | null;
+}) {
+  const baseSlug = createOfficialJobSlug(
+    `${args.companyName} ${args.roleTitle}`
+  );
+  const existingRows = await fetchOfficialJobSlugRows();
+  return resolveUniqueOfficialJobSlug({
+    baseSlug,
+    currentId: args.currentId,
+    existingRows,
+  });
 }
 
 async function fetchExistingJob(id: string | null) {
@@ -184,6 +236,19 @@ export async function saveOpsOfficialJob(
       ? new Date().toISOString()
       : (existing?.published_at ?? null);
   const shortDescription = normalizeMarkdown(input.shortDescription);
+  const companyName = isInternalCopy
+    ? (normalizeOptionalString(input.companyName) ?? INTERNAL_COPY_COMPANY_NAME)
+    : normalizeRequiredString(input.companyName, "companyName");
+  const roleTitle = isInternalCopy
+    ? OFFICIAL_JOBS_INTERNAL_COPY_ROLE_TITLE
+    : normalizeRequiredString(input.roleTitle, "roleTitle");
+  const slug = isInternalCopy
+    ? OFFICIAL_JOBS_INTERNAL_COPY_SLUG
+    : await buildUniqueOfficialJobSlug({
+        companyName,
+        roleTitle,
+        currentId: id,
+      });
 
   const payload = {
     company_description_markdown: normalizeMarkdown(
@@ -193,10 +258,7 @@ export async function saveOpsOfficialJob(
       ? null
       : normalizeOptionalString(input.ashbyJobPostingId),
     company_logo_url: normalizeOptionalString(input.companyLogoUrl),
-    company_name: isInternalCopy
-      ? (normalizeOptionalString(input.companyName) ??
-        INTERNAL_COPY_COMPANY_NAME)
-      : normalizeRequiredString(input.companyName, "companyName"),
+    company_name: companyName,
     company_website_url: normalizeOptionalString(input.companyWebsiteUrl),
     compensation: normalizeOptionalString(input.compensation),
     display_order: isInternalCopy
@@ -209,16 +271,12 @@ export async function saveOpsOfficialJob(
       : normalizeRequiredString(input.location, "location"),
     published_at: publishedAt,
     role_description_markdown: normalizeMarkdown(input.roleDescriptionMarkdown),
-    role_title: isInternalCopy
-      ? OFFICIAL_JOBS_INTERNAL_COPY_ROLE_TITLE
-      : normalizeRequiredString(input.roleTitle, "roleTitle"),
+    role_title: roleTitle,
     seniority: normalizeOptionalString(input.seniority),
     short_description: isInternalCopy
       ? shortDescription || INTERNAL_COPY_SHORT_DESCRIPTION
       : shortDescription,
-    slug: isInternalCopy
-      ? OFFICIAL_JOBS_INTERNAL_COPY_SLUG
-      : normalizeSlug(input.slug),
+    slug,
     vertical: isInternalCopy
       ? (normalizeOptionalString(input.vertical) ?? INTERNAL_COPY_VERTICAL)
       : normalizeMarkdown(input.vertical),

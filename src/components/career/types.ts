@@ -130,7 +130,6 @@ export type CareerOnboardingChecklistProgress = {
 
 export type CareerOpportunitySavedStage =
   | "saved"
-  | "planned"
   | "applied"
   | "connected"
   | "closed"

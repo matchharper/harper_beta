@@ -124,7 +124,6 @@ async function finalizeSessionReengagement(args: {
 
 const DEV_SESSION_REENGAGEMENT_TEST_EMAILS = new Set([
   "hyunbin.bk@gmail.com",
-  "khj6051@optimizerai.xyz",
   "khj605123@gmail.com",
 ]);
 

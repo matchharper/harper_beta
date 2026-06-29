@@ -59,9 +59,7 @@ const getJobsTabTotal = (
   counts: CareerHistoryOpportunityCounts
 ) => {
   if (tab === "new") return counts.new;
-  if (tab === "saved") {
-    return counts.savedStages.saved + counts.savedStages.planned;
-  }
+  if (tab === "saved") return counts.savedStages.saved;
   if (tab === "applied") return counts.savedStages.applied;
   if (tab === "connected") return counts.savedStages.connected;
   if (tab === "closed") return counts.savedStages.closed;
@@ -77,7 +75,7 @@ const isOpportunityInJobsTab = (
   if (tab === "archived") return item.feedback === "negative";
   if (item.feedback !== "positive") return false;
   const status = getSavedOpportunityManagementStatus(item);
-  if (tab === "saved") return status === "saved" || status === "planned";
+  if (tab === "saved") return status === "saved";
   return status === tab;
 };
 

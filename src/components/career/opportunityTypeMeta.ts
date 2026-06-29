@@ -315,7 +315,10 @@ const buildCareerOpportunityTypeMeta = (
       requiresComment: true,
     },
     savedStageLabels: {
-      applied: t("career.common.career_history_panel.0y27adb", "연결됨"),
+      applied: t(
+        "career.common.opportunity_type_meta.connected_stage_label",
+        "연결됨"
+      ),
     },
     shortLabel: t("career.common.opportunity_type_meta.1gbs2on", "회사 추천"),
     sortPriority: 1,
@@ -431,7 +434,10 @@ const buildCareerOpportunityTypeMeta = (
       requiresComment: true,
     },
     savedStageLabels: {
-      applied: t("career.common.career_history_panel.0y27adb", "연결됨"),
+      applied: t(
+        "career.common.opportunity_type_meta.connected_stage_label",
+        "연결됨"
+      ),
     },
     shortLabel: t("career.common.opportunity_type_meta.0woigko", "Intro 요청"),
     sortPriority: 0,

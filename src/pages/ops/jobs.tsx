@@ -167,8 +167,7 @@ function areOfficialJobDraftsEqual(
 
 function draftToPayload(draft: OfficialJobDraft): OpsOfficialJobSaveInput {
   const isInternalCopy = isOfficialJobsInternalCopyIdentity(draft);
-  const slug =
-    draft.slug.trim() || createSlug(`${draft.companyName} ${draft.roleTitle}`);
+  const slug = createSlug(`${draft.companyName} ${draft.roleTitle}`);
 
   return {
     ashbyJobPostingId: isInternalCopy ? null : draft.ashbyJobPostingId,
@@ -194,13 +193,15 @@ function draftToPayload(draft: OfficialJobDraft): OpsOfficialJobSaveInput {
 }
 
 function createSlug(value: string) {
-  return value
+  const slug = value
     .trim()
     .toLowerCase()
     .replace(/&/g, " and ")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .replace(/-{2,}/g, "-");
+
+  return slug || "official-job";
 }
 
 function resizeTextareaToContent(textarea: HTMLTextAreaElement | null) {
@@ -547,7 +548,7 @@ export default function OpsOfficialJobsPage() {
               </div>
             </div>
 
-            <div className="max-h-[760px] overflow-y-auto">
+            <div>
               {jobsQuery.isLoading ? (
                 <div className="flex items-center gap-2 p-4 text-sm text-neutral-muted">
                   <LoaderCircle className="h-4 w-4 animate-spin" />

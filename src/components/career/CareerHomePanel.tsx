@@ -298,9 +298,7 @@ const CareerHomePanel = ({
     m,
     t("career.home.career_home_panel.0x7lgjp", "추천된 기회")
   );
-  const savedPositionCount =
-    historyOpportunityCounts.savedStages.saved +
-    historyOpportunityCounts.savedStages.planned;
+  const savedPositionCount = historyOpportunityCounts.savedStages.saved;
   const connectedPositionCount =
     historyOpportunityCounts.savedStages.applied +
     historyOpportunityCounts.savedStages.connected +
@@ -318,7 +316,6 @@ const CareerHomePanel = ({
           item.savedStage ?? getCareerDefaultSavedStage(item.opportunityType);
         if (
           savedStage !== "saved" &&
-          savedStage !== "planned" &&
           savedStage !== "applied" &&
           savedStage !== "connected" &&
           savedStage !== "closed"
@@ -346,7 +343,7 @@ const CareerHomePanel = ({
     )?.item.companyName?.trim();
     const statusLabel =
       inProgressTargetSavedStage === "saved"
-        ? t("career.common.career_history_panel.06mgpci", "관심 있음")
+        ? t("career.common.career_history_panel.interested_status", "관심 있음")
         : t("career.common.career_history_panel.0y27adb", "진행중");
 
     if (!firstCompanyName) {
@@ -434,7 +431,7 @@ const CareerHomePanel = ({
     process.env.NODE_ENV !== "production" ||
     userEmail.endsWith("@matchharper.com") ||
     userEmail === "hyunbin.bk@gmail.com" ||
-    userEmail === "khj6051@optimizerai.xyz" ||
+    // userEmail === "khj6051@optimizerai.xyz" ||
     userEmail === "khj605123@gmail.com";
   const showLocalWorkerRunControls = process.env.NODE_ENV !== "production";
 
@@ -844,10 +841,7 @@ const CareerHomePanel = ({
             }
           />
           <HomeOpportunitySummaryCard
-            title={t(
-              "career.home.career_home_panel.11q0oj9",
-              "저장한 포지션"
-            )}
+            title={t("career.home.career_home_panel.11q0oj9", "저장한 포지션")}
             count={inProgressPositionCount}
             description={inProgressCompanyLabel}
             buttonLabel={t("career.common.career.028kv4g", "상세 보기")}
@@ -950,33 +944,33 @@ const CareerHomePanel = ({
               <ActionButton
                 onClick={() => {
                   logCareerEvent(
-                  "click_home_dev_deepseek_fit_rerank_periodic_discovery_run"
-                );
-                setDevManualRunId("");
-                void Promise.resolve(
-                  onRunPeriodicOpportunityDiscoveryTest(devAgentVariant, {
-                    claimForManualProcessing: true,
-                    externalSelectorMode: "deepseek_fit_rerank",
-                    forceNew: true,
-                  })
-                ).then((run) => {
-                  const runId =
-                    run && typeof run === "object" && "id" in run
-                      ? String(run.id ?? "").trim()
-                      : "";
-                  if (runId) setDevManualRunId(runId);
-                });
-              }}
-              disabled={opportunityRunTriggerPending}
-              actionVariant="secondary"
+                    "click_home_dev_deepseek_fit_rerank_periodic_discovery_run"
+                  );
+                  setDevManualRunId("");
+                  void Promise.resolve(
+                    onRunPeriodicOpportunityDiscoveryTest(devAgentVariant, {
+                      claimForManualProcessing: true,
+                      externalSelectorMode: "deepseek_fit_rerank",
+                      forceNew: true,
+                    })
+                  ).then((run) => {
+                    const runId =
+                      run && typeof run === "object" && "id" in run
+                        ? String(run.id ?? "").trim()
+                        : "";
+                    if (runId) setDevManualRunId(runId);
+                  });
+                }}
+                disabled={opportunityRunTriggerPending}
+                actionVariant="secondary"
               >
                 {opportunityRunTriggerPending ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : (
-                <Search className="h-3.5 w-3.5" />
-              )}
-              변경된 방식 periodic run 만들기
-            </ActionButton>
+                  <Search className="h-3.5 w-3.5" />
+                )}
+                변경된 방식 periodic run 만들기
+              </ActionButton>
             ) : null}
             <ActionButton
               onClick={() => {

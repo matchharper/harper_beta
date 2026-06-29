@@ -8,9 +8,11 @@ import {
   Eye,
   LoaderCircle,
   LogIn,
+  MoreHorizontal,
   Pencil,
   Plus,
   Send,
+  StickyNote,
   Trash2,
   type LucideIcon,
   XCircle,
@@ -25,18 +27,19 @@ import {
   TalentStatusBadges,
 } from "@/components/ops/matching/MatchingTalentCells";
 import { MatchingTalentDrawer } from "@/components/ops/matching/MatchingTalentDrawer";
-import {
-  MatchingMemoQuickAdd,
-  MatchingTagEditor,
-} from "@/components/ops/matching/MatchingTalentInlineActions";
+import { MatchingTagEditor } from "@/components/ops/matching/MatchingTalentInlineActions";
+import { isMatchingReviewStageTag } from "@/components/ops/matching/tagMeta";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { BareButton } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Textarea as UiTextarea } from "@/components/ui/textarea";
+import { useCreateOpsCareerProfileMemo } from "@/hooks/ops/useOpsCareer";
 import {
   useCreateOpsMatchingReviewStage,
   useDeleteOpsMatchingReviewStage,
@@ -47,9 +50,7 @@ import {
   useUpdateOpsMatchingReviewStage,
   useUpdateOpsMatchingFitHumanLabel,
 } from "@/hooks/ops/useOpsMatching";
-import {
-  OPS_MATCHING_NO_HUMAN_LABEL_FILTER_VALUE,
-} from "@/lib/ops/matchingFilters";
+import { OPS_MATCHING_NO_HUMAN_LABEL_FILTER_VALUE } from "@/lib/ops/matchingFilters";
 import { useOpsMatchingStore } from "@/store/useOpsMatchingStore";
 import { Input as UiInput } from "@/components/ui/input";
 import type {
@@ -138,7 +139,9 @@ function getFeedbackClass(feedback: string | null | undefined) {
 }
 
 function getFitLabelText(label: string | null | undefined) {
-  const normalized = String(label ?? "").trim().toLowerCase();
+  const normalized = String(label ?? "")
+    .trim()
+    .toLowerCase();
   if (normalized === "fit") return "적합";
   if (normalized === "hold") return "보류";
   if (normalized === "ambiguous") return "애매";
@@ -147,9 +150,153 @@ function getFitLabelText(label: string | null | undefined) {
   return normalized || "없음";
 }
 
+function ReviewDateChip({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | null | undefined;
+}) {
+  if (!value) return null;
+  return (
+    <span className="rounded-sm bg-bg-weak px-1.5 py-0.5 text-[10px] leading-4 text-neutral-muted">
+      {label} {formatKstRelativeDateTime(value)}
+    </span>
+  );
+}
+
+function ReviewCardMenu({ onAddMemo }: { onAddMemo: () => void }) {
+  return (
+    <div
+      className="shrink-0"
+      onClick={(event) => event.stopPropagation()}
+      onDragStart={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <BareButton
+            type="button"
+            aria-label="카드 액션"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-neutral-soft transition hover:bg-bg-weak hover:text-neutral-primary"
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </BareButton>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-36">
+          <DropdownMenuItem onSelect={onAddMemo}>
+            <StickyNote className="h-3.5 w-3.5 text-neutral-soft" />
+            메모 추가
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
+function hasVisibleCardTags(
+  talent: OpsMatchingTalentItem,
+  options?: { hideReviewStageTags?: boolean }
+) {
+  return talent.tags.some(
+    (tag) => !options?.hideReviewStageTags || !isMatchingReviewStageTag(tag.tag)
+  );
+}
+
+function PipelineMemoDialog({
+  onClose,
+  talent,
+}: {
+  onClose: () => void;
+  talent: OpsMatchingTalentItem | null;
+}) {
+  const [draft, setDraft] = useState("");
+  const createMemo = useCreateOpsCareerProfileMemo(talent?.userId ?? "");
+  const trimmedDraft = draft.trim();
+  const displayName = talent?.name || talent?.email || "이름 없음";
+
+  const handleClose = () => {
+    setDraft("");
+    onClose();
+  };
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!talent || !trimmedDraft || createMemo.isPending) return;
+    createMemo.mutate(trimmedDraft, {
+      onSuccess: handleClose,
+    });
+  };
+
+  return (
+    <Dialog
+      open={Boolean(talent)}
+      onOpenChange={(open) => {
+        if (!open) handleClose();
+      }}
+    >
+      <DialogContent className="max-w-md rounded-lg" hideCloseButton>
+        <form onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle>메모 추가</DialogTitle>
+            <DialogDescription>
+              {displayName}에 대한 ops 메모를 남깁니다.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4 space-y-2">
+            {talent?.memoPreview ? (
+              <div className="line-clamp-3 rounded-md border border-neutral-1000-a05 bg-bg-weak px-3 py-2 text-xs leading-5 text-neutral-muted">
+                {talent.memoPreview}
+              </div>
+            ) : null}
+            <UiTextarea
+              autoFocus
+              unstyled
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              rows={5}
+              className="min-h-[140px] w-full resize-y rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 py-3 text-sm leading-6 text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:ring-2 focus:ring-neutral-1000-a10"
+              placeholder="새 메모를 입력하세요."
+            />
+            {createMemo.error ? (
+              <div className="text-xs text-critical">
+                {createMemo.error instanceof Error
+                  ? createMemo.error.message
+                  : "메모를 저장하지 못했습니다."}
+              </div>
+            ) : null}
+          </div>
+          <DialogFooter className="mt-5">
+            <BareButton
+              type="button"
+              onClick={handleClose}
+              disabled={createMemo.isPending}
+              className={cx(opsTheme.buttonSecondary, "h-10 px-4 text-sm")}
+            >
+              취소
+            </BareButton>
+            <BareButton
+              type="submit"
+              disabled={!trimmedDraft || createMemo.isPending}
+              className={cx(opsTheme.buttonPrimary, "h-10 px-4 text-sm")}
+            >
+              {createMemo.isPending ? (
+                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+              ) : null}
+              저장
+            </BareButton>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function ReviewCard({
   draggingId,
   item,
+  onAddMemo,
   onDragEnd,
   onDragStart,
   onSelect,
@@ -158,6 +305,7 @@ function ReviewCard({
 }: {
   draggingId: string | null;
   item: OpsMatchingReviewItem;
+  onAddMemo: (talent: OpsMatchingTalentItem) => void;
   onDragEnd: () => void;
   onDragStart: (item: OpsMatchingReviewItem) => void;
   onSelect: (talent: OpsMatchingTalentItem) => void;
@@ -166,6 +314,9 @@ function ReviewCard({
 }) {
   const showTalentDateRow =
     visibleFields.has("joinedAt") || visibleFields.has("lastLoginAt");
+  const showTagSection = hasVisibleCardTags(item.talent, {
+    hideReviewStageTags: true,
+  });
 
   return (
     <div
@@ -191,8 +342,13 @@ function ReviewCard({
         pending && "cursor-wait opacity-60"
       )}
     >
-      <TalentIdentity talent={item.talent} />
-      <TalentStatusBadges talent={item.talent} hideReviewStageTags />
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <TalentIdentity talent={item.talent} />
+          <TalentStatusBadges talent={item.talent} hideReviewStageTags />
+        </div>
+        <ReviewCardMenu onAddMemo={() => onAddMemo(item.talent)} />
+      </div>
       <div className="mt-3 flex flex-wrap gap-1.5">
         <span
           className={cx(
@@ -202,9 +358,7 @@ function ReviewCard({
         >
           {getFeedbackLabel(item.feedback)}
         </span>
-        <span className="rounded-sm bg-bg-weak px-1.5 py-0.5 text-[10px] leading-4 text-neutral-muted">
-          추천 {formatKstRelativeDateTime(item.recommendedAt)}
-        </span>
+        <ReviewDateChip label="추천" value={item.recommendedAt} />
         {visibleFields.has("viewedAt") ? (
           <span className="rounded-sm bg-bg-weak px-1.5 py-0.5 text-[10px] leading-4 text-neutral-muted">
             {item.viewedAt
@@ -280,19 +434,17 @@ function ReviewCard({
         </div>
       ) : null}
 
-      <div className="mt-3 space-y-2 border-t border-neutral-1000-a05 pt-3">
-        <MatchingMemoQuickAdd
-          compact
-          memoPreview={item.talent.memoPreview}
-          talentId={item.talent.userId}
-        />
-        <MatchingTagEditor
-          compact
-          roleId={item.roleId}
-          showAddButton={false}
-          talent={item.talent}
-        />
-      </div>
+      {showTagSection ? (
+        <div className="mt-3 space-y-2 border-t border-neutral-1000-a05 pt-3">
+          <MatchingTagEditor
+            compact
+            hideReviewStageTags
+            roleId={item.roleId}
+            showAddButton={false}
+            talent={item.talent}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -349,9 +501,11 @@ function ReviewListToggleBox({
         isDropTarget
           ? "border-primary bg-primary-faded text-primary shadow-[0_0_0_2px_rgba(37,99,235,0.18)]"
           : active
-          ? "border-primary/30 bg-primary-faded text-primary"
-          : "border-neutral-1000-a05 bg-bg-default/65 text-neutral-muted hover:bg-bg-default hover:text-neutral-primary",
-        canDrop && !isDropTarget && "border-primary/50 bg-primary-faded/30 text-primary",
+            ? "border-primary/30 bg-primary-faded text-primary"
+            : "border-neutral-1000-a05 bg-bg-default/65 text-neutral-muted hover:bg-bg-default hover:text-neutral-primary",
+        canDrop &&
+          !isDropTarget &&
+          "border-primary/50 bg-primary-faded/30 text-primary",
         pending && "cursor-wait opacity-60"
       )}
     >
@@ -366,6 +520,7 @@ function ReviewListToggleBox({
 
 function AmbiguousReviewCard({
   isQueued,
+  onAddMemo,
   onDismiss,
   onRecommend,
   onSelect,
@@ -375,6 +530,7 @@ function AmbiguousReviewCard({
   visibleFields,
 }: {
   isQueued: boolean;
+  onAddMemo: (talent: OpsMatchingTalentItem) => void;
   onDismiss: (talent: OpsMatchingTalentItem) => void;
   onRecommend: (talent: OpsMatchingTalentItem) => void;
   onSelect: (talent: OpsMatchingTalentItem) => void;
@@ -384,24 +540,52 @@ function AmbiguousReviewCard({
   visibleFields: Set<ReviewViewFieldId>;
 }) {
   const fit = talent.fit;
+  const recommendationDateLabel = fit?.recommendation
+    ? "추천"
+    : fit?.manualInternalRecommendationQueuedAt
+      ? "추천 대기"
+      : "판단";
+  const recommendationDateValue =
+    fit?.recommendation?.recommendedAt ??
+    fit?.manualInternalRecommendationQueuedAt ??
+    fit?.lastEvaluatedAt ??
+    fit?.createdAt ??
+    null;
   const showTalentDateRow =
     visibleFields.has("joinedAt") || visibleFields.has("lastLoginAt");
+  const showTagSection = hasVisibleCardTags(talent, {
+    hideReviewStageTags: true,
+  });
 
   return (
-    <div className="rounded-sm border border-neutral-1000-a05 bg-bg-floating p-3 transition hover:border-neutral-1000-a10">
-      <button
-        type="button"
-        onClick={() => onSelect(talent)}
-        className="block w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
-      >
-        <TalentIdentity talent={talent} />
-        <TalentStatusBadges talent={talent} hideReviewStageTags />
-      </button>
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onSelect(talent)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect(talent);
+        }
+      }}
+      className="cursor-pointer rounded-sm border border-neutral-1000-a05 bg-bg-floating p-3 transition hover:border-neutral-1000-a10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
+    >
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <TalentIdentity talent={talent} />
+          <TalentStatusBadges talent={talent} hideReviewStageTags />
+        </div>
+        <ReviewCardMenu onAddMemo={() => onAddMemo(talent)} />
+      </div>
 
       <div className="mt-3 flex flex-wrap gap-1.5">
         <span className="rounded-sm bg-primary-faded px-1.5 py-0.5 text-[10px] font-medium leading-4 text-primary">
           LLM {getFitLabelText(fit?.label)}
         </span>
+        <ReviewDateChip
+          label={recommendationDateLabel}
+          value={recommendationDateValue}
+        />
       </div>
 
       {showTalentDateRow ? (
@@ -459,25 +643,36 @@ function AmbiguousReviewCard({
         </div>
       ) : null}
 
-      <div className="mt-3 space-y-2 border-t border-neutral-1000-a05 pt-3">
-        <MatchingMemoQuickAdd
-          compact
-          memoPreview={talent.memoPreview}
-          talentId={talent.userId}
-        />
-        <MatchingTagEditor
-          compact
-          hideReviewStageTags
-          roleId={roleId}
-          showAddButton={false}
-          talent={talent}
-        />
-      </div>
+      {talent.memoPreview ? (
+        <div className="mt-3 line-clamp-2 rounded-sm bg-bg-weak px-2 py-1.5 text-[11px] leading-4 text-neutral-muted">
+          {talent.memoPreview}
+        </div>
+      ) : null}
 
-      <div className="mt-3 grid grid-cols-2 gap-2">
+      {showTagSection ? (
+        <div className="mt-3 space-y-2 border-t border-neutral-1000-a05 pt-3">
+          <MatchingTagEditor
+            compact
+            hideReviewStageTags
+            roleId={roleId}
+            showAddButton={false}
+            talent={talent}
+          />
+        </div>
+      ) : null}
+
+      <div
+        className="mt-3 grid grid-cols-2 gap-2"
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
         <BareButton
           type="button"
-          onClick={() => onRecommend(talent)}
+          onClick={(event) => {
+            event.stopPropagation();
+            onRecommend(talent);
+          }}
           disabled={pending || !fit?.fitId || isQueued}
           className={cx(
             "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-70",
@@ -495,7 +690,10 @@ function AmbiguousReviewCard({
         </BareButton>
         <BareButton
           type="button"
-          onClick={() => onDismiss(talent)}
+          onClick={(event) => {
+            event.stopPropagation();
+            onDismiss(talent);
+          }}
           disabled={pending || !fit?.fitId}
           className="inline-flex min-h-9 items-center justify-center rounded-md border border-neutral-1000-a10 bg-bg-default px-2 text-xs font-medium text-neutral-muted transition hover:bg-bg-weak hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-60"
         >
@@ -602,6 +800,8 @@ export function MatchingHarperReviewBoard({
     useState<DroppableReviewStageId | null>(null);
   const [selectedTalent, setSelectedTalent] =
     useState<OpsMatchingTalentItem | null>(null);
+  const [selectedMemoTalent, setSelectedMemoTalent] =
+    useState<OpsMatchingTalentItem | null>(null);
   const [reviewViewFields, setReviewViewFields] = useState<ReviewViewFieldId[]>(
     DEFAULT_REVIEW_VIEW_FIELDS
   );
@@ -658,8 +858,7 @@ export function MatchingHarperReviewBoard({
     [reviewQuery.data?.items]
   );
   const ambiguousTalents = useMemo(
-    () =>
-      ambiguousTalentsQuery.data?.pages.flatMap((page) => page.items) ?? [],
+    () => ambiguousTalentsQuery.data?.pages.flatMap((page) => page.items) ?? [],
     [ambiguousTalentsQuery.data?.pages]
   );
   const customReviewColumns = useMemo(
@@ -948,11 +1147,11 @@ export function MatchingHarperReviewBoard({
             ? "bg-primary-faded/55 ring-2 ring-inset ring-primary/55"
             : canDrop
               ? "bg-primary-faded/20"
-            : column.id === "accepted"
-              ? "bg-positive-faded"
-              : column.id === "rejected"
-                ? "bg-critical-faded/40"
-              : "bg-bg-default"
+              : column.id === "accepted"
+                ? "bg-positive-faded"
+                : column.id === "rejected"
+                  ? "bg-critical-faded/40"
+                  : "bg-bg-default"
         )}
       >
         <div className="border-b border-neutral-1000-a10 bg-bg-floating px-3 py-2.5">
@@ -1043,6 +1242,7 @@ export function MatchingHarperReviewBoard({
                   setDraggingId(dragItem.recommendationId);
                   setDropTargetStageId(null);
                 }}
+                onAddMemo={setSelectedMemoTalent}
                 onSelect={setSelectedTalent}
                 pending={setReviewStage.isPending}
                 visibleFields={visibleReviewFields}
@@ -1193,6 +1393,7 @@ export function MatchingHarperReviewBoard({
                       queuedAmbiguousTalentIdSet.has(talent.userId) ||
                       Boolean(talent.fit?.manualInternalRecommendationQueuedAt)
                     }
+                    onAddMemo={setSelectedMemoTalent}
                     onDismiss={(item) => void handleAmbiguousDismiss(item)}
                     onRecommend={setConfirmRecommendTalent}
                     onSelect={setSelectedTalent}
@@ -1352,6 +1553,10 @@ export function MatchingHarperReviewBoard({
         </DialogContent>
       </Dialog>
 
+      <PipelineMemoDialog
+        talent={selectedMemoTalent}
+        onClose={() => setSelectedMemoTalent(null)}
+      />
       <MatchingTalentDrawer
         onClose={() => setSelectedTalent(null)}
         role={role}
