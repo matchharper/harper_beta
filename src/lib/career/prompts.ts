@@ -226,6 +226,14 @@ const CAREER_INTERRUPT_HANDLING_PROMPT = `
 이 경우 "이어서 말씀해 주세요"라고 안내하고, 바로 다음 질문으로 넘어가지 마라. 사용자가 충분히 답변할 때까지 기다려라.
 `.trim();
 
+const CAREER_INTERRUPT_HANDLING_PROMPT_EN = `
+## Interrupt handling
+1. If the user only says a very short backchannel or partial utterance such as "ah", "yes", "yeah", "um", "uh", "okay", or "hmm", treat it as an interruption or incomplete speech.
+In that case, say only "Okay" or "Got it" or say nothing. Wait until the user gives a fuller answer.
+
+2. If the user appears to pause in the middle of speaking, say "Please go on" and do not move to the next question. Wait until the user gives a fuller answer.
+`.trim();
+
 const CAREER_CALL_END_INSTRUCTION_PROMPT = `
 ## 통화 종료 시그널
 인터뷰를 완전히 마무리하고 마지막 인사("좋은 하루 보내세요" 등)까지 끝냈을 때에만, 응답 텍스트의 맨 끝에 ${CAREER_CALL_END_MARKER} 를 붙여라. 종료 시점에는 꼭 붙여야 한다.
@@ -298,8 +306,12 @@ export function getCareerFirstVisitText(
     : CAREER_FIRST_VISIT_TEXT_KO;
 }
 
-export function getCareerInterruptHandlingPrompt(): string {
-  return CAREER_INTERRUPT_HANDLING_PROMPT;
+export function getCareerInterruptHandlingPrompt(
+  preferredLocale?: string | null
+): string {
+  return getCareerPromptLanguageName(preferredLocale) === "English"
+    ? CAREER_INTERRUPT_HANDLING_PROMPT_EN
+    : CAREER_INTERRUPT_HANDLING_PROMPT;
 }
 
 export function getCareerCallEndInstructionPrompt(): string {

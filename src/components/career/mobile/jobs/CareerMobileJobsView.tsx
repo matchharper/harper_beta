@@ -208,12 +208,7 @@ export default function CareerMobileJobsView({
         "보관함"
       ),
       includeArchived: true,
-      includePlanned: false,
     })
-      .filter(
-        (option): option is { label: string; id: JobsStatusTab } =>
-          option.id !== "planned"
-      )
       .map((option) => ({
         // count: statusCounts[option.id],
         label: option.label,

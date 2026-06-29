@@ -25,7 +25,7 @@ type SavedOpportunityBoardProps = {
 
 type SavedOpportunityBoardStatus = Exclude<
   SavedOpportunityManagementStatus,
-  "all" | "planned" | "hidden"
+  "all" | "hidden"
 >;
 
 const BOARD_AUTO_SCROLL_EDGE_PX = 72;
@@ -125,7 +125,7 @@ function SavedOpportunityBoard({
   const t = useCareerT();
   const statusOptions = useMemo(
     () =>
-      getSavedOpportunityStatusOptions(t, { includePlanned: false }).filter(
+      getSavedOpportunityStatusOptions(t).filter(
         (
           option
         ): option is {
@@ -155,7 +155,7 @@ function SavedOpportunityBoard({
     for (const item of items) {
       const status = getSavedOpportunityManagementStatus(item);
       if (status !== "hidden") {
-        next.get(status === "planned" ? "saved" : status)?.push(item);
+        next.get(status)?.push(item);
       }
     }
     return next;

@@ -1,4 +1,5 @@
 import TurndownService from "turndown";
+import { OFFICIAL_JOBS_INTERNAL_COPY_SLUG } from "@/lib/officialJobs";
 import { supabaseServer } from "@/lib/supabaseServer";
 import type { Database } from "@/types/database.types";
 
@@ -418,14 +419,17 @@ function buildUniqueSlug(args: {
   );
   if (matchingRow?.slug) return matchingRow.slug;
 
-  const rowWithBaseSlug = args.existingRows.find(
-    (row) => row.slug === args.baseSlug
-  );
-  if (!rowWithBaseSlug || !rowWithBaseSlug.ashby_job_posting_id) {
-    return args.baseSlug;
+  const usedSlugs = new Set<string>([OFFICIAL_JOBS_INTERNAL_COPY_SLUG]);
+  for (const row of args.existingRows) {
+    usedSlugs.add(row.slug);
   }
 
-  return normalizeSlug(`${args.baseSlug}-${args.ashbyJobId.slice(0, 8)}`);
+  if (!usedSlugs.has(args.baseSlug)) return args.baseSlug;
+
+  for (let suffix = 1; ; suffix += 1) {
+    const candidate = normalizeSlug(`${args.baseSlug}-${suffix}`);
+    if (!usedSlugs.has(candidate)) return candidate;
+  }
 }
 
 async function buildPayload(
@@ -519,9 +523,7 @@ export async function runAshbyOfficialJobsSync(options?: {
 
     activeAshbyIds.add(built.ashbyJobId);
     const existingRow = existingRows.find(
-      (row) =>
-        row.ashby_job_posting_id === built.ashbyJobId ||
-        (!row.ashby_job_posting_id && row.slug === built.payload.slug)
+      (row) => row.ashby_job_posting_id === built.ashbyJobId
     );
 
     const query = existingRow

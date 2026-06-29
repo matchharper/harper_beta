@@ -242,13 +242,13 @@ const meetingRequestCopy: Record<
   ko: {
     closeOverlayLabel: "미팅 신청 폼 닫기",
     closeLabel: "닫기",
-    title: "통화 요청하기",
+    title: "미팅 신청하기",
     description:
-      "팀의 상황, 찾고 있는 역할, 지금 채용에서 막히는 지점을 간단히 남겨주세요. Harper 팀이 직접 검토해 어떤 후보 풀을 볼 수 있을지와 가장 빠른 다음 액션을 정리해 1영업일 내 연락드립니다.",
+      "팀의 상황, 찾고 있는 역할, 지금 채용에서 막히는 지점을 간단히 남겨주세요. 바로 연락드리겠습니다.",
     nameLabel: "이름",
-    namePlaceholder: "김하퍼",
+    namePlaceholder: "",
     emailLabel: "이메일",
-    emailPlaceholder: "jane@company.com",
+    emailPlaceholder: "example@company.com",
     companyLabel: "회사",
     companyPlaceholder: "회사 또는 팀명",
     goalLabel: "채용 목표",
@@ -478,7 +478,7 @@ const CompanyMeetingRequestModal = ({
             <div className="pr-10">
               <h2
                 id="company-meeting-request-title"
-                className="font-hedvig text-[30px] leading-[0.98] tracking-[-0.07em] text-beige900 md:text-[34px]"
+                className="font-hedvig text-[24px] leading-[0.98] text-beige900 md:text-[26px]"
               >
                 {copy.title}
               </h2>
@@ -486,7 +486,10 @@ const CompanyMeetingRequestModal = ({
                 {copy.description}
               </p>
             </div>
-            <form onSubmit={onSubmit} className="mt-5 space-y-3 md:mt-7 md:space-y-4">
+            <form
+              onSubmit={onSubmit}
+              className="mt-5 space-y-3 md:mt-7 md:space-y-4"
+            >
               <label className="block">
                 <span className="text-[13px] font-medium tracking-[-0.02em] text-beige900/70">
                   {copy.nameLabel}
@@ -804,7 +807,9 @@ const Beige = () => {
     (event) => {
       if (event.defaultPrevented) return;
 
-      const logSearchClick = addCompanyLandingLog(COMPANY_LOG_SEARCH_CLICK_TYPE);
+      const logSearchClick = addCompanyLandingLog(
+        COMPANY_LOG_SEARCH_CLICK_TYPE
+      );
       const isModifiedClick =
         event.altKey || event.ctrlKey || event.metaKey || event.shiftKey;
 
@@ -917,9 +922,7 @@ const Beige = () => {
       console.error("company meeting request submit failed:", error);
       showToast({
         message:
-          error instanceof Error
-            ? error.message
-            : meetingCopy.errors.failed,
+          error instanceof Error ? error.message : meetingCopy.errors.failed,
         variant: "error",
       });
     } finally {

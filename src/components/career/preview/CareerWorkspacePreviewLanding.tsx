@@ -59,7 +59,6 @@ type CareerWorkspaceHistoryTarget = {
   savedStage?:
     | "all"
     | "saved"
-    | "planned"
     | "applied"
     | "connected"
     | "closed"

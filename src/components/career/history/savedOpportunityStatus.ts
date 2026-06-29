@@ -7,7 +7,6 @@ import type {
 export type SavedOpportunityManagementStatus =
   | "all"
   | "saved"
-  | "planned"
   | "applied"
   | "connected"
   | "closed"
@@ -25,29 +24,14 @@ type SavedOpportunityStatusOptionsConfig = {
   hiddenLabel?: string;
   includeAll?: boolean;
   includeHidden?: boolean;
-  includePlanned?: boolean;
 };
 
-const getSavedOpportunityPipelineStatusOptions = (
-  t: CareerTLike,
-  includePlanned = true
-) =>
+const getSavedOpportunityPipelineStatusOptions = (t: CareerTLike) =>
   [
     {
       id: "saved",
       label: t("career.history.saved_opportunity_status.0obqas2", "관심 있음"),
     },
-    ...(includePlanned
-      ? [
-          {
-            id: "planned" as const,
-            label: t(
-              "career.history.saved_opportunity_status.planned",
-              "지원 예정"
-            ),
-          },
-        ]
-      : []),
     {
       id: "applied",
       label: t("career.history.saved_opportunity_status.applied", "지원함"),
@@ -78,10 +62,7 @@ export const getSavedOpportunityStatusOptions = (
           },
         ]
       : []),
-    ...getSavedOpportunityPipelineStatusOptions(
-      t,
-      config.includePlanned ?? true
-    ),
+    ...getSavedOpportunityPipelineStatusOptions(t),
     ...(config.includeHidden
       ? [
           {
@@ -107,7 +88,6 @@ const isCareerOpportunitySavedStage = (
   value: unknown
 ): value is Exclude<SavedOpportunityManagementStatus, "all"> =>
   value === "saved" ||
-  value === "planned" ||
   value === "applied" ||
   value === "connected" ||
   value === "closed" ||
@@ -123,7 +103,6 @@ export const getSavedOpportunityStatusFromQuery = (
 ): SavedOpportunityManagementStatus => {
   const normalized = Array.isArray(value) ? value[0] : value;
   if (normalized === "all") return "all";
-  if (normalized === "planned") return "saved";
   if (isCareerOpportunitySavedStage(normalized)) return normalized;
   return "all";
 };
@@ -173,7 +152,6 @@ export const getCareerOpportunityManagementStatusOptions = (
   t: CareerTLike,
   config: {
     hiddenLabel?: string;
-    includePlanned?: boolean;
     includeArchived?: boolean;
   } = {}
 ) =>
@@ -183,7 +161,6 @@ export const getCareerOpportunityManagementStatusOptions = (
         config.hiddenLabel ??
         t("career.history.saved_opportunity_status.hide_action", "보관하기"),
       includeHidden: true,
-      includePlanned: config.includePlanned,
     }).filter(
       (
         option

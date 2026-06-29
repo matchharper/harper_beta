@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
-  getTalentFirstVisitText,
   ensureTalentUserRecord,
   fetchTalentInsights,
   fetchTalentSetting,
@@ -49,31 +48,6 @@ import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 // const REENGAGEMENT_IDLE_MS = 60 * 1000;
 const REENGAGEMENT_IDLE_MS = 12 * 60 * 60 * 1000; // 12시간 지나서 접속시 인사
 const DEFAULT_OPPORTUNITY_LIMIT = 10;
-
-function resolveRequestLocale(req: NextRequest) {
-  const countryCode = String(
-    req.headers.get("x-vercel-ip-country") ||
-      req.headers.get("cf-ipcountry") ||
-      ""
-  )
-    .trim()
-    .toUpperCase();
-
-  if (countryCode === "KR") return "ko";
-  if (countryCode && countryCode !== "ZZ") return "en";
-
-  const acceptedLanguages = String(req.headers.get("accept-language") ?? "")
-    .split(",")
-    .map((item) => item.split(";")[0]?.trim().toLowerCase())
-    .filter(Boolean);
-
-  for (const language of acceptedLanguages) {
-    if (language === "ko" || language?.startsWith("ko-")) return "ko";
-    if (language === "en" || language?.startsWith("en-")) return "en";
-  }
-
-  return null;
-}
 
 const getLatestUpdatedAt = (...values: Array<string | null | undefined>) => {
   const timestamps = values
@@ -163,7 +137,6 @@ const createEmptyHistoryCounts = () => ({
   saved: 0,
   savedStages: {
     saved: 0,
-    planned: 0,
     applied: 0,
     connected: 0,
     closed: 0,
@@ -291,12 +264,6 @@ export async function GET(req: NextRequest) {
       }),
       userId: user.id,
     });
-    const firstVisitLocale =
-      initialTalentSetting?.preferred_locale ??
-      req.nextUrl.searchParams.get("locale") ??
-      req.cookies.get("NEXT_LOCALE")?.value ??
-      resolveRequestLocale(req);
-
     const { data: existing, error: existingError } = await admin
       .from("talent_conversations")
       .select("*")
@@ -337,38 +304,6 @@ export async function GET(req: NextRequest) {
         );
       }
       conversation = inserted as TalentConversationRow;
-
-      const { error: firstMessageError } = await admin
-        .from("talent_messages")
-        .insert(
-          withIsMobile(
-            {
-              conversation_id: conversation.id,
-              user_id: user.id,
-              role: "assistant",
-              content: getTalentFirstVisitText(firstVisitLocale),
-              message_type: "system",
-            },
-            isMobile
-          )
-        );
-
-      if (firstMessageError) {
-        await admin
-          .from("talent_conversations")
-          .delete()
-          .eq("id", conversation.id)
-          .eq("user_id", user.id);
-
-        return NextResponse.json(
-          {
-            error:
-              firstMessageError.message ??
-              "Failed to initialize first onboarding message",
-          },
-          { status: 500 }
-        );
-      }
     }
 
     let profile = await fetchTalentUserProfile({ admin, userId: user.id });
@@ -388,11 +323,18 @@ export async function GET(req: NextRequest) {
 
     if (req.nextUrl.searchParams.get("statusOnly") === "1") {
       const hasFirstSubmission = hasTalentFirstSubmission(profile);
+      const isOnboardingDone = Boolean(
+        initialTalentSetting?.is_onboarding_done
+      );
+      const needsOnboarding =
+        conversation.stage === "profile" &&
+        !hasFirstSubmission &&
+        !isOnboardingDone;
 
       return NextResponse.json({
         ok: true,
         hasFirstSubmission,
-        needsOnboarding: !hasFirstSubmission,
+        needsOnboarding,
         conversation: {
           id: conversation.id,
           stage: conversation.stage,

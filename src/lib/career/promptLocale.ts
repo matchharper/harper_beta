@@ -16,7 +16,7 @@ export function parseCareerPromptLocale(
 export function normalizeCareerPromptLocale(
   value: unknown
 ): CareerPromptLocale {
-  return parseCareerPromptLocale(value) ?? "ko";
+  return parseCareerPromptLocale(value) ?? "en";
 }
 
 export function getCareerPromptLanguageName(value: unknown) {

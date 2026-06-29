@@ -1780,7 +1780,7 @@ function AudienceModeCard({
       : "object-[50%_44%] brightness-[0.74] contrast-[1.06] saturate-[0.95]";
 
   return (
-    <div className="relative flex min-h-[300px] overflow-hidden rounded-[12px] bg-neutral-950 p-4 text-white ring-1 ring-black/[0.06] md:min-h-[340px] md:p-5">
+    <div className="relative flex min-h-[300px] overflow-hidden rounded-[12px] bg-neutral-950 p-4 text-white ring-1 ring-black/[0.06] md:min-h-[340px] md:p-4">
       <Image
         src={card.imageSrc}
         alt=""

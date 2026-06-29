@@ -55,12 +55,9 @@ const CareerWorkspacePage = ({
     isRouterReady && typeof router.query.panel === "string"
       ? router.query.panel
       : null;
-  const deliveryEmailHistoryLinkEntry =
-    isRouterReady
-      ? getSingleQueryParam(
-          router.query[DELIVERY_EMAIL_HISTORY_LINK_ENTRY_PARAM]
-        )
-      : null;
+  const deliveryEmailHistoryLinkEntry = isRouterReady
+    ? getSingleQueryParam(router.query[DELIVERY_EMAIL_HISTORY_LINK_ENTRY_PARAM])
+    : null;
   const isDeliveryEmailHistoryLinkEntry =
     deliveryEmailHistoryLinkEntry === DELIVERY_EMAIL_HISTORY_LINK_ENTRY_VALUE;
 
@@ -75,6 +72,7 @@ const CareerWorkspacePage = ({
     emailOnboardingToken,
     inviteToken,
     mail,
+    userId: user?.id ?? null,
   });
   useCareerVisitLog(!authLoading && isRouterReady && Boolean(user));
 

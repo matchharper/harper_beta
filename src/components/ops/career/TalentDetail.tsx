@@ -219,6 +219,7 @@ export const TalentDetail = memo(function TalentDetail({
                   {onboardingStatusLabel(detail.isOnboardingDone)}
                 </span>
               </span>
+              <span>가입: {formatKst(detail.createdAt)}</span>
               <span>마지막 대화: {formatKst(detail.lastConversationAt)}</span>
               <span>
                 공개 범위:{" "}

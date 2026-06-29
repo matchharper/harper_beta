@@ -6,7 +6,6 @@ export const ADDITIONAL_INTERNAL_ALLOWED_EMAILS = [
 ] as const;
 export const CAREER_TRANSLATION_INSPECT_ALLOWED_EMAILS = [
   "khj605123@gmail.com",
-  "khj6051@optimizerai.xyz",
 ] as const;
 
 function normalizeEmail(value: string | null | undefined) {

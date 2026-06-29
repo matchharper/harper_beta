@@ -142,5 +142,10 @@ const MATCHING_REVIEW_STAGE_TAG_SET: ReadonlySet<string> = new Set(
 );
 
 export function isMatchingReviewStageTag(value: string | null | undefined) {
-  return MATCHING_REVIEW_STAGE_TAG_SET.has(String(value ?? "").trim());
+  const normalized = String(value ?? "").trim();
+  return (
+    MATCHING_REVIEW_STAGE_TAG_SET.has(normalized) ||
+    normalized.startsWith("내부:") ||
+    normalized.startsWith("내부단계:")
+  );
 }

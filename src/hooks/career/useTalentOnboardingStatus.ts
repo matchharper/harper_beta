@@ -9,12 +9,16 @@ type OnboardingStatus = {
   needsOnboarding: boolean;
 };
 
+export const talentOnboardingStatusQueryKey = (userId?: string | null) =>
+  ["talentOnboardingStatus", userId?.trim() || "anonymous"] as const;
+
 export function talentOnboardingStatusQueryOptions(
   fetchWithAuth: (url: string, init?: RequestInit) => Promise<Response>,
-  enabled: boolean
+  enabled: boolean,
+  userId?: string | null
 ) {
   return queryOptions({
-    queryKey: ["talentOnboardingStatus"] as const,
+    queryKey: talentOnboardingStatusQueryKey(userId),
     queryFn: async (): Promise<OnboardingStatus> => {
       const response = await fetchWithAuth("/api/talent/onboarding/status");
       if (!response.ok) {
@@ -26,13 +30,19 @@ export function talentOnboardingStatusQueryOptions(
       return { needsOnboarding: payload.needsOnboarding === true };
     },
     enabled,
-    staleTime: 60_000,
+    refetchOnMount: "always",
+    staleTime: 0,
   });
 }
 
-export function useTalentOnboardingStatus(enabled: boolean) {
+export function useTalentOnboardingStatus(
+  enabled: boolean,
+  userId?: string | null
+) {
   const { fetchWithAuth } = useCareerApi();
-  return useQuery(talentOnboardingStatusQueryOptions(fetchWithAuth, enabled));
+  return useQuery(
+    talentOnboardingStatusQueryOptions(fetchWithAuth, enabled, userId)
+  );
 }
 
 export function useTalentOnboardingRedirect({
@@ -40,15 +50,20 @@ export function useTalentOnboardingRedirect({
   enabled,
   inviteToken,
   mail,
+  userId,
 }: {
   emailOnboardingToken?: string | null;
   enabled: boolean;
   inviteToken: string | null;
   mail: string | null;
+  userId?: string | null;
 }) {
   const router = useRouter();
-  const { data } = useTalentOnboardingStatus(enabled);
-  const needsOnboarding = data?.needsOnboarding === true;
+  const statusQuery = useTalentOnboardingStatus(enabled, userId);
+  const needsOnboarding =
+    statusQuery.isSuccess &&
+    statusQuery.isFetchedAfterMount &&
+    statusQuery.data?.needsOnboarding === true;
 
   useEffect(() => {
     if (!needsOnboarding) return;

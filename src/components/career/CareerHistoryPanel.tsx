@@ -241,15 +241,13 @@ export const getSavedStageLabel = (
   if (stage === "applied") {
     return t("career.common.career_history_panel.applied", "지원함");
   }
-  if (stage === "planned")
-    return t("career.common.career_history_panel.planned", "지원 예정");
   if (stage === "connected")
     return t("career.common.career_history_panel.0y27adb", "진행중");
   if (stage === "closed")
     return t("career.common.career_history_panel.1hsndwk", "진행 종료");
   if (stage === "hidden")
     return t("career.common.career_history_panel.1aylp85", "보관함");
-  return t("career.common.career_history_panel.06mgpci", "관심 있음");
+  return t("career.common.career_history_panel.interested_status", "관심 있음");
 };
 
 export const getOpportunityStatusLabel = (
@@ -597,7 +595,6 @@ const CareerHistoryPanel = () => {
     () =>
       getSavedOpportunityStatusOptions(t, {
         includeAll: true,
-        includePlanned: false,
       }),
     [t]
   );
@@ -857,7 +854,6 @@ const CareerHistoryPanel = () => {
       CareerHistoryOpportunity[]
     > = {
       saved: [],
-      planned: [],
       applied: [],
       connected: [],
       closed: [],
@@ -899,7 +895,6 @@ const CareerHistoryPanel = () => {
     () =>
       [
         ...savedItemsByStage.saved,
-        ...savedItemsByStage.planned,
         ...savedItemsByStage.applied,
         ...savedItemsByStage.connected,
         ...savedItemsByStage.closed,
@@ -907,7 +902,6 @@ const CareerHistoryPanel = () => {
       ].sort(compareRecommendedAtDesc),
     [
       savedItemsByStage.saved,
-      savedItemsByStage.planned,
       savedItemsByStage.applied,
       savedItemsByStage.connected,
       savedItemsByStage.closed,
@@ -1617,7 +1611,6 @@ const CareerHistoryPanel = () => {
           if (id === "saved") {
             return (
               historyOpportunityCounts.savedStages.saved +
-              historyOpportunityCounts.savedStages.planned +
               historyOpportunityCounts.savedStages.applied +
               historyOpportunityCounts.savedStages.connected +
               historyOpportunityCounts.savedStages.closed
@@ -1632,7 +1625,6 @@ const CareerHistoryPanel = () => {
       historyOpportunityCounts.savedStages.closed,
       historyOpportunityCounts.savedStages.connected,
       historyOpportunityCounts.savedStages.hidden,
-      historyOpportunityCounts.savedStages.planned,
       historyOpportunityCounts.savedStages.saved,
       historyDisplayTabs,
     ]
@@ -1744,7 +1736,6 @@ const CareerHistoryPanel = () => {
     () => ({
       all:
         historyOpportunityCounts.savedStages.saved +
-        historyOpportunityCounts.savedStages.planned +
         historyOpportunityCounts.savedStages.applied +
         historyOpportunityCounts.savedStages.connected +
         historyOpportunityCounts.savedStages.closed,
@@ -1752,17 +1743,13 @@ const CareerHistoryPanel = () => {
       closed: historyOpportunityCounts.savedStages.closed,
       connected: historyOpportunityCounts.savedStages.connected,
       hidden: historyOpportunityCounts.savedStages.hidden,
-      planned: historyOpportunityCounts.savedStages.planned,
-      saved:
-        historyOpportunityCounts.savedStages.saved +
-        historyOpportunityCounts.savedStages.planned,
+      saved: historyOpportunityCounts.savedStages.saved,
     }),
     [
       historyOpportunityCounts.savedStages.applied,
       historyOpportunityCounts.savedStages.closed,
       historyOpportunityCounts.savedStages.connected,
       historyOpportunityCounts.savedStages.hidden,
-      historyOpportunityCounts.savedStages.planned,
       historyOpportunityCounts.savedStages.saved,
     ]
   );
@@ -1770,9 +1757,6 @@ const CareerHistoryPanel = () => {
     return savedItems.filter((item) => {
       const status = getSavedOpportunityManagementStatus(item);
       if (activeSavedStatus === "all") return status !== "hidden";
-      if (activeSavedStatus === "saved") {
-        return status === "saved" || status === "planned";
-      }
       return status === activeSavedStatus;
     });
   }, [activeSavedStatus, savedItems]);
