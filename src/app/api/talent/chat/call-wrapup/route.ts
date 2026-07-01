@@ -570,6 +570,9 @@ export async function POST(request: NextRequest) {
               transcript: resolvedTranscript,
             }),
         skipConversationWrites,
+        usageLabel: internalCallRequest
+          ? "career/chat:internal_opportunity_call_wrapup"
+          : "career/chat:call_wrapup",
         userId: user.id,
       });
 

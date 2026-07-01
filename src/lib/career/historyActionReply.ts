@@ -137,6 +137,7 @@ export async function createTalentOpportunityFeedbackFollowUpReply(args: {
     isMobile: args.isMobile,
     pendingOpportunityFeedbackContext: feedbackContext,
     proactiveContext,
+    usageLabel: "career/chat:opportunity_feedback_followup",
     shouldInsertAssistantMessage: usingFallbackOnly
       ? undefined
       : async () => {

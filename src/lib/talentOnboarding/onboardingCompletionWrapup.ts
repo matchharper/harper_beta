@@ -382,6 +382,7 @@ export async function generateOnboardingCompletionWrapupContent(args: {
     stopAfterToolNames: [],
     systemBlocks: promptPlan.promptBlocks,
     tools: wrapupTools,
+    usageLabel: "career/chat:onboarding_completion_wrapup",
   });
 
   return normalizeWrapupContent(generated);
@@ -464,6 +465,7 @@ export async function generateOnboardingCompletionNextStepsContent(args: {
     stopAfterToolNames: [],
     systemBlocks: promptPlan.promptBlocks,
     tools: [],
+    usageLabel: "career/chat:onboarding_completion_next_steps",
   });
 
   return normalizeNextStepsContent(generated);

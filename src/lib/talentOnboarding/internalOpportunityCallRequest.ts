@@ -668,7 +668,7 @@ async function decideInternalOpportunityCallRequest(args: {
     ],
     primaryModel: CAREER_LLM_CONFIG.assistant.primaryModel,
     temperature: CAREER_LLM_CONFIG.internalOpportunityCallRequest.temperature,
-    usageLabel: "career/internal-opportunity-call-request",
+    usageLabel: "career/internal-opportunity-call-request:decision",
   });
 
   const decision = parseDecision(raw);
@@ -784,8 +784,8 @@ export function buildInternalOpportunityCallProactiveInstruction(
       : "",
     "",
     "In the assistant reply:",
-    "- First, Thank the user and guide internal opportunity connection process based on '## Internal opportunity accepted or liked'",
-    "- and say the company-side introduction/process will continue and is not blocked by the call.",
+    "- First, Thank the user and guide internal opportunity connection process",
+    "- and emphasize that the company-side introduction/process will continue and is not blocked by the call, and this call is optional, not required. with bold.",
     "- Then, at the next paragraph, refer about the call request. Offer the call as optional, short, and not evaluative.",
     "- Mention the user can also ask questions about the company/process in the call.",
     "- Do not include the call button text manually; the UI card will be attached automatically.",

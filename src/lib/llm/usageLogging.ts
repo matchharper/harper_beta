@@ -109,6 +109,7 @@ const LLM_LOG_TOOL_NAMES = [
 const LLM_LOG_SOURCES: readonly string[] = [
   "career/profile_ingestion",
   "career/chat",
+  "career/internal-opportunity-call-request",
   ...LLM_LOG_TOOL_NAMES.map((name) => `career_tool:${name}`),
 ];
 

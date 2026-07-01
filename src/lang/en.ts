@@ -1127,6 +1127,7 @@ export const en = {
     "career.home.career_mobile_home_view.greeting_name_ko": "Hi {name}",
     "career.home.career_mobile_home_view.summary_count_label": "{count} {label}",
     "career.home.loading": "Loading home",
+    "career.internal_opportunity.call_request_created": "One more thing, would you be open to a short call with me?\n\nThis is not an evaluation call. For the {companyName} {roleTitle} connection, I'd like to quickly ask a few role-related questions so I can represent you more accurately to the company.\n\n- I'll briefly cover the points companies usually ask about\n- Your answers help me make the introduction more concrete\n- The connection process continues even if you do not take the call\n\nYou can start below whenever it is convenient.",
     "career.internal_opportunity.call_opening": "For the {companyName} {roleTitle} connection, I'd like to quickly ask a few things so I can represent you well to the company.",
     "career.job_posting_recommendations.answer.default_fit_reason": "This opportunity aligns with your requested scope of work.",
     "career.job_posting_recommendations.answer.details_label": "Details",

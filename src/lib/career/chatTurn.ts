@@ -111,6 +111,7 @@ export type RunCareerChatTurnArgs = {
   proactiveContext?: string | null;
   shouldInsertAssistantMessage?: () => Promise<boolean>;
   skipConversationWrites?: boolean;
+  usageLabel?: string;
   userId: string;
   userMessage?: string | null;
 };
@@ -958,6 +959,7 @@ export async function runCareerChatTurn(
     stopAfterToolNames: toolSelection.stopAfterToolNames,
     systemBlocks: promptBlocks,
     tools: toolDefinitions,
+    usageLabel: args.usageLabel,
   });
 
   const progress = {
@@ -1051,6 +1053,7 @@ export async function runCareerChatTurn(
         messages: assistantTurnMessages,
         responseLocale,
         systemBlocks: promptBlocks,
+        usageLabel: args.usageLabel,
       })
     ).trim();
   }
@@ -1099,6 +1102,7 @@ export async function runCareerChatTurn(
         messages: assistantTurnMessages,
         responseLocale,
         systemBlocks: promptBlocks,
+        usageLabel: args.usageLabel,
       })
     ).trim();
     if (!recoveredText) {

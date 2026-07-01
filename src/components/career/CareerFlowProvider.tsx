@@ -459,7 +459,7 @@ export const CareerFlowProvider = ({
 
   const enqueueHistoryActionAssistantMessage = useCallback(
     (message: CareerMessagePayload) => {
-      void (async () => {
+      return (async () => {
         await enqueueAssistantTypewriter(toUiMessage(message));
         appendLatestMessagesToCache([message]);
       })();
@@ -721,6 +721,7 @@ export const CareerFlowProvider = ({
       messageType?: TalentUserChatMessageType;
       onError?: () => void;
     }) => {
+      if (opportunityFeedbackFollowUpPending) return;
       clearSessionReengagementAction();
       cancelPendingCompanyFollowUp();
       cancelPendingOpportunityFeedbackFollowUp();
@@ -732,6 +733,7 @@ export const CareerFlowProvider = ({
       cancelPendingCompanyFollowUp,
       cancelPendingOpportunityFeedbackFollowUp,
       clearSessionReengagementAction,
+      opportunityFeedbackFollowUpPending,
       profilePending,
       sendChatMessageBase,
     ]

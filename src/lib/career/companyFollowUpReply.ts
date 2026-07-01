@@ -78,6 +78,7 @@ export async function createTalentCompanyFollowFollowUpReply(args: {
       item,
       preferredLocale,
     }),
+    usageLabel: "career/chat:company_follow_followup",
     shouldInsertAssistantMessage: async () => {
       const latestItem = await fetchTalentCompanyWatchlistDetail({
         admin: args.admin,

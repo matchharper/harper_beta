@@ -18,11 +18,13 @@ export type OpportunityRunMode = "initial" | "immediate" | "refine" | "refresh";
 export type OpportunityDiscoveryAgentVariant =
   | "tool_agent"
   | "new_rule"
+  | "new_v2"
+  | "new_harper_agent_v2"
   | "scripted"
   | "scripted_human";
 
 export const DEFAULT_OPPORTUNITY_DISCOVERY_AGENT_VARIANT: OpportunityDiscoveryAgentVariant =
-  "new_rule";
+  "new_harper_agent_v2";
 
 export type OpportunityIngestionTrigger =
   | "scheduled_refresh"

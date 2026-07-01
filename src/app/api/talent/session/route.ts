@@ -43,6 +43,7 @@ import {
   CAREER_SESSION_START_NO_MESSAGE_MARKER,
 } from "@/lib/career/prompts";
 import { fetchPendingInternalOpportunityCallRequests } from "@/lib/talentOnboarding/internalOpportunityCallRequest";
+import { TALENT_TOOL_NAMES } from "@/lib/talentOnboarding/tools";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 
 // const REENGAGEMENT_IDLE_MS = 60 * 1000;
@@ -228,6 +229,7 @@ async function generateSessionStartGreeting(args: {
   } = args;
 
   const result = await runCareerChatTurn({
+    allowedToolNames: [TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS],
     admin,
     conversationId,
     isMobile: args.isMobile,
@@ -238,6 +240,7 @@ async function generateSessionStartGreeting(args: {
       preferredLocale: args.preferredLocale,
       previousChatAt,
     }),
+    usageLabel: "career/chat:session_start_greeting",
     userId,
   });
 

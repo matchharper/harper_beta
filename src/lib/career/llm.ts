@@ -1117,8 +1117,10 @@ export async function runCareerChatAssistant(args: {
   }) => void | Promise<void>;
   modelConfig?: CareerAssistantModelConfig;
   responseLocale?: string | null;
+  usageLabel?: string;
 }) {
   const modelConfig = args.modelConfig ?? assistantModelConfig();
+  const usageLabel = args.usageLabel ?? "career/chat:assistant";
   const outputLanguage = getCareerPromptLanguageName(args.responseLocale);
   const fallbackWithExistingClient = (
     activeModelConfig: CareerAssistantModelConfig = modelConfig
@@ -1138,7 +1140,7 @@ export async function runCareerChatAssistant(args: {
         stopAfterToolNames: args.stopAfterToolNames,
         temperature: CAREER_LLM_CONFIG.chat.temperature,
         tools: args.tools,
-        usageLabel: "career/chat:assistant",
+        usageLabel,
       });
     }
 
@@ -1146,7 +1148,7 @@ export async function runCareerChatAssistant(args: {
       ...activeModelConfig,
       messages: fallbackMessages,
       temperature: CAREER_LLM_CONFIG.chat.temperature,
-      usageLabel: "career/chat:assistant",
+      usageLabel,
     });
   };
 
@@ -1171,7 +1173,7 @@ export async function runCareerChatAssistant(args: {
         model: modelConfig.primaryModel,
         systemBlocks: args.systemBlocks,
         temperature: CAREER_LLM_CONFIG.chat.temperature,
-        usageLabel: "career/chat:assistant",
+        usageLabel,
       });
       if (text) return text;
       return recoverVisibleTextFromAnthropicMessages({
@@ -1180,7 +1182,7 @@ export async function runCareerChatAssistant(args: {
         reason: "empty_text_without_tools",
         responseLocale: args.responseLocale,
         systemBlocks: args.systemBlocks,
-        usageLabel: "career/chat:assistant",
+        usageLabel,
       });
     }
 
@@ -1200,7 +1202,7 @@ export async function runCareerChatAssistant(args: {
         temperature: CAREER_LLM_CONFIG.chat.temperature,
         toolCostAttribution,
         tools: args.tools,
-        usageLabel: "career/chat:assistant",
+        usageLabel,
       });
 
       const assistantBlocks = Array.isArray(response.content)
@@ -1221,7 +1223,7 @@ export async function runCareerChatAssistant(args: {
           reason: "empty_text_without_tool_use",
           responseLocale: args.responseLocale,
           systemBlocks: args.systemBlocks,
-          usageLabel: "career/chat:assistant",
+          usageLabel,
         });
       }
 
@@ -1342,7 +1344,7 @@ export async function runCareerChatAssistant(args: {
               toolNames: pendingToolResultAttribution,
             }
           : undefined,
-      usageLabel: "career/chat:assistant",
+      usageLabel,
     });
     if (finalText) return finalText;
     return recoverVisibleTextFromAnthropicMessages({
@@ -1351,7 +1353,7 @@ export async function runCareerChatAssistant(args: {
       reason: "empty_text_after_tool_budget",
       responseLocale: args.responseLocale,
       systemBlocks: args.systemBlocks,
-      usageLabel: "career/chat:assistant",
+      usageLabel,
     });
   } catch (error) {
     const nativeFallback = resolveNativeAnthropicFallbackModelConfig(
@@ -1377,6 +1379,7 @@ export async function recoverCareerChatAssistantText(args: {
   onTextDelta?: (delta: string) => void | Promise<void>;
   responseLocale?: string | null;
   systemBlocks: CareerChatSystemBlock[];
+  usageLabel?: string;
 }) {
   const workingMessages: AnthropicMessage[] = args.messages
     .filter((message) => message.content.trim().length > 0)
@@ -1400,7 +1403,7 @@ export async function recoverCareerChatAssistantText(args: {
     reason: "route_empty_assistant_text",
     responseLocale: args.responseLocale,
     systemBlocks: args.systemBlocks,
-    usageLabel: "career/chat:assistant",
+    usageLabel: args.usageLabel ?? "career/chat:assistant",
   });
 }
 
@@ -1421,8 +1424,10 @@ export async function runCareerChatAssistantStream(args: {
   tools: TalentChatTool[];
   modelConfig?: CareerAssistantModelConfig;
   responseLocale?: string | null;
+  usageLabel?: string;
 }) {
   const modelConfig = args.modelConfig ?? assistantModelConfig();
+  const usageLabel = args.usageLabel ?? "career/chat:assistant";
   if (!shouldUseAnthropicNativeMessages(modelConfig.primaryModel)) {
     const text = await runCareerChatAssistant({
       executeTool: args.executeTool,
@@ -1435,6 +1440,7 @@ export async function runCareerChatAssistantStream(args: {
       systemBlocks: args.systemBlocks,
       tools: args.tools,
       responseLocale: args.responseLocale,
+      usageLabel,
     });
     if (text) {
       await args.onTextDelta(text);
@@ -1470,7 +1476,7 @@ export async function runCareerChatAssistantStream(args: {
         onTextDelta: forwardTextDelta,
         systemBlocks: args.systemBlocks,
         temperature: CAREER_LLM_CONFIG.chat.temperature,
-        usageLabel: "career/chat:assistant",
+        usageLabel,
       });
       if (text) return text;
       return recoverVisibleTextFromAnthropicMessages({
@@ -1480,7 +1486,7 @@ export async function runCareerChatAssistantStream(args: {
         reason: "stream_empty_text_without_tools",
         responseLocale: args.responseLocale,
         systemBlocks: args.systemBlocks,
-        usageLabel: "career/chat:assistant",
+        usageLabel,
       });
     }
 
@@ -1510,7 +1516,7 @@ export async function runCareerChatAssistantStream(args: {
         temperature: CAREER_LLM_CONFIG.chat.temperature,
         toolCostAttribution,
         tools: args.tools,
-        usageLabel: "career/chat:assistant",
+        usageLabel,
       });
 
       const assistantBlocks = Array.isArray(response.content)
@@ -1532,7 +1538,7 @@ export async function runCareerChatAssistantStream(args: {
             reason: "stream_empty_text_without_tool_use",
             responseLocale: args.responseLocale,
             systemBlocks: args.systemBlocks,
-            usageLabel: "career/chat:assistant",
+            usageLabel,
           });
           return getForwardedVisibleText() || recoveredText;
         }
@@ -1651,7 +1657,7 @@ export async function runCareerChatAssistantStream(args: {
                 toolNames: attemptedToolNames,
               }
             : undefined,
-        usageLabel: "career/chat:assistant",
+        usageLabel,
       });
       if (finalText) return getForwardedVisibleText() || finalText;
       const recoveredText = await recoverVisibleTextFromAnthropicMessages({
@@ -1661,7 +1667,7 @@ export async function runCareerChatAssistantStream(args: {
         reason: "stream_empty_text_after_tool",
         responseLocale: args.responseLocale,
         systemBlocks: args.systemBlocks,
-        usageLabel: "career/chat:assistant",
+        usageLabel,
       });
       return getForwardedVisibleText() || recoveredText;
     }
@@ -1673,7 +1679,7 @@ export async function runCareerChatAssistantStream(args: {
         onTextDelta: forwardTextDelta,
         systemBlocks: args.systemBlocks,
         temperature: CAREER_LLM_CONFIG.chat.temperature,
-        usageLabel: "career/chat:assistant",
+        usageLabel,
       });
       if (finalText) return getForwardedVisibleText() || finalText;
       const recoveredText = await recoverVisibleTextFromAnthropicMessages({
@@ -1683,7 +1689,7 @@ export async function runCareerChatAssistantStream(args: {
         reason: "stream_empty_text_after_tool_loop",
         responseLocale: args.responseLocale,
         systemBlocks: args.systemBlocks,
-        usageLabel: "career/chat:assistant",
+        usageLabel,
       });
       return getForwardedVisibleText() || recoveredText;
     }
@@ -1702,7 +1708,7 @@ export async function runCareerChatAssistantStream(args: {
       systemBlocks: args.systemBlocks,
       temperature: CAREER_LLM_CONFIG.chat.temperature,
       tools: args.tools,
-      usageLabel: "career/chat:assistant",
+      usageLabel,
     });
 
     const finalText = extractAnthropicText(finalResponse.content);
@@ -1715,7 +1721,7 @@ export async function runCareerChatAssistantStream(args: {
         reason: "stream_empty_final_response",
         responseLocale: args.responseLocale,
         systemBlocks: args.systemBlocks,
-        usageLabel: "career/chat:assistant",
+        usageLabel,
       });
     }
     const forwardedText = getForwardedVisibleText();
@@ -1732,7 +1738,7 @@ export async function runCareerChatAssistantStream(args: {
         responseLocale: args.responseLocale,
         skipNativeRetry: true,
         systemBlocks: args.systemBlocks,
-        usageLabel: "career/chat:assistant",
+        usageLabel,
       });
       if (recoveredText) return getForwardedVisibleText() || recoveredText;
     }
@@ -1759,6 +1765,7 @@ export async function runCareerChatAssistantStream(args: {
       systemBlocks: args.systemBlocks,
       tools: args.tools,
       responseLocale: args.responseLocale,
+      usageLabel,
     });
     if (text) {
       await args.onTextDelta(text);

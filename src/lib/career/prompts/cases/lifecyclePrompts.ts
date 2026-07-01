@@ -60,7 +60,7 @@ export function buildCareerSessionStartTurnInstruction(args: {
     "이미 명확한 다음 액션이 진행 중이라 사용자의 답이 필요 없거나, 질문이 오히려 어색하면 질문 없이 짧은 상태 공유로 닫아도 된다.",
     `hoursSincePreviousChat이 1344 이상이고, 최근 활동/추천/프로필 변경에서 바로 이어갈 만한 명확한 업데이트가 없다면 "오랜만이라 최근 업데이트나 재밌게 하는 일이 있는지 통화로 한번 듣고 싶다"는 취지로 자연스럽게 말한 뒤 응답 맨 끝에 ${CAREER_SESSION_START_CALL_ACTION_MARKER} 를 붙여라.`,
     `${CAREER_SESSION_START_CALL_ACTION_MARKER} 는 UI가 전화하기 버튼을 표시하는 데 쓰는 마커다. 이 마커를 설명하거나 따옴표로 감싸지 마라.`,
-    "텍스트 채팅에 표시되므로 필요하면 회사명, 역할명, 방향성 같은 핵심 단어에 가벼운 inline markdown 강조(**...**)를 사용해라. 긴 heading이나 bullet list는 쓰지 마라.",
+    "텍스트 채팅에 표시되므로 필요하면 회사명, 역할명, 방향성 같은 핵심 단어에 가벼운 inline markdown 강조(**...**)를 사용해라.",
   ].join("\n");
 }
 
@@ -155,7 +155,7 @@ export function buildCareerOpportunityFeedbackFollowUpTurnInstruction(args: {
 
   return [
     "## Opportunity feedback proactive assistant turn",
-    `Always write the user-visible reply in ${outputLanguage}.`,
+    `Always write the user-visible reply in ${outputLanguage}, using markdown`,
     "The user clicked like/dislike on one or more recommended opportunities. They did not send a new chat message. It is Harper's turn to proactively respond using the normal career/chat behavior and tool policy.",
     `TRIGGER: ${args.trigger}`,
     ...clearedOpportunityGuidance,
@@ -169,6 +169,7 @@ export function buildCareerOpportunityFeedbackFollowUpTurnInstruction(args: {
     "Feedback-specific rules:",
     "- If several opportunities were disliked and no specific reasons were provided, acknowledge the count and ask what did not fit. Offer concrete choices such as role scope, company/domain, team style, seniority, location/work mode, or timing.",
     "- If internal connection/request opportunities were liked, treat that as confirmed acceptance. Thank them briefly, say Harper will proceed with the company-side introduction, and do not ask whether to connect/proceed again. explain that Harper will time the introduction thoughtfully and company-side schedules can take a little time. Frame it as Harper mediating a better-fit connection, not as a normal application.",
+    "- For internal accepted feedback, Keep the company-side process update separate from any follow-up question. Do not say the process continues 'regardless of what I am saying now'; say plainly that the connection process will proceed independently.",
     "- and if the profile context shows no resume file/link, mention that a resume usually improves review and companies often ask for it. Ask whether Harper should tell the company there is no updated resume yet, and invite them to upload one if they have it.",
     "",
     "- For accepted feedback, 너가 아는 유저의 선호/니즈와 다른 부분이 있다면 그 부분에 대해서 물어봐라. ex. current location - role location mismatch, company/domain, etc.",

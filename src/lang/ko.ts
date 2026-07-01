@@ -1155,6 +1155,7 @@ export const ko = {
     "career.home.career_mobile_home_view.greeting_name_ko": "안녕하세요 {name}님",
     "career.home.career_mobile_home_view.summary_count_label": "{count}개의 {label}",
     "career.home.loading": "홈 로딩 중",
+    "career.internal_opportunity.call_request_created": "추가로, 혹시 저와 짧게 통화 가능하신가요?\n\n평가 목적의 통화는 아니고, {companyName} {roleTitle} 연결 건으로 회사에 더 정확히 소개드리기 위해 역할 관련 질문 몇 가지만 확인하려고 합니다.\n\n- 회사 쪽이 보통 궁금해하는 부분을 짧게 확인할 예정이에요\n- 답변해주시면 소개 자료를 더 구체적으로 만들 수 있어요\n- 통화하지 않으셔도 연결 프로세스는 그대로 진행됩니다\n\n편하실 때 아래에서 바로 진행해주세요.",
     "career.internal_opportunity.call_opening": "{companyName} {roleTitle} 연결 건으로, 회사에 더 잘 전달할 수 있게 짧게 몇 가지를 확인하고 싶어요.",
     "career.job_posting_recommendations.answer.default_fit_reason": "현재 요청과 맞는 업무 범위가 있습니다.",
     "career.job_posting_recommendations.answer.details_label": "조건",

@@ -1,6 +1,6 @@
 import React, { type ReactNode } from "react";
 import { useRouter } from "next/router";
-import { AudioLines, FileText, Mail, Phone } from "lucide-react";
+import { AudioLines, FileText, Mail, Phone, PhoneOutgoing } from "lucide-react";
 import type {
   CareerCallStartRequest,
   CareerMessage,
@@ -33,7 +33,7 @@ export const ASSISTANT_BUBBLE_CLASS =
   "w-fit max-w-[920px] text-neutral-primary";
 
 export const CAREER_MESSAGE_LINK_CLASS =
-  "inline-flex max-w-full cursor-pointer items-center align-baseline rounded-md bg-accent-100 px-2 py-1.5 text-left text-accent-400 no-underline wrap-break-word transition-colors hover:bg-accent-300 hover:text-accent-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-300/60";
+  "inline-flex max-w-full cursor-pointer items-center align-baseline rounded-md bg-accent-100/80 px-1.5 py-0 text-left text-accent-500 no-underline wrap-break-word transition-colors hover:bg-accent-200/60 hover:text-accent-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-300/60";
 
 const HIGHLIGHT_PATTERN = /<<([\s\S]+?)>>/g;
 const URL_PATTERN = /(https?:\/\/[^\s]+)/g;
@@ -41,6 +41,7 @@ const CALL_ACTION_MARKER = "[[CALL]]";
 const CAREER_CHOICE_BUTTONS_START_FRAGMENT = "[[CAREER_CHOICE_BUTTONS";
 const CAREER_CHOICE_BUTTONS_PATTERN =
   /\[\[CAREER_CHOICE_BUTTONS\]\]\s*([\s\S]*?)\s*\[\[\/CAREER_CHOICE_BUTTONS\]\]/g;
+const INTERNAL_CALL_REQUEST_START_FRAGMENT = "[[INTERNAL_";
 const INTERNAL_CALL_REQUEST_PATTERN =
   /\[\[INTERNAL_OPPORTUNITY_CALL_REQUEST:([^\]]+)\]\]/g;
 
@@ -167,7 +168,7 @@ function toInternalCallRequestMarker(
 
 function extractInternalCallRequestMarkers(content: string) {
   const markers: InternalCallRequestMarker[] = [];
-  const strippedContent = content
+  let strippedContent = content
     .replace(INTERNAL_CALL_REQUEST_PATTERN, (_match, encoded: string) => {
       try {
         const parsed = JSON.parse(decodeURIComponent(encoded)) as unknown;
@@ -179,6 +180,12 @@ function extractInternalCallRequestMarkers(content: string) {
       return "";
     })
     .trim();
+  const incompleteMarkerStart = strippedContent.indexOf(
+    INTERNAL_CALL_REQUEST_START_FRAGMENT
+  );
+  if (incompleteMarkerStart !== -1) {
+    strippedContent = strippedContent.slice(0, incompleteMarkerStart).trim();
+  }
 
   return {
     content: strippedContent,
@@ -209,7 +216,9 @@ function renderTextWithLinks(
           type="button"
           onClick={() => onHarperLinkClick(href)}
           title={href}
-          className={cn("border-0 font-[inherit]", CAREER_MESSAGE_LINK_CLASS)}
+          className={cn(
+            "border-0 font-[inherit] text-accent-500 underline decoration-dotted underline-offset-2 hover:text-accent-500/90"
+          )}
         >
           {compactUrlLabel(href)}
         </BareButton>
@@ -224,7 +233,7 @@ function renderTextWithLinks(
         target="_blank"
         rel="noreferrer"
         title={href}
-        className={CAREER_MESSAGE_LINK_CLASS}
+        className="text-accent-500 underline decoration-dotted underline-offset-2 hover:text-accent-500/90"
       >
         {compactUrlLabel(href)}
       </a>
@@ -449,75 +458,73 @@ const CareerMessageBubble = ({
           {internalCallRequestMarkers.map((marker) => (
             <div
               key={marker.callId}
-              className="mt-3 w-fit max-w-full rounded-[8px] border border-neutral-1000-a10 bg-bg-floating px-3 py-3 text-neutral-primary shadow-sm"
+              className="mt-3 w-[94%] max-w-[400px] rounded-md border border-neutral-200 bg-bg-floating px-2 py-2 text-neutral-primary"
             >
-              <div className="flex items-start gap-3">
-                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-bg-weak text-neutral-muted">
-                  <Phone className="h-4 w-4" />
-                </span>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium leading-snug">
+              <div className="flex flex-col items-center justify-center gap-3">
+                <div className="min-h-28 py-2 px-3 bg-neutral-100 rounded-md flex flex-col items-center justify-center">
+                  <div className="text-sm font-medium leading-snug pb-4 pt-2">
+                    Call for {'"'}
                     {marker.companyName} - {marker.roleTitle}
+                    {'"'}
                   </div>
-                  <div className="mt-1 max-w-[480px] text-[14px] md:text-[13px] leading-relaxed text-neutral-muted">
-                    {t(
-                      "career.chat.career_message_bubble.optional_call_notice",
-                      "꼭 해야하는 대화는 아니고, 연결 시에 도움이될 정보를 몇가지 여쭤보기 위한 통화에요. 진행하지 않으셔도 {companyName} 측과의 연결은 제가 계속 진행할게요.",
-                      {
-                        values: {
-                          companyName: marker.companyName,
-                        },
-                      }
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 mt-2">
-                    {marker.resumePromptNeeded && (
-                      <BareButton
-                        type="button"
-                        onClick={() =>
-                          void router.push(
-                            "/career/profile?profileSection=links"
-                          )
+                  <div
+                    className="mt-1 text-[14px] md:text-[13px] text-center leading-5 text-neutral-muted"
+                    dangerouslySetInnerHTML={{
+                      __html: t(
+                        "career.chat.career_message_bubble.optional_call_notice",
+                        "해당 통화는 필수 절차는 아니며, {companyName} 측과의 연결을 보다 원활하게 진행하기 위해 필요한 정보를 사전에 여쭤보기위한 목적입니다.<br />통화 여부와 관계없이 연결 절차는 계속 진행하겠습니다.",
+                        {
+                          values: {
+                            companyName: marker.companyName,
+                          },
                         }
-                        className="h-9 inline-flex items-center gap-1.5 rounded-[8px] border border-neutral-1000-a10 bg-bg-weak px-2.5 py-1.5 text-xs text-neutral-primary transition-colors hover:border-neutral-400 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <FileText className="h-3.5 w-3.5" />
-                        {t(
-                          "career.chat.career_message_bubble.1tqt1ip",
-                          "이력서 보강"
-                        )}
-                      </BareButton>
-                    )}
+                      ),
+                    }}
+                  />
+                </div>
+                <div className="flex items-center gap-2 mt-1 w-full">
+                  {marker.resumePromptNeeded && (
                     <BareButton
                       type="button"
                       onClick={() =>
-                        void onStartCallMode?.({
-                          internalCallRequestId: marker.callId,
-                          openingText: formatCareerMessageByKey(
-                            m,
-                            "career.internal_opportunity.call_opening",
-                            "",
-                            {
-                              companyName: marker.companyName,
-                              roleTitle: marker.roleTitle,
-                            }
-                          ),
-                        })
+                        void router.push("/career/profile?profileSection=links")
                       }
-                      disabled={!onStartCallMode || isCallStartPending}
-                      className="h-9 inline-flex items-center gap-1.5 rounded-[8px] border border-neutral-1000-a10 bg-primary px-2.5 py-1.5 text-xs text-neutral-00 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                      className="h-9 w-full text-center inline-flex items-center gap-1.5 rounded-[8px] border border-neutral-1000-a10 bg-bg-weak px-2.5 py-1.5 text-xs text-neutral-primary transition-colors hover:border-neutral-400 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {isCallStartPending
-                        ? t(
-                            "career.call.career_call_card.1vn8y3k",
-                            "연결 중..."
-                          )
-                        : t(
-                            "career.chat.career_message_bubble.0whsa78",
-                            "통화하기"
-                          )}
+                      <FileText className="h-3.5 w-3.5" />
+                      {t(
+                        "career.chat.career_message_bubble.1tqt1ip",
+                        "이력서 보강"
+                      )}
                     </BareButton>
-                  </div>
+                  )}
+                  <BareButton
+                    type="button"
+                    onClick={() =>
+                      void onStartCallMode?.({
+                        internalCallRequestId: marker.callId,
+                        openingText: formatCareerMessageByKey(
+                          m,
+                          "career.internal_opportunity.call_opening",
+                          "",
+                          {
+                            companyName: marker.companyName,
+                            roleTitle: marker.roleTitle,
+                          }
+                        ),
+                      })
+                    }
+                    disabled={!onStartCallMode || isCallStartPending}
+                    className="h-9 w-full text-center inline-flex items-center justify-center gap-1.5 rounded-[8px] border border-neutral-1000-a10 bg-primary px-2.5 py-1.5 text-sm text-neutral-00 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <PhoneOutgoing strokeWidth={1.9} size={14} />
+                    {isCallStartPending
+                      ? t("career.call.career_call_card.1vn8y3k", "연결 중...")
+                      : t(
+                          "career.chat.career_message_bubble.0whsa78",
+                          "통화하기"
+                        )}
+                  </BareButton>
                 </div>
               </div>
             </div>

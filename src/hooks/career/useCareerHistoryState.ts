@@ -51,6 +51,7 @@ type FilteredPageState = {
 type FilteredPageStateMap = Record<string, FilteredPageState | undefined>;
 
 type OpportunityFeedbackFollowUpRequestOptions = {
+  callRequestOnly?: boolean;
   delayMs?: number | null;
   feedback?: CareerHistoryOpportunityFeedback | null;
   feedbackReason?: string | null;
@@ -148,7 +149,9 @@ export function useCareerHistoryState(args: {
   enabled: boolean;
   fetchWithAuth: FetchWithAuth;
   initialSessionPage?: InitialCareerHistoryPage;
-  onHistoryActionAssistantMessage?: (message: CareerMessagePayload) => void;
+  onHistoryActionAssistantMessage?: (
+    message: CareerMessagePayload
+  ) => void | Promise<void>;
   onHistoryActionUserMessage?: (message: CareerMessagePayload) => void;
   onPendingInternalOpportunityCallRequestChanged?: (
     callRequest: CareerInternalOpportunityCallRequest | null
@@ -227,44 +230,79 @@ export function useCareerHistoryState(args: {
       });
 
       try {
-        const response = await fetchWithAuth(
-          "/api/talent/opportunities/feedback-followup",
-          {
-            method: "POST",
-            body: JSON.stringify({
-              conversationId,
-              feedback: options?.feedback ?? null,
-              feedbackReason: options?.feedbackReason ?? null,
-              internalCallRequestId: options?.internalCallRequestId ?? null,
-              opportunityId: options?.opportunityId ?? null,
-              shouldCreateInternalCallRequest:
-                options?.shouldCreateInternalCallRequest === true,
-              trigger,
-            }),
+        const postFollowUp = async (
+          requestOptions?: OpportunityFeedbackFollowUpRequestOptions
+        ) => {
+          const response = await fetchWithAuth(
+            "/api/talent/opportunities/feedback-followup",
+            {
+              method: "POST",
+              body: JSON.stringify({
+                conversationId,
+                feedback: requestOptions?.feedback ?? null,
+                feedbackReason: requestOptions?.feedbackReason ?? null,
+                internalCallRequestId:
+                  requestOptions?.internalCallRequestId ?? null,
+                opportunityId: requestOptions?.opportunityId ?? null,
+                callRequestOnly: requestOptions?.callRequestOnly === true,
+                shouldCreateInternalCallRequest:
+                  requestOptions?.shouldCreateInternalCallRequest === true,
+                trigger: requestOptions?.trigger ?? trigger,
+              }),
+            }
+          );
+          const payload = await response.json().catch(() => ({}));
+
+          if (!response.ok) {
+            throw new Error(
+              getErrorMessage(payload, tCareer(H.feedbackFollowUpCreateFailed))
+            );
           }
-        );
-        const payload = await response.json().catch(() => ({}));
 
-        if (!response.ok) {
-          throw new Error(
-            getErrorMessage(payload, tCareer(H.feedbackFollowUpCreateFailed))
+          return payload;
+        };
+
+        const applyFollowUpPayload = async (payload: Record<string, unknown>) => {
+          if (payload.assistantMessage) {
+            await onHistoryActionAssistantMessage?.(
+              payload.assistantMessage as CareerMessagePayload
+            );
+          }
+          if (Array.isArray(payload.pendingInternalOpportunityCallRequests)) {
+            onPendingInternalOpportunityCallRequestsChanged?.(
+              payload.pendingInternalOpportunityCallRequests as CareerInternalOpportunityCallRequest[]
+            );
+          } else if (payload.pendingInternalOpportunityCallRequest) {
+            onPendingInternalOpportunityCallRequestChanged?.(
+              payload.pendingInternalOpportunityCallRequest as CareerInternalOpportunityCallRequest
+            );
+          }
+        };
+
+        const initialOptions =
+          options?.shouldCreateInternalCallRequest === true &&
+          options.callRequestOnly !== true
+            ? {
+                ...options,
+                callRequestOnly: false,
+                shouldCreateInternalCallRequest: false,
+              }
+            : options;
+        await applyFollowUpPayload(await postFollowUp(initialOptions));
+
+        if (
+          options?.shouldCreateInternalCallRequest === true &&
+          options.callRequestOnly !== true
+        ) {
+          await applyFollowUpPayload(
+            await postFollowUp({
+              ...options,
+              callRequestOnly: true,
+              shouldCreateInternalCallRequest: true,
+            })
           );
         }
 
-        if (payload.assistantMessage) {
-          onHistoryActionAssistantMessage?.(
-            payload.assistantMessage as CareerMessagePayload
-          );
-        }
-        if (Array.isArray(payload.pendingInternalOpportunityCallRequests)) {
-          onPendingInternalOpportunityCallRequestsChanged?.(
-            payload.pendingInternalOpportunityCallRequests as CareerInternalOpportunityCallRequest[]
-          );
-        } else if (payload.pendingInternalOpportunityCallRequest) {
-          onPendingInternalOpportunityCallRequestChanged?.(
-            payload.pendingInternalOpportunityCallRequest as CareerInternalOpportunityCallRequest
-          );
-        }
         if (options?.refreshHistory) {
           await queryClient.invalidateQueries({ queryKey });
         }

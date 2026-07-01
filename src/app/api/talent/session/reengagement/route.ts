@@ -15,6 +15,7 @@ import {
   buildCareerSessionStartTurnInstruction,
   CAREER_SESSION_START_NO_MESSAGE_MARKER,
 } from "@/lib/career/prompts";
+import { TALENT_TOOL_NAMES } from "@/lib/talentOnboarding/tools";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 
 const REENGAGEMENT_IDLE_MS = 8 * 60 * 60 * 1000; // 8시간
@@ -354,6 +355,7 @@ export async function POST(req: NextRequest) {
 
           try {
             const result = await runCareerChatTurn({
+              allowedToolNames: [TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS],
               admin,
               conversationId: conversation.id,
               isMobile,
@@ -366,6 +368,7 @@ export async function POST(req: NextRequest) {
               },
               proactiveContext,
               shouldInsertAssistantMessage: isReengagementAnchorCurrent,
+              usageLabel: "career/chat:session_reengagement",
               userId: user.id,
             });
             const payload = await finalizeSessionReengagement({
@@ -398,12 +401,14 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await runCareerChatTurn({
+      allowedToolNames: [TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS],
       admin,
       conversationId: conversation.id,
       isMobile,
       noMessageMarker: CAREER_SESSION_START_NO_MESSAGE_MARKER,
       proactiveContext,
       shouldInsertAssistantMessage: isReengagementAnchorCurrent,
+      usageLabel: "career/chat:session_reengagement",
       userId: user.id,
     });
     const payload = await finalizeSessionReengagement({

@@ -65,12 +65,14 @@ const devAgentVariantOptions: Array<{
 }> = [
   { label: "Tool agent", value: "tool_agent" },
   { label: "New rule", value: "new_rule" },
+  { label: "New v2", value: "new_harper_agent_v2" },
 ];
 
 const getOpportunityAgentLabel = (
   value: CareerOpportunityAgentVariant | null | undefined
 ) => {
   if (value === "new_rule") return "new-rule";
+  if (value === "new_v2" || value === "new_harper_agent_v2") return "new-v2";
   if (value === "tool_agent") return "tool agent";
   if (value === "scripted" || value === "scripted_human") return "legacy agent";
   // career-i18n-skip-next-line: dev controls text is intentionally Korean-only.

@@ -30,6 +30,7 @@ const CareerComposerSection = () => {
     profilePending,
     chatPending,
     assistantTyping,
+    opportunityFeedbackFollowUpPending,
     onboardingBeginPending,
     onboardingWrapupPending,
     callStartPending = false,
@@ -62,53 +63,70 @@ const CareerComposerSection = () => {
     stage === "profile" ||
     showVoiceStartPrompt ||
     profilePending ||
+    opportunityFeedbackFollowUpPending ||
     isWorkflowPending ||
     onboardingWrapupPending ||
     onboardingPausePending;
   const isComposerActionLocked =
     isTextInputLocked || chatPending || assistantTyping;
+  const isComposerBusy =
+    chatPending || assistantTyping || opportunityFeedbackFollowUpPending;
 
-  const composerPlaceholder = !user
-    ? t(
+  const composerPlaceholder = (() => {
+    if (!user) {
+      return t(
         "career.chat.career_composer_section.1g4p5ul",
         "로그인 후 대화를 시작할 수 있습니다."
-      )
-    : stage === "profile"
-      ? t(
-          "career.chat.career_composer_section.19raxy2",
-          "기본 정보 제출 후 대화가 시작됩니다."
-        )
-      : showVoiceStartPrompt
-        ? t(
-            "career.chat.career_composer_section.1i8zl29",
-            "아래 시작 버튼으로 대화를 시작해 주세요."
-          )
-        : callWrapUpPending
-          ? "Call wrap-up..."
-          : onboardingWrapupPending
-            ? t(
-                "career.chat.career_composer_section.0bxwclq",
-                "통화 내용을 정리하는 중입니다."
-              )
-            : onboardingPaused
-              ? t(
-                  "career.chat.career_composer_section.1rqak4s",
-                  "바로 입력하면 대화가 이어집니다."
-                )
-              : profilePending
-                ? t(
-                    "career.chat.career_composer_section.041n9nc",
-                    "이력서와 링크를 분석 중입니다."
-                  )
-                : stage === "completed"
-                  ? t(
-                      "career.chat.career_composer_section.0e686ow",
-                      "Harper에게 답변을 입력하세요."
-                    )
-                  : t(
-                      "career.chat.career_composer_section.017fk2m",
-                      "원하는 역할이나 조건을 편하게 알려주세요."
-                    );
+      );
+    }
+    if (stage === "profile") {
+      return t(
+        "career.chat.career_composer_section.19raxy2",
+        "기본 정보 제출 후 대화가 시작됩니다."
+      );
+    }
+    if (showVoiceStartPrompt) {
+      return t(
+        "career.chat.career_composer_section.1i8zl29",
+        "아래 시작 버튼으로 대화를 시작해 주세요."
+      );
+    }
+    if (callWrapUpPending) return "Call wrap-up...";
+    if (onboardingWrapupPending) {
+      return t(
+        "career.chat.career_composer_section.0bxwclq",
+        "통화 내용을 정리하는 중입니다."
+      );
+    }
+    if (onboardingPaused) {
+      return t(
+        "career.chat.career_composer_section.1rqak4s",
+        "바로 입력하면 대화가 이어집니다."
+      );
+    }
+    if (profilePending) {
+      return t(
+        "career.chat.career_composer_section.041n9nc",
+        "이력서와 링크를 분석 중입니다."
+      );
+    }
+    if (opportunityFeedbackFollowUpPending) {
+      return t(
+        "career.chat.career_timeline_section.0qzkj18",
+        "다음 프로세스를 확인하고 있어요."
+      );
+    }
+    if (stage === "completed") {
+      return t(
+        "career.chat.career_composer_section.0e686ow",
+        "Harper에게 답변을 입력하세요."
+      );
+    }
+    return t(
+      "career.chat.career_composer_section.017fk2m",
+      "원하는 역할이나 조건을 편하게 알려주세요."
+    );
+  })();
 
   const hasDraftText = draft.trim().length > 0;
 
@@ -126,7 +144,8 @@ const CareerComposerSection = () => {
     forceCompletePending ||
     onboardingWrapupPending ||
     chatPending ||
-    assistantTyping;
+    assistantTyping ||
+    opportunityFeedbackFollowUpPending;
   const forceCompleteTooltip = t(
     "career.chat.career_call_screen.0n1pl8k",
     "커리어 인터뷰를 임의로 종료할 수 있어요. 거의 다 왔으니 2~3개의 질문에만 추가로 대답해주시면 자동으로 종료됩니다!"
@@ -267,7 +286,7 @@ const CareerComposerSection = () => {
                         )
                   }
                 >
-                  {(hasDraftText && (chatPending || assistantTyping)) ||
+                  {(hasDraftText && isComposerBusy) ||
                   (!hasDraftText && isStartingCall) ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   ) : hasDraftText ? (

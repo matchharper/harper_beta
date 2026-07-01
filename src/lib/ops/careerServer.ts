@@ -2679,7 +2679,7 @@ export async function queueManualInternalRecommendationRun(args: {
     trigger: "immediate_opportunity_requested",
     triggerPayload: {
       entryPoint: "ops_career_manual_internal_recommendation",
-      opportunityAgentVariant: "new_rule",
+      opportunityAgentVariant: "new_harper_agent_v2",
       source: "ops_career_recommendations_tab",
       manualInternalRecommendation: {
         allowRepeat: true,
