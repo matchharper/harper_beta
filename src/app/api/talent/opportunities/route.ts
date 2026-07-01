@@ -358,7 +358,7 @@ export async function PATCH(req: NextRequest) {
       req.cookies.get("NEXT_LOCALE")?.value ??
       null;
     let previousOpportunity: TalentOpportunityHistoryItem | null = null;
-    if (action === "feedback") {
+    if (action === "feedback" || action === "saved_stage") {
       try {
         const previousOpportunities = await fetchTalentOpportunityHistoryByIds({
           admin,
@@ -367,6 +367,9 @@ export async function PATCH(req: NextRequest) {
         });
         previousOpportunity = previousOpportunities[0] ?? null;
       } catch (lookupError) {
+        if (action === "saved_stage") {
+          throw lookupError;
+        }
         console.warn("[career-history:previous-opportunity]", {
           error:
             lookupError instanceof Error
@@ -377,13 +380,42 @@ export async function PATCH(req: NextRequest) {
         });
       }
     }
+
+    if (
+      previousOpportunity?.sourceType === "internal" &&
+      action === "saved_stage"
+    ) {
+      return NextResponse.json(
+        { error: "Internal role status cannot be changed." },
+        { status: 403 }
+      );
+    }
+
+    if (
+      previousOpportunity?.sourceType === "internal" &&
+      action === "feedback" &&
+      previousOpportunity.feedback !== null
+    ) {
+      return NextResponse.json(
+        { error: "Internal role status cannot be changed." },
+        { status: 403 }
+      );
+    }
+
+    const savedStageForUpdate =
+      action === "feedback" &&
+      body.feedback === "positive" &&
+      previousOpportunity?.sourceType === "internal"
+        ? "connected"
+        : body.savedStage;
+
     const result = await updateTalentOpportunityHistoryItem({
       action,
       admin,
       feedback: body.feedback,
       feedbackReason: body.feedbackReason,
       opportunityId,
-      savedStage: body.savedStage,
+      savedStage: savedStageForUpdate,
       talentMemo: body.talentMemo,
       userId: user.id,
     });

@@ -97,8 +97,6 @@ type TalentRecommendationRow = Pick<
   | "feedback_at"
   | "feedback_reason"
   | "id"
-  | "processed_stage"
-  | "recommended_at"
   | "role_id"
   | "saved_stage"
   | "talent_id"
@@ -110,7 +108,6 @@ type TalentRecommendationForFitRow = Pick<
   | "created_at"
   | "discovery_run_id"
   | "id"
-  | "recommended_at"
   | "role_id"
   | "talent_id"
 >;
@@ -123,8 +120,6 @@ type TalentRecommendationHistoryRow = Pick<
   | "feedback_reason"
   | "fit_summary"
   | "id"
-  | "processed_stage"
-  | "recommended_at"
   | "role_id"
   | "saved_stage"
   | "score"
@@ -186,6 +181,7 @@ const OPS_MATCHING_TALENT_HISTORY_SECTION_SET = new Set<string>(
   OPS_MATCHING_TALENT_HISTORY_SECTIONS
 );
 const ACTIVE_ROLE_STATUSES = new Set(["active", "top_priority"]);
+const MATCHING_ROLE_OPTION_STATUSES = ["active", "top_priority", "paused"];
 const CUSTOM_REVIEW_STAGE_ID_PREFIX = "custom:";
 const CUSTOM_REVIEW_STAGE_TAG_PREFIX = "내부단계:";
 const MATCHING_REVIEW_STAGE_TAG_BY_STAGE = {
@@ -438,7 +434,6 @@ export type OpsMatchingRecommendationSummary = {
   feedbackAt: string | null;
   feedbackReason: string | null;
   isManualInternalRecommendation: boolean;
-  processedStage: string | null;
   recommendationId: string;
   recommendedAt: string;
   roleId: string;
@@ -469,7 +464,6 @@ export type OpsMatchingReviewItem = {
   feedbackAt: string | null;
   feedbackReason: string | null;
   isManualInternalRecommendation: boolean;
-  processedStage: string | null;
   recommendationId: string;
   recommendedAt: string;
   roleId: string;
@@ -1694,27 +1688,24 @@ async function fetchInsightMap(args: {
 function isPositiveRecommendationRow(row: TalentRecommendationHistoryRow) {
   return (
     isAcceptedFeedback(row.feedback) ||
-    normalizeText(row.saved_stage) === "accepted" ||
-    normalizeText(row.processed_stage) === "accepted"
+    normalizeText(row.saved_stage) === "accepted"
   );
 }
 
 function getRecommendationPositiveSortTime(
   row: TalentRecommendationHistoryRow
 ) {
-  return row.feedback_at ?? row.recommended_at ?? row.created_at;
+  return row.feedback_at ?? row.created_at;
 }
 
 function getRecommendationResponseStatus(
   row: TalentRecommendationHistoryRow
 ): OpsMatchingRecommendationResponseStatus {
   const savedStage = normalizeText(row.saved_stage).toLowerCase();
-  const processedStage = normalizeText(row.processed_stage).toLowerCase();
 
   if (
     isAcceptedFeedback(row.feedback) ||
-    savedStage === "accepted" ||
-    processedStage === "accepted"
+    savedStage === "accepted"
   ) {
     return "accepted";
   }
@@ -1722,9 +1713,7 @@ function getRecommendationResponseStatus(
   if (
     isRejectedFeedback(row.feedback) ||
     savedStage === "rejected" ||
-    savedStage === "archived" ||
-    processedStage === "rejected" ||
-    processedStage === "archived"
+    savedStage === "archived"
   ) {
     return "rejected";
   }
@@ -1743,7 +1732,7 @@ function buildExternalPositiveOpportunity(args: {
     feedbackReason: normalizeNullableText(args.row.feedback_reason),
     fitSummary: normalizeNullableText(args.row.fit_summary),
     recommendationId: args.row.id,
-    recommendedAt: args.row.recommended_at,
+    recommendedAt: args.row.created_at,
     responseStatus: getRecommendationResponseStatus(args.row),
     roleId: args.row.role_id,
     roleName: args.role?.roleName ?? null,
@@ -1763,7 +1752,7 @@ function buildInternalRecommendationHistoryItem(args: {
     feedbackReason: normalizeNullableText(args.row.feedback_reason),
     fitSummary: normalizeNullableText(args.row.fit_summary),
     recommendationId: args.row.id,
-    recommendedAt: args.row.recommended_at,
+    recommendedAt: args.row.created_at,
     responseStatus: getRecommendationResponseStatus(args.row),
     roleId: args.row.role_id,
     roleName: args.role?.roleName ?? null,
@@ -1804,10 +1793,9 @@ export async function fetchOpsMatchingTalentHistory(args: {
   let query = admin
     .from("talent_opportunity_recommendation")
     .select(
-      "id, talent_id, role_id, discovery_run_id, feedback, feedback_at, feedback_reason, fit_summary, score, recommended_at, created_at, updated_at, processed_stage, saved_stage"
+      "id, talent_id, role_id, discovery_run_id, feedback, feedback_at, feedback_reason, fit_summary, score, created_at, updated_at, saved_stage"
     )
     .in("talent_id", talentIds)
-    .order("recommended_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false, nullsFirst: false })
     .limit(
       Math.max(
@@ -1818,7 +1806,7 @@ export async function fetchOpsMatchingTalentHistory(args: {
 
   if (wantsExternalPositive && !wantsInternalRecommendations) {
     query = query.or(
-      "feedback.in.(like,positive),saved_stage.eq.accepted,processed_stage.eq.accepted"
+      "feedback.in.(like,positive),saved_stage.eq.accepted"
     );
   }
 
@@ -2193,7 +2181,7 @@ export async function fetchOpsMatchingCompanies(args: {
     .from("company_roles")
     .select("company_workspace_id, status, updated_at")
     .eq("source_type", "internal")
-    .in("status", ["active", "top_priority"])
+    .in("status", MATCHING_ROLE_OPTION_STATUSES)
     .order("updated_at", { ascending: false })
     .limit(MAX_MATCHING_ROLE_OPTIONS);
 
@@ -2300,7 +2288,7 @@ export async function fetchOpsMatchingRoles(args: {
         )
         .eq("company_workspace_id", companyWorkspaceId)
         .eq("source_type", "internal")
-        .in("status", ["active", "top_priority"])
+        .in("status", MATCHING_ROLE_OPTION_STATUSES)
         .order("updated_at", { ascending: false })
         .limit(MAX_MATCHING_ROLE_OPTIONS),
     ]);
@@ -2702,14 +2690,10 @@ async function fetchFitRecommendationMap(args: {
       const { data, error } = await args.admin
         .from("talent_opportunity_recommendation")
         .select(
-          "id, talent_id, role_id, discovery_run_id, recommended_at, created_at"
+          "id, talent_id, role_id, discovery_run_id, created_at"
         )
         .in("talent_id", talentChunk)
         .in("role_id", roleChunk)
-        .order("recommended_at", {
-          ascending: false,
-          nullsFirst: false,
-        })
         .order("created_at", { ascending: false, nullsFirst: false })
         .limit(MAX_MATCHING_FIT_RECOMMENDATION_ROWS);
 
@@ -2744,7 +2728,7 @@ async function fetchFitRecommendationMap(args: {
       isManualInternalRecommendation:
         discoveryRunId !== null && manualRunIds.has(discoveryRunId),
       recommendationId: row.id,
-      recommendedAt: row.recommended_at ?? row.created_at,
+      recommendedAt: row.created_at,
     });
   }
 
@@ -3599,17 +3583,16 @@ export async function fetchOpsMatchingReviewBoard(args: {
   let query = admin
     .from("talent_opportunity_recommendation")
     .select(
-      "id, talent_id, role_id, discovery_run_id, feedback, feedback_at, feedback_reason, processed_stage, saved_stage, viewed_at, recommended_at, created_at, updated_at"
+      "id, talent_id, role_id, discovery_run_id, feedback, feedback_at, feedback_reason, saved_stage, viewed_at, created_at, updated_at"
     )
     .eq("role_id", roleId)
-    .order("recommended_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false, nullsFirst: false });
 
   if (dateRange.startIso) {
-    query = query.gte("recommended_at", dateRange.startIso);
+    query = query.gte("created_at", dateRange.startIso);
   }
   if (dateRange.endExclusiveIso) {
-    query = query.lt("recommended_at", dateRange.endExclusiveIso);
+    query = query.lt("created_at", dateRange.endExclusiveIso);
   }
   if (matchedTagTalentIds && !hasNoTagFilter) {
     query = query.in("talent_id", Array.from(matchedTagTalentIds));
@@ -3682,9 +3665,8 @@ export async function fetchOpsMatchingReviewBoard(args: {
         feedbackReason: row.feedback_reason,
         isManualInternalRecommendation:
           discoveryRunId !== null && manualRunIds.has(discoveryRunId),
-        processedStage: row.processed_stage,
         recommendationId: row.id,
-        recommendedAt: row.recommended_at,
+        recommendedAt: row.created_at,
         roleId: row.role_id,
         savedStage: row.saved_stage,
         stage: stage.stage,
@@ -4052,9 +4034,8 @@ async function buildOpsMatchingRecommendationSummaries(args: {
       feedbackReason: row.feedback_reason,
       isManualInternalRecommendation:
         discoveryRunId !== null && manualRunIds.has(discoveryRunId),
-      processedStage: row.processed_stage,
       recommendationId: row.id,
-      recommendedAt: row.recommended_at,
+      recommendedAt: row.created_at,
       roleId: row.role_id,
       roleName: role?.roleName ?? null,
       savedStage: row.saved_stage,
@@ -4085,10 +4066,9 @@ async function fetchRecentRecommendations(args: {
   const { data, error } = await args.admin
     .from("talent_opportunity_recommendation")
     .select(
-      "id, talent_id, role_id, discovery_run_id, processed_stage, feedback, feedback_at, feedback_reason, saved_stage, viewed_at, recommended_at, created_at, updated_at"
+      "id, talent_id, role_id, discovery_run_id, feedback, feedback_at, feedback_reason, saved_stage, viewed_at, created_at, updated_at"
     )
     .eq("talent_id", args.talentId)
-    .order("recommended_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
     .limit(args.limit * 3);
 
@@ -4116,7 +4096,7 @@ async function fetchLatestRecommendation(args: {
   const { data, error } = await args.admin
     .from("talent_opportunity_recommendation")
     .select(
-      "id, talent_id, role_id, discovery_run_id, processed_stage, feedback, feedback_at, feedback_reason, saved_stage, viewed_at, recommended_at, created_at, updated_at"
+      "id, talent_id, role_id, discovery_run_id, feedback, feedback_at, feedback_reason, saved_stage, viewed_at, created_at, updated_at"
     )
     .eq("talent_id", args.talentId)
     .eq("role_id", args.roleId)

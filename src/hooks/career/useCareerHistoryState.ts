@@ -756,7 +756,6 @@ export function useCareerHistoryState(args: {
           : null;
       const nextItem: CareerHistoryOpportunity = {
         ...previousItem,
-        dismissedAt: feedback === "negative" ? now : null,
         feedback,
         feedbackAt: feedback ? now : null,
         feedbackReason: feedback ? (options?.feedbackReason ?? null) : null,

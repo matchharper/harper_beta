@@ -44,15 +44,13 @@ const CareerCompanyWatchlistPanel = () => {
   const queryClient = useQueryClient();
   const { fetchWithAuth } = useCareerApi();
   const { locale } = useMessages();
-  const { onGenerateCompanyRecommendations, onUpdateCompanyFollow, user } =
-    useCareerSidebarContext();
+  const { onUpdateCompanyFollow, user } = useCareerSidebarContext();
   const userId = user?.id ?? null;
   const activeTab = parseWatchlistTab(router.query[WATCHLIST_TAB_QUERY_KEY]);
   const detailCompanyDbId = parseCompanyDbId(
     router.query[WATCHLIST_COMPANY_QUERY_KEY]
   );
   const [updatingCompanyIds, setUpdatingCompanyIds] = useState<number[]>([]);
-  const [generating, setGenerating] = useState(false);
   const [actionError, setActionError] = useState("");
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -190,13 +188,9 @@ const CareerCompanyWatchlistPanel = () => {
     queryKey: ["career-company-watchlist", "counts", userId],
     enabled: Boolean(user) && !detailCompanyDbId,
     queryFn: async () => {
-      const [recommended, following] = await Promise.all([
-        fetchWatchlistCount("recommended"),
-        fetchWatchlistCount("following"),
-      ]);
+      const following = await fetchWatchlistCount("following");
       return {
         following,
-        recommended,
         signals: 0,
       } satisfies Partial<Record<CompanyWatchlistTab, number>>;
     },
@@ -324,48 +318,6 @@ const CareerCompanyWatchlistPanel = () => {
     [detailCompanyDbId, locale, onUpdateCompanyFollow, queryClient, t, userId]
   );
 
-  const handleGenerateRecommendations = useCallback(async () => {
-    setActionError("");
-    setGenerating(true);
-    try {
-      const result = await onGenerateCompanyRecommendations({
-        forceRefresh: false,
-        limit: 24,
-      });
-      if (!result) {
-        throw new Error(
-          t(
-            "career.common.career_flow_provider.0lsvl9z",
-            "추천 회사를 만들지 못했습니다."
-          )
-        );
-      }
-      await queryClient.invalidateQueries({
-        queryKey: ["career-company-watchlist"],
-      });
-      if (activeTab !== "recommended") {
-        handleChangeTab("recommended");
-      }
-    } catch (error) {
-      setActionError(
-        error instanceof Error
-          ? error.message
-          : t(
-              "career.common.career_flow_provider.0lsvl9z",
-              "추천 회사를 만들지 못했습니다."
-            )
-      );
-    } finally {
-      setGenerating(false);
-    }
-  }, [
-    activeTab,
-    handleChangeTab,
-    onGenerateCompanyRecommendations,
-    queryClient,
-    t,
-  ]);
-
   const fetchNextWatchlistPage = listQuery.fetchNextPage;
   const hasNextWatchlistPage = listQuery.hasNextPage;
   const isFetchingNextWatchlistPage = listQuery.isFetchingNextPage;
@@ -430,30 +382,6 @@ const CareerCompanyWatchlistPanel = () => {
         className="md:my-4"
       />
 
-      {activeTab === "recommended" && (
-        <div className="mb-4 min-w-0 rounded-lg border border-neutral-1000-a05 bg-bg-floating px-4 py-3 shadow-sm">
-          <div className="text-sm font-medium leading-5 text-neutral-primary">
-            {t("career.common.career.0yjpnrd", "팔로우하면 일어나는 일")}
-          </div>
-          <p className="mt-1 line-clamp-3 text-neutral-muted font-normal text-[13px]">
-            <span className="text-neutral-primary">
-              {t("career.common.career.1bb9alt", "시그널 자동 추적")}
-            </span>
-            {t(
-              "career.common.career.0kdqsry",
-              "- 펀딩, 채용, 팀 변화, 사업 성과 등 의미 있는 변화를 찾아서 알려드립니다."
-            )}
-            <br />
-            <span className="text-neutral-primary">
-              {t("career.common.career.0m1nksm", "회사 측 채널 열림")}
-            </span>
-            {t(
-              "career.common.career.18q07l6",
-              "- 이 회사가 인재를 찾거나 Harper에게 채용을 요청 할 때 우선적으로 검토되실 수 있게 합니다."
-            )}
-          </p>
-        </div>
-      )}
       {activeTab === "following" && (
         <div className="mb-4 min-w-0 rounded-lg border border-positive/30 bg-bg-floating px-4 py-3 shadow-sm">
           <div className="text-[13px] font-medium leading-5 text-positive">
@@ -482,11 +410,7 @@ const CareerCompanyWatchlistPanel = () => {
             <Loader2 className="h-5 w-5 animate-spin text-neutral-soft" />
           </div>
         ) : items.length === 0 ? (
-          <CompanyEmptyState
-            activeTab={activeTab}
-            generating={generating}
-            onGenerate={handleGenerateRecommendations}
-          />
+          <CompanyEmptyState activeTab={activeTab} />
         ) : (
           <>
             <div className="grid gap-3">

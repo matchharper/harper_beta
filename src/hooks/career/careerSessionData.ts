@@ -10,7 +10,10 @@ import { isOpportunityType } from "@/lib/opportunityType";
 
 export const getDefaultSavedStage = (
   item: CareerHistoryOpportunity
-) => getCareerDefaultSavedStage(item.opportunityType);
+) =>
+  item.isInternal || item.sourceType === "internal"
+    ? "connected"
+    : getCareerDefaultSavedStage(item.opportunityType);
 
 const SAVED_STAGES: CareerOpportunitySavedStage[] = [
   "saved",

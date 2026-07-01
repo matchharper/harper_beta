@@ -525,12 +525,6 @@ async function deleteCareerRows(
   await deleteEq(admin, "talent_company_follow", "talent_id", context.userId);
   await deleteEq(
     admin,
-    "talent_company_recommendation",
-    "talent_id",
-    context.userId
-  );
-  await deleteEq(
-    admin,
     "talent_opportunity_delivery",
     "talent_id",
     context.userId
@@ -544,12 +538,6 @@ async function deleteCareerRows(
     context.userId
   );
   await deleteEq(admin, "talent_progress", "talent_id", context.userId);
-  await deleteIn(
-    admin,
-    "ops_internal_recommendation_hidden",
-    "recommendation_id",
-    context.recommendationIds
-  );
   await deleteEq(
     admin,
     "talent_opportunity_recommendation",

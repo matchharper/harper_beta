@@ -9,6 +9,7 @@ import {
 import { ClickablePanel } from "@/components/ui/clickable-panel";
 import { OpportunityHeader } from "./HistoryOpportunityDetailContent";
 import {
+  canChangeCareerOpportunityManagementStatus,
   getCareerOpportunityManagementStatusLabel,
   getCareerOpportunityManagementStatusOptions,
   type CareerOpportunityManagementStatus,
@@ -97,7 +98,11 @@ const OpportunityListCard = ({
     0,
     1
   );
-  const hasActionArea = Boolean(savedStatus && onSavedStatusChange);
+  const hasActionArea = Boolean(
+    savedStatus &&
+      onSavedStatusChange &&
+      canChangeCareerOpportunityManagementStatus(item)
+  );
 
   return (
     <InlinePanel className="relative rounded-[8px] border border-neutral-1000-a05 bg-bg-floating p-2 transition-colors hover:bg-neutral-100">

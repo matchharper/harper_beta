@@ -93,7 +93,7 @@ export const RecommendationSearchStatusPanel = memo(
             <BareButton
               type="button"
               onClick={onCancel}
-              className="inline-flex h-8 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-[8px] border border-neutral-1000-a05 bg-bg-floating text-[12px] font-medium text-neutral-primary transition-colors hover:bg-bg-weak"
+              className="inline-flex min-w-8 h-8 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-[8px] border border-neutral-1000-a05 bg-bg-floating text-[12px] font-medium text-neutral-primary transition-colors hover:bg-bg-weak"
               aria-label={t("career.common.career.1nwpekv", "검색 중지")}
               title={t("career.common.career.1nwpekv", "검색 중지")}
             >

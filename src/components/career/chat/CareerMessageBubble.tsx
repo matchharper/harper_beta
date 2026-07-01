@@ -32,6 +32,9 @@ export const USER_BUBBLE_CLASS =
 export const ASSISTANT_BUBBLE_CLASS =
   "w-fit max-w-[920px] text-neutral-primary";
 
+export const CAREER_MESSAGE_LINK_CLASS =
+  "inline-flex max-w-full cursor-pointer items-center align-baseline rounded-md bg-accent-100 px-2 py-1.5 text-left text-accent-400 no-underline wrap-break-word transition-colors hover:bg-accent-300 hover:text-accent-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-300/60";
+
 const HIGHLIGHT_PATTERN = /<<([\s\S]+?)>>/g;
 const URL_PATTERN = /(https?:\/\/[^\s]+)/g;
 const CALL_ACTION_MARKER = "[[CALL]]";
@@ -44,6 +47,13 @@ const INTERNAL_CALL_REQUEST_PATTERN =
 type AssistantChoice = {
   label: string;
   value: string;
+};
+
+export type CareerAssistantChoiceSelection = {
+  assistantMessageId: string;
+  choice: string;
+  choiceCount: number;
+  choiceIndex: number;
 };
 
 type InternalCallRequestMarker = {
@@ -59,7 +69,9 @@ type Props = {
   isAssistantSpeaking?: boolean;
   choiceActionsDisabled?: boolean;
   isCallStartPending?: boolean;
-  onSelectAssistantChoice?: (choice: string) => void | Promise<void>;
+  onSelectAssistantChoice?: (
+    selection: CareerAssistantChoiceSelection
+  ) => void | Promise<void>;
   onStartCallMode?: (args?: CareerCallStartRequest) => void | Promise<void>;
 };
 
@@ -197,7 +209,7 @@ function renderTextWithLinks(
           type="button"
           onClick={() => onHarperLinkClick(href)}
           title={href}
-          className="inline cursor-pointer border-0 bg-transparent p-0 text-left font-[inherit] text-inherit underline underline-offset-2 transition-opacity hover:opacity-70"
+          className={cn("border-0 font-[inherit]", CAREER_MESSAGE_LINK_CLASS)}
         >
           {compactUrlLabel(href)}
         </BareButton>
@@ -212,7 +224,7 @@ function renderTextWithLinks(
         target="_blank"
         rel="noreferrer"
         title={href}
-        className="underline underline-offset-2 transition-opacity hover:opacity-70"
+        className={CAREER_MESSAGE_LINK_CLASS}
       >
         {compactUrlLabel(href)}
       </a>
@@ -383,6 +395,7 @@ const CareerMessageBubble = ({
             <RichText
               content={assistantContent}
               className={careerTimelineAssistantRichTextClassName}
+              linkClassName={CAREER_MESSAGE_LINK_CLASS}
               onHarperLinkClick={handleHarperLinkClick}
             />
           )}
@@ -392,7 +405,14 @@ const CareerMessageBubble = ({
                 <BareButton
                   key={`${message.id}-choice-${index}-${choice.value}`}
                   type="button"
-                  onClick={() => void onSelectAssistantChoice?.(choice.value)}
+                  onClick={() =>
+                    void onSelectAssistantChoice?.({
+                      assistantMessageId: String(message.id),
+                      choice: choice.value,
+                      choiceCount: assistantChoices.length,
+                      choiceIndex: index,
+                    })
+                  }
                   disabled={choiceActionsDisabled || !onSelectAssistantChoice}
                   className={cn(
                     "flex cursor-pointer min-h-11 w-full items-center justify-start rounded-md border border-neutral-1000-a10 bg-bg-floating px-2.5 py-2 text-left text-base font-medium leading-5 text-neutral-primary transition-colors hover:border-neutral-400 hover:bg-bg-weak disabled:cursor-not-allowed disabled:opacity-55",

@@ -152,7 +152,6 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     );
 
   return buildCareerRealtimePromptPlan({
-    additionalQuestionSelectionCount: null,
     callEndInstruction: getCareerCallEndInstructionPrompt(),
     currentInsightContent,
     currentPreferences,

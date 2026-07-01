@@ -89,9 +89,9 @@ select
     'Previously recommended internal opportunity.'
   ) as reason,
   null::jsonb as reevaluation_criteria,
-  coalesce(rec.recommended_at, rec.created_at, timezone('utc', now())) as last_evaluated_at,
-  coalesce(rec.recommended_at, rec.created_at, timezone('utc', now())) as reevaluation_checked_at,
-  coalesce(rec.created_at, rec.recommended_at, timezone('utc', now())) as created_at
+  coalesce(rec.created_at, timezone('utc', now())) as last_evaluated_at,
+  coalesce(rec.created_at, timezone('utc', now())) as reevaluation_checked_at,
+  coalesce(rec.created_at, timezone('utc', now())) as created_at
 from public.talent_opportunity_recommendation rec
 join public.company_roles role
   on role.role_id = rec.role_id

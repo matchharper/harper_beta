@@ -72,7 +72,7 @@ Model selection:
 
 - `EMAIL_REPLY_MODEL`
 - fallback: `OPP_DELIVERY_COPY_MODEL`
-- fallback: `claude-sonnet-4-6`
+- fallback: `claude-sonnet-5`
 
 Provider selection:
 
@@ -116,10 +116,10 @@ Defaults:
 
 | Step | Default model | Temperature | Max tokens | Purpose |
 | --- | --- | ---: | ---: | --- |
-| `policy_search_plan` | `grok-4-1-fast-reasoning` | `0.2` | `3072` | choose communication act, copy shape, counts, search plan |
-| `shortlist` | `grok-4-1-fast-reasoning` | `0.1` | `2048` | choose candidate role IDs for detailed final writing |
-| `final_delivery` | `claude-sonnet-4-6` | `0.55` | `8192` | write the final Korean email/chat draft |
-| `copy_critic` | `grok-4-1-fast-reasoning` | `0.0` | `2048` | review tone, repetition, factuality, ask overload |
+| `policy_search_plan` | `grok-4.3` | `0.2` | `3072` | choose communication act, copy shape, counts, search plan |
+| `shortlist` | `grok-4.3` | `0.1` | `2048` | choose candidate role IDs for detailed final writing |
+| `final_delivery` | `claude-sonnet-5` | `0.55` | `8192` | write the final Korean email/chat draft |
+| `copy_critic` | `grok-4.3` | `0.0` | `2048` | review tone, repetition, factuality, ask overload |
 
 Each value can be overridden through the matching `OPP_HUMAN_SCRIPTED_*` environment variable in `harper_worker/opp/scripted_human_config.py`.
 

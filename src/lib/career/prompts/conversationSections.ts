@@ -12,7 +12,11 @@ import {
   CAREER_CANONICAL_TALENT_INSIGHT_SLOTS,
   CAREER_HARPER_LINK_OUTPUT_RULE,
 } from "@/lib/career/prompts/rawPrompts";
-import { cleanCareerPromptInlineValue } from "@/lib/career/prompts/promptUtils";
+import {
+  cleanCareerPromptInlineValue,
+  formatCareerPromptCompactDateTime,
+  sanitizeCareerPromptDateValues,
+} from "@/lib/career/prompts/promptUtils";
 import type {
   CareerPromptActivitySummary,
   CareerPromptChannel,
@@ -95,19 +99,15 @@ export function buildKnownFutureMatchingInsightsSection(args: {
 
 /** 온보딩 중 메인 대화에 들어가는 checklist 진행/종료 조건/현재 insight 값을 한 번에 만든다. */
 export function buildOnboardingRuntimeStateSection(args: {
-  additionalQuestionSelectionCount?: number | null;
   checklistContext?: OnboardingChecklistLocationContext;
   checklistCoverage?: OnboardingChecklistCoverage | null;
   content: Record<string, string> | null;
-  hasAdditionalQuestionSelectorTool: boolean;
   quoteKeys?: boolean;
 }) {
   const {
-    additionalQuestionSelectionCount,
     checklistContext,
     checklistCoverage,
     content,
-    hasAdditionalQuestionSelectorTool,
     quoteKeys = false,
   } = args;
   const currentContent = content ?? {};
@@ -120,11 +120,6 @@ export function buildOnboardingRuntimeStateSection(args: {
     requiredAdditionalQuestionKeys.length > 0
       ? requiredAdditionalQuestionKeys.join(", ")
       : "(none)";
-  const selectedAdditionalQuestionCount =
-    typeof additionalQuestionSelectionCount === "number" &&
-    Number.isFinite(additionalQuestionSelectionCount)
-      ? Math.max(0, Math.floor(additionalQuestionSelectionCount))
-      : null;
   const requiredQuestionKeys =
     getOnboardingRequiredQuestionKeys(checklistContext);
   const coveredChecklistItems = onboardingChecklist.filter(
@@ -137,7 +132,6 @@ export function buildOnboardingRuntimeStateSection(args: {
     const value = currentContent[item.key];
     return typeof value === "string" && value.trim().length > 0;
   }).length;
-  const additionalQuestionRequiredCount = requiredAdditionalQuestionKeys.length;
   const missingRequiredAdditionalQuestionKeys =
     requiredAdditionalQuestionKeys.filter((key) => coverage[key] !== "covered");
   const missingCountryRequiredQuestionKeys = requiredQuestionKeys.filter(
@@ -149,13 +143,6 @@ export function buildOnboardingRuntimeStateSection(args: {
   const isFinalPriorityConfirmationCovered =
     coverage[ONBOARDING_FINAL_CONFIRMATION_KEY] === "covered";
 
-  const additionalQuestionSelectionLine =
-    selectedAdditionalQuestionCount === null
-      ? ""
-      : `- Selector calls recorded: ${selectedAdditionalQuestionCount}/${additionalQuestionRequiredCount} (diagnostic only; checklist coverage decides completion)`;
-  const additionalQuestionToolPolicyLine = hasAdditionalQuestionSelectorTool
-    ? "- When select_additional_onboarding_question is available and the chosen next question is an additional_question item, call the tool before asking. Ask exactly one returned assistantMessage."
-    : "- If no selector tool is available and the chosen next question is an additional_question item, ask one concise profile-gap, role-depth, or career-transition question directly.";
   const checklistKeys = new Set(insightChecklist.map((item) => item.key));
   const checklistLines = [...onboardingChecklist]
     .sort((left, right) => left.priority - right.priority)
@@ -185,7 +172,7 @@ export function buildOnboardingRuntimeStateSection(args: {
     "## Onboarding runtime state",
     "### Source of truth",
     "- Use checklist coverage below as the only progress source of truth.",
-    "- Do not infer onboarding progress from filled insight count, selector count, or recent-message guesses.",
+    "- Do not infer onboarding progress from filled insight count or recent-message guesses.",
     "- If a checklist key is covered, do not ask that topic again even if the corresponding insight value is empty or terse.",
     "- The latest user reply may not yet be reflected in checklist coverage. If recent conversation clearly shows Harper already asked final_priority_confirmation and the latest user reply answered it, you may treat final_priority_confirmation as effectively satisfied for this response.",
     "### Closing conditions",
@@ -208,7 +195,6 @@ export function buildOnboardingRuntimeStateSection(args: {
         : "(none)"
     }`,
     `- Final priority confirmation: ${isFinalPriorityConfirmationCovered ? "covered" : "missing"}`,
-    additionalQuestionSelectionLine,
     "### Choosing the next response",
     "- Use the checklist and recent conversation to choose one natural next question or closing move.",
     "- Prefer a missing checklist item that fits the user's latest answer and the conversation flow; do not mechanically follow list order when another missing item is clearly more natural.",
@@ -240,9 +226,16 @@ export function buildOnboardingRuntimeStateSection(args: {
     "## Additional question policy",
     "- Additional questions are checklist items, not a separate progress system.",
     "- Ask only required additional_question keys shown in the checklist. Never invent an additional_question key that is not listed.",
-    additionalQuestionToolPolicyLine,
+    "- When the next missing checklist item is an additional_question item, ask one concise additional question directly. Do not call a selector tool or mention internal checklist keys.",
     '- Choose the additional question by asking: "What gap would most improve future opportunity matching for this person right now?"',
-    "Priority signals: unclear direct contribution, important experience with shallow description, short tenure/transition/gap context, profile-preference mismatch, role-specific depth.",
+    "Selection priority:",
+    "1. Substantial experience exists but its description is empty, especially around 6+ months or roughly a year. Ask what they actually did in that period once, using the company/role/date context.",
+    "2. Recent or important experience exists but direct contribution is unclear.",
+    "3. Short tenure, career transition, gap, or role/domain change needs interpretation.",
+    "4. The profile strengths and the desired next opportunity have a mismatch or unresolved gap.",
+    "5. Role-specific depth is unclear.",
+    "6. Role-specific preference would improve matching, such as paid channel depth, B2C vs B2B product preference, or AI application layer vs foundation/infrastructure direction.",
+    "Do not repeatedly ask broad desired role or tech-stack preference questions. If those were already asked or answered in recent conversation, choose a concrete profile-gap question instead.",
     "Fallback examples: 최근 역할이나 대표 경험 중에서 실제로 본인이 더 많이 맡았던 부분은 어디였어요? / 최근 경험에서 본인이 직접 만든 변화나 결과를 하나만 꼽으면 뭐가 있을까요?",
   ]
     .filter((line) => line.trim().length > 0)
@@ -410,15 +403,21 @@ export function buildOpportunityStatusSection(
   if (!status) return "";
 
   const lines: string[] = [];
-  if (status.onboardingCompletedAt) {
-    lines.push(`- onboardingCompletedAt: ${status.onboardingCompletedAt}`);
+  const onboardingCompletedAt = formatCareerPromptCompactDateTime(
+    status.onboardingCompletedAt
+  );
+  if (onboardingCompletedAt) {
+    lines.push(`- onboardingCompletedAt: ${onboardingCompletedAt}`);
   }
   if (status.activeRunStatus) {
     lines.push(`- activeOpportunitySearchStatus: ${status.activeRunStatus}`);
   }
-  if (status.activeRunCreatedAt) {
+  const activeRunCreatedAt = formatCareerPromptCompactDateTime(
+    status.activeRunCreatedAt
+  );
+  if (activeRunCreatedAt) {
     lines.push(
-      `- activeOpportunitySearchCreatedAt: ${status.activeRunCreatedAt}`
+      `- activeOpportunitySearchCreatedAt: ${activeRunCreatedAt}`
     );
   }
   if (status.isInitialSearchRunning) {
@@ -434,7 +433,9 @@ export function buildOpportunityStatusSection(
   }
 
   return lines.length > 0
-    ? ["## Opportunity discovery runtime state", ...lines].join("\n")
+    ? sanitizeCareerPromptDateValues(
+        ["## Opportunity discovery runtime state", ...lines].join("\n")
+      )
     : "";
 }
 
@@ -470,24 +471,28 @@ export function buildRecentActivitySummariesSection(
   const rows = (events ?? [])
     .slice(0, 5)
     .map((event) => ({
-      created_at: String(event.created_at ?? "").trim(),
-      summary: String(event.summary ?? "")
-        .replace(/\s+/g, " ")
-        .trim(),
+      created_at: formatCareerPromptCompactDateTime(event.created_at),
+      summary: sanitizeCareerPromptDateValues(
+        String(event.summary ?? "")
+          .replace(/\s+/g, " ")
+          .trim()
+      ),
     }))
     .filter((event) => event.created_at && event.summary);
 
   if (rows.length === 0) return "";
 
-  return [
-    "## Recent talent_activity_events",
-    rows
-      .map(
-        (event) =>
-          `- created_at: ${event.created_at}; summary: ${event.summary}`
-      )
-      .join("\n"),
-  ].join("\n");
+  return sanitizeCareerPromptDateValues(
+    [
+      "## Recent talent_activity_events",
+      rows
+        .map(
+          (event) =>
+            `- created_at: ${event.created_at}; summary: ${event.summary}`
+        )
+        .join("\n"),
+    ].join("\n")
+  );
 }
 
 /** 이력서 파일/텍스트/링크 중 하나라도 있으면 true를 반환한다. */

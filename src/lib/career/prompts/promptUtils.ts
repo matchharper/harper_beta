@@ -41,7 +41,7 @@ export function getCareerProfilePromptCurrentDate(now = new Date()) {
 
 export function renderCareerPromptBlocks(blocks: CareerPromptBlock[]) {
   return blocks
-    .map((block) => block.text.trim())
+    .map((block) => sanitizeCareerPromptDateValues(block.text.trim()))
     .filter((text) => text.length > 0)
     .join("\n\n");
 }
@@ -73,6 +73,76 @@ export function parseCareerPromptTimestampMs(value: string | null | undefined) {
   if (typeof value !== "string") return 0;
   const time = Date.parse(value);
   return Number.isNaN(time) ? 0 : time;
+}
+
+const rawIsoTimestampPattern =
+  /\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:?\d{2})?\b/g;
+
+const compactPromptKstDateTimeFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: CAREER_PROFILE_PROMPT_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  hourCycle: "h23",
+});
+
+function normalizeTimestampForDateParse(value: string) {
+  const trimmed = value.trim();
+  const withMilliseconds = trimmed.replace(
+    /(\.\d{3})\d+(?=(?:Z|[+-]\d{2}:?\d{2})?$)/,
+    "$1"
+  );
+  const withColonOffset = withMilliseconds.replace(
+    /([+-]\d{2})(\d{2})$/,
+    "$1:$2"
+  );
+  if (
+    withColonOffset.includes("T") &&
+    !/(Z|[+-]\d{2}:?\d{2})$/.test(withColonOffset)
+  ) {
+    return `${withColonOffset}Z`;
+  }
+  return withColonOffset;
+}
+
+export function formatCareerPromptCompactDateTime(value: unknown) {
+  if (value === null || value === undefined || value === "") return "";
+  const text =
+    value instanceof Date
+      ? value.toISOString()
+      : typeof value === "string"
+        ? value.replace(/\s+/g, " ").trim().slice(0, 160)
+        : String(value ?? "").replace(/\s+/g, " ").trim().slice(0, 160);
+  if (!text) return "";
+  if (/^\d{4}-\d{2}-\d{2} \d{1,2}시(?:\s*KST)?$/.test(text)) {
+    return text.replace(/\s*KST$/, "");
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+
+  const date = new Date(normalizeTimestampForDateParse(text));
+  if (Number.isNaN(date.getTime())) {
+    return /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : text;
+  }
+
+  const parts = compactPromptKstDateTimeFormatter.formatToParts(date);
+  const partValue = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value;
+  const year = partValue("year");
+  const month = partValue("month");
+  const day = partValue("day");
+  const hour = partValue("hour");
+  if (!year || !month || !day || !hour) {
+    return text.slice(0, 10);
+  }
+  return `${year}-${month}-${day} ${hour}시`;
+}
+
+export function sanitizeCareerPromptDateValues(text: string) {
+  return text.replace(rawIsoTimestampPattern, (match) => {
+    const compact = formatCareerPromptCompactDateTime(match);
+    return compact || match;
+  });
 }
 
 const careerPromptKstDateTimeFormatter = new Intl.DateTimeFormat("ko-KR", {

@@ -297,27 +297,3 @@ export async function countUserChatTurns(args: {
 
   return count ?? 0;
 }
-
-export async function countAdditionalOnboardingQuestionSelections(args: {
-  admin: TalentAdminClient;
-  conversationId: string;
-}) {
-  const { admin, conversationId } = args;
-  const { count, error } = await admin
-    .from("talent_messages")
-    .select("id", { count: "exact", head: true })
-    .eq("conversation_id", conversationId)
-    .eq("role", "assistant")
-    .eq(
-      "message_type",
-      TALENT_MESSAGE_TYPE_ONBOARDING_ADDITIONAL_QUESTION_SELECTION
-    );
-
-  if (error) {
-    throw new Error(
-      error.message ?? "Failed to count additional onboarding questions"
-    );
-  }
-
-  return count ?? 0;
-}

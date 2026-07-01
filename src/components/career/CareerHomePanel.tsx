@@ -94,6 +94,16 @@ type CareerDevSqlExecutionResult = {
   rows?: unknown[];
 };
 
+type CareerDevCompanyRoleFtsResult = {
+  elapsedSeconds?: number;
+  error?: string;
+  keywords?: string[];
+  ok?: boolean;
+  rowCount?: number;
+  rows?: Array<Record<string, unknown>>;
+  sourceType?: "all" | "internal";
+};
+
 type CareerDevPromptDebugPayload = {
   channel?: "text" | "voice";
   error?: string;
@@ -292,6 +302,8 @@ const CareerHomePanel = ({
   const [devPromptLoggingKind, setDevPromptLoggingKind] =
     React.useState<CareerDevPromptLogKind | null>(null);
   const [devPromptLogStatus, setDevPromptLogStatus] = React.useState("");
+  const [devRoleFtsLoading, setDevRoleFtsLoading] = React.useState(false);
+  const [devRoleFtsStatus, setDevRoleFtsStatus] = React.useState("");
 
   const displayName =
     talentProfile.talentUser?.name ??
@@ -651,6 +663,99 @@ const CareerHomePanel = ({
   );
 
   // career-i18n-skip-next-line: dev controls text is intentionally Korean-only.
+  const handleRunDevCompanyRoleFts = React.useCallback(async (args?: {
+    sourceType?: "internal";
+  }) => {
+    if (devRoleFtsLoading) return;
+
+    const internalOnly = args?.sourceType === "internal";
+    const rawKeywords = window.prompt(
+      internalOnly
+        ? "internal company_roles FTS 검색 키워드\n쉼표나 줄바꿈으로 여러 개 입력할 수 있습니다."
+        : "company_roles FTS 검색 키워드\n쉼표나 줄바꿈으로 여러 개 입력할 수 있습니다.",
+      internalOnly ? "CTO" : "founding engineer, machine learning"
+    );
+    if (rawKeywords === null) return;
+
+    const keywords = rawKeywords
+      .split(/[\n,]+/)
+      .map((keyword) => keyword.trim())
+      .filter(Boolean);
+    if (keywords.length === 0) return;
+
+    logCareerEvent(
+      internalOnly
+        ? "click_home_dev_internal_company_roles_fts"
+        : "click_home_dev_company_roles_fts"
+    );
+    setDevRoleFtsLoading(true);
+    setDevRoleFtsStatus("");
+    try {
+      const response = await fetchWithAuth(
+        "/api/talent/dev-company-role-search",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            keywords,
+            limit: 25,
+            ...(internalOnly ? { sourceType: "internal" } : {}),
+          }),
+        }
+      );
+      const payload = (await response
+        .json()
+        .catch(() => ({}))) as CareerDevCompanyRoleFtsResult;
+
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error || "company_roles FTS 검색 실패");
+      }
+
+      const rows = Array.isArray(payload.rows) ? payload.rows : [];
+      const elapsedSeconds =
+        typeof payload.elapsedSeconds === "number"
+          ? payload.elapsedSeconds
+          : null;
+      const sourceTypeLabel =
+        payload.sourceType === "internal" || internalOnly ? "internal" : "all";
+      const summary = `${sourceTypeLabel} · ${payload.rowCount ?? rows.length}개 · ${
+        elapsedSeconds === null ? "-" : `${elapsedSeconds}s`
+      }`;
+
+      console.groupCollapsed(
+        `[company_roles FTS:${sourceTypeLabel}] ${summary} · ${(
+          payload.keywords ?? keywords
+        ).join(", ")}`
+      );
+      console.table(
+        rows.map((row) => ({
+          rank: row.search_rank,
+          role: row.role_name,
+          company: row.company_name,
+          status: row.status,
+          source: row.source_type,
+          location: row.location_text,
+          matched: Array.isArray(row.matched_keywords)
+            ? row.matched_keywords.join(", ")
+            : row.matched_keywords,
+          posted_at: row.posted_at,
+          url: row.external_jd_url,
+        }))
+      );
+      console.log(rows);
+      console.groupEnd();
+
+      setDevRoleFtsStatus(`FTS ${summary} · 콘솔 확인`);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "company_roles FTS 검색 실패";
+      console.warn("[CareerHomePanel] company_roles FTS failed", error);
+      setDevRoleFtsStatus(message);
+    } finally {
+      setDevRoleFtsLoading(false);
+    }
+  }, [devRoleFtsLoading, fetchWithAuth, logCareerEvent]);
+
+  // career-i18n-skip-next-line: dev controls text is intentionally Korean-only.
   const handleGenerateDevSql = React.useCallback(async () => {
     const request = devSqlRequest.trim();
     if (!request || devSqlGenerating || devSqlExecuting) return;
@@ -983,6 +1088,32 @@ const CareerHomePanel = ({
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             <ActionButton
+              onClick={() => void handleRunDevCompanyRoleFts()}
+              disabled={devRoleFtsLoading}
+              actionVariant="secondary"
+            >
+              {devRoleFtsLoading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Search className="h-3.5 w-3.5" />
+              )}
+              company_roles FTS
+            </ActionButton>
+            <ActionButton
+              onClick={() =>
+                void handleRunDevCompanyRoleFts({ sourceType: "internal" })
+              }
+              disabled={devRoleFtsLoading}
+              actionVariant="secondary"
+            >
+              {devRoleFtsLoading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Search className="h-3.5 w-3.5" />
+              )}
+              internal roles FTS
+            </ActionButton>
+            <ActionButton
               onClick={() => {
                 logCareerEvent("click_home_dev_discovery_run");
                 void onRunOpportunityDiscoveryTest(devAgentVariant);
@@ -1150,6 +1281,11 @@ const CareerHomePanel = ({
               6시간 인사만
             </ActionButton>
           </div>
+          {devRoleFtsStatus ? (
+            <Text as="div" type="subtle" className="mt-2">
+              {devRoleFtsStatus}
+            </Text>
+          ) : null}
           {devPromptLogStatus ? (
             <Text as="div" type="subtle" className="mt-2">
               {devPromptLogStatus}

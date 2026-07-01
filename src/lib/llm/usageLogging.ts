@@ -1,4 +1,11 @@
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/admin";
+import {
+  CLAUDE_CACHE_READ_USD_PER_MTOK,
+  CLAUDE_CACHE_WRITE_USD_PER_MTOK,
+  CLAUDE_INPUT_USD_PER_MTOK,
+  CLAUDE_MODEL,
+  CLAUDE_OUTPUT_USD_PER_MTOK,
+} from "@/lib/llm/modelConfig";
 
 type OpenAICompatibleUsage = {
   cache_creation_input_tokens?: number | null;
@@ -82,28 +89,37 @@ type RealtimeTokenUsage = {
   unattributedOutputTokens: number;
 };
 
-const LLM_LOG_SOURCES = [
-  "career/profile_ingestion",
-  "career_tool:recommend_job_postings",
-  "career_tool:update_talent_profile",
-  "career_tool:select_additional_onboarding_question",
-  "career_tool:web_search",
-  "career_tool:read_recommended_opportunities",
+const LLM_LOG_TOOL_NAMES = [
+  "recommend_job_postings",
+  "read_recommended_opportunities",
+  "get_internal_roles",
+  "request_internal_role_priority_review",
+  "get_role_context",
+  "update_recommended_opportunity_feedback",
+  "web_search",
+  "open_url",
+  "research_company",
+  "lookup_answer_examples",
+  "read_talent_activity_events",
+  "update_setting",
+  "update_talent_profile",
+  "record_internal_fit_reevaluation_information",
 ] as const;
 
-const TOOL_LLM_LOG_NAMES = new Set([
-  "update_talent_profile",
-  "select_additional_onboarding_question",
-  "web_search",
-  "read_recommended_opportunities",
-]);
+const LLM_LOG_SOURCES: readonly string[] = [
+  "career/profile_ingestion",
+  "career/chat",
+  ...LLM_LOG_TOOL_NAMES.map((name) => `career_tool:${name}`),
+];
+
+const TOOL_LLM_LOG_NAMES = new Set<string>(LLM_LOG_TOOL_NAMES);
 
 const MODEL_PRICING_USD_PER_MTOK: Record<string, LlmModelPricing> = {
-  "claude-sonnet-4-6": {
-    cacheReadUsdPerMtok: 0.3,
-    cacheWriteUsdPerMtok: 3.75,
-    inputUsdPerMtok: 3,
-    outputUsdPerMtok: 15,
+  [CLAUDE_MODEL]: {
+    cacheReadUsdPerMtok: CLAUDE_CACHE_READ_USD_PER_MTOK,
+    cacheWriteUsdPerMtok: CLAUDE_CACHE_WRITE_USD_PER_MTOK,
+    inputUsdPerMtok: CLAUDE_INPUT_USD_PER_MTOK,
+    outputUsdPerMtok: CLAUDE_OUTPUT_USD_PER_MTOK,
   },
   "gpt-4.1-mini": {
     cacheReadUsdPerMtok: 0.1,
@@ -115,15 +131,15 @@ const MODEL_PRICING_USD_PER_MTOK: Record<string, LlmModelPricing> = {
     inputUsdPerMtok: 0.25,
     outputUsdPerMtok: 2,
   },
-  "grok-4-1-fast-non-reasoning": {
-    cacheReadUsdPerMtok: 0.05,
-    inputUsdPerMtok: 0.2,
-    outputUsdPerMtok: 0.5,
+  "grok-4-3-fast-non-reasoning": {
+    cacheReadUsdPerMtok: 0.2,
+    inputUsdPerMtok: 1.25,
+    outputUsdPerMtok: 2.5,
   },
-  "grok-4-1-fast-reasoning": {
-    cacheReadUsdPerMtok: 0.05,
-    inputUsdPerMtok: 0.2,
-    outputUsdPerMtok: 0.5,
+  "grok-4.3": {
+    cacheReadUsdPerMtok: 0.2,
+    inputUsdPerMtok: 1.25,
+    outputUsdPerMtok: 2.5,
   },
   "grok-4-fast-non-reasoning": {
     cacheReadUsdPerMtok: 0.05,
@@ -503,6 +519,7 @@ export function logLlmTokenUsage(args: {
     meta: {
       ...(args.meta ?? {}),
       ...(extraEstimatedCostUsd > 0 ? { extraEstimatedCostUsd } : {}),
+      costKind: "actual",
       label: args.label,
       step: target.step,
       usage,
@@ -543,14 +560,17 @@ export function logLlmTokenUsageForToolCalls(args: {
 
   const usage = extractLlmTokenUsage(args.response);
   const cost = estimateLlmUsageCost(args.model, usage);
-  const estimatedCostUsd = (cost?.estimatedCostUsd ?? 0) / toolNames.length;
+  const attributedEstimatedCostUsd =
+    (cost?.estimatedCostUsd ?? 0) / toolNames.length;
 
   for (const toolName of toolNames) {
     const source = `career_tool:${toolName}`;
     void insertLlmLog({
-      estimatedCostUsd,
+      estimatedCostUsd: attributedEstimatedCostUsd,
       meta: {
+        attributedEstimatedCostUsd,
         attributionCount: toolNames.length,
+        costKind: "attribution",
         label: `${source}:${args.step}`,
         parentLabel: args.baseLabel ?? null,
         step: args.step,
@@ -574,6 +594,7 @@ export async function insertRealtimeLlmUsageLog(args: {
   await insertLlmLog({
     estimatedCostUsd: cost?.estimatedCostUsd ?? 0,
     meta: {
+      costKind: "actual",
       label: "career/realtime:response",
       step: "response",
       usage,

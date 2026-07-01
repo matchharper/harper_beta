@@ -37,15 +37,6 @@ export type CareerCompanyFollowActionResult = {
   userMessage?: CareerMessagePayload | null;
 };
 
-export type CareerCompanyRecommendationResult = {
-  answerDraft?: string;
-  cacheHit?: boolean;
-  candidateCount?: number;
-  ok?: boolean;
-  recommendedCount?: number;
-  recommendations?: TalentCompanyWatchlistItem[];
-};
-
 export type CareerSidebarContextValue = {
   user: User | null;
   conversationId: string | null;
@@ -145,11 +136,6 @@ export type CareerSidebarContextValue = {
     companyWorkspaceId?: string | null;
     source?: string | null;
   }) => Promise<CareerCompanyFollowActionResult | null>;
-  onGenerateCompanyRecommendations: (args?: {
-    forceRefresh?: boolean;
-    limit?: number;
-    request?: string | null;
-  }) => Promise<CareerCompanyRecommendationResult | null>;
 
   resumeFile: File | null;
   savedResumeFileName: string | null;

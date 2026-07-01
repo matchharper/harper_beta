@@ -8,15 +8,9 @@ import {
   parseCareerRecommendationLimit,
   parseCareerRecommendationOffset,
   parseCareerRecommendationSourceFilter,
-  updateCareerTalentRecommendationProcessedStage,
 } from "@/lib/ops/careerServer";
 
 export const runtime = "nodejs";
-
-type PatchBody = {
-  processedStage?: string | null;
-  recommendationId?: string;
-};
 
 export async function GET(req: NextRequest) {
   try {
@@ -47,44 +41,6 @@ export async function GET(req: NextRequest) {
     return toInternalApiErrorResponse(
       error,
       "Failed to load career talent recommendations"
-    );
-  }
-}
-
-export async function PATCH(req: NextRequest) {
-  try {
-    await requireInternalApiUser(req);
-    const body = (await req.json().catch(() => ({}))) as PatchBody;
-    const recommendationId = String(body.recommendationId ?? "").trim();
-
-    if (!recommendationId) {
-      return NextResponse.json(
-        { error: "recommendationId is required" },
-        { status: 400 }
-      );
-    }
-
-    if (
-      body.processedStage !== null &&
-      body.processedStage !== undefined &&
-      typeof body.processedStage !== "string"
-    ) {
-      return NextResponse.json(
-        { error: "processedStage must be a string or null" },
-        { status: 400 }
-      );
-    }
-
-    const payload = await updateCareerTalentRecommendationProcessedStage({
-      processedStage: body.processedStage ?? null,
-      recommendationId,
-    });
-
-    return NextResponse.json(payload);
-  } catch (error) {
-    return toInternalApiErrorResponse(
-      error,
-      "Failed to update career talent recommendation"
     );
   }
 }

@@ -219,7 +219,10 @@ const CareerSupportInquiryModal = ({
                 )}
               </>
             ) : (
-              t("career.common.career_support_inquiry_modal.1ii5ibp", "제출")
+              t(
+                "career.common.career_support_inquiry_modal.submit_inquiry",
+                "문의 보내기"
+              )
             )}
           </BareButton>
         </div>

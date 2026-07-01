@@ -444,7 +444,7 @@ function OpportunitySummaryCard({
               <BareButton
                 type="button"
                 onClick={() => onOpenCompanyInfo?.(opportunity)}
-                className="min-w-0 wrap-break-word text-left text-[14px] font-medium text-neutral-primary decoration-dotted underline underline-offset-2 transition-colors hover:text-neutral-primary"
+                className="min-w-0 wrap-break-word text-left text-[14px] font-medium text-neutral-primary decoration-dotted underline underline-offset-2 transition-colors duration-200 hover:text-primary"
               >
                 {opportunity.companyName}
               </BareButton>
@@ -612,10 +612,10 @@ function CompanySection({
           <BareButton
             type="button"
             onClick={() => onOpenCompanyInfo?.(opportunity)}
-            className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-medium text-neutral-muted decoration-dotted underline underline-offset-2 transition-colors hover:text-neutral-muted"
+            className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-medium text-neutral-muted underline underline-offset-4 transition-colors duration-200 hover:text-primary"
           >
-            {actionLabel}
             <ArrowUpRight className="h-3.5 w-3.5" />
+            {actionLabel}
           </BareButton>
         ) : null}
       </div>

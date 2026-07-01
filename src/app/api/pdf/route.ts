@@ -17,13 +17,6 @@ export async function POST(req: NextRequest) {
 
     const data = await pdf(buffer);
 
-    // 4. 결과 출력
-    // logger.log("--- PDF 메타데이터 ---");
-    // logger.log(`페이지 수: ${data.numpages}`);
-    // logger.log(`정보: ${JSON.stringify(data.info, null, 2)}`);
-
-    // logger.log("\n--- 텍스트 내용 ---");
-    // 공백 정리 (선택사항)
     const parsedText = data.text.trim();
 
     return NextResponse.json({ text: parsedText });

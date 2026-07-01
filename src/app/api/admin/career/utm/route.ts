@@ -65,7 +65,6 @@ type TalentActivityEventRow = Pick<
 type RecommendationRow = Pick<
   Database["public"]["Tables"]["talent_opportunity_recommendation"]["Row"],
   | "talent_id"
-  | "recommended_at"
   | "created_at"
   | "viewed_at"
   | "clicked_at"
@@ -486,8 +485,7 @@ function buildSelectedSourceDetail(args: {
   for (const recommendation of args.recommendations) {
     const userId = String(recommendation.talent_id ?? "").trim();
     if (!sourceUserIds.has(userId)) continue;
-    const occurredAt =
-      recommendation.recommended_at ?? recommendation.created_at;
+    const occurredAt = recommendation.created_at;
     if (occurredAt)
       setMinIso(firstRecommendationAtByUserId, userId, occurredAt);
   }
@@ -702,7 +700,7 @@ async function buildUtmResponse(req: NextRequest) {
       supabaseServer
         .from("talent_opportunity_recommendation")
         .select(
-          "talent_id,recommended_at,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
+          "talent_id,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
         )
         .order("created_at", { ascending: true })
         .range(from, to)

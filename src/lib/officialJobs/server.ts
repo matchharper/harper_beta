@@ -1,10 +1,34 @@
 import {
   OFFICIAL_JOBS_INTERNAL_COPY_ROLE_TITLE,
   OFFICIAL_JOBS_INTERNAL_COPY_SLUG,
+  mapOfficialJobListRow,
   mapOfficialJobRow,
   type OfficialJob,
+  type OfficialJobListItem,
 } from "@/lib/officialJobs";
 import { supabaseServer } from "@/lib/supabaseServer";
+
+export async function getPublicOfficialJobListItems(): Promise<
+  OfficialJobListItem[]
+> {
+  const { data, error } = await supabaseServer
+    .from("official_jobs")
+    .select(
+      "ashby_job_posting_id,id,slug,company_name,role_title,location,vertical"
+    )
+    .eq("is_published", true)
+    .neq("role_title", OFFICIAL_JOBS_INTERNAL_COPY_ROLE_TITLE)
+    .neq("slug", OFFICIAL_JOBS_INTERNAL_COPY_SLUG)
+    .order("display_order", { ascending: true })
+    .order("published_at", { ascending: false, nullsFirst: false });
+
+  if (error) {
+    console.warn("official_jobs list query failed:", error.message);
+    return [];
+  }
+
+  return (data ?? []).map((row) => mapOfficialJobListRow(row));
+}
 
 export async function getPublicOfficialJobs(): Promise<OfficialJob[]> {
   const { data, error } = await supabaseServer

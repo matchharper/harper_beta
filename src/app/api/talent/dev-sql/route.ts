@@ -28,7 +28,6 @@ const COUNT_SPECS = [
   { table: "opportunity_discovery_run", column: "talent_id" },
   { table: "talent_opportunity_recommendation", column: "talent_id" },
   { table: "talent_opportunity_delivery", column: "talent_id" },
-  { table: "talent_company_recommendation", column: "talent_id" },
   { table: "talent_company_follow", column: "talent_id" },
   { table: "career_email_messages", column: "talent_id" },
   { table: "career_email_onboarding_leads", column: "talent_id" },

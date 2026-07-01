@@ -44,7 +44,6 @@ import type {
 const ONBOARDING_TOOL_POLICY_ALLOWED_TOOLS = [
   "update_setting",
   "update_talent_profile",
-  "select_additional_onboarding_question",
   "open_url",
   "read_talent_activity_events",
   "read_recommended_opportunities",
@@ -84,7 +83,6 @@ function buildVoiceCallRules(args: {
  */
 function buildCareerConversationPromptPlan(args: {
   activeInternalFitHoldQuestion?: ActiveInternalFitHoldQuestion | null;
-  additionalQuestionSelectionCount?: number | null;
   callEndInstruction?: string;
   channel: CareerPromptChannel;
   currentInsightContent: Record<string, string> | null;
@@ -125,13 +123,9 @@ function buildCareerConversationPromptPlan(args: {
   // 온보딩 중에는 checklist 진행/종료 조건/현재 insight 값을 하나의 runtime state 블록으로 넣는다.
   const onboardingRuntimeStateSection = isOnboardingActive
     ? buildOnboardingRuntimeStateSection({
-        additionalQuestionSelectionCount: args.additionalQuestionSelectionCount,
         checklistContext: args.profile,
         checklistCoverage: args.onboardingChecklistCoverage,
         content: args.currentInsightContent,
-        hasAdditionalQuestionSelectorTool: normalizedToolNames.includes(
-          "select_additional_onboarding_question"
-        ),
         quoteKeys: args.channel === "chat",
       })
     : "";
@@ -330,7 +324,6 @@ function buildCareerConversationPromptPlan(args: {
  */
 export function buildCareerTextChatPromptBlocks(args: {
   activeInternalFitHoldQuestion?: ActiveInternalFitHoldQuestion | null;
-  additionalQuestionSelectionCount?: number | null;
   currentInsightContent: Record<string, string> | null;
   currentPreferences?: CareerPromptPreferences | null;
   isOnboardingDone?: boolean;
@@ -361,7 +354,6 @@ export function buildCareerTextChatPromptBlocks(args: {
  * 최근 채팅 맥락을 받는다. text chat 전용 feedback/activity 블록은 넣지 않는다.
  */
 export function buildCareerRealtimePromptPlan(args: {
-  additionalQuestionSelectionCount?: number | null;
   currentInsightContent: Record<string, string> | null;
   currentPreferences?: CareerPromptPreferences | null;
   interruptHandling: string;
@@ -379,7 +371,6 @@ export function buildCareerRealtimePromptPlan(args: {
 }) {
   const plan = buildCareerConversationPromptPlan({
     callEndInstruction: args.callEndInstruction,
-    additionalQuestionSelectionCount: args.additionalQuestionSelectionCount,
     channel: "voice",
     currentInsightContent: args.currentInsightContent,
     currentPreferences: args.currentPreferences,

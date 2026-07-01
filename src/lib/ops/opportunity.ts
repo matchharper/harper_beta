@@ -118,9 +118,7 @@ type RecommendationRow = {
   feedback: string | null;
   fit_reasons: Json;
   id: string;
-  kind: string;
   opportunity_type: string | null;
-  recommended_at: string;
   role_id: string;
   saved_stage: string | null;
   talent_id: string;
@@ -461,6 +459,68 @@ function ensureNonEmptyString(value: unknown, fieldName: string) {
     throw new Error(`${fieldName} is required`);
   }
   return nextValue;
+}
+
+function isMissingOptionalTableError(error: unknown) {
+  const maybeError = error as { code?: unknown; message?: unknown };
+  const code = String(maybeError?.code ?? "");
+  const message = String(maybeError?.message ?? "").toLowerCase();
+  return (
+    code === "42P01" ||
+    code === "PGRST205" ||
+    message.includes("does not exist") ||
+    message.includes("could not find the table")
+  );
+}
+
+async function deleteRowsByColumn(args: {
+  admin: AdminClient;
+  column: string;
+  optional?: boolean;
+  select?: string;
+  table: string;
+  value: string;
+}) {
+  const { data, error } = await ((args.admin.from(args.table as any) as any)
+    .delete()
+    .eq(args.column, args.value)
+    .select(args.select ?? args.column) as Promise<{
+    data: unknown;
+    error: { message?: string } | null;
+  }>);
+
+  if (error) {
+    if (args.optional && isMissingOptionalTableError(error)) return 0;
+    throw new Error(error.message ?? `Failed to delete ${args.table}`);
+  }
+
+  return coerceJsonArray<unknown>(data).length;
+}
+
+async function deleteRowsByColumnIn(args: {
+  admin: AdminClient;
+  column: string;
+  optional?: boolean;
+  select?: string;
+  table: string;
+  values: string[];
+}) {
+  if (args.values.length === 0) return 0;
+
+  const { data, error } = await ((args.admin.from(args.table as any) as any)
+    .delete()
+    .in(args.column, args.values)
+    .select(args.select ?? args.column) as Promise<{
+    data: unknown;
+    error: { message?: string } | null;
+  }>);
+
+  if (error) {
+    if (args.optional && isMissingOptionalTableError(error)) return 0;
+    throw new Error(error.message ?? `Failed to delete ${args.table}`);
+  }
+
+  return coerceJsonArray<unknown>(data).length;
 }
 
 function normalizeLink(raw: string) {
@@ -1182,12 +1242,6 @@ function parseDateString(value: unknown, fieldName: string) {
   return parsed.toISOString();
 }
 
-function normalizeRecommendationKind(
-  value: unknown
-): "match" | "recommendation" {
-  return value === "match" ? "match" : "recommendation";
-}
-
 function normalizeRecommendationFeedback(
   value: unknown
 ): OpsOpportunityRecommendationFeedback | null {
@@ -1200,6 +1254,14 @@ function normalizeRecommendationFeedback(
 function normalizeOpportunityType(value: unknown): OpportunityType {
   if (isOpportunityType(value)) return value;
   return OpportunityType.ExternalJd;
+}
+
+function getRecommendationKindForOpportunityType(
+  opportunityType: OpportunityType
+): "match" | "recommendation" {
+  return opportunityType === OpportunityType.IntroRequest
+    ? "match"
+    : "recommendation";
 }
 
 function normalizeSavedStage(value: unknown): OpsOpportunitySavedStage | null {
@@ -1273,14 +1335,15 @@ function mapRecommendationRecord(
   if (!role || !workspace) return null;
 
   const recommendationReasons = normalizeRecommendationReasons(row.fit_reasons);
+  const opportunityType = normalizeOpportunityType(row.opportunity_type);
 
   return {
     companyName: String(workspace.company_name ?? ""),
     createdAt: String(row.created_at ?? ""),
     feedback: normalizeRecommendationFeedback(row.feedback),
-    kind: normalizeRecommendationKind(row.kind),
+    kind: getRecommendationKindForOpportunityType(opportunityType),
     locationText: role.location_text ?? null,
-    opportunityType: normalizeOpportunityType(row.opportunity_type),
+    opportunityType,
     postedAt: role.posted_at ?? null,
     recommendationId: String(row.id ?? ""),
     recommendationMemo:
@@ -1288,7 +1351,7 @@ function mapRecommendationRecord(
         ? recommendationReasons.join("\n")
         : null,
     recommendationReasons,
-    recommendedAt: String(row.recommended_at ?? ""),
+    recommendedAt: String(row.created_at ?? ""),
     roleId: String(row.role_id ?? ""),
     roleName: String(role.name ?? ""),
     savedStage: normalizeSavedStage(row.saved_stage),
@@ -3130,6 +3193,126 @@ export async function saveOpsOpportunityRole(args: {
   });
 }
 
+export async function deleteOpsOpportunityRole(args: {
+  companyWorkspaceId?: string | null;
+  roleId?: string | null;
+}) {
+  const admin = getSupabaseAdmin();
+  const roleId = ensureNonEmptyString(args.roleId, "roleId");
+  const workspaceId = String(args.companyWorkspaceId ?? "").trim();
+
+  let roleQuery = (admin.from("company_roles" as any) as any)
+    .select("role_id, company_workspace_id")
+    .eq("role_id", roleId);
+  if (workspaceId) {
+    roleQuery = roleQuery.eq("company_workspace_id", workspaceId);
+  }
+
+  const { data: role, error: roleError } = await roleQuery.maybeSingle();
+  if (roleError) {
+    throw new Error(roleError.message ?? "Failed to load role");
+  }
+  if (!role) {
+    throw new Error("Role not found");
+  }
+
+  const { data: recommendationRows, error: recommendationError } = await (
+    admin.from("talent_opportunity_recommendation" as any) as any
+  )
+    .select("id")
+    .eq("role_id", roleId);
+
+  if (recommendationError) {
+    throw new Error(
+      recommendationError.message ?? "Failed to load role recommendations"
+    );
+  }
+
+  const recommendationIds = coerceJsonArray<{ id?: string | null }>(
+    recommendationRows
+  )
+    .map((item) => String(item.id ?? "").trim())
+    .filter(Boolean);
+
+  const deletedCounts: Record<string, number> = {};
+  deletedCounts.talent_opportunity_chat_preview = await deleteRowsByColumnIn({
+    admin,
+    column: "recommendation_id",
+    optional: true,
+    select: "id",
+    table: "talent_opportunity_chat_preview",
+    values: recommendationIds,
+  });
+  deletedCounts.talent_progress = await deleteRowsByColumn({
+    admin,
+    column: "role_id",
+    select: "id",
+    table: "talent_progress",
+    value: roleId,
+  });
+  deletedCounts.talent_opportunity_recommendation = await deleteRowsByColumn({
+    admin,
+    column: "role_id",
+    select: "id",
+    table: "talent_opportunity_recommendation",
+    value: roleId,
+  });
+  deletedCounts.company_role_liveness = await deleteRowsByColumn({
+    admin,
+    column: "role_id",
+    optional: true,
+    table: "company_role_liveness",
+    value: roleId,
+  });
+  deletedCounts.company_role_matched = await deleteRowsByColumn({
+    admin,
+    column: "role_id",
+    optional: true,
+    table: "company_role_matched",
+    value: roleId,
+  });
+  deletedCounts.talent_external_fit = await deleteRowsByColumn({
+    admin,
+    column: "role_id",
+    optional: true,
+    table: "talent_external_fit",
+    value: roleId,
+  });
+  deletedCounts.wonderful_fde_country_roles = await deleteRowsByColumn({
+    admin,
+    column: "role_id",
+    optional: true,
+    table: "wonderful_fde_country_roles",
+    value: roleId,
+  });
+
+  let deleteRoleQuery = (admin.from("company_roles" as any) as any)
+    .delete()
+    .eq("role_id", roleId);
+  if (workspaceId) {
+    deleteRoleQuery = deleteRoleQuery.eq("company_workspace_id", workspaceId);
+  }
+
+  const { data: deletedRoles, error: deleteRoleError } = await deleteRoleQuery
+    .select("role_id");
+  if (deleteRoleError) {
+    throw new Error(deleteRoleError.message ?? "Failed to delete role");
+  }
+
+  const deletedRoleCount =
+    coerceJsonArray<{ role_id?: string | null }>(deletedRoles).length;
+  if (deletedRoleCount === 0) {
+    throw new Error("Role not found");
+  }
+  deletedCounts.company_roles = deletedRoleCount;
+
+  return {
+    ok: true,
+    deletedCounts,
+    roleId,
+  };
+}
+
 export async function syncOpsOpportunityRoles(args: {
   careerUrl?: string | null;
   workspaceId: string;
@@ -3387,12 +3570,10 @@ export async function fetchOpsOpportunityRecommendations(args: {
         id,
         talent_id,
         role_id,
-        kind,
         opportunity_type,
         fit_reasons,
         feedback,
         saved_stage,
-        recommended_at,
         created_at,
         updated_at,
         company_role:company_roles (
@@ -3408,7 +3589,7 @@ export async function fetchOpsOpportunityRecommendations(args: {
         )
       `
     )
-    .order("recommended_at", { ascending: false }) as any;
+    .order("created_at", { ascending: false }) as any;
 
   if (roleId) {
     query = query.eq("role_id", roleId);
@@ -3444,18 +3625,12 @@ export async function saveOpsOpportunityRecommendation(args: {
   const recommendationMemo =
     String(args.recommendationMemo ?? "").trim() || null;
   const opportunityType = normalizeOpportunityType(args.opportunityType);
-  const kind =
-    opportunityType === OpportunityType.IntroRequest
-      ? "match"
-      : "recommendation";
 
   const { error } = await (
     admin.from("talent_opportunity_recommendation" as any) as any
   ).insert({
     fit_reasons: buildRecommendationReasons(recommendationMemo),
-    kind,
     opportunity_type: opportunityType,
-    recommended_at: now,
     role_id: roleId,
     talent_id: talentId,
     updated_at: now,

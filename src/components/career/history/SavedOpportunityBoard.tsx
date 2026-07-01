@@ -4,6 +4,7 @@ import React, { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { CareerHistoryOpportunity } from "../types";
 import {
+  canChangeCareerOpportunityManagementStatus,
   getSavedOpportunityStatusOptions,
   getSavedOpportunityManagementStatus,
   type SavedOpportunityManagementStatus,
@@ -49,11 +50,12 @@ const SavedOpportunityBoardCard = ({
   onOpenDetail: () => void;
 }) => {
   const recommendedAgo = formatRelativeTime(item.recommendedAt, locale);
+  const canChangeStatus = canChangeCareerOpportunityManagementStatus(item);
 
   return (
     <BareButton
       type="button"
-      draggable={!pending}
+      draggable={!pending && canChangeStatus}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onOpenDetail}
@@ -207,6 +209,7 @@ function SavedOpportunityBoard({
                 if (!draggingOpportunityId) return;
                 const item = itemById.get(draggingOpportunityId);
                 if (!item) return;
+                if (!canChangeCareerOpportunityManagementStatus(item)) return;
                 onStatusChange(item, column.id);
                 setDraggingOpportunityId(null);
               }}

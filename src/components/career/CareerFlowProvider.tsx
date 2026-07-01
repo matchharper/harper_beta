@@ -24,7 +24,6 @@ import {
 import {
   CareerSidebarProvider,
   type CareerCompanyFollowActionResult,
-  type CareerCompanyRecommendationResult,
   type CareerSidebarContextValue,
 } from "./CareerSidebarContext";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
@@ -1076,62 +1075,6 @@ export const CareerFlowProvider = ({
     ]
   );
 
-  const handleGenerateCompanyRecommendations = useCallback(
-    async (args?: {
-      forceRefresh?: boolean;
-      limit?: number;
-      request?: string | null;
-    }): Promise<CareerCompanyRecommendationResult | null> => {
-      if (!userId) return null;
-
-      setChatError("");
-      try {
-        const response = await fetchWithAuth(
-          "/api/talent/company-watchlist/recommendations",
-          {
-            method: "POST",
-            body: JSON.stringify({
-              conversationId,
-              forceRefresh: args?.forceRefresh === true,
-              limit: args?.limit ?? 24,
-              locale,
-              request: args?.request ?? null,
-            }),
-          }
-        );
-        const payload = (await response
-          .json()
-          .catch(() => ({}))) as CareerCompanyRecommendationResult &
-          Record<string, unknown>;
-
-        if (!response.ok) {
-          throw new Error(
-            getErrorMessage(
-              payload,
-              t(
-                "career.common.career_flow_provider.0lsvl9z",
-                "추천 회사를 만들지 못했습니다."
-              )
-            )
-          );
-        }
-
-        return payload;
-      } catch (error) {
-        setChatError(
-          error instanceof Error
-            ? error.message
-            : t(
-                "career.common.career_flow_provider.0lsvl9z",
-                "추천 회사를 만들지 못했습니다."
-              )
-        );
-        return null;
-      }
-    },
-    [conversationId, fetchWithAuth, locale, setChatError, t, userId]
-  );
-
   const handleProfileSubmit = useCallback(async () => {
     await handleProfileSubmitBase(handleProfileSubmitSuccess);
   }, [handleProfileSubmitBase, handleProfileSubmitSuccess]);
@@ -1998,7 +1941,6 @@ export const CareerFlowProvider = ({
       onMarkHistoryOpportunityViewed,
       onMarkHistoryOpportunityClicked,
       onUpdateCompanyFollow: handleUpdateCompanyFollow,
-      onGenerateCompanyRecommendations: handleGenerateCompanyRecommendations,
       resumeFile,
       savedResumeFileName,
       savedResumeStoragePath,
@@ -2072,7 +2014,6 @@ export const CareerFlowProvider = ({
       hasUnsavedTalentPreferencesChanges,
       hasUnsavedTalentSettingsChanges,
       handleCareerLogout,
-      handleGenerateCompanyRecommendations,
       handleProfileLinkChange,
       handleRunOnboardingCompletionTest,
       handleRunCurrentDataJobPostingRecommendationTest,

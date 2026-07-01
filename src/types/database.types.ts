@@ -960,54 +960,6 @@ export type Database = {
           },
         ]
       }
-      company_role_matched: {
-        Row: {
-          candid_id: string
-          created_at: string
-          feedback_text: string | null
-          harper_memo: string | null
-          id: string
-          role_id: string
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          candid_id: string
-          created_at?: string
-          feedback_text?: string | null
-          harper_memo?: string | null
-          id?: string
-          role_id: string
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          candid_id?: string
-          created_at?: string
-          feedback_text?: string | null
-          harper_memo?: string | null
-          id?: string
-          role_id?: string
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "company_role_matched_candid_id_fkey"
-            columns: ["candid_id"]
-            isOneToOne: false
-            referencedRelation: "candid"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "company_role_matched_role_id_fkey"
-            columns: ["role_id"]
-            isOneToOne: false
-            referencedRelation: "company_roles"
-            referencedColumns: ["role_id"]
-          },
-        ]
-      }
       company_roles: {
         Row: {
           company_workspace_id: string
@@ -4167,10 +4119,6 @@ export type Database = {
           id: string
           impact_level: string
           message_id: number | null
-          metadata: Json
-          occurred_at: string
-          related_entity_id: string | null
-          related_entity_type: string | null
           source: string
           summary: string
           talent_id: string
@@ -4183,10 +4131,6 @@ export type Database = {
           id?: string
           impact_level?: string
           message_id?: number | null
-          metadata?: Json
-          occurred_at?: string
-          related_entity_id?: string | null
-          related_entity_type?: string | null
           source?: string
           summary: string
           talent_id: string
@@ -4199,10 +4143,6 @@ export type Database = {
           id?: string
           impact_level?: string
           message_id?: number | null
-          metadata?: Json
-          occurred_at?: string
-          related_entity_id?: string | null
-          related_entity_type?: string | null
           source?: string
           summary?: string
           talent_id?: string

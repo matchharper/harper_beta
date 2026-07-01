@@ -2,7 +2,6 @@ import { after, NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   buildTalentProfileContext,
-  countAdditionalOnboardingQuestionSelections,
   countUserChatTurns,
   fetchTalentInsights,
   fetchTalentSetting,
@@ -38,6 +37,7 @@ import {
 import {
   executeTalentTool,
   TALENT_TOOL_NAMES,
+  withTalentToolAssistantInstruction,
 } from "@/lib/talentOnboarding/tools";
 import { fetchActiveInternalFitHoldQuestion } from "@/lib/talentOnboarding/internalFitHoldQuestion";
 import { insertTalentToolUsageLog } from "@/lib/talentOnboarding/toolUsageLog";
@@ -322,12 +322,6 @@ function getToolStartThinkingLog(toolName: string, locale?: string | null) {
         "career.chat.tool.update_talent_profile.start",
         "프로필 정보를 업데이트하고 있습니다."
       );
-    case TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION:
-      return careerT(
-        locale,
-        "career.chat.tool.select_onboarding_question.start",
-        "다음에 확인할 온보딩 질문을 고르고 있습니다."
-      );
     case TALENT_TOOL_NAMES.OPEN_URL:
       return careerT(
         locale,
@@ -340,6 +334,12 @@ function getToolStartThinkingLog(toolName: string, locale?: string | null) {
         "career.chat.tool.research_company.start",
         "회사 정보를 확인하고 있습니다."
       );
+    case TALENT_TOOL_NAMES.REQUEST_INTERNAL_ROLE_PRIORITY_REVIEW:
+      return careerT(
+        locale,
+        "career.chat.tool.request_internal_role_priority_review.start",
+        "포지션 우선 검토 요청을 저장하고 있습니다."
+      );
     default:
       return "";
   }
@@ -347,6 +347,117 @@ function getToolStartThinkingLog(toolName: string, locale?: string | null) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function getJsonStringField(value: unknown, key: string) {
+  if (!isRecord(value)) return null;
+  const field = value[key];
+  return typeof field === "string" && field.trim() ? field.trim() : null;
+}
+
+async function countPostOnboardingUserChatTurns(args: {
+  admin: ReturnType<typeof getTalentSupabaseAdmin>;
+  conversationId: string;
+  onboardingCompletedAt: string;
+  userId: string;
+}) {
+  const { count, error } = await args.admin
+    .from("talent_messages")
+    .select("id", { count: "exact", head: true })
+    .eq("conversation_id", args.conversationId)
+    .eq("user_id", args.userId)
+    .eq("role", "user")
+    .in("message_type", [
+      "chat",
+      "call_transcript",
+      TALENT_MESSAGE_TYPE_OPEN_POSITION_RECOMMENDATION_REQUEST,
+    ])
+    .gte("created_at", args.onboardingCompletedAt);
+
+  if (error) {
+    throw new Error(
+      error.message ?? "Failed to count post-onboarding user chat turns"
+    );
+  }
+
+  return count ?? 0;
+}
+
+async function fetchOfficialJobSignupSourceContext(args: {
+  admin: ReturnType<typeof getTalentSupabaseAdmin>;
+  onboardingCompletedAt: string;
+  userId: string;
+}) {
+  const { data: event, error: eventError } = await args.admin
+    .from("official_job_events")
+    .select("job_slug, metadata")
+    .eq("user_id", args.userId)
+    .eq("event_type", "job_apply_click")
+    .not("job_slug", "is", null)
+    .lte("created_at", args.onboardingCompletedAt)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (eventError) {
+    console.warn("[TalentChat] Failed to load official job signup source", {
+      error: eventError.message,
+      userId: args.userId,
+    });
+    return null;
+  }
+
+  const slug = String(event?.job_slug ?? "").trim();
+  if (!slug) return null;
+
+  const { data: job, error: jobError } = await args.admin
+    .from("official_jobs")
+    .select("company_name, role_title, slug")
+    .eq("slug", slug)
+    .maybeSingle();
+
+  if (jobError) {
+    console.warn("[TalentChat] Failed to load official job source detail", {
+      error: jobError.message,
+      slug,
+      userId: args.userId,
+    });
+  }
+
+  return {
+    companyName:
+      job?.company_name ??
+      getJsonStringField(event?.metadata, "companyName") ??
+      null,
+    roleTitle:
+      job?.role_title ??
+      getJsonStringField(event?.metadata, "roleTitle") ??
+      null,
+    slug,
+  };
+}
+
+function buildOfficialJobSignupSourcePrompt(args: {
+  companyName: string | null;
+  roleTitle: string | null;
+  slug: string;
+}) {
+  const roleLabel = [args.roleTitle, args.companyName]
+    .filter((value): value is string => Boolean(value))
+    .join(" @ ");
+  const sourceLabel = roleLabel || `/jobs/${args.slug}`;
+
+  return [
+    "## Official jobs signup source follow-up",
+    `The user signed up from this Harper-connected opportunity: ${sourceLabel}.`,
+    "",
+    "If natural, briefly explain that Harper can help with connected opportunities when there is strong fit, then ask once whether the user is interested in this specific opportunity.",
+    `Example: "${sourceLabel} 기회를 보고 오신 것 같은데, Harper가 연결을 도울 수 있는 기회에요. 이 포지션에 관심 있으신가요? 그렇다고하면 우선적으로 검토되실 수 있게 할게요."`,
+    "If recent conversation already asked about this opportunity, do not ask again.",
+    "",
+    "If the user says yes or clearly shows interest, Help the user with get_internal_roles, request_internal_role_priority_review tools.",
+    "The question above is optional. Ask only when appropriate.",
+  ].join("\n");
 }
 
 async function persistThinkingLogsForMessage(args: {
@@ -510,7 +621,6 @@ export async function POST(req: NextRequest) {
     const [
       profile,
       currentInsights,
-      additionalQuestionSelectionCount,
       onboardingCompletionEvent,
       pendingOpportunityFeedbackContext,
       recentActivitySummaries,
@@ -518,10 +628,6 @@ export async function POST(req: NextRequest) {
     ] = await Promise.all([
       fetchTalentUserProfile({ admin, userId: user.id }),
       fetchTalentInsights({ admin, userId: user.id }),
-      countAdditionalOnboardingQuestionSelections({
-        admin,
-        conversationId,
-      }),
       fetchLatestTalentActivityEvent({
         admin,
         conversationId,
@@ -647,6 +753,30 @@ export async function POST(req: NextRequest) {
     });
 
     const userTurnCount = await countUserChatTurns({ admin, conversationId });
+    const postOnboardingUserTurnCount =
+      requestChannel === "chat" &&
+      talentSetting?.is_onboarding_done &&
+      onboardingCompletionEvent?.created_at
+        ? await countPostOnboardingUserChatTurns({
+            admin,
+            conversationId,
+            onboardingCompletedAt: onboardingCompletionEvent.created_at,
+            userId: user.id,
+          })
+        : null;
+    const officialJobSignupSourceContext =
+      postOnboardingUserTurnCount !== null &&
+      postOnboardingUserTurnCount <= 5 &&
+      onboardingCompletionEvent?.created_at
+        ? await fetchOfficialJobSignupSourceContext({
+            admin,
+            onboardingCompletedAt: onboardingCompletionEvent.created_at,
+            userId: user.id,
+          })
+        : null;
+    const officialJobSignupSourcePrompt = officialJobSignupSourceContext
+      ? buildOfficialJobSignupSourcePrompt(officialJobSignupSourceContext)
+      : undefined;
     const currentProgressStep = Math.min(
       userTurnCount,
       TALENT_INTERVIEW_FINAL_STEP
@@ -684,7 +814,6 @@ export async function POST(req: NextRequest) {
         : null;
     const toolSelection = resolveCareerChatTools({
       activeInternalFitHoldQuestion: Boolean(activeInternalFitHoldQuestion),
-      additionalQuestionSelectionCount,
       allowedToolNames,
       channel: requestChannel,
       isOnboardingDone: talentSetting?.is_onboarding_done,
@@ -727,7 +856,6 @@ export async function POST(req: NextRequest) {
         : null;
     const { promptBlocks } = buildCareerTextChatPromptBlocks({
       activeInternalFitHoldQuestion,
-      additionalQuestionSelectionCount,
       onboardingChecklistCoverage,
       currentInsightContent,
       currentPreferences,
@@ -742,6 +870,7 @@ export async function POST(req: NextRequest) {
         conversationStarter?.chatProactiveInstruction ?? undefined,
       recentActivitySummaries,
       recentRecommendedOpportunitiesText,
+      sessionStartInstruction: officialJobSignupSourcePrompt,
       structuredProfileText,
       toolNames: toolSelection.toolNames,
     });
@@ -767,9 +896,6 @@ export async function POST(req: NextRequest) {
     // --- Conversation LLM call (natural language, no JSON mode) ---
     const preparedCompanySnapshotRef: {
       current: CompanySnapshotToolResult | null;
-    } = { current: null };
-    const selectedAdditionalQuestionRef: {
-      current: string | null;
     } = { current: null };
     let thinkingLogs: string[] = [];
     let emitToolStatus: ((message: string) => void) | null = null;
@@ -877,7 +1003,7 @@ export async function POST(req: NextRequest) {
         return executeRecommendJobPostings(toolInput);
       }
 
-      const result = await executeTalentTool({
+      return executeTalentTool({
         context: {
           admin,
           abortSignal: req.signal,
@@ -891,22 +1017,6 @@ export async function POST(req: NextRequest) {
         name: toolArgs.name,
         input: toolInput,
       });
-
-      if (
-        toolArgs.name ===
-          TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION &&
-        result &&
-        typeof result === "object"
-      ) {
-        const assistantMessage = String(
-          (result as { assistantMessage?: unknown }).assistantMessage ?? ""
-        ).trim();
-        if (assistantMessage) {
-          selectedAdditionalQuestionRef.current = assistantMessage;
-        }
-      }
-
-      return result;
     };
 
     if (streamResponse) {
@@ -1092,7 +1202,10 @@ export async function POST(req: NextRequest) {
                         toResponseMessage(cacheMessage as TalentMessageRow),
                       ],
                     };
-                    return { ok: true, cached: true };
+                    return withTalentToolAssistantInstruction({
+                      ok: true,
+                      cached: true,
+                    });
                   }
 
                   // Intentional double cache-fetch: route checked cache above for fast-path,
@@ -1141,7 +1254,10 @@ export async function POST(req: NextRequest) {
                       toResponseMessage(researchMessage as TalentMessageRow),
                     ],
                   };
-                  return { ok: true, cached: result.reused };
+                  return withTalentToolAssistantInstruction({
+                    ok: true,
+                    cached: result.reused,
+                  });
                 }
 
                 return executeDefaultTalentTool({ name, input: toolInput });
@@ -1195,8 +1311,7 @@ export async function POST(req: NextRequest) {
               return;
             }
 
-            let assistantTextSource =
-              selectedAdditionalQuestionRef.current ?? assistantText.trim();
+            let assistantTextSource = assistantText.trim();
             if (!assistantTextSource) {
               assistantTextSource = (
                 await recoverCareerChatAssistantText({
@@ -1513,7 +1628,10 @@ export async function POST(req: NextRequest) {
             preparedCompanySnapshotRef.current = {
               messages: [toResponseMessage(cacheMessage as TalentMessageRow)],
             };
-            return { ok: true, cached: true };
+            return withTalentToolAssistantInstruction({
+              ok: true,
+              cached: true,
+            });
           }
 
           // Intentional double cache-fetch: route checked cache above for fast-path,
@@ -1573,7 +1691,10 @@ export async function POST(req: NextRequest) {
           preparedCompanySnapshotRef.current = {
             messages: [toResponseMessage(researchMessage as TalentMessageRow)],
           };
-          return { ok: true, cached: result.reused };
+          return withTalentToolAssistantInstruction({
+            ok: true,
+            cached: result.reused,
+          });
         }
 
         return executeDefaultTalentTool({ name, input: toolInput });
@@ -1632,8 +1753,7 @@ export async function POST(req: NextRequest) {
 
     logger.log("\n\nassistantText : ", assistantText, "\n\n");
 
-    let assistantTextSource =
-      selectedAdditionalQuestionRef.current ?? assistantText.trim();
+    let assistantTextSource = assistantText.trim();
     if (!assistantTextSource) {
       assistantTextSource = (
         await recoverCareerChatAssistantText({

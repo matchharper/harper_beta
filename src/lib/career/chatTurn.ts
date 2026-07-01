@@ -9,7 +9,6 @@ import {
 } from "@/lib/career/llm";
 import {
   buildTalentProfileContext,
-  countAdditionalOnboardingQuestionSelections,
   countUserChatTurns,
   fetchTalentInsights,
   fetchTalentSetting,
@@ -35,6 +34,7 @@ import { extractAndPersistChatInsights } from "@/lib/talentOnboarding/chatInsigh
 import {
   executeTalentTool,
   TALENT_TOOL_NAMES,
+  withTalentToolAssistantInstruction,
 } from "@/lib/talentOnboarding/tools";
 import { fetchActiveInternalFitHoldQuestion } from "@/lib/talentOnboarding/internalFitHoldQuestion";
 import { insertTalentToolUsageLog } from "@/lib/talentOnboarding/toolUsageLog";
@@ -185,12 +185,6 @@ function getToolStartThinkingLog(toolName: string, locale?: string | null) {
         "career.chat.tool.update_talent_profile.start",
         "프로필 정보를 업데이트하고 있습니다."
       );
-    case TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION:
-      return careerT(
-        locale,
-        "career.chat.tool.select_onboarding_question.start",
-        "다음에 확인할 온보딩 질문을 고르고 있습니다."
-      );
     case TALENT_TOOL_NAMES.OPEN_URL:
       return careerT(
         locale,
@@ -202,6 +196,12 @@ function getToolStartThinkingLog(toolName: string, locale?: string | null) {
         locale,
         "career.chat.tool.research_company.start",
         "회사 정보를 확인하고 있습니다."
+      );
+    case TALENT_TOOL_NAMES.REQUEST_INTERNAL_ROLE_PRIORITY_REVIEW:
+      return careerT(
+        locale,
+        "career.chat.tool.request_internal_role_priority_review.start",
+        "포지션 우선 검토 요청을 저장하고 있습니다."
       );
     default:
       return "";
@@ -433,7 +433,6 @@ export async function runCareerChatTurn(
     profile,
     currentInsights,
     talentSetting,
-    additionalQuestionSelectionCount,
     onboardingCompletionEvent,
     fetchedPendingOpportunityFeedbackContext,
     recentActivitySummaries,
@@ -442,10 +441,6 @@ export async function runCareerChatTurn(
     fetchTalentUserProfile({ admin, userId }),
     fetchTalentInsights({ admin, userId }),
     fetchTalentSetting({ admin, userId }),
-    countAdditionalOnboardingQuestionSelections({
-      admin,
-      conversationId,
-    }),
     fetchLatestTalentActivityEvent({
       admin,
       conversationId,
@@ -624,7 +619,6 @@ export async function runCareerChatTurn(
 
   const toolSelection = resolveCareerChatTools({
     activeInternalFitHoldQuestion: Boolean(activeInternalFitHoldQuestion),
-    additionalQuestionSelectionCount,
     allowedToolNames: args.allowedToolNames,
     channel: requestChannel,
     isOnboardingDone: talentSetting?.is_onboarding_done,
@@ -668,7 +662,6 @@ export async function runCareerChatTurn(
 
   const { promptBlocks } = buildCareerTextChatPromptBlocks({
     activeInternalFitHoldQuestion,
-    additionalQuestionSelectionCount,
     currentInsightContent,
     currentPreferences,
     isOnboardingDone: talentSetting?.is_onboarding_done,
@@ -685,9 +678,6 @@ export async function runCareerChatTurn(
 
   const preparedCompanySnapshotRef: {
     current: CompanySnapshotToolResult | null;
-  } = { current: null };
-  const selectedAdditionalQuestionRef: {
-    current: string | null;
   } = { current: null };
   let thinkingLogs: string[] = [];
   const recordThinkingLog = (status: string) => {
@@ -787,7 +777,7 @@ export async function runCareerChatTurn(
       return executeRecommendJobPostings(toolArgs.input);
     }
 
-    const result = await executeTalentTool({
+    return executeTalentTool({
       context: {
         admin,
         conversationId,
@@ -800,22 +790,6 @@ export async function runCareerChatTurn(
       name: toolArgs.name,
       input: toolArgs.input,
     });
-
-    if (
-      toolArgs.name ===
-        TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION &&
-      result &&
-      typeof result === "object"
-    ) {
-      const assistantMessage = String(
-        (result as { assistantMessage?: unknown }).assistantMessage ?? ""
-      ).trim();
-      if (assistantMessage) {
-        selectedAdditionalQuestionRef.current = assistantMessage;
-      }
-    }
-
-    return result;
   };
 
   const assistantText = await runCareerChatAssistant({
@@ -910,7 +884,10 @@ export async function runCareerChatTurn(
               toTalentMessageResponse(cacheMessage as TalentMessageRow),
             ],
           };
-          return { ok: true, cached: true };
+          return withTalentToolAssistantInstruction({
+            ok: true,
+            cached: true,
+          });
         }
 
         const result = await getOrCreateCompanySnapshot({
@@ -968,7 +945,10 @@ export async function runCareerChatTurn(
             toTalentMessageResponse(researchMessage as TalentMessageRow),
           ],
         };
-        return { ok: true, cached: result.reused };
+        return withTalentToolAssistantInstruction({
+          ok: true,
+          cached: result.reused,
+        });
       }
 
       return executeDefaultTalentTool({ name, input: toolInput });
@@ -1063,8 +1043,7 @@ export async function runCareerChatTurn(
     return buildResult(messagesWithThinkingLogs);
   }
 
-  let assistantTextSource =
-    selectedAdditionalQuestionRef.current ?? assistantText.trim();
+  let assistantTextSource = assistantText.trim();
   if (!assistantTextSource && !noMessageMarker) {
     assistantTextSource = (
       await recoverCareerChatAssistantText({

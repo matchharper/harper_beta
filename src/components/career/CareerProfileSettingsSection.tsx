@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/panel";
+import { Tooltips } from "@/components/ui/tooltip";
 import { useMessages, type Locale } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
 
@@ -29,7 +30,6 @@ type ProfileVisibilityOption = {
   label: string;
   description: string;
   Icon: React.ComponentType<{ className?: string }>;
-  sub?: string;
 };
 
 const getProfileVisibilityOptions = (
@@ -43,10 +43,6 @@ const getProfileVisibilityOptions = (
       "강하게 맞는 포지션으로 판단되면 회사에 먼저 프로필을 공유하고, 구체적인 제안을 받으신 뒤 판단하실 수 있도록 합니다."
     ),
     Icon: ShieldCheck,
-    sub: t(
-      "career.profile.career_profile_settings_section.13fr2yp",
-      "강하게 맞는 포지션으로 판단되면 회사에 먼저 프로필을 공유하고, 구체적인 제안을 받으신 뒤 판단하실 수 있도록 합니다."
-    ),
   },
   {
     value: "exceptional_only",
@@ -56,10 +52,6 @@ const getProfileVisibilityOptions = (
       "먼저 매칭된 기회/회사를 확인한 뒤 직접 허용한 경우에만 익명 프로필이 공유됩니다."
     ),
     Icon: ShieldAlert,
-    sub: t(
-      "career.profile.career_profile_settings_section.0t4q2xb",
-      "먼저 매칭된 기회/회사를 확인한 뒤 직접 허용한 경우에만 익명 프로필이 회사 측에 공유됩니다. 이 경우에도 대화 내용 및 선택하신 옵션이 공개되진 않고, 매칭에 필요한 정보만 공유됩니다."
-    ),
   },
   {
     value: "dont_share",
@@ -69,10 +61,6 @@ const getProfileVisibilityOptions = (
       "절대 어떤 경우에도 프로필이 공유되지 않습니다. 잠시 모든 매칭을 차단하고 싶다면 이 옵션을 선택해주세요."
     ),
     Icon: Lock,
-    sub: t(
-      "career.profile.career_profile_settings_section.10nxtf7",
-      "모든 매칭이 종료되고, 어떤 경우에도 등록하신 정보가 외부에 전달되지 않습니다. 완전히 모든 기회를 잠시 차단하고 싶으신 경우에만 이 옵션을 선택해주세요."
-    ),
   },
 ];
 
@@ -124,13 +112,6 @@ export const CareerProfileSharingSettingsSection = ({
   const profileVisibilityOptions = useMemo(
     () => getProfileVisibilityOptions(t),
     [t]
-  );
-  const selectedVisibilityOption = useMemo(
-    () =>
-      profileVisibilityOptions.find(
-        (option) => option.value === profileVisibility
-      ) ?? profileVisibilityOptions[1],
-    [profileVisibility, profileVisibilityOptions]
   );
   const pendingVisibilityOption = useMemo(
     () =>
@@ -278,55 +259,42 @@ export const CareerProfileSharingSettingsSection = ({
                   const isSelected = option.value === profileVisibility;
 
                   return (
-                    <ChoiceCard
+                    <Tooltips
                       key={option.value}
-                      onClick={() =>
-                        handleProfileVisibilitySelect(option.value)
-                      }
-                      disabled={
-                        settingsLoading ||
-                        isSavePending ||
-                        profileVisibilitySavePending
-                      }
-                      selected={isSelected}
-                      className="block h-auto whitespace-normal items-start justify-start"
+                      text={option.description}
+                      side="bottom"
                     >
-                      <div className="flex items-center gap-2 text-sm font-medium">
+                      <ChoiceCard
+                        onClick={() =>
+                          handleProfileVisibilitySelect(option.value)
+                        }
+                        disabled={
+                          settingsLoading ||
+                          isSavePending ||
+                          profileVisibilitySavePending
+                        }
+                        selected={isSelected}
+                        className="h-11 justify-center whitespace-nowrap px-3 text-center text-sm font-medium"
+                      >
                         <option.Icon className="h-4 w-4" />
                         <span>{option.label}</span>
-                      </div>
-                      <p className="mt-2 text-[13px] leading-5 opacity-80 h-full">
-                        {option.description}
-                      </p>
-                    </ChoiceCard>
+                      </ChoiceCard>
+                    </Tooltips>
                   );
                 })}
               </div>
 
-              <div className="flex items-center gap-2 text-[13px] text-neutral-muted">
-                {settingsLoading && (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    <span>
-                      {t(
-                        "career.profile.career_profile_settings_section.1qqh6ja",
-                        "불러오는 중"
-                      )}
-                    </span>
-                  </>
-                )}
-                {!settingsLoading && (
-                  <span
-                    className={
-                      selectedVisibilityOption.value === "dont_share"
-                        ? "text-critical"
-                        : "text-neutral-muted"
-                    }
-                  >
-                    {selectedVisibilityOption.sub}
+              {settingsLoading ? (
+                <div className="flex items-center gap-2 text-[13px] text-neutral-muted">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span>
+                    {t(
+                      "career.profile.career_profile_settings_section.1qqh6ja",
+                      "불러오는 중"
+                    )}
                   </span>
-                )}
-              </div>
+                </div>
+              ) : null}
             </div>
           </Field>
 

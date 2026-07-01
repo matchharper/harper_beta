@@ -160,9 +160,10 @@ async function fetchWebsiteContentWithApify(url: string) {
     limit: 1,
     token,
   });
-  const item = (Array.isArray(items) ? items[0] : null) as
-    | Record<string, any>
-    | null;
+  const item = (Array.isArray(items) ? items[0] : null) as Record<
+    string,
+    any
+  > | null;
 
   if (!item) {
     throw new Error("Apify website content crawler returned empty dataset");
@@ -247,10 +248,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1) PDF 분기 (링크가 .pdf로 끝나면)
     if (isPdfUrl(url)) {
-      logger.log("PDF detected:", url);
-
       const resp = await fetch(url, {
         headers: { "User-Agent": "Mozilla/5.0" },
       });
@@ -367,14 +365,12 @@ export async function POST(req: NextRequest) {
     }
 
     // 2) HTML
-    let result:
-      | {
-          excerpt?: string;
-          markdown: string;
-          title: string;
-          url: string;
-        }
-      | null = null;
+    let result: {
+      excerpt?: string;
+      markdown: string;
+      title: string;
+      url: string;
+    } | null = null;
     let fetchSource = "direct";
     let directFetchError: string | null = null;
 
@@ -392,10 +388,6 @@ export async function POST(req: NextRequest) {
     } catch (error) {
       directFetchError =
         error instanceof Error ? error.message : "direct fetch failed";
-      logger.log("Direct fetch failed, retrying via Apify", {
-        error: directFetchError,
-        url,
-      });
     }
 
     if (!result) {

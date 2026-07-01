@@ -28,6 +28,10 @@ export function buildCareerToolPolicyPrompt(args: {
     "read_recommended_opportunities"
   );
   const hasRoleContextTool = toolNames.includes("get_role_context");
+  const hasInternalRolesTool = toolNames.includes("get_internal_roles");
+  const hasInternalRolePriorityReviewTool = toolNames.includes(
+    "request_internal_role_priority_review"
+  );
   const hasUpdateRecommendedOpportunityFeedbackTool = toolNames.includes(
     "update_recommended_opportunity_feedback"
   );
@@ -41,9 +45,6 @@ export function buildCareerToolPolicyPrompt(args: {
     "update_talent_profile"
   );
   const hasUpdateSettingTool = toolNames.includes("update_setting");
-  const hasAdditionalQuestionSelectorTool = toolNames.includes(
-    "select_additional_onboarding_question"
-  );
   const hasRecordInternalFitReevaluationInformationTool = toolNames.includes(
     "record_internal_fit_reevaluation_information"
   );
@@ -54,9 +55,6 @@ export function buildCareerToolPolicyPrompt(args: {
   const onboardingToolExceptionNames = [
     hasUpdateSettingTool ? "`update_setting`" : null,
     hasUpdateTalentProfileTool ? "`update_talent_profile`" : null,
-    hasAdditionalQuestionSelectorTool
-      ? "`select_additional_onboarding_question`"
-      : null,
   ]
     .filter((name): name is string => Boolean(name))
     .join(", ");
@@ -67,10 +65,11 @@ export function buildCareerToolPolicyPrompt(args: {
   return [
     "## Tool Use Policy",
     `Available tools: ${toolNameText}`,
-    "For every tool call, include `_uiStatusMessage` following the tool schema: concrete, user-facing English, and no internal tool names, storage names, or implementation details.",
+    "For every tool call, include `_uiStatusMessage`: a specific English user-facing Thinking log sentence for this exact tool call. Say what is being changed, checked, searched, or prepared. If searching jobs, describe the kind of opportunities being searched for. If changing saved information, mention the concrete field/value being adjusted; old-to-new is optional only when it is naturally available. Do not use vague text like 'updating', 'checking', or 'searching' by itself. Do not mention internal tool names, storage names, or implementation details. Keep it under 160 characters.",
+    "Follow the returned assistantInstruction after tool use.",
     ...(args.channel === "chat"
       ? [
-          `- When you are about to use a tool for a durable preference change or job search, start with one short ${outputLanguage} acknowledgement before tool use when the model/provider allows text before tool calls. Example: '${acknowledgementExample}'`,
+          `- When you are about to use a tool, start with brief acknowledgement before tool use.`,
         ]
       : []),
     ...(args.channel === "voice"
@@ -104,6 +103,8 @@ export function buildCareerToolPolicyPrompt(args: {
     ...(hasRecommendedOpportunitiesTool
       ? [
           "- Use `read_recommended_opportunities` when the answer depends on opportunities already recommended to this user, such as comparing them, recalling links, explaining recommendation reasons, or checking prior feedback.",
+          "- If the user asks what happened after accepting an internal recommendation, call `read_recommended_opportunities` and answer from the returned `progress.message` when it is present. Do not infer company-side progress from savedStage or stale internal fields.",
+          "- Pass `only_internal: true` to `read_recommended_opportunities` when the user is asking specifically about internal recommendations, accepted internal opportunities, or internal connection/review status.",
           ...(args.channel === "chat"
             ? [
                 "- When showing a returned opportunity in chat, include a standalone `[posting](roleId)` line for each returned opportunity you mention.",
@@ -122,6 +123,19 @@ export function buildCareerToolPolicyPrompt(args: {
                 "- When showing a returned role in chat, include a standalone `[posting](roleId)` line for each returned role you mention.",
               ]
             : []),
+        ]
+      : []),
+    ...(hasInternalRolesTool
+      ? [
+          "- Use `get_internal_roles` when the user directly asks to look up internal Harper-connected roles by role title or company name. This is not a personalized recommendation or fit-ranking tool.",
+          "- Pass 1-2 concrete FTS keywords only, taken from the user's role title or company name request. Do not pass broad preference paragraphs.",
+          "- Multi-word keywords are AND-matched. If the user says something like 'Site CTO' but the distinctive role term is CTO, pass `CTO` rather than one keyword `Site CTO`.",
+          "- Never use this for listing roles. This is only for looking up a specific role by role title or company name. If user wants listing, say it's not possible because of the company's request.",
+        ]
+      : []),
+    ...(hasInternalRolePriorityReviewTool
+      ? [
+          "- Use `request_internal_role_priority_review` when the user explicitly asks Harper to connect, prioritize, review, or consider them for a specific internal Harper-connected role. If the roleId is unknown, use `get_internal_roles` first; if the role remains ambiguous, ask one clarifying question. This is only for internal role.",
         ]
       : []),
     ...(hasUpdateRecommendedOpportunityFeedbackTool
@@ -202,22 +216,6 @@ export function buildCareerToolPolicyPrompt(args: {
                 "- If delivery settings and profile/matching memory both change in one turn, call `update_setting` and `update_talent_profile` separately.",
               ]
             : ["- Do not mix delivery settings into profile/matching memory."]),
-          `- After calling this tool, continue the conversation naturally in ${outputLanguage}: acknowledge the substance of what the user said, ask the next relevant question if onboarding is still active, or close naturally with the required marker if enough information has been collected.`,
-          "",
-        ]
-      : []),
-    ...(hasAdditionalQuestionSelectorTool
-      ? [
-          "",
-          "### select_additional_onboarding_question (onboarding additional question selector)",
-          "- Purpose: choose the best next Additional questions phase question from the user's structured profile, recent conversation, and known insights.",
-          "- Eligible only during onboarding. Use it when the onboarding question checklist says an additional_question item is still missing and the next step should be an additional onboarding question.",
-          "- This tool may return either a profile-gap question OR a role-specific depth/preference question. Prefer concrete profile gaps, especially substantial experience rows with no description/memo. Do not keep asking broad desired role/tech-stack preference questions.",
-          "- When this tool is available and you are in Additional questions phase, call it before asking the additional question. Do not invent the additional question yourself first.",
-          "- Pass the user's latest message in `latestUserMessage` when available.",
-          `- If the tool result has \`shouldAsk=true\`, ask exactly one question using the returned \`assistantMessage\` naturally in ${outputLanguage}. Do not mention the tool, JSON, internal gap analysis, or selection rationale.`,
-          "- If the tool result has `shouldAsk=false`, do not ask another additional question; use the returned `assistantMessage` as the final priority confirmation.",
-          "- Do not close onboarding in the same response after this tool. Wait for the user's answer.",
           "",
         ]
       : []),

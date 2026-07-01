@@ -10,7 +10,10 @@ import type {
 import { getMetaItems } from "@/components/career/CareerHistoryPanel";
 import { HistoryOpportunityInfoTag } from "@/components/career/history/HistoryOpportunityDetailContent";
 import { getOpportunityPostingStatus } from "@/components/career/history/opportunityPostingStatus";
-import type { CareerOpportunityManagementStatus } from "@/components/career/history/savedOpportunityStatus";
+import {
+  canChangeCareerOpportunityManagementStatus,
+  type CareerOpportunityManagementStatus,
+} from "@/components/career/history/savedOpportunityStatus";
 import { CareerMobileJobStatusDropdown } from "@/components/career/mobile/jobs/CareerMobileJobStatusDropdown";
 import { BareButton } from "@/components/ui/button";
 import { ClickablePanel } from "@/components/ui/clickable-panel";
@@ -48,6 +51,7 @@ export const CareerMobileJobCard = React.memo(function CareerMobileJobCard({
     1
   );
   const companyInfoLink = item.companyHomepageUrl ?? item.companyLinkedinUrl;
+  const canChangeStatus = canChangeCareerOpportunityManagementStatus(item);
   const canOpenCompanyInfo = Boolean(
     onOpenCompanyInfo && (item.companyDbId || companyInfoLink)
   );
@@ -68,7 +72,7 @@ export const CareerMobileJobCard = React.memo(function CareerMobileJobCard({
   return (
     <InlinePanel className="relative rounded-[8px] border border-neutral-1000-a05 bg-bg-floating p-4 transition-colors active:bg-bg-weak">
       <div className="absolute right-2 top-2 z-10">
-        {onStatusChange ? (
+        {onStatusChange && canChangeStatus ? (
           <CareerMobileJobStatusDropdown
             disabled={pending}
             status={status}
@@ -114,7 +118,7 @@ export const CareerMobileJobCard = React.memo(function CareerMobileJobCard({
                   <BareButton
                     type="button"
                     onClick={() => onOpenCompanyInfo?.(item)}
-                    className="min-w-0 wrap-break-word text-left text-[14px] font-medium text-neutral-primary decoration-dotted underline underline-offset-2 transition-colors hover:text-neutral-primary"
+                    className="min-w-0 wrap-break-word text-left text-[14px] font-medium text-neutral-primary decoration-dotted underline underline-offset-2 transition-colors duration-200 hover:text-primary"
                   >
                     {item.companyName}
                   </BareButton>

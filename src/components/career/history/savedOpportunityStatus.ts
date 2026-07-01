@@ -134,6 +134,10 @@ export const getCareerOpportunityManagementStatus = (
   return getSavedOpportunityManagementStatus(item);
 };
 
+export const canChangeCareerOpportunityManagementStatus = (
+  item: Pick<CareerHistoryOpportunity, "isInternal" | "sourceType">
+) => !item.isInternal && item.sourceType !== "internal";
+
 export const getSavedOpportunityStatusLabel = (
   status: SavedOpportunityManagementStatus,
   tArg?: CareerTLike

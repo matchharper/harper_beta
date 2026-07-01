@@ -5,6 +5,11 @@ import OfficialJobsEventTracker from "@/components/jobs/OfficialJobsEventTracker
 import OfficialJobsHeader from "@/components/jobs/OfficialJobsHeader";
 import { Page } from "@/components/layout/Page";
 import { PageContainer } from "@/components/layout/PageContainer";
+import {
+  fetchOfficialJobs,
+  officialJobsQueryKey,
+  OFFICIAL_JOBS_QUERY_STALE_TIME_MS,
+} from "@/hooks/officialJobs/useOfficialJobs";
 import { postOfficialJobEvent } from "@/lib/officialJobs/events";
 import { OFFICIAL_JOBS_LOGIN_HREF, type OfficialJob } from "@/lib/officialJobs";
 import {
@@ -22,6 +27,7 @@ import {
   type OfficialJobsLocale,
 } from "@/lib/officialJobs/copy";
 import { getPublicOfficialJobBySlug } from "@/lib/officialJobs/server";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   BriefcaseBusiness,
   ChevronLeft,
@@ -32,7 +38,8 @@ import {
 import type { GetServerSideProps } from "next";
 import Head from "next/head";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useRouter } from "next/router";
+import { useEffect, type ReactNode } from "react";
 
 type OfficialJobDetailPageProps = {
   job: OfficialJob;
@@ -67,6 +74,8 @@ export default function OfficialJobDetailPage({
   job,
   locale,
 }: OfficialJobDetailPageProps) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const copy = getOfficialJobsCopy(locale);
   const pageTitle = buildOfficialJobTitle(job, locale);
   const pageDescription = buildOfficialJobDescription(job, locale);
@@ -85,6 +94,15 @@ export default function OfficialJobDetailPage({
       },
     });
   };
+
+  useEffect(() => {
+    void router.prefetch("/jobs");
+    void queryClient.prefetchQuery({
+      queryKey: officialJobsQueryKey,
+      queryFn: fetchOfficialJobs,
+      staleTime: OFFICIAL_JOBS_QUERY_STALE_TIME_MS,
+    });
+  }, [queryClient, router]);
 
   return (
     <>

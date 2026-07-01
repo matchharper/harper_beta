@@ -152,7 +152,10 @@ const AccountDeleteConfirmDialog = ({
             disabled={pending}
             className="inline-flex h-10 items-center justify-center rounded-lg px-4 text-sm font-medium text-neutral-muted transition-colors hover:bg-bg-weak hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {t("career.settings.career_settings_modal.0jiry9t", "취소")}
+            {t(
+              "career.settings.career_settings_modal.keep_account",
+              "계정 유지하기"
+            )}
           </BareButton>
           <BareButton
             type="button"

@@ -141,6 +141,35 @@ export type CareerOpportunitySavedStageFilter =
 
 export type CareerHistoryTabId = "new" | "saved" | "archived";
 
+export type CareerInternalRecommendationProgressCode =
+  | "awaiting_company_response"
+  | "closed_by_company"
+  | "company_acknowledged_awaiting_response"
+  | "company_next_process"
+  | "no_company_response_closed"
+  | "waiting_to_share";
+
+export type CareerInternalRecommendationProgressStage =
+  | "accepted"
+  | "archived"
+  | "custom"
+  | "final_offer"
+  | "hold"
+  | "pending_connection"
+  | "process_stopped"
+  | "rejected";
+
+export type CareerInternalRecommendationProgress = {
+  acceptedAt: string;
+  code: CareerInternalRecommendationProgressCode;
+  daysSinceAccepted: number | null;
+  daysSinceStageChanged: number | null;
+  message: string;
+  stage: CareerInternalRecommendationProgressStage | null;
+  stageChangedAt: string | null;
+  stageTag: string | null;
+};
+
 export type CareerHistoryOpportunityPageFilter = {
   historyTab: CareerHistoryTabId;
   savedStage?: CareerOpportunitySavedStageFilter;
@@ -197,7 +226,6 @@ export type CareerHistoryOpportunity = {
   companyLogoUrl: string | null;
   companyName: string;
   description: string | null;
-  dismissedAt: string | null;
   employmentTypes: string[];
   externalJdUrl: string | null;
   expiresAt?: string | null;
@@ -209,12 +237,12 @@ export type CareerHistoryOpportunity = {
   isExpired?: boolean;
   isAccepted: boolean;
   isInternal: boolean;
+  internalProgress?: CareerInternalRecommendationProgress | null;
   kind: "match" | "recommendation";
   location: string | null;
   opportunityType: OpportunityType;
   postedAt: string | null;
   preferenceFit?: CareerPreferenceFitItem[];
-  processedStage?: string | null;
   recommendedAt: string;
   recommendationConcerns?: string[];
   recommendationReasons: string[];

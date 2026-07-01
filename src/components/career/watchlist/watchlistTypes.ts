@@ -1,6 +1,6 @@
 import type { MouseEvent } from "react";
 
-export type CompanyWatchlistTab = "recommended" | "following" | "signals";
+export type CompanyWatchlistTab = "following" | "signals";
 type CareerTLike = (key: string, koSource: string) => string;
 
 export type CompanyRolePreview = {
@@ -41,20 +41,13 @@ export type CompanyWatchlistItem = {
   lastCrunchbaseUpdatedAt: string | null;
   lastUpdatedAt: string | null;
   latestRolePostedAt: string | null;
-  latestSignal: string | null;
   linkedinUrl: string | null;
   location: string | null;
   logoUrl: string | null;
   name: string;
-  nextSignal: string | null;
-  rank: number | null;
-  reasonSummary: string | null;
-  recommendationReasons: string[];
-  recommendedAt: string | null;
   relatedLinks: string[];
   rolePreviews: CompanyRolePreview[];
   shortDescription: string | null;
-  signalSummary: string | null;
   specialities: string[];
   trackingSummary: string | null;
   websiteUrl: string | null;
@@ -88,10 +81,6 @@ export const WATCHLIST_COMPANY_QUERY_KEY = "company";
 const fallbackCareerT: CareerTLike = (_key, koSource) => koSource;
 
 export const getWatchlistTabs = (t: CareerTLike) => [
-  {
-    id: "recommended" as const,
-    label: t("career.company.watchlist_types.0dpjqlp", "추천회사"),
-  },
   {
     id: "following" as const,
     label: t("career.company.follow_button.1p6sttz", "팔로우"),

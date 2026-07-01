@@ -233,10 +233,7 @@ export function useChatSessionDB(args: {
   scope?: ChatScope;
   userId?: string;
   apiPath?: string;
-  model?:
-    | "grok-4-fast-reasoning"
-    | "grok-4-1-fast-reasoning"
-    | "gemini-3-flash-preview";
+  model?: "grok-4-fast-reasoning" | "grok-4.3" | "gemini-3-flash-preview";
   candidDoc?: CandidateDetail;
   systemPromptOverride?: string;
   memoryMode?: "automation";

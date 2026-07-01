@@ -6,7 +6,6 @@ import {
   type TalentOpportunityFeedback,
   type TalentOpportunityHistoryItem,
 } from "@/lib/talentOpportunity";
-import { runCareerCompanyRecommendations } from "@/lib/career/companyWatchlist";
 import {
   getPostingRoleIdFromOpportunityId,
   isPostingRoleId,
@@ -30,7 +29,6 @@ import {
   upsertTalentInsights,
   upsertTalentSetting,
 } from "./server";
-import { selectAdditionalOnboardingQuestion } from "./additionalQuestionSelector";
 import {
   TALENT_RECOMMENDATION_BATCH_SIZE_MAX,
   TALENT_RECOMMENDATION_BATCH_SIZE_MIN,
@@ -61,6 +59,8 @@ import {
 import { recordInternalFitReevaluationInformation } from "./internalFitHoldQuestion";
 import type { TalentAdminClient } from "./admin";
 import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
+import { formatCareerPromptCompactDateTime } from "@/lib/career/prompts/promptUtils";
+import { searchInternalRolesForCareerTool } from "@/lib/career/internalRoleSearch";
 
 export type TalentToolChannel = "chat" | "voice";
 
@@ -126,11 +126,11 @@ export class TalentToolError extends Error {
 }
 
 export const TALENT_TOOL_NAMES = {
-  SELECT_ADDITIONAL_ONBOARDING_QUESTION:
-    "select_additional_onboarding_question",
-  RECOMMEND_COMPANIES: "recommend_companies",
   RECOMMEND_JOB_POSTINGS: "recommend_job_postings",
   READ_RECOMMENDED_OPPORTUNITIES: "read_recommended_opportunities",
+  GET_INTERNAL_ROLES: "get_internal_roles",
+  REQUEST_INTERNAL_ROLE_PRIORITY_REVIEW:
+    "request_internal_role_priority_review",
   GET_ROLE_CONTEXT: "get_role_context",
   UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK:
     "update_recommended_opportunity_feedback",
@@ -149,13 +149,12 @@ export type TalentToolName =
   (typeof TALENT_TOOL_NAMES)[keyof typeof TALENT_TOOL_NAMES];
 
 export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
-  TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION,
   TALENT_TOOL_NAMES.WEB_SEARCH,
   TALENT_TOOL_NAMES.OPEN_URL,
-  // Company recommendations are temporarily disabled while Watchlist is hidden.
-  // TALENT_TOOL_NAMES.RECOMMEND_COMPANIES,
   TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS,
   TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES,
+  TALENT_TOOL_NAMES.GET_INTERNAL_ROLES,
+  TALENT_TOOL_NAMES.REQUEST_INTERNAL_ROLE_PRIORITY_REVIEW,
   TALENT_TOOL_NAMES.GET_ROLE_CONTEXT,
   TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK,
   TALENT_TOOL_NAMES.RESEARCH_COMPANY,
@@ -166,10 +165,53 @@ export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   TALENT_TOOL_NAMES.RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION,
 ] as const;
 
+// Edit this value to change the common final-reply guidance added to every
+// talent tool result's assistantInstruction.
+export const TALENT_TOOL_COMMON_ASSISTANT_INSTRUCTION = [
+  "After every tool result, the final user-facing reply should be longer and more detailed than a terse confirmation.",
+  "In the user's language, explain what was checked, changed, saved, or found; what Harper will do differently from now on; what will no longer happen when applicable; what the user can expect or wait for; and how they can change it again later.",
+  "Use Markdown structure when it improves readability.",
+  "Do not answer only one-line confirmation. Do not mention tool names, system field names.",
+].join(" ");
+
 const optionalToolString = (value: unknown) => {
   const text = typeof value === "string" ? value.trim() : "";
   return text || null;
 };
+
+function buildCommonTalentToolAssistantInstruction(instruction: unknown) {
+  return [
+    TALENT_TOOL_COMMON_ASSISTANT_INSTRUCTION,
+    optionalToolString(instruction),
+  ]
+    .filter((text): text is string => Boolean(text))
+    .join(" ");
+}
+
+function isTalentToolResultRecord(
+  value: unknown
+): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+export function withTalentToolAssistantInstruction(
+  result: unknown
+): Record<string, unknown> {
+  if (isTalentToolResultRecord(result)) {
+    return {
+      ...result,
+      assistantInstruction: buildCommonTalentToolAssistantInstruction(
+        result.assistantInstruction
+      ),
+    };
+  }
+
+  return {
+    assistantInstruction: buildCommonTalentToolAssistantInstruction(null),
+    ok: true,
+    result,
+  };
+}
 
 const normalizeToolBio = (value: unknown) => {
   if (value === null) return null;
@@ -302,7 +344,7 @@ function compactOpportunityForTool(item: TalentOpportunityHistoryItem) {
     location: item.location,
     workMode: item.workMode,
     feedback: item.feedback,
-    dismissedAt: item.dismissedAt,
+    internalProgress: item.internalProgress,
     href: item.href,
   };
 }
@@ -311,6 +353,58 @@ function includesLoose(haystack: string, needle: string) {
   return haystack
     .toLocaleLowerCase("ko-KR")
     .includes(needle.toLocaleLowerCase("ko-KR"));
+}
+
+function formatCompactToolDate(value: string | null | undefined) {
+  return formatCareerPromptCompactDateTime(value) || null;
+}
+
+function formatRecommendedOpportunityRole(item: TalentOpportunityHistoryItem) {
+  const title = optionalToolString(item.title) ?? "Untitled role";
+  const companyName = optionalToolString(item.companyName) ?? "Unknown company";
+  const details = [
+    item.location ? `location: ${item.location}` : null,
+    optionalToolString(item.workMode),
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join(", ");
+  const employmentType = optionalToolString(item.employmentTypes[0]);
+
+  return [
+    `${title} at ${companyName}`,
+    details ? `, ${details}` : "",
+    employmentType ? ` - ${employmentType}` : "",
+  ].join("");
+}
+
+function formatRecommendedOpportunityName(item: TalentOpportunityHistoryItem) {
+  const title = optionalToolString(item.title) ?? "Untitled role";
+  const companyName = optionalToolString(item.companyName) ?? "Unknown company";
+  return `${title} at ${companyName}`;
+}
+
+function formatRecommendedOpportunityProgress(
+  item: TalentOpportunityHistoryItem
+) {
+  if (!item.internalProgress) return null;
+
+  return {
+    UserAcceptedAt:
+      formatCompactToolDate(item.internalProgress.acceptedAt) ??
+      item.internalProgress.acceptedAt,
+    code: item.internalProgress.code,
+    message: item.internalProgress.message,
+  };
+}
+
+function shouldCloseRecommendedOpportunityFromProgress(
+  item: TalentOpportunityHistoryItem
+) {
+  return (
+    item.sourceType === "internal" &&
+    item.internalProgress?.code === "closed_by_company" &&
+    item.savedStage !== "closed"
+  );
 }
 
 const ROLE_CONTEXT_ROLE_ID_LIMIT = 3;
@@ -346,16 +440,14 @@ const ROLE_CONTEXT_ROLE_SELECT = `
 const ROLE_CONTEXT_RECOMMENDATION_SELECT = `
   role_id,
   opportunity_type,
-  kind,
   fit_summary,
   fit_reasons,
   tradeoffs,
   preference_fit,
-  recommended_at,
+  created_at,
   feedback,
   feedback_reason,
-  saved_stage,
-  processed_stage
+  saved_stage
 `;
 
 function asToolRecord(value: unknown): Record<string, unknown> | null {
@@ -408,8 +500,8 @@ function pickLatestRoleContextRecommendation(
   rows: readonly Record<string, unknown>[]
 ) {
   return [...rows].sort((left, right) => {
-    const leftTime = Date.parse(String(left.recommended_at ?? ""));
-    const rightTime = Date.parse(String(right.recommended_at ?? ""));
+    const leftTime = Date.parse(String(left.created_at ?? ""));
+    const rightTime = Date.parse(String(right.created_at ?? ""));
     const normalizedLeftTime = Number.isFinite(leftTime) ? leftTime : 0;
     const normalizedRightTime = Number.isFinite(rightTime) ? rightTime : 0;
     return normalizedRightTime - normalizedLeftTime;
@@ -430,7 +522,7 @@ async function runGetRoleContext(args: {
       .select(ROLE_CONTEXT_RECOMMENDATION_SELECT)
       .eq("talent_id", args.userId)
       .in("role_id", args.roleIds)
-      .order("recommended_at", { ascending: false }),
+      .order("created_at", { ascending: false }),
   ]);
 
   if (roleResponse.error) {
@@ -519,22 +611,18 @@ async function runGetRoleContext(args: {
             opportunityType: optionalToolString(
               latestRecommendation.opportunity_type
             ),
-            kind: optionalToolString(latestRecommendation.kind),
             fitSummary: optionalToolString(latestRecommendation.fit_summary),
             fitReasons: latestRecommendation.fit_reasons ?? [],
             tradeoffs: latestRecommendation.tradeoffs ?? [],
             preferenceFit: latestRecommendation.preference_fit ?? null,
             recommendedAt: optionalToolString(
-              latestRecommendation.recommended_at
+              latestRecommendation.created_at
             ),
             feedback: optionalToolString(latestRecommendation.feedback),
             feedbackReason: optionalToolString(
               latestRecommendation.feedback_reason
             ),
             savedStage: optionalToolString(latestRecommendation.saved_stage),
-            processedStage: optionalToolString(
-              latestRecommendation.processed_stage
-            ),
           }
         : null,
     };
@@ -663,12 +751,17 @@ async function updateRecommendedOpportunityFeedback(args: {
   }
 
   const feedback = toTalentOpportunityFeedback(args.feedback);
+  const savedStage =
+    feedback === "positive" && resolved.opportunity?.sourceType === "internal"
+      ? "connected"
+      : undefined;
   const result = await updateTalentOpportunityHistoryItem({
     action: "feedback",
     admin: args.admin,
     feedback,
     feedbackReason: args.feedbackReason,
     opportunityId: resolved.updateOpportunityId,
+    savedStage,
     userId: args.userId,
   });
   const [updatedOpportunity] = await fetchTalentOpportunityHistoryByIds({
@@ -698,42 +791,171 @@ async function updateRecommendedOpportunityFeedback(args: {
   };
 }
 
-const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
-  [TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION]: {
-    name: TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION,
-    description:
-      "Internal onboarding selector. Use only during career onboarding Additional questions phase. It reads the user's profile, recent conversation, current insights, and optional latestUserMessage, then selects the single best next additional onboarding question. Prefer concrete profile gaps, especially substantial experience rows with empty description/memo; do not repeatedly ask broad desired role/tech-stack preference questions. If shouldAsk is true, ask exactly the returned assistantMessage naturally. If shouldAsk is false, use assistantMessage as the final priority confirmation. Do not close onboarding in the same response.",
-    parameters: {
-      type: "object",
-      properties: {
-        latestUserMessage: {
-          type: "string",
-          description: "Optional latest user message from the current turn.",
-        },
-      },
-      additionalProperties: false,
-    },
-    channels: ["chat"],
-    stopAfterExecution: true,
-    async execute(input, context) {
-      const admin = context?.admin;
-      const conversationId = context?.conversationId;
-      const userId = context?.userId;
-      if (!admin || !conversationId || !userId) {
-        throw new TalentToolError(
-          "select_additional_onboarding_question requires user and conversation context."
-        );
-      }
+const INTERNAL_ROLE_PRIORITY_REVIEW_PROGRESS_KIND =
+  "candidate_requested_connection";
 
-      return selectAdditionalOnboardingQuestion({
-        admin: admin as any,
-        conversationId,
-        isMobile: context?.isMobile,
-        latestUserMessage: optionalToolString(input.latestUserMessage),
-        userId,
-      });
-    },
-  },
+function formatKstDate(value: string | null | undefined) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const parts = new Intl.DateTimeFormat("en", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+  }).formatToParts(date);
+  const partByType = new Map(parts.map((part) => [part.type, part.value]));
+  const year = partByType.get("year");
+  const month = partByType.get("month");
+  const day = partByType.get("day");
+  return year && month && day ? `${year}-${month}-${day} KST` : null;
+}
+
+async function requestInternalRolePriorityReview(args: {
+  admin: any;
+  conversationId?: string | null;
+  roleId: string;
+  userId: string;
+  userMessageId?: number | string | null;
+}) {
+  const roleId = normalizePostingRoleId(args.roleId);
+  if (!isPostingRoleId(roleId)) {
+    throw new TalentToolError(
+      "request_internal_role_priority_review requires a valid roleId."
+    );
+  }
+
+  const { data: role, error: roleError } = await ((
+    args.admin.from("company_roles" as any) as any
+  )
+    .select(
+      `
+        role_id,
+        name,
+        source_type,
+        status,
+        company_workspace:company_workspace (
+          company_name
+        )
+      `
+    )
+    .eq("role_id", roleId)
+    .maybeSingle() as any);
+
+  if (roleError) {
+    throw new TalentToolError(
+      roleError.message ?? "Failed to verify the internal role."
+    );
+  }
+
+  const roleRecord = asToolRecord(role);
+  if (!roleRecord) {
+    return {
+      ok: false,
+      status: "role_not_found",
+      roleId,
+      assistantInstruction:
+        "Tell the user Harper could not verify the exact role yet. Ask for the company name, role title, or link so Harper can identify it. Do not say it was saved.",
+    };
+  }
+
+  const sourceType = optionalToolString(roleRecord.source_type)?.toLowerCase();
+  if (sourceType !== "internal") {
+    return {
+      ok: false,
+      status: "not_internal_role",
+      roleId,
+      assistantInstruction:
+        "Tell the user Harper could not save this as a priority internal-role review request because it is not verified as a Harper-connected role. Do not promise a connection, interview, referral, company introduction, or specific timeline.",
+    };
+  }
+
+  const workspace = asToolRecord(roleRecord.company_workspace);
+  const companyName = optionalToolString(workspace?.company_name);
+  const roleTitle = optionalToolString(roleRecord.name);
+
+  const { data: existingRows, error: existingError } = await ((
+    args.admin.from("talent_progress" as any) as any
+  )
+    .select("id, created_at")
+    .eq("talent_id", args.userId)
+    .eq("role_id", roleId)
+    .eq("kind", INTERNAL_ROLE_PRIORITY_REVIEW_PROGRESS_KIND)
+    .order("created_at", { ascending: true })
+    .limit(1) as any);
+
+  if (existingError) {
+    throw new TalentToolError(
+      existingError.message ?? "Failed to check existing priority request."
+    );
+  }
+
+  const existing = Array.isArray(existingRows) ? existingRows[0] : null;
+  const existingCreatedAt = optionalToolString(existing?.created_at);
+  if (existingCreatedAt) {
+    const existingCreatedDate = formatKstDate(existingCreatedAt);
+    return {
+      ok: true,
+      status: "already_exists",
+      roleId,
+      roleTitle,
+      companyName,
+      existingCreatedAt,
+      existingCreatedDate,
+      assistantInstruction: [
+        `Tell the user this role was already saved for priority review on ${existingCreatedDate ?? existingCreatedAt}.`,
+        "Say Harper will keep this preference reflected in review priority.",
+        "Do not promise a connection, interview, referral, company introduction, or specific timeline.",
+      ].join(" "),
+    };
+  }
+
+  const now = new Date().toISOString();
+  const { data: inserted, error: insertError } = await ((
+    args.admin.from("talent_progress" as any) as any
+  )
+    .insert({
+      kind: INTERNAL_ROLE_PRIORITY_REVIEW_PROGRESS_KIND,
+      metadata: {
+        conversationId: args.conversationId ?? null,
+        priority: "high",
+        source: "career_chat",
+        status: "requested",
+        userMessageId: args.userMessageId ?? null,
+      },
+      role_id: roleId,
+      talent_id: args.userId,
+      text: "User requested priority review for connection to this role.",
+      user_id: args.userId,
+    })
+    .select("id, created_at")
+    .single() as any);
+
+  if (insertError) {
+    throw new TalentToolError(
+      insertError.message ?? "Failed to save priority review request."
+    );
+  }
+
+  const createdAt = optionalToolString(inserted?.created_at) ?? now;
+
+  return {
+    ok: true,
+    status: "created",
+    roleId,
+    roleTitle,
+    companyName,
+    createdAt,
+    createdDate: formatKstDate(createdAt),
+    assistantInstruction: [
+      "Tell the user Harper saved this role so it can be reviewed with highest priority in detail. 다음은 기다리면 핏이 맞는걸 찾아서 메일로 연결 제안이 간다는걸 자세히 안내해라.",
+      "Do not promise a connection, interview, referral, company introduction, or specific timeline.",
+    ].join(" "),
+  };
+}
+
+const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.WEB_SEARCH]: {
     name: TALENT_TOOL_NAMES.WEB_SEARCH,
     description:
@@ -868,52 +1090,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         conversationId,
         preferredLocale: context?.responseLocale ?? null,
         request,
-        userId,
-      });
-    },
-  },
-  [TALENT_TOOL_NAMES.RECOMMEND_COMPANIES]: {
-    name: TALENT_TOOL_NAMES.RECOMMEND_COMPANIES,
-    description:
-      "Find, rank, and save companies for the user's Career Watchlist. Use when the user asks for companies to follow, company recommendations, startup/company discovery, or watchlist suggestions independent of a specific role.",
-    parameters: {
-      type: "object",
-      properties: {
-        request: {
-          type: "string",
-          description:
-            "The user's company-discovery request, including domains, company stage, location, role direction, or any constraints. If the user asks broadly, summarize the durable company signals Harper should use.",
-        },
-        limit: {
-          type: "integer",
-          description: "Number of companies to save to the Watchlist.",
-          minimum: 1,
-          maximum: 40,
-          default: 24,
-        },
-      },
-      additionalProperties: false,
-    },
-    channels: ["chat"],
-    async execute(input, context) {
-      const admin = context?.admin;
-      const conversationId = context?.conversationId;
-      const userId = context?.userId;
-      if (!admin || !conversationId || !userId) {
-        throw new TalentToolError(
-          "recommend_companies requires user and conversation context."
-        );
-      }
-
-      return runCareerCompanyRecommendations({
-        admin: admin as any,
-        conversationId,
-        limit:
-          typeof input.limit === "number"
-            ? input.limit
-            : Number.parseInt(String(input.limit ?? ""), 10),
-        request: optionalToolString(input.request),
-        source: "tool",
         userId,
       });
     },
@@ -1072,6 +1248,12 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           maximum: 20,
           default: 8,
         },
+        only_internal: {
+          type: "boolean",
+          description:
+            "When true, return only previously recommended internal opportunities.",
+          default: false,
+        },
       },
       additionalProperties: false,
     },
@@ -1094,14 +1276,19 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         .map(optionalToolString)
         .filter((name): name is string => Boolean(name));
       const limit = normalizeToolLimit(input.limit, 8);
+      const onlyInternal = input.only_internal === true;
       const companyFilters = companyNames.map((name) =>
         name.toLocaleLowerCase("ko-KR")
       );
       const opportunities = await fetchTalentOpportunityHistory({
         admin: admin as any,
+        sourceType: onlyInternal ? "internal" : undefined,
         userId,
       });
       const filtered = opportunities.filter((item) => {
+        if (onlyInternal && item.sourceType !== "internal") {
+          return false;
+        }
         if (companyFilters.length > 0) {
           const itemCompanyName = item.companyName.toLocaleLowerCase("ko-KR");
           return companyFilters.some((companyFilter) =>
@@ -1110,36 +1297,147 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         }
         return true;
       });
+      const displayedItems = filtered.slice(0, limit);
+      const itemsToClose = displayedItems.filter(
+        shouldCloseRecommendedOpportunityFromProgress
+      );
+      if (itemsToClose.length > 0) {
+        await Promise.all(
+          itemsToClose.map((item) =>
+            updateTalentOpportunityHistoryItem({
+              action: "saved_stage",
+              admin: admin as any,
+              opportunityId: item.id,
+              savedStage: "closed",
+              userId,
+            })
+          )
+        );
+      }
+      const closedOpportunityIds = new Set(
+        itemsToClose.map((item) => item.id)
+      );
+      const assistantInstruction =
+        itemsToClose.length > 0
+          ? itemsToClose
+              .map(
+                (item) =>
+                  `${formatRecommendedOpportunityName(item)} 기회에 대해 progress.message에 기반한 안내를 해라. 최대한 기분이 상하지 않도록 잘 전달해라. 해당 기회는 진행 종료 상태로 변경되었음을 자연스럽게 알려라.`
+              )
+              .join(" ")
+          : undefined;
 
       return {
+        ...(assistantInstruction ? { assistantInstruction } : {}),
         filters: {
           companyName: companyNames.length > 0 ? companyNames : null,
           limit,
+          only_internal: onlyInternal,
         },
         returnedCount: Math.min(filtered.length, limit),
         totalMatchingCount: filtered.length,
-        opportunities: filtered.slice(0, limit).map((item) => ({
-          id: item.id,
-          roleId: item.roleId,
-          companyName: item.companyName,
-          title: item.title,
-          opportunityType: item.opportunityType,
-          sourceType: item.sourceType,
-          location: item.location,
-          workMode: item.workMode,
-          employmentTypes: item.employmentTypes,
-          externalJdUrl: item.externalJdUrl,
-          recommendedAt: item.recommendedAt,
-          recommendationReasons: item.recommendationReasons.slice(0, 5),
-          feedback: item.feedback,
-          feedbackReason: item.feedbackReason,
-          processedStage: item.processedStage,
-          savedStage: item.savedStage,
-          dismissedAt: item.dismissedAt,
-          status: item.status,
-          summary: item.description ?? item.companyDescription ?? null,
-        })),
+        opportunities: displayedItems.map((item) => {
+          const feedbackReason = optionalToolString(item.feedbackReason);
+          const progress = formatRecommendedOpportunityProgress(item);
+          const userMemo = optionalToolString(item.talentMemo);
+          const savedStage = closedOpportunityIds.has(item.id)
+            ? "closed"
+            : item.savedStage;
+
+          return {
+            roleId: item.roleId,
+            role: formatRecommendedOpportunityRole(item),
+            opportunityType: item.opportunityType,
+            jdURL: item.externalJdUrl,
+            recommendedAt:
+              formatCompactToolDate(item.recommendedAt) ?? item.recommendedAt,
+            recommendationReasons: item.recommendationReasons.slice(0, 5),
+            feedback: item.feedback,
+            ...(userMemo ? { userMemo } : {}),
+            ...(feedbackReason ? { feedbackReason } : {}),
+            ...(progress ? { progress } : {}),
+            savedStage,
+            status: item.status,
+            summary: item.recommendationSummary,
+          };
+        }),
       };
+    },
+  },
+  [TALENT_TOOL_NAMES.GET_INTERNAL_ROLES]: {
+    name: TALENT_TOOL_NAMES.GET_INTERNAL_ROLES,
+    description:
+      "Find current internal Harper-connected roles by direct role-title or company-name keywords. This is lookup, not personalized recommendation or fit ranking.",
+    parameters: {
+      type: "object",
+      properties: {
+        keywords: {
+          type: "array",
+          description:
+            "One or two direct FTS keywords from the user's request, such as the distinctive role title term or company name. Split broad multi-word searches into separate key terms when exact AND matching is not intended; for example use ['CTO'] or ['Wonderful', 'CTO'] instead of ['Site CTO'] unless both words must appear.",
+          items: {
+            type: "string",
+          },
+          minItems: 1,
+          maxItems: 2,
+        },
+      },
+      required: ["keywords"],
+      additionalProperties: false,
+    },
+    channels: ["chat"],
+    async execute(input, context) {
+      const userId = context?.userId;
+      if (!userId) {
+        throw new TalentToolError("get_internal_roles requires user context.");
+      }
+
+      return searchInternalRolesForCareerTool({
+        keywords: input.keywords,
+        userId,
+      });
+    },
+  },
+  [TALENT_TOOL_NAMES.REQUEST_INTERNAL_ROLE_PRIORITY_REVIEW]: {
+    name: TALENT_TOOL_NAMES.REQUEST_INTERNAL_ROLE_PRIORITY_REVIEW,
+    description:
+      "Save the candidate's explicit request for priority review on a specific internal role. Requires roleId. If roleId is unknown, call get_internal_roles first to resolve it.",
+    parameters: {
+      type: "object",
+      properties: {
+        roleId: {
+          type: "string",
+          description:
+            "Internal role id for the role the candidate wants Harper to prioritize.",
+        },
+      },
+      required: ["roleId"],
+      additionalProperties: false,
+    },
+    channels: ["chat"],
+    async execute(input, context) {
+      const admin = context?.admin;
+      const userId = context?.userId;
+      if (!admin || !userId) {
+        throw new TalentToolError(
+          "request_internal_role_priority_review requires user context."
+        );
+      }
+
+      const roleId = optionalToolString(input.roleId);
+      if (!roleId) {
+        throw new TalentToolError(
+          "request_internal_role_priority_review requires roleId."
+        );
+      }
+
+      return requestInternalRolePriorityReview({
+        admin: admin as any,
+        conversationId: context?.conversationId ?? null,
+        roleId,
+        userId,
+        userMessageId: context?.userMessageId ?? null,
+      });
     },
   },
   [TALENT_TOOL_NAMES.GET_ROLE_CONTEXT]: {
@@ -1161,7 +1459,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           items: {
             type: "string",
           },
-          minItems: 1,
           maxItems: ROLE_CONTEXT_ROLE_ID_LIMIT,
         },
       },
@@ -1454,7 +1751,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const responseLanguage = getTalentToolResponseLanguage(context);
       return {
         assistantInstruction: [
-          `Continue the conversation naturally in ${responseLanguage} now. Do not mention internal tool names, JSON, or internal field names.`,
+          `Continue the conversation naturally in ${responseLanguage} now.`,
           "If recommendation delivery settings changed, explain the practical consequence in the user's language: how many opportunities Harper will include per batch and which opportunity channels will be included or avoided.",
           "Do not make the saved-setting acknowledgement the whole answer; continue naturally from the user's intent.",
         ].join(" "),
@@ -1558,7 +1855,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         talentInsights: {
           type: "object",
           description:
-            "Post-onboarding only. Durable future recommendation/search-memory updates from the user's latest statement, such as desired next role, search intensity, compensation, must-haves, deal-breakers, team style, company/domain preference, company size/stage preference, resume/CV positioning context, or corrections to prior matching preferences. Explicit hard-filter search commands are durable memory too: for example, '미국 회사로만 찾아줘' should update must_haves with a value like '앞으로 미국 기반 회사만 추천받고 싶어합니다.' when intended as a hard requirement. If the user talks about what their resume/CV contains, leaves out, emphasizes, or should communicate for matching, preserve that resume-related context here unless it belongs on one visible profile row. Do not use this for facts that belong on a specific experience, education, or extra row; use rowMemos instead. Do not use this for one-off curiosity/browsing/search requests or aspirational/off-profile role mentions unless the user explicitly says Harper should remember the new direction for future matching. Keys must be English snake_case. Values must be final integrated Korean complete sentences, not fragments. During onboarding, omit this entirely because insight extraction is handled separately.",
+            "Durable future recommendation/search-memory updates from the user's latest statement, such as desired next role, search intensity, compensation, must-haves, deal-breakers, team style, company/domain preference, company size/stage preference, resume/CV positioning context, or corrections to prior matching preferences. Explicit hard-filter search commands are durable memory too: for example, '미국 회사로만 찾아줘' should update must_haves with a value like '앞으로 미국 기반 회사만 추천받고 싶어합니다.' when intended as a hard requirement. If the user talks about what their resume/CV contains, leaves out, emphasizes, or should communicate for matching, preserve that resume-related context here unless it belongs on one visible profile row. Do not use this for facts that belong on a specific experience, education, or extra row; use rowMemos instead. Do not use this for one-off curiosity/browsing/search requests or aspirational/off-profile role mentions unless the user explicitly says Harper should remember the new direction for future matching. Keys must be English snake_case. Values must be final integrated Korean complete sentences, not fragments. During onboarding, omit this entirely because insight extraction is handled separately.",
           properties: {
             content: {
               type: "object",
@@ -2004,7 +2301,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       ]);
       const responseLanguage = getTalentToolResponseLanguage(context);
       const replyInstructions = [
-        `Continue the conversation naturally in ${responseLanguage} now. Do not mention internal tool names, JSON, or internal field names.`,
+        `Continue the conversation naturally in ${responseLanguage} now.`,
         "If saved profile or future-matching memory changed, do not make the saved-memory acknowledgement the whole answer. Explain the user-facing consequence in the context of what the user just asked, then continue naturally.",
         "Use other tools only if independently required by the user's latest explicit request.",
         "If onboarding is still active, ask at most one relevant next question, or close naturally with the required marker when appropriate. Do not return an empty assistant message.",
@@ -2036,8 +2333,6 @@ export function getEnabledTalentTools(channel: TalentToolChannel) {
 
 const UI_STATUS_MESSAGE_PARAMETER = {
   type: "string",
-  description:
-    "Specific English user-facing Thinking log sentence for this exact tool call. Say what is being changed, checked, searched, or prepared. If searching jobs, describe the kind of opportunities being searched for. If changing saved information, mention the concrete field/value being adjusted; old-to-new is optional only when it is naturally available. Do not use vague text like 'updating', 'checking', or 'searching' by itself. Do not mention internal tool names. Keep it under 160 characters.",
 };
 
 function withUiStatusMessageParameter(parameters: Record<string, unknown>) {
@@ -2185,7 +2480,9 @@ export async function executeTalentTool(args: {
   }
   const startedAt = Date.now();
   try {
-    const result = await tool.execute(args.input, args.context);
+    const result = withTalentToolAssistantInstruction(
+      await tool.execute(args.input, args.context)
+    );
     if (shouldLog) {
       logTalentToolResult({
         durationMs: Date.now() - startedAt,

@@ -72,6 +72,7 @@ import {
 } from "@/components/ui/action-dropdown";
 import { Tooltips } from "@/components/ui/tooltip";
 import {
+  canChangeCareerOpportunityManagementStatus,
   getSavedOpportunityStatusOptions,
   getSavedOpportunityStatusLabel,
   getCareerOpportunityManagementStatus,
@@ -197,11 +198,13 @@ const formatWorkMode = (value: string | null, tArg?: CareerTHelper) => {
   return value;
 };
 
-const getDefaultSavedStage = (opportunityType: CareerOpportunityType) =>
-  getCareerDefaultSavedStage(opportunityType);
+const getDefaultSavedStage = (item: CareerHistoryOpportunity) =>
+  item.isInternal || item.sourceType === "internal"
+    ? "connected"
+    : getCareerDefaultSavedStage(item.opportunityType);
 
 export const getResolvedSavedStage = (item: CareerHistoryOpportunity) =>
-  item.savedStage ?? getDefaultSavedStage(item.opportunityType);
+  item.savedStage ?? getDefaultSavedStage(item);
 
 const isNewOpportunity = (item: CareerHistoryOpportunity) =>
   item.feedback === null;
@@ -1434,6 +1437,7 @@ const CareerHistoryPanel = () => {
       item: CareerHistoryOpportunity,
       status: CareerOpportunityManagementStatus
     ) => {
+      if (!canChangeCareerOpportunityManagementStatus(item)) return;
       if (getCareerOpportunityManagementStatus(item) === status) return;
 
       logCareerEvent(`click_history_saved_status_${status}`);
@@ -1475,7 +1479,7 @@ const CareerHistoryPanel = () => {
 
       rememberFeedbackAdvanceTarget(item);
       updateFeedbackForItem(item, "positive", {
-        savedStage: getDefaultSavedStage(item.opportunityType),
+        savedStage: getDefaultSavedStage(item),
       });
     },
     [
@@ -1505,9 +1509,7 @@ const CareerHistoryPanel = () => {
     rememberFeedbackAdvanceTarget(positivePromptOpportunity);
     updateFeedbackForItem(positivePromptOpportunity, "positive", {
       feedbackReason: feedbackReason || null,
-      savedStage: getDefaultSavedStage(
-        positivePromptOpportunity.opportunityType
-      ),
+      savedStage: getDefaultSavedStage(positivePromptOpportunity),
     });
     setPositivePromptOpportunityId(null);
     setPositivePromptDraft("");

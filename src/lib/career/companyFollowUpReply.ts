@@ -23,7 +23,6 @@ function buildCompanyFollowUpInstruction(args: {
     item.specialities.length > 0
       ? `Specialities: ${item.specialities.slice(0, 6).join(", ")}`
       : "",
-    item.reasonSummary ? `Recommendation fit: ${item.reasonSummary}` : "",
   ].filter(Boolean);
 
   return [

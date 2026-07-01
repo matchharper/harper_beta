@@ -168,16 +168,6 @@ begin
        set talent_id = target_user_id
      where talent_id = source_user_id;
 
-    delete from public.talent_company_recommendation source_recommendation
-     using public.talent_company_recommendation target_recommendation
-     where source_recommendation.talent_id = source_user_id
-       and target_recommendation.talent_id = target_user_id
-       and target_recommendation.company_db_id = source_recommendation.company_db_id;
-
-    update public.talent_company_recommendation
-       set talent_id = target_user_id
-     where talent_id = source_user_id;
-
     delete from public.talent_company_follow source_follow
      using public.talent_company_follow target_follow
      where source_follow.talent_id = source_user_id

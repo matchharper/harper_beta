@@ -38,6 +38,28 @@ export type OfficialJob = {
   updatedAt: string;
 };
 
+export type OfficialJobListItem = Pick<
+  OfficialJob,
+  | "ashbyJobPostingId"
+  | "id"
+  | "slug"
+  | "companyName"
+  | "roleTitle"
+  | "location"
+  | "vertical"
+>;
+
+export type OfficialJobListRow = Pick<
+  OfficialJobRow,
+  | "ashby_job_posting_id"
+  | "id"
+  | "slug"
+  | "company_name"
+  | "role_title"
+  | "location"
+  | "vertical"
+>;
+
 export function isOfficialJobsInternalCopyIdentity(input: {
   roleTitle?: string | null;
   role_title?: string | null;
@@ -73,5 +95,19 @@ export function mapOfficialJobRow(row: OfficialJobRow): OfficialJob {
     displayOrder: row.display_order,
     publishedAt: row.published_at,
     updatedAt: row.updated_at,
+  };
+}
+
+export function mapOfficialJobListRow(
+  row: OfficialJobListRow
+): OfficialJobListItem {
+  return {
+    ashbyJobPostingId: row.ashby_job_posting_id ?? null,
+    id: row.id,
+    slug: row.slug,
+    companyName: row.company_name,
+    roleTitle: row.role_title,
+    location: row.location,
+    vertical: row.vertical,
   };
 }

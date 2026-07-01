@@ -1,20 +1,10 @@
 import type { Json } from "@/types/database.types";
-import { CAREER_LLM_CONFIG } from "@/lib/career/llm";
-import {
-  getCareerPromptLanguageName,
-  normalizeCareerPromptLocale,
-} from "@/lib/career/promptLocale";
+import { normalizeCareerPromptLocale } from "@/lib/career/promptLocale";
 import { careerT } from "@/lib/career/translatedCareerMessage";
 import {
-  buildTalentProfileContext,
-  fetchTalentInsights,
-  fetchTalentSetting,
-  fetchTalentStructuredProfile,
-  fetchTalentUserProfile,
   getTalentSupabaseAdmin,
   type TalentAdminClient,
 } from "@/lib/talentOnboarding/server";
-import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
 import { insertTalentActivityEvent } from "@/lib/talentOnboarding/activityEvents";
 
 if (typeof window !== "undefined") {
@@ -23,30 +13,7 @@ if (typeof window !== "undefined") {
 
 type AdminClient = ReturnType<typeof getTalentSupabaseAdmin>;
 
-export type TalentCompanyWatchlistTab = "recommended" | "following" | "signals";
-
-export type TalentCompanyRecommendationRow = {
-  active_role_count: number;
-  clicked_at: string | null;
-  company_db_id: number;
-  company_workspace_id: string | null;
-  conversation_id: string | null;
-  created_at: string;
-  dismissed_at: string | null;
-  id: string;
-  latest_signal: string | null;
-  next_signal: string | null;
-  rank: number | null;
-  reason_summary: string | null;
-  recommendation_reasons: Json;
-  recommended_at: string;
-  score: number | null;
-  signal_summary: string | null;
-  source: string;
-  talent_id: string;
-  updated_at: string;
-  viewed_at: string | null;
-};
+export type TalentCompanyWatchlistTab = "following" | "signals";
 
 export type TalentCompanyFollowRow = {
   company_db_id: number;
@@ -153,21 +120,13 @@ export type TalentCompanyWatchlistItem = {
   lastCrunchbaseUpdatedAt: string | null;
   lastUpdatedAt: string | null;
   latestRolePostedAt: string | null;
-  latestSignal: string | null;
   linkedinUrl: string | null;
   location: string | null;
   logoUrl: string | null;
   name: string;
-  nextSignal: string | null;
-  rank: number | null;
-  reasonSummary: string | null;
-  recommendationId: string | null;
-  recommendationReasons: string[];
-  recommendedAt: string | null;
   relatedLinks: string[];
   rolePreviews: TalentCompanyRolePreview[];
   shortDescription: string | null;
-  signalSummary: string | null;
   specialities: string[];
   trackingSummary: string | null;
   websiteUrl: string | null;
@@ -190,13 +149,6 @@ type ActiveRoleStats = {
 
 const DEFAULT_COMPANY_PAGE_SIZE = 12;
 const MAX_COMPANY_PAGE_SIZE = 50;
-const COMPANY_RECOMMENDATION_CANDIDATE_LIMIT = 320;
-const COMPANY_RECOMMENDATION_LLM_LIMIT = 32;
-const DEFAULT_GENERATED_COMPANY_COUNT = 24;
-const COMPANY_RECOMMENDATION_CACHE_TTL_MS = 18 * 60 * 60 * 1000;
-const MIN_FRESH_COMPANY_RECOMMENDATION_COUNT = 8;
-const COMPANY_RECOMMENDATION_PROFILE_CONTEXT_LIMIT = 3600;
-const COMPANY_RECOMMENDATION_CARD_DESCRIPTION_LIMIT = 650;
 
 const COMPANY_DB_SELECT =
   "id, name, logo, website_url, linkedin_url, funding_url, short_description, description, specialities, location, investors, employee_count_range, founded_year, related_links, crunchbase_information, last_crunchbase_updated_at, last_updated_at";
@@ -213,8 +165,8 @@ function clampPageLimit(value: unknown) {
 export function parseCompanyWatchlistTab(
   value: string | null | undefined
 ): TalentCompanyWatchlistTab {
-  if (value === "following" || value === "signals") return value;
-  return "recommended";
+  if (value === "signals") return value;
+  return "following";
 }
 
 function cleanText(value: unknown, maxLength = 4000) {
@@ -261,10 +213,6 @@ function toStringList(value: unknown, limit = 8) {
   return [];
 }
 
-function normalizeRecommendationReasons(value: Json | null | undefined) {
-  return toStringList(value, 5);
-}
-
 function toJsonRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
@@ -285,12 +233,6 @@ function latestTime(values: Array<string | null | undefined>) {
     .filter((entry): entry is { time: number; value: string } => !!entry)
     .sort((left, right) => right.time - left.time);
   return timestamps[0]?.value ?? null;
-}
-
-function isFreshTimestamp(value: string | null | undefined, ttlMs: number) {
-  if (!value) return false;
-  const timestamp = Date.parse(value);
-  return Number.isFinite(timestamp) && Date.now() - timestamp <= ttlMs;
 }
 
 function getCompanyDisplayName(args: {
@@ -570,52 +512,18 @@ async function fetchActiveFollowRows(
   );
 }
 
-async function fetchRecommendationRowsByCompanyDbIds(
-  admin: AdminClient,
-  userId: string,
-  companyDbIds: number[]
-) {
-  const ids = Array.from(new Set(companyDbIds.filter(Number.isFinite)));
-  if (ids.length === 0) {
-    return new Map<number, TalentCompanyRecommendationRow>();
-  }
-
-  const { data, error } = await (
-    admin.from("talent_company_recommendation" as any) as any
-  )
-    .select("*")
-    .eq("talent_id", userId)
-    .in("company_db_id", ids);
-
-  if (error) {
-    throw new Error(error.message ?? "Failed to load company recommendations");
-  }
-
-  return new Map(
-    coerceArray<TalentCompanyRecommendationRow>(data).map((row) => [
-      Number(row.company_db_id),
-      row,
-    ])
-  );
-}
-
 function mapCompanyWatchlistItem(args: {
   activeRoleStats?: ActiveRoleStats | null;
   companyDb: CompanyDbRow;
   companySnapshot?: TalentCompanySnapshotDossier | null;
   fallbackWorkspace?: CompanyWorkspaceRow | null;
   follow?: TalentCompanyFollowRow | null;
-  recommendation?: TalentCompanyRecommendationRow | null;
   workspace?: CompanyWorkspaceRow | null;
 }): TalentCompanyWatchlistItem {
   const workspace = args.workspace ?? args.fallbackWorkspace ?? null;
   const follow = args.follow ?? null;
-  const recommendation = args.recommendation ?? null;
   const stats = args.activeRoleStats ?? null;
-  const activeRoleCount = Math.max(
-    0,
-    stats?.count ?? recommendation?.active_role_count ?? 0
-  );
+  const activeRoleCount = Math.max(0, stats?.count ?? 0);
 
   return {
     activeRoleCount,
@@ -623,7 +531,6 @@ function mapCompanyWatchlistItem(args: {
     companyDbId: Number(args.companyDb.id),
     companySnapshot: args.companySnapshot ?? null,
     companyWorkspaceId:
-      recommendation?.company_workspace_id ??
       follow?.company_workspace_id ??
       workspace?.company_workspace_id ??
       null,
@@ -639,12 +546,11 @@ function mapCompanyWatchlistItem(args: {
     foundedYear: args.companyDb.founded_year ?? null,
     fundingUrl: args.companyDb.funding_url ?? null,
     homepageUrl: workspace?.homepage_url ?? args.companyDb.website_url ?? null,
-    id: String(recommendation?.id ?? follow?.id ?? args.companyDb.id),
+    id: String(follow?.id ?? args.companyDb.id),
     investors: args.companyDb.investors ?? null,
     lastCrunchbaseUpdatedAt: args.companyDb.last_crunchbase_updated_at ?? null,
     lastUpdatedAt: args.companyDb.last_updated_at ?? null,
     latestRolePostedAt: stats?.latestRolePostedAt ?? null,
-    latestSignal: recommendation?.latest_signal ?? null,
     linkedinUrl: getCompanyLinkedinUrl({
       companyDb: args.companyDb,
       workspace,
@@ -658,21 +564,12 @@ function mapCompanyWatchlistItem(args: {
       companyDb: args.companyDb,
       workspace,
     }),
-    nextSignal: recommendation?.next_signal ?? null,
-    rank: recommendation?.rank ?? null,
-    reasonSummary: recommendation?.reason_summary ?? null,
-    recommendationId: recommendation?.id ?? null,
-    recommendationReasons: normalizeRecommendationReasons(
-      recommendation?.recommendation_reasons ?? []
-    ),
-    recommendedAt: recommendation?.recommended_at ?? null,
     relatedLinks: toStringList(args.companyDb.related_links, 8),
     rolePreviews: stats?.previews ?? [],
     shortDescription: getCompanyShortDescription({
       companyDb: args.companyDb,
       workspace,
     }),
-    signalSummary: recommendation?.signal_summary ?? null,
     specialities: toStringList(args.companyDb.specialities, 12),
     trackingSummary: follow?.tracking_summary ?? null,
     websiteUrl: args.companyDb.website_url ?? null,
@@ -699,122 +596,50 @@ export async function fetchTalentCompanyWatchlistPage(args: {
     };
   }
 
-  const tab = args.tab;
   const from = offset;
   const to = offset + limit - 1;
 
-  if (tab === "following") {
-    const { data, error, count } = await (
-      args.admin.from("talent_company_follow" as any) as any
-    )
-      .select("*", { count: "exact" })
-      .eq("talent_id", args.userId)
-      .is("unfollowed_at", null)
-      .order("followed_at", { ascending: false })
-      .range(from, to);
-
-    if (error) {
-      throw new Error(error.message ?? "Failed to load followed companies");
-    }
-
-    const followRows = coerceArray<TalentCompanyFollowRow>(data);
-    const companyDbIds = followRows.map((row) => Number(row.company_db_id));
-    const workspaceIds = followRows
-      .map((row) => cleanText(row.company_workspace_id))
-      .filter(Boolean);
-    const [
-      companyDbById,
-      workspaceById,
-      fallbackWorkspaceByCompanyDbId,
-      recommendationByCompanyDbId,
-      activeRoleStatsByCompanyDbId,
-    ] = await Promise.all([
-      fetchCompanyDbMap(args.admin, companyDbIds),
-      fetchWorkspaceMapByIds(args.admin, workspaceIds),
-      fetchBestWorkspaceByCompanyDbIds(args.admin, companyDbIds),
-      fetchRecommendationRowsByCompanyDbIds(
-        args.admin,
-        args.userId,
-        companyDbIds
-      ),
-      fetchActiveRoleStatsByCompanyDbIds(args.admin, companyDbIds),
-    ]);
-
-    const items = followRows
-      .map((follow) => {
-        const companyDb = companyDbById.get(Number(follow.company_db_id));
-        if (!companyDb) return null;
-        return mapCompanyWatchlistItem({
-          activeRoleStats: activeRoleStatsByCompanyDbId.get(companyDb.id),
-          companyDb,
-          fallbackWorkspace: fallbackWorkspaceByCompanyDbId.get(companyDb.id),
-          follow,
-          recommendation: recommendationByCompanyDbId.get(companyDb.id),
-          workspace: follow.company_workspace_id
-            ? workspaceById.get(follow.company_workspace_id)
-            : null,
-        });
-      })
-      .filter((item): item is TalentCompanyWatchlistItem => item !== null);
-
-    return {
-      count: count ?? items.length,
-      items,
-      limit,
-      nextOffset:
-        offset + items.length < (count ?? items.length) ? offset + limit : null,
-      offset,
-      tab: args.tab,
-    };
-  }
-
   const { data, error, count } = await (
-    args.admin.from("talent_company_recommendation" as any) as any
+    args.admin.from("talent_company_follow" as any) as any
   )
     .select("*", { count: "exact" })
     .eq("talent_id", args.userId)
-    .is("dismissed_at", null)
-    .order("rank", { ascending: true, nullsFirst: false })
-    .order("recommended_at", { ascending: false })
+    .is("unfollowed_at", null)
+    .order("followed_at", { ascending: false })
     .range(from, to);
 
   if (error) {
-    throw new Error(error.message ?? "Failed to load recommended companies");
+    throw new Error(error.message ?? "Failed to load followed companies");
   }
 
-  const recommendationRows = coerceArray<TalentCompanyRecommendationRow>(data);
-  const companyDbIds = recommendationRows.map((row) =>
-    Number(row.company_db_id)
-  );
-  const workspaceIds = recommendationRows
+  const followRows = coerceArray<TalentCompanyFollowRow>(data);
+  const companyDbIds = followRows.map((row) => Number(row.company_db_id));
+  const workspaceIds = followRows
     .map((row) => cleanText(row.company_workspace_id))
     .filter(Boolean);
   const [
     companyDbById,
     workspaceById,
     fallbackWorkspaceByCompanyDbId,
-    followByCompanyDbId,
     activeRoleStatsByCompanyDbId,
   ] = await Promise.all([
     fetchCompanyDbMap(args.admin, companyDbIds),
     fetchWorkspaceMapByIds(args.admin, workspaceIds),
     fetchBestWorkspaceByCompanyDbIds(args.admin, companyDbIds),
-    fetchActiveFollowRows(args.admin, args.userId, companyDbIds),
     fetchActiveRoleStatsByCompanyDbIds(args.admin, companyDbIds),
   ]);
 
-  const items = recommendationRows
-    .map((recommendation) => {
-      const companyDb = companyDbById.get(Number(recommendation.company_db_id));
+  const items = followRows
+    .map((follow) => {
+      const companyDb = companyDbById.get(Number(follow.company_db_id));
       if (!companyDb) return null;
       return mapCompanyWatchlistItem({
         activeRoleStats: activeRoleStatsByCompanyDbId.get(companyDb.id),
         companyDb,
         fallbackWorkspace: fallbackWorkspaceByCompanyDbId.get(companyDb.id),
-        follow: followByCompanyDbId.get(companyDb.id),
-        recommendation,
-        workspace: recommendation.company_workspace_id
-          ? workspaceById.get(recommendation.company_workspace_id)
+        follow,
+        workspace: follow.company_workspace_id
+          ? workspaceById.get(follow.company_workspace_id)
           : null,
       });
     })
@@ -846,16 +671,12 @@ export async function fetchTalentCompanyWatchlistDetail(args: {
     companyDbById,
     fallbackWorkspaceByCompanyDbId,
     followByCompanyDbId,
-    recommendationByCompanyDbId,
     activeRoleStatsByCompanyDbId,
     companySnapshot,
   ] = await Promise.all([
     fetchCompanyDbMap(args.admin, [companyDbId]),
     fetchBestWorkspaceByCompanyDbIds(args.admin, [companyDbId]),
     fetchActiveFollowRows(args.admin, args.userId, [companyDbId]),
-    fetchRecommendationRowsByCompanyDbIds(args.admin, args.userId, [
-      companyDbId,
-    ]),
     fetchActiveRoleStatsByCompanyDbIds(args.admin, [companyDbId]),
     fetchLatestCompanySnapshotDossier(
       args.admin,
@@ -866,7 +687,6 @@ export async function fetchTalentCompanyWatchlistDetail(args: {
 
   const companyDb = companyDbById.get(companyDbId);
   if (!companyDb) return null;
-  const recommendation = recommendationByCompanyDbId.get(companyDbId) ?? null;
   const follow = followByCompanyDbId.get(companyDbId) ?? null;
   const workspace = fallbackWorkspaceByCompanyDbId.get(companyDbId) ?? null;
 
@@ -875,7 +695,6 @@ export async function fetchTalentCompanyWatchlistDetail(args: {
     companyDb,
     companySnapshot,
     follow,
-    recommendation,
     workspace,
   });
 }
@@ -1077,650 +896,5 @@ export async function updateTalentCompanyFollow(args: {
       trackingSummary,
     },
     userMessage: null,
-  };
-}
-
-type CompanyRecommendationCandidate = {
-  activeRoleCount: number;
-  companyDb: CompanyDbRow;
-  latestRoleAt: string | null;
-  roles: CompanyRoleRow[];
-  workspace: CompanyWorkspaceRow;
-};
-
-function tokenizeForScore(value: string) {
-  return Array.from(
-    new Set(
-      value
-        .toLocaleLowerCase("ko-KR")
-        .replace(/[^0-9a-z가-힣ㄱ-ㅎㅏ-ㅣ]+/g, " ")
-        .split(/\s+/g)
-        .map((token) => token.trim())
-        .filter((token) => token.length >= 2)
-        .slice(0, 160)
-    )
-  );
-}
-
-function scoreCandidate(
-  candidate: CompanyRecommendationCandidate,
-  profileText: string,
-  request: string | null
-) {
-  const profileTokens = new Set(
-    tokenizeForScore([profileText, request ?? ""].join(" "))
-  );
-  const companyText = [
-    candidate.companyDb.name,
-    candidate.companyDb.short_description,
-    candidate.companyDb.description,
-    candidate.companyDb.specialities,
-    candidate.companyDb.investors,
-    candidate.workspace.company_name,
-    candidate.workspace.company_description,
-    candidate.workspace.pitch,
-    ...candidate.roles.flatMap((role) => [
-      role.name,
-      role.description_summary,
-      role.description,
-      role.location_text,
-      role.work_mode,
-    ]),
-  ]
-    .map((entry) => cleanText(entry, 1200))
-    .filter(Boolean)
-    .join(" ");
-  const companyTokens = tokenizeForScore(companyText);
-  const overlap = companyTokens.reduce(
-    (count, token) => count + (profileTokens.has(token) ? 1 : 0),
-    0
-  );
-  const roleBoost = Math.min(candidate.activeRoleCount, 8) * 0.45;
-  const qualityBoost =
-    Math.max(0, Number(candidate.workspace.test_score ?? 0)) / 8;
-  const recencyBoost = candidate.latestRoleAt
-    ? Math.max(
-        0,
-        2 -
-          (Date.now() - Date.parse(candidate.latestRoleAt)) /
-            (1000 * 60 * 60 * 24 * 90)
-      )
-    : 0;
-  return overlap * 0.7 + roleBoost + qualityBoost + recencyBoost;
-}
-
-async function fetchCompanyRecommendationCandidates(args: {
-  admin: AdminClient;
-}): Promise<CompanyRecommendationCandidate[]> {
-  const threshold = new Date(
-    Date.now() - 183 * 24 * 60 * 60 * 1000
-  ).toISOString();
-  const now = new Date().toISOString();
-
-  const { data: roleData, error: roleError } = await (
-    args.admin.from("company_roles" as any) as any
-  )
-    .select(
-      "role_id, company_workspace_id, name, description, description_summary, external_jd_url, location_text, work_mode, type, posted_at, updated_at, created_at"
-    )
-    .eq("status", "active")
-    .not("is_expired", "is", true)
-    .or(`expires_at.is.null,expires_at.gte.${now}`)
-    .or(
-      `posted_at.gte.${threshold},updated_at.gte.${threshold},created_at.gte.${threshold}`
-    )
-    .order("updated_at", { ascending: false, nullsFirst: false })
-    .limit(COMPANY_RECOMMENDATION_CANDIDATE_LIMIT);
-
-  if (roleError) {
-    throw new Error(
-      roleError.message ?? "Failed to load company role candidates"
-    );
-  }
-
-  const roles = coerceArray<CompanyRoleRow>(roleData);
-  const workspaceIds = Array.from(
-    new Set(
-      roles
-        .map((role) => cleanText(role.company_workspace_id))
-        .filter(isUuidText)
-    )
-  );
-  if (workspaceIds.length === 0) return [];
-
-  const workspaceById = await fetchWorkspaceMapByIds(args.admin, workspaceIds);
-  const companyDbIds = Array.from(
-    new Set(
-      Array.from(workspaceById.values())
-        .map((workspace) => Number(workspace.company_db_id))
-        .filter(Number.isFinite)
-    )
-  );
-  const companyDbById = await fetchCompanyDbMap(args.admin, companyDbIds);
-  const rolesByCompanyDbId = new Map<number, CompanyRoleRow[]>();
-  const workspaceByCompanyDbId = new Map<number, CompanyWorkspaceRow>();
-
-  for (const role of roles) {
-    const workspace = workspaceById.get(String(role.company_workspace_id));
-    const companyDbId = Number(workspace?.company_db_id);
-    if (!workspace || !Number.isFinite(companyDbId)) continue;
-    const companyDb = companyDbById.get(companyDbId);
-    if (!cleanText(companyDb?.linkedin_url)) continue;
-
-    const current = rolesByCompanyDbId.get(companyDbId) ?? [];
-    current.push(role);
-    rolesByCompanyDbId.set(companyDbId, current);
-
-    const currentWorkspace = workspaceByCompanyDbId.get(companyDbId);
-    if (
-      !currentWorkspace ||
-      Number(workspace.test_score ?? 0) >
-        Number(currentWorkspace.test_score ?? 0)
-    ) {
-      workspaceByCompanyDbId.set(companyDbId, workspace);
-    }
-  }
-
-  return Array.from(rolesByCompanyDbId.entries())
-    .map<CompanyRecommendationCandidate | null>(
-      ([companyDbId, companyRoles]) => {
-        const companyDb = companyDbById.get(companyDbId);
-        const workspace = workspaceByCompanyDbId.get(companyDbId);
-        if (!companyDb || !workspace) return null;
-
-        const latestRoleAt = latestTime(
-          companyRoles.flatMap((role) => [
-            role.posted_at,
-            role.updated_at,
-            role.created_at,
-          ])
-        );
-
-        return {
-          activeRoleCount: companyRoles.length,
-          companyDb,
-          latestRoleAt,
-          roles: companyRoles.slice(0, 8),
-          workspace,
-        };
-      }
-    )
-    .filter(
-      (candidate): candidate is CompanyRecommendationCandidate =>
-        candidate !== null
-    );
-}
-
-function parseJsonObject(raw: string): Record<string, unknown> | null {
-  try {
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : null;
-  } catch {
-    const match = raw.match(/\{[\s\S]*\}/);
-    if (!match) return null;
-    try {
-      const parsed = JSON.parse(match[0]);
-      return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-        ? (parsed as Record<string, unknown>)
-        : null;
-    } catch {
-      return null;
-    }
-  }
-}
-
-async function rankCompanyCandidatesWithLlm(args: {
-  candidates: CompanyRecommendationCandidate[];
-  preferredLocale?: string | null;
-  profileContext: string;
-  request: string | null;
-}) {
-  if (args.candidates.length === 0) return [];
-  const outputLanguage = getCareerPromptLanguageName(args.preferredLocale);
-
-  const cards = args.candidates
-    .slice(0, COMPANY_RECOMMENDATION_LLM_LIMIT)
-    .map((candidate, index) => ({
-      index: index + 1,
-      companyDbId: candidate.companyDb.id,
-      companyName: getCompanyDisplayName({
-        companyDb: candidate.companyDb,
-        workspace: candidate.workspace,
-      }),
-      activeRoleCount: candidate.activeRoleCount,
-      latestRoleAt: candidate.latestRoleAt,
-      location: candidate.companyDb.location,
-      description:
-        cleanText(
-          getCompanyShortDescription({
-            companyDb: candidate.companyDb,
-            workspace: candidate.workspace,
-          }) ??
-            getCompanyDescription({
-              companyDb: candidate.companyDb,
-              workspace: candidate.workspace,
-            }),
-          COMPANY_RECOMMENDATION_CARD_DESCRIPTION_LIMIT
-        ) || null,
-      specialities: toStringList(candidate.companyDb.specialities, 8),
-      roles: candidate.roles.slice(0, 3).map((role) => ({
-        name: cleanText(role.name, 160),
-        location: cleanText(role.location_text, 120) || null,
-        workMode: cleanText(role.work_mode, 80) || null,
-      })),
-      testScore: candidate.workspace.test_score,
-    }));
-
-  const raw = await runTalentAssistantCompletion({
-    anthropicOverloadFallbackModel:
-      CAREER_LLM_CONFIG.companyWatchlistRank.anthropicOverloadFallbackModel,
-    fallbackModel: CAREER_LLM_CONFIG.companyWatchlistRank.fallbackModel,
-    jsonMode: true,
-    primaryModel: CAREER_LLM_CONFIG.companyWatchlistRank.primaryModel,
-    temperature: CAREER_LLM_CONFIG.companyWatchlistRank.temperature,
-    usageLabel: "career/company_recommendations:rank",
-    messages: [
-      {
-        role: "system",
-        content: [
-          "You are Harper's company watchlist recommender.",
-          "Return JSON only.",
-          "Pick companies, not individual roles. Prefer companies that fit the candidate's durable career direction and have current hiring signal.",
-          "Do not invent facts. Use only the candidate profile and company cards.",
-          `Write reasonSummary, recommendationReasons, signalSummary, latestSignal, and nextSignal in ${outputLanguage}.`,
-          `JSON shape: {"recommendations":[{"companyDbId":123,"score":8.5,"reasonSummary":"${outputLanguage} sentence","recommendationReasons":["${outputLanguage} phrase","${outputLanguage} phrase"],"signalSummary":"${outputLanguage} sentence","latestSignal":"${outputLanguage} short text","nextSignal":"${outputLanguage} short text"}]}`,
-        ].join("\n"),
-      },
-      {
-        role: "user",
-        content: [
-          "[Candidate profile]",
-          args.profileContext.slice(
-            0,
-            COMPANY_RECOMMENDATION_PROFILE_CONTEXT_LIMIT
-          ),
-          "",
-          args.request ? `[User request]\n${args.request}` : "",
-          "",
-          "[Company cards]",
-          JSON.stringify(cards),
-        ].join("\n"),
-      },
-    ],
-  });
-
-  const parsed = parseJsonObject(raw);
-  const rows = Array.isArray(parsed?.recommendations)
-    ? parsed.recommendations
-    : [];
-  const allowedIds = new Set(cards.map((card) => Number(card.companyDbId)));
-
-  return rows
-    .map((entry) => {
-      if (!entry || typeof entry !== "object") return null;
-      const record = entry as Record<string, unknown>;
-      const companyDbId = Number(record.companyDbId);
-      if (!allowedIds.has(companyDbId)) return null;
-      return {
-        companyDbId,
-        latestSignal: cleanText(record.latestSignal, 180) || null,
-        nextSignal: cleanText(record.nextSignal, 180) || null,
-        reasonSummary: cleanText(record.reasonSummary, 500) || null,
-        recommendationReasons: toStringList(record.recommendationReasons, 4),
-        score: Number.isFinite(Number(record.score))
-          ? Math.max(0, Math.min(10, Number(record.score)))
-          : null,
-        signalSummary: cleanText(record.signalSummary, 500) || null,
-      };
-    })
-    .filter(
-      (
-        entry
-      ): entry is {
-        companyDbId: number;
-        latestSignal: string | null;
-        nextSignal: string | null;
-        reasonSummary: string | null;
-        recommendationReasons: string[];
-        score: number | null;
-        signalSummary: string | null;
-      } => entry !== null
-    );
-}
-
-async function fetchReusableFreshCompanyRecommendationPage(args: {
-  admin: AdminClient;
-  limit: number;
-  request: string | null;
-  forceRefresh?: boolean;
-  userId: string;
-}) {
-  if (args.forceRefresh || args.request) return null;
-
-  const requiredCount = Math.min(
-    args.limit,
-    MIN_FRESH_COMPANY_RECOMMENDATION_COUNT
-  );
-  const { data, error } = await (
-    args.admin.from("talent_company_recommendation" as any) as any
-  )
-    .select("id, recommended_at")
-    .eq("talent_id", args.userId)
-    .is("dismissed_at", null)
-    .order("recommended_at", { ascending: false })
-    .limit(requiredCount);
-
-  if (error) {
-    throw new Error(
-      error.message ?? "Failed to read recent company recommendations"
-    );
-  }
-
-  const rows =
-    coerceArray<Pick<TalentCompanyRecommendationRow, "recommended_at">>(data);
-  if (rows.length < requiredCount) return null;
-
-  const newestRecommendedAt = rows[0]?.recommended_at ?? null;
-  if (
-    !isFreshTimestamp(newestRecommendedAt, COMPANY_RECOMMENDATION_CACHE_TTL_MS)
-  ) {
-    return null;
-  }
-
-  return fetchTalentCompanyWatchlistPage({
-    admin: args.admin,
-    limit: args.limit,
-    offset: 0,
-    tab: "recommended",
-    userId: args.userId,
-  });
-}
-
-function buildCompanyRecommendationAnswerDraft(args: {
-  cacheHit?: boolean;
-  page: TalentCompanyWatchlistPage;
-  preferredLocale?: string | null;
-}) {
-  const headline = careerT(
-    args.preferredLocale,
-    args.cacheHit
-      ? "career.company.recommendation.answer.loaded_headline"
-      : "career.company.recommendation.answer.saved_headline",
-    args.cacheHit
-      ? "최근 저장된 추천 회사 {count}개를 불러왔습니다."
-      : "워치리스트에 추천 회사 {count}개를 저장했습니다.",
-    { values: { count: args.page.items.length } }
-  );
-  const fallbackReason = careerT(
-    args.preferredLocale,
-    "career.company.recommendation.answer.fallback_reason",
-    "현재 채용 신호가 있고 프로필 방향과 겹칩니다."
-  );
-  const footer = careerT(
-    args.preferredLocale,
-    "career.company.recommendation.answer.footer",
-    "워치리스트 > 추천회사에서 상세 정보와 팔로우 버튼을 볼 수 있습니다."
-  );
-
-  return [
-    headline,
-    "",
-    ...args.page.items.slice(0, 5).map((item, index) => {
-      const reason =
-        item.reasonSummary ?? item.recommendationReasons[0] ?? fallbackReason;
-      return `${index + 1}. **${item.name}** — ${reason}`;
-    }),
-    "",
-    footer,
-  ].join("\n");
-}
-
-async function buildCompanyRecommendationProfileContext(args: {
-  admin: AdminClient;
-  userId: string;
-}) {
-  const [profile, setting, insights] = await Promise.all([
-    fetchTalentUserProfile({ admin: args.admin, userId: args.userId }),
-    fetchTalentSetting({ admin: args.admin, userId: args.userId }),
-    fetchTalentInsights({ admin: args.admin, userId: args.userId }),
-  ]);
-  const structuredProfile = await fetchTalentStructuredProfile({
-    admin: args.admin,
-    userId: args.userId,
-    talentUser: profile,
-  });
-  return [
-    buildTalentProfileContext({
-      profile,
-      setting,
-      structuredProfile,
-      maxResumeChars: 2400,
-    }),
-    "",
-    "[Talent insights]",
-    JSON.stringify(insights?.content ?? {}, null, 2),
-  ].join("\n");
-}
-
-export async function runCareerCompanyRecommendations(args: {
-  admin: AdminClient;
-  conversationId?: string | null;
-  forceRefresh?: boolean;
-  limit?: number;
-  preferredLocale?: string | null;
-  request?: string | null;
-  source?: string | null;
-  userId: string;
-}) {
-  const parsedLimit = Number(args.limit ?? DEFAULT_GENERATED_COMPANY_COUNT);
-  const limit = Math.max(
-    1,
-    Math.min(
-      Math.floor(
-        Number.isFinite(parsedLimit)
-          ? parsedLimit
-          : DEFAULT_GENERATED_COMPANY_COUNT
-      ),
-      40
-    )
-  );
-  const request = cleanText(args.request, 1200) || null;
-  const reusablePage = await fetchReusableFreshCompanyRecommendationPage({
-    admin: args.admin,
-    forceRefresh: args.forceRefresh,
-    limit,
-    request,
-    userId: args.userId,
-  });
-
-  if (reusablePage) {
-    return {
-      answerDraft: buildCompanyRecommendationAnswerDraft({
-        cacheHit: true,
-        page: reusablePage,
-        preferredLocale: args.preferredLocale,
-      }),
-      cacheHit: true,
-      candidateCount: 0,
-      recommendedCount: reusablePage.items.length,
-      recommendations: reusablePage.items,
-    };
-  }
-
-  const [profileContext, candidates] = await Promise.all([
-    buildCompanyRecommendationProfileContext({
-      admin: args.admin,
-      userId: args.userId,
-    }),
-    fetchCompanyRecommendationCandidates({ admin: args.admin }),
-  ]);
-
-  const scoredCandidates = candidates
-    .map((candidate) => ({
-      candidate,
-      deterministicScore: scoreCandidate(candidate, profileContext, request),
-    }))
-    .sort((left, right) => right.deterministicScore - left.deterministicScore);
-  const shortlist = scoredCandidates
-    .slice(0, COMPANY_RECOMMENDATION_LLM_LIMIT)
-    .map((entry) => entry.candidate);
-
-  let llmRanked: Awaited<ReturnType<typeof rankCompanyCandidatesWithLlm>> = [];
-  try {
-    llmRanked = await rankCompanyCandidatesWithLlm({
-      candidates: shortlist,
-      preferredLocale: args.preferredLocale,
-      profileContext,
-      request,
-    });
-  } catch (error) {
-    console.error("[company-watchlist] LLM ranking failed", {
-      error: error instanceof Error ? error.message : String(error),
-      userId: args.userId,
-    });
-  }
-
-  const candidateByCompanyDbId = new Map(
-    scoredCandidates.map((entry) => [
-      entry.candidate.companyDb.id,
-      entry.candidate,
-    ])
-  );
-  const deterministicScoreByCompanyDbId = new Map(
-    scoredCandidates.map((entry) => [
-      entry.candidate.companyDb.id,
-      entry.deterministicScore,
-    ])
-  );
-  const rankedCompanyIds =
-    llmRanked.length > 0
-      ? llmRanked.map((entry) => entry.companyDbId)
-      : scoredCandidates
-          .slice(0, limit)
-          .map((entry) => entry.candidate.companyDb.id);
-  const llmByCompanyDbId = new Map(
-    llmRanked.map((entry) => [entry.companyDbId, entry])
-  );
-  const selected = rankedCompanyIds
-    .map((companyDbId) => {
-      const candidate = candidateByCompanyDbId.get(companyDbId) ?? null;
-      if (!candidate) return null;
-      return candidate;
-    })
-    .filter(
-      (candidate): candidate is CompanyRecommendationCandidate =>
-        candidate !== null
-    )
-    .slice(0, limit);
-
-  const now = new Date().toISOString();
-  const rows = selected.map((candidate, index) => {
-    const llm = llmByCompanyDbId.get(candidate.companyDb.id);
-    const companyName = getCompanyDisplayName({
-      companyDb: candidate.companyDb,
-      workspace: candidate.workspace,
-    });
-    return {
-      active_role_count: candidate.activeRoleCount,
-      company_db_id: candidate.companyDb.id,
-      company_workspace_id: candidate.workspace.company_workspace_id,
-      conversation_id: args.conversationId ?? null,
-      dismissed_at: null,
-      latest_signal:
-        llm?.latestSignal ??
-        careerT(
-          args.preferredLocale,
-          "career.company.recommendation.latest_signal_fallback",
-          "최근 채용 신호가 확인되어 추적 후보로 저장했습니다."
-        ),
-      next_signal:
-        llm?.nextSignal ??
-        careerT(
-          args.preferredLocale,
-          "career.company.recommendation.next_signal_fallback",
-          "새 채용이나 팀 변화가 생기면 워치리스트에서 업데이트합니다."
-        ),
-      rank: index + 1,
-      reason_summary:
-        llm?.reasonSummary ??
-        careerT(
-          args.preferredLocale,
-          "career.company.recommendation.reason_summary_fallback",
-          "{companyName}는 현재 채용 신호가 있고 프로필 방향과 겹치는 회사입니다.",
-          { values: { companyName } }
-        ),
-      recommendation_reasons:
-        llm?.recommendationReasons && llm.recommendationReasons.length > 0
-          ? llm.recommendationReasons
-          : [
-              careerT(
-                args.preferredLocale,
-                "career.company.recommendation.reason_one_fallback",
-                "최근 채용 신호가 확인되어 추적 후보로 분류했습니다."
-              ),
-              getCompanyShortDescription({
-                companyDb: candidate.companyDb,
-                workspace: candidate.workspace,
-              }) ??
-                careerT(
-                  args.preferredLocale,
-                  "career.company.recommendation.reason_two_fallback",
-                  "{companyName}의 최근 채용 신호가 살아 있습니다.",
-                  { values: { companyName } }
-                ),
-            ],
-      recommended_at: now,
-      score:
-        llm?.score ??
-        Math.max(
-          0,
-          Math.min(
-            10,
-            deterministicScoreByCompanyDbId.get(candidate.companyDb.id) ?? 0
-          )
-        ),
-      signal_summary:
-        llm?.signalSummary ??
-        careerT(
-          args.preferredLocale,
-          "career.company.recommendation.signal_summary_fallback",
-          "최근 6개월 안에 활성 채용 신호가 있어 추적 대상으로 적합합니다."
-        ),
-      source: cleanText(args.source, 80) || "tool",
-      talent_id: args.userId,
-      updated_at: now,
-    };
-  });
-
-  if (rows.length > 0) {
-    const { error } = await (
-      args.admin.from("talent_company_recommendation" as any) as any
-    ).upsert(rows, { onConflict: "talent_id,company_db_id" });
-
-    if (error) {
-      throw new Error(
-        error.message ?? "Failed to save company recommendations"
-      );
-    }
-  }
-
-  const page = await fetchTalentCompanyWatchlistPage({
-    admin: args.admin,
-    limit,
-    offset: 0,
-    tab: "recommended",
-    userId: args.userId,
-  });
-  return {
-    answerDraft: buildCompanyRecommendationAnswerDraft({
-      page,
-      preferredLocale: args.preferredLocale,
-    }),
-    cacheHit: false,
-    candidateCount: candidates.length,
-    recommendedCount: page.items.length,
-    recommendations: page.items,
   };
 }

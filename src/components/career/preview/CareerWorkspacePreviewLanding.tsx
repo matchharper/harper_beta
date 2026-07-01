@@ -302,7 +302,6 @@ const getInitialHistoryOpportunities = (
     feedbackReason: null,
     href: "https://harper.ai",
     clickedAt: null,
-    dismissedAt: null,
     isAccepted: true,
     isInternal: true,
     kind: "match",
@@ -351,7 +350,6 @@ const getInitialHistoryOpportunities = (
     feedbackReason: null,
     href: "https://jobs.example.com/founding-ml",
     clickedAt: previewHoursAgo(23),
-    dismissedAt: null,
     isAccepted: false,
     isInternal: false,
     kind: "recommendation",
@@ -400,7 +398,6 @@ const getInitialHistoryOpportunities = (
     feedbackReason: null,
     href: "https://jobs.example.com/research-engineer",
     clickedAt: null,
-    dismissedAt: null,
     isAccepted: false,
     isInternal: false,
     kind: "recommendation",
@@ -449,7 +446,6 @@ const getInitialHistoryOpportunities = (
     feedbackReason: null,
     href: "https://linkedin.com/company/stealth-commerce-ai",
     clickedAt: null,
-    dismissedAt: previewHoursAgo(6),
     isAccepted: false,
     isInternal: true,
     kind: "recommendation",
@@ -838,7 +834,6 @@ const CareerWorkspacePreviewLanding = ({
             item.id === opportunityId
               ? {
                   ...item,
-                  dismissedAt: feedback === "negative" ? now : null,
                   feedback,
                   feedbackAt: now,
                   feedbackReason: options?.feedbackReason ?? null,
@@ -894,11 +889,6 @@ const CareerWorkspacePreviewLanding = ({
         );
       },
       onUpdateCompanyFollow: async () => null,
-      onGenerateCompanyRecommendations: async () => ({
-        ok: true,
-        recommendations: [],
-        recommendedCount: 0,
-      }),
       resumeFile,
       savedResumeFileName,
       savedResumeStoragePath: "talent/resume/preview_resume.pdf",

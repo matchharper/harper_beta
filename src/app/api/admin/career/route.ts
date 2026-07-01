@@ -37,7 +37,7 @@ import {
 export const runtime = "nodejs";
 
 const BATCH_SIZE = 1000;
-const CAREER_ANALYTICS_SLACK_SUMMARY_MODEL = "grok-4-1-fast-reasoning";
+const CAREER_ANALYTICS_SLACK_SUMMARY_MODEL = "grok-4.3";
 
 type LandingLogRow = Pick<
   Database["public"]["Tables"]["landing_logs"]["Row"],
@@ -72,7 +72,6 @@ type TalentActivityEventRow = Pick<
 type RecommendationRow = Pick<
   Database["public"]["Tables"]["talent_opportunity_recommendation"]["Row"],
   | "talent_id"
-  | "recommended_at"
   | "created_at"
   | "viewed_at"
   | "clicked_at"
@@ -1007,7 +1006,7 @@ export async function POST(req: NextRequest) {
         supabaseServer
           .from("talent_opportunity_recommendation")
           .select(
-            "talent_id,recommended_at,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
+            "talent_id,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
           )
           .order("created_at", { ascending: true })
           .range(from, to)
@@ -1300,8 +1299,7 @@ export async function POST(req: NextRequest) {
       if (!stats) continue;
 
       incrementStat(statsByUserId, userId, "recommendationCount");
-      const recommendedAt =
-        recommendation.recommended_at ?? recommendation.created_at;
+      const recommendedAt = recommendation.created_at;
       if (
         recommendedAt &&
         (!stats.firstRecommendationAt ||
@@ -1718,8 +1716,7 @@ export async function POST(req: NextRequest) {
         const userId = recommendation.talent_id;
         if (!includedUserIds.has(userId)) continue;
 
-        const recommendedAt =
-          recommendation.recommended_at ?? recommendation.created_at;
+        const recommendedAt = recommendation.created_at;
         if (isWithinAnalyticsDateRange(recommendedAt, analyticsDateRange)) {
           rangedRecommendedUserIds.add(userId);
         }
@@ -1886,7 +1883,7 @@ export async function POST(req: NextRequest) {
             "Recommended users",
             rangedRecommendedUserIds.size,
             "추천 발생 기준",
-            "선택 기간 안에 talent_opportunity_recommendation.recommended_at 또는 created_at이 있는 유저 수입니다."
+            "선택 기간 안에 talent_opportunity_recommendation.created_at이 있는 유저 수입니다."
           ),
           buildSummaryMetric(
             "engagedUsers",

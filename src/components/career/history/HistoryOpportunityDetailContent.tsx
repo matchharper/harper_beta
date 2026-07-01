@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/action-dropdown";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
 import {
+  canChangeCareerOpportunityManagementStatus,
   getCareerOpportunityManagementStatusLabel,
   getCareerOpportunityManagementStatusOptions,
   type CareerOpportunityManagementStatus,
@@ -135,7 +136,7 @@ export const OpportunityHeader = ({
                       );
                     }
                   }}
-                  className="min-w-0 wrap-break-word text-left decoration-dotted underline underline-offset-2 text-neutral-primary font-medium text-[14px] transition-colors hover:text-neutral-primary"
+                  className="min-w-0 wrap-break-word text-left decoration-dotted underline underline-offset-2 text-neutral-primary font-medium text-[14px] transition-colors duration-200 hover:text-primary"
                 >
                   {item.companyName}
                 </BareButton>
@@ -231,7 +232,7 @@ export const HistoryOpportunityOverview = ({
                 <BareButton
                   type="button"
                   onClick={() => onOpenLink(roleLink)}
-                  className="flex cursor-pointer flex-row items-center gap-1 underline underline-offset-4 hover:text-neutral-primary"
+                  className="flex cursor-pointer flex-row items-center gap-1 underline underline-offset-4 transition-colors duration-200 hover:text-primary"
                 >
                   <ArrowUpRight className="h-4 w-4" />
                   {t("career.common.career.0wohsg4", "JD 확인하기")}
@@ -311,10 +312,10 @@ const HistorySectionTitle = ({
       <BareButton
         type="button"
         onClick={onClick}
-        className="flex flex-row items-center gap-2 text-sm text-neutral-muted transition-colors hover:text-neutral-muted"
+        className="flex flex-row items-center gap-1 text-sm text-neutral-muted underline underline-offset-4 transition-colors duration-200 hover:text-primary"
       >
-        {openText}
         <ArrowUpRight className="h-3.5 w-3.5" />
+        {openText}
       </BareButton>
     )}
   </div>
@@ -620,6 +621,7 @@ export const HistoryOpportunityInlinePage = ({
   } | null>(null);
   const showDetails =
     detailState?.itemId === item.id ? detailState.open : false;
+  const canChangeStatus = canChangeCareerOpportunityManagementStatus(item);
 
   return (
     <section className={cn("min-w-0 pb-8 text-neutral-primary", className)}>
@@ -641,7 +643,7 @@ export const HistoryOpportunityInlinePage = ({
           </span>
         </nav>
 
-        {savedStatus && onSavedStatusChange ? (
+        {savedStatus && onSavedStatusChange && canChangeStatus ? (
           <div className="flex max-w-full justify-start sm:justify-end">
             <OpportunityManagementStatusDropdown
               disabled={pending}

@@ -64,7 +64,6 @@ type RecommendationRow = Pick<
   | "id"
   | "talent_id"
   | "opportunity_type"
-  | "recommended_at"
   | "created_at"
   | "viewed_at"
   | "clicked_at"
@@ -661,18 +660,18 @@ async function buildUserStatsReport(args: {
       supabaseServer
         .from("talent_opportunity_recommendation")
         .select(
-          "id,talent_id,opportunity_type,recommended_at,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
+          "id,talent_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
         )
-        .gte("recommended_at", startIso)
-        .lt("recommended_at", endIso)
-        .order("recommended_at", { ascending: true })
+        .gte("created_at", startIso)
+        .lt("created_at", endIso)
+        .order("created_at", { ascending: true })
         .range(from, to)
     ),
     fetchAllRows<RecommendationRow>((from, to) =>
       supabaseServer
         .from("talent_opportunity_recommendation")
         .select(
-          "id,talent_id,opportunity_type,recommended_at,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
+          "id,talent_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
         )
         .gte("viewed_at", startIso)
         .lt("viewed_at", endIso)
@@ -683,7 +682,7 @@ async function buildUserStatsReport(args: {
       supabaseServer
         .from("talent_opportunity_recommendation")
         .select(
-          "id,talent_id,opportunity_type,recommended_at,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
+          "id,talent_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
         )
         .gte("clicked_at", startIso)
         .lt("clicked_at", endIso)
@@ -694,7 +693,7 @@ async function buildUserStatsReport(args: {
       supabaseServer
         .from("talent_opportunity_recommendation")
         .select(
-          "id,talent_id,opportunity_type,recommended_at,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
+          "id,talent_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
         )
         .not("feedback", "is", null)
         .gte("feedback_at", startIso)
@@ -706,7 +705,7 @@ async function buildUserStatsReport(args: {
       supabaseServer
         .from("talent_opportunity_recommendation")
         .select(
-          "id,talent_id,opportunity_type,recommended_at,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
+          "id,talent_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
         )
         .not("feedback", "is", null)
         .is("feedback_at", null)
@@ -719,7 +718,7 @@ async function buildUserStatsReport(args: {
       supabaseServer
         .from("talent_opportunity_recommendation")
         .select(
-          "id,talent_id,opportunity_type,recommended_at,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
+          "id,talent_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
         )
         .not("saved_stage", "is", null)
         .gte("updated_at", startIso)
@@ -778,13 +777,13 @@ async function buildUserStatsReport(args: {
         .order("created_at", { ascending: true })
         .range(from, to)
     ),
-    fetchAllRows<Pick<RecommendationRow, "recommended_at" | "talent_id">>(
+    fetchAllRows<Pick<RecommendationRow, "created_at" | "talent_id">>(
       (from, to) =>
         supabaseServer
           .from("talent_opportunity_recommendation")
-          .select("talent_id,recommended_at")
-          .lt("recommended_at", noRecommendationObservationEndIso)
-          .order("recommended_at", { ascending: true })
+          .select("talent_id,created_at")
+          .lt("created_at", noRecommendationObservationEndIso)
+          .order("created_at", { ascending: true })
           .range(from, to)
     ),
     args.internalConnectionResponseRange
@@ -792,17 +791,17 @@ async function buildUserStatsReport(args: {
           supabaseServer
             .from("talent_opportunity_recommendation")
             .select(
-              "id,talent_id,opportunity_type,recommended_at,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
+              "id,talent_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
             )
             .gte(
-              "recommended_at",
+              "created_at",
               args.internalConnectionResponseRange?.startIso ?? startIso
             )
             .lt(
-              "recommended_at",
+              "created_at",
               args.internalConnectionResponseRange?.endIso ?? endIso
             )
-            .order("recommended_at", { ascending: true })
+            .order("created_at", { ascending: true })
             .range(from, to)
         )
       : Promise.resolve([]),

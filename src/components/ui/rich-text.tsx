@@ -259,11 +259,13 @@ function renderUrlLinkParagraph(children: ReactNode): ReactNode | null {
 export default function RichText({
   content,
   className,
+  linkClassName,
   onHarperLinkClick,
   trailingInlineNode,
 }: {
   content: string;
   className?: string;
+  linkClassName?: string;
   onHarperLinkClick?: (href: string) => void;
   trailingInlineNode?: ReactNode;
 }) {
@@ -362,9 +364,13 @@ export default function RichText({
                     onClick={() => onHarperLinkClick(href)}
                     title={href}
                     className={cn(
-                      "inline cursor-pointer border-0 bg-transparent p-0 text-left font-[inherit] wrap-break-word underline decoration-dotted underline-offset-2 text-neutral-primary transition-colors hover:text-neutral-muted",
-                      shouldShowHrefText &&
-                        "max-w-full px-1 py-0.5 text-[13px] font-medium leading-5"
+                      linkClassName
+                        ? "border-0 font-[inherit]"
+                        : "inline cursor-pointer border-0 bg-transparent p-0 text-left font-[inherit] wrap-break-word underline decoration-dotted underline-offset-2 text-neutral-primary transition-colors hover:text-neutral-muted",
+                      !linkClassName &&
+                        shouldShowHrefText &&
+                        "max-w-full px-1 py-0.5 text-[13px] font-medium leading-5",
+                      linkClassName
                     )}
                   >
                     {contentNode}
@@ -387,10 +393,11 @@ export default function RichText({
                 title={href}
                 aria-label={href}
                 className={cn(
-                  "wrap-break-word underline decoration-dotted underline-offset-2 text-neutral-primary transition-colors hover:text-neutral-muted",
-                  isUrlText(childText) ||
-                    (childText.trim() === href &&
-                      "inline-flex max-w-full items-center px-1 py-0.5 text-[13px] font-medium leading-5")
+                  linkClassName ??
+                    "wrap-break-word underline decoration-dotted underline-offset-2 text-neutral-primary transition-colors hover:text-neutral-muted",
+                  !linkClassName &&
+                    (isUrlText(childText) || childText.trim() === href) &&
+                    "inline-flex max-w-full items-center px-1 py-0.5 text-[13px] font-medium leading-5"
                 )}
               >
                 {isUrlText(childText) || childText.trim() === href

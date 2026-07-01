@@ -73,6 +73,38 @@ export function supportsResponseFormatForModel(model: string) {
   return getLlmChatProviderForModel(model) === "openai";
 }
 
+export function supportsSamplingParametersForModel(model: string) {
+  const normalized = model.trim().toLowerCase();
+  if (getLlmChatProviderForModel(normalized) !== "anthropic") return true;
+  if (
+    normalized === "claude-sonnet-5" ||
+    normalized.startsWith("claude-sonnet-5-")
+  ) {
+    return false;
+  }
+  if (
+    normalized === "claude-opus-4-7" ||
+    normalized.startsWith("claude-opus-4-7-") ||
+    normalized === "claude-opus-4-8" ||
+    normalized.startsWith("claude-opus-4-8-")
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function omitUnsupportedSamplingParameters(
+  model: string,
+  requestBody: Record<string, unknown>
+) {
+  if (supportsSamplingParametersForModel(model)) return requestBody;
+  const sanitized = { ...requestBody };
+  delete sanitized.temperature;
+  delete sanitized.top_p;
+  delete sanitized.top_k;
+  return sanitized;
+}
+
 export type ChatCompletionFallbackReason =
   | "anthropic_overloaded"
   | "primary_failed";
@@ -163,12 +195,7 @@ export function isAnthropicOverloadedError(error: unknown) {
 
 function isTransientLlmError(error: unknown) {
   const status = getLlmErrorStatus(error);
-  if (
-    status === 408 ||
-    status === 409 ||
-    status === 429 ||
-    status === 529
-  ) {
+  if (status === 408 || status === 409 || status === 429 || status === 529) {
     return true;
   }
   if (status !== null && status >= 500 && status < 600) return true;
@@ -253,21 +280,18 @@ export async function createChatCompletionWithFallback(args: {
   model: string;
   response: any;
 }> {
-  const shouldLogRequestBody = Boolean(
-    args.debugLabel?.startsWith("career/chat:assistant")
-  );
   const createForModel = async (model: string) => {
     const llmClient = getChatClientForModel(model);
-    const requestBody = {
+    const requestBody = omitUnsupportedSamplingParameters(model, {
       ...args.buildRequest(model),
       model,
-    };
-    if (shouldLogRequestBody) {
-      console.info(
-        "[career-chat:llm-request-body:chat-completions]",
-        JSON.stringify(requestBody, null, 2)
-      );
-    }
+    });
+    // if (args.debugLabel?.startsWith("career/chat:assistant")) {
+    //   console.info(
+    //     "[career-chat:llm-request-body:chat-completions]",
+    //     JSON.stringify(requestBody, null, 2)
+    //   );
+    // }
     return llmClient.chat.completions.create(requestBody as any);
   };
   const createForModelWithTransientRetry = async (model: string) => {
@@ -349,11 +373,11 @@ const pricingTable = {
     input: 0.2 / 1_000_000,
     output: 0.5 / 1_000_000,
   },
-  "grok-4-1-fast-reasoning": {
+  "grok-4.3": {
     input: 0.2 / 1_000_000,
     output: 0.5 / 1_000_000,
   },
-  "grok-4-1-fast-non-reasoning": {
+  "grok-4-3-fast-non-reasoning": {
     input: 0.2 / 1_000_000,
     output: 0.5 / 1_000_000,
   },
@@ -374,8 +398,8 @@ const pricingTable = {
 export const xaiInference = async (
   model:
     | "grok-4-fast-reasoning"
-    | "grok-4-1-fast-reasoning"
-    | "grok-4-1-fast-non-reasoning"
+    | "grok-4.3"
+    | "grok-4-3-fast-non-reasoning"
     | "grok-4-fast-non-reasoning"
     | "gpt-5-mini",
   systemPrompt: string,
@@ -538,7 +562,6 @@ const inference = async (
       { role: "user", content: userPrompt },
     ],
   });
-  logger.log("response ", response.usage);
 
   const content = response.choices[0]?.message?.content;
   return content ?? "";
@@ -549,10 +572,6 @@ export const makeQuestion = async (
   userInfo: string,
   resumeText: string
 ): Promise<string> => {
-  logger.log("conversationHistory", conversationHistory);
-  logger.log("userInfo", userInfo);
-  logger.log("resumeText", resumeText);
-
   const userPrompt = `
 헤드헌터라고 생각하고, 이 사람이 원하는 것, 어떤 회사랑 매칭시켜주면 좋을지를 알아내기 위해 대화를 하고있어. 질문과 답변을 고려해서 필요한 추가질문이 있으면 해도 돼. 없으면 일단 이 순서를 따라해도 돼.
 
@@ -727,7 +746,6 @@ Now extract all information and output JSON only. Do not include \`\`\`json or \
   });
 
   const content = response.choices[0]?.message?.content;
-  logger.log("extractResumeInfo", content);
   return parseResumeJson(content ?? "");
 }
 

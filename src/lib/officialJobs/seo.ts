@@ -1,4 +1,4 @@
-import type { OfficialJob } from "@/lib/officialJobs";
+import type { OfficialJob, OfficialJobListItem } from "@/lib/officialJobs";
 import {
   formatOfficialJobsCopy,
   getOfficialJobsCopy,
@@ -123,7 +123,7 @@ function buildJobLocation(location: string) {
 }
 
 export function buildOfficialJobsCollectionStructuredData(
-  jobs: OfficialJob[],
+  jobs: OfficialJobListItem[],
   locale: OfficialJobsLocale = "ko"
 ) {
   const copy = getOfficialJobsCopy(locale);

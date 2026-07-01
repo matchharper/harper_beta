@@ -25,7 +25,6 @@ export async function POST(req: NextRequest) {
     );
 
   const keyword = await queryKeyword(queryText.trim());
-  logger.log("keyword: ", keyword);
 
   // Enforce ownership server-side even when using service role.
   const { error } = await supabaseServer

@@ -12,7 +12,6 @@ import {
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 import {
   buildTalentProfileContext,
-  countAdditionalOnboardingQuestionSelections,
   fetchTalentInsights,
   fetchTalentSetting,
   fetchTalentStructuredProfile,
@@ -193,7 +192,6 @@ export async function buildCareerTextChatDebugPrompt(args: {
     profile,
     currentInsights,
     talentSetting,
-    additionalQuestionSelectionCount,
     onboardingCompletionEvent,
     pendingOpportunityFeedbackContext,
     recentActivitySummaries,
@@ -203,7 +201,6 @@ export async function buildCareerTextChatDebugPrompt(args: {
     fetchTalentUserProfile({ admin, userId }),
     fetchTalentInsights({ admin, userId }),
     fetchTalentSetting({ admin, userId }),
-    countAdditionalOnboardingQuestionSelections({ admin, conversationId }),
     fetchLatestTalentActivityEvent({
       admin,
       conversationId,
@@ -272,7 +269,6 @@ export async function buildCareerTextChatDebugPrompt(args: {
 
   const toolSelection = resolveCareerChatTools({
     activeInternalFitHoldQuestion: Boolean(activeInternalFitHoldQuestion),
-    additionalQuestionSelectionCount,
     allowedToolNames: args.allowedToolNames,
     channel: "chat",
     isOnboardingDone: talentSetting?.is_onboarding_done,
@@ -318,7 +314,6 @@ export async function buildCareerTextChatDebugPrompt(args: {
 
   const { promptBlocks } = buildCareerTextChatPromptBlocks({
     activeInternalFitHoldQuestion,
-    additionalQuestionSelectionCount,
     currentInsightContent,
     currentPreferences,
     isOnboardingDone: talentSetting?.is_onboarding_done,

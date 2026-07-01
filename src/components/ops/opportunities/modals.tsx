@@ -10,7 +10,7 @@ import type {
   OpportunityStatus,
   OpportunityWorkMode,
 } from "@/lib/ops/opportunity";
-import { LoaderCircle, Mail, Save } from "lucide-react";
+import { LoaderCircle, Mail, Save, Trash2 } from "lucide-react";
 import type { ClipboardEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
@@ -587,19 +587,23 @@ export function WorkspaceCreateModal({
 }
 
 export function RoleCreateModal({
+  deletePending = false,
   draft,
   mode,
   onChange,
   onClose,
+  onDelete,
   onSubmit,
   open,
   pending,
   workspaceName,
 }: {
+  deletePending?: boolean;
   draft: RoleDraft;
   mode: DraftMode;
   onChange: (next: RoleDraft) => void;
   onClose: () => void;
+  onDelete?: () => void;
   onSubmit: () => void;
   open: boolean;
   pending: boolean;
@@ -618,28 +622,47 @@ export function RoleCreateModal({
       bodyClassName="flex-1 overflow-y-auto bg-bg-default px-5 py-5"
       footerClassName="shrink-0 border-t border-neutral-1000-a05 bg-bg-default"
       footer={
-        <div className="flex items-center justify-end gap-2">
-          <BareButton
-            type="button"
-            onClick={onClose}
-            disabled={pending}
-            className={cx(opsTheme.buttonSecondary, "h-10 px-4")}
-          >
-            취소
-          </BareButton>
-          <BareButton
-            type="button"
-            onClick={onSubmit}
-            disabled={pending || !draft.name.trim()}
-            className={cx(opsTheme.buttonPrimary, "h-10 px-4")}
-          >
-            {pending ? (
-              <LoaderCircle className="h-4 w-4 animate-spin" />
-            ) : (
-              <Save className="h-4 w-4" />
-            )}
-            저장
-          </BareButton>
+        <div className="flex w-full items-center justify-between gap-3">
+          <div>
+            {mode === "edit" && onDelete ? (
+              <BareButton
+                type="button"
+                onClick={onDelete}
+                disabled={pending || deletePending}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-critical/30 bg-critical-faded px-4 text-sm font-medium text-critical transition hover:bg-critical-faded/80 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {deletePending ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
+                완전 삭제
+              </BareButton>
+            ) : null}
+          </div>
+          <div className="flex items-center justify-end gap-2">
+            <BareButton
+              type="button"
+              onClick={onClose}
+              disabled={pending || deletePending}
+              className={cx(opsTheme.buttonSecondary, "h-10 px-4")}
+            >
+              취소
+            </BareButton>
+            <BareButton
+              type="button"
+              onClick={onSubmit}
+              disabled={pending || deletePending || !draft.name.trim()}
+              className={cx(opsTheme.buttonPrimary, "h-10 px-4")}
+            >
+              {pending ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              저장
+            </BareButton>
+          </div>
         </div>
       }
       closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-default/70 text-neutral-muted transition-colors hover:border-neutral-1000-a10 hover:text-neutral-primary"

@@ -1,5 +1,4 @@
 import {
-  type InfiniteData,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -18,10 +17,6 @@ import type {
   CareerTalentProfileIngestResponse,
   CareerTalentRecommendationsResponse,
   CareerTalentRecommendationSourceFilter,
-  OpsInternalRecommendationAcceptedFilter,
-  OpsInternalRecommendationHideResponse,
-  OpsInternalRecommendationStageBulkUpdateResponse,
-  OpsInternalRecommendationsResponse,
   OpsManualInternalRecommendationRolesResponse,
   OpsQueueManualInternalRecommendationResponse,
 } from "@/lib/ops/careerServer";
@@ -32,12 +27,6 @@ type SendCareerTalentMailResponse = {
   historyId: string;
   recipientEmail: string;
   recipientName: string | null;
-};
-
-type UpdateCareerRecommendationStageResponse = {
-  ok: true;
-  recommendationId: string;
-  processedStage: string | null;
 };
 
 type SaveCareerProfileMemoResponse = {
@@ -58,33 +47,6 @@ type OpsCareerTalentListFilters = {
   submittedMaterialOnly?: boolean;
 };
 
-type OpsInternalRecommendationsInfiniteData =
-  InfiniteData<OpsInternalRecommendationsResponse>;
-
-const OPS_INTERNAL_RECOMMENDATIONS_ROOT_KEY = [
-  "ops-internal-recommendations",
-] as const;
-
-const isHiddenOnlyInternalRecommendationsKey = (queryKey: readonly unknown[]) =>
-  queryKey[0] === OPS_INTERNAL_RECOMMENDATIONS_ROOT_KEY[0] &&
-  queryKey[5] === true;
-
-const removeInternalRecommendationFromPages = (
-  current: OpsInternalRecommendationsInfiniteData | undefined,
-  recommendationId: string
-) => {
-  if (!current) return current;
-  return {
-    ...current,
-    pages: current.pages.map((page) => ({
-      ...page,
-      recommendations: page.recommendations.filter(
-        (item) => item.recommendationId !== recommendationId
-      ),
-    })),
-  };
-};
-
 export const opsCareerListKey = ["ops-career-list"] as const;
 export const opsCareerDetailKey = (userId?: string | null) =>
   ["ops-career-detail", userId] as const;
@@ -100,27 +62,19 @@ export const opsCareerRecommendationsKey = (
   userId?: string | null,
   sourceType: CareerTalentRecommendationSourceFilter = "all"
 ) => ["ops-career-recommendations", userId, sourceType] as const;
-export const opsInternalRecommendationsKey = (
-  acceptedFilter: OpsInternalRecommendationAcceptedFilter = "all",
-  limit = 80,
-  recommendedFrom = "",
-  recommendedTo = "",
-  hiddenOnly = false
-) =>
-  [
-    "ops-internal-recommendations",
-    acceptedFilter,
-    limit,
-    recommendedFrom,
-    recommendedTo,
-    hiddenOnly,
-  ] as const;
 export const opsManualInternalRecommendationRolesKey = (
   query: string,
   limit = 40,
-  userId = ""
+  userId = "",
+  includeInactive = false
 ) =>
-  ["ops-manual-internal-recommendation-roles", query, limit, userId] as const;
+  [
+    "ops-manual-internal-recommendation-roles",
+    query,
+    limit,
+    userId,
+    includeInactive,
+  ] as const;
 
 export function useOpsCareerTalents(
   limit = 40,
@@ -424,38 +378,12 @@ export function useSendCareerTalentMail() {
   });
 }
 
-export function useUpdateOpsCareerRecommendationStage() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (args: {
-      processedStage: string | null;
-      recommendationId: string;
-      userId: string;
-    }) =>
-      fetchWithInternalAuth<UpdateCareerRecommendationStageResponse>(
-        "/api/internal/career/recommendations",
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            processedStage: args.processedStage,
-            recommendationId: args.recommendationId,
-          }),
-        }
-      ),
-    onSuccess: (_result, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: ["ops-career-recommendations", variables.userId],
-      });
-    },
-  });
-}
-
 export function useOpsManualInternalRecommendationRoles(
   query = "",
   limit = 40,
   enabled = true,
-  userId = ""
+  userId = "",
+  includeInactive = false
 ) {
   const normalizedQuery = query.trim();
   const normalizedUserId = userId.trim();
@@ -463,7 +391,8 @@ export function useOpsManualInternalRecommendationRoles(
     queryKey: opsManualInternalRecommendationRolesKey(
       normalizedQuery,
       limit,
-      normalizedUserId
+      normalizedUserId,
+      includeInactive
     ),
     queryFn: () => {
       const params = new URLSearchParams({
@@ -474,6 +403,9 @@ export function useOpsManualInternalRecommendationRoles(
       }
       if (normalizedUserId) {
         params.set("userId", normalizedUserId);
+      }
+      if (includeInactive) {
+        params.set("includeInactive", "1");
       }
       return fetchWithInternalAuth<OpsManualInternalRecommendationRolesResponse>(
         `/api/internal/career/manual-internal-recommendation?${params.toString()}`
@@ -515,132 +447,6 @@ export function useQueueOpsManualInternalRecommendation() {
       });
       queryClient.invalidateQueries({
         queryKey: queryKeys.opsMatching.roleTags(variables.userId),
-      });
-    },
-  });
-}
-
-export function useOpsInternalRecommendations(
-  acceptedFilter: OpsInternalRecommendationAcceptedFilter = "all",
-  limit = 80,
-  enabled = true,
-  filters: {
-    hiddenOnly?: boolean;
-    recommendedFrom?: string;
-    recommendedTo?: string;
-  } = {}
-) {
-  const hiddenOnly = Boolean(filters.hiddenOnly);
-  const recommendedFrom = filters.recommendedFrom?.trim() ?? "";
-  const recommendedTo = filters.recommendedTo?.trim() ?? "";
-  return useInfiniteQuery({
-    queryKey: opsInternalRecommendationsKey(
-      acceptedFilter,
-      limit,
-      recommendedFrom,
-      recommendedTo,
-      hiddenOnly
-    ),
-    queryFn: ({ pageParam }) => {
-      const params = new URLSearchParams({
-        acceptedFilter,
-        limit: String(limit),
-        offset: String(pageParam),
-      });
-      if (recommendedFrom) {
-        params.set("recommendedFrom", recommendedFrom);
-      }
-      if (recommendedTo) {
-        params.set("recommendedTo", recommendedTo);
-      }
-      if (hiddenOnly) {
-        params.set("hiddenOnly", "1");
-      }
-      return fetchWithInternalAuth<OpsInternalRecommendationsResponse>(
-        `/api/internal/career/internal-recommendations?${params.toString()}`
-      );
-    },
-    getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
-    initialPageParam: 0,
-    enabled,
-    staleTime: 10_000,
-  });
-}
-
-export function useBulkUpdateOpsInternalRecommendationStages() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (args: {
-      updates: Array<{
-        processedStage: string | null;
-        recommendationId: string;
-      }>;
-    }) =>
-      fetchWithInternalAuth<OpsInternalRecommendationStageBulkUpdateResponse>(
-        "/api/internal/career/internal-recommendations",
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(args),
-        }
-      ),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: ["ops-internal-recommendations"],
-        }),
-        queryClient.invalidateQueries({
-          queryKey: ["ops-career-recommendations"],
-        }),
-      ]);
-    },
-  });
-}
-
-export function useHideOpsInternalRecommendation() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (args: { recommendationId: string }) =>
-      fetchWithInternalAuth<OpsInternalRecommendationHideResponse>(
-        "/api/internal/career/internal-recommendations",
-        {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(args),
-        }
-      ),
-    onMutate: async ({ recommendationId }) => {
-      await queryClient.cancelQueries({
-        queryKey: OPS_INTERNAL_RECOMMENDATIONS_ROOT_KEY,
-      });
-
-      const previousQueries =
-        queryClient.getQueriesData<OpsInternalRecommendationsInfiniteData>({
-          queryKey: OPS_INTERNAL_RECOMMENDATIONS_ROOT_KEY,
-        });
-
-      previousQueries.forEach(([queryKey]) => {
-        if (isHiddenOnlyInternalRecommendationsKey(queryKey)) return;
-        queryClient.setQueryData<OpsInternalRecommendationsInfiniteData>(
-          queryKey,
-          (current) =>
-            removeInternalRecommendationFromPages(current, recommendationId)
-        );
-      });
-
-      return { previousQueries };
-    },
-    onError: (_error, _variables, context) => {
-      context?.previousQueries.forEach(([queryKey, data]) => {
-        queryClient.setQueryData(queryKey, data);
-      });
-    },
-    onSettled: () => {
-      void queryClient.invalidateQueries({
-        queryKey: OPS_INTERNAL_RECOMMENDATIONS_ROOT_KEY,
-        refetchType: "inactive",
       });
     },
   });

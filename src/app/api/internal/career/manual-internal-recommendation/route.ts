@@ -22,10 +22,20 @@ function parseLimit(value: string | null) {
   return parsed;
 }
 
+function parseBoolean(value: string | null) {
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes";
+}
+
 export async function GET(req: NextRequest) {
   try {
     await requireInternalApiUser(req);
     const payload = await fetchManualInternalRecommendationRoles({
+      includeInactive: parseBoolean(
+        req.nextUrl.searchParams.get("includeInactive")
+      ),
       limit: parseLimit(req.nextUrl.searchParams.get("limit")),
       query: req.nextUrl.searchParams.get("query"),
       userId: req.nextUrl.searchParams.get("userId"),

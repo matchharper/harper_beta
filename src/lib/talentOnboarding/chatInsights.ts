@@ -15,6 +15,7 @@ import {
   upsertTalentInsights,
 } from "@/lib/talentOnboarding/server";
 import {
+  getOnboardingAdditionalQuestionKeys,
   ONBOARDING_QUESTION_BY_INSIGHT_KEY,
   ONBOARDING_QUESTION_CHECKLIST_KEY_SET,
   type OnboardingChecklistLocationContext,
@@ -35,6 +36,8 @@ type BuildPromptArgs = {
   currentInsightContent: Record<string, string> | null;
   onboardingChecklistContext?: OnboardingChecklistLocationContext;
 };
+
+type OnboardingChecklistCoverage = Record<string, "covered">;
 
 function clamp(value: string, maxLength: number) {
   return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
@@ -82,10 +85,17 @@ function buildExtractionConversationMessages(args: {
 }
 
 function parseExtractedInsights(args: {
+  currentChecklistCoverage: OnboardingChecklistCoverage | null;
   logPrefix: string;
+  onboardingChecklistContext?: OnboardingChecklistLocationContext;
   rawExtraction: string;
 }) {
-  const { logPrefix, rawExtraction } = args;
+  const {
+    currentChecklistCoverage,
+    logPrefix,
+    onboardingChecklistContext,
+    rawExtraction,
+  } = args;
   let parsed: {
     covered_checklist?: unknown;
     covered_onboarding_checklist?: unknown;
@@ -137,7 +147,11 @@ function parseExtractedInsights(args: {
     coveredChecklistKeys: normalizeExtractedChecklistKeys(
       parsed.covered_onboarding_checklist ??
         parsed.covered_checklist ??
-        parsed.covered_onboarding_questions
+        parsed.covered_onboarding_questions,
+      {
+        currentChecklistCoverage,
+        onboardingChecklistContext,
+      }
     ),
     insights: normalizeExtractedInsights(
       (parsed.extracted_insights as Record<string, unknown>) ?? null
@@ -146,14 +160,80 @@ function parseExtractedInsights(args: {
   };
 }
 
-function normalizeExtractedChecklistKeys(value: unknown): string[] {
+function getFirstMissingAdditionalQuestionKey(args: {
+  currentChecklistCoverage: OnboardingChecklistCoverage | null;
+  onboardingChecklistContext?: OnboardingChecklistLocationContext;
+}) {
+  const coverage = args.currentChecklistCoverage ?? {};
+  return (
+    getOnboardingAdditionalQuestionKeys(args.onboardingChecklistContext).find(
+      (key) => coverage[key] !== "covered"
+    ) ?? null
+  );
+}
+
+function normalizeAdditionalQuestionChecklistAlias(
+  rawKey: string,
+  options: {
+    currentChecklistCoverage: OnboardingChecklistCoverage | null;
+    onboardingChecklistContext?: OnboardingChecklistLocationContext;
+  }
+) {
+  const key = rawKey.trim().toLowerCase();
+  if (
+    key === "additional_question" ||
+    key === "additional_questions" ||
+    key === "additional"
+  ) {
+    return getFirstMissingAdditionalQuestionKey(options);
+  }
+  if (key === "additional_question_1") return "additional_question_one";
+  if (key === "additional_question_2") return "additional_question_two";
+  return null;
+}
+
+function normalizeExtractedChecklistKey(
+  rawKey: string,
+  options: {
+    currentChecklistCoverage: OnboardingChecklistCoverage | null;
+    onboardingChecklistContext?: OnboardingChecklistLocationContext;
+  }
+) {
+  const key = rawKey.trim();
+  if (ONBOARDING_QUESTION_CHECKLIST_KEY_SET.has(key)) {
+    if (key.startsWith("additional_question")) {
+      return getOnboardingAdditionalQuestionKeys(
+        options.onboardingChecklistContext
+      ).includes(key)
+        ? key
+        : null;
+    }
+    return key;
+  }
+
+  const alias = normalizeAdditionalQuestionChecklistAlias(key, options);
+  return alias &&
+    getOnboardingAdditionalQuestionKeys(
+      options.onboardingChecklistContext
+    ).includes(alias)
+    ? alias
+    : null;
+}
+
+function normalizeExtractedChecklistKeys(
+  value: unknown,
+  options: {
+    currentChecklistCoverage: OnboardingChecklistCoverage | null;
+    onboardingChecklistContext?: OnboardingChecklistLocationContext;
+  }
+): string[] {
   const keys: string[] = [];
 
   if (Array.isArray(value)) {
     for (const item of value) {
       if (typeof item !== "string") continue;
-      const key = item.trim();
-      if (ONBOARDING_QUESTION_CHECKLIST_KEY_SET.has(key)) {
+      const key = normalizeExtractedChecklistKey(item, options);
+      if (key) {
         keys.push(key);
       }
     }
@@ -162,8 +242,8 @@ function normalizeExtractedChecklistKeys(value: unknown): string[] {
 
   if (value && typeof value === "object") {
     for (const [rawKey, rawStatus] of Object.entries(value)) {
-      const key = rawKey.trim();
-      if (!ONBOARDING_QUESTION_CHECKLIST_KEY_SET.has(key)) continue;
+      const key = normalizeExtractedChecklistKey(rawKey, options);
+      if (!key) continue;
       if (
         rawStatus === "covered" ||
         rawStatus === true ||
@@ -301,7 +381,9 @@ export async function extractAndPersistChatInsights(args: {
     });
 
     let parsedExtraction = parseExtractedInsights({
+      currentChecklistCoverage,
       logPrefix: args.logPrefix,
+      onboardingChecklistContext: args.onboardingChecklistContext,
       rawExtraction,
     });
     if (
@@ -330,7 +412,9 @@ export async function extractAndPersistChatInsights(args: {
         sourceChannel: args.sourceChannel ?? "unknown",
       });
       parsedExtraction = parseExtractedInsights({
+        currentChecklistCoverage,
         logPrefix: args.logPrefix,
+        onboardingChecklistContext: args.onboardingChecklistContext,
         rawExtraction,
       });
     }

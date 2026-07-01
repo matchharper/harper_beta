@@ -15,7 +15,6 @@ export const TALENT_MESSAGE_TYPE_SESSION_REENGAGEMENT_SKIP =
   "session_reengagement_skip";
 export const TALENT_MESSAGE_TYPE_OPEN_POSITION_RECOMMENDATION_REQUEST =
   "open_position_recommendation_request";
-export const TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX = 4;
 
 export type TalentUserChatMessageType =
   | "chat"

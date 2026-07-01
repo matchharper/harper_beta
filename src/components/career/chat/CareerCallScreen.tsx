@@ -421,7 +421,10 @@ const CareerCallScreen = ({
                 }
                 className="flex h-12 items-center justify-center gap-2 rounded-full bg-critical px-4 text-sm font-semibold text-neutral-00 transition-colors hover:opacity-90 disabled:opacity-60"
               >
-                {t("career.chat.career_call_screen.0yqbta2", "임의 종료")}
+                {t(
+                  "career.chat.career_call_screen.force_complete_label",
+                  "지금 마무리하기"
+                )}
                 {forceCompletePending || onboardingWrapupPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (

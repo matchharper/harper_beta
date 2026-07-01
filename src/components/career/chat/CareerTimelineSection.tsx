@@ -44,7 +44,9 @@ import {
 import { Input, Input as UiInput } from "@/components/ui/input";
 import { InlinePanel } from "@/components/ui/panel";
 import { cn } from "@/lib/utils";
-import CareerMessageBubble from "./CareerMessageBubble";
+import CareerMessageBubble, {
+  type CareerAssistantChoiceSelection,
+} from "./CareerMessageBubble";
 import Image from "next/image";
 import { useRouter } from "next/router";
 import React from "react";
@@ -62,6 +64,7 @@ import { TimelinePendingPanel } from "./elements/TimelinePendingPanel";
 import { useMessages, type Locale } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
 import Face from "@/components/common/Face";
+import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 
 const BOTTOM_THRESHOLD_PX = 120;
 const TIMELINE_SCROLL_STYLE: React.CSSProperties = {
@@ -271,7 +274,9 @@ const TimelineMessageList = memo(function TimelineMessageList({
   thinkingLogsByMessageId: Record<string, string[]>;
   isStartingCall: boolean;
   assistantChoiceActionsDisabled: boolean;
-  onSelectAssistantChoice?: (choice: string) => void | Promise<void>;
+  onSelectAssistantChoice?: (
+    selection: CareerAssistantChoiceSelection
+  ) => void | Promise<void>;
   onRegenerateOnboardingWrapup?: () => void | Promise<void>;
   onCancelActiveRecommendationSearch?: () => void;
   onboardingWrapupPending: boolean;
@@ -516,6 +521,7 @@ const CareerTimelineSection = () => {
 
   const router = useRouter();
   const { m } = useMessages();
+  const logCareerEvent = useCareerLogEvent();
   const careerLinkLabels = useMemo(() => getCareerLinkLabels(t), [t]);
   const loginGreetingText = t(
     "career.chat.career_timeline_section.0arsq09",
@@ -891,16 +897,22 @@ const CareerTimelineSection = () => {
   );
 
   const handleSelectAssistantChoice = useCallback(
-    async (choice: string) => {
-      const text = choice.trim();
+    async (selection: CareerAssistantChoiceSelection) => {
+      const text = selection.choice.trim();
       if (!text || assistantChoiceActionsDisabled) return;
+
+      logCareerEvent("click_chat_choice_button", {
+        assistantMessageId: selection.assistantMessageId,
+        choiceCount: selection.choiceCount,
+        choiceIndex: selection.choiceIndex,
+      });
 
       await onSendChatMessage({
         channel: "chat",
         text,
       });
     },
-    [assistantChoiceActionsDisabled, onSendChatMessage]
+    [assistantChoiceActionsDisabled, logCareerEvent, onSendChatMessage]
   );
 
   if (!user) {

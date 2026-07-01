@@ -9,16 +9,6 @@ import type {
 } from "@/lib/ops/careerServer";
 import { formatKstRelativeDateTime } from "@/components/ops/dateUtils";
 
-export const AUTO_RECOMMENDATION_STAGE_VALUE = "__auto__";
-export const CUSTOM_RECOMMENDATION_STAGE_VALUE = "__custom__";
-export const INTERNAL_RECOMMENDATION_FIXED_STAGES = [
-  "회사에 전달됨",
-  "회사에서 거절됨",
-  "연결시켜줌",
-  "채용됨",
-  "프로세스종료됨",
-] as const;
-
 export type RecommendationSourceFilter = "all" | "internal" | "external";
 
 export const RECOMMENDATION_SOURCE_FILTER_OPTIONS = [
@@ -175,27 +165,6 @@ export const recommendationFeedbackClass = (
     return "bg-critical-faded text-critical";
   }
   return "bg-bg-weak text-neutral-soft";
-};
-
-export const getAutoRecommendationStageLabel = (
-  item: CareerTalentRecommendationItem
-) => {
-  const normalized = String(item.feedback ?? "").toLowerCase();
-  if (normalized === "like" || normalized === "positive") return "수락";
-  if (normalized === "dislike" || normalized === "negative") return "거절";
-  return normalized ? "피드백 있음" : "추천됨";
-};
-
-export const getRecommendationStageSelectValue = (
-  item: CareerTalentRecommendationItem
-) => {
-  const processedStage = item.processedStage?.trim();
-  if (!processedStage) return AUTO_RECOMMENDATION_STAGE_VALUE;
-  return INTERNAL_RECOMMENDATION_FIXED_STAGES.includes(
-    processedStage as (typeof INTERNAL_RECOMMENDATION_FIXED_STAGES)[number]
-  )
-    ? processedStage
-    : CUSTOM_RECOMMENDATION_STAGE_VALUE;
 };
 
 export const formatCurrentPositionLabel = (talent: CareerTalentSummary) => {

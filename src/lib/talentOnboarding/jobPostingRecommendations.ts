@@ -603,7 +603,6 @@ function isDateFieldKey(key: string) {
       "updated_at",
       "occurred_at",
       "occured_at",
-      "recommended_at",
       "viewed_at",
       "clicked_at",
       "last_mentioned_at",
@@ -747,7 +746,6 @@ type RecentRecommendationRow = {
   id?: string | null;
   location?: string | null;
   opportunityType?: string | null;
-  processedStage?: string | null;
   recommendedAt?: string | null;
   roleId?: string | null;
   roleName?: string | null;
@@ -943,11 +941,10 @@ async function fetchRecentRecommendations(args: {
        opportunity_type,
        feedback,
        feedback_reason,
-       recommended_at,
+       created_at,
        viewed_at,
        clicked_at,
        saved_stage,
-       processed_stage,
        fit_summary,
        fit_reasons,
        tradeoffs,
@@ -962,7 +959,7 @@ async function fetchRecentRecommendations(args: {
     )
     .eq("talent_id", args.userId)
     .eq("opportunity_type", OpportunityType.ExternalJd)
-    .order("recommended_at", { ascending: false })
+    .order("created_at", { ascending: false })
     .limit(RECENT_RECOMMENDATIONS_FOR_CONTEXT) as any);
 
   if (error) {
@@ -983,8 +980,7 @@ async function fetchRecentRecommendations(args: {
         id: cleanText(row?.id, 120) || null,
         location: cleanText(role?.location_text, 160) || null,
         opportunityType: cleanText(row?.opportunity_type, 120) || null,
-        processedStage: cleanText(row?.processed_stage, 80) || null,
-        recommendedAt: cleanText(row?.recommended_at, 120) || null,
+        recommendedAt: cleanText(row?.created_at, 120) || null,
         roleId: cleanText(row?.role_id, 120) || null,
         roleName: cleanText(role?.name, 180) || null,
         savedStage: cleanText(row?.saved_stage, 80) || null,
@@ -993,9 +989,7 @@ async function fetchRecentRecommendations(args: {
             ? row.score
             : null,
         sourceType: "external",
-        status:
-          cleanText(row?.processed_stage, 80) ||
-          cleanText(row?.saved_stage, 80),
+        status: cleanText(row?.saved_stage, 80),
         tradeoffs: row?.tradeoffs,
         viewedAt: cleanText(row?.viewed_at, 80) || null,
         workMode: cleanText(role?.work_mode, 80) || null,
@@ -2508,17 +2502,6 @@ async function shortlistRoles(args: {
     temperature: CAREER_LLM_CONFIG.recommendJobPostings.shortlistTemperature,
     usageLabel: "career_tool:recommend_job_postings:shortlist",
   });
-  // logger.log(
-  //   "\n\n\n",
-  //   JSON.stringify({
-  //     externalCandidates: visible.map(roleSearchResultCard),
-  //     request: args.request,
-  //     searchPlan: args.plan,
-  //     selectionLimit,
-  //     user_profile: args.llmUserProfile,
-  //   }),
-  //   "\n\n\n"
-  // );
   const selectedRoleIds = sanitizeShortlist(
     parseJsonObject(raw),
     visible,
@@ -2807,7 +2790,6 @@ async function persistRecommendations(args: {
   recommendations: EnrichedRankedRole[];
   userId: string;
 }) {
-  const now = new Date().toISOString();
   const rows = args.recommendations
     .map((item, index) => {
       const roleId = cleanText(item.role.role_id, 120);
@@ -2816,12 +2798,10 @@ async function persistRecommendations(args: {
         evidence: buildRecommendationEvidence(item),
         fit_reasons: item.detail.fitReasons.filter(Boolean),
         fit_summary: item.detail.roleOverviewText,
-        kind: "recommendation",
         model_version: RECOMMEND_JOB_POSTINGS_MODEL_VERSION,
         opportunity_type: OpportunityType.ExternalJd,
         preference_fit: item.detail.preferenceFit,
         rank: index + 1,
-        recommended_at: now,
         role_id: roleId,
         score: recommendationScoreForDb(item.score),
         talent_id: args.userId,

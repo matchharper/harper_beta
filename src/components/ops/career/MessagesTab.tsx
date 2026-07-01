@@ -35,10 +35,6 @@ const KNOWN_THINKING_TOOL_LABELS = [
     text: "프로필과 추천 선호를 업데이트하고 있습니다.",
   },
   {
-    label: "select_additional_onboarding_question",
-    text: "다음에 확인할 온보딩 질문을 고르고 있습니다.",
-  },
-  {
     label: "open_url",
     text: "공유된 링크 내용을 확인하고 있습니다.",
   },

@@ -247,7 +247,7 @@ export async function runCompanySnapshotResearch(args: {
     logLlmTokenUsage({
       extraEstimatedCostUsd:
         webSearchCallCount * OPENAI_WEB_SEARCH_COST_USD_PER_CALL,
-      label: "career_tool:web_search:company_snapshot_research",
+      label: "career_tool:research_company:company_snapshot_research",
       meta: {
         openaiWebSearchCallCount: webSearchCallCount,
         openaiWebSearchCostUsd:

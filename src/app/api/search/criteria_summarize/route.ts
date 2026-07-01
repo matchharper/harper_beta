@@ -137,7 +137,6 @@ export async function POST(req: NextRequest) {
     );
 
   const summary = await generateSummary(doc, criteria, raw_input_text);
-  // logger.log("summary ", summary);
 
   try {
     const jsonoutput = JSON.parse(summary as string);

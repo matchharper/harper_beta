@@ -96,12 +96,6 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
     label: "디버깅",
     items: [
       {
-        description: "사람별 internal 추천 관리",
-        href: "/ops/internal-recommendations",
-        label: "Internal Recs",
-        matchPrefix: "/ops/internal-recommendations",
-      },
-      {
         description: "회사·기회 관리와 수동 매칭",
         href: "/ops/opportunities",
         label: "Opportunities",

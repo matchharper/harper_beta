@@ -2,12 +2,14 @@ import {
   createChatCompletionWithFallback,
   getLlmChatProviderForModel,
   resolveChatCompletionFallbackModelForError,
+  supportsSamplingParametersForModel,
   supportsResponseFormatForModel,
 } from "@/lib/llm/llm";
 import {
   logLlmTokenUsage,
   logLlmTokenUsageForToolCalls,
 } from "@/lib/llm/usageLogging";
+import { CLAUDE_MODEL } from "@/lib/llm/modelConfig";
 import {
   runTalentAssistantCompletion,
   runTalentAssistantToolLoop,
@@ -32,10 +34,11 @@ export const CAREER_LLM_CONFIG = {
   // 사용처: 일반 커리어 채팅, kickoff, onboarding defer,
   // profile ingestion, refresh insights, ops 요약/추천, additional question selector.
   assistant: {
-    anthropicOverloadFallbackModel: "grok-4-1-fast-reasoning",
-    primaryModel: "claude-sonnet-4-6",
-    fallbackModel: "grok-4-1-fast-reasoning",
-    // fallbackModel: "gpt-4.1-mini",
+    anthropicOverloadFallbackModel: "grok-4.3",
+    // primaryModel: "grok-4.3",
+    // fallbackModel: CLAUDE_MODEL,
+    primaryModel: CLAUDE_MODEL,
+    fallbackModel: "grok-4.3",
   },
   // 일반 텍스트 커리어 채팅 설정. Realtime 전화/음성 응답에는 적용되지 않는다.
   // prompt에는 structured profile, 최근 activity, 최근 추천 기회 10개 compact summary,
@@ -46,16 +49,10 @@ export const CAREER_LLM_CONFIG = {
     maxTokens: 1536,
     temperature: 0.55,
   },
-  // 온보딩 중 다음 additional question을 고를지 결정하는 JSON selector.
-  // 모델은 assistant.primary/fallback을 쓴다.
-  // 사용처: src/lib/talentOnboarding/additionalQuestionSelector.ts.
-  additionalQuestionSelector: {
-    temperature: 0.2,
-  },
   // 대화 저장/응답 이후 assistant 답변에서 structured insight JSON을 뽑을 때.
   // 사용처: /api/talent/chat, /api/talent/chat/save.
   insightExtraction: {
-    fallbackModel: "claude-sonnet-4-6",
+    fallbackModel: CLAUDE_MODEL,
     model: "grok-4-fast-reasoning",
     temperature: 0.2,
   },
@@ -83,27 +80,19 @@ export const CAREER_LLM_CONFIG = {
   opsRoleSummary: {
     temperature: 0.2,
   },
-  // 추천할 company watchlist 후보를 LLM으로 rank할 때.
-  // 사용처: src/lib/career/companyWatchlist.ts 의 rankCompanyRecommendations.
-  companyWatchlistRank: {
-    anthropicOverloadFallbackModel: "grok-4-1-fast-reasoning",
-    fallbackModel: "gpt-4.1-mini",
-    primaryModel: "grok-4-1-fast-non-reasoning",
-    temperature: 0.15,
-  },
   // 공개 external job posting 추천 tool 내부의 3단계 LLM.
   // plan: 유저 요청/프로필을 DB 검색 계획으로 변환.
   // shortlist: 검색 후보가 많을 때 compact card 기준으로 상세 후보를 축소.
   // finalSelection: 상세 후보 중 최종 추천과 fit reason JSON 생성.
   // 사용처: src/lib/talentOnboarding/jobPostingRecommendations.ts.
   recommendJobPostings: {
-    anthropicOverloadFallbackModel: "grok-4-1-fast-reasoning",
+    anthropicOverloadFallbackModel: "grok-4.3",
     fallbackModel: "grok-4-fast-reasoning",
-    finalSelectionModel: "claude-sonnet-4-6",
+    finalSelectionModel: "grok-4.3",
     finalSelectionTemperature: 0.2,
-    planModel: "claude-sonnet-4-6",
+    planModel: CLAUDE_MODEL,
     planTemperature: 0.2,
-    shortlistModel: "grok-4-1-fast-reasoning",
+    shortlistModel: "grok-4.3",
     shortlistTemperature: 0.1,
   },
   // LinkedIn/이력서/입력 링크에서 가져온 profile raw data를 정규화/보강할 때.
@@ -340,7 +329,9 @@ function getAnthropicToolUseNames(
 ) {
   if (!Array.isArray(blocks)) return [];
   return blocks
-    .filter((block): block is AnthropicToolUseBlock => block.type === "tool_use")
+    .filter(
+      (block): block is AnthropicToolUseBlock => block.type === "tool_use"
+    )
     .map((block) => String(block.name ?? "").trim())
     .filter(Boolean);
 }
@@ -574,7 +565,9 @@ async function createAnthropicMessage(args: {
     max_tokens: CAREER_LLM_CONFIG.chat.maxTokens,
     system: buildAnthropicSystemBlocks(args.systemBlocks),
     messages: args.messages,
-    temperature: args.temperature,
+    ...(supportsSamplingParametersForModel(args.model)
+      ? { temperature: args.temperature }
+      : {}),
     ...(tools.length > 0
       ? {
           tool_choice: { type: "auto" as const },
@@ -681,8 +674,10 @@ async function createAnthropicMessageStreamResponse(args: {
     max_tokens: CAREER_LLM_CONFIG.chat.maxTokens,
     system: buildAnthropicSystemBlocks(args.systemBlocks),
     messages: args.messages,
-    temperature: args.temperature,
     stream: true,
+    ...(supportsSamplingParametersForModel(args.model)
+      ? { temperature: args.temperature }
+      : {}),
     ...(tools.length > 0
       ? {
           tool_choice: { type: "auto" as const },

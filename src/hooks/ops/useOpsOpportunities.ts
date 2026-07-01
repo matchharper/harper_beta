@@ -70,6 +70,11 @@ type SaveRoleInput = {
   workMode?: OpportunityWorkMode | null;
 };
 
+type DeleteRoleInput = {
+  roleId: string;
+  companyWorkspaceId?: string | null;
+};
+
 type SaveMatchInput = {
   candidId: string;
   harperMemo?: string | null;
@@ -539,6 +544,30 @@ export function useSaveOpsOpportunityRole() {
         role: OpsOpportunityCatalogResponse["roles"][number];
       }>("/api/internal/opportunities/role", {
         method: input.roleId ? "PATCH" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(input),
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.opsOpportunity.all,
+      });
+    },
+  });
+}
+
+export function useDeleteOpsOpportunityRole() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: DeleteRoleInput) =>
+      fetchWithInternalAuth<{
+        ok: boolean;
+        roleId: string;
+        deletedCounts: Record<string, number>;
+      }>("/api/internal/opportunities/role", {
+        method: "DELETE",
         headers: {
           "Content-Type": "application/json",
         },

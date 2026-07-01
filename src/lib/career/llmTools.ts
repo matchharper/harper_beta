@@ -1,4 +1,3 @@
-import { TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX } from "@/lib/talentOnboarding/onboarding";
 import {
   getOpenAIChatTools,
   getRealtimeTools,
@@ -15,7 +14,6 @@ export type CareerOpenAIChatTool = ReturnType<
 export type CareerRealtimeTool = ReturnType<typeof getRealtimeTools>[number];
 
 export type CareerChatToolSelectionArgs = {
-  additionalQuestionSelectionCount?: number | null;
   allowedToolNames?: readonly string[] | null;
   activeInternalFitHoldQuestion?: boolean | null;
   channel?: TalentToolChannel | null;
@@ -51,9 +49,9 @@ export const CAREER_CHAT_ONBOARDING_TOOL_NAMES = [
   TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
   // 온보딩 텍스트 채팅에서 사용자가 URL을 줬을 때만 페이지 본문 확인.
   TALENT_TOOL_NAMES.OPEN_URL,
-  // 온보딩 Additional questions 단계에서 다음 질문을 고르는 내부 selector.
-  // 아래 canSelectAdditionalOnboardingQuestion 조건도 통과해야 들어간다.
-  TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION,
+  // 온보딩 중이라도 사용자가 특정 internal role 연결/우선 검토를 명시적으로 요청하면 저장.
+  TALENT_TOOL_NAMES.GET_INTERNAL_ROLES,
+  TALENT_TOOL_NAMES.REQUEST_INTERNAL_ROLE_PRIORITY_REVIEW,
 ] as const;
 
 export const CAREER_CHAT_VOICE_ONBOARDING_TOOL_NAMES = [
@@ -63,7 +61,6 @@ export const CAREER_CHAT_VOICE_ONBOARDING_TOOL_NAMES = [
 ] as const;
 
 // 온보딩 완료 후 텍스트 채팅에서 노출할 tool allowlist.
-// recommend_companies는 registry에는 있지만 Watchlist 추천 UI가 숨겨진 동안 의도적으로 제외한다.
 export const CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES = [
   // 최신/외부 웹 정보가 필요한 질문용. 예: 최근 투자, 최신 뉴스.
   TALENT_TOOL_NAMES.WEB_SEARCH,
@@ -71,6 +68,10 @@ export const CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES = [
   TALENT_TOOL_NAMES.OPEN_URL,
   // 새 추천 공고를 찾아 저장할 때. 예: "미국 AI PM 공고 찾아줘".
   TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS,
+  // 내부 Harper-connected role을 role title/company keyword로 직접 조회할 때.
+  TALENT_TOOL_NAMES.GET_INTERNAL_ROLES,
+  // 특정 internal role에 대한 후보자의 우선 검토/연결 요청을 저장할 때.
+  TALENT_TOOL_NAMES.REQUEST_INTERNAL_ROLE_PRIORITY_REVIEW,
   // 이미 추천/저장된 opportunity 이력을 읽을 때.
   // 예: "지난번 추천한 토스 공고 링크 뭐였지?"
   TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES,
@@ -133,16 +134,6 @@ function applyAllowedToolNames<T>(
   return tools.filter((tool) => allowedNameSet.has(getName(tool)));
 }
 
-function canSelectAdditionalOnboardingQuestion(
-  additionalQuestionSelectionCount: number | null | undefined
-) {
-  return (
-    typeof additionalQuestionSelectionCount === "number" &&
-    Number.isFinite(additionalQuestionSelectionCount) &&
-    additionalQuestionSelectionCount < TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX
-  );
-}
-
 function shouldExposeCareerChatTool(
   toolName: string,
   args: CareerChatToolSelectionArgs
@@ -155,12 +146,6 @@ function shouldExposeCareerChatTool(
       return isListedToolName(
         CAREER_CHAT_VOICE_ONBOARDING_TOOL_NAMES,
         toolName
-      );
-    }
-
-    if (toolName === TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION) {
-      return canSelectAdditionalOnboardingQuestion(
-        args.additionalQuestionSelectionCount
       );
     }
 

@@ -28,6 +28,7 @@ import { ViewTabs } from "@/components/ops/opportunities/ViewTabs";
 import { showToast } from "@/components/toast/toast";
 import { cx, opsTheme } from "@/components/ops/theme";
 import {
+  useDeleteOpsOpportunityRole,
   useGenerateOpsOpportunityRecommendationDraft,
   useSendOpsOpportunityCandidateMail,
   useDeleteOpsOpportunityMatch,
@@ -232,6 +233,7 @@ export default function OpsOpportunitiesPage() {
   const saveWorkspace = useSaveOpsOpportunityWorkspace();
   const syncRoles = useSyncOpsOpportunityRoles();
   const saveRole = useSaveOpsOpportunityRole();
+  const deleteRole = useDeleteOpsOpportunityRole();
   const saveMatch = useSaveOpsOpportunityMatch();
   const deleteMatch = useDeleteOpsOpportunityMatch();
   const saveRecommendation = useSaveOpsOpportunityRecommendation();
@@ -506,6 +508,50 @@ export default function OpsOpportunitiesPage() {
     }
   };
 
+  const handleRoleDelete = async () => {
+    if (roleDraftMode !== "edit" || !selectedRole?.roleId) {
+      showToast({
+        message: "삭제할 기회를 먼저 선택해 주세요.",
+        variant: "white",
+      });
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `${selectedRole.name} 기회를 완전히 삭제할까요?\n\n추천, 매칭, fit, progress 등 연결 데이터도 함께 삭제됩니다. 되돌릴 수 없습니다.`
+    );
+    if (!confirmed) return;
+
+    try {
+      const deletedRoleId = selectedRole.roleId;
+      await deleteRole.mutateAsync({
+        companyWorkspaceId: selectedWorkspaceId,
+        roleId: deletedRoleId,
+      });
+
+      if (selectedCompanyRoleId === deletedRoleId) {
+        setSelectedCompanyRoleId(null);
+      }
+      if (selectedRecommendationRoleId === deletedRoleId) {
+        setSelectedRecommendationRoleId(null);
+      }
+      catalog.setSelectedRoleId(null);
+      setIsRoleCreateModalOpen(false);
+      setRoleDraftMode("edit");
+      setRoleDraft(roleToDraft(null));
+      showToast({
+        message: "기회가 완전히 삭제되었습니다.",
+        variant: "white",
+      });
+    } catch (error) {
+      showToast({
+        message:
+          error instanceof Error ? error.message : "기회 삭제에 실패했습니다.",
+        variant: "white",
+      });
+    }
+  };
+
   const handleRoleSync = async () => {
     if (!selectedWorkspaceId) {
       showToast({
@@ -598,7 +644,7 @@ export default function OpsOpportunitiesPage() {
   };
 
   const closeRoleCreateModal = () => {
-    if (saveRole.isPending) return;
+    if (saveRole.isPending || deleteRole.isPending) return;
     setIsRoleCreateModalOpen(false);
     setRoleDraftMode("edit");
     setRoleDraft(roleToDraft(selectedRole));
@@ -1128,10 +1174,12 @@ export default function OpsOpportunitiesPage() {
       />
       <RoleCreateModal
         open={isRoleCreateModalOpen}
+        deletePending={deleteRole.isPending}
         draft={roleDraft}
         mode={roleDraftMode}
         onChange={setRoleDraft}
         onClose={closeRoleCreateModal}
+        onDelete={() => void handleRoleDelete()}
         onSubmit={() => void handleRoleSave()}
         pending={saveRole.isPending}
         workspaceName={selectedWorkspace?.companyName ?? null}

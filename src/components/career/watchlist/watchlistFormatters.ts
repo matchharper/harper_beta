@@ -36,8 +36,8 @@ export const parseWatchlistTab = (
   value: string | string[] | undefined
 ): CompanyWatchlistTab => {
   const text = getQueryValue(value);
-  if (text === "following" || text === "signals") return text;
-  return "recommended";
+  if (text === "signals") return text;
+  return "following";
 };
 
 export const parseCompanyDbId = (value: string | string[] | undefined) => {

@@ -1,20 +1,10 @@
-const DEFAULT_COMPACT_URL_MAX_LENGTH = 44;
+const DEFAULT_COMPACT_URL_MAX_LENGTH = 30;
 const URL_TEXT_PATTERN = /^(https?:\/\/|mailto:|www\.)\S+$/i;
 const HARPER_OWNED_DOMAIN = "matchharper.com";
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LEGACY_CAREER_ROLE_PATH_PATTERN =
   /^\/career\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/?(?:[?#].*)?$/i;
-const COMMON_SECOND_LEVEL_TLDS = new Set([
-  "ac",
-  "co",
-  "com",
-  "edu",
-  "go",
-  "net",
-  "org",
-]);
-
 function trimTrailingSlash(value: string) {
   return value.endsWith("/") ? value.slice(0, -1) : value;
 }
@@ -84,18 +74,8 @@ export function compactUrlLabel(
     return truncateLabel(raw.slice("mailto:".length), maxLength);
   }
 
-  try {
-    const url = new URL(/^www\./i.test(raw) ? `https://${raw}` : raw);
-    const hostParts = url.hostname.replace(/^www\./i, "").split(".");
-    const hasCountrySuffix =
-      hostParts.length >= 3 &&
-      (hostParts.at(-1)?.length ?? 0) === 2 &&
-      COMMON_SECOND_LEVEL_TLDS.has(hostParts.at(-2)?.toLowerCase() ?? "");
-    const labelIndex = hostParts.length - (hasCountrySuffix ? 3 : 2);
-    const label = hostParts[Math.max(0, labelIndex)] ?? url.hostname;
-
-    return truncateLabel(trimTrailingSlash(label), maxLength);
-  } catch {
-    return truncateLabel(raw, maxLength);
-  }
+  return truncateLabel(
+    trimTrailingSlash(raw.replace(/^https:\/\//i, "")),
+    maxLength
+  );
 }

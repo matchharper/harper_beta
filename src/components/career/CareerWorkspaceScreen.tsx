@@ -56,6 +56,7 @@ import { AnimatePresence, motion } from "motion/react";
 import React from "react";
 import { useCareerT } from "@/i18n/useCareerT";
 import {
+  canChangeCareerOpportunityManagementStatus,
   getCareerOpportunityManagementStatus,
   getSavedStageForManagementStatus,
   type CareerOpportunityManagementStatus,
@@ -774,6 +775,7 @@ const CareerWorkspaceMobileHistoryView = ({
       item: CareerHistoryOpportunity,
       status: CareerOpportunityManagementStatus
     ) => {
+      if (!canChangeCareerOpportunityManagementStatus(item)) return;
       if (getCareerOpportunityManagementStatus(item) === status) return;
 
       logCareerEvent(`click_mobile_history_status_${status}`);

@@ -3,7 +3,6 @@ import {
   ExternalLink,
   FileText,
   LoaderCircle,
-  Save,
   Search,
   Sparkles,
 } from "lucide-react";
@@ -15,30 +14,24 @@ import {
   useOpsCareerRecommendations,
   useOpsManualInternalRecommendationRoles,
   useQueueOpsManualInternalRecommendation,
-  useUpdateOpsCareerRecommendationStage,
 } from "@/hooks/ops/useOpsCareer";
 import type {
   CareerTalentRecommendationItem,
   OpsManualInternalRecommendationRole,
 } from "@/lib/ops/careerServer";
 import {
-  AUTO_RECOMMENDATION_STAGE_VALUE,
-  CUSTOM_RECOMMENDATION_STAGE_VALUE,
-  INTERNAL_RECOMMENDATION_FIXED_STAGES,
   RECOMMENDATION_SOURCE_FILTER_OPTIONS,
   type RecommendationSourceFilter,
   formatKst,
-  getAutoRecommendationStageLabel,
-  getRecommendationStageSelectValue,
   recommendationFeedbackClass,
   recommendationFeedbackLabel,
   recommendationSourceClass,
   recommendationSourceLabel,
 } from "./utils";
 import { BareButton } from "@/components/ui/button";
+import { Checkbox as UiCheckbox } from "@/components/ui/checkbox";
 import { Input as UiInput } from "@/components/ui/input";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
-import { Select as UiSelect } from "@/components/ui/select";
 import { Radio as UiRadio } from "@/components/ui/radio";
 
 type ManualInternalRecommendationModalProps = {
@@ -60,6 +53,7 @@ export function ManualInternalRecommendationModal({
   userId,
 }: ManualInternalRecommendationModalProps) {
   const [roleSearch, setRoleSearch] = useState("");
+  const [includeInactiveRoles, setIncludeInactiveRoles] = useState(false);
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [reasonModalOpen, setReasonModalOpen] = useState(false);
@@ -68,12 +62,14 @@ export function ManualInternalRecommendationModal({
     roleSearch,
     40,
     open && !fixedRole,
-    userId
+    userId,
+    includeInactiveRoles
   );
   const queueRecommendation = useQueueOpsManualInternalRecommendation();
 
   const resetModalState = useCallback(() => {
     setRoleSearch("");
+    setIncludeInactiveRoles(false);
     setSelectedRoleId(null);
     setReason("");
     setReasonModalOpen(false);
@@ -177,26 +173,38 @@ export function ManualInternalRecommendationModal({
         <div className="grid h-full min-h-0 grid-cols-1 overflow-y-auto lg:grid-cols-[minmax(0,0.85fr)_minmax(360px,0.85fr)] lg:overflow-hidden">
           <div className="flex min-w-0 flex-col border-b border-neutral-1000-a05 lg:border-b-0 lg:border-r">
             <div className="border-b border-neutral-1000-a05 px-5 py-4">
-              <label className="block">
+              <div>
                 <span className={opsTheme.label}>Internal role</span>
                 {fixedRole ? (
                   <div className="mt-2 rounded-md border border-neutral-1000-a05 bg-bg-default/70 px-3 py-2 text-sm text-neutral-primary">
                     {fixedRole.companyName} · {fixedRole.roleName}
                   </div>
                 ) : (
-                  <div className="relative mt-2">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-soft" />
-                    <UiInput
-                      unstyled
-                      type="text"
-                      value={roleSearch}
-                      onChange={(event) => setRoleSearch(event.target.value)}
-                      placeholder="회사, role, location 검색"
-                      className={cx(opsTheme.input, "h-10 pl-9 text-sm")}
+                  <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <label className="relative min-w-0 flex-1">
+                      <span className="sr-only">Internal role 검색</span>
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-soft" />
+                      <UiInput
+                        unstyled
+                        type="text"
+                        value={roleSearch}
+                        onChange={(event) => setRoleSearch(event.target.value)}
+                        placeholder="회사, role, location 검색"
+                        className={cx(opsTheme.input, "h-10 pl-9 text-sm")}
+                      />
+                    </label>
+                    <UiCheckbox
+                      checked={includeInactiveRoles}
+                      onChange={(event) =>
+                        setIncludeInactiveRoles(event.target.checked)
+                      }
+                      label="비활성 status 포함"
+                      size="small"
+                      className="shrink-0 rounded-md border border-neutral-1000-a05 bg-bg-default/55 px-2.5 py-2 text-xs"
                     />
                   </div>
                 )}
-              </label>
+              </div>
             </div>
 
             <div className="min-h-0 flex-1 overflow-auto p-5">
@@ -458,14 +466,7 @@ export function ManualInternalRecommendationModal({
 }
 
 type RecommendationRowProps = {
-  customDraft: string;
-  isCustomOpen: boolean;
-  isSaving: boolean;
   item: CareerTalentRecommendationItem;
-  onCustomDraftChange: (recommendationId: string, value: string) => void;
-  onCustomSave: (item: CareerTalentRecommendationItem) => void;
-  onStageSelect: (item: CareerTalentRecommendationItem, value: string) => void;
-  selectValue: string;
 };
 
 function RecommendationFitCell({
@@ -497,17 +498,8 @@ function RecommendationFitCell({
 }
 
 const RecommendationRow = memo(function RecommendationRow({
-  customDraft,
-  isCustomOpen,
-  isSaving,
   item,
-  onCustomDraftChange,
-  onCustomSave,
-  onStageSelect,
-  selectValue,
 }: RecommendationRowProps) {
-  const isInternal = item.sourceType === "internal";
-
   return (
     <tr className="text-neutral-muted transition hover:bg-bg-default/70">
       <td className="px-2 py-2 align-top text-neutral-muted">
@@ -597,62 +589,6 @@ const RecommendationRow = memo(function RecommendationRow({
           </div>
         ) : null}
       </td>
-      <td className="px-2 py-2 align-top">
-        {isInternal ? (
-          <div className="space-y-1.5">
-            <UiSelect
-              unstyled
-              value={selectValue}
-              onChange={(event) => onStageSelect(item, event.target.value)}
-              disabled={isSaving}
-              className="h-8 w-full rounded-md border border-neutral-1000-a05 bg-bg-default/80 px-2 text-xs text-neutral-primary outline-none transition focus:border-neutral-1000-a10 disabled:opacity-50"
-            >
-              <option value={AUTO_RECOMMENDATION_STAGE_VALUE}>
-                {getAutoRecommendationStageLabel(item)}
-              </option>
-              {INTERNAL_RECOMMENDATION_FIXED_STAGES.map((stage) => (
-                <option key={stage} value={stage}>
-                  {stage}
-                </option>
-              ))}
-              <option value={CUSTOM_RECOMMENDATION_STAGE_VALUE}>
-                기타(주관식)
-              </option>
-            </UiSelect>
-            {isCustomOpen ? (
-              <div className="flex items-center gap-1.5">
-                <UiInput
-                  unstyled
-                  type="text"
-                  value={customDraft}
-                  onChange={(event) =>
-                    onCustomDraftChange(
-                      item.recommendationId,
-                      event.target.value
-                    )
-                  }
-                  placeholder="상태 입력"
-                  className="h-8 min-w-0 flex-1 rounded-md border border-neutral-1000-a05 bg-bg-default/80 px-2 text-xs text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-1000-a10"
-                />
-                <BareButton
-                  type="button"
-                  onClick={() => onCustomSave(item)}
-                  disabled={isSaving || !customDraft.trim()}
-                  className={cx(opsTheme.buttonSecondary, "h-8 px-2 text-xs")}
-                >
-                  {isSaving ? (
-                    <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Save className="h-3.5 w-3.5" />
-                  )}
-                </BareButton>
-              </div>
-            ) : null}
-          </div>
-        ) : (
-          <span className="text-neutral-muted">{item.effectiveStage}</span>
-        )}
-      </td>
     </tr>
   );
 });
@@ -674,13 +610,6 @@ export const RecommendationsTab = memo(function RecommendationsTab({
     hasNextPage,
     isFetchingNextPage,
   } = useOpsCareerRecommendations(userId, 20, true, sourceFilter);
-  const updateStage = useUpdateOpsCareerRecommendationStage();
-  const [customOpenIds, setCustomOpenIds] = useState<Set<string>>(
-    () => new Set()
-  );
-  const [customDrafts, setCustomDrafts] = useState<Record<string, string>>({});
-  const [savingId, setSavingId] = useState<string | null>(null);
-  const [stageError, setStageError] = useState("");
   const [manualModalOpen, setManualModalOpen] = useState(false);
   const [manualNotice, setManualNotice] = useState("");
 
@@ -694,93 +623,6 @@ export const RecommendationsTab = memo(function RecommendationsTab({
       : sourceFilter === "external"
         ? "저장된 External 추천 기록이 없습니다."
         : "저장된 추천 기록이 없습니다.";
-
-  const saveStage = useCallback(
-    async (
-      item: CareerTalentRecommendationItem,
-      processedStage: string | null
-    ) => {
-      if (item.sourceType !== "internal") return;
-      setSavingId(item.recommendationId);
-      setStageError("");
-      try {
-        await updateStage.mutateAsync({
-          processedStage,
-          recommendationId: item.recommendationId,
-          userId,
-        });
-      } catch (stageUpdateError) {
-        setStageError(
-          stageUpdateError instanceof Error
-            ? stageUpdateError.message
-            : "추천 상태를 저장하지 못했습니다."
-        );
-      } finally {
-        setSavingId(null);
-      }
-    },
-    [updateStage, userId]
-  );
-
-  const closeCustomEditor = useCallback((recommendationId: string) => {
-    setCustomOpenIds((prev) => {
-      const next = new Set(prev);
-      next.delete(recommendationId);
-      return next;
-    });
-  }, []);
-
-  const openCustomEditor = useCallback(
-    (item: CareerTalentRecommendationItem) => {
-      setCustomOpenIds((prev) => {
-        const next = new Set(prev);
-        next.add(item.recommendationId);
-        return next;
-      });
-      setCustomDrafts((prev) => ({
-        ...prev,
-        [item.recommendationId]:
-          prev[item.recommendationId] ?? item.processedStage ?? "",
-      }));
-    },
-    []
-  );
-
-  const handleStageSelect = useCallback(
-    async (item: CareerTalentRecommendationItem, value: string) => {
-      if (value === CUSTOM_RECOMMENDATION_STAGE_VALUE) {
-        openCustomEditor(item);
-        return;
-      }
-
-      closeCustomEditor(item.recommendationId);
-      await saveStage(
-        item,
-        value === AUTO_RECOMMENDATION_STAGE_VALUE ? null : value
-      );
-    },
-    [closeCustomEditor, openCustomEditor, saveStage]
-  );
-
-  const handleCustomSave = useCallback(
-    async (item: CareerTalentRecommendationItem) => {
-      const draft = (customDrafts[item.recommendationId] ?? "").trim();
-      if (!draft) return;
-      await saveStage(item, draft);
-      closeCustomEditor(item.recommendationId);
-    },
-    [closeCustomEditor, customDrafts, saveStage]
-  );
-
-  const handleCustomDraftChange = useCallback(
-    (recommendationId: string, value: string) => {
-      setCustomDrafts((prev) => ({
-        ...prev,
-        [recommendationId]: value,
-      }));
-    },
-    []
-  );
 
   const handleManualQueued = useCallback(
     ({
@@ -803,7 +645,7 @@ export const RecommendationsTab = memo(function RecommendationsTab({
         <div>
           <div className={opsTheme.eyebrow}>Recommendations</div>
           <div className="mt-1 text-xs text-neutral-muted">
-            Internal / External 추천 기록, 열람, 클릭, 피드백, 진행 상태
+            Internal / External 추천 기록, 열람, 클릭, 피드백
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -848,9 +690,6 @@ export const RecommendationsTab = memo(function RecommendationsTab({
         </div>
       </div>
 
-      {stageError ? (
-        <div className={cx(opsTheme.errorNotice, "mt-4")}>{stageError}</div>
-      ) : null}
       {manualNotice ? (
         <div className={cx(opsTheme.successNotice, "mt-4")}>{manualNotice}</div>
       ) : null}
@@ -872,7 +711,7 @@ export const RecommendationsTab = memo(function RecommendationsTab({
       ) : (
         <>
           <div className="mt-4 overflow-x-auto rounded-md border border-neutral-1000-a05 bg-bg-default/55">
-            <table className="min-w-[1300px] w-full table-fixed border-collapse text-xs">
+            <table className="min-w-[1070px] w-full table-fixed border-collapse text-xs">
               <thead className="bg-bg-weak text-left text-neutral-muted">
                 <tr>
                   <th className="w-[135px] px-2 py-2 font-medium">추천일</th>
@@ -883,37 +722,12 @@ export const RecommendationsTab = memo(function RecommendationsTab({
                     열람 / 클릭
                   </th>
                   <th className="w-[150px] px-2 py-2 font-medium">피드백</th>
-                  <th className="w-[230px] px-2 py-2 font-medium">상태</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-1000-a05">
-                {recommendations.map((item) => {
-                  const selectValue = getRecommendationStageSelectValue(item);
-                  const isSavedCustom =
-                    selectValue === CUSTOM_RECOMMENDATION_STAGE_VALUE &&
-                    Boolean(item.processedStage?.trim());
-                  const isCustomOpen =
-                    item.sourceType === "internal" &&
-                    (customOpenIds.has(item.recommendationId) || isSavedCustom);
-                  const customDraft =
-                    customDrafts[item.recommendationId] ??
-                    item.processedStage ??
-                    "";
-
-                  return (
-                    <RecommendationRow
-                      key={item.recommendationId}
-                      customDraft={customDraft}
-                      isCustomOpen={isCustomOpen}
-                      isSaving={savingId === item.recommendationId}
-                      item={item}
-                      onCustomDraftChange={handleCustomDraftChange}
-                      onCustomSave={handleCustomSave}
-                      onStageSelect={handleStageSelect}
-                      selectValue={selectValue}
-                    />
-                  );
-                })}
+                {recommendations.map((item) => (
+                  <RecommendationRow key={item.recommendationId} item={item} />
+                ))}
               </tbody>
             </table>
           </div>

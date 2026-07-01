@@ -4,8 +4,13 @@ import OfficialJobsEventTracker from "@/components/jobs/OfficialJobsEventTracker
 import OfficialJobsHeader from "@/components/jobs/OfficialJobsHeader";
 import { Page } from "@/components/layout/Page";
 import { PageContainer } from "@/components/layout/PageContainer";
+import { useOfficialJobs } from "@/hooks/officialJobs/useOfficialJobs";
+import { getInitialClientLocalePreference } from "@/i18n/useMessage";
 import { postOfficialJobEvent } from "@/lib/officialJobs/events";
-import { OFFICIAL_JOBS_LOGIN_HREF, type OfficialJob } from "@/lib/officialJobs";
+import {
+  OFFICIAL_JOBS_LOGIN_HREF,
+  type OfficialJobListItem,
+} from "@/lib/officialJobs";
 import {
   OFFICIAL_JOBS_CANONICAL_URL,
   OFFICIAL_JOBS_OG_IMAGE_URL,
@@ -15,21 +20,18 @@ import {
 import {
   formatOfficialJobsCopy,
   getOfficialJobsCopy,
-  resolveOfficialJobsLocaleFromRequest,
   type OfficialJobsLocale,
 } from "@/lib/officialJobs/copy";
-import {
-  getPublicOfficialJobByAshbyId,
-  getPublicOfficialJobs,
-} from "@/lib/officialJobs/server";
+import { getPublicOfficialJobListItems } from "@/lib/officialJobs/server";
 import { ArrowRight, Building2, MapPin } from "lucide-react";
-import type { GetServerSideProps } from "next";
+import type { GetStaticProps } from "next";
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { useEffect, useSyncExternalStore } from "react";
 
 type OfficialJobsPageProps = {
-  jobs: OfficialJob[];
+  jobs: OfficialJobListItem[];
   locale: OfficialJobsLocale;
 };
 
@@ -59,18 +61,59 @@ function buildRedirectDestination(
   return `/jobs/${encodeURIComponent(slug)}${search ? `?${search}` : ""}`;
 }
 
+function subscribeToLocalePreferenceChanges(onStoreChange: () => void) {
+  if (typeof window === "undefined") return () => {};
+
+  window.addEventListener("storage", onStoreChange);
+  window.addEventListener("focus", onStoreChange);
+
+  return () => {
+    window.removeEventListener("storage", onStoreChange);
+    window.removeEventListener("focus", onStoreChange);
+  };
+}
+
+function useOfficialJobsLocale(serverLocale: OfficialJobsLocale) {
+  return useSyncExternalStore(
+    subscribeToLocalePreferenceChanges,
+    getInitialClientLocalePreference,
+    () => serverLocale
+  );
+}
+
+function useAshbyJobRedirect(jobs: OfficialJobListItem[]) {
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!router.isReady) return;
+
+    const ashbyJobPostingId =
+      getSingleQueryParam(router.query.ashby_jid) ??
+      getSingleQueryParam(router.query.jid);
+    const normalizedAshbyId = ashbyJobPostingId?.trim();
+    if (!normalizedAshbyId) return;
+
+    const job = jobs.find(
+      (item) => item.ashbyJobPostingId?.trim() === normalizedAshbyId
+    );
+    if (!job) return;
+
+    void router.replace(buildRedirectDestination(job.slug, router.query));
+  }, [jobs, router]);
+}
+
 function OfficialJobsTable({
   jobs,
   locale,
 }: {
-  jobs: OfficialJob[];
+  jobs: OfficialJobListItem[];
   locale: OfficialJobsLocale;
 }) {
   const router = useRouter();
   const copy = getOfficialJobsCopy(locale);
 
   const trackJobClick = (
-    job: OfficialJob,
+    job: OfficialJobListItem,
     source: "jobs_table_row" | "jobs_table_link" | "jobs_mobile_card"
   ) => {
     void postOfficialJobEvent({
@@ -85,7 +128,7 @@ function OfficialJobsTable({
   };
 
   const openJob = (
-    job: OfficialJob,
+    job: OfficialJobListItem,
     source: "jobs_table_row" | "jobs_table_link" | "jobs_mobile_card"
   ) => {
     trackJobClick(job, source);
@@ -220,11 +263,16 @@ export default function OfficialJobsPage({
   jobs,
   locale,
 }: OfficialJobsPageProps) {
-  const copy = getOfficialJobsCopy(locale);
-  const seo = getOfficialJobsListSeo(locale);
+  const jobsQuery = useOfficialJobs(jobs);
+  const visibleJobs = jobsQuery.data ?? jobs;
+  const resolvedLocale = useOfficialJobsLocale(locale);
+  useAshbyJobRedirect(visibleJobs);
+
+  const copy = getOfficialJobsCopy(resolvedLocale);
+  const seo = getOfficialJobsListSeo(resolvedLocale);
   const structuredData = buildOfficialJobsCollectionStructuredData(
-    jobs,
-    locale
+    visibleJobs,
+    resolvedLocale
   );
   const heroTitleLines = copy.list.heroTitle.split("\n");
   const heroBodyLines = copy.list.heroBody.split("\n");
@@ -233,7 +281,7 @@ export default function OfficialJobsPage({
     <>
       <OfficialJobsEventTracker
         eventType="jobs_list_view"
-        metadata={{ jobCount: jobs.length }}
+        metadata={{ jobCount: visibleJobs.length }}
       />
       <Head>
         <title>{seo.listTitle}</title>
@@ -275,7 +323,7 @@ export default function OfficialJobsPage({
         />
       </Head>
       <Page as="div" background="beige" minHeight="svh" safeArea="bottom">
-        <OfficialJobsHeader locale={locale} />
+        <OfficialJobsHeader locale={resolvedLocale} />
         <main>
           <PageContainer
             as="section"
@@ -304,7 +352,7 @@ export default function OfficialJobsPage({
                 <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                   <OfficialJobsCtaLink
                     className="bg-primary border-none"
-                    locale={locale}
+                    locale={resolvedLocale}
                     size="lg"
                     onClick={() => {
                       void postOfficialJobEvent({
@@ -324,47 +372,28 @@ export default function OfficialJobsPage({
             </div>
 
             <div className="mt-10">
-              <OfficialJobsTable jobs={jobs} locale={locale} />
+              <OfficialJobsTable jobs={visibleJobs} locale={resolvedLocale} />
             </div>
           </PageContainer>
         </main>
         <CareerLandingFooter
           careerStartHref={OFFICIAL_JOBS_LOGIN_HREF}
           labels={copy.footerLabels}
-          locale={locale}
+          locale={resolvedLocale}
         />
       </Page>
     </>
   );
 }
 
-export const getServerSideProps: GetServerSideProps<
-  OfficialJobsPageProps
-> = async (context) => {
-  const ashbyJobPostingId =
-    getSingleQueryParam(context.query.ashby_jid) ??
-    getSingleQueryParam(context.query.jid);
-
-  if (ashbyJobPostingId) {
-    const job = await getPublicOfficialJobByAshbyId(ashbyJobPostingId);
-
-    if (job) {
-      return {
-        redirect: {
-          destination: buildRedirectDestination(job.slug, context.query),
-          permanent: false,
-        },
-      };
-    }
-  }
-
-  const jobs = await getPublicOfficialJobs();
-  const locale = resolveOfficialJobsLocaleFromRequest(context.req);
+export const getStaticProps: GetStaticProps<OfficialJobsPageProps> = async () => {
+  const jobs = await getPublicOfficialJobListItems();
 
   return {
     props: {
       jobs,
-      locale,
+      locale: "ko",
     },
+    revalidate: 60,
   };
 };

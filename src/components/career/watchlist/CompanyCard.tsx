@@ -28,33 +28,20 @@ export const CompanyCard = ({
   const reasonLabel =
     activeTab === "signals"
       ? t("career.company.company_card.1m5x6m1", "최근 시그널")
-      : activeTab === "following"
-        ? t("career.common.career.0h5494n", "추적중이에요")
-        : t("career.company.company_card.1qxewwj", "추천 근거");
+      : t("career.common.career.0h5494n", "추적중이에요");
   const reason =
     activeTab === "signals"
-      ? (item.signalSummary ??
-        item.latestSignal ??
-        item.shortDescription ??
+      ? (item.shortDescription ??
         t(
           "career.company.company_card.1gncj7z",
           "회사 업데이트를 정리 중입니다."
         ))
-      : activeTab === "following"
-        ? (item.trackingSummary ??
-          item.reasonSummary ??
-          item.shortDescription ??
-          t(
-            "career.company.company_card.1gncj7z",
-            "회사 업데이트를 정리 중입니다."
-          ))
-        : (item.reasonSummary ??
-          item.recommendationReasons[0] ??
-          item.shortDescription ??
-          t(
-            "career.company.company_card.17aqd6f",
-            "회사 정보를 정리 중입니다."
-          ));
+      : (item.trackingSummary ??
+        item.shortDescription ??
+        t(
+          "career.company.company_card.1gncj7z",
+          "회사 업데이트를 정리 중입니다."
+        ));
 
   return (
     <BareButton

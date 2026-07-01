@@ -33,7 +33,6 @@ import {
   type MergedChecklistItem,
 } from "@/lib/talentOnboarding/stateStore";
 import {
-  countAdditionalOnboardingQuestionSelections,
   countUserChatTurns,
   fetchMessages,
   fetchRecentMessages,
@@ -72,7 +71,6 @@ export {
   TALENT_RESUME_BUCKET,
   TALENT_SETTING_SELECT_QUERY,
   buildTalentProfileContext,
-  countAdditionalOnboardingQuestionSelections,
   countUserChatTurns,
   fetchMessages,
   fetchRecentMessages,
