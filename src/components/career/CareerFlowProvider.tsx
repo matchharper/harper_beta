@@ -52,6 +52,7 @@ import {
   type CareerConversationStarterId,
   type CareerConversationStarterMode,
 } from "@/lib/career/prompts/conversationStarters";
+import { CAREER_CHAT_ALLOWED_TOOLS_BY_ACTION } from "@/lib/career/chatToolPresets";
 import { useMessages } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
 
@@ -64,8 +65,6 @@ const getCompletedOpportunityRunRefreshKey = (
 };
 
 const CAREER_COMPANY_FOLLOW_UP_DELAY_MS = 15_000;
-const DEV_CURRENT_DATA_JOB_POSTING_RECOMMENDATION_TOOL =
-  "recommend_job_postings";
 const getDevCurrentDataJobPostingRecommendationPrompt = (
   t: ReturnType<typeof useCareerT>
 ) =>
@@ -751,7 +750,8 @@ export const CareerFlowProvider = ({
       }
 
       await sendChatMessage({
-        allowedToolNames: [DEV_CURRENT_DATA_JOB_POSTING_RECOMMENDATION_TOOL],
+        allowedToolNames:
+          CAREER_CHAT_ALLOWED_TOOLS_BY_ACTION.currentDataJobPostingRecommendation,
         text: getDevCurrentDataJobPostingRecommendationPrompt(t),
       });
     }, [
@@ -990,6 +990,7 @@ export const CareerFlowProvider = ({
   const handleRequestMoreOpenPositions = useCallback(async () => {
     clearSessionReengagementAction();
     await sendChatMessage({
+      allowedToolNames: CAREER_CHAT_ALLOWED_TOOLS_BY_ACTION.moreOpenPositions,
       messageType: TALENT_MESSAGE_TYPE_OPEN_POSITION_RECOMMENDATION_REQUEST,
       text: t(
         "career.common.career_flow_provider.request_more_open_positions",

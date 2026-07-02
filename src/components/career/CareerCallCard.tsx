@@ -1,4 +1,4 @@
-import { BadgeIcon, Loader2, Phone } from "lucide-react";
+import { AudioLines, BadgeIcon, Loader2, Phone } from "lucide-react";
 import type { ReactNode } from "react";
 import Face from "@/components/common/Face";
 import { ActionButton } from "@/components/ui/button";

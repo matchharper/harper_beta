@@ -224,7 +224,7 @@ export default function OfficialJobDetailPage({
                   <div className="flex items-start gap-4">
                     <div className="min-w-0 p-1">
                       <h2 className="text-[18px] font-medium leading-snug text-beige900">
-                        {job.companyName} {copy.detail.companySuffix}
+                        {job.companyName}
                       </h2>
                     </div>
                   </div>

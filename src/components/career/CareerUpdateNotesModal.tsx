@@ -64,9 +64,6 @@ const CareerUpdateNotesModal = ({
       <section className="text-neutral-primary">
         <header className="border-b border-neutral-1000-a05 px-5 pb-4 pt-5">
           <div className="min-w-0">
-            <Text as="div" type="eyebrow">
-              Update notes
-            </Text>
             <Text as="h2" type="head2" className="mt-2">
               {t(
                 "career.common.career_update_notes_modal.1rg2zqc",

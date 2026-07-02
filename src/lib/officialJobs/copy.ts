@@ -46,7 +46,6 @@ export const OFFICIAL_JOBS_COPY = {
     cta: "Talk to Harper",
     detail: {
       backToList: "역할 목록",
-      companySuffix: "Company",
       facts: {
         compensation: "Compensation",
         location: "Location",
@@ -110,7 +109,6 @@ export const OFFICIAL_JOBS_COPY = {
     cta: "Talk to Harper",
     detail: {
       backToList: "All roles",
-      companySuffix: "Company",
       facts: {
         compensation: "Compensation",
         location: "Location",
@@ -147,8 +145,7 @@ export const OFFICIAL_JOBS_COPY = {
         "No public roles are listed yet. Harper is still watching the market.",
       heroBody:
         "I only introduce opportunities that look genuinely interesting.\nIf a role catches your eye, let me know.",
-      heroTitle:
-        "Hi, this is Harper.\nThese are the roles I'm watching first.",
+      heroTitle: "Hi, this is Harper.\nThese are the roles I'm watching first.",
       learnMore: "Learn more about Harper",
       tableHeaders: {
         apply: "Apply",
@@ -199,8 +196,9 @@ export function formatOfficialJobEmploymentType(
 
   const copy = getOfficialJobsCopy(locale);
   return (
-    copy.employmentTypes[
-      normalized as keyof typeof copy.employmentTypes
-    ] ?? String(value ?? "").trim().replaceAll("_", " ")
+    copy.employmentTypes[normalized as keyof typeof copy.employmentTypes] ??
+    String(value ?? "")
+      .trim()
+      .replaceAll("_", " ")
   );
 }

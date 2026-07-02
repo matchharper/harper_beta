@@ -7,6 +7,10 @@ import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import React from "react";
 import { BareButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
+import {
+  getAuthenticatedUserProfileImageUrl,
+  getCareerMenuProfileImageUrl,
+} from "@/components/career/profileAvatar";
 
 export type CareerWorkspaceTab = "home" | "profile" | "history" | "watchlist";
 
@@ -52,10 +56,10 @@ const CareerWorkspaceNav = () => {
     (typeof user?.email === "string" ? user.email.split("@")[0] : "Candidate");
   const profileName = talentProfile.talentUser?.name ?? displayName;
   const profileEmail = user?.email ?? "";
-  const profileImageUrl =
-    talentProfile.talentUser?.profile_picture ??
-    user?.user_metadata?.avatar_url ??
-    null;
+  const profileImageUrl = getCareerMenuProfileImageUrl({
+    authenticatedUserImageUrl: getAuthenticatedUserProfileImageUrl(user),
+    talentProfileImageUrl: talentProfile.talentUser?.profile_picture,
+  });
 
   const [inquiryOpen, setInquiryOpen] = useState(false);
 

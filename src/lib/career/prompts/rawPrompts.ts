@@ -146,7 +146,7 @@ Additional question은 insight checklist를 직접 채우는 일반 선호 질�
 ### 종료 판단 조건
 온보딩을 종료하려면 아래 조건을 모두 만족해야 한다.
 1. Onboarding question checklist에서 covered 항목이 최소 ${ONBOARDING_QUESTION_MIN_COVERED_COUNT}개 이상이어야 한다.
-2. Runtime onboarding checklist에 표시된 additional_question 항목이 모두 covered여야 한다.
+2. Runtime onboarding checklist에 표시된 additional_question 항목이 한 개라도 covered여야 한다.
 3. final priority confirmation checklist 항목(${ONBOARDING_FINAL_CONFIRMATION_KEY})이 covered여야 한다.
 4. language-외국어 능력 관련 checklist 항목이 covered여야 한다.
 5. Runtime state에 country-specific required question key가 표시되면 해당 key도 covered여야 한다.

@@ -189,13 +189,25 @@ function getPlainText(node: ReactNode): string {
   return "";
 }
 
-function isBareUrlLinkNode(node: ReactNode) {
+function isMailtoHref(value: string) {
+  return value.trim().toLowerCase().startsWith("mailto:");
+}
+
+function getMailtoLabel(value: string) {
+  const raw = value.trim();
+  if (!isMailtoHref(raw)) return raw;
+  const withoutScheme = raw.slice("mailto:".length);
+  return withoutScheme.split("?")[0] || withoutScheme;
+}
+
+function isBareUrlLinkNode(node: ReactNode, renderEmailLinksAsText = false) {
   if (!isValidElement<{ href?: string; children?: ReactNode }>(node)) {
     return false;
   }
 
   const href = node.props.href?.trim() ?? "";
   if (!href) return false;
+  if (renderEmailLinksAsText && isMailtoHref(href)) return false;
 
   const childText = getPlainText(node.props.children).trim();
   return isUrlText(childText) || childText === href;
@@ -214,14 +226,17 @@ function isSourceLabelText(value: string) {
   );
 }
 
-function renderUrlLinkParagraph(children: ReactNode): ReactNode | null {
+function renderUrlLinkParagraph(
+  children: ReactNode,
+  renderEmailLinksAsText = false
+): ReactNode | null {
   const childNodes = React.Children.toArray(children);
   let linkCount = 0;
   let hasOtherText = false;
   const labelParts: string[] = [];
 
   for (const child of childNodes) {
-    if (isBareUrlLinkNode(child)) {
+    if (isBareUrlLinkNode(child, renderEmailLinksAsText)) {
       linkCount += 1;
       continue;
     }
@@ -248,7 +263,7 @@ function renderUrlLinkParagraph(children: ReactNode): ReactNode | null {
         </span>
       )}
       {childNodes
-        .filter((child) => isBareUrlLinkNode(child))
+        .filter((child) => isBareUrlLinkNode(child, renderEmailLinksAsText))
         .map((child, index) => (
           <Fragment key={`url-link-${index}`}>{child}</Fragment>
         ))}
@@ -261,12 +276,14 @@ export default function RichText({
   className,
   linkClassName,
   onHarperLinkClick,
+  renderEmailLinksAsText = false,
   trailingInlineNode,
 }: {
   content: string;
   className?: string;
   linkClassName?: string;
   onHarperLinkClick?: (href: string) => void;
+  renderEmailLinksAsText?: boolean;
   trailingInlineNode?: ReactNode;
 }) {
   const normalizedContent = normalizeRichText(content);
@@ -303,7 +320,7 @@ export default function RichText({
             </h3>
           ),
           p: ({ children }) =>
-            renderUrlLinkParagraph(children) ?? (
+            renderUrlLinkParagraph(children, renderEmailLinksAsText) ?? (
               <p className="mt-3 whitespace-pre-wrap wrap-break-word text-sm leading-6 first:mt-0">
                 {renderNodeWithHighlights(children, "p", trailingInlineNode)}
               </p>
@@ -343,6 +360,20 @@ export default function RichText({
               !href.startsWith("mailto:")
             ) {
               return null;
+            }
+            if (renderEmailLinksAsText && isMailtoHref(href)) {
+              const emailContent = childText.trim()
+                ? renderNodeWithHighlights(
+                    children,
+                    "email-link",
+                    trailingInlineNode
+                  )
+                : getMailtoLabel(href);
+              return (
+                <span className="wrap-break-word text-inherit">
+                  {emailContent}
+                </span>
+              );
             }
             if (isHarperOwnedUrl(href)) {
               const shouldShowHrefText =

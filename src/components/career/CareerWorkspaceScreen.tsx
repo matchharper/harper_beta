@@ -61,6 +61,10 @@ import {
   getSavedStageForManagementStatus,
   type CareerOpportunityManagementStatus,
 } from "@/components/career/history/savedOpportunityStatus";
+import {
+  getAuthenticatedUserProfileImageUrl,
+  getCareerMenuProfileImageUrl,
+} from "@/components/career/profileAvatar";
 
 type JobsDisplayTab = CareerMobileHistoryJobsTab;
 
@@ -474,10 +478,10 @@ const useMobileUserDisplay = () => {
     user?.user_metadata?.full_name ??
     user?.user_metadata?.name ??
     (typeof user?.email === "string" ? user.email.split("@")[0] : undefined);
-  const profilePicture =
-    talentProfile.talentUser?.profile_picture ??
-    user?.user_metadata?.avatar_url ??
-    null;
+  const profilePicture = getCareerMenuProfileImageUrl({
+    authenticatedUserImageUrl: getAuthenticatedUserProfileImageUrl(user),
+    talentProfileImageUrl: talentProfile.talentUser?.profile_picture,
+  });
   const userEmail = user?.email ?? "";
   return {
     displayName: displayName ?? null,

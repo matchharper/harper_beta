@@ -27,10 +27,7 @@ type CareerProfileMenuVariant = "desktop" | "mobile";
 
 const PROFILE_LOCALE_OPTIONS: readonly {
   value: Locale;
-}[] = [
-  { value: "en" },
-  { value: "ko" },
-];
+}[] = [{ value: "en" }, { value: "ko" }];
 
 const getProfileLocaleOptionLabel = (
   value: Locale,
@@ -74,8 +71,11 @@ const CareerProfileMenu = ({
       .slice(0, 2)
       .map((value) => value[0]?.toUpperCase())
       .join("") || "C";
+  const normalizedProfileImageUrl =
+    typeof profileImageUrl === "string" ? profileImageUrl.trim() : "";
   const hasUploadedImage = Boolean(
-    profileImageUrl && !profileImageUrl.includes("media.licdn.com")
+    normalizedProfileImageUrl &&
+    !normalizedProfileImageUrl.includes("media.licdn.com")
   );
 
   const handleOpenUpdateNotes = () => {
@@ -177,7 +177,7 @@ const CareerProfileMenu = ({
       {hasUploadedImage ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={String(profileImageUrl)}
+          src={normalizedProfileImageUrl}
           alt={profileName}
           className="h-full w-full object-cover"
         />
@@ -190,7 +190,7 @@ const CareerProfileMenu = ({
   ) : hasUploadedImage ? (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={String(profileImageUrl)}
+      src={normalizedProfileImageUrl}
       alt={profileName}
       className="h-full w-full object-cover"
     />
@@ -291,10 +291,7 @@ const CareerProfileMenu = ({
         <section className="text-neutral-primary">
           <header className="border-b border-neutral-1000-a05 px-5 pb-4 pt-5">
             <Text as="h2" type="head2" className="pr-10">
-              {t(
-                "career.profile.language_selector.modal_title",
-                "언어 설정"
-              )}
+              {t("career.profile.language_selector.modal_title", "언어 설정")}
             </Text>
             <Text type="desc" className="mt-2 text-neutral-muted">
               {t(

@@ -406,6 +406,7 @@ const CareerMessageBubble = ({
               className={careerTimelineAssistantRichTextClassName}
               linkClassName={CAREER_MESSAGE_LINK_CLASS}
               onHarperLinkClick={handleHarperLinkClick}
+              renderEmailLinksAsText
             />
           )}
           {!isUser && assistantChoices.length > 0 && (

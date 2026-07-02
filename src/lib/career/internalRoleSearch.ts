@@ -2,6 +2,10 @@ import postgres from "postgres";
 import { existsSync, readFileSync } from "fs";
 import path from "path";
 import { parse as parseDotenv } from "dotenv";
+import {
+  getInternalRoleCompanyAlias,
+  maskInternalRoleSearchKeyword,
+} from "@/lib/career/internalRoleCompanyAliases";
 
 const DATABASE_ENV_NAMES = [
   "CAREER_ROLE_SEARCH_DATABASE_URL",
@@ -37,6 +41,7 @@ export type InternalRoleSearchResultRole = {
 };
 
 export type InternalRoleSearchResult = {
+  assistantInstruction: string;
   fallbackKeywords?: string[];
   fallbackUsed: boolean;
   keywords: string[];
@@ -161,7 +166,7 @@ function formatText(
 function formatInternalRole(row: InternalRoleSearchSqlRow) {
   const parts = [
     `Role title: ${formatText(row.role_title)}`,
-    `Company: ${formatText(row.company_name)}`,
+    `Company: ${getInternalRoleCompanyAlias(row.company_name)}`,
     `Location: ${formatText(row.location_text)}`,
     row.description_summary
       ? `Summary: ${formatText(row.description_summary, "", SUMMARY_MAX_CHARS)}`
@@ -318,10 +323,14 @@ export async function searchInternalRolesForCareerTool(args: {
   }
 
   return {
-    ...(fallbackKeywords ? { fallbackKeywords } : {}),
+    assistantInstruction:
+      "The Company fields in get_internal_roles results are public-safe aliases, not raw company names. Use those aliases exactly in the final reply. Never reveal, infer, or repeat raw internal company names, including names from the user's search keywords.",
+    ...(fallbackKeywords
+      ? { fallbackKeywords: fallbackKeywords.map(maskInternalRoleSearchKeyword) }
+      : {}),
     fallbackUsed,
-    keywords: searchedKeywords,
-    requestedKeywords,
+    keywords: searchedKeywords.map(maskInternalRoleSearchKeyword),
+    requestedKeywords: requestedKeywords.map(maskInternalRoleSearchKeyword),
     returnedCount: rows.length,
     roles: rows.map((row) => ({
       id: row.role_id,
