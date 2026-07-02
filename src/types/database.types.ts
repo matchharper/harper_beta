@@ -2923,11 +2923,9 @@ export type Database = {
           started_at: string | null
           status: string
           talent_id: string | null
-          target_recommendation_count: number
           trigger: string
           trigger_payload: Json
           updated_at: string
-          user_brief: Json
         }
         Insert: {
           completed_at?: string | null
@@ -2943,11 +2941,9 @@ export type Database = {
           started_at?: string | null
           status?: string
           talent_id?: string | null
-          target_recommendation_count?: number
           trigger: string
           trigger_payload?: Json
           updated_at?: string
-          user_brief?: Json
         }
         Update: {
           completed_at?: string | null
@@ -2963,11 +2959,9 @@ export type Database = {
           started_at?: string | null
           status?: string
           talent_id?: string | null
-          target_recommendation_count?: number
           trigger?: string
           trigger_payload?: Json
           updated_at?: string
-          user_brief?: Json
         }
         Relationships: [
           {

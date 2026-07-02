@@ -11,23 +11,23 @@ type PartnerLogo = {
 
 const partnerLogos: PartnerLogo[] = [
   { src: "/images/logos/sn.png", name: "SNU", width: 34 },
-  { src: "/images/logos/kai.png", name: "KAIST", width: 36 },
-  { src: "/images/logos/cmu.png", name: "CMU", width: 48 },
-  { src: "/images/logos/stan.png", name: "Stanford", width: 38 },
+  { src: "/images/logos/kai.png", name: "KAIST", width: 40 },
+  { src: "/images/logos/cmu.png", name: "CMU", width: 54 },
+  { src: "/images/logos/stan.png", name: "Stanford", width: 48 },
   {
     src: "/images/logos/utoronto.svg",
     name: "University of Toronto",
-    width: 38,
+    width: 62,
   },
-  { src: "/images/logos/toss.png", name: "Toss", width: 82 },
+  { src: "/images/logos/toss.png", name: "Toss", width: 72 },
   { src: "/svgs/cohere.svg", name: "Cohere", width: 82 },
-  { src: "/images/logos/amazon.svg", name: "Amazon", width: 82 },
+  { src: "/images/logos/amazon.svg", name: "Amazon", width: 72 },
   { src: "/images/logos/naver.svg", name: "Naver", width: 68 },
   { src: "/images/logos/moloco.png", name: "Moloco", width: 90 },
 ];
 
 const overseasPartnerLogos: PartnerLogo[] = [
-  { src: "/images/logos/cmu.png", name: "CMU", width: 52 },
+  { src: "/images/logos/cmu.png", name: "CMU", width: 56 },
   { src: "/images/logos/stan.png", name: "Stanford", width: 44 },
   { src: "/images/logos/harvard.svg", name: "Harvard", width: 72 },
   {

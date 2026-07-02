@@ -46,7 +46,6 @@ export type OpportunityRunRow = {
   talent_id: string | null;
   trigger: OpportunityDiscoveryTrigger;
   trigger_payload: Json;
-  user_brief: Json;
 };
 
 export type OpportunityIngestionRunRow = {

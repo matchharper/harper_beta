@@ -10,11 +10,18 @@ import {
   upsertTalentSetting,
 } from "@/lib/talentOnboarding/server";
 import { normalizeCareerPromptLocale } from "@/lib/career/promptLocale";
+import { insertTalentActivityEvent } from "@/lib/talentOnboarding/activityEvents";
 
 type Body = {
   profileVisibility?: string;
+  profileVisibilitySource?: string;
   blockedCompanies?: string[];
   preferredLocale?: string | null;
+};
+
+const normalizeProfileVisibilityActivitySource = (value: unknown) => {
+  const source = String(value ?? "").trim();
+  return source === "onboarding" ? "onboarding" : "profile_settings";
 };
 
 const toResponseSettings = (row: {
@@ -84,6 +91,9 @@ export async function POST(req: NextRequest) {
     await ensureTalentUserRecord({ admin, user });
 
     const existing = await fetchTalentSetting({ admin, userId: user.id });
+    const previousProfileVisibility = sanitizeTalentProfileVisibility(
+      existing?.profile_visibility ?? DEFAULT_TALENT_PROFILE_VISIBILITY
+    );
 
     const profileVisibility = sanitizeTalentProfileVisibility(
       body.profileVisibility ??
@@ -103,6 +113,25 @@ export async function POST(req: NextRequest) {
         ? {}
         : { settingLocale: normalizeCareerPromptLocale(body.preferredLocale) }),
     });
+    const savedProfileVisibility = sanitizeTalentProfileVisibility(
+      saved.profile_visibility
+    );
+    if (
+      body.profileVisibility !== undefined &&
+      previousProfileVisibility !== savedProfileVisibility
+    ) {
+      await insertTalentActivityEvent({
+        admin,
+        changedDomains: ["preferences", "profile_visibility"],
+        eventType: "profile_visibility_changed",
+        impactLevel: "medium",
+        source: normalizeProfileVisibilityActivitySource(
+          body.profileVisibilitySource
+        ),
+        summary: `User changed profile visibility from "${previousProfileVisibility}" to "${savedProfileVisibility}".`,
+        userId: user.id,
+      });
+    }
 
     return NextResponse.json({
       ok: true,

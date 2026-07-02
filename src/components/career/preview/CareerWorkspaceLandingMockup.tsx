@@ -594,9 +594,7 @@ const AssistantProfile = ({ assistantName }: { assistantName: string }) => (
 const DesktopHeader = () => (
   <header className="z-20 shrink-0 border-b border-neutral-1000-a05 bg-bg-default text-neutral-primary">
     <div className="flex h-[57px] flex-row items-center justify-between gap-4 px-8">
-      <div className="font-hedvig text-[1.1rem] text-neutral-primary">
-        Harper
-      </div>
+      <div className="font-hedvig font-bold text-neutral-primary">Harper</div>
       <div className="flex items-center gap-2">
         <IconButton icon={<CircleHelp className="h-4 w-4" />} />
         <IconButton icon={<Settings2 className="h-4 w-4" />} />
@@ -629,7 +627,7 @@ const MessageBubble = ({
       {!isUser ? <AssistantProfile assistantName={assistantName} /> : null}
       <article
         className={cn(
-          "max-w-[92%] whitespace-pre-line wrap-break-word text-[16px] leading-[1.62] md:text-[17px] md:leading-[1.72]",
+          "max-w-[92%] whitespace-pre-line wrap-break-word text-[15px] leading-[1.5] md:text-[16px] md:leading-[1.72]",
           isUser
             ? "ml-auto rounded-[14px] bg-black px-4 py-2.5 text-neutral-00"
             : "w-fit max-w-[920px] text-neutral-primary"
@@ -697,26 +695,18 @@ const StaticComposer = ({ placeholder }: { placeholder: string }) => (
   <div className="shrink-0 px-4 pb-3 pt-2 md:px-5 md:pb-6 md:pt-0">
     <div className="mx-auto w-full max-w-[1120px]">
       <div className="overflow-hidden rounded-[16px] border border-neutral-1000-a10 bg-bg-floating/80 shadow-sm backdrop-blur-xl">
-        <div className="relative flex min-h-[76px] items-start">
-          <div className="min-w-0 flex-1 px-3.5 py-4 text-[16px] leading-6 text-neutral-placeholder md:text-[17px] md:leading-7">
+        <div className="relative flex min-h-[84px] items-start">
+          <div className="min-w-0 flex-1 px-3.5 py-4 text-[15px] leading-6 text-neutral-placeholder md:text-[16px] md:leading-7">
             {placeholder}
           </div>
-          <div className="absolute bottom-3 right-3 flex items-center gap-2">
+          <div className="absolute bottom-2 right-2 flex items-center gap-2">
             <button
               type="button"
               aria-disabled="true"
               tabIndex={-1}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-[18px] border border-neutral-1000-a10 bg-primary text-neutral-00 shadow-xs"
+              className="inline-flex h-8 w-10 items-center justify-center rounded-[14px] border border-neutral-1000-a10 bg-primary text-neutral-00 shadow-xs"
             >
-              <AudioLines className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              aria-disabled="true"
-              tabIndex={-1}
-              className="hidden h-9 w-9 items-center justify-center rounded-[18px] border border-neutral-1000-a10 bg-primary text-neutral-00 shadow-xs md:inline-flex"
-            >
-              <ArrowUp className="h-4 w-4" />
+              <AudioLines className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -875,69 +865,6 @@ const StaticChatPanel = ({
     </section>
   );
 };
-
-const SummaryCard = ({
-  detail,
-  icon: Icon,
-  label,
-  value,
-}: StaticCopy["summaryCards"][number]) => (
-  <div className="rounded-[14px] border border-neutral-1000-a05 bg-bg-floating px-4 py-4 text-neutral-primary shadow-sm">
-    <div className="flex items-start justify-between gap-3">
-      <div className="text-[14px] font-medium">{label}</div>
-      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] bg-bg-weak text-neutral-muted">
-        <Icon className="h-4 w-4" />
-      </span>
-    </div>
-    <div className="mt-5 flex items-end gap-2">
-      <div className="font-hedvig text-[34px] leading-none">{value}</div>
-      <div className="pb-1 text-[12px] text-neutral-muted">{detail}</div>
-    </div>
-  </div>
-);
-
-const OpportunityCard = ({
-  fitReviewedLabel,
-  item,
-}: {
-  fitReviewedLabel: string;
-  item: StaticOpportunity;
-}) => (
-  <div className="rounded-[14px] border border-neutral-1000-a05 bg-bg-floating px-4 py-4 shadow-sm">
-    <div className="flex items-start justify-between gap-4">
-      <div className="min-w-0">
-        <div className="wrap-break-word text-[15px] font-medium leading-5 text-neutral-primary">
-          {item.title}
-        </div>
-        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] leading-5 text-neutral-muted">
-          <span className="inline-flex items-center gap-1">
-            <Building2 className="h-3.5 w-3.5" />
-            {item.company}
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <MapPin className="h-3.5 w-3.5" />
-            {item.location}
-          </span>
-        </div>
-      </div>
-      <span className="shrink-0 rounded-full bg-bg-weak px-2.5 py-1 text-[12px] font-medium text-neutral-muted">
-        {item.type}
-      </span>
-    </div>
-    <p className="mt-3 text-[13px] leading-6 text-neutral-muted">
-      {item.summary}
-    </p>
-    <div className="mt-4 flex items-center justify-between gap-3">
-      <span className="rounded-full bg-primary-faded px-2.5 py-1 text-[12px] font-medium text-accent-700">
-        {item.source}
-      </span>
-      <div className="flex items-center gap-1.5 text-[12px] font-medium text-neutral-muted">
-        <Check className="h-3.5 w-3.5" />
-        {fitReviewedLabel}
-      </div>
-    </div>
-  </div>
-);
 
 const StarterIcon = ({ type }: { type: "message" | "sliders" }) =>
   type === "message" ? (
@@ -1253,7 +1180,7 @@ const MobileWorkspace = ({
   copy: StaticCopy;
   onGmailMockupVisibleChange?: (visible: boolean) => void;
 }) => (
-  <main className="flex h-full pt-1 w-full flex-col overflow-hidden bg-bg-basement text-neutral-primary">
+  <main className="flex h-full pt-0.5 w-full flex-col overflow-hidden bg-bg-basement text-neutral-primary">
     <header className="relative z-20 flex h-12 shrink-0 items-center justify-between px-2 text-neutral-primary backdrop-blur-xl overflow-hidden">
       <button
         type="button"

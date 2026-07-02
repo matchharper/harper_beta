@@ -351,7 +351,6 @@ export async function updateOpportunityRun(args: {
   queryPlan?: Record<string, unknown>;
   runId: string;
   status: "running" | "completed" | "failed" | "partial";
-  userBrief?: Record<string, unknown>;
 }) {
   const now = new Date().toISOString();
   const payload: Record<string, unknown> = {
@@ -370,7 +369,6 @@ export async function updateOpportunityRun(args: {
   if (args.errorMessage !== undefined)
     payload.error_message = args.errorMessage;
   if (args.queryPlan) payload.query_plan = args.queryPlan;
-  if (args.userBrief) payload.user_brief = args.userBrief;
 
   const { error } = await ((
     args.admin.from("opportunity_discovery_run" as any) as any

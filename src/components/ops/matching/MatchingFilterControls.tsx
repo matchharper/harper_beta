@@ -1,12 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  CalendarDays,
-  Check,
-  ChevronDown,
-  LoaderCircle,
-  Tag,
-} from "lucide-react";
-import { toDateOnly } from "@/components/ops/career/utils";
+import { useMemo, useState } from "react";
+import { Check, ChevronDown, LoaderCircle, Tag } from "lucide-react";
+import { OpsDateRangeFilter } from "@/components/ops/OpsDateRangeFilter";
 import {
   DEFAULT_MATCHING_TAG_DOT_CLASS,
   getMatchingTagLabel,
@@ -16,7 +10,6 @@ import {
 } from "@/components/ops/matching/tagMeta";
 import { cx } from "@/components/ops/theme";
 import { BareButton } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
 import { useOpsMatchingTagOptions } from "@/hooks/ops/useOpsMatching";
 import {
   isOpsMatchingExcludeNotInterestedFilter,
@@ -28,7 +21,6 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { DateRange } from "react-day-picker";
 
 type MatchingDateRangeFilterProps = {
   align?: "end" | "start";
@@ -44,56 +36,6 @@ type MatchingTagFilterProps = {
   selectedTags: string[];
 };
 
-function parseDateOnly(value: string) {
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) return undefined;
-  const date = new Date(
-    Number(match[1]),
-    Number(match[2]) - 1,
-    Number(match[3])
-  );
-  if (
-    date.getFullYear() !== Number(match[1]) ||
-    date.getMonth() !== Number(match[2]) - 1 ||
-    date.getDate() !== Number(match[3])
-  ) {
-    return undefined;
-  }
-  return date;
-}
-
-function toDateRange(from: string, to: string): DateRange | undefined {
-  const fromDate = parseDateOnly(from);
-  if (!fromDate) return undefined;
-  return {
-    from: fromDate,
-    to: parseDateOnly(to) ?? fromDate,
-  };
-}
-
-function formatShortDate(date: Date | undefined) {
-  if (!date) return "";
-  return date.toLocaleDateString("ko-KR", {
-    day: "2-digit",
-    month: "2-digit",
-  });
-}
-
-function formatDateRangeLabel(args: {
-  emptyLabel: string;
-  from: string;
-  prefix: string;
-  to: string;
-}) {
-  const range = toDateRange(args.from, args.to);
-  if (!range?.from) return args.emptyLabel;
-  const from = formatShortDate(range.from);
-  const to = formatShortDate(range.to ?? range.from);
-  return from === to
-    ? `${args.prefix} ${from}`
-    : `${args.prefix} ${from} - ${to}`;
-}
-
 function normalizeTagKey(value: string) {
   return value.trim().toLowerCase();
 }
@@ -106,95 +48,16 @@ export function MatchingDateRangeFilter({
   prefix,
   to,
 }: MatchingDateRangeFilterProps) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const dateRange = useMemo(() => toDateRange(from, to), [from, to]);
-  const hasFilter = Boolean(from || to);
-  const label = formatDateRangeLabel({ emptyLabel, from, prefix, to });
-
-  useEffect(() => {
-    if (!open) return;
-
-    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      if (!containerRef.current?.contains(target)) {
-        setOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("touchstart", handlePointerDown);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("touchstart", handlePointerDown);
-    };
-  }, [open]);
-
   return (
-    <div ref={containerRef} className="relative">
-      <BareButton
-        type="button"
-        onClick={() => setOpen((current) => !current)}
-        className={cx(
-          "inline-flex h-9 min-w-[148px] items-center justify-between gap-2 rounded-md border px-3 text-xs font-medium transition",
-          hasFilter
-            ? "border-positive/30 bg-positive-faded text-positive"
-            : "border-neutral-1000/20 bg-bg-floating text-neutral-muted hover:border-neutral-1000-a10 hover:bg-bg-weak"
-        )}
-      >
-        <span className="inline-flex min-w-0 items-center gap-1.5">
-          <CalendarDays className="h-3.5 w-3.5 shrink-0" aria-hidden />
-          <span className="truncate">{label}</span>
-        </span>
-        <ChevronDown
-          className={cx(
-            "h-3.5 w-3.5 shrink-0 transition",
-            open && "rotate-180"
-          )}
-          aria-hidden
-        />
-      </BareButton>
-      {open ? (
-        <div
-          className={cx(
-            "absolute top-[calc(100%+6px)] z-50 w-[300px] rounded-md border border-neutral-1000-a10 bg-bg-floating p-2 shadow-[0_18px_48px_color-mix(in_srgb,var(--color-neutral-1000)_16%,transparent)]",
-            align === "end" ? "right-0" : "left-0"
-          )}
-        >
-          <Calendar
-            mode="range"
-            selected={dateRange}
-            onSelect={(range) => {
-              onChange(
-                toDateOnly(range?.from),
-                toDateOnly(range?.to ?? range?.from)
-              );
-            }}
-            numberOfMonths={1}
-            disabled={{ after: new Date() }}
-            className="p-2 text-[12px] [--cell-size:1.85rem]"
-          />
-          <div className="mt-1 flex items-center justify-end gap-2 border-t border-neutral-1000-a05 pt-2">
-            <BareButton
-              type="button"
-              onClick={() => onChange("", "")}
-              disabled={!hasFilter}
-              className="h-7 rounded-md px-2 text-[11px] font-medium text-neutral-muted transition hover:bg-bg-weak disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              초기화
-            </BareButton>
-            <BareButton
-              type="button"
-              onClick={() => setOpen(false)}
-              className="h-7 rounded-md bg-black px-2.5 text-[11px] font-medium text-neutral-00 transition hover:bg-black/88"
-            >
-              닫기
-            </BareButton>
-          </div>
-        </div>
-      ) : null}
-    </div>
+    <OpsDateRangeFilter
+      align={align}
+      emptyLabel={emptyLabel}
+      from={from}
+      inactiveButtonClassName="border-neutral-1000/20 bg-bg-floating text-neutral-muted hover:border-neutral-1000-a10 hover:bg-bg-weak"
+      onChange={onChange}
+      prefix={prefix}
+      to={to}
+    />
   );
 }
 

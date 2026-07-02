@@ -7,6 +7,8 @@ type TalentSummary = {
   getExternalRecommendationCurrent: boolean | null;
   getExternalRecommendationRunSnapshot: boolean | null;
   getExternalRecommendationUpdatedAt: string | null;
+  hasSubmittedMaterial: boolean;
+  isOnboardingDone: boolean;
   lastLoginAt: string | null;
   latestActionAt: string | null;
   name: string | null;
@@ -38,6 +40,7 @@ type RecommendationSummary = {
 
 type TalentSettingSummary = {
   getExternalRecommendation: boolean | null;
+  isOnboardingDone: boolean;
   updatedAt: string | null;
 };
 
@@ -71,6 +74,7 @@ export type OpsDebugOpportunityRunStatus =
 
 export type OpsDebugOpportunityRunItem = {
   actionLabels: string[];
+  selectedActionLabels: string[];
   actionSummary: string;
   agentVersion: string | null;
   channelSummary: {
@@ -111,11 +115,14 @@ export type OpsDebugOpportunityRunItem = {
 export type OpsDebugOpportunityRunStats = {
   completedCount: number;
   emailSentCount: number;
+  externalRecommendationSentCount: number;
   failedCount: number;
+  internalRecommendationSentCount: number;
   partialCount: number;
   recommendOnlyCount: number;
   reviewNeededCount: number;
   sentCount: number;
+  sentWithoutRecommendationCount: number;
   skippedCount: number;
   sourceLimitReached: boolean;
   totalCount: number;
@@ -309,6 +316,13 @@ function parseTalent(
       settingsSnapshot.get_external_recommendation
   );
   const current = setting?.getExternalRecommendation ?? null;
+  const resumeLinks = coerceStringList(talent.resume_links, 20);
+  const hasSubmittedMaterial = Boolean(
+    getString(talent.resume_file_name) ||
+    getString(talent.resume_storage_path) ||
+    getString(talent.resume_text) ||
+    resumeLinks.some((link) => link.toLowerCase().includes("linkedin.com"))
+  );
   return {
     createdAt: getString(talent.created_at),
     email: getString(talent.email),
@@ -316,6 +330,8 @@ function parseTalent(
     getExternalRecommendationCurrent: current,
     getExternalRecommendationRunSnapshot: runSnapshot,
     getExternalRecommendationUpdatedAt: setting?.updatedAt ?? null,
+    hasSubmittedMaterial,
+    isOnboardingDone: setting?.isOnboardingDone ?? false,
     lastLoginAt: getString(talent.last_logined_at),
     latestActionAt: activity?.latestActionAt ?? null,
     name: getString(talent.name),
@@ -419,13 +435,10 @@ function buildActionSummary(args: {
 }) {
   const plan = args.plan;
   const policy = getPolicyDecision(plan);
-  const strategy = asRecord(
-    policy.recommendationStrategy ?? policy.recommendation_strategy
-  );
   const decisionTypes = coerceRecordList(plan.decisions)
     .map((decision) => getString(decision.type))
     .filter(Boolean) as string[];
-  const v2Actions = coerceStringList(strategy.v2Actions, 8);
+  const v2Actions = getV2Actions(plan);
   const delivery = getDelivery(plan);
   const requestedChannels = coerceStringList(delivery.channels, 5);
   const todoAction =
@@ -503,15 +516,69 @@ function getDecisionTypes(plan: Record<string, unknown>) {
 }
 
 function getV2Actions(plan: Record<string, unknown>) {
-  const orchestration = asRecord(plan.v2Orchestration);
-  const orchestrationActions = coerceStringList(orchestration.actions, 8);
+  const orchestration = asRecord(plan.v2Orchestration ?? plan.v2_orchestration);
+  const orchestrationActions = coerceStringList(
+    orchestration.actions ??
+      orchestration.selectedActions ??
+      orchestration.selected_actions,
+    8
+  );
   if (orchestrationActions.length > 0) return orchestrationActions;
 
   const policy = getPolicyDecision(plan);
   const strategy = asRecord(
     policy.recommendationStrategy ?? policy.recommendation_strategy
   );
-  return coerceStringList(strategy.v2Actions, 8);
+  return coerceStringList(strategy.v2Actions ?? strategy.v2_actions, 8);
+}
+
+function formatSelectedActionLabel(action: string) {
+  const actionLabels: Record<string, string> = {
+    held_role_question: "질문 포함",
+    lifecycle_notice: "중단 안내",
+    "external recommendation": "External 추천",
+    "internal recommendation": "Internal 추천",
+    send_email: "메일 발송",
+    "should-ask": "추가 질문",
+    skip_send: "발송 스킵",
+  };
+  const normalized = action.trim();
+  return (
+    actionLabels[normalized] ??
+    actionLabels[normalized.toLowerCase()] ??
+    normalized.replace(/[_-]+/g, " ")
+  );
+}
+
+function buildInjectedActionLabels(row: any) {
+  const triggerPayload = asRecord(row.trigger_payload);
+  const manualInternalRecommendation = asRecord(
+    triggerPayload.manualInternalRecommendation ??
+      triggerPayload.manual_internal_recommendation
+  );
+  const entryPoint = getString(
+    triggerPayload.entryPoint ?? triggerPayload.entry_point
+  );
+
+  if (
+    Object.keys(manualInternalRecommendation).length > 0 ||
+    entryPoint === "ops_career_manual_internal_recommendation"
+  ) {
+    return ["Ops manual 추천"];
+  }
+
+  return [];
+}
+
+function buildSelectedActionLabels(args: {
+  plan: Record<string, unknown>;
+  row: any;
+}) {
+  const labels = [
+    ...getV2Actions(args.plan).map(formatSelectedActionLabel),
+    ...buildInjectedActionLabels(args.row),
+  ];
+  return Array.from(new Set(labels));
 }
 
 function isGenericOrchestrationSkipReason(value: string | null) {
@@ -806,6 +873,7 @@ function includesSearchQuery(item: OpsDebugOpportunityRunItem, query: string) {
     item.talent.name,
     item.trigger,
     ...item.actionLabels,
+    ...item.selectedActionLabels,
     ...item.recommendations.map((rec) =>
       [rec.roleName, rec.companyName, rec.sourceType, rec.opportunityType]
         .filter(Boolean)
@@ -968,7 +1036,9 @@ async function fetchTalentSettings(args: {
   for (const page of chunk(userIds, 200)) {
     const { data, error } = await args.admin
       .from("talent_setting")
-      .select("user_id, get_external_recommendation, updated_at")
+      .select(
+        "user_id, get_external_recommendation, is_onboarding_done, updated_at"
+      )
       .in("user_id", page);
 
     if (error) {
@@ -980,6 +1050,7 @@ async function fetchTalentSettings(args: {
       if (!userId) continue;
       byUserId.set(userId, {
         getExternalRecommendation: getBoolean(row.get_external_recommendation),
+        isOnboardingDone: Boolean(row.is_onboarding_done),
         updatedAt: getString(row.updated_at),
       });
     }
@@ -1083,6 +1154,10 @@ function runFromRow(args: {
       plan: queryPlan,
       recommendationCount,
     }),
+    selectedActionLabels: buildSelectedActionLabels({
+      plan: queryPlan,
+      row: args.row,
+    }),
     actionSummary,
     agentVersion,
     channelSummary,
@@ -1116,19 +1191,50 @@ function runFromRow(args: {
   };
 }
 
+function hasSentEmail(item: OpsDebugOpportunityRunItem) {
+  return item.deliveries.some(
+    (delivery) => delivery.channel === "email" && delivery.status === "sent"
+  );
+}
+
+function getRecommendationSourceType(recommendation: RecommendationSummary) {
+  const sourceType = recommendation.sourceType?.toLowerCase();
+  if (sourceType === "internal" || sourceType === "external") {
+    return sourceType;
+  }
+  const opportunityType = recommendation.opportunityType?.toLowerCase();
+  if (
+    opportunityType === "internal_recommendation" ||
+    opportunityType === "intro_request"
+  ) {
+    return "internal";
+  }
+  return "external";
+}
+
 function buildStats(args: {
   runs: OpsDebugOpportunityRunItem[];
   sourceLimitReached: boolean;
 }): OpsDebugOpportunityRunStats {
+  const emailSentRuns = args.runs.filter(hasSentEmail);
+  const emailSentRecommendationCounts = emailSentRuns.reduce(
+    (counts, item) => {
+      for (const recommendation of item.recommendations) {
+        counts[getRecommendationSourceType(recommendation)] += 1;
+      }
+      return counts;
+    },
+    { external: 0, internal: 0 }
+  );
+
   return {
     completedCount: args.runs.filter((item) => item.status === "completed")
       .length,
-    emailSentCount: args.runs.filter((item) =>
-      item.deliveries.some(
-        (delivery) => delivery.channel === "email" && delivery.status === "sent"
-      )
-    ).length,
-    failedCount: args.runs.filter((item) => item.status === "failed").length,
+    emailSentCount: emailSentRuns.length,
+    externalRecommendationSentCount: emailSentRecommendationCounts.external,
+    failedCount: args.runs.filter((item) => item.outcome.id === "failed")
+      .length,
+    internalRecommendationSentCount: emailSentRecommendationCounts.internal,
     partialCount: args.runs.filter((item) => item.status === "partial").length,
     recommendOnlyCount: args.runs.filter(
       (item) => item.outcome.id === "recommend_only"
@@ -1138,6 +1244,9 @@ function buildStats(args: {
         item.reviewAction.id === "review" || item.reviewAction.id === "retry"
     ).length,
     sentCount: args.runs.filter((item) => item.outcome.id === "sent").length,
+    sentWithoutRecommendationCount: emailSentRuns.filter(
+      (item) => item.recommendations.length === 0
+    ).length,
     skippedCount: args.runs.filter((item) => item.outcome.id === "skipped")
       .length,
     sourceLimitReached: args.sourceLimitReached,
@@ -1203,12 +1312,16 @@ export async function fetchOpsDebugOpportunityRuns(args: {
     createdFrom: args.createdFrom,
     createdTo: args.createdTo,
   });
-  const sourceLimit = usesInMemoryFilter
-    ? MAX_DEBUG_OPPORTUNITY_RUN_SOURCE_LIMIT
-    : Math.min(
-        MAX_DEBUG_OPPORTUNITY_RUN_SOURCE_LIMIT,
-        Math.max(offset + limit + 1, 220)
-      );
+  const usesDateFilter = Boolean(
+    dateRange.startIso || dateRange.endExclusiveIso
+  );
+  const sourceLimit =
+    usesInMemoryFilter || usesDateFilter
+      ? MAX_DEBUG_OPPORTUNITY_RUN_SOURCE_LIMIT
+      : Math.min(
+          MAX_DEBUG_OPPORTUNITY_RUN_SOURCE_LIMIT,
+          Math.max(offset + limit + 1, 220)
+        );
 
   let runQuery = admin
     .from("opportunity_discovery_run")
@@ -1220,10 +1333,8 @@ export async function fetchOpsDebugOpportunityRuns(args: {
         status,
         trigger,
         run_mode,
-        target_recommendation_count,
         settings_snapshot,
         trigger_payload,
-        user_brief,
         query_plan,
         coverage,
         error_message,
@@ -1236,6 +1347,10 @@ export async function fetchOpsDebugOpportunityRuns(args: {
           user_id,
           name,
           email,
+          resume_file_name,
+          resume_links,
+          resume_storage_path,
+          resume_text,
           created_at,
           last_logined_at
         )
@@ -1313,7 +1428,8 @@ export async function fetchOpsDebugOpportunityRuns(args: {
     runs: page,
     stats: buildStats({
       runs: allRuns,
-      sourceLimitReached: usesInMemoryFilter && rows.length >= sourceLimit,
+      sourceLimitReached:
+        (usesInMemoryFilter || usesDateFilter) && rows.length >= sourceLimit,
     }),
   };
 }

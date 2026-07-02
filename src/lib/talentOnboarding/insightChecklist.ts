@@ -189,9 +189,9 @@ const ADDITIONAL_QUESTION_TWO_ITEM = {
 
 const FINAL_PRIORITY_CONFIRMATION_ITEM = {
   key: "final_priority_confirmation",
-  label: "마지막 우선순위 확인",
+  label: "마지막 우선순위 확인 혹은 종료 확인",
   promptHint:
-    "지금까지의 우선순위와 제약을 짧게 정리한 뒤 빠진 것이 있는지 물었고 사용자가 그 확인에 답했는지",
+    "지금까지의 우선순위와 제약을 짧게 정리한 뒤 빠진 것이 있는지 물었고 사용자가 그 확인에 답했는지 혹은 사용자가 종료를 요청했는지",
   priority: 11,
   kind: "final_confirmation",
 } satisfies OnboardingQuestionChecklistItem;

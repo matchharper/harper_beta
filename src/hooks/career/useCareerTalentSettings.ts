@@ -182,9 +182,11 @@ export const useCareerTalentSettings = ({
       const requestId = ++saveRequestIdRef.current;
       const requestBody: {
         profileVisibility: CareerProfileVisibility;
+        profileVisibilitySource: "profile_settings";
         blockedCompanies?: string[];
       } = {
         profileVisibility: nextSettings.profileVisibility,
+        profileVisibilitySource: "profile_settings",
       };
       if (nextSettings.blockedCompanies !== undefined) {
         requestBody.blockedCompanies = nextSettings.blockedCompanies;

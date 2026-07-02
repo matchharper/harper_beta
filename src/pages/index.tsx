@@ -49,7 +49,6 @@ import { cx } from "@/components/ops/theme";
 import { cn } from "@/lib/cn";
 import { Badge } from "@/components/ui/badge";
 import { MessagesProvider, type Locale } from "@/i18n/useMessage";
-import Face from "@/components/common/Face";
 import {
   CAREER_LANDING_HERO_COPY_ABTEST_COOKIE,
   resolveCareerLandingHeroCopyAbtestType,
@@ -790,11 +789,11 @@ function DesktopWindowMockup({
   onGmailMockupVisibleChange?: (visible: boolean) => void;
 }) {
   return (
-    <div className="pointer-events-auto absolute isolate w-[min(80vw,280px)] overflow-hidden rounded-[16px] bg-neutral-50 text-neutral-950 ring-1 ring-black/15 [clip-path:inset(0_round_16px)] md:pointer-events-none md:w-[94%] md:translate-x-0 md:rounded-[16px] md:[clip-path:inset(0_round_16px)]">
+    <div className="[clip-path:inset(0_round_16px)] md:[clip-path:inset(0_round_0px)] md:rounded-t-[16px] pointer-events-auto absolute isolate w-[min(90vw,320px)] overflow-hidden bg-neutral-50 text-neutral-950 ring-1 ring-black/15 md:pointer-events-none md:w-[94%] md:translate-x-0">
       <div className="hidden h-9 grid-cols-[64px_1fr_76px] items-center bg-neutral-100 px-3 text-[11px] text-neutral-500 ring-1 ring-black/[0.06] md:grid sm:grid-cols-[110px_1fr_110px] sm:px-4 sm:text-[13px]">
         <div className="flex gap-2">
-          <span className="h-2 w-2 rounded-full bg-neutral-300 sm:h-2.5 sm:w-2.5" />
-          <span className="h-2 w-2 rounded-full bg-neutral-300 sm:h-2.5 sm:w-2.5" />
+          <span className="h-2 w-2 rounded-full bg-red-500 sm:h-2.5 sm:w-2.5" />
+          <span className="h-2 w-2 rounded-full bg-green-500 sm:h-2.5 sm:w-2.5" />
           <span className="h-2 w-2 rounded-full bg-neutral-300 sm:h-2.5 sm:w-2.5" />
         </div>
         <div className="whitespace-nowrap text-xs text-center font-normal text-neutral-600">
@@ -803,7 +802,7 @@ function DesktopWindowMockup({
         <div />
       </div>
 
-      <div className="relative aspect-[390/700] overflow-hidden rounded-[28px] bg-neutral-50 [clip-path:inset(0_round_28px)] md:aspect-[1512/827] md:rounded-none md:[clip-path:none]">
+      <div className="relative aspect-[390/700] overflow-hidden rounded-[20px] bg-neutral-50 [clip-path:inset(0_round_28px)] md:aspect-[1512/827] md:rounded-none md:[clip-path:none]">
         <div className="absolute inset-0">
           <CareerWorkspacePreview
             embedded
@@ -866,14 +865,14 @@ function HeroScreenshot({
   const [showGmailMockup, setShowGmailMockup] = useState(false);
 
   return (
-    <div className="relative flex items-center justify-center mx-auto mt-6 md:mt-12 h-[520px] w-full max-w-[1240px] overflow-hidden rounded-[18px] bg-neutral-200 ring-1 ring-black/[0.06] md:mt-14 md:h-[670px]">
+    <div className="shadow-lg md:shadow-lg relative flex items-center md:items-end justify-center mx-auto mt-6 md:mt-12 h-[640px] w-full max-w-[1440px] overflow-hidden rounded-[18px] bg-neutral-200 ring-1 ring-black/[0.06] md:mt-14 md:h-[720px]">
       <Image
         src="/images/orangesky2.jpg"
         alt=""
         fill
         priority
         sizes="(min-width: 1280px) 1240px, 100vw"
-        className="object-cover opacity-[0.45] brightness-[1.12] contrast-[0.82] saturate-[0.52]"
+        className="object-cover opacity-[0.95] brightness-[1.02] contrast-[0.82] saturate-[0.62]"
       />
       <div className="absolute inset-0 bg-neutral-200/40" />
       <div className="pointer-events-none absolute inset-x-4 top-4 z-30 md:hidden">
@@ -1271,7 +1270,7 @@ function ProfileSyncVisual({
             transition={{ duration: 0.48, ease: [0.22, 1, 0.36, 1] }}
             className="relative overflow-hidden rounded-[18px] bg-white shadow-[0_14px_40px_rgba(40,30,20,0.10),0_0_0_1px_rgba(0,0,0,0.05)]"
           >
-            <div className="relative h-[70px] bg-[#C9956C]">
+            <div className="relative h-[70px] bg-primary">
               <div className="absolute left-[22px] top-[38px] flex h-16 w-16 items-center justify-center rounded-full border-[3px] border-white bg-[#ECE5DB] text-[#A0917E]">
                 <User2 className="h-8 w-8" strokeWidth={1.8} />
               </div>
@@ -1281,7 +1280,7 @@ function ProfileSyncVisual({
               <div className="text-[17px] font-semibold leading-tight tracking-normal text-[#1F1C1A]">
                 {profile.name}
               </div>
-              <div className="mt-1 text-[13px] leading-snug text-[#857B6E]">
+              <div className="mt-1 text-[14px] leading-snug text-neutral-700">
                 {profile.role}
               </div>
               <div className="mt-3.5 flex flex-wrap gap-[7px]">
@@ -1289,7 +1288,7 @@ function ProfileSyncVisual({
                   <span
                     key={skill}
                     className={cn(
-                      "whitespace-nowrap rounded-full px-3 py-[5px] text-[12.5px] font-medium",
+                      "whitespace-nowrap rounded-full px-3 py-1 text-[13px] font-medium",
                       index === 0
                         ? "bg-[#14110F] text-white"
                         : "border border-black/10 bg-white text-[#3A342D]"
@@ -1310,17 +1309,39 @@ function ProfileSyncVisual({
             {
               label: "LinkedIn",
               className: "right-[-20px] top-11",
-              icon: Linkedin,
+              icon: (
+                <Image
+                  src="/images/logos/linkedin2.svg"
+                  alt="LinkedIn"
+                  width={28}
+                  height={28}
+                />
+              ),
             },
             {
               label: "GitHub",
               className: "left-[-26px] top-[calc(30%_-_27px)]",
-              icon: Github,
+              icon: (
+                <Image
+                  src="/images/logos/github.svg"
+                  alt="GitHub"
+                  width={32}
+                  height={32}
+                  className="rounded-sm"
+                />
+              ),
             },
             {
               label: "X",
               className: "bottom-[-16px] right-[-8px]",
-              icon: GraduationCap,
+              icon: (
+                <Image
+                  src="/images/logos/scholar.png"
+                  alt="X"
+                  width={27}
+                  height={27}
+                />
+              ),
             },
           ].map(({ className: badgeClassName, icon: Icon, label }, index) => (
             <motion.span
@@ -1339,7 +1360,7 @@ function ProfileSyncVisual({
                 badgeClassName
               )}
             >
-              <Icon className="h-[27px] w-[27px]" strokeWidth={1.8} />
+              {Icon}
             </motion.span>
           ))}
         </div>
@@ -1793,7 +1814,7 @@ function AudienceModeCard({
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.04)_0%,rgba(0,0,0,0.3)_44%,rgba(0,0,0,0.8)_100%)]" />
       <div className="relative flex min-h-full w-full flex-col justify-between">
         <div className="flex items-start justify-between gap-3">
-          <span className="inline-flex min-h-7 items-center rounded-full bg-white/88 px-2.5 py-1 text-[11px] font-medium leading-tight text-neutral-950 backdrop-blur-sm">
+          <span className="inline-flex min-h-6 items-center rounded-md bg-white/20 px-2.5 py-1 text-[12px] font-semibold leading-tight text-white backdrop-blur-sm">
             {card.eyebrow}
           </span>
         </div>
@@ -2248,7 +2269,10 @@ export default function LandingKoVfPage({
               <Reveal>
                 <TalentSocialProof title={copy.socialProofTitle} />
               </Reveal>
-
+            </div>
+          </section>
+          <section className={`${ui.pageX}`}>
+            <div className="mx-auto w-full max-w-[1240px]">
               <Reveal once blur={0} distance={20} delay={0.08}>
                 <HeroScreenshot
                   desktopLabel={copy.hero.desktopLabel}
@@ -2260,7 +2284,7 @@ export default function LandingKoVfPage({
 
           <section
             id="workflow"
-            className={`${ui.pageX} ${ui.sectionY} bg-neutral-50`}
+            className={`${ui.pageX} ${ui.sectionY} bg-neutral-50 mt-20`}
           >
             <div className={ui.shell}>
               <div className="md:hidden">

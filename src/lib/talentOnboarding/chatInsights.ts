@@ -15,7 +15,9 @@ import {
   upsertTalentInsights,
 } from "@/lib/talentOnboarding/server";
 import {
+  getInsightChecklist,
   getOnboardingAdditionalQuestionKeys,
+  getOnboardingQuestionByInsightKey,
   ONBOARDING_QUESTION_BY_INSIGHT_KEY,
   ONBOARDING_QUESTION_CHECKLIST_KEY_SET,
   type OnboardingChecklistLocationContext,
@@ -312,6 +314,165 @@ function formatRecentMessagesForLog(messages: ExtractionConversationMessage[]) {
   }));
 }
 
+function normalizeForComparison(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function latestUserAnswerPair(args: {
+  assistantContent: string;
+  messages: ExtractionConversationMessage[];
+}) {
+  const messages = [...args.messages];
+  const last = messages[messages.length - 1];
+  if (
+    last?.role === "assistant" &&
+    normalizeForComparison(last.content) ===
+      normalizeForComparison(args.assistantContent)
+  ) {
+    messages.pop();
+  }
+
+  let userIndex = -1;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]?.role === "user") {
+      userIndex = index;
+      break;
+    }
+  }
+  if (userIndex <= 0) return null;
+
+  let assistantIndex = -1;
+  for (let index = userIndex - 1; index >= 0; index -= 1) {
+    if (messages[index]?.role === "assistant") {
+      assistantIndex = index;
+      break;
+    }
+  }
+  if (assistantIndex < 0) return null;
+
+  const assistantQuestion = messages[assistantIndex];
+  const userAnswer = messages[userIndex];
+  if (!looksLikeHarperQuestion(assistantQuestion.content)) return null;
+  if (!looksLikeSubstantiveAnswer(userAnswer.content)) return null;
+
+  return {
+    assistantQuestion,
+    userAnswer,
+  };
+}
+
+function looksLikeHarperQuestion(value: string) {
+  const text = normalizeForComparison(value);
+  if (!text) return false;
+  return (
+    text.includes("?") ||
+    /(나요|까요|세요|인가요|있나요|일까요|어떻게|어떤|무엇|뭐|혹시|알려주|말씀해)/.test(
+      text
+    )
+  );
+}
+
+function looksLikeSubstantiveAnswer(value: string) {
+  const text = normalizeForComparison(value).toLowerCase();
+  if (text.length < 2) return false;
+  return !/^(skip|pass|later|not sure|i don't know|idk|잘 모르|모르겠|나중에|건너뛰|패스)\b/.test(
+    text
+  );
+}
+
+function getInsightBackedChecklistKeys(args: {
+  onboardingChecklistContext?: OnboardingChecklistLocationContext;
+}) {
+  const questionByInsightKey = getOnboardingQuestionByInsightKey(
+    args.onboardingChecklistContext
+  );
+  const keys = getInsightChecklist(args.onboardingChecklistContext)
+    .map((item) => questionByInsightKey.get(item.key))
+    .filter((key): key is string => Boolean(key));
+  return new Set(keys);
+}
+
+function areInsightBackedChecklistItemsCovered(args: {
+  currentChecklistCoverage: OnboardingChecklistCoverage | null;
+  currentInsightContent: Record<string, string> | null;
+  onboardingChecklistContext?: OnboardingChecklistLocationContext;
+}) {
+  const questionByInsightKey = getOnboardingQuestionByInsightKey(
+    args.onboardingChecklistContext
+  );
+  const insightItems = getInsightChecklist(args.onboardingChecklistContext);
+  if (insightItems.length === 0) return false;
+
+  return insightItems.every((item) => {
+    const checklistKey = questionByInsightKey.get(item.key);
+    const insightValue = args.currentInsightContent?.[item.key];
+    const hasChecklistCoverage = checklistKey
+      ? args.currentChecklistCoverage?.[checklistKey] === "covered"
+      : false;
+    const hasInsightValue =
+      typeof insightValue === "string" && insightValue.trim().length > 0;
+    return hasChecklistCoverage || hasInsightValue;
+  });
+}
+
+function maybeInferAdditionalQuestionCoverage(args: {
+  assistantContent: string;
+  coveredChecklistKeys: Set<string>;
+  currentChecklistCoverage: OnboardingChecklistCoverage | null;
+  currentInsightContent: Record<string, string> | null;
+  logPrefix: string;
+  messages: ExtractionConversationMessage[];
+  onboardingChecklistContext?: OnboardingChecklistLocationContext;
+}) {
+  const pair = latestUserAnswerPair({
+    assistantContent: args.assistantContent,
+    messages: args.messages,
+  });
+  if (!pair) return null;
+
+  if (
+    !areInsightBackedChecklistItemsCovered({
+      currentChecklistCoverage: args.currentChecklistCoverage,
+      currentInsightContent: args.currentInsightContent,
+      onboardingChecklistContext: args.onboardingChecklistContext,
+    })
+  ) {
+    return null;
+  }
+
+  const insightBackedChecklistKeys = getInsightBackedChecklistKeys({
+    onboardingChecklistContext: args.onboardingChecklistContext,
+  });
+  const hasNewInsightBackedCoverage = Array.from(args.coveredChecklistKeys).some(
+    (key) =>
+      insightBackedChecklistKeys.has(key) &&
+      args.currentChecklistCoverage?.[key] !== "covered"
+  );
+  if (hasNewInsightBackedCoverage) return null;
+
+  const additionalQuestionKeys = getOnboardingAdditionalQuestionKeys(
+    args.onboardingChecklistContext
+  );
+  if (
+    additionalQuestionKeys.some((key) => args.coveredChecklistKeys.has(key))
+  ) {
+    return null;
+  }
+
+  const inferredKey = getFirstMissingAdditionalQuestionKey({
+    currentChecklistCoverage: args.currentChecklistCoverage,
+    onboardingChecklistContext: args.onboardingChecklistContext,
+  });
+  if (!inferredKey) return null;
+
+  logger.log(`[${args.logPrefix}] Applied additional question coverage fallback`, {
+    assistantMessageId: pair.assistantQuestion.id ?? null,
+    coveredChecklistKey: inferredKey,
+    userMessageId: pair.userAnswer.id ?? null,
+  });
+  return inferredKey;
+}
+
 export async function extractAndPersistChatInsights(args: {
   admin: AdminClient;
   assistantContent: string;
@@ -365,6 +526,9 @@ export async function extractAndPersistChatInsights(args: {
       currentChecklistCoverage,
       currentInsightContent: args.currentInsightContent,
       onboardingChecklistContext: args.onboardingChecklistContext,
+    });
+    logger.log("[systemPrompt]", {
+      systemPrompt,
     });
     let rawExtraction = await runCareerInsightExtraction({
       systemPrompt,
@@ -421,9 +585,6 @@ export async function extractAndPersistChatInsights(args: {
 
     const extractedInsights = parsedExtraction.insights;
     const coveredChecklistKeys = new Set(parsedExtraction.coveredChecklistKeys);
-    if (!extractedInsights && coveredChecklistKeys.size === 0) {
-      return 0;
-    }
 
     const processedInsights: Record<string, string> = {};
 
@@ -456,6 +617,26 @@ export async function extractAndPersistChatInsights(args: {
       if (!existingValue) {
         processedInsights[key] = value;
       }
+    }
+
+    const inferredAdditionalQuestionKey = maybeInferAdditionalQuestionCoverage({
+      assistantContent,
+      coveredChecklistKeys,
+      currentChecklistCoverage,
+      currentInsightContent: args.currentInsightContent,
+      logPrefix: args.logPrefix,
+      messages: recentExtractionMessages,
+      onboardingChecklistContext: args.onboardingChecklistContext,
+    });
+    if (inferredAdditionalQuestionKey) {
+      coveredChecklistKeys.add(inferredAdditionalQuestionKey);
+    }
+
+    if (
+      Object.keys(processedInsights).length === 0 &&
+      coveredChecklistKeys.size === 0
+    ) {
+      return 0;
     }
 
     const changedKeysCount = Object.keys(processedInsights).length;

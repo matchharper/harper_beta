@@ -138,8 +138,8 @@ Normalization:
 
 ## User Context Sent To LLM
 
-The LLM receives `llm_user_profile` JSON, not raw DB rows and not the old
-career-chat `userBrief` string.
+The LLM receives `llm_user_profile` JSON, not raw DB rows or the legacy
+career-chat brief string.
 
 ### Tables And Columns
 

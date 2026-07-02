@@ -70,7 +70,7 @@ Key selection policy:
 Extraction scope:
 - Extract from User lines. Harper lines are context only.
 - For covered_onboarding_checklist, use Harper lines only to identify what was asked. Mark a checklist key covered only when the User line answers or clearly addresses that checklist item.
-- For additional_question checklist items, Harper's question may be a profile-gap, direct-contribution, role-depth, preference-depth, or career-transition question without naming the checklist key. If Harper asked that kind of additional question and the User gives a substantive answer, mark the earliest missing additional_question checklist key as covered. Do not mark it covered for refusal, deferral, "I don't know", or an unrelated answer.
+- For additional_question checklist items, If the immediately previous Harper question does not correspond to a canonical insight-backed onboarding item, and the latest User reply substantively answers it, mark the earliest missing additional_question key as covered. Do this even if no durable insight should be extracted.
 - Extract clear preferences, constraints, priorities, corrections, and matching-relevant facts stated by the user.
 - Explicit negative or avoidance conditions are durable matching constraints. If the user says they want to avoid, exclude, reject, dislike, or cannot consider a condition, extract it under "deal_breakers" unless a more specific existing canonical key clearly fits. Examples: "그런 회사는 빼주세요", "대기업은 싫어요", "야근 많은 곳은 피하고 싶어요", "비자 지원 안 되면 안 돼요".
 - If the user adds a new avoidance condition and "deal_breakers" already has a value, use action "update" with the final integrated deal-breaker sentence.

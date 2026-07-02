@@ -1763,6 +1763,7 @@ const CareerNetworkOnboardingContent = () => {
         body: JSON.stringify({
           preferredLocale: locale,
           profileVisibility,
+          profileVisibilitySource: "onboarding",
         }),
       });
       const settingsPayload = await settingsRes.json().catch(() => ({}));
