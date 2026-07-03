@@ -37,6 +37,19 @@ type CareerHistoryPage = {
   nextOffset: number | null;
 };
 
+type SavedStageHistoryPagesPayload = {
+  counts?: unknown;
+  savedStagePages?: Partial<
+    Record<
+      CareerOpportunitySavedStage,
+      {
+        items?: unknown;
+        nextOffset?: unknown;
+      }
+    >
+  >;
+};
+
 type InitialCareerHistoryPage = {
   counts?: CareerHistoryOpportunityCounts | null;
   items?: CareerHistoryOpportunity[];
@@ -97,6 +110,9 @@ const getHistoryBucket = (item: CareerHistoryOpportunity) => {
   return "new";
 };
 
+const isInternalHistoryOpportunity = (item: CareerHistoryOpportunity) =>
+  item.sourceType === "internal" || item.isInternal;
+
 const getHistoryFilterKey = (
   filter: CareerHistoryOpportunityPageFilter
 ): string => {
@@ -104,6 +120,43 @@ const getHistoryFilterKey = (
     return `saved:${filter.savedStage ?? "all"}`;
   }
   return filter.historyTab;
+};
+
+const isHistoryOpportunityInFilter = (
+  item: CareerHistoryOpportunity,
+  filter: CareerHistoryOpportunityPageFilter
+) => {
+  const bucket = getHistoryBucket(item);
+  if (filter.historyTab !== "saved") return bucket === filter.historyTab;
+  if (bucket !== "saved") return false;
+
+  const stage = item.savedStage ?? getDefaultSavedStage(item);
+  if (filter.savedStage === "all") return stage !== "hidden";
+  if (filter.savedStage) return stage === filter.savedStage;
+  return true;
+};
+
+const getLoadedFilterPageOffset = (
+  current: InfiniteData<CareerHistoryPage, number> | undefined,
+  filter: CareerHistoryOpportunityPageFilter
+) => {
+  const seen = new Set<string>();
+  let loadedCount = 0;
+
+  for (const page of current?.pages ?? []) {
+    for (const item of page.items) {
+      if (seen.has(item.id)) continue;
+      seen.add(item.id);
+      if (isHistoryOpportunityInFilter(item, filter)) {
+        loadedCount += 1;
+      }
+    }
+  }
+
+  return (
+    Math.floor(loadedCount / CAREER_HISTORY_PAGE_SIZE) *
+    CAREER_HISTORY_PAGE_SIZE
+  );
 };
 
 const cloneHistoryCounts = (
@@ -120,6 +173,10 @@ const incrementCountsForItem = (
   const bucket = getHistoryBucket(item);
   counts[bucket] += 1;
   counts.total += 1;
+
+  if (bucket === "new" && isInternalHistoryOpportunity(item)) {
+    counts.newInternal += 1;
+  }
 
   if (bucket === "saved") {
     const stage = item.savedStage ?? getDefaultSavedStage(item);
@@ -145,6 +202,7 @@ const mergePagesWithFirstPage = (
 };
 
 export function useCareerHistoryState(args: {
+  autoLoad?: boolean;
   conversationId: string | null;
   enabled: boolean;
   fetchWithAuth: FetchWithAuth;
@@ -166,6 +224,7 @@ export function useCareerHistoryState(args: {
   userId: string | null;
 }) {
   const {
+    autoLoad = true,
     conversationId,
     enabled,
     fetchWithAuth,
@@ -262,7 +321,9 @@ export function useCareerHistoryState(args: {
           return payload;
         };
 
-        const applyFollowUpPayload = async (payload: Record<string, unknown>) => {
+        const applyFollowUpPayload = async (
+          payload: Record<string, unknown>
+        ) => {
           if (payload.assistantMessage) {
             await onHistoryActionAssistantMessage?.(
               payload.assistantMessage as CareerMessagePayload
@@ -440,7 +501,7 @@ export function useCareerHistoryState(args: {
 
   const infinite = useInfiniteQuery({
     queryKey,
-    enabled: enabled && Boolean(userId),
+    enabled: enabled && autoLoad && Boolean(userId),
     initialPageParam: 0,
     queryFn: ({ pageParam }) => fetchHistoryPage(pageParam),
     getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
@@ -521,6 +582,17 @@ export function useCareerHistoryState(args: {
             nextCounts[previousBucket] - 1
           );
           nextCounts[nextBucket] += 1;
+        }
+
+        if (
+          previousBucket === "new" &&
+          isInternalHistoryOpportunity(previousItem)
+        ) {
+          nextCounts.newInternal = Math.max(0, nextCounts.newInternal - 1);
+        }
+
+        if (nextBucket === "new" && isInternalHistoryOpportunity(nextItem)) {
+          nextCounts.newInternal += 1;
         }
 
         if (previousBucket === "saved") {
@@ -1131,6 +1203,12 @@ export function useCareerHistoryState(args: {
     [queryClient, queryKey]
   );
 
+  const hydrateHistoryOpportunityCounts = useCallback((counts: unknown) => {
+    const normalizedCounts = normalizeHistoryOpportunityCounts(counts);
+    if (!normalizedCounts) return;
+    setHistoryOpportunityCounts(normalizedCounts);
+  }, []);
+
   const refreshLatestHistoryOpportunities = useCallback(async () => {
     if (!enabled || !userId) return;
 
@@ -1222,7 +1300,13 @@ export function useCareerHistoryState(args: {
       const currentState = filteredPageStateRef.current[filterKey];
       if (currentState?.loading || currentState?.nextOffset === null) return;
 
-      const offset = currentState?.nextOffset ?? 0;
+      const currentData =
+        queryClient.getQueryData<InfiniteData<CareerHistoryPage, number>>(
+          queryKey
+        );
+      const offset =
+        currentState?.nextOffset ??
+        getLoadedFilterPageOffset(currentData, filter);
       updateFilteredPageState((current) => ({
         ...current,
         [filterKey]: {
@@ -1266,6 +1350,133 @@ export function useCareerHistoryState(args: {
       enabled,
       fetchHistoryPage,
       infinite,
+      queryClient,
+      queryKey,
+      tCareer,
+      updateFilteredPageState,
+      userId,
+    ]
+  );
+
+  const isHistoryOpportunityPageFilterLoading = useCallback(
+    (filter: CareerHistoryOpportunityPageFilter) =>
+      Boolean(filteredPageState[getHistoryFilterKey(filter)]?.loading),
+    [filteredPageState]
+  );
+
+  const loadSavedStageHistoryOpportunityPages = useCallback(
+    async (savedStages: CareerOpportunitySavedStage[]) => {
+      if (!enabled || !userId || savedStages.length === 0) return;
+
+      const uniqueStages = Array.from(new Set(savedStages));
+      const stagesByOffset = new Map<number, CareerOpportunitySavedStage[]>();
+
+      for (const savedStage of uniqueStages) {
+        const filter = {
+          historyTab: "saved",
+          savedStage,
+        } satisfies CareerHistoryOpportunityPageFilter;
+        const filterKey = getHistoryFilterKey(filter);
+        const currentState = filteredPageStateRef.current[filterKey];
+        if (currentState?.loading || currentState?.nextOffset === null) {
+          continue;
+        }
+
+        const offset = currentState?.nextOffset ?? 0;
+        const stages = stagesByOffset.get(offset) ?? [];
+        stages.push(savedStage);
+        stagesByOffset.set(offset, stages);
+      }
+
+      for (const [offset, stages] of stagesByOffset) {
+        updateFilteredPageState((current) => {
+          const next = { ...current };
+          for (const savedStage of stages) {
+            next[getHistoryFilterKey({ historyTab: "saved", savedStage })] = {
+              loading: true,
+              nextOffset: offset,
+            };
+          }
+          return next;
+        });
+
+        try {
+          const searchParams = new URLSearchParams({
+            historyTab: "saved",
+            limit: String(CAREER_HISTORY_PAGE_SIZE),
+            offset: String(offset),
+            savedStages: stages.join(","),
+          });
+          const response = await fetchWithAuth(
+            `/api/talent/opportunities?${searchParams.toString()}`
+          );
+          const payload = (await response
+            .json()
+            .catch(() => ({}))) as SavedStageHistoryPagesPayload &
+            Record<string, unknown>;
+
+          if (!response.ok) {
+            throw new Error(
+              getErrorMessage(payload, tCareer(H.opportunityListLoadFailed))
+            );
+          }
+
+          const counts = normalizeHistoryOpportunityCounts(payload.counts);
+          if (counts) {
+            setHistoryOpportunityCounts(counts);
+          }
+
+          const savedStagePages = payload.savedStagePages ?? {};
+          for (const savedStage of stages) {
+            const rawPage = savedStagePages[savedStage];
+            const page = {
+              counts,
+              items: normalizeHistoryOpportunities(
+                rawPage?.items as Parameters<
+                  typeof normalizeHistoryOpportunities
+                >[0]
+              ),
+              nextOffset:
+                typeof rawPage?.nextOffset === "number"
+                  ? rawPage.nextOffset
+                  : null,
+            } satisfies CareerHistoryPage;
+
+            appendHistoryOpportunityPage(page, offset);
+            updateFilteredPageState((current) => ({
+              ...current,
+              [getHistoryFilterKey({ historyTab: "saved", savedStage })]: {
+                loading: false,
+                nextOffset: page.nextOffset,
+              },
+            }));
+          }
+
+          setHistoryLoaded(true);
+          setHistoryUpdateError("");
+        } catch (error) {
+          updateFilteredPageState((current) => {
+            const next = { ...current };
+            for (const savedStage of stages) {
+              next[getHistoryFilterKey({ historyTab: "saved", savedStage })] = {
+                loading: false,
+                nextOffset: offset,
+              };
+            }
+            return next;
+          });
+          setHistoryUpdateError(
+            error instanceof Error
+              ? error.message
+              : tCareer(H.opportunityListLoadMoreFailed)
+          );
+        }
+      }
+    },
+    [
+      appendHistoryOpportunityPage,
+      enabled,
+      fetchWithAuth,
       tCareer,
       updateFilteredPageState,
       userId,
@@ -1290,14 +1501,17 @@ export function useCareerHistoryState(args: {
   return {
     hasMoreHistoryOpportunities: Boolean(infinite.hasNextPage),
     historyOpportunityCounts: resolvedHistoryOpportunityCounts,
-    historyInitialLoading: infinite.isPending && !infinite.data,
+    historyInitialLoading: autoLoad && infinite.isPending && !infinite.data,
     historyLoaded: historyLoaded || Boolean(infinite.data),
     historyLoadingMore: infinite.isFetchingNextPage || isFilteredPageLoading,
     historyOpportunities,
     historyOpportunityById,
     historyUpdateError,
     historyUpdatingOpportunityIds,
+    hydrateHistoryOpportunityCounts,
     hydrateHistoryOpportunities,
+    isHistoryOpportunityPageFilterLoading,
+    loadSavedStageHistoryOpportunityPages,
     loadHistoryOpportunityByRoleId,
     loadMoreHistoryOpportunities,
     onMarkHistoryOpportunityClicked,

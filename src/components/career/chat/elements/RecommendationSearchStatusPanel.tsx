@@ -32,19 +32,19 @@ export const RecommendationSearchStatusPanel = memo(
       <AlertCircle className="h-4 w-4" />
     );
     const title = isRunning
-      ? t("career.common.career.0y3ajvx", "포지션 검색 중")
+      ? t("career.common.career.0y3ajvx", "검색중...")
       : isCompleted
-        ? t("career.common.career.1d6xtz2", "포지션 검색 완료")
+        ? t("career.common.career.1d6xtz2", "검색 완료")
         : isStopped
           ? t(
               "career.common.career.recommendation_search_stopped_title",
               "포지션 검색 중지됨"
             )
-          : t("career.common.career.030f28a", "포지션 검색 실패");
+          : t("career.common.career.030f28a", "검색 실패");
     const detail = isRunning
       ? t(
           "career.common.career.16yncp4",
-          "프로필과 최근 대화를 기준으로 공고를 검토하고 있습니다."
+          "프로필과 최근 대화를 반영해 최적의 기회를 찾고 있습니다."
         )
       : isCompleted
         ? [
@@ -68,11 +68,11 @@ export const RecommendationSearchStatusPanel = memo(
         : isStopped
           ? t(
               "career.common.career.1clmbsb",
-              "요청한 포지션 검색을 중지했습니다."
+              "요청한 검색을 중지했습니다."
             )
           : t(
               "career.common.career.0vbpl1c",
-              "이번 포지션 검색은 완료하지 못했습니다."
+              "이번 검색은 완료하지 못했습니다."
             );
     const showCancel = isRunning && active && onCancel;
     const iconToneClassName = isRunning

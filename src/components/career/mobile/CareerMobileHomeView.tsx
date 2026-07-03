@@ -290,13 +290,7 @@ const CareerMobileHomeView = ({
   const isOnboardingCompleted = isOnboardingDone || stage === "completed";
 
   const newPositionCount = historyOpportunityCounts.new;
-  const newInternalOpportunityCount = useMemo(
-    () =>
-      historyOpportunities.filter(
-        (item) => item.feedback === null && item.sourceType === "internal"
-      ).length,
-    [historyOpportunities]
-  );
+  const newInternalOpportunityCount = historyOpportunityCounts.newInternal;
   const newPositionDescription = formatCareerMessage(
     m,
     t("career.home.career_home_panel.0x7lgjp", "추천된 기회")

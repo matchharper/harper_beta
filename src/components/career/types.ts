@@ -178,6 +178,7 @@ export type CareerHistoryOpportunityPageFilter = {
 export type CareerHistoryOpportunityCounts = {
   archived: number;
   new: number;
+  newInternal: number;
   saved: number;
   savedStages: Record<CareerOpportunitySavedStage, number>;
   total: number;
@@ -341,6 +342,7 @@ export type SessionResponse = {
     reliefNudgeSent: boolean;
   };
   historyItems?: CareerHistoryItem[];
+  historyOpportunitiesIncluded?: boolean;
   historyOpportunityCounts?: CareerHistoryOpportunityCounts;
   historyOpportunities?: CareerHistoryOpportunity[];
   talentPreferences?: CareerTalentPreferences | null;

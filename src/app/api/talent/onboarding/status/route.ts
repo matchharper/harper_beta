@@ -76,11 +76,8 @@ export async function GET(req: NextRequest) {
       hasResumeLink(profile?.resume_links)
     );
     const conversationStage = normalizeText(conversationResult.data?.stage);
-    const hasStartedConversation =
-      conversationStage.length > 0 && conversationStage !== "profile";
     const isOnboardingDone = Boolean(settingResult.data?.is_onboarding_done);
-    const needsOnboarding =
-      !hasFirstSubmission && !hasStartedConversation && !isOnboardingDone;
+    const needsOnboarding = !hasFirstSubmission && !isOnboardingDone;
 
     return NextResponse.json({
       ok: true,

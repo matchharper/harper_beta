@@ -3,12 +3,15 @@ import {
   getOfficialJobsCopy,
   type OfficialJobsLocale,
 } from "@/lib/officialJobs/copy";
+import type { OfficialJobsCareerJob } from "@/lib/officialJobs";
 import Image from "next/image";
 import Link from "next/link";
 
 export default function OfficialJobsHeader({
+  job,
   locale = "ko",
 }: {
+  job?: OfficialJobsCareerJob;
   locale?: OfficialJobsLocale;
 }) {
   const copy = getOfficialJobsCopy(locale);
@@ -39,6 +42,7 @@ export default function OfficialJobsHeader({
             {copy.header.forCompanies}
           </Link>
           <OfficialJobsCtaLink
+            job={job}
             variant="secondary"
             size="sm"
             locale={locale}

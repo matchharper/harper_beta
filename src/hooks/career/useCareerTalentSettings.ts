@@ -3,16 +3,25 @@ import { getErrorMessage } from "./careerHelpers";
 import type { FetchWithAuth } from "./useCareerApi";
 import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
 import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
+import {
+  TALENT_NETWORK_ENGAGEMENT_OPTIONS,
+  type TalentNetworkEngagementOptionId,
+} from "@/lib/talentNetworkOptions";
 
 export type CareerProfileVisibility =
   | "open_to_matches"
   | "exceptional_only"
   | "dont_share";
+export type CareerEngagementType = TalentNetworkEngagementOptionId;
 
 const DEFAULT_PROFILE_VISIBILITY: CareerProfileVisibility = "exceptional_only";
+const ALLOWED_ENGAGEMENT_TYPES = new Set<CareerEngagementType>(
+  TALENT_NETWORK_ENGAGEMENT_OPTIONS.map((option) => option.id)
+);
 
 type SettingsPayload = {
   settings?: {
+    engagementTypes?: string[];
     profileVisibility?: string;
     blockedCompanies?: string[];
   };
@@ -21,6 +30,7 @@ type SettingsPayload = {
 };
 
 type UseCareerTalentSettingsArgs = {
+  enabled?: boolean;
   userId: string | null;
   authLoading: boolean;
   fetchWithAuth: FetchWithAuth;
@@ -54,6 +64,22 @@ const normalizeBlockedCompanies = (companies: unknown): string[] => {
   return Array.from(unique.values());
 };
 
+const normalizeEngagementTypes = (values: unknown): CareerEngagementType[] => {
+  if (!Array.isArray(values)) return [];
+
+  const selected = new Set<CareerEngagementType>();
+  for (const raw of values) {
+    const value = String(raw ?? "").trim() as CareerEngagementType;
+    if (ALLOWED_ENGAGEMENT_TYPES.has(value)) {
+      selected.add(value);
+    }
+  }
+
+  return TALENT_NETWORK_ENGAGEMENT_OPTIONS.map((option) => option.id).filter(
+    (value) => selected.has(value)
+  );
+};
+
 const sameStringArray = (left: string[], right: string[]) => {
   if (left.length !== right.length) return false;
   return left.every((value, index) => value === right[index]);
@@ -65,6 +91,7 @@ const normalizeUpdatedAt = (value: unknown) => {
 };
 
 export const useCareerTalentSettings = ({
+  enabled = true,
   userId,
   authLoading,
   fetchWithAuth,
@@ -79,6 +106,12 @@ export const useCareerTalentSettings = ({
     useState<CareerProfileVisibility>(DEFAULT_PROFILE_VISIBILITY);
   const [savedProfileVisibility, setSavedProfileVisibility] =
     useState<CareerProfileVisibility>(DEFAULT_PROFILE_VISIBILITY);
+  const [engagementTypes, setEngagementTypes] = useState<
+    CareerEngagementType[]
+  >([]);
+  const [savedEngagementTypes, setSavedEngagementTypes] = useState<
+    CareerEngagementType[]
+  >([]);
   const [blockedCompanies, setBlockedCompanies] = useState<string[]>([]);
   const [savedBlockedCompanies, setSavedBlockedCompanies] = useState<string[]>(
     []
@@ -90,6 +123,7 @@ export const useCareerTalentSettings = ({
   const applyPersistedSettings = useCallback(
     (
       settings: {
+        engagementTypes?: unknown;
         profileVisibility?: unknown;
         blockedCompanies?: unknown;
       },
@@ -101,12 +135,17 @@ export const useCareerTalentSettings = ({
       const nextVisibility = normalizeProfileVisibility(
         settings.profileVisibility
       );
+      const nextEngagementTypes = normalizeEngagementTypes(
+        settings.engagementTypes
+      );
       const nextBlockedCompanies = normalizeBlockedCompanies(
         settings.blockedCompanies
       );
 
       setProfileVisibility(nextVisibility);
       setSavedProfileVisibility(nextVisibility);
+      setEngagementTypes(nextEngagementTypes);
+      setSavedEngagementTypes(nextEngagementTypes);
       if (!options?.preserveLocalBlockedCompanies) {
         setBlockedCompanies(nextBlockedCompanies);
       }
@@ -162,18 +201,23 @@ export const useCareerTalentSettings = ({
       setSettingsError("");
       setProfileVisibility(DEFAULT_PROFILE_VISIBILITY);
       setSavedProfileVisibility(DEFAULT_PROFILE_VISIBILITY);
+      setEngagementTypes([]);
+      setSavedEngagementTypes([]);
       setBlockedCompanies([]);
       setSavedBlockedCompanies([]);
       setSettingsUpdatedAt(null);
       return;
     }
 
+    if (!enabled) return;
+
     void fetchSettings();
-  }, [authLoading, fetchSettings, userId]);
+  }, [authLoading, enabled, fetchSettings, userId]);
 
   const persistSettings = useCallback(
     async (nextSettings: {
       profileVisibility: CareerProfileVisibility;
+      engagementTypes?: CareerEngagementType[];
       blockedCompanies?: string[];
       preserveLocalBlockedCompanies?: boolean;
     }) => {
@@ -181,6 +225,7 @@ export const useCareerTalentSettings = ({
 
       const requestId = ++saveRequestIdRef.current;
       const requestBody: {
+        engagementTypes?: CareerEngagementType[];
         profileVisibility: CareerProfileVisibility;
         profileVisibilitySource: "profile_settings";
         blockedCompanies?: string[];
@@ -190,6 +235,9 @@ export const useCareerTalentSettings = ({
       };
       if (nextSettings.blockedCompanies !== undefined) {
         requestBody.blockedCompanies = nextSettings.blockedCompanies;
+      }
+      if (nextSettings.engagementTypes !== undefined) {
+        requestBody.engagementTypes = nextSettings.engagementTypes;
       }
 
       setSettingsSaving(true);
@@ -238,9 +286,10 @@ export const useCareerTalentSettings = ({
   const saveSettings = useCallback(async () => {
     return persistSettings({
       profileVisibility,
+      engagementTypes,
       blockedCompanies,
     });
-  }, [blockedCompanies, persistSettings, profileVisibility]);
+  }, [blockedCompanies, engagementTypes, persistSettings, profileVisibility]);
 
   const updateProfileVisibility = useCallback(
     async (value: CareerProfileVisibility) => {
@@ -269,6 +318,40 @@ export const useCareerTalentSettings = ({
       persistSettings,
       profileVisibility,
       savedProfileVisibility,
+      settingsLoading,
+      settingsSaving,
+    ]
+  );
+
+  const updateEngagementTypes = useCallback(
+    async (values: CareerEngagementType[]) => {
+      const nextEngagementTypes = normalizeEngagementTypes(values);
+      if (
+        settingsLoading ||
+        settingsSaving ||
+        sameStringArray(nextEngagementTypes, engagementTypes)
+      ) {
+        return false;
+      }
+
+      const previousEngagementTypes = engagementTypes;
+      setEngagementTypes(nextEngagementTypes);
+      setSettingsError("");
+
+      const saved = await persistSettings({
+        profileVisibility,
+        engagementTypes: nextEngagementTypes,
+        preserveLocalBlockedCompanies: true,
+      });
+      if (!saved) {
+        setEngagementTypes(previousEngagementTypes);
+      }
+      return saved;
+    },
+    [
+      engagementTypes,
+      persistSettings,
+      profileVisibility,
       settingsLoading,
       settingsSaving,
     ]
@@ -338,18 +421,22 @@ export const useCareerTalentSettings = ({
 
   const resetTalentSettings = useCallback(() => {
     setProfileVisibility(savedProfileVisibility);
+    setEngagementTypes(savedEngagementTypes);
     setBlockedCompanies(savedBlockedCompanies);
     setSettingsError("");
-  }, [savedBlockedCompanies, savedProfileVisibility]);
+  }, [savedBlockedCompanies, savedEngagementTypes, savedProfileVisibility]);
 
   const hasUnsavedTalentSettingsChanges = useMemo(
     () =>
       profileVisibility !== savedProfileVisibility ||
+      !sameStringArray(engagementTypes, savedEngagementTypes) ||
       !sameStringArray(blockedCompanies, savedBlockedCompanies),
     [
       blockedCompanies,
+      engagementTypes,
       profileVisibility,
       savedBlockedCompanies,
+      savedEngagementTypes,
       savedProfileVisibility,
     ]
   );
@@ -361,9 +448,11 @@ export const useCareerTalentSettings = ({
       settingsError,
       settingsUpdatedAt,
       profileVisibility,
+      engagementTypes,
       blockedCompanies,
       hasUnsavedTalentSettingsChanges,
       onProfileVisibilityChange: updateProfileVisibility,
+      onEngagementTypesChange: updateEngagementTypes,
       onAddBlockedCompany: addBlockedCompany,
       onRemoveBlockedCompany: removeBlockedCompany,
       onSaveTalentSettings: saveSettings,
@@ -373,6 +462,7 @@ export const useCareerTalentSettings = ({
     [
       addBlockedCompany,
       blockedCompanies,
+      engagementTypes,
       fetchSettings,
       hasUnsavedTalentSettingsChanges,
       profileVisibility,
@@ -383,6 +473,7 @@ export const useCareerTalentSettings = ({
       settingsLoading,
       settingsSaving,
       settingsUpdatedAt,
+      updateEngagementTypes,
       updateProfileVisibility,
     ]
   );

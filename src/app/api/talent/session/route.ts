@@ -49,6 +49,7 @@ import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 // const REENGAGEMENT_IDLE_MS = 60 * 1000;
 const REENGAGEMENT_IDLE_MS = 12 * 60 * 60 * 1000; // 12시간 지나서 접속시 인사
 const DEFAULT_OPPORTUNITY_LIMIT = 10;
+const RECENT_OPPORTUNITY_PREVIEW_LIMIT = 8;
 
 const getLatestUpdatedAt = (...values: Array<string | null | undefined>) => {
   const timestamps = values
@@ -74,14 +75,14 @@ const parseTimestampMs = (value: string | null | undefined) => {
   return Number.isNaN(time) ? 0 : time;
 };
 
-const parsePositiveIntegerParam = (
+const parseNonNegativeIntegerParam = (
   value: string | null,
   fallback: number,
   max: number
 ) => {
   const parsed = Number(value ?? fallback);
   if (!Number.isFinite(parsed)) return fallback;
-  return Math.max(1, Math.min(Math.floor(parsed), max));
+  return Math.max(0, Math.min(Math.floor(parsed), max));
 };
 
 const parseOffsetParam = (value: string | null) => {
@@ -135,6 +136,7 @@ const hasTalentFirstSubmission = (
 const createEmptyHistoryCounts = () => ({
   archived: 0,
   new: 0,
+  newInternal: 0,
   saved: 0,
   savedStages: {
     saved: 0,
@@ -329,10 +331,7 @@ export async function GET(req: NextRequest) {
       const isOnboardingDone = Boolean(
         initialTalentSetting?.is_onboarding_done
       );
-      const needsOnboarding =
-        conversation.stage === "profile" &&
-        !hasFirstSubmission &&
-        !isOnboardingDone;
+      const needsOnboarding = !hasFirstSubmission && !isOnboardingDone;
 
       return NextResponse.json({
         ok: true,
@@ -363,7 +362,7 @@ export async function GET(req: NextRequest) {
       rawBeforeMessageId && /^\d+$/.test(rawBeforeMessageId)
         ? Number(rawBeforeMessageId)
         : null;
-    const opportunityLimit = parsePositiveIntegerParam(
+    const opportunityLimit = parseNonNegativeIntegerParam(
       req.nextUrl.searchParams.get("opportunityLimit"),
       DEFAULT_OPPORTUNITY_LIMIT,
       100
@@ -371,6 +370,15 @@ export async function GET(req: NextRequest) {
     const opportunityOffset = parseOffsetParam(
       req.nextUrl.searchParams.get("opportunityOffset")
     );
+    const historyOpportunitiesIncluded = opportunityLimit > 0;
+    const shouldLoadOpportunityPage =
+      historyOpportunitiesIncluded || beforeMessageId === null;
+    const historyFetchLimit = historyOpportunitiesIncluded
+      ? opportunityLimit
+      : RECENT_OPPORTUNITY_PREVIEW_LIMIT;
+    const historyFetchOffset = historyOpportunitiesIncluded
+      ? opportunityOffset
+      : 0;
     const allowReengagement =
       !beforeMessageId &&
       req.nextUrl.searchParams.get("allowReengagement") === "1";
@@ -576,14 +584,20 @@ export async function GET(req: NextRequest) {
         userId: user.id,
       }),
       withSessionFallback({
-        fallback: createEmptyHistoryPage(opportunityLimit, opportunityOffset),
-        label: "opportunity history",
-        promise: fetchTalentOpportunityHistoryPage({
-          admin,
-          limit: opportunityLimit,
-          offset: opportunityOffset,
-          userId: user.id,
-        }),
+        fallback: createEmptyHistoryPage(historyFetchLimit, historyFetchOffset),
+        label: historyOpportunitiesIncluded
+          ? "opportunity history"
+          : "opportunity preview",
+        promise: shouldLoadOpportunityPage
+          ? fetchTalentOpportunityHistoryPage({
+              admin,
+              limit: historyFetchLimit,
+              offset: historyFetchOffset,
+              userId: user.id,
+            })
+          : Promise.resolve(
+              createEmptyHistoryPage(historyFetchLimit, historyFetchOffset)
+            ),
         userId: user.id,
       }),
       withSessionFallback({
@@ -640,12 +654,17 @@ export async function GET(req: NextRequest) {
           userId: user.id,
         })
       : null;
-    const historyOpportunities = historyOpportunitiesPage.items;
+    const historyPageOpportunities = historyOpportunitiesPage.items;
+    const historyOpportunities = historyOpportunitiesIncluded
+      ? historyPageOpportunities
+      : [];
     const talentSettingsUpdatedAt = talentSetting?.updated_at ?? null;
     const talentPreferencesUpdatedAt = talentSetting?.updated_at ?? null;
     const talentInsightsUpdatedAt = talentInsights?.last_updated_at ?? null;
-    const recentOpportunities = historyOpportunities
-      .slice(0, 8)
+    const recentOpportunityItems =
+      beforeMessageId === null ? historyPageOpportunities : [];
+    const recentOpportunities = recentOpportunityItems
+      .slice(0, RECENT_OPPORTUNITY_PREVIEW_LIMIT)
       .map((item) => ({
         id: item.id,
         kind: item.kind,
@@ -768,9 +787,12 @@ export async function GET(req: NextRequest) {
         reliefNudgeSent: Boolean(conversation.relief_nudge_sent),
       },
       historyItems: [],
+      historyOpportunitiesIncluded,
       historyOpportunityCounts: historyOpportunitiesPage.counts,
       historyOpportunities,
-      nextOpportunityOffset: historyOpportunitiesPage.nextOffset,
+      nextOpportunityOffset: historyOpportunitiesIncluded
+        ? historyOpportunitiesPage.nextOffset
+        : null,
       talentPreferences: {
         engagementTypes: normalizeTalentEngagementTypes(
           talentSetting?.engagement_types ?? []

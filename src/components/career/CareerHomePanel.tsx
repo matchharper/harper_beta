@@ -314,13 +314,7 @@ const CareerHomePanel = ({
     (typeof user?.email === "string" ? user.email.split("@")[0] : "Candidate");
 
   const newPositionCount = historyOpportunityCounts.new;
-  const newInternalOpportunityCount = useMemo(
-    () =>
-      historyOpportunities.filter(
-        (item) => item.feedback === null && item.sourceType === "internal"
-      ).length,
-    [historyOpportunities]
-  );
+  const newInternalOpportunityCount = historyOpportunityCounts.newInternal;
   const newPositionDescription = formatCareerMessage(
     m,
     t("career.home.career_home_panel.0x7lgjp", "추천된 기회")
@@ -656,106 +650,106 @@ const CareerHomePanel = ({
         setDevPromptLoggingKind(null);
       }
     },
-    [
-      conversationId,
-      devPromptLoggingKind,
-      fetchWithAuth,
-      logCareerEvent,
-    ]
+    [conversationId, devPromptLoggingKind, fetchWithAuth, logCareerEvent]
   );
 
   // career-i18n-skip-next-line: dev controls text is intentionally Korean-only.
-  const handleRunDevCompanyRoleFts = React.useCallback(async (args?: {
-    sourceType?: "internal";
-  }) => {
-    if (devRoleFtsLoading) return;
+  const handleRunDevCompanyRoleFts = React.useCallback(
+    async (args?: { sourceType?: "internal" }) => {
+      if (devRoleFtsLoading) return;
 
-    const internalOnly = args?.sourceType === "internal";
-    const rawKeywords = window.prompt(
-      internalOnly
-        ? "internal company_roles FTS 검색 키워드\n쉼표나 줄바꿈으로 여러 개 입력할 수 있습니다."
-        : "company_roles FTS 검색 키워드\n쉼표나 줄바꿈으로 여러 개 입력할 수 있습니다.",
-      internalOnly ? "CTO" : "founding engineer, machine learning"
-    );
-    if (rawKeywords === null) return;
+      const internalOnly = args?.sourceType === "internal";
+      const rawKeywords = window.prompt(
+        internalOnly
+          ? "internal company_roles FTS 검색 키워드\n쉼표나 줄바꿈으로 여러 개 입력할 수 있습니다."
+          : "company_roles FTS 검색 키워드\n쉼표나 줄바꿈으로 여러 개 입력할 수 있습니다.",
+        internalOnly ? "CTO" : "founding engineer, machine learning"
+      );
+      if (rawKeywords === null) return;
 
-    const keywords = rawKeywords
-      .split(/[\n,]+/)
-      .map((keyword) => keyword.trim())
-      .filter(Boolean);
-    if (keywords.length === 0) return;
+      const keywords = rawKeywords
+        .split(/[\n,]+/)
+        .map((keyword) => keyword.trim())
+        .filter(Boolean);
+      if (keywords.length === 0) return;
 
-    logCareerEvent(
-      internalOnly
-        ? "click_home_dev_internal_company_roles_fts"
-        : "click_home_dev_company_roles_fts"
-    );
-    setDevRoleFtsLoading(true);
-    setDevRoleFtsStatus("");
-    try {
-      const response = await fetchWithAuth(
-        "/api/talent/dev-company-role-search",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            keywords,
-            limit: 25,
-            ...(internalOnly ? { sourceType: "internal" } : {}),
-          }),
+      logCareerEvent(
+        internalOnly
+          ? "click_home_dev_internal_company_roles_fts"
+          : "click_home_dev_company_roles_fts"
+      );
+      setDevRoleFtsLoading(true);
+      setDevRoleFtsStatus("");
+      try {
+        const response = await fetchWithAuth(
+          "/api/talent/dev-company-role-search",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              keywords,
+              limit: 25,
+              ...(internalOnly ? { sourceType: "internal" } : {}),
+            }),
+          }
+        );
+        const payload = (await response
+          .json()
+          .catch(() => ({}))) as CareerDevCompanyRoleFtsResult;
+
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload.error || "company_roles FTS 검색 실패");
         }
-      );
-      const payload = (await response
-        .json()
-        .catch(() => ({}))) as CareerDevCompanyRoleFtsResult;
 
-      if (!response.ok || !payload.ok) {
-        throw new Error(payload.error || "company_roles FTS 검색 실패");
+        const rows = Array.isArray(payload.rows) ? payload.rows : [];
+        const elapsedSeconds =
+          typeof payload.elapsedSeconds === "number"
+            ? payload.elapsedSeconds
+            : null;
+        const sourceTypeLabel =
+          payload.sourceType === "internal" || internalOnly
+            ? "internal"
+            : "all";
+        const summary = `${sourceTypeLabel} · ${payload.rowCount ?? rows.length}개 · ${
+          elapsedSeconds === null ? "-" : `${elapsedSeconds}s`
+        }`;
+
+        console.groupCollapsed(
+          `[company_roles FTS:${sourceTypeLabel}] ${summary} · ${(
+            payload.keywords ?? keywords
+          ).join(", ")}`
+        );
+        console.table(
+          rows.map((row) => ({
+            rank: row.search_rank,
+            role: row.role_name,
+            company: row.company_name,
+            status: row.status,
+            source: row.source_type,
+            location: row.location_text,
+            matched: Array.isArray(row.matched_keywords)
+              ? row.matched_keywords.join(", ")
+              : row.matched_keywords,
+            posted_at: row.posted_at,
+            url: row.external_jd_url,
+          }))
+        );
+        console.log(rows);
+        console.groupEnd();
+
+        setDevRoleFtsStatus(`FTS ${summary} · 콘솔 확인`);
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "company_roles FTS 검색 실패";
+        console.warn("[CareerHomePanel] company_roles FTS failed", error);
+        setDevRoleFtsStatus(message);
+      } finally {
+        setDevRoleFtsLoading(false);
       }
-
-      const rows = Array.isArray(payload.rows) ? payload.rows : [];
-      const elapsedSeconds =
-        typeof payload.elapsedSeconds === "number"
-          ? payload.elapsedSeconds
-          : null;
-      const sourceTypeLabel =
-        payload.sourceType === "internal" || internalOnly ? "internal" : "all";
-      const summary = `${sourceTypeLabel} · ${payload.rowCount ?? rows.length}개 · ${
-        elapsedSeconds === null ? "-" : `${elapsedSeconds}s`
-      }`;
-
-      console.groupCollapsed(
-        `[company_roles FTS:${sourceTypeLabel}] ${summary} · ${(
-          payload.keywords ?? keywords
-        ).join(", ")}`
-      );
-      console.table(
-        rows.map((row) => ({
-          rank: row.search_rank,
-          role: row.role_name,
-          company: row.company_name,
-          status: row.status,
-          source: row.source_type,
-          location: row.location_text,
-          matched: Array.isArray(row.matched_keywords)
-            ? row.matched_keywords.join(", ")
-            : row.matched_keywords,
-          posted_at: row.posted_at,
-          url: row.external_jd_url,
-        }))
-      );
-      console.log(rows);
-      console.groupEnd();
-
-      setDevRoleFtsStatus(`FTS ${summary} · 콘솔 확인`);
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "company_roles FTS 검색 실패";
-      console.warn("[CareerHomePanel] company_roles FTS failed", error);
-      setDevRoleFtsStatus(message);
-    } finally {
-      setDevRoleFtsLoading(false);
-    }
-  }, [devRoleFtsLoading, fetchWithAuth, logCareerEvent]);
+    },
+    [devRoleFtsLoading, fetchWithAuth, logCareerEvent]
+  );
 
   // career-i18n-skip-next-line: dev controls text is intentionally Korean-only.
   const handleGenerateDevSql = React.useCallback(async () => {
@@ -1037,7 +1031,10 @@ const CareerHomePanel = ({
       ) : null}
 
       <div className="mt-12" />
-      <CareerProfileSharingSettingsSection showLastUpdated={false} />
+      <CareerProfileSharingSettingsSection
+        showEngagementTypes={false}
+        showLastUpdated={false}
+      />
 
       {showDevRunControls ? (
         <div

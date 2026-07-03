@@ -33,6 +33,7 @@ import {
 } from "@/components/career/types";
 import { getCareerDefaultSavedStage } from "@/components/career/opportunityTypeMeta";
 import { deriveHistoryOpportunityCounts } from "@/hooks/career/careerSessionData";
+import type { CareerEngagementType } from "@/hooks/career/useCareerTalentSettings";
 import {
   DEFAULT_TALENT_GET_EXTERNAL_RECOMMENDATION,
   DEFAULT_TALENT_GET_INTERNAL_RECOMMENDATION,
@@ -56,13 +57,7 @@ const previewMinutesAfter = (minutes: number) =>
 
 type CareerWorkspaceHistoryTarget = {
   historyTab: "new" | "saved" | "archived";
-  savedStage?:
-    | "all"
-    | "saved"
-    | "applied"
-    | "connected"
-    | "closed"
-    | "hidden";
+  savedStage?: "all" | "saved" | "applied" | "connected" | "closed" | "hidden";
 };
 
 const mockUser = {
@@ -650,6 +645,12 @@ const CareerWorkspacePreviewLanding = ({
   const [savedProfileVisibility, setSavedProfileVisibility] = useState<
     "open_to_matches" | "exceptional_only" | "dont_share"
   >("exceptional_only");
+  const [engagementTypes, setEngagementTypes] = useState<
+    CareerEngagementType[]
+  >(["full_time", "fractional"]);
+  const [savedEngagementTypes, setSavedEngagementTypes] = useState<
+    CareerEngagementType[]
+  >(["full_time", "fractional"]);
   const [blockedCompanies, setBlockedCompanies] = useState<string[]>([
     "Stealth Robotics",
   ]);
@@ -821,6 +822,8 @@ const CareerWorkspacePreviewLanding = ({
       historyUpdatingOpportunityIds: [],
       historyUpdateError: "",
       onLoadMoreHistoryOpportunities: () => undefined,
+      isHistoryOpportunityPageFilterLoading: () => false,
+      onLoadSavedStageHistoryOpportunityPages: () => undefined,
       onLoadHistoryOpportunityByRoleId: (roleId) =>
         historyOpportunities.find((item) => item.roleId === roleId) ?? null,
       onUpdateHistoryOpportunityFeedback: (
@@ -1015,14 +1018,23 @@ const CareerWorkspacePreviewLanding = ({
       settingsError: "",
       settingsUpdatedAt,
       profileVisibility,
+      engagementTypes,
       blockedCompanies,
       hasUnsavedTalentSettingsChanges:
         profileVisibility !== savedProfileVisibility ||
+        JSON.stringify(engagementTypes) !==
+          JSON.stringify(savedEngagementTypes) ||
         JSON.stringify(blockedCompanies) !==
           JSON.stringify(savedBlockedCompanies),
       onProfileVisibilityChange: (value) => {
         setProfileVisibility(value);
         setSavedProfileVisibility(value);
+        setSettingsUpdatedAt(new Date().toISOString());
+        return true;
+      },
+      onEngagementTypesChange: (values) => {
+        setEngagementTypes(values);
+        setSavedEngagementTypes(values);
         setSettingsUpdatedAt(new Date().toISOString());
         return true;
       },
@@ -1046,23 +1058,27 @@ const CareerWorkspacePreviewLanding = ({
       },
       onSaveTalentSettings: () => {
         setSavedProfileVisibility(profileVisibility);
+        setSavedEngagementTypes(engagementTypes);
         setSavedBlockedCompanies(blockedCompanies);
         setSettingsUpdatedAt(new Date().toISOString());
         return true;
       },
       onResetTalentSettings: () => {
         setProfileVisibility(savedProfileVisibility);
+        setEngagementTypes(savedEngagementTypes);
         setBlockedCompanies(savedBlockedCompanies);
       },
       onReloadTalentSettings: () => undefined,
     }),
     [
       blockedCompanies,
+      engagementTypes,
       profileLinks,
       profileSaveInfo,
       profileVisibility,
       resumeFile,
       savedBlockedCompanies,
+      savedEngagementTypes,
       savedProfileLinks,
       savedProfileVisibility,
       savedResumeFileName,

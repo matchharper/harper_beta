@@ -47,11 +47,18 @@ import {
 import { cn } from "@/lib/cn";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
 import { getCareerSignupAttributionPayload } from "@/lib/career/signupAttribution";
+import {
+  OFFICIAL_JOBS_ONBOARDING_JOB_PARAM,
+  OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM,
+  OFFICIAL_JOBS_ROLE_TITLE_MAX_LENGTH,
+} from "@/lib/officialJobs";
+import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
 import OnboardingLoadingState from "../../components/career/OnboardingLoadingState";
 import { useCareerT } from "@/i18n/useCareerT";
 import {
   getInitialClientLocalePreference,
   useMessages,
+  type Locale,
 } from "@/i18n/useMessage";
 
 type CareerT = ReturnType<typeof useCareerT>;
@@ -93,7 +100,35 @@ const titleClassName =
 const descriptionClassName =
   "mt-2 text-[13px] md:text-[15px] text-neutral-soft";
 
-const getOnboardingSteps = (t: CareerT): OnboardingStepDefinition[] => [
+const getBasicInfoDescription = (
+  t: CareerT,
+  officialJobTitle?: string | null
+): string[] => {
+  const normalizedOfficialJobTitle = officialJobTitle?.trim() || "";
+  const description = [
+    t(
+      "career.onboarding.onboarding.1o4hblb",
+      "시작은 이름과 이메일만 있으면 충분해요."
+    ),
+  ];
+
+  if (normalizedOfficialJobTitle) {
+    description.push(
+      t(
+        "career.onboarding.onboarding.official_job_progress_help",
+        "{job} 진행 도와드릴게요.",
+        { values: { job: normalizedOfficialJobTitle } }
+      )
+    );
+  }
+
+  return description;
+};
+
+const getOnboardingSteps = (
+  t: CareerT,
+  officialJobTitle?: string | null
+): OnboardingStepDefinition[] => [
   {
     label: t("career.onboarding.onboarding.0yf8432", "기본 정보"),
     title: [
@@ -102,12 +137,7 @@ const getOnboardingSteps = (t: CareerT): OnboardingStepDefinition[] => [
         "커리어에도<br />에이전트가 필요합니다."
       ),
     ],
-    description: [
-      t(
-        "career.onboarding.onboarding.1o4hblb",
-        "시작은 이름과 이메일만 있으면 충분해요."
-      ),
-    ],
+    description: getBasicInfoDescription(t, officialJobTitle),
     headerClassName,
     titleClassName,
     descriptionClassName,
@@ -230,6 +260,12 @@ const getErrorMessage = (payload: unknown, fallback: string) => {
 
 const getSingleQueryParam = (value: string | string[] | undefined) =>
   Array.isArray(value) ? value[0] : value;
+
+const normalizeOnboardingJobTitle = (value: string | string[] | undefined) => {
+  const trimmed = (getSingleQueryParam(value) ?? "").trim();
+  if (!trimmed) return "";
+  return trimmed.slice(0, OFFICIAL_JOBS_ROLE_TITLE_MAX_LENGTH);
+};
 
 const careerOnboardingSessionKey = (
   userId: string | null,
@@ -368,6 +404,34 @@ const buildDoneAgentIntro = (
       },
     }
   );
+};
+
+const getOfficialJobDoneAgentIntro = (
+  officialJobTitle: string,
+  locale: Locale
+) => {
+  if (locale === "en") {
+    return `I'm your career agent, so I can keep looking across a range of opportunities that may fit you over time. Since you came in through ${officialJobTitle}, I'll start with this role first, help check the fit, and guide the next step. A quick five-minute conversation is enough.`;
+  }
+
+  return `저는 한 가지 공고만 처리하는 지원 폼이 아니라, 회원님에게 맞을 수 있는 다양한 기회를 함께 찾아보는 커리어 에이전트예요. 이번에는 ${officialJobTitle}로 들어오셨으니 먼저 이 역할을 기준으로 잘 맞는지 확인하고, 지원이나 소개까지 이어질 수 있게 다음 진행을 도와드릴게요. 5분 정도만 이야기하면 충분합니다.`;
+};
+
+const getOfficialJobDoneReadyCopy = (
+  officialJobTitle: string,
+  locale: Locale
+) => {
+  if (locale === "en") {
+    return {
+      title: `Let's continue with ${officialJobTitle}`,
+      description: `Harper is not just an application form for one posting. It is your career agent, built to keep finding roles that may fit you over time. Since you came in through ${officialJobTitle}, I'll start with that role and help clarify fit and next steps.\nFive minutes is enough.`,
+    };
+  }
+
+  return {
+    title: `${officialJobTitle} 진행을 같이 이어가볼게요`,
+    description: `Harper는 한 가지 공고만 처리하는 지원 폼이 아니라, 회원님에게 맞는 기회를 계속 찾아주는 커리어 에이전트예요. 지금은 ${officialJobTitle}로 들어오셨으니 이 역할을 먼저 기준 삼아 잘 맞는지와 다음 액션을 빠르게 정리해드릴게요.\n5분 정도면 충분해요.`,
+  };
 };
 
 const getOnboardingKickoffText = (
@@ -926,6 +990,7 @@ const OnboardingFooterControls = ({
 const DoneState = ({
   kickoffText,
   name,
+  officialJobTitle,
   onStartCall,
   onStartChat,
   selectedEngagements,
@@ -933,16 +998,22 @@ const DoneState = ({
 }: {
   kickoffText: string;
   name: string;
+  officialJobTitle?: string | null;
   onStartCall: () => void;
   onStartChat: () => void;
   selectedEngagements: TalentNetworkEngagementOptionId[];
   userMessage: string;
 }) => {
   const t = useCareerT();
+  const { locale } = useMessages();
+  const normalizedOfficialJobTitle = officialJobTitle?.trim() || "";
 
   const doneAgentIntro = useMemo(
-    () => buildDoneAgentIntro(selectedEngagements, t),
-    [selectedEngagements, t]
+    () =>
+      normalizedOfficialJobTitle
+        ? getOfficialJobDoneAgentIntro(normalizedOfficialJobTitle, locale)
+        : buildDoneAgentIntro(selectedEngagements, t),
+    [locale, normalizedOfficialJobTitle, selectedEngagements, t]
   );
   const fullHarperText = useMemo(
     () => [kickoffText.trim(), doneAgentIntro].filter(Boolean).join("\n\n"),
@@ -1004,13 +1075,35 @@ const DoneState = ({
         </div>
       }
     >
-      <DoneReadyBody />
+      <DoneReadyBody officialJobTitle={normalizedOfficialJobTitle} />
     </OnboardingFrame>
   );
 };
 
-const DoneReadyBody = () => {
+const DoneReadyBody = ({
+  officialJobTitle,
+}: {
+  officialJobTitle?: string | null;
+}) => {
   const t = useCareerT();
+  const { locale } = useMessages();
+  const normalizedOfficialJobTitle = officialJobTitle?.trim() || "";
+  const officialJobCopy = useMemo(
+    () =>
+      normalizedOfficialJobTitle
+        ? getOfficialJobDoneReadyCopy(normalizedOfficialJobTitle, locale)
+        : null,
+    [locale, normalizedOfficialJobTitle]
+  );
+  const title =
+    officialJobCopy?.title ??
+    t("career.onboarding.onboarding_done.title", "잠깐 커피챗 가능할까요?");
+  const description =
+    officialJobCopy?.description ??
+    t(
+      "career.onboarding.onboarding_done.description",
+      "더 좋은 매칭을 위해 현재 상황과 희망하시는 기회에 대해 몇 가지 여쭤보고 싶어요. 솔직하게 답변을 주면 더 좋은 매칭을 해드릴 수 있어요.\n5분 정도면 충분해요."
+    );
 
   return (
     <div className="flex min-h-full flex-col items-center justify-start pt-8 text-center">
@@ -1043,10 +1136,7 @@ const DoneReadyBody = () => {
         tone="primary"
         className="mt-10 text-[18px] md:text-[22px] font-medium leading-8 tracking-normal"
       >
-        {t(
-          "career.onboarding.onboarding_done.title",
-          "잠깐 커피챗 가능할까요?"
-        )}
+        {title}
       </Text>
       <Text
         as="p"
@@ -1054,16 +1144,11 @@ const DoneReadyBody = () => {
         tone="subtle"
         className="mt-3 max-w-[390px] text-[13px] md:text-[14px] font-light leading-6"
       >
-        {t(
-          "career.onboarding.onboarding_done.description",
-          "더 좋은 매칭을 위해 현재 상황과 희망하시는 기회에 대해 몇 가지 여쭤보고 싶어요. 솔직하게 답변을 주면 더 좋은 매칭을 해드릴 수 있어요.\n5분 정도면 충분해요."
-        )
-          .split("\n")
-          .map((line) => (
-            <span key={line} className="block">
-              {line}
-            </span>
-          ))}
+        {description.split("\n").map((line) => (
+          <span key={line} className="block">
+            {line}
+          </span>
+        ))}
       </Text>
     </div>
   );
@@ -1266,7 +1351,22 @@ const CareerNetworkOnboardingContent = () => {
     () => getDefaultDoneKickoffText(t),
     [t]
   );
-  const onboardingSteps = useMemo(() => getOnboardingSteps(t), [t]);
+  const officialJobTitleParam =
+    router.query[OFFICIAL_JOBS_ONBOARDING_JOB_PARAM];
+  const officialJobTitle = useMemo(
+    () => normalizeOnboardingJobTitle(officialJobTitleParam),
+    [officialJobTitleParam]
+  );
+  const officialJobSlugParam =
+    router.query[OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM];
+  const officialJobSlug = useMemo(
+    () => getSingleQueryParam(officialJobSlugParam)?.trim() || "",
+    [officialJobSlugParam]
+  );
+  const onboardingSteps = useMemo(
+    () => getOnboardingSteps(t, officialJobTitle),
+    [officialJobTitle, t]
+  );
   const doneStepDefinition = useMemo(() => getDoneStepDefinition(t), [t]);
   const onboardingEngagementCopy = useMemo(
     () => getOnboardingEngagementCopy(t),
@@ -1853,6 +1953,7 @@ const CareerNetworkOnboardingContent = () => {
     logCareerEvent,
     t,
     uploadResumeFile,
+    userId,
   ]);
 
   const { step, handleNext, handlePrev } = useOnboarding({
@@ -1953,13 +2054,29 @@ const CareerNetworkOnboardingContent = () => {
       if (emailOnboarding) {
         query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM] = emailOnboarding;
       }
+      if (officialJobTitle || officialJobSlug) {
+        query.source = OFFICIAL_JOBS_LANDING_SOURCE;
+      }
+      if (officialJobTitle) {
+        query[OFFICIAL_JOBS_ONBOARDING_JOB_PARAM] = officialJobTitle;
+      }
+      if (officialJobSlug) {
+        query[OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM] = officialJobSlug;
+      }
 
       void router.push({
         pathname: "/career",
         query,
       });
     },
-    [logCareerEvent, queryClient, router, userId]
+    [
+      logCareerEvent,
+      officialJobSlug,
+      officialJobTitle,
+      queryClient,
+      router,
+      userId,
+    ]
   );
 
   if (!isPreviewSubmitState && (authLoading || bootstrapLoading)) {
@@ -2005,6 +2122,7 @@ const CareerNetworkOnboardingContent = () => {
           <DoneState
             kickoffText={doneKickoffText}
             name={name}
+            officialJobTitle={officialJobTitle}
             onStartCall={() => navigateToCareerStart("call")}
             onStartChat={() => navigateToCareerStart("chat")}
             selectedEngagements={selectedEngagements}

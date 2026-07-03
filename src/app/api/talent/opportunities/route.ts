@@ -13,6 +13,7 @@ import {
   fetchTalentOpportunityHistoryByRoleIds,
   fetchTalentOpportunityHistoryCounts,
   fetchTalentOpportunityHistoryPage,
+  fetchTalentOpportunitySavedStageHistoryPages,
   type TalentOpportunityHistoryTab,
   type TalentOpportunitySavedStageFilter,
   type TalentOpportunitySavedStage,
@@ -76,6 +77,22 @@ const parseSavedStageParam = (
     return value;
   }
   return undefined;
+};
+
+const parseSavedStagesParam = (
+  value: string | null
+): TalentOpportunitySavedStage[] => {
+  if (!value) return [];
+
+  const stages: TalentOpportunitySavedStage[] = [];
+  for (const rawStage of value.split(",")) {
+    const savedStage = parseSavedStageParam(rawStage.trim());
+    if (!savedStage || savedStage === "all") continue;
+    if (!stages.includes(savedStage)) {
+      stages.push(savedStage);
+    }
+  }
+  return stages;
 };
 
 async function assertConversationAccess(args: {
@@ -246,6 +263,9 @@ export async function GET(req: NextRequest) {
     const savedStage = parseSavedStageParam(
       req.nextUrl.searchParams.get("savedStage")
     );
+    const savedStages = parseSavedStagesParam(
+      req.nextUrl.searchParams.get("savedStages")
+    );
 
     if (roleId) {
       const items = await fetchTalentOpportunityHistoryByRoleIds({
@@ -261,6 +281,22 @@ export async function GET(req: NextRequest) {
         nextOffset: null,
         offset: 0,
         ok: true,
+      });
+    }
+
+    if (historyTab === "saved" && savedStages.length > 0) {
+      const stagePages = await fetchTalentOpportunitySavedStageHistoryPages({
+        admin,
+        limit,
+        offset,
+        savedStages,
+        userId: user.id,
+      });
+
+      return NextResponse.json({
+        counts: stagePages.counts,
+        ok: true,
+        savedStagePages: stagePages.pages,
       });
     }
 

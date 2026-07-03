@@ -307,7 +307,7 @@ const CareerWorkspaceRoot = ({
       : CAREER_CHAT_PANEL_DEFAULT_WIDTH_PCT,
     onResizeEnd: handleChatPanelResizeEnd,
   });
-  const { historyOpportunities } = useCareerSidebarContext();
+  const { historyOpportunityCounts } = useCareerSidebarContext();
   const activeTab = controlledActiveTab ?? activeTabState;
   const handleChangeTab =
     controlledOnChangeTab ??
@@ -328,13 +328,7 @@ const CareerWorkspaceRoot = ({
     });
     composer?.focus();
   }, []);
-  const pendingInternalRoleFeedbackCount = useMemo(
-    () =>
-      historyOpportunities.filter(
-        (item) => item.feedback === null && item.sourceType === "internal"
-      ).length,
-    [historyOpportunities]
-  );
+  const pendingInternalRoleFeedbackCount = historyOpportunityCounts.newInternal;
   const navItems = useMemo(() => getWorkspaceTabOptions(t), [t]);
 
   const detectedMobileViewport = useIsMobile();

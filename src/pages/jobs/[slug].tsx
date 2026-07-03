@@ -11,7 +11,11 @@ import {
   OFFICIAL_JOBS_QUERY_STALE_TIME_MS,
 } from "@/hooks/officialJobs/useOfficialJobs";
 import { postOfficialJobEvent } from "@/lib/officialJobs/events";
-import { OFFICIAL_JOBS_LOGIN_HREF, type OfficialJob } from "@/lib/officialJobs";
+import {
+  buildOfficialJobsCareerHref,
+  buildOfficialJobsLoginHref,
+  type OfficialJob,
+} from "@/lib/officialJobs";
 import {
   OFFICIAL_JOBS_OG_IMAGE_URL,
   buildOfficialJobCanonicalUrl,
@@ -80,6 +84,8 @@ export default function OfficialJobDetailPage({
   const pageTitle = buildOfficialJobTitle(job, locale);
   const pageDescription = buildOfficialJobDescription(job, locale);
   const canonicalUrl = buildOfficialJobCanonicalUrl(job.slug);
+  const jobCareerHref = buildOfficialJobsCareerHref(job);
+  const jobLoginHref = buildOfficialJobsLoginHref(null, jobCareerHref);
   const publishedIsoDate = toIsoDateTime(job.publishedAt);
   const updatedIsoDate = toIsoDateTime(job.updatedAt);
   const structuredData = buildOfficialJobStructuredData(job, locale);
@@ -155,7 +161,7 @@ export default function OfficialJobDetailPage({
         />
       </Head>
       <Page as="div" background="beige" minHeight="svh" safeArea="bottom">
-        <OfficialJobsHeader locale={locale} />
+        <OfficialJobsHeader job={job} locale={locale} />
         <main>
           <PageContainer
             as="article"
@@ -209,6 +215,7 @@ export default function OfficialJobDetailPage({
                 </p>
                 <div className="mt-8 flex flex-col gap-2 w-full md:w-fit">
                   <OfficialJobsCtaLink
+                    job={job}
                     locale={locale}
                     size="lg"
                     onClick={() => trackApplyClick("detail_primary")}
@@ -255,6 +262,7 @@ export default function OfficialJobDetailPage({
                   <div className="mt-5">
                     <OfficialJobsCtaLink
                       fullWidth
+                      job={job}
                       locale={locale}
                       size="lg"
                       onClick={() => trackApplyClick("detail_sidebar")}
@@ -285,7 +293,7 @@ export default function OfficialJobDetailPage({
           </PageContainer>
         </main>
         <CareerLandingFooter
-          careerStartHref={OFFICIAL_JOBS_LOGIN_HREF}
+          careerStartHref={jobLoginHref}
           labels={copy.footerLabels}
           locale={locale}
         />

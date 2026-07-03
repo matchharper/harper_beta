@@ -8,9 +8,7 @@ import type {
 import { getCareerDefaultSavedStage } from "@/components/career/opportunityTypeMeta";
 import { isOpportunityType } from "@/lib/opportunityType";
 
-export const getDefaultSavedStage = (
-  item: CareerHistoryOpportunity
-) =>
+export const getDefaultSavedStage = (item: CareerHistoryOpportunity) =>
   item.isInternal || item.sourceType === "internal"
     ? "connected"
     : getCareerDefaultSavedStage(item.opportunityType);
@@ -27,6 +25,7 @@ export const createEmptyHistoryOpportunityCounts =
   (): CareerHistoryOpportunityCounts => ({
     archived: 0,
     new: 0,
+    newInternal: 0,
     saved: 0,
     savedStages: {
       saved: 0,
@@ -57,6 +56,7 @@ export const normalizeHistoryOpportunityCounts = (
   const counts = createEmptyHistoryOpportunityCounts();
 
   counts.new = normalizeCount(record.new);
+  counts.newInternal = normalizeCount(record.newInternal);
   counts.saved = normalizeCount(record.saved);
   counts.archived = normalizeCount(record.archived);
   counts.total = normalizeCount(record.total);
@@ -95,6 +95,9 @@ export const deriveHistoryOpportunityCounts = (
     }
 
     counts.new += 1;
+    if (item.sourceType === "internal" || item.isInternal) {
+      counts.newInternal += 1;
+    }
   }
 
   return counts;

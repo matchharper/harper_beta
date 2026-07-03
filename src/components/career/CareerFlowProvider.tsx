@@ -55,6 +55,7 @@ import {
 import { CAREER_CHAT_ALLOWED_TOOLS_BY_ACTION } from "@/lib/career/chatToolPresets";
 import { useMessages } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
+import type { CareerWorkspaceTab } from "./CareerWorkspaceNav";
 
 const getCompletedOpportunityRunRefreshKey = (
   run: CareerOpportunityRun | null
@@ -200,17 +201,25 @@ type OnboardingManualCompletionPayload = {
 };
 
 export const CareerFlowProvider = ({
+  activeTab,
   children,
   emailOnboardingToken,
+  initialChatDraft,
+  initialChatDraftKey,
   inviteToken,
   mail,
   onOpenSettings,
+  settingsDataEnabled,
 }: {
+  activeTab: CareerWorkspaceTab;
   children: React.ReactNode;
   emailOnboardingToken?: string | null;
+  initialChatDraft?: string | null;
+  initialChatDraftKey?: string | null;
   inviteToken?: string | null;
   mail?: string | null;
   onOpenSettings: () => void;
+  settingsDataEnabled?: boolean;
 }) => {
   const t = useCareerT();
   const router = useRouter();
@@ -261,6 +270,7 @@ export const CareerFlowProvider = ({
     setSessionReengagementActionMessageId,
   ] = useState<string | null>(null);
   const sessionReengagementActionVersionRef = useRef(0);
+  const [includeInitialHistory] = useState(() => activeTab === "history");
   const [sessionReengagementPending, setSessionReengagementPending] =
     useState(false);
   const [sessionReengagementThinkingLogs, setSessionReengagementThinkingLogs] =
@@ -338,6 +348,7 @@ export const CareerFlowProvider = ({
     inviteToken,
     locale,
     mail,
+    opportunityLimit: includeInitialHistory ? 20 : 0,
     userId,
   });
   const {
@@ -550,6 +561,18 @@ export const CareerFlowProvider = ({
     [cancelPendingCompanyFollowUp, requestCompanyFollowUp]
   );
 
+  const historySessionPage =
+    sessionData?.historyOpportunitiesIncluded === true
+      ? {
+          counts: sessionData.historyOpportunityCounts ?? null,
+          items: sessionData.historyOpportunities ?? [],
+          nextOffset: sessionData.nextOpportunityOffset ?? null,
+        }
+      : null;
+  const historyDataEnabled = !authLoading && Boolean(userId && sessionData);
+  const historyAutoLoad =
+    activeTab === "history" || Boolean(historySessionPage);
+
   const {
     hasMoreHistoryOpportunities,
     historyLoaded,
@@ -560,9 +583,12 @@ export const CareerFlowProvider = ({
     historyLoadingMore,
     historyUpdateError,
     historyUpdatingOpportunityIds,
+    hydrateHistoryOpportunityCounts,
     hydrateHistoryOpportunities,
+    isHistoryOpportunityPageFilterLoading,
     loadHistoryOpportunityByRoleId,
     loadMoreHistoryOpportunities,
+    loadSavedStageHistoryOpportunityPages,
     onMarkHistoryOpportunityClicked,
     onMarkHistoryOpportunityViewed,
     onUpdateHistoryOpportunityFeedback,
@@ -572,16 +598,11 @@ export const CareerFlowProvider = ({
     refreshLatestHistoryOpportunities,
     resetHistoryState,
   } = useCareerHistoryState({
+    autoLoad: historyAutoLoad,
     conversationId,
-    enabled: !authLoading && Boolean(userId && sessionData),
+    enabled: historyDataEnabled,
     fetchWithAuth,
-    initialSessionPage: sessionData
-      ? {
-          counts: sessionData.historyOpportunityCounts ?? null,
-          items: sessionData.historyOpportunities ?? [],
-          nextOffset: sessionData.nextOpportunityOffset ?? null,
-        }
-      : null,
+    initialSessionPage: historySessionPage,
     onHistoryActionAssistantMessage: enqueueHistoryActionAssistantMessage,
     onHistoryActionUserMessage: appendHistoryActionUserMessage,
     onPendingInternalOpportunityCallRequestChanged:
@@ -688,15 +709,18 @@ export const CareerFlowProvider = ({
     settingsError,
     settingsUpdatedAt,
     profileVisibility,
+    engagementTypes,
     blockedCompanies,
     hasUnsavedTalentSettingsChanges,
     onProfileVisibilityChange,
+    onEngagementTypesChange,
     onAddBlockedCompany,
     onRemoveBlockedCompany,
     onSaveTalentSettings,
     onResetTalentSettings,
     onReloadTalentSettings,
   } = useCareerTalentSettings({
+    enabled: settingsDataEnabled === true,
     userId,
     authLoading,
     fetchWithAuth,
@@ -1095,11 +1119,15 @@ export const CareerFlowProvider = ({
         )
       );
       applySessionPrompt(payload);
-      hydrateHistoryOpportunities(
-        payload.historyOpportunities,
-        payload.nextOpportunityOffset ?? null,
-        payload.historyOpportunityCounts ?? null
-      );
+      if (payload.historyOpportunitiesIncluded === true) {
+        hydrateHistoryOpportunities(
+          payload.historyOpportunities,
+          payload.nextOpportunityOffset ?? null,
+          payload.historyOpportunityCounts ?? null
+        );
+      } else {
+        hydrateHistoryOpportunityCounts(payload.historyOpportunityCounts);
+      }
       setRecentOpportunities(
         normalizeRecentOpportunities(payload.recentOpportunities)
       );
@@ -1128,6 +1156,7 @@ export const CareerFlowProvider = ({
       applySessionTalentPreferences,
       applySessionPrompt,
       appendLatestMessagesToCache,
+      hydrateHistoryOpportunityCounts,
       hydrateHistoryOpportunities,
       replacePendingInternalOpportunityCallRequests,
     ]
@@ -1296,8 +1325,7 @@ export const CareerFlowProvider = ({
   useEffect(() => {
     if (!userId || !sessionData) return;
     hydrateSession(sessionData);
-    setHistoryLoaded(true);
-  }, [hydrateSession, sessionData, setHistoryLoaded, userId]);
+  }, [hydrateSession, sessionData, userId]);
 
   useEffect(() => {
     if (!userId || !conversationId || sessionPending || stage === "profile") {
@@ -1632,7 +1660,8 @@ export const CareerFlowProvider = ({
 
   const historyLoading =
     historyOpportunities.length === 0 &&
-    (historyInitialLoading || (!historyLoaded && sessionPending));
+    (historyInitialLoading ||
+      (!historyLoaded && (sessionPending || activeTab === "history")));
 
   const initialScrollConversationRef = useRef<string | null>(null);
 
@@ -1775,6 +1804,8 @@ export const CareerFlowProvider = ({
       activeThinkingLogs,
       activeRecommendationSearchStatus,
       onCancelActiveRecommendationSearch: cancelActiveRecommendationSearch,
+      initialChatDraft: initialChatDraft?.trim() || undefined,
+      initialChatDraftKey: initialChatDraftKey?.trim() || undefined,
       onboardingWrapupPending,
       thinkingLogsByMessageId,
       chatPending,
@@ -1863,6 +1894,8 @@ export const CareerFlowProvider = ({
       handleToggleVoiceMute,
       handleUseChatOnly,
       inputMode,
+      initialChatDraft,
+      initialChatDraftKey,
       forceCompletePending,
       isOnboardingDone,
       interviewProgress,
@@ -1937,6 +1970,9 @@ export const CareerFlowProvider = ({
       historyUpdatingOpportunityIds,
       historyUpdateError,
       onLoadMoreHistoryOpportunities: loadMoreHistoryOpportunities,
+      isHistoryOpportunityPageFilterLoading,
+      onLoadSavedStageHistoryOpportunityPages:
+        loadSavedStageHistoryOpportunityPages,
       onLoadHistoryOpportunityByRoleId: loadHistoryOpportunityByRoleId,
       onUpdateHistoryOpportunityFeedback,
       onUpdateHistoryOpportunitySavedStage,
@@ -1988,9 +2024,11 @@ export const CareerFlowProvider = ({
       settingsError,
       settingsUpdatedAt,
       profileVisibility,
+      engagementTypes,
       blockedCompanies,
       hasUnsavedTalentSettingsChanges,
       onProfileVisibilityChange,
+      onEngagementTypesChange,
       onAddBlockedCompany,
       onRemoveBlockedCompany,
       onSaveTalentSettings,
@@ -2005,6 +2043,7 @@ export const CareerFlowProvider = ({
       callStartPending,
       chatPending,
       conversationId,
+      engagementTypes,
       handleAddProfileLink,
       handleRunPeriodicOpportunityDiscoveryTest,
       handleRunOpportunityDiscoveryTest,
@@ -2013,6 +2052,7 @@ export const CareerFlowProvider = ({
       handleStartCallModeFromUi,
       handleUseChatOnly,
       onAddBlockedCompany,
+      onEngagementTypesChange,
       hasUnsavedTalentInsightsChanges,
       hasUnsavedTalentPreferencesChanges,
       hasUnsavedTalentSettingsChanges,
@@ -2048,8 +2088,10 @@ export const CareerFlowProvider = ({
       pendingInternalOpportunityCallRequest,
       pendingInternalOpportunityCallRequests,
       isOnboardingDone,
+      isHistoryOpportunityPageFilterLoading,
       loadHistoryOpportunityByRoleId,
       loadMoreHistoryOpportunities,
+      loadSavedStageHistoryOpportunityPages,
       profileLinks,
       profileVisibility,
       profileSaveError,

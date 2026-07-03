@@ -663,6 +663,7 @@ export const careerTranslationMeta = {
   "career.onboarding.onboarding.1n6ukfv": { source: "src/pages/career/onboarding.tsx:162", locations: ["src/pages/career/onboarding.tsx:162"] },
   "career.onboarding.onboarding.1njrwx4": { source: "src/pages/career/onboarding.tsx:2058", locations: ["src/pages/career/onboarding.tsx:2058"] },
   "career.onboarding.onboarding.1o4hblb": { source: "src/pages/career/onboarding.tsx:106", locations: ["src/pages/career/onboarding.tsx:106"] },
+  "career.onboarding.onboarding.official_job_progress_help": { source: "src/pages/career/onboarding.tsx:113", locations: ["src/pages/career/onboarding.tsx:113"] },
   "career.onboarding.onboarding.1p04ixt": { source: "src/pages/career/onboarding.tsx:1828", locations: ["src/pages/career/onboarding.tsx:1828"] },
   "career.onboarding.onboarding.1sh2r2c": { source: "src/pages/career/onboarding.tsx:1365", locations: ["src/pages/career/onboarding.tsx:1365","src/pages/career/onboarding.tsx:1453"] },
   "career.onboarding.onboarding.1sjsl9m": { source: "src/pages/career/onboarding.tsx:181", locations: ["src/pages/career/onboarding.tsx:181"] },

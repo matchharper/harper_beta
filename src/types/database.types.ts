@@ -1700,9 +1700,11 @@ export type Database = {
           created_at: string
           id: string
           inbound_event_id: string
+          kind: string
           last_error: string | null
           locked_at: string | null
           locked_by: string | null
+          metadata: Json
           processed_at: string | null
           resend_email_id: string | null
           skip_reason: string | null
@@ -1718,9 +1720,11 @@ export type Database = {
           created_at?: string
           id?: string
           inbound_event_id: string
+          kind?: string
           last_error?: string | null
           locked_at?: string | null
           locked_by?: string | null
+          metadata?: Json
           processed_at?: string | null
           resend_email_id?: string | null
           skip_reason?: string | null
@@ -1736,9 +1740,11 @@ export type Database = {
           created_at?: string
           id?: string
           inbound_event_id?: string
+          kind?: string
           last_error?: string | null
           locked_at?: string | null
           locked_by?: string | null
+          metadata?: Json
           processed_at?: string | null
           resend_email_id?: string | null
           skip_reason?: string | null
@@ -2914,6 +2920,7 @@ export type Database = {
           conversation_id: string | null
           coverage: Json
           created_at: string
+          dedupe_key: string | null
           error_message: string | null
           id: string
           message: string | null
@@ -2932,6 +2939,7 @@ export type Database = {
           conversation_id?: string | null
           coverage?: Json
           created_at?: string
+          dedupe_key?: string | null
           error_message?: string | null
           id?: string
           message?: string | null
@@ -2950,6 +2958,7 @@ export type Database = {
           conversation_id?: string | null
           coverage?: Json
           created_at?: string
+          dedupe_key?: string | null
           error_message?: string | null
           id?: string
           message?: string | null
@@ -5740,9 +5749,11 @@ export type Database = {
           created_at: string
           id: string
           inbound_event_id: string
+          kind: string
           last_error: string | null
           locked_at: string | null
           locked_by: string | null
+          metadata: Json
           processed_at: string | null
           resend_email_id: string | null
           skip_reason: string | null

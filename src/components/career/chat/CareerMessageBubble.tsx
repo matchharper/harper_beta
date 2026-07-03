@@ -473,7 +473,7 @@ const CareerMessageBubble = ({
                     dangerouslySetInnerHTML={{
                       __html: t(
                         "career.chat.career_message_bubble.optional_call_notice",
-                        "해당 통화는 필수 절차는 아니며, {companyName} 측과의 연결을 보다 원활하게 진행하기 위해 필요한 정보를 사전에 여쭤보기위한 목적입니다.<br />통화 여부와 관계없이 연결 절차는 계속 진행하겠습니다.",
+                        "꼭 해야하는 대화는 아니고, 연결 시에 도움이될 정보를 몇가지 여쭤보기 위한 통화에요. 진행하지 않으셔도 {companyName} 측과의 연결은 제가 계속 진행할게요.",
                         {
                           values: {
                             companyName: marker.companyName,

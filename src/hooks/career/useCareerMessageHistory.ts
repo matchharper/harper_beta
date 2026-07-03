@@ -63,6 +63,7 @@ export const useCareerMessageHistory = ({
 
       const searchParams = new URLSearchParams({
         messageLimit: "20",
+        opportunityLimit: "0",
       });
 
       if (beforeMessageId) {

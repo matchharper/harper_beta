@@ -51,6 +51,8 @@ export type CareerChatPanelContextValue = {
   activeThinkingLogs: string[];
   activeRecommendationSearchStatus: CareerRecommendationSearchStatus | null;
   onCancelActiveRecommendationSearch?: () => void;
+  initialChatDraft?: string;
+  initialChatDraftKey?: string;
   onboardingWrapupPending: boolean;
   thinkingLogsByMessageId: Record<string, string[]>;
   chatPending: boolean;

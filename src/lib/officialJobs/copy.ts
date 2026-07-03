@@ -44,6 +44,7 @@ export function resolveOfficialJobsLocaleFromRequest(
 export const OFFICIAL_JOBS_COPY = {
   ko: {
     cta: "Talk to Harper",
+    initialChatDraft: "{role} 포지션에 관심 있어요.",
     detail: {
       backToList: "역할 목록",
       facts: {
@@ -107,6 +108,7 @@ export const OFFICIAL_JOBS_COPY = {
   },
   en: {
     cta: "Talk to Harper",
+    initialChatDraft: "I'm interested in the {role} role.",
     detail: {
       backToList: "All roles",
       facts: {

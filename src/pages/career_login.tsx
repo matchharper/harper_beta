@@ -22,65 +22,44 @@ import { Input as UiInput } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import { isOverseasCountryLang } from "@/i18n/localeResolution";
 import { useMessages, type Locale } from "@/i18n/useMessage";
+import {
+  OFFICIAL_JOBS_ONBOARDING_JOB_PARAM,
+  OFFICIAL_JOBS_ROLE_TITLE_MAX_LENGTH,
+} from "@/lib/officialJobs";
+import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
 
 type PartnerLogo = {
   src: string;
   name: string;
   width: number;
-  filter?: string;
-  invert?: boolean;
+  height?: number;
 };
 
 const partnerLogos: PartnerLogo[] = [
-  { src: "/images/logos/sn.png", name: "snu", width: 78, invert: true },
-  { src: "/images/logos/kai.png", name: "kaist", width: 82, invert: true },
-  { src: "/images/logos/stan.png", name: "stanford", width: 86, invert: true },
-  { src: "/svgs/cohere.svg", name: "cohere", width: 78, invert: true },
-  { src: "/svgs/yc.svg", name: "ycombinator", width: 100, invert: true },
-  {
-    src: "/images/logos/amazon.svg",
-    name: "amazon",
-    width: 82,
-    filter: "brightness(0) invert(1)",
-  },
-  { src: "/images/logos/naver.svg", name: "naver", width: 64, invert: true },
-  { src: "/images/logos/moloco.png", name: "moloco", width: 78, invert: true },
+  { src: "/images/logos/sn.png", name: "snu", width: 78 },
+  { src: "/images/logos/kai.png", name: "kaist", width: 82 },
+  { src: "/images/logos/stan.png", name: "stanford", width: 52, height: 40 },
+  { src: "/svgs/cohere.svg", name: "cohere", width: 98, height: 32 },
+  { src: "/svgs/yc.svg", name: "ycombinator", width: 100 },
+  { src: "/images/logos/amazon.svg", name: "amazon", width: 68, height: 23 },
+  { src: "/images/logos/naver.svg", name: "naver", width: 64 },
+  { src: "/images/logos/moloco.png", name: "moloco", width: 78 },
 ];
 
 const overseasPartnerLogos: PartnerLogo[] = [
-  { src: "/images/logos/stan.png", name: "stanford", width: 86, invert: true },
-  {
-    src: "/images/logos/harvard.svg",
-    name: "harvard",
-    width: 86,
-    filter: "brightness(0) invert(1)",
-  },
-  { src: "/svgs/cohere.svg", name: "cohere", width: 78, invert: true },
-  { src: "/svgs/yc.svg", name: "ycombinator", width: 100, invert: true },
-  {
-    src: "/images/logos/nvidia.svg",
-    name: "nvidia",
-    width: 92,
-    filter: "brightness(0) invert(1)",
-  },
+  { src: "/images/logos/stan.png", name: "stanford", width: 52, height: 40 },
+  { src: "/images/logos/harvard.svg", name: "harvard", width: 108, height: 32 },
+  { src: "/svgs/cohere.svg", name: "cohere", width: 98, height: 32 },
+  { src: "/svgs/yc.svg", name: "ycombinator", width: 100 },
+  { src: "/images/logos/nvidia.svg", name: "nvidia", width: 92 },
   {
     src: "/images/logos/microsoft.svg",
     name: "microsoft",
-    width: 104,
-    filter: "brightness(0) invert(1)",
+    width: 88,
+    height: 24,
   },
-  {
-    src: "/images/logos/amazon.svg",
-    name: "amazon",
-    width: 82,
-    filter: "brightness(0) invert(1)",
-  },
-  {
-    src: "/images/logos/bcg.svg",
-    name: "bcg",
-    width: 82,
-    filter: "brightness(0) invert(1)",
-  },
+  { src: "/images/logos/amazon.svg", name: "amazon", width: 68, height: 23 },
+  { src: "/images/logos/bcg.svg", name: "bcg", width: 58, height: 23 },
 ];
 
 const CAREER_LOGIN_COPY: Record<
@@ -92,6 +71,8 @@ const CAREER_LOGIN_COPY: Record<
     heroLineTwo: string;
     heroLineThree: string;
     heroDescription: string;
+    onboardingBasicDescription: string;
+    officialJobProgressHelp: (job: string) => string;
     confirmationTitle: string;
     confirmationEmailPrefix: (email: string) => string;
     confirmationDescription: string;
@@ -119,6 +100,8 @@ const CAREER_LOGIN_COPY: Record<
     heroLineThree: "Harper",
     heroDescription:
       "하나의 프로필에서 대화, 선호, 추천까지. 인재를 위한 커리어 에이전트 Harper와 함께 시작하세요.",
+    onboardingBasicDescription: "시작은 이름과 이메일만 있으면 충분해요.",
+    officialJobProgressHelp: (job) => `${job} 진행 도와드릴게요.`,
     confirmationTitle: "인증 메일을 보냈습니다",
     confirmationEmailPrefix: (email) => `${email}로 `,
     confirmationDescription:
@@ -148,6 +131,9 @@ const CAREER_LOGIN_COPY: Record<
     heroLineThree: "Harper",
     heroDescription:
       "Start with Harper, the career agent that keeps your profile, conversations, preferences, and recommendations in one place.",
+    onboardingBasicDescription:
+      "Just your name and email are enough to get started.",
+    officialJobProgressHelp: (job) => `I'll help you move forward with ${job}.`,
     confirmationTitle: "Verification email sent",
     confirmationEmailPrefix: (email) => `We sent it to ${email}. `,
     confirmationDescription:
@@ -175,6 +161,23 @@ const resolveSafeNextPath = (value: string | string[] | undefined) => {
   const raw = Array.isArray(value) ? value[0] : value;
   if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return null;
   return raw;
+};
+
+const officialJobsRoleTitleFromNextPath = (nextPath: string) => {
+  try {
+    const nextUrl = new URL(nextPath, "https://matchharper.com");
+    const source = normalizeCareerUtmSource(nextUrl.searchParams.get("source"));
+    if (source !== OFFICIAL_JOBS_LANDING_SOURCE) return "";
+
+    return (
+      nextUrl.searchParams
+        .get(OFFICIAL_JOBS_ONBOARDING_JOB_PARAM)
+        ?.trim()
+        .slice(0, OFFICIAL_JOBS_ROLE_TITLE_MAX_LENGTH) ?? ""
+    );
+  } catch {
+    return "";
+  }
 };
 
 const CareerLoginLoadingState = () => (
@@ -230,6 +233,16 @@ const CareerLoginContent = () => {
     () => resolveSafeNextPath(router.query.next) ?? "/career",
     [router.query.next]
   );
+  const officialJobsRoleTitle = useMemo(
+    () => officialJobsRoleTitleFromNextPath(nextPath),
+    [nextPath]
+  );
+  const heroDescriptionLines = officialJobsRoleTitle
+    ? [
+        copy.onboardingBasicDescription,
+        copy.officialJobProgressHelp(officialJobsRoleTitle),
+      ]
+    : [copy.heroDescription];
   const emailOnboardingTokenParam =
     typeof router.query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM] === "string"
       ? router.query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM]
@@ -389,7 +402,11 @@ const CareerLoginContent = () => {
             tone="muted"
             className="mt-4 max-w-[480px] text-sm font-normal leading-5 sm:text-base"
           >
-            {copy.heroDescription}
+            {heroDescriptionLines.map((line) => (
+              <span key={line} className="block text-balance break-keep">
+                {line}
+              </span>
+            ))}
           </Text>
 
           <div className="mt-7 w-full max-w-[420px] rounded-[22px] border border-neutral-1000-a05 bg-bg-floating/90 p-4 shadow-[0_18px_54px_rgba(31,28,26,0.07)] backdrop-blur-sm sm:p-6">
@@ -580,7 +597,7 @@ const CareerLoginContent = () => {
         </section>
 
         {!emailConfirmationSent ? (
-          <section className="relative z-10 mx-auto w-full max-w-[1280px] px-6 pb-7 pt-[12svh] text-center sm:pt-12 md:pb-9">
+          <section className="relative z-10 mx-auto w-full max-w-[1280px] px-6 pb-7 pt-[12svh] text-center sm:pt-10 md:pb-9">
             <Text
               as="h2"
               variant="label"
@@ -589,12 +606,12 @@ const CareerLoginContent = () => {
             >
               {copy.trustedBy}
             </Text>
-            <div className="mt-6 grid grid-cols-3 items-center justify-center gap-x-6 gap-y-5 sm:grid-cols-3 lg:grid-cols-8">
+            <div className="mt-5 grid grid-cols-3 items-center justify-center gap-x-6 gap-y-5 sm:grid-cols-3 lg:grid-cols-8">
               {trustedLogos.map((logo) => (
                 <span
                   key={logo.name}
-                  className="relative mx-auto block h-7 opacity-80 grayscale transition hover:opacity-100 hover:grayscale-0"
-                  style={{ width: logo.width }}
+                  className="relative mx-auto block opacity-90 transition hover:opacity-100"
+                  style={{ width: logo.width, height: logo.height ?? 28 }}
                 >
                   <Image
                     src={logo.src}
@@ -602,13 +619,6 @@ const CareerLoginContent = () => {
                     fill
                     sizes={`${logo.width}px`}
                     className="object-contain"
-                    style={
-                      logo.filter
-                        ? { filter: logo.filter }
-                        : logo.invert
-                          ? { filter: "invert(1)" }
-                          : undefined
-                    }
                   />
                 </span>
               ))}

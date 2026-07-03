@@ -91,7 +91,7 @@ export default function InternalConnectionOnboardingModal({
           >
             {t(
               "career.common.internal_connection_onboarding_modal.0z48n2w",
-              "나중에 할게요"
+              "확인"
             )}
           </BareButton>
           <ActionDropdown

@@ -1,19 +1,65 @@
 import type { Tables } from "@/types/database.types";
 import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
+import {
+  formatOfficialJobsCopy,
+  getOfficialJobsCopy,
+  type OfficialJobsLocale,
+} from "@/lib/officialJobs/copy";
 
 export const OFFICIAL_JOBS_LOGIN_HREF = buildOfficialJobsLoginHref();
 
 export const OFFICIAL_JOBS_INTERNAL_COPY_ROLE_TITLE = "internal_internal";
 export const OFFICIAL_JOBS_INTERNAL_COPY_SLUG = "internal-internal";
+export const OFFICIAL_JOBS_ONBOARDING_JOB_PARAM = "job";
+export const OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM = "job_slug";
+export const OFFICIAL_JOBS_ROLE_TITLE_MAX_LENGTH = 140;
 
-export function buildOfficialJobsLoginHref(localId?: string | null) {
+export type OfficialJobsCareerJob = {
+  roleTitle?: string | null;
+  slug?: string | null;
+};
+
+function normalizeOfficialJobsRoleTitle(value?: string | null) {
+  return String(value ?? "")
+    .trim()
+    .slice(0, OFFICIAL_JOBS_ROLE_TITLE_MAX_LENGTH);
+}
+
+export function buildOfficialJobsCareerHref(job?: OfficialJobsCareerJob) {
   const params = new URLSearchParams({
-    next: "/career",
+    source: OFFICIAL_JOBS_LANDING_SOURCE,
+  });
+  const roleTitle = normalizeOfficialJobsRoleTitle(job?.roleTitle);
+  const slug = String(job?.slug ?? "").trim();
+
+  if (roleTitle) params.set(OFFICIAL_JOBS_ONBOARDING_JOB_PARAM, roleTitle);
+  if (slug) params.set(OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM, slug);
+
+  return `/career?${params.toString()}`;
+}
+
+export function buildOfficialJobsLoginHref(
+  localId?: string | null,
+  nextPath = "/career"
+) {
+  const params = new URLSearchParams({
+    next: nextPath,
     source: OFFICIAL_JOBS_LANDING_SOURCE,
   });
   const normalizedLocalId = String(localId ?? "").trim();
   if (normalizedLocalId) params.set("lid", normalizedLocalId);
   return `/career_login?${params.toString()}`;
+}
+
+export function buildOfficialJobsInitialChatDraft(
+  roleTitle?: string | null,
+  locale: OfficialJobsLocale = "ko"
+) {
+  const normalizedRoleTitle = normalizeOfficialJobsRoleTitle(roleTitle);
+  if (!normalizedRoleTitle) return "";
+  return formatOfficialJobsCopy(getOfficialJobsCopy(locale).initialChatDraft, {
+    role: normalizedRoleTitle,
+  });
 }
 
 export type OfficialJobRow = Tables<"official_jobs">;

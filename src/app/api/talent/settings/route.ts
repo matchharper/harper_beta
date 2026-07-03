@@ -6,6 +6,7 @@ import {
   fetchTalentSetting,
   getTalentSupabaseAdmin,
   normalizeTalentBlockedCompanies,
+  normalizeTalentEngagementTypes,
   sanitizeTalentProfileVisibility,
   upsertTalentSetting,
 } from "@/lib/talentOnboarding/server";
@@ -13,6 +14,7 @@ import { normalizeCareerPromptLocale } from "@/lib/career/promptLocale";
 import { insertTalentActivityEvent } from "@/lib/talentOnboarding/activityEvents";
 
 type Body = {
+  engagementTypes?: string[];
   profileVisibility?: string;
   profileVisibilitySource?: string;
   blockedCompanies?: string[];
@@ -25,11 +27,13 @@ const normalizeProfileVisibilityActivitySource = (value: unknown) => {
 };
 
 const toResponseSettings = (row: {
+  engagement_types?: string[] | null;
   profile_visibility?: string | null;
   blocked_companies?: string[] | null;
   preferred_locale?: string | null;
   setting_locale?: string | null;
 }) => ({
+  engagementTypes: normalizeTalentEngagementTypes(row.engagement_types ?? []),
   profileVisibility: sanitizeTalentProfileVisibility(row.profile_visibility),
   blockedCompanies: normalizeTalentBlockedCompanies(row.blocked_companies),
   preferredLocale: normalizeCareerPromptLocale(
@@ -103,12 +107,15 @@ export async function POST(req: NextRequest) {
     const blockedCompanies = normalizeTalentBlockedCompanies(
       body.blockedCompanies ?? existing?.blocked_companies ?? []
     );
+    const engagementTypes = normalizeTalentEngagementTypes(
+      body.engagementTypes ?? existing?.engagement_types ?? []
+    );
     const saved = await upsertTalentSetting({
       admin,
       userId: user.id,
       profileVisibility,
       blockedCompanies,
-      engagementTypes: existing?.engagement_types ?? [],
+      engagementTypes,
       ...(body.preferredLocale === undefined
         ? {}
         : { settingLocale: normalizeCareerPromptLocale(body.preferredLocale) }),

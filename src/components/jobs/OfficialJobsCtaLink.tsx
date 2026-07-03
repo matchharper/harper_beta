@@ -2,8 +2,10 @@
 
 import { cn } from "@/lib/utils";
 import {
+  buildOfficialJobsCareerHref,
   buildOfficialJobsLoginHref,
   OFFICIAL_JOBS_LOGIN_HREF,
+  type OfficialJobsCareerJob,
 } from "@/lib/officialJobs";
 import {
   getOfficialJobsCopy,
@@ -51,6 +53,7 @@ const ctaLinkVariants = cva(
 type OfficialJobsCtaLinkProps = VariantProps<typeof ctaLinkVariants> & {
   children?: ReactNode;
   className?: string;
+  job?: OfficialJobsCareerJob;
   locale?: OfficialJobsLocale;
   onClick?: MouseEventHandler<HTMLAnchorElement>;
 };
@@ -59,6 +62,7 @@ export default function OfficialJobsCtaLink({
   children,
   className,
   fullWidth,
+  job,
   locale = "ko",
   onClick,
   size,
@@ -66,7 +70,13 @@ export default function OfficialJobsCtaLink({
 }: OfficialJobsCtaLinkProps) {
   const user = useAuthStore((state) => state.user);
   const loading = useAuthStore((state) => state.loading);
-  const href = !loading && user ? "/career" : OFFICIAL_JOBS_LOGIN_HREF;
+  const careerHref = job ? buildOfficialJobsCareerHref(job) : "/career";
+  const href =
+    !loading && user
+      ? careerHref
+      : job
+        ? buildOfficialJobsLoginHref(null, careerHref)
+        : OFFICIAL_JOBS_LOGIN_HREF;
 
   const handleClick: MouseEventHandler<HTMLAnchorElement> = (event) => {
     const resolvedAnonymousId = getOfficialJobsAnonymousId();
@@ -95,7 +105,10 @@ export default function OfficialJobsCtaLink({
     }
 
     event.preventDefault();
-    window.location.href = buildOfficialJobsLoginHref(resolvedAnonymousId);
+    window.location.href = buildOfficialJobsLoginHref(
+      resolvedAnonymousId,
+      careerHref
+    );
   };
 
   return (

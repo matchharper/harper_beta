@@ -20,6 +20,7 @@ type UseCareerSessionArgs = {
   inviteToken?: string | null;
   locale: string;
   mail?: string | null;
+  opportunityLimit?: number;
   userId: string | null;
 };
 
@@ -41,7 +42,8 @@ export const careerSessionKey = (
   locale?: string | null,
   inviteToken?: string | null,
   mail?: string | null,
-  emailOnboardingToken?: string | null
+  emailOnboardingToken?: string | null,
+  opportunityLimit?: number
 ) =>
   [
     "career-session",
@@ -50,6 +52,7 @@ export const careerSessionKey = (
     inviteToken?.trim() || null,
     mail?.trim() || null,
     emailOnboardingToken?.trim() || null,
+    opportunityLimit ?? null,
   ] as const;
 
 export const useCareerSession = ({
@@ -59,6 +62,7 @@ export const useCareerSession = ({
   inviteToken,
   locale,
   mail,
+  opportunityLimit = 20,
   userId,
 }: UseCareerSessionArgs) => {
   const tCareer = useCareerMessageFormatter();
@@ -78,12 +82,14 @@ export const useCareerSession = ({
         requestLocale,
         normalizedInviteToken,
         normalizedMail,
-        normalizedEmailOnboardingToken
+        normalizedEmailOnboardingToken,
+        opportunityLimit
       ),
     [
       normalizedEmailOnboardingToken,
       normalizedInviteToken,
       normalizedMail,
+      opportunityLimit,
       requestLocale,
       userId,
     ]
@@ -110,7 +116,7 @@ export const useCareerSession = ({
     const sessionParams = new URLSearchParams({
       locale: requestLocale,
       messageLimit: "20",
-      opportunityLimit: "20",
+      opportunityLimit: String(opportunityLimit),
     });
     const sessionRes = await fetchWithAuth(
       `/api/talent/session?${sessionParams.toString()}`
@@ -128,6 +134,7 @@ export const useCareerSession = ({
     normalizedEmailOnboardingToken,
     normalizedInviteToken,
     normalizedMail,
+    opportunityLimit,
     requestLocale,
     tCareer,
   ]);

@@ -54,7 +54,9 @@ import {
   serializeNegativeFeedbackReason,
 } from "./history/FeedbackModal";
 import OpportunityListCard from "./history/OpportunityListCard";
-import SavedOpportunityBoard from "./history/SavedOpportunityBoard";
+import SavedOpportunityBoard, {
+  type SavedOpportunityBoardStatus,
+} from "./history/SavedOpportunityBoard";
 import HistoryOpportunityDetailContent, {
   HistoryOpportunityInlinePage,
 } from "./history/HistoryOpportunityDetailContent";
@@ -327,6 +329,21 @@ export const HistoryFeedbackButton = ({
 );
 
 type HistoryEmptyStateVariant = "onboarding" | "searching" | "matching";
+
+const SAVED_BOARD_MIN_ITEMS_PER_COLUMN = 4;
+const SAVED_BOARD_COLUMN_STATUSES = [
+  "saved",
+  "applied",
+  "connected",
+  "closed",
+] as const satisfies readonly SavedOpportunityBoardStatus[];
+
+const getSavedBoardColumnFilter = (
+  status: SavedOpportunityBoardStatus
+): CareerHistoryOpportunityPageFilter => ({
+  historyTab: "saved",
+  savedStage: status,
+});
 
 const HistoryEmptyStateDetail = ({
   body,
@@ -619,6 +636,8 @@ const CareerHistoryPanel = () => {
     historyUpdatingOpportunityIds,
     historyUpdateError,
     onLoadMoreHistoryOpportunities,
+    isHistoryOpportunityPageFilterLoading,
+    onLoadSavedStageHistoryOpportunityPages,
     onLoadHistoryOpportunityByRoleId,
     onMarkHistoryOpportunityClicked,
     onMarkHistoryOpportunityViewed,
@@ -1771,6 +1790,75 @@ const CareerHistoryPanel = () => {
         .sort(compareRecommendedAtDesc),
     [savedItems]
   );
+  const savedBoardColumnLoadState = useMemo<
+    Record<
+      SavedOpportunityBoardStatus,
+      {
+        hasMore: boolean;
+        loadedCount: number;
+        loading: boolean;
+        totalCount: number;
+      }
+    >
+  >(
+    () => ({
+      saved: {
+        hasMore: savedItemsByStage.saved.length < savedManagementCounts.saved,
+        loadedCount: savedItemsByStage.saved.length,
+        loading: isHistoryOpportunityPageFilterLoading(
+          getSavedBoardColumnFilter("saved")
+        ),
+        totalCount: savedManagementCounts.saved,
+      },
+      applied: {
+        hasMore:
+          savedItemsByStage.applied.length < savedManagementCounts.applied,
+        loadedCount: savedItemsByStage.applied.length,
+        loading: isHistoryOpportunityPageFilterLoading(
+          getSavedBoardColumnFilter("applied")
+        ),
+        totalCount: savedManagementCounts.applied,
+      },
+      connected: {
+        hasMore:
+          savedItemsByStage.connected.length < savedManagementCounts.connected,
+        loadedCount: savedItemsByStage.connected.length,
+        loading: isHistoryOpportunityPageFilterLoading(
+          getSavedBoardColumnFilter("connected")
+        ),
+        totalCount: savedManagementCounts.connected,
+      },
+      closed: {
+        hasMore: savedItemsByStage.closed.length < savedManagementCounts.closed,
+        loadedCount: savedItemsByStage.closed.length,
+        loading: isHistoryOpportunityPageFilterLoading(
+          getSavedBoardColumnFilter("closed")
+        ),
+        totalCount: savedManagementCounts.closed,
+      },
+    }),
+    [
+      isHistoryOpportunityPageFilterLoading,
+      savedItemsByStage.applied.length,
+      savedItemsByStage.closed.length,
+      savedItemsByStage.connected.length,
+      savedItemsByStage.saved.length,
+      savedManagementCounts.applied,
+      savedManagementCounts.closed,
+      savedManagementCounts.connected,
+      savedManagementCounts.saved,
+    ]
+  );
+  const loadMoreSavedBoardColumn = useCallback(
+    (status: SavedOpportunityBoardStatus) => {
+      const loadState = savedBoardColumnLoadState[status];
+      if (!loadState.hasMore || loadState.loading) return;
+
+      logCareerEvent(`click_history_board_load_more_${status}`);
+      void onLoadMoreHistoryOpportunities(getSavedBoardColumnFilter(status));
+    },
+    [logCareerEvent, onLoadMoreHistoryOpportunities, savedBoardColumnLoadState]
+  );
   const listItems =
     activeTab === "saved" ? savedManagementItems : archivedItems;
   const listTotal =
@@ -1809,9 +1897,61 @@ const CareerHistoryPanel = () => {
 
   useEffect(() => {
     if (activeTab !== "saved" && activeTab !== "archived") return;
+    if (
+      activeTab === "saved" &&
+      savedDisplayMode === "board" &&
+      activeSavedStatus !== "hidden"
+    ) {
+      return;
+    }
     if (listItems.length > 0) return;
     loadMoreListItems();
-  }, [activeTab, listItems.length, loadMoreListItems]);
+  }, [
+    activeSavedStatus,
+    activeTab,
+    listItems.length,
+    loadMoreListItems,
+    savedDisplayMode,
+  ]);
+
+  useEffect(() => {
+    if (
+      activeTab !== "saved" ||
+      activeSavedStatus === "hidden" ||
+      savedDisplayMode !== "board"
+    ) {
+      return;
+    }
+
+    const statusesToLoad: SavedOpportunityBoardStatus[] = [];
+    for (const status of SAVED_BOARD_COLUMN_STATUSES) {
+      const loadState = savedBoardColumnLoadState[status];
+      const targetCount = Math.min(
+        loadState.totalCount,
+        SAVED_BOARD_MIN_ITEMS_PER_COLUMN
+      );
+      if (
+        targetCount === 0 ||
+        loadState.loadedCount >= targetCount ||
+        !loadState.hasMore ||
+        loadState.loading
+      ) {
+        continue;
+      }
+
+      statusesToLoad.push(status);
+    }
+
+    if (statusesToLoad.length > 0) {
+      void onLoadSavedStageHistoryOpportunityPages(statusesToLoad);
+    }
+  }, [
+    activeSavedStatus,
+    activeTab,
+    onLoadSavedStageHistoryOpportunityPages,
+    savedBoardColumnLoadState,
+    savedDisplayMode,
+  ]);
 
   useEffect(() => {
     const sentinel = loadMoreSentinelRef.current;
@@ -2082,9 +2222,11 @@ const CareerHistoryPanel = () => {
               {savedDisplayMode === "board" &&
                 activeSavedStatus !== "hidden" && (
                   <SavedOpportunityBoard
+                    columnLoadState={savedBoardColumnLoadState}
                     counts={savedManagementCounts}
                     items={savedBoardItems}
                     pendingOpportunityIds={pendingOpportunityIds}
+                    onLoadMoreColumn={loadMoreSavedBoardColumn}
                     onOpenDetail={openModalForItem}
                     onStatusChange={handleSavedStatusChange}
                   />

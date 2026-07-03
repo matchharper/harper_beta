@@ -14,17 +14,27 @@ import { useMessages, type Locale } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
 
 type SavedOpportunityBoardProps = {
+  columnLoadState: Record<
+    SavedOpportunityBoardStatus,
+    {
+      hasMore: boolean;
+      loadedCount: number;
+      loading: boolean;
+      totalCount: number;
+    }
+  >;
   counts: Record<SavedOpportunityManagementStatus, number>;
   items: CareerHistoryOpportunity[];
   pendingOpportunityIds: Set<string>;
   onOpenDetail: (item: CareerHistoryOpportunity) => void;
+  onLoadMoreColumn: (status: SavedOpportunityBoardStatus) => void;
   onStatusChange: (
     item: CareerHistoryOpportunity,
     status: SavedOpportunityBoardStatus
   ) => void;
 };
 
-type SavedOpportunityBoardStatus = Exclude<
+export type SavedOpportunityBoardStatus = Exclude<
   SavedOpportunityManagementStatus,
   "all" | "hidden"
 >;
@@ -118,10 +128,12 @@ const SavedOpportunityBoardCard = ({
 };
 
 function SavedOpportunityBoard({
+  columnLoadState,
   counts,
   items,
   pendingOpportunityIds,
   onOpenDetail,
+  onLoadMoreColumn,
   onStatusChange,
 }: SavedOpportunityBoardProps) {
   const t = useCareerT();
@@ -197,6 +209,7 @@ function SavedOpportunityBoard({
       <div className="flex w-max min-w-full gap-3">
         {statusOptions.map((column) => {
           const columnItems = groupedItems.get(column.id) ?? [];
+          const loadState = columnLoadState[column.id];
 
           return (
             <div
@@ -247,13 +260,48 @@ function SavedOpportunityBoard({
                   );
                 })}
 
-                {columnItems.length === 0 ? (
+                {columnItems.length === 0 && loadState.loading ? (
+                  <div className="flex items-center justify-center gap-2 rounded-[8px] border border-neutral-1000-a05 bg-bg-floating px-3 py-8 text-center text-[13px] font-medium text-neutral-muted">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    {t(
+                      "career.history.saved_opportunity_board.loading_column",
+                      "불러오는 중"
+                    )}
+                  </div>
+                ) : columnItems.length === 0 ? (
                   <div className="rounded-[8px] border border-dashed border-neutral-1000-a10 bg-bg-floating px-3 py-8 text-center text-[13px] font-medium text-neutral-muted">
                     {t(
                       "career.history.saved_opportunity_board.0965oie",
                       "여기에 드롭"
                     )}
                   </div>
+                ) : null}
+
+                {loadState.hasMore ? (
+                  <BareButton
+                    type="button"
+                    disabled={loadState.loading}
+                    onClick={() => onLoadMoreColumn(column.id)}
+                    className="flex min-h-9 w-full items-center justify-center gap-2 rounded-[8px] border border-neutral-1000-a05 bg-bg-floating px-3 py-2 text-[12px] font-medium text-neutral-muted transition-colors hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {loadState.loading ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : null}
+                    {loadState.loading
+                      ? t(
+                          "career.history.saved_opportunity_board.loading_more",
+                          "불러오는 중"
+                        )
+                      : t(
+                          "career.history.saved_opportunity_board.load_more",
+                          "더 불러오기"
+                        )}
+                    {!loadState.loading ? (
+                      <span className="text-neutral-soft">
+                        {loadState.loadedCount}/{loadState.totalCount}
+                      </span>
+                    ) : null}
+                  </BareButton>
                 ) : null}
               </div>
             </div>

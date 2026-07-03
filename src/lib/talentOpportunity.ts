@@ -258,6 +258,13 @@ export type TalentOpportunitySavedStageFilter =
 
 export type TalentOpportunityHistoryTab = "new" | "saved" | "archived";
 
+export type TalentOpportunitySavedStageHistoryPages = {
+  counts: TalentOpportunityHistoryCounts;
+  pages: Partial<
+    Record<TalentOpportunitySavedStage, TalentOpportunityHistoryPage>
+  >;
+};
+
 export type TalentInternalRecommendationProgressCode =
   | "awaiting_company_response"
   | "closed_by_company"
@@ -373,6 +380,7 @@ export type TalentOpportunityHistoryPage = {
 export type TalentOpportunityHistoryCounts = {
   archived: number;
   new: number;
+  newInternal: number;
   saved: number;
   savedStages: Record<TalentOpportunitySavedStage, number>;
   total: number;
@@ -778,6 +786,7 @@ function normalizePreferenceFit(
 const createEmptyHistoryCounts = (): TalentOpportunityHistoryCounts => ({
   archived: 0,
   new: 0,
+  newInternal: 0,
   saved: 0,
   savedStages: {
     saved: 0,
@@ -885,12 +894,18 @@ async function countTalentOpportunityRecommendations(args: {
   admin: AdminClient;
   feedback: "like" | "dislike" | null;
   savedStage?: TalentOpportunitySavedStage;
+  sourceType?: TalentOpportunitySourceType;
   userId: string;
 }) {
   let query = (
     args.admin.from("talent_opportunity_recommendation" as any) as any
   )
-    .select("id", { count: "exact", head: true })
+    .select(
+      args.sourceType
+        ? "id, company_role:company_roles!inner(source_type)"
+        : "id",
+      { count: "exact", head: true }
+    )
     .eq("talent_id", args.userId) as any;
 
   query =
@@ -900,6 +915,10 @@ async function countTalentOpportunityRecommendations(args: {
 
   if (args.savedStage) {
     query = query.eq("saved_stage", args.savedStage);
+  }
+
+  if (args.sourceType) {
+    query = query.eq("company_role.source_type", args.sourceType);
   }
 
   const { count, error } = await query;
@@ -946,6 +965,7 @@ export async function fetchTalentOpportunityHistoryCounts(args: {
 }): Promise<TalentOpportunityHistoryCounts> {
   const [
     newCount,
+    newInternalCount,
     savedCount,
     archivedCount,
     savedStageCount,
@@ -958,6 +978,12 @@ export async function fetchTalentOpportunityHistoryCounts(args: {
     countTalentOpportunityRecommendations({
       admin: args.admin,
       feedback: null,
+      userId: args.userId,
+    }),
+    countTalentOpportunityRecommendations({
+      admin: args.admin,
+      feedback: null,
+      sourceType: "internal",
       userId: args.userId,
     }),
     countTalentOpportunityRecommendations({
@@ -1008,6 +1034,7 @@ export async function fetchTalentOpportunityHistoryCounts(args: {
 
   const counts = createEmptyHistoryCounts();
   counts.new = newCount;
+  counts.newInternal = newInternalCount;
   counts.saved = savedCount;
   counts.archived = archivedCount;
   counts.total = newCount + savedCount + archivedCount;
@@ -1407,6 +1434,57 @@ async function fetchFilteredTalentOpportunityHistoryPage(args: {
   };
 }
 
+export async function fetchTalentOpportunitySavedStageHistoryPages(args: {
+  admin: AdminClient;
+  limit?: number;
+  offset?: number;
+  savedStages: TalentOpportunitySavedStage[];
+  userId: string;
+}): Promise<TalentOpportunitySavedStageHistoryPages> {
+  const limit =
+    typeof args.limit === "number" && Number.isFinite(args.limit)
+      ? Math.max(1, Math.min(Math.floor(args.limit), 100))
+      : 10;
+  const offset =
+    typeof args.offset === "number" && Number.isFinite(args.offset)
+      ? Math.max(0, Math.floor(args.offset))
+      : 0;
+  const savedStages = Array.from(new Set(args.savedStages));
+
+  const [allItems, counts] = await Promise.all([
+    fetchTalentOpportunityHistory({
+      admin: args.admin,
+      feedback: "like",
+      userId: args.userId,
+    }),
+    fetchTalentOpportunityHistoryCountsFallback({
+      admin: args.admin,
+      userId: args.userId,
+    }),
+  ]);
+
+  const pages: TalentOpportunitySavedStageHistoryPages["pages"] = {};
+  for (const savedStage of savedStages) {
+    const filteredItems = filterHistoryItemsForSavedStage(allItems, savedStage);
+    const items = filteredItems.slice(offset, offset + limit);
+    pages[savedStage] = {
+      counts,
+      items,
+      limit,
+      nextOffset:
+        offset + items.length < filteredItems.length
+          ? offset + items.length
+          : null,
+      offset,
+    };
+  }
+
+  return {
+    counts,
+    pages,
+  };
+}
+
 export async function fetchTalentOpportunityHistoryPage(args: {
   admin: AdminClient;
   historyTab?: TalentOpportunityHistoryTab;
@@ -1417,12 +1495,27 @@ export async function fetchTalentOpportunityHistoryPage(args: {
 }): Promise<TalentOpportunityHistoryPage> {
   const limit =
     typeof args.limit === "number" && Number.isFinite(args.limit)
-      ? Math.max(1, Math.min(Math.floor(args.limit), 100))
+      ? Math.max(0, Math.min(Math.floor(args.limit), 100))
       : 10;
   const offset =
     typeof args.offset === "number" && Number.isFinite(args.offset)
       ? Math.max(0, Math.floor(args.offset))
       : 0;
+
+  if (limit === 0) {
+    const counts = await fetchTalentOpportunityHistoryCountsFallback({
+      admin: args.admin,
+      userId: args.userId,
+    });
+
+    return {
+      counts,
+      items: [],
+      limit,
+      nextOffset: null,
+      offset,
+    };
+  }
 
   if (args.historyTab) {
     return fetchFilteredTalentOpportunityHistoryPage({

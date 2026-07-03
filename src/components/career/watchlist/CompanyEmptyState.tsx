@@ -25,7 +25,7 @@ export const CompanyEmptyState = ({
       <p className="mx-auto mt-2 max-w-[520px] text-[13px] leading-6 text-neutral-muted">
         {t(
           "career.company.company_empty_state.0akildu",
-          "포지션 히스토리에서 회사 정보를 열고 팔로우하면 이곳에서 채용, 펀딩, 팀 변화 같은 업데이트를 추적합니다."
+          "최근 6개월 안에 활성 채용 신호가 있고 LinkedIn이 연결된 회사 중에서 프로필 방향에 맞는 회사를 저장합니다."
         )}
       </p>
     </div>

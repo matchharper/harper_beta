@@ -1,4 +1,10 @@
-import React, { KeyboardEvent, useCallback, useRef, useState } from "react";
+import React, {
+  KeyboardEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   ArrowUp,
   AudioLines,
@@ -31,6 +37,8 @@ const CareerComposerSection = () => {
     chatPending,
     assistantTyping,
     opportunityFeedbackFollowUpPending,
+    initialChatDraft,
+    initialChatDraftKey,
     onboardingBeginPending,
     onboardingWrapupPending,
     callStartPending = false,
@@ -45,12 +53,20 @@ const CareerComposerSection = () => {
     onForceCompleteOnboarding,
   } = useCareerChatPanelContext();
 
-  const [draft, setDraft] = useState("");
+  const initialDraftText = initialChatDraft?.trim() ?? "";
+  const [draft, setDraft] = useState(() => initialDraftText);
   const [chatLinkDraft, setChatLinkDraft] = useState("");
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [textareaResetVersion, setTextareaResetVersion] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const isComposingRef = useRef(false);
+  const initialDraftFocusKey =
+    initialChatDraftKey?.trim() || initialDraftText || null;
+  const focusedInitialDraftKeyRef = useRef<string | null>(null);
+  const appliedInitialDraftKeyRef = useRef(
+    initialChatDraftKey?.trim() || initialDraftText || null
+  );
+  const appliedInitialDraftTextRef = useRef(initialDraftText);
   const onboardingPaused = isOnboardingPaused(messages);
   const isStartingCall =
     (onboardingBeginPending && !callWrapUpPending) || callStartPending;
@@ -71,6 +87,48 @@ const CareerComposerSection = () => {
     isTextInputLocked || chatPending || assistantTyping;
   const isComposerBusy =
     chatPending || assistantTyping || opportunityFeedbackFollowUpPending;
+
+  useEffect(() => {
+    if (!initialDraftFocusKey) return;
+    let animationFrameId: number | null = null;
+
+    if (
+      inputMode !== "text" ||
+      isTextInputLocked ||
+      focusedInitialDraftKeyRef.current === initialDraftFocusKey
+    ) {
+      return;
+    }
+
+    focusedInitialDraftKeyRef.current = initialDraftFocusKey;
+    animationFrameId = window.requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+    });
+
+    return () => {
+      if (animationFrameId !== null) {
+        window.cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, [initialDraftFocusKey, inputMode, isTextInputLocked]);
+
+  useEffect(() => {
+    const nextInitialDraftKey =
+      initialChatDraftKey?.trim() || initialDraftText || null;
+    if (!nextInitialDraftKey) return;
+    if (appliedInitialDraftKeyRef.current === nextInitialDraftKey) return;
+
+    const previousInitialDraftText = appliedInitialDraftTextRef.current;
+    appliedInitialDraftKeyRef.current = nextInitialDraftKey;
+    appliedInitialDraftTextRef.current = initialDraftText;
+
+    setDraft((currentDraft) => {
+      if (currentDraft && currentDraft !== previousInitialDraftText) {
+        return currentDraft;
+      }
+      return initialDraftText;
+    });
+  }, [initialChatDraftKey, initialDraftText]);
 
   const composerPlaceholder = (() => {
     if (!user) {

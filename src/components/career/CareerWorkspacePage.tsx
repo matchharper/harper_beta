@@ -17,7 +17,14 @@ import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useCareerVisitLog } from "@/hooks/career/useCareerVisitLog";
 import { useTalentOnboardingRedirect } from "@/hooks/career/useTalentOnboardingStatus";
+import { useMessages } from "@/i18n/useMessage";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
+import {
+  buildOfficialJobsInitialChatDraft,
+  OFFICIAL_JOBS_ONBOARDING_JOB_PARAM,
+  OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM,
+} from "@/lib/officialJobs";
+import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
 
 const DELIVERY_EMAIL_HISTORY_LINK_ENTRY_PARAM = "entryPoint";
 const DELIVERY_EMAIL_HISTORY_LINK_ENTRY_VALUE = "delivery_email_history_link";
@@ -35,6 +42,7 @@ const CareerWorkspacePage = ({
   const router = useRouter();
   const logCareerEvent = useCareerLogEvent();
   const { user, authLoading } = useCareerAuth();
+  const { locale } = useMessages();
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const deliveryEmailHistoryLinkLoggedRef = useRef(false);
   const isRouterReady = router.isReady;
@@ -55,6 +63,31 @@ const CareerWorkspacePage = ({
     isRouterReady && typeof router.query.panel === "string"
       ? router.query.panel
       : null;
+  const officialJobsSource = isRouterReady
+    ? getSingleQueryParam(router.query.source)
+    : null;
+  const officialJobsRoleTitle = isRouterReady
+    ? getSingleQueryParam(router.query[OFFICIAL_JOBS_ONBOARDING_JOB_PARAM])
+    : null;
+  const officialJobsRoleSlug = isRouterReady
+    ? getSingleQueryParam(router.query[OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM])
+    : null;
+  const officialJobsChatDraftSeed = useMemo(() => {
+    if (officialJobsSource !== OFFICIAL_JOBS_LANDING_SOURCE) return null;
+
+    const draft = buildOfficialJobsInitialChatDraft(
+      officialJobsRoleTitle,
+      locale
+    );
+    if (!draft) return null;
+
+    const keySource =
+      officialJobsRoleSlug?.trim() || officialJobsRoleTitle?.trim() || draft;
+    return {
+      draft,
+      key: `official_jobs:${locale}:${keySource}`,
+    };
+  }, [locale, officialJobsRoleSlug, officialJobsRoleTitle, officialJobsSource]);
   const deliveryEmailHistoryLinkEntry = isRouterReady
     ? getSingleQueryParam(router.query[DELIVERY_EMAIL_HISTORY_LINK_ENTRY_PARAM])
     : null;
@@ -67,14 +100,49 @@ const CareerWorkspacePage = ({
     [activeTab, isRouterReady, router.asPath]
   );
 
-  useTalentOnboardingRedirect({
-    enabled: !authLoading && isRouterReady && Boolean(user),
-    emailOnboardingToken,
-    inviteToken,
-    mail,
-    userId: user?.id ?? null,
-  });
+  const { isOnboardingStatusReady, needsOnboarding } =
+    useTalentOnboardingRedirect({
+      enabled: !authLoading && isRouterReady && Boolean(user),
+      emailOnboardingToken,
+      inviteToken,
+      mail,
+      userId: user?.id ?? null,
+    });
   useCareerVisitLog(!authLoading && isRouterReady && Boolean(user));
+
+  useEffect(() => {
+    if (
+      !isRouterReady ||
+      !user ||
+      !officialJobsChatDraftSeed ||
+      !isOnboardingStatusReady ||
+      needsOnboarding
+    ) {
+      return;
+    }
+    if (
+      router.query[OFFICIAL_JOBS_ONBOARDING_JOB_PARAM] === undefined &&
+      router.query[OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM] === undefined
+    ) {
+      return;
+    }
+
+    const nextQuery = { ...router.query };
+    delete nextQuery[OFFICIAL_JOBS_ONBOARDING_JOB_PARAM];
+    delete nextQuery[OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM];
+    void router.replace(
+      { pathname: router.pathname, query: nextQuery },
+      undefined,
+      { shallow: true, scroll: false }
+    );
+  }, [
+    isOnboardingStatusReady,
+    isRouterReady,
+    needsOnboarding,
+    officialJobsChatDraftSeed,
+    router,
+    user,
+  ]);
 
   useEffect(() => {
     if (
@@ -198,13 +266,20 @@ const CareerWorkspacePage = ({
   } else {
     pageContent = (
       <CareerFlowProvider
+        activeTab={currentActiveTab}
         emailOnboardingToken={emailOnboardingToken}
+        initialChatDraft={officialJobsChatDraftSeed?.draft}
+        initialChatDraftKey={officialJobsChatDraftSeed?.key}
         inviteToken={inviteToken}
         mail={mail}
         onOpenSettings={handleOpenSettings}
+        settingsDataEnabled={
+          settingsModalOpen || currentActiveTab === "profile"
+        }
       >
         <CareerWorkspaceScreen
           activeTab={currentActiveTab}
+          initialMobileChatOpen={Boolean(officialJobsChatDraftSeed)}
           onChangeTab={handleChangeTab}
         />
         <CareerSettingsModal

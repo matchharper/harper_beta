@@ -17,7 +17,10 @@ import type {
   CareerOpportunityRun,
   CareerOpportunityAgentVariant,
 } from "./types";
-import type { CareerProfileVisibility } from "@/hooks/career/useCareerTalentSettings";
+import type {
+  CareerEngagementType,
+  CareerProfileVisibility,
+} from "@/hooks/career/useCareerTalentSettings";
 import type { RunOpportunityDiscoveryTestOptions } from "@/hooks/career/useCareerRuntimeActions";
 import type {
   CareerConversationStarterId,
@@ -98,6 +101,12 @@ export type CareerSidebarContextValue = {
   historyUpdateError: string;
   onLoadMoreHistoryOpportunities: (
     filter?: CareerHistoryOpportunityPageFilter
+  ) => void | Promise<void>;
+  isHistoryOpportunityPageFilterLoading: (
+    filter: CareerHistoryOpportunityPageFilter
+  ) => boolean;
+  onLoadSavedStageHistoryOpportunityPages: (
+    savedStages: CareerOpportunitySavedStage[]
   ) => void | Promise<void>;
   onLoadHistoryOpportunityByRoleId: (
     roleId: string
@@ -193,10 +202,14 @@ export type CareerSidebarContextValue = {
   settingsError: string;
   settingsUpdatedAt: string | null;
   profileVisibility: CareerProfileVisibility;
+  engagementTypes: CareerEngagementType[];
   blockedCompanies: string[];
   hasUnsavedTalentSettingsChanges: boolean;
   onProfileVisibilityChange: (
     value: CareerProfileVisibility
+  ) => boolean | Promise<boolean>;
+  onEngagementTypesChange: (
+    values: CareerEngagementType[]
   ) => boolean | Promise<boolean>;
   onAddBlockedCompany: (name: string) => boolean | Promise<boolean>;
   onRemoveBlockedCompany: (name: string) => boolean | Promise<boolean>;

@@ -69,6 +69,15 @@ function isOpportunityRunLockExpired(run: OpportunityRunRow) {
   return Date.now() - time > OPPORTUNITY_RUN_LOCK_TIMEOUT_MS;
 }
 
+function isUniqueViolation(error: unknown) {
+  return (
+    !!error &&
+    typeof error === "object" &&
+    "code" in error &&
+    String((error as { code?: unknown }).code) === "23505"
+  );
+}
+
 export type CreateDiscoveryRunArgs = {
   conversationId?: string | null;
   initialStatus?: "queued" | "running";
@@ -144,6 +153,29 @@ export async function getActiveOpportunityRun(args: {
   if (error) throw new Error(error.message ?? "Failed to load active run");
   const run = (data ?? null) as OpportunityRunRow | null;
   if (run && isOpportunityRunLockExpired(run)) return null;
+  return run;
+}
+
+async function fetchActiveOpportunityRunForTalent(args: {
+  admin: AdminClient;
+  includeExpired?: boolean;
+  userId: string;
+}) {
+  const { data, error } = await ((
+    args.admin.from("opportunity_discovery_run" as any) as any
+  )
+    .select("*")
+    .eq("talent_id", args.userId)
+    .in("status", ["queued", "running"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle() as any);
+
+  if (error) throw new Error(error.message ?? "Failed to load active run");
+  const run = (data ?? null) as OpportunityRunRow | null;
+  if (!args.includeExpired && run && isOpportunityRunLockExpired(run)) {
+    return null;
+  }
   return run;
 }
 
@@ -325,7 +357,17 @@ export async function createOpportunityDiscoveryRun(
     .select("*")
     .single() as any);
 
-  if (error) throw new Error(error.message ?? "Failed to create run");
+  if (error) {
+    if (isUniqueViolation(error)) {
+      const activeRun = await fetchActiveOpportunityRunForTalent({
+        admin: args.admin,
+        includeExpired: true,
+        userId: args.talentId,
+      });
+      if (activeRun) return activeRun;
+    }
+    throw new Error(error.message ?? "Failed to create run");
+  }
   return data as OpportunityRunRow;
 }
 

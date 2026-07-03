@@ -4,10 +4,17 @@ import { queryOptions, useQuery } from "@tanstack/react-query";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
 import { normalizeCareerUtmSource } from "@/lib/career/utm";
+import {
+  OFFICIAL_JOBS_ONBOARDING_JOB_PARAM,
+  OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM,
+} from "@/lib/officialJobs";
 
 type OnboardingStatus = {
   needsOnboarding: boolean;
 };
+
+const getSingleQueryParam = (value: string | string[] | undefined) =>
+  Array.isArray(value) ? value[0] : value;
 
 export const talentOnboardingStatusQueryKey = (userId?: string | null) =>
   ["talentOnboardingStatus", userId?.trim() || "anonymous"] as const;
@@ -64,6 +71,19 @@ export function useTalentOnboardingRedirect({
     statusQuery.isSuccess &&
     statusQuery.isFetchedAfterMount &&
     statusQuery.data?.needsOnboarding === true;
+  const officialJobTitle =
+    getSingleQueryParam(
+      router.query[OFFICIAL_JOBS_ONBOARDING_JOB_PARAM]
+    )?.trim() || "";
+  const officialJobSlug =
+    getSingleQueryParam(
+      router.query[OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM]
+    )?.trim() || "";
+  const startQuery = getSingleQueryParam(router.query.start);
+  const localId = getSingleQueryParam(router.query.lid)?.trim() || "";
+  const source = normalizeCareerUtmSource(
+    getSingleQueryParam(router.query.source)
+  );
 
   useEffect(() => {
     if (!needsOnboarding) return;
@@ -74,15 +94,18 @@ export function useTalentOnboardingRedirect({
     if (emailOnboardingToken) {
       query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM] = emailOnboardingToken;
     }
-    if (router.query.start === "call" || router.query.start === "chat") {
-      query.start = router.query.start;
+    if (startQuery === "call" || startQuery === "chat") {
+      query.start = startQuery;
     }
-    if (typeof router.query.lid === "string" && router.query.lid.trim()) {
-      query.lid = router.query.lid.trim();
+    if (localId) {
+      query.lid = localId;
     }
-    if (typeof router.query.source === "string") {
-      const source = normalizeCareerUtmSource(router.query.source);
-      if (source) query.source = source;
+    if (source) query.source = source;
+    if (officialJobTitle) {
+      query[OFFICIAL_JOBS_ONBOARDING_JOB_PARAM] = officialJobTitle;
+    }
+    if (officialJobSlug) {
+      query[OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM] = officialJobSlug;
     }
 
     void router.replace({
@@ -92,11 +115,19 @@ export function useTalentOnboardingRedirect({
   }, [
     emailOnboardingToken,
     inviteToken,
+    localId,
     mail,
     needsOnboarding,
+    officialJobSlug,
+    officialJobTitle,
     router,
-    router.query.lid,
-    router.query.start,
-    router.query.source,
+    source,
+    startQuery,
   ]);
+
+  return {
+    isOnboardingStatusReady:
+      statusQuery.isSuccess && statusQuery.isFetchedAfterMount,
+    needsOnboarding,
+  };
 }
