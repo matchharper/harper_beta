@@ -47,7 +47,7 @@ export const CAREER_LLM_CONFIG = {
   // 사용처: /api/talent/chat, src/lib/career/chatTurn.ts,
   // onboarding completion wrapup에서 유저 메시지에 답하거나 tool loop를 돌릴 때.
   chat: {
-    maxTokens: 1536,
+    maxTokens: 4096,
     temperature: 0.55,
   },
   // 대화 저장/응답 이후 assistant 답변에서 structured insight JSON을 뽑을 때.
@@ -245,6 +245,8 @@ type LlmToolCostAttribution = {
   step: string;
   toolNames: readonly string[];
 };
+
+type AnthropicEffort = "low" | "medium" | "high" | "xhigh" | "max";
 
 const STREAMING_TOOL_CHAIN_MAX_CALLS = 3;
 
@@ -712,6 +714,55 @@ function shouldUseAnthropicNativeMessages(model: string) {
   );
 }
 
+function supportsAnthropicEffort(model: string) {
+  const normalized = model.trim().toLowerCase();
+  return (
+    normalized === "claude-sonnet-5" ||
+    normalized.startsWith("claude-sonnet-5-") ||
+    normalized === "claude-sonnet-4-6" ||
+    normalized.startsWith("claude-sonnet-4-6-") ||
+    normalized === "claude-opus-4-8" ||
+    normalized.startsWith("claude-opus-4-8-") ||
+    normalized === "claude-opus-4-7" ||
+    normalized.startsWith("claude-opus-4-7-") ||
+    normalized === "claude-opus-4-6" ||
+    normalized.startsWith("claude-opus-4-6-") ||
+    normalized === "claude-opus-4-5" ||
+    normalized.startsWith("claude-opus-4-5-") ||
+    normalized === "claude-fable-5" ||
+    normalized.startsWith("claude-fable-5-") ||
+    normalized === "claude-mythos-5" ||
+    normalized.startsWith("claude-mythos-5-") ||
+    normalized === "claude-mythos-preview" ||
+    normalized.startsWith("claude-mythos-preview-")
+  );
+}
+
+function resolveCareerChatEffort(
+  usageLabel: string | undefined
+): AnthropicEffort {
+  const normalized = String(usageLabel ?? "").trim();
+  if (
+    normalized.startsWith("career/chat:session_reengagement") ||
+    normalized.startsWith("career/chat:opportunity_feedback_followup")
+  ) {
+    return "low";
+  }
+  return "medium";
+}
+
+function buildAnthropicOutputConfig(args: {
+  model: string;
+  usageLabel?: string;
+}) {
+  if (!supportsAnthropicEffort(args.model)) return {};
+  return {
+    output_config: {
+      effort: resolveCareerChatEffort(args.usageLabel),
+    },
+  };
+}
+
 async function createAnthropicMessage(args: {
   messages: AnthropicMessage[];
   model: string;
@@ -732,6 +783,10 @@ async function createAnthropicMessage(args: {
     max_tokens: CAREER_LLM_CONFIG.chat.maxTokens,
     system: buildAnthropicSystemBlocks(args.systemBlocks),
     messages: args.messages,
+    ...buildAnthropicOutputConfig({
+      model: args.model,
+      usageLabel: args.usageLabel,
+    }),
     ...(supportsSamplingParametersForModel(args.model)
       ? { temperature: args.temperature }
       : {}),
@@ -842,6 +897,10 @@ async function createAnthropicMessageStreamResponse(args: {
     system: buildAnthropicSystemBlocks(args.systemBlocks),
     messages: args.messages,
     stream: true,
+    ...buildAnthropicOutputConfig({
+      model: args.model,
+      usageLabel: args.usageLabel,
+    }),
     ...(supportsSamplingParametersForModel(args.model)
       ? { temperature: args.temperature }
       : {}),
