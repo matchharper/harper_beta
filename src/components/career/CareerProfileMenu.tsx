@@ -1,9 +1,14 @@
 import {
+  Building2,
   Check,
+  ExternalLink,
   HelpCircle,
+  Info,
   Languages,
+  Linkedin,
   Loader2,
   LogOut,
+  MessageCircle,
   Scroll,
 } from "lucide-react";
 import React, { useState } from "react";
@@ -14,7 +19,14 @@ import {
   ActionDropdownItem,
   ActionDropdownSeparator,
 } from "@/components/ui/action-dropdown";
-import { DropdownMenuLabel } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+} from "@/components/ui/dropdown-menu";
+import { openCustomCrispWidget } from "@/lib/feedback/customCrispEvents";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { BareButton, Button, CardButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
@@ -36,6 +48,12 @@ const getProfileLocaleOptionLabel = (
   if (value === "ko") return t("ui.1787f9e", "한국어");
   return "English";
 };
+
+const aboutMenuItemClassName =
+  "flex h-10 cursor-pointer items-center gap-2.5 rounded-[10px] px-3 text-sm text-neutral-primary outline-none transition-colors focus:bg-bg-weak focus:text-neutral-primary";
+
+const aboutSubmenuClassName =
+  "w-[248px] rounded-[12px] border border-neutral-1000-a05 bg-bg-floating/95 p-1 text-neutral-primary shadow-[0_18px_40px_rgba(31,28,26,0.12)] backdrop-blur-md";
 
 const CareerProfileMenu = ({
   profileImageUrl,
@@ -101,6 +119,17 @@ const CareerProfileMenu = ({
     setLanguageError("");
     setMenuOpen(false);
     setLanguageModalOpen(true);
+  };
+
+  const handleTalkToFounder = () => {
+    logCareerEvent("click_profile_menu_about_talk_to_founder");
+    setMenuOpen(false);
+    window.setTimeout(openCustomCrispWidget, 0);
+  };
+
+  const handleExternalAboutLinkClick = (eventName: string) => {
+    logCareerEvent(eventName);
+    setMenuOpen(false);
   };
 
   const handleLocaleSelect = async (nextLocale: Locale) => {
@@ -255,6 +284,60 @@ const CareerProfileMenu = ({
             {t("career.profile.career_profile_menu.14ybad0", "업데이트 노트")}
           </span>
         </ActionDropdownItem>
+        {/* <DropdownMenuSub>
+          <DropdownMenuSubTrigger
+            className={cn(aboutMenuItemClassName, "mt-0")}
+          >
+            <Info className="h-4 w-4" />
+            <span className="min-w-0 flex-1">About</span>
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent
+            sideOffset={8}
+            alignOffset={-4}
+            className={aboutSubmenuClassName}
+          >
+            <DropdownMenuItem asChild className={aboutMenuItemClassName}>
+              <a
+                href="https://www.linkedin.com/company/matchharper/"
+                target="_blank"
+                rel="noreferrer"
+                onClick={() =>
+                  handleExternalAboutLinkClick(
+                    "click_profile_menu_about_linkedin"
+                  )
+                }
+              >
+                <Linkedin className="h-4 w-4" />
+                <span className="min-w-0 flex-1">Linkedin</span>
+                <ExternalLink className="ml-auto h-4 w-4 text-neutral-soft" />
+              </a>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={handleTalkToFounder}
+              className={aboutMenuItemClassName}
+            >
+              <MessageCircle className="h-4 w-4" />
+              <span className="min-w-0 flex-1">Talk to Founder</span>
+              <ExternalLink className="ml-auto h-4 w-4 text-neutral-soft" />
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild className={aboutMenuItemClassName}>
+              <a
+                href="https://matchharper.com/about"
+                target="_blank"
+                rel="noreferrer"
+                onClick={() =>
+                  handleExternalAboutLinkClick(
+                    "click_profile_menu_about_about_us"
+                  )
+                }
+              >
+                <Building2 className="h-4 w-4" />
+                <span className="min-w-0 flex-1">About us</span>
+                <ExternalLink className="ml-auto h-4 w-4 text-neutral-soft" />
+              </a>
+            </DropdownMenuItem>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub> */}
         <ActionDropdownSeparator />
         <ActionDropdownItem
           onSelect={() => {

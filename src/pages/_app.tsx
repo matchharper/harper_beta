@@ -35,6 +35,13 @@ const RepoModalRoot = dynamic(() => import("@/components/Modal/RepoModal"), {
   ssr: false,
   loading: () => null,
 });
+const CustomCrispWidget = dynamic(
+  () => import("@/components/feedback/CustomCrispWidget"),
+  {
+    ssr: false,
+    loading: () => null,
+  }
+);
 import Script from "next/script";
 import { useRouter } from "next/router";
 
@@ -74,11 +81,13 @@ export default function App({ Component, pageProps }: AppProps) {
     router.pathname.startsWith("/admin/career/");
   const isOpsPage =
     router.pathname === "/ops" || router.pathname.startsWith("/ops/");
+  const shouldMountCustomCrisp = router.pathname === "/career/[[...tab]]";
   const shouldHideCrisp =
     isCareerPage ||
     isCareerLoginPage ||
     isAdminCareerPage ||
     isOpsPage ||
+    shouldMountCustomCrisp ||
     router.pathname === "/" ||
     router.pathname === "/landing-ko-vf" ||
     router.pathname === "/network2";
@@ -194,6 +203,9 @@ export default function App({ Component, pageProps }: AppProps) {
             <PaperModalRoot />
             <RepoModalRoot />
             {page}
+            {shouldMountCustomCrisp && (
+              <CustomCrispWidget showLauncher={false} />
+            )}
             <ToastProvider />
           </AppErrorBoundary>
         </div>

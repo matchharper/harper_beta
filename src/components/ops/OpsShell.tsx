@@ -63,6 +63,12 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
         label: "Request Access",
         matchPrefix: "/ops/request-access",
       },
+      {
+        description: "Crisp 문의 확인 및 답장",
+        href: "/ops/feedback",
+        label: "Feedback",
+        matchPrefix: "/ops/feedback",
+      },
     ],
   },
   {

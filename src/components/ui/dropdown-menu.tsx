@@ -91,28 +91,46 @@ const DropdownMenuItem = React.forwardRef<
       selected = false,
       tone = "default",
       children,
+      asChild,
       ...props
     },
     ref
-  ) => (
-    <DropdownMenuPrimitive.Item
-      ref={ref}
-      className={cn(
-        "relative flex cursor-default select-none items-center gap-2 rounded-[10px] px-3 py-2 text-sm text-neutral-primary outline-none transition-colors focus:bg-bg-weak focus:text-neutral-primary data-disabled:pointer-events-none data-disabled:opacity-50 [&>svg]:size-4 [&>svg]:shrink-0",
-        selected && "bg-bg-weak text-neutral-primary",
-        tone === "danger" &&
-          "text-critical focus:bg-critical-faded focus:text-critical",
-        inset && "pl-8",
-        className
-      )}
-      {...props}
-    >
-      {children}
-      {selected ? (
-        <Check className="ml-auto h-4 w-4 shrink-0 text-neutral-muted" />
-      ) : null}
-    </DropdownMenuPrimitive.Item>
-  )
+  ) => {
+    const itemClassName = cn(
+      "relative flex cursor-default select-none items-center gap-2 rounded-[10px] px-3 py-2 text-sm text-neutral-primary outline-none transition-colors focus:bg-bg-weak focus:text-neutral-primary data-disabled:pointer-events-none data-disabled:opacity-50 [&>svg]:size-4 [&>svg]:shrink-0",
+      selected && "bg-bg-weak text-neutral-primary",
+      tone === "danger" &&
+        "text-critical focus:bg-critical-faded focus:text-critical",
+      inset && "pl-8",
+      className
+    );
+
+    if (asChild) {
+      return (
+        <DropdownMenuPrimitive.Item
+          ref={ref}
+          asChild
+          className={itemClassName}
+          {...props}
+        >
+          {children}
+        </DropdownMenuPrimitive.Item>
+      );
+    }
+
+    return (
+      <DropdownMenuPrimitive.Item
+        ref={ref}
+        className={itemClassName}
+        {...props}
+      >
+        {children}
+        {selected ? (
+          <Check className="ml-auto h-4 w-4 shrink-0 text-neutral-muted" />
+        ) : null}
+      </DropdownMenuPrimitive.Item>
+    );
+  }
 );
 DropdownMenuItem.displayName = DropdownMenuPrimitive.Item.displayName;
 

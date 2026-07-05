@@ -1,4 +1,7 @@
 import { showToast } from "@/components/toast/toast";
+import { BareButton, Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import type { Locale } from "@/i18n/useMessage";
 import { X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
@@ -276,7 +279,7 @@ export function CompanyMeetingRequestModal({
     <AnimatePresence>
       {open && (
         <motion.div
-          className="fixed inset-0 z-100 flex items-center justify-center px-3 py-3 md:px-4 md:py-8"
+          className="fixed inset-0 z-100 flex items-center justify-center px-4 py-4 md:py-8"
           role="dialog"
           aria-modal="true"
           aria-labelledby="company-meeting-request-title"
@@ -284,63 +287,58 @@ export function CompanyMeetingRequestModal({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
         >
-          <button
+          <BareButton
             type="button"
             aria-label={copy.closeOverlayLabel}
-            className="absolute inset-0 bg-black/45 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/25"
             onClick={onClose}
           />
           <motion.div
-            initial={{ opacity: 0, y: 18, scale: 0.98 }}
+            initial={{ opacity: 0, y: 10, scale: 0.99 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 18, scale: 0.98 }}
+            exit={{ opacity: 0, y: 10, scale: 0.99 }}
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className="relative max-h-[calc(100dvh-24px)] w-full max-w-[520px] overflow-y-auto rounded-[20px] border border-white/50 bg-beige100 p-5 shadow-[0_30px_100px_rgba(31,18,7,0.28)] md:max-h-[calc(100dvh-64px)] md:rounded-[24px] md:p-8"
+            className="relative max-h-[calc(100dvh-32px)] w-full max-w-[480px] overflow-y-auto rounded-lg border border-neutral-200 bg-white p-5 text-neutral-1000 shadow-[0_12px_40px_rgba(0,0,0,0.12)] md:max-h-[calc(100dvh-64px)] md:p-6"
           >
-            <button
+            <BareButton
               type="button"
               aria-label={copy.closeLabel}
               onClick={onClose}
-              className="absolute right-5 top-5 flex h-9 w-9 items-center justify-center rounded-full bg-beige500/70 text-beige900 transition-colors hover:bg-beige500"
+              className="absolute right-4 top-4 flex h-7 w-7 items-center justify-center rounded-md text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-1000"
             >
-              <X className="h-4 w-4" />
-            </button>
-            <div className="pr-10">
+              <X className="h-3.5 w-3.5" />
+            </BareButton>
+            <div className="pr-8">
               <h2
                 id="company-meeting-request-title"
-                className="font-hedvig text-[24px] leading-[0.98] text-beige900 md:text-[26px]"
+                className="text-base font-semibold leading-6 text-neutral-1000 md:text-lg"
               >
                 {copy.title}
               </h2>
-              <p className="mt-2 text-[15px] leading-[1.45] tracking-[-0.03em] text-beige900/55 md:mt-3 md:text-[16px] md:leading-[1.5]">
-                {copy.description}
-              </p>
+              <p className="mt-1 text-sm leading-5">{copy.description}</p>
             </div>
-            <form
-              onSubmit={onSubmit}
-              className="mt-5 space-y-3 md:mt-7 md:space-y-4"
-            >
+            <form onSubmit={onSubmit} className="mt-5 space-y-4">
               <label className="block">
-                <span className="text-[13px] font-medium tracking-[-0.02em] text-beige900/70">
+                <span className="text-xs font-medium text-neutral-900">
                   {copy.nameLabel}
                 </span>
-                <input
+                <Input
                   value={form.name}
                   onChange={(event) => onChange("name", event.target.value)}
-                  className="mt-1.5 h-11 w-full rounded-[14px] border border-beige900/10 bg-white/70 px-4 text-[15px] tracking-[-0.02em] text-beige900 outline-none transition-colors placeholder:text-beige900/30 focus:border-beige900/30 md:mt-2 md:h-12"
+                  className="mt-1 h-10 bg-white text-neutral-1000 placeholder:text-black/60 focus:border-primary focus:ring-primary/10"
                   placeholder={copy.namePlaceholder}
                   autoComplete="name"
                   required
                 />
               </label>
               <label className="block">
-                <span className="text-[13px] font-medium tracking-[-0.02em] text-beige900/70">
+                <span className="text-xs font-medium text-neutral-900">
                   {copy.emailLabel}
                 </span>
-                <input
+                <Input
                   value={form.email}
                   onChange={(event) => onChange("email", event.target.value)}
-                  className="mt-1.5 h-11 w-full rounded-[14px] border border-beige900/10 bg-white/70 px-4 text-[15px] tracking-[-0.02em] text-beige900 outline-none transition-colors placeholder:text-beige900/30 focus:border-beige900/30 md:mt-2 md:h-12"
+                  className="mt-1 h-10 bg-white text-neutral-1000 placeholder:text-black/60 focus:border-primary focus:ring-primary/10"
                   placeholder={copy.emailPlaceholder}
                   type="email"
                   autoComplete="email"
@@ -348,48 +346,52 @@ export function CompanyMeetingRequestModal({
                 />
               </label>
               <label className="block">
-                <span className="text-[13px] font-medium tracking-[-0.02em] text-beige900/70">
+                <span className="text-xs font-medium text-neutral-900">
                   {copy.companyLabel}
                 </span>
-                <input
+                <Input
                   value={form.organization}
                   onChange={(event) =>
                     onChange("organization", event.target.value)
                   }
-                  className="mt-1.5 h-11 w-full rounded-[14px] border border-beige900/10 bg-white/70 px-4 text-[15px] tracking-[-0.02em] text-beige900 outline-none transition-colors placeholder:text-beige900/30 focus:border-beige900/30 md:mt-2 md:h-12"
+                  className="mt-1 h-10 bg-white text-neutral-1000 placeholder:text-black/60 focus:border-primary focus:ring-primary/10"
                   placeholder={copy.companyPlaceholder}
                   autoComplete="organization"
                   required
                 />
               </label>
               <label className="block">
-                <span className="text-[13px] font-medium tracking-[-0.02em] text-beige900/70">
+                <span className="text-xs font-medium text-neutral-900">
                   {copy.goalLabel}
                 </span>
-                <textarea
+                <Textarea
                   value={form.purpose}
                   onChange={(event) => onChange("purpose", event.target.value)}
-                  className="mt-1.5 min-h-24 w-full resize-none rounded-[14px] border border-beige900/10 bg-white/70 px-4 py-3 text-[15px] leading-[1.45] tracking-[-0.02em] text-beige900 outline-none transition-colors placeholder:text-beige900/30 focus:border-beige900/30 md:mt-2 md:min-h-28 md:leading-[1.5]"
+                  className="mt-1 min-h-24 bg-white py-2.5 text-neutral-1000 placeholder:text-black/60 focus:border-primary focus:ring-primary/10"
                   placeholder={copy.goalPlaceholder}
                   required
                 />
               </label>
-              <div className="flex items-center justify-end gap-2 pt-1 md:gap-3 md:pt-2">
-                <button
+              <div className="flex items-center justify-end gap-2">
+                <Button
                   type="button"
+                  variant="secondary"
+                  size="sm"
                   onClick={onClose}
                   disabled={isSubmitting}
-                  className="h-12 rounded-[14px] bg-beige500/70 px-5 text-[15px] font-medium tracking-[-0.03em] text-beige900 transition-colors hover:bg-beige500 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="h-9 rounded-md border-neutral-300 bg-white px-3 text-sm text-neutral-700 hover:bg-neutral-100"
                 >
                   {copy.cancel}
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
+                  variant="primary"
+                  size="sm"
                   disabled={isSubmitting}
-                  className="h-12 rounded-[14px] bg-beige900 px-6 text-[15px] font-medium tracking-[-0.03em] text-beige100 transition-colors hover:bg-beige900/90 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="h-9 rounded-md border-primary bg-primary px-4 text-sm text-white hover:bg-primary/90"
                 >
                   {isSubmitting ? copy.submitting : copy.submit}
-                </button>
+                </Button>
               </div>
             </form>
           </motion.div>
