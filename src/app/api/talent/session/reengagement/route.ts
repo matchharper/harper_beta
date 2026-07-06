@@ -341,6 +341,7 @@ export async function POST(req: NextRequest) {
     const proactiveContext = buildCareerSessionStartTurnInstruction({
       currentAccessAt: now,
       idleMs: effectiveIdleMs,
+      isOnboardingDone: Boolean(talentSetting?.is_onboarding_done),
       preferredLocale: talentSetting?.preferred_locale ?? null,
       previousChatAt: latestChatMessage?.created_at ?? null,
     });

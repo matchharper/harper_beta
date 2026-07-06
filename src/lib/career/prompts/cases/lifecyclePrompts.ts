@@ -4,10 +4,13 @@ import {
   formatCareerPromptKoreanDateTime,
   parseCareerPromptTimestampMs,
 } from "@/lib/career/prompts/promptUtils";
-import type {
-  CareerOpportunityFeedbackFollowUpTrigger,
-  CareerTranscriptEntry,
+import {
+  CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER,
+  type CareerOpportunityFeedbackFollowUpTrigger,
+  type CareerTranscriptEntry,
 } from "@/lib/career/prompts/types";
+import { CAREER_CALL_END_MARKER } from "../rawPrompts";
+import type { InternalOpportunityCallRequest } from "@/lib/talentOnboarding/internalOpportunityCallRequest";
 
 export const CAREER_SESSION_START_NO_MESSAGE_MARKER = "__NO_SESSION_GREETING__";
 export const CAREER_SESSION_START_CALL_ACTION_MARKER = "[[CALL]]";
@@ -18,11 +21,11 @@ export const CAREER_SESSION_START_CALL_ACTION_MARKER = "[[CALL]]";
 export function buildCareerSessionStartTurnInstruction(args: {
   currentAccessAt: string;
   idleMs: number;
+  isOnboardingDone: boolean;
   preferredLocale?: string | null;
   previousChatAt: string | null;
 }) {
   const outputLanguage = getCareerPromptLanguageName(args.preferredLocale);
-
   const currentAccessMs = parseCareerPromptTimestampMs(args.currentAccessAt);
   const previousChatMs = parseCareerPromptTimestampMs(args.previousChatAt);
   const previousChatIdleHours =
@@ -38,6 +41,23 @@ export function buildCareerSessionStartTurnInstruction(args: {
   const previousChatAtLabel = formatCareerPromptKoreanDateTime(
     args.previousChatAt
   );
+
+  if (!args.isOnboardingDone) {
+    return [
+      "## Session-start assistant turn",
+      `Always write the user-visible reply in ${outputLanguage}.`,
+      "사용자가 방금 Career 화면에 다시 접속했다. 사용자가 아직 새 메시지를 보내지 않았지만, Harper가 먼저 짧게 말을 건넬 수 있는 차례다.",
+      `- currentAccessAt: ${currentAccessAtLabel}`,
+      `- previousChatAt: ${previousChatAtLabel}`,
+      `- hoursSincePreviousChat: ${previousChatIdleHours ?? "(계산 불가)"}`,
+      "이번 발화의 목적은 끊긴 커리어 온보딩을 자연스럽게 이어가는 것이다.",
+      "돌아온 것을 환영합니다 혹은 이전의 대화를 자연스럽게 이어가는 식으로 시작하면 좋다.",
+      "기존 onboarding_rules와 checklist/runtime state를 참고해서 아직 부족한 정보 중 가장 중요한 것을 물으면서 말을 마쳐라.",
+      "혹은 종료 기준을 충족했다면 다시 돌아오셔서 반갑습니다.라고 가볍게 말한 뒤 바로 종료해라.",
+      "추천 공고를 새로 찾거나, 이전 추천 중 무엇이 끌리는지 묻거나, 지원 여부를 확인하는 방향으로 가지 마라.",
+      "질문은 한 번에 하나만 한다. 온보딩 완료를 단정하거나, Harper가 이미 충분히 다 알았다고 말하지 마라.",
+    ].join("\n");
+  }
 
   return [
     "## Session-start assistant turn",
@@ -58,9 +78,9 @@ export function buildCareerSessionStartTurnInstruction(args: {
     "세션 시작 인사에서는 이전에 저장/좋아요한 추천들을 카드처럼 다시 묶어 '그중 뭐가 제일 끌리냐', '어느 회사가 더 좋냐', '실제로 지원 중인 곳이 있냐'처럼 묻지 마라. 이런 질문은 추천/연결 품질을 거의 개선하지 못한다.",
     "이전 저장/좋아요/제외됨 신호를 사용해야 한다면, 특정 선택의 이유나 명확한 mismatch 하나만 물어라. 그런 구체성이 없으면 추천 이력 질문 대신 프로필 gap, 최근 변화, 통화 제안 중 하나로 이어가라.",
     "이미 명확한 다음 액션이 진행 중이라 사용자의 답이 필요 없거나, 질문이 오히려 어색하면 질문 없이 짧은 상태 공유로 닫아도 된다.",
-    `hoursSincePreviousChat이 1344 이상이고, 최근 활동/추천/프로필 변경에서 바로 이어갈 만한 명확한 업데이트가 없다면 "오랜만이라 최근 업데이트나 재밌게 하는 일이 있는지 통화로 한번 듣고 싶다"는 취지로 자연스럽게 말한 뒤 응답 맨 끝에 ${CAREER_SESSION_START_CALL_ACTION_MARKER} 를 붙여라.`,
-    `${CAREER_SESSION_START_CALL_ACTION_MARKER} 는 UI가 전화하기 버튼을 표시하는 데 쓰는 마커다. 이 마커를 설명하거나 따옴표로 감싸지 마라.`,
-    "텍스트 채팅에 표시되므로 필요하면 회사명, 역할명, 방향성 같은 핵심 단어에 가벼운 inline markdown 강조(**...**)를 사용해라.",
+    previousChatIdleHours && previousChatIdleHours > 1344
+      ? `hoursSincePreviousChat이 1344 이상이고, 최근 활동/추천/프로필 변경에서 바로 이어갈 만한 명확한 업데이트가 없다면 "오랜만이라 최근 업데이트나 재밌게 하는 일이 있는지 통화로 한번 듣고 싶다"는 취지로 자연스럽게 말한 뒤 응답 맨 끝에 ${CAREER_SESSION_START_CALL_ACTION_MARKER} 를 붙여라. ${CAREER_SESSION_START_CALL_ACTION_MARKER} 는 UI가 전화하기 버튼을 표시하는 데 쓰는 마커다. 이 마커를 설명하거나 따옴표로 감싸지 마라.`
+      : "",
   ].join("\n");
 }
 
@@ -136,42 +156,168 @@ export function buildCareerCallWrapupFallbackFollowUp(args: {
   );
 }
 
-export function buildCareerOpportunityFeedbackFollowUpTurnInstruction(args: {
+type OpportunityFeedbackFollowUpPromptArgs = {
   preferredLocale?: string | null;
   trigger: CareerOpportunityFeedbackFollowUpTrigger;
-}) {
+};
+
+export function buildCareerOpportunityFeedbackFollowUpProactiveContext(
+  args: OpportunityFeedbackFollowUpPromptArgs
+) {
+  return buildCareerOpportunityFeedbackFollowUpTurnInstruction(args);
+}
+
+/**
+ * 포지션 좋아요/싫어요 후 자동 답변에 사용되는 프롬프트
+ */
+export function buildCareerOpportunityFeedbackFollowUpTurnInstruction(
+  args: OpportunityFeedbackFollowUpPromptArgs
+) {
   const outputLanguage = getCareerPromptLanguageName(args.preferredLocale);
-  const clearedOpportunityGuidance =
-    args.trigger === "all_recommended_opportunities_cleared"
-      ? [
-          "",
-          "Cleared-position-tab trigger:",
-          "- The user has just accepted or rejected the last remaining item in the New Positions tab. There are now zero remaining newly recommended opportunities.",
-          `- Say, in natural ${outputLanguage}, that there are no remaining recommended opportunities to review right now.`,
-          "- Action guide: if the previous conversation and feedback history provide enough signal, call `recommend_job_postings` to find a fresh batch based on that history; if a required preference is missing or you wanna get confirmation about what you guessed based on the feedbacks before recommending, ask exactly one necessary question instead.",
-          "- This should feel like Harper is using the user's prior feedback, not like a hard-coded automatic refresh.",
-        ]
-      : [];
+  let triggerGuidance: string[];
+
+  switch (args.trigger) {
+    case CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER.DelayedExternalFeedback:
+      triggerGuidance = [
+        "External opportunity feedback:",
+        "- The user clicked like/dislike on an external opportunities.",
+        `- Write a natural ${outputLanguage} follow-up that reflects the feedback without making it feel like a system notification.`,
+        "- If there is a visible pattern in the feedback, mention it carefully as a hypothesis, not a fact.",
+        "- If the useful next step is unclear, ask exactly one preference question that would improve future external recommendations.",
+      ];
+      break;
+    case CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER.AllRecommendedOpportunitiesCleared:
+      triggerGuidance = [
+        "All recommended opportunities cleared trigger:",
+        "- The user has just accepted or rejected the last remaining item in the New Positions tab. There are now zero remaining newly recommended opportunities.",
+        `- Say, in natural ${outputLanguage}, that there are no remaining recommended opportunities to review right now.`,
+        "- Action guide: if the previous conversation and feedback history provide enough signal, call `recommend_job_postings` to find a fresh batch based on that history; if a required preference is missing or you want confirmation about what you inferred from feedback, ask exactly one necessary question instead.",
+        "- This should feel like Harper is using the user's prior feedback, not like a hard-coded automatic refresh.",
+      ];
+      break;
+    case CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER.ImmediateInternalFeedback:
+      triggerGuidance = [
+        "Immediate internal feedback trigger:",
+        "- The user liked or disliked an internal connection/request opportunity.",
+        "다음에 어떤 과정이 진행되는지 최대한 자세히 안내해라.",
+        "- If the internal opportunity was liked, treat it as confirmed acceptance. Thank them briefly, say Harper will proceed with the company-side introduction, and do not ask whether to connect/proceed again.",
+        "- Explain that Harper will time the introduction thoughtfully and company-side schedules can take a little time. Frame it as Harper mediating a better-fit connection, not as a normal application. 기다려주시면 이메일로 안내가 갈 예정이다. 최대 5 ~ 10일 정도 소요될 수 있다.",
+        "- If the profile context shows no resume file/link, mention that a resume usually improves review and companies often ask for it. Ask whether Harper should tell the company there is no updated resume yet, and invite them to upload one if they have it.",
+        "- If the accepted opportunity visibly conflicts with known preferences or needs, ask one focused question about that mismatch. Example: current location vs role location, company/domain, role scope, or timing.",
+        "예시 (실제 답변에서는 사용자 이름/회사명/역할명과 맥락에 맞게 자연스럽게 변형해라. markdown 강조와 줄바꿈을 적절히 사용해라.)",
+        "[이름]님, **[회사명] [역할명]** 연결 제안 수락해주셔서 감사해요.",
+        "",
+        "이 건은 일반적인 공고 지원이라기보다, Harper가 [이름]님의 경험과 역할 핏을 정리해서 회사 쪽에 전달하고, 양쪽의 관심이 잘 맞는지 조율하는 연결에 가까워요.",
+        "",
+        "이제 Harper가 [이름]님을 회사 쪽에 소개드리는 방향으로 진행할게요. 회사 쪽 검토와 일정 확인이 필요해서 바로 답변이 오지 않을 수 있고, 보통 **5~10일 정도** 걸릴 수 있어요.",
+        "",
+        "다음 과정이나 추가로 확인할 내용이 생기면 이메일로 안내드릴게요. 그동안은 따로 지원서를 다시 넣으실 필요는 없고, Harper가 이 연결 건을 이어서 챙길게요.",
+      ];
+      break;
+  }
 
   return [
     "## Opportunity feedback proactive assistant turn",
-    `Always write the user-visible reply in ${outputLanguage}, using markdown`,
-    "The user clicked like/dislike on one or more recommended opportunities. They did not send a new chat message. It is Harper's turn to proactively respond using the normal career/chat behavior and tool policy.",
-    `TRIGGER: ${args.trigger}`,
-    ...clearedOpportunityGuidance,
+    `Return in ${outputLanguage}, using markdown.`,
+    "The user clicked like/dislike on one or more recommended opportunities. They did not send a new message. It is Harper's turn to proactively respond.",
     "",
-    "Use the pending opportunity feedback context in this system prompt. It contains role/company details; do not reduce it to only counts.",
-    "Do not overreact to one click. For multiple clicks, summarize the visible pattern once.",
-    "It's good to ask a question to get to know more about the user's preferences or background experience. ex) PM 역할인데 저장하셨네요. 현재는 개발자이신데 PM으로의 전환도 관심이 있으신가요 혹은 이전에 PM으로 일하셨던 경험이 있으신가요?",
-    "ex. internal accept시 아래 기준으로 안내문구가 나간 이후 Agent Engineer를 저장하셨는데 이력에 현재 Agentic Engineering을 하고계시다고 되어있네요. 하지만 구체적으로 어떤걸 하시는지를 더 알면 좋을 것 같아요. 알려주실 수 있나요?",
-    "or if the liked/disliked opportunities share a visible company/domain/role/work-mode pattern, mention that pattern carefully as a hypothesis, not a fact and say that Harper will keep sending similar matches. Example tone: '이 방향이 잘 맞으시는 것 같네요. 비슷한 분위기 매칭 계속 보내드릴게요.'",
+    ...triggerGuidance,
     "",
-    "Feedback-specific rules:",
+    "Rules:",
+    "- Use the pending opportunity feedback context.",
+    "- Do not overreact to one click. For multiple clicks, summarize the visible pattern once.",
+    "- It is good to ask a question to learn more about the user's preferences or background when the answer will improve matching. Example: PM 역할인데 저장하셨네요. 현재는 개발자이신데 PM으로의 전환도 관심이 있으신가요 혹은 이전에 PM으로 일하셨던 경험이 있으신가요?",
+    "- If the liked/disliked opportunities share a visible company/domain/role/work-mode pattern, mention that pattern carefully as a hypothesis, not a fact. Example tone: '이 방향이 잘 맞으시는 것 같네요. 비슷한 분위기 매칭 계속 보내드릴게요.'",
     "- If several opportunities were disliked and no specific reasons were provided, acknowledge the count and ask what did not fit. Offer concrete choices such as role scope, company/domain, team style, seniority, location/work mode, or timing.",
-    "- If internal connection/request opportunities were liked, treat that as confirmed acceptance. Thank them briefly, say Harper will proceed with the company-side introduction, and do not ask whether to connect/proceed again. explain that Harper will time the introduction thoughtfully and company-side schedules can take a little time. Frame it as Harper mediating a better-fit connection, not as a normal application.",
-    "- For internal accepted feedback, Keep the company-side process update separate from any follow-up question. Do not say the process continues 'regardless of what I am saying now'; say plainly that the connection process will proceed independently.",
-    "- and if the profile context shows no resume file/link, mention that a resume usually improves review and companies often ask for it. Ask whether Harper should tell the company there is no updated resume yet, and invite them to upload one if they have it.",
+    "Important: 유저를 너무 귀찮게 만들지 마라. 이전에 이미 질문을 몇번 했는데 유저의 답이 없었거나, 꼭 필요한 질문이 없다면 다면 또 질문하기 보다는 감사합니다. 다음 번에 기회를 찾을 때 반영하겠습니다. 정도로만 안내해라.",
+  ].join("\n");
+}
+
+/**
+ * Internal 수락시 추가적인 정보 질문을 위해 voice call을 진행할 때 사용되는 프롬프트
+ */
+export function buildInternalOpportunityRealtimeInstruction(
+  callRequest: InternalOpportunityCallRequest & {
+    preferredLocale?: string | null;
+  }
+) {
+  const outputLanguage = getCareerPromptLanguageName(
+    callRequest.preferredLocale
+  );
+
+  return [
+    "This live voice call is specifically for an accepted internal opportunity connection.",
+    `- companyName: ${callRequest.companyName}`,
+    `- roleTitle: ${callRequest.roleTitle}`,
+    `- roleId: ${callRequest.roleId}`,
+    `- Speak in ${outputLanguage}.`,
     "",
-    "- For accepted feedback, 너가 아는 유저의 선호/니즈와 다른 부분이 있다면 그 부분에 대해서 물어봐라. ex. current location - role location mismatch, company/domain, etc.",
+    "Call purpose:",
+    "- This is not an interview or evaluation.",
+    "- The company-side connection is already proceeding by Harper.",
+    "- Ask short questions to collect better context for Harper to present the candidate to the company.",
+    "- The user may also ask questions about the company or process.",
+    "- Do not directly say 'I will pass this to the company exactly like this.' Say something more natural, such as that the details are helpful, and if needed say Harper will reflect them.",
+    "- For language questions, do not simply ask 'Is your English good?' Ask about a concrete situation where fluent communication may matter, or ask about specific language use or international experience.",
+    "- For each question, at most once, if the user's answer is shorter than two sentences, you may ask one short follow-up question.",
+    "",
+    "Required opening:",
+    "- Start by referencing the company and role.",
+    "- Say the connection is already progressing.",
+    "- Say the call is optional/non-evaluative and only helps Harper present them better.",
+    "- Then ask the first question immediately.",
+    "",
+    "Question plan. Ask one at a time, adapting naturally to answers:",
+    ...callRequest.questions.map(
+      (question, index) => `${index + 1}. ${question}`
+    ),
+    "",
+    "Before ending:",
+    `- You must ask at least once, in ${outputLanguage}, whether the user has questions about ${callRequest.companyName} or the next process.`,
+    "- End when you think the call is over or the user accepts or require to stop.",
+    `- End with a natural short closing in ${outputLanguage}, then append ${CAREER_CALL_END_MARKER}. Do not hesitate to end the call with ${CAREER_CALL_END_MARKER}.`,
+  ].join("\n");
+}
+
+/**
+ * Internal 포지션 수락시 추가적인 정보 질문을 위해 voice call을 진행할 때 사용되는 프롬프트
+ */
+export function buildInternalOpportunityCallWrapupInstruction(args: {
+  callRequest: InternalOpportunityCallRequest;
+  durationLabel: string | null;
+  isBrief: boolean;
+  preferredLocale?: string | null;
+  transcript: Array<{ role: "user" | "assistant"; text: string }>;
+}) {
+  const outputLanguage = getCareerPromptLanguageName(args.preferredLocale);
+  const transcriptText = args.transcript
+    .map((entry) => {
+      const role = entry.role === "user" ? "User" : "Harper";
+      return `${role}: ${entry.text.replace(/\s+/g, " ").trim()}`;
+    })
+    .filter((line) => line.trim().length > 0)
+    .join("\n");
+
+  return [
+    "## Internal opportunity call wrap-up",
+    "The user just ended a voice call for an accepted internal opportunity.",
+    `- companyName: ${args.callRequest.companyName}`,
+    `- roleTitle: ${args.callRequest.roleTitle}`,
+    `- callDuration: ${args.durationLabel ?? "(unknown)"}`,
+    `- callLengthAssessment: ${args.isBrief ? "brief_or_incomplete" : "substantial"}`,
+    "",
+    "Tool instruction:",
+    "- If the user disclosed clear profile facts, role-specific achievements, constraints, preferences, or resume/CV positioning context, call update_talent_profile before writing the wrap-up.",
+    "- Do not call search, recommendation, company research, or activity-reading tools.",
+    "",
+    "Response instruction:",
+    `- Write one short natural ${outputLanguage} follow-up message for the chat after the call ends.`,
+    "- Say the connection is continuing.",
+    "- If the call was substantial, say Harper will reflect the shared details when presenting them to the company.",
+    "- If the call was brief/incomplete, do not ask them to continue in chat; tell them they can continue from the Home call card when convenient.",
+    "- No heading, no bullets, 1-3 sentences.",
+    "",
+    "[Call transcript]",
+    transcriptText || "(no transcript text)",
   ].join("\n");
 }

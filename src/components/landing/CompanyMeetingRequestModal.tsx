@@ -28,8 +28,6 @@ const isValidMeetingEmail = (value: string) =>
 const meetingRequestCopy: Record<
   Locale,
   {
-    closeOverlayLabel: string;
-    closeLabel: string;
     title: string;
     description: string;
     nameLabel: string;
@@ -55,8 +53,6 @@ const meetingRequestCopy: Record<
   }
 > = {
   ko: {
-    closeOverlayLabel: "미팅 신청 폼 닫기",
-    closeLabel: "닫기",
     title: "통화 요청하기",
     description:
       "팀의 상황, 찾고 있는 역할, 지금 채용에서 막히는 지점을 간단히 남겨주세요. 바로 연락드리겠습니다.",
@@ -83,8 +79,6 @@ const meetingRequestCopy: Record<
     success: "미팅 신청이 접수되었습니다. 1일 내에 연락드리겠습니다.",
   },
   en: {
-    closeOverlayLabel: "Close meeting request form",
-    closeLabel: "Close",
     title: "Request a call",
     description:
       "Share a few details about your team, the roles you need to fill, and what has made the search hard so far. Harper's team will review it and follow up within one business day with the candidate pool we can unlock and the fastest next step.",
@@ -289,7 +283,7 @@ export function CompanyMeetingRequestModal({
         >
           <BareButton
             type="button"
-            aria-label={copy.closeOverlayLabel}
+            aria-label="미팅 신청 폼 닫기"
             className="absolute inset-0 bg-black/25"
             onClick={onClose}
           />
@@ -302,7 +296,7 @@ export function CompanyMeetingRequestModal({
           >
             <BareButton
               type="button"
-              aria-label={copy.closeLabel}
+              aria-label="닫기"
               onClick={onClose}
               className="absolute right-4 top-4 flex h-7 w-7 items-center justify-center rounded-md text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-1000"
             >

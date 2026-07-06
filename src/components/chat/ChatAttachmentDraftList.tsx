@@ -77,10 +77,7 @@ export default function ChatAttachmentDraftList({
               onClick={() => onRemove(attachment.id)}
               className="absolute right-1 top-1 inline-flex h-6 w-6 shrink-0 items-center justify-center text-neutral-00/60 transition hover:text-neutral-00/90"
               aria-label={
-                m.chat.removeAttachment ??
-                (attachment.kind === "link"
-                  ? "첨부 링크 제거"
-                  : "첨부 파일 제거")
+                attachment.kind === "link" ? "첨부 링크 제거" : "첨부 파일 제거"
               }
             >
               <X className="h-3.5 w-3.5" />

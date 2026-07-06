@@ -1,15 +1,16 @@
 import {
-  Building2,
   Check,
+  ChevronDown,
+  Compass,
   ExternalLink,
   HelpCircle,
   Info,
+  Landmark,
   Languages,
-  Linkedin,
   Loader2,
   LogOut,
   MessageCircle,
-  Scroll,
+  Rotate3D,
 } from "lucide-react";
 import React, { useState } from "react";
 import CareerUpdateNotesModal from "./CareerUpdateNotesModal";
@@ -34,6 +35,7 @@ import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useMessages, type Locale } from "@/i18n/useMessage";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { Text } from "@/components/ui/text";
+import Image from "next/image";
 
 type CareerProfileMenuVariant = "desktop" | "mobile";
 
@@ -50,7 +52,7 @@ const getProfileLocaleOptionLabel = (
 };
 
 const aboutMenuItemClassName =
-  "flex h-10 cursor-pointer items-center gap-2.5 rounded-[10px] px-3 text-sm text-neutral-primary outline-none transition-colors focus:bg-bg-weak focus:text-neutral-primary";
+  "flex py-2 cursor-pointer items-center gap-2.5 rounded-[8px] px-3 text-sm text-neutral-primary outline-none transition-colors focus:bg-bg-basement focus:text-neutral-primary";
 
 const aboutSubmenuClassName =
   "w-[248px] rounded-[12px] border border-neutral-1000-a05 bg-bg-floating/95 p-1 text-neutral-primary shadow-[0_18px_40px_rgba(31,28,26,0.12)] backdrop-blur-md";
@@ -76,6 +78,7 @@ const CareerProfileMenu = ({
   const { fetchWithAuth } = useCareerApi();
   const { locale, setLocale } = useMessages();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [aboutMenuOpen, setAboutMenuOpen] = useState(false);
   const [languageModalOpen, setLanguageModalOpen] = useState(false);
   const [languageError, setLanguageError] = useState("");
   const [languagePending, setLanguagePending] = useState<Locale | null>(null);
@@ -96,40 +99,52 @@ const CareerProfileMenu = ({
     !normalizedProfileImageUrl.includes("media.licdn.com")
   );
 
+  const handleMenuOpenChange = (open: boolean) => {
+    setMenuOpen(open);
+    if (!open) {
+      setAboutMenuOpen(false);
+    }
+  };
+
+  const closeMenu = () => {
+    setAboutMenuOpen(false);
+    setMenuOpen(false);
+  };
+
   const handleOpenUpdateNotes = () => {
     logCareerEvent("click_profile_menu_update_notes");
     setUpdateNotesOpen(true);
-    setMenuOpen(false);
+    closeMenu();
   };
 
   const handleSuggestUpdate = () => {
     setUpdateNotesOpen(false);
-    setMenuOpen(false);
+    closeMenu();
     onSuggestUpdate();
   };
 
   const handleOpenSupport = () => {
     logCareerEvent("click_profile_menu_support");
-    setMenuOpen(false);
+    closeMenu();
     onSuggestUpdate();
   };
 
   const handleOpenLanguageModal = () => {
     logCareerEvent("click_profile_menu_language");
     setLanguageError("");
-    setMenuOpen(false);
+    closeMenu();
     setLanguageModalOpen(true);
   };
 
   const handleTalkToFounder = () => {
     logCareerEvent("click_profile_menu_about_talk_to_founder");
-    setMenuOpen(false);
+    closeMenu();
     window.setTimeout(openCustomCrispWidget, 0);
   };
 
   const handleExternalAboutLinkClick = (eventName: string) => {
     logCareerEvent(eventName);
-    setMenuOpen(false);
+    closeMenu();
   };
 
   const handleLocaleSelect = async (nextLocale: Locale) => {
@@ -229,11 +244,65 @@ const CareerProfileMenu = ({
     </span>
   );
 
+  const aboutMenuItems = (
+    <>
+      <DropdownMenuItem
+        onSelect={handleTalkToFounder}
+        className={aboutMenuItemClassName}
+      >
+        <MessageCircle className="h-4 w-4" />
+        <span className="min-w-0 flex-1">Chat with us</span>
+      </DropdownMenuItem>
+      <DropdownMenuItem asChild className={aboutMenuItemClassName}>
+        <a
+          href="https://www.linkedin.com/company/matchharper/"
+          target="_blank"
+          rel="noreferrer"
+          onClick={() =>
+            handleExternalAboutLinkClick("click_profile_menu_about_linkedin")
+          }
+        >
+          <Image
+            src="/images/logos/linkedin.svg"
+            alt="Linkedin"
+            width={20}
+            height={20}
+            className="-ml-0.5"
+          />
+          <span className="min-w-0 flex-1">Linkedin</span>
+          <ExternalLink
+            className="ml-auto text-neutral-soft"
+            size={12}
+            strokeWidth={1.8}
+          />
+        </a>
+      </DropdownMenuItem>
+      <DropdownMenuItem asChild className={aboutMenuItemClassName}>
+        <a
+          href="https://matchharper.com/about"
+          target="_blank"
+          rel="noreferrer"
+          onClick={() =>
+            handleExternalAboutLinkClick("click_profile_menu_about_about_us")
+          }
+        >
+          <Landmark />
+          <span className="min-w-0 flex-1">About us</span>
+          <ExternalLink
+            className="ml-auto text-neutral-soft"
+            size={12}
+            strokeWidth={1.8}
+          />
+        </a>
+      </DropdownMenuItem>
+    </>
+  );
+
   return (
     <>
       <ActionDropdown
         open={menuOpen}
-        onOpenChange={setMenuOpen}
+        onOpenChange={handleMenuOpenChange}
         align="end"
         side="bottom"
         sideOffset={isMobile ? 8 : 12}
@@ -241,10 +310,7 @@ const CareerProfileMenu = ({
         trigger={
           <BareButton
             type="button"
-            aria-label={t(
-              "career.profile.career_profile_menu.0rpl24h",
-              "프로필 메뉴"
-            )}
+            aria-label={"프로필 메뉴"}
             className={triggerClassName}
           >
             {avatarBody}
@@ -275,7 +341,7 @@ const CareerProfileMenu = ({
             {t("career.profile.language_selector.menu_label", "언어 설정")}
           </span>
         </ActionDropdownItem>
-        <ActionDropdownItem
+        {/* <ActionDropdownItem
           onSelect={() => handleOpenUpdateNotes()}
           className="flex flex-row items-center gap-2.5"
         >
@@ -283,61 +349,54 @@ const CareerProfileMenu = ({
           <span className="min-w-0 flex-1">
             {t("career.profile.career_profile_menu.14ybad0", "업데이트 노트")}
           </span>
-        </ActionDropdownItem>
-        {/* <DropdownMenuSub>
-          <DropdownMenuSubTrigger
-            className={cn(aboutMenuItemClassName, "mt-0")}
-          >
-            <Info className="h-4 w-4" />
-            <span className="min-w-0 flex-1">About</span>
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent
-            sideOffset={8}
-            alignOffset={-4}
-            className={aboutSubmenuClassName}
-          >
-            <DropdownMenuItem asChild className={aboutMenuItemClassName}>
-              <a
-                href="https://www.linkedin.com/company/matchharper/"
-                target="_blank"
-                rel="noreferrer"
-                onClick={() =>
-                  handleExternalAboutLinkClick(
-                    "click_profile_menu_about_linkedin"
-                  )
-                }
-              >
-                <Linkedin className="h-4 w-4" />
-                <span className="min-w-0 flex-1">Linkedin</span>
-                <ExternalLink className="ml-auto h-4 w-4 text-neutral-soft" />
-              </a>
-            </DropdownMenuItem>
+        </ActionDropdownItem> */}
+        {isMobile ? (
+          <div>
             <DropdownMenuItem
-              onSelect={handleTalkToFounder}
-              className={aboutMenuItemClassName}
+              onSelect={(event) => {
+                event.preventDefault();
+                setAboutMenuOpen((open) => !open);
+              }}
+              aria-expanded={aboutMenuOpen}
+              className={cn(aboutMenuItemClassName, "mt-0")}
             >
-              <MessageCircle className="h-4 w-4" />
-              <span className="min-w-0 flex-1">Talk to Founder</span>
-              <ExternalLink className="ml-auto h-4 w-4 text-neutral-soft" />
+              <Info className="h-4 w-4" />
+              <span className="min-w-0 flex-1">About</span>
+              <ChevronDown
+                className={cn(
+                  "ml-auto h-4 w-4 text-neutral-soft transition-transform",
+                  aboutMenuOpen && "rotate-180"
+                )}
+              />
             </DropdownMenuItem>
-            <DropdownMenuItem asChild className={aboutMenuItemClassName}>
-              <a
-                href="https://matchharper.com/about"
-                target="_blank"
-                rel="noreferrer"
-                onClick={() =>
-                  handleExternalAboutLinkClick(
-                    "click_profile_menu_about_about_us"
-                  )
-                }
+            {aboutMenuOpen ? (
+              <div
+                role="group"
+                aria-label="About"
+                className="mt-1 rounded-[10px] bg-bg-basement/70 p-1"
               >
-                <Building2 className="h-4 w-4" />
-                <span className="min-w-0 flex-1">About us</span>
-                <ExternalLink className="ml-auto h-4 w-4 text-neutral-soft" />
-              </a>
-            </DropdownMenuItem>
-          </DropdownMenuSubContent>
-        </DropdownMenuSub> */}
+                {aboutMenuItems}
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger
+              className={cn(aboutMenuItemClassName, "mt-0")}
+            >
+              <Info className="h-4 w-4" />
+              <span className="min-w-0 flex-1">About</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent
+              sideOffset={8}
+              alignOffset={-4}
+              collisionPadding={8}
+              className={aboutSubmenuClassName}
+            >
+              {aboutMenuItems}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        )}
         <ActionDropdownSeparator />
         <ActionDropdownItem
           onSelect={() => {
@@ -362,10 +421,7 @@ const CareerProfileMenu = ({
           if (languagePending) return;
           setLanguageModalOpen(false);
         }}
-        ariaLabel={t(
-          "career.profile.language_selector.modal_title",
-          "언어 설정"
-        )}
+        ariaLabel={"언어 설정"}
         panelClassName="w-[min(420px,calc(100vw-32px))] rounded-xl border-neutral-1000-a05 bg-bg-floating"
         bodyClassName="p-0"
         closeButtonClassName="right-3.5 top-3.5 rounded-md text-neutral-soft hover:bg-bg-weak hover:text-neutral-primary"

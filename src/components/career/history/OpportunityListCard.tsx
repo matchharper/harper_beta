@@ -46,11 +46,7 @@ const SavedManagementStatusDropdown = ({
         trigger={
           <BareButton
             type="button"
-            aria-label={t(
-              "career.history.opportunity_list_card.status_menu",
-              "{status} 상태 변경",
-              { values: { status: statusLabel } }
-            )}
+            aria-label={`${statusLabel} 상태 변경`}
             disabled={disabled}
             className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-neutral-200 text-neutral-primary transition-colors hover:bg-neutral-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
@@ -100,8 +96,8 @@ const OpportunityListCard = ({
   );
   const hasActionArea = Boolean(
     savedStatus &&
-      onSavedStatusChange &&
-      canChangeCareerOpportunityManagementStatus(item)
+    onSavedStatusChange &&
+    canChangeCareerOpportunityManagementStatus(item)
   );
 
   return (

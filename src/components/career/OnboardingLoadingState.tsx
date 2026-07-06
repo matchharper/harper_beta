@@ -179,10 +179,7 @@ const OnboardingLoadingState = ({
 
   return (
     <aside
-      aria-label={t(
-        "career.onboarding.onboarding_loading_state.preview_label",
-        "온보딩 분석 진행 상태"
-      )}
+      aria-label={"온보딩 분석 진행 상태"}
       className={cn(
         "relative flex w-full flex-col overflow-hidden rounded-lg border border-neutral-1000-a05 bg-bg-weak/70 p-5 text-left md:px-12 md:py-10",
         className

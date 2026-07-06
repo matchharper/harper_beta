@@ -66,7 +66,8 @@ Action note: ...
 
 | 상황 | 호출/파일 | Streaming | Runtime prompt | Tools | internal/external 차이 |
 | --- | --- | --- | --- | --- | --- |
-| Opportunity feedback follow-up | `/api/talent/opportunities/feedback-followup` -> `createTalentOpportunityFeedbackFollowUpReply` -> `runCareerChatTurn` | No | `buildCareerOpportunityFeedbackFollowUpTurnInstruction` + `pendingOpportunityFeedbackContext` | `immediate_internal_feedback`이면 `[]`; 그 외 trigger는 `recommend_job_postings` only | Yes. internal immediate feedback은 tool 없음. external/delayed/all-cleared는 `recommend_job_postings`만 쓴다. |
+| Opportunity feedback follow-up | `/api/talent/opportunities/feedback-followup` -> `createTalentOpportunityFeedbackFollowUpReply` -> `runCareerChatTurn` | No | `buildCareerOpportunityFeedbackFollowUpProactiveContext` + `pendingOpportunityFeedbackContext` | `immediate_internal_feedback`이면 `[]`; 그 외 trigger는 `recommend_job_postings` only | Yes. internal immediate feedback은 tool 없음. external/delayed/all-cleared는 `recommend_job_postings`만 쓴다. |
+| Internal call request follow-up | `/api/talent/opportunities/internal-call-request-followup` -> `createInternalOpportunityCallRequestFollowUp` | No | Deterministic assistant template after JSON-only call-request decision | none | Internal accepted opportunity only |
 | Company watchlist follow follow-up | `/api/talent/company-watchlist/follow-followup` -> `createTalentCompanyFollowFollowUpReply` -> `runCareerChatTurn` | No | `buildCompanyFollowUpInstruction` | `[]` | No |
 | Session start greeting/re-engagement | `/api/talent/session`, `/api/talent/session/reengagement` -> `runCareerChatTurn` | Endpoint wrapper may stream status, but LLM turn itself is non-streaming | `buildCareerSessionStartTurnInstruction` | `recommend_job_postings` only | No internal/external branch |
 | Voice call wrap-up | `/api/talent/chat/call-wrapup` -> `runCareerChatTurn` | No | 일반 call: `buildCareerCallWrapupTurnInstruction`; internal opportunity call: `buildInternalOpportunityCallWrapupInstruction` | `update_setting`, `update_talent_profile` | Prompt differs for internal opportunity call. Tool allowlist is the same. |
@@ -87,7 +88,6 @@ Trigger values:
 
 - `immediate_internal_feedback`
 - `delayed_external_feedback`
-- `all_visible_feedback_submitted`
 - `all_recommended_opportunities_cleared`
 
 Tool selection:
@@ -108,15 +108,13 @@ function getAllowedToolNamesForFeedbackFollowUp(trigger) {
 - Body intent:
   - `trigger: "immediate_internal_feedback"`
   - `feedback: "positive"`
-  - `shouldCreateInternalCallRequest: false`
-  - `callRequestOnly: false`
 - LLM function path:
   - `createTalentOpportunityFeedbackFollowUpReply`
   - `runCareerChatTurn`
   - `runCareerChatAssistant`
 - Streaming: no
 - Tools: `[]`
-- Call-request prompt: not included in this first reply because `internalCallRequest` is `null`
+- Call-request prompt: not included. The call-request decision/template message runs through `/api/talent/opportunities/internal-call-request-followup` after this reply is shown.
 
 System blocks passed to the LLM:
 
@@ -147,7 +145,7 @@ System blocks passed to the LLM:
    The following instruction is more specific than the generic onboarding/default conversation rules. Follow it for this turn/session unless the latest user message explicitly asks to change topic.
    Response language remains {outputLanguage}. If the instruction text includes Korean tone examples or Korean sample wording, adapt the intent naturally into {outputLanguage} instead of copying the sample language.
 
-   {buildCareerOpportunityFeedbackFollowUpTurnInstruction(...)}
+   {buildCareerOpportunityFeedbackFollowUpProactiveContext(...)}
 
    {known future-matching insights/preferences}
    {known preferences}
@@ -163,23 +161,21 @@ The `buildCareerOpportunityFeedbackFollowUpTurnInstruction` block is:
 
 ```text
 ## Opportunity feedback proactive assistant turn
-Always write the user-visible reply in {outputLanguage}, using markdown
+Always write the user-visible reply in {outputLanguage}, using markdown.
 The user clicked like/dislike on one or more recommended opportunities. They did not send a new chat message. It is Harper's turn to proactively respond using the normal career/chat behavior and tool policy.
 TRIGGER: immediate_internal_feedback
 
-Use the pending opportunity feedback context in this system prompt. It contains role/company details; do not reduce it to only counts.
-Do not overreact to one click. For multiple clicks, summarize the visible pattern once.
-It's good to ask a question to get to know more about the user's preferences or background experience. ex) PM 역할인데 저장하셨네요. 현재는 개발자이신데 PM으로의 전환도 관심이 있으신가요 혹은 이전에 PM으로 일하셨던 경험이 있으신가요?
-ex. internal accept시 아래 기준으로 안내문구가 나간 이후 Agent Engineer를 저장하셨는데 이력에 현재 Agentic Engineering을 하고계시다고 되어있네요. 하지만 구체적으로 어떤걸 하시는지를 더 알면 좋을 것 같아요. 알려주실 수 있나요?
-or if the liked/disliked opportunities share a visible company/domain/role/work-mode pattern, mention that pattern carefully as a hypothesis, not a fact and say that Harper will keep sending similar matches. Example tone: '이 방향이 잘 맞으시는 것 같네요. 비슷한 분위기 매칭 계속 보내드릴게요.'
+Trigger-specific prompt:
+Immediate internal feedback trigger:
+- The user liked or disliked an internal connection/request opportunity. Respond immediately; do not wait for another click.
+- Write a clear {outputLanguage} process update before any preference/profile follow-up question.
+- If the internal opportunity was liked, treat it as confirmed acceptance. Thank them briefly, say Harper will proceed with the company-side introduction, and do not ask whether to connect/proceed again.
+- Do not mention an optional call request or call button in this LLM reply. The internal call request decision and 안내 메시지는 this turn 이후 별도 flow에서 처리된다.
 
-Feedback-specific rules:
+Shared feedback rules:
+- Use the pending opportunity feedback context in this system prompt. It contains role/company details; do not reduce it to only counts.
+- Do not overreact to one click. For multiple clicks, summarize the visible pattern once.
 - If several opportunities were disliked and no specific reasons were provided, acknowledge the count and ask what did not fit. Offer concrete choices such as role scope, company/domain, team style, seniority, location/work mode, or timing.
-- If internal connection/request opportunities were liked, treat that as confirmed acceptance. Thank them briefly, say Harper will proceed with the company-side introduction, and do not ask whether to connect/proceed again. explain that Harper will time the introduction thoughtfully and company-side schedules can take a little time. Frame it as Harper mediating a better-fit connection, not as a normal application.
-- For internal accepted feedback, Keep the company-side process update separate from any follow-up question. Do not say the process continues 'regardless of what I am saying now'; say plainly that the connection process will proceed independently.
-- and if the profile context shows no resume file/link, mention that a resume usually improves review and companies often ask for it. Ask whether Harper should tell the company there is no updated resume yet, and invite them to upload one if they have it.
-
-- For accepted feedback, 너가 아는 유저의 선호/니즈와 다른 부분이 있다면 그 부분에 대해서 물어봐라. ex. current location - role location mismatch, company/domain, etc.
 ```
 
 `pendingOpportunityFeedbackContext` is generated by `formatOpportunityFeedbackPromptContext`:
@@ -211,10 +207,12 @@ For the normal feedback note path, the feedback note itself is stored as a user-
 
 ### Internal Call Request Phase
 
-After the first assistant reply is shown, the current UI calls the same endpoint again with:
+After the first assistant reply is shown, the UI calls the separate call-request endpoint:
 
-- `callRequestOnly: true`
-- `shouldCreateInternalCallRequest: true`
+- Endpoint: `POST /api/talent/opportunities/internal-call-request-followup`
+- Body intent:
+  - `feedback: "positive"`
+  - `opportunityId: ...`
 
 This phase does not ask the chat LLM to write another free-form answer. It runs `maybeCreateInternalOpportunityCallRequest`, whose decision LLM is JSON-only:
 

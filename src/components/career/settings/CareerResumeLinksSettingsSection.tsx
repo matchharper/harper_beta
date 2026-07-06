@@ -285,10 +285,7 @@ const CareerResumeLinksSettingsSection = () => {
                       type="button"
                       onClick={() => void handleLinkedinRefreshClick()}
                       disabled={profileSavePending}
-                      aria-label={t(
-                        "career.profile.resume_links.linkedin_refresh_label",
-                        "링크드인 정보 새로고침"
-                      )}
+                      aria-label={"링크드인 정보 새로고침"}
                       className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-info-200 text-info-600 transition-colors hover:bg-info-400 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {profileSavePending ? (
@@ -367,7 +364,7 @@ const CareerResumeLinksSettingsSection = () => {
       <TalentCareerModal
         open={isProcessingSourceUpdate}
         onClose={() => undefined}
-        ariaLabel={t("career.common.career.0tmpcjv", "프로필 업데이트 중")}
+        ariaLabel={"프로필 업데이트 중"}
         closeOnBackdrop={false}
         showCloseButton={false}
         overlayClassName="z-120"

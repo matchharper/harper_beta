@@ -180,7 +180,7 @@ const CareerHomePanelSkeleton = () => {
   return (
     <div
       aria-busy="true"
-      aria-label={t("career.home.loading", "홈 로딩 중")}
+      aria-label={"홈 로딩 중"}
       className="space-y-4 text-neutral-primary"
     >
       <Skeleton className="mx-auto mt-8 h-9 w-9/12 max-w-[360px] rounded-full" />

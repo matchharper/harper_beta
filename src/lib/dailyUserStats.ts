@@ -1293,17 +1293,20 @@ export function formatDailyUserStatsSlackMessage(report: DailyUserStatsReport) {
           )
           .join("\n")
       : "- 없음";
+
   const internalConnectionResponseStats = formatInternalConnectionResponseStats(
     report.internalConnectionResponseStats
   );
   const title =
     report.period === "weekly"
-      ? `[Weekly User Stats] ${report.dateLabel}, KST`
-      : `[Daily User Stats] ${report.date}, KST`;
+      ? `🌔 [Weekly User Stats] ${report.dateLabel}`
+      : `😎 [Daily User Stats] ${report.date}`;
+
   const returningUserLabelPrefix =
     report.period === "weekly"
       ? "기간 내 신규 가입은 아니지만 다시 들어와서"
       : "오늘 신규 가입이 아니지만 다시 들어와서";
+
   const jobs =
     report.jobs.length > 0
       ? report.jobs

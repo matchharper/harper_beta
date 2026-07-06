@@ -14,7 +14,6 @@ import {
   type TalentAdminClient,
 } from "@/lib/talentOnboarding/server";
 import type { TalentOpportunityHistoryItem } from "@/lib/talentOpportunity";
-import { CAREER_CALL_END_MARKER } from "../career/prompts";
 import { careerT } from "@/lib/career/translatedCareerMessage";
 import { stripPostgresUnsafeChars } from "@/lib/textSanitization";
 import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
@@ -34,8 +33,8 @@ export const isOpenInternalOpportunityCallRequestStatus = (
 const INTERNAL_CALL_REQUEST_MARKER_PREFIX =
   "[[INTERNAL_OPPORTUNITY_CALL_REQUEST:";
 const INTERNAL_CALL_REQUEST_MARKER_SUFFIX = "]]";
-const INTERNAL_CALL_REQUEST_QUESTION_MIN = 3;
-const INTERNAL_CALL_REQUEST_QUESTION_MAX = 5;
+export const INTERNAL_CALL_REQUEST_QUESTION_MIN = 3;
+export const INTERNAL_CALL_REQUEST_QUESTION_MAX = 5;
 const INTERNAL_CALL_REQUEST_LOOKBACK_LIMIT = 20;
 const ROLE_DESCRIPTION_MAX_CHARS = 3600;
 const ROLE_REQUEST_MAX_CHARS = 1600;
@@ -761,131 +760,4 @@ export async function maybeCreateInternalOpportunityCallRequest(args: {
   }
 
   return serializeInternalOpportunityCallRequest(data as TalentCallRow);
-}
-
-export function buildInternalOpportunityCallProactiveInstruction(
-  callRequest: InternalOpportunityCallRequest | null
-) {
-  if (!callRequest) return "";
-
-  const questionCount = Math.max(
-    INTERNAL_CALL_REQUEST_QUESTION_MIN,
-    Math.min(INTERNAL_CALL_REQUEST_QUESTION_MAX, callRequest.questions.length)
-  );
-
-  return [
-    "A pending optional call request has been created for this accepted internal opportunity.",
-    `- companyName: ${callRequest.companyName}`,
-    `- roleTitle: ${callRequest.roleTitle}`,
-    `- questionCount: ${questionCount}`,
-    callRequest.reason ? `- userFacingReason: ${callRequest.reason}` : "",
-    callRequest.resumePromptNeeded
-      ? "- Resume file/text is missing. Invite the user to upload a resume as a helpful optional action. LinkedIn/profile links do not count as a resume."
-      : "",
-    "",
-    "In the assistant reply:",
-    "- First, Thank the user and guide internal opportunity connection process",
-    "- and emphasize that the company-side introduction/process will continue and is not blocked by the call, and this call is optional, not required. with bold.",
-    "- Then, at the next paragraph, refer about the call request. Offer the call as optional, short, and not evaluative.",
-    "- Mention the user can also ask questions about the company/process in the call.",
-    "- Do not include the call button text manually; the UI card will be attached automatically.",
-    "예시 (실제로는 markdown을 더 다양하게 활용하고, 자세히 안내해라. 줄바꿈도 많이 쓸 것)",
-    "[이름]님 연결 제안 수락해주셔서 감사해요.",
-    "이제 이 건은 Harper가 [이름]님을 회사 쪽에 잘 전달드리는 방향으로 진행할게요. 이건 일반적인 공고 지원이 아니라, Harper가 핏을 보고 회사와 후보자 사이를 조율하는 연결에 가까워요. 회사 쪽 일정이나 검토 상황에 따라 답변까지는 조금 시간이 걸릴 수 있어요.",
-    "",
-    "",
-    "위에서 말씀드린 프로세스는 계속 진행될텐데 혹시 그와 동시에 저랑 통화하면서 제가 [이름]님에 대해서 몇가지 정보를 더 들을 수 있을까요?",
-    "",
-    "평가를 하기위한 통화는 아니고 [회사명] 측이 보통 궁금해하는 것들이 있는데, 그 정보를 알면 [이름]님이 다음 단계 진행 되도록 하는데도 더 도움이 될 것 같아서요. 그리고 [이름]님도 궁금하신게 있으시면 물어보셔도 되요. 길진 않을 것 같아요. 4~5개의 가벼운 질문이에요. 편하신 시간에 언제든지 해주세요!",
-    "",
-    "(만약 이력서가 없다면) 지금 이력서는 올려주시지 않은 걸로 확인되는데, 이력서를 주시는게 가장 직접적인 도움이긴해요. 여기서 올려주세요 [프로필 - 이력서 이동 버튼/link]",
-  ]
-    .filter((line) => line.trim().length > 0)
-    .join("\n");
-}
-
-/**
- * Internal 수락시 추가적인 정보 질문을 위해 voice call을 진행할 때 사용되는 프롬프트
- */
-export function buildInternalOpportunityRealtimeInstruction(
-  callRequest: InternalOpportunityCallRequest & {
-    preferredLocale?: string | null;
-  }
-) {
-  const outputLanguage = getCareerPromptLanguageName(
-    callRequest.preferredLocale
-  );
-
-  return [
-    "This live voice call is specifically for an accepted internal opportunity connection.",
-    `- companyName: ${callRequest.companyName}`,
-    `- roleTitle: ${callRequest.roleTitle}`,
-    `- roleId: ${callRequest.roleId}`,
-    `- Speak in ${outputLanguage}.`,
-    "",
-    "Call purpose:",
-    "- This is not an interview or evaluation.",
-    "- The company-side connection is already proceeding by Harper.",
-    "- Ask short questions to collect better context for Harper to present the candidate to the company.",
-    "- The user may also ask questions about the company or process.",
-    "- Do not directly say 'I will pass this to the company exactly like this.' Say something more natural, such as that the details are helpful, and if needed say Harper will reflect them.",
-    "- For language questions, do not simply ask 'Is your English good?' Ask about a concrete situation where fluent communication may matter, or ask about specific language use or international experience.",
-    "- For each question, at most once, if the user's answer is shorter than two sentences, you may ask one short follow-up question.",
-    "",
-    "Required opening:",
-    "- Start by referencing the company and role.",
-    "- Say the connection is already progressing.",
-    "- Say the call is optional/non-evaluative and only helps Harper present them better.",
-    "- Then ask the first question immediately.",
-    "",
-    "Question plan. Ask one at a time, adapting naturally to answers:",
-    ...callRequest.questions.map(
-      (question, index) => `${index + 1}. ${question}`
-    ),
-    "",
-    "Before ending:",
-    `- You must ask at least once, in ${outputLanguage}, whether the user has questions about ${callRequest.companyName} or the next process.`,
-    "- End when you think the call is over or the user accepts or require to stop.",
-    `- End with a natural short closing in ${outputLanguage}, then append ${CAREER_CALL_END_MARKER}. Do not hesitate to end the call with ${CAREER_CALL_END_MARKER}.`,
-  ].join("\n");
-}
-
-export function buildInternalOpportunityCallWrapupInstruction(args: {
-  callRequest: InternalOpportunityCallRequest;
-  durationLabel: string | null;
-  isBrief: boolean;
-  preferredLocale?: string | null;
-  transcript: Array<{ role: "user" | "assistant"; text: string }>;
-}) {
-  const outputLanguage = getCareerPromptLanguageName(args.preferredLocale);
-  const transcriptText = args.transcript
-    .map((entry) => {
-      const role = entry.role === "user" ? "User" : "Harper";
-      return `${role}: ${entry.text.replace(/\s+/g, " ").trim()}`;
-    })
-    .filter((line) => line.trim().length > 0)
-    .join("\n");
-
-  return [
-    "## Internal opportunity call wrap-up",
-    "The user just ended a voice call for an accepted internal opportunity.",
-    `- companyName: ${args.callRequest.companyName}`,
-    `- roleTitle: ${args.callRequest.roleTitle}`,
-    `- callDuration: ${args.durationLabel ?? "(unknown)"}`,
-    `- callLengthAssessment: ${args.isBrief ? "brief_or_incomplete" : "substantial"}`,
-    "",
-    "Tool instruction:",
-    "- If the user disclosed clear profile facts, role-specific achievements, constraints, preferences, or resume/CV positioning context, call update_talent_profile before writing the wrap-up.",
-    "- Do not call search, recommendation, company research, or activity-reading tools.",
-    "",
-    "Response instruction:",
-    `- Write one short natural ${outputLanguage} follow-up message for the chat after the call ends.`,
-    "- Say the connection is continuing.",
-    "- If the call was substantial, say Harper will reflect the shared details when presenting them to the company.",
-    "- If the call was brief/incomplete, do not ask them to continue in chat; tell them they can continue from the Home call card when convenient.",
-    "- No heading, no bullets, 1-3 sentences.",
-    "",
-    "[Call transcript]",
-    transcriptText || "(no transcript text)",
-  ].join("\n");
 }

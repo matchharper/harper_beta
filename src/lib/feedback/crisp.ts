@@ -7,6 +7,8 @@ export type CrispFeedbackMessage = {
   authorEmail?: string | null;
   authorName?: string | null;
   createdAt: string;
+  deletedAt?: string | null;
+  deletedBy?: CrispFeedbackRole | null;
   id: string;
   role: CrispFeedbackRole;
   text: string;
@@ -142,6 +144,16 @@ function normalizeMessage(value: unknown): CrispFeedbackMessage | null {
       typeof item.createdAt === "string" && item.createdAt
         ? item.createdAt
         : new Date().toISOString(),
+    deletedAt:
+      typeof item.deletedAt === "string" && item.deletedAt
+        ? item.deletedAt
+        : null,
+    deletedBy:
+      item.deletedBy === "admin" ||
+      item.deletedBy === "system" ||
+      item.deletedBy === "user"
+        ? item.deletedBy
+        : null,
     id: typeof item.id === "string" && item.id ? item.id : createCrispId("msg"),
     role,
     text,

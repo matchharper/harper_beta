@@ -393,10 +393,7 @@ const CareerWorkspaceRoot = ({
         <div
           role="separator"
           tabIndex={isDesktop ? 0 : -1}
-          aria-label={t(
-            "career.common.career_workspace_screen.18vor62",
-            "채팅 패널 너비 조절"
-          )}
+          aria-label={"채팅 패널 너비 조절"}
           aria-orientation="vertical"
           onPointerDown={(event) => {
             event.preventDefault();

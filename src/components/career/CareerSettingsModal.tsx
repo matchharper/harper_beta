@@ -102,10 +102,7 @@ const AccountDeleteConfirmDialog = ({
     >
       <BareButton
         type="button"
-        aria-label={t(
-          "career.settings.career_settings_modal.11q4o0j",
-          "회원 탈퇴 확인 닫기"
-        )}
+        aria-label={"회원 탈퇴 확인 닫기"}
         className="absolute inset-0 bg-black/45"
         onClick={pending ? undefined : onClose}
       />
@@ -428,10 +425,7 @@ const CareerSettingsModal = ({
                     {t("career.settings.career_settings_modal.1338q8i", "설정")}
                   </h2>
                   <DrawerPrimitive.Close
-                    aria-label={t(
-                      "career.settings.career_settings_modal.16x7oad",
-                      "설정 닫기"
-                    )}
+                    aria-label={"설정 닫기"}
                     className="inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-muted transition-colors hover:bg-bg-weak hover:text-neutral-primary"
                   >
                     <X className="h-4 w-4" />
@@ -469,10 +463,7 @@ const CareerSettingsModal = ({
                     {settingsTabs.find((tab) => tab.key === mobileView)?.label}
                   </h2>
                   <DrawerPrimitive.Close
-                    aria-label={t(
-                      "career.settings.career_settings_modal.16x7oad",
-                      "설정 닫기"
-                    )}
+                    aria-label={"설정 닫기"}
                     className="inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-muted transition-colors hover:bg-bg-weak hover:text-neutral-primary"
                   >
                     <X className="h-4 w-4" />
@@ -495,7 +486,7 @@ const CareerSettingsModal = ({
     <TalentCareerModal
       open={open}
       onClose={handleClose}
-      ariaLabel={t("career.common.career.11hatjy", "커리어 설정")}
+      ariaLabel={"커리어 설정"}
       overlayClassName="items-start pt-14"
       panelClassName="max-w-none h-[80svh] max-h-[860px] px-0 w-[min(1040px,90vw)]"
       bodyClassName="h-full p-0"

@@ -32,11 +32,14 @@ import {
   notifySlackActivity,
 } from "@/lib/slackActivity";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
+import { CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER } from "@/lib/career/prompts/types";
 
 const POSITION_TAB_INTERACTION_SOURCE = "position_tab";
 const OPS_CAREER_URL = "https://matchharper.com/ops/career";
 const IMMEDIATE_FEEDBACK_FOLLOW_UP_DELAY_MS = 500;
 const DELAYED_FEEDBACK_FOLLOW_UP_DELAY_MS = 10_000;
+const FEEDBACK_FOLLOW_UP_TRIGGER =
+  CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER;
 
 const parsePositiveIntegerParam = (
   value: string | null,
@@ -334,6 +337,7 @@ export async function PATCH(req: NextRequest) {
       opportunityId?: string;
       promptImmediately?: boolean;
       savedStage?: TalentOpportunitySavedStage | null;
+      suppressNonPriorityFeedbackFollowUp?: boolean;
       talentMemo?: string | null;
     };
     const isMobile = isMobileRequest(req);
@@ -556,22 +560,33 @@ export async function PATCH(req: NextRequest) {
           opportunity?.sourceType === "internal" &&
           body.feedback === "positive";
         feedbackFollowUpTrigger = isInternalAcceptance
-          ? "immediate_internal_feedback"
+          ? FEEDBACK_FOLLOW_UP_TRIGGER.ImmediateInternalFeedback
           : shouldPromptAfterClearedPositionTab
-            ? "all_recommended_opportunities_cleared"
+            ? FEEDBACK_FOLLOW_UP_TRIGGER.AllRecommendedOpportunitiesCleared
             : opportunity?.sourceType === "internal"
-              ? "immediate_internal_feedback"
-              : body.promptImmediately === true
-                ? "all_visible_feedback_submitted"
-                : shouldScheduleDelayedFollowUp
-                  ? "delayed_external_feedback"
-                  : null;
+              ? FEEDBACK_FOLLOW_UP_TRIGGER.ImmediateInternalFeedback
+              : shouldScheduleDelayedFollowUp
+                ? FEEDBACK_FOLLOW_UP_TRIGGER.DelayedExternalFeedback
+                : null;
         feedbackFollowUpDelayMs = feedbackFollowUpTrigger
-          ? feedbackFollowUpTrigger === "delayed_external_feedback"
-            ? DELAYED_FEEDBACK_FOLLOW_UP_DELAY_MS
+          ? feedbackFollowUpTrigger ===
+            FEEDBACK_FOLLOW_UP_TRIGGER.DelayedExternalFeedback
+            ? body.promptImmediately === true
+              ? IMMEDIATE_FEEDBACK_FOLLOW_UP_DELAY_MS
+              : DELAYED_FEEDBACK_FOLLOW_UP_DELAY_MS
             : IMMEDIATE_FEEDBACK_FOLLOW_UP_DELAY_MS
           : null;
         feedbackFollowUpOpportunityId = opportunity?.id ?? null;
+
+        if (
+          body.suppressNonPriorityFeedbackFollowUp === true &&
+          !isInternalAcceptance &&
+          !shouldPromptAfterClearedPositionTab
+        ) {
+          feedbackFollowUpTrigger = null;
+          feedbackFollowUpDelayMs = null;
+          feedbackFollowUpOpportunityId = null;
+        }
       } catch (replyError) {
         console.error("[career-history:feedback-follow-up]", {
           error:
@@ -600,13 +615,15 @@ export async function PATCH(req: NextRequest) {
       assistantMessage: null,
       feedbackFollowUp: {
         delayed:
-          feedbackFollowUpTrigger === "delayed_external_feedback" &&
+          feedbackFollowUpTrigger ===
+            FEEDBACK_FOLLOW_UP_TRIGGER.DelayedExternalFeedback &&
           feedbackFollowUpDelayMs !== null,
         delayMs: feedbackFollowUpDelayMs,
         feedback: body.feedback ?? null,
         immediate:
           feedbackFollowUpTrigger !== null &&
-          feedbackFollowUpTrigger !== "delayed_external_feedback",
+          feedbackFollowUpTrigger !==
+            FEEDBACK_FOLLOW_UP_TRIGGER.DelayedExternalFeedback,
         opportunityId: feedbackFollowUpOpportunityId,
         shouldCreateInternalCallRequest:
           shouldCreateInternalCallRequestOnFollowUp,

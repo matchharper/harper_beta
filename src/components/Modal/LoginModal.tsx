@@ -29,7 +29,6 @@ const LOGIN_MODAL_MESSAGES = {
 const LOGIN_MODAL_COPY: Record<
   Locale,
   {
-    closeAria: string;
     divider: string;
     emailLabel: string;
     passwordLabel: string;
@@ -44,7 +43,6 @@ const LOGIN_MODAL_COPY: Record<
   }
 > = {
   ko: {
-    closeAria: "닫기",
     divider: "또는",
     emailLabel: "이메일",
     passwordLabel: "비밀번호",
@@ -60,7 +58,6 @@ const LOGIN_MODAL_COPY: Record<
     hasAccount: "이미 계정이 있으신가요?",
   },
   en: {
-    closeAria: "Close",
     divider: "OR",
     emailLabel: "Email",
     passwordLabel: "Password",
@@ -285,7 +282,7 @@ const LoginModal = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 w-full">
       <BareButton
         type="button"
-        aria-label={copy.closeAria}
+        aria-label="닫기"
         className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
         onClick={onClose}
       />

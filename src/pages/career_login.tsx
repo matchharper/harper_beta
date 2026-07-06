@@ -8,6 +8,7 @@ import {
 import Head from "next/head";
 import Image from "next/image";
 import { useRouter } from "next/router";
+import type { ParsedUrlQuery } from "querystring";
 import { Loader2, MailCheck } from "lucide-react";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
@@ -20,13 +21,16 @@ import { useCountryLang } from "@/hooks/useCountryLang";
 import { BareButton } from "@/components/ui/button";
 import { Input as UiInput } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
+import ConfirmModal from "@/components/Modal/ConfirmModal";
 import { isOverseasCountryLang } from "@/i18n/localeResolution";
 import { useMessages, type Locale } from "@/i18n/useMessage";
 import {
   OFFICIAL_JOBS_ONBOARDING_JOB_PARAM,
+  OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM,
   OFFICIAL_JOBS_ROLE_TITLE_MAX_LENGTH,
 } from "@/lib/officialJobs";
 import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
+import { supabase } from "@/lib/supabase";
 
 type PartnerLogo = {
   src: string;
@@ -71,7 +75,6 @@ const CAREER_LOGIN_COPY: Record<
     heroLineTwo: string;
     heroLineThree: string;
     heroDescription: string;
-    onboardingBasicDescription: string;
     officialJobProgressHelp: (job: string) => string;
     confirmationTitle: string;
     confirmationEmailPrefix: (email: string) => string;
@@ -88,6 +91,14 @@ const CAREER_LOGIN_COPY: Record<
     signUp: string;
     switchToSignUp: string;
     switchToSignIn: string;
+    resetPassword: string;
+    resetPasswordNeedsEmail: string;
+    resetPasswordInvalidEmail: string;
+    resetPasswordConfirmTitle: string;
+    resetPasswordConfirm: (email: string) => string;
+    resetPasswordSent: (email: string) => string;
+    resetPasswordFailed: string;
+    cancel: string;
     termsNotice: string;
     trustedBy: string;
   }
@@ -100,8 +111,7 @@ const CAREER_LOGIN_COPY: Record<
     heroLineThree: "Harper",
     heroDescription:
       "하나의 프로필에서 대화, 선호, 추천까지. 인재를 위한 커리어 에이전트 Harper와 함께 시작하세요.",
-    onboardingBasicDescription: "시작은 이름과 이메일만 있으면 충분해요.",
-    officialJobProgressHelp: (job) => `${job} 진행 도와드릴게요.`,
+    officialJobProgressHelp: (job) => `${job}로 진행 도와드릴게요.`,
     confirmationTitle: "인증 메일을 보냈습니다",
     confirmationEmailPrefix: (email) => `${email}로 `,
     confirmationDescription:
@@ -119,6 +129,18 @@ const CAREER_LOGIN_COPY: Record<
     signUp: "회원가입",
     switchToSignUp: "처음이라면 회원가입",
     switchToSignIn: "이미 계정이 있다면 로그인",
+    resetPassword: "비밀번호 재설정",
+    resetPasswordNeedsEmail:
+      "비밀번호 재설정 링크를 받을 이메일을 먼저 입력해 주세요.",
+    resetPasswordInvalidEmail: "이메일 형식을 확인해 주세요.",
+    resetPasswordConfirmTitle: "비밀번호를 재설정할까요?",
+    resetPasswordConfirm: (email) =>
+      `${email}로 비밀번호 재설정 링크를 보냅니다.\n현재 비밀번호는 바로 바뀌지 않고, 메일 링크에서 새 비밀번호를 설정하게 됩니다.`,
+    resetPasswordSent: (email) =>
+      `${email}로 비밀번호 재설정 링크를 보냈습니다. 메일의 링크를 열어 새 비밀번호를 설정해 주세요.`,
+    resetPasswordFailed:
+      "비밀번호 재설정 메일 전송에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+    cancel: "취소",
     termsNotice:
       "계속 진행하면 Harper의 이용 약관 및 개인정보 처리방침에 동의한 것으로 간주됩니다.",
     trustedBy: "이곳의 인재들이 신뢰합니다.",
@@ -131,8 +153,6 @@ const CAREER_LOGIN_COPY: Record<
     heroLineThree: "Harper",
     heroDescription:
       "Start with Harper, the career agent that keeps your profile, conversations, preferences, and recommendations in one place.",
-    onboardingBasicDescription:
-      "Just your name and email are enough to get started.",
     officialJobProgressHelp: (job) => `I'll help you move forward with ${job}.`,
     confirmationTitle: "Verification email sent",
     confirmationEmailPrefix: (email) => `We sent it to ${email}. `,
@@ -151,6 +171,18 @@ const CAREER_LOGIN_COPY: Record<
     signUp: "Sign up",
     switchToSignUp: "New here? Sign up",
     switchToSignIn: "Already have an account? Log in",
+    resetPassword: "Reset password",
+    resetPasswordNeedsEmail:
+      "Enter your email first to receive a password reset link.",
+    resetPasswordInvalidEmail: "Please check the email format.",
+    resetPasswordConfirmTitle: "Reset your password?",
+    resetPasswordConfirm: (email) =>
+      `We'll send a password reset link to ${email}.\nYour password will not change until you open the email link and set a new one.`,
+    resetPasswordSent: (email) =>
+      `We sent a password reset link to ${email}. Open the email link to set a new password.`,
+    resetPasswordFailed:
+      "We couldn't send the password reset email. Please try again shortly.",
+    cancel: "Cancel",
     termsNotice:
       "By continuing, you agree to Harper's Terms of Service and Privacy Policy.",
     trustedBy: "Trusted by talent from these communities.",
@@ -178,6 +210,20 @@ const officialJobsRoleTitleFromNextPath = (nextPath: string) => {
   } catch {
     return "";
   }
+};
+
+const getSingleQueryValue = (value: string | string[] | undefined) => {
+  if (Array.isArray(value)) return value[0] ?? "";
+  return value ?? "";
+};
+
+const officialJobsRoleTitleFromLoginQuery = (query: ParsedUrlQuery) => {
+  const source = normalizeCareerUtmSource(getSingleQueryValue(query.source));
+  if (source !== OFFICIAL_JOBS_LANDING_SOURCE) return "";
+
+  return getSingleQueryValue(query[OFFICIAL_JOBS_ONBOARDING_JOB_PARAM])
+    .trim()
+    .slice(0, OFFICIAL_JOBS_ROLE_TITLE_MAX_LENGTH);
 };
 
 const CareerLoginLoadingState = () => (
@@ -218,6 +264,9 @@ const CareerLoginContent = () => {
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [emailMode, setEmailMode] = useState<"signin" | "signup">("signin");
   const [formError, setFormError] = useState("");
+  const [resetInfo, setResetInfo] = useState("");
+  const [resetPending, setResetPending] = useState(false);
+  const [resetConfirmEmail, setResetConfirmEmail] = useState("");
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -234,41 +283,64 @@ const CareerLoginContent = () => {
     [router.query.next]
   );
   const officialJobsRoleTitle = useMemo(
-    () => officialJobsRoleTitleFromNextPath(nextPath),
-    [nextPath]
+    () =>
+      officialJobsRoleTitleFromNextPath(nextPath) ||
+      officialJobsRoleTitleFromLoginQuery(router.query),
+    [nextPath, router.query]
   );
   const heroDescriptionLines = officialJobsRoleTitle
-    ? [
-        copy.onboardingBasicDescription,
-        copy.officialJobProgressHelp(officialJobsRoleTitle),
-      ]
+    ? [copy.officialJobProgressHelp(officialJobsRoleTitle)]
     : [copy.heroDescription];
   const emailOnboardingTokenParam =
     typeof router.query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM] === "string"
       ? router.query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM]
       : "";
+  const inviteParam = getSingleQueryValue(router.query.invite).trim();
+  const mailParam = getSingleQueryValue(router.query.mail).trim();
+  const sourceParam = normalizeCareerUtmSource(
+    getSingleQueryValue(router.query.source)
+  );
+  const localIdParam = getSingleQueryValue(router.query.lid).trim();
+  const abtestTypeParam = getSingleQueryValue(router.query.ab).trim();
+  const officialJobTitleParam = getSingleQueryValue(
+    router.query[OFFICIAL_JOBS_ONBOARDING_JOB_PARAM]
+  )
+    .trim()
+    .slice(0, OFFICIAL_JOBS_ROLE_TITLE_MAX_LENGTH);
+  const officialJobSlugParam = getSingleQueryValue(
+    router.query[OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM]
+  ).trim();
   const buildResolvedNextPath = useCallback(() => {
-    const inviteToken =
-      typeof router.query.invite === "string" ? router.query.invite : "";
-    const mail = typeof router.query.mail === "string" ? router.query.mail : "";
-    const source =
-      typeof router.query.source === "string"
-        ? normalizeCareerUtmSource(router.query.source)
-        : null;
-    const localId =
-      typeof router.query.lid === "string" ? router.query.lid.trim() : "";
-    const abtestType =
-      typeof router.query.ab === "string" ? router.query.ab.trim() : "";
     const origin =
       typeof window === "undefined"
         ? "https://matchharper.com"
         : window.location.origin;
     const nextUrl = new URL(nextPath, origin);
-    if (inviteToken) nextUrl.searchParams.set("invite", inviteToken);
-    if (mail) nextUrl.searchParams.set("mail", mail);
-    if (source) nextUrl.searchParams.set("source", source);
-    if (localId) nextUrl.searchParams.set("lid", localId);
-    if (abtestType) nextUrl.searchParams.set("ab", abtestType);
+    if (inviteParam) nextUrl.searchParams.set("invite", inviteParam);
+    if (mailParam) nextUrl.searchParams.set("mail", mailParam);
+    if (sourceParam) nextUrl.searchParams.set("source", sourceParam);
+    if (localIdParam) nextUrl.searchParams.set("lid", localIdParam);
+    if (abtestTypeParam) nextUrl.searchParams.set("ab", abtestTypeParam);
+    if (
+      sourceParam === OFFICIAL_JOBS_LANDING_SOURCE &&
+      officialJobTitleParam &&
+      !nextUrl.searchParams.get(OFFICIAL_JOBS_ONBOARDING_JOB_PARAM)
+    ) {
+      nextUrl.searchParams.set(
+        OFFICIAL_JOBS_ONBOARDING_JOB_PARAM,
+        officialJobTitleParam
+      );
+    }
+    if (
+      sourceParam === OFFICIAL_JOBS_LANDING_SOURCE &&
+      officialJobSlugParam &&
+      !nextUrl.searchParams.get(OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM)
+    ) {
+      nextUrl.searchParams.set(
+        OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM,
+        officialJobSlugParam
+      );
+    }
     if (emailOnboardingTokenParam) {
       nextUrl.searchParams.set(
         CAREER_EMAIL_ONBOARDING_TOKEN_PARAM,
@@ -277,16 +349,19 @@ const CareerLoginContent = () => {
     }
     return `${nextUrl.pathname}${nextUrl.search}`;
   }, [
+    abtestTypeParam,
     emailOnboardingTokenParam,
+    inviteParam,
+    localIdParam,
+    mailParam,
     nextPath,
-    router.query.invite,
-    router.query.lid,
-    router.query.mail,
-    router.query.source,
-    router.query.ab,
+    officialJobSlugParam,
+    officialJobTitleParam,
+    sourceParam,
   ]);
   const emailConfirmationSent = Boolean(authInfo);
   const submittedEmail = email.trim();
+  const authActionPending = authPending || resetPending;
 
   useEffect(() => {
     if (!router.isReady || typeof window === "undefined") return;
@@ -315,6 +390,7 @@ const CareerLoginContent = () => {
   const handleSubmitEmailAuth = async (event: FormEvent) => {
     event.preventDefault();
     setFormError("");
+    setResetInfo("");
 
     if (!showEmailForm) {
       setShowEmailForm(true);
@@ -336,6 +412,72 @@ const CareerLoginContent = () => {
     }
   };
 
+  const sendPasswordResetEmail = useCallback(
+    async (normalizedEmail: string) => {
+      if (authPending || resetPending) return;
+
+      let redirectTo: string | undefined;
+      if (typeof window !== "undefined") {
+        const resetUrl = new URL(
+          "/auths/reset-password",
+          window.location.origin
+        );
+        const loginReturnPath = `${window.location.pathname}${window.location.search}`;
+        resetUrl.searchParams.set(
+          "next",
+          loginReturnPath.startsWith("/career_login")
+            ? loginReturnPath
+            : "/career_login"
+        );
+        redirectTo = resetUrl.toString();
+      }
+
+      setResetPending(true);
+      setFormError("");
+      setResetInfo("");
+      try {
+        const { error } = await supabase.auth.resetPasswordForEmail(
+          normalizedEmail,
+          { redirectTo }
+        );
+        if (error) {
+          setResetConfirmEmail("");
+          setFormError(copy.resetPasswordFailed);
+          return;
+        }
+        setResetConfirmEmail("");
+        setResetInfo(copy.resetPasswordSent(normalizedEmail));
+      } catch {
+        setResetConfirmEmail("");
+        setFormError(copy.resetPasswordFailed);
+      } finally {
+        setResetPending(false);
+      }
+    },
+    [authPending, copy, resetPending]
+  );
+
+  const handleResetPassword = useCallback(() => {
+    if (authPending || resetPending) return;
+
+    const normalizedEmail = email.trim();
+    setFormError("");
+    setResetInfo("");
+
+    if (!normalizedEmail) {
+      setShowEmailForm(true);
+      setFormError(copy.resetPasswordNeedsEmail);
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      setFormError(copy.resetPasswordInvalidEmail);
+      return;
+    }
+
+    setResetConfirmEmail(normalizedEmail);
+  }, [authPending, copy, email, resetPending]);
+
   if (authLoading || user || !router.isReady) {
     return <CareerLoginLoadingState />;
   }
@@ -346,6 +488,23 @@ const CareerLoginContent = () => {
         <title>Harper Career Login</title>
         <link rel="icon" href="/images/logo.ico" />
       </Head>
+      <ConfirmModal
+        open={Boolean(resetConfirmEmail)}
+        title={copy.resetPasswordConfirmTitle}
+        description={
+          resetConfirmEmail
+            ? copy.resetPasswordConfirm(resetConfirmEmail)
+            : undefined
+        }
+        confirmLabel={copy.resetPassword}
+        cancelLabel={copy.cancel}
+        isLoading={resetPending}
+        onClose={() => setResetConfirmEmail("")}
+        onConfirm={() => {
+          if (!resetConfirmEmail) return;
+          void sendPasswordResetEmail(resetConfirmEmail);
+        }}
+      />
       <main className="relative flex min-h-svh w-full flex-col overflow-hidden bg-bg-basement text-neutral-primary">
         <div
           className="pointer-events-none absolute inset-x-0 top-[60px] h-[62svh] min-h-[420px] opacity-70"
@@ -363,7 +522,10 @@ const CareerLoginContent = () => {
 
         <header className="relative z-10 flex h-16 w-full items-center px-5 sm:px-8 lg:px-12">
           <div className="mx-auto flex w-full max-w-[1760px] items-center">
-            <div className="flex items-center gap-2 text-neutral-primary">
+            <div
+              className="flex items-center gap-2 text-neutral-primary"
+              onClick={() => void router.push("/")}
+            >
               <Image
                 src="/svgs/harper-h-mark.svg"
                 alt=""
@@ -372,19 +534,11 @@ const CareerLoginContent = () => {
                 aria-hidden="true"
                 className="h-5 w-5"
               />
-              <Text
-                as="span"
-                variant="title"
-                tone="primary"
-                className="font-halant text-[23px] leading-none tracking-[-0.04em]"
-              >
-                Harper
-              </Text>
             </div>
           </div>
         </header>
 
-        <section className="relative z-10 mx-auto flex w-full max-w-[520px] flex-1 flex-col items-center px-4 pt-10 text-center sm:pt-12 md:pt-16">
+        <section className="relative z-10 mx-auto flex w-full max-w-[520px] flex-1 flex-col items-center px-4 pt-8 text-center sm:pt-8 md:pt-8">
           <Text
             as="h1"
             variant="display"
@@ -452,7 +606,7 @@ const CareerLoginContent = () => {
                 <BareButton
                   type="button"
                   onClick={() => void handleGoogleLogin()}
-                  disabled={authPending}
+                  disabled={authActionPending}
                   className="flex h-11 w-full items-center justify-center gap-2 rounded-[9px] border border-neutral-1000-a10 bg-bg-floating px-4 text-[14px] font-medium tracking-[-0.015em] text-neutral-primary outline-none transition hover:border-neutral-400 hover:bg-bg-weak focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {authPending ? (
@@ -488,9 +642,10 @@ const CareerLoginContent = () => {
                     onChange={(event) => {
                       setEmail(event.target.value);
                       setFormError("");
+                      setResetInfo("");
                     }}
                     autoComplete="email"
-                    disabled={authPending}
+                    disabled={authActionPending}
                     className="h-11 w-full rounded-[9px] border border-neutral-1000-a05 bg-bg-floating px-4 text-[13px] font-medium text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:bg-bg-floating focus:ring-2 focus:ring-neutral-1000-a05 disabled:cursor-not-allowed disabled:opacity-60"
                     required
                   />
@@ -511,7 +666,7 @@ const CareerLoginContent = () => {
                             ? "current-password"
                             : "new-password"
                         }
-                        disabled={authPending}
+                        disabled={authActionPending}
                         className="h-10 w-full rounded-[9px] border border-neutral-1000-a05 bg-bg-floating px-4 text-[13px] font-medium text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:bg-bg-floating focus:ring-2 focus:ring-neutral-1000-a05 disabled:cursor-not-allowed disabled:opacity-60"
                         required
                       />
@@ -526,7 +681,7 @@ const CareerLoginContent = () => {
                             setFormError("");
                           }}
                           autoComplete="new-password"
-                          disabled={authPending}
+                          disabled={authActionPending}
                           className="h-10 w-full rounded-[9px] border border-neutral-1000-a05 bg-bg-floating px-4 text-[13px] font-medium text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:bg-bg-floating focus:ring-2 focus:ring-neutral-1000-a05 disabled:cursor-not-allowed disabled:opacity-60"
                           required
                         />
@@ -536,7 +691,7 @@ const CareerLoginContent = () => {
 
                   <BareButton
                     type="submit"
-                    disabled={authPending}
+                    disabled={authActionPending}
                     className="flex h-11 w-full items-center justify-center gap-2 rounded-[9px] bg-black px-4 text-[14px] font-medium tracking-[-0.015em] text-neutral-00 outline-none transition hover:bg-neutral-primary focus-visible:ring-2 focus-visible:ring-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {authPending ? (
@@ -553,23 +708,36 @@ const CareerLoginContent = () => {
                     </span>
                   </BareButton>
 
-                  {showEmailForm ? (
-                    <BareButton
-                      type="button"
-                      onClick={() => {
-                        setFormError("");
-                        setPasswordConfirm("");
-                        setEmailMode((current) =>
-                          current === "signin" ? "signup" : "signin"
-                        );
-                      }}
-                      className="w-full pt-0.5 text-center text-[12px] font-medium text-neutral-muted underline underline-offset-4 transition hover:text-neutral-primary"
-                    >
-                      {emailMode === "signin"
-                        ? copy.switchToSignUp
-                        : copy.switchToSignIn}
-                    </BareButton>
-                  ) : null}
+                  {showEmailForm && (
+                    <div className="flex items-center justify-between gap-3 pt-0.5">
+                      <BareButton
+                        type="button"
+                        onClick={() => {
+                          setFormError("");
+                          setResetInfo("");
+                          setPasswordConfirm("");
+                          setEmailMode((current) =>
+                            current === "signin" ? "signup" : "signin"
+                          );
+                        }}
+                        className="text-left text-[12px] font-medium text-neutral-muted underline underline-offset-4 transition hover:text-neutral-primary"
+                      >
+                        {emailMode === "signin"
+                          ? copy.switchToSignUp
+                          : copy.switchToSignIn}
+                      </BareButton>
+                      {emailMode === "signin" ? (
+                        <BareButton
+                          type="button"
+                          onClick={() => void handleResetPassword()}
+                          disabled={authActionPending}
+                          className="shrink-0 text-right text-[12px] font-medium text-neutral-muted underline underline-offset-4 transition hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {resetPending ? copy.pending : copy.resetPassword}
+                        </BareButton>
+                      ) : null}
+                    </div>
+                  )}
                 </form>
 
                 {formError || authError ? (
@@ -580,6 +748,18 @@ const CareerLoginContent = () => {
                     className="mt-3 rounded-[8px] border border-critical/30 bg-critical-faded px-3 py-2 text-left text-[12px] font-medium leading-5 text-critical"
                   >
                     {formError || authError}
+                  </Text>
+                ) : null}
+
+                {resetInfo ? (
+                  <Text
+                    as="p"
+                    variant="caption"
+                    className="mt-3 rounded-[8px] border border-positive/30 bg-positive-faded px-3 py-2 text-left text-[12px] font-medium leading-5 text-positive"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    {resetInfo}
                   </Text>
                 ) : null}
 
@@ -597,7 +777,7 @@ const CareerLoginContent = () => {
         </section>
 
         {!emailConfirmationSent ? (
-          <section className="relative z-10 mx-auto w-full max-w-[1280px] px-6 pb-7 pt-[12svh] text-center sm:pt-10 md:pb-9">
+          <section className="relative z-10 mx-auto w-full max-w-[1280px] px-6 pb-7 pt-[20svh] text-center sm:pt-[12svh] md:pb-9">
             <Text
               as="h2"
               variant="label"

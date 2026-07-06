@@ -12,9 +12,9 @@ import {
 import {
   buildCareerCallWrapupFallbackFollowUp,
   buildCareerCallWrapupTurnInstruction,
+  buildInternalOpportunityCallWrapupInstruction,
 } from "@/lib/career/prompts";
 import {
-  buildInternalOpportunityCallWrapupInstruction,
   completeInternalOpportunityCallRequest,
   fetchInternalOpportunityCallRequestById,
   fetchPendingInternalOpportunityCallRequests,
@@ -363,7 +363,10 @@ export async function POST(request: NextRequest) {
       body.locale ??
       request.cookies.get("NEXT_LOCALE")?.value;
     const conversationStarter = conversationStarterId
-      ? getCareerConversationStarterPrompt(conversationStarterId, responseLocale)
+      ? getCareerConversationStarterPrompt(
+          conversationStarterId,
+          responseLocale
+        )
       : null;
     const skipConversationWrites = Boolean(conversationStarter);
     if (conversationStarterId && !conversationStarter) {

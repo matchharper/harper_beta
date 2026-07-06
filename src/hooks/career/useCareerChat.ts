@@ -12,6 +12,7 @@ import { getErrorMessage, sleep, toUiMessage } from "./careerHelpers";
 import { showOpportunityDiscoveryStartedToast } from "./opportunityDiscoveryToast";
 import type { FetchWithAuth } from "./useCareerApi";
 import type { CareerConversationStarterId } from "@/lib/career/prompts/conversationStarters";
+import { buildCareerTypewriterChunks } from "@/lib/career/typewriter";
 import { createRecommendJobPostingStatusLog } from "@/lib/talentOnboarding/recommendJobPostingStatus";
 import type { TalentUserChatMessageType } from "@/lib/talentOnboarding/onboarding";
 import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
@@ -266,23 +267,27 @@ export const useCareerChat = ({
           ...message,
           content: "",
           typing: true,
+          typingMode: "word",
         },
       ]);
 
       const fullText = message.content;
+      const chunks = buildCareerTypewriterChunks(fullText);
       const delay = Math.max(
-        10,
-        Math.min(28, Math.floor(1700 / Math.max(fullText.length, 30)))
+        45,
+        Math.min(130, Math.floor(2200 / Math.max(chunks.length, 12)))
       );
-      for (let index = 1; index <= fullText.length; index += 1) {
+      let visibleText = "";
+      for (const chunk of chunks) {
         if (!mountedRef.current) return;
         await sleep(delay);
+        visibleText += chunk;
         setLocalMessages((prev) =>
           prev.map((item) =>
             String(item.id) === id
               ? {
                   ...item,
-                  content: fullText.slice(0, index),
+                  content: visibleText,
                 }
               : item
           )
@@ -296,6 +301,7 @@ export const useCareerChat = ({
                 ...item,
                 content: fullText,
                 typing: false,
+                typingMode: undefined,
               }
             : item
         )

@@ -6,6 +6,7 @@ import {
   ChevronUp,
   Eye,
   FileText,
+  Globe2,
   ImagePlus,
   Loader2,
   MapPin,
@@ -16,6 +17,8 @@ import {
   Trash2,
   UserRound,
 } from "lucide-react";
+import Image from "next/image";
+import { useRouter } from "next/router";
 import { useCareerSidebarContext } from "../CareerSidebarContext";
 import type {
   CareerTalentEducation,
@@ -39,6 +42,7 @@ import {
   ActionDropdownItem,
   ActionDropdownSeparator,
 } from "@/components/ui/action-dropdown";
+import { Tooltips } from "@/components/ui/tooltip";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import RichText from "@/components/ui/rich-text";
 import { cn } from "@/lib/utils";
@@ -49,6 +53,7 @@ import {
 import { useMessages, type Locale } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
 import Face from "@/components/common/Face";
+import { getCareerLinkLabels } from "@/components/career/constants";
 
 type EditableExperience = CareerTalentExperience & { clientKey: string };
 type EditableEducation = CareerTalentEducation & { clientKey: string };
@@ -62,6 +67,12 @@ type EditableTalentProfile = {
 };
 
 type CareerT = ReturnType<typeof useCareerT>;
+type ProfileSourceIndicator = {
+  Icon?: React.ComponentType<{ className?: string }>;
+  iconSrc?: string;
+  key: string;
+  label: string;
+};
 
 const getProfileRerankingInsights = (t: CareerT) =>
   [
@@ -269,6 +280,14 @@ const formatLastUpdated = (value: string | null, locale: Locale) => {
     month: "short",
     day: "numeric",
   }).format(date);
+};
+
+const getProfileLinkIconSrc = (index: number) => {
+  if (index === 0) return "/images/logos/linkedin.svg";
+  if (index === 1) return "/images/logos/github.svg";
+  if (index === 2) return "/images/logos/scholar.png";
+  if (index === 4) return "/images/logos/xcom.png";
+  return null;
 };
 
 const createClientKey = (prefix: string) =>
@@ -648,10 +667,7 @@ const ItemRemoveButton = ({ onClick }: { onClick: () => void }) => {
       type="button"
       onClick={onClick}
       className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-neutral-1000-a05 bg-bg-floating text-neutral-muted transition-colors hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary md:h-8 md:w-8"
-      aria-label={t(
-        "career.profile.career_talent_profile_panel.18od9kw",
-        "항목 삭제"
-      )}
+      aria-label={"항목 삭제"}
     >
       <Trash2 className="h-4 w-4" />
     </BareButton>
@@ -743,10 +759,7 @@ const ProfileAvatar = ({
         trigger={
           <BareButton
             type="button"
-            aria-label={t(
-              "career.profile.career_talent_profile_panel.05hwq9n",
-              "프로필 사진 메뉴"
-            )}
+            aria-label={"프로필 사진 메뉴"}
             disabled={imageActionDisabled}
             className={cn(
               "group relative flex h-14 w-14 items-center justify-center rounded-full border border-neutral-1000-a05 bg-bg-weak text-neutral-muted transition-all focus:outline-none focus-visible:ring-4 focus-visible:ring-positive/30",
@@ -813,11 +826,15 @@ const ProfileHeader = ({
   locale,
   onEdit,
   onFieldChange,
+  onOpenProfileSources,
   onProfileImageDelete,
   onProfileImageFileChange,
   profileUpdatedText,
   profileImageUploadPending,
   savedResumeDownloadUrl,
+  savedResumeFileName,
+  savedResumeStoragePath,
+  savedProfileLinks,
   user,
 }: {
   displayName: string;
@@ -828,20 +845,69 @@ const ProfileHeader = ({
     field: keyof Omit<CareerTalentUser, "user_id">,
     value: string
   ) => void;
+  onOpenProfileSources?: () => void;
   onProfileImageDelete?: () => void;
   onProfileImageFileChange?: (file: File) => void;
   profileUpdatedText: string | null;
   profileImageUploadPending?: boolean;
   savedResumeDownloadUrl?: string | null;
+  savedResumeFileName?: string | null;
+  savedResumeStoragePath?: string | null;
+  savedProfileLinks?: string[];
   user: CareerTalentUser | null | undefined;
 }) => {
   const t = useCareerT();
+  const profileSourceIndicators = useMemo<ProfileSourceIndicator[]>(() => {
+    const items: ProfileSourceIndicator[] = [];
+    const hasSavedResume = Boolean(
+      savedResumeDownloadUrl || savedResumeFileName || savedResumeStoragePath
+    );
+
+    if (hasSavedResume) {
+      items.push({
+        Icon: FileText,
+        key: "resume",
+        label: t("career.common.career.0y7cerf", "저장된 이력서"),
+      });
+    }
+
+    const linkLabels = getCareerLinkLabels(t);
+    const links = savedProfileLinks ?? [];
+    const hasAdditionalLink = links
+      .slice(linkLabels.length)
+      .some((link) => link.trim().length > 0);
+
+    linkLabels.forEach((label, index) => {
+      if (!links[index]?.trim()) return;
+      const iconSrc = getProfileLinkIconSrc(index);
+      items.push({
+        ...(iconSrc ? { iconSrc } : { Icon: Globe2 }),
+        key: `link-${index}`,
+        label,
+      });
+    });
+
+    if (hasAdditionalLink) {
+      items.push({
+        Icon: Globe2,
+        key: "link-additional",
+        label: t("career.chat.career_timeline_section.0ong27a", "추가 링크"),
+      });
+    }
+
+    return items;
+  }, [
+    savedProfileLinks,
+    savedResumeDownloadUrl,
+    savedResumeFileName,
+    savedResumeStoragePath,
+    t,
+  ]);
 
   return (
     <section
       className={cn(
-        "relative flex flex-col gap-4 px-1 pt-1 sm:flex-row",
-        isEditing ? "sm:items-start" : "sm:items-center"
+        "relative flex flex-col gap-4 px-1 pt-1 sm:flex-row items-start"
       )}
     >
       <ProfileAvatar
@@ -859,7 +925,7 @@ const ProfileHeader = ({
               value={user?.name ?? ""}
               onChange={(event) => onFieldChange?.("name", event.target.value)}
               placeholder={t("career.onboarding.onboarding.1wh5aat", "이름")}
-              aria-label={t("career.onboarding.onboarding.1wh5aat", "이름")}
+              aria-label={"이름"}
               className={cn(
                 profileEditInputClassName,
                 "h-10 max-w-[360px] font-hedvig text-[24px]"
@@ -887,10 +953,7 @@ const ProfileHeader = ({
                 "career.profile.career_talent_profile_panel.0tgcq59",
                 "한 줄 소개"
               )}
-              aria-label={t(
-                "career.profile.career_talent_profile_panel.0tgcq59",
-                "한 줄 소개"
-              )}
+              aria-label={"한 줄 소개"}
               className={profileEditInputClassName}
             />
             <Input
@@ -902,10 +965,7 @@ const ProfileHeader = ({
                 "career.profile.career_talent_profile_panel.0csjlpy",
                 "지역"
               )}
-              aria-label={t(
-                "career.profile.career_talent_profile_panel.0csjlpy",
-                "지역"
-              )}
+              aria-label={"지역"}
               className={profileEditInputClassName}
             />
           </div>
@@ -934,6 +994,33 @@ const ProfileHeader = ({
             )}
           >
             Last updated · {profileUpdatedText}
+          </div>
+        ) : null}
+
+        {profileSourceIndicators.length > 0 ? (
+          <div className="mt-2 flex flex-wrap items-center gap-1">
+            {profileSourceIndicators.map(({ Icon, iconSrc, key, label }) => (
+              <Tooltips key={key} text={label} side="bottom">
+                <BareButton
+                  type="button"
+                  onClick={onOpenProfileSources}
+                  aria-label={`${label} 관리`}
+                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-muted transition-colors hover:bg-bg-weak hover:text-neutral-primary"
+                >
+                  {iconSrc ? (
+                    <Image
+                      src={iconSrc}
+                      alt=""
+                      width={16}
+                      height={16}
+                      className="h-4 w-4 rounded-[3px] object-contain"
+                    />
+                  ) : Icon ? (
+                    <Icon className="h-3.5 w-3.5" />
+                  ) : null}
+                </BareButton>
+              </Tooltips>
+            ))}
           </div>
         ) : null}
       </div>
@@ -1155,14 +1242,7 @@ const TimelineEditBlock = ({
             "cursor-pointer transition-transform hover:scale-[1.03]",
           logoUploadPending && "pointer-events-none opacity-75"
         )}
-        aria-label={
-          onLogoFileChange
-            ? t(
-                "career.profile.career_talent_profile_panel.0a2iqu6",
-                "로고 이미지 업로드"
-              )
-            : undefined
-        }
+        aria-label={onLogoFileChange ? "로고 이미지 업로드" : undefined}
       >
         {onLogoFileChange ? (
           <UiInput
@@ -1228,9 +1308,13 @@ const CareerTalentProfilePanel = ({
 
   const { locale } = useMessages();
   const logCareerEvent = useCareerLogEvent();
+  const router = useRouter();
   const { fetchWithAuth } = useCareerApi();
   const {
+    savedProfileLinks,
     savedResumeDownloadUrl,
+    savedResumeFileName,
+    savedResumeStoragePath,
     talentProfile,
     talentInsights,
     talentInsightsUpdatedAt,
@@ -1341,6 +1425,11 @@ const CareerTalentProfilePanel = ({
     logCareerEvent("click_profile_edit");
     setDraft(createEditableProfile(talentProfile));
     setIsEditing(true);
+  };
+
+  const openProfileSources = () => {
+    logCareerEvent("click_profile_header_source_icon");
+    void router.push("/career/profile?profileSection=links");
   };
 
   const cancelEditing = () => {
@@ -1782,6 +1871,7 @@ const CareerTalentProfilePanel = ({
             displayName={draft.talentUser.name || "Unknown"}
             isEditing
             locale={locale}
+            onOpenProfileSources={openProfileSources}
             onProfileImageDelete={() => void deleteProfileImage()}
             onProfileImageFileChange={(file) => void uploadProfileImage(file)}
             onFieldChange={updateTalentUserField}
@@ -1790,6 +1880,9 @@ const CareerTalentProfilePanel = ({
               profileImageUploadPending || profileSavePending
             }
             savedResumeDownloadUrl={savedResumeDownloadUrl}
+            savedResumeFileName={savedResumeFileName}
+            savedResumeStoragePath={savedResumeStoragePath}
+            savedProfileLinks={savedProfileLinks}
             user={draft.talentUser}
           />
 
@@ -1898,10 +1991,7 @@ const CareerTalentProfilePanel = ({
                               "career.profile.career_talent_profile_panel.1qnltk8",
                               "직무"
                             )}
-                            aria-label={t(
-                              "career.profile.career_talent_profile_panel.1qnltk8",
-                              "직무"
-                            )}
+                            aria-label={"직무"}
                             className={cn(
                               profileEditPlainInputClassName,
                               "text-[14px] font-medium leading-[1.35]"
@@ -1921,10 +2011,7 @@ const CareerTalentProfilePanel = ({
                                 "career.profile.career_talent_profile_panel.0uwqvnk",
                                 "회사명"
                               )}
-                              aria-label={t(
-                                "career.profile.career_talent_profile_panel.0uwqvnk",
-                                "회사명"
-                              )}
+                              aria-label={"회사명"}
                               className={cn(
                                 profileEditPlainInputClassName,
                                 "w-[180px] text-[12.5px] leading-5 text-neutral-muted"
@@ -1944,10 +2031,7 @@ const CareerTalentProfilePanel = ({
                                 "career.profile.career_talent_profile_panel.00infjs",
                                 "근무 지역"
                               )}
-                              aria-label={t(
-                                "career.profile.career_talent_profile_panel.00infjs",
-                                "근무 지역"
-                              )}
+                              aria-label={"근무 지역"}
                               className={cn(
                                 profileEditPlainInputClassName,
                                 "w-[150px] text-[12.5px] leading-5 text-neutral-muted"
@@ -1967,10 +2051,7 @@ const CareerTalentProfilePanel = ({
                                 "career.profile.career_talent_profile_panel.0rtdf2n",
                                 "고용 형태"
                               )}
-                              aria-label={t(
-                                "career.profile.career_talent_profile_panel.0rtdf2n",
-                                "고용 형태"
-                              )}
+                              aria-label={"고용 형태"}
                               className={cn(
                                 profileEditPlainInputClassName,
                                 "w-[120px] text-[12.5px] leading-5 text-neutral-muted"
@@ -1991,10 +2072,7 @@ const CareerTalentProfilePanel = ({
                                 "career.profile.career_talent_profile_panel.11cor6u",
                                 "시작일"
                               )}
-                              aria-label={t(
-                                "career.profile.career_talent_profile_panel.11cor6u",
-                                "시작일"
-                              )}
+                              aria-label={"시작일"}
                               className={cn(
                                 profileEditPlainInputClassName,
                                 "w-[92px] text-[11.5px] leading-5 text-neutral-soft"
@@ -2014,10 +2092,7 @@ const CareerTalentProfilePanel = ({
                                 "career.profile.career_talent_profile_panel.0p5h1wt",
                                 "현재"
                               )}
-                              aria-label={t(
-                                "career.profile.career_talent_profile_panel.1iegi7w",
-                                "종료일 또는 현재"
-                              )}
+                              aria-label={"종료일 또는 현재"}
                               className={cn(
                                 profileEditPlainInputClassName,
                                 "w-[92px] text-[11.5px] leading-5 text-neutral-soft"
@@ -2052,10 +2127,7 @@ const CareerTalentProfilePanel = ({
                                 "career.profile.career_talent_profile_panel.07x414y",
                                 "회사 링크"
                               )}
-                              aria-label={t(
-                                "career.profile.career_talent_profile_panel.07x414y",
-                                "회사 링크"
-                              )}
+                              aria-label={"회사 링크"}
                               className={cn(
                                 profileEditPlainInputClassName,
                                 "min-w-[180px] flex-1 text-[11.5px] leading-5 text-neutral-soft"
@@ -2075,10 +2147,7 @@ const CareerTalentProfilePanel = ({
                               "career.profile.career_talent_profile_panel.051qjyj",
                               "주요 업무와 성과"
                             )}
-                            aria-label={t(
-                              "career.profile.career_talent_profile_panel.051qjyj",
-                              "주요 업무와 성과"
-                            )}
+                            aria-label={"주요 업무와 성과"}
                             className={cn(
                               profileEditPlainTextareaClassName,
                               "mt-2 text-[13px] leading-6 text-neutral-muted"
@@ -2112,10 +2181,7 @@ const CareerTalentProfilePanel = ({
                             "career.profile.career_talent_profile_panel.1afhauj",
                             "학교명"
                           )}
-                          aria-label={t(
-                            "career.profile.career_talent_profile_panel.1afhauj",
-                            "학교명"
-                          )}
+                          aria-label={"학교명"}
                           className={cn(
                             profileEditPlainInputClassName,
                             "text-[14px] font-medium leading-[1.35]"
@@ -2135,10 +2201,7 @@ const CareerTalentProfilePanel = ({
                               "career.profile.career_talent_profile_panel.06x2f2q",
                               "전공"
                             )}
-                            aria-label={t(
-                              "career.profile.career_talent_profile_panel.06x2f2q",
-                              "전공"
-                            )}
+                            aria-label={"전공"}
                             className={cn(
                               profileEditPlainInputClassName,
                               "w-[170px] text-[12.5px] leading-5 text-neutral-muted"
@@ -2158,10 +2221,7 @@ const CareerTalentProfilePanel = ({
                               "career.profile.career_talent_profile_panel.0a7k434",
                               "학위"
                             )}
-                            aria-label={t(
-                              "career.profile.career_talent_profile_panel.0a7k434",
-                              "학위"
-                            )}
+                            aria-label={"학위"}
                             className={cn(
                               profileEditPlainInputClassName,
                               "w-[150px] text-[12.5px] leading-5 text-neutral-muted"
@@ -2181,10 +2241,7 @@ const CareerTalentProfilePanel = ({
                               "career.profile.career_talent_profile_panel.1ywstxy",
                               "학교/프로그램 링크"
                             )}
-                            aria-label={t(
-                              "career.profile.career_talent_profile_panel.1ywstxy",
-                              "학교/프로그램 링크"
-                            )}
+                            aria-label={"학교/프로그램 링크"}
                             className={cn(
                               profileEditPlainInputClassName,
                               "min-w-[180px] flex-1 text-[12.5px] leading-5 text-neutral-muted"
@@ -2205,10 +2262,7 @@ const CareerTalentProfilePanel = ({
                               "career.profile.career_talent_profile_panel.11cor6u",
                               "시작일"
                             )}
-                            aria-label={t(
-                              "career.profile.career_talent_profile_panel.11cor6u",
-                              "시작일"
-                            )}
+                            aria-label={"시작일"}
                             className={cn(
                               profileEditPlainInputClassName,
                               "w-[92px] text-[11.5px] leading-5 text-neutral-soft"
@@ -2228,10 +2282,7 @@ const CareerTalentProfilePanel = ({
                               "career.profile.career_talent_profile_panel.13a39zc",
                               "종료일"
                             )}
-                            aria-label={t(
-                              "career.profile.career_talent_profile_panel.13a39zc",
-                              "종료일"
-                            )}
+                            aria-label={"종료일"}
                             className={cn(
                               profileEditPlainInputClassName,
                               "w-[92px] text-[11.5px] leading-5 text-neutral-soft"
@@ -2251,10 +2302,7 @@ const CareerTalentProfilePanel = ({
                             "career.profile.career_talent_profile_panel.1trcux2",
                             "학력 설명"
                           )}
-                          aria-label={t(
-                            "career.profile.career_talent_profile_panel.1trcux2",
-                            "학력 설명"
-                          )}
+                          aria-label={"학력 설명"}
                           className={cn(
                             profileEditPlainTextareaClassName,
                             "mt-2 text-[13px] leading-6 text-neutral-muted"
@@ -2287,10 +2335,7 @@ const CareerTalentProfilePanel = ({
                           "career.profile.career_talent_profile_panel.1ub2ks6",
                           "제목"
                         )}
-                        aria-label={t(
-                          "career.profile.career_talent_profile_panel.1ub2ks6",
-                          "제목"
-                        )}
+                        aria-label={"제목"}
                         className={cn(
                           profileEditPlainInputClassName,
                           "text-[14px] font-medium leading-[1.35]"
@@ -2310,10 +2355,7 @@ const CareerTalentProfilePanel = ({
                             "career.profile.career_talent_profile_panel.1pzl6hl",
                             "날짜"
                           )}
-                          aria-label={t(
-                            "career.profile.career_talent_profile_panel.1pzl6hl",
-                            "날짜"
-                          )}
+                          aria-label={"날짜"}
                           className={cn(
                             profileEditPlainInputClassName,
                             "w-[160px] text-[12.5px] leading-5 text-neutral-muted"
@@ -2333,10 +2375,7 @@ const CareerTalentProfilePanel = ({
                           "career.profile.career_talent_profile_panel.07tjd6q",
                           "설명"
                         )}
-                        aria-label={t(
-                          "career.profile.career_talent_profile_panel.07tjd6q",
-                          "설명"
-                        )}
+                        aria-label={"설명"}
                         className={cn(
                           profileEditPlainTextareaClassName,
                           "mt-2 text-[13px] leading-6 text-neutral-muted"
@@ -2365,6 +2404,7 @@ const CareerTalentProfilePanel = ({
             isEditing={false}
             locale={locale}
             onEdit={beginEditing}
+            onOpenProfileSources={openProfileSources}
             onProfileImageDelete={() => void deleteProfileImage()}
             onProfileImageFileChange={(file) => void uploadProfileImage(file)}
             profileUpdatedText={profileUpdatedText}
@@ -2372,6 +2412,9 @@ const CareerTalentProfilePanel = ({
               profileImageUploadPending || profileSavePending
             }
             savedResumeDownloadUrl={savedResumeDownloadUrl}
+            savedResumeFileName={savedResumeFileName}
+            savedResumeStoragePath={savedResumeStoragePath}
+            savedProfileLinks={savedProfileLinks}
             user={talentUser}
           />
 

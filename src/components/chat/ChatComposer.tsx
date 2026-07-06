@@ -111,7 +111,7 @@ export default function ChatComposer({
                 : "bg-black text-neutral-00 disabled:opacity-50"
             }`}
             disabled={!isStreaming && disabledSend}
-            aria-label={m.chat.send ?? "Send"}
+            aria-label="Send"
           >
             {isStreaming ? (
               <Square size={16} fill="currentColor" />

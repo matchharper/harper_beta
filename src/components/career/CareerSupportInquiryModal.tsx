@@ -124,10 +124,7 @@ const CareerSupportInquiryModal = ({
     <div className="fixed inset-0 z-80 flex items-center justify-center p-4">
       <BareButton
         type="button"
-        aria-label={t(
-          "career.common.career_support_inquiry_modal.16ya5aa",
-          "문의 모달 닫기"
-        )}
+        aria-label={"문의 모달 닫기"}
         onClick={handleClose}
         className="absolute inset-0 bg-black/15 backdrop-blur-[2px]"
       />
@@ -142,10 +139,7 @@ const CareerSupportInquiryModal = ({
           type="button"
           onClick={handleClose}
           disabled={submitting}
-          aria-label={t(
-            "career.common.career_support_inquiry_modal.16ya5aa",
-            "문의 모달 닫기"
-          )}
+          aria-label={"문의 모달 닫기"}
           className="absolute right-3 top-3 inline-flex h-11 w-11 items-center justify-center rounded-lg text-neutral-soft transition hover:bg-black/5 hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-40 md:h-8 md:w-8"
         >
           <X className="h-4 w-4" />

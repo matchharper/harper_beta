@@ -131,7 +131,7 @@ export function InternalOpportunityCallActions({
                 <UserRoundCheck className="h-3.5 w-3.5" />
               )}
             </span>
-            <span className="min-w-0 truncate text-[15px] md:text-[14px] font-medium leading-5">
+            <span className="min-w-0 truncate text-[13px] md:text-[14px] font-medium leading-5">
               {label}
             </span>
           </ActionButton>

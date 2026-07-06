@@ -55,7 +55,7 @@ const CareerUpdateNotesModal = ({
     <TalentCareerModal
       open={open}
       onClose={onClose}
-      ariaLabel={t("career.common.career.14ybad0", "업데이트 노트")}
+      ariaLabel={"업데이트 노트"}
       overlayClassName="items-start pt-14"
       panelClassName="max-w-none w-[min(720px,calc(100vw-32px))] rounded-[18px] border-neutral-1000-a05 bg-bg-floating"
       bodyClassName="p-0"
@@ -106,10 +106,7 @@ const CareerUpdateNotesModal = ({
         <div
           ref={contentRef}
           tabIndex={-1}
-          aria-label={t(
-            "career.common.career_update_notes_modal.1e7ecir",
-            "업데이트 노트 내용"
-          )}
+          aria-label={"업데이트 노트 내용"}
           className="max-h-[min(68svh,640px)] overflow-y-auto px-5 py-2 outline-none"
         >
           <div className="divide-y divide-neutral-1000-a05">

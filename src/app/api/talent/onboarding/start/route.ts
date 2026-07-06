@@ -42,6 +42,11 @@ import {
   sanitizeSingleLineDbText,
 } from "@/lib/textSanitization";
 import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
+import {
+  buildOfficialJobsOnboardingIntentPrompt,
+  normalizeOfficialJobsRoleTitle,
+  OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE,
+} from "@/lib/officialJobs";
 
 export const runtime = "nodejs";
 export const maxDuration = 240;
@@ -55,6 +60,8 @@ type Body = {
   resumeStoragePath?: string;
   resumeText?: string;
   links?: string[];
+  officialJobSlug?: string;
+  officialJobTitle?: string;
 };
 
 type TalentProfileUpdatePayload = {
@@ -231,6 +238,15 @@ export async function POST(req: NextRequest) {
     const links = (body.links ?? [])
       .map((link) => sanitizeSingleLineDbText(link, 2000) ?? "")
       .filter(Boolean);
+    const officialJobTitle = normalizeOfficialJobsRoleTitle(
+      sanitizeSingleLineDbText(body.officialJobTitle, 240)
+    );
+    const officialJobSlug = sanitizeSingleLineDbText(
+      body.officialJobSlug,
+      240
+    );
+    const officialJobSignupIntentPrompt =
+      buildOfficialJobsOnboardingIntentPrompt(officialJobTitle);
     const hasResume = Boolean(
       resumeFileName || resumeStoragePath || resumeText
     );
@@ -598,6 +614,20 @@ export async function POST(req: NextRequest) {
         impactLevel: materialActivity.impactLevel,
         source: "onboarding",
         summary: materialActivity.summary,
+        userId: user.id,
+      });
+    }
+    if (officialJobSignupIntentPrompt) {
+      await insertTalentActivityEvent({
+        admin,
+        changedDomains: ["official_job_intent", "onboarding"],
+        conversationId,
+        eventType: OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE,
+        impactLevel: "high",
+        source: officialJobSlug
+          ? `official_jobs_onboarding:${officialJobSlug}`
+          : "official_jobs_onboarding",
+        summary: officialJobSignupIntentPrompt,
         userId: user.id,
       });
     }

@@ -14,10 +14,7 @@ export function CareerMobileJobsLoadingState() {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       aria-busy="true"
-      aria-label={t(
-        "career.common.career_history_panel.0s3czqf",
-        "저장된 정보를 불러오는 중입니다..."
-      )}
+      aria-label={"저장된 정보를 불러오는 중입니다..."}
       className="flex flex-1 flex-col gap-3 px-4 pb-28 pt-4"
     >
       <section className="rounded-2xl border border-neutral-1000-a05 bg-bg-floating p-4 shadow-sm">

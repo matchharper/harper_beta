@@ -401,7 +401,6 @@ export const en = {
   chat: {
     composerPlaceholder:
       "Ask anything (Enter to send / Shift+Enter for newline)",
-    addAttachment: "Add attachment",
     attachFile: "Attach file",
     attachLink: "Add link",
     addLink: "Add link",
@@ -411,8 +410,6 @@ export const en = {
     attachedLinkLabel: "Attached link",
     fileReading: "Reading file...",
     fileReadFail: "Could not read the file. Please try again.",
-    removeAttachment: "Remove attachment",
-    send: "Send",
     candidSuggestions: [
       "Is this person open to a job change?",
       "Evaluate whether this person is a good fit for our team, with reasons.",
@@ -420,40 +417,6 @@ export const en = {
     ],
     unlockProfileCta: "Start the conversation",
     loadingHistory: "Loading conversation history...",
-  },
-  scout: {
-    title: "Harper Scout",
-    addAgent: "Add Agent",
-    intro:
-      "Harper acts as your agent to find and recommend candidates daily based on the role, skills, and team culture.\nRecommended profiles stay masked until you reveal them, and credits are spent only on reveal.",
-    emptyTag: "Get started with Harper Scout",
-    emptyTitle: "Welcome to Harper Scout.",
-    emptySubtitle: "No agents have been created yet",
-    emptyDesc:
-      "Tell Harper about the role, stack, and team culture, and Harper will recommend suitable candidates daily.",
-    emptyDesc2: "Create your first agent and get started right away.",
-    feedbackPrefix: "Provide",
-    feedbackPositive: "Interested",
-    feedbackNegative: "Not a fit",
-    feedbackSuffix: "feedback on candidates to keep improving results.",
-    createAgent: "Create Agent",
-    perAgentNote:
-      "Each agent recommends 1–2 candidates per day, and credits are spent only when you reveal a profile.",
-    statusRunning: "Running",
-    statusStopped: "Paused",
-    createdAt: "Created:",
-    updatedAt: "Last updated:",
-    edit: "Edit",
-    loadingList: "Loading...",
-    resultCountLabel: "Candidates {count}",
-    limitMessage: "You can run up to 2 automations at a time.",
-    checkAutomationFail: "Could not check automation status.",
-    itemFallbackTitle: "Scout",
-    initialAssistantMessage:
-      "Hi, I'm Harper.\nTell me, in simple terms, what problems you want to solve in this hiring process.\n\nIt's okay if the role, team context, and must-have skills aren't fully defined yet.\nWe'll structure it together and find the best-fit candidates.",
-    companyDescriptionCtaMessage:
-      "It helps if you share company/team context before we start.",
-    companyDescriptionCtaButton: "Go to Settings",
   },
   company: {
     information: "Company Information",
@@ -620,16 +583,11 @@ export const en = {
     "career.call.wrapup_fallback.onboarding_remaining":
       "There's still a little onboarding left. If we continue in this chat from where the call dropped, I can use that context to find stronger opportunities for you.",
     "career.chat.career_call_screen.082qr7j": "Completion Rate",
-    "career.chat.career_call_screen.0a6n15y": "Toggle Captions",
     "career.chat.career_call_screen.0n1pl8k":
       "You can end the career interview anytime. You're almost done - just answer 2-3 more questions and it will end automatically!",
     "career.chat.career_call_screen.0u4w1k5":
       "Your conversation will appear here once it starts.",
     "career.chat.career_call_screen.0yqbta2": "Indefinite Pause",
-    "career.chat.career_call_screen.15tfl05": "Unmute",
-    "career.chat.career_call_screen.16d2ux9": "End Call",
-    "career.chat.career_call_screen.1914g7j": "Mute",
-    "career.chat.career_call_screen.1lwovam": "Career Interview Progress",
     "career.chat.career_call_screen.force_complete_label": "Finish Now",
     "career.chat.career_composer_section.017fk2m":
       "Feel free to tell me your desired role or conditions.",
@@ -646,14 +604,13 @@ export const en = {
       "Please start the conversation using the start button below.",
     "career.chat.career_composer_section.1rqak4s":
       "Keep the conversation going by typing here.",
-    "career.chat.career_composer_section.1sjkx1r": "Send Message",
-    "career.chat.career_composer_section.1vn1k94": "Call Mode",
     "career.chat.career_message_bubble.0jnmgxp":
       "Great. Feel free to start by telling me about your recent updates or what you've been enjoying working on lately.",
     "career.chat.career_message_bubble.0o5swvp": "Call",
-    "career.chat.career_message_bubble.0ovvmd7": "Phone Call",
     "career.chat.career_message_bubble.0whsa78": "Call",
     "career.chat.career_message_bubble.1tqt1ip": "Enhance Resume",
+    "career.chat.career_message_bubble.1xpjlib":
+      "You can also type your reply.",
     "career.chat.career_message_bubble.optional_call_notice":
       "This isn't required; it's just a call to ask a few questions that may help with the connection. Even if you don't join, I'll keep handling the connection with {companyName}.",
     "career.chat.career_timeline_section.00l29f9":
@@ -728,8 +685,6 @@ export const en = {
       "I'll spend about 5 minutes aligning on opportunities that fit {displayName}.",
     "career.chat.career_welcome_screen.greeting_with_name":
       "Hi {displayName}, nice to meet you. I'm Harper.",
-    "career.chat.opportunity_preview_cards.open_posting_label":
-      "Open {companyName} {title} posting",
     "career.chat.tool.open_url.start": "Checking the shared link.",
     "career.chat.tool.request_internal_role_priority_review.start":
       "Saving your request for priority review of the internal role.",
@@ -764,10 +719,8 @@ export const en = {
     "career.common.career.0kn6r0x":
       "- I'll find and notify you of meaningful changes like funding, hiring, team shifts, and business results.",
     "career.common.career.0m1nksm": "Company channel open",
-    "career.common.career.0madjab": "Previous Opportunity",
     "career.common.career.0ol21b2": "Company Info",
     "career.common.career.0rd0cjd": "Notice",
-    "career.common.career.0tmpcjv": "Updating profile",
     "career.common.career.0vbpl1c": "This search couldn't be completed.",
     "career.common.career.0vrhfby":
       "The info I learn about you from your resume greatly affects connections and recommendations with companies.",
@@ -779,15 +732,11 @@ export const en = {
     "career.common.career.0yjpnrd": "What happens when you follow",
     "career.common.career.0yu4vbj": "Scheduled Upload:",
     "career.common.career.0z5xpdx": "Red Flags:",
-    "career.common.career.11hatjy": "Career Settings",
     "career.common.career.11j6jdx": "Summarizing our conversation.",
-    "career.common.career.1338q8i": "Settings",
-    "career.common.career.14ybad0": "Update Notes",
     "career.common.career.152e0fk": "Job posting review complete",
     "career.common.career.16x7oad": "Close Settings",
     "career.common.career.16yncp4":
       "Finding the best opportunities based on your profile and recent conversations.",
-    "career.common.career.18neuzv": "Next opportunity",
     "career.common.career.18q07l6":
       "- This lets the company prioritize you when they're looking for talent or ask Harper to recruit.",
     "career.common.career.19aqpg8": "Quickly review roles and conditions",
@@ -1029,7 +978,6 @@ export const en = {
       "Harper is preparing a response...",
     "career.common.career_mobile_chat_launcher.0pnsgrt": "Open",
     "career.common.career_mobile_chat_launcher.0q9yygi": "Harper replied",
-    "career.common.career_mobile_chat_launcher.0twl8ov": "Collapse Chat",
     "career.common.career_mobile_chat_launcher.1bjhre2":
       "Drag down or tap close to collapse.",
     "career.common.career_mobile_chat_launcher.1j1ugk2": "Harper Chat",
@@ -1051,7 +999,6 @@ export const en = {
     "career.common.career_support_inquiry_modal.10hs5il":
       "Please enter any suggestions or questions.",
     "career.common.career_support_inquiry_modal.11apzn2": "Close",
-    "career.common.career_support_inquiry_modal.16ya5aa": "Close inquiry modal",
     "career.common.career_support_inquiry_modal.17hinuj":
       "Your inquiry has been received.",
     "career.common.career_support_inquiry_modal.1fep109":
@@ -1068,12 +1015,9 @@ export const en = {
       "I'll respond to {email} after reviewing your inquiry.",
     "career.common.career_support_inquiry_modal.submit_inquiry": "Send Inquiry",
     "career.common.career_update_notes_modal.0ha8vft": "Suggest",
-    "career.common.career_update_notes_modal.1e7ecir": "Update Notes Content",
     "career.common.career_update_notes_modal.1rg2zqc": "Harper Update Notes",
-    "career.common.career_workspace_nav.02pzw1u": "Improvements and inquiries",
     "career.common.career_workspace_screen.0b0v9cr": "Profile",
     "career.common.career_workspace_screen.0jpahnv": "Jobs",
-    "career.common.career_workspace_screen.18vor62": "Adjust chat panel width",
     "career.common.career_workspace_screen.1kr4bnb": "Home",
     "career.common.career_workspace_screen.1nwthrd": "Loading Career Page",
     "career.common.career_workspace_screen.mobile_inbox":
@@ -1193,8 +1137,6 @@ export const en = {
       "Failed to connect in real-time. Please continue via chat.",
     "career.company.career_company_detail_drawer.0amy3om":
       "I couldn't load the company information.",
-    "career.company.career_company_detail_drawer.0ihv86b": "Company Details",
-    "career.company.career_company_detail_drawer.1v2v38p": "Close Company Info",
     "career.company.company_card.17aqd6f": "Organizing company info.",
     "career.company.company_card.1gncj7z": "I'm organizing company updates.",
     "career.company.company_card.1m5x6m1": "Recent Signals",
@@ -1386,14 +1328,9 @@ export const en = {
     "career.history.opportunity_detail_content.hide_detail": "Hide Details",
     "career.history.opportunity_detail_content.memo": "My Notes",
     "career.history.opportunity_detail_content.show_detail": "Show Details",
-    "career.history.opportunity_detail_content.status_menu":
-      "Change to {status} status",
     "career.history.opportunity_detail_modal.1b2ybel":
       "Revert to New Opportunity",
-    "career.history.opportunity_detail_modal.aria_label": "{title} details",
     "career.history.opportunity_list_card.0l12x89": "Points to watch:",
-    "career.history.opportunity_list_card.status_menu":
-      "Change to {status} status",
     "career.history.posting.closed": "Closed posting.",
     "career.history.posting.posted_ago": "Posted {postedAgo}",
     "career.history.saved_opportunity_board.0965oie": "Drop here",
@@ -1469,7 +1406,6 @@ export const en = {
     "career.home.career_mobile_home_view.greeting_name_ko": "Hi {name}",
     "career.home.career_mobile_home_view.summary_count_label":
       "{count} {label}",
-    "career.home.loading": "Loading home",
     "career.internal_opportunity.call_opening":
       "For the {companyName} {roleTitle} connection, I'd like to quickly ask a few things so I can represent you well to the company.",
     "career.internal_opportunity.call_request_created":
@@ -1610,8 +1546,13 @@ export const en = {
     "career.onboarding.onboarding.1njrwx4": "Name",
     "career.onboarding.onboarding.1o4hblb":
       "Just your name and email are enough to get started.",
+    "career.onboarding.onboarding.default_candidate_name": "you",
+    "career.onboarding.onboarding.official_job_engagement_description":
+      "In addition to the {jobs} role you just viewed, Harper can proactively recommend other strong opportunities when they come up. Please select the types of opportunities you're open to now.",
     "career.onboarding.onboarding.official_job_progress_help":
       "I'll help you move forward with {job}.",
+    "career.onboarding.onboarding.official_job_visibility_description":
+      "Harper may also recommend {name} for opportunities beyond {job}. If you're comfortable being introduced to companies first, you can receive proposals proactively.",
     "career.onboarding.onboarding.1onl53u": "Chat",
     "career.onboarding.onboarding.1p04ixt":
       "An error occurred while submitting onboarding.",
@@ -1681,8 +1622,6 @@ export const en = {
       "Harper is analyzing",
     "career.onboarding.onboarding_loading_state.footer_note":
       "Analysis takes about 1 minute. Please wait a moment while Harper prepares your recommendations.",
-    "career.onboarding.onboarding_loading_state.preview_label":
-      "Onboarding analysis progress",
     "career.onboarding.onboarding_loading_state.profile_context":
       "Analyzing experience and interests",
     "career.onboarding.submit.resume_or_link_required":
@@ -1767,7 +1706,6 @@ export const en = {
     "career.preview.career_workspace_preview.1tenwz4":
       "Maintain LLM eval tools and agent workflow packages",
     "career.preview.career_workspace_preview.1truxm7": "Profile saved.",
-    "career.profile.career_profile_menu.0rpl24h": "Profile Menu",
     "career.profile.career_profile_menu.14ybad0": "Update Notes",
     "career.profile.career_profile_menu.1k7ppv0": "Log out",
     "career.profile.career_profile_menu.1vjbdm5": "Contact Us",
@@ -1776,8 +1714,6 @@ export const en = {
     "career.profile.career_profile_settings_section.08zy6at_2": "Saving...",
     "career.profile.career_profile_settings_section.09ffo10":
       "Change profile visibility settings?",
-    "career.profile.career_profile_settings_section.0fc879w":
-      "Saving your profile publicly",
     "career.profile.career_profile_settings_section.0jiry9t": "Cancel",
     "career.profile.career_profile_settings_section.0o48hts":
       "Blocked Companies",
@@ -1803,8 +1739,6 @@ export const en = {
       "These settings determine the conditions under which your profile is shared.",
     "career.profile.career_profile_settings_section.1izc5gu":
       "With 'Exceptional only,' you'll review opportunities and companies first. Your profile will only be shared with your explicit approval. Your information will never be shared with companies or for roles you haven't reviewed.",
-    "career.profile.career_profile_settings_section.1kggtpw":
-      "Saving blocked companies...",
     "career.profile.career_profile_settings_section.1mx38an": "Review and save",
     "career.profile.career_profile_settings_section.1mzsli6":
       "No blocked companies.",
@@ -1822,10 +1756,6 @@ export const en = {
       "Select every type of opportunity you are open to right now.",
     "career.profile.career_profile_settings_section.engagement_types_label":
       "Engagement types",
-    "career.profile.career_profile_settings_section.engagement_types_saving":
-      "Saving engagement types",
-    "career.profile.career_profile_settings_section.remove_blocked_company":
-      "Remove {companyName}",
     "career.profile.career_profile_workspace.0pv1jmq": "No saved resumes",
     "career.profile.career_profile_workspace.116ofw4":
       "This won't be sent to the company as is, but you can check if you want to change anything.",
@@ -1839,14 +1769,12 @@ export const en = {
       "Please upload a logo image under 5MB.",
     "career.profile.career_talent_profile_panel.051qjyj":
       "Key responsibilities and achievements",
-    "career.profile.career_talent_profile_panel.05hwq9n": "Profile photo menu",
     "career.profile.career_talent_profile_panel.06cga7b":
       "Required Qualifications",
     "career.profile.career_talent_profile_panel.06x2f2q": "Major",
     "career.profile.career_talent_profile_panel.07tjd6q": "Description",
     "career.profile.career_talent_profile_panel.07x414y": "Company Link",
     "career.profile.career_talent_profile_panel.093jpik": "Pending",
-    "career.profile.career_talent_profile_panel.0a2iqu6": "Upload Logo",
     "career.profile.career_talent_profile_panel.0a7k434": "Degree",
     "career.profile.career_talent_profile_panel.0acdx91":
       "Failed to upload the logo.",
@@ -1876,7 +1804,6 @@ export const en = {
     "career.profile.career_talent_profile_panel.0x4dx7a": "Save",
     "career.profile.career_talent_profile_panel.11cor6u": "Start Date",
     "career.profile.career_talent_profile_panel.13a39zc": "End Date",
-    "career.profile.career_talent_profile_panel.18od9kw": "Delete item",
     "career.profile.career_talent_profile_panel.19jif2e": "Compensation",
     "career.profile.career_talent_profile_panel.1afhauj": "School Name",
     "career.profile.career_talent_profile_panel.1axs5u2": "Role Fit",
@@ -1887,7 +1814,6 @@ export const en = {
     "career.profile.career_talent_profile_panel.1efofsl": "Add Education",
     "career.profile.career_talent_profile_panel.1gsvvpp":
       "Failed to upload profile picture.",
-    "career.profile.career_talent_profile_panel.1iegi7w": "End date or Present",
     "career.profile.career_talent_profile_panel.1iq5xym": "Edit",
     "career.profile.career_talent_profile_panel.1nc9ehf": "See all insights",
     "career.profile.career_talent_profile_panel.1pzl6hl": "Date",
@@ -1922,8 +1848,6 @@ export const en = {
       "Failed to save your language settings. Please try again in a moment.",
     "career.profile.recruiter_profile.default": "Profile as seen by recruiters",
     "career.profile.recruiter_profile.named": "How companies see your profile",
-    "career.profile.resume_links.linkedin_refresh_label":
-      "Refresh LinkedIn Info",
     "career.profile.resume_links.linkedin_refresh_tooltip":
       "Fetch updated LinkedIn information.",
     "career.profile.settings.no_saved_changes": "No saved changes yet.",
@@ -1952,10 +1876,7 @@ export const en = {
     "career.settings.career_settings_modal.0tel9h5": "Delete Account",
     "career.settings.career_settings_modal.0zjg8a0": "Logging in",
     "career.settings.career_settings_modal.11hatjy": "Career Settings",
-    "career.settings.career_settings_modal.11q4o0j":
-      "Close withdrawal confirmation",
     "career.settings.career_settings_modal.1338q8i": "Settings",
-    "career.settings.career_settings_modal.16x7oad": "Close Settings",
     "career.settings.career_settings_modal.18qhozv":
       "Drag down to shrink the menu, drag up to expand full screen.",
     "career.settings.career_settings_modal.1b7saeu":

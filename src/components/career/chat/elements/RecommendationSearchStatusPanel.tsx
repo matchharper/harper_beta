@@ -66,10 +66,7 @@ export const RecommendationSearchStatusPanel = memo(
             .filter(Boolean)
             .join(" / ")
         : isStopped
-          ? t(
-              "career.common.career.1clmbsb",
-              "요청한 검색을 중지했습니다."
-            )
+          ? t("career.common.career.1clmbsb", "요청한 검색을 중지했습니다.")
           : t(
               "career.common.career.0vbpl1c",
               "이번 검색은 완료하지 못했습니다."
@@ -122,7 +119,7 @@ export const RecommendationSearchStatusPanel = memo(
               variant="secondary"
               size="sm"
               className="h-8 w-8 rounded-[8px] border-neutral-1000-a05 p-0 text-neutral-muted hover:text-neutral-primary"
-              aria-label={t("career.common.career.1nwpekv", "검색 중지")}
+              aria-label={"검색 중지"}
               title={t("career.common.career.1nwpekv", "검색 중지")}
               icon={<Square className="h-3.5 w-3.5" fill="currentColor" />}
             />

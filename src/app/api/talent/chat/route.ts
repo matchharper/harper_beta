@@ -92,6 +92,7 @@ import {
   stripPostgresUnsafeChars,
 } from "@/lib/textSanitization";
 import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
+import { OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE } from "@/lib/officialJobs";
 
 export const maxDuration = 180;
 
@@ -449,14 +450,14 @@ function buildOfficialJobSignupSourcePrompt(args: {
 
   return [
     "## Official jobs signup source follow-up",
-    `The user signed up from this Harper-connected opportunity: ${sourceLabel}.`,
+    `The user signed up from this Harper-internal connected opportunity: ${sourceLabel}.`,
     "",
     "If natural, briefly explain that Harper can help with connected opportunities when there is strong fit, then ask once whether the user is interested in this specific opportunity.",
-    `Example: "${sourceLabel} 기회를 보고 오신 것 같은데, Harper가 연결을 도울 수 있는 기회에요. 이 포지션에 관심 있으신가요? 그렇다고하면 우선적으로 검토되실 수 있게 할게요."`,
+    `Example: "${sourceLabel} 기회에 연결을 도와드릴 수 있어요. 이 포지션에 관심 있으신가요? 그렇다고하면 우선적으로 검토되실 수 있게 할게요."`,
     "If recent conversation already asked about this opportunity, do not ask again.",
     "",
     "If the user says yes or clearly shows interest, Help the user with get_internal_roles, request_internal_role_priority_review tools.",
-    "The question above is optional. Ask only when appropriate.",
+    "The question above is optional.",
   ].join("\n");
 }
 
@@ -622,6 +623,7 @@ export async function POST(req: NextRequest) {
       profile,
       currentInsights,
       onboardingCompletionEvent,
+      officialJobSignupIntentEvent,
       pendingOpportunityFeedbackContext,
       recentActivitySummaries,
       recentRecommendedOpportunities,
@@ -632,6 +634,11 @@ export async function POST(req: NextRequest) {
         admin,
         conversationId,
         eventType: "onboarding_completed",
+        userId: user.id,
+      }),
+      fetchLatestTalentActivityEvent({
+        admin,
+        eventType: OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE,
         userId: user.id,
       }),
       fetchPendingOpportunityFeedbackPromptContext({
@@ -860,6 +867,9 @@ export async function POST(req: NextRequest) {
       currentInsightContent,
       currentPreferences,
       isOnboardingDone: talentSetting?.is_onboarding_done,
+      officialJobSignupIntentPrompt: talentSetting?.is_onboarding_done
+        ? null
+        : officialJobSignupIntentEvent?.summary,
       opportunityStatus,
       pendingOpportunityFeedbackContext,
       profile,

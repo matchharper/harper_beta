@@ -47,6 +47,28 @@ function getRequesterLabel(item: CrispFeedbackThread) {
   return item.requesterName || item.requesterEmail || `Feedback #${item.id}`;
 }
 
+function getEmailLocalPart(value?: string | null) {
+  const email = value?.trim();
+  if (!email) return "";
+  return email.split("@")[0]?.trim() || "";
+}
+
+function getMessageUserName(
+  message: CrispFeedbackMessage,
+  requesterEmail?: string | null
+) {
+  return (
+    getEmailLocalPart(message.authorEmail) ||
+    getEmailLocalPart(requesterEmail) ||
+    message.authorName ||
+    "User"
+  );
+}
+
+function getAvatarLabel(value: string) {
+  return value.trim().slice(0, 2).toUpperCase() || "U";
+}
+
 function getQueryFeedbackId(value: string | string[] | undefined) {
   const rawValue = Array.isArray(value) ? value[0] : value;
   const id = Number(rawValue);
@@ -142,18 +164,37 @@ function ConversationAvatar({ label }: { label: string }) {
   );
 }
 
-function ConversationMessage({ message }: { message: CrispFeedbackMessage }) {
+function ConversationMessage({
+  message,
+  requesterEmail,
+}: {
+  message: CrispFeedbackMessage;
+  requesterEmail?: string | null;
+}) {
   const isUserMessage = message.role === "user";
-  const avatar = isUserMessage ? "U" : "H";
+  const userName = getMessageUserName(message, requesterEmail);
+  const avatar = isUserMessage ? getAvatarLabel(userName) : "H";
+  const isDeleted = Boolean(message.deletedAt);
   const bubble = (
     <div
       className={cx(
         "max-w-[76%] rounded-md px-3 py-2 text-[13px] leading-6",
+        isDeleted && "opacity-60",
         isUserMessage
           ? "border border-neutral-1000-a05 bg-bg-floating text-neutral-primary"
           : "bg-neutral-1000 text-neutral-00"
       )}
     >
+      {isUserMessage ? (
+        <div className="mb-1 text-[11px] font-medium leading-4 text-neutral-muted">
+          {userName}
+          {isDeleted ? " · 삭제됨" : ""}
+        </div>
+      ) : isDeleted ? (
+        <div className="mb-1 text-[11px] font-medium leading-4 text-neutral-300">
+          삭제됨
+        </div>
+      ) : null}
       <div className="whitespace-pre-wrap break-words">{message.text}</div>
       <div
         className={cx(
@@ -478,7 +519,11 @@ export default function OpsFeedbackPage() {
 
                 <div className="flex-1 space-y-3 overflow-y-auto bg-bg-default/90 px-5 py-5">
                   {selectedItem.messages.map((message) => (
-                    <ConversationMessage key={message.id} message={message} />
+                    <ConversationMessage
+                      key={message.id}
+                      message={message}
+                      requesterEmail={selectedItem.requesterEmail}
+                    />
                   ))}
                 </div>
 

@@ -1,4 +1,4 @@
-import { CircleHelp, MessageSquare, Settings, Settings2 } from "lucide-react";
+import { MessageSquare, Settings } from "lucide-react";
 import { useState } from "react";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
 import CareerProfileMenu from "./CareerProfileMenu";
@@ -11,6 +11,7 @@ import {
   getAuthenticatedUserProfileImageUrl,
   getCareerMenuProfileImageUrl,
 } from "@/components/career/profileAvatar";
+import MessageTextIcon from "@/assets/icons/messagetext.svg";
 
 export type CareerWorkspaceTab = "home" | "profile" | "history" | "watchlist";
 
@@ -62,6 +63,8 @@ const CareerWorkspaceNav = () => {
   });
 
   const [inquiryOpen, setInquiryOpen] = useState(false);
+  const btnStyle =
+    "inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-1000-a10 shadow-xs bg-bg-floating text-neutral-primary hover:border-neutral-1000-a10 hover:bg-black/3";
 
   return (
     <>
@@ -77,25 +80,20 @@ const CareerWorkspaceNav = () => {
                 logCareerEvent("click_open_support");
                 setInquiryOpen(true);
               }}
-              aria-label={t(
-                "career.common.career_workspace_nav.02pzw1u",
-                "개선사항 및 문의사항"
-              )}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-floating text-neutral-primary hover:border-neutral-1000-a10 hover:bg-bg-weak"
+              aria-label={"개선사항 및 문의사항"}
+              className={btnStyle}
             >
-              <MessageSquare className="h-4 w-4" />
+              <MessageTextIcon className="h-4 w-4" strokeWidth={1.8} />
             </BareButton>
             <BareButton
               type="button"
               onClick={onOpenSettings}
-              aria-label={t(
-                "career.settings.career_settings_modal.1338q8i",
-                "설정"
-              )}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-floating text-neutral-primary hover:border-neutral-1000-a10 hover:bg-bg-weak"
+              aria-label={"설정"}
+              className={btnStyle}
             >
               <Settings className="h-4 w-4" />
             </BareButton>
+            <div></div>
             <CareerProfileMenu
               variant="desktop"
               profileImageUrl={profileImageUrl}

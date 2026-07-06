@@ -99,7 +99,6 @@ const MANUAL_CAREER_TRANSLATION_ENTRIES = [
 ];
 
 const TRANSLATABLE_ATTRS = new Set([
-  "aria-label",
   "label",
   "placeholder",
   "title",
@@ -201,6 +200,14 @@ function hasSkipJsxAttribute(sourceFile, node) {
   });
 }
 
+function isAriaLabelJsxAttribute(node) {
+  return (
+    ts.isJsxAttribute(node) &&
+    (node.name.getText() === "aria-label" ||
+      node.name.getText() === "ariaLabel")
+  );
+}
+
 function extractCareerMessages() {
   const extracted = new Map();
   const files = Array.from(
@@ -241,6 +248,10 @@ function extractCareerMessages() {
 
     function visit(node) {
       if (isCareerTCallExpression(node)) {
+        return;
+      }
+
+      if (isAriaLabelJsxAttribute(node)) {
         return;
       }
 

@@ -128,11 +128,7 @@ export const OpportunityPreviewCards = memo(function OpportunityPreviewCards({
           onOpenOpportunity(item);
         }}
         className="group relative flex cursor-pointer flex-col gap-4 rounded-[8px] border border-neutral-1000-a05 bg-bg-floating px-4 py-4 text-left transition-colors hover:border-neutral-400 hover:bg-bg-weak"
-        aria-label={t(
-          "career.chat.opportunity_preview_cards.open_posting_label",
-          "{companyName} {title} 공고 열기",
-          { values: { companyName: item.companyName, title: item.title } }
-        )}
+        aria-label={`${item.companyName} ${item.title} 공고 열기`}
       >
         {hasMultipleItems && (
           <div className="absolute top-3 right-3 z-10 hidden items-center gap-1 md:flex">
@@ -140,7 +136,7 @@ export const OpportunityPreviewCards = memo(function OpportunityPreviewCards({
               type="button"
               onClick={() => moveActiveItem(-1)}
               className="inline-flex h-5 w-5 cursor-pointer items-center justify-center rounded-sm bg-bg-weak text-neutral-muted hover:bg-bg-weak"
-              aria-label={t("career.common.career.1xo6n8a", "이전 공고")}
+              aria-label={"이전 공고"}
               title={t("career.common.career.1xo6n8a", "이전 공고")}
             >
               <ArrowLeft className="h-3.5 w-3.5" />
@@ -152,7 +148,7 @@ export const OpportunityPreviewCards = memo(function OpportunityPreviewCards({
               type="button"
               onClick={() => moveActiveItem(1)}
               className="inline-flex h-5 w-5 cursor-pointer items-center justify-center rounded-sm bg-bg-weak text-neutral-muted hover:bg-bg-weak"
-              aria-label={t("career.common.career.0xq40c2", "다음 공고")}
+              aria-label={"다음 공고"}
               title={t("career.common.career.0xq40c2", "다음 공고")}
             >
               <ArrowRight className="h-3.5 w-3.5" />

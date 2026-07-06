@@ -89,6 +89,7 @@ function buildCareerConversationPromptPlan(args: {
   currentPreferences?: CareerPromptPreferences | null;
   interruptHandling?: string;
   isOnboardingDone?: boolean;
+  officialJobSignupIntentPrompt?: string | null;
   onboardingChecklistCoverage?: OnboardingChecklistCoverage | null;
   opportunityStatus?: CareerPromptOpportunityStatus | null;
   pendingOpportunityFeedbackContext?: string | null;
@@ -283,11 +284,15 @@ function buildCareerConversationPromptPlan(args: {
         proactiveInstruction,
       ].join("\n\n")
     : (args.sessionStartInstruction ?? "");
+  const officialJobSignupIntentPrompt = isOnboardingActive
+    ? (args.officialJobSignupIntentPrompt?.trim() ?? "")
+    : "";
 
   const dynamicStateLines = [
     // 항상 포함: 현재 채널, 현재 시각, 활성 runtime instruction.
     `## Runtime context\n현재 후보자와 ${channelType}을 통해 소통하고 있습니다.\n현재 시각: ${new Date().toLocaleString()}`,
     runtimeInstruction,
+    officialJobSignupIntentPrompt,
     onboardingRuntimeStateSection,
     futureMatchingInsightsSection,
     existingPreferencesSection,
@@ -327,6 +332,7 @@ export function buildCareerTextChatPromptBlocks(args: {
   currentInsightContent: Record<string, string> | null;
   currentPreferences?: CareerPromptPreferences | null;
   isOnboardingDone?: boolean;
+  officialJobSignupIntentPrompt?: string | null;
   onboardingChecklistCoverage?: OnboardingChecklistCoverage | null;
   opportunityStatus?: CareerPromptOpportunityStatus | null;
   pendingOpportunityFeedbackContext?: string | null;
@@ -359,6 +365,7 @@ export function buildCareerRealtimePromptPlan(args: {
   interruptHandling: string;
   isOnboardingDone?: boolean;
   callEndInstruction: string;
+  officialJobSignupIntentPrompt?: string | null;
   onboardingChecklistCoverage?: OnboardingChecklistCoverage | null;
   opportunityStatus?: CareerPromptOpportunityStatus | null;
   proactiveTurnInstructionMode?: CareerProactiveTurnInstructionMode;
@@ -376,6 +383,7 @@ export function buildCareerRealtimePromptPlan(args: {
     currentPreferences: args.currentPreferences,
     interruptHandling: args.interruptHandling,
     isOnboardingDone: args.isOnboardingDone,
+    officialJobSignupIntentPrompt: args.officialJobSignupIntentPrompt,
     onboardingChecklistCoverage: args.onboardingChecklistCoverage,
     opportunityStatus: args.opportunityStatus,
     profile: args.profile,

@@ -132,7 +132,7 @@ export default function CareerMobileTopBar({
 
       <div className="relative z-10 flex items-center gap-0">
         <IconButton
-          ariaLabel={t("career.common.career.1338q8i", "설정")}
+          ariaLabel={"설정"}
           onClick={onOpenSettings}
           icon={<Settings className="h-5 w-5" />}
         />

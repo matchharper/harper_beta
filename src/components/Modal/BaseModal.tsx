@@ -1,25 +1,33 @@
-import { Loader2 } from "lucide-react";
 import React from "react";
+import { Loader2 } from "lucide-react";
 import { useMessages } from "@/i18n/useMessage";
 import { BareButton } from "@/components/ui/button";
+
+type BaseModalProps = {
+  children: React.ReactNode;
+  onClose: () => void;
+  onConfirm: () => void;
+  confirmLabel: React.ReactNode;
+  cancelLabel?: React.ReactNode;
+  isCloseButton?: boolean;
+  isLoading?: boolean;
+  isConfirmDisabled?: boolean;
+  isCloseDisabled?: boolean;
+  size?: "sm" | "md" | "lg";
+};
 
 const BaseModal = ({
   children,
   onClose,
   onConfirm,
   confirmLabel,
+  cancelLabel,
   isCloseButton = true,
   isLoading = false,
+  isConfirmDisabled = false,
+  isCloseDisabled = false,
   size = "md",
-}: {
-  children: React.ReactNode;
-  onClose: () => void;
-  onConfirm: () => void;
-  confirmLabel: string | React.ReactNode;
-  isCloseButton?: boolean;
-  isLoading?: boolean;
-  size?: "sm" | "md" | "lg";
-}) => {
+}: BaseModalProps) => {
   const sizeClass = {
     sm: "max-w-[480px]",
     md: "max-w-[600px]",
@@ -28,45 +36,44 @@ const BaseModal = ({
   const { m } = useMessages();
 
   return (
-    <div
-      className={`fixed inset-0 z-50 flex items-center justify-center px-4 w-full
-  `}
-    >
+    <div className="fixed inset-0 z-50 flex w-full items-center justify-center px-4">
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
-        onClick={onClose}
+        onClick={() => {
+          if (!isCloseDisabled) onClose();
+        }}
       />
 
       <div
-        className={`relative z-50 w-full rounded-[28px] bg-bg-default p-6 shadow-sm border border-neutral-1000-a05
-  transition-[max-width,padding] duration-300 ease-in-out ${
-    isCloseButton ? `${sizeClass}` : "max-w-[520px]"
-  }`}
+        role="dialog"
+        aria-modal="true"
+        className={`relative z-50 max-h-[calc(100svh-48px)] w-full overflow-y-auto rounded-[20px] border border-neutral-1000-a05 bg-bg-default p-5 shadow-[0_20px_60px_rgba(31,28,26,0.16)] outline-none transition-[max-width,padding] duration-300 ease-in-out sm:p-6 ${
+          isCloseButton ? sizeClass : "max-w-[520px]"
+        }`}
       >
         {children}
 
-        <div className="w-full mt-8 flex flex-row items-end justify-end gap-2">
+        <div className="mt-8 flex w-full flex-row items-center justify-end gap-2">
           {isCloseButton && (
             <BareButton
-              className={`transition-colors duration-200 inline-flex items-center justify-center rounded-xl px-6 py-3 text-sm font-medium text-neutral-muted hover:bg-bg-default
-                ${
-                  isCloseButton
-                    ? "opacity-100"
-                    : "opacity-0 pointer-events-none"
-                }
-              `}
-              onClick={onClose}
+              type="button"
+              className="inline-flex h-11 items-center justify-center rounded-xl px-5 text-sm font-medium text-neutral-muted transition-colors duration-200 hover:bg-bg-weak hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={() => {
+                if (!isCloseDisabled) onClose();
+              }}
+              disabled={isCloseDisabled}
             >
-              {m.system.close}
+              {cancelLabel ?? m.system.close}
             </BareButton>
           )}
           <BareButton
-            className="transition-colors duration-200 inline-flex items-center justify-center rounded-xl bg-black px-6 py-3 text-sm font-medium text-neutral-00 disabled:cursor-not-allowed disabled:opacity-70"
+            type="button"
+            className="inline-flex h-11 min-w-[92px] items-center justify-center rounded-xl bg-black px-5 text-sm font-medium text-neutral-00 transition-colors duration-200 hover:bg-neutral-primary disabled:cursor-not-allowed disabled:opacity-70"
             onClick={onConfirm}
-            disabled={isLoading}
+            disabled={isLoading || isConfirmDisabled}
           >
             {isLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               confirmLabel
             )}

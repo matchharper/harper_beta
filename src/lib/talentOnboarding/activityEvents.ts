@@ -80,6 +80,7 @@ const HIDDEN_TALENT_SETTING_SUMMARY_PATTERNS = [
   "engagementtypes",
   "periodic interval days",
   "periodicintervaldays",
+  "온보딩 완료 후 해당 역할로의 연결",
 ];
 
 function normalizeMessageId(value: unknown) {
@@ -546,6 +547,9 @@ export async function fetchLatestTalentActivityEvent(args: {
     if (args.conversationId) {
       query = query.eq("conversation_id", args.conversationId);
     }
+    if (args.eventType) {
+      query = query.eq("event_type", args.eventType);
+    }
 
     const { data, error } = (await query) as {
       data: TalentActivityEventRow[] | null;
@@ -557,9 +561,7 @@ export async function fetchLatestTalentActivityEvent(args: {
     }
 
     const rows = Array.isArray(data) ? data : [];
-    if (!args.eventType) return rows[0] ?? null;
-
-    return rows.find((row) => row.event_type === args.eventType) ?? null;
+    return rows[0] ?? null;
   } catch (error) {
     console.error("[TalentActivityEvent] Failed to fetch activity events", {
       error: error instanceof Error ? error.message : String(error),

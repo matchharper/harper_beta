@@ -1,6 +1,12 @@
 import { OpportunityType } from "@/lib/opportunityType";
 import type { OpportunityDiscoveryAgentVariant } from "@/lib/opportunityDiscovery/types";
 import type { CareerConversationStarterId } from "@/lib/career/prompts/conversationStarters";
+export {
+  CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER,
+  CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER_VALUES,
+  isCareerOpportunityFeedbackFollowUpTrigger,
+} from "@/lib/career/prompts/types";
+export type { CareerOpportunityFeedbackFollowUpTrigger } from "@/lib/career/prompts/types";
 
 export { OpportunityType as CareerOpportunityType };
 
@@ -30,12 +36,6 @@ export type CareerRecommendationSearchStatus = {
   recommendationCount?: number | null;
   state: CareerRecommendationSearchStatusState;
 };
-
-export type CareerOpportunityFeedbackFollowUpTrigger =
-  | "all_recommended_opportunities_cleared"
-  | "all_visible_feedback_submitted"
-  | "delayed_external_feedback"
-  | "immediate_internal_feedback";
 
 export type CareerOpportunityAgentVariant = OpportunityDiscoveryAgentVariant;
 
@@ -295,6 +295,7 @@ export type CareerMessage = {
   recommendationStatusAfterCharCount?: number | null;
   thinkingLogs?: string[];
   typing?: boolean;
+  typingMode?: "word";
 };
 
 export type CareerMessagePayload = {

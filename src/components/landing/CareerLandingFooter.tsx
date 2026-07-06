@@ -8,6 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { openCustomCrispWidget } from "@/lib/feedback/customCrispEvents";
 
 type FooterLocale = "ko" | "en";
 
@@ -154,22 +155,8 @@ export default function CareerLandingFooter({
     contact: "문의하기",
   },
 }: CareerLandingFooterProps) {
-  const openCrispChat = () => {
-    if (typeof window === "undefined") return;
-
-    const crispWindow = window as Window & {
-      $crisp?: Array<unknown[]>;
-    };
-    const hasCrispLoader = Boolean(document.getElementById("crisp-loader"));
-
-    if (!crispWindow.$crisp && !hasCrispLoader) {
-      window.location.href = "mailto:hello@matchharper.com";
-      return;
-    }
-
-    crispWindow.$crisp = crispWindow.$crisp ?? [];
-    crispWindow.$crisp.push(["do", "chat:show"]);
-    crispWindow.$crisp.push(["do", "chat:open"]);
+  const openSupportChat = () => {
+    openCustomCrispWidget();
   };
 
   const liststyle =
@@ -262,7 +249,7 @@ export default function CareerLandingFooter({
                 </a>
                 <button
                   type="button"
-                  onClick={openCrispChat}
+                  onClick={openSupportChat}
                   className={`${labelStyle} text-left`}
                 >
                   {labels.contact}

@@ -320,10 +320,7 @@ export const CareerProfileSharingSettingsSection = ({
                 {profileVisibilitySavePending ? (
                   <Loader2
                     className="h-3.5 w-3.5 animate-spin text-neutral-muted"
-                    aria-label={t(
-                      "career.profile.career_profile_settings_section.0fc879w",
-                      "프로필 공개 저장 중"
-                    )}
+                    aria-label={"프로필 공개 저장 중"}
                   />
                 ) : null}
               </span>
@@ -391,10 +388,7 @@ export const CareerProfileSharingSettingsSection = ({
                   {engagementTypesSavePending ? (
                     <Loader2
                       className="h-3.5 w-3.5 animate-spin text-neutral-muted"
-                      aria-label={t(
-                        "career.profile.career_profile_settings_section.engagement_types_saving",
-                        "관심 기회 형태 저장 중"
-                      )}
+                      aria-label={"관심 기회 형태 저장 중"}
                     />
                   ) : null}
                 </span>
@@ -449,10 +443,7 @@ export const CareerProfileSharingSettingsSection = ({
                 {blockedCompaniesSavePending ? (
                   <Loader2
                     className="h-3.5 w-3.5 animate-spin text-neutral-muted"
-                    aria-label={t(
-                      "career.profile.career_profile_settings_section.1kggtpw",
-                      "차단 기업 저장 중"
-                    )}
+                    aria-label={"차단 기업 저장 중"}
                   />
                 ) : null}
               </span>
@@ -537,11 +528,7 @@ export const CareerProfileSharingSettingsSection = ({
                         actionVariant="icon"
                         buttonRadius="rounded"
                         className="h-6 w-6 border-transparent bg-transparent text-neutral-soft hover:bg-bg-weak"
-                        aria-label={t(
-                          "career.profile.career_profile_settings_section.remove_blocked_company",
-                          "{companyName} 삭제",
-                          { values: { companyName } }
-                        )}
+                        aria-label={`${companyName} 삭제`}
                       >
                         <X className="h-3.5 w-3.5" />
                       </ActionButton>

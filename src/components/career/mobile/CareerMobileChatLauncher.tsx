@@ -294,14 +294,7 @@ function CareerMobileChatLauncher({
                         ? "bg-black/15 text-neutral-soft"
                         : "bg-bg-floating text-neutral-primary"
                     )}
-                    aria-label={
-                      voiceMuted
-                        ? t(
-                            "career.chat.career_call_screen.15tfl05",
-                            "음소거 해제"
-                          )
-                        : t("career.chat.career_call_screen.1914g7j", "음소거")
-                    }
+                    aria-label={voiceMuted ? "음소거 해제" : "음소거"}
                   >
                     {voiceMuted ? (
                       <MicOff className="h-5 w-5" />
@@ -316,10 +309,7 @@ function CareerMobileChatLauncher({
                       onEndCallMode?.();
                     }}
                     className="flex h-12 w-12 items-center justify-center rounded-full bg-critical text-neutral-00 transition-opacity hover:opacity-90"
-                    aria-label={t(
-                      "career.chat.career_call_screen.16d2ux9",
-                      "통화 종료"
-                    )}
+                    aria-label={"통화 종료"}
                   >
                     <X className="h-5 w-5" />
                   </BareButton>
@@ -403,10 +393,7 @@ function CareerMobileChatLauncher({
                 <div className="h-1.5 w-12 rounded-full bg-black/15" />
               </DrawerPrimitive.Handle>
               <DrawerPrimitive.Close
-                aria-label={t(
-                  "career.common.career_mobile_chat_launcher.0twl8ov",
-                  "채팅 접기"
-                )}
+                aria-label={"채팅 접기"}
                 className="absolute right-3 top-2 z-[60] inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-1000-a05 bg-bg-floating text-neutral-muted transition active:bg-bg-weak"
                 style={{
                   top: "calc(env(safe-area-inset-top) + 0.5rem)",

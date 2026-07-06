@@ -11,11 +11,12 @@ import {
 } from "react";
 import { getCareerLinkLabels } from "@/components/career/constants";
 import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
-import type {
-  CareerCallStartRequest,
-  CareerMessage,
-  CareerHistoryOpportunity,
-  CareerRecommendationSearchStatus,
+import {
+  CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER,
+  type CareerCallStartRequest,
+  type CareerMessage,
+  type CareerHistoryOpportunity,
+  type CareerRecommendationSearchStatus,
 } from "@/components/career/types";
 import type {
   CareerConversationStarterId,
@@ -173,7 +174,7 @@ const TimelineDateDivider = ({
   >
     <span
       className={cn(
-        "rounded-full bg-bg-weak px-3 py-1 font-normal text-neutral-soft",
+        "rounded-full bg-bg-weak px-2.5 py-0.5 font-light text-neutral-soft",
         careerTimelineMetaTextClassName
       )}
     >
@@ -658,13 +659,14 @@ const CareerTimelineSection = () => {
     inputMode !== "call" &&
     stage !== "profile";
   const opportunityFeedbackFollowUpPendingDetail =
-    opportunityFeedbackFollowUpTrigger === "immediate_internal_feedback"
+    opportunityFeedbackFollowUpTrigger ===
+    CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER.ImmediateInternalFeedback
       ? t(
           "career.chat.career_timeline_section.0qzkj18",
           "다음 프로세스를 확인하고 있어요."
         )
       : opportunityFeedbackFollowUpTrigger ===
-          "all_recommended_opportunities_cleared"
+          CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER.AllRecommendedOpportunitiesCleared
         ? t(
             "career.chat.career_timeline_section.1ct6hfb",
             "방금 남긴 피드백을 바탕으로 다음 추천 방향을 정리하고 있어요."

@@ -332,17 +332,7 @@ const CareerComposerSection = () => {
                       ? "border-neutral-1000-a10 bg-primary"
                       : "border border-neutral-1000-a10 bg-primary"
                   )}
-                  aria-label={
-                    hasDraftText
-                      ? t(
-                          "career.chat.career_composer_section.1sjkx1r",
-                          "메시지 보내기"
-                        )
-                      : t(
-                          "career.chat.career_composer_section.1vn1k94",
-                          "통화 모드"
-                        )
-                  }
+                  aria-label={hasDraftText ? "메시지 보내기" : "통화 모드"}
                 >
                   {(hasDraftText && isComposerBusy) ||
                   (!hasDraftText && isStartingCall) ? (
@@ -370,10 +360,7 @@ const CareerComposerSection = () => {
                 <div
                   className="h-1 w-24 overflow-hidden rounded-full bg-neutral-400 sm:w-32"
                   role="progressbar"
-                  aria-label={t(
-                    "career.chat.career_call_screen.1lwovam",
-                    "커리어 인터뷰 진행률"
-                  )}
+                  aria-label={"커리어 인터뷰 진행률"}
                   aria-valuemin={0}
                   aria-valuemax={100}
                   aria-valuenow={interviewProgress.percent}

@@ -46,23 +46,6 @@ import Script from "next/script";
 import { useRouter } from "next/router";
 
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
-const CRISP_WEBSITE_ID = process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID;
-const CRISP_BOOTSTRAP_SCRIPT = CRISP_WEBSITE_ID
-  ? `
-      window.$crisp = window.$crisp || [];
-      window.CRISP_WEBSITE_ID = ${JSON.stringify(CRISP_WEBSITE_ID)};
-      var CRISP_WEBSITE_ID = window.CRISP_WEBSITE_ID;
-      (function () {
-        if (document.getElementById("crisp-loader")) return;
-        var d = document;
-        var s = d.createElement("script");
-        s.id = "crisp-loader";
-        s.src = "https://client.crisp.chat/l.js";
-        s.async = 1;
-        d.getElementsByTagName("head")[0].appendChild(s);
-      })();
-    `
-  : null;
 const useIsomorphicLayoutEffect =
   typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
@@ -75,23 +58,21 @@ export default function App({ Component, pageProps }: AppProps) {
   );
   const isCareerPage = isCareerTranslationRoute(currentPath);
   const isCareerLoginPage = router.pathname === "/career_login";
+  const isCareerWorkspacePage = router.pathname === "/career/[[...tab]]";
   const isCareerLocalePage = isCareerPage || isCareerLoginPage;
   const isAdminCareerPage =
     router.pathname === "/admin/career" ||
     router.pathname.startsWith("/admin/career/");
   const isOpsPage =
     router.pathname === "/ops" || router.pathname.startsWith("/ops/");
-  const shouldMountCustomCrisp = router.pathname === "/career/[[...tab]]";
-  const shouldHideCrisp =
+  const shouldHideCustomCrispLauncher =
     isCareerPage ||
     isCareerLoginPage ||
     isAdminCareerPage ||
-    isOpsPage ||
-    shouldMountCustomCrisp ||
-    router.pathname === "/" ||
-    router.pathname === "/landing-ko-vf" ||
-    router.pathname === "/network2";
-  const shouldLoadCrisp = Boolean(CRISP_BOOTSTRAP_SCRIPT) && !shouldHideCrisp;
+    isOpsPage;
+  const shouldShowCustomCrispLauncher = !shouldHideCustomCrispLauncher;
+  const shouldMountCustomCrisp =
+    shouldShowCustomCrispLauncher || isCareerWorkspacePage;
   const appDescription =
     isCareerLocalePage && careerLocale === "en"
       ? "Harper is an AI Career Agent for every talented professional."
@@ -123,25 +104,6 @@ export default function App({ Component, pageProps }: AppProps) {
     router.events.on("routeChangeComplete", handleRouteChange);
     return () => router.events.off("routeChangeComplete", handleRouteChange);
   }, [router.events]);
-
-  useEffect(() => {
-    if (!CRISP_WEBSITE_ID) return;
-    if (typeof window === "undefined") return;
-
-    const crispWindow = window as Window & {
-      $crisp?: Array<unknown[]>;
-    };
-
-    if (!crispWindow.$crisp) {
-      if (shouldHideCrisp) return;
-      crispWindow.$crisp = [];
-    }
-
-    crispWindow.$crisp.push([
-      "do",
-      shouldHideCrisp ? "chat:hide" : "chat:show",
-    ]);
-  }, [shouldHideCrisp]);
 
   useEffect(() => {
     init();
@@ -191,11 +153,6 @@ export default function App({ Component, pageProps }: AppProps) {
             </Script>
           </>
         )}
-        {shouldLoadCrisp && (
-          <Script id="crisp-chat" strategy="afterInteractive">
-            {CRISP_BOOTSTRAP_SCRIPT}
-          </Script>
-        )}
         <div className="notranslate font-sans" translate="no">
           <Analytics />
           <AppErrorBoundary resetKey={router.asPath}>
@@ -204,7 +161,10 @@ export default function App({ Component, pageProps }: AppProps) {
             <RepoModalRoot />
             {page}
             {shouldMountCustomCrisp && (
-              <CustomCrispWidget showLauncher={false} />
+              <CustomCrispWidget
+                showLauncher={shouldShowCustomCrispLauncher}
+                showLauncherWhenOpen={isCareerWorkspacePage}
+              />
             )}
             <ToastProvider />
           </AppErrorBoundary>

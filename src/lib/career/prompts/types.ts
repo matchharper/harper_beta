@@ -33,11 +33,28 @@ export type CareerTranscriptEntry = {
   text: string;
 };
 
+export const CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER = {
+  AllRecommendedOpportunitiesCleared: "all_recommended_opportunities_cleared",
+  DelayedExternalFeedback: "delayed_external_feedback",
+  ImmediateInternalFeedback: "immediate_internal_feedback",
+} as const;
+
 export type CareerOpportunityFeedbackFollowUpTrigger =
-  | "all_visible_feedback_submitted"
-  | "all_recommended_opportunities_cleared"
-  | "delayed_external_feedback"
-  | "immediate_internal_feedback";
+  (typeof CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER)[keyof typeof CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER];
+
+export const CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER_VALUES =
+  Object.values(CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER);
+
+export function isCareerOpportunityFeedbackFollowUpTrigger(
+  value: unknown
+): value is CareerOpportunityFeedbackFollowUpTrigger {
+  return (
+    typeof value === "string" &&
+    CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER_VALUES.includes(
+      value as CareerOpportunityFeedbackFollowUpTrigger
+    )
+  );
+}
 
 export type CareerRealtimeRecentMessage = {
   content: string;

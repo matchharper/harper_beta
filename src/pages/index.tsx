@@ -257,7 +257,7 @@ const LANDING_COPY = {
     },
     workflow: {
       title: ["맥락을 파악하고,", "연결까지"],
-      body: "한번의 대화로 시작하세요. 맥락과 선호를 파악하고 가장 적절한 기회만 찾아 전달합니다.",
+      body: "<span class='text-primary'>[한번의 대화]</span>로 시작하세요. 맥락과 선호를 파악하고 가장 적절한 기회만 찾아 전달합니다.",
       chatRows: [
         {
           by: "candidate",
@@ -474,9 +474,7 @@ const LANDING_COPY = {
     },
     cta: {
       title: ["새로운 팀에 합류할 준비가 되셨나요?"],
-      // title: ["Ready to land your next role?"],
       desc: "Harper가 다음 커리어로 적합한 역할을 찾고,<br />최종 합류까지 필요한 모든 과정을 도와드립니다.",
-      // desc: "An AI agent that finds your next job and helps you land it",
       button: "Meet Harper",
       note: "Takes less than 3 minutes to sync your context. 100% encrypted.",
     },
@@ -1052,13 +1050,13 @@ type ProductFlowStep = {
 function ProductFlowDesktopHeader({ copy }: { copy: LandingCopy["workflow"] }) {
   return (
     <div className="grid w-full grid-cols-[minmax(0,0.82fr)_minmax(0,1fr)] items-end gap-16 lg:gap-[4.5rem]">
-      <h2 className="w-full text-[48px] font-bold leading-[1.22] text-neutral-950">
+      <h2 className="w-full text-[40px] font-semibold leading-[1.22] text-neutral-950">
         {copy.title[0]}
         <br />
         {copy.title[1]}
       </h2>
       <p className={`${text.p} w-full max-w-[320px] justify-self-end pr-8`}>
-        {copy.body}
+        <div dangerouslySetInnerHTML={{ __html: copy.body }} />
       </p>
     </div>
   );
@@ -2247,7 +2245,7 @@ export default function LandingKoVfPage({
                     <br />
                     {copy.hero.title[1]}
                   </h1>
-                  <p className="max-w-[560px] text-center text-[15px] leading-[1.75] text-neutral-700 md:text-[18px]">
+                  <p className="max-w-[560px] text-center text-[15px] leading-[1.5] text-neutral-700 md:text-[18px]">
                     <Lines lines={heroBody} />
                   </p>
                   <div className="mt-4 md:mt-4">
@@ -2284,7 +2282,7 @@ export default function LandingKoVfPage({
 
           <section
             id="workflow"
-            className={`${ui.pageX} ${ui.sectionY} bg-neutral-50 mt-20`}
+            className={`${ui.pageX} ${ui.sectionY} bg-neutral-100/50 mt-20`}
           >
             <div className={ui.shell}>
               <div className="md:hidden">
@@ -2297,7 +2295,11 @@ export default function LandingKoVfPage({
                         {copy.workflow.title[1]}
                       </>
                     }
-                    body={<>{copy.workflow.body}</>}
+                    body={
+                      <div
+                        dangerouslySetInnerHTML={{ __html: copy.workflow.body }}
+                      />
+                    }
                   />
                 </Reveal>
               </div>

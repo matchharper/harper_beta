@@ -50,6 +50,13 @@ function truncateSlackText(value: string, maxLength = 2800) {
   return `${text.slice(0, maxLength - 1)}…`;
 }
 
+function buildReplyEmailSubject(message?: string | null) {
+  const normalized = normalizeCrispText(message, 5000).replace(/\s+/g, " ");
+  const snippet = normalized.slice(0, 20) || "문의";
+  const suffix = normalized.length > 20 ? "..." : "";
+  return `Harper Re: "${snippet}${suffix}"`;
+}
+
 export async function notifyCrispFeedbackSlack({
   authenticated,
   feedbackId,
@@ -140,9 +147,9 @@ export async function sendCrispFeedbackReplyEmail({
 
   const latestUserMessage = [...payload.messages]
     .reverse()
-    .find((message) => message.role === "user")?.text;
+    .find((message) => message.role === "user" && !message.deletedAt)?.text;
   const senderLabel = operatorName?.trim() || operatorEmail;
-  const subject = "Harper 답변드립니다";
+  const subject = buildReplyEmailSubject(latestUserMessage);
   const text = [
     `${senderLabel}님의 답변입니다.`,
     "",

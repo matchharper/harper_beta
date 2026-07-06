@@ -3,6 +3,12 @@ import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
 import { normalizeCareerUtmSource } from "@/lib/career/utm";
+import {
+  OFFICIAL_JOBS_ONBOARDING_JOB_PARAM,
+  OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM,
+  OFFICIAL_JOBS_ROLE_TITLE_MAX_LENGTH,
+} from "@/lib/officialJobs";
+import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
 import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
 import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 
@@ -124,6 +130,18 @@ export const useCareerAuth = () => {
       currentUrl.searchParams.get("lid") || nextUrl.searchParams.get("lid");
     const abtestType =
       currentUrl.searchParams.get("ab") || nextUrl.searchParams.get("ab");
+    const officialJobTitle = (
+      currentUrl.searchParams.get(OFFICIAL_JOBS_ONBOARDING_JOB_PARAM) ||
+      nextUrl.searchParams.get(OFFICIAL_JOBS_ONBOARDING_JOB_PARAM) ||
+      ""
+    )
+      .trim()
+      .slice(0, OFFICIAL_JOBS_ROLE_TITLE_MAX_LENGTH);
+    const officialJobSlug = (
+      currentUrl.searchParams.get(OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM) ||
+      nextUrl.searchParams.get(OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM) ||
+      ""
+    ).trim();
     const emailOnboardingToken =
       currentUrl.searchParams.get(CAREER_EMAIL_ONBOARDING_TOKEN_PARAM) ||
       nextUrl.searchParams.get(CAREER_EMAIL_ONBOARDING_TOKEN_PARAM);
@@ -141,6 +159,26 @@ export const useCareerAuth = () => {
     }
     if (abtestType) {
       nextUrl.searchParams.set("ab", abtestType);
+    }
+    if (
+      source === OFFICIAL_JOBS_LANDING_SOURCE &&
+      officialJobTitle &&
+      !nextUrl.searchParams.get(OFFICIAL_JOBS_ONBOARDING_JOB_PARAM)
+    ) {
+      nextUrl.searchParams.set(
+        OFFICIAL_JOBS_ONBOARDING_JOB_PARAM,
+        officialJobTitle
+      );
+    }
+    if (
+      source === OFFICIAL_JOBS_LANDING_SOURCE &&
+      officialJobSlug &&
+      !nextUrl.searchParams.get(OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM)
+    ) {
+      nextUrl.searchParams.set(
+        OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM,
+        officialJobSlug
+      );
     }
     if (emailOnboardingToken) {
       nextUrl.searchParams.set(
@@ -170,6 +208,18 @@ export const useCareerAuth = () => {
     }
     if (abtestType) {
       callbackUrl.searchParams.set("ab", abtestType);
+    }
+    if (source === OFFICIAL_JOBS_LANDING_SOURCE && officialJobTitle) {
+      callbackUrl.searchParams.set(
+        OFFICIAL_JOBS_ONBOARDING_JOB_PARAM,
+        officialJobTitle
+      );
+    }
+    if (source === OFFICIAL_JOBS_LANDING_SOURCE && officialJobSlug) {
+      callbackUrl.searchParams.set(
+        OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM,
+        officialJobSlug
+      );
     }
     if (emailOnboardingToken) {
       callbackUrl.searchParams.set(

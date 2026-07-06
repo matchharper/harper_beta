@@ -335,10 +335,7 @@ const CareerCallScreen = ({
             <div
               className="mt-2 h-1 overflow-hidden rounded-full bg-bg-default/15"
               role="progressbar"
-              aria-label={t(
-                "career.chat.career_call_screen.1lwovam",
-                "커리어 인터뷰 진행률"
-              )}
+              aria-label={"커리어 인터뷰 진행률"}
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={interviewProgress.percent}
@@ -379,11 +376,7 @@ const CareerCallScreen = ({
                 ? "bg-black/15 text-neutral-soft"
                 : "bg-bg-default text-neutral-primary"
             }`}
-            aria-label={
-              voiceMuted
-                ? t("career.chat.career_call_screen.15tfl05", "음소거 해제")
-                : t("career.chat.career_call_screen.1914g7j", "음소거")
-            }
+            aria-label={voiceMuted ? "음소거 해제" : "음소거"}
           >
             {voiceMuted ? (
               <MicOff className="h-5 w-5" />
@@ -402,10 +395,7 @@ const CareerCallScreen = ({
                 ? "bg-black text-neutral-00"
                 : "bg-bg-default text-neutral-muted"
             }`}
-            aria-label={t(
-              "career.chat.career_call_screen.0a6n15y",
-              "자막 토글"
-            )}
+            aria-label={"자막 토글"}
           >
             <Captions className="h-5 w-5" />
           </BareButton>
@@ -438,10 +428,7 @@ const CareerCallScreen = ({
               onClick={handleEndCall}
               disabled={isClosing}
               className="flex h-12 w-12 items-center justify-center rounded-full bg-critical text-neutral-00 transition-opacity hover:opacity-90 disabled:opacity-60"
-              aria-label={t(
-                "career.chat.career_call_screen.16d2ux9",
-                "통화 종료"
-              )}
+              aria-label={"통화 종료"}
             >
               <PhoneOff className="h-4 w-4" strokeWidth={1.6} />
             </BareButton>

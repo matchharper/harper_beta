@@ -52,11 +52,7 @@ const OpportunityDetailModal = ({
     <TalentCareerModal
       open={open}
       onClose={onClose}
-      ariaLabel={t(
-        "career.history.opportunity_detail_modal.aria_label",
-        "{title} 상세",
-        { values: { title: item.title } }
-      )}
+      ariaLabel={`${item.title} 상세`}
       overlayClassName="items-start pt-10"
       panelClassName="w-[calc(100vw-24px)] max-w-[1040px] border border-neutral-1000-a05 bg-bg-floating sm:w-[min(1040px,86vw)] lg:w-[min(1040px,56vw)]"
       bodyClassName="max-h-[82svh] overflow-y-auto bg-bg-floating px-5 pb-5 pt-14"

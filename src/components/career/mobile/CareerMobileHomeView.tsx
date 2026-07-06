@@ -217,7 +217,7 @@ const CareerMobileHomeSkeleton = () => {
   return (
     <div
       aria-busy="true"
-      aria-label={t("career.home.loading", "홈 로딩 중")}
+      aria-label={"홈 로딩 중"}
       className="flex flex-col gap-6 px-4 pb-[160px] pt-4"
     >
       <section className="relative flex min-h-[44svh] flex-col items-center justify-center gap-2 overflow-hidden pb-2">

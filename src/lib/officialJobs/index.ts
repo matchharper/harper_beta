@@ -13,16 +13,28 @@ export const OFFICIAL_JOBS_INTERNAL_COPY_SLUG = "internal-internal";
 export const OFFICIAL_JOBS_ONBOARDING_JOB_PARAM = "job";
 export const OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM = "job_slug";
 export const OFFICIAL_JOBS_ROLE_TITLE_MAX_LENGTH = 140;
+export const OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE =
+  "official_jobs_signup_intent";
 
 export type OfficialJobsCareerJob = {
   roleTitle?: string | null;
   slug?: string | null;
 };
 
-function normalizeOfficialJobsRoleTitle(value?: string | null) {
+export function normalizeOfficialJobsRoleTitle(value?: string | null) {
   return String(value ?? "")
     .trim()
     .slice(0, OFFICIAL_JOBS_ROLE_TITLE_MAX_LENGTH);
+}
+
+export function buildOfficialJobsOnboardingIntentPrompt(
+  roleTitle?: string | null
+) {
+  const normalizedRoleTitle = normalizeOfficialJobsRoleTitle(roleTitle);
+  if (!normalizedRoleTitle) return "";
+  const roleTitleLiteral = JSON.stringify(normalizedRoleTitle);
+
+  return `현재 유저는 ${roleTitleLiteral} 역할에 대한 관심을 가지고 Harper에 가입했다. 온보딩(5분 커리어 인터뷰) 완료 후 해당 역할로의 연결을 도와준다. 연결을 위해서는 우선 5분 커리어 인터뷰를 완료해야한다.`;
 }
 
 export function buildOfficialJobsCareerHref(job?: OfficialJobsCareerJob) {
@@ -48,6 +60,27 @@ export function buildOfficialJobsLoginHref(
   });
   const normalizedLocalId = String(localId ?? "").trim();
   if (normalizedLocalId) params.set("lid", normalizedLocalId);
+
+  try {
+    const nextUrl = new URL(nextPath, "https://matchharper.com");
+    const source = nextUrl.searchParams.get("source");
+    const roleTitle = normalizeOfficialJobsRoleTitle(
+      nextUrl.searchParams.get(OFFICIAL_JOBS_ONBOARDING_JOB_PARAM)
+    );
+    const slug = String(
+      nextUrl.searchParams.get(OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM) ?? ""
+    ).trim();
+
+    if (source === OFFICIAL_JOBS_LANDING_SOURCE && roleTitle) {
+      params.set(OFFICIAL_JOBS_ONBOARDING_JOB_PARAM, roleTitle);
+    }
+    if (source === OFFICIAL_JOBS_LANDING_SOURCE && slug) {
+      params.set(OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM, slug);
+    }
+  } catch {
+    // Keep the generic login URL if nextPath is not parseable.
+  }
+
   return `/career_login?${params.toString()}`;
 }
 

@@ -1107,9 +1107,15 @@ const Billing = () => {
         isLoading={isCanceling}
         title="구독을 취소할까요?"
         description={
-          freeStartDateLabel
-            ? `현재 결제 주기 종료(<span class="text-primary px-1">${freeStartDateLabel}</span>)후 Free 플랜으로 전환됩니다.`
-            : "현재 결제 주기 종료 후 Free 플랜으로 전환됩니다."
+          freeStartDateLabel ? (
+            <>
+              현재 결제 주기 종료(
+              <span className="px-1 text-primary">{freeStartDateLabel}</span>
+              )후 Free 플랜으로 전환됩니다.
+            </>
+          ) : (
+            "현재 결제 주기 종료 후 Free 플랜으로 전환됩니다."
+          )
         }
         confirmLabel="구독 취소"
         cancelLabel="닫기"
@@ -1125,9 +1131,15 @@ const Billing = () => {
         }}
         title="구독 변경"
         description={
-          freeStartDateLabel
-            ? `다운그레이드의 경우 우선 구독을 취소하고 기존 구독 갱신 날짜(<span class="text-primary px-1">${freeStartDateLabel}</span>) 이후 새로운 플랜으로 결제하시는 것을 추천드립니다.`
-            : "다운그레이드의 경우 우선 구독을 취소하고 기존 구독 갱신 날짜 이후 새로운 플랜으로 결제하시는 것을 추천드립니다."
+          freeStartDateLabel ? (
+            <>
+              다운그레이드의 경우 우선 구독을 취소하고 기존 구독 갱신 날짜(
+              <span className="px-1 text-primary">{freeStartDateLabel}</span>)
+              이후 새로운 플랜으로 결제하시는 것을 추천드립니다.
+            </>
+          ) : (
+            "다운그레이드의 경우 우선 구독을 취소하고 기존 구독 갱신 날짜 이후 새로운 플랜으로 결제하시는 것을 추천드립니다."
+          )
         }
         confirmLabel="구독 취소"
         cancelLabel="닫기"

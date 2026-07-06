@@ -163,10 +163,7 @@ const CareerCompanyDetailDrawer = ({
         <div className="fixed inset-0 z-[80]">
           <motion.button
             type="button"
-            aria-label={t(
-              "career.company.career_company_detail_drawer.1v2v38p",
-              "회사 정보 닫기"
-            )}
+            aria-label={"회사 정보 닫기"}
             className="absolute inset-0 bg-black/25 backdrop-blur-[1px]"
             onClick={handleClose}
             initial={{ opacity: 0 }}
@@ -177,10 +174,7 @@ const CareerCompanyDetailDrawer = ({
           <motion.aside
             role="dialog"
             aria-modal="true"
-            aria-label={t(
-              "career.company.career_company_detail_drawer.0ihv86b",
-              "회사 상세 정보"
-            )}
+            aria-label={"회사 상세 정보"}
             className="absolute right-0 top-0 flex h-full w-full max-w-[760px] flex-col border-l border-neutral-1000-a05 bg-bg-floating text-neutral-primary shadow-2xl"
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
@@ -190,10 +184,7 @@ const CareerCompanyDetailDrawer = ({
             <div className="flex h-12 shrink-0 items-center justify-end border-b border-neutral-1000-a05 px-4">
               <BareButton
                 type="button"
-                aria-label={t(
-                  "career.common.career_support_inquiry_modal.11apzn2",
-                  "닫기"
-                )}
+                aria-label={"닫기"}
                 onClick={handleClose}
                 className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-muted transition-colors hover:bg-bg-weak hover:text-neutral-primary"
               >

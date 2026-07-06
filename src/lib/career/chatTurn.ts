@@ -86,6 +86,7 @@ import {
   stripPostgresUnsafeChars,
 } from "@/lib/textSanitization";
 import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
+import { OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE } from "@/lib/officialJobs";
 
 type TalentMessageResponse = ReturnType<typeof toTalentMessageResponse>;
 
@@ -435,6 +436,7 @@ export async function runCareerChatTurn(
     currentInsights,
     talentSetting,
     onboardingCompletionEvent,
+    officialJobSignupIntentEvent,
     fetchedPendingOpportunityFeedbackContext,
     recentActivitySummaries,
     recentRecommendedOpportunities,
@@ -446,6 +448,11 @@ export async function runCareerChatTurn(
       admin,
       conversationId,
       eventType: "onboarding_completed",
+      userId,
+    }),
+    fetchLatestTalentActivityEvent({
+      admin,
+      eventType: OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE,
       userId,
     }),
     explicitPendingOpportunityFeedbackContext === undefined
@@ -666,6 +673,9 @@ export async function runCareerChatTurn(
     currentInsightContent,
     currentPreferences,
     isOnboardingDone: talentSetting?.is_onboarding_done,
+    officialJobSignupIntentPrompt: talentSetting?.is_onboarding_done
+      ? null
+      : officialJobSignupIntentEvent?.summary,
     onboardingChecklistCoverage,
     opportunityStatus,
     pendingOpportunityFeedbackContext: fetchedPendingOpportunityFeedbackContext,

@@ -151,10 +151,7 @@ function OfficialJobsTable({
             <Link
               key={job.id}
               href={`/jobs/${job.slug}`}
-              aria-label={formatOfficialJobsCopy(copy.list.viewDetailsAria, {
-                company: job.companyName,
-                role: job.roleTitle,
-              })}
+              aria-label={`${job.roleTitle}, ${job.companyName} 자세히 보기`}
               className="group relative block w-full overflow-hidden rounded-[0px] border border-beige900/10 border-b-0 bg-white/50 px-4 py-5 pl-5 text-left transition hover:-translate-y-0.5 hover:border-beige900/20 hover:bg-white/90 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-beige700/15 active:translate-y-0"
               onClick={() => trackJobClick(job, "jobs_mobile_card")}
             >
@@ -386,7 +383,9 @@ export default function OfficialJobsPage({
   );
 }
 
-export const getStaticProps: GetStaticProps<OfficialJobsPageProps> = async () => {
+export const getStaticProps: GetStaticProps<
+  OfficialJobsPageProps
+> = async () => {
   const jobs = await getPublicOfficialJobListItems();
 
   return {

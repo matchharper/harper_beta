@@ -23,6 +23,7 @@ type RouteContext = {
 
 type PatchCrispFeedbackBody = {
   content?: string;
+  deleteFromMessageId?: string;
   guestEmail?: string;
   guestName?: string;
   token?: string;
@@ -134,6 +135,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
   const nextPayload: CrispFeedbackPayload = { ...payload };
   let shouldNotifySlack = false;
   let appendedMessage = null as ReturnType<typeof createCrispMessage> | null;
+  let deletedMessages = false;
 
   const content = normalizeCrispText(body.content);
   if (content) {
@@ -145,6 +147,32 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     nextPayload.status = "open";
     nextPayload.lastSlackNotifiedAt = now;
     shouldNotifySlack = true;
+  }
+
+  const deleteFromMessageId = normalizeCrispText(body.deleteFromMessageId, 200);
+  if (deleteFromMessageId) {
+    const deleteFromIndex = nextPayload.messages.findIndex(
+      (message) => message.id === deleteFromMessageId
+    );
+    const targetMessage = nextPayload.messages[deleteFromIndex];
+
+    if (deleteFromIndex < 0 || targetMessage?.role !== "user") {
+      return NextResponse.json(
+        { error: "Message not found" },
+        { status: 404 }
+      );
+    }
+
+    nextPayload.messages = nextPayload.messages.map((message, index) =>
+      index >= deleteFromIndex
+        ? {
+            ...message,
+            deletedAt: message.deletedAt ?? now,
+            deletedBy: message.deletedBy ?? "user",
+          }
+        : message
+    );
+    deletedMessages = true;
   }
 
   const guestName = normalizeCrispText(body.guestName, 120);
@@ -166,6 +194,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 
   if (
     !content &&
+    !deletedMessages &&
     !guestName &&
     !guestEmail &&
     typeof body.wantsEmailReply !== "boolean"

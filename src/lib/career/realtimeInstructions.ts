@@ -11,6 +11,7 @@ import {
 import {
   buildCareerRealtimePromptPlan,
   buildCareerRealtimeRecentConversationSection,
+  buildInternalOpportunityRealtimeInstruction,
   getCareerCallEndInstructionPrompt,
   getCareerInterruptHandlingPrompt,
 } from "@/lib/career/prompts";
@@ -21,7 +22,6 @@ import {
   formatRecentRecommendedOpportunitiesForPrompt,
 } from "@/lib/talentOpportunity";
 import {
-  buildInternalOpportunityRealtimeInstruction,
   fetchInternalOpportunityCallRequestById,
   isOpenInternalOpportunityCallRequestStatus,
 } from "@/lib/talentOnboarding/internalOpportunityCallRequest";
@@ -29,6 +29,8 @@ import {
   normalizeTalentPeriodicIntervalDays,
   normalizeTalentRecommendationBatchSize,
 } from "@/lib/talentOnboarding/recommendationSettings";
+import { fetchLatestTalentActivityEvent } from "@/lib/talentOnboarding/activityEvents";
+import { OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE } from "@/lib/officialJobs";
 
 /**
  * Build realtime instructions from the shared Harper system prompt plus
@@ -48,11 +50,17 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     profile,
     currentInsights,
     talentSetting,
+    officialJobSignupIntentEvent,
     recentRecommendedOpportunities,
   ] = await Promise.all([
     fetchTalentUserProfile({ admin, userId: args.userId }),
     fetchTalentInsights({ admin, userId: args.userId }),
     fetchTalentSetting({ admin, userId: args.userId }),
+    fetchLatestTalentActivityEvent({
+      admin,
+      eventType: OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE,
+      userId: args.userId,
+    }),
     fetchRecentRecommendedOpportunitiesForPrompt({
       admin,
       limit: 10,
@@ -159,6 +167,9 @@ export async function buildCareerRealtimeSessionInstructions(args: {
       currentPreferences.preferredLocale
     ),
     isOnboardingDone: talentSetting?.is_onboarding_done,
+    officialJobSignupIntentPrompt: talentSetting?.is_onboarding_done
+      ? null
+      : officialJobSignupIntentEvent?.summary,
     onboardingChecklistCoverage,
     profile,
     proactiveTurnInstructionMode: conversationStarter

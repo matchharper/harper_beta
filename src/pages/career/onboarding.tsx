@@ -94,7 +94,9 @@ type OnboardingStepDefinition = {
   footnoteClassName?: string;
 };
 
-const headerClassName = "flex h-full flex-col justify-end pt-4 text-left pb-1";
+const headerClassName =
+  "flex h-full flex-col justify-start pt-2 text-left pb-1";
+
 const titleClassName =
   "text-[20px] md:text-[24px] font-normal leading-[1.5] text-neutral-primary";
 const descriptionClassName =
@@ -116,7 +118,7 @@ const getBasicInfoDescription = (
     description.push(
       t(
         "career.onboarding.onboarding.official_job_progress_help",
-        "{job} 진행 도와드릴게요.",
+        "우선 {job} 역할으로 진행 도와드릴게요.",
         { values: { job: normalizedOfficialJobTitle } }
       )
     );
@@ -127,84 +129,118 @@ const getBasicInfoDescription = (
 
 const getOnboardingSteps = (
   t: CareerT,
-  officialJobTitle?: string | null
-): OnboardingStepDefinition[] => [
-  {
-    label: t("career.onboarding.onboarding.0yf8432", "기본 정보"),
-    title: [
-      t(
-        "career.onboarding.onboarding.0czo5rp",
-        "커리어에도<br />에이전트가 필요합니다."
-      ),
-    ],
-    description: getBasicInfoDescription(t, officialJobTitle),
-    headerClassName,
-    titleClassName,
-    descriptionClassName,
-    bodyClassName: "grid w-full gap-5 text-left",
-  },
-  {
-    label: t("career.onboarding.onboarding.1x0fjwc", "기회 유형"),
-    title: [
-      t(
-        "career.onboarding.onboarding.1t9c061",
-        "어떤 기회를<br />알아보고 있나요?"
-      ),
-    ],
-    description: [
-      t("career.onboarding.onboarding.0ghhb4f", "Harper가 맞춰서 제안할게요."),
-    ],
-    headerClassName,
-    titleClassName,
-    descriptionClassName,
-    bodyClassName: "flex flex-col gap-2 w-full",
-  },
-  {
-    label: t("career.onboarding.onboarding.0zapw5l", "프로필 연결"),
-    title: [
-      t("career.onboarding.onboarding.0j4a2qn", "Harper가 먼저 이해할게요."),
-    ],
-    description: [
-      t(
-        "career.onboarding.onboarding.17aqzmx",
-        "LinkedIn 또는 이력서 하나면 충분해요."
-      ),
-      t(
-        "career.onboarding.onboarding.0sc411b",
-        "추가 정보는 회원님을 더 이해하는 데 도움이 돼요."
-      ),
-    ],
-    headerClassName,
-    titleClassName,
-    descriptionClassName,
-    bodyClassName: "grid w-full grid-cols-3 gap-2",
-    secondaryBodyClassName: "mt-5 flex w-full flex-col gap-4 text-left",
-  },
-  {
-    label: t("career.onboarding.onboarding.0zg5btj", "공개 설정"),
-    title: [
-      t(
-        "career.onboarding.onboarding.0t0s7bt",
-        "회사에 프로필을 언제 공유할까요?"
-      ),
-    ],
-    description: [
-      t(
-        "career.onboarding.onboarding.1n6ukfv",
-        "프로필은 선택한 방식대로만 공유돼요."
-      ),
-      t(
-        "career.onboarding.onboarding.183d95f",
-        "대화 내용은 회사에 공개되지 않아요."
-      ),
-    ],
-    headerClassName,
-    titleClassName,
-    descriptionClassName,
-    bodyClassName: "grid w-full gap-3 text-left",
-    footnoteClassName: "mt-3 text-[13px] leading-5 text-neutral-muted",
-  },
-];
+  officialJobTitle?: string | null,
+  name?: string | null
+): OnboardingStepDefinition[] => {
+  const normalizedOfficialJobTitle = officialJobTitle?.trim() || "";
+  const candidateName =
+    name?.trim() ||
+    t("career.onboarding.onboarding.default_candidate_name", "회원");
+  const engagementDescription = normalizedOfficialJobTitle
+    ? [
+        t(
+          "career.onboarding.onboarding.official_job_engagement_description",
+          "Harper는 확인하신 {jobs} 이외에도 좋은 기회가 보이면 먼저 추천도 드려요. 현재 열려있는 기회를 선택해주세요.",
+          { values: { jobs: normalizedOfficialJobTitle } }
+        ),
+      ]
+    : [
+        t(
+          "career.onboarding.onboarding.0ghhb4f",
+          "Harper가 맞춰서 제안할게요."
+        ),
+      ];
+  const visibilityDescription = normalizedOfficialJobTitle
+    ? [
+        t(
+          "career.onboarding.onboarding.official_job_visibility_description",
+          "{job} 이외의 기회에 대해서도, {name}님을 추천할 수 있어요. 회사에 먼저 소개해도 괜찮다면 먼저 제안을 받아보실 수 있어요.",
+          {
+            values: {
+              job: normalizedOfficialJobTitle,
+              name: candidateName,
+            },
+          }
+        ),
+      ]
+    : [
+        t(
+          "career.onboarding.onboarding.1n6ukfv",
+          "프로필은 선택한 방식대로만 공유돼요."
+        ),
+        t(
+          "career.onboarding.onboarding.183d95f",
+          "대화 내용은 회사에 공개되지 않아요."
+        ),
+      ];
+
+  return [
+    {
+      label: t("career.onboarding.onboarding.0yf8432", "기본 정보"),
+      title: [
+        t(
+          "career.onboarding.onboarding.0czo5rp",
+          "커리어에도<br />에이전트가 필요합니다."
+        ),
+      ],
+      description: getBasicInfoDescription(t, officialJobTitle),
+      headerClassName,
+      titleClassName,
+      descriptionClassName,
+      bodyClassName: "grid w-full gap-5 text-left",
+    },
+    {
+      label: t("career.onboarding.onboarding.1x0fjwc", "기회 유형"),
+      title: [
+        t(
+          "career.onboarding.onboarding.1t9c061",
+          "어떤 기회를<br />알아보고 있나요?"
+        ),
+      ],
+      description: engagementDescription,
+      headerClassName,
+      titleClassName,
+      descriptionClassName,
+      bodyClassName: "flex flex-col gap-2 w-full",
+    },
+    {
+      label: t("career.onboarding.onboarding.0zapw5l", "프로필 연결"),
+      title: [
+        t("career.onboarding.onboarding.0j4a2qn", "Harper가 먼저 이해할게요."),
+      ],
+      description: [
+        t(
+          "career.onboarding.onboarding.17aqzmx",
+          "LinkedIn 또는 이력서 하나면 충분해요."
+        ),
+        t(
+          "career.onboarding.onboarding.0sc411b",
+          "추가 정보는 회원님을 더 이해하는 데 도움이 돼요."
+        ),
+      ],
+      headerClassName,
+      titleClassName,
+      descriptionClassName,
+      bodyClassName: "grid w-full grid-cols-3 gap-2",
+      secondaryBodyClassName: "mt-5 flex w-full flex-col gap-4 text-left",
+    },
+    {
+      label: t("career.onboarding.onboarding.0zg5btj", "공개 설정"),
+      title: [
+        t(
+          "career.onboarding.onboarding.0t0s7bt",
+          "회사에 프로필을 언제 공유할까요?"
+        ),
+      ],
+      description: visibilityDescription,
+      headerClassName,
+      titleClassName,
+      descriptionClassName,
+      bodyClassName: "grid w-full gap-3 text-left",
+      footnoteClassName: "mt-3 text-[13px] leading-5 text-neutral-muted",
+    },
+  ];
+};
 
 const getDoneStepDefinition = (t: CareerT): OnboardingStepDefinition => ({
   label: t("career.onboarding.onboarding.1jkvik4", "대화 시작"),
@@ -411,10 +447,10 @@ const getOfficialJobDoneAgentIntro = (
   locale: Locale
 ) => {
   if (locale === "en") {
-    return `I'm your career agent, so I can keep looking across a range of opportunities that may fit you over time. Since you came in through ${officialJobTitle}, I'll start with this role first, help check the fit, and guide the next step. A quick five-minute conversation is enough.`;
+    return `I'm your career agent, so I can keep looking across a range of opportunities that may fit you over time. Since you came in through ${officialJobTitle}, I'll start with this role first, and guide the next step. A quick five-minute conversation is enough.`;
   }
 
-  return `저는 한 가지 공고만 처리하는 지원 폼이 아니라, 회원님에게 맞을 수 있는 다양한 기회를 함께 찾아보는 커리어 에이전트예요. 이번에는 ${officialJobTitle}로 들어오셨으니 먼저 이 역할을 기준으로 잘 맞는지 확인하고, 지원이나 소개까지 이어질 수 있게 다음 진행을 도와드릴게요. 5분 정도만 이야기하면 충분합니다.`;
+  return `저는 한 가지 공고만 처리하는 지원 폼이 아니라, 회원님에게 맞을 수 있는 다양한 기회를 함께 찾아보는 커리어 에이전트예요. 이번에는 ${officialJobTitle}로 들어오셨으니 5분 커리어 커피챗 이후 우선적으로 검토되실 수 있게 하겠습니다.`;
 };
 
 const getOfficialJobDoneReadyCopy = (
@@ -423,14 +459,12 @@ const getOfficialJobDoneReadyCopy = (
 ) => {
   if (locale === "en") {
     return {
-      title: `Let's continue with ${officialJobTitle}`,
-      description: `Harper is not just an application form for one posting. It is your career agent, built to keep finding roles that may fit you over time. Since you came in through ${officialJobTitle}, I'll start with that role and help clarify fit and next steps.\nFive minutes is enough.`,
+      description: `Since you came in through ${officialJobTitle}, I'll start with that role and next steps.\nFive minutes is enough.`,
     };
   }
 
   return {
-    title: `${officialJobTitle} 진행을 같이 이어가볼게요`,
-    description: `Harper는 한 가지 공고만 처리하는 지원 폼이 아니라, 회원님에게 맞는 기회를 계속 찾아주는 커리어 에이전트예요. 지금은 ${officialJobTitle}로 들어오셨으니 이 역할을 먼저 기준 삼아 잘 맞는지와 다음 액션을 빠르게 정리해드릴게요.\n5분 정도면 충분해요.`,
+    description: `${officialJobTitle}로 들어오셨으니 가벼운 대화 이후 핏이 맞다고 판단되면 연결 제안을 드릴 예정이에요. 5분 정도면 충분해요.`,
   };
 };
 
@@ -525,7 +559,7 @@ const OnboardingTopBar = ({
   <div
     className={cn(
       "flex shrink-0 flex-col justify-center",
-      showProgress ? "h-16 gap-5" : "h-8"
+      showProgress ? "h-16 gap-4" : "h-8"
     )}
   >
     <div className="font-hedvig font-bold text-[21px] leading-none text-neutral-primary">
@@ -618,12 +652,7 @@ const OnboardingStepHeader = ({
         />
       ))}
     </Text>
-    <Text
-      as="p"
-      variant="body"
-      tone="subtle"
-      className={stepDefinition.descriptionClassName}
-    >
+    <Text as="p" variant="body" tone="subtle" className="mt-2 ">
       {stepDefinition.description.map((line, index) => (
         <span
           key={`${index}-${line}`}
@@ -864,7 +893,7 @@ const getOnboardingProfileVisibilityOptions = (
     ),
     sub: t(
       "career.onboarding.onboarding.03b3ba6",
-      "매칭에 필요한 프로필 정보만 공유돼요. 공개하지 않을 회사를 설정할 수 있어요."
+      "매칭에 필요한 프로필 정보만 공유돼요. 차단할 회사를 설정할 수 있어요."
     ),
     Icon: ShieldCheck,
   },
@@ -877,7 +906,7 @@ const getOnboardingProfileVisibilityOptions = (
     ),
     sub: t(
       "career.onboarding.onboarding.03b3ba6",
-      "매칭에 필요한 프로필 정보만 공유돼요. 공개하지 않을 회사를 설정할 수 있어요."
+      "매칭에 필요한 프로필 정보만 공유돼요. 차단할 회사를 설정할 수 있어요."
     ),
     Icon: ShieldAlert,
   },
@@ -1067,7 +1096,7 @@ const DoneState = ({
               variant="solid"
               size="lg"
               radius="md"
-              className="h-8 shrink-0 px-3 text-[13px]"
+              className="h-8 shrink-0 px-3 text-[13px] hidden md:flex items-center"
             >
               Enter
             </Badge>
@@ -1095,9 +1124,10 @@ const DoneReadyBody = ({
         : null,
     [locale, normalizedOfficialJobTitle]
   );
-  const title =
-    officialJobCopy?.title ??
-    t("career.onboarding.onboarding_done.title", "잠깐 커피챗 가능할까요?");
+  const title = t(
+    "career.onboarding.onboarding_done.title",
+    "잠깐 커피챗 가능할까요?"
+  );
   const description =
     officialJobCopy?.description ??
     t(
@@ -1142,7 +1172,7 @@ const DoneReadyBody = ({
         as="p"
         variant="body"
         tone="subtle"
-        className="mt-3 max-w-[390px] text-[13px] md:text-[14px] font-light leading-6"
+        className="mt-3 max-w-[390px] text-[14px] md:text-[14px] font-light leading-5"
       >
         {description.split("\n").map((line) => (
           <span key={line} className="block">
@@ -1177,12 +1207,11 @@ const DoneConversationPreview = ({
     );
 
   return (
-    <aside className="relative flex h-full w-full flex-col overflow-hidden rounded-[20px] border border-neutral-1000-a05 bg-bg-weak/70 p-4 shadow-[0_18px_60px_rgba(31,28,26,0.07)] md:p-5">
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-bg-floating/45 via-transparent to-primary-faded/25" />
-      <div className="relative flex min-h-full items-center justify-center">
-        <div className="w-full max-w-[330px]">
+    <aside className="relative flex h-full w-full flex-col overflow-hidden">
+      <div className="relative flex min-h-full items-start md:items-center justify-center">
+        <div className="w-full max-w-[380px]">
           <div className="flex justify-end">
-            <div className="max-w-[84%] rounded-[15px] bg-neutral-1000 px-3.5 py-2.5 text-[13px] md:text-[14px] font-normal leading-5 text-neutral-00 shadow-sm">
+            <div className="max-w-[84%] rounded-[15px] bg-neutral-1000 px-3.5 py-2.5 text-[14px] md:text-[14px] font-normal leading-5 text-neutral-00 shadow-sm">
               {userBubbleText}
             </div>
           </div>
@@ -1195,7 +1224,7 @@ const DoneConversationPreview = ({
               {paragraphs.map((paragraph, index) => (
                 <div
                   key={`${index}-${paragraph.slice(0, 14)}`}
-                  className="w-fit max-w-full rounded-[15px] bg-bg-floating px-3.5 py-2.5 text-[13px] md:text-[14px] font-normal leading-6 text-neutral-primary shadow-sm"
+                  className="w-fit max-w-full rounded-[15px] bg-bg-floating px-3.5 py-2.5 text-[14px] md:text-[14px] font-normal leading-6 text-neutral-primary shadow-sm"
                 >
                   {paragraph}
                   {index === paragraphs.length - 1 && !isStreamComplete ? (
@@ -1287,10 +1316,7 @@ const OnboardingLoadingFooter = () => {
           type="button"
           variant="primary"
           size="lg"
-          aria-label={t(
-            "career.onboarding.onboarding_loading_state.analyzing_badge",
-            "Harper가 분석 중이에요"
-          )}
+          aria-label={"Harper가 분석 중이에요"}
           className="w-full font-normal bg-neutral-950"
         >
           <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" />
@@ -1364,8 +1390,8 @@ const CareerNetworkOnboardingContent = () => {
     [officialJobSlugParam]
   );
   const onboardingSteps = useMemo(
-    () => getOnboardingSteps(t, officialJobTitle),
-    [officialJobTitle, t]
+    () => getOnboardingSteps(t, officialJobTitle, name),
+    [officialJobTitle, name, t]
   );
   const doneStepDefinition = useMemo(() => getDoneStepDefinition(t), [t]);
   const onboardingEngagementCopy = useMemo(
@@ -1887,6 +1913,8 @@ const CareerNetworkOnboardingContent = () => {
           links,
           locale,
           name: name.trim(),
+          officialJobSlug: officialJobSlug || undefined,
+          officialJobTitle: officialJobTitle || undefined,
           resumeFileName,
           resumeStoragePath,
           resumeText,
@@ -1951,6 +1979,8 @@ const CareerNetworkOnboardingContent = () => {
     sessionQueryKey,
     submitState,
     logCareerEvent,
+    officialJobSlug,
+    officialJobTitle,
     t,
     uploadResumeFile,
     userId,

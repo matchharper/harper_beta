@@ -20,6 +20,7 @@ import {
   appendEducationMemo,
   appendExperienceMemo,
   appendExtraMemo,
+  fetchTalentUserProfile,
 } from "./profileStore";
 import {
   fetchTalentInsights,
@@ -61,6 +62,7 @@ import type { TalentAdminClient } from "./admin";
 import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import { formatCareerPromptCompactDateTime } from "@/lib/career/prompts/promptUtils";
 import { searchInternalRolesForCareerTool } from "@/lib/career/internalRoleSearch";
+import { IncomingWebhook } from "@slack/webhook";
 
 export type TalentToolChannel = "chat" | "voice";
 
@@ -793,6 +795,8 @@ async function updateRecommendedOpportunityFeedback(args: {
 
 const INTERNAL_ROLE_PRIORITY_REVIEW_PROGRESS_KIND =
   "candidate_requested_connection";
+const HARPER_INTERNAL_ROLE_COMPANY_NAME = "Harper";
+const OPS_CAREER_URL = "https://matchharper.com/ops/career";
 
 function formatKstDate(value: string | null | undefined) {
   if (!value) return null;
@@ -810,6 +814,93 @@ function formatKstDate(value: string | null | undefined) {
   const month = partByType.get("month");
   const day = partByType.get("day");
   return year && month && day ? `${year}-${month}-${day} KST` : null;
+}
+
+function isHarperInternalRoleCompany(companyName: string | null | undefined) {
+  return companyName === HARPER_INTERNAL_ROLE_COMPANY_NAME;
+}
+
+function getHiringSlackWebhookUrl() {
+  return process.env.SLACK_HIRING_TOKEN?.trim() ?? "";
+}
+
+function normalizeSlackText(value: unknown) {
+  return String(value ?? "").trim();
+}
+
+function escapeSlackText(value: unknown) {
+  return normalizeSlackText(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function escapeSlackLinkUrl(value: unknown) {
+  return normalizeSlackText(value)
+    .replace(/\s/g, "%20")
+    .replace(/</g, "%3C")
+    .replace(/>/g, "%3E")
+    .replace(/\|/g, "%7C");
+}
+
+function formatSlackLink(url: unknown, text: unknown) {
+  const label = normalizeSlackText(text);
+  const safeUrl = escapeSlackLinkUrl(url);
+  if (!safeUrl || !label) return escapeSlackText(label);
+  return `<${safeUrl}|${escapeSlackText(label)}>`;
+}
+
+function buildOpsCareerUserUrl(userId: string) {
+  const url = new URL(OPS_CAREER_URL);
+  url.searchParams.set("userId", userId);
+  return url.toString();
+}
+
+async function notifyHarperInternalRolePriorityReviewSlack(args: {
+  admin: TalentAdminClient;
+  roleId: string;
+  roleTitle?: string | null;
+  userId: string;
+}) {
+  if (process.env.NEXT_PUBLIC_WORKER_TEST_MODE === "true") return false;
+
+  const webhookUrl = getHiringSlackWebhookUrl();
+  if (!webhookUrl) {
+    console.warn("[internal-role-priority-review] SLACK_HIRING_TOKEN missing");
+    return false;
+  }
+
+  const profile = await fetchTalentUserProfile({
+    admin: args.admin,
+    userId: args.userId,
+  });
+  const emailName = optionalToolString(profile?.email)?.split("@")[0] ?? null;
+  const name = optionalToolString(profile?.name) ?? emailName ?? "Unknown";
+  const headline = optionalToolString(profile?.headline) ?? "-";
+  const roleTitle = optionalToolString(args.roleTitle) ?? args.roleId;
+
+  const lines = [
+    "*Harper internal role request*",
+    `*Candidate*: ${formatSlackLink(buildOpsCareerUserUrl(args.userId), name)}`,
+    `*Headline*: ${escapeSlackText(headline)}`,
+    `*Role*: ${escapeSlackText(roleTitle)}`,
+  ];
+
+  const webhook = new IncomingWebhook(webhookUrl);
+  await webhook.send({
+    text: `Harper internal role request - ${name}`,
+    blocks: [
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: lines.join("\n"),
+        },
+      },
+    ],
+  });
+
+  return true;
 }
 
 async function requestInternalRolePriorityReview(args: {
@@ -939,6 +1030,23 @@ async function requestInternalRolePriorityReview(args: {
   }
 
   const createdAt = optionalToolString(inserted?.created_at) ?? now;
+
+  if (isHarperInternalRoleCompany(companyName)) {
+    try {
+      await notifyHarperInternalRolePriorityReviewSlack({
+        admin: args.admin as TalentAdminClient,
+        roleId,
+        roleTitle,
+        userId: args.userId,
+      });
+    } catch (error) {
+      console.error("[internal-role-priority-review] slack notify failed", {
+        error: error instanceof Error ? error.message : String(error),
+        roleId,
+        userId: args.userId,
+      });
+    }
+  }
 
   return {
     ok: true,

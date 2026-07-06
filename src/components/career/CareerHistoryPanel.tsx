@@ -2023,10 +2023,7 @@ const CareerHistoryPanel = () => {
         >
           <BareButton
             type="button"
-            aria-label={t(
-              "career.common.career_history_panel.archived_tooltip",
-              "제외한 포지션"
-            )}
+            aria-label={"제외한 포지션"}
             onClick={() => handleDisplayTabChange("archived")}
             className={cn(
               "inline-flex h-7 min-w-7 shrink-0 items-center justify-center gap-1.5 rounded-md border border-neutral-1000-a05 px-2 text-[12px] font-medium transition-colors",

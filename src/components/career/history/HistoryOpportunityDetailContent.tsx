@@ -262,7 +262,8 @@ export const HistoryOpportunityOverview = ({
               >
                 <Dot className="mt-0.5 h-5 w-5 min-w-5" />
                 <div className="min-w-0">
-                  {t("career.common.career.0z5xpdx", "지원전 검토 사항")} {concern}
+                  {t("career.common.career.0z5xpdx", "지원전 검토 사항")}{" "}
+                  {concern}
                 </div>
               </div>
             ))}
@@ -333,11 +334,7 @@ const HistoryDetailArrowButton = ({
   return (
     <BareButton
       type="button"
-      aria-label={
-        direction === "prev"
-          ? t("career.common.career.0madjab", "이전 기회")
-          : t("career.common.career.18neuzv", "다음 기회")
-      }
+      aria-label={direction === "prev" ? "이전 기회" : "다음 기회"}
       onClick={onClick}
       className={cn(
         "absolute top-1/2 z-10 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-neutral-1000-a10 bg-bg-floating text-neutral-muted transition-colors hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary",
@@ -453,11 +450,7 @@ const OpportunityManagementStatusDropdown = ({
       trigger={
         <BareButton
           type="button"
-          aria-label={t(
-            "career.history.opportunity_detail_content.status_menu",
-            "{status} 상태 변경",
-            { values: { status: statusLabel } }
-          )}
+          aria-label={`${statusLabel} 상태 변경`}
           disabled={disabled}
           className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-neutral-200 text-neutral-primary transition-colors hover:bg-neutral-400 disabled:cursor-not-allowed disabled:opacity-60"
         >

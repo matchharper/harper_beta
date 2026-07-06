@@ -100,7 +100,7 @@ export default function ChatAttachmentActionMenu({
               "inline-flex h-9 w-9 items-center justify-center rounded-[12px] bg-neutral-00/5 text-neutral-00/70 transition hover:bg-neutral-00/10 hover:text-neutral-00/90 disabled:cursor-not-allowed disabled:opacity-40",
               className
             )}
-            aria-label={m.chat.addAttachment ?? "첨부 추가"}
+            aria-label="첨부 추가"
           >
             <Plus size={16} />
           </BareButton>

@@ -216,6 +216,7 @@ async function generateSessionStartGreeting(args: {
   conversationId: string;
   currentAccessAt: string;
   idleMs: number;
+  isOnboardingDone: boolean;
   isMobile?: boolean | null;
   preferredLocale?: string | null;
   previousChatAt: string | null;
@@ -239,6 +240,7 @@ async function generateSessionStartGreeting(args: {
     proactiveContext: buildCareerSessionStartTurnInstruction({
       currentAccessAt,
       idleMs,
+      isOnboardingDone: args.isOnboardingDone,
       preferredLocale: args.preferredLocale,
       previousChatAt,
     }),
@@ -455,6 +457,7 @@ export async function GET(req: NextRequest) {
             conversationId: conversation.id,
             currentAccessAt: now,
             idleMs,
+            isOnboardingDone: Boolean(talentSetting?.is_onboarding_done),
             isMobile,
             preferredLocale: talentSetting?.preferred_locale ?? null,
             previousChatAt: latestChatMessage?.created_at ?? null,

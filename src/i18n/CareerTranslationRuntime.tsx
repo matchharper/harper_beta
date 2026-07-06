@@ -11,7 +11,7 @@ import {
   type CareerTranslationMatchRect,
 } from "@/i18n/CareerTranslationInspectProvider";
 
-const TRANSLATABLE_ATTRS = ["aria-label", "alt", "placeholder", "title"];
+const TRANSLATABLE_ATTRS = ["alt", "placeholder", "title"];
 const MATCH_SCROLL_TARGET_ATTR = "data-career-i18n-scroll-id";
 const TRANSLATION_KEY_ATTR = "data-career-i18n-key";
 const SKIP_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "CODE", "PRE"]);
@@ -159,10 +159,6 @@ function uniqueValues(values: Array<string | undefined>) {
         .filter(Boolean)
     )
   );
-}
-
-function hasVisibleTextContent(element: Element) {
-  return Boolean(element.textContent?.replace(/\s+/g, " ").trim());
 }
 
 function getTranslationKeyElement(element: Element | null) {
@@ -524,13 +520,10 @@ export default function CareerTranslationRuntime({
         const original = originals.get(attr) ?? currentValue;
         const translated = translateValue(original);
         const nextValue = translated.value;
-        const shouldCollectAttrMatch = !(
-          attr === "aria-label" && hasVisibleTextContent(element)
-        );
         if (currentValue !== nextValue) {
           element.setAttribute(attr, nextValue);
         }
-        if (translated.match && shouldCollectAttrMatch) {
+        if (translated.match) {
           attrMatches.set(attr, translated.match);
         } else {
           attrMatches.delete(attr);

@@ -703,11 +703,11 @@ export function formatRecentRecommendedOpportunitiesForPrompt(
             ].filter(Boolean);
 
       return [
-        `(${sourceType}) ${item.title} at ${item.companyName} - ${roleIdPrefix}feedback: ${feedback}, saved stage: ${savedStage}`,
+        `(${sourceType}) ${item.title} at ${item.companyName} - ${roleIdPrefix}User feedback: ${feedback}, saved stage: ${savedStage}`,
         ...details,
       ]
         .filter(Boolean)
-        .join(", ");
+        .join(", \n");
     })
     .filter((line) => line.trim().length > 0)
     .join("\n");

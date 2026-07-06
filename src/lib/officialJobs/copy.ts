@@ -44,7 +44,7 @@ export function resolveOfficialJobsLocaleFromRequest(
 export const OFFICIAL_JOBS_COPY = {
   ko: {
     cta: "Talk to Harper",
-    initialChatDraft: "{role} 포지션에 관심 있어요.",
+    initialChatDraft: "Harper 내부 기회인 {role} 포지션에 관심 있어요.",
     detail: {
       backToList: "역할 목록",
       facts: {
@@ -92,7 +92,6 @@ export const OFFICIAL_JOBS_COPY = {
         role: "Role",
         vertical: "Vertical",
       },
-      viewDetailsAria: "{role}, {company} 자세히 보기",
     },
     seo: {
       detailDescriptionFallback:
@@ -108,7 +107,8 @@ export const OFFICIAL_JOBS_COPY = {
   },
   en: {
     cta: "Talk to Harper",
-    initialChatDraft: "I'm interested in the {role} role.",
+    initialChatDraft:
+      "I'm interested in the Harper internal opportunity : {role} role.",
     detail: {
       backToList: "All roles",
       facts: {
@@ -156,7 +156,6 @@ export const OFFICIAL_JOBS_COPY = {
         role: "Role",
         vertical: "Vertical",
       },
-      viewDetailsAria: "View details for {role}, {company}",
     },
     seo: {
       detailDescriptionFallback:

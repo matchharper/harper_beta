@@ -8,6 +8,7 @@ import type {
 import RichText from "@/components/ui/rich-text";
 import { TALENT_MESSAGE_TYPE_OPPORTUNITY_FEEDBACK_NOTE } from "@/lib/career/opportunityFeedbackNote";
 import { stripStandalonePostingLinksFromText } from "@/lib/career/postingLinks";
+import { buildCareerTypewriterChunks } from "@/lib/career/typewriter";
 import {
   compactUrlLabel,
   getHarperOwnedUrlRoute,
@@ -33,7 +34,7 @@ export const ASSISTANT_BUBBLE_CLASS =
   "w-fit max-w-[920px] text-neutral-primary";
 
 export const CAREER_MESSAGE_LINK_CLASS =
-  "inline-flex max-w-full cursor-pointer items-center align-baseline rounded-md bg-accent-100/80 px-1.5 py-0 text-left text-accent-500 no-underline wrap-break-word transition-colors hover:bg-accent-200/60 hover:text-accent-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-300/60";
+  "inline-flex max-w-full cursor-pointer items-center align-baseline rounded-sm bg-accent-100/0 px-1 py-0 leading-5 text-left text-accent-500 no-underline wrap-break-word transition-colors hover:bg-accent-100/40 hover:text-accent-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-300/60";
 
 const HIGHLIGHT_PATTERN = /<<([\s\S]+?)>>/g;
 const URL_PATTERN = /(https?:\/\/[^\s]+)/g;
@@ -304,6 +305,28 @@ function renderHighlightedContent(
     : renderTextWithLinks(content, "full", onHarperLinkClick);
 }
 
+function AnimatedAssistantTypingContent({ content }: { content: string }) {
+  const chunks = React.useMemo(
+    () => buildCareerTypewriterChunks(content),
+    [content]
+  );
+
+  return (
+    <div
+      className={cn(
+        careerTimelineAssistantRichTextClassName,
+        "whitespace-pre-wrap wrap-break-word"
+      )}
+    >
+      {chunks.map((chunk, index) => (
+        <span key={`${index}-${chunk}`} className="career-typewriter-chunk">
+          {chunk}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 const CareerMessageBubble = ({
   message,
   isUser,
@@ -379,7 +402,7 @@ const CareerMessageBubble = ({
                   "h-3.5 w-3.5",
                   isUser ? "text-neutral-00/70" : "text-neutral-soft",
                 ].join(" ")}
-                aria-label={t("career.onboarding.onboarding.17sy1or", "이메일")}
+                aria-label={"이메일"}
               />
             ) : (
               <AudioLines
@@ -387,10 +410,7 @@ const CareerMessageBubble = ({
                   "h-3.5 w-3.5",
                   isUser ? "text-neutral-00/70" : "text-neutral-soft",
                 ].join(" ")}
-                aria-label={t(
-                  "career.chat.career_message_bubble.0ovvmd7",
-                  "전화 대화"
-                )}
+                aria-label={"전화 대화"}
               />
             )}
           </span>
@@ -401,13 +421,19 @@ const CareerMessageBubble = ({
               {renderHighlightedContent(displayContent, handleHarperLinkClick)}
             </div>
           ) : (
-            <RichText
-              content={assistantContent}
-              className={careerTimelineAssistantRichTextClassName}
-              linkClassName={CAREER_MESSAGE_LINK_CLASS}
-              onHarperLinkClick={handleHarperLinkClick}
-              renderEmailLinksAsText
-            />
+            <>
+              {message.typing && message.typingMode === "word" ? (
+                <AnimatedAssistantTypingContent content={assistantContent} />
+              ) : (
+                <RichText
+                  content={assistantContent}
+                  className={careerTimelineAssistantRichTextClassName}
+                  linkClassName={CAREER_MESSAGE_LINK_CLASS}
+                  onHarperLinkClick={handleHarperLinkClick}
+                  renderEmailLinksAsText
+                />
+              )}
+            </>
           )}
           {!isUser && assistantChoices.length > 0 && (
             <div className="mt-3 flex max-w-[520px] min-w-[320px] w-full flex-col gap-2">
@@ -434,6 +460,14 @@ const CareerMessageBubble = ({
                   </span>
                 </BareButton>
               ))}
+              {choiceActionsDisabled || !onSelectAssistantChoice ? null : (
+                <div className="text-xs text-neutral-muted">
+                  {t(
+                    "career.chat.career_message_bubble.1xpjlib",
+                    "채팅으로 대답할 수 있어요."
+                  )}
+                </div>
+              )}
             </div>
           )}
           {hasCallAction && (
