@@ -24,7 +24,7 @@ import { maybeSummarizeTalentConversation } from "@/lib/talentOnboarding/convers
 import { completeTalentOnboardingManually } from "@/lib/talentOnboarding/manualCompletion";
 import { runCareerChatTurn } from "@/lib/career/chatTurn";
 import { TALENT_TOOL_NAMES } from "@/lib/talentOnboarding/tools";
-import { getCareerConversationStarterPrompt } from "@/lib/career/conversationStarterPrompts";
+import { getCareerConversationStarter } from "@/lib/career/prompts/conversationStarters";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 import { careerT } from "@/lib/career/translatedCareerMessage";
 import {
@@ -363,7 +363,7 @@ export async function POST(request: NextRequest) {
       body.locale ??
       request.cookies.get("NEXT_LOCALE")?.value;
     const conversationStarter = conversationStarterId
-      ? getCareerConversationStarterPrompt(
+      ? getCareerConversationStarter(
           conversationStarterId,
           responseLocale
         )

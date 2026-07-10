@@ -430,7 +430,7 @@ Hard rules:
 
 Relevant Supabase public schema:
 - talent_users: user_id uuid/text primary account id; email, name, headline, bio, current_location, location, resume_file_name, resume_storage_path, resume_links, resume_text, last_logined_at, created_at, updated_at.
-- talent_setting: user_id references talent_users.user_id; is_onboarding_done, status ('active'/'passive'/'stopped'), status_updated_at, engagement_types, blocked_companies, profile_visibility, periodic_interval_days, recommendation_batch_size, recommendation_source_conversation_id, created_at, updated_at.
+- talent_setting: user_id references talent_users.user_id; is_onboarding_done, status ('active'/'passive'/'stopped'), status_updated_at, engagement_types, blocked_companies, profile_visibility, periodic_interval_days, recommendation_batch_size, created_at, updated_at.
 - talent_conversations: id uuid, user_id references talent_users.user_id, stage, relief_nudge_sent, created_at, updated_at.
 - talent_messages: id bigint, conversation_id references talent_conversations.id, user_id references talent_users.user_id, role, content, message_type, thinking_logs, created_at.
 - talent_conversation_summaries: id uuid, talent_id references talent_users.user_id, conversation_id references talent_conversations.id, from_message_id, to_message_id, summary_text/json, created_at.

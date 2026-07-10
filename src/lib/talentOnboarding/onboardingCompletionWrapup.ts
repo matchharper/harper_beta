@@ -1,5 +1,5 @@
 import {
-  buildCareerTextChatPromptBlocks,
+  buildCareerConversationPromptPlan,
   type CareerPromptPreferences,
 } from "@/lib/career/prompts";
 import { runCareerChatAssistant } from "@/lib/career/llm";
@@ -72,7 +72,7 @@ const FALLBACK_NEXT_STEPS_CONTENT_KO = [
   "",
   "확인하신 뒤에는 각 기회에 대해 좋아요/싫어요를 눌러주세요. 마음에 드는 회사가 있으면 회사명을 눌러 자세히 보고, 계속 지켜보고 싶은 회사는 track 해두시면 관련 소식이나 채용 업데이트가 있을 때 챙겨드릴게요.",
   "",
-  "한 가지만 여쭤볼게요. 선호하실 만한 기회라면 제가 연결 가능한 기회가 아닌 외부 공고라도 주기적으로 알려드리면 좋을까요? 아니면 내부 연결처럼 특히 핏이 강한 기회가 있을 때만 연락드리는 쪽이 편하실까요?",
+  "한 가지만 여쭤볼게요. 직접 연결 가능한 기회가 아니더라도 핏이 맞는 외부 공고라면 주기적으로 알려드리면 좋을까요? 아니면 직접 연결 가능한 좋은 기회가 있을 때만 연락드리는 쪽이 편하실까요?",
 ].join("\n\n");
 
 const FALLBACK_NEXT_STEPS_CONTENT_EN = [
@@ -80,7 +80,7 @@ const FALLBACK_NEXT_STEPS_CONTENT_EN = [
   "",
   "After you review them, use like or dislike on each opportunity so Harper can calibrate future recommendations. If a company looks interesting, open the company name for more context. You can also track companies you want Harper to keep watching for relevant updates or new roles.",
   "",
-  "One quick question: would you like Harper to periodically send strong external job postings too, or would you prefer to hear only when there is a particularly high-fit opportunity Harper can help connect you with?",
+  "One quick question: if an external posting is a good fit and looks like an opportunity you would genuinely prefer, would you like Harper to share those regularly too? Or would you prefer to hear only when there is a strong opportunity Harper can directly connect you with?",
 ].join("\n\n");
 
 const ONBOARDING_COMPLETION_WRAPUP_THINKING_LOGS_KO = [
@@ -193,7 +193,9 @@ function buildCurrentPreferences(
   setting: Awaited<ReturnType<typeof fetchTalentSetting>>
 ): CareerPromptPreferences {
   return {
+    getExternalRecommendation: setting?.get_external_recommendation ?? null,
     preferredLocale: setting?.preferred_locale ?? null,
+    profileVisibility: setting?.profile_visibility ?? null,
     recommendationBatchSize: normalizeTalentRecommendationBatchSize(
       setting?.recommendation_batch_size
     ),
@@ -209,10 +211,12 @@ function buildWrapupInstruction(preferredLocale?: string | null) {
     "The user's career onboarding conversation has just completed. This is a persisted assistant-side finalization task, not a normal chat turn.",
     "",
     "First, inspect the onboarding conversation and current profile state.",
-    "- If the user disclosed clear recommendation delivery setting changes, you may call `update_setting` before writing the wrap-up.",
+    "- If the user disclosed a clear recommendation/contact subscription action, you may call `update_setting` before writing the wrap-up: stop_external for external/public postings only, stop_all for all Harper matching contact, or resume for recommendation/contact restart.",
+    "- If the user's wording is a generic stop/unsubscribe that could mean either external postings only or all Harper matching contact, do not call `update_setting`; leave the clarification for the normal assistant message.",
+    "- If the user disclosed a clear recommendation batch-size change, use `update_talent_profile.recommendationBatchSize`, not `update_setting`.",
     "- If the user disclosed clear durable facts, preferences, constraints, or role-specific details that are missing from current state, you may call `update_talent_profile` before writing the wrap-up.",
     "- Tool calls are optional. Skip them when there is no clear new writable information or when the information is already saved.",
-    "- For rowMemos, use only exact RowID/Title values visible in the Structured Talent Profile. Do not guess row IDs or attach generic facts to a row.",
+    "- For rowMemos, use only exact RowID values visible in the Structured Talent Profile. Do not guess row IDs or attach generic facts to a row.",
     "- For talentInsights, prefer existing checklist-style insight keys/current insight keys when they fit. Use a new free-form English snake_case key only when the fact is important for future matching and does not reasonably fit an existing key.",
     "- Do not put profile-row facts into talentInsights. Specific experience, education, project, responsibility, or achievement details should go to rowMemos when one visible row matches; if no row matches, do not work around it with a profile-like insight key.",
     `- talentInsights values must be complete ${outputLanguage} sentences, not fragments such as \`규모 선호.\`.`,
@@ -245,18 +249,19 @@ function buildNextStepsInstruction(preferredLocale?: string | null) {
           "- Say Harper reflected the user's stated criteria into Harper's search criteria. Mention the most important role/domain/location/company-stage/work-style criteria from the conversation, but only when grounded in the conversation or saved profile.",
           "- Say Harper is starting a fresh search now. Explain that results will appear in the Positions tab and by email as soon as they are ready, and that it can take up to 1 hour.",
           "- Explain what the user should do after seeing opportunities: use like/dislike, open company details, and track/follow companies they want Harper to monitor for company news or hiring updates.",
-          "- End with a clear question asking whether Harper should regularly share external postings when they look like opportunities the user would prefer, even if Harper cannot directly connect the user, or contact only when there is a particularly strong-fit internal connection opportunity.",
+          "- End with a clear question asking whether Harper should regularly share external/public open-position recommendations when they are a good fit, or avoid those and contact only when there is a strong directly connectable opportunity. This question is about external recommendations vs directly connectable opportunities, not about stopping all Harper contact.",
         ]
       : [
           "- Say Harper reflected the user's stated criteria into Harper의 검색 기준. Mention the most important role/domain/location/company-stage/work-style criteria from the conversation, but only when grounded in the conversation or saved profile.",
           "- Say Harper is starting a fresh search now. Explain that results will appear in the 포지션 탭 and by email as soon as they are ready, and that it can take up to 1 hour.",
           "- Explain what the user should do after seeing opportunities: use 좋아요/싫어요, open company details, and track/follow companies they want Harper to monitor for company news or hiring updates.",
-          "- End with a clear question asking whether Harper should regularly share external postings when they look like opportunities the user would prefer, even if Harper cannot directly connect the user, or contact only when there is a particularly strong-fit internal connection opportunity.",
+          "- End with a clear question asking whether Harper should regularly share external/public open-position recommendations when they are a good fit, or avoid those and contact only when there is a strong directly connectable opportunity. This question is about external recommendations vs directly connectable opportunities, not about stopping all Harper contact.",
         ];
+
   const finalQuestionExample =
     outputLanguage === "English"
-      ? "If an external posting looks like an opportunity you would genuinely prefer, would you like Harper to share those regularly too, even when Harper cannot directly connect you? Or would you rather hear only when there is a particularly strong-fit internal connection opportunity?"
-      : "선호하실 만한 기회라면 제가 연결 가능한 기회가 아닌 외부 공고라도 주기적으로 알려드리면 좋을까요? 아니면 내부 연결처럼 특히 핏이 강한 기회가 있을 때만 연락드리는 쪽이 편하실까요?";
+      ? "If an external posting is a good fit and looks like an opportunity you would genuinely prefer, would you like Harper to share those regularly too? Or would you rather hear only when there is a strong opportunity Harper can directly connect you with?"
+      : "직접 연결 가능한 기회가 아니더라도 핏이 잘 맞는 외부 오픈포지션이면 주기적으로 알려드릴까요? 아니면 핏이 맞는 외부 공고 추천은 빼고, 직접 연결 가능한 좋은 기회가 있을 때만 연락드리는 쪽이 편하실까요?";
 
   return [
     "## Onboarding completion next message task",
@@ -337,7 +342,8 @@ export async function generateOnboardingCompletionWrapupContent(args: {
     formatRecentRecommendedOpportunitiesForPrompt(
       recentRecommendedOpportunities
     );
-  const promptPlan = buildCareerTextChatPromptBlocks({
+  const promptPlan = buildCareerConversationPromptPlan({
+    channel: "chat",
     currentInsightContent: normalizeTalentInsightContent(
       insights?.content ?? null
     ),
@@ -345,7 +351,7 @@ export async function generateOnboardingCompletionWrapupContent(args: {
     isOnboardingDone: true,
     profile,
     recentRecommendedOpportunitiesText,
-    sessionStartInstruction: buildWrapupInstruction(responseLocale),
+    runtimeInstruction: buildWrapupInstruction(responseLocale),
     structuredProfileText,
     toolNames: wrapupToolSelection.toolNames,
   });
@@ -432,7 +438,8 @@ export async function generateOnboardingCompletionNextStepsContent(args: {
       recentRecommendedOpportunities
     );
   const responseLocale = setting?.preferred_locale ?? null;
-  const promptPlan = buildCareerTextChatPromptBlocks({
+  const promptPlan = buildCareerConversationPromptPlan({
+    channel: "chat",
     currentInsightContent: normalizeTalentInsightContent(
       insights?.content ?? null
     ),
@@ -440,7 +447,7 @@ export async function generateOnboardingCompletionNextStepsContent(args: {
     isOnboardingDone: true,
     profile,
     recentRecommendedOpportunitiesText,
-    sessionStartInstruction: buildNextStepsInstruction(responseLocale),
+    runtimeInstruction: buildNextStepsInstruction(responseLocale),
     structuredProfileText,
     toolNames: [],
   });

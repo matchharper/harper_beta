@@ -96,6 +96,7 @@ export type CareerChatPanelContextValue = {
     mode: CareerConversationStarterMode;
     starterId: CareerConversationStarterId;
   }) => boolean | Promise<boolean>;
+  onRunSessionReengagement?: () => boolean | Promise<boolean>;
   onUpdateHistoryOpportunityFeedback: (
     opportunityId: string,
     feedback: CareerHistoryOpportunityFeedback | null,

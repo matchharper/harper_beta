@@ -26,7 +26,7 @@ import {
   type TalentUserChatMessageType,
 } from "@/lib/talentOnboarding/onboarding";
 import {
-  buildCareerTextChatPromptBlocks,
+  buildCareerConversationPromptPlan,
   buildCareerInsightExtractionPrompt,
 } from "@/lib/career/prompts";
 import {
@@ -74,7 +74,11 @@ import {
   formatRecentRecommendedOpportunitiesForPrompt,
   type TalentOpportunityHistoryItem,
 } from "@/lib/talentOpportunity";
-import { extractPostingRoleIdsFromText } from "@/lib/career/postingLinks";
+import {
+  ensureStandalonePostingLinksInText,
+  extractPostingRoleIdsFromText,
+  normalizePostingRoleIds,
+} from "@/lib/career/postingLinks";
 import {
   COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
   fetchRecentCompanySnapshot,
@@ -83,7 +87,7 @@ import {
   touchConversation,
 } from "@/lib/career/companySnapshot";
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
-import { getCareerConversationStarterPrompt } from "@/lib/career/conversationStarterPrompts";
+import { getCareerConversationStarter } from "@/lib/career/prompts/conversationStarters";
 import { careerT } from "@/lib/career/translatedCareerMessage";
 import { logger } from "@/utils/logger";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
@@ -204,7 +208,7 @@ async function buildTalentProfileSnapshot(args: {
         setting?.engagement_types ?? []
       ),
       getExternalRecommendation: setting?.get_external_recommendation ?? true,
-      getInternalRecommendation: setting?.get_internal_recommendation ?? true,
+      getInternalRecommendation: true,
       isOnboardingDone: Boolean(setting?.is_onboarding_done),
       periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
         setting?.periodic_interval_days
@@ -354,6 +358,20 @@ function getJsonStringField(value: unknown, key: string) {
   if (!isRecord(value)) return null;
   const field = value[key];
   return typeof field === "string" && field.trim() ? field.trim() : null;
+}
+
+function extractRecommendationPostingRoleIds(result: unknown) {
+  if (!isRecord(result)) return [];
+
+  const roleIdsFromResult = Array.isArray(result.postingRoleIds)
+    ? result.postingRoleIds
+    : [];
+  const roleIdsFromDraft =
+    typeof result.answerDraft === "string"
+      ? extractPostingRoleIdsFromText(result.answerDraft)
+      : [];
+
+  return normalizePostingRoleIds([...roleIdsFromResult, ...roleIdsFromDraft]);
 }
 
 async function countPostOnboardingUserChatTurns(args: {
@@ -545,7 +563,7 @@ export async function POST(req: NextRequest) {
       body.locale ??
       req.cookies.get("NEXT_LOCALE")?.value;
     const conversationStarter = conversationStarterId
-      ? getCareerConversationStarterPrompt(
+      ? getCareerConversationStarter(
           conversationStarterId,
           responseLocale
         )
@@ -815,7 +833,7 @@ export async function POST(req: NextRequest) {
       );
     const activeInternalFitHoldQuestion =
       talentSetting?.is_onboarding_done &&
-      (talentSetting?.get_internal_recommendation ?? true) &&
+      talentSetting.profile_visibility !== "dont_share" &&
       canUseInternalFitHoldQuestionTool
         ? await fetchActiveInternalFitHoldQuestion({ admin, userId: user.id })
         : null;
@@ -830,8 +848,6 @@ export async function POST(req: NextRequest) {
     const currentPreferences = {
       getExternalRecommendation:
         talentSetting?.get_external_recommendation ?? true,
-      getInternalRecommendation:
-        talentSetting?.get_internal_recommendation ?? true,
       periodicIntervalDays: talentSetting
         ? normalizeTalentPeriodicIntervalDays(
             talentSetting.periodic_interval_days
@@ -861,29 +877,27 @@ export async function POST(req: NextRequest) {
             onboardingCompletedAt: onboardingCompletionEvent.created_at,
           }
         : null;
-    const { promptBlocks } = buildCareerTextChatPromptBlocks({
-      activeInternalFitHoldQuestion,
-      onboardingChecklistCoverage,
-      currentInsightContent,
-      currentPreferences,
-      isOnboardingDone: talentSetting?.is_onboarding_done,
-      officialJobSignupIntentPrompt: talentSetting?.is_onboarding_done
-        ? null
-        : officialJobSignupIntentEvent?.summary,
-      opportunityStatus,
-      pendingOpportunityFeedbackContext,
-      profile,
-      proactiveTurnInstructionMode: conversationStarter
-        ? "conversation_starter"
-        : undefined,
-      proactiveTurnInstruction:
-        conversationStarter?.chatProactiveInstruction ?? undefined,
-      recentActivitySummaries,
-      recentRecommendedOpportunitiesText,
-      sessionStartInstruction: officialJobSignupSourcePrompt,
-      structuredProfileText,
-      toolNames: toolSelection.toolNames,
-    });
+    const { isOnboardingActive, promptBlocks } =
+      buildCareerConversationPromptPlan({
+        activeInternalFitHoldQuestion,
+        channel: "chat",
+        onboardingChecklistCoverage,
+        currentInsightContent,
+        currentPreferences,
+        isOnboardingDone: talentSetting?.is_onboarding_done,
+        officialJobSignupIntentPrompt: talentSetting?.is_onboarding_done
+          ? null
+          : officialJobSignupIntentEvent?.summary,
+        opportunityStatus,
+        pendingOpportunityFeedbackContext,
+        profile,
+        conversationMode: conversationStarter?.id ?? "default",
+        recentActivitySummaries,
+        recentRecommendedOpportunitiesText,
+        runtimeInstruction: officialJobSignupSourcePrompt,
+        structuredProfileText,
+        toolNames: toolSelection.toolNames,
+      });
     const systemBlocks = promptBlocks;
 
     // console.info("[career-chat:prompt-breakdown]", {
@@ -908,6 +922,7 @@ export async function POST(req: NextRequest) {
       current: CompanySnapshotToolResult | null;
     } = { current: null };
     let thinkingLogs: string[] = [];
+    let pendingRecommendationPostingRoleIds: string[] = [];
     let emitToolStatus: ((message: string) => void) | null = null;
     let emitRecommendationStatus:
       | ((status: RecommendJobPostingStatus) => void)
@@ -963,6 +978,17 @@ export async function POST(req: NextRequest) {
         void runBackgroundInsightExtraction();
       }
     };
+    const rememberRecommendationPostingRoleIds = (result: unknown) => {
+      pendingRecommendationPostingRoleIds = normalizePostingRoleIds([
+        ...pendingRecommendationPostingRoleIds,
+        ...extractRecommendationPostingRoleIds(result),
+      ]);
+    };
+    const ensureRecommendationPostingLinks = (content: string) =>
+      ensureStandalonePostingLinksInText(
+        content,
+        pendingRecommendationPostingRoleIds
+      );
     const executeRecommendJobPostings = async (
       input: Record<string, unknown>
     ) => {
@@ -982,6 +1008,7 @@ export async function POST(req: NextRequest) {
           name: TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS,
           input,
         });
+        rememberRecommendationPostingRoleIds(result);
         const recommendationResult = isRecord(result) ? result : {};
         const completedStatus: RecommendJobPostingStatus = {
           candidateCount:
@@ -1124,6 +1151,7 @@ export async function POST(req: NextRequest) {
             const assistantText = await runCareerChatAssistantStream({
               messages: llmMessages,
               tools: toolDefinitions,
+              isOnboardingActive,
               stopAfterToolNames: toolSelection.stopAfterToolNames,
               systemBlocks,
               responseLocale,
@@ -1381,6 +1409,8 @@ export async function POST(req: NextRequest) {
                 .filter((text) => text.trim().length > 0)
                 .join("\n\n");
             }
+            safeAssistantText =
+              ensureRecommendationPostingLinks(safeAssistantText);
             flushVisibleText(safeAssistantText);
             send("assistant_text_done", { ok: true });
 
@@ -1563,6 +1593,7 @@ export async function POST(req: NextRequest) {
     const assistantText = await runCareerChatAssistant({
       messages: llmMessages,
       tools: toolDefinitions,
+      isOnboardingActive,
       stopAfterToolNames: toolSelection.stopAfterToolNames,
       systemBlocks,
       responseLocale,
@@ -1810,6 +1841,7 @@ export async function POST(req: NextRequest) {
         stripTalentOnboardingCompletionMarker(assistantTextWithMarkers)
       );
     }
+    safeAssistantText = ensureRecommendationPostingLinks(safeAssistantText);
 
     // --- Save assistant message ---
     const { data: insertedAssistantMessage, error: assistantError } =

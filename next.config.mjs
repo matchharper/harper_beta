@@ -1,4 +1,5 @@
 const supabaseHostname = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname;
+const supabaseStorageHostname = "zzojrniuppueizhnmqfd.supabase.co";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -18,6 +19,13 @@ const nextConfig = {
       {
         protocol: "https",
         hostname: supabaseHostname,
+        pathname: "/storage/v1/object/public/**",
+      },
+      // Supabase public storage assets still use the project ref host when auth
+      // is served through a custom domain.
+      {
+        protocol: "https",
+        hostname: supabaseStorageHostname,
         pathname: "/storage/v1/object/public/**",
       },
     ],

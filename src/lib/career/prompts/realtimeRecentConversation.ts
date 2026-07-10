@@ -100,13 +100,13 @@ export function buildCareerRealtimeRecentConversationSection(
   if (recentMessages.length === 0) return "";
 
   const maxTotal = 2200;
-  const maxPerMessage = 280;
+  const maxPerMessage = 400;
 
   let section = "";
   section += careerT(
     preferredLocale,
     "career.call.opening.recent_context.header",
-    "## 최근 채팅 맥락\n"
+    "## 최근 대화\n"
   );
   let totalLength = section.length;
   const nowMs = Date.now();

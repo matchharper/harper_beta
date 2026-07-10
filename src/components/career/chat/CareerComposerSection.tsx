@@ -21,6 +21,8 @@ import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
 import { useCareerT } from "@/i18n/useCareerT";
 
+const RECENT_CHAT_HISTORY_WINDOW_MS = 60 * 60 * 1000;
+
 const CareerComposerSection = () => {
   const t = useCareerT();
 
@@ -35,6 +37,7 @@ const CareerComposerSection = () => {
     sessionPending,
     profilePending,
     chatPending,
+    sessionReengagementPending,
     assistantTyping,
     opportunityFeedbackFollowUpPending,
     initialChatDraft,
@@ -49,6 +52,7 @@ const CareerComposerSection = () => {
     showVoiceStartPrompt,
     inputMode,
     onSendChatMessage,
+    onRunSessionReengagement,
     onStartCallMode,
     onForceCompleteOnboarding,
   } = useCareerChatPanelContext();
@@ -57,6 +61,16 @@ const CareerComposerSection = () => {
   const [draft, setDraft] = useState(() => initialDraftText);
   const [chatLinkDraft, setChatLinkDraft] = useState("");
   const [showLinkInput, setShowLinkInput] = useState(false);
+  const [recentChatCutoffMs] = useState(
+    () => Date.now() - RECENT_CHAT_HISTORY_WINDOW_MS
+  );
+  const [resumeInterviewRequest, setResumeInterviewRequest] = useState<{
+    conversationId: string | null;
+    requested: boolean;
+  }>({
+    conversationId: null,
+    requested: false,
+  });
   const [textareaResetVersion, setTextareaResetVersion] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const isComposingRef = useRef(false);
@@ -87,6 +101,14 @@ const CareerComposerSection = () => {
     isTextInputLocked || chatPending || assistantTyping;
   const isComposerBusy =
     chatPending || assistantTyping || opportunityFeedbackFollowUpPending;
+  const hasRecentChatHistory = messages.some((message) => {
+    if ((message.messageType ?? "chat") !== "chat") return false;
+    const createdAtMs = Date.parse(message.createdAt);
+    return Number.isFinite(createdAtMs) && createdAtMs > recentChatCutoffMs;
+  });
+  const resumeInterviewRequested =
+    resumeInterviewRequest.requested &&
+    resumeInterviewRequest.conversationId === conversationId;
 
   useEffect(() => {
     if (!initialDraftFocusKey) return;
@@ -177,7 +199,7 @@ const CareerComposerSection = () => {
     if (stage === "completed") {
       return t(
         "career.chat.career_composer_section.0e686ow",
-        "Harper에게 답변을 입력하세요."
+        "새로운 조건이나 궁금한 점을 남겨주세요"
       );
     }
     return t(
@@ -198,6 +220,16 @@ const CareerComposerSection = () => {
     showInterviewComposerFrame &&
     interviewProgress.canForceComplete &&
     Boolean(onForceCompleteOnboarding);
+  const showResumeInterviewAction =
+    showInterviewComposerFrame &&
+    !hasRecentChatHistory &&
+    Boolean(onRunSessionReengagement);
+  const resumeInterviewDisabled =
+    resumeInterviewRequested ||
+    sessionReengagementPending ||
+    isComposerActionLocked ||
+    onboardingWrapupPending ||
+    onboardingPausePending;
   const manualCompletionDisabled =
     forceCompletePending ||
     onboardingWrapupPending ||
@@ -274,6 +306,22 @@ const CareerComposerSection = () => {
     void onForceCompleteOnboarding();
   };
 
+  const handleResumeInterview = () => {
+    if (
+      !onRunSessionReengagement ||
+      resumeInterviewDisabled ||
+      resumeInterviewRequested
+    ) {
+      return;
+    }
+    setResumeInterviewRequest({
+      conversationId,
+      requested: true,
+    });
+    logCareerEvent("click_chat_resume_interview_reengagement");
+    void onRunSessionReengagement();
+  };
+
   return (
     <div
       data-vaul-no-drag=""
@@ -347,7 +395,29 @@ const CareerComposerSection = () => {
             </div>
           </div>
           {showInterviewComposerFrame ? (
-            <div className="mt-2 flex flex-wrap items-center justify-end gap-x-3 gap-y-1 px-1 text-neutral-muted">
+            <div className="mt-2 flex flex-wrap items-center justify-end gap-x-3 gap-y-2 px-1 text-neutral-muted md:justify-between">
+              {showResumeInterviewAction ? (
+                <ActionButton
+                  type="button"
+                  onClick={handleResumeInterview}
+                  disabled={resumeInterviewDisabled}
+                  actionVariant="primary"
+                  buttonRadius="pill"
+                  className="hidden h-8 items-center gap-1.5 rounded-[12px] border border-neutral-1000 bg-neutral-1000 px-3 text-[12px] font-normal text-neutral-00 shadow-xs hover:bg-neutral-800 disabled:cursor-wait disabled:opacity-70 md:inline-flex"
+                >
+                  {sessionReengagementPending || resumeInterviewRequested ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <></>
+                  )}
+                  {t(
+                    "career.chat.career_composer_section.resume_interview_cta",
+                    "5분 커리어 인터뷰 이어가기"
+                  )}
+                </ActionButton>
+              ) : (
+                <div className="hidden md:block" />
+              )}
               <div className="inline-flex min-w-0 items-center gap-2">
                 <div className="inline-flex shrink-0 items-center gap-1.5 text-[12px] font-medium">
                   <span>

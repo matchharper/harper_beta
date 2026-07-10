@@ -33,6 +33,7 @@ import {
 import {
   TALENT_RECOMMENDATION_BATCH_SIZE_MAX,
   TALENT_RECOMMENDATION_BATCH_SIZE_MIN,
+  normalizeTalentRecommendationBatchSize,
 } from "./recommendationSettings";
 import {
   buildInsightActivitySummary,
@@ -40,7 +41,6 @@ import {
   buildRowMemoActivitySummary,
   compactActivityChanges,
   fetchTalentActivityEvents,
-  getPreferenceActivityImpact,
   insertTalentActivityEvent,
   insertTalentOpportunityFeedbackActivityEvent,
   isSameActivityValue,
@@ -128,6 +128,7 @@ export class TalentToolError extends Error {
 }
 
 export const TALENT_TOOL_NAMES = {
+  END_CALL: "end_call",
   RECOMMEND_JOB_POSTINGS: "recommend_job_postings",
   READ_RECOMMENDED_OPPORTUNITIES: "read_recommended_opportunities",
   GET_INTERNAL_ROLES: "get_internal_roles",
@@ -151,6 +152,7 @@ export type TalentToolName =
   (typeof TALENT_TOOL_NAMES)[keyof typeof TALENT_TOOL_NAMES];
 
 export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
+  TALENT_TOOL_NAMES.END_CALL,
   TALENT_TOOL_NAMES.WEB_SEARCH,
   TALENT_TOOL_NAMES.OPEN_URL,
   TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS,
@@ -617,9 +619,7 @@ async function runGetRoleContext(args: {
             fitReasons: latestRecommendation.fit_reasons ?? [],
             tradeoffs: latestRecommendation.tradeoffs ?? [],
             preferenceFit: latestRecommendation.preference_fit ?? null,
-            recommendedAt: optionalToolString(
-              latestRecommendation.created_at
-            ),
+            recommendedAt: optionalToolString(latestRecommendation.created_at),
             feedback: optionalToolString(latestRecommendation.feedback),
             feedbackReason: optionalToolString(
               latestRecommendation.feedback_reason
@@ -1064,6 +1064,17 @@ async function requestInternalRolePriorityReview(args: {
 }
 
 const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
+  [TALENT_TOOL_NAMES.END_CALL]: {
+    name: TALENT_TOOL_NAMES.END_CALL,
+    description:
+      "End the current live voice call. Use only after you have already spoken the final short closing message, or when the user clearly asks to end, stop, or hang up the call. This tool ends only the live call session and does not change recommendation, email, account, or profile settings.",
+    parameters: {
+      type: "object",
+      properties: {},
+      additionalProperties: false,
+    },
+    channels: ["voice"],
+  },
   [TALENT_TOOL_NAMES.WEB_SEARCH]: {
     name: TALENT_TOOL_NAMES.WEB_SEARCH,
     description:
@@ -1422,9 +1433,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           )
         );
       }
-      const closedOpportunityIds = new Set(
-        itemsToClose.map((item) => item.id)
-      );
+      const closedOpportunityIds = new Set(itemsToClose.map((item) => item.id));
       const assistantInstruction =
         itemsToClose.length > 0
           ? itemsToClose
@@ -1730,28 +1739,23 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.UPDATE_SETTING]: {
     name: TALENT_TOOL_NAMES.UPDATE_SETTING,
     description:
-      "Update recommendation delivery settings only. Use when the user's latest statement directly asks to change how many opportunities are in each batch, or whether Harper should include external/public job postings and/or internal Harper-connected opportunities. Do not use for delivery cadence/frequency, profile facts, row memos, future matching criteria such as role/company/location preferences, one-off browsing/search requests, hypotheticals, or information already saved in current state. If the user wants to stop all opportunity recommendations, set both getExternalRecommendation=false and getInternalRecommendation=false. If the user wants no public/external job-posting recommendations or wants only internal Harper-connected opportunities, set getExternalRecommendation=false. After the tool result, produce a normal user-facing chat reply in Korean; do not expose internal setting names.",
+      "Update Harper subscription scope from an explicit latest user request. stop_external stops good-fit external/public postings but keeps direct-connection opportunities; stop_all stops all Harper matching contact; resume restarts recommendations/contact. For generic stop/unsubscribe, ask one scope clarifier instead of calling. Not for batch size, cadence, profile facts, matching memory, or searches.",
     parameters: {
       type: "object",
       properties: {
-        getExternalRecommendation: {
-          type: "boolean",
+        action: {
+          type: "string",
+          enum: ["stop_external", "stop_all", "resume"],
           description:
-            "Whether Harper may recommend external/public job postings. Set false when the user says not to recommend public/external/open job postings, or says they only want internal Harper-connected opportunities. Default is true.",
+            "stop_external disables good-fit external/public postings. stop_all sets profile visibility to dont_share. resume sets profile visibility to exceptional_only and enables external/public postings.",
         },
-        getInternalRecommendation: {
-          type: "boolean",
+        reasonText: {
+          type: "string",
           description:
-            "Whether Harper may recommend internal Harper-connected opportunities. Set true when the user says they still want internal/connected opportunities; set false only when they explicitly do not want these. Default is true.",
-        },
-        recommendationBatchSize: {
-          type: "integer",
-          minimum: TALENT_RECOMMENDATION_BATCH_SIZE_MIN,
-          maximum: TALENT_RECOMMENDATION_BATCH_SIZE_MAX,
-          description:
-            "Number of opportunities per batch. Values must be 3-10. Use when the user gives an exact count or clearly asks for more/fewer recommendations at a time. For vague larger requests, choose current +2 capped at 10, or 5 when there is no active/current value. For maximum requests, use 10. For vague smaller requests, choose current -2 floored at 3, or 3 when there is no active/current value.",
+            "Brief explanation in the selected reply language of why this subscription update was made.",
         },
       },
+      required: ["action"],
       additionalProperties: false,
     },
     channels: ["chat"],
@@ -1769,12 +1773,12 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       };
       const updatedSettingFields: string[] = [];
       const settingActivityChanges: TalentActivityChange[] = [];
-      let didUpdate = false;
+      const action = optionalToolString(input.action);
+      let summary: string | null = null;
 
-      if (typeof input.getExternalRecommendation === "boolean") {
-        const nextGetExternalRecommendation = input.getExternalRecommendation;
-        updatePayload.getExternalRecommendation = nextGetExternalRecommendation;
-        didUpdate = true;
+      if (action === "stop_external") {
+        const nextGetExternalRecommendation = false;
+        updatePayload.getExternalRecommendation = false;
         updatedSettingFields.push("getExternalRecommendation");
         if (
           !isSameActivityValue(
@@ -1788,67 +1792,81 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             to: nextGetExternalRecommendation,
           });
         }
-      }
-      if (typeof input.getInternalRecommendation === "boolean") {
-        const nextGetInternalRecommendation = input.getInternalRecommendation;
-        updatePayload.getInternalRecommendation = nextGetInternalRecommendation;
-        didUpdate = true;
-        updatedSettingFields.push("getInternalRecommendation");
+        summary =
+          "사용자가 Career 채팅에서 외부 공개 포지션 추천 중단을 요청했습니다.";
+      } else if (action === "stop_all") {
+        const nextProfileVisibility = "dont_share";
+        updatePayload.profileVisibility = nextProfileVisibility;
+        updatedSettingFields.push("profileVisibility");
         if (
           !isSameActivityValue(
-            existingSetting?.get_internal_recommendation ?? true,
-            nextGetInternalRecommendation
+            existingSetting?.profile_visibility ?? "exceptional_only",
+            nextProfileVisibility
           )
         ) {
           settingActivityChanges.push({
-            field: "getInternalRecommendation",
-            from: existingSetting?.get_internal_recommendation ?? true,
-            to: nextGetInternalRecommendation,
+            field: "profileVisibility",
+            from: existingSetting?.profile_visibility ?? "exceptional_only",
+            to: nextProfileVisibility,
           });
         }
-      }
-      if (
-        typeof input.recommendationBatchSize === "number" &&
-        Number.isFinite(input.recommendationBatchSize)
-      ) {
-        const nextRecommendationBatchSize = input.recommendationBatchSize;
-        updatePayload.recommendationBatchSize = nextRecommendationBatchSize;
-        didUpdate = true;
-        updatedSettingFields.push("recommendationBatchSize");
+        summary =
+          "사용자가 Career 채팅에서 모든 Harper 매칭 연락 중단을 요청했습니다.";
+      } else if (action === "resume") {
+        const nextGetExternalRecommendation = true;
+        const nextProfileVisibility = "exceptional_only";
+        updatePayload.getExternalRecommendation = nextGetExternalRecommendation;
+        updatePayload.profileVisibility = nextProfileVisibility;
+        updatedSettingFields.push(
+          "getExternalRecommendation",
+          "profileVisibility"
+        );
         if (
           !isSameActivityValue(
-            existingSetting?.recommendation_batch_size ?? null,
-            nextRecommendationBatchSize
+            existingSetting?.get_external_recommendation ?? true,
+            nextGetExternalRecommendation
           )
         ) {
           settingActivityChanges.push({
-            field: "recommendationBatchSize",
-            from: existingSetting?.recommendation_batch_size ?? null,
-            to: nextRecommendationBatchSize,
+            field: "getExternalRecommendation",
+            from: existingSetting?.get_external_recommendation ?? true,
+            to: nextGetExternalRecommendation,
           });
         }
+        if (
+          !isSameActivityValue(
+            existingSetting?.profile_visibility ?? "exceptional_only",
+            nextProfileVisibility
+          )
+        ) {
+          settingActivityChanges.push({
+            field: "profileVisibility",
+            from: existingSetting?.profile_visibility ?? "exceptional_only",
+            to: nextProfileVisibility,
+          });
+        }
+        summary =
+          "사용자가 Career 채팅에서 Harper 추천 연락 재개를 요청했습니다.";
+      } else {
+        throw new TalentToolError("update_setting requires a valid action.");
       }
 
-      if (didUpdate) {
-        await upsertTalentSetting(updatePayload);
-      }
+      await upsertTalentSetting(updatePayload);
 
       const settingChanges = compactActivityChanges(settingActivityChanges);
-      const settingSummary = buildPreferenceActivitySummary(settingChanges);
-      const settingImpactLevel =
-        settingChanges.length > 0
-          ? getPreferenceActivityImpact(settingChanges)
-          : null;
-      if (settingSummary) {
+      const settingSummary =
+        summary ?? buildPreferenceActivitySummary(settingChanges);
+      if (settingSummary && settingChanges.length > 0) {
         await insertTalentActivityEvent({
           admin,
           changedDomains: [
             "preferences",
+            "email_subscription",
             ...settingChanges.map((change) => change.field),
           ],
           conversationId: context?.conversationId ?? null,
           eventType: "preferences_changed",
-          impactLevel: settingImpactLevel ?? "low",
+          impactLevel: "high",
           messageId: context?.userMessageId ?? null,
           source: "chat",
           summary: settingSummary,
@@ -1860,10 +1878,11 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       return {
         assistantInstruction: [
           `Continue the conversation naturally in ${responseLanguage} now.`,
-          "If recommendation delivery settings changed, explain the practical consequence in the user's language: how many opportunities Harper will include per batch and which opportunity channels will be included or avoided.",
+          "If recommendation/contact subscription scope changed, explain the practical consequence in the user's language: which recommendations or matching contacts Harper will include or avoid from now on, and how the user can adjust it later.",
           "Do not make the saved-setting acknowledgement the whole answer; continue naturally from the user's intent.",
         ].join(" "),
-        impactLevel: settingImpactLevel ?? "low",
+        action,
+        impactLevel: "high",
         ok: true,
         updatedSettingFields,
       };
@@ -1872,7 +1891,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE]: {
     name: TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
     description:
-      "Update saved profile state with new information about the user. It can update the user's profile summary, current primary location/base, and row memos during onboarding and after onboarding. It can update future recommendation/search memory only after onboarding is already complete, and only for matching memory, not facts that belong in profile rows. Call when the user's latest statement directly maps to writable profile or future-matching memory, including explicit durable hard-filter search commands such as '미국 회사로만 찾아줘', '앞으로 리모트만 보내줘', '대기업은 빼고 찾아줘', or '다음부터 Series B 이상만 봐줘'. If the user discusses resume/CV context that matters for future matching, such as what their resume says, omits, emphasizes, or should signal, record that as future matching memory when it is not a direct resume-file/profile-row update. Do not call this tool for recommendation delivery settings such as cadence, batch size, external recommendations, or internal recommendations; those are not profile state. Do not call for user questions, one-off browsing/curiosity/search requests, hypotheticals/conditional speech ('만약 ~라면'), assistant statements, aspirational/off-profile role mentions without explicit future intent, or information already saved in current state. After the tool result, produce a normal user-facing chat reply in Korean; do not return an empty assistant message or only an onboarding marker.",
+      "Update saved profile/matching state from the latest user statement: profile summary, current base, row memos, post-onboarding future matching memory, or recommendationBatchSize. Do not use for subscription/contact actions; use update_setting for stop_external, stop_all, or resume. Skip questions, one-off searches, hypotheticals, assistant statements, and already-saved information.",
     parameters: {
       type: "object",
       properties: {
@@ -1895,100 +1914,67 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           additionalProperties: false,
         },
         rowMemos: {
-          type: "object",
+          type: "array",
           description:
-            "Per-row memo additions. Use ONLY when the user's declarative statement clearly maps to ONE specific row visible in the system prompt's [Structured Talent Profile] block. Provide newInfo (one short Korean fact, plain prose, no preamble like '저는'). NEVER invent rowIds or titles; use only those visible in the prompt's RowID lines (experiences/educations) or Title lines (extras). OMIT a table or entry entirely if the mention is ambiguous (multiple candidate rows), no row matches, or the statement is generic and not tied to a specific profile row.",
-          properties: {
-            experiences: {
-              type: "array",
-              description:
-                "Memo additions for experience rows. Match a row by its RowID line in the prompt.",
-              items: {
-                type: "object",
-                properties: {
-                  rowId: {
-                    type: "string",
-                    description:
-                      "Experience RowID from the profile listing. Must be a verbatim match.",
-                  },
-                  newInfo: {
-                    type: "string",
-                    description:
-                      "Single short Korean fact to add to this row's memo.",
-                  },
-                },
-                required: ["rowId", "newInfo"],
-                additionalProperties: false,
+            "Memo additions for visible profile rows. Use only when the user's statement clearly maps to one specific row. rowId must be a verbatim RowID from the profile listing. Omit ambiguous or generic mentions.",
+          items: {
+            type: "object",
+            properties: {
+              type: {
+                type: "string",
+                enum: ["experience", "education", "extra"],
+              },
+              rowId: {
+                type: "string",
+                description: "Exact RowID visible in the profile listing.",
+              },
+              title: {
+                type: "string",
+                description:
+                  "Optional exact Title visible for an extra row. Matching still uses rowId.",
+              },
+              memo: {
+                type: "string",
+                description:
+                  "Memo text to add to this row, based on the user's latest statement.",
               },
             },
-            educations: {
-              type: "array",
-              description:
-                "Memo additions for education rows. Match a row by its RowID line in the prompt.",
-              items: {
-                type: "object",
-                properties: {
-                  rowId: {
-                    type: "string",
-                    description:
-                      "Education RowID from the profile listing. Must be a verbatim match.",
-                  },
-                  newInfo: { type: "string" },
-                },
-                required: ["rowId", "newInfo"],
-                additionalProperties: false,
-              },
-            },
-            extras: {
-              type: "array",
-              description:
-                "Memo additions for extra profile items. Match an item by its exact Title from the profile listing. If two items share a title, omit the entry instead of guessing.",
-              items: {
-                type: "object",
-                properties: {
-                  title: {
-                    type: "string",
-                    description:
-                      "Exact Title visible in the profile listing's Extras block.",
-                  },
-                  newInfo: { type: "string" },
-                },
-                required: ["title", "newInfo"],
-                additionalProperties: false,
-              },
-            },
+            required: ["type", "rowId", "memo"],
+            additionalProperties: false,
           },
-          additionalProperties: false,
         },
         talentInsights: {
           type: "object",
           description:
-            "Durable future recommendation/search-memory updates from the user's latest statement, such as desired next role, search intensity, compensation, must-haves, deal-breakers, team style, company/domain preference, company size/stage preference, resume/CV positioning context, or corrections to prior matching preferences. Explicit hard-filter search commands are durable memory too: for example, '미국 회사로만 찾아줘' should update must_haves with a value like '앞으로 미국 기반 회사만 추천받고 싶어합니다.' when intended as a hard requirement. If the user talks about what their resume/CV contains, leaves out, emphasizes, or should communicate for matching, preserve that resume-related context here unless it belongs on one visible profile row. Do not use this for facts that belong on a specific experience, education, or extra row; use rowMemos instead. Do not use this for one-off curiosity/browsing/search requests or aspirational/off-profile role mentions unless the user explicitly says Harper should remember the new direction for future matching. Keys must be English snake_case. Values must be final integrated Korean complete sentences, not fragments. During onboarding, omit this entirely because insight extraction is handled separately.",
+            "Durable future recommendation/search-memory updates from the user's latest statement, such as desired next role, search intensity, compensation, must-haves, deal-breakers, team style, company/domain preference, company size/stage preference, resume/CV positioning context, or corrections to prior matching preferences, or external_delivery_selectivity. Explicit hard-filter search commands are durable memory too: for example, '미국 회사로만 찾아줘' should update must_haves with a value like '앞으로 미국 기반 회사만 추천받고 싶어합니다.' when intended as a hard requirement. If the user talks about what their resume/CV contains, leaves out, emphasizes, or should communicate for matching, preserve that resume-related context here unless it belongs on one visible profile row. Do not use this for facts that belong on a specific experience, education, or extra row; use rowMemos instead. Do not use this for one-off curiosity/browsing/search requests or aspirational/off-profile role mentions unless the user explicitly says Harper should remember the new direction for future matching. Values must be final integrated Korean complete sentences, not fragments. During onboarding, omit this entirely because insight extraction is handled separately.",
           properties: {
             content: {
               type: "object",
               description:
-                "Partial future-matching memory patch. If the new information belongs to an existing/current insight or checklist axis, update that key with the final integrated value instead of creating a synonym key. Create a new descriptive English snake_case key when the information is genuinely distinct and does not fit existing keys. Do not create profile-row keys like representative_experience or recent_experience.",
+                "Partial future-matching memory patch. If the new information belongs to an existing/current insight or checklist axis, update that key with the final integrated value instead of creating a synonym key. Create a new descriptive English snake_case key when the information is genuinely distinct and does not fit existing keys.",
               additionalProperties: {
                 type: "string",
-                description:
-                  "Final integrated Korean complete sentence. Write '규모를 선호합니다.' rather than '규모 선호.'",
+                description: "Final integrated complete Korean sentence.",
               },
             },
             changeSummary: {
               type: "string",
-              description:
-                "Short Korean summary of what changed and why it matters for future recommendations.",
+              description: "Short one-line Korean summary of what changed.",
             },
             impactLevel: {
               type: "string",
               enum: ["low", "medium", "high"],
-              description:
-                "Estimated impact on future recommendations. Use high only for core preference, hard constraint, or recommendation-changing updates; do not mark minor notes as high.",
             },
           },
           required: ["content"],
           additionalProperties: false,
+        },
+        recommendationBatchSize: {
+          type: "integer",
+          minimum: TALENT_RECOMMENDATION_BATCH_SIZE_MIN,
+          maximum: TALENT_RECOMMENDATION_BATCH_SIZE_MAX,
+          description:
+            "Recommendations per batch, 3-10. Exact count uses that value; vague more = current +2 capped at 10 or 5 if unknown; maximum = 10; vague fewer = current -2 floored at 3 or 3 if unknown.",
         },
       },
       additionalProperties: false,
@@ -2009,11 +1995,9 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         !Array.isArray(input.talentUser)
           ? (input.talentUser as Record<string, unknown>)
           : null;
-      const rowMemosInput =
-        input.rowMemos &&
-        typeof input.rowMemos === "object" &&
-        !Array.isArray(input.rowMemos)
-          ? (input.rowMemos as Record<string, unknown>)
+      const rowMemosInput: unknown =
+        input.rowMemos && typeof input.rowMemos === "object"
+          ? input.rowMemos
           : null;
       const talentInsightsInput =
         input.talentInsights &&
@@ -2053,6 +2037,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         key?: string;
         reason: string;
       }> = [];
+      const updatedRecommendationSettings: string[] = [];
 
       // talent_users — direct profile-level updates.
       const hasTalentUserBioUpdate = Boolean(
@@ -2214,21 +2199,51 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
 
       // talent_experiences/educations/extras row memos — silent per-row append.
       // Helpers enforce talent_id ownership and cap memo at 2000 chars.
-      if (rowMemosInput) {
-        const experiencesEntries = Array.isArray(rowMemosInput.experiences)
-          ? (rowMemosInput.experiences as unknown[])
+      const groupedRowMemosInput = Array.isArray(rowMemosInput)
+        ? {
+            experiences: rowMemosInput.filter(
+              (item) =>
+                item &&
+                typeof item === "object" &&
+                optionalToolString((item as Record<string, unknown>).type) ===
+                  "experience"
+            ),
+            educations: rowMemosInput.filter(
+              (item) =>
+                item &&
+                typeof item === "object" &&
+                optionalToolString((item as Record<string, unknown>).type) ===
+                  "education"
+            ),
+            extras: rowMemosInput.filter(
+              (item) =>
+                item &&
+                typeof item === "object" &&
+                optionalToolString((item as Record<string, unknown>).type) ===
+                  "extra"
+            ),
+          }
+        : rowMemosInput && typeof rowMemosInput === "object"
+          ? (rowMemosInput as Record<string, unknown>)
+          : null;
+
+      if (groupedRowMemosInput) {
+        const experiencesEntries = Array.isArray(
+          groupedRowMemosInput.experiences
+        )
+          ? (groupedRowMemosInput.experiences as unknown[])
           : [];
         for (const rawEntry of experiencesEntries) {
           if (!rawEntry || typeof rawEntry !== "object") continue;
           const entry = rawEntry as Record<string, unknown>;
           const rowId = optionalToolString(entry.rowId);
-          const newInfo = optionalToolString(entry.newInfo);
-          if (!rowId || !newInfo) continue;
+          const memo = optionalToolString(entry.memo);
+          if (!rowId || !memo) continue;
           const outcome = await appendExperienceMemo({
             admin,
             userId,
             rowId,
-            newInfo,
+            memo,
           });
           if (outcome.ok) {
             if (outcome.updated) {
@@ -2238,7 +2253,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
                   entityId: outcome.target.entityId,
                   entityLabel: outcome.target.entityLabel,
                   entityType: outcome.target.entityType,
-                  newInfo,
+                  memo,
                 });
               }
             }
@@ -2251,20 +2266,20 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           }
         }
 
-        const educationsEntries = Array.isArray(rowMemosInput.educations)
-          ? (rowMemosInput.educations as unknown[])
+        const educationsEntries = Array.isArray(groupedRowMemosInput.educations)
+          ? (groupedRowMemosInput.educations as unknown[])
           : [];
         for (const rawEntry of educationsEntries) {
           if (!rawEntry || typeof rawEntry !== "object") continue;
           const entry = rawEntry as Record<string, unknown>;
           const rowId = optionalToolString(entry.rowId);
-          const newInfo = optionalToolString(entry.newInfo);
-          if (!rowId || !newInfo) continue;
+          const memo = optionalToolString(entry.memo);
+          if (!rowId || !memo) continue;
           const outcome = await appendEducationMemo({
             admin,
             userId,
             rowId,
-            newInfo,
+            memo,
           });
           if (outcome.ok) {
             if (outcome.updated) {
@@ -2274,7 +2289,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
                   entityId: outcome.target.entityId,
                   entityLabel: outcome.target.entityLabel,
                   entityType: outcome.target.entityType,
-                  newInfo,
+                  memo,
                 });
               }
             }
@@ -2287,40 +2302,68 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           }
         }
 
-        const extrasEntries = Array.isArray(rowMemosInput.extras)
-          ? (rowMemosInput.extras as unknown[])
+        const extrasEntries = Array.isArray(groupedRowMemosInput.extras)
+          ? (groupedRowMemosInput.extras as unknown[])
           : [];
         for (const rawEntry of extrasEntries) {
           if (!rawEntry || typeof rawEntry !== "object") continue;
           const entry = rawEntry as Record<string, unknown>;
-          const title = optionalToolString(entry.title);
-          const newInfo = optionalToolString(entry.newInfo);
-          if (!title || !newInfo) continue;
+          const rowId = optionalToolString(entry.rowId);
+          const memo = optionalToolString(entry.memo);
+          if (!rowId || !memo) continue;
           const outcome = await appendExtraMemo({
             admin,
             userId,
-            title,
-            newInfo,
+            rowId,
+            memo,
           });
           if (outcome.ok) {
             if (outcome.updated) {
-              updatedRowMemos.extras.push(title);
+              updatedRowMemos.extras.push(rowId);
               if (outcome.target) {
                 rowMemoActivityItems.push({
                   entityId: outcome.target.entityId,
                   entityLabel: outcome.target.entityLabel,
                   entityType: outcome.target.entityType,
-                  newInfo,
+                  memo,
                 });
               }
             }
           } else {
             skippedRowMemos.push({
               table: "extras",
-              key: title,
+              key: rowId,
               reason: outcome.reason,
             });
           }
+        }
+      }
+
+      if (
+        Object.prototype.hasOwnProperty.call(
+          input,
+          "recommendationBatchSize"
+        ) &&
+        typeof input.recommendationBatchSize === "number" &&
+        Number.isFinite(input.recommendationBatchSize)
+      ) {
+        const setting = await loadExistingSetting();
+        const nextRecommendationBatchSize =
+          normalizeTalentRecommendationBatchSize(input.recommendationBatchSize);
+        const previousRecommendationBatchSize =
+          setting?.recommendation_batch_size ?? null;
+        if (
+          !isSameActivityValue(
+            previousRecommendationBatchSize,
+            nextRecommendationBatchSize
+          )
+        ) {
+          await upsertTalentSetting({
+            admin,
+            recommendationBatchSize: nextRecommendationBatchSize,
+            userId,
+          });
+          updatedRecommendationSettings.push("recommendationBatchSize");
         }
       }
 
@@ -2402,10 +2445,30 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         });
       }
 
+      if (updatedRecommendationSettings.includes("recommendationBatchSize")) {
+        const nextRecommendationBatchSize =
+          normalizeTalentRecommendationBatchSize(input.recommendationBatchSize);
+        await insertTalentActivityEvent({
+          admin,
+          changedDomains: [
+            "recommendation_settings",
+            "recommendation_batch_size",
+          ],
+          conversationId: context?.conversationId ?? null,
+          eventType: "preferences_changed",
+          impactLevel: "high",
+          messageId: context?.userMessageId ?? null,
+          source: "chat",
+          summary: `사용자가 Career 채팅에서 Harper 추천을 한 번에 ${nextRecommendationBatchSize}개씩 받고 싶다고 요청했습니다.`,
+          userId,
+        });
+      }
+
       const impactLevel = maxImpactLevel([
         talentUserActivityChanges.length > 0 ? "low" : null,
         rowMemoActivityItems.length > 0 ? "medium" : null,
         insightImpactLevel,
+        updatedRecommendationSettings.length > 0 ? "high" : null,
       ]);
       const responseLanguage = getTalentToolResponseLanguage(context);
       const replyInstructions = [
@@ -2422,6 +2485,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         updatedTalentUserFields,
         updatedRowMemos,
         updatedTalentInsightKeys: talentInsightKeys,
+        updatedRecommendationSettings,
         skippedRowMemos,
         skippedTalentInsights,
       };
@@ -2524,7 +2588,9 @@ export function getRealtimeTools(
       options?.responseLocale
     ) as string,
     parameters: localizeTalentToolPromptValue(
-      withUiStatusMessageParameter(tool.parameters),
+      tool.name === TALENT_TOOL_NAMES.END_CALL
+        ? tool.parameters
+        : withUiStatusMessageParameter(tool.parameters),
       options?.responseLocale
     ) as Record<string, unknown>,
   }));

@@ -28,7 +28,7 @@ import type {
   CareerTalentUser,
 } from "../types";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
-import { locationEnToKo } from "@/utils/language_map";
+import { formatCareerLocation } from "@/lib/career/locationDisplay";
 import {
   ActionButton,
   PrimaryButton,
@@ -978,9 +978,7 @@ const ProfileHeader = ({
             {user?.location ? (
               <span className="inline-flex items-center gap-1.5">
                 <MapPin className="h-3.5 w-3.5" />
-                {locale === "en"
-                  ? user.location
-                  : locationEnToKo(user.location)}
+                {formatCareerLocation(user.location, locale)}
               </span>
             ) : null}
           </div>

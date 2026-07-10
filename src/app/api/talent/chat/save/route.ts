@@ -27,8 +27,8 @@ import {
   resolveTalentOnboardingCompletion,
   stripTalentOnboardingCompletionMarker,
 } from "@/lib/talentOnboarding/completion";
-import { getCareerConversationStarterPrompt } from "@/lib/career/conversationStarterPrompts";
-import { getCareerRealtimeCandidateToolNames } from "@/lib/career/llmTools";
+import { getCareerConversationStarter } from "@/lib/career/prompts/conversationStarters";
+import { getCareerRealtimeToolCandidates } from "@/lib/career/llmTools";
 import { buildCareerRealtimeSessionInstructions } from "@/lib/career/realtimeInstructions";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 import { careerT } from "@/lib/career/translatedCareerMessage";
@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
       body.locale ??
       req.cookies.get("NEXT_LOCALE")?.value;
     const conversationStarter = conversationStarterId
-      ? getCareerConversationStarterPrompt(conversationStarterId, responseLocale)
+      ? getCareerConversationStarter(conversationStarterId, responseLocale)
       : null;
     const skipConversationWrites = Boolean(conversationStarter);
     if (conversationStarterId && !conversationStarter) {
@@ -442,7 +442,9 @@ export async function POST(req: NextRequest) {
             conversationStarterId,
             internalCallRequestId,
             preferredLocale: responseLocale,
-            toolNames: getCareerRealtimeCandidateToolNames(responseLocale),
+            toolNames: getCareerRealtimeToolCandidates(responseLocale).map(
+              (tool) => tool.name
+            ),
             userId: user.id,
           })
         ).instructions;

@@ -21,9 +21,38 @@ export type CompanySnapshotDossier = {
   updatedAt: string | null;
 };
 
+export type CompanyLeadershipEducation = {
+  degree: string | null;
+  field: string | null;
+  school: string | null;
+};
+
+export type CompanyLeadershipPerson = {
+  candidId: string;
+  education: CompanyLeadershipEducation[];
+  headline: string | null;
+  isCurrentAtCompany: boolean;
+  linkedinUrl: string | null;
+  name: string;
+  previousCompanies: string[];
+  role: string | null;
+};
+
+export type CompanyLeadershipPayload = {
+  leaders?: CompanyLeadershipPerson[];
+};
+
+export type CompanyDataSummary = {
+  lastFundingRoundDescription: string | null;
+  lastFundingStage: string | null;
+  mainInvestors: string | null;
+  totalFundingRaised: string | null;
+};
+
 export type CompanyWatchlistItem = {
   activeRoleCount: number;
   careerUrl: string | null;
+  companyData: CompanyDataSummary | null;
   companyDbId: number;
   companySnapshot: CompanySnapshotDossier | null;
   companyWorkspaceId: string | null;

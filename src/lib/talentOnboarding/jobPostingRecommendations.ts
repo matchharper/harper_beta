@@ -10,7 +10,6 @@ import {
   normalizeTalentBlockedCompanies,
 } from "@/lib/talentOnboarding/server";
 import { OpportunityType } from "@/lib/opportunityType";
-import { logger } from "@/utils/logger";
 
 if (typeof window !== "undefined") {
   throw new Error("jobPostingRecommendations must not run in the browser");
@@ -61,6 +60,7 @@ type RawRoleRow = {
   role_name?: string | null;
   search_rank?: number | null;
   seniority_level?: string | null;
+  summary?: unknown;
   type?: string[] | null;
   work_mode?: string | null;
 };
@@ -73,6 +73,8 @@ type RoleCard = {
     location?: string | null;
     shortDescription?: string | null;
   };
+  companyData?: JsonRecord;
+  companyLeadership?: string[];
   companyName: string | null;
   companyWorkspaceId: string;
   employmentType: string | null;
@@ -86,6 +88,7 @@ type RoleCard = {
   seniorityLevel: string | null;
   workMode: string | null;
   externalFitCache?: ExternalFitCache;
+  roleSummary?: JsonRecord;
   row: RawRoleRow;
   _shortlistCandidateId?: number;
 };
@@ -94,26 +97,15 @@ type ExternalFitCache = {
   createdAt: string | null;
   fitSummary: string;
   reason: string;
+  reasons: string[];
   score100: number;
   tradeoff: string;
 };
-
-type PreferenceFitStatus = "Satisfied" | "Neutral" | "Dissatisfied";
-
-type RecommendationPreferenceFit = Record<
-  string,
-  {
-    note: string;
-    status: PreferenceFitStatus;
-  }
->;
 
 type SelectedRecommendation = {
   fitReasons: string[];
   fitSummary: string | null;
   isSupplemental: boolean;
-  preferenceFit: RecommendationPreferenceFit;
-  rank: number;
   roleId: string;
   score: number;
   tradeoffs: string[];
@@ -130,7 +122,6 @@ type EnrichedRankedRole = {
   concerns: string[];
   detail: {
     fitReasons: string[];
-    preferenceFit: RecommendationPreferenceFit;
     roleOverviewText: string | null;
     tradeoffs: string[];
   };
@@ -164,14 +155,16 @@ type JobPostingTalentSetting = {
   user_id?: string | null;
 };
 
-const MAX_SEARCH_RESULTS = 200;
+const MAX_SEARCH_RESULTS = 150;
 const PREVIOUSLY_RECOMMENDED_ROLE_ID_PAGE_SIZE = 1000;
 const RECENT_TALENT_ACTIVITY_SUMMARY_LIMIT = 10;
 const RECENT_CONVERSATION_SUMMARY_LIMIT = 3;
+const ROLE_FIT_SUMMARY_VERSION = "v1";
+const ROLE_FIT_SUMMARY_MAX_LENGTH = 1400;
 const RECENT_RECOMMENDATIONS_FOR_CONTEXT = 10;
 const RECENT_DELIVERY_TEXTS_LIMIT = 6;
 const RECENT_DELIVERY_META_LIMIT = 6;
-const SEARCH_COMPANY_WORKSPACE_ROLE_CAP = 5;
+const SEARCH_COMPANY_WORKSPACE_ROLE_CAP = 3;
 const SHORTLIST_COMPANY_ROLE_CAP = 4;
 const SHORTLIST_LIMIT_MIN = 4;
 const SHORTLIST_LIMIT_MAX = 20;
@@ -183,15 +176,11 @@ const CONTINUATION_RECOMMENDATION_BATCH_LIMIT = 10;
 const EXTERNAL_FIT_CACHE_TTL_DAYS = 10;
 const EXTERNAL_FIT_CACHE_SHORTLIST_SKIP_MIN_SCORE100 = 70;
 const EXTERNAL_FIT_CACHE_SHORTLIST_SKIP_MIN_COUNT = 20;
+const COMPANY_LEADERSHIP_MAX_PEOPLE = 3;
+const COMPANY_LEADERSHIP_MAX_COMPANY_AGE_YEARS = 11;
+const COMPANY_LEADERSHIP_MAX_EMPLOYEE_COUNT_END = 201;
 const RECOMMEND_JOB_POSTINGS_MODEL_VERSION =
   "career_chat_recommend_job_postings_external_v5";
-const PREFERENCE_FIT_KEYS = [
-  "next_scope",
-  "location",
-  "compensation",
-  "deal_breakers",
-  "must_haves",
-] as const;
 
 const FTS_RANK_WEIGHTS = "ARRAY[0.04,0.57,0.64,1.0]::real[]";
 const MAX_FTS_KEYWORDS = 8;
@@ -295,68 +284,60 @@ Output schema:
 const FINAL_SELECTION_SYSTEM_PROMPT = `너는 Harper의 external job-posting selector다.
 반드시 JSON만 반환한다.
 
-이 도구는 external public job posting만 추천한다. Harper가 소개/연결할 수 있는 internal opportunity처럼 쓰지 않는다.
-현재 유저 요청을 가장 중요하게 반영하고, compact user_profile은 fitReasons와 preferenceFit을 개인화하는 데 사용한다.
+유저에게 external public job posting을 추천한다. Harper가 소개/연결할 수 있는 internal opportunity처럼 쓰지 않는다.
+현재 유저 요청을 가장 중요하게 반영하고, compact user_profile은 최종 추천 가능성을 판단하는 데 사용한다.
 
 Output schema:
 {
   "selectedRecommendations": [
     {
-      "rank": 1,
       "roleId": "...",
-      "score": 0.9,
-      "fitSummary": "회사와 역할에 대한 요약",
-      "fitReasons": ["유저 프로필 / request를 기반으로 이 역할을 추천하는 이우"],
-      "preferenceFit": {
-        "next_scope": {"status": "Satisfied|Neutral|Dissatisfied", "note": "short note in the requested user-facing output language"},
-        "location": {"status": "Satisfied|Neutral|Dissatisfied", "note": "short note in the requested user-facing output language"},
-        "compensation": {"status": "Satisfied|Neutral|Dissatisfied", "note": "short note in the requested user-facing output language"},
-        "deal_breakers": {"status": "Satisfied|Neutral|Dissatisfied", "note": "short note in the requested user-facing output language"},
-        "must_haves": {"status": "Satisfied|Neutral|Dissatisfied", "note": "short note in the requested user-facing output language"}
-      }
+      "score": 87,
+      "fitSummary": "회사와 역할에 대한 중립 요약"
     },
     {
       "roleId": "...",
-      "score": 0.52
+      "score": 76
     }
   ]
 }
 
 ## selectedRecommendations 필드 작성법:
-- detailedExternalCandidates의 모든 후보를 selectedRecommendations에 정확히 한 번씩 넣고 score를 매긴다. 이 배열은 최종 추천 목록이 아니라 scoring 결과다.
-- rank: 현재 요청과 잘 맞아 바로 추천할 수 있는 후보에만 쓴다. 1부터 시작한다.
+- detailedExternalCandidates 중 최종 추천할 만한 역할만 selectedRecommendations에 넣는다.
+- 가장 추천할 만한 역할부터 최대 targetRecommendationCount개만 작성한다. 나머지 후보는 roleId나 score조차 만들지 않아도 된다.
 - roleId: 반드시 detailedExternalCandidates 안에 있는 roleId만 사용한다.
-- score: 0~1 사이의 "추천 confidence"다. retrieval 점수나 회사 점수를 복사하지 않는다.
-- fitSummary: 제품의 추천 상세 카드에 들어갈 중립 요약이다. 회사가 무엇을 하고, 이 role이 무엇을 하는지, 그리고 이 회사와 role이 왜 좋은지 등 1~3문장으로 쓴다.
-  - 여기에 "왜 이 유저에게 맞는지"를 쓰지 않는다. 데이터가 있다면 활용해서 쓰면 좋다.
-  - 예: "Elevenlabs는 음성 합성·음성 복제·오디오 생성 AI를 개발하는 글로벌 연구 중심 회사입니다. 2023년에 설립되어 현재까지 1조원 이상을 투자 받아 현재 수백만명이 사용하고 있습니다. 이 역할은 Research Engineer이지만 특정 역할에 얽매이지않고 어떤 작업이든 할 수 있으며, 완전 원격도 가능합니다."
-- fitReasons: 유저에게 이 role을 제안하는 개인화된 이유다. 최대 3개, 각각 짧고 구체적으로 쓴다.
-  - 유저의 경력/대화/최근 저장·좋아요·싫어요/선호와 role evidence를 연결한다.
-  - 예: "STT-LLM-TTS 파이프라인으로 실제 대화 AI를 구현한 경험이 Voice AI 에이전트 배포 업무와 직접적으로 일치합니다."
-  - 예: "현재 역할은 ex-founder를 선호한다고 되어있어 창업 배경을 가진 호진님에게 적합합니다."
-- preferenceFit: 유저 insight에 명시된 선호 축만 평가한다. 없는 선호 축은 생략한다.
-  - 허용 key: next_scope, location, compensation, deal_breakers, must_haves.
-  - status는 Satisfied, Neutral, Dissatisfied 중 하나다.
-  - note는 role card와 user insight에 근거한 짧은 문장이며, 요청된 user-facing output language로 쓴다.
-  - 예:
-    {
-      "next_scope": {"status": "Satisfied", "note": "말씀하신 applied AI research 방향과 role scope가 맞습니다."},
-      "location": {"status": "Neutral", "note": "SF 기반이라 선호 지역과는 맞지만 onsite 빈도는 확인이 필요합니다."},
-      "deal_breakers": {"status": "Dissatisfied", "note": "relocation-only 조건이면 원격 선호와 충돌할 수 있습니다."}
-    }
+- score: 정수 0~100. 이 유저에게 지금 추천하기 얼마나 방어 가능한지 나타낸다. retrieval 점수나 회사 점수를 복사하지 않는다.
+- fitSummary is a neutral card summary. It should cover company context in 2-4
+  concise lines/sentences and role context in 2-4 concise lines/sentences.
+  Use provided investment, funding amount, investor, stage, when it would make the company more compelling
+  to this user. Never put personal fit reasoning in fitSummary.
+  Use founder background information only when it is given, the company is small and the founders have good experience.
+  - fitSummary에는 개인화된 추천 이유를 쓰지 않는다. 주어진 정보에 없는 내용은 만들지 않는다.
+  - detailedExternalCandidates item에 role_summary가 있으면 fitSummary를 반드시 생략하고 score만 출력한다. 코드가 role_summary를 최종 fitSummary로 우선 사용한다.
+  - 예: "ElevenLabs는 음성 합성·음성 복제·오디오 생성 AI를 개발하는 글로벌 연구 중심 회사입니다. 대규모 투자와 높은 사용량이 확인되는 회사라 Voice AI 커리어에서 브랜드와 기술 밀도가 모두 강한 편입니다. 이 역할은 Research Engineer로 TTS 모델의 데이터셋, 모델 학습, 품질 개선을 담당합니다. 특정 기능 하나에만 묶이기보다 음성 AI 모델 개발 전반에 깊게 관여하는 포지션입니다."
 
 규칙:
 - roleId는 detailedExternalCandidates 안에 있는 roleId만 사용한다.
-- score는 0~1 사이의 추천 confidence다. retrieval 점수, searchRank, company_score, test_score를 복사하지 않는다.
-- detailedExternalCandidates item에 cachedExternalFit이 있으면 jd는 제공되지 않는다. 이 경우 cachedExternalFit.fitSummary를 fitSummary로 재사용하고, cachedExternalFit.reason/score/tradeoff는 prior evidence로만 사용한다. 그래도 최종 선택과 score는 현재 request/searchPlan 기준으로 판단한다.
-- 현재 요청과 충분히 fit한 후보에는 fitSummary, fitReasons, preferenceFit을 작성한다.
-- 현재 요청과 완전히 일치하지 않거나 바로 추천할 정도의 fit은 아닌 후보는 roleId와 score만 반환한다. fitSummary, fitReasons, preferenceFit을 쓰지 않는다.
-- 코드가 fitSummary/fitReasons/preferenceFit이 있는 후보를 우선 추천하고, targetRecommendationCount보다 부족하면 roleId+score만 있는 후보 중 score가 높은 순서로 나머지를 채운다.
-- fitReasons는 현재 요청과 user_profile의 근거를 role/company/JD evidence와 연결한다.
-- preferenceFit은 user_profile.insights에 명시된 축만 평가한다.
+- score는 0~100 정수다. retrieval 점수, searchRank, company_score, test_score를 복사하지 않는다.
+- detailedExternalCandidates item에 role_summary가 있으면 fitSummary를 쓰지 않는다.
+- role_summary가 없는 후보를 선택했다면 fitSummary를 작성한다.
+- 출력 스키마에 없는 필드는 쓰지 않는다.
 - 한 회사에서 여러 role을 동시에 선택하지 않는다.
 - 제공된 후보/프로필에 없는 회사 문화, 투자, 팀 퀄리티, 보상, 성장성, 연락 가능성을 지어내지 않는다.
 - 역할의 설명과 관계없이 유저가 사용하는 언어로 모든 내용을 작성해라.(영어인 키워드는 제외)
+
+## Score Calibration
+- 95-100: Rare exceptional fit. Strong evidence across role scope, trajectory, preferences, seniority, location/work mode, and company quality. Almost no meaningful caveat.
+- 85-94: Strong recommendation. Clear personalized fit and only manageable caveats.
+- 75-84: Good but not automatic. One notable uncertainty or mild mismatch.
+- 60-74: Plausible but risky. Useful only if the run is deliberately testing an adjacent/stretch direction.
+- 40-59: Weak fit or important missing evidence. Do not let polished company quality hide the mismatch.
+- 0-39: Clear mismatch, wrong engagement type, implausible seniority/experience, location/work authorization conflict, or role category the user likely does not want.
+
+Hard Evaluation Rules:
+- Score is an integer 0-100. Use different scores whenever evidence supports separation; avoid ties among plausible top roles.
+- A role with a core mismatch can still be evaluated, but it should receive a clearly lower score.
+- Treat explicit preferences and deal breakers as selection constraints, not as small caveats.
 `;
 
 function cleanText(value: unknown, maxLength = 4000) {
@@ -370,10 +351,6 @@ function cleanText(value: unknown, maxLength = 4000) {
 function normalizeMultiline(value: unknown, maxLength = 4000) {
   const text = typeof value === "string" ? value.replace(/\r/g, "").trim() : "";
   return text ? text.slice(0, maxLength) : "";
-}
-
-function clampBlock(value: unknown, maxLength = 4000) {
-  return normalizeMultiline(value, maxLength);
 }
 
 function debugLog(label: string, payload: Record<string, unknown>) {
@@ -499,15 +476,11 @@ function clampNumber(
   return Math.max(min, Math.min(max, number));
 }
 
-function normalizeInt(
-  value: unknown,
-  fallback: number,
-  min: number,
-  max: number
-) {
-  const number = Number.parseInt(String(value ?? ""), 10);
+function normalizeScore100(value: unknown, fallback = 0) {
+  const number = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(number)) return fallback;
-  return Math.max(min, Math.min(max, number));
+  const score100 = number >= 0 && number <= 1 ? number * 100 : number;
+  return Math.round(clampNumber(score100, 0, 100, fallback));
 }
 
 function isEmptyForLlm(value: unknown) {
@@ -1784,6 +1757,7 @@ title_candidates AS MATERIALIZED (
     cr.type,
     cr.posted_at,
     cr.seniority_level,
+    cr.summary AS role_summary,
     cr.updated_at AS role_updated_at,
     cw.company_name,
     cw.company_description,
@@ -1813,6 +1787,7 @@ candidates AS (
     tc.type,
     tc.posted_at,
     tc.seniority_level,
+    tc.role_summary,
     tc.role_updated_at,
     tc.company_name,
     tc.company_description,
@@ -1852,6 +1827,7 @@ SELECT
   type,
   posted_at,
   seniority_level,
+  role_summary,
   company_name,
   company_description,
   company_test_score,
@@ -2007,6 +1983,7 @@ function normalizeRoleRow(value: unknown): RawRoleRow | null {
     role_name: stringField(record, "role_name", "roleName", "name"),
     search_rank: numberField(record, "search_rank", "searchRank"),
     seniority_level: stringField(record, "seniority_level", "seniorityLevel"),
+    summary: parseMaybeJsonValue(record.role_summary ?? record.summary),
     type: stringArrayField(record, "type"),
     work_mode: stringField(record, "work_mode", "workMode"),
   };
@@ -2122,9 +2099,424 @@ function roleRowsToCards(rows: RawRoleRow[]) {
   return rows.map(roleCard);
 }
 
+function uuidArraySql(values: string[]) {
+  const ids = values.map((value) => cleanText(value, 120)).filter(isUuid);
+  return `ARRAY[${ids.map((id) => `${sqlLiteral(id)}::uuid`).join(", ")}]::uuid[]`;
+}
+
+async function executeRawRecommendationSql(args: {
+  admin: AdminClient;
+  label: string;
+  limit?: number;
+  sql: string;
+}) {
+  const startedAt = Date.now();
+  const { data, error } = await (args.admin.rpc(
+    "set_timeout_and_execute_raw_sql" as never,
+    {
+      limit_num: args.limit ?? 1000,
+      offset_num: 0,
+      page_idx: 0,
+      sql_query: args.sql,
+    } as never
+  ) as unknown as Promise<{
+    data: unknown;
+    error: { message?: string } | null;
+  }>);
+  if (error) {
+    debugLog(`${args.label} sql error`, {
+      durationMs: Date.now() - startedAt,
+      message: error.message,
+      sql: args.sql,
+    });
+    throw new Error(error.message ?? `Failed to execute ${args.label}`);
+  }
+  const rows = flattenRpcRows(data);
+  debugLog(`${args.label} sql completed`, {
+    durationMs: Date.now() - startedAt,
+    rowCount: rows.length,
+  });
+  return rows;
+}
+
+function companyDataForLlmFromRow(row: JsonRecord): JsonRecord {
+  const confidence =
+    row.company_data_confidence === null ||
+    row.company_data_confidence === undefined ||
+    row.company_data_confidence === ""
+      ? null
+      : normalizeScore100(row.company_data_confidence, 0);
+  return cleanEmptyValues({
+    confidence,
+    lastFundingRoundDescription: normalizeMultiline(
+      row.company_data_last_funding_round_description,
+      1200
+    ),
+    lastFundingStage: cleanText(row.company_data_last_funding_stage, 240),
+    mainInvestors: normalizeMultiline(row.company_data_main_investors, 700),
+    searchedAt: cleanText(row.company_data_searched_at, 120),
+    totalFundingRaised: cleanText(row.company_data_total_funding_raised, 240),
+  }) as JsonRecord;
+}
+
+async function fetchCompanyDataForCards(args: {
+  admin: AdminClient;
+  cards: RoleCard[];
+}) {
+  const workspaceIds = Array.from(
+    new Set(
+      args.cards
+        .map((card) => cleanText(card.companyWorkspaceId, 120))
+        .filter(isUuid)
+    )
+  );
+  const result = new Map<string, JsonRecord>();
+  if (workspaceIds.length === 0) return result;
+
+  try {
+    const availabilityRows = await executeRawRecommendationSql({
+      admin: args.admin,
+      label: "company data availability",
+      limit: 1,
+      sql: "SELECT to_regclass('public.company_data')::text AS table_name",
+    });
+    const available = availabilityRows.some((row) =>
+      cleanText(asRecord(row)?.table_name, 120)
+    );
+    if (!available) return result;
+
+    const workspaceArray = uuidArraySql(workspaceIds);
+    const rows = await executeRawRecommendationSql({
+      admin: args.admin,
+      label: "company data",
+      limit: workspaceIds.length,
+      sql: `
+SELECT
+  company_workspace_id::text AS company_workspace_id,
+  total_funding_raised AS company_data_total_funding_raised,
+  main_investors AS company_data_main_investors,
+  last_funding_stage AS company_data_last_funding_stage,
+  last_funding_round_description AS company_data_last_funding_round_description,
+  confidence AS company_data_confidence,
+  searched_at AS company_data_searched_at
+FROM public.company_data
+WHERE company_workspace_id = ANY(${workspaceArray})
+      `.trim(),
+    });
+    for (const row of rows) {
+      const record = asRecord(row);
+      const workspaceId = cleanText(record?.company_workspace_id, 120);
+      if (!workspaceId) continue;
+      const data = companyDataForLlmFromRow(record ?? {});
+      if (Object.keys(data).length > 0) result.set(workspaceId, data);
+    }
+  } catch (error) {
+    debugLog("company data fetch skipped", {
+      message: error instanceof Error ? error.message : String(error),
+      workspaceCount: workspaceIds.length,
+    });
+  }
+
+  return result;
+}
+
+function numericValue(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(String(value).replace(/,/g, "").trim());
+  return Number.isFinite(number) ? number : null;
+}
+
+function employeeCountRangeEnd(value: unknown) {
+  const parsed = parseMaybeJsonValue(value);
+  const record = asRecord(parsed);
+  if (record) {
+    for (const key of ["end", "max", "to", "upper"]) {
+      const number = numericValue(record[key]);
+      if (number !== null) return number;
+    }
+    return null;
+  }
+  if (Array.isArray(parsed) && parsed.length >= 2)
+    return numericValue(parsed[1]);
+  return null;
+}
+
+function foundedYearValue(value: unknown) {
+  const text = cleanText(value, 80);
+  if (!text) return null;
+  const match = text.match(/\d{4}/);
+  if (!match) return null;
+  const year = Number(match[0]);
+  return Number.isFinite(year) && year >= 1800 ? year : null;
+}
+
+function eligibleForCompanyLeadership(card: RoleCard, currentYear?: number) {
+  const foundedYear = foundedYearValue(card.company.foundedYear);
+  const employeeEnd = employeeCountRangeEnd(card.company.employeeCountRange);
+  if (foundedYear === null || employeeEnd === null) return false;
+  const year = currentYear ?? new Date().getUTCFullYear();
+  const age = year - foundedYear;
+  return (
+    age >= 0 &&
+    age <= COMPANY_LEADERSHIP_MAX_COMPANY_AGE_YEARS &&
+    employeeEnd > 0 &&
+    employeeEnd <= COMPANY_LEADERSHIP_MAX_EMPLOYEE_COUNT_END
+  );
+}
+
+function educationLabel(value: unknown) {
+  const parsed = parseMaybeJsonValue(value);
+  if (!Array.isArray(parsed)) return "";
+  for (const item of parsed) {
+    const record = asRecord(item);
+    if (!record) continue;
+    const school = cleanText(record.school, 160);
+    const degree = cleanText(record.degree, 160);
+    if (school && degree) return `${school} (${degree})`.slice(0, 240).trim();
+    if (school) return school.slice(0, 240).trim();
+    if (degree) return degree.slice(0, 240).trim();
+  }
+  return "";
+}
+
+function compactCompanyLeadershipForCard(row: JsonRecord) {
+  const role = cleanText(row.leadership_role, 80).toLowerCase();
+  const previousCompanies = asStringArray(row.previous_companies, 3, 160);
+  const education = educationLabel(row.education);
+  if (!role || (previousCompanies.length === 0 && !education)) return "";
+  const parts = [role];
+  if (previousCompanies.length > 0) {
+    parts.push(`prev companies: ${previousCompanies.join(", ")}`);
+  }
+  if (education) parts.push(`education: ${education}`);
+  return parts.join(" - ").slice(0, 500).trim();
+}
+
+async function fetchCompanyLeadershipForCards(args: {
+  admin: AdminClient;
+  cards: RoleCard[];
+}) {
+  const workspaceIds = Array.from(
+    new Set(
+      args.cards
+        .filter((card) => eligibleForCompanyLeadership(card))
+        .map((card) => cleanText(card.companyWorkspaceId, 120))
+        .filter(isUuid)
+    )
+  );
+  const result = new Map<string, string[]>();
+  if (workspaceIds.length === 0) return result;
+
+  try {
+    const workspaceArray = uuidArraySql(workspaceIds);
+    const rows = await executeRawRecommendationSql({
+      admin: args.admin,
+      label: "company leadership",
+      limit: workspaceIds.length * COMPANY_LEADERSHIP_MAX_PEOPLE,
+      sql: `
+WITH target_company AS MATERIALIZED (
+  SELECT
+    workspace.company_workspace_id,
+    COALESCE(workspace.company_name, company_db.name) AS company_name,
+    workspace.company_db_id
+  FROM public.company_workspace workspace
+  LEFT JOIN public.company_db company_db
+    ON company_db.id = workspace.company_db_id
+  WHERE workspace.company_workspace_id = ANY(${workspaceArray})
+    AND workspace.company_db_id IS NOT NULL
+),
+leaders AS MATERIALIZED (
+  SELECT DISTINCT ON (target.company_workspace_id, experience.candid_id)
+    target.company_workspace_id,
+    target.company_name,
+    target.company_db_id,
+    experience.candid_id,
+    CASE
+      WHEN experience.role ~* 'chief[[:space:]]+executive[[:space:]]+officer|(^|[^[:alpha:]])ceo([^[:alpha:]]|$)' THEN 'ceo'
+      WHEN experience.role ~* 'chief[[:space:]]+technology[[:space:]]+officer|(^|[^[:alpha:]])cto([^[:alpha:]]|$)' THEN 'cto'
+      WHEN experience.role ~* 'chief[[:space:]]+operating[[:space:]]+officer|(^|[^[:alpha:]])coo([^[:alpha:]]|$)' THEN 'coo'
+      ELSE 'cofounder'
+    END AS leadership_role,
+    CASE
+      WHEN experience.role ~* 'chief[[:space:]]+executive[[:space:]]+officer|(^|[^[:alpha:]])ceo([^[:alpha:]]|$)' THEN 1
+      WHEN experience.role ~* 'chief[[:space:]]+technology[[:space:]]+officer|(^|[^[:alpha:]])cto([^[:alpha:]]|$)' THEN 2
+      WHEN experience.role ~* 'chief[[:space:]]+operating[[:space:]]+officer|(^|[^[:alpha:]])coo([^[:alpha:]]|$)' THEN 3
+      ELSE 4
+    END AS role_priority,
+    experience.start_date AS target_start_date,
+    experience.end_date AS target_end_date,
+    (experience.end_date IS NULL OR experience.end_date >= CURRENT_DATE) AS is_current_at_company
+  FROM target_company target
+  JOIN public.experience_user experience
+    ON experience.company_id = target.company_db_id
+  WHERE experience.candid_id IS NOT NULL
+    AND experience.role IS NOT NULL
+    AND (
+      experience.role ~* 'chief[[:space:]]+executive[[:space:]]+officer|(^|[^[:alpha:]])ceo([^[:alpha:]]|$)'
+      OR experience.role ~* 'chief[[:space:]]+technology[[:space:]]+officer|(^|[^[:alpha:]])cto([^[:alpha:]]|$)'
+      OR experience.role ~* 'chief[[:space:]]+operating[[:space:]]+officer|(^|[^[:alpha:]])coo([^[:alpha:]]|$)'
+      OR experience.role ~* '(^|[^[:alpha:]])(co[-[:space:]]*)?founders?([^[:alpha:]]|$)'
+    )
+    AND (
+      experience.end_date IS NULL
+      OR experience.end_date >= CURRENT_DATE
+      OR experience.role ~* '(^|[^[:alpha:]])(co[-[:space:]]*)?founders?([^[:alpha:]]|$)'
+    )
+  ORDER BY
+    target.company_workspace_id,
+    experience.candid_id,
+    role_priority,
+    (experience.end_date IS NULL OR experience.end_date >= CURRENT_DATE) DESC,
+    experience.start_date DESC NULLS LAST
+),
+ranked AS (
+  SELECT
+    leaders.company_workspace_id,
+    leaders.company_name,
+    leaders.leadership_role,
+    leaders.role_priority,
+    leaders.is_current_at_company,
+    candid.name,
+    COALESCE(prev.previous_companies, ARRAY[]::text[]) AS previous_companies,
+    COALESCE(education.education, '[]'::jsonb) AS education,
+    ROW_NUMBER() OVER (
+      PARTITION BY leaders.company_workspace_id
+      ORDER BY
+        leaders.role_priority,
+        leaders.is_current_at_company DESC,
+        candid.name NULLS LAST
+    ) AS company_rank
+  FROM leaders
+  JOIN public.candid candid
+    ON candid.id = leaders.candid_id
+  LEFT JOIN LATERAL (
+    SELECT array_agg(previous.company_name ORDER BY previous.last_start_date DESC NULLS LAST) AS previous_companies
+    FROM (
+      SELECT
+        company_db.id,
+        min(company_db.name) AS company_name,
+        max(experience.start_date) AS last_start_date
+      FROM public.experience_user experience
+      JOIN public.company_db company_db
+        ON company_db.id = experience.company_id
+      WHERE experience.candid_id = leaders.candid_id
+        AND experience.company_id IS DISTINCT FROM leaders.company_db_id
+        AND company_db.name IS NOT NULL
+        AND btrim(company_db.name) <> ''
+        AND (
+          leaders.target_start_date IS NULL
+          OR experience.start_date IS NULL
+          OR experience.start_date < leaders.target_start_date
+          OR experience.end_date <= leaders.target_start_date
+        )
+      GROUP BY company_db.id
+      ORDER BY max(experience.start_date) DESC NULLS LAST
+      LIMIT 3
+    ) previous
+  ) prev ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT jsonb_agg(
+      jsonb_build_object(
+        'school', edu.school,
+        'degree', edu.degree
+      )
+      ORDER BY edu.end_date DESC NULLS LAST, edu.start_date DESC NULLS LAST
+    ) AS education
+    FROM public.edu_user edu
+    WHERE edu.candid_id = leaders.candid_id
+      AND (edu.school IS NOT NULL OR edu.degree IS NOT NULL)
+  ) education ON TRUE
+  WHERE candid.name IS NOT NULL
+    AND btrim(candid.name) <> ''
+)
+SELECT
+  company_workspace_id::text AS company_workspace_id,
+  company_name,
+  leadership_role,
+  name,
+  previous_companies,
+  education
+FROM ranked
+WHERE company_rank <= ${COMPANY_LEADERSHIP_MAX_PEOPLE}
+ORDER BY array_position(${workspaceArray}, ranked.company_workspace_id), company_rank
+      `.trim(),
+    });
+    for (const row of rows) {
+      const record = asRecord(row);
+      if (!record) continue;
+      const workspaceId = cleanText(record.company_workspace_id, 120);
+      const leadership = compactCompanyLeadershipForCard(record);
+      if (!workspaceId || !leadership) continue;
+      const people = result.get(workspaceId) ?? [];
+      if (people.length < COMPANY_LEADERSHIP_MAX_PEOPLE) {
+        people.push(leadership);
+        result.set(workspaceId, people);
+      }
+    }
+  } catch (error) {
+    debugLog("company leadership fetch skipped", {
+      message: error instanceof Error ? error.message : String(error),
+      workspaceCount: workspaceIds.length,
+    });
+  }
+
+  return result;
+}
+
+async function attachCompanyContextToCards(args: {
+  admin: AdminClient;
+  cards: RoleCard[];
+  languageKey?: string;
+}) {
+  if (args.cards.length === 0) return args.cards;
+  const cardsNeedingContext = args.languageKey
+    ? args.cards.filter(
+        (card) =>
+          !card.externalFitCache && !roleSummaryContent(card, args.languageKey!)
+      )
+    : args.cards;
+  if (cardsNeedingContext.length === 0) return args.cards;
+  const [companyDataByWorkspaceId, leadershipByWorkspaceId] = await Promise.all(
+    [
+      fetchCompanyDataForCards({
+        admin: args.admin,
+        cards: cardsNeedingContext,
+      }),
+      fetchCompanyLeadershipForCards({
+        admin: args.admin,
+        cards: cardsNeedingContext,
+      }),
+    ]
+  );
+  return args.cards.map((card) => {
+    const workspaceId = cleanText(card.companyWorkspaceId, 120);
+    const companyData = companyDataByWorkspaceId.get(workspaceId);
+    const companyLeadership = leadershipByWorkspaceId.get(workspaceId);
+    if (!companyData && !companyLeadership) return card;
+    return {
+      ...card,
+      ...(companyData ? { companyData } : {}),
+      ...(companyLeadership ? { companyLeadership } : {}),
+    };
+  });
+}
+
+function roleSummaryFromValue(value: unknown): JsonRecord | null {
+  const parsed = asRecord(parseMaybeJsonValue(value));
+  if (!parsed) return null;
+  const cleaned: JsonRecord = {};
+  for (const [key, item] of Object.entries(parsed)) {
+    if (asRecord(item) || cleanText(item, ROLE_FIT_SUMMARY_MAX_LENGTH)) {
+      cleaned[key] = item;
+    }
+  }
+  return Object.keys(cleaned).length > 0 ? cleaned : null;
+}
+
 function roleCard(row: RawRoleRow): RoleCard {
   const companyScore = normalizeCompanyTestScore(row.company_test_score);
-  return {
+  const roleSummary = roleSummaryFromValue(row.summary);
+  const card: RoleCard = {
     company: {
       description:
         normalizeMultiline(row.company_description, 900) ||
@@ -2149,26 +2541,42 @@ function roleCard(row: RawRoleRow): RoleCard {
     seniorityLevel: cleanText(row.seniority_level, 120) || null,
     workMode: cleanText(row.work_mode, 100) || null,
   };
+  if (roleSummary) card.roleSummary = roleSummary;
+  return card;
 }
 
 function normalizeExternalFitCacheScore100(meta: JsonRecord) {
   const raw =
     meta.score ?? meta.score100 ?? meta.fitScore ?? meta.fit_score ?? null;
-  const number = typeof raw === "number" ? raw : Number(raw);
-  if (!Number.isFinite(number)) return 0;
-  const score100 = number >= 0 && number <= 1 ? number * 100 : number;
-  return Math.round(clampNumber(score100, 0, 100, 0));
+  return normalizeScore100(raw, 0);
 }
 
-function normalizeExternalFitCacheReason(meta: JsonRecord) {
-  const direct =
-    normalizeMultiline(meta.reason ?? meta.fitReason ?? meta.fit_reason, 900) ||
-    "";
-  if (direct) return direct;
-  return coerceList(meta.fitReasons ?? meta.fit_reasons, 3)
-    .map((item) => normalizeMultiline(item, 300))
-    .filter(Boolean)
-    .join(" ");
+function hasExternalFitCacheScore(meta: JsonRecord) {
+  const raw =
+    meta.score ?? meta.score100 ?? meta.fitScore ?? meta.fit_score ?? null;
+  if (raw === null || raw === undefined || raw === "") return false;
+  const number = typeof raw === "number" ? raw : Number(raw);
+  return Number.isFinite(number);
+}
+
+function normalizeExternalFitCacheReasons(meta: JsonRecord) {
+  const unique = new Map<string, string>();
+  const add = (value: unknown) => {
+    const text = normalizeMultiline(value, 300);
+    if (!text) return;
+    const key = text.toLocaleLowerCase("ko-KR");
+    if (!unique.has(key)) unique.set(key, text);
+  };
+  for (const value of coerceList(
+    meta.reason ?? meta.fitReason ?? meta.fit_reason,
+    3
+  )) {
+    add(value);
+  }
+  for (const value of coerceList(meta.fitReasons ?? meta.fit_reasons, 3)) {
+    add(value);
+  }
+  return Array.from(unique.values()).slice(0, 3);
 }
 
 function normalizeExternalFitCacheTradeoff(meta: JsonRecord) {
@@ -2192,21 +2600,44 @@ function normalizeExternalFitCache(
   if (!meta) return null;
   const fitSummary = normalizeMultiline(
     meta.fitSummary ?? meta.fit_summary,
-    1000
+    ROLE_FIT_SUMMARY_MAX_LENGTH
   );
-  const reason = normalizeExternalFitCacheReason(meta);
+  const reasons = normalizeExternalFitCacheReasons(meta);
+  const reason = reasons.join(" ");
   const tradeoff = normalizeExternalFitCacheTradeoff(meta);
-  if (!fitSummary && !reason && !tradeoff) return null;
+  const hasScore = hasExternalFitCacheScore(meta);
+  if (!fitSummary && !reason && !tradeoff && !hasScore) return null;
   return {
     createdAt: cleanText(createdAtValue, 120) || null,
     fitSummary,
     reason,
-    score100: normalizeExternalFitCacheScore100(meta),
+    reasons,
+    score100: hasScore ? normalizeExternalFitCacheScore100(meta) : 0,
     tradeoff,
   };
 }
 
-async function fetchRecentExternalFitCache(args: {
+function roleSummaryLanguageKey(outputLanguage: string) {
+  return cleanText(outputLanguage, 40).toLowerCase() === "english"
+    ? "en"
+    : "ko";
+}
+
+function roleSummaryContentFromSummary(summary: unknown, languageKey: string) {
+  const summaries = asRecord(summary);
+  const entry = asRecord(summaries?.[languageKey]);
+  const content = normalizeMultiline(
+    entry?.content,
+    ROLE_FIT_SUMMARY_MAX_LENGTH
+  );
+  return content || "";
+}
+
+function roleSummaryContent(card: RoleCard, languageKey: string) {
+  return roleSummaryContentFromSummary(card.roleSummary, languageKey);
+}
+
+async function fetchExternalFitCache(args: {
   admin: AdminClient;
   roleIds: string[];
   userId: string;
@@ -2269,6 +2700,7 @@ function attachExternalFitCache(
 
 function selectCachedHighScoreShortlist(
   cards: RoleCard[],
+  minimumSelectedCount: number,
   selectionLimit: number
 ) {
   const highScoreCachedCards = cards.filter(
@@ -2281,18 +2713,28 @@ function selectCachedHighScoreShortlist(
   ) {
     return null;
   }
-  return [...highScoreCachedCards]
-    .sort((left, right) => {
-      const scoreDiff =
-        (right.externalFitCache?.score100 ?? 0) -
-        (left.externalFitCache?.score100 ?? 0);
-      if (scoreDiff !== 0) return scoreDiff;
-      if (right.searchRank !== left.searchRank) {
-        return right.searchRank - left.searchRank;
-      }
-      return (right.score ?? 0) - (left.score ?? 0);
-    })
-    .slice(0, selectionLimit);
+  const sorted = [...highScoreCachedCards].sort((left, right) => {
+    const scoreDiff =
+      (right.externalFitCache?.score100 ?? 0) -
+      (left.externalFitCache?.score100 ?? 0);
+    if (scoreDiff !== 0) return scoreDiff;
+    if (right.searchRank !== left.searchRank) {
+      return right.searchRank - left.searchRank;
+    }
+    return (right.score ?? 0) - (left.score ?? 0);
+  });
+  const selected: RoleCard[] = [];
+  const seenCompanies = new Set<string>();
+  for (const card of sorted) {
+    const company =
+      companyKey(card.companyName) || card.companyWorkspaceId || card.roleId;
+    if (company && seenCompanies.has(company)) continue;
+    selected.push(card);
+    if (company) seenCompanies.add(company);
+    if (selected.length >= selectionLimit) break;
+  }
+  if (selected.length < minimumSelectedCount) return null;
+  return selected;
 }
 
 function compactDateForRoleCard(value: unknown) {
@@ -2357,37 +2799,67 @@ function companyLineForLlm(card: RoleCard, includeScore: boolean) {
   return body ? `${companyName} : ${body}` : companyName;
 }
 
-function roleSearchResultCard(card: RoleCard) {
-  return {
+function roleSearchResultCard(card: RoleCard, languageKey?: string) {
+  const cachedSummary = languageKey
+    ? roleSummaryContent(card, languageKey)
+    : "";
+  const role = cachedSummary
+    ? `${roleLineForLlm(card)} | summry: ${cachedSummary}`
+    : roleLineForLlm(card);
+  return cleanEmptyValues({
     id: card._shortlistCandidateId,
     company: companyLineForLlm(card, true),
     retrievalFtsScore: compactFloat(card.searchRank, 3),
-    role: roleLineForLlm(card),
-  };
-}
-
-function roleDetailCardForLlm(card: RoleCard) {
-  return cleanEmptyValues({
-    company: companyLineForLlm(card, false),
-    jd: normalizeMultiline(card.roleDescription, 4000),
-    role: roleLineForLlm(card),
-    roleId: card.roleId,
+    role,
   }) as JsonRecord;
 }
 
-function roleFinalSelectionCardForLlm(card: RoleCard) {
-  const cached = card.externalFitCache;
-  if (!cached) return roleDetailCardForLlm(card);
+function companyFundingForLlm(card: RoleCard) {
+  const data = asRecord(card.companyData);
+  if (!data) return {};
   return cleanEmptyValues({
-    cachedExternalFit: {
-      fitSummary: cached.fitSummary,
-      reason: cached.reason,
-      score: cached.score100,
-      tradeoff: cached.tradeoff,
-    },
-    company: companyLineForLlm(card, false),
-    role: roleLineForLlm(card),
+    confidence: data.confidence,
+    lastFundingRoundDescription: normalizeMultiline(
+      data.lastFundingRoundDescription,
+      1200
+    ),
+    lastFundingStage: cleanText(data.lastFundingStage, 240),
+    mainInvestors: normalizeMultiline(data.mainInvestors, 700),
+    searchedAt: cleanText(data.searchedAt, 120),
+    totalFundingRaised: cleanText(data.totalFundingRaised, 240),
+  }) as JsonRecord;
+}
+
+function companyLeadershipForLlm(value: unknown) {
+  return asStringArray(value, COMPANY_LEADERSHIP_MAX_PEOPLE, 500);
+}
+
+function roleDetailCardForLlm(card: RoleCard, languageKey?: string) {
+  const roleSummary = languageKey ? roleSummaryContent(card, languageKey) : "";
+  const detail: JsonRecord = {
     roleId: card.roleId,
+    role: roleLineForLlm(card),
+    company: companyLineForLlm(card, false),
+  };
+  if (roleSummary) {
+    detail.role_summary = roleSummary;
+  } else {
+    const companyFunding = companyFundingForLlm(card);
+    if (Object.keys(companyFunding).length > 0) {
+      detail.companyFunding = companyFunding;
+    }
+    const companyLeadership = companyLeadershipForLlm(card.companyLeadership);
+    if (companyLeadership.length > 0) {
+      detail.companyLeadership = companyLeadership;
+    }
+  }
+  detail.jd = normalizeMultiline(card.roleDescription, 4000);
+  return cleanEmptyValues(detail) as JsonRecord;
+}
+
+function roleFinalSelectionCardForLlm(card: RoleCard, languageKey: string) {
+  return cleanEmptyValues({
+    ...roleDetailCardForLlm(card, languageKey),
   }) as JsonRecord;
 }
 
@@ -2468,6 +2940,7 @@ function sanitizeShortlist(
 async function shortlistRoles(args: {
   cards: RoleCard[];
   llmUserProfile: JsonRecord;
+  outputLanguage: string;
   plan: ExternalSearchPlan;
   request: string;
   targetRecommendationCount: number;
@@ -2482,6 +2955,7 @@ async function shortlistRoles(args: {
     });
     return visible;
   }
+  const languageKey = roleSummaryLanguageKey(args.outputLanguage);
   const raw = await runTalentAssistantCompletion({
     fallbackModel: RECOMMEND_JOB_POSTINGS_FALLBACK_MODEL,
     jsonMode: true,
@@ -2490,7 +2964,9 @@ async function shortlistRoles(args: {
       {
         role: "user",
         content: JSON.stringify({
-          externalCandidates: visible.map(roleSearchResultCard),
+          externalCandidates: visible.map((card) =>
+            roleSearchResultCard(card, languageKey)
+          ),
           request: args.request,
           searchPlan: args.plan,
           selectionLimit,
@@ -2522,36 +2998,6 @@ async function shortlistRoles(args: {
   return selected;
 }
 
-function normalizePreferenceFitStatus(
-  value: unknown
-): PreferenceFitStatus | null {
-  const text = cleanText(value, 40).toLocaleLowerCase("ko-KR");
-  if (text === "satisfied") return "Satisfied";
-  if (text === "neutral") return "Neutral";
-  if (text === "dissatisfied") return "Dissatisfied";
-  return null;
-}
-
-function normalizeRecommendationPreferenceFit(
-  value: unknown
-): RecommendationPreferenceFit {
-  const record = asRecord(value);
-  if (!record) return {};
-  const result: RecommendationPreferenceFit = {};
-  for (const key of PREFERENCE_FIT_KEYS) {
-    const item = asRecord(record[key]);
-    if (!item) continue;
-    const status = normalizePreferenceFitStatus(item.status);
-    const note =
-      cleanText(item.note, 180) ||
-      cleanText(item.reason, 180) ||
-      cleanText(item.sentence, 180);
-    if (!status || !note) continue;
-    result[key] = { note, status };
-  }
-  return result;
-}
-
 function fallbackFitSummary(card: RoleCard) {
   const company = cleanText(card.companyName, 160) || "해당 회사";
   const title = cleanText(card.roleName, 180) || "해당 포지션";
@@ -2564,35 +3010,84 @@ function fallbackFitSummary(card: RoleCard) {
   return `${company}의 ${title} 포지션입니다.`;
 }
 
-function normalizeSelectedRecommendation(
-  raw: unknown,
-  index: number,
-  card: RoleCard
+function selectedRecommendationFromExternalFitCache(
+  card: RoleCard,
+  languageKey: string
 ): SelectedRecommendation {
-  const record = asRecord(raw) ?? {};
-  const score = clampNumber(record.score, 0, 1, 0);
-  const fitReasons = asStringArray(record.fitReasons, 3, 180);
-  const fitSummary = cleanText(record.fitSummary, 700);
-  const cachedFitSummary = cleanText(card.externalFitCache?.fitSummary, 700);
-  const preferenceFit = normalizeRecommendationPreferenceFit(
-    record.preferenceFit
-  );
-  const isSupplemental =
-    fitReasons.length === 0 &&
-    !fitSummary &&
-    Object.keys(preferenceFit).length === 0;
+  const cache = card.externalFitCache;
+  const fitReasons = cache
+    ? cache.reasons.length > 0
+      ? cache.reasons
+      : cache.reason
+        ? [cache.reason]
+        : []
+    : [];
+  const tradeoff = normalizeMultiline(cache?.tradeoff, 320);
   return {
     fitReasons,
     fitSummary:
-      fitSummary ||
-      (isSupplemental ? null : cachedFitSummary || fallbackFitSummary(card)),
-    isSupplemental,
-    preferenceFit,
-    rank: normalizeInt(record.rank, index + 1, 1, FINAL_RECOMMENDATION_COUNT),
+      roleSummaryContent(card, languageKey) ||
+      normalizeMultiline(cache?.fitSummary, ROLE_FIT_SUMMARY_MAX_LENGTH) ||
+      fallbackFitSummary(card),
+    isSupplemental: false,
     roleId: card.roleId,
-    score,
+    score: normalizeScore100(cache?.score100, 0),
+    tradeoffs: tradeoff ? [tradeoff] : [],
+  };
+}
+
+function normalizeLlmSelectedRecommendation(
+  raw: unknown,
+  card: RoleCard,
+  languageKey: string
+): SelectedRecommendation {
+  const record = asRecord(raw) ?? {};
+  const fitSummary =
+    roleSummaryContent(card, languageKey) ||
+    cleanText(record.fitSummary, ROLE_FIT_SUMMARY_MAX_LENGTH) ||
+    fallbackFitSummary(card);
+  return {
+    fitReasons: [],
+    fitSummary,
+    isSupplemental: false,
+    roleId: card.roleId,
+    score: normalizeScore100(record.score, 0),
     tradeoffs: [],
   };
+}
+
+function sortSelectedRecommendations(
+  selected: SelectedRecommendation[],
+  cardIndexByRoleId: Map<string, number>
+) {
+  return [...selected].sort((left, right) => {
+    if (right.score !== left.score) return right.score - left.score;
+    return (
+      (cardIndexByRoleId.get(left.roleId) ?? Number.MAX_SAFE_INTEGER) -
+      (cardIndexByRoleId.get(right.roleId) ?? Number.MAX_SAFE_INTEGER)
+    );
+  });
+}
+
+function dedupeSelectedByCompany(
+  selected: SelectedRecommendation[],
+  cards: RoleCard[]
+) {
+  const byRoleId = new Map(cards.map((card) => [card.roleId, card]));
+  const result: SelectedRecommendation[] = [];
+  const seenCompanies = new Set<string>();
+  const seenRoles = new Set<string>();
+  for (const item of selected) {
+    const card = byRoleId.get(item.roleId);
+    if (!card || seenRoles.has(item.roleId)) continue;
+    const company =
+      companyKey(card.companyName) || card.companyWorkspaceId || item.roleId;
+    if (company && seenCompanies.has(company)) continue;
+    result.push(item);
+    seenRoles.add(item.roleId);
+    if (company) seenCompanies.add(company);
+  }
+  return result;
 }
 
 async function selectFinalRecommendations(args: {
@@ -2613,114 +3108,131 @@ async function selectFinalRecommendations(args: {
       supplementalCount: 0,
     };
   }
-  const detailedExternalCandidates = args.cards.map(
-    roleFinalSelectionCardForLlm
+  const languageKey = roleSummaryLanguageKey(args.outputLanguage);
+  const cachedCards = args.cards.filter((card) =>
+    Boolean(card.externalFitCache)
   );
-  const raw = await runTalentAssistantCompletion({
-    anthropicOverloadFallbackModel:
-      RECOMMEND_JOB_POSTINGS_ANTHROPIC_OVERLOAD_FALLBACK_MODEL,
-    fallbackModel: RECOMMEND_JOB_POSTINGS_FALLBACK_MODEL,
-    jsonMode: true,
-    messages: [
-      { role: "system", content: FINAL_SELECTION_SYSTEM_PROMPT },
-      {
-        role: "system",
-        content: `User-facing output language: ${args.outputLanguage}. Write fitSummary, fitReasons, preferenceFit.note, and any other user-facing recommendation text in ${args.outputLanguage}.`,
-      },
-      {
-        role: "user",
-        content: JSON.stringify({
-          detailedExternalCandidates,
-          previousDeliveryTexts: args.previousDeliveryTexts,
-          recentDeliveryMeta: args.recentDeliveryMeta,
-          request: args.request,
-          searchPlan: args.plan,
-          targetRecommendationCount: args.targetRecommendationCount,
-          user_profile: args.llmUserProfile,
-        }),
-      },
-    ],
-    primaryModel: RECOMMEND_JOB_POSTINGS_FINAL_SELECTION_MODEL,
-    temperature:
-      CAREER_LLM_CONFIG.recommendJobPostings.finalSelectionTemperature,
-    usageLabel: "career_tool:recommend_job_postings:final_selection",
+  const cachedCompanyKeys = new Set(
+    cachedCards
+      .map(
+        (card) =>
+          companyKey(card.companyName) || card.companyWorkspaceId || card.roleId
+      )
+      .filter(Boolean)
+  );
+  const uncachedCards = args.cards.filter((card) => {
+    if (card.externalFitCache) return false;
+    const company =
+      companyKey(card.companyName) || card.companyWorkspaceId || card.roleId;
+    return !company || !cachedCompanyKeys.has(company);
   });
-  const parsed = parseJsonObject(raw);
-  const selectedRaw = Array.isArray(parsed?.selectedRecommendations)
-    ? parsed.selectedRecommendations
-    : [];
-  const byRoleId = new Map(args.cards.map((card) => [card.roleId, card]));
+  const cachedSelections = cachedCards.map((card) =>
+    selectedRecommendationFromExternalFitCache(card, languageKey)
+  );
   const cardIndexByRoleId = new Map(
     args.cards.map((card, index) => [card.roleId, index])
   );
-  const scored: SelectedRecommendation[] = [];
-  const scoredRoleIds = new Set<string>();
-  for (const item of selectedRaw) {
-    const record = asRecord(item);
-    const roleId = cleanText(record?.roleId, 120);
-    const card = byRoleId.get(roleId);
-    if (!card || scoredRoleIds.has(roleId)) continue;
-    scored.push(normalizeSelectedRecommendation(record, scored.length, card));
-    scoredRoleIds.add(roleId);
-  }
-  const orderedDirectFits = scored
-    .filter((item) => !item.isSupplemental)
-    .sort((left, right) => {
-      if (left.rank !== right.rank) return left.rank - right.rank;
-      if (right.score !== left.score) return right.score - left.score;
-      return (
-        (cardIndexByRoleId.get(left.roleId) ?? Number.MAX_SAFE_INTEGER) -
-        (cardIndexByRoleId.get(right.roleId) ?? Number.MAX_SAFE_INTEGER)
-      );
+  const dedupedCachedSelections = dedupeSelectedByCompany(
+    sortSelectedRecommendations(cachedSelections, cardIndexByRoleId),
+    args.cards
+  );
+  const remainingLlmSelectionCount = Math.max(
+    0,
+    args.targetRecommendationCount - dedupedCachedSelections.length
+  );
+
+  let raw = "";
+  let parsed: JsonRecord | null = null;
+  const llmScored: SelectedRecommendation[] = [];
+  if (remainingLlmSelectionCount > 0 && uncachedCards.length > 0) {
+    const detailedExternalCandidates = uncachedCards.map((card) =>
+      roleFinalSelectionCardForLlm(card, languageKey)
+    );
+    raw = await runTalentAssistantCompletion({
+      anthropicOverloadFallbackModel:
+        RECOMMEND_JOB_POSTINGS_ANTHROPIC_OVERLOAD_FALLBACK_MODEL,
+      fallbackModel: RECOMMEND_JOB_POSTINGS_FALLBACK_MODEL,
+      jsonMode: true,
+      messages: [
+        { role: "system", content: FINAL_SELECTION_SYSTEM_PROMPT },
+        {
+          role: "system",
+          content: `User-facing output language: ${args.outputLanguage}. Write fitSummary only when required, in ${args.outputLanguage}. Only output fields shown in the schema.`,
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            detailedExternalCandidates,
+            previousDeliveryTexts: args.previousDeliveryTexts,
+            recentDeliveryMeta: args.recentDeliveryMeta,
+            request: args.request,
+            searchPlan: args.plan,
+            targetRecommendationCount: remainingLlmSelectionCount,
+            user_profile: args.llmUserProfile,
+          }),
+        },
+      ],
+      primaryModel: RECOMMEND_JOB_POSTINGS_FINAL_SELECTION_MODEL,
+      temperature:
+        CAREER_LLM_CONFIG.recommendJobPostings.finalSelectionTemperature,
+      usageLabel: "career_tool:recommend_job_postings:final_selection",
     });
-  const orderedSupplements = scored
-    .filter((item) => item.isSupplemental)
-    .sort((left, right) => {
-      if (right.score !== left.score) return right.score - left.score;
-      return (
-        (cardIndexByRoleId.get(left.roleId) ?? Number.MAX_SAFE_INTEGER) -
-        (cardIndexByRoleId.get(right.roleId) ?? Number.MAX_SAFE_INTEGER)
+    parsed = parseJsonObject(raw);
+    const selectedRaw = Array.isArray(parsed?.selectedRecommendations)
+      ? parsed.selectedRecommendations
+      : [];
+    const byRoleId = new Map(uncachedCards.map((card) => [card.roleId, card]));
+    const scoredRoleIds = new Set<string>();
+    for (const item of selectedRaw) {
+      const record = asRecord(item);
+      const roleId = cleanText(record?.roleId, 120);
+      const card = byRoleId.get(roleId);
+      if (!card || scoredRoleIds.has(roleId)) continue;
+      llmScored.push(
+        normalizeLlmSelectedRecommendation(record, card, languageKey)
       );
+      scoredRoleIds.add(roleId);
+    }
+  } else {
+    infoJson("final selection skipped", {
+      cachedFinalCandidateCount: cachedCards.length,
+      dedupedCachedFinalCandidateCount: dedupedCachedSelections.length,
+      reason:
+        remainingLlmSelectionCount <= 0
+          ? "external_fit_cache_count_reached_target"
+          : "no_uncached_final_candidates",
+      targetRecommendationCount: args.targetRecommendationCount,
+      uncachedFinalCandidateCount: uncachedCards.length,
     });
-  const selected: SelectedRecommendation[] = [];
-  const seenCompanies = new Set<string>();
-  const seenRoles = new Set<string>();
-  const addSelection = (item: SelectedRecommendation) => {
-    const card = byRoleId.get(item.roleId);
-    if (!card || seenRoles.has(item.roleId)) return;
-    const company =
-      companyKey(card.companyName) || card.companyWorkspaceId || item.roleId;
-    if (company && seenCompanies.has(company)) return;
-    selected.push(item);
-    seenRoles.add(item.roleId);
-    if (company) seenCompanies.add(company);
-  };
-  for (const item of orderedDirectFits) {
-    if (selected.length >= args.targetRecommendationCount) break;
-    addSelection(item);
   }
-  for (const item of orderedSupplements) {
-    if (selected.length >= args.targetRecommendationCount) break;
-    addSelection(item);
-  }
-  const rankedSelected = selected.map((item, index) => ({
-    ...item,
-    rank: index + 1,
-  }));
-  const supplementalCount = rankedSelected.filter(
-    (item) => item.isSupplemental
-  ).length;
+
+  const limitedLlmSelections = sortSelectedRecommendations(
+    llmScored,
+    cardIndexByRoleId
+  ).slice(0, remainingLlmSelectionCount);
+  const scored = [...cachedSelections, ...limitedLlmSelections];
+  const selected = dedupeSelectedByCompany(
+    sortSelectedRecommendations(scored, cardIndexByRoleId),
+    args.cards
+  );
+  const supplementalCount = 0;
   debugLog("final selection raw", {
-    raw: raw.slice(0, 4000),
-    directFitCount: rankedSelected.length - supplementalCount,
+    cachedFinalCandidateCount: cachedCards.length,
+    dedupedCachedFinalCandidateCount: dedupedCachedSelections.length,
+    directFitCount: selected.length - supplementalCount,
+    llmSelectedCount: limitedLlmSelections.length,
+    raw: raw ? raw.slice(0, 4000) : "",
+    remainingLlmSelectionCount,
+    selectedParsed: parsed,
     scoredCount: scored.length,
-    selectedCount: rankedSelected.length,
+    selectedCount: selected.length,
     supplementalCount,
+    uncachedFinalCandidateCount: uncachedCards.length,
   });
   return {
-    directFitCount: rankedSelected.length - supplementalCount,
+    directFitCount: selected.length - supplementalCount,
     scoredCount: scored.length,
-    selected: rankedSelected,
+    selected,
     supplementalCount,
   };
 }
@@ -2742,7 +3254,6 @@ function rankedFromSelected(
         concerns: item.tradeoffs,
         detail: {
           fitReasons: item.fitReasons,
-          preferenceFit: item.preferenceFit,
           roleOverviewText: item.fitSummary,
           tradeoffs: item.tradeoffs,
         },
@@ -2752,7 +3263,7 @@ function rankedFromSelected(
         recommendationText: item.fitReasons.join(" ") || item.fitSummary,
         role: card.row,
         roleId: item.roleId,
-        score: item.score * 10,
+        score: item.score / 10,
       };
     })
     .filter((item): item is EnrichedRankedRole => Boolean(item));
@@ -2761,7 +3272,9 @@ function rankedFromSelected(
 function recommendationScoreForDb(score: unknown) {
   const number = typeof score === "number" ? score : Number(score);
   if (!Number.isFinite(number)) return 0;
-  return Math.max(0, Math.min(1, number / 10));
+  if (number >= 0 && number <= 1) return number;
+  if (number <= 10) return Math.max(0, Math.min(1, number / 10));
+  return Math.max(0, Math.min(1, number / 100));
 }
 
 function buildRecommendationEvidence(item: EnrichedRankedRole) {
@@ -2785,11 +3298,87 @@ function buildRecommendationEvidence(item: EnrichedRankedRole) {
   ].filter((entry) => entry.text);
 }
 
+async function saveRoleFitSummaries(args: {
+  admin: AdminClient;
+  outputLanguage: string;
+  recommendations: EnrichedRankedRole[];
+}) {
+  const languageKey = roleSummaryLanguageKey(args.outputLanguage);
+  let stored = 0;
+  for (const item of args.recommendations) {
+    const roleId = cleanText(item.roleId || item.role.role_id, 120);
+    if (!roleId || !isUuid(roleId)) continue;
+    if (
+      roleSummaryContentFromSummary(
+        roleSummaryFromValue(item.role.summary),
+        languageKey
+      )
+    ) {
+      continue;
+    }
+    const content = normalizeMultiline(
+      item.detail.roleOverviewText,
+      ROLE_FIT_SUMMARY_MAX_LENGTH
+    );
+    if (!content) continue;
+    const payload = JSON.stringify({
+      content,
+      generatedAt: new Date().toISOString(),
+      version: ROLE_FIT_SUMMARY_VERSION,
+    });
+    const sql = `
+UPDATE public.company_roles
+SET summary = jsonb_set(
+  COALESCE(summary, '{}'::jsonb),
+  ARRAY[${sqlLiteral(languageKey)}::text],
+  ${sqlLiteral(payload)}::jsonb,
+  true
+)
+WHERE role_id = ${sqlLiteral(roleId)}::uuid
+  AND (
+    summary IS NULL
+    OR NOT (summary ? ${sqlLiteral(languageKey)})
+    OR NULLIF(BTRIM(summary -> ${sqlLiteral(languageKey)} ->> 'content'), '') IS NULL
+    OR summary -> ${sqlLiteral(languageKey)} ->> 'version' IS DISTINCT FROM ${sqlLiteral(ROLE_FIT_SUMMARY_VERSION)}
+  )
+`.trim();
+    const { error } = await (args.admin.rpc(
+      "set_timeout_and_execute_raw_sql" as never,
+      {
+        limit_num: 1,
+        offset_num: 0,
+        page_idx: 0,
+        sql_query: sql,
+      } as never
+    ) as unknown as Promise<{
+      data: unknown;
+      error: { message?: string } | null;
+    }>);
+    if (error) throw new Error(error.message ?? "Failed to save role summary");
+    stored += 1;
+  }
+  return stored;
+}
+
 async function persistRecommendations(args: {
   admin: AdminClient;
+  outputLanguage: string;
   recommendations: EnrichedRankedRole[];
   userId: string;
 }) {
+  try {
+    const stored = await saveRoleFitSummaries({
+      admin: args.admin,
+      outputLanguage: args.outputLanguage,
+      recommendations: args.recommendations,
+    });
+    if (stored > 0) debugLog("saved role fit summaries", { stored });
+  } catch (error) {
+    debugLog("role fit summary save skipped", {
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+
   const rows = args.recommendations
     .map((item, index) => {
       const roleId = cleanText(item.role.role_id, 120);
@@ -2800,7 +3389,6 @@ async function persistRecommendations(args: {
         fit_summary: item.detail.roleOverviewText,
         model_version: RECOMMEND_JOB_POSTINGS_MODEL_VERSION,
         opportunity_type: OpportunityType.ExternalJd,
-        preference_fit: item.detail.preferenceFit,
         rank: index + 1,
         role_id: roleId,
         score: recommendationScoreForDb(item.score),
@@ -3134,7 +3722,7 @@ export async function runCareerJobPostingRecommendations(args: {
   });
 
   const candidateCardsWithoutCache = roleRowsToCards(rows);
-  const externalFitCacheByRoleId = await fetchRecentExternalFitCache({
+  const externalFitCacheByRoleId = await fetchExternalFitCache({
     admin: args.admin,
     roleIds: candidateCardsWithoutCache.map((card) => card.roleId),
     userId: args.userId,
@@ -3155,7 +3743,11 @@ export async function runCareerJobPostingRecommendations(args: {
   const selectionLimit = shortlistLimit(targetRecommendationCount);
   const cachedShortlistCards =
     candidateCards.length > 0
-      ? selectCachedHighScoreShortlist(candidateCards, selectionLimit)
+      ? selectCachedHighScoreShortlist(
+          candidateCards,
+          targetRecommendationCount,
+          selectionLimit
+        )
       : null;
   let shortlistSkippedByCache = false;
   const shortlistedCards =
@@ -3176,6 +3768,7 @@ export async function runCareerJobPostingRecommendations(args: {
         : await shortlistRoles({
             cards: candidateCards,
             llmUserProfile,
+            outputLanguage,
             plan,
             request,
             targetRecommendationCount,
@@ -3185,8 +3778,41 @@ export async function runCareerJobPostingRecommendations(args: {
   const shortlistedCacheHitCount = shortlistedCards.filter((card) =>
     Boolean(card.externalFitCache)
   ).length;
+  const finalSelectionLanguageKey = roleSummaryLanguageKey(outputLanguage);
+  const shortlistedCachedCompanyKeys = new Set(
+    shortlistedCards
+      .filter((card) => Boolean(card.externalFitCache))
+      .map(
+        (card) =>
+          companyKey(card.companyName) || card.companyWorkspaceId || card.roleId
+      )
+      .filter(Boolean)
+  );
+  const remainingFinalSelectionLlmCount = Math.max(
+    0,
+    targetRecommendationCount - shortlistedCachedCompanyKeys.size
+  );
+  const shouldAttachCompanyContext =
+    remainingFinalSelectionLlmCount > 0 &&
+    shortlistedCards.some((card) => {
+      if (card.externalFitCache) return false;
+      const company =
+        companyKey(card.companyName) || card.companyWorkspaceId || card.roleId;
+      return (
+        (!company || !shortlistedCachedCompanyKeys.has(company)) &&
+        !roleSummaryContent(card, finalSelectionLanguageKey)
+      );
+    });
+  const finalSelectionCards = shouldAttachCompanyContext
+    ? await attachCompanyContextToCards({
+        admin: args.admin,
+        cards: shortlistedCards,
+        languageKey: finalSelectionLanguageKey,
+      })
+    : shortlistedCards;
+  throwIfRecommendationSearchAborted(args.abortSignal);
   const finalSelection = await selectFinalRecommendations({
-    cards: shortlistedCards,
+    cards: finalSelectionCards,
     llmUserProfile,
     outputLanguage,
     plan,
@@ -3198,11 +3824,12 @@ export async function runCareerJobPostingRecommendations(args: {
   throwIfRecommendationSearchAborted(args.abortSignal);
   const detailedRecommendations = rankedFromSelected(
     finalSelection.selected,
-    shortlistedCards
+    finalSelectionCards
   );
   throwIfRecommendationSearchAborted(args.abortSignal);
   const recommendations = await persistRecommendations({
     admin: args.admin,
+    outputLanguage,
     recommendations: detailedRecommendations,
     userId: args.userId,
   });
@@ -3217,6 +3844,9 @@ export async function runCareerJobPostingRecommendations(args: {
     shortlistSkippedByCache,
     shortlistedCacheHitCount,
     shortlistCandidateCount: shortlistedCards.length,
+    finalSelectionCompanyContextCount: finalSelectionCards.filter(
+      (card) => card.companyData || card.companyLeadership
+    ).length,
     supplementalRecommendationCount: finalSelection.supplementalCount,
     topScores: recommendations.slice(0, 5).map((item) => ({
       desc: `${item.role.role_name} - ${item.role.company_name} - ${item.role.company_test_score}`,
@@ -3234,6 +3864,7 @@ export async function runCareerJobPostingRecommendations(args: {
       supplementalRecommendationCount: finalSelection.supplementalCount,
     }),
     candidateCount: candidateCards.length,
+    postingRoleIds: recommendations.map((item) => item.roleId).filter(isUuid),
     recommendationCount: recommendations.length,
     searchPlan: {
       ftsKeywords: plan.ftsKeywords,

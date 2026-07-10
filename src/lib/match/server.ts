@@ -18,6 +18,7 @@ import {
 type AdminClient = ReturnType<typeof getSupabaseAdmin>;
 
 type WorkspaceRow = {
+  company_db_id?: number | null;
   company_description: string | null;
   company_name: string;
   company_workspace_id: string;
@@ -47,9 +48,14 @@ type MembershipRow = {
 };
 
 type CompanyDbRow = {
+  id: number;
+  last_updated_at?: string | null;
   linkedin_url: string | null;
   logo: string | null;
 };
+
+const MATCH_WORKSPACE_SELECT =
+  "company_workspace_id, company_name, homepage_url, linkedin_url, logo_url, company_description, company_db_id, created_at, updated_at";
 
 export type MatchCandidateListItem = CandidateTypeWithConnection & {
   match: MatchCandidateRecord;
@@ -87,7 +93,9 @@ function normalizeLinkedinCompanyUrl(raw: string): string | null {
     if (segments.length < 2) return null;
     if (segments[0]?.toLowerCase() !== "company") return null;
 
-    const slug = decodeURIComponent(segments[1] ?? "").trim().toLowerCase();
+    const slug = decodeURIComponent(segments[1] ?? "")
+      .trim()
+      .toLowerCase();
     if (!slug) return null;
 
     return `https://www.linkedin.com/company/${slug}`;
@@ -96,23 +104,26 @@ function normalizeLinkedinCompanyUrl(raw: string): string | null {
   }
 }
 
-async function resolveWorkspaceLogoFromCompanyDb(
+async function resolveWorkspaceBrandingFromCompanyDb(
   admin: AdminClient,
   linkedinUrl?: string | null
 ) {
   const rawLinkedinUrl = String(linkedinUrl ?? "").trim();
   if (!rawLinkedinUrl) {
     return {
+      companyDbId: null,
       linkedinUrl: null,
       logoUrl: null,
     };
   }
 
   const normalizedLinkedinUrl = normalizeLinkedinCompanyUrl(rawLinkedinUrl);
-  const linkedinSlug = normalizedLinkedinUrl?.split("/").filter(Boolean).at(-1) ?? null;
+  const linkedinSlug =
+    normalizedLinkedinUrl?.split("/").filter(Boolean).at(-1) ?? null;
 
   if (!normalizedLinkedinUrl || !linkedinSlug) {
     return {
+      companyDbId: null,
       linkedinUrl: rawLinkedinUrl,
       logoUrl: null,
     };
@@ -126,11 +137,11 @@ async function resolveWorkspaceLogoFromCompanyDb(
   ];
 
   try {
-    const exactMatchQuery = (((admin.from("company_db" as any) as any)
-      .select("linkedin_url, logo")
+    const exactMatchQuery = (admin.from("company_db" as any) as any)
+      .select("id, linkedin_url, logo, last_updated_at")
       .in("linkedin_url", candidates)
-      .not("logo", "is", null)
-      .limit(1)) as any);
+      .order("last_updated_at", { ascending: false, nullsFirst: false })
+      .limit(1) as any;
     const { data: exactData, error: exactError } = await exactMatchQuery;
 
     if (exactError) {
@@ -138,31 +149,38 @@ async function resolveWorkspaceLogoFromCompanyDb(
     }
 
     const exactRow = coerceJsonArray<CompanyDbRow>(exactData)[0];
-    if (exactRow?.logo) {
+    if (exactRow) {
       return {
+        companyDbId: Number(exactRow.id),
         linkedinUrl: normalizedLinkedinUrl,
-        logoUrl: exactRow.logo,
+        logoUrl: exactRow.logo ?? null,
       };
     }
 
-    const fuzzyMatchQuery = (((admin.from("company_db" as any) as any)
-      .select("linkedin_url, logo")
+    const fuzzyMatchQuery = (admin.from("company_db" as any) as any)
+      .select("id, linkedin_url, logo, last_updated_at")
       .ilike("linkedin_url", `%/company/${linkedinSlug}%`)
-      .not("logo", "is", null)
-      .limit(1)) as any);
+      .order("last_updated_at", { ascending: false, nullsFirst: false })
+      .limit(10) as any;
     const { data: fuzzyData, error: fuzzyError } = await fuzzyMatchQuery;
 
     if (fuzzyError) {
       throw fuzzyError;
     }
 
-    const fuzzyRow = coerceJsonArray<CompanyDbRow>(fuzzyData)[0];
+    const fuzzyRow = coerceJsonArray<CompanyDbRow>(fuzzyData).find(
+      (row) =>
+        normalizeLinkedinCompanyUrl(row.linkedin_url ?? "") ===
+        normalizedLinkedinUrl
+    );
     return {
+      companyDbId: fuzzyRow ? Number(fuzzyRow.id) : null,
       linkedinUrl: normalizedLinkedinUrl,
       logoUrl: fuzzyRow?.logo ?? null,
     };
   } catch {
     return {
+      companyDbId: null,
       linkedinUrl: normalizedLinkedinUrl,
       logoUrl: null,
     };
@@ -186,9 +204,7 @@ function mapWorkspaceRecord(args: {
   };
 }
 
-function mapRoleRecord(args: {
-  row: RoleRow;
-}): MatchRoleRecord {
+function mapRoleRecord(args: { row: RoleRow }): MatchRoleRecord {
   const roleId = String(args.row.role_id ?? "");
   return {
     companyWorkspaceId: String(args.row.company_workspace_id ?? ""),
@@ -204,9 +220,11 @@ function mapRoleRecord(args: {
 }
 
 async function fetchMembershipRows(admin: AdminClient, userId: string) {
-  const { data, error } = await ((admin.from("company_user_workspace" as any) as any)
+  const { data, error } = await (
+    admin.from("company_user_workspace" as any) as any
+  )
     .select("company_user_id, company_workspace_id, role")
-    .eq("company_user_id", userId));
+    .eq("company_user_id", userId);
 
   if (error) {
     throw new Error(error.message ?? "Failed to load workspace memberships");
@@ -215,18 +233,77 @@ async function fetchMembershipRows(admin: AdminClient, userId: string) {
   return coerceJsonArray<MembershipRow>(data);
 }
 
+async function ensureWorkspaceMembership(args: {
+  admin: AdminClient;
+  userId: string;
+  workspaceId: string;
+}) {
+  const { data: existingData, error: existingError } = await (
+    args.admin.from("company_user_workspace" as any) as any
+  )
+    .select("company_user_id, company_workspace_id, role")
+    .eq("company_user_id", args.userId)
+    .eq("company_workspace_id", args.workspaceId)
+    .limit(1);
+
+  if (existingError) {
+    throw new Error(
+      existingError.message ?? "Failed to load workspace membership"
+    );
+  }
+
+  const existingMembership =
+    coerceJsonArray<MembershipRow>(existingData)[0] ?? null;
+  if (existingMembership) {
+    return existingMembership.role ?? null;
+  }
+
+  const { data, error } = await (
+    args.admin.from("company_user_workspace" as any) as any
+  )
+    .insert({
+      company_user_id: args.userId,
+      company_workspace_id: args.workspaceId,
+      role: "owner",
+    })
+    .select("company_user_id, company_workspace_id, role")
+    .single();
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to create workspace membership");
+  }
+
+  return (data as MembershipRow).role ?? "owner";
+}
+
+async function fetchWorkspaceRowByCompanyDbId(
+  admin: AdminClient,
+  companyDbId: number | null
+) {
+  if (companyDbId === null) return null;
+
+  const { data, error } = await (admin.from("company_workspace" as any) as any)
+    .select(MATCH_WORKSPACE_SELECT)
+    .eq("company_db_id", companyDbId)
+    .limit(1);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load workspace by company_db");
+  }
+
+  return coerceJsonArray<WorkspaceRow>(data)[0] ?? null;
+}
+
 async function fetchWorkspaceRowsByIds(
   admin: AdminClient,
   workspaceIds: string[]
 ) {
   if (workspaceIds.length === 0) return [] as WorkspaceRow[];
 
-  const { data, error } = await ((admin.from("company_workspace" as any) as any)
-    .select(
-      "company_workspace_id, company_name, homepage_url, linkedin_url, logo_url, company_description, created_at, updated_at"
-    )
+  const { data, error } = await (admin.from("company_workspace" as any) as any)
+    .select(MATCH_WORKSPACE_SELECT)
     .in("company_workspace_id", workspaceIds)
-    .order("updated_at", { ascending: false }));
+    .order("updated_at", { ascending: false });
 
   if (error) {
     throw new Error(error.message ?? "Failed to load workspaces");
@@ -261,13 +338,15 @@ async function resolveWorkspaceContext(args: {
 
   const workspaceRows = await fetchWorkspaceRowsByIds(args.admin, workspaceIds);
   const membershipByWorkspaceId = new Map(
-    memberships.map((row) => [String(row.company_workspace_id ?? ""), row] as const)
+    memberships.map(
+      (row) => [String(row.company_workspace_id ?? ""), row] as const
+    )
   );
   const workspaces = workspaceRows.map((row) =>
     mapWorkspaceRecord({
       membershipRole:
-        membershipByWorkspaceId.get(String(row.company_workspace_id ?? ""))?.role ??
-        null,
+        membershipByWorkspaceId.get(String(row.company_workspace_id ?? ""))
+          ?.role ?? null,
       row,
     })
   );
@@ -308,12 +387,12 @@ export async function fetchWorkspaceRoles(args: {
   admin: AdminClient;
   workspaceId: string;
 }) {
-  const { data, error } = await ((args.admin.from("company_roles" as any) as any)
+  const { data, error } = await (args.admin.from("company_roles" as any) as any)
     .select(
       "role_id, company_workspace_id, name, external_jd_url, description, type, status, created_at, updated_at"
     )
     .eq("company_workspace_id", args.workspaceId)
-    .order("updated_at", { ascending: false }));
+    .order("updated_at", { ascending: false });
 
   if (error) {
     throw new Error(error.message ?? "Failed to load roles");
@@ -372,46 +451,55 @@ export async function createMatchWorkspace(args: {
   userId: string;
 }) {
   const admin = getSupabaseAdmin();
-  const resolvedBranding = await resolveWorkspaceLogoFromCompanyDb(
+  const resolvedBranding = await resolveWorkspaceBrandingFromCompanyDb(
     admin,
     args.linkedinUrl
   );
+  const existingWorkspace = await fetchWorkspaceRowByCompanyDbId(
+    admin,
+    resolvedBranding.companyDbId
+  );
+
+  if (existingWorkspace) {
+    const memberRole = await ensureWorkspaceMembership({
+      admin,
+      userId: args.userId,
+      workspaceId: existingWorkspace.company_workspace_id,
+    });
+
+    return mapWorkspaceRecord({
+      membershipRole: memberRole,
+      row: existingWorkspace,
+    });
+  }
 
   const payload = {
-    company_description:
-      String(args.companyDescription ?? "").trim() || null,
+    company_description: String(args.companyDescription ?? "").trim() || null,
+    company_db_id: resolvedBranding.companyDbId,
     company_name: ensureNonEmptyString(args.companyName, "companyName"),
     homepage_url: String(args.homepageUrl ?? "").trim() || null,
     linkedin_url: resolvedBranding.linkedinUrl,
     logo_url: resolvedBranding.logoUrl,
   };
 
-  const { data, error } = await ((admin.from("company_workspace" as any) as any)
+  const { data, error } = await (admin.from("company_workspace" as any) as any)
     .insert(payload)
-    .select(
-      "company_workspace_id, company_name, homepage_url, linkedin_url, logo_url, company_description, created_at, updated_at"
-    )
-    .single());
+    .select(MATCH_WORKSPACE_SELECT)
+    .single();
 
   if (error) {
     throw new Error(error.message ?? "Failed to create workspace");
   }
 
   const workspaceRow = data as WorkspaceRow;
-  const { error: membershipError } = await (
-    (admin.from("company_user_workspace" as any) as any)
-  ).insert({
-    company_user_id: args.userId,
-    company_workspace_id: workspaceRow.company_workspace_id,
-    role: "owner",
+  const memberRole = await ensureWorkspaceMembership({
+    admin,
+    userId: args.userId,
+    workspaceId: workspaceRow.company_workspace_id,
   });
 
-  if (membershipError) {
-    throw new Error(membershipError.message ?? "Failed to create workspace membership");
-  }
-
   return mapWorkspaceRecord({
-    membershipRole: "owner",
+    membershipRole: memberRole,
     row: workspaceRow,
   });
 }
@@ -440,7 +528,10 @@ export async function updateMatchWorkspace(args: {
   };
 
   if (args.companyName !== undefined) {
-    payload.company_name = ensureNonEmptyString(args.companyName, "companyName");
+    payload.company_name = ensureNonEmptyString(
+      args.companyName,
+      "companyName"
+    );
   }
   if (args.companyDescription !== undefined) {
     payload.company_description =
@@ -450,21 +541,33 @@ export async function updateMatchWorkspace(args: {
     payload.homepage_url = String(args.homepageUrl ?? "").trim() || null;
   }
   if (args.linkedinUrl !== undefined) {
-    const resolvedBranding = await resolveWorkspaceLogoFromCompanyDb(
+    const resolvedBranding = await resolveWorkspaceBrandingFromCompanyDb(
       admin,
       args.linkedinUrl
     );
+    const existingWorkspace = await fetchWorkspaceRowByCompanyDbId(
+      admin,
+      resolvedBranding.companyDbId
+    );
+    if (
+      existingWorkspace &&
+      existingWorkspace.company_workspace_id !==
+        resolved.workspace.company_workspace_id
+    ) {
+      throw new Error(
+        "A workspace already exists for this LinkedIn company page"
+      );
+    }
+    payload.company_db_id = resolvedBranding.companyDbId;
     payload.linkedin_url = resolvedBranding.linkedinUrl;
     payload.logo_url = resolvedBranding.logoUrl;
   }
 
-  const { data, error } = await ((admin.from("company_workspace" as any) as any)
+  const { data, error } = await (admin.from("company_workspace" as any) as any)
     .update(payload)
     .eq("company_workspace_id", resolved.workspace.company_workspace_id)
-    .select(
-      "company_workspace_id, company_name, homepage_url, linkedin_url, logo_url, company_description, created_at, updated_at"
-    )
-    .single());
+    .select(MATCH_WORKSPACE_SELECT)
+    .single();
 
   if (error) {
     throw new Error(error.message ?? "Failed to save workspace");
@@ -510,15 +613,14 @@ export async function saveMatchRole(args: {
 
   const roleId = String(args.roleId ?? "").trim();
   const query = roleId
-    ? ((admin.from("company_roles" as any) as any)
+    ? (admin.from("company_roles" as any) as any)
         .update(basePayload)
         .eq("role_id", roleId)
-        .eq("company_workspace_id", resolved.workspace.company_workspace_id))
-    : ((admin.from("company_roles" as any) as any)
-        .insert({
-          ...basePayload,
-          created_at: now,
-        }));
+        .eq("company_workspace_id", resolved.workspace.company_workspace_id)
+    : (admin.from("company_roles" as any) as any).insert({
+        ...basePayload,
+        created_at: now,
+      });
 
   const { data, error } = await query
     .select(

@@ -627,10 +627,7 @@ type CompanyRoleContext = CompanyRoleName & {
 };
 
 function isInternalCompanyRole(role: CompanyRoleName | null | undefined) {
-  return (
-    normalizeText(role?.sourceType).toLowerCase() === "internal" ||
-    role?.workspaceIsInternal === true
-  );
+  return normalizeText(role?.sourceType).toLowerCase() === "internal";
 }
 
 function fromOpsMatchingTable<
@@ -1822,10 +1819,6 @@ export async function fetchOpsMatchingTalentHistory(args: {
         getRecommendationPositiveSortTime(left)
       )
   );
-  const manualRunIds = await fetchManualInternalRecommendationRunIds({
-    admin,
-    runIds: rows.map((row) => row.discovery_run_id ?? ""),
-  });
   const roleIds = Array.from(
     new Set(rows.map((row) => normalizeText(row.role_id)).filter(Boolean))
   );
@@ -1835,12 +1828,8 @@ export async function fetchOpsMatchingTalentHistory(args: {
     const talentId = normalizeText(row.talent_id);
     const item = itemMap.get(talentId);
     if (!item) continue;
-    const discoveryRunId = row.discovery_run_id ?? null;
-    const isManualInternal =
-      discoveryRunId !== null && manualRunIds.has(discoveryRunId);
     const role = roleMap.get(row.role_id);
-    const isInternalRole = isInternalCompanyRole(role);
-    const isInternalRecommendation = isInternalRole || isManualInternal;
+    const isInternalRecommendation = isInternalCompanyRole(role);
 
     if (
       wantsExternalPositive &&
@@ -4051,11 +4040,7 @@ async function buildOpsMatchingRecommendationSummaries(args: {
 function isInternalRecommendationSummary(
   recommendation: OpsMatchingRecommendationSummary
 ) {
-  return (
-    recommendation.isManualInternalRecommendation ||
-    normalizeText(recommendation.sourceType).toLowerCase() === "internal" ||
-    recommendation.workspaceIsInternal === true
-  );
+  return normalizeText(recommendation.sourceType).toLowerCase() === "internal";
 }
 
 async function fetchRecentRecommendations(args: {
@@ -4362,9 +4347,15 @@ export async function fetchOpsMatchingTalentRoleTags(args: {
 
   const roleIds = Array.from(grouped.keys());
   const roleMap = await fetchRoleContextMap({ admin, roleIds });
+  const internalRoleIds = new Set(
+    Array.from(roleMap.entries())
+      .filter(([, role]) => isInternalCompanyRole(role))
+      .map(([roleId]) => roleId)
+  );
 
   return {
     items: roleIds
+      .filter((roleId) => internalRoleIds.has(roleId))
       .map((roleId) => {
         const group = grouped.get(roleId);
         const role = roleMap.get(roleId);

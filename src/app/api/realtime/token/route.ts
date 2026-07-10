@@ -7,7 +7,7 @@ import {
   type CareerRealtimeTool,
 } from "@/lib/career/llmTools";
 import { getCareerRealtimeSessionConfig } from "@/lib/career/llm";
-import { getCareerConversationStarterPrompt } from "@/lib/career/conversationStarterPrompts";
+import { getCareerConversationStarter } from "@/lib/career/prompts/conversationStarters";
 import { buildCareerRealtimeSessionInstructions } from "@/lib/career/realtimeInstructions";
 import {
   fetchInternalOpportunityCallRequestById,
@@ -80,6 +80,13 @@ function buildRealtimeSessionBody(args: {
       type: "realtime",
       model: realtimeConfig.model,
       output_modalities: realtimeConfig.outputModalities,
+      truncation: {
+        type: "retention_ratio",
+        retention_ratio: 0.8,
+        token_limits: {
+          post_instructions: 8000,
+        },
+      },
       audio: {
         input: {
           transcription: {
@@ -182,7 +189,7 @@ export async function POST(req: NextRequest) {
 
     if (
       conversationStarterId &&
-      !getCareerConversationStarterPrompt(conversationStarterId, responseLocale)
+      !getCareerConversationStarter(conversationStarterId, responseLocale)
     ) {
       return NextResponse.json(
         { error: "Invalid conversationStarterId" },

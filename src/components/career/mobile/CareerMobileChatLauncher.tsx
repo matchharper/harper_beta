@@ -7,6 +7,7 @@ import {
   AudioLines,
   Loader2,
   MessageCircle,
+  MessageSquareText,
   Mic,
   MicOff,
 } from "lucide-react";
@@ -154,6 +155,7 @@ function CareerMobileChatLauncher({
     callWrapUpPending,
     chatPending,
     callConnectionStatus,
+    isOnboardingDone,
     messages,
     onboardingWrapupPending,
     opportunityFeedbackFollowUpPending,
@@ -161,6 +163,7 @@ function CareerMobileChatLauncher({
     voiceMuted,
     onToggleVoiceMute,
     onEndCallMode,
+    stage,
   } = useCareerChatPanelContext();
   const isCallActive =
     callConnectionStatus === "connected" ||
@@ -184,7 +187,7 @@ function CareerMobileChatLauncher({
     placeholder ??
     t(
       "career.chat.career_composer_section.0e686ow",
-      "Harper에게 답변을 입력하세요."
+      "새로운 조건이나 궁금한 점을 남겨주세요"
     );
   const launcherPlaceholder = harperPreparing
     ? t(
@@ -192,6 +195,12 @@ function CareerMobileChatLauncher({
         "Harper가 답변을 준비하고 있습니다..."
       )
     : resolvedPlaceholder;
+  const showChatInterviewCta =
+    !harperPreparing && stage === "chat" && !isOnboardingDone;
+  const chatInterviewCtaLabel = t(
+    "career.common.career_mobile_chat_launcher.chat_interview_cta",
+    "채팅으로 5분 커리어 인터뷰를 완료하세요"
+  );
 
   const openDrawer = () => {
     logCareerEvent("click_mobile_chat_launcher_open");
@@ -316,29 +325,47 @@ function CareerMobileChatLauncher({
                 </div>
               </div>
             ) : (
-              <BareButton
-                type="button"
-                onClick={openDrawer}
-                className={cn(
-                  "flex h-12 flex-1 items-center justify-between rounded-full border border-neutral-1000-a05 bg-bg-floating px-4 text-left text-sm text-neutral-soft transition active:bg-bg-weak",
-                  harperPreparing &&
-                    "border-primary/20 bg-primary/5 text-neutral-primary shadow-[0_8px_24px_rgba(31,28,26,0.06)]",
-                  chatNotice.hasUnread &&
-                    "border-primary/40 text-neutral-primary"
+              <>
+                {showChatInterviewCta ? (
+                  <BareButton
+                    type="button"
+                    onClick={openDrawer}
+                    className={cn(
+                      "flex h-10 flex-1 items-center justify-center gap-2 rounded-full border border-black bg-black px-4 text-center text-[13px] font-normal text-neutral-00 shadow-[0_12px_28px_rgba(0,0,0,0.1)] transition active:scale-[0.99]",
+                      chatNotice.hasUnread && "ring-2 ring-primary/35"
+                    )}
+                    aria-label={chatInterviewCtaLabel}
+                  >
+                    <span className="min-w-0 whitespace-normal leading-5">
+                      {chatInterviewCtaLabel}
+                    </span>
+                  </BareButton>
+                ) : (
+                  <BareButton
+                    type="button"
+                    onClick={openDrawer}
+                    className={cn(
+                      "flex h-12 flex-1 items-center justify-between rounded-full border border-neutral-1000-a05 bg-bg-floating px-4 text-left text-sm text-neutral-soft transition active:bg-bg-weak",
+                      harperPreparing &&
+                        "border-primary/20 bg-primary/5 text-neutral-primary shadow-[0_8px_24px_rgba(31,28,26,0.06)]",
+                      chatNotice.hasUnread &&
+                        "border-primary/40 text-neutral-primary"
+                    )}
+                  >
+                    <span>{launcherPlaceholder}</span>
+                    <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
+                      {harperPreparing ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                      ) : (
+                        <AudioLines className="h-5 w-5 text-neutral-muted" />
+                      )}
+                      {chatNotice.hasUnread ? (
+                        <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border border-bg-default bg-primary" />
+                      ) : null}
+                    </span>
+                  </BareButton>
                 )}
-              >
-                <span>{launcherPlaceholder}</span>
-                <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
-                  {harperPreparing ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                  ) : (
-                    <AudioLines className="h-5 w-5 text-neutral-muted" />
-                  )}
-                  {chatNotice.hasUnread ? (
-                    <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border border-bg-default bg-primary" />
-                  ) : null}
-                </span>
-              </BareButton>
+              </>
             )}
           </div>
         </div>

@@ -40,6 +40,9 @@ export type CareerFeedbackOption = {
   value: string;
 };
 
+export const EXTERNAL_ALREADY_APPLIED_FEEDBACK_REASON =
+  "이미 지원했던 회사/역할입니다.";
+
 export type CareerOpportunityInfoTagMeta = {
   icon: LucideIcon;
   interactive: boolean;
@@ -134,11 +137,10 @@ const buildCareerOpportunityTypeMeta = (
         {
           label: t(
             "career.common.opportunity_type_meta.external_already_applied",
-            "이미 지원했던 회사/역할입니다."
+            EXTERNAL_ALREADY_APPLIED_FEEDBACK_REASON
           ),
-          value:
-            // career-i18n-skip-next-line stable feedback storage value
-            "이미 지원했던 회사/역할입니다.",
+          // career-i18n-skip-next-line stable feedback storage value
+          value: EXTERNAL_ALREADY_APPLIED_FEEDBACK_REASON,
         },
         {
           label: t(

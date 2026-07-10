@@ -6,7 +6,6 @@ import type {
 } from "@/components/career/types";
 import {
   DEFAULT_TALENT_GET_EXTERNAL_RECOMMENDATION,
-  DEFAULT_TALENT_GET_INTERNAL_RECOMMENDATION,
   DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS,
   DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
   normalizeTalentPeriodicIntervalDays,
@@ -35,7 +34,7 @@ type TalentPreferencesPayload = {
 const emptyPreferences = (): CareerTalentPreferences => ({
   engagementTypes: [],
   getExternalRecommendation: DEFAULT_TALENT_GET_EXTERNAL_RECOMMENDATION,
-  getInternalRecommendation: DEFAULT_TALENT_GET_INTERNAL_RECOMMENDATION,
+  getInternalRecommendation: true,
   isOnboardingDone: false,
   periodicIntervalDays: DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS,
   recommendationBatchSize: DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
@@ -62,9 +61,7 @@ const cloneTalentPreferences = (value: unknown): CareerTalentPreferences => {
     getExternalRecommendation: normalizeTalentRecommendationToggle(
       record.getExternalRecommendation
     ),
-    getInternalRecommendation: normalizeTalentRecommendationToggle(
-      record.getInternalRecommendation
-    ),
+    getInternalRecommendation: true,
     isOnboardingDone: Boolean(record.isOnboardingDone),
     periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
       record.periodicIntervalDays
@@ -90,7 +87,6 @@ const sameTalentPreferences = (
   return (
     sameStringArray(left.engagementTypes, right.engagementTypes) &&
     left.getExternalRecommendation === right.getExternalRecommendation &&
-    left.getInternalRecommendation === right.getInternalRecommendation &&
     left.isOnboardingDone === right.isOnboardingDone &&
     left.periodicIntervalDays === right.periodicIntervalDays &&
     left.recommendationBatchSize === right.recommendationBatchSize
@@ -172,8 +168,6 @@ export const useCareerTalentPreferences = ({
           engagementTypes: talentPreferences.engagementTypes,
           getExternalRecommendation:
             talentPreferences.getExternalRecommendation,
-          getInternalRecommendation:
-            talentPreferences.getInternalRecommendation,
           recommendationBatchSize: talentPreferences.recommendationBatchSize,
         }),
       });

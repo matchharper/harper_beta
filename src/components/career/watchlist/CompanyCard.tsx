@@ -4,6 +4,7 @@ import { formatFollowedAt } from "./watchlistFormatters";
 import { BareButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useMessages } from "@/i18n/useMessage";
+import { formatCareerLocation } from "@/lib/career/locationDisplay";
 import type {
   CompanyFollowClickHandler,
   CompanyWatchlistItem,
@@ -25,6 +26,7 @@ export const CompanyCard = ({
 }) => {
   const t = useCareerT();
   const { locale } = useMessages();
+  const displayLocation = formatCareerLocation(item.location, locale);
   const reasonLabel =
     activeTab === "signals"
       ? t("career.company.company_card.1m5x6m1", "최근 시그널")
@@ -66,7 +68,7 @@ export const CompanyCard = ({
               </div>
               <p className="mt-1 line-clamp-2 text-[13px] text-neutral-muted">
                 {item.shortDescription ??
-                  item.location ??
+                  displayLocation ??
                   t(
                     "career.company.company_card.1n9j2yp",
                     "회사 설명을 정리 중입니다."

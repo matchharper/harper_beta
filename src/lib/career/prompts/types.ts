@@ -8,7 +8,6 @@ export type CareerPromptProfile = {
 
 export type CareerPromptPreferences = {
   getExternalRecommendation?: boolean | null;
-  getInternalRecommendation?: boolean | null;
   periodicIntervalDays?: number | null;
   preferredLocale?: string | null;
   profileVisibility?: string | null;
@@ -69,10 +68,11 @@ export type CareerPromptBlock = {
 };
 
 export type CareerPromptChannel = "chat" | "voice";
-export type CareerProactiveTurnInstructionMode =
-  | "conversation_starter"
-  | "internal_opportunity_call"
-  | "generic";
+export type CareerConversationPromptMode =
+  | "default"
+  | "preference_update"
+  | "match_quality"
+  | "internal_opportunity_call";
 export type CareerToolPolicyChannel = CareerPromptChannel;
 
 export type CareerPromptPlan = {

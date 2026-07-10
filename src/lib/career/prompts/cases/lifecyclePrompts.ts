@@ -9,7 +9,6 @@ import {
   type CareerOpportunityFeedbackFollowUpTrigger,
   type CareerTranscriptEntry,
 } from "@/lib/career/prompts/types";
-import { CAREER_CALL_END_MARKER } from "../rawPrompts";
 import type { InternalOpportunityCallRequest } from "@/lib/talentOnboarding/internalOpportunityCallRequest";
 
 export const CAREER_SESSION_START_NO_MESSAGE_MARKER = "__NO_SESSION_GREETING__";
@@ -105,11 +104,12 @@ export function buildCareerCallWrapupTurnInstruction(args: {
     "The user just ended a voice call. This is an assistant-initiated follow-up in the existing career chat, using the normal chat logic and tool policy.",
     `- callDuration: ${args.durationLabel ?? "(unknown)"}`,
     `- callLengthAssessment: ${args.isBrief ? "brief" : "substantial"}`,
-    `- onboardingStatus: ${args.isOnboardingDone ? "completed" : "not_completed"}`,
     "",
     "Important tool instruction:",
     "- During the live voice call, `update_setting` and `update_talent_profile` were not available. Inspect only the user's statements in the call transcript below.",
-    "- If the user disclosed clear recommendation delivery setting changes, call `update_setting` before writing the wrap-up.",
+    "- If the user disclosed a clear recommendation/contact subscription action, call `update_setting` before writing the wrap-up: stop_external for external/public postings only, stop_all for all Harper matching contact, or resume for recommendation/contact restart.",
+    "- If the user's wording is a generic stop/unsubscribe that could mean either external postings only or all Harper matching contact, do not call `update_setting`; ask one clarifying question only if it fits the short follow-up.",
+    "- If the user disclosed a clear recommendation batch-size change, call `update_talent_profile` with recommendationBatchSize before writing the wrap-up.",
     "- If the user disclosed clear new durable preferences, constraints, recommendation memory, or profile-row details that are missing from current state, call `update_talent_profile` before writing the wrap-up.",
     "- These tool calls are optional. Skip them when there is no clear new writable information, the information is already saved, or the statement was only casual/uncertain.",
     "- Do not call search, recommendation, company research, service-help, open-role, or activity-reading tools in this wrap-up turn.",
@@ -117,10 +117,10 @@ export function buildCareerCallWrapupTurnInstruction(args: {
     "Response instruction:",
     `- Write one short natural ${outputLanguage} follow-up message for the chat after the call ends.`,
     "- 1-2 sentences, no heading, no bullets, no markdown card.",
-    "- Do not ask a new onboarding/interview question. The call has ended.",
-    "- If onboarding is not completed, say briefly that there is a little more to finish and invite the user to continue from here in this chat.",
-    "- For incomplete onboarding, do not imply the user must start another call. The primary next step is continuing by chat.",
-    "- If onboarding is completed and the call had useful substance, thank them and say Harper will reflect what they shared in future matching/search.",
+    "- Do not ask a new interview-style question. The call has ended.",
+    args.isOnboardingDone
+      ? "- If the call had useful substance, thank them and say Harper will reflect what they shared in future matching/search."
+      : "- Say briefly that Harper still needs a little more basic profile or preference context, and invite the user to continue from here in this chat. Do not imply the user must start another call.",
     "- Do not claim you updated settings/profile state unless the relevant tool was actually called and returned a successful change.",
     "",
     "[Call transcript for this wrap-up]",
@@ -160,12 +160,6 @@ type OpportunityFeedbackFollowUpPromptArgs = {
   preferredLocale?: string | null;
   trigger: CareerOpportunityFeedbackFollowUpTrigger;
 };
-
-export function buildCareerOpportunityFeedbackFollowUpProactiveContext(
-  args: OpportunityFeedbackFollowUpPromptArgs
-) {
-  return buildCareerOpportunityFeedbackFollowUpTurnInstruction(args);
-}
 
 /**
  * 포지션 좋아요/싫어요 후 자동 답변에 사용되는 프롬프트
@@ -275,7 +269,7 @@ export function buildInternalOpportunityRealtimeInstruction(
     "Before ending:",
     `- You must ask at least once, in ${outputLanguage}, whether the user has questions about ${callRequest.companyName} or the next process.`,
     "- End when you think the call is over or the user accepts or require to stop.",
-    `- End with a natural short closing in ${outputLanguage}, then append ${CAREER_CALL_END_MARKER}. Do not hesitate to end the call with ${CAREER_CALL_END_MARKER}.`,
+    `- End with a natural short closing in ${outputLanguage}, then call the end_call tool. Do not hesitate to end the call with end_call.`,
   ].join("\n");
 }
 

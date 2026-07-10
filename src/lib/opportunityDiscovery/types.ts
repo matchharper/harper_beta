@@ -62,6 +62,6 @@ export type OpportunityIngestionRunRow = {
 
 export type RecommendationSettings = {
   getExternalRecommendation: boolean;
-  getInternalRecommendation: boolean;
+  profileVisibility: string;
   recommendationBatchSize: number;
 };

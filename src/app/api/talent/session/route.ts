@@ -802,8 +802,7 @@ export async function GET(req: NextRequest) {
         ),
         getExternalRecommendation:
           talentSetting?.get_external_recommendation ?? true,
-        getInternalRecommendation:
-          talentSetting?.get_internal_recommendation ?? true,
+        getInternalRecommendation: true,
         isOnboardingDone: Boolean(talentSetting?.is_onboarding_done),
         periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
           talentSetting?.periodic_interval_days

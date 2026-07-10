@@ -78,6 +78,7 @@ type CareerEmailMessageRow = Pick<
   | "mail_type"
   | "metadata"
   | "occurred_at"
+  | "reply_job_id"
   | "status"
   | "talent_id"
 >;
@@ -158,6 +159,7 @@ export type DailyUserStatsReport = {
   internalConnectionResponseStats: DailyUserStatsInternalConnectionResponseStats | null;
   internalRecommendationCount: number;
   jobs: DailyUserStatsJobRow[];
+  harperMailReplyCount: number;
   mailReplyCount: number;
   mailSentCount: number;
   negativeFeedbackCount: number;
@@ -729,7 +731,9 @@ async function buildUserStatsReport(args: {
     fetchAllRows<CareerEmailMessageRow>((from, to) =>
       supabaseServer
         .from("career_email_messages")
-        .select("talent_id,direction,mail_type,status,occurred_at,metadata")
+        .select(
+          "talent_id,direction,mail_type,status,occurred_at,metadata,reply_job_id"
+        )
         .gte("occurred_at", startIso)
         .lt("occurred_at", endIso)
         .order("occurred_at", { ascending: true })
@@ -985,6 +989,9 @@ async function buildUserStatsReport(args: {
       row.direction === "outbound" &&
       row.status === "sent"
   );
+  const harperMailReplyRows = outboundEmailRows.filter(
+    (row) => row.mail_type === "auto_reply" && Boolean(row.reply_job_id)
+  );
   const includedOpportunityEmailDeliveries = opportunityEmailDeliveries.filter(
     (row) =>
       isIncludedUserId(row.talent_id) &&
@@ -1185,6 +1192,7 @@ async function buildUserStatsReport(args: {
       landingLogs: jobLandingLogs,
       signedUpEmails,
     }).slice(0, 8),
+    harperMailReplyCount: harperMailReplyRows.length,
     mailReplyCount: inboundEmailRows.length,
     mailSentCount:
       outboundEmailRowsForSentCount.length +
@@ -1414,7 +1422,9 @@ export function formatDailyUserStatsSlackMessage(report: DailyUserStatsReport) {
     `주기적인 추천 메일을 받은 유저 수: ${formatCount(
       report.periodicRecommendationMailUserCount
     )}명`,
-    `메일 답장: ${formatCount(report.mailReplyCount)}개`,
+    `메일 답장: ${formatCount(
+      report.mailReplyCount
+    )}개 - Harper 답장: ${formatCount(report.harperMailReplyCount)}개`,
     "",
   ];
 

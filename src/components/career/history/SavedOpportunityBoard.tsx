@@ -12,6 +12,7 @@ import {
 import { BareButton } from "@/components/ui/button";
 import { useMessages, type Locale } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
+import { formatCareerLocation } from "@/lib/career/locationDisplay";
 
 type SavedOpportunityBoardProps = {
   columnLoadState: Record<
@@ -60,6 +61,10 @@ const SavedOpportunityBoardCard = ({
   onOpenDetail: () => void;
 }) => {
   const recommendedAgo = formatRelativeTime(item.recommendedAt, locale);
+  const displayLocation = formatCareerLocation(item.location, locale);
+  const locationMeta = [displayLocation, item.workMode]
+    .filter(Boolean)
+    .join(" · ");
   const canChangeStatus = canChangeCareerOpportunityManagementStatus(item);
 
   return (
@@ -101,7 +106,7 @@ const SavedOpportunityBoardCard = ({
                 {item.companyName}
               </div>
               <div className="mt-0.5 line-clamp-2 text-[12px] leading-4 text-neutral-muted">
-                {item.location} {item.workMode ? `· ${item.workMode}` : ""}
+                {locationMeta}
               </div>
             </div>
             {pending ? (

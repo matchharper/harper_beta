@@ -832,6 +832,63 @@ export type Database = {
         }
         Relationships: []
       }
+      company_data: {
+        Row: {
+          company_workspace_id: string
+          confidence: number | null
+          created_at: string
+          last_funding_round_description: string | null
+          last_funding_stage: string | null
+          main_investors: string | null
+          searched_at: string
+          search_query: string | null
+          source_payload: Json | null
+          total_funding_raised: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_workspace_id: string
+          confidence?: number | null
+          created_at?: string
+          last_funding_round_description?: string | null
+          last_funding_stage?: string | null
+          main_investors?: string | null
+          searched_at?: string
+          search_query?: string | null
+          source_payload?: Json | null
+          total_funding_raised?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_workspace_id?: string
+          confidence?: number | null
+          created_at?: string
+          last_funding_round_description?: string | null
+          last_funding_stage?: string | null
+          main_investors?: string | null
+          searched_at?: string
+          search_query?: string | null
+          source_payload?: Json | null
+          total_funding_raised?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_data_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: true
+            referencedRelation: "company_workspace"
+            referencedColumns: ["company_workspace_id"]
+          },
+          {
+            foreignKeyName: "company_data_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: true
+            referencedRelation: "ops_company_workspace_with_label"
+            referencedColumns: ["company_workspace_id"]
+          },
+        ]
+      }
       company_db: {
         Row: {
           crunchbase_information: Json | null
@@ -987,6 +1044,7 @@ export type Database = {
           source_provider: string | null
           source_type: string
           status: string
+          summary: Json
           type: string[]
           updated_at: string
           work_mode: string | null
@@ -1017,6 +1075,7 @@ export type Database = {
           source_provider?: string | null
           source_type?: string
           status?: string
+          summary?: Json
           type?: string[]
           updated_at?: string
           work_mode?: string | null
@@ -1047,6 +1106,7 @@ export type Database = {
           source_provider?: string | null
           source_type?: string
           status?: string
+          summary?: Json
           type?: string[]
           updated_at?: string
           work_mode?: string | null
@@ -1213,6 +1273,7 @@ export type Database = {
           linkedin_url: string | null
           logo_url: string | null
           pitch: string | null
+          published_name: string | null
           request: string | null
           test_score: number
           updated_at: string
@@ -1232,6 +1293,7 @@ export type Database = {
           linkedin_url?: string | null
           logo_url?: string | null
           pitch?: string | null
+          published_name?: string | null
           request?: string | null
           test_score?: number
           updated_at?: string
@@ -1251,6 +1313,7 @@ export type Database = {
           linkedin_url?: string | null
           logo_url?: string | null
           pitch?: string | null
+          published_name?: string | null
           request?: string | null
           test_score?: number
           updated_at?: string
@@ -1926,6 +1989,7 @@ export type Database = {
           created_at: string
           from: string | null
           id: number
+          reply_id: string | null
           user_id: string | null
         }
         Insert: {
@@ -1933,6 +1997,7 @@ export type Database = {
           created_at?: string
           from?: string | null
           id?: number
+          reply_id?: string | null
           user_id?: string | null
         }
         Update: {
@@ -1940,6 +2005,7 @@ export type Database = {
           created_at?: string
           from?: string | null
           id?: number
+          reply_id?: string | null
           user_id?: string | null
         }
         Relationships: []
@@ -2688,6 +2754,7 @@ export type Database = {
           meta: Json
           model: string
           source: string
+          user_id: string | null
         }
         Insert: {
           created_at?: string
@@ -2696,6 +2763,7 @@ export type Database = {
           meta?: Json
           model: string
           source: string
+          user_id?: string | null
         }
         Update: {
           created_at?: string
@@ -2704,8 +2772,17 @@ export type Database = {
           meta?: Json
           model?: string
           source?: string
+          user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "llm_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       logs: {
         Row: {
@@ -2930,9 +3007,11 @@ export type Database = {
           started_at: string | null
           status: string
           talent_id: string | null
+          target_recommendation_count: number
           trigger: string
           trigger_payload: Json
           updated_at: string
+          user_brief: Json
         }
         Insert: {
           completed_at?: string | null
@@ -2949,9 +3028,11 @@ export type Database = {
           started_at?: string | null
           status?: string
           talent_id?: string | null
+          target_recommendation_count?: number
           trigger: string
           trigger_payload?: Json
           updated_at?: string
+          user_brief?: Json
         }
         Update: {
           completed_at?: string | null
@@ -2968,9 +3049,11 @@ export type Database = {
           started_at?: string | null
           status?: string
           talent_id?: string | null
+          target_recommendation_count?: number
           trigger?: string
           trigger_payload?: Json
           updated_at?: string
+          user_brief?: Json
         }
         Relationships: [
           {
@@ -3039,6 +3122,59 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      opportunity_scheduler_checks: {
+        Row: {
+          check_kind: string
+          check_payload: Json
+          checked_at: string
+          conversation_id: string | null
+          created_at: string
+          dedupe_key: string | null
+          discovery_run_id: string | null
+          id: string
+          skip_reasons: string[]
+          status: string
+          talent_id: string
+          updated_at: string
+        }
+        Insert: {
+          check_kind?: string
+          check_payload?: Json
+          checked_at?: string
+          conversation_id?: string | null
+          created_at?: string
+          dedupe_key?: string | null
+          discovery_run_id?: string | null
+          id?: string
+          skip_reasons?: string[]
+          status?: string
+          talent_id: string
+          updated_at?: string
+        }
+        Update: {
+          check_kind?: string
+          check_payload?: Json
+          checked_at?: string
+          conversation_id?: string | null
+          created_at?: string
+          dedupe_key?: string | null
+          discovery_run_id?: string | null
+          id?: string
+          skip_reasons?: string[]
+          status?: string
+          talent_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opportunity_scheduler_checks_discovery_run_id_fkey"
+            columns: ["discovery_run_id"]
+            isOneToOne: false
+            referencedRelation: "opportunity_discovery_run"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       opportunity_source_document: {
         Row: {
@@ -4705,7 +4841,7 @@ export type Database = {
           {
             foreignKeyName: "talent_insights_talent_id_fkey"
             columns: ["talent_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "talent_users"
             referencedColumns: ["user_id"]
           },
@@ -5319,7 +5455,6 @@ export type Database = {
           preferred_locale: string
           profile_visibility: string
           recommendation_batch_size: number
-          recommendation_source_conversation_id: string | null
           setting_locale: string | null
           status: string
           status_updated_at: string
@@ -5337,7 +5472,6 @@ export type Database = {
           preferred_locale?: string
           profile_visibility?: string
           recommendation_batch_size?: number
-          recommendation_source_conversation_id?: string | null
           setting_locale?: string | null
           status?: string
           status_updated_at?: string
@@ -5355,7 +5489,6 @@ export type Database = {
           preferred_locale?: string
           profile_visibility?: string
           recommendation_batch_size?: number
-          recommendation_source_conversation_id?: string | null
           setting_locale?: string | null
           status?: string
           status_updated_at?: string
@@ -5363,13 +5496,6 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "talent_setting_recommendation_source_conversation_id_fkey"
-            columns: ["recommendation_source_conversation_id"]
-            isOneToOne: false
-            referencedRelation: "talent_conversations"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "talent_setting_user_id_fkey"
             columns: ["user_id"]

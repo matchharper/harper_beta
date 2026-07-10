@@ -91,13 +91,16 @@ export const CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES = [
   TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
 ] as const;
 
-export const CAREER_REALTIME_VOICE_ONBOARDING_TOOL_NAMES: readonly string[] =
-  [];
+export const CAREER_REALTIME_VOICE_ONBOARDING_TOOL_NAMES: readonly string[] = [
+  TALENT_TOOL_NAMES.END_CALL,
+];
 
 // 실시간 voice call에서 온보딩 완료 후 노출 가능한 tool.
 // 음성에서는 긴 페이지 본문이나 카드 UI가 필요한 tool은 빼고,
 // 짧게 말로 답할 수 있는 tool만 둔다.
 export const CAREER_REALTIME_VOICE_POST_ONBOARDING_TOOL_NAMES = [
+  // 통화 종료는 Realtime voice 전용 로컬 tool로 처리한다.
+  TALENT_TOOL_NAMES.END_CALL,
   // 통화 중 최신 외부 정보가 꼭 필요할 때.
   TALENT_TOOL_NAMES.WEB_SEARCH,
   // 통화 중 이미 추천된 opportunity를 짧게 확인할 때.
@@ -187,19 +190,12 @@ export function resolveCareerChatTools(args: CareerChatToolSelectionArgs) {
 export function getCareerRealtimeToolCandidates(
   preferredLocale?: string | null
 ) {
-  const enabledVoiceToolNames = new Set<string>(
-    CAREER_REALTIME_VOICE_POST_ONBOARDING_TOOL_NAMES
-  );
+  const enabledVoiceToolNames = new Set<string>([
+    ...CAREER_REALTIME_VOICE_ONBOARDING_TOOL_NAMES,
+    ...CAREER_REALTIME_VOICE_POST_ONBOARDING_TOOL_NAMES,
+  ]);
   return getRealtimeTools("voice", { responseLocale: preferredLocale }).filter(
     (tool) => enabledVoiceToolNames.has(tool.name)
-  );
-}
-
-export function getCareerRealtimeCandidateToolNames(
-  preferredLocale?: string | null
-) {
-  return getCareerRealtimeToolCandidates(preferredLocale).map(
-    (tool) => tool.name
   );
 }
 

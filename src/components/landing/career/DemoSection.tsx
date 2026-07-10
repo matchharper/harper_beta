@@ -1107,7 +1107,7 @@ function DemoSection({
                       <div className="min-w-0 flex-1 truncate whitespace-nowrap text-xs leading-5 text-beige900/35">
                         <span className="sm:hidden">답변 입력</span>
                         <span className="hidden sm:inline">
-                          Harper에게 답변을 입력하세요.
+                          새로운 조건이나 궁금한 점을 남겨주세요
                         </span>
                       </div>
                       <button

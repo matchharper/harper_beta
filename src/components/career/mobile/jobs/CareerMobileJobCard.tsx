@@ -21,6 +21,7 @@ import { InlinePanel } from "@/components/ui/panel";
 import { cn } from "@/lib/utils";
 import { useMessages } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
+import { formatCareerLocation } from "@/lib/career/locationDisplay";
 
 type CareerMobileJobCardProps = {
   item: CareerHistoryOpportunity;
@@ -58,7 +59,7 @@ export const CareerMobileJobCard = React.memo(function CareerMobileJobCard({
   const detailMetaItems = [
     {
       label: "location",
-      value: item.location,
+      value: formatCareerLocation(item.location, locale),
     },
     ...getMetaItems(item, t).map((meta) => ({
       label: meta,

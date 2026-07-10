@@ -1,10 +1,10 @@
 import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
-import { careerT } from "@/lib/career/translatedCareerMessage";
 import { normalizeToolNames } from "@/lib/career/prompts/promptUtils";
 import type { CareerToolPolicyChannel } from "@/lib/career/prompts/types";
 
 export function buildCareerToolPolicyPrompt(args: {
   channel: CareerToolPolicyChannel;
+  isOnboardingActive?: boolean;
   preferredLocale?: string | null;
   toolNames: readonly string[] | string;
 }) {
@@ -12,12 +12,9 @@ export function buildCareerToolPolicyPrompt(args: {
   if (toolNames.length === 0) return "";
 
   const outputLanguage = getCareerPromptLanguageName(args.preferredLocale);
-  const acknowledgementExample = careerT(
-    args.preferredLocale,
-    "career.tool_policy.acknowledgement_example",
-    "알겠습니다. 앞으로 이 조건을 기준으로 맞는 기회를 찾아볼게요."
-  );
   const toolNameText = toolNames.join(", ");
+  const hasEndCallTool = toolNames.includes("end_call");
+  const hasStatusMessageTools = toolNames.some((name) => name !== "end_call");
   const hasWebSearchTool = toolNames.includes("web_search");
   const hasResearchCompanyTool = toolNames.includes("research_company");
   const hasOpenUrlTool = toolNames.includes("open_url");
@@ -65,8 +62,17 @@ export function buildCareerToolPolicyPrompt(args: {
   return [
     "## Tool Use Policy",
     `Available tools: ${toolNameText}`,
-    "For every tool call, include `_uiStatusMessage`: a specific English user-facing Thinking log sentence for this exact tool call. Say what is being changed, checked, searched, or prepared. If searching jobs, describe the kind of opportunities being searched for. If changing saved information, mention the concrete field/value being adjusted; old-to-new is optional only when it is naturally available. Do not use vague text like 'updating', 'checking', or 'searching' by itself. Do not mention internal tool names, storage names, or implementation details. Keep it under 160 characters.",
-    "Follow the returned assistantInstruction after tool use.",
+    hasStatusMessageTools
+      ? "For every tool call except `end_call`, include `_uiStatusMessage`: a specific English user-facing Thinking log sentence for this exact tool call. Say what is being changed, checked, searched, or prepared. If searching jobs, describe the kind of opportunities being searched for. If changing saved information, mention the concrete field/value being adjusted; old-to-new is optional only when it is naturally available. Do not use vague text like 'updating', 'checking', or 'searching' by itself. Do not mention internal tool names, storage names, or implementation details. Keep it under 160 characters."
+      : "",
+    hasStatusMessageTools
+      ? "For every tool call except `end_call`, follow the returned assistantInstruction after tool use."
+      : "",
+    ...(hasEndCallTool
+      ? [
+          "- `end_call` takes no parameters. Use it only to end the live voice call after the final closing message, or when the user clearly asks to end, stop, or hang up. Do not include `_uiStatusMessage` with `end_call`.",
+        ]
+      : []),
     ...(args.channel === "chat"
       ? [
           `- When you are about to use a tool, start with brief acknowledgement before tool use.`,
@@ -167,21 +173,19 @@ export function buildCareerToolPolicyPrompt(args: {
           "- If you run `recommend_job_postings` for an ambiguous search condition before saving it, end the answer by asking one short question about whether Harper should reflect that condition in future matching. If the user says yes, call `update_talent_profile` on the next turn.",
           "- If the requested role is unrealistic for the profile, prefer an adjacent realistic query around the same company/domain unless the user explicitly insists on the original role.",
           "- `recommend_job_postings` immediately returns and saves at most 5 high-fit postings. If the user asks for more, use the tool's larger-request guidance: explain that Harper will show the best 5 now and continue with periodic batches of up to 10 high-quality postings rather than dumping weak matches.",
-          "- After `recommend_job_postings`, answer using `answerDraft`. 1. 2.로 역할을 나누는 등 지나치게 딱딱하게 구조를 갖추지 말고, 최대한 자연스러운 채팅처럼 자유로운 구조로 말해라. Do not use seperators(---)",
+          "- After `recommend_job_postings`, answer briefly using `answerDraft`. Do not explain all postings each one by one.",
           "- Preserve every standalone `[posting](role_id)` line from `answerDraft` exactly. These lines drive the chat posting-card carousel, so do not remove or rewrite them.",
         ]
       : []),
     ...(hasUpdateSettingTool
       ? [
           "",
-          "### update_setting (recommendation delivery settings)",
-          "- Purpose: update only how Harper sends opportunity recommendations: recommendationBatchSize, getInternalRecommendation, and getExternalRecommendation.",
-          "- Use only for batch size, external/internal opportunity recommendation channels, or stopping recommendations. Do not use for target role/domain/location/work mode/stage/compensation/profile facts.",
-          "- For recommendationBatchSize, choose a 3-10 value per schema; vague more/less adjusts by 2, maximum requests use 10, and you should not ask a follow-up just to pick the number.",
-          "- 사용자가 '매일 보내줘', '더 자주 보내줘', '매일 공고 찾아줘'처럼 발송 빈도/주기를 바꾸려 하면 update_setting을 호출하지 않고 Harper는 적절한 공고를 선별하는 데 집중하기 위해 지나치게 자주 찾아드리지는 않는다고 설명하고, 매일 필요하다면 Harper에 접속해서 포지션을 당장 더 찾아달라고 말해달라고 안내한다.",
-          "- If the user stops all opportunity recommendations, set both external and internal false. If they want only internal/connected opportunities, set external false and keep/turn internal true.",
-          "- Profile visibility and internal recommendations are separate: Open to matches can allow company-initiated offers after profile review; otherwise the user receives Harper-proposed opportunities only.",
-          "- When the latest user request is about turning external/public posting recommendations on or off, the follow-up reply should translate that saved setting into the user's day-to-day experience: what Harper will include or avoid from now on, what may still happen through enabled recommendation channels, and how the user can adjust it later.",
+          "### update_setting (recommendation/contact subscription scope)",
+          "- action=stop_external: use when the user clearly wants to stop receiving external opportunity recommendations or wants only Harper internal opportunities.",
+          "- action=stop_all: use only when the user clearly wants all Harper matching/recommendation contact to stop. Always ask confirmation that they want to stop all contact, stop using Harper.",
+          "- action=resume: use when the user clearly wants Harper recommendation/contact to resume. It changes getExternalRecommendation to true.",
+          "- Generic stop/unsubscribe ('이제 그만 받을게', 'unsubscribe', '메일 그만') is ambiguous: do not call; ask one scope clarifier. Never call with empty/trial args.",
+          "- After the tool, explain the practical result: stop_external means only strong direct-connection contacts; stop_all means no matching contact; resume means strong opportunities and good-fit public postings can resume.",
           "- After this tool returns, produce a normal user-facing chat reply. Do not expose field names unless the user specifically asks for technical details.",
           "",
         ]
@@ -190,32 +194,38 @@ export function buildCareerToolPolicyPrompt(args: {
       ? [
           "",
           "### update_talent_profile (profile writer)",
-          "- Purpose: update saved profile state with new info the user just shared: talentUser.bio, talentUser.location, row memos, and post-onboarding future-matching memory.",
-          "- Boundary: profile-row facts belong in rowMemos when exactly one visible row matches; durable future opportunity/search memory belongs in talentInsights after onboarding; recommendation delivery settings belong in update_setting.",
+          "- Purpose: update talentUser.bio/location, rowMemos, post-onboarding talentInsights, or recommendationBatchSize.",
+          "- Boundary: row facts -> rowMemos; durable matching memory -> talentInsights after onboarding; batch size -> recommendationBatchSize; subscription actions -> update_setting.",
+          "- For recommendationBatchSize, choose a 3-10 value per schema; vague more/less adjusts by 2, maximum requests use 10, and you should not ask a follow-up just to pick the number.",
           ...(hasUpdateSettingTool
             ? [
-                "- Do not write cadence/frequency changes to profile state; answer naturally without a profile update.",
+                "- Use update_setting for clear recommendation type modifications.",
               ]
             : [
-                "- Do not write recommendation delivery settings or cadence/frequency changes through this tool; answer naturally instead.",
+                "- Do not write subscription/contact actions or cadence/frequency changes through this tool; answer naturally instead.",
               ]),
-          "- During onboarding: use only talentUser.bio, talentUser.location, and rowMemos. Do NOT send talentInsights; onboarding insight extraction is handled separately.",
-          "- After onboarding is complete: send talentInsights only when the user's latest message clearly changes durable future recommendation memory, such as desired next role, search intensity, compensation, must-haves, deal-breakers, team style, company/domain preference, company size/stage preference, or corrections to prior matching preferences.",
+          args.isOnboardingActive
+            ? "- During onboarding: use only talentUser.bio, talentUser.location, rowMemos. Do NOT send talentInsights; onboarding insight extraction is handled separately."
+            : "- Send talentInsights only when the user's message clearly changes durable future recommendation memory, such as desired next role, search intensity, compensation, must-haves, deal-breakers, team style, company/domain preference, company size/stage preference, or corrections to prior matching preferences.",
           "- Explicit hard-filter search language counts as durable memory even when phrased as search (e.g. '미국 회사로만', '앞으로 리모트만', '대기업은 빼고', '다음부터 Series B 이상'). Use high impact for hard constraints or major recommendation-changing updates.",
           "- Do NOT call for one-off browsing, curiosity, informational searches, questions, hypotheticals, assistant summaries, duplicates, or aspirational/off-profile role mentions without explicit future intent.",
           "- After this tool returns, produce a normal user-facing chat reply. Do not return an empty assistant message, and do not return only an onboarding marker.",
           "- Trigger conditions: call ONLY when the user's latest statement directly maps to a writable field in this tool:",
-          "  1) talentUser.bio: explicit final Summary/About/Bio replacement, correction, or clear request; never infer it from assistant-only summaries.",
-          "  2) talentUser.location: explicit current primary base/residence only; not travel, past/target job location, desired work location, or relocation preference.",
-          `  3) rowMemos: one new ${outputLanguage} fact tied to exactly one visible experience/education/extra row; use visible RowID/Title, omit if ambiguous/no row/generic, and do not duplicate it into talentInsights.`,
-          `  4) talentInsights: post-onboarding future preference/memory patch; merge existing axes, use English snake_case keys and complete ${outputLanguage} sentence values, and avoid profile-row keys like representative_experience.`,
-          "- Do NOT call this tool during onboarding for general answers that only update insight-like understanding, such as search intensity, desired next role, compensation, must-haves, deal-breakers, team style, environment preference, career-change reason, or optional-question answers. Those are handled outside this tool until onboarding completes.",
+          "1) talentUser.bio: explicit final Summary/About/Bio replacement, correction, or clear request; never infer it from assistant-only summaries.",
+          "2) talentUser.location: explicit current primary base/residence only; not travel, past/target job location, desired work location, or relocation preference.",
+          `3) rowMemos: when the user's latest statement clearly adds detail about one specific visible experience/education/extra row, write a short ${outputLanguage} memo based on what the user said; use visible RowID, omit if ambiguous/no row/generic, and do not duplicate it into talentInsights.`,
+          `4) talentInsights: future preference/memory patch; merge existing axes, use English snake_case keys and complete ${outputLanguage} sentence values, and avoid profile-row keys like representative_experience. Things to remember for opportunity recommendation.`,
+          args.isOnboardingActive
+            ? "- Do NOT call this tool during onboarding for general answers that only update insight-like understanding, such as search intensity, desired next role, compensation, must-haves, deal-breakers, team style, environment preference, career-change reason, or optional-question answers. Those are handled outside this tool until onboarding completes."
+            : "",
           "- Do not write profileLinks, resume files, or the same fact twice. Use only user-provided new information, not assistant summaries.",
           ...(hasUpdateSettingTool
             ? [
-                "- If delivery settings and profile/matching memory both change in one turn, call `update_setting` and `update_talent_profile` separately.",
+                "- If subscription scope and profile/matching memory or batch size both change in one turn, call `update_setting` and `update_talent_profile` separately.",
               ]
-            : ["- Do not mix delivery settings into profile/matching memory."]),
+            : [
+                "- Do not mix subscription/contact actions into profile/matching memory.",
+              ]),
           "",
         ]
       : []),
@@ -224,9 +234,13 @@ export function buildCareerToolPolicyPrompt(args: {
           "- Use `web_search` only when the user needs current, factual, or web-dependent information.",
         ]
       : []),
-    onboardingToolExceptionRule,
-    "- After tool use, summarize only the useful findings. Do not dump raw JSON.",
-    "- Mention source names or URLs only when they materially help the user.",
+    ...(args.isOnboardingActive ? [onboardingToolExceptionRule] : []),
+    ...(hasStatusMessageTools
+      ? [
+          "- After tool use, summarize only the useful findings. Do not dump raw JSON.",
+          "- Mention source names or URLs only when they materially help the user.",
+        ]
+      : []),
     channelRule,
   ].join("\n");
 }

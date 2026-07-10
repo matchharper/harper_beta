@@ -307,7 +307,7 @@ const LANDING_COPY = {
       notifications: [
         {
           title: "Harper가 소개를 진행합니다",
-          body: "Founder에게 호진님의 맥락과 추천 이유를 함께 전달했어요.",
+          body: "Founder에게 {{name}}님의 맥락과 추천 이유를 함께 전달했어요.",
           time: "방금",
         },
         {
@@ -1055,9 +1055,9 @@ function ProductFlowDesktopHeader({ copy }: { copy: LandingCopy["workflow"] }) {
         <br />
         {copy.title[1]}
       </h2>
-      <p className={`${text.p} w-full max-w-[320px] justify-self-end pr-8`}>
+      <div className={`${text.p} w-full max-w-[320px] justify-self-end pr-8`}>
         <div dangerouslySetInnerHTML={{ __html: copy.body }} />
-      </p>
+      </div>
     </div>
   );
 }
@@ -1893,11 +1893,11 @@ function SectionHeader({
         )}
       </div>
       {body ? (
-        <p
+        <div
           className={`${text.p} w-full max-w-[320px] flex items-end justify-end md:mr-8 md:ml-auto`}
         >
           {body}
-        </p>
+        </div>
       ) : null}
     </div>
   );

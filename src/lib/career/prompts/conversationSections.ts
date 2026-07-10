@@ -46,9 +46,9 @@ export function buildCareerChannelContextRules(channel: CareerPromptChannel) {
     "- Use Markdown for better readability.",
     "- Use short headings, bullets, bold text for important terms such as role or company names, lists, links, or code blocks.",
     "- Do not use emojis.",
-    "- When asking a question to the user to choose one of 2-3 answer options, you can append exactly one raw choice button block after the visible question:",
+    "- When asking a question to the user to choose one of 2 answer options, you can append exactly one raw choice button block after the visible question. But do not use this too frequently.",
     "  [[CAREER_CHOICE_BUTTONS]]",
-    '  {"choices":["Option A","Option B","Option C"]}',
+    '  {"choices":["Option A","Option B"]}',
     "  [[/CAREER_CHOICE_BUTTONS]]",
     "- Keep each choice short and self-contained, including simple yes/no choices. The front end will render the choices as vertical full-width buttons and send the selected choice text back as the user's reply.",
     "- Do not put the choice button block inside a Markdown code block.",
@@ -78,22 +78,38 @@ export function buildKnownFutureMatchingInsightsSection(args: {
   content: Record<string, string> | null;
   quoteKeys?: boolean;
 }) {
+  const goodToRememberInsights: { key: string; label: string }[] = [
+    {
+      key: "external_delivery_selectivity",
+      label:
+        "ex. 진짜 확실히 핏이 맞는 기회만 가끔 추천받고 싶어요. 처럼 외부 기회 추천 기준을 명시하는 경우.",
+    },
+    {
+      key: "matching_preference",
+      label:
+        "유저가 직접 이 조건을 추천에 반영해줘.라고 말했지만 다른 insights에 해당하는 key가 없는 경우.",
+    },
+  ];
   const { content, quoteKeys = false } = args;
   const insightLines = Object.entries(content ?? {})
     .map(([key, value]) => [key, value.trim()] as const)
     .filter(([, value]) => value.length > 0)
     .sort(([left], [right]) => left.localeCompare(right))
-    .map(
-      ([key, value]) =>
-        `- ${renderInsightKey(key, quoteKeys)}\n  - current value: ${value}`
-    );
+    .map(([key, value]) => `- ${renderInsightKey(key, quoteKeys)} : ${value}`);
 
   if (insightLines.length === 0) return "";
+
+  const remainNudges = goodToRememberInsights
+    .filter((insight) => !insightLines.some(([key]) => key === insight.key))
+    .map((insight) => `- ${insight.key} : empty (${insight.label})`);
 
   return [
     "## Known future-matching insights/preferences",
     "Saved durable matching memory from talent_insights.content. Use this to understand the user's current preferences, avoid duplicate writes, and merge only genuinely new future-matching updates.",
     insightLines.join("\n"),
+    remainNudges.length > 0
+      ? `## Good to remember insights\n${remainNudges.join("\n")}`
+      : "",
   ].join("\n");
 }
 
@@ -317,17 +333,24 @@ export function buildKnownPreferencesSection(
     );
   }
 
-  if (typeof prefs.getInternalRecommendation === "boolean") {
-    lines.push(
-      `- getInternalRecommendation: ${prefs.getInternalRecommendation}`
-    );
-  }
   if (typeof prefs.profileVisibility === "string" && prefs.profileVisibility) {
-    lines.push(
-      prefs.profileVisibility === "open_to_matches"
-        ? "- Internal opportunity visibility: open to company-initiated profile-review offers."
-        : "- Internal opportunity visibility: company-initiated profile-review offers are not enabled."
-    );
+    if (prefs.profileVisibility === "open_to_matches") {
+      lines.push(
+        "- Internal opportunity visibility: open to company-initiated profile-review offers."
+      );
+    } else if (prefs.profileVisibility === "exceptional_only") {
+      lines.push(
+        "- Internal opportunity visibility: only exceptional company-initiated profile-review offers are allowed."
+      );
+    } else if (prefs.profileVisibility === "dont_share") {
+      lines.push(
+        "- Internal opportunity visibility: all matching/profile-sharing contact is disabled."
+      );
+    } else {
+      lines.push(
+        "- Internal opportunity visibility: company-initiated profile-review offers are not enabled."
+      );
+    }
   }
   if (
     typeof prefs.recommendationBatchSize === "number" &&
@@ -337,28 +360,25 @@ export function buildKnownPreferencesSection(
   }
   const cadenceGuidance = buildRecommendationCadenceGuidance(prefs);
   if (cadenceGuidance) {
-    lines.push(`- recommendationCadenceGuidance: ${cadenceGuidance}`);
+    lines.push(`- recommendationCycle: ${cadenceGuidance}`);
   }
-  if (
-    prefs.getExternalRecommendation === false &&
-    prefs.getInternalRecommendation === false
-  ) {
-    lines.push("- recommendationMode: no_opportunity_recommendations_by_type");
+  if (prefs.profileVisibility === "dont_share") {
+    lines.push("- recommendationMode: all_matching_contact_disabled");
     lines.push(
-      "- external/public job posting recommendations and internal Harper-connected opportunities are both disabled. Do not use recommend_job_postings unless the user explicitly re-enables external recommendations first."
+      "- All Harper matching/profile-sharing contact is disabled. If the user wants recommendations again, use update_setting action=resume before continuing recommendation/contact behavior."
     );
   } else if (prefs.getExternalRecommendation === false) {
-    lines.push("- recommendationMode: internal_connected_opportunities_only");
+    lines.push("- recommendationMode: directly_connectable_opportunities_only");
     lines.push(
       "- external/public job posting recommendations are disabled; do not use recommend_job_postings unless the user explicitly asks to turn external recommendations back on first."
     );
     if (prefs.profileVisibility === "open_to_matches") {
       lines.push(
-        "- Open to matches + internal enabled means the user may receive Harper-suggested internal opportunities and company-initiated connection offers after a company reviews the profile."
+        "- Open to matches means the user may still receive directly connectable opportunity suggestions and company-initiated connection offers after a company reviews the profile."
       );
     } else {
       lines.push(
-        "- Not Open to matches means internal opportunities should be Harper-suggested only, not company-initiated profile-review offers."
+        "- Not Open to matches means directly connectable opportunities should be Harper-suggested only, not company-initiated profile-review offers."
       );
     }
   }
@@ -388,10 +408,13 @@ function buildRecommendationCadenceGuidance(
       : 3;
 
   if (status === "active") {
-    return `현재 유저는 active 상태로, ${periodicIntervalDays}일마다 한번 오픈포지션을 최대 ${recommendationBatchSize}개 찾아준다.`;
+    return `현재 유저는 active 상태다. 높은 빈도로 오픈포지션을 찾아서 알려준다. 오래 유의미한 반응이 없으면 passive로 바뀌어 주기가 길어지고, 추천 공고 2개에 연속 피드백하면 현재 주기가 유지된다. 현재 기준은 ${periodicIntervalDays}일마다 최대 ${recommendationBatchSize}개다.`;
   }
   if (status === "passive") {
-    return `현재 유저는 passive 상태로, ${periodicIntervalDays * 2}일마다 한번 오픈포지션을 최대 ${recommendationBatchSize}개 찾아준다.`;
+    return `현재 유저는 passive 상태다. 오래 유의미한 액션이 없어 외부 오픈포지션은 낮은 빈도로만 보낸다. 추천 공고 2개에 연속 피드백하거나 새 공고 추천을 요청하면 active로 돌아가 더 자주 보낼 수 있다. 현재 기준은 ${periodicIntervalDays * 2}일마다 최대 ${recommendationBatchSize}개다.`;
+  }
+  if (status === "stopped") {
+    return "현재 유저는 stopped 상태다. 오래 유의미한 액션이 없어 외부 오픈포지션 정기 추천은 멈춘 상태다. 유저가 새 공고 추천을 직접 요청하면 active로 돌아가 추천을 재개할 수 있다.";
   }
   return null;
 }
@@ -416,9 +439,7 @@ export function buildOpportunityStatusSection(
     status.activeRunCreatedAt
   );
   if (activeRunCreatedAt) {
-    lines.push(
-      `- activeOpportunitySearchCreatedAt: ${activeRunCreatedAt}`
-    );
+    lines.push(`- activeOpportunitySearchCreatedAt: ${activeRunCreatedAt}`);
   }
   if (status.isInitialSearchRunning) {
     lines.push(
@@ -532,8 +553,9 @@ export function buildOptionalFollowUpOpportunitiesSection(args: {
 
   const insightSlotLines = CAREER_CANONICAL_TALENT_INSIGHT_SLOTS.map((slot) => {
     const currentValue = cleanCareerPromptInlineValue(insightContent[slot.key]);
-    return `- ${slot.key}: ${currentValue || "(empty)"} — ${slot.label}`;
-  });
+    if (currentValue) return null;
+    return `- ${slot.key}: ${slot.label}`;
+  }).filter((line): line is string => Boolean(line));
 
   const hiddenHoldLines =
     fitId && hiddenHoldSummary

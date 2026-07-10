@@ -1,7 +1,7 @@
 import { after } from "next/server";
 import {
   buildCareerInsightExtractionPrompt,
-  buildCareerTextChatPromptBlocks,
+  buildCareerConversationPromptPlan,
 } from "@/lib/career/prompts";
 import {
   recoverCareerChatAssistantText,
@@ -70,7 +70,11 @@ import {
   formatRecentRecommendedOpportunitiesForPrompt,
   type TalentOpportunityHistoryItem,
 } from "@/lib/talentOpportunity";
-import { extractPostingRoleIdsFromText } from "@/lib/career/postingLinks";
+import {
+  ensureStandalonePostingLinksInText,
+  extractPostingRoleIdsFromText,
+  normalizePostingRoleIds,
+} from "@/lib/career/postingLinks";
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 import { careerT } from "@/lib/career/translatedCareerMessage";
 import {
@@ -154,6 +158,20 @@ const optionalToolString = (value: unknown) => {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function extractRecommendationPostingRoleIds(result: unknown) {
+  if (!isRecord(result)) return [];
+
+  const roleIdsFromResult = Array.isArray(result.postingRoleIds)
+    ? result.postingRoleIds
+    : [];
+  const roleIdsFromDraft =
+    typeof result.answerDraft === "string"
+      ? extractPostingRoleIdsFromText(result.answerDraft)
+      : [];
+
+  return normalizePostingRoleIds([...roleIdsFromResult, ...roleIdsFromDraft]);
 }
 
 function appendThinkingLog(logs: string[], status: string) {
@@ -311,7 +329,7 @@ async function buildTalentProfileSnapshot(args: {
         setting?.engagement_types ?? []
       ),
       getExternalRecommendation: setting?.get_external_recommendation ?? true,
-      getInternalRecommendation: setting?.get_internal_recommendation ?? true,
+      getInternalRecommendation: true,
       isOnboardingDone: Boolean(setting?.is_onboarding_done),
       periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
         setting?.periodic_interval_days
@@ -514,7 +532,7 @@ export async function runCareerChatTurn(
     );
   const activeInternalFitHoldQuestion =
     talentSetting?.is_onboarding_done &&
-    (talentSetting?.get_internal_recommendation ?? true) &&
+    talentSetting.profile_visibility !== "dont_share" &&
     canUseInternalFitHoldQuestionTool
       ? await fetchActiveInternalFitHoldQuestion({ admin, userId })
       : null;
@@ -636,8 +654,6 @@ export async function runCareerChatTurn(
   const currentPreferences = {
     getExternalRecommendation:
       talentSetting?.get_external_recommendation ?? true,
-    getInternalRecommendation:
-      talentSetting?.get_internal_recommendation ?? true,
     periodicIntervalDays: talentSetting
       ? normalizeTalentPeriodicIntervalDays(
           talentSetting.periodic_interval_days
@@ -668,29 +684,33 @@ export async function runCareerChatTurn(
         }
       : null;
 
-  const { promptBlocks } = buildCareerTextChatPromptBlocks({
-    activeInternalFitHoldQuestion,
-    currentInsightContent,
-    currentPreferences,
-    isOnboardingDone: talentSetting?.is_onboarding_done,
-    officialJobSignupIntentPrompt: talentSetting?.is_onboarding_done
-      ? null
-      : officialJobSignupIntentEvent?.summary,
-    onboardingChecklistCoverage,
-    opportunityStatus,
-    pendingOpportunityFeedbackContext: fetchedPendingOpportunityFeedbackContext,
-    profile,
-    proactiveTurnInstruction: proactiveContext,
-    recentActivitySummaries,
-    recentRecommendedOpportunitiesText,
-    structuredProfileText,
-    toolNames: toolSelection.toolNames,
-  });
+  const { isOnboardingActive, promptBlocks } =
+    buildCareerConversationPromptPlan({
+      activeInternalFitHoldQuestion,
+      channel: "chat",
+      currentInsightContent,
+      currentPreferences,
+      isOnboardingDone: talentSetting?.is_onboarding_done,
+      officialJobSignupIntentPrompt: talentSetting?.is_onboarding_done
+        ? null
+        : officialJobSignupIntentEvent?.summary,
+      onboardingChecklistCoverage,
+      opportunityStatus,
+      pendingOpportunityFeedbackContext:
+        fetchedPendingOpportunityFeedbackContext,
+      profile,
+      runtimeInstruction: proactiveContext,
+      recentActivitySummaries,
+      recentRecommendedOpportunitiesText,
+      structuredProfileText,
+      toolNames: toolSelection.toolNames,
+    });
 
   const preparedCompanySnapshotRef: {
     current: CompanySnapshotToolResult | null;
   } = { current: null };
   let thinkingLogs: string[] = [];
+  let pendingRecommendationPostingRoleIds: string[] = [];
   const recordThinkingLog = (status: string) => {
     const previousLast = thinkingLogs[thinkingLogs.length - 1];
     thinkingLogs = appendThinkingLog(thinkingLogs, status);
@@ -743,6 +763,12 @@ export async function runCareerChatTurn(
       }
     }
   };
+  const rememberRecommendationPostingRoleIds = (result: unknown) => {
+    pendingRecommendationPostingRoleIds = normalizePostingRoleIds([
+      ...pendingRecommendationPostingRoleIds,
+      ...extractRecommendationPostingRoleIds(result),
+    ]);
+  };
   const executeRecommendJobPostings = async (
     input: Record<string, unknown>
   ) => {
@@ -761,6 +787,7 @@ export async function runCareerChatTurn(
         name: TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS,
         input,
       });
+      rememberRecommendationPostingRoleIds(result);
       const recommendationResult = isRecord(result) ? result : {};
       const completedStatus: RecommendJobPostingStatus = {
         candidateCount:
@@ -964,6 +991,7 @@ export async function runCareerChatTurn(
 
       return executeDefaultTalentTool({ name, input: toolInput });
     },
+    isOnboardingActive,
     messages: assistantTurnMessages,
     responseLocale,
     stopAfterToolNames: toolSelection.stopAfterToolNames,
@@ -1127,6 +1155,10 @@ export async function runCareerChatTurn(
       stripTalentOnboardingCompletionMarker(assistantTextWithMarkers)
     );
   }
+  safeAssistantText = ensureStandalonePostingLinksInText(
+    safeAssistantText,
+    pendingRecommendationPostingRoleIds
+  );
 
   if (shouldInsertAssistantMessage && !(await shouldInsertAssistantMessage())) {
     const profileSnapshot = await buildTalentProfileSnapshot({

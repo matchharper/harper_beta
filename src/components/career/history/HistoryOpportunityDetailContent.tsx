@@ -37,6 +37,7 @@ import {
   ActionDropdownItem,
 } from "@/components/ui/action-dropdown";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
+import { formatCareerLocation } from "@/lib/career/locationDisplay";
 import {
   canChangeCareerOpportunityManagementStatus,
   getCareerOpportunityManagementStatusLabel,
@@ -74,7 +75,7 @@ export const OpportunityHeader = ({
   const detailMetaItems = [
     {
       label: "location",
-      value: item.location,
+      value: formatCareerLocation(item.location, locale),
     },
     ...metaItems,
   ].filter(

@@ -38,6 +38,40 @@ export function extractPostingRoleIdsFromText(content: string) {
   return roleIds;
 }
 
+export function normalizePostingRoleIds(values: readonly unknown[]) {
+  const roleIds: string[] = [];
+  const seen = new Set<string>();
+
+  for (const value of values) {
+    const roleId = normalizePostingRoleId(value);
+    if (!roleId || !isPostingRoleId(roleId) || seen.has(roleId)) continue;
+    seen.add(roleId);
+    roleIds.push(roleId);
+  }
+
+  return roleIds;
+}
+
+export function ensureStandalonePostingLinksInText(
+  content: string,
+  roleIds: readonly unknown[]
+) {
+  const normalizedRoleIds = normalizePostingRoleIds(roleIds);
+  if (normalizedRoleIds.length === 0) return content;
+
+  const existingRoleIds = new Set(extractPostingRoleIdsFromText(content));
+  const missingRoleIds = normalizedRoleIds.filter(
+    (roleId) => !existingRoleIds.has(roleId)
+  );
+  if (missingRoleIds.length === 0) return content;
+
+  const postingLinks = missingRoleIds
+    .map((roleId) => `[posting](${roleId})`)
+    .join("\n");
+
+  return [content.trimEnd(), postingLinks].filter(Boolean).join("\n\n");
+}
+
 export function toPostingOpportunityId(roleId: string) {
   return `${POSTING_OPPORTUNITY_ID_PREFIX}${roleId}`;
 }

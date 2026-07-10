@@ -15,6 +15,7 @@ type UseRealtimeSessionArgs = {
   onAssistantDone: (fullText: string) => void;
   onError: (error: string) => void;
   onConnectionChange: (connected: boolean) => void;
+  onEndCallTool?: () => void;
   onUserSpeechStarted?: () => void;
   onUserSpeechStopped?: () => void;
 };
@@ -44,11 +45,26 @@ type RealtimeUsageLogOptions = {
   status: string;
 };
 
+type RealtimeAudioTurnSavedOptions = {
+  hasAssistantAudio: boolean;
+  hasUserAudio: boolean;
+};
+
+type TrackedRealtimeAudioTurn = {
+  assistantItemIds: string[];
+  awaitsUserAudioItem: boolean;
+  id: number;
+  savedToDb: boolean;
+  userItemIds: string[];
+};
+
 const VOICE_DEBUG_STORAGE_KEY = "careerVoiceDebug";
 const PLAYBACK_DRAIN_GRACE_MS = 900;
 const PLAYBACK_RESPONSE_DONE_GRACE_MS = 700;
 const MIN_ESTIMATED_PLAYBACK_MS = 900;
 const MAX_ESTIMATED_PLAYBACK_MS = 45_000;
+const REALTIME_AUDIO_TURNS_TO_KEEP = 4;
+const REALTIME_END_CALL_TOOL_NAME = "end_call";
 
 function getPlaybackNow() {
   if (typeof performance !== "undefined") return performance.now();
@@ -127,6 +143,30 @@ function getRealtimeResponseUsage(
   return isRecord(usage) ? usage : null;
 }
 
+function addUniqueId(ids: string[], value: string) {
+  const id = value.trim();
+  if (!id || ids.includes(id)) return;
+  ids.push(id);
+}
+
+function getRealtimeItemId(item: unknown) {
+  if (!isRecord(item)) return "";
+  return typeof item.id === "string" ? item.id.trim() : "";
+}
+
+function isAssistantMessageItem(item: unknown) {
+  if (!isRecord(item)) return false;
+  return item.type === "message" && item.role === "assistant";
+}
+
+function isSavedUserAssistantAudioTurn(turn: TrackedRealtimeAudioTurn) {
+  return (
+    turn.savedToDb &&
+    turn.userItemIds.length > 0 &&
+    turn.assistantItemIds.length > 0
+  );
+}
+
 function scheduleRealtimeUsageLogTask(task: () => void) {
   if (typeof window === "undefined") {
     setTimeout(task, 0);
@@ -159,6 +199,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     onAssistantDone,
     onError,
     onConnectionChange,
+    onEndCallTool,
     onUserSpeechStarted,
     onUserSpeechStopped,
   } = args;
@@ -188,6 +229,16 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   const connectAttemptIdRef = useRef(0);
   const partialTranscriptItemIdRef = useRef<string | null>(null);
 
+  const currentResponseAssistantItemIdsRef = useRef<string[]>([]);
+  const currentResponseStartedAfterUserSpeechRef = useRef(false);
+  const nextAudioDeleteEventIdRef = useRef(1);
+  const nextAudioTurnIdRef = useRef(1);
+  const pendingAudioDeleteEventIdsRef = useRef<Set<string>>(new Set());
+  const pendingUserAudioItemIdsRef = useRef<string[]>([]);
+  const pendingUserSpeechForAudioTurnRef = useRef(false);
+  const realtimeAudioTurnsRef = useRef<TrackedRealtimeAudioTurn[]>([]);
+  const userSpeechSinceLastResponseRef = useRef(false);
+
   const hasAudioInResponseRef = useRef(false);
   const interruptTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const internalResponseModeRef = useRef<"tool_preamble" | null>(null);
@@ -211,6 +262,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   const onAssistantDoneRef = useRef(onAssistantDone);
   const onErrorRef = useRef(onError);
   const onConnectionChangeRef = useRef(onConnectionChange);
+  const onEndCallToolRef = useRef(onEndCallTool);
   const onUserSpeechStartedRef = useRef(onUserSpeechStarted);
   const onUserSpeechStoppedRef = useRef(onUserSpeechStopped);
 
@@ -229,6 +281,9 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   useEffect(() => {
     onConnectionChangeRef.current = onConnectionChange;
   }, [onConnectionChange]);
+  useEffect(() => {
+    onEndCallToolRef.current = onEndCallTool;
+  }, [onEndCallTool]);
   useEffect(() => {
     onUserSpeechStartedRef.current = onUserSpeechStarted;
   }, [onUserSpeechStarted]);
@@ -359,6 +414,204 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     if (!dataChannel || dataChannel.readyState !== "open") return;
     dataChannel.send(JSON.stringify(event));
   }, []);
+
+  const pruneSavedRealtimeAudioTurns = useCallback(() => {
+    const turns = realtimeAudioTurnsRef.current;
+    const savedUserAssistantTurns = turns.filter(isSavedUserAssistantAudioTurn);
+    if (savedUserAssistantTurns.length <= REALTIME_AUDIO_TURNS_TO_KEEP) return;
+
+    const pruneCount =
+      savedUserAssistantTurns.length - REALTIME_AUDIO_TURNS_TO_KEEP;
+    const userAssistantTurnsToPrune = savedUserAssistantTurns.slice(
+      0,
+      pruneCount
+    );
+    const oldestKeptUserAssistantTurn =
+      savedUserAssistantTurns[pruneCount] ?? null;
+    const pruneTurnIds = new Set(
+      userAssistantTurnsToPrune.map((turn) => turn.id)
+    );
+    const itemIdsToDelete = new Set<string>();
+
+    const turnsToKeep = turns.filter((turn) => {
+      const shouldPruneUserAssistantTurn = pruneTurnIds.has(turn.id);
+      const shouldPruneOlderSavedAudioOnlyTurn =
+        Boolean(oldestKeptUserAssistantTurn) &&
+        turn.savedToDb &&
+        !isSavedUserAssistantAudioTurn(turn) &&
+        turn.id < oldestKeptUserAssistantTurn!.id;
+
+      if (
+        !shouldPruneUserAssistantTurn &&
+        !shouldPruneOlderSavedAudioOnlyTurn
+      ) {
+        return true;
+      }
+
+      for (const itemId of turn.userItemIds) itemIdsToDelete.add(itemId);
+      for (const itemId of turn.assistantItemIds) itemIdsToDelete.add(itemId);
+      return false;
+    });
+
+    if (itemIdsToDelete.size === 0) return;
+
+    realtimeAudioTurnsRef.current = turnsToKeep;
+    for (const itemId of itemIdsToDelete) {
+      const eventId = `harper_audio_prune_${Date.now()}_${nextAudioDeleteEventIdRef.current}`;
+      nextAudioDeleteEventIdRef.current += 1;
+      pendingAudioDeleteEventIdsRef.current.add(eventId);
+      sendEvent({
+        event_id: eventId,
+        type: "conversation.item.delete",
+        item_id: itemId,
+      });
+    }
+    logCareerVoiceDebug("audio_history.pruned", {
+      deletedItemCount: itemIdsToDelete.size,
+      keptUserAssistantTurns: REALTIME_AUDIO_TURNS_TO_KEEP,
+    });
+  }, [sendEvent]);
+
+  const markRealtimeAudioTurnSaved = useCallback(
+    (options: RealtimeAudioTurnSavedOptions) => {
+      const turn = realtimeAudioTurnsRef.current.find((candidate) => {
+        if (candidate.savedToDb) return false;
+        if (
+          options.hasAssistantAudio &&
+          candidate.assistantItemIds.length === 0
+        )
+          return false;
+        if (
+          options.hasUserAudio &&
+          candidate.userItemIds.length === 0 &&
+          !candidate.awaitsUserAudioItem
+        ) {
+          return false;
+        }
+        return true;
+      });
+
+      if (!turn) {
+        logCareerVoiceDebug("audio_history.save_mark_skipped", {
+          reason: "no_matching_turn",
+          ...options,
+        });
+        return;
+      }
+
+      if (
+        options.hasUserAudio &&
+        turn.awaitsUserAudioItem &&
+        turn.userItemIds.length === 0
+      ) {
+        logCareerVoiceDebug("audio_history.save_mark_skipped", {
+          reason: "awaiting_user_audio_item",
+          turnId: turn.id,
+        });
+        return;
+      }
+
+      turn.savedToDb = true;
+      turn.awaitsUserAudioItem = false;
+      logCareerVoiceDebug("audio_history.saved", {
+        assistantItemCount: turn.assistantItemIds.length,
+        turnId: turn.id,
+        userItemCount: turn.userItemIds.length,
+      });
+      pruneSavedRealtimeAudioTurns();
+    },
+    [pruneSavedRealtimeAudioTurns]
+  );
+
+  const recordRealtimeUserAudioItem = useCallback((itemId: string) => {
+    const normalizedItemId = itemId.trim();
+    if (!normalizedItemId) return;
+
+    const awaitingTurn = [...realtimeAudioTurnsRef.current]
+      .reverse()
+      .find(
+        (turn) =>
+          !turn.savedToDb &&
+          turn.awaitsUserAudioItem &&
+          turn.userItemIds.length === 0
+      );
+
+    if (awaitingTurn) {
+      addUniqueId(awaitingTurn.userItemIds, normalizedItemId);
+      awaitingTurn.awaitsUserAudioItem = false;
+      logCareerVoiceDebug("audio_history.user_item_attached", {
+        itemId: normalizedItemId,
+        turnId: awaitingTurn.id,
+      });
+      return;
+    }
+
+    addUniqueId(pendingUserAudioItemIdsRef.current, normalizedItemId);
+    logCareerVoiceDebug("audio_history.user_item_pending", {
+      itemId: normalizedItemId,
+    });
+  }, []);
+
+  const recordRealtimeAssistantOutputItem = useCallback((item: unknown) => {
+    if (!isAssistantMessageItem(item)) return;
+    const itemId = getRealtimeItemId(item);
+    if (!itemId) return;
+
+    addUniqueId(currentResponseAssistantItemIdsRef.current, itemId);
+    logCareerVoiceDebug("audio_history.assistant_item_seen", { itemId });
+  }, []);
+
+  const completeRealtimeAudioTurnFromResponse = useCallback(
+    (options: {
+      hadAudioInResponse: boolean;
+      outputItems: Array<Record<string, unknown>>;
+      skipTracking: boolean;
+      status: string;
+    }) => {
+      for (const item of options.outputItems) {
+        recordRealtimeAssistantOutputItem(item);
+      }
+
+      const assistantItemIds = currentResponseAssistantItemIdsRef.current;
+      currentResponseAssistantItemIdsRef.current = [];
+      const startedAfterUserSpeech =
+        currentResponseStartedAfterUserSpeechRef.current;
+      currentResponseStartedAfterUserSpeechRef.current = false;
+
+      if (
+        options.skipTracking ||
+        options.status !== "completed" ||
+        !options.hadAudioInResponse ||
+        assistantItemIds.length === 0
+      ) {
+        if (startedAfterUserSpeech) {
+          pendingUserSpeechForAudioTurnRef.current = true;
+        }
+        return;
+      }
+
+      const userItemIds = [...pendingUserAudioItemIdsRef.current];
+      pendingUserAudioItemIdsRef.current = [];
+      const awaitsUserAudioItem =
+        userItemIds.length === 0 && startedAfterUserSpeech;
+      const turn: TrackedRealtimeAudioTurn = {
+        assistantItemIds,
+        awaitsUserAudioItem,
+        id: nextAudioTurnIdRef.current,
+        savedToDb: false,
+        userItemIds,
+      };
+      nextAudioTurnIdRef.current += 1;
+      realtimeAudioTurnsRef.current.push(turn);
+      logCareerVoiceDebug("audio_history.turn_tracked", {
+        awaitsUserAudioItem,
+        assistantItemCount: assistantItemIds.length,
+        turnId: turn.id,
+        userItemCount: userItemIds.length,
+      });
+    },
+    [recordRealtimeAssistantOutputItem]
+  );
 
   const scheduleRealtimeUsageLog = useCallback(
     (
@@ -655,11 +908,24 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
             break;
 
           case "response.created":
+            currentResponseAssistantItemIdsRef.current = [];
+            currentResponseStartedAfterUserSpeechRef.current =
+              userSpeechSinceLastResponseRef.current ||
+              pendingUserSpeechForAudioTurnRef.current;
+            userSpeechSinceLastResponseRef.current = false;
+            pendingUserSpeechForAudioTurnRef.current = false;
             responseInProgressRef.current = true;
             responseCancelRequestedRef.current = false;
             suppressCurrentResponseOutputRef.current = false;
             suppressCancelledResponseDoneRef.current = false;
             break;
+
+          case "response.output_item.added":
+          case "response.output_item.created":
+          case "response.output_item.done": {
+            recordRealtimeAssistantOutputItem(msg.item);
+            break;
+          }
 
           case "conversation.item.input_audio_transcription.delta": {
             const delta = typeof msg.delta === "string" ? msg.delta : "";
@@ -689,6 +955,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
               itemId,
               transcript,
             });
+            recordRealtimeUserAudioItem(itemId);
             if (!itemId || partialTranscriptItemIdRef.current === itemId) {
               partialTranscriptItemIdRef.current = null;
               setPartialTranscript("");
@@ -781,6 +1048,12 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
             const outputItems = Array.isArray(response?.output)
               ? (response.output as Array<Record<string, unknown>>)
               : [];
+            completeRealtimeAudioTurnFromResponse({
+              hadAudioInResponse,
+              outputItems,
+              skipTracking: internalResponseModeRef.current === "tool_preamble",
+              status,
+            });
             const functionCalls = outputItems
               .filter((item) => item.type === "function_call")
               .map((item) => ({
@@ -790,9 +1063,31 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
               }))
               .filter((item) => item.callId && item.name);
 
-            if (functionCalls.length > 0) {
+            const endCallRequested = functionCalls.some(
+              (functionCall) =>
+                functionCall.name === REALTIME_END_CALL_TOOL_NAME
+            );
+            const executableFunctionCalls = functionCalls.filter(
+              (functionCall) =>
+                functionCall.name !== REALTIME_END_CALL_TOOL_NAME
+            );
+
+            if (endCallRequested) {
+              if (status === "cancelled") {
+                stopNativePlayback();
+              } else {
+                runAfterCurrentPlayback(() => {
+                  setIsAssistantSpeaking(false);
+                });
+              }
+              onAssistantDoneRef.current(fullText);
+              onEndCallToolRef.current?.();
+              break;
+            }
+
+            if (executableFunctionCalls.length > 0) {
               setIsAssistantSpeaking(false);
-              void handleFunctionCalls(functionCalls);
+              void handleFunctionCalls(executableFunctionCalls);
               break;
             }
 
@@ -830,6 +1125,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
 
           case "input_audio_buffer.speech_started": {
             logCareerVoiceDebug("speech.started");
+            userSpeechSinceLastResponseRef.current = true;
             partialTranscriptItemIdRef.current = null;
             setPartialTranscript("");
             if (interruptTimerRef.current) {
@@ -855,12 +1151,28 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
           case "error": {
             const error = msg.error as Record<string, unknown> | undefined;
             const errorCode = typeof error?.code === "string" ? error.code : "";
+            const errorEventId =
+              typeof error?.event_id === "string"
+                ? error.event_id
+                : typeof msg.event_id === "string"
+                  ? msg.event_id
+                  : "";
             const errorMessage =
               typeof error?.message === "string"
                 ? error.message
                 : "Realtime session error";
             if (errorCode === "response_cancel_not_active") {
               responseCancelRequestedRef.current = false;
+              break;
+            }
+            if (
+              errorEventId &&
+              pendingAudioDeleteEventIdsRef.current.delete(errorEventId)
+            ) {
+              console.warn("[RealtimeSession] Audio prune delete ignored:", {
+                code: errorCode,
+                message: errorMessage,
+              });
               break;
             }
             console.error("[RealtimeSession] Server error:", error);
@@ -876,9 +1188,12 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
       }
     },
     [
+      completeRealtimeAudioTurnFromResponse,
       handleFunctionCalls,
       markAssistantPlaybackDone,
       markAssistantPlaybackStarted,
+      recordRealtimeAssistantOutputItem,
+      recordRealtimeUserAudioItem,
       runAfterCurrentPlayback,
       scheduleRealtimeUsageLog,
       stopNativePlayback,
@@ -947,6 +1262,15 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     suppressCurrentResponseOutputRef.current = false;
     suppressCancelledResponseDoneRef.current = false;
     partialTranscriptItemIdRef.current = null;
+    currentResponseAssistantItemIdsRef.current = [];
+    currentResponseStartedAfterUserSpeechRef.current = false;
+    nextAudioDeleteEventIdRef.current = 1;
+    nextAudioTurnIdRef.current = 1;
+    pendingAudioDeleteEventIdsRef.current.clear();
+    pendingUserAudioItemIdsRef.current = [];
+    pendingUserSpeechForAudioTurnRef.current = false;
+    realtimeAudioTurnsRef.current = [];
+    userSpeechSinceLastResponseRef.current = false;
     setPartialTranscript("");
     setIsConnected(false);
     setIsConnecting(false);
@@ -1286,6 +1610,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     generateSpeech,
     generateSpeechFromInstructions,
     updateSessionInstructions,
+    markRealtimeAudioTurnSaved,
     getMediaStream,
     getLastConnectFailure,
     sendEvent,

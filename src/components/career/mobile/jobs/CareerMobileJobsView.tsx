@@ -41,6 +41,7 @@ import { getOpportunityPostingStatus } from "@/components/career/history/opportu
 import { BareButton } from "@/components/ui/button";
 import { useMessages } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
+import { formatCareerLocation } from "@/lib/career/locationDisplay";
 import { TabBoxes, type TabBoxItem } from "@/components/ui/tab-boxes";
 import {
   getCareerOpportunityManagementStatus,
@@ -396,7 +397,7 @@ function OpportunitySummaryCard({
   const detailMetaItems = [
     {
       label: "location",
-      value: opportunity.location,
+      value: formatCareerLocation(opportunity.location, locale),
     },
     ...metaItems.map((meta) => ({
       label: meta,

@@ -1,6 +1,6 @@
 import { runCareerChatTurn } from "@/lib/career/chatTurn";
 import {
-  buildCareerOpportunityFeedbackFollowUpProactiveContext,
+  buildCareerOpportunityFeedbackFollowUpTurnInstruction,
   type CareerOpportunityFeedbackFollowUpTrigger,
 } from "@/lib/career/prompts";
 import {
@@ -113,7 +113,7 @@ export async function createTalentOpportunityFeedbackFollowUpReply(args: {
 
   const feedbackContext = formatOpportunityFeedbackPromptContext(items);
   const proactiveContext =
-    buildCareerOpportunityFeedbackFollowUpProactiveContext({
+    buildCareerOpportunityFeedbackFollowUpTurnInstruction({
       preferredLocale: talentSetting?.preferred_locale ?? null,
       trigger: args.trigger,
     });

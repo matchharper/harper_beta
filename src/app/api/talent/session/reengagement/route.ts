@@ -19,6 +19,7 @@ import { TALENT_TOOL_NAMES } from "@/lib/talentOnboarding/tools";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 
 const REENGAGEMENT_IDLE_MS = 8 * 60 * 60 * 1000; // 8시간
+const USER_INITIATED_REENGAGEMENT_IDLE_MS = 60 * 60 * 1000; // 1시간
 
 const parseTimestampMs = (value: string | null | undefined) => {
   if (typeof value !== "string") return 0;
@@ -43,6 +44,7 @@ type ReengagementBody = {
   conversationId?: string | null;
   devDeleteLatestMessage?: boolean;
   devForce?: boolean;
+  userInitiated?: boolean;
 };
 
 type DeletedTalentMessage = {
@@ -150,6 +152,7 @@ export async function POST(req: NextRequest) {
     const conversationId = String(body?.conversationId ?? "").trim();
     const devDeleteLatestMessage = body?.devDeleteLatestMessage === true;
     const devForce = body?.devForce === true;
+    const userInitiated = body?.userInitiated === true;
     const isDevTestRequest = devDeleteLatestMessage || devForce;
     if (
       isDevTestRequest &&
@@ -288,9 +291,15 @@ export async function POST(req: NextRequest) {
       latestReengagementAnchorAt <= 0
         ? 0
         : Date.now() - latestReengagementAnchorAt;
+    const userInitiatedForce =
+      userInitiated &&
+      (latestReengagementAnchorAt <= 0 ||
+        idleMs >= USER_INITIATED_REENGAGEMENT_IDLE_MS);
     const effectiveIdleMs = devForce
       ? Math.max(idleMs, REENGAGEMENT_IDLE_MS)
-      : idleMs;
+      : userInitiatedForce
+        ? Math.max(idleMs, REENGAGEMENT_IDLE_MS)
+        : idleMs;
 
     if (effectiveIdleMs < REENGAGEMENT_IDLE_MS) {
       return NextResponse.json({

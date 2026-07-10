@@ -1162,6 +1162,120 @@ export const CareerFlowProvider = ({
     ]
   );
 
+  const handleRunSessionReengagement =
+    useCallback(async (): Promise<boolean> => {
+      if (
+        !conversationId ||
+        sessionReengagementPending ||
+        sessionReengagementTestPending ||
+        stage === "profile"
+      ) {
+        return false;
+      }
+
+      clearSessionReengagementAction();
+      setSessionReengagementPending(true);
+      setSessionReengagementThinkingLogs([]);
+      setSessionReengagementRecommendationStatus(null);
+      setChatError("");
+
+      try {
+        const response = await fetchWithAuth(
+          "/api/talent/session/reengagement",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              conversationId,
+              userInitiated: true,
+            }),
+          }
+        );
+        const payload = (await response
+          .json()
+          .catch(() => ({}))) as SessionReengagementPayload;
+
+        if (!response.ok) {
+          throw new Error(
+            getErrorMessage(
+              payload,
+              t(
+                "career.common.career_flow_provider.resume_interview_error",
+                "커리어 인터뷰 이어가기를 실행하지 못했습니다."
+              )
+            )
+          );
+        }
+
+        if (payload.skipped) {
+          return false;
+        }
+
+        if (payload.opportunityRun) {
+          setOpportunityRun(payload.opportunityRun);
+        }
+        if ("talentPreferences" in payload) {
+          handleTalentPreferencesRefreshedFromChat(
+            payload.talentPreferences,
+            payload.preferencesUpdatedAt ?? null
+          );
+        }
+        if ("talentInsights" in payload) {
+          handleTalentInsightsRefreshedFromChat(
+            payload.talentInsights,
+            payload.insightUpdatedAt ?? null
+          );
+        }
+
+        const assistantMessages = Array.isArray(payload.assistantMessages)
+          ? payload.assistantMessages
+          : payload.assistantMessage
+            ? [payload.assistantMessage]
+            : [];
+
+        if (assistantMessages.length > 0) {
+          await enqueueAssistantMessages(assistantMessages);
+          const lastAssistantMessage =
+            assistantMessages[assistantMessages.length - 1];
+          setSessionReengagementActionMessageId(
+            String(lastAssistantMessage.id)
+          );
+        } else {
+          const sessionPayload = await loadSession({ force: true });
+          if (sessionPayload) {
+            hydrateSession(sessionPayload);
+          }
+        }
+
+        return true;
+      } catch (error) {
+        setChatError(
+          error instanceof Error
+            ? error.message
+            : t(
+                "career.common.career_flow_provider.resume_interview_error",
+                "커리어 인터뷰 이어가기를 실행하지 못했습니다."
+              )
+        );
+        return false;
+      } finally {
+        setSessionReengagementPending(false);
+      }
+    }, [
+      clearSessionReengagementAction,
+      conversationId,
+      enqueueAssistantMessages,
+      fetchWithAuth,
+      handleTalentInsightsRefreshedFromChat,
+      handleTalentPreferencesRefreshedFromChat,
+      hydrateSession,
+      loadSession,
+      sessionReengagementPending,
+      sessionReengagementTestPending,
+      setChatError,
+      stage,
+      t,
+    ]);
+
   const handleRunSessionReengagementTest = useCallback(
     async (options?: { deleteLatestMessage?: boolean }): Promise<void> => {
       if (
@@ -1831,6 +1945,7 @@ export const CareerFlowProvider = ({
       onProfileSubmit: handleProfileSubmit,
       onSendChatMessage: sendChatMessage,
       onStartConversationStarter: handleStartConversationStarter,
+      onRunSessionReengagement: handleRunSessionReengagement,
       onUpdateHistoryOpportunityFeedback,
       onLoadOlderMessages: handleLoadOlderMessages,
       onRegenerateOnboardingWrapup: regenerateOnboardingWrapup,
@@ -1879,6 +1994,7 @@ export const CareerFlowProvider = ({
       handleProfileLinkChange,
       handleProfileSubmit,
       handleRemoveProfileLink,
+      handleRunSessionReengagement,
       historyUpdatingOpportunityIds,
       handleLoadOlderMessages,
       hasOlderMessages,

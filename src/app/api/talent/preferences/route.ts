@@ -49,7 +49,6 @@ const getLatestUpdatedAt = (...values: Array<string | null | undefined>) => {
 type Body = {
   engagementTypes?: string[];
   getExternalRecommendation?: boolean;
-  getInternalRecommendation?: boolean;
   recommendationBatchSize?: number;
   insightContent?: Record<string, unknown> | null;
 };
@@ -71,9 +70,7 @@ const toResponsePreferences = (
     getExternalRecommendation: normalizeTalentRecommendationToggle(
       setting?.get_external_recommendation
     ),
-    getInternalRecommendation: normalizeTalentRecommendationToggle(
-      setting?.get_internal_recommendation
-    ),
+    getInternalRecommendation: true,
     isOnboardingDone: Boolean(setting?.is_onboarding_done),
     periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
       setting?.periodic_interval_days
@@ -105,13 +102,6 @@ function getPreferenceActivityChanges(args: {
       field: "getExternalRecommendation",
       from: args.from.getExternalRecommendation,
       to: args.to.getExternalRecommendation,
-    });
-  }
-  if (args.body.getInternalRecommendation !== undefined) {
-    changes.push({
-      field: "getInternalRecommendation",
-      from: args.from.getInternalRecommendation,
-      to: args.to.getInternalRecommendation,
     });
   }
   if (args.body.recommendationBatchSize !== undefined) {
@@ -192,7 +182,6 @@ export async function POST(req: NextRequest) {
     const hasPreferenceUpdate =
       body.engagementTypes !== undefined ||
       body.getExternalRecommendation !== undefined ||
-      body.getInternalRecommendation !== undefined ||
       body.recommendationBatchSize !== undefined;
     const hasInsightUpdate = body.insightContent !== undefined;
 
@@ -213,10 +202,6 @@ export async function POST(req: NextRequest) {
           getExternalRecommendation: normalizeTalentRecommendationToggle(
             body.getExternalRecommendation ??
               existingSetting?.get_external_recommendation
-          ),
-          getInternalRecommendation: normalizeTalentRecommendationToggle(
-            body.getInternalRecommendation ??
-              existingSetting?.get_internal_recommendation
           ),
           recommendationBatchSize: normalizeTalentRecommendationBatchSize(
             body.recommendationBatchSize ??

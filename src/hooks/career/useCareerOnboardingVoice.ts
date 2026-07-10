@@ -46,36 +46,48 @@ import { useCareerT } from "@/i18n/useCareerT";
 
 type CareerT = ReturnType<typeof useCareerT>;
 
+function getCallOpeningOutputLanguage(locale?: string | null) {
+  return locale === "en" ? "영어" : "한국어";
+}
+
+function applyCallOpeningPromptValues(
+  prompt: string,
+  args: { outputLanguage: string }
+) {
+  return prompt.replace(/\{output_language\}/g, args.outputLanguage);
+}
+
 const DEFAULT_CALL_OPENING_TEXT =
   "통화로 이야기해볼게요. 최근에 달라진 우선순위가 있으면 거기서 시작해도 좋고, 아니면 지금까지의 역할이나 경험 중 회사들이 꼭 알아야 할 부분부터 편하게 들려주세요. 정보가 많을수록 더 잘 맞는 연결 요청이나 기회를 골라드릴 수 있어요.";
 
-const CALL_OPENING_RESPONSE_INSTRUCTION = [
-  "통화가 방금 시작되었습니다. 사용자가 먼저 할 말을 찾지 않아도 되도록 Harper가 먼저 대화를 시작하세요.",
-  "도구는 사용하지 마세요. 지금은 통화 시작 멘트와 첫 질문만 합니다.",
-  "한국어 존댓말로, 실제 전화 첫마디처럼 자연스럽게 말하세요.",
-  "2-4문장으로 짧게 말하고, 마지막은 사용자가 바로 답할 수 있는 하나의 질문으로 끝내세요.",
-  "통화는 크게 2가지 방식으로 시작할 수 있습니다. 1) 이전에 채팅으로 진행하던 대화를 통화로 이어서하는 경우, 2) 통화로 새롭게 대화를 시작하는 경우",
-  "최근 채팅 맥락이 함께 제공되면 먼저 그 내용을 보고, 이전에 채팅으로 진행하던 대화를 통화로 이어서 하는 상황인지 판단하세요.",
-  "이전 내용에서 이어서 말하는 게 자연스러우면 새 주제를 꺼내지 말고 마지막으로 오가던 질문이나 답변을 직접 이어받아 시작하세요. 대신 인사하고 시작하는 것이 자연스러우면 인사하고 시작하면 된다.",
-  "이어가기 위해 필요하면 직전 대화의 마지막 질문이나 확인점을 짧게 다시 물어도 됩니다.",
-  "(2번) 새롭게 대화를 시작하는게 자연스러우면 먼저 커피챗을 시작하는 헤드헌터처럼 말을 건네면서 시작하면 된다.",
-  "최근 대화나 활동 맥락이 보이면 구체적으로 연결하세요. 예를 들어 최근 연결 제안을 거절했거나 추천에 피드백을 남겼다면, 그 이후 달라진 점이 있는지 물어보세요.",
-  "구체적 맥락이 약하면 최근에 달라진 우선순위, 현재 역할/경험 중 더 알려줄 부분, 개인적인 선호나 제약 중 하나를 물어보세요.",
-  "많은 정보를 들려줄수록 회사 연결 요청이나 맞춤 기회 추천이 더 정확해진다는 취지를 한 번만 짧게 말하고, 함께 헤드헌터의 입장에서 할만한 질문을 던져도 됩니다.",
-].join("\n");
+const CALL_OPENING_RESPONSE_INSTRUCTION = `
+통화가 방금 시작되었습니다. 사용자가 먼저 할 말을 찾지 않아도 되도록 Harper가 먼저 대화를 시작하세요.
+도구는 사용하지 마세요. 지금은 통화 시작 멘트와 첫 질문만 합니다.
+{output_language}로, 실제 전화 첫마디처럼 자연스럽게 말하세요.
+2-4문장으로 짧게 말하고, 마지막은 사용자가 바로 답할 수 있는 하나의 질문으로 끝내세요.
+통화는 크게 2가지 방식으로 시작할 수 있습니다. 1) 이전에 채팅으로 진행하던 대화를 통화로 이어서하는 경우, 2) 통화로 새롭게 대화를 시작하는 경우
+최근 채팅 맥락이 함께 제공되면 먼저 그 내용을 보고, 이전에 채팅으로 진행하던 대화를 통화로 이어서 하는 상황인지 판단하세요.
+이전 내용에서 이어서 말하는 게 자연스러우면 새 주제를 꺼내지 말고 마지막으로 오가던 질문이나 답변을 직접 이어받아 시작하세요. 대신 인사하고 시작하는 것이 자연스러우면 인사하고 시작하면 된다.
+이어가기 위해 필요하면 직전 대화의 마지막 질문이나 확인점을 짧게 다시 물어도 됩니다.
+(2번) 새롭게 대화를 시작하는게 자연스러우면 먼저 커피챗을 시작하는 헤드헌터처럼 말을 건네면서 시작하면 된다.
+최근 대화나 활동 맥락이 보이면 구체적으로 연결하세요. 예를 들어 최근 연결 제안을 거절했거나 추천에 피드백을 남겼다면, 그 이후 달라진 점이 있는지 물어보세요.
+구체적 맥락이 약하면 최근에 달라진 우선순위, 현재 역할/경험 중 더 알려줄 부분, 개인적인 선호나 제약 중 하나를 물어보세요.
+많은 정보를 들려줄수록 회사 연결 요청이나 맞춤 기회 추천이 더 정확해진다는 취지를 한 번만 짧게 말하고, 함께 헤드헌터의 입장에서 할만한 질문을 던져도 됩니다.
+`;
 
-const ONBOARDING_CALL_OPENING_RESPONSE_INSTRUCTION = [
-  "통화가 방금 시작되었습니다. 이 통화는 5분 커리어 인터뷰를 위한 통화입니다.",
-  "도구는 사용하지 마세요. 지금은 통화 시작 멘트와 첫 질문만 합니다.",
-  "한국어 존댓말로, 실제 전화 첫마디처럼 자연스럽게 말하세요.",
-  "첫 문장에서는 이 대화가 왜 필요한지 가볍게 안내하세요. 더 잘 맞는 기회 추천과 회사 연결을 위해 현재 상황과 선호를 짧게 확인한다는 취지입니다.",
-  "안내 직후 바로 질문 하나를 하세요.",
-  "질문은 세션 instructions의 Onboarding Question Checklist에서 current_status가 missing인 항목 중 우선순위가 높은 항목을 고르고, 해당 항목의 question hint를 기반으로 만드세요.",
-  "이미 covered인 항목이나 최근 대화에서 답한 주제는 다시 묻지 마세요.",
-  "최근 대화 내역은 배경으로만 참고하고, missing checklist 항목과 question hint 기반 질문 선택을 대신하지 마세요.",
-  "전체 첫 멘트는 3~4문장으로 끝내고, 마지막 문장은 사용자가 바로 답할 수 있는 질문이어야 합니다.",
-  '예시: "안녕하세요. 이 5분 커리어 인터뷰는 하퍼가 더 잘 맞는 기회를 추천하고, 필요하면 회사와 연결할 때 후보자님의 맥락을 잘 전달하기 위해 짧게 확인하는 대화예요. 편하게 답해주시면 되고, 먼저 현재 탐색 온도부터 확인해볼게요. 지금 적극적으로 다음 기회를 찾고 계신 건지, 아니면 좋은 게 있으면 받아는 보고 싶다 정도인지 편하게 말씀해주세요."',
-].join("\n");
+const ONBOARDING_CALL_OPENING_RESPONSE_INSTRUCTION = `
+## 현재 통화는 유저가 5분 커리어 인터뷰를 위해 버튼을 클릭해서 시작되었다.
+
+첫 응답의 자연스러운 흐름:
+1. 가벼운 인사로 시작한다. (반갑습니다 질문이 몇개 남지 않았어요, 다시 전화가 연결되었네요, 시간 내주셔서 감사합니다 등)
+2. 이 대화가 왜 필요한지 가볍게 안내하세요. 더 잘 맞는 기회 추천과 회사 연결을 위해 현재 상황과 선호를 짧게 확인한다는 취지입니다.
+3. 이전 대화 내역이 있다면, 이어서 가볼게요라는 식의 말과 함께 질문 하나로 마무리한다.
+
+- {output_language}로, 실제 전화 첫마디처럼 자연스럽게 말하세요.
+- 질문은 세션 instructions의 Onboarding Question Checklist에서 current_status가 missing인 항목 중 우선순위가 높은 항목을 고르고, 해당 항목의 question hint를 기반으로 만드세요.
+- 이미 covered인 항목이나 최근 대화에서 답한 주제는 다시 묻지 마세요.
+예시: "안녕하세요. 전화로 이어가주셔서 감사합니다. 5분 커리어 인터뷰는 하퍼가 더 잘 맞는 기회를 추천하고, 필요하면 회사와 연결할 때 후보자님의 맥락을 잘 전달하기 위해 짧게 확인하는 대화예요. 편하게 답해주시면 되고, 먼저 현재 탐색 온도부터 확인해볼게요. 지금 적극적으로 다음 기회를 찾고 계신 건지, 아니면 좋은 게 있으면 받아는 보고 싶다 정도인지 편하게 말씀해주세요.
+`;
 
 function formatCallOpeningRelativeTime(
   createdAt: string,
@@ -188,6 +200,7 @@ function buildCallOpeningResponseInstruction(args: {
   interviewProgress?: CareerInterviewProgress | null;
   isOnboardingDone?: boolean;
   isConversationStarter?: boolean;
+  locale?: string | null;
   openingText?: string;
   recentConversationContext?: string;
   t: CareerT;
@@ -196,6 +209,7 @@ function buildCallOpeningResponseInstruction(args: {
     interviewProgress,
     isConversationStarter,
     isOnboardingDone,
+    locale,
     openingText,
     recentConversationContext,
     t,
@@ -208,17 +222,13 @@ function buildCallOpeningResponseInstruction(args: {
     interviewProgress.percent >= 75;
   const shouldUseOnboardingOpening =
     !isOnboardingDone && !isConversationStarter;
+  const outputLanguage = getCallOpeningOutputLanguage(locale);
+  const baseOpeningInstruction = shouldUseOnboardingOpening
+    ? ONBOARDING_CALL_OPENING_RESPONSE_INSTRUCTION
+    : CALL_OPENING_RESPONSE_INSTRUCTION;
 
   const sections = [
-    shouldUseOnboardingOpening
-      ? t(
-          "career.call.opening.instruction.onboarding",
-          ONBOARDING_CALL_OPENING_RESPONSE_INSTRUCTION
-        )
-      : t(
-          "career.call.opening.instruction.default",
-          CALL_OPENING_RESPONSE_INSTRUCTION
-        ),
+    applyCallOpeningPromptValues(baseOpeningInstruction, { outputLanguage }),
     shouldUseNearFinishOpening &&
       t(
         "career.call.opening.instruction.near_finish",
@@ -247,31 +257,13 @@ function buildCallOpeningResponseInstruction(args: {
         [
           "",
           "## Conversation starter opening",
-          "이번 통화는 사용자가 특정 conversation starter 버튼을 눌러 시작했습니다.",
-          "아래 starter 내용의 목적과 질문 방향을 가장 우선하세요.",
-          "최근 우선순위, 선호 조건, 일반적인 기회 탐색 질문을 임의로 고르지 마세요.",
+          "이번 통화는 사용자가 특정 버튼을 눌러 시작했습니다.",
         ].join("\n")
       ),
-    recentConversationContext &&
-      [
-        "",
-        recentConversationContext,
-        !shouldUseOnboardingOpening &&
-          t(
-            "career.call.opening.instruction.use_recent_context",
-            "위 최근 채팅 맥락은 통화 첫 멘트를 정할 때 가장 먼저 참고하세요. 마지막 대화가 아직 이어지는 흐름이면 일반적인 새 인사나 새 질문으로 시작하지 마세요."
-          ),
-      ].join("\n"),
+    recentConversationContext && ["", recentConversationContext].join("\n"),
     normalizedOpeningText &&
       !shouldUseOnboardingOpening &&
-      [
-        "",
-        t(
-          "career.call.opening.instruction.reference_opening",
-          "## 참고할 통화 시작 내용\n아래 문구나 질문의 취지를 통화 첫 멘트에 자연스럽게 반영하세요. 그대로 읽기보다 위 지시와 최근 대화 맥락에 맞게 말하세요."
-        ),
-        normalizedOpeningText,
-      ].join("\n"),
+      ["", normalizedOpeningText].join("\n"),
   ].filter(Boolean);
 
   return sections.join("\n");
@@ -669,6 +661,7 @@ export const useCareerOnboardingVoice = ({
 
       const runSave = async () => {
         const showWrapupPending = Boolean(args.assistantEndedOnboarding);
+        let didUpdateRealtimeInstructions = false;
         if (showWrapupPending) {
           setOnboardingWrapupPending(true);
         }
@@ -740,9 +733,18 @@ export const useCareerOnboardingVoice = ({
             forceEndCallModeRef.current?.();
           }
           if (response.ok && payload?.nextStepInstructions) {
-            updateSessionInstructionsRef.current?.(
-              payload.nextStepInstructions
-            );
+            const updateSessionInstructions =
+              updateSessionInstructionsRef.current;
+            if (updateSessionInstructions) {
+              updateSessionInstructions(payload.nextStepInstructions);
+              didUpdateRealtimeInstructions = true;
+            }
+          }
+          if (response.ok && didUpdateRealtimeInstructions) {
+            realtimeSessionRef.current?.markRealtimeAudioTurnSaved({
+              hasAssistantAudio: Boolean(assistantText),
+              hasUserAudio: Boolean(userText),
+            });
           }
         } catch (err) {
           console.error("[CareerOnboardingVoice] Save turn failed:", err);
@@ -1095,6 +1097,7 @@ export const useCareerOnboardingVoice = ({
     onAssistantDone: handleRealtimeAssistantDone,
     onError: handleRealtimeError,
     onConnectionChange: handleRealtimeConnectionChange,
+    onEndCallTool: scheduleCallEndAfterRealtimePlayback,
     onUserSpeechStarted: handleRealtimeUserSpeechStarted,
     onUserSpeechStopped: handleRealtimeUserSpeechStopped,
   });
@@ -1383,8 +1386,6 @@ export const useCareerOnboardingVoice = ({
 
       const customOpeningText =
         typeof startArgs === "string" ? startArgs : startArgs?.openingText;
-      const isMockCall =
-        typeof startArgs === "object" && Boolean(startArgs?.mock);
       const conversationStarterId =
         typeof startArgs === "object"
           ? (startArgs.conversationStarterId ?? null)
@@ -1393,12 +1394,8 @@ export const useCareerOnboardingVoice = ({
         typeof startArgs === "object"
           ? (startArgs.internalCallRequestId?.trim() ?? null)
           : null;
-      activeCallConversationStarterIdRef.current = isMockCall
-        ? null
-        : conversationStarterId;
-      activeInternalCallRequestIdRef.current = isMockCall
-        ? null
-        : internalCallRequestId;
+      activeCallConversationStarterIdRef.current = conversationStarterId;
+      activeInternalCallRequestIdRef.current = internalCallRequestId;
 
       setCallStartPending(true);
       let callStartedSuccessfully = false;
@@ -1410,7 +1407,7 @@ export const useCareerOnboardingVoice = ({
         clearRealtimeTurnSyncState();
 
         const shouldBeginOnboarding =
-          !isMockCall && !customOpeningText && showVoiceStartPrompt;
+          !customOpeningText && showVoiceStartPrompt;
         let openingAssistantMessage: CareerMessage | null = null;
         if (shouldBeginOnboarding) {
           setShowVoiceStartPrompt(false);
@@ -1427,9 +1424,8 @@ export const useCareerOnboardingVoice = ({
         }
 
         const callStarted = await startCallMode({
-          conversationStarterId: isMockCall ? null : conversationStarterId,
-          internalCallRequestId: isMockCall ? null : internalCallRequestId,
-          mock: isMockCall,
+          conversationStarterId,
+          internalCallRequestId,
         });
         if (!callStarted) {
           if (shouldBeginOnboarding) {
@@ -1442,9 +1438,6 @@ export const useCareerOnboardingVoice = ({
 
         callStartedAtRef.current = Date.now();
         callStartedSuccessfully = true;
-        if (isMockCall) {
-          return true;
-        }
 
         const openingRecentConversationContext =
           buildCallOpeningRecentConversationContext(messages, t);
@@ -1458,6 +1451,7 @@ export const useCareerOnboardingVoice = ({
               interviewProgress: callInterviewProgress,
               isOnboardingDone,
               isConversationStarter: Boolean(conversationStarterId),
+              locale,
               openingText,
               recentConversationContext: openingRecentConversationContext,
               t,
@@ -1485,6 +1479,7 @@ export const useCareerOnboardingVoice = ({
             interviewProgress: callInterviewProgress,
             isOnboardingDone,
             isConversationStarter: Boolean(conversationStarterId),
+            locale,
             openingText,
             recentConversationContext: openingRecentConversationContext,
             t,
@@ -1509,6 +1504,7 @@ export const useCareerOnboardingVoice = ({
       callInterviewProgress,
       clearRealtimeTurnSyncState,
       isOnboardingDone,
+      locale,
       messages,
       onboardingBeginPending,
       showVoiceStartPrompt,

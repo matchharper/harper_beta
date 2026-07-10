@@ -105,7 +105,7 @@ export const CAREER_LLM_CONFIG = {
   // OpenAI Realtime 세션 생성 설정.
   // 사용처: /api/realtime/token.
   realtime: {
-    model: "gpt-realtime-2",
+    model: "gpt-realtime-2.1",
     transcriptionModel: "gpt-4o-transcribe",
     voice: "cedar",
   },
@@ -283,15 +283,36 @@ function buildAnthropicSystemBlocks(blocks: CareerChatSystemBlock[]) {
   const normalizedBlocks = blocks.filter(
     (block) => block.text.trim().length > 0
   );
-  const lastCacheableIndex = normalizedBlocks.reduce(
-    (index, block, currentIndex) => (block.cacheable ? currentIndex : index),
-    -1
+  const cacheIndexes = new Set<number>();
+  const futureMatchingInsightsIndex = normalizedBlocks.findIndex(
+    (block) => block.key === "future_matching_insights"
   );
+
+  if (futureMatchingInsightsIndex >= 0) {
+    for (let index = futureMatchingInsightsIndex - 1; index >= 0; index -= 1) {
+      if (normalizedBlocks[index]?.cacheable) {
+        cacheIndexes.add(index);
+        break;
+      }
+    }
+
+    if (normalizedBlocks[futureMatchingInsightsIndex]?.cacheable) {
+      cacheIndexes.add(futureMatchingInsightsIndex);
+    }
+  } else {
+    const lastCacheableIndex = normalizedBlocks.reduce(
+      (index, block, currentIndex) => (block.cacheable ? currentIndex : index),
+      -1
+    );
+    if (lastCacheableIndex >= 0) {
+      cacheIndexes.add(lastCacheableIndex);
+    }
+  }
 
   return normalizedBlocks.map((block, index) => ({
     type: "text" as const,
     text: block.text,
-    ...(index === lastCacheableIndex
+    ...(cacheIndexes.has(index)
       ? { cache_control: { type: "ephemeral" as const } }
       : {}),
   }));
@@ -332,6 +353,7 @@ function normalizeUniqueToolNames(toolNames: readonly string[]) {
 function buildScopedContinuationToolPolicy(args: {
   callableToolNames: readonly string[];
   executedToolNames: readonly string[];
+  isOnboardingActive?: boolean;
   responseLocale?: string | null;
 }) {
   const callableToolNames = normalizeUniqueToolNames(args.callableToolNames);
@@ -344,6 +366,7 @@ function buildScopedContinuationToolPolicy(args: {
 
   const rawPolicy = buildCareerToolPolicyPrompt({
     channel: "chat",
+    isOnboardingActive: args.isOnboardingActive,
     preferredLocale: args.responseLocale,
     toolNames: policyToolNames,
   });
@@ -374,12 +397,14 @@ function buildScopedContinuationToolPolicy(args: {
 function withScopedContinuationToolPolicy(args: {
   callableToolNames: readonly string[];
   executedToolNames: readonly string[];
+  isOnboardingActive?: boolean;
   responseLocale?: string | null;
   systemBlocks: CareerChatSystemBlock[];
 }) {
   const toolPolicy = buildScopedContinuationToolPolicy({
     callableToolNames: args.callableToolNames,
     executedToolNames: args.executedToolNames,
+    isOnboardingActive: args.isOnboardingActive,
     responseLocale: args.responseLocale,
   });
   const replacementBlock: CareerChatSystemBlock | null = toolPolicy
@@ -421,8 +446,8 @@ function resolveNextStreamingTools(args: {
 }) {
   const nextToolNameSet = new Set<string>();
   for (const attemptedToolName of args.attemptedToolNames) {
-    for (const nextToolName of
-      STREAMING_CHAINABLE_TOOLS[attemptedToolName] ?? []) {
+    for (const nextToolName of STREAMING_CHAINABLE_TOOLS[attemptedToolName] ??
+      []) {
       nextToolNameSet.add(nextToolName);
     }
   }
@@ -1337,6 +1362,7 @@ export async function runCareerChatAssistant(args: {
   stopAfterToolNames?: string[];
   systemBlocks: CareerChatSystemBlock[];
   tools: TalentChatTool[];
+  isOnboardingActive?: boolean;
   onToolStart?: (tool: {
     input: Record<string, unknown>;
     name: string;
@@ -1420,6 +1446,7 @@ export async function runCareerChatAssistant(args: {
           ? withScopedContinuationToolPolicy({
               callableToolNames: activeToolNames,
               executedToolNames: executedToolNamesForPolicy,
+              isOnboardingActive: args.isOnboardingActive,
               responseLocale: args.responseLocale,
               systemBlocks: args.systemBlocks,
             })
@@ -1576,6 +1603,7 @@ export async function runCareerChatAssistant(args: {
     const finalSystemBlocks = withScopedContinuationToolPolicy({
       callableToolNames: [],
       executedToolNames: executedToolNamesForPolicy,
+      isOnboardingActive: args.isOnboardingActive,
       responseLocale: args.responseLocale,
       systemBlocks: args.systemBlocks,
     });
@@ -1669,6 +1697,7 @@ export async function runCareerChatAssistantStream(args: {
   stopAfterToolNames?: string[];
   systemBlocks: CareerChatSystemBlock[];
   tools: TalentChatTool[];
+  isOnboardingActive?: boolean;
   modelConfig?: CareerAssistantModelConfig;
   responseLocale?: string | null;
   usageLabel?: string;
@@ -1686,6 +1715,7 @@ export async function runCareerChatAssistantStream(args: {
       stopAfterToolNames: args.stopAfterToolNames,
       systemBlocks: args.systemBlocks,
       tools: args.tools,
+      isOnboardingActive: args.isOnboardingActive,
       responseLocale: args.responseLocale,
       usageLabel,
     });
@@ -1753,6 +1783,7 @@ export async function runCareerChatAssistantStream(args: {
           ? withScopedContinuationToolPolicy({
               callableToolNames: activeToolNames,
               executedToolNames: executedToolNamesForPolicy,
+              isOnboardingActive: args.isOnboardingActive,
               responseLocale: args.responseLocale,
               systemBlocks: args.systemBlocks,
             })
@@ -1911,8 +1942,7 @@ export async function runCareerChatAssistantStream(args: {
       }
 
       const canContinueToolChain =
-        !shouldStopAfterTool &&
-        totalToolCalls < STREAMING_TOOL_CHAIN_MAX_CALLS;
+        !shouldStopAfterTool && totalToolCalls < STREAMING_TOOL_CHAIN_MAX_CALLS;
       const nextTools = canContinueToolChain
         ? resolveNextStreamingTools({
             allTools: args.tools,
@@ -1955,6 +1985,7 @@ export async function runCareerChatAssistantStream(args: {
     const finalSystemBlocks = withScopedContinuationToolPolicy({
       callableToolNames: [],
       executedToolNames: executedToolNamesForPolicy,
+      isOnboardingActive: args.isOnboardingActive,
       responseLocale: args.responseLocale,
       systemBlocks: args.systemBlocks,
     });
@@ -2023,6 +2054,7 @@ export async function runCareerChatAssistantStream(args: {
       stopAfterToolNames: args.stopAfterToolNames,
       systemBlocks: args.systemBlocks,
       tools: args.tools,
+      isOnboardingActive: args.isOnboardingActive,
       responseLocale: args.responseLocale,
       usageLabel,
     });

@@ -28,7 +28,6 @@ type UseCareerVoiceInputArgs = {
 };
 
 const CALL_END_MARKER = "##END##";
-const MOCK_CALL_CONNECT_DELAY_MS = 700;
 const VOICE_DEBUG_STORAGE_KEY = "careerVoiceDebug";
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
@@ -53,7 +52,6 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   const [inputMode, setInputMode] = useState<CareerInputMode>("text");
   const [voiceListening, setVoiceListening] = useState(false);
   const [voiceMuted, setVoiceMuted] = useState(false);
-  const [mockCallActive, setMockCallActive] = useState(false);
   const [callTranscriptEntries, setCallTranscriptEntries] = useState<
     CallTranscriptEntry[]
   >([]);
@@ -315,7 +313,6 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
 
   useEffect(() => {
     if (
-      mockCallActive ||
       inputMode !== "call" ||
       voiceMuted ||
       !voiceListening
@@ -339,7 +336,6 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     };
   }, [
     inputMode,
-    mockCallActive,
     startVoiceLevelMonitor,
     stopVoiceLevelMonitor,
     voiceListening,
@@ -348,14 +344,6 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
 
   const toggleVoiceMute = useCallback(() => {
     if (!canInteract) return;
-
-    if (mockCallActive) {
-      setVoiceListening(false);
-      stopVoiceLevelMonitor();
-      setVoiceMuted((current) => !current);
-      logVoiceDebug(voiceMuted ? "mock-voice-unmuted" : "mock-voice-muted");
-      return;
-    }
 
     if (voiceMuted) {
       setVoiceMuted(false);
@@ -371,7 +359,6 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   }, [
     canInteract,
     logVoiceDebug,
-    mockCallActive,
     stopVoiceLevelMonitor,
     voiceMuted,
   ]);
@@ -379,7 +366,6 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   const switchToTextMode = useCallback(() => {
     stopVoiceLevelMonitor();
     stopAssistantAudio();
-    setMockCallActive(false);
     setVoiceListening(false);
     setVoiceMuted(false);
     setInputMode("text");
@@ -394,7 +380,6 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     stopVoiceLevelMonitor();
     stopAssistantAudio();
     realtimeControls?.disconnect();
-    setMockCallActive(false);
     callAssistantTranscriptStreamingRef.current = false;
     setVoiceListening(false);
     setVoiceMuted(false);
@@ -415,32 +400,14 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     async (options?: {
       conversationStarterId?: CareerConversationStarterId | null;
       internalCallRequestId?: string | null;
-      mock?: boolean;
     }) => {
       void logEnvironmentSnapshot();
       logVoiceDebug("start-call-mode");
       setVoiceMuted(false);
-      setMockCallActive(false);
       stopAssistantAudio();
       clearVoiceBuffer();
       setCallTranscriptEntries([]);
       callAssistantTranscriptStreamingRef.current = false;
-
-      if (options?.mock) {
-        realtimeControls?.disconnect();
-        stopVoiceLevelMonitor();
-        resetVoiceInputLevel();
-        await new Promise<void>((resolve) =>
-          setTimeout(resolve, MOCK_CALL_CONNECT_DELAY_MS)
-        );
-        setVoiceListening(false);
-        setVoiceMuted(false);
-        setMockCallActive(true);
-        setInputMode("call");
-        inputModeRef.current = "call";
-        logVoiceDebug("mock-call-mode-connected");
-        return true;
-      }
 
       if (realtimeControls) {
         realtimeControls.disconnect();
@@ -479,10 +446,8 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
       logVoiceDebug,
       onUnsupported,
       realtimeControls,
-      resetVoiceInputLevel,
       startVoiceLevelMonitor,
       stopAssistantAudio,
-      stopVoiceLevelMonitor,
       t,
     ]
   );
@@ -494,7 +459,6 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     stopVoiceLevelMonitor();
     stopAssistantAudio();
     realtimeControls?.disconnect();
-    setMockCallActive(false);
     setVoiceListening(false);
     setVoiceMuted(false);
     setInputMode("text");
@@ -625,9 +589,8 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     voiceTranscript,
     voiceMuted,
     callTranscriptEntries,
-    connectionStatus: mockCallActive
-      ? ("connected" as const)
-      : (realtimeControls?.connectionStatus ?? ("disconnected" as const)),
+    connectionStatus:
+      realtimeControls?.connectionStatus ?? ("disconnected" as const),
     startCallMode,
     endCallMode,
     addCallTranscriptEntry,

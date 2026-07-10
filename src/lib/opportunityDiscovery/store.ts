@@ -10,8 +10,10 @@ import {
   type RecommendationSettings,
 } from "./types";
 import {
+  DEFAULT_TALENT_PROFILE_VISIBILITY,
   fetchTalentSetting,
   getTalentSupabaseAdmin,
+  sanitizeTalentProfileVisibility,
   setTalentOnboardingDone,
   upsertTalentSetting,
 } from "@/lib/talentOnboarding/server";
@@ -21,7 +23,6 @@ import { completeActiveCareerOnboardingCall } from "@/lib/talentOnboarding/calls
 import { cancelCareerOnboardingContactQueue } from "@/lib/contactQueue";
 import {
   DEFAULT_TALENT_GET_EXTERNAL_RECOMMENDATION,
-  DEFAULT_TALENT_GET_INTERNAL_RECOMMENDATION,
   DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
   normalizeTalentRecommendationBatchSize,
   normalizeTalentRecommendationToggle,
@@ -35,7 +36,7 @@ type AdminClient = ReturnType<typeof getTalentSupabaseAdmin>;
 
 const DEFAULT_SETTINGS: RecommendationSettings = {
   getExternalRecommendation: DEFAULT_TALENT_GET_EXTERNAL_RECOMMENDATION,
-  getInternalRecommendation: DEFAULT_TALENT_GET_INTERNAL_RECOMMENDATION,
+  profileVisibility: DEFAULT_TALENT_PROFILE_VISIBILITY,
   recommendationBatchSize: DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
 };
 
@@ -105,8 +106,8 @@ export async function fetchRecommendationSettings(args: {
     getExternalRecommendation: normalizeTalentRecommendationToggle(
       data.get_external_recommendation
     ),
-    getInternalRecommendation: normalizeTalentRecommendationToggle(
-      data.get_internal_recommendation
+    profileVisibility: sanitizeTalentProfileVisibility(
+      data.profile_visibility ?? DEFAULT_TALENT_PROFILE_VISIBILITY
     ),
     recommendationBatchSize: normalizeTalentRecommendationBatchSize(
       data.recommendation_batch_size
@@ -117,14 +118,12 @@ export async function fetchRecommendationSettings(args: {
 export async function upsertRecommendationSettings(args: {
   admin: AdminClient;
   recommendationBatchSize?: number;
-  sourceConversationId?: string | null;
   userId: string;
 }) {
   const saved = await upsertTalentSetting({
     admin: args.admin,
     userId: args.userId,
     recommendationBatchSize: args.recommendationBatchSize,
-    recommendationSourceConversationId: args.sourceConversationId,
   });
 
   return {
@@ -227,7 +226,6 @@ export async function completeOnboardingAndQueueInitialOpportunityRun(args: {
     admin: args.admin,
     userId: args.userId,
     isOnboardingDone: true,
-    recommendationSourceConversationId: args.conversationId,
   });
   await cancelCareerOnboardingContactQueue({
     admin: args.admin,
@@ -338,7 +336,7 @@ export async function createOpportunityDiscoveryRun(
     run_mode: args.runMode ?? triggerToRunMode(args.trigger),
     settings_snapshot: {
       getExternalRecommendation: settings.getExternalRecommendation,
-      getInternalRecommendation: settings.getInternalRecommendation,
+      profileVisibility: settings.profileVisibility,
       recommendationBatchSize: settings.recommendationBatchSize,
     },
     status: args.initialStatus ?? "queued",

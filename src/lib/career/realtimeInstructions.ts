@@ -9,14 +9,12 @@ import {
   getTalentSupabaseAdmin,
 } from "@/lib/talentOnboarding/server";
 import {
-  buildCareerRealtimePromptPlan,
+  buildCareerConversationPromptPlan,
   buildCareerRealtimeRecentConversationSection,
-  buildInternalOpportunityRealtimeInstruction,
-  getCareerCallEndInstructionPrompt,
-  getCareerInterruptHandlingPrompt,
+  renderCareerPromptBlocks,
 } from "@/lib/career/prompts";
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
-import { getCareerConversationStarterPrompt } from "@/lib/career/conversationStarterPrompts";
+import { getCareerConversationStarter } from "@/lib/career/prompts/conversationStarters";
 import {
   fetchRecentRecommendedOpportunitiesForPrompt,
   formatRecentRecommendedOpportunitiesForPrompt,
@@ -31,6 +29,7 @@ import {
 } from "@/lib/talentOnboarding/recommendationSettings";
 import { fetchLatestTalentActivityEvent } from "@/lib/talentOnboarding/activityEvents";
 import { OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE } from "@/lib/officialJobs";
+import { TALENT_TOOL_NAMES } from "@/lib/talentOnboarding/tools";
 
 /**
  * Build realtime instructions from the shared Harper system prompt plus
@@ -98,8 +97,6 @@ export async function buildCareerRealtimeSessionInstructions(args: {
   const currentPreferences = {
     getExternalRecommendation:
       talentSetting?.get_external_recommendation ?? true,
-    getInternalRecommendation:
-      talentSetting?.get_internal_recommendation ?? true,
     periodicIntervalDays: talentSetting
       ? normalizeTalentPeriodicIntervalDays(
           talentSetting.periodic_interval_days
@@ -127,10 +124,10 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     : null;
   const promptToolNames = talentSetting?.is_onboarding_done
     ? args.toolNames
-    : [];
+    : args.toolNames.filter((name) => name === TALENT_TOOL_NAMES.END_CALL);
   const conversationStarterId = args.conversationStarterId?.trim();
   const conversationStarter = conversationStarterId
-    ? getCareerConversationStarterPrompt(
+    ? getCareerConversationStarter(
         conversationStarterId,
         currentPreferences.preferredLocale
       )
@@ -159,38 +156,28 @@ export async function buildCareerRealtimeSessionInstructions(args: {
       currentPreferences.preferredLocale
     );
 
-  return buildCareerRealtimePromptPlan({
-    callEndInstruction: getCareerCallEndInstructionPrompt(),
+  const promptPlan = buildCareerConversationPromptPlan({
+    channel: "voice",
     currentInsightContent,
     currentPreferences,
-    interruptHandling: getCareerInterruptHandlingPrompt(
-      currentPreferences.preferredLocale
-    ),
     isOnboardingDone: talentSetting?.is_onboarding_done,
     officialJobSignupIntentPrompt: talentSetting?.is_onboarding_done
       ? null
       : officialJobSignupIntentEvent?.summary,
     onboardingChecklistCoverage,
     profile,
-    proactiveTurnInstructionMode: conversationStarter
-      ? "conversation_starter"
-      : openInternalCallRequest
-        ? "internal_opportunity_call"
-        : undefined,
-    proactiveTurnInstruction: [
-      conversationStarter?.voiceProactiveInstruction ?? "",
-      openInternalCallRequest
-        ? buildInternalOpportunityRealtimeInstruction({
-            ...openInternalCallRequest,
-            preferredLocale: currentPreferences.preferredLocale,
-          })
-        : "",
-    ]
-      .filter((section) => section.trim().length > 0)
-      .join("\n\n"),
+    conversationMode:
+      conversationStarter?.id ??
+      (openInternalCallRequest ? "internal_opportunity_call" : "default"),
+    internalCallRequest,
     recentConversationSection,
     recentRecommendedOpportunitiesText,
     structuredProfileText,
     toolNames: promptToolNames,
   });
+
+  return {
+    ...promptPlan,
+    instructions: renderCareerPromptBlocks(promptPlan.promptBlocks),
+  };
 }

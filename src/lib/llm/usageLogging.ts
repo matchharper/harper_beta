@@ -174,6 +174,26 @@ const REALTIME_MODEL_PRICING_USD_PER_MTOK: Record<
     textInputUsdPerMtok: 4,
     textOutputUsdPerMtok: 24,
   },
+  "gpt-realtime-2.1": {
+    audioCachedInputUsdPerMtok: 0.4,
+    audioInputUsdPerMtok: 32,
+    audioOutputUsdPerMtok: 64,
+    imageCachedInputUsdPerMtok: 0.5,
+    imageInputUsdPerMtok: 5,
+    textCachedInputUsdPerMtok: 0.4,
+    textInputUsdPerMtok: 4,
+    textOutputUsdPerMtok: 24,
+  },
+  "gpt-realtime-2.1-mini": {
+    audioCachedInputUsdPerMtok: 0.3,
+    audioInputUsdPerMtok: 10,
+    audioOutputUsdPerMtok: 20,
+    imageCachedInputUsdPerMtok: 0.08,
+    imageInputUsdPerMtok: 0.8,
+    textCachedInputUsdPerMtok: 0.06,
+    textInputUsdPerMtok: 0.6,
+    textOutputUsdPerMtok: 2.4,
+  },
 };
 
 function toNullableNumber(value: unknown): number | null {
@@ -198,9 +218,9 @@ function getRealtimeModelPricing(model: string): RealtimeModelPricing | null {
     return REALTIME_MODEL_PRICING_USD_PER_MTOK[normalized];
   }
 
-  const matchedKey = Object.keys(REALTIME_MODEL_PRICING_USD_PER_MTOK).find(
-    (key) => normalized.startsWith(key)
-  );
+  const matchedKey = Object.keys(REALTIME_MODEL_PRICING_USD_PER_MTOK)
+    .sort((a, b) => b.length - a.length)
+    .find((key) => normalized.startsWith(key));
   return matchedKey ? REALTIME_MODEL_PRICING_USD_PER_MTOK[matchedKey] : null;
 }
 

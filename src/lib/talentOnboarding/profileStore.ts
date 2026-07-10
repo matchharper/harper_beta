@@ -32,10 +32,67 @@ function asDateText(value: unknown): string | null {
   return normalized.slice(0, 32);
 }
 
+function asRowIdText(value: unknown): string | null {
+  if (typeof value !== "string" && typeof value !== "number") return null;
+  const normalized = String(value).replace(/\s+/g, " ").trim();
+  if (!normalized) return null;
+  return normalized.slice(0, 120);
+}
+
+function normalizeExtraRowIdSeed(value: string | null | undefined): string {
+  return String(value ?? "")
+    .toLocaleLowerCase("ko")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function stableExtraRowHash(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function buildExtraBaseRowId(extra: TalentExtraItem) {
+  if (extra.id) return extra.id;
+  const seed =
+    [
+      normalizeExtraRowIdSeed(extra.title),
+      normalizeExtraRowIdSeed(extra.date),
+      normalizeExtraRowIdSeed(extra.description),
+    ].join("|") || "extra";
+  return `extra_${stableExtraRowHash(seed)}`;
+}
+
+function assignTalentExtraRowIds(items: TalentExtraItem[]): TalentExtraItem[] {
+  const used = new Set<string>();
+  const baseCounts = new Map<string, number>();
+
+  return items.map((item) => {
+    const base = buildExtraBaseRowId(item);
+    let count = (baseCounts.get(base) ?? 0) + 1;
+    baseCounts.set(base, count);
+
+    let rowId = count === 1 ? base : `${base}_${count}`;
+    while (used.has(rowId)) {
+      count += 1;
+      rowId = `${base}_${count}`;
+    }
+    used.add(rowId);
+    return { ...item, id: rowId };
+  });
+}
+
 function toTalentExtraItem(value: unknown): TalentExtraItem | null {
   const record = asRecord(value);
   if (!record) return null;
 
+  const id =
+    asRowIdText(record.id) ??
+    asRowIdText(record.rowId) ??
+    asRowIdText(record.row_id);
   const title =
     asText(record.title, 300) ??
     asText(record.name, 300) ??
@@ -52,14 +109,16 @@ function toTalentExtraItem(value: unknown): TalentExtraItem | null {
   const memo = asText(record.memo, 2000);
 
   if (!title && !description && !date && !memo) return null;
-  return { title, description, date, memo };
+  return { id, title, description, date, memo };
 }
 
 function parseTalentExtrasContent(content: unknown): TalentExtraItem[] {
   const fromArray = (value: unknown) =>
-    (Array.isArray(value) ? value : [])
-      .map((item) => toTalentExtraItem(item))
-      .filter((item): item is TalentExtraItem => Boolean(item));
+    assignTalentExtraRowIds(
+      (Array.isArray(value) ? value : [])
+        .map((item) => toTalentExtraItem(item))
+        .filter((item): item is TalentExtraItem => Boolean(item))
+    );
 
   if (Array.isArray(content)) {
     return fromArray(content);
@@ -80,6 +139,41 @@ function parseTalentExtrasContent(content: unknown): TalentExtraItem[] {
   }
 
   return [];
+}
+
+function serializeTalentExtraItems(items: TalentExtraItem[]) {
+  return items.map((item) => ({
+    id: item.id,
+    title: item.title,
+    description: item.description,
+    date: item.date,
+    memo: item.memo,
+  }));
+}
+
+function replaceTalentExtrasContentItems(
+  content: unknown,
+  items: TalentExtraItem[]
+) {
+  const serialized = serializeTalentExtraItems(items);
+  if (Array.isArray(content)) return serialized;
+
+  const record = asRecord(content);
+  if (!record) return serialized;
+
+  if (Array.isArray(record.talent_extras)) {
+    return { ...record, talent_extras: serialized };
+  }
+  if (Array.isArray(record.talentExtras)) {
+    return { ...record, talentExtras: serialized };
+  }
+  if (Array.isArray(record.items)) {
+    return { ...record, items: serialized };
+  }
+  if (Array.isArray(record.publications)) {
+    return { ...record, publications: serialized };
+  }
+  return { ...record, talent_extras: serialized };
 }
 
 function clampPromptText(value: string | null | undefined, maxLength: number) {
@@ -245,7 +339,7 @@ export function buildTalentProfileContext(args: {
   );
   const experiences = structuredProfile?.talentExperiences ?? [];
   const educations = structuredProfile?.talentEducations ?? [];
-  const extras = structuredProfile?.talentExtras ?? [];
+  const extras = assignTalentExtraRowIds(structuredProfile?.talentExtras ?? []);
   const blockedCompanies = normalizeTalentBlockedCompanies(
     setting?.blocked_companies ?? []
   ).slice(0, 20);
@@ -356,6 +450,9 @@ export function buildTalentProfileContext(args: {
       if (extra.date) parts.push(`Date: ${extra.date}`);
 
       let itemText = `${index + 1}. ${parts.join(", ")}`;
+      if (includeRowIds && extra.id) {
+        itemText += `\n   RowID: ${extra.id}`;
+      }
       const description = clampPromptText(extra.description, 500);
       if (description) itemText += `\n   Description: ${description}`;
       const memo = clampPromptText(extra.memo, 600);
@@ -389,19 +486,12 @@ export type RowMemoOutcome =
     }
   | {
       ok: false;
-      reason:
-        | "row_not_found"
-        | "title_not_found"
-        | "ambiguous_title"
-        | "empty_input";
+      reason: "row_not_found" | "empty_input";
     };
 
-function joinMemoWithDelta(
-  existing: string | null | undefined,
-  newInfo: string
-) {
+function joinMemoWithDelta(existing: string | null | undefined, memo: string) {
   const trimmedExisting = (existing ?? "").replace(/\r/g, "").trim();
-  const trimmedNew = newInfo.replace(/\r/g, "").trim();
+  const trimmedNew = memo.replace(/\r/g, "").trim();
   if (!trimmedNew) return null;
   const joined = trimmedExisting
     ? `${trimmedExisting}\n${trimmedNew}`
@@ -504,14 +594,14 @@ export async function appendExperienceMemo(args: {
   admin: TalentAdminClient;
   userId: string;
   rowId: string | number;
-  newInfo: string;
+  memo: string;
 }): Promise<RowMemoOutcome> {
-  const { admin, userId, rowId, newInfo } = args;
+  const { admin, userId, rowId, memo } = args;
   const parsedId = parseRowIdToNumber(rowId);
   if (parsedId === null) return { ok: false, reason: "row_not_found" };
   const row = await fetchExperienceForMemo({ admin, userId, rowId: parsedId });
   if (!row) return { ok: false, reason: "row_not_found" };
-  const next = joinMemoWithDelta(row.memo, newInfo);
+  const next = joinMemoWithDelta(row.memo, memo);
   if (next === null) return { ok: false, reason: "empty_input" };
   if (next === (row.memo ?? "")) {
     return {
@@ -549,14 +639,14 @@ export async function appendEducationMemo(args: {
   admin: TalentAdminClient;
   userId: string;
   rowId: string | number;
-  newInfo: string;
+  memo: string;
 }): Promise<RowMemoOutcome> {
-  const { admin, userId, rowId, newInfo } = args;
+  const { admin, userId, rowId, memo } = args;
   const parsedId = parseRowIdToNumber(rowId);
   if (parsedId === null) return { ok: false, reason: "row_not_found" };
   const row = await fetchEducationForMemo({ admin, userId, rowId: parsedId });
   if (!row) return { ok: false, reason: "row_not_found" };
-  const next = joinMemoWithDelta(row.memo, newInfo);
+  const next = joinMemoWithDelta(row.memo, memo);
   if (next === null) return { ok: false, reason: "empty_input" };
   if (next === (row.memo ?? "")) {
     return {
@@ -591,12 +681,12 @@ export async function appendEducationMemo(args: {
 export async function appendExtraMemo(args: {
   admin: TalentAdminClient;
   userId: string;
-  title: string;
-  newInfo: string;
+  rowId: string;
+  memo: string;
 }): Promise<RowMemoOutcome> {
-  const { admin, userId, title, newInfo } = args;
-  const queryTitle = title.trim().toLocaleLowerCase("ko");
-  if (!queryTitle) {
+  const { admin, userId, rowId, memo } = args;
+  const queryRowId = rowId.trim();
+  if (!queryRowId) {
     return { ok: false, reason: "empty_input" };
   }
 
@@ -608,30 +698,23 @@ export async function appendExtraMemo(args: {
   if (error) {
     throw new Error(error.message ?? "Failed to load talent_extras row");
   }
-  if (!data) return { ok: false, reason: "title_not_found" };
+  if (!data) return { ok: false, reason: "row_not_found" };
 
   const items = parseTalentExtrasContent(data.content);
-  const matchIndices: number[] = [];
-  items.forEach((item, index) => {
-    const itemTitle = item.title?.trim().toLocaleLowerCase("ko") ?? "";
-    if (itemTitle && itemTitle === queryTitle) matchIndices.push(index);
-  });
-  if (matchIndices.length === 0) {
-    return { ok: false, reason: "title_not_found" };
-  }
-  if (matchIndices.length > 1) {
-    return { ok: false, reason: "ambiguous_title" };
+  const matchIndex = items.findIndex((item) => item.id === queryRowId);
+  if (matchIndex < 0) {
+    return { ok: false, reason: "row_not_found" };
   }
 
-  const matchIndex = matchIndices[0];
   const target = items[matchIndex];
-  const next = joinMemoWithDelta(target.memo, newInfo);
+  const next = joinMemoWithDelta(target.memo, memo);
   if (next === null) return { ok: false, reason: "empty_input" };
   if (next === (target.memo ?? "")) {
     return {
       ok: true,
       target: {
-        entityLabel: target.title ?? title,
+        entityId: target.id,
+        entityLabel: target.title ?? rowId,
         entityType: "extra",
       },
       updated: false,
@@ -644,7 +727,9 @@ export async function appendExtraMemo(args: {
 
   const { error: updateError } = await admin
     .from("talent_extras")
-    .update({ content: nextItems })
+    .update({
+      content: replaceTalentExtrasContentItems(data.content, nextItems),
+    })
     .eq("talent_id", userId);
   if (updateError) {
     throw new Error(
@@ -654,7 +739,8 @@ export async function appendExtraMemo(args: {
   return {
     ok: true,
     target: {
-      entityLabel: target.title ?? title,
+      entityId: target.id,
+      entityLabel: target.title ?? rowId,
       entityType: "extra",
     },
     updated: true,

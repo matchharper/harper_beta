@@ -6,7 +6,7 @@
 
 일반 `/api/talent/chat`과 `runCareerChatTurn` 계열 proactive reply는 대부분 같은 조립 함수를 쓴다.
 
-- 조립 함수: `buildCareerTextChatPromptBlocks` in `src/lib/career/prompts/conversationPlan.ts`
+- 조립 함수: `buildCareerConversationPromptPlan({ channel: "chat", ... })` in `src/lib/career/prompts/conversationPlan.ts`
 - 실행 함수:
   - 일반 채팅 streaming: `/api/talent/chat` -> `runCareerChatAssistantStream`
   - proactive/non-streaming: `runCareerChatTurn` -> `runCareerChatAssistant`
@@ -15,11 +15,10 @@
   2. mode guidance:
      - 온보딩 중: `CAREER_CORE_RESPONSE_GUIDANCE_PROMPT`
      - 온보딩 완료 후: `CAREER_DEFAULT_CONVERSATION_GUIDANCE_PROMPT`
-     - conversation starter: `CAREER_CONVERSATION_STARTER_MODE_PROMPT`
   3. 온보딩 중이면 `onboarding_rules`: `CAREER_ONBOARDING_CONVERSATION_PROMPT`
   4. `profile_context`: talent profile, structured profile, recent recommended opportunities
   5. `tool_policy`: 노출 tool이 있을 때 `buildCareerToolPolicyPrompt` 결과
-  6. `dynamic_state`: 현재 채널/시간, high-priority runtime instruction, saved preferences/insights, pending feedback context, recent activity, opportunity status
+  6. `dynamic_state`: 현재 채널/시간, `conversationMode` 기반 high-priority runtime instruction, saved preferences/insights, pending feedback context, recent activity, opportunity status
 - message input:
   - 최근 conversation message를 `fetchRecentMessagesWithSummary(... recentLimit: 12)` 또는 호출별 limit으로 가져온다.
   - `opportunity_feedback_note` message는 실제 유저 발화가 아니므로 `formatTalentMessageContentForLlmPrompt`가 아래 prefix를 붙인다.
@@ -66,18 +65,18 @@ Action note: ...
 
 | 상황 | 호출/파일 | Streaming | Runtime prompt | Tools | internal/external 차이 |
 | --- | --- | --- | --- | --- | --- |
-| Opportunity feedback follow-up | `/api/talent/opportunities/feedback-followup` -> `createTalentOpportunityFeedbackFollowUpReply` -> `runCareerChatTurn` | No | `buildCareerOpportunityFeedbackFollowUpProactiveContext` + `pendingOpportunityFeedbackContext` | `immediate_internal_feedback`이면 `[]`; 그 외 trigger는 `recommend_job_postings` only | Yes. internal immediate feedback은 tool 없음. external/delayed/all-cleared는 `recommend_job_postings`만 쓴다. |
+| Opportunity feedback follow-up | `/api/talent/opportunities/feedback-followup` -> `createTalentOpportunityFeedbackFollowUpReply` -> `runCareerChatTurn` | No | `buildCareerOpportunityFeedbackFollowUpTurnInstruction` + `pendingOpportunityFeedbackContext` | `immediate_internal_feedback`이면 `[]`; 그 외 trigger는 `recommend_job_postings` only | Yes. internal immediate feedback은 tool 없음. external/delayed/all-cleared는 `recommend_job_postings`만 쓴다. |
 | Internal call request follow-up | `/api/talent/opportunities/internal-call-request-followup` -> `createInternalOpportunityCallRequestFollowUp` | No | Deterministic assistant template after JSON-only call-request decision | none | Internal accepted opportunity only |
 | Company watchlist follow follow-up | `/api/talent/company-watchlist/follow-followup` -> `createTalentCompanyFollowFollowUpReply` -> `runCareerChatTurn` | No | `buildCompanyFollowUpInstruction` | `[]` | No |
 | Session start greeting/re-engagement | `/api/talent/session`, `/api/talent/session/reengagement` -> `runCareerChatTurn` | Endpoint wrapper may stream status, but LLM turn itself is non-streaming | `buildCareerSessionStartTurnInstruction` | `recommend_job_postings` only | No internal/external branch |
 | Voice call wrap-up | `/api/talent/chat/call-wrapup` -> `runCareerChatTurn` | No | 일반 call: `buildCareerCallWrapupTurnInstruction`; internal opportunity call: `buildInternalOpportunityCallWrapupInstruction` | `update_setting`, `update_talent_profile` | Prompt differs for internal opportunity call. Tool allowlist is the same. |
-| Onboarding completion wrap-up card | `createOnboardingCompletionMessages` / `regenerateOnboardingCompletionMessages` -> `generateOnboardingCompletionWrapupContent` | No | `buildWrapupInstruction` as `sessionStartInstruction` | `update_setting`, `update_talent_profile` | No |
-| Onboarding completion next message | `generateOnboardingCompletionNextStepsContent` | No | `buildNextStepsInstruction` as `sessionStartInstruction` | `[]` | No |
+| Onboarding completion wrap-up card | `createOnboardingCompletionMessages` / `regenerateOnboardingCompletionMessages` -> `generateOnboardingCompletionWrapupContent` | No | `buildWrapupInstruction` as `runtimeInstruction` | `update_setting`, `update_talent_profile` | No |
+| Onboarding completion next message | `generateOnboardingCompletionNextStepsContent` | No | `buildNextStepsInstruction` as `runtimeInstruction` | `[]` | No |
 
 Not separate chat-like LLM calls:
 
-- `Conversation Starter`: normal `/api/talent/chat` request with `proactiveTurnInstructionMode: "conversation_starter"`. It can stream through the normal chat SSE path.
-- `Official Jobs Signup Source Follow-Up`: normal `/api/talent/chat` request with `sessionStartInstruction`.
+- `Conversation Starter`: normal `/api/talent/chat` request with `conversationMode: "preference_update"` or `conversationMode: "match_quality"`. It can stream through the normal chat SSE path.
+- `Official Jobs Signup Source Follow-Up`: normal `/api/talent/chat` request with `runtimeInstruction`.
 - Internal opportunity call-request decision: separate JSON LLM, but it does not directly write the first chat reply. The visible call-request message is currently a deterministic template after the decision.
 
 ## Opportunity Feedback Follow-Up
@@ -145,7 +144,7 @@ System blocks passed to the LLM:
    The following instruction is more specific than the generic onboarding/default conversation rules. Follow it for this turn/session unless the latest user message explicitly asks to change topic.
    Response language remains {outputLanguage}. If the instruction text includes Korean tone examples or Korean sample wording, adapt the intent naturally into {outputLanguage} instead of copying the sample language.
 
-   {buildCareerOpportunityFeedbackFollowUpProactiveContext(...)}
+   {buildCareerOpportunityFeedbackFollowUpTurnInstruction(...)}
 
    {known future-matching insights/preferences}
    {known preferences}
@@ -329,6 +328,8 @@ Tools:
 
 - `update_setting`
 - `update_talent_profile`
+- `update_setting` is for clear subscription-scope actions only: `stop_external`, `stop_all`, or `resume`.
+- Recommendation batch-size changes go through `update_talent_profile.recommendationBatchSize`.
 
 Internal opportunity call wrap-up prompt specifically says:
 
@@ -357,7 +358,8 @@ Response instruction:
 Wrap-up card prompt: `buildWrapupInstruction`
 
 - The card body is generated by LLM.
-- It may call `update_setting` and `update_talent_profile`.
+- It may call `update_setting` for clear subscription-scope actions (`stop_external`, `stop_all`, `resume`) and `update_talent_profile` for profile/memory or recommendation batch-size changes.
+- Generic stop/unsubscribe wording should ask for clarification instead of calling `update_setting`.
 - It must output only the markdown card body without the `Call Wrap-up` title.
 
 Next assistant message prompt: `buildNextStepsInstruction`

@@ -585,8 +585,6 @@ export const ko = {
       "통화가 방금 시작되었습니다. 사용자가 먼저 할 말을 찾지 않아도 되도록 Harper가 먼저 대화를 시작하세요.\n도구는 사용하지 마세요. 지금은 통화 시작 멘트와 첫 질문만 합니다.\n한국어 존댓말로, 실제 전화 첫마디처럼 자연스럽게 말하세요.\n2-4문장으로 짧게 말하고, 마지막은 사용자가 바로 답할 수 있는 하나의 질문으로 끝내세요.\n통화는 크게 2가지 방식으로 시작할 수 있습니다. 1) 이전에 채팅으로 진행하던 대화를 통화로 이어서하는 경우, 2) 통화로 새롭게 대화를 시작하는 경우\n최근 채팅 맥락이 함께 제공되면 먼저 그 내용을 보고, 이전에 채팅으로 진행하던 대화를 통화로 이어서 하는 상황인지 판단하세요.\n이전 내용에서 이어서 말하는 게 자연스러우면 새 주제를 꺼내지 말고 마지막으로 오가던 질문이나 답변을 직접 이어받아 시작하세요. 대신 인사하고 시작하는 것이 자연스러우면 인사하고 시작하면 된다.\n이어가기 위해 필요하면 직전 대화의 마지막 질문이나 확인점을 짧게 다시 물어도 됩니다.\n(2번) 새롭게 대화를 시작하는게 자연스러우면 먼저 커피챗을 시작하는 헤드헌터처럼 말을 건네면서 시작하면 된다.\n최근 대화나 활동 맥락이 보이면 구체적으로 연결하세요. 예를 들어 최근 연결 제안을 거절했거나 추천에 피드백을 남겼다면, 그 이후 달라진 점이 있는지 물어보세요.\n구체적 맥락이 약하면 최근에 달라진 우선순위, 현재 역할/경험 중 더 알려줄 부분, 개인적인 선호나 제약 중 하나를 물어보세요.\n많은 정보를 들려줄수록 회사 연결 요청이나 맞춤 기회 추천이 더 정확해진다는 취지를 한 번만 짧게 말하고, 함께 헤드헌터의 입장에서 할만한 질문을 던져도 됩니다.",
     "career.call.opening.instruction.near_finish":
       "\n## Incomplete onboarding near-finish opening\n현재 커리어 인터뷰는 아직 완료되지 않았지만 거의 끝난 상태입니다.\n- filledInsights: {filledCount}/{totalCount}\n- remainingInsights: {remainingCount}\n- 일반적인 새 통화 인사나 '오늘 어떠세요?', '최근 우선순위가 바뀐 게 있나요?' 같은 넓은 질문으로 시작하지 마세요.\n- 첫 문장은 '대화가 거의 끝났고, 더 정확한 추천/연결을 위해 마지막 확인만 빠르게 하겠다'는 취지를 자연스럽게 담으세요.\n- 최근 대화 맥락은 배경으로만 참고하고, 마지막으로 남은 한 가지 missing checklist question hint나 final priority confirmation으로 바로 이어가세요.\n- 이미 final priority confirmation에 사용자가 답한 맥락이면 같은 확인 질문을 반복하지 말고 짧게 closing으로 넘어가세요.",
-    "career.call.opening.instruction.onboarding":
-      '통화가 방금 시작되었습니다. 이 통화는 5분 커리어 인터뷰를 위한 통화입니다.\n도구는 사용하지 마세요. 지금은 통화 시작 멘트와 첫 질문만 합니다.\n한국어 존댓말로, 실제 전화 첫마디처럼 자연스럽게 말하세요.\n첫 문장에서는 이 대화가 왜 필요한지 가볍게 안내하세요. 더 잘 맞는 기회 추천과 회사 연결을 위해 현재 상황과 선호를 짧게 확인한다는 취지입니다.\n안내 직후 바로 질문 하나를 하세요.\n질문은 세션 instructions의 Onboarding Question Checklist에서 current_status가 missing인 항목 중 우선순위가 높은 항목을 고르고, 해당 항목의 question hint를 기반으로 만드세요.\n이미 covered인 항목이나 최근 대화에서 답한 주제는 다시 묻지 마세요.\n최근 대화 내역은 배경으로만 참고하고, missing checklist 항목과 question hint 기반 질문 선택을 대신하지 마세요.\n전체 첫 멘트는 3~4문장으로 끝내고, 마지막 문장은 사용자가 바로 답할 수 있는 질문이어야 합니다.\n예시: "안녕하세요. 이 5분 커리어 인터뷰는 하퍼가 더 잘 맞는 기회를 추천하고, 필요하면 회사와 연결할 때 후보자님의 맥락을 잘 전달하기 위해 짧게 확인하는 대화예요. 편하게 답해주시면 되고, 먼저 현재 탐색 온도부터 확인해볼게요. 지금 적극적으로 다음 기회를 찾고 계신 건지, 아니면 좋은 게 있으면 받아는 보고 싶다 정도인지 편하게 말씀해주세요."',
     "career.call.opening.instruction.reference_opening":
       "## 참고할 통화 시작 내용\n아래 문구나 질문의 취지를 통화 첫 멘트에 자연스럽게 반영하세요. 그대로 읽기보다 위 지시와 최근 대화 맥락에 맞게 말하세요.",
     "career.call.opening.instruction.use_recent_context":
@@ -623,7 +621,7 @@ export const ko = {
     "career.chat.career_composer_section.0bxwclq":
       "통화 내용을 정리하는 중입니다.",
     "career.chat.career_composer_section.0e686ow":
-      "Harper에게 답변을 입력하세요.",
+      "새로운 조건이나 궁금한 점을 남겨주세요",
     "career.chat.career_composer_section.19raxy2":
       "기본 정보 제출 후 대화가 시작됩니다.",
     "career.chat.career_composer_section.1g4p5ul":
@@ -632,13 +630,14 @@ export const ko = {
       "아래 시작 버튼으로 대화를 시작해 주세요.",
     "career.chat.career_composer_section.1rqak4s":
       "바로 입력하면 대화가 이어집니다.",
+    "career.chat.career_composer_section.resume_interview_cta":
+      "5분 커리어 인터뷰 이어가기",
     "career.chat.career_message_bubble.0jnmgxp":
       "좋아요. 최근 업데이트나 요즘 재밌게 하고 계신 일부터 편하게 들려주세요.",
     "career.chat.career_message_bubble.0o5swvp": "전화하기",
     "career.chat.career_message_bubble.0whsa78": "통화하기",
     "career.chat.career_message_bubble.1tqt1ip": "이력서 보강",
-    "career.chat.career_message_bubble.1xpjlib":
-      "채팅으로 대답할 수 있어요.",
+    "career.chat.career_message_bubble.1xpjlib": "채팅으로 대답할 수 있어요.",
     "career.chat.career_message_bubble.optional_call_notice":
       "꼭 해야하는 대화는 아니고, 연결 시에 도움이될 정보를 몇가지 여쭤보기 위한 통화에요. 진행하지 않으셔도 {companyName} 측과의 연결은 제가 계속 진행할게요.",
     "career.chat.career_timeline_section.00l29f9":
@@ -715,8 +714,6 @@ export const ko = {
     "career.chat.tool.request_internal_role_priority_review.start":
       "포지션 우선 검토 요청을 저장하고 있습니다.",
     "career.chat.tool.research_company.start": "회사 정보를 확인하고 있습니다.",
-    "career.chat.tool.select_onboarding_question.start":
-      "다음에 확인할 온보딩 질문을 고르고 있습니다.",
     "career.chat.tool.update_setting.start":
       "추천 발송 설정을 업데이트하고 있습니다.",
     "career.chat.tool.update_talent_profile.start":
@@ -739,12 +736,9 @@ export const ko = {
     "career.common.career.0h5494n": "추적중이에요",
     "career.common.career.0j3w14l": "새 이력서 선택",
     "career.common.career.0jt5nqc": "저장된 이력서가 없습니다.",
-    "career.common.career.0kdqsry":
-      "- 펀딩, 채용, 팀 변화, 사업 성과 등 의미 있는 변화를 찾아서 알려드립니다.",
     "career.common.career.0ketgfl": "대면",
     "career.common.career.0kn6r0x":
       "펀딩, 채용, 팀 변화, 사업 성과 등 의미 있는 변화를 찾아서 알려드립니다.",
-    "career.common.career.0m1nksm": "회사 측 채널 열림",
     "career.common.career.0ol21b2": "회사 정보",
     "career.common.career.0rd0cjd": "안내",
     "career.common.career.0vbpl1c": "이번 검색은 완료하지 못했습니다.",
@@ -755,18 +749,13 @@ export const ko = {
     "career.common.career.0xq40c2": "다음 공고",
     "career.common.career.0y3ajvx": "검색중...",
     "career.common.career.0y7cerf": "저장된 이력서",
-    "career.common.career.0yjpnrd": "팔로우하면 일어나는 일",
-    "career.common.career.0yu4vbj": "업로드 예정:",
     "career.common.career.0z5xpdx": "지원전 검토 사항",
     "career.common.career.11j6jdx": "대화 내용을 정리하고 있어요.",
     "career.common.career.152e0fk": "공고 검토 완료",
     "career.common.career.16x7oad": "설정 닫기",
     "career.common.career.16yncp4":
       "프로필과 최근 대화를 반영해 최적의 기회를 찾고 있습니다.",
-    "career.common.career.18q07l6":
-      "- 이 회사가 인재를 찾거나 Harper에게 채용을 요청 할 때 우선적으로 검토되실 수 있게 합니다.",
     "career.common.career.19aqpg8": "역할과 조건을 짧게 확인",
-    "career.common.career.1bb9alt": "시그널 자동 추적",
     "career.common.career.1bbxwls":
       "어떤 수준의 매칭에서 회사가 프로필을 볼 수 있는지 정합니다.",
     "career.common.career.1ceyibb":
@@ -796,8 +785,6 @@ export const ko = {
       "12시간 인사 생성에 실패했습니다.",
     "career.common.career_flow_provider.0cjev5a":
       "지금까지 저장된 내 프로필, 선호, 최근 피드백 데이터를 기준으로 지금 검토할 만한 공개 채용 공고를 추천해줘. 새로운 장기 선호는 저장하지 말고, 현재 데이터 기반으로 한 번만 찾아줘.",
-    "career.common.career_flow_provider.0lsvl9z":
-      "추천 회사를 만들지 못했습니다.",
     "career.common.career_flow_provider.16uupip":
       "커리어 인터뷰 종료 중 오류가 발생했습니다.",
     "career.common.career_flow_provider.19x0zaz":
@@ -808,6 +795,8 @@ export const ko = {
       "회사 팔로우 후속 메시지를 만들지 못했습니다.",
     "career.common.career_flow_provider.request_more_open_positions":
       "다른 오픈 포지션 더 추천해줘",
+    "career.common.career_flow_provider.resume_interview_error":
+      "커리어 인터뷰 이어가기를 실행하지 못했습니다.",
     "career.common.career_history_panel.00rerkr": "좋은 기회를 찾고 있습니다.",
     "career.common.career_history_panel.01m9cc2": "더 불러올 항목이 있습니다.",
     "career.common.career_history_panel.02i826z": "새 포지션",
@@ -1000,6 +989,8 @@ export const ko = {
     "career.common.career_mobile_chat_launcher.1bjhre2":
       "아래로 드래그하거나 닫기 버튼을 눌러 접을 수 있습니다.",
     "career.common.career_mobile_chat_launcher.1j1ugk2": "Harper 채팅",
+    "career.common.career_mobile_chat_launcher.chat_interview_cta":
+      "채팅으로 5분 커리어 인터뷰를 완료하세요",
     "career.common.career_mobile_top_bar.0kpy78r": "화요일",
     "career.common.career_mobile_top_bar.0wg5ren": "금요일",
     "career.common.career_mobile_top_bar.1f1oien": "수요일",
@@ -1153,11 +1144,9 @@ export const ko = {
       "실시간 연결에 실패했습니다. 채팅으로 진행해 주세요.",
     "career.company.career_company_detail_drawer.0amy3om":
       "회사 정보를 불러오지 못했습니다.",
-    "career.company.company_card.17aqd6f": "회사 정보를 정리 중입니다.",
     "career.company.company_card.1gncj7z": "회사 업데이트를 정리 중입니다.",
     "career.company.company_card.1m5x6m1": "최근 시그널",
     "career.company.company_card.1n9j2yp": "회사 설명을 정리 중입니다.",
-    "career.company.company_card.1qxewwj": "추천 근거",
     "career.company.company_detail_view.01kpxqk": "직원 수",
     "career.company.company_detail_view.02ioip6": "설립 연도",
     "career.company.company_detail_view.05y0iqp": "회사를 찾지 못했습니다.",
@@ -1175,12 +1164,18 @@ export const ko = {
     "career.company.company_detail_view.1si5hsi": "채용 페이지",
     "career.company.company_detail_view.1sihgzp": "창업자",
     "career.company.company_detail_view.1u6998j": "투자자",
-    "career.company.company_empty_state.08icf7j": "아직 추천 회사가 없습니다.",
+    "career.company.company_data.last_funding_round_description":
+      "최근 라운드 {description}",
+    "career.company.company_data.last_funding_round_description_label":
+      "최근 라운드",
+    "career.company.company_data.last_funding_stage": "최근 단계 {stage}",
+    "career.company.company_data.last_funding_stage_label": "최근 단계",
+    "career.company.company_data.main_investors": "주요 투자자 {investors}",
+    "career.company.company_data.main_investors_label": "주요 투자자",
+    "career.company.company_data.total_funding_raised": "총 투자 {amount}",
+    "career.company.company_data.total_funding_raised_label": "총 투자",
     "career.company.company_empty_state.0akildu":
       "최근 6개월 안에 활성 채용 신호가 있고 LinkedIn이 연결된 회사 중에서 프로필 방향에 맞는 회사를 저장합니다.",
-    "career.company.company_empty_state.0h6kux1":
-      "추천회사나 포지션 히스토리에서 회사 정보를 열고 팔로우하면 이곳에서 채용, 펀딩, 팀 변화 같은 업데이트를 추적합니다.",
-    "career.company.company_empty_state.0s75w2v": "추천 회사 만들기",
     "career.company.company_empty_state.17mqvmz":
       "아직 팔로우한 회사가 없습니다.",
     "career.company.employee_count.max": "{end}명 이하",
@@ -1195,22 +1190,6 @@ export const ko = {
     "career.company.followed_at": "{relative}부터 팔로잉",
     "career.company.following": "팔로잉 중",
     "career.company.founded_year": "{year}년 설립",
-    "career.company.recommendation.answer.fallback_reason":
-      "현재 채용 신호가 있고 프로필 방향과 겹칩니다.",
-    "career.company.recommendation.answer.footer":
-      "워치리스트 > 추천회사에서 상세 정보와 팔로우 버튼을 볼 수 있습니다.",
-    "career.company.recommendation.latest_signal_fallback":
-      "최근 채용 신호가 확인되어 추적 후보로 저장했습니다.",
-    "career.company.recommendation.next_signal_fallback":
-      "새 채용이나 팀 변화가 생기면 워치리스트에서 업데이트합니다.",
-    "career.company.recommendation.reason_one_fallback":
-      "최근 채용 신호가 확인되어 추적 후보로 분류했습니다.",
-    "career.company.recommendation.reason_summary_fallback":
-      "{companyName}는 현재 채용 신호가 있고 프로필 방향과 겹치는 회사입니다.",
-    "career.company.recommendation.reason_two_fallback":
-      "{companyName}의 최근 채용 신호가 살아 있습니다.",
-    "career.company.recommendation.signal_summary_fallback":
-      "최근 6개월 안에 활성 채용 신호가 있어 추적 대상으로 적합합니다.",
     "career.company.snapshot.follow_up":
       "더 궁금한 건 없으신가요? Harper가 외부에서 접근하기 어려운 정보들까지 함께 참고해서 알려드려요.",
     "career.company.snapshot.investigation_date": "조사일",
@@ -1242,14 +1221,12 @@ export const ko = {
       "JSON 문법을 엄격히 지키고, 객체나 배열의 마지막 항목 뒤에 trailing comma를 넣지 마세요.",
     "career.company.snapshot.prompt.target_company": "대상 회사: {companyName}",
     "career.company.snapshot.sources_label": "출처:",
-    "career.company.watchlist_types.0dpjqlp": "추천회사",
     "career.company.watchlist_types.0kgfx63": "시그널",
     "career.history.career_mobile_jobs_view.0f42kd7":
       "아직 새로 추천된 포지션이 없습니다.",
     "career.history.career_mobile_jobs_view.0llq6g8":
       "제외된 포지션이 없습니다.",
     "career.history.career_mobile_jobs_view.0ujd7dh": "좌우로 넘겨 보세요",
-    "career.history.career_mobile_jobs_view.18qduxt": "메모하기",
     "career.history.career_mobile_jobs_view.1gufjot": "내 메모",
     "career.history.career_mobile_jobs_view.1m3uw9j":
       "관심 있는 포지션이 없습니다.",
@@ -1348,8 +1325,6 @@ export const ko = {
     "career.history.saved_opportunity_status.connected": "진행중",
     "career.history.saved_opportunity_status.hide_action": "보관하기",
     "career.home.career_home_panel.024uw9c": "정보 다시 가져오기",
-    "career.home.career_home_panel.030cbmq":
-      "추천된 기회 · {count}개 연결 가능",
     "career.home.career_home_panel.05hgw7c":
       "왼쪽 채팅에서 혹은 아래 통화로 간단한 질문에만 대답해주세요.",
     "career.home.career_home_panel.0bq7bs7":
@@ -1432,22 +1407,6 @@ export const ko = {
     "career.job_posting_recommendations.answer.why_it_fits_label": "추천 이유",
     "career.job_posting_recommendations.search_plan.intent_fallback":
       "현재 유저 요청에 맞는 external job posting을 찾는다.",
-    "career.kickoff.fallback.acknowledgement":
-      "하퍼와 함께 해주셔서 감사합니다.",
-    "career.kickoff.fallback.insight":
-      "제가 항상 더 좋은 기회를 찾고 연결시켜드릴 수 있도록 노력할게요. 거기에 앞서, 회원님이 선호하시는게 어떤건지 먼저 알려주시면 도움이 될 것 같아요.",
-    "career.kickoff.fallback_name": "회원",
-    "career.kickoff.opening_message":
-      "{name}님이 실제로 만족할만한 기회를 찾기위해서, 몇 가지만 먼저 여쭤보고 싶어요.\n가벼운 대화라고 생각하시고, 편하게 대답해주세요. 5분 내외로 대화가 끝날 수 있게 하고, 거의 다 질문했다면 임의로 종료하실 수도 있게 할게요.\n우선 현재 상황 혹은 본인에 대한 간단한 소개나 어떤 기회를 찾고계신지 알려주실 수 있나요?",
-    "career.kickoff.system_prompt.acknowledgement_example": "안녕하세요 OO님.",
-    "career.onboarding.additional_question.fallback_assistant_message":
-      "좋은 기회를 찾을 때는 실제로 맡았던 범위를 아는 게 중요해서요. 최근 역할이나 대표 경험 중에서, 밖에서 보기보다 실제로 본인이 더 많이 맡았던 부분은 어디였어요?",
-    "career.onboarding.additional_question.fallback_rationale":
-      "프로필 기반 추가 확인 질문이 필요합니다.",
-    "career.onboarding.additional_question.final_priority_confirmation":
-      "여기까지 들은 내용이면 기회 매칭에 필요한 핵심 정보는 어느 정도 잡힌 것 같아요. 마지막으로, 앞으로 기회를 볼 때 제가 꼭 놓치지 말아야 할 우선순위나 지금까지 빠진 조건이 있을까요?",
-    "career.onboarding.additional_question.min_required_adjustment":
-      " 필수 additional 질문 {min}개를 아직 채우지 못해 fallback additional 질문으로 보정했습니다.",
     "career.onboarding.defer_fallback_close":
       "알겠습니다. 지금 말씀해주신 상황으로 우선 등록을 마쳐둘게요. 나중에 다시 들어오시면 이어서 더 자세히 도와드리겠습니다. 원하시면 아래 버튼으로 지금 바로 계속 대화하셔도 됩니다.",
     "career.onboarding.defer_prompt_text":
@@ -1474,9 +1433,6 @@ export const ko = {
       "프로필 구조화를 시작하지 못했습니다.",
     "career.onboarding.onboarding.06ilxsj":
       "지금 자리는 유지하면서, 병행할 수 있는 일을 찾아요",
-    "career.onboarding.onboarding.08ain69": "소중한 정보 감사해요.",
-    "career.onboarding.onboarding.08oczyl":
-      "통화가 어렵다면 채팅으로 이어가도 됩니다.",
     "career.onboarding.onboarding.09uxsj9": "유효한 이메일을 입력해주세요.",
     "career.onboarding.onboarding.0am0h8h": "분석까지 약 2분 걸려요",
     "career.onboarding.onboarding.0cvpvmv": "기회 탐색 시작하기",
@@ -1484,7 +1440,6 @@ export const ko = {
       "커리어에도<br />에이전트가 필요합니다.",
     "career.onboarding.onboarding.0d18cht":
       "이력서나 LinkedIn 링크 중 하나는 꼭 입력해주세요.",
-    "career.onboarding.onboarding.0dus5rt": "가장 좋아하실만한 기회들",
     "career.onboarding.onboarding.0ehh5yz": "이름을 입력해주세요.",
     "career.onboarding.onboarding.0eumq1b": "기본 정보를 저장하지 못했습니다.",
     "career.onboarding.onboarding.0fcepf9": "개인 페이지",
@@ -1494,7 +1449,6 @@ export const ko = {
     "career.onboarding.onboarding.0lliiks": "Harper가 먼저 공유해요",
     "career.onboarding.onboarding.0nzlxqj":
       "Harper가 먼저 기회를 가져오고, 내가 확인한 뒤에만 프로필이 공유돼요.",
-    "career.onboarding.onboarding.0o7dyhc": "프로필 자료를 제출했습니다.",
     "career.onboarding.onboarding.0pijbir":
       "온보딩 세션을 아직 준비하지 못했습니다.",
     "career.onboarding.onboarding.0sc411b":
@@ -1531,8 +1485,6 @@ export const ko = {
     "career.onboarding.onboarding.1gr43li": "Harper 시작하기",
     "career.onboarding.onboarding.1gsa1bx":
       "부담 없이 이야기 나눠볼 수 있는 어드바이저 기회",
-    "career.onboarding.onboarding.1jh1j5u":
-      "이제 제가 맞을 만한 기회들을 찾아보고, 인재 연결을 요청한 회사 중 괜찮은 곳이 있으면 소개 및 연결까지 해드릴게요. 더 좋은 연결을 도와드리기 위해 지금 어떤 상황이신지, 어떤 기회를 원하시는지 몇 가지만 더 여쭤보고 싶어요. 보통 5분 정도면 충분합니다.",
     "career.onboarding.onboarding.1jkvik4": "대화 시작",
     "career.onboarding.onboarding.1k0o8vf": "파트타임·프로젝트",
     "career.onboarding.onboarding.1kdng2n": "선호 정보를 저장하지 못했습니다.",
@@ -1549,24 +1501,18 @@ export const ko = {
       "{job} 진행 도와드릴게요.",
     "career.onboarding.onboarding.official_job_visibility_description":
       "{job} 이외의 기회에 대해서도, {name}님을 추천할 수 있어요. 회사에 먼저 소개해도 괜찮다면 먼저 제안을 받아보실 수 있어요.",
-    "career.onboarding.onboarding.1onl53u": "채팅하기",
     "career.onboarding.onboarding.1p04ixt":
       "온보딩 제출 중 오류가 발생했습니다.",
-    "career.onboarding.onboarding.1qgquty": "Harper와 통화하기",
     "career.onboarding.onboarding.1sh2r2c":
       "온보딩 세션을 불러오지 못했습니다.",
     "career.onboarding.onboarding.1sjsl9m": "정보를 확인했습니다",
     "career.onboarding.onboarding.1sy0934":
       "로그인 정보를 초기화하지 못했습니다.",
     "career.onboarding.onboarding.1t9c061": "어떤 기회를<br />알아보고 있나요?",
-    "career.onboarding.onboarding.1w9rc8x":
-      "제출해주신 이력서/링크를 바탕으로 기회를 찾아 볼게요.",
     "career.onboarding.onboarding.1wh5aat": "이름",
     "career.onboarding.onboarding.1x0fjwc": "기회 유형",
     "career.onboarding.onboarding.1xpgwgk":
       "PDF나 텍스트 파일을 올려주세요. 최대 10MB까지 권장합니다.",
-    "career.onboarding.onboarding.done_agent_intro":
-      "{intro} 대화가 끝나면 내용을 정리해서 {targetCopy}부터 찾아볼게요.",
     "career.onboarding.onboarding_done.call_cta": "5분 통화하기",
     "career.onboarding.onboarding_done.chat_cta": "채팅으로 하기",
     "career.onboarding.onboarding_done.default_agent_intro":
@@ -1588,31 +1534,14 @@ export const ko = {
     "career.onboarding.onboarding_done.selected_agent_intro":
       "대화가 끝나면 {targetCopy}부터 찾아보고, 소개와 연결도 도와드릴게요.",
     "career.onboarding.onboarding_done.title": "잠깐 커피챗 가능할까요?",
-    "career.onboarding.onboarding_loading_state.02hign3":
-      "이력을 정리하고 있어요",
-    "career.onboarding.onboarding_loading_state.0baqqno":
-      "선호 조건을 해석하고 있어요",
     "career.onboarding.onboarding_loading_state.0hhyibm":
       "첫 대화를 준비하고 있어요",
-    "career.onboarding.onboarding_loading_state.0j3lmus":
-      "1분 정도 걸리고, 길어도 2분 안에 끝나요.",
-    "career.onboarding.onboarding_loading_state.0ohe7mq": "보통",
     "career.onboarding.onboarding_loading_state.0ouyje6":
       "LinkedIn과 이력서에서 배경과 경험을 확인하고 있습니다.",
-    "career.onboarding.onboarding_loading_state.0wdnmxx":
-      "원하는 회사 조건과 찾아올 기회 기준을 만들고 있습니다. 다녔던 회사는 차단 목록에 넣어둘게요.",
-    "career.onboarding.onboarding_loading_state.13yg4ho":
-      "확인이 끝나면 Harper와 짧게 대화하면서 현재 상황과 원하는 기회를 알려주세요.",
-    "career.onboarding.onboarding_loading_state.14a2lmb":
-      "소개할 때 중요하게 볼 포인트를 추출하고 있습니다.",
     "career.onboarding.onboarding_loading_state.19pgngy":
       "프로필을 읽고 있어요",
-    "career.onboarding.onboarding_loading_state.1b99mcm":
-      "이제 Harper가 상황과 선호를 자연스럽게 이어서 물어볼게요.",
     "career.onboarding.onboarding_loading_state.1p92fsi":
       "강점 신호를 찾고 있어요",
-    "career.onboarding.onboarding_loading_state.1wnee4b":
-      "회사, 역할, 프로젝트, 기술 스택을 구조화하고 있습니다.",
     "career.onboarding.onboarding_loading_state.analyzing_badge":
       "Harper가 분석 중이에요",
     "career.onboarding.onboarding_loading_state.footer_note":
@@ -1701,7 +1630,6 @@ export const ko = {
     "career.preview.career_workspace_preview.1tenwz4":
       "LLM eval 도구와 agent workflow 패키지 유지보수",
     "career.preview.career_workspace_preview.1truxm7": "프로필을 저장했습니다.",
-    "career.profile.career_profile_menu.14ybad0": "업데이트 노트",
     "career.profile.career_profile_menu.1k7ppv0": "로그아웃",
     "career.profile.career_profile_menu.1vjbdm5": "문의하기",
     "career.profile.career_profile_settings_section.07836ex": "추가",
@@ -1712,12 +1640,8 @@ export const ko = {
     "career.profile.career_profile_settings_section.0jiry9t": "취소",
     "career.profile.career_profile_settings_section.0o48hts": "차단 기업",
     "career.profile.career_profile_settings_section.0on2o51": "되돌리기",
-    "career.profile.career_profile_settings_section.0t4q2xb":
-      "먼저 매칭된 기회/회사를 확인한 뒤 직접 허용한 경우에만 익명 프로필이 회사 측에 공유됩니다. 이 경우에도 대화 내용 및 선택하신 옵션이 공개되진 않고, 매칭에 필요한 정보만 공유됩니다.",
     "career.profile.career_profile_settings_section.0vrogtc":
       "먼저 매칭된 기회/회사를 확인한 뒤 직접 허용한 경우에만 익명 프로필이 공유됩니다.",
-    "career.profile.career_profile_settings_section.10nxtf7":
-      "모든 매칭이 종료되고, 어떤 경우에도 등록하신 정보가 외부에 전달되지 않습니다. 완전히 모든 기회를 잠시 차단하고 싶으신 경우에만 이 옵션을 선택해주세요.",
     "career.profile.career_profile_settings_section.10tme3s":
       "회사명을 입력하고 Enter",
     "career.profile.career_profile_settings_section.117d7sb":

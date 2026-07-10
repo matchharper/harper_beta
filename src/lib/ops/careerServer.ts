@@ -1994,7 +1994,6 @@ type CareerRecommendationFitRow = {
 function normalizeRecommendationSourceType(args: {
   opportunityType?: string | null;
   roleSourceType?: string | null;
-  workspaceIsInternal?: boolean | null;
 }): CareerTalentRecommendationSourceType {
   const roleSourceType = String(args.roleSourceType ?? "").toLowerCase();
   const opportunityType = String(args.opportunityType ?? "").toLowerCase();
@@ -2002,8 +2001,7 @@ function normalizeRecommendationSourceType(args: {
   if (
     roleSourceType === "internal" ||
     opportunityType === "internal_recommendation" ||
-    opportunityType === "intro_request" ||
-    args.workspaceIsInternal === true
+    opportunityType === "intro_request"
   ) {
     return "internal";
   }
@@ -2060,10 +2058,6 @@ function mapCareerRecommendationRow(
     sourceType: normalizeRecommendationSourceType({
       opportunityType,
       roleSourceType: role.source_type ?? null,
-      workspaceIsInternal:
-        typeof workspace?.is_internal === "boolean"
-          ? workspace.is_internal
-          : null,
     }),
     talentId,
     updatedAt,

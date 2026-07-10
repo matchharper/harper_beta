@@ -266,6 +266,7 @@ const CareerHomePanel = ({
     opportunityRunTriggerPending,
     talentProfile,
     talentPreferences,
+    profileVisibility,
     savedProfileLinks,
     savedResumeDownloadUrl,
     savedResumeFileName,
@@ -422,26 +423,20 @@ const CareerHomePanel = ({
           )
         );
   const recommendationSettingLabel = talentPreferences
-    ? talentPreferences.getExternalRecommendation &&
-      talentPreferences.getInternalRecommendation
+    ? profileVisibility === "dont_share"
       ? t(
-          "career.home.career_home_panel.1dtmpgt",
-          "외부 공개 포지션 추천과 내부 회사 연결 제안을 받고 있어요."
+          "career.home.career_home_panel.1dfqgdw",
+          "모든 Harper 매칭 연락이 중단되어 있어요."
         )
       : talentPreferences.getExternalRecommendation
         ? t(
-            "career.home.career_home_panel.0f1tq9x",
-            "외부 공개 포지션 추천만 받고 있어요. 내부 회사 연결 제안은 꺼져 있어요."
+            "career.home.career_home_panel.1dtmpgt",
+            "핏이 맞는 외부 공개 포지션 추천과 직접 연결 가능한 좋은 기회 연락을 받고 있어요."
           )
-        : talentPreferences.getInternalRecommendation
-          ? t(
-              "career.home.career_home_panel.1l3sw8y",
-              "내부 회사 연결 제안만 받고 있어요. 외부 공개 포지션 추천은 받지 않고 있어요."
-            )
-          : t(
-              "career.home.career_home_panel.1dfqgdw",
-              "외부 공개 포지션 추천과 내부 회사 연결 제안이 모두 꺼져 있어요."
-            )
+        : t(
+            "career.home.career_home_panel.1l3sw8y",
+            "직접 연결 가능한 좋은 기회가 있을 때만 연락받고 있어요. 외부 공개 포지션 추천은 받지 않고 있어요."
+          )
     : null;
 
   const userEmail = String(user?.email ?? "")
@@ -552,12 +547,6 @@ const CareerHomePanel = ({
     logCareerEvent("click_home_start_call");
     onOpenChat();
     void onStartCallMode?.();
-  };
-
-  const handleStartMockCall = () => {
-    logCareerEvent("click_home_dev_mock_call");
-    onOpenChat();
-    void onStartCallMode?.({ mock: true });
   };
 
   const handleStartInternalOpportunityCall = (
@@ -1191,18 +1180,6 @@ const CareerHomePanel = ({
                 <BriefcaseBusiness className="h-3.5 w-3.5" />
               )}
               현재 데이터로 공고 추천
-            </ActionButton>
-            <ActionButton
-              onClick={handleStartMockCall}
-              disabled={callStartPending || !onStartCallMode}
-              actionVariant="secondary"
-            >
-              {callStartPending ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Phone className="h-3.5 w-3.5" />
-              )}
-              통화 UI 프리뷰
             </ActionButton>
             <ActionButton
               onClick={() => void handleLogDevPrompt("text")}

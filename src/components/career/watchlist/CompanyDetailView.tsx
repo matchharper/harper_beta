@@ -1,13 +1,22 @@
 import {
   ArrowUpRight,
+  BriefcaseBusiness,
   Building2,
   Calendar,
+  CircleDollarSign,
+  FileText,
+  GraduationCap,
+  Handshake,
   Loader2,
   MapPin,
+  TrendingUp,
   Users,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import RichText from "@/components/ui/rich-text";
+import { getErrorMessage } from "@/hooks/career/careerHelpers";
+import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { CompanyLogo } from "./CompanyLogo";
 import { FollowButton } from "./FollowButton";
 import {
@@ -24,12 +33,16 @@ import {
 import type {
   CompanyDetailRow,
   CompanyFollowClickHandler,
+  CompanyLeadershipPayload,
+  CompanyLeadershipPerson,
   CompanyWatchlistItem,
 } from "./watchlistTypes";
 import { Badge } from "@/components/ui/badge";
 import { Text } from "@/components/ui/text";
 import { useMessages, type Locale } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
+import { Tooltips } from "@/components/ui/tooltip";
+import { formatCareerLocation } from "@/lib/career/locationDisplay";
 
 const DetailSection = ({
   children,
@@ -66,6 +79,221 @@ const TagList = ({ items }: { items: string[] }) => (
     ))}
   </div>
 );
+
+const LeadershipSkeletonList = () => (
+  <div className="grid gap-2">
+    {[0, 1].map((item) => (
+      <div
+        key={item}
+        className="h-[56px] animate-pulse rounded-[4px] border border-neutral-1000-a05 bg-bg-basement"
+      />
+    ))}
+  </div>
+);
+
+const SCHOOL_DISPLAY_NAME_BY_EXACT_NAME: Record<
+  string,
+  Record<Locale, string>
+> = {
+  "Korea Advanced Institute of Science and Technology": {
+    en: "KAIST",
+    ko: "KAIST",
+  },
+  "Korea Advanced Institute of Science and Technology (KAIST)": {
+    en: "KAIST",
+    ko: "KAIST",
+  },
+  "Gwangju Institute of Science and Technology": {
+    en: "GIST",
+    ko: "GIST",
+  },
+  "Ulsan National Institute of Science and Technology": {
+    en: "UNIST",
+    ko: "UNIST",
+  },
+  "Seoul National University": {
+    en: "Seoul National University",
+    ko: "서울대학교",
+  },
+  "Yonsei University": {
+    en: "Yonsei University",
+    ko: "연세대학교",
+  },
+  "Korea University": {
+    en: "Korea Univ.",
+    ko: "고려대학교",
+  },
+  "Pohang University of Science and Technology": {
+    en: "POSTECH",
+    ko: "POSTECH",
+  },
+  "Sungkyunkwan University": {
+    en: "SKKU",
+    ko: "성균관대학교",
+  },
+  "Hanyang University": {
+    en: "Hanyang University",
+    ko: "한양대학교",
+  },
+  "Sogang University": {
+    en: "Sogang University",
+    ko: "서강대학교",
+  },
+  "Ewha Womans University": {
+    en: "Ewha Womans University",
+    ko: "이화여자대학교",
+  },
+  "Seoul National University of Science and Technology": {
+    en: "SeoulTech",
+    ko: "서울과학기술대학교",
+  },
+  "University of Seoul": {
+    en: "University of Seoul",
+    ko: "서울시립대학교",
+  },
+  "Chung-Ang University": {
+    en: "Chung-Ang University",
+    ko: "중앙대학교",
+  },
+  "Kyung Hee University": {
+    en: "Kyung Hee University",
+    ko: "경희대학교",
+  },
+  "Pusan National University": {
+    en: "PNU",
+    ko: "부산대학교",
+  },
+  "Stanford University": {
+    en: "Stanford",
+    ko: "스탠퍼드",
+  },
+  "Massachusetts Institute of Technology": {
+    en: "MIT",
+    ko: "MIT",
+  },
+  "Harvard University": {
+    en: "Harvard",
+    ko: "하버드",
+  },
+  "University of California, Berkeley": {
+    en: "UC Berkeley",
+    ko: "UC Berkeley",
+  },
+  "Carnegie Mellon University": {
+    en: "CMU",
+    ko: "CMU",
+  },
+};
+
+const getDisplaySchoolName = (
+  school: string | null | undefined,
+  locale: Locale
+) => {
+  const exactName = school?.trim() ?? "";
+  if (!exactName) return "";
+  return SCHOOL_DISPLAY_NAME_BY_EXACT_NAME[exactName]?.[locale] ?? exactName;
+};
+
+const formatEducationSummary = (
+  person: CompanyLeadershipPerson,
+  locale: Locale
+) => {
+  return person.education
+    .map((education) => {
+      const school = getDisplaySchoolName(education.school, locale);
+      const detail = (education.degree ?? education.field)?.trim();
+      if (!school && !detail) return "";
+      return [school, detail].filter(Boolean).join(" · ");
+    })
+    .filter(Boolean)
+    .slice(0, 2)
+    .join(", ");
+};
+
+const LeadershipList = ({
+  loading,
+  people,
+  locale,
+}: {
+  loading: boolean;
+  people: CompanyLeadershipPerson[];
+  locale: Locale;
+}) => {
+  if (loading) return <LeadershipSkeletonList />;
+  if (people.length === 0) return null;
+
+  return (
+    <div className="grid gap-2">
+      {people.map((person) => {
+        const previousCompanies = person.previousCompanies.slice(0, 3);
+        const previousCompanyText = previousCompanies.join(", ");
+        const educationText = formatEducationSummary(person, locale);
+        const body = (
+          <>
+            <div className="flex min-w-0 items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  {person.role ? (
+                    <span className="min-w-0 max-w-full break-all wrap-break-word text-[13px] font-normal leading-5 text-neutral-primary">
+                      {person.role}:
+                    </span>
+                  ) : null}
+                  <span className="min-w-0 max-w-full break-all wrap-break-word text-[13px] font-medium leading-5 text-neutral-primary">
+                    {person.name}
+                  </span>
+                </div>
+                <div className="mt-2 grid min-w-0 gap-1.5 text-[12px] leading-5 text-neutral-700 sm:grid-cols-2">
+                  {previousCompanyText ? (
+                    <Tooltips text="previous companies">
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <BriefcaseBusiness className="h-3.5 w-3.5 shrink-0" />
+                        <span className="min-w-0 truncate">
+                          {previousCompanyText}
+                        </span>
+                      </div>
+                    </Tooltips>
+                  ) : null}
+                  {educationText ? (
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <GraduationCap className="h-3.5 w-3.5 shrink-0" />
+                      <span className="min-w-0 truncate">{educationText}</span>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+              {person.linkedinUrl ? (
+                <ArrowUpRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-neutral-disabled transition-colors group-hover:text-neutral-primary" />
+              ) : null}
+            </div>
+          </>
+        );
+
+        if (!person.linkedinUrl) {
+          return (
+            <div
+              key={person.candidId}
+              className="rounded-[4px] border border-neutral-1000-a05 bg-bg-floating px-2 py-2"
+            >
+              {body}
+            </div>
+          );
+        }
+
+        return (
+          <a
+            key={person.candidId}
+            href={person.linkedinUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="group block rounded-[4px] bg-bg-floating px-2 py-2 transition-colors hover:bg-bg-basement focus:outline-none focus-visible:ring-4 focus-visible:ring-neutral-1000-a05"
+          >
+            {body}
+          </a>
+        );
+      })}
+    </div>
+  );
+};
 
 const stripCompanySnapshotChrome = (markdown: string) => {
   const lines = markdown.trim().split(/\r?\n/);
@@ -129,6 +357,38 @@ const LinkPillIcon = ({ iconUrl }: { iconUrl: string }) => {
   );
 };
 
+const UNKNOWN_COMPANY_DATA_TEXT = new Set([
+  "unknown",
+  "unknown undisclosed",
+  "not available",
+  "not applicable",
+  "not disclosed",
+  "n a",
+  "na",
+  "none",
+  "null",
+  "undisclosed",
+  "미상",
+  "알 수 없음",
+  "알수 없음",
+  "확인 불가",
+  "비공개",
+]);
+
+const getKnownCompanyDataText = (value: string | null | undefined) => {
+  const text = String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text) return "";
+  const normalized = text
+    .toLowerCase()
+    .replace(/[()[\]{}.,:;!?]+/g, " ")
+    .replace(/[-_/]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return UNKNOWN_COMPANY_DATA_TEXT.has(normalized) ? "" : text;
+};
+
 export const CompanyDetailView = ({
   item,
   loading,
@@ -145,6 +405,49 @@ export const CompanyDetailView = ({
   const t = useCareerT();
 
   const { locale } = useMessages();
+  const { fetchWithAuth } = useCareerApi();
+  const companyDbId = item?.companyDbId ?? null;
+  const companyWorkspaceId = item?.companyWorkspaceId ?? null;
+  const leadershipQuery = useQuery({
+    queryKey: [
+      "career-company-leadership",
+      companyWorkspaceId,
+      companyDbId,
+      locale,
+    ],
+    enabled: Boolean(item && (companyWorkspaceId || companyDbId)),
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (companyWorkspaceId) {
+        params.set("companyWorkspaceId", companyWorkspaceId);
+      }
+      if (companyDbId) {
+        params.set("companyDbId", String(companyDbId));
+      }
+      const response = await fetchWithAuth(
+        `/api/talent/company-leadership?${params.toString()}`
+      );
+      const payload = (await response
+        .json()
+        .catch(() => ({}))) as CompanyLeadershipPayload &
+        Record<string, unknown>;
+
+      if (!response.ok) {
+        throw new Error(
+          getErrorMessage(
+            payload,
+            t(
+              "career.company.company_detail_view.0h3m8a3",
+              "창업자 정보를 불러오지 못했습니다."
+            )
+          )
+        );
+      }
+
+      return Array.isArray(payload.leaders) ? payload.leaders : [];
+    },
+    staleTime: 5 * 60_000,
+  });
 
   if (loading) {
     return (
@@ -201,8 +504,9 @@ export const CompanyDetailView = ({
     locale,
     t
   );
+  const displayLocation = formatCareerLocation(item.location, locale);
   const infoRows = [
-    item.location
+    displayLocation
       ? {
           icon: (
             <MapPin
@@ -211,7 +515,7 @@ export const CompanyDetailView = ({
             />
           ),
           label: t("career.company.company_detail_view.198i5rb", "본사 위치"),
-          value: item.location,
+          value: displayLocation,
         }
       : null,
     item.foundedYear
@@ -236,6 +540,96 @@ export const CompanyDetailView = ({
         }
       : null,
   ].filter((row) => row !== null);
+  const totalFundingRaised = getKnownCompanyDataText(
+    item.companyData?.totalFundingRaised
+  );
+  const mainInvestors = getKnownCompanyDataText(
+    item.companyData?.mainInvestors
+  );
+  const lastFundingStage = getKnownCompanyDataText(
+    item.companyData?.lastFundingStage
+  );
+  const lastFundingRoundDescription = getKnownCompanyDataText(
+    item.companyData?.lastFundingRoundDescription
+  );
+  const companyDataRows = [
+    // totalFundingRaised
+    //   ? {
+    //       icon: (
+    //         <CircleDollarSign
+    //           className="h-3.5 w-3.5 text-neutral-muted"
+    //           strokeWidth={2}
+    //         />
+    //       ),
+    //       label: t(
+    //         "career.company.company_data.total_funding_raised_label",
+    //         "총 투자"
+    //       ),
+    //       value: t(
+    //         "career.company.company_data.total_funding_raised",
+    //         "총 투자 {amount}",
+    //         { values: { amount: totalFundingRaised } }
+    //       ),
+    //     }
+    //   : null,
+    // mainInvestors
+    //   ? {
+    //       icon: (
+    //         <Handshake
+    //           className="h-3.5 w-3.5 text-neutral-muted"
+    //           strokeWidth={2}
+    //         />
+    //       ),
+    //       label: t(
+    //         "career.company.company_data.main_investors_label",
+    //         "주요 투자자"
+    //       ),
+    //       value: t(
+    //         "career.company.company_data.main_investors",
+    //         "주요 투자자 {investors}",
+    //         { values: { investors: mainInvestors } }
+    //       ),
+    //     }
+    //   : null,
+    lastFundingStage
+      ? {
+          icon: (
+            <TrendingUp
+              className="h-3.5 w-3.5 text-neutral-muted"
+              strokeWidth={2}
+            />
+          ),
+          label: t(
+            "career.company.company_data.last_funding_stage_label",
+            "최근 단계"
+          ),
+          value: t(
+            "career.company.company_data.last_funding_stage",
+            "최근 단계 {stage}",
+            { values: { stage: lastFundingStage } }
+          ),
+        }
+      : null,
+    //   lastFundingRoundDescription
+    //     ? {
+    //         icon: (
+    //           <FileText
+    //             className="h-3.5 w-3.5 text-neutral-muted"
+    //             strokeWidth={2}
+    //           />
+    //         ),
+    //         label: t(
+    //           "career.company.company_data.last_funding_round_description_label",
+    //           "최근 라운드"
+    //         ),
+    //         value: t(
+    //           "career.company.company_data.last_funding_round_description",
+    //           "최근 라운드 {description}",
+    //           { values: { description: lastFundingRoundDescription } }
+    //         ),
+    //       }
+    //     : null,
+  ].filter((row) => row !== null);
 
   const investorTags = splitTextList(item.investors, 24);
   const relatedLinks = (item.relatedLinks ?? [])
@@ -254,6 +648,9 @@ export const CompanyDetailView = ({
   const crunchbaseCompany = toRecord(crunchbaseInformation.company);
   const crunchbaseTaxonomy = toRecord(crunchbaseInformation.taxonomy);
   const crunchbaseScores = toRecord(crunchbaseInformation.scores);
+  const leadershipPeople = leadershipQuery.data ?? [];
+  const showLeadershipSection =
+    leadershipQuery.isLoading || leadershipPeople.length > 0;
   const crunchbaseStatusRows = [
     {
       label: t("career.company.company_detail_view.0lq2ran", "운영 상태"),
@@ -291,7 +688,6 @@ export const CompanyDetailView = ({
     },
   ].filter((row): row is CompanyDetailRow => row.value.length > 0);
   const crunchbaseCategories = toStringArray(crunchbaseTaxonomy.categories, 18);
-  const crunchbaseFounders = toStringArray(crunchbaseTaxonomy.founders, 12);
   const crunchbaseLocationGroups = toStringArray(
     crunchbaseTaxonomy.location_groups,
     12
@@ -300,7 +696,6 @@ export const CompanyDetailView = ({
     crunchbaseStatusRows.length > 0 ||
     crunchbaseMetricRows.length > 0 ||
     crunchbaseCategories.length > 0 ||
-    crunchbaseFounders.length > 0 ||
     crunchbaseLocationGroups.length > 0;
 
   return (
@@ -337,7 +732,7 @@ export const CompanyDetailView = ({
               </div>
               <Text className="max-w-[780px] text-[14px]" tone="muted">
                 {item.shortDescription ??
-                  item.location ??
+                  displayLocation ??
                   t(
                     "career.company.company_card.1n9j2yp",
                     "회사 설명을 정리 중입니다."
@@ -369,20 +764,37 @@ export const CompanyDetailView = ({
         </div>
       </header>
 
-      <div className="mt-4">
-        {infoRows.length > 0 && (
-          <div className="flex flex-row gap-4">
+      <div className="mt-4 space-y-2">
+        {infoRows.length > 0 ? (
+          <div className="flex flex-wrap gap-x-4 gap-y-2">
             {infoRows.map((row) => (
               <div
                 key={row.label}
-                className="flex flex-row gap-1.5 items-center text-sm text-neutral-primary"
+                className="flex flex-row items-center gap-1.5 text-sm text-neutral-primary"
               >
                 {row.icon && row.icon}
                 <span className="font-normal">{row.value}</span>
               </div>
             ))}
           </div>
-        )}
+        ) : null}
+        {companyDataRows.length > 0 ? (
+          <div className="flex flex-wrap gap-x-4 gap-y-2">
+            {companyDataRows.map((row) => (
+              <div
+                key={row.label}
+                className="flex min-w-0 max-w-full flex-row items-start gap-1.5 text-sm text-neutral-primary"
+              >
+                <span className="mt-0.5 shrink-0">{row.icon}</span>
+                <span className="min-w-0 wrap-break-word font-normal">
+                  {row.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+      <div>
         {snapshotMarkdown ? (
           <DetailSection
             title={t(
@@ -433,6 +845,18 @@ export const CompanyDetailView = ({
           </DetailSection>
         ) : null}
 
+        {showLeadershipSection ? (
+          <DetailSection
+            title={t("career.company.company_detail_view.1sihgzp", "창업자")}
+          >
+            <LeadershipList
+              loading={leadershipQuery.isLoading}
+              locale={locale}
+              people={leadershipPeople}
+            />
+          </DetailSection>
+        ) : null}
+
         {hasCrunchbase ? (
           <DetailSection title="Crunchbase">
             <div className="space-y-5">
@@ -451,14 +875,6 @@ export const CompanyDetailView = ({
                     )}
                   </div>
                   <TagList items={crunchbaseCategories} />
-                </div>
-              ) : null}
-              {crunchbaseFounders.length > 0 ? (
-                <div>
-                  <div className="mb-2 text-[12px] leading-5 text-neutral-muted">
-                    {t("career.company.company_detail_view.1sihgzp", "창업자")}
-                  </div>
-                  <TagList items={crunchbaseFounders} />
                 </div>
               ) : null}
               {crunchbaseLocationGroups.length > 0 ? (

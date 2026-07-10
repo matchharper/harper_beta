@@ -1,9 +1,9 @@
 import {
-  buildCareerTextChatPromptBlocks,
+  buildCareerConversationPromptPlan,
   type CareerPromptBlock,
 } from "@/lib/career/prompts";
 import { buildCareerRealtimeSessionInstructions } from "@/lib/career/realtimeInstructions";
-import { getCareerConversationStarterPrompt } from "@/lib/career/conversationStarterPrompts";
+import { getCareerConversationStarter } from "@/lib/career/prompts/conversationStarters";
 import {
   getCareerRealtimeToolCandidates,
   resolveCareerChatTools,
@@ -262,7 +262,7 @@ export async function buildCareerTextChatDebugPrompt(args: {
     );
   const activeInternalFitHoldQuestion =
     talentSetting?.is_onboarding_done &&
-    (talentSetting?.get_internal_recommendation ?? true) &&
+    talentSetting.profile_visibility !== "dont_share" &&
     canUseInternalFitHoldQuestionTool
       ? await fetchActiveInternalFitHoldQuestion({ admin, userId })
       : null;
@@ -277,8 +277,6 @@ export async function buildCareerTextChatDebugPrompt(args: {
   const currentPreferences = {
     getExternalRecommendation:
       talentSetting?.get_external_recommendation ?? true,
-    getInternalRecommendation:
-      talentSetting?.get_internal_recommendation ?? true,
     periodicIntervalDays: talentSetting
       ? normalizeTalentPeriodicIntervalDays(talentSetting.periodic_interval_days)
       : null,
@@ -309,11 +307,12 @@ export async function buildCareerTextChatDebugPrompt(args: {
 
   const conversationStarterId = args.conversationStarterId?.trim();
   const conversationStarter = conversationStarterId
-    ? getCareerConversationStarterPrompt(conversationStarterId, responseLocale)
+    ? getCareerConversationStarter(conversationStarterId, responseLocale)
     : null;
 
-  const { promptBlocks } = buildCareerTextChatPromptBlocks({
+  const { promptBlocks } = buildCareerConversationPromptPlan({
     activeInternalFitHoldQuestion,
+    channel: "chat",
     currentInsightContent,
     currentPreferences,
     isOnboardingDone: talentSetting?.is_onboarding_done,
@@ -321,10 +320,7 @@ export async function buildCareerTextChatDebugPrompt(args: {
     opportunityStatus,
     pendingOpportunityFeedbackContext,
     profile,
-    proactiveTurnInstruction: conversationStarter?.chatProactiveInstruction,
-    proactiveTurnInstructionMode: conversationStarter
-      ? "conversation_starter"
-      : undefined,
+    conversationMode: conversationStarter?.id ?? "default",
     recentActivitySummaries,
     recentRecommendedOpportunitiesText,
     structuredProfileText,

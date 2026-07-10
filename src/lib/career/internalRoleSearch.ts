@@ -3,8 +3,8 @@ import { existsSync, readFileSync } from "fs";
 import path from "path";
 import { parse as parseDotenv } from "dotenv";
 import {
-  getInternalRoleCompanyAlias,
-  maskInternalRoleSearchKeyword,
+  getInternalRolePublishedName,
+  maskInternalRoleSearchKeywords,
 } from "@/lib/career/internalRoleCompanyAliases";
 
 const DATABASE_ENV_NAMES = [
@@ -29,6 +29,7 @@ type InternalRoleSearchSqlRow = {
   has_priority_review_request: boolean;
   is_internal: boolean;
   location_text: string | null;
+  published_name: string | null;
   role_id: string;
   role_title: string;
   type: string[] | null;
@@ -166,7 +167,7 @@ function formatText(
 function formatInternalRole(row: InternalRoleSearchSqlRow) {
   const parts = [
     `Role title: ${formatText(row.role_title)}`,
-    `Company: ${getInternalRoleCompanyAlias(row.company_name)}`,
+    `Company: ${getInternalRolePublishedName(row.published_name)}`,
     `Location: ${formatText(row.location_text)}`,
     row.description_summary
       ? `Summary: ${formatText(row.description_summary, "", SUMMARY_MAX_CHARS)}`
@@ -211,6 +212,7 @@ async function searchInternalRoleRows(args: {
           cr.work_mode,
           cr.type,
           cw.company_name,
+          cw.published_name,
           cr.location_text,
           cr.description_summary,
           cr.opportunity_search_tsv,
@@ -231,6 +233,7 @@ async function searchInternalRoleRows(args: {
           er.work_mode,
           er.type,
           er.company_name,
+          er.published_name,
           er.location_text,
           er.description_summary,
           true AS is_internal,
@@ -247,6 +250,17 @@ async function searchInternalRoleRows(args: {
               AND progress.role_id = er.role_id
               AND progress.kind = ${INTERNAL_ROLE_PRIORITY_REVIEW_PROGRESS_KIND}
           ) AS has_priority_review_request,
+          EXISTS (
+            SELECT 1
+            FROM keyword_terms kt
+            WHERE length(kt.keyword) >= 3
+              AND (
+                position(lower(kt.keyword) in lower(coalesce(er.company_name, ''))) > 0
+                OR position(lower(coalesce(er.company_name, '')) in lower(kt.keyword)) > 0
+                OR position(lower(kt.keyword) in lower(coalesce(er.published_name, ''))) > 0
+                OR position(lower(coalesce(er.published_name, '')) in lower(kt.keyword)) > 0
+              )
+          ) AS company_name_match,
           ts_rank_cd(
             ARRAY[0.04,0.57,0.64,1.0]::real[],
             er.opportunity_search_tsv,
@@ -256,9 +270,23 @@ async function searchInternalRoleRows(args: {
           er.updated_at
         FROM eligible_roles er
         CROSS JOIN combined_query q
-        WHERE q.query IS NOT NULL
+        WHERE (
+          q.query IS NOT NULL
           AND er.opportunity_search_tsv @@ q.query
+        )
+          OR EXISTS (
+            SELECT 1
+            FROM keyword_terms kt
+            WHERE length(kt.keyword) >= 3
+              AND (
+                position(lower(kt.keyword) in lower(coalesce(er.company_name, ''))) > 0
+                OR position(lower(coalesce(er.company_name, '')) in lower(kt.keyword)) > 0
+                OR position(lower(kt.keyword) in lower(coalesce(er.published_name, ''))) > 0
+                OR position(lower(coalesce(er.published_name, '')) in lower(kt.keyword)) > 0
+              )
+          )
         ORDER BY
+          company_name_match DESC,
           search_rank DESC NULLS LAST,
           er.posted_at DESC NULLS LAST,
           er.updated_at DESC NULLS LAST,
@@ -271,6 +299,7 @@ async function searchInternalRoleRows(args: {
         work_mode,
         type,
         company_name,
+        published_name,
         location_text,
         description_summary,
         is_internal,
@@ -278,6 +307,7 @@ async function searchInternalRoleRows(args: {
         has_priority_review_request
       FROM ranked
       ORDER BY
+        company_name_match DESC,
         search_rank DESC NULLS LAST,
         posted_at DESC NULLS LAST,
         updated_at DESC NULLS LAST,
@@ -322,15 +352,31 @@ export async function searchInternalRolesForCareerTool(args: {
     }
   }
 
+  const companyNameSources = rows.map((row) => ({
+    companyName: row.company_name,
+    publishedName: row.published_name,
+  }));
+
   return {
     assistantInstruction:
       "The Company fields in get_internal_roles results are public-safe aliases, not raw company names. Use those aliases exactly in the final reply. Never reveal, infer, or repeat raw internal company names, including names from the user's search keywords.",
     ...(fallbackKeywords
-      ? { fallbackKeywords: fallbackKeywords.map(maskInternalRoleSearchKeyword) }
+      ? {
+          fallbackKeywords: maskInternalRoleSearchKeywords(
+            fallbackKeywords,
+            companyNameSources
+          ),
+        }
       : {}),
     fallbackUsed,
-    keywords: searchedKeywords.map(maskInternalRoleSearchKeyword),
-    requestedKeywords: requestedKeywords.map(maskInternalRoleSearchKeyword),
+    keywords: maskInternalRoleSearchKeywords(
+      searchedKeywords,
+      companyNameSources
+    ),
+    requestedKeywords: maskInternalRoleSearchKeywords(
+      requestedKeywords,
+      companyNameSources
+    ),
     returnedCount: rows.length,
     roles: rows.map((row) => ({
       id: row.role_id,

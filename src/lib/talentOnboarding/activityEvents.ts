@@ -36,7 +36,7 @@ export type TalentRowMemoActivityItem = {
   entityId?: string | number | null;
   entityLabel: string;
   entityType: "education" | "experience" | "extra";
-  newInfo: string;
+  memo: string;
 };
 
 export type TalentProfileMaterialSnapshot = {
@@ -72,6 +72,7 @@ const PREFERENCE_FIELD_LABELS: Record<string, string> = {
   engagementTypes: "engagement types",
   getExternalRecommendation: "external recommendations",
   getInternalRecommendation: "internal recommendations",
+  profileVisibility: "profile visibility",
   recommendationBatchSize: "recommendation batch size",
 };
 
@@ -257,6 +258,8 @@ export function getPreferenceActivityImpact(
     "engagementTypes",
     "getExternalRecommendation",
     "getInternalRecommendation",
+    "profileVisibility",
+    "recommendationBatchSize",
   ]);
   return changes.some((change) => highImpactFields.has(change.field))
     ? "high"
@@ -275,7 +278,7 @@ export function buildRowMemoActivitySummary(
   items: readonly TalentRowMemoActivityItem[]
 ) {
   const normalizedItems = items.filter(
-    (item) => item.entityLabel.trim() && item.newInfo.trim()
+    (item) => item.entityLabel.trim() && item.memo.trim()
   );
   if (normalizedItems.length === 0) return null;
 
@@ -284,7 +287,7 @@ export function buildRowMemoActivitySummary(
     return `User added a memo to ${item.entityType} "${clampText(
       item.entityLabel,
       120
-    )}": ${formatQuotedValue(item.newInfo)}.`;
+    )}": ${formatQuotedValue(item.memo)}.`;
   }
 
   const details = normalizedItems
@@ -292,7 +295,7 @@ export function buildRowMemoActivitySummary(
     .map(
       (item) =>
         `${item.entityType} "${clampText(item.entityLabel, 80)}": ${formatQuotedValue(
-          item.newInfo
+          item.memo
         )}`
     );
   const suffix =

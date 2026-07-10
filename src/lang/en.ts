@@ -559,8 +559,6 @@ export const en = {
       "The call has just started. Harper should initiate the conversation so the user doesn't have to search for something to say first.\nDo not use tools. For now, just make the opening remarks and the first question.\nSpeak in natural, warm, professional English, like the first moment of a real phone call.\nKeep it brief, 2-4 sentences, and end with a question the user can answer directly.\nThere are two main ways to start the call: 1) continuing a conversation that was previously happening via chat, or 2) starting a new conversation by call.\nIf recent chat context is provided, review it first to determine whether this should continue the previous chat conversation over the call.\nIf it's natural to continue from the previous context, pick up directly from the last question or confirmation exchanged, without introducing a new topic. If a brief greeting feels natural, greet first.\nIf needed, briefly restate the last question or confirmation point to continue smoothly.\nIf it's natural to start a new conversation, begin like a friendly career agent opening a coffee chat.\nIf you see context from recent conversations or activities, connect to it specifically. For example, if the user recently declined a connection offer or provided feedback on a recommendation, ask if anything has changed since then.\nIf the specific context is weak, ask about recent changes in priorities, aspects of their current role or experience they'd like to share more about, or one personal preference or constraint.\nBriefly mention once that more context helps Harper make better company connection requests and tailored opportunity recommendations, then ask a question a career agent would naturally ask.",
     "career.call.opening.instruction.near_finish":
       "\n## Incomplete onboarding near-finish opening\nThe current career interview is almost complete, though not yet finished.\n- filledInsights: {filledCount}/{totalCount}\n- remainingInsights: {remainingCount}\n- Do not start with general new call greetings or broad questions like 'How are you today?' or 'Have your recent priorities changed?'\n- The first sentence should naturally convey the intention that the conversation is almost over, and you'll just do a quick final confirmation for more accurate recommendations/connections.\n- Use the recent chat context only as background; proceed directly to the last remaining missing checklist question hint or final priority confirmation.\n- If the user has already provided context for the final priority confirmation, do not repeat the same confirmation question; move directly to a brief closing.",
-    "career.call.opening.instruction.onboarding":
-      "The call has just started. This call is for the 5-minute career interview.\nDo not use tools. For now, just make the opening remarks and the first question.\nSpeak in natural, warm, professional English, like the first moment of a real phone call.\nIn the first sentence, briefly explain why this conversation is useful: Harper is checking the user's current situation and preferences to recommend better opportunities and help with company connections.\nImmediately after the explanation, ask one question.\nChoose a high-priority item whose `current_status` is missing in the session instructions' Onboarding Question Checklist, and base the question on that item's question hint.\nDo not ask about items that are already `covered` or topics already answered in recent conversation.\nUse recent conversation only as background; do not let it replace the missing checklist item and question hint.\nKeep the full opening to 3-4 sentences, and make the final sentence a question the user can answer right away.\nExample: \"Hi. This 5-minute career interview helps Harper recommend stronger opportunities and share your context clearly when there may be a company connection. You can answer casually. To start, I'd like to understand your current search temperature. Are you actively looking for your next role, or more open to hearing about great opportunities if they come up?\"",
     "career.call.opening.instruction.reference_opening":
       "## Reference opening remarks\nNaturally incorporate the intent of the phrases or questions below into the call's opening remarks. Speak in a way that aligns with the instructions above and the recent conversation context, rather than reading them verbatim.",
     "career.call.opening.instruction.use_recent_context":
@@ -595,7 +593,7 @@ export const en = {
     "career.chat.career_composer_section.041n9nc":
       "Analyzing your resume and links.",
     "career.chat.career_composer_section.0bxwclq": "Summarizing the call.",
-    "career.chat.career_composer_section.0e686ow": "Type your reply to Harper.",
+    "career.chat.career_composer_section.0e686ow": "Ask anything",
     "career.chat.career_composer_section.19raxy2":
       "The conversation will start after you submit basic info.",
     "career.chat.career_composer_section.1g4p5ul":
@@ -604,6 +602,8 @@ export const en = {
       "Please start the conversation using the start button below.",
     "career.chat.career_composer_section.1rqak4s":
       "Keep the conversation going by typing here.",
+    "career.chat.career_composer_section.resume_interview_cta":
+      "Continue the 5-minute career interview",
     "career.chat.career_message_bubble.0jnmgxp":
       "Great. Feel free to start by telling me about your recent updates or what you've been enjoying working on lately.",
     "career.chat.career_message_bubble.0o5swvp": "Call",
@@ -690,8 +690,6 @@ export const en = {
       "Saving your request for priority review of the internal role.",
     "career.chat.tool.research_company.start":
       "Looking up company information.",
-    "career.chat.tool.select_onboarding_question.start":
-      "Selecting the next onboarding question to review.",
     "career.chat.tool.update_setting.start":
       "Updating your recommendation settings.",
     "career.chat.tool.update_talent_profile.start":
@@ -713,12 +711,9 @@ export const en = {
     "career.common.career.0h5494n": "Following",
     "career.common.career.0j3w14l": "Update Resume",
     "career.common.career.0jt5nqc": "No saved resumes.",
-    "career.common.career.0kdqsry":
-      "- I'll find and notify you of meaningful changes like funding, hiring, team shifts, and business results.",
     "career.common.career.0ketgfl": "In-person",
     "career.common.career.0kn6r0x":
       "- I'll find and notify you of meaningful changes like funding, hiring, team shifts, and business results.",
-    "career.common.career.0m1nksm": "Company channel open",
     "career.common.career.0ol21b2": "Company Info",
     "career.common.career.0rd0cjd": "Notice",
     "career.common.career.0vbpl1c": "This search couldn't be completed.",
@@ -729,18 +724,13 @@ export const en = {
     "career.common.career.0xq40c2": "Next Job Posting",
     "career.common.career.0y3ajvx": "Searching...",
     "career.common.career.0y7cerf": "Saved Resumes",
-    "career.common.career.0yjpnrd": "What happens when you follow",
-    "career.common.career.0yu4vbj": "Scheduled Upload:",
     "career.common.career.0z5xpdx": "Red Flags:",
     "career.common.career.11j6jdx": "Summarizing our conversation.",
     "career.common.career.152e0fk": "Job posting review complete",
     "career.common.career.16x7oad": "Close Settings",
     "career.common.career.16yncp4":
       "Finding the best opportunities based on your profile and recent conversations.",
-    "career.common.career.18q07l6":
-      "- This lets the company prioritize you when they're looking for talent or ask Harper to recruit.",
     "career.common.career.19aqpg8": "Quickly review roles and conditions",
-    "career.common.career.1bb9alt": "Auto Signal Tracking",
     "career.common.career.1bbxwls":
       "Set the matching level at which companies can view your profile.",
     "career.common.career.1ceyibb":
@@ -771,8 +761,6 @@ export const en = {
       "Failed to generate 12-hour HR.",
     "career.common.career_flow_provider.0cjev5a":
       "Based on your saved profile, preferences, and recent feedback, recommend public job openings to review now. Don't save new long-term preferences; just search once using current data.",
-    "career.common.career_flow_provider.0lsvl9z":
-      "Failed to create recommended companies.",
     "career.common.career_flow_provider.16uupip":
       "An error occurred while ending the career interview.",
     "career.common.career_flow_provider.19x0zaz":
@@ -783,6 +771,8 @@ export const en = {
       "Failed to create a company follow-up message.",
     "career.common.career_flow_provider.request_more_open_positions":
       "Recommend more open positions",
+    "career.common.career_flow_provider.resume_interview_error":
+      "Could not continue the career interview.",
     "career.common.career_history_panel.00rerkr":
       "Looking for a great opportunity.",
     "career.common.career_history_panel.01m9cc2": "More items to load.",
@@ -981,6 +971,8 @@ export const en = {
     "career.common.career_mobile_chat_launcher.1bjhre2":
       "Drag down or tap close to collapse.",
     "career.common.career_mobile_chat_launcher.1j1ugk2": "Harper Chat",
+    "career.common.career_mobile_chat_launcher.chat_interview_cta":
+      "Finish the 5-minute career chat",
     "career.common.career_mobile_top_bar.0kpy78r": "Tuesday",
     "career.common.career_mobile_top_bar.0wg5ren": "Friday",
     "career.common.career_mobile_top_bar.1f1oien": "Wednesday",
@@ -1137,12 +1129,10 @@ export const en = {
       "Failed to connect in real-time. Please continue via chat.",
     "career.company.career_company_detail_drawer.0amy3om":
       "I couldn't load the company information.",
-    "career.company.company_card.17aqd6f": "Organizing company info.",
     "career.company.company_card.1gncj7z": "I'm organizing company updates.",
     "career.company.company_card.1m5x6m1": "Recent Signals",
     "career.company.company_card.1n9j2yp":
       "Organizing the company description.",
-    "career.company.company_card.1qxewwj": "Reason for Recommendation",
     "career.company.company_detail_view.01kpxqk": "Number of employees",
     "career.company.company_detail_view.02ioip6": "Year founded",
     "career.company.company_detail_view.05y0iqp": "Company not found.",
@@ -1160,14 +1150,20 @@ export const en = {
     "career.company.company_detail_view.1si5hsi": "Careers Page",
     "career.company.company_detail_view.1sihgzp": "Founder",
     "career.company.company_detail_view.1u6998j": "Investor",
-    "career.company.company_empty_state.08icf7j":
-      "No recommended companies yet.",
+    "career.company.company_data.last_funding_round_description":
+      "Latest round {description}",
+    "career.company.company_data.last_funding_round_description_label":
+      "Latest round",
+    "career.company.company_data.last_funding_stage": "Latest stage {stage}",
+    "career.company.company_data.last_funding_stage_label": "Latest stage",
+    "career.company.company_data.main_investors":
+      "Key investors {investors}",
+    "career.company.company_data.main_investors_label": "Key investors",
+    "career.company.company_data.total_funding_raised":
+      "Total funding {amount}",
+    "career.company.company_data.total_funding_raised_label": "Total funding",
     "career.company.company_empty_state.0akildu":
       "Save companies that match your profile, have active hiring signals in the last 6 months, and are connected on LinkedIn.",
-    "career.company.company_empty_state.0h6kux1":
-      "Open company info from recommended companies or position history and follow it to track updates like hiring, funding, and team changes here.",
-    "career.company.company_empty_state.0s75w2v":
-      "Create Recommended Companies",
     "career.company.company_empty_state.17mqvmz":
       "You haven't followed any companies yet.",
     "career.company.employee_count.max": "{end} or fewer employees",
@@ -1182,22 +1178,6 @@ export const en = {
     "career.company.followed_at": "Following since {relative}",
     "career.company.following": "Following",
     "career.company.founded_year": "Founded in {year}",
-    "career.company.recommendation.answer.fallback_reason":
-      "Currently has active hiring signals and aligns with your profile direction.",
-    "career.company.recommendation.answer.footer":
-      "You can view more details and follow companies in your Watchlist > Recommended.",
-    "career.company.recommendation.latest_signal_fallback":
-      "Recent hiring signals were found, so Harper saved this as a company to track.",
-    "career.company.recommendation.next_signal_fallback":
-      "Watchlist will surface updates when new roles or team changes appear.",
-    "career.company.recommendation.reason_one_fallback":
-      "Recently identified active hiring signals, so we've categorized it as a tracking candidate.",
-    "career.company.recommendation.reason_summary_fallback":
-      "{companyName} has active hiring signals and aligns with your profile direction.",
-    "career.company.recommendation.reason_two_fallback":
-      "{companyName} has active hiring signals.",
-    "career.company.recommendation.signal_summary_fallback":
-      "Active hiring signals in the last 6 months make this company worth tracking.",
     "career.company.snapshot.follow_up":
       "Do you have any other questions? Harper can also provide insights based on information not easily accessible externally.",
     "career.company.snapshot.investigation_date": "Investigation date",
@@ -1230,14 +1210,12 @@ export const en = {
     "career.company.snapshot.prompt.target_company":
       "Target company: {companyName}",
     "career.company.snapshot.sources_label": "Sources:",
-    "career.company.watchlist_types.0dpjqlp": "Recommended Companies",
     "career.company.watchlist_types.0kgfx63": "Signal",
     "career.history.career_mobile_jobs_view.0f42kd7":
       "No new positions have been recommended yet.",
     "career.history.career_mobile_jobs_view.0llq6g8":
       "No archived positions yet.",
     "career.history.career_mobile_jobs_view.0ujd7dh": "Swipe left or right",
-    "career.history.career_mobile_jobs_view.18qduxt": "Take notes",
     "career.history.career_mobile_jobs_view.1gufjot": "My notes",
     "career.history.career_mobile_jobs_view.1m3uw9j":
       "No interested positions yet.",
@@ -1343,8 +1321,6 @@ export const en = {
     "career.history.saved_opportunity_status.connected": "In progress",
     "career.history.saved_opportunity_status.hide_action": "Archive",
     "career.home.career_home_panel.024uw9c": "Reload information",
-    "career.home.career_home_panel.030cbmq":
-      "Recommended opportunities · {count} connections available",
     "career.home.career_home_panel.05hgw7c":
       "Please answer only simple questions in the chat on the left or the call below.",
     "career.home.career_home_panel.0bq7bs7":
@@ -1432,22 +1408,6 @@ export const en = {
       "Why It Fits",
     "career.job_posting_recommendations.search_plan.intent_fallback":
       "Find external job postings that match your request.",
-    "career.kickoff.fallback.acknowledgement":
-      "Thanks for starting with Harper.",
-    "career.kickoff.fallback.insight":
-      "I'll keep looking for stronger opportunities and direct connections for you. Before that, it would help to understand what kind of opportunities you prefer.",
-    "career.kickoff.fallback_name": "there",
-    "career.kickoff.opening_message":
-      "Hi {name}. To find opportunities you'd actually be happy with, I'd like to ask a few quick questions first.\nThink of this as a light conversation. I'll keep it around 5 minutes, and once we've covered the essentials, you can wrap it up.\nTo start, could you briefly share your current situation, a bit about yourself, or what kind of opportunity you're looking for?",
-    "career.kickoff.system_prompt.acknowledgement_example": "Hi Alex.",
-    "career.onboarding.additional_question.fallback_assistant_message":
-      "When looking for great opportunities, it's important to know the actual scope of your responsibilities. In your recent roles or key experiences, what areas did you handle more than might be apparent from the outside?",
-    "career.onboarding.additional_question.fallback_rationale":
-      "Need to ask a follow-up question based on the profile.",
-    "career.onboarding.additional_question.final_priority_confirmation":
-      "Based on what we've discussed, I think I have a good grasp of the core information needed for matching opportunities. Lastly, are there any priorities I absolutely shouldn't miss when looking for future opportunities, or any conditions we haven't covered yet?",
-    "career.onboarding.additional_question.min_required_adjustment":
-      " Adjusted to a fallback additional question because the required {min} additional questions have not been completed yet.",
     "career.onboarding.defer_fallback_close":
       "Got it. I'll complete your registration for now based on what you shared. When you come back later, I'll help you continue in more detail. You can also use the button below to keep chatting now.",
     "career.onboarding.defer_prompt_text":
@@ -1475,9 +1435,6 @@ export const en = {
       "Failed to start structuring your profile.",
     "career.onboarding.onboarding.06ilxsj":
       "Let's find something you can do alongside your current role.",
-    "career.onboarding.onboarding.08ain69": "Thanks for the valuable info.",
-    "career.onboarding.onboarding.08oczyl":
-      "If a call is hard, you can continue via chat.",
     "career.onboarding.onboarding.09uxsj9": "Please enter a valid email.",
     "career.onboarding.onboarding.0am0h8h": "Analysis takes about 2 minutes.",
     "career.onboarding.onboarding.0cvpvmv": "Start exploring opportunities",
@@ -1485,7 +1442,6 @@ export const en = {
       "Your career<br />needs an agent too.",
     "career.onboarding.onboarding.0d18cht":
       "Please enter either your resume or a LinkedIn link.",
-    "career.onboarding.onboarding.0dus5rt": "Opportunities you'll like best",
     "career.onboarding.onboarding.0ehh5yz": "Please enter your name.",
     "career.onboarding.onboarding.0eumq1b":
       "I couldn't save your basic information.",
@@ -1497,7 +1453,6 @@ export const en = {
     "career.onboarding.onboarding.0lliiks": "Harper shares first",
     "career.onboarding.onboarding.0nzlxqj":
       "Harper brings opportunities first, and your profile is shared only after you approve.",
-    "career.onboarding.onboarding.0o7dyhc": "Profile materials submitted.",
     "career.onboarding.onboarding.0pijbir":
       "Onboarding session isn't ready yet.",
     "career.onboarding.onboarding.0sc411b":
@@ -1536,8 +1491,6 @@ export const en = {
     "career.onboarding.onboarding.1gr43li": "Get started with Harper",
     "career.onboarding.onboarding.1gsa1bx":
       "Advisor opportunities where you can chat comfortably.",
-    "career.onboarding.onboarding.1jh1j5u":
-      "I'll look for opportunities that fit you, and if companies requesting talent connections look good, I'll introduce and connect you. To help you better, I want to ask a few quick questions about your current situation and what opportunities you want. It usually takes about 5 minutes.",
     "career.onboarding.onboarding.1jkvik4": "Start Conversation",
     "career.onboarding.onboarding.1k0o8vf": "Part-time / Project",
     "career.onboarding.onboarding.1kdng2n": "Could not save your preferences.",
@@ -1553,10 +1506,8 @@ export const en = {
       "I'll help you move forward with {job}.",
     "career.onboarding.onboarding.official_job_visibility_description":
       "Harper may also recommend {name} for opportunities beyond {job}. If you're comfortable being introduced to companies first, you can receive proposals proactively.",
-    "career.onboarding.onboarding.1onl53u": "Chat",
     "career.onboarding.onboarding.1p04ixt":
       "An error occurred while submitting onboarding.",
-    "career.onboarding.onboarding.1qgquty": "Call Harper",
     "career.onboarding.onboarding.1sh2r2c":
       "Failed to load onboarding session.",
     "career.onboarding.onboarding.1sjsl9m": "Information Confirmed",
@@ -1564,14 +1515,10 @@ export const en = {
       "Failed to reset login information.",
     "career.onboarding.onboarding.1t9c061":
       "What opportunities are you<br />exploring?",
-    "career.onboarding.onboarding.1w9rc8x":
-      "I'll look for opportunities based on the resume/link you submitted.",
     "career.onboarding.onboarding.1wh5aat": "Name",
     "career.onboarding.onboarding.1x0fjwc": "Opportunity Type",
     "career.onboarding.onboarding.1xpgwgk":
       "Please upload PDF or text files. Up to 10MB recommended.",
-    "career.onboarding.onboarding.done_agent_intro":
-      "{intro} After our conversation, I'll summarize everything and start by looking for {targetCopy}.",
     "career.onboarding.onboarding_done.call_cta": "Take a 5-min call",
     "career.onboarding.onboarding_done.chat_cta": "Chat now",
     "career.onboarding.onboarding_done.default_agent_intro":
@@ -1593,31 +1540,14 @@ export const en = {
     "career.onboarding.onboarding_done.selected_agent_intro":
       "After our chat, I'll start by looking for {targetCopy} and help with introductions and connections.",
     "career.onboarding.onboarding_done.title": "Can we chat for a moment?",
-    "career.onboarding.onboarding_loading_state.02hign3":
-      "Organizing your history",
-    "career.onboarding.onboarding_loading_state.0baqqno":
-      "Interpreting your preferences",
     "career.onboarding.onboarding_loading_state.0hhyibm":
       "Getting ready for our first chat",
-    "career.onboarding.onboarding_loading_state.0j3lmus":
-      "It takes about 1 minute, and no more than 2 minutes.",
-    "career.onboarding.onboarding_loading_state.0ohe7mq": "Normal",
     "career.onboarding.onboarding_loading_state.0ouyje6":
       "Checking your profile from LinkedIn and resume.",
-    "career.onboarding.onboarding_loading_state.0wdnmxx":
-      "I'm setting criteria for your ideal companies and opportunities. I'll add your past employers to the block list.",
-    "career.onboarding.onboarding_loading_state.13yg4ho":
-      "When you're done reviewing, have a quick chat with me to share your current situation and what opportunities you want.",
-    "career.onboarding.onboarding_loading_state.14a2lmb":
-      "Extracting key points to highlight in introductions.",
     "career.onboarding.onboarding_loading_state.19pgngy":
       "Reading your profile",
-    "career.onboarding.onboarding_loading_state.1b99mcm":
-      "Now I'll naturally follow up with questions about your situation and preferences.",
     "career.onboarding.onboarding_loading_state.1p92fsi":
       "Looking for strong signals",
-    "career.onboarding.onboarding_loading_state.1wnee4b":
-      "Structuring company, role, project, and tech stack.",
     "career.onboarding.onboarding_loading_state.analyzing_badge":
       "Harper is analyzing",
     "career.onboarding.onboarding_loading_state.footer_note":
@@ -1706,7 +1636,6 @@ export const en = {
     "career.preview.career_workspace_preview.1tenwz4":
       "Maintain LLM eval tools and agent workflow packages",
     "career.preview.career_workspace_preview.1truxm7": "Profile saved.",
-    "career.profile.career_profile_menu.14ybad0": "Update Notes",
     "career.profile.career_profile_menu.1k7ppv0": "Log out",
     "career.profile.career_profile_menu.1vjbdm5": "Contact Us",
     "career.profile.career_profile_settings_section.07836ex": "Add",
@@ -1718,12 +1647,8 @@ export const en = {
     "career.profile.career_profile_settings_section.0o48hts":
       "Blocked Companies",
     "career.profile.career_profile_settings_section.0on2o51": "Undo",
-    "career.profile.career_profile_settings_section.0t4q2xb":
-      "Your anonymous profile is shared only after you review the match and explicitly approve it. Your conversation history and preferences remain strictly private; only essential details are shared.",
     "career.profile.career_profile_settings_section.0vrogtc":
       "Your anonymous profile is only shared after you review matched opportunities/companies and explicitly approve.",
-    "career.profile.career_profile_settings_section.10nxtf7":
-      "All matches will end, and your information won't be shared externally under any circumstances. Choose this only if you want to temporarily block all opportunities.",
     "career.profile.career_profile_settings_section.10tme3s":
       "Enter a company name...",
     "career.profile.career_profile_settings_section.117d7sb":

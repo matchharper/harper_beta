@@ -134,7 +134,7 @@ const COPY: Record<Locale, StaticCopy> = {
     activeLabel: "온보딩 완료",
     assistantName: "Harper",
     chatTitle: "채팅",
-    composerPlaceholder: "Harper에게 답변을 입력하세요.",
+    composerPlaceholder: "새로운 조건이나 궁금한 점을 남겨주세요",
     dashboardTitle: "Chris님의 커리어 워크스페이스",
     digestTitle: "오늘 확인할 추천",
     digestSubtitle: "온보딩 정보와 선호도를 바탕으로 정리했어요.",
@@ -289,7 +289,7 @@ const COPY: Record<Locale, StaticCopy> = {
     activeLabel: "Onboarding complete",
     assistantName: "Harper",
     chatTitle: "Chat",
-    composerPlaceholder: "Message Harper",
+    composerPlaceholder: "Ask anything",
     dashboardTitle: "Chris's career workspace",
     digestTitle: "Today's recommendations",
     digestSubtitle: "Curated from your onboarding context and preferences.",
@@ -1071,10 +1071,10 @@ const StaticDashboard = ({ copy }: { copy: StaticCopy }) => (
         {copy.home.welcomePrefix}, <span className="text-primary">Chris</span>!
       </h2>
       <div>
-        <p className="text-center text-sm font-normal leading-5 text-neutral-muted">
+        <p className="text-center text-sm font-medium leading-5 text-neutral-muted">
           {copy.home.activeOpportunityLabel}
         </p>
-        <p className="mt-2 text-center text-sm font-normal leading-5 text-neutral-muted">
+        <p className="mt-1 text-center text-sm font-medium leading-5 text-neutral-muted">
           {copy.home.recommendationSettingLabel}
         </p>
       </div>

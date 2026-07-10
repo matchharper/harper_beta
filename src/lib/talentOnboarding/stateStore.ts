@@ -302,11 +302,9 @@ export async function upsertTalentSetting(args: {
   blockedCompanies?: string[];
   engagementTypes?: TalentNetworkEngagementOptionId[];
   getExternalRecommendation?: boolean;
-  getInternalRecommendation?: boolean;
   periodicIntervalDays?: number;
   preferredLocale?: string | null;
   recommendationBatchSize?: number;
-  recommendationSourceConversationId?: string | null;
   settingLocale?: string | null;
 }) {
   const { admin, userId } = args;
@@ -343,11 +341,7 @@ export async function upsertTalentSetting(args: {
         current?.get_external_recommendation ??
         DEFAULT_TALENT_GET_EXTERNAL_RECOMMENDATION
     ),
-    get_internal_recommendation: normalizeTalentRecommendationToggle(
-      args.getInternalRecommendation ??
-        current?.get_internal_recommendation ??
-        DEFAULT_TALENT_GET_INTERNAL_RECOMMENDATION
-    ),
+    get_internal_recommendation: true,
     is_onboarding_done: current?.is_onboarding_done ?? false,
     periodic_interval_days: normalizeTalentPeriodicIntervalDays(
       args.periodicIntervalDays ?? current?.periodic_interval_days
@@ -357,10 +351,6 @@ export async function upsertTalentSetting(args: {
     recommendation_batch_size: normalizeTalentRecommendationBatchSize(
       args.recommendationBatchSize ?? current?.recommendation_batch_size
     ),
-    recommendation_source_conversation_id:
-      args.recommendationSourceConversationId === undefined
-        ? (current?.recommendation_source_conversation_id ?? null)
-        : args.recommendationSourceConversationId,
     updated_at: now,
   };
 
@@ -425,22 +415,16 @@ export async function setTalentOnboardingDone(args: {
   admin: TalentAdminClient;
   userId: string;
   isOnboardingDone?: boolean;
-  recommendationSourceConversationId?: string | null;
 }) {
   const {
     admin,
     userId,
     isOnboardingDone = true,
-    recommendationSourceConversationId,
   } = args;
   const now = new Date().toISOString();
   const updatePayload = {
     is_onboarding_done: isOnboardingDone,
     updated_at: now,
-    recommendation_source_conversation_id:
-      recommendationSourceConversationId === undefined
-        ? undefined
-        : recommendationSourceConversationId,
   };
 
   const { data: updated, error: updateError } = await admin
@@ -478,8 +462,6 @@ export async function setTalentOnboardingDone(args: {
       periodic_interval_days: DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS,
       preferred_locale: preferredLocale,
       recommendation_batch_size: DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
-      recommendation_source_conversation_id:
-        recommendationSourceConversationId ?? null,
       setting_locale: settingLocale,
       updated_at: now,
     })
