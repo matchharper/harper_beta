@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { createClient } from "@supabase/supabase-js";
 import { IncomingWebhook } from "@slack/webhook";
 import { resetCreditsForPlan } from "@/lib/billing/server";
+import { getPublicSiteUrlFromRequest } from "@/lib/siteUrl";
 import {
   buildRequestAccessApprovedEmailTemplates,
   renderRequestAccessApprovalTemplate,
@@ -133,18 +134,7 @@ function getSlackWebhook() {
 }
 
 function getSiteUrlFromRequest(req: Request) {
-  const configuredUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-  if (configuredUrl) {
-    return configuredUrl.replace(/\/+$/, "");
-  }
-
-  const url = new URL(req.url);
-  const proto =
-    req.headers.get("x-forwarded-proto") ?? url.protocol.replace(":", "");
-  const host =
-    req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? url.host;
-
-  return `${proto}://${host}`.replace(/\/+$/, "");
+  return getPublicSiteUrlFromRequest(req);
 }
 
 function getRequestAccessReviewSecret() {

@@ -7,6 +7,7 @@ import {
   normalizeCrispText,
 } from "@/lib/feedback/crisp";
 import { sendResendEmail } from "@/lib/email/send";
+import { getPublicSiteUrlFromRequest } from "@/lib/siteUrl";
 
 function getInternalSlackWebhook() {
   const webhookUrl = process.env.SLACK_INTERNAL_NOTI_TOKEN?.trim();
@@ -18,15 +19,7 @@ function getInternalSlackWebhook() {
 }
 
 export function getRequestOrigin(req: NextRequest) {
-  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-  if (configured) return configured.replace(/\/$/, "");
-
-  const vercelUrl = process.env.VERCEL_URL?.trim();
-  if (vercelUrl) {
-    return `https://${vercelUrl.replace(/^https?:\/\//, "").replace(/\/$/, "")}`;
-  }
-
-  return req.nextUrl.origin.replace(/\/$/, "");
+  return getPublicSiteUrlFromRequest(req);
 }
 
 function getKstTimestamp() {
