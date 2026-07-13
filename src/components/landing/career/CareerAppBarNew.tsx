@@ -23,7 +23,7 @@ export default function CareerAppBar({
   careerStartHref,
   onCareerStartClick,
   sectionHrefPrefix = "",
-  bgColor = "white",
+  bgColor = "neutral-100",
   labels = {
     workflow: "제품 화면",
     difference: "다른점",
@@ -53,11 +53,11 @@ export default function CareerAppBar({
       }}
       transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
       className={cn(
-        `fixed inset-x-0 top-0 z-50 border-b bg-${bgColor}/50 backdrop-blur-lg transition-colors`,
+        `fixed inset-x-0 top-0 z-50 border-b bg-${bgColor} backdrop-blur-lg transition-colors`,
         isAppBarBorderVisible ? "border-black/10" : "border-transparent"
       )}
     >
-      <div className="relative mx-auto flex h-[60px] max-w-[1160px] items-center justify-between px-4">
+      <div className="relative mx-auto flex h-[54px] max-w-[1160px] items-center justify-between px-4">
         <a
           href={`${sectionHrefPrefix}#top`}
           className="font-hedvig text-[18px] text-black font-semibold"

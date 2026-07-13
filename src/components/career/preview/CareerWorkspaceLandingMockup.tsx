@@ -550,7 +550,7 @@ const StaticAction = ({
   >
     {children}
     {badge ? (
-      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-black px-1.5 text-[11px] leading-none text-neutral-00">
+      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-sky-500 px-1.5 text-[10px] text-neutral-00">
         {badge}
       </span>
     ) : null}
@@ -836,8 +836,8 @@ const StaticChatPanel = ({
       >
         <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-5">
           <div className="flex justify-center py-1">
-            <span className="rounded-full bg-bg-weak px-3 py-1 text-[14px] text-neutral-soft">
-              {copy.activeLabel}
+            <span className="rounded-full bg-bg-weak px-3 py-1 text-[12px] text-neutral-soft">
+              2026-07-13
             </span>
           </div>
           {visibleMessages.map((message) => (
@@ -996,7 +996,7 @@ const StaticProfileSharingSettings = ({ copy }: { copy: StaticCopy }) => (
             <div
               key={option.label}
               className={cn(
-                "rounded-xl border px-3 py-3 text-left transition-colors",
+                "rounded-lg border px-3 py-3 text-left transition-colors",
                 option.selected
                   ? "border-neutral-800 bg-bg-floating text-neutral-primary shadow-sm"
                   : "border-neutral-1000-a05 bg-bg-floating text-neutral-muted"
@@ -1067,7 +1067,7 @@ const StaticProfileSharingSettings = ({ copy }: { copy: StaticCopy }) => (
 const StaticDashboard = ({ copy }: { copy: StaticCopy }) => (
   <div className="mx-auto w-full max-w-[1120px] px-4 pb-8">
     <div className="space-y-4 text-neutral-primary">
-      <h2 className="mt-8 text-center font-hedvig text-2xl font-medium leading-tight text-balance text-neutral-primary">
+      <h2 className="mt-8 text-center font-hedvig text-xl font-semibold leading-tight text-balance text-neutral-primary">
         {copy.home.welcomePrefix}, <span className="text-primary">Chris</span>!
       </h2>
       <div>

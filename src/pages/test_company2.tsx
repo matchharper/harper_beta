@@ -1,6 +1,18 @@
 import Head from "next/head";
 import Link from "next/link";
 import { ArrowRight, Bot, Check, Copy, ShieldCheck } from "lucide-react";
+import { cn } from "@/lib/utils";
+import CareerAppBar from "@/components/landing/career/CareerAppBarNew";
+import Image from "next/image";
+
+const fontMain =
+  "text-[24px] font-normal leading-[1.5] text-neutral-900 md:text-[30px]";
+const fontBig =
+  "text-[20px] font-normal leading-[1.4] text-neutral-900 md:text-[26px]";
+const fontMedium =
+  "text-[15px] font-light leading-[1.4] text-neutral-900 md:text-[17px]";
+const fontSmall =
+  "text-[14px] font-light leading-[1.25] text-neutral-800 md:text-[16px]";
 
 const logos = [
   "twilio",
@@ -17,8 +29,6 @@ const logos = [
   "Ukraine",
   "deliveroo",
   "Chess.com",
-  "T",
-  "meesho",
   "Harvey",
   "salesforce",
 ];
@@ -78,11 +88,12 @@ function PillLink({
   return (
     <Link
       href={href}
-      className={
+      className={cn(
+        "inline-flex h-11 items-center justify-center rounded-full px-6 text-[15px] font-light",
         variant === "dark"
-          ? "inline-flex h-11 items-center justify-center rounded-full bg-neutral-1000 px-6 text-[15px] font-medium text-neutral-00 transition-colors hover:bg-neutral-900"
-          : "inline-flex h-11 items-center justify-center rounded-full border border-neutral-1000-a10 bg-bg-floating px-6 text-[15px] font-medium text-neutral-primary shadow-sm transition-colors hover:bg-bg-weak"
-      }
+          ? "bg-neutral-950 text-neutral-00 transition-colors hover:bg-neutral-900"
+          : "border border-neutral-1000-a10 bg-bg-floating text-neutral-primary shadow-sm transition-colors hover:bg-bg-weak"
+      )}
     >
       {children}
     </Link>
@@ -122,65 +133,49 @@ function SectionHeader({
   );
 }
 
-function LogoGrid() {
+const Card = ({
+  className,
+  children,
+  title,
+  description,
+}: {
+  className?: string;
+  children: React.ReactNode;
+  title: string;
+  description: string;
+}) => {
   return (
-    <section className="eleven-frame mx-auto w-full max-w-[1244px] px-5 py-16 md:px-8 md:py-24">
-      <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <h2 className="text-[16px] text-neutral-primary">
-          Trusted by leading developers and enterprises
-        </h2>
-        <PillLink href="#">Read all stories</PillLink>
+    <div
+      className={cn(
+        "relative min-h-[640px] flex flex-col overflow-hidden rounded-2xl bg-neutral-100 border border-neutral-1000-a05",
+        className
+      )}
+    >
+      <div className="h-[75%]">{children}</div>
+      <div className="h-[25%] p-8 flex flex-col gap-4 mb-4">
+        <div className={cn(fontSmall, "font-medium")}>{title}</div>
+        <div className={fontSmall}>{description}</div>
       </div>
-      <div className="grid grid-cols-2 border border-neutral-1000-a05 bg-bg-default sm:grid-cols-3 md:grid-cols-6">
-        {logos.map((logo, index) => (
-          <div
-            key={logo}
-            className="flex h-20 items-center justify-center gap-2 border-b border-r border-neutral-1000-a05 px-4 text-center text-[18px] font-semibold text-neutral-500 grayscale last:border-r-0"
-          >
-            <span
-              className={`hidden h-5 w-5 shrink-0 ${
-                index % 3 === 0
-                  ? "rounded-full bg-neutral-300"
-                  : index % 3 === 1
-                    ? "rounded-sm bg-neutral-300"
-                    : "bg-[linear-gradient(135deg,var(--color-neutral-300)_0_45%,transparent_45%_55%,var(--color-neutral-300)_55%)]"
-              } md:inline-flex`}
-              aria-hidden="true"
-            />
-            <span>{logo}</span>
-          </div>
-        ))}
-      </div>
-    </section>
+    </div>
   );
-}
+};
 
 function AgentsSection() {
   return (
-    <section className="eleven-frame bg-bg-default py-24">
-      <div className="mx-auto grid w-full max-w-[1244px] gap-8 px-5 md:grid-cols-2 md:px-8">
-        <div>
-          <p className="mb-5 text-[16px] text-neutral-muted">ElevenAgents</p>
-          <h2 className="max-w-[620px] text-[40px] font-normal leading-[1.06] md:text-[44px]">
-            Deploy agents that talk,
-            <br />
-            type, and take action
-          </h2>
-          <div className="mt-8">
-            <PillLink href="#" variant="dark">
-              Learn more
-            </PillLink>
-          </div>
-        </div>
-        <p className="max-w-[560px] text-[18px] leading-[1.42] text-neutral-primary md:pt-16">
-          Configure, deploy and monitor natural, human-sounding agents in 70+
-          languages with leading accuracy and ultra-low latency across voice or
-          chat.
+    <Section bgColor="bg-neutral-00">
+      <div className="mx-auto grid w-full gap-8 md:grid-cols-2">
+        <h2 className={cn(fontBig, "max-w-[620px]")}>Harper가 일하는 방법</h2>
+        <p
+          className={cn(fontMedium, "max-w-[560px] flex items-end justify-end")}
+        >
+          Configure, deploy and monitor natural, human
         </p>
       </div>
-      <div className="mx-auto mt-10 grid w-full max-w-[1244px] gap-5 px-5 md:grid-cols-2 md:px-8">
-        <article className="relative min-h-[560px] overflow-hidden rounded-2xl border border-neutral-1000-a05 bg-[linear-gradient(135deg,var(--color-green-700)_0%,var(--color-accent-300)_44%,var(--color-blue-500)_100%)] p-8 text-neutral-00">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_16%,rgba(255,255,255,0.18),transparent_24%),radial-gradient(circle_at_54%_56%,rgba(31,28,24,0.26),transparent_24%),radial-gradient(circle_at_90%_92%,rgba(255,255,255,0.2),transparent_30%)] opacity-85" />
+      <div className="mx-auto mt-10 grid w-full gap-4 md:grid-cols-2">
+        <Card
+          title="어떤 인재를 원하는지 알려주세요."
+          description="Harper는 회사의 요구사항을 이해하고, 그에 맞는 인재를 찾습니다. 정의된 이후 바로 슬랙 혹은 메일으로 인터뷰를 잡을 인재를 알려드립니다."
+        >
           <div
             className="absolute inset-0 opacity-25"
             style={{
@@ -189,10 +184,13 @@ function AgentsSection() {
               backgroundSize: "3px 3px",
             }}
           />
-          <div className="relative flex items-center justify-between text-[13px] text-neutral-00/75">
-            <span>Support agent</span>
-            <span>Live</span>
-          </div>
+          <Image
+            src="/images/bluesky.jpg"
+            alt="agent1"
+            className="absolute top-0 right-0 -z-10"
+            width={310}
+            height={310}
+          />
           <div className="relative mx-auto mt-16 max-w-[310px] space-y-4 text-[15px]">
             <div className="ml-auto w-fit rounded-full border border-white/45 px-5 py-2">
               Can I get a refund?
@@ -213,212 +211,77 @@ function AgentsSection() {
               Refund completed
             </div>
           </div>
-          <div className="relative mt-24 max-w-[470px]">
-            <h3 className="text-[18px] text-neutral-00/80">
-              Omnichannel agents
-            </h3>
-            <p className="mt-3 text-[17px] leading-[1.38]">
-              Agents listen, read and interact just like humans would across
-              phone, chat, email and WhatsApp.
-            </p>
-          </div>
-        </article>
-        <article className="min-h-[560px] rounded-2xl border border-neutral-1000-a05 bg-bg-weak p-8">
-          <div className="flex items-center justify-between text-[13px] text-neutral-muted">
-            <span>Evaluation</span>
-            <span>Last 7 days</span>
-          </div>
-          <div className="mt-12 rounded-2xl bg-bg-floating p-6 shadow-sm">
-            <p className="text-[15px] text-neutral-primary">Resolution Rate</p>
-            <p className="mt-1 text-[22px] text-neutral-muted">83.4%</p>
-            <div className="mt-5 grid h-48 grid-cols-[48px_1fr] gap-3 text-[12px] text-neutral-muted">
-              <div className="flex flex-col justify-between">
-                <span>100%</span>
-                <span>50%</span>
-                <span>0%</span>
+        </Card>
+        <Card
+          title="이미 검증된 인재를 소개합니다."
+          description="무작위 인재를 대량으로 연결하지 않습니다. Harper는 모든 인재와 대화하고, 그들의 숨겨진 니즈와 역량을 이해하고, 인터뷰할 가치가 있는 인재만 전달합니다."
+        >
+          <div className="relative h-full w-full overflow-hidden">
+            {/* 회사에게, 각 사람들의 프로필이 어떻게 전달될지를 예시로 보여주는 카드. 여기서 중요한건 회사측에서 자연스럽게 "아 이렇게 프로필이 오면 이미 검증이 된 사람이고, 내가 궁금한 것들이 미리 알 수 있구나" 등의 생각이 들게 만드는 것. */}
+            <div className="absolute top-0 right-0 rounded-bl-2xl w-[94%] min-h-[90%] bg-bg-floating p-6 shadow-sm">
+              <p className="text-[14px] text-neutral-primary">김호진</p>
+              <div>현재 Harper 재직중</div>
+              <div>요구사항 3개 만족</div>
+              <div className="flex items-center gap-2">
+                <Check className="h-4 w-4 text-positive" /> 요구사항 1
               </div>
-              <div className="relative rounded-sm bg-[linear-gradient(180deg,transparent_33%,var(--color-neutral-1000-a05)_33%,var(--color-neutral-1000-a05)_34%,transparent_34%,transparent_66%,var(--color-neutral-1000-a05)_66%,var(--color-neutral-1000-a05)_67%,transparent_67%)]">
-                <svg
-                  className="absolute inset-0 h-full w-full"
-                  viewBox="0 0 420 190"
-                  aria-hidden="true"
-                >
-                  <path
-                    d="M0 128 C46 116 84 136 122 126 C170 114 210 132 256 122 C302 112 354 120 420 112 L420 190 L0 190 Z"
-                    fill="var(--color-blue-100)"
-                    opacity="0.36"
-                  />
-                  <path
-                    d="M0 72 C28 60 50 64 78 55 C112 44 136 70 162 66 C190 62 206 46 232 58 C260 72 288 74 312 66 C346 54 378 48 420 66"
-                    fill="none"
-                    stroke="var(--color-primary)"
-                    strokeWidth="3"
-                  />
-                  <path
-                    d="M0 104 C24 92 48 88 76 96 C104 106 130 86 160 98 C190 110 214 112 238 104 C264 94 290 120 316 114 C352 104 382 92 420 102"
-                    fill="none"
-                    stroke="var(--color-blue-500)"
-                    strokeWidth="3"
-                  />
-                </svg>
-                <div className="absolute left-[54%] top-0 h-full w-px bg-neutral-1000-a10" />
-                <div className="absolute left-[44%] top-[30%] rounded-lg bg-bg-floating px-3 py-2 text-[12px] shadow">
-                  <span className="text-primary">●</span> V1: 87.37%
-                  <br />
-                  <span className="text-blue-500">●</span> V2: 61.71%
-                </div>
+              <div className="flex items-center gap-2">
+                <Check className="h-4 w-4 text-positive" /> 요구사항 2
               </div>
-            </div>
-            <div className="mt-2 flex justify-between text-[12px] text-neutral-muted">
-              <span>17 Aug</span>
-              <span>24 Aug</span>
+              <div className="flex items-center gap-2">
+                <Check className="h-4 w-4 text-positive" /> 요구사항 3
+              </div>
+              <div>
+                Harper에게 작은 팀에서의 founding 역할을 찾고있다고 알렸습니다.
+              </div>
+              <div>인터뷰 잡기</div>
             </div>
           </div>
-          <h3 className="mt-24 text-[18px] text-neutral-muted">Analytics</h3>
-          <p className="mt-3 text-[17px] leading-[1.38] text-neutral-primary">
-            Easily measure success rates and CX metrics, optimizing flows over
-            time.
-          </p>
-        </article>
+        </Card>
       </div>
-      <div className="mx-auto mt-5 grid w-full max-w-[1244px] gap-5 px-5 md:grid-cols-3 md:px-8">
-        {agentCards.map((card) => {
-          const Icon = card.icon;
-          return (
-            <article
-              key={card.title}
-              className="min-h-[270px] rounded-2xl border border-neutral-1000-a05 bg-bg-weak p-8"
-            >
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-floating">
-                <Icon className="h-5 w-5" />
-              </div>
-              <h3 className="mt-20 text-[18px] text-neutral-muted">
-                {card.title}
-              </h3>
-              <p className="mt-3 text-[17px] leading-[1.38] text-neutral-primary">
-                {card.copy}
-              </p>
-            </article>
-          );
-        })}
-        <article className="min-h-[270px] rounded-2xl border border-neutral-1000-a05 bg-bg-weak p-8">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-floating">
-            <Bot className="h-5 w-5" />
-          </div>
-          <h3 className="mt-20 text-[18px] text-neutral-muted">Workflows</h3>
-          <p className="mt-3 text-[17px] leading-[1.38] text-neutral-primary">
-            Handle complex conversation flows, apply business logic and connect
-            securely to systems.
-          </p>
-        </article>
-      </div>
-      <div className="mx-auto mt-8 flex w-full max-w-[1244px] flex-col gap-4 px-5 md:flex-row md:items-center md:justify-between md:px-8">
-        <div className="flex items-center gap-3 overflow-x-auto pb-1 md:overflow-visible md:pb-0">
-          {["Deliveroo", "Meesho", "Cars24"].map((item, index) => (
-            <span
-              key={item}
-              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[10px] font-semibold ${
-                index === 1
-                  ? "bg-[linear-gradient(135deg,var(--color-blue-500),var(--color-neutral-1000))] text-neutral-00"
-                  : "bg-bg-floating text-neutral-muted"
-              }`}
-            >
-              {item.slice(0, 4)}
-            </span>
-          ))}
-          <div>
-            <p className="text-[16px] text-neutral-primary">Meesho</p>
-            <p className="text-[15px] text-neutral-muted">
-              Delivering real-time, multilingual customer support with voice
-              agents
-            </p>
-          </div>
-        </div>
-        <PillLink href="#">Get started</PillLink>
-      </div>
-    </section>
+    </Section>
   );
 }
 
 function ApiSection() {
   return (
-    <section className="eleven-frame bg-bg-default py-24">
-      <SectionHeader
-        eyebrow="ElevenAPI"
-        title="Or build anything with a powerful host of APIs"
-        action="Explore docs"
-      />
-      <div className="mx-auto mt-12 w-full max-w-[1244px] border-y border-neutral-1000-a05 px-5 md:px-8">
-        {apiCards.map((card) => (
-          <article
-            key={card.title}
-            className="grid border-b border-neutral-1000-a05 last:border-b-0 md:min-h-[300px] md:grid-cols-2"
-          >
-            <div className="py-10 pr-8 md:py-12 md:pr-14">
-              <h3 className="text-[22px] font-normal text-neutral-primary">
-                {card.title}
-              </h3>
-              <p className="mt-3 max-w-[520px] text-[18px] leading-[1.45] text-neutral-muted">
-                {card.copy}
-              </p>
-              <div className="mt-9 grid gap-x-10 gap-y-6 md:grid-cols-2">
-                {card.details.map(([title, detail]) => (
-                  <div key={title}>
-                    <h4 className="text-[17px] font-normal text-neutral-primary">
-                      {title}
-                    </h4>
-                    <p className="mt-1 text-[16px] leading-[1.35] text-neutral-muted">
-                      {detail}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="border-t border-neutral-1000-a05 py-8 md:border-l md:border-t-0 md:pl-8">
-              {card.visual === "scribe" ? (
-                <div className="relative min-h-[300px] overflow-hidden rounded-2xl bg-bg-default">
-                  <div className="absolute inset-0 bg-[linear-gradient(135deg,transparent_0_49%,var(--color-neutral-1000-a05)_49%_50%,transparent_50%_100%)]" />
-                  <div
-                    className="absolute left-[48%] top-[-80px] h-[520px] w-24 rounded-full border border-neutral-1000-a05 bg-bg-floating shadow-sm"
-                    style={{ transform: "rotate(-32deg)" }}
-                  >
-                    <div className="absolute left-1/2 top-10 h-10 w-28 -translate-x-1/2 rounded-full border border-neutral-1000-a05 bg-bg-floating text-center text-[16px] font-semibold leading-10 shadow-sm">
-                      Scribe
-                    </div>
-                    {["Gemini 2.0 Flash", "Whisper Large v3"].map(
-                      (label, index) => (
-                        <div
-                          key={label}
-                          className="absolute left-1/2 w-36 -translate-x-1/2 rounded-md bg-bg-weak px-3 py-2 text-center text-[13px] text-neutral-muted"
-                          style={{ top: 150 + index * 68 }}
-                        >
-                          {label}
-                        </div>
-                      )
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="relative rounded-2xl border border-neutral-1000-a05 bg-bg-floating p-7 shadow-sm">
-                  <button
-                    type="button"
-                    aria-label="Copy code"
-                    className="absolute right-5 top-5 flex h-8 w-8 items-center justify-center rounded-md bg-bg-weak"
-                  >
-                    <Copy className="h-4 w-4" />
-                  </button>
-                  <pre className="overflow-x-auto pr-9 text-[14px] leading-[1.75] text-neutral-primary">
-                    <code>{card.code}</code>
-                  </pre>
-                </div>
-              )}
-            </div>
-          </article>
-        ))}
+    <Section bgColor="bg-neutral-00">
+      <div className="mx-auto grid w-full gap-8 md:grid-cols-2">
+        <h2 className={cn(fontBig, "max-w-[620px]")}>
+          Smarter hiring starts here
+        </h2>
+        <p
+          className={cn(fontMedium, "max-w-[560px] flex items-end justify-end")}
+        >
+          Configure, deploy and monitor natural, human-sounding age
+        </p>
       </div>
-    </section>
+      <div className="mx-auto mt-10 grid w-full gap-4 md:grid-cols-3">
+        <div></div>
+        <div></div>
+        <div></div>
+      </div>
+    </Section>
   );
 }
+
+const Section = ({
+  children,
+  bgColor = "bg-neutral-100",
+  className,
+}: {
+  children: React.ReactNode;
+  bgColor?: string;
+  className?: string;
+}) => {
+  return (
+    <div className={cn("w-full py-16 md:py-24", bgColor, className)}>
+      <section className="mx-auto w-full max-w-[1244px] px-5 md:px-10">
+        {children}
+      </section>
+    </div>
+  );
+};
 
 export default function TestCompanyPage() {
   return (
@@ -435,33 +298,6 @@ export default function TestCompanyPage() {
         .crisp-client,
         div.fixed.bottom-4.right-4 {
           display: none !important;
-        }
-
-        .eleven-page {
-          --eleven-rail-half: 590px;
-          position: relative;
-          isolation: isolate;
-          background: var(--color-bg-default);
-        }
-
-        .eleven-page::before,
-        .eleven-page::after {
-          content: "";
-          position: absolute;
-          top: 64px;
-          bottom: 0;
-          width: 1px;
-          background: var(--color-neutral-1000-a05);
-          pointer-events: none;
-          z-index: 1;
-        }
-
-        .eleven-page::before {
-          left: calc(50% - var(--eleven-rail-half));
-        }
-
-        .eleven-page::after {
-          left: calc(50% + var(--eleven-rail-half));
         }
 
         .eleven-frame {
@@ -505,31 +341,72 @@ export default function TestCompanyPage() {
           }
         }
       `}</style>
-      <main className="eleven-page min-h-screen bg-bg-default text-neutral-primary">
-        <section className="mx-auto w-full max-w-[1244px] px-5 pt-24 md:px-8 md:pt-28">
+      <main className="min-h-screen text-neutral-primary">
+        <CareerAppBar
+          careerStartHref={"/contact"}
+          onCareerStartClick={() => {}}
+          labels={{
+            workflow: "Product",
+            difference: "Why Harper",
+            voices: "Stories",
+            forCompanies: "For Companies",
+            join: "Join",
+          }}
+        />
+        <Section bgColor="bg-neutral-100" className="md:pt-36 md:pb-20">
           <div className="grid gap-10 md:grid-cols-[0.95fr_1fr] md:items-end">
-            <div>
-              <h1 className="max-w-[620px] text-[48px] font-normal leading-[1.05] text-neutral-primary md:text-[51px]">
-                Bringing
-                <br />
-                technology to life
-              </h1>
-              <div className="mt-7 flex flex-wrap gap-2">
-                <PillLink href="#" variant="dark">
-                  Sign up
-                </PillLink>
-                <PillLink href="#">Contact sales</PillLink>
-              </div>
-            </div>
-            <p className="max-w-[560px] text-[18px] leading-[1.42] text-neutral-primary md:pb-8">
-              Powering the best enterprises, creators, and developers. From
-              ElevenAgents for customer experience, ElevenCreative for content
-              creation, to the leading AI voice generator.
+            <h1 className={`max-w-[620px] ${fontMain}`}>
+              채용 공고로는 닿기 어려운
+              <br />
+              Top talent를 연결해드립니다.
+            </h1>
+            <p className={`max-w-[560px] ${fontMedium}`}>
+              Harper는 인재들과 직접 대화하며 회사가 찾는 역할의 기술 스택,
+              제품/도메인 맥락, 경력과 관심도를 바탕으로 대화해볼 만한 인재만
+              선별해 소개합니다.
             </p>
           </div>
-        </section>
+          <div className="mt-6">
+            <PillLink href="#" variant="dark">
+              미팅 신청하기&nbsp; <ArrowRight className="h-4 w-4" />
+            </PillLink>
+          </div>
+        </Section>
 
-        <LogoGrid />
+        <Section className="pt-0 md:pt-0">
+          <div className="mb-8 grid grid-cols-[0.6fr_0.4fr] gap-8">
+            <div className={cn(fontMedium, "text-neutral-muted")}>
+              이 곳의 인재들이 신뢰합니다.
+            </div>
+            <div className={cn(fontMedium, "text-neutral-muted")}>
+              최고의 팀들과 함께하고 있습니다.
+            </div>
+          </div>
+          <div className="grid grid-cols-[0.6fr_0.4fr] gap-8">
+            <div className="grid grid-cols-4 gap-2">
+              {logos.map((logo, index) => (
+                <div
+                  key={`${index}`}
+                  className="flex h-24 items-center justify-center rounded-sm gap-2 bg-neutral-200/80 border border-neutral-200 px-4 text-center text-[16px] font-normal text-neutral-900"
+                >
+                  <span>{logo}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-col gap-2">
+              <p className={fontMedium}>
+                <span className="text-primary">$2B</span> AI-first Asia VC
+              </p>
+              <p className={fontMedium}>
+                <span className="text-primary">$2B</span> Global Agentic Company
+              </p>
+              <p className={fontMedium}>
+                <span className="text-primary">Sequoia-backed</span> Consumer AI
+                Agent
+              </p>
+            </div>
+          </div>
+        </Section>
         <AgentsSection />
         <ApiSection />
 

@@ -87,7 +87,7 @@ function getLandingOgLocale(locale: Locale) {
 }
 
 const text = {
-  h1: "text-[30px] font-bold leading-[1.28] text-neutral-950 sm:text-[48px] md:text-[56px]",
+  h1: "text-[30px] font-semibold leading-[1.24] text-neutral-950 sm:text-[42px] md:text-[50px]",
   h2: "text-[28px] font-medium leading-[1.2] text-neutral-950 md:text-[36px]",
   h3: "text-[20px] font-normal leading-[1.45] text-neutral-950 md:text-[24px]",
   lg: "text-[16px] font-normal leading-[1.45] text-neutral-950 md:text-[18px]",
@@ -307,7 +307,7 @@ const LANDING_COPY = {
       notifications: [
         {
           title: "Harper가 소개를 진행합니다",
-          body: "Founder에게 {{name}}님의 맥락과 추천 이유를 함께 전달했어요.",
+          body: "Founder에게 호진님의 맥락과 추천 이유를 함께 전달했어요.",
           time: "방금",
         },
         {
@@ -787,15 +787,15 @@ function DesktopWindowMockup({
   onGmailMockupVisibleChange?: (visible: boolean) => void;
 }) {
   return (
-    <div className="[clip-path:inset(0_round_16px)] md:[clip-path:inset(0_round_0px)] md:rounded-t-[16px] pointer-events-auto absolute isolate w-[min(90vw,320px)] overflow-hidden bg-neutral-50 text-neutral-950 ring-1 ring-black/15 md:pointer-events-none md:w-[94%] md:translate-x-0">
-      <div className="hidden h-9 grid-cols-[64px_1fr_76px] items-center bg-neutral-100 px-3 text-[11px] text-neutral-500 ring-1 ring-black/[0.06] md:grid sm:grid-cols-[110px_1fr_110px] sm:px-4 sm:text-[13px]">
+    <div className="bg-neutral-100 text-neutral-900 [clip-path:inset(0_round_16px)] md:[clip-path:inset(0_round_0px)] md:rounded-t-[14px] pointer-events-auto absolute isolate w-[min(90vw,320px)] overflow-hidden ring-1 ring-white/15 md:pointer-events-none md:w-[94%] md:translate-x-0">
+      <div className="hidden h-8 border-b border-neutral-200 grid-cols-[64px_1fr_76px] items-center px-3 text-[11px] text-neutral-900 ring-1 ring-black/[0.06] md:grid sm:grid-cols-[110px_1fr_110px] sm:px-4 sm:text-[13px]">
         <div className="flex gap-2">
           <span className="h-2 w-2 rounded-full bg-red-500 sm:h-2.5 sm:w-2.5" />
           <span className="h-2 w-2 rounded-full bg-green-500 sm:h-2.5 sm:w-2.5" />
           <span className="h-2 w-2 rounded-full bg-neutral-300 sm:h-2.5 sm:w-2.5" />
         </div>
-        <div className="whitespace-nowrap text-xs text-center font-normal text-neutral-600">
-          {label}
+        <div className="whitespace-nowrap text-xs text-center font-normal">
+          Harper Desktop
         </div>
         <div />
       </div>
@@ -870,7 +870,7 @@ function HeroScreenshot({
         fill
         priority
         sizes="(min-width: 1280px) 1240px, 100vw"
-        className="object-cover opacity-[0.95] brightness-[1.02] contrast-[0.82] saturate-[0.62]"
+        className="object-cover opacity-[0.95]"
       />
       <div className="absolute inset-0 bg-neutral-200/40" />
       <div className="pointer-events-none absolute inset-x-4 top-4 z-30 md:hidden">
@@ -1619,13 +1619,13 @@ function GmailNotificationVisual({
       )}
     >
       <Image
-        src="/images/sky1.jpg"
+        src="/images/bluesky.jpg"
         alt=""
         fill
         sizes="(min-width: 768px) 54vw, 100vw"
-        className="object-cover brightness-[0.78] contrast-[1.05] saturate-[0.6]"
+        className="object-cover brightness-[0.85] contrast-[1.05] saturate-[0.8]"
       />
-      <div className="absolute inset-0 bg-neutral-950/28" />
+      <div className="absolute inset-0 bg-neutral-950/20" />
 
       <motion.div
         data-product-flow-visual-fg
@@ -1799,7 +1799,7 @@ function AudienceModeCard({
       : "object-[50%_44%] brightness-[0.74] contrast-[1.06] saturate-[0.95]";
 
   return (
-    <div className="relative flex min-h-[300px] overflow-hidden rounded-[12px] bg-neutral-950 p-4 text-white ring-1 ring-black/[0.06] md:min-h-[340px] md:p-4">
+    <div className="relative flex min-h-[240px] overflow-hidden rounded-[12px] bg-neutral-950 p-4 text-white ring-1 ring-black/[0.06] md:min-h-[340px] md:p-4">
       <Image
         src={card.imageSrc}
         alt=""
@@ -2072,7 +2072,7 @@ export default function LandingKoVfPage({
     "text-center",
     text.h1,
     landingLocale === "en" &&
-      "text-[36px] sm:text-[56px] md:text-[66px] leading-[1.16]"
+      "text-[36px] sm:text-[52px] md:text-[60px] leading-[1.14]"
   );
   const { careerStartHref, handleCareerStartClick } = useCareerLandingStart({
     abtestType: heroCopyAbtestType,
@@ -2236,8 +2236,10 @@ export default function LandingKoVfPage({
         />
 
         <main>
-          <section className={`${ui.pageX} pt-32 md:pt-44`}>
-            <div className={ui.shell}>
+          <section
+            className={`${ui.pageX} pt-32 md:pt-44 bg-linear-to-b from-neutral-100 from-0% via-neutral-100 via-90% to-neutral-100/0 to-100%`}
+          >
+            <div className={cn(ui.shell)}>
               <Reveal once blur={0} distance={20}>
                 <div className="flex flex-col items-center justify-center gap-4 md:gap-8">
                   <h1 className={heroTitleClassName}>
@@ -2245,7 +2247,7 @@ export default function LandingKoVfPage({
                     <br />
                     {copy.hero.title[1]}
                   </h1>
-                  <p className="max-w-[560px] text-center text-[15px] leading-[1.5] text-neutral-700 md:text-[18px]">
+                  <p className="max-w-[560px] text-center text-[15px] leading-[1.45] text-neutral-700 md:text-[18px]">
                     <Lines lines={heroBody} />
                   </p>
                   <div className="mt-4 md:mt-4">

@@ -208,9 +208,9 @@ function GmailSummaryCard({ copy }: { copy: GmailMockupCopy }) {
     <div className="flex h-[28px] items-center rounded-[12px] bg-[#eef3fb] px-[12px] text-[#5f6368]">
       <div className="flex items-center gap-[8px]">
         <span className="relative flex h-[14px] w-[14px] items-center justify-center">
-          <Sparkles className="h-[12px] w-[12px]" strokeWidth={1.9} />
-          <span className="absolute -left-[3px] top-[6px] h-[1.5px] w-[6px] rounded-full bg-[#5f6368]" />
-          <span className="absolute -left-[3px] top-[10px] h-[1.5px] w-[6px] rounded-full bg-[#5f6368]" />
+          <Sparkles className="h-[10px] w-[10px]" strokeWidth={1.9} />
+          <span className="absolute -left-[3px] top-[6px] h-[1.2px] w-[6px] rounded-full bg-[#5f6368]" />
+          <span className="absolute -left-[3px] top-[10px] h-[1.2px] w-[6px] rounded-full bg-[#5f6368]" />
         </span>
 
         <span className="text-[10px] font-medium tracking-[-0.02em]">
@@ -276,7 +276,7 @@ function GmailBody({ copy }: { copy: GmailMockupCopy }) {
 function GmailReplyActions({ copy }: { copy: GmailMockupCopy }) {
   const iconSize = "h-[13px] w-[13px]";
   const pill =
-    "flex h-[28px] items-center justify-center gap-[7px] rounded-full bg-white text-[10px] font-normal tracking-[-0.02em] text-[#3c4043] ring-1 ring-[#c9cccf]";
+    "flex h-[26px] items-center justify-center gap-[7px] rounded-full bg-white text-[10px] font-normal tracking-[-0.02em] text-[#3c4043] ring-1 ring-[#c9cccf]";
 
   return (
     <div className="absolute bottom-[43px] left-0 right-0 bg-white px-[9px] pb-[7px] pt-[7px]">
