@@ -1673,6 +1673,7 @@ export type Database = {
       }
       email_inbound_events: {
         Row: {
+          attachments: Json
           cc_addresses: string[]
           created_at: string
           from_email: string | null
@@ -1686,6 +1687,7 @@ export type Database = {
           to_addresses: string[]
         }
         Insert: {
+          attachments?: Json
           cc_addresses?: string[]
           created_at?: string
           from_email?: string | null
@@ -1699,6 +1701,7 @@ export type Database = {
           to_addresses?: string[]
         }
         Update: {
+          attachments?: Json
           cc_addresses?: string[]
           created_at?: string
           from_email?: string | null

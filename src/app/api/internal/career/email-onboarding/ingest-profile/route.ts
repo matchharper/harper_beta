@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHash, randomUUID } from "crypto";
 import {
   requireInternalWorkerSecret,
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
 import {
+  TALENT_RESUME_BUCKET,
   getTalentSupabaseAdmin,
   type TalentAdminClient,
 } from "@/lib/talentOnboarding/server";
@@ -11,6 +13,7 @@ import { ingestTalentProfileFromLinkedin } from "@/lib/talentOnboarding/profileI
 
 export const runtime = "nodejs";
 export const maxDuration = 240;
+export const dynamic = "force-dynamic";
 
 type UntypedAdmin = TalentAdminClient & {
   from: (table: string) => any;
@@ -20,6 +23,7 @@ type EmailAttachment = {
   contentType: string;
   downloadUrl: string;
   fileName: string;
+  id?: string;
   size: number | null;
 };
 
@@ -64,6 +68,9 @@ function normalizeAttachments(value: unknown): EmailAttachment[] {
       const downloadUrl = String(
         source.downloadUrl ?? source.download_url ?? source.url ?? ""
       ).trim();
+      const id = String(
+        source.id ?? source.attachmentId ?? source.attachment_id ?? ""
+      ).trim();
       const sizeNumber = Number(
         source.size ?? source.contentLength ?? source.content_length
       );
@@ -71,6 +78,7 @@ function normalizeAttachments(value: unknown): EmailAttachment[] {
         contentType,
         downloadUrl,
         fileName,
+        id: id || undefined,
         size: Number.isFinite(sizeNumber) && sizeNumber > 0 ? sizeNumber : null,
       };
     })
@@ -97,6 +105,34 @@ function isTextAttachment(attachment: EmailAttachment) {
     contentType.startsWith("text/") ||
     fileName.endsWith(".txt") ||
     fileName.endsWith(".md")
+  );
+}
+
+function isDocxAttachment(attachment: EmailAttachment) {
+  const fileName = attachment.fileName.toLowerCase();
+  const contentType = attachment.contentType.toLowerCase();
+  return (
+    contentType ===
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    fileName.endsWith(".docx")
+  );
+}
+
+function isSupportedProfileAttachment(attachment: EmailAttachment) {
+  return (
+    isPdfAttachment(attachment) ||
+    isTextAttachment(attachment) ||
+    isDocxAttachment(attachment)
+  );
+}
+
+function sanitizeFileName(fileName: string) {
+  return (
+    fileName
+      .replace(/[^a-zA-Z0-9._-]/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 120) || "attachment"
   );
 }
 
@@ -130,13 +166,41 @@ async function fetchAttachmentBuffer(attachment: EmailAttachment) {
   }
 }
 
-async function extractTextFromAttachment(attachment: EmailAttachment) {
-  if (!isPdfAttachment(attachment) && !isTextAttachment(attachment)) {
+async function uploadAttachmentToStorage(args: {
+  admin: TalentAdminClient;
+  attachment: EmailAttachment;
+  buffer: Buffer;
+  userId: string;
+}) {
+  const safeName = sanitizeFileName(args.attachment.fileName);
+  const storagePath = `${args.userId}/email-inbound/${Date.now()}_${randomUUID()}_${safeName}`;
+  const { error } = await args.admin.storage
+    .from(TALENT_RESUME_BUCKET)
+    .upload(storagePath, args.buffer, {
+      contentType:
+        args.attachment.contentType || "application/octet-stream",
+      upsert: false,
+    });
+  if (error) {
+    throw new Error(error.message ?? "Failed to upload email attachment");
+  }
+  return storagePath;
+}
+
+async function extractTextFromAttachmentBuffer(
+  attachment: EmailAttachment,
+  buffer: Buffer
+) {
+  if (!isSupportedProfileAttachment(attachment)) {
     return "";
   }
-  const buffer = await fetchAttachmentBuffer(attachment);
   if (isTextAttachment(attachment)) {
     return buffer.toString("utf8").trim();
+  }
+  if (isDocxAttachment(attachment)) {
+    const mammoth = await import("mammoth");
+    const parsed = await mammoth.extractRawText({ buffer });
+    return String(parsed.value ?? "").trim();
   }
   // @ts-ignore: pdf-parse-fork does not ship module declarations.
   const pdfModule = await import("pdf-parse-fork");
@@ -145,37 +209,141 @@ async function extractTextFromAttachment(attachment: EmailAttachment) {
   return String(parsed.text ?? "").trim();
 }
 
-async function extractResumeTextFromAttachments(
-  attachments: EmailAttachment[]
-) {
+async function processEmailAttachments(args: {
+  admin: TalentAdminClient;
+  attachments: EmailAttachment[];
+  userId: string;
+}) {
   const warnings: string[] = [];
   const texts: string[] = [];
   let resumeFileName = "";
-  for (const attachment of attachments) {
+  let resumeStoragePath = "";
+  const processed: Array<Record<string, unknown>> = [];
+
+  for (const attachment of args.attachments) {
+    const normalized = {
+      contentType: attachment.contentType,
+      fileName: attachment.fileName,
+      id: attachment.id ?? null,
+      size: attachment.size,
+    };
     try {
-      const text = await extractTextFromAttachment(attachment);
-      if (!text) continue;
-      if (!resumeFileName) {
+      if (!isSupportedProfileAttachment(attachment)) {
+        processed.push({
+          ...normalized,
+          extractionStatus: "unsupported",
+        });
+        continue;
+      }
+      const buffer = await fetchAttachmentBuffer(attachment);
+      const sha256 = createHash("sha256").update(buffer).digest("hex");
+      const storagePath = await uploadAttachmentToStorage({
+        admin: args.admin,
+        attachment,
+        buffer,
+        userId: args.userId,
+      });
+      const text = await extractTextFromAttachmentBuffer(attachment, buffer);
+      if (!resumeStoragePath) {
+        resumeStoragePath = storagePath;
         resumeFileName = attachment.fileName;
       }
+      processed.push({
+        ...normalized,
+        extractedTextChars: text.length,
+        extractionStatus: text ? "ok" : "empty",
+        sha256,
+        storageBucket: TALENT_RESUME_BUCKET,
+        storagePath,
+      });
+      if (!text) continue;
       texts.push(
         [`[Attachment: ${attachment.fileName}]`, text]
           .filter(Boolean)
           .join("\n")
       );
     } catch (error) {
+      const message =
+        error instanceof Error ? error.message : String(error);
       warnings.push(
-        `${attachment.fileName}: ${
-          error instanceof Error ? error.message : String(error)
-        }`
+        `${attachment.fileName}: ${message}`
       );
+      processed.push({
+        ...normalized,
+        error: message,
+        extractionStatus: "failed",
+      });
     }
   }
   return {
+    processed,
     resumeFileName,
+    resumeStoragePath,
     text: texts.join("\n\n").slice(0, MAX_PARSED_ATTACHMENT_TEXT),
     warnings,
   };
+}
+
+async function updateInboundEventAttachments(args: {
+  admin: UntypedAdmin;
+  inboundEventId: string;
+  attachments: Array<Record<string, unknown>>;
+}): Promise<string | null> {
+  if (!args.inboundEventId) return null;
+  const { error } = await args.admin
+    .from("email_inbound_events")
+    .update({
+      attachments: args.attachments as any,
+    })
+    .eq("id", args.inboundEventId);
+  if (error) {
+    return error.message ?? "Failed to update inbound attachments";
+  }
+  return null;
+}
+
+async function saveResumeFileReference(args: {
+  admin: UntypedAdmin;
+  links?: string[];
+  resumeFileName?: string;
+  resumeStoragePath?: string;
+  resumeText?: string;
+  userId: string;
+}) {
+  const links = Array.from(
+    new Set((args.links ?? []).map((link) => String(link ?? "").trim()).filter(Boolean))
+  );
+  const resumeFileName = String(args.resumeFileName ?? "").trim();
+  const resumeStoragePath = String(args.resumeStoragePath ?? "").trim();
+  const resumeText = String(args.resumeText ?? "").trim();
+  if (!links.length && !resumeFileName && !resumeStoragePath && !resumeText) {
+    return false;
+  }
+
+  const payload: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+  if (links.length > 0) {
+    payload.resume_links = links;
+  }
+  if (resumeFileName) {
+    payload.resume_file_name = resumeFileName.slice(0, 240);
+  }
+  if (resumeStoragePath) {
+    payload.resume_storage_path = resumeStoragePath.slice(0, 2000);
+  }
+  if (resumeText) {
+    payload.resume_text = resumeText.slice(0, MAX_PARSED_ATTACHMENT_TEXT);
+  }
+
+  const { error } = await args.admin
+    .from("talent_users")
+    .update(payload)
+    .eq("user_id", args.userId);
+  if (error) {
+    throw new Error(error.message ?? "Failed to save resume file reference");
+  }
+  return true;
 }
 
 export async function POST(req: NextRequest) {
@@ -184,54 +352,135 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json().catch(() => ({}))) as {
       attachments?: unknown;
+      inboundEventId?: unknown;
       leadId?: unknown;
       links?: unknown;
       resumeFileName?: unknown;
       resumeStoragePath?: unknown;
       resumeText?: unknown;
+      source?: unknown;
       userId?: unknown;
     };
     const leadId = String(body.leadId ?? "").trim();
+    const inboundEventId = String(body.inboundEventId ?? "").trim();
     const userId = String(body.userId ?? "").trim();
-    if (!leadId || !userId) {
+    if (!userId) {
       return NextResponse.json(
-        { error: "leadId and userId are required" },
+        { error: "userId is required" },
         { status: 400 }
       );
     }
 
     const admin = getTalentSupabaseAdmin();
     const untyped = toUntypedAdmin(admin);
-    const { data: lead, error: leadError } = await untyped
-      .from("career_email_onboarding_leads")
-      .select("id, talent_id")
-      .eq("id", leadId)
-      .maybeSingle();
-    if (leadError || !lead?.id) {
-      return NextResponse.json(
-        { error: leadError?.message ?? "Email onboarding lead not found" },
-        { status: 404 }
-      );
-    }
-    if (String(lead.talent_id ?? "") !== userId) {
-      return NextResponse.json(
-        { error: "leadId does not match userId" },
-        { status: 400 }
-      );
+    if (leadId) {
+      const { data: lead, error: leadError } = await untyped
+        .from("career_email_onboarding_leads")
+        .select("id, talent_id")
+        .eq("id", leadId)
+        .maybeSingle();
+      if (leadError || !lead?.id) {
+        return NextResponse.json(
+          { error: leadError?.message ?? "Email onboarding lead not found" },
+          { status: 404 }
+        );
+      }
+      if (String(lead.talent_id ?? "") !== userId) {
+        return NextResponse.json(
+          { error: "leadId does not match userId" },
+          { status: 400 }
+        );
+      }
     }
 
     const links = normalizeLinks(body.links);
     const directResumeText =
       typeof body.resumeText === "string" ? body.resumeText.trim() : "";
-    const attachmentExtraction = await extractResumeTextFromAttachments(
-      normalizeAttachments(body.attachments)
-    );
+    const attachmentExtraction = await processEmailAttachments({
+      admin,
+      attachments: normalizeAttachments(body.attachments),
+      userId,
+    });
+    const inboundAttachmentUpdateError = inboundEventId
+      ? await updateInboundEventAttachments({
+          admin: untyped,
+          attachments: attachmentExtraction.processed,
+          inboundEventId,
+        })
+      : null;
+    const warnings = [...attachmentExtraction.warnings];
+    if (inboundAttachmentUpdateError) {
+      warnings.push(
+        `email_inbound_events.attachments update failed: ${inboundAttachmentUpdateError}`
+      );
+    }
     const resumeText = [directResumeText, attachmentExtraction.text]
       .filter(Boolean)
       .join("\n\n")
       .slice(0, MAX_PARSED_ATTACHMENT_TEXT);
+    const resumeFileName =
+      (typeof body.resumeFileName === "string"
+        ? body.resumeFileName.trim()
+        : "") || attachmentExtraction.resumeFileName;
+    const resumeStoragePath =
+      (typeof body.resumeStoragePath === "string"
+        ? body.resumeStoragePath.trim()
+        : "") || attachmentExtraction.resumeStoragePath;
     const hasLinkedin = links.some((link) => /linkedin\.com\/in\//i.test(link));
     if (!hasLinkedin && !resumeText) {
+      const savedResumeFile = await saveResumeFileReference({
+        admin: untyped,
+        links,
+        resumeFileName,
+        resumeStoragePath,
+        userId,
+      });
+      if (leadId) {
+        const now = new Date().toISOString();
+        await untyped
+          .from("career_email_onboarding_leads")
+          .update({
+            profile_ingested_at: now,
+          })
+          .eq("id", leadId);
+        await untyped.from("career_email_onboarding_events").insert({
+          event_type: "profile_ingestion_skipped",
+          lead_id: leadId,
+          metadata: {
+            reason: "no_extractable_profile_text",
+            savedResumeFile,
+            warnings,
+          },
+        });
+      }
+      return NextResponse.json({
+        ok: false,
+        skipped: "no_extractable_profile_text",
+        attachments: attachmentExtraction.processed,
+        savedResumeFile,
+        warnings,
+      });
+    }
+
+    await saveResumeFileReference({
+      admin: untyped,
+      links,
+      resumeFileName,
+      resumeStoragePath,
+      resumeText,
+      userId,
+    });
+
+    const result = await ingestTalentProfileFromLinkedin({
+      admin,
+      links,
+      resumeFileName: resumeFileName || undefined,
+      resumeStoragePath: resumeStoragePath || undefined,
+      resumeText,
+      userId,
+    });
+
+    if (leadId) {
       const now = new Date().toISOString();
       await untyped
         .from("career_email_onboarding_leads")
@@ -240,63 +489,26 @@ export async function POST(req: NextRequest) {
         })
         .eq("id", leadId);
       await untyped.from("career_email_onboarding_events").insert({
-        event_type: "profile_ingestion_skipped",
+        event_type: "profile_ingested",
         lead_id: leadId,
         metadata: {
-          reason: "no_extractable_profile_text",
-          warnings: attachmentExtraction.warnings,
+          linkedinUrl: result.linkedinUrl ?? null,
+          stats: result.stats,
+          warnings: [
+            ...(result.warnings ?? []),
+            ...warnings,
+          ],
         },
       });
-      return NextResponse.json({
-        ok: false,
-        skipped: "no_extractable_profile_text",
-        warnings: attachmentExtraction.warnings,
-      });
     }
-
-    const result = await ingestTalentProfileFromLinkedin({
-      admin,
-      links,
-      resumeFileName:
-        (typeof body.resumeFileName === "string"
-          ? body.resumeFileName.trim()
-          : "") ||
-        attachmentExtraction.resumeFileName ||
-        undefined,
-      resumeStoragePath:
-        typeof body.resumeStoragePath === "string"
-          ? body.resumeStoragePath.trim()
-          : undefined,
-      resumeText,
-      userId,
-    });
-
-    const now = new Date().toISOString();
-    await untyped
-      .from("career_email_onboarding_leads")
-      .update({
-        profile_ingested_at: now,
-      })
-      .eq("id", leadId);
-    await untyped.from("career_email_onboarding_events").insert({
-      event_type: "profile_ingested",
-      lead_id: leadId,
-      metadata: {
-        linkedinUrl: result.linkedinUrl ?? null,
-        stats: result.stats,
-        warnings: [
-          ...(result.warnings ?? []),
-          ...attachmentExtraction.warnings,
-        ],
-      },
-    });
 
     return NextResponse.json({
       ok: true,
       attachmentsProcessed: attachmentExtraction.text ? true : false,
+      attachments: attachmentExtraction.processed,
       linkedinUrl: result.linkedinUrl,
       stats: result.stats,
-      warnings: [...(result.warnings ?? []), ...attachmentExtraction.warnings],
+      warnings: [...(result.warnings ?? []), ...warnings],
     });
   } catch (error) {
     return toInternalApiErrorResponse(error, "Failed to ingest email profile");

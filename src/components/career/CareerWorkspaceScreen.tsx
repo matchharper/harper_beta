@@ -79,7 +79,7 @@ type CareerWorkspaceNavigationOptions = {
 
 type CareerWorkspaceViewportMode = "desktop" | "mobile";
 
-const DESKTOP_MEDIA_QUERY = "(min-width: 720px)";
+const DESKTOP_MEDIA_QUERY = "(min-width: 768px)";
 const CHAT_PANEL_RESIZE_HANDLE_WIDTH_PX = 8;
 
 type WorkspaceTabOption = {
@@ -353,14 +353,14 @@ const CareerWorkspaceRoot = ({
         "flex w-full flex-col",
         fillParent
           ? "h-full min-h-0 overflow-hidden"
-          : "min-h-svh lg:h-svh lg:overflow-hidden"
+          : "min-h-svh md:h-svh md:overflow-hidden"
       )}
     >
       <CareerWorkspaceNav />
       <div
         ref={workspaceRef}
         className={cn(
-          "flex w-full flex-col lg:min-h-0 lg:flex-1 lg:flex-row lg:overflow-hidden",
+          "flex w-full flex-col md:min-h-0 md:flex-1 md:flex-row md:overflow-hidden",
           fillParent && "min-h-0 flex-1 overflow-hidden",
           forceDesktopLayout && "min-h-0 flex-1 flex-row overflow-hidden"
         )}
@@ -368,12 +368,12 @@ const CareerWorkspaceRoot = ({
         <section
           id="career-chat-panel"
           className={cn(
-            "flex min-h-0 min-w-0 flex-col border-b border-neutral-1000-a05 bg-bg-default lg:flex-none lg:border-b-0",
+            "flex min-h-0 min-w-0 flex-col border-b border-neutral-1000-a05 bg-bg-default md:flex-none md:border-b-0",
             forceDesktopLayout
               ? "h-auto flex-none border-b-0"
               : fillParent
                 ? "h-full"
-                : "h-[55vh] lg:h-auto"
+                : "h-[55vh] md:h-auto"
           )}
           style={
             isDesktop
@@ -401,7 +401,7 @@ const CareerWorkspaceRoot = ({
           }}
           onKeyDown={handleResizeKeyDown}
           className={cn(
-            "hidden cursor-col-resize items-center justify-center bg-bg-basement outline-none transition-colors hover:bg-bg-weak focus:bg-bg-weak lg:flex lg:w-2 lg:shrink-0",
+            "hidden cursor-col-resize items-center justify-center bg-bg-basement outline-none transition-colors hover:bg-bg-weak focus:bg-bg-weak md:flex md:w-2 md:shrink-0",
             forceDesktopLayout && "flex w-2 shrink-0"
           )}
         >
@@ -412,13 +412,13 @@ const CareerWorkspaceRoot = ({
 
         <section
           className={cn(
-            "min-w-0 flex-1 bg-bg-basement lg:min-h-0",
+            "min-w-0 flex-1 bg-bg-basement md:min-h-0",
             forceDesktopLayout && "min-h-0"
           )}
         >
           <div
             className={cn(
-              "flex h-full min-h-[45svh] flex-col lg:min-h-0",
+              "flex h-full min-h-[45svh] flex-col md:min-h-0",
               forceDesktopLayout && "min-h-0"
             )}
           >

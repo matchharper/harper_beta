@@ -2339,7 +2339,7 @@ export default function LandingKoVfPage({
                     <Reveal key={row.title} once delay={index * 0.06}>
                       <div
                         className={cn(
-                          "relative flex min-h-[248px] w-full flex-col justify-between overflow-hidden rounded-3xl border border-black/5 bg-neutral-100 p-6",
+                          "relative flex min-h-[288px] w-full flex-col justify-between overflow-hidden rounded-3xl border border-black/5 bg-neutral-100 p-6",
                           index === 0 && "bg-white"
                         )}
                       >
