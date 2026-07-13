@@ -43,7 +43,7 @@ const isAcceptedFile = (file: File, accept: string) => {
 };
 
 const ResumeDropzone = ({
-  accept = ".pdf,.doc,.docx,.txt,.md",
+  accept = ".pdf,.docx,.txt,.md",
   className,
   description,
   disabled = false,

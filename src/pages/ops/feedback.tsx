@@ -317,16 +317,14 @@ export default function OpsFeedbackPage() {
     setLoading(true);
     setError("");
     try {
-      const payload =
-        await fetchWithInternalAuth<FeedbackListResponse>("/api/internal/feedback");
+      const payload = await fetchWithInternalAuth<FeedbackListResponse>(
+        "/api/internal/feedback"
+      );
       setItems(payload.items);
 
       const queryId = getQueryFeedbackId(router.query.feedbackId);
       setSelectedId((currentSelectedId) => {
-        if (
-          queryId &&
-          payload.items.some((item) => item.id === queryId)
-        ) {
+        if (queryId && payload.items.some((item) => item.id === queryId)) {
           return queryId;
         }
         const preservedId = currentSelectedId ?? selectedIdRef.current;
@@ -407,7 +405,9 @@ export default function OpsFeedbackPage() {
       setDraft("");
       setConfirmOpen(false);
       if (payload.emailError) {
-        setNotice(`답장은 저장했지만 이메일 발송은 실패했습니다. ${payload.emailError}`);
+        setNotice(
+          `답장은 저장했지만 이메일 발송은 실패했습니다. ${payload.emailError}`
+        );
       } else {
         setNotice(
           payload.emailSent
@@ -428,7 +428,8 @@ export default function OpsFeedbackPage() {
 
   const selectedReplyBadge = selectedItem ? getReplyBadge(selectedItem) : null;
   const willSendEmail =
-    selectedItem?.wantsEmailReply === true && Boolean(selectedItem.requesterEmail);
+    selectedItem?.wantsEmailReply === true &&
+    Boolean(selectedItem.requesterEmail);
 
   return (
     <>
@@ -453,11 +454,8 @@ export default function OpsFeedbackPage() {
         <section className="grid min-h-[calc(100vh-150px)] gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
           <aside className="min-h-0 overflow-hidden rounded-lg border border-neutral-1000-a05 bg-bg-floating">
             <header className="border-b border-neutral-1000-a05 px-4 py-3">
-              <div className={opsTheme.eyebrow}>Harper Feedback</div>
-              <div className="mt-1 flex items-center justify-between gap-3">
-                <div className="text-base font-semibold text-neutral-primary">
-                  {items.length} conversations
-                </div>
+              <div className="text-base font-normal text-neutral-primary">
+                {items.length} conversations
               </div>
             </header>
 
@@ -505,7 +503,9 @@ export default function OpsFeedbackPage() {
                         ) : (
                           <span>이메일 없음</span>
                         )}
-                        <span className="truncate">{selectedItem.pagePath}</span>
+                        <span className="truncate">
+                          {selectedItem.pagePath}
+                        </span>
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">

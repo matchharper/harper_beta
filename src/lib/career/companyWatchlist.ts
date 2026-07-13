@@ -51,7 +51,6 @@ type CompanyDbRow = {
 };
 
 type CompanyWorkspaceRow = {
-  brief: string | null;
   career_url: string | null;
   company_db_id: number | null;
   company_description: string | null;
@@ -61,7 +60,6 @@ type CompanyWorkspaceRow = {
   is_internal: boolean;
   linkedin_url: string | null;
   logo_url: string | null;
-  pitch: string | null;
   request: string | null;
   test_score: number;
   updated_at: string;
@@ -170,7 +168,7 @@ const COMPANY_DB_SELECT =
   "id, name, logo, website_url, linkedin_url, funding_url, short_description, description, specialities, location, investors, employee_count_range, founded_year, related_links, crunchbase_information, last_crunchbase_updated_at, last_updated_at";
 
 const COMPANY_WORKSPACE_SELECT =
-  "company_workspace_id, company_name, company_description, homepage_url, career_url, linkedin_url, logo_url, company_db_id, brief, pitch, request, is_internal, test_score, updated_at";
+  "company_workspace_id, company_name, company_description, homepage_url, career_url, linkedin_url, logo_url, company_db_id, request, is_internal, test_score, updated_at";
 
 const COMPANY_DATA_SELECT =
   "company_workspace_id, total_funding_raised, main_investors, last_funding_stage, last_funding_round_description";
@@ -272,6 +270,78 @@ function cleanSnapshotText(value: unknown, maxLength = 120_000) {
   return text ? text.slice(0, maxLength) : "";
 }
 
+function formatSnapshotSectionTitle(key: string, locale: "ko" | "en") {
+  const normalized = key.trim().toLowerCase();
+  const labels: Record<string, { en: string; ko: string }> = {
+    company_overview: { en: "Company Overview", ko: "회사 개요" },
+    hiring_context: { en: "Hiring Context", ko: "채용 맥락" },
+    risks: { en: "Risks", ko: "리스크" },
+  };
+  const label = labels[normalized]?.[locale];
+  if (label) return label;
+  return key
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function formatSnapshotSourceLine(value: unknown) {
+  if (typeof value === "string") {
+    const url = cleanSnapshotText(value, 1000);
+    return url ? `- ${url}` : "";
+  }
+  const source = toJsonRecord(value);
+  if (!source) return "";
+  const url = cleanSnapshotText(source.url, 1000);
+  const title = cleanSnapshotText(source.title, 240);
+  if (url && title) return `- [${title}](${url})`;
+  if (url) return `- ${url}`;
+  return title ? `- ${title}` : "";
+}
+
+function buildCompanySnapshotMarkdownFromContent(
+  content: Record<string, unknown> | null
+) {
+  if (!content) return "";
+
+  const directMarkdown =
+    cleanSnapshotText(content.full_markdown) ||
+    cleanSnapshotText(content.fullMarkdown);
+  if (directMarkdown) return directMarkdown;
+
+  const locale = normalizeCareerPromptLocale(content.locale);
+  const lines: string[] = [];
+  const summary = cleanSnapshotText(content.summary, 12_000);
+  if (summary) {
+    lines.push(summary);
+  }
+
+  const sections = toJsonRecord(content.sections);
+  if (sections) {
+    for (const [key, value] of Object.entries(sections)) {
+      const body = cleanSnapshotText(value, 20_000);
+      if (!body) continue;
+      if (lines.length > 0) lines.push("");
+      lines.push(`## ${formatSnapshotSectionTitle(key, locale)}`);
+      lines.push("");
+      lines.push(body);
+    }
+  }
+
+  const sources = coerceArray<unknown>(content.sources)
+    .map(formatSnapshotSourceLine)
+    .filter(Boolean)
+    .slice(0, 10);
+  if (sources.length > 0) {
+    if (lines.length > 0) lines.push("");
+    lines.push(`## ${locale === "en" ? "Sources" : "출처"}`);
+    lines.push("");
+    lines.push(...sources);
+  }
+
+  return cleanSnapshotText(lines.join("\n"));
+}
+
 function latestTime(values: Array<string | null | undefined>) {
   const timestamps = values
     .map((value) => {
@@ -308,8 +378,7 @@ function getCompanyShortDescription(args: {
 }) {
   return (
     cleanText(args.companyDb?.short_description, 500) ||
-    cleanText(args.workspace?.brief, 500) ||
-    cleanText(args.workspace?.pitch, 500) ||
+    cleanText(args.workspace?.company_description, 500) ||
     null
   );
 }
@@ -553,7 +622,7 @@ async function fetchLatestCompanySnapshotDossier(
   if (!row) return null;
 
   const content = toJsonRecord(row?.content);
-  const fullMarkdown = cleanSnapshotText(content?.full_markdown);
+  const fullMarkdown = buildCompanySnapshotMarkdownFromContent(content);
   if (!fullMarkdown) return null;
 
   const metadata = toJsonRecord(content?.metadata);

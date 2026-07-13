@@ -27,6 +27,8 @@ import {
   getPositiveActionLabel,
 } from "@/components/career/CareerHistoryPanel";
 import {
+  getKnownCompanyDataText,
+  HistoryOpportunityFundingStageText,
   HistoryOpportunityInfoTag,
   HistoryOpportunityInlinePage,
 } from "@/components/career/history/HistoryOpportunityDetailContent";
@@ -209,12 +211,11 @@ export default function CareerMobileJobsView({
         "보관함"
       ),
       includeArchived: true,
-    })
-      .map((option) => ({
-        // count: statusCounts[option.id],
-        label: option.label,
-        value: option.id,
-      }));
+    }).map((option) => ({
+      // count: statusCounts[option.id],
+      label: option.label,
+      value: option.id,
+    }));
 
   return (
     <CareerMobileShell
@@ -394,6 +395,9 @@ function OpportunitySummaryCard({
   const canOpenCompanyInfo = Boolean(
     onOpenCompanyInfo && (opportunity.companyDbId || companyInfoLink)
   );
+  const lastFundingStage = getKnownCompanyDataText(
+    opportunity.companyData?.lastFundingStage
+  );
   const detailMetaItems = [
     {
       label: "location",
@@ -440,20 +444,25 @@ function OpportunitySummaryCard({
           <h2 className="wrap-break-word text-[16px] font-medium leading-tight text-neutral-primary">
             {opportunity.title}
           </h2>
-          <div className="mt-2 flex min-w-0 flex-row items-center justify-between gap-1 text-[13px]">
-            {canOpenCompanyInfo ? (
-              <BareButton
-                type="button"
-                onClick={() => onOpenCompanyInfo?.(opportunity)}
-                className="min-w-0 wrap-break-word text-left text-[14px] font-medium text-neutral-primary decoration-dotted underline underline-offset-2 transition-colors duration-200 hover:text-primary"
-              >
-                {opportunity.companyName}
-              </BareButton>
-            ) : (
-              <span className="min-w-0 wrap-break-word text-[14px] font-medium text-neutral-primary">
-                {opportunity.companyName}
-              </span>
-            )}
+          <div className="mt-2 flex min-w-0 flex-row flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[13px]">
+            <div className="flex min-w-0 max-w-full flex-wrap items-center gap-x-3 gap-y-1">
+              {canOpenCompanyInfo ? (
+                <BareButton
+                  type="button"
+                  onClick={() => onOpenCompanyInfo?.(opportunity)}
+                  className="min-w-0 wrap-break-word text-left text-[14px] font-medium text-neutral-primary decoration-dotted underline underline-offset-2 transition-colors duration-200 hover:text-primary"
+                >
+                  {opportunity.companyName}
+                </BareButton>
+              ) : (
+                <span className="min-w-0 wrap-break-word text-[14px] font-medium text-neutral-primary">
+                  {opportunity.companyName}
+                </span>
+              )}
+              <HistoryOpportunityFundingStageText
+                lastFundingStage={lastFundingStage}
+              />
+            </div>
             {postingStatus ? (
               <span
                 className={cn(
@@ -542,7 +551,7 @@ function RecommendationContent({
         >
           <Dot className="mt-0.5 h-4 w-4 min-w-4 text-neutral-soft" />
           <div className="min-w-0 flex-1">
-            {t("career.common.career.0z5xpdx", "지원전 검토 사항")} {concern}
+            {t("career.common.career.0z5xpdx", "지원전 검토 사항")}: {concern}
           </div>
         </div>
       ))}

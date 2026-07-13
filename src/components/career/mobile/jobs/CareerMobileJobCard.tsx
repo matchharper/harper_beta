@@ -8,7 +8,11 @@ import type {
   CareerOpportunityType,
 } from "@/components/career/types";
 import { getMetaItems } from "@/components/career/CareerHistoryPanel";
-import { HistoryOpportunityInfoTag } from "@/components/career/history/HistoryOpportunityDetailContent";
+import {
+  getKnownCompanyDataText,
+  HistoryOpportunityFundingStageText,
+  HistoryOpportunityInfoTag,
+} from "@/components/career/history/HistoryOpportunityDetailContent";
 import { getOpportunityPostingStatus } from "@/components/career/history/opportunityPostingStatus";
 import {
   canChangeCareerOpportunityManagementStatus,
@@ -55,6 +59,9 @@ export const CareerMobileJobCard = React.memo(function CareerMobileJobCard({
   const canChangeStatus = canChangeCareerOpportunityManagementStatus(item);
   const canOpenCompanyInfo = Boolean(
     onOpenCompanyInfo && (item.companyDbId || companyInfoLink)
+  );
+  const lastFundingStage = getKnownCompanyDataText(
+    item.companyData?.lastFundingStage
   );
   const detailMetaItems = [
     {
@@ -114,20 +121,25 @@ export const CareerMobileJobCard = React.memo(function CareerMobileJobCard({
               <h3 className="wrap-break-word text-[15px] font-medium leading-tight text-neutral-primary pr-4">
                 {item.title}
               </h3>
-              <div className="mt-2 flex min-w-0 flex-row items-center justify-between gap-2 text-[13px]">
-                {canOpenCompanyInfo ? (
-                  <BareButton
-                    type="button"
-                    onClick={() => onOpenCompanyInfo?.(item)}
-                    className="min-w-0 wrap-break-word text-left text-[14px] font-medium text-neutral-primary decoration-dotted underline underline-offset-2 transition-colors duration-200 hover:text-primary"
-                  >
-                    {item.companyName}
-                  </BareButton>
-                ) : (
-                  <span className="min-w-0 wrap-break-word text-[14px] font-medium text-neutral-primary">
-                    {item.companyName}
-                  </span>
-                )}
+              <div className="mt-2 flex min-w-0 flex-row flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[13px]">
+                <div className="flex min-w-0 max-w-full flex-wrap items-center gap-x-2 gap-y-1">
+                  {canOpenCompanyInfo ? (
+                    <BareButton
+                      type="button"
+                      onClick={() => onOpenCompanyInfo?.(item)}
+                      className="min-w-0 wrap-break-word text-left text-[14px] font-medium text-neutral-primary decoration-dotted underline underline-offset-2 transition-colors duration-200 hover:text-primary"
+                    >
+                      {item.companyName}
+                    </BareButton>
+                  ) : (
+                    <span className="min-w-0 wrap-break-word text-[14px] font-medium text-neutral-primary">
+                      {item.companyName}
+                    </span>
+                  )}
+                  <HistoryOpportunityFundingStageText
+                    lastFundingStage={lastFundingStage}
+                  />
+                </div>
                 {postingStatus ? (
                   <span
                     className={cn(

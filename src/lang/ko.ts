@@ -655,7 +655,7 @@ export const ko = {
     "career.chat.career_timeline_section.0cx2fkc": "선택된 파일 없음",
     "career.chat.career_timeline_section.0dm46ie": "복수 선택 가능",
     "career.chat.career_timeline_section.0ebbrm3":
-      "PDF, DOC, DOCX 파일을 업로드할 수 있습니다.",
+      "PDF, DOCX, TXT, MD 파일을 업로드할 수 있습니다.",
     "career.chat.career_timeline_section.0g10mif":
       "희망 역할과 피하고 싶은 조건만 짧게 확인할게요.",
     "career.chat.career_timeline_section.0hahmkh": "이력서 업로드",
@@ -938,6 +938,8 @@ export const ko = {
       "비밀번호는 6자 이상 입력해 주세요.",
     "career.common.career_hook_messages.101suqx":
       "로그인 세션을 확인할 수 없습니다. 다시 로그인해 주세요.",
+    "career.common.career_hook_messages.invalid_linkedin_profile_url":
+      "올바른 URL이 아닙니다.",
     "career.common.career_hook_messages.11ltltf":
       "인증 처리 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.",
     "career.common.career_hook_messages.11yir7x":
@@ -1424,6 +1426,7 @@ export const ko = {
     "career.onboarding.link.linkedin": "링크드인",
     "career.onboarding.link.other": "기타",
     "career.onboarding.link.personal_website": "개인 웹사이트",
+    "career.onboarding.linkedin_url_invalid": "올바른 URL이 아닙니다.",
     "career.onboarding.onboarding.010bz98": "이력서 내용을 읽지 못했습니다.",
     "career.onboarding.onboarding.01ywpeo":
       "프로필 공개 설정을 저장하지 못했습니다.",
@@ -1512,7 +1515,7 @@ export const ko = {
     "career.onboarding.onboarding.1wh5aat": "이름",
     "career.onboarding.onboarding.1x0fjwc": "기회 유형",
     "career.onboarding.onboarding.1xpgwgk":
-      "PDF나 텍스트 파일을 올려주세요. 최대 10MB까지 권장합니다.",
+      "PDF, DOCX, 텍스트 파일을 올려주세요. 최대 10MB까지 권장합니다.",
     "career.onboarding.onboarding_done.call_cta": "5분 통화하기",
     "career.onboarding.onboarding_done.chat_cta": "채팅으로 하기",
     "career.onboarding.onboarding_done.default_agent_intro":
@@ -1772,7 +1775,7 @@ export const ko = {
     "career.resume_dropzone.selected_description":
       "다른 파일로 바꾸려면 클릭하거나 다시 드롭하세요.",
     "career.resume_dropzone.settings_description":
-      "PDF, DOC, DOCX, TXT 파일을 업로드할 수 있습니다.",
+      "PDF, DOCX, TXT, MD 파일을 업로드할 수 있습니다.",
     "career.resume_dropzone.settings_selected_description":
       "저장 버튼을 누르면 이 파일로 업데이트됩니다.",
     "career.resume_dropzone.unsupported_file":

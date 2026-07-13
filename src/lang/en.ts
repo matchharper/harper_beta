@@ -629,7 +629,7 @@ export const en = {
     "career.chat.career_timeline_section.0dm46ie":
       "Multiple selections allowed",
     "career.chat.career_timeline_section.0ebbrm3":
-      "You can upload PDF, DOC, or DOCX files.",
+      "You can upload PDF, DOCX, TXT, and MD files.",
     "career.chat.career_timeline_section.0g10mif":
       "I'll quickly check your desired role and any conditions you'd like to avoid.",
     "career.chat.career_timeline_section.0hahmkh": "Upload Resume",
@@ -919,6 +919,8 @@ export const en = {
       "Please enter a password with at least 6 characters.",
     "career.common.career_hook_messages.101suqx":
       "I couldn't verify your login session. Please sign in again.",
+    "career.common.career_hook_messages.invalid_linkedin_profile_url":
+      "This URL is not valid.",
     "career.common.career_hook_messages.11ltltf":
       "There was a problem with authentication. Please try again shortly.",
     "career.common.career_hook_messages.11yir7x":
@@ -1426,6 +1428,7 @@ export const en = {
     "career.onboarding.link.linkedin": "LinkedIn",
     "career.onboarding.link.other": "Other",
     "career.onboarding.link.personal_website": "Personal website",
+    "career.onboarding.linkedin_url_invalid": "This URL is not valid.",
     "career.onboarding.onboarding.010bz98": "Could not read resume content.",
     "career.onboarding.onboarding.01ywpeo":
       "Failed to save your profile visibility settings.",
@@ -1518,7 +1521,7 @@ export const en = {
     "career.onboarding.onboarding.1wh5aat": "Name",
     "career.onboarding.onboarding.1x0fjwc": "Opportunity Type",
     "career.onboarding.onboarding.1xpgwgk":
-      "Please upload PDF or text files. Up to 10MB recommended.",
+      "Please upload PDF, DOCX, or text files. Up to 10MB recommended.",
     "career.onboarding.onboarding_done.call_cta": "Take a 5-min call",
     "career.onboarding.onboarding_done.chat_cta": "Chat now",
     "career.onboarding.onboarding_done.default_agent_intro":
@@ -1786,7 +1789,7 @@ export const en = {
     "career.resume_dropzone.selected_description":
       "Click or drop again to replace with a different file.",
     "career.resume_dropzone.settings_description":
-      "You can upload PDF, DOC, DOCX, and TXT files.",
+      "You can upload PDF, DOCX, TXT, and MD files.",
     "career.resume_dropzone.settings_selected_description":
       "Press Save to update with this file.",
     "career.resume_dropzone.unsupported_file":

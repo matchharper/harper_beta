@@ -34,6 +34,12 @@ import ResumeDropzone, {
 } from "@/components/career/ResumeDropzone";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
+import {
+  isDocxResumeFile,
+  isLinkedinLink,
+  isLinkedinProfileLink,
+  readDocxResumeText,
+} from "@/hooks/career/careerHelpers";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { talentOnboardingStatusQueryKey } from "@/hooks/career/useTalentOnboardingStatus";
 import { useHtmlClass } from "@/hooks/useHtmlClass";
@@ -264,19 +270,6 @@ const normalizeLink = (value: string) => {
   if (!trimmed) return "";
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
   return `https://${trimmed}`;
-};
-
-const isLinkedinLink = (value: string) => {
-  const normalized = normalizeLink(value);
-  if (!normalized) return false;
-
-  try {
-    const url = new URL(normalized);
-    const host = url.hostname.toLowerCase();
-    return host === "linkedin.com" || host.endsWith(".linkedin.com");
-  } catch {
-    return false;
-  }
 };
 
 const isValidEmail = (value: string) =>
@@ -924,7 +917,7 @@ const ResumeUploadInput = ({
   return (
     <ResumeDropzone
       inputId="career-onboarding-resume-upload"
-      accept=".pdf,.txt,.md"
+      accept=".pdf,.docx,.txt,.md"
       fileName={fileName}
       onFileSelect={onFileSelect}
       onFileReject={() => {
@@ -939,7 +932,7 @@ const ResumeUploadInput = ({
       title={t("career.onboarding.onboarding.13vjc2d", "이력서/CV 업로드")}
       description={t(
         "career.onboarding.onboarding.1xpgwgk",
-        "PDF나 텍스트 파일을 올려주세요. 최대 10MB까지 권장합니다."
+        "PDF, DOCX, 텍스트 파일을 올려주세요. 최대 10MB까지 권장합니다."
       )}
       dragTitle={t(
         "career.resume_dropzone.drag_title",
@@ -1708,8 +1701,9 @@ const CareerNetworkOnboardingContent = () => {
   const linkedinLink = selectedProfileInputs.includes("linkedin")
     ? normalizeLink(linkedin)
     : "";
+  const hasLinkedinProfileSignal = isLinkedinProfileLink(linkedinLink);
   const hasRequiredProfileSignal =
-    Boolean(resumeFile) || isLinkedinLink(linkedinLink);
+    Boolean(resumeFile) || hasLinkedinProfileSignal;
 
   const validateStep = useCallback(
     (currentStep: number) => {
@@ -1749,20 +1743,36 @@ const CareerNetworkOnboardingContent = () => {
         }
       }
 
-      if (currentStep === 2 && !hasRequiredProfileSignal) {
-        showToast({
-          message: t(
-            "career.onboarding.onboarding.0d18cht",
-            "이력서나 LinkedIn 링크 중 하나는 꼭 입력해주세요."
-          ),
-          variant: "white",
-        });
-        return false;
+      if (currentStep === 2) {
+        const hasInvalidLinkedinLink = links.some(
+          (link) => isLinkedinLink(link) && !isLinkedinProfileLink(link)
+        );
+        if (hasInvalidLinkedinLink) {
+          showToast({
+            message: t(
+              "career.onboarding.linkedin_url_invalid",
+              "올바른 URL이 아닙니다."
+            ),
+            variant: "white",
+          });
+          return false;
+        }
+
+        if (!hasRequiredProfileSignal) {
+          showToast({
+            message: t(
+              "career.onboarding.onboarding.0d18cht",
+              "이력서나 LinkedIn 링크 중 하나는 꼭 입력해주세요."
+            ),
+            variant: "white",
+          });
+          return false;
+        }
       }
 
       return true;
     },
-    [email, hasRequiredProfileSignal, name, selectedEngagements, t]
+    [email, hasRequiredProfileSignal, links, name, selectedEngagements, t]
   );
 
   const uploadResumeFile = useCallback(
@@ -1797,6 +1807,10 @@ const CareerNetworkOnboardingContent = () => {
 
   const parseResumeText = useCallback(
     async (file: File) => {
+      if (isDocxResumeFile(file)) {
+        return (await readDocxResumeText(file)).slice(0, 20000);
+      }
+
       const formData = new FormData();
       formData.append("file", file);
 
@@ -1847,13 +1861,25 @@ const CareerNetworkOnboardingContent = () => {
       let resumeText: string | undefined;
 
       if (resumeFile) {
-        const [uploadResult, parsedText] = await Promise.all([
-          uploadResumeFile(resumeFile),
-          parseResumeText(resumeFile),
-        ]);
-        resumeFileName = uploadResult.resumeFileName;
-        resumeStoragePath = uploadResult.resumeStoragePath;
-        resumeText = parsedText;
+        let parsedText = "";
+        try {
+          parsedText = await parseResumeText(resumeFile);
+        } catch (error) {
+          if (!hasLinkedinProfileSignal) {
+            throw error;
+          }
+          console.warn(
+            "[CareerOnboarding] resume parse failed; continuing with LinkedIn only",
+            error
+          );
+        }
+
+        if (parsedText) {
+          const uploadResult = await uploadResumeFile(resumeFile);
+          resumeFileName = uploadResult.resumeFileName;
+          resumeStoragePath = uploadResult.resumeStoragePath;
+          resumeText = parsedText;
+        }
       }
 
       const preferencesRes = await fetchWithAuth("/api/talent/preferences", {
@@ -1968,6 +1994,7 @@ const CareerNetworkOnboardingContent = () => {
     defaultDoneUserMessage,
     email,
     fetchWithAuth,
+    hasLinkedinProfileSignal,
     links,
     locale,
     name,

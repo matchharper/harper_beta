@@ -43,6 +43,11 @@ import { useMessages, type Locale } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
 import { Tooltips } from "@/components/ui/tooltip";
 import { formatCareerLocation } from "@/lib/career/locationDisplay";
+import {
+  getKnownCompanyDataText,
+  parseFundingStageLabel,
+} from "@/lib/career/fundingStage";
+import { logger } from "@/utils/logger";
 
 const DetailSection = ({
   children,
@@ -357,38 +362,6 @@ const LinkPillIcon = ({ iconUrl }: { iconUrl: string }) => {
   );
 };
 
-const UNKNOWN_COMPANY_DATA_TEXT = new Set([
-  "unknown",
-  "unknown undisclosed",
-  "not available",
-  "not applicable",
-  "not disclosed",
-  "n a",
-  "na",
-  "none",
-  "null",
-  "undisclosed",
-  "미상",
-  "알 수 없음",
-  "알수 없음",
-  "확인 불가",
-  "비공개",
-]);
-
-const getKnownCompanyDataText = (value: string | null | undefined) => {
-  const text = String(value ?? "")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!text) return "";
-  const normalized = text
-    .toLowerCase()
-    .replace(/[()[\]{}.,:;!?]+/g, " ")
-    .replace(/[-_/]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  return UNKNOWN_COMPANY_DATA_TEXT.has(normalized) ? "" : text;
-};
-
 export const CompanyDetailView = ({
   item,
   loading,
@@ -505,7 +478,31 @@ export const CompanyDetailView = ({
     t
   );
   const displayLocation = formatCareerLocation(item.location, locale);
+  const lastFundingStage = parseFundingStageLabel(
+    item.companyData?.lastFundingStage
+  );
+  const lastFundingRoundStage = parseFundingStageLabel(
+    item.companyData?.lastFundingRoundDescription
+  );
+  const displayFundingStage = lastFundingStage || lastFundingRoundStage;
+
   const infoRows = [
+    displayFundingStage
+      ? {
+          icon: (
+            <TrendingUp
+              className="h-3.5 w-3.5 text-neutral-muted"
+              strokeWidth={2}
+            />
+          ),
+          label: "",
+          value: t(
+            "career.company.company_data.last_funding_stage",
+            "{stage}",
+            { values: { stage: displayFundingStage } }
+          ),
+        }
+      : null,
     displayLocation
       ? {
           icon: (
@@ -546,90 +543,68 @@ export const CompanyDetailView = ({
   const mainInvestors = getKnownCompanyDataText(
     item.companyData?.mainInvestors
   );
-  const lastFundingStage = getKnownCompanyDataText(
-    item.companyData?.lastFundingStage
-  );
-  const lastFundingRoundDescription = getKnownCompanyDataText(
-    item.companyData?.lastFundingRoundDescription
-  );
-  const companyDataRows = [
-    // totalFundingRaised
-    //   ? {
-    //       icon: (
-    //         <CircleDollarSign
-    //           className="h-3.5 w-3.5 text-neutral-muted"
-    //           strokeWidth={2}
-    //         />
-    //       ),
-    //       label: t(
-    //         "career.company.company_data.total_funding_raised_label",
-    //         "총 투자"
-    //       ),
-    //       value: t(
-    //         "career.company.company_data.total_funding_raised",
-    //         "총 투자 {amount}",
-    //         { values: { amount: totalFundingRaised } }
-    //       ),
-    //     }
-    //   : null,
-    // mainInvestors
-    //   ? {
-    //       icon: (
-    //         <Handshake
-    //           className="h-3.5 w-3.5 text-neutral-muted"
-    //           strokeWidth={2}
-    //         />
-    //       ),
-    //       label: t(
-    //         "career.company.company_data.main_investors_label",
-    //         "주요 투자자"
-    //       ),
-    //       value: t(
-    //         "career.company.company_data.main_investors",
-    //         "주요 투자자 {investors}",
-    //         { values: { investors: mainInvestors } }
-    //       ),
-    //     }
-    //   : null,
-    lastFundingStage
-      ? {
-          icon: (
-            <TrendingUp
-              className="h-3.5 w-3.5 text-neutral-muted"
-              strokeWidth={2}
-            />
-          ),
-          label: t(
-            "career.company.company_data.last_funding_stage_label",
-            "최근 단계"
-          ),
-          value: t(
-            "career.company.company_data.last_funding_stage",
-            "최근 단계 {stage}",
-            { values: { stage: lastFundingStage } }
-          ),
-        }
-      : null,
-    //   lastFundingRoundDescription
-    //     ? {
-    //         icon: (
-    //           <FileText
-    //             className="h-3.5 w-3.5 text-neutral-muted"
-    //             strokeWidth={2}
-    //           />
-    //         ),
-    //         label: t(
-    //           "career.company.company_data.last_funding_round_description_label",
-    //           "최근 라운드"
-    //         ),
-    //         value: t(
-    //           "career.company.company_data.last_funding_round_description",
-    //           "최근 라운드 {description}",
-    //           { values: { description: lastFundingRoundDescription } }
-    //         ),
-    //       }
-    //     : null,
-  ].filter((row) => row !== null);
+  const showCompanyDataRows = locale === "ko";
+  const companyDataRows = showCompanyDataRows
+    ? [
+        totalFundingRaised
+          ? {
+              icon: (
+                <CircleDollarSign
+                  className="h-3.5 w-3.5 text-neutral-muted"
+                  strokeWidth={2}
+                />
+              ),
+              label: t(
+                "career.company.company_data.total_funding_raised_label",
+                "총 투자"
+              ),
+              value: t(
+                "career.company.company_data.total_funding_raised",
+                "총 투자 {amount}",
+                { values: { amount: totalFundingRaised } }
+              ),
+            }
+          : null,
+        mainInvestors
+          ? {
+              icon: (
+                <Handshake
+                  className="h-3.5 w-3.5 text-neutral-muted"
+                  strokeWidth={2}
+                />
+              ),
+              label: t(
+                "career.company.company_data.main_investors_label",
+                "주요 투자자"
+              ),
+              value: t(
+                "career.company.company_data.main_investors",
+                "주요 투자자 {investors}",
+                { values: { investors: mainInvestors } }
+              ),
+            }
+          : null,
+        lastFundingRoundStage
+          ? {
+              icon: (
+                <FileText
+                  className="h-3.5 w-3.5 text-neutral-muted"
+                  strokeWidth={2}
+                />
+              ),
+              label: t(
+                "career.company.company_data.last_funding_round_description_label",
+                "최근 라운드"
+              ),
+              value: t(
+                "career.company.company_data.last_funding_round_description",
+                "최근 라운드 {description}",
+                { values: { description: lastFundingRoundStage } }
+              ),
+            }
+          : null,
+      ].filter((row) => row !== null)
+    : [];
 
   const investorTags = splitTextList(item.investors, 24);
   const relatedLinks = (item.relatedLinks ?? [])
@@ -639,6 +614,7 @@ export const CompanyDetailView = ({
   const snapshotMarkdown = item.companySnapshot?.fullMarkdown
     ? stripCompanySnapshotChrome(item.companySnapshot.fullMarkdown)
     : "";
+  logger.log("snapshotMarkdown", snapshotMarkdown);
   const snapshotInvestigationDate = formatSnapshotInvestigationDate(
     item.companySnapshot?.investigationDate,
     locale
@@ -720,7 +696,7 @@ export const CompanyDetailView = ({
                   as="h1"
                   variant="head1"
                   tone="primary"
-                  className="wrap-break-word text-[28px] font-semibold leading-8"
+                  className="wrap-break-word text-[24px] md:text-[28px] font-semibold leading-8"
                 >
                   {item.name}
                 </Text>
@@ -730,7 +706,10 @@ export const CompanyDetailView = ({
                   </span>
                 ) : null}
               </div>
-              <Text className="max-w-[780px] text-[14px]" tone="muted">
+              <Text
+                className="max-w-[780px] text-[14px] line-clamp-3"
+                tone="muted"
+              >
                 {item.shortDescription ??
                   displayLocation ??
                   t(
@@ -754,7 +733,7 @@ export const CompanyDetailView = ({
               ) : null}
             </div>
           </div>
-          <div className="shrink-0">
+          <div className="shrink-0 flex items-end justify-end">
             <FollowButton
               disabled={updating}
               following={item.following}
@@ -764,7 +743,7 @@ export const CompanyDetailView = ({
         </div>
       </header>
 
-      <div className="mt-4 space-y-2">
+      <div className="mt-5 space-y-4">
         {infoRows.length > 0 ? (
           <div className="flex flex-wrap gap-x-4 gap-y-2">
             {infoRows.map((row) => (
@@ -779,7 +758,7 @@ export const CompanyDetailView = ({
           </div>
         ) : null}
         {companyDataRows.length > 0 ? (
-          <div className="flex flex-wrap gap-x-4 gap-y-2">
+          <div className="flex flex-wrap gap-x-4 gap-y-3">
             {companyDataRows.map((row) => (
               <div
                 key={row.label}

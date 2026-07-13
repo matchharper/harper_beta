@@ -22,6 +22,26 @@ export const normalizeText = (raw: string) =>
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
+const DOCX_MIME_TYPE =
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+export const isDocxResumeFile = (file: File) =>
+  file.type === DOCX_MIME_TYPE || file.name.toLowerCase().endsWith(".docx");
+
+export async function readDocxResumeText(file: File) {
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const mammoth = await import("mammoth");
+    const parsed = await mammoth.extractRawText({ arrayBuffer });
+    return normalizeText(String(parsed.value ?? ""));
+  } catch (error) {
+    console.warn("[CareerResume] docx parse failed", error);
+    throw new Error(
+      "DOCX 파일을 읽는데 실패했습니다. PDF나 텍스트 파일로 변환해서 올려주세요."
+    );
+  }
+}
+
 const normalizeThinkingLogs = (value: unknown) =>
   Array.isArray(value)
     ? value
@@ -88,11 +108,38 @@ const getLinkHost = (value: string) => {
   }
 };
 
+export const isLinkedinLink = (value: string) => {
+  const normalized = normalizeLinkForParsing(value);
+  if (!normalized) return false;
+
+  try {
+    const url = new URL(normalized);
+    const host = url.hostname.toLowerCase();
+    return host === "linkedin.com" || host.endsWith(".linkedin.com");
+  } catch {
+    return false;
+  }
+};
+
+export const isLinkedinProfileLink = (value: string) => {
+  const normalized = normalizeLinkForParsing(value);
+  if (!normalized) return false;
+
+  try {
+    const url = new URL(normalized);
+    if (!isLinkedinLink(normalized)) return false;
+    const segments = url.pathname.split("/").filter(Boolean);
+    return segments[0]?.toLowerCase() === "in" && Boolean(segments[1]?.trim());
+  } catch {
+    return false;
+  }
+};
+
 export const getProfileLinkSlot = (value: string) => {
   const host = getLinkHost(value);
   if (!host) return null;
 
-  if (host === "linkedin.com" || host.endsWith(".linkedin.com")) return 0;
+  if (isLinkedinProfileLink(value)) return 0;
   if (
     host === "github.com" ||
     host.endsWith(".github.com") ||
@@ -198,11 +245,10 @@ export const shouldShowVoiceStartPrompt = (
   const hasProfileSubmit = messages.some(
     (message) => message.messageType === "profile_submit"
   );
-  const hasConversationActivity = messages.some(
-    (message) =>
-      CAREER_CONVERSATION_ACTIVITY_MESSAGE_TYPES.has(
-        message.messageType ?? "chat"
-      )
+  const hasConversationActivity = messages.some((message) =>
+    CAREER_CONVERSATION_ACTIVITY_MESSAGE_TYPES.has(
+      message.messageType ?? "chat"
+    )
   );
 
   return (

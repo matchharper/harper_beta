@@ -1,17 +1,19 @@
 import { IncomingWebhook } from "@slack/webhook";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
+import type { Database } from "@/types/database.types";
 
 export const runtime = "nodejs";
 
-const COMPANY_DEMO_REQUEST_SOURCE = "company-demo-request";
 const MAX_FIELD_LENGTH = 2000;
+const WAITLIST_TYPE_CONTACT_SALES = "contact_sales";
 
 type CompanyDemoRequestBody = {
   name?: string;
   email?: string;
   organization?: string;
   purpose?: string;
+  requestType?: string;
   pagePath?: string;
 };
 
@@ -30,10 +32,10 @@ function getKstTimestamp() {
   });
 }
 
-function getInternalSlackWebhook() {
-  const webhookUrl = process.env.SLACK_INTERNAL_NOTI_TOKEN?.trim();
+function getCompanySlackWebhook() {
+  const webhookUrl = process.env.SLACK_COMPANY_NOTIFICATION_TOKEN?.trim();
   if (!webhookUrl) {
-    throw new Error("SLACK_INTERNAL_NOTI_TOKEN is required");
+    throw new Error("SLACK_COMPANY_NOTIFICATION_TOKEN is required");
   }
 
   return new IncomingWebhook(webhookUrl);
@@ -44,23 +46,28 @@ function formatCompanyDemoRequestContent({
   email,
   organization,
   purpose,
+  requestType,
   pagePath,
 }: {
   name: string;
   email: string;
   organization: string;
   purpose: string;
+  requestType: string;
   pagePath: string;
 }) {
   return [
-    "[Company Demo Request]",
-    `Name: ${name}`,
-    `Email: ${email}`,
-    `Company: ${organization}`,
-    `Page: ${pagePath}`,
-    `Time(Standard Korea Time): ${getKstTimestamp()}`,
+    "📝 *Company Contact Sales Request*",
     "",
-    "Purpose:",
+    `• *Name*: ${name}`,
+    `• *Email*: ${email}`,
+    `• *Company*: ${organization}`,
+    `• *Type*: ${WAITLIST_TYPE_CONTACT_SALES}`,
+    `• *Request Type*: ${requestType || "N/A"}`,
+    `• *Page*: ${pagePath}`,
+    `• *Time(Standard Korea Time)*: ${getKstTimestamp()}`,
+    "",
+    "*Hiring Goal / Note:*",
     purpose,
   ].join("\n");
 }
@@ -77,6 +84,7 @@ export async function POST(req: NextRequest) {
   const email = normalizeField(body?.email);
   const organization = normalizeField(body?.organization);
   const purpose = normalizeField(body?.purpose);
+  const requestType = normalizeField(body?.requestType);
   const pagePath = normalizeField(body?.pagePath) || "/company";
 
   if (!name) {
@@ -104,31 +112,56 @@ export async function POST(req: NextRequest) {
     email,
     organization,
     purpose,
+    requestType,
     pagePath,
   });
 
-  const { data, error } = await supabaseServer
-    .from("feedback")
-    .insert({
-      user_id: null,
-      content,
-      from: COMPANY_DEMO_REQUEST_SOURCE,
-    })
-    .select("id")
-    .single();
+  const additional = [
+    "Source: company-demo-request",
+    `Type: ${WAITLIST_TYPE_CONTACT_SALES}`,
+    `Page: ${pagePath}`,
+    requestType ? `Request type: ${requestType}` : null,
+    `Submitted at(KST): ${getKstTimestamp()}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
 
-  if (error || !data?.id) {
+  const payload: Database["public"]["Tables"]["harper_waitlist_company"]["Insert"] =
+    {
+      email,
+      name,
+      company: organization,
+      role: requestType || null,
+      needs: purpose ? [purpose] : null,
+      additional,
+      is_submit: true,
+      status: "pending",
+      type: WAITLIST_TYPE_CONTACT_SALES,
+    };
+
+  const { data, error } = await supabaseServer
+    .from("harper_waitlist_company")
+    .upsert(payload, { onConflict: "email" })
+    .select("email")
+    .maybeSingle();
+
+  if (error || !data?.email) {
     return NextResponse.json(
-      { error: error?.message ?? "Failed to save meeting request" },
+      { error: error?.message ?? "Failed to save company request" },
       { status: 500 }
     );
   }
 
+  let slackNotified = true;
   try {
-    await getInternalSlackWebhook().send({ text: content });
+    await getCompanySlackWebhook().send({ text: content });
   } catch (slackError) {
+    slackNotified = false;
     console.error("company demo request slack notify failed:", slackError);
   }
 
-  return NextResponse.json({ ok: true, id: data.id }, { status: 200 });
+  return NextResponse.json(
+    { ok: true, email: data.email, slackNotified },
+    { status: 200 }
+  );
 }

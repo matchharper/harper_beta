@@ -10,6 +10,15 @@ import { OpportunityType, isOpportunityType } from "@/lib/opportunityType";
 
 type AdminClient = ReturnType<typeof getTalentSupabaseAdmin>;
 
+type RawCompanyDataRow = {
+  confidence: number | null;
+  last_funding_round_description: string | null;
+  last_funding_stage: string | null;
+  main_investors: string | null;
+  searched_at: string | null;
+  total_funding_raised: string | null;
+};
+
 type RawRecommendationRow = {
   clicked_at: string | null;
   created_at: string;
@@ -38,6 +47,7 @@ type RawRecommendationRow = {
       homepage_url: string | null;
       linkedin_url: string | null;
       logo_url: string | null;
+      company_data?: RawCompanyDataRow | RawCompanyDataRow[] | null;
     } | null;
     description: string | null;
     external_jd_url: string | null;
@@ -120,6 +130,7 @@ type RawPostingRoleRow = {
     homepage_url: string | null;
     linkedin_url: string | null;
     logo_url: string | null;
+    company_data?: RawCompanyDataRow | RawCompanyDataRow[] | null;
   } | null;
 };
 
@@ -170,6 +181,14 @@ const TALENT_OPPORTUNITY_HISTORY_SELECT = `
       company_db:company_db (
         id,
         logo
+      ),
+      company_data:company_data!company_data_company_workspace_id_fkey (
+        total_funding_raised,
+        main_investors,
+        last_funding_stage,
+        last_funding_round_description,
+        confidence,
+        searched_at
       )
     )
   )
@@ -220,6 +239,14 @@ const TALENT_POSTING_ROLE_SELECT = `
     company_db:company_db (
       id,
       logo
+    ),
+    company_data:company_data!company_data_company_workspace_id_fkey (
+      total_funding_raised,
+      main_investors,
+      last_funding_stage,
+      last_funding_round_description,
+      confidence,
+      searched_at
     )
   ),
   talent_opportunity_recommendation:talent_opportunity_recommendation!role_id (
@@ -294,8 +321,18 @@ export type TalentInternalRecommendationProgress = {
   stageTag: string | null;
 };
 
+export type TalentOpportunityCompanyData = {
+  confidence: number | null;
+  lastFundingRoundDescription: string | null;
+  lastFundingStage: string | null;
+  mainInvestors: string | null;
+  searchedAt: string | null;
+  totalFundingRaised: string | null;
+};
+
 export type TalentOpportunityHistoryItem = {
   clickedAt: string | null;
+  companyData: TalentOpportunityCompanyData | null;
   companyDescription: string | null;
   companyDbId: number | null;
   companyHomepageUrl: string | null;
@@ -1075,6 +1112,41 @@ async function fetchTalentOpportunityHistoryCountsFallback(args: {
   }
 }
 
+function normalizeCompanyDataString(value: unknown) {
+  const text = String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text || null;
+}
+
+function normalizeCompanyDataNumber(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function mapCompanyDataRow(
+  value: RawCompanyDataRow | RawCompanyDataRow[] | null | undefined
+): TalentOpportunityCompanyData | null {
+  const row = Array.isArray(value) ? value[0] : value;
+  if (!row) return null;
+
+  const companyData: TalentOpportunityCompanyData = {
+    confidence: normalizeCompanyDataNumber(row.confidence),
+    lastFundingRoundDescription: normalizeCompanyDataString(
+      row.last_funding_round_description
+    ),
+    lastFundingStage: normalizeCompanyDataString(row.last_funding_stage),
+    mainInvestors: normalizeCompanyDataString(row.main_investors),
+    searchedAt: normalizeCompanyDataString(row.searched_at),
+    totalFundingRaised: normalizeCompanyDataString(row.total_funding_raised),
+  };
+
+  return Object.values(companyData).some((item) => item !== null)
+    ? companyData
+    : null;
+}
+
 function mapRecommendationRow(
   row: RawRecommendationRow
 ): TalentOpportunityHistoryItem | null {
@@ -1092,9 +1164,11 @@ function mapRecommendationRow(
     value: row.opportunity_type,
   });
   const kind = getRecommendationKindForOpportunityType(opportunityType);
+  const companyData = mapCompanyDataRow(workspace.company_data);
 
   return {
     clickedAt: row.clicked_at ?? null,
+    companyData,
     companyDescription: workspace.company_description ?? null,
     companyDbId:
       typeof workspace.company_db_id === "number"
@@ -1181,9 +1255,11 @@ function mapPostingRoleRow(
   const linkedinUrl = workspace.linkedin_url ?? null;
   const href = externalJdUrl || homepageUrl || linkedinUrl || null;
   const roleId = String(row.role_id ?? "");
+  const companyData = mapCompanyDataRow(workspace.company_data);
 
   return {
     clickedAt: existingRecommendation?.clicked_at ?? null,
+    companyData,
     companyDescription: workspace.company_description ?? null,
     companyDbId:
       typeof workspace.company_db_id === "number"

@@ -840,8 +840,8 @@ export type Database = {
           last_funding_round_description: string | null
           last_funding_stage: string | null
           main_investors: string | null
-          searched_at: string
           search_query: string | null
+          searched_at: string
           source_payload: Json | null
           total_funding_raised: string | null
           updated_at: string
@@ -853,8 +853,8 @@ export type Database = {
           last_funding_round_description?: string | null
           last_funding_stage?: string | null
           main_investors?: string | null
-          searched_at?: string
           search_query?: string | null
+          searched_at?: string
           source_payload?: Json | null
           total_funding_raised?: string | null
           updated_at?: string
@@ -866,8 +866,8 @@ export type Database = {
           last_funding_round_description?: string | null
           last_funding_stage?: string | null
           main_investors?: string | null
-          searched_at?: string
           search_query?: string | null
+          searched_at?: string
           source_payload?: Json | null
           total_funding_raised?: string | null
           updated_at?: string
@@ -1327,6 +1327,57 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      company_workspace_merge_audit: {
+        Row: {
+          duplicate_company_name: string
+          duplicate_homepage_url: string | null
+          duplicate_linkedin_url: string | null
+          duplicate_logo_url: string | null
+          duplicate_role_count: number
+          duplicate_workspace_id: string
+          merged_at: string
+          name_key: string
+          run_id: string
+          target_company_db_id: number
+          target_company_name: string
+          target_homepage_url: string | null
+          target_linkedin_url: string | null
+          target_workspace_id: string
+        }
+        Insert: {
+          duplicate_company_name: string
+          duplicate_homepage_url?: string | null
+          duplicate_linkedin_url?: string | null
+          duplicate_logo_url?: string | null
+          duplicate_role_count?: number
+          duplicate_workspace_id: string
+          merged_at?: string
+          name_key: string
+          run_id: string
+          target_company_db_id: number
+          target_company_name: string
+          target_homepage_url?: string | null
+          target_linkedin_url?: string | null
+          target_workspace_id: string
+        }
+        Update: {
+          duplicate_company_name?: string
+          duplicate_homepage_url?: string | null
+          duplicate_linkedin_url?: string | null
+          duplicate_logo_url?: string | null
+          duplicate_role_count?: number
+          duplicate_workspace_id?: string
+          merged_at?: string
+          name_key?: string
+          run_id?: string
+          target_company_db_id?: number
+          target_company_name?: string
+          target_homepage_url?: string | null
+          target_linkedin_url?: string | null
+          target_workspace_id?: string
+        }
+        Relationships: []
       }
       company_workspace_quality_label: {
         Row: {
@@ -2309,6 +2360,7 @@ export type Database = {
           role: string | null
           size: string | null
           status: string
+          type: string | null
           user_id: string | null
         }
         Insert: {
@@ -2331,6 +2383,7 @@ export type Database = {
           role?: string | null
           size?: string | null
           status?: string
+          type?: string | null
           user_id?: string | null
         }
         Update: {
@@ -2353,6 +2406,7 @@ export type Database = {
           role?: string | null
           size?: string | null
           status?: string
+          type?: string | null
           user_id?: string | null
         }
         Relationships: [
@@ -5458,6 +5512,7 @@ export type Database = {
           preferred_locale: string
           profile_visibility: string
           recommendation_batch_size: number
+          recommendation_source_conversation_id: string | null
           setting_locale: string | null
           status: string
           status_updated_at: string
@@ -5475,6 +5530,7 @@ export type Database = {
           preferred_locale?: string
           profile_visibility?: string
           recommendation_batch_size?: number
+          recommendation_source_conversation_id?: string | null
           setting_locale?: string | null
           status?: string
           status_updated_at?: string
@@ -5492,6 +5548,7 @@ export type Database = {
           preferred_locale?: string
           profile_visibility?: string
           recommendation_batch_size?: number
+          recommendation_source_conversation_id?: string | null
           setting_locale?: string | null
           status?: string
           status_updated_at?: string
@@ -5499,6 +5556,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "talent_setting_recommendation_source_conversation_id_fkey"
+            columns: ["recommendation_source_conversation_id"]
+            isOneToOne: false
+            referencedRelation: "talent_conversations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "talent_setting_user_id_fkey"
             columns: ["user_id"]

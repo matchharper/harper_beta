@@ -60,26 +60,21 @@ export function buildCareerSessionStartTurnInstruction(args: {
 
   return [
     "## Session-start assistant turn",
-    `Always write the user-visible reply in ${outputLanguage}.`,
-    "사용자가 방금 Career 화면에 다시 접속했다. 사용자가 아직 새 메시지를 보내지 않았지만, Harper가 먼저 짧게 말을 건넬 수 있는 차례다.",
+    `Always write the user-visible reply in ${outputLanguage}, using markdown.`,
+    "사용자가 방금 사이트에 다시 접속했다. 아직 먼저 말을 걸지 않았지만, Harper가 먼저 짧게 말을 건넬 수 있는 차례다.",
     `- currentAccessAt: ${currentAccessAtLabel}`,
     `- previousChatAt: ${previousChatAtLabel}`,
     `- hoursSincePreviousChat: ${previousChatIdleHours ?? "(계산 불가)"}`,
-    "최근 Career 활동이나 프로필 변경 혹은 이전 추천 등이 필요하면 기존 career/chat에서 쓰는 tool 정책에 따라 적절한 tool을 사용해라.",
     "가벼운 인사와 자연스럽게 질문을 하면 좋다. 아무 말도 하지 않는게 좋다고 판단되면 하지 않아도 된다.",
     "질문 예시:",
-    "ex. 저번에 저장 or 제외됨을 선택해주셨는데, 그렇게 선택하신 이유에 대해서 말씀해주실 수 있나요? 다음 연결 혹은 추천에 반영할 수 있어요!",
+    "ex. 안녕하세요 {{name}}님 오랜만이네요! 2주만에 다시 접속해주셨는데, 혹시 그 사이에 상황이 변하신게 있으신가요?",
     "ex. mismatch case) Cursor 포지션을 저장해주셨는데 근무위치가 미국이에요. 한국과 일본 근무를 선호한다고 해주셨는데, 좋은 기회라면 미국에도 열려있으신걸까요?",
-    "ex. profile information case) 하퍼가 더 정확한 외부 기회 추천 혹은 내부 기회 연결을 해드리기 위해서는 B님의 맥락에 대해서 더 알수록 좋아요. 프로필을 보면 A 회사에서 딥러닝 인턴을 했다고만 되어있는데, 구체적으로 어떤걸 하셨었는지 알려주실 수 있나요?",
-    "ex. profile information case) 프로필에 표현되지 않은 정보 중 자랑스럽거나 소개하고 싶은 경험이 있으시다면 알려주세요.",
-    "안좋은 예시: 이 중에 특히 더 끌리는 회사 있으세요? - 이유: 더 끌리는 회사를 받아도 추천이나 연결에 도움이 되는 정보가 아니다.",
-    "안좋은 예시: 혹시 이 중에서 실제로 지원을 진행하고 계신 곳이 있으신가요?",
-    "세션 시작 인사에서는 이전에 저장/좋아요한 추천들을 카드처럼 다시 묶어 '그중 뭐가 제일 끌리냐', '어느 회사가 더 좋냐', '실제로 지원 중인 곳이 있냐'처럼 묻지 마라. 이런 질문은 추천/연결 품질을 거의 개선하지 못한다.",
+    "혹은 피드백 요청, 부족한 정보(profile gap 등) 질문, 다음 추천에 반영할만한 사항이 있는지 질문 등을 해도 좋다.",
+    "안좋은 예시: 이 중에 특히 더 끌리는 회사 있으세요? - 이유: 더 끌리는 회사를 받아도 추천이나 연결에 도움이 되는 정보가 아니다. 혹은 단순히 ~~ 업무에 대해서 자세히 알려주세요.",
+    "이전에 저장/좋아요한 추천들을 카드처럼 다시 묶어 '그중 뭐가 제일 끌리냐', '어느 회사가 더 좋냐', '실제로 지원 중인 곳이 있냐'처럼 묻지 마라. 이런 질문은 추천/연결 품질을 거의 개선하지 못한다.",
+    "User feedback:none이면 Harper가 추천을 했지만 유저가 좋아요/싫어요 반응을 하지 않은 경우이다.",
     "이전 저장/좋아요/제외됨 신호를 사용해야 한다면, 특정 선택의 이유나 명확한 mismatch 하나만 물어라. 그런 구체성이 없으면 추천 이력 질문 대신 프로필 gap, 최근 변화, 통화 제안 중 하나로 이어가라.",
     "이미 명확한 다음 액션이 진행 중이라 사용자의 답이 필요 없거나, 질문이 오히려 어색하면 질문 없이 짧은 상태 공유로 닫아도 된다.",
-    previousChatIdleHours && previousChatIdleHours > 1344
-      ? `hoursSincePreviousChat이 1344 이상이고, 최근 활동/추천/프로필 변경에서 바로 이어갈 만한 명확한 업데이트가 없다면 "오랜만이라 최근 업데이트나 재밌게 하는 일이 있는지 통화로 한번 듣고 싶다"는 취지로 자연스럽게 말한 뒤 응답 맨 끝에 ${CAREER_SESSION_START_CALL_ACTION_MARKER} 를 붙여라. ${CAREER_SESSION_START_CALL_ACTION_MARKER} 는 UI가 전화하기 버튼을 표시하는 데 쓰는 마커다. 이 마커를 설명하거나 따옴표로 감싸지 마라.`
-      : "",
   ].join("\n");
 }
 

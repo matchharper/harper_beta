@@ -636,9 +636,7 @@ export async function runCareerChatTurn(
     assistantTurnMessages.push({
       role: "user",
       content: [
-        "[Application-triggered follow-up]",
         "Use the runtime context above to write the next assistant message now.",
-        "Do not mention this application event.",
       ].join("\n"),
     });
   }

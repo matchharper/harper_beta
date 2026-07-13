@@ -22,6 +22,7 @@ import {
   Loader2,
   MapPin,
   StickyNote,
+  TrendingUp,
 } from "lucide-react";
 import { InlinePanel } from "@/components/ui/panel";
 import { cn } from "@/lib/utils";
@@ -39,11 +40,45 @@ import {
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
 import { formatCareerLocation } from "@/lib/career/locationDisplay";
 import {
+  getKnownCompanyDataText,
+  parseFundingStageLabel,
+} from "@/lib/career/fundingStage";
+import {
   canChangeCareerOpportunityManagementStatus,
   getCareerOpportunityManagementStatusLabel,
   getCareerOpportunityManagementStatusOptions,
   type CareerOpportunityManagementStatus,
 } from "./savedOpportunityStatus";
+
+export { getKnownCompanyDataText, parseFundingStageLabel };
+
+export const HistoryOpportunityFundingStageText = ({
+  className,
+  lastFundingStage,
+}: {
+  className?: string;
+  lastFundingStage: string | null | undefined;
+}) => {
+  const fundingStage = parseFundingStageLabel(lastFundingStage);
+  if (!fundingStage) return null;
+
+  return (
+    <span
+      className={cn(
+        "inline-flex max-w-full shrink-0 items-center gap-1 whitespace-nowrap text-[12px] font-normal leading-5 text-gray-500",
+        className
+      )}
+      title={
+        lastFundingStage && lastFundingStage !== fundingStage
+          ? lastFundingStage
+          : undefined
+      }
+    >
+      <TrendingUp className="h-3 w-3 shrink-0" />
+      <span>{fundingStage}</span>
+    </span>
+  );
+};
 
 export const OpportunityHeader = ({
   item,
@@ -62,6 +97,9 @@ export const OpportunityHeader = ({
   const { locale } = useMessages();
   const postingStatus = getOpportunityPostingStatus(item, locale, t);
   const companyInfoLink = item.companyHomepageUrl ?? item.companyLinkedinUrl;
+  const lastFundingStage = getKnownCompanyDataText(
+    item.companyData?.lastFundingStage
+  );
   const canOpenCompanyInfo = Boolean(
     onOpenCompanyInfo || item.companyDbId || companyInfoLink
   );
@@ -120,32 +158,37 @@ export const OpportunityHeader = ({
             <div className="wrap-break-word text-[16px] font-medium leading-tight sm:text-lg">
               {item.title}
             </div>
-            <div className="mt-2 flex w-full min-w-0 flex-wrap items-center justify-between text-sm">
-              {canOpenCompanyInfo ? (
-                <BareButton
-                  type="button"
-                  onClick={() => {
-                    if (onOpenCompanyInfo) {
-                      onOpenCompanyInfo(item);
-                      return;
-                    }
-                    if (companyInfoLink) {
-                      window.open(
-                        companyInfoLink,
-                        "_blank",
-                        "noopener,noreferrer"
-                      );
-                    }
-                  }}
-                  className="min-w-0 wrap-break-word text-left decoration-dotted underline underline-offset-2 text-neutral-primary font-medium text-[14px] transition-colors duration-200 hover:text-primary"
-                >
-                  {item.companyName}
-                </BareButton>
-              ) : (
-                <span className="min-w-0 wrap-break-word">
-                  {item.companyName}
-                </span>
-              )}
+            <div className="mt-2 flex w-full min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm">
+              <div className="flex min-w-0 max-w-full flex-wrap items-center gap-x-2 gap-y-1">
+                {canOpenCompanyInfo ? (
+                  <BareButton
+                    type="button"
+                    onClick={() => {
+                      if (onOpenCompanyInfo) {
+                        onOpenCompanyInfo(item);
+                        return;
+                      }
+                      if (companyInfoLink) {
+                        window.open(
+                          companyInfoLink,
+                          "_blank",
+                          "noopener,noreferrer"
+                        );
+                      }
+                    }}
+                    className="min-w-0 wrap-break-word text-left decoration-dotted underline underline-offset-2 text-neutral-primary font-medium text-[14px] transition-colors duration-200 hover:text-primary"
+                  >
+                    {item.companyName}
+                  </BareButton>
+                ) : (
+                  <span className="min-w-0 wrap-break-word">
+                    {item.companyName}
+                  </span>
+                )}
+                <HistoryOpportunityFundingStageText
+                  lastFundingStage={lastFundingStage}
+                />
+              </div>
               {postingStatus ? (
                 <div
                   className={cn(
@@ -242,8 +285,10 @@ export const HistoryOpportunityOverview = ({
             </div>
           </div>
           <div className="mt-1 h-[1px] w-full bg-neutral-1000-a05" />
-          <div className="flex flex-col gap-3 py-2">
-            {recommendationSummary && <div>{recommendationSummary}</div>}
+          <div className="flex flex-col gap-1.5 py-2">
+            {recommendationSummary && (
+              <div className="mb-2">{recommendationSummary}</div>
+            )}
             {item.recommendationReasons.map((reason, index) => (
               <div
                 key={`${item.id}-${index}`}
@@ -263,7 +308,8 @@ export const HistoryOpportunityOverview = ({
               >
                 <Dot className="mt-0.5 h-5 w-5 min-w-5" />
                 <div className="min-w-0">
-                  {t("career.common.career.0z5xpdx", "지원전 검토 사항")}{" "}
+                  {t("career.common.career.0z5xpdx", "지원전 검토 사항")}
+                  {": "}
                   {concern}
                 </div>
               </div>

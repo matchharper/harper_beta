@@ -198,6 +198,7 @@ const Onboard: React.FC = () => {
         needs: needs ? [needs] : null,
         additional: additional || null,
         is_mobile: isMobile,
+        type: "join",
       });
 
       setIsDirty(false);
@@ -240,6 +241,7 @@ const Onboard: React.FC = () => {
           additional: additional || null,
           is_mobile: isMobile,
           is_submit: true,
+          type: "join",
         };
 
         const { error: waitlistSubmitError } = await supabase
@@ -252,6 +254,7 @@ const Onboard: React.FC = () => {
 
 • *Name*: ${name || "N/A"}
 • *Email*: ${email || "N/A"}
+• *Type*: join
 • *Role*: ${roles.length > 0 ? roles.join(", ") : "N/A"}
 • *Company*: ${isRecruiter ? "Recruiter" : company || "N/A"}
 • *Company Link*: ${isRecruiter ? "N/A" : companyLink || "N/A"}

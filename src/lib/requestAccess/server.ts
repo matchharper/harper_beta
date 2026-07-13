@@ -20,6 +20,8 @@ export const REQUEST_ACCESS_REVIEW_PAGE_PATH = "/ops/request-access/review";
 
 const REQUEST_ACCESS_STATUS_PENDING = "pending";
 const REQUEST_ACCESS_STATUS_APPROVED = "approved";
+const WAITLIST_TYPE_REQUEST_ACCESS = "request_access";
+const WAITLIST_TYPE_SIGNUP_APPROVAL = "signup_approval";
 
 type RequestAccessSubmitInput = {
   userId: string;
@@ -255,10 +257,7 @@ function buildSlackApprovalActions(row: Pick<RequestAccessRow, "email">) {
   ];
 }
 
-function buildSlackBlocks(
-  row: RequestAccessSlackRow,
-  reviewUrl: string
-) {
+function buildSlackBlocks(row: RequestAccessSlackRow, reviewUrl: string) {
   const hiringNeed = Array.isArray(row.needs) ? row.needs[0] : null;
 
   return [
@@ -304,10 +303,7 @@ function buildSlackBlocks(
   ];
 }
 
-function buildSlackSignupBlocks(
-  row: RequestAccessSlackRow,
-  reviewUrl: string
-) {
+function buildSlackSignupBlocks(row: RequestAccessSlackRow, reviewUrl: string) {
   return [
     {
       type: "section",
@@ -366,7 +362,10 @@ async function sendSlackRequestAccessMessage(
   });
 }
 
-async function sendSlackSignupMessage(row: RequestAccessSlackRow, baseUrl: string) {
+async function sendSlackSignupMessage(
+  row: RequestAccessSlackRow,
+  baseUrl: string
+) {
   const webhook = getSlackWebhook();
   const reviewUrl = buildRequestAccessReviewUrl({
     email: row.email ?? "",
@@ -553,6 +552,7 @@ export async function submitRequestAccess(
       approval_token: null,
       approval_email_sent_at: null,
       access_granted_at: null,
+      type: WAITLIST_TYPE_REQUEST_ACCESS,
     };
 
   const { data, error } = await supabaseAdmin
@@ -635,7 +635,8 @@ async function ensureSignupApprovalCandidate(args: {
       company: existing.company || null,
       role: existing.role || null,
       needs: existing.needs || null,
-      user_id: (updatePayload.user_id as string | undefined) ?? existing.user_id,
+      user_id:
+        (updatePayload.user_id as string | undefined) ?? existing.user_id,
     } satisfies RequestAccessSlackRow;
   }
 
@@ -651,6 +652,7 @@ async function ensureSignupApprovalCandidate(args: {
       approval_token: null,
       approval_email_sent_at: null,
       access_granted_at: null,
+      type: WAITLIST_TYPE_SIGNUP_APPROVAL,
     };
 
   const { data: inserted, error: insertError } = await args.supabaseAdmin
@@ -666,16 +668,14 @@ async function ensureSignupApprovalCandidate(args: {
     throw insertError;
   }
 
-  return (
-    inserted ?? {
-      email,
-      name: name || null,
-      company: null,
-      role: null,
-      needs: null,
-      user_id: userId || null,
-    }
-  ) satisfies RequestAccessSlackRow;
+  return (inserted ?? {
+    email,
+    name: name || null,
+    company: null,
+    role: null,
+    needs: null,
+    user_id: userId || null,
+  }) satisfies RequestAccessSlackRow;
 }
 
 export async function notifySlackSignupApprovalCandidate(args: {

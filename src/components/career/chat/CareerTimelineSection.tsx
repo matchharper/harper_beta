@@ -1202,7 +1202,7 @@ const CareerTimelineSection = () => {
                 <div className="mt-1 text-[13px] leading-6 text-neutral-soft">
                   {t(
                     "career.chat.career_timeline_section.0ebbrm3",
-                    "PDF, DOC, DOCX 파일을 업로드할 수 있습니다."
+                    "PDF, DOCX, TXT, MD 파일을 업로드할 수 있습니다."
                   )}
                 </div>
                 <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -1220,7 +1220,7 @@ const CareerTimelineSection = () => {
                     unstyled
                     id="career-resume-upload"
                     type="file"
-                    accept=".pdf,.doc,.docx"
+                    accept=".pdf,.docx,.txt,.md"
                     className="hidden"
                     onChange={(event) => {
                       onResumeFileChange(event.target.files?.[0] ?? null);

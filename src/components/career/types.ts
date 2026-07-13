@@ -169,6 +169,15 @@ export type CareerInternalRecommendationProgress = {
   stageTag: string | null;
 };
 
+export type CareerOpportunityCompanyData = {
+  confidence?: number | null;
+  lastFundingRoundDescription?: string | null;
+  lastFundingStage?: string | null;
+  mainInvestors?: string | null;
+  searchedAt?: string | null;
+  totalFundingRaised?: string | null;
+};
+
 export type CareerHistoryOpportunityPageFilter = {
   historyTab: CareerHistoryTabId;
   savedStage?: CareerOpportunitySavedStageFilter;
@@ -219,6 +228,7 @@ export type CareerPreferenceFitItem = {
 
 export type CareerHistoryOpportunity = {
   clickedAt: string | null;
+  companyData?: CareerOpportunityCompanyData | null;
   companyDescription: string | null;
   companyDbId?: number | null;
   companyHomepageUrl: string | null;

@@ -194,7 +194,7 @@ const CareerResumeLinksSettingsSection = () => {
             <ResumeDropzone
               inputId="career-settings-resume-upload"
               variant="compact"
-              accept=".pdf,.doc,.docx,.txt"
+              accept=".pdf,.docx,.txt,.md"
               fileName={resumeFile?.name ?? ""}
               onFileSelect={(file, source) => {
                 logCareerEvent(
@@ -223,7 +223,7 @@ const CareerResumeLinksSettingsSection = () => {
               }
               description={t(
                 "career.resume_dropzone.settings_description",
-                "PDF, DOC, DOCX, TXT 파일을 업로드할 수 있습니다."
+                "PDF, DOCX, TXT, MD 파일을 업로드할 수 있습니다."
               )}
               dragTitle={t(
                 "career.resume_dropzone.drag_title",

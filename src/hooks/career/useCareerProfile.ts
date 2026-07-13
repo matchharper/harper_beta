@@ -20,7 +20,11 @@ import { showToast } from "@/components/toast/toast";
 import {
   compactProfileLinks,
   getErrorMessage,
+  isDocxResumeFile,
+  isLinkedinLink,
+  isLinkedinProfileLink,
   normalizeText,
+  readDocxResumeText,
   toProfileLinks,
   toUiMessage,
 } from "./careerHelpers";
@@ -31,6 +35,20 @@ import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 
 const showProfileSaveToast = (message: string) => {
   showToast({ message, variant: "white" });
+};
+
+const hasInvalidLinkedinProfileInput = (links: string[] = []) => {
+  return links.some(
+    (link) =>
+      Boolean(link?.trim()) &&
+      isLinkedinLink(link) &&
+      !isLinkedinProfileLink(link)
+  );
+};
+
+const isServerParsedResumeFile = (file: File) => {
+  const fileName = file.name.toLowerCase();
+  return file.type === "application/pdf" || fileName.endsWith(".pdf");
 };
 
 type ProfileIngestionPayload = {
@@ -165,21 +183,22 @@ export const useCareerProfile = ({
   const readResumeText = useCallback(
     async (file: File) => {
       let text = "";
-      if (
-        file.type === "application/pdf" ||
-        file.name.toLowerCase().endsWith(".pdf")
-      ) {
+      if (isServerParsedResumeFile(file)) {
         const formData = new FormData();
         formData.append("file", file);
         const response = await fetchWithAuth("/api/talent/resume/parse", {
           method: "POST",
           body: formData,
         });
+        const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
-          throw new Error(tCareer(H.pdfTextReadFailed));
+          throw new Error(
+            getErrorMessage(payload, tCareer(H.resumeTextReadFailed))
+          );
         }
-        const payload = await response.json();
         text = String(payload?.text ?? "");
+      } else if (isDocxResumeFile(file)) {
+        text = await readDocxResumeText(file);
       } else {
         text = await file.text();
       }
@@ -215,6 +234,12 @@ export const useCareerProfile = ({
       const hasSavedResume = Boolean(
         savedResumeFileName || savedResumeStoragePath
       );
+      if (hasInvalidLinkedinProfileInput(profileLinks)) {
+        const message = tCareer(H.invalidLinkedinProfileUrl);
+        setProfileError(message);
+        showProfileSaveToast(message);
+        return;
+      }
       if (!resumeFile && !hasSavedResume && cleanedLinks.length === 0) {
         setProfileError(tCareer(H.profileUploadRequired));
         return;
@@ -230,12 +255,28 @@ export const useCareerProfile = ({
         let nextResumeFileName = savedResumeFileName ?? undefined;
         let nextResumeStoragePath = savedResumeStoragePath ?? undefined;
         let resumeText: string | undefined;
+        const hasLinkedinProfileLink = cleanedLinks.some(isLinkedinProfileLink);
 
         if (resumeFile) {
-          const uploadResult = await uploadResumeFile(resumeFile);
-          nextResumeFileName = uploadResult.resumeFileName;
-          nextResumeStoragePath = uploadResult.resumeStoragePath;
-          resumeText = await readResumeText(resumeFile);
+          let parsedText = "";
+          try {
+            parsedText = await readResumeText(resumeFile);
+          } catch (error) {
+            if (!hasLinkedinProfileLink) {
+              throw error;
+            }
+            console.warn(
+              "[CareerProfile] resume parse failed; continuing with LinkedIn only",
+              error
+            );
+          }
+
+          if (parsedText) {
+            const uploadResult = await uploadResumeFile(resumeFile);
+            nextResumeFileName = uploadResult.resumeFileName;
+            nextResumeStoragePath = uploadResult.resumeStoragePath;
+            resumeText = parsedText;
+          }
         }
 
         const response = await fetchWithAuth("/api/talent/onboarding/start", {
@@ -371,6 +412,13 @@ export const useCareerProfile = ({
 
       const structuredProfile = args?.structuredProfile ?? null;
 
+      if (hasInvalidLinkedinProfileInput(profileLinks)) {
+        const message = tCareer(H.invalidLinkedinProfileUrl);
+        setProfileSaveError(message);
+        showProfileSaveToast(message);
+        return false;
+      }
+
       const cleanedLinks = compactProfileLinks(profileLinks);
       const savedCleanedLinks = compactProfileLinks(savedProfileLinks);
       const hasUnsavedLinkChanges =
@@ -388,13 +436,29 @@ export const useCareerProfile = ({
         let nextResumeStoragePath = savedResumeStoragePath;
         let nextResumeDownloadUrl = savedResumeDownloadUrl;
         let nextResumeText: string | undefined;
+        const hasLinkedinProfileLink = cleanedLinks.some(isLinkedinProfileLink);
 
         if (resumeFile) {
-          const uploadResult = await uploadResumeFile(resumeFile);
-          nextResumeText = await readResumeText(resumeFile);
-          nextResumeFileName = uploadResult.resumeFileName;
-          nextResumeStoragePath = uploadResult.resumeStoragePath;
-          nextResumeDownloadUrl = uploadResult.resumeDownloadUrl;
+          let parsedText = "";
+          try {
+            parsedText = await readResumeText(resumeFile);
+          } catch (error) {
+            if (!hasLinkedinProfileLink) {
+              throw error;
+            }
+            console.warn(
+              "[CareerProfile] resume parse failed; continuing with LinkedIn only",
+              error
+            );
+          }
+
+          if (parsedText) {
+            const uploadResult = await uploadResumeFile(resumeFile);
+            nextResumeText = parsedText;
+            nextResumeFileName = uploadResult.resumeFileName;
+            nextResumeStoragePath = uploadResult.resumeStoragePath;
+            nextResumeDownloadUrl = uploadResult.resumeDownloadUrl;
+          }
         }
 
         const response = await fetchWithAuth("/api/talent/profile/update", {
@@ -502,112 +566,119 @@ export const useCareerProfile = ({
     ]
   );
 
-  const handleRefreshTalentProfileSources = useCallback(async (args?: {
-    links?: string[];
-  }) => {
-    if (!user || profileSavePending) return false;
+  const handleRefreshTalentProfileSources = useCallback(
+    async (args?: { links?: string[] }) => {
+      if (!user || profileSavePending) return false;
 
-    const cleanedLinks = compactProfileLinks(
-      args?.links ??
-        (savedProfileLinks.length > 0 ? savedProfileLinks : profileLinks)
-    );
-    const hasSavedResume = Boolean(
-      savedResumeFileName || savedResumeStoragePath || savedResumeDownloadUrl
-    );
-    const hasLinkedinLink = cleanedLinks.some((link) =>
-      /linkedin\.com\/in\//i.test(link)
-    );
-
-    if (!hasSavedResume && !hasLinkedinLink) {
-      const message = tCareer(H.profileSourcesMissing);
-      setProfileSaveError(message);
-      showProfileSaveToast(message);
-      return false;
-    }
-
-    setProfileSavePending(true);
-    setProfileSaveError("");
-    setProfileSaveInfo("");
-
-    try {
-      const response = await fetchWithAuth("/api/talent/profile/update", {
-        method: "POST",
-        body: JSON.stringify({
-          links: cleanedLinks,
-          forceProfileIngestion: true,
-          locale,
-        }),
-      });
-
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(
-          getErrorMessage(payload, tCareer(H.profileRefreshFailed))
-        );
-      }
-
-      const returnedLinks =
-        (payload?.profile?.resumeLinks as string[] | undefined) ?? cleanedLinks;
-      const normalizedLinks = toProfileLinks(returnedLinks);
-      setSavedResumeFileName(payload?.profile?.resumeFileName ?? null);
-      setSavedResumeStoragePath(payload?.profile?.resumeStoragePath ?? null);
-      setSavedResumeDownloadUrl(payload?.profile?.resumeDownloadUrl ?? null);
-      setSavedProfileLinks(normalizedLinks);
-      setProfileLinks(normalizedLinks);
-      setResumeFile(null);
-
-      if (payload?.talentProfile) {
-        applyTalentProfileSnapshot(
-          payload.talentProfile as SessionResponse["talentProfile"]
-        );
-      }
-
-      const ingestion = payload?.profileIngestion as
-        | ProfileIngestionPayload
-        | null
-        | undefined;
-      if (ingestion?.ok === false) {
-        const message = tCareer(H.profileRefreshFailedWithReason, {
-          reason: getTranslatedProfileIngestionFailureMessage(ingestion),
-        });
+      const sourceLinks =
+        args?.links ??
+        (savedProfileLinks.length > 0 ? savedProfileLinks : profileLinks);
+      if (hasInvalidLinkedinProfileInput(sourceLinks)) {
+        const message = tCareer(H.invalidLinkedinProfileUrl);
         setProfileSaveError(message);
         showProfileSaveToast(message);
         return false;
       }
 
-      const warningMessage = getProfileIngestionWarningMessage(ingestion);
-      if (warningMessage) {
-        showProfileSaveToast(warningMessage);
-      } else {
-        showProfileSaveToast(tCareer(H.profileSourcesRefreshed));
+      const cleanedLinks = compactProfileLinks(sourceLinks);
+      const hasSavedResume = Boolean(
+        savedResumeFileName || savedResumeStoragePath || savedResumeDownloadUrl
+      );
+      const hasLinkedinLink = cleanedLinks.some(isLinkedinProfileLink);
+
+      if (!hasSavedResume && !hasLinkedinLink) {
+        const message = tCareer(H.profileSourcesMissing);
+        setProfileSaveError(message);
+        showProfileSaveToast(message);
+        return false;
       }
 
-      return true;
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : tCareer(H.profileRefreshFailed);
-      setProfileSaveError(message);
-      showProfileSaveToast(message);
-      return false;
-    } finally {
-      setProfileSavePending(false);
-    }
-  }, [
-    applyTalentProfileSnapshot,
-    fetchWithAuth,
-    getTranslatedProfileIngestionFailureMessage,
-    profileLinks,
-    profileSavePending,
-    savedProfileLinks,
-    savedResumeDownloadUrl,
-    savedResumeFileName,
-    savedResumeStoragePath,
-    tCareer,
-    locale,
-    user,
-  ]);
+      setProfileSavePending(true);
+      setProfileSaveError("");
+      setProfileSaveInfo("");
+
+      try {
+        const response = await fetchWithAuth("/api/talent/profile/update", {
+          method: "POST",
+          body: JSON.stringify({
+            links: cleanedLinks,
+            forceProfileIngestion: true,
+            locale,
+          }),
+        });
+
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(
+            getErrorMessage(payload, tCareer(H.profileRefreshFailed))
+          );
+        }
+
+        const returnedLinks =
+          (payload?.profile?.resumeLinks as string[] | undefined) ??
+          cleanedLinks;
+        const normalizedLinks = toProfileLinks(returnedLinks);
+        setSavedResumeFileName(payload?.profile?.resumeFileName ?? null);
+        setSavedResumeStoragePath(payload?.profile?.resumeStoragePath ?? null);
+        setSavedResumeDownloadUrl(payload?.profile?.resumeDownloadUrl ?? null);
+        setSavedProfileLinks(normalizedLinks);
+        setProfileLinks(normalizedLinks);
+        setResumeFile(null);
+
+        if (payload?.talentProfile) {
+          applyTalentProfileSnapshot(
+            payload.talentProfile as SessionResponse["talentProfile"]
+          );
+        }
+
+        const ingestion = payload?.profileIngestion as
+          | ProfileIngestionPayload
+          | null
+          | undefined;
+        if (ingestion?.ok === false) {
+          const message = tCareer(H.profileRefreshFailedWithReason, {
+            reason: getTranslatedProfileIngestionFailureMessage(ingestion),
+          });
+          setProfileSaveError(message);
+          showProfileSaveToast(message);
+          return false;
+        }
+
+        const warningMessage = getProfileIngestionWarningMessage(ingestion);
+        if (warningMessage) {
+          showProfileSaveToast(warningMessage);
+        } else {
+          showProfileSaveToast(tCareer(H.profileSourcesRefreshed));
+        }
+
+        return true;
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : tCareer(H.profileRefreshFailed);
+        setProfileSaveError(message);
+        showProfileSaveToast(message);
+        return false;
+      } finally {
+        setProfileSavePending(false);
+      }
+    },
+    [
+      applyTalentProfileSnapshot,
+      fetchWithAuth,
+      getTranslatedProfileIngestionFailureMessage,
+      profileLinks,
+      profileSavePending,
+      savedProfileLinks,
+      savedResumeDownloadUrl,
+      savedResumeFileName,
+      savedResumeStoragePath,
+      tCareer,
+      locale,
+      user,
+    ]
+  );
 
   const resetProfileState = useCallback(() => {
     setProfileLinks(toProfileLinks());

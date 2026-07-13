@@ -102,6 +102,10 @@ export const CAREER_HOOK_MESSAGES = {
     "career.common.career_hook_messages.101suqx",
     "로그인 세션을 확인할 수 없습니다. 다시 로그인해 주세요."
   ),
+  invalidLinkedinProfileUrl: t(
+    "career.common.career_hook_messages.invalid_linkedin_profile_url",
+    "올바른 URL이 아닙니다."
+  ),
   memoSaveFailed: t(
     "career.common.career_hook_messages.1it3b7e",
     "메모를 저장하지 못했습니다."
