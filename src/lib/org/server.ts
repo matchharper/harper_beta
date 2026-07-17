@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { User } from "@supabase/supabase-js";
 import { renderEmailBodyHtml } from "@/lib/email/bodyFormat";
 import { getDefaultResendFromEmail, sendResendEmail } from "@/lib/email/send";
+import { getEmailDomain, INTERNAL_EMAIL_DOMAIN } from "@/lib/internalAccess";
 import { buildOrgIntroEmailDraft } from "@/lib/org/introEmail";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import {
@@ -324,19 +325,14 @@ function getUserEmail(user: User) {
   return normalizeText(user.email).toLowerCase() || null;
 }
 
-const ORG_ALL_WORKSPACE_ACCESS_EMAILS = new Set([
-  "chris@matchharper.com",
-  "daniel@matchharper.com",
-]);
-
-function hasOrgAllWorkspaceAccess(user: User) {
-  const email = getUserEmail(user);
-  return Boolean(email && ORG_ALL_WORKSPACE_ACCESS_EMAILS.has(email));
+function hasOrgAllInternalWorkspaceAccess(user: User) {
+  return getEmailDomain(getUserEmail(user)) === INTERNAL_EMAIL_DOMAIN;
 }
 
-function isOrgAllWorkspaceAccessEmail(email: string | null | undefined) {
-  const normalized = normalizeText(email).toLowerCase();
-  return Boolean(normalized && ORG_ALL_WORKSPACE_ACCESS_EMAILS.has(normalized));
+function isOrgAllInternalWorkspaceAccessEmail(
+  email: string | null | undefined
+) {
+  return getEmailDomain(email) === INTERNAL_EMAIL_DOMAIN;
 }
 
 function buildVirtualOrgMember(user: User): OrgMember {
@@ -744,7 +740,7 @@ async function fetchWorkspaceById(
 ) {
   const { data, error } = await (admin.from("company_workspace" as any) as any)
     .select(
-      "company_workspace_id, company_name, company_description, pitch, request, logo_url, updated_at"
+      "company_workspace_id, company_name, company_description, pitch, request, logo_url, is_internal, updated_at"
     )
     .eq("company_workspace_id", workspaceId)
     .maybeSingle();
@@ -825,9 +821,12 @@ async function assertOrgWorkspaceAccess(args: {
   user: User;
   workspaceId: string;
 }) {
-  if (hasOrgAllWorkspaceAccess(args.user)) {
+  if (hasOrgAllInternalWorkspaceAccess(args.user)) {
     const workspace = await fetchWorkspaceById(args.admin, args.workspaceId);
     if (!workspace) throw new OrgHttpError(404, "Workspace not found");
+    if (!workspace.is_internal) {
+      throw new OrgHttpError(403, "Workspace access denied");
+    }
     return;
   }
 
@@ -863,6 +862,7 @@ async function fetchAllInternalWorkspaces(admin: SupabaseAdminClient) {
     .select(
       "company_workspace_id, company_name, company_description, pitch, request, logo_url, updated_at"
     )
+    .eq("is_internal", true)
     .order("company_name", { ascending: true })
     .order("updated_at", { ascending: false });
 
@@ -903,7 +903,7 @@ async function fetchOrgMembers(
 
   return membershipRows
     .map((row) => buildMember(row, userById.get(row.company_user_id) ?? null))
-    .filter((member) => !isOrgAllWorkspaceAccessEmail(member.email));
+    .filter((member) => !isOrgAllInternalWorkspaceAccessEmail(member.email));
 }
 
 async function fetchOrgRoles(admin: SupabaseAdminClient, workspaceId: string) {
@@ -924,11 +924,12 @@ export async function fetchOrgBootstrap(args: {
 }): Promise<OrgBootstrapResponse> {
   const admin = getSupabaseAdmin();
   const requestedWorkspaceId = normalizeText(args.orgId);
-  const hasAllWorkspaceAccess = hasOrgAllWorkspaceAccess(args.user);
+  const hasAllInternalWorkspaceAccess =
+    hasOrgAllInternalWorkspaceAccess(args.user);
 
   await upsertOrgCompanyUser(admin, args.user);
 
-  if (requestedWorkspaceId && !hasAllWorkspaceAccess) {
+  if (requestedWorkspaceId && !hasAllInternalWorkspaceAccess) {
     await ensureOrgMembership({
       admin,
       user: args.user,
@@ -937,7 +938,7 @@ export async function fetchOrgBootstrap(args: {
   }
 
   const memberships = await fetchMembershipsForUser(admin, args.user.id);
-  if (memberships.length === 0 && !hasAllWorkspaceAccess) {
+  if (memberships.length === 0 && !hasAllInternalWorkspaceAccess) {
     return {
       currentUser: null,
       members: [],
@@ -948,7 +949,7 @@ export async function fetchOrgBootstrap(args: {
     };
   }
 
-  const workspaces = hasAllWorkspaceAccess
+  const workspaces = hasAllInternalWorkspaceAccess
     ? await fetchAllInternalWorkspaces(admin)
     : await fetchWorkspacesByIds(
         admin,
@@ -960,7 +961,7 @@ export async function fetchOrgBootstrap(args: {
   const selectedWorkspaceId =
     requestedWorkspaceId && workspaceById.has(requestedWorkspaceId)
       ? requestedWorkspaceId
-      : hasAllWorkspaceAccess
+      : hasAllInternalWorkspaceAccess
         ? workspaces[0]?.company_workspace_id
         : memberships[0]?.company_workspace_id;
   const selectedWorkspace = selectedWorkspaceId
@@ -969,7 +970,7 @@ export async function fetchOrgBootstrap(args: {
 
   if (!selectedWorkspace) {
     return {
-      currentUser: hasAllWorkspaceAccess
+      currentUser: hasAllInternalWorkspaceAccess
         ? buildVirtualOrgMember(args.user)
         : null,
       members: [],
@@ -988,7 +989,7 @@ export async function fetchOrgBootstrap(args: {
   return {
     currentUser:
       members.find((member) => member.userId === args.user.id) ??
-      (hasAllWorkspaceAccess ? buildVirtualOrgMember(args.user) : null),
+      (hasAllInternalWorkspaceAccess ? buildVirtualOrgMember(args.user) : null),
     members,
     ok: true,
     roles,

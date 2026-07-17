@@ -485,6 +485,7 @@ async function ensureTalentAndConversation(args: {
   await upsertTalentSetting({
     admin: args.admin,
     preferredLocale: args.locale,
+    preferProvidedLocale: true,
     userId: talentId,
   });
 

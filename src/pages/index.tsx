@@ -66,6 +66,7 @@ import {
   captureTalentNetworkReferralFromCurrentLocation,
   TALENT_NETWORK_REFERRAL_SOURCE_LANDING_PAGE,
 } from "@/lib/talentNetworkReferral";
+import { useAuthStore } from "@/store/useAuthStore";
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://matchharper.com")
   .trim()
@@ -2025,8 +2026,12 @@ export default function LandingKoVfPage({
       : "text-[28px] font-semibold leading-[1.24] sm:text-[38px] md:text-[42px]"
   );
   const signupFlowExperiment = useCareerSignupFlowExperiment();
+  const authLoading = useAuthStore((state) => state.loading);
+  const user = useAuthStore((state) => state.user);
   const isEmailFirstTreatment =
     signupFlowExperiment.ready &&
+    !authLoading &&
+    !user &&
     isCareerEmailFirstVariant(signupFlowExperiment.variant);
   const {
     addLandingLog,

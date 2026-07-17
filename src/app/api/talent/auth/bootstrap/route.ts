@@ -407,6 +407,7 @@ export async function POST(req: NextRequest) {
     await upsertTalentSetting({
       admin,
       preferredLocale,
+      preferProvidedLocale: Boolean(emailOnboardingClaim),
       userId: user.id,
     });
 

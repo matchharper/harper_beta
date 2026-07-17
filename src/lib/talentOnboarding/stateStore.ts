@@ -304,6 +304,7 @@ export async function upsertTalentSetting(args: {
   getExternalRecommendation?: boolean;
   periodicIntervalDays?: number;
   preferredLocale?: string | null;
+  preferProvidedLocale?: boolean;
   recommendationBatchSize?: number;
   settingLocale?: string | null;
 }) {
@@ -315,9 +316,17 @@ export async function upsertTalentSetting(args: {
       ? parseCareerPromptLocale(current?.setting_locale)
       : parseCareerPromptLocale(args.settingLocale);
   const localeProfile = await fetchTalentLocaleProfile({ admin, userId });
+  const providedLocale = parseCareerPromptLocale(args.preferredLocale);
+  const shouldPreferProvidedLocale =
+    args.preferProvidedLocale === true &&
+    args.settingLocale === undefined &&
+    !settingLocale &&
+    Boolean(providedLocale);
   const preferredLocale =
     args.settingLocale === undefined && settingLocale
       ? (parseCareerPromptLocale(current?.preferred_locale) ?? settingLocale)
+      : shouldPreferProvidedLocale && providedLocale
+        ? providedLocale
       : resolveTalentPreferredLocale({
           currentLocation: localeProfile?.current_location,
           nextLocale: args.preferredLocale,

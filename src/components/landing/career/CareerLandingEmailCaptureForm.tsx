@@ -138,10 +138,10 @@ export default function CareerLandingEmailCaptureForm({
           className
         )}
       >
-        <p className="mt-3 text-[16px] font-medium leading-6 text-neutral-950 md:text-[18px]">
+        <p className="mt-3 text-[17px] font-medium leading-6 text-neutral-950 md:text-[18px]">
           {copy.successTitle}
         </p>
-        <p className="mt-1 max-w-[420px] text-[13px] leading-5 text-neutral-600 md:text-sm">
+        <p className="mt-1 max-w-[440px] text-[14px] leading-5 text-neutral-600 md:text-sm">
           {copy.successBody}
         </p>
       </div>

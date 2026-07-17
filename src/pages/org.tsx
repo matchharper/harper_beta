@@ -147,9 +147,9 @@ export default function OrgPage() {
   };
 
   useEffect(() => {
-    if (!router.isReady || !user || !bootstrapQuery.data?.workspace || orgId)
-      return;
+    if (!router.isReady || !user || !bootstrapQuery.data?.workspace) return;
     const nextOrgId = bootstrapQuery.data.workspace.workspaceId;
+    if (orgId === nextOrgId) return;
     router.replace(
       buildOrgHref({ orgId: nextOrgId, roleId: urlRoleId || "all" }),
       undefined,
