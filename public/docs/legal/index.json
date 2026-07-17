@@ -1,0 +1,30 @@
+{
+  "documents": {
+    "referral-terms": {
+      "title": "Harper 추천 프로그램 약관",
+      "locale": "ko",
+      "latest": "1.0.0",
+      "versions": [
+        {
+          "version": "1.0.0",
+          "status": "active",
+          "effectiveDate": "2026-07-16",
+          "path": "/docs/legal/referral-terms/v1.0.0.ko.md"
+        }
+      ]
+    },
+    "privacy-policy": {
+      "title": "Harper 개인정보 처리방침",
+      "locale": "ko",
+      "latest": "1.0.0",
+      "versions": [
+        {
+          "version": "1.0.0",
+          "status": "active",
+          "effectiveDate": "2026-07-16",
+          "path": "/docs/legal/privacy-policy/v1.0.0.ko.md"
+        }
+      ]
+    }
+  }
+}

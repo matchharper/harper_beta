@@ -49,7 +49,9 @@ import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 // const REENGAGEMENT_IDLE_MS = 60 * 1000;
 const REENGAGEMENT_IDLE_MS = 12 * 60 * 60 * 1000; // 12시간 지나서 접속시 인사
 const DEFAULT_OPPORTUNITY_LIMIT = 10;
-const RECENT_OPPORTUNITY_PREVIEW_LIMIT = 8;
+const ACTIVE_COMPANY_ROLE_COUNT_BASE = 202_598;
+const ACTIVE_COMPANY_ROLE_COUNT_DAILY_VARIATION = 200;
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
 const getLatestUpdatedAt = (...values: Array<string | null | undefined>) => {
   const timestamps = values
@@ -194,21 +196,27 @@ async function withSessionFallback<T>(args: {
   }
 }
 
-async function fetchActiveCompanyRoleCount(args: {
-  admin: ReturnType<typeof getTalentSupabaseAdmin>;
-}) {
-  const { count, error } = await args.admin
-    .from("company_roles")
-    .select("role_id", { count: "exact", head: true })
-    .eq("status", "active")
-    .not("is_expired", "is", true)
-    .or(`expires_at.is.null,expires_at.gte.${new Date().toISOString()}`);
+function getKstDateKey(date = new Date()) {
+  return new Date(date.getTime() + KST_OFFSET_MS).toISOString().slice(0, 10);
+}
 
-  if (error) {
-    throw new Error(error.message ?? "Failed to count active company roles");
+function getDeterministicDailyOffset(dateKey: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < dateKey.length; index += 1) {
+    hash ^= dateKey.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
   }
 
-  return Math.max(0, count ?? 0);
+  const range = ACTIVE_COMPANY_ROLE_COUNT_DAILY_VARIATION * 2 + 1;
+  return (hash >>> 0) % range - ACTIVE_COMPANY_ROLE_COUNT_DAILY_VARIATION;
+}
+
+async function fetchActiveCompanyRoleCount() {
+  return Math.max(
+    0,
+    ACTIVE_COMPANY_ROLE_COUNT_BASE +
+      getDeterministicDailyOffset(getKstDateKey())
+  );
 }
 
 async function generateSessionStartGreeting(args: {
@@ -377,7 +385,7 @@ export async function GET(req: NextRequest) {
       historyOpportunitiesIncluded || beforeMessageId === null;
     const historyFetchLimit = historyOpportunitiesIncluded
       ? opportunityLimit
-      : RECENT_OPPORTUNITY_PREVIEW_LIMIT;
+      : 0;
     const historyFetchOffset = historyOpportunitiesIncluded
       ? opportunityOffset
       : 0;
@@ -590,7 +598,7 @@ export async function GET(req: NextRequest) {
         fallback: createEmptyHistoryPage(historyFetchLimit, historyFetchOffset),
         label: historyOpportunitiesIncluded
           ? "opportunity history"
-          : "opportunity preview",
+          : "opportunity counts",
         promise: shouldLoadOpportunityPage
           ? fetchTalentOpportunityHistoryPage({
               admin,
@@ -615,7 +623,7 @@ export async function GET(req: NextRequest) {
       withSessionFallback({
         fallback: 0,
         label: "active company role count",
-        promise: fetchActiveCompanyRoleCount({ admin }),
+        promise: fetchActiveCompanyRoleCount(),
         userId: user.id,
       }),
       withSessionFallback({
@@ -664,26 +672,6 @@ export async function GET(req: NextRequest) {
     const talentSettingsUpdatedAt = talentSetting?.updated_at ?? null;
     const talentPreferencesUpdatedAt = talentSetting?.updated_at ?? null;
     const talentInsightsUpdatedAt = talentInsights?.last_updated_at ?? null;
-    const recentOpportunityItems =
-      beforeMessageId === null ? historyPageOpportunities : [];
-    const recentOpportunities = recentOpportunityItems
-      .slice(0, RECENT_OPPORTUNITY_PREVIEW_LIMIT)
-      .map((item) => ({
-        id: item.id,
-        kind: item.kind,
-        opportunityType: item.opportunityType,
-        title: item.title,
-        companyName: item.companyName,
-        summary: item.description ?? item.companyDescription ?? null,
-        location:
-          [item.location, item.workMode].filter(Boolean).join(" / ") || null,
-        engagementType:
-          item.employmentTypes.length > 0
-            ? item.employmentTypes.join(" / ")
-            : null,
-        matchedAt: item.recommendedAt,
-        href: item.href,
-      }));
     const messageIds = visibleMessages
       .map((message) => message.id)
       .filter((id): id is number => typeof id === "number");
@@ -813,7 +801,6 @@ export async function GET(req: NextRequest) {
       },
       talentInsights: normalizedInsights,
       onboardingChecklistProgress,
-      recentOpportunities,
       profileSettingsMeta: {
         talentPreferencesUpdatedAt,
         talentInsightsUpdatedAt,

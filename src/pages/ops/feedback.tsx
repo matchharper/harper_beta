@@ -302,6 +302,7 @@ export default function OpsFeedbackPage() {
   const [notice, setNotice] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [sending, setSending] = useState(false);
+  const hasLoadedInitialFeedbackRef = useRef(false);
   const selectedIdRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -313,7 +314,7 @@ export default function OpsFeedbackPage() {
     [items, selectedId]
   );
 
-  const loadFeedback = useCallback(async () => {
+  const loadFeedback = useCallback(async (preferredId?: number | null) => {
     setLoading(true);
     setError("");
     try {
@@ -322,10 +323,12 @@ export default function OpsFeedbackPage() {
       );
       setItems(payload.items);
 
-      const queryId = getQueryFeedbackId(router.query.feedbackId);
       setSelectedId((currentSelectedId) => {
-        if (queryId && payload.items.some((item) => item.id === queryId)) {
-          return queryId;
+        if (
+          preferredId &&
+          payload.items.some((item) => item.id === preferredId)
+        ) {
+          return preferredId;
         }
         const preservedId = currentSelectedId ?? selectedIdRef.current;
         if (
@@ -345,15 +348,38 @@ export default function OpsFeedbackPage() {
     } finally {
       setLoading(false);
     }
-  }, [router.query.feedbackId]);
+  }, []);
 
   useEffect(() => {
+    if (!router.isReady || hasLoadedInitialFeedbackRef.current) return;
+
     const timeoutId = window.setTimeout(() => {
-      void loadFeedback();
+      if (hasLoadedInitialFeedbackRef.current) return;
+      hasLoadedInitialFeedbackRef.current = true;
+      void loadFeedback(getQueryFeedbackId(router.query.feedbackId));
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, [loadFeedback]);
+  }, [loadFeedback, router.isReady, router.query.feedbackId]);
+
+  useEffect(() => {
+    if (!router.isReady || items.length === 0) return;
+
+    const queryId = getQueryFeedbackId(router.query.feedbackId);
+    if (!queryId || !items.some((item) => item.id === queryId)) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setSelectedId((currentSelectedId) => {
+        if (currentSelectedId === queryId) return currentSelectedId;
+        setDraft("");
+        setError("");
+        setNotice("");
+        return queryId;
+      });
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [items, router.isReady, router.query.feedbackId]);
 
   const selectFeedback = useCallback(
     (id: number) => {
@@ -442,7 +468,7 @@ export default function OpsFeedbackPage() {
         actions={
           <BareButton
             type="button"
-            onClick={() => void loadFeedback()}
+            onClick={() => void loadFeedback(selectedIdRef.current)}
             disabled={loading}
             className={cx(opsTheme.buttonSecondary, "h-9 px-3")}
           >

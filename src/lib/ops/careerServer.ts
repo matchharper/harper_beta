@@ -2868,7 +2868,7 @@ async function fetchEmailReplyJobMailItems(args: {
   const { data: jobs, error: jobsError } = await args.admin
     .from("email_reply_jobs")
     .select(
-      "id, inbound_event_id, conversation_id, user_message_id, assistant_message_id, status, resend_email_id, processed_at, created_at, updated_at"
+      "id, inbound_event_id, user_message_id, assistant_message_id, status, resend_email_id, processed_at, created_at, updated_at"
     )
     .eq("talent_id", args.userId)
     .order("created_at", { ascending: false })

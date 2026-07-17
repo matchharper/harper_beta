@@ -2,6 +2,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/router";
 import { supabase } from "@/lib/supabase";
+import { trackSignUp } from "@/lib/ga";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { finalizePendingTalentCapture } from "@/lib/talentCapture/client";
 import { buildLandingLoginEmailType } from "@/lib/landingLogTypes";
@@ -45,7 +46,12 @@ export default function AuthCallback() {
       const flow = getQueryText(router.query.flow);
       const rawNext =
         typeof router.query.next === "string" ? router.query.next : "";
-      const nextPath = rawNext.startsWith("/") ? rawNext : "/invitation";
+      const fallbackNextPath =
+        flow === "talent_capture" ? "/career" : "/invitation";
+      const nextPath =
+        rawNext.startsWith("/") && !rawNext.startsWith("//")
+          ? rawNext
+          : fallbackNextPath;
       const countryLang =
         typeof router.query.cl === "string" ? router.query.cl : null;
       const abtestType =
@@ -59,11 +65,12 @@ export default function AuthCallback() {
       const inviteToken =
         getQueryText(router.query.invite) ||
         getNextPathParam(nextPath, "invite");
-      const mail =
+      const rawMail =
         getQueryText(router.query.mail) || getNextPathParam(nextPath, "mail");
       const emailOnboardingToken =
         getQueryText(router.query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM]) ||
         getNextPathParam(nextPath, CAREER_EMAIL_ONBOARDING_TOKEN_PARAM);
+      const mail = emailOnboardingToken ? "" : rawMail;
       const code =
         typeof router.query.code === "string" ? router.query.code : "";
 
@@ -140,6 +147,12 @@ export default function AuthCallback() {
           router.replace("?error=talent_profile_upsert_failed");
           return;
         }
+        if (bootstrapJson?.created === true) {
+          trackSignUp({
+            flow: "talent_capture",
+            method: "auth_callback",
+          });
+        }
 
         try {
           await finalizePendingTalentCapture(accessToken);
@@ -166,6 +179,12 @@ export default function AuthCallback() {
         console.error("bootstrap error:", bootstrapJson);
         router.replace("?error=profile_upsert_failed");
         return;
+      }
+      if (bootstrapJson?.created === true) {
+        trackSignUp({
+          flow: "company",
+          method: "auth_callback",
+        });
       }
 
       await useCompanyUserStore.getState().load(user.id);

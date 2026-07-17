@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { SessionResponse } from "@/components/career/types";
 import { getErrorMessage } from "./careerHelpers";
 import type { FetchWithAuth } from "./useCareerApi";
+import { trackSignUp } from "@/lib/ga";
 import { getCareerSignupAttributionPayload } from "@/lib/career/signupAttribution";
 import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
 import { getInitialClientLocalePreference } from "@/i18n/useMessage";
@@ -112,6 +113,13 @@ export const useCareerSession = ({
         getErrorMessage(payload, tCareer(H.sessionBootstrapFailed))
       );
     }
+    const bootstrapPayload = await bootstrapRes.json().catch(() => ({}));
+    if (bootstrapPayload?.created === true) {
+      trackSignUp({
+        flow: "career_session",
+        method: "email_or_existing_session",
+      });
+    }
 
     const sessionParams = new URLSearchParams({
       locale: requestLocale,
@@ -184,6 +192,7 @@ export const useCareerSession = ({
     if (!payload) return null;
 
     return {
+      conversation: payload.conversation,
       messages: Array.isArray(payload.messages) ? payload.messages : [],
       nextBeforeMessageId:
         typeof payload.nextBeforeMessageId === "number"

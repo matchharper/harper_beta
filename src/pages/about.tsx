@@ -24,56 +24,16 @@ type AboutPageProps = {
 
 const ABOUT_COPY = {
   ko: {
-    appBar: {
-      workflow: "제품 화면",
-      difference: "다른점",
-      voices: "후기",
-      forCompanies: "For Companies",
-      join: "Join",
-    },
     eyebrow: "[ 뛰어난 분들을 모십니다. ]",
     roleIntro:
       "저희의 비전에 공감하시는 분들은 아래 역할을 클릭해서 Harper에게 알려주세요.",
     thanks: "방문해주셔서 감사합니다.",
-    footer: {
-      start: "시작하기",
-      howItWorks: "How it works",
-      successStories: "Success stories",
-      forTalent: "For Talent",
-      forCompanies: "For Companies",
-      company: "Company",
-      harperForCompanies: "Harper for Companies",
-      scheduleCall: "Schedule a call",
-      blog: "Blog",
-      linkedin: "LinkedIn",
-      contact: "문의하기",
-    },
   },
   en: {
-    appBar: {
-      workflow: "Product",
-      difference: "Difference",
-      voices: "Stories",
-      forCompanies: "For Companies",
-      join: "Join",
-    },
     eyebrow: "[ We are looking for exceptional builders. ]",
     roleIntro:
       "If Harper's vision resonates with you, click a role below and let Harper know.",
     thanks: "Thanks for visiting.",
-    footer: {
-      start: "Get started",
-      howItWorks: "How it works",
-      successStories: "Success stories",
-      forTalent: "For Talent",
-      forCompanies: "For Companies",
-      company: "Company",
-      harperForCompanies: "Harper for Companies",
-      scheduleCall: "Schedule a call",
-      blog: "Blog",
-      linkedin: "LinkedIn",
-      contact: "Contact",
-    },
   },
 } as const;
 
@@ -143,7 +103,7 @@ export default function AboutPage({ harperJobs, locale }: AboutPageProps) {
         <CareerAppBar
           careerStartHref={careerStartHref}
           onCareerStartClick={handleCareerStartClick}
-          labels={copy.appBar}
+          locale={aboutLocale}
           sectionHrefPrefix="/"
           bgColor="neutral-100"
         />
@@ -225,7 +185,6 @@ export default function AboutPage({ harperJobs, locale }: AboutPageProps) {
         <CareerLandingFooter
           careerStartHref={careerStartHref}
           onCareerStartClick={handleCareerStartClick}
-          labels={copy.footer}
           locale={aboutLocale}
           onLocaleChange={setAboutLocale}
         />

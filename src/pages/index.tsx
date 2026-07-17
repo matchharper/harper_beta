@@ -1,7 +1,12 @@
 import Reveal from "@/components/landing/Animation/Reveal";
 import CareerAppBar from "@/components/landing/career/CareerAppBarNew";
+import CareerLandingEmailCaptureForm from "@/components/landing/career/CareerLandingEmailCaptureForm";
 import TalentSocialProof from "@/components/landing/career/TalentSocialProof";
 import { useCareerLandingStart } from "@/hooks/useCareerLandingStart";
+import {
+  isCareerEmailFirstVariant,
+  useCareerSignupFlowExperiment,
+} from "@/hooks/useCareerSignupFlowExperiment";
 import type { GetServerSideProps } from "next";
 import Head from "next/head";
 import Image from "next/image";
@@ -36,7 +41,7 @@ import {
   type MotionStyle,
   type MotionValue,
 } from "motion/react";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import type React from "react";
 import CareerLandingFooter from "@/components/landing/CareerLandingFooter";
 import {
@@ -55,13 +60,18 @@ import {
   usesCareerLandingHeroCopyB,
   type CareerLandingHeroCopyAbtestType,
 } from "@/lib/career/utm";
+import { CAREER_EMAIL_ONBOARDING_VARIANT } from "@/lib/careerEmailOnboarding/constants";
 import { useRouter } from "next/router";
+import {
+  captureTalentNetworkReferralFromCurrentLocation,
+  TALENT_NETWORK_REFERRAL_SOURCE_LANDING_PAGE,
+} from "@/lib/talentNetworkReferral";
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://matchharper.com")
   .trim()
   .replace(/\/$/, "");
 const LANDING_HOME_URL = `${SITE_URL}/`;
-const LANDING_OG_IMAGE_URL = `${SITE_URL}/images/usemain.png`;
+const LANDING_OG_IMAGE_URL = `${SITE_URL}/images/logos/thumbnail.png`;
 const LANDING_LOGO_URL = `${SITE_URL}/images/logo.png`;
 const LINKEDIN_COMPANY_URL = "https://www.linkedin.com/company/matchharper/";
 const LANDING_LOCALE_PATHS: Record<Locale, string> = {
@@ -101,7 +111,7 @@ const ui = {
   sectionY: "py-20 md:py-32",
   btn: "inline-flex h-11 items-center justify-center gap-2 rounded-full border px-5 font-medium shadow-sm transition-colors",
   btnPrimary:
-    "border-black bg-black text-white hover:bg-neutral-800 px-5 md:px-7 h-13 md:h-15 text-base md:text-lg font-medium",
+    "border-black bg-black text-white hover:bg-neutral-800 px-5 md:px-6 h-12 md:h-14 text-base md:text-md font-medium",
   btnSecondary:
     "border-black/10 bg-white text-neutral-950 hover:bg-neutral-100",
 };
@@ -110,26 +120,6 @@ type LandingCopy = {
   meta: {
     title: string;
     description: string;
-  };
-  appBar: {
-    workflow: string;
-    difference: string;
-    voices: string;
-    forCompanies: string;
-    join: string;
-  };
-  footer: {
-    start: string;
-    howItWorks: string;
-    successStories: string;
-    forTalent: string;
-    forCompanies: string;
-    company: string;
-    harperForCompanies: string;
-    scheduleCall: string;
-    blog: string;
-    linkedin: string;
-    contact: string;
   };
   socialProofTitle: string;
   hero: {
@@ -216,26 +206,6 @@ const LANDING_COPY = {
       title: "Harper - Your Career Agent",
       description:
         "Harper는 엔지니어의 기준을 대화로 이해하고, 맞는 회사와 포지션만 선별해 브리핑한 뒤 관심 있는 기회만 직접 연결합니다.",
-    },
-    appBar: {
-      workflow: "제품 화면",
-      difference: "다른점",
-      voices: "후기",
-      forCompanies: "For Companies",
-      join: "Join",
-    },
-    footer: {
-      start: "시작하기",
-      howItWorks: "How it works",
-      successStories: "Success stories",
-      forTalent: "For Talent",
-      forCompanies: "For Companies",
-      company: "Company",
-      harperForCompanies: "Harper for Companies",
-      scheduleCall: "Schedule a call",
-      blog: "Blog",
-      linkedin: "LinkedIn",
-      contact: "문의하기",
     },
     socialProofTitle: "이곳의 인재들이 신뢰합니다.",
     hero: {
@@ -485,29 +455,9 @@ const LANDING_COPY = {
       description:
         "Assign your next move to a private Agent. With just one conversation, Harper remembers your context, curates the perfect roles, and connects you directly with decision-makers.",
     },
-    appBar: {
-      workflow: "Product",
-      difference: "Why Harper",
-      voices: "Stories",
-      forCompanies: "For Companies",
-      join: "Join",
-    },
-    footer: {
-      start: "Meet your Agent",
-      howItWorks: "How it works",
-      successStories: "Success stories",
-      forTalent: "For Talent",
-      forCompanies: "For Companies",
-      company: "Company",
-      harperForCompanies: "Harper for Companies",
-      scheduleCall: "Schedule a call",
-      blog: "Blog",
-      linkedin: "LinkedIn",
-      contact: "Contact",
-    },
     socialProofTitle: "Trusted by top engineers from",
     hero: {
-      title: ["Your Career on", "Autopilot."],
+      title: ["Your Career on Autopilot."],
       body: [
         "Assign your next move to a private Agent.",
         "With one conversation, Harper remembers your context, curates the perfect roles, and connects you directly with decision-makers.",
@@ -2069,18 +2019,64 @@ export default function LandingKoVfPage({
     ? HERO_BODY_VARIANT_B[landingLocale]
     : copy.hero.body;
   const heroTitleClassName = cn(
-    "text-center",
-    text.h1,
-    landingLocale === "en" &&
-      "text-[36px] sm:text-[52px] md:text-[60px] leading-[1.14]"
+    "text-neutral-950 text-center",
+    landingLocale === "en"
+      ? "text-[32px] font-semibold sm:text-[40px] md:text-[44px] leading-[1.14]"
+      : "text-[28px] font-semibold leading-[1.24] sm:text-[38px] md:text-[42px]"
   );
-  const { careerStartHref, handleCareerStartClick } = useCareerLandingStart({
-    abtestType: heroCopyAbtestType,
+  const signupFlowExperiment = useCareerSignupFlowExperiment();
+  const isEmailFirstTreatment =
+    signupFlowExperiment.ready &&
+    isCareerEmailFirstVariant(signupFlowExperiment.variant);
+  const {
+    addLandingLog,
+    careerStartHref,
+    countryLang,
+    handleCareerStartClick,
+    isMobile,
+    landingId,
+    marketingSource,
+  } = useCareerLandingStart({
+    abtestType: signupFlowExperiment.abtestType,
+    landingIdOverride: signupFlowExperiment.localId,
+    trackingEnabled: signupFlowExperiment.ready,
   });
+  const emailCaptureRef = useRef<HTMLDivElement | null>(null);
+  const emailCaptureHref = "#email-capture";
+  const handleEmailCaptureFocus = useCallback(
+    (event: React.MouseEvent<HTMLAnchorElement>) => {
+      event.preventDefault();
+      emailCaptureRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+      window.setTimeout(() => {
+        emailCaptureRef.current
+          ?.querySelector<HTMLInputElement>('input[type="email"]')
+          ?.focus();
+      }, 360);
+    },
+    []
+  );
+  const effectiveCareerStartHref = isEmailFirstTreatment
+    ? emailCaptureHref
+    : careerStartHref;
+  const effectiveCareerStartClick = isEmailFirstTreatment
+    ? handleEmailCaptureFocus
+    : handleCareerStartClick;
   const companyMeetingRequestModal = useCompanyMeetingRequestModal({
     locale: landingLocale,
     defaultPagePath: "/",
   });
+  useEffect(() => {
+    if (!router.isReady || typeof window === "undefined") return;
+
+    void captureTalentNetworkReferralFromCurrentLocation({
+      source: TALENT_NETWORK_REFERRAL_SOURCE_LANDING_PAGE,
+    }).catch((error) => {
+      console.warn("[landing] referral capture failed:", error);
+    });
+  }, [router.asPath, router.isReady]);
   const handleLandingLocaleChange = (nextLocale: Locale) => {
     setLandingLocale(nextLocale);
     void router.push(LANDING_LOCALE_PATHS[nextLocale]);
@@ -2154,8 +2150,8 @@ export default function LandingKoVfPage({
           property="og:image:type"
           content="image/png"
         />
-        <meta key="og:image:width" property="og:image:width" content="2906" />
-        <meta key="og:image:height" property="og:image:height" content="1898" />
+        <meta key="og:image:width" property="og:image:width" content="1360" />
+        <meta key="og:image:height" property="og:image:height" content="944" />
         <meta
           key="twitter:card"
           name="twitter:card"
@@ -2232,7 +2228,7 @@ export default function LandingKoVfPage({
         <CareerAppBar
           careerStartHref={careerStartHref}
           onCareerStartClick={handleCareerStartClick}
-          labels={copy.appBar}
+          locale={landingLocale}
         />
 
         <main>
@@ -2243,21 +2239,37 @@ export default function LandingKoVfPage({
               <Reveal once blur={0} distance={20}>
                 <div className="flex flex-col items-center justify-center gap-4 md:gap-8">
                   <h1 className={heroTitleClassName}>
-                    {copy.hero.title[0]}
-                    <br />
-                    {copy.hero.title[1]}
+                    <Lines lines={copy.hero.title} />
                   </h1>
-                  <p className="max-w-[560px] text-center text-[15px] leading-[1.45] text-neutral-700 md:text-[18px]">
+                  <p className="max-w-[560px] text-center font-normal text-[15px] leading-[1.4] text-neutral-700 md:text-[18px]">
                     <Lines lines={heroBody} />
                   </p>
-                  <div className="mt-4 md:mt-4">
-                    <Link
-                      href={careerStartHref}
-                      onClick={handleCareerStartClick}
-                      className={cx(ui.btn, ui.btnPrimary)}
-                    >
-                      {copy.hero.cta}
-                    </Link>
+                  <div
+                    id="email-capture"
+                    ref={emailCaptureRef}
+                    className="mt-4 w-full flex justify-center md:mt-4"
+                  >
+                    {isEmailFirstTreatment ? (
+                      <CareerLandingEmailCaptureForm
+                        abtestType={signupFlowExperiment.abtestType}
+                        addLandingLog={addLandingLog}
+                        countryLang={countryLang}
+                        isMobile={isMobile}
+                        localId={landingId}
+                        locale={landingLocale}
+                        pagePath={router.asPath || "/"}
+                        source={marketingSource}
+                        variant={CAREER_EMAIL_ONBOARDING_VARIANT}
+                      />
+                    ) : (
+                      <Link
+                        href={careerStartHref}
+                        onClick={handleCareerStartClick}
+                        className={cx(ui.btn, ui.btnPrimary)}
+                      >
+                        {copy.hero.cta}
+                      </Link>
+                    )}
                     {/* <a href="#workflow" className={cx(ui.btn, ui.btnSecondary)}>
                       {copy.hero.secondaryCta}
                     </a> */}
@@ -2527,8 +2539,8 @@ export default function LandingKoVfPage({
 
           <OpportunityScroller
             copy={copy.opportunities}
-            careerStartHref={careerStartHref}
-            onCareerStartClick={handleCareerStartClick}
+            careerStartHref={effectiveCareerStartHref}
+            onCareerStartClick={effectiveCareerStartClick}
           />
 
           <AudienceSection audience={copy.audience} />
@@ -2538,7 +2550,7 @@ export default function LandingKoVfPage({
               <Reveal once blur={0} distance={20}>
                 <div className="flex flex-col gap-4 items-center justify-center text-center">
                   <h2 className={`${text.h2}`}>
-                    {copy.cta.title[0]} {copy.cta.title[1]}
+                    <Lines lines={copy.cta.title} />
                   </h2>
                   {copy.cta.desc && (
                     <p
@@ -2546,13 +2558,29 @@ export default function LandingKoVfPage({
                       dangerouslySetInnerHTML={{ __html: copy.cta.desc }}
                     />
                   )}
-                  <Link
-                    href={careerStartHref}
-                    onClick={handleCareerStartClick}
-                    className={cx(ui.btn, ui.btnPrimary, "mt-8")}
-                  >
-                    {copy.cta.button}
-                  </Link>
+                  {isEmailFirstTreatment ? (
+                    <CareerLandingEmailCaptureForm
+                      abtestType={signupFlowExperiment.abtestType}
+                      addLandingLog={addLandingLog}
+                      className="mt-8"
+                      countryLang={countryLang}
+                      fieldClassName="bg-neutral-100"
+                      isMobile={isMobile}
+                      localId={landingId}
+                      locale={landingLocale}
+                      pagePath={router.asPath || "/"}
+                      source={marketingSource}
+                      variant={CAREER_EMAIL_ONBOARDING_VARIANT}
+                    />
+                  ) : (
+                    <Link
+                      href={effectiveCareerStartHref}
+                      onClick={effectiveCareerStartClick}
+                      className={cx(ui.btn, ui.btnPrimary, "mt-8")}
+                    >
+                      {copy.cta.button}
+                    </Link>
+                  )}
                   <div
                     className={cx("text-sm md:text-sm text-neutral-700 italic")}
                   >
@@ -2565,12 +2593,11 @@ export default function LandingKoVfPage({
         </main>
 
         <CareerLandingFooter
-          careerStartHref={careerStartHref}
-          onCareerStartClick={handleCareerStartClick}
+          careerStartHref={effectiveCareerStartHref}
+          onCareerStartClick={effectiveCareerStartClick}
           onScheduleCallClick={companyMeetingRequestModal.openModal}
           locale={landingLocale}
           onLocaleChange={handleLandingLocaleChange}
-          labels={copy.footer}
         />
       </div>
     </MessagesProvider>

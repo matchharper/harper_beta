@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
 
     const payload = await queueManualInternalRecommendationRun({
       reason: body.reason ?? null,
-      requestedBy: user.email ?? user.id,
+      requestedBy: user.email ?? null,
       roleId,
       userId,
     });

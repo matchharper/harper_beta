@@ -92,7 +92,7 @@ const COPY: Record<WidgetLocale, WidgetCopy> = {
     replyNotice:
       "이메일과 현재 채팅창을 통해 답을 드릴게요.<br />연락해주셔서 감사합니다.",
     submitError: "메시지를 보내지 못했습니다.",
-    subtitle: "메시지를 남겨주시면 Harper 팀이 확인하고 답변드릴게요.",
+    subtitle: "메시지를 남겨주시면 확인하고 답변드릴게요.",
   },
   en: {
     cancel: "Cancel",
@@ -191,7 +191,7 @@ function EmptyState({ copy }: { copy: WidgetCopy }) {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.08, duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-      className="mx-auto flex max-w-[240px] flex-1 flex-col items-center justify-center px-5 text-center"
+      className="mx-auto flex max-w-[320px] flex-1 flex-col items-center justify-center px-5 text-center"
     >
       <h3 className="text-[16px] font-semibold leading-6 text-neutral-primary">
         {copy.headline}

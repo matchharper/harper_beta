@@ -22,7 +22,6 @@ import {
   captureTalentNetworkReferralVisit,
   copyTextToClipboard,
   createTalentNetworkReferralLink,
-  isTalentNetworkReferralSource,
   readTalentNetworkStoredReferral,
   TALENT_NETWORK_REFERRAL_QUERY_KEY,
   TALENT_NETWORK_REFERRAL_SOURCE_LANDING_FOOTER,
@@ -50,6 +49,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { BareButton } from "@/components/ui/button";
 import { Input as UiInput } from "@/components/ui/input";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
+import { useCareerT } from "@/i18n/useCareerT";
 
 type CompanyRequest = {
   id: string;
@@ -754,6 +754,8 @@ const ReferralShareModal = ({
   onEmailChange: (value: string) => void;
   onSubmit: () => void;
 }) => {
+  const t = useCareerT();
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -763,7 +765,10 @@ const ReferralShareModal = ({
     >
       <motion.button
         type="button"
-        aria-label="공유 모달 닫기"
+        aria-label={t(
+          "career.referral.network_share_modal.close_aria",
+          "공유 모달 닫기"
+        )}
         onClick={onClose}
         className="absolute inset-0 bg-black/10 backdrop-blur-[2px]"
       />
@@ -781,20 +786,26 @@ const ReferralShareModal = ({
           onClick={onClose}
           disabled={isSubmitting}
           className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-neutral-muted transition hover:bg-black/5 hover:text-neutral-muted disabled:cursor-not-allowed disabled:opacity-40"
-          aria-label="공유 모달 닫기"
+          aria-label={t(
+            "career.referral.network_share_modal.close_aria",
+            "공유 모달 닫기"
+          )}
         >
           <X className="h-4 w-4" />
         </BareButton>
 
         <div className="pr-7">
           <h2 className="text-base font-medium tracking-[-0.03em] text-neutral-primary">
-            공유 링크 생성
+            {t(
+              "career.referral.network_share_modal.title",
+              "공유 링크 생성"
+            )}
           </h2>
         </div>
 
         <div className="mt-5">
           <label className="mb-2 block text-sm font-medium tracking-[-0.02em] text-neutral-muted">
-            이메일
+            {t("career.referral.network_share_modal.email_label", "이메일")}
           </label>
           <UiInput
             unstyled
@@ -813,7 +824,7 @@ const ReferralShareModal = ({
             disabled={isSubmitting}
             className="inline-flex h-10 items-center justify-center rounded-xl border border-neutral-1000-a05 bg-white/60 px-4 text-sm font-medium text-neutral-muted transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            닫기
+            {t("career.referral.network_share_modal.close", "닫기")}
           </BareButton>
           <BareButton
             type="button"
@@ -824,10 +835,16 @@ const ReferralShareModal = ({
             {isSubmitting ? (
               <>
                 <LoaderCircle className="h-4 w-4 animate-spin" />
-                생성 중...
+                {t(
+                  "career.referral.network_share_modal.creating",
+                  "생성 중..."
+                )}
               </>
             ) : (
-              "공유 링크 생성"
+              t(
+                "career.referral.network_share_modal.create_link",
+                "공유 링크 생성"
+              )
             )}
           </BareButton>
         </div>
@@ -1064,6 +1081,7 @@ const QuickApplyModal = ({
 
 const NetworkPage = () => {
   const router = useRouter();
+  const t = useCareerT();
   const isRouterReady = router.isReady;
   const routerAsPath = router.asPath;
   const routerQuery = router.query;
@@ -1306,7 +1324,11 @@ const NetworkPage = () => {
       Boolean(activeReferralToken)
     );
 
-    setHasReferralHighlight(Boolean(activeReferralToken));
+    const timeoutId = window.setTimeout(() => {
+      setHasReferralHighlight(Boolean(activeReferralToken));
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [routerAsPath, routerQuery]);
 
   useEffect(() => {
@@ -1328,21 +1350,21 @@ const NetworkPage = () => {
     const captureReferral = async () => {
       try {
         const result = await captureTalentNetworkReferralVisit({
+          messages: {
+            visitCaptureFailed: t(
+              "career.referral.network.toast_visit_capture_failed",
+              "공유 유입 기록에 실패했습니다."
+            ),
+          },
           pagePath: window.location.pathname,
           token: referralToken,
           visitorLocalId: landingId,
         });
 
-        if (
-          !result.isSelfVisit &&
-          result.sharerEmail &&
-          isTalentNetworkReferralSource(result.source)
-        ) {
+        if (!result.isSelfVisit) {
           setHasReferralHighlight(true);
           writeTalentNetworkStoredReferral({
             capturedAt: new Date().toISOString(),
-            sharerEmail: result.sharerEmail,
-            sharerName: result.sharerName,
             source: result.source,
             token: referralToken,
           });
@@ -1354,7 +1376,7 @@ const NetworkPage = () => {
     };
 
     void captureReferral();
-  }, [landingId, routerAsPath, routerQuery]);
+  }, [landingId, routerAsPath, routerQuery, t]);
 
   useEffect(() => {
     if (!landingId || !abtestType) return;
@@ -1657,13 +1679,19 @@ const NetworkPage = () => {
       await copyTextToClipboard(shareUrl.toString());
       setCopiedRequestId(request.id);
       showToast({
-        message: "공유 링크가 복사되었습니다.",
+        message: t(
+          "career.referral.network.toast_share_link_copied",
+          "공유 링크가 복사되었습니다."
+        ),
         variant: "white",
       });
     } catch (error) {
       console.error("Failed to copy request link", error);
       showToast({
-        message: "링크 복사에 실패했습니다.",
+        message: t(
+          "career.referral.network.toast_link_copy_failed",
+          "링크 복사에 실패했습니다."
+        ),
         variant: "error",
       });
     }
@@ -1675,7 +1703,10 @@ const NetworkPage = () => {
 
     if (!trimmedEmail) {
       showToast({
-        message: "이메일을 입력해 주세요.",
+        message: t(
+          "career.referral.network.toast_email_required",
+          "이메일을 입력해 주세요."
+        ),
         variant: "white",
       });
       return;
@@ -1683,7 +1714,10 @@ const NetworkPage = () => {
 
     if (!isValidEmail(trimmedEmail)) {
       showToast({
-        message: "유효한 이메일을 입력해 주세요.",
+        message: t(
+          "career.referral.network.toast_email_invalid",
+          "유효한 이메일을 입력해 주세요."
+        ),
         variant: "white",
       });
       return;
@@ -1694,6 +1728,12 @@ const NetworkPage = () => {
     try {
       const { url } = await createTalentNetworkReferralLink({
         email: trimmedEmail,
+        messages: {
+          linkCreateFailed: t(
+            "career.referral.network.toast_share_link_create_failed",
+            "공유 링크 생성에 실패했습니다."
+          ),
+        },
         pagePath: window.location.pathname,
         sharerLocalId: landingId || null,
         source: TALENT_NETWORK_REFERRAL_SOURCE_LANDING_FOOTER,
@@ -1704,13 +1744,19 @@ const NetworkPage = () => {
       setIsShareModalOpen(false);
       setShareEmail("");
       showToast({
-        message: "공유 링크가 복사되었습니다.",
+        message: t(
+          "career.referral.network.toast_share_link_copied",
+          "공유 링크가 복사되었습니다."
+        ),
         variant: "white",
       });
     } catch (error) {
       console.error("Failed to create footer share link", error);
       showToast({
-        message: "공유 링크 생성에 실패했습니다.",
+        message: t(
+          "career.referral.network.toast_share_link_create_failed",
+          "공유 링크 생성에 실패했습니다."
+        ),
         variant: "error",
       });
     } finally {
@@ -2351,19 +2397,6 @@ const NetworkPage = () => {
   //                     openNetworkCta("talent_network_click_last_initiate_match")
   //                   }
   //                 />
-  //                 <div className="flex flex-col items-center gap-2 w-[360px]">
-  //                   <NetworkButton
-  //                     label="Harper 공유하기"
-  //                     variant="secondary"
-  //                     showArrow={false}
-  //                     className="h-11 w-[180px]"
-  //                     onClick={openShareModal}
-  //                   />
-  //                   <div className="whitespace-pre-wrap wrap-break-word px-1 py-0.5 leading-[1.2] w-full text-sm text-center rounded-sm mt-1 text-neutral-muted">
-  //                     링크를 공유받은 사람이 Harper를 통해 채용되면 감사의 의미로
-  //                     양쪽에 300만원 상당의 허먼밀러 의자를 보내드립니다.
-  //                   </div>
-  //                 </div>
   //               </div>
   //             </div>
   //           </Reveal>
@@ -2404,11 +2437,6 @@ const NetworkPage = () => {
   //               onClose={() => setSelectedRequest(null)}
   //               onShare={() => void handleShareRequest(selectedRequest)}
   //               highlightPrimaryCta={hasReferralHighlight}
-  //               shareButtonLabel={
-  //                 copiedRequestId === selectedRequest.id
-  //                   ? "링크 복사됨"
-  //                   : "공유하기"
-  //               }
   //               onGetMatched={() => {
   //                 void addLandingLog(
   //                   `talent_network_click_request_get_matched:${selectedRequest.id}`

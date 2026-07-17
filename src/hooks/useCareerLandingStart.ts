@@ -29,6 +29,7 @@ const CAREER_LANDING_SESSION_GAP_MS = 30 * 60 * 1000;
 
 type UseCareerLandingStartOptions = {
   abtestType?: string;
+  landingIdOverride?: string;
   trackingEnabled?: boolean;
 };
 
@@ -127,6 +128,7 @@ const useCareerStartHref = (
 
 export function useCareerLandingStart({
   abtestType = CAREER_LANDING_ABTEST_TYPE,
+  landingIdOverride,
   trackingEnabled = true,
 }: UseCareerLandingStartOptions = {}) {
   const router = useRouter();
@@ -136,6 +138,7 @@ export function useCareerLandingStart({
   const session = useAuthStore((state) => state.session);
   const authLoading = useAuthStore((state) => state.loading);
   const [landingId, setLandingId] = useState("");
+  const effectiveLandingId = landingIdOverride || landingId;
   const hasLoggedFirstScrollRef = useRef(false);
   const marketingSource = useMemo(() => {
     const querySource =
@@ -152,7 +155,7 @@ export function useCareerLandingStart({
   }, [router.query.source]);
   const careerStartHref = useCareerStartHref(
     marketingSource,
-    landingId,
+    effectiveLandingId,
     abtestType
   );
 
@@ -171,7 +174,8 @@ export function useCareerLandingStart({
         typeof window !== "undefined"
           ? localStorage.getItem(CAREER_UTM_SOURCE_STORAGE_KEY)
           : null;
-      const resolvedLocalId = overrides?.localId || landingId || storedLocalId;
+      const resolvedLocalId =
+        overrides?.localId || effectiveLandingId || storedLocalId;
       const resolvedSource = resolveCareerUtmSource(
         overrides?.source ?? marketingSource ?? storedSource
       );
@@ -200,8 +204,8 @@ export function useCareerLandingStart({
     [
       abtestType,
       countryLang,
+      effectiveLandingId,
       isMobile,
-      landingId,
       marketingSource,
       trackingEnabled,
     ]
@@ -219,7 +223,9 @@ export function useCareerLandingStart({
       querySource ?? savedSource ?? CAREER_UTM_DEFAULT_SOURCE;
     localStorage.setItem(CAREER_UTM_SOURCE_STORAGE_KEY, resolvedSource);
 
-    const savedId = localStorage.getItem(CAREER_LANDING_LOCAL_ID_STORAGE_KEY);
+    const savedId =
+      landingIdOverride ||
+      localStorage.getItem(CAREER_LANDING_LOCAL_ID_STORAGE_KEY);
     const savedAbtestType = localStorage.getItem(
       CAREER_LANDING_LAST_ABTEST_TYPE_KEY
     );
@@ -242,6 +248,19 @@ export function useCareerLandingStart({
     }
 
     queueMicrotask(() => setLandingId(resolvedLandingId));
+
+    if (savedId && !savedAbtestType) {
+      localStorage.setItem(CAREER_LANDING_LAST_ABTEST_TYPE_KEY, abtestType);
+      localStorage.setItem(
+        CAREER_LANDING_LAST_VISIT_AT_KEY,
+        Date.now().toString()
+      );
+      void addLandingLog("new_visit", {
+        localId: savedId,
+        source: resolvedSource,
+      });
+      return;
+    }
 
     if (savedId && savedAbtestType !== abtestType) {
       localStorage.setItem(CAREER_LANDING_LAST_ABTEST_TYPE_KEY, abtestType);
@@ -266,11 +285,17 @@ export function useCareerLandingStart({
         source: querySource,
       });
     }
-  }, [abtestType, addLandingLog, router.asPath, trackingEnabled]);
+  }, [
+    abtestType,
+    addLandingLog,
+    landingIdOverride,
+    router.asPath,
+    trackingEnabled,
+  ]);
 
   useEffect(() => {
     if (!trackingEnabled) return;
-    if (!landingId || typeof window === "undefined") return;
+    if (!effectiveLandingId || typeof window === "undefined") return;
 
     const now = Date.now();
     const lastVisitRaw = localStorage.getItem(CAREER_LANDING_LAST_VISIT_AT_KEY);
@@ -285,11 +310,11 @@ export function useCareerLandingStart({
     }
 
     localStorage.setItem(CAREER_LANDING_LAST_VISIT_AT_KEY, now.toString());
-  }, [addLandingLog, landingId, trackingEnabled]);
+  }, [addLandingLog, effectiveLandingId, trackingEnabled]);
 
   useEffect(() => {
     if (!trackingEnabled) return;
-    if (!landingId || typeof window === "undefined") return;
+    if (!effectiveLandingId || typeof window === "undefined") return;
 
     const handleScroll = () => {
       if (hasLoggedFirstScrollRef.current || window.scrollY <= 0) return;
@@ -300,12 +325,12 @@ export function useCareerLandingStart({
 
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [addLandingLog, landingId, trackingEnabled]);
+  }, [addLandingLog, effectiveLandingId, trackingEnabled]);
 
   useEffect(() => {
     if (!trackingEnabled) return;
     if (
-      !landingId ||
+      !effectiveLandingId ||
       !user?.id ||
       !user.email ||
       typeof window === "undefined"
@@ -315,7 +340,7 @@ export function useCareerLandingStart({
 
     const email = user.email;
     const source = resolveCareerUtmSource(marketingSource);
-    const storageKey = `${CAREER_UTM_LOGIN_LOGGED_STORAGE_PREFIX}:${user.id}:${landingId}:${source}`;
+    const storageKey = `${CAREER_UTM_LOGIN_LOGGED_STORAGE_PREFIX}:${user.id}:${effectiveLandingId}:${source}`;
     if (localStorage.getItem(storageKey)) return;
 
     void (async () => {
@@ -326,7 +351,7 @@ export function useCareerLandingStart({
     })();
   }, [
     addLandingLog,
-    landingId,
+    effectiveLandingId,
     marketingSource,
     trackingEnabled,
     user?.email,
@@ -378,5 +403,13 @@ export function useCareerLandingStart({
     ]
   );
 
-  return { careerStartHref, handleCareerStartClick };
+  return {
+    addLandingLog,
+    careerStartHref,
+    countryLang,
+    handleCareerStartClick,
+    isMobile,
+    landingId: effectiveLandingId,
+    marketingSource,
+  };
 }

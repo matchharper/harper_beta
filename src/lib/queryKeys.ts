@@ -103,21 +103,68 @@ export const queryKeys = {
         filters?.qualityLabel ?? "",
         filters?.limit ?? OPS_COMPANY_MANAGEMENT_PAGE_SIZE,
       ] as const,
-    candidates: (query?: string | null, roleId?: string | null) =>
-      ["opsOpportunity", "candidates", query ?? "", roleId ?? "all"] as const,
-    matches: (roleId?: string | null, candidId?: string | null) =>
+  },
+  opsCompany: {
+    all: ["opsCompany"] as const,
+    waiting: ["opsCompany", "waiting"] as const,
+    members: (filters?: {
+      query?: string | null;
+      workspaceId?: string | null;
+    }) =>
       [
-        "opsOpportunity",
-        "matches",
-        roleId ?? "all",
-        candidId ?? "all",
+        "opsCompany",
+        "members",
+        filters?.workspaceId ?? "",
+        filters?.query ?? "",
       ] as const,
-    recommendations: (roleId?: string | null, talentId?: string | null) =>
+    activity: (filters?: {
+      limit?: number | null;
+      offset?: number | null;
+      workspaceId?: string | null;
+    }) =>
       [
-        "opsOpportunity",
-        "recommendations",
-        roleId ?? "all",
-        talentId ?? "all",
+        "opsCompany",
+        "activity",
+        filters?.workspaceId ?? "",
+        filters?.limit ?? 20,
+        filters?.offset ?? 0,
+      ] as const,
+  },
+  org: {
+    all: ["org"] as const,
+    bootstrap: (orgId?: string | null) =>
+      ["org", "bootstrap", orgId ?? ""] as const,
+    board: (filters?: {
+      query?: string | null;
+      recommendedDate?: string | null;
+      recommendedFromDate?: string | null;
+      recommendedToDate?: string | null;
+      roleId?: string | null;
+      workspaceId?: string | null;
+    }) =>
+      [
+        "org",
+        "board",
+        filters?.workspaceId ?? "",
+        filters?.roleId ?? "all",
+        filters?.recommendedDate ?? "",
+        filters?.recommendedFromDate ?? "",
+        filters?.recommendedToDate ?? "",
+        filters?.query ?? "",
+      ] as const,
+    detail: (filters?: {
+      recommendationId?: string | null;
+      roleId?: string | null;
+      talentId?: string | null;
+      workspaceId?: string | null;
+    }) =>
+      [
+        "org",
+        "detail",
+        filters?.workspaceId ?? "",
+        filters?.roleId ?? "",
+        filters?.talentId ?? "",
+        filters?.recommendationId ?? "",
       ] as const,
   },
   opsMatching: {

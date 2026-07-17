@@ -10,7 +10,14 @@ import {
   OFFICIAL_JOBS_INTERNAL_COPY_ROLE_TITLE,
   OFFICIAL_JOBS_INTERNAL_COPY_SLUG,
 } from "@/lib/officialJobs";
-import { extractEmailFromLandingLoginType } from "@/lib/landingLogTypes";
+import {
+  CAREER_SIGNUP_FLOW_CONTROL_ABTEST_TYPE,
+  CAREER_SIGNUP_FLOW_EMAIL_FIRST_ABTEST_TYPE,
+} from "@/lib/careerEmailOnboarding/constants";
+import {
+  extractEmailFromLandingLoginType,
+  isLandingLogEntryType,
+} from "@/lib/landingLogTypes";
 import { normalizeEmail } from "@/lib/adminMetrics/utils";
 import { supabaseServer } from "@/lib/supabaseServer";
 import type { Database } from "@/types/database.types";
@@ -18,6 +25,7 @@ import type { Database } from "@/types/database.types";
 const BATCH_SIZE = 1000;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const NO_RECOMMENDATION_GRACE_PERIOD_MS = 60 * 60 * 1000;
+const ACCOUNT_DELETED_LOG_TYPE = "career_account_deleted";
 const TOOL_USAGE_LOG_PREFIX = "career_tool_call:";
 const TOOL_FAILURE_LOG_PREFIX = "career_tool_call_failed:";
 const DAILY_USER_STATS_EXTRA_EXCLUDED_EMAILS = [
@@ -63,6 +71,7 @@ type RecommendationRow = Pick<
   Database["public"]["Tables"]["talent_opportunity_recommendation"]["Row"],
   | "id"
   | "talent_id"
+  | "role_id"
   | "opportunity_type"
   | "created_at"
   | "viewed_at"
@@ -92,12 +101,33 @@ type OpportunityDiscoveryRunRow = Pick<
 >;
 type LandingLogRow = Pick<
   Database["public"]["Tables"]["landing_logs"]["Row"],
-  "created_at" | "local_id" | "type"
+  "abtest_type" | "created_at" | "local_id" | "type"
+>;
+type EmailOnboardingLeadRow = Pick<
+  Database["public"]["Tables"]["career_email_onboarding_leads"]["Row"],
+  | "abtest_type"
+  | "converted_user_id"
+  | "created_at"
+  | "email"
+  | "local_id"
+  | "normalized_email"
+  | "profile_ingested_at"
+  | "profile_received_at"
+  | "talent_id"
 >;
 type OfficialJobRow = Pick<
   Database["public"]["Tables"]["official_jobs"]["Row"],
   "company_name" | "role_title" | "slug"
 >;
+type InternalOpportunityRoleRow = Pick<
+  Database["public"]["Tables"]["company_roles"]["Row"],
+  "name" | "role_id"
+> & {
+  company_workspace:
+    | { company_name: string | null }
+    | { company_name: string | null }[]
+    | null;
+};
 
 type FetchPageResult<T> = {
   data: T[] | null;
@@ -119,6 +149,12 @@ export type DailyUserStatsJobRow = {
   viewCount: number;
 };
 
+export type DailyUserStatsJobsSummary = {
+  signupCount: number;
+  talkClickCount: number;
+  viewCount: number;
+};
+
 export type DailyUserStatsInternalConnectionResponseStats = {
   acceptedCount: number;
   endDate: string;
@@ -128,6 +164,28 @@ export type DailyUserStatsInternalConnectionResponseStats = {
   rejectedCount: number;
   startDate: string;
   startIso: string;
+};
+
+export type DailyUserStatsInternalOpportunityStats = {
+  acceptedCount: number;
+  recommendationCount: number;
+  rejectedCount: number;
+};
+
+export type DailyUserStatsInternalOpportunityRecommendationRow = {
+  companyName: string;
+  roleName: string;
+  talentCount: number;
+};
+
+export type DailyUserStatsLandingAbtestRow = {
+  abtestType: string;
+  entryCount: number;
+  label: string;
+  onboardingCompletedCount: number;
+  onboardingCompletedRateFromEntry: number | null;
+  signupSubmittedCount: number;
+  signupSubmittedRateFromEntry: number | null;
 };
 
 export type DailyUserStatsActiveTalentBreakdown = {
@@ -145,6 +203,7 @@ export type DailyUserStatsActiveTalentBreakdown = {
 export type DailyUserStatsReport = {
   activeTalentBreakdown: DailyUserStatsActiveTalentBreakdown;
   activeTalentsCount: number;
+  accountDeletedCount: number;
   callTranscriptMessageCount: number;
   chatMessageCount: number;
   chatUniqueTalentCount: number;
@@ -157,15 +216,22 @@ export type DailyUserStatsReport = {
   failedToolCallCount: number;
   highIntentTalentsCount: number;
   internalConnectionResponseStats: DailyUserStatsInternalConnectionResponseStats | null;
+  internalOpportunityRolling7DayStats: DailyUserStatsInternalOpportunityStats;
+  internalOpportunityRecommendationRows: DailyUserStatsInternalOpportunityRecommendationRow[];
+  internalOpportunityStats: DailyUserStatsInternalOpportunityStats;
   internalRecommendationCount: number;
   jobs: DailyUserStatsJobRow[];
+  jobsSummary: DailyUserStatsJobsSummary;
+  landingAbtestRows: DailyUserStatsLandingAbtestRow[];
   harperMailReplyCount: number;
   mailReplyCount: number;
   mailSentCount: number;
   negativeFeedbackCount: number;
   negativeFeedbackClickedCount: number;
+  newSignupFourPlusChatDropoffCount: number;
   newSignupOnboardingCompletedCount: number;
   newSignupSubmittedCount: number;
+  newVisitorCount: number;
   onboardingCompletedCount: number;
   opportunityDiscoveryFailedRunCount: number;
   period: "daily" | "weekly";
@@ -183,6 +249,13 @@ export type DailyUserStatsReport = {
   userMessageCount: number;
   userMessageUniqueTalentCount: number;
   viewedRecommendationCount: number;
+};
+
+export type DailyUserStatsSlackMessages = {
+  details: string;
+  jobs: string;
+  main: string;
+  tools: string;
 };
 
 type KstDateRange = {
@@ -395,6 +468,65 @@ function countRate(numerator: number, denominator: number) {
   return denominator > 0 ? numerator / denominator : null;
 }
 
+const DAILY_USER_STATS_LANDING_ABTEST_VARIANTS = [
+  {
+    abtestType: CAREER_SIGNUP_FLOW_EMAIL_FIRST_ABTEST_TYPE,
+    label: "Email first",
+  },
+  {
+    abtestType: CAREER_SIGNUP_FLOW_CONTROL_ABTEST_TYPE,
+    label: "Login first",
+  },
+] as const;
+
+function minIso(
+  current: string | null | undefined,
+  candidate: string | null | undefined
+) {
+  if (!candidate) return current ?? null;
+  if (!current) return candidate;
+  return candidate < current ? candidate : current;
+}
+
+function addFirstOccurredAt(
+  map: Map<string, string>,
+  userId: string | null | undefined,
+  occurredAt: string | null | undefined
+) {
+  const normalizedUserId = String(userId ?? "").trim();
+  if (!normalizedUserId || !occurredAt) return;
+
+  const nextValue = minIso(map.get(normalizedUserId), occurredAt);
+  if (nextValue) map.set(normalizedUserId, nextValue);
+}
+
+function addSetValue(
+  map: Map<string, Set<string>>,
+  key: string | null | undefined,
+  value: string | null | undefined
+) {
+  const normalizedKey = String(key ?? "").trim();
+  const normalizedValue = String(value ?? "").trim();
+  if (!normalizedKey || !normalizedValue) return;
+
+  const set = map.get(normalizedKey) ?? new Set<string>();
+  set.add(normalizedValue);
+  map.set(normalizedKey, set);
+}
+
+function hasEventAfterEntry(args: {
+  entryAt: string;
+  eventAtByUserId: Map<string, string>;
+  userIds: Set<string> | undefined;
+}) {
+  if (!args.userIds?.size) return false;
+  for (const userId of args.userIds) {
+    const eventAt = args.eventAtByUserId.get(userId);
+    if (eventAt && eventAt >= args.entryAt) return true;
+  }
+  return false;
+}
+
 function parseLandingLoginEmail(type: string | null | undefined) {
   return normalizeEmail(extractEmailFromLandingLoginType(type)) || null;
 }
@@ -473,28 +605,25 @@ function buildToolRows(logs: LogRow[], failureLogs: LogRow[]) {
     .sort(sortToolRows);
 }
 
-function buildJobRows(args: {
+function buildJobStats(args: {
   excludedEmailSet: Set<string>;
   jobs: OfficialJobRow[];
   landingLogs: LandingLogRow[];
   signedUpEmails: Set<string>;
-}) {
-  const excludedLocalIds = new Set<string>();
+}): { rows: DailyUserStatsJobRow[]; summary: DailyUserStatsJobsSummary } {
+  const excludedLocalIds = buildExcludedLandingLocalIds({
+    excludedEmailSet: args.excludedEmailSet,
+    landingLogs: args.landingLogs,
+  });
+
+  const signupLocalIds = new Set<string>();
+  const talkClickLocalIds = new Set<string>();
+  const viewsBySlug = new Map<string, Set<string>>();
   for (const log of args.landingLogs) {
     const localId = String(log.local_id ?? "").trim();
     if (!localId) continue;
 
-    const email = parseLandingLoginEmail(log.type);
-    if (email && isEmailExcluded(email, args.excludedEmailSet)) {
-      excludedLocalIds.add(localId);
-    }
-  }
-
-  const signupLocalIds = new Set<string>();
-  const viewsBySlug = new Map<string, Set<string>>();
-  for (const log of args.landingLogs) {
-    const localId = String(log.local_id ?? "").trim();
-    if (!localId || excludedLocalIds.has(localId)) continue;
+    if (excludedLocalIds.has(localId)) continue;
 
     const email = parseLandingLoginEmail(log.type);
     if (
@@ -508,15 +637,24 @@ function buildJobRows(args: {
     }
 
     const parsed = parseOfficialJobLandingLogType(log.type);
-    if (parsed?.event !== "job_view" || !parsed.jobSlug) continue;
+    if (!parsed?.jobSlug) continue;
 
-    const views = viewsBySlug.get(parsed.jobSlug) ?? new Set<string>();
-    views.add(localId);
-    viewsBySlug.set(parsed.jobSlug, views);
+    if (parsed.event === "job_view") {
+      const views = viewsBySlug.get(parsed.jobSlug) ?? new Set<string>();
+      views.add(localId);
+      viewsBySlug.set(parsed.jobSlug, views);
+    } else if (parsed.event === "talk_click") {
+      talkClickLocalIds.add(localId);
+    }
+  }
+
+  const allViewLocalIds = new Set<string>();
+  for (const views of viewsBySlug.values()) {
+    for (const localId of views) allViewLocalIds.add(localId);
   }
 
   const jobBySlug = new Map(args.jobs.map((job) => [job.slug, job] as const));
-  return Array.from(viewsBySlug.entries())
+  const rows = Array.from(viewsBySlug.entries())
     .map(([slug, views]) => {
       const job = jobBySlug.get(slug);
       return {
@@ -532,6 +670,223 @@ function buildJobRows(args: {
       if (b.signupCount !== a.signupCount) return b.signupCount - a.signupCount;
       return a.title.localeCompare(b.title);
     });
+
+  return {
+    rows,
+    summary: {
+      signupCount: countIntersection(allViewLocalIds, signupLocalIds),
+      talkClickCount: talkClickLocalIds.size,
+      viewCount: allViewLocalIds.size,
+    },
+  };
+}
+
+function buildExcludedLandingLocalIds(args: {
+  excludedEmailSet: Set<string>;
+  landingLogs: LandingLogRow[];
+}) {
+  const excludedLocalIds = new Set<string>();
+  for (const log of args.landingLogs) {
+    const localId = String(log.local_id ?? "").trim();
+    if (!localId) continue;
+
+    const email = parseLandingLoginEmail(log.type);
+    if (email && isEmailExcluded(email, args.excludedEmailSet)) {
+      excludedLocalIds.add(localId);
+    }
+  }
+
+  return excludedLocalIds;
+}
+
+function countNewVisitors(args: {
+  excludedEmailSet: Set<string>;
+  landingLogs: LandingLogRow[];
+}) {
+  const excludedLocalIds = buildExcludedLandingLocalIds(args);
+  const visitorLocalIds = new Set<string>();
+
+  for (const log of args.landingLogs) {
+    const localId = String(log.local_id ?? "").trim();
+    if (!localId || excludedLocalIds.has(localId)) continue;
+    if (isLandingLogEntryType(log.type)) visitorLocalIds.add(localId);
+  }
+
+  return visitorLocalIds.size;
+}
+
+function buildLandingAbtestRows(args: {
+  emailOnboardingLeads: EmailOnboardingLeadRow[];
+  excludedEmailSet: Set<string>;
+  landingLoginLogs: LandingLogRow[];
+  landingLogs: LandingLogRow[];
+  onboardingEvents: TalentActivityEventRow[];
+  profileSubmitMessages: TalentMessageRow[];
+  signupAndSubmitLogs: LogRow[];
+  talentUsers: TalentUserRow[];
+}): DailyUserStatsLandingAbtestRow[] {
+  const entryAtByVariant = new Map<string, Map<string, string>>();
+  for (const variant of DAILY_USER_STATS_LANDING_ABTEST_VARIANTS) {
+    entryAtByVariant.set(variant.abtestType, new Map<string, string>());
+  }
+
+  const cohortLocalIds = new Set<string>();
+  for (const log of args.landingLogs) {
+    if (!isLandingLogEntryType(log.type)) continue;
+
+    const abtestType = String(log.abtest_type ?? "").trim();
+    const entryAtByLocalId = entryAtByVariant.get(abtestType);
+    if (!entryAtByLocalId) continue;
+
+    const localId = String(log.local_id ?? "").trim();
+    if (!localId) continue;
+
+    const firstEntryAt = minIso(entryAtByLocalId.get(localId), log.created_at);
+    if (!firstEntryAt) continue;
+
+    entryAtByLocalId.set(localId, firstEntryAt);
+    cohortLocalIds.add(localId);
+  }
+
+  const excludedLocalIds = buildExcludedLandingLocalIds({
+    excludedEmailSet: args.excludedEmailSet,
+    landingLogs: [...args.landingLogs, ...args.landingLoginLogs],
+  });
+  const includedTalentUsers = args.talentUsers.filter(
+    (user) => !isEmailExcluded(user.email, args.excludedEmailSet)
+  );
+  const includedUserIds = new Set(
+    includedTalentUsers.map((user) => user.user_id).filter(Boolean)
+  );
+  const isIncludedUserId = (userId: string | null | undefined) => {
+    const normalized = String(userId ?? "").trim();
+    return Boolean(normalized && includedUserIds.has(normalized));
+  };
+
+  const emailToUserIds = new Map<string, Set<string>>();
+  const signupAtByUserId = new Map<string, string>();
+  for (const user of includedTalentUsers) {
+    const email = normalizeEmail(user.email);
+    if (email) addSetValue(emailToUserIds, email, user.user_id);
+    addFirstOccurredAt(signupAtByUserId, user.user_id, user.created_at);
+  }
+
+  const userIdsByLocalId = new Map<string, Set<string>>();
+  for (const log of args.landingLoginLogs) {
+    const localId = String(log.local_id ?? "").trim();
+    if (!localId || !cohortLocalIds.has(localId)) continue;
+
+    const email = parseLandingLoginEmail(log.type);
+    if (!email) continue;
+    if (isEmailExcluded(email, args.excludedEmailSet)) {
+      excludedLocalIds.add(localId);
+      continue;
+    }
+
+    for (const userId of emailToUserIds.get(email) ?? []) {
+      addSetValue(userIdsByLocalId, localId, userId);
+    }
+  }
+
+  const submittedAtByUserId = new Map<string, string>();
+  for (const lead of args.emailOnboardingLeads) {
+    const localId = String(lead.local_id ?? "").trim();
+    if (!localId || !cohortLocalIds.has(localId)) continue;
+
+    const email = normalizeEmail(lead.normalized_email || lead.email);
+    if (email && isEmailExcluded(email, args.excludedEmailSet)) {
+      excludedLocalIds.add(localId);
+      continue;
+    }
+
+    const leadUserIds = [
+      String(lead.talent_id ?? "").trim(),
+      String(lead.converted_user_id ?? "").trim(),
+    ].filter(Boolean);
+    for (const userId of leadUserIds) {
+      addSetValue(userIdsByLocalId, localId, userId);
+    }
+    if (email) {
+      for (const userId of emailToUserIds.get(email) ?? []) {
+        addSetValue(userIdsByLocalId, localId, userId);
+      }
+    }
+
+    addFirstOccurredAt(signupAtByUserId, lead.talent_id, lead.created_at);
+    const profileSubmittedAt = minIso(
+      lead.profile_received_at,
+      lead.profile_ingested_at
+    );
+    addFirstOccurredAt(submittedAtByUserId, lead.talent_id, profileSubmittedAt);
+  }
+
+  for (const log of args.signupAndSubmitLogs) {
+    if (!isIncludedUserId(log.user_id)) continue;
+    if (log.type === "career_signup_completed") {
+      addFirstOccurredAt(signupAtByUserId, log.user_id, log.created_at);
+    } else if (log.type === "career_onboarding_submitted") {
+      addFirstOccurredAt(submittedAtByUserId, log.user_id, log.created_at);
+    }
+  }
+
+  for (const message of args.profileSubmitMessages) {
+    if (!isIncludedUserId(message.user_id)) continue;
+    addFirstOccurredAt(submittedAtByUserId, message.user_id, message.created_at);
+  }
+
+  const completedAtByUserId = new Map<string, string>();
+  for (const event of args.onboardingEvents) {
+    if (event.event_type !== "onboarding_completed") continue;
+    if (!isIncludedUserId(event.talent_id)) continue;
+    addFirstOccurredAt(completedAtByUserId, event.talent_id, event.created_at);
+  }
+
+  return DAILY_USER_STATS_LANDING_ABTEST_VARIANTS.map((variant) => {
+    const entries = Array.from(
+      entryAtByVariant.get(variant.abtestType)?.entries() ?? []
+    ).filter(([localId]) => !excludedLocalIds.has(localId));
+    const entryCount = entries.length;
+    let signupSubmittedCount = 0;
+    let onboardingCompletedCount = 0;
+
+    for (const [localId, entryAt] of entries) {
+      const userIds = userIdsByLocalId.get(localId);
+      const hasSignup = hasEventAfterEntry({
+        entryAt,
+        eventAtByUserId: signupAtByUserId,
+        userIds,
+      });
+      const hasSubmitted = hasEventAfterEntry({
+        entryAt,
+        eventAtByUserId: submittedAtByUserId,
+        userIds,
+      });
+      if (hasSignup && hasSubmitted) signupSubmittedCount += 1;
+
+      if (
+        hasEventAfterEntry({
+          entryAt,
+          eventAtByUserId: completedAtByUserId,
+          userIds,
+        })
+      ) {
+        onboardingCompletedCount += 1;
+      }
+    }
+
+    return {
+      abtestType: variant.abtestType,
+      entryCount,
+      label: variant.label,
+      onboardingCompletedCount,
+      onboardingCompletedRateFromEntry: countRate(
+        onboardingCompletedCount,
+        entryCount
+      ),
+      signupSubmittedCount,
+      signupSubmittedRateFromEntry: countRate(signupSubmittedCount, entryCount),
+    };
+  });
 }
 
 function isUserChatMessage(message: TalentMessageRow) {
@@ -569,6 +924,102 @@ function buildInternalConnectionResponseStats(args: {
   };
 }
 
+function buildInternalOpportunityStats(
+  rows: RecommendationRow[]
+): DailyUserStatsInternalOpportunityStats {
+  const acceptedCount = rows.filter(
+    (row) => normalizeRecommendationFeedback(row.feedback) === "positive"
+  ).length;
+  const rejectedCount = rows.filter(
+    (row) => normalizeRecommendationFeedback(row.feedback) === "negative"
+  ).length;
+
+  return {
+    acceptedCount,
+    recommendationCount: rows.length,
+    rejectedCount,
+  };
+}
+
+function chunkArray<T>(values: T[], chunkSize: number) {
+  const chunks: T[][] = [];
+  for (let index = 0; index < values.length; index += chunkSize) {
+    chunks.push(values.slice(index, index + chunkSize));
+  }
+  return chunks;
+}
+
+function getInternalOpportunityCompanyName(row: InternalOpportunityRoleRow) {
+  const workspace = Array.isArray(row.company_workspace)
+    ? row.company_workspace[0]
+    : row.company_workspace;
+  return String(workspace?.company_name ?? "").trim() || "-";
+}
+
+async function fetchInternalOpportunityRoleRows(roleIds: Iterable<string>) {
+  const normalizedRoleIds = Array.from(
+    new Set(
+      Array.from(roleIds)
+        .map((roleId) => String(roleId ?? "").trim())
+        .filter(Boolean)
+    )
+  );
+  if (normalizedRoleIds.length === 0) return [];
+
+  const rows: InternalOpportunityRoleRow[] = [];
+  for (const chunk of chunkArray(normalizedRoleIds, BATCH_SIZE)) {
+    const { data, error } = await (supabaseServer
+      .from("company_roles")
+      .select(
+        "role_id,name,company_workspace:company_workspace_id(company_name)"
+      )
+      .in("role_id", chunk) as unknown as PromiseLike<
+      FetchPageResult<InternalOpportunityRoleRow>
+    >);
+
+    if (error) throw new Error(error.message || "Failed to load company roles");
+    rows.push(...(data ?? []));
+  }
+
+  return rows;
+}
+
+function buildInternalOpportunityRecommendationRows(args: {
+  recommendations: RecommendationRow[];
+  roles: InternalOpportunityRoleRow[];
+}): DailyUserStatsInternalOpportunityRecommendationRow[] {
+  const roleById = new Map(
+    args.roles.map((role) => [String(role.role_id ?? "").trim(), role] as const)
+  );
+  const talentIdsByRoleId = new Map<string, Set<string>>();
+
+  for (const row of args.recommendations) {
+    const roleId = String(row.role_id ?? "").trim();
+    const talentId = String(row.talent_id ?? "").trim();
+    if (!roleId || !talentId) continue;
+
+    const talentIds = talentIdsByRoleId.get(roleId) ?? new Set<string>();
+    talentIds.add(talentId);
+    talentIdsByRoleId.set(roleId, talentIds);
+  }
+
+  return Array.from(talentIdsByRoleId.entries())
+    .map(([roleId, talentIds]) => {
+      const role = roleById.get(roleId);
+      return {
+        companyName: role ? getInternalOpportunityCompanyName(role) : "-",
+        roleName: String(role?.name ?? "").trim() || roleId,
+        talentCount: talentIds.size,
+      };
+    })
+    .sort((a, b) => {
+      if (b.talentCount !== a.talentCount) return b.talentCount - a.talentCount;
+      const companyCompare = a.companyName.localeCompare(b.companyName);
+      if (companyCompare !== 0) return companyCompare;
+      return a.roleName.localeCompare(b.roleName);
+    });
+}
+
 async function buildUserStatsReport(args: {
   internalConnectionResponseRange?: KstDateRange | null;
   period: DailyUserStatsReport["period"];
@@ -585,6 +1036,10 @@ async function buildUserStatsReport(args: {
   const noRecommendationEligibleEventEndIso = addMillisecondsToIso(
     noRecommendationObservationEndIso,
     -NO_RECOMMENDATION_GRACE_PERIOD_MS
+  );
+  const internalOpportunityRolling7DayRange = getKstRange(
+    addDaysToDateOnly(endDateExclusive, -7),
+    7
   );
   const excludedEmailSet = new Set(DAILY_USER_STATS_EXCLUDED_EMAILS);
 
@@ -606,10 +1061,17 @@ async function buildUserStatsReport(args: {
     failedDiscoveryLegacyRuns,
     noRecommendationOnboardingEvents,
     recommendationTalentRowsBeforeObservationEnd,
+    internalOpportunityRolling7DayRows,
     internalConnectionResponseRows,
+    accountDeletionLogs,
     toolUsageLogs,
     toolFailureLogs,
-    jobLandingLogs,
+    landingLogs,
+    landingAbtestLoginLogs,
+    landingAbtestEmailOnboardingLeads,
+    landingAbtestSignupAndSubmitLogs,
+    landingAbtestProfileSubmitMessages,
+    landingAbtestOnboardingEvents,
     officialJobs,
   ] = await Promise.all([
     fetchAllRows<TalentUserRow>((from, to) =>
@@ -662,7 +1124,7 @@ async function buildUserStatsReport(args: {
       supabaseServer
         .from("talent_opportunity_recommendation")
         .select(
-          "id,talent_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
+          "id,talent_id,role_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
         )
         .gte("created_at", startIso)
         .lt("created_at", endIso)
@@ -673,7 +1135,7 @@ async function buildUserStatsReport(args: {
       supabaseServer
         .from("talent_opportunity_recommendation")
         .select(
-          "id,talent_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
+          "id,talent_id,role_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
         )
         .gte("viewed_at", startIso)
         .lt("viewed_at", endIso)
@@ -684,7 +1146,7 @@ async function buildUserStatsReport(args: {
       supabaseServer
         .from("talent_opportunity_recommendation")
         .select(
-          "id,talent_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
+          "id,talent_id,role_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
         )
         .gte("clicked_at", startIso)
         .lt("clicked_at", endIso)
@@ -695,7 +1157,7 @@ async function buildUserStatsReport(args: {
       supabaseServer
         .from("talent_opportunity_recommendation")
         .select(
-          "id,talent_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
+          "id,talent_id,role_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
         )
         .not("feedback", "is", null)
         .gte("feedback_at", startIso)
@@ -707,7 +1169,7 @@ async function buildUserStatsReport(args: {
       supabaseServer
         .from("talent_opportunity_recommendation")
         .select(
-          "id,talent_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
+          "id,talent_id,role_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
         )
         .not("feedback", "is", null)
         .is("feedback_at", null)
@@ -720,7 +1182,7 @@ async function buildUserStatsReport(args: {
       supabaseServer
         .from("talent_opportunity_recommendation")
         .select(
-          "id,talent_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
+          "id,talent_id,role_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
         )
         .not("saved_stage", "is", null)
         .gte("updated_at", startIso)
@@ -790,12 +1252,23 @@ async function buildUserStatsReport(args: {
           .order("created_at", { ascending: true })
           .range(from, to)
     ),
+    fetchAllRows<RecommendationRow>((from, to) =>
+      supabaseServer
+        .from("talent_opportunity_recommendation")
+        .select(
+          "id,talent_id,role_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
+        )
+        .gte("created_at", internalOpportunityRolling7DayRange.startIso)
+        .lt("created_at", internalOpportunityRolling7DayRange.endIso)
+        .order("created_at", { ascending: true })
+        .range(from, to)
+    ),
     args.internalConnectionResponseRange
       ? fetchAllRows<RecommendationRow>((from, to) =>
           supabaseServer
             .from("talent_opportunity_recommendation")
             .select(
-              "id,talent_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
+              "id,talent_id,role_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
             )
             .gte(
               "created_at",
@@ -809,6 +1282,16 @@ async function buildUserStatsReport(args: {
             .range(from, to)
         )
       : Promise.resolve([]),
+    fetchAllRows<LogRow>((from, to) =>
+      supabaseServer
+        .from("logs")
+        .select("user_id,type,created_at")
+        .eq("type", ACCOUNT_DELETED_LOG_TYPE)
+        .gte("created_at", startIso)
+        .lt("created_at", endIso)
+        .order("id", { ascending: true })
+        .range(from, to)
+    ),
     fetchAllRows<LogRow>((from, to) =>
       supabaseServer
         .from("logs")
@@ -832,13 +1315,79 @@ async function buildUserStatsReport(args: {
     fetchAllRows<LandingLogRow>((from, to) =>
       supabaseServer
         .from("landing_logs")
-        .select("created_at,local_id,type")
-        .or("type.like.official_jobs:%,type.like.login_email:%")
+        .select("abtest_type,created_at,local_id,type")
+        .or(
+          "type.eq.new_visit,type.like.new_visit:%,type.eq.new_session,type.like.new_session:%,type.like.official_jobs:%,type.like.login_email:%"
+        )
         .gte("created_at", startIso)
         .lt("created_at", endIso)
         .order("id", { ascending: true })
         .range(from, to)
     ),
+    args.period === "daily"
+      ? fetchAllRows<LandingLogRow>((from, to) =>
+          supabaseServer
+            .from("landing_logs")
+            .select("abtest_type,created_at,local_id,type")
+            .like("type", "login_email:%")
+            .gte("created_at", startIso)
+            .order("id", { ascending: true })
+            .range(from, to)
+        )
+      : Promise.resolve([] as LandingLogRow[]),
+    args.period === "daily"
+      ? fetchAllRows<EmailOnboardingLeadRow>((from, to) =>
+          supabaseServer
+            .from("career_email_onboarding_leads")
+            .select(
+              "abtest_type,converted_user_id,created_at,email,local_id,normalized_email,profile_ingested_at,profile_received_at,talent_id"
+            )
+            .in(
+              "abtest_type",
+              DAILY_USER_STATS_LANDING_ABTEST_VARIANTS.map(
+                (variant) => variant.abtestType
+              )
+            )
+            .order("created_at", { ascending: true })
+            .range(from, to)
+        )
+      : Promise.resolve([] as EmailOnboardingLeadRow[]),
+    args.period === "daily"
+      ? fetchAllRows<LogRow>((from, to) =>
+          supabaseServer
+            .from("logs")
+            .select("user_id,type,created_at")
+            .in("type", [
+              "career_signup_completed",
+              "career_onboarding_submitted",
+            ])
+            .gte("created_at", startIso)
+            .order("id", { ascending: true })
+            .range(from, to)
+        )
+      : Promise.resolve([] as LogRow[]),
+    args.period === "daily"
+      ? fetchAllRows<TalentMessageRow>((from, to) =>
+          supabaseServer
+            .from("talent_messages")
+            .select("user_id,role,message_type,created_at")
+            .eq("message_type", "profile_submit")
+            .gte("created_at", startIso)
+            .order("id", { ascending: true })
+            .range(from, to)
+        )
+      : Promise.resolve([] as TalentMessageRow[]),
+    args.period === "daily"
+      ? fetchAllRows<TalentActivityEventRow>((from, to) =>
+          supabaseServer
+            .from("talent_activity_events")
+            .select("talent_id,event_type,created_at")
+            .eq("event_type", "onboarding_completed")
+            .gte("created_at", startIso)
+            .order("created_at", { ascending: true })
+            .range(from, to)
+        )
+      : Promise.resolve([] as TalentActivityEventRow[]),
     fetchAllRows<OfficialJobRow>((from, to) =>
       supabaseServer
         .from("official_jobs")
@@ -925,9 +1474,22 @@ async function buildUserStatsReport(args: {
   const chatMessages = messages.filter(
     (message) => isUserChatMessage(message) && isIncludedUserId(message.user_id)
   );
+  const chatMessageCountByUserId = new Map<string, number>();
   for (const message of chatMessages) {
     addUserId(chatUserIds, message.user_id);
+    const userId = String(message.user_id ?? "").trim();
+    if (userId) {
+      chatMessageCountByUserId.set(
+        userId,
+        (chatMessageCountByUserId.get(userId) ?? 0) + 1
+      );
+    }
   }
+  const newSignupFourPlusChatDropoffCount = Array.from(signupUserIds).filter(
+    (userId) =>
+      (chatMessageCountByUserId.get(userId) ?? 0) >= 4 &&
+      !onboardingCompletedUserIds.has(userId)
+  ).length;
   const callTranscriptUserIds = new Set<string>();
   const callTranscriptMessages = messages.filter(
     (message) =>
@@ -947,6 +1509,29 @@ async function buildUserStatsReport(args: {
   const includedRecommendedRows = recommendedRows.filter((row) =>
     isIncludedUserId(row.talent_id)
   );
+  const includedInternalRecommendedRows = includedRecommendedRows.filter(
+    (row) => isInternalOpportunity(row.opportunity_type)
+  );
+  const includedRolling7DayInternalRecommendedRows =
+    internalOpportunityRolling7DayRows.filter(
+      (row) =>
+        isIncludedUserId(row.talent_id) &&
+        isInternalOpportunity(row.opportunity_type)
+    );
+  const internalOpportunityStats = buildInternalOpportunityStats(
+    includedInternalRecommendedRows
+  );
+  const internalOpportunityRolling7DayStats = buildInternalOpportunityStats(
+    includedRolling7DayInternalRecommendedRows
+  );
+  const internalOpportunityRoleRows = await fetchInternalOpportunityRoleRows(
+    includedInternalRecommendedRows.map((row) => row.role_id)
+  );
+  const internalOpportunityRecommendationRows =
+    buildInternalOpportunityRecommendationRows({
+      recommendations: includedInternalRecommendedRows,
+      roles: internalOpportunityRoleRows,
+    });
   const includedRecommendedRowIds = new Set(
     includedRecommendedRows.map((row) => row.id).filter(Boolean)
   );
@@ -1157,6 +1742,25 @@ async function buildUserStatsReport(args: {
           startDate: args.internalConnectionResponseRange.startDate,
           startIso: args.internalConnectionResponseRange.startIso,
         });
+  const jobStats = buildJobStats({
+    excludedEmailSet,
+    jobs: officialJobs,
+    landingLogs,
+    signedUpEmails,
+  });
+  const landingAbtestRows =
+    args.period === "daily"
+      ? buildLandingAbtestRows({
+          emailOnboardingLeads: landingAbtestEmailOnboardingLeads,
+          excludedEmailSet,
+          landingLoginLogs: landingAbtestLoginLogs,
+          landingLogs,
+          onboardingEvents: landingAbtestOnboardingEvents,
+          profileSubmitMessages: landingAbtestProfileSubmitMessages,
+          signupAndSubmitLogs: landingAbtestSignupAndSubmitLogs,
+          talentUsers,
+        })
+      : [];
 
   return {
     activeTalentBreakdown: {
@@ -1171,6 +1775,7 @@ async function buildUserStatsReport(args: {
       viewedRecommendationTalentCount: viewedRecommendationTalentIds.size,
     },
     activeTalentsCount: activeTalentIds.size,
+    accountDeletedCount: accountDeletionLogs.length,
     callTranscriptMessageCount: callTranscriptMessages.length,
     chatMessageCount: chatMessages.length,
     chatUniqueTalentCount: chatUserIds.size,
@@ -1183,15 +1788,13 @@ async function buildUserStatsReport(args: {
     failedToolCallCount,
     highIntentTalentsCount: highIntentTalentIds.size,
     internalConnectionResponseStats,
-    internalRecommendationCount: includedRecommendedRows.filter((row) =>
-      isInternalOpportunity(row.opportunity_type)
-    ).length,
-    jobs: buildJobRows({
-      excludedEmailSet,
-      jobs: officialJobs,
-      landingLogs: jobLandingLogs,
-      signedUpEmails,
-    }).slice(0, 8),
+    internalOpportunityRolling7DayStats,
+    internalOpportunityRecommendationRows,
+    internalOpportunityStats,
+    internalRecommendationCount: internalOpportunityStats.recommendationCount,
+    jobs: jobStats.rows.slice(0, 8),
+    jobsSummary: jobStats.summary,
+    landingAbtestRows,
     harperMailReplyCount: harperMailReplyRows.length,
     mailReplyCount: inboundEmailRows.length,
     mailSentCount:
@@ -1199,8 +1802,13 @@ async function buildUserStatsReport(args: {
       includedOpportunityEmailDeliveries.length,
     negativeFeedbackCount: negativeFeedbackRows.length,
     negativeFeedbackClickedCount: negativeFeedbackClickedRows.length,
+    newSignupFourPlusChatDropoffCount,
     newSignupOnboardingCompletedCount,
     newSignupSubmittedCount,
+    newVisitorCount: countNewVisitors({
+      excludedEmailSet,
+      landingLogs,
+    }),
     onboardingCompletedCount: onboardingCompletedUserIds.size,
     opportunityDiscoveryFailedRunCount: failedDiscoveryRunIds.size,
     period: args.period,
@@ -1289,7 +1897,28 @@ function formatInternalConnectionResponseStats(
   ].join("\n");
 }
 
-export function formatDailyUserStatsSlackMessage(report: DailyUserStatsReport) {
+function formatLandingAbtestRows(rows: DailyUserStatsLandingAbtestRow[]) {
+  return [
+    formatSlackSectionTitle("랜딩페이지 A/B Test"),
+    "전체 new unique user 진입 대비",
+    ...rows.map(
+      (row) =>
+        `- ${row.label}: 회원가입+제출완료 ${formatCount(
+          row.signupSubmittedCount
+        )}/${formatCount(row.entryCount)}명 (${formatPercent(
+          row.signupSubmittedRateFromEntry
+        )}), 온보딩 완료 ${formatCount(
+          row.onboardingCompletedCount
+        )}/${formatCount(row.entryCount)}명 (${formatPercent(
+          row.onboardingCompletedRateFromEntry
+        )})`
+    ),
+  ].join("\n");
+}
+
+export function formatDailyUserStatsSlackMessages(
+  report: DailyUserStatsReport
+): DailyUserStatsSlackMessages {
   const tools =
     report.tools.length > 0
       ? report.tools
@@ -1315,7 +1944,17 @@ export function formatDailyUserStatsSlackMessage(report: DailyUserStatsReport) {
       ? "기간 내 신규 가입은 아니지만 다시 들어와서"
       : "오늘 신규 가입이 아니지만 다시 들어와서";
 
-  const jobs =
+  const jobSummary = `전체 jobs 페이지: ${formatCount(
+    report.jobsSummary.viewCount
+  )}명 진입, ${formatCount(
+    report.jobsSummary.talkClickCount
+  )}명 Talk to Harper 클릭, ${formatCount(
+    report.jobsSummary.signupCount
+  )}명 회원가입 (${formatRatio(
+    report.jobsSummary.signupCount,
+    report.jobsSummary.viewCount
+  )})`;
+  const jobRows =
     report.jobs.length > 0
       ? report.jobs
           .map(
@@ -1326,12 +1965,54 @@ export function formatDailyUserStatsSlackMessage(report: DailyUserStatsReport) {
           )
           .join("\n")
       : "- 없음";
+  const jobs = [jobSummary, jobRows].join("\n");
+  const internalOpportunityRecommendations =
+    report.internalOpportunityRecommendationRows.length > 0
+      ? report.internalOpportunityRecommendationRows
+          .map(
+            (row) =>
+              `- ${row.companyName} - ${row.roleName} : ${formatCount(
+                row.talentCount
+              )}명`
+          )
+          .join("\n")
+      : "- 없음";
+  const toolsMessage = [
+    formatSlackSectionTitle("Tools"),
+    tools,
+    `- failed tool calls: ${formatCount(
+      report.failedToolCallCount
+    )}, ${formatPercent(report.toolFailureRate)}`,
+  ].join("\n");
+  const jobsMessage = [formatSlackSectionTitle("Jobs"), jobs].join("\n");
+  const internalOpportunityRecommendationsMessage = [
+    formatSlackSectionTitle("내부 기회 추천"),
+    internalOpportunityRecommendations,
+  ].join("\n");
+  const landingAbtestMessage =
+    report.period === "daily"
+      ? formatLandingAbtestRows(report.landingAbtestRows)
+      : null;
+  const detailsMessage = [
+    toolsMessage,
+    "",
+    jobsMessage,
+    "",
+    internalOpportunityRecommendationsMessage,
+    ...(landingAbtestMessage ? ["", landingAbtestMessage] : []),
+  ].join("\n");
 
   const lines = [
     title,
     "",
     formatSlackSectionTitle("신규"),
     `신규 가입: ${formatCount(report.signupCount)}명`,
+    `신규 방문자 수: ${formatCount(
+      report.newVisitorCount
+    )}명, 회원가입 전환율: ${formatRatio(
+      report.signupCount,
+      report.newVisitorCount
+    )}`,
     `신규 가입자 중 제출 완료: ${formatCount(
       report.newSignupSubmittedCount
     )}명, 가입 대비 ${formatRatio(
@@ -1344,6 +2025,13 @@ export function formatDailyUserStatsSlackMessage(report: DailyUserStatsReport) {
       report.newSignupOnboardingCompletedCount,
       report.signupCount
     )}`,
+    `채팅 4번 이상 후 진행 도중 이탈: ${formatCount(
+      report.newSignupFourPlusChatDropoffCount
+    )}명, ${formatRatio(
+      report.newSignupFourPlusChatDropoffCount,
+      report.signupCount
+    )}`,
+    `회원 탈퇴: ${formatCount(report.accountDeletedCount)}명`,
     `${returningUserLabelPrefix} 제출 완료한 사람: ${formatCount(
       report.returningSubmittedCount
     )}명`,
@@ -1404,13 +2092,41 @@ export function formatDailyUserStatsSlackMessage(report: DailyUserStatsReport) {
       report.negativeFeedbackClickedCount,
       report.negativeFeedbackCount
     )}`,
-    `추천된 내부 기회 수: ${formatCount(report.internalRecommendationCount)}개`,
     `opportunity_discovery_run failed 종료: ${formatCount(
       report.opportunityDiscoveryFailedRunCount
     )}개`,
     `• 기간 내 온보딩 완료 후 1시간+ 추천 0개인 유저 수: ${formatCount(
       report.onboardingCompletedNoRecommendationUserCount
     )}명`,
+    "",
+    formatSlackSectionTitle("내부 기회"),
+    `추천된 내부 기회 수: ${formatCount(
+      report.internalOpportunityStats.recommendationCount
+    )}개`,
+    `수락: ${formatCount(
+      report.internalOpportunityStats.acceptedCount
+    )}개, 전체 추천 대비 ${formatRatio(
+      report.internalOpportunityStats.acceptedCount,
+      report.internalOpportunityStats.recommendationCount
+    )}`,
+    `거절: ${formatCount(
+      report.internalOpportunityStats.rejectedCount
+    )}개, 전체 추천 대비 ${formatRatio(
+      report.internalOpportunityStats.rejectedCount,
+      report.internalOpportunityStats.recommendationCount
+    )}`,
+    `지난 7일 수락: ${formatCount(
+      report.internalOpportunityRolling7DayStats.acceptedCount
+    )}개, 전체 추천 대비 ${formatRatio(
+      report.internalOpportunityRolling7DayStats.acceptedCount,
+      report.internalOpportunityRolling7DayStats.recommendationCount
+    )}`,
+    `지난 7일 거절: ${formatCount(
+      report.internalOpportunityRolling7DayStats.rejectedCount
+    )}개, 전체 추천 대비 ${formatRatio(
+      report.internalOpportunityRolling7DayStats.rejectedCount,
+      report.internalOpportunityRolling7DayStats.recommendationCount
+    )}`,
     "",
     `유저가 보낸 메시지: ${formatCount(report.userMessageCount)}개`,
     `- 채팅: ${formatCount(report.chatMessageCount)}개`,
@@ -1432,16 +2148,15 @@ export function formatDailyUserStatsSlackMessage(report: DailyUserStatsReport) {
     lines.push(internalConnectionResponseStats, "");
   }
 
-  lines.push(
-    formatSlackSectionTitle("Tools"),
-    tools,
-    `- failed tool calls: ${formatCount(
-      report.failedToolCallCount
-    )}, ${formatPercent(report.toolFailureRate)}`,
-    "",
-    formatSlackSectionTitle("Jobs"),
-    jobs
-  );
+  return {
+    details: detailsMessage,
+    jobs: jobsMessage,
+    main: lines.join("\n"),
+    tools: toolsMessage,
+  };
+}
 
-  return lines.join("\n");
+export function formatDailyUserStatsSlackMessage(report: DailyUserStatsReport) {
+  const messages = formatDailyUserStatsSlackMessages(report);
+  return [messages.main, messages.details].join("\n");
 }

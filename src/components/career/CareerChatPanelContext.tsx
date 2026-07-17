@@ -65,6 +65,7 @@ export type CareerChatPanelContextValue = {
   opportunityRun: CareerOpportunityRun | null;
   opportunitySearchLocked: boolean;
   historyUpdatingOpportunityIds: string[];
+  emailOnboardingToken?: string;
   onboardingBeginPending: boolean;
   callStartPending?: boolean;
   callWrapUpPending?: boolean;

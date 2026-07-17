@@ -79,6 +79,7 @@ type TalentOpportunityDeliveryRow = Pick<
 type TalentProgressRow = {
   created_at: string;
   id: string;
+  kind: string;
   recommendation_id: string | null;
   role_id: string;
   talent_id: string;
@@ -574,6 +575,7 @@ export type OpsMatchingProgressItem = {
   companyName: string | null;
   createdAt: string;
   id: string;
+  kind: string;
   recommendationId: string | null;
   roleId: string;
   roleName: string | null;
@@ -649,6 +651,10 @@ function normalizeText(value: unknown) {
 function normalizeNullableText(value: string | null | undefined) {
   const normalized = normalizeText(value);
   return normalized || null;
+}
+
+function normalizeActorEmail(value: unknown) {
+  return normalizeText(value).toLowerCase() || null;
 }
 
 function isMissingOpsMatchingTableError(error: unknown) {
@@ -3851,10 +3857,12 @@ export async function fetchOpsMatchingTagOptions(): Promise<OpsMatchingTagOption
 }
 
 export async function setOpsMatchingReviewStage(args: {
+  actorEmail?: string | null;
   roleId: string;
   stage: unknown;
   talentId: string;
 }): Promise<OpsMatchingReviewStageUpdateResponse> {
+  const actorEmail = normalizeActorEmail(args.actorEmail);
   const roleId = normalizeText(args.roleId);
   const talentId = normalizeText(args.talentId);
   const stage = normalizeText(args.stage) as OpsMatchingReviewStageId;
@@ -3963,7 +3971,7 @@ export async function setOpsMatchingReviewStage(args: {
         nextStage: stage as Exclude<OpsMatchingReviewStageId, "recommended">,
         previousStage,
       }),
-      user_id: null,
+      user_id: actorEmail,
     });
 
     if (progressError) {
@@ -4399,7 +4407,7 @@ export async function fetchOpsMatchingProgress(args: {
     : MAX_MATCHING_PROGRESS_ITEMS * 3;
   let query = fromOpsMatchingTable(admin, "talent_progress")
     .select(
-      "id, talent_id, role_id, recommendation_id, text, user_id, created_at"
+      "id, talent_id, role_id, recommendation_id, kind, text, user_id, created_at"
     )
     .eq("talent_id", talentId)
     .order("created_at", { ascending: false })
@@ -4457,7 +4465,11 @@ export async function fetchOpsMatchingProgress(args: {
       ? rows
       : rows.filter((row) => {
           const rowRoleId = normalizeText(row.role_id);
-          return !rowRoleId || isInternalCompanyRole(roleMap.get(rowRoleId));
+          return (
+            row.kind === "candidate_requested_connection" ||
+            !rowRoleId ||
+            isInternalCompanyRole(roleMap.get(rowRoleId))
+          );
         })
   ).slice(0, MAX_MATCHING_PROGRESS_ITEMS);
 
@@ -4469,6 +4481,7 @@ export async function fetchOpsMatchingProgress(args: {
         companyName: role?.companyName ?? null,
         createdAt: row.created_at,
         id: row.id,
+        kind: row.kind,
         recommendationId: row.recommendation_id,
         roleId: row.role_id,
         roleName: role?.roleName ?? null,
@@ -4485,10 +4498,12 @@ export async function fetchOpsMatchingProgress(args: {
 }
 
 export async function createOpsMatchingProgress(args: {
+  actorEmail?: string | null;
   roleId: string;
   talentId: string;
   text: unknown;
 }) {
+  const actorEmail = normalizeActorEmail(args.actorEmail);
   const talentId = normalizeText(args.talentId);
   const roleId = normalizeText(args.roleId);
   const text = normalizeText(args.text).slice(
@@ -4512,7 +4527,7 @@ export async function createOpsMatchingProgress(args: {
       role_id: roleId,
       talent_id: talentId,
       text,
-      user_id: null,
+      user_id: actorEmail,
     }
   );
 

@@ -64,7 +64,10 @@ function normalizeText(value: unknown, maxLength: number) {
 export function resolveCareerEmailOnboardingLocale(
   body: Partial<CareerEmailOnboardingRequest> | null | undefined
 ): ResolvedLocale {
-  return normalizeLocale(body?.locale) ?? resolveLocaleFromCountryLang(body?.countryLang);
+  return (
+    normalizeLocale(body?.locale) ??
+    resolveLocaleFromCountryLang(body?.countryLang)
+  );
 }
 
 function toRecord(value: unknown): Record<string, unknown> {
@@ -128,8 +131,18 @@ function textToHtml(text: string) {
 }
 
 function htmlLink(label: string, url: string) {
-  return `<a href="${htmlEscape(url)}" target="_blank" rel="noreferrer" style="color:#4d2f13;text-decoration:underline;">${htmlEscape(label)}</a>`;
+  return `<a href="${htmlEscape(url)}" target="_blank" rel="noreferrer" style="color:#2563eb;text-decoration:underline;">${htmlEscape(label)}</a>`;
 }
+
+const CONTINUE_LINK_LABEL = {
+  en: "Continue here",
+  ko: "여기서 이어가기",
+} as const;
+
+const LOGIN_LINK_LABEL = {
+  en: "Open Harper",
+  ko: "Harper로 접속하기",
+} as const;
 
 function getBaseUrl(origin?: string | null) {
   const raw = (
@@ -186,9 +199,11 @@ export function hashCareerEmailForLogs(email: string) {
 }
 
 function buildLoginUrl(args: {
+  abtestType?: string | null;
   baseUrl: string;
   email: string;
   leadId: string;
+  localId?: string | null;
 }) {
   const token = buildCareerEmailOnboardingToken({
     email: args.email,
@@ -198,25 +213,48 @@ function buildLoginUrl(args: {
   const url = new URL("/career_login", args.baseUrl);
   url.searchParams.set("next", "/career");
   url.searchParams.set("source", "email_onboarding");
-  url.searchParams.set("mail", args.email);
+  if (args.localId) url.searchParams.set("lid", args.localId);
+  if (args.abtestType) url.searchParams.set("ab", args.abtestType);
   url.searchParams.set(CAREER_EMAIL_ONBOARDING_TOKEN_PARAM, token);
   return url.toString();
 }
 
-function buildCallStartLoginUrl(args: {
+function buildExistingUserLoginUrl(args: {
+  abtestType?: string | null;
+  baseUrl: string;
+  localId?: string | null;
+}) {
+  const url = new URL("/career_login", args.baseUrl);
+  url.searchParams.set("next", "/career");
+  url.searchParams.set("source", "email_onboarding_existing_user");
+  if (args.localId) url.searchParams.set("lid", args.localId);
+  if (args.abtestType) url.searchParams.set("ab", args.abtestType);
+  return url.toString();
+}
+
+function buildContinueLoginUrl(args: {
+  abtestType?: string | null;
   baseUrl: string;
   email: string;
   leadId: string;
+  localId?: string | null;
 }) {
   const token = buildCareerEmailOnboardingToken({
     email: args.email,
     leadId: args.leadId,
     purpose: "login",
   });
+  const nextUrl = new URL("/career/email-onboarding", args.baseUrl);
+  nextUrl.searchParams.set("source", "email_onboarding_review");
+  if (args.localId) nextUrl.searchParams.set("lid", args.localId);
+  if (args.abtestType) nextUrl.searchParams.set("ab", args.abtestType);
+  nextUrl.searchParams.set(CAREER_EMAIL_ONBOARDING_TOKEN_PARAM, token);
+
   const url = new URL("/career_login", args.baseUrl);
-  url.searchParams.set("next", "/career/onboarding?start=call");
-  url.searchParams.set("source", "email_onboarding_call");
-  url.searchParams.set("mail", args.email);
+  url.searchParams.set("next", `${nextUrl.pathname}${nextUrl.search}`);
+  url.searchParams.set("source", "email_onboarding_review");
+  if (args.localId) url.searchParams.set("lid", args.localId);
+  if (args.abtestType) url.searchParams.set("ab", args.abtestType);
   url.searchParams.set(CAREER_EMAIL_ONBOARDING_TOKEN_PARAM, token);
   return url.toString();
 }
@@ -473,31 +511,83 @@ async function ensureTalentAndConversation(args: {
   return { conversationId, talentId };
 }
 
+async function findRegisteredTalentUserByEmail(
+  admin: UntypedAdmin,
+  email: string
+) {
+  const { data: lead, error: leadError } = await admin
+    .from("career_email_onboarding_leads")
+    .select("converted_user_id, status, talent_id")
+    .eq("normalized_email", email)
+    .maybeSingle();
+  if (leadError) {
+    throw new Error(
+      leadError.message ?? "Failed to read email onboarding lead"
+    );
+  }
+
+  const { data: users, error: usersError } = await admin
+    .from("talent_users")
+    .select("user_id, name")
+    .ilike("email", email)
+    .limit(10);
+  if (usersError) {
+    throw new Error(usersError.message ?? "Failed to read talent users");
+  }
+
+  const tempTalentId =
+    lead && !lead.converted_user_id && lead.status !== "converted"
+      ? String(lead.talent_id ?? "").trim()
+      : "";
+  const convertedUserId = String(lead?.converted_user_id ?? "").trim();
+  const matched = (users ?? []).find(
+    (user: { name?: unknown; user_id?: unknown }) => {
+      const userId = String(user.user_id ?? "").trim();
+      if (!userId) return false;
+      if (convertedUserId && userId === convertedUserId) return true;
+      if (tempTalentId && userId === tempTalentId) return false;
+      return true;
+    }
+  );
+
+  if (!matched?.user_id) return null;
+  return {
+    name: normalizeText(matched.name, 80) || null,
+    userId: String(matched.user_id),
+  };
+}
+
 function buildFirstEmail(args: {
   displayName: string | null;
   locale: ResolvedLocale;
   loginUrl: string;
 }) {
-  const name = args.displayName?.trim();
   if (args.locale === "en") {
-    const greeting = name
-      ? `Hi ${name}, this is Harper.`
-      : "Hello, this is Harper.";
-    const subject = name ? `From Harper to ${name}` : "A quick hello from Harper";
-    const coreText = `${greeting}
+    const subject = "A quick hello from Harper";
+    const coreText = `Hi, thanks for sharing your email.
 
-Thanks for leaving your email. Instead of asking you to fill out a long signup form first, we can start lightly over email.
+I'm Harper, an AI career agent that helps talent think through their career, finds good opportunities, and makes direct introductions when there is a fit. I do not only look at public job posts; I use your background and preferences to connect you with relevant opportunities.
 
-I can help you find strong opportunities, prepare for them, and handle introductions when there is a fit.
+Getting started is simple. Reply to this email with the details below so I can understand you better. After that, let's have a light 5-minute call or chat about what you prefer and what kinds of opportunities you would like me to connect you with.
 
-If you're open to it, just reply "Sounds good". If you already know what direction you're exploring, add one short line too. For example: full-time roles, part-time or project work alongside your current job, or light technical advisory.
+Could you share these first?
 
-If you're not sure yet, "Sounds good" is enough. I'll follow up with the profile material I need and how you'd like me to handle company introductions.`;
+- Name
+- Current location
+- What types of opportunities you are open to (full-time, part-time, short-term paid work, advisory, etc.)
+- Resume or LinkedIn: one is required, and both are best if available
+- (optional) Any other links that can explain your background, such as GitHub, Scholar, personal website, portfolio, etc.
+
+Feel free to reply whenever convenient.
+
+Best,
+
+Harper`;
     const text = `${coreText}
 
-If you'd rather continue on the website, you can use this link.
-Continue on the website: ${args.loginUrl}`;
-    const html = `${textToHtml(coreText)}<br /><p>${htmlLink("Continue on the website", args.loginUrl)}</p>`;
+If replying by email is inconvenient, you can continue here.
+matchharper.com/career_login`;
+    const html = `${textToHtml(coreText)}<br /><p>If replying by email is inconvenient, you can continue here.<br />${htmlLink(CONTINUE_LINK_LABEL.en, args.loginUrl)}</p>`;
 
     return {
       subject,
@@ -506,32 +596,86 @@ Continue on the website: ${args.loginUrl}`;
     };
   }
 
-  const greeting = name
-    ? `안녕하세요, ${name}님. Harper입니다.`
-    : "안녕하세요. Harper입니다.";
-  const subject = name
-    ? `From Harper to ${name}`
-    : "Harper에서 먼저 인사드려요";
-  const coreText = `${greeting}
+  const subject = "Harper에서 먼저 인사드려요";
+  const coreText = `안녕하세요. 이메일을 알려주셔서 감사합니다.
 
-이메일 남겨주셔서 감사해요. 긴 가입 폼부터 채우는 대신, 오늘은 메일로 가볍게 시작해볼게요 :)
+저에 대해 간단하게 소개드리면, 저는 인재분들의 커리어를 함께 고민하고, 좋은 기회를 알아서 찾아와 연결해드리는 AI Agent Harper입니다. 공개 채용으로 올라온 역할뿐 아니라, 회원님의 배경과 선호에 맞는 기회를 직접 연결까지 도와드려요.
 
-앞으로 좋은 기회를 찾고, 준비하고, 실제로 연결되는 과정까지 제가 옆에서 챙겨보겠습니다.
+시작 방법은 간단해요. 현재 메일로 아래의 내용을 답장으로 알려주시면 제가 회원님에 대해서 이해도를 높일게요. 그 다음 간단하게 어떤걸 선호하시는지, 제가 어떤 기회를 연결해드리는걸 원하시는지 5분 동안 가볍게 대화 나눠봐요.
 
-괜찮으시면 이 메일에 "좋아요"라고만 답장 주세요. 혹시 지금 찾고 있거나 열어두고 있는 방향이 있다면 한 줄만 덧붙여주셔도 좋아요. 예를 들면 풀타임 합류, 현업과 병행할 파트타임/프로젝트, 가벼운 기술 자문 같은 것들이요.
+우선 이것들을 알려주실 수 있나요?
 
-아직 잘 모르겠으면 그냥 "좋아요"만 보내셔도 됩니다. 바로 이어서 필요한 자료와 회사에 소개드릴 때의 편한 방식을 여쭤볼게요.`;
+- 이름
+- 현재 계신 지역
+- 어떤 기회에 열려있으신지 (풀타임, 파트타임, 추가 수입을 위한 단기 작업 등)
+- 이력서 혹은 링크드인 : 둘 중 하나 필수, 둘다 보내주시면 제일 좋습니다.
+- (optional) 추가적으로 본인을 설명할 수 있는 링크들(GitHub, Scholar, 개인 웹사이트, 포트폴리오 등)
+
+언제든 편하게 답장주셔도 좋습니다.
+
+
+감사합니다.
+Harper 드림`;
   const text = `${coreText}
 
-웹에서 바로 이어가고 싶으시면 아래 링크로 들어오시면 됩니다.
-사이트에서 계속하기: ${args.loginUrl}`;
-  const html = `${textToHtml(coreText)}<br /><p>${htmlLink("사이트에서 계속하기", args.loginUrl)}</p>`;
+혹시 메일 답장이 힘드시다면 여기 접속하셔서 이어나가셔도 좋아요.
+matchharper.com/career_login`;
+  const html = `${textToHtml(coreText)}<br /><p>혹시 메일 답장이 힘드시다면 여기 접속하셔서 이어나가셔도 좋아요.<br />${htmlLink(CONTINUE_LINK_LABEL.ko, args.loginUrl)}</p>`;
 
   return {
     subject,
     text,
     html,
   };
+}
+
+function buildExistingUserEmail(args: {
+  displayName: string | null;
+  locale: ResolvedLocale;
+  loginUrl: string;
+}) {
+  if (args.locale === "en") {
+    const name = args.displayName ? ` ${args.displayName}` : "";
+    const subject = "[Harper] I found your account. You can continue here.";
+    const text = `Hi${name},
+
+Thanks for leaving your email. It looks like you are already with Harper.
+
+You can use Harper by opening the link below. If you have any questions, feel free to reply.
+I will keep working to connect you with better opportunities.
+
+matchharper.com/career
+
+Best,
+
+Harper`;
+    const html = textToHtml(text).replace(
+      htmlEscape("matchharper.com/career"),
+      htmlLink(LOGIN_LINK_LABEL.en, args.loginUrl)
+    );
+    return { html, subject, text };
+  }
+
+  const name = args.displayName ? ` ${args.displayName}님` : "";
+  const subject =
+    "[Harper] 이메일 확인했어요. 이미 Harper와 함께하고 계신걸로 확인됩니다.";
+  const text = `안녕하세요${name}.
+
+이메일을 남겨주셔서 감사합니다. 하지만 이미 Harper와 함께하고 계신걸로 확인됩니다.
+
+하지만 아래 링크로 접속하시면 사용하실 수 있어요. 혹시 궁금한 사항이 있으시다면 편하게 물어봐주세요.
+항상 더 좋은 기회를 연결해드리기 위해서 노력할게요.
+
+matchharper.com/career
+
+감사합니다.
+
+Harper 드림`;
+  const html = textToHtml(text).replace(
+    htmlEscape("matchharper.com/career"),
+    htmlLink(LOGIN_LINK_LABEL.ko, args.loginUrl)
+  );
+  return { html, subject, text };
 }
 
 export async function requestCareerEmailOnboarding(args: {
@@ -549,21 +693,96 @@ export async function requestCareerEmailOnboarding(args: {
   const ip = getClientIp(args.request);
   const emailHash = hashCareerEmailForLogs(email);
   const forceResend = shouldForceResend(args);
+  const requestId = crypto.randomUUID();
 
-  const { data: existingSentLead } = await admin
-    .from("career_email_onboarding_leads")
-    .select("id, first_email_sent_at, reply_alias")
-    .eq("normalized_email", email)
-    .maybeSingle();
-  if (
-    !forceResend &&
-    existingSentLead?.first_email_sent_at &&
-    existingSentLead.reply_alias
-  ) {
+  const registeredTalent = await findRegisteredTalentUserByEmail(admin, email);
+  if (registeredTalent) {
+    await assertRateLimit(admin, { emailHash, ip });
+
+    const baseUrl = getBaseUrl(args.origin);
+    const loginUrl = buildExistingUserLoginUrl({
+      abtestType: normalizeText(args.body.abtestType, 100),
+      baseUrl,
+      localId: normalizeText(args.body.localId, 200),
+    });
+    const existingUserEmail = buildExistingUserEmail({
+      displayName: registeredTalent.name,
+      locale,
+      loginUrl,
+    });
+    const sendResult = await sendResendEmail({
+      to: email,
+      subject: existingUserEmail.subject,
+      text: existingUserEmail.text,
+      html: existingUserEmail.html,
+      idempotencyKey: forceResend
+        ? `career-email-onboarding/existing-user/${emailHash}/local/${Date.now()}`
+        : `career-email-onboarding/existing-user/${emailHash}/${new Date()
+            .toISOString()
+            .slice(0, 10)}`,
+    });
+    const sentAt = new Date().toISOString();
+
+    await recordEvent(admin, {
+      emailHash,
+      eventType: "request_received",
+      localId: args.body.localId,
+      metadata: {
+        existingUser: true,
+        ip,
+        locale,
+        pagePath: args.body.pagePath ?? null,
+        source: args.body.source ?? null,
+        variant: args.body.variant ?? null,
+      },
+    });
+    await recordEvent(admin, {
+      emailHash,
+      eventType: "existing_user_mail_sent",
+      localId: args.body.localId,
+      metadata: {
+        locale,
+        loginUrl,
+        resendEmailId: sendResult.id ?? null,
+        userId: registeredTalent.userId,
+      },
+    });
+
+    const { error: historyError } = await (admin as any)
+      .from("career_email_messages")
+      .insert({
+        body_text: existingUserEmail.text,
+        created_at: sentAt,
+        direction: "outbound",
+        from_email: getStoredCareerEmailFrom(),
+        mail_type: "existing_user_login",
+        metadata: {
+          locale,
+          loginUrl,
+          resendEmailId: sendResult.id ?? null,
+        },
+        occurred_at: sentAt,
+        status: "sent",
+        subject: existingUserEmail.subject,
+        talent_id: registeredTalent.userId,
+        talent_message_id: null,
+        to_email: email,
+      });
+    if (historyError) {
+      console.warn(
+        "[career-email-onboarding] existing user email history insert skipped",
+        {
+          error: historyError.message,
+          userId: registeredTalent.userId,
+        }
+      );
+    }
+
     return {
-      alreadySent: true,
-      leadId: String(existingSentLead.id),
+      alreadyRegistered: true,
+      alreadySent: false,
       ok: true,
+      userId: registeredTalent.userId,
     };
   }
 
@@ -576,13 +795,10 @@ export async function requestCareerEmailOnboarding(args: {
     displayName,
     email,
   });
-  if (!forceResend && lead.first_email_sent_at && lead.reply_alias) {
-    return {
-      alreadySent: true,
-      leadId: String(lead.id),
-      ok: true,
-    };
-  }
+  const isRepeatRequest = Boolean(lead.first_email_sent_at && lead.reply_alias);
+  const nextStep = isRepeatRequest
+    ? normalizeText(lead.step, 80) || "awaiting_start"
+    : "awaiting_start";
 
   const { conversationId, talentId } = await ensureTalentAndConversation({
     admin,
@@ -600,11 +816,19 @@ export async function requestCareerEmailOnboarding(args: {
       });
 
   const baseUrl = getBaseUrl(args.origin);
-  const loginUrl = buildLoginUrl({ baseUrl, email, leadId: String(lead.id) });
-  const callStartUrl = buildCallStartLoginUrl({
+  const loginUrl = buildLoginUrl({
+    abtestType: normalizeText(lead.abtest_type, 100),
     baseUrl,
     email,
     leadId: String(lead.id),
+    localId: normalizeText(lead.local_id, 200),
+  });
+  const continueUrl = buildContinueLoginUrl({
+    abtestType: normalizeText(lead.abtest_type, 100),
+    baseUrl,
+    email,
+    leadId: String(lead.id),
+    localId: normalizeText(lead.local_id, 200),
   });
   const firstEmail = buildFirstEmail({ displayName, locale, loginUrl });
   const sendResult = await sendResendEmail({
@@ -613,16 +837,14 @@ export async function requestCareerEmailOnboarding(args: {
     text: firstEmail.text,
     html: firstEmail.html,
     replyTo: alias.address,
-    idempotencyKey: forceResend
-      ? `career-email-onboarding/lead/${lead.id}/mail1/local/${Date.now()}`
-      : `career-email-onboarding/lead/${lead.id}/mail1`,
+    idempotencyKey: `career-email-onboarding/lead/${lead.id}/mail1/${requestId}`,
   });
   const firstEmailSentAt = new Date().toISOString();
 
   const { error: updateError } = await admin
     .from("career_email_onboarding_leads")
     .update({
-      calendar_url: callStartUrl,
+      calendar_url: continueUrl,
       conversation_id: conversationId,
       first_email_resend_id: sendResult.id ?? null,
       first_email_sent_at: firstEmailSentAt,
@@ -631,12 +853,13 @@ export async function requestCareerEmailOnboarding(args: {
           ? lead.metadata
           : {}),
         locale,
+        continueUrl,
         loginUrl,
         preferred_locale: locale,
       },
       reply_alias: alias.address,
       status: "active",
-      step: "awaiting_start",
+      step: nextStep,
       talent_id: talentId,
     })
     .eq("id", lead.id);
@@ -654,8 +877,10 @@ export async function requestCareerEmailOnboarding(args: {
     metadata: {
       ip,
       forceResend,
+      isRepeatRequest,
       locale,
       pagePath: args.body.pagePath ?? null,
+      requestId,
       source: args.body.source ?? null,
       variant: args.body.variant ?? null,
     },
@@ -687,8 +912,11 @@ export async function requestCareerEmailOnboarding(args: {
       from_email: getStoredCareerEmailFrom(),
       mail_type: "onboarding",
       metadata: {
+        locale,
         replyTo: alias.address,
+        requestId,
         resendEmailId: sendResult.id ?? null,
+        repeatRequest: isRepeatRequest,
       },
       occurred_at: firstEmailSentAt,
       status: "sent",
@@ -710,6 +938,9 @@ export async function requestCareerEmailOnboarding(args: {
     leadId: lead.id,
     localId: args.body.localId,
     metadata: {
+      locale,
+      repeatRequest: isRepeatRequest,
+      requestId,
       resendEmailId: sendResult.id ?? null,
     },
   });

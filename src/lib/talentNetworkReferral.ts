@@ -2,21 +2,51 @@ export const TALENT_NETWORK_REFERRAL_QUERY_KEY = "ref";
 
 const TALENT_NETWORK_REFERRAL_STORAGE_KEY =
   "harper_talent_network_referral";
+const TALENT_NETWORK_REFERRAL_VISIT_DEDUPE_PREFIX =
+  "harper_talent_network_referral_visit";
 
 export const TALENT_NETWORK_REFERRAL_SOURCE_ONBOARDING_STEP6 =
   "onboarding_step6";
+export const TALENT_NETWORK_REFERRAL_SOURCE_LANDING_PAGE = "landing_page";
 export const TALENT_NETWORK_REFERRAL_SOURCE_LANDING_FOOTER = "landing_footer";
+export const TALENT_NETWORK_REFERRAL_SOURCE_CAREER_LOGIN = "career_login";
+export const TALENT_NETWORK_REFERRAL_SOURCE_CAREER_PROFILE_MENU =
+  "career_profile_menu";
 
 export type TalentNetworkReferralSource =
   | typeof TALENT_NETWORK_REFERRAL_SOURCE_ONBOARDING_STEP6
-  | typeof TALENT_NETWORK_REFERRAL_SOURCE_LANDING_FOOTER;
+  | typeof TALENT_NETWORK_REFERRAL_SOURCE_LANDING_PAGE
+  | typeof TALENT_NETWORK_REFERRAL_SOURCE_LANDING_FOOTER
+  | typeof TALENT_NETWORK_REFERRAL_SOURCE_CAREER_LOGIN
+  | typeof TALENT_NETWORK_REFERRAL_SOURCE_CAREER_PROFILE_MENU;
 
 export type TalentNetworkStoredReferral = {
   capturedAt: string;
-  sharerEmail: string;
-  sharerName: string | null;
-  source: TalentNetworkReferralSource;
+  sharerEmail?: string;
+  sharerName?: string | null;
+  source?: TalentNetworkReferralSource;
   token: string;
+};
+
+export type TalentNetworkReferralStats = {
+  hires: number;
+  signups: number;
+  visits: number;
+};
+
+export type TalentNetworkReferralSummary = {
+  createdAt: string | null;
+  stats: TalentNetworkReferralStats;
+  token: string;
+  url: string;
+};
+
+export type TalentNetworkReferralClientMessages = {
+  conversionRecordFailed?: string;
+  linkCreateFailed?: string;
+  summaryLoadFailed?: string;
+  visitCaptureFailed?: string;
+  visitRecordFailed?: string;
 };
 
 type JsonValue =
@@ -31,12 +61,21 @@ function isRecord(value: unknown): value is Record<string, JsonValue> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function normalizeToken(value: unknown) {
+  return String(value ?? "")
+    .trim()
+    .slice(0, 256);
+}
+
 export function isTalentNetworkReferralSource(
   value: string
 ): value is TalentNetworkReferralSource {
   return (
     value === TALENT_NETWORK_REFERRAL_SOURCE_ONBOARDING_STEP6 ||
-    value === TALENT_NETWORK_REFERRAL_SOURCE_LANDING_FOOTER
+    value === TALENT_NETWORK_REFERRAL_SOURCE_LANDING_PAGE ||
+    value === TALENT_NETWORK_REFERRAL_SOURCE_LANDING_FOOTER ||
+    value === TALENT_NETWORK_REFERRAL_SOURCE_CAREER_LOGIN ||
+    value === TALENT_NETWORK_REFERRAL_SOURCE_CAREER_PROFILE_MENU
   );
 }
 
@@ -61,22 +100,21 @@ function normalizeStoredReferral(
 ): TalentNetworkStoredReferral | null {
   if (!isRecord(value)) return null;
 
-  const token = String(value.token ?? "").trim();
+  const token = normalizeToken(value.token);
+  const capturedAt = String(value.capturedAt ?? "").trim();
+  const source = String(value.source ?? "").trim();
   const sharerEmail = String(value.sharerEmail ?? "")
     .trim()
     .toLowerCase();
   const sharerName = String(value.sharerName ?? "").trim() || null;
-  const capturedAt = String(value.capturedAt ?? "").trim();
-  const source = String(value.source ?? "").trim();
 
-  if (!token || !sharerEmail || !capturedAt) return null;
-  if (!isTalentNetworkReferralSource(source)) return null;
+  if (!token || !capturedAt) return null;
 
   return {
     capturedAt,
-    sharerEmail,
+    ...(sharerEmail ? { sharerEmail } : {}),
     sharerName,
-    source,
+    ...(isTalentNetworkReferralSource(source) ? { source } : {}),
     token,
   };
 }
@@ -117,25 +155,146 @@ async function readJsonResponse(res: Response) {
   }
 }
 
+export function getTalentNetworkReferralTokenFromUrlLike(
+  value?: string | null
+) {
+  if (typeof window === "undefined" && !value) return null;
+
+  try {
+    const url = new URL(value ?? window.location.href, "https://matchharper.com");
+    return (
+      normalizeToken(url.searchParams.get(TALENT_NETWORK_REFERRAL_QUERY_KEY)) ||
+      null
+    );
+  } catch {
+    return null;
+  }
+}
+
+export function getTalentNetworkReferralTokenFromCurrentLocation() {
+  if (typeof window === "undefined") return null;
+
+  const directToken = getTalentNetworkReferralTokenFromUrlLike(
+    window.location.href
+  );
+  if (directToken) return directToken;
+
+  const params = new URLSearchParams(window.location.search);
+  const next = params.get("next");
+  return getTalentNetworkReferralTokenFromUrlLike(next);
+}
+
+function getVisitDedupeKey(token: string) {
+  const day = new Date().toISOString().slice(0, 10);
+  return `${TALENT_NETWORK_REFERRAL_VISIT_DEDUPE_PREFIX}:${token}:${day}`;
+}
+
+export async function captureTalentNetworkReferralFromCurrentLocation(args?: {
+  accessToken?: string | null;
+  messages?: Pick<TalentNetworkReferralClientMessages, "visitRecordFailed">;
+  source?: TalentNetworkReferralSource;
+}) {
+  if (typeof window === "undefined") return null;
+
+  const token = getTalentNetworkReferralTokenFromCurrentLocation();
+  if (!token) return null;
+
+  const existingStoredReferral = readTalentNetworkStoredReferral();
+  const dedupeKey = getVisitDedupeKey(token);
+  if (
+    window.localStorage.getItem(dedupeKey) &&
+    existingStoredReferral?.token === token
+  ) {
+    return existingStoredReferral;
+  }
+
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+  };
+  if (args?.accessToken) {
+    headers.Authorization = `Bearer ${args.accessToken}`;
+  }
+
+  const res = await fetch("/api/talent/network/referral/visit", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ token }),
+  });
+  const json = await readJsonResponse(res);
+
+  if (!res.ok) {
+    throw new Error(
+      String(json?.error ?? "").trim() ||
+        args?.messages?.visitRecordFailed ||
+        "Failed to record referral visit."
+    );
+  }
+
+  window.localStorage.setItem(dedupeKey, "1");
+
+  if (json?.isSelfVisit === true) {
+    return existingStoredReferral;
+  }
+
+  const stored: TalentNetworkStoredReferral = {
+    capturedAt: new Date().toISOString(),
+    source: args?.source,
+    token,
+  };
+  writeTalentNetworkStoredReferral(stored);
+  return stored;
+}
+
+export function getTalentNetworkReferralTokenForSignup() {
+  return (
+    getTalentNetworkReferralTokenFromCurrentLocation() ??
+    readTalentNetworkStoredReferral()?.token ??
+    null
+  );
+}
+
+export async function fetchTalentNetworkReferralSummary(
+  fetchWithAuth: (url: string, init?: RequestInit) => Promise<Response>,
+  messages?: Pick<TalentNetworkReferralClientMessages, "summaryLoadFailed">
+): Promise<TalentNetworkReferralSummary> {
+  const res = await fetchWithAuth("/api/talent/network/referral/me");
+  const json = await readJsonResponse(res);
+
+  if (!res.ok) {
+    throw new Error(
+      String(json?.error ?? "").trim() ||
+        messages?.summaryLoadFailed ||
+        "Failed to load referral information."
+    );
+  }
+
+  return {
+    createdAt: String(json?.createdAt ?? "").trim() || null,
+    stats: {
+      hires: Number((json?.stats as Record<string, JsonValue>)?.hires ?? 0),
+      signups: Number((json?.stats as Record<string, JsonValue>)?.signups ?? 0),
+      visits: Number((json?.stats as Record<string, JsonValue>)?.visits ?? 0),
+    },
+    token: String(json?.token ?? "").trim(),
+    url: String(json?.url ?? "").trim(),
+  };
+}
+
 export async function createTalentNetworkReferralLink(args: {
-  email: string;
+  email?: string;
+  messages?: Pick<TalentNetworkReferralClientMessages, "linkCreateFailed">;
   name?: string | null;
   pagePath?: string | null;
   sharerLocalId?: string | null;
-  source: TalentNetworkReferralSource;
+  source?: TalentNetworkReferralSource;
 }) {
+  void args;
   const res = await fetch("/api/talent/network/referral/create", {
     method: "POST",
     headers: {
       "content-type": "application/json",
     },
-    body: JSON.stringify({
-      email: args.email,
-      name: args.name,
-      pagePath: args.pagePath,
-      sharerLocalId: args.sharerLocalId,
-      source: args.source,
-    }),
+    body: JSON.stringify({}),
   });
 
   const json = await readJsonResponse(res);
@@ -144,7 +303,9 @@ export async function createTalentNetworkReferralLink(args: {
 
   if (!res.ok || !url || !token) {
     throw new Error(
-      String(json?.error ?? "").trim() || "공유 링크 생성에 실패했습니다."
+      String(json?.error ?? "").trim() ||
+        args.messages?.linkCreateFailed ||
+        "Failed to create share link."
     );
   }
 
@@ -152,6 +313,7 @@ export async function createTalentNetworkReferralLink(args: {
 }
 
 export async function captureTalentNetworkReferralVisit(args: {
+  messages?: Pick<TalentNetworkReferralClientMessages, "visitCaptureFailed">;
   pagePath?: string | null;
   token: string;
   visitorLocalId?: string | null;
@@ -162,30 +324,34 @@ export async function captureTalentNetworkReferralVisit(args: {
       "content-type": "application/json",
     },
     body: JSON.stringify({
-      pagePath: args.pagePath,
       token: args.token,
-      visitorLocalId: args.visitorLocalId,
     }),
   });
 
   const json = await readJsonResponse(res);
   if (!res.ok) {
     throw new Error(
-      String(json?.error ?? "").trim() || "공유 유입 기록에 실패했습니다."
+      String(json?.error ?? "").trim() ||
+        args.messages?.visitCaptureFailed ||
+        "Failed to record share visit."
     );
   }
 
   return {
     isSelfVisit: json?.isSelfVisit === true,
-    sharerEmail: String(json?.sharerEmail ?? "")
-      .trim()
-      .toLowerCase(),
-    sharerName: String(json?.sharerName ?? "").trim() || null,
-    source: String(json?.source ?? "").trim(),
+    sharerEmail: "",
+    sharerName: null,
+    source:
+      TALENT_NETWORK_REFERRAL_SOURCE_LANDING_FOOTER as TalentNetworkReferralSource,
+    token: args.token,
   };
 }
 
 export async function markTalentNetworkReferralConverted(args: {
+  messages?: Pick<
+    TalentNetworkReferralClientMessages,
+    "conversionRecordFailed"
+  >;
   referredEmail?: string | null;
   referredLocalId?: string | null;
   referredName?: string | null;
@@ -198,18 +364,16 @@ export async function markTalentNetworkReferralConverted(args: {
       "content-type": "application/json",
     },
     body: JSON.stringify({
-      referredEmail: args.referredEmail,
-      referredLocalId: args.referredLocalId,
-      referredName: args.referredName,
-      selectedRole: args.selectedRole,
-      token: args.token,
+      referredUserId: args.referredLocalId,
     }),
   });
 
   const json = await readJsonResponse(res);
   if (!res.ok) {
     throw new Error(
-      String(json?.error ?? "").trim() || "공유 전환 기록에 실패했습니다."
+      String(json?.error ?? "").trim() ||
+        args.messages?.conversionRecordFailed ||
+        "Failed to record share conversion."
     );
   }
 }

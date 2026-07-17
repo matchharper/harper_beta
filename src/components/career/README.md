@@ -29,8 +29,7 @@
 
 - `CareerHomePanel.tsx`
   - home 탭의 요약 화면입니다.
-  - welcome, 대화 시작 CTA, preference 요약, 최근 추천 기회 섹션을 얇게 보여줍니다.
-  - 추천 기회는 `recentOpportunities` payload 를 받아 최근 7일 이내 항목 최대 4개만 렌더링합니다.
+  - welcome, 대화 시작 CTA, preference 요약을 보여줍니다.
 
 - `profile/CareerProfileWorkspace.tsx`
   - profile 탭 내부의 in-page tab shell.
@@ -153,7 +152,6 @@ profile settings 는 한 군데가 아니라 두 저장소로 나뉩니다.
 - `/api/talent/session`
   - 초기 hydrate payload.
   - `profileSettingsMeta` 를 포함해야 합니다.
-  - home 탭용 `recentOpportunities` 도 여기서 같이 내려옵니다.
 
 - `/api/talent/network/profile`
   - network application 저장 후 `updatedAt` 반환.

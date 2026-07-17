@@ -29,7 +29,7 @@ type OpsNavItem = {
 };
 
 type OpsNavGroup = {
-  id: "system" | "matching" | "debugging";
+  id: "system" | "matching" | "debugging" | "company";
   label: string;
   items: OpsNavItem[];
 };
@@ -130,6 +130,24 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
         href: "/ops/debugging/opportunity-runs",
         label: "Opp Runs",
         matchPrefix: "/ops/debugging/opportunity-runs",
+      },
+    ],
+  },
+  {
+    id: "company",
+    label: "회사",
+    items: [
+      {
+        description: "회사 workspace별 role, 멤버, 활동 관리",
+        exact: true,
+        href: "/ops/company",
+        label: "Main",
+      },
+      {
+        description: "회사 페이지에서 제출된 상담 신청 확인",
+        href: "/ops/company/waiting",
+        label: "대기",
+        matchPrefix: "/ops/company/waiting",
       },
     ],
   },

@@ -3,6 +3,7 @@ import {
   ChevronDown,
   Compass,
   ExternalLink,
+  // Gift,
   HelpCircle,
   Info,
   Landmark,
@@ -36,6 +37,7 @@ import { useMessages, type Locale } from "@/i18n/useMessage";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { Text } from "@/components/ui/text";
 import Image from "next/image";
+// import { openCareerReferralModal } from "@/components/career/referral/careerReferralEvents";
 
 type CareerProfileMenuVariant = "desktop" | "mobile";
 
@@ -128,6 +130,12 @@ const CareerProfileMenu = ({
     closeMenu();
     onSuggestUpdate();
   };
+
+  // const handleOpenReferral = () => {
+  //   logCareerEvent("click_profile_menu_referral");
+  //   closeMenu();
+  //   openCareerReferralModal();
+  // };
 
   const handleOpenLanguageModal = () => {
     logCareerEvent("click_profile_menu_language");
@@ -332,6 +340,15 @@ const CareerProfileMenu = ({
           <HelpCircle className="h-4 w-4" />
           {t("career.profile.career_profile_menu.1vjbdm5", "문의하기")}
         </ActionDropdownItem>
+        {/* <ActionDropdownItem
+          onSelect={() => handleOpenReferral()}
+          className="flex flex-row items-center gap-2.5"
+        >
+          <Gift className="h-4 w-4" />
+          <span className="min-w-0 flex-1">
+            {t("career.referral.menu.invite", "초대하기")}
+          </span>
+        </ActionDropdownItem> */}
         <ActionDropdownItem
           onSelect={() => handleOpenLanguageModal()}
           className="flex flex-row items-center gap-2.5"

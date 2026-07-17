@@ -7,6 +7,7 @@ import {
 import type {
   CareerMessage,
   CareerMessagePayload,
+  CareerStage,
   SessionResponse,
 } from "@/components/career/types";
 import { getErrorMessage, toUiMessage } from "./careerHelpers";
@@ -15,6 +16,10 @@ import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
 import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 
 type CareerMessagesPage = {
+  conversation: {
+    id: string;
+    stage: CareerStage;
+  } | null;
   messages: CareerMessagePayload[];
   nextBeforeMessageId: number | null;
 };
@@ -25,16 +30,27 @@ type UseCareerMessageHistoryArgs = {
   enabled: boolean;
   initialSessionPage?: Pick<
     SessionResponse,
-    "messages" | "nextBeforeMessageId"
+    "conversation" | "messages" | "nextBeforeMessageId"
   > | null;
+  userId: string | null;
 };
 
-export const careerMessageHistoryKey = (conversationId: string | null) =>
-  ["career-message-history", conversationId] as const;
+export const careerMessageHistoryKey = (
+  conversationId: string | null,
+  userId: string | null
+) =>
+  ["career-message-history", conversationId?.trim() || null, userId] as const;
 
 const toMessagePage = (
-  payload: Pick<SessionResponse, "messages" | "nextBeforeMessageId">
+  payload: Pick<
+    SessionResponse,
+    "conversation" | "messages" | "nextBeforeMessageId"
+  >
 ): CareerMessagesPage => ({
+  conversation: {
+    id: payload.conversation.id,
+    stage: payload.conversation.stage,
+  },
   messages: payload.messages,
   nextBeforeMessageId: payload.nextBeforeMessageId,
 });
@@ -44,18 +60,20 @@ export const useCareerMessageHistory = ({
   fetchWithAuth,
   enabled,
   initialSessionPage,
+  userId,
 }: UseCareerMessageHistoryArgs) => {
   const tCareer = useCareerMessageFormatter();
   const queryClient = useQueryClient();
   const queryKey = useMemo(
-    () => careerMessageHistoryKey(conversationId),
-    [conversationId]
+    () => careerMessageHistoryKey(conversationId, userId),
+    [conversationId, userId]
   );
 
   const fetchMessagePage = useCallback(
     async (beforeMessageId?: number | null) => {
-      if (!conversationId) {
+      if (!conversationId && !userId) {
         return {
+          conversation: null,
           messages: [],
           nextBeforeMessageId: null,
         } satisfies CareerMessagesPage;
@@ -63,19 +81,21 @@ export const useCareerMessageHistory = ({
 
       const searchParams = new URLSearchParams({
         messageLimit: "20",
-        opportunityLimit: "0",
       });
 
+      if (conversationId) {
+        searchParams.set("conversationId", conversationId);
+      }
       if (beforeMessageId) {
         searchParams.set("beforeMessageId", String(beforeMessageId));
       }
 
       const response = await fetchWithAuth(
-        `/api/talent/session?${searchParams.toString()}`
+        `/api/talent/messages?${searchParams.toString()}`
       );
       const payload = (await response
         .json()
-        .catch(() => ({}))) as Partial<SessionResponse> &
+        .catch(() => ({}))) as Partial<CareerMessagesPage> &
         Record<string, unknown>;
 
       if (!response.ok) {
@@ -85,6 +105,18 @@ export const useCareerMessageHistory = ({
       }
 
       return {
+        conversation:
+          payload.conversation &&
+          typeof payload.conversation === "object" &&
+          typeof payload.conversation.id === "string" &&
+          (payload.conversation.stage === "profile" ||
+            payload.conversation.stage === "chat" ||
+            payload.conversation.stage === "completed")
+            ? {
+                id: payload.conversation.id,
+                stage: payload.conversation.stage,
+              }
+            : null,
         messages: Array.isArray(payload.messages)
           ? (payload.messages as CareerMessagePayload[])
           : [],
@@ -94,12 +126,12 @@ export const useCareerMessageHistory = ({
             : null,
       } satisfies CareerMessagesPage;
     },
-    [conversationId, fetchWithAuth, tCareer]
+    [conversationId, fetchWithAuth, tCareer, userId]
   );
 
   const infinite = useInfiniteQuery({
     queryKey,
-    enabled: enabled && Boolean(conversationId),
+    enabled: enabled && Boolean(conversationId || userId),
     initialPageParam: null as number | null,
     queryFn: ({ pageParam }) => fetchMessagePage(pageParam),
     getNextPageParam: (lastPage) => lastPage.nextBeforeMessageId ?? undefined,
@@ -122,6 +154,13 @@ export const useCareerMessageHistory = ({
       .flatMap((page) => page.messages.map((message) => toUiMessage(message)));
   }, [infinite.data?.pages]);
 
+  const conversation = useMemo(() => {
+    for (const page of infinite.data?.pages ?? []) {
+      if (page.conversation) return page.conversation;
+    }
+    return null;
+  }, [infinite.data?.pages]);
+
   const invalidateMessageHistory = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey });
   }, [queryClient, queryKey]);
@@ -138,6 +177,7 @@ export const useCareerMessageHistory = ({
             ? [...current.pageParams]
             : [null];
           const latestPage = nextPages[0] ?? {
+            conversation: null,
             messages: [],
             nextBeforeMessageId: null,
           };
@@ -204,6 +244,7 @@ export const useCareerMessageHistory = ({
 
   return {
     ...infinite,
+    conversation,
     messages,
     hasOlderMessages: Boolean(infinite.hasNextPage),
     loadOlderMessages: infinite.fetchNextPage,

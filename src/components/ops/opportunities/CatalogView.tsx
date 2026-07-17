@@ -180,29 +180,36 @@ export default function CatalogView({
                       <div className="truncate text-sm font-medium">
                         {workspace.companyName}
                       </div>
-                      <div
-                        className={cx(
-                          "mt-1 text-xs",
-                          active ? "text-neutral-00/70" : "text-neutral-muted"
-                        )}
-                      >
-                        {workspace.internalRoleCount} internal roles
-                      </div>
                     </div>
                     <Token active={active}>
-                      {workspace.activeRoleCount} active
+                      {workspace.totalRoleCount} roles
                     </Token>
                   </div>
-                  {workspace.companyDescription ? (
-                    <div
-                      className={cx(
-                        "mt-2 line-clamp-2 text-xs leading-5",
-                        active ? "text-neutral-00/70" : "text-neutral-muted"
-                      )}
-                    >
-                      {workspace.companyDescription}
-                    </div>
-                  ) : null}
+                  <div className="mt-3 grid grid-cols-3 gap-1.5">
+                    {[
+                      ["Roles", workspace.totalRoleCount],
+                      ["Active", workspace.activeRoleCount],
+                      ["Members", workspace.memberCount],
+                    ].map(([label, value]) => (
+                      <div
+                        key={label}
+                        className={cx(
+                          "rounded-md px-2 py-2",
+                          active ? "bg-neutral-00/10" : "bg-bg-floating"
+                        )}
+                      >
+                        <div
+                          className={cx(
+                            "text-[10px] uppercase",
+                            active ? "text-neutral-00/55" : "text-neutral-soft"
+                          )}
+                        >
+                          {label}
+                        </div>
+                        <div className="mt-1 text-sm font-medium">{value}</div>
+                      </div>
+                    ))}
+                  </div>
                 </BareButton>
               );
             })

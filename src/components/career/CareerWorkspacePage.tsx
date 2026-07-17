@@ -19,6 +19,13 @@ import { useCareerVisitLog } from "@/hooks/career/useCareerVisitLog";
 import { useTalentOnboardingRedirect } from "@/hooks/career/useTalentOnboardingStatus";
 import { useMessages } from "@/i18n/useMessage";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
+import { supabase } from "@/lib/supabase";
+import CareerReferralModal from "@/components/career/referral/CareerReferralModal";
+import { subscribeCareerReferralModalOpen } from "@/components/career/referral/careerReferralEvents";
+import {
+  captureTalentNetworkReferralFromCurrentLocation,
+  TALENT_NETWORK_REFERRAL_SOURCE_CAREER_PROFILE_MENU,
+} from "@/lib/talentNetworkReferral";
 import {
   buildOfficialJobsInitialChatDraft,
   OFFICIAL_JOBS_ONBOARDING_JOB_PARAM,
@@ -44,7 +51,9 @@ const CareerWorkspacePage = ({
   const { user, authLoading } = useCareerAuth();
   const { locale } = useMessages();
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isReferralModalOpen, setIsReferralModalOpen] = useState(false);
   const deliveryEmailHistoryLinkLoggedRef = useRef(false);
+  const referralCaptureKeyRef = useRef("");
   const isRouterReady = router.isReady;
   const inviteToken =
     isRouterReady && typeof router.query.invite === "string"
@@ -93,6 +102,8 @@ const CareerWorkspacePage = ({
     : null;
   const isDeliveryEmailHistoryLinkEntry =
     deliveryEmailHistoryLinkEntry === DELIVERY_EMAIL_HISTORY_LINK_ENTRY_VALUE;
+  const referralIntent =
+    isRouterReady && getSingleQueryParam(router.query.intent) === "referral";
 
   const currentActiveTab = useMemo(
     () =>
@@ -109,6 +120,47 @@ const CareerWorkspacePage = ({
       userId: user?.id ?? null,
     });
   useCareerVisitLog(!authLoading && isRouterReady && Boolean(user));
+
+  useEffect(() => {
+    return subscribeCareerReferralModalOpen(() => {
+      setIsReferralModalOpen(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!isRouterReady || authLoading || !user) return;
+    const captureKey = `${user.id}:${router.asPath}`;
+    if (referralCaptureKeyRef.current === captureKey) return;
+    referralCaptureKeyRef.current = captureKey;
+
+    void supabase.auth
+      .getSession()
+      .then(({ data }) =>
+        captureTalentNetworkReferralFromCurrentLocation({
+          accessToken: data.session?.access_token ?? null,
+          source: TALENT_NETWORK_REFERRAL_SOURCE_CAREER_PROFILE_MENU,
+        })
+      )
+      .catch((error) => {
+        console.warn("[career] referral capture failed:", error);
+      });
+  }, [authLoading, isRouterReady, router.asPath, user]);
+
+  useEffect(() => {
+    if (!isRouterReady || !user || !referralIntent) return;
+    const timeoutId = window.setTimeout(() => {
+      setIsReferralModalOpen(true);
+    }, 0);
+    const nextQuery = { ...router.query };
+    delete nextQuery.intent;
+    void router.replace(
+      { pathname: router.pathname, query: nextQuery },
+      undefined,
+      { shallow: true, scroll: false }
+    );
+
+    return () => window.clearTimeout(timeoutId);
+  }, [isRouterReady, referralIntent, router, user]);
 
   useEffect(() => {
     if (
@@ -285,6 +337,10 @@ const CareerWorkspacePage = ({
         <CareerSettingsModal
           open={settingsModalOpen}
           onClose={handleCloseSettings}
+        />
+        <CareerReferralModal
+          open={isReferralModalOpen}
+          onClose={() => setIsReferralModalOpen(false)}
         />
       </CareerFlowProvider>
     );

@@ -26,7 +26,6 @@ import {
   CareerOpportunityType,
   type CareerHistoryOpportunity,
   type CareerMessage,
-  type CareerRecentOpportunity,
   type CareerTalentInsights,
   type CareerTalentPreferences,
   type CareerTalentProfile,
@@ -236,39 +235,6 @@ function buildPreviewConversationMessages({
     typing: typing && index === visibleCount - 1 && turn.role === "assistant",
   }));
 }
-
-const getInitialRecentOpportunities = (
-  t: CareerT
-): CareerRecentOpportunity[] => [
-  {
-    id: "preview-history-1",
-    kind: "match",
-    opportunityType: CareerOpportunityType.IntroRequest,
-    title: "Applied AI Engineer",
-    companyName: "Stealth Agent Startup",
-    summary: t(
-      "career.preview.career_workspace_preview.0r19bht",
-      "작은 팀에서 제품과 모델 품질을 함께 책임질 수 있는 역할입니다."
-    ),
-    location: "Seoul / Hybrid",
-    engagementType: "Full-time",
-    matchedAt: previewDaysAgo(2),
-  },
-  {
-    id: "preview-history-2",
-    kind: "recommendation",
-    opportunityType: CareerOpportunityType.ExternalJd,
-    title: "Founding ML Engineer",
-    companyName: "Global Remote SaaS",
-    summary: t(
-      "career.preview.career_workspace_preview.1ist4od",
-      "초기 제품 방향과 LLM workflow를 같이 설계할 수 있는 포지션입니다."
-    ),
-    location: "US / Remote",
-    engagementType: "Full-time or Fractional",
-    matchedAt: previewDaysAgo(4),
-  },
-];
 
 const getInitialHistoryOpportunities = (
   t: CareerT
@@ -577,10 +543,6 @@ const CareerWorkspacePreview = ({
       }),
     [previewConversationTurns]
   );
-  const initialRecentOpportunities = useMemo(
-    () => getInitialRecentOpportunities(t),
-    [t]
-  );
   const initialHistoryOpportunities = useMemo(
     () => getInitialHistoryOpportunities(t),
     [t]
@@ -811,7 +773,6 @@ const CareerWorkspacePreview = ({
       onRunSessionReengagementTest: () => undefined,
       onRunPeriodicOpportunityDiscoveryTest: () => undefined,
       onRunOpportunityDiscoveryTest: () => undefined,
-      recentOpportunities: initialRecentOpportunities,
       historyOpportunityCounts:
         deriveHistoryOpportunityCounts(historyOpportunities),
       historyOpportunities,
@@ -1092,7 +1053,6 @@ const CareerWorkspacePreview = ({
       talentPreferencesSaveInfo,
       savedTalentInsights,
       historyOpportunities,
-      initialRecentOpportunities,
       t,
     ]
   );

@@ -9,6 +9,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { openCustomCrispWidget } from "@/lib/feedback/customCrispEvents";
+import Face from "../common/Face";
+// import { useCareerT } from "@/i18n/useCareerT";
 
 type FooterLocale = "ko" | "en";
 
@@ -18,7 +20,18 @@ type CareerLandingFooterProps = {
   onScheduleCallClick?: React.MouseEventHandler<HTMLButtonElement>;
   locale?: FooterLocale;
   onLocaleChange?: (locale: FooterLocale) => void;
-  labels?: {
+  showLocaleSwitcher?: boolean;
+};
+
+const liStyle =
+  "cursor-pointer text-xs md:text-sm font-normal text-black transition duration-300 hover:text-black/90";
+const labelStyle = "font-medium text-neutral-600";
+
+const blockStyle = "flex flex-col items-start justify-start md:min-w-[140px]";
+
+const FOOTER_COPY: Record<
+  FooterLocale,
+  {
     start: string;
     howItWorks: string;
     successStories: string;
@@ -27,16 +40,35 @@ type CareerLandingFooterProps = {
     company: string;
     harperForCompanies: string;
     scheduleCall: string;
-    blog: string;
     linkedin: string;
     contact: string;
-  };
+  }
+> = {
+  ko: {
+    start: "시작하기",
+    howItWorks: "How it works",
+    successStories: "Success stories",
+    forTalent: "For Talent",
+    forCompanies: "For Companies",
+    company: "Company",
+    harperForCompanies: "Harper for Companies",
+    scheduleCall: "Schedule a call",
+    linkedin: "LinkedIn",
+    contact: "문의하기",
+  },
+  en: {
+    start: "Get started",
+    howItWorks: "How it works",
+    successStories: "Success stories",
+    forTalent: "For Talent",
+    forCompanies: "For Companies",
+    company: "Company",
+    harperForCompanies: "Harper for Companies",
+    scheduleCall: "Schedule a call",
+    linkedin: "LinkedIn",
+    contact: "Contact",
+  },
 };
-
-const labelStyle =
-  "cursor-pointer text-xs md:text-sm font-medium text-black/45 transition duration-300 hover:text-black/85";
-
-const blockStyle = "flex flex-col items-start justify-start md:min-w-[140px]";
 
 const languageOptions: readonly {
   value: FooterLocale;
@@ -141,40 +173,38 @@ export default function CareerLandingFooter({
   onScheduleCallClick,
   locale,
   onLocaleChange,
-  labels = {
-    start: "시작하기",
-    howItWorks: "How it works",
-    successStories: "Success stories",
-    forTalent: "For Talent",
-    forCompanies: "For Companies",
-    company: "Company",
-    harperForCompanies: "Harper for Companies",
-    scheduleCall: "Schedule a call",
-    blog: "Blog",
-    linkedin: "LinkedIn",
-    contact: "문의하기",
-  },
+  showLocaleSwitcher = true,
 }: CareerLandingFooterProps) {
+  // const t = useCareerT();
+  const labels = FOOTER_COPY[locale ?? "ko"];
   const openSupportChat = () => {
     openCustomCrispWidget();
   };
 
   const liststyle =
-    "mt-4 flex flex-col gap-2 md:gap-3 text-xs md:text-sm text-black/70";
+    "mt-4 flex flex-col gap-2 md:gap-3 text-xs md:text-sm text-black/90 font-light";
 
   return (
     <footer className="border-t border-black/10 px-4 py-14 text-[12px] text-black md:px-10 md:py-16">
       <div className="mx-auto max-w-[1160px]">
-        <div className="flex flex-col items-start justify-between gap-10 border-b border-black/10 md:pb-16 pb-10 lg:flex-row">
+        <div className="flex flex-col items-start justify-between gap-10 md:pb-16 pb-10 lg:flex-row">
           <div className="max-w-[360px]">
-            <Image src="/svgs/logov2.svg" alt="Harper" width={78} height={36} />
+            <div className="flex items-center gap-2">
+              <Face size={36} />
+              {/* <Image
+                src="/svgs/logov2.svg"
+                alt="Harper"
+                width={78}
+                height={36}
+              /> */}
+            </div>
             <p className="font-hedvig mt-5 text-base font-semibold text-black/60">
               Get <span className="text-black">introduced</span> to your{" "}
               <span className="text-black">dream role</span>.
               <br />
               With <span className="text-black">Harper</span>.
             </p>
-            {locale ? (
+            {locale && showLocaleSwitcher ? (
               <FooterLanguageDropdown
                 locale={locale}
                 onLocaleChange={onLocaleChange}
@@ -184,46 +214,50 @@ export default function CareerLandingFooter({
 
           <div className="grid w-full grid-cols-2 gap-8 sm:grid-cols-3 lg:w-auto lg:gap-12">
             <div className={blockStyle}>
-              <div className="w-full font-medium uppercase text-black">
-                {labels.forTalent}
-              </div>
+              <div className={`w-full ${labelStyle}`}>{labels.forTalent}</div>
               <div className={`${liststyle}`}>
                 <Link
                   href={careerStartHref}
-                  className={labelStyle}
+                  className={liStyle}
                   onClick={onCareerStartClick}
                 >
                   {labels.start}
                 </Link>
-                <Link href="/#workflow" className={labelStyle}>
+                <Link href="/#workflow" className={liStyle}>
                   {labels.howItWorks}
                 </Link>
-                <Link href="/#voices" className={labelStyle}>
+                <Link href="/#voices" className={liStyle}>
                   {labels.successStories}
                 </Link>
+                {/* <Link
+                  href="/career_login?next=%2Fcareer%3Fintent%3Dreferral"
+                  className={liStyle}
+                >
+                  {t("career.referral.footer.invite_friends", "친구 초대하기")}
+                </Link> */}
               </div>
             </div>
 
             <div className={blockStyle}>
-              <div className="w-full font-medium uppercase text-black">
+              <div className={`w-full ${labelStyle}`}>
                 {labels.forCompanies}
               </div>
               <div className={`${liststyle}`}>
-                <Link href="/company" className={labelStyle}>
+                <Link href="/company" className={liStyle}>
                   {labels.harperForCompanies}
                 </Link>
                 {onScheduleCallClick ? (
                   <button
                     type="button"
                     onClick={onScheduleCallClick}
-                    className={`${labelStyle} text-left`}
+                    className={`${liStyle} text-left`}
                   >
                     {labels.scheduleCall}
                   </button>
                 ) : (
                   <a
                     href="https://calendly.com/chris-matchharper/30min"
-                    className={labelStyle}
+                    className={liStyle}
                   >
                     {labels.scheduleCall}
                   </a>
@@ -232,25 +266,23 @@ export default function CareerLandingFooter({
             </div>
 
             <div className={blockStyle}>
-              <div className="w-full font-medium uppercase text-black">
-                {labels.company}
-              </div>
+              <div className={`w-full ${labelStyle}`}>{labels.company}</div>
               <div className={`${liststyle}`}>
-                <Link href="/blog" className={labelStyle}>
-                  {labels.blog}
+                <Link href="/about" className={liStyle}>
+                  About Team
                 </Link>
                 <a
                   href="https://www.linkedin.com/company/matchharper/"
                   target="_blank"
                   rel="noreferrer"
-                  className={labelStyle}
+                  className={liStyle}
                 >
                   {labels.linkedin}
                 </a>
                 <button
                   type="button"
                   onClick={openSupportChat}
-                  className={`${labelStyle} text-left`}
+                  className={`${liStyle} text-left`}
                 >
                   {labels.contact}
                 </button>

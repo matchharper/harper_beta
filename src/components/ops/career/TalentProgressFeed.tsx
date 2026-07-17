@@ -39,6 +39,10 @@ function isRejectedFeedback(feedback: string | null | undefined) {
   return normalized === "dislike" || normalized === "negative";
 }
 
+function isCandidateRequestedConnection(item: OpsMatchingProgressItem) {
+  return item.kind === "candidate_requested_connection";
+}
+
 function getPrimaryDelivery(
   recommendation: OpsMatchingRecommendationSummary
 ): OpsMatchingRecommendationDelivery | null {
@@ -274,6 +278,8 @@ export const TalentProgressFeed = memo(function TalentProgressFeed({
         }
 
         const item = timelineItem.item;
+        const candidateRequestedConnection =
+          isCandidateRequestedConnection(item);
         const isDeleting =
           deleteProgress.isPending && pendingDeleteId === item.id;
         return (
@@ -321,7 +327,7 @@ export const TalentProgressFeed = memo(function TalentProgressFeed({
               </BareButton>
             </div>
             <div className="mt-2 whitespace-pre-wrap leading-6 text-neutral-primary">
-              {item.text}
+              {candidateRequestedConnection ? "관심 표시" : item.text}
             </div>
           </article>
         );

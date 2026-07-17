@@ -69,7 +69,7 @@ const TalentSocialProof = ({
 
   return (
     <div className="relative z-10 mx-auto w-full max-w-[1180px] px-4 pb-8 pt-8 text-center md:pb-10 md:pt-10">
-      <h2 className="font-sans text-[13px] font-medium text-black/42 sm:text-[14px]">
+      <h2 className="font-sans text-[13px] font-medium text-black/40 sm:text-[14px]">
         {title}
       </h2>
 
@@ -82,7 +82,7 @@ const TalentSocialProof = ({
             "linear-gradient(90deg, transparent, black 12%, black 88%, transparent)",
         }}
       >
-        <div className="flex w-max animate-[talent-logo-marquee-right_54s_linear_infinite] items-center gap-10 pr-10 will-change-transform md:gap-32 md:pr-14">
+        <div className="flex w-max animate-[talent-logo-marquee-right_54s_linear_infinite] justify-center items-center gap-10 pr-10 will-change-transform md:gap-32 md:pr-14">
           {logoLoop.map((logo, index) => (
             <span
               key={`${logo.name}-${index}`}

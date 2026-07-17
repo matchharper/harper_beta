@@ -1,21 +1,15 @@
 import OpsShell from "@/components/ops/OpsShell";
 import CatalogView from "@/components/ops/opportunities/CatalogView";
 import CompanyManagementView from "@/components/ops/opportunities/CompanyManagementView";
-import CompanyMatchView from "@/components/ops/opportunities/CompanyMatchView";
 import {
-  CandidateMailModal,
-  RecommendationPromptModal,
   RoleCreateModal,
   WorkspaceCreateModal,
 } from "@/components/ops/opportunities/modals";
 import {
-  type CandidateMailDraft,
   type DraftMode,
-  EMPTY_CANDIDATE_MAIL_DRAFT,
   EMPTY_ROLE_DRAFT,
   EMPTY_WORKSPACE_DRAFT,
   getPageViewFromQuery,
-  matchesRoleQuery,
   PAGE_VIEW_QUERY_KEY,
   type PageView,
   type RoleDraft,
@@ -23,23 +17,13 @@ import {
   type WorkspaceDraft,
   workspaceToDraft,
 } from "@/components/ops/opportunities/shared";
-import TalentRecommendationView from "@/components/ops/opportunities/TalentRecommendationView";
 import { ViewTabs } from "@/components/ops/opportunities/ViewTabs";
 import { showToast } from "@/components/toast/toast";
 import { cx, opsTheme } from "@/components/ops/theme";
 import {
   useDeleteOpsOpportunityRole,
-  useGenerateOpsOpportunityRecommendationDraft,
-  useSendOpsOpportunityCandidateMail,
-  useDeleteOpsOpportunityMatch,
-  useDeleteOpsOpportunityRecommendation,
   useExtractOpsOpportunityWorkspace,
-  useOpsOpportunityCandidates,
   useOpsOpportunityCompanies,
-  useOpsOpportunityMatches,
-  useOpsOpportunityRecommendations,
-  useSaveOpsOpportunityMatch,
-  useSaveOpsOpportunityRecommendation,
   useSaveOpsOpportunityRole,
   useSaveOpsOpportunityWorkspace,
   useSyncOpsOpportunityRoles,
@@ -55,43 +39,21 @@ import {
 import type {
   OpsCompanyQualityLabel,
   OpsCompanyManagementRecord,
-  OpsOpportunityCandidateRecord,
   OpsOpportunityRoleRecord,
-  OpsOpportunityType,
 } from "@/lib/ops/opportunity";
-import { OpportunityType } from "@/lib/opportunityType";
 import { isInternalEmail } from "@/lib/internalAccess";
 import { useAuthStore } from "@/store/useAuthStore";
-import {
-  isEmailExcludedByOpsInternalTerms,
-  useOpsInternalDataExclusionStore,
-} from "@/store/useOpsInternalDataExclusionStore";
-import { DEFAULT_OPS_TALENT_RECOMMENDATION_PROMPT } from "@/lib/ops/opportunityRecommendationPrompt";
-import { useOpsOpportunityRecommendationPromptStore } from "@/store/useOpsOpportunityRecommendationPromptStore";
 import { LoaderCircle, RefreshCw } from "lucide-react";
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { useCallback, useDeferredValue, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { BareButton } from "@/components/ui/button";
 
 export default function OpsOpportunitiesPage() {
   const router = useRouter();
   const authLoading = useAuthStore((state) => state.loading);
   const user = useAuthStore((state) => state.user);
-  const emailExclusionTerms = useOpsInternalDataExclusionStore(
-    (state) => state.emailExclusionTerms
-  );
   const canFetchInternal = !authLoading && isInternalEmail(user?.email);
-  const savedRecommendationPromptTemplate =
-    useOpsOpportunityRecommendationPromptStore((state) => state.promptTemplate);
-  const setSavedRecommendationPromptTemplate =
-    useOpsOpportunityRecommendationPromptStore(
-      (state) => state.setPromptTemplate
-    );
-  const resetSavedRecommendationPromptTemplate =
-    useOpsOpportunityRecommendationPromptStore(
-      (state) => state.resetPromptTemplate
-    );
   const [companyManagementCompanyName, setCompanyManagementCompanyName] =
     useState("");
   const [companyManagementLocation, setCompanyManagementLocation] =
@@ -137,37 +99,6 @@ export default function OpsOpportunitiesPage() {
   );
   const [roleDraft, setRoleDraft] = useState<RoleDraft>(EMPTY_ROLE_DRAFT);
 
-  const [companyRoleSearch, setCompanyRoleSearch] = useState("");
-  const [selectedCompanyRoleId, setSelectedCompanyRoleId] = useState<
-    string | null
-  >(null);
-  const [companyTalentInput, setCompanyTalentInput] = useState("");
-  const [companyTalentSearchQuery, setCompanyTalentSearchQuery] = useState("");
-  const [selectedCompanyTalent, setSelectedCompanyTalent] =
-    useState<OpsOpportunityCandidateRecord | null>(null);
-  const [companyMemo, setCompanyMemo] = useState("");
-
-  const [recommendationRoleSearch, setRecommendationRoleSearch] = useState("");
-  const [selectedRecommendationRoleId, setSelectedRecommendationRoleId] =
-    useState<string | null>(null);
-  const [recommendationTalentInput, setRecommendationTalentInput] =
-    useState("");
-  const [recommendationTalentSearchQuery, setRecommendationTalentSearchQuery] =
-    useState("");
-  const [selectedRecommendationTalent, setSelectedRecommendationTalent] =
-    useState<OpsOpportunityCandidateRecord | null>(null);
-  const [recommendationOpportunityType, setRecommendationOpportunityType] =
-    useState<OpsOpportunityType>(OpportunityType.ExternalJd);
-  const [recommendationMemo, setRecommendationMemo] = useState("");
-  const [isRecommendationPromptModalOpen, setIsRecommendationPromptModalOpen] =
-    useState(false);
-  const [recommendationPromptDraft, setRecommendationPromptDraft] = useState(
-    savedRecommendationPromptTemplate
-  );
-  const [mailTalent, setMailTalent] =
-    useState<OpsOpportunityCandidateRecord | null>(null);
-  const [candidateMailDraft, setCandidateMailDraft] =
-    useState<CandidateMailDraft>(EMPTY_CANDIDATE_MAIL_DRAFT);
   const [updatingScrapeOriginalIds, setUpdatingScrapeOriginalIds] = useState(
     () => new Set<string>()
   );
@@ -201,13 +132,6 @@ export default function OpsOpportunitiesPage() {
     [currentViewQuery, router]
   );
 
-  const deferredCompanyRoleSearch = useDeferredValue(
-    companyRoleSearch.trim().toLowerCase()
-  );
-  const deferredRecommendationRoleSearch = useDeferredValue(
-    recommendationRoleSearch.trim().toLowerCase()
-  );
-
   const catalog = useOpsOpportunityCatalogController({
     canFetchInternal,
     view,
@@ -234,17 +158,9 @@ export default function OpsOpportunitiesPage() {
   const syncRoles = useSyncOpsOpportunityRoles();
   const saveRole = useSaveOpsOpportunityRole();
   const deleteRole = useDeleteOpsOpportunityRole();
-  const saveMatch = useSaveOpsOpportunityMatch();
-  const deleteMatch = useDeleteOpsOpportunityMatch();
-  const saveRecommendation = useSaveOpsOpportunityRecommendation();
-  const generateRecommendationDraft =
-    useGenerateOpsOpportunityRecommendationDraft();
-  const deleteRecommendation = useDeleteOpsOpportunityRecommendation();
-  const sendCandidateMail = useSendOpsOpportunityCandidateMail();
   const updateCompanyScrapeOriginal = useUpdateOpsCompanyScrapeOriginal();
   const updateCompanyHumanQualityLabel = useUpdateOpsCompanyHumanQualityLabel();
 
-  const roles = catalog.allRoles;
   const selectedWorkspace = catalog.selectedWorkspace;
   const selectedWorkspaceId = catalog.selectedWorkspaceId;
   const selectedRole = catalog.selectedRole;
@@ -259,155 +175,6 @@ export default function OpsOpportunitiesPage() {
     }
     return Array.from(rowByWorkspaceId.values());
   }, [companyManagementQuery.data?.pages]);
-
-  const internalRoleOptions = useMemo(
-    () =>
-      roles.filter(
-        (role) =>
-          role.sourceType === "internal" &&
-          matchesRoleQuery(role, deferredCompanyRoleSearch)
-      ),
-    [deferredCompanyRoleSearch, roles]
-  );
-
-  const recommendationRoleOptions = useMemo(
-    () =>
-      roles.filter((role) =>
-        matchesRoleQuery(role, deferredRecommendationRoleSearch)
-      ),
-    [deferredRecommendationRoleSearch, roles]
-  );
-
-  const selectedCompanyRole = useMemo(
-    () =>
-      roles.find(
-        (role) =>
-          role.roleId === selectedCompanyRoleId &&
-          role.sourceType === "internal"
-      ) ??
-      roles.find((role) => role.sourceType === "internal") ??
-      null,
-    [roles, selectedCompanyRoleId]
-  );
-  const selectedCompanyRoleIdForView = selectedCompanyRole?.roleId ?? null;
-
-  const selectedRecommendationRole = useMemo(
-    () =>
-      roles.find((role) => role.roleId === selectedRecommendationRoleId) ??
-      roles[0] ??
-      null,
-    [roles, selectedRecommendationRoleId]
-  );
-  const selectedRecommendationRoleIdForView =
-    selectedRecommendationRole?.roleId ?? null;
-
-  const companyCandidateQuery = useOpsOpportunityCandidates({
-    enabled: canFetchInternal && view === "company_match",
-    query: companyTalentSearchQuery,
-    roleId: selectedCompanyRoleIdForView,
-  });
-
-  const recommendationTalentQuery = useOpsOpportunityCandidates({
-    enabled: canFetchInternal && view === "talent_recommendation",
-    query: recommendationTalentSearchQuery,
-  });
-
-  const visibleCompanyCandidates = useMemo(
-    () =>
-      (companyCandidateQuery.data?.items ?? []).filter(
-        (item) =>
-          !isEmailExcludedByOpsInternalTerms(item.email, emailExclusionTerms)
-      ),
-    [companyCandidateQuery.data?.items, emailExclusionTerms]
-  );
-  const visibleRecommendationTalents = useMemo(
-    () =>
-      (recommendationTalentQuery.data?.items ?? []).filter(
-        (item) =>
-          !isEmailExcludedByOpsInternalTerms(item.email, emailExclusionTerms)
-      ),
-    [emailExclusionTerms, recommendationTalentQuery.data?.items]
-  );
-  const visibleSelectedCompanyTalent = useMemo(() => {
-    if (!selectedCompanyTalent) return null;
-    const refreshed =
-      visibleCompanyCandidates.find(
-        (item) => item.talentId === selectedCompanyTalent.talentId
-      ) ?? selectedCompanyTalent;
-    return isEmailExcludedByOpsInternalTerms(
-      refreshed.email,
-      emailExclusionTerms
-    )
-      ? null
-      : refreshed;
-  }, [emailExclusionTerms, selectedCompanyTalent, visibleCompanyCandidates]);
-  const visibleSelectedRecommendationTalent = useMemo(() => {
-    if (!selectedRecommendationTalent) return null;
-    const refreshed =
-      visibleRecommendationTalents.find(
-        (item) => item.talentId === selectedRecommendationTalent.talentId
-      ) ?? selectedRecommendationTalent;
-    return isEmailExcludedByOpsInternalTerms(
-      refreshed.email,
-      emailExclusionTerms
-    )
-      ? null
-      : refreshed;
-  }, [
-    emailExclusionTerms,
-    selectedRecommendationTalent,
-    visibleRecommendationTalents,
-  ]);
-
-  const roleMatchesQuery = useOpsOpportunityMatches({
-    enabled:
-      canFetchInternal &&
-      view === "company_match" &&
-      Boolean(selectedCompanyRoleIdForView),
-    roleId: selectedCompanyRoleIdForView,
-  });
-
-  const talentRecommendationsQuery = useOpsOpportunityRecommendations({
-    enabled:
-      canFetchInternal &&
-      view === "talent_recommendation" &&
-      Boolean(visibleSelectedRecommendationTalent?.talentId),
-    talentId: visibleSelectedRecommendationTalent?.talentId,
-  });
-
-  const getDefaultCandidateMailSubject = () => {
-    const activeRole =
-      view === "company_match"
-        ? selectedCompanyRole
-        : selectedRecommendationRole;
-    if (activeRole) {
-      return `${activeRole.companyName} ${activeRole.name} 관련 안내`;
-    }
-    return "Harper에서 안내드립니다";
-  };
-
-  const openCandidateMailModal = (talent: OpsOpportunityCandidateRecord) => {
-    if (!talent.email) {
-      showToast({
-        message: "이 talent에는 등록된 이메일이 없습니다.",
-        variant: "white",
-      });
-      return;
-    }
-
-    setMailTalent(talent);
-    setCandidateMailDraft({
-      content: "",
-      fromEmail: user?.email ?? "",
-      subject: getDefaultCandidateMailSubject(),
-    });
-  };
-
-  const closeCandidateMailModal = () => {
-    if (sendCandidateMail.isPending) return;
-    setMailTalent(null);
-    setCandidateMailDraft(EMPTY_CANDIDATE_MAIL_DRAFT);
-  };
 
   const handleWorkspaceSave = async () => {
     try {
@@ -485,10 +252,6 @@ export default function OpsOpportunitiesPage() {
       });
       setRoleDraftMode("edit");
       catalog.setSelectedRoleId(response.role.roleId);
-      if (response.role.sourceType === "internal") {
-        setSelectedCompanyRoleId(response.role.roleId);
-      }
-      setSelectedRecommendationRoleId(response.role.roleId);
       if (isRoleCreateModalOpen) {
         setIsRoleCreateModalOpen(false);
       }
@@ -523,18 +286,11 @@ export default function OpsOpportunitiesPage() {
     if (!confirmed) return;
 
     try {
-      const deletedRoleId = selectedRole.roleId;
       await deleteRole.mutateAsync({
         companyWorkspaceId: selectedWorkspaceId,
-        roleId: deletedRoleId,
+        roleId: selectedRole.roleId,
       });
 
-      if (selectedCompanyRoleId === deletedRoleId) {
-        setSelectedCompanyRoleId(null);
-      }
-      if (selectedRecommendationRoleId === deletedRoleId) {
-        setSelectedRecommendationRoleId(null);
-      }
       catalog.setSelectedRoleId(null);
       setIsRoleCreateModalOpen(false);
       setRoleDraftMode("edit");
@@ -650,191 +406,13 @@ export default function OpsOpportunitiesPage() {
     setRoleDraft(roleToDraft(selectedRole));
   };
 
-  const handleCreateCompanyMatch = async () => {
-    if (!selectedCompanyRole || !visibleSelectedCompanyTalent?.candidId) {
-      showToast({
-        message: "candid로 연결된 talent를 선택해야 합니다.",
-        variant: "white",
-      });
-      return;
-    }
-
-    try {
-      await saveMatch.mutateAsync({
-        candidId: visibleSelectedCompanyTalent.candidId,
-        harperMemo: companyMemo,
-        roleId: selectedCompanyRole.roleId,
-      });
-      setCompanyMemo("");
-      showToast({
-        message: "회사 전달용 매칭을 저장했습니다.",
-        variant: "white",
-      });
-    } catch (error) {
-      showToast({
-        message:
-          error instanceof Error ? error.message : "매칭 저장에 실패했습니다.",
-        variant: "white",
-      });
-    }
-  };
-
-  const handleCreateRecommendation = async () => {
-    if (!selectedRecommendationRole || !visibleSelectedRecommendationTalent) {
-      return;
-    }
-
-    try {
-      await saveRecommendation.mutateAsync({
-        opportunityType: recommendationOpportunityType,
-        recommendationMemo: recommendationMemo,
-        roleId: selectedRecommendationRole.roleId,
-        talentId: visibleSelectedRecommendationTalent.talentId,
-      });
-      setRecommendationMemo("");
-      showToast({
-        message: "후보자 추천을 저장했습니다.",
-        variant: "white",
-      });
-    } catch (error) {
-      showToast({
-        message:
-          error instanceof Error ? error.message : "추천 저장에 실패했습니다.",
-        variant: "white",
-      });
-    }
-  };
-
-  const handleGenerateRecommendationMemo = async () => {
-    if (!selectedRecommendationRole || !visibleSelectedRecommendationTalent) {
-      showToast({
-        message: "talent와 기회를 먼저 선택해 주세요.",
-        variant: "white",
-      });
-      return;
-    }
-
-    try {
-      const response = await generateRecommendationDraft.mutateAsync({
-        opportunityType: recommendationOpportunityType,
-        promptTemplate: savedRecommendationPromptTemplate,
-        roleId: selectedRecommendationRole.roleId,
-        talentId: visibleSelectedRecommendationTalent.talentId,
-      });
-      setRecommendationMemo(response.draft);
-      showToast({
-        message: "추천 문구를 작성했습니다.",
-        variant: "white",
-      });
-    } catch (error) {
-      showToast({
-        message:
-          error instanceof Error
-            ? error.message
-            : "추천 문구 생성에 실패했습니다.",
-        variant: "white",
-      });
-    }
-  };
-
-  const openRecommendationPromptModal = () => {
-    setRecommendationPromptDraft(savedRecommendationPromptTemplate);
-    setIsRecommendationPromptModalOpen(true);
-  };
-
-  const handleSaveRecommendationPrompt = () => {
-    const nextPrompt = recommendationPromptDraft.trim();
-    if (!nextPrompt) {
-      showToast({
-        message: "프롬프트를 비워둘 수 없습니다.",
-        variant: "white",
-      });
-      return;
-    }
-
-    if (nextPrompt === DEFAULT_OPS_TALENT_RECOMMENDATION_PROMPT) {
-      resetSavedRecommendationPromptTemplate();
-    } else {
-      setSavedRecommendationPromptTemplate(nextPrompt);
-    }
-    setIsRecommendationPromptModalOpen(false);
-    showToast({
-      message: "프롬프트를 저장했습니다.",
-      variant: "white",
-    });
-  };
-
-  const handleDeleteMatch = async (candidId: string, roleId: string) => {
-    if (!window.confirm("이 매칭을 제거할까요?")) return;
-
-    try {
-      await deleteMatch.mutateAsync({ candidId, roleId });
-      showToast({
-        message: "매칭을 제거했습니다.",
-        variant: "white",
-      });
-    } catch (error) {
-      showToast({
-        message:
-          error instanceof Error ? error.message : "매칭 제거에 실패했습니다.",
-        variant: "white",
-      });
-    }
-  };
-
-  const handleDeleteRecommendation = async (recommendationId: string) => {
-    if (!window.confirm("이 추천을 제거할까요?")) return;
-
-    try {
-      await deleteRecommendation.mutateAsync({ recommendationId });
-      showToast({
-        message: "추천을 제거했습니다.",
-        variant: "white",
-      });
-    } catch (error) {
-      showToast({
-        message:
-          error instanceof Error ? error.message : "추천 제거에 실패했습니다.",
-        variant: "white",
-      });
-    }
-  };
-
-  const handleSendCandidateMail = async () => {
-    if (!mailTalent) return;
-
-    try {
-      await sendCandidateMail.mutateAsync({
-        content: candidateMailDraft.content.trim(),
-        fromEmail: candidateMailDraft.fromEmail.trim(),
-        subject: candidateMailDraft.subject.trim(),
-        talentId: mailTalent.talentId,
-      });
-      showToast({
-        message: "메일 발송 완료",
-        variant: "white",
-      });
-      closeCandidateMailModal();
-    } catch (error) {
-      showToast({
-        message:
-          error instanceof Error ? error.message : "메일 발송에 실패했습니다.",
-        variant: "white",
-      });
-    }
-  };
-
   const handleRefresh = useCallback(() => {
     if (view === "company_management") {
       void refetchCompanyManagement();
       return;
     }
-    if (view === "catalog") {
-      void catalog.refetchCatalog();
-      void catalog.refetchRoles();
-      return;
-    }
     void catalog.refetchCatalog();
+    void catalog.refetchRoles();
   }, [catalog, refetchCompanyManagement, view]);
 
   const fetchNextCompanyManagementPage = useCallback(() => {
@@ -971,14 +549,14 @@ export default function OpsOpportunitiesPage() {
         <title>Harper Ops Opportunities</title>
         <meta
           name="description"
-          content="Ops catalog, company-side candidate matching, and talent-side opportunity recommendations"
+          content="Ops company and opportunity catalog management"
         />
       </Head>
 
       <OpsShell
         compactHeader
         title="Company / Opportunity Ops"
-        description="회사와 기회를 관리하고, 회사 전달용 후보자 매칭과 후보자 전달용 기회 추천을 분리해서 운영합니다."
+        description="회사와 기회 목록을 관리합니다."
         actions={
           <BareButton
             type="button"
@@ -1032,7 +610,7 @@ export default function OpsOpportunitiesPage() {
             workspaceSearch={catalog.workspaceSearch}
             workspaceTotalCount={catalog.workspaceTotalCount}
           />
-        ) : view === "company_management" ? (
+        ) : (
           <CompanyManagementView
             companies={companyManagementRows}
             companyNameSearch={companyManagementCompanyName}
@@ -1071,96 +649,9 @@ export default function OpsOpportunitiesPage() {
             updatingQualityLabelIds={updatingQualityLabelIds}
             updatingScrapeOriginalIds={updatingScrapeOriginalIds}
           />
-        ) : view === "company_match" ? (
-          <CompanyMatchView
-            companyCandidates={visibleCompanyCandidates}
-            companyCandidateLoading={companyCandidateQuery.isLoading}
-            companyMemo={companyMemo}
-            companyRoleSearch={companyRoleSearch}
-            companyTalentInput={companyTalentInput}
-            companyTalentSearchQuery={companyTalentSearchQuery}
-            internalRoleOptions={internalRoleOptions}
-            onCompanyMemoChange={setCompanyMemo}
-            onCompanyRoleSearchChange={setCompanyRoleSearch}
-            onCompanyRoleSelect={setSelectedCompanyRoleId}
-            onCompanyTalentInputChange={setCompanyTalentInput}
-            onCompanyTalentSearch={() =>
-              setCompanyTalentSearchQuery(companyTalentInput.trim())
-            }
-            onCompanyTalentSelect={setSelectedCompanyTalent}
-            onCreateCompanyMatch={() => void handleCreateCompanyMatch()}
-            onDeleteMatch={(candidId, roleId) =>
-              void handleDeleteMatch(candidId, roleId)
-            }
-            onOpenCandidateMailModal={openCandidateMailModal}
-            onResetSelection={() => {
-              setSelectedCompanyTalent(null);
-              setCompanyMemo("");
-            }}
-            roleMatches={roleMatchesQuery.data?.items ?? []}
-            roleMatchesLoading={roleMatchesQuery.isLoading}
-            saveMatchPending={saveMatch.isPending}
-            selectedCompanyRole={selectedCompanyRole}
-            selectedCompanyRoleId={selectedCompanyRoleIdForView}
-            selectedCompanyTalent={visibleSelectedCompanyTalent}
-          />
-        ) : (
-          <TalentRecommendationView
-            generateRecommendationPending={
-              generateRecommendationDraft.isPending
-            }
-            onCreateRecommendation={() => void handleCreateRecommendation()}
-            onDeleteRecommendation={(recommendationId) =>
-              void handleDeleteRecommendation(recommendationId)
-            }
-            onGenerateRecommendationMemo={() =>
-              void handleGenerateRecommendationMemo()
-            }
-            onOpenCandidateMailModal={openCandidateMailModal}
-            onOpenRecommendationPromptModal={openRecommendationPromptModal}
-            onRecommendationMemoChange={setRecommendationMemo}
-            onRecommendationOpportunityTypeChange={
-              setRecommendationOpportunityType
-            }
-            onRecommendationRoleSearchChange={setRecommendationRoleSearch}
-            onRecommendationRoleSelect={setSelectedRecommendationRoleId}
-            onRecommendationTalentInputChange={setRecommendationTalentInput}
-            onRecommendationTalentSearch={() =>
-              setRecommendationTalentSearchQuery(
-                recommendationTalentInput.trim()
-              )
-            }
-            onRecommendationTalentSelect={setSelectedRecommendationTalent}
-            onResetRecommendationSelection={() => {
-              setSelectedRecommendationTalent(null);
-              setRecommendationMemo("");
-            }}
-            recommendationMemo={recommendationMemo}
-            recommendationOpportunityType={recommendationOpportunityType}
-            recommendationRoleOptions={recommendationRoleOptions}
-            recommendationRoleSearch={recommendationRoleSearch}
-            recommendationTalentInput={recommendationTalentInput}
-            recommendationTalentLoading={recommendationTalentQuery.isLoading}
-            recommendationTalentSearchQuery={recommendationTalentSearchQuery}
-            recommendationTalents={visibleRecommendationTalents}
-            saveRecommendationPending={saveRecommendation.isPending}
-            selectedRecommendationRole={selectedRecommendationRole}
-            selectedRecommendationRoleId={selectedRecommendationRoleIdForView}
-            selectedRecommendationTalent={visibleSelectedRecommendationTalent}
-            talentRecommendations={talentRecommendationsQuery.data?.items ?? []}
-            talentRecommendationsLoading={talentRecommendationsQuery.isLoading}
-          />
         )}
       </OpsShell>
 
-      <CandidateMailModal
-        talent={mailTalent}
-        draft={candidateMailDraft}
-        onChange={setCandidateMailDraft}
-        onClose={closeCandidateMailModal}
-        onSubmit={() => void handleSendCandidateMail()}
-        pending={sendCandidateMail.isPending}
-      />
       <WorkspaceCreateModal
         open={isWorkspaceCreateModalOpen}
         draft={workspaceDraft}
@@ -1183,16 +674,6 @@ export default function OpsOpportunitiesPage() {
         onSubmit={() => void handleRoleSave()}
         pending={saveRole.isPending}
         workspaceName={selectedWorkspace?.companyName ?? null}
-      />
-      <RecommendationPromptModal
-        open={isRecommendationPromptModalOpen}
-        value={recommendationPromptDraft}
-        onChange={setRecommendationPromptDraft}
-        onReset={() =>
-          setRecommendationPromptDraft(DEFAULT_OPS_TALENT_RECOMMENDATION_PROMPT)
-        }
-        onClose={() => setIsRecommendationPromptModalOpen(false)}
-        onSave={handleSaveRecommendationPrompt}
       />
     </>
   );

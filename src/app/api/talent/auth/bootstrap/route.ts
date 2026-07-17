@@ -19,6 +19,10 @@ import { enqueueSignupNoProfileSubmit } from "@/lib/contactQueue";
 import type { Json } from "@/types/database.types";
 import { normalizeCareerPromptLocale } from "@/lib/career/promptLocale";
 import { careerT } from "@/lib/career/translatedCareerMessage";
+import {
+  attributeTalentNetworkReferralSignup,
+  normalizeReferralToken,
+} from "@/lib/talentNetworkReferralServer";
 
 type Body = {
   emailOnboardingToken?: string;
@@ -28,10 +32,12 @@ type Body = {
   landingSource?: string;
   locale?: string;
   mail?: string;
+  referralToken?: string;
 };
 
 const CAREER_SIGNUP_EVENT_TYPE = "career_signup_completed";
 const OPS_CAREER_USER_URL_BASE = "https://matchharper.com/ops/career";
+const REFERRAL_SIGNUP_SOURCE_LABEL = "레퍼럴 링크 🔥";
 const OFFICIAL_JOB_SOURCE_EVENT_TYPES = [
   "job_apply_click",
   "jobs_cta_click",
@@ -116,6 +122,10 @@ function resolveSignupLocale(req: NextRequest) {
   }
 
   return null;
+}
+
+function fallbackByLocale(locale: "ko" | "en", ko: string, en: string) {
+  return locale === "en" ? en : ko;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -213,6 +223,7 @@ export async function POST(req: NextRequest) {
     const landingLocalId = normalizeOptionalText(body?.landingLocalId, 120);
     const landingPath = normalizeOptionalText(body?.landingPath, 500);
     const landingSource = normalizeCareerUtmSource(body?.landingSource);
+    const referralToken = normalizeReferralToken(body?.referralToken);
     const preferredLocale = normalizeCareerPromptLocale(
       body?.locale ??
         req.cookies.get("NEXT_LOCALE")?.value ??
@@ -244,6 +255,7 @@ export async function POST(req: NextRequest) {
       claimed: boolean;
       leadId: string;
       email: string;
+      status?: string | null;
     } | null = null;
     if (emailOnboardingToken) {
       let parsed: ReturnType<typeof parseCareerEmailOnboardingToken>;
@@ -255,7 +267,11 @@ export async function POST(req: NextRequest) {
             error: careerT(
               preferredLocale,
               "career.api.auth.email_onboarding_link_invalid",
-              "이메일 온보딩 링크가 만료되었거나 올바르지 않습니다. 랜딩페이지에서 다시 이메일을 남겨주세요."
+              fallbackByLocale(
+                preferredLocale,
+                "이메일 온보딩 링크가 만료되었거나 올바르지 않습니다. 랜딩페이지에서 다시 이메일을 남겨주세요.",
+                "This email onboarding link is expired or invalid. Please leave your email on the landing page again."
+              )
             ),
           },
           { status: 400 }
@@ -270,7 +286,11 @@ export async function POST(req: NextRequest) {
             error: careerT(
               preferredLocale,
               "career.api.auth.email_onboarding_email_mismatch",
-              "이메일 온보딩 링크의 이메일과 로그인 계정의 이메일이 일치하지 않습니다."
+              fallbackByLocale(
+                preferredLocale,
+                "메일을 받은 이메일 주소로 가입해야 이어서 진행할 수 있어요.",
+                "Please sign up with the email address that received Harper's email."
+              )
             ),
           },
           { status: 400 }
@@ -296,18 +316,80 @@ export async function POST(req: NextRequest) {
           { status: 500 }
         );
       }
-      emailOnboardingClaim = {
-        claimed: Boolean(data),
-        email: parsed.email,
-        leadId: parsed.leadId,
-      };
+      if (!data) {
+        const { data: leadAfterClaim, error: leadReadError } = await (
+          admin as any
+        )
+          .from("career_email_onboarding_leads")
+          .select("converted_user_id, status")
+          .eq("id", parsed.leadId)
+          .maybeSingle();
+        if (leadReadError) {
+          return NextResponse.json(
+            {
+              error:
+                leadReadError.message ??
+                "Failed to verify career email onboarding lead",
+            },
+            { status: 500 }
+          );
+        }
+        const convertedUserId = String(
+          leadAfterClaim?.converted_user_id ?? ""
+        ).trim();
+        if (convertedUserId && convertedUserId !== user.id) {
+          return NextResponse.json(
+            {
+              error: careerT(
+                preferredLocale,
+                "career.api.auth.email_onboarding_email_mismatch",
+                fallbackByLocale(
+                  preferredLocale,
+                  "메일을 받은 이메일 주소로 가입해야 이어서 진행할 수 있어요.",
+                  "Please sign up with the email address that received Harper's email."
+                )
+              ),
+            },
+            { status: 400 }
+          );
+        }
+        if (!convertedUserId) {
+          return NextResponse.json(
+            {
+              error: careerT(
+                preferredLocale,
+                "career.api.auth.email_onboarding_link_invalid",
+                fallbackByLocale(
+                  preferredLocale,
+                  "메일 링크를 확인할 수 없어요. 받은 메일의 링크로 다시 접속해 주세요.",
+                  "We could not verify this email link. Please open the link from Harper's email again."
+                )
+              ),
+            },
+            { status: 400 }
+          );
+        }
+        emailOnboardingClaim = {
+          claimed: false,
+          email: parsed.email,
+          leadId: parsed.leadId,
+          status: String(leadAfterClaim?.status ?? ""),
+        };
+      } else {
+        emailOnboardingClaim = {
+          claimed: true,
+          email: parsed.email,
+          leadId: parsed.leadId,
+          status: "converted",
+        };
+      }
     }
 
     await ensureTalentUserRecord({
       admin,
       currentLocation,
       user,
-      mail: emailOnboardingClaim?.claimed ? null : mail || null,
+      mail: emailOnboardingClaim ? null : mail || null,
     });
     const claim =
       inviteToken.length > 0
@@ -335,6 +417,7 @@ export async function POST(req: NextRequest) {
         path: landingPath,
         source: landingSource,
       });
+      let slackSignupSourceDetail = signupSourceDetail;
 
       const { error: logInsertError } = await admin.from("logs").insert({
         type: CAREER_SIGNUP_EVENT_TYPE,
@@ -347,7 +430,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      if (!emailOnboardingClaim?.claimed) {
+      if (!emailOnboardingClaim) {
         await enqueueSignupNoProfileSubmit({
           admin,
           payload: {
@@ -365,13 +448,34 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      if (referralToken) {
+        const referralAttribution = await attributeTalentNetworkReferralSignup({
+          admin,
+          referredUser: user,
+          token: referralToken,
+        }).catch((referralError) => {
+          console.error(
+            "[talent/auth/bootstrap] referral attribution error:",
+            referralError
+          );
+          return null;
+        });
+
+        if (
+          referralAttribution?.attributed ||
+          referralAttribution?.reason === "already_attributed"
+        ) {
+          slackSignupSourceDetail = REFERRAL_SIGNUP_SOURCE_LABEL;
+        }
+      }
+
       try {
         await notifySlackActivity({
           action: "회원가입 완료",
           details: [
             { label: "Device", value: getSlackActivityDeviceLabel(req) },
-            ...(signupSourceDetail
-              ? [{ label: "Source", value: signupSourceDetail }]
+            ...(slackSignupSourceDetail
+              ? [{ label: "Source", value: slackSignupSourceDetail }]
               : []),
             ...(inviteToken ? [{ label: "Invite", value: "yes" }] : []),
             ...(emailOnboardingClaim?.claimed
@@ -399,6 +503,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       claim,
+      created: !existingTalentUser,
       emailOnboardingClaim,
       ok: true,
       userId: user.id,

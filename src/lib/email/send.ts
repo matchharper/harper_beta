@@ -1,4 +1,5 @@
 type SendResendEmailArgs = {
+  cc?: string[];
   from?: string | null;
   headers?: Record<string, string>;
   html: string;
@@ -35,6 +36,9 @@ export async function sendResendEmail(args: SendResendEmailArgs) {
     text: args.text,
     html: args.html,
   };
+  if (args.cc && args.cc.length > 0) {
+    payload.cc = args.cc;
+  }
   if (args.headers && Object.keys(args.headers).length > 0) {
     payload.headers = args.headers;
   }

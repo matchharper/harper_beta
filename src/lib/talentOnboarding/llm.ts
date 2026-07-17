@@ -47,7 +47,7 @@ type LlmToolCostAttribution = {
   toolNames: readonly string[];
 };
 
-const DEFAULT_TALENT_PRIMARY_MODEL = "grok-4-3-fast-non-reasoning";
+const DEFAULT_TALENT_PRIMARY_MODEL = "grok-4.3";
 const DEFAULT_TALENT_FALLBACK_MODEL = "gpt-4.1-mini";
 const DEFAULT_TALENT_ANTHROPIC_OVERLOAD_FALLBACK_MODEL = "grok-4.3";
 

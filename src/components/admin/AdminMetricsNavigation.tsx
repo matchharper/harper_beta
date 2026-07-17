@@ -84,9 +84,11 @@ export default function AdminMetricsNavigation({
               <div className="text-[15px] font-semibold tracking-tight">
                 {title}
               </div>
-              <div className="mt-1 text-[12px] leading-5 text-black/50">
-                {subtitle}
-              </div>
+              {subtitle ? (
+                <div className="mt-1 text-[12px] leading-5 text-black/50">
+                  {subtitle}
+                </div>
+              ) : null}
             </div>
           </div>
 

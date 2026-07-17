@@ -9,11 +9,8 @@ import {
   LoaderCircle,
   LogIn,
   MoreHorizontal,
-  Pencil,
-  Plus,
   Send,
   StickyNote,
-  Trash2,
   type LucideIcon,
   XCircle,
 } from "lucide-react";
@@ -40,6 +37,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
+import {
+  ReviewPipelineColumnAddRail,
+  ReviewPipelineColumnHeader,
+  ReviewPipelineColumnShell,
+  ReviewPipelineDropTargetHint,
+  ReviewPipelineEmptyState,
+  ReviewPipelineStageDialog,
+} from "@/components/review-pipeline/ReviewPipelinePrimitives";
 import { useCreateOpsCareerProfileMemo } from "@/hooks/ops/useOpsCareer";
 import {
   useCreateOpsMatchingReviewStage,
@@ -53,7 +58,6 @@ import {
 } from "@/hooks/ops/useOpsMatching";
 import { OPS_MATCHING_NO_HUMAN_LABEL_FILTER_VALUE } from "@/lib/ops/matchingFilters";
 import { useOpsMatchingStore } from "@/store/useOpsMatchingStore";
-import { Input as UiInput } from "@/components/ui/input";
 import type {
   OpsMatchingReviewItem,
   OpsMatchingReviewStageId,
@@ -815,31 +819,6 @@ function isDroppableReviewStageId(
   return stage !== "hold" && stage !== "recommended";
 }
 
-function DropTargetHint({ label }: { label: string }) {
-  return (
-    <div className="rounded-md border border-dashed border-primary/45 bg-primary-faded px-3 py-2 text-center text-xs font-medium text-primary">
-      드롭하면 {label}로 이동
-    </div>
-  );
-}
-
-function ReviewColumnAddRail({ onClick }: { onClick: () => void }) {
-  return (
-    <div className="relative min-h-[560px] w-8 shrink-0 border-y border-neutral-1000-a10 bg-bg-default">
-      <div className="absolute left-1/2 top-0 h-full border-l border-dashed border-neutral-1000-a10" />
-      <BareButton
-        type="button"
-        onClick={onClick}
-        aria-label="칼럼 추가"
-        title="칼럼 추가"
-        className="absolute left-1/2 top-2 z-10 flex h-7 w-7 -translate-x-1/2 items-center justify-center rounded-full border border-neutral-1000-a10 bg-bg-floating text-neutral-muted shadow-sm transition hover:border-primary/40 hover:bg-primary-faded hover:text-primary"
-      >
-        <Plus className="h-3.5 w-3.5" />
-      </BareButton>
-    </div>
-  );
-}
-
 export function MatchingHarperReviewBoard({
   canFetchInternal,
   onRecommendedDateRangeChange,
@@ -1223,7 +1202,7 @@ export function MatchingHarperReviewBoard({
       Boolean(column.customStageId) &&
       pendingCustomStageId === column.customStageId;
     return (
-      <section
+      <ReviewPipelineColumnShell
         key={column.id}
         onDragOver={(event) => {
           if (canDrop && isDroppableReviewStageId(column.id)) {
@@ -1245,96 +1224,38 @@ export function MatchingHarperReviewBoard({
           event.preventDefault();
           handleDrop(column);
         }}
-        className={cx(
-          "min-h-[560px] shrink-0 border-y border-l border-neutral-1000-a10 transition-colors",
-          isCollapsed ? "w-14" : "w-[300px]",
-          index === totalColumns - 1 && "border-r",
-          isDropTarget
-            ? "bg-primary-faded/55 ring-2 ring-inset ring-primary/55"
-            : canDrop
-              ? "bg-primary-faded/20"
-              : column.id === "accepted"
-                ? "bg-positive-faded"
-                : column.id === "rejected"
-                  ? "bg-critical-faded/40"
-                  : "bg-bg-default"
-        )}
+        collapsed={isCollapsed}
+        canDrop={canDrop}
+        isDropTarget={isDropTarget}
+        tone={
+          column.id === "accepted"
+            ? "accepted"
+            : column.id === "rejected"
+              ? "rejected"
+              : "default"
+        }
+        className={index === totalColumns - 1 ? "border-r" : undefined}
       >
-        <div className="border-b border-neutral-1000-a10 bg-bg-floating px-3 py-2.5">
-          {isCollapsed ? (
-            <div className="flex flex-col items-center gap-2">
-              <BareButton
-                type="button"
-                onClick={() =>
-                  toggleReviewColumnCollapsed(role.roleId, column.id)
-                }
-                aria-label={`${column.label} 펼치기`}
-                className="flex h-7 w-7 items-center justify-center rounded-md text-neutral-muted transition hover:bg-bg-weak hover:text-neutral-primary"
-              >
-                <ChevronRight className="h-3.5 w-3.5" />
-              </BareButton>
-              <div className="max-h-[180px] truncate text-[11px] font-semibold text-neutral-primary [writing-mode:vertical-rl]">
-                {column.label}
-              </div>
-              <span className="rounded-sm bg-bg-default px-1.5 py-0.5 text-[10px] text-neutral-muted">
-                {columnItems.length}
-              </span>
-            </div>
-          ) : (
-            <div className="flex items-center justify-between gap-2">
-              <div className="truncate text-xs font-semibold text-neutral-primary">
-                {column.label}
-              </div>
-              <div className="flex shrink-0 items-center gap-1">
-                <span className="rounded-sm bg-bg-default px-1.5 py-0.5 text-[10px] text-neutral-muted">
-                  {columnItems.length}
-                </span>
-                {isCustomColumn ? (
-                  <>
-                    <BareButton
-                      type="button"
-                      onClick={() => openEditCustomStageDialog(column)}
-                      disabled={isCustomColumnPending}
-                      aria-label={`${column.label} 이름 수정`}
-                      title="이름 수정"
-                      className="flex h-6 w-6 items-center justify-center rounded-md text-neutral-soft transition hover:bg-bg-weak hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </BareButton>
-                    <BareButton
-                      type="button"
-                      onClick={() => handleDeleteCustomStage(column)}
-                      disabled={isCustomColumnPending}
-                      aria-label={`${column.label} 삭제`}
-                      title="삭제"
-                      className="flex h-6 w-6 items-center justify-center rounded-md text-neutral-soft transition hover:bg-critical-faded hover:text-critical disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {isCustomColumnPending && deleteReviewStage.isPending ? (
-                        <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-3.5 w-3.5" />
-                      )}
-                    </BareButton>
-                  </>
-                ) : null}
-                <BareButton
-                  type="button"
-                  onClick={() =>
-                    toggleReviewColumnCollapsed(role.roleId, column.id)
-                  }
-                  aria-label={`${column.label} 접기`}
-                  className="flex h-6 w-6 items-center justify-center rounded-md text-neutral-soft transition hover:bg-bg-weak hover:text-neutral-primary"
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                </BareButton>
-              </div>
-            </div>
-          )}
-        </div>
+        <ReviewPipelineColumnHeader
+          collapsed={isCollapsed}
+          count={columnItems.length}
+          label={column.label}
+          onCollapse={() => toggleReviewColumnCollapsed(role.roleId, column.id)}
+          onExpand={() => toggleReviewColumnCollapsed(role.roleId, column.id)}
+          onEdit={
+            isCustomColumn ? () => openEditCustomStageDialog(column) : undefined
+          }
+          onDelete={
+            isCustomColumn ? () => handleDeleteCustomStage(column) : undefined
+          }
+          pending={isCustomColumnPending}
+        />
 
         {!isCollapsed ? (
           <div className="space-y-2 p-2">
-            {isDropTarget ? <DropTargetHint label={column.label} /> : null}
+            {isDropTarget ? (
+              <ReviewPipelineDropTargetHint label={column.label} />
+            ) : null}
             {columnItems.map((item) => (
               <ReviewCard
                 key={item.recommendationId}
@@ -1356,16 +1277,12 @@ export function MatchingHarperReviewBoard({
                 visibleFields={visibleReviewFields}
               />
             ))}
-            {columnItems.length === 0 ? (
-              <div className="border border-dashed border-neutral-1000-a10 bg-bg-floating px-3 py-8 text-center text-xs text-neutral-soft">
-                비어 있음
-              </div>
-            ) : null}
+            {columnItems.length === 0 ? <ReviewPipelineEmptyState /> : null}
           </div>
         ) : (
           <div className="h-full" />
         )}
-      </section>
+      </ReviewPipelineColumnShell>
     );
   };
 
@@ -1444,9 +1361,7 @@ export function MatchingHarperReviewBoard({
             <ReviewListToggleBox
               key={control.id}
               active={visibleArchiveStageIds.includes(control.id)}
-              canDrop={
-                draggingItem ? draggingItem.stage !== control.id : false
-              }
+              canDrop={draggingItem ? draggingItem.stage !== control.id : false}
               count={groupedItems.get(control.id)?.length ?? 0}
               icon={control.icon}
               isDropTarget={dropTargetStageId === control.id}
@@ -1550,7 +1465,7 @@ export function MatchingHarperReviewBoard({
               totalReviewColumns
             )
           )}
-          <ReviewColumnAddRail onClick={openCreateCustomStageDialog} />
+          <ReviewPipelineColumnAddRail onClick={openCreateCustomStageDialog} />
           {POST_CUSTOM_REVIEW_COLUMNS.map((column, index) =>
             renderReviewColumn(
               column,
@@ -1565,68 +1480,24 @@ export function MatchingHarperReviewBoard({
         </div>
       </div>
 
-      <Dialog
+      <ReviewPipelineStageDialog
         open={customStageDialogOpen}
-        onOpenChange={(open) => {
-          setCustomStageDialogOpen(open);
-          if (!open) {
-            setCustomStageError("");
-            setCustomStageLabel("");
-            setEditingCustomStage(null);
-          }
+        mode={editingCustomStage ? "edit" : "create"}
+        label={customStageLabel}
+        error={customStageError}
+        pending={isCustomStageSubmitting}
+        onLabelChange={(value) => {
+          setCustomStageLabel(value);
+          if (customStageError) setCustomStageError("");
         }}
-      >
-        <DialogContent className="max-w-md rounded-lg" hideCloseButton>
-          <form onSubmit={(event) => void handleCustomStageSubmit(event)}>
-            <DialogHeader>
-              <DialogTitle>
-                {editingCustomStage ? "칼럼 이름 수정" : "칼럼 추가"}
-              </DialogTitle>
-              <DialogDescription>
-                {editingCustomStage
-                  ? "이 role의 Pipeline 단계 이름을 수정합니다."
-                  : "연결 대기와 최종 오퍼 사이에 새 단계를 추가합니다."}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="mt-4 space-y-2">
-              <UiInput
-                autoFocus
-                value={customStageLabel}
-                onChange={(event) => {
-                  setCustomStageLabel(event.target.value);
-                  if (customStageError) setCustomStageError("");
-                }}
-                maxLength={40}
-                placeholder="예: 1차 인터뷰"
-              />
-              {customStageError ? (
-                <div className="text-xs text-critical">{customStageError}</div>
-              ) : null}
-            </div>
-            <DialogFooter className="mt-5">
-              <BareButton
-                type="button"
-                onClick={() => setCustomStageDialogOpen(false)}
-                disabled={isCustomStageSubmitting}
-                className={cx(opsTheme.buttonSecondary, "h-10 px-4 text-sm")}
-              >
-                취소
-              </BareButton>
-              <BareButton
-                type="submit"
-                disabled={!customStageLabel.trim() || isCustomStageSubmitting}
-                className={cx(opsTheme.buttonPrimary, "h-10 px-4 text-sm")}
-              >
-                {isCustomStageSubmitting
-                  ? "저장 중..."
-                  : editingCustomStage
-                    ? "수정"
-                    : "추가"}
-              </BareButton>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+        onSubmit={(event) => void handleCustomStageSubmit(event)}
+        onClose={() => {
+          setCustomStageDialogOpen(false);
+          setCustomStageError("");
+          setCustomStageLabel("");
+          setEditingCustomStage(null);
+        }}
+      />
 
       <Dialog
         open={Boolean(confirmRecommendTalent)}

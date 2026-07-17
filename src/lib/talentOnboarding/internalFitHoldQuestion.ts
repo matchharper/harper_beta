@@ -11,7 +11,7 @@ export type ActiveInternalFitHoldQuestion = {
 
 const ACTIVE_HOLD_CANDIDATE_LIMIT = 20;
 const NEW_INFORMATION_MAX_CHARS = 700;
-const PROPAGATION_MODEL = "grok-4-3-fast-non-reasoning";
+const PROPAGATION_MODEL = "grok-4.3";
 const PROPAGATION_TEMPERATURE = 0.3;
 const PROPAGATION_METHOD = "llm_criteria_match_v1";
 

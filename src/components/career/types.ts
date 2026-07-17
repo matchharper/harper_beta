@@ -17,6 +17,7 @@ export type CareerCallStartRequest =
   | string
   | {
       conversationStarterId?: CareerConversationStarterId | null;
+      forceBeginOnboarding?: boolean;
       internalCallRequestId?: string | null;
       openingText?: string;
     };
@@ -192,19 +193,6 @@ export type CareerHistoryOpportunityCounts = {
   total: number;
 };
 
-export type CareerRecentOpportunity = {
-  id: string;
-  kind: "match" | "recommendation";
-  opportunityType: OpportunityType;
-  title: string;
-  companyName: string;
-  summary: string | null;
-  location: string | null;
-  engagementType: string | null;
-  matchedAt: string;
-  href?: string | null;
-};
-
 export type CareerHistoryOpportunityFeedback = "positive" | "negative";
 
 export type CareerPreferenceFitStatus =
@@ -358,7 +346,6 @@ export type SessionResponse = {
   talentPreferences?: CareerTalentPreferences | null;
   talentInsights?: CareerTalentInsights | null;
   onboardingChecklistProgress?: CareerOnboardingChecklistProgress | null;
-  recentOpportunities?: CareerRecentOpportunity[];
   profileSettingsMeta?: CareerProfileSettingsMeta;
   talentProfile?: CareerTalentProfile;
   opportunityRun?: CareerOpportunityRun | null;

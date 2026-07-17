@@ -375,7 +375,6 @@ export default function OfficialJobsPage({
         </main>
         <CareerLandingFooter
           careerStartHref={OFFICIAL_JOBS_LOGIN_HREF}
-          labels={copy.footerLabels}
           locale={resolvedLocale}
         />
       </Page>

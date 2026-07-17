@@ -14,6 +14,7 @@ type UntypedAdminClient = SupabaseClient<any>;
 type IdValue = string | number;
 
 const ACCOUNT_DELETE_CONFIRMATION = "delete_account";
+const ACCOUNT_DELETED_LOG_TYPE = "career_account_deleted";
 const CAREER_PROFILE_ASSET_BUCKET = "company_logo";
 const TALENT_NETWORK_CV_BUCKET = "talent-network-cv";
 const DELETE_CHUNK_SIZE = 100;
@@ -301,7 +302,6 @@ async function collectAccountDeletionContext(
   const [
     discoveryRunIdsByConversation,
     onboardingLeadIdsByConversation,
-    emailReplyRowsByConversation,
     companyRunIdsByQuery,
   ] = await Promise.all([
     selectValuesIn<string>(
@@ -318,20 +318,10 @@ async function collectAccountDeletionContext(
       "conversation_id",
       conversationIds
     ),
-    selectRowsIn<{ id: string; inbound_event_id: string | null }>(
-      admin,
-      "email_reply_jobs",
-      "id, inbound_event_id",
-      "conversation_id",
-      conversationIds
-    ),
     selectValuesIn<string>(admin, "runs", "id", "query_id", companyQueryIds),
   ]);
 
-  const emailReplyRows = [
-    ...emailReplyRowsByTalent,
-    ...emailReplyRowsByConversation,
-  ];
+  const emailReplyRows = emailReplyRowsByTalent;
 
   return {
     bookmarkFolderIds,
@@ -637,14 +627,17 @@ async function deleteLooseUserRows(
   await deleteEq(admin, "feedback", "user_id", context.userId);
   await deleteEq(admin, "official_job_events", "user_id", context.userId);
   await deleteEq(admin, "profile_shares", "created_by", context.userId);
-
-  if (!context.email) return;
-
+  await deleteEq(
+    admin,
+    "talent_network_referral_attributions",
+    "referred_user_id",
+    context.userId
+  );
   await deleteEq(
     admin,
     "talent_network_referral_links",
-    "sharer_email",
-    context.email
+    "referrer_user_id",
+    context.userId
   );
 }
 
@@ -689,6 +682,17 @@ async function notifyAccountDeletionSlack(
   }
 }
 
+async function insertAccountDeletionLog(admin: UntypedAdminClient) {
+  const { error } = await admin.from("logs").insert({
+    type: ACCOUNT_DELETED_LOG_TYPE,
+    user_id: null,
+  });
+
+  if (error) {
+    console.error("[talent-account-delete] deletion log insert failed:", error);
+  }
+}
+
 export async function DELETE(req: NextRequest) {
   try {
     const user = await getRequestUser(req);
@@ -724,6 +728,7 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
+    await insertAccountDeletionLog(admin);
     await notifyAccountDeletionSlack(req, context, user);
 
     return NextResponse.json({ ok: true });

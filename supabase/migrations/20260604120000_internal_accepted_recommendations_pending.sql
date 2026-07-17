@@ -1,1 +1,0 @@
--- No-op. Internal recommendation progress is derived from talent_opportunity_tag.

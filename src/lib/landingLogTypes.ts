@@ -8,8 +8,14 @@ const LOGIN_EMAIL_PREFIX = "login_email:";
 const SOURCE_AWARE_EVENT_TYPES = [
   ...LANDING_LOG_ENTRY_TYPES,
   "click_start",
+  "email_capture_already_sent",
+  "email_capture_error",
+  "email_capture_sent",
+  "email_capture_submit",
   "first_scroll_down",
 ] as const;
+const SOURCE_AWARE_EVENT_TYPE_SET: readonly string[] =
+  SOURCE_AWARE_EVENT_TYPES;
 
 export function isLandingLogEntryType(type: string | null | undefined) {
   const value = String(type ?? "").trim();
@@ -79,10 +85,7 @@ export function withLandingLogSource(type: string, source: string) {
       : normalizedType;
   }
 
-  if (
-    normalizedType === "click_start" ||
-    normalizedType === "first_scroll_down"
-  ) {
+  if (SOURCE_AWARE_EVENT_TYPE_SET.includes(normalizedType)) {
     return `${normalizedType}${LANDING_LOG_SOURCE_SEPARATOR}${normalizedSource}`;
   }
 

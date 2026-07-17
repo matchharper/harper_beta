@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    await requireInternalApiUser(req);
+    const user = await requireInternalApiUser(req);
     const body = (await req.json().catch(() => ({}))) as ProgressBody;
     const roleId = String(body.roleId ?? "").trim();
     const talentId = String(body.talentId ?? "").trim();
@@ -48,6 +48,7 @@ export async function POST(req: NextRequest) {
     }
 
     const payload = await createOpsMatchingProgress({
+      actorEmail: user.email ?? null,
       roleId,
       talentId,
       text: body.text,

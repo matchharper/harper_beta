@@ -1,4 +1,5 @@
 import Reveal from "@/components/landing/Animation/Reveal";
+import CareerAppBar from "@/components/landing/career/CareerAppBarNew";
 import {
   CompanyMeetingRequestModal,
   useCompanyMeetingRequestModal,
@@ -573,6 +574,16 @@ const Beige = () => {
     openMeetingRequestModal();
   }, [addCompanyLandingLog, openMeetingRequestModal]);
 
+  const handleCompanyMeetClick = useCallback<
+    React.MouseEventHandler<HTMLAnchorElement>
+  >(
+    (event) => {
+      event.preventDefault();
+      handleCompanyMainClick();
+    },
+    [handleCompanyMainClick]
+  );
+
   const seoMeta = useMemo(() => {
     if (locale === "ko") {
       return {
@@ -695,34 +706,14 @@ const Beige = () => {
             )}
           </AnimatePresence>
 
-          <nav className="fixed inset-x-0 top-0 z-50 bg-beige200/80 backdrop-blur-lg">
-            <div className="h-[78px] flex flex-row items-center justify-between px-6 md:px-28">
-              <a
-                href="#top"
-                className="font-hedvig text-[26px] tracking-[-0.06em] text-beige900"
-              >
-                Harper
-              </a>
-              <div className="justify-self-end">
-                <div className="flex items-center gap-3 max-[809px]:flex-wrap max-[809px]:justify-center">
-                  <div className="hidden md:block">
-                    <CalendlyButton
-                      label="Use Search"
-                      variant="secondary"
-                      size="sm"
-                      href="/search"
-                      onClick={handleCompanySearchClick}
-                    />
-                  </div>
-                  <CalendlyButton
-                    label="Schedule Demo"
-                    size="sm"
-                    onClick={handleCompanyMainClick}
-                  />
-                </div>
-              </div>
-            </div>
-          </nav>
+          <CareerAppBar
+            careerStartHref="#meet"
+            onCareerStartClick={handleCompanyMeetClick}
+            showSectionLinks={false}
+            audienceHref="/"
+            bgColor="beige200/80"
+            locale={locale}
+          />
 
           <main
             id="top"

@@ -2,6 +2,10 @@ import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
+import {
+  getTalentNetworkReferralTokenForSignup,
+  TALENT_NETWORK_REFERRAL_QUERY_KEY,
+} from "@/lib/talentNetworkReferral";
 import { normalizeCareerUtmSource } from "@/lib/career/utm";
 import {
   OFFICIAL_JOBS_ONBOARDING_JOB_PARAM,
@@ -120,8 +124,10 @@ export const useCareerAuth = () => {
     const inviteToken =
       currentUrl.searchParams.get("invite") ||
       nextUrl.searchParams.get("invite");
-    const mail =
-      currentUrl.searchParams.get("mail") || nextUrl.searchParams.get("mail");
+    const referralToken =
+      getTalentNetworkReferralTokenForSignup() ||
+      currentUrl.searchParams.get(TALENT_NETWORK_REFERRAL_QUERY_KEY) ||
+      nextUrl.searchParams.get(TALENT_NETWORK_REFERRAL_QUERY_KEY);
     const source = normalizeCareerUtmSource(
       currentUrl.searchParams.get("source") ||
         nextUrl.searchParams.get("source")
@@ -145,11 +151,19 @@ export const useCareerAuth = () => {
     const emailOnboardingToken =
       currentUrl.searchParams.get(CAREER_EMAIL_ONBOARDING_TOKEN_PARAM) ||
       nextUrl.searchParams.get(CAREER_EMAIL_ONBOARDING_TOKEN_PARAM);
+    const mail = emailOnboardingToken
+      ? null
+      : currentUrl.searchParams.get("mail") || nextUrl.searchParams.get("mail");
     if (inviteToken) {
       nextUrl.searchParams.set("invite", inviteToken);
     }
+    if (referralToken) {
+      nextUrl.searchParams.set(TALENT_NETWORK_REFERRAL_QUERY_KEY, referralToken);
+    }
     if (mail) {
       nextUrl.searchParams.set("mail", mail);
+    } else if (emailOnboardingToken) {
+      nextUrl.searchParams.delete("mail");
     }
     if (source) {
       nextUrl.searchParams.set("source", source);
@@ -196,6 +210,12 @@ export const useCareerAuth = () => {
 
     if (inviteToken) {
       callbackUrl.searchParams.set("invite", inviteToken);
+    }
+    if (referralToken) {
+      callbackUrl.searchParams.set(
+        TALENT_NETWORK_REFERRAL_QUERY_KEY,
+        referralToken
+      );
     }
     if (mail) {
       callbackUrl.searchParams.set("mail", mail);

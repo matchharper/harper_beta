@@ -31,6 +31,11 @@ import {
 } from "@/lib/officialJobs";
 import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
 import { supabase } from "@/lib/supabase";
+import {
+  captureTalentNetworkReferralFromCurrentLocation,
+  TALENT_NETWORK_REFERRAL_QUERY_KEY,
+  TALENT_NETWORK_REFERRAL_SOURCE_CAREER_LOGIN,
+} from "@/lib/talentNetworkReferral";
 
 type PartnerLogo = {
   src: string;
@@ -296,7 +301,9 @@ const CareerLoginContent = () => {
       ? router.query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM]
       : "";
   const inviteParam = getSingleQueryValue(router.query.invite).trim();
-  const mailParam = getSingleQueryValue(router.query.mail).trim();
+  const referralParam = getSingleQueryValue(
+    router.query[TALENT_NETWORK_REFERRAL_QUERY_KEY]
+  ).trim();
   const sourceParam = normalizeCareerUtmSource(
     getSingleQueryValue(router.query.source)
   );
@@ -317,7 +324,9 @@ const CareerLoginContent = () => {
         : window.location.origin;
     const nextUrl = new URL(nextPath, origin);
     if (inviteParam) nextUrl.searchParams.set("invite", inviteParam);
-    if (mailParam) nextUrl.searchParams.set("mail", mailParam);
+    if (referralParam) {
+      nextUrl.searchParams.set(TALENT_NETWORK_REFERRAL_QUERY_KEY, referralParam);
+    }
     if (sourceParam) nextUrl.searchParams.set("source", sourceParam);
     if (localIdParam) nextUrl.searchParams.set("lid", localIdParam);
     if (abtestTypeParam) nextUrl.searchParams.set("ab", abtestTypeParam);
@@ -342,6 +351,7 @@ const CareerLoginContent = () => {
       );
     }
     if (emailOnboardingTokenParam) {
+      nextUrl.searchParams.delete("mail");
       nextUrl.searchParams.set(
         CAREER_EMAIL_ONBOARDING_TOKEN_PARAM,
         emailOnboardingTokenParam
@@ -352,8 +362,8 @@ const CareerLoginContent = () => {
     abtestTypeParam,
     emailOnboardingTokenParam,
     inviteParam,
+    referralParam,
     localIdParam,
-    mailParam,
     nextPath,
     officialJobSlugParam,
     officialJobTitleParam,
@@ -382,6 +392,15 @@ const CareerLoginContent = () => {
   }, [router.isReady, router.query.lid, router.query.source]);
 
   useEffect(() => {
+    if (!router.isReady || typeof window === "undefined") return;
+    void captureTalentNetworkReferralFromCurrentLocation({
+      source: TALENT_NETWORK_REFERRAL_SOURCE_CAREER_LOGIN,
+    }).catch((error) => {
+      console.warn("[career_login] referral capture failed:", error);
+    });
+  }, [router.isReady, router.asPath]);
+
+  useEffect(() => {
     if (authLoading || !user || !router.isReady) return;
 
     void router.replace(buildResolvedNextPath());
@@ -401,7 +420,6 @@ const CareerLoginContent = () => {
       setFormError(copy.passwordMismatch);
       return;
     }
-
     const ok = await handleEmailAuth({
       mode: emailMode,
       email,
@@ -506,7 +524,7 @@ const CareerLoginContent = () => {
         }}
       />
       <main className="relative flex min-h-svh w-full flex-col overflow-hidden bg-bg-basement text-neutral-primary">
-        <div
+        {/* <div
           className="pointer-events-none absolute inset-x-0 top-[60px] h-[62svh] min-h-[420px] opacity-70"
           aria-hidden="true"
           style={{
@@ -518,7 +536,7 @@ const CareerLoginContent = () => {
             WebkitMaskImage:
               "linear-gradient(to bottom, transparent 0%, black 10%, black 78%, transparent 100%)",
           }}
-        />
+        /> */}
 
         <header className="relative z-10 flex h-16 w-full items-center px-5 sm:px-8 lg:px-12">
           <div className="mx-auto flex w-full max-w-[1760px] items-center">

@@ -1,7 +1,6 @@
 import type {
   CareerHistoryOpportunityCounts,
   CareerHistoryOpportunity,
-  CareerRecentOpportunity,
   CareerOpportunitySavedStage,
   SessionResponse,
 } from "@/components/career/types";
@@ -101,32 +100,6 @@ export const deriveHistoryOpportunityCounts = (
   }
 
   return counts;
-};
-
-export const normalizeRecentOpportunities = (
-  value: SessionResponse["recentOpportunities"]
-): CareerRecentOpportunity[] => {
-  if (!Array.isArray(value)) return [];
-
-  return value.filter((item): item is CareerRecentOpportunity => {
-    if (!item || typeof item !== "object") return false;
-    if (typeof item.id !== "string" || !item.id.trim()) return false;
-    if (typeof item.title !== "string" || !item.title.trim()) return false;
-    if (typeof item.companyName !== "string" || !item.companyName.trim()) {
-      return false;
-    }
-    if (item.kind !== "match" && item.kind !== "recommendation") return false;
-    if (!isOpportunityType(item.opportunityType)) {
-      return false;
-    }
-    if (
-      typeof item.matchedAt !== "string" ||
-      Number.isNaN(Date.parse(item.matchedAt))
-    ) {
-      return false;
-    }
-    return true;
-  });
 };
 
 export const normalizeHistoryOpportunities = (

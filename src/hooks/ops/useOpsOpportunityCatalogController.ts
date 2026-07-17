@@ -58,7 +58,7 @@ export function useOpsOpportunityCatalogController(args: {
   const [requestedRoleId, setRequestedRoleId] = useState<string | null>(null);
 
   const catalogQuery = useOpsOpportunityCatalog({
-    enabled: args.canFetchInternal,
+    enabled: args.canFetchInternal && args.view === "catalog",
     internalOnly: args.view === "catalog",
     limit: OPS_OPPORTUNITY_COMPANY_PAGE_SIZE,
     workspaceQuery: appliedWorkspaceSearch,

@@ -1779,6 +1779,99 @@ export const en = {
     "career.profile.resume_links.linkedin_refresh_tooltip":
       "Fetch updated LinkedIn information.",
     "career.profile.settings.no_saved_changes": "No saved changes yet.",
+    "career.referral.footer.invite_friends": "Invite friends",
+    "career.referral.intro_test.greeting":
+      "Hi {candidateName}, I wanted to introduce you to Harper.",
+    "career.referral.intro_test.reward_disclosure":
+      "If I introduce you through the Harper referral program, I may receive a reward if you agree and later get hired through Harper.",
+    "career.referral.intro_test.service_description":
+      "Harper works on the candidate's side to review career opportunities and help with company introductions.",
+    "career.referral.intro_test.subject":
+      "Intro: {candidateEmail} <> Harper",
+    "career.referral.intro_test.team_note":
+      "Harper team, please confirm {candidateName}'s consent directly.",
+    "career.referral.menu.invite": "Refer and earn",
+    "career.referral.modal.aria_label": "Invite to Harper",
+    "career.referral.modal.copy": "Copy",
+    "career.referral.modal.copied": "Copied",
+    "career.referral.modal.copy_invite_message": "Copy message",
+    "career.referral.modal.description":
+      "Share your referral link with a friend or colleague. If they sign up through your link and are later hired through Harper, you may receive $2,000-$5,000 depending on the role and terms.",
+    "career.referral.modal.error_summary_load_failed":
+      "Failed to load your invite information.",
+    "career.referral.modal.example_basis":
+      "Example for one $15,000 first-year salary hire",
+    "career.referral.modal.example_reward": "$3,000",
+    "career.referral.modal.example_reward_heading": "Example reward",
+    "career.referral.modal.example_review_note":
+      "Reviewed after hire confirmation and settlement",
+    "career.referral.modal.example_salary": "$15,000",
+    "career.referral.modal.first_year_salary_label": "First-year salary",
+    "career.referral.modal.how_it_works": "How it works",
+    "career.referral.modal.invite_message":
+      "Hi, I thought Harper might be useful for you.\n\nHarper is a career service that learns your background and preferences through conversation, then introduces opportunities that may fit. You do not need to be actively job hunting to use it; it is also useful for understanding what kinds of teams or roles could make sense.\n\nIf you are curious, you can start here:\n{link}",
+    "career.referral.modal.invite_message_description":
+      "This message includes your referral link. Copy it and edit before sending if needed.",
+    "career.referral.modal.invite_message_heading":
+      "Message to send with your link",
+    "career.referral.modal.invite_message_link_placeholder": "[invite link]",
+    "career.referral.modal.link_loading": "Preparing your invite link.",
+    "career.referral.modal.read_terms": "Read full terms",
+    "career.referral.modal.reward_description":
+      "If your referral is hired through Harper, the reward is reviewed based on salary, contract terms, and Harper's actual fee.",
+    "career.referral.modal.reward_heading": "Referral reward",
+    "career.referral.modal.reward_note":
+      "Actual rewards may vary by salary, contract type, Harper's actual received fee, and internal review.",
+    "career.referral.modal.reward_range": "$2,000 - $5,000",
+    "career.referral.modal.share": "Share",
+    "career.referral.modal.share_link_description":
+      "Share the link with a short note so they know why Harper might be relevant.",
+    "career.referral.modal.share_link_heading": "Share your invite link",
+    "career.referral.modal.share_text":
+      "Explore career opportunities with Harper.",
+    "career.referral.modal.share_title": "Harper invite",
+    "career.referral.modal.stats_heading": "Your invite activity",
+    "career.referral.modal.stats_hires": "Hires",
+    "career.referral.modal.stats_note":
+      "Numbers may be adjusted during deduplication and internal review. We do not show personal information or individual hiring progress for invited people.",
+    "career.referral.modal.stats_signups": "Signups",
+    "career.referral.modal.stats_visits": "Link visits",
+    "career.referral.modal.step1_description":
+      "Send your link and a short note to a friend or colleague who might want to explore career opportunities.",
+    "career.referral.modal.step1_title": "Choose someone to refer.",
+    "career.referral.modal.step2_description":
+      "Attribution is based on the referral link confirmed when they request signup.",
+    "career.referral.modal.step2_title": "They sign up through your link.",
+    "career.referral.modal.step3_description":
+      "When a hire through Harper is confirmed and settled, the reward is reviewed under the referral terms.",
+    "career.referral.modal.step3_title":
+      "If they are hired, you may earn a reward.",
+    "career.referral.modal.title": "Refer someone to Harper",
+    "career.referral.modal.toast_invite_message_copied":
+      "Invite message copied.",
+    "career.referral.modal.toast_invite_message_copy_failed":
+      "Failed to copy invite message.",
+    "career.referral.modal.toast_link_copied": "Invite link copied.",
+    "career.referral.modal.toast_link_copy_failed": "Failed to copy link.",
+    "career.referral.modal.updating": "Updating",
+    "career.referral.modal.your_cut_label": "Reward basis",
+    "career.referral.modal.your_cut_value": "A portion of Harper's hiring fee",
+    "career.referral.modal.your_reward_label": "Your reward",
+    "career.referral.network.toast_email_invalid":
+      "Please enter a valid email.",
+    "career.referral.network.toast_email_required": "Please enter an email.",
+    "career.referral.network.toast_link_copy_failed": "Failed to copy link.",
+    "career.referral.network.toast_share_link_copied": "Share link copied.",
+    "career.referral.network.toast_share_link_create_failed":
+      "Failed to create share link.",
+    "career.referral.network.toast_visit_capture_failed":
+      "Failed to record share visit.",
+    "career.referral.network_share_modal.close": "Close",
+    "career.referral.network_share_modal.close_aria": "Close share modal",
+    "career.referral.network_share_modal.create_link": "Create share link",
+    "career.referral.network_share_modal.creating": "Creating...",
+    "career.referral.network_share_modal.email_label": "Email",
+    "career.referral.network_share_modal.title": "Create share link",
     "career.recommend_job_postings.chat_preamble":
       "Great! Based on our conversation and your feedback so far, I'll start looking for new positions.",
     "career.resume_dropzone.drag_description":

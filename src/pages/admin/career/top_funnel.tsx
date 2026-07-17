@@ -160,7 +160,6 @@ function AdminCareerTopFunnelContent() {
           <AdminCareerDateRangeFilter
             appliedEndDate={appliedRange.endDate}
             appliedStartDate={appliedRange.startDate}
-            description="선택한 기간의 career 진입부터 온보딩 완료까지 봅니다."
             isFetching={query.isFetching}
             onApply={applyDateRange}
             onChange={setDraftDateRange}

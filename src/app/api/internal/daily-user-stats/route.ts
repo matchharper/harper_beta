@@ -1,13 +1,15 @@
 import { timingSafeEqual } from "crypto";
-import { IncomingWebhook } from "@slack/webhook";
 import { NextRequest, NextResponse } from "next/server";
 import {
   buildDailyUserStatsReport,
   formatDailyUserStatsSlackMessage,
+  formatDailyUserStatsSlackMessages,
   resolveDailyUserStatsDate,
 } from "@/lib/dailyUserStats";
 
 export const runtime = "nodejs";
+
+const SLACK_DAILY_USER_STATS_CHANNEL_ID = "C0B2TFPUS6P";
 
 function getConfiguredCronSecrets() {
   return [
@@ -34,18 +36,42 @@ function isSecretAuthorized(req: NextRequest) {
   });
 }
 
-function getInternalSlackWebhook() {
-  const webhookUrl = process.env.SLACK_INTERNAL_NOTI_TOKEN?.trim();
-  if (!webhookUrl) {
-    throw new Error("SLACK_INTERNAL_NOTI_TOKEN is required");
-  }
-
-  return new IncomingWebhook(webhookUrl);
-}
-
 function shouldDryRun(req: NextRequest) {
   const value = req.nextUrl.searchParams.get("dryRun");
   return value === "1" || value === "true";
+}
+
+async function postSlackMessage(args: { text: string; threadTs?: string }) {
+  const token = process.env.SLACK_BOT_TOKEN?.trim();
+  if (!token) {
+    throw new Error("SLACK_BOT_TOKEN is required");
+  }
+
+  const response = await fetch("https://slack.com/api/chat.postMessage", {
+    body: JSON.stringify({
+      channel: SLACK_DAILY_USER_STATS_CHANNEL_ID,
+      text: args.text,
+      ...(args.threadTs ? { thread_ts: args.threadTs } : {}),
+    }),
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json; charset=utf-8",
+    },
+    method: "POST",
+  });
+  const result = (await response.json().catch(() => null)) as {
+    error?: string;
+    ok?: boolean;
+    ts?: string;
+  } | null;
+
+  if (!response.ok || !result?.ok || !result.ts) {
+    throw new Error(
+      `Slack chat.postMessage failed: ${result?.error ?? response.status}`
+    );
+  }
+
+  return result.ts;
 }
 
 async function handleDailyUserStats(req: NextRequest) {
@@ -71,21 +97,25 @@ async function handleDailyUserStats(req: NextRequest) {
   const date = resolveDailyUserStatsDate(req.nextUrl.searchParams.get("date"));
   const report = await buildDailyUserStatsReport(date);
   const message = formatDailyUserStatsSlackMessage(report);
+  const messages = formatDailyUserStatsSlackMessages(report);
 
   if (shouldDryRun(req)) {
     return NextResponse.json({
       dryRun: true,
       message,
+      messages,
       report,
     });
   }
 
-  await getInternalSlackWebhook().send({ text: message });
+  const threadTs = await postSlackMessage({ text: messages.main });
+  await postSlackMessage({ text: messages.details, threadTs });
 
   return NextResponse.json({
     date: report.date,
     ok: true,
     sent: true,
+    threadTs,
   });
 }
 

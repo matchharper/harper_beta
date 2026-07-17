@@ -333,31 +333,6 @@ export default function HarperContactSalesPage() {
                 스토리 읽기 →
               </Link>
             </div>
-
-            <div className="mt-14 grid max-w-[635px] grid-cols-4 gap-x-10 gap-y-16 text-neutral-primary">
-              {talentSignals.map((logo) => (
-                <div key={logo.name} className="flex h-8 items-center">
-                  {logo.mark === "ring" && (
-                    <span className="mr-1.5 h-[14px] w-[14px] rounded-full border-[4px] border-neutral-primary" />
-                  )}
-                  {logo.mark === "eye" && (
-                    <span className="mr-1.5 h-[15px] w-[22px] rounded-[50%] border-[4px] border-neutral-primary" />
-                  )}
-                  {logo.mark === "box" && (
-                    <span className="mr-1.5 h-[20px] w-[18px] rotate-[-8deg] border-[3px] border-neutral-primary" />
-                  )}
-                  {logo.mark === "slash" && (
-                    <span className="mr-1.5 h-[14px] w-[20px] skew-x-[-28deg] rounded-bl-[10px] bg-neutral-primary" />
-                  )}
-                  {logo.mark === "circle" && (
-                    <span className="mr-2 h-[20px] w-[20px] rounded-full bg-neutral-primary" />
-                  )}
-                  <span className={cn("text-neutral-primary", logo.className)}>
-                    {logo.name}
-                  </span>
-                </div>
-              ))}
-            </div>
           </div>
 
           <aside className="self-start rounded-lg border border-[#e4e1d8] bg-[#f3f2ed] p-5 md:min-h-[332px]">

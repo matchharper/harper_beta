@@ -1390,6 +1390,9 @@ export const useCareerOnboardingVoice = ({
         typeof startArgs === "object"
           ? (startArgs.conversationStarterId ?? null)
           : null;
+      const forceBeginOnboarding =
+        typeof startArgs === "object" &&
+        startArgs.forceBeginOnboarding === true;
       const internalCallRequestId =
         typeof startArgs === "object"
           ? (startArgs.internalCallRequestId?.trim() ?? null)
@@ -1407,7 +1410,7 @@ export const useCareerOnboardingVoice = ({
         clearRealtimeTurnSyncState();
 
         const shouldBeginOnboarding =
-          !customOpeningText && showVoiceStartPrompt;
+          !customOpeningText && (showVoiceStartPrompt || forceBeginOnboarding);
         let openingAssistantMessage: CareerMessage | null = null;
         if (shouldBeginOnboarding) {
           setShowVoiceStartPrompt(false);

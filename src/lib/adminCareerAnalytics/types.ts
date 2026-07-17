@@ -52,6 +52,10 @@ export type AdminCareerLandingVariantBreakdown = {
   clickStartCount: number;
   clickStartRateFromEntry: number | null;
   description: string;
+  emailSentCount: number;
+  emailSentRateFromSubmit: number | null;
+  emailSubmitCount: number;
+  emailSubmitRateFromEntry: number | null;
   entryCount: number;
   eventTypes: string[];
   label: string;
@@ -89,29 +93,6 @@ export type AdminCareerAnalyticsDateRange = {
   isActive: boolean;
 };
 
-export type AdminCareerUserRow = {
-  userId: string;
-  name: string | null;
-  email: string | null;
-  createdAt: string | null;
-  lastActiveAt: string | null;
-  lastLoginAt: string | null;
-  onboardingDone: boolean;
-  appOpenCount: number;
-  messageCount: number;
-  recommendationCount: number;
-  viewedRecommendationCount: number;
-  jdOpenCount: number;
-  companyOpenCount: number;
-  statusChangeCount: number;
-  positiveFeedbackCount: number;
-  negativeFeedbackCount: number;
-  profileUpdateCount: number;
-  firstRecommendationAt: string | null;
-  returnedAfterFirstRecommendation: boolean;
-  lastMeaningfulAction: string | null;
-};
-
 export type AdminCareerSlackSummaryResult = {
   model: string;
   sentAt: string;
@@ -129,7 +110,6 @@ export type AdminCareerAnalyticsResponse = {
   quickSignals: AdminCareerQuickSignal[];
   slackSummary?: AdminCareerSlackSummaryResult;
   summary: AdminCareerSummaryMetric[];
-  users: AdminCareerUserRow[];
 };
 
 export type AdminCareerUtmSourceRow = {

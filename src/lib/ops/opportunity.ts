@@ -14,21 +14,11 @@ import {
   type OpsCompanyManagementQualityLabelFilter,
 } from "@/lib/ops/opportunityCompanyManagement";
 import {
-  DEFAULT_OPS_TALENT_RECOMMENDATION_PROMPT,
   buildOpsRoleDescriptionSummarySystemPrompt,
   buildOpsRoleDescriptionSummaryUserPrompt,
-  renderOpsTalentRecommendationPrompt,
 } from "@/lib/ops/opportunityRecommendationPrompt";
-import {
-  runOpsRoleDescriptionSummary,
-  runOpsTalentRecommendation,
-} from "@/lib/career/llm";
+import { runOpsRoleDescriptionSummary } from "@/lib/career/llm";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
-import {
-  OPPORTUNITY_TYPE_LABEL,
-  OpportunityType,
-  isOpportunityType,
-} from "@/lib/opportunityType";
 
 type AdminClient = ReturnType<typeof getSupabaseAdmin>;
 
@@ -67,87 +57,6 @@ type RoleRow = {
   type: string[] | null;
   updated_at: string;
   work_mode?: string | null;
-};
-
-type CandidateRow = {
-  bio: string | null;
-  email: string | null;
-  headline: string | null;
-  location: string | null;
-  name: string | null;
-  profile_picture: string | null;
-  resume_links: string[] | null;
-  resume_text: string | null;
-  updated_at: string;
-  user_id: string;
-};
-
-type TalentExperiencePromptRow = {
-  company_location: string | null;
-  company_name: string | null;
-  description: string | null;
-  end_date: string | null;
-  memo: string | null;
-  months: number | null;
-  role: string | null;
-  start_date: string | null;
-};
-
-type TalentEducationPromptRow = {
-  degree: string | null;
-  end_date: string | null;
-  field: string | null;
-  memo: string | null;
-  school: string | null;
-  start_date: string | null;
-};
-
-type RecommendationRow = {
-  company_role: {
-    company_workspace: {
-      company_name: string;
-    } | null;
-    external_jd_url: string | null;
-    location_text: string | null;
-    name: string;
-    posted_at: string | null;
-    role_id: string;
-    source_type: string;
-  } | null;
-  created_at: string;
-  feedback: string | null;
-  fit_reasons: Json;
-  id: string;
-  opportunity_type: string | null;
-  role_id: string;
-  saved_stage: string | null;
-  talent_id: string;
-  updated_at: string;
-};
-
-type RecommendationDraftRoleRow = {
-  company_workspace: {
-    company_description: string | null;
-    company_name: string | null;
-    homepage_url: string | null;
-    linkedin_url: string | null;
-    pitch?: string | null;
-    request?: string | null;
-  } | null;
-  description: string | null;
-  expires_at: string | null;
-  external_jd_url: string | null;
-  location_text: string | null;
-  name: string | null;
-  posted_at: string | null;
-  request?: string | null;
-  role_id: string;
-  source_job_id: string | null;
-  source_provider: string | null;
-  source_type: string | null;
-  status: string | null;
-  type: string[] | null;
-  work_mode: string | null;
 };
 
 type CompanyDbRow = {
@@ -240,6 +149,7 @@ export type OpsOpportunityWorkspaceRecord = {
   isInternal: boolean;
   linkedinUrl: string | null;
   logoUrl: string | null;
+  memberCount: number;
   pitch: string | null;
   request: string | null;
   totalRoleCount: number;
@@ -376,79 +286,6 @@ export type OpsCompanyManagementPageResponse = {
   query: string;
 };
 
-export type OpsOpportunityCandidateRecord = {
-  candidId: string | null;
-  email: string | null;
-  headline: string | null;
-  linkedinUrl: string | null;
-  location: string | null;
-  name: string | null;
-  profilePicture: string | null;
-  summary: string | null;
-  talentId: string;
-  totalExpMonths: number | null;
-};
-
-export type OpsOpportunityCandidateSearchResponse = {
-  items: OpsOpportunityCandidateRecord[];
-  query: string;
-};
-
-export type OpsOpportunityMatchRecord = {
-  candidateHeadline: string | null;
-  candidateId: string;
-  candidateLinkedinUrl: string | null;
-  candidateLocation: string | null;
-  candidateName: string | null;
-  candidateProfilePicture: string | null;
-  companyName: string;
-  createdAt: string;
-  harperMemo: string | null;
-  matchId: string;
-  roleId: string;
-  roleName: string;
-  status: string;
-  updatedAt: string;
-};
-
-export type OpsOpportunityMatchListResponse = {
-  items: OpsOpportunityMatchRecord[];
-};
-
-export type OpsOpportunityRecommendationFeedback = "like" | "dislike";
-
-export { OpportunityType as OpsOpportunityType };
-
-export type OpsOpportunitySavedStage =
-  | "saved"
-  | "applied"
-  | "connected"
-  | "closed";
-
-export type OpsOpportunityRecommendationRecord = {
-  companyName: string;
-  createdAt: string;
-  feedback: OpsOpportunityRecommendationFeedback | null;
-  kind: "match" | "recommendation";
-  locationText: string | null;
-  opportunityType: OpportunityType;
-  postedAt: string | null;
-  recommendationId: string;
-  recommendationMemo: string | null;
-  recommendationReasons: string[];
-  recommendedAt: string;
-  roleId: string;
-  roleName: string;
-  savedStage: OpsOpportunitySavedStage | null;
-  sourceType: OpportunitySourceType;
-  talentId: string;
-  updatedAt: string;
-};
-
-export type OpsOpportunityRecommendationListResponse = {
-  items: OpsOpportunityRecommendationRecord[];
-};
-
 function coerceJsonArray<T>(value: unknown) {
   return Array.isArray(value) ? (value as T[]) : [];
 }
@@ -528,91 +365,6 @@ function normalizeLink(raw: string) {
   if (!trimmed) return "";
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
   return `https://${trimmed}`;
-}
-
-function findTalentLinkedinUrl(row: CandidateRow): string | null {
-  const resumeLinks = Array.isArray(row.resume_links) ? row.resume_links : [];
-  const linkedinLink = resumeLinks.find((item) =>
-    /linkedin\.com\/(in|pub)\//i.test(String(item ?? ""))
-  );
-
-  if (!linkedinLink) return null;
-  return normalizeLink(String(linkedinLink));
-}
-
-function extractLinkedinProfileId(
-  raw: string | null | undefined
-): string | null {
-  const normalized = String(raw ?? "").trim();
-  if (!normalized) return null;
-
-  try {
-    const parsed = new URL(normalizeLink(normalized));
-    const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
-    if (!(host === "linkedin.com" || host.endsWith(".linkedin.com"))) {
-      return null;
-    }
-
-    const segments = parsed.pathname
-      .split("/")
-      .map((segment) => decodeURIComponent(segment).trim().toLowerCase())
-      .filter(Boolean);
-
-    if ((segments[0] === "in" || segments[0] === "pub") && segments[1]) {
-      return segments[1].replace(/[^a-z0-9-_%]/g, "");
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-async function resolveCandidateIdByLinkedinProfileIds(
-  admin: AdminClient,
-  profileIds: string[]
-) {
-  const uniqueIds = Array.from(
-    new Set(profileIds.map((item) => item.trim()).filter(Boolean))
-  );
-  const byProfileId = new Map<string, string>();
-
-  await Promise.all(
-    uniqueIds.map(async (profileId) => {
-      const pattern = `%linkedin.com/in/${profileId}%`;
-      let { data, error } = await (admin.from("candid" as any) as any)
-        .select("id, linkedin_url, last_updated_at")
-        .ilike("linkedin_url", pattern)
-        .order("last_updated_at", { ascending: false, nullsFirst: false })
-        .limit(1);
-
-      if (!error && coerceJsonArray(data).length === 0) {
-        const pubPattern = `%linkedin.com/pub/${profileId}%`;
-        const fallbackResponse = await (admin.from("candid" as any) as any)
-          .select("id, linkedin_url, last_updated_at")
-          .ilike("linkedin_url", pubPattern)
-          .order("last_updated_at", { ascending: false, nullsFirst: false })
-          .limit(1);
-        data = fallbackResponse.data;
-        error = fallbackResponse.error;
-      }
-
-      if (error) {
-        throw new Error(error.message ?? "Failed to resolve candidate");
-      }
-
-      const match = coerceJsonArray<{
-        id?: string | null;
-        linkedin_url?: string | null;
-      }>(data)[0];
-
-      const candidateId = String(match?.id ?? "").trim();
-      if (!candidateId) return;
-      byProfileId.set(profileId, candidateId);
-    })
-  );
-
-  return byProfileId;
 }
 
 function normalizeLinkedinCompanyUrl(raw: string): string | null {
@@ -1242,294 +994,11 @@ function parseDateString(value: unknown, fieldName: string) {
   return parsed.toISOString();
 }
 
-function normalizeRecommendationFeedback(
-  value: unknown
-): OpsOpportunityRecommendationFeedback | null {
-  if (value === "like" || value === "dislike") {
-    return value;
-  }
-  return null;
-}
-
-function normalizeOpportunityType(value: unknown): OpportunityType {
-  if (isOpportunityType(value)) return value;
-  return OpportunityType.ExternalJd;
-}
-
-function getRecommendationKindForOpportunityType(
-  opportunityType: OpportunityType
-): "match" | "recommendation" {
-  return opportunityType === OpportunityType.IntroRequest
-    ? "match"
-    : "recommendation";
-}
-
-function normalizeSavedStage(value: unknown): OpsOpportunitySavedStage | null {
-  if (
-    value === "saved" ||
-    value === "applied" ||
-    value === "connected" ||
-    value === "closed"
-  ) {
-    return value;
-  }
-  return null;
-}
-
-function normalizeRecommendationReasons(value: Json): string[] {
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => String(item ?? "").trim())
-      .filter(Boolean)
-      .slice(0, 8);
-  }
-
-  if (value && typeof value === "object") {
-    return Object.values(value)
-      .map((item) => String(item ?? "").trim())
-      .filter(Boolean)
-      .slice(0, 8);
-  }
-
-  return [];
-}
-
-function sanitizeRecommendationReason(value: unknown) {
-  const normalized = String(value ?? "")
-    .replace(/\r/g, "")
-    .trim();
-  if (!normalized) return "";
-
-  return normalized
-    .replace(/^[-*•]+\s*/, "")
-    .replace(/^\d+[\].)\-:]+\s*/, "")
-    .trim();
-}
-
-function splitRecommendationMemoIntoReasons(memo: string | null) {
-  if (!memo) return [];
-
-  const seen = new Set<string>();
-  const items: string[] = [];
-
-  for (const line of memo.replace(/\r/g, "").split("\n")) {
-    const normalized = sanitizeRecommendationReason(line);
-    if (!normalized || seen.has(normalized)) continue;
-    seen.add(normalized);
-    items.push(normalized);
-    if (items.length >= 8) break;
-  }
-
-  return items;
-}
-
-function buildRecommendationReasons(memo: string | null) {
-  return splitRecommendationMemoIntoReasons(memo);
-}
-
-function mapRecommendationRecord(
-  row: RecommendationRow
-): OpsOpportunityRecommendationRecord | null {
-  const role = row.company_role;
-  const workspace = role?.company_workspace;
-  if (!role || !workspace) return null;
-
-  const recommendationReasons = normalizeRecommendationReasons(row.fit_reasons);
-  const opportunityType = normalizeOpportunityType(row.opportunity_type);
-
-  return {
-    companyName: String(workspace.company_name ?? ""),
-    createdAt: String(row.created_at ?? ""),
-    feedback: normalizeRecommendationFeedback(row.feedback),
-    kind: getRecommendationKindForOpportunityType(opportunityType),
-    locationText: role.location_text ?? null,
-    opportunityType,
-    postedAt: role.posted_at ?? null,
-    recommendationId: String(row.id ?? ""),
-    recommendationMemo:
-      recommendationReasons.length > 0
-        ? recommendationReasons.join("\n")
-        : null,
-    recommendationReasons,
-    recommendedAt: String(row.created_at ?? ""),
-    roleId: String(row.role_id ?? ""),
-    roleName: String(role.name ?? ""),
-    savedStage: normalizeSavedStage(row.saved_stage),
-    sourceType: normalizeOpportunitySourceType(role.source_type),
-    talentId: String(row.talent_id ?? ""),
-    updatedAt: String(row.updated_at ?? row.created_at ?? ""),
-  };
-}
-
 function clampPromptText(value: string | null | undefined, maxLength: number) {
   if (typeof value !== "string") return "";
   const normalized = value.replace(/\r/g, "").trim();
   if (!normalized) return "";
   return normalized.slice(0, maxLength);
-}
-
-function formatPromptDateRange(
-  startDate: string | null | undefined,
-  endDate: string | null | undefined
-) {
-  const start = String(startDate ?? "").trim();
-  const end = String(endDate ?? "").trim();
-  if (!start && !end) return "";
-  if (start && end) return `${start} ~ ${end}`;
-  if (start) return `${start} ~ Present`;
-  return end;
-}
-
-function buildRecommendationTalentProfileContext(args: {
-  candidate: CandidateRow;
-  educations: TalentEducationPromptRow[];
-  experiences: TalentExperiencePromptRow[];
-}) {
-  const { candidate, educations, experiences } = args;
-  const lines: string[] = [];
-  const resumeLinks = (candidate.resume_links ?? []).filter(
-    (link): link is string => typeof link === "string" && link.trim().length > 0
-  );
-
-  lines.push("Basic");
-  if (candidate.name) lines.push(`- Name: ${candidate.name}`);
-  if (candidate.headline) lines.push(`- Headline: ${candidate.headline}`);
-  if (candidate.location) lines.push(`- Location: ${candidate.location}`);
-  if (candidate.email) lines.push(`- Email: ${candidate.email}`);
-
-  const bio = clampPromptText(candidate.bio, 1200);
-  if (bio) lines.push(`- Bio: ${bio}`);
-
-  if (resumeLinks.length > 0) {
-    lines.push("Resume Links");
-    resumeLinks.slice(0, 8).forEach((link, index) => {
-      lines.push(`${index + 1}. ${link}`);
-    });
-  }
-
-  if (experiences.length > 0) {
-    lines.push("Experiences");
-    experiences.slice(0, 8).forEach((experience, index) => {
-      const parts = [
-        `Role: ${experience.role ?? "(unknown)"}`,
-        `Company: ${experience.company_name ?? "(unknown)"}`,
-      ];
-      const dateRange = formatPromptDateRange(
-        experience.start_date,
-        experience.end_date
-      );
-      if (dateRange) parts.push(`Dates: ${dateRange}`);
-      if (experience.months && experience.months > 0) {
-        parts.push(`Months: ${experience.months}`);
-      }
-      if (experience.company_location) {
-        parts.push(`Location: ${experience.company_location}`);
-      }
-
-      let itemText = `${index + 1}. ${parts.join(", ")}`;
-      const description = clampPromptText(experience.description, 500);
-      if (description) itemText += `\n   Description: ${description}`;
-      const memo = clampPromptText(experience.memo, 240);
-      if (memo) itemText += `\n   Memo: ${memo}`;
-      lines.push(itemText);
-    });
-  }
-
-  if (educations.length > 0) {
-    lines.push("Educations");
-    educations.slice(0, 5).forEach((education, index) => {
-      const parts = [
-        `School: ${education.school ?? "(unknown)"}`,
-        `Degree: ${education.degree ?? "(unknown)"}`,
-      ];
-      if (education.field) parts.push(`Field: ${education.field}`);
-      const dateRange = formatPromptDateRange(
-        education.start_date,
-        education.end_date
-      );
-      if (dateRange) parts.push(`Dates: ${dateRange}`);
-
-      let itemText = `${index + 1}. ${parts.join(", ")}`;
-      const memo = clampPromptText(education.memo, 240);
-      if (memo) itemText += `\n   Memo: ${memo}`;
-      lines.push(itemText);
-    });
-  }
-
-  const resumeText = clampPromptText(candidate.resume_text, 4000);
-  if (resumeText) {
-    lines.push("Resume Text Snippet");
-    lines.push(resumeText);
-  }
-
-  return lines.join("\n");
-}
-
-function buildRecommendationRoleContext(args: {
-  opportunityType: OpportunityType;
-  role: RecommendationDraftRoleRow;
-}) {
-  const { opportunityType, role } = args;
-  const workspace = role.company_workspace;
-  const lines: string[] = [];
-
-  lines.push("Role");
-  lines.push(`- Opportunity Type: ${OPPORTUNITY_TYPE_LABEL[opportunityType]}`);
-  lines.push(`- Role: ${role.name ?? "(unknown)"}`);
-  lines.push(`- Company: ${workspace?.company_name ?? "(unknown)"}`);
-  lines.push(`- Source: ${normalizeOpportunitySourceType(role.source_type)}`);
-  lines.push(`- Status: ${normalizeOpportunityStatus(role.status)}`);
-
-  if (role.location_text) lines.push(`- Location: ${role.location_text}`);
-  if (role.work_mode) {
-    lines.push(
-      `- Work Mode: ${normalizeOpportunityWorkMode(role.work_mode) ?? role.work_mode}`
-    );
-  }
-  if (Array.isArray(role.type) && role.type.length > 0) {
-    lines.push(`- Employment Types: ${role.type.join(", ")}`);
-  }
-  if (role.posted_at) lines.push(`- Posted At: ${role.posted_at}`);
-  if (role.expires_at) lines.push(`- Expires At: ${role.expires_at}`);
-  if (role.request) lines.push(`- Role Request: ${role.request}`);
-  if (role.source_provider) {
-    lines.push(`- Source Provider: ${role.source_provider}`);
-  }
-  if (role.source_job_id) lines.push(`- Source Job ID: ${role.source_job_id}`);
-  if (role.external_jd_url) {
-    lines.push(`- External JD URL: ${role.external_jd_url}`);
-  }
-  if (workspace?.homepage_url) {
-    lines.push(`- Company Homepage: ${workspace.homepage_url}`);
-  }
-  if (workspace?.linkedin_url) {
-    lines.push(`- Company LinkedIn: ${workspace.linkedin_url}`);
-  }
-  if (workspace?.pitch) {
-    lines.push("Company Pitch");
-    lines.push(clampPromptText(workspace.pitch, 1200));
-  }
-  if (workspace?.request) {
-    lines.push("Company Request");
-    lines.push(clampPromptText(workspace.request, 1200));
-  }
-
-  const description = clampPromptText(role.description, 4000);
-  if (description) {
-    lines.push("Role Description");
-    lines.push(description);
-  }
-
-  const companyDescription = clampPromptText(
-    workspace?.company_description,
-    2000
-  );
-  if (companyDescription) {
-    lines.push("Company Description");
-    lines.push(companyDescription);
-  }
-
-  return lines.join("\n");
 }
 
 async function resolveCompanyDbRecord(args: {
@@ -1617,6 +1086,7 @@ function mapWorkspaceRecord(args: {
   activeRoleCount: number;
   externalRoleCount: number;
   internalRoleCount: number;
+  memberCount?: number;
   row: WorkspaceRow;
   totalRoleCount: number;
 }): OpsOpportunityWorkspaceRecord {
@@ -1637,6 +1107,7 @@ function mapWorkspaceRecord(args: {
     isInternal: Boolean(args.row.is_internal),
     linkedinUrl: args.row.linkedin_url ?? null,
     logoUrl: args.row.logo_url ?? null,
+    memberCount: Math.max(0, Math.floor(Number(args.memberCount ?? 0) || 0)),
     pitch: args.row.pitch ?? null,
     request: args.row.request ?? null,
     totalRoleCount: args.totalRoleCount,
@@ -1768,6 +1239,30 @@ export async function fetchOpsOpportunityCatalog(
     string,
     { active: number; external: number; internal: number; total: number }
   >();
+  const memberCountByWorkspaceId = new Map<string, number>();
+
+  if (workspaceIds.length > 0) {
+    const { data: memberRows, error: memberError } = await (
+      admin.from("company_user_workspace" as any) as any
+    )
+      .select("company_workspace_id")
+      .in("company_workspace_id", workspaceIds);
+
+    if (memberError) {
+      throw new Error(memberError.message ?? "Failed to load company members");
+    }
+
+    for (const row of coerceJsonArray<{ company_workspace_id?: string | null }>(
+      memberRows
+    )) {
+      const workspaceId = String(row.company_workspace_id ?? "").trim();
+      if (!workspaceId) continue;
+      memberCountByWorkspaceId.set(
+        workspaceId,
+        (memberCountByWorkspaceId.get(workspaceId) ?? 0) + 1
+      );
+    }
+  }
 
   for (const row of roleRows) {
     const workspaceId = String(row.company_workspace_id ?? "").trim();
@@ -1837,6 +1332,10 @@ export async function fetchOpsOpportunityCatalog(
         activeRoleCount: stats.active,
         externalRoleCount: stats.external,
         internalRoleCount: stats.internal,
+        memberCount:
+          memberCountByWorkspaceId.get(
+            String(row.company_workspace_id ?? "")
+          ) ?? 0,
         row,
         totalRoleCount: stats.total,
       });
@@ -3293,14 +2792,15 @@ export async function deleteOpsOpportunityRole(args: {
     deleteRoleQuery = deleteRoleQuery.eq("company_workspace_id", workspaceId);
   }
 
-  const { data: deletedRoles, error: deleteRoleError } = await deleteRoleQuery
-    .select("role_id");
+  const { data: deletedRoles, error: deleteRoleError } =
+    await deleteRoleQuery.select("role_id");
   if (deleteRoleError) {
     throw new Error(deleteRoleError.message ?? "Failed to delete role");
   }
 
-  const deletedRoleCount =
-    coerceJsonArray<{ role_id?: string | null }>(deletedRoles).length;
+  const deletedRoleCount = coerceJsonArray<{ role_id?: string | null }>(
+    deletedRoles
+  ).length;
   if (deletedRoleCount === 0) {
     throw new Error("Role not found");
   }
@@ -3416,395 +2916,4 @@ export async function syncOpsOpportunityRoles(args: {
     provider,
     workspaceId,
   };
-}
-
-export async function searchOpsOpportunityCandidates(args: {
-  limit?: number;
-  query?: string | null;
-  roleId?: string | null;
-}): Promise<OpsOpportunityCandidateSearchResponse> {
-  const admin = getSupabaseAdmin();
-  const query = String(args.query ?? "").trim();
-  if (!query) {
-    return { items: [], query };
-  }
-
-  const limit = Math.max(1, Math.min(Number(args.limit ?? 20) || 20, 40));
-  const safeQuery = query.replace(/[%(),]/g, " ").trim();
-  const pattern = `%${safeQuery}%`;
-
-  const { data, error } = await (admin.from("talent_users" as any) as any)
-    .select(
-      "user_id, name, headline, location, profile_picture, email, bio, resume_text, resume_links, updated_at"
-    )
-    .or(
-      [
-        `name.ilike.${pattern}`,
-        `headline.ilike.${pattern}`,
-        `location.ilike.${pattern}`,
-        `email.ilike.${pattern}`,
-        `bio.ilike.${pattern}`,
-        `resume_text.ilike.${pattern}`,
-      ].join(",")
-    )
-    .order("updated_at", { ascending: false, nullsFirst: false })
-    .limit(limit);
-
-  if (error) {
-    throw new Error(error.message ?? "Failed to search talents");
-  }
-
-  const rows = coerceJsonArray<CandidateRow>(data);
-  const linkedinProfileIdByTalentId = new Map<string, string>();
-  const linkedinUrlByTalentId = new Map<string, string>();
-
-  for (const row of rows) {
-    const talentId = String(row.user_id ?? "").trim();
-    if (!talentId) continue;
-    const linkedinUrl = findTalentLinkedinUrl(row);
-    if (!linkedinUrl) continue;
-    linkedinUrlByTalentId.set(talentId, linkedinUrl);
-    const linkedinProfileId = extractLinkedinProfileId(linkedinUrl);
-    if (!linkedinProfileId) continue;
-    linkedinProfileIdByTalentId.set(talentId, linkedinProfileId);
-  }
-
-  const candidateIdByLinkedinProfileId =
-    await resolveCandidateIdByLinkedinProfileIds(
-      admin,
-      Array.from(linkedinProfileIdByTalentId.values())
-    );
-
-  void args.roleId;
-
-  return {
-    items: rows.map((row) => ({
-      candidId:
-        candidateIdByLinkedinProfileId.get(
-          linkedinProfileIdByTalentId.get(String(row.user_id ?? "").trim()) ??
-            ""
-        ) ?? null,
-      email: row.email ?? null,
-      headline: row.headline ?? null,
-      linkedinUrl:
-        linkedinUrlByTalentId.get(String(row.user_id ?? "").trim()) ?? null,
-      location: row.location ?? null,
-      name: row.name ?? null,
-      profilePicture: row.profile_picture ?? null,
-      summary: row.bio ?? row.resume_text ?? null,
-      talentId: String(row.user_id ?? ""),
-      totalExpMonths: null,
-    })),
-    query,
-  };
-}
-
-export async function fetchOpsOpportunityCandidateContact(args: {
-  talentId: string;
-}) {
-  const admin = getSupabaseAdmin();
-  const talentId = ensureNonEmptyString(args.talentId, "talentId");
-
-  const { data, error } = await ((admin.from("talent_users" as any) as any)
-    .select("user_id, name, email")
-    .eq("user_id", talentId)
-    .maybeSingle() as any);
-
-  if (error) {
-    throw new Error(error.message ?? "Failed to load candidate contact");
-  }
-
-  const email = String(data?.email ?? "")
-    .trim()
-    .toLowerCase();
-  if (!email) {
-    throw new Error("이 talent에는 등록된 이메일이 없습니다.");
-  }
-
-  return {
-    email,
-    name: typeof data?.name === "string" ? data.name : null,
-    talentId,
-  };
-}
-
-export async function fetchOpsOpportunityMatches(args: {
-  candidId?: string | null;
-  roleId?: string | null;
-}): Promise<OpsOpportunityMatchListResponse> {
-  void args;
-  return { items: [] };
-}
-
-export async function saveOpsOpportunityMatch(args: {
-  candidId: string;
-  harperMemo?: string | null;
-  roleId: string;
-}) {
-  ensureNonEmptyString(args.candidId, "candidId");
-  ensureNonEmptyString(args.roleId, "roleId");
-  void args.harperMemo;
-  return { items: [] };
-}
-
-export async function deleteOpsOpportunityMatch(args: {
-  candidId: string;
-  roleId: string;
-}) {
-  ensureNonEmptyString(args.candidId, "candidId");
-  ensureNonEmptyString(args.roleId, "roleId");
-  return { ok: true };
-}
-
-export async function fetchOpsOpportunityRecommendations(args: {
-  roleId?: string | null;
-  talentId?: string | null;
-}): Promise<OpsOpportunityRecommendationListResponse> {
-  const admin = getSupabaseAdmin();
-  const roleId = String(args.roleId ?? "").trim();
-  const talentId = String(args.talentId ?? "").trim();
-
-  let query = (admin.from("talent_opportunity_recommendation" as any) as any)
-    .select(
-      `
-        id,
-        talent_id,
-        role_id,
-        opportunity_type,
-        fit_reasons,
-        feedback,
-        saved_stage,
-        created_at,
-        updated_at,
-        company_role:company_roles (
-          role_id,
-          name,
-          location_text,
-          external_jd_url,
-          posted_at,
-          source_type,
-          company_workspace:company_workspace (
-            company_name
-          )
-        )
-      `
-    )
-    .order("created_at", { ascending: false }) as any;
-
-  if (roleId) {
-    query = query.eq("role_id", roleId);
-  }
-  if (talentId) {
-    query = query.eq("talent_id", talentId);
-  }
-
-  const { data, error } = await query;
-  if (error) {
-    throw new Error(error.message ?? "Failed to load recommendations");
-  }
-
-  return {
-    items: coerceJsonArray<RecommendationRow>(data)
-      .map(mapRecommendationRecord)
-      .filter(
-        (item): item is OpsOpportunityRecommendationRecord => item !== null
-      ),
-  };
-}
-
-export async function saveOpsOpportunityRecommendation(args: {
-  opportunityType: OpportunityType;
-  recommendationMemo?: string | null;
-  roleId: string;
-  talentId: string;
-}) {
-  const admin = getSupabaseAdmin();
-  const talentId = ensureNonEmptyString(args.talentId, "talentId");
-  const roleId = ensureNonEmptyString(args.roleId, "roleId");
-  const now = new Date().toISOString();
-  const recommendationMemo =
-    String(args.recommendationMemo ?? "").trim() || null;
-  const opportunityType = normalizeOpportunityType(args.opportunityType);
-
-  const { error } = await (
-    admin.from("talent_opportunity_recommendation" as any) as any
-  ).insert({
-    fit_reasons: buildRecommendationReasons(recommendationMemo),
-    opportunity_type: opportunityType,
-    role_id: roleId,
-    talent_id: talentId,
-    updated_at: now,
-  });
-
-  if (error) {
-    throw new Error(error.message ?? "Failed to save recommendation");
-  }
-
-  return fetchOpsOpportunityRecommendations({ talentId });
-}
-
-export async function generateOpsOpportunityRecommendationDraft(args: {
-  opportunityType: OpportunityType;
-  promptTemplate?: string | null;
-  roleId: string;
-  talentId: string;
-}) {
-  const admin = getSupabaseAdmin();
-  const talentId = ensureNonEmptyString(args.talentId, "talentId");
-  const roleId = ensureNonEmptyString(args.roleId, "roleId");
-  const opportunityType = normalizeOpportunityType(args.opportunityType);
-  const promptTemplate =
-    String(args.promptTemplate ?? "").trim() ||
-    DEFAULT_OPS_TALENT_RECOMMENDATION_PROMPT;
-
-  const [
-    candidateResponse,
-    roleResponse,
-    experienceResponse,
-    educationResponse,
-  ] = await Promise.all([
-    (admin.from("talent_users" as any) as any)
-      .select(
-        "user_id, name, headline, location, profile_picture, email, bio, resume_text, resume_links, updated_at"
-      )
-      .eq("user_id", talentId)
-      .maybeSingle() as any,
-    (admin.from("company_roles" as any) as any)
-      .select(
-        `
-          role_id,
-          name,
-          description,
-          external_jd_url,
-          request,
-          source_type,
-          source_provider,
-          source_job_id,
-          posted_at,
-          expires_at,
-          location_text,
-          work_mode,
-          status,
-          type,
-          company_workspace:company_workspace (
-            company_name,
-            company_description,
-            homepage_url,
-            linkedin_url,
-            pitch,
-            request
-          )
-        `
-      )
-      .eq("role_id", roleId)
-      .maybeSingle() as any,
-    (admin.from("talent_experiences" as any) as any)
-      .select(
-        "role, description, start_date, end_date, months, company_name, company_location, memo"
-      )
-      .eq("talent_id", talentId)
-      .order("start_date", { ascending: false, nullsFirst: false })
-      .order("id", { ascending: false }) as any,
-    (admin.from("talent_educations" as any) as any)
-      .select("school, degree, field, start_date, end_date, memo")
-      .eq("talent_id", talentId)
-      .order("start_date", { ascending: false, nullsFirst: false })
-      .order("id", { ascending: false }) as any,
-  ]);
-
-  if (candidateResponse.error) {
-    throw new Error(candidateResponse.error.message ?? "Failed to load talent");
-  }
-  if (roleResponse.error) {
-    throw new Error(roleResponse.error.message ?? "Failed to load role");
-  }
-  if (experienceResponse.error) {
-    throw new Error(
-      experienceResponse.error.message ?? "Failed to load talent experiences"
-    );
-  }
-  if (educationResponse.error) {
-    throw new Error(
-      educationResponse.error.message ?? "Failed to load talent educations"
-    );
-  }
-
-  const candidate = (candidateResponse.data ?? null) as CandidateRow | null;
-  const role = (roleResponse.data ?? null) as RecommendationDraftRoleRow | null;
-  const experiences = coerceJsonArray<TalentExperiencePromptRow>(
-    experienceResponse.data
-  );
-  const educations = coerceJsonArray<TalentEducationPromptRow>(
-    educationResponse.data
-  );
-
-  if (!candidate) {
-    throw new Error("추천할 후보자 프로필을 찾지 못했습니다.");
-  }
-  if (!role?.company_workspace) {
-    throw new Error("추천할 role 정보를 찾지 못했습니다.");
-  }
-
-  const renderedPrompt = renderOpsTalentRecommendationPrompt(promptTemplate, {
-    opportunity_type_label: OPPORTUNITY_TYPE_LABEL[opportunityType],
-    candidate_name: String(candidate.name ?? "").trim() || "Unknown Candidate",
-    company_name:
-      String(role.company_workspace.company_name ?? "").trim() ||
-      "Unknown Company",
-    role_name: String(role.name ?? "").trim() || "Unknown Role",
-    candidate_profile: buildRecommendationTalentProfileContext({
-      candidate,
-      educations,
-      experiences,
-    }),
-    role_summary: buildRecommendationRoleContext({
-      opportunityType,
-      role,
-    }),
-  });
-
-  const response = await runOpsTalentRecommendation({
-    messages: [
-      {
-        role: "system",
-        content: renderedPrompt,
-      },
-      {
-        role: "user",
-        content:
-          "후보자에게 전달할 추천 메모를 작성해줘. 각 추천 포인트는 줄바꿈으로 구분해.",
-      },
-    ],
-  });
-
-  const draft = splitRecommendationMemoIntoReasons(response).join("\n");
-  if (!draft) {
-    throw new Error("추천 메모를 생성하지 못했습니다.");
-  }
-
-  return {
-    draft,
-  };
-}
-
-export async function deleteOpsOpportunityRecommendation(args: {
-  recommendationId: string;
-}) {
-  const admin = getSupabaseAdmin();
-  const recommendationId = ensureNonEmptyString(
-    args.recommendationId,
-    "recommendationId"
-  );
-
-  const { error } = await (
-    admin.from("talent_opportunity_recommendation" as any) as any
-  )
-    .delete()
-    .eq("id", recommendationId);
-
-  if (error) {
-    throw new Error(error.message ?? "Failed to delete recommendation");
-  }
-
-  return { ok: true };
 }

@@ -8,6 +8,7 @@ import {
   getReferralIntroAddresses,
   queueReferralIntroTestEvent,
 } from "@/lib/email/inbound";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 export const runtime = "nodejs";
 
@@ -19,6 +20,7 @@ type Body = {
   referrerEmail?: string;
   referrerName?: string;
   referralAddress?: string;
+  locale?: string;
   subject?: string;
   to?: string[] | string;
 };
@@ -66,6 +68,7 @@ export async function POST(req: NextRequest) {
 
     const referrerEmail = String(body.referrerEmail ?? "").trim();
     const candidateEmail = String(body.candidateEmail ?? "").trim();
+    const locale = String(body.locale ?? "").trim() || null;
     if (!isValidEmail(referrerEmail)) {
       return NextResponse.json(
         { error: "A valid referrerEmail is required" },
@@ -83,18 +86,43 @@ export async function POST(req: NextRequest) {
       String(body.referralAddress ?? "").trim() ||
       getReferralIntroAddresses()[0] ||
       "intro@matchharper.com";
+    const candidateLabel =
+      String(body.candidateName || candidateEmail).trim() || candidateEmail;
     const subject =
       String(body.subject ?? "").trim() ||
-      `Intro: ${candidateEmail} <> Harper`;
+      careerT(
+        locale,
+        "career.referral.intro_test.subject",
+        "소개: {candidateEmail} <> Harper",
+        { values: { candidateEmail } }
+      );
     const text =
       String(body.body ?? "").trim() ||
       [
-        `${body.candidateName || candidateEmail}님, Harper를 소개드릴게요.`,
+        careerT(
+          locale,
+          "career.referral.intro_test.greeting",
+          "{candidateName}님, Harper를 소개드릴게요.",
+          { values: { candidateName: candidateLabel } }
+        ),
         "",
-        "Harper는 후보자 편에서 커리어 기회를 검토하고 회사 연결을 도와주는 서비스입니다.",
-        "제가 Harper referral 프로그램을 통해 소개하면, 후보자님이 동의하고 추후 채용까지 이어지는 경우 저에게 보상이 지급될 수 있습니다.",
+        careerT(
+          locale,
+          "career.referral.intro_test.service_description",
+          "Harper는 후보자 편에서 커리어 기회를 검토하고 회사 연결을 도와주는 서비스입니다."
+        ),
+        careerT(
+          locale,
+          "career.referral.intro_test.reward_disclosure",
+          "제가 Harper referral 프로그램을 통해 소개하면, 후보자님이 동의하고 추후 채용까지 이어지는 경우 저에게 보상이 지급될 수 있습니다."
+        ),
         "",
-        `Harper team, ${body.candidateName || candidateEmail}님께 직접 동의 여부를 확인해주세요.`,
+        careerT(
+          locale,
+          "career.referral.intro_test.team_note",
+          "Harper team, {candidateName}님께 직접 동의 여부를 확인해주세요.",
+          { values: { candidateName: candidateLabel } }
+        ),
       ].join("\n");
 
     const result = await queueReferralIntroTestEvent({

@@ -958,6 +958,38 @@ export type Database = {
         }
         Relationships: []
       }
+      company_internal_roles: {
+        Row: {
+          considerations: Json
+          created_at: string
+          request: string | null
+          role_id: string
+          updated_at: string
+        }
+        Insert: {
+          considerations?: Json
+          created_at?: string
+          request?: string | null
+          role_id: string
+          updated_at?: string
+        }
+        Update: {
+          considerations?: Json
+          created_at?: string
+          request?: string | null
+          role_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_internal_roles_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: true
+            referencedRelation: "company_roles"
+            referencedColumns: ["role_id"]
+          },
+        ]
+      }
       company_role_liveness: {
         Row: {
           closed_detected_at: string | null
@@ -4955,80 +4987,67 @@ export type Database = {
           },
         ]
       }
+      talent_network_referral_attributions: {
+        Row: {
+          hired_at: string | null
+          referred_user_id: string
+          token: string
+        }
+        Insert: {
+          hired_at?: string | null
+          referred_user_id: string
+          token: string
+        }
+        Update: {
+          hired_at?: string | null
+          referred_user_id?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_network_referral_attributions_referred_user_id_fkey"
+            columns: ["referred_user_id"]
+            isOneToOne: true
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "talent_network_referral_attributions_token_fkey"
+            columns: ["token"]
+            isOneToOne: false
+            referencedRelation: "talent_network_referral_links"
+            referencedColumns: ["token"]
+          },
+        ]
+      }
       talent_network_referral_links: {
         Row: {
-          conversion_count: number
           created_at: string
-          created_from_path: string | null
-          first_converted_at: string | null
-          first_visited_at: string | null
-          first_visitor_local_id: string | null
-          id: string
-          last_converted_at: string | null
-          last_converted_email: string | null
-          last_converted_local_id: string | null
-          last_converted_name: string | null
-          last_converted_role: string | null
-          last_visited_at: string | null
-          last_visited_path: string | null
-          last_visitor_local_id: string | null
-          sharer_email: string
-          sharer_local_id: string | null
-          sharer_name: string | null
-          source: string
+          referrer_user_id: string
           token: string
-          updated_at: string
           visit_count: number
         }
         Insert: {
-          conversion_count?: number
           created_at?: string
-          created_from_path?: string | null
-          first_converted_at?: string | null
-          first_visited_at?: string | null
-          first_visitor_local_id?: string | null
-          id?: string
-          last_converted_at?: string | null
-          last_converted_email?: string | null
-          last_converted_local_id?: string | null
-          last_converted_name?: string | null
-          last_converted_role?: string | null
-          last_visited_at?: string | null
-          last_visited_path?: string | null
-          last_visitor_local_id?: string | null
-          sharer_email: string
-          sharer_local_id?: string | null
-          sharer_name?: string | null
-          source: string
+          referrer_user_id: string
           token: string
-          updated_at?: string
           visit_count?: number
         }
         Update: {
-          conversion_count?: number
           created_at?: string
-          created_from_path?: string | null
-          first_converted_at?: string | null
-          first_visited_at?: string | null
-          first_visitor_local_id?: string | null
-          id?: string
-          last_converted_at?: string | null
-          last_converted_email?: string | null
-          last_converted_local_id?: string | null
-          last_converted_name?: string | null
-          last_converted_role?: string | null
-          last_visited_at?: string | null
-          last_visited_path?: string | null
-          last_visitor_local_id?: string | null
-          sharer_email?: string
-          sharer_local_id?: string | null
-          sharer_name?: string | null
-          source?: string
+          referrer_user_id?: string
           token?: string
-          updated_at?: string
           visit_count?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "talent_network_referral_links_referrer_user_id_fkey"
+            columns: ["referrer_user_id"]
+            isOneToOne: true
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       talent_opportunity_chat_preview: {
         Row: {

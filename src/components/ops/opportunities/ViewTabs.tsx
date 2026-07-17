@@ -1,10 +1,4 @@
-import {
-  ArrowLeftRight,
-  Building2,
-  Database,
-  Sparkles,
-  type LucideIcon,
-} from "lucide-react";
+import { Building2, Database, type LucideIcon } from "lucide-react";
 import { ActionButton, type PageView } from "./shared";
 
 type ViewTab = {
@@ -23,16 +17,6 @@ const VIEW_TABS: ViewTab[] = [
     icon: Database,
     label: "회사 관리",
     view: "company_management",
-  },
-  {
-    icon: ArrowLeftRight,
-    label: "회사에게 후보자 추천",
-    view: "company_match",
-  },
-  {
-    icon: Sparkles,
-    label: "후보자에게 회사 추천",
-    view: "talent_recommendation",
   },
 ];
 

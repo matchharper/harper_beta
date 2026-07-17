@@ -3,13 +3,13 @@ import AdminMetricsNavigation from "@/components/admin/AdminMetricsNavigation";
 import AdminCareerAbtestPanel from "@/components/admin/career/AdminCareerAbtestPanel";
 import AdminCareerDateRangeFilter from "@/components/admin/career/AdminCareerDateRangeFilter";
 import AdminCareerDeviceComparisonPanel from "@/components/admin/career/AdminCareerDeviceComparisonPanel";
+import AdminCareerExperimentTab from "@/components/admin/career/AdminCareerExperimentTab";
 import AdminCareerFunnelPanel from "@/components/admin/career/AdminCareerFunnelPanel";
 import AdminCareerMetricGrid from "@/components/admin/career/AdminCareerMetricGrid";
 import AdminCareerCompanyTab from "@/components/admin/career/AdminCareerCompanyTab";
 import AdminCareerJobsTab from "@/components/admin/career/AdminCareerJobsTab";
 import AdminCareerQuickSignalPanel from "@/components/admin/career/AdminCareerQuickSignalPanel";
 import AdminCareerUtmTab from "@/components/admin/career/AdminCareerUtmTab";
-import AdminCareerUserTable from "@/components/admin/career/AdminCareerUserTable";
 import {
   type AdminCareerAnalyticsDateRange,
   useAdminCareerAnalyticsStore,
@@ -19,7 +19,6 @@ import { useAdminMetricsStore } from "@/components/admin/metrics/useAdminMetrics
 import { showToast } from "@/components/toast/toast";
 import { Button, BareButton } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { ADMIN_PAGE_PASSWORD } from "@/lib/admin";
 import { normalizeExcludedEmails } from "@/lib/adminMetrics/utils";
 import type { AdminCareerAnalyticsResponse } from "@/lib/adminCareerAnalytics/types";
@@ -31,9 +30,10 @@ import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
 
-type CareerAdminTab = "overview" | "utm" | "jobs" | "company";
+type CareerAdminTab = "overview" | "experiment" | "utm" | "jobs" | "company";
 const CAREER_ADMIN_TABS: CareerAdminTab[] = [
   "overview",
+  "experiment",
   "utm",
   "jobs",
   "company",
@@ -52,6 +52,11 @@ const CAREER_ADMIN_TAB_META: Record<
     title: "Career Analytics",
     subtitle: "랜딩부터 온보딩, 추천 소비와 피드백까지 봅니다.",
   },
+  experiment: {
+    label: "Experiment",
+    title: "Career Experiment",
+    subtitle: "",
+  },
   utm: {
     label: "UTM",
     title: "Career UTM",
@@ -68,8 +73,6 @@ const CAREER_ADMIN_TAB_META: Record<
     subtitle: "/company 랜딩 진입 대비 Search 이동과 메인 CTA 클릭을 봅니다.",
   },
 };
-
-const USERS_PAGE_SIZE = 20;
 
 const toDateOnly = (date: Date | undefined) => {
   if (!date) return "";
@@ -212,8 +215,6 @@ function AdminCareerContent() {
     useState(false);
   const [draftDateRange, setDraftDateRange] = useState<DateRange | undefined>();
   const [isSendingSlackSummary, setIsSendingSlackSummary] = useState(false);
-  const [search, setSearch] = useState("");
-  const [userPage, setUserPage] = useState(1);
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -252,45 +253,6 @@ function AdminCareerContent() {
   );
   const selectedDateRange = draftDateRange ?? appliedDateRangeSelection;
 
-  const filteredUsers = useMemo(() => {
-    const users = query.data?.users ?? [];
-    const keyword = search.trim().toLowerCase();
-    if (!keyword) return users;
-
-    return users.filter((user) => {
-      const haystack = [
-        user.name,
-        user.email,
-        user.userId,
-        user.lastMeaningfulAction,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(keyword);
-    });
-  }, [query.data?.users, search]);
-
-  const totalUserPages = Math.max(
-    1,
-    Math.ceil(filteredUsers.length / USERS_PAGE_SIZE)
-  );
-  const currentUserPage = Math.min(userPage, totalUserPages);
-  const paginatedUsers = useMemo(() => {
-    const offset = (currentUserPage - 1) * USERS_PAGE_SIZE;
-    return filteredUsers.slice(offset, offset + USERS_PAGE_SIZE);
-  }, [currentUserPage, filteredUsers]);
-
-  const handleSearchChange = (value: string) => {
-    setSearch(value);
-    setUserPage(1);
-  };
-
-  const handleUserPageChange = (page: number) => {
-    const nextPage = Math.min(Math.max(page, 1), totalUserPages);
-    setUserPage(nextPage);
-  };
-
   const saveExcludedEmails = (value: string) => {
     const nextValue = normalizeExcludedEmails(value);
     setExcludedEmails(nextValue);
@@ -313,13 +275,11 @@ function AdminCareerContent() {
   const applyDateRange = () => {
     setAppliedDateRange(dateRangeSelectionToInput(selectedDateRange));
     setDraftDateRange(undefined);
-    setUserPage(1);
   };
 
   const resetDateRange = () => {
     setDraftDateRange(undefined);
     resetAppliedDateRange();
-    setUserPage(1);
   };
 
   const handleSendSlackSummary = async () => {
@@ -424,6 +384,8 @@ function AdminCareerContent() {
         <div className="mx-auto w-full max-w-[1180px] space-y-4 px-4 py-5 md:px-6">
           {activeTab === "utm" ? (
             <AdminCareerUtmTab excludedEmails={excludedEmails} />
+          ) : activeTab === "experiment" ? (
+            <AdminCareerExperimentTab excludedEmails={excludedEmails} />
           ) : activeTab === "jobs" ? (
             <AdminCareerJobsTab excludedEmails={excludedEmails} />
           ) : activeTab === "company" ? (
@@ -471,27 +433,11 @@ function AdminCareerContent() {
                 steps={query.data.funnel}
               />
 
-              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <div className="text-[12px] text-black/45">
-                  Generated{" "}
-                  {new Date(query.data.generatedAt).toLocaleString("ko-KR")}
-                  {query.isFetching ? " · refreshing" : ""}
-                </div>
-                <Input
-                  value={search}
-                  onChange={(event) => handleSearchChange(event.target.value)}
-                  placeholder="이름, 이메일, 액션 검색"
-                  className="h-8 max-w-[320px] rounded-none border-black/15 bg-white text-[12px]"
-                />
+              <div className="text-[12px] text-black/45">
+                Generated{" "}
+                {new Date(query.data.generatedAt).toLocaleString("ko-KR")}
+                {query.isFetching ? " · refreshing" : ""}
               </div>
-
-              <AdminCareerUserTable
-                currentPage={currentUserPage}
-                onPageChange={handleUserPageChange}
-                pageSize={USERS_PAGE_SIZE}
-                totalUsers={filteredUsers.length}
-                users={paginatedUsers}
-              />
             </>
           ) : null}
         </div>

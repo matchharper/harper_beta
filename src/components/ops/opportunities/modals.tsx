@@ -1,16 +1,11 @@
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { cx, opsTheme } from "@/components/ops/theme";
-import {
-  DEFAULT_OPS_TALENT_RECOMMENDATION_PROMPT,
-  OPS_TALENT_RECOMMENDATION_PROMPT_PLACEHOLDERS,
-} from "@/lib/ops/opportunityRecommendationPrompt";
 import type {
-  OpsOpportunityCandidateRecord,
   OpportunityEmploymentType,
   OpportunityStatus,
   OpportunityWorkMode,
 } from "@/lib/ops/opportunity";
-import { LoaderCircle, Mail, Save, Trash2 } from "lucide-react";
+import { LoaderCircle, Save, Trash2 } from "lucide-react";
 import type { ClipboardEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
@@ -18,7 +13,6 @@ import remarkGfm from "remark-gfm";
 import TurndownService from "turndown";
 import {
   ActionButton,
-  type CandidateMailDraft,
   type DraftMode,
   EMPLOYMENT_LABEL,
   type RoleDraft,
@@ -166,226 +160,6 @@ function RoleDescriptionMarkdownPreview({ markdown }: { markdown: string }) {
         )}
       </div>
     </div>
-  );
-}
-
-export function CandidateMailModal({
-  draft,
-  onChange,
-  onClose,
-  onSubmit,
-  pending,
-  talent,
-}: {
-  draft: CandidateMailDraft;
-  onChange: (next: CandidateMailDraft) => void;
-  onClose: () => void;
-  onSubmit: () => void;
-  pending: boolean;
-  talent: OpsOpportunityCandidateRecord | null;
-}) {
-  if (!talent) return null;
-
-  return (
-    <TalentCareerModal
-      open={Boolean(talent)}
-      onClose={onClose}
-      title="후보자에게 메일 보내기"
-      description=""
-      panelClassName="max-w-[720px] border border-neutral-1000-a05 bg-bg-default"
-      bodyClassName="bg-bg-default px-5 py-5"
-      footer={
-        <div className="flex items-center justify-end gap-2">
-          <BareButton
-            type="button"
-            onClick={onClose}
-            disabled={pending}
-            className={cx(opsTheme.buttonSecondary, "h-10 px-4")}
-          >
-            취소
-          </BareButton>
-          <BareButton
-            type="button"
-            onClick={onSubmit}
-            disabled={
-              pending ||
-              !draft.fromEmail.trim() ||
-              !draft.subject.trim() ||
-              !draft.content.trim()
-            }
-            className={cx(opsTheme.buttonPrimary, "h-10 px-4")}
-          >
-            {pending ? (
-              <LoaderCircle className="h-4 w-4 animate-spin" />
-            ) : (
-              <Mail className="h-4 w-4" />
-            )}
-            보내기
-          </BareButton>
-        </div>
-      }
-      closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-default/70 text-neutral-muted transition-colors hover:border-neutral-1000-a10 hover:text-neutral-primary"
-    >
-      <div className="space-y-4">
-        <div className={cx(opsTheme.panelSoft, "space-y-2 px-4 py-4")}>
-          <div className="text-[11px] text-neutral-soft">받는 사람</div>
-          <div className="text-sm text-neutral-primary">
-            {talent.name ?? "Unnamed talent"}
-          </div>
-          <div className="text-xs text-neutral-muted">
-            {talent.email ?? "등록된 이메일 없음"}
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <div className={opsTheme.eyebrow}>보내는 사람</div>
-          <UiInput
-            unstyled
-            value={draft.fromEmail}
-            onChange={(event) =>
-              onChange({
-                ...draft,
-                fromEmail: event.target.value,
-              })
-            }
-            className={opsTheme.input}
-            placeholder="sender@matchharper.com"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <div className={opsTheme.eyebrow}>제목</div>
-          <UiInput
-            unstyled
-            value={draft.subject}
-            onChange={(event) =>
-              onChange({
-                ...draft,
-                subject: event.target.value,
-              })
-            }
-            className={opsTheme.input}
-            placeholder="메일 제목"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <div className={opsTheme.eyebrow}>내용</div>
-          <UiTextarea
-            unstyled
-            value={draft.content}
-            onChange={(event) =>
-              onChange({
-                ...draft,
-                content: event.target.value,
-              })
-            }
-            className={cx(opsTheme.textarea, "min-h-[220px]")}
-            placeholder="보낼 내용을 입력하세요."
-          />
-        </div>
-      </div>
-    </TalentCareerModal>
-  );
-}
-
-export function RecommendationPromptModal({
-  onChange,
-  onClose,
-  onReset,
-  onSave,
-  open,
-  value,
-}: {
-  onChange: (value: string) => void;
-  onClose: () => void;
-  onReset: () => void;
-  onSave: () => void;
-  open: boolean;
-  value: string;
-}) {
-  if (!open) return null;
-
-  return (
-    <TalentCareerModal
-      open={open}
-      onClose={onClose}
-      title="추천 문구 프롬프트 수정"
-      description=""
-      panelClassName="max-w-[880px] border border-neutral-1000-a05 bg-bg-default"
-      bodyClassName="bg-bg-default px-5 py-5"
-      footer={
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <BareButton
-            type="button"
-            onClick={onReset}
-            className={cx(opsTheme.buttonSecondary, "h-10 px-4")}
-          >
-            기본값 복원
-          </BareButton>
-          <div className="flex flex-wrap items-center gap-2">
-            <BareButton
-              type="button"
-              onClick={onClose}
-              className={cx(opsTheme.buttonSecondary, "h-10 px-4")}
-            >
-              취소
-            </BareButton>
-            <BareButton
-              type="button"
-              onClick={onSave}
-              disabled={!value.trim()}
-              className={cx(opsTheme.buttonPrimary, "h-10 px-4")}
-            >
-              저장
-            </BareButton>
-          </div>
-        </div>
-      }
-      closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-default/70 text-neutral-muted transition-colors hover:border-neutral-1000-a10 hover:text-neutral-primary"
-    >
-      <div className="space-y-4">
-        <div className={cx(opsTheme.panelSoft, "space-y-2 px-4 py-4")}>
-          <div className="text-sm text-neutral-muted">
-            프롬프트는 브라우저 로컬 스토리지에 저장됩니다.
-          </div>
-          <div className="text-xs leading-5 text-neutral-muted">
-            아래 placeholder를 유지하면 선택된 후보자/role 정보가 자동으로
-            들어갑니다.
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <div className={opsTheme.eyebrow}>프롬프트</div>
-          <UiTextarea
-            unstyled
-            value={value}
-            onChange={(event) => onChange(event.target.value)}
-            className={cx(opsTheme.textarea, "min-h-[320px]")}
-            placeholder={DEFAULT_OPS_TALENT_RECOMMENDATION_PROMPT}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <div className={opsTheme.eyebrow}>사용 가능한 placeholder</div>
-          <div className="grid gap-2 md:grid-cols-2">
-            {OPS_TALENT_RECOMMENDATION_PROMPT_PLACEHOLDERS.map((item) => (
-              <div
-                key={item.key}
-                className={cx(opsTheme.panelSoft, "space-y-1 px-3 py-3")}
-              >
-                <div className="text-xs font-medium text-neutral-primary">
-                  {item.key}
-                </div>
-                <div className="text-xs leading-5 text-neutral-muted">
-                  {item.description}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </TalentCareerModal>
   );
 }
 

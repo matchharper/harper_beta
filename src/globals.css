@@ -126,6 +126,8 @@
   --color-info-1000: #451a03;
   --color-positive-100: var(--color-green-100);
   --color-positive-500: var(--color-green-500);
+  --color-action-100: #eaf2f7;
+  --color-action-500: #356e9a;
   --color-critical-100: var(--color-red-100);
   --color-critical-500: var(--color-red-700);
 
@@ -150,6 +152,9 @@
 
   --color-info: var(--color-info-500);
   --color-info-faded: var(--color-info-100);
+
+  --color-action: var(--color-action-500);
+  --color-action-faded: var(--color-action-100);
 
   --color-critical: var(--color-critical-500);
   --color-critical-faded: var(--color-critical-100);

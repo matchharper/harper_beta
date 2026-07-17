@@ -3,11 +3,17 @@ import {
   CAREER_UTM_SOURCE_STORAGE_KEY,
   normalizeCareerUtmSource,
 } from "@/lib/career/utm";
+import {
+  getTalentNetworkReferralTokenFromCurrentLocation,
+  getTalentNetworkReferralTokenFromUrlLike,
+  readTalentNetworkStoredReferral,
+} from "@/lib/talentNetworkReferral";
 
 export type CareerSignupAttributionPayload = {
   landingLocalId?: string;
   landingPath?: string;
   landingSource?: string;
+  referralToken?: string;
 };
 
 const normalizeOptionalText = (value: unknown, maxLength: number) => {
@@ -47,10 +53,21 @@ export function getCareerSignupAttributionPayload(overrides?: {
     overrides?.path ?? `${window.location.pathname}${window.location.search}`,
     500
   );
+  const overridePathReferralToken =
+    typeof overrides?.path === "string"
+      ? getTalentNetworkReferralTokenFromUrlLike(overrides.path)
+      : null;
+  const referralToken = normalizeOptionalText(
+    getTalentNetworkReferralTokenFromCurrentLocation() ??
+      overridePathReferralToken ??
+      readTalentNetworkStoredReferral()?.token,
+    256
+  );
 
   return {
     ...(landingLocalId ? { landingLocalId } : {}),
     ...(landingPath ? { landingPath } : {}),
     ...(landingSource ? { landingSource } : {}),
+    ...(referralToken ? { referralToken } : {}),
   };
 }

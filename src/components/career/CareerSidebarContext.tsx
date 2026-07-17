@@ -9,7 +9,6 @@ import type {
   CareerInternalOpportunityCallRequest,
   CareerMessagePayload,
   CareerOpportunitySavedStage,
-  CareerRecentOpportunity,
   CareerStage,
   CareerTalentInsights,
   CareerTalentPreferences,
@@ -89,7 +88,6 @@ export type CareerSidebarContextValue = {
     starterId: CareerConversationStarterId;
   }) => boolean | Promise<boolean>;
   onRequestMoreOpenPositions?: () => boolean | Promise<boolean>;
-  recentOpportunities: CareerRecentOpportunity[];
   pendingInternalOpportunityCallRequest?: CareerInternalOpportunityCallRequest | null;
   pendingInternalOpportunityCallRequests?: CareerInternalOpportunityCallRequest[];
   historyOpportunityCounts: CareerHistoryOpportunityCounts;

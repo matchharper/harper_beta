@@ -110,6 +110,7 @@ const LLM_LOG_SOURCES: readonly string[] = [
   "career/profile_ingestion",
   "career/chat",
   "career/internal-opportunity-call-request",
+  "org/intro-email",
   ...LLM_LOG_TOOL_NAMES.map((name) => `career_tool:${name}`),
 ];
 
@@ -131,11 +132,6 @@ const MODEL_PRICING_USD_PER_MTOK: Record<string, LlmModelPricing> = {
     cacheReadUsdPerMtok: 0.025,
     inputUsdPerMtok: 0.25,
     outputUsdPerMtok: 2,
-  },
-  "grok-4-3-fast-non-reasoning": {
-    cacheReadUsdPerMtok: 0.2,
-    inputUsdPerMtok: 1.25,
-    outputUsdPerMtok: 2.5,
   },
   "grok-4.3": {
     cacheReadUsdPerMtok: 0.2,

@@ -377,10 +377,6 @@ const pricingTable = {
     input: 1.25 / 1_000_000,
     output: 2.5 / 1_000_000,
   },
-  "grok-4-3-fast-non-reasoning": {
-    input: 0.2 / 1_000_000,
-    output: 0.5 / 1_000_000,
-  },
   "grok-4-fast-non-reasoning": {
     input: 0.2 / 1_000_000,
     output: 0.5 / 1_000_000,
@@ -399,7 +395,7 @@ export const xaiInference = async (
   model:
     | "grok-4-fast-reasoning"
     | "grok-4.3"
-    | "grok-4-3-fast-non-reasoning"
+    | "grok-4.3"
     | "grok-4-fast-non-reasoning"
     | "gpt-5-mini",
   systemPrompt: string,

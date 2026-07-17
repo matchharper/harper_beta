@@ -69,12 +69,6 @@ export const CAREER_LLM_CONFIG = {
   onboardingDeferClose: {
     temperature: 0.3,
   },
-  // 운영자/백오피스에서 특정 role-candidate 매칭 추천 메모를 생성할 때.
-  // 모델은 assistant.primary/fallback을 쓴다.
-  // 사용처: src/lib/opsOpportunity.ts 의 runOpsTalentRecommendation.
-  opsRecommendation: {
-    temperature: 0.35,
-  },
   // 외부 JD를 짧은 role summary로 압축할 때.
   // 모델은 assistant.primary/fallback을 쓴다.
   // 사용처: external role ingestion/sync 중 description_summary 생성.
@@ -2155,16 +2149,6 @@ export async function runOpsRoleDescriptionSummary(args: {
     ...assistantModelConfig(),
     messages: args.messages,
     temperature: CAREER_LLM_CONFIG.opsRoleSummary.temperature,
-  });
-}
-
-export async function runOpsTalentRecommendation(args: {
-  messages: TalentChatMessage[];
-}) {
-  return runTalentAssistantCompletion({
-    ...assistantModelConfig(),
-    messages: args.messages,
-    temperature: CAREER_LLM_CONFIG.opsRecommendation.temperature,
   });
 }
 

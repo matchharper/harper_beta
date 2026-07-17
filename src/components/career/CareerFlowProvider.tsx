@@ -14,7 +14,6 @@ import type {
   CareerOpportunityFeedbackFollowUpTrigger,
   CareerOpportunityRun,
   CareerRecommendationSearchStatus,
-  CareerRecentOpportunity,
   SessionResponse,
 } from "@/components/career/types";
 import {
@@ -37,7 +36,6 @@ import { useCareerTalentPreferences } from "@/hooks/career/useCareerTalentPrefer
 import { useCareerTalentSettings } from "@/hooks/career/useCareerTalentSettings";
 import { useCareerSession } from "@/hooks/career/useCareerSession";
 import { getErrorMessage, toUiMessage } from "@/hooks/career/careerHelpers";
-import { normalizeRecentOpportunities } from "@/hooks/career/careerSessionData";
 import { useCareerHistoryState } from "@/hooks/career/useCareerHistoryState";
 import { useCareerRuntimeActions } from "@/hooks/career/useCareerRuntimeActions";
 import { showOpportunityDiscoveryStartedToast } from "@/hooks/career/opportunityDiscoveryToast";
@@ -239,9 +237,6 @@ export const CareerFlowProvider = ({
   const { fetchWithAuth } = useCareerApi();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [activeCompanyRoleCount, setActiveCompanyRoleCount] = useState(0);
-  const [recentOpportunities, setRecentOpportunities] = useState<
-    CareerRecentOpportunity[]
-  >([]);
   const [opportunityRun, setOpportunityRun] =
     useState<CareerOpportunityRun | null>(null);
   const [onboardingChecklistProgress, setOnboardingChecklistProgress] =
@@ -270,7 +265,6 @@ export const CareerFlowProvider = ({
     setSessionReengagementActionMessageId,
   ] = useState<string | null>(null);
   const sessionReengagementActionVersionRef = useRef(0);
-  const [includeInitialHistory] = useState(() => activeTab === "history");
   const [sessionReengagementPending, setSessionReengagementPending] =
     useState(false);
   const [sessionReengagementThinkingLogs, setSessionReengagementThinkingLogs] =
@@ -334,7 +328,7 @@ export const CareerFlowProvider = ({
   }, [handleLogout, router]);
 
   const {
-    conversationId,
+    conversationId: sessionConversationId,
     initialMessagePage,
     sessionData,
     sessionPending,
@@ -348,22 +342,37 @@ export const CareerFlowProvider = ({
     inviteToken,
     locale,
     mail,
-    opportunityLimit: includeInitialHistory ? 20 : 0,
+    opportunityLimit: 0,
     userId,
   });
   const {
+    conversation: messageConversation,
     messages: persistedMessages,
+    isPending: messageHistoryPending,
     hasOlderMessages,
     loadOlderMessages,
     loadingOlderMessages,
     appendLatestMessagesToCache,
     removeMessagesFromCache,
   } = useCareerMessageHistory({
-    conversationId,
+    conversationId: sessionConversationId,
     fetchWithAuth,
     enabled: !authLoading && Boolean(user),
     initialSessionPage: initialMessagePage,
+    userId,
   });
+  const conversationId =
+    sessionConversationId ?? messageConversation?.id ?? null;
+  const messageHistoryReady =
+    Boolean(messageConversation) &&
+    (!messageHistoryPending || persistedMessages.length > 0);
+  const messageConversationCanResolveOnboarding =
+    messageConversation?.stage === "completed";
+  const sessionUnresolved =
+    sessionPending || Boolean(sessionError && !sessionData);
+  const chatSessionPending =
+    sessionUnresolved &&
+    (!messageHistoryReady || !messageConversationCanResolveOnboarding);
 
   const applyPersistedTalentPreferencesRef = useRef<
     ((preferences: unknown, updatedAt: unknown) => void) | null
@@ -420,7 +429,7 @@ export const CareerFlowProvider = ({
   } = useCareerChat({
     user,
     conversationId,
-    sessionPending,
+    sessionPending: chatSessionPending,
     fetchWithAuth,
     persistedMessages,
     onOpportunityRunChanged: setOpportunityRun,
@@ -431,6 +440,12 @@ export const CareerFlowProvider = ({
     onTalentProfileRefreshed: handleTalentProfileRefreshedFromChat,
     onMessagesChanged: appendLatestMessagesToCache,
   });
+
+  useEffect(() => {
+    if (sessionData || !messageConversation) return;
+    if (sessionPending && messageConversation.stage !== "completed") return;
+    setStage(messageConversation.stage);
+  }, [messageConversation, sessionData, sessionPending, setStage]);
 
   const replacePendingInternalOpportunityCallRequests = useCallback(
     (
@@ -569,7 +584,7 @@ export const CareerFlowProvider = ({
           nextOffset: sessionData.nextOpportunityOffset ?? null,
         }
       : null;
-  const historyDataEnabled = !authLoading && Boolean(userId && sessionData);
+  const historyDataEnabled = !authLoading && Boolean(userId);
   const historyAutoLoad =
     activeTab === "history" || Boolean(historySessionPage);
 
@@ -729,7 +744,7 @@ export const CareerFlowProvider = ({
   const isVoiceInteractionLocked =
     !user ||
     !conversationId ||
-    sessionPending ||
+    chatSessionPending ||
     stage === "profile" ||
     profilePending ||
     Boolean(opportunityRun?.inputLocked);
@@ -1128,9 +1143,6 @@ export const CareerFlowProvider = ({
       } else {
         hydrateHistoryOpportunityCounts(payload.historyOpportunityCounts);
       }
-      setRecentOpportunities(
-        normalizeRecentOpportunities(payload.recentOpportunities)
-      );
       setActiveCompanyRoleCount(
         Math.max(0, Number(payload.activeCompanyRoleCount ?? 0) || 0)
       );
@@ -1414,7 +1426,6 @@ export const CareerFlowProvider = ({
       resetOnboardingState();
       resetHistoryState();
       resetRuntimeActionsState();
-      setRecentOpportunities([]);
       setActiveCompanyRoleCount(0);
       setOnboardingChecklistProgress(null);
       replacePendingInternalOpportunityCallRequests([]);
@@ -1774,13 +1785,12 @@ export const CareerFlowProvider = ({
 
   const historyLoading =
     historyOpportunities.length === 0 &&
-    (historyInitialLoading ||
-      (!historyLoaded && (sessionPending || activeTab === "history")));
+    (historyInitialLoading || (!historyLoaded && activeTab === "history"));
 
   const initialScrollConversationRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!conversationId || sessionPending || messages.length === 0) return;
+    if (!conversationId || chatSessionPending || messages.length === 0) return;
     if (initialScrollConversationRef.current === conversationId) return;
 
     const el = scrollRef.current;
@@ -1788,7 +1798,7 @@ export const CareerFlowProvider = ({
 
     el.scrollTo({ top: el.scrollHeight });
     initialScrollConversationRef.current = conversationId;
-  }, [conversationId, messages.length, sessionPending]);
+  }, [chatSessionPending, conversationId, messages.length]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -1821,7 +1831,8 @@ export const CareerFlowProvider = ({
     Boolean(
       sessionData && stage === "profile" && sessionDataStage !== "profile"
     ) || Boolean(sessionDataOnboardingDone && !isOnboardingDone);
-  const workspaceDataLoading = sessionPending || sessionDataNeedsLocalHydration;
+  const workspaceDataLoading =
+    sessionUnresolved || sessionDataNeedsLocalHydration;
 
   const progressPercent = Math.round(
     (answeredCount / TALENT_INTERVIEW_FINAL_STEP) * 100
@@ -1905,7 +1916,7 @@ export const CareerFlowProvider = ({
       authPending,
       authError,
       authInfo,
-      sessionPending,
+      sessionPending: chatSessionPending,
       sessionError,
       isOnboardingDone,
       resumeFile,
@@ -1932,6 +1943,7 @@ export const CareerFlowProvider = ({
       opportunityRun,
       opportunitySearchLocked: Boolean(opportunityRun?.inputLocked),
       historyUpdatingOpportunityIds,
+      emailOnboardingToken: emailOnboardingToken?.trim() || undefined,
       onboardingBeginPending: onboardingBeginPending || forceCompletePending,
       callStartPending,
       callWrapUpPending,
@@ -1952,7 +1964,7 @@ export const CareerFlowProvider = ({
       forceCompletePending,
       interviewProgress,
       onForceCompleteOnboarding: handleForceCompleteOnboarding,
-      showVoiceStartPrompt,
+      showVoiceStartPrompt: !chatSessionPending && showVoiceStartPrompt,
       onUseChatOnly: handleUseChatOnly,
       onPauseOnboarding: handlePauseOnboarding,
       onSubmitOnboardingInterest: handleSubmitOnboardingInterest,
@@ -1973,6 +1985,7 @@ export const CareerFlowProvider = ({
       activeThinkingLogs,
       activeRecommendationSearchStatus,
       cancelActiveRecommendationSearch,
+      emailOnboardingToken,
       onboardingWrapupPending,
       authLoading,
       authError,
@@ -2033,7 +2046,7 @@ export const CareerFlowProvider = ({
       sessionReengagementPending,
       sessionReengagementActionMessageId,
       sessionError,
-      sessionPending,
+      chatSessionPending,
       showVoiceStartPrompt,
       stage,
       user,
@@ -2075,7 +2088,6 @@ export const CareerFlowProvider = ({
       onUseChatOnly: handleUseChatOnly,
       onStartConversationStarter: handleStartConversationStarter,
       onRequestMoreOpenPositions: handleRequestMoreOpenPositions,
-      recentOpportunities,
       pendingInternalOpportunityCallRequest,
       pendingInternalOpportunityCallRequests,
       historyOpportunityCounts,
@@ -2214,7 +2226,6 @@ export const CareerFlowProvider = ({
       profileSaveInfo,
       profileSavePending,
       progressPercent,
-      recentOpportunities,
       resumeFile,
       savedProfileLinks,
       savedResumeDownloadUrl,

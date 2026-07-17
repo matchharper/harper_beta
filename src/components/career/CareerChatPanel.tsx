@@ -84,20 +84,27 @@ const CareerChatPanel = () => {
     user,
     inputMode,
     messages,
+    sessionPending,
     isOnboardingDone,
     showVoiceStartPrompt,
+    emailOnboardingToken,
     onboardingBeginPending,
     callStartPending = false,
     onStartCallMode,
     onUseChatOnly,
+    onContinueOnboardingConversation,
   } = useCareerChatPanelContext();
 
+  const autoStartReady = !sessionPending && !isOnboardingDone;
+
   useCareerAutoStart({
-    user,
+    user: autoStartReady ? user : null,
+    forceOnboardingStart: autoStartReady && Boolean(emailOnboardingToken),
     onboardingBeginPending,
-    showVoiceStartPrompt,
+    showVoiceStartPrompt: autoStartReady && showVoiceStartPrompt,
     onStartCallMode,
     onUseChatOnly,
+    onContinueOnboardingConversation,
   });
 
   const hasConversationActivity = useMemo(
@@ -111,6 +118,7 @@ const CareerChatPanel = () => {
   const showInitialWelcome =
     Boolean(user) &&
     inputMode !== "call" &&
+    !sessionPending &&
     !isOnboardingDone &&
     !hasConversationActivity &&
     showVoiceStartPrompt;

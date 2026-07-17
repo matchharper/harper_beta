@@ -16,7 +16,6 @@ import type {
   AdminCareerFunnelStepKey,
   AdminCareerQuickSignal,
   AdminCareerSummaryMetric,
-  AdminCareerUserRow,
 } from "@/lib/adminCareerAnalytics/types";
 import { xaiInference } from "@/lib/llm/llm";
 import {
@@ -33,11 +32,33 @@ import {
   getCareerLandingHeroCopyVariantDescription,
   getCareerLandingHeroCopyVariantLabel,
 } from "@/lib/career/utm";
+import {
+  CAREER_SIGNUP_FLOW_CONTROL_ABTEST_TYPE,
+  CAREER_SIGNUP_FLOW_EMAIL_FIRST_ABTEST_TYPE,
+} from "@/lib/careerEmailOnboarding/constants";
 
 export const runtime = "nodejs";
 
 const BATCH_SIZE = 1000;
+const IN_FILTER_CHUNK_SIZE = 300;
 const CAREER_ANALYTICS_SLACK_SUMMARY_MODEL = "grok-4.3";
+const LANDING_LOG_EVENT_FILTER = [
+  "type.eq.new_visit",
+  "type.like.new_visit:%",
+  "type.eq.new_session",
+  "type.like.new_session:%",
+  "type.like.login_email:%",
+  "type.eq.click_start",
+  "type.like.click_start:%",
+  "type.eq.email_capture_submit",
+  "type.like.email_capture_submit:%",
+  "type.eq.email_capture_sent",
+  "type.like.email_capture_sent:%",
+  "type.eq.email_capture_already_sent",
+  "type.like.email_capture_already_sent:%",
+  "type.eq.email_capture_error",
+  "type.like.email_capture_error:%",
+].join(",");
 
 type LandingLogRow = Pick<
   Database["public"]["Tables"]["landing_logs"]["Row"],
@@ -50,7 +71,6 @@ type LogRow = Pick<
 type TalentUserRow = Pick<
   Database["public"]["Tables"]["talent_users"]["Row"],
   | "user_id"
-  | "name"
   | "email"
   | "created_at"
   | "last_logined_at"
@@ -91,8 +111,6 @@ type MutableUserStats = {
   companyOpenCount: number;
   firstRecommendationAt: string | null;
   jdOpenCount: number;
-  lastMeaningfulAction: string | null;
-  lastMeaningfulActionAt: string | null;
   messageCount: number;
   negativeFeedbackCount: number;
   positiveFeedbackCount: number;
@@ -111,6 +129,8 @@ type MutableLandingSourceStats = {
 
 type MutableLandingVariantStats = {
   clickStartLocalIds: Set<string>;
+  emailSentLocalIds: Set<string>;
+  emailSubmitLocalIds: Set<string>;
   entryLocalIds: Set<string>;
   eventTypes: Set<string>;
   loginLocalIds: Set<string>;
@@ -273,6 +293,37 @@ async function fetchAllRows<T>(
   return rows;
 }
 
+async function fetchRowsForValues<T>(
+  values: Iterable<string>,
+  loadPage: (
+    values: string[],
+    from: number,
+    to: number
+  ) => PromiseLike<FetchPageResult<T>>
+) {
+  const normalizedValues = Array.from(
+    new Set(
+      Array.from(values)
+        .map((value) => String(value ?? "").trim())
+        .filter(Boolean)
+    )
+  );
+  const rows: T[] = [];
+
+  for (
+    let index = 0;
+    index < normalizedValues.length;
+    index += IN_FILTER_CHUNK_SIZE
+  ) {
+    const chunk = normalizedValues.slice(index, index + IN_FILTER_CHUNK_SIZE);
+    rows.push(
+      ...(await fetchAllRows<T>((from, to) => loadPage(chunk, from, to)))
+    );
+  }
+
+  return rows;
+}
+
 function parseLandingLoginEmail(type: string | null) {
   return normalizeEmail(extractEmailFromLandingLoginType(type)) || null;
 }
@@ -304,6 +355,8 @@ function getOrCreateLandingVariantStats(
 
   const next: MutableLandingVariantStats = {
     clickStartLocalIds: new Set<string>(),
+    emailSentLocalIds: new Set<string>(),
+    emailSubmitLocalIds: new Set<string>(),
     entryLocalIds: new Set<string>(),
     eventTypes: new Set<string>(),
     loginLocalIds: new Set<string>(),
@@ -311,6 +364,26 @@ function getOrCreateLandingVariantStats(
   };
   map.set(normalizedAbtestType, next);
   return next;
+}
+
+function getCareerLandingVariantLabel(abtestType: string) {
+  if (abtestType === CAREER_SIGNUP_FLOW_CONTROL_ABTEST_TYPE) {
+    return "Signup control";
+  }
+  if (abtestType === CAREER_SIGNUP_FLOW_EMAIL_FIRST_ABTEST_TYPE) {
+    return "Email first";
+  }
+  return getCareerLandingHeroCopyVariantLabel(abtestType);
+}
+
+function getCareerLandingVariantDescription(abtestType: string) {
+  if (abtestType === CAREER_SIGNUP_FLOW_CONTROL_ABTEST_TYPE) {
+    return "기존 흐름: CTA 클릭 후 회원가입/로그인부터 진행";
+  }
+  if (abtestType === CAREER_SIGNUP_FLOW_EMAIL_FIRST_ABTEST_TYPE) {
+    return "신규 흐름: 랜딩에서 이메일을 받고 메일 답장으로 프로필 수집";
+  }
+  return getCareerLandingHeroCopyVariantDescription(abtestType);
 }
 
 function resolveDeviceType(
@@ -401,13 +474,6 @@ function addOccurredAt(
   const values = map.get(userId) ?? [];
   values.push(occurredAt);
   map.set(userId, values);
-}
-
-function latestOccurredAt(map: Map<string, string[]>, userId: string) {
-  return (map.get(userId) ?? []).reduce<string | null>(
-    (current, occurredAt) => maxIso(current, occurredAt),
-    null
-  );
 }
 
 function hasOccurredAfter(
@@ -612,8 +678,6 @@ function createEmptyStats(): MutableUserStats {
     companyOpenCount: 0,
     firstRecommendationAt: null,
     jdOpenCount: 0,
-    lastMeaningfulAction: null,
-    lastMeaningfulActionAt: null,
     messageCount: 0,
     negativeFeedbackCount: 0,
     positiveFeedbackCount: 0,
@@ -645,40 +709,6 @@ function incrementStat(
   const stats = statsByUserId.get(userId);
   if (!stats) return;
   stats[key] += 1;
-}
-
-function markMeaningfulAction(
-  statsByUserId: Map<string, MutableUserStats>,
-  userId: string,
-  label: string,
-  occurredAt: string | null | undefined
-) {
-  const stats = statsByUserId.get(userId);
-  if (!stats || !occurredAt) return;
-
-  if (
-    !stats.lastMeaningfulActionAt ||
-    isAfter(occurredAt, stats.lastMeaningfulActionAt)
-  ) {
-    stats.lastMeaningfulAction = label;
-    stats.lastMeaningfulActionAt = occurredAt;
-  }
-}
-
-function getCareerLogAction(type: string) {
-  if (type === "career_app_opened") return "career opened";
-  if (type.includes("_open_jd")) return "JD opened";
-  if (type.includes("_open_company")) return "company opened";
-  if (type.includes("_open_detail")) return "recommendation detail";
-  if (type.includes("_status_")) return "status changed";
-  if (type.includes("_positive")) return "positive feedback";
-  if (type.includes("_negative")) return "negative feedback";
-  if (type.includes("_question")) return "question";
-  if (type.includes("profile_save") || type.includes("settings_save")) {
-    return "profile updated";
-  }
-  if (type.includes("resume_links_save")) return "resume links updated";
-  return null;
 }
 
 function buildFunnelStep(args: {
@@ -739,13 +769,6 @@ function isIncludedUser(user: TalentUserRow, excludedEmailSet: Set<string>) {
   return !isEmailExcluded(user.email, excludedEmailSet);
 }
 
-function sortUsers(a: AdminCareerUserRow, b: AdminCareerUserRow) {
-  const aLast = a.lastActiveAt ?? "";
-  const bLast = b.lastActiveAt ?? "";
-  if (aLast !== bLast) return bLast.localeCompare(aLast);
-  return (b.createdAt ?? "").localeCompare(a.createdAt ?? "");
-}
-
 function readShouldSendSlackSummary(payload: unknown) {
   if (!payload || typeof payload !== "object") return false;
   return (payload as { sendSlackSummary?: unknown }).sendSlackSummary === true;
@@ -768,22 +791,11 @@ function formatRate(rate: number | null) {
   return `${Math.round(rate * 1000) / 10}%`;
 }
 
-function maskEmail(email: string | null) {
-  const normalized = normalizeEmail(email);
-  if (!normalized) return null;
-
-  const [localPart, domain] = normalized.split("@");
-  if (!localPart || !domain) return null;
-  const visiblePrefix = localPart.slice(0, Math.min(localPart.length, 2));
-  return `${visiblePrefix}${localPart.length > 2 ? "***" : "*"}@${domain}`;
-}
-
 function buildCareerAnalyticsLlmInput(response: AdminCareerAnalyticsResponse) {
   return {
     generatedAt: response.generatedAt,
     period: formatAnalyticsPeriod(response.dateRange),
     excludedEmailCount: response.excludedEmails.length,
-    userCount: response.users.length,
     deviceComparison: response.deviceComparison,
     quickSignals: response.quickSignals.map((signal) => ({
       key: signal.key,
@@ -810,25 +822,6 @@ function buildCareerAnalyticsLlmInput(response: AdminCareerAnalyticsResponse) {
     })),
     landingVariants: response.landingVariants,
     landingSources: response.landingSources.slice(0, 15),
-    recentUserSignalSample: response.users.slice(0, 25).map((user) => ({
-      userIdPrefix: user.userId.slice(0, 8),
-      email: maskEmail(user.email),
-      createdAt: user.createdAt,
-      lastActiveAt: user.lastActiveAt,
-      lastLoginAt: user.lastLoginAt,
-      onboardingDone: user.onboardingDone,
-      appOpenCount: user.appOpenCount,
-      messageCount: user.messageCount,
-      recommendationCount: user.recommendationCount,
-      viewedRecommendationCount: user.viewedRecommendationCount,
-      jdOpenCount: user.jdOpenCount,
-      companyOpenCount: user.companyOpenCount,
-      statusChangeCount: user.statusChangeCount,
-      positiveFeedbackCount: user.positiveFeedbackCount,
-      negativeFeedbackCount: user.negativeFeedbackCount,
-      returnedAfterFirstRecommendation: user.returnedAfterFirstRecommendation,
-      lastMeaningfulAction: user.lastMeaningfulAction,
-    })),
   };
 }
 
@@ -935,39 +928,12 @@ export async function POST(req: NextRequest) {
     const excludedEmailSet = new Set(excludedEmails);
     const analyticsDateRange = readAnalyticsDateRange(payload);
 
-    const [
-      landingLogs,
-      careerLogs,
-      loginCompletedLogs,
-      talentUsers,
-      talentSettings,
-      talentMessages,
-      talentActivityEvents,
-      recommendations,
-    ] = await Promise.all([
+    const [landingLogs, talentUsers] = await Promise.all([
       fetchAllRows<LandingLogRow>((from, to) =>
         supabaseServer
           .from("landing_logs")
           .select("local_id,type,created_at,is_mobile,abtest_type")
-          .or(
-            "type.eq.new_visit,type.like.new_visit:%,type.eq.new_session,type.like.new_session:%,type.like.login_email:%,type.eq.click_start,type.like.click_start:%"
-          )
-          .order("id", { ascending: true })
-          .range(from, to)
-      ),
-      fetchAllRows<LogRow>((from, to) =>
-        supabaseServer
-          .from("logs")
-          .select("user_id,type,created_at")
-          .like("type", "career_%")
-          .order("id", { ascending: true })
-          .range(from, to)
-      ),
-      fetchAllRows<LogRow>((from, to) =>
-        supabaseServer
-          .from("logs")
-          .select("user_id,type,created_at")
-          .eq("type", "login_completed")
+          .or(LANDING_LOG_EVENT_FILTER)
           .order("id", { ascending: true })
           .range(from, to)
       ),
@@ -975,40 +941,9 @@ export async function POST(req: NextRequest) {
         supabaseServer
           .from("talent_users")
           .select(
-            "user_id,name,email,created_at,last_logined_at,resume_file_name,resume_links"
+            "user_id,email,created_at,last_logined_at,resume_file_name,resume_links"
           )
           .order("created_at", { ascending: false })
-          .range(from, to)
-      ),
-      fetchAllRows<TalentSettingRow>((from, to) =>
-        supabaseServer
-          .from("talent_setting")
-          .select("user_id,is_onboarding_done,updated_at")
-          .order("updated_at", { ascending: false })
-          .range(from, to)
-      ),
-      fetchAllRows<TalentMessageRow>((from, to) =>
-        supabaseServer
-          .from("talent_messages")
-          .select("user_id,role,created_at,message_type")
-          .order("id", { ascending: true })
-          .range(from, to)
-      ),
-      fetchAllRows<TalentActivityEventRow>((from, to) =>
-        supabaseServer
-          .from("talent_activity_events")
-          .select("talent_id,event_type,created_at")
-          .eq("event_type", "onboarding_completed")
-          .order("created_at", { ascending: true })
-          .range(from, to)
-      ),
-      fetchAllRows<RecommendationRow>((from, to) =>
-        supabaseServer
-          .from("talent_opportunity_recommendation")
-          .select(
-            "talent_id,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
-          )
-          .order("created_at", { ascending: true })
           .range(from, to)
       ),
     ]);
@@ -1026,6 +961,77 @@ export async function POST(req: NextRequest) {
     const includedUserIds = new Set(
       includedTalentUsers.map((user) => user.user_id).filter(Boolean)
     );
+
+    const [
+      careerLogs,
+      loginCompletedLogs,
+      talentSettings,
+      talentMessages,
+      talentActivityEvents,
+      recommendations,
+    ] = await Promise.all([
+      fetchRowsForValues<LogRow>(includedUserIds, (userIds, from, to) =>
+        supabaseServer
+          .from("logs")
+          .select("user_id,type,created_at")
+          .in("user_id", userIds)
+          .like("type", "career_%")
+          .order("id", { ascending: true })
+          .range(from, to)
+      ),
+      fetchRowsForValues<LogRow>(includedUserIds, (userIds, from, to) =>
+        supabaseServer
+          .from("logs")
+          .select("user_id,type,created_at")
+          .in("user_id", userIds)
+          .eq("type", "login_completed")
+          .order("id", { ascending: true })
+          .range(from, to)
+      ),
+      fetchRowsForValues<TalentSettingRow>(
+        includedUserIds,
+        (userIds, from, to) =>
+          supabaseServer
+            .from("talent_setting")
+            .select("user_id,is_onboarding_done,updated_at")
+            .in("user_id", userIds)
+            .order("updated_at", { ascending: false })
+            .range(from, to)
+      ),
+      fetchRowsForValues<TalentMessageRow>(
+        includedUserIds,
+        (userIds, from, to) =>
+          supabaseServer
+            .from("talent_messages")
+            .select("user_id,role,created_at,message_type")
+            .in("user_id", userIds)
+            .order("id", { ascending: true })
+            .range(from, to)
+      ),
+      fetchRowsForValues<TalentActivityEventRow>(
+        includedUserIds,
+        (userIds, from, to) =>
+          supabaseServer
+            .from("talent_activity_events")
+            .select("talent_id,event_type,created_at")
+            .in("talent_id", userIds)
+            .eq("event_type", "onboarding_completed")
+            .order("created_at", { ascending: true })
+            .range(from, to)
+      ),
+      fetchRowsForValues<RecommendationRow>(
+        includedUserIds,
+        (userIds, from, to) =>
+          supabaseServer
+            .from("talent_opportunity_recommendation")
+            .select(
+              "talent_id,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
+            )
+            .in("talent_id", userIds)
+            .order("created_at", { ascending: true })
+            .range(from, to)
+      ),
+    ]);
 
     const excludedLocalIds = new Set<string>();
     for (const log of landingLogs) {
@@ -1103,6 +1109,19 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
+      if (baseType === "email_capture_submit") {
+        if (localId) variantStats.emailSubmitLocalIds.add(localId);
+        continue;
+      }
+
+      if (
+        baseType === "email_capture_sent" ||
+        baseType === "email_capture_already_sent"
+      ) {
+        if (localId) variantStats.emailSentLocalIds.add(localId);
+        continue;
+      }
+
       const email = parseLandingLoginEmail(log.type);
       if (!email || isEmailExcluded(email, excludedEmailSet)) continue;
       if (localId) {
@@ -1122,12 +1141,6 @@ export async function POST(req: NextRequest) {
       if (talent?.user_id) variantStats.loggedInUserIds.add(talent.user_id);
     }
 
-    const settingByUserId = new Map<string, TalentSettingRow>();
-    for (const setting of talentSettings) {
-      if (!includedUserIds.has(setting.user_id)) continue;
-      settingByUserId.set(setting.user_id, setting);
-    }
-
     const statsByUserId = new Map<string, MutableUserStats>();
     for (const user of includedTalentUsers) {
       statsByUserId.set(user.user_id, createEmptyStats());
@@ -1141,12 +1154,26 @@ export async function POST(req: NextRequest) {
     ]);
 
     const userActivityRowsByUserId = new Map<string, string[]>();
+    const latestActivityAtByUserId = new Map<string, string>();
+    const addUserActivity = (
+      userId: string,
+      occurredAt: string | null | undefined
+    ) => {
+      addOccurredAt(userActivityRowsByUserId, userId, occurredAt);
+      const latestActivityAt = maxIso(
+        latestActivityAtByUserId.get(userId),
+        occurredAt
+      );
+      if (latestActivityAt) {
+        latestActivityAtByUserId.set(userId, latestActivityAt);
+      }
+    };
     const latestLoginCompletedAtByUserId = new Map<string, string>();
     for (const log of loginCompletedLogs) {
       const userId = String(log.user_id ?? "").trim();
       if (!userId || !includedUserIds.has(userId)) continue;
 
-      addOccurredAt(userActivityRowsByUserId, userId, log.created_at);
+      addUserActivity(userId, log.created_at);
 
       const latestLoginCompletedAt = maxIso(
         latestLoginCompletedAtByUserId.get(userId),
@@ -1167,7 +1194,7 @@ export async function POST(req: NextRequest) {
       const stats = statsByUserId.get(userId);
       if (!stats) continue;
 
-      addOccurredAt(userActivityRowsByUserId, userId, log.created_at);
+      addUserActivity(userId, log.created_at);
       const isInAnalyticsRange = isWithinAnalyticsDateRange(
         log.created_at,
         analyticsDateRange
@@ -1223,11 +1250,6 @@ export async function POST(req: NextRequest) {
       if (type.includes("profile_save") || type.includes("settings_save")) {
         incrementStat(statsByUserId, userId, "profileUpdateCount");
       }
-
-      const action = getCareerLogAction(type);
-      if (action) {
-        markMeaningfulAction(statsByUserId, userId, action, log.created_at);
-      }
     }
 
     for (const message of talentMessages) {
@@ -1242,17 +1264,7 @@ export async function POST(req: NextRequest) {
         );
       }
       incrementStat(statsByUserId, message.user_id, "messageCount");
-      addOccurredAt(
-        userActivityRowsByUserId,
-        message.user_id,
-        message.created_at
-      );
-      markMeaningfulAction(
-        statsByUserId,
-        message.user_id,
-        "message sent",
-        message.created_at
-      );
+      addUserActivity(message.user_id, message.created_at);
     }
 
     for (const user of includedTalentUsers) {
@@ -1291,6 +1303,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const clickedRecommendationCountByUserId = new Map<string, number>();
     for (const recommendation of recommendations) {
       const userId = recommendation.talent_id;
       if (!includedUserIds.has(userId)) continue;
@@ -1310,67 +1323,33 @@ export async function POST(req: NextRequest) {
 
       if (recommendation.viewed_at) {
         incrementStat(statsByUserId, userId, "viewedRecommendationCount");
-        addOccurredAt(
-          userActivityRowsByUserId,
-          userId,
-          recommendation.viewed_at
-        );
-        markMeaningfulAction(
-          statsByUserId,
-          userId,
-          "recommendation viewed",
-          recommendation.viewed_at
-        );
+        addUserActivity(userId, recommendation.viewed_at);
       }
       if (recommendation.clicked_at) {
-        addOccurredAt(
-          userActivityRowsByUserId,
+        clickedRecommendationCountByUserId.set(
           userId,
-          recommendation.clicked_at
+          (clickedRecommendationCountByUserId.get(userId) ?? 0) + 1
         );
-        markMeaningfulAction(
-          statsByUserId,
-          userId,
-          "JD clicked",
-          recommendation.clicked_at
-        );
+        addUserActivity(userId, recommendation.clicked_at);
       }
       const feedback = normalizeRecommendationFeedback(recommendation.feedback);
       if (feedback === "positive") {
         incrementStat(statsByUserId, userId, "positiveFeedbackCount");
-        addOccurredAt(
-          userActivityRowsByUserId,
+        addUserActivity(
           userId,
-          recommendation.feedback_at ?? recommendation.updated_at
-        );
-        markMeaningfulAction(
-          statsByUserId,
-          userId,
-          "positive feedback",
           recommendation.feedback_at ?? recommendation.updated_at
         );
       }
       if (feedback === "negative") {
         incrementStat(statsByUserId, userId, "negativeFeedbackCount");
-        addOccurredAt(
-          userActivityRowsByUserId,
+        addUserActivity(
           userId,
-          recommendation.feedback_at ?? recommendation.updated_at
-        );
-        markMeaningfulAction(
-          statsByUserId,
-          userId,
-          "negative feedback",
           recommendation.feedback_at ?? recommendation.updated_at
         );
       }
       if (recommendation.saved_stage) {
         incrementStat(statsByUserId, userId, "statusChangeCount");
-        addOccurredAt(
-          userActivityRowsByUserId,
-          userId,
-          recommendation.updated_at
-        );
+        addUserActivity(userId, recommendation.updated_at);
       }
     }
 
@@ -1561,81 +1540,53 @@ export async function POST(req: NextRequest) {
 
     const thirtyDaysAgo = daysAgoIso(30);
     const sevenDaysAgo = daysAgoIso(7);
-    const userRows: AdminCareerUserRow[] = includedTalentUsers.map((user) => {
+    let activeSevenDayUsers = 0;
+    let activeThirtyDayUsers = 0;
+    let engagedUsers = 0;
+    let signalUsers = 0;
+    let totalPositiveFeedback = 0;
+    let totalNegativeFeedback = 0;
+
+    for (const user of includedTalentUsers) {
       const stats = statsByUserId.get(user.user_id) ?? createEmptyStats();
-      const createdAt = user.created_at ?? null;
       const lastActiveAt = [
         user.last_logined_at,
         latestLoginCompletedAtByUserId.get(user.user_id),
-        latestOccurredAt(userActivityRowsByUserId, user.user_id),
+        latestActivityAtByUserId.get(user.user_id),
       ].reduce<string | null>((current, value) => maxIso(current, value), null);
+      const jdOpenCount = Math.max(
+        stats.jdOpenCount,
+        clickedRecommendationCountByUserId.get(user.user_id) ?? 0
+      );
       const profileSignalCount =
         (user.resume_file_name ? 1 : 0) + (user.resume_links?.length ?? 0);
-      const fallbackMeaningfulAction =
-        stats.recommendationCount > 0 ? "recommendation received" : null;
 
-      return {
-        userId: user.user_id,
-        name: user.name,
-        email: user.email,
-        createdAt,
-        lastActiveAt,
-        lastLoginAt: user.last_logined_at,
-        onboardingDone: Boolean(
-          settingByUserId.get(user.user_id)?.is_onboarding_done
-        ),
-        appOpenCount: stats.appOpenCount,
-        messageCount: stats.messageCount,
-        recommendationCount: stats.recommendationCount,
-        viewedRecommendationCount: stats.viewedRecommendationCount,
-        jdOpenCount: Math.max(
-          stats.jdOpenCount,
-          recommendations.filter(
-            (item) => item.talent_id === user.user_id && item.clicked_at
-          ).length
-        ),
-        companyOpenCount: stats.companyOpenCount,
-        statusChangeCount: stats.statusChangeCount,
-        positiveFeedbackCount: stats.positiveFeedbackCount,
-        negativeFeedbackCount: stats.negativeFeedbackCount,
-        profileUpdateCount: stats.profileUpdateCount + profileSignalCount,
-        firstRecommendationAt: stats.firstRecommendationAt,
-        returnedAfterFirstRecommendation:
-          stats.returnedAfterFirstRecommendation,
-        lastMeaningfulAction:
-          stats.lastMeaningfulAction ?? fallbackMeaningfulAction,
-      };
-    });
+      if (lastActiveAt && lastActiveAt >= sevenDaysAgo) {
+        activeSevenDayUsers += 1;
+      }
+      if (lastActiveAt && lastActiveAt >= thirtyDaysAgo) {
+        activeThirtyDayUsers += 1;
+      }
+      if (
+        stats.messageCount > 0 ||
+        stats.viewedRecommendationCount > 0 ||
+        jdOpenCount > 0 ||
+        stats.companyOpenCount > 0
+      ) {
+        engagedUsers += 1;
+      }
+      if (
+        stats.positiveFeedbackCount > 0 ||
+        stats.negativeFeedbackCount > 0 ||
+        stats.statusChangeCount > 0 ||
+        stats.profileUpdateCount + profileSignalCount > 0
+      ) {
+        signalUsers += 1;
+      }
 
-    const sortedUsers = userRows.sort(sortUsers);
-    const activeSevenDayUsers = sortedUsers.filter(
-      (user) => user.lastActiveAt && user.lastActiveAt >= sevenDaysAgo
-    ).length;
-    const activeThirtyDayUsers = sortedUsers.filter(
-      (user) => user.lastActiveAt && user.lastActiveAt >= thirtyDaysAgo
-    ).length;
-    const engagedUsers = sortedUsers.filter(
-      (user) =>
-        user.messageCount > 0 ||
-        user.viewedRecommendationCount > 0 ||
-        user.jdOpenCount > 0 ||
-        user.companyOpenCount > 0
-    ).length;
-    const signalUsers = sortedUsers.filter(
-      (user) =>
-        user.positiveFeedbackCount > 0 ||
-        user.negativeFeedbackCount > 0 ||
-        user.statusChangeCount > 0 ||
-        user.profileUpdateCount > 0
-    ).length;
-    const totalPositiveFeedback = sortedUsers.reduce(
-      (sum, user) => sum + user.positiveFeedbackCount,
-      0
-    );
-    const totalNegativeFeedback = sortedUsers.reduce(
-      (sum, user) => sum + user.negativeFeedbackCount,
-      0
-    );
+      totalPositiveFeedback += stats.positiveFeedbackCount;
+      totalNegativeFeedback += stats.negativeFeedbackCount;
+    }
     const rangedNewUserIds = new Set<string>();
     const rangedActiveUserIds = new Set<string>();
     const rangedCareerOpenedUserIds = new Set<string>();
@@ -1855,7 +1806,7 @@ export async function POST(req: NextRequest) {
             "New users",
             rangedNewUserIds.size,
             "선택 기간 가입",
-            "talent_users.created_at이 선택한 KST 날짜 범위 안에 있는 유저 수입니다. 아래 Users 테이블은 이 필터를 적용하지 않습니다."
+            "talent_users.created_at이 선택한 KST 날짜 범위 안에 있는 유저 수입니다."
           ),
           buildSummaryMetric(
             "active7d",
@@ -1925,7 +1876,7 @@ export async function POST(req: NextRequest) {
           buildSummaryMetric(
             "careerUsers",
             "Career users",
-            sortedUsers.length,
+            includedTalentUsers.length,
             "내부 이메일 제외"
           ),
           buildSummaryMetric(
@@ -2007,11 +1958,18 @@ export async function POST(req: NextRequest) {
         return a.source.localeCompare(b.source);
       });
 
+    const landingVariantAbtestTypes = [
+      ...CAREER_LANDING_HERO_COPY_ABTEST_TYPES,
+      CAREER_SIGNUP_FLOW_CONTROL_ABTEST_TYPE,
+      CAREER_SIGNUP_FLOW_EMAIL_FIRST_ABTEST_TYPE,
+    ];
     const landingVariants: AdminCareerLandingVariantBreakdown[] =
-      CAREER_LANDING_HERO_COPY_ABTEST_TYPES.map((abtestType) => {
+      landingVariantAbtestTypes.map((abtestType) => {
         const stats = landingVariantsByAbtestType.get(abtestType);
         const entryCount = stats?.entryLocalIds.size ?? 0;
         const clickStartCount = stats?.clickStartLocalIds.size ?? 0;
+        const emailSubmitCount = stats?.emailSubmitLocalIds.size ?? 0;
+        const emailSentCount = stats?.emailSentLocalIds.size ?? 0;
         const loginCount = stats?.loginLocalIds.size ?? 0;
         const loggedInUserIds = stats?.loggedInUserIds ?? new Set<string>();
         const signupCount = countIntersection(
@@ -2023,12 +1981,16 @@ export async function POST(req: NextRequest) {
           abtestType,
           clickStartCount,
           clickStartRateFromEntry: rateOrNull(clickStartCount, entryCount),
-          description: getCareerLandingHeroCopyVariantDescription(abtestType),
+          description: getCareerLandingVariantDescription(abtestType),
+          emailSentCount,
+          emailSentRateFromSubmit: rateOrNull(emailSentCount, emailSubmitCount),
+          emailSubmitCount,
+          emailSubmitRateFromEntry: rateOrNull(emailSubmitCount, entryCount),
           entryCount,
           eventTypes: Array.from(stats?.eventTypes ?? []).sort((a, b) =>
             a.localeCompare(b)
           ),
-          label: getCareerLandingHeroCopyVariantLabel(abtestType),
+          label: getCareerLandingVariantLabel(abtestType),
           loginCount,
           loginRateFromClickStart: rateOrNull(loginCount, clickStartCount),
           loginRateFromEntry: rateOrNull(loginCount, entryCount),
@@ -2052,7 +2014,6 @@ export async function POST(req: NextRequest) {
       landingVariants,
       quickSignals,
       summary,
-      users: sortedUsers,
     };
 
     if (readShouldSendSlackSummary(payload)) {

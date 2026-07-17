@@ -45,14 +45,13 @@ export default function AdminCareerAbtestPanel({
         <div className="flex items-start justify-between gap-3">
           <div>
             <CardTitle className="text-[14px] font-semibold text-black">
-              Hero Copy A/B Test
+              Landing A/B Tests
             </CardTitle>
             <CardDescription className="text-[12px] leading-5 text-black/50">
-              랜딩 hero body 문구별 Entry → CTA click → Login → Signup
-              전환입니다.
+              랜딩 실험별 Entry → CTA/Email → Login → Signup 전환입니다.
             </CardDescription>
           </div>
-          <Tooltips text="Entry는 landing_logs new_visit/new_session unique local_id, CTA click은 click_start, Login은 login_email 로그 기준입니다. Signup은 login_email로 식별된 talent user 중 career_signup_completed 또는 talent_users.created_at이 선택 기간에 잡힌 유저입니다.">
+          <Tooltips text="Entry는 landing_logs new_visit/new_session unique local_id, CTA click은 click_start, Email submit/sent는 email_capture_* 로그, Login은 login_email 로그 기준입니다. Signup은 login_email로 식별된 talent user 중 career_signup_completed 또는 talent_users.created_at이 선택 기간에 잡힌 유저입니다.">
             <BareButton
               type="button"
               className="inline-flex h-7 w-7 shrink-0 cursor-help items-center justify-center border border-black/10 bg-white text-black/45"
@@ -64,7 +63,7 @@ export default function AdminCareerAbtestPanel({
       </CardHeader>
       <CardContent className="p-4 pt-2">
         <div className="overflow-x-auto">
-          <Table className="min-w-[860px]">
+          <Table className="min-w-[980px]">
             <TableHeader>
               <TableRow className="border-black/10 hover:bg-transparent">
                 <TableHead className="h-8 px-2 text-[11px]">Variant</TableHead>
@@ -73,6 +72,12 @@ export default function AdminCareerAbtestPanel({
                 </TableHead>
                 <TableHead className="h-8 px-2 text-right text-[11px]">
                   CTA click
+                </TableHead>
+                <TableHead className="h-8 px-2 text-right text-[11px]">
+                  Email submit
+                </TableHead>
+                <TableHead className="h-8 px-2 text-right text-[11px]">
+                  Email sent
                 </TableHead>
                 <TableHead className="h-8 px-2 text-right text-[11px]">
                   Login
@@ -87,7 +92,7 @@ export default function AdminCareerAbtestPanel({
               {variants.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={6}
+                    colSpan={8}
                     className="px-2 py-4 text-center text-[11px] text-black/45"
                   >
                     아직 A/B test landing log가 없습니다.
@@ -120,6 +125,24 @@ export default function AdminCareerAbtestPanel({
                       )}
                       <div className="text-right text-[10px] text-black/35">
                         from entry
+                      </div>
+                    </TableCell>
+                    <TableCell className="px-2 py-2">
+                      {formatCountWithRate(
+                        variant.emailSubmitCount,
+                        variant.emailSubmitRateFromEntry
+                      )}
+                      <div className="text-right text-[10px] text-black/35">
+                        from entry
+                      </div>
+                    </TableCell>
+                    <TableCell className="px-2 py-2">
+                      {formatCountWithRate(
+                        variant.emailSentCount,
+                        variant.emailSentRateFromSubmit
+                      )}
+                      <div className="text-right text-[10px] text-black/35">
+                        from submit
                       </div>
                     </TableCell>
                     <TableCell className="px-2 py-2">

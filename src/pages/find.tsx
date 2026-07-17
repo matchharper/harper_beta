@@ -47,7 +47,7 @@ const COMPANY_ABTEST_TYPE: CompanyAbtestType = "company_copy_b_v1";
 const COMPANY_LANDING_LOG_SOURCE = "company";
 export const LANDING_CANONICAL_URL = "https://matchharper.com/";
 export const LANDING_OG_IMAGE_URL =
-  "https://matchharper.com/images/usemain.png";
+  "https://matchharper.com/images/logos/thumbnail.png";
 
 export const stripHtmlTags = (value: string) =>
   value

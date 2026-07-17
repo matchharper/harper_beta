@@ -1,4 +1,7 @@
 import {
+  CAREER_SIGNUP_FLOW_EXPERIMENT_ID,
+  CAREER_SIGNUP_FLOW_CONTROL_ABTEST_TYPE,
+  CAREER_SIGNUP_FLOW_EMAIL_FIRST_ABTEST_TYPE,
   CAREER_EMAIL_ONBOARDING_VARIANT,
   CAREER_WEB_ONBOARDING_VARIANT,
 } from "@/lib/careerEmailOnboarding/constants";
@@ -22,7 +25,7 @@ function hashString(value: string) {
 export function resolveCareerOnboardingLandingVariant(args: {
   localId: string;
   override?: string | null;
-  salt: string;
+  salt?: string;
 }): CareerOnboardingLandingVariant {
   const override = String(args.override ?? "")
     .trim()
@@ -38,8 +41,18 @@ export function resolveCareerOnboardingLandingVariant(args: {
   const localId = String(args.localId ?? "").trim();
   if (!localId) return CAREER_WEB_ONBOARDING_VARIANT;
 
-  const bucket = hashString(`${args.salt}:${localId}`) % 100;
-  return bucket < 50
+  const bucket =
+    hashString(`${args.salt || CAREER_SIGNUP_FLOW_EXPERIMENT_ID}:${localId}`) %
+    100;
+  return bucket < 25
     ? CAREER_EMAIL_ONBOARDING_VARIANT
     : CAREER_WEB_ONBOARDING_VARIANT;
+}
+
+export function getCareerSignupFlowAbtestType(
+  variant: CareerOnboardingLandingVariant
+) {
+  return variant === CAREER_EMAIL_ONBOARDING_VARIANT
+    ? CAREER_SIGNUP_FLOW_EMAIL_FIRST_ABTEST_TYPE
+    : CAREER_SIGNUP_FLOW_CONTROL_ABTEST_TYPE;
 }
