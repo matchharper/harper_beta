@@ -85,8 +85,8 @@ export function AcceptIntroDialog({
           <div className="space-y-2 text-sm leading-6 text-neutral-primary">
             <div>{candidateName}</div>
             <div className="text-neutral-muted">
-              후보자에게 연결 메일을 보내고, 현재 로그인한 회사 담당자와 아래
-              이메일들을 CC합니다. 이후부터는 직접 소통하실 수 있습니다.
+              후보자와 현재 로그인한 회사 담당자와 아래 이메일들을 참조를 통해
+              연결하는 메일을 발송합니다. 이후부터는 직접 소통하실 수 있습니다.
             </div>
           </div>
           <label className="block">

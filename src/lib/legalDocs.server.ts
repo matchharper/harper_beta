@@ -48,11 +48,22 @@ function parseFrontmatter(raw: string) {
   };
 }
 
+function stripLeadingDocumentTitle(body: string, title: string) {
+  const lines = body.split("\n");
+  const firstContentLineIndex = lines.findIndex((line) => line.trim());
+  if (firstContentLineIndex < 0) return body;
+
+  const firstContentLine = lines[firstContentLineIndex].trim();
+  if (firstContentLine !== `# ${title}`) return body;
+
+  return lines
+    .slice(firstContentLineIndex + 1)
+    .join("\n")
+    .trim();
+}
+
 export async function loadVersionedLegalDocument(slug: string) {
-  const manifestPath = path.join(
-    process.cwd(),
-    "public/docs/legal/index.json"
-  );
+  const manifestPath = path.join(process.cwd(), "public/docs/legal/index.json");
   const manifest = JSON.parse(
     await fs.readFile(manifestPath, "utf8")
   ) as LegalManifest;
@@ -71,20 +82,19 @@ export async function loadVersionedLegalDocument(slug: string) {
   const filePath = path.join(process.cwd(), "public", version.path);
   const raw = await fs.readFile(filePath, "utf8");
   const parsed = parseFrontmatter(raw);
+  const title = parsed.frontmatter.title ?? slug;
 
   return {
-    body: parsed.body,
+    body: stripLeadingDocumentTitle(parsed.body, title),
     contactEmail: parsed.frontmatter.contact_email ?? "chris@matchharper.com",
     description: parsed.frontmatter.description ?? "",
     effectiveDate:
       parsed.frontmatter.effective_date ?? version.effectiveDate ?? "",
     locale:
-      parsed.frontmatter.locale === "en" || entry.locale === "en"
-        ? "en"
-        : "ko",
+      parsed.frontmatter.locale === "en" || entry.locale === "en" ? "en" : "ko",
     slug: parsed.frontmatter.slug ?? slug,
     status: parsed.frontmatter.status ?? version.status ?? "draft",
-    title: parsed.frontmatter.title ?? slug,
+    title,
     version: parsed.frontmatter.version ?? version.version,
   } satisfies VersionedLegalDocument;
 }

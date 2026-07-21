@@ -1782,33 +1782,73 @@ export const ko = {
     "career.referral.modal.copied": "복사됨",
     "career.referral.modal.copy_invite_message": "문구 복사",
     "career.referral.modal.description":
-      "친구나 동료가 내 링크로 가입하고 Harper를 통해 채용되면, 조건에 따라 $2,000에서 $5,000 사이의 보상을 받을 수 있습니다.",
+      "내가 공유한 링크를 통해 가입한 사람이 Harper를 통해 채용되면 최대 1000만원의 보상을 받을 수 있습니다.",
     "career.referral.modal.error_summary_load_failed":
       "초대 정보를 불러오지 못했습니다.",
-    "career.referral.modal.example_basis": "연봉 $15,000 채용 1건 기준",
-    "career.referral.modal.example_reward": "$3,000",
+    "career.referral.modal.error_referral_list_load_failed":
+      "초대 목록을 불러오지 못했습니다.",
+    "career.referral.modal.error_reward_list_load_failed":
+      "채용 및 보상 현황을 불러오지 못했습니다.",
+    "career.referral.modal.example_basis": "연봉 1억원 채용 1건 기준",
+    "career.referral.modal.example_reward": "250만원 ~ 500만원",
     "career.referral.modal.example_reward_heading": "예시 보상",
-    "career.referral.modal.example_review_note": "채용 확정 및 정산 후 검토",
-    "career.referral.modal.example_salary": "$15,000",
+    "career.referral.modal.example_review_note": "이해를 돕기 위한 예시",
+    "career.referral.modal.example_salary": "1억원",
     "career.referral.modal.first_year_salary_label": "첫해 연봉",
+    "career.referral.modal.hiring_confirmed": "확정",
+    "career.referral.modal.hiring_not_confirmed": "미확정",
+    "career.referral.modal.hiring_reward_empty":
+      "아직 채용 및 보상 현황이 없습니다.",
+    "career.referral.modal.hiring_reward_heading": "채용 및 보상 현황",
+    "career.referral.modal.hiring_reward_summary":
+      "채용이 확정되어 보상 절차가 진행 중인 내역",
     "career.referral.modal.how_it_works": "진행 방식",
     "career.referral.modal.invite_message":
-      "안녕하세요, Harper가 도움이 될 것 같아서 링크 공유드려요.\n\nHarper는 이력서를 먼저 올리고 기다리는 채용 플랫폼이라기보다, 대화로 커리어 맥락과 선호를 파악한 뒤 맞을 만한 기회를 골라 소개해주는 서비스예요. 당장 이직 중이 아니어도 어떤 팀이나 역할이 맞을지 가볍게 확인해볼 수 있습니다.\n\n관심 있으면 아래 링크로 들어가 한번 대화해보세요.\n{link}",
+      "안녕하세요, 커리어 기회를 살펴볼 때 Harper가 도움이 될 것 같아 공유드려요.\n\nHarper는 대화를 통해 지금까지의 경험과 다음 커리어에서 원하는 점을 파악하고, 잘 맞을 만한 회사와 역할을 찾아 소개해주는 서비스예요. 당장 이직할 계획이 없어도 가볍게 대화를 시작해볼 수 있습니다.\n\n궁금하면 아래 링크에서 확인해보세요.\n{link}",
     "career.referral.modal.invite_message_description":
-      "초대 링크가 포함된 문구입니다. 복사한 뒤 필요하면 다듬어 보내세요.",
+      "내 초대 링크가 자동으로 들어갑니다. 그대로 복사하거나 상대방에 맞게 다듬어 보내세요.",
     "career.referral.modal.invite_message_heading": "함께 보낼 소개 문구",
     "career.referral.modal.invite_message_link_placeholder": "[초대 링크]",
     "career.referral.modal.link_loading": "초대 링크를 준비하는 중입니다.",
     "career.referral.modal.read_terms": "전체 약관 보기",
+    "career.referral.modal.referral_headline_empty": "프로필 소개 없음",
+    "career.referral.modal.referral_hired": "채용됨",
+    "career.referral.modal.referral_name_empty": "Harper 사용자",
+    "career.referral.modal.referral_not_hired": "가입 완료",
+    "career.referral.modal.referrals_heading": "초대 목록",
+    "career.referral.modal.referrals_load_more": "더 보기",
+    "career.referral.modal.referrals_summary":
+      "지금까지 {count}명이 내 링크로 가입했습니다.",
+    "career.referral.modal.referrals_summary_singular":
+      "지금까지 1명이 내 링크로 가입했습니다.",
+    "career.referral.modal.referrals_table_candidate": "이름",
+    "career.referral.modal.referrals_table_headline": "프로필 소개",
+    "career.referral.modal.referrals_table_joined_at": "가입일",
+    "career.referral.modal.referrals_table_status": "상태",
+    "career.referral.modal.retry": "다시 시도",
     "career.referral.modal.reward_description":
-      "추천한 사람이 Harper를 통해 채용되면 연봉, 계약 조건, 실제 수수료에 따라 보상이 검토됩니다.",
+      "추천한 사람이 Harper를 통해 채용되면 첫해 연봉, 계약 조건, Harper가 실제로 수령한 채용 수수료의 20%를 기준으로 보상을 검토합니다.",
+    "career.referral.modal.reward_fee_basis":
+      "보상은 회사에서 Harper에게 제공하는 채용 수수료를 기준으로, 연봉과 계약 조건에 따라 달라질 수 있습니다.",
+    "career.referral.modal.reward_fee_rate": "(수수료의 20%)",
     "career.referral.modal.reward_heading": "추천 보상",
     "career.referral.modal.reward_note":
-      "실제 보상은 연봉, 계약 형태, Harper가 실제 수령하는 수수료, 내부 검토 결과에 따라 달라질 수 있습니다.",
-    "career.referral.modal.reward_range": "$2,000 - $5,000",
+      "실제 보상은 약관상 유효 추천 여부와 채용·정산 조건에 따라 달라질 수 있습니다.",
+    "career.referral.modal.reward_not_paid": "지급 예정",
+    "career.referral.modal.reward_paid": "지급 완료",
+    "career.referral.modal.reward_range": "250만원 ~ 1000만원",
+    "career.referral.modal.reward_table_amount": "금액",
+    "career.referral.modal.reward_table_candidate": "이름",
+    "career.referral.modal.reward_table_due_at": "보상지급 예정일",
+    "career.referral.modal.reward_table_hired": "채용 확정 여부",
+    "career.referral.modal.reward_table_paid": "보상지급완료여부",
+    "career.referral.modal.reward_unlimited_description":
+      "여러 명이 Harper를 통해 채용되면, 각 채용 건마다 보상을 검토합니다.",
+    "career.referral.modal.reward_unlimited_heading":
+      "보상 지급 인원에 제한은 없습니다.",
     "career.referral.modal.share": "공유",
     "career.referral.modal.share_link_description":
-      "초대 링크와 짧은 소개 문구를 함께 보내면 상대방이 Harper를 이해하기 쉽습니다.",
+      "링크를 복사한 뒤 아래 소개 문구와 함께 보내면 상대방이 Harper를 이해하기 쉽습니다.",
     "career.referral.modal.share_link_heading": "초대 링크 공유",
     "career.referral.modal.share_text":
       "Harper에서 커리어 기회를 함께 찾아보세요.",
@@ -1816,17 +1856,18 @@ export const ko = {
     "career.referral.modal.stats_heading": "내 초대 현황",
     "career.referral.modal.stats_hires": "채용 확정",
     "career.referral.modal.stats_note":
-      "숫자는 중복 제거와 내부 검토 과정에서 조정될 수 있습니다. 추천받은 사람의 개인 정보나 진행 상황은 표시하지 않습니다.",
+      "방문 수는 중복 제거 등의 이유로 조정될 수 있습니다. 초대 목록에는 가입한 사람의 기본 프로필과 채용 여부만 표시되며, 회사명이나 상세 채용 진행은 공개되지 않습니다.",
+    "career.referral.modal.stats_paid": "비용 지급됨",
     "career.referral.modal.stats_signups": "회원가입",
     "career.referral.modal.stats_visits": "링크 방문",
     "career.referral.modal.step1_description":
-      "커리어 기회를 살펴보면 좋을 친구나 동료에게 초대 링크와 짧은 소개를 보내세요.",
-    "career.referral.modal.step1_title": "소개할 사람을 정합니다.",
+      "Harper가 도움이 될 만한 친구나 동료에게 초대 링크와 소개 문구를 보내세요.",
+    "career.referral.modal.step1_title": "소개할 사람에게 링크를 전달합니다.",
     "career.referral.modal.step2_description":
-      "가입 요청 시점에 확인되는 추천 링크를 기준으로 내 초대 기록에 반영됩니다.",
+      "상대방이 가입할 때 사용한 추천 링크를 기준으로 내 초대 기록에 반영됩니다.",
     "career.referral.modal.step2_title": "상대방이 링크로 가입합니다.",
     "career.referral.modal.step3_description":
-      "Harper를 통한 채용 확정과 정산이 완료되면 약관에 따라 보상이 검토됩니다.",
+      "Harper를 통한 채용과 고객사 정산이 확인되면 약관에 따라 보상금을 지급합니다.",
     "career.referral.modal.step3_title": "채용되면 보상을 받을 수 있습니다.",
     "career.referral.modal.title": "친구나 동료에게 Harper를 소개하세요",
     "career.referral.modal.toast_invite_message_copied":
@@ -1834,11 +1875,10 @@ export const ko = {
     "career.referral.modal.toast_invite_message_copy_failed":
       "소개 문구 복사에 실패했습니다.",
     "career.referral.modal.toast_link_copied": "초대 링크가 복사되었습니다.",
-    "career.referral.modal.toast_link_copy_failed":
-      "링크 복사에 실패했습니다.",
+    "career.referral.modal.toast_link_copy_failed": "링크 복사에 실패했습니다.",
     "career.referral.modal.updating": "업데이트 중",
-    "career.referral.modal.your_cut_label": "내 보상 기준",
-    "career.referral.modal.your_cut_value": "Harper 채용 수수료의 일부",
+    "career.referral.modal.your_cut_label": "산정 기준",
+    "career.referral.modal.your_cut_value": "Harper에게 지급되는 수수료의 20%",
     "career.referral.modal.your_reward_label": "내 보상",
     "career.referral.network.toast_email_invalid":
       "유효한 이메일을 입력해 주세요.",

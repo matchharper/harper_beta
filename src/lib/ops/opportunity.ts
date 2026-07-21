@@ -96,7 +96,6 @@ type CompanyManagementWorkspaceRow = WorkspaceRow & {
     | CompanyManagementCompanyDbRow
     | CompanyManagementCompanyDbRow[]
     | null;
-  is_scrape_original?: boolean | null;
 };
 
 type CompanyWorkspaceQualityLabelRow = {
@@ -255,7 +254,6 @@ export type OpsCompanyManagementRecord = {
   humanQualityLabeledAt: string | null;
   industry: string | null;
   investors: string | null;
-  isScrapeOriginal: boolean;
   latestFundingRound: OpsCompanyLatestFundingRound | null;
   linkedinUrl: string | null;
   location: string | null;
@@ -1319,9 +1317,8 @@ export async function fetchOpsOpportunityCatalog(
     workspaceQuery: workspaceQueryText,
     workspaceTotalCount,
     workspaces: workspaceRows.map((row) => {
-      const stats = roleStatsByWorkspaceId.get(
-        String(row.company_workspace_id ?? "")
-      ) ?? {
+      const workspaceId = String(row.company_workspace_id ?? "");
+      const stats = roleStatsByWorkspaceId.get(workspaceId) ?? {
         active: 0,
         external: 0,
         internal: 0,
@@ -1332,10 +1329,7 @@ export async function fetchOpsOpportunityCatalog(
         activeRoleCount: stats.active,
         externalRoleCount: stats.external,
         internalRoleCount: stats.internal,
-        memberCount:
-          memberCountByWorkspaceId.get(
-            String(row.company_workspace_id ?? "")
-          ) ?? 0,
+        memberCount: memberCountByWorkspaceId.get(workspaceId) ?? 0,
         row,
         totalRoleCount: stats.total,
       });
@@ -1547,7 +1541,6 @@ const COMPANY_MANAGEMENT_SELECT = `
   logo_url,
   company_description,
   company_db_id,
-  is_scrape_original,
   created_at,
   updated_at,
   company_db:company_db (
@@ -1989,7 +1982,6 @@ function mapCompanyManagementRecord(args: {
       args.qualityLabelRow?.human_quality_labeled_at ?? null,
     industry: companyDbRecord?.specialities ?? null,
     investors: companyDb?.investors ?? null,
-    isScrapeOriginal: Boolean(args.row.is_scrape_original),
     latestFundingRound: extractLatestFundingRound(
       companyDbRecord?.crunchbaseInformation
     ),
@@ -2137,10 +2129,6 @@ export async function fetchOpsCompanyManagementPage(args: {
           .order("created_at", { ascending: false, nullsFirst: false })
           .order("company_workspace_id", { ascending: true })
       : workspaceQuery
-          .order("is_scrape_original", {
-            ascending: false,
-            nullsFirst: false,
-          })
           .order("updated_at", { ascending: false, nullsFirst: false })
           .order("company_workspace_id", { ascending: true });
 
@@ -2401,33 +2389,6 @@ export async function fetchOpsCompanyManagementPage(args: {
     nextOffset: rows.length > limit ? offset + limit : null,
     offset,
     query: companyName,
-  };
-}
-
-export async function updateOpsCompanyScrapeOriginal(args: {
-  isScrapeOriginal: boolean;
-  workspaceId: string;
-}) {
-  const admin = getSupabaseAdmin();
-  const workspaceId = ensureNonEmptyString(args.workspaceId, "workspaceId");
-  const isScrapeOriginal = Boolean(args.isScrapeOriginal);
-
-  const { data, error } = await (admin.from("company_workspace" as any) as any)
-    .update({
-      is_scrape_original: isScrapeOriginal,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("company_workspace_id", workspaceId)
-    .select("company_workspace_id, is_scrape_original")
-    .single();
-
-  if (error) {
-    throw new Error(error.message ?? "Failed to update is_scrape_original");
-  }
-
-  return {
-    isScrapeOriginal: Boolean(data?.is_scrape_original),
-    workspaceId: String(data?.company_workspace_id ?? workspaceId),
   };
 }
 

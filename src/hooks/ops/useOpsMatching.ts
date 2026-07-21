@@ -9,6 +9,8 @@ import type { OpsQueueManualInternalRecommendationResponse } from "@/lib/ops/car
 import { queryKeys } from "@/lib/queryKeys";
 import type {
   OpsMatchingCompanyOption,
+  OpsMatchingAllRolesResponse,
+  OpsMatchingAllRoleUpdateResponse,
   OpsMatchingFitListResponse,
   OpsMatchingFitHumanLabelUpdateResponse,
   OpsMatchingFitLabel,
@@ -32,6 +34,7 @@ import type {
   OpsMatchingTalentRoleTagsResponse,
   OpsMatchingTalentTag,
 } from "@/lib/ops/matching";
+import type { OpportunityStatus } from "@/lib/ops/opportunity";
 
 type OpsMatchingCompaniesResponse = {
   items: OpsMatchingCompanyOption[];
@@ -110,6 +113,68 @@ export function useOpsMatchingRoles(args: {
     },
     enabled: (args.enabled ?? true) && Boolean(companyWorkspaceId),
     staleTime: 60_000,
+  });
+}
+
+export function useOpsMatchingAllRoles(args: {
+  enabled?: boolean;
+  limit?: number;
+  query?: string;
+  selfServeOnly?: boolean;
+}) {
+  const limit = args.limit ?? 20;
+  const query = args.query?.trim() ?? "";
+  const selfServeOnly = Boolean(args.selfServeOnly);
+
+  return useInfiniteQuery({
+    queryKey: queryKeys.opsMatching.allRoles({
+      limit,
+      query,
+      selfServeOnly,
+    }),
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams({
+        limit: String(limit),
+        offset: String(pageParam),
+      });
+      if (query) params.set("query", query);
+      if (selfServeOnly) params.set("selfServeOnly", "true");
+      return fetchWithInternalAuth<OpsMatchingAllRolesResponse>(
+        `/api/internal/matching/all-roles?${params.toString()}`
+      );
+    },
+    getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
+    initialPageParam: 0,
+    enabled: args.enabled ?? true,
+    staleTime: 30_000,
+  });
+}
+
+export function useUpdateOpsMatchingAllRole() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: {
+      isAuto?: boolean;
+      roleId: string;
+      status?: OpportunityStatus;
+    }) =>
+      fetchWithInternalAuth<OpsMatchingAllRoleUpdateResponse>(
+        "/api/internal/matching/all-roles",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(input),
+        }
+      ),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.opsMatching.all }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.opsOpportunity.all,
+        }),
+      ]);
+    },
   });
 }
 

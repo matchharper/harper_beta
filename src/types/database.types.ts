@@ -962,6 +962,7 @@ export type Database = {
         Row: {
           considerations: Json
           created_at: string
+          is_auto: boolean
           request: string | null
           role_id: string
           updated_at: string
@@ -969,6 +970,7 @@ export type Database = {
         Insert: {
           considerations?: Json
           created_at?: string
+          is_auto?: boolean
           request?: string | null
           role_id: string
           updated_at?: string
@@ -976,6 +978,7 @@ export type Database = {
         Update: {
           considerations?: Json
           created_at?: string
+          is_auto?: boolean
           request?: string | null
           role_id?: string
           updated_at?: string
@@ -1160,6 +1163,73 @@ export type Database = {
           },
         ]
       }
+      company_slack_integrations: {
+        Row: {
+          company_workspace_id: string
+          connected_at: string
+          created_at: string
+          installed_by_user_id: string | null
+          last_error: string | null
+          last_sent_at: string | null
+          slack_channel_id: string
+          slack_channel_name: string | null
+          slack_team_id: string
+          slack_team_name: string | null
+          updated_at: string
+          webhook_url_ciphertext: string
+        }
+        Insert: {
+          company_workspace_id: string
+          connected_at?: string
+          created_at?: string
+          installed_by_user_id?: string | null
+          last_error?: string | null
+          last_sent_at?: string | null
+          slack_channel_id: string
+          slack_channel_name?: string | null
+          slack_team_id: string
+          slack_team_name?: string | null
+          updated_at?: string
+          webhook_url_ciphertext: string
+        }
+        Update: {
+          company_workspace_id?: string
+          connected_at?: string
+          created_at?: string
+          installed_by_user_id?: string | null
+          last_error?: string | null
+          last_sent_at?: string | null
+          slack_channel_id?: string
+          slack_channel_name?: string | null
+          slack_team_id?: string
+          slack_team_name?: string | null
+          updated_at?: string
+          webhook_url_ciphertext?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_slack_integrations_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: true
+            referencedRelation: "company_workspace"
+            referencedColumns: ["company_workspace_id"]
+          },
+          {
+            foreignKeyName: "company_slack_integrations_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: true
+            referencedRelation: "ops_company_workspace_with_label"
+            referencedColumns: ["company_workspace_id"]
+          },
+          {
+            foreignKeyName: "company_slack_integrations_installed_by_user_id_fkey"
+            columns: ["installed_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       company_snapshot: {
         Row: {
           company_db_id: number | null
@@ -1169,6 +1239,7 @@ export type Database = {
           id: string
           status: string
           updated_at: string
+          workspace_id: string | null
         }
         Insert: {
           company_db_id?: number | null
@@ -1178,6 +1249,7 @@ export type Database = {
           id?: string
           status?: string
           updated_at?: string
+          workspace_id?: string | null
         }
         Update: {
           company_db_id?: number | null
@@ -1187,6 +1259,7 @@ export type Database = {
           id?: string
           status?: string
           updated_at?: string
+          workspace_id?: string | null
         }
         Relationships: [
           {
@@ -1195,6 +1268,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "company_db"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_snapshot_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "company_workspace"
+            referencedColumns: ["company_workspace_id"]
+          },
+          {
+            foreignKeyName: "company_snapshot_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "ops_company_workspace_with_label"
+            referencedColumns: ["company_workspace_id"]
           },
         ]
       }
@@ -1462,6 +1549,48 @@ export type Database = {
           },
         ]
       }
+      company_workspace_setting: {
+        Row: {
+          company_workspace_id: string | null
+          created_at: string
+          id: number
+          is_handle_operation: boolean | null
+          is_progressing: boolean | null
+          published_name: string | null
+        }
+        Insert: {
+          company_workspace_id?: string | null
+          created_at?: string
+          id?: number
+          is_handle_operation?: boolean | null
+          is_progressing?: boolean | null
+          published_name?: string | null
+        }
+        Update: {
+          company_workspace_id?: string | null
+          created_at?: string
+          id?: number
+          is_handle_operation?: boolean | null
+          is_progressing?: boolean | null
+          published_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_workspace_setting_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "company_workspace"
+            referencedColumns: ["company_workspace_id"]
+          },
+          {
+            foreignKeyName: "company_workspace_setting_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "ops_company_workspace_with_label"
+            referencedColumns: ["company_workspace_id"]
+          },
+        ]
+      }
       connection: {
         Row: {
           candid_id: string | null
@@ -1638,6 +1767,79 @@ export type Database = {
             referencedColumns: ["user_id"]
           },
         ]
+      }
+      crm_email_campaign_deliveries: {
+        Row: {
+          campaign_id: string
+          discovery_run_id: string
+          sent_at: string
+          talent_id: string
+        }
+        Insert: {
+          campaign_id: string
+          discovery_run_id: string
+          sent_at?: string
+          talent_id: string
+        }
+        Update: {
+          campaign_id?: string
+          discovery_run_id?: string
+          sent_at?: string
+          talent_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_email_campaign_deliveries_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "crm_email_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_email_campaign_deliveries_discovery_run_id_fkey"
+            columns: ["discovery_run_id"]
+            isOneToOne: false
+            referencedRelation: "opportunity_discovery_run"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_email_campaign_deliveries_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      crm_email_campaigns: {
+        Row: {
+          created_at: string
+          html_content: string
+          id: string
+          max_sends_per_user: number
+          name: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          html_content: string
+          id?: string
+          max_sends_per_user?: number
+          name: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          html_content?: string
+          id?: string
+          max_sends_per_user?: number
+          name?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       crunchbase_history: {
         Row: {
@@ -4990,16 +5192,19 @@ export type Database = {
       talent_network_referral_attributions: {
         Row: {
           hired_at: string | null
+          paid_at: string | null
           referred_user_id: string
           token: string
         }
         Insert: {
           hired_at?: string | null
+          paid_at?: string | null
           referred_user_id: string
           token: string
         }
         Update: {
           hired_at?: string | null
+          paid_at?: string | null
           referred_user_id?: string
           token?: string
         }
@@ -5043,7 +5248,7 @@ export type Database = {
           {
             foreignKeyName: "talent_network_referral_links_referrer_user_id_fkey"
             columns: ["referrer_user_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "talent_users"
             referencedColumns: ["user_id"]
           },
@@ -5170,6 +5375,7 @@ export type Database = {
           human_reviewed_at: string | null
           human_reviewed_by: string | null
           id: string
+          kind: string | null
           label: string
           last_evaluated_at: string
           opportunity_id: string
@@ -5186,6 +5392,7 @@ export type Database = {
           human_reviewed_at?: string | null
           human_reviewed_by?: string | null
           id?: string
+          kind?: string | null
           label: string
           last_evaluated_at?: string
           opportunity_id: string
@@ -5202,6 +5409,7 @@ export type Database = {
           human_reviewed_at?: string | null
           human_reviewed_by?: string | null
           id?: string
+          kind?: string | null
           label?: string
           last_evaluated_at?: string
           opportunity_id?: string
@@ -5419,6 +5627,7 @@ export type Database = {
       }
       talent_progress: {
         Row: {
+          company_user_id: string | null
           created_at: string
           id: string
           kind: string
@@ -5430,6 +5639,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          company_user_id?: string | null
           created_at?: string
           id?: string
           kind?: string
@@ -5441,6 +5651,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          company_user_id?: string | null
           created_at?: string
           id?: string
           kind?: string
@@ -5452,6 +5663,13 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "talent_progress_company_user_id_fkey"
+            columns: ["company_user_id"]
+            isOneToOne: false
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
+          },
           {
             foreignKeyName: "talent_progress_recommendation_id_fkey"
             columns: ["recommendation_id"]
@@ -5513,6 +5731,166 @@ export type Database = {
           {
             foreignKeyName: "talent_publications_talent_id_fkey"
             columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      talent_referral_application: {
+        Row: {
+          amount: string | null
+          created_at: string
+          hired_at: string | null
+          id: string
+          memo: string | null
+          recommendation_id: string | null
+          referred_user_id: string
+          reward_due_at: string | null
+          reward_paid: boolean
+          reward_paid_at: string | null
+          role_id: string
+          settlement_completed_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount?: string | null
+          created_at?: string
+          hired_at?: string | null
+          id?: string
+          memo?: string | null
+          recommendation_id?: string | null
+          referred_user_id: string
+          reward_due_at?: string | null
+          reward_paid?: boolean
+          reward_paid_at?: string | null
+          role_id: string
+          settlement_completed_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: string | null
+          created_at?: string
+          hired_at?: string | null
+          id?: string
+          memo?: string | null
+          recommendation_id?: string | null
+          referred_user_id?: string
+          reward_due_at?: string | null
+          reward_paid?: boolean
+          reward_paid_at?: string | null
+          role_id?: string
+          settlement_completed_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_referral_application_recommendation_id_fkey"
+            columns: ["recommendation_id"]
+            isOneToOne: false
+            referencedRelation: "talent_opportunity_recommendation"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_referral_application_referred_user_id_fkey"
+            columns: ["referred_user_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "talent_referral_application_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "company_roles"
+            referencedColumns: ["role_id"]
+          },
+        ]
+      }
+      talent_referral_payout_information: {
+        Row: {
+          access_token_expires_at: string | null
+          access_token_hash: string | null
+          accuracy_confirmed_at: string | null
+          address_ciphertext: string | null
+          bank_account_holder_ciphertext: string | null
+          bank_account_number_ciphertext: string | null
+          bank_name: string | null
+          business_registration_number_ciphertext: string | null
+          created_at: string
+          id: string
+          is_korean_tax_resident: boolean | null
+          legal_name_ciphertext: string | null
+          notification_history: Json
+          phone_ciphertext: string | null
+          privacy_consent_version: string | null
+          privacy_consented_at: string | null
+          referral_application_id: string
+          referrer_user_id: string
+          resident_registration_number_ciphertext: string | null
+          submitted_at: string | null
+          tax_entity_type: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token_expires_at?: string | null
+          access_token_hash?: string | null
+          accuracy_confirmed_at?: string | null
+          address_ciphertext?: string | null
+          bank_account_holder_ciphertext?: string | null
+          bank_account_number_ciphertext?: string | null
+          bank_name?: string | null
+          business_registration_number_ciphertext?: string | null
+          created_at?: string
+          id?: string
+          is_korean_tax_resident?: boolean | null
+          legal_name_ciphertext?: string | null
+          notification_history?: Json
+          phone_ciphertext?: string | null
+          privacy_consent_version?: string | null
+          privacy_consented_at?: string | null
+          referral_application_id: string
+          referrer_user_id: string
+          resident_registration_number_ciphertext?: string | null
+          submitted_at?: string | null
+          tax_entity_type?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token_expires_at?: string | null
+          access_token_hash?: string | null
+          accuracy_confirmed_at?: string | null
+          address_ciphertext?: string | null
+          bank_account_holder_ciphertext?: string | null
+          bank_account_number_ciphertext?: string | null
+          bank_name?: string | null
+          business_registration_number_ciphertext?: string | null
+          created_at?: string
+          id?: string
+          is_korean_tax_resident?: boolean | null
+          legal_name_ciphertext?: string | null
+          notification_history?: Json
+          phone_ciphertext?: string | null
+          privacy_consent_version?: string | null
+          privacy_consented_at?: string | null
+          referral_application_id?: string
+          referrer_user_id?: string
+          resident_registration_number_ciphertext?: string | null
+          submitted_at?: string | null
+          tax_entity_type?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_referral_payout_information_referral_application_id_fkey"
+            columns: ["referral_application_id"]
+            isOneToOne: true
+            referencedRelation: "talent_referral_application"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_referral_payout_information_referrer_user_id_fkey"
+            columns: ["referrer_user_id"]
             isOneToOne: false
             referencedRelation: "talent_users"
             referencedColumns: ["user_id"]
@@ -6034,6 +6412,15 @@ export type Database = {
           score: number
           tags: string[]
           user_example_text: string
+        }[]
+      }
+      record_talent_network_referral_visit: {
+        Args: { p_token: string; p_visitor_user_id?: string }
+        Returns: {
+          is_self_visit: boolean
+          referrer_user_id: string
+          token: string
+          visit_count: number
         }[]
       }
       reveal_candidate_profile: {

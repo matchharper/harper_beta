@@ -1,7 +1,6 @@
 export const TALENT_NETWORK_REFERRAL_QUERY_KEY = "ref";
 
-const TALENT_NETWORK_REFERRAL_STORAGE_KEY =
-  "harper_talent_network_referral";
+const TALENT_NETWORK_REFERRAL_STORAGE_KEY = "harper_talent_network_referral";
 const TALENT_NETWORK_REFERRAL_VISIT_DEDUPE_PREFIX =
   "harper_talent_network_referral_visit";
 
@@ -30,6 +29,7 @@ export type TalentNetworkStoredReferral = {
 
 export type TalentNetworkReferralStats = {
   hires: number;
+  paid: number;
   signups: number;
   visits: number;
 };
@@ -41,9 +41,42 @@ export type TalentNetworkReferralSummary = {
   url: string;
 };
 
+export type TalentNetworkReferralListItem = {
+  headline: string | null;
+  hired: boolean;
+  id: string;
+  joinedAt: string | null;
+  name: string | null;
+  profilePicture: string | null;
+};
+
+export type TalentNetworkReferralListResponse = {
+  items: TalentNetworkReferralListItem[];
+  nextOffset: number | null;
+  total: number;
+};
+
+export type TalentNetworkReferralRewardItem = {
+  amount: string | null;
+  hiredConfirmed: boolean;
+  id: string;
+  name: string | null;
+  profilePicture: string | null;
+  rewardDueAt: string | null;
+  rewardPaid: boolean;
+};
+
+export type TalentNetworkReferralRewardListResponse = {
+  items: TalentNetworkReferralRewardItem[];
+  nextOffset: number | null;
+  total: number;
+};
+
 export type TalentNetworkReferralClientMessages = {
+  applicationListLoadFailed?: string;
   conversionRecordFailed?: string;
   linkCreateFailed?: string;
+  referralListLoadFailed?: string;
   summaryLoadFailed?: string;
   visitCaptureFailed?: string;
   visitRecordFailed?: string;
@@ -161,7 +194,10 @@ export function getTalentNetworkReferralTokenFromUrlLike(
   if (typeof window === "undefined" && !value) return null;
 
   try {
-    const url = new URL(value ?? window.location.href, "https://matchharper.com");
+    const url = new URL(
+      value ?? window.location.href,
+      "https://matchharper.com"
+    );
     return (
       normalizeToken(url.searchParams.get(TALENT_NETWORK_REFERRAL_QUERY_KEY)) ||
       null
@@ -262,8 +298,8 @@ export async function fetchTalentNetworkReferralSummary(
 
   if (!res.ok) {
     throw new Error(
-      String(json?.error ?? "").trim() ||
-        messages?.summaryLoadFailed ||
+      messages?.summaryLoadFailed ||
+        String(json?.error ?? "").trim() ||
         "Failed to load referral information."
     );
   }
@@ -272,11 +308,116 @@ export async function fetchTalentNetworkReferralSummary(
     createdAt: String(json?.createdAt ?? "").trim() || null,
     stats: {
       hires: Number((json?.stats as Record<string, JsonValue>)?.hires ?? 0),
+      paid: Number((json?.stats as Record<string, JsonValue>)?.paid ?? 0),
       signups: Number((json?.stats as Record<string, JsonValue>)?.signups ?? 0),
       visits: Number((json?.stats as Record<string, JsonValue>)?.visits ?? 0),
     },
     token: String(json?.token ?? "").trim(),
     url: String(json?.url ?? "").trim(),
+  };
+}
+
+export async function fetchTalentNetworkReferralList(
+  fetchWithAuth: (url: string, init?: RequestInit) => Promise<Response>,
+  args: {
+    limit: number;
+    messages?: Pick<
+      TalentNetworkReferralClientMessages,
+      "referralListLoadFailed"
+    >;
+    offset: number;
+  }
+): Promise<TalentNetworkReferralListResponse> {
+  const params = new URLSearchParams({
+    limit: String(args.limit),
+    offset: String(args.offset),
+  });
+  const res = await fetchWithAuth(
+    `/api/talent/network/referral/referrals?${params.toString()}`
+  );
+  const json = await readJsonResponse(res);
+
+  if (!res.ok) {
+    throw new Error(
+      args.messages?.referralListLoadFailed ||
+        String(json?.error ?? "").trim() ||
+        "Failed to load referrals."
+    );
+  }
+
+  const rawItems = Array.isArray(json?.items) ? json.items : [];
+  const items = rawItems
+    .filter(isRecord)
+    .map(
+      (item): TalentNetworkReferralListItem => ({
+        headline: String(item.headline ?? "").trim() || null,
+        hired: item.hired === true,
+        id: String(item.id ?? "").trim(),
+        joinedAt: String(item.joinedAt ?? "").trim() || null,
+        name: String(item.name ?? "").trim() || null,
+        profilePicture: String(item.profilePicture ?? "").trim() || null,
+      })
+    )
+    .filter((item) => item.id);
+
+  const rawNextOffset = Number(json?.nextOffset ?? NaN);
+
+  return {
+    items,
+    nextOffset: Number.isFinite(rawNextOffset) ? rawNextOffset : null,
+    total: Number(json?.total ?? items.length),
+  };
+}
+
+export async function fetchTalentNetworkReferralRewardList(
+  fetchWithAuth: (url: string, init?: RequestInit) => Promise<Response>,
+  args: {
+    limit: number;
+    messages?: Pick<
+      TalentNetworkReferralClientMessages,
+      "applicationListLoadFailed"
+    >;
+    offset: number;
+  }
+): Promise<TalentNetworkReferralRewardListResponse> {
+  const params = new URLSearchParams({
+    limit: String(args.limit),
+    offset: String(args.offset),
+  });
+  const res = await fetchWithAuth(
+    `/api/talent/network/referral/applications?${params.toString()}`
+  );
+  const json = await readJsonResponse(res);
+
+  if (!res.ok) {
+    throw new Error(
+      args.messages?.applicationListLoadFailed ||
+        String(json?.error ?? "").trim() ||
+        "Failed to load referral applications."
+    );
+  }
+
+  const rawItems = Array.isArray(json?.items) ? json.items : [];
+  const items = rawItems
+    .filter(isRecord)
+    .map(
+      (item): TalentNetworkReferralRewardItem => ({
+        amount: String(item.amount ?? "").trim() || null,
+        hiredConfirmed: item.hiredConfirmed === true,
+        id: String(item.id ?? "").trim(),
+        name: String(item.name ?? "").trim() || null,
+        profilePicture: String(item.profilePicture ?? "").trim() || null,
+        rewardDueAt: String(item.rewardDueAt ?? "").trim() || null,
+        rewardPaid: item.rewardPaid === true,
+      })
+    )
+    .filter((item) => item.id);
+  const rawNextOffset = Number(json?.nextOffset ?? NaN);
+
+  return {
+    items,
+    nextOffset: Number.isFinite(rawNextOffset) ? rawNextOffset : null,
+    total: Number(json?.total ?? items.length),
   };
 }
 

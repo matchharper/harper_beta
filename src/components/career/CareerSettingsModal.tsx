@@ -8,6 +8,7 @@ import {
   Settings2,
   Trash2,
   UserCircle2,
+  UserRoundPlus,
   X,
 } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -18,11 +19,13 @@ import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
 import CareerProfileSettingsSection from "./CareerProfileSettingsSection";
+import { CareerReferralSettingsSection } from "./referral/CareerReferralModal";
 import CareerResumeLinksSettingsSection from "./settings/CareerResumeLinksSettingsSection";
 import { BareButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
+import { isInternalDomainEmail } from "@/lib/internalAccess";
 
-type CareerSettingsTab = "profile" | "resume" | "account";
+export type CareerSettingsTab = "profile" | "resume" | "referral" | "account";
 type MobileSettingsView = "menu" | CareerSettingsTab;
 
 type SettingsTabDefinition = {
@@ -32,24 +35,41 @@ type SettingsTabDefinition = {
 };
 
 const getSettingsTabs = (
-  t: ReturnType<typeof useCareerT>
-): SettingsTabDefinition[] => [
-  {
-    key: "profile",
-    label: t("career.settings.career_settings_modal.0tdjt8e", "프로필 설정"),
-    Icon: Settings2,
-  },
-  {
-    key: "resume",
-    label: t("career.settings.career_settings_modal.1u81q4e", "내 이력서/링크"),
-    Icon: FileText,
-  },
-  {
+  t: ReturnType<typeof useCareerT>,
+  showReferralEntryPoints: boolean
+): SettingsTabDefinition[] => {
+  const tabs: SettingsTabDefinition[] = [
+    {
+      key: "profile",
+      label: t("career.settings.career_settings_modal.0tdjt8e", "프로필 설정"),
+      Icon: Settings2,
+    },
+    {
+      key: "resume",
+      label: t(
+        "career.settings.career_settings_modal.1u81q4e",
+        "내 이력서/링크"
+      ),
+      Icon: FileText,
+    },
+  ];
+
+  if (showReferralEntryPoints) {
+    tabs.push({
+      key: "referral",
+      label: t("career.referral.menu.invite", "초대하기"),
+      Icon: UserRoundPlus,
+    });
+  }
+
+  tabs.push({
     key: "account",
     label: t("career.settings.career_settings_modal.1lbfn2i", "계정 관리"),
     Icon: UserCircle2,
-  },
-];
+  });
+
+  return tabs;
+};
 
 const MENU_SNAP = "340px";
 const FULL_SNAP = 0.95;
@@ -323,21 +343,27 @@ const renderSection = (
 ) => {
   if (tab === "profile") return <CareerProfileSettingsSection />;
   if (tab === "resume") return <CareerResumeLinksSettingsSection />;
+  if (tab === "referral") return <CareerReferralSettingsSection />;
   return <AccountSection email={email} onLogout={onLogout} />;
 };
 
 const CareerSettingsModal = ({
+  initialTab,
   open,
   onClose,
 }: {
+  initialTab?: CareerSettingsTab | null;
   open: boolean;
   onClose: () => void;
 }) => {
   const t = useCareerT();
-  const settingsTabs = useMemo(() => getSettingsTabs(t), [t]);
-
   const logCareerEvent = useCareerLogEvent();
   const { onLogout, user } = useCareerSidebarContext();
+  const showReferralEntryPoints = isInternalDomainEmail(user?.email);
+  const settingsTabs = useMemo(
+    () => getSettingsTabs(t, showReferralEntryPoints),
+    [showReferralEntryPoints, t]
+  );
   const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState<CareerSettingsTab>("profile");
   const [mobileView, setMobileView] = useState<MobileSettingsView>("menu");
@@ -362,6 +388,17 @@ const CareerSettingsModal = ({
     const timer = window.setTimeout(resetMobileSettings, 0);
     return () => window.clearTimeout(timer);
   }, [onClose, open, resetMobileSettings, user]);
+
+  useEffect(() => {
+    if (!open || !initialTab) return;
+    const timer = window.setTimeout(() => {
+      setActiveTab(initialTab);
+      if (!isMobile) return;
+      setMobileView(initialTab);
+      setSnap(FULL_SNAP);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [initialTab, isMobile, open]);
 
   const email =
     user?.email ??
@@ -460,7 +497,11 @@ const CareerSettingsModal = ({
                     {t("career.settings.career_settings_modal.1338q8i", "설정")}
                   </BareButton>
                   <h2 className="text-[15px] font-semibold text-neutral-primary">
-                    {settingsTabs.find((tab) => tab.key === mobileView)?.label}
+                    {settingsTabs.find((tab) => tab.key === mobileView)
+                      ?.label ??
+                      (mobileView === "referral"
+                        ? t("career.referral.menu.invite", "초대하기")
+                        : null)}
                   </h2>
                   <DrawerPrimitive.Close
                     aria-label={"설정 닫기"}
@@ -469,7 +510,14 @@ const CareerSettingsModal = ({
                     <X className="h-4 w-4" />
                   </DrawerPrimitive.Close>
                 </header>
-                <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-4">
+                <div
+                  className={[
+                    "min-h-0 flex-1 overflow-y-auto",
+                    mobileView === "referral"
+                      ? "px-0 pb-0 pt-0"
+                      : "px-4 pb-6 pt-4",
+                  ].join(" ")}
+                >
                   {renderSection(mobileView, email, onLogout)}
                 </div>
               </>
@@ -500,10 +548,10 @@ const CareerSettingsModal = ({
               <BareButton
                 type="button"
                 onClick={handleClose}
-                className="px-3 py-0 inline-flex items-center gap-1 text-sm text-neutral-soft transition-colors hover:text-neutral-primary"
+                className="px-3 py-0 inline-flex items-center gap-1 text-[13px] text-neutral-soft transition-colors hover:text-neutral-primary"
               >
                 <ArrowLeft className="h-4 w-4" />
-                {t("career.settings.career_settings_modal.0poe6eq", "뒤로")}
+                {t("career.settings.career_settings_modal.0poe6eq", "닫기")}
               </BareButton>
               {settingsTabs.map((tab) => {
                 const isActive = tab.key === activeTab;
@@ -530,7 +578,12 @@ const CareerSettingsModal = ({
             </nav>
           </aside>
 
-          <div className="h-full overflow-y-auto bg-bg-floating px-8 py-7">
+          <div
+            className={[
+              "h-full overflow-y-auto bg-bg-floating",
+              activeTab === "referral" ? "px-0 py-0" : "px-8 py-7",
+            ].join(" ")}
+          >
             {renderSection(activeTab, email, onLogout)}
           </div>
         </div>

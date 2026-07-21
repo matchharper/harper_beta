@@ -76,7 +76,6 @@ export default function CareerAppBar({
   const user = useAuthStore((state) => state.user);
   const isMobile = useIsMobile();
   const [isMobileHeaderVisible, setIsMobileHeaderVisible] = useState(true);
-  const [isAppBarBorderVisible, setIsAppBarBorderVisible] = useState(false);
   const locale = localeOverride ?? contextLocale;
   const talentCopy = TALENT_APP_BAR_COPY[locale];
   const companyCopy = COMPANY_APP_BAR_COPY[locale];
@@ -87,7 +86,9 @@ export default function CareerAppBar({
     { href: "#how", label: talentCopy.difference },
     { href: "#voices", label: talentCopy.voices },
   ] as const;
-  const audienceLabel = isCompanyBar ? companyCopy.audience : talentCopy.audience;
+  const audienceLabel = isCompanyBar
+    ? companyCopy.audience
+    : talentCopy.audience;
   const primaryLabel = isCompanyBar
     ? companyCopy.primary
     : user
@@ -105,8 +106,7 @@ export default function CareerAppBar({
       }}
       transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
       className={cn(
-        `fixed inset-x-0 top-0 z-50 border-b bg-${bgColor} backdrop-blur-lg transition-colors font-light`,
-        isAppBarBorderVisible ? "border-black/10" : "border-transparent"
+        `fixed inset-x-0 top-0 z-50 border-b bg-${bgColor} backdrop-blur-lg transition-colors font-light border-transparent`
       )}
     >
       <div className="relative mx-auto flex h-[54px] max-w-[1160px] items-center justify-between px-4">

@@ -9,7 +9,7 @@ import Head from "next/head";
 import Image from "next/image";
 import { useRouter } from "next/router";
 import type { ParsedUrlQuery } from "querystring";
-import { Loader2, MailCheck } from "lucide-react";
+import { Copy, ExternalLink, Loader2, MailCheck } from "lucide-react";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
 import {
@@ -104,6 +104,12 @@ const CAREER_LOGIN_COPY: Record<
     resetPasswordSent: (email: string) => string;
     resetPasswordFailed: string;
     cancel: string;
+    inAppBrowserTitle: string;
+    inAppBrowserDescription: string;
+    openInBrowser: string;
+    copyBrowserLink: string;
+    copyBrowserLinkDone: string;
+    copyBrowserLinkFailed: string;
     termsNotice: string;
     trustedBy: string;
   }
@@ -146,6 +152,15 @@ const CAREER_LOGIN_COPY: Record<
     resetPasswordFailed:
       "비밀번호 재설정 메일 전송에 실패했습니다. 잠시 후 다시 시도해 주세요.",
     cancel: "취소",
+    inAppBrowserTitle: "외부 브라우저에서 접속해주세요",
+    inAppBrowserDescription:
+      "카카오톡, 인스타그램 같은 앱 안에서는 구글 로그인이 차단될 수 있습니다. 구글 로그인은 아래 버튼을 통해 이어갈 수 있습니다.",
+    openInBrowser: "브라우저에서 열기",
+    copyBrowserLink: "로그인 링크 복사",
+    copyBrowserLinkDone:
+      "링크를 복사했습니다. Safari나 Chrome 주소창에 붙여넣어 주세요.",
+    copyBrowserLinkFailed:
+      "링크 복사에 실패했습니다. 주소창의 URL을 Safari나 Chrome에서 직접 열어 주세요.",
     termsNotice:
       "계속 진행하면 Harper의 이용 약관 및 개인정보 처리방침에 동의한 것으로 간주됩니다.",
     trustedBy: "이곳의 인재들이 신뢰합니다.",
@@ -188,11 +203,30 @@ const CAREER_LOGIN_COPY: Record<
     resetPasswordFailed:
       "We couldn't send the password reset email. Please try again shortly.",
     cancel: "Cancel",
+    inAppBrowserTitle: "Open this page in a browser",
+    inAppBrowserDescription:
+      "Google sign-in can be blocked inside in-app browsers such as KakaoTalk or Instagram. Open this link in Safari or Chrome to continue.",
+    openInBrowser: "Open in browser",
+    copyBrowserLink: "Copy login link",
+    copyBrowserLinkDone:
+      "Link copied. Paste it into Safari or Chrome to continue.",
+    copyBrowserLinkFailed:
+      "We couldn't copy the link. Open the current URL directly in Safari or Chrome.",
     termsNotice:
       "By continuing, you agree to Harper's Terms of Service and Privacy Policy.",
     trustedBy: "Trusted by talent from these communities.",
   },
 };
+
+const AUTH_BROWSER_QUERY_PARAM = "auth_browser";
+const IN_APP_BROWSER_QUERY_VALUE = "in_app";
+const IN_APP_BROWSER_QUERY_VALUES = new Set([
+  IN_APP_BROWSER_QUERY_VALUE,
+  "in-app",
+  "webview",
+  "1",
+  "true",
+]);
 
 const resolveSafeNextPath = (value: string | string[] | undefined) => {
   const raw = Array.isArray(value) ? value[0] : value;
@@ -220,6 +254,20 @@ const officialJobsRoleTitleFromNextPath = (nextPath: string) => {
 const getSingleQueryValue = (value: string | string[] | undefined) => {
   if (Array.isArray(value)) return value[0] ?? "";
   return value ?? "";
+};
+
+const shouldForceInAppBrowserNotice = (
+  value: string | string[] | undefined
+) => {
+  return IN_APP_BROWSER_QUERY_VALUES.has(
+    getSingleQueryValue(value).trim().toLowerCase()
+  );
+};
+
+const isLikelyInAppBrowser = (userAgent: string) => {
+  return /kakaotalk|instagram|threads|barcelona|fbav|fban|fb_iab|line\/|naver\(inapp|naver\(apps|daumapps|kakaostory|linkedinapp|twitter|;\s*wv\)|\bwv\b/i.test(
+    userAgent
+  );
 };
 
 const officialJobsRoleTitleFromLoginQuery = (query: ParsedUrlQuery) => {
@@ -272,6 +320,8 @@ const CareerLoginContent = () => {
   const [resetInfo, setResetInfo] = useState("");
   const [resetPending, setResetPending] = useState(false);
   const [resetConfirmEmail, setResetConfirmEmail] = useState("");
+  const [detectedInAppBrowser, setDetectedInAppBrowser] = useState(false);
+  const [browserLinkStatus, setBrowserLinkStatus] = useState("");
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -325,7 +375,10 @@ const CareerLoginContent = () => {
     const nextUrl = new URL(nextPath, origin);
     if (inviteParam) nextUrl.searchParams.set("invite", inviteParam);
     if (referralParam) {
-      nextUrl.searchParams.set(TALENT_NETWORK_REFERRAL_QUERY_KEY, referralParam);
+      nextUrl.searchParams.set(
+        TALENT_NETWORK_REFERRAL_QUERY_KEY,
+        referralParam
+      );
     }
     if (sourceParam) nextUrl.searchParams.set("source", sourceParam);
     if (localIdParam) nextUrl.searchParams.set("lid", localIdParam);
@@ -372,6 +425,23 @@ const CareerLoginContent = () => {
   const emailConfirmationSent = Boolean(authInfo);
   const submittedEmail = email.trim();
   const authActionPending = authPending || resetPending;
+  const forceInAppBrowserNotice = shouldForceInAppBrowserNotice(
+    router.query[AUTH_BROWSER_QUERY_PARAM]
+  );
+  const showInAppBrowserNotice =
+    forceInAppBrowserNotice || detectedInAppBrowser;
+
+  useEffect(() => {
+    if (!router.isReady || typeof window === "undefined") return;
+
+    const timeoutId = window.setTimeout(() => {
+      setDetectedInAppBrowser(isLikelyInAppBrowser(window.navigator.userAgent));
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [router.isReady]);
 
   useEffect(() => {
     if (!router.isReady || typeof window === "undefined") return;
@@ -405,6 +475,51 @@ const CareerLoginContent = () => {
 
     void router.replace(buildResolvedNextPath());
   }, [authLoading, buildResolvedNextPath, router, router.isReady, user]);
+
+  const buildBrowserLoginUrl = useCallback(() => {
+    if (typeof window === "undefined") return "";
+
+    const browserUrl = new URL(window.location.href);
+    browserUrl.searchParams.delete(AUTH_BROWSER_QUERY_PARAM);
+    return browserUrl.toString();
+  }, []);
+
+  const copyBrowserLoginUrl = useCallback(async () => {
+    const browserUrl = buildBrowserLoginUrl();
+    if (!browserUrl) return;
+
+    try {
+      await window.navigator.clipboard.writeText(browserUrl);
+      setBrowserLinkStatus(copy.copyBrowserLinkDone);
+    } catch {
+      setBrowserLinkStatus(copy.copyBrowserLinkFailed);
+    }
+  }, [buildBrowserLoginUrl, copy]);
+
+  const openBrowserLoginUrl = useCallback(() => {
+    if (typeof window === "undefined") return;
+
+    const browserUrl = buildBrowserLoginUrl();
+    if (!browserUrl) return;
+
+    setBrowserLinkStatus("");
+
+    const browserUrlObject = new URL(browserUrl);
+    if (/android/i.test(window.navigator.userAgent)) {
+      window.location.href = `intent://${browserUrlObject.host}${browserUrlObject.pathname}${browserUrlObject.search}${browserUrlObject.hash}#Intent;scheme=${browserUrlObject.protocol.replace(
+        ":",
+        ""
+      )};package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(
+        browserUrl
+      )};end`;
+      return;
+    }
+
+    const opened = window.open(browserUrl, "_blank", "noopener,noreferrer");
+    if (!opened) {
+      void copyBrowserLoginUrl();
+    }
+  }, [buildBrowserLoginUrl, copyBrowserLoginUrl]);
 
   const handleSubmitEmailAuth = async (event: FormEvent) => {
     event.preventDefault();
@@ -621,28 +736,77 @@ const CareerLoginContent = () => {
               </div>
             ) : (
               <>
-                <BareButton
-                  type="button"
-                  onClick={() => void handleGoogleLogin()}
-                  disabled={authActionPending}
-                  className="flex h-11 w-full items-center justify-center gap-2 rounded-[9px] border border-neutral-1000-a10 bg-bg-floating px-4 text-[14px] font-medium tracking-[-0.015em] text-neutral-primary outline-none transition hover:border-neutral-400 hover:bg-bg-weak focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {authPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Image
-                      src="/images/logos/google.png"
-                      alt=""
-                      width={16}
-                      height={16}
-                      aria-hidden="true"
-                      className="h-4 w-4"
-                    />
-                  )}
-                  <span>
-                    {authPending ? copy.pending : copy.continueWithGoogle}
-                  </span>
-                </BareButton>
+                {showInAppBrowserNotice ? (
+                  <div className="text-left" role="status" aria-live="polite">
+                    <Text
+                      as="h2"
+                      variant="label"
+                      tone="primary"
+                      className="text-[15px] font-normal leading-5"
+                    >
+                      {copy.inAppBrowserTitle}
+                    </Text>
+                    <Text
+                      as="p"
+                      variant="caption"
+                      tone="muted"
+                      className="mt-1.5 text-[14px] leading-5 font-normal"
+                    >
+                      {copy.inAppBrowserDescription}
+                    </Text>
+                    <div className="mt-4 mb-2 grid gap-2 sm:grid-cols-2">
+                      <BareButton
+                        type="button"
+                        onClick={() => void openBrowserLoginUrl()}
+                        className="flex h-10 w-full items-center justify-center gap-2 rounded-[9px] bg-black px-3 text-[13px] font-normal text-neutral-00 outline-none transition hover:bg-neutral-primary focus-visible:ring-2 focus-visible:ring-neutral-800"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        <span>{copy.openInBrowser}</span>
+                      </BareButton>
+                      <BareButton
+                        type="button"
+                        onClick={() => void copyBrowserLoginUrl()}
+                        className="flex h-10 w-full items-center justify-center gap-2 rounded-[9px] border border-neutral-1000-a10 bg-bg-floating px-3 text-[13px] font-normal text-neutral-primary outline-none transition hover:border-neutral-400 hover:bg-bg-basement focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
+                      >
+                        <Copy className="h-4 w-4" />
+                        <span>{copy.copyBrowserLink}</span>
+                      </BareButton>
+                    </div>
+                    {browserLinkStatus ? (
+                      <Text
+                        as="p"
+                        variant="caption"
+                        tone="subtle"
+                        className="mt-2 text-[11px] leading-5"
+                      >
+                        {browserLinkStatus}
+                      </Text>
+                    ) : null}
+                  </div>
+                ) : (
+                  <BareButton
+                    type="button"
+                    onClick={() => void handleGoogleLogin()}
+                    disabled={authActionPending}
+                    className="flex h-11 w-full items-center justify-center gap-2 rounded-[9px] border border-neutral-1000-a10 bg-bg-floating px-4 text-[14px] font-medium tracking-[-0.015em] text-neutral-primary outline-none transition hover:border-neutral-400 hover:bg-bg-weak focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {authPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Image
+                        src="/images/logos/google.png"
+                        alt=""
+                        width={16}
+                        height={16}
+                        aria-hidden="true"
+                        className="h-4 w-4"
+                      />
+                    )}
+                    <span>
+                      {authPending ? copy.pending : copy.continueWithGoogle}
+                    </span>
+                  </BareButton>
+                )}
 
                 <div className="flex h-10 items-center justify-center text-[12px] font-medium text-neutral-soft">
                   {copy.divider}

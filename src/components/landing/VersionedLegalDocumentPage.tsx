@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Head from "next/head";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Copy, Download, Printer } from "lucide-react";
@@ -23,7 +24,7 @@ const markdownComponents: Components = {
     </h1>
   ),
   h2: ({ children }) => (
-    <h2 className="mt-10 border-t border-neutral-1000-a05 pt-8 text-[20px] font-normal leading-7 text-neutral-primary">
+    <h2 className="mt-10 border-t border-neutral-1000-a05 pt-8 text-[20px] font-medium leading-7 text-neutral-primary">
       {children}
     </h2>
   ),
@@ -103,6 +104,12 @@ export default function VersionedLegalDocumentPage({
 
   return (
     <main className="min-h-screen bg-bg-default text-neutral-primary">
+      <Head>
+        <title>{document.title} | Harper</title>
+        {document.description ? (
+          <meta name="description" content={document.description} />
+        ) : null}
+      </Head>
       {landingChrome ? (
         <CareerAppBar
           careerStartHref={careerStartHref}
@@ -132,9 +139,9 @@ export default function VersionedLegalDocumentPage({
         }`}
       >
         <div className="flex flex-col gap-4 font-normal">
-          <div className="max-w-[900px] text-[30px] leading-[1.2] tracking-normal text-neutral-primary sm:text-[48px] lg:text-[56px]">
+          <h1 className="max-w-[900px] text-[30px] font-normal leading-[1.2] tracking-normal text-neutral-primary sm:text-[48px] lg:text-[56px]">
             {document.title}
-          </div>
+          </h1>
           {document.description ? (
             <div className="max-w-[720px] text-[14px] leading-6 text-neutral-muted sm:text-[16px]">
               {document.description}

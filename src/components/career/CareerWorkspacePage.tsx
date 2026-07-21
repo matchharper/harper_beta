@@ -3,7 +3,9 @@ import type { ReactNode } from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import { CareerFlowProvider } from "@/components/career/CareerFlowProvider";
-import CareerSettingsModal from "@/components/career/CareerSettingsModal";
+import CareerSettingsModal, {
+  type CareerSettingsTab,
+} from "@/components/career/CareerSettingsModal";
 import CareerWorkspaceScreen, {
   CareerLoadingState,
 } from "@/components/career/CareerWorkspaceScreen";
@@ -20,7 +22,6 @@ import { useTalentOnboardingRedirect } from "@/hooks/career/useTalentOnboardingS
 import { useMessages } from "@/i18n/useMessage";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
 import { supabase } from "@/lib/supabase";
-import CareerReferralModal from "@/components/career/referral/CareerReferralModal";
 import { subscribeCareerReferralModalOpen } from "@/components/career/referral/careerReferralEvents";
 import {
   captureTalentNetworkReferralFromCurrentLocation,
@@ -51,7 +52,8 @@ const CareerWorkspacePage = ({
   const { user, authLoading } = useCareerAuth();
   const { locale } = useMessages();
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [isReferralModalOpen, setIsReferralModalOpen] = useState(false);
+  const [settingsInitialTab, setSettingsInitialTab] =
+    useState<CareerSettingsTab | null>(null);
   const deliveryEmailHistoryLinkLoggedRef = useRef(false);
   const referralCaptureKeyRef = useRef("");
   const isRouterReady = router.isReady;
@@ -123,7 +125,8 @@ const CareerWorkspacePage = ({
 
   useEffect(() => {
     return subscribeCareerReferralModalOpen(() => {
-      setIsReferralModalOpen(true);
+      setSettingsInitialTab("referral");
+      setIsSettingsModalOpen(true);
     });
   }, []);
 
@@ -148,9 +151,12 @@ const CareerWorkspacePage = ({
 
   useEffect(() => {
     if (!isRouterReady || !user || !referralIntent) return;
-    const timeoutId = window.setTimeout(() => {
-      setIsReferralModalOpen(true);
+
+    window.setTimeout(() => {
+      setSettingsInitialTab("referral");
+      setIsSettingsModalOpen(true);
     }, 0);
+
     const nextQuery = { ...router.query };
     delete nextQuery.intent;
     void router.replace(
@@ -158,8 +164,6 @@ const CareerWorkspacePage = ({
       undefined,
       { shallow: true, scroll: false }
     );
-
-    return () => window.clearTimeout(timeoutId);
   }, [isRouterReady, referralIntent, router, user]);
 
   useEffect(() => {
@@ -235,6 +239,7 @@ const CareerWorkspacePage = ({
 
   const handleOpenSettings = useCallback(() => {
     logCareerEvent("click_open_settings");
+    setSettingsInitialTab(null);
     setIsSettingsModalOpen(true);
   }, [logCareerEvent]);
 
@@ -242,6 +247,7 @@ const CareerWorkspacePage = ({
   const settingsModalOpen = isSettingsModalOpen || settingsPanelRequested;
   const handleCloseSettings = useCallback(() => {
     setIsSettingsModalOpen(false);
+    setSettingsInitialTab(null);
 
     if (!isRouterReady || requestedPanel !== "settings") return;
     const nextQuery = { ...router.query };
@@ -335,12 +341,9 @@ const CareerWorkspacePage = ({
           onChangeTab={handleChangeTab}
         />
         <CareerSettingsModal
+          initialTab={settingsInitialTab}
           open={settingsModalOpen}
           onClose={handleCloseSettings}
-        />
-        <CareerReferralModal
-          open={isReferralModalOpen}
-          onClose={() => setIsReferralModalOpen(false)}
         />
       </CareerFlowProvider>
     );

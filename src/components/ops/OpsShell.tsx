@@ -14,7 +14,13 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import React, { useCallback, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { BareButton } from "@/components/ui/button";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
 import Face from "../common/Face";
@@ -42,32 +48,44 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
       {
         description: "공개 jobs 페이지 포지션 관리",
         href: "/ops/jobs",
-        label: "Official Jobs",
+        label: "공식 채용공고",
         matchPrefix: "/ops/jobs",
       },
       {
         description: "채팅 답변 예시 관리",
         href: "/ops/answer-examples",
-        label: "Answer Examples",
+        label: "답변 예시",
         matchPrefix: "/ops/answer-examples",
       },
       {
         description: "career 번역 문구 관리",
         href: "/ops/translation",
-        label: "Translation",
+        label: "번역",
         matchPrefix: "/ops/translation",
       },
       {
         description: "access 요청 승인 및 리뷰",
         href: "/ops/request-access",
-        label: "Request Access",
+        label: "접근 요청",
         matchPrefix: "/ops/request-access",
       },
       {
         description: "Crisp 문의 확인 및 답장",
         href: "/ops/feedback",
-        label: "Feedback",
+        label: "피드백",
         matchPrefix: "/ops/feedback",
+      },
+      {
+        description: "레퍼럴 application과 보상 지급 현황 관리",
+        href: "/ops/referrals",
+        label: "레퍼럴",
+        matchPrefix: "/ops/referrals",
+      },
+      {
+        description: "periodic refresh 이메일 캠페인 관리",
+        href: "/ops/crm",
+        label: "CRM",
+        matchPrefix: "/ops/crm",
       },
     ],
   },
@@ -80,6 +98,13 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
         href: "/ops/matching",
         label: "Main",
         matchPrefix: "/ops/matching",
+      },
+      {
+        align: "end",
+        description: "모든 internal role과 매칭 진행 현황",
+        href: "/ops/all-roles",
+        label: "All Roles",
+        matchPrefix: "/ops/all-roles",
       },
       {
         align: "end",
@@ -104,13 +129,13 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
       {
         description: "회사·기회 관리와 수동 매칭",
         href: "/ops/opportunities",
-        label: "Opportunities",
+        label: "기회 관리",
         matchPrefix: "/ops/opportunities",
       },
       {
         description: "company_workspace score와 quality label",
         href: "/ops/companies",
-        label: "Companies",
+        label: "회사 관리",
         matchPrefix: "/ops/companies",
       },
       {
@@ -128,7 +153,7 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
       {
         description: "opportunity discovery run 실행 결과 확인",
         href: "/ops/debugging/opportunity-runs",
-        label: "Opp Runs",
+        label: "기회 탐색 로그",
         matchPrefix: "/ops/debugging/opportunity-runs",
       },
     ],
@@ -423,6 +448,7 @@ export default function OpsShell({
   const [authPending, setAuthPending] = useState(false);
   const [authError, setAuthError] = useState("");
   const [exclusionModalOpen, setExclusionModalOpen] = useState(false);
+  const secondaryNavRef = useRef<HTMLElement>(null);
 
   const isAllowedUser = isInternalEmail(user?.email);
 
@@ -469,6 +495,17 @@ export default function OpsShell({
   const activeNavEndItems = activeNavGroup.items.filter(
     (item) => item.align === "end"
   );
+
+  useEffect(() => {
+    const activeItem = secondaryNavRef.current?.querySelector(
+      '[aria-current="page"]'
+    );
+    activeItem?.scrollIntoView({
+      behavior: "instant",
+      block: "nearest",
+      inline: "nearest",
+    });
+  }, [activePath]);
 
   if (authLoading) {
     return (
@@ -545,7 +582,7 @@ export default function OpsShell({
               ) : null}
             </BareButton>
           </div>
-          <nav className="overflow-x-auto">
+          <nav ref={secondaryNavRef} className="overflow-x-auto">
             <div className="flex min-w-full items-center justify-between gap-6">
               <div className="flex min-w-max items-center gap-2">
                 {activeNavStartItems.map((item) => {
@@ -555,6 +592,7 @@ export default function OpsShell({
                     <Link
                       key={item.href}
                       href={item.href}
+                      aria-current={active ? "page" : undefined}
                       className={cx(
                         "rounded-none border-b-0 border-neutral-500 px-2 py-2 text-sm font-medium",
                         active
@@ -576,6 +614,7 @@ export default function OpsShell({
                       <Link
                         key={item.href}
                         href={item.href}
+                        aria-current={active ? "page" : undefined}
                         className={cx(
                           "rounded-none border-b-0 border-neutral-500 px-2 py-2 text-sm font-medium",
                           active

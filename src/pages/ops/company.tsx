@@ -88,18 +88,20 @@ function CompanyCard({
   const logoInitial = workspace.companyName.trim().slice(0, 1).toUpperCase();
 
   return (
-    <BareButton
-      type="button"
-      onClick={onSelect}
+    <article
       className={cx(
-        "w-full rounded-md px-3 py-3 text-left transition border-2 border-neutral-1000-a05",
+        "relative overflow-hidden rounded-md border-2 transition",
         active
-          ? "bg-black text-neutral-00"
-          : "bg-bg-default/65 text-neutral-primary hover:bg-bg-default"
+          ? "border-primary bg-bg-floating shadow-sm"
+          : "border-neutral-1000-a05 bg-bg-default/65 hover:border-primary/45 hover:bg-bg-default"
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2.5">
+      <div className="px-3 pt-3">
+        <BareButton
+          type="button"
+          onClick={onSelect}
+          className="flex w-full min-w-0 items-center gap-2.5 text-left text-neutral-primary"
+        >
           {workspace.logoUrl ? (
             <span
               aria-hidden="true"
@@ -114,7 +116,7 @@ function CompanyCard({
               className={cx(
                 "flex h-8 w-8 shrink-0 items-center justify-center rounded-md border text-xs font-medium",
                 active
-                  ? "border-neutral-00/20 bg-neutral-00/10 text-neutral-00"
+                  ? "border-primary/20 bg-primary-faded text-primary"
                   : "border-neutral-1000-a05 bg-bg-floating text-neutral-muted"
               )}
             >
@@ -126,34 +128,41 @@ function CompanyCard({
               {workspace.companyName}
             </div>
           </div>
-        </div>
+        </BareButton>
       </div>
-      <div className="mt-3 grid grid-cols-3 gap-1.5">
-        {[
-          ["Roles", workspace.totalRoleCount],
-          ["Active", workspace.activeRoleCount],
-          ["Members", workspace.memberCount],
-        ].map(([label, value]) => (
-          <div
-            key={String(label)}
-            className={cx(
-              "rounded-md px-2 py-2",
-              active ? "bg-neutral-00/10" : "bg-bg-floating"
-            )}
-          >
+
+      <BareButton
+        type="button"
+        onClick={onSelect}
+        className="w-full px-3 pb-3 pt-3 text-left text-neutral-primary"
+      >
+        <div className="grid grid-cols-3 gap-1.5">
+          {[
+            ["Roles", workspace.totalRoleCount],
+            ["Active", workspace.activeRoleCount],
+            ["Members", workspace.memberCount],
+          ].map(([label, value]) => (
             <div
+              key={String(label)}
               className={cx(
-                "text-[10px] uppercase",
-                active ? "text-neutral-00/55" : "text-neutral-soft"
+                "rounded-md px-2 py-2",
+                active ? "bg-primary-faded" : "bg-bg-floating"
               )}
             >
-              {label}
+              <div
+                className={cx(
+                  "text-[10px] uppercase",
+                  active ? "text-primary/70" : "text-neutral-soft"
+                )}
+              >
+                {label}
+              </div>
+              <div className="mt-1 text-sm font-medium">{value}</div>
             </div>
-            <div className="mt-1 text-sm font-medium">{value}</div>
-          </div>
-        ))}
-      </div>
-    </BareButton>
+          ))}
+        </div>
+      </BareButton>
+    </article>
   );
 }
 
@@ -444,37 +453,16 @@ export default function OpsCompanyPage() {
           </BareButton>
         }
       >
-        <section className="grid gap-4 xl:grid-cols-[minmax(300px,420px)_minmax(0,1fr)]">
-          {catalog.catalogErrorMessage ? (
-            <div
-              className={cx(
-                opsTheme.errorNotice,
-                "flex items-start gap-2 xl:col-span-2"
-              )}
-            >
-              목록을 불러오지 못했습니다: {catalog.catalogErrorMessage}
-            </div>
-          ) : null}
-
-          <div className={cx(opsTheme.panel, "space-y-3 p-4")}>
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-[13px] font-medium text-neutral-muted">
-                회사
-              </div>
-              {!catalog.catalogLoading && !catalog.catalogErrorMessage ? (
-                <div className="text-xs text-neutral-muted">
-                  {catalog.workspaces.length} / {catalog.workspaceTotalCount}개
-                </div>
-              ) : null}
-            </div>
+        <div className="space-y-4">
+          <div className={cx(opsTheme.panel, "p-4")}>
             <form
-              className="grid gap-2 sm:grid-cols-[1fr_auto]"
+              className="flex flex-col gap-2 lg:flex-row lg:items-center"
               onSubmit={(event) => {
                 event.preventDefault();
                 catalog.onWorkspaceSearchSubmit();
               }}
             >
-              <div className="relative">
+              <div className="relative min-w-0 flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-soft" />
                 <UiInput
                   unstyled
@@ -482,7 +470,7 @@ export default function OpsCompanyPage() {
                   onChange={(event) =>
                     catalog.onWorkspaceSearchChange(event.target.value)
                   }
-                  placeholder="회사 검색"
+                  placeholder="회사명 검색"
                   className={cx(opsTheme.input, "pl-9")}
                 />
               </div>
@@ -494,229 +482,264 @@ export default function OpsCompanyPage() {
                 검색
               </BareButton>
             </form>
-
-            <div className="space-y-2">
-              {catalog.catalogLoading ? (
-                <EmptyState copy="회사 목록을 불러오는 중입니다." />
-              ) : catalog.catalogErrorMessage ? (
-                <EmptyState copy="회사 목록을 새로고침해 주세요." />
-              ) : catalog.workspaces.length === 0 ? (
-                <EmptyState copy="조건에 맞는 회사가 없습니다." />
-              ) : (
-                catalog.workspaces.map((workspace) => (
-                  <CompanyCard
-                    key={workspace.companyWorkspaceId}
-                    active={
-                      workspace.companyWorkspaceId === selectedWorkspaceId
-                    }
-                    onSelect={() =>
-                      handleWorkspaceSelect(workspace.companyWorkspaceId)
-                    }
-                    workspace={workspace}
-                  />
-                ))
-              )}
-            </div>
-
-            {catalog.workspaces.length < catalog.workspaceTotalCount &&
-            !catalog.catalogLoading &&
-            !catalog.catalogErrorMessage ? (
-              <BareButton
-                type="button"
-                onClick={catalog.onLoadMoreWorkspaces}
-                className={cx(opsTheme.buttonSecondary, "h-10 w-full")}
-              >
-                <ChevronDown className="h-4 w-4" />
-                더보기
-              </BareButton>
-            ) : null}
           </div>
 
-          <div className={cx(opsTheme.panel, "min-w-0 p-4")}>
-            {!selectedWorkspace ? (
-              <EmptyState copy="회사를 선택해 주세요." />
-            ) : (
-              <div className="space-y-4">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="min-w-0 lg:w-[620px]">
-                    <TabBoxes
-                      activeValue={activeTab}
-                      items={DETAIL_TABS.map((tab) => ({
-                        label: tab.label,
-                        value: tab.id,
-                      }))}
-                      listClassName="min-w-full"
-                      onValueChange={handleTabChange}
-                      size="md"
-                    />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      <Token>{selectedWorkspace.totalRoleCount} roles</Token>
-                      <Token>{selectedWorkspace.activeRoleCount} active</Token>
-                      <Token>{selectedWorkspace.memberCount} members</Token>
-                    </div>
-                  </div>
+          <section className="grid gap-4 xl:grid-cols-[minmax(300px,420px)_minmax(0,1fr)]">
+            {catalog.catalogErrorMessage ? (
+              <div
+                className={cx(
+                  opsTheme.errorNotice,
+                  "flex items-start gap-2 xl:col-span-2"
+                )}
+              >
+                목록을 불러오지 못했습니다: {catalog.catalogErrorMessage}
+              </div>
+            ) : null}
+
+            <div className={cx(opsTheme.panel, "space-y-3 p-4")}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-[13px] font-medium text-neutral-muted">
+                  회사
                 </div>
-
-                {activeTab === "roles" ? (
-                  <div className="space-y-3">
-                    <form
-                      className="grid gap-2 lg:grid-cols-[1fr_auto]"
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        catalog.onRoleSearchSubmit();
-                      }}
-                    >
-                      <div className="relative">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-soft" />
-                        <UiInput
-                          unstyled
-                          value={catalog.roleSearch}
-                          onChange={(event) =>
-                            catalog.onRoleSearchChange(event.target.value)
-                          }
-                          placeholder="role, location 검색"
-                          className={cx(opsTheme.input, "pl-9")}
-                        />
-                      </div>
-                      <BareButton
-                        type="submit"
-                        className={cx(opsTheme.buttonPrimary, "h-11 px-3")}
-                      >
-                        <Search className="h-4 w-4" />
-                        검색
-                      </BareButton>
-                    </form>
-                    {!catalog.roleLoading ? (
-                      <div className="text-xs text-neutral-muted">
-                        {catalog.catalogRoles.length} / {catalog.roleTotalCount}
-                        개 roles
-                      </div>
-                    ) : null}
-                    {catalog.roleLoading ? (
-                      <EmptyState copy="Roles를 불러오는 중입니다." />
-                    ) : catalog.catalogRoles.length === 0 ? (
-                      <EmptyState copy="표시할 role이 없습니다." />
-                    ) : (
-                      <div className="space-y-2">
-                        {catalog.catalogRoles.map((role) => (
-                          <RoleOptionCard
-                            key={role.roleId}
-                            role={role}
-                            active={role.roleId === selectedRoleId}
-                            onSelect={() => setSelectedRoleId(role.roleId)}
-                            onEdit={() => openRoleEditModal(role)}
-                          />
-                        ))}
-                      </div>
-                    )}
-                    {catalog.catalogRoles.length < catalog.roleTotalCount &&
-                    !catalog.roleLoading ? (
-                      <BareButton
-                        type="button"
-                        onClick={catalog.onLoadMoreRoles}
-                        className={cx(opsTheme.buttonSecondary, "h-10 w-full")}
-                      >
-                        <ChevronDown className="h-4 w-4" />
-                        더보기
-                      </BareButton>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                {activeTab === "members" ? (
-                  <div className="space-y-3">
-                    <form
-                      className="grid gap-2 lg:grid-cols-[1fr_auto_auto]"
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        setAppliedMemberSearch(memberSearch.trim());
-                      }}
-                    >
-                      <div className="relative">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-soft" />
-                        <UiInput
-                          unstyled
-                          value={memberSearch}
-                          onChange={(event) =>
-                            setMemberSearch(event.target.value)
-                          }
-                          placeholder="이름, 이메일 검색"
-                          className={cx(opsTheme.input, "pl-9")}
-                        />
-                      </div>
-                      <BareButton
-                        type="submit"
-                        className={cx(opsTheme.buttonPrimary, "h-11 px-3")}
-                      >
-                        <Search className="h-4 w-4" />
-                        검색
-                      </BareButton>
-                      <BareButton
-                        type="button"
-                        onClick={handleCopyInviteLink}
-                        className={cx(opsTheme.buttonSecondary, "h-11 px-3")}
-                      >
-                        <Copy className="h-4 w-4" />
-                        초대 링크 복사
-                      </BareButton>
-                    </form>
-                    {membersQuery.isLoading ? (
-                      <EmptyState copy="멤버를 불러오는 중입니다." />
-                    ) : membersQuery.error ? (
-                      <EmptyState copy="멤버 목록을 새로고침해 주세요." />
-                    ) : (membersQuery.data?.items.length ?? 0) === 0 ? (
-                      <EmptyState copy="표시할 멤버가 없습니다." />
-                    ) : (
-                      <div className="overflow-hidden rounded-md border border-neutral-1000-a05 bg-bg-default/60">
-                        {membersQuery.data?.items.map((member) => (
-                          <MemberRow
-                            key={member.membershipId}
-                            member={member}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ) : null}
-
-                {activeTab === "activity" ? (
-                  <div className="space-y-3">
-                    {activityQuery.isLoading ? (
-                      <EmptyState copy="최근 활동을 불러오는 중입니다." />
-                    ) : activityQuery.error ? (
-                      <EmptyState copy="최근 활동을 새로고침해 주세요." />
-                    ) : activityItems.length === 0 ? (
-                      <EmptyState copy="표시할 활동이 없습니다." />
-                    ) : (
-                      <div className="overflow-hidden rounded-md border border-neutral-1000-a05 bg-bg-default/60">
-                        {activityItems.map((item) => (
-                          <ActivityRow key={item.id} item={item} />
-                        ))}
-                      </div>
-                    )}
-                    {activityQuery.hasNextPage ? (
-                      <BareButton
-                        type="button"
-                        onClick={() => void activityQuery.fetchNextPage()}
-                        disabled={activityQuery.isFetchingNextPage}
-                        className={cx(opsTheme.buttonSecondary, "h-10 w-full")}
-                      >
-                        {activityQuery.isFetchingNextPage ? (
-                          <LoaderCircle className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        )}
-                        {OPS_COMPANY_ACTIVITY_PAGE_SIZE}개 더보기
-                      </BareButton>
-                    ) : null}
+                {!catalog.catalogLoading && !catalog.catalogErrorMessage ? (
+                  <div className="text-xs text-neutral-muted">
+                    {catalog.workspaces.length} / {catalog.workspaceTotalCount}
+                    개
                   </div>
                 ) : null}
               </div>
-            )}
-          </div>
-        </section>
+
+              <div className="space-y-2">
+                {catalog.catalogLoading ? (
+                  <EmptyState copy="회사 목록을 불러오는 중입니다." />
+                ) : catalog.catalogErrorMessage ? (
+                  <EmptyState copy="회사 목록을 새로고침해 주세요." />
+                ) : catalog.workspaces.length === 0 ? (
+                  <EmptyState copy="조건에 맞는 회사가 없습니다." />
+                ) : (
+                  catalog.workspaces.map((workspace) => (
+                    <CompanyCard
+                      key={workspace.companyWorkspaceId}
+                      active={
+                        workspace.companyWorkspaceId === selectedWorkspaceId
+                      }
+                      onSelect={() =>
+                        handleWorkspaceSelect(workspace.companyWorkspaceId)
+                      }
+                      workspace={workspace}
+                    />
+                  ))
+                )}
+              </div>
+
+              {catalog.workspaces.length < catalog.workspaceTotalCount &&
+              !catalog.catalogLoading &&
+              !catalog.catalogErrorMessage ? (
+                <BareButton
+                  type="button"
+                  onClick={catalog.onLoadMoreWorkspaces}
+                  className={cx(opsTheme.buttonSecondary, "h-10 w-full")}
+                >
+                  <ChevronDown className="h-4 w-4" />
+                  더보기
+                </BareButton>
+              ) : null}
+            </div>
+
+            <div className={cx(opsTheme.panel, "min-w-0 p-4")}>
+              {!selectedWorkspace ? (
+                <EmptyState copy="회사를 선택해 주세요." />
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0 lg:w-[620px]">
+                      <TabBoxes
+                        activeValue={activeTab}
+                        items={DETAIL_TABS.map((tab) => ({
+                          label: tab.label,
+                          value: tab.id,
+                        }))}
+                        listClassName="min-w-full"
+                        onValueChange={handleTabChange}
+                        size="md"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <Token>{selectedWorkspace.totalRoleCount} roles</Token>
+                        <Token>
+                          {selectedWorkspace.activeRoleCount} active
+                        </Token>
+                        <Token>{selectedWorkspace.memberCount} members</Token>
+                      </div>
+                    </div>
+                  </div>
+
+                  {activeTab === "roles" ? (
+                    <div className="space-y-3">
+                      <form
+                        className="grid gap-2 lg:grid-cols-[1fr_auto]"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          catalog.onRoleSearchSubmit();
+                        }}
+                      >
+                        <div className="relative">
+                          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-soft" />
+                          <UiInput
+                            unstyled
+                            value={catalog.roleSearch}
+                            onChange={(event) =>
+                              catalog.onRoleSearchChange(event.target.value)
+                            }
+                            placeholder="role, location 검색"
+                            className={cx(opsTheme.input, "pl-9")}
+                          />
+                        </div>
+                        <BareButton
+                          type="submit"
+                          className={cx(opsTheme.buttonPrimary, "h-11 px-3")}
+                        >
+                          <Search className="h-4 w-4" />
+                          검색
+                        </BareButton>
+                      </form>
+                      {!catalog.roleLoading ? (
+                        <div className="text-xs text-neutral-muted">
+                          {catalog.catalogRoles.length} /{" "}
+                          {catalog.roleTotalCount}개 roles
+                        </div>
+                      ) : null}
+                      {catalog.roleLoading ? (
+                        <EmptyState copy="Roles를 불러오는 중입니다." />
+                      ) : catalog.catalogRoles.length === 0 ? (
+                        <EmptyState copy="표시할 role이 없습니다." />
+                      ) : (
+                        <div className="space-y-2">
+                          {catalog.catalogRoles.map((role) => (
+                            <RoleOptionCard
+                              key={role.roleId}
+                              role={role}
+                              active={role.roleId === selectedRoleId}
+                              onSelect={() => setSelectedRoleId(role.roleId)}
+                              onEdit={() => openRoleEditModal(role)}
+                            />
+                          ))}
+                        </div>
+                      )}
+                      {catalog.catalogRoles.length < catalog.roleTotalCount &&
+                      !catalog.roleLoading ? (
+                        <BareButton
+                          type="button"
+                          onClick={catalog.onLoadMoreRoles}
+                          className={cx(
+                            opsTheme.buttonSecondary,
+                            "h-10 w-full"
+                          )}
+                        >
+                          <ChevronDown className="h-4 w-4" />
+                          더보기
+                        </BareButton>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {activeTab === "members" ? (
+                    <div className="space-y-3">
+                      <form
+                        className="grid gap-2 lg:grid-cols-[1fr_auto_auto]"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          setAppliedMemberSearch(memberSearch.trim());
+                        }}
+                      >
+                        <div className="relative">
+                          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-soft" />
+                          <UiInput
+                            unstyled
+                            value={memberSearch}
+                            onChange={(event) =>
+                              setMemberSearch(event.target.value)
+                            }
+                            placeholder="이름, 이메일 검색"
+                            className={cx(opsTheme.input, "pl-9")}
+                          />
+                        </div>
+                        <BareButton
+                          type="submit"
+                          className={cx(opsTheme.buttonPrimary, "h-11 px-3")}
+                        >
+                          <Search className="h-4 w-4" />
+                          검색
+                        </BareButton>
+                        <BareButton
+                          type="button"
+                          onClick={handleCopyInviteLink}
+                          className={cx(opsTheme.buttonSecondary, "h-11 px-3")}
+                        >
+                          <Copy className="h-4 w-4" />
+                          초대 링크 복사
+                        </BareButton>
+                      </form>
+                      {membersQuery.isLoading ? (
+                        <EmptyState copy="멤버를 불러오는 중입니다." />
+                      ) : membersQuery.error ? (
+                        <EmptyState copy="멤버 목록을 새로고침해 주세요." />
+                      ) : (membersQuery.data?.items.length ?? 0) === 0 ? (
+                        <EmptyState copy="표시할 멤버가 없습니다." />
+                      ) : (
+                        <div className="overflow-hidden rounded-md border border-neutral-1000-a05 bg-bg-default/60">
+                          {membersQuery.data?.items.map((member) => (
+                            <MemberRow
+                              key={member.membershipId}
+                              member={member}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+
+                  {activeTab === "activity" ? (
+                    <div className="space-y-3">
+                      {activityQuery.isLoading ? (
+                        <EmptyState copy="최근 활동을 불러오는 중입니다." />
+                      ) : activityQuery.error ? (
+                        <EmptyState copy="최근 활동을 새로고침해 주세요." />
+                      ) : activityItems.length === 0 ? (
+                        <EmptyState copy="표시할 활동이 없습니다." />
+                      ) : (
+                        <div className="overflow-hidden rounded-md border border-neutral-1000-a05 bg-bg-default/60">
+                          {activityItems.map((item) => (
+                            <ActivityRow key={item.id} item={item} />
+                          ))}
+                        </div>
+                      )}
+                      {activityQuery.hasNextPage ? (
+                        <BareButton
+                          type="button"
+                          onClick={() => void activityQuery.fetchNextPage()}
+                          disabled={activityQuery.isFetchingNextPage}
+                          className={cx(
+                            opsTheme.buttonSecondary,
+                            "h-10 w-full"
+                          )}
+                        >
+                          {activityQuery.isFetchingNextPage ? (
+                            <LoaderCircle className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
+                          {OPS_COMPANY_ACTIVITY_PAGE_SIZE}개 더보기
+                        </BareButton>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
       </OpsShell>
       <RoleCreateModal
         open={isRoleEditModalOpen}

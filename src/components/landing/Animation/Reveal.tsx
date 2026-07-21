@@ -15,6 +15,7 @@ type RevealProps = {
   blur?: number;
   once?: boolean;
   amount?: number;
+  enabled?: boolean;
 };
 
 const getDirectionalOffset = (direction: RevealDirection, distance: number) => {
@@ -45,19 +46,24 @@ const Reveal = ({
   blur = 18,
   once = true,
   amount = 0.2,
+  enabled = true,
 }: RevealProps) => {
   const ref = useRef<HTMLDivElement | null>(null);
   const [animationState, setAnimationState] = useState<"hidden" | "visible">(
-    "visible"
+    enabled ? "visible" : "hidden"
   );
 
   useEffect(() => {
+    if (!enabled) return;
+
     const node = ref.current;
     if (!node) return;
 
     if (typeof IntersectionObserver === "undefined") {
-      setAnimationState("visible");
-      return;
+      const animationFrame = window.requestAnimationFrame(() => {
+        setAnimationState("visible");
+      });
+      return () => window.cancelAnimationFrame(animationFrame);
     }
 
     const viewportHeight =
@@ -71,7 +77,9 @@ const Reveal = ({
       rect.top < viewportHeight &&
       rect.left < viewportWidth;
 
-    setAnimationState(isInitiallyInViewport ? "visible" : "hidden");
+    const animationFrame = window.requestAnimationFrame(() => {
+      setAnimationState(isInitiallyInViewport ? "visible" : "hidden");
+    });
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -91,18 +99,22 @@ const Reveal = ({
     );
 
     observer.observe(node);
-    return () => observer.disconnect();
-  }, [amount, once]);
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      observer.disconnect();
+    };
+  }, [amount, enabled, once]);
 
   const directionalOffset = getDirectionalOffset(direction, distance);
   const hiddenX = offsetX ?? directionalOffset.x;
   const hiddenY = offsetY ?? directionalOffset.y;
+  const resolvedAnimationState = enabled ? animationState : "hidden";
 
   return (
     <motion.div
       ref={ref}
       initial={false}
-      animate={animationState}
+      animate={resolvedAnimationState}
       variants={{
         hidden: {
           opacity: 0,

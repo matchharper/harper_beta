@@ -1,8 +1,22 @@
-import { BriefcaseBusiness, LoaderCircle, MapPin, Pencil } from "lucide-react";
-import type { ReactNode } from "react";
+import {
+  BriefcaseBusiness,
+  ChevronDown,
+  LoaderCircle,
+  MapPin,
+  Search,
+} from "lucide-react";
+import { type ReactNode, useMemo, useState } from "react";
 import { formatKstRelativeDate } from "@/components/ops/dateUtils";
 import { cx, opsTheme } from "@/components/ops/theme";
-import { Button } from "@/components/ui/button";
+import { OrgRoleActionsMenu } from "@/components/org/OrgRoleActionsMenu";
+import { BareButton } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import type {
   OrgBoardItem,
   OrgBoardResponse,
@@ -24,11 +38,12 @@ function buildRoleStages(
 ) {
   const stages = board?.stages ?? [];
   const pending = stages.find((stage) => stage.id === "pending_connection");
+  const connected = stages.find((stage) => stage.id === "connected");
   const customStages = stages.filter((stage) => stage.roleId === role.roleId);
   const finalOffer = stages.find((stage) => stage.id === "final_offer");
   const stopped = stages.find((stage) => stage.id === "process_stopped");
 
-  return [pending, ...customStages, finalOffer, stopped].filter(
+  return [pending, connected, ...customStages, finalOffer, stopped].filter(
     (stage): stage is OrgStage => Boolean(stage)
   );
 }
@@ -57,7 +72,7 @@ function StageCountCell({
     count > 0
       ? stageId === "process_stopped"
         ? "border-critical"
-        : stageId === "final_offer"
+        : stageId === "final_offer" || stageId === "connected"
           ? "border-positive"
           : "border-primary"
       : "border-neutral-1000-a10";
@@ -95,10 +110,26 @@ function RoleMetaChip({ children }: { children: ReactNode }) {
   );
 }
 
-function getRoleStatusMeta(status: string | null | undefined) {
+function normalizeRoleStatus(status: string | null | undefined) {
   const normalized = String(status ?? "")
     .trim()
     .toLowerCase();
+
+  if (normalized === "open") return "active";
+  if (normalized === "on_hold") return "paused";
+  if (
+    normalized === "closed" ||
+    normalized === "expired" ||
+    normalized === "inactive"
+  ) {
+    return "ended";
+  }
+  if (normalized === "pending") return "draft";
+  return normalized || "none";
+}
+
+function getRoleStatusMeta(status: string | null | undefined) {
+  const normalized = normalizeRoleStatus(status);
 
   if (normalized === "top_priority") {
     return {
@@ -112,18 +143,13 @@ function getRoleStatusMeta(status: string | null | undefined) {
       label: "진행중",
     };
   }
-  if (normalized === "paused" || normalized === "on_hold") {
+  if (normalized === "paused") {
     return {
       className: "bg-info-faded text-info",
       label: "중단",
     };
   }
-  if (
-    normalized === "ended" ||
-    normalized === "closed" ||
-    normalized === "expired" ||
-    normalized === "inactive"
-  ) {
+  if (normalized === "ended") {
     return {
       className: "bg-critical-faded text-critical",
       label: "종료",
@@ -147,11 +173,25 @@ function getRoleStatusMeta(status: string | null | undefined) {
       label: "준비중",
     };
   }
+  if (normalized === "none") {
+    return {
+      className: "bg-bg-weak text-neutral-muted",
+      label: "상태 없음",
+    };
+  }
   return {
     className: "bg-bg-weak text-neutral-muted",
-    label: normalized || "상태 없음",
+    label: normalized,
   };
 }
+
+const ROLE_STATUS_FILTER_OPTIONS = [
+  { label: "진행중", value: "active" },
+  { label: "중단", value: "paused" },
+] as const;
+
+type RoleStatusFilterValue =
+  (typeof ROLE_STATUS_FILTER_OPTIONS)[number]["value"];
 
 function RoleStatusBadge({
   className,
@@ -178,30 +218,158 @@ export function OrgAllRolesOverview({
   board,
   error,
   isLoading,
+  onDeleteRole,
   onEditRole,
+  onPauseRole,
+  onResumeRole,
   onRoleSelect,
+  roleActionPending,
   roles,
 }: {
   board?: OrgBoardResponse | null;
   error?: Error | null;
   isLoading?: boolean;
+  onDeleteRole: (role: OrgRole) => void;
   onEditRole: (roleId: string) => void;
+  onPauseRole: (role: OrgRole) => void;
+  onResumeRole: (role: OrgRole) => void;
   onRoleSelect: (roleId: string) => void;
+  roleActionPending?: boolean;
   roles: OrgRole[];
 }) {
+  const [roleStatusFilters, setRoleStatusFilters] = useState<
+    RoleStatusFilterValue[]
+  >([]);
+  const [roleTitleQuery, setRoleTitleQuery] = useState("");
   const counts = buildCounts(board?.items ?? []);
   const totalByRole = new Map<string, number>();
   for (const item of board?.items ?? []) {
     totalByRole.set(item.roleId, (totalByRole.get(item.roleId) ?? 0) + 1);
   }
+  const roleStatusCounts = useMemo(
+    () =>
+      ROLE_STATUS_FILTER_OPTIONS.reduce(
+        (acc, option) => {
+          acc[option.value] = roles.filter(
+            (role) => normalizeRoleStatus(role.status) === option.value
+          ).length;
+          return acc;
+        },
+        {} as Record<RoleStatusFilterValue, number>
+      ),
+    [roles]
+  );
+  const selectedStatusOptions = ROLE_STATUS_FILTER_OPTIONS.filter((option) =>
+    roleStatusFilters.includes(option.value)
+  );
+  const selectedStatusLabel =
+    selectedStatusOptions.length === 0
+      ? "Status 전체"
+      : selectedStatusOptions.length === 1
+        ? selectedStatusOptions[0].label
+        : `${selectedStatusOptions[0].label} 외 ${
+            selectedStatusOptions.length - 1
+          }`;
+  const toggleRoleStatusFilter = (
+    value: RoleStatusFilterValue,
+    checked: boolean
+  ) => {
+    setRoleStatusFilters((prev) => {
+      if (checked) return prev.includes(value) ? prev : [...prev, value];
+      return prev.filter((item) => item !== value);
+    });
+  };
+  const filteredRoles = useMemo(() => {
+    const normalizedTitleQuery = roleTitleQuery.trim().toLowerCase();
+    return roles.filter((role) => {
+      const roleStatus = normalizeRoleStatus(role.status);
+      if (
+        roleStatusFilters.length > 0 &&
+        !roleStatusFilters.some(
+          (selectedStatus) => selectedStatus === roleStatus
+        )
+      ) {
+        return false;
+      }
+      if (!normalizedTitleQuery) return true;
+      return role.name.toLowerCase().includes(normalizedTitleQuery);
+    });
+  }, [roleStatusFilters, roleTitleQuery, roles]);
+  const hasActiveFilter =
+    roleStatusFilters.length > 0 || roleTitleQuery.trim().length > 0;
 
   return (
-    <section className="space-y-2 bg-bg-basement p-4">
-      <div className="flex items-center justify-between gap-3">
+    <section className="space-y-3 bg-bg-basement p-4">
+      <div className="rounded-md border border-neutral-1000-a05 bg-bg-floating p-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <label className="relative min-w-0 sm:w-64">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-soft" />
+            <Input
+              value={roleTitleQuery}
+              onChange={(event) => setRoleTitleQuery(event.target.value)}
+              placeholder="Role title 검색"
+              className="h-8 pl-8 text-xs"
+            />
+          </label>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <BareButton
+                type="button"
+                className={cx(
+                  "inline-flex h-8 min-w-[150px] items-center justify-between gap-2 rounded-md border px-3 text-xs font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
+                  roleStatusFilters.length > 0
+                    ? "border-primary/30 bg-primary-faded text-primary"
+                    : "border-neutral-1000-a10 bg-bg-floating text-neutral-muted hover:border-neutral-400 hover:bg-bg-weak"
+                )}
+              >
+                <span className="truncate">{selectedStatusLabel}</span>
+                <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+              </BareButton>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-44">
+              {ROLE_STATUS_FILTER_OPTIONS.map((option) => (
+                <DropdownMenuCheckboxItem
+                  key={option.value}
+                  checked={roleStatusFilters.includes(option.value)}
+                  className="gap-2"
+                  indicatorPosition="right"
+                  onSelect={(event) => event.preventDefault()}
+                  onCheckedChange={(checked) => {
+                    toggleRoleStatusFilter(option.value, checked === true);
+                  }}
+                >
+                  <span className="min-w-0 flex-1 truncate">
+                    {option.label}
+                  </span>
+                  <span className="text-[10px] text-neutral-soft">
+                    {roleStatusCounts[option.value] ?? 0}
+                  </span>
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {hasActiveFilter ? (
+            <BareButton
+              type="button"
+              onClick={() => {
+                setRoleTitleQuery("");
+                setRoleStatusFilters([]);
+              }}
+              className="h-8 rounded-md px-2.5 text-xs font-medium text-neutral-muted transition hover:bg-bg-weak hover:text-neutral-primary"
+            >
+              초기화
+            </BareButton>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between">
         <div className="text-sm font-medium text-neutral-primary">
           Roles
           <span className="ml-2 text-xs font-normal text-neutral-muted">
-            {roles.length}
+            {hasActiveFilter
+              ? `${filteredRoles.length} / ${roles.length}`
+              : roles.length}
           </span>
         </div>
       </div>
@@ -217,7 +385,12 @@ export function OrgAllRolesOverview({
         </div>
       ) : (
         <div className="space-y-2">
-          {roles.map((role) => {
+          {filteredRoles.length === 0 ? (
+            <div className="flex h-32 items-center justify-center border border-neutral-1000-a05 bg-bg-floating text-sm text-neutral-muted">
+              조건에 맞는 Role이 없습니다.
+            </div>
+          ) : null}
+          {filteredRoles.map((role) => {
             const roleStages = buildRoleStages(board, role);
             const totalCount = totalByRole.get(role.roleId) ?? 0;
             return (
@@ -236,16 +409,14 @@ export function OrgAllRolesOverview({
                         {role.name}
                       </button>
                     </div>
-                    <Button
-                      type="button"
-                      variant="default"
-                      size="sm"
-                      onClick={() => onEditRole(role.roleId)}
-                      className="shrink-0"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                      수정
-                    </Button>
+                    <OrgRoleActionsMenu
+                      role={role}
+                      pending={roleActionPending}
+                      onEdit={(selectedRole) => onEditRole(selectedRole.roleId)}
+                      onPause={onPauseRole}
+                      onResume={onResumeRole}
+                      onDelete={onDeleteRole}
+                    />
                   </div>
                   <div className="flex flex-wrap items-center justify-start gap-1.5">
                     <RoleMetaChip>

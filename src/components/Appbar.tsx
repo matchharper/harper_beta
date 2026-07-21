@@ -2,6 +2,8 @@ import React from "react";
 import { useRouter } from "next/router";
 import Image from "next/image";
 import { BareButton } from "@/components/ui/button";
+import { isInternalDomainEmail } from "@/lib/internalAccess";
+import { useAuthStore } from "@/store/useAuthStore";
 
 type AppbarProps = {
   back?: boolean;
@@ -9,6 +11,8 @@ type AppbarProps = {
 
 const Appbar = ({ back = true }: AppbarProps) => {
   const router = useRouter();
+  const user = useAuthStore((state) => state.user);
+  const showReferralEntryPoints = isInternalDomainEmail(user?.email);
 
   return (
     <header className="flex items-center justify-between py-2 fixed top-0 left-0 w-full z-5 px-4">
@@ -24,7 +28,9 @@ const Appbar = ({ back = true }: AppbarProps) => {
       <nav className="flex items-center gap-8 text-sm text-slate-600">
         <BareButton className="hover:text-slate-900">For companies</BareButton>
         <BareButton className="hover:text-slate-900">FAQ</BareButton>
-        <BareButton className="hover:text-slate-900">Referral</BareButton>
+        {showReferralEntryPoints ? (
+          <BareButton className="hover:text-slate-900">Referral</BareButton>
+        ) : null}
       </nav>
 
       <div className="flex items-center gap-4 text-sm text-slate-500">

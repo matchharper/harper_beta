@@ -83,13 +83,7 @@ export const ActionDropdownItem = React.forwardRef<
         }
         onSelect?.(event);
       }}
-      className={cn(
-        "cursor-pointer rounded-[8px] px-3 py-2 text-sm text-neutral-primary focus:bg-bg-weak focus:text-neutral-primary",
-        selected && "bg-bg-weak text-neutral-primary",
-        tone === "danger" &&
-          "text-critical focus:bg-critical-faded focus:text-critical",
-        className
-      )}
+      className={cn("cursor-pointer", className)}
       selected={selected}
       tone={tone}
       {...props}

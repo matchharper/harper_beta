@@ -1,4 +1,4 @@
-import { AudioLines, BadgeIcon, Loader2, Phone } from "lucide-react";
+import { AudioLines, BadgeIcon, Loader2, Phone, PhoneCall } from "lucide-react";
 import type { ReactNode } from "react";
 import Face from "@/components/common/Face";
 import { ActionButton } from "@/components/ui/button";
@@ -43,7 +43,10 @@ export default function CareerCallCard({
         <div className="flex md:flex-row flex-col items-center justify-between gap-2">
           <div className="hidden h-14 w-14 min-w-14 bg-neutral-200 rounded-lg items-center justify-center md:flex">
             {/* <Face status="idle" size={60} aria-label="Harper" /> */}
-            <Phone className="h-6 w-6 text-neutral-muted" strokeWidth={1.6} />
+            <PhoneCall
+              className="h-6 w-6 text-neutral-muted"
+              strokeWidth={1.6}
+            />
           </div>
           <div className="flex w-full flex-col items-start justify-center gap-2 md:gap-1 px-2">
             <Text
@@ -74,12 +77,12 @@ export default function CareerCallCard({
             onClick={onStartCall}
             disabled={callStartPending || callDisabled}
             actionVariant="primary"
-            className="md:min-w-[130px] min-w-[60%] mt-4 md:mt-0"
+            className="md:min-w-[110px] rounded-md font-normal min-w-[60%] mt-4 md:mt-0"
           >
             {callStartPending ? (
               <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
             ) : (
-              <Phone className="h-4 w-4 shrink-0" strokeWidth={1.6} />
+              <></>
             )}
             <span className="min-w-0 truncate">
               {callStartPending ? pendingLabel : resolvedCtaLabel}

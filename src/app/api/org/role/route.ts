@@ -23,6 +23,7 @@ export async function PATCH(req: NextRequest) {
       description?: string | null;
       employmentTypes?: string[] | null;
       externalJdUrl?: string | null;
+      isExpired?: boolean | null;
       locationText?: string | null;
       name?: string | null;
       request?: string | null;
@@ -35,6 +36,7 @@ export async function PATCH(req: NextRequest) {
       description: body.description ?? null,
       employmentTypes: body.employmentTypes ?? null,
       externalJdUrl: body.externalJdUrl ?? null,
+      isExpired: body.isExpired ?? null,
       locationText: body.locationText ?? null,
       name: body.name ?? null,
       request: body.request ?? null,

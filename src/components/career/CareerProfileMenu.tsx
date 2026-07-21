@@ -3,7 +3,7 @@ import {
   ChevronDown,
   Compass,
   ExternalLink,
-  // Gift,
+  Gift,
   HelpCircle,
   Info,
   Landmark,
@@ -12,6 +12,7 @@ import {
   LogOut,
   MessageCircle,
   Rotate3D,
+  UserRoundPlus,
 } from "lucide-react";
 import React, { useState } from "react";
 import CareerUpdateNotesModal from "./CareerUpdateNotesModal";
@@ -37,7 +38,8 @@ import { useMessages, type Locale } from "@/i18n/useMessage";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { Text } from "@/components/ui/text";
 import Image from "next/image";
-// import { openCareerReferralModal } from "@/components/career/referral/careerReferralEvents";
+import { openCareerReferralModal } from "@/components/career/referral/careerReferralEvents";
+import { isInternalDomainEmail } from "@/lib/internalAccess";
 
 type CareerProfileMenuVariant = "desktop" | "mobile";
 
@@ -54,7 +56,7 @@ const getProfileLocaleOptionLabel = (
 };
 
 const aboutMenuItemClassName =
-  "flex py-2 cursor-pointer items-center gap-2.5 rounded-[8px] px-3 text-sm text-neutral-primary outline-none transition-colors focus:bg-bg-basement focus:text-neutral-primary";
+  "flex py-2 cursor-pointer font-normal items-center gap-2.5 rounded-[8px] px-3 text-sm text-neutral-primary outline-none transition-colors focus:bg-bg-basement focus:text-neutral-primary";
 
 const aboutSubmenuClassName =
   "w-[248px] rounded-[12px] border border-neutral-1000-a05 bg-bg-floating/95 p-1 text-neutral-primary shadow-[0_18px_40px_rgba(31,28,26,0.12)] backdrop-blur-md";
@@ -75,6 +77,7 @@ const CareerProfileMenu = ({
   variant?: CareerProfileMenuVariant;
 }) => {
   const t = useCareerT();
+  const showReferralEntryPoints = isInternalDomainEmail(profileEmail);
 
   const logCareerEvent = useCareerLogEvent();
   const { fetchWithAuth } = useCareerApi();
@@ -131,11 +134,11 @@ const CareerProfileMenu = ({
     onSuggestUpdate();
   };
 
-  // const handleOpenReferral = () => {
-  //   logCareerEvent("click_profile_menu_referral");
-  //   closeMenu();
-  //   openCareerReferralModal();
-  // };
+  const handleOpenReferral = () => {
+    logCareerEvent("click_profile_menu_referral");
+    closeMenu();
+    openCareerReferralModal();
+  };
 
   const handleOpenLanguageModal = () => {
     logCareerEvent("click_profile_menu_language");
@@ -335,23 +338,25 @@ const CareerProfileMenu = ({
         </DropdownMenuLabel>
         <ActionDropdownItem
           onSelect={() => handleOpenSupport()}
-          className="flex flex-row items-center gap-2.5 mt-2"
+          className="flex flex-row items-center gap-2.5 mt-2 font-normal"
         >
           <HelpCircle className="h-4 w-4" />
           {t("career.profile.career_profile_menu.1vjbdm5", "문의하기")}
         </ActionDropdownItem>
-        {/* <ActionDropdownItem
-          onSelect={() => handleOpenReferral()}
-          className="flex flex-row items-center gap-2.5"
-        >
-          <Gift className="h-4 w-4" />
-          <span className="min-w-0 flex-1">
-            {t("career.referral.menu.invite", "초대하기")}
-          </span>
-        </ActionDropdownItem> */}
+        {showReferralEntryPoints ? (
+          <ActionDropdownItem
+            onSelect={() => handleOpenReferral()}
+            className="flex flex-row items-center gap-2.5 font-normal"
+          >
+            <UserRoundPlus className="h-4 w-4" />
+            <span className="min-w-0 flex-1">
+              {t("career.referral.menu.invite", "초대하기")}
+            </span>
+          </ActionDropdownItem>
+        ) : null}
         <ActionDropdownItem
           onSelect={() => handleOpenLanguageModal()}
-          className="flex flex-row items-center gap-2.5"
+          className="flex flex-row items-center gap-2.5 font-normal"
         >
           <Languages className="h-4 w-4" />
           <span className="min-w-0 flex-1">

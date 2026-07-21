@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import type React from "react";
 import { ChevronDown } from "lucide-react";
@@ -9,10 +8,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { openCustomCrispWidget } from "@/lib/feedback/customCrispEvents";
+import { isInternalDomainEmail } from "@/lib/internalAccess";
+import { useAuthStore } from "@/store/useAuthStore";
 import Face from "../common/Face";
 // import { useCareerT } from "@/i18n/useCareerT";
 
 type FooterLocale = "ko" | "en";
+
+const COMPANY_CONTACT_HREF = "/company#company-contact";
 
 type CareerLandingFooterProps = {
   careerStartHref: string;
@@ -35,6 +38,7 @@ const FOOTER_COPY: Record<
     start: string;
     howItWorks: string;
     successStories: string;
+    referAndEarn: string;
     forTalent: string;
     forCompanies: string;
     company: string;
@@ -42,12 +46,15 @@ const FOOTER_COPY: Record<
     scheduleCall: string;
     linkedin: string;
     contact: string;
+    privacy: string;
+    referralTerms: string;
   }
 > = {
   ko: {
     start: "시작하기",
     howItWorks: "How it works",
     successStories: "Success stories",
+    referAndEarn: "추천하고 보상받기",
     forTalent: "For Talent",
     forCompanies: "For Companies",
     company: "Company",
@@ -55,11 +62,14 @@ const FOOTER_COPY: Record<
     scheduleCall: "Schedule a call",
     linkedin: "LinkedIn",
     contact: "문의하기",
+    privacy: "개인정보 처리방침",
+    referralTerms: "추천 프로그램 약관",
   },
   en: {
     start: "Get started",
     howItWorks: "How it works",
     successStories: "Success stories",
+    referAndEarn: "Refer and earn",
     forTalent: "For Talent",
     forCompanies: "For Companies",
     company: "Company",
@@ -67,6 +77,8 @@ const FOOTER_COPY: Record<
     scheduleCall: "Schedule a call",
     linkedin: "LinkedIn",
     contact: "Contact",
+    privacy: "Privacy",
+    referralTerms: "Referral terms",
   },
 };
 
@@ -175,8 +187,9 @@ export default function CareerLandingFooter({
   onLocaleChange,
   showLocaleSwitcher = true,
 }: CareerLandingFooterProps) {
-  // const t = useCareerT();
   const labels = FOOTER_COPY[locale ?? "ko"];
+  const user = useAuthStore((state) => state.user);
+  const showReferralEntryPoints = isInternalDomainEmail(user?.email);
   const openSupportChat = () => {
     openCustomCrispWidget();
   };
@@ -229,12 +242,14 @@ export default function CareerLandingFooter({
                 <Link href="/#voices" className={liStyle}>
                   {labels.successStories}
                 </Link>
-                {/* <Link
-                  href="/career_login?next=%2Fcareer%3Fintent%3Dreferral"
-                  className={liStyle}
-                >
-                  {t("career.referral.footer.invite_friends", "친구 초대하기")}
-                </Link> */}
+                {showReferralEntryPoints ? (
+                  <Link
+                    href="/career_login?next=%2Fcareer%3Fintent%3Dreferral"
+                    className={liStyle}
+                  >
+                    {labels.referAndEarn}
+                  </Link>
+                ) : null}
               </div>
             </div>
 
@@ -255,12 +270,9 @@ export default function CareerLandingFooter({
                     {labels.scheduleCall}
                   </button>
                 ) : (
-                  <a
-                    href="https://calendly.com/chris-matchharper/30min"
-                    className={liStyle}
-                  >
+                  <Link href={COMPANY_CONTACT_HREF} className={liStyle}>
                     {labels.scheduleCall}
-                  </a>
+                  </Link>
                 )}
               </div>
             </div>
@@ -286,6 +298,14 @@ export default function CareerLandingFooter({
                 >
                   {labels.contact}
                 </button>
+                {/* <Link href="/privacy" className={liStyle}>
+                  {labels.privacy}
+                </Link> */}
+                {showReferralEntryPoints ? (
+                  <Link href="/referral-terms" className={liStyle}>
+                    {labels.referralTerms}
+                  </Link>
+                ) : null}
               </div>
             </div>
           </div>

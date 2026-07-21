@@ -30,7 +30,10 @@ import {
   resolveOfficialJobsLocaleFromRequest,
   type OfficialJobsLocale,
 } from "@/lib/officialJobs/copy";
-import { getPublicOfficialJobBySlug } from "@/lib/officialJobs/server";
+import {
+  getPublicOfficialJobById,
+  getPublicOfficialJobBySlug,
+} from "@/lib/officialJobs/server";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   BriefcaseBusiness,
@@ -307,13 +310,25 @@ export const getServerSideProps: GetServerSideProps<
   const slug = context.params?.slug;
 
   if (typeof slug !== "string") {
-    return { notFound: true };
+    return {
+      redirect: {
+        destination: "/jobs",
+        permanent: false,
+      },
+    };
   }
 
-  const job = await getPublicOfficialJobBySlug(slug);
+  const job =
+    (await getPublicOfficialJobById(slug)) ??
+    (await getPublicOfficialJobBySlug(slug));
 
   if (!job) {
-    return { notFound: true };
+    return {
+      redirect: {
+        destination: "/jobs",
+        permanent: false,
+      },
+    };
   }
 
   return {

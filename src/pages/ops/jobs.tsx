@@ -167,7 +167,6 @@ function areOfficialJobDraftsEqual(
 
 function draftToPayload(draft: OfficialJobDraft): OpsOfficialJobSaveInput {
   const isInternalCopy = isOfficialJobsInternalCopyIdentity(draft);
-  const slug = createSlug(`${draft.companyName} ${draft.roleTitle}`);
 
   return {
     ashbyJobPostingId: isInternalCopy ? null : draft.ashbyJobPostingId,
@@ -187,7 +186,7 @@ function draftToPayload(draft: OfficialJobDraft): OpsOfficialJobSaveInput {
       : draft.roleTitle,
     seniority: draft.seniority,
     shortDescription: draft.shortDescription,
-    slug: isInternalCopy ? OFFICIAL_JOBS_INTERNAL_COPY_SLUG : slug,
+    slug: isInternalCopy ? OFFICIAL_JOBS_INTERNAL_COPY_SLUG : draft.slug,
     vertical: draft.vertical,
   };
 }
@@ -321,6 +320,7 @@ export default function OpsOfficialJobsPage() {
   const isInternalCopyDraft = isOfficialJobsInternalCopyIdentity(draft);
   const isAshbyConnectedDraft = hasAshbyConnection(draft);
   const effectiveIsPublished = isInternalCopyDraft ? false : draft.isPublished;
+  const isSlugLocked = Boolean(draft.id) || isInternalCopyDraft;
 
   useEffect(() => {
     resizeTextareaToContent(roleDescriptionTextareaRef.current);
@@ -668,9 +668,9 @@ export default function OpsOfficialJobsPage() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                {draft.slug && !isInternalCopyDraft ? (
+                {draft.id && !isInternalCopyDraft ? (
                   <Link
-                    href={`/jobs/${draft.slug}`}
+                    href={`/jobs/${encodeURIComponent(draft.id)}`}
                     target="_blank"
                     className={cx(opsTheme.buttonSecondary, "h-10 px-3")}
                   >
@@ -924,31 +924,31 @@ export default function OpsOfficialJobsPage() {
             </div>
 
             <div className="mt-88 grid gap-4 lg:grid-cols-2">
-              <div>이거 안건드리셔도 됩니다</div>
+              <div>Slug는 최초 저장 후 고정됩니다</div>
               <Field label="Slug">
                 <div className="flex gap-2">
                   <UiInput
                     unstyled
                     value={draft.slug}
-                    disabled={isInternalCopyDraft}
+                    disabled={isSlugLocked}
                     onChange={(event) =>
                       updateDraft("slug", event.target.value)
                     }
                     className={cx(
                       opsTheme.input,
-                      isInternalCopyDraft &&
+                      isSlugLocked &&
                         "cursor-not-allowed bg-bg-weak text-neutral-muted"
                     )}
-                    placeholder="Auto-generates from company and role on save"
+                    placeholder="Generated from company and role on first save"
                   />
                   <BareButton
                     type="button"
                     onClick={handleGenerateSlug}
-                    disabled={isInternalCopyDraft}
+                    disabled={isSlugLocked}
                     className={cx(
                       opsTheme.buttonSecondary,
                       "h-11 px-3",
-                      isInternalCopyDraft && "cursor-not-allowed opacity-55"
+                      isSlugLocked && "cursor-not-allowed opacity-55"
                     )}
                   >
                     Generate

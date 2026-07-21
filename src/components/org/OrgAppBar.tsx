@@ -8,7 +8,10 @@ import {
   Pencil,
   Users,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/router";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { OrgSlackPanel } from "@/components/org/OrgSlackPanel";
+import { OrgDocsModal } from "@/components/org/OrgDocsModal";
 import { BareButton, Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -25,7 +28,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { useOrgSlackStatus } from "@/hooks/org/useOrgSlack";
 import type { OrgMember, OrgWorkspace } from "@/lib/org/server";
+import { useToastStore } from "@/store/useToastStore";
 
 function WorkspaceLogo({
   size = "md",
@@ -114,15 +119,29 @@ export function OrgAppBar({
   workspace: OrgWorkspace;
   workspaces?: OrgWorkspace[];
 }) {
+  const router = useRouter();
+  const addToast = useToastStore((state) => state.add);
   const [open, setOpen] = useState(false);
   const [docsOpen, setDocsOpen] = useState(false);
+  const [slackOpen, setSlackOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const handledSlackResult = useRef("");
   const switchableWorkspaces = canSwitchWorkspace ? workspaces : [];
   const showWorkspaceSwitcher =
     canSwitchWorkspace &&
     switchableWorkspaces.length > 1 &&
     Boolean(onWorkspaceSelect);
+  const slackStatusQuery = useOrgSlackStatus({
+    workspaceId: workspace.workspaceId,
+  });
   const currentUserName = currentUser?.name || currentUser?.email || "User";
+  const slackStatusText = slackStatusQuery.isLoading
+    ? "확인 중"
+    : slackStatusQuery.error
+      ? "확인 실패"
+      : slackStatusQuery.data?.connected
+        ? "연결됨"
+        : "미연결";
   const inviteUrl = useMemo(() => {
     if (typeof window === "undefined")
       return `/org?orgId=${workspace.workspaceId}`;
@@ -134,6 +153,37 @@ export function OrgAppBar({
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1200);
   };
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    const result =
+      typeof router.query.slack === "string" ? router.query.slack : "";
+    const message =
+      typeof router.query.slackMessage === "string"
+        ? router.query.slackMessage
+        : "";
+    if (!result) return;
+
+    const resultKey = `${result}:${message}`;
+    if (handledSlackResult.current === resultKey) return;
+    handledSlackResult.current = resultKey;
+    setSlackOpen(true);
+    addToast({
+      message:
+        result === "connected"
+          ? "Slack 채널을 연결했습니다."
+          : message || "Slack 연결을 완료하지 못했습니다.",
+      variant: result === "connected" ? "success" : "error",
+    });
+    const nextQuery = { ...router.query };
+    delete nextQuery.slack;
+    delete nextQuery.slackMessage;
+    void router.replace(
+      { pathname: router.pathname, query: nextQuery },
+      undefined,
+      { shallow: true }
+    );
+  }, [addToast, router, router.query.slack, router.query.slackMessage]);
 
   return (
     <>
@@ -199,16 +249,6 @@ export function OrgAppBar({
               <Users className="h-4 w-4" />
               Organization
             </Button>
-            <Button
-              type="button"
-              variant="default"
-              size="sm"
-              onClick={() => setDocsOpen(true)}
-              className="hidden sm:inline-flex"
-            >
-              <BookOpenText className="h-4 w-4" />
-              Docs
-            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <BareButton
@@ -220,7 +260,7 @@ export function OrgAppBar({
                 </BareButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel className="px-3 py-2">
+                <DropdownMenuLabel className="px-3 py-2 mb-2">
                   <div className="flex items-center gap-2.5">
                     <UserAvatar member={currentUser} size="sm" />
                     <div className="min-w-0">
@@ -235,7 +275,6 @@ export function OrgAppBar({
                     </div>
                   </div>
                 </DropdownMenuLabel>
-                <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onSelect={() => setOpen(true)}
                   className="sm:hidden"
@@ -243,14 +282,28 @@ export function OrgAppBar({
                   <Users className="h-4 w-4" />
                   Organization
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() => setDocsOpen(true)}
-                  className="sm:hidden"
-                >
+                <DropdownMenuItem onSelect={() => setDocsOpen(true)}>
                   <BookOpenText className="h-4 w-4" />
                   Docs
                 </DropdownMenuItem>
-                <DropdownMenuSeparator className="sm:hidden" />
+                <DropdownMenuItem
+                  onSelect={() => setSlackOpen(true)}
+                  className="justify-between gap-3"
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <Image
+                      src="/images/logos/slack.svg"
+                      alt="Slack"
+                      width={16}
+                      height={16}
+                    />
+                    <span className="truncate">Slack 연결</span>
+                  </span>
+                  <span className="shrink-0 text-xs text-neutral-soft">
+                    {slackStatusText}
+                  </span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem
                   tone="danger"
                   disabled={signOutPending}
@@ -273,6 +326,10 @@ export function OrgAppBar({
         <DialogContent className="max-w-lg rounded-lg">
           <DialogHeader>
             <DialogTitle>Organization</DialogTitle>
+            <p className="mt-1 text-sm leading-5 text-neutral-muted">
+              초대 링크를 공유해 회사 워크스페이스에 함께 참여할 사람을 초대할
+              수 있습니다. 인재 연결시 참여한 멤버들에게 안내 메일이 발송됩니다.
+            </p>
           </DialogHeader>
           <div className="mt-4 space-y-4">
             <div className="flex items-center gap-2">
@@ -328,100 +385,14 @@ export function OrgAppBar({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={docsOpen} onOpenChange={setDocsOpen}>
-        <DialogContent className="max-w-2xl rounded-lg">
-          <DialogHeader>
-            <DialogTitle>Harper Docs</DialogTitle>
-          </DialogHeader>
-          <div className="mt-4 max-h-[70vh] overflow-y-auto pr-1 text-sm leading-6 text-neutral-muted">
-            <section className="space-y-3">
-              <h3 className="text-sm font-semibold text-neutral-primary">
-                Harper가 연결을 추천하는 방식
-              </h3>
-              <p>
-                Harper는 회사가 남긴 피드백을 기준으로 다음 연결 제안의 방향을
-                조정합니다. 연결 제안된 후보자에 대해 수락, 거절, 메모 등으로
-                판단을 남겨주시면 그 이후에 더 맞는 분들을 우선 추천합니다.
-              </p>
-              <p>
-                어떤 경험, 역량, 도메인, 커뮤니케이션 방식, 연봉 범위, 위치,
-                합류 가능 시점 때문에 좋거나 아쉬웠는지를 구체적으로 적을수록
-                Harper가 그 기준을 다음 추천에 반영하기 쉽습니다.
-              </p>
-            </section>
+      <OrgDocsModal open={docsOpen} onOpenChange={setDocsOpen} />
 
-            <section className="mt-6 space-y-3">
-              <h3 className="text-sm font-semibold text-neutral-primary">
-                피드백을 잘 주는 방법
-              </h3>
-              <ul className="list-disc space-y-2 pl-5">
-                <li>
-                  수락 또는 거절만 누르기보다, 메모에 판단 근거를 함께
-                  남겨주세요.
-                </li>
-                <li>
-                  “좋음”, “애매함”보다 “B2B SaaS enterprise sales 경험은 좋지만,
-                  초기 스타트업 0-1 경험이 부족함”처럼 기준을 분리해서
-                  적어주세요.
-                </li>
-                <li>
-                  현재 가장 중요한 hiring priority가 바뀌면 Role 설정의
-                  Request나 Description에 반영해주세요.
-                </li>
-                <li>
-                  후보자에게 회사를 어필하기 좋은 자료, 최근 성과, 팀 문화, 제품
-                  방향, 채용 배경도 가능한 한 알려주세요.
-                </li>
-              </ul>
-            </section>
-
-            <section className="mt-6 space-y-3">
-              <h3 className="text-sm font-semibold text-neutral-primary">
-                수락하면 어떻게 되나요?
-              </h3>
-              <p>
-                후보자를 수락하면 Harper가 연결 의사를 확인하고, 회사가 남긴
-                맥락을 바탕으로 후보자에게 역할과 회사를 설명합니다. 후보자가
-                관심을 보이면 이후 인터뷰나 커피챗으로 이어질 수 있도록 다음
-                액션을 조율합니다.
-              </p>
-              <p>
-                수락 사유나 어필 포인트를 자세히 남겨주면 후보자에게 전달되는
-                설명이 더 정확해지고, 이후 추천에서도 비슷한 긍정 기준이
-                강화됩니다.
-              </p>
-            </section>
-
-            <section className="mt-6 space-y-3">
-              <h3 className="text-sm font-semibold text-neutral-primary">
-                거절하면 어떻게 되나요?
-              </h3>
-              <p>
-                후보자를 거절하면 해당 연결은 종료되며, Harper는 거절 사유를
-                다음 추천 기준에 반영합니다. 단순히 “핏 아님”보다 어떤 기준에서
-                맞지 않았는지 남겨주시면 같은 이유의 후보가 반복 추천되는 것을
-                줄일 수 있습니다.
-              </p>
-              <p>
-                거절 피드백은 후보자에게 그대로 공개되는 메시지가 아니라,
-                Harper가 추천 품질을 개선하기 위한 내부 맥락으로 사용됩니다.
-              </p>
-            </section>
-
-            <section className="mt-6 space-y-3">
-              <h3 className="text-sm font-semibold text-neutral-primary">
-                회사와 Role 정보를 최신으로 유지해주세요
-              </h3>
-              <p>
-                회사 설명, Role request, JD 링크, 근무 형태, 위치, 고용 형태가
-                최신일수록 후보자에게 더 정확하게 어필하고 더 적절한 사람을
-                추천할 수 있습니다. 채용 기준이나 우선순위가 바뀌면 바로
-                업데이트해주세요.
-              </p>
-            </section>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <OrgSlackPanel
+        onOpenChange={setSlackOpen}
+        open={slackOpen}
+        returnTo={router.asPath}
+        workspace={workspace}
+      />
     </>
   );
 }

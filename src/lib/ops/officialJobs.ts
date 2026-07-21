@@ -172,11 +172,12 @@ function resolveUniqueOfficialJobSlug(args: {
 
 async function buildUniqueOfficialJobSlug(args: {
   companyName: string;
+  requestedSlug: string | null;
   roleTitle: string;
   currentId: string | null;
 }) {
   const baseSlug = createOfficialJobSlug(
-    `${args.companyName} ${args.roleTitle}`
+    args.requestedSlug ?? `${args.companyName} ${args.roleTitle}`
   );
   const existingRows = await fetchOfficialJobSlugRows();
   return resolveUniqueOfficialJobSlug({
@@ -242,13 +243,16 @@ export async function saveOpsOfficialJob(
   const roleTitle = isInternalCopy
     ? OFFICIAL_JOBS_INTERNAL_COPY_ROLE_TITLE
     : normalizeRequiredString(input.roleTitle, "roleTitle");
+  const existingSlug = normalizeOptionalString(existing?.slug);
   const slug = isInternalCopy
     ? OFFICIAL_JOBS_INTERNAL_COPY_SLUG
-    : await buildUniqueOfficialJobSlug({
+    : (existingSlug ??
+      (await buildUniqueOfficialJobSlug({
         companyName,
+        requestedSlug: normalizeOptionalString(input.slug),
         roleTitle,
         currentId: id,
-      });
+      })));
 
   const payload = {
     company_description_markdown: normalizeMarkdown(

@@ -3,6 +3,7 @@ import {
   isEmailExcluded,
 } from "@/lib/adminEmailExclusions";
 import {
+  OFFICIAL_JOBS_LANDING_ABTEST_TYPE,
   OFFICIAL_JOBS_LANDING_SOURCE,
   parseOfficialJobLandingLogType,
 } from "@/lib/officialJobs/landingLogs";
@@ -16,6 +17,7 @@ import {
 } from "@/lib/careerEmailOnboarding/constants";
 import {
   extractEmailFromLandingLoginType,
+  getLandingLogSource,
   isLandingLogEntryType,
 } from "@/lib/landingLogTypes";
 import { normalizeEmail } from "@/lib/adminMetrics/utils";
@@ -117,7 +119,7 @@ type EmailOnboardingLeadRow = Pick<
 >;
 type OfficialJobRow = Pick<
   Database["public"]["Tables"]["official_jobs"]["Row"],
-  "company_name" | "role_title" | "slug"
+  "company_name" | "location" | "role_title" | "slug"
 >;
 type InternalOpportunityRoleRow = Pick<
   Database["public"]["Tables"]["company_roles"]["Row"],
@@ -143,6 +145,7 @@ export type DailyUserStatsToolRow = {
 
 export type DailyUserStatsJobRow = {
   companyName: string;
+  location: string;
   signupCount: number;
   slug: string;
   title: string;
@@ -153,6 +156,7 @@ export type DailyUserStatsJobsSummary = {
   signupCount: number;
   talkClickCount: number;
   viewCount: number;
+  viewedJobCount: number;
 };
 
 export type DailyUserStatsInternalConnectionResponseStats = {
@@ -531,14 +535,6 @@ function parseLandingLoginEmail(type: string | null | undefined) {
   return normalizeEmail(extractEmailFromLandingLoginType(type)) || null;
 }
 
-function getLandingLogSource(type: string | null | undefined) {
-  const value = String(type ?? "");
-  const parts = value.split(":");
-  return parts.length >= 3 && parts[0] === "login_email"
-    ? parts.slice(2).join(":")
-    : "";
-}
-
 function countIntersection(left: Set<string>, right: Set<string>) {
   let count = 0;
   for (const value of left) {
@@ -617,6 +613,7 @@ function buildJobStats(args: {
   });
 
   const signupLocalIds = new Set<string>();
+  const pageViewLocalIds = new Set<string>();
   const talkClickLocalIds = new Set<string>();
   const viewsBySlug = new Map<string, Set<string>>();
   for (const log of args.landingLogs) {
@@ -624,6 +621,15 @@ function buildJobStats(args: {
     if (!localId) continue;
 
     if (excludedLocalIds.has(localId)) continue;
+
+    if (
+      isLandingLogEntryType(log.type) &&
+      log.abtest_type === OFFICIAL_JOBS_LANDING_ABTEST_TYPE &&
+      getLandingLogSource(log.type) === OFFICIAL_JOBS_LANDING_SOURCE
+    ) {
+      pageViewLocalIds.add(localId);
+      continue;
+    }
 
     const email = parseLandingLoginEmail(log.type);
     if (
@@ -637,20 +643,20 @@ function buildJobStats(args: {
     }
 
     const parsed = parseOfficialJobLandingLogType(log.type);
-    if (!parsed?.jobSlug) continue;
+    if (!parsed) continue;
 
-    if (parsed.event === "job_view") {
+    if (parsed.event === "list_view") {
+      pageViewLocalIds.add(localId);
+    } else if (parsed.event === "list_talk_click") {
+      talkClickLocalIds.add(localId);
+    } else if (parsed.event === "job_view" && parsed.jobSlug) {
+      pageViewLocalIds.add(localId);
       const views = viewsBySlug.get(parsed.jobSlug) ?? new Set<string>();
       views.add(localId);
       viewsBySlug.set(parsed.jobSlug, views);
-    } else if (parsed.event === "talk_click") {
+    } else if (parsed.event === "talk_click" && parsed.jobSlug) {
       talkClickLocalIds.add(localId);
     }
-  }
-
-  const allViewLocalIds = new Set<string>();
-  for (const views of viewsBySlug.values()) {
-    for (const localId of views) allViewLocalIds.add(localId);
   }
 
   const jobBySlug = new Map(args.jobs.map((job) => [job.slug, job] as const));
@@ -659,6 +665,7 @@ function buildJobStats(args: {
       const job = jobBySlug.get(slug);
       return {
         companyName: job?.company_name ?? "-",
+        location: job?.location ?? "-",
         signupCount: countIntersection(views, signupLocalIds),
         slug,
         title: job?.role_title ?? slug,
@@ -674,9 +681,10 @@ function buildJobStats(args: {
   return {
     rows,
     summary: {
-      signupCount: countIntersection(allViewLocalIds, signupLocalIds),
+      signupCount: countIntersection(pageViewLocalIds, signupLocalIds),
       talkClickCount: talkClickLocalIds.size,
-      viewCount: allViewLocalIds.size,
+      viewCount: pageViewLocalIds.size,
+      viewedJobCount: rows.length,
     },
   };
 }
@@ -844,7 +852,20 @@ function buildLandingAbtestRows(args: {
   return DAILY_USER_STATS_LANDING_ABTEST_VARIANTS.map((variant) => {
     const entries = Array.from(
       entryAtByVariant.get(variant.abtestType)?.entries() ?? []
-    ).filter(([localId]) => !excludedLocalIds.has(localId));
+    )
+      .filter(([localId]) => !excludedLocalIds.has(localId))
+      .filter(([localId, entryAt]) => {
+        const userIds = userIdsByLocalId.get(localId);
+        if (!userIds?.size) return true;
+
+        // A landing entry written only after an already-signed-up user arrives
+        // is not an acquisition experiment exposure. This also protects old
+        // reports from the authenticated-entry tracking race fixed at source.
+        return Array.from(userIds).some((userId) => {
+          const signupAt = signupAtByUserId.get(userId);
+          return !signupAt || signupAt >= entryAt;
+        });
+      });
     const entryCount = entries.length;
     let signupSubmittedCount = 0;
     let onboardingCompletedCount = 0;
@@ -863,13 +884,14 @@ function buildLandingAbtestRows(args: {
       });
       if (hasSignup && hasSubmitted) signupSubmittedCount += 1;
 
-      if (
-        hasEventAfterEntry({
-          entryAt,
-          eventAtByUserId: completedAtByUserId,
-          userIds,
-        })
-      ) {
+      // Keep the reported funnel nested. An existing user can otherwise land
+      // after signup/submission and make completion exceed signup+submission.
+      const hasCompleted = hasEventAfterEntry({
+        entryAt,
+        eventAtByUserId: completedAtByUserId,
+        userIds,
+      });
+      if (hasSignup && hasSubmitted && hasCompleted) {
         onboardingCompletedCount += 1;
       }
     }
@@ -1391,7 +1413,7 @@ async function buildUserStatsReport(args: {
     fetchAllRows<OfficialJobRow>((from, to) =>
       supabaseServer
         .from("official_jobs")
-        .select("company_name,role_title,slug")
+        .select("company_name,location,role_title,slug")
         .neq("role_title", OFFICIAL_JOBS_INTERNAL_COPY_ROLE_TITLE)
         .neq("slug", OFFICIAL_JOBS_INTERNAL_COPY_SLUG)
         .order("display_order", { ascending: true })
@@ -1900,7 +1922,8 @@ function formatInternalConnectionResponseStats(
 function formatLandingAbtestRows(rows: DailyUserStatsLandingAbtestRow[]) {
   return [
     formatSlackSectionTitle("랜딩페이지 A/B Test"),
-    "전체 new unique user 진입 대비",
+    "career signup-flow 실험의 신규 가입 대상 unique visitor 대비 (전체 신규 방문자와 별도)",
+    "현재 배정 비율: Email first 25% / Login first 75%",
     ...rows.map(
       (row) =>
         `- ${row.label}: 회원가입+제출완료 ${formatCount(
@@ -1959,13 +1982,23 @@ export function formatDailyUserStatsSlackMessages(
       ? report.jobs
           .map(
             (job) =>
-              `- ${job.title} @ ${job.companyName}: ${formatCount(
+              `- ${job.title} @ ${job.companyName} (${job.location}): ${formatCount(
                 job.viewCount
               )}명 / ${formatCount(job.signupCount)}명 회원가입`
           )
           .join("\n")
       : "- 없음";
-  const jobs = [jobSummary, jobRows].join("\n");
+  const jobRowsScope =
+    report.jobsSummary.viewedJobCount > report.jobs.length
+      ? `공고별 상세: 방문 발생 ${formatCount(
+          report.jobsSummary.viewedJobCount
+        )}개 중 상위 ${formatCount(report.jobs.length)}개`
+      : "공고별 상세";
+  const jobs = [
+    jobSummary,
+    `${jobRowsScope} (공고별 unique visitor, 공고 간 중복 포함)`,
+    jobRows,
+  ].join("\n");
   const internalOpportunityRecommendations =
     report.internalOpportunityRecommendationRows.length > 0
       ? report.internalOpportunityRecommendationRows
@@ -2041,8 +2074,8 @@ export function formatDailyUserStatsSlackMessages(
     "",
     `Active talents: ${formatCount(
       report.activeTalentsCount
-    )}명 (상세 항목은 중복 포함)`,
-    `- 접속: ${formatCount(
+    )}명 (로그인 없이 발생한 활동 포함, 상세 항목은 중복 포함)`,
+    `- 로그인: ${formatCount(
       report.activeTalentBreakdown.loggedInTalentCount
     )}명`,
     `- 신규 가입: ${formatCount(

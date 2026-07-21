@@ -1158,8 +1158,7 @@ export const en = {
       "Latest round",
     "career.company.company_data.last_funding_stage": "Latest stage {stage}",
     "career.company.company_data.last_funding_stage_label": "Latest stage",
-    "career.company.company_data.main_investors":
-      "Key investors {investors}",
+    "career.company.company_data.main_investors": "Key investors {investors}",
     "career.company.company_data.main_investors_label": "Key investors",
     "career.company.company_data.total_funding_raised":
       "Total funding {amount}",
@@ -1786,8 +1785,7 @@ export const en = {
       "If I introduce you through the Harper referral program, I may receive a reward if you agree and later get hired through Harper.",
     "career.referral.intro_test.service_description":
       "Harper works on the candidate's side to review career opportunities and help with company introductions.",
-    "career.referral.intro_test.subject":
-      "Intro: {candidateEmail} <> Harper",
+    "career.referral.intro_test.subject": "Intro: {candidateEmail} <> Harper",
     "career.referral.intro_test.team_note":
       "Harper team, please confirm {candidateName}'s consent directly.",
     "career.referral.menu.invite": "Refer and earn",
@@ -1796,36 +1794,76 @@ export const en = {
     "career.referral.modal.copied": "Copied",
     "career.referral.modal.copy_invite_message": "Copy message",
     "career.referral.modal.description":
-      "Share your referral link with a friend or colleague. If they sign up through your link and are later hired through Harper, you may receive $2,000-$5,000 depending on the role and terms.",
+      "If someone signs up through the link you shared and is hired through Harper, you can earn a reward of up to KRW 10 million.",
     "career.referral.modal.error_summary_load_failed":
       "Failed to load your invite information.",
+    "career.referral.modal.error_referral_list_load_failed":
+      "Failed to load referrals.",
+    "career.referral.modal.error_reward_list_load_failed":
+      "Failed to load hiring and reward status.",
     "career.referral.modal.example_basis":
-      "Example for one $15,000 first-year salary hire",
-    "career.referral.modal.example_reward": "$3,000",
+      "Example for one KRW 100 million first-year salary hire",
+    "career.referral.modal.example_reward": "KRW 2.5-5 million",
     "career.referral.modal.example_reward_heading": "Example reward",
     "career.referral.modal.example_review_note":
-      "Reviewed after hire confirmation and settlement",
-    "career.referral.modal.example_salary": "$15,000",
+      "An example to illustrate the reward",
+    "career.referral.modal.example_salary": "KRW 100 million",
     "career.referral.modal.first_year_salary_label": "First-year salary",
+    "career.referral.modal.hiring_confirmed": "Confirmed",
+    "career.referral.modal.hiring_not_confirmed": "Not confirmed",
+    "career.referral.modal.hiring_reward_empty":
+      "No hiring or reward activity yet.",
+    "career.referral.modal.hiring_reward_heading": "Hiring and reward status",
+    "career.referral.modal.hiring_reward_summary":
+      "Confirmed hires with rewards in progress",
     "career.referral.modal.how_it_works": "How it works",
     "career.referral.modal.invite_message":
-      "Hi, I thought Harper might be useful for you.\n\nHarper is a career service that learns your background and preferences through conversation, then introduces opportunities that may fit. You do not need to be actively job hunting to use it; it is also useful for understanding what kinds of teams or roles could make sense.\n\nIf you are curious, you can start here:\n{link}",
+      "Hi, I thought Harper might be useful as you explore your next career move.\n\nHarper learns about your experience and what you want next through conversation, then finds companies and roles that may fit. You can start a conversation even if you are not actively job hunting.\n\nTake a look here if you are curious:\n{link}",
     "career.referral.modal.invite_message_description":
-      "This message includes your referral link. Copy it and edit before sending if needed.",
+      "Your invite link is added automatically. Copy the message as is or tailor it to the person you are sending it to.",
     "career.referral.modal.invite_message_heading":
       "Message to send with your link",
     "career.referral.modal.invite_message_link_placeholder": "[invite link]",
     "career.referral.modal.link_loading": "Preparing your invite link.",
     "career.referral.modal.read_terms": "Read full terms",
+    "career.referral.modal.referral_headline_empty": "No headline yet",
+    "career.referral.modal.referral_hired": "Hired",
+    "career.referral.modal.referral_name_empty": "Candidate",
+    "career.referral.modal.referral_not_hired": "Signed up",
+    "career.referral.modal.referrals_heading": "Referrals",
+    "career.referral.modal.referrals_load_more": "Load more",
+    "career.referral.modal.referrals_summary":
+      "{count} candidates have signed up so far.",
+    "career.referral.modal.referrals_summary_singular":
+      "1 candidate has signed up so far.",
+    "career.referral.modal.referrals_table_candidate": "Name",
+    "career.referral.modal.referrals_table_headline": "Profile",
+    "career.referral.modal.referrals_table_joined_at": "Joined",
+    "career.referral.modal.referrals_table_status": "Status",
+    "career.referral.modal.retry": "Try again",
     "career.referral.modal.reward_description":
-      "If your referral is hired through Harper, the reward is reviewed based on salary, contract terms, and Harper's actual fee.",
+      "If your referral is hired through Harper, we review the reward based on first-year salary, contract terms, and 20% of the hiring fee Harper actually receives.",
+    "career.referral.modal.reward_fee_basis":
+      "Rewards are based on the hiring fee the company pays Harper and may vary by salary and contract terms.",
+    "career.referral.modal.reward_fee_rate": "(20% of the fee)",
     "career.referral.modal.reward_heading": "Referral reward",
     "career.referral.modal.reward_note":
-      "Actual rewards may vary by salary, contract type, Harper's actual received fee, and internal review.",
-    "career.referral.modal.reward_range": "$2,000 - $5,000",
+      "The actual reward may vary depending on referral eligibility, hiring, and settlement conditions under the terms.",
+    "career.referral.modal.reward_not_paid": "Scheduled",
+    "career.referral.modal.reward_paid": "Paid",
+    "career.referral.modal.reward_range": "KRW 2.5-10 million",
+    "career.referral.modal.reward_table_amount": "Amount",
+    "career.referral.modal.reward_table_candidate": "Name",
+    "career.referral.modal.reward_table_due_at": "Expected reward date",
+    "career.referral.modal.reward_table_hired": "Hire confirmed",
+    "career.referral.modal.reward_table_paid": "Reward paid",
+    "career.referral.modal.reward_unlimited_description":
+      "If multiple people are hired through Harper, each hire is reviewed for a reward.",
+    "career.referral.modal.reward_unlimited_heading":
+      "There is no cap on the number of rewards.",
     "career.referral.modal.share": "Share",
     "career.referral.modal.share_link_description":
-      "Share the link with a short note so they know why Harper might be relevant.",
+      "Copy the link and send it with the message below so they know why Harper might be relevant.",
     "career.referral.modal.share_link_heading": "Share your invite link",
     "career.referral.modal.share_text":
       "Explore career opportunities with Harper.",
@@ -1833,17 +1871,19 @@ export const en = {
     "career.referral.modal.stats_heading": "Your invite activity",
     "career.referral.modal.stats_hires": "Hires",
     "career.referral.modal.stats_note":
-      "Numbers may be adjusted during deduplication and internal review. We do not show personal information or individual hiring progress for invited people.",
+      "Visit counts may change after deduplication. The referral list shows only a member's basic profile and whether they were hired, not companies or detailed hiring progress.",
+    "career.referral.modal.stats_paid": "Paid",
     "career.referral.modal.stats_signups": "Signups",
     "career.referral.modal.stats_visits": "Link visits",
     "career.referral.modal.step1_description":
-      "Send your link and a short note to a friend or colleague who might want to explore career opportunities.",
-    "career.referral.modal.step1_title": "Choose someone to refer.",
+      "Send your invite link and the message below to a friend or colleague who may find Harper useful.",
+    "career.referral.modal.step1_title":
+      "Send your link to someone you want to refer.",
     "career.referral.modal.step2_description":
-      "Attribution is based on the referral link confirmed when they request signup.",
+      "The referral link they use when signing up determines who receives referral credit.",
     "career.referral.modal.step2_title": "They sign up through your link.",
     "career.referral.modal.step3_description":
-      "When a hire through Harper is confirmed and settled, the reward is reviewed under the referral terms.",
+      "Once the hire through Harper and client settlement are confirmed, we pay the reward under the terms.",
     "career.referral.modal.step3_title":
       "If they are hired, you may earn a reward.",
     "career.referral.modal.title": "Refer someone to Harper",
@@ -1854,8 +1894,8 @@ export const en = {
     "career.referral.modal.toast_link_copied": "Invite link copied.",
     "career.referral.modal.toast_link_copy_failed": "Failed to copy link.",
     "career.referral.modal.updating": "Updating",
-    "career.referral.modal.your_cut_label": "Reward basis",
-    "career.referral.modal.your_cut_value": "A portion of Harper's hiring fee",
+    "career.referral.modal.your_cut_label": "Calculation basis",
+    "career.referral.modal.your_cut_value": "20% of the fee paid to Harper",
     "career.referral.modal.your_reward_label": "Your reward",
     "career.referral.network.toast_email_invalid":
       "Please enter a valid email.",

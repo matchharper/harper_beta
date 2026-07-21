@@ -34,7 +34,12 @@ import {
   AcceptIntroDialog,
   StopCandidateDialog,
 } from "@/components/org/OrgCandidateDecisionDialogs";
-import { useCreateOrgFeedItem, useOpenOrgResume } from "@/hooks/org/useOrg";
+import {
+  useCreateOrgFeedItem,
+  useDeleteOrgFeedItem,
+  useOpenOrgResume,
+  useUpdateOrgFeedItem,
+} from "@/hooks/org/useOrg";
 import type {
   OrgStageChangeOptions,
   OrgStageId,
@@ -57,7 +62,7 @@ const RESOURCE_LINK_KIND_ORDER: Record<ResourceLinkKind, number> = {
 };
 
 const profileItemClass =
-  "rounded-md bg-bg-floating px-0 py-3 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--color-neutral-00)_75%,transparent)]";
+  "rounded-md bg-bg-floating px-0 py-2.5 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--color-neutral-00)_75%,transparent)]";
 
 function TalentAvatar({ name, src }: { name: string; src?: string | null }) {
   if (src) {
@@ -175,8 +180,9 @@ function ResourceRow({
 }) {
   const className = cx(
     profileItemClass,
-    "flex w-full items-center justify-between gap-3 text-left text-sm transition bg-bg-weak"
+    "flex w-full items-center justify-between gap-3 text-left text-sm transition bg-black/4 px-3 hover:bg-black/8"
   );
+
   const content = (
     <>
       <span className="flex min-w-0 items-center gap-2">
@@ -184,7 +190,7 @@ function ResourceRow({
           <ResourceIcon kind={kind} />
         </span>
         <span className="min-w-0 flex flex-row gap-2 items-center">
-          <span className="block font-medium text-neutral-primary">
+          <span className="block font-normal font-sm text-neutral-primary">
             {label}
           </span>
           <span className="block text-xs text-neutral-muted max-w-[600px] truncate">
@@ -603,42 +609,52 @@ function ProfilePane({
 
 function getOrgFeedTitle(kind: string) {
   if (kind === "org_note") return "메모";
+  if (kind === "org_acceptance" || kind === "talent_recommendation_accepted") {
+    return "수락";
+  }
+  if (kind === "org_rejection" || kind === "talent_recommendation_rejected") {
+    return "거절";
+  }
   if (kind === "org_stage_change") return "상태 변경";
   if (kind === "org_resume_opened") return "이력서 열람";
   return "활동";
 }
 
 function getOrgFeedIcon(kind: string): ProgressFeedIcon {
+  if (kind === "org_acceptance" || kind === "talent_recommendation_accepted") {
+    return "check";
+  }
+  if (kind === "org_rejection" || kind === "talent_recommendation_rejected") {
+    return "x";
+  }
   if (kind === "org_stage_change") return "sparkles";
   if (kind === "org_resume_opened") return "eye";
   return "note";
 }
 
-function getOrgFeedActorLabel(
-  actor: OrgTalentDetailResponse["feed"][number]["actor"]
-) {
-  if (!actor) return "자동 기록";
-  return actor.name || actor.email || "멤버";
-}
-
 function FeedPane({
+  currentUserId,
   detail,
   talentId,
   workspaceId,
 }: {
+  currentUserId?: string | null;
   detail: OrgTalentDetailResponse;
   talentId?: string | null;
   workspaceId: string;
 }) {
   const [draft, setDraft] = useState("");
   const createFeed = useCreateOrgFeedItem();
+  const updateFeed = useUpdateOrgFeedItem();
+  const deleteFeed = useDeleteOrgFeedItem();
   const trimmedDraft = draft.trim();
   const feedItems: ProgressFeedItem[] = detail.feed.map((item) => ({
-    actorLabel: getOrgFeedActorLabel(item.actor),
+    actor: item.actor,
     createdAt: item.createdAt,
+    deletable: item.kind === "org_note" && item.companyUserId === currentUserId,
+    editable: item.kind === "org_note" && item.companyUserId === currentUserId,
     icon: getOrgFeedIcon(item.kind),
     id: item.id,
-    roleContext: item.roleName,
     text: item.text,
     title: getOrgFeedTitle(item.kind),
   }));
@@ -647,10 +663,30 @@ function FeedPane({
     <div className="min-w-0 space-y-3">
       <div className="text-sm font-semibold text-neutral-primary">피드</div>
       <ProgressFeed
+        actionsVariant="menu"
+        deleteConfirmMessage="이 메모를 삭제할까요?"
+        deleteError={
+          deleteFeed.error instanceof Error ? deleteFeed.error : null
+        }
         draft={draft}
+        editError={updateFeed.error instanceof Error ? updateFeed.error : null}
         emptyLabel="아직 피드가 없습니다."
         items={feedItems}
+        onDelete={(item) => {
+          if (deleteFeed.isPending) return;
+          deleteFeed.mutate({
+            progressId: item.id,
+            workspaceId,
+          });
+        }}
         onDraftChange={setDraft}
+        onEdit={async (item, text) => {
+          await updateFeed.mutateAsync({
+            progressId: item.id,
+            text,
+            workspaceId,
+          });
+        }}
         onSubmit={() => {
           if (!talentId || !trimmedDraft || createFeed.isPending) return;
           createFeed.mutate(
@@ -666,8 +702,10 @@ function FeedPane({
             }
           );
         }}
+        pendingDeleteId={deleteFeed.variables?.progressId ?? null}
+        pendingEditId={updateFeed.variables?.progressId ?? null}
         pendingSubmit={createFeed.isPending}
-        placeholder="이 후보자에 대한 메모를 남겨주세요."
+        placeholder="이 후보자에 대한 메모를 남겨주세요. 알려주신 피드백은 다음 연결에 반영됩니다."
         submitError={
           createFeed.error instanceof Error ? createFeed.error : null
         }
@@ -680,6 +718,7 @@ export function TalentDetailSimpleView({
   acceptStageId,
   companyName,
   currentUserEmail,
+  currentUserId,
   decisionPending,
   detail,
   error,
@@ -694,6 +733,7 @@ export function TalentDetailSimpleView({
   acceptStageId?: OrgStageId | null;
   companyName: string;
   currentUserEmail?: string | null;
+  currentUserId?: string | null;
   decisionPending?: boolean;
   detail?: OrgTalentDetailResponse | null;
   error?: Error | null;
@@ -797,7 +837,7 @@ export function TalentDetailSimpleView({
               {error.message}
             </div>
           ) : detail ? (
-            <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_480px]">
+            <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_560px]">
               <div className="min-h-0 overflow-y-auto">
                 <div className="border-b border-neutral-1000-a05 px-5 py-3 lg:hidden">
                   <div className="flex">
@@ -849,6 +889,7 @@ export function TalentDetailSimpleView({
                     )}
                   >
                     <FeedPane
+                      currentUserId={currentUserId}
                       detail={detail}
                       talentId={talentId}
                       workspaceId={workspaceId}
@@ -858,6 +899,7 @@ export function TalentDetailSimpleView({
               </div>
               <div className="hidden min-h-0 overflow-y-auto border-l border-neutral-1000-a05 bg-bg-basement p-5 lg:block">
                 <FeedPane
+                  currentUserId={currentUserId}
                   detail={detail}
                   talentId={talentId}
                   workspaceId={workspaceId}

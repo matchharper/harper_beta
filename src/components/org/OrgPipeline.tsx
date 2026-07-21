@@ -1,11 +1,5 @@
 import Image from "next/image";
-import {
-  LoaderCircle,
-  MoreHorizontal,
-  Pencil,
-  Search,
-  Settings,
-} from "lucide-react";
+import { LoaderCircle, MoreHorizontal, Search } from "lucide-react";
 import {
   type DragEvent,
   type FormEvent,
@@ -17,7 +11,7 @@ import { OpsDateRangeFilter } from "@/components/ops/OpsDateRangeFilter";
 import { formatKstRelativeDate } from "@/components/ops/dateUtils";
 import { ProfileLabelCell } from "@/components/ops/matching/MatchingTalentCells";
 import { cx, opsTheme } from "@/components/ops/theme";
-import { BareButton, Button, IconButton } from "@/components/ui/button";
+import { BareButton, IconButton } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,6 +31,7 @@ import {
   AcceptIntroDialog,
   StopCandidateDialog,
 } from "@/components/org/OrgCandidateDecisionDialogs";
+import { OrgRoleActionsMenu } from "@/components/org/OrgRoleActionsMenu";
 import {
   useCreateOrgReviewStage,
   useDeleteOrgReviewStage,
@@ -45,6 +40,7 @@ import {
 import type {
   OrgBoardItem,
   OrgBoardResponse,
+  OrgRole,
   OrgStageChangeOptions,
   OrgStage,
   OrgStageId,
@@ -217,14 +213,9 @@ function CandidateCard({
         >
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <IconButton
-                type="button"
-                variant="secondary"
-                size="sm"
-                aria-label="이동"
-                className="h-7 w-7 border-0 bg-transparent text-neutral-soft hover:bg-bg-weak hover:text-neutral-primary"
-                icon={<MoreHorizontal className="h-4 w-4" />}
-              />
+              <button className="h-5 w-5 border-0 bg-transparent text-neutral-soft hover:bg-bg-weak hover:text-neutral-primary">
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
               {availableStages.map((stage) => (
@@ -277,31 +268,40 @@ function CandidateCard({
 export function OrgPipeline({
   activeRoleId,
   activeRoleName,
+  activeRole,
   board,
   currentUserEmail,
   error,
   isLoading,
+  onDeleteRole,
   nameQuery,
   onEditRole,
   onNameQueryChange,
+  onPauseRole,
   onRecommendedDateChange,
+  onResumeRole,
   onSelect,
   onStageChange,
   pendingRecommendationId,
   recommendedFromDate,
   recommendedToDate,
+  roleActionPending,
   workspaceId,
 }: {
   activeRoleId: string;
   activeRoleName?: string | null;
+  activeRole?: OrgRole | null;
   board?: OrgBoardResponse | null;
   currentUserEmail?: string | null;
   error?: Error | null;
   isLoading?: boolean;
+  onDeleteRole: (role: OrgRole) => void;
   nameQuery: string;
   onEditRole: () => void;
   onNameQueryChange: (value: string) => void;
+  onPauseRole: (role: OrgRole) => void;
   onRecommendedDateChange: (from: string, to: string) => void;
+  onResumeRole: (role: OrgRole) => void;
   onSelect: (item: OrgBoardItem) => void;
   onStageChange: (
     item: OrgBoardItem,
@@ -311,6 +311,7 @@ export function OrgPipeline({
   pendingRecommendationId?: string | null;
   recommendedFromDate: string;
   recommendedToDate: string;
+  roleActionPending?: boolean;
   workspaceId: string;
 }) {
   const [dragOverStage, setDragOverStage] = useState<OrgStageId | null>(null);
@@ -390,6 +391,7 @@ export function OrgPipeline({
       (board?.stages ?? []).filter(
         (stage) =>
           stage.id === "pending_connection" ||
+          stage.id === "connected" ||
           Boolean(stage.roleId && stage.roleId === activeRoleId)
       ),
     [activeRoleId, board?.stages]
@@ -611,17 +613,14 @@ export function OrgPipeline({
             대한 요청사항을 수정합니다.
           </div>
         </div>
-        <Button
-          type="button"
-          variant="default"
-          size="md"
-          onClick={onEditRole}
-          disabled={activeRoleId === "all"}
-          className="shrink-0"
-        >
-          <Settings className="h-4 w-4" />
-          수정
-        </Button>
+        <OrgRoleActionsMenu
+          role={activeRoleId === "all" ? null : activeRole}
+          pending={roleActionPending}
+          onEdit={() => onEditRole()}
+          onPause={onPauseRole}
+          onResume={onResumeRole}
+          onDelete={onDeleteRole}
+        />
       </div>
 
       <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">

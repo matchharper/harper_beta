@@ -6,6 +6,12 @@ import {
   isOpsMatchingNoTagFilter,
   OPS_MATCHING_NO_HUMAN_LABEL_FILTER_VALUE,
 } from "@/lib/ops/matchingFilters";
+import type {
+  OpportunityEmploymentType,
+  OpportunitySourceType,
+  OpportunityStatus,
+  OpportunityWorkMode,
+} from "@/lib/ops/opportunity";
 import type { Database } from "@/types/database.types";
 
 type AdminClient = ReturnType<typeof getSupabaseAdmin>;
@@ -106,11 +112,7 @@ type TalentRecommendationRow = Pick<
 >;
 type TalentRecommendationForFitRow = Pick<
   Database["public"]["Tables"]["talent_opportunity_recommendation"]["Row"],
-  | "created_at"
-  | "discovery_run_id"
-  | "id"
-  | "role_id"
-  | "talent_id"
+  "created_at" | "discovery_run_id" | "id" | "role_id" | "talent_id"
 >;
 type TalentRecommendationHistoryRow = Pick<
   Database["public"]["Tables"]["talent_opportunity_recommendation"]["Row"],
@@ -126,6 +128,40 @@ type TalentRecommendationHistoryRow = Pick<
   | "score"
   | "talent_id"
   | "updated_at"
+>;
+type OpsMatchingAllRoleRow = Pick<
+  Database["public"]["Tables"]["company_roles"]["Row"],
+  | "company_workspace_id"
+  | "created_at"
+  | "description"
+  | "description_summary"
+  | "expires_at"
+  | "external_jd_url"
+  | "location_text"
+  | "name"
+  | "posted_at"
+  | "request"
+  | "role_id"
+  | "source_job_id"
+  | "source_provider"
+  | "source_type"
+  | "status"
+  | "type"
+  | "updated_at"
+  | "work_mode"
+> & {
+  company_internal_roles?:
+    | { is_auto: boolean | null }
+    | Array<{ is_auto: boolean | null }>
+    | null;
+};
+type OpsMatchingAllRoleRecommendationRow = Pick<
+  Database["public"]["Tables"]["talent_opportunity_recommendation"]["Row"],
+  "created_at" | "feedback" | "id" | "role_id" | "saved_stage" | "talent_id"
+>;
+type OpsMatchingAllRoleTagRow = Pick<
+  Database["public"]["Tables"]["talent_opportunity_tag"]["Row"],
+  "id" | "opportunity_id" | "tag" | "talent_id" | "updated_at"
 >;
 type TalentOpportunityFitRecordRow = Pick<
   Database["public"]["Tables"]["talent_opportunity_fit"]["Row"],
@@ -147,6 +183,9 @@ type TalentOpportunityFitRecordRow = Pick<
 
 const DEFAULT_MATCHING_TALENT_LIMIT = 20;
 const MAX_MATCHING_TALENT_LIMIT = 50;
+export const OPS_MATCHING_ALL_ROLES_PAGE_SIZE = 20;
+const MAX_MATCHING_ALL_ROLE_SEARCH_IDS = 500;
+const MATCHING_ALL_ROLE_AGGREGATE_PAGE_SIZE = 1000;
 const MAX_MATCHING_COMPANY_OPTIONS = 500;
 const MAX_MATCHING_ROLE_OPTIONS = 500;
 const MAX_MATCHING_PROGRESS_ITEMS = 120;
@@ -233,6 +272,56 @@ export type OpsMatchingRoleOption = {
   sourceType: string;
   status: string;
   updatedAt: string;
+};
+
+export type OpsMatchingAllRoleCandidateCounts = {
+  accepted: number;
+  pendingConnection: number;
+  processEnded: number;
+  processInProgress: number;
+  suggested: number;
+};
+
+export type OpsMatchingAllRoleItem = {
+  candidateCounts: OpsMatchingAllRoleCandidateCounts;
+  companyName: string;
+  companyWorkspaceId: string;
+  createdAt: string;
+  description: string | null;
+  descriptionSummary: string | null;
+  employmentTypes: OpportunityEmploymentType[];
+  expiresAt: string | null;
+  externalJdUrl: string | null;
+  isAuto: boolean;
+  locationText: string | null;
+  logoUrl: string | null;
+  name: string;
+  postedAt: string | null;
+  request: string | null;
+  roleId: string;
+  sourceJobId: string | null;
+  sourceProvider: string | null;
+  sourceType: OpportunitySourceType;
+  status: OpportunityStatus;
+  updatedAt: string;
+  workMode: OpportunityWorkMode | null;
+};
+
+export type OpsMatchingAllRolesResponse = {
+  hasMore: boolean;
+  items: OpsMatchingAllRoleItem[];
+  limit: number;
+  nextOffset: number | null;
+  offset: number;
+  query: string;
+  selfServeOnly: boolean;
+  totalCount: number;
+};
+
+export type OpsMatchingAllRoleUpdateResponse = {
+  isAuto: boolean;
+  roleId: string;
+  status: OpportunityStatus;
 };
 
 export type OpsMatchingProfileLabel = {
@@ -1706,10 +1795,7 @@ function getRecommendationResponseStatus(
 ): OpsMatchingRecommendationResponseStatus {
   const savedStage = normalizeText(row.saved_stage).toLowerCase();
 
-  if (
-    isAcceptedFeedback(row.feedback) ||
-    savedStage === "accepted"
-  ) {
+  if (isAcceptedFeedback(row.feedback) || savedStage === "accepted") {
     return "accepted";
   }
 
@@ -1808,9 +1894,7 @@ export async function fetchOpsMatchingTalentHistory(args: {
     );
 
   if (wantsExternalPositive && !wantsInternalRecommendations) {
-    query = query.or(
-      "feedback.in.(like,positive),saved_stage.eq.accepted"
-    );
+    query = query.or("feedback.in.(like,positive),saved_stage.eq.accepted");
   }
 
   const { data, error } = await query;
@@ -2164,6 +2248,506 @@ async function buildOpsMatchingTalentItems(args: {
       userId: row.user_id,
     } satisfies OpsMatchingTalentItem;
   });
+}
+
+const ALL_ROLE_EMPLOYMENT_TYPES = new Set<OpportunityEmploymentType>([
+  "contract",
+  "full_time",
+  "internship",
+  "part_time",
+]);
+const ALL_ROLE_WORK_MODES = new Set<OpportunityWorkMode>([
+  "hybrid",
+  "onsite",
+  "remote",
+]);
+const ALL_ROLE_TERMINAL_STAGES = new Set<OpsMatchingReviewStageId>([
+  "archived",
+  "process_stopped",
+  "rejected",
+]);
+const ALL_ROLE_IN_PROGRESS_STAGES = new Set<OpsMatchingReviewStageId>([
+  "accepted",
+  "final_offer",
+  "pending_connection",
+]);
+
+function normalizeAllRoleStatus(value: unknown): OpportunityStatus {
+  const status = normalizeText(value).toLowerCase();
+  if (status === "top_priority") return "top_priority";
+  if (status === "ended") return "ended";
+  if (status === "paused") return "paused";
+  return "active";
+}
+
+function normalizeAllRoleEmploymentTypes(
+  value: unknown
+): OpportunityEmploymentType[] {
+  if (!Array.isArray(value)) return [];
+  return Array.from(
+    new Set(
+      value
+        .map((item) => normalizeText(item).toLowerCase())
+        .filter((item): item is OpportunityEmploymentType =>
+          ALL_ROLE_EMPLOYMENT_TYPES.has(item as OpportunityEmploymentType)
+        )
+    )
+  );
+}
+
+function normalizeAllRoleWorkMode(value: unknown): OpportunityWorkMode | null {
+  const mode = normalizeText(value).toLowerCase() as OpportunityWorkMode;
+  return ALL_ROLE_WORK_MODES.has(mode) ? mode : null;
+}
+
+function getAllRoleIsAuto(row: OpsMatchingAllRoleRow) {
+  const metadata = Array.isArray(row.company_internal_roles)
+    ? row.company_internal_roles[0]
+    : row.company_internal_roles;
+  return metadata?.is_auto === true;
+}
+
+function emptyOpsMatchingAllRolesResponse(args: {
+  limit: number;
+  offset: number;
+  query: string;
+  selfServeOnly: boolean;
+}): OpsMatchingAllRolesResponse {
+  return {
+    hasMore: false,
+    items: [],
+    limit: args.limit,
+    nextOffset: null,
+    offset: args.offset,
+    query: args.query,
+    selfServeOnly: args.selfServeOnly,
+    totalCount: 0,
+  };
+}
+
+async function fetchOpsMatchingAllRoleSearchIds(args: {
+  admin: AdminClient;
+  query: string;
+}) {
+  const searchPattern = buildMatchingIlikePattern(args.query);
+  const [roleResult, workspaceResult] = await Promise.all([
+    args.admin
+      .from("company_roles")
+      .select("role_id")
+      .eq("source_type", "internal")
+      .ilike("name", searchPattern)
+      .limit(MAX_MATCHING_ALL_ROLE_SEARCH_IDS),
+    args.admin
+      .from("company_workspace")
+      .select("company_workspace_id")
+      .ilike("company_name", searchPattern)
+      .limit(MAX_MATCHING_ALL_ROLE_SEARCH_IDS),
+  ]);
+
+  if (roleResult.error) {
+    throw new Error(roleResult.error.message ?? "Failed to search role titles");
+  }
+  if (workspaceResult.error) {
+    throw new Error(
+      workspaceResult.error.message ?? "Failed to search role companies"
+    );
+  }
+
+  const roleIds = new Set(
+    (roleResult.data ?? [])
+      .map((row) => normalizeText(row.role_id))
+      .filter(Boolean)
+  );
+  const workspaceIds = (workspaceResult.data ?? [])
+    .map((row) => normalizeText(row.company_workspace_id))
+    .filter(Boolean);
+
+  for (const workspaceIdChunk of chunkValues(workspaceIds)) {
+    const { data, error } = await args.admin
+      .from("company_roles")
+      .select("role_id")
+      .eq("source_type", "internal")
+      .in("company_workspace_id", workspaceIdChunk)
+      .limit(MAX_MATCHING_ALL_ROLE_SEARCH_IDS);
+
+    if (error) {
+      throw new Error(error.message ?? "Failed to search company roles");
+    }
+    for (const row of data ?? []) {
+      const roleId = normalizeText(row.role_id);
+      if (roleId) roleIds.add(roleId);
+      if (roleIds.size >= MAX_MATCHING_ALL_ROLE_SEARCH_IDS) break;
+    }
+    if (roleIds.size >= MAX_MATCHING_ALL_ROLE_SEARCH_IDS) break;
+  }
+
+  return Array.from(roleIds).slice(0, MAX_MATCHING_ALL_ROLE_SEARCH_IDS);
+}
+
+async function fetchOpsMatchingAllRoleRecommendations(args: {
+  admin: AdminClient;
+  roleIds: string[];
+}) {
+  const rows: OpsMatchingAllRoleRecommendationRow[] = [];
+  if (args.roleIds.length === 0) return rows;
+
+  for (let offset = 0; ; offset += MATCHING_ALL_ROLE_AGGREGATE_PAGE_SIZE) {
+    const { data, error } = await args.admin
+      .from("talent_opportunity_recommendation")
+      .select("id, role_id, talent_id, feedback, saved_stage, created_at")
+      .in("role_id", args.roleIds)
+      .order("created_at", { ascending: false, nullsFirst: false })
+      .order("id", { ascending: false })
+      .range(offset, offset + MATCHING_ALL_ROLE_AGGREGATE_PAGE_SIZE - 1);
+
+    if (error) {
+      throw new Error(
+        error.message ?? "Failed to load role recommendation counts"
+      );
+    }
+    const pageRows = (data ?? []) as OpsMatchingAllRoleRecommendationRow[];
+    rows.push(...pageRows);
+    if (pageRows.length < MATCHING_ALL_ROLE_AGGREGATE_PAGE_SIZE) break;
+  }
+
+  return rows;
+}
+
+async function fetchOpsMatchingAllRoleTags(args: {
+  admin: AdminClient;
+  roleIds: string[];
+  talentIds: string[];
+}) {
+  const rows: OpsMatchingAllRoleTagRow[] = [];
+  if (args.roleIds.length === 0 || args.talentIds.length === 0) return rows;
+
+  for (const roleIdChunk of chunkValues(args.roleIds)) {
+    for (const talentIdChunk of chunkValues(args.talentIds)) {
+      for (let offset = 0; ; offset += MATCHING_ALL_ROLE_AGGREGATE_PAGE_SIZE) {
+        const { data, error } = await fromOpsMatchingTable(
+          args.admin,
+          "talent_opportunity_tag"
+        )
+          .select("id, opportunity_id, talent_id, tag, updated_at")
+          .in("opportunity_id", roleIdChunk)
+          .in("talent_id", talentIdChunk)
+          .order("updated_at", { ascending: false })
+          .order("id", { ascending: false })
+          .range(offset, offset + MATCHING_ALL_ROLE_AGGREGATE_PAGE_SIZE - 1);
+
+        if (error) {
+          if (isMissingOpsMatchingTableError(error)) return rows;
+          throw new Error(error.message ?? "Failed to load role pipeline tags");
+        }
+        const pageRows = (data ?? []) as OpsMatchingAllRoleTagRow[];
+        rows.push(...pageRows);
+        if (pageRows.length < MATCHING_ALL_ROLE_AGGREGATE_PAGE_SIZE) break;
+      }
+    }
+  }
+
+  return rows;
+}
+
+function buildOpsMatchingAllRoleCandidateCountMap(args: {
+  recommendations: OpsMatchingAllRoleRecommendationRow[];
+  tags: OpsMatchingAllRoleTagRow[];
+}) {
+  const tagMap = new Map<string, OpsMatchingTalentTag[]>();
+  for (const tag of args.tags) {
+    const key = `${tag.opportunity_id}:${tag.talent_id}`;
+    const current = tagMap.get(key) ?? [];
+    current.push({ id: tag.id, tag: tag.tag });
+    tagMap.set(key, current);
+  }
+
+  const counts = new Map<string, OpsMatchingAllRoleCandidateCounts>();
+  const seenRoleTalentKeys = new Set<string>();
+  for (const recommendation of args.recommendations) {
+    const roleTalentKey = `${recommendation.role_id}:${recommendation.talent_id}`;
+    if (seenRoleTalentKeys.has(roleTalentKey)) continue;
+    seenRoleTalentKeys.add(roleTalentKey);
+
+    const current = counts.get(recommendation.role_id) ?? {
+      accepted: 0,
+      pendingConnection: 0,
+      processEnded: 0,
+      processInProgress: 0,
+      suggested: 0,
+    };
+    const tags = tagMap.get(roleTalentKey) ?? [];
+    const stage = getOpsMatchingReviewStage({
+      feedback: recommendation.feedback,
+      tags,
+    }).stage;
+    const isCustomStage = tags.some((tag) => isCustomReviewStageTag(tag.tag));
+    const savedStage = normalizeText(recommendation.saved_stage).toLowerCase();
+    const isArchived = stage === "archived" || savedStage === "archived";
+    const isProcessEnded =
+      ALL_ROLE_TERMINAL_STAGES.has(stage) ||
+      isArchived ||
+      savedStage === "rejected";
+
+    current.suggested += 1;
+    if (
+      !isArchived &&
+      (isAcceptedFeedback(recommendation.feedback) || savedStage === "accepted")
+    ) {
+      current.accepted += 1;
+    }
+    if (stage === "pending_connection") current.pendingConnection += 1;
+    if (isProcessEnded) current.processEnded += 1;
+    if (
+      !isProcessEnded &&
+      (ALL_ROLE_IN_PROGRESS_STAGES.has(stage) ||
+        isCustomStage ||
+        savedStage === "accepted")
+    ) {
+      current.processInProgress += 1;
+    }
+    counts.set(recommendation.role_id, current);
+  }
+
+  return counts;
+}
+
+export async function fetchOpsMatchingAllRoles(args: {
+  limit?: number;
+  offset?: number;
+  query?: string | null;
+  selfServeOnly?: boolean;
+}): Promise<OpsMatchingAllRolesResponse> {
+  const limit = Math.max(
+    1,
+    Math.min(
+      MAX_MATCHING_TALENT_LIMIT,
+      args.limit ?? OPS_MATCHING_ALL_ROLES_PAGE_SIZE
+    )
+  );
+  const offset = Math.max(0, args.offset ?? 0);
+  const query = normalizeText(args.query);
+  const selfServeOnly = Boolean(args.selfServeOnly);
+  const admin = getSupabaseAdmin();
+  const searchRoleIds = query
+    ? await fetchOpsMatchingAllRoleSearchIds({ admin, query })
+    : null;
+
+  if (searchRoleIds && searchRoleIds.length === 0) {
+    return emptyOpsMatchingAllRolesResponse({
+      limit,
+      offset,
+      query,
+      selfServeOnly,
+    });
+  }
+
+  const roleSelect = [
+    "role_id",
+    "company_workspace_id",
+    "name",
+    "external_jd_url",
+    "description",
+    "description_summary",
+    "type",
+    "status",
+    "request",
+    "created_at",
+    "updated_at",
+    "source_type",
+    "source_provider",
+    "source_job_id",
+    "posted_at",
+    "expires_at",
+    "location_text",
+    "work_mode",
+    selfServeOnly
+      ? "company_internal_roles!inner(is_auto)"
+      : "company_internal_roles(is_auto)",
+  ].join(", ");
+  let roleQuery = (admin.from("company_roles" as any) as any)
+    .select(roleSelect, { count: "exact" })
+    .eq("source_type", "internal");
+
+  if (selfServeOnly) {
+    roleQuery = roleQuery.eq("company_internal_roles.is_auto", true);
+  }
+  if (searchRoleIds) {
+    roleQuery = roleQuery.in("role_id", searchRoleIds);
+  }
+
+  const { data, error, count } = await roleQuery
+    .order("company_workspace_id", { ascending: true })
+    .order("updated_at", { ascending: false })
+    .order("role_id", { ascending: true })
+    .range(offset, offset + limit - 1);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load all internal roles");
+  }
+
+  const roleRows = (data ?? []) as OpsMatchingAllRoleRow[];
+  const roleIds = roleRows.map((row) => row.role_id);
+  const workspaceIds = Array.from(
+    new Set(roleRows.map((row) => row.company_workspace_id))
+  );
+  const [workspaceResult, recommendations] = await Promise.all([
+    workspaceIds.length > 0
+      ? admin
+          .from("company_workspace")
+          .select("company_workspace_id, company_name, logo_url")
+          .in("company_workspace_id", workspaceIds)
+      : Promise.resolve({ data: [], error: null }),
+    fetchOpsMatchingAllRoleRecommendations({ admin, roleIds }),
+  ]);
+
+  if (workspaceResult.error) {
+    throw new Error(
+      workspaceResult.error.message ?? "Failed to load role companies"
+    );
+  }
+
+  const tags = await fetchOpsMatchingAllRoleTags({
+    admin,
+    roleIds,
+    talentIds: Array.from(new Set(recommendations.map((row) => row.talent_id))),
+  });
+  const candidateCountMap = buildOpsMatchingAllRoleCandidateCountMap({
+    recommendations,
+    tags,
+  });
+  const workspaceMap = new Map(
+    (workspaceResult.data ?? []).map((workspace) => [
+      workspace.company_workspace_id,
+      workspace,
+    ])
+  );
+  const totalCount = count ?? roleRows.length;
+  const nextOffset =
+    offset + roleRows.length < totalCount ? offset + roleRows.length : null;
+
+  return {
+    hasMore: nextOffset !== null,
+    items: roleRows.map((role) => {
+      const workspace = workspaceMap.get(role.company_workspace_id);
+      return {
+        candidateCounts: candidateCountMap.get(role.role_id) ?? {
+          accepted: 0,
+          pendingConnection: 0,
+          processEnded: 0,
+          processInProgress: 0,
+          suggested: 0,
+        },
+        companyName: workspace?.company_name ?? "회사명 없음",
+        companyWorkspaceId: role.company_workspace_id,
+        createdAt: role.created_at,
+        description: role.description,
+        descriptionSummary: role.description_summary,
+        employmentTypes: normalizeAllRoleEmploymentTypes(role.type),
+        expiresAt: role.expires_at,
+        externalJdUrl: role.external_jd_url,
+        isAuto: getAllRoleIsAuto(role),
+        locationText: role.location_text,
+        logoUrl: workspace?.logo_url ?? null,
+        name: role.name,
+        postedAt: role.posted_at,
+        request: role.request,
+        roleId: role.role_id,
+        sourceJobId: role.source_job_id,
+        sourceProvider: role.source_provider,
+        sourceType: "internal",
+        status: normalizeAllRoleStatus(role.status),
+        updatedAt: role.updated_at,
+        workMode: normalizeAllRoleWorkMode(role.work_mode),
+      } satisfies OpsMatchingAllRoleItem;
+    }),
+    limit,
+    nextOffset,
+    offset,
+    query,
+    selfServeOnly,
+    totalCount,
+  };
+}
+
+export async function updateOpsMatchingAllRole(args: {
+  isAuto?: boolean;
+  roleId?: string | null;
+  status?: OpportunityStatus;
+}): Promise<OpsMatchingAllRoleUpdateResponse> {
+  const roleId = normalizeText(args.roleId);
+  if (!roleId) throw new Error("roleId is required");
+  if (typeof args.isAuto !== "boolean" && !args.status) {
+    throw new Error("No role changes provided");
+  }
+
+  const admin = getSupabaseAdmin();
+  const now = new Date().toISOString();
+  const { data: existingRole, error: existingRoleError } = await admin
+    .from("company_roles")
+    .select("role_id")
+    .eq("role_id", roleId)
+    .eq("source_type", "internal")
+    .maybeSingle();
+  if (existingRoleError || !existingRole) {
+    throw new Error(existingRoleError?.message ?? "Internal role not found");
+  }
+
+  if (typeof args.isAuto === "boolean") {
+    const { error } = await admin.from("company_internal_roles").upsert(
+      {
+        is_auto: args.isAuto,
+        role_id: roleId,
+        updated_at: now,
+      },
+      { onConflict: "role_id" }
+    );
+    if (error) {
+      throw new Error(error.message ?? "Failed to update automatic matching");
+    }
+  }
+
+  if (args.status) {
+    const status = normalizeAllRoleStatus(args.status);
+    const { data, error } = await admin
+      .from("company_roles")
+      .update({ status, updated_at: now })
+      .eq("role_id", roleId)
+      .eq("source_type", "internal")
+      .select("role_id")
+      .maybeSingle();
+    if (error || !data) {
+      throw new Error(error?.message ?? "Internal role not found");
+    }
+  }
+
+  const [roleResult, metadataResult] = await Promise.all([
+    admin
+      .from("company_roles")
+      .select("role_id, status")
+      .eq("role_id", roleId)
+      .eq("source_type", "internal")
+      .maybeSingle(),
+    admin
+      .from("company_internal_roles")
+      .select("is_auto")
+      .eq("role_id", roleId)
+      .maybeSingle(),
+  ]);
+
+  if (roleResult.error || !roleResult.data) {
+    throw new Error(roleResult.error?.message ?? "Internal role not found");
+  }
+  if (metadataResult.error) {
+    throw new Error(
+      metadataResult.error.message ?? "Failed to load automatic matching"
+    );
+  }
+
+  return {
+    isAuto: metadataResult.data?.is_auto === true,
+    roleId,
+    status: normalizeAllRoleStatus(roleResult.data.status),
+  };
 }
 
 export async function fetchOpsMatchingCompanies(args: {
@@ -2684,9 +3268,7 @@ async function fetchFitRecommendationMap(args: {
     for (const roleChunk of chunkValues(roleIds)) {
       const { data, error } = await args.admin
         .from("talent_opportunity_recommendation")
-        .select(
-          "id, talent_id, role_id, discovery_run_id, created_at"
-        )
+        .select("id, talent_id, role_id, discovery_run_id, created_at")
         .in("talent_id", talentChunk)
         .in("role_id", roleChunk)
         .order("created_at", { ascending: false, nullsFirst: false })

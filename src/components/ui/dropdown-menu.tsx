@@ -78,12 +78,29 @@ const DropdownMenuContent = React.forwardRef<
 ));
 DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
 
+type DropdownMenuItemVariant = "sm" | "md";
+
+const dropdownMenuItemVariantClassNames: Record<
+  DropdownMenuItemVariant,
+  string
+> = {
+  sm: "gap-1.5 rounded-[8px] px-2.5 py-1.5 text-[13px] font-normal [&>svg]:size-3.5 [&>svg]:stroke-[1.75]",
+  md: "gap-2 rounded-[10px] px-3 py-2 text-sm font-medium [&>svg]:size-4 [&>svg]:stroke-2",
+};
+
+const dropdownMenuItemCheckClassNames: Record<DropdownMenuItemVariant, string> =
+  {
+    sm: "h-3.5 w-3.5 stroke-[1.75]",
+    md: "h-4 w-4 stroke-2",
+  };
+
 const DropdownMenuItem = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Item>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> & {
     inset?: boolean;
     selected?: boolean;
     tone?: "default" | "danger";
+    variant?: DropdownMenuItemVariant;
   }
 >(
   (
@@ -92,6 +109,7 @@ const DropdownMenuItem = React.forwardRef<
       inset,
       selected = false,
       tone = "default",
+      variant = "md",
       children,
       asChild,
       ...props
@@ -99,10 +117,11 @@ const DropdownMenuItem = React.forwardRef<
     ref
   ) => {
     const itemClassName = cn(
-      "relative flex cursor-default select-none items-center gap-2 rounded-[10px] px-3 py-2 text-sm text-neutral-primary outline-none transition-colors focus:bg-bg-weak focus:text-neutral-primary data-disabled:pointer-events-none data-disabled:opacity-50 [&>svg]:size-4 [&>svg]:shrink-0",
-      selected && "bg-bg-weak text-neutral-primary",
+      "relative flex cursor-default select-none items-center text-neutral-primary outline-none transition-colors hover:bg-black/5 focus:bg-black/5 focus:text-neutral-primary data-[highlighted]:bg-black/5 data-[highlighted]:text-neutral-primary data-disabled:pointer-events-none data-disabled:opacity-50 [&>svg]:shrink-0",
+      dropdownMenuItemVariantClassNames[variant],
+      selected && "bg-black/5 text-neutral-primary",
       tone === "danger" &&
-        "text-critical focus:bg-critical-faded focus:text-critical",
+        "text-critical focus:bg-black/5 focus:text-critical data-[highlighted]:text-critical",
       inset && "pl-8",
       className
     );
@@ -128,7 +147,12 @@ const DropdownMenuItem = React.forwardRef<
       >
         {children}
         {selected ? (
-          <Check className="ml-auto h-4 w-4 shrink-0 text-neutral-muted" />
+          <Check
+            className={cn(
+              "ml-auto shrink-0 text-neutral-muted",
+              dropdownMenuItemCheckClassNames[variant]
+            )}
+          />
         ) : null}
       </DropdownMenuPrimitive.Item>
     );
@@ -138,25 +162,43 @@ DropdownMenuItem.displayName = DropdownMenuPrimitive.Item.displayName;
 
 const DropdownMenuCheckboxItem = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.CheckboxItem>,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.CheckboxItem>
->(({ className, children, checked, ...props }, ref) => (
-  <DropdownMenuPrimitive.CheckboxItem
-    ref={ref}
-    className={cn(
-      "relative flex cursor-default select-none items-center rounded-[10px] py-2 pl-8 pr-3 text-sm text-neutral-primary outline-none transition-colors focus:bg-bg-weak focus:text-neutral-primary data-disabled:pointer-events-none data-disabled:opacity-50",
-      className
-    )}
-    checked={checked}
-    {...props}
-  >
-    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-      <DropdownMenuPrimitive.ItemIndicator>
-        <Check className="h-4 w-4" />
-      </DropdownMenuPrimitive.ItemIndicator>
-    </span>
-    {children}
-  </DropdownMenuPrimitive.CheckboxItem>
-));
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.CheckboxItem> & {
+    indicatorPosition?: "left" | "right";
+  }
+>(
+  (
+    { className, children, checked, indicatorPosition = "left", ...props },
+    ref
+  ) => (
+    <DropdownMenuPrimitive.CheckboxItem
+      ref={ref}
+      className={cn(
+        "relative flex cursor-default select-none items-center rounded-[10px] py-2 text-sm text-neutral-primary outline-none transition-colors focus:bg-bg-weak focus:text-neutral-primary data-disabled:pointer-events-none data-disabled:opacity-50",
+        className,
+        indicatorPosition === "left" && "pl-8 pr-3",
+        indicatorPosition === "right" && "pl-3 pr-8"
+      )}
+      checked={checked}
+      {...props}
+    >
+      {indicatorPosition === "left" && (
+        <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+          <DropdownMenuPrimitive.ItemIndicator>
+            <Check className="h-4 w-4" />
+          </DropdownMenuPrimitive.ItemIndicator>
+        </span>
+      )}
+      {children}
+      {indicatorPosition === "right" && (
+        <span className="absolute right-2 flex h-3.5 w-3.5 items-center justify-center">
+          <DropdownMenuPrimitive.ItemIndicator>
+            <Check className="h-4 w-4" />
+          </DropdownMenuPrimitive.ItemIndicator>
+        </span>
+      )}
+    </DropdownMenuPrimitive.CheckboxItem>
+  )
+);
 DropdownMenuCheckboxItem.displayName =
   DropdownMenuPrimitive.CheckboxItem.displayName;
 

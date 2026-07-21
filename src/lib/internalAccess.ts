@@ -21,6 +21,10 @@ export function getEmailDomain(value: string | null | undefined) {
   return normalized.slice(atIndex + 1);
 }
 
+export function isInternalDomainEmail(value: string | null | undefined) {
+  return getEmailDomain(value) === INTERNAL_EMAIL_DOMAIN;
+}
+
 export function isInternalEmail(value: string | null | undefined) {
   const normalized = normalizeEmail(value);
   return (

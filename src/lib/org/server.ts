@@ -88,6 +88,7 @@ export type OrgBootstrapResponse = {
 
 export type OrgBuiltInStageId =
   | "pending_connection"
+  | "connected"
   | "final_offer"
   | "process_stopped";
 export type OrgCustomStageId = `custom:${string}`;
@@ -162,6 +163,7 @@ export type OrgBoardResponse = {
 };
 
 export type OrgFeedActor = {
+  companyUserId: string;
   email: string | null;
   name: string | null;
   profilePicture: string | null;
@@ -170,6 +172,7 @@ export type OrgFeedActor = {
 
 export type OrgFeedItem = {
   actor: OrgFeedActor | null;
+  companyUserId: string | null;
   createdAt: string;
   id: string;
   kind: string;
@@ -242,6 +245,10 @@ export type OrgFeedCreateResponse = {
   ok: true;
 };
 
+export type OrgFeedMutationResponse = {
+  ok: true;
+};
+
 export type OrgResumeAccessResponse = {
   ok: true;
   url: string;
@@ -261,11 +268,12 @@ const CUSTOM_STAGE_TAG_PREFIX = "내부단계:";
 const MAX_ORG_ROLE_STAGE_LABEL_LENGTH = 40;
 const STAGE_TAG_BY_STAGE: Record<OrgBuiltInStageId, string> = {
   pending_connection: "내부:연결대기",
+  connected: "내부:수락",
   final_offer: "내부:최종오퍼",
   process_stopped: "내부:프로세스중단",
 };
 const EXTRA_INTERNAL_STAGE_TAGS = [
-  "내부:수락",
+  "내부:연결됨",
   "내부:아카이브",
   "내부:보류",
   "내부:추천",
@@ -287,6 +295,11 @@ function normalizeText(value: unknown) {
 function normalizeNullableText(value: unknown) {
   const text = normalizeText(value);
   return text || null;
+}
+
+function getJsonRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value as Record<string, unknown>;
 }
 
 function normalizeLooseEmailList(value: unknown) {
@@ -352,6 +365,7 @@ const ORG_ROLE_STATUS_VALUES = [
   "active",
   "ended",
   "paused",
+  "deleted",
 ] as const;
 const ORG_ROLE_EMPLOYMENT_TYPE_VALUES = [
   "full_time",
@@ -656,14 +670,21 @@ function customTagKeyFromStageRow(row: RoleStageRow) {
 
 function buildStageLabel(stage: OrgStageId, customStages: RoleStageRow[]) {
   if (stage === "pending_connection") return "연결 대기";
+  if (stage === "connected") return "연결됨";
   if (stage === "final_offer") return "최종 오퍼";
   if (stage === "process_stopped") return "프로세스 중단";
   const stageId = getCustomStageDbId(stage);
   return customStages.find((item) => item.id === stageId)?.label ?? "단계";
 }
 
+function buildStageDestinationLabel(label: string) {
+  if (label === "연결됨") return "연결됨으로";
+  return `${label}로`;
+}
+
 function stageSortOrder(stage: OrgStageId, customStages: RoleStageRow[]) {
   if (stage === "pending_connection") return 0;
+  if (stage === "connected") return 1;
   if (stage === "final_offer") return 10_000;
   if (stage === "process_stopped") return 10_001;
   const stageId = getCustomStageDbId(stage);
@@ -679,6 +700,9 @@ function getVisibleOrgStage(args: {
     const tagKey = normalizeTagKey(tag.tag);
     const builtIn = STAGE_BY_TAG_KEY.get(tagKey);
     if (builtIn) return { stage: builtIn, stageTag: tag.tag };
+    if (tagKey === normalizeTagKey("내부:연결됨")) {
+      return { stage: "connected", stageTag: tag.tag };
+    }
 
     const custom = args.customStageByTagKey.get(tagKey);
     if (custom) return { stage: custom, stageTag: tag.tag };
@@ -1036,6 +1060,7 @@ function buildBoardStages(args: {
 }) {
   const stages: OrgStage[] = [
     { id: "pending_connection", label: "연결 대기", sortOrder: 0 },
+    { id: "connected", label: "연결됨", sortOrder: 1 },
     ...args.customStages.map((row) => {
       const roleName = args.roleById.get(row.role_id)?.name ?? null;
       return {
@@ -1342,6 +1367,16 @@ function getOrgIntroFromEmail() {
   return `Harper <${address}>`;
 }
 
+function isOrgIntroMailTypeConstraintError(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const row = error as { code?: unknown; message?: unknown };
+  return (
+    row.code === "23514" &&
+    typeof row.message === "string" &&
+    row.message.includes("career_email_messages_mail_type_check")
+  );
+}
+
 async function sendOrgIntroEmail(args: {
   acceptReason: string;
   admin: SupabaseAdminClient;
@@ -1450,27 +1485,50 @@ async function sendOrgIntroEmail(args: {
     source: "org_candidate_acceptance",
     workspaceId: args.workspace.company_workspace_id,
   } satisfies Record<string, unknown>;
-  const { error: pendingError } = await (
+  let messageMetadata: Record<string, unknown> = baseMetadata;
+  const queuedMessage = {
+    body_text: body,
+    created_by: args.companyUser.userId,
+    direction: "outbound",
+    from_email: fromEmail,
+    id: identity.messageId,
+    mail_type: "org_intro",
+    metadata: messageMetadata as Json,
+    occurred_at: now,
+    status: "queued",
+    subject,
+    talent_id: args.candidate.talentId,
+    to_email: candidateEmail,
+  };
+  let { error: queueError } = await (
     args.admin.from("career_email_messages" as any) as any
-  ).upsert(
-    {
-      body_text: body,
-      created_by: args.companyUser.userId,
-      direction: "outbound",
-      from_email: fromEmail,
-      id: identity.messageId,
-      mail_type: "org_intro",
-      metadata: baseMetadata as Json,
-      occurred_at: now,
-      status: "pending",
-      subject,
-      talent_id: args.candidate.talentId,
-      to_email: candidateEmail,
-    },
-    { onConflict: "id" }
-  );
+  ).upsert(queuedMessage, { onConflict: "id" });
 
-  if (pendingError) throw pendingError;
+  if (isOrgIntroMailTypeConstraintError(queueError)) {
+    messageMetadata = {
+      ...baseMetadata,
+      intendedMailType: "org_intro",
+      schemaFallback: "career_email_messages_mail_type_check",
+      storedMailType: "other",
+    };
+    console.warn(
+      "[org/intro-email] org_intro mail type is not available; retrying as other",
+      { messageId: identity.messageId }
+    );
+    const fallbackResult = await (
+      args.admin.from("career_email_messages" as any) as any
+    ).upsert(
+      {
+        ...queuedMessage,
+        mail_type: "other",
+        metadata: messageMetadata as Json,
+      },
+      { onConflict: "id" }
+    );
+    queueError = fallbackResult.error;
+  }
+
+  if (queueError) throw queueError;
 
   let sendResult: { id?: string };
   try {
@@ -1489,7 +1547,7 @@ async function sendOrgIntroEmail(args: {
     )
       .update({
         metadata: {
-          ...baseMetadata,
+          ...messageMetadata,
           sendError: error instanceof Error ? error.message : String(error),
         } as Json,
         status: "failed",
@@ -1510,7 +1568,7 @@ async function sendOrgIntroEmail(args: {
   )
     .update({
       metadata: {
-        ...baseMetadata,
+        ...messageMetadata,
         resendEmailId: sendResult.id ?? null,
       } as Json,
       occurred_at: sentAt,
@@ -1531,6 +1589,7 @@ async function sendOrgIntroEmail(args: {
 function getStageTagForInsert(stage: OrgStageId) {
   if (stage === "pending_connection")
     return STAGE_TAG_BY_STAGE.pending_connection;
+  if (stage === "connected") return STAGE_TAG_BY_STAGE.connected;
   if (stage === "final_offer") return STAGE_TAG_BY_STAGE.final_offer;
   if (stage === "process_stopped") return STAGE_TAG_BY_STAGE.process_stopped;
   const customStageId = getCustomStageDbId(stage);
@@ -1601,6 +1660,7 @@ export async function setOrgCandidateStage(args: {
   }
 
   await assertOrgWorkspaceAccess({ admin, user: args.user, workspaceId });
+  await upsertOrgCompanyUser(admin, args.user);
   const roleRows = await fetchRoleRowsForWorkspace(admin, workspaceId);
   const role = roleRows.find((row) => row.role_id === roleId);
   if (!role) throw new OrgHttpError(404, "Role not found");
@@ -1700,16 +1760,17 @@ export async function setOrgCandidateStage(args: {
 
   const previousLabel = buildStageLabel(previousStage, stageRows);
   const nextLabel = buildStageLabel(stage, stageRows);
+  const nextDestinationLabel = buildStageDestinationLabel(nextLabel);
   const baseText =
     stage === "process_stopped"
       ? `프로세스 중단으로 옮겼습니다.`
       : isIntroRequested
         ? previousStage === stage
           ? `warm intro를 요청했습니다.`
-          : `${nextLabel}로 옮기고 warm intro를 요청했습니다.`
+          : `${nextDestinationLabel} 옮기고 warm intro를 요청했습니다.`
         : previousStage === stage
-          ? `${nextLabel}로 표시했습니다.`
-          : `${previousLabel}에서 ${nextLabel}로 옮겼습니다.`;
+          ? `${nextDestinationLabel} 표시했습니다.`
+          : `${previousLabel}에서 ${nextDestinationLabel} 옮겼습니다.`;
   const text =
     stage !== "process_stopped" && acceptReason
       ? `${baseText}\n수락 이유: ${acceptReason}`
@@ -1734,6 +1795,7 @@ export async function setOrgCandidateStage(args: {
   const { error: progressError } = await (
     admin.from("talent_progress" as any) as any
   ).insert({
+    company_user_id: args.user.id,
     kind: "org_stage_change",
     metadata: metadata as Json,
     recommendation_id: recommendationId,
@@ -1813,6 +1875,7 @@ export async function createOrgTalentFeedItem(args: {
   }
 
   await assertOrgWorkspaceAccess({ admin, user: args.user, workspaceId });
+  await upsertOrgCompanyUser(admin, args.user);
   const roleRows = await fetchRoleRowsForWorkspace(admin, workspaceId);
   if (!roleRows.some((row) => row.role_id === roleId)) {
     throw new OrgHttpError(404, "Role not found");
@@ -1826,6 +1889,7 @@ export async function createOrgTalentFeedItem(args: {
   });
 
   const { error } = await (admin.from("talent_progress" as any) as any).insert({
+    company_user_id: args.user.id,
     kind: "org_note",
     metadata: {
       org: true,
@@ -1837,6 +1901,97 @@ export async function createOrgTalentFeedItem(args: {
     text,
     user_id: getUserEmail(args.user),
   });
+
+  if (error) throw error;
+  return { ok: true };
+}
+
+async function fetchMutableOrgFeedRow(args: {
+  admin: SupabaseAdminClient;
+  progressId: string;
+  user: User;
+  workspaceId: string;
+}) {
+  const progressId = normalizeText(args.progressId);
+  const workspaceId = normalizeText(args.workspaceId);
+  if (!progressId || !workspaceId) {
+    throw new OrgHttpError(400, "Missing required fields");
+  }
+
+  await assertOrgWorkspaceAccess({
+    admin: args.admin,
+    user: args.user,
+    workspaceId,
+  });
+
+  const { data, error } = await (
+    args.admin.from("talent_progress" as any) as any
+  )
+    .select(
+      "id, talent_id, role_id, recommendation_id, text, kind, metadata, company_user_id, user_id, created_at"
+    )
+    .eq("id", progressId)
+    .maybeSingle();
+
+  if (error) throw error;
+  const row = data as TalentProgressRow | null;
+  if (!row) throw new OrgHttpError(404, "Feed item not found");
+  if (row.company_user_id !== args.user.id) {
+    throw new OrgHttpError(403, "Feed item access denied");
+  }
+  if (row.kind !== "org_note") {
+    throw new OrgHttpError(400, "Only notes can be changed");
+  }
+
+  const roleRows = await fetchRoleRowsForWorkspace(args.admin, workspaceId);
+  if (!roleRows.some((role) => role.role_id === row.role_id)) {
+    throw new OrgHttpError(403, "Feed item access denied");
+  }
+
+  return row;
+}
+
+export async function updateOrgTalentFeedItem(args: {
+  progressId: string;
+  text: string;
+  user: User;
+  workspaceId: string;
+}): Promise<OrgFeedMutationResponse> {
+  const admin = getSupabaseAdmin();
+  const text = normalizeText(args.text).slice(0, 2000);
+  if (!text) throw new OrgHttpError(400, "Text is required");
+
+  const row = await fetchMutableOrgFeedRow({
+    admin,
+    progressId: args.progressId,
+    user: args.user,
+    workspaceId: args.workspaceId,
+  });
+
+  const { error } = await (admin.from("talent_progress" as any) as any)
+    .update({ text })
+    .eq("id", row.id);
+
+  if (error) throw error;
+  return { ok: true };
+}
+
+export async function deleteOrgTalentFeedItem(args: {
+  progressId: string;
+  user: User;
+  workspaceId: string;
+}): Promise<OrgFeedMutationResponse> {
+  const admin = getSupabaseAdmin();
+  const row = await fetchMutableOrgFeedRow({
+    admin,
+    progressId: args.progressId,
+    user: args.user,
+    workspaceId: args.workspaceId,
+  });
+
+  const { error } = await (admin.from("talent_progress" as any) as any)
+    .delete()
+    .eq("id", row.id);
 
   if (error) throw error;
   return { ok: true };
@@ -1956,7 +2111,7 @@ async function fetchRecommendationForDetail(args: {
     args.admin.from("talent_opportunity_recommendation" as any) as any
   )
     .select(
-      "id, talent_id, role_id, fit_summary, fit_reasons, recommended_at, created_at, updated_at"
+      "id, talent_id, role_id, fit_summary, fit_reasons, feedback, feedback_at, feedback_reason, recommended_at, created_at, updated_at"
     )
     .eq("talent_id", args.talentId)
     .order("recommended_at", { ascending: false })
@@ -1976,47 +2131,30 @@ async function fetchProgressActors(
   admin: SupabaseAdminClient,
   progressRows: TalentProgressRow[]
 ) {
-  const actorKeys = uniqueTexts(
-    progressRows.flatMap((row) => (row.user_id ? [row.user_id] : []))
+  const companyUserIds = uniqueTexts(
+    progressRows.flatMap((row) =>
+      row.company_user_id ? [row.company_user_id] : []
+    )
   );
-  if (actorKeys.length === 0) return new Map<string, OrgFeedActor>();
-  const actorEmailKeys = uniqueTexts([
-    ...actorKeys,
-    ...actorKeys.map((key) => key.toLowerCase()),
-  ]);
+  if (companyUserIds.length === 0) return new Map<string, OrgFeedActor>();
 
-  const [byIdResult, byEmailResult] = await Promise.all([
-    (admin.from("company_users" as any) as any)
-      .select("user_id, email, name, profile_picture")
-      .in("user_id", actorKeys),
-    (admin.from("company_users" as any) as any)
-      .select("user_id, email, name, profile_picture")
-      .in("email", actorEmailKeys),
-  ]);
+  const { data, error } = await (admin.from("company_users" as any) as any)
+    .select("user_id, email, name, profile_picture")
+    .in("user_id", companyUserIds);
 
-  if (byIdResult.error) throw byIdResult.error;
-  if (byEmailResult.error) throw byEmailResult.error;
-  const rows = [
-    ...((byIdResult.data ?? []) as CompanyUserRow[]),
-    ...((byEmailResult.data ?? []) as CompanyUserRow[]),
-  ];
+  if (error) throw error;
+  const rows = (data ?? []) as CompanyUserRow[];
   const userById = new Map(rows.map((row) => [row.user_id, row]));
-  const userByEmail = new Map(
-    rows.flatMap((row) => {
-      const email = normalizeText(row.email).toLowerCase();
-      return email ? [[email, row] as const] : [];
-    })
-  );
 
   return new Map(
-    actorKeys.flatMap((actorKey) => {
-      const row =
-        userById.get(actorKey) ?? userByEmail.get(actorKey.toLowerCase());
+    companyUserIds.flatMap((companyUserId) => {
+      const row = userById.get(companyUserId);
       if (!row) return [];
       return [
         [
-          actorKey,
+          companyUserId,
           {
+            companyUserId: row.user_id,
             email: row.email ?? null,
             name: row.name ?? null,
             profilePicture: row.profile_picture ?? null,
@@ -2037,6 +2175,93 @@ function optionalRows<T>(
     return [] as T[];
   }
   return ((result.data ?? []) as T[]) ?? [];
+}
+
+function isAcceptedFeedback(feedback: string | null | undefined) {
+  const normalized = normalizeText(feedback).toLowerCase();
+  return normalized === "like" || normalized === "positive";
+}
+
+function isRejectedFeedback(feedback: string | null | undefined) {
+  const normalized = normalizeText(feedback).toLowerCase();
+  return normalized === "dislike" || normalized === "negative";
+}
+
+function appendReason(text: string, reason: string | null) {
+  return reason ? `${text}\n이유: ${reason}` : text;
+}
+
+function getOrgStageChangeFeedKind(row: TalentProgressRow) {
+  if (row.kind !== "org_stage_change") return row.kind;
+  const metadata = getJsonRecord(row.metadata);
+  const stage = normalizeText(metadata.stage);
+  const acceptReason = normalizeNullableText(metadata.acceptReason);
+  const stopNote = normalizeNullableText(metadata.stopNote);
+
+  if (stage === "connected" || acceptReason) return "org_acceptance";
+  if (stage === "process_stopped" || stopNote) return "org_rejection";
+  return row.kind;
+}
+
+function getOrgProgressFeedText(row: TalentProgressRow) {
+  if (row.kind !== "org_stage_change") return row.text;
+  const metadata = getJsonRecord(row.metadata);
+  const kind = getOrgStageChangeFeedKind(row);
+
+  if (kind === "org_acceptance") {
+    return appendReason(
+      "수락했습니다.",
+      normalizeNullableText(metadata.acceptReason)
+    );
+  }
+  if (kind === "org_rejection") {
+    return appendReason(
+      "거절했습니다.",
+      normalizeNullableText(metadata.stopNote)
+    );
+  }
+  return row.text;
+}
+
+function buildRecommendationFeedbackFeedItem(args: {
+  recommendation: RecommendationRow;
+  roleName: string | null;
+}): OrgFeedItem | null {
+  const accepted = isAcceptedFeedback(args.recommendation.feedback);
+  const rejected = isRejectedFeedback(args.recommendation.feedback);
+  if (!accepted && !rejected) return null;
+
+  const actionText = accepted ? "수락" : "거절";
+  return {
+    actor: null,
+    companyUserId: null,
+    createdAt:
+      args.recommendation.feedback_at ??
+      args.recommendation.updated_at ??
+      args.recommendation.recommended_at,
+    id: `recommendation-feedback:${args.recommendation.id}`,
+    kind: accepted
+      ? "talent_recommendation_accepted"
+      : "talent_recommendation_rejected",
+    recommendationId: args.recommendation.id,
+    roleId: args.recommendation.role_id,
+    roleName: args.roleName,
+    text: appendReason(
+      `Talent가 이 추천을 ${actionText}했습니다.`,
+      normalizeNullableText(args.recommendation.feedback_reason)
+    ),
+  };
+}
+
+function sortOrgFeedItems(items: OrgFeedItem[]) {
+  return items.sort((left, right) => {
+    const leftTime = Date.parse(left.createdAt);
+    const rightTime = Date.parse(right.createdAt);
+    return (
+      (Number.isFinite(rightTime) ? rightTime : 0) -
+      (Number.isFinite(leftTime) ? leftTime : 0)
+    );
+  });
 }
 
 export async function fetchOrgTalentDetail(args: {
@@ -2097,10 +2322,11 @@ export async function fetchOrgTalentDetail(args: {
       .order("created_at", { ascending: false }),
     (admin.from("talent_progress" as any) as any)
       .select(
-        "id, talent_id, role_id, recommendation_id, text, kind, metadata, user_id, created_at"
+        "id, talent_id, role_id, recommendation_id, text, kind, metadata, company_user_id, user_id, created_at"
       )
       .eq("talent_id", talentId)
       .eq("role_id", recommendation.role_id)
+      .in("kind", ["org_stage_change", "org_note"])
       .order("created_at", { ascending: false })
       .limit(50),
   ]);
@@ -2133,17 +2359,31 @@ export async function fetchOrgTalentDetail(args: {
     }
   );
 
-  return {
-    feed: progressRows.map((row) => ({
-      actor: row.user_id ? (actorById.get(row.user_id) ?? null) : null,
+  const progressFeedItems: OrgFeedItem[] = progressRows.map((row) => {
+    const actorKey = row.company_user_id;
+    return {
+      actor: actorKey ? (actorById.get(actorKey) ?? null) : null,
+      companyUserId: row.company_user_id ?? null,
       createdAt: row.created_at,
       id: row.id,
-      kind: row.kind,
+      kind: getOrgStageChangeFeedKind(row),
       recommendationId: row.recommendation_id ?? null,
       roleId: row.role_id,
       roleName: roleRow.name,
-      text: row.text,
-    })),
+      text: getOrgProgressFeedText(row),
+    };
+  });
+  const recommendationFeedbackItem = buildRecommendationFeedbackFeedItem({
+    recommendation,
+    roleName: roleRow.name,
+  });
+
+  return {
+    feed: sortOrgFeedItems(
+      recommendationFeedbackItem
+        ? [...progressFeedItems, recommendationFeedbackItem]
+        : progressFeedItems
+    ).slice(0, 50),
     profile: {
       bio: talent.bio ?? null,
       educations: educations.map((education) => ({
@@ -2296,6 +2536,7 @@ export async function updateOrgRole(args: {
   description?: string | null;
   employmentTypes?: string[] | null;
   externalJdUrl?: string | null;
+  isExpired?: boolean | null;
   locationText?: string | null;
   name?: string | null;
   request?: string | null;
@@ -2318,18 +2559,23 @@ export async function updateOrgRole(args: {
     throw new OrgHttpError(400, "Role title is required");
   }
 
+  const patch: Record<string, unknown> = {
+    description: args.description ?? null,
+    external_jd_url: normalizeNullableText(args.externalJdUrl),
+    location_text: normalizeNullableText(args.locationText),
+    name,
+    request: args.request ?? null,
+    status: normalizeOrgRoleStatus(args.status),
+    type: normalizeOrgRoleEmploymentTypes(args.employmentTypes),
+    updated_at: new Date().toISOString(),
+    work_mode: normalizeOrgRoleWorkMode(args.workMode),
+  };
+  if (typeof args.isExpired === "boolean") {
+    patch.is_expired = args.isExpired;
+  }
+
   const { data, error } = await (admin.from("company_roles" as any) as any)
-    .update({
-      description: args.description ?? null,
-      external_jd_url: normalizeNullableText(args.externalJdUrl),
-      location_text: normalizeNullableText(args.locationText),
-      name,
-      request: args.request ?? null,
-      status: normalizeOrgRoleStatus(args.status),
-      type: normalizeOrgRoleEmploymentTypes(args.employmentTypes),
-      updated_at: new Date().toISOString(),
-      work_mode: normalizeOrgRoleWorkMode(args.workMode),
-    })
+    .update(patch)
     .eq("company_workspace_id", workspaceId)
     .eq("role_id", roleId)
     .select(

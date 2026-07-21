@@ -70,11 +70,6 @@ type DeleteRoleInput = {
   companyWorkspaceId?: string | null;
 };
 
-type UpdateCompanyScrapeOriginalInput = {
-  isScrapeOriginal: boolean;
-  workspaceId: string;
-};
-
 type UpdateCompanyHumanQualityLabelInput = {
   humanQualityLabel: OpsCompanyQualityLabel | null;
   workspaceId: string;
@@ -364,64 +359,6 @@ export function useUpdateOpsCompanyHumanQualityLabel() {
           };
         }
       );
-    },
-    onSettled: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.opsOpportunity.companiesAll,
-      });
-    },
-  });
-}
-
-export function useUpdateOpsCompanyScrapeOriginal() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (input: UpdateCompanyScrapeOriginalInput) =>
-      fetchWithInternalAuth<{
-        isScrapeOriginal: boolean;
-        workspaceId: string;
-      }>("/api/internal/opportunities/companies", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(input),
-      }),
-    onMutate: async (input) => {
-      await queryClient.cancelQueries({
-        queryKey: queryKeys.opsOpportunity.companiesAll,
-      });
-
-      queryClient.setQueriesData<
-        InfiniteData<OpsCompanyManagementPageResponse>
-      >(
-        {
-          queryKey: queryKeys.opsOpportunity.companiesAll,
-        },
-        (current) => {
-          if (!current) return current;
-          return {
-            ...current,
-            pages: current.pages.map((page) => ({
-              ...page,
-              items: page.items.map((item) =>
-                item.companyWorkspaceId === input.workspaceId
-                  ? {
-                      ...item,
-                      isScrapeOriginal: input.isScrapeOriginal,
-                    }
-                  : item
-              ),
-            })),
-          };
-        }
-      );
-    },
-    onError: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.opsOpportunity.companiesAll,
-      });
     },
     onSettled: async () => {
       await queryClient.invalidateQueries({

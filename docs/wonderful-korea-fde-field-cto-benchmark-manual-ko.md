@@ -4,7 +4,7 @@
 
 기준일: 2026-07-17
 
-연결 문서: `docs/internal-company-role-talent-matching-manual-ko.md`
+연결 문서: `../scripts/internal-company-role-talent-matching-manual-ko.md`
 
 1.2 변경 요약:
 
@@ -1593,7 +1593,7 @@ run_id=wonderful-kr-fde-field-cto-<timestamp>
 max_selected=10
 benchmark_mode=current_data_retrospective
 blind=true
-matching_manual=docs/internal-company-role-talent-matching-manual-ko.md
+matching_manual=scripts/internal-company-role-talent-matching-manual-ko.md
 ```
 
 regression test라면 명시한다.

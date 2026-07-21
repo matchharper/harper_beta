@@ -10,6 +10,7 @@ import {
   type TalentAdminClient,
 } from "@/lib/talentOnboarding/server";
 import { ingestTalentProfileFromLinkedin } from "@/lib/talentOnboarding/profileIngestion";
+import type { Json } from "@/types/database.types";
 
 export const runtime = "nodejs";
 export const maxDuration = 240;
@@ -218,7 +219,7 @@ async function processEmailAttachments(args: {
   const texts: string[] = [];
   let resumeFileName = "";
   let resumeStoragePath = "";
-  const processed: Array<Record<string, unknown>> = [];
+  const processed: Json[] = [];
 
   for (const attachment of args.attachments) {
     const normalized = {
@@ -287,13 +288,13 @@ async function processEmailAttachments(args: {
 async function updateInboundEventAttachments(args: {
   admin: UntypedAdmin;
   inboundEventId: string;
-  attachments: Array<Record<string, unknown>>;
+  attachments: Json[];
 }): Promise<string | null> {
   if (!args.inboundEventId) return null;
   const { error } = await args.admin
     .from("email_inbound_events")
     .update({
-      attachments: args.attachments as any,
+      attachments: args.attachments,
     })
     .eq("id", args.inboundEventId);
   if (error) {

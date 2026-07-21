@@ -169,6 +169,18 @@ export const queryKeys = {
   },
   opsMatching: {
     all: ["opsMatching"] as const,
+    allRoles: (filters: {
+      limit?: number | null;
+      query?: string | null;
+      selfServeOnly?: boolean | null;
+    }) =>
+      [
+        "opsMatching",
+        "allRoles",
+        filters.limit ?? 20,
+        filters.query ?? "",
+        Boolean(filters.selfServeOnly),
+      ] as const,
     companies: (query?: string | null) =>
       ["opsMatching", "companies", query ?? ""] as const,
     roles: (companyWorkspaceId?: string | null) =>

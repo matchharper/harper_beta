@@ -6,10 +6,16 @@ import {
   formatDailyUserStatsSlackMessages,
   resolveDailyUserStatsDate,
 } from "@/lib/dailyUserStats";
+import {
+  buildAutoRoleAcceptedNotificationGroups,
+  formatAutoRoleAcceptedNotificationSlackMessage,
+} from "@/lib/ops/autoRoleAcceptedNotifications";
+import { getPublicSiteUrlFromRequest } from "@/lib/siteUrl";
 
 export const runtime = "nodejs";
 
 const SLACK_DAILY_USER_STATS_CHANNEL_ID = "C0B2TFPUS6P";
+const SLACK_COMPANY_NOTIFICATION_CHANNEL_ID = "C0AKK93FMH8";
 
 function getConfiguredCronSecrets() {
   return [
@@ -41,7 +47,11 @@ function shouldDryRun(req: NextRequest) {
   return value === "1" || value === "true";
 }
 
-async function postSlackMessage(args: { text: string; threadTs?: string }) {
+async function postSlackMessage(args: {
+  channelId: string;
+  text: string;
+  threadTs?: string;
+}) {
   const token = process.env.SLACK_BOT_TOKEN?.trim();
   if (!token) {
     throw new Error("SLACK_BOT_TOKEN is required");
@@ -49,7 +59,7 @@ async function postSlackMessage(args: { text: string; threadTs?: string }) {
 
   const response = await fetch("https://slack.com/api/chat.postMessage", {
     body: JSON.stringify({
-      channel: SLACK_DAILY_USER_STATS_CHANNEL_ID,
+      channel: args.channelId,
       text: args.text,
       ...(args.threadTs ? { thread_ts: args.threadTs } : {}),
     }),
@@ -95,12 +105,22 @@ async function handleDailyUserStats(req: NextRequest) {
   }
 
   const date = resolveDailyUserStatsDate(req.nextUrl.searchParams.get("date"));
-  const report = await buildDailyUserStatsReport(date);
+  const [report, companyNotificationGroups] = await Promise.all([
+    buildDailyUserStatsReport(date),
+    buildAutoRoleAcceptedNotificationGroups(),
+  ]);
   const message = formatDailyUserStatsSlackMessage(report);
   const messages = formatDailyUserStatsSlackMessages(report);
+  const companyNotificationMessage =
+    formatAutoRoleAcceptedNotificationSlackMessage(
+      companyNotificationGroups,
+      getPublicSiteUrlFromRequest(req)
+    );
 
   if (shouldDryRun(req)) {
     return NextResponse.json({
+      companyNotificationGroups,
+      companyNotificationMessage,
       dryRun: true,
       message,
       messages,
@@ -108,10 +128,25 @@ async function handleDailyUserStats(req: NextRequest) {
     });
   }
 
-  const threadTs = await postSlackMessage({ text: messages.main });
-  await postSlackMessage({ text: messages.details, threadTs });
+  const threadTs = await postSlackMessage({
+    channelId: SLACK_DAILY_USER_STATS_CHANNEL_ID,
+    text: messages.main,
+  });
+  await postSlackMessage({
+    channelId: SLACK_DAILY_USER_STATS_CHANNEL_ID,
+    text: messages.details,
+    threadTs,
+  });
+  if (companyNotificationMessage) {
+    await postSlackMessage({
+      channelId: SLACK_COMPANY_NOTIFICATION_CHANNEL_ID,
+      text: companyNotificationMessage,
+    });
+  }
 
   return NextResponse.json({
+    companyNotificationGroupCount: companyNotificationGroups.length,
+    companyNotificationSent: Boolean(companyNotificationMessage),
     date: report.date,
     ok: true,
     sent: true,

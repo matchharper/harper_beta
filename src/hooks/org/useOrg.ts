@@ -4,6 +4,7 @@ import type {
   OrgBoardResponse,
   OrgBootstrapResponse,
   OrgFeedCreateResponse,
+  OrgFeedMutationResponse,
   OrgRoleReviewStageCreateResponse,
   OrgRoleReviewStageDeleteResponse,
   OrgRoleReviewStageUpdateResponse,
@@ -160,6 +161,40 @@ export function useCreateOrgFeedItem() {
   });
 }
 
+export function useUpdateOrgFeedItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: {
+      progressId: string;
+      text: string;
+      workspaceId: string;
+    }) =>
+      fetchWithInternalAuth<OrgFeedMutationResponse>("/api/org/feed", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(args),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.org.all });
+    },
+  });
+}
+
+export function useDeleteOrgFeedItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { progressId: string; workspaceId: string }) =>
+      fetchWithInternalAuth<OrgFeedMutationResponse>("/api/org/feed", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(args),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.org.all });
+    },
+  });
+}
+
 export function useCreateOrgReviewStage() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -274,6 +309,7 @@ export function useUpdateOrgRole() {
       description?: string | null;
       employmentTypes?: string[] | null;
       externalJdUrl?: string | null;
+      isExpired?: boolean | null;
       locationText?: string | null;
       name?: string | null;
       request?: string | null;

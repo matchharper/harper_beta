@@ -214,6 +214,10 @@ export function useCareerLandingStart({
   useEffect(() => {
     if (!trackingEnabled) return;
     if (typeof window === "undefined") return;
+    // The signup-flow experiment is only shown before authentication. Waiting
+    // for auth resolution also prevents an existing user from being recorded
+    // as a new experiment entrant while their session is still loading.
+    if (authLoading || user) return;
 
     const querySource = readCareerUtmSourceFromSearch(window.location.search);
     const savedSource = normalizeCareerUtmSource(
@@ -288,9 +292,11 @@ export function useCareerLandingStart({
   }, [
     abtestType,
     addLandingLog,
+    authLoading,
     landingIdOverride,
     router.asPath,
     trackingEnabled,
+    user,
   ]);
 
   useEffect(() => {

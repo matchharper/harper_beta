@@ -168,7 +168,7 @@ worker는 사용자가 답장을 영어로 썼는지 한국어로 썼는지에 �
   - `?signup_flow=web`
   - `?signup_flow=email`
 - local assignment:
-  - 기존 `CAREER_LANDING_LOCAL_ID_STORAGE_KEY`의 local id를 salt로 50/50 bucket
+  - 기존 `CAREER_LANDING_LOCAL_ID_STORAGE_KEY`의 local id를 salt로 Email first 25% / Login first 75% bucket
   - local id가 없으면 id 생성 후 bucket을 계산한다.
 
 현재 `src/lib/career/utm.ts`의 hero copy A/B helper는 `career_landing_v1`과 hero label에 묶여 있다. signup flow 실험은 별도 helper로 분리한다. admin UI의 “Hero Copy A/B Test” 라벨을 그대로 재사용하면 안 된다.
@@ -864,7 +864,7 @@ PYTHONPATH=. ../myenv/bin/python email_reply_worker.py simulate \
 ## 릴리즈/롤백
 
 - 처음에는 query override로만 QA한다.
-- 이후 10% treatment, 50% treatment 순서로 올린다.
+- 이후 10% treatment, 25% treatment 순서로 올린다.
 - 문제가 생기면 experiment resolver를 control로 고정하면 된다.
 - 이미 발송된 이메일 링크는 `/career_login` fallback을 포함하므로 랜딩 실험을 꺼도 유저가 계속 진행할 수 있다.
 - locale copy 이슈가 발견되면 실험을 control로 내리고, 이미 발송된 메일 링크는 유지한다.

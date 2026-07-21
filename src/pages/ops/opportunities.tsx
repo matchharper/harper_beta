@@ -28,7 +28,6 @@ import {
   useSaveOpsOpportunityWorkspace,
   useSyncOpsOpportunityRoles,
   useUpdateOpsCompanyHumanQualityLabel,
-  useUpdateOpsCompanyScrapeOriginal,
 } from "@/hooks/ops/useOpsOpportunities";
 import { useOpsOpportunityCatalogController } from "@/hooks/ops/useOpsOpportunityCatalogController";
 import {
@@ -99,9 +98,6 @@ export default function OpsOpportunitiesPage() {
   );
   const [roleDraft, setRoleDraft] = useState<RoleDraft>(EMPTY_ROLE_DRAFT);
 
-  const [updatingScrapeOriginalIds, setUpdatingScrapeOriginalIds] = useState(
-    () => new Set<string>()
-  );
   const [updatingQualityLabelIds, setUpdatingQualityLabelIds] = useState(
     () => new Set<string>()
   );
@@ -158,7 +154,6 @@ export default function OpsOpportunitiesPage() {
   const syncRoles = useSyncOpsOpportunityRoles();
   const saveRole = useSaveOpsOpportunityRole();
   const deleteRole = useDeleteOpsOpportunityRole();
-  const updateCompanyScrapeOriginal = useUpdateOpsCompanyScrapeOriginal();
   const updateCompanyHumanQualityLabel = useUpdateOpsCompanyHumanQualityLabel();
 
   const selectedWorkspace = catalog.selectedWorkspace;
@@ -465,41 +460,6 @@ export default function OpsOpportunitiesPage() {
     refetchCompanyManagement,
   ]);
 
-  const handleCompanyScrapeOriginalChange = useCallback(
-    async (company: OpsCompanyManagementRecord, nextValue: boolean) => {
-      const workspaceId = company.companyWorkspaceId;
-      if (!workspaceId) return;
-
-      setUpdatingScrapeOriginalIds((current) => {
-        const next = new Set(current);
-        next.add(workspaceId);
-        return next;
-      });
-
-      try {
-        await updateCompanyScrapeOriginal.mutateAsync({
-          isScrapeOriginal: nextValue,
-          workspaceId,
-        });
-      } catch (error) {
-        showToast({
-          message:
-            error instanceof Error
-              ? error.message
-              : "is_scrape_original 업데이트에 실패했습니다.",
-          variant: "white",
-        });
-      } finally {
-        setUpdatingScrapeOriginalIds((current) => {
-          const next = new Set(current);
-          next.delete(workspaceId);
-          return next;
-        });
-      }
-    },
-    [updateCompanyScrapeOriginal]
-  );
-
   const handleCompanyQualityLabelChange = useCallback(
     async (
       company: OpsCompanyManagementRecord,
@@ -642,12 +602,10 @@ export default function OpsOpportunitiesPage() {
             }
             onSearch={handleCompanyManagementSearch}
             onHumanQualityLabelChange={handleCompanyQualityLabelChange}
-            onScrapeOriginalChange={handleCompanyScrapeOriginalChange}
             qualityLabel={companyManagementQualityLabel}
             reviewMode={companyManagementReviewMode}
             reviewUnlabeledFirst={companyManagementReviewUnlabeledFirst}
             updatingQualityLabelIds={updatingQualityLabelIds}
-            updatingScrapeOriginalIds={updatingScrapeOriginalIds}
           />
         )}
       </OpsShell>

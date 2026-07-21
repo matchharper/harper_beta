@@ -110,6 +110,21 @@ function AutoResizeTextarea({
   );
 }
 
+function normalizeEditValue(value: OrgEditDialogValue) {
+  return {
+    companyDescription: value.companyDescription ?? "",
+    description: value.description ?? "",
+    employmentTypes: [...(value.employmentTypes ?? [])].sort(),
+    externalJdUrl: value.externalJdUrl ?? "",
+    locationText: value.locationText ?? "",
+    name: value.name ?? "",
+    pitch: value.pitch ?? "",
+    request: value.request ?? "",
+    status: value.status ?? "",
+    workMode: value.workMode ?? "",
+  };
+}
+
 function RoleDescriptionMarkdownPreview({ markdown }: { markdown: string }) {
   const trimmedMarkdown = markdown.trim();
 
@@ -206,9 +221,13 @@ export function OrgEditDialog({
   value: OrgEditDialogValue;
 }) {
   const [draft, setDraft] = useState<OrgEditDialogValue>(value);
+  const hasChanges =
+    JSON.stringify(normalizeEditValue(draft)) !==
+    JSON.stringify(normalizeEditValue(value));
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!hasChanges) return;
     onSubmit(draft);
   };
 
@@ -255,7 +274,7 @@ export function OrgEditDialog({
               <>
                 <label className={fieldClassName}>
                   <span className={opsTheme.label}>Pitch</span>
-                  <Textarea
+                  <AutoResizeTextarea
                     value={draft.pitch ?? ""}
                     onChange={(event) =>
                       setDraft((prev) => ({
@@ -265,10 +284,16 @@ export function OrgEditDialog({
                     }
                     rows={4}
                   />
+                  <span className="text-xs leading-5 text-neutral-muted">
+                    연결할 인재에게 어필될 수 있는 회사의 장점들을 최대한 자세히
+                    적어주세요. Harper가 잘 다듬어 적절한 순간에 전달하고 더 잘
+                    연결될 수 있게 돕습니다. 투자, 매출, 구성원 등의 내용을
+                    포함할 수 있습니다.
+                  </span>
                 </label>
                 <label className={fieldClassName}>
                   <span className={opsTheme.label}>설명</span>
-                  <Textarea
+                  <AutoResizeTextarea
                     value={draft.companyDescription ?? ""}
                     onChange={(event) =>
                       setDraft((prev) => ({
@@ -278,6 +303,9 @@ export function OrgEditDialog({
                     }
                     rows={5}
                   />
+                  <span className="text-xs leading-5 text-neutral-muted">
+                    회사에 대한 객관적인 설명을 짧게 3~5문장 정도로 적어주세요.
+                  </span>
                 </label>
               </>
             ) : (
@@ -419,44 +447,31 @@ export function OrgEditDialog({
                 />
               </>
             )}
-            {mode === "workspace" ? (
-              <label className={fieldClassName}>
-                <span className={opsTheme.label}>Request</span>
-                <Textarea
-                  value={draft.request ?? ""}
-                  onChange={(event) =>
-                    setDraft((prev) => ({
-                      ...prev,
-                      request: event.target.value,
-                    }))
-                  }
-                  rows={4}
-                />
-              </label>
-            ) : null}
           </div>
-          <div className="flex shrink-0 justify-start gap-2 border-t border-neutral-1000-a05 bg-bg-default px-5 py-4">
-            <Button
-              type="button"
-              variant="secondary"
-              size="md"
-              onClick={onClose}
-              disabled={pending}
-            >
-              취소
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              size="md"
-              disabled={pending}
-            >
-              {pending ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-              ) : null}
-              저장
-            </Button>
-          </div>
+          {hasChanges ? (
+            <div className="flex shrink-0 justify-start gap-2 border-t border-neutral-1000-a05 bg-bg-default px-5 py-4">
+              <Button
+                type="button"
+                variant="secondary"
+                size="md"
+                onClick={onClose}
+                disabled={pending}
+              >
+                취소
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                size="md"
+                disabled={pending}
+              >
+                {pending ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                ) : null}
+                저장
+              </Button>
+            </div>
+          ) : null}
         </form>
       </aside>
     </div>

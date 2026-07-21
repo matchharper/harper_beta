@@ -17,7 +17,7 @@
 
 | 영역 | 합격 기준 | 현재 판정 | 코드 근거 |
 | --- | --- | --- | --- |
-| 실험 배정 | `career_signup_flow_v1_control`, `career_signup_flow_v1_email_first`가 별도 `abtest_type`으로 저장된다. `?signup_flow=web/email` override가 동작한다. | Pass | `src/lib/careerEmailOnboarding/constants.ts`, `src/lib/careerEmailOnboarding/experiment.ts`, `src/hooks/useCareerSignupFlowExperiment.ts` |
+| 실험 배정 | Email first 25% / Login first 75%로 배정되며, `career_signup_flow_v1_control`, `career_signup_flow_v1_email_first`가 별도 `abtest_type`으로 저장된다. `?signup_flow=web/email` override가 동작한다. | Pass | `src/lib/careerEmailOnboarding/constants.ts`, `src/lib/careerEmailOnboarding/experiment.ts`, `src/hooks/useCareerSignupFlowExperiment.ts` |
 | 랜딩 entry 로그 | 실험 배정이 끝나기 전에는 랜딩 로그를 남기지 않고, 같은 local id로 entry/capture/login 로그가 이어진다. | Pass | `src/hooks/useCareerSignupFlowExperiment.ts`, `src/hooks/useCareerLandingStart.ts` |
 | treatment UI | CTA 자리에 inline email input과 `Talk to Harper`/`Harper와 이야기하기` 버튼이 나온다. 제출 성공 후 spam 안내가 locale별로 나온다. | Pass | `src/components/landing/career/CareerLandingEmailCaptureForm.tsx`, `src/pages/index.tsx` |
 | control UI | control variant에서는 기존 CTA 버튼과 login/onboarding 흐름이 유지된다. | Pass | `src/pages/index.tsx`, `src/hooks/useCareerLandingStart.ts` |

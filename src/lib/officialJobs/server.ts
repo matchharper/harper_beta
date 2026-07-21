@@ -73,6 +73,33 @@ export async function getPublicOfficialJobBySlug(
   return mapOfficialJobRow(data);
 }
 
+export async function getPublicOfficialJobById(
+  id: string
+): Promise<OfficialJob | null> {
+  const normalizedId = id.trim();
+  const isUuid =
+    /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(normalizedId);
+  if (!isUuid) return null;
+
+  const { data, error } = await supabaseServer
+    .from("official_jobs")
+    .select("*")
+    .eq("id", normalizedId)
+    .eq("is_published", true)
+    .neq("role_title", OFFICIAL_JOBS_INTERNAL_COPY_ROLE_TITLE)
+    .neq("slug", OFFICIAL_JOBS_INTERNAL_COPY_SLUG)
+    .maybeSingle();
+
+  if (error) {
+    console.warn("official_jobs id lookup failed:", error.message);
+    return null;
+  }
+
+  if (!data) return null;
+
+  return mapOfficialJobRow(data);
+}
+
 export async function getPublicOfficialJobByAshbyId(
   ashbyJobPostingId: string
 ): Promise<OfficialJob | null> {

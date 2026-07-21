@@ -60,19 +60,25 @@ export default function App({ Component, pageProps }: AppProps) {
   const isCareerLoginPage = router.pathname === "/career_login";
   const isCareerWorkspacePage = router.pathname === "/career/[[...tab]]";
   const isCareerLocalePage = isCareerPage || isCareerLoginPage;
+  const isCareerLandingPage = ["/", "/en", "/ko"].includes(router.pathname);
   const isAdminCareerPage =
     router.pathname === "/admin/career" ||
     router.pathname.startsWith("/admin/career/");
   const isOpsPage =
     router.pathname === "/ops" || router.pathname.startsWith("/ops/");
+  const isReferralPayoutPage = router.pathname === "/referral-payout";
   const shouldHideCustomCrispLauncher =
+    isCareerLandingPage ||
     isCareerPage ||
     isCareerLoginPage ||
     isAdminCareerPage ||
-    isOpsPage;
+    isOpsPage ||
+    isReferralPayoutPage;
   const shouldShowCustomCrispLauncher = !shouldHideCustomCrispLauncher;
   const shouldMountCustomCrisp =
-    shouldShowCustomCrispLauncher || isCareerWorkspacePage;
+    shouldShowCustomCrispLauncher ||
+    isCareerWorkspacePage ||
+    isCareerLandingPage;
   const appDescription =
     isCareerLocalePage && careerLocale === "en"
       ? "Harper is an AI Career Agent for every talented professional."
@@ -129,11 +135,7 @@ export default function App({ Component, pageProps }: AppProps) {
       <ReactQueryProvider>
         <Head>
           <title>Harper — AI Career Agent</title>
-          <meta
-            key="description"
-            name="description"
-            content={appDescription}
-          />
+          <meta key="description" name="description" content={appDescription} />
           <meta key="theme-color" name="theme-color" content="#F7F0E8" />
         </Head>
         {GA_ID && (

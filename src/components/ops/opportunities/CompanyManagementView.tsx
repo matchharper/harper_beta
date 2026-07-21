@@ -70,15 +70,10 @@ type CompanyManagementViewProps = {
   onReviewModeChange: (value: boolean) => void;
   onReviewUnlabeledFirstChange: (value: boolean) => void;
   onSearch: () => void;
-  onScrapeOriginalChange: (
-    company: OpsCompanyManagementRecord,
-    nextValue: boolean
-  ) => void;
   qualityLabel: OpsCompanyManagementQualityLabelFilter;
   reviewMode: boolean;
   reviewUnlabeledFirst: boolean;
   updatingQualityLabelIds: Set<string>;
-  updatingScrapeOriginalIds: Set<string>;
 };
 
 const KO_NUMBER_FORMATTER = new Intl.NumberFormat("ko-KR");
@@ -296,55 +291,22 @@ function CompanyLogo({ company }: { company: OpsCompanyManagementRecord }) {
 function CompanyRow({
   company,
   onHumanQualityLabelChange,
-  onScrapeOriginalChange,
   updatingQualityLabel,
-  updatingScrapeOriginal,
 }: {
   company: OpsCompanyManagementRecord;
   onHumanQualityLabelChange: (
     company: OpsCompanyManagementRecord,
     humanQualityLabel: OpsCompanyQualityLabel
   ) => void;
-  onScrapeOriginalChange: (
-    company: OpsCompanyManagementRecord,
-    nextValue: boolean
-  ) => void;
   updatingQualityLabel: boolean;
-  updatingScrapeOriginal: boolean;
 }) {
   const homepageUrl = normalizeExternalUrl(company.homepageUrl);
   const latestFundingRound = formatLatestFundingRound(company);
 
   return (
     <div
-      className={cx(
-        "box-border grid w-full grid-cols-[56px_72px_190px_110px_minmax(280px,1fr)_190px_180px_210px_150px_180px_110px_140px] items-center gap-3 rounded-md border-2 px-3 py-3 transition",
-        company.isScrapeOriginal
-          ? "border-primary bg-bg-floating shadow-[0_10px_26px_color-mix(in_srgb,var(--color-primary)_12%,transparent)]"
-          : "border-neutral-1000-a05 bg-bg-default/65 hover:bg-bg-default"
-      )}
+      className="box-border grid w-full grid-cols-[72px_190px_110px_minmax(280px,1fr)_190px_180px_210px_150px_180px_110px_140px] items-center gap-3 rounded-md border-2 border-neutral-1000-a05 bg-bg-default/65 px-3 py-3 transition hover:bg-bg-default"
     >
-      <div className="flex items-center justify-center">
-        <label
-          className={cx(
-            "flex h-10 w-10 cursor-pointer items-center justify-center rounded-md transition hover:bg-bg-floating",
-            "focus-within:bg-bg-floating focus-within:ring-2 focus-within:ring-primary/40",
-            updatingScrapeOriginal && "cursor-wait opacity-60"
-          )}
-          title="is_scrape_original"
-        >
-          <UiCheckbox
-            unstyled
-            checked={company.isScrapeOriginal}
-            disabled={updatingScrapeOriginal}
-            onChange={(event) =>
-              onScrapeOriginalChange(company, event.target.checked)
-            }
-            aria-label={`${company.companyName} is_scrape_original`}
-            className="h-7 w-7 cursor-pointer rounded border-2 border-neutral-1000-a10 accent-primary transition hover:border-primary/70 disabled:cursor-wait"
-          />
-        </label>
-      </div>
       <CompanyLogo company={company} />
       <div className="min-w-0">
         {homepageUrl ? (
@@ -622,12 +584,10 @@ export default function CompanyManagementView({
   onReviewModeChange,
   onReviewUnlabeledFirstChange,
   onSearch,
-  onScrapeOriginalChange,
   qualityLabel,
   reviewMode,
   reviewUnlabeledFirst,
   updatingQualityLabelIds,
-  updatingScrapeOriginalIds,
 }: CompanyManagementViewProps) {
   const [reviewIndex, setReviewIndex] = useState(0);
   const [pendingReviewAdvanceFromLength, setPendingReviewAdvanceFromLength] =
@@ -1000,9 +960,8 @@ export default function CompanyManagementView({
         )
       ) : (
         <div className="overflow-x-auto">
-          <div className="min-w-[2040px] space-y-2">
-            <div className="grid grid-cols-[56px_72px_190px_110px_minmax(280px,1fr)_190px_180px_210px_150px_180px_110px_140px] gap-3 px-3 text-[11px] font-medium text-neutral-muted">
-              <div>Original</div>
+          <div className="min-w-[1980px] space-y-2">
+            <div className="grid grid-cols-[72px_190px_110px_minmax(280px,1fr)_190px_180px_210px_150px_180px_110px_140px] gap-3 px-3 text-[11px] font-medium text-neutral-muted">
               <div>로고</div>
               <div>회사명</div>
               <div>Quality</div>
@@ -1028,11 +987,7 @@ export default function CompanyManagementView({
                   key={company.companyWorkspaceId}
                   company={company}
                   onHumanQualityLabelChange={onHumanQualityLabelChange}
-                  onScrapeOriginalChange={onScrapeOriginalChange}
                   updatingQualityLabel={updatingQualityLabelIds.has(
-                    company.companyWorkspaceId
-                  )}
-                  updatingScrapeOriginal={updatingScrapeOriginalIds.has(
                     company.companyWorkspaceId
                   )}
                 />

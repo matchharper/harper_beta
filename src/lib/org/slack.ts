@@ -1,3 +1,5 @@
+import { sendOrgWorkspaceSlackMessage } from "@/lib/org/slackIntegration";
+
 const ORG_SLACK_CHANNEL_ID = "C0AKK93FMH8";
 const DEFAULT_PUBLIC_SITE_URL = "https://matchharper.com";
 
@@ -113,6 +115,35 @@ async function postOrgSlackMessage(text: string) {
   }
 }
 
+async function postWorkspaceScopedOrgSlackMessage(
+  text: string,
+  workspaceId: string
+) {
+  const [internalResult, workspaceResult] = await Promise.allSettled([
+    postOrgSlackMessage(text),
+    sendOrgWorkspaceSlackMessage({ text, workspaceId }),
+  ]);
+
+  if (workspaceResult.status === "rejected") {
+    console.error(
+      "[org/slack] workspace notification failed",
+      workspaceResult.reason
+    );
+  }
+  if (internalResult.status === "rejected") {
+    if (
+      workspaceResult.status === "rejected" ||
+      (workspaceResult.status === "fulfilled" && !workspaceResult.value)
+    ) {
+      throw internalResult.reason;
+    }
+    console.error(
+      "[org/slack] internal notification failed",
+      internalResult.reason
+    );
+  }
+}
+
 export async function notifyOrgCandidateAcceptedSlack(args: {
   acceptReason?: string | null;
   actor: OrgSlackUser;
@@ -133,7 +164,10 @@ export async function notifyOrgCandidateAcceptedSlack(args: {
     `- *Reason*: ${formatOptional(args.acceptReason)}`,
   ];
 
-  await postOrgSlackMessage(lines.join("\n"));
+  await postWorkspaceScopedOrgSlackMessage(
+    lines.join("\n"),
+    args.workspace.workspaceId
+  );
 }
 
 export async function notifyOrgCandidateRejectedSlack(args: {
@@ -162,7 +196,10 @@ export async function notifyOrgCandidateRejectedSlack(args: {
     `- *Reason*: ${formatOptional(args.stopNote)}`,
   ];
 
-  await postOrgSlackMessage(lines.join("\n"));
+  await postWorkspaceScopedOrgSlackMessage(
+    lines.join("\n"),
+    args.workspace.workspaceId
+  );
 }
 
 export async function notifyOrgMemberJoinedSlack(args: {
@@ -176,5 +213,8 @@ export async function notifyOrgMemberJoinedSlack(args: {
     `- *User*: ${formatPerson(args.user)}`,
   ];
 
-  await postOrgSlackMessage(lines.join("\n"));
+  await postWorkspaceScopedOrgSlackMessage(
+    lines.join("\n"),
+    args.workspace.workspaceId
+  );
 }

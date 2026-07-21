@@ -30,12 +30,27 @@ function getQueryText(value: string | string[] | undefined) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function buildOrgHref(args: { orgId?: string | null; roleId?: string | null }) {
+function buildOrgHref(args: {
+  detail?: {
+    recommendationId?: string | null;
+    roleId?: string | null;
+    talentId?: string | null;
+  } | null;
+  orgId?: string | null;
+  roleId?: string | null;
+}) {
   const params = new URLSearchParams();
   const orgId = args.orgId?.trim();
   const roleId = args.roleId?.trim();
+  const detailTalentId = args.detail?.talentId?.trim();
+  const detailRecommendationId = args.detail?.recommendationId?.trim();
+  const detailRoleId = args.detail?.roleId?.trim();
   if (orgId) params.set("orgId", orgId);
   if (roleId) params.set("roleId", roleId);
+  if (detailTalentId) params.set("talentId", detailTalentId);
+  if (detailRecommendationId)
+    params.set("recommendationId", detailRecommendationId);
+  if (detailRoleId) params.set("detailRoleId", detailRoleId);
   const query = params.toString();
   return query ? `/org?${query}` : "/org";
 }
@@ -68,11 +83,19 @@ export default function OrgPage() {
   const signOut = useAuthStore((state) => state.signOut);
   const orgId = router.isReady ? getQueryText(router.query.orgId) : "";
   const urlRoleId = router.isReady ? getQueryText(router.query.roleId) : "";
+  const detailTalentId = router.isReady
+    ? getQueryText(router.query.talentId)
+    : "";
+  const detailRecommendationId = router.isReady
+    ? getQueryText(router.query.recommendationId)
+    : "";
+  const detailRoleId = router.isReady
+    ? getQueryText(router.query.detailRoleId)
+    : "";
   const [signOutPending, setSignOutPending] = useState(false);
   const [nameQuery, setNameQuery] = useState("");
   const [recommendedFromDate, setRecommendedFromDate] = useState("");
   const [recommendedToDate, setRecommendedToDate] = useState("");
-  const [selectedItem, setSelectedItem] = useState<OrgBoardItem | null>(null);
   const [editMode, setEditMode] = useState<"workspace" | "role" | null>(null);
   const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
 
@@ -93,11 +116,6 @@ export default function OrgPage() {
       : "all";
   const isAllTab = effectiveActiveRoleId === "all";
   const selectedRoleId = isAllTab ? null : effectiveActiveRoleId;
-  const visibleSelectedItem =
-    selectedItem &&
-    (isAllTab || !selectedRoleId || selectedItem.roleId === selectedRoleId)
-      ? selectedItem
-      : null;
   const boardQuery = useOrgBoard({
     enabled: Boolean(workspace),
     query: isAllTab ? "" : nameQuery,
@@ -106,11 +124,39 @@ export default function OrgPage() {
     roleId: selectedRoleId,
     workspaceId: workspace?.workspaceId ?? null,
   });
+  const visibleSelectedItem = useMemo(() => {
+    if (!detailTalentId && !detailRecommendationId) return null;
+    return (
+      (boardQuery.data?.items ?? []).find((item) => {
+        if (
+          detailRecommendationId &&
+          item.recommendationId !== detailRecommendationId
+        ) {
+          return false;
+        }
+        if (detailTalentId && item.talentId !== detailTalentId) return false;
+        if (detailRoleId && item.roleId !== detailRoleId) return false;
+        return true;
+      }) ?? null
+    );
+  }, [
+    boardQuery.data?.items,
+    detailRecommendationId,
+    detailRoleId,
+    detailTalentId,
+  ]);
+  const activeDetailTalentId =
+    visibleSelectedItem?.talentId || detailTalentId || "";
+  const activeDetailRecommendationId =
+    visibleSelectedItem?.recommendationId || detailRecommendationId || "";
+  const activeDetailRoleId =
+    visibleSelectedItem?.roleId || detailRoleId || "";
+  const detailOpen = Boolean(activeDetailTalentId);
   const detailQuery = useOrgTalentDetail({
-    enabled: Boolean(workspace && visibleSelectedItem),
-    recommendationId: visibleSelectedItem?.recommendationId ?? null,
-    roleId: visibleSelectedItem?.roleId ?? null,
-    talentId: visibleSelectedItem?.talentId ?? null,
+    enabled: Boolean(workspace && detailOpen),
+    recommendationId: activeDetailRecommendationId || null,
+    roleId: activeDetailRoleId || null,
+    talentId: activeDetailTalentId || null,
     workspaceId: workspace?.workspaceId ?? null,
   });
   const setStage = useSetOrgCandidateStage();
@@ -146,16 +192,67 @@ export default function OrgPage() {
     setEditingRoleId(null);
   };
 
+  const updateRoleLifecycle = (
+    role: OrgRole,
+    args: { isExpired?: boolean; status: string }
+  ) => {
+    updateRole.mutate({
+      description: role.description,
+      employmentTypes: role.employmentTypes,
+      externalJdUrl: role.externalJdUrl,
+      isExpired: args.isExpired,
+      locationText: role.locationText,
+      name: role.name,
+      request: role.request,
+      roleId: role.roleId,
+      status: args.status,
+      workMode: role.workMode,
+      workspaceId: workspace?.workspaceId ?? role.workspaceId,
+    });
+  };
+
+  const handlePauseRole = (role: OrgRole) => {
+    updateRoleLifecycle(role, { status: "paused" });
+  };
+
+  const handleResumeRole = (role: OrgRole) => {
+    updateRoleLifecycle(role, { status: "active" });
+  };
+
+  const handleDeleteRole = (role: OrgRole) => {
+    if (!window.confirm(`"${role.name}" 역할을 삭제할까요?`)) return;
+    updateRoleLifecycle(role, { isExpired: true, status: "deleted" });
+  };
+
   useEffect(() => {
     if (!router.isReady || !user || !bootstrapQuery.data?.workspace) return;
     const nextOrgId = bootstrapQuery.data.workspace.workspaceId;
     if (orgId === nextOrgId) return;
     router.replace(
-      buildOrgHref({ orgId: nextOrgId, roleId: urlRoleId || "all" }),
+      buildOrgHref({
+        detail: detailTalentId
+          ? {
+              recommendationId: detailRecommendationId,
+              roleId: detailRoleId,
+              talentId: detailTalentId,
+            }
+          : null,
+        orgId: nextOrgId,
+        roleId: urlRoleId || "all",
+      }),
       undefined,
       { shallow: true }
     );
-  }, [bootstrapQuery.data?.workspace, orgId, router, urlRoleId, user]);
+  }, [
+    bootstrapQuery.data?.workspace,
+    detailRecommendationId,
+    detailRoleId,
+    detailTalentId,
+    orgId,
+    router,
+    urlRoleId,
+    user,
+  ]);
 
   const handleSignOut = async () => {
     setSignOutPending(true);
@@ -172,7 +269,6 @@ export default function OrgPage() {
     setNameQuery("");
     setRecommendedFromDate("");
     setRecommendedToDate("");
-    setSelectedItem(null);
     setEditMode(null);
     setEditingRoleId(null);
     router.push(buildOrgHref({ orgId: workspaceId, roleId: "all" }));
@@ -180,12 +276,42 @@ export default function OrgPage() {
 
   const handleRoleTabChange = (roleId: string) => {
     const nextRoleId = roleId || "all";
-    setSelectedItem(null);
     setEditMode(null);
     setEditingRoleId(null);
     if (!workspace) return;
     router.push(
       buildOrgHref({ orgId: workspace.workspaceId, roleId: nextRoleId }),
+      undefined,
+      { shallow: true }
+    );
+  };
+
+  const handleTalentSelect = (item: OrgBoardItem) => {
+    if (!workspace) return;
+    setEditMode(null);
+    setEditingRoleId(null);
+    router.push(
+      buildOrgHref({
+        detail: {
+          recommendationId: item.recommendationId,
+          roleId: item.roleId,
+          talentId: item.talentId,
+        },
+        orgId: workspace.workspaceId,
+        roleId: effectiveActiveRoleId,
+      }),
+      undefined,
+      { shallow: true }
+    );
+  };
+
+  const handleTalentDetailClose = () => {
+    if (!workspace) return;
+    router.replace(
+      buildOrgHref({
+        orgId: workspace.workspaceId,
+        roleId: effectiveActiveRoleId,
+      }),
       undefined,
       { shallow: true }
     );
@@ -239,12 +365,9 @@ export default function OrgPage() {
   }
 
   const selectedAcceptStageId =
-    visibleSelectedItem && boardQuery.data?.stages
+    detailOpen && boardQuery.data?.stages
       ? (boardQuery.data.stages.find(
-          (stage) =>
-            stage.id !== "pending_connection" &&
-            stage.id !== "process_stopped" &&
-            (!stage.roleId || stage.roleId === visibleSelectedItem.roleId)
+          (stage) => stage.id === "connected"
         )?.id ?? null)
       : null;
   const pendingRecommendationId = setStage.isPending
@@ -272,6 +395,11 @@ export default function OrgPage() {
           <OrgRoleTabs
             activeRoleId={effectiveActiveRoleId}
             onChange={handleRoleTabChange}
+            onDeleteRole={handleDeleteRole}
+            onEditRole={openRoleEdit}
+            onPauseRole={handlePauseRole}
+            onResumeRole={handleResumeRole}
+            roleActionPending={updateRole.isPending}
             roles={roles}
           />
 
@@ -282,14 +410,19 @@ export default function OrgPage() {
                 boardQuery.error instanceof Error ? boardQuery.error : null
               }
               isLoading={boardQuery.isLoading}
+              onDeleteRole={handleDeleteRole}
               onEditRole={openRoleEdit}
+              onPauseRole={handlePauseRole}
+              onResumeRole={handleResumeRole}
               onRoleSelect={handleRoleTabChange}
+              roleActionPending={updateRole.isPending}
               roles={roles}
             />
           ) : (
             <OrgPipeline
               activeRoleId={effectiveActiveRoleId}
               activeRoleName={activeRole?.name ?? null}
+              activeRole={activeRole}
               board={boardQuery.data}
               currentUserEmail={
                 bootstrapQuery.data?.currentUser?.email ?? user.email ?? null
@@ -299,17 +432,21 @@ export default function OrgPage() {
               }
               isLoading={boardQuery.isLoading}
               nameQuery={nameQuery}
+              onDeleteRole={handleDeleteRole}
               onEditRole={() => openRoleEdit(effectiveActiveRoleId)}
               onNameQueryChange={setNameQuery}
+              onPauseRole={handlePauseRole}
               onRecommendedDateChange={(from, to) => {
                 setRecommendedFromDate(from);
                 setRecommendedToDate(to);
               }}
-              onSelect={setSelectedItem}
+              onResumeRole={handleResumeRole}
+              onSelect={handleTalentSelect}
               onStageChange={handleStageChange}
               pendingRecommendationId={pendingRecommendationId}
               recommendedFromDate={recommendedFromDate}
               recommendedToDate={recommendedToDate}
+              roleActionPending={updateRole.isPending}
               workspaceId={workspace.workspaceId}
             />
           )}
@@ -322,35 +459,58 @@ export default function OrgPage() {
         currentUserEmail={
           bootstrapQuery.data?.currentUser?.email ?? user.email ?? null
         }
+        currentUserId={bootstrapQuery.data?.currentUser?.userId ?? user.id}
         decisionPending={Boolean(
-          visibleSelectedItem &&
-          pendingRecommendationId === visibleSelectedItem.recommendationId
+          activeDetailRecommendationId &&
+          pendingRecommendationId === activeDetailRecommendationId
         )}
         detail={detailQuery.data}
         error={detailQuery.error instanceof Error ? detailQuery.error : null}
         isLoading={detailQuery.isLoading}
         onAcceptCandidate={async ({ acceptReason, introEmails, stage }) => {
-          if (!visibleSelectedItem) return;
+          const roleId = detailQuery.data?.role.roleId ?? activeDetailRoleId;
+          const recommendationId =
+            detailQuery.data?.recommendation.recommendationId ??
+            activeDetailRecommendationId;
+          const talentId =
+            detailQuery.data?.talent.userId ?? activeDetailTalentId;
+          if (!roleId || !recommendationId || !talentId) return;
           if (!workspace) return;
           await setStage.mutateAsync({
             acceptReason,
             introEmails,
-            recommendationId: visibleSelectedItem.recommendationId,
-            roleId: visibleSelectedItem.roleId,
+            recommendationId,
+            roleId,
             stage,
             stopNote: null,
             stopReason: null,
-            talentId: visibleSelectedItem.talentId,
+            talentId,
             workspaceId: workspace.workspaceId,
           });
         }}
-        onClose={() => setSelectedItem(null)}
+        onClose={handleTalentDetailClose}
         onRejectCandidate={(options) => {
-          if (!visibleSelectedItem) return;
-          handleStageChange(visibleSelectedItem, "process_stopped", options);
+          const roleId = detailQuery.data?.role.roleId ?? activeDetailRoleId;
+          const recommendationId =
+            detailQuery.data?.recommendation.recommendationId ??
+            activeDetailRecommendationId;
+          const talentId =
+            detailQuery.data?.talent.userId ?? activeDetailTalentId;
+          if (!workspace || !roleId || !recommendationId || !talentId) return;
+          setStage.mutate({
+            acceptReason: options.acceptReason ?? null,
+            introEmails: options.introEmails ?? null,
+            recommendationId,
+            roleId,
+            stage: "process_stopped",
+            stopNote: options.stopNote ?? null,
+            stopReason: options.stopReason ?? null,
+            talentId,
+            workspaceId: workspace.workspaceId,
+          });
         }}
-        open={Boolean(visibleSelectedItem)}
-        talentId={visibleSelectedItem?.talentId ?? null}
+        open={detailOpen}
+        talentId={activeDetailTalentId || null}
         workspaceId={workspace.workspaceId}
       />
 
@@ -392,6 +552,7 @@ export default function OrgPage() {
                 description: value.description ?? null,
                 employmentTypes: value.employmentTypes ?? [],
                 externalJdUrl: value.externalJdUrl ?? null,
+                isExpired: undefined,
                 locationText: value.locationText ?? null,
                 name: value.name ?? null,
                 request: value.request ?? null,

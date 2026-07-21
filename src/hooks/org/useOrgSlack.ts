@@ -1,0 +1,73 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { fetchWithInternalAuth } from "@/lib/internalApiClient";
+
+export type OrgSlackStatus = {
+  channelId: string | null;
+  channelName: string | null;
+  connected: boolean;
+  connectedAt: string | null;
+  lastError: string | null;
+  lastSentAt: string | null;
+  teamId: string | null;
+  teamName: string | null;
+};
+
+function slackQueryKey(workspaceId: string) {
+  return ["org", "slack", workspaceId] as const;
+}
+
+export function useOrgSlackStatus(args: {
+  enabled?: boolean;
+  workspaceId: string;
+}) {
+  return useQuery({
+    enabled: (args.enabled ?? true) && Boolean(args.workspaceId),
+    queryFn: () =>
+      fetchWithInternalAuth<OrgSlackStatus>(
+        `/api/org/slack?workspaceId=${encodeURIComponent(args.workspaceId)}`
+      ),
+    queryKey: slackQueryKey(args.workspaceId),
+    staleTime: 15_000,
+  });
+}
+
+export function useConnectOrgSlack() {
+  return useMutation({
+    mutationFn: (args: { returnTo: string; workspaceId: string }) =>
+      fetchWithInternalAuth<{ authorizeUrl: string }>("/api/org/slack", {
+        body: JSON.stringify({ action: "connect", ...args }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      }),
+  });
+}
+
+export function useTestOrgSlack(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      fetchWithInternalAuth<{ ok: true }>("/api/org/slack", {
+        body: JSON.stringify({ action: "test", workspaceId }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: slackQueryKey(workspaceId) });
+    },
+  });
+}
+
+export function useDisconnectOrgSlack(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      fetchWithInternalAuth<{ ok: true }>("/api/org/slack", {
+        body: JSON.stringify({ workspaceId }),
+        headers: { "Content-Type": "application/json" },
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: slackQueryKey(workspaceId) });
+    },
+  });
+}

@@ -8,10 +8,7 @@ import {
   type OpsCompanyManagementEmployeeCountRangeFilter,
   type OpsCompanyManagementQualityLabelFilter,
 } from "@/lib/ops/opportunityCompanyManagement";
-import {
-  fetchOpsCompanyManagementPage,
-  updateOpsCompanyScrapeOriginal,
-} from "@/lib/ops/opportunity";
+import { fetchOpsCompanyManagementPage } from "@/lib/ops/opportunity";
 
 export const runtime = "nodejs";
 
@@ -60,27 +57,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(data);
   } catch (error) {
     return toInternalApiErrorResponse(error, "Failed to load companies");
-  }
-}
-
-export async function PATCH(req: NextRequest) {
-  try {
-    await requireInternalApiUser(req);
-    const body = (await req.json().catch(() => null)) as {
-      isScrapeOriginal?: unknown;
-      workspaceId?: unknown;
-    } | null;
-
-    const data = await updateOpsCompanyScrapeOriginal({
-      isScrapeOriginal: Boolean(body?.isScrapeOriginal),
-      workspaceId: String(body?.workspaceId ?? ""),
-    });
-
-    return NextResponse.json(data);
-  } catch (error) {
-    return toInternalApiErrorResponse(
-      error,
-      "Failed to update is_scrape_original"
-    );
   }
 }

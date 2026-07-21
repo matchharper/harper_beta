@@ -106,7 +106,7 @@ export function buildCareerRealtimeRecentConversationSection(
   section += careerT(
     preferredLocale,
     "career.call.opening.recent_context.header",
-    "## 최근 대화\n"
+    "## 최근 채팅 맥락\n"
   );
   let totalLength = section.length;
   const nowMs = Date.now();
