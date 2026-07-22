@@ -85,7 +85,7 @@ const dropdownMenuItemVariantClassNames: Record<
   string
 > = {
   sm: "gap-1.5 rounded-[8px] px-2.5 py-1.5 text-[13px] font-normal [&>svg]:size-3.5 [&>svg]:stroke-[1.75]",
-  md: "gap-2 rounded-[10px] px-3 py-2 text-sm font-medium [&>svg]:size-4 [&>svg]:stroke-2",
+  md: "gap-2 rounded-[10px] px-3 py-2 text-sm font-normal [&>svg]:size-4 [&>svg]:stroke-2",
 };
 
 const dropdownMenuItemCheckClassNames: Record<DropdownMenuItemVariant, string> =

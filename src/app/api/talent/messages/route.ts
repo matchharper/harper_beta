@@ -70,6 +70,10 @@ export async function GET(req: NextRequest) {
     const beforeMessageId = parseBeforeMessageIdParam(
       req.nextUrl.searchParams.get("beforeMessageId")
     );
+    const locale =
+      req.nextUrl.searchParams.get("locale") ??
+      req.cookies.get("NEXT_LOCALE")?.value ??
+      null;
     const conversation = await fetchConversation({
       admin,
       conversationId,
@@ -125,6 +129,7 @@ export async function GET(req: NextRequest) {
             {
               admin,
               ids: missingRecommendationIds,
+              locale,
               userId: user.id,
             }
           );
@@ -164,6 +169,7 @@ export async function GET(req: NextRequest) {
     if (postingRoleIds.length > 0) {
       const postingCards = await fetchTalentPostingCardsByRoleIds({
         admin,
+        locale,
         roleIds: postingRoleIds,
         userId: user.id,
       });

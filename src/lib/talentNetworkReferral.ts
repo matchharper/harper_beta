@@ -1,3 +1,5 @@
+import { CAREER_LANDING_LOCAL_ID_STORAGE_KEY } from "@/lib/career/utm";
+
 export const TALENT_NETWORK_REFERRAL_QUERY_KEY = "ref";
 
 const TALENT_NETWORK_REFERRAL_STORAGE_KEY = "harper_talent_network_referral";
@@ -225,6 +227,39 @@ function getVisitDedupeKey(token: string) {
   return `${TALENT_NETWORK_REFERRAL_VISIT_DEDUPE_PREFIX}:${token}:${day}`;
 }
 
+function createReferralVisitorLocalId() {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function resolveReferralVisitorLocalId(explicitLocalId?: string | null) {
+  const normalizedExplicitLocalId = String(explicitLocalId ?? "").trim();
+  if (normalizedExplicitLocalId) return normalizedExplicitLocalId.slice(0, 120);
+  if (typeof window === "undefined") return "";
+
+  try {
+    const storedLocalId = String(
+      window.localStorage.getItem(CAREER_LANDING_LOCAL_ID_STORAGE_KEY) ?? ""
+    ).trim();
+    if (storedLocalId) return storedLocalId.slice(0, 120);
+
+    const createdLocalId = createReferralVisitorLocalId();
+    window.localStorage.setItem(
+      CAREER_LANDING_LOCAL_ID_STORAGE_KEY,
+      createdLocalId
+    );
+    return createdLocalId;
+  } catch {
+    return createReferralVisitorLocalId();
+  }
+}
+
 export async function captureTalentNetworkReferralFromCurrentLocation(args?: {
   accessToken?: string | null;
   messages?: Pick<TalentNetworkReferralClientMessages, "visitRecordFailed">;
@@ -254,7 +289,10 @@ export async function captureTalentNetworkReferralFromCurrentLocation(args?: {
   const res = await fetch("/api/talent/network/referral/visit", {
     method: "POST",
     headers,
-    body: JSON.stringify({ token }),
+    body: JSON.stringify({
+      token,
+      visitorLocalId: resolveReferralVisitorLocalId(),
+    }),
   });
   const json = await readJsonResponse(res);
 
@@ -466,6 +504,7 @@ export async function captureTalentNetworkReferralVisit(args: {
     },
     body: JSON.stringify({
       token: args.token,
+      visitorLocalId: resolveReferralVisitorLocalId(args.visitorLocalId),
     }),
   });
 

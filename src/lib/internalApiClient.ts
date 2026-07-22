@@ -8,7 +8,7 @@ export async function getInternalAccessToken() {
   return session?.access_token ?? null;
 }
 
-async function refreshInternalAccessToken() {
+export async function refreshInternalAccessToken() {
   const {
     data: { session },
   } = await supabase.auth.refreshSession();

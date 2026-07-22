@@ -4,7 +4,7 @@ import {
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
 import { fetchOpsOpportunityCatalog } from "@/lib/ops/opportunity";
-import { OPS_OPPORTUNITY_COMPANY_PAGE_SIZE } from "@/lib/ops/opportunityCompanyManagement";
+import { OPS_OPPORTUNITY_COMPANY_PAGE_SIZE } from "@/lib/ops/opportunityConstants";
 
 export const runtime = "nodejs";
 

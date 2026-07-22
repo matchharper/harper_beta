@@ -5,6 +5,8 @@ import type {
   OrgBootstrapResponse,
   OrgFeedCreateResponse,
   OrgFeedMutationResponse,
+  OrgInvitePreviewResponse,
+  OrgInviteSendResponse,
   OrgRoleReviewStageCreateResponse,
   OrgRoleReviewStageDeleteResponse,
   OrgRoleReviewStageUpdateResponse,
@@ -12,6 +14,7 @@ import type {
   OrgStageChangeOptions,
   OrgStageId,
   OrgTalentDetailResponse,
+  OrgWorkspaceLeaveResponse,
 } from "@/lib/org/server";
 import { queryKeys } from "@/lib/queryKeys";
 
@@ -42,6 +45,58 @@ export function useOrgBootstrap(args: {
     },
     enabled: args.enabled ?? true,
     staleTime: 30_000,
+  });
+}
+
+export function useOrgInvitePreview(args: {
+  enabled?: boolean;
+  orgId?: string | null;
+}) {
+  const orgId = args.orgId?.trim() ?? "";
+  return useQuery({
+    queryKey: queryKeys.org.invitePreview(orgId),
+    queryFn: async () => {
+      const response = await fetch(
+        `/api/org/invite-preview?orgId=${encodeURIComponent(orgId)}`
+      );
+      const payload = (await response.json().catch(() => ({}))) as Partial<
+        OrgInvitePreviewResponse & { error: string }
+      >;
+      if (!response.ok || !payload.workspace) {
+        throw new Error(payload.error ?? "초대 정보를 불러오지 못했습니다.");
+      }
+      return payload as OrgInvitePreviewResponse;
+    },
+    enabled: (args.enabled ?? true) && Boolean(orgId),
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+}
+
+export function useSendOrgInvitations() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { emails: string[]; workspaceId: string }) =>
+      fetchWithInternalAuth<OrgInviteSendResponse>("/api/org/invitations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(args),
+      }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.org.all,
+      }),
+  });
+}
+
+export function useLeaveOrgWorkspace() {
+  return useMutation({
+    mutationFn: (args: { workspaceId: string }) =>
+      fetchWithInternalAuth<OrgWorkspaceLeaveResponse>("/api/org/membership", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(args),
+      }),
   });
 }
 

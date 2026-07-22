@@ -4,6 +4,7 @@ import {
   getCareerOpportunitySortPriority,
 } from "@/components/career/opportunityTypeMeta";
 import { getSavedOpportunityManagementStatus } from "@/components/career/history/savedOpportunityStatus";
+import { getHistoryOpportunityBucket } from "@/hooks/career/careerSessionData";
 import type {
   CareerHistoryOpportunity,
   CareerHistoryOpportunityCounts,
@@ -71,9 +72,10 @@ const isOpportunityInJobsTab = (
   item: CareerHistoryOpportunity,
   tab: CareerMobileHistoryJobsTab
 ) => {
-  if (tab === "new") return item.feedback === null;
-  if (tab === "archived") return item.feedback === "negative";
-  if (item.feedback !== "positive") return false;
+  const bucket = getHistoryOpportunityBucket(item);
+  if (tab === "new") return bucket === "new";
+  if (tab === "archived") return bucket === "archived";
+  if (bucket !== "saved") return false;
   const status = getSavedOpportunityManagementStatus(item);
   if (tab === "saved") return status === "saved";
   return status === tab;
@@ -85,14 +87,14 @@ const getSavedStageLoadedCount = (
 ) =>
   items.filter(
     (item) =>
-      item.feedback === "positive" &&
+      getHistoryOpportunityBucket(item) === "saved" &&
       (item.savedStage ?? getCareerDefaultSavedStage(item.opportunityType)) ===
         stage
   ).length;
 
 const getSavedOpenLoadedCount = (items: CareerHistoryOpportunity[]) =>
   items.filter((item) => {
-    if (item.feedback !== "positive") return false;
+    if (getHistoryOpportunityBucket(item) !== "saved") return false;
     const stage =
       item.savedStage ?? getCareerDefaultSavedStage(item.opportunityType);
     return stage !== "hidden";
@@ -103,15 +105,19 @@ const getFilterLoadedCount = (
   filter: CareerHistoryOpportunityPageFilter
 ) => {
   if (filter.historyTab === "new") {
-    return items.filter((item) => item.feedback === null).length;
+    return items.filter((item) => getHistoryOpportunityBucket(item) === "new")
+      .length;
   }
   if (filter.historyTab === "archived") {
-    return items.filter((item) => item.feedback === "negative").length;
+    return items.filter(
+      (item) => getHistoryOpportunityBucket(item) === "archived"
+    ).length;
   }
   if (filter.savedStage === "all") return getSavedOpenLoadedCount(items);
   if (filter.savedStage)
     return getSavedStageLoadedCount(items, filter.savedStage);
-  return items.filter((item) => item.feedback === "positive").length;
+  return items.filter((item) => getHistoryOpportunityBucket(item) === "saved")
+    .length;
 };
 
 const getFilterTotal = (

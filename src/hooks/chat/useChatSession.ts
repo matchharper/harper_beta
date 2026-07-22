@@ -235,19 +235,11 @@ export function useChatSessionDB(args: {
   apiPath?: string;
   model?: "grok-4-fast-reasoning" | "grok-4.3" | "gemini-3-flash-preview";
   candidDoc?: CandidateDetail;
-  systemPromptOverride?: string;
-  memoryMode?: "automation";
-  companyDescription?: string;
-  teamLocation?: string;
 }) {
   const { scope, userId } = args;
   const isCandidScope = scope?.type === "candid";
   const apiPath = isCandidScope ? "/api/chat/candid" : "/api/chat";
   const model = args.model ?? CHAT_MODEL;
-  const systemPromptOverride = args.systemPromptOverride;
-  const memoryMode = args.memoryMode;
-  const companyDescription = args.companyDescription;
-  const teamLocation = args.teamLocation;
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -421,11 +413,6 @@ export function useChatSessionDB(args: {
             messages: historyForModel,
             scope: scope,
             doc: candidDoc,
-            systemPromptOverride,
-            userId,
-            memoryMode,
-            companyDescription,
-            teamLocation,
             attachments: attachments.length > 0 ? attachments : undefined,
           }),
           signal: controller.signal,
@@ -520,10 +507,6 @@ export function useChatSessionDB(args: {
       apiPath,
       model,
       candidDoc,
-      systemPromptOverride,
-      memoryMode,
-      companyDescription,
-      teamLocation,
     ]
   );
 

@@ -18,7 +18,14 @@ import {
   useSaveOpsOpportunityRole,
 } from "@/hooks/ops/useOpsOpportunities";
 import { BareButton } from "@/components/ui/button";
-import { Select as UiSelect } from "@/components/ui/select";
+import {
+  Select as UiSelect,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { TabBoxes } from "@/components/ui/tab-boxes";
 import {
   useOpsMatchingCompanies,
@@ -585,46 +592,58 @@ export default function OpsMatchingPage() {
             <div className="flex flex-row gap-3">
               <label className="block">
                 <UiSelect
+                  items={companies.map((company) => ({
+                    label: `회사: ${company.companyName}`,
+                    value: company.companyWorkspaceId,
+                  }))}
                   value={effectiveCompanyId}
-                  onChange={(event) => {
-                    handleCompanyChange(event.target.value);
+                  onValueChange={(value) => {
+                    handleCompanyChange(value ?? "");
                   }}
                   disabled={companiesQuery.isLoading || companies.length === 0}
-                  className="mt-2"
                 >
-                  {companies.length === 0 ? (
-                    <option value="">회사 없음</option>
-                  ) : (
-                    companies.map((company) => (
-                      <option
-                        key={company.companyWorkspaceId}
-                        value={company.companyWorkspaceId}
-                      >
-                        회사: {company.companyName}
-                      </option>
-                    ))
-                  )}
+                  <SelectTrigger className="mt-2">
+                    <SelectValue placeholder="회사 없음" />
+                  </SelectTrigger>
+                  <SelectContent align="start" alignItemWithTrigger={false}>
+                    <SelectGroup>
+                      {companies.map((company) => (
+                        <SelectItem
+                          key={company.companyWorkspaceId}
+                          value={company.companyWorkspaceId}
+                        >
+                          회사: {company.companyName}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
                 </UiSelect>
               </label>
 
               <label className="block">
                 <UiSelect
+                  items={roles.map((role) => ({
+                    label: `Role: ${role.roleName}`,
+                    value: role.roleId,
+                  }))}
                   value={effectiveRole?.roleId ?? ""}
-                  onChange={(event) => {
-                    handleRoleChange(event.target.value);
+                  onValueChange={(value) => {
+                    handleRoleChange(value ?? "");
                   }}
                   disabled={rolesQuery.isLoading || roles.length === 0}
-                  className="mt-2"
                 >
-                  {roles.length === 0 ? (
-                    <option value="">Role 없음</option>
-                  ) : (
-                    roles.map((role) => (
-                      <option key={role.roleId} value={role.roleId}>
-                        Role: {role.roleName}
-                      </option>
-                    ))
-                  )}
+                  <SelectTrigger className="mt-2">
+                    <SelectValue placeholder="Role 없음" />
+                  </SelectTrigger>
+                  <SelectContent align="start" alignItemWithTrigger={false}>
+                    <SelectGroup>
+                      {roles.map((role) => (
+                        <SelectItem key={role.roleId} value={role.roleId}>
+                          Role: {role.roleName}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
                 </UiSelect>
               </label>
 
@@ -718,19 +737,19 @@ export default function OpsMatchingPage() {
                   role={effectiveRole}
                 />
               ) : activeTab === "harper_review" ? (
-	                <MatchingHarperReviewBoard
-	                  key={effectiveRole.roleId}
-	                  canFetchInternal={canFetchInternal}
-	                  onRecommendedDateRangeChange={
-	                    handleReviewRecommendedDateRangeChange
-	                  }
-	                  recommendedFrom={reviewRecommendedFrom}
-	                  recommendedTo={reviewRecommendedTo}
-	                  role={effectiveRole}
-	                  selectedTalentId={selectedTalentId}
-	                  onSelectedTalentChange={handleReviewTalentSelect}
-	                  onSelectedTalentClose={handleReviewTalentClose}
-	                />
+                <MatchingHarperReviewBoard
+                  key={effectiveRole.roleId}
+                  canFetchInternal={canFetchInternal}
+                  onRecommendedDateRangeChange={
+                    handleReviewRecommendedDateRangeChange
+                  }
+                  recommendedFrom={reviewRecommendedFrom}
+                  recommendedTo={reviewRecommendedTo}
+                  role={effectiveRole}
+                  selectedTalentId={selectedTalentId}
+                  onSelectedTalentChange={handleReviewTalentSelect}
+                  onSelectedTalentClose={handleReviewTalentClose}
+                />
               ) : null}
             </>
           ) : (

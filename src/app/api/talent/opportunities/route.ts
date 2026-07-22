@@ -9,6 +9,7 @@ import {
   type TalentMessageRow,
 } from "@/lib/talentOnboarding/server";
 import {
+  archiveEndedInternalOpportunitiesForTalent,
   fetchTalentOpportunityHistoryByIds,
   fetchTalentOpportunityHistoryByRoleIds,
   fetchTalentOpportunityHistoryCounts,
@@ -33,6 +34,7 @@ import {
 } from "@/lib/slackActivity";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 import { CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER } from "@/lib/career/prompts/types";
+import { getInternalOpportunityDecisionSlackChannelId } from "@/lib/internalOpportunityDecisionSlack";
 
 const POSITION_TAB_INTERACTION_SOURCE = "position_tab";
 const OPS_CAREER_URL = "https://matchharper.com/ops/career";
@@ -199,6 +201,7 @@ function buildOpsCareerUserUrl(userId: string) {
 }
 
 async function notifyInternalPositionDecisionSlack(args: {
+  admin: TalentAdminClient;
   decision: TalentOpportunityFeedback;
   deviceLabel?: string | null;
   feedbackReason?: string | null;
@@ -213,16 +216,32 @@ async function notifyInternalPositionDecisionSlack(args: {
   const decisionLabel = accepted ? "accepted ☘️" : "rejected ❌";
 
   try {
+    const { data: role, error: roleError } = await args.admin
+      .from("company_roles")
+      .select("company_workspace_id")
+      .eq("role_id", args.opportunity.roleId)
+      .maybeSingle();
+    if (roleError) {
+      throw new Error(
+        roleError.message ?? "Failed to resolve opportunity workspace"
+      );
+    }
+    const channelId = getInternalOpportunityDecisionSlackChannelId(
+      role?.company_workspace_id
+    );
+
     await notifySlackActivity({
       action: `Internal position ${decisionLabel}`,
+      channelId,
       nameUrl: buildOpsCareerUserUrl(args.user.id),
       user: args.user,
       userId: args.user.id,
       details: [
         {
           label: "Decision",
-          value: accepted ? "수락" : "거절" + "at 사이트내 포지션 탭",
+          value: accepted ? "수락" : "거절",
         },
+        { label: "Source", value: "/career 포지션 탭" },
         { label: "Device", value: args.deviceLabel },
         { label: "Company", value: args.opportunity.companyName },
         { label: "Role", value: args.opportunity.title },
@@ -269,10 +288,20 @@ export async function GET(req: NextRequest) {
     const savedStages = parseSavedStagesParam(
       req.nextUrl.searchParams.get("savedStages")
     );
+    const locale =
+      req.nextUrl.searchParams.get("locale") ??
+      req.cookies.get("NEXT_LOCALE")?.value ??
+      null;
 
     if (roleId) {
+      await archiveEndedInternalOpportunitiesForTalent({
+        admin,
+        locale,
+        userId: user.id,
+      });
       const items = await fetchTalentOpportunityHistoryByRoleIds({
         admin,
+        locale,
         roleIds: [roleId],
         userId: user.id,
       });
@@ -291,6 +320,7 @@ export async function GET(req: NextRequest) {
       const stagePages = await fetchTalentOpportunitySavedStageHistoryPages({
         admin,
         limit,
+        locale,
         offset,
         savedStages,
         userId: user.id,
@@ -307,6 +337,7 @@ export async function GET(req: NextRequest) {
       admin,
       historyTab,
       limit,
+      locale,
       offset,
       savedStage,
       userId: user.id,
@@ -462,6 +493,7 @@ export async function PATCH(req: NextRequest) {
     const [updatedOpportunity] = await fetchTalentOpportunityHistoryByIds({
       admin,
       ids: [result.opportunityId ?? opportunityId],
+      locale: responseLocale,
       userId: user.id,
     });
     let historyCounts: Awaited<
@@ -511,6 +543,7 @@ export async function PATCH(req: NextRequest) {
         const [opportunity] = await fetchTalentOpportunityHistoryByIds({
           admin,
           ids: [result.opportunityId ?? opportunityId],
+          locale: responseLocale,
           userId: user.id,
         });
 
@@ -601,6 +634,7 @@ export async function PATCH(req: NextRequest) {
 
     if (action === "feedback" && body.feedback) {
       await notifyInternalPositionDecisionSlack({
+        admin,
         decision: body.feedback,
         deviceLabel: getSlackActivityDeviceLabel(req),
         feedbackReason: body.feedbackReason ?? null,

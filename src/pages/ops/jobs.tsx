@@ -1,10 +1,15 @@
 import OpsShell from "@/components/ops/OpsShell";
-import { formatKstRelativeDateTime } from "@/components/ops/dateUtils";
+import {
+  formatKstRelativeDate,
+  formatKstRelativeDateTime,
+} from "@/components/ops/dateUtils";
+import CompanyWorkspaceCombobox from "@/components/ops/jobs/CompanyWorkspaceCombobox";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { showToast } from "@/components/toast/toast";
 import { Switch } from "@/components/ui/switch";
 import {
-  useSyncAshbyOfficialJobs,
+  useOpsOfficialJobAnalytics,
+  useOpsOfficialJobCompanyOptions,
   useOpsOfficialJobs,
   useSaveOpsOfficialJob,
   type OpsOfficialJobRecord,
@@ -20,7 +25,6 @@ import { useAuthStore } from "@/store/useAuthStore";
 import {
   ArrowUpRight,
   CheckCircle2,
-  Link2,
   LoaderCircle,
   LockKeyhole,
   Plus,
@@ -34,10 +38,153 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BareButton } from "@/components/ui/button";
 import { Input as UiInput } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
 type JobFilter = "all" | "published" | "draft";
+type LinkedinFilter = "all" | "published" | "unpublished";
+type LocationFilter = "all" | "kr" | "jp" | "us" | "uk" | "sg" | "th" | "au";
 const NEW_JOB_ID = "__new_official_job__";
+
+const JOB_FILTER_OPTIONS: ReadonlyArray<{
+  label: string;
+  value: JobFilter;
+}> = [
+  { label: "All", value: "all" },
+  { label: "Published", value: "published" },
+  { label: "Draft", value: "draft" },
+];
+
+const LINKEDIN_FILTER_OPTIONS: ReadonlyArray<{
+  label: string;
+  value: LinkedinFilter;
+}> = [
+  { label: "LinkedIn 전체", value: "all" },
+  { label: "배포됨", value: "published" },
+  { label: "배포되지 않음", value: "unpublished" },
+];
+
+const LOCATION_FILTER_OPTIONS: ReadonlyArray<{
+  label: string;
+  value: LocationFilter;
+}> = [
+  { label: "Location 전체", value: "all" },
+  { label: "대한민국", value: "kr" },
+  { label: "일본", value: "jp" },
+  { label: "미국", value: "us" },
+  { label: "영국", value: "uk" },
+  { label: "싱가폴", value: "sg" },
+  { label: "태국", value: "th" },
+  { label: "호주", value: "au" },
+];
+
+const LOCATION_MATCHERS: Record<
+  Exclude<LocationFilter, "all">,
+  { flags: string[]; terms: string[] }
+> = {
+  kr: {
+    flags: ["🇰🇷"],
+    terms: [
+      "대한민국",
+      "한국",
+      "south korea",
+      "republic of korea",
+      "korea",
+      "seoul",
+      "서울",
+      "판교",
+      "성남",
+      "인천",
+      "부산",
+      "대전",
+      "대구",
+      "광주",
+      "제주",
+      "수원",
+    ],
+  },
+  jp: {
+    flags: ["🇯🇵"],
+    terms: [
+      "일본",
+      "japan",
+      "tokyo",
+      "도쿄",
+      "東京",
+      "osaka",
+      "오사카",
+      "kyoto",
+      "교토",
+      "yokohama",
+    ],
+  },
+  us: {
+    flags: ["🇺🇸"],
+    terms: [
+      "미국",
+      "united states",
+      "united states of america",
+      "usa",
+      "us",
+      "new york",
+      "nyc",
+      "san francisco",
+      "bay area",
+      "california",
+      "los angeles",
+      "seattle",
+      "austin",
+      "boston",
+      "chicago",
+      "washington dc",
+    ],
+  },
+  uk: {
+    flags: ["🇬🇧"],
+    terms: [
+      "영국",
+      "united kingdom",
+      "uk",
+      "great britain",
+      "britain",
+      "england",
+      "london",
+      "런던",
+      "manchester",
+      "edinburgh",
+      "scotland",
+    ],
+  },
+  sg: {
+    flags: ["🇸🇬"],
+    terms: ["싱가포르", "싱가폴", "singapore", "sg"],
+  },
+  th: {
+    flags: ["🇹🇭"],
+    terms: ["태국", "thailand", "bangkok", "방콕", "th"],
+  },
+  au: {
+    flags: ["🇦🇺"],
+    terms: [
+      "호주",
+      "australia",
+      "sydney",
+      "시드니",
+      "melbourne",
+      "멜버른",
+      "brisbane",
+      "perth",
+      "au",
+    ],
+  },
+};
 
 type OfficialJobDraft = {
   ashbyJobPostingId: string;
@@ -49,6 +196,7 @@ type OfficialJobDraft = {
   displayOrder: string;
   employmentType: string;
   id: string | null;
+  isOnLinkedin: boolean;
   isPublished: boolean;
   location: string;
   roleDescriptionMarkdown: string;
@@ -56,6 +204,7 @@ type OfficialJobDraft = {
   seniority: string;
   shortDescription: string;
   slug: string;
+  sourceCompanyName: string;
   vertical: string;
 };
 
@@ -75,6 +224,7 @@ const EMPTY_DRAFT: OfficialJobDraft = {
   displayOrder: "0",
   employmentType: "Full-time",
   id: null,
+  isOnLinkedin: false,
   isPublished: false,
   location: "",
   roleDescriptionMarkdown: "",
@@ -82,6 +232,7 @@ const EMPTY_DRAFT: OfficialJobDraft = {
   seniority: "",
   shortDescription: "",
   slug: "",
+  sourceCompanyName: "",
   vertical: "",
 };
 
@@ -95,6 +246,7 @@ const OFFICIAL_JOB_DRAFT_FIELDS: Array<keyof OfficialJobDraft> = [
   "displayOrder",
   "employmentType",
   "id",
+  "isOnLinkedin",
   "isPublished",
   "location",
   "roleDescriptionMarkdown",
@@ -102,6 +254,7 @@ const OFFICIAL_JOB_DRAFT_FIELDS: Array<keyof OfficialJobDraft> = [
   "seniority",
   "shortDescription",
   "slug",
+  "sourceCompanyName",
   "vertical",
 ];
 
@@ -145,6 +298,7 @@ function jobToDraft(job: OpsOfficialJobRecord): OfficialJobDraft {
     displayOrder: String(job.displayOrder),
     employmentType: job.employmentType ?? "",
     id: job.id,
+    isOnLinkedin: job.isOnLinkedin,
     isPublished: job.isPublished,
     location: job.location,
     roleDescriptionMarkdown: job.roleDescriptionMarkdown,
@@ -152,6 +306,7 @@ function jobToDraft(job: OpsOfficialJobRecord): OfficialJobDraft {
     seniority: job.seniority ?? "",
     shortDescription: job.shortDescription,
     slug: job.slug,
+    sourceCompanyName: job.sourceCompanyName ?? "",
     vertical: job.vertical,
   };
 }
@@ -178,6 +333,7 @@ function draftToPayload(draft: OfficialJobDraft): OpsOfficialJobSaveInput {
     displayOrder: draft.displayOrder,
     employmentType: draft.employmentType,
     id: draft.id,
+    isOnLinkedin: isInternalCopy ? false : draft.isOnLinkedin,
     isPublished: isInternalCopy ? false : draft.isPublished,
     location: draft.location,
     roleDescriptionMarkdown: draft.roleDescriptionMarkdown,
@@ -187,6 +343,7 @@ function draftToPayload(draft: OfficialJobDraft): OpsOfficialJobSaveInput {
     seniority: draft.seniority,
     shortDescription: draft.shortDescription,
     slug: isInternalCopy ? OFFICIAL_JOBS_INTERNAL_COPY_SLUG : draft.slug,
+    sourceCompanyName: draft.sourceCompanyName,
     vertical: draft.vertical,
   };
 }
@@ -215,6 +372,39 @@ function matchesFilter(job: OpsOfficialJobRecord, filter: JobFilter) {
   return true;
 }
 
+function matchesLinkedinFilter(
+  job: OpsOfficialJobRecord,
+  filter: LinkedinFilter
+) {
+  if (filter === "published") return job.isOnLinkedin;
+  if (filter === "unpublished") return !job.isOnLinkedin;
+  return true;
+}
+
+function normalizeLocationTerm(value: string) {
+  return value
+    .normalize("NFKC")
+    .toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+}
+
+function matchesLocationFilter(
+  job: OpsOfficialJobRecord,
+  filter: LocationFilter
+) {
+  if (filter === "all") return true;
+
+  const matcher = LOCATION_MATCHERS[filter];
+  const rawLocation = job.location.normalize("NFKC").toLocaleLowerCase();
+  if (matcher.flags.some((flag) => rawLocation.includes(flag))) return true;
+
+  const normalizedLocation = ` ${normalizeLocationTerm(rawLocation)} `;
+  return matcher.terms.some((term) =>
+    normalizedLocation.includes(` ${normalizeLocationTerm(term)} `)
+  );
+}
+
 function matchesQuery(job: OpsOfficialJobRecord, query: string) {
   if (!query) return true;
   const haystack = [
@@ -231,50 +421,10 @@ function matchesQuery(job: OpsOfficialJobRecord, query: string) {
   return haystack.includes(query);
 }
 
-function hasAshbyConnection(
-  job: Pick<OpsOfficialJobRecord, "ashbyJobPostingId">
-) {
-  return Boolean(job.ashbyJobPostingId?.trim());
-}
-
-function compareJobsForSidebar(
-  first: OpsOfficialJobRecord,
-  second: OpsOfficialJobRecord
-) {
-  const firstHasAshby = hasAshbyConnection(first);
-  const secondHasAshby = hasAshbyConnection(second);
-
-  if (firstHasAshby !== secondHasAshby) {
-    return firstHasAshby ? -1 : 1;
-  }
-
-  return 0;
-}
-
-const ashbySourcedFieldClass =
-  "!border-critical/30 !bg-critical-faded !text-critical focus:!border-critical/30 focus:!bg-bg-default";
-
-function Field({
-  children,
-  label,
-  sourceLabel,
-}: {
-  children: ReactNode;
-  label: ReactNode;
-  sourceLabel?: string;
-}) {
+function Field({ children, label }: { children: ReactNode; label: ReactNode }) {
   return (
     <label className="block">
-      <span className="flex items-center gap-2">
-        <span className={cx(opsTheme.label, sourceLabel && "text-critical")}>
-          {label}
-        </span>
-        {sourceLabel ? (
-          <span className="rounded-md bg-critical-faded px-1.5 py-0.5 text-[10px] font-semibold text-critical">
-            {sourceLabel}
-          </span>
-        ) : null}
-      </span>
+      <span className={opsTheme.label}>{label}</span>
       <div className="mt-2">{children}</div>
     </label>
   );
@@ -287,6 +437,8 @@ export default function OpsOfficialJobsPage() {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<JobFilter>("all");
+  const [linkedinFilter, setLinkedinFilter] = useState<LinkedinFilter>("all");
+  const [locationFilter, setLocationFilter] = useState<LocationFilter>("all");
   const [draftState, setDraftState] = useState<OfficialJobDraftState>({
     draft: EMPTY_DRAFT,
     initialDraft: EMPTY_DRAFT,
@@ -295,12 +447,12 @@ export default function OpsOfficialJobsPage() {
   const roleDescriptionTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const jobsQuery = useOpsOfficialJobs(canFetchInternal);
+  const companyOptionsQuery = useOpsOfficialJobCompanyOptions(canFetchInternal);
   const saveJob = useSaveOpsOfficialJob();
-  const syncAshbyJobs = useSyncAshbyOfficialJobs();
-  const jobs = useMemo(() => {
-    const loadedJobs = jobsQuery.data?.jobs ?? [];
-    return [...loadedJobs].sort(compareJobsForSidebar);
-  }, [jobsQuery.data?.jobs]);
+  const jobs = useMemo(
+    () => jobsQuery.data?.jobs ?? [],
+    [jobsQuery.data?.jobs]
+  );
   const activeJobId =
     selectedJobId === NEW_JOB_ID
       ? null
@@ -318,9 +470,12 @@ export default function OpsOfficialJobsPage() {
     : (selectedJobDraft ?? EMPTY_DRAFT);
   const hasUnsavedChanges = !areOfficialJobDraftsEqual(draft, initialDraft);
   const isInternalCopyDraft = isOfficialJobsInternalCopyIdentity(draft);
-  const isAshbyConnectedDraft = hasAshbyConnection(draft);
   const effectiveIsPublished = isInternalCopyDraft ? false : draft.isPublished;
   const isSlugLocked = Boolean(draft.id) || isInternalCopyDraft;
+  const analyticsQuery = useOpsOfficialJobAnalytics(
+    selectedJob?.id,
+    canFetchInternal && Boolean(selectedJob) && !selectedJob?.isInternalCopy
+  );
 
   useEffect(() => {
     resizeTextareaToContent(roleDescriptionTextareaRef.current);
@@ -329,9 +484,13 @@ export default function OpsOfficialJobsPage() {
   const filteredJobs = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return jobs.filter(
-      (job) => matchesFilter(job, filter) && matchesQuery(job, normalizedQuery)
+      (job) =>
+        matchesFilter(job, filter) &&
+        matchesLinkedinFilter(job, linkedinFilter) &&
+        matchesLocationFilter(job, locationFilter) &&
+        matchesQuery(job, normalizedQuery)
     );
-  }, [filter, jobs, query]);
+  }, [filter, jobs, linkedinFilter, locationFilter, query]);
 
   const stats = useMemo(() => {
     const visibleJobs = jobs.filter((job) => !job.isInternalCopy);
@@ -415,40 +574,6 @@ export default function OpsOfficialJobsPage() {
     }
   };
 
-  const handleSyncAshby = async () => {
-    try {
-      const activeJobIdBeforeSync = activeJobId;
-      const shouldReloadActiveDraft =
-        Boolean(activeJobIdBeforeSync) && !hasUnsavedChanges;
-      const result = await syncAshbyJobs.mutateAsync();
-      showToast({
-        message: `Ashby sync 완료: ${result.inserted} created, ${result.updated} updated, ${result.unpublished} hidden`,
-        variant: "success",
-      });
-      const refetchResult = await jobsQuery.refetch();
-
-      if (shouldReloadActiveDraft && activeJobIdBeforeSync) {
-        const refreshedJob = refetchResult.data?.jobs.find(
-          (job) => job.id === activeJobIdBeforeSync
-        );
-        if (refreshedJob) {
-          const refreshedDraft = jobToDraft(refreshedJob);
-          setDraftState({
-            draft: refreshedDraft,
-            initialDraft: refreshedDraft,
-            key: refreshedJob.id,
-          });
-        }
-      }
-    } catch (error) {
-      showToast({
-        message:
-          error instanceof Error ? error.message : "Ashby sync 실행 실패",
-        variant: "error",
-      });
-    }
-  };
-
   return (
     <>
       <Head>
@@ -462,35 +587,22 @@ export default function OpsOfficialJobsPage() {
           <section className="flex flex-wrap items-center gap-3">
             <div className="flex flex-row gap-2 items-center px-2">
               <div className={opsTheme.eyebrow}>Total</div>
-              <div className="mt-2 text-2xl font-semibold text-neutral-primary">
+              <div className="mt-2 text-xl font-semibold text-neutral-primary">
                 {stats.total}
               </div>
             </div>
             <div className="flex flex-row gap-2 items-center px-2">
               <div className={opsTheme.eyebrow}>Published</div>
-              <div className="mt-2 text-2xl font-semibold text-positive">
+              <div className="mt-2 text-xl font-semibold text-positive">
                 {stats.published}
               </div>
             </div>
             <div className="flex flex-row gap-2 items-center px-2">
               <div className={opsTheme.eyebrow}>Draft</div>
-              <div className="mt-2 text-2xl font-semibold text-info">
+              <div className="mt-2 text-xl font-semibold text-info">
                 {stats.draft}
               </div>
             </div>
-            <BareButton
-              type="button"
-              onClick={handleSyncAshby}
-              disabled={syncAshbyJobs.isPending}
-              className={cx(opsTheme.buttonSecondary, "h-10 self-center px-3")}
-            >
-              {syncAshbyJobs.isPending ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-              Ashby 전체 읽어오기
-            </BareButton>
           </section>
         }
       >
@@ -498,12 +610,9 @@ export default function OpsOfficialJobsPage() {
           <aside className={cx(opsTheme.panel, "overflow-hidden")}>
             <div className="border-b border-neutral-1000-a05 p-4">
               <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className={opsTheme.eyebrow}>Jobs</div>
-                  <h2 className="mt-1 text-lg font-medium text-neutral-primary">
-                    Official job list
-                  </h2>
-                </div>
+                <h2 className="mt-1 text-lg font-medium text-neutral-primary">
+                  Official job list
+                </h2>
                 <BareButton
                   type="button"
                   onClick={startNewJob}
@@ -525,26 +634,71 @@ export default function OpsOfficialJobsPage() {
                 />
               </div>
 
-              <div className="mt-3 grid grid-cols-3 rounded-md bg-bg-weak p-1">
-                {[
-                  ["all", "All"],
-                  ["published", "Published"],
-                  ["draft", "Draft"],
-                ].map(([value, label]) => (
-                  <BareButton
-                    key={value}
-                    type="button"
-                    onClick={() => setFilter(value as JobFilter)}
-                    className={cx(
-                      "h-8 rounded px-2 text-xs font-medium transition",
-                      filter === value
-                        ? "bg-bg-default text-neutral-primary shadow-sm"
-                        : "text-neutral-muted hover:text-neutral-primary"
-                    )}
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <Select
+                  items={JOB_FILTER_OPTIONS}
+                  value={filter}
+                  onValueChange={(value) => setFilter(value as JobFilter)}
+                >
+                  <SelectTrigger aria-label="공개 상태 필터" size="sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent align="start" alignItemWithTrigger={false}>
+                    <SelectGroup>
+                      {JOB_FILTER_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  items={LINKEDIN_FILTER_OPTIONS}
+                  value={linkedinFilter}
+                  onValueChange={(value) =>
+                    setLinkedinFilter(value as LinkedinFilter)
+                  }
+                >
+                  <SelectTrigger aria-label="LinkedIn 배포 상태 필터" size="sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent align="start" alignItemWithTrigger={false}>
+                    <SelectGroup>
+                      {LINKEDIN_FILTER_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  items={LOCATION_FILTER_OPTIONS}
+                  value={locationFilter}
+                  onValueChange={(value) =>
+                    setLocationFilter(value as LocationFilter)
+                  }
+                >
+                  <SelectTrigger
+                    aria-label="Location 국가 필터"
+                    size="sm"
+                    className="col-span-2"
                   >
-                    {label}
-                  </BareButton>
-                ))}
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent align="start" alignItemWithTrigger={false}>
+                    <SelectGroup>
+                      {LOCATION_FILTER_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -571,8 +725,6 @@ export default function OpsOfficialJobsPage() {
               ) : null}
 
               {filteredJobs.map((job) => {
-                const isAshbyConnected = hasAshbyConnection(job);
-
                 return (
                   <BareButton
                     key={job.id}
@@ -588,14 +740,9 @@ export default function OpsOfficialJobsPage() {
                     }}
                     className={cx(
                       "block w-full border-b border-l-4 border-neutral-1000-a05 border-l-transparent px-4 py-3 text-left transition",
-                      isAshbyConnected && "border-l-info bg-info-faded",
                       activeJobId === job.id
-                        ? isAshbyConnected
-                          ? "bg-info-faded"
-                          : "bg-bg-floating"
-                        : isAshbyConnected
-                          ? "hover:bg-info-faded"
-                          : "hover:bg-bg-default/60"
+                        ? "bg-bg-floating"
+                        : "hover:bg-bg-default/60"
                     )}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -608,12 +755,6 @@ export default function OpsOfficialJobsPage() {
                         </div>
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-1">
-                        {isAshbyConnected ? (
-                          <span className="inline-flex items-center gap-1 rounded-md bg-info px-2 py-1 text-[11px] font-semibold text-neutral-00 shadow-sm">
-                            <Link2 className="h-3 w-3" />
-                            Ashby 연결
-                          </span>
-                        ) : null}
                         <span
                           className={cx(
                             "rounded-md px-2 py-1 text-[11px] font-medium",
@@ -633,19 +774,17 @@ export default function OpsOfficialJobsPage() {
                       </div>
                     </div>
                     <div className="mt-2 flex items-center justify-between gap-3 text-[12px] text-neutral-muted">
-                      <span
-                        className={cx(
-                          "truncate",
-                          isAshbyConnected && "font-semibold text-info"
-                        )}
-                      >
+                      <span className="truncate">
                         {job.isInternalCopy
                           ? "Not shown on /jobs"
-                          : isAshbyConnected
-                            ? `Ashby ID · ${job.ashbyJobPostingId}`
-                            : job.location}
+                          : job.location}
                       </span>
-                      <span>#{job.displayOrder}</span>
+                      <span className="shrink-0">
+                        마지막 수정:{" "}
+                        {formatKstRelativeDate(job.updatedAt, {
+                          maxRelativeDays: Number.POSITIVE_INFINITY,
+                        })}
+                      </span>
                     </div>
                   </BareButton>
                 );
@@ -656,7 +795,6 @@ export default function OpsOfficialJobsPage() {
           <section className={cx(opsTheme.panel, "p-5")}>
             <div className="flex flex-col gap-4 border-b border-neutral-1000-a05 pb-5 md:flex-row md:items-start md:justify-between">
               <div>
-                <div className={opsTheme.eyebrow}>Editor</div>
                 <h2 className="mt-1 text-xl font-medium text-neutral-primary">
                   {draft.id ? "Edit official job" : "Create official job"}
                 </h2>
@@ -704,7 +842,68 @@ export default function OpsOfficialJobsPage() {
               </div>
             </div>
 
-            <div className="mt-5 grid gap-4 lg:grid-cols-2">
+            <div className="mt-1 grid gap-4 lg:grid-cols-2">
+              <div className={cx(opsTheme.panelSoft, "p-4")}>
+                <div className={opsTheme.eyebrow}>Timestamps</div>
+                <div className="mt-3 grid gap-2 text-xs text-neutral-muted sm:grid-cols-3">
+                  <div>
+                    <div className="text-neutral-soft">Created</div>
+                    <div className="mt-1 text-neutral-primary">
+                      {formatKstRelativeDateTime(selectedJob?.createdAt)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-neutral-soft">Updated</div>
+                    <div className="mt-1 text-neutral-primary">
+                      {formatKstRelativeDateTime(selectedJob?.updatedAt)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-neutral-soft">Published</div>
+                    <div className="mt-1 text-neutral-primary">
+                      {formatKstRelativeDateTime(selectedJob?.publishedAt)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className={cx(opsTheme.panelSoft, "p-4")}>
+                <div className={opsTheme.eyebrow}></div>
+                <div className="mt-3 grid gap-2 text-xs text-neutral-muted sm:grid-cols-3">
+                  {[
+                    ["총 방문자", analyticsQuery.data?.analytics.totalVisitors],
+                    [
+                      "어제 방문자",
+                      analyticsQuery.data?.analytics.yesterdayVisitors,
+                    ],
+                    [
+                      "총 회원가입",
+                      analyticsQuery.data?.analytics.totalSignups,
+                    ],
+                  ].map(([label, value]) => (
+                    <div key={label}>
+                      <div className="text-neutral-soft">{label}</div>
+                      <div className="mt-1 text-base font-semibold text-neutral-primary">
+                        {analyticsQuery.isLoading ? (
+                          <span className="inline-block h-5 w-8 animate-pulse rounded bg-bg-weak" />
+                        ) : typeof value === "number" ? (
+                          value.toLocaleString("ko-KR")
+                        ) : (
+                          "-"
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {analyticsQuery.error ? (
+                  <div className="mt-2 text-xs text-critical">
+                    방문 통계를 불러오지 못했습니다.
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-4 lg:grid-cols-2 rounded-md border border-neutral-1000-a05 shadow-xs">
               <div className={cx(opsTheme.panelSoft, "p-4")}>
                 <div className="flex items-center justify-between gap-4">
                   <div>
@@ -758,35 +957,48 @@ export default function OpsOfficialJobsPage() {
               </div>
 
               <div className={cx(opsTheme.panelSoft, "p-4")}>
-                <div className={opsTheme.eyebrow}>Timestamps</div>
-                <div className="mt-3 grid gap-2 text-xs text-neutral-muted sm:grid-cols-3">
+                <div className="flex items-center justify-between gap-4">
                   <div>
-                    <div className="text-neutral-soft">Created</div>
-                    <div className="mt-1 text-neutral-primary">
-                      {formatKstRelativeDateTime(selectedJob?.createdAt)}
+                    <div className="block text-sm font-semibold text-neutral-primary">
+                      LinkedIn
+                    </div>
+                    <div className="mt-1 block text-xs text-neutral-muted">
+                      LinkedIn에 게시된 공고인지 표시합니다.
                     </div>
                   </div>
-                  <div>
-                    <div className="text-neutral-soft">Updated</div>
-                    <div className="mt-1 text-neutral-primary">
-                      {formatKstRelativeDateTime(selectedJob?.updatedAt)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-neutral-soft">Published</div>
-                    <div className="mt-1 text-neutral-primary">
-                      {formatKstRelativeDateTime(selectedJob?.publishedAt)}
-                    </div>
-                  </div>
+                  <Switch
+                    checked={draft.isOnLinkedin}
+                    aria-label="Toggle LinkedIn status"
+                    disabled={isInternalCopyDraft}
+                    onCheckedChange={(checked) =>
+                      !isInternalCopyDraft &&
+                      updateDraft("isOnLinkedin", checked)
+                    }
+                    className={cx(
+                      isInternalCopyDraft && "cursor-not-allowed opacity-70"
+                    )}
+                  />
+                </div>
+                <div
+                  className={cx(
+                    "mt-3 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium",
+                    draft.isOnLinkedin
+                      ? "bg-positive-faded text-positive"
+                      : "bg-bg-weak text-neutral-muted"
+                  )}
+                >
+                  {draft.isOnLinkedin ? (
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                  ) : (
+                    <span className="h-1.5 w-1.5 rounded-full bg-neutral-disabled" />
+                  )}
+                  {draft.isOnLinkedin ? "On LinkedIn" : "Not on LinkedIn"}
                 </div>
               </div>
             </div>
 
             <div className="mt-5 grid gap-4 lg:grid-cols-2">
-              <Field
-                label="Job title"
-                sourceLabel={isAshbyConnectedDraft ? "Ashby" : undefined}
-              >
+              <Field label="Job title">
                 <UiInput
                   unstyled
                   value={draft.roleTitle}
@@ -796,42 +1008,29 @@ export default function OpsOfficialJobsPage() {
                   }
                   className={cx(
                     opsTheme.input,
-                    isAshbyConnectedDraft && ashbySourcedFieldClass,
                     isInternalCopyDraft &&
                       "cursor-not-allowed bg-bg-weak text-neutral-muted"
                   )}
                 />
               </Field>
-              <Field
-                label="Company name"
-                sourceLabel={isAshbyConnectedDraft ? "Ashby" : undefined}
-              >
+              <Field label="Company name">
                 <UiInput
                   unstyled
                   value={draft.companyName}
                   onChange={(event) =>
                     updateDraft("companyName", event.target.value)
                   }
-                  className={cx(
-                    opsTheme.input,
-                    isAshbyConnectedDraft && ashbySourcedFieldClass
-                  )}
+                  className={opsTheme.input}
                 />
               </Field>
-              <Field
-                label="Location"
-                sourceLabel={isAshbyConnectedDraft ? "Ashby" : undefined}
-              >
+              <Field label="Location">
                 <UiInput
                   unstyled
                   value={draft.location}
                   onChange={(event) =>
                     updateDraft("location", event.target.value)
                   }
-                  className={cx(
-                    opsTheme.input,
-                    isAshbyConnectedDraft && ashbySourcedFieldClass
-                  )}
+                  className={opsTheme.input}
                 />
               </Field>
               <Field label="Vertical">
@@ -844,51 +1043,47 @@ export default function OpsOfficialJobsPage() {
                   className={opsTheme.input}
                 />
               </Field>
-              <Field
-                label="Employment type"
-                sourceLabel={isAshbyConnectedDraft ? "Ashby" : undefined}
-              >
+              <Field label="Employment type">
                 <UiInput
                   unstyled
                   value={draft.employmentType}
                   onChange={(event) =>
                     updateDraft("employmentType", event.target.value)
                   }
-                  className={cx(
-                    opsTheme.input,
-                    isAshbyConnectedDraft && ashbySourcedFieldClass
-                  )}
+                  className={opsTheme.input}
                   placeholder="Full-time"
                 />
+              </Field>
+              <Field label="Source company name">
+                <CompanyWorkspaceCombobox
+                  companyNames={companyOptionsQuery.data?.companyNames ?? []}
+                  disabled={!canFetchInternal}
+                  isLoading={companyOptionsQuery.isLoading}
+                  value={draft.sourceCompanyName}
+                  onValueChange={(value) =>
+                    updateDraft("sourceCompanyName", value)
+                  }
+                />
+                {companyOptionsQuery.error ? (
+                  <div className="mt-1.5 text-xs text-critical">
+                    회사 목록을 불러오지 못했습니다.
+                  </div>
+                ) : null}
               </Field>
             </div>
 
             <div className="mt-5 grid gap-4">
-              <Field
-                label="Short description"
-                sourceLabel={
-                  isAshbyConnectedDraft ? "Ashby socialDescription" : undefined
-                }
-              >
+              <Field label="Short description">
                 <UiTextarea
                   unstyled
                   value={draft.shortDescription}
                   onChange={(event) =>
                     updateDraft("shortDescription", event.target.value)
                   }
-                  className={cx(
-                    opsTheme.textarea,
-                    "min-h-[88px]",
-                    isAshbyConnectedDraft && ashbySourcedFieldClass
-                  )}
+                  className={cx(opsTheme.textarea, "min-h-[88px]")}
                 />
               </Field>
-              <Field
-                label="Role description markdown   (큰글씨: ### 텍스트, 가로선:---, bold: **텍스트**)"
-                sourceLabel={
-                  isAshbyConnectedDraft ? "Ashby description" : undefined
-                }
-              >
+              <Field label="Role description markdown   (큰글씨: ### 텍스트, 가로선:---, bold: **텍스트**)">
                 <UiTextarea
                   ref={roleDescriptionTextareaRef}
                   unstyled
@@ -899,8 +1094,7 @@ export default function OpsOfficialJobsPage() {
                   }}
                   className={cx(
                     opsTheme.textarea,
-                    "min-h-[480px] resize-none overflow-hidden",
-                    isAshbyConnectedDraft && ashbySourcedFieldClass
+                    "min-h-[480px] resize-none overflow-hidden"
                   )}
                 />
                 <div className="mt-3 grid grid-cols-2 gap-2">

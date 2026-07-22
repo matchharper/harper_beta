@@ -1,13 +1,45 @@
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import type {
   OpsCompanyActivityResponse,
   OpsCompanyMembersResponse,
   OpsCompanyWaitingResponse,
+  OpsCompanyWorkspaceUpdateInput,
+  OpsCompanyWorkspaceUpdateResponse,
 } from "@/lib/ops/company";
 import { queryKeys } from "@/lib/queryKeys";
 
 export const OPS_COMPANY_ACTIVITY_PAGE_SIZE = 20;
+
+export function useUpdateOpsCompanyWorkspace() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: OpsCompanyWorkspaceUpdateInput) =>
+      fetchWithInternalAuth<OpsCompanyWorkspaceUpdateResponse>(
+        "/api/internal/company",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(input),
+        }
+      ),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.opsOpportunity.all,
+        }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.opsCompany.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.org.all }),
+      ]);
+    },
+  });
+}
 
 export function useOpsCompanyWaiting(enabled = true) {
   return useQuery({

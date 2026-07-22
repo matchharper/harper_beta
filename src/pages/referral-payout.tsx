@@ -303,7 +303,7 @@ export default function ReferralPayoutPage() {
         <meta name="referrer" content="no-referrer" />
       </Head>
 
-      <main className="min-h-screen bg-bg-weak px-4 py-8 font-normal text-neutral-primary sm:py-14">
+      <main className="min-h-screen bg-bg-basement px-4 py-8 font-normal text-neutral-primary sm:py-14">
         <div className="mx-auto w-full max-w-[680px]">
           <Link
             href="/"
@@ -314,10 +314,10 @@ export default function ReferralPayoutPage() {
 
           <section className="overflow-hidden rounded-2xl border border-neutral-1000-a10 bg-bg-floating shadow-sm">
             <header className="border-b border-neutral-1000-a10 px-5 py-6 sm:px-8 sm:py-8">
-              <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-neutral-1000 text-neutral-00">
+              <div className="mb-4">
                 <LockKeyhole className="h-5 w-5" aria-hidden />
               </div>
-              <h1 className="text-2xl font-medium tracking-[-0.03em]">
+              <h1 className="text-xl font-medium tracking-[-0.03em]">
                 레퍼럴 보상 지급정보
               </h1>
               <p className="mt-3 text-sm leading-6 text-neutral-muted sm:text-base">

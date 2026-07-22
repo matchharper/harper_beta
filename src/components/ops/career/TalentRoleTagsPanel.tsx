@@ -13,7 +13,14 @@ import {
 import { MatchingTagEditor } from "@/components/ops/matching/MatchingTalentInlineActions";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { BareButton } from "@/components/ui/button";
-import { Select as UiSelect } from "@/components/ui/select";
+import {
+  Select as UiSelect,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   useOpsCareerRecommendations,
   useOpsManualInternalRecommendationRoles,
@@ -524,26 +531,46 @@ export function TalentRoleTagsPanel({ userId }: TalentRoleTagsPanelProps) {
       <label className="mt-4 block">
         <span className={opsTheme.label}>회사/Role 선택</span>
         <UiSelect
+          items={[
+            {
+              label: rolesQuery.isLoading
+                ? "Role 불러오는 중"
+                : roleOptions.length === 0
+                  ? "선택 가능한 role 없음"
+                  : "기회를 선택하세요",
+              value: "",
+            },
+            ...roleOptions.map((role) => ({
+              label: formatRoleLabel(role),
+              value: role.roleId,
+            })),
+          ]}
           value={selectedRoleId}
-          onChange={(event) => {
-            setSelectedRoleId(event.target.value);
+          onValueChange={(value) => {
+            setSelectedRoleId(value ?? "");
             setManualNotice("");
           }}
           disabled={rolesQuery.isLoading || roleOptions.length === 0}
-          className="mt-1.5 h-10 text-sm"
         >
-          <option value="">
-            {rolesQuery.isLoading
-              ? "Role 불러오는 중"
-              : roleOptions.length === 0
-                ? "선택 가능한 role 없음"
-                : "기회를 선택하세요"}
-          </option>
-          {roleOptions.map((role) => (
-            <option key={role.roleId} value={role.roleId}>
-              {formatRoleLabel(role)}
-            </option>
-          ))}
+          <SelectTrigger className="mt-1.5 h-10 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent align="start" alignItemWithTrigger={false}>
+            <SelectGroup>
+              <SelectItem value="">
+                {rolesQuery.isLoading
+                  ? "Role 불러오는 중"
+                  : roleOptions.length === 0
+                    ? "선택 가능한 role 없음"
+                    : "기회를 선택하세요"}
+              </SelectItem>
+              {roleOptions.map((role) => (
+                <SelectItem key={role.roleId} value={role.roleId}>
+                  {formatRoleLabel(role)}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
         </UiSelect>
       </label>
 

@@ -1,0 +1,1017 @@
+import {
+  ArrowUp,
+  AudioLines,
+  Bot,
+  CalendarClock,
+  Check,
+  ChevronRight,
+  ChevronUp,
+  Info,
+  LoaderCircle,
+  MessageCircle,
+  SendHorizontal,
+  SquarePen,
+  X,
+} from "lucide-react";
+import {
+  type FormEvent,
+  type KeyboardEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { Button, IconButton } from "@/components/ui/button";
+import {
+  DEFAULT_ORG_AGENT_MODEL,
+  ORG_AGENT_CLAUDE_MODEL,
+  ORG_AGENT_GROK_MODEL,
+  type OrgAgentModelId,
+} from "@/lib/org/agent/modelConfig";
+import type {
+  OrgAgentMention,
+  OrgAgentMentionCandidate,
+  OrgAgentMessage,
+  OrgAgentMessageAction,
+} from "@/lib/org/agent/types";
+import type { OrgRole } from "@/lib/org/server";
+import {
+  useOrgAgentChat,
+  useOrgAgentMentionCandidates,
+  useOrgAgentMessageHistory,
+  useSendOrgAgentMeetingRequest,
+} from "@/hooks/org/useOrgAgent";
+import { cn } from "@/lib/utils";
+import Face from "@/components/common/Face";
+import Image from "next/image";
+
+function parseDate(createdAt: string) {
+  const date = new Date(createdAt);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getDateKey(createdAt: string) {
+  const date = parseDate(createdAt);
+  if (!date) return "";
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function formatDateLabel(createdAt: string) {
+  const date = parseDate(createdAt);
+  if (!date) return "";
+  return new Intl.DateTimeFormat("ko-KR", {
+    day: "numeric",
+    month: "long",
+    weekday: "short",
+    year: "numeric",
+  }).format(date);
+}
+
+function normalizeText(value: unknown) {
+  return String(value ?? "").trim();
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function serializeDraftWithMentions(
+  draft: string,
+  mentions: OrgAgentMention[]
+) {
+  let output = draft;
+  const remaining = mentions.filter((mention) =>
+    output.includes(`@${mention.displayName}`)
+  );
+  for (const mention of remaining) {
+    const pattern = new RegExp(`@${escapeRegExp(mention.displayName)}\\b`);
+    output = output.replace(
+      pattern,
+      `@[${mention.displayName}](talent:${mention.talentId})`
+    );
+  }
+  return {
+    mentions: remaining,
+    text: output.trim(),
+  };
+}
+
+function getMentionSearch(value: string, cursor: number) {
+  const prefix = value.slice(0, cursor);
+  const atIndex = prefix.lastIndexOf("@");
+  if (atIndex < 0) return null;
+  const afterAt = prefix.slice(atIndex + 1);
+  if (afterAt.includes("\n") || afterAt.includes("  ")) return null;
+  return {
+    query: afterAt.trim(),
+    start: atIndex,
+  };
+}
+
+function getPreviousMessageDateKey(
+  messages: OrgAgentMessage[],
+  currentIndex: number
+) {
+  for (let index = currentIndex - 1; index >= 0; index -= 1) {
+    const dateKey = getDateKey(messages[index].createdAt);
+    if (dateKey) return dateKey;
+  }
+  return "";
+}
+
+function DateDivider({ label }: { label: string }) {
+  return (
+    <div className="flex justify-center py-2">
+      <span className="rounded-full bg-bg-weak px-2.5 py-1 text-[11px] text-neutral-soft">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+function MentionText({
+  content,
+  inverse,
+}: {
+  content: string;
+  inverse?: boolean;
+}) {
+  const regex = /@\[([^\]]+)\]\(talent:([^)]+)\)/g;
+  const nodes: ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(content))) {
+    if (match.index > lastIndex) {
+      nodes.push(content.slice(lastIndex, match.index));
+    }
+    nodes.push(
+      <span
+        key={`${match[2]}-${match.index}`}
+        className="inline-flex max-w-full align-baseline"
+        title={`talentId: ${match[2]}`}
+      >
+        <span
+          className={cn(
+            "mx-0.5 rounded-md px-1.5 py-0.5 font-medium",
+            inverse
+              ? "bg-neutral-00/15 text-neutral-00"
+              : "bg-neutral-1000-a05 text-neutral-primary"
+          )}
+        >
+          @{match[1]}
+        </span>
+      </span>
+    );
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < content.length) nodes.push(content.slice(lastIndex));
+  return <>{nodes}</>;
+}
+
+function MessageActionView({
+  action,
+  message,
+  roleId,
+  workspaceId,
+}: {
+  action: OrgAgentMessageAction;
+  message: OrgAgentMessage;
+  roleId: string;
+  workspaceId: string;
+}) {
+  const meetingRequest = useSendOrgAgentMeetingRequest();
+
+  if (action.kind === "request_updated") {
+    return (
+      <div className="inline-flex items-center gap-1.5 text-[12px] text-positive">
+        <Check className="h-3.5 w-3.5" />
+        {action.label}
+      </div>
+    );
+  }
+
+  const sent = action.status === "sent" || meetingRequest.isSuccess;
+  return (
+    <div className="mt-3">
+      <Button
+        type="button"
+        size="sm"
+        variant="secondary"
+        disabled={sent || meetingRequest.isPending}
+        onClick={() =>
+          meetingRequest.mutate({
+            actionId: action.id,
+            messageId: message.id,
+            reason: action.payload.reason ?? null,
+            roleId,
+            topic: action.payload.topic,
+            workspaceId,
+          })
+        }
+      >
+        {meetingRequest.isPending ? (
+          <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+        ) : sent ? (
+          <Check className="h-3.5 w-3.5" />
+        ) : (
+          <CalendarClock className="h-3.5 w-3.5" />
+        )}
+        {sent ? "요청 보냄" : action.label}
+      </Button>
+    </div>
+  );
+}
+
+function MessageBubble({
+  message,
+  roleId,
+  workspaceId,
+}: {
+  message: OrgAgentMessage;
+  roleId: string;
+  workspaceId: string;
+}) {
+  const isUser = message.role === "user";
+  const actions = message.metadata.actions ?? [];
+  const toolResultActions = actions.filter(
+    (action) => action.kind === "request_updated"
+  );
+  const followUpActions = actions.filter(
+    (action) => action.kind !== "request_updated"
+  );
+
+  return (
+    <div className="space-y-0">
+      {!isUser && (
+        <ThinkingPanel
+          logs={message.thinkingLogs}
+          showResponseCompletion={
+            (message.metadata.toolResults?.length ?? 0) > 0
+          }
+        />
+      )}
+      {!isUser &&
+        toolResultActions.map((action) => (
+          <MessageActionView
+            key={action.id}
+            action={action}
+            message={message}
+            roleId={roleId}
+            workspaceId={workspaceId}
+          />
+        ))}
+      <div
+        className={cn("flex gap-2", isUser ? "justify-end" : "justify-start")}
+      >
+        <div
+          className={cn(
+            "max-w-[82%] text-[13px] leading-5",
+            isUser
+              ? "bg-neutral-1000 py-1.5 text-neutral-00 shadow-sm px-3 rounded-lg"
+              : "text-neutral-primary py-1",
+            message.status === "failed" &&
+              "border-critical/20 bg-critical-faded"
+          )}
+        >
+          <div className="whitespace-pre-wrap break-words">
+            <MentionText content={message.content} inverse={isUser} />
+          </div>
+          {followUpActions.map((action) => (
+            <MessageActionView
+              key={action.id}
+              action={action}
+              message={message}
+              roleId={roleId}
+              workspaceId={workspaceId}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MentionMenu({
+  candidates,
+  highlightedIndex,
+  isLoading,
+  onSelect,
+}: {
+  candidates: OrgAgentMentionCandidate[];
+  highlightedIndex: number;
+  isLoading: boolean;
+  onSelect: (candidate: OrgAgentMentionCandidate) => void;
+}) {
+  return (
+    <div className="absolute bottom-full left-0 right-0 z-20 mb-2 overflow-hidden rounded-lg border border-neutral-1000-a10 bg-bg-floating shadow-xl">
+      {isLoading ? (
+        <div className="flex items-center gap-2 px-3 py-3 text-[12px] text-neutral-muted">
+          <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+          후보자 불러오는 중
+        </div>
+      ) : candidates.length === 0 ? (
+        <div className="px-3 py-3 text-[12px] text-neutral-muted">
+          이 역할 pipeline에서 찾지 못했습니다.
+        </div>
+      ) : (
+        <div className="max-h-64 overflow-y-auto py-1">
+          {candidates.map((candidate, index) => (
+            <button
+              key={`${candidate.talentId}:${candidate.recommendationId}`}
+              type="button"
+              className={cn(
+                "flex w-full flex-col gap-0.5 px-3 py-2 text-left transition",
+                index === highlightedIndex
+                  ? "bg-bg-weak text-neutral-primary"
+                  : "text-neutral-primary hover:bg-bg-weak"
+              )}
+              onMouseDown={(event) => {
+                event.preventDefault();
+                onSelect(candidate);
+              }}
+            >
+              <span className="text-[13px] font-medium">{candidate.label}</span>
+              <span className="line-clamp-1 text-[11px] text-neutral-muted">
+                {candidate.subtitle}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ModelSelector({
+  model,
+  onChange,
+  visible,
+}: {
+  model: OrgAgentModelId;
+  onChange: (model: OrgAgentModelId) => void;
+  visible: boolean;
+}) {
+  const options: Array<{ id: OrgAgentModelId; label: string }> = [
+    { id: ORG_AGENT_CLAUDE_MODEL, label: "Claude" },
+    { id: ORG_AGENT_GROK_MODEL, label: "Grok" },
+  ];
+
+  if (!visible) return null;
+  return (
+    <div className="flex items-center rounded-md border border-neutral-1000-a05 bg-bg-default p-0.5">
+      {options.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          className={cn(
+            "rounded px-2 py-1 text-[11px] transition",
+            model === item.id
+              ? "bg-neutral-1000 text-neutral-00"
+              : "text-neutral-muted hover:bg-bg-weak hover:text-neutral-primary"
+          )}
+          onClick={() => onChange(item.id)}
+        >
+          {item.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Composer({
+  disabled,
+  isStreaming,
+  model,
+  onModelChange,
+  onSend,
+  roleId,
+  showModelSelector,
+  workspaceId,
+}: {
+  disabled?: boolean;
+  isStreaming: boolean;
+  model: OrgAgentModelId;
+  onModelChange: (model: OrgAgentModelId) => void;
+  onSend: (args: { mentions: OrgAgentMention[]; message: string }) => void;
+  roleId: string;
+  showModelSelector: boolean;
+  workspaceId: string;
+}) {
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const lastSpaceAtRef = useRef<number>(0);
+  const [draft, setDraft] = useState("");
+  const [mentions, setMentions] = useState<OrgAgentMention[]>([]);
+  const [mentionSearch, setMentionSearch] = useState<{
+    query: string;
+    start: number;
+  } | null>(null);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const mentionQuery = mentionSearch?.query ?? "";
+  const mentionCandidates = useOrgAgentMentionCandidates({
+    enabled: Boolean(mentionSearch && workspaceId && roleId),
+    query: mentionQuery,
+    roleId,
+    workspaceId,
+  });
+
+  const candidates = mentionCandidates.data ?? [];
+
+  const updateMentionSearch = useCallback((value: string) => {
+    const cursor = textareaRef.current?.selectionStart ?? value.length;
+    const search = getMentionSearch(value, cursor);
+    setMentionSearch(search);
+    setHighlightedIndex(0);
+  }, []);
+
+  const handleChange = (value: string) => {
+    setDraft(value);
+    updateMentionSearch(value);
+  };
+
+  const handleSelectMention = (candidate: OrgAgentMentionCandidate) => {
+    if (!mentionSearch) return;
+    const textarea = textareaRef.current;
+    const cursor = textarea?.selectionStart ?? draft.length;
+    const before = draft.slice(0, mentionSearch.start);
+    const after = draft.slice(cursor);
+    const insertion = `@${candidate.label}`;
+    const nextDraft = `${before}${insertion}${after}`;
+    setDraft(nextDraft);
+    setMentions((current) => [
+      ...current.filter((mention) => mention.talentId !== candidate.talentId),
+      {
+        displayName: candidate.label,
+        recommendationId: candidate.recommendationId,
+        roleId: candidate.roleId,
+        talentId: candidate.talentId,
+      },
+    ]);
+    setMentionSearch(null);
+    requestAnimationFrame(() => {
+      textarea?.focus();
+      const nextCursor = before.length + insertion.length;
+      textarea?.setSelectionRange(nextCursor, nextCursor);
+    });
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    const isComposing = event.nativeEvent.isComposing;
+
+    if (mentionSearch) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMentionSearch(null);
+        return;
+      }
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setHighlightedIndex((index) =>
+          candidates.length ? (index + 1) % candidates.length : 0
+        );
+        return;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setHighlightedIndex((index) =>
+          candidates.length
+            ? (index - 1 + candidates.length) % candidates.length
+            : 0
+        );
+        return;
+      }
+      if (
+        event.key === "Enter" &&
+        !isComposing &&
+        candidates[highlightedIndex]
+      ) {
+        event.preventDefault();
+        handleSelectMention(candidates[highlightedIndex]);
+        return;
+      }
+      if (event.key === " ") {
+        const now = event.timeStamp;
+        if (lastSpaceAtRef.current > 0 && now - lastSpaceAtRef.current < 650) {
+          setMentionSearch(null);
+        }
+        lastSpaceAtRef.current = now;
+      }
+    }
+
+    if (event.key === "Enter" && !event.shiftKey && !isComposing) {
+      event.preventDefault();
+      void handleSubmit();
+    }
+  };
+
+  const handleSubmit = async (event?: FormEvent) => {
+    event?.preventDefault();
+    const serialized = serializeDraftWithMentions(draft, mentions);
+    if (!serialized.text || disabled || isStreaming) return;
+    onSend({ mentions: serialized.mentions, message: serialized.text });
+    setDraft("");
+    setMentions([]);
+    setMentionSearch(null);
+  };
+
+  return (
+    <form className="bg-bg-floating/95 p-3" onSubmit={handleSubmit}>
+      <div className="relative flex items-end">
+        {mentionSearch && (
+          <MentionMenu
+            candidates={candidates}
+            highlightedIndex={highlightedIndex}
+            isLoading={mentionCandidates.isLoading}
+            onSelect={handleSelectMention}
+          />
+        )}
+        <textarea
+          ref={textareaRef}
+          value={draft}
+          rows={2}
+          autoFocus
+          disabled={disabled || isStreaming}
+          className="max-h-32 min-h-[44px] w-full resize-none rounded-lg bg-bg-default border font-normal shadow-xs border-neutral-1000-a10 px-3 py-3 pb-4 pr-12 text-[13px] leading-5 text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 disabled:cursor-not-allowed disabled:opacity-60"
+          placeholder="원하는 조건 혹은 요구사항을 알려주세요."
+          onChange={(event) => handleChange(event.target.value)}
+          onKeyDown={handleKeyDown}
+        />
+        <IconButton
+          type="submit"
+          aria-label="메시지 보내기"
+          variant="secondary"
+          className="absolute bg-primary text-white bottom-2 right-2 h-8 w-8 rounded-2xl hover:bg-primary/80"
+          disabled={disabled || isStreaming || !draft.trim()}
+          icon={<ArrowUp className="h-4 w-4" />}
+        />
+      </div>
+      {showModelSelector && (
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <ModelSelector
+            model={model}
+            onChange={onModelChange}
+            visible={showModelSelector}
+          />
+        </div>
+      )}
+    </form>
+  );
+}
+
+function StreamingBubble({ text }: { text: string }) {
+  if (!text) return null;
+  return (
+    <div className="flex max-w-[82%] py-2 text-[13px] leading-5 text-neutral-primary">
+      <div className="whitespace-pre-wrap break-words">{text}</div>
+    </div>
+  );
+}
+
+function ThinkingPanel({
+  logs,
+  showResponseCompletion = true,
+}: {
+  logs: Array<{ label: string; status?: string }>;
+  showResponseCompletion?: boolean;
+}) {
+  if (logs.length === 0) return null;
+  const latest = logs[logs.length - 1];
+  if (latest.label.includes("응답 생성 완료") && !showResponseCompletion) {
+    return null;
+  }
+  const label = latest.label.includes("응답 생성 완료")
+    ? "응답 생성 완료"
+    : latest.label.includes("응답 생성 중")
+      ? "응답 생성 중"
+      : latest.label;
+  return (
+    <div className="flex items-center gap-2 px-1 py-0.5 text-[12px] text-neutral-muted">
+      {latest.status === "running" ? (
+        <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+      ) : latest.status === "error" ? (
+        <X className="h-3.5 w-3.5" />
+      ) : (
+        <Check className="h-3.5 w-3.5" />
+      )}
+      <span className="truncate">{label}</span>
+    </div>
+  );
+}
+
+function getRolePickerStatus(status: string | null) {
+  const normalized = String(status ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (normalized === "active" || normalized === "open") {
+    return { dotClassName: "bg-positive", label: "진행 중" };
+  }
+  if (normalized === "top_priority") {
+    return { dotClassName: "bg-primary", label: "최우선" };
+  }
+  if (normalized === "paused" || normalized === "on_hold") {
+    return { dotClassName: "bg-info", label: "일시 중단" };
+  }
+  if (normalized === "draft" || normalized === "pending") {
+    return { dotClassName: "bg-neutral-400", label: "준비 중" };
+  }
+  if (
+    normalized === "closed" ||
+    normalized === "ended" ||
+    normalized === "expired" ||
+    normalized === "inactive"
+  ) {
+    return { dotClassName: "bg-critical", label: "종료" };
+  }
+  return { dotClassName: "bg-neutral-400", label: "역할" };
+}
+
+function OrgAgentRolePicker({
+  onClose,
+  onSelect,
+  roles,
+}: {
+  onClose: () => void;
+  onSelect: (role: OrgRole) => void;
+  roles: OrgRole[];
+}) {
+  return (
+    <section
+      role="dialog"
+      aria-label="채팅할 역할 선택"
+      className="pointer-events-auto w-[calc(100vw-32px)] max-w-[380px] overflow-hidden rounded-2xl border border-neutral-1000-a10 bg-bg-floating shadow-2xl ring-1 ring-neutral-1000-a05"
+    >
+      <header className="flex items-start justify-between gap-4 border-b border-neutral-1000-a05 px-4 py-3.5">
+        <div className="min-w-0">
+          <h2 className="text-[14px] font-medium text-neutral-primary">
+            어떤 역할에 대해 이야기할까요?
+          </h2>
+          <p className="mt-1 text-[12px] leading-4 text-neutral-muted">
+            역할을 선택하면 해당 채용 페이지에서 Harper 채팅이 열립니다.
+          </p>
+        </div>
+        <button
+          type="button"
+          aria-label="역할 선택 닫기"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-neutral-muted transition hover:bg-bg-weak hover:text-neutral-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
+          onClick={onClose}
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </header>
+
+      <div className="max-h-[360px] overflow-y-auto p-2 scrollbar-thin scrollbar-thumb-neutral-1000-a10 scrollbar-track-transparent">
+        {roles.length > 0 ? (
+          <div className="space-y-1">
+            {roles.map((role) => {
+              const status = getRolePickerStatus(role.status);
+              return (
+                <button
+                  key={role.roleId}
+                  type="button"
+                  className="group flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left outline-none transition hover:bg-bg-weak focus-visible:bg-bg-weak focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-1000-a10"
+                  onClick={() => onSelect(role)}
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-neutral-1000-a05 bg-bg-default text-primary shadow-xs">
+                    <MessageCircle
+                      className="h-[18px] w-[18px]"
+                      strokeWidth={1.7}
+                    />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13px] font-medium leading-5 text-neutral-primary">
+                      {role.name}
+                    </span>
+                    <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-neutral-muted">
+                      <span
+                        className={cn(
+                          "h-1.5 w-1.5 shrink-0 rounded-full",
+                          status.dotClassName
+                        )}
+                      />
+                      <span className="shrink-0">{status.label}</span>
+                      {role.locationText && (
+                        <>
+                          <span className="text-neutral-1000-a20">·</span>
+                          <span className="truncate">{role.locationText}</span>
+                        </>
+                      )}
+                    </span>
+                  </span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-neutral-placeholder transition group-hover:translate-x-0.5 group-hover:text-neutral-primary" />
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="px-5 py-10 text-center">
+            <p className="text-[13px] font-medium text-neutral-primary">
+              선택할 역할이 없습니다.
+            </p>
+            <p className="mt-1 text-[12px] text-neutral-muted">
+              역할이 추가되면 여기에서 바로 채팅을 시작할 수 있습니다.
+            </p>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+export function OrgAgentPanel({
+  activeRole,
+  currentUserEmail,
+  onRoleSelect,
+  roles,
+  workspaceId,
+}: {
+  activeRole: OrgRole | null;
+  currentUserEmail?: string | null;
+  onRoleSelect: (roleId: string) => void;
+  roles: OrgRole[];
+  workspaceId: string;
+}) {
+  const roleId = activeRole?.roleId ?? "";
+  const [open, setOpen] = useState(false);
+  const [rolePickerOpen, setRolePickerOpen] = useState(false);
+  const launcherRef = useRef<HTMLDivElement | null>(null);
+  const history = useOrgAgentMessageHistory({
+    enabled: Boolean(open && workspaceId && roleId),
+    roleId,
+    workspaceId,
+  });
+  const chat = useOrgAgentChat({
+    appendMessagesToCache: history.appendMessagesToCache,
+    roleId,
+    workspaceId,
+  });
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [model, setModel] = useState<OrgAgentModelId>(DEFAULT_ORG_AGENT_MODEL);
+
+  const handleModelChange = (nextModel: OrgAgentModelId) => {
+    setModel(nextModel);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const node = scrollRef.current;
+    if (!node) return;
+    node.scrollTop = node.scrollHeight;
+  }, [
+    history.messages.length,
+    chat.optimisticUserMessage?.id,
+    chat.streamingText,
+    chat.thinkingLogs.length,
+    open,
+  ]);
+
+  const showModelSelector =
+    currentUserEmail?.toLowerCase().endsWith("@matchharper.com") ||
+    process.env.NEXT_PUBLIC_ORG_AGENT_MODEL_SELECTOR_ENABLED === "true";
+  const lastHistoryMessage = history.messages.at(-1);
+  const showOptimisticDateDivider = Boolean(
+    chat.optimisticUserMessage &&
+    getDateKey(chat.optimisticUserMessage.createdAt) !==
+      getDateKey(lastHistoryMessage?.createdAt ?? "")
+  );
+
+  useEffect(() => {
+    if (!rolePickerOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!launcherRef.current?.contains(event.target as Node)) {
+        setRolePickerOpen(false);
+      }
+    };
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") setRolePickerOpen(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [rolePickerOpen]);
+
+  return (
+    <div className="pointer-events-none fixed bottom-4 left-4 right-4 z-40 flex justify-end sm:bottom-5 sm:left-auto sm:right-5">
+      {activeRole && open ? (
+        <aside className="pointer-events-auto flex h-[calc(100vh-96px)] max-h-[680px] w-[calc(100vw-32px)] max-w-[520px] overflow-hidden rounded-2xl border border-neutral-1000-a10 bg-bg-default shadow-2xl ring-1 ring-neutral-1000-a05">
+          <div className="flex min-w-0 flex-1 flex-col">
+            <header className="border-b border-neutral-1000-a05 bg-bg-floating/95 px-4 py-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 text-[13px] font-medium text-black">
+                    Harper
+                  </div>
+                  <div className="mt-0 truncate text-[12px] font-light text-primary">
+                    @ {activeRole.name}
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  <div className="group relative">
+                    <button
+                      type="button"
+                      aria-describedby="org-agent-info-tooltip"
+                      aria-label="채팅 안내"
+                      className="flex h-6 w-6 items-center justify-center rounded-lg text-neutral-muted transition hover:bg-bg-weak hover:text-neutral-primary focus-visible:bg-bg-weak focus-visible:text-neutral-primary focus-visible:outline-none"
+                    >
+                      <Info className="h-4 w-4" />
+                    </button>
+                    <div
+                      id="org-agent-info-tooltip"
+                      role="tooltip"
+                      className="pointer-events-none absolute right-0 top-full z-30 mt-2 w-[300px] max-w-[calc(100vw-64px)] translate-y-1 rounded-lg border border-neutral-1000-a10 bg-neutral-1000 px-3.5 py-3 text-[12px] leading-4 text-neutral-00 opacity-0 shadow-xl transition duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
+                    >
+                      <div className="absolute -top-1.5 right-2.5 h-3 w-3 rotate-45 border-l border-t border-neutral-1000-a10 bg-neutral-1000" />
+                      <div className="relative space-y-2">
+                        <p>
+                          {activeRole.name}의 인재 연결 기준을 조정하는
+                          채팅입니다.
+                        </p>
+                        <p>
+                          앞으로 중요하게 볼 경력, 기술, 전공 등 혹은 요구사항을
+                          알려주세요. ex) 경력 20년차는 너무 많다. 더 적은
+                          사람으로, Google, Meta 출신이면 좋아. 등등 편하신
+                          방법으로 알려주세요.
+                        </p>
+                        <p>
+                          @로 특정 후보자를 지정해 해당 후보자 연결의 좋은 점과
+                          아쉬운 점을 설명할 수 있습니다.
+                        </p>
+                        <p>
+                          수락, 거절, 단계 이동은 후보자 프로필에서 직접
+                          처리해야 합니다.
+                        </p>
+                        <p>
+                          변경한 기준은 다음 후보 탐색과 추천부터 반영됩니다.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="채팅 닫기"
+                    className="flex h-6 w-6 items-center justify-center rounded-lg text-neutral-muted transition hover:bg-bg-weak hover:text-neutral-primary"
+                    onClick={() => setOpen(false)}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </header>
+
+            <div
+              ref={scrollRef}
+              className="flex-1 space-y-3 overflow-y-auto bg-bg-default px-3 py-3 scrollbar-thin scrollbar-thumb-neutral-1000-a10 scrollbar-track-transparent"
+              onScroll={(event) => {
+                const node = event.currentTarget;
+                if (
+                  node.scrollTop < 80 &&
+                  history.hasOlderMessages &&
+                  !history.loadingOlderMessages
+                ) {
+                  void history.loadOlderMessages();
+                }
+              }}
+            >
+              {history.hasOlderMessages && (
+                <div className="flex justify-center">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    disabled={history.loadingOlderMessages}
+                    onClick={() => void history.loadOlderMessages()}
+                  >
+                    {history.loadingOlderMessages ? (
+                      <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    )}
+                    이전 대화
+                  </Button>
+                </div>
+              )}
+
+              {history.isLoading ? (
+                <div className="flex items-center justify-center py-12 text-[13px] text-neutral-muted">
+                  <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                  대화 불러오는 중
+                </div>
+              ) : history.messages.length === 0 &&
+                !chat.optimisticUserMessage ? (
+                <div className="flex min-h-[260px] items-center justify-center px-8">
+                  <p className="max-w-[320px] text-center text-[13px] leading-5 text-neutral-muted">
+                    현재 역할에 대해 앞으로 연결할 인재의 기준에
+                    <br />
+                    반영되었으면 하는 내용이 있다면 알려주세요.
+                  </p>
+                </div>
+              ) : (
+                history.messages.map((message, index) => {
+                  const dateKey = getDateKey(message.createdAt);
+                  const previousDateKey = getPreviousMessageDateKey(
+                    history.messages,
+                    index
+                  );
+                  return (
+                    <div key={message.id} className="space-y-3">
+                      {dateKey && dateKey !== previousDateKey && (
+                        <DateDivider
+                          label={formatDateLabel(message.createdAt)}
+                        />
+                      )}
+                      <MessageBubble
+                        message={message}
+                        roleId={roleId}
+                        workspaceId={workspaceId}
+                      />
+                    </div>
+                  );
+                })
+              )}
+              {chat.optimisticUserMessage && (
+                <div className="space-y-3">
+                  {showOptimisticDateDivider && (
+                    <DateDivider
+                      label={formatDateLabel(
+                        chat.optimisticUserMessage.createdAt
+                      )}
+                    />
+                  )}
+                  <MessageBubble
+                    message={chat.optimisticUserMessage}
+                    roleId={roleId}
+                    workspaceId={workspaceId}
+                  />
+                </div>
+              )}
+              <ThinkingPanel logs={chat.thinkingLogs} />
+              <StreamingBubble text={chat.streamingText} />
+              {chat.error && (
+                <div className="rounded-md bg-critical-faded px-3 py-2 text-[12px] text-critical">
+                  {chat.error}
+                </div>
+              )}
+            </div>
+
+            <Composer
+              disabled={!roleId}
+              isStreaming={chat.isStreaming}
+              model={model}
+              onModelChange={handleModelChange}
+              onSend={({ mentions, message }) => {
+                void chat.sendMessage({ mentions, message, model });
+              }}
+              roleId={roleId}
+              showModelSelector={showModelSelector}
+              workspaceId={workspaceId}
+            />
+          </div>
+        </aside>
+      ) : (
+        <div
+          ref={launcherRef}
+          className="pointer-events-auto flex flex-col items-end gap-3"
+        >
+          {!activeRole && rolePickerOpen && (
+            <OrgAgentRolePicker
+              onClose={() => setRolePickerOpen(false)}
+              onSelect={(role) => {
+                setRolePickerOpen(false);
+                setOpen(true);
+                onRoleSelect(role.roleId);
+              }}
+              roles={roles}
+            />
+          )}
+          <button
+            type="button"
+            aria-label={activeRole ? "채팅 열기" : "채팅할 역할 선택"}
+            aria-expanded={activeRole ? false : rolePickerOpen}
+            aria-haspopup={activeRole ? undefined : "dialog"}
+            className="group flex h-15 w-15 items-center justify-center rounded-full bg-primary text-neutral-00 ring-2 ring-neutral-00/10 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg hover:ring-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
+            onClick={() => {
+              if (activeRole) {
+                setOpen(true);
+                return;
+              }
+              setRolePickerOpen((current) => !current);
+            }}
+          >
+            {/* <Image src="/svgs/face.svg" alt="Harper" width={28} height={28} /> */}
+            <SquarePen className="h-6 w-6" strokeWidth={1.6} />
+            {/* <Face size={72} /> */}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}

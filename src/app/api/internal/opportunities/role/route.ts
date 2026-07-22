@@ -4,7 +4,6 @@ import {
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
 import {
-  deleteOpsOpportunityRole,
   saveOpsOpportunityRole,
   type OpportunityEmploymentType,
   type OpportunitySourceType,
@@ -72,24 +71,5 @@ export async function PATCH(req: NextRequest) {
     return await handleSave(req);
   } catch (error) {
     return toInternalApiErrorResponse(error, "Failed to update role");
-  }
-}
-
-export async function DELETE(req: NextRequest) {
-  try {
-    await requireInternalApiUser(req);
-    const body = (await req.json().catch(() => ({}))) as {
-      companyWorkspaceId?: string | null;
-      roleId?: string | null;
-    };
-
-    const payload = await deleteOpsOpportunityRole({
-      companyWorkspaceId: body.companyWorkspaceId,
-      roleId: body.roleId,
-    });
-
-    return NextResponse.json(payload);
-  } catch (error) {
-    return toInternalApiErrorResponse(error, "Failed to delete role");
   }
 }

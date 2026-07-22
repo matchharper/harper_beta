@@ -609,19 +609,25 @@ export function CareerReferralSettingsSection({
   return (
     <section className="break-keep text-neutral-primary pb-48">
       <header className="border-b border-neutral-1000-a05 px-5 pb-5 pt-6 sm:px-6">
+        <div className="text-[20px] mb-6">
+          {t(
+            "career.referral.modal.reward_headline",
+            "지인의 이직 한 번에 최대 1,000만원의 보상금을 드립니다."
+          )}
+        </div>
         <Text as="h3" type="title" className="pr-10 flex items-center gap-2">
           <UserRoundPlus strokeWidth={1.6} className="h-5 w-5" />
           {t(
             "career.referral.modal.title",
-            "친구나 동료에게 Harper를 소개하세요"
+            "주변 사람에게 Harper를 소개하세요"
           )}
         </Text>
-        <div className="mt-3 text-[15px] leading-6 font-light text-neutral-900 flex flex-col gap-1.5">
-          <p className="leading-relaxed mt-2">
+        <div className="mt-2 text-[14px] leading-6 font-normal text-neutral-muted flex flex-col gap-1">
+          <p className="leading-relaxed">
             <Dot className="mr-1 inline-block align-middle" />
             {t(
               "career.referral.modal.description",
-              "내가 공유한 링크를 통해 가입한 사람이 Harper를 통해 채용되면 최대 1000만원의 보상을 받을 수 있습니다."
+              "내가 공유한 링크를 통해 가입한 사람이 Harper를 통해 채용되면 보상을 받을 수 있습니다."
             )}
           </p>
           <p className="leading-relaxed">
@@ -639,12 +645,12 @@ export function CareerReferralSettingsSection({
             <span className="font-medium">
               {t(
                 "career.referral.modal.reward_unlimited_heading",
-                "보상 지급 인원에 제한은 없습니다."
+                "보상 지급 횟수에 제한은 없습니다."
               )}
             </span>{" "}
             {t(
               "career.referral.modal.reward_unlimited_description",
-              "여러 명이 Harper를 통해 채용되면, 각 채용 건마다 보상을 검토합니다."
+              "여러 명이 Harper를 통해 여러 번 이직하면, 각 채용 건마다 보상을 검토합니다."
             )}
           </p>
           <Link
@@ -655,6 +661,35 @@ export function CareerReferralSettingsSection({
             {t("career.referral.modal.read_terms", "전체 약관 보기")}
             <ExternalLink className="h-3.5 w-3.5" />
           </Link>
+        </div>
+        <div className="mt-5">
+          <div className="text-[13px] font-medium leading-5 text-neutral-primary">
+            {t(
+              "career.referral.modal.top_open_roles",
+              "현재 열려 있는 주요 포지션"
+            )}
+          </div>
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+            {[
+              "Forward Deployed Engineer",
+              "Research Engineer",
+              "ML Engineer",
+              "Marketer",
+            ].map((role) => (
+              <Badge
+                key={role}
+                size="md"
+                radius="full"
+                variant="subtle"
+                className="bg-bg-floating font-normal px-2.5 text-neutral-muted shadow-sm"
+              >
+                {role}
+              </Badge>
+            ))}
+            <span className="px-0.5 text-[12px] leading-5 text-neutral-soft">
+              {t("career.referral.modal.top_open_roles_more", "그 외")}
+            </span>
+          </div>
         </div>
       </header>
 
@@ -669,7 +704,7 @@ export function CareerReferralSettingsSection({
                 key={item.title}
                 className="grid grid-cols-[24px_1fr] gap-3 py-2"
               >
-                <div className="text-[13px] font-normal text-neutral-soft bg-bg-weak rounded-full w-6 h-6 flex items-center justify-center">
+                <div className="text-[13px] mt-0.5 font-normal text-neutral-soft bg-bg-weak rounded-full w-6 h-6 flex items-center justify-center">
                   {index + 1}
                 </div>
                 <div className="min-w-0">
@@ -695,7 +730,7 @@ export function CareerReferralSettingsSection({
               "링크를 복사한 뒤 아래 소개 문구와 함께 보내면 상대방이 Harper를 이해하기 쉽습니다."
             )}
           </p>
-          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row bg-primary-faded p-3 rounded-md">
             <Input
               readOnly
               value={
@@ -706,7 +741,7 @@ export function CareerReferralSettingsSection({
                     )
                   : referralUrl
               }
-              className="h-8.5 flex-1"
+              className="h-8.5 flex-1 border-primary"
               onFocus={(event) => event.currentTarget.select()}
             />
             <div className="flex gap-2">
@@ -716,7 +751,7 @@ export function CareerReferralSettingsSection({
                 size="sm"
                 disabled={!referralUrl || loading}
                 onClick={handleCopy}
-                className="flex-1 sm:flex-none"
+                className="flex-1 sm:flex-none bg-primary text-white border-none hover:bg-primary/70"
               >
                 {copied ? (
                   <Check className="h-4 w-4" />
@@ -809,11 +844,16 @@ export function CareerReferralSettingsSection({
                   "career.referral.modal.reward_description",
                   "추천한 사람이 Harper를 통해 채용되면 첫해 연봉, 계약 조건, Harper가 실제로 수령한 채용 수수료의 20%를 기준으로 보상을 검토합니다."
                 )}
+                <br />
+                <span className="text-primary">
+                  {t(
+                    "career.referral.modal.latest_hire_reward",
+                    "Harper의 가장 최근 채용건의 보상금: 1,000만원 (초대를 통한 가입으로 가정했을 때)"
+                  )}
+                </span>
               </p>
             </div>
-            <div className="text-[24px] text-right font-medium leading-7 p-3 text-primary">
-              {t("career.referral.modal.reward_range", "250만원 ~ 1000만원")}
-            </div>
+            {/* <div className="text-[24px] w-[10vw] text-right font-medium leading-7 p-3 text-primary"></div> */}
           </div>
           <div className="p-4 rounded-lg shadow-sm mt-4 border border-neutral-1000-a05">
             <div className="text-[12px] font-medium leading-4 text-neutral-soft">
@@ -828,10 +868,7 @@ export function CareerReferralSettingsSection({
                   )}
                 </div>
                 <div className="mt-1 text-[28px] font-semibold leading-8 text-neutral-primary">
-                  {t(
-                    "career.referral.modal.example_reward",
-                    "250만원 ~ 500만원"
-                  )}
+                  {t("career.referral.modal.average_reward", "평균 300만원")}
                 </div>
               </div>
             </div>
@@ -865,7 +902,7 @@ export function CareerReferralSettingsSection({
                 <dd className="font-medium text-neutral-primary">
                   {t(
                     "career.referral.modal.example_reward",
-                    "250만원 ~ 500만원"
+                    "200만원 ~ 400만원"
                   )}
                 </dd>
               </div>

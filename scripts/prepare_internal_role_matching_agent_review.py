@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
-"""Prepare a read-only candidate pool for direct Codex review.
+"""Prepare a legacy 1.9 read-only candidate pool for direct Codex review.
 
 This script performs deterministic database reads, exclusions, retrieval scoring,
 and artifact formatting only. It does not call or delegate to any model.
+
+It does not implement the current manual's 2.0+ review-memory fingerprints,
+cooldown exclusions, or new/materially-updated lane. A current-manual run must
+apply those phases before treating a pool as final retrieval output.
 """
 
 from __future__ import annotations
@@ -21,11 +25,26 @@ from typing import Any, Iterable, Mapping, Sequence
 from dotenv import load_dotenv
 import requests
 
+from internal_role_matching_run_memory import fetch_latest_run_memory
 
-MANUAL_VERSION = "1.5"
+
+MANUAL_VERSION = "1.9"
 TARGET_POOL_SIZE = 200
 ALLOWED_ROLE_STATUSES = {"active", "top_priority", "paused"}
 ACTIVE_PIPELINE_TAGS = {"내부:연결대기", "내부:최종오퍼", "내부:보류"}
+ACCEPTED_RECOMMENDATION_FEEDBACK = {"like", "positive"}
+REJECTED_RECOMMENDATION_FEEDBACK = {"dislike", "negative"}
+UNPROCESSED_SAVED_STAGES = {"", "saved"}
+SAME_ROLE_PROCESSED_TAGS = {
+    "내부:연결대기",
+    "내부:수락",
+    "내부:연결됨",
+    "내부:최종오퍼",
+    "내부:보류",
+    "내부:프로세스중단",
+    "내부:거절",
+    "내부:아카이브",
+}
 
 ENGINEERING_TERMS = (
     "software engineer", "backend engineer", "back-end engineer", "frontend engineer",
@@ -177,6 +196,40 @@ def index_many(rows: Iterable[Mapping[str, Any]], key: str) -> dict[str, list[di
     return result
 
 
+def is_same_role_accepted_unprocessed(
+    recommendations: Sequence[Mapping[str, Any]],
+    tags: Sequence[Mapping[str, Any]],
+    role_id: str,
+) -> bool:
+    same_role_recommendations = [
+        row for row in recommendations if compact(row.get("role_id"), 100) == role_id
+    ]
+    if not same_role_recommendations:
+        return False
+    if not any(
+        compact(row.get("feedback"), 40).lower() in ACCEPTED_RECOMMENDATION_FEEDBACK
+        for row in same_role_recommendations
+    ):
+        return False
+    for row in same_role_recommendations:
+        feedback = compact(row.get("feedback"), 40).lower()
+        saved_stage = compact(row.get("saved_stage"), 80).lower()
+        if (
+            feedback in REJECTED_RECOMMENDATION_FEEDBACK
+            or compact(row.get("processed_stage"), 120)
+            or saved_stage not in UNPROCESSED_SAVED_STAGES
+            or row.get("dismissed_at") is not None
+        ):
+            return False
+    for row in tags:
+        if compact(row.get("opportunity_id"), 100) != role_id:
+            continue
+        tag = compact(row.get("tag"), 200)
+        if tag in SAME_ROLE_PROCESSED_TAGS or tag.startswith("내부단계:"):
+            return False
+    return True
+
+
 def first(rows: Sequence[Mapping[str, Any]], error: str) -> dict[str, Any]:
     if not rows:
         raise RuntimeError(error)
@@ -291,6 +344,17 @@ def safe_metadata(value: Any) -> dict[str, Any]:
     return {key: jsonable(value.get(key)) for key in ("org", "status", "priority", "stage", "source") if value.get(key) is not None}
 
 
+def load_previous_run_memory(
+    url: str,
+    key: str,
+    role_id: str,
+) -> tuple[dict[str, Any] | None, str | None]:
+    try:
+        return fetch_latest_run_memory(url, key, role_id), None
+    except Exception as error:
+        return None, compact(f"{type(error).__name__}: {error}", 500)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--role-id", required=True)
@@ -315,8 +379,11 @@ def main() -> int:
     (output / "review_batches").mkdir()
     manifest = {
         "manualVersion": MANUAL_VERSION,
+        "manualCoverage": "legacy_1.9_retrieval_helper",
+        "reviewMemoryCooldownApplied": False,
         "evaluatorVersion": "codex-direct-review-1",
         "roleId": args.role_id,
+        "runId": output.name,
         "maxProposals": args.max_proposals,
         "executionMode": "dry_run",
         "requestedBy": args.requested_by,
@@ -338,6 +405,35 @@ def main() -> int:
         manifest.update({"status": "stopped_role_status", "roleStatus": status, "completedAt": iso_now()})
         write_json(output / "run_manifest.json", manifest)
         return 2
+    previous_run_memory, previous_run_memory_error = load_previous_run_memory(
+        url,
+        key,
+        args.role_id,
+    )
+    write_json(output / "previous_run_memory.json", {
+        "loaded": previous_run_memory is not None,
+        "memory": previous_run_memory,
+        "readError": previous_run_memory_error,
+    })
+    write_text(
+        output / "previous_run_memory.md",
+        previous_run_memory.get("content")
+        if previous_run_memory
+        else (
+            "이전 run 참고 메모를 읽지 못했습니다. 현재 source만 기준으로 계속합니다."
+            if previous_run_memory_error
+            else "이 role에 저장된 이전 run 참고 메모가 없습니다."
+        ),
+    )
+    manifest.update({
+        "previousRunMemoryLoaded": previous_run_memory is not None,
+        "previousRunMemoryReadFailed": previous_run_memory_error is not None,
+        "previousRunMemoryError": previous_run_memory_error,
+        "previousRunMemoryRunId": (
+            previous_run_memory.get("run_id") if previous_run_memory else None
+        ),
+    })
+    write_json(output / "run_manifest.json", manifest)
     workspace = first(db.get("company_workspace", filters={"company_workspace_id": f"eq.{role['company_workspace_id']}"}), "workspace not found")
     internal_rows = db.get("company_internal_roles", filters={"role_id": f"eq.{args.role_id}"})
     internal_role = dict(internal_rows[0]) if internal_rows else {"role_id": args.role_id, "request": None, "considerations": {}}
@@ -356,7 +452,7 @@ def main() -> int:
             "experiences": executor.submit(db.get, "talent_experiences", select="id,talent_id,company_name,role,start_date,end_date,months,description,memo,employment_type"),
             "educations": executor.submit(db.get, "talent_educations", select="id,talent_id,school,degree,field,start_date,end_date,description,memo"),
             "extras": executor.submit(db.get, "talent_extras", select="talent_id,content"),
-            "all_recs": executor.submit(db.get, "talent_opportunity_recommendation", select="id,talent_id,role_id,feedback,feedback_reason,saved_stage,recommended_at,created_at,viewed_at,clicked_at"),
+            "all_recs": executor.submit(db.get, "talent_opportunity_recommendation", select="id,talent_id,role_id,feedback,feedback_reason,processed_stage,saved_stage,dismissed_at,recommended_at,created_at,viewed_at,clicked_at"),
             "all_tags": executor.submit(db.get, "talent_opportunity_tag", select="id,talent_id,opportunity_id,tag,created_at,updated_at"),
             "target_fits": executor.submit(db.get, "talent_opportunity_fit", filters={"opportunity_id": f"eq.{args.role_id}"}),
         }
@@ -372,6 +468,7 @@ def main() -> int:
         "sameRoleProgress": [{**row, "metadata": safe_metadata(row.get("metadata"))} for row in loaded["target_progress"]],
         "sameRoleTags": loaded["target_tags"],
         "sameCompanyRoles": company_roles,
+        "previousRunMemory": previous_run_memory,
     }
     write_json(output / "source_material.json", source_material)
     source_hashes = {
@@ -402,6 +499,17 @@ def main() -> int:
     workspace_map = {compact(row.get("company_workspace_id"), 100): row for row in loaded["workspaces"]}
     internal_role_ids = {role_id for role_id, item in role_map.items() if compact(item.get("source_type"), 40).lower() == "internal"}
     same_role_rec_talents = {compact(row.get("talent_id"), 100) for row in loaded["target_recs"]}
+    same_role_recs = index_many(loaded["target_recs"], "talent_id")
+    same_role_tags = index_many(loaded["target_tags"], "talent_id")
+    accepted_unprocessed_talents = {
+        talent_id
+        for talent_id in same_role_rec_talents
+        if is_same_role_accepted_unprocessed(
+            same_role_recs.get(talent_id) or [],
+            same_role_tags.get(talent_id) or [],
+            args.role_id,
+        )
+    }
     same_company_role_ids = {compact(row.get("role_id"), 100) for row in company_roles}
     aliases = {normalized_company(workspace.get("company_name")), normalized_company(company_db.get("name"))} - {""}
 
@@ -415,7 +523,7 @@ def main() -> int:
         if setting.get("get_internal_recommendation") is False:
             excluded["optOut"] += 1
             continue
-        if talent_id in same_role_rec_talents:
+        if talent_id in same_role_rec_talents and talent_id not in accepted_unprocessed_talents:
             excluded["alreadyRecommended"] += 1
             continue
         if aliases & {normalized_company(item) for item in as_list(setting.get("blocked_companies"))}:
@@ -466,6 +574,11 @@ def main() -> int:
             "systemScore": system_score,
             "retrievalScore": min(100, features["roleRelevance"] + system_score),
             "retrievalLanes": lanes,
+            "sameRoleAcceptedUnprocessed": talent_id in accepted_unprocessed_talents,
+            "sameRoleAcceptedRecommendationIds": [
+                item.get("id") for item in same_role_recs.get(talent_id) or []
+                if compact(item.get("feedback"), 40).lower() in ACCEPTED_RECOMMENDATION_FEEDBACK
+            ],
             "existingFitLabel": fit_label or None,
             "existingFitScore": fit_row.get("score") if fit_row else None,
         })
@@ -490,21 +603,38 @@ def main() -> int:
         selected_ids.add(row["talentId"])
     pool = [row for row in eligible if row["talentId"] in selected_ids][:TARGET_POOL_SIZE]
     pool_ids = [row["talentId"] for row in pool]
-    funnel = {"allTalentUsers": len(profiles), "excluded": excluded, "afterBaseExclusions": len(profiles) - sum(value for key_name, value in excluded.items() if key_name != "minimumRelevance"), "eligibleRoleAdjacent": len(eligible), "retrieved": len(pool), "targetPool": TARGET_POOL_SIZE, "poolShortfallReason": None if len(pool) == TARGET_POOL_SIZE else "insufficient_relevant_candidates", "lanes": lane_stats}
+    funnel = {
+        "allTalentUsers": len(profiles),
+        "excluded": excluded,
+        "includedExceptions": {
+            "sameRoleAcceptedUnprocessed": len(accepted_unprocessed_talents),
+            "retrievedSameRoleAcceptedUnprocessed": sum(
+                bool(row.get("sameRoleAcceptedUnprocessed")) for row in pool
+            ),
+        },
+        "afterBaseExclusions": len(profiles) - sum(value for key_name, value in excluded.items() if key_name != "minimumRelevance"),
+        "eligibleRoleAdjacent": len(eligible),
+        "retrieved": len(pool),
+        "targetPool": TARGET_POOL_SIZE,
+        "poolShortfallReason": None if len(pool) == TARGET_POOL_SIZE else "insufficient_relevant_candidates",
+        "lanes": lane_stats,
+    }
     write_json(output / "retrieval_funnel.json", funnel)
     write_text(output / "retrieval.sql", f"""-- Read-only retrieval executed through Supabase PostgREST GET.
 -- role_id={args.role_id}
--- Exclusions: dont_share, internal opt-out, same-role recommendation, blocked company,
+-- Exclusions: dont_share, internal opt-out, same-role recommendation except accepted_unprocessed, blocked company,
 -- current target-company employment, active same-company pipeline, effective unfit.
+-- accepted_unprocessed requires accepted feedback, empty processed stage, non-terminal saved stage,
+-- no dismissal, and no same-role processed/terminal stage tag. Existing recommendation is never resent.
 -- Retrieval: role relevance 86 + bounded system signals 14; four diversity lanes;
 -- deterministic backfill to at most 200 unique role-adjacent candidates.
 -- No external model, database mutation, RPC, queue, chat, or delivery call.
 """)
     with (output / "candidate_pool.csv").open("w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle)
-        writer.writerow(["rank", "talent_id", "name", "headline", "location", "engineering_months", "role_relevance", "system_score", "retrieval_score", "retrieval_lanes", "existing_fit_label", "existing_fit_score"])
+        writer.writerow(["rank", "talent_id", "name", "headline", "location", "engineering_months", "role_relevance", "system_score", "retrieval_score", "retrieval_lanes", "same_role_accepted_unprocessed", "existing_fit_label", "existing_fit_score"])
         for rank, row in enumerate(pool, 1):
-            writer.writerow([rank, row["talentId"], row["name"], row["headline"], row["location"], row["engineeringMonths"], row["features"]["roleRelevance"], row["systemScore"], row["retrievalScore"], "|".join(row["retrievalLanes"]), row["existingFitLabel"], row["existingFitScore"]])
+            writer.writerow([rank, row["talentId"], row["name"], row["headline"], row["location"], row["engineeringMonths"], row["features"]["roleRelevance"], row["systemScore"], row["retrievalScore"], "|".join(row["retrievalLanes"]), row["sameRoleAcceptedUnprocessed"], row["existingFitLabel"], row["existingFitScore"]])
     print(f"[prepare] retrieval complete pool={len(pool)} output={output}", flush=True)
 
     with ThreadPoolExecutor(max_workers=7) as executor:
@@ -532,7 +662,7 @@ def main() -> int:
         for item in sorted(recs.get(talent_id) or [], key=lambda row: compact(row.get("created_at") or row.get("recommended_at")), reverse=True)[:12]:
             rec_role = role_map.get(compact(item.get("role_id"), 100)) or {}
             rec_workspace = workspace_map.get(compact(rec_role.get("company_workspace_id"), 100)) or {}
-            recent_recs.append({"id": item.get("id"), "roleId": item.get("role_id"), "company": rec_workspace.get("company_name"), "role": rec_role.get("name"), "sourceType": rec_role.get("source_type"), "feedback": item.get("feedback"), "feedbackReason": compact(item.get("feedback_reason"), 500), "savedStage": item.get("saved_stage"), "recommendedAt": item.get("recommended_at") or item.get("created_at")})
+            recent_recs.append({"id": item.get("id"), "roleId": item.get("role_id"), "company": rec_workspace.get("company_name"), "role": rec_role.get("name"), "sourceType": rec_role.get("source_type"), "feedback": item.get("feedback"), "feedbackReason": compact(item.get("feedback_reason"), 500), "processedStage": item.get("processed_stage"), "savedStage": item.get("saved_stage"), "dismissedAt": item.get("dismissed_at"), "recommendedAt": item.get("recommended_at") or item.get("created_at")})
         packet = {
             "rank": rank,
             "retrieval": pool_row,
@@ -569,7 +699,7 @@ def main() -> int:
                 f"- Evidence excerpt: {compact(packet.get('keywordEvidenceExcerpt'), 2400)}",
                 "- Experience: " + " | ".join(f"{item.get('start') or '?'}~{item.get('end') or 'present'} {compact(item.get('company'), 80)} / {compact(item.get('role'), 100)}: {compact(item.get('description'), 500)}" for item in packet["experiences"][:6]),
                 "- Candidate context: " + " | ".join(compact(item.get("summary"), 500) for item in packet["conversationSummaries"][:2]),
-                "- Recommendation history: " + " | ".join(f"{item.get('company')}/{item.get('role')} feedback={item.get('feedback')} reason={compact(item.get('feedbackReason'), 220)}" for item in packet["recentRecommendations"][:5]),
+                "- Recommendation history: " + " | ".join(f"{item.get('company')}/{item.get('role')} feedback={item.get('feedback')} processed={item.get('processedStage')} saved={item.get('savedStage')} reason={compact(item.get('feedbackReason'), 220)}" for item in packet["recentRecommendations"][:5]),
                 "- Ops evidence: " + " | ".join(compact(item.get("text") or item.get("content"), 300) for item in (packet["progress"][:4] + packet["opsMemos"][:2])),
                 "",
             ])

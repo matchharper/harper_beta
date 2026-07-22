@@ -5,7 +5,7 @@ import type {
   OpportunityStatus,
   OpportunityWorkMode,
 } from "@/lib/ops/opportunity";
-import { LoaderCircle, Save, Trash2 } from "lucide-react";
+import { LoaderCircle, Save } from "lucide-react";
 import type { ClipboardEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
@@ -20,12 +20,10 @@ import {
   toggleEmploymentType,
   ToggleGrid,
   WORK_MODE_LABEL,
-  type WorkspaceDraft,
 } from "./shared";
 import { BareButton } from "@/components/ui/button";
 import { Input as UiInput } from "@/components/ui/input";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
-import { Checkbox as UiCheckbox } from "@/components/ui/checkbox";
 
 function convertHtmlPasteToMarkdown(html: string) {
   const trimmedHtml = html.trim();
@@ -163,221 +161,20 @@ function RoleDescriptionMarkdownPreview({ markdown }: { markdown: string }) {
   );
 }
 
-export function WorkspaceCreateModal({
-  draft,
-  extractPending,
-  mode,
-  onChange,
-  onClose,
-  onExtract,
-  onSubmit,
-  open,
-  pending,
-}: {
-  draft: WorkspaceDraft;
-  extractPending: boolean;
-  mode: DraftMode;
-  onChange: (next: WorkspaceDraft) => void;
-  onClose: () => void;
-  onExtract: () => void;
-  onSubmit: () => void;
-  open: boolean;
-  pending: boolean;
-}) {
-  if (!open) return null;
-
-  return (
-    <TalentCareerModal
-      open={open}
-      onClose={onClose}
-      title={mode === "edit" ? "회사 수정" : "회사 추가"}
-      description=""
-      overlayClassName="items-start overflow-y-auto px-4 py-10 sm:px-6 sm:py-14 lg:py-16"
-      panelClassName="max-w-[720px] border border-neutral-1000-a05 bg-bg-default"
-      bodyClassName="bg-bg-default px-5 py-5"
-      footer={
-        <div className="flex items-center justify-end gap-2">
-          <BareButton
-            type="button"
-            onClick={onClose}
-            disabled={pending || extractPending}
-            className={cx(opsTheme.buttonSecondary, "h-10 px-4")}
-          >
-            취소
-          </BareButton>
-          <BareButton
-            type="button"
-            onClick={onSubmit}
-            disabled={pending || extractPending || !draft.companyName.trim()}
-            className={cx(opsTheme.buttonPrimary, "h-10 px-4")}
-          >
-            {pending ? (
-              <LoaderCircle className="h-4 w-4 animate-spin" />
-            ) : (
-              <Save className="h-4 w-4" />
-            )}
-            저장
-          </BareButton>
-        </div>
-      }
-      closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-default/70 text-neutral-muted transition-colors hover:border-neutral-1000-a10 hover:text-neutral-primary"
-    >
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <div className={opsTheme.eyebrow}>회사명</div>
-          <UiInput
-            unstyled
-            value={draft.companyName}
-            onChange={(event) =>
-              onChange({
-                ...draft,
-                companyName: event.target.value,
-              })
-            }
-            placeholder="회사명"
-            className={opsTheme.input}
-          />
-        </div>
-        <div className="space-y-2">
-          <div className={opsTheme.eyebrow}>홈페이지</div>
-          <UiInput
-            unstyled
-            value={draft.homepageUrl}
-            onChange={(event) =>
-              onChange({
-                ...draft,
-                homepageUrl: event.target.value,
-              })
-            }
-            placeholder="homepage"
-            className={opsTheme.input}
-          />
-        </div>
-        <div className="space-y-2">
-          <div className={opsTheme.eyebrow}>LinkedIn</div>
-          <div className="flex gap-2">
-            <UiInput
-              unstyled
-              value={draft.linkedinUrl}
-              onChange={(event) =>
-                onChange({
-                  ...draft,
-                  linkedinUrl: event.target.value,
-                })
-              }
-              placeholder="linkedin company url"
-              className={cx(opsTheme.input, "flex-1")}
-            />
-            <BareButton
-              type="button"
-              onClick={onExtract}
-              disabled={extractPending || !draft.linkedinUrl.trim()}
-              className={cx(opsTheme.buttonSecondary, "h-10 shrink-0 px-4")}
-            >
-              {extractPending ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-              ) : null}
-              추출하기
-            </BareButton>
-          </div>
-        </div>
-        <div className="space-y-2">
-          <div className={opsTheme.eyebrow}>Career</div>
-          <UiInput
-            unstyled
-            value={draft.careerUrl}
-            onChange={(event) =>
-              onChange({
-                ...draft,
-                careerUrl: event.target.value,
-              })
-            }
-            placeholder="career url"
-            className={opsTheme.input}
-          />
-        </div>
-        <label className="flex items-center gap-3 rounded-md border border-neutral-1000-a05 bg-bg-default/70 px-3 py-3 text-sm text-neutral-primary">
-          <UiCheckbox
-            unstyled
-            checked={draft.isInternal}
-            onChange={(event) =>
-              onChange({
-                ...draft,
-                isInternal: event.target.checked,
-              })
-            }
-            className="h-4 w-4 rounded border-neutral-1000-a10 accent-black"
-          />
-          <span>is_internal</span>
-        </label>
-        <div className="space-y-2">
-          <div className={opsTheme.eyebrow}>소개</div>
-          <UiTextarea
-            unstyled
-            value={draft.companyDescription}
-            onChange={(event) =>
-              onChange({
-                ...draft,
-                companyDescription: event.target.value,
-              })
-            }
-            placeholder="간단한 소개"
-            className={cx(opsTheme.textarea, "min-h-[140px] px-3 py-3")}
-          />
-        </div>
-        <div className="space-y-2">
-          <div className={opsTheme.eyebrow}>Pitch</div>
-          <UiTextarea
-            unstyled
-            value={draft.pitch}
-            onChange={(event) =>
-              onChange({
-                ...draft,
-                pitch: event.target.value,
-              })
-            }
-            placeholder="회사/기회 pitch"
-            className={cx(opsTheme.textarea, "min-h-[120px] px-3 py-3")}
-          />
-        </div>
-        <div className="space-y-2">
-          <div className={opsTheme.eyebrow}>Request</div>
-          <UiTextarea
-            unstyled
-            value={draft.request}
-            onChange={(event) =>
-              onChange({
-                ...draft,
-                request: event.target.value,
-              })
-            }
-            placeholder="회사 요청사항"
-            className={cx(opsTheme.textarea, "min-h-[120px] px-3 py-3")}
-          />
-        </div>
-      </div>
-    </TalentCareerModal>
-  );
-}
-
 export function RoleCreateModal({
-  deletePending = false,
   draft,
   mode,
   onChange,
   onClose,
-  onDelete,
   onSubmit,
   open,
   pending,
   workspaceName,
 }: {
-  deletePending?: boolean;
   draft: RoleDraft;
   mode: DraftMode;
   onChange: (next: RoleDraft) => void;
   onClose: () => void;
-  onDelete?: () => void;
   onSubmit: () => void;
   open: boolean;
   pending: boolean;
@@ -396,29 +193,12 @@ export function RoleCreateModal({
       bodyClassName="flex-1 overflow-y-auto bg-bg-default px-5 py-5"
       footerClassName="shrink-0 border-t border-neutral-1000-a05 bg-bg-default"
       footer={
-        <div className="flex w-full items-center justify-between gap-3">
-          <div>
-            {mode === "edit" && onDelete ? (
-              <BareButton
-                type="button"
-                onClick={onDelete}
-                disabled={pending || deletePending}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-critical/30 bg-critical-faded px-4 text-sm font-medium text-critical transition hover:bg-critical-faded/80 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {deletePending ? (
-                  <LoaderCircle className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Trash2 className="h-4 w-4" />
-                )}
-                완전 삭제
-              </BareButton>
-            ) : null}
-          </div>
+        <div className="flex w-full items-center justify-end gap-3">
           <div className="flex items-center justify-end gap-2">
             <BareButton
               type="button"
               onClick={onClose}
-              disabled={pending || deletePending}
+              disabled={pending}
               className={cx(opsTheme.buttonSecondary, "h-10 px-4")}
             >
               취소
@@ -426,7 +206,7 @@ export function RoleCreateModal({
             <BareButton
               type="button"
               onClick={onSubmit}
-              disabled={pending || deletePending || !draft.name.trim()}
+              disabled={pending || !draft.name.trim()}
               className={cx(opsTheme.buttonPrimary, "h-10 px-4")}
             >
               {pending ? (

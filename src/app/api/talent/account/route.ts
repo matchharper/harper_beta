@@ -586,9 +586,6 @@ async function deleteCompanyWorkspaceRows(
   await deleteEq(admin, "bookmark_folder_share", "created_by", context.userId);
   await deleteEq(admin, "bookmark_folder", "user_id", context.userId);
 
-  await deleteEq(admin, "automation_results", "user_id", context.userId);
-  await deleteEq(admin, "automation", "user_id", context.userId);
-
   await deleteIn(admin, "run_variants", "run_id", context.companyRunIds);
   await deleteIn(admin, "runs_pages", "run_id", context.companyRunIds);
   await deleteIn(admin, "synthesized_summary", "run_id", context.companyRunIds);

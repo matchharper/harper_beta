@@ -21,7 +21,7 @@ export const opsTheme = {
   divider: "divide-neutral-1000-a05",
   errorNotice:
     "rounded-md bg-critical-faded px-4 py-3 text-sm text-critical shadow-[inset_0_1px_0_color-mix(in_srgb,var(--color-neutral-00)_55%,transparent)]",
-  eyebrow: "text-[11px] font-medium text-neutral-soft",
+  eyebrow: "text-[11px] font-normal text-neutral-soft",
   input:
     "h-11 w-full rounded-md border border-neutral-1000-a05 bg-bg-default/80 px-3 text-sm text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-1000-a10 focus:bg-bg-default",
   label: "text-sm font-medium text-neutral-primary",

@@ -12,7 +12,14 @@ import { formatKstRelativeDateTime } from "@/components/ops/dateUtils";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { BareButton } from "@/components/ui/button";
 import { Input as UiInput } from "@/components/ui/input";
-import { Select as UiSelect } from "@/components/ui/select";
+import {
+  Select as UiSelect,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tooltips } from "@/components/ui/tooltip";
 import { useOpsDebugOpportunityRuns } from "@/hooks/ops/useOpsDebugOpportunityRuns";
 import type {
@@ -583,21 +590,30 @@ export default function OpsDebuggingOpportunityRunsPage() {
               결과
             </label>
             <UiSelect
-              unstyled
-              id="ops-debug-opportunity-run-outcome"
+              items={OPPORTUNITY_RUN_OUTCOME_OPTIONS.map((option) => ({
+                label: option.label,
+                value: option.id,
+              }))}
               value={runOutcome}
-              onChange={(event) =>
-                setRunOutcome(
-                  event.target.value as OpsDebugOpportunityRunOutcome
-                )
+              onValueChange={(value) =>
+                setRunOutcome((value ?? "all") as OpsDebugOpportunityRunOutcome)
               }
-              className={cx(opsTheme.input, "mt-2 h-10 min-w-[132px]")}
             >
-              {OPPORTUNITY_RUN_OUTCOME_OPTIONS.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
+              <SelectTrigger
+                id="ops-debug-opportunity-run-outcome"
+                className={cx(opsTheme.input, "mt-2 h-10 min-w-[132px]")}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="start" alignItemWithTrigger={false}>
+                <SelectGroup>
+                  {OPPORTUNITY_RUN_OUTCOME_OPTIONS.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
             </UiSelect>
           </div>
 

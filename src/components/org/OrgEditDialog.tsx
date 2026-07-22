@@ -14,6 +14,7 @@ import { cx, opsTheme } from "@/components/ops/theme";
 import { BareButton, Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
 type OrgEditDialogValue = {
   companyDescription?: string | null;
@@ -32,7 +33,6 @@ const ROLE_STATUS_LABEL: Record<string, string> = {
   active: "진행",
   ended: "종료",
   paused: "중단",
-  top_priority: "최우선",
 };
 
 const EMPLOYMENT_TYPE_LABEL: Record<string, string> = {
@@ -44,7 +44,7 @@ const EMPLOYMENT_TYPE_LABEL: Record<string, string> = {
 
 const WORK_MODE_LABEL: Record<string, string> = {
   hybrid: "하이브리드",
-  onsite: "상주",
+  onsite: "대면근무",
   remote: "리모트",
 };
 
@@ -88,23 +88,40 @@ function ToggleGrid({ children }: { children: ReactNode }) {
 
 function AutoResizeTextarea({
   className,
+  maxRows,
   value,
   ...props
-}: ComponentProps<typeof Textarea>) {
+}: ComponentProps<typeof Textarea> & { maxRows?: number }) {
   const ref = useRef<HTMLTextAreaElement | null>(null);
 
   useLayoutEffect(() => {
     const textarea = ref.current;
     if (!textarea) return;
     textarea.style.height = "auto";
-    textarea.style.height = `${textarea.scrollHeight}px`;
-  }, [value]);
+    if (!maxRows) {
+      textarea.style.height = `${textarea.scrollHeight}px`;
+      return;
+    }
+
+    const styles = window.getComputedStyle(textarea);
+    const lineHeight = Number.parseFloat(styles.lineHeight) || 24;
+    const paddingHeight =
+      Number.parseFloat(styles.paddingTop) +
+      Number.parseFloat(styles.paddingBottom);
+    const borderHeight =
+      Number.parseFloat(styles.borderTopWidth) +
+      Number.parseFloat(styles.borderBottomWidth);
+    const maxHeight = lineHeight * maxRows + paddingHeight + borderHeight;
+    textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
+    textarea.style.overflowY =
+      textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+  }, [maxRows, value]);
 
   return (
     <Textarea
       ref={ref}
       value={value}
-      className={cx("resize-none overflow-hidden", className)}
+      className={cx("resize-none overflow-hidden pb-4", className)}
       {...props}
     />
   );
@@ -269,11 +286,17 @@ export function OrgEditDialog({
           onSubmit={handleSubmit}
           className="flex min-h-0 flex-1 flex-col overflow-hidden"
         >
-          <div className="grid min-h-0 flex-1 auto-rows-max content-start gap-4 overflow-y-auto px-5 py-5">
+          <div className="grid min-h-0 flex-1 auto-rows-max content-start gap-6 overflow-y-auto px-5 py-5">
             {mode === "workspace" ? (
               <>
                 <label className={fieldClassName}>
                   <span className={opsTheme.label}>Pitch</span>
+                  <span className="text-xs leading-4 text-neutral-muted">
+                    연결할 인재에게 어필될 수 있는 회사의 장점들을 최대한 자세히
+                    적어주세요. Harper가 잘 다듬어 적절한 순간에 전달하고 더 잘
+                    연결될 수 있게 돕습니다. 투자, 매출, 구성원 등의 내용을
+                    포함할 수 있습니다.
+                  </span>
                   <AutoResizeTextarea
                     value={draft.pitch ?? ""}
                     onChange={(event) =>
@@ -284,15 +307,12 @@ export function OrgEditDialog({
                     }
                     rows={4}
                   />
-                  <span className="text-xs leading-5 text-neutral-muted">
-                    연결할 인재에게 어필될 수 있는 회사의 장점들을 최대한 자세히
-                    적어주세요. Harper가 잘 다듬어 적절한 순간에 전달하고 더 잘
-                    연결될 수 있게 돕습니다. 투자, 매출, 구성원 등의 내용을
-                    포함할 수 있습니다.
-                  </span>
                 </label>
                 <label className={fieldClassName}>
                   <span className={opsTheme.label}>설명</span>
+                  <span className="text-xs leading-4 text-neutral-muted">
+                    회사에 대한 객관적인 설명을 짧게 3~5문장 정도로 적어주세요.
+                  </span>
                   <AutoResizeTextarea
                     value={draft.companyDescription ?? ""}
                     onChange={(event) =>
@@ -303,13 +323,41 @@ export function OrgEditDialog({
                     }
                     rows={5}
                   />
-                  <span className="text-xs leading-5 text-neutral-muted">
-                    회사에 대한 객관적인 설명을 짧게 3~5문장 정도로 적어주세요.
-                  </span>
                 </label>
               </>
             ) : (
               <>
+                <div className="rounded-md bg-primary-faded/30 p-4">
+                  <label className={fieldClassName}>
+                    <span className="text-sm font-medium text-primary">
+                      Role Request & Criteria
+                    </span>
+                    <span className="text-xs font-normal leading-5 text-black/60">
+                      이 내용은 매번 인재를 탐색하고 연결하거나 후보자를 추천할
+                      때 기준으로 반영됩니다. 여러가지 사항이 있다면 무엇이 더
+                      우선순위가 높은지 등을 자세히 알려주실 수록 좋습니다.
+                    </span>
+                    <AutoResizeTextarea
+                      value={draft.request ?? ""}
+                      onChange={(event) =>
+                        setDraft((prev) => ({
+                          ...prev,
+                          request: event.target.value,
+                        }))
+                      }
+                      className="mt-1 border-primary/50 text-black focus:border-primary focus:ring-primary/15"
+                      maxRows={20}
+                      rows={5}
+                    />
+                  </label>
+                </div>
+                <div className="flex items-center gap-3 py-8">
+                  <div className="h-px flex-1 bg-neutral-1000-a10" />
+                  <span className="shrink-0 text-[11px] font-light text-neutral-muted">
+                    기본 역할 정보
+                  </span>
+                  <div className="h-px flex-1 bg-neutral-1000-a10" />
+                </div>
                 <label className={fieldClassName}>
                   <span className={opsTheme.label}>Role title</span>
                   <Input
@@ -342,7 +390,7 @@ export function OrgEditDialog({
                   </ToggleGrid>
                 </div>
                 <div className="grid gap-2">
-                  <div className={opsTheme.label}>Employment Type</div>
+                  <div className={opsTheme.label}>고용 형태</div>
                   <ToggleGrid>
                     {Object.entries(EMPLOYMENT_TYPE_LABEL).map(
                       ([type, label]) => (
@@ -366,16 +414,8 @@ export function OrgEditDialog({
                   </ToggleGrid>
                 </div>
                 <div className="grid gap-2">
-                  <div className={opsTheme.label}>Work Mode</div>
+                  <div className={opsTheme.label}>근무 방식</div>
                   <ToggleGrid>
-                    <ToggleButton
-                      active={!draft.workMode}
-                      onClick={() =>
-                        setDraft((prev) => ({ ...prev, workMode: null }))
-                      }
-                    >
-                      미정
-                    </ToggleButton>
                     {Object.entries(WORK_MODE_LABEL).map(
                       ([workMode, label]) => (
                         <ToggleButton
@@ -392,7 +432,7 @@ export function OrgEditDialog({
                   </ToggleGrid>
                 </div>
                 <label className={fieldClassName}>
-                  <span className={opsTheme.label}>External JD Link</span>
+                  <span className={opsTheme.label}>외부 JD 링크</span>
                   <Input
                     value={draft.externalJdUrl ?? ""}
                     onChange={(event) =>
@@ -405,7 +445,7 @@ export function OrgEditDialog({
                   />
                 </label>
                 <label className={fieldClassName}>
-                  <span className={opsTheme.label}>Location</span>
+                  <span className={opsTheme.label}>근무 지역</span>
                   <Input
                     value={draft.locationText ?? ""}
                     onChange={(event) =>
@@ -416,21 +456,12 @@ export function OrgEditDialog({
                     }
                   />
                 </label>
-                <label className={fieldClassName}>
-                  <span className={opsTheme.label}>Request</span>
-                  <Textarea
-                    value={draft.request ?? ""}
-                    onChange={(event) =>
-                      setDraft((prev) => ({
-                        ...prev,
-                        request: event.target.value,
-                      }))
-                    }
-                    rows={4}
-                  />
-                </label>
-                <label className={fieldClassName}>
+                <label className={cn(fieldClassName, "mt-2")}>
                   <span className={opsTheme.label}>Description</span>
+                  <span className="text-sm text-black/60 mb-1">
+                    후보자에게 전달되는 역할 설명입니다. 아래에서 미리보기로
+                    실제로 어떻게 보여지는지 확인할 수 있습니다.
+                  </span>
                   <AutoResizeTextarea
                     value={draft.description ?? ""}
                     onChange={(event) =>

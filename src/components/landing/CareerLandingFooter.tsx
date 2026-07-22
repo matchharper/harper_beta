@@ -8,8 +8,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { openCustomCrispWidget } from "@/lib/feedback/customCrispEvents";
-import { isInternalDomainEmail } from "@/lib/internalAccess";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useReferralEntryPointEligibility } from "@/hooks/career/useReferralEntryPointEligibility";
 import Face from "../common/Face";
 // import { useCareerT } from "@/i18n/useCareerT";
 
@@ -189,7 +189,7 @@ export default function CareerLandingFooter({
 }: CareerLandingFooterProps) {
   const labels = FOOTER_COPY[locale ?? "ko"];
   const user = useAuthStore((state) => state.user);
-  const showReferralEntryPoints = isInternalDomainEmail(user?.email);
+  const showReferralEntryPoints = useReferralEntryPointEligibility({ user });
   const openSupportChat = () => {
     openCustomCrispWidget();
   };

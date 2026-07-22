@@ -11,6 +11,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const body = (await req.json().catch(() => ({}))) as {
+    source?: string;
+  };
+  const isOrgEntry = body.source === "org";
+
   const { data: existing, error: existingError } = await supabaseServer
     .from("company_users")
     .select("user_id")
@@ -28,9 +33,7 @@ export async function POST(req: NextRequest) {
     user_id: user.id,
     email: user.email ?? null,
     name:
-      user.user_metadata?.full_name ??
-      user.user_metadata?.name ??
-      "Anonymous",
+      user.user_metadata?.full_name ?? user.user_metadata?.name ?? "Anonymous",
     profile_picture: user.user_metadata?.avatar_url ?? null,
   };
 
@@ -45,7 +48,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (!existing && user.email) {
+  if (!existing && user.email && !isOrgEntry) {
     try {
       await notifySlackSignupApprovalCandidate({
         userId: user.id,

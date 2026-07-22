@@ -39,7 +39,8 @@ import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { Text } from "@/components/ui/text";
 import Image from "next/image";
 import { openCareerReferralModal } from "@/components/career/referral/careerReferralEvents";
-import { isInternalDomainEmail } from "@/lib/internalAccess";
+import { useAuthStore } from "@/store/useAuthStore";
+import { useReferralEntryPointEligibility } from "@/hooks/career/useReferralEntryPointEligibility";
 
 type CareerProfileMenuVariant = "desktop" | "mobile";
 
@@ -65,6 +66,9 @@ const CareerProfileMenu = ({
   profileImageUrl,
   profileName,
   profileEmail,
+  profileLocation,
+  profileCurrentLocation,
+  preferredLocale,
   onLogout,
   onSuggestUpdate,
   variant = "desktop",
@@ -72,12 +76,21 @@ const CareerProfileMenu = ({
   profileImageUrl?: string | null;
   profileName: string;
   profileEmail: string;
+  profileLocation?: string | null;
+  profileCurrentLocation?: string | null;
+  preferredLocale?: string | null;
   onLogout: () => void | Promise<void>;
   onSuggestUpdate: () => void;
   variant?: CareerProfileMenuVariant;
 }) => {
   const t = useCareerT();
-  const showReferralEntryPoints = isInternalDomainEmail(profileEmail);
+  const user = useAuthStore((state) => state.user);
+  const showReferralEntryPoints = useReferralEntryPointEligibility({
+    currentLocation: profileCurrentLocation,
+    location: profileLocation,
+    preferredLocale,
+    user,
+  });
 
   const logCareerEvent = useCareerLogEvent();
   const { fetchWithAuth } = useCareerApi();

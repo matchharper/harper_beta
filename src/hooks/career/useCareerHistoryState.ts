@@ -20,6 +20,7 @@ import { showOpportunityDiscoveryStartedToast } from "@/hooks/career/opportunity
 import {
   deriveHistoryOpportunityCounts,
   getDefaultSavedStage,
+  getHistoryOpportunityBucket,
   normalizeHistoryOpportunityCounts,
   normalizeHistoryOpportunities,
 } from "@/hooks/career/careerSessionData";
@@ -87,8 +88,10 @@ const getFollowUpTriggerPriority = (
   trigger: CareerOpportunityFeedbackFollowUpTrigger | null | undefined
 ) => (trigger ? (FOLLOW_UP_TRIGGER_PRIORITY[trigger] ?? 0) : 0);
 
-export const careerHistoryOpportunitiesKey = (userId: string | null) =>
-  ["career-history-opportunities", userId] as const;
+export const careerHistoryOpportunitiesKey = (
+  userId: string | null,
+  locale?: string | null
+) => ["career-history-opportunities", userId, locale?.trim() || null] as const;
 
 const toHistoryPage = (
   value: unknown,
@@ -102,11 +105,7 @@ const toHistoryPage = (
   nextOffset: typeof nextOffset === "number" ? nextOffset : null,
 });
 
-const getHistoryBucket = (item: CareerHistoryOpportunity) => {
-  if (item.feedback === "positive") return "saved";
-  if (item.feedback === "negative") return "archived";
-  return "new";
-};
+const getHistoryBucket = getHistoryOpportunityBucket;
 
 const isInternalHistoryOpportunity = (item: CareerHistoryOpportunity) =>
   item.sourceType === "internal" || item.isInternal;
@@ -238,8 +237,8 @@ export function useCareerHistoryState(args: {
   const { locale } = useMessages();
   const queryClient = useQueryClient();
   const queryKey = useMemo(
-    () => careerHistoryOpportunitiesKey(userId),
-    [userId]
+    () => careerHistoryOpportunitiesKey(userId, locale),
+    [locale, userId]
   );
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [historyOpportunityCounts, setHistoryOpportunityCounts] =
@@ -455,6 +454,7 @@ export function useCareerHistoryState(args: {
 
       const searchParams = new URLSearchParams({
         limit: String(CAREER_HISTORY_PAGE_SIZE),
+        locale,
         offset: String(Math.max(0, offset)),
       });
       if (filter?.historyTab) {
@@ -491,7 +491,7 @@ export function useCareerHistoryState(args: {
           typeof payload.nextOffset === "number" ? payload.nextOffset : null,
       } satisfies CareerHistoryPage;
     },
-    [fetchWithAuth, tCareer, userId]
+    [fetchWithAuth, locale, tCareer, userId]
   );
 
   const initialData = useMemo(() => {
@@ -1270,7 +1270,10 @@ export function useCareerHistoryState(args: {
       const normalizedRoleId = String(roleId ?? "").trim();
       if (!enabled || !userId || !normalizedRoleId) return null;
 
-      const searchParams = new URLSearchParams({ id: normalizedRoleId });
+      const searchParams = new URLSearchParams({
+        id: normalizedRoleId,
+        locale,
+      });
       const response = await fetchWithAuth(
         `/api/talent/opportunities?${searchParams.toString()}`
       );
@@ -1295,7 +1298,14 @@ export function useCareerHistoryState(args: {
 
       return item ?? null;
     },
-    [enabled, fetchWithAuth, tCareer, upsertHistoryOpportunityLocally, userId]
+    [
+      enabled,
+      fetchWithAuth,
+      locale,
+      tCareer,
+      upsertHistoryOpportunityLocally,
+      userId,
+    ]
   );
 
   const loadMoreHistoryOpportunities = useCallback(
@@ -1416,6 +1426,7 @@ export function useCareerHistoryState(args: {
           const searchParams = new URLSearchParams({
             historyTab: "saved",
             limit: String(CAREER_HISTORY_PAGE_SIZE),
+            locale,
             offset: String(offset),
             savedStages: stages.join(","),
           });
@@ -1489,6 +1500,7 @@ export function useCareerHistoryState(args: {
       appendHistoryOpportunityPage,
       enabled,
       fetchWithAuth,
+      locale,
       tCareer,
       updateFilteredPageState,
       userId,

@@ -846,16 +846,6 @@ const FeatureSection = React.memo(function FeatureSection() {
             padding
           />
         </Animate>
-        <Animate>
-          <RowImageSection
-            opposite={true}
-            label={m.companyLanding.feature.rows[2].label}
-            title={m.companyLanding.feature.rows[2].title}
-            desc={m.companyLanding.feature.rows[2].desc}
-            imageSrc="/videos/use3.mp4"
-            padding
-          />
-        </Animate>
       </div>
     </BaseSectionLayout>
   );

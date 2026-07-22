@@ -5,6 +5,7 @@ import type { CareerHistoryOpportunity } from "../types";
 const INACTIVE_ROLE_STATUSES = new Set([
   "archived",
   "closed",
+  "ended",
   "expired",
   "inactive",
 ]);

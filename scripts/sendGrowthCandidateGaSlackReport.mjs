@@ -1,17 +1,13 @@
-import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
+import { GoogleAuth } from "google-auth-library";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, "../.env.local"), quiet: true });
 
 const GA4_PROPERTY_ID =
   process.env.GROWTH_CANDIDATE_GA4_PROPERTY_ID?.trim() || "525158909";
-const GOOGLE_CLOUD_QUOTA_PROJECT =
-  process.env.GROWTH_CANDIDATE_GA_QUOTA_PROJECT?.trim() ||
-  process.env.GOOGLE_CLOUD_QUOTA_PROJECT?.trim() ||
-  "ornate-shape-481512-j9";
 const SLACK_WEBHOOK_URL = process.env.SLACK_GROWTH_CANDIDATE_TOKEN?.trim();
 const TIME_ZONE = "Asia/Seoul";
 const GA_API_URL = `https://analyticsdata.googleapis.com/v1beta/properties/${GA4_PROPERTY_ID}:runReport`;
@@ -116,7 +112,10 @@ const channelFilters = [
   },
   {
     label: "Instagram",
-    filter: filterContains("sessionSource", "instagram"),
+    filter: or(
+      filterContains("sessionSource", "instagram"),
+      filterContains("sessionSource", "instantdm.com")
+    ),
   },
   {
     label: "AI assistants",
@@ -130,11 +129,18 @@ const channelFilters = [
   },
 ];
 
-function getAccessToken() {
-  return execFileSync("gcloud", ["auth", "application-default", "print-access-token"], {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  }).trim();
+async function getAccessToken() {
+  const auth = new GoogleAuth({
+    scopes: ["https://www.googleapis.com/auth/analytics.readonly"],
+  });
+  const client = await auth.getClient();
+  const { token } = await client.getAccessToken();
+
+  if (!token) {
+    throw new Error("Google Analytics access token could not be created");
+  }
+
+  return token;
 }
 
 async function runReport(accessToken, body) {
@@ -143,7 +149,6 @@ async function runReport(accessToken, body) {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
-      "x-goog-user-project": GOOGLE_CLOUD_QUOTA_PROJECT,
     },
     body: JSON.stringify(body),
   });
@@ -173,10 +178,7 @@ async function fetchChannelMetrics(accessToken, dateRange, channel) {
     "sessions",
     "totalUsers",
     "newUsers",
-    "engagedSessions",
     "engagementRate",
-    "averageSessionDuration",
-    "screenPageViews",
   ];
 
   const payload = await runReport(accessToken, {
@@ -185,24 +187,10 @@ async function fetchChannelMetrics(accessToken, dateRange, channel) {
     metrics: metrics.map((name) => ({ name })),
   });
 
-  const signUpPayload = await runReport(accessToken, {
-    dateRanges: [dateRange],
-    dimensionFilter: andFilter(
-      channel.filter,
-      filterExact("eventName", "sign_up")
-    ),
-    metrics: [{ name: "eventCount" }],
-  });
-
   const values = readMetricRow(payload, metrics);
-  const signUps = readMetricRow(signUpPayload, ["eventCount"]).eventCount;
   return {
     ...values,
     label: channel.label,
-    signUpRate: values.sessions > 0 ? signUps / values.sessions : 0,
-    signUps,
-    viewsPerSession:
-      values.sessions > 0 ? values.screenPageViews / values.sessions : 0,
   };
 }
 
@@ -212,10 +200,6 @@ function formatInteger(value) {
 
 function formatPercent(value) {
   return `${(value * 100).toFixed(1)}%`;
-}
-
-function formatSeconds(value) {
-  return `${Math.round(value)}초`;
 }
 
 function pad(value, size) {
@@ -230,10 +214,7 @@ function formatSlackMessage({ dateRange, rows }) {
       pad("세션", 8),
       pad("유저", 7),
       pad("신규 유저", 9),
-      pad("참여율", 8),
-      pad("평균 세션", 10),
-      pad("회원가입", 8),
-      "가입률",
+      "참여율",
     ].join(" "),
     ...sortedRows.map((row) =>
       [
@@ -241,20 +222,10 @@ function formatSlackMessage({ dateRange, rows }) {
         pad(formatInteger(row.sessions), 8),
         pad(formatInteger(row.totalUsers), 7),
         pad(formatInteger(row.newUsers), 9),
-        pad(formatPercent(row.engagementRate), 8),
-        pad(formatSeconds(row.averageSessionDuration), 10),
-        pad(formatInteger(row.signUps), 8),
-        formatPercent(row.signUpRate),
+        formatPercent(row.engagementRate),
       ].join(" ")
     ),
   ];
-
-  const details = sortedRows.map(
-    (row) =>
-      `- ${row.label}: 세션당 페이지뷰 ${row.viewsPerSession.toFixed(
-        1
-      )}, 참여 세션 ${formatInteger(row.engagedSessions)}`
-  );
 
   return [
     "*Growth candidate GA 리포트*",
@@ -263,17 +234,6 @@ function formatSlackMessage({ dateRange, rows }) {
     "```",
     tableLines.join("\n"),
     "```",
-    "",
-    "*추가 참고*",
-    details.join("\n"),
-    "",
-    "*읽는 법*",
-    "- 세션: 방문 횟수",
-    "- 유저: 중복을 제거한 방문자 수",
-    "- 신규 유저: GA가 처음 방문으로 인식한 유저 수",
-    "- 참여율: GA4 기준 참여 세션 비율",
-    "- 평균 세션: 세션당 평균 머문 시간",
-    "- 회원가입/가입률: GA4 `sign_up` 이벤트 수와 세션 대비 비율",
   ].join("\n");
 }
 
@@ -304,7 +264,7 @@ async function sendSlackMessage(text) {
 
 async function main() {
   const dateRange = getPreviousCompleteKstDateRange();
-  const accessToken = getAccessToken();
+  const accessToken = await getAccessToken();
   const rows = [];
 
   for (const channel of channelFilters) {

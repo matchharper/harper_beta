@@ -25,7 +25,6 @@ import ProfileBio from "@/pages/my/p/components/ProfileBio";
 import { useLogEvent } from "@/hooks/useLog";
 import { logger } from "@/utils/logger";
 import { Loading } from "@/components/ui/loading";
-import FeedbackBanner from "@/pages/my/p/components/FeedbackBanner";
 import { useRunDetail } from "@/hooks/search/useRunDetail";
 import { supabase } from "@/lib/supabase";
 import Criterias from "@/pages/my/p/components/Criterias";
@@ -340,8 +339,6 @@ function CandidateProfileDetailPage({
 
   const c: any = data;
   const isProfileRevealed = c?.profile_revealed !== false;
-  const showAutomationFeedback =
-    data?.isAutomationResult && companyUser?.is_custom;
 
   useEffect(() => {
     setIsIntroRequested(
@@ -708,15 +705,6 @@ function CandidateProfileDetailPage({
           : "relative mx-auto h-screen w-full overflow-y-auto"
       }
     >
-      {showAutomationFeedback && (
-        <FeedbackBanner
-          name={c.name}
-          connection={c.connection}
-          candidId={candidId}
-          userId={userId}
-          qc={qc}
-        />
-      )}
       <div
         className={
           embedded

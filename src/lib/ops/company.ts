@@ -134,6 +134,36 @@ export type OpsCompanyWaitingResponse = {
   items: OpsCompanyWaitingItem[];
 };
 
+export type OpsCompanyWorkspaceUpdateInput = {
+  careerUrl: string | null;
+  companyDescription: string | null;
+  companyName: string;
+  homepageUrl: string | null;
+  linkedinUrl: string | null;
+  logoUrl: string | null;
+  pitch: string | null;
+  publishedName: string | null;
+  request: string | null;
+  workspaceId: string;
+};
+
+export type OpsCompanyWorkspaceUpdateResponse = {
+  ok: true;
+  workspace: {
+    careerUrl: string | null;
+    companyDescription: string | null;
+    companyName: string;
+    homepageUrl: string | null;
+    linkedinUrl: string | null;
+    logoUrl: string | null;
+    pitch: string | null;
+    publishedName: string | null;
+    request: string | null;
+    updatedAt: string;
+    workspaceId: string;
+  };
+};
+
 function coerceJsonArray<T>(value: unknown) {
   return Array.isArray(value) ? (value as T[]) : [];
 }
@@ -142,6 +172,10 @@ function normalizeText(value: unknown) {
   return String(value ?? "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function normalizeOptionalText(value: unknown) {
+  return String(value ?? "").trim() || null;
 }
 
 function normalizeQuery(value: unknown) {
@@ -707,5 +741,56 @@ export async function fetchOpsCompanyWaiting(): Promise<OpsCompanyWaitingRespons
       total: items.length,
     },
     items,
+  };
+}
+
+export async function updateOpsCompanyWorkspace(
+  args: OpsCompanyWorkspaceUpdateInput
+): Promise<OpsCompanyWorkspaceUpdateResponse> {
+  const admin = getSupabaseAdmin();
+  const workspaceId = normalizeText(args.workspaceId);
+  const companyName = normalizeText(args.companyName);
+
+  if (!workspaceId) throw new Error("workspaceId is required");
+  if (!companyName) throw new Error("companyName is required");
+
+  const { data, error } = await (admin.from("company_workspace" as any) as any)
+    .update({
+      career_url: normalizeOptionalText(args.careerUrl),
+      company_description: normalizeOptionalText(args.companyDescription),
+      company_name: companyName,
+      homepage_url: normalizeOptionalText(args.homepageUrl),
+      linkedin_url: normalizeOptionalText(args.linkedinUrl),
+      logo_url: normalizeOptionalText(args.logoUrl),
+      pitch: normalizeOptionalText(args.pitch),
+      published_name: normalizeOptionalText(args.publishedName),
+      request: normalizeOptionalText(args.request),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("company_workspace_id", workspaceId)
+    .select(
+      "company_workspace_id, company_name, published_name, company_description, pitch, request, homepage_url, career_url, linkedin_url, logo_url, updated_at"
+    )
+    .single();
+
+  if (error || !data) {
+    throw new Error(error?.message ?? "Failed to update company workspace");
+  }
+
+  return {
+    ok: true,
+    workspace: {
+      careerUrl: data.career_url ?? null,
+      companyDescription: data.company_description ?? null,
+      companyName: String(data.company_name ?? ""),
+      homepageUrl: data.homepage_url ?? null,
+      linkedinUrl: data.linkedin_url ?? null,
+      logoUrl: data.logo_url ?? null,
+      pitch: data.pitch ?? null,
+      publishedName: data.published_name ?? null,
+      request: data.request ?? null,
+      updatedAt: String(data.updated_at ?? ""),
+      workspaceId: String(data.company_workspace_id ?? ""),
+    },
   };
 }

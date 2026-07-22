@@ -9,6 +9,7 @@ import { OrgLoginScreen } from "@/components/org/OrgLoginScreen";
 import { OrgPipeline } from "@/components/org/OrgPipeline";
 import { OrgRoleTabs } from "@/components/org/OrgRoleTabs";
 import { TalentDetailSimpleView } from "@/components/org/TalentDetailSimpleView";
+import { OrgAgentPanel } from "@/components/org/agent/OrgAgentPanel";
 import { cx, opsTheme } from "@/components/ops/theme";
 import {
   useOrgBoard,
@@ -61,16 +62,6 @@ function LoadingScreen() {
       <div className="inline-flex items-center gap-2 text-sm text-neutral-muted">
         <LoaderCircle className="h-4 w-4 animate-spin" />
         불러오는 중
-      </div>
-    </main>
-  );
-}
-
-function EmptyWorkspaceScreen() {
-  return (
-    <main className="flex min-h-screen items-center justify-center bg-bg-default px-4 text-neutral-primary">
-      <div className="text-center text-sm text-neutral-muted">
-        아직 가입된 Workspace가 없습니다.
       </div>
     </main>
   );
@@ -149,8 +140,7 @@ export default function OrgPage() {
     visibleSelectedItem?.talentId || detailTalentId || "";
   const activeDetailRecommendationId =
     visibleSelectedItem?.recommendationId || detailRecommendationId || "";
-  const activeDetailRoleId =
-    visibleSelectedItem?.roleId || detailRoleId || "";
+  const activeDetailRoleId = visibleSelectedItem?.roleId || detailRoleId || "";
   const detailOpen = Boolean(activeDetailTalentId);
   const detailQuery = useOrgTalentDetail({
     enabled: Boolean(workspace && detailOpen),
@@ -219,9 +209,13 @@ export default function OrgPage() {
     updateRoleLifecycle(role, { status: "active" });
   };
 
+  const deleteRole = (role: OrgRole) => {
+    updateRoleLifecycle(role, { isExpired: true, status: "deleted" });
+  };
+
   const handleDeleteRole = (role: OrgRole) => {
     if (!window.confirm(`"${role.name}" 역할을 삭제할까요?`)) return;
-    updateRoleLifecycle(role, { isExpired: true, status: "deleted" });
+    deleteRole(role);
   };
 
   useEffect(() => {
@@ -361,14 +355,13 @@ export default function OrgPage() {
   }
 
   if (!workspace) {
-    return <EmptyWorkspaceScreen />;
+    return <OrgLoginScreen authenticatedEmail={user.email} />;
   }
 
   const selectedAcceptStageId =
     detailOpen && boardQuery.data?.stages
-      ? (boardQuery.data.stages.find(
-          (stage) => stage.id === "connected"
-        )?.id ?? null)
+      ? (boardQuery.data.stages.find((stage) => stage.id === "connected")?.id ??
+        null)
       : null;
   const pendingRecommendationId = setStage.isPending
     ? (setStage.variables?.recommendationId ?? null)
@@ -381,8 +374,10 @@ export default function OrgPage() {
       </Head>
       <main className="min-h-screen bg-bg-default text-neutral-primary">
         <OrgAppBar
+          key={workspace.workspaceId}
           canSwitchWorkspace={canSwitchWorkspace}
           currentUser={bootstrapQuery.data?.currentUser ?? null}
+          invitations={bootstrapQuery.data?.invitations ?? []}
           members={bootstrapQuery.data?.members ?? []}
           onEditWorkspace={openWorkspaceEdit}
           onSignOut={() => void handleSignOut()}
@@ -432,7 +427,7 @@ export default function OrgPage() {
               }
               isLoading={boardQuery.isLoading}
               nameQuery={nameQuery}
-              onDeleteRole={handleDeleteRole}
+              onDeleteRole={deleteRole}
               onEditRole={() => openRoleEdit(effectiveActiveRoleId)}
               onNameQueryChange={setNameQuery}
               onPauseRole={handlePauseRole}
@@ -450,6 +445,15 @@ export default function OrgPage() {
               workspaceId={workspace.workspaceId}
             />
           )}
+          <OrgAgentPanel
+            activeRole={activeRole}
+            currentUserEmail={
+              bootstrapQuery.data?.currentUser?.email ?? user.email ?? null
+            }
+            onRoleSelect={handleRoleTabChange}
+            roles={roles}
+            workspaceId={workspace.workspaceId}
+          />
         </div>
       </main>
 

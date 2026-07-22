@@ -1,6 +1,7 @@
 import { sendOrgWorkspaceSlackMessage } from "@/lib/org/slackIntegration";
 
-const ORG_SLACK_CHANNEL_ID = "C0AKK93FMH8";
+export const ORG_SLACK_CHANNEL_ID =
+  process.env.ORG_SLACK_CHANNEL_ID?.trim() || "C0AKK93FMH8";
 const DEFAULT_PUBLIC_SITE_URL = "https://matchharper.com";
 
 type OrgSlackWorkspace = {
@@ -206,11 +207,31 @@ export async function notifyOrgMemberJoinedSlack(args: {
   user: OrgSlackUser;
   workspace: OrgSlackWorkspace;
 }) {
-  const orgUrl = buildOrgRoleUrl(args.workspace.workspaceId, "all");
   const lines = [
     "*Org 신규 유저 가입*",
-    `- *Workspace*: ${formatSlackLink(orgUrl, args.workspace.companyName)}`,
-    `- *User*: ${formatPerson(args.user)}`,
+    `- *Workspace*: ${escapeSlackText(args.workspace.companyName)}`,
+    `- *Name*: ${escapeSlackText(args.user.name) || "Unknown"}`,
+  ];
+
+  await postOrgSlackMessage(lines.join("\n"));
+}
+
+export async function notifyOrgAgentMeetingRequestedSlack(args: {
+  actor: OrgSlackUser;
+  reason?: string | null;
+  roleId: string;
+  roleName: string;
+  topic: string;
+  workspace: OrgSlackWorkspace;
+}) {
+  const roleUrl = buildOrgRoleUrl(args.workspace.workspaceId, args.roleId);
+  const lines = [
+    "*Org Agent 미팅 요청*",
+    `- *Workspace*: ${formatSlackLink(roleUrl, args.workspace.companyName)}`,
+    `- *Role*: ${escapeSlackText(args.roleName)}`,
+    `- *Requested by*: ${formatPerson(args.actor)}`,
+    `- *Topic*: ${formatOptional(args.topic)}`,
+    `- *Reason*: ${formatOptional(args.reason)}`,
   ];
 
   await postWorkspaceScopedOrgSlackMessage(

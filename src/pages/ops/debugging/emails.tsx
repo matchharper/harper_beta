@@ -21,7 +21,14 @@ import {
 } from "@/components/ops/career/utils";
 import { BareButton } from "@/components/ui/button";
 import { Input as UiInput } from "@/components/ui/input";
-import { Select as UiSelect } from "@/components/ui/select";
+import {
+  Select as UiSelect,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useOpsDebugEmails } from "@/hooks/ops/useOpsDebugEmails";
 import type {
   OpsDebugEmailDirection,
@@ -488,19 +495,30 @@ export default function OpsDebuggingEmailsPage() {
               방향
             </label>
             <UiSelect
-              unstyled
-              id="ops-debug-email-direction"
+              items={DIRECTION_OPTIONS.map((option) => ({
+                label: option.label,
+                value: option.id,
+              }))}
               value={direction}
-              onChange={(event) =>
-                setDirection(event.target.value as OpsDebugEmailDirection)
+              onValueChange={(value) =>
+                setDirection((value ?? "all") as OpsDebugEmailDirection)
               }
-              className={cx(opsTheme.input, "mt-2 h-10 min-w-[116px]")}
             >
-              {DIRECTION_OPTIONS.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
+              <SelectTrigger
+                id="ops-debug-email-direction"
+                className={cx(opsTheme.input, "mt-2 h-10 min-w-[116px]")}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="start" alignItemWithTrigger={false}>
+                <SelectGroup>
+                  {DIRECTION_OPTIONS.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
             </UiSelect>
           </div>
 
@@ -509,17 +527,28 @@ export default function OpsDebuggingEmailsPage() {
               상태
             </label>
             <UiSelect
-              unstyled
-              id="ops-debug-email-status"
+              items={STATUS_OPTIONS.map((option) => ({
+                label: option.label,
+                value: option.id,
+              }))}
               value={status}
-              onChange={(event) => setStatus(event.target.value)}
-              className={cx(opsTheme.input, "mt-2 h-10 min-w-[116px]")}
+              onValueChange={(value) => setStatus(value ?? "")}
             >
-              {STATUS_OPTIONS.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
+              <SelectTrigger
+                id="ops-debug-email-status"
+                className={cx(opsTheme.input, "mt-2 h-10 min-w-[116px]")}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="start" alignItemWithTrigger={false}>
+                <SelectGroup>
+                  {STATUS_OPTIONS.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
             </UiSelect>
           </div>
 
@@ -532,20 +561,31 @@ export default function OpsDebuggingEmailsPage() {
                 타입
               </label>
               <UiSelect
-                unstyled
-                id="ops-debug-email-mail-type"
+                items={MAIL_TYPE_OPTIONS.map((option) => ({
+                  label: option.label,
+                  value: option.id,
+                }))}
                 value={
                   scope === "all" ? mailType : "opportunity_recommendation"
                 }
-                onChange={(event) => setMailType(event.target.value)}
+                onValueChange={(value) => setMailType(value ?? "")}
                 disabled={scope === "internal_opportunity"}
-                className={cx(opsTheme.input, "mt-2 h-10")}
               >
-                {MAIL_TYPE_OPTIONS.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
+                <SelectTrigger
+                  id="ops-debug-email-mail-type"
+                  className={cx(opsTheme.input, "mt-2 h-10")}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent align="start" alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    {MAIL_TYPE_OPTIONS.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
               </UiSelect>
             </div>
             <BareButton

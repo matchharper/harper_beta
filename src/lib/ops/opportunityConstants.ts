@@ -1,0 +1,1 @@
+export const OPS_OPPORTUNITY_COMPANY_PAGE_SIZE = 10;

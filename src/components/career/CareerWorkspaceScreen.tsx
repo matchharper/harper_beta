@@ -464,7 +464,7 @@ const CareerWorkspaceRoot = ({
 };
 
 const useMobileUserDisplay = () => {
-  const { user, talentProfile } = useCareerSidebarContext();
+  const { preferredLocale, user, talentProfile } = useCareerSidebarContext();
   const displayName =
     user?.user_metadata?.full_name ??
     user?.user_metadata?.name ??
@@ -476,7 +476,10 @@ const useMobileUserDisplay = () => {
   const userEmail = user?.email ?? "";
   return {
     displayName: displayName ?? null,
+    preferredLocale,
+    profileCurrentLocation: talentProfile.talentUser?.current_location ?? null,
     profilePicture,
+    profileLocation: talentProfile.talentUser?.location ?? null,
     userEmail,
   };
 };
@@ -517,7 +520,14 @@ const CareerWorkspaceMobileHistoryView = ({
     onUpdateHistoryOpportunityTalentMemo,
     onMarkHistoryOpportunityClicked,
   } = useCareerSidebarContext();
-  const { displayName, profilePicture, userEmail } = useMobileUserDisplay();
+  const {
+    displayName,
+    preferredLocale,
+    profileCurrentLocation,
+    profileLocation,
+    profilePicture,
+    userEmail,
+  } = useMobileUserDisplay();
 
   const [jobsTab, setJobsTab] = useState<JobsDisplayTab>(() => {
     if (initialHistoryTarget?.historyTab === "saved") {
@@ -838,6 +848,9 @@ const CareerWorkspaceMobileHistoryView = ({
         profilePicture={profilePicture}
         userName={displayName}
         userEmail={userEmail}
+        profileLocation={profileLocation}
+        profileCurrentLocation={profileCurrentLocation}
+        preferredLocale={preferredLocale}
         onOpenSettings={onOpenSettings}
         onOpenSupport={onOpenSupport}
         onLogout={onLogout}
@@ -909,7 +922,14 @@ const CareerWorkspaceMobileLayout = ({
   const t = useCareerT();
   const logCareerEvent = useCareerLogEvent();
   const { onOpenSettings, onLogout } = useCareerSidebarContext();
-  const { displayName, profilePicture, userEmail } = useMobileUserDisplay();
+  const {
+    displayName,
+    preferredLocale,
+    profileCurrentLocation,
+    profileLocation,
+    profilePicture,
+    userEmail,
+  } = useMobileUserDisplay();
   const [chatOpen, setChatOpen] = useState(() => {
     if (initialChatOpen) return true;
     if (typeof window === "undefined") return false;
@@ -978,6 +998,9 @@ const CareerWorkspaceMobileLayout = ({
       profilePicture={profilePicture}
       userName={displayName}
       userEmail={userEmail}
+      profileLocation={profileLocation}
+      profileCurrentLocation={profileCurrentLocation}
+      preferredLocale={preferredLocale}
       onOpenSettings={onOpenSettings}
       onOpenSupport={handleOpenSupport}
       onLogout={onLogout}

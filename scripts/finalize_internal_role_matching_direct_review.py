@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
-"""Finalize a direct-agent internal-role matching dry run.
+"""Finalize the 2026-07-20 Harper direct-review dry run.
 
 The candidate judgments encoded here were made by the current Codex agent after
 reading every prepared candidate packet. This script only validates the live
-read-only state, calculates arithmetic fields, and formats audit artifacts. It
-does not call a model, mutate the database, queue work, or send a message.
+state, calculates arithmetic fields, and formats audit artifacts. It does not
+call a model, mutate business data, queue work, or send a message. After a valid
+completion it writes one concise internal run-memory row for the next run.
+
+The judgments are rank- and run-specific. Guards below prevent this historical
+finalizer from being reused for another role, run, or candidate-pool ordering.
 """
 
 from __future__ import annotations
@@ -25,9 +29,12 @@ from prepare_internal_role_matching_agent_review import (
     compact,
     digest,
 )
+from internal_role_matching_run_memory import save_run_directory
 
 
 ROLE_ID = "3bb22f4a-1c13-4bf1-be07-6034605d6840"
+RUN_ID = "20260720T135858Z"
+EXPECTED_POOL_IDENTITY_HASH = "fc8907ea16373bb204e7946178e0c226ed1f4956daf3f0fedcba2ddf2bff0bf4"
 ROLE_NAME = "Founding Engineer, AI Agent"
 COMPANY_NAME = "Harper"
 MANUAL_VERSION = "1.5"
@@ -435,6 +442,16 @@ def main() -> int:
     parser.add_argument("--run-dir", required=True)
     args = parser.parse_args()
     run_dir = Path(args.run_dir).resolve()
+    manifest_path = run_dir / "run_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("roleId") != ROLE_ID or run_dir.name != RUN_ID:
+        raise RuntimeError("this finalizer only supports its original role and run")
+    if manifest.get("executionMode") != "dry_run":
+        raise RuntimeError("this finalizer only supports dry_run")
+    if manifest.get("status") != "awaiting_agent_evaluation":
+        raise RuntimeError(
+            "this finalizer requires status 'awaiting_agent_evaluation'"
+        )
     packets = [json.loads(line) for line in (run_dir / "candidate_packets.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
     if len(packets) != 200:
         raise RuntimeError(f"expected 200 prepared packets, got {len(packets)}")
@@ -442,6 +459,15 @@ def main() -> int:
     seen = {int(packet["rank"]) for packet in packets}
     if seen != set(range(1, 201)):
         raise RuntimeError("prepared packet ranks are incomplete")
+    pool_identity_hash = digest([
+        {
+            "rank": int(packet["rank"]),
+            "talentId": packet["profile"]["talentId"],
+        }
+        for packet in packets
+    ])
+    if pool_identity_hash != EXPECTED_POOL_IDENTITY_HASH:
+        raise RuntimeError("candidate pool identity does not match this finalizer")
 
     evaluations: list[dict[str, Any]] = []
     for packet in packets:
@@ -621,7 +647,8 @@ def main() -> int:
         "- Execution mode: `dry_run`",
         "- Requested maximum: 4",
         "- Selected: 4",
-        "- Database writes / queue / delivery: 0 / 0 / 0",
+        "- Business DB writes / queue / delivery: 0 / 0 / 0",
+        "- Run-memory writes planned: 1",
         "",
     ]
     for index, item in enumerate(selected_evals, 1):
@@ -656,6 +683,7 @@ def main() -> int:
             "previousFit": fits_by_id.get(item["talentId"]),
             "proposedFit": {
                 "opportunityId": ROLE_ID,
+                "kind": "codex",
                 "score": persisted_score(item["mutualScore"]),
                 "label": "fit",
                 "reason": item["internalReason"][:2400],
@@ -672,6 +700,7 @@ def main() -> int:
         "executionMode": "dry_run",
         "sourceUnchanged": source_unchanged,
         "databaseMutationsExecuted": 0,
+        "runMemoryWritePlanned": True,
         "considerationWritesExecuted": 0,
         "fitWritesExecuted": 0,
         "recommendationRunsQueued": 0,
@@ -695,7 +724,8 @@ def main() -> int:
 - Strict Top comparison: {len(selected_evals)}
 - Final selected: {len(selected_evals)} / 4
 - Database reads completed: role/source freshness, selected settings, duplicate recommendations, previous fit rows.
-- Database writes: 0
+- Business database writes: 0
+- Run-memory writes: 1
 - Recommendation runs queued: 0
 - Chat/email/delivery attempts: 0
 - modelDelegationAllowed: false
@@ -711,9 +741,19 @@ def main() -> int:
 {json.dumps(category_counts, ensure_ascii=False, indent=2)}
 ```
 """
-    write_text(run_dir / "verification.md", verification)
+    memory_lines = [
+        "# 다음 run 참고",
+        "",
+        "- 이번 기준: production LLM/agent, end-to-end 제품 소유, 서울 onsite full-time을 모두 확인했고 `확실한 사람만` 기준으로 엄격하게 선발했습니다.",
+        "- 이번 결과: 203명을 검토해 Daehyun Kim, Mincheol Lee, 김영훈, Jiho Yoo 4명을 선택했습니다. 이 run은 dry-run이라 fit·추천·발송은 하지 않았습니다.",
+        "- 경계 후보: Hung Vo는 역할 직접 관심이 있지만 production agent, frontend ownership, visa 조건 확인이 필요합니다. Brian MacDonlad는 agent core 직접 소유 근거가 부족했습니다.",
+        "- 다음 run: 현재 role/request가 달라졌는지 먼저 확인하고, 새 가입자·업데이트 후보를 우선 보되 이 메모만으로 후보 점수나 탈락을 결정하지 마세요.",
+    ]
+    write_text(run_dir / "run_memory.md", "\n".join(memory_lines))
 
-    manifest = json.loads((run_dir / "run_manifest.json").read_text(encoding="utf-8"))
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("status") != "awaiting_agent_evaluation":
+        raise RuntimeError("run status changed while finalizing")
     manifest.update({
         "manualVersion": MANUAL_VERSION,
         "evaluatorVersion": EVALUATOR_VERSION,
@@ -736,7 +776,21 @@ def main() -> int:
         "sourceUnchangedAtFinalPreflight": source_unchanged,
     })
     write_json(run_dir / "run_manifest.json", manifest)
-    print(json.dumps({"status": manifest["status"], "evaluated": len(evaluations), "selected": len(selected_evals), "runDir": str(run_dir)}, ensure_ascii=False))
+    try:
+        memory_receipt = save_run_directory(run_dir, url, key)
+    except Exception as error:
+        failed_verification = verification.replace(
+            "- Status: `completed_dry_run`",
+            "- Status: `run_memory_write_failed`",
+        ).replace(
+            "- Run-memory writes: 1",
+            f"- Run-memory writes: 0\n- Run-memory error: `{compact(type(error).__name__ + ': ' + str(error), 300)}`",
+        )
+        write_text(run_dir / "verification.md", failed_verification)
+        raise
+    write_text(run_dir / "verification.md", verification)
+    completed_manifest = json.loads((run_dir / "run_manifest.json").read_text(encoding="utf-8"))
+    print(json.dumps({"status": completed_manifest["status"], "evaluated": len(evaluations), "selected": len(selected_evals), "runMemory": memory_receipt, "runDir": str(run_dir)}, ensure_ascii=False))
     return 0
 
 

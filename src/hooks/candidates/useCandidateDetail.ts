@@ -26,7 +26,6 @@ export type CandidateDetail = CandidateType & {
   github_repo_contribution?: GithubContributionWithRepo[];
   scholar_profile?: ScholarProfileRow | null;
   scholar_papers?: ScholarPaperRow[];
-  isAutomationResult?: boolean;
   profile_revealed?: boolean | null;
   masked_experience_count?: number | null;
 };

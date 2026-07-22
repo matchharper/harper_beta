@@ -48,7 +48,7 @@ const CareerWorkspaceNav = () => {
   const t = useCareerT();
 
   const logCareerEvent = useCareerLogEvent();
-  const { user, onLogout, onOpenSettings, talentProfile } =
+  const { user, onLogout, onOpenSettings, preferredLocale, talentProfile } =
     useCareerSidebarContext();
 
   const displayName =
@@ -99,6 +99,11 @@ const CareerWorkspaceNav = () => {
               profileImageUrl={profileImageUrl}
               profileName={String(profileName ?? "Candidate")}
               profileEmail={profileEmail}
+              profileLocation={talentProfile.talentUser?.location}
+              profileCurrentLocation={
+                talentProfile.talentUser?.current_location
+              }
+              preferredLocale={preferredLocale}
               onLogout={onLogout}
               onSuggestUpdate={() => setInquiryOpen(true)}
             />

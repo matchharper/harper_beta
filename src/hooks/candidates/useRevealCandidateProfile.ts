@@ -35,7 +35,6 @@ function syncRevealQueries(
   queryClient.invalidateQueries({ queryKey: ["candidate"] });
   queryClient.invalidateQueries({ queryKey: ["runPages"] });
   queryClient.invalidateQueries({ queryKey: ["connections"] });
-  queryClient.invalidateQueries({ queryKey: ["automationResults"] });
   queryClient.invalidateQueries({ queryKey: ["paper-detail"] });
 }
 

@@ -88,7 +88,6 @@ export async function GET(req: NextRequest) {
       revealMap,
       candidateMarkMap,
       connectionRows,
-      autoRows,
       scholarProfileRow,
       githubProfiles,
     ] = await Promise.all([
@@ -98,11 +97,6 @@ export async function GET(req: NextRequest) {
         .select("user_id, typed")
         .eq("user_id", user.id)
         .eq("candid_id", candidId)),
-      ((supabaseAdmin.from("automation_results" as any) as any)
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("candid_id", candidId)
-        .limit(1)),
       ((supabaseAdmin.from("scholar_profile" as any) as any)
         .select("*")
         .eq("candid_id", candidId)
@@ -113,7 +107,6 @@ export async function GET(req: NextRequest) {
     ]);
 
     if (connectionRows.error) throw connectionRows.error;
-    if (autoRows.error) throw autoRows.error;
     if (scholarProfileRow.error) throw scholarProfileRow.error;
     if (githubProfiles.error) throw githubProfiles.error;
 
@@ -206,7 +199,6 @@ export async function GET(req: NextRequest) {
       github_profile: githubProfile,
       scholar_papers: scholarPapers,
       github_repo_contribution: githubRepoContributions,
-      isAutomationResult: (autoRows.data ?? []).length > 0,
     };
 
     return NextResponse.json(

@@ -92,6 +92,7 @@ import {
   useCareerWorkspaceUiStore,
   type CareerSavedHistoryDisplayMode,
 } from "@/store/useCareerWorkspaceUiStore";
+import { getHistoryOpportunityBucket } from "@/hooks/career/careerSessionData";
 
 type HistoryTabId = "new" | "saved" | "archived";
 type HistoryDisplayTabId = "new" | "saved" | "hidden" | "archived";
@@ -211,13 +212,13 @@ export const getResolvedSavedStage = (item: CareerHistoryOpportunity) =>
   item.savedStage ?? getDefaultSavedStage(item);
 
 const isNewOpportunity = (item: CareerHistoryOpportunity) =>
-  item.feedback === null;
+  getHistoryOpportunityBucket(item) === "new";
 
 const isSavedOpportunity = (item: CareerHistoryOpportunity) =>
-  item.feedback === "positive";
+  getHistoryOpportunityBucket(item) === "saved";
 
 const isArchivedOpportunity = (item: CareerHistoryOpportunity) =>
-  item.feedback === "negative";
+  getHistoryOpportunityBucket(item) === "archived";
 
 export const getPositiveActionLabel = (
   item: CareerHistoryOpportunity,
@@ -264,7 +265,7 @@ export const getOpportunityStatusLabel = (
   const t = tArg ?? fallbackCareerT;
   if (item.feedback === "negative")
     return t("career.common.career_history_panel.1vrs10j", "제외한 포지션");
-  if (item.feedback === "positive") {
+  if (getHistoryOpportunityBucket(item) === "saved") {
     return getSavedStageLabel(getResolvedSavedStage(item), item, t);
   }
   return null;

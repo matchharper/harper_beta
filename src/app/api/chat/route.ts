@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { xaiClient } from "@/lib/llm/llm";
 import { ChatScope } from "@/hooks/chat/useChatSession";
 import {
   hasSerializedAttachments,
@@ -9,10 +7,7 @@ import {
 import { buildLongDoc } from "@/utils/textprocess";
 import { logger } from "@/utils/logger";
 import { CANDID_SYSTEM_PROMPT, SYSTEM_PROMPT } from "./chat_prompt";
-import {
-  createXaiGeminiOpenAIReadableStream,
-  createXaiOrOpenAIStream,
-} from "./streamProviders";
+import { createXaiGeminiOpenAIReadableStream } from "./streamProviders";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -30,19 +25,7 @@ type AttachmentPayload = {
   url?: string;
 };
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
 const MAX_ATTACHMENT_CHARS = 12000;
-const MAX_TEAM_CONTEXT_CHARS = 1200;
-const MAX_TOOL_TEXT_CHARS = 12000;
-const MAX_TOOL_LOOPS = 3;
-const MAX_TOTAL_TOOL_CALLS = 4;
-const UI_START = "<<UI>>";
-const UI_END = "<<END_UI>>";
 const LONG_FORM_FIRST_QUERY_THRESHOLD = 500;
 const FIRST_LONG_FORM_QUERY_PROMPT = `
 ### Long-form First Query Handling
@@ -60,15 +43,6 @@ function clampText(s: string, maxChars: number) {
   if (!s) return "";
   if (s.length <= maxChars) return s;
   return s.slice(0, maxChars) + `\n...[truncated ${s.length - maxChars} chars]`;
-}
-
-function emitUiBlock(
-  controller: ReadableStreamDefaultController<Uint8Array>,
-  encoder: TextEncoder,
-  block: any
-) {
-  const payload = `${UI_START}\n${JSON.stringify(block)}\n${UI_END}`;
-  controller.enqueue(encoder.encode(payload));
 }
 
 function shouldApplyLongFormFirstQueryPrompt(args: {
@@ -98,257 +72,6 @@ function shouldApplyLongFormFirstQueryPrompt(args: {
   );
 }
 
-function makeInternalUrl(req: NextRequest, path: string) {
-  const base = new URL(req.url);
-  base.pathname = path;
-  base.search = "";
-  base.hash = "";
-  return base.toString();
-}
-
-async function callWebsiteScraping(req: NextRequest, args: any) {
-  const url = makeInternalUrl(req, "/api/tool/scrape");
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      url: String(args?.url ?? ""),
-    }),
-  });
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`website_scraping failed: ${res.status} ${txt}`);
-  }
-
-  const json = (await res.json()) as any;
-  return {
-    url: String(json?.url ?? args?.url ?? ""),
-    title: json?.title ?? "",
-    markdown: json?.markdown ?? "",
-    excerpt: json?.excerpt ?? "",
-  };
-}
-
-async function loadQueryPromptBase(_queryId?: string) {
-  return SYSTEM_PROMPT;
-}
-
-function buildAutomationSystemPrompt(basePrompt: string) {
-  const today = new Date().toISOString().slice(0, 10);
-
-  return `${basePrompt}
-
-### Today
-${today}
-`;
-}
-
-const tools = [
-  {
-    type: "function",
-    function: {
-      name: "website_scraping",
-      description:
-        "Fetch and read the content of a specific URL. Use when a user provides a link or asks about a specific page.",
-      parameters: {
-        type: "object",
-        properties: {
-          url: { type: "string", description: "URL to scrape." },
-        },
-        required: ["url"],
-        additionalProperties: false,
-      },
-    },
-  },
-] as const;
-
-async function streamWithTools(params: {
-  req: NextRequest;
-  model: string;
-  baseMessages: ChatMessage[];
-  systemPrompt: string;
-  temperature: number;
-}) {
-  const { req, model, baseMessages, systemPrompt, temperature } = params;
-  const encoder = new TextEncoder();
-  const messages: any[] = [
-    { role: "system", content: systemPrompt },
-    ...baseMessages,
-  ];
-  let totalToolCallsUsed = 0;
-
-  return new ReadableStream<Uint8Array>({
-    async start(controller) {
-      try {
-        for (let loop = 0; loop < MAX_TOOL_LOOPS; loop++) {
-          const llmStream = await createXaiOrOpenAIStream({
-            model,
-            messages,
-            temperature,
-            tools: tools as any,
-            tool_choice: "auto",
-          });
-          // const llmStream = await xaiClient.chat.completions.create({
-          //   model,
-          //   messages,
-          //   temperature,
-          //   stream: true,
-          //   tools: tools as any,
-          //   tool_choice: "auto",
-          // });
-
-          const toolCallsByIndex = new Map<
-            number,
-            { id?: string; name?: string; argumentsStr: string }
-          >();
-          let sawAnyToolCall = false;
-
-          for await (const chunk of llmStream as any) {
-            const choice = chunk?.choices?.[0];
-            const delta = choice?.delta ?? {};
-
-            const text = delta?.content ?? "";
-            if (text) controller.enqueue(encoder.encode(text));
-
-            const tcs = delta?.tool_calls;
-            if (Array.isArray(tcs) && tcs.length) {
-              sawAnyToolCall = true;
-              for (const tc of tcs) {
-                const idx = typeof tc.index === "number" ? tc.index : 0;
-                const existing = toolCallsByIndex.get(idx) ?? {
-                  id: tc.id,
-                  name: tc.function?.name,
-                  argumentsStr: "",
-                };
-                if (tc.id) existing.id = tc.id;
-                if (tc.function?.name) existing.name = tc.function.name;
-                const argDelta = tc.function?.arguments ?? "";
-                if (argDelta) existing.argumentsStr += argDelta;
-                toolCallsByIndex.set(idx, existing);
-              }
-            }
-          }
-
-          if (!sawAnyToolCall || toolCallsByIndex.size === 0) break;
-
-          const orderedToolCalls = Array.from(toolCallsByIndex.entries())
-            .sort((a, b) => a[0] - b[0])
-            .map(([_, v]) => ({
-              id: v.id ?? `toolcall_${crypto.randomUUID()}`,
-              name: v.name ?? "",
-              argumentsStr: v.argumentsStr ?? "",
-            }));
-
-          messages.push({
-            role: "assistant",
-            content: "",
-            tool_calls: orderedToolCalls.map((tc) => ({
-              id: tc.id,
-              type: "function",
-              function: { name: tc.name, arguments: tc.argumentsStr },
-            })),
-          });
-
-          const remaining = MAX_TOTAL_TOOL_CALLS - totalToolCallsUsed;
-          const toExecute =
-            remaining > 0 ? orderedToolCalls.slice(0, remaining) : [];
-          const skipped = orderedToolCalls.slice(toExecute.length);
-
-          for (const tc of toExecute) {
-            totalToolCallsUsed++;
-
-            const toolCallId = tc.id;
-            const toolName = tc.name;
-
-            emitUiBlock(controller, encoder, {
-              type: "tool_status",
-              id: toolCallId,
-              name: toolName,
-              state: "running",
-            });
-
-            let parsedArgs: any = {};
-            try {
-              parsedArgs = tc.argumentsStr ? JSON.parse(tc.argumentsStr) : {};
-            } catch {
-              parsedArgs = { _raw: tc.argumentsStr ?? "" };
-            }
-
-            let toolPayload: any;
-            try {
-              if (toolName === "website_scraping") {
-                toolPayload = await callWebsiteScraping(req, parsedArgs);
-              } else {
-                toolPayload = { error: `Unknown tool: ${toolName}` };
-              }
-            } catch (e: any) {
-              toolPayload = { error: String(e?.message ?? e) };
-            }
-
-            emitUiBlock(controller, encoder, {
-              type: "tool_status",
-              id: toolCallId,
-              name: toolName,
-              state: toolPayload?.error ? "error" : "done",
-              ...(toolPayload?.error
-                ? { message: String(toolPayload.error).slice(0, 140) }
-                : {}),
-            });
-
-            if (toolName === "website_scraping" && toolPayload?.markdown) {
-              const trimmed = clampText(
-                String(toolPayload.markdown),
-                MAX_TOOL_TEXT_CHARS
-              );
-              const excerpt =
-                toolPayload.excerpt ||
-                trimmed.replace(/\s+/g, " ").slice(0, 600);
-              emitUiBlock(controller, encoder, {
-                type: "tool_result",
-                name: "website_scraping",
-                title: toolPayload.title ?? "",
-                url: toolPayload.url ?? "",
-                excerpt,
-                truncated: trimmed.length < String(toolPayload.markdown).length,
-              });
-              toolPayload.markdown = trimmed;
-            }
-
-            messages.push({
-              role: "tool",
-              tool_call_id: toolCallId,
-              name: toolName,
-              content: JSON.stringify(toolPayload),
-            });
-          }
-
-          if (skipped.length) {
-            for (const tc of skipped) {
-              messages.push({
-                role: "tool",
-                tool_call_id: tc.id,
-                name: tc.name,
-                content: JSON.stringify({
-                  error: "Tool call budget exceeded",
-                  max_total_tool_calls: MAX_TOTAL_TOOL_CALLS,
-                }),
-              });
-            }
-          }
-
-          if (totalToolCallsUsed >= MAX_TOTAL_TOOL_CALLS) break;
-        }
-      } catch (err) {
-        logger.log("streamWithTools error:", err);
-        controller.error(err);
-      } finally {
-        controller.close();
-      }
-    },
-  });
-}
-
 export async function POST(req: NextRequest) {
   try {
     if (req.method !== "POST") {
@@ -363,11 +86,6 @@ export async function POST(req: NextRequest) {
       messages?: ChatMessage[];
       scope?: ChatScope;
       doc?: any;
-      systemPromptOverride?: string;
-      userId?: string;
-      memoryMode?: "automation";
-      companyDescription?: string;
-      teamLocation?: string;
       attachments?: AttachmentPayload[];
     };
 
@@ -389,12 +107,7 @@ ${information}
     }
 
     if (body.scope?.type === "query") {
-      const basePrompt = await loadQueryPromptBase(body.scope.queryId);
-      systemPrompt =
-        typeof body.systemPromptOverride === "string" &&
-        body.systemPromptOverride.trim().length > 0
-          ? body.systemPromptOverride
-          : basePrompt;
+      systemPrompt = SYSTEM_PROMPT;
     }
 
     const attachments = Array.isArray(body.attachments) ? body.attachments : [];
@@ -423,66 +136,13 @@ ${information}
       systemPrompt += `\n\n${FIRST_LONG_FORM_QUERY_PROMPT}`;
     }
 
-    if (
-      body.scope?.type === "query" &&
-      body.memoryMode === "automation" &&
-      body.userId
-    ) {
-      const description = clampText(
-        String(body.companyDescription ?? "").trim(),
-        MAX_TEAM_CONTEXT_CHARS
-      );
-      const location = clampText(String(body.teamLocation ?? "").trim(), 200);
-      if (description.length > 0 || location.length > 0) {
-        const profileLines = [
-          description.length > 0
-            ? `- Company/Team description: ${description}`
-            : "",
-          location.length > 0 ? `- Location: ${location}` : "",
-        ]
-          .filter(Boolean)
-          .join("\n");
-
-        systemPrompt += `\n\n### Team Profile (from Account settings)\n${profileLines}\n\nInstructions:\n- Use this as stable background context for recommendations.\n- If this conflicts with the latest user message, prioritize the latest user message.\n`;
-      }
-
-      systemPrompt = buildAutomationSystemPrompt(systemPrompt);
-    }
-
-    const allowTools =
-      body.scope?.type === "query" && body.memoryMode === "automation";
-
-    if (model === "grok-4-fast-reasoning" && allowTools) {
-      const toolPrompt = `${systemPrompt}
-
-### Tool Use
-- You may call website_scraping when the user provides a URL or asks about a specific page.
-- After using the tool, incorporate the key points from the content into your response.
-`;
-
-      const responseStream = await streamWithTools({
-        req,
-        model,
-        baseMessages: messages,
-        systemPrompt: toolPrompt,
-        temperature: 0.7,
-      });
-
-      return new Response(responseStream, {
-        headers: {
-          "Content-Type": "text/plain; charset=utf-8",
-          "Cache-Control": "no-cache, no-transform",
-          Connection: "keep-alive",
-        },
-      });
-    }
     const systemMsg = systemPrompt;
     const baseMsgs = messages.map((m) => ({
       role: m.role,
       content: m.content,
     }));
 
-    const { provider, stream } = await createXaiGeminiOpenAIReadableStream({
+    const { stream } = await createXaiGeminiOpenAIReadableStream({
       model: model,
       systemPrompt: systemMsg,
       messages: baseMsgs,

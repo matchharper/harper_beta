@@ -8,6 +8,7 @@ type SlackActivityDetail = {
 
 type NotifySlackActivityArgs = {
   action: string;
+  channelId?: string | null;
   details?: SlackActivityDetail[];
   email?: string | null;
   name?: string | null;
@@ -134,14 +135,6 @@ function buildSlackActivityLines(
 export async function notifySlackActivity(args: NotifySlackActivityArgs) {
   if (process.env.NEXT_PUBLIC_WORKER_TEST_MODE === "true") return false;
 
-  const webhookUrl = getActivityWebhookUrl();
-  if (!webhookUrl) {
-    console.warn(
-      "[slackActivity] SLACK_ACTIVITY_WEBHOOK_URL/SLACK_TOKEN missing"
-    );
-    return false;
-  }
-
   const name = normalizeText(args.name) || getSlackActivityUserName(args.user);
   const email = normalizeText(args.email) || normalizeText(args.user?.email);
   const userId = normalizeText(args.userId) || normalizeText(args.user?.id);
@@ -151,9 +144,7 @@ export async function notifySlackActivity(args: NotifySlackActivityArgs) {
     name,
     userId,
   });
-
-  const webhook = new IncomingWebhook(webhookUrl);
-  await webhook.send({
+  const payload = {
     text: `Harper activity: ${args.action} - ${email || name || userId || "unknown"}`,
     blocks: [
       {
@@ -164,7 +155,47 @@ export async function notifySlackActivity(args: NotifySlackActivityArgs) {
         },
       },
     ],
-  });
+  };
+  const channelId = normalizeText(args.channelId);
+
+  if (channelId) {
+    const token = process.env.SLACK_BOT_TOKEN?.trim();
+    if (!token) {
+      console.warn("[slackActivity] SLACK_BOT_TOKEN missing");
+      return false;
+    }
+
+    const response = await fetch("https://slack.com/api/chat.postMessage", {
+      body: JSON.stringify({ channel: channelId, ...payload }),
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json; charset=utf-8",
+      },
+      method: "POST",
+    });
+    const result = (await response.json().catch(() => null)) as {
+      error?: string;
+      ok?: boolean;
+    } | null;
+
+    if (!response.ok || !result?.ok) {
+      throw new Error(
+        `Slack chat.postMessage failed: ${result?.error ?? response.status}`
+      );
+    }
+    return true;
+  }
+
+  const webhookUrl = getActivityWebhookUrl();
+  if (!webhookUrl) {
+    console.warn(
+      "[slackActivity] SLACK_ACTIVITY_WEBHOOK_URL/SLACK_TOKEN missing"
+    );
+    return false;
+  }
+
+  const webhook = new IncomingWebhook(webhookUrl);
+  await webhook.send(payload);
 
   return true;
 }

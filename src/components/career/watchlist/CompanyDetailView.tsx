@@ -498,7 +498,7 @@ export const CompanyDetailView = ({
           label: "",
           value: t(
             "career.company.company_data.last_funding_stage",
-            "{stage}",
+            "최근 단계 {stage}",
             { values: { stage: displayFundingStage } }
           ),
         }

@@ -24,6 +24,8 @@ type SettingsPayload = {
     engagementTypes?: string[];
     profileVisibility?: string;
     blockedCompanies?: string[];
+    preferredLocale?: string | null;
+    effectivePreferredLocale?: string | null;
   };
   updatedAt?: string | null;
   error?: string;
@@ -80,6 +82,13 @@ const normalizeEngagementTypes = (values: unknown): CareerEngagementType[] => {
   );
 };
 
+const normalizePreferredLocale = (value: unknown): string | null => {
+  const candidate = String(value ?? "")
+    .trim()
+    .toLowerCase();
+  return candidate === "ko" || candidate === "en" ? candidate : null;
+};
+
 const sameStringArray = (left: string[], right: string[]) => {
   if (left.length !== right.length) return false;
   return left.every((value, index) => value === right[index]);
@@ -119,6 +128,7 @@ export const useCareerTalentSettings = ({
   const [settingsUpdatedAt, setSettingsUpdatedAt] = useState<string | null>(
     null
   );
+  const [preferredLocale, setPreferredLocale] = useState<string | null>(null);
 
   const applyPersistedSettings = useCallback(
     (
@@ -126,6 +136,8 @@ export const useCareerTalentSettings = ({
         engagementTypes?: unknown;
         profileVisibility?: unknown;
         blockedCompanies?: unknown;
+        preferredLocale?: unknown;
+        effectivePreferredLocale?: unknown;
       },
       updatedAt?: unknown,
       options?: {
@@ -141,6 +153,9 @@ export const useCareerTalentSettings = ({
       const nextBlockedCompanies = normalizeBlockedCompanies(
         settings.blockedCompanies
       );
+      const nextPreferredLocale = normalizePreferredLocale(
+        settings.preferredLocale ?? settings.effectivePreferredLocale
+      );
 
       setProfileVisibility(nextVisibility);
       setSavedProfileVisibility(nextVisibility);
@@ -150,6 +165,7 @@ export const useCareerTalentSettings = ({
         setBlockedCompanies(nextBlockedCompanies);
       }
       setSavedBlockedCompanies(nextBlockedCompanies);
+      setPreferredLocale(nextPreferredLocale);
       setSettingsUpdatedAt(normalizeUpdatedAt(updatedAt));
     },
     []
@@ -205,6 +221,7 @@ export const useCareerTalentSettings = ({
       setSavedEngagementTypes([]);
       setBlockedCompanies([]);
       setSavedBlockedCompanies([]);
+      setPreferredLocale(null);
       setSettingsUpdatedAt(null);
       return;
     }
@@ -447,6 +464,7 @@ export const useCareerTalentSettings = ({
       settingsSaving,
       settingsError,
       settingsUpdatedAt,
+      preferredLocale,
       profileVisibility,
       engagementTypes,
       blockedCompanies,
@@ -465,6 +483,7 @@ export const useCareerTalentSettings = ({
       engagementTypes,
       fetchSettings,
       hasUnsavedTalentSettingsChanges,
+      preferredLocale,
       profileVisibility,
       removeBlockedCompany,
       resetTalentSettings,

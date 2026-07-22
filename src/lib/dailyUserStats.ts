@@ -20,6 +20,10 @@ import {
   getLandingLogSource,
   isLandingLogEntryType,
 } from "@/lib/landingLogTypes";
+import {
+  buildReferralFunnelStats,
+  type DailyUserStatsReferralFunnelStats,
+} from "@/lib/dailyUserStatsReferral";
 import { normalizeEmail } from "@/lib/adminMetrics/utils";
 import { supabaseServer } from "@/lib/supabaseServer";
 import type { Database } from "@/types/database.types";
@@ -227,6 +231,7 @@ export type DailyUserStatsReport = {
   jobs: DailyUserStatsJobRow[];
   jobsSummary: DailyUserStatsJobsSummary;
   landingAbtestRows: DailyUserStatsLandingAbtestRow[];
+  referralFunnelStats: DailyUserStatsReferralFunnelStats;
   harperMailReplyCount: number;
   mailReplyCount: number;
   mailSentCount: number;
@@ -839,7 +844,11 @@ function buildLandingAbtestRows(args: {
 
   for (const message of args.profileSubmitMessages) {
     if (!isIncludedUserId(message.user_id)) continue;
-    addFirstOccurredAt(submittedAtByUserId, message.user_id, message.created_at);
+    addFirstOccurredAt(
+      submittedAtByUserId,
+      message.user_id,
+      message.created_at
+    );
   }
 
   const completedAtByUserId = new Map<string, string>();
@@ -1089,11 +1098,12 @@ async function buildUserStatsReport(args: {
     toolUsageLogs,
     toolFailureLogs,
     landingLogs,
-    landingAbtestLoginLogs,
-    landingAbtestEmailOnboardingLeads,
-    landingAbtestSignupAndSubmitLogs,
-    landingAbtestProfileSubmitMessages,
-    landingAbtestOnboardingEvents,
+    funnelLoginLogs,
+    funnelEmailOnboardingLeads,
+    funnelSignupAndSubmitLogs,
+    funnelProfileSubmitMessages,
+    funnelOnboardingEvents,
+    referralVisitLogs,
     officialJobs,
   ] = await Promise.all([
     fetchAllRows<TalentUserRow>((from, to) =>
@@ -1346,70 +1356,62 @@ async function buildUserStatsReport(args: {
         .order("id", { ascending: true })
         .range(from, to)
     ),
-    args.period === "daily"
-      ? fetchAllRows<LandingLogRow>((from, to) =>
-          supabaseServer
-            .from("landing_logs")
-            .select("abtest_type,created_at,local_id,type")
-            .like("type", "login_email:%")
-            .gte("created_at", startIso)
-            .order("id", { ascending: true })
-            .range(from, to)
+    fetchAllRows<LandingLogRow>((from, to) =>
+      supabaseServer
+        .from("landing_logs")
+        .select("abtest_type,created_at,local_id,type")
+        .like("type", "login_email:%")
+        .gte("created_at", startIso)
+        .order("id", { ascending: true })
+        .range(from, to)
+    ),
+    fetchAllRows<EmailOnboardingLeadRow>((from, to) =>
+      supabaseServer
+        .from("career_email_onboarding_leads")
+        .select(
+          "abtest_type,converted_user_id,created_at,email,local_id,normalized_email,profile_ingested_at,profile_received_at,talent_id"
         )
-      : Promise.resolve([] as LandingLogRow[]),
-    args.period === "daily"
-      ? fetchAllRows<EmailOnboardingLeadRow>((from, to) =>
-          supabaseServer
-            .from("career_email_onboarding_leads")
-            .select(
-              "abtest_type,converted_user_id,created_at,email,local_id,normalized_email,profile_ingested_at,profile_received_at,talent_id"
-            )
-            .in(
-              "abtest_type",
-              DAILY_USER_STATS_LANDING_ABTEST_VARIANTS.map(
-                (variant) => variant.abtestType
-              )
-            )
-            .order("created_at", { ascending: true })
-            .range(from, to)
-        )
-      : Promise.resolve([] as EmailOnboardingLeadRow[]),
-    args.period === "daily"
-      ? fetchAllRows<LogRow>((from, to) =>
-          supabaseServer
-            .from("logs")
-            .select("user_id,type,created_at")
-            .in("type", [
-              "career_signup_completed",
-              "career_onboarding_submitted",
-            ])
-            .gte("created_at", startIso)
-            .order("id", { ascending: true })
-            .range(from, to)
-        )
-      : Promise.resolve([] as LogRow[]),
-    args.period === "daily"
-      ? fetchAllRows<TalentMessageRow>((from, to) =>
-          supabaseServer
-            .from("talent_messages")
-            .select("user_id,role,message_type,created_at")
-            .eq("message_type", "profile_submit")
-            .gte("created_at", startIso)
-            .order("id", { ascending: true })
-            .range(from, to)
-        )
-      : Promise.resolve([] as TalentMessageRow[]),
-    args.period === "daily"
-      ? fetchAllRows<TalentActivityEventRow>((from, to) =>
-          supabaseServer
-            .from("talent_activity_events")
-            .select("talent_id,event_type,created_at")
-            .eq("event_type", "onboarding_completed")
-            .gte("created_at", startIso)
-            .order("created_at", { ascending: true })
-            .range(from, to)
-        )
-      : Promise.resolve([] as TalentActivityEventRow[]),
+        .gte("created_at", startIso)
+        .order("created_at", { ascending: true })
+        .range(from, to)
+    ),
+    fetchAllRows<LogRow>((from, to) =>
+      supabaseServer
+        .from("logs")
+        .select("user_id,type,created_at")
+        .in("type", ["career_signup_completed", "career_onboarding_submitted"])
+        .gte("created_at", startIso)
+        .order("id", { ascending: true })
+        .range(from, to)
+    ),
+    fetchAllRows<TalentMessageRow>((from, to) =>
+      supabaseServer
+        .from("talent_messages")
+        .select("user_id,role,message_type,created_at")
+        .eq("message_type", "profile_submit")
+        .gte("created_at", startIso)
+        .order("id", { ascending: true })
+        .range(from, to)
+    ),
+    fetchAllRows<TalentActivityEventRow>((from, to) =>
+      supabaseServer
+        .from("talent_activity_events")
+        .select("talent_id,event_type,created_at")
+        .eq("event_type", "onboarding_completed")
+        .gte("created_at", startIso)
+        .order("created_at", { ascending: true })
+        .range(from, to)
+    ),
+    fetchAllRows<LandingLogRow>((from, to) =>
+      supabaseServer
+        .from("landing_logs")
+        .select("abtest_type,created_at,local_id,type")
+        .like("type", "talent_network_referral_visit:%")
+        .gte("created_at", startIso)
+        .lt("created_at", endIso)
+        .order("id", { ascending: true })
+        .range(from, to)
+    ),
     fetchAllRows<OfficialJobRow>((from, to) =>
       supabaseServer
         .from("official_jobs")
@@ -1773,16 +1775,26 @@ async function buildUserStatsReport(args: {
   const landingAbtestRows =
     args.period === "daily"
       ? buildLandingAbtestRows({
-          emailOnboardingLeads: landingAbtestEmailOnboardingLeads,
+          emailOnboardingLeads: funnelEmailOnboardingLeads,
           excludedEmailSet,
-          landingLoginLogs: landingAbtestLoginLogs,
+          landingLoginLogs: funnelLoginLogs,
           landingLogs,
-          onboardingEvents: landingAbtestOnboardingEvents,
-          profileSubmitMessages: landingAbtestProfileSubmitMessages,
-          signupAndSubmitLogs: landingAbtestSignupAndSubmitLogs,
+          onboardingEvents: funnelOnboardingEvents,
+          profileSubmitMessages: funnelProfileSubmitMessages,
+          signupAndSubmitLogs: funnelSignupAndSubmitLogs,
           talentUsers,
         })
       : [];
+  const referralFunnelStats = buildReferralFunnelStats({
+    emailOnboardingLeads: funnelEmailOnboardingLeads,
+    excludedEmailSet,
+    landingLoginLogs: funnelLoginLogs,
+    onboardingEvents: funnelOnboardingEvents,
+    profileSubmitMessages: funnelProfileSubmitMessages,
+    referralVisitLogs,
+    signupAndSubmitLogs: funnelSignupAndSubmitLogs,
+    talentUsers,
+  });
 
   return {
     activeTalentBreakdown: {
@@ -1817,6 +1829,7 @@ async function buildUserStatsReport(args: {
     jobs: jobStats.rows.slice(0, 8),
     jobsSummary: jobStats.summary,
     landingAbtestRows,
+    referralFunnelStats,
     harperMailReplyCount: harperMailReplyRows.length,
     mailReplyCount: inboundEmailRows.length,
     mailSentCount:
@@ -1939,6 +1952,25 @@ function formatLandingAbtestRows(rows: DailyUserStatsLandingAbtestRow[]) {
   ].join("\n");
 }
 
+function formatReferralFunnelStats(stats: DailyUserStatsReferralFunnelStats) {
+  return [
+    formatSlackSectionTitle("레퍼럴 링크"),
+    "레퍼럴 링크 접속자 대비",
+    `- 접속: ${formatCount(stats.visitCount)}명 (${formatPercent(
+      countRate(stats.visitCount, stats.visitCount)
+    )})`,
+    `- 회원가입: ${formatCount(stats.signupCount)}명 (${formatPercent(
+      stats.signupRateFromVisit
+    )})`,
+    `- 제출 완료: ${formatCount(stats.submittedCount)}명 (${formatPercent(
+      stats.submittedRateFromVisit
+    )})`,
+    `- 온보딩 완료: ${formatCount(
+      stats.onboardingCompletedCount
+    )}명 (${formatPercent(stats.onboardingCompletedRateFromVisit)})`,
+  ].join("\n");
+}
+
 export function formatDailyUserStatsSlackMessages(
   report: DailyUserStatsReport
 ): DailyUserStatsSlackMessages {
@@ -2026,6 +2058,9 @@ export function formatDailyUserStatsSlackMessages(
     report.period === "daily"
       ? formatLandingAbtestRows(report.landingAbtestRows)
       : null;
+  const referralFunnelMessage = formatReferralFunnelStats(
+    report.referralFunnelStats
+  );
   const detailsMessage = [
     toolsMessage,
     "",
@@ -2033,6 +2068,8 @@ export function formatDailyUserStatsSlackMessages(
     "",
     internalOpportunityRecommendationsMessage,
     ...(landingAbtestMessage ? ["", landingAbtestMessage] : []),
+    "",
+    referralFunnelMessage,
   ].join("\n");
 
   const lines = [

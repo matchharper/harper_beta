@@ -32,6 +32,9 @@ type CareerMobileTopBarProps = {
   profilePicture?: string | null;
   userName?: string | null;
   userEmail?: string | null;
+  profileLocation?: string | null;
+  profileCurrentLocation?: string | null;
+  preferredLocale?: string | null;
   onOpenSettings?: () => void;
   onOpenSupport?: () => void;
   onLogout?: () => void | Promise<void>;
@@ -45,6 +48,9 @@ export default function CareerMobileTopBar({
   profilePicture,
   userName,
   userEmail,
+  profileLocation,
+  profileCurrentLocation,
+  preferredLocale,
   onOpenSettings,
   onOpenSupport,
   onLogout,
@@ -142,6 +148,9 @@ export default function CareerMobileTopBar({
             profileImageUrl={profilePicture ?? null}
             profileName={userName ?? "Candidate"}
             profileEmail={userEmail ?? ""}
+            profileLocation={profileLocation}
+            profileCurrentLocation={profileCurrentLocation}
+            preferredLocale={preferredLocale}
             onLogout={onLogout}
             onSuggestUpdate={() => onOpenSupport?.()}
           />

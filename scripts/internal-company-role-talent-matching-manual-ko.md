@@ -1,12 +1,56 @@
 # Internal company role - talent matching 실행 매뉴얼
 
-문서 상태: 운영 실행 계약 1.5
+문서 상태: 운영 실행 계약 2.1
 
-기준일: 2026-07-20
+기준일: 2026-07-22
 
 대상: Harper 내부 운영자 또는 DB·코드·웹 리서치 도구를 사용할 수 있는 실행 agent
 
 연결 benchmark: `../docs/wonderful-korea-fde-field-cto-benchmark-manual-ko.md`
+
+2.1 변경 요약:
+
+- 같은 role의 직전 유효 완료 run에서 남긴 아주 짧은 `run memory` 최신 1건을 시작 시 읽고 참고하도록 변경
+- run memory는 현재 role/request/evidence보다 낮은 참고 신호이며 hard filter·점수·cooldown의 직접 근거로 사용할 수 없도록 제한
+- 유효 완료 run마다 다음 run에 필요한 기준 변화·결과·미해결 확인사항만 1,500자 이내로 저장
+- `dry_run`도 business data는 변경하지 않지만 내부 run memory 1건은 저장하는 명시적 예외 추가
+
+2.0 변경 요약:
+
+- 깊은 검토 결과 해당 role에 명확히 추천하면 안 된다고 판단한 후보를 `do_not_recommend`로 분리하고, 같은 role의 다음 retrieval에서 60일 동안 제외하도록 변경
+- 이번 `M`명에서 우선순위가 밀린 `eligible_not_selected`, 정보가 부족한 `verification_needed`, 명확한 부적합인 `do_not_recommend`를 서로 다른 최종 disposition으로 저장
+- role별 review 이력을 보존하는 append-only review memory와 fingerprint 기반 cooldown 무효화 계약 추가
+- `dry_run`의 DB write 0건 의미를 유지하면서 review memory만 저장할 수 있도록 `commit_review` 실행 모드 추가
+- 새 가입자와 matching 관련 정보가 실질적으로 갱신된 후보를 위한 `new_or_materially_updated` retrieval lane 추가
+
+1.9 변경 요약:
+
+- Codex 수동 matching으로 생성·갱신하는 `talent_opportunity_fit.kind`를 항상 `codex`로 저장하도록 persistence 계약 변경
+- 같은 role 추천 이력이 있어도 후보자가 수락했고 아직 후속 처리 stage가 없는 `accepted_unprocessed` 후보는 retrieval·평가 대상에 포함
+- 거절·dismissed·아카이브·연결대기·연결됨·보류·최종오퍼·프로세스중단·custom stage 등 후속 상태가 있는 동일 role 후보는 계속 제외
+- `accepted_unprocessed` 후보가 최종 선정되어도 후보자에게 같은 role을 재발송하지 않고 기존 recommendation을 재사용해 회사 handoff만 처리하도록 명시
+
+1.8 변경 요약:
+
+- 운영자 전용 전체 판단인 `audit_reasoning`과 회사가 실제로 읽는 `internal_reason`을 분리해 운영 메모·내부 schema가 회사용 문구에 노출되지 않도록 수정
+- source reference는 회사용 추천 이유 본문이 아니라 감사 산출물의 `internalReasonSources`에 claim별로 보존하도록 변경
+- 대화·insight 활용 범위를 선호·제약뿐 아니라 profile에 없는 중요한 전문 성과·동기·경력 맥락까지 확대
+- 초고 작성 후 이력 나열, 내부 평가 용어, 반복 문장, 약한 첫 문단을 제거하는 별도 편집 pass와 가독성 검사를 완료 조건에 추가
+
+1.7 변경 요약:
+
+- `internal_reason`을 회사가 읽고 후보자에게 흥미를 느낄 수 있는 선별된 소개문으로 작성하도록 문체 계약 추가
+- 모든 추천 이유를 존댓말로 쓰고, 2~3문장의 `TL;DR`로 후보자의 핵심 매력을 먼저 요약하도록 권장
+- 프로필에 이미 보이는 전체 이력을 반복하지 않고 판단에 중요한 특별한 사실만 선별하도록 명시
+- `talent_experiences`, `talent_educations`, `talent_extra`에 없지만 Harper 대화·insight에서 확인된 중요한 직업적 선호와 제약은 자연스럽게 포함하도록 변경
+- Markdown의 강조·짧은 문단·`Note`·source reference를 활용한 권장 형식과 사람이 작성한 수준의 문체 예시 추가
+
+1.6 변경 요약:
+
+- 회사·운영자용 `internal_reason`의 중심을 일반적인 JD 일치 설명에서 후보자 고유의 객관적 성취·맥락·희소성 설명으로 변경
+- 회사명·재직 시기·합류 단계·실제 기여·성과 수치·팀 성장·투자·제품 규모처럼 판단에 필요한 구체 정보와 source reference를 요구
+- “프로덕션 경험이 있다”, “리딩에 강하다”, “CTO 경험이 반복된다”, “JD 핵심 항목과 일치한다” 같은 모호한 요약을 추천 이유의 본문으로 사용하는 것을 금지
+- 기본 role fit과 hard criteria 통과는 선발 전제이자 짧은 확인사항으로만 다루고, 왜 이 후보자가 특별히 우선 검토할 가치가 있는지를 추천 이유의 핵심으로 고정
 
 1.5 변경 요약:
 
@@ -64,7 +108,7 @@
 이 문서대로 실행해.
 role_id=<company_roles.role_id>
 max_proposals=<M>
-execution_mode=<dry_run|commit_fit|send>
+execution_mode=<dry_run|commit_review|commit_fit|send>
 ```
 
 선택 입력:
@@ -76,13 +120,14 @@ requested_by=<운영자 식별자>
 
 각 실행 모드의 의미는 다음과 같다.
 
-| 모드 | 읽기·평가 | consideration 저장 | fit 저장 | 연결 제안 생성·발송 |
-| --- | --- | --- | --- | --- |
-| `dry_run` | 실행 | 하지 않음 | 하지 않음 | 하지 않음 |
-| `commit_fit` | 실행 | 실행 | 실행 | 하지 않음 |
-| `send` | 실행 | 실행 | 실행 | 실행 |
+| 모드 | 읽기·평가 | run memory 저장 | consideration 저장 | review memory 저장 | fit 저장 | 연결 제안 생성·발송 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `dry_run` | 실행 | 실행 | 하지 않음 | 하지 않음 | 하지 않음 | 하지 않음 |
+| `commit_review` | 실행 | 실행 | 실행 | 실행 | 하지 않음 | 하지 않음 |
+| `commit_fit` | 실행 | 실행 | 실행 | 실행 | 실행 | 하지 않음 |
+| `send` | 실행 | 실행 | 실행 | 실행 | 실행 | 실행 |
 
-`execution_mode`가 생략되면 `dry_run`으로 처리한다. `send`는 후보자에게 이메일·채팅·추천 탭 노출이 발생할 수 있는 외부 효과가 있는 모드다. “문서대로 실행”만으로 발송 권한을 추정하지 않는다. 사용자가 `send`, “발송까지”, “연결 제안까지 보내”처럼 명시해야 한다.
+`execution_mode`가 생략되면 `dry_run`으로 처리한다. `dry_run`의 run memory 저장은 다음 실행을 위한 내부 메모 한 건뿐이며 consideration, candidate review, fit, recommendation, delivery 같은 business data는 변경하지 않는다. `commit_review`는 후보자-facing 효과 없이 role별 평가 이력과 cooldown만 DB에 남기는 모드다. `send`는 후보자에게 이메일·채팅·추천 탭 노출이 발생할 수 있는 외부 효과가 있는 모드다. “문서대로 실행”만으로 발송 권한을 추정하지 않는다. 사용자가 `send`, “발송까지”, “연결 제안까지 보내”처럼 명시해야 한다.
 
 `max_proposals`는 1~50의 정수여야 한다. 없거나 범위를 벗어나면 임의의 기본값으로 사람 수를 정하지 않고 최종 selection·fit write·발송을 중단한다. consideration과 retrieval만 수행했다면 `incomplete_no_M`으로 보고한다.
 
@@ -114,7 +159,7 @@ SQL·DB read, deterministic filtering·scoring·formatting script, 공개 웹 �
 
 1. 해당 timestamp run의 consideration 이후 평가, score, selection, 추천 이유와 문구를 모두 유효한 결과로 사용하지 않는다.
 2. `run_manifest.json`의 status를 `invalid_external_model_call`로 기록하고 `externalModelCallsAttempted`, provider, model, candidate payload 전송 여부를 사실대로 남긴다.
-3. `selected_count=0`으로 처리하고 consideration·fit DB write, recommendation queue, chat·email 발송을 모두 금지한다.
+3. `selected_count=0`으로 처리하고 run memory·consideration·review memory·fit DB write, recommendation queue, chat·email 발송을 모두 금지한다.
 4. 해당 run을 이어서 완료 처리하지 않는다. 원인을 제거한 새 timestamp run에서 Phase 0부터 다시 시작한다.
 
 `execution_mode=send`에서 Phase 7이 호출하는 기존 production `harper_worker` delivery pipeline의 내부 문구 생성은 이 수동 matching 판단의 위임으로 간주하지 않는다. 다만 이는 사용자가 `send`를 명시한 경우에만 허용되는 downstream 발송 효과이며, matching agent가 그 worker나 worker의 model을 Phase 1~6 평가·선택·추천 필드 작성에 재사용해서는 안 된다.
@@ -123,19 +168,21 @@ SQL·DB read, deterministic filtering·scoring·formatting script, 공개 웹 �
 
 실행은 다음이 모두 끝나야 완료다.
 
-1. role과 company의 최신 상태, description, request, 내부 request, 기존 consideration을 읽었다.
+1. 같은 role의 최신 run memory가 있으면 읽은 뒤, role과 company의 최신 상태, description, request, 내부 request, 기존 consideration을 읽었다.
 2. 같은 role과 같은 회사의 과거 추천·수락·거절·진행·메모를 가능한 범위에서 모두 수집했다.
 3. 수집한 근거로 이번 실행의 one-page `consideration`과 구조화 JSON을 만들었다.
 4. consideration에서 hard filter와 ranking 기준을 명시적으로 분리했다.
-5. 이미 같은 role을 제안받았거나 제안 대상이 될 수 없는 사람을 제외했다.
+5. 같은 role 추천 이력을 분류해 일반 중복과 후속 처리 완료자는 제외하고, 후보자가 수락했지만 아직 후속 stage가 없는 `accepted_unprocessed`만 예외적으로 포함했다.
 6. SQL retrieval로 최대 약 200명의 후보군을 만들고 retrieval 근거를 남겼다.
 7. 각 후보자를 다른 후보자와 비교하지 않고 독립적으로 평가했다.
 8. 독립 평가 상위 최대 50명만 모아 비교 평가했다.
 9. 회사 적합도와 후보자 수락 가능성이 모두 기준을 통과한 사람 중 최대 `M`명만 선택했다.
 10. 최종 선택자마다 내부 판단 근거와 후보자-facing `fit_summary`, `fit_reasons`, `tradeoffs`를 작성했다.
-11. `dry_run`에서는 write plan만 만들고 DB를 변경하지 않았다. `commit_fit` 또는 `send`에서는 선택자만 `talent_opportunity_fit`에 호환되는 점수·label·reason으로 반영했다.
-12. `send` 모드라면 중복 제안이 없음을 다시 확인한 후 연결 제안을 큐에 넣고 실제 저장·발송 결과를 검증했다.
-13. 최종 보고서에 선택자, 미선택 이유, 실제 DB write, 발송 상태, 실패 항목을 남겼다.
+11. 깊이 검토한 전원에게 `selected`, `eligible_not_selected`, `verification_needed`, `do_not_recommend` 중 하나의 최종 disposition을 남겼고, cooldown 대상과 단순 미선택자를 구분했다.
+12. 다음 run에 실제로 도움이 될 아주 짧은 run memory를 작성해 유효 완료 후 저장했다.
+13. `dry_run`에서는 run memory 외 DB를 변경하지 않았다. `commit_review`, `commit_fit`, `send`에서는 review memory를 저장했고, `commit_fit` 또는 `send`에서는 선택자만 `talent_opportunity_fit`에 호환되는 점수·label·reason으로 반영했다.
+14. `send` 모드라면 중복 제안이 없음을 다시 확인한 후 연결 제안을 큐에 넣고 실제 저장·발송 결과를 검증했다.
+15. 최종 보고서에 선택자, 미선택 disposition, cooldown 적용·무효화 수, run memory write, 실제 DB write, 발송 상태, 실패 항목을 남겼다.
 
 중간 산출물만 만들고 종료하거나, 큐 등록 후 결과를 확인하지 않고 종료하면 미완료다.
 
@@ -210,11 +257,14 @@ SQL·DB read, deterministic filtering·scoring·formatting script, 공개 웹 �
 
 ### 4.7 서로 다른 audience의 정보를 섞지 않는다
 
-최소 세 종류의 reasoning을 분리한다.
+최소 네 종류의 reasoning을 분리한다.
 
-1. `internal_reason`: 운영자용 전체 판단. private request, 회사 피드백, 후보자 대화와 운영 메모를 사용할 수 있다.
-2. `candidate_recommendation_fields`: 후보자에게 보이는 `fit_summary`, `fit_reasons`, `tradeoffs`. 공개하거나 후보자 본인에게 다시 보여도 안전한 회사·role 사실, 후보자 본인의 profile·선호 근거만 쓴다.
-3. `candidate_proposal_copy`: 후보자에게 role을 제안하는 문구. private company request, 다른 후보자의 거절 이유, 내부 점수·label·메모를 노출하지 않는다.
+1. `audit_reasoning`: Harper 운영자 전용 전체 판단. private request, 회사 피드백, 후보자 대화, 운영 메모, 점수와 탈락 비교를 사용할 수 있다. 회사나 후보자에게 그대로 전달하지 않는다.
+2. `internal_reason`: `talent_opportunity_fit.reason`에 저장되고 회사가 후보자 추천 이유로 읽는 소개문이다. 회사가 알아야 할 후보자의 professional fact·성과·선호·제약을 사용할 수 있지만, Harper 운영 메모, 내부 점수·label, 다른 후보자 정보, DB schema와 source row ID를 노출하지 않는다.
+3. `candidate_recommendation_fields`: 후보자에게 보이는 `fit_summary`, `fit_reasons`, `tradeoffs`. 공개하거나 후보자 본인에게 다시 보여도 안전한 회사·role 사실, 후보자 본인의 profile·선호 근거만 쓴다.
+4. `candidate_proposal_copy`: 후보자에게 role을 제안하는 문구. private company request, 다른 후보자의 거절 이유, 내부 점수·label·메모를 노출하지 않는다.
+
+`internal_reason`에 사용한 각 주장의 source mapping은 회사가 읽는 본문과 분리해 감사 산출물의 `internalReasonSources`에 보존한다. 회사용 reason에 `talent_insights:123`, `resume:456` 같은 내부 식별자를 붙이지 않는다.
 
 `talent_opportunity_recommendation.fit_summary`, `fit_reasons`, `tradeoffs`는 후보자 화면에 표시되는 문구다. 내부 심사 메모처럼 쓰지 말고, 후보자가 각각 “이 회사와 역할은 무엇인가”, “왜 나에게 제안되었는가”, “검토할 때 어떤 caveat가 있는가”를 이해할 수 있게 작성한다. “이전 후보자는 나이가 많아 거절했지만 이 후보자는 젊다” 같은 문장은 여기에 절대 저장하지 않는다.
 
@@ -252,7 +302,7 @@ SQL에서 약 200명을 가져온 뒤 초반에 `M`명의 좋은 후보를 찾�
 
 ## 5. 현재 시스템에서 알아야 할 사실
 
-이 절은 2026-07-17 코드와 live schema를 기준으로 한다. 실행 전 실제 schema와 코드를 다시 확인한다.
+이 절은 2026-07-22 코드와 live schema를 기준으로 한다. 실행 전 실제 schema와 코드를 다시 확인한다.
 
 1. `company_internal_roles`는 `company_roles.role_id`와 1:1이고 `request`, `considerations`를 가진다.
 2. 기존 자동 internal fit evaluator는 현재 `company_roles.request`를 읽는다. `company_internal_roles.request`와 `considerations`가 자동 worker에 반영된다고 가정하면 안 된다.
@@ -263,6 +313,7 @@ SQL에서 약 200명을 가져온 뒤 초반에 `M`명의 좋은 후보를 찾�
 7. 현재 수동 경로는 `allowRepeat: true`를 사용한다. 따라서 호출 전 중복 검사는 선택 사항이 아니라 필수다.
 8. 이미 발송된 이메일은 rollback할 수 없다. `send` 전에 모든 검증을 끝내야 한다.
 9. `talent_opportunity_recommendation`에는 현재 `(talent_id, role_id)` unique constraint가 없다. 단순 preflight만으로는 concurrent sender 간 race를 막지 못한다.
+10. 최종 선택자만 저장하는 `talent_opportunity_fit`은 반복 검토 방지용 negative memory로 사용하지 않는다. role별 깊은 검토 이력과 60일 cooldown은 별도 `talent_opportunity_matching_review`에 저장한다.
 
 ### 5.1 요청하신 70점 기준과 현재 fit 점수대의 관계
 
@@ -276,6 +327,52 @@ SQL에서 약 200명을 가져온 뒤 초반에 `M`명의 좋은 후보를 찾�
 - exact 70을 별도 운영 marker로 쓰고 싶다면 `talent_opportunity_fit.score`를 오용하지 말고 별도 필드 또는 schema 계약을 먼저 만든다
 
 이 구분은 인원 채우기를 막고 기존 worker·audit와 일관성을 유지하기 위한 것이다.
+
+### 5.2 role별 review memory 실행 원칙
+
+role별 review memory는 후보자를 전역으로 차단하는 blacklist가 아니라, 특정 `(opportunity_id, talent_id)`에 대한 깊은 검토 결과를 보존하는 운영자 전용 이력이다. 동일 pair를 다시 검토하면 과거 판단을 덮어쓰지 않고 새 review를 남기며, retrieval에서는 pair별 최신 review만 적용한다.
+
+review memory를 사용할 수 없는 환경에서 `dry_run`은 `reviewMemoryPersistenceAvailable=false`를 manifest에 남기고 write plan까지만 만들 수 있다. `commit_review`, `commit_fit`, `send`는 cooldown을 조용히 생략하지 말고 `missing_review_memory_schema`로 DB write 전에 중단한다.
+
+`final_disposition`의 의미는 다음과 같다.
+
+| 값 | 의미 | 다음 run 처리 |
+| --- | --- | --- |
+| `selected` | 이번 run의 최종 연결 대상 | recommendation·pipeline 중복 규칙 적용 |
+| `eligible_not_selected` | 연결할 수 있는 후보지만 `M` 또는 상대 우선순위 때문에 미선택 | 불이익 없이 정상 retrieval 대상 |
+| `verification_needed` | 중요한 정보가 부족하거나 충돌해 결론을 보류 | 불이익 없이 정상 retrieval 대상 |
+| `do_not_recommend` | 충분히 깊게 검토했고 현재 role에는 연결하면 안 된다는 명확한 판단 | 동일 fingerprint인 동안 최대 60일 retrieval 제외 |
+
+`talent_opportunity_fit.label='unfit'`은 human/production fit 계약에 따른 장기 부적합 판단에만 사용한다. 이 section의 60일 `do_not_recommend`를 `unfit` row로 대신 저장하거나, `reevaluation_criteria`에 숨겨 저장하지 않는다.
+
+### 5.3 다음 run 참고용 run memory
+
+run memory는 같은 role을 다음에 다시 검토할 때 빠르게 맥락을 복원하기 위한 **최신 run의 짧은 참고 메모**다. candidate별 cooldown이나 점수 저장소가 아니며, 현재 role description·request·company feedback·candidate 원문보다 항상 우선순위가 낮다.
+
+run 시작 시 같은 `role_id`의 최신 유효 run memory 한 건만 읽는다. 여러 과거 memory를 누적해 오래된 판단을 강화하지 않는다. memory에 적힌 기준·사실이 현재 source와 충돌하면 현재 source를 적용하고, memory가 틀렸거나 낡았다고 기록한다. 조회 장애나 memory table 부재는 후보 평가를 중단할 사유가 아니다. `previousRunMemoryReadFailed=true`와 오류를 artifact에 남기고 현재 source만으로 계속한다.
+
+run memory만으로 다음 행동을 할 수 없다.
+
+- hard filter 추가 또는 제거
+- candidate score 가감
+- `do_not_recommend` 또는 cooldown 적용
+- candidate의 현재 선호·제약 확정
+- 회사 request 변경으로 간주
+
+유효하게 완료된 run은 다음 run에 실질적으로 필요한 내용만 `run_memory.md`에 1,500자 이내로 작성한다. 최대 네 개의 짧은 항목으로 제한한다.
+
+```text
+# 다음 run 참고
+
+- 기준 변화: 이번 run에서 새로 확인하거나 바뀐 기준. 없으면 생략.
+- 결과: 검토 수, 선택 수와 선택자 이름·ID를 한 줄로 요약.
+- 미해결: 다음 run에서 다시 확인할 중요한 unknown 또는 경계 사례.
+- 다음 run: 새 가입자 우선 확인 등 실제로 도움이 되는 한두 가지 주의사항.
+```
+
+평범한 절차 설명, 후보자 200명 목록, 전체 점수, 긴 추천 이유, private 대화 인용, 원문 이력서, 다른 artifact에 이미 있는 상세 내용을 복제하지 않는다. `invalid_external_model_call`, source drift, incomplete run, role 상태로 평가 전 중단한 run, benchmark run은 memory를 저장하지 않는다.
+
+저장은 모든 정상 execution mode의 마지막 내부 작업이다. `dry_run`에서도 run memory 한 건은 저장하지만 candidate·company business table write로 계산하지 않는다. 저장 실패를 성공으로 숨기지 않고 `run_memory_write_failed`로 보고한다.
 
 ## 6. 실행 산출물과 디렉터리
 
@@ -300,6 +397,10 @@ output/internal_role_matching/<role_id>/<YYYYMMDDTHHMMSSZ>/
 | `top50.md` | 비교 단계에 들어간 후보와 핵심 근거 |
 | `final_selection.md` | 선택·미선택·보류 이유, 공유 문구, caveat |
 | `write_plan.json` | write 전 예상 변경 row와 이전 값 snapshot |
+| `review_memory_plan.json` | 평가자별 최종 disposition, fingerprint, cooldown write 또는 skip 계획 |
+| `previous_run_memory.md` | 시작 시 읽은 같은 role의 최신 run memory. 없으면 없다고 기록 |
+| `run_memory.md` | 다음 run에 전달할 1,500자 이내의 아주 짧은 참고 메모 |
+| `run_memory_receipt.json` | 저장한 role ID, run ID, 시각, content 길이 |
 | `verification.md` | 실제 fit write, run, recommendation, delivery 검증 결과 |
 
 원문 이력서 전체, 원문 대화 전체, 불필요한 이메일 주소를 산출물에 복제하지 않는다. 필요한 최소 excerpt와 source row ID만 남긴다.
@@ -394,6 +495,8 @@ request 해석 우선순위:
 | `talent_opportunity_tag` | internal 진행 단계 |
 | `talent_progress` | 연결 요청, follow-up, 회사 결과, 운영 메모 |
 | `talent_opportunity_delivery` | 실제 전달 성공 여부와 채널 |
+| `talent_opportunity_matching_review` | 같은 role에서의 과거 깊은 검토 disposition과 활성 cooldown |
+| `internal_role_matching_run_memory` | 같은 role의 직전 유효 run에서 남긴 짧은 다음-run 참고 메모 |
 
 후보자 대화와 private insight는 후보자의 수락 가능성을 판단하는 내부 근거다. 후보자의 허락 없이 회사-facing 문구에 그대로 노출하지 않는다.
 
@@ -415,6 +518,10 @@ request 해석 우선순위:
 `status='paused'`여도 사용자가 이 문서의 실행 명령에 정확한 `role_id`를 지정했다면 해당 role을 internal fit·recommendation 계산에 의도적으로 포함하라는 명시적 수동 요청으로 본다. 이 경우 retrieval, 평가, 최종 선택과 `execution_mode`에 따른 후속 단계까지 진행할 수 있다. 실행 과정에서 `company_roles.status`를 `active`로 바꾸거나 다른 값으로 변경하지 않는다.
 
 `status='ended'` 또는 `is_expired=true`이면 Phase 0의 상태 확인 직후 즉시 중단한다. company feedback 수집, consideration 생성, retrieval, 후보 평가, DB write, recommendation queue 생성을 진행하지 않는다. `active`, `top_priority`, `paused`, `ended` 외의 정의되지 않은 status도 임의로 실행 가능한 상태로 간주하지 않고 즉시 중단한다.
+
+role이 실행 가능한 상태임을 확인한 직후, 같은 `role_id`의 run memory를 `created_at DESC`로 최신 한 건만 읽는다. 결과를 `previous_run_memory.json`과 `previous_run_memory.md`에 남기고 `run_manifest.json`에 읽은 `run_id`를 기록한다. memory가 없으면 정상적으로 계속하며 없다는 사실만 artifact에 남긴다.
+
+읽은 memory는 consideration을 만들기 전에 참고하되, memory에 적힌 candidate 판단을 현재 evidence 확인 없이 복사하지 않는다. profile·request·feedback이 바뀌었거나 memory가 현재 source와 충돌하면 해당 문장을 폐기한다.
 
 기본 조회:
 
@@ -481,6 +588,38 @@ WHERE cr.role_id = :role_id::uuid;
 Phase 0의 source timestamp와 원문 content hash를 `source_snapshot.json`에 저장한다. DB write 직전에 다시 읽어 source input이 달라졌으면 발송을 중단하고 consideration 및 영향받는 후보 평가를 다시 수행한다.
 
 `company_internal_roles.updated_at`만으로 request 변경을 판단하지 않는다. 같은 row의 `considerations` 저장도 `updated_at`을 바꿀 수 있기 때문이다. invalidation은 `request` 원문 hash와 다른 input source의 hash로 판단한다. consideration 저장 직후에는 새 row timestamp를 snapshot에 반영하되 input hash는 그대로 유지한다.
+
+### 8.4 cooldown fingerprint 계약
+
+과거 `do_not_recommend`를 현재 run에 적용하려면 당시와 현재의 matching-relevant source가 실질적으로 같아야 한다. timestamp 문자열을 이어 붙이지 말고, 정렬된 canonical JSON을 만든 뒤 SHA-256으로 hash한다.
+
+`consideration_fingerprint`에는 최종 구조화 consideration 전체를 포함한다. `role_fingerprint`에는 최소 다음 content를 포함한다.
+
+- role description, internal request, role request, workspace request
+- role type, seniority, location, work mode, 고용 형태, 보상 조건
+- 회사 설명 중 industry·stage·제품처럼 candidate fit에 영향을 주는 사실
+- 최종 hard filter, plus/minus signal, acceptance hypothesis
+
+`candidate_fingerprint`에는 최소 다음 matching-relevant content를 포함한다.
+
+- `talent_users`의 headline, bio, location, resume text·link
+- experiences, educations, extras
+- insights, conversation summaries와 실제 판단에 사용한 raw message
+- setting의 blocked company, engagement·location·work preference
+- 추천 feedback·reason, stage tag, progress, 운영 memo
+- 같은 role의 새 `like|positive` 또는 `candidate_requested_connection`
+
+단순 로그인, delivery retry, row touch로 바뀐 `updated_at`, profile picture, 이메일 주소처럼 fit 판단을 바꾸지 않는 값은 fingerprint에서 제외한다. source row는 ID 기준, 배열은 안정적인 key 기준으로 정렬하고 `null`, 빈 문자열, 누락 필드의 정규화 규칙을 version과 함께 고정한다.
+
+다음 중 하나면 과거 cooldown을 적용하지 않고 다시 평가한다.
+
+1. 현재 `role_fingerprint`가 과거 row와 다르다.
+2. 현재 `candidate_fingerprint`가 과거 row와 다르다.
+3. 후보자가 과거 review 이후 같은 role을 새로 수락하거나 연결을 요청했다.
+4. 사용자가 특정 candidate의 재검토를 명시했다.
+5. 60일이 지났다.
+
+3번은 새 candidate evidence이므로 candidate fingerprint에도 반영한다. 단, 해당 수락·요청이 과거 review 전에 이미 존재했고 evaluator가 읽었다면 cooldown을 무효화하지 않는다. fingerprint가 다르다는 사실만으로 자동 fit 처리하지 않고, 정상 retrieval·평가 대상으로 되돌리는 데까지만 사용한다.
 
 ## 9. Phase 1: 회사 피드백 수집과 consideration 생성
 
@@ -785,7 +924,7 @@ one-page는 핵심 결정을 한눈에 보기 위한 문서다. 상세 evidence�
 
 ### 9.7 consideration 저장
 
-`dry_run`에서는 파일 산출물만 만들고 DB를 변경하지 않는다. `commit_fit`과 `send`에서는 최종 JSON을 `company_internal_roles.considerations`에 저장한다.
+`dry_run`에서는 이 consideration을 파일 산출물로만 만들고 `company_internal_roles`를 변경하지 않는다. `commit_review`, `commit_fit`, `send`에서는 최종 JSON을 `company_internal_roles.considerations`에 저장한다. run memory 저장은 section 17.6에서 별도로 수행한다.
 
 ```sql
 INSERT INTO public.company_internal_roles (role_id, considerations, updated_at)
@@ -849,7 +988,7 @@ risk: 동시에 수행한 두 경력을 단순 합산하면 경력이 부풀려�
 
 role별 dynamic hard filter보다 먼저 다음을 적용한다.
 
-1. 같은 `role_id`의 recommendation row가 한 번이라도 있는 후보자 제외
+1. 같은 `role_id`의 recommendation row가 있는 후보자는 원칙적으로 제외한다. 단, section 10.3.1의 `accepted_unprocessed`를 만족하면 평가 대상에 포함한다.
 2. `profile_visibility='dont_share'` 제외
 3. internal recommendation 명시적 opt-out 제외
 4. `blocked_companies`에 대상 회사가 있는 후보자 제외
@@ -858,10 +997,84 @@ role별 dynamic hard filter보다 먼저 다음을 적용한다.
 7. 명시적으로 해당 회사·role·동일한 핵심 속성을 거절한 후보자 제외 또는 강한 감점
 8. human review가 `unfit` 또는 명시적 금지인 기존 fit은 자동 override하지 않음
 9. 연락 수단이 전혀 없고 추천 탭 노출도 불가능한 후보자는 `send` 대상에서 제외
+10. section 10.3.2의 활성 `do_not_recommend` cooldown이 있고 fingerprint가 동일한 후보자는 이번 retrieval에서 제외
 
 같은 role을 과거에 dislike했더라도 “새로운 요청이 들어왔고 candidate가 다시 요청함” 같은 명시적 재접촉 근거가 있으면 별도 승인 후 예외를 둘 수 있다. 수동 recommendation 경로가 repeat를 허용한다고 해서 자동으로 재발송하지 않는다.
 
 `talent_setting.status='stopped'`는 `dont_share`와 같지 않다. 현재 lifecycle에서 inactivity로 자동 전환될 수 있으므로 그 자체만으로 hard exclude하지 않는다. 다만 최근 로그인·대화·명시적 요청이 전혀 없으면 candidate acceptance와 전달 confidence가 크게 낮아져야 한다. `dont_share`, internal opt-out, blocked company처럼 명시적 의사 표현은 hard exclude다.
+
+### 10.3.1 동일 role의 `accepted_unprocessed` 예외
+
+같은 role을 이미 추천받은 후보자 중 아래 조건을 **모두** 만족하는 사람은 일반 중복에서 제외하지 않고 retrieval·개별 평가에 포함한다.
+
+1. `talent_opportunity_recommendation.feedback`이 `like` 또는 `positive`다.
+2. `processed_stage`가 `NULL` 또는 빈 문자열이다.
+3. `saved_stage`가 `NULL`, 빈 문자열 또는 `saved`다.
+4. `dismissed_at IS NULL`이다.
+5. 같은 role의 recommendation 중 `dislike`·`negative`, non-empty `processed_stage`, `NULL`·빈 값·`saved` 이외의 saved stage(예: `hidden`·`closed`·`connected`·`applied`), dismissed 상태가 하나도 없다.
+6. 같은 role에 아래 후속 `talent_opportunity_tag`가 하나도 없다.
+   - `내부:연결대기`
+   - `내부:수락`, `내부:연결됨`
+   - `내부:최종오퍼`, `내부:보류`
+   - `내부:프로세스중단`, `내부:거절`, `내부:아카이브`
+   - `내부단계:*`
+
+`내부:추천`처럼 추천 생성 자체만 나타내는 tag는 후속 처리 stage로 보지 않는다. 반대로 현재 runtime에서 `processed_stage`가 오래되었거나 비어 있을 수 있으므로, 컬럼만 보고 포함하지 말고 같은 role의 최신 stage tag도 반드시 함께 확인한다.
+
+이 예외의 의미는 “후보자가 이미 관심을 표시했지만 아직 회사 검토 대상으로 처리되지 않은 사람을 다시 회사-side 후보 검토에 포함한다”는 것이다. 과거 추천을 무효로 만들거나 후보자에게 같은 제안을 다시 보내도 된다는 뜻이 아니다.
+
+### 10.3.2 `do_not_recommend` 60일 cooldown
+
+같은 role의 이전 run에서 retrieval pool에 들어온 뒤 전원 독립 평가 또는 Top 50·경계 후보 deep review까지 완료했고, 최종 disposition이 `do_not_recommend`였던 후보만 cooldown 대상이다. keyword retrieval에서 낮게 나왔거나 dynamic hard filter 전에 탈락한 사람에게는 review memory를 만들지 않는다.
+
+현재 pair별 최신 review row가 아래를 모두 만족하면 role-specific ranking과 200명 `LIMIT`을 적용하기 전에 제외한다.
+
+1. `final_disposition='do_not_recommend'`
+2. `excluded_until > now()`
+3. 과거와 현재 `role_fingerprint`가 같다.
+4. 과거와 현재 `candidate_fingerprint`가 같다.
+5. 사용자 또는 새로운 candidate action에 의한 명시적 재검토 override가 없다.
+
+cooldown은 해당 `opportunity_id`에만 적용한다. 같은 후보자를 다른 회사나 sibling role에서 후순위로 내리거나 제외하지 않는다. 60일이 지나면 자동으로 정상 retrieval 대상으로 돌아오며, 다시 깊게 검토해 같은 결론이 나오면 새 review row로 새 60일 기간을 시작할 수 있다.
+
+개념 조회:
+
+```sql
+WITH latest_review AS (
+  SELECT DISTINCT ON (talent_id)
+    talent_id,
+    final_disposition,
+    excluded_until,
+    role_fingerprint,
+    candidate_fingerprint,
+    reviewed_at,
+    id
+  FROM public.talent_opportunity_matching_review
+  WHERE opportunity_id = :role_id::uuid
+  ORDER BY talent_id, reviewed_at DESC, id DESC
+)
+SELECT lr.*
+FROM latest_review lr
+WHERE lr.final_disposition = 'do_not_recommend'
+  AND lr.excluded_until > now()
+  AND lr.role_fingerprint = :current_role_fingerprint;
+```
+
+위 결과를 그대로 제외하지 않는다. 각 candidate의 현재 fingerprint를 계산한 뒤 row의 `candidate_fingerprint`와 같은 pair만 제외한다. SQL 안에서 현재 fingerprint를 재현하기 어렵다면 deterministic preparer에서 source를 canonicalize해 비교하고, `retrieval.sql`과 `retrieval_funnel.json`에 적용 candidate ID와 근거를 남긴다.
+
+`accepted_unprocessed`와 cooldown이 동시에 보이면 event 시각을 확인한다. 후보자의 수락이 review 이후 새로 발생했다면 fingerprint 변경으로 cooldown을 무효화하고 section 10.3.1에 따라 포함한다. 수락이 review 전에 이미 있었고 deep review가 그 사실까지 읽은 뒤 `do_not_recommend`를 내렸다면 cooldown을 유지한다.
+
+`retrieval_funnel.json`에는 최소 다음 count를 추가한다.
+
+```json
+{
+  "activeReviewCooldownRows": 12,
+  "excludedByUnchangedCooldown": 8,
+  "cooldownInvalidatedByRoleChange": 1,
+  "cooldownInvalidatedByCandidateChange": 2,
+  "cooldownExpired": 1
+}
+```
 
 ### 10.4 retrieval SQL의 목적
 
@@ -900,6 +1113,35 @@ WITH target_role AS (
   LEFT JOIN public.company_db cd
     ON cd.id = cw.company_db_id
   WHERE cr.role_id = :role_id::uuid
+),
+same_role_recommendation_state AS (
+  SELECT
+    rec.talent_id,
+    bool_or(
+      lower(coalesce(rec.feedback, '')) IN ('like', 'positive')
+    ) AS has_accepted,
+    bool_or(
+      lower(coalesce(rec.feedback, '')) IN ('dislike', 'negative')
+      OR btrim(coalesce(rec.processed_stage, '')) <> ''
+      OR lower(btrim(coalesce(rec.saved_stage, ''))) NOT IN ('', 'saved')
+      OR rec.dismissed_at IS NOT NULL
+    ) AS has_blocking_recommendation_state
+  FROM public.talent_opportunity_recommendation rec
+  WHERE rec.role_id = :role_id::uuid
+  GROUP BY rec.talent_id
+),
+same_role_processed_tag AS (
+  SELECT DISTINCT tag.talent_id
+  FROM public.talent_opportunity_tag tag
+  WHERE tag.opportunity_id = :role_id::uuid
+    AND (
+      tag.tag IN (
+        '내부:연결대기', '내부:수락', '내부:연결됨',
+        '내부:최종오퍼', '내부:보류',
+        '내부:프로세스중단', '내부:거절', '내부:아카이브'
+      )
+      OR tag.tag LIKE '내부단계:%'
+    )
 ),
 experience_agg AS (
   SELECT
@@ -989,6 +1231,11 @@ base AS (
     ir.latest_internal_response_at,
     coalesce(ps.max_progress_signal, 0) AS max_progress_signal,
     ps.latest_progress_at,
+    coalesce((
+      srrs.has_accepted
+      AND NOT srrs.has_blocking_recommendation_state
+      AND srpt.talent_id IS NULL
+    ), false) AS same_role_accepted_unprocessed,
     concat_ws(
       ' ', tu.headline, tu.bio, tu.resume_text,
       exp.experience_text, edu.education_text
@@ -999,14 +1246,21 @@ base AS (
   LEFT JOIN education_agg edu ON edu.talent_id = tu.user_id
   LEFT JOIN internal_response ir ON ir.talent_id = tu.user_id
   LEFT JOIN progress_signal ps ON ps.talent_id = tu.user_id
+  LEFT JOIN same_role_recommendation_state srrs ON srrs.talent_id = tu.user_id
+  LEFT JOIN same_role_processed_tag srpt ON srpt.talent_id = tu.user_id
   CROSS JOIN target_role tr
   WHERE coalesce(ts.profile_visibility, '') <> 'dont_share'
     AND coalesce(ts.get_internal_recommendation, true) <> false
-    AND NOT EXISTS (
-      SELECT 1
-      FROM public.talent_opportunity_recommendation existing
-      WHERE existing.talent_id = tu.user_id
-        AND existing.role_id = tr.role_id
+    AND tu.user_id <> ALL(
+      coalesce(:unchanged_cooldown_talent_ids::uuid[], ARRAY[]::uuid[])
+    )
+    AND (
+      srrs.talent_id IS NULL
+      OR (
+        srrs.has_accepted
+        AND NOT srrs.has_blocking_recommendation_state
+        AND srpt.talent_id IS NULL
+      )
     )
     AND NOT (
       EXISTS (
@@ -1052,6 +1306,8 @@ FROM base
 ORDER BY retrieval_score DESC, last_logined_at DESC NULLS LAST, user_id ASC
 LIMIT 200;
 ```
+
+`:unchanged_cooldown_talent_ids`는 section 10.3.2에 따라 pair별 최신 review, 만료 시각, 현재 role/candidate fingerprint를 먼저 비교해 만든다. 이 parameter를 생략한 채 일단 200명을 뽑고 나중에 cooldown 후보를 제거하면 신규·미검토 후보에게 빈 slot이 돌아가지 않으므로 금지한다.
 
 이 SQL의 `first_experience_date`부터 현재까지의 단순 차이는 겹치는 경력을 과다 계산할 수 있다. 총경력이 hard filter라면 별도의 date range merge 로직으로 중복 기간을 제거한다.
 
@@ -1113,12 +1369,18 @@ END
 | core work evidence | 60 | title과 무관하게 실제 핵심 업무를 수행한 후보 회수 |
 | adjacent/transferable | 40 | founder, consultant, researcher, operator 등 전이 가능한 경력 회수 |
 | high-impact non-obvious | 20 | 강한 성과·다른 회사 검증은 있으나 표현이 비정형인 후보 회수 |
+| new or materially updated | 최대 30명 reservation | 직전 완료 run 이후 새 가입 또는 matching-relevant fingerprint가 바뀐 후보를 우선 검토 |
 
 기본 상한은 role에 맞게 조정할 수 있지만 lane 정의와 변경 이유를 `retrievalRankSpec`에 남긴다. 한 candidate가 여러 lane에 있으면 한 번만 평가하고 `retrievalLanes`를 모두 기록한다.
+
+`new_or_materially_updated`는 200명에 30명을 더하는 별도 pool이 아니라 **최종 200명 안의 reservation**이다. 직전 유효 완료 run 이후 가입했거나, 마지막 review 이후 section 8.4의 candidate fingerprint가 달라진 후보 중 동일 hard filter와 최소 role relevance를 통과한 사람을 retrieval score 순으로 최대 30명 먼저 확보한다. 그 다음 나머지 slot을 네 role-evidence lane에서 채운다. 해당 후보가 30명보다 적으면 남은 slot은 일반 lane으로 돌린다. 같은 role의 유효 완료 run이 아직 없으면 전체 후보가 사실상 미검토 상태이므로 별도 freshness reservation을 적용하지 않는다. 최근 로그인만 발생한 후보, role-adjacent evidence가 없는 신규 가입자는 이 reservation으로 넣지 않는다.
+
+여기서 유효 완료 run은 manifest가 완료 상태이고 pool 전원 평가가 끝났으며 외부 모델 호출·source drift·incomplete 상태가 없는 run이다. 중단되거나 무효화된 run의 시작 시각을 freshness 기준으로 사용하지 않는다.
 
 - lane quota를 채우기 위해 무관한 후보를 넣지 않는다.
 - hard filter는 모든 lane에 동일하게 적용한다.
 - system signal만으로 high-impact lane에 넣지 않고 최소한의 role-adjacent evidence를 요구한다.
+- freshness reservation도 최소 role relevance를 통과해야 하며 신규 가입 자체를 fit signal로 가산하지 않는다.
 - lane 합친 뒤 retrieval score, lane priority, `talent_id` 순으로 결정론적으로 정렬한다.
 - 200명 전체를 독립 평가한다.
 
@@ -1160,7 +1422,8 @@ target을 채우기 위한 backfill과 무관한 후보로 숫자를 채우는 �
   "afterVisibility": 2398,
   "afterInternalOptOut": 2390,
   "afterAlreadyRecommended": 2310,
-  "afterBlockedCompany": 2302,
+  "afterActiveReviewCooldown": 2298,
+  "afterBlockedCompany": 2290,
   "afterRoleHardFilters": 318,
   "retrieved": 200
 }
@@ -1343,6 +1606,45 @@ unresolved_blocker_count = 0
 
 이 gate 중 하나라도 실패하면 Top 50에 자동 진입시키지 않는다. 다만 `unknown` 하나만 해결하면 강한 후보가 될 수 있으면 `verification_needed`로 별도 보류할 수 있다.
 
+### 11.6.1 최종 disposition과 cooldown 판정
+
+`shortlist gate 실패`, `최종 M명 미선택`, `do_not_recommend`는 같은 뜻이 아니다. 전원 독립 평가가 끝난 뒤에는 preliminary disposition을 남기고, Top 50 비교와 경계 후보 검토가 끝난 뒤 최종 disposition을 확정한다.
+
+| disposition | 판정 기준 | cooldown |
+| --- | --- | --- |
+| `selected` | 최종 quality gate와 우선순위를 모두 통과해 이번 run에서 선택 | 없음. 중복·pipeline 규칙이 대신 적용됨 |
+| `eligible_not_selected` | 연결할 수 있는 수준이지만 `M`, 상대 우선순위, archetype 중복 때문에 미선택 | 절대 없음 |
+| `verification_needed` | 중요한 criterion이 `unknown`, stale 또는 충돌 상태 | 절대 없음 |
+| `do_not_recommend` | 충분한 evidence를 깊게 읽은 뒤 현재 role에는 연결하지 않아야 한다고 절대 판단 | 같은 fingerprint에 60일 |
+
+`do_not_recommend`는 다음 조건을 모두 만족할 때만 사용할 수 있다.
+
+1. section 11.2의 evidence packet을 끝까지 읽었고 단순 retrieval score나 title만으로 판단하지 않았다.
+2. role hard requirement, 실제 scope·seniority, 후보자의 명시적 제약, 회사의 합법적 명시 기준 중 하나와 **확인된 충돌**이 있다.
+3. 핵심 충돌에는 A 또는 B evidence가 있고 `evidence_confidence >= 70`이다.
+4. `reason_codes`와 각 code의 evidence ID·사실·reviewer 해석을 `audit_reasoning` 또는 `metadata.rejectionEvidence`에 남겼다.
+5. “이번 pool에 다른 후보가 한 명도 없어도 이 사람에게는 이 role을 제안하지 않겠다”는 반사실 질문에 `yes`라고 답할 수 있다.
+
+권장 `reason_codes`는 다음 범위에서 사용한다.
+
+- `confirmed_role_requirement_mismatch`
+- `confirmed_scope_or_seniority_mismatch`
+- `confirmed_candidate_constraint`
+- `confirmed_location_or_work_mode_conflict`
+- `confirmed_company_exclusion`
+
+점수가 낮다는 결과만 나타내는 `low_score`, `below_cutoff`, `not_top_n` 같은 code는 허용하지 않는다. 다음 사유로는 `do_not_recommend`를 만들 수 없다.
+
+- 다른 후보보다 덜 좋거나 `M` 밖으로 밀림
+- profile이 짧거나 핵심 정보가 없음
+- acceptance evidence가 관측되지 않음
+- 한두 criterion이 `unknown` 또는 stale임
+- 최근 로그인하지 않음
+- retrieval keyword가 약함
+- 같은 archetype 후보가 이미 선택됨
+
+독립 평가에서 확인된 구조적 충돌이면 즉시 preliminary `do_not_recommend`를 둘 수 있다. Top 50 또는 경계 후보 비교에서 처음 발견한 명확한 blocker도 같은 기준을 만족하면 최종 `do_not_recommend`로 바꿀 수 있다. 반대로 비교에서 단지 상대 순위가 낮아진 후보는 반드시 `eligible_not_selected`다.
+
 ### 11.7 시스템 plus signal
 
 사용자가 지정한 다음 신호를 반드시 반영한다. 단, role fit 자체를 대체하지 않고 점수 축 안에서 제한적으로 사용한다.
@@ -1417,13 +1719,43 @@ unresolved_blocker_count = 0
       "evidenceIds": ["..."]
     }
   ],
-  "positiveEvidence": [],
+  "positiveEvidence": [
+    {
+      "fact": "선발에 실제로 기여한 후보자별 사실",
+      "evidenceIds": ["..."]
+    }
+  ],
   "risks": [],
   "unknowns": [],
-  "internalReason": "상세 판단",
-  "decision": "advance|verification_needed|reject"
+  "auditReasoning": "운영자 전용 상세 판단",
+  "internalReason": "회사가 읽는 Markdown 후보자 추천 이유",
+  "internalReasonSources": [
+    {
+      "claimId": "ir-1",
+      "source": "table or url",
+      "sourceId": "row id or public url",
+      "fact": "internalReason의 어떤 주장을 뒷받침하는지"
+    }
+  ],
+  "independentDecision": "advance|verification_needed|reject",
+  "finalDisposition": "selected|eligible_not_selected|verification_needed|do_not_recommend",
+  "revisitPolicy": "normal|cooldown_60d",
+  "reasonCodes": [],
+  "rejectionEvidence": [
+    {
+      "reasonCode": "confirmed_role_requirement_mismatch",
+      "evidenceIds": ["..."],
+      "fact": "확인된 충돌 사실"
+    }
+  ]
 }
 ```
+
+각 hard criterion의 `evidence`는 그 criterion을 실제로 판정할 수 있는 사실과 source ID를 가져야 한다. “전체 packet을 읽고 판정했다” 같은 포괄 문장, candidate ID 하나, retrieval score, keyword hit, `matchedCoreGroups`는 criterion evidence가 아니다. retrieval feature는 recall과 packet 구성에만 사용하고, 최종 hard pass·score·`positiveEvidence`의 근거로 승격하지 않는다.
+
+`positiveEvidence`는 선발 점수에 실제로 기여한 후보자별 사실과 `evidenceIds`를 함께 기록한다. 같은 사실을 문구만 바꿔 여러 번 넣지 않는다. `risks`에는 downside와 미확정 사항만 넣고, 장점·최종 추천 결론·양면 요약을 섞지 않는다. hard blocker가 아닌 중요한 결측은 `unknowns` 또는 별도 `nonBlockingUnknowns`에 남겨 선발이 곧 완전한 검증을 뜻하는 것처럼 보이지 않게 한다.
+
+`independentDecision='reject'`라고 해서 자동으로 `finalDisposition='do_not_recommend'`가 되는 것은 아니다. 위 조건을 충족하지 못하면 `verification_needed`로 두거나 판단 근거를 다시 검토한다. `revisitPolicy='cooldown_60d'`는 `finalDisposition='do_not_recommend'`일 때만 허용한다.
 
 ## 12. Phase 4: Top 50 비교 평가
 
@@ -1472,6 +1804,8 @@ Top 50에서는 다음을 비교한다.
 
 Top 50 안에서 상대적으로 하위라고 해서 70점 미만으로 내릴 필요는 없다. 반대로 상대적으로 상위라고 해서 근거 없이 80점 이상으로 올리지 않는다. 비교 단계의 목적은 `M`이라는 제한 아래 최종 선택 우선순위를 정하는 것이다.
 
+비교 결과 연결할 만하지만 더 강한 후보에게 밀린 사람은 `eligible_not_selected`다. 비교 과정에서 evidence를 다시 읽어 section 11.6.1의 명확한 절대 blocker를 확인한 경우에만 `do_not_recommend`로 바꾼다. `M` 경계 아래라는 사실 자체는 cooldown 근거가 아니다.
+
 ### 12.4 최종 선택 규칙
 
 최종 선택자는 모두 다음을 만족해야 한다.
@@ -1504,7 +1838,7 @@ Top 50 안에서 상대적으로 하위라고 해서 70점 미만으로 내릴 �
 
 ### 12.5 alternate 처리
 
-선택되지 않은 상위 후보는 alternate로 기록할 수 있다. alternate에는 fit write나 연결 제안을 만들지 않는다. 선택자 중 중복·opt-out·role 변경이 발생했을 때만 해당 후보를 새로 검증한 후 승격한다. 자동 대체하지 않는다.
+선택되지 않은 상위 후보는 alternate와 `eligible_not_selected`로 기록할 수 있다. alternate에는 fit write나 연결 제안을 만들지 않으며 cooldown도 적용하지 않는다. 선택자 중 중복·opt-out·role 변경이 발생했을 때만 해당 후보를 새로 검증한 후 승격한다. 자동 대체하지 않는다.
 
 ### 12.6 여러 role을 함께 평가할 때의 role assignment
 
@@ -1548,9 +1882,20 @@ role_margin = best_role_mutual_score - second_role_mutual_score
 
 동명이인 가능성이 남으면 그 사실을 사용하지 않는다.
 
-최종 선택 예정자는 첫 평가를 보지 않는 독립적인 second-pass reviewer가 hard criteria, 양면 score, 핵심 evidence, candidate-facing recommendation fields를 다시 확인한다. 두 평가의 company fit 또는 candidate acceptance가 10점 이상 차이 나거나 decision이 다르면 자동 평균하지 않고 source를 다시 읽어 불일치 원인을 해결한다.
+최종 선택 예정자는 첫 평가를 보지 않는 독립적인 second-pass reviewer가 hard criteria, 양면 score, 핵심 evidence, candidate-facing recommendation fields를 다시 확인한다. 두 평가의 company fit 또는 candidate acceptance가 10점 이상 차이 나거나 decision이 다르면 자동 평균하지 않고 source를 다시 읽어 불일치 원인을 해결한다. 두 pass의 실제 score와 결론을 그대로 보존하고, 설명 없이 그 사이의 새 숫자를 `resolvedFinal`로 만들지 않는다. 재검토로 점수를 바꾸면 무엇을 과대·과소평가했는지와 선발 판단이 유지되거나 바뀐 이유를 함께 기록한다.
 
 ### 13.3 객관적 고가치 사실의 작성 방식
+
+추천 이유는 경력의 label을 요약하는 문장이 아니라, 읽는 사람이 profile만 훑어서는 놓치기 쉬운 사실을 복원하는 설명이어야 한다. 가능한 경우 다음 정보를 함께 확인한다.
+
+- 정확한 회사·제품·학교·연구실 이름과 재직·재학 기간
+- 몇 번째 멤버 또는 어느 성장 단계에 합류했는지
+- 후보자가 직접 소유한 제품·조직·기술 범위
+- 팀 인원, 투자, 매출, 사용자, 처리량, 출시 기간 등 확인 가능한 규모와 결과
+- 당시 회사의 질과 난이도를 보여주는 투자자, 시장 위치, 인수, 해외 확장, 성장 단계
+- 그 회사의 성장과 후보자 개인의 기여를 구분한 해석
+
+회사의 투자·성장·명성은 후보자 개인의 성과로 귀속하지 않는다. 대신 후보자가 어떤 수준과 변화 폭의 환경을 실제로 통과했는지를 설명하는 맥락으로 사용한다. 후보자의 직접 기여는 별도 source로 확인한다.
 
 창업자 예시:
 
@@ -1577,8 +1922,10 @@ role_margin = best_role_mutual_score - second_role_mutual_score
 ```text
 단순: 좋은 학교와 유명 회사 출신입니다.
 
-구체적: [회사]의 [팀/제품]에서 [구체 업무]를 [기간] 수행했습니다. 이 경험은
-이번 role의 [핵심 결과]와 직접 연결됩니다.
+구체적: [후보자]는 [회사]가 [인원/투자/제품 단계]였던 시점에 [몇 번째 멤버/직책]로
+합류해 [기간] 동안 [직접 소유한 업무]를 맡았습니다. 재직 중 회사는 [검증된 성장 맥락]을
+경험했고, 후보자는 그 과정에서 [개인 기여와 결과]를 만들었습니다. 회사의 성장은 환경의
+맥락이고 후보자에게 귀속할 성과는 [개인 기여]라는 점을 구분합니다.
 ```
 
 ### 13.4 외부 조사 source 우선순위
@@ -1591,23 +1938,127 @@ role_margin = best_role_mutual_score - second_role_mutual_score
 
 확인되지 않은 숫자는 확정적으로 쓰지 않는다. `회사 발표 기준`, `공식 proceedings 기준`처럼 근거 성격을 남긴다.
 
+공식 source가 팀·회사·논문 수준의 사실만 확인하고 후보자의 개인 역할은 이력서·대화에서만 확인되는 경우, 두 source의 범위를 합쳐 하나의 공식 검증 사실처럼 쓰지 않는다. 예를 들어 공식 보도가 팀 우승만 확인하고 이력서가 controller 리드를 주장한다면 각각의 근거 성격을 본문 또는 `internalReasonSources`에서 구분한다.
+
 외부 검증 과정에 private resume 원문, candidate message, 이메일, 전화번호, 비공개 memo를 검색 query나 외부 서비스 입력으로 보내지 않는다. 후보자가 직접 공개한 professional URL과 최소한의 공개 식별자만 사용한다.
 
 ## 14. 추천 이유 작성 계약
 
-이 절의 후보자-facing 필드 기준은 New Harper Agent v2의 final-delivery prompt인 `../../harper_worker/opp/agentic/prompts.py`의 `FINAL_DELIVERY_PROMPT_SECTIONS[ActionType.INTERNAL_RECOMMENDATION]`과 `V2_INTERNAL_SUMMARY_OUTPUT_FIELD_SCHEMA`를 따른다. 세 필드를 내부 평가 보고서처럼 작성하지 않는다.
+이 절에서 `internal_reason`은 회사-facing 필드이고, `fit_summary`, `fit_reasons`, `tradeoffs`는 후보자-facing 필드다. 후보자-facing 세 필드의 기준은 New Harper Agent v2의 final-delivery prompt인 `../../harper_worker/opp/agentic/prompts.py`의 `FINAL_DELIVERY_PROMPT_SECTIONS[ActionType.INTERNAL_RECOMMENDATION]`과 `V2_INTERNAL_SUMMARY_OUTPUT_FIELD_SCHEMA`를 따른다. audience가 다른 필드를 서로 섞지 않는다.
 
 ### 14.1 내부 판단 이유 `internal_reason`
 
-선택자마다 최소 다음을 포함한다.
+`internal_reason`은 회사와 Harper 운영자가 읽는 후보자 추천 메모이며, persistence 단계에서 `talent_opportunity_fit.reason`에 저장하는 내용이다. 이 필드가 가장 먼저 답해야 하는 질문은 다음과 같다.
 
-1. 회사가 좋아할 이유
-2. 후보자가 수락할 가능성이 높은 이유
-3. request와 consideration hard criteria 통과 내역
-4. 과거 회사 피드백 중 이번 판단에 반영된 기준
-5. 간과하기 쉬운 객관적 강점
-6. 남은 caveat와 이를 감수할 수 있는 이유
-7. 각 핵심 주장에 대한 source reference
+> 기본적인 JD와 hard criteria를 이미 통과한 사람들 중, 왜 이 후보자를 특별히 우선 검토해야 하는가?
+
+따라서 `internal_reason`의 중심은 “role에 맞는다”는 판정 재진술이 아니라 **후보자의 고유한 객관적 성취, 그 성취가 나온 맥락, 후보자의 실제 기여와 희소성**이다. 기술 keyword와 JD 항목의 일치를 나열하는 것은 선발 전제 확인일 뿐 추천 이유의 본문이 아니다.
+
+선택자마다 다음 순서로 작성한다.
+
+1. **TL;DR 2~3문장**: 후보자가 어떤 사람이고 무엇이 가장 특별한지 먼저 요약한다. 회사가 나머지를 계속 읽고 싶게 만드는 가장 강한 사실을 앞에 둔다.
+2. **후보자의 특별한 점**: 가장 강한 차별점 1~3개를 회사명, 기간, 직책, 제품과 함께 쓴다.
+3. **간과하기 쉬운 경력 맥락**: 초기 합류 순서, 당시 회사 단계, 조직 성장, 투자자·투자 규모, 시장 성과, 인수·해외 확장 등 profile만 보고 놓치기 쉬운 배경을 설명한다.
+4. **후보자 자신의 기여**: 회사가 성장했다는 사실과 후보자가 직접 만든 결과를 분리한다. 후보자의 ownership, 팀 규모, 출시, 매출·사용자·성능 변화 등을 가능한 범위에서 수치로 쓴다.
+5. **프로필 밖의 중요한 정보**: `talent_experiences`, `talent_educations`, `talent_extra`에는 없지만 Harper와의 대화·insight에서 확인된 전문 성과, 구체적인 ownership, 경력 맥락, 이직 동기, 직업적 선호, relocation 의향, 관심 산업, 원하는 문제·환경, role 방향이 판단에 중요하면 자연스럽게 포함한다.
+6. **사실의 의미**: 위 사실이 0→1 실행, 조직 확장, 기술 난이도, 채용·리딩, 고객 대응 등 어떤 검증된 역량을 보여주는지 설명한다. “리딩에 강하다” 같은 형용사로 끝내지 않는다.
+7. **선발 전제 확인**: request와 consideration의 hard criteria 통과, 후보자의 수락 가능성, 반영된 과거 회사 피드백은 필요한 만큼만 짧게 덧붙인다. `JD의 핵심 항목과 일치한다`는 문장을 추천의 핵심으로 사용하지 않는다.
+8. **남은 caveat**: 보상, role scope, location 등 실제 의사결정에 영향을 주는 미확정 사항과, 그럼에도 검토할 가치가 있는 이유를 쓴다.
+9. **source mapping**: 회사, 날짜, 기간, 합류 순서, 팀 규모, 투자, 매출, 사용자, 성과 수치와 대화·insight 기반 주장 등 모든 핵심 내용의 근거를 `internalReasonSources`에 claim별로 연결한다. 내부 row ID와 감사용 URL은 회사가 읽는 `internal_reason` 본문에 노출하지 않는다.
+
+#### 정보 선택 원칙
+
+회사에는 후보자의 profile도 함께 전달된다. 따라서 profile에 있는 모든 학교·회사·직책·프로젝트를 추천 이유에서 다시 나열하지 않는다. 추천 여부나 우선순위 판단을 바꾸거나, 후보자의 가치를 더 정확히 이해하게 만드는 정보만 남긴다.
+
+- 객관적 사실이라도 특별한 의미가 없으면 생략한다.
+- 같은 강점을 보여주는 이력이 여러 개면 가장 구체적이고 강한 사례를 우선한다.
+- 평범한 경력 나열보다 초기 합류, 급성장 경험, 드문 투자·시장 맥락, 반복된 성과, 구체적인 ownership을 우선한다.
+- 학교나 유명 회사 이름은 그 자체로 어필하지 않는다. 해당 환경의 선발 난이도·문제 규모·후보자의 직접 기여가 판단에 중요할 때만 설명한다.
+- 대화·insight 정보는 profile에 없기 때문에 회사가 알아야 할 중요한 전문 성과·동기·경력 맥락·직업적 선호라면 포함한다. 다만 “Harper와의 비공개 대화에서 말했습니다”처럼 source의 내부 성격을 드러내지 말고, “미국 내 어느 지역으로든 이주할 의향이 있습니다”처럼 자연스럽게 쓴다.
+- 대화·insight에 있는 사적·민감 정보, role과 무관한 개인사, 직접 인용은 포함하지 않는다. 후보자가 회사에 공유해도 되는 professional preference와 constraint만 사용한다.
+
+#### 문체와 Markdown 원칙
+
+좋은 사실을 확보하는 것과 읽히는 글을 쓰는 것은 별개의 품질 기준이다. 내용이 정확해도 기계적인 평가 보고서처럼 보이면 완료로 처리하지 않는다.
+
+- 모든 문장은 존댓말로 쓴다. `~했다`, `~이다` 대신 `~했습니다`, `~입니다`를 사용한다.
+- 첫 문단은 `**TL;DR** -`로 시작하는 2~3문장을 기본 형식으로 사용한다.
+- 가장 흥미롭고 차별적인 사실을 먼저 제시하고, 그 뒤에 맥락과 증거를 붙인다.
+- 한 문단에는 하나의 주제만 담고 짧게 끊어 읽기 쉽게 만든다.
+- 회사명, 핵심 성과, 중요한 숫자와 판단 포인트는 Markdown `**강조**`를 선별적으로 사용한다. 모든 문장을 굵게 만들지 않는다.
+- 추가 해석이나 종합 판단은 `**Note** -`로 분리할 수 있다.
+- 이력 나열식 bullet보다 자연스러운 서술을 우선하되, 서로 독립적인 성과를 비교할 때만 bullet을 사용한다.
+- 과장된 광고 문구, 근거 없는 최상급, 지나치게 긴 문장, 영어 keyword의 기계적 나열을 피한다.
+- source reference는 회사용 본문에 넣지 않고 감사 산출물의 `internalReasonSources`에 보존한다. 공개 portfolio나 제품 URL 자체가 후보자의 강점을 이해하는 데 도움이 될 때만 자연스러운 Markdown link로 본문에 포함한다.
+
+#### 편집 pass와 완료 기준
+
+사실을 모아 초고를 쓴 뒤, 별도의 편집 pass를 수행한다. 다음 중 하나라도 충족하지 못하면 사실이 맞더라도 `internal_reason` 작성은 미완료다.
+
+1. 첫 2~3문장만 읽어도 후보자의 가장 특별한 점 두 가지를 다른 사람에게 설명할 수 있어야 한다.
+2. 각 문단은 새로운 판단 정보를 하나 이상 추가해야 한다. 새 정보가 없는 이력 반복과 기술 keyword 나열은 삭제한다.
+3. `company fit`, `acceptance score`, `hard criteria`, `JD 일치`, `evidence confidence` 같은 내부 평가 용어 없이도 자연스럽게 읽혀야 한다.
+4. profile을 옆에 놓고 중복되는 평범한 사실을 지운다. 삭제해도 후보자의 매력이 줄지 않는 문장은 삭제한다.
+5. 대화·insight를 다시 확인해 profile만으로는 알 수 없지만 회사가 반드시 알아야 할 정보가 빠지지 않았는지 확인한다.
+6. 과장된 표현을 제거하되, 강한 숫자와 구체적인 장면은 약한 요약어로 바꾸지 않는다.
+7. 문단 순서를 `가장 강한 hook -> 이를 증명하는 사례 -> profile 밖의 중요한 방향 -> Note/caveat`로 다시 정렬한다.
+8. 최종 Markdown을 렌더링하거나 preview해 굵은 강조, 문단 간격, 목록이 실제로 읽기 좋은지 확인한다.
+
+권장 서술 단위는 다음과 같다.
+
+```text
+[구체적 사실] -> [그 사실이 발생한 회사·시장·조직 맥락] ->
+[후보자에게 귀속되는 직접 기여] -> [왜 흔치 않고 판단에 중요한지]
+```
+
+다음과 같은 모호한 문장은 단독으로 쓰지 않는다.
+
+- “프로덕션 AI 챗봇을 만들어봤습니다.”
+- “리딩에 강합니다.”
+- “CTO·공동창업 경험이 반복됩니다.”
+- “TypeScript UI와 Python API 경험이 JD 핵심 항목과 일치합니다.”
+- “유명 회사에서 다양한 경험을 했습니다.”
+
+대신 회사명, 시기, 횟수, 기간, 직책, 팀 규모, 투자, 제품 단계, 후보자의 직접 결과를 확인해 다음처럼 쓴다. 필요한 숫자나 맥락을 확인할 수 없다면 추측해서 채우지 말고 `unknown`으로 남기며 추천 이유의 강도와 evidence confidence를 낮춘다.
+
+#### `internal_reason` 문체 예시
+
+아래 예시는 사람이 작성한 수준의 정보 선택, 존댓말, 문단 구성과 Markdown 사용을 보여주는 문체 기준이다. 실제 후보자에게 사용할 때는 각 사실을 source로 다시 확인하고, 회사용 본문과 분리된 `internalReasonSources`를 실제 ID·URL로 채워야 한다.
+
+```markdown
+**TL;DR** - 국방 분야에 강한 관심을 가진 소프트웨어 엔지니어입니다. **하버드 졸업 후
+이스라엘의 드론 방어 기업 Airbotics에서 3년간** 실무 경험을 쌓았으며, 그곳에서 그물과
+발사체를 이용해 접근하는 드론 군집을 격추하는 요격 드론의 백엔드 시스템을 개발했습니다.
+
+이외에도 Matrix에서 정부 기관을 위한 AI 도구를 개발한 경험이 있으며, 현재는 Lendflow에서
+AI Solutions Engineer 겸 FDE로 근무하고 있습니다.
+
+창업 경험도 있습니다. **700명의 학생을 대상으로 서비스를 제공한 하드웨어 구독형
+스타트업**을 운영했고, 월 100만원 이상의 수익도 냈습니다.
+
+국방 기술에 대한 열정이 크고, **미국 내 어느 지역으로든 이주할 의향이 있습니다.** 특히
+소프트웨어와 하드웨어가 결합되는 영역의 회사에서 일하고 싶어 합니다.
+
+**Note** - MLOps, ML 인프라, 소프트웨어 엔지니어링 역량이 균형 있게 섞여 있는
+후보자입니다. 국방 분야에 대한 관심이 분명하고, 소프트웨어와 하드웨어가 결합된 환경에서
+일하고 싶어 합니다. 기계공학 배경도 일부 갖고 있습니다.
+
+연구자들과 협업하며 연구 결과를 실제 제품으로 구현하는 과정에서 가장 큰 보람을 느끼는
+사람으로 보입니다.
+```
+
+위에 표시하지 않은 source mapping은 감사 산출물에 다음처럼 별도로 둔다.
+
+```json
+{
+  "internalReasonSources": [
+    {"claimId": "ir-1", "source": "talent_educations", "sourceId": "<row_id>", "fact": "하버드 졸업"},
+    {"claimId": "ir-2", "source": "talent_experiences", "sourceId": "<row_id>", "fact": "Airbotics 3년 및 요격 드론 백엔드 개발"},
+    {"claimId": "ir-3", "source": "talent_extra", "sourceId": "<row_id>", "fact": "700명 대상 하드웨어 구독 서비스와 월 매출"},
+    {"claimId": "ir-4", "source": "talent_insights", "sourceId": "<row_id>", "fact": "미국 전역 relocation 및 소프트웨어·하드웨어 결합 영역 선호"}
+  ]
+}
+```
 
 ### 14.2 후보자-facing `fit_summary`
 
@@ -1691,13 +2142,81 @@ Palo Alto 오피스 근무 비중이 있어 remote 선호가 강하다면 근무
 - role과 관계없는 prestige 나열
 - 후보자를 설득하기 위한 risk 은폐
 
-## 15. Phase 6: fit persistence
+## 15. Phase 6: review memory와 fit persistence
 
-이 단계의 목적은 깊게 검토한 최종 선택만 production fit state에 반영하고, 이번 batch에서 선택되지 않았다는 이유로 나머지 후보자에게 영구적인 negative label을 남기지 않는 것이다.
+이 단계의 목적은 깊게 검토한 후보자의 role-scoped disposition은 review history로 보존하되, 최종 선택자만 production fit state에 반영하는 것이다. 이번 batch에서 선택되지 않았다는 이유로 영구적인 negative label을 남기지 않는다.
 
-`dry_run`에서는 이 절의 SELECT와 write plan까지만 수행하고 INSERT·UPDATE를 실행하지 않는다. 실제 transaction은 `commit_fit` 또는 `send`에서만 허용된다.
+`dry_run`에서는 이 절의 SELECT와 write plan까지만 수행하고 INSERT·UPDATE를 실행하지 않는다. `commit_review`는 review memory만 insert한다. `commit_fit`과 `send`는 review memory를 insert하고 선택자의 fit을 upsert한다.
 
-### 15.1 write 전 snapshot
+### 15.1 review memory write
+
+`commit_review`, `commit_fit`, `send`에서는 section 11의 evidence packet까지 깊게 검토한 retrieval 후보 전원에게 최종 disposition row를 하나씩 insert한다. hard filter나 cooldown 때문에 retrieval 전에 제외한 후보에게는 새 review row를 만들지 않는다.
+
+write 전에 같은 role의 pair별 최신 review와 활성 cooldown을 `review_memory_plan.json`에 snapshot한다. 새 row는 기존 row를 update하지 않는 append-only event다.
+
+개념 SQL:
+
+```sql
+INSERT INTO public.talent_opportunity_matching_review (
+  opportunity_id,
+  talent_id,
+  run_id,
+  kind,
+  evaluator_version,
+  requested_by,
+  consideration_fingerprint,
+  role_fingerprint,
+  candidate_fingerprint,
+  final_disposition,
+  reason_codes,
+  audit_reasoning,
+  core_company_fit_score,
+  core_candidate_acceptance_score,
+  company_fit_score,
+  candidate_acceptance_score,
+  mutual_score,
+  evidence_confidence,
+  reviewed_at,
+  excluded_until,
+  source_snapshot,
+  metadata
+)
+VALUES (
+  :role_id::uuid,
+  :talent_id::uuid,
+  :run_id,
+  'codex',
+  :evaluator_version,
+  :requested_by,
+  :consideration_fingerprint,
+  :role_fingerprint,
+  :candidate_fingerprint,
+  :final_disposition,
+  :reason_codes::text[],
+  :audit_reasoning,
+  :core_company_fit_score,
+  :core_candidate_acceptance_score,
+  :company_fit_score,
+  :candidate_acceptance_score,
+  :mutual_score,
+  :evidence_confidence,
+  :reviewed_at::timestamptz,
+  CASE
+    WHEN :final_disposition = 'do_not_recommend'
+      THEN :reviewed_at::timestamptz + interval '60 days'
+    ELSE NULL
+  END,
+  :source_snapshot::jsonb,
+  :metadata::jsonb
+)
+ON CONFLICT (run_id, opportunity_id, talent_id) DO NOTHING;
+```
+
+`reason_codes`는 `do_not_recommend`에서만 사용하고 다른 disposition에서는 반드시 빈 배열로 둔다. `metadata.rejectionEvidence`에는 private evidence ID와 충돌 설명을 저장할 수 있지만, 원문 resume·대화 전체를 복제하지 않는다.
+
+`do_not_recommend` count, 각 reason code count, 60일 종료 시각, fingerprint를 `verification.md`에서 다시 조회해 write plan과 비교한다. exact run 재시도로 conflict가 난 row는 기존 값이 write plan과 byte-equivalent한지 확인한 경우에만 idempotent success로 처리한다.
+
+### 15.2 fit write 전 snapshot
 
 선택자 전원의 기존 fit row를 저장한다.
 
@@ -1710,7 +2229,7 @@ WHERE opportunity_id = :role_id::uuid
 
 기존 `human_label`, `human_reason`, `human_reviewed_*`가 있으면 자동으로 덮어쓰지 않는다. 기존 human judgment와 이번 결과가 충돌하면 write를 중단하고 최종 보고서에 표시한다.
 
-### 15.2 score 변환
+### 15.3 score 변환
 
 최종 선정자는 production `fit` 범위로 재보정한다.
 
@@ -1729,18 +2248,19 @@ persisted_fit_score = clamp(80 + round((mutual_score - 70) * 2 / 3), 80, 100)
 | 85 | 90 |
 | 100 | 100 |
 
-이 점수는 자동 model score인 척하면 안 된다. `reason`에 수동 deep review 실행 ID와 양면 score를 남긴다.
+이 점수는 자동 model score인 척하면 안 된다. 수동 deep review 실행 ID와 양면 score는 `write_plan.json`과 `audit_reasoning`에 남기고, 회사가 읽는 `reason`에는 노출하지 않는다.
 
-### 15.3 upsert 원칙
+### 15.4 fit upsert 원칙
 
 - 선택자만 upsert한다.
 - 미선택자 150명에게 대량 `unfit`을 쓰지 않는다. 이번 role의 최종 추천에서 빠졌다는 사실과 영구 unfit은 다르다.
 - 기존 row가 없으면 insert한다.
 - 기존 model row가 있고 human override가 없으면 최신 deep review 근거로 update할 수 있다.
+- 이 문서에 따른 Codex 수동 matching이 insert 또는 update한 row는 `kind='codex'`로 저장한다. 기존 row의 `kind`가 `NULL`이거나 다른 자동 evaluator 값이어도 이번 Codex 판단으로 실제 갱신했다면 `codex`로 바꾼다.
 - `human_label`이 있으면 별도 사람 승인 없이 변경하지 않는다.
 - `last_evaluated_at`을 갱신한다.
 - `reevaluation_criteria`는 최종 fit이면 `null`이다.
-- DB `reason`은 현재 evaluator 저장 한도에 맞춰 2,400자 이내의 내부 요약으로 만들고 전체 reasoning은 artifact에 둔다.
+- DB `reason`은 현재 evaluator 저장 한도에 맞춰 2,400자 이내의 회사-facing Markdown 추천 이유로 만들고, 운영자 전용 전체 판단과 source mapping은 artifact에 둔다.
 
 개념 SQL:
 
@@ -1748,6 +2268,7 @@ persisted_fit_score = clamp(80 + round((mutual_score - 70) * 2 / 3), 80, 100)
 INSERT INTO public.talent_opportunity_fit (
   talent_id,
   opportunity_id,
+  kind,
   score,
   label,
   reason,
@@ -1758,6 +2279,7 @@ INSERT INTO public.talent_opportunity_fit (
 VALUES (
   :talent_id::uuid,
   :role_id::uuid,
+  'codex',
   :persisted_fit_score,
   'fit',
   :internal_reason,
@@ -1766,6 +2288,7 @@ VALUES (
   timezone('utc', now())
 )
 ON CONFLICT (talent_id, opportunity_id) DO UPDATE SET
+  kind = 'codex',
   score = EXCLUDED.score,
   label = EXCLUDED.label,
   reason = EXCLUDED.reason,
@@ -1775,17 +2298,21 @@ ON CONFLICT (talent_id, opportunity_id) DO UPDATE SET
 WHERE public.talent_opportunity_fit.human_label IS NULL;
 ```
 
-모든 write는 하나의 transaction에서 수행하고 예상 row count가 선택자 수와 같은지 확인한 뒤 commit한다.
+`commit_fit`과 `send`에서는 consideration, review memory, fit write를 가능한 한 하나의 transaction에서 수행한다. review insert 예상 row count는 깊게 검토한 후보 수, fit upsert 예상 row count는 선택자 수와 같아야 한다. `commit_review`에서는 consideration과 review memory만 같은 transaction에서 수행한다. count와 content를 확인한 뒤 commit한다.
 
 ## 16. Phase 7: 연결 제안 준비와 발송
 
 이 단계의 목적은 fit 판단과 실제 외부 연락을 분리하고, 중복·opt-out·stale role을 마지막 순간에 한 번 더 차단하는 것이다.
 
-### 16.1 `commit_fit`의 의미
+### 16.1 `commit_review`의 의미
+
+`commit_review`는 consideration과 `talent_opportunity_matching_review`만 저장한다. `talent_opportunity_fit`, recommendation, chat, email은 만들거나 변경하지 않는다. 깊은 평가 결과와 60일 cooldown은 다음 run에 남겨야 하지만 아직 selected fit을 proposal-ready 상태로 만들고 싶지 않을 때 사용한다.
+
+### 16.2 `commit_fit`의 의미
 
 `commit_fit`은 selected fit을 저장해 proposal-ready 상태를 만든다. 후보자에게 메시지를 보내지 않는다. 사용자가 “갈 수 있게 세팅”만 요청했다면 이 모드를 사용한다.
 
-### 16.2 `send` preflight
+### 16.3 `send` preflight
 
 각 후보자마다 발송 직전에 다시 확인한다.
 
@@ -1797,6 +2324,25 @@ SELECT
     WHERE talent_id = :talent_id::uuid
       AND role_id = :role_id::uuid
   ) AS already_recommended,
+  (
+    SELECT jsonb_agg(jsonb_build_object(
+      'id', rec.id,
+      'feedback', rec.feedback,
+      'processed_stage', rec.processed_stage,
+      'saved_stage', rec.saved_stage,
+      'dismissed_at', rec.dismissed_at,
+      'recommended_at', rec.recommended_at
+    ) ORDER BY rec.recommended_at DESC)
+    FROM public.talent_opportunity_recommendation rec
+    WHERE rec.talent_id = :talent_id::uuid
+      AND rec.role_id = :role_id::uuid
+  ) AS same_role_recommendations,
+  (
+    SELECT array_agg(tag.tag ORDER BY tag.updated_at DESC)
+    FROM public.talent_opportunity_tag tag
+    WHERE tag.talent_id = :talent_id::uuid
+      AND tag.opportunity_id = :role_id::uuid
+  ) AS same_role_stage_tags,
   ts.profile_visibility,
   ts.get_internal_recommendation,
   ts.blocked_companies,
@@ -1814,9 +2360,9 @@ WHERE tu.user_id = :talent_id::uuid
   AND cr.role_id = :role_id::uuid;
 ```
 
-다음이면 발송하지 않는다.
+다음이면 새 candidate recommendation을 발송하지 않는다.
 
-- 이미 추천됨
+- 이미 추천됨. 단 `accepted_unprocessed`는 section 16.3.1에 따라 기존 recommendation을 재사용한다.
 - `dont_share`
 - internal opt-out
 - blocked company
@@ -1826,6 +2372,20 @@ WHERE tu.user_id = :talent_id::uuid
 - source timestamp 변경
 - shared reason에 검증되지 않은 사실이 남음
 - hard criterion이 다시 unknown/fail이 됨
+
+### 16.3.1 `accepted_unprocessed` 선정자의 처리
+
+`accepted_unprocessed` 후보자는 이미 후보자에게 동일 role이 전달됐고 후보자가 수락한 상태다. 따라서 최종 선정되어도 `POST /api/internal/career/manual-internal-recommendation`을 다시 호출하거나 새 recommendation·chat·email을 만들지 않는다.
+
+처리 순서는 다음과 같다.
+
+1. 기존 accepted recommendation ID와 `feedback_at`을 write plan에 기록한다.
+2. selected fit은 mode에 따라 `kind='codex'`로 insert/update한다.
+3. `send` 모드에서는 기존 recommendation이 회사 handoff·org intro에 이미 사용됐는지 확인한다.
+4. 아직 handoff되지 않았고 기존 production의 idempotent company handoff 경로가 있으면 그 recommendation ID를 재사용해 회사-side handoff만 한 번 수행한다.
+5. 안전한 기존 handoff 경로 또는 중복 방지 근거를 확인할 수 없으면 새 recommendation을 만들지 않고 `accepted_unprocessed_requires_handoff`로 중단한다. 이 경우 `commit_fit`까지만 완료할 수 있다.
+
+이 분기에서 후보자 대상 recommendation run·chat·email 수는 0이어야 한다. 회사 handoff 여부는 별도 효과로 구분해 보고한다.
 
 #### 동시 실행 guard
 
@@ -1854,7 +2414,7 @@ SELECT pg_advisory_unlock(
 
 근본적인 해결은 manual recommendation endpoint에 idempotency key를 추가하거나 DB에 허용 정책에 맞는 uniqueness를 두는 것이다. 그 보장이 생기기 전에는 “preflight를 했으니 원자적으로 중복이 막힌다”고 보고하지 않는다.
 
-### 16.3 기존 수동 recommendation 경로 사용
+### 16.4 기존 수동 recommendation 경로 사용
 
 가능하면 직접 recommendation row를 insert하지 말고 기존 내부 API 또는 `queueManualInternalRecommendationRun`과 동일한 경로를 사용한다.
 
@@ -1883,11 +2443,11 @@ SELECT pg_advisory_unlock(
 
 현재 경로는 `allowRepeat=true`이므로 preflight 중복 검사를 생략하면 중복 발송될 수 있다.
 
-### 16.4 순차 발송
+### 16.5 순차 발송
 
 최대 M명을 한꺼번에 blind queue하지 않는다. 한 명씩 큐에 넣고 최소한 run 생성과 대상 role·talent ID를 확인한다. 첫 발송에서 구조적 오류가 발견되면 나머지를 중단한다.
 
-### 16.5 current limitation: 발송 전 exact copy 승인
+### 16.6 current limitation: 발송 전 exact copy 승인
 
 현재 수동 경로는 run이 처리되면서 LLM이 최종 이메일·채팅 문구를 생성하고 바로 전달할 수 있다. 완전한 draft-approve-send 경계가 아니다.
 
@@ -1895,12 +2455,41 @@ SELECT pg_advisory_unlock(
 
 ## 17. Phase 8: 사후 검증
 
-이 단계의 목적은 “fit을 썼다”, “run을 만들었다”, “추천이 저장됐다”, “메시지가 실제 발송됐다”는 서로 다른 상태를 구분해 운영자가 거짓 성공을 보고하지 않도록 하는 것이다.
+이 단계의 목적은 “review를 기록했다”, “fit을 썼다”, “run을 만들었다”, “추천이 저장됐다”, “메시지가 실제 발송됐다”, “다음 run memory가 저장됐다”는 서로 다른 상태를 구분해 운영자가 거짓 성공을 보고하지 않도록 하는 것이다.
 
-### 17.1 fit 검증
+### 17.1 review memory 검증
 
 ```sql
-SELECT talent_id, opportunity_id, score, label, reason, last_evaluated_at
+SELECT
+  talent_id,
+  final_disposition,
+  reason_codes,
+  kind,
+  evaluator_version,
+  role_fingerprint,
+  candidate_fingerprint,
+  evidence_confidence,
+  reviewed_at,
+  excluded_until
+FROM public.talent_opportunity_matching_review
+WHERE opportunity_id = :role_id::uuid
+  AND run_id = :run_id
+ORDER BY talent_id;
+```
+
+확인:
+
+- `dry_run`이면 row 0건
+- 그 밖의 commit mode이면 row 수가 깊게 검토한 후보 수와 같음
+- 모두 `kind='codex'`이고 run/evaluator/fingerprint가 write plan과 같음
+- `do_not_recommend`만 reason code가 있고 `excluded_until = reviewed_at + 60 days`
+- `do_not_recommend`의 confidence가 70 이상이고 rejection evidence가 있음
+- `selected`, `eligible_not_selected`, `verification_needed`의 `excluded_until`은 `NULL`
+
+### 17.2 fit 검증
+
+```sql
+SELECT talent_id, opportunity_id, kind, score, label, reason, last_evaluated_at
 FROM public.talent_opportunity_fit
 WHERE opportunity_id = :role_id::uuid
   AND talent_id = ANY(:selected_talent_ids::uuid[])
@@ -1910,12 +2499,13 @@ ORDER BY score DESC;
 확인:
 
 - row 수가 선택자 수와 같음
+- 모두 `kind='codex'`
 - 모두 `fit`
 - 모두 80~100
 - reason이 candidate별로 구체적이고 동일 문구 복사가 아님
 - human override 충돌 없음
 
-### 17.2 run·recommendation 검증
+### 17.3 run·recommendation 검증
 
 ```sql
 SELECT
@@ -1948,7 +2538,7 @@ ORDER BY run.created_at;
 - unexpected external recommendation 없음
 - 추천 수가 M 이하
 
-### 17.3 delivery 검증
+### 17.4 delivery 검증
 
 ```sql
 SELECT
@@ -1966,7 +2556,7 @@ ORDER BY discovery_run_id, created_at;
 
 `sent`, `skipped`, `failed`를 구분해 보고한다. 큐를 만들었다는 사실을 발송 성공으로 보고하지 않는다.
 
-### 17.4 실패 시 재시도
+### 17.5 실패 시 재시도
 
 중복 허용 경로이므로 실패했다고 즉시 같은 API를 다시 호출하지 않는다.
 
@@ -1976,6 +2566,20 @@ ORDER BY discovery_run_id, created_at;
 4. run error 원인 확인
 5. 이미 recommendation이 있으면 repeat 호출 금지
 6. 발송만 실패한 경우 recommendation 전체를 다시 만들지 말고 해당 delivery 복구 경로 사용
+
+### 17.6 run memory 저장·검증
+
+앞 단계가 모두 유효하게 완료된 뒤 `run_memory.md`를 같은 `role_id`와 현재 artifact directory의 timestamp `run_id`로 저장한다. 같은 `(role_id, run_id)` 재시도는 새 history를 중복 생성하지 않고 같은 row에 idempotent하게 반영한다.
+
+저장 직후 같은 pair를 다시 읽어 다음을 확인한다.
+
+- content가 `run_memory.md`와 같음
+- content가 1,500자 이하이고 최대 네 항목임
+- 현재 role과 run ID가 정확함
+- `run_memory_receipt.json`에 저장 시각과 길이가 있음
+- `dry_run`이면 이 한 건 외 business DB write가 0건임
+
+다음 run 시작 시에는 이 최신 한 건만 읽는다. 저장이 실패하면 fit·발송 성공과 별개로 `run_memory_write_failed`를 보고하고, memory가 저장된 것처럼 완료 보고하지 않는다.
 
 ## 18. 최종 보고서 형식
 
@@ -1989,6 +2593,9 @@ ORDER BY discovery_run_id, created_at;
 - 검토한 retrieval 후보 수
 - 독립 평가 수
 - Top 50 비교 수
+- review memory write 수와 disposition별 수
+- 활성 cooldown 제외·만료·fingerprint 무효화 수
+- 이전 run memory read 여부와 이번 run memory write 결과
 - fit write 수
 - 발송 성공·실패·skipped 수
 
@@ -2022,6 +2629,8 @@ ORDER BY discovery_run_id, created_at;
 - evidence 부족 수
 - duplicate/opt-out 수
 - cutoff로 미선택된 alternate 수
+- `eligible_not_selected`, `verification_needed`, `do_not_recommend` 수
+- `do_not_recommend` reason code별 수와 cooldown 종료 범위
 
 개별 미선택자 200명의 긴 설명을 본문에 모두 쓰지 않고 artifact에 둔다. 다만 cutoff 근처와 사용자 판단에 중요한 사례는 설명한다.
 
@@ -2040,9 +2649,9 @@ ORDER BY discovery_run_id, created_at;
 - 외부 LLM·다른 agent 호출이 시도됐거나 후보자 payload가 외부 모델에 전송됨
 - 발송 전 exact copy 승인이 필요한데 현재 시스템에 승인 경계가 없음
 - 후보자 identity가 불확실해 핵심 사실을 귀속할 수 없음
-- selected 후보가 0명임. 이 경우 candidate-linked fit·recommendation write와 발송 없이 정상 종료. `commit_fit` 또는 `send` 모드였다면 검증된 consideration만 저장할 수 있음
+- selected 후보가 0명임. 이 경우 fit·recommendation write와 발송 없이 정상 종료. 유효 완료 run memory는 모든 모드에서 저장하고, `commit_review`, `commit_fit`, `send` 모드에서는 검증된 consideration과 깊게 검토한 후보의 review memory도 저장할 수 있음
 
-selected 후보가 0명인 것은 실패가 아니다. “이번 role에 현재 연결할 만큼 양면 근거가 충분한 사람이 없음”이라는 정상 결과다. consideration 저장 여부와 candidate-linked write 0건을 구분해 보고한다.
+selected 후보가 0명인 것은 실패가 아니다. “이번 role에 현재 연결할 만큼 양면 근거가 충분한 사람이 없음”이라는 정상 결과다. consideration·review memory 저장 여부와 fit·recommendation write 0건을 구분해 보고한다.
 
 ## 20. 품질 감사 체크리스트
 
@@ -2052,6 +2661,8 @@ selected 후보가 0명인 것은 실패가 아니다. “이번 role에 현재 
 - [ ] 현재 Codex agent가 판단을 직접 수행하며 외부 모델·다른 agent 위임이 금지됨을 확인했다.
 - [ ] 실행 script와 command에 Anthropic/OpenAI/Gemini 등 외부 LLM API·SDK·CLI 호출이 없음을 검사했다.
 - [ ] role이 internal이고 status가 `active`, `top_priority`, `paused` 중 하나이며 `is_expired=false`다.
+- [ ] 같은 role의 최신 run memory 한 건을 읽어 artifact에 남겼고, 현재 source보다 낮은 참고 신호로만 사용했다.
+- [ ] commit mode라면 role별 review memory를 읽고 저장할 수 있는 상태다.
 - [ ] source timestamp snapshot을 남겼다.
 - [ ] 최신 company·role 정보를 확인했다.
 
@@ -2068,11 +2679,15 @@ selected 후보가 0명인 것은 실패가 아니다. “이번 role에 현재 
 
 ### retrieval
 
-- [ ] same-role recommendation을 제외했다.
+- [ ] same-role recommendation을 분류해 일반 중복과 후속 처리 상태는 제외하고 `accepted_unprocessed`만 예외적으로 포함했다.
+- [ ] `accepted_unprocessed` 판정에서 feedback, `processed_stage`, `saved_stage`, `dismissed_at`, 동일 role stage tag를 모두 확인했다.
+- [ ] pair별 최신 review를 읽고 활성 `do_not_recommend` 중 role·candidate fingerprint가 모두 같은 후보만 60일 cooldown으로 제외했다.
+- [ ] cooldown 만료, role 변경, candidate matching 정보 변경, review 이후 새 수락·연결 요청을 정상 재검토 대상으로 복구했다.
 - [ ] `dont_share`, opt-out, blocked company를 제외했다.
 - [ ] dynamic hard filter 구현과 unknown policy를 기록했다.
 - [ ] retrieval role relevance 86점 + system signal 14점, total 100점 cap을 지켰다.
 - [ ] direct/core-work/adjacent/high-impact lane을 분리하고 dedupe했다.
+- [ ] 최대 30명의 `new_or_materially_updated` reservation을 적용했고 신규·업데이트 자체를 fit 점수로 가산하지 않았다.
 - [ ] lane별 raw·overlap·unique contribution을 기록하고 overlap shortfall을 backfill했다.
 - [ ] 각 filter 전후 count를 기록했다.
 - [ ] 최대 약 200명만 retrieval했다.
@@ -2090,7 +2705,12 @@ selected 후보가 0명인 것은 실패가 아니다. “이번 role에 현재 
 - [ ] system adjustment 전 core score를 기록했고 두 core score가 65 이상이다.
 - [ ] 시스템 plus signal을 반영하되 double count하지 않았다.
 - [ ] 결측과 fail을 구분했다.
+- [ ] 전원에게 최종 `selected|eligible_not_selected|verification_needed|do_not_recommend` disposition을 부여했다.
+- [ ] `do_not_recommend`는 A/B 직접 근거, confidence 70 이상, 허용 reason code, 반사실 테스트를 모두 통과한 경우에만 사용했다.
+- [ ] cutoff·M·상대 순위·정보 부족·최근 inactivity를 cooldown 사유로 사용하지 않았다.
 - [ ] 모든 핵심 주장에 evidence가 있다.
+- [ ] retrieval score·keyword hit·`matchedCoreGroups`를 hard pass, score 또는 positive evidence의 직접 근거로 사용하지 않았다.
+- [ ] hard criterion마다 criterion-specific fact와 source ID가 있고 “전체 packet 검토” 같은 포괄 문장으로 대체하지 않았다.
 - [ ] score distribution을 검사하고 포화 시 전체 pool에 동일한 calibration review를 적용했다.
 
 ### 비교와 선택
@@ -2103,11 +2723,27 @@ selected 후보가 0명인 것은 실패가 아니다. “이번 role에 현재 
 - [ ] 최종 선택 수가 M 이하다.
 - [ ] 여러 role을 함께 평가했다면 pair별 점수와 role margin·ambiguity를 기록했다.
 - [ ] 선택자마다 deep verification을 했다.
+- [ ] second pass의 실제 score·decision과 최종 조정 이유를 보존했고, 근거 없는 중간 숫자를 만들지 않았다.
 
 ### 문구
 
-- [ ] internal reasoning과 candidate-facing recommendation fields·proposal copy를 분리했다.
+- [ ] 운영자 전용 `audit_reasoning`, 회사-facing `internal_reason`, candidate-facing recommendation fields·proposal copy를 분리했다.
 - [ ] 현재 Codex agent가 추천 필드를 직접 작성했고 외부 LLM·worker에 생성을 맡기지 않았다.
+- [ ] `internal_reason`은 “JD를 통과했다”가 아니라 “통과자 중 왜 이 후보자를 우선 봐야 하는가”에 답한다.
+- [ ] `internal_reason`의 첫 부분에 후보자의 고유한 객관적 성취와 간과하기 쉬운 경력 맥락이 나온다.
+- [ ] 회사 성장·투자 같은 환경 맥락과 후보자 개인에게 귀속되는 기여를 구분했다.
+- [ ] 공식 source가 확인한 팀·회사 사실과 이력서·대화가 주장하는 후보자 개인 역할을 구분했다.
+- [ ] 회사명·기간·직책·합류 단계·제품·팀 규모·투자·성과 중 확인 가능한 구체 정보를 사용했다.
+- [ ] “리딩에 강함”, “프로덕션 경험”, “CTO 경험 반복”, “JD 핵심 항목과 일치” 같은 모호한 표현만으로 추천하지 않았다.
+- [ ] `internal_reason`의 날짜·기간·인원·투자·매출·사용자·성과 수치를 `internalReasonSources`에서 claim별 source와 연결했다.
+- [ ] 회사가 읽는 `internal_reason`에 내부 table명·row ID·운영 메모·점수·label을 노출하지 않았다.
+- [ ] `internal_reason`을 존댓말로 썼고 `TL;DR` 2~3문장에 가장 강한 매력을 먼저 요약했다.
+- [ ] profile과 함께 전달될 평범한 이력을 전부 반복하지 않고 어필할 가치가 있는 사실만 선별했다.
+- [ ] profile에 없지만 회사 판단에 중요한 전문 성과·동기·경력 맥락·relocation·관심 산업·원하는 환경·role 방향을 대화·insight에서 확인해 자연스럽게 포함했다.
+- [ ] 대화·insight의 사적 정보와 내부 source 성격은 노출하지 않았다.
+- [ ] 짧은 문단, 선별적인 굵은 강조, `Note` 등 Markdown을 사용해 읽기 쉽게 작성했다.
+- [ ] 별도 편집 pass에서 약한 첫 문단, profile 중복, 새 정보가 없는 문장, 내부 평가 용어와 keyword 나열을 제거했다.
+- [ ] 최종 Markdown을 preview해 실제 렌더링과 문단 가독성을 확인했다.
 - [ ] `fit_summary`는 회사·role·객관적 매력만 1~3문장으로 설명하고 개인 적합성은 넣지 않았다.
 - [ ] `fit_reasons`는 후보자 본인의 근거와 role evidence를 연결한 개인화된 이유 1~3개다.
 - [ ] `tradeoffs`는 의미 있는 사실 기반 caveat·확인사항 최대 1개이며, 없으면 비워 두었다.
@@ -2122,14 +2758,22 @@ selected 후보가 0명인 것은 실패가 아니다. “이번 role에 현재 
 
 - [ ] manifest와 verification에서 `modelDelegationAllowed=false`, `externalModelCallsAttempted=0`, `candidatePayloadSentToExternalModel=false`를 확인했다.
 - [ ] 외부 모델 호출 시도가 한 건이라도 있었다면 run을 `invalid_external_model_call`로 무효화하고 모든 write·queue·발송을 중단했다.
-- [ ] `dry_run`이면 write plan만 만들고 DB write 0건을 확인했다.
+- [ ] `run_memory.md`가 1,500자·최대 네 항목 이내이며 다음 run에 필요한 내용만 담고 있다.
+- [ ] 정상 완료 run이면 최신 run memory 한 건을 저장하고 다시 읽어 content를 검증했다.
+- [ ] `dry_run`이면 run memory 1건 외 business DB write 0건을 확인했다.
+- [ ] `commit_review`이면 consideration과 review memory만 저장했고 fit·recommendation·delivery write는 0건이다.
+- [ ] `commit_review`, `commit_fit`, `send`이면 깊게 검토한 후보 수만큼 append-only review row를 저장했다.
+- [ ] `do_not_recommend` row의 `excluded_until`이 `reviewed_at + 60 days`이고 다른 disposition은 `NULL`이다.
+- [ ] review row의 role·candidate·consideration fingerprint와 `kind='codex'`를 확인했다.
 - [ ] `commit_fit` 또는 `send`이면 기존 fit row snapshot을 남겼다.
 - [ ] `commit_fit` 또는 `send`이면 human override를 덮어쓰지 않았다.
 - [ ] `commit_fit` 또는 `send`이면 selected 후보만 fit으로 저장했다.
+- [ ] Codex 수동 matching으로 insert/update한 모든 fit row가 `kind='codex'`다.
 - [ ] 저장한 persisted fit score가 80~100이다.
 - [ ] `send`이면 발송 직전 중복·opt-out·role 상태를 재검사했다.
 - [ ] `send`이면 benchmark `doNotSend` flag가 없음을 확인했다.
 - [ ] `send`이면 concurrent sender 부재와 pair별 single-writer lock을 확인했다.
+- [ ] `accepted_unprocessed` 선정자에게 동일 role recommendation·chat·email을 다시 만들지 않고 기존 accepted recommendation을 재사용했다.
 - [ ] source가 바뀌지 않았다.
 - [ ] `send` 모드에서만 queue했다.
 - [ ] `send`이면 run, recommendation, delivery를 실제로 검증했다.
@@ -2144,8 +2788,8 @@ selected 후보가 0명인 것은 실패가 아니다. “이번 role에 현재 
 | 과거 같은 회사 outcome | consideration과 scoring에 적극 사용 | prediction freeze 전 전면 embargo |
 | role workspace | 실제 target company workspace | 격리를 위해 Harper clone, 평가는 Wonderful context |
 | role status | active, top_priority 또는 paused | paused clone의 read-only 평가만 허용 |
-| 이미 source role 추천됨 | 같은 role이면 제외 | source recommendation은 정답이므로 조회·제외 금지 |
-| persistence | mode에 따라 consideration·fit 저장 가능 | 항상 dry-run, candidate-linked write 금지 |
+| 이미 source role 추천됨 | 일반 중복은 제외하되 `accepted_unprocessed`만 포함 | source recommendation은 정답이므로 조회·제외 금지 |
+| persistence | 유효 run memory는 항상 저장하고 mode에 따라 consideration·review memory·fit 저장 | 항상 dry-run, run memory와 candidate-linked write 모두 금지 |
 | M의 범위 | 단일 role 최대 M | 두 role 합계 최대 10명 |
 | 완료 후 outcome 조회 | 운영에 필요한 범위에서 가능 | prediction hash 생성 뒤 evaluator만 가능 |
 
@@ -2155,10 +2799,10 @@ benchmark 문서와 이 문서가 충돌하면 benchmark의 blind-integrity 규�
 
 이 작업에서 가장 중요한 것은 “많이 찾는 것”이 아니라 “양쪽 모두에게 실제로 좋은 연결만 만드는 것”이다.
 
-role description과 최신 명시적 request가 가장 높은 우선순위다. 과거 회사 피드백은 그 요청을 더 정확하게 해석하는 evidence로 사용한다. 후보자의 profile만 보지 말고 대화, insight, 추천 반응, 응답성, 다른 internal process의 실제 진행 결과까지 확인한다. SQL은 recall을 위한 도구이며 최종 판단을 대신하지 않는다.
+role description과 최신 명시적 request가 가장 높은 우선순위다. 직전 run memory는 시작 시 최신 한 건만 읽되 맥락 복원용 참고로만 사용한다. 과거 회사 피드백은 현재 요청을 더 정확하게 해석하는 evidence로 사용한다. 후보자의 profile만 보지 말고 대화, insight, 추천 반응, 응답성, 다른 internal process의 실제 진행 결과까지 확인한다. SQL은 recall을 위한 도구이며 최종 판단을 대신하지 않는다.
 
-200명 단계에서는 한 명씩 독립적으로 점수를 매기고, 비교는 Top 50에서만 한다. 최종 선택자는 회사 적합도와 후보자 수락 가능성이 모두 기준을 넘어야 한다. 좋은 사람이 없으면 아무도 선택하지 않는다.
+200명 단계에서는 한 명씩 독립적으로 점수를 매기고, 비교는 Top 50에서만 한다. 최종 선택자는 회사 적합도와 후보자 수락 가능성이 모두 기준을 넘어야 한다. 좋은 사람이 없으면 아무도 선택하지 않는다. 연결할 수 있지만 이번 `M`명에 들지 못한 후보는 `eligible_not_selected`로 남겨 다음 run에서 불이익 없이 다시 본다. 충분한 직접 근거를 읽고도 이 role에는 연결하면 안 된다고 판단한 사람만 `do_not_recommend`로 두고, 같은 role·candidate fingerprint인 동안 60일간 재검토하지 않는다.
 
-추천 이유는 객관적 사실을 나열하는 데서 끝내지 말고, 사람이 놓치기 쉬운 사실의 실제 의미를 설명한다. founder라면 투자·팀·고객·execution scope를, researcher라면 저자 순서·venue·발표 형태·주도성을, operator라면 실제 숫자·조직 규모·ownership을 확인한다. 확인하지 못한 사실은 쓰지 않는다.
+추천 이유는 JD 일치 여부를 다시 설명하는 문서가 아니다. 이미 기본 기준을 통과한 후보 중 이 사람이 특별한 이유를 회사가 놓치지 않게 해야 한다. 객관적 사실을 나열하는 데서 끝내지 말고, 합류 당시 회사 단계, 이후 성장, 후보자의 실제 기여와 그 의미를 구분해 설명한다. profile에 이미 보이는 평범한 이력은 반복하지 않고, profile에 없지만 회사가 알아야 할 중요한 전문 성과·동기·경력 맥락·professional preference는 대화·insight에서 확인해 자연스럽게 보완한다. founder라면 창업 횟수·기간·투자·팀·고객·execution scope를, researcher라면 저자 순서·venue·발표 형태·주도성을, operator라면 실제 숫자·조직 규모·ownership을 확인한다. 확인하지 못한 사실은 쓰지 않는다. 최종 문장은 존댓말과 읽기 좋은 Markdown으로 작성하고, 정확한 내용을 회사가 끝까지 읽고 싶게 전달한다.
 
 마지막으로 fit row를 만들었다는 사실과 연결 제안이 발송됐다는 사실을 구분한다. 발송 모드에서는 중복 검사를 두 번 하고, 실제 delivery 상태까지 확인한 뒤에만 완료라고 보고한다.

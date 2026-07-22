@@ -12,6 +12,18 @@ export const getDefaultSavedStage = (item: CareerHistoryOpportunity) =>
     ? "connected"
     : getCareerDefaultSavedStage(item.opportunityType);
 
+export type CareerHistoryOpportunityBucket = "new" | "saved" | "archived";
+
+export const getHistoryOpportunityBucket = (
+  item: Pick<CareerHistoryOpportunity, "feedback" | "savedStage">
+): CareerHistoryOpportunityBucket => {
+  if (item.feedback === "negative") return "archived";
+  if (item.feedback === "positive" || item.savedStage === "hidden") {
+    return "saved";
+  }
+  return "new";
+};
+
 const SAVED_STAGES: CareerOpportunitySavedStage[] = [
   "saved",
   "applied",
@@ -80,15 +92,16 @@ export const deriveHistoryOpportunityCounts = (
 
   for (const item of opportunities) {
     counts.total += 1;
+    const bucket = getHistoryOpportunityBucket(item);
 
-    if (item.feedback === "positive") {
+    if (bucket === "saved") {
       const stage = item.savedStage ?? getDefaultSavedStage(item);
       counts.saved += 1;
       counts.savedStages[stage] += 1;
       continue;
     }
 
-    if (item.feedback === "negative") {
+    if (bucket === "archived") {
       counts.archived += 1;
       continue;
     }

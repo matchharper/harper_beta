@@ -124,7 +124,7 @@ const getBasicInfoDescription = (
     description.push(
       t(
         "career.onboarding.onboarding.official_job_progress_help",
-        "우선 {job} 역할으로 진행 도와드릴게요.",
+        "{job} 진행 도와드릴게요.",
         { values: { job: normalizedOfficialJobTitle } }
       )
     );
@@ -886,7 +886,7 @@ const getOnboardingProfileVisibilityOptions = (
     ),
     sub: t(
       "career.onboarding.onboarding.03b3ba6",
-      "매칭에 필요한 프로필 정보만 공유돼요. 차단할 회사를 설정할 수 있어요."
+      "매칭에 필요한 프로필 정보만 공유돼요. 공개하지 않을 회사를 설정할 수 있어요."
     ),
     Icon: ShieldCheck,
   },
@@ -899,7 +899,7 @@ const getOnboardingProfileVisibilityOptions = (
     ),
     sub: t(
       "career.onboarding.onboarding.03b3ba6",
-      "매칭에 필요한 프로필 정보만 공유돼요. 차단할 회사를 설정할 수 있어요."
+      "매칭에 필요한 프로필 정보만 공유돼요. 공개하지 않을 회사를 설정할 수 있어요."
     ),
     Icon: ShieldAlert,
   },

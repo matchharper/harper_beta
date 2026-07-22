@@ -75,6 +75,9 @@ type CareerMobileJobsViewProps = {
   profilePicture?: string | null;
   userName?: string | null;
   userEmail?: string | null;
+  profileLocation?: string | null;
+  profileCurrentLocation?: string | null;
+  preferredLocale?: string | null;
   onOpenSettings?: () => void;
   onOpenSupport?: () => void;
   onLogout?: () => void | Promise<void>;
@@ -129,6 +132,9 @@ export default function CareerMobileJobsView({
   profilePicture,
   userName,
   userEmail,
+  profileLocation,
+  profileCurrentLocation,
+  preferredLocale,
   onOpenSettings,
   onOpenSupport,
   onLogout,
@@ -227,6 +233,9 @@ export default function CareerMobileJobsView({
           profilePicture={profilePicture}
           userName={userName}
           userEmail={userEmail}
+          profileLocation={profileLocation}
+          profileCurrentLocation={profileCurrentLocation}
+          preferredLocale={preferredLocale}
           onOpenSettings={onOpenSettings}
           onOpenSupport={onOpenSupport}
           onLogout={onLogout}

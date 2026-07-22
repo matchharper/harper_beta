@@ -9,12 +9,6 @@ import React, {
 import ChatMessageList from "@/components/chat/ChatMessageList";
 import ChatComposer from "@/components/chat/ChatComposer";
 import {
-  dedupeDraftAttachments,
-  MAX_CHAT_ATTACHMENT_FILE_BYTES,
-  readDraftAttachments,
-  type DraftChatAttachment,
-} from "@/lib/chat/attachmentClient";
-import {
   UI_END,
   UI_START,
   useChatSessionDB,
@@ -45,7 +39,7 @@ import { usePlanStore } from "@/store/usePlanStore";
 import { notifyUsageToSlack } from "@/lib/slack";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { SearchSource, normalizeSearchSources } from "@/lib/search/source";
-import type { ChatAttachmentPayload, SearchStartBlock } from "@/types/chat";
+import type { SearchStartBlock } from "@/types/chat";
 import { BareButton } from "@/components/ui/button";
 
 export type ChatScope =
@@ -56,10 +50,6 @@ type Props = {
   title: string;
   scope?: ChatScope;
   userId?: string;
-  systemPromptOverride?: string;
-  memoryMode?: "automation";
-  companyDescription?: string;
-  teamLocation?: string;
   onBack?: () => void;
 
   onSearchFromConversation: (messageId: number) => Promise<string | null>;
@@ -110,10 +100,6 @@ export default function ChatPanel({
   title,
   scope,
   userId,
-  systemPromptOverride,
-  memoryMode,
-  companyDescription,
-  teamLocation,
   onBack,
   onSearchFromConversation,
   disabled,
@@ -126,8 +112,6 @@ export default function ChatPanel({
   const [stickToBottom, setStickToBottom] = useState(true);
   const [showJumpToBottom, setShowJumpToBottom] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [attachments, setAttachments] = useState<DraftChatAttachment[]>([]);
-  const [isReadingFile, setIsReadingFile] = useState(false);
   const { companyUser } = useCompanyUserStore();
 
   const { planKey, load: loadPlan } = usePlanStore();
@@ -140,10 +124,6 @@ export default function ChatPanel({
     scope,
     userId,
     candidDoc,
-    systemPromptOverride,
-    memoryMode,
-    companyDescription,
-    teamLocation,
   });
   const autoStartedRef = useRef(false);
   const {
@@ -154,8 +134,6 @@ export default function ChatPanel({
   } = useSettings(userId);
 
   const isQueryScope = scope?.type === "query";
-
-  const allowAttachments = memoryMode === "automation";
 
   useEffect(() => {
     if (!finishedTick) return;
@@ -509,30 +487,9 @@ export default function ChatPanel({
     ]
   );
 
-  const handleSend = useCallback(async () => {
-    if (isReadingFile) return;
-
-    let nextAttachments: ChatAttachmentPayload[] | undefined;
-
-    if (allowAttachments && attachments.length > 0) {
-      setIsReadingFile(true);
-      try {
-        nextAttachments = await readDraftAttachments(attachments);
-        setAttachments([]);
-      } catch (error) {
-        showToast({
-          message: "첨부 자료를 읽지 못했습니다. 다시 시도해주세요.",
-          variant: "white",
-        });
-        setIsReadingFile(false);
-        return;
-      } finally {
-        setIsReadingFile(false);
-      }
-    }
-
-    void chat.send(undefined, { attachments: nextAttachments });
-  }, [allowAttachments, attachments, chat, isReadingFile]);
+  const handleSend = useCallback(() => {
+    void chat.send();
+  }, [chat]);
 
   const handleApplyCriteriaSuggestion = useCallback(
     (suggestion: string) => {
@@ -545,27 +502,6 @@ export default function ChatPanel({
     },
     [chat, isQueryScope]
   );
-
-  const handleAddAttachment = useCallback((attachment: DraftChatAttachment) => {
-    if (
-      attachment.kind === "file" &&
-      attachment.size > MAX_CHAT_ATTACHMENT_FILE_BYTES
-    ) {
-      showToast({
-        message: "파일 용량이 너무 큽니다. 10MB 이하로 업로드해주세요.",
-        variant: "white",
-      });
-      return;
-    }
-
-    setAttachments((prev) => dedupeDraftAttachments(prev, attachment));
-  }, []);
-
-  const handleRemoveAttachment = useCallback((attachmentId: string) => {
-    setAttachments((prev) =>
-      prev.filter((attachment) => attachment.id !== attachmentId)
-    );
-  }, []);
 
   return (
     <div className="w-full flex flex-col min-h-0 h-screen">
@@ -585,44 +521,39 @@ export default function ChatPanel({
           <div>{title === "" ? <Skeleton className="w-20 h-5" /> : title}</div>
         </div>
         <div className="flex flex-row justify-center items-center gap-2 text-neutral-muted">
-          {!systemPromptOverride && (
-            <>
-              {isQueryScope && (
-                <BareButton
-                  type="button"
-                  className="relative p-1 cursor-pointer"
-                  onClick={() => setIsSettingsOpen(true)}
-                  aria-label="검색 기본 설정 열기"
-                >
-                  <Settings className="w-3.5 h-3.5" strokeWidth={1.4} />
-                  {settings.is_korean && (
-                    <Check
-                      className="absolute -right-1 -top-1 h-3.5 w-3.5 text-primary"
-                      strokeWidth={2.2}
-                    />
-                  )}
-                </BareButton>
+          {isQueryScope && (
+            <BareButton
+              type="button"
+              className="relative p-1 cursor-pointer"
+              onClick={() => setIsSettingsOpen(true)}
+              aria-label="검색 기본 설정 열기"
+            >
+              <Settings className="w-3.5 h-3.5" strokeWidth={1.4} />
+              {settings.is_korean && (
+                <Check
+                  className="absolute -right-1 -top-1 h-3.5 w-3.5 text-primary"
+                  strokeWidth={2.2}
+                />
               )}
-              {isChatFull ? (
-                <div
-                  className="p-1 cursor-pointer"
-                  onClick={() => setIsChatFull?.(false)}
-                >
-                  <XIcon className="w-3.5 h-3.5" strokeWidth={1.4} />
-                </div>
-              ) : (
-                <div
-                  className="p-1 cursor-pointer"
-                  onClick={() => setIsChatFull?.(true)}
-                >
-                  <ScreenShareIcon className="w-3.5 h-3.5" strokeWidth={1.4} />
-                </div>
-              )}
-            </>
+            </BareButton>
+          )}
+          {isChatFull ? (
+            <div
+              className="p-1 cursor-pointer"
+              onClick={() => setIsChatFull?.(false)}
+            >
+              <XIcon className="w-3.5 h-3.5" strokeWidth={1.4} />
+            </div>
+          ) : (
+            <div
+              className="p-1 cursor-pointer"
+              onClick={() => setIsChatFull?.(true)}
+            >
+              <ScreenShareIcon className="w-3.5 h-3.5" strokeWidth={1.4} />
+            </div>
           )}
         </div>
       </div>
-      {systemPromptOverride && <br />}
 
       {/* Messages (scroll only here) */}
       <div className="flex-1 min-h-0 relative">
@@ -680,18 +611,8 @@ export default function ChatPanel({
         onSend={handleSend}
         onStop={chat.stop}
         onRetry={() => void chat.reload()}
-        disabledSend={
-          (!chat.canSend && !(allowAttachments && attachments.length > 0)) ||
-          disabled ||
-          isSearchSyncing ||
-          isReadingFile
-        }
+        disabledSend={!chat.canSend || disabled || isSearchSyncing}
         isStreaming={chat.isStreaming}
-        allowAttachments={allowAttachments}
-        attachments={attachments}
-        onAddAttachment={handleAddAttachment}
-        onRemoveAttachment={handleRemoveAttachment}
-        isPreparing={isReadingFile}
       />
 
       <ChatSettingsModal

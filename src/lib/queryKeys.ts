@@ -1,9 +1,6 @@
 // Central Query Key Factory
 // New hooks should use these keys. Existing hooks migrate opportunistically.
-import {
-  OPS_COMPANY_MANAGEMENT_PAGE_SIZE,
-  OPS_OPPORTUNITY_COMPANY_PAGE_SIZE,
-} from "@/lib/ops/opportunityCompanyManagement";
+import { OPS_OPPORTUNITY_COMPANY_PAGE_SIZE } from "@/lib/ops/opportunityConstants";
 
 export type QueryKey = readonly unknown[];
 
@@ -76,33 +73,6 @@ export const queryKeys = {
         Boolean(filters?.internalOnly),
         filters?.limit ?? 25,
       ] as const,
-    companiesAll: ["opsOpportunity", "companies"] as const,
-    companies: (filters?: {
-      companyName?: string | null;
-      employeeCountRange?: string | null;
-      foundedYearMin?: number | null;
-      hasCareerUrlOnly?: boolean | null;
-      humanLabelMissingFirst?: boolean | null;
-      investors?: string | null;
-      limit?: number | null;
-      llmQualityLabelFirst?: boolean | null;
-      location?: string | null;
-      qualityLabel?: string | null;
-    }) =>
-      [
-        "opsOpportunity",
-        "companies",
-        filters?.companyName ?? "",
-        filters?.employeeCountRange ?? "",
-        filters?.location ?? "",
-        filters?.investors ?? "",
-        filters?.foundedYearMin ?? null,
-        Boolean(filters?.hasCareerUrlOnly),
-        Boolean(filters?.humanLabelMissingFirst),
-        Boolean(filters?.llmQualityLabelFirst),
-        filters?.qualityLabel ?? "",
-        filters?.limit ?? OPS_COMPANY_MANAGEMENT_PAGE_SIZE,
-      ] as const,
   },
   opsCompany: {
     all: ["opsCompany"] as const,
@@ -134,6 +104,8 @@ export const queryKeys = {
     all: ["org"] as const,
     bootstrap: (orgId?: string | null) =>
       ["org", "bootstrap", orgId ?? ""] as const,
+    invitePreview: (orgId?: string | null) =>
+      ["org", "invitePreview", orgId ?? ""] as const,
     board: (filters?: {
       query?: string | null;
       recommendedDate?: string | null;
@@ -165,6 +137,28 @@ export const queryKeys = {
         filters?.roleId ?? "",
         filters?.talentId ?? "",
         filters?.recommendationId ?? "",
+      ] as const,
+    agentMessages: (filters?: {
+      roleId?: string | null;
+      workspaceId?: string | null;
+    }) =>
+      [
+        "org",
+        "agentMessages",
+        filters?.workspaceId ?? "",
+        filters?.roleId ?? "",
+      ] as const,
+    agentMentions: (filters?: {
+      query?: string | null;
+      roleId?: string | null;
+      workspaceId?: string | null;
+    }) =>
+      [
+        "org",
+        "agentMentions",
+        filters?.workspaceId ?? "",
+        filters?.roleId ?? "",
+        filters?.query ?? "",
       ] as const,
   },
   opsMatching: {

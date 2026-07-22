@@ -171,6 +171,7 @@ const createFallbackTalentProfile = (
         profile_picture: profile.profile_picture,
         headline: profile.headline,
         bio: profile.bio,
+        current_location: profile.current_location,
         location: profile.location,
       }
     : null,
@@ -603,6 +604,9 @@ export async function GET(req: NextRequest) {
           ? fetchTalentOpportunityHistoryPage({
               admin,
               limit: historyFetchLimit,
+              locale:
+                req.nextUrl.searchParams.get("locale") ??
+                initialTalentSetting?.preferred_locale,
               offset: historyFetchOffset,
               userId: user.id,
             })
@@ -699,6 +703,9 @@ export async function GET(req: NextRequest) {
             {
               admin,
               ids: missingRecommendationIds,
+              locale:
+                req.nextUrl.searchParams.get("locale") ??
+                initialTalentSetting?.preferred_locale,
               userId: user.id,
             }
           );
@@ -738,6 +745,9 @@ export async function GET(req: NextRequest) {
     if (postingRoleIds.length > 0) {
       const postingCards = await fetchTalentPostingCardsByRoleIds({
         admin,
+        locale:
+          req.nextUrl.searchParams.get("locale") ??
+          initialTalentSetting?.preferred_locale,
         roleIds: postingRoleIds,
         userId: user.id,
       });

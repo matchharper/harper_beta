@@ -1,5 +1,15 @@
 import Image from "next/image";
-import { LoaderCircle, MoreHorizontal, Search } from "lucide-react";
+import {
+  Component,
+  LoaderCircle,
+  MoreHorizontal,
+  Pause,
+  Pencil,
+  Play,
+  Search,
+  SquarePen,
+  Trash2,
+} from "lucide-react";
 import {
   type DragEvent,
   type FormEvent,
@@ -11,7 +21,15 @@ import { OpsDateRangeFilter } from "@/components/ops/OpsDateRangeFilter";
 import { formatKstRelativeDate } from "@/components/ops/dateUtils";
 import { ProfileLabelCell } from "@/components/ops/matching/MatchingTalentCells";
 import { cx, opsTheme } from "@/components/ops/theme";
-import { BareButton, IconButton } from "@/components/ui/button";
+import { BareButton, Button, IconButton } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,7 +49,7 @@ import {
   AcceptIntroDialog,
   StopCandidateDialog,
 } from "@/components/org/OrgCandidateDecisionDialogs";
-import { OrgRoleActionsMenu } from "@/components/org/OrgRoleActionsMenu";
+import { Tooltips } from "@/components/ui/tooltip";
 import {
   useCreateOrgReviewStage,
   useDeleteOrgReviewStage,
@@ -56,6 +74,155 @@ function canDropToStage(item: OrgBoardItem, stage: OrgStage) {
 
 function getCustomStageDbId(stageId: OrgStageId) {
   return stageId.startsWith("custom:") ? stageId.slice("custom:".length) : "";
+}
+
+function isRolePaused(status: string | null | undefined) {
+  const normalized = String(status ?? "")
+    .trim()
+    .toLowerCase();
+  return normalized === "paused" || normalized === "on_hold";
+}
+
+type RoleLifecycleAction = "delete" | "pause" | "resume";
+
+function OrgRoleHeaderActions({
+  onDelete,
+  onEdit,
+  onPause,
+  onResume,
+  pending,
+  role,
+}: {
+  onDelete: (role: OrgRole) => void;
+  onEdit: () => void;
+  onPause: (role: OrgRole) => void;
+  onResume: (role: OrgRole) => void;
+  pending?: boolean;
+  role?: OrgRole | null;
+}) {
+  const [confirmation, setConfirmation] = useState<RoleLifecycleAction | null>(
+    null
+  );
+  const paused = isRolePaused(role?.status);
+  const disabled = pending || !role;
+  const confirmationCopy =
+    role && confirmation
+      ? confirmation === "delete"
+        ? {
+            confirmLabel: "삭제 확인",
+            description: `“${role.name}” 역할이 조직 화면의 역할 목록과 파이프라인에서 숨겨지고 더 이상 활성 역할로 사용되지 않습니다. 기존 후보자와 진행 기록은 영구 삭제되지 않습니다.`,
+            title: "역할을 삭제할까요?",
+          }
+        : confirmation === "resume"
+          ? {
+              confirmLabel: "재개 확인",
+              description: `“${role.name}” 역할 상태가 ‘진행’으로 변경되어 다시 활성 역할로 표시됩니다. 기존 후보자와 파이프라인 기록은 그대로 유지됩니다.`,
+              title: "역할을 재개할까요?",
+            }
+          : {
+              confirmLabel: "중단 확인",
+              description: `“${role.name}” 역할 상태가 ‘중단’으로 변경됩니다. 기존 후보자와 파이프라인 기록은 유지되며, 나중에 다시 재개할 수 있습니다.`,
+              title: "역할을 중단할까요?",
+            }
+      : null;
+
+  const handleConfirm = () => {
+    if (!role || !confirmation) return;
+    const action = confirmation;
+    setConfirmation(null);
+    if (action === "delete") {
+      onDelete(role);
+      return;
+    }
+    if (action === "resume") {
+      onResume(role);
+      return;
+    }
+    onPause(role);
+  };
+
+  return (
+    <>
+      <div className="flex shrink-0 items-center gap-1.5">
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          disabled={disabled}
+          onClick={onEdit}
+        >
+          <SquarePen className="h-3.5 w-3.5" />
+          역할 수정
+        </Button>
+        <Tooltips text={paused ? "역할 재개" : "역할 중단"} side="bottom">
+          <IconButton
+            type="button"
+            size="sm"
+            variant="secondary"
+            aria-label={paused ? "역할 재개" : "역할 중단"}
+            disabled={disabled}
+            icon={
+              paused ? (
+                <Play className="h-3.5 w-3.5" />
+              ) : (
+                <Pause className="h-3.5 w-3.5" />
+              )
+            }
+            onClick={() => setConfirmation(paused ? "resume" : "pause")}
+          />
+        </Tooltips>
+        <Tooltips text="역할 삭제" side="bottom">
+          <IconButton
+            type="button"
+            size="sm"
+            variant="secondary"
+            aria-label="역할 삭제"
+            className="text-critical hover:border-critical/30 hover:bg-critical-faded hover:text-critical"
+            disabled={disabled}
+            icon={<Trash2 className="h-3.5 w-3.5" />}
+            onClick={() => setConfirmation("delete")}
+          />
+        </Tooltips>
+      </div>
+
+      <Dialog
+        open={Boolean(confirmationCopy)}
+        onOpenChange={(open) => {
+          if (!open && !pending) setConfirmation(null);
+        }}
+      >
+        <DialogContent className="max-w-md" hideCloseButton={pending}>
+          <DialogHeader>
+            <DialogTitle>{confirmationCopy?.title}</DialogTitle>
+            <DialogDescription className="leading-6">
+              {confirmationCopy?.description}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={pending}
+              onClick={() => setConfirmation(null)}
+              className="font-normal"
+            >
+              취소
+            </Button>
+            <Button
+              type="button"
+              variant={confirmation === "delete" ? "critical" : "primary"}
+              disabled={pending}
+              onClick={handleConfirm}
+              className="font-normal"
+            >
+              {pending && <LoaderCircle className="h-4 w-4 animate-spin" />}
+              {confirmationCopy?.confirmLabel}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 }
 
 const ORG_PROFILE_VIEWED_STORAGE_PREFIX = "harper:org-profile-viewed:v1";
@@ -613,7 +780,7 @@ export function OrgPipeline({
             대한 요청사항을 수정합니다.
           </div>
         </div>
-        <OrgRoleActionsMenu
+        <OrgRoleHeaderActions
           role={activeRoleId === "all" ? null : activeRole}
           pending={roleActionPending}
           onEdit={() => onEditRole()}

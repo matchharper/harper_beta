@@ -172,6 +172,9 @@ export default function AuthCallback() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
         },
+        body: JSON.stringify({
+          source: nextPath.startsWith("/org") ? "org" : undefined,
+        }),
       });
 
       const bootstrapJson = await bootstrapRes.json().catch(() => ({}));

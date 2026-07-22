@@ -3,11 +3,27 @@ import {
   OFFICIAL_JOBS_INTERNAL_COPY_SLUG,
   isOfficialJobsInternalCopyIdentity,
 } from "@/lib/officialJobs";
+import {
+  DEFAULT_ADMIN_EXCLUDED_EMAILS,
+  isEmailExcluded,
+} from "@/lib/adminEmailExclusions";
 import { supabaseServer } from "@/lib/supabaseServer";
 import type { Database } from "@/types/database.types";
 import type { AshbyOfficialJobsSyncSummary } from "@/lib/ashbyOfficialJobsSync";
 
 type OfficialJobRow = Database["public"]["Tables"]["official_jobs"]["Row"];
+type OfficialJobViewEventRow = Pick<
+  Database["public"]["Tables"]["official_job_events"]["Row"],
+  "anonymous_id" | "created_at" | "user_email" | "user_id"
+>;
+type TalentUserRow = Pick<
+  Database["public"]["Tables"]["talent_users"]["Row"],
+  "created_at" | "email" | "user_id"
+>;
+
+const READ_PAGE_SIZE = 1_000;
+const QUERY_IN_CHUNK_SIZE = 200;
+const KST_OFFSET_MS = 9 * 60 * 60 * 1_000;
 
 export type OpsOfficialJobRecord = {
   ashbyJobPostingId: string | null;
@@ -21,6 +37,7 @@ export type OpsOfficialJobRecord = {
   employmentType: string | null;
   id: string;
   isInternalCopy: boolean;
+  isOnLinkedin: boolean;
   isPublished: boolean;
   location: string;
   publishedAt: string | null;
@@ -29,6 +46,7 @@ export type OpsOfficialJobRecord = {
   seniority: string | null;
   shortDescription: string;
   slug: string;
+  sourceCompanyName: string | null;
   updatedAt: string;
   vertical: string;
 };
@@ -43,6 +61,20 @@ export type OpsOfficialJobsResponse = {
   jobs: OpsOfficialJobRecord[];
 };
 
+export type OpsOfficialJobCompanyOptionsResponse = {
+  companyNames: string[];
+};
+
+export type OpsOfficialJobAnalytics = {
+  totalSignups: number;
+  totalVisitors: number;
+  yesterdayVisitors: number;
+};
+
+export type OpsOfficialJobAnalyticsResponse = {
+  analytics: OpsOfficialJobAnalytics;
+};
+
 export type OpsOfficialJobSaveInput = {
   ashbyJobPostingId?: string | null;
   companyDescriptionMarkdown?: string | null;
@@ -53,6 +85,7 @@ export type OpsOfficialJobSaveInput = {
   displayOrder?: number | string | null;
   employmentType?: string | null;
   id?: string | null;
+  isOnLinkedin?: boolean | null;
   isPublished?: boolean | null;
   location?: string | null;
   roleDescriptionMarkdown?: string | null;
@@ -60,6 +93,7 @@ export type OpsOfficialJobSaveInput = {
   seniority?: string | null;
   shortDescription?: string | null;
   slug?: string | null;
+  sourceCompanyName?: string | null;
   vertical?: string | null;
 };
 
@@ -84,6 +118,7 @@ function mapOpsOfficialJob(row: OfficialJobRow): OpsOfficialJobRecord {
     employmentType: row.employment_type,
     id: row.id,
     isInternalCopy,
+    isOnLinkedin: Boolean(row.is_on_linkedin),
     isPublished: row.is_published,
     location: row.location,
     publishedAt: row.published_at,
@@ -92,6 +127,7 @@ function mapOpsOfficialJob(row: OfficialJobRow): OpsOfficialJobRecord {
     seniority: row.seniority,
     shortDescription: row.short_description,
     slug: row.slug,
+    sourceCompanyName: row.source_company_name,
     updatedAt: row.updated_at,
     vertical: row.vertical,
   };
@@ -219,6 +255,186 @@ export async function fetchOpsOfficialJobs(): Promise<OpsOfficialJobsResponse> {
   };
 }
 
+export async function fetchOpsOfficialJobCompanyOptions(): Promise<OpsOfficialJobCompanyOptionsResponse> {
+  const companyNames = new Set<string>();
+
+  for (let from = 0; ; from += READ_PAGE_SIZE) {
+    const { data, error } = await supabaseServer
+      .from("company_workspace")
+      .select("company_name")
+      .eq("is_internal", true)
+      .order("company_name", { ascending: true })
+      .range(from, from + READ_PAGE_SIZE - 1);
+
+    if (error) {
+      throw new Error(
+        error.message ?? "Failed to load internal company workspaces"
+      );
+    }
+
+    const rows = data ?? [];
+    for (const row of rows) {
+      const companyName = String(row.company_name ?? "").trim();
+      if (companyName) companyNames.add(companyName);
+    }
+
+    if (rows.length < READ_PAGE_SIZE) break;
+  }
+
+  return {
+    companyNames: Array.from(companyNames).sort((a, b) =>
+      a.localeCompare(b, "ko")
+    ),
+  };
+}
+
+function getKstYesterdayRange(now = new Date()) {
+  const kstNow = new Date(now.getTime() + KST_OFFSET_MS);
+  const todayStart =
+    Date.UTC(
+      kstNow.getUTCFullYear(),
+      kstNow.getUTCMonth(),
+      kstNow.getUTCDate()
+    ) - KST_OFFSET_MS;
+
+  return {
+    endMs: todayStart,
+    startMs: todayStart - 24 * 60 * 60 * 1_000,
+  };
+}
+
+function getOfficialJobVisitorKey(row: OfficialJobViewEventRow) {
+  const anonymousId = String(row.anonymous_id ?? "").trim();
+  if (anonymousId) return `anonymous:${anonymousId}`;
+
+  const userId = String(row.user_id ?? "").trim();
+  if (userId) return `user:${userId}`;
+
+  const email = String(row.user_email ?? "")
+    .trim()
+    .toLowerCase();
+  return email ? `email:${email}` : null;
+}
+
+function chunkValues<T>(values: T[], size: number) {
+  const chunks: T[][] = [];
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size));
+  }
+  return chunks;
+}
+
+async function fetchOfficialJobViewEvents(jobId: string) {
+  const rows: OfficialJobViewEventRow[] = [];
+
+  for (let from = 0; ; from += READ_PAGE_SIZE) {
+    const { data, error } = await supabaseServer
+      .from("official_job_events")
+      .select("anonymous_id,created_at,user_email,user_id")
+      .eq("official_job_id", jobId)
+      .eq("event_type", "job_detail_view")
+      .order("created_at", { ascending: true })
+      .range(from, from + READ_PAGE_SIZE - 1);
+
+    if (error) {
+      throw new Error(error.message ?? "Failed to load official job views");
+    }
+
+    const page = data ?? [];
+    rows.push(...page);
+    if (page.length < READ_PAGE_SIZE) break;
+  }
+
+  return rows;
+}
+
+async function fetchTalentUsersByIds(userIds: string[]) {
+  const rows: TalentUserRow[] = [];
+
+  for (const chunk of chunkValues(userIds, QUERY_IN_CHUNK_SIZE)) {
+    const { data, error } = await supabaseServer
+      .from("talent_users")
+      .select("created_at,email,user_id")
+      .in("user_id", chunk);
+
+    if (error) {
+      throw new Error(
+        error.message ?? "Failed to load official job signup users"
+      );
+    }
+
+    rows.push(...(data ?? []));
+  }
+
+  return rows;
+}
+
+export async function fetchOpsOfficialJobAnalytics(
+  rawJobId: string
+): Promise<OpsOfficialJobAnalyticsResponse> {
+  const jobId = normalizeRequiredString(rawJobId, "jobId");
+  const events = await fetchOfficialJobViewEvents(jobId);
+  const excludedEmails = new Set(DEFAULT_ADMIN_EXCLUDED_EMAILS);
+  const { startMs: yesterdayStartMs, endMs: yesterdayEndMs } =
+    getKstYesterdayRange();
+  const visitorKeys = new Set<string>();
+  const yesterdayVisitorKeys = new Set<string>();
+  const firstViewedAtByUserId = new Map<string, number>();
+
+  for (const event of events) {
+    if (isEmailExcluded(event.user_email, excludedEmails)) continue;
+
+    const visitorKey = getOfficialJobVisitorKey(event);
+    if (!visitorKey) continue;
+
+    const viewedAtMs = new Date(event.created_at).getTime();
+    visitorKeys.add(visitorKey);
+    if (
+      Number.isFinite(viewedAtMs) &&
+      viewedAtMs >= yesterdayStartMs &&
+      viewedAtMs < yesterdayEndMs
+    ) {
+      yesterdayVisitorKeys.add(visitorKey);
+    }
+
+    const userId = String(event.user_id ?? "").trim();
+    if (!userId || !Number.isFinite(viewedAtMs)) continue;
+    const currentFirstViewedAt = firstViewedAtByUserId.get(userId);
+    if (
+      currentFirstViewedAt === undefined ||
+      viewedAtMs < currentFirstViewedAt
+    ) {
+      firstViewedAtByUserId.set(userId, viewedAtMs);
+    }
+  }
+
+  const talentUsers = await fetchTalentUsersByIds(
+    Array.from(firstViewedAtByUserId.keys())
+  );
+  let totalSignups = 0;
+  for (const user of talentUsers) {
+    if (isEmailExcluded(user.email, excludedEmails)) continue;
+
+    const firstViewedAtMs = firstViewedAtByUserId.get(user.user_id);
+    const signedUpAtMs = new Date(user.created_at).getTime();
+    if (
+      firstViewedAtMs !== undefined &&
+      Number.isFinite(signedUpAtMs) &&
+      signedUpAtMs >= firstViewedAtMs
+    ) {
+      totalSignups += 1;
+    }
+  }
+
+  return {
+    analytics: {
+      totalSignups,
+      totalVisitors: visitorKeys.size,
+      yesterdayVisitors: yesterdayVisitorKeys.size,
+    },
+  };
+}
+
 export async function saveOpsOfficialJob(
   input: OpsOfficialJobSaveInput
 ): Promise<OpsOfficialJobSaveResponse> {
@@ -269,6 +485,7 @@ export async function saveOpsOfficialJob(
       ? -1000
       : normalizeDisplayOrder(input.displayOrder),
     employment_type: normalizeOptionalString(input.employmentType),
+    is_on_linkedin: isInternalCopy ? false : Boolean(input.isOnLinkedin),
     is_published: isPublished,
     location: isInternalCopy
       ? (normalizeOptionalString(input.location) ?? INTERNAL_COPY_LOCATION)
@@ -281,6 +498,7 @@ export async function saveOpsOfficialJob(
       ? shortDescription || INTERNAL_COPY_SHORT_DESCRIPTION
       : shortDescription,
     slug,
+    source_company_name: normalizeOptionalString(input.sourceCompanyName),
     vertical: isInternalCopy
       ? (normalizeOptionalString(input.vertical) ?? INTERNAL_COPY_VERTICAL)
       : normalizeMarkdown(input.vertical),

@@ -1,4 +1,9 @@
 import {
+  CompanyEditSheet,
+  type CompanyEditDraft,
+  workspaceToCompanyEditDraft,
+} from "@/components/ops/company/CompanyEditSheet";
+import {
   EmptyState,
   EMPTY_ROLE_DRAFT,
   roleToDraft,
@@ -18,6 +23,7 @@ import {
   OPS_COMPANY_ACTIVITY_PAGE_SIZE,
   useOpsCompanyActivity,
   useOpsCompanyMembers,
+  useUpdateOpsCompanyWorkspace,
 } from "@/hooks/ops/useOpsCompany";
 import { useSaveOpsOpportunityRole } from "@/hooks/ops/useOpsOpportunities";
 import { useOpsOpportunityCatalogController } from "@/hooks/ops/useOpsOpportunityCatalogController";
@@ -35,6 +41,7 @@ import {
   ChevronDown,
   Copy,
   LoaderCircle,
+  Pencil,
   RefreshCw,
   Search,
 } from "lucide-react";
@@ -287,14 +294,22 @@ export default function OpsCompanyPage() {
     useState<OpsOpportunityRoleRecord | null>(null);
   const [roleDraft, setRoleDraft] = useState<RoleDraft>(EMPTY_ROLE_DRAFT);
   const [isRoleEditModalOpen, setIsRoleEditModalOpen] = useState(false);
+  const [editingCompanyWorkspaceId, setEditingCompanyWorkspaceId] = useState<
+    string | null
+  >(null);
+  const [initialCompanyDraft, setInitialCompanyDraft] =
+    useState<CompanyEditDraft | null>(null);
+  const [companyDraft, setCompanyDraft] = useState<CompanyEditDraft | null>(
+    null
+  );
   const [memberSearch, setMemberSearch] = useState("");
   const [appliedMemberSearch, setAppliedMemberSearch] = useState("");
 
   const catalog = useOpsOpportunityCatalogController({
     canFetchInternal,
-    view: "catalog",
   });
   const saveRole = useSaveOpsOpportunityRole();
+  const updateCompanyWorkspace = useUpdateOpsCompanyWorkspace();
   const setCatalogSelectedWorkspaceId = catalog.setSelectedWorkspaceId;
   const queryWorkspaceId = router.isReady
     ? getQueryText(router.query.workspaceId)
@@ -374,6 +389,47 @@ export default function OpsCompanyPage() {
     } catch {
       showToast({
         message: "초대 링크 복사에 실패했습니다.",
+        variant: "white",
+      });
+    }
+  };
+
+  const openCompanyEditSheet = () => {
+    if (!selectedWorkspace) return;
+    const draft = workspaceToCompanyEditDraft(selectedWorkspace);
+    setEditingCompanyWorkspaceId(selectedWorkspace.companyWorkspaceId);
+    setInitialCompanyDraft(draft);
+    setCompanyDraft(draft);
+  };
+
+  const closeCompanyEditSheet = () => {
+    if (updateCompanyWorkspace.isPending) return;
+    setEditingCompanyWorkspaceId(null);
+    setInitialCompanyDraft(null);
+    setCompanyDraft(null);
+  };
+
+  const handleCompanySave = async () => {
+    if (!editingCompanyWorkspaceId || !companyDraft) return;
+
+    try {
+      await updateCompanyWorkspace.mutateAsync({
+        ...companyDraft,
+        workspaceId: editingCompanyWorkspaceId,
+      });
+      setEditingCompanyWorkspaceId(null);
+      setInitialCompanyDraft(null);
+      setCompanyDraft(null);
+      showToast({
+        message: "회사 정보가 수정되었습니다.",
+        variant: "white",
+      });
+    } catch (error) {
+      showToast({
+        message:
+          error instanceof Error
+            ? error.message
+            : "회사 정보 수정에 실패했습니다.",
         variant: "white",
       });
     }
@@ -551,6 +607,49 @@ export default function OpsCompanyPage() {
                 <EmptyState copy="회사를 선택해 주세요." />
               ) : (
                 <div className="space-y-4">
+                  <div className="flex flex-col gap-3 border-b border-neutral-1000-a05 pb-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 items-center gap-3">
+                      {selectedWorkspace.logoUrl ? (
+                        <span
+                          aria-hidden="true"
+                          className="h-10 w-10 shrink-0 rounded-md border border-neutral-1000-a05 bg-bg-floating bg-cover bg-center"
+                          style={{
+                            backgroundImage: `url(${selectedWorkspace.logoUrl})`,
+                          }}
+                        />
+                      ) : (
+                        <span
+                          aria-hidden="true"
+                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-neutral-1000-a05 bg-bg-weak text-sm font-medium text-neutral-muted"
+                        >
+                          {selectedWorkspace.companyName
+                            .trim()
+                            .slice(0, 1)
+                            .toUpperCase() || "?"}
+                        </span>
+                      )}
+                      <div className="min-w-0">
+                        <div className="truncate text-base font-medium text-neutral-primary">
+                          {selectedWorkspace.companyName}
+                        </div>
+                        <div className="mt-0.5 text-xs text-neutral-muted">
+                          최근 수정{" "}
+                          {formatUpdatedAt(selectedWorkspace.updatedAt)}
+                        </div>
+                      </div>
+                    </div>
+                    <BareButton
+                      type="button"
+                      onClick={openCompanyEditSheet}
+                      className={cx(
+                        opsTheme.buttonSecondary,
+                        "h-10 shrink-0 px-3"
+                      )}
+                    >
+                      <Pencil className="h-4 w-4" />
+                      회사 정보 수정
+                    </BareButton>
+                  </div>
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0 lg:w-[620px]">
                       <TabBoxes
@@ -753,6 +852,17 @@ export default function OpsCompanyPage() {
           editingRole?.companyName ?? selectedWorkspace?.companyName ?? null
         }
       />
+      {companyDraft && initialCompanyDraft ? (
+        <CompanyEditSheet
+          open={Boolean(editingCompanyWorkspaceId)}
+          draft={companyDraft}
+          initialDraft={initialCompanyDraft}
+          onChange={setCompanyDraft}
+          onClose={closeCompanyEditSheet}
+          onSubmit={() => void handleCompanySave()}
+          pending={updateCompanyWorkspace.isPending}
+        />
+      ) : null}
     </>
   );
 }

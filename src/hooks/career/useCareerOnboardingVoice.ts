@@ -254,11 +254,7 @@ function buildCallOpeningResponseInstruction(args: {
     isConversationStarter &&
       t(
         "career.call.opening.instruction.conversation_starter",
-        [
-          "",
-          "## Conversation starter opening",
-          "이번 통화는 사용자가 특정 버튼을 눌러 시작했습니다.",
-        ].join("\n")
+        "\n## Conversation starter opening\n이번 통화는 사용자가 특정 conversation starter 버튼을 눌러 시작했습니다.\n아래 starter 내용의 목적과 질문 방향을 가장 우선하세요.\n최근 우선순위, 선호 조건, 일반적인 기회 탐색 질문을 임의로 고르지 마세요."
       ),
     recentConversationContext && ["", recentConversationContext].join("\n"),
     normalizedOpeningText &&

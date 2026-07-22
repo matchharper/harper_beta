@@ -57,6 +57,7 @@ type RawRecommendationRow = {
     is_expired: boolean | null;
     posted_at: string | null;
     role_id: string;
+    summary: Json | null;
     source_job_id: string | null;
     source_provider: string | null;
     source_type: string;
@@ -112,6 +113,7 @@ type RawPostingRoleRow = {
   is_expired: boolean | null;
   posted_at: string | null;
   role_id: string;
+  summary: Json | null;
   source_job_id: string | null;
   source_provider: string | null;
   source_type: string;
@@ -165,6 +167,7 @@ const TALENT_OPPORTUNITY_HISTORY_SELECT = `
     location_text,
     is_expired,
     posted_at,
+    summary,
     type,
     work_mode,
     status,
@@ -223,6 +226,7 @@ const TALENT_POSTING_ROLE_SELECT = `
   location_text,
   is_expired,
   posted_at,
+  summary,
   type,
   work_mode,
   status,
@@ -848,6 +852,7 @@ const getDefaultSavedStageForOpportunity = (args: {
 const INACTIVE_ROLE_STATUSES = new Set([
   "archived",
   "closed",
+  "ended",
   "expired",
   "inactive",
 ]);
@@ -872,6 +877,7 @@ function isExpiredOpportunityRole(args: {
 function buildTalentOpportunityHistoryQuery(args: {
   admin: AdminClient;
   feedback?: "like" | "dislike" | null;
+  historyTab?: TalentOpportunityHistoryTab;
   sourceType?: TalentOpportunitySourceType;
   userId: string;
 }) {
@@ -886,7 +892,17 @@ function buildTalentOpportunityHistoryQuery(args: {
     query = query.eq("company_role.source_type", args.sourceType);
   }
 
-  if ("feedback" in args) {
+  if (args.historyTab === "new") {
+    query = query
+      .is("feedback", null)
+      .or("saved_stage.is.null,saved_stage.neq.hidden");
+  } else if (args.historyTab === "saved") {
+    query = query.or(
+      "feedback.eq.like,and(feedback.is.null,saved_stage.eq.hidden)"
+    );
+  } else if (args.historyTab === "archived") {
+    query = query.eq("feedback", "dislike");
+  } else if ("feedback" in args) {
     query =
       args.feedback === null
         ? query.is("feedback", null)
@@ -894,6 +910,29 @@ function buildTalentOpportunityHistoryQuery(args: {
   }
 
   return query;
+}
+
+export async function archiveEndedInternalOpportunitiesForTalent(args: {
+  admin: AdminClient;
+  locale?: string | null;
+  userId: string;
+}) {
+  const { data, error } = await (args.admin as any).rpc(
+    "archive_ended_internal_opportunities_for_talent",
+    {
+      p_locale: args.locale ?? null,
+      p_talent_id: args.userId,
+    }
+  );
+
+  if (error) {
+    throw new Error(
+      error.message ?? "Failed to archive ended internal opportunities"
+    );
+  }
+
+  const archivedCount = Number(data ?? 0);
+  return Number.isFinite(archivedCount) ? Math.max(0, archivedCount) : 0;
 }
 
 export async function fetchRecentRecommendedOpportunitiesForPrompt(args: {
@@ -929,7 +968,7 @@ export async function fetchRecentRecommendedOpportunitiesForPrompt(args: {
 
 async function countTalentOpportunityRecommendations(args: {
   admin: AdminClient;
-  feedback: "like" | "dislike" | null;
+  historyTab: TalentOpportunityHistoryTab;
   savedStage?: TalentOpportunitySavedStage;
   sourceType?: TalentOpportunitySourceType;
   userId: string;
@@ -945,10 +984,17 @@ async function countTalentOpportunityRecommendations(args: {
     )
     .eq("talent_id", args.userId) as any;
 
-  query =
-    args.feedback === null
-      ? query.is("feedback", null)
-      : query.eq("feedback", args.feedback);
+  if (args.historyTab === "new") {
+    query = query
+      .is("feedback", null)
+      .or("saved_stage.is.null,saved_stage.neq.hidden");
+  } else if (args.historyTab === "saved") {
+    query = query.or(
+      "feedback.eq.like,and(feedback.is.null,saved_stage.eq.hidden)"
+    );
+  } else {
+    query = query.eq("feedback", "dislike");
+  }
 
   if (args.savedStage) {
     query = query.eq("saved_stage", args.savedStage);
@@ -1014,52 +1060,52 @@ export async function fetchTalentOpportunityHistoryCounts(args: {
   ] = await Promise.all([
     countTalentOpportunityRecommendations({
       admin: args.admin,
-      feedback: null,
+      historyTab: "new",
       userId: args.userId,
     }),
     countTalentOpportunityRecommendations({
       admin: args.admin,
-      feedback: null,
+      historyTab: "new",
       sourceType: "internal",
       userId: args.userId,
     }),
     countTalentOpportunityRecommendations({
       admin: args.admin,
-      feedback: "like",
+      historyTab: "saved",
       userId: args.userId,
     }),
     countTalentOpportunityRecommendations({
       admin: args.admin,
-      feedback: "dislike",
+      historyTab: "archived",
       userId: args.userId,
     }),
     countTalentOpportunityRecommendations({
       admin: args.admin,
-      feedback: "like",
+      historyTab: "saved",
       savedStage: "saved",
       userId: args.userId,
     }),
     countTalentOpportunityRecommendations({
       admin: args.admin,
-      feedback: "like",
+      historyTab: "saved",
       savedStage: "applied",
       userId: args.userId,
     }),
     countTalentOpportunityRecommendations({
       admin: args.admin,
-      feedback: "like",
+      historyTab: "saved",
       savedStage: "connected",
       userId: args.userId,
     }),
     countTalentOpportunityRecommendations({
       admin: args.admin,
-      feedback: "like",
+      historyTab: "saved",
       savedStage: "closed",
       userId: args.userId,
     }),
     countTalentOpportunityRecommendations({
       admin: args.admin,
-      feedback: "like",
+      historyTab: "saved",
       savedStage: "hidden",
       userId: args.userId,
     }),
@@ -1125,6 +1171,33 @@ function normalizeCompanyDataNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function getLocalizedRoleSummaryContent(
+  value: unknown,
+  locale?: string | null
+) {
+  const normalizedLocale = String(locale ?? "")
+    .trim()
+    .toLowerCase();
+  if (!normalizedLocale) return null;
+
+  const languageKey = normalizedLocale.startsWith("ko") ? "ko" : "en";
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+
+  const entry = (value as Record<string, unknown>)[languageKey];
+  const rawContent =
+    entry && typeof entry === "object" && !Array.isArray(entry)
+      ? (entry as Record<string, unknown>).content
+      : entry;
+  const content = String(rawContent ?? "")
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+  return content || null;
+}
+
 function mapCompanyDataRow(
   value: RawCompanyDataRow | RawCompanyDataRow[] | null | undefined
 ): TalentOpportunityCompanyData | null {
@@ -1148,7 +1221,8 @@ function mapCompanyDataRow(
 }
 
 function mapRecommendationRow(
-  row: RawRecommendationRow
+  row: RawRecommendationRow,
+  locale?: string | null
 ): TalentOpportunityHistoryItem | null {
   const role = row.company_role;
   const workspace = role?.company_workspace;
@@ -1205,7 +1279,10 @@ function mapRecommendationRow(
     recommendedAt: row.created_at,
     recommendationConcerns: normalizeTextList(row.tradeoffs, 3),
     recommendationReasons: normalizeTextList(row.fit_reasons),
-    recommendationSummary: row.fit_summary ?? null,
+    recommendationSummary:
+      getLocalizedRoleSummaryContent(role.summary, locale) ??
+      row.fit_summary ??
+      null,
     roleId: String(row.role_id ?? ""),
     savedStage: normalizeSavedStage(row.saved_stage),
     sourceJobId: role.source_job_id ?? null,
@@ -1236,7 +1313,8 @@ function pickLatestPostingRecommendation(
 
 function mapPostingRoleRow(
   row: RawPostingRoleRow,
-  fallbackRecommendedAt: string
+  fallbackRecommendedAt: string,
+  locale?: string | null
 ): TalentOpportunityHistoryItem | null {
   const workspace = row.company_workspace;
   if (!workspace) return null;
@@ -1308,7 +1386,10 @@ function mapPostingRoleRow(
     recommendationReasons: normalizeTextList(
       existingRecommendation?.fit_reasons ?? []
     ),
-    recommendationSummary: existingRecommendation?.fit_summary ?? null,
+    recommendationSummary:
+      getLocalizedRoleSummaryContent(row.summary, locale) ??
+      existingRecommendation?.fit_summary ??
+      null,
     roleId,
     savedStage: normalizeSavedStage(existingRecommendation?.saved_stage),
     sourceJobId: row.source_job_id ?? null,
@@ -1397,7 +1478,9 @@ async function enrichTalentOpportunityHistoryItems(args: {
 export async function fetchTalentOpportunityHistory(args: {
   admin: AdminClient;
   feedback?: "like" | "dislike" | null;
+  historyTab?: TalentOpportunityHistoryTab;
   limit?: number;
+  locale?: string | null;
   offset?: number;
   sourceType?: TalentOpportunitySourceType;
   userId: string;
@@ -1416,6 +1499,7 @@ export async function fetchTalentOpportunityHistory(args: {
     ...(Object.prototype.hasOwnProperty.call(args, "feedback")
       ? { feedback: args.feedback }
       : {}),
+    historyTab: args.historyTab,
     sourceType: args.sourceType,
     userId: args.userId,
   });
@@ -1431,7 +1515,7 @@ export async function fetchTalentOpportunityHistory(args: {
   }
 
   const items = coerceJsonArray<RawRecommendationRow>(data)
-    .map(mapRecommendationRow)
+    .map((row) => mapRecommendationRow(row, args.locale))
     .filter((item): item is TalentOpportunityHistoryItem => item !== null);
   return enrichTalentOpportunityHistoryItems({
     admin: args.admin,
@@ -1452,14 +1536,6 @@ function getResolvedTalentOpportunitySavedStage(
   );
 }
 
-function getDatabaseFeedbackForHistoryTab(
-  tab: TalentOpportunityHistoryTab
-): "like" | "dislike" | null {
-  if (tab === "saved") return "like";
-  if (tab === "archived") return "dislike";
-  return null;
-}
-
 function filterHistoryItemsForSavedStage(
   items: TalentOpportunityHistoryItem[],
   savedStage?: TalentOpportunitySavedStageFilter
@@ -1477,6 +1553,7 @@ async function fetchFilteredTalentOpportunityHistoryPage(args: {
   admin: AdminClient;
   historyTab: TalentOpportunityHistoryTab;
   limit: number;
+  locale?: string | null;
   offset: number;
   savedStage?: TalentOpportunitySavedStageFilter;
   userId: string;
@@ -1484,7 +1561,8 @@ async function fetchFilteredTalentOpportunityHistoryPage(args: {
   const [allItems, counts] = await Promise.all([
     fetchTalentOpportunityHistory({
       admin: args.admin,
-      feedback: getDatabaseFeedbackForHistoryTab(args.historyTab),
+      historyTab: args.historyTab,
+      locale: args.locale,
       userId: args.userId,
     }),
     fetchTalentOpportunityHistoryCountsFallback({
@@ -1513,10 +1591,17 @@ async function fetchFilteredTalentOpportunityHistoryPage(args: {
 export async function fetchTalentOpportunitySavedStageHistoryPages(args: {
   admin: AdminClient;
   limit?: number;
+  locale?: string | null;
   offset?: number;
   savedStages: TalentOpportunitySavedStage[];
   userId: string;
 }): Promise<TalentOpportunitySavedStageHistoryPages> {
+  await archiveEndedInternalOpportunitiesForTalent({
+    admin: args.admin,
+    locale: args.locale,
+    userId: args.userId,
+  });
+
   const limit =
     typeof args.limit === "number" && Number.isFinite(args.limit)
       ? Math.max(1, Math.min(Math.floor(args.limit), 100))
@@ -1530,7 +1615,8 @@ export async function fetchTalentOpportunitySavedStageHistoryPages(args: {
   const [allItems, counts] = await Promise.all([
     fetchTalentOpportunityHistory({
       admin: args.admin,
-      feedback: "like",
+      historyTab: "saved",
+      locale: args.locale,
       userId: args.userId,
     }),
     fetchTalentOpportunityHistoryCountsFallback({
@@ -1565,10 +1651,17 @@ export async function fetchTalentOpportunityHistoryPage(args: {
   admin: AdminClient;
   historyTab?: TalentOpportunityHistoryTab;
   limit?: number;
+  locale?: string | null;
   offset?: number;
   savedStage?: TalentOpportunitySavedStageFilter;
   userId: string;
 }): Promise<TalentOpportunityHistoryPage> {
+  await archiveEndedInternalOpportunitiesForTalent({
+    admin: args.admin,
+    locale: args.locale,
+    userId: args.userId,
+  });
+
   const limit =
     typeof args.limit === "number" && Number.isFinite(args.limit)
       ? Math.max(0, Math.min(Math.floor(args.limit), 100))
@@ -1598,6 +1691,7 @@ export async function fetchTalentOpportunityHistoryPage(args: {
       admin: args.admin,
       historyTab: args.historyTab,
       limit,
+      locale: args.locale,
       offset,
       savedStage: args.savedStage,
       userId: args.userId,
@@ -1608,6 +1702,7 @@ export async function fetchTalentOpportunityHistoryPage(args: {
     fetchTalentOpportunityHistory({
       admin: args.admin,
       limit,
+      locale: args.locale,
       offset,
       sourceType: "external",
       userId: args.userId,
@@ -1616,6 +1711,7 @@ export async function fetchTalentOpportunityHistoryPage(args: {
       ? fetchTalentOpportunityHistory({
           admin: args.admin,
           limit: Math.max(limit, 20),
+          locale: args.locale,
           sourceType: "internal",
           userId: args.userId,
         })
@@ -1645,6 +1741,7 @@ export async function fetchTalentOpportunityHistoryPage(args: {
 export async function fetchTalentOpportunityHistoryByIds(args: {
   admin: AdminClient;
   ids: string[];
+  locale?: string | null;
   userId: string;
 }) {
   const ids = Array.from(
@@ -1664,7 +1761,7 @@ export async function fetchTalentOpportunityHistoryByIds(args: {
   }
 
   const items = coerceJsonArray<RawRecommendationRow>(data)
-    .map(mapRecommendationRow)
+    .map((row) => mapRecommendationRow(row, args.locale))
     .filter((item): item is TalentOpportunityHistoryItem => item !== null);
   return enrichTalentOpportunityHistoryItems({
     admin: args.admin,
@@ -1675,6 +1772,7 @@ export async function fetchTalentOpportunityHistoryByIds(args: {
 
 export async function fetchTalentOpportunityHistoryByRoleIds(args: {
   admin: AdminClient;
+  locale?: string | null;
   roleIds: string[];
   userId: string;
 }) {
@@ -1698,7 +1796,7 @@ export async function fetchTalentOpportunityHistoryByRoleIds(args: {
   const items = await enrichTalentOpportunityHistoryItems({
     admin: args.admin,
     items: coerceJsonArray<RawRecommendationRow>(data)
-      .map(mapRecommendationRow)
+      .map((row) => mapRecommendationRow(row, args.locale))
       .filter((item): item is TalentOpportunityHistoryItem => item !== null),
     userId: args.userId,
   });
@@ -1717,6 +1815,7 @@ export async function fetchTalentOpportunityHistoryByRoleIds(args: {
 
 export async function fetchTalentPostingCardsByRoleIds(args: {
   admin: AdminClient;
+  locale?: string | null;
   roleIds: string[];
   userId: string;
 }) {
@@ -1743,7 +1842,7 @@ export async function fetchTalentPostingCardsByRoleIds(args: {
   const fallbackRecommendedAt = new Date().toISOString();
   const byRoleId = new Map(
     coerceJsonArray<RawPostingRoleRow>(data)
-      .map((row) => mapPostingRoleRow(row, fallbackRecommendedAt))
+      .map((row) => mapPostingRoleRow(row, fallbackRecommendedAt, args.locale))
       .filter((item): item is TalentOpportunityHistoryItem => item !== null)
       .map((item) => [item.roleId, item])
   );

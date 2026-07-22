@@ -5,11 +5,16 @@ import {
   normalizeReferralToken,
   recordTalentNetworkReferralVisit,
 } from "@/lib/talentNetworkReferralServer";
+import {
+  buildTalentNetworkReferralVisitLogType,
+  TALENT_NETWORK_REFERRAL_VISIT_ABTEST_TYPE,
+} from "@/lib/talentNetworkReferralTracking";
 
 export const runtime = "nodejs";
 
 type VisitReferralBody = {
   token?: string;
+  visitorLocalId?: string;
 };
 
 export async function POST(req: NextRequest) {
@@ -24,6 +29,9 @@ export async function POST(req: NextRequest) {
   if (!token) {
     return NextResponse.json({ error: "Missing token" }, { status: 400 });
   }
+  const visitorLocalId = String(body.visitorLocalId ?? "")
+    .trim()
+    .slice(0, 120);
 
   try {
     const user = await getRequestUser(req);
@@ -39,6 +47,22 @@ export async function POST(req: NextRequest) {
         { error: "Referral not found" },
         { status: 404 }
       );
+    }
+
+    if (!result.isSelfVisit && visitorLocalId) {
+      const { error: visitLogError } = await admin.from("landing_logs").insert({
+        abtest_type: TALENT_NETWORK_REFERRAL_VISIT_ABTEST_TYPE,
+        country_lang: null,
+        is_mobile: null,
+        local_id: visitorLocalId,
+        type: buildTalentNetworkReferralVisitLogType(token),
+      });
+      if (visitLogError) {
+        console.error(
+          "[talent/network/referral/visit] visit log insert failed:",
+          visitLogError.message
+        );
+      }
     }
 
     return NextResponse.json({

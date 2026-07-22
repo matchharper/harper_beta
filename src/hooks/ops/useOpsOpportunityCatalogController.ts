@@ -1,9 +1,8 @@
-import { OPS_OPPORTUNITY_COMPANY_PAGE_SIZE } from "@/lib/ops/opportunityCompanyManagement";
+import { OPS_OPPORTUNITY_COMPANY_PAGE_SIZE } from "@/lib/ops/opportunityConstants";
 import type {
   OpsOpportunityRoleRecord,
   OpsOpportunityWorkspaceRecord,
 } from "@/lib/ops/opportunity";
-import type { PageView } from "@/components/ops/opportunities/shared";
 import {
   useOpsOpportunityCatalog,
   useOpsOpportunityRoles,
@@ -46,7 +45,6 @@ function pickRole(
 
 export function useOpsOpportunityCatalogController(args: {
   canFetchInternal: boolean;
-  view: PageView;
 }) {
   const [workspaceSearch, setWorkspaceSearch] = useState("");
   const [appliedWorkspaceSearch, setAppliedWorkspaceSearch] = useState("");
@@ -58,8 +56,8 @@ export function useOpsOpportunityCatalogController(args: {
   const [requestedRoleId, setRequestedRoleId] = useState<string | null>(null);
 
   const catalogQuery = useOpsOpportunityCatalog({
-    enabled: args.canFetchInternal && args.view === "catalog",
-    internalOnly: args.view === "catalog",
+    enabled: args.canFetchInternal,
+    internalOnly: true,
     limit: OPS_OPPORTUNITY_COMPANY_PAGE_SIZE,
     workspaceQuery: appliedWorkspaceSearch,
   });
@@ -85,10 +83,7 @@ export function useOpsOpportunityCatalogController(args: {
   const selectedWorkspaceId = selectedWorkspace?.companyWorkspaceId ?? null;
 
   const catalogRolesQuery = useOpsOpportunityRoles({
-    enabled:
-      args.canFetchInternal &&
-      args.view === "catalog" &&
-      Boolean(selectedWorkspaceId),
+    enabled: args.canFetchInternal && Boolean(selectedWorkspaceId),
     internalOnly: true,
     limit: CATALOG_ROLE_PAGE_SIZE,
     query: appliedRoleSearch,

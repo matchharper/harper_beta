@@ -2,15 +2,19 @@ import OpsShell from "@/components/ops/OpsShell";
 import { formatKstRelativeDateTime } from "@/components/ops/dateUtils";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { BareButton } from "@/components/ui/button";
+import { CrmCampaignStatsPanel } from "@/components/ops/crm/CrmCampaignStatsPanel";
 import { Input as UiInput } from "@/components/ui/input";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import type {
   OpsCrmCampaign,
+  OpsCrmCampaignPreferredLocale,
   OpsCrmCampaignSaveResponse,
   OpsCrmCampaignStatus,
+  OpsCrmCampaignTestEmailResponse,
   OpsCrmCampaignsResponse,
 } from "@/lib/ops/crmCampaigns";
+import { buildCrmCampaignPreviewDocument } from "@/lib/ops/crmCampaignEmailPreview";
 import {
   Laptop,
   LoaderCircle,
@@ -20,90 +24,80 @@ import {
   Plus,
   RefreshCw,
   Save,
+  Send,
   Smartphone,
 } from "lucide-react";
 import Head from "next/head";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type CampaignDraft = {
+  emailTitle: string;
   htmlContent: string;
   id: string | null;
   maxSendsPerUser: number;
+  maxTotalSends: number;
   name: string;
+  recipientPreferredLocale: OpsCrmCampaignPreferredLocale | null;
   status: OpsCrmCampaignStatus;
 };
 
 type PreviewViewport = "desktop" | "mobile";
 
 const EMPTY_DRAFT: CampaignDraft = {
+  emailTitle: "",
   htmlContent: "",
   id: null,
   maxSendsPerUser: 1,
+  maxTotalSends: 200,
   name: "",
-  status: "draft",
+  recipientPreferredLocale: null,
+  status: "paused",
 };
-
-const EMPTY_PREVIEW_HTML =
-  '<div style="padding:20px;border:1px dashed #cbd5e1;color:#94a3b8;text-align:center;">캠페인 HTML 미리보기</div>';
 
 const STATUS_LABELS: Record<OpsCrmCampaignStatus, string> = {
   active: "진행",
-  draft: "준비",
   paused: "중단",
 };
 
 const STATUS_CLASSES: Record<OpsCrmCampaignStatus, string> = {
   active: "bg-positive-faded text-positive",
-  draft: "bg-bg-weak text-neutral-muted",
   paused: "bg-critical-faded text-critical",
 };
 
 function campaignToDraft(campaign: OpsCrmCampaign): CampaignDraft {
   return {
+    emailTitle: campaign.emailTitle ?? "",
     htmlContent: campaign.htmlContent,
     id: campaign.id,
     maxSendsPerUser: campaign.maxSendsPerUser,
+    maxTotalSends: campaign.maxTotalSends,
     name: campaign.name,
+    recipientPreferredLocale: campaign.recipientPreferredLocale,
     status: campaign.status,
   };
 }
 
-function buildPreviewDocument(htmlContent: string) {
-  const campaignHtml = htmlContent.trim() ? htmlContent : EMPTY_PREVIEW_HTML;
+function normalizeDraftForComparison(draft: CampaignDraft) {
+  return {
+    emailTitle: draft.emailTitle.trim(),
+    htmlContent: draft.htmlContent.trim(),
+    maxSendsPerUser: Number.isFinite(draft.maxSendsPerUser)
+      ? draft.maxSendsPerUser
+      : null,
+    maxTotalSends: Number.isFinite(draft.maxTotalSends)
+      ? draft.maxTotalSends
+      : null,
+    name: draft.name.trim(),
+    recipientPreferredLocale: draft.recipientPreferredLocale,
+    status: draft.status,
+  };
+}
 
-  return `<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <style>
-      * { box-sizing: border-box; }
-      html, body { margin: 0; padding: 0; background: #f5f5f4; color: #171717; }
-      body { padding: 24px 14px; font-family: Arial, Helvetica, sans-serif; }
-      img { max-width: 100%; height: auto; }
-      table { border-collapse: collapse; }
-      .mail { max-width: 640px; margin: 0 auto; background: #ffffff; padding: 28px; }
-      .body { font-size: 14px; line-height: 1.4; }
-      .placement { margin-top: 24px; }
-      .footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid #e5e7eb; font-size: 12px; line-height: 1.6; color: #6b7280; }
-      .footer p { margin: 12px 0; }
-      .footer a { color: #6b7280; }
-    </style>
-  </head>
-  <body>
-    <main class="mail">
-      <section class="body">
-        <p>안녕하세요, 최근 프로필과 선호를 바탕으로 새로운 기회를 정리했습니다.</p>
-        <p>실제 periodic refresh 이메일 본문과 추천 링크가 이 위치까지 표시됩니다.</p>
-      </section>
-      <section class="placement">${campaignHtml}</section>
-      <footer class="footer">
-        <p>If you have any issues, feedback, or want someone on the team to take a look, email <a href="mailto:chris@matchharper.com">chris@matchharper.com</a>. Harper is still learning, so it can make mistakes or get details wrong.</p>
-        <p>If you would like to change how often Harper emails you or stop receiving emails entirely, just reply to this email.</p>
-      </footer>
-    </main>
-  </body>
-</html>`;
+function campaignsMatch(left: CampaignDraft, right: CampaignDraft) {
+  return (
+    JSON.stringify(normalizeDraftForComparison(left)) ===
+    JSON.stringify(normalizeDraftForComparison(right))
+  );
 }
 
 function CampaignPreview({
@@ -116,7 +110,7 @@ function CampaignPreview({
   onViewportChange: (viewport: PreviewViewport) => void;
 }) {
   const srcDoc = useMemo(
-    () => buildPreviewDocument(htmlContent),
+    () => buildCrmCampaignPreviewDocument(htmlContent),
     [htmlContent]
   );
 
@@ -182,6 +176,7 @@ export default function OpsCrmPage() {
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
+  const [sendingTest, setSendingTest] = useState(false);
   const [previewViewport, setPreviewViewport] =
     useState<PreviewViewport>("desktop");
 
@@ -229,8 +224,11 @@ export default function OpsCrmPage() {
           body: JSON.stringify({
             htmlContent: draft.htmlContent,
             id: draft.id ?? undefined,
+            emailTitle: draft.emailTitle,
             maxSendsPerUser: draft.maxSendsPerUser,
+            maxTotalSends: draft.maxTotalSends,
             name: draft.name,
+            recipientPreferredLocale: draft.recipientPreferredLocale,
             status: draft.status,
           }),
           headers: { "Content-Type": "application/json" },
@@ -265,13 +263,68 @@ export default function OpsCrmPage() {
     }
   }, [draft]);
 
+  const handleSendTestEmail = useCallback(async () => {
+    setSendingTest(true);
+    setError("");
+    setNotice("");
+    try {
+      const payload =
+        await fetchWithInternalAuth<OpsCrmCampaignTestEmailResponse>(
+          "/api/internal/crm/campaigns/test-email",
+          {
+            body: JSON.stringify({
+              htmlContent: draft.htmlContent,
+              id: draft.id ?? undefined,
+              emailTitle: draft.emailTitle,
+              maxSendsPerUser: draft.maxSendsPerUser,
+              maxTotalSends: draft.maxTotalSends,
+              name: draft.name,
+              recipientPreferredLocale: draft.recipientPreferredLocale,
+              status: draft.status,
+            }),
+            headers: { "Content-Type": "application/json" },
+            method: "POST",
+          }
+        );
+      setNotice(`테스트 메일을 ${payload.toEmail}로 보냈습니다.`);
+    } catch (sendError) {
+      setError(
+        sendError instanceof Error
+          ? sendError.message
+          : "테스트 메일을 보내지 못했습니다."
+      );
+    } finally {
+      setSendingTest(false);
+    }
+  }, [draft]);
+
+  const selectedCampaign = useMemo(
+    () => campaigns.find((campaign) => campaign.id === draft.id) ?? null,
+    [campaigns, draft.id]
+  );
+  const hasUnsavedCampaignChanges = useMemo(() => {
+    if (!draft.id) return !campaignsMatch(draft, EMPTY_DRAFT);
+    return selectedCampaign
+      ? !campaignsMatch(draft, campaignToDraft(selectedCampaign))
+      : true;
+  }, [draft, selectedCampaign]);
   const canSave =
     draft.name.trim().length > 0 &&
     draft.htmlContent.trim().length > 0 &&
+    draft.emailTitle.trim().length <= 120 &&
     Number.isInteger(draft.maxSendsPerUser) &&
     draft.maxSendsPerUser >= 1 &&
     draft.maxSendsPerUser <= 100 &&
+    Number.isInteger(draft.maxTotalSends) &&
+    draft.maxTotalSends >= 1 &&
+    draft.maxTotalSends <= 1_000_000 &&
     !saving;
+  const canSendTest =
+    draft.name.trim().length > 0 &&
+    draft.htmlContent.trim().length > 0 &&
+    !saving &&
+    !sendingTest;
+  const showSaveButton = saving || hasUnsavedCampaignChanges;
 
   return (
     <>
@@ -358,7 +411,20 @@ export default function OpsCrmPage() {
                                 : "text-neutral-muted"
                             )}
                           >
-                            사용자당 최대 {campaign.maxSendsPerUser}회
+                            사용자당 {campaign.maxSendsPerUser}회 · 전체{" "}
+                            {campaign.maxTotalSends.toLocaleString()}회
+                          </div>
+                          <div
+                            className={cx(
+                              "mt-1 text-xs",
+                              selected
+                                ? "text-neutral-00/60"
+                                : "text-neutral-muted"
+                            )}
+                          >
+                            {campaign.recipientPreferredLocale
+                              ? `preferred locale = ${campaign.recipientPreferredLocale}`
+                              : "모든 preferred locale"}
                           </div>
                         </div>
                         <span
@@ -391,31 +457,43 @@ export default function OpsCrmPage() {
             className="grid min-w-0 gap-5"
             onSubmit={(event) => {
               event.preventDefault();
-              if (canSave) void handleSave();
+              if (canSave && hasUnsavedCampaignChanges) void handleSave();
             }}
           >
             <section className={cx(opsTheme.panel, "min-w-0 p-5")}>
               <div className="flex flex-col gap-3 border-b border-neutral-1000-a05 pb-4 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <div className={opsTheme.eyebrow}>
-                    {draft.id ? "EDIT CAMPAIGN" : "NEW CAMPAIGN"}
-                  </div>
-                  <div className="mt-1 text-lg font-medium text-neutral-primary">
-                    Periodic refresh 이메일 삽입 콘텐츠
-                  </div>
+                <div className="mt-1 text-lg font-medium text-neutral-primary">
+                  Periodic refresh 이메일 삽입 콘텐츠
                 </div>
-                <BareButton
-                  type="submit"
-                  disabled={!canSave}
-                  className={cx(opsTheme.buttonPrimary, "h-10")}
-                >
-                  {saving ? (
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                  저장
-                </BareButton>
+                <div className="flex flex-wrap gap-2">
+                  <BareButton
+                    type="button"
+                    onClick={() => void handleSendTestEmail()}
+                    disabled={!canSendTest}
+                    className={cx(opsTheme.buttonSecondary, "h-10")}
+                  >
+                    {sendingTest ? (
+                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                    테스트 메일
+                  </BareButton>
+                  {showSaveButton ? (
+                    <BareButton
+                      type="submit"
+                      disabled={!canSave}
+                      className={cx(opsTheme.buttonPrimary, "h-10")}
+                    >
+                      {saving ? (
+                        <LoaderCircle className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4" />
+                      )}
+                      저장
+                    </BareButton>
+                  ) : null}
+                </div>
               </div>
 
               {error ? (
@@ -427,7 +505,7 @@ export default function OpsCrmPage() {
                 </div>
               ) : null}
 
-              <div className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_180px_180px]">
+              <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <div>
                   <label className={opsTheme.label} htmlFor="crm-campaign-name">
                     캠페인 이름
@@ -446,6 +524,83 @@ export default function OpsCrmPage() {
                     placeholder="예: 2026 여름 프로필 업데이트"
                     className={cx(opsTheme.input, "mt-2")}
                   />
+                </div>
+                <div>
+                  <label
+                    className={opsTheme.label}
+                    htmlFor="crm-campaign-recipient-locale"
+                  >
+                    발송 대상 조건
+                  </label>
+                  <div className="relative mt-2">
+                    <select
+                      id="crm-campaign-recipient-locale"
+                      value={draft.recipientPreferredLocale ?? ""}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          recipientPreferredLocale:
+                            (event.target
+                              .value as OpsCrmCampaignPreferredLocale) || null,
+                        }))
+                      }
+                      className={cx(opsTheme.input, "appearance-none")}
+                    >
+                      <option value="">모든 preferred locale</option>
+                      <option value="ko">preferred locale = ko</option>
+                      <option value="en">preferred locale = en</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label
+                    className={opsTheme.label}
+                    htmlFor="crm-campaign-email-title"
+                  >
+                    이메일 제목 추가 텍스트
+                  </label>
+                  <UiInput
+                    unstyled
+                    id="crm-campaign-email-title"
+                    value={draft.emailTitle}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        emailTitle: event.target.value,
+                      }))
+                    }
+                    maxLength={120}
+                    placeholder="예: 프로필 업데이트"
+                    className={cx(opsTheme.input, "mt-2")}
+                  />
+                </div>
+                <div>
+                  <label
+                    className={opsTheme.label}
+                    htmlFor="crm-campaign-total-limit"
+                  >
+                    전체 최대 발송
+                  </label>
+                  <div className="relative mt-2">
+                    <UiInput
+                      unstyled
+                      id="crm-campaign-total-limit"
+                      type="number"
+                      min={1}
+                      max={1_000_000}
+                      value={draft.maxTotalSends}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          maxTotalSends: Number(event.target.value),
+                        }))
+                      }
+                      className={cx(opsTheme.input, "pr-12")}
+                    />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-neutral-muted">
+                      회
+                    </span>
+                  </div>
                 </div>
                 <div>
                   <label
@@ -499,7 +654,6 @@ export default function OpsCrmPage() {
                       }
                       className={cx(opsTheme.input, "appearance-none pl-9")}
                     >
-                      <option value="draft">준비</option>
                       <option value="active">진행</option>
                       <option value="paused">중단</option>
                     </select>
@@ -551,6 +705,10 @@ export default function OpsCrmPage() {
               htmlContent={draft.htmlContent}
               viewport={previewViewport}
               onViewportChange={setPreviewViewport}
+            />
+            <CrmCampaignStatsPanel
+              campaignId={draft.id}
+              maxTotalSends={draft.maxTotalSends}
             />
           </form>
         </section>

@@ -199,6 +199,7 @@ export type CareerSidebarContextValue = {
   settingsSaving: boolean;
   settingsError: string;
   settingsUpdatedAt: string | null;
+  preferredLocale: string | null;
   profileVisibility: CareerProfileVisibility;
   engagementTypes: CareerEngagementType[];
   blockedCompanies: string[];

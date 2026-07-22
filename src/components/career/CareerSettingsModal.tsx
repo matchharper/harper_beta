@@ -23,7 +23,7 @@ import { CareerReferralSettingsSection } from "./referral/CareerReferralModal";
 import CareerResumeLinksSettingsSection from "./settings/CareerResumeLinksSettingsSection";
 import { BareButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
-import { isInternalDomainEmail } from "@/lib/internalAccess";
+import { useReferralEntryPointEligibility } from "@/hooks/career/useReferralEntryPointEligibility";
 
 export type CareerSettingsTab = "profile" | "resume" | "referral" | "account";
 type MobileSettingsView = "menu" | CareerSettingsTab;
@@ -358,8 +358,14 @@ const CareerSettingsModal = ({
 }) => {
   const t = useCareerT();
   const logCareerEvent = useCareerLogEvent();
-  const { onLogout, user } = useCareerSidebarContext();
-  const showReferralEntryPoints = isInternalDomainEmail(user?.email);
+  const { onLogout, preferredLocale, talentProfile, user } =
+    useCareerSidebarContext();
+  const showReferralEntryPoints = useReferralEntryPointEligibility({
+    currentLocation: talentProfile.talentUser?.current_location,
+    location: talentProfile.talentUser?.location,
+    preferredLocale,
+    user,
+  });
   const settingsTabs = useMemo(
     () => getSettingsTabs(t, showReferralEntryPoints),
     [showReferralEntryPoints, t]
@@ -551,7 +557,7 @@ const CareerSettingsModal = ({
                 className="px-3 py-0 inline-flex items-center gap-1 text-[13px] text-neutral-soft transition-colors hover:text-neutral-primary"
               >
                 <ArrowLeft className="h-4 w-4" />
-                {t("career.settings.career_settings_modal.0poe6eq", "닫기")}
+                {t("career.settings.career_settings_modal.0poe6eq", "뒤로")}
               </BareButton>
               {settingsTabs.map((tab) => {
                 const isActive = tab.key === activeTab;

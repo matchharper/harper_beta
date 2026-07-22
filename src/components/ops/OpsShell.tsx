@@ -127,12 +127,6 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
     label: "디버깅",
     items: [
       {
-        description: "회사·기회 관리와 수동 매칭",
-        href: "/ops/opportunities",
-        label: "기회 관리",
-        matchPrefix: "/ops/opportunities",
-      },
-      {
         description: "company_workspace score와 quality label",
         href: "/ops/companies",
         label: "회사 관리",

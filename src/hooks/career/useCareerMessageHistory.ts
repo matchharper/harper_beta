@@ -13,6 +13,7 @@ import type {
 import { getErrorMessage, toUiMessage } from "./careerHelpers";
 import type { FetchWithAuth } from "./useCareerApi";
 import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
+import { useMessages } from "@/i18n/useMessage";
 import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 
 type CareerMessagesPage = {
@@ -37,9 +38,15 @@ type UseCareerMessageHistoryArgs = {
 
 export const careerMessageHistoryKey = (
   conversationId: string | null,
+  locale: string,
   userId: string | null
 ) =>
-  ["career-message-history", conversationId?.trim() || null, userId] as const;
+  [
+    "career-message-history",
+    conversationId?.trim() || null,
+    locale.trim() || null,
+    userId,
+  ] as const;
 
 const toMessagePage = (
   payload: Pick<
@@ -63,10 +70,11 @@ export const useCareerMessageHistory = ({
   userId,
 }: UseCareerMessageHistoryArgs) => {
   const tCareer = useCareerMessageFormatter();
+  const { locale } = useMessages();
   const queryClient = useQueryClient();
   const queryKey = useMemo(
-    () => careerMessageHistoryKey(conversationId, userId),
-    [conversationId, userId]
+    () => careerMessageHistoryKey(conversationId, locale, userId),
+    [conversationId, locale, userId]
   );
 
   const fetchMessagePage = useCallback(
@@ -80,6 +88,7 @@ export const useCareerMessageHistory = ({
       }
 
       const searchParams = new URLSearchParams({
+        locale,
         messageLimit: "20",
       });
 
@@ -126,7 +135,7 @@ export const useCareerMessageHistory = ({
             : null,
       } satisfies CareerMessagesPage;
     },
-    [conversationId, fetchWithAuth, tCareer, userId]
+    [conversationId, fetchWithAuth, locale, tCareer, userId]
   );
 
   const infinite = useInfiniteQuery({

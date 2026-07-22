@@ -52,6 +52,7 @@ export type CareerTalentUser = {
   headline: string | null;
   bio: string | null;
   location: string | null;
+  current_location?: string | null;
 };
 
 export type CareerTalentExperience = {

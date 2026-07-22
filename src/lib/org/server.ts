@@ -4,6 +4,7 @@ import { renderEmailBodyHtml } from "@/lib/email/bodyFormat";
 import { getDefaultResendFromEmail, sendResendEmail } from "@/lib/email/send";
 import { getEmailDomain, INTERNAL_EMAIL_DOMAIN } from "@/lib/internalAccess";
 import { buildOrgIntroEmailDraft } from "@/lib/org/introEmail";
+import { buildOrgInviteEmail } from "@/lib/org/inviteEmail";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import {
   notifyOrgCandidateAcceptedSlack,
@@ -19,6 +20,8 @@ type CompanyWorkspaceRow =
   Database["public"]["Tables"]["company_workspace"]["Row"];
 type CompanyUserWorkspaceRow =
   Database["public"]["Tables"]["company_user_workspace"]["Row"];
+type CompanyWorkspaceInvitationRow =
+  Database["public"]["Tables"]["company_workspace_invitations"]["Row"];
 type CompanyRoleRow = Database["public"]["Tables"]["company_roles"]["Row"];
 type RoleStageRow =
   Database["public"]["Tables"]["ops_matching_role_stages"]["Row"];
@@ -77,13 +80,51 @@ export type OrgMember = {
   userId: string;
 };
 
+export type OrgWorkspaceInvitation = {
+  email: string;
+  invitationId: string;
+  invitedAt: string;
+  lastSentAt: string;
+  status: "pending";
+};
+
 export type OrgBootstrapResponse = {
   currentUser: OrgMember | null;
+  invitations: OrgWorkspaceInvitation[];
   members: OrgMember[];
   ok: true;
   roles: OrgRole[];
   workspace: OrgWorkspace | null;
   workspaces: OrgWorkspace[];
+};
+
+export type OrgInvitePreviewResponse = {
+  ok: true;
+  workspace: Pick<OrgWorkspace, "companyName" | "logoUrl" | "workspaceId">;
+};
+
+export type OrgInviteDeliveryStatus =
+  | "already_member"
+  | "failed"
+  | "invalid"
+  | "sent";
+
+export type OrgInviteDeliveryResult = {
+  email: string;
+  message: string;
+  status: OrgInviteDeliveryStatus;
+};
+
+export type OrgInviteSendResponse = {
+  ok: true;
+  results: OrgInviteDeliveryResult[];
+  workspaceId: string;
+};
+
+export type OrgWorkspaceLeaveResponse = {
+  nextWorkspaceId: string | null;
+  ok: true;
+  workspaceId: string;
 };
 
 export type OrgBuiltInStageId =
@@ -695,7 +736,7 @@ function stageSortOrder(stage: OrgStageId, customStages: RoleStageRow[]) {
 function getVisibleOrgStage(args: {
   customStageByTagKey: ReadonlyMap<string, OrgCustomStageId>;
   tags: TalentOpportunityTagRow[];
-}): { stage: OrgStageId; stageTag: string | null } {
+}): { stage: OrgStageId; stageTag: string } | null {
   for (const tag of args.tags) {
     const tagKey = normalizeTagKey(tag.tag);
     const builtIn = STAGE_BY_TAG_KEY.get(tagKey);
@@ -709,13 +750,14 @@ function getVisibleOrgStage(args: {
 
     if (
       tagKey === normalizeTagKey("내부:거절") ||
-      tagKey === normalizeTagKey("내부:아카이브")
+      tagKey === normalizeTagKey("내부:아카이브") ||
+      tagKey === normalizeTagKey("내부:보류")
     ) {
-      return { stage: "process_stopped", stageTag: tag.tag };
+      return null;
     }
   }
 
-  return { stage: "pending_connection", stageTag: null };
+  return null;
 }
 
 function buildMember(
@@ -743,7 +785,10 @@ function sortRoles(rows: CompanyRoleRow[]) {
   });
 }
 
-async function upsertOrgCompanyUser(admin: SupabaseAdminClient, user: User) {
+export async function upsertOrgCompanyUser(
+  admin: SupabaseAdminClient,
+  user: User
+) {
   const { error } = await (admin.from("company_users" as any) as any).upsert(
     {
       email: user.email ?? null,
@@ -771,6 +816,26 @@ async function fetchWorkspaceById(
 
   if (error) throw error;
   return (data as CompanyWorkspaceRow | null) ?? null;
+}
+
+export async function fetchOrgInvitePreview(args: {
+  workspaceId: string;
+}): Promise<OrgInvitePreviewResponse> {
+  const workspaceId = normalizeText(args.workspaceId);
+  if (!workspaceId) throw new OrgHttpError(400, "orgId is required");
+
+  const workspace = await fetchWorkspaceById(getSupabaseAdmin(), workspaceId);
+  if (!workspace)
+    throw new OrgHttpError(404, "초대받은 Workspace를 찾지 못했습니다.");
+
+  return {
+    ok: true,
+    workspace: {
+      companyName: workspace.company_name,
+      logoUrl: workspace.logo_url ?? null,
+      workspaceId: workspace.company_workspace_id,
+    },
+  };
 }
 
 async function fetchMembershipsForUser(
@@ -809,7 +874,14 @@ async function ensureOrgMembership(args: {
     .maybeSingle();
 
   if (existingError) throw existingError;
-  if (existing) return workspace;
+  if (existing) {
+    await markOrgInvitationAccepted({
+      admin: args.admin,
+      email: getUserEmail(args.user),
+      workspaceId: args.workspaceId,
+    });
+    return workspace;
+  }
 
   const { error } = await (
     args.admin.from("company_user_workspace" as any) as any
@@ -820,6 +892,12 @@ async function ensureOrgMembership(args: {
   });
 
   if (error) throw error;
+
+  await markOrgInvitationAccepted({
+    admin: args.admin,
+    email: getUserEmail(args.user),
+    workspaceId: args.workspaceId,
+  });
 
   try {
     await notifyOrgMemberJoinedSlack({
@@ -840,7 +918,7 @@ async function ensureOrgMembership(args: {
   return workspace;
 }
 
-async function assertOrgWorkspaceAccess(args: {
+export async function assertOrgWorkspaceAccess(args: {
   admin: SupabaseAdminClient;
   user: User;
   workspaceId: string;
@@ -864,6 +942,55 @@ async function assertOrgWorkspaceAccess(args: {
 
   if (error) throw error;
   if (!data) throw new OrgHttpError(403, "Workspace access denied");
+}
+
+export async function leaveOrgWorkspace(args: {
+  user: User;
+  workspaceId: string;
+}): Promise<OrgWorkspaceLeaveResponse> {
+  const workspaceId = normalizeText(args.workspaceId);
+  if (!workspaceId) throw new OrgHttpError(400, "workspaceId is required");
+  if (hasOrgAllInternalWorkspaceAccess(args.user)) {
+    throw new OrgHttpError(
+      400,
+      "내부 운영 계정은 Organization에서 탈퇴할 수 없습니다."
+    );
+  }
+
+  const admin = getSupabaseAdmin();
+  const { data: membership, error: membershipError } = await (
+    admin.from("company_user_workspace" as any) as any
+  )
+    .select("id")
+    .eq("company_user_id", args.user.id)
+    .eq("company_workspace_id", workspaceId)
+    .maybeSingle();
+
+  if (membershipError) throw membershipError;
+  if (!membership) {
+    throw new OrgHttpError(
+      404,
+      "이미 탈퇴했거나 참여 중인 Workspace가 아닙니다."
+    );
+  }
+
+  const { error: deleteError } = await (
+    admin.from("company_user_workspace" as any) as any
+  )
+    .delete()
+    .eq("id", membership.id)
+    .eq("company_user_id", args.user.id);
+  if (deleteError) throw deleteError;
+
+  const remainingMemberships = await fetchMembershipsForUser(
+    admin,
+    args.user.id
+  );
+  return {
+    nextWorkspaceId: remainingMemberships[0]?.company_workspace_id ?? null,
+    ok: true,
+    workspaceId,
+  };
 }
 
 async function fetchWorkspacesByIds(
@@ -930,6 +1057,73 @@ async function fetchOrgMembers(
     .filter((member) => !isOrgAllInternalWorkspaceAccessEmail(member.email));
 }
 
+async function markOrgInvitationAccepted(args: {
+  admin: SupabaseAdminClient;
+  email: string | null;
+  workspaceId: string;
+}) {
+  const email = normalizeText(args.email).toLowerCase();
+  if (!email) return;
+  const now = new Date().toISOString();
+  const { error } = await (
+    args.admin.from("company_workspace_invitations") as any
+  )
+    .update({ accepted_at: now, updated_at: now })
+    .eq("company_workspace_id", args.workspaceId)
+    .eq("email", email)
+    .is("accepted_at", null);
+
+  if (error) throw error;
+}
+
+async function fetchOrgPendingInvitations(
+  admin: SupabaseAdminClient,
+  workspaceId: string,
+  members: OrgMember[]
+): Promise<OrgWorkspaceInvitation[]> {
+  const { data, error } = await (
+    admin.from("company_workspace_invitations") as any
+  )
+    .select(
+      "invitation_id, company_workspace_id, email, invited_by_user_id, last_sent_at, accepted_at, created_at, updated_at"
+    )
+    .eq("company_workspace_id", workspaceId)
+    .is("accepted_at", null)
+    .order("last_sent_at", { ascending: false });
+
+  if (error) throw error;
+  const rows = (data ?? []) as CompanyWorkspaceInvitationRow[];
+  const memberEmails = new Set(
+    members
+      .map((member) => normalizeText(member.email).toLowerCase())
+      .filter(Boolean)
+  );
+  const acceptedRows = rows.filter((row) => memberEmails.has(row.email));
+
+  if (acceptedRows.length > 0) {
+    const now = new Date().toISOString();
+    const { error: reconcileError } = await (
+      admin.from("company_workspace_invitations") as any
+    )
+      .update({ accepted_at: now, updated_at: now })
+      .in(
+        "invitation_id",
+        acceptedRows.map((row) => row.invitation_id)
+      );
+    if (reconcileError) throw reconcileError;
+  }
+
+  return rows
+    .filter((row) => !memberEmails.has(row.email))
+    .map((row) => ({
+      email: row.email,
+      invitationId: row.invitation_id,
+      invitedAt: row.created_at,
+      lastSentAt: row.last_sent_at,
+      status: "pending" as const,
+    }));
+}
+
 async function fetchOrgRoles(admin: SupabaseAdminClient, workspaceId: string) {
   const { data, error } = await (admin.from("company_roles" as any) as any)
     .select(
@@ -948,8 +1142,9 @@ export async function fetchOrgBootstrap(args: {
 }): Promise<OrgBootstrapResponse> {
   const admin = getSupabaseAdmin();
   const requestedWorkspaceId = normalizeText(args.orgId);
-  const hasAllInternalWorkspaceAccess =
-    hasOrgAllInternalWorkspaceAccess(args.user);
+  const hasAllInternalWorkspaceAccess = hasOrgAllInternalWorkspaceAccess(
+    args.user
+  );
 
   await upsertOrgCompanyUser(admin, args.user);
 
@@ -965,6 +1160,7 @@ export async function fetchOrgBootstrap(args: {
   if (memberships.length === 0 && !hasAllInternalWorkspaceAccess) {
     return {
       currentUser: null,
+      invitations: [],
       members: [],
       ok: true,
       roles: [],
@@ -997,6 +1193,7 @@ export async function fetchOrgBootstrap(args: {
       currentUser: hasAllInternalWorkspaceAccess
         ? buildVirtualOrgMember(args.user)
         : null,
+      invitations: [],
       members: [],
       ok: true,
       roles: [],
@@ -1009,17 +1206,143 @@ export async function fetchOrgBootstrap(args: {
     fetchOrgMembers(admin, selectedWorkspace.company_workspace_id),
     fetchOrgRoles(admin, selectedWorkspace.company_workspace_id),
   ]);
+  const invitations = await fetchOrgPendingInvitations(
+    admin,
+    selectedWorkspace.company_workspace_id,
+    members
+  );
 
   return {
     currentUser:
       members.find((member) => member.userId === args.user.id) ??
       (hasAllInternalWorkspaceAccess ? buildVirtualOrgMember(args.user) : null),
+    invitations,
     members,
     ok: true,
     roles,
     workspace: toWorkspace(selectedWorkspace),
     workspaces: workspaces.map(toWorkspace),
   };
+}
+
+function getOrgInviteFromEmail() {
+  const configured = normalizeText(process.env.ORG_INVITE_FROM_EMAIL);
+  if (configured) return configured;
+
+  const defaultFrom = getDefaultResendFromEmail();
+  const bracketedAddress = defaultFrom.match(/<\s*([^<>]+)\s*>$/)?.[1];
+  const address = normalizeText(bracketedAddress ?? defaultFrom);
+  return `Harper <${address}>`;
+}
+
+export async function sendOrgWorkspaceInvitations(args: {
+  emails: unknown;
+  siteUrl: string;
+  user: User;
+  workspaceId: string;
+}): Promise<OrgInviteSendResponse> {
+  const workspaceId = normalizeText(args.workspaceId);
+  if (!workspaceId) throw new OrgHttpError(400, "workspaceId is required");
+  if (!Array.isArray(args.emails)) {
+    throw new OrgHttpError(400, "emails must be an array");
+  }
+  if (args.emails.length > 20) {
+    throw new OrgHttpError(400, "한 번에 최대 20명까지 초대할 수 있습니다.");
+  }
+
+  const emails = uniqueTexts(
+    args.emails.map((email) => normalizeText(email).toLowerCase())
+  );
+  if (emails.length === 0) {
+    throw new OrgHttpError(400, "초대할 이메일을 입력해 주세요.");
+  }
+
+  const admin = getSupabaseAdmin();
+  await assertOrgWorkspaceAccess({ admin, user: args.user, workspaceId });
+  const workspace = await fetchWorkspaceById(admin, workspaceId);
+  if (!workspace) throw new OrgHttpError(404, "Workspace not found");
+
+  const members = await fetchOrgMembers(admin, workspaceId);
+  const memberEmails = new Set(
+    members
+      .map((member) => normalizeText(member.email).toLowerCase())
+      .filter(Boolean)
+  );
+  const inviterName = getUserName(args.user);
+  const inviterEmail = getUserEmail(args.user);
+  const inviteUrl = new URL("/org", args.siteUrl);
+  inviteUrl.searchParams.set("orgId", workspaceId);
+  const draft = buildOrgInviteEmail({
+    companyName: workspace.company_name,
+    inviteUrl: inviteUrl.toString(),
+    inviterEmail,
+    inviterName,
+  });
+
+  const results = await Promise.all(
+    emails.map(async (email): Promise<OrgInviteDeliveryResult> => {
+      if (email.length > 320 || !isValidEmailAddress(email)) {
+        return {
+          email,
+          message: "이메일 형식을 확인해 주세요.",
+          status: "invalid",
+        };
+      }
+      if (memberEmails.has(email)) {
+        return {
+          email,
+          message: "이미 Organization에 참여 중입니다.",
+          status: "already_member",
+        };
+      }
+
+      try {
+        await sendResendEmail({
+          from: getOrgInviteFromEmail(),
+          html: draft.html,
+          replyTo:
+            inviterEmail && isValidEmailAddress(inviterEmail)
+              ? inviterEmail
+              : null,
+          subject: draft.subject,
+          text: draft.text,
+          to: email,
+        });
+        const now = new Date().toISOString();
+        const { error: invitationError } = await (
+          admin.from("company_workspace_invitations") as any
+        ).upsert(
+          {
+            accepted_at: null,
+            company_workspace_id: workspaceId,
+            email,
+            invited_by_user_id: args.user.id,
+            last_sent_at: now,
+            updated_at: now,
+          },
+          { onConflict: "company_workspace_id,email" }
+        );
+        if (invitationError) throw invitationError;
+        return {
+          email,
+          message: "초대 메일을 보냈습니다.",
+          status: "sent",
+        };
+      } catch (error) {
+        console.error("[org/invitations] send failed", {
+          error: error instanceof Error ? error.message : String(error),
+          workspaceId,
+        });
+        return {
+          email,
+          message: "메일을 보내지 못했습니다. 다시 시도해 주세요.",
+          status: "failed",
+        };
+      }
+    })
+  );
+
+  return { ok: true, results, workspaceId };
 }
 
 async function fetchRoleRowsForWorkspace(
@@ -1094,7 +1417,9 @@ async function fetchTagsForBoard(args: {
   )
     .select("id, talent_id, opportunity_id, tag, created_at, updated_at")
     .in("opportunity_id", args.roleIds)
-    .in("talent_id", args.talentIds);
+    .in("talent_id", args.talentIds)
+    .order("updated_at", { ascending: false })
+    .order("id", { ascending: false });
 
   if (error) throw error;
   const map = new Map<string, TalentOpportunityTagRow[]>();
@@ -1243,6 +1568,7 @@ export async function fetchOrgBoard(args: {
       customStageByTagKey,
       tags: tagsByKey.get(`${row.talent_id}:${row.role_id}`) ?? [],
     });
+    if (!stageInfo) return [];
 
     return [
       {
@@ -1688,15 +2014,16 @@ export async function setOrgCandidateStage(args: {
     .in("tag", allStageTags);
 
   if (previousError) throw previousError;
-  const previousStage = getVisibleOrgStage({
-    customStageByTagKey: new Map(
-      stageRows.map((row) => [
-        customTagKeyFromStageRow(row),
-        buildCustomStageId(row.id),
-      ])
-    ),
-    tags: (previousTags ?? []) as TalentOpportunityTagRow[],
-  }).stage;
+  const previousStage =
+    getVisibleOrgStage({
+      customStageByTagKey: new Map(
+        stageRows.map((row) => [
+          customTagKeyFromStageRow(row),
+          buildCustomStageId(row.id),
+        ])
+      ),
+      tags: (previousTags ?? []) as TalentOpportunityTagRow[],
+    })?.stage ?? "pending_connection";
 
   const isIntroRequested =
     stage !== "process_stopped" && introEmails.length > 0;
@@ -2532,6 +2859,75 @@ export async function updateOrgWorkspace(args: {
   };
 }
 
+export async function updateOrgWorkspaceRequestOnly(args: {
+  expectedRequest?: string | null;
+  request?: string | null;
+  user: User;
+  workspaceId: string;
+}) {
+  const admin = getSupabaseAdmin();
+  const workspaceId = normalizeText(args.workspaceId);
+  if (!workspaceId) throw new OrgHttpError(400, "workspaceId is required");
+  await assertOrgWorkspaceAccess({ admin, user: args.user, workspaceId });
+
+  const { data: before, error: beforeError } = await (
+    admin.from("company_workspace" as any) as any
+  )
+    .select(
+      "company_workspace_id, company_name, company_description, pitch, request, logo_url, updated_at"
+    )
+    .eq("company_workspace_id", workspaceId)
+    .maybeSingle();
+
+  if (beforeError) throw beforeError;
+  if (!before) throw new OrgHttpError(404, "Workspace not found");
+
+  const shouldCheckExpectedRequest = Object.prototype.hasOwnProperty.call(
+    args,
+    "expectedRequest"
+  );
+  const previousRequest = (before as CompanyWorkspaceRow).request ?? null;
+  if (
+    shouldCheckExpectedRequest &&
+    previousRequest !== (args.expectedRequest ?? null)
+  ) {
+    throw new OrgHttpError(
+      409,
+      "Company request changed while the agent was responding"
+    );
+  }
+
+  let updateQuery = (admin.from("company_workspace" as any) as any)
+    .update({
+      request: args.request ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("company_workspace_id", workspaceId);
+  if (shouldCheckExpectedRequest) {
+    updateQuery = previousRequest === null
+      ? updateQuery.is("request", null)
+      : updateQuery.eq("request", previousRequest);
+  }
+  const { data, error } = await updateQuery
+    .select(
+      "company_workspace_id, company_name, company_description, pitch, request, logo_url, updated_at"
+    )
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) {
+    throw new OrgHttpError(
+      409,
+      "Company request changed while the agent was responding"
+    );
+  }
+  return {
+    ok: true as const,
+    previousRequest,
+    workspace: toWorkspace(data as CompanyWorkspaceRow),
+  };
+}
+
 export async function updateOrgRole(args: {
   description?: string | null;
   employmentTypes?: string[] | null;
@@ -2587,7 +2983,82 @@ export async function updateOrgRole(args: {
   return { ok: true as const, role: toRole(data as CompanyRoleRow) };
 }
 
-async function assertOrgRoleAccess(args: {
+export async function updateOrgRoleRequestOnly(args: {
+  expectedRequest?: string | null;
+  request?: string | null;
+  roleId: string;
+  user: User;
+  workspaceId: string;
+}) {
+  const admin = getSupabaseAdmin();
+  const workspaceId = normalizeText(args.workspaceId);
+  const roleId = normalizeText(args.roleId);
+  if (!workspaceId || !roleId) {
+    throw new OrgHttpError(400, "Missing required fields");
+  }
+  await assertOrgRoleAccess({ admin, user: args.user, workspaceId, roleId });
+
+  const { data: before, error: beforeError } = await (
+    admin.from("company_roles" as any) as any
+  )
+    .select(
+      "role_id, company_workspace_id, name, external_jd_url, description, request, status, type, location_text, work_mode, updated_at"
+    )
+    .eq("company_workspace_id", workspaceId)
+    .eq("role_id", roleId)
+    .maybeSingle();
+
+  if (beforeError) throw beforeError;
+  if (!before) throw new OrgHttpError(404, "Role not found");
+
+  const shouldCheckExpectedRequest = Object.prototype.hasOwnProperty.call(
+    args,
+    "expectedRequest"
+  );
+  const previousRequest = (before as CompanyRoleRow).request ?? null;
+  if (
+    shouldCheckExpectedRequest &&
+    previousRequest !== (args.expectedRequest ?? null)
+  ) {
+    throw new OrgHttpError(
+      409,
+      "Role request changed while the agent was responding"
+    );
+  }
+
+  let updateQuery = (admin.from("company_roles" as any) as any)
+    .update({
+      request: args.request ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("company_workspace_id", workspaceId)
+    .eq("role_id", roleId);
+  if (shouldCheckExpectedRequest) {
+    updateQuery = previousRequest === null
+      ? updateQuery.is("request", null)
+      : updateQuery.eq("request", previousRequest);
+  }
+  const { data, error } = await updateQuery
+    .select(
+      "role_id, company_workspace_id, name, external_jd_url, description, request, status, type, location_text, work_mode, updated_at"
+    )
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) {
+    throw new OrgHttpError(
+      409,
+      "Role request changed while the agent was responding"
+    );
+  }
+  return {
+    ok: true as const,
+    previousRequest,
+    role: toRole(data as CompanyRoleRow),
+  };
+}
+
+export async function assertOrgRoleAccess(args: {
   admin: SupabaseAdminClient;
   roleId: string;
   user: User;

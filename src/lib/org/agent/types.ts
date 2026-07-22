@@ -1,0 +1,127 @@
+import type { OrgAgentModelId } from "@/lib/org/agent/modelConfig";
+
+export type OrgAgentMessageRole = "assistant" | "system" | "user";
+export type OrgAgentMessageStatus = "completed" | "failed" | "pending";
+
+export type OrgAgentMention = {
+  displayName: string;
+  recommendationId?: string | null;
+  roleId?: string | null;
+  talentId: string;
+};
+
+export type OrgAgentThinkingLog = {
+  at: string;
+  label: string;
+  status?: "done" | "error" | "running";
+};
+
+export type OrgAgentMessageAction =
+  | {
+      id: string;
+      kind: "schedule_meeting";
+      label: string;
+      payload: {
+        reason?: string | null;
+        topic: string;
+      };
+      status?: "idle" | "sent";
+    }
+  | {
+      id: string;
+      kind: "request_updated";
+      label: string;
+      payload: {
+        changeSummary: string;
+        scope: "company" | "role";
+      };
+      status?: "idle";
+    };
+
+export type OrgAgentMessageMetadata = {
+  actions?: OrgAgentMessageAction[];
+  fallbackReason?: string | null;
+  model?: string | null;
+  requestChange?: {
+    after: string | null;
+    before: string | null;
+    changeSummary: string;
+    scope: "company" | "role";
+  };
+  requestChanges?: Array<{
+    after: string | null;
+    before: string | null;
+    changeSummary: string;
+    scope: "company" | "role";
+  }>;
+  source?: string | null;
+  toolResults?: Array<{
+    callId: string;
+    name: string;
+    status: "error" | "success" | "unchanged";
+    summary: string;
+  }>;
+};
+
+export type OrgAgentMessage = {
+  content: string;
+  createdAt: string;
+  id: number;
+  mentions: OrgAgentMention[];
+  metadata: OrgAgentMessageMetadata;
+  model: string | null;
+  role: OrgAgentMessageRole;
+  status: OrgAgentMessageStatus;
+  thinkingLogs: OrgAgentThinkingLog[];
+};
+
+export type OrgAgentConversation = {
+  conversationId: string;
+  roleId: string;
+  title: string | null;
+  workspaceId: string;
+};
+
+export type OrgAgentMessagesResponse = {
+  conversation: OrgAgentConversation;
+  hasMore: boolean;
+  messages: OrgAgentMessage[];
+  nextCursor: number | null;
+  ok: true;
+};
+
+export type OrgAgentMentionCandidate = {
+  headline: string | null;
+  label: string;
+  recommendationId: string;
+  roleId: string;
+  stage: string;
+  subtitle: string;
+  talentId: string;
+};
+
+export type OrgAgentMentionsResponse = {
+  candidates: OrgAgentMentionCandidate[];
+  ok: true;
+};
+
+export type OrgAgentChatBody = {
+  mentions?: OrgAgentMention[];
+  message?: string;
+  model?: OrgAgentModelId | string | null;
+  roleId?: string;
+  workspaceId?: string;
+};
+
+export type OrgAgentMeetingRequestBody = {
+  actionId?: string;
+  messageId?: number;
+  reason?: string | null;
+  roleId?: string;
+  topic?: string;
+  workspaceId?: string;
+};
+
+export type OrgAgentMeetingRequestResponse = {
+  ok: true;
+};

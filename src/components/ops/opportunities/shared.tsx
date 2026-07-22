@@ -5,7 +5,6 @@ import {
 import { cx, opsTheme } from "@/components/ops/theme";
 import type {
   OpsOpportunityRoleRecord,
-  OpsOpportunityWorkspaceRecord,
   OpportunityEmploymentType,
   OpportunitySourceType,
   OpportunityStatus,
@@ -15,19 +14,7 @@ import { Pencil } from "lucide-react";
 import type { ReactNode } from "react";
 import { BareButton } from "@/components/ui/button";
 
-export type PageView = "catalog" | "company_management";
 export type DraftMode = "edit" | "new";
-
-export type WorkspaceDraft = {
-  careerUrl: string;
-  companyDescription: string;
-  companyName: string;
-  homepageUrl: string;
-  isInternal: boolean;
-  linkedinUrl: string;
-  pitch: string;
-  request: string;
-};
 
 export type RoleDraft = {
   description: string;
@@ -46,17 +33,6 @@ export type RoleDraft = {
   workMode: OpportunityWorkMode | null;
 };
 
-export const EMPTY_WORKSPACE_DRAFT: WorkspaceDraft = {
-  careerUrl: "",
-  companyDescription: "",
-  companyName: "",
-  homepageUrl: "",
-  isInternal: false,
-  linkedinUrl: "",
-  pitch: "",
-  request: "",
-};
-
 export const EMPTY_ROLE_DRAFT: RoleDraft = {
   description: "",
   descriptionSummary: "",
@@ -72,18 +48,6 @@ export const EMPTY_ROLE_DRAFT: RoleDraft = {
   status: "active",
   request: "",
   workMode: null,
-};
-
-export const PAGE_VIEW_QUERY_KEY = "view";
-
-export const isPageView = (value: unknown): value is PageView =>
-  value === "catalog" || value === "company_management";
-
-export const getPageViewFromQuery = (
-  value: string | string[] | undefined
-): PageView | null => {
-  const candidate = Array.isArray(value) ? value[0] : value;
-  return isPageView(candidate) ? candidate : null;
 };
 
 export const EMPLOYMENT_LABEL: Record<OpportunityEmploymentType, string> = {
@@ -126,19 +90,6 @@ export const formatUpdatedAt = (value: string | null | undefined) => {
   return formatKstRelativeDateTime(value);
 };
 
-export const workspaceToDraft = (
-  workspace?: OpsOpportunityWorkspaceRecord | null
-): WorkspaceDraft => ({
-  careerUrl: workspace?.careerUrl ?? "",
-  companyDescription: workspace?.companyDescription ?? "",
-  companyName: workspace?.companyName ?? "",
-  homepageUrl: workspace?.homepageUrl ?? "",
-  isInternal: workspace?.isInternal ?? false,
-  linkedinUrl: workspace?.linkedinUrl ?? "",
-  pitch: workspace?.pitch ?? "",
-  request: workspace?.request ?? "",
-});
-
 export const roleToDraft = (
   role?: OpsOpportunityRoleRecord | null
 ): RoleDraft => ({
@@ -157,45 +108,6 @@ export const roleToDraft = (
   request: role?.request ?? "",
   workMode: role?.workMode ?? null,
 });
-
-export const matchesWorkspaceQuery = (
-  workspace: OpsOpportunityWorkspaceRecord,
-  query: string
-) => {
-  if (!query) return true;
-  const haystack = [
-    workspace.companyName,
-    workspace.companyDescription,
-    workspace.careerUrl,
-    workspace.homepageUrl,
-    workspace.linkedinUrl,
-    workspace.pitch,
-    workspace.request,
-  ]
-    .join(" ")
-    .toLowerCase();
-  return haystack.includes(query);
-};
-
-export const matchesRoleQuery = (
-  role: OpsOpportunityRoleRecord,
-  query: string
-) => {
-  if (!query) return true;
-  const haystack = [
-    role.name,
-    role.companyName,
-    role.description,
-    role.descriptionSummary,
-    role.locationText,
-    role.request,
-    role.sourceProvider,
-    role.externalJdUrl,
-  ]
-    .join(" ")
-    .toLowerCase();
-  return haystack.includes(query);
-};
 
 export const toggleEmploymentType = (
   current: OpportunityEmploymentType[],
@@ -227,21 +139,6 @@ export function ActionButton({
     >
       {children}
     </BareButton>
-  );
-}
-
-export function PanelHeader({
-  action,
-  title,
-}: {
-  action?: ReactNode;
-  title: string;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <div className="text-[13px] font-medium text-neutral-muted">{title}</div>
-      {action}
-    </div>
   );
 }
 
@@ -356,21 +253,6 @@ export function RoleOptionCard({
           </Token>
         ))}
       </div>
-    </div>
-  );
-}
-
-export function SelectionSummary({
-  children,
-  title,
-}: {
-  children: ReactNode;
-  title: string;
-}) {
-  return (
-    <div className={cx(opsTheme.panelSoft, "space-y-2 px-3 py-3")}>
-      <div className="text-[11px] text-neutral-soft">{title}</div>
-      {children}
     </div>
   );
 }

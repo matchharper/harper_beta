@@ -14,7 +14,14 @@ import { formatKstRelativeDateTime } from "@/components/ops/dateUtils";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { BareButton } from "@/components/ui/button";
 import { Input as UiInput } from "@/components/ui/input";
-import { Select as UiSelect } from "@/components/ui/select";
+import {
+  Select as UiSelect,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useOpsDebugCalls } from "@/hooks/ops/useOpsDebugCalls";
 import type {
   OpsDebugCallItem,
@@ -432,19 +439,30 @@ export default function OpsDebuggingCallsPage() {
                 상태
               </label>
               <UiSelect
-                unstyled
-                id="ops-debug-call-status"
+                items={CALL_STATUS_OPTIONS.map((option) => ({
+                  label: option.label,
+                  value: option.id,
+                }))}
                 value={callStatus}
-                onChange={(event) =>
-                  setCallStatus(event.target.value as OpsDebugCallStatus)
+                onValueChange={(value) =>
+                  setCallStatus((value ?? "all") as OpsDebugCallStatus)
                 }
-                className={cx(opsTheme.input, "mt-2 h-10 min-w-[116px]")}
               >
-                {CALL_STATUS_OPTIONS.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
+                <SelectTrigger
+                  id="ops-debug-call-status"
+                  className={cx(opsTheme.input, "mt-2 h-10 min-w-[116px]")}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent align="start" alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    {CALL_STATUS_OPTIONS.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
               </UiSelect>
             </div>
             <div>
@@ -452,17 +470,28 @@ export default function OpsDebuggingCallsPage() {
                 kind
               </label>
               <UiSelect
-                unstyled
-                id="ops-debug-call-kind"
+                items={CALL_KIND_OPTIONS.map((option) => ({
+                  label: option.label,
+                  value: option.id,
+                }))}
                 value={callKind}
-                onChange={(event) => setCallKind(event.target.value)}
-                className={cx(opsTheme.input, "mt-2 h-10 min-w-[172px]")}
+                onValueChange={(value) => setCallKind(value ?? "")}
               >
-                {CALL_KIND_OPTIONS.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
+                <SelectTrigger
+                  id="ops-debug-call-kind"
+                  className={cx(opsTheme.input, "mt-2 h-10 min-w-[172px]")}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent align="start" alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    {CALL_KIND_OPTIONS.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
               </UiSelect>
             </div>
           </div>
