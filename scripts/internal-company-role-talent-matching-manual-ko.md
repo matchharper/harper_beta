@@ -1,12 +1,20 @@
 # Internal company role - talent matching 실행 매뉴얼
 
-문서 상태: 운영 실행 계약 2.1
+문서 상태: 운영 실행 계약 2.2
 
 기준일: 2026-07-22
 
 대상: Harper 내부 운영자 또는 DB·코드·웹 리서치 도구를 사용할 수 있는 실행 agent
 
 연결 benchmark: `../docs/wonderful-korea-fde-field-cto-benchmark-manual-ko.md`
+
+2.2 변경 요약:
+
+- 모든 role에 retrieval 전 `target country` 또는 명시적 `worldwide` 범위를 확정하도록 변경
+- 현재 거주, 현지 학교·회사·연구 경험, 명시적 relocation 의향, 합법적 근무 가능성과 허용된 remote 조건을 candidate country evidence로 구조화
+- country evidence가 전혀 없는 후보가 기술 keyword나 system signal만으로 약 200명 pool에 들어오는 것을 금지
+- 한국 거주자가 미국 이전 의향을 명시한 경우처럼 현재 위치 밖 target country에 대한 직접 의향·자격이 있으면 정상 포함
+- 이름·외모·추정 국적은 사용하지 않고 role의 실제 근무 국가와 후보자의 직업적 지역 적합성만 사용
 
 2.1 변경 요약:
 
@@ -243,7 +251,7 @@ SQL·DB read, deterministic filtering·scoring·formatting script, 공개 웹 �
 
 ### 4.6 보호 특성이나 대리변수를 사용하지 않는다
 
-고용 추천에서 나이, 성별, 인종·민족, 종교, 장애·건강, 가족·임신 상태, 성적 지향 등 보호 특성을 필터나 ranking에 사용하지 않는다. 출생연도, 학번, 졸업연도를 나이의 대리변수로 사용하지 않는다.
+고용 추천에서 나이, 성별, 인종·민족, 국적·출생지, 종교, 장애·건강, 가족·임신 상태, 성적 지향 등 보호 특성을 필터나 ranking에 사용하지 않는다. 출생연도, 학번, 졸업연도를 나이의 대리변수로, 이름·사진을 국적이나 민족의 대리변수로 사용하지 않는다.
 
 예를 들어 과거 메모가 “10학번이라 나이가 많다”라고 적혀 있더라도 그대로 학습하지 않는다. 실제 문제가 role seniority, 기대 보상, hands-on 범위, 총경력 과다였다면 그것을 합법적이고 role 관련성이 있는 기준으로 다시 표현한다.
 
@@ -254,6 +262,8 @@ SQL·DB read, deterministic filtering·scoring·formatting script, 공개 웹 �
 ```
 
 특정 학교 조건은 회사가 현재 role에 대해 명시적으로 non-negotiable로 요청했고, role 관련 목적과 적용 법·정책 검토가 문서화됐으며, 운영 승인까지 있을 때만 hard filter 후보가 될 수 있다. 단순한 prestige 추정이나 과거 한 번의 선호라면 ranking 신호에만 두며, 학교 이름을 능력의 증명으로 취급하지 않는다.
+
+role의 실제 근무 국가·지역, onsite·remote 범위, 고객 지원 지역, 시간대, 필수 언어, relocation 의향과 합법적 근무 가능성을 사용하는 것은 허용된다. 이는 “어느 나라 사람인가”를 추정하는 기준이 아니라 “이 role을 해당 지역에서 실제로 수행하고 수락할 수 있는가”를 판단하는 직무 관련 기준이어야 한다. 후보자가 직접 제공한 시민권·비자 정보도 work authorization 판단에 필요한 범위에서만 사용하고 후보자 품질 신호로 가산하지 않는다.
 
 ### 4.7 서로 다른 audience의 정보를 섞지 않는다
 
@@ -392,7 +402,7 @@ output/internal_role_matching/<role_id>/<YYYYMMDDTHHMMSSZ>/
 | `considerations.json` | DB에 저장 가능한 구조화 기준 |
 | `retrieval.sql` | 실제 실행한 parameterized retrieval SQL 또는 렌더링된 읽기 전용 SQL |
 | `retrieval_funnel.json` | 각 hard filter 전후 후보 수와 탈락 수 |
-| `candidate_pool.csv` | 최대 약 200명의 retrieval 결과와 coarse feature |
+| `candidate_pool.csv` | 최대 약 200명의 retrieval 결과, target country evidence tier와 coarse feature |
 | `individual_evaluations.jsonl` | 후보자별 독립 평가 결과 |
 | `top50.md` | 비교 단계에 들어간 후보와 핵심 근거 |
 | `final_selection.md` | 선택·미선택·보류 이유, 공유 문구, caveat |
@@ -786,15 +796,16 @@ criterion으로 승격하는 조건:
 `consideration.md`는 길게 수집한 자료를 다음 내용으로 압축한다.
 
 1. **Role essence**: 이 사람이 실제로 맡을 핵심 결과 3~5개
-2. **회사 측 non-negotiables**: 명시적이고 근거가 있는 hard criteria
-3. **후보자 측 acceptance profile**: 어떤 사람이 이 제안을 좋아할 가능성이 높은지
-4. **Hard filters**: SQL 또는 후속 검증으로 반드시 통과시킬 항목
-5. **Plus signals**: 있으면 회사 또는 후보자 확률을 높이는 항목
-6. **Minus signals**: 단독 탈락은 아니지만 리스크를 높이는 항목
-7. **Learned feedback**: 과거 회사 결과에서 배운 기준과 신뢰도
-8. **Unknowns**: 현재 확인되지 않아 finalist 단계에서 검증할 항목
-9. **Reason-writing anchors**: 최종 추천 이유에 반드시 드러낼 객관 사실
-10. **Do-not-use**: 보호 특성, 오래된 요청, 확인되지 않은 추정 등 금지 기준
+2. **Target geography**: role이 실제로 허용하는 국가·지역·remote 범위와 country evidence 정책
+3. **회사 측 non-negotiables**: 명시적이고 근거가 있는 hard criteria
+4. **후보자 측 acceptance profile**: 어떤 사람이 이 제안을 좋아할 가능성이 높은지
+5. **Hard filters**: SQL 또는 후속 검증으로 반드시 통과시킬 항목
+6. **Plus signals**: 있으면 회사 또는 후보자 확률을 높이는 항목
+7. **Minus signals**: 단독 탈락은 아니지만 리스크를 높이는 항목
+8. **Learned feedback**: 과거 회사 결과에서 배운 기준과 신뢰도
+9. **Unknowns**: 현재 확인되지 않아 finalist 단계에서 검증할 항목
+10. **Reason-writing anchors**: 최종 추천 이유에 반드시 드러낼 객관 사실
+11. **Do-not-use**: 보호 특성, 오래된 요청, 확인되지 않은 추정 등 금지 기준
 
 one-page는 핵심 결정을 한눈에 보기 위한 문서다. 상세 evidence는 `source_snapshot.json`과 구조화 JSON에 둔다. 페이지 수를 맞추려고 중요한 기준을 삭제하지 않는다.
 
@@ -811,8 +822,8 @@ one-page는 핵심 결정을 한눈에 보기 위한 문서다. 상세 evidence�
 
 ```json
 {
-  "schemaVersion": 2,
-  "manualVersion": "1.4",
+  "schemaVersion": 3,
+  "manualVersion": "2.2",
   "generatedAt": "2026-07-17T00:00:00Z",
   "generatedBy": "agent or operator",
   "roleId": "uuid",
@@ -854,6 +865,28 @@ one-page는 핵심 결정을 한눈에 보기 위한 문서다. 상세 evidence�
   "roleEssence": [
     {"statement": "핵심 결과", "sourceIds": ["..."]}
   ],
+  "targetGeographies": [
+    {
+      "countryCode": "KR",
+      "regions": ["Seoul"],
+      "allowedWorkModes": ["onsite"],
+      "sourceIds": ["company_roles.location_text", "company_roles.work_mode"],
+      "required": true
+    }
+  ],
+  "countryEvidencePolicy": {
+    "worldwide": false,
+    "mainPoolRequiresEvidence": true,
+    "acceptedEvidenceTypes": [
+      "current_residence",
+      "target_country_work_education_research",
+      "explicit_relocation_intent",
+      "work_authorization",
+      "allowed_remote_eligibility"
+    ],
+    "prohibitedProxies": ["name", "photo", "inferred_nationality", "inferred_ethnicity"],
+    "unknownPolicy": "exclude_from_main_pool"
+  },
   "hardFilters": [
     {
       "id": "required_business_korean",
@@ -984,6 +1017,66 @@ unknown: 날짜가 불완전하면 pool에는 포함하되 finalist 전 수동 �
 risk: 동시에 수행한 두 경력을 단순 합산하면 경력이 부풀려짐
 ```
 
+### 10.2.1 target country와 country evidence gate
+
+약 200명을 구성하기 전에 **모든 role에 target country 또는 명시적인 worldwide 범위가 반드시 있어야 한다.** 대부분의 role은 국가와 무관하지 않으므로, country evidence를 단순 10점짜리 soft feature로만 두고 전 세계 후보를 먼저 뽑아서는 안 된다.
+
+target geography는 다음 source를 우선순위대로 읽어 확정한다.
+
+1. `company_roles.location_text`, `work_mode`, `type`
+2. role description과 최신 `company_roles.request`
+3. `company_internal_roles.request`와 workspace request
+4. 고객 현장·시간대·법인·출장처럼 실제 수행 지역을 제한하는 명시 조건
+
+서울 onsite와 미국 remote를 함께 허용하는 role처럼 target country가 여러 개일 수 있다. `remote`라는 단어만으로 worldwide를 추정하지 않는다. 고용 가능한 국가가 제한된 remote role이면 허용 국가를 모두 기록한다. source만으로 target country를 정할 수 없으면 전 세계를 기본값으로 쓰지 말고 `incomplete_target_geography`로 retrieval 전에 중단한다. `worldwide=true`는 회사가 국가 제한 없는 채용을 명시한 경우에만 허용한다.
+
+후보자별 country evidence는 아래처럼 구조화한다.
+
+| evidence type | 의미 | 기본 tier |
+| --- | --- | --- |
+| `current_residence` | 현재 위치가 target country·region임 | `confirmed_current_or_relocation` |
+| `explicit_relocation_intent` | 현재 다른 나라에 있지만 target country로 이전 의향을 최근에 직접 밝힘 | `confirmed_current_or_relocation` |
+| `allowed_remote_eligibility` | role이 허용한 국가의 remote 근무·시간대·고객 지원 조건을 충족함 | `confirmed_current_or_relocation` |
+| `work_authorization` | target country에서 합법적으로 근무 가능하거나 필요한 sponsorship 조건이 구체적으로 확인됨 | 다른 evidence를 보강하는 legal signal |
+| `target_country_work_education_research` | target country의 회사·학교·연구실에서 역할과 기간이 확인되는 실질적 경험이 있음 | `historical_affinity_verify_current_intent` |
+| `explicit_country_preference` | target country를 선호·희망 지역으로 최근에 명시함 | recency와 구체성에 따라 위 두 tier 중 하나 |
+
+예를 들어 한국 role에는 현재 한국 거주, 한국 회사·학교·연구실 경험, 한국 근무 희망·귀국 의향이 country evidence가 된다. 일본과 호주 role에도 같은 원칙을 각각 일본·호주 source에 적용한다. 현재 한국에 있는 후보라도 미국 이전 의향과 필요한 근무 조건을 명시했다면 미국 role의 `explicit_relocation_intent`로 정상 포함한다.
+
+이름, 사진, 언어권을 근거로 국적·민족을 추정하지 않는다. 이름이 한국식·일본식·영어식이라는 사실은 country evidence가 아니다. 학교·회사·연구실은 prestige나 국적 추정이 아니라 **실제로 그 국가에서 생활·협업한 직업적 evidence**로만 사용한다. 시민권·비자는 법적 근무 가능성 확인에만 사용하고 후보자의 실력이나 품질 점수로 가산하지 않는다.
+
+country evidence gate는 다음 순서로 적용한다.
+
+1. target country 각각에 대해 evidence row와 source ID, 관측 시각을 만든다.
+2. `confirmed_current_or_relocation` 후보를 주 pool의 첫 번째 geography tier로 둔다.
+3. `historical_affinity_verify_current_intent` 후보를 두 번째 tier로 두고 현재 relocation·remote 의향을 finalist 전에 검증한다.
+4. target country에 대한 evidence가 하나도 없는 `no_country_evidence` 후보는 role keyword나 system signal이 높아도 약 200명 main pool에 넣지 않는다.
+5. target country와 명시적으로 충돌하는 location·relocation·visa 조건이 있으면 `confirmed_country_conflict`로 제외한다.
+6. 같은 geography tier 안에서만 role relevance, lane priority, system signal을 사용해 정렬한다.
+
+`unknown`을 main pool에서 제외하는 것은 해당 후보를 `do_not_recommend`로 판정하거나 cooldown을 만드는 행위가 아니다. country evidence가 새로 생기거나 location preference가 갱신되면 다음 run에서 정상 후보로 돌아온다. country gate 때문에 200명이 안 되더라도 evidence 없는 다른 국가 후보로 채우지 않는다.
+
+candidate pool과 개별 평가 artifact에는 최소 다음을 남긴다.
+
+```json
+{
+  "targetCountries": ["KR"],
+  "countryEvidenceTier": "confirmed_current_or_relocation",
+  "countryEvidence": [
+    {
+      "type": "current_residence",
+      "countryCode": "KR",
+      "source": "talent_users.current_location",
+      "sourceId": "<talent_id>",
+      "observedAt": "timestamp or unknown",
+      "fact": "현재 서울 거주"
+    }
+  ],
+  "countryUnknowns": [],
+  "countryConflicts": []
+}
+```
+
 ### 10.3 기본 exclusion
 
 role별 dynamic hard filter보다 먼저 다음을 적용한다.
@@ -1080,12 +1173,14 @@ WHERE lr.final_disposition = 'do_not_recommend'
 
 SQL은 최종 결정을 내리지 않는다. 약 2,400명 전체를 정밀 검토하기 전에 recall을 유지하면서 약 200명으로 줄이는 역할이다.
 
+section 10.2.1의 country evidence gate는 keyword ranking과 `LIMIT 200`보다 먼저 적용한다. 전체 talent를 role relevance로 정렬한 뒤 상위 200명에서 국가가 맞지 않는 사람을 사후 제거하는 구현은 금지한다. 그러면 적합한 target-country 후보에게 slot이 돌아가지 않는다.
+
 SQL ranking에는 비교적 구조화되고 재현 가능한 feature만 사용한다.
 
 - role/title·경력 description·resume text와 핵심 keyword의 일치
 - 관련 경력 기간과 recency
 - 학력·학위·전공 같은 명시 criteria
-- location·employment type 일치
+- country gate를 통과한 후보 안에서의 세부 region·work mode·employment type 일치
 - 최근 로그인·활동
 - internal recommendation 응답 여부
 - 다른 internal role에서의 회사-side progress
@@ -1284,9 +1379,31 @@ base AS (
         AND pipeline.company_workspace_id = tr.company_workspace_id
     )
     /* DYNAMIC HARD FILTERS */
+),
+country_eligible AS (
+  SELECT
+    base.*,
+    CASE
+      WHEN :worldwide::boolean THEN 'worldwide_explicit'
+      WHEN base.user_id = ANY(
+        coalesce(:confirmed_country_talent_ids::uuid[], ARRAY[]::uuid[])
+      ) THEN 'confirmed_current_or_relocation'
+      WHEN base.user_id = ANY(
+        coalesce(:historical_country_talent_ids::uuid[], ARRAY[]::uuid[])
+      ) THEN 'historical_affinity_verify_current_intent'
+      ELSE NULL
+    END AS country_evidence_tier
+  FROM base
+  WHERE :worldwide::boolean
+     OR base.user_id = ANY(
+       coalesce(:confirmed_country_talent_ids::uuid[], ARRAY[]::uuid[])
+     )
+     OR base.user_id = ANY(
+       coalesce(:historical_country_talent_ids::uuid[], ARRAY[]::uuid[])
+     )
 )
 SELECT
-  base.*,
+  country_eligible.*,
   least(100, greatest(0,
     /* DYNAMIC ROLE RELEVANCE FEATURES: 0..86 */
     0
@@ -1302,12 +1419,23 @@ SELECT
         ELSE 0
       END
   )) AS retrieval_score
-FROM base
-ORDER BY retrieval_score DESC, last_logined_at DESC NULLS LAST, user_id ASC
+FROM country_eligible
+ORDER BY
+  CASE country_evidence_tier
+    WHEN 'confirmed_current_or_relocation' THEN 1
+    WHEN 'historical_affinity_verify_current_intent' THEN 2
+    WHEN 'worldwide_explicit' THEN 3
+    ELSE 4
+  END,
+  retrieval_score DESC,
+  last_logined_at DESC NULLS LAST,
+  user_id ASC
 LIMIT 200;
 ```
 
 `:unchanged_cooldown_talent_ids`는 section 10.3.2에 따라 pair별 최신 review, 만료 시각, 현재 role/candidate fingerprint를 먼저 비교해 만든다. 이 parameter를 생략한 채 일단 200명을 뽑고 나중에 cooldown 후보를 제거하면 신규·미검토 후보에게 빈 slot이 돌아가지 않으므로 금지한다.
+
+`:confirmed_country_talent_ids`와 `:historical_country_talent_ids`는 section 10.2.1의 evidence row를 deterministic preparer가 source ID와 함께 계산한 결과다. SQL에서 접근하기 어려운 최신 insight·message 기반 relocation evidence도 **이 배열을 `LIMIT 200` 전에 만들 때** 포함한다. 먼저 200명을 뽑은 뒤 대화로 geography를 보정하는 방식은 금지한다. 두 배열의 candidate ID, evidence type, source ID와 관측 시각은 `retrieval.sql` parameter manifest와 `candidate_pool.csv`에 남긴다.
 
 이 SQL의 `first_experience_date`부터 현재까지의 단순 차이는 겹치는 경력을 과다 계산할 수 있다. 총경력이 hard filter라면 별도의 date range merge 로직으로 중복 기간을 제거한다.
 
@@ -1325,7 +1453,7 @@ Role relevance 86점:
 | 핵심 업무·기술 evidence | 20 | resume/experience description의 weighted term group |
 | 관련 경력 범위·recency | 15 | 겹침 제거한 relevant months와 최근 수행 여부 |
 | 명시적 학력·credential | 10 | requirement가 있을 때만 `EXISTS`로 확인 |
-| location·언어·고용 형태 | 10 | 구조화 값 또는 명시적 profile evidence |
+| 세부 region·언어·고용 형태 | 10 | country gate 통과 후 구조화 값 또는 명시적 profile evidence |
 | 객관적 impact 단서 | 6 | led, launched, revenue, users, publication 등 상세 검토 후보 신호 |
 
 System signal 14점:
@@ -1337,6 +1465,8 @@ System signal 14점:
 | internal 제안 응답성 | 2 | 명시적 like/dislike response 존재 |
 
 role relevance와 system signal의 같은 사실을 양쪽에서 중복 가산하지 않는다. 예를 들어 다른 internal stage의 title·회사명을 role keyword match에 다시 넣지 않는다.
+
+country evidence gate는 이 100점 score 밖의 선행 eligibility·ordering 계약이다. `no_country_evidence`를 location 점수 0점으로만 처리한 뒤 기술 점수로 상쇄시키지 않는다. geography tier를 먼저 적용하고 같은 tier 안에서만 이 score를 사용한다.
 
 예를 들어 weighted term group은 다음처럼 구현할 수 있다.
 
@@ -1373,6 +1503,8 @@ END
 
 기본 상한은 role에 맞게 조정할 수 있지만 lane 정의와 변경 이유를 `retrievalRankSpec`에 남긴다. 한 candidate가 여러 lane에 있으면 한 번만 평가하고 `retrievalLanes`를 모두 기록한다.
 
+모든 lane과 freshness reservation에는 동일한 country evidence gate를 적용한다. high-impact, adjacent, system signal, 신규 가입이라는 이유로 `no_country_evidence` 후보를 예외 포함하지 않는다. multi-country role은 candidate가 허용 국가 중 하나에 대해 gate를 통과하면 되고, 어떤 국가 evidence로 들어왔는지 `retrievalLanes`와 별도로 기록한다.
+
 `new_or_materially_updated`는 200명에 30명을 더하는 별도 pool이 아니라 **최종 200명 안의 reservation**이다. 직전 유효 완료 run 이후 가입했거나, 마지막 review 이후 section 8.4의 candidate fingerprint가 달라진 후보 중 동일 hard filter와 최소 role relevance를 통과한 사람을 retrieval score 순으로 최대 30명 먼저 확보한다. 그 다음 나머지 slot을 네 role-evidence lane에서 채운다. 해당 후보가 30명보다 적으면 남은 slot은 일반 lane으로 돌린다. 같은 role의 유효 완료 run이 아직 없으면 전체 후보가 사실상 미검토 상태이므로 별도 freshness reservation을 적용하지 않는다. 최근 로그인만 발생한 후보, role-adjacent evidence가 없는 신규 가입자는 이 reservation으로 넣지 않는다.
 
 여기서 유효 완료 run은 manifest가 완료 상태이고 pool 전원 평가가 끝났으며 외부 모델 호출·source drift·incomplete 상태가 없는 run이다. 중단되거나 무효화된 run의 시작 시각을 freshness 기준으로 사용하지 않는다.
@@ -1406,11 +1538,11 @@ END
 1. lane별 query를 quota보다 넉넉하게 가져온다.
 2. lane priority 순으로 dedupe하며 `uniqueContributed`를 계산한다.
 3. 합계가 target pool보다 작고 최소 role-adjacent evidence를 통과한 후보가 남아 있으면, 미선택 후보를 retrieval score·lane priority·talent ID 순으로 backfill한다.
-4. backfill 후보에도 같은 hard filter와 최소 role relevance를 적용한다.
+4. backfill 후보에도 같은 country evidence gate, hard filter와 최소 role relevance를 적용한다.
 5. 그래도 target보다 작으면 `poolShortfallReason`을 `insufficient_relevant_candidates`로 기록한다.
 6. overlap 때문에 query가 일찍 끝난 경우는 `insufficient_relevant_candidates`라고 보고하지 않고 query를 확장한다.
 
-target을 채우기 위한 backfill과 무관한 후보로 숫자를 채우는 것은 다르다. 역할 인접성 최소 기준을 통과한 후보만 backfill하며, 실제 eligible 후보가 없으면 200명 미만으로 종료한다.
+target을 채우기 위한 backfill과 무관한 후보로 숫자를 채우는 것은 다르다. target-country evidence와 역할 인접성 최소 기준을 모두 통과한 후보만 backfill하며, 실제 eligible 후보가 없으면 200명 미만으로 종료한다.
 
 ### 10.8 retrieval funnel을 기록한다
 
@@ -1424,16 +1556,25 @@ target을 채우기 위한 backfill과 무관한 후보로 숫자를 채우는 �
   "afterAlreadyRecommended": 2310,
   "afterActiveReviewCooldown": 2298,
   "afterBlockedCompany": 2290,
+  "targetCountries": ["KR"],
+  "countryEvidenceTierCounts": {
+    "confirmedCurrentOrRelocation": 412,
+    "historicalAffinityVerifyCurrentIntent": 96,
+    "noCountryEvidence": 1764,
+    "confirmedCountryConflict": 18
+  },
+  "afterCountryEvidenceGate": 508,
   "afterRoleHardFilters": 318,
   "retrieved": 200
 }
 ```
 
-어떤 hard filter 하나가 후보의 대부분을 제거하면 source와 구현을 다시 확인한다. 숫자가 작다는 이유만으로 자동 완화하지 않는다.
+어떤 hard filter 하나가 후보의 대부분을 제거하면 source와 구현을 다시 확인한다. country gate에는 target country별 포함 수, 현재 거주·relocation·remote·현지 경력별 기여 수와 제외 수를 함께 남긴다. 숫자가 작다는 이유만으로 자동 완화하지 않는다.
 
 ### 10.9 200명이 안 나올 때
 
 - hard filter를 유지한 결과가 200명 미만이면 그대로 진행한다.
+- country evidence gate 결과가 200명 미만이면 그대로 진행하고 `no_country_evidence` 후보로 채우지 않는다.
 - soft keyword를 넓혀 recall을 높일 수 있다.
 - exact title keyword를 adjacent title·기능 keyword로 확장할 수 있다.
 - hard requirement를 soft preference로 바꾸려면 source를 재검토하고 consideration을 명시적으로 수정해야 한다.
@@ -1467,8 +1608,11 @@ retrieval pool이 200명이면 200명 모두에게 `decision`과 근거를 남�
 8. 최근 login과 activity event
 9. candidate가 직접 제공한 LinkedIn, GitHub, Scholar, portfolio 등 professional link
 10. top 후보라면 객관적 고가치 사실의 외부 검증
+11. retrieval에 사용한 target country evidence의 원문, source ID, 관측 시각과 현재 relocation·remote 의향
 
 대화·insight·추천 feedback은 특히 `candidate_acceptance_score`의 핵심 source다. 과거 선호를 현재 사실로 고정하지 말고 가장 최근 명시적 진술, 실제 추천 반응, 그 사이의 변화 정황을 시간순으로 정리한다. 서로 충돌하면 임의로 유리한 문장만 선택하지 않고 `unknown` 또는 낮은 confidence로 처리한다.
+
+country evidence는 retrieval에서 사용한 label만 믿지 않고 evidence packet에서 다시 확인한다. 과거 target-country 경력만 있는 후보는 현재 의향을 자동 pass로 만들지 않으며, 반대로 현재 다른 나라에 있다는 이유로 명시적 relocation 의향을 무시하지 않는다. 이름·사진으로 누락된 country evidence를 보충하지 않는다.
 
 `talent_progress.kind='candidate_requested_connection'`이고 `role_id`가 현재 평가 role과 같으면 후보자가 이 역할에 먼저 관심을 표시한 직접 evidence다. 다른 acceptance evidence가 부족해 수락 여부가 애매할 때 `명시적 커리어 방향` 또는 `최근 행동과 타이밍` 판단을 보완할 수 있다.
 
@@ -1696,6 +1840,20 @@ unresolved_blocker_count = 0
 ```json
 {
   "talentId": "uuid",
+  "targetCountries": ["KR"],
+  "countryEvidenceTier": "confirmed_current_or_relocation|historical_affinity_verify_current_intent",
+  "countryEvidence": [
+    {
+      "type": "current_residence|explicit_relocation_intent|allowed_remote_eligibility|work_authorization|target_country_work_education_research|explicit_country_preference",
+      "countryCode": "KR",
+      "source": "table or url",
+      "sourceId": "...",
+      "observedAt": "timestamp or unknown",
+      "fact": "..."
+    }
+  ],
+  "countryUnknowns": [],
+  "countryConflicts": [],
   "hardCriteria": [
     {
       "criterionId": "...",
@@ -2675,6 +2833,8 @@ selected 후보가 0명인 것은 실패가 아니다. “이번 role에 현재 
 - [ ] hard/plus/minus를 구분했다.
 - [ ] 각 criterion에 source와 confidence가 있다.
 - [ ] 보호 특성·나이 proxy를 제거했다.
+- [ ] target country·허용 remote 국가를 source와 함께 확정했고, 불명확하면 worldwide로 추정하지 않았다.
+- [ ] country evidence policy와 `no_country_evidence` 처리 방식을 consideration에 기록했다.
 - [ ] one-page와 structured JSON을 만들었다.
 
 ### retrieval
@@ -2685,11 +2845,16 @@ selected 후보가 0명인 것은 실패가 아니다. “이번 role에 현재 
 - [ ] cooldown 만료, role 변경, candidate matching 정보 변경, review 이후 새 수락·연결 요청을 정상 재검토 대상으로 복구했다.
 - [ ] `dont_share`, opt-out, blocked company를 제외했다.
 - [ ] dynamic hard filter 구현과 unknown policy를 기록했다.
+- [ ] candidate별 current residence·현지 경력·relocation·work authorization·remote eligibility를 source ID와 함께 계산했다.
+- [ ] country evidence gate를 role relevance ranking과 `LIMIT 200`보다 먼저 적용했다.
+- [ ] 현재 다른 나라에 있어도 target-country relocation 의향이 확인된 후보를 포함했다.
+- [ ] `no_country_evidence` 후보를 기술 점수·system signal·lane backfill로 구제하지 않았다.
+- [ ] 이름·사진·추정 국적·추정 민족을 country evidence로 사용하지 않았다.
 - [ ] retrieval role relevance 86점 + system signal 14점, total 100점 cap을 지켰다.
 - [ ] direct/core-work/adjacent/high-impact lane을 분리하고 dedupe했다.
 - [ ] 최대 30명의 `new_or_materially_updated` reservation을 적용했고 신규·업데이트 자체를 fit 점수로 가산하지 않았다.
 - [ ] lane별 raw·overlap·unique contribution을 기록하고 overlap shortfall을 backfill했다.
-- [ ] 각 filter 전후 count를 기록했다.
+- [ ] country evidence tier와 evidence type별 count를 포함해 각 filter 전후 count를 기록했다.
 - [ ] 최대 약 200명만 retrieval했다.
 
 ### 개별 평가
@@ -2800,6 +2965,8 @@ benchmark 문서와 이 문서가 충돌하면 benchmark의 blind-integrity 규�
 이 작업에서 가장 중요한 것은 “많이 찾는 것”이 아니라 “양쪽 모두에게 실제로 좋은 연결만 만드는 것”이다.
 
 role description과 최신 명시적 request가 가장 높은 우선순위다. 직전 run memory는 시작 시 최신 한 건만 읽되 맥락 복원용 참고로만 사용한다. 과거 회사 피드백은 현재 요청을 더 정확하게 해석하는 evidence로 사용한다. 후보자의 profile만 보지 말고 대화, insight, 추천 반응, 응답성, 다른 internal process의 실제 진행 결과까지 확인한다. SQL은 recall을 위한 도구이며 최종 판단을 대신하지 않는다.
+
+role keyword를 보기 전에 target country와 허용 근무 국가를 확정한다. country evidence가 있는 후보만 약 200명 retrieval lane에 넣고, 현재 다른 나라에 있는 후보는 target-country relocation·remote 의향이 확인될 때 포함한다. 국가 evidence가 없는 후보를 기술 점수로 끌어올리거나 200명 숫자를 채우기 위한 backfill로 사용하지 않는다. 명시적 worldwide role이 아니라면 국가 무관 retrieval을 기본값으로 사용하지 않는다.
 
 200명 단계에서는 한 명씩 독립적으로 점수를 매기고, 비교는 Top 50에서만 한다. 최종 선택자는 회사 적합도와 후보자 수락 가능성이 모두 기준을 넘어야 한다. 좋은 사람이 없으면 아무도 선택하지 않는다. 연결할 수 있지만 이번 `M`명에 들지 못한 후보는 `eligible_not_selected`로 남겨 다음 run에서 불이익 없이 다시 본다. 충분한 직접 근거를 읽고도 이 role에는 연결하면 안 된다고 판단한 사람만 `do_not_recommend`로 두고, 같은 role·candidate fingerprint인 동안 60일간 재검토하지 않는다.
 

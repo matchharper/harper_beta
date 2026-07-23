@@ -43,7 +43,10 @@ export function resolveOfficialJobsLocaleFromRequest(
 
 export const OFFICIAL_JOBS_COPY = {
   ko: {
-    cta: "Talk to Harper",
+    cta: {
+      control: "Talk to Harper",
+      treatment: "Apply with Harper",
+    },
     initialChatDraft: "Harper 내부 기회인 {role} 포지션에 관심 있어요.",
     detail: {
       backToList: "역할 목록",
@@ -93,7 +96,10 @@ export const OFFICIAL_JOBS_COPY = {
     },
   },
   en: {
-    cta: "Talk to Harper",
+    cta: {
+      control: "Talk to Harper",
+      treatment: "Apply with Harper",
+    },
     initialChatDraft:
       "I'm interested in the Harper internal opportunity : {role} role.",
     detail: {

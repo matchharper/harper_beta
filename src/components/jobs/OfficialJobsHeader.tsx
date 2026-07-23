@@ -17,13 +17,13 @@ export default function OfficialJobsHeader({
   const copy = getOfficialJobsCopy(locale);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-neutral-1000-a05 bg-bg-default backdrop-blur-xl">
-      <div className="mx-auto flex h-16 max-w-[1160px] items-center justify-between px-4 md:px-6 lg:px-8">
+    <header className="top-0 z-40 border-b border-neutral-1000-a05 bg-bg-default backdrop-blur-xl">
+      <div className="mx-auto flex h-14 max-w-[1160px] items-center justify-between px-4 md:px-6 lg:px-8">
         <Link href="/" className="flex items-center gap-2">
           <Image
             src="/svgs/logov2.svg"
             alt="Harper"
-            width={72}
+            width={64}
             height={33}
             priority
           />
@@ -44,6 +44,7 @@ export default function OfficialJobsHeader({
           <OfficialJobsCtaLink
             job={job}
             variant="secondary"
+            className="hidden md:flex"
             size="sm"
             locale={locale}
           />

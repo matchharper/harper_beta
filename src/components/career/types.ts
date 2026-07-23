@@ -47,6 +47,7 @@ export type CallTranscriptEntry = {
 
 export type CareerTalentUser = {
   user_id: string;
+  email?: string | null;
   name: string | null;
   profile_picture: string | null;
   headline: string | null;

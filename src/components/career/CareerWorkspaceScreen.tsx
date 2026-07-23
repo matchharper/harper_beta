@@ -465,15 +465,16 @@ const CareerWorkspaceRoot = ({
 
 const useMobileUserDisplay = () => {
   const { preferredLocale, user, talentProfile } = useCareerSidebarContext();
-  const displayName =
+  const authDisplayName =
     user?.user_metadata?.full_name ??
     user?.user_metadata?.name ??
     (typeof user?.email === "string" ? user.email.split("@")[0] : undefined);
+  const displayName = talentProfile.talentUser?.name ?? authDisplayName;
   const profilePicture = getCareerMenuProfileImageUrl({
     authenticatedUserImageUrl: getAuthenticatedUserProfileImageUrl(user),
     talentProfileImageUrl: talentProfile.talentUser?.profile_picture,
   });
-  const userEmail = user?.email ?? "";
+  const userEmail = talentProfile.talentUser?.email ?? user?.email ?? "";
   return {
     displayName: displayName ?? null,
     preferredLocale,

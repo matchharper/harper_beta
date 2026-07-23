@@ -381,43 +381,6 @@
     cursor: pointer;
   }
 
-  .liquid-glass {
-    position: relative;
-    isolation: isolate;
-    overflow: hidden;
-    background: var(--liquid-glass-bg);
-    border: 1px solid var(--liquid-glass-border);
-    box-shadow: var(--liquid-glass-shadow);
-    -webkit-backdrop-filter: var(--liquid-glass-filter);
-    backdrop-filter: var(--liquid-glass-filter);
-  }
-
-  .liquid-glass::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    border-radius: inherit;
-    background:
-      linear-gradient(
-        135deg,
-        rgba(255, 255, 255, 0.58),
-        rgba(255, 255, 255, 0) 42%
-      ),
-      radial-gradient(
-        circle at 14% 8%,
-        rgba(255, 255, 255, 0.62),
-        transparent 32%
-      ),
-      radial-gradient(
-        circle at 88% 92%,
-        rgba(255, 255, 255, 0.18),
-        transparent 38%
-      );
-    mix-blend-mode: screen;
-    opacity: var(--liquid-glass-shine-opacity, 0.72);
-  }
-
   @supports not (
     (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
   ) {
@@ -1054,4 +1017,47 @@
   100% {
     transform: translateX(220%);
   }
+}
+
+.liquid-glass {
+  position: relative;
+  overflow: hidden;
+
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.4),
+    rgba(255, 255, 255, 0.12)
+  );
+
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 24px;
+
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.liquid-glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+
+  background:
+    radial-gradient(
+      circle at 20% 0%,
+      rgba(255, 255, 255, 0.65),
+      transparent 45%
+    ),
+    linear-gradient(120deg, rgba(255, 255, 255, 0.25), transparent 40%);
+}
+
+.liquid-glass > * {
+  position: relative;
+  z-index: 1;
 }

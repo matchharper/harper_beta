@@ -1,6 +1,9 @@
 import { supabase } from "@/lib/supabase";
 import {
-  OFFICIAL_JOBS_LANDING_ABTEST_TYPE,
+  getOfficialJobsApplyHelpExperimentAbtestType,
+  getOfficialJobsApplyHelpVariant,
+} from "@/lib/officialJobs/experiment";
+import {
   OFFICIAL_JOBS_LANDING_LAST_VISIT_AT_KEY,
   OFFICIAL_JOBS_LANDING_SESSION_GAP_MS,
   OFFICIAL_JOBS_LANDING_SOURCE,
@@ -81,12 +84,13 @@ function isMobileBrowser() {
 
 async function insertOfficialJobsLandingEntry(
   anonymousId: string,
+  abtestType: string,
   type: "new_session" | "new_visit"
 ) {
   const { error } = await supabase.from("landing_logs").insert({
     local_id: anonymousId,
     type: withLandingLogSource(type, OFFICIAL_JOBS_LANDING_SOURCE),
-    abtest_type: OFFICIAL_JOBS_LANDING_ABTEST_TYPE,
+    abtest_type: abtestType,
     is_mobile: isMobileBrowser(),
     country_lang:
       typeof navigator !== "undefined" ? navigator.language || null : null,
@@ -98,6 +102,7 @@ async function insertOfficialJobsLandingEntry(
 }
 
 async function ensureOfficialJobsLandingEntry(args: {
+  abtestType: string;
   anonymousId: string;
   isNew: boolean;
 }) {
@@ -114,12 +119,20 @@ async function ensureOfficialJobsLandingEntry(args: {
   );
 
   if (args.isNew || !lastVisitAt || !Number.isFinite(lastVisitAt)) {
-    await insertOfficialJobsLandingEntry(args.anonymousId, "new_visit");
+    await insertOfficialJobsLandingEntry(
+      args.anonymousId,
+      args.abtestType,
+      "new_visit"
+    );
     return;
   }
 
   if (now - lastVisitAt >= OFFICIAL_JOBS_LANDING_SESSION_GAP_MS) {
-    await insertOfficialJobsLandingEntry(args.anonymousId, "new_session");
+    await insertOfficialJobsLandingEntry(
+      args.anonymousId,
+      args.abtestType,
+      "new_session"
+    );
   }
 }
 
@@ -133,8 +146,15 @@ export async function postOfficialJobEvent({
 
   try {
     const identity = getOfficialJobsAnonymousIdentity();
+    const experimentVariant = getOfficialJobsApplyHelpVariant();
+    const experimentAbtestType = getOfficialJobsApplyHelpExperimentAbtestType();
     if (identity && eventType !== "jobs_identity_linked") {
-      void ensureOfficialJobsLandingEntry(identity);
+      if (experimentAbtestType) {
+        void ensureOfficialJobsLandingEntry({
+          ...identity,
+          abtestType: experimentAbtestType,
+        });
+      }
     }
 
     let resolvedAccessToken = accessToken ?? null;
@@ -157,10 +177,15 @@ export async function postOfficialJobEvent({
       method: "POST",
       headers,
       body: JSON.stringify({
+        abtestType: experimentAbtestType,
         anonymousId: identity?.anonymousId ?? null,
         eventType,
         jobSlug: jobSlug ?? null,
-        metadata: metadata ?? {},
+        metadata: {
+          ...(metadata ?? {}),
+          experimentAbtestType,
+          experimentVariant,
+        },
         path: getCurrentPath(),
         referrer: getReferrer(),
       }),

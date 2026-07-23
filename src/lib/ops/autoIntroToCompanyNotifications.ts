@@ -50,9 +50,11 @@ type WorkspaceRow = {
 
 type RecommendationRow = {
   created_at: string;
+  feedback: string | null;
   id: string;
   recommended_at: string;
   role_id: string;
+  saved_stage: string | null;
   talent_id: string;
   updated_at: string;
 };
@@ -241,11 +243,22 @@ function isPendingConnectionStage(tags: TagRow[]) {
       return rightKey.localeCompare(leftKey);
     })[0];
 
-  if (!latestInternalTag) return true;
-  const tag = normalizeTagKey(latestInternalTag.tag);
   return (
-    tag === normalizeTagKey(PENDING_CONNECTION_TAG) ||
-    tag === normalizeTagKey(RECOMMENDED_TAG)
+    Boolean(latestInternalTag) &&
+    normalizeTagKey(latestInternalTag?.tag) ===
+      normalizeTagKey(PENDING_CONNECTION_TAG)
+  );
+}
+
+function isAcceptedRecommendation(row: RecommendationRow) {
+  const feedback = normalizeText(row.feedback).toLowerCase();
+  const savedStage = normalizeText(row.saved_stage).toLowerCase();
+  return (
+    feedback === "like" ||
+    feedback === "liked" ||
+    feedback === "positive" ||
+    feedback === "accepted" ||
+    savedStage === "accepted"
   );
 }
 
@@ -370,7 +383,7 @@ async function fetchRecommendations(admin: AdminClient, roleIds: string[]) {
       ...(await fetchAllRows<RecommendationRow>((from, to) =>
         (admin.from("talent_opportunity_recommendation" as any) as any)
           .select(
-            "id, talent_id, role_id, recommended_at, created_at, updated_at"
+            "id, talent_id, role_id, feedback, saved_stage, recommended_at, created_at, updated_at"
           )
           .in("role_id", roleIdChunk)
           .order("recommended_at", { ascending: false, nullsFirst: false })
@@ -593,6 +606,7 @@ async function buildEligibleCandidates(
     if (!role) continue;
 
     const key = `${recommendation.role_id}:${recommendation.talent_id}`;
+    if (!isAcceptedRecommendation(recommendation)) continue;
     if (existingIntroKeys.has(key)) continue;
     if (!isPendingConnectionStage(tagsByKey.get(key) ?? [])) continue;
 

@@ -47,7 +47,13 @@ export type TalentStructuredProfile = {
   talentUser:
     | (Pick<
         TalentUserProfileRow,
-        "user_id" | "name" | "profile_picture" | "headline" | "bio" | "location"
+        | "user_id"
+        | "email"
+        | "name"
+        | "profile_picture"
+        | "headline"
+        | "bio"
+        | "location"
       > & { current_location?: string | null })
     | null;
   talentExperiences: TalentExperienceRow[];

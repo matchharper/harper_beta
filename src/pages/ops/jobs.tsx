@@ -757,7 +757,7 @@ export default function OpsOfficialJobsPage() {
                       <div className="flex shrink-0 flex-col items-end gap-1">
                         <span
                           className={cx(
-                            "rounded-md px-2 py-1 text-[11px] font-medium",
+                            "rounded-sm px-1 py-0.5 text-[11px] font-medium",
                             job.isInternalCopy
                               ? "bg-bg-floating text-neutral-muted"
                               : job.isPublished
@@ -771,6 +771,11 @@ export default function OpsOfficialJobsPage() {
                               ? "Published"
                               : "Draft"}
                         </span>
+                        {job.isOnLinkedin && (
+                          <span className="rounded-sm bg-action-faded px-1 py-0.5 text-[11px] font-medium text-action">
+                            On LinkedIn
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="mt-2 flex items-center justify-between gap-3 text-[12px] text-neutral-muted">

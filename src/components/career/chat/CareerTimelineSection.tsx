@@ -1,4 +1,4 @@
-import { Loader2, Plus, Upload, X } from "lucide-react";
+import { ArrowUp, Loader2, Plus, Upload, X } from "lucide-react";
 import {
   FormEvent,
   Fragment,
@@ -1047,7 +1047,7 @@ const CareerTimelineSection = () => {
               type="button"
               onClick={() => void handleLoadOlderMessages()}
               disabled={loadingOlderMessages}
-              className="inline-flex h-9 items-center justify-center rounded-[8px] border border-neutral-1000-a05 bg-bg-floating px-4 text-xs text-neutral-muted transition-colors hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex gap-2 h-8 items-center justify-center rounded-[8px] bg-bg-floating px-4 text-xs text-neutral-muted transition-colors hover:border-neutral-400 hover:bg-bg-basement hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loadingOlderMessages
                 ? t(
@@ -1058,6 +1058,7 @@ const CareerTimelineSection = () => {
                     "career.chat.career_timeline_section.0t1ynxd",
                     "이전 대화 더 보기"
                   )}
+              <ArrowUp className="h-3 w-3" strokeWidth={1.8} />
             </BareButton>
           </div>
         )}

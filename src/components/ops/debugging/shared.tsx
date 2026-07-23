@@ -11,11 +11,12 @@ import { useAuthStore } from "@/store/useAuthStore";
 export const FETCH_LIMIT = 40;
 export const OPPORTUNITY_RUN_FETCH_LIMIT = 20;
 
-export type DebugTabId = "calls" | "emails" | "opportunityRuns";
+export type DebugTabId = "calls" | "cost" | "emails" | "opportunityRuns";
 
 export function debugTabTitle(tab: DebugTabId) {
   if (tab === "emails") return "메일 로그";
   if (tab === "calls") return "콜 로그";
+  if (tab === "cost") return "비용";
   return "Opportunity Runs";
 }
 
@@ -25,6 +26,9 @@ export function debugTabDescription(tab: DebugTabId) {
   }
   if (tab === "calls") {
     return "talent_calls별로 저장된 통화 transcript와 wrap-up 메시지를 확인합니다.";
+  }
+  if (tab === "cost") {
+    return "Claude, OpenAI, Grok, Exa, EC2 비용과 현재 credit을 확인합니다.";
   }
   return "최근 opportunity_discovery_run의 추천 저장, 발송, action, partial 사유를 확인합니다.";
 }
@@ -142,10 +146,12 @@ export function SourceLimitNotice() {
 export function DebuggingPageShell({
   children,
   filters,
+  showContextLabel = true,
   tab,
 }: {
   children: ReactNode;
   filters: ReactNode;
+  showContextLabel?: boolean;
   tab: DebugTabId;
 }) {
   return (
@@ -160,8 +166,15 @@ export function DebuggingPageShell({
           <div className={cx(opsTheme.panel, "relative z-20 p-4")}>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <div className={opsTheme.eyebrow}>Debugging</div>
-                <h1 className="mt-1 text-xl font-semibold text-neutral-primary">
+                {showContextLabel ? (
+                  <div className={opsTheme.eyebrow}>Debugging</div>
+                ) : null}
+                <h1
+                  className={cx(
+                    "text-xl font-semibold text-neutral-primary",
+                    showContextLabel ? "mt-1" : ""
+                  )}
+                >
                   {debugTabTitle(tab)}
                 </h1>
                 <p className="mt-1 text-sm leading-6 text-neutral-muted">

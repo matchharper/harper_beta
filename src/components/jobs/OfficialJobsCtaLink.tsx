@@ -12,6 +12,11 @@ import {
   type OfficialJobsLocale,
 } from "@/lib/officialJobs/copy";
 import { getOfficialJobsAnonymousId } from "@/lib/officialJobs/events";
+import {
+  getOfficialJobsApplyHelpExperimentAbtestType,
+  OFFICIAL_JOBS_APPLY_HELP_CONTROL_COPY_CLASS,
+  OFFICIAL_JOBS_APPLY_HELP_TREATMENT_COPY_CLASS,
+} from "@/lib/officialJobs/experiment";
 import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
 import {
   CAREER_LANDING_LOCAL_ID_STORAGE_KEY,
@@ -70,6 +75,7 @@ export default function OfficialJobsCtaLink({
 }: OfficialJobsCtaLinkProps) {
   const user = useAuthStore((state) => state.user);
   const loading = useAuthStore((state) => state.loading);
+  const copy = getOfficialJobsCopy(locale);
   const careerHref = job ? buildOfficialJobsCareerHref(job) : "/career";
   const href =
     !loading && user
@@ -80,6 +86,7 @@ export default function OfficialJobsCtaLink({
 
   const handleClick: MouseEventHandler<HTMLAnchorElement> = (event) => {
     const resolvedAnonymousId = getOfficialJobsAnonymousId();
+    const experimentAbtestType = getOfficialJobsApplyHelpExperimentAbtestType();
 
     if (typeof window !== "undefined" && resolvedAnonymousId) {
       window.localStorage.setItem(
@@ -107,7 +114,8 @@ export default function OfficialJobsCtaLink({
     event.preventDefault();
     window.location.href = buildOfficialJobsLoginHref(
       resolvedAnonymousId,
-      careerHref
+      careerHref,
+      experimentAbtestType
     );
   };
 
@@ -117,7 +125,16 @@ export default function OfficialJobsCtaLink({
       onClick={handleClick}
       className={cn(ctaLinkVariants({ fullWidth, size, variant }), className)}
     >
-      <span>{children ?? getOfficialJobsCopy(locale).cta}</span>
+      {children ?? (
+        <span>
+          <span className={OFFICIAL_JOBS_APPLY_HELP_CONTROL_COPY_CLASS}>
+            {copy.cta.control}
+          </span>
+          <span className={OFFICIAL_JOBS_APPLY_HELP_TREATMENT_COPY_CLASS}>
+            {copy.cta.treatment}
+          </span>
+        </span>
+      )}
     </Link>
   );
 }

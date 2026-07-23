@@ -51,12 +51,12 @@ const CareerWorkspaceNav = () => {
   const { user, onLogout, onOpenSettings, preferredLocale, talentProfile } =
     useCareerSidebarContext();
 
-  const displayName =
+  const authDisplayName =
     user?.user_metadata?.full_name ??
     user?.user_metadata?.name ??
     (typeof user?.email === "string" ? user.email.split("@")[0] : "Candidate");
-  const profileName = talentProfile.talentUser?.name ?? displayName;
-  const profileEmail = user?.email ?? "";
+  const profileName = talentProfile.talentUser?.name ?? authDisplayName;
+  const profileEmail = talentProfile.talentUser?.email ?? user?.email ?? "";
   const profileImageUrl = getCareerMenuProfileImageUrl({
     authenticatedUserImageUrl: getAuthenticatedUserProfileImageUrl(user),
     talentProfileImageUrl: talentProfile.talentUser?.profile_picture,

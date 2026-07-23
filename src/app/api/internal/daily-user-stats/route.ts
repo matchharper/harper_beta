@@ -16,6 +16,7 @@ export const runtime = "nodejs";
 
 const SLACK_DAILY_USER_STATS_CHANNEL_ID = "C0B2TFPUS6P";
 const SLACK_COMPANY_NOTIFICATION_CHANNEL_ID = "C0AKK93FMH8";
+const SLACK_DEV_CHANNEL_ID = "C0AB43Q9U58";
 
 function getConfiguredCronSecrets() {
   return [

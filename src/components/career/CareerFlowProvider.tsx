@@ -718,6 +718,38 @@ export const CareerFlowProvider = ({
     applyTalentProfileSnapshotRef.current = applyTalentProfileSnapshot;
   }, [applyTalentProfileSnapshot]);
 
+  const handleUpdateAccountProfile = useCallback(
+    (profile: {
+      email: string | null;
+      name: string | null;
+      user_id: string;
+    }) => {
+      applyTalentProfileSnapshot({
+        talentUser: {
+          user_id: profile.user_id || talentUser?.user_id || userId || "",
+          email: profile.email,
+          name: profile.name,
+          profile_picture: talentUser?.profile_picture ?? null,
+          headline: talentUser?.headline ?? null,
+          bio: talentUser?.bio ?? null,
+          current_location: talentUser?.current_location ?? null,
+          location: talentUser?.location ?? null,
+        },
+        talentExperiences,
+        talentEducations,
+        talentExtras,
+      });
+    },
+    [
+      applyTalentProfileSnapshot,
+      talentEducations,
+      talentExperiences,
+      talentExtras,
+      talentUser,
+      userId,
+    ]
+  );
+
   const {
     settingsLoading,
     settingsSaving,
@@ -2123,6 +2155,7 @@ export const CareerFlowProvider = ({
       onAddProfileLink: handleAddProfileLink,
       onRemoveProfileLink: handleRemoveProfileLink,
       onSaveTalentProfile: handleSaveTalentProfile,
+      onUpdateAccountProfile: handleUpdateAccountProfile,
       onRefreshTalentProfileSources: handleRefreshTalentProfileSources,
       talentProfile: {
         talentUser,
@@ -2206,6 +2239,7 @@ export const CareerFlowProvider = ({
       handleUpdateCompanyFollow,
       onRemoveBlockedCompany,
       handleSaveTalentProfile,
+      handleUpdateAccountProfile,
       handleRefreshTalentProfileSources,
       handleRunSessionReengagementTest,
       hasMoreHistoryOpportunities,

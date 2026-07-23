@@ -22,10 +22,7 @@ const kstDateFormatter = new Intl.DateTimeFormat("en-CA", {
 
 function getKstDateParts(date) {
   const parts = Object.fromEntries(
-    kstDateFormatter.formatToParts(date).map((part) => [
-      part.type,
-      part.value,
-    ])
+    kstDateFormatter.formatToParts(date).map((part) => [part.type, part.value])
   );
 
   return {
@@ -112,7 +109,7 @@ const channelFilters = [
   },
   {
     label: "Instagram",
-    filter: or(
+    filter: orFilter(
       filterContains("sessionSource", "instagram"),
       filterContains("sessionSource", "instantdm.com")
     ),
@@ -174,12 +171,7 @@ function readMetricRow(payload, metricNames) {
 }
 
 async function fetchChannelMetrics(accessToken, dateRange, channel) {
-  const metrics = [
-    "sessions",
-    "totalUsers",
-    "newUsers",
-    "engagementRate",
-  ];
+  const metrics = ["sessions", "totalUsers", "newUsers", "engagementRate"];
 
   const payload = await runReport(accessToken, {
     dateRanges: [dateRange],
@@ -210,10 +202,10 @@ function formatSlackMessage({ dateRange, rows }) {
   const sortedRows = rows.slice().sort((a, b) => b.sessions - a.sessions);
   const tableLines = [
     [
-      pad("소스/채널", 16),
-      pad("세션", 8),
-      pad("유저", 7),
-      pad("신규 유저", 9),
+      pad("소스/채널", 13),
+      pad("세션", 7),
+      pad("유저", 6),
+      pad("신규 유저", 8),
       "참여율",
     ].join(" "),
     ...sortedRows.map((row) =>

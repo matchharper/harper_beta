@@ -902,6 +902,27 @@ const CareerWorkspacePreview = ({
         );
         return true;
       },
+      onUpdateAccountProfile: (profile) => {
+        setTalentProfile((current) => ({
+          ...current,
+          talentUser: current.talentUser
+            ? {
+                ...current.talentUser,
+                email: profile.email,
+                name: profile.name,
+                user_id: profile.user_id,
+              }
+            : {
+                user_id: profile.user_id,
+                email: profile.email,
+                name: profile.name,
+                profile_picture: null,
+                headline: null,
+                bio: null,
+                location: null,
+              },
+        }));
+      },
       onRefreshTalentProfileSources: () => {
         setProfileSaveInfo(
           t(

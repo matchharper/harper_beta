@@ -167,6 +167,7 @@ const createFallbackTalentProfile = (
   talentUser: profile
     ? {
         user_id: profile.user_id,
+        email: profile.email,
         name: profile.name,
         profile_picture: profile.profile_picture,
         headline: profile.headline,

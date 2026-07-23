@@ -12,6 +12,7 @@ import {
   OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM,
   OFFICIAL_JOBS_ROLE_TITLE_MAX_LENGTH,
 } from "@/lib/officialJobs";
+import { getOfficialJobsApplyHelpExperimentAbtestType } from "@/lib/officialJobs/experiment";
 import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
 import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
 import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
@@ -135,7 +136,11 @@ export const useCareerAuth = () => {
     const localId =
       currentUrl.searchParams.get("lid") || nextUrl.searchParams.get("lid");
     const abtestType =
-      currentUrl.searchParams.get("ab") || nextUrl.searchParams.get("ab");
+      currentUrl.searchParams.get("ab") ||
+      nextUrl.searchParams.get("ab") ||
+      (source === OFFICIAL_JOBS_LANDING_SOURCE
+        ? getOfficialJobsApplyHelpExperimentAbtestType()
+        : null);
     const officialJobTitle = (
       currentUrl.searchParams.get(OFFICIAL_JOBS_ONBOARDING_JOB_PARAM) ||
       nextUrl.searchParams.get(OFFICIAL_JOBS_ONBOARDING_JOB_PARAM) ||
@@ -158,7 +163,10 @@ export const useCareerAuth = () => {
       nextUrl.searchParams.set("invite", inviteToken);
     }
     if (referralToken) {
-      nextUrl.searchParams.set(TALENT_NETWORK_REFERRAL_QUERY_KEY, referralToken);
+      nextUrl.searchParams.set(
+        TALENT_NETWORK_REFERRAL_QUERY_KEY,
+        referralToken
+      );
     }
     if (mail) {
       nextUrl.searchParams.set("mail", mail);

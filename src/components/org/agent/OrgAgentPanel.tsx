@@ -19,6 +19,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -127,7 +128,7 @@ function getPreviousMessageDateKey(
 function DateDivider({ label }: { label: string }) {
   return (
     <div className="flex justify-center py-2">
-      <span className="rounded-full bg-bg-weak px-2.5 py-1 text-[11px] text-neutral-soft">
+      <span className="rounded-full bg-bg-basement px-2.5 py-1 text-[11px] text-neutral-muted font-light">
         {label}
       </span>
     </div>
@@ -270,10 +271,10 @@ function MessageBubble({
       >
         <div
           className={cn(
-            "max-w-[82%] text-[13px] leading-5",
+            "leading-[23px] font-normal mb-2",
             isUser
-              ? "bg-neutral-1000 py-1.5 text-neutral-00 shadow-sm px-3 rounded-lg"
-              : "text-neutral-primary py-1",
+              ? "max-w-[82%] bg-neutral-200 py-1.5 text-neutral-1000 px-3 rounded-lg"
+              : "max-w-[98%] text-neutral-primary py-1",
             message.status === "failed" &&
               "border-critical/20 bg-critical-faded"
           )}
@@ -421,6 +422,27 @@ function Composer({
 
   const candidates = mentionCandidates.data ?? [];
 
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    textarea.style.height = "auto";
+
+    const styles = window.getComputedStyle(textarea);
+    const lineHeight = Number.parseFloat(styles.lineHeight) || 20;
+    const paddingHeight =
+      Number.parseFloat(styles.paddingTop) +
+      Number.parseFloat(styles.paddingBottom);
+    const borderHeight =
+      Number.parseFloat(styles.borderTopWidth) +
+      Number.parseFloat(styles.borderBottomWidth);
+    const maxHeight = lineHeight * 4 + paddingHeight + borderHeight;
+    const contentHeight = textarea.scrollHeight + borderHeight;
+
+    textarea.style.height = `${Math.min(contentHeight, maxHeight)}px`;
+    textarea.style.overflowY = contentHeight > maxHeight ? "auto" : "hidden";
+  }, [draft]);
+
   const updateMentionSearch = useCallback((value: string) => {
     const cursor = textareaRef.current?.selectionStart ?? value.length;
     const search = getMentionSearch(value, cursor);
@@ -519,7 +541,10 @@ function Composer({
   };
 
   return (
-    <form className="bg-bg-floating/95 p-3" onSubmit={handleSubmit}>
+    <form
+      className="absolute bottom-0 left- w-full bg-linear-to-b to-50% from-bg-floating/0 to-bg-floating px-2 pb-2"
+      onSubmit={handleSubmit}
+    >
       <div className="relative flex items-end">
         {mentionSearch && (
           <MentionMenu
@@ -532,10 +557,10 @@ function Composer({
         <textarea
           ref={textareaRef}
           value={draft}
-          rows={2}
+          rows={1}
           autoFocus
           disabled={disabled || isStreaming}
-          className="max-h-32 min-h-[44px] w-full resize-none rounded-lg bg-bg-default border font-normal shadow-xs border-neutral-1000-a10 px-3 py-3 pb-4 pr-12 text-[13px] leading-5 text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full shadow-[0_0_24px_4px_rgb(0_0_0_/_0.05)] resize-none overflow-y-hidden rounded-3xl bg-bg-default border border-black/5 font-normal px-3.5 py-[13px] pr-12 text-[13px] leading-5 text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-black/10 disabled:cursor-not-allowed disabled:opacity-60"
           placeholder="원하는 조건 혹은 요구사항을 알려주세요."
           onChange={(event) => handleChange(event.target.value)}
           onKeyDown={handleKeyDown}
@@ -544,7 +569,7 @@ function Composer({
           type="submit"
           aria-label="메시지 보내기"
           variant="secondary"
-          className="absolute bg-primary text-white bottom-2 right-2 h-8 w-8 rounded-2xl hover:bg-primary/80"
+          className="absolute bg-primary text-white bottom-[8px] right-[8px] h-8 w-8 rounded-2xl hover:bg-primary/80"
           disabled={disabled || isStreaming || !draft.trim()}
           icon={<ArrowUp className="h-4 w-4" />}
         />
@@ -565,7 +590,7 @@ function Composer({
 function StreamingBubble({ text }: { text: string }) {
   if (!text) return null;
   return (
-    <div className="flex max-w-[82%] py-2 text-[13px] leading-5 text-neutral-primary">
+    <div className="flex max-w-[82%] py-2 leading-5 text-neutral-primary">
       <div className="whitespace-pre-wrap break-words">{text}</div>
     </div>
   );
@@ -589,7 +614,7 @@ function ThinkingPanel({
       ? "응답 생성 중"
       : latest.label;
   return (
-    <div className="flex items-center gap-2 px-1 py-0.5 text-[12px] text-neutral-muted">
+    <div className="flex items-center gap-2 px-0 py-0.5 text-[12px] text-neutral-muted">
       {latest.status === "running" ? (
         <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
       ) : latest.status === "error" ? (
@@ -643,17 +668,12 @@ function OrgAgentRolePicker({
     <section
       role="dialog"
       aria-label="채팅할 역할 선택"
-      className="pointer-events-auto w-[calc(100vw-32px)] max-w-[380px] overflow-hidden rounded-2xl border border-neutral-1000-a10 bg-bg-floating shadow-2xl ring-1 ring-neutral-1000-a05"
+      className="pointer-events-auto w-[calc(100vw-32px)] max-w-[380px] overflow-hidden rounded-2xl border border-black/5 bg-bg-floating shadow-xl"
     >
-      <header className="flex items-start justify-between gap-4 border-b border-neutral-1000-a05 px-4 py-3.5">
-        <div className="min-w-0">
-          <h2 className="text-[14px] font-medium text-neutral-primary">
-            어떤 역할에 대해 이야기할까요?
-          </h2>
-          <p className="mt-1 text-[12px] leading-4 text-neutral-muted">
-            역할을 선택하면 해당 채용 페이지에서 Harper 채팅이 열립니다.
-          </p>
-        </div>
+      <header className="flex items-start justify-between gap-4 px-4 py-3.5">
+        <h2 className="text-[14px] font-medium text-neutral-primary">
+          어떤 역할에 대해 이야기할까요?
+        </h2>
         <button
           type="button"
           aria-label="역할 선택 닫기"
@@ -673,17 +693,11 @@ function OrgAgentRolePicker({
                 <button
                   key={role.roleId}
                   type="button"
-                  className="group flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left outline-none transition hover:bg-bg-weak focus-visible:bg-bg-weak focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-1000-a10"
+                  className="group flex w-full items-center gap-3 rounded-md px-2 py-2 text-left outline-none transition hover:bg-bg-basement focus-visible:bg-bg-weak focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-1000-a10"
                   onClick={() => onSelect(role)}
                 >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-neutral-1000-a05 bg-bg-default text-primary shadow-xs">
-                    <MessageCircle
-                      className="h-[18px] w-[18px]"
-                      strokeWidth={1.7}
-                    />
-                  </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] font-medium leading-5 text-neutral-primary">
+                    <span className="block truncate text-[14px] font-normal leading-5 text-neutral-primary">
                       {role.name}
                     </span>
                     <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-neutral-muted">
@@ -799,77 +813,71 @@ export function OrgAgentPanel({
     };
   }, [rolePickerOpen]);
 
+  const iconBtn =
+    "flex h-7 w-7 items-center justify-center rounded-[10px] text-neutral-primary transition hover:bg-bg-weak";
+
   return (
     <div className="pointer-events-none fixed bottom-4 left-4 right-4 z-40 flex justify-end sm:bottom-5 sm:left-auto sm:right-5">
       {activeRole && open ? (
-        <aside className="pointer-events-auto flex h-[calc(100vh-96px)] max-h-[680px] w-[calc(100vw-32px)] max-w-[520px] overflow-hidden rounded-2xl border border-neutral-1000-a10 bg-bg-default shadow-2xl ring-1 ring-neutral-1000-a05">
-          <div className="flex min-w-0 flex-1 flex-col">
-            <header className="border-b border-neutral-1000-a05 bg-bg-floating/95 px-4 py-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 text-[13px] font-medium text-black">
-                    Harper
-                  </div>
-                  <div className="mt-0 truncate text-[12px] font-light text-primary">
-                    @ {activeRole.name}
-                  </div>
-                </div>
-                <div className="flex shrink-0 items-center gap-1">
-                  <div className="group relative">
-                    <button
-                      type="button"
-                      aria-describedby="org-agent-info-tooltip"
-                      aria-label="채팅 안내"
-                      className="flex h-6 w-6 items-center justify-center rounded-lg text-neutral-muted transition hover:bg-bg-weak hover:text-neutral-primary focus-visible:bg-bg-weak focus-visible:text-neutral-primary focus-visible:outline-none"
-                    >
-                      <Info className="h-4 w-4" />
-                    </button>
-                    <div
-                      id="org-agent-info-tooltip"
-                      role="tooltip"
-                      className="pointer-events-none absolute right-0 top-full z-30 mt-2 w-[300px] max-w-[calc(100vw-64px)] translate-y-1 rounded-lg border border-neutral-1000-a10 bg-neutral-1000 px-3.5 py-3 text-[12px] leading-4 text-neutral-00 opacity-0 shadow-xl transition duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
-                    >
-                      <div className="absolute -top-1.5 right-2.5 h-3 w-3 rotate-45 border-l border-t border-neutral-1000-a10 bg-neutral-1000" />
-                      <div className="relative space-y-2">
-                        <p>
-                          {activeRole.name}의 인재 연결 기준을 조정하는
-                          채팅입니다.
-                        </p>
-                        <p>
-                          앞으로 중요하게 볼 경력, 기술, 전공 등 혹은 요구사항을
-                          알려주세요. ex) 경력 20년차는 너무 많다. 더 적은
-                          사람으로, Google, Meta 출신이면 좋아. 등등 편하신
-                          방법으로 알려주세요.
-                        </p>
-                        <p>
-                          @로 특정 후보자를 지정해 해당 후보자 연결의 좋은 점과
-                          아쉬운 점을 설명할 수 있습니다.
-                        </p>
-                        <p>
-                          수락, 거절, 단계 이동은 후보자 프로필에서 직접
-                          처리해야 합니다.
-                        </p>
-                        <p>
-                          변경한 기준은 다음 후보 탐색과 추천부터 반영됩니다.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+        <aside className="pointer-events-auto flex h-[calc(100vh-96px)] max-h-[760px] w-[calc(100vw-32px)] max-w-[520px] border border-black/5 overflow-hidden rounded-4xl bg-bg-default shadow-xl shadow-gray-200">
+          <div className="flex min-w-0 flex-1 flex-col relative">
+            <header className="absolute top-0 left-0 w-full flex items-center justify-between gap-3 px-2.5 pt-2.5 pb-6 bg-linear-to-b from-70% from-bg-floating to-bg-floating/0">
+              <div className="flex items-center gap-2 text-[13px] py-0.5 font-normal text-black truncate pl-1">
+                Harper <span className="text-primary">@ {activeRole.name}</span>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                <div className="group relative">
                   <button
                     type="button"
-                    aria-label="채팅 닫기"
-                    className="flex h-6 w-6 items-center justify-center rounded-lg text-neutral-muted transition hover:bg-bg-weak hover:text-neutral-primary"
-                    onClick={() => setOpen(false)}
+                    aria-describedby="org-agent-info-tooltip"
+                    aria-label="채팅 안내"
+                    className={iconBtn}
                   >
-                    <X className="h-4 w-4" />
+                    <Info className="h-4 w-4" strokeWidth={1.8} />
                   </button>
+                  <div
+                    id="org-agent-info-tooltip"
+                    role="tooltip"
+                    className="pointer-events-none absolute right-0 top-full z-30 mt-2 w-[300px] max-w-[calc(100vw-64px)] translate-y-1 rounded-lg border border-neutral-1000-a10 bg-neutral-1000 px-3.5 py-3 text-[12px] leading-4 text-neutral-00 opacity-0 shadow-xl transition duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
+                  >
+                    <div className="absolute -top-1.5 right-2.5 h-3 w-3 rotate-45 border-l border-t border-neutral-1000-a10 bg-neutral-1000" />
+                    <div className="relative space-y-2">
+                      <p>
+                        {activeRole.name}의 인재 연결 기준을 조정하는
+                        채팅입니다.
+                      </p>
+                      <p>
+                        앞으로 중요하게 볼 경력, 기술, 전공 등 혹은 요구사항을
+                        알려주세요. ex) 경력 20년차는 너무 많다. 더 적은
+                        사람으로, Google, Meta 출신이면 좋아. 등등 편하신
+                        방법으로 알려주세요.
+                      </p>
+                      <p>
+                        @로 특정 후보자를 지정해 해당 후보자 연결의 좋은 점과
+                        아쉬운 점을 설명할 수 있습니다.
+                      </p>
+                      <p>
+                        수락, 거절, 단계 이동은 후보자 프로필에서 직접 처리해야
+                        합니다.
+                      </p>
+                      <p>변경한 기준은 다음 후보 탐색과 추천부터 반영됩니다.</p>
+                    </div>
+                  </div>
                 </div>
+                <button
+                  type="button"
+                  aria-label="채팅 닫기"
+                  className={iconBtn}
+                  onClick={() => setOpen(false)}
+                >
+                  <X className="h-4 w-4" strokeWidth={1.8} />
+                </button>
               </div>
             </header>
 
             <div
               ref={scrollRef}
-              className="flex-1 space-y-3 overflow-y-auto bg-bg-default px-3 py-3 scrollbar-thin scrollbar-thumb-neutral-1000-a10 scrollbar-track-transparent"
+              className="text-[14px] flex-1 space-y-3 overflow-y-auto bg-bg-default px-4 pb-24 pt-12 scrollbar-thin scrollbar-thumb-neutral-1000-a10 scrollbar-track-transparent"
               onScroll={(event) => {
                 const node = event.currentTarget;
                 if (
@@ -901,14 +909,14 @@ export function OrgAgentPanel({
               )}
 
               {history.isLoading ? (
-                <div className="flex items-center justify-center py-12 text-[13px] text-neutral-muted">
+                <div className="flex items-center justify-center py-12 text-neutral-muted">
                   <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
                   대화 불러오는 중
                 </div>
               ) : history.messages.length === 0 &&
                 !chat.optimisticUserMessage ? (
                 <div className="flex min-h-[260px] items-center justify-center px-8">
-                  <p className="max-w-[320px] text-center text-[13px] leading-5 text-neutral-muted">
+                  <p className="max-w-[320px] text-center leading-5 text-neutral-muted">
                     현재 역할에 대해 앞으로 연결할 인재의 기준에
                     <br />
                     반영되었으면 하는 내용이 있다면 알려주세요.

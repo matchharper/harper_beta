@@ -332,7 +332,7 @@ export function OrgEditDialog({
                     <span className="text-sm font-medium text-primary">
                       Role Request & Criteria
                     </span>
-                    <span className="text-xs font-normal leading-5 text-black/60">
+                    <span className="text-[13px] font-normal leading-5 text-black/60">
                       이 내용은 매번 인재를 탐색하고 연결하거나 후보자를 추천할
                       때 기준으로 반영됩니다. 여러가지 사항이 있다면 무엇이 더
                       우선순위가 높은지 등을 자세히 알려주실 수록 좋습니다.

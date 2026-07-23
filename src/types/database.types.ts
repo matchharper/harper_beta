@@ -1277,6 +1277,7 @@ export type Database = {
           created_at: string
           description: string | null
           description_summary: string | null
+          expired_at: string | null
           expires_at: string | null
           external_jd_url: string | null
           information: Json | null
@@ -1308,6 +1309,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           description_summary?: string | null
+          expired_at?: string | null
           expires_at?: string | null
           external_jd_url?: string | null
           information?: Json | null
@@ -1339,6 +1341,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           description_summary?: string | null
+          expired_at?: string | null
           expires_at?: string | null
           external_jd_url?: string | null
           information?: Json | null
@@ -6613,6 +6616,10 @@ export type Database = {
       }
     }
     Functions: {
+      archive_ended_internal_opportunities_for_talent: {
+        Args: { p_locale?: string; p_talent_id: string }
+        Returns: number
+      }
       can_access_candidate_profile: {
         Args: { target_candid_id: string }
         Returns: boolean

@@ -83,6 +83,34 @@ const getAccountDeleteErrorMessage = (error: unknown, fallback: string) => {
   return fallback;
 };
 
+const normalizeAccountFieldName = (value: string | null | undefined) =>
+  String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const normalizeAccountFieldEmail = (value: string | null | undefined) =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase();
+
+const isValidAccountEmail = (value: string) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
+type SavedAccountProfile = {
+  email: string;
+  name: string;
+  userId: string;
+};
+
+type AccountProfilePayload = {
+  error?: string;
+  profile?: {
+    email?: string | null;
+    name?: string | null;
+    user_id?: string | null;
+  } | null;
+};
+
 const AccountDeleteConfirmDialog = ({
   error,
   open,
@@ -200,26 +228,160 @@ const AccountDeleteConfirmDialog = ({
 
 const AccountSection = ({
   email,
+  name,
   onLogout,
+  onProfileSaved,
+  userId,
 }: {
   email: string;
+  name: string;
   onLogout: () => void | Promise<void>;
-}) => <AccountSectionContent email={email} onLogout={onLogout} />;
+  onProfileSaved: (profile: {
+    email: string | null;
+    name: string | null;
+    user_id: string;
+  }) => void;
+  userId: string;
+}) => (
+  <AccountSectionContent
+    key={`${userId}:${normalizeAccountFieldEmail(email)}:${normalizeAccountFieldName(
+      name
+    )}`}
+    email={email}
+    name={name}
+    onLogout={onLogout}
+    onProfileSaved={onProfileSaved}
+    userId={userId}
+  />
+);
 
 const AccountSectionContent = ({
   email,
+  name,
   onLogout,
+  onProfileSaved,
+  userId,
 }: {
   email: string;
+  name: string;
   onLogout: () => void | Promise<void>;
+  onProfileSaved: (profile: {
+    email: string | null;
+    name: string | null;
+    user_id: string;
+  }) => void;
+  userId: string;
 }) => {
   const t = useCareerT();
 
   const { fetchWithAuth } = useCareerApi();
   const logCareerEvent = useCareerLogEvent();
+  const [savedProfile, setSavedProfile] = useState<SavedAccountProfile>(() => ({
+    email: normalizeAccountFieldEmail(email),
+    name: normalizeAccountFieldName(name),
+    userId,
+  }));
+  const [draftName, setDraftName] = useState(savedProfile.name);
+  const [draftEmail, setDraftEmail] = useState(savedProfile.email);
+  const [savePending, setSavePending] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [saveInfo, setSaveInfo] = useState("");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deletePending, setDeletePending] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+
+  const normalizedDraftName = normalizeAccountFieldName(draftName);
+  const normalizedDraftEmail = normalizeAccountFieldEmail(draftEmail);
+  const hasAccountChanges =
+    normalizedDraftName !== savedProfile.name ||
+    normalizedDraftEmail !== savedProfile.email;
+
+  const handleSaveAccount = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (savePending || !hasAccountChanges) return;
+
+    setSaveError("");
+    setSaveInfo("");
+
+    if (!normalizedDraftName) {
+      setSaveError(
+        t(
+          "career.settings.career_settings_modal.account_name_required",
+          "이름을 입력해주세요."
+        )
+      );
+      return;
+    }
+    if (!isValidAccountEmail(normalizedDraftEmail)) {
+      setSaveError(
+        t(
+          "career.settings.career_settings_modal.account_email_invalid",
+          "유효한 이메일을 입력해주세요."
+        )
+      );
+      return;
+    }
+
+    setSavePending(true);
+    logCareerEvent("click_settings_account_save");
+
+    try {
+      const response = await fetchWithAuth("/api/talent/account", {
+        method: "PUT",
+        body: JSON.stringify({
+          email: normalizedDraftEmail,
+          name: normalizedDraftName,
+        }),
+      });
+      const payload = (await response
+        .json()
+        .catch(() => ({}))) as AccountProfilePayload;
+
+      if (!response.ok) {
+        throw new Error(
+          payload.error ??
+            t(
+              "career.settings.career_settings_modal.account_save_failed",
+              "계정 정보를 저장하지 못했습니다."
+            )
+        );
+      }
+
+      const profile = payload.profile ?? {};
+      const nextSaved = {
+        email: normalizeAccountFieldEmail(
+          profile.email ?? normalizedDraftEmail
+        ),
+        name: normalizeAccountFieldName(profile.name ?? normalizedDraftName),
+        userId: String(profile.user_id ?? userId),
+      };
+      setSavedProfile(nextSaved);
+      setDraftName(nextSaved.name);
+      setDraftEmail(nextSaved.email);
+      onProfileSaved({
+        email: nextSaved.email,
+        name: nextSaved.name,
+        user_id: nextSaved.userId,
+      });
+      setSaveInfo(
+        t(
+          "career.settings.career_settings_modal.account_saved",
+          "계정 정보를 저장했습니다."
+        )
+      );
+    } catch (error) {
+      setSaveError(
+        error instanceof Error
+          ? error.message
+          : t(
+              "career.settings.career_settings_modal.account_save_failed",
+              "계정 정보를 저장하지 못했습니다."
+            )
+      );
+    } finally {
+      setSavePending(false);
+    }
+  };
 
   const handleOpenDeleteConfirm = () => {
     logCareerEvent("click_settings_delete_account");
@@ -274,20 +436,88 @@ const AccountSectionContent = ({
 
   return (
     <>
-      <div className="space-y-4">
+      <form className="space-y-4" onSubmit={handleSaveAccount}>
         <div>
-          <h2 className="text-lg font-semibold text-neutral-primary">
+          <h2 className="text-lg font-medium text-neutral-primary">
             {t("career.settings.career_settings_modal.1lbfn2i", "계정 관리")}
           </h2>
-          <p className="mt-1 text-sm text-neutral-soft">
+          <p className="mt-1 text-sm text-neutral-soft font-normal">
             {t(
               "career.settings.career_settings_modal.1vcdzyt",
-              "계정 세션과 가입 상태를 관리합니다."
+              "계정과 가입 상태를 관리합니다."
             )}
           </p>
         </div>
 
-        <p className="text-sm text-neutral-muted">{email}</p>
+        <div className="grid gap-3">
+          <label className="grid gap-1.5">
+            <span className="text-xs font-medium text-neutral-muted">
+              {t("career.settings.career_settings_modal.account_name", "이름")}
+            </span>
+            <input
+              type="text"
+              value={draftName}
+              onChange={(event) => {
+                setDraftName(event.target.value);
+                setSaveError("");
+                setSaveInfo("");
+              }}
+              className="max-w-[360px] h-8 rounded-md border border-neutral-1000-a10 bg-bg-floating px-2.5 text-[13px] text-neutral-primary outline-none transition-colors placeholder:text-neutral-placeholder focus:border-neutral-400 focus:ring-2 focus:ring-neutral-1000-a10"
+              autoComplete="name"
+            />
+          </label>
+          <label className="grid gap-1.5">
+            <span className="text-xs font-medium text-neutral-muted">
+              {t(
+                "career.settings.career_settings_modal.account_email",
+                "이메일"
+              )}
+            </span>
+            <input
+              type="email"
+              value={draftEmail}
+              onChange={(event) => {
+                setDraftEmail(event.target.value);
+                setSaveError("");
+                setSaveInfo("");
+              }}
+              className="max-w-[360px] h-8 rounded-md border border-neutral-1000-a10 bg-bg-floating px-2.5 text-[13px] text-neutral-primary outline-none transition-colors placeholder:text-neutral-placeholder focus:border-neutral-400 focus:ring-2 focus:ring-neutral-1000-a10"
+              autoComplete="email"
+            />
+            {hasAccountChanges ? (
+              <BareButton
+                type="submit"
+                disabled={savePending}
+                className="mt-1 inline-flex h-8 w-fit items-center justify-center gap-1.5 rounded-md bg-black px-3 text-[13px] font-normal text-neutral-00 transition-colors hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {savePending ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : null}
+                {savePending
+                  ? t(
+                      "career.settings.career_settings_modal.account_saving",
+                      "저장 중"
+                    )
+                  : t(
+                      "career.settings.career_settings_modal.account_save",
+                      "저장"
+                    )}
+              </BareButton>
+            ) : null}
+          </label>
+        </div>
+
+        {saveError ? (
+          <p className="rounded-lg border border-critical/30 bg-critical-faded px-3 py-2 text-sm text-critical">
+            {saveError}
+          </p>
+        ) : null}
+        {saveInfo ? (
+          <p className="rounded-lg border border-neutral-1000-a05 bg-bg-weak px-3 py-2 text-sm text-neutral-muted">
+            {saveInfo}
+          </p>
+        ) : null}
+
         <BareButton
           type="button"
           onClick={() => {
@@ -307,7 +537,7 @@ const AccountSectionContent = ({
           <p className="mt-1 text-sm leading-relaxed text-neutral-soft">
             {t(
               "career.settings.career_settings_modal.0858bd9",
-              "탈퇴하면 계정과 커리어 프로필, 이력서, 대화/추천 데이터가 삭제됩니다. 다시 되돌릴 수 없습니다."
+              "탈퇴하면 계정과 커리어 프로필, 이력서, 대화/추천 등 모든 데이터가 삭제됩니다. 다시 되돌릴 수 없습니다."
             )}
           </p>
           <BareButton
@@ -319,7 +549,7 @@ const AccountSectionContent = ({
             {t("career.settings.career_settings_modal.1ba4567", "회원 탈퇴")}
           </BareButton>
         </div>
-      </div>
+      </form>
 
       <AccountDeleteConfirmDialog
         error={deleteError}
@@ -338,13 +568,30 @@ const AccountSectionContent = ({
 
 const renderSection = (
   tab: CareerSettingsTab,
-  email: string,
-  onLogout: () => void | Promise<void>
+  account: {
+    email: string;
+    name: string;
+    userId: string;
+  },
+  onLogout: () => void | Promise<void>,
+  onProfileSaved: (profile: {
+    email: string | null;
+    name: string | null;
+    user_id: string;
+  }) => void
 ) => {
   if (tab === "profile") return <CareerProfileSettingsSection />;
   if (tab === "resume") return <CareerResumeLinksSettingsSection />;
   if (tab === "referral") return <CareerReferralSettingsSection />;
-  return <AccountSection email={email} onLogout={onLogout} />;
+  return (
+    <AccountSection
+      email={account.email}
+      name={account.name}
+      onLogout={onLogout}
+      onProfileSaved={onProfileSaved}
+      userId={account.userId}
+    />
+  );
 };
 
 const CareerSettingsModal = ({
@@ -358,8 +605,13 @@ const CareerSettingsModal = ({
 }) => {
   const t = useCareerT();
   const logCareerEvent = useCareerLogEvent();
-  const { onLogout, preferredLocale, talentProfile, user } =
-    useCareerSidebarContext();
+  const {
+    onLogout,
+    onUpdateAccountProfile,
+    preferredLocale,
+    talentProfile,
+    user,
+  } = useCareerSidebarContext();
   const showReferralEntryPoints = useReferralEntryPointEligibility({
     currentLocation: talentProfile.talentUser?.current_location,
     location: talentProfile.talentUser?.location,
@@ -406,9 +658,20 @@ const CareerSettingsModal = ({
     return () => window.clearTimeout(timer);
   }, [initialTab, isMobile, open]);
 
-  const email =
+  const accountEmail =
+    talentProfile.talentUser?.email ??
     user?.email ??
     t("career.settings.career_settings_modal.0zjg8a0", "로그인 중");
+  const accountName =
+    talentProfile.talentUser?.name ??
+    user?.user_metadata?.full_name ??
+    user?.user_metadata?.name ??
+    (typeof user?.email === "string" ? user.email.split("@")[0] : "");
+  const account = {
+    email: accountEmail,
+    name: accountName,
+    userId: talentProfile.talentUser?.user_id ?? user?.id ?? "",
+  };
 
   if (isMobile) {
     const handleOpenChange = (nextOpen: boolean) => {
@@ -524,7 +787,12 @@ const CareerSettingsModal = ({
                       : "px-4 pb-6 pt-4",
                   ].join(" ")}
                 >
-                  {renderSection(mobileView, email, onLogout)}
+                  {renderSection(
+                    mobileView,
+                    account,
+                    onLogout,
+                    onUpdateAccountProfile
+                  )}
                 </div>
               </>
             )}
@@ -572,8 +840,8 @@ const CareerSettingsModal = ({
                     className={[
                       "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors",
                       isActive
-                        ? "bg-bg-floating text-neutral-primary"
-                        : "text-neutral-muted hover:bg-bg-weak",
+                        ? "bg-bg-floating text-black"
+                        : "text-neutral-primary hover:bg-bg-weak",
                     ].join(" ")}
                   >
                     <tab.Icon className="h-4 w-4" />
@@ -590,7 +858,12 @@ const CareerSettingsModal = ({
               activeTab === "referral" ? "px-0 py-0" : "px-8 py-7",
             ].join(" ")}
           >
-            {renderSection(activeTab, email, onLogout)}
+            {renderSection(
+              activeTab,
+              account,
+              onLogout,
+              onUpdateAccountProfile
+            )}
           </div>
         </div>
       </section>

@@ -11,6 +11,11 @@ import { useRouter } from "next/router";
 import type { ParsedUrlQuery } from "querystring";
 import { Copy, ExternalLink, Loader2, MailCheck } from "lucide-react";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
+import OfficialJobsApplicationHelp from "@/components/jobs/OfficialJobsApplicationHelp";
+import {
+  OfficialJobsApplyHelpExperimentHead,
+  OfficialJobsApplyHelpTreatmentOnly,
+} from "@/components/jobs/OfficialJobsApplyHelpExperiment";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
 import {
   CAREER_LANDING_LOCAL_ID_STORAGE_KEY,
@@ -251,6 +256,22 @@ const officialJobsRoleTitleFromNextPath = (nextPath: string) => {
   }
 };
 
+const officialJobsSlugFromNextPath = (nextPath: string) => {
+  try {
+    const nextUrl = new URL(nextPath, "https://matchharper.com");
+    const source = normalizeCareerUtmSource(nextUrl.searchParams.get("source"));
+    if (source !== OFFICIAL_JOBS_LANDING_SOURCE) return "";
+
+    return (
+      nextUrl.searchParams
+        .get(OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM)
+        ?.trim() ?? ""
+    );
+  } catch {
+    return "";
+  }
+};
+
 const getSingleQueryValue = (value: string | string[] | undefined) => {
   if (Array.isArray(value)) return value[0] ?? "";
   return value ?? "";
@@ -337,11 +358,30 @@ const CareerLoginContent = () => {
     () => resolveSafeNextPath(router.query.next) ?? "/career",
     [router.query.next]
   );
+  const sourceParam = normalizeCareerUtmSource(
+    getSingleQueryValue(router.query.source)
+  );
+  const officialJobTitleParam = getSingleQueryValue(
+    router.query[OFFICIAL_JOBS_ONBOARDING_JOB_PARAM]
+  )
+    .trim()
+    .slice(0, OFFICIAL_JOBS_ROLE_TITLE_MAX_LENGTH);
+  const officialJobSlugParam = getSingleQueryValue(
+    router.query[OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM]
+  ).trim();
+  const officialJobSlugFromNext = useMemo(
+    () => officialJobsSlugFromNextPath(nextPath),
+    [nextPath]
+  );
   const officialJobsRoleTitle = useMemo(
     () =>
       officialJobsRoleTitleFromNextPath(nextPath) ||
       officialJobsRoleTitleFromLoginQuery(router.query),
     [nextPath, router.query]
+  );
+  const showOfficialJobsApplicationHelp = Boolean(
+    (sourceParam === OFFICIAL_JOBS_LANDING_SOURCE && officialJobSlugParam) ||
+    officialJobSlugFromNext
   );
   const heroDescriptionLines = officialJobsRoleTitle
     ? [copy.officialJobProgressHelp(officialJobsRoleTitle)]
@@ -354,19 +394,8 @@ const CareerLoginContent = () => {
   const referralParam = getSingleQueryValue(
     router.query[TALENT_NETWORK_REFERRAL_QUERY_KEY]
   ).trim();
-  const sourceParam = normalizeCareerUtmSource(
-    getSingleQueryValue(router.query.source)
-  );
   const localIdParam = getSingleQueryValue(router.query.lid).trim();
   const abtestTypeParam = getSingleQueryValue(router.query.ab).trim();
-  const officialJobTitleParam = getSingleQueryValue(
-    router.query[OFFICIAL_JOBS_ONBOARDING_JOB_PARAM]
-  )
-    .trim()
-    .slice(0, OFFICIAL_JOBS_ROLE_TITLE_MAX_LENGTH);
-  const officialJobSlugParam = getSingleQueryValue(
-    router.query[OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM]
-  ).trim();
   const buildResolvedNextPath = useCallback(() => {
     const origin =
       typeof window === "undefined"
@@ -617,6 +646,7 @@ const CareerLoginContent = () => {
 
   return (
     <>
+      <OfficialJobsApplyHelpExperimentHead />
       <Head>
         <title>Harper Career Login</title>
         <link rel="icon" href="/images/logo.ico" />
@@ -680,8 +710,8 @@ const CareerLoginContent = () => {
           >
             <span className="block sm:inline">{copy.heroLineOne}</span>
             <br className="hidden sm:block" />
-            <span className="block sm:inline">{copy.heroLineTwo}</span>{" "}
-            <span className="block sm:inline">{copy.heroLineThree}</span>
+            <span className="inline">{copy.heroLineTwo}</span>{" "}
+            <span className="inline">{copy.heroLineThree}</span>
           </Text>
           <Text
             as="p"
@@ -695,6 +725,17 @@ const CareerLoginContent = () => {
               </span>
             ))}
           </Text>
+          {showOfficialJobsApplicationHelp ? (
+            <OfficialJobsApplyHelpTreatmentOnly>
+              <div className="mt-3 flex w-full max-w-[420px] justify-center">
+                <OfficialJobsApplicationHelp
+                  className="md:flex md:justify-center"
+                  locale={locale}
+                  triggerClassName="text-neutral-muted hover:text-neutral-primary"
+                />
+              </div>
+            </OfficialJobsApplyHelpTreatmentOnly>
+          ) : null}
 
           <div className="mt-7 w-full max-w-[420px] rounded-[22px] border border-neutral-1000-a05 bg-bg-floating/90 p-4 shadow-[0_18px_54px_rgba(31,28,26,0.07)] backdrop-blur-sm sm:p-6">
             {emailConfirmationSent ? (

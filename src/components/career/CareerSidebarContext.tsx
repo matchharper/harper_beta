@@ -160,6 +160,11 @@ export type CareerSidebarContextValue = {
   onSaveTalentProfile: (args?: {
     structuredProfile?: CareerTalentProfile | null;
   }) => boolean | Promise<boolean>;
+  onUpdateAccountProfile: (profile: {
+    email: string | null;
+    name: string | null;
+    user_id: string;
+  }) => void;
   onRefreshTalentProfileSources: (args?: {
     links?: string[];
   }) => boolean | Promise<boolean>;

@@ -1,4 +1,9 @@
 import CareerLandingFooter from "@/components/landing/CareerLandingFooter";
+import OfficialJobsApplicationHelp from "@/components/jobs/OfficialJobsApplicationHelp";
+import {
+  OfficialJobsApplyHelpExperimentHead,
+  OfficialJobsApplyHelpTreatmentOnly,
+} from "@/components/jobs/OfficialJobsApplyHelpExperiment";
 import OfficialJobMarkdown from "@/components/jobs/OfficialJobMarkdown";
 import OfficialJobsCtaLink from "@/components/jobs/OfficialJobsCtaLink";
 import OfficialJobsEventTracker from "@/components/jobs/OfficialJobsEventTracker";
@@ -46,12 +51,14 @@ import type { GetServerSideProps } from "next";
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 type OfficialJobDetailPageProps = {
   job: OfficialJob;
   locale: OfficialJobsLocale;
 };
+
+const DESKTOP_SIDEBAR_STICKY_TOP_PX = 1;
 
 function JobFact({
   icon,
@@ -92,6 +99,9 @@ export default function OfficialJobDetailPage({
   const publishedIsoDate = toIsoDateTime(job.publishedAt);
   const updatedIsoDate = toIsoDateTime(job.updatedAt);
   const structuredData = buildOfficialJobStructuredData(job, locale);
+  const sidebarStickySentinelRef = useRef<HTMLSpanElement | null>(null);
+  const [hasSidebarReachedStickyPosition, setHasSidebarReachedStickyPosition] =
+    useState(false);
   const trackApplyClick = (source: string) => {
     void postOfficialJobEvent({
       eventType: "job_apply_click",
@@ -113,8 +123,38 @@ export default function OfficialJobDetailPage({
     });
   }, [queryClient, router]);
 
+  useEffect(() => {
+    const sentinel = sidebarStickySentinelRef.current;
+    if (!sentinel) return;
+
+    const desktopMediaQuery = window.matchMedia("(min-width: 1024px)");
+    const updateStickyState = () => {
+      const hasReachedStickyPosition =
+        desktopMediaQuery.matches &&
+        sentinel.getBoundingClientRect().top <= DESKTOP_SIDEBAR_STICKY_TOP_PX;
+
+      setHasSidebarReachedStickyPosition((current) =>
+        current === hasReachedStickyPosition
+          ? current
+          : hasReachedStickyPosition
+      );
+    };
+
+    updateStickyState();
+    window.addEventListener("scroll", updateStickyState, { passive: true });
+    window.addEventListener("resize", updateStickyState);
+    desktopMediaQuery.addEventListener("change", updateStickyState);
+
+    return () => {
+      window.removeEventListener("scroll", updateStickyState);
+      window.removeEventListener("resize", updateStickyState);
+      desktopMediaQuery.removeEventListener("change", updateStickyState);
+    };
+  }, []);
+
   return (
     <>
+      <OfficialJobsApplyHelpExperimentHead />
       <OfficialJobsEventTracker
         eventType="job_detail_view"
         jobSlug={job.slug}
@@ -155,6 +195,12 @@ export default function OfficialJobDetailPage({
         <meta name="twitter:description" content={pageDescription} />
         <meta name="twitter:image" content={OFFICIAL_JOBS_OG_IMAGE_URL} />
         <link rel="icon" href="/images/logo.ico" />
+        <style>{`
+          html,
+          body {
+            overflow-x: clip;
+          }
+        `}</style>
         <script
           key={`ld-official-job-${job.slug}`}
           type="application/ld+json"
@@ -180,7 +226,12 @@ export default function OfficialJobDetailPage({
               {copy.detail.backToList}
             </Link>
 
-            <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+            <div className="relative mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+              <span
+                ref={sidebarStickySentinelRef}
+                aria-hidden="true"
+                className="pointer-events-none absolute right-0 top-0 hidden h-px w-px lg:block"
+              />
               <div>
                 {job.vertical && (
                   <span className="py-1.5 px-4 rounded-full bg-black/5 text-[14px] font-normal text-black">
@@ -218,18 +269,22 @@ export default function OfficialJobDetailPage({
                 </p>
                 <div className="mt-8 flex flex-col gap-2 w-full md:w-fit">
                   <OfficialJobsCtaLink
+                    className="bg-primary border-none"
                     job={job}
                     locale={locale}
                     size="lg"
                     onClick={() => trackApplyClick("detail_primary")}
                   />
+                  <OfficialJobsApplyHelpTreatmentOnly>
+                    <OfficialJobsApplicationHelp locale={locale} />
+                  </OfficialJobsApplyHelpTreatmentOnly>
                 </div>
                 <div className="mt-14 space-y-8 rounded-[4px] border border-white/0 md:border-beige900/10 bg-white/0 md:bg-white/35 p-0 md:p-8">
                   <OfficialJobMarkdown content={job.roleDescriptionMarkdown} />
                 </div>
               </div>
 
-              <aside className="space-y-5 lg:sticky lg:top-24">
+              <aside className="space-y-5 lg:sticky lg:top-4 lg:self-start">
                 <section className="rounded-[8px] border border-beige900/10 bg-white/65 p-4">
                   <div className="flex items-start gap-4">
                     <div className="min-w-0 p-1">
@@ -262,7 +317,7 @@ export default function OfficialJobDetailPage({
                     />
                   </dl>
 
-                  <div className="mt-5">
+                  <div className="mt-5 flex flex-col gap-2">
                     <OfficialJobsCtaLink
                       fullWidth
                       job={job}
@@ -270,6 +325,11 @@ export default function OfficialJobDetailPage({
                       size="lg"
                       onClick={() => trackApplyClick("detail_sidebar")}
                     />
+                    {hasSidebarReachedStickyPosition ? (
+                      <OfficialJobsApplyHelpTreatmentOnly>
+                        <OfficialJobsApplicationHelp locale={locale} />
+                      </OfficialJobsApplyHelpTreatmentOnly>
+                    ) : null}
                   </div>
                 </section>
 
@@ -295,10 +355,7 @@ export default function OfficialJobDetailPage({
             </div>
           </PageContainer>
         </main>
-        <CareerLandingFooter
-          careerStartHref={jobLoginHref}
-          locale={locale}
-        />
+        <CareerLandingFooter careerStartHref={jobLoginHref} locale={locale} />
       </Page>
     </>
   );

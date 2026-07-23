@@ -1,4 +1,5 @@
 import CareerLandingFooter from "@/components/landing/CareerLandingFooter";
+import { OfficialJobsApplyHelpExperimentHead } from "@/components/jobs/OfficialJobsApplyHelpExperiment";
 import OfficialJobsCtaLink from "@/components/jobs/OfficialJobsCtaLink";
 import OfficialJobsEventTracker from "@/components/jobs/OfficialJobsEventTracker";
 import OfficialJobsHeader from "@/components/jobs/OfficialJobsHeader";
@@ -276,6 +277,7 @@ export default function OfficialJobsPage({
 
   return (
     <>
+      <OfficialJobsApplyHelpExperimentHead />
       <OfficialJobsEventTracker
         eventType="jobs_list_view"
         metadata={{ jobCount: visibleJobs.length }}

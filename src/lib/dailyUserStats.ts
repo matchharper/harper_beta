@@ -3,9 +3,11 @@ import {
   isEmailExcluded,
 } from "@/lib/adminEmailExclusions";
 import {
-  OFFICIAL_JOBS_LANDING_ABTEST_TYPE,
+  isOfficialJobsLandingAbtestType,
+  OFFICIAL_JOBS_APPLY_HELP_VARIANTS,
   OFFICIAL_JOBS_LANDING_SOURCE,
   parseOfficialJobLandingLogType,
+  parseOfficialJobsApplyHelpVariant,
 } from "@/lib/officialJobs/landingLogs";
 import {
   OFFICIAL_JOBS_INTERNAL_COPY_ROLE_TITLE,
@@ -157,10 +159,20 @@ export type DailyUserStatsJobRow = {
 };
 
 export type DailyUserStatsJobsSummary = {
+  abtestRows: DailyUserStatsJobsAbtestRow[];
   signupCount: number;
   talkClickCount: number;
   viewCount: number;
   viewedJobCount: number;
+};
+
+export type DailyUserStatsJobsAbtestRow = {
+  ctaLabel: string;
+  entryCount: number;
+  helpVisible: boolean;
+  label: "A" | "B";
+  signupCount: number;
+  talkClickCount: number;
 };
 
 export type DailyUserStatsInternalConnectionResponseStats = {
@@ -621,15 +633,23 @@ function buildJobStats(args: {
   const pageViewLocalIds = new Set<string>();
   const talkClickLocalIds = new Set<string>();
   const viewsBySlug = new Map<string, Set<string>>();
+  const experimentVariantByLocalId = new Map<string, "a" | "b">();
   for (const log of args.landingLogs) {
     const localId = String(log.local_id ?? "").trim();
     if (!localId) continue;
 
     if (excludedLocalIds.has(localId)) continue;
 
+    const experimentVariant = parseOfficialJobsApplyHelpVariant(
+      log.abtest_type
+    );
+    if (experimentVariant && !experimentVariantByLocalId.has(localId)) {
+      experimentVariantByLocalId.set(localId, experimentVariant);
+    }
+
     if (
       isLandingLogEntryType(log.type) &&
-      log.abtest_type === OFFICIAL_JOBS_LANDING_ABTEST_TYPE &&
+      isOfficialJobsLandingAbtestType(log.abtest_type) &&
       getLandingLogSource(log.type) === OFFICIAL_JOBS_LANDING_SOURCE
     ) {
       pageViewLocalIds.add(localId);
@@ -683,9 +703,33 @@ function buildJobStats(args: {
       return a.title.localeCompare(b.title);
     });
 
+  const abtestRows: DailyUserStatsJobsAbtestRow[] =
+    OFFICIAL_JOBS_APPLY_HELP_VARIANTS.map((variantConfig) => {
+      const variantLocalIds = new Set(
+        Array.from(experimentVariantByLocalId.entries())
+          .filter(([, variant]) => variant === variantConfig.variant)
+          .map(([localId]) => localId)
+      );
+      const variantEntryLocalIds = new Set(
+        Array.from(pageViewLocalIds).filter((localId) =>
+          variantLocalIds.has(localId)
+        )
+      );
+
+      return {
+        ctaLabel: variantConfig.ctaLabel,
+        entryCount: variantEntryLocalIds.size,
+        helpVisible: variantConfig.helpVisible,
+        label: variantConfig.label,
+        signupCount: countIntersection(variantEntryLocalIds, signupLocalIds),
+        talkClickCount: countIntersection(variantLocalIds, talkClickLocalIds),
+      };
+    });
+
   return {
     rows,
     summary: {
+      abtestRows,
       signupCount: countIntersection(pageViewLocalIds, signupLocalIds),
       talkClickCount: talkClickLocalIds.size,
       viewCount: pageViewLocalIds.size,
@@ -2009,6 +2053,16 @@ export function formatDailyUserStatsSlackMessages(
     report.jobsSummary.signupCount,
     report.jobsSummary.viewCount
   )})`;
+  const jobAbtestRows = report.jobsSummary.abtestRows.map(
+    (row) =>
+      `- ${row.label} (${row.ctaLabel}, 지원 안내 ${
+        row.helpVisible ? "있음" : "없음"
+      }): ${formatCount(row.entryCount)}명 진입, ${formatCount(
+        row.talkClickCount
+      )}명 ${row.ctaLabel} 클릭, ${formatCount(
+        row.signupCount
+      )}명 회원가입 (${formatRatio(row.signupCount, row.entryCount)})`
+  );
   const jobRows =
     report.jobs.length > 0
       ? report.jobs
@@ -2028,6 +2082,7 @@ export function formatDailyUserStatsSlackMessages(
       : "공고별 상세";
   const jobs = [
     jobSummary,
+    ...jobAbtestRows,
     `${jobRowsScope} (공고별 unique visitor, 공고 간 중복 포함)`,
     jobRows,
   ].join("\n");

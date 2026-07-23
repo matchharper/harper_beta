@@ -1,5 +1,9 @@
 import type { Tables } from "@/types/database.types";
-import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
+import {
+  getOfficialJobsApplyHelpAbtestType,
+  OFFICIAL_JOBS_LANDING_SOURCE,
+  parseOfficialJobsApplyHelpVariant,
+} from "@/lib/officialJobs/landingLogs";
 import {
   formatOfficialJobsCopy,
   getOfficialJobsCopy,
@@ -52,7 +56,8 @@ export function buildOfficialJobsCareerHref(job?: OfficialJobsCareerJob) {
 
 export function buildOfficialJobsLoginHref(
   localId?: string | null,
-  nextPath = "/career"
+  nextPath = "/career",
+  experimentAbtestType?: string | null
 ) {
   const params = new URLSearchParams({
     next: nextPath,
@@ -60,6 +65,11 @@ export function buildOfficialJobsLoginHref(
   });
   const normalizedLocalId = String(localId ?? "").trim();
   if (normalizedLocalId) params.set("lid", normalizedLocalId);
+  const experimentVariant =
+    parseOfficialJobsApplyHelpVariant(experimentAbtestType);
+  if (experimentVariant) {
+    params.set("ab", getOfficialJobsApplyHelpAbtestType(experimentVariant));
+  }
 
   try {
     const nextUrl = new URL(nextPath, "https://matchharper.com");

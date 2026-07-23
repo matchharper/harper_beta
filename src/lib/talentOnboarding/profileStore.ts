@@ -268,7 +268,7 @@ export async function fetchTalentStructuredProfile(args: {
         : admin
             .from("talent_users")
             .select(
-              "user_id, name, profile_picture, headline, bio, current_location, location"
+              "user_id, email, name, profile_picture, headline, bio, current_location, location"
             )
             .eq("user_id", userId)
             .maybeSingle(),
@@ -296,6 +296,7 @@ export async function fetchTalentStructuredProfile(args: {
   const userRow = (fallbackUser.data ?? null) as Pick<
     TalentUserProfileRow,
     | "user_id"
+    | "email"
     | "name"
     | "profile_picture"
     | "headline"
