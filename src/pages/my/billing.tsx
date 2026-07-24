@@ -26,7 +26,7 @@ import {
 } from "@/lib/billing/common";
 import { logger } from "@/utils/logger";
 import { Tooltips } from "@/components/ui/tooltip";
-import { BareButton } from "@/components/ui/button";
+import { BareButton, MuteButton } from "@/components/ui/button";
 import { Checkbox as UiCheckbox } from "@/components/ui/checkbox";
 
 function formatDateToDots(dateStr?: string | null) {
@@ -1448,13 +1448,14 @@ const Billing = () => {
                     {tossPreview.billing === "yearly" ? "연간" : "월간"}
                   </div>
                 </div>
-                <BareButton
+                <MuteButton
                   type="button"
-                  className="text-sm text-neutral-muted hover:text-neutral-primary transition-colors"
+                  variant="transparent"
+                  aria-label="결제창 닫기"
                   onClick={closeTossPreview}
                 >
                   <X className="w-4 h-4" />
-                </BareButton>
+                </MuteButton>
               </div>
 
               {tossPreviewError ? (
@@ -1496,13 +1497,14 @@ const Billing = () => {
               </label>
 
               <div className="mt-6 flex items-center justify-end gap-2">
-                <BareButton
+                <MuteButton
                   type="button"
-                  className="rounded-xl px-4 py-2 text-sm text-neutral-primary hover:bg-bg-weak"
+                  variant="transparent"
+                  className="text-sm"
                   onClick={closeTossPreview}
                 >
                   닫기
-                </BareButton>
+                </MuteButton>
                 <BareButton
                   type="button"
                   disabled={isTossBillingLoading || !isBillingAgreementChecked}

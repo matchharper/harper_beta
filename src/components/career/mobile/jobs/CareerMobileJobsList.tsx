@@ -16,6 +16,7 @@ import {
 } from "@/components/career/history/savedOpportunityStatus";
 import { BareButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
+import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/internalOpportunityDecision";
 
 type CareerMobileJobsListProps = {
   activeTab: JobsDisplayTab;
@@ -26,6 +27,10 @@ type CareerMobileJobsListProps = {
   onOpenCompanyInfo?: (opportunity: CareerHistoryOpportunity) => void;
   onOpenDetail?: (opportunity: CareerHistoryOpportunity) => void;
   onOpenOpportunityInfo?: (type: CareerOpportunityType) => void;
+  onInternalDecisionAction?: (
+    opportunity: CareerHistoryOpportunity,
+    action: CareerInternalOpportunityDecisionAction
+  ) => void;
   onStatusChange?: (
     opportunity: CareerHistoryOpportunity,
     status: CareerOpportunityManagementStatus
@@ -43,6 +48,7 @@ export function CareerMobileJobsList({
   onOpenCompanyInfo,
   onOpenDetail,
   onOpenOpportunityInfo,
+  onInternalDecisionAction,
   onStatusChange,
   opportunities,
   pendingOpportunityIds,
@@ -73,6 +79,11 @@ export function CareerMobileJobsList({
           pending={Boolean(pendingOpportunityIds?.has(item.id))}
           onOpenOpportunityInfo={onOpenOpportunityInfo}
           onOpenCompanyInfo={onOpenCompanyInfo}
+          onInternalDecisionAction={
+            onInternalDecisionAction
+              ? (action) => onInternalDecisionAction(item, action)
+              : undefined
+          }
           status={getCareerOpportunityManagementStatus(item)}
           onStatusChange={
             onStatusChange

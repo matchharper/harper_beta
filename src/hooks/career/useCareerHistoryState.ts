@@ -28,6 +28,7 @@ import type { FetchWithAuth } from "@/hooks/career/useCareerApi";
 import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
 import { useMessages } from "@/i18n/useMessage";
 import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
+import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/internalOpportunityDecision";
 
 const CAREER_HISTORY_PAGE_SIZE = 10;
 const CAREER_HISTORY_GC_TIME = 30 * 60_000;
@@ -790,10 +791,18 @@ export function useCareerHistoryState(args: {
 
   const patchHistoryOpportunity = useCallback(
     async (body: {
-      action: "feedback" | "saved_stage" | "view" | "click" | "memo";
+      action:
+        | "feedback"
+        | "saved_stage"
+        | "view"
+        | "click"
+        | "memo"
+        | "internal_decision_change";
       conversationId?: string | null;
       feedback?: CareerHistoryOpportunityFeedback | null;
       feedbackReason?: string | null;
+      internalDecisionAction?: CareerInternalOpportunityDecisionAction;
+      internalDecisionReason?: string | null;
       locale?: string;
       opportunityId: string;
       promptImmediately?: boolean;
@@ -826,6 +835,7 @@ export function useCareerHistoryState(args: {
           trigger?: CareerOpportunityFeedbackFollowUpTrigger | null;
         } | null;
         followUpRunId?: string | null;
+        counts?: CareerHistoryOpportunityCounts | null;
         historyShouldRefresh?: boolean;
         opportunity?: CareerHistoryOpportunity | null;
         opportunityDiscoveryQueued?: boolean;
@@ -835,6 +845,80 @@ export function useCareerHistoryState(args: {
       };
     },
     [fetchWithAuth, locale, tCareer]
+  );
+
+  const onChangeInternalHistoryOpportunityDecision = useCallback(
+    async (
+      opportunityId: string,
+      action: CareerInternalOpportunityDecisionAction,
+      reason?: string | null
+    ) => {
+      const normalizedOpportunityId = opportunityId.trim();
+      if (!normalizedOpportunityId) return false;
+
+      const previousItem = historyOpportunityById.get(normalizedOpportunityId);
+      if (!previousItem) return false;
+
+      cancelPendingOpportunityFeedbackFollowUp();
+      beginHistoryUpdate(normalizedOpportunityId);
+      try {
+        const payload = await patchHistoryOpportunity({
+          action: "internal_decision_change",
+          internalDecisionAction: action,
+          internalDecisionReason:
+            action === "stop_process" ? reason?.trim() || null : null,
+          interactionSource: "position_tab",
+          opportunityId: normalizedOpportunityId,
+        });
+        const [updatedOpportunity] = normalizeHistoryOpportunities(
+          payload.opportunity ? [payload.opportunity] : []
+        );
+        if (updatedOpportunity) {
+          upsertHistoryOpportunityLocally(updatedOpportunity, {
+            replaceOpportunityId: normalizedOpportunityId,
+          });
+        }
+        if (payload.counts) {
+          setHistoryOpportunityCounts(
+            normalizeHistoryOpportunityCounts(payload.counts)
+          );
+        } else if (updatedOpportunity) {
+          applyHistoryOpportunityCountsTransition(
+            previousItem,
+            updatedOpportunity
+          );
+        }
+        if (Array.isArray(payload.pendingInternalOpportunityCallRequests)) {
+          onPendingInternalOpportunityCallRequestsChanged?.(
+            payload.pendingInternalOpportunityCallRequests
+          );
+        }
+        await queryClient.invalidateQueries({ queryKey });
+        return true;
+      } catch (error) {
+        setHistoryUpdateError(
+          error instanceof Error
+            ? error.message
+            : tCareer(H.opportunityStatusUpdateFailed)
+        );
+        return false;
+      } finally {
+        endHistoryUpdate(normalizedOpportunityId);
+      }
+    },
+    [
+      applyHistoryOpportunityCountsTransition,
+      beginHistoryUpdate,
+      cancelPendingOpportunityFeedbackFollowUp,
+      endHistoryUpdate,
+      historyOpportunityById,
+      onPendingInternalOpportunityCallRequestsChanged,
+      patchHistoryOpportunity,
+      queryClient,
+      queryKey,
+      tCareer,
+      upsertHistoryOpportunityLocally,
+    ]
   );
 
   const onUpdateHistoryOpportunityFeedback = useCallback(
@@ -1221,26 +1305,100 @@ export function useCareerHistoryState(args: {
     setHistoryOpportunityCounts(normalizedCounts);
   }, []);
 
-  const refreshLatestHistoryOpportunities = useCallback(async () => {
-    if (!enabled || !userId) return;
+  const refreshLatestHistoryOpportunities = useCallback(
+    async (roleId?: string | null) => {
+      if (!enabled || !userId) return;
 
-    try {
-      const firstPage = await fetchHistoryPage(0);
-      queryClient.setQueryData<InfiniteData<CareerHistoryPage, number>>(
-        queryKey,
-        (current) => mergePagesWithFirstPage(current, firstPage)
-      );
-      setHistoryOpportunityCounts(firstPage.counts);
-      setHistoryLoaded(true);
-      setHistoryUpdateError("");
-    } catch (error) {
-      setHistoryUpdateError(
-        error instanceof Error
-          ? error.message
-          : tCareer(H.opportunityListRefreshFailed)
-      );
-    }
-  }, [enabled, fetchHistoryPage, queryClient, queryKey, tCareer, userId]);
+      try {
+        const normalizedRoleId = String(roleId ?? "").trim();
+        const [firstPage, changedOpportunity] = await Promise.all([
+          fetchHistoryPage(0),
+          normalizedRoleId
+            ? fetchWithAuth(
+                `/api/talent/opportunities?${new URLSearchParams({
+                  id: normalizedRoleId,
+                  locale,
+                }).toString()}`
+              ).then(async (response) => {
+                const payload = (await response
+                  .json()
+                  .catch(() => ({}))) as Record<string, unknown>;
+                if (!response.ok) {
+                  throw new Error(
+                    getErrorMessage(
+                      payload,
+                      tCareer(H.opportunityListRefreshFailed)
+                    )
+                  );
+                }
+                return normalizeHistoryOpportunities(
+                  payload.items as Parameters<
+                    typeof normalizeHistoryOpportunities
+                  >[0]
+                )[0];
+              })
+            : Promise.resolve(undefined),
+        ]);
+        queryClient.setQueryData<InfiniteData<CareerHistoryPage, number>>(
+          queryKey,
+          (current) => {
+            const merged = mergePagesWithFirstPage(current, firstPage);
+            if (!changedOpportunity) return merged;
+
+            let replaced = false;
+            const pages = merged.pages.map((page) => ({
+              ...page,
+              items: page.items.map((item) => {
+                if (
+                  item.id !== changedOpportunity.id &&
+                  item.roleId !== normalizedRoleId
+                ) {
+                  return item;
+                }
+                replaced = true;
+                return changedOpportunity;
+              }),
+            }));
+
+            if (!replaced) {
+              pages[0] = {
+                ...pages[0],
+                items: [
+                  changedOpportunity,
+                  ...pages[0].items.filter(
+                    (item) =>
+                      item.id !== changedOpportunity.id &&
+                      item.roleId !== normalizedRoleId
+                  ),
+                ],
+              };
+            }
+
+            return { ...merged, pages };
+          }
+        );
+        setHistoryOpportunityCounts(firstPage.counts);
+        setHistoryLoaded(true);
+        setHistoryUpdateError("");
+      } catch (error) {
+        setHistoryUpdateError(
+          error instanceof Error
+            ? error.message
+            : tCareer(H.opportunityListRefreshFailed)
+        );
+      }
+    },
+    [
+      enabled,
+      fetchHistoryPage,
+      fetchWithAuth,
+      locale,
+      queryClient,
+      queryKey,
+      tCareer,
+      userId,
+    ]
+  );
 
   const appendHistoryOpportunityPage = useCallback(
     (page: CareerHistoryPage, offset: number) => {
@@ -1540,6 +1698,7 @@ export function useCareerHistoryState(args: {
     loadMoreHistoryOpportunities,
     onMarkHistoryOpportunityClicked,
     onMarkHistoryOpportunityViewed,
+    onChangeInternalHistoryOpportunityDecision,
     onUpdateHistoryOpportunityFeedback,
     onUpdateHistoryOpportunitySavedStage,
     onUpdateHistoryOpportunityTalentMemo,

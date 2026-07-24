@@ -563,10 +563,7 @@ export async function POST(req: NextRequest) {
       body.locale ??
       req.cookies.get("NEXT_LOCALE")?.value;
     const conversationStarter = conversationStarterId
-      ? getCareerConversationStarter(
-          conversationStarterId,
-          responseLocale
-        )
+      ? getCareerConversationStarter(conversationStarterId, responseLocale)
       : null;
     const skipConversationWrites = Boolean(
       conversationStarter && message === conversationStarter.chatMessage
@@ -923,9 +920,14 @@ export async function POST(req: NextRequest) {
     } = { current: null };
     let thinkingLogs: string[] = [];
     let pendingRecommendationPostingRoleIds: string[] = [];
+    let opportunityRecommendationsChanged = false;
+    let changedOpportunityRoleId: string | null = null;
     let emitToolStatus: ((message: string) => void) | null = null;
     let emitRecommendationStatus:
       | ((status: RecommendJobPostingStatus) => void)
+      | null = null;
+    let emitOpportunityRecommendationsChanged:
+      | ((roleId: string | null) => void)
       | null = null;
     const recordThinkingLog = (status: string) => {
       const normalized = status.replace(/\s+/g, " ").trim().slice(0, 160);
@@ -1040,7 +1042,7 @@ export async function POST(req: NextRequest) {
         return executeRecommendJobPostings(toolInput);
       }
 
-      return executeTalentTool({
+      const result = await executeTalentTool({
         context: {
           admin,
           abortSignal: req.signal,
@@ -1054,6 +1056,25 @@ export async function POST(req: NextRequest) {
         name: toolArgs.name,
         input: toolInput,
       });
+
+      if (
+        toolArgs.name ===
+          TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK &&
+        isRecord(result) &&
+        result.ok === true
+      ) {
+        opportunityRecommendationsChanged = true;
+        const opportunity = isRecord(result.opportunity)
+          ? result.opportunity
+          : null;
+        changedOpportunityRoleId =
+          typeof opportunity?.roleId === "string"
+            ? opportunity.roleId.trim() || null
+            : null;
+        emitOpportunityRecommendationsChanged?.(changedOpportunityRoleId);
+      }
+
+      return result;
     };
 
     if (streamResponse) {
@@ -1071,6 +1092,8 @@ export async function POST(req: NextRequest) {
           emitToolStatus = (message) => send("tool_status", { message });
           emitRecommendationStatus = (status) =>
             send("recommendation_search_status", status);
+          emitOpportunityRecommendationsChanged = (roleId) =>
+            send("opportunity_recommendations_changed", { roleId });
           let pendingAssistantText = "";
           let streamedAssistantText = "";
           let recommendationStatusAfterCharCount: number | null = null;
@@ -1576,6 +1599,7 @@ export async function POST(req: NextRequest) {
           } finally {
             emitToolStatus = null;
             emitRecommendationStatus = null;
+            emitOpportunityRecommendationsChanged = null;
             try {
               controller.close();
             } catch {
@@ -1778,6 +1802,8 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({
         ok: true,
+        historyChangedRoleId: changedOpportunityRoleId,
+        historyShouldRefresh: opportunityRecommendationsChanged,
         assistantMessage:
           messagesWithThinkingLogs[messagesWithThinkingLogs.length - 1],
         assistantMessages: messagesWithThinkingLogs,
@@ -1955,6 +1981,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
+      historyChangedRoleId: changedOpportunityRoleId,
+      historyShouldRefresh: opportunityRecommendationsChanged,
       userMessage: toResponseMessage(insertedUserMessage as TalentMessageRow),
       assistantMessage:
         insertedAssistantResponseMessage ??

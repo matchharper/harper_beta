@@ -26,6 +26,7 @@ import type {
   CareerConversationStarterMode,
 } from "@/lib/career/prompts/conversationStarters";
 import type { TalentCompanyWatchlistItem } from "@/lib/career/companyWatchlist";
+import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/internalOpportunityDecision";
 
 export type CareerCompanyFollowActionResult = {
   assistantMessage?: CareerMessagePayload | null;
@@ -112,6 +113,11 @@ export type CareerSidebarContextValue = {
     | CareerHistoryOpportunity
     | null
     | Promise<CareerHistoryOpportunity | null>;
+  onChangeInternalHistoryOpportunityDecision: (
+    opportunityId: string,
+    action: CareerInternalOpportunityDecisionAction,
+    reason?: string | null
+  ) => boolean | Promise<boolean>;
   onUpdateHistoryOpportunityFeedback: (
     opportunityId: string,
     feedback: CareerHistoryOpportunityFeedback | null,

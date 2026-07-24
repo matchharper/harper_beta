@@ -1,15 +1,11 @@
 import {
   ArrowUp,
-  AudioLines,
-  Bot,
   CalendarClock,
   Check,
   ChevronRight,
   ChevronUp,
   Info,
   LoaderCircle,
-  MessageCircle,
-  SendHorizontal,
   SquarePen,
   X,
 } from "lucide-react";
@@ -128,7 +124,7 @@ function getPreviousMessageDateKey(
 function DateDivider({ label }: { label: string }) {
   return (
     <div className="flex justify-center py-2">
-      <span className="rounded-full bg-bg-basement px-2.5 py-1 text-[11px] text-neutral-muted font-light">
+      <span className="rounded-full bg-bg-basement px-2.5 py-1 text-[11px] font-light text-neutral-muted">
         {label}
       </span>
     </div>
@@ -273,7 +269,7 @@ function MessageBubble({
           className={cn(
             "leading-[23px] font-normal mb-2",
             isUser
-              ? "max-w-[82%] bg-neutral-200 py-1.5 text-neutral-1000 px-3 rounded-lg"
+              ? "max-w-[82%] rounded-lg bg-neutral-200 px-3 py-1.5 text-neutral-1000"
               : "max-w-[98%] text-neutral-primary py-1",
             message.status === "failed" &&
               "border-critical/20 bg-critical-faded"
@@ -560,7 +556,7 @@ function Composer({
           rows={1}
           autoFocus
           disabled={disabled || isStreaming}
-          className="w-full shadow-[0_0_24px_4px_rgb(0_0_0_/_0.05)] resize-none overflow-y-hidden rounded-3xl bg-bg-default border border-black/5 font-normal px-3.5 py-[13px] pr-12 text-[13px] leading-5 text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-black/10 disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full resize-none overflow-y-hidden rounded-3xl border border-black/5 bg-bg-default px-3.5 py-[13px] pr-12 text-[13px] font-normal leading-5 text-neutral-primary shadow-[0_0_24px_4px_rgb(0_0_0_/_0.05)] outline-none transition placeholder:text-neutral-placeholder focus:border-black/10 disabled:cursor-not-allowed disabled:opacity-60"
           placeholder="원하는 조건 혹은 요구사항을 알려주세요."
           onChange={(event) => handleChange(event.target.value)}
           onKeyDown={handleKeyDown}
@@ -819,7 +815,7 @@ export function OrgAgentPanel({
   return (
     <div className="pointer-events-none fixed bottom-4 left-4 right-4 z-40 flex justify-end sm:bottom-5 sm:left-auto sm:right-5">
       {activeRole && open ? (
-        <aside className="pointer-events-auto flex h-[calc(100vh-96px)] max-h-[760px] w-[calc(100vw-32px)] max-w-[520px] border border-black/5 overflow-hidden rounded-4xl bg-bg-default shadow-xl shadow-gray-200">
+        <aside className="pointer-events-auto flex h-[calc(100vh-96px)] max-h-[760px] w-[calc(100vw-32px)] max-w-[520px] overflow-hidden rounded-4xl border border-black/5 bg-bg-default shadow-xl shadow-gray-200">
           <div className="flex min-w-0 flex-1 flex-col relative">
             <header className="absolute top-0 left-0 w-full flex items-center justify-between gap-3 px-2.5 pt-2.5 pb-6 bg-linear-to-b from-70% from-bg-floating to-bg-floating/0">
               <div className="flex items-center gap-2 text-[13px] py-0.5 font-normal text-black truncate pl-1">
@@ -877,7 +873,7 @@ export function OrgAgentPanel({
 
             <div
               ref={scrollRef}
-              className="text-[14px] flex-1 space-y-3 overflow-y-auto bg-bg-default px-4 pb-24 pt-12 scrollbar-thin scrollbar-thumb-neutral-1000-a10 scrollbar-track-transparent"
+              className="flex-1 space-y-3 overflow-y-auto bg-bg-default px-4 pb-24 pt-12 text-[14px] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10"
               onScroll={(event) => {
                 const node = event.currentTarget;
                 if (
@@ -1005,7 +1001,7 @@ export function OrgAgentPanel({
             aria-label={activeRole ? "채팅 열기" : "채팅할 역할 선택"}
             aria-expanded={activeRole ? false : rolePickerOpen}
             aria-haspopup={activeRole ? undefined : "dialog"}
-            className="group flex h-15 w-15 items-center justify-center rounded-full bg-primary text-neutral-00 ring-2 ring-neutral-00/10 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg hover:ring-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
+            className="group flex h-15 w-15 items-center justify-center rounded-full bg-primary text-neutral-00 shadow-sm ring-2 ring-neutral-00/10 transition hover:-translate-y-0.5 hover:shadow-lg hover:ring-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
             onClick={() => {
               if (activeRole) {
                 setOpen(true);

@@ -3,7 +3,7 @@ import React, { useEffect, useRef } from "react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { careerUpdateNotes } from "@/content/careerUpdateNotes";
 import { Text } from "@/components/ui/text";
-import { ActionButton } from "@/components/ui/button";
+import { MuteButton } from "@/components/ui/button";
 import Image from "next/image";
 import { useCareerT } from "@/i18n/useCareerT";
 
@@ -71,18 +71,17 @@ const CareerUpdateNotesModal = ({
               )}
             </Text>
             <div className="mt-4 flex flex-row gap-2 items-center justify-between">
-              <ActionButton
+              <MuteButton
                 type="button"
-                actionVariant="secondary"
                 onClick={onSuggestUpdate}
-                className="h-8 shrink-0 px-3 text-xs font-normal"
+                className="shrink-0 gap-1.5 text-xs font-normal"
               >
                 <MessageSquareText className="h-3.5 w-3.5" />
                 {t(
                   "career.common.career_update_notes_modal.0ha8vft",
                   "제안하기"
                 )}
-              </ActionButton>
+              </MuteButton>
               <div className="mt-2 flex flex-wrap gap-2">
                 {harperActivityLinks.map((link) => {
                   const LinkIcon = link.icon;

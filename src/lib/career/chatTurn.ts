@@ -7,6 +7,7 @@ import {
   recoverCareerChatAssistantText,
   runCareerChatAssistant,
 } from "@/lib/career/llm";
+import { normalizeNoMessageContent } from "@/lib/career/noMessageContent";
 import {
   buildTalentProfileContext,
   countUserChatTurns,
@@ -349,19 +350,6 @@ function startOpportunityDiscoveryInBackground(runId: string) {
   console.info("[opportunity-discovery] queued for harper_worker", {
     runId,
   });
-}
-
-function normalizeNoMessageContent(content: string, marker?: string) {
-  const normalized = content
-    .replace(/^[`"'“”]+|[`"'“”]+$/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!normalized) return null;
-  if (!marker) return normalized;
-  const markerCandidate = normalized
-    .replace(/^[`"'“”]+|[`"'“”.。]+$/g, "")
-    .trim();
-  return markerCandidate === marker ? null : normalized;
 }
 
 export async function runCareerChatTurn(

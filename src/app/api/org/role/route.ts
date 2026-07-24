@@ -33,17 +33,17 @@ export async function PATCH(req: NextRequest) {
       workspaceId?: string;
     };
     const payload = await updateOrgRole({
-      description: body.description ?? null,
-      employmentTypes: body.employmentTypes ?? null,
-      externalJdUrl: body.externalJdUrl ?? null,
-      isExpired: body.isExpired ?? null,
-      locationText: body.locationText ?? null,
-      name: body.name ?? null,
-      request: body.request ?? null,
+      description: body.description,
+      employmentTypes: body.employmentTypes,
+      externalJdUrl: body.externalJdUrl,
+      isExpired: body.isExpired,
+      locationText: body.locationText,
+      name: body.name,
+      request: body.request,
       roleId: body.roleId ?? "",
-      status: body.status ?? null,
+      status: body.status,
       user,
-      workMode: body.workMode ?? null,
+      workMode: body.workMode,
       workspaceId: body.workspaceId ?? "",
     });
     return NextResponse.json(payload);

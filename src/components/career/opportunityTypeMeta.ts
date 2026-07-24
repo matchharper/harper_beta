@@ -49,7 +49,7 @@ export type CareerOpportunityInfoTagMeta = {
   showHelpIcon: boolean;
 };
 
-type CareerOpportunityFeedbackMeta = {
+type CareerOpportunityNegativeFeedbackMeta = {
   modal: CareerOpportunityModalCopy;
   options?: CareerFeedbackOption[];
   requiresComment: boolean;
@@ -64,11 +64,10 @@ type CareerOpportunityTypeMeta = {
   };
   label: string;
   negativeActionLabel: string;
-  negativeFeedback: CareerOpportunityFeedbackMeta;
+  negativeFeedback: CareerOpportunityNegativeFeedbackMeta;
   panelToneClassName: string;
   positiveActionIcon: LucideIcon;
   positiveActionLabel: string;
-  positiveFeedback: CareerOpportunityFeedbackMeta;
   savedStageLabels: {
     applied: string;
   };
@@ -177,28 +176,8 @@ const buildCareerOpportunityTypeMeta = (
       "career.common.opportunity_type_meta.external_positive_action",
       "관심 있어요"
     ),
-    positiveFeedback: {
-      modal: {
-        description: t(
-          "career.common.opportunity_type_meta.09zmhwn",
-          "이 메모는 Harper가 다음 추천과 대화 맥락을 정리할 때 참고합니다."
-        ),
-        placeholder: t(
-          "career.common.opportunity_type_meta.0ms0wrm",
-          "어떤 점이 괜찮게 느껴졌는지, Harper가 다음 단계에서 참고할 포인트를 적어주세요."
-        ),
-        title: t(
-          "career.common.opportunity_type_meta.1ebvtk6",
-          "저장하기 전에 한 줄만 남겨주세요"
-        ),
-      },
-      requiresComment: false,
-    },
     savedStageLabels: {
-      applied: t(
-        "career.common.opportunity_type_meta.0ume46n",
-        "지원함"
-      ),
+      applied: t("career.common.opportunity_type_meta.0ume46n", "지원함"),
     },
     shortLabel: t("career.common.opportunity_type_meta.16ujfch", "외부 JD"),
     sortPriority: 2,
@@ -218,14 +197,14 @@ const buildCareerOpportunityTypeMeta = (
     },
     label: t("career.common.opportunity_type_meta.08t1dhj", "하퍼의 연결 제안"),
     negativeActionLabel: t(
-      "career.common.career_history_panel.0paqqgp",
-      "제외됨"
+      "career.common.opportunity_type_meta.internal_negative_action",
+      "거절할게요"
     ),
     negativeFeedback: {
       modal: {
         description: t(
           "career.common.opportunity_type_meta.1q9hdqb",
-          "이 메모는 Harper가 다음 추천과 고객사 매칭 판단을 조정할 때 참고합니다."
+          "현재 기회는 Harper가 직접 연결드릴 수 있는 기회로, 수락시 회사에게 직접 전달되어 높은 확률로 미팅까지 진해될 수 있습니다. 아래 피드백은 Harper가 다음 추천과 고객사 매칭 판단을 조정할 때 참고합니다."
         ),
         placeholder: t(
           "career.common.opportunity_type_meta.1225b7g",
@@ -299,23 +278,6 @@ const buildCareerOpportunityTypeMeta = (
       "career.common.opportunity_type_meta.1n5sz4w",
       "연결 수락"
     ),
-    positiveFeedback: {
-      modal: {
-        description: t(
-          "career.common.opportunity_type_meta.0hc5boq",
-          "이 메모는 Harper가 연결 수락 후 다음 단계를 준비할 때 참고합니다. 바로 제출하셔도 됩니다."
-        ),
-        placeholder: t(
-          "career.common.opportunity_type_meta.1yy34n1",
-          "(Optional) 어떤 점이 괜찮게 느껴졌는지, Harper가 다음 단계에서 참고할 포인트를 적어주세요."
-        ),
-        title: t(
-          "career.common.opportunity_type_meta.1yobmng",
-          "연결 수락 후 다음 단계로 진행합니다."
-        ),
-      },
-      requiresComment: true,
-    },
     savedStageLabels: {
       applied: t(
         "career.common.opportunity_type_meta.connected_stage_label",
@@ -418,23 +380,6 @@ const buildCareerOpportunityTypeMeta = (
       "career.common.opportunity_type_meta.1n5sz4w",
       "연결 수락"
     ),
-    positiveFeedback: {
-      modal: {
-        description: t(
-          "career.common.opportunity_type_meta.1d0ajqw",
-          "연결을 수락하는 이유나 먼저 확인하고 싶은 조건이 있다면 간단히 남겨주세요. 바로 제출하셔도 됩니다."
-        ),
-        placeholder: t(
-          "career.common.opportunity_type_meta.1l3r1qb",
-          "(Optional) 전달하고 싶은 메모가 있으면 적어주세요."
-        ),
-        title: t(
-          "career.common.opportunity_type_meta.1rq4mqk",
-          "채용 담당자와 연결됩니다."
-        ),
-      },
-      requiresComment: true,
-    },
     savedStageLabels: {
       applied: t(
         "career.common.opportunity_type_meta.connected_stage_label",
@@ -509,11 +454,6 @@ export const getCareerNegativeActionLabel = (
   t?: CareerTranslationFn
 ) => getCareerOpportunityTypeMeta(opportunityType, t).negativeActionLabel;
 
-export const getCareerPositiveFeedbackModalCopy = (
-  opportunityType: OpportunityType,
-  t?: CareerTranslationFn
-) => getCareerOpportunityTypeMeta(opportunityType, t).positiveFeedback.modal;
-
 export const getCareerNegativeFeedbackModalCopy = (
   opportunityType: OpportunityType,
   t?: CareerTranslationFn
@@ -530,12 +470,6 @@ export const getCareerAppliedSavedStageLabel = (
   opportunityType: OpportunityType,
   t?: CareerTranslationFn
 ) => getCareerOpportunityTypeMeta(opportunityType, t).savedStageLabels.applied;
-
-export const shouldCollectCareerPositiveFeedbackReason = (
-  opportunityType: OpportunityType
-) =>
-  getCareerOpportunityTypeMeta(opportunityType).positiveFeedback
-    .requiresComment;
 
 export const shouldCollectCareerNegativeFeedbackReason = (
   opportunityType: OpportunityType
@@ -567,13 +501,6 @@ export const getCareerFeedbackButtonClassName = (
 
 export const getCareerDefaultFeedbackButtonClassName = (active: boolean) =>
   getDefaultFeedbackButtonClassName(active);
-
-export const getCareerPositiveFeedbackSubmitButtonClassName = (
-  opportunityType: OpportunityType
-) =>
-  isConnectionOpportunityType(opportunityType)
-    ? "border-primary bg-primary text-neutral-00"
-    : undefined;
 
 export const getCareerOpportunityPanelToneClassName = (
   opportunityType: OpportunityType

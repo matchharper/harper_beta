@@ -102,6 +102,9 @@ export const queryKeys = {
   },
   org: {
     all: ["org"] as const,
+    bootstrapAll: ["org", "bootstrap"] as const,
+    boardAll: ["org", "board"] as const,
+    detailAll: ["org", "detail"] as const,
     bootstrap: (orgId?: string | null) =>
       ["org", "bootstrap", orgId ?? ""] as const,
     invitePreview: (orgId?: string | null) =>

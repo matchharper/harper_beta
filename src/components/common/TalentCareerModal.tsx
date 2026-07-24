@@ -15,6 +15,8 @@ type TalentCareerModalProps = {
   ariaLabel?: string;
   closeOnBackdrop?: boolean;
   showCloseButton?: boolean;
+  /** 모바일 화면에서 모달을 화면 하단에 붙는 BottomSheet 형태로 표시한다. */
+  mobileBottomSheet?: boolean;
   overlayClassName?: string;
   backdropClassName?: string;
   panelClassName?: string;
@@ -25,6 +27,9 @@ type TalentCareerModalProps = {
   closeButtonAriaLabel?: string;
 };
 
+/**
+ * 최대한 Component를 사용하는 단계에서 className을 설정하지 않는 것이 좋다.
+ */
 const TalentCareerModal = ({
   open,
   onClose,
@@ -36,6 +41,7 @@ const TalentCareerModal = ({
   ariaLabel,
   closeOnBackdrop = true,
   showCloseButton = true,
+  mobileBottomSheet = false,
   overlayClassName,
   backdropClassName,
   panelClassName,
@@ -72,6 +78,8 @@ const TalentCareerModal = ({
         <div
           className={cn(
             "fixed inset-0 z-80 flex items-center justify-center px-4 py-6 sm:px-6 pointer-events-none",
+            mobileBottomSheet &&
+              "max-sm:items-end max-sm:px-0 max-sm:pb-0 max-sm:pt-6",
             overlayClassName
           )}
         >
@@ -88,14 +96,28 @@ const TalentCareerModal = ({
               "data-[state=open]:animate-in data-[state=closed]:animate-out",
               "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
               "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+              mobileBottomSheet
+                ? [
+                    "max-sm:flex max-sm:max-h-[calc(100dvh-env(safe-area-inset-top)-24px)] max-sm:flex-col",
+                    "max-sm:rounded-b-none max-sm:rounded-t-[20px] max-sm:border-b-0 max-sm:pb-[env(safe-area-inset-bottom)]",
+                    "max-sm:data-[state=closed]:slide-out-to-bottom max-sm:data-[state=open]:slide-in-from-bottom",
+                    "max-sm:data-[state=closed]:zoom-out-100 max-sm:data-[state=open]:zoom-in-100",
+                  ]
+                : null,
               "duration-200",
               panelClassName
             )}
           >
+            {mobileBottomSheet ? (
+              <div
+                aria-hidden="true"
+                className="mx-auto mt-3 h-1.5 w-12 shrink-0 rounded-full bg-neutral-1000-a10 sm:hidden"
+              />
+            ) : null}
             {showCloseButton ? (
               <DialogPrimitive.Close
                 className={cn(
-                  "absolute right-4 top-4 z-10 inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors",
+                  "absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-black/5",
                   closeButtonClassName
                 )}
                 aria-label={resolvedCloseButtonAriaLabel}
@@ -117,16 +139,17 @@ const TalentCareerModal = ({
               <header
                 className={cn(
                   "border-b border-neutral-1000-a05 px-4 py-5 sm:px-5",
+                  mobileBottomSheet && "max-sm:shrink-0",
                   headerClassName
                 )}
               >
                 {eyebrow && (
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-soft">
+                  <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-neutral-soft">
                     {eyebrow}
                   </div>
                 )}
                 {hasTitle && (
-                  <DialogPrimitive.Title className="mt-2 text-base font-semibold tracking-[-0.02em] text-neutral-primary">
+                  <DialogPrimitive.Title className="mt-0 text-base font-medium tracking-[-0.02em] text-neutral-primary">
                     {title}
                   </DialogPrimitive.Title>
                 )}
@@ -143,9 +166,23 @@ const TalentCareerModal = ({
                   ))}
               </header>
             ) : null}
-            <div className={cn("py-0", bodyClassName)}>{children}</div>
+            <div
+              className={cn(
+                "py-0",
+                mobileBottomSheet && "max-sm:min-h-0 max-sm:overflow-y-auto",
+                bodyClassName
+              )}
+            >
+              {children}
+            </div>
             {footer && (
-              <footer className={cn("px-4 py-5 sm:px-5", footerClassName)}>
+              <footer
+                className={cn(
+                  "px-4 py-5 sm:px-5",
+                  mobileBottomSheet && "max-sm:shrink-0",
+                  footerClassName
+                )}
+              >
                 {footer}
               </footer>
             )}

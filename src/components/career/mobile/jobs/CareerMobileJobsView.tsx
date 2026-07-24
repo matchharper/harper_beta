@@ -59,6 +59,8 @@ import type {
   JobsStatusCounts,
   JobsStatusTab,
 } from "@/components/career/mobile/jobs/types";
+import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/internalOpportunityDecision";
+import { normalizeHarperPublicImageUrl } from "@/lib/imageUrl";
 
 type CareerMobileJobsViewProps = {
   onChangeWorkspaceTab: (tab: CareerWorkspaceTab) => void;
@@ -96,6 +98,10 @@ type CareerMobileJobsViewProps = {
     url: string | null | undefined
   ) => void;
   onOpenOpportunityInfo?: (type: CareerOpportunityType) => void;
+  onInternalDecisionAction?: (
+    opportunity: CareerHistoryOpportunity,
+    action: CareerInternalOpportunityDecisionAction
+  ) => void;
   onStatusChange?: (
     opportunity: CareerHistoryOpportunity,
     status: CareerOpportunityManagementStatus
@@ -150,6 +156,7 @@ export default function CareerMobileJobsView({
   onOpenDetail,
   onOpenLink,
   onOpenOpportunityInfo,
+  onInternalDecisionAction,
   onStatusChange,
   onUpdateTalentMemo,
 }: CareerMobileJobsViewProps) {
@@ -310,6 +317,9 @@ export default function CareerMobileJobsView({
                 onOpenOpportunityInfo={
                   onOpenOpportunityInfo ?? (() => undefined)
                 }
+                onInternalDecisionAction={(action) =>
+                  onInternalDecisionAction?.(detailOpportunity, action)
+                }
                 onSavedStatusChange={(status) =>
                   onStatusChange?.(detailOpportunity, status)
                 }
@@ -325,6 +335,7 @@ export default function CareerMobileJobsView({
               onOpenCompanyInfo={onOpenCompanyInfo}
               onOpenDetail={onOpenDetail}
               onOpenOpportunityInfo={onOpenOpportunityInfo}
+              onInternalDecisionAction={onInternalDecisionAction}
               onStatusChange={onStatusChange}
               opportunities={opportunities}
               pendingOpportunityIds={pendingOpportunityIds}
@@ -404,6 +415,9 @@ function OpportunitySummaryCard({
   const canOpenCompanyInfo = Boolean(
     onOpenCompanyInfo && (opportunity.companyDbId || companyInfoLink)
   );
+  const companyLogoSrc = normalizeHarperPublicImageUrl(
+    opportunity.companyLogoUrl
+  );
   const lastFundingStage = getKnownCompanyDataText(
     opportunity.companyData?.lastFundingStage
   );
@@ -435,9 +449,9 @@ function OpportunitySummaryCard({
       </div>
       <header className="flex items-start gap-3">
         <div className="flex shrink-0 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-floating p-1">
-          {opportunity.companyLogoUrl ? (
+          {companyLogoSrc ? (
             <Image
-              src={opportunity.companyLogoUrl}
+              src={companyLogoSrc}
               alt={opportunity.companyName}
               width={32}
               height={32}
@@ -701,7 +715,7 @@ export function JobActionBar({
       <BareButton
         type="button"
         onClick={onTrack}
-        className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-black text-[13px] font-normal text-neutral-00 transition active:bg-black/85"
+        className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary text-[13px] font-normal text-neutral-00 transition active:bg-primary/85"
       >
         <ThumbsUp className="h-3.5 w-3.5" />
         {getPositiveActionLabel(opportunity, t)}

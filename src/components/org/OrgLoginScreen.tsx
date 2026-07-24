@@ -12,8 +12,8 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function OrgEntryAppBar({ isAuthenticated }: { isAuthenticated: boolean }) {
   return (
-    <header className="h-[60px]">
-      <div className="flex h-full items-center px-4 sm:px-12 justify-between">
+    <header className="h-[52px]">
+      <div className="flex h-full items-center justify-between px-3 sm:px-8">
         <Link
           href="/org"
           aria-label="Harper 회사 페이지로 이동"
@@ -32,7 +32,7 @@ function OrgEntryAppBar({ isAuthenticated }: { isAuthenticated: boolean }) {
             <Link
               href="/company"
               aria-label="Harper 회사 페이지로 이동"
-              className="rounded-full px-4 py-2 text-black/50 text-[14px] font-normal transition hover:bg-bg-weak"
+              className="rounded-full px-3 py-1.5 text-[12px] font-normal text-black/50 transition hover:bg-bg-weak"
             >
               로그아웃
             </Link>
@@ -40,7 +40,7 @@ function OrgEntryAppBar({ isAuthenticated }: { isAuthenticated: boolean }) {
           <Link
             href="/company"
             aria-label="Harper 회사 페이지로 이동"
-            className="rounded-full px-4 py-2 text-black/50 text-[14px] font-normal border border-neutral-1000-a10 transition hover:bg-bg-weak"
+            className="rounded-full border border-neutral-1000-a10 px-3 py-1.5 text-[12px] font-normal text-black/50 transition hover:bg-bg-weak"
           >
             Company
           </Link>
@@ -216,7 +216,7 @@ export function OrgLoginScreen({
           <div className="text-[12px] font-medium text-neutral-soft">
             ORGANIZATION
           </div>
-          <h1 className="mt-3 text-[18px] font-medium leading-7 tracking-[-0.025em] text-neutral-primary">
+          <h1 className="mt-2.5 text-[16px] font-medium leading-6 tracking-[-0.025em] text-neutral-primary">
             초대 링크를 확인할 수 없습니다.
           </h1>
           <p className="mt-2 text-[13px] font-normal leading-5 text-neutral-muted">
@@ -225,7 +225,7 @@ export function OrgLoginScreen({
           </p>
           <Link
             href="/org"
-            className="mt-5 inline-flex h-9 items-center justify-center rounded-md border border-neutral-1000-a10 bg-bg-floating px-3.5 text-[13px] font-medium text-neutral-primary transition hover:bg-bg-weak"
+            className="mt-4 inline-flex h-8 items-center justify-center rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 text-[12px] font-medium text-neutral-primary transition hover:bg-bg-weak"
           >
             Organization으로 돌아가기
           </Link>
@@ -240,10 +240,10 @@ export function OrgLoginScreen({
           companyName={workspace.companyName}
           logoUrl={workspace.logoUrl}
         />
-        <div className="mt-5 text-[12px] font-medium text-neutral-soft">
+        <div className="mt-4 text-[11px] font-medium text-neutral-soft">
           WORKSPACE INVITATION
         </div>
-        <h1 className="mt-2 text-[18px] font-medium leading-7 tracking-[-0.025em] text-neutral-primary">
+        <h1 className="mt-1.5 text-[16px] font-medium leading-6 tracking-[-0.025em] text-neutral-primary">
           {workspace.companyName} Workspace에 초대받았습니다.
         </h1>
         <p className="mt-2 text-[13px] font-normal leading-5 text-neutral-muted">
@@ -253,7 +253,7 @@ export function OrgLoginScreen({
           type="button"
           onClick={() => void handleLogin()}
           disabled={loginPending}
-          className="mt-6 inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-neutral-1000 px-4 text-[13px] font-medium text-neutral-00 transition hover:bg-neutral-900 disabled:cursor-not-allowed disabled:opacity-55"
+          className="mt-5 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md bg-neutral-1000 px-3 text-[12px] font-medium text-neutral-00 transition hover:bg-neutral-900 disabled:cursor-not-allowed disabled:opacity-55"
         >
           {loginPending ? (
             <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -276,7 +276,7 @@ export function OrgLoginScreen({
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-positive-faded text-positive">
             <Check className="h-4 w-4" />
           </div>
-          <h1 className="mt-5 text-[18px] font-medium leading-7 tracking-[-0.025em] text-neutral-primary">
+          <h1 className="mt-4 text-[16px] font-medium leading-6 tracking-[-0.025em] text-neutral-primary">
             요청을 보냈습니다.
           </h1>
           <p className="mt-2 text-[13px] font-normal leading-5 text-neutral-muted">
@@ -289,12 +289,12 @@ export function OrgLoginScreen({
 
     return (
       <div>
-        <h1 className="text-[24px] text-center font-normal leading-7 tracking-[-0.025em] text-neutral-primary">
+        <h1 className="text-center text-[18px] font-normal leading-6 tracking-[-0.025em] text-neutral-primary">
           {isAuthenticated
             ? "아직 가입된 Workspace가 없습니다."
             : "Harper Workspace"}
         </h1>
-        <p className="mt-4 text-[15px] font-light text-center leading-5 text-neutral-muted">
+        <p className="mt-3 text-center text-[13px] font-light leading-5 text-neutral-muted">
           {isAuthenticated ? (
             <>
               받으신 초대 링크를 통해 접속해주세요.
@@ -312,12 +312,12 @@ export function OrgLoginScreen({
         </p>
 
         {!isAuthenticated && (
-          <div className="mt-8">
+          <div className="mt-6">
             <button
               type="button"
               onClick={() => void handleLogin()}
               disabled={loginPending}
-              className="inline-flex py-4 px-6 w-full justify-center items-center gap-3 rounded-full duration-200 border border-neutral-1000-a05 shadow-sm bg-bg-floating text-[16px] font-medium text-neutral-700 transition hover:border-neutral-200 active:shadow-inner hover:shadow-none disabled:cursor-not-allowed disabled:opacity-55"
+              className="inline-flex w-full items-center justify-center gap-2.5 rounded-full border border-neutral-1000-a05 bg-bg-floating px-4 py-3 text-[14px] font-medium text-neutral-700 shadow-sm transition duration-200 hover:border-neutral-200 hover:shadow-none active:shadow-inner disabled:cursor-not-allowed disabled:opacity-55"
             >
               {loginPending ? (
                 <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
@@ -340,7 +340,7 @@ export function OrgLoginScreen({
         )}
 
         {isAuthenticated && (
-          <form className="mt-8" onSubmit={submitAccessRequest}>
+          <form className="mt-6" onSubmit={submitAccessRequest}>
             <textarea
               id="org-access-message"
               rows={2}
@@ -348,7 +348,7 @@ export function OrgLoginScreen({
               value={message}
               onChange={(event) => updateMessage(event.target.value)}
               placeholder="예: 지난주 AI 엔지니어 채용에 관해 미팅했습니다."
-              className="mt-2 h-[72px] w-full resize-none rounded-md bg-black/3 px-3 py-2.5 text-[13px] font-normal leading-5 text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:ring-2 focus:ring-neutral-1000-a05"
+              className="mt-1.5 h-16 w-full resize-none rounded-md bg-black/3 px-2.5 py-2 text-[12px] font-normal leading-5 text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:ring-2 focus:ring-neutral-1000-a05"
             />
             <AnimatePresence initial={false}>
               {!isAuthenticated && collectEmail ? (
@@ -380,7 +380,7 @@ export function OrgLoginScreen({
                       setRequestError(null);
                     }}
                     placeholder="name@company.com"
-                    className="mt-2 h-9 w-full rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 text-[13px] font-normal text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:ring-2 focus:ring-neutral-1000-a05"
+                    className="mt-1.5 h-8 w-full rounded-md border border-neutral-1000-a10 bg-bg-floating px-2.5 text-[12px] font-normal text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:ring-2 focus:ring-neutral-1000-a05"
                   />
                 </motion.div>
               ) : null}
@@ -395,7 +395,7 @@ export function OrgLoginScreen({
             <button
               type="submit"
               disabled={submitPending}
-              className="mt-1 inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-neutral-1000 px-4 text-[13px] font-medium text-neutral-00 transition hover:bg-neutral-900 disabled:cursor-not-allowed disabled:opacity-55"
+              className="mt-1 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md bg-neutral-1000 px-3 text-[12px] font-medium text-neutral-00 transition hover:bg-neutral-900 disabled:cursor-not-allowed disabled:opacity-55"
             >
               {submitPending && (
                 <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -419,7 +419,7 @@ export function OrgLoginScreen({
       </Head>
       <div className="min-h-screen bg-bg-default text-neutral-primary">
         <OrgEntryAppBar isAuthenticated={isAuthenticated} />
-        <main className="flex min-h-[calc(100vh-52px)] items-center justify-center px-5 pb-20">
+        <main className="flex min-h-[calc(100vh-52px)] items-center justify-center px-4 pb-14">
           <section className="w-full max-w-[400px]">
             {hasInvite ? renderInviteContent() : renderAccessRequestContent()}
           </section>

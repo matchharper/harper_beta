@@ -49,6 +49,11 @@ Palette token은 색상 자체를 정의한다. 직접 써도 되지만, 레이�
 
 `bg-bg-floating`은 가장 자주 쓰는 밝은 표면이다. 사용자가 클릭하거나 입력하는 요소는 기본적으로 이 색에서 시작하고, hover/active에서만 `bg-bg-weak`로 내려간다.
 
+> Organization workspace 예외: `/org/*`의 shell과 일반 정보 section은
+> `bg-bg-default` 하나를 공유하고 카드 표면을 만들지 않는다.
+> `bg-bg-floating`은 dialog, dropdown, popover처럼 실제로 떠 있는 UI에만 쓴다.
+> 구체적인 규칙은 `docs/org-workspace-v2.md`의 “화면 디자인 원칙”을 따른다.
+
 ### Text
 
 | Token | When to use |
@@ -116,6 +121,18 @@ Neutral action:
 <Button variant="secondary">취소</Button>
 ```
 
+Quiet compact action:
+
+```tsx
+<MuteButton aria-label="설정">
+  <Settings className="h-4 w-4" />
+</MuteButton>
+<MuteButton variant="transparent">
+  <Pencil className="h-4 w-4" />
+  수정하기
+</MuteButton>
+```
+
 Black action:
 
 ```tsx
@@ -136,6 +153,7 @@ Use shared UI components before writing raw markup:
 | Need | Component |
 | --- | --- |
 | Main action | `Button` |
+| Quiet compact action | `MuteButton` |
 | Icon-only action | `IconButton` |
 | Compact repeated action | `ActionButton` |
 | Clickable card | `CardButton` |
@@ -156,6 +174,88 @@ Use shared UI components before writing raw markup:
 | `secondary` | Lower emphasis neutral action, cancel, secondary controls |
 | `critical` | Destructive or irreversible action |
 | `positive` | Confirming a clearly positive action |
+
+### `MuteButton`
+
+`MuteButton`은 toolbar, modal footer, 작은 inline action처럼 공간이 좁고
+강조가 낮은 control에 쓴다. 아이콘 버튼과 짧은 텍스트 버튼이 같은 시각
+밀도로 반복될 때 특히 적합하다.
+
+표준 `Button` hierarchy의 정사각형 아이콘 control은 `IconButton`을 쓰고,
+`MuteButton`의 조용한 표면을 텍스트 action과 함께 운용해야 할 때는
+아이콘 전용이어도 `MuteButton`을 쓴다.
+
+다음 상황에서는 `MuteButton`을 우선한다.
+
+- 상단 문의, 설정처럼 작지만 resting surface가 필요한 아이콘 control
+- `View CV`, 수정, 뒤로, 닫기처럼 본문 흐름을 보조하는 짧은 action
+- 복사, 공유, 재시도, 더 보기처럼 반복되는 modal/panel action
+- 링크 추가/삭제, 필터 초기화처럼 main CTA보다 한 단계 낮은 control
+- 취소와 저장이 함께 있는 compact toolbar의 보조 버튼
+
+다음 상황에서는 사용하지 않는다.
+
+- 페이지나 form의 하나뿐인 main CTA: `Button`의 `primary` 또는 `black`
+- 실제 삭제, 탈퇴 확정처럼 되돌릴 수 없는 최종 action: `Button`의
+  `critical`
+- 선택 가능한 카드 전체: `CardButton`
+- 동일한 action이 긴 목록에서 반복되고 별도의 active 상태가 필요한 경우:
+  `ActionButton`
+
+Variants:
+
+| Variant | Use |
+| --- | --- |
+| `default` | 흰 floating surface, 기본 border와 shadow가 필요한 일반 보조 action |
+| `transparent` | resting surface 없이 hover/active에서만 반응하는 수정, 뒤로, 닫기, inline action |
+| `neutral` | 약한 fill이 필요한 filter, toggle, grouped control |
+| `dark` | compact toolbar 안의 저장/확인처럼 높은 대비가 필요하지만 페이지 main CTA는 아닌 action |
+| `primary` | 복사, 초대처럼 브랜드 강조가 필요한 compact action. 한 scope에 남발하지 않는다 |
+| `warn` | 삭제/탈퇴 modal을 여는 진입 action. 최종 파괴 확인에는 `Button critical`을 쓴다 |
+
+Sizes:
+
+| Size | Use |
+| --- | --- |
+| `sm` | 아주 작은 toolbar, filter clear, 밀도가 높은 icon control |
+| `md` | 기본값. 상단 icon, 수정, 추가, 복사 등 대부분의 compact action |
+| `lg` | modal footer, 모바일 touch target, 조금 더 중요한 compact action |
+
+`MuteButton`은 children을 보고 padding을 자동 조정한다.
+
+- 아이콘만 있으면 size의 기본 horizontal/vertical padding을 유지한다.
+- 텍스트가 있으면 horizontal padding을 늘린다.
+- 텍스트만 있으면 vertical padding을 줄여 과하게 높아지지 않게 한다.
+- 아이콘과 텍스트가 함께 있으면 size의 기본 vertical padding을 유지한다.
+- 기본 높이는 intrinsic height다. 부모 flex의 stretch 때문에 높이가
+  달라지지 않는다.
+
+호출부에서 이 규칙을 다시 구현하지 않는다. 일반 사용에서는 padding,
+height, background, border를 `className`으로 덮지 말고 `variant`와 `size`를
+선택한다. `w-full`, `flex-1`, 위치, 반응형 정렬처럼 레이아웃에만 관련된
+class는 허용한다.
+
+```tsx
+// 기본 아이콘 control
+<MuteButton aria-label="설정">
+  <Settings className="h-4 w-4" />
+</MuteButton>
+
+// 표면이 없는 inline action
+<MuteButton variant="transparent">
+  <Pencil className="h-4 w-4" />
+  수정하기
+</MuteButton>
+
+// modal footer의 텍스트 전용 action
+<MuteButton size="lg">닫기</MuteButton>
+
+// 최종 삭제 확인이 아니라 삭제 흐름으로 들어가는 action
+<MuteButton variant="warn">
+  <Trash2 className="h-4 w-4" />
+  회원 탈퇴
+</MuteButton>
+```
 
 Do not add a new button color variant for a page-specific case. Use `className` only when preserving an existing layout during migration, and keep the color tokens from this document.
 

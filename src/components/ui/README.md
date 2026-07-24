@@ -43,6 +43,24 @@ Allowed variants are `default`, `primary`, `black`, `secondary`, `critical`, and
 
 Use `IconButton` for icon-only controls, `ActionButton` for compact repeated workspace actions, and `AnimatedButton` only when the text animation is intentionally part of the interaction.
 
+Use `MuteButton` for compact, low-emphasis actions that need a quieter surface
+than the standard `Button`.
+
+```tsx
+<MuteButton>Default</MuteButton>
+<MuteButton variant="dark">Dark</MuteButton>
+<MuteButton variant="primary">Primary</MuteButton>
+<MuteButton variant="transparent">Transparent</MuteButton>
+<MuteButton variant="warn">Warn</MuteButton>
+<MuteButton variant="neutral">Neutral</MuteButton>
+```
+
+Its variants are `dark`, `primary`, `default`, `transparent`, `warn`, and
+`neutral`; its sizes are `sm`, `md`, and `lg`. Icon-only buttons keep the
+size's base horizontal padding. When the children contain text, `MuteButton`
+automatically adds `2px` of horizontal padding on each side. Text-only buttons
+also subtract `2px` from the size's vertical padding.
+
 ### `CardButton`
 
 Use `CardButton` when a whole card is the button.

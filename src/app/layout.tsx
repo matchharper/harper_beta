@@ -4,10 +4,10 @@ import ToastProvider from "@/components/toast/ToastProvider";
 import ReactQueryProvider from "@/components/Provider";
 
 export const metadata: Metadata = {
-  title: "Sonus",
-  description: "Make everyone communicate beyond language.",
+  title: "Harper",
+  description: "Harper is a platform that helps you find your dream job.",
   icons: {
-    icon: "/svgs/house.svg",
+    icon: "/images/logo.png",
   },
 };
 

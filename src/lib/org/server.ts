@@ -5,6 +5,11 @@ import { getDefaultResendFromEmail, sendResendEmail } from "@/lib/email/send";
 import { getEmailDomain, INTERNAL_EMAIL_DOMAIN } from "@/lib/internalAccess";
 import { buildOrgIntroEmailDraft } from "@/lib/org/introEmail";
 import { buildOrgInviteEmail } from "@/lib/org/inviteEmail";
+import {
+  getOrgPermissions,
+  normalizeOrgMembershipRole,
+  type OrgMembershipRole,
+} from "@/lib/org/permissions";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import {
   notifyOrgCandidateAcceptedSlack,
@@ -31,7 +36,6 @@ type TalentExperienceRow =
 type TalentEducationRow =
   Database["public"]["Tables"]["talent_educations"]["Row"];
 type TalentExtraRow = Database["public"]["Tables"]["talent_extras"]["Row"];
-type TalentInsightRow = Database["public"]["Tables"]["talent_insights"]["Row"];
 type RecommendationRow =
   Database["public"]["Tables"]["talent_opportunity_recommendation"]["Row"];
 type TalentOpportunityTagRow =
@@ -76,7 +80,7 @@ export type OrgMember = {
   joinedAt: string;
   name: string | null;
   profilePicture: string | null;
-  role: string | null;
+  role: OrgMembershipRole;
   userId: string;
 };
 
@@ -85,6 +89,7 @@ export type OrgWorkspaceInvitation = {
   invitationId: string;
   invitedAt: string;
   lastSentAt: string;
+  role: OrgMembershipRole;
   status: "pending";
 };
 
@@ -121,6 +126,17 @@ export type OrgInviteSendResponse = {
   workspaceId: string;
 };
 
+export type OrgInvitationMutationResponse = {
+  invitationId: string;
+  ok: true;
+};
+
+export type OrgMembershipRoleUpdateResponse = {
+  ok: true;
+  role: OrgMembershipRole;
+  userId: string;
+};
+
 export type OrgWorkspaceLeaveResponse = {
   nextWorkspaceId: string | null;
   ok: true;
@@ -128,6 +144,7 @@ export type OrgWorkspaceLeaveResponse = {
 };
 
 export type OrgBuiltInStageId =
+  | "accepted"
   | "pending_connection"
   | "connected"
   | "final_offer"
@@ -299,6 +316,7 @@ export type OrgStopReason = "candidate" | "company";
 
 export type OrgStageChangeOptions = {
   acceptReason?: string | null;
+  contactDirectly?: boolean;
   introEmails?: string[] | null;
   stopNote?: string | null;
   stopReason?: OrgStopReason | null;
@@ -307,14 +325,15 @@ export type OrgStageChangeOptions = {
 const CUSTOM_STAGE_ID_PREFIX = "custom:";
 const CUSTOM_STAGE_TAG_PREFIX = "내부단계:";
 const MAX_ORG_ROLE_STAGE_LABEL_LENGTH = 40;
+const INTERNAL_ACCEPTED_STAGE_TAG = "내부:수락";
 const STAGE_TAG_BY_STAGE: Record<OrgBuiltInStageId, string> = {
+  accepted: INTERNAL_ACCEPTED_STAGE_TAG,
   pending_connection: "내부:연결대기",
-  connected: "내부:수락",
+  connected: "내부:연결됨",
   final_offer: "내부:최종오퍼",
   process_stopped: "내부:프로세스중단",
 };
 const EXTRA_INTERNAL_STAGE_TAGS = [
-  "내부:연결됨",
   "내부:아카이브",
   "내부:보류",
   "내부:추천",
@@ -396,7 +415,7 @@ function buildVirtualOrgMember(user: User): OrgMember {
     name: getUserName(user),
     profilePicture:
       normalizeNullableText(user.user_metadata?.avatar_url) ?? null,
-    role: "Harper",
+    role: "owner",
     userId: user.id,
   };
 }
@@ -710,6 +729,7 @@ function customTagKeyFromStageRow(row: RoleStageRow) {
 }
 
 function buildStageLabel(stage: OrgStageId, customStages: RoleStageRow[]) {
+  if (stage === "accepted") return "수락";
   if (stage === "pending_connection") return "연결 대기";
   if (stage === "connected") return "연결됨";
   if (stage === "final_offer") return "최종 오퍼";
@@ -724,6 +744,7 @@ function buildStageDestinationLabel(label: string) {
 }
 
 function stageSortOrder(stage: OrgStageId, customStages: RoleStageRow[]) {
+  if (stage === "accepted") return -1;
   if (stage === "pending_connection") return 0;
   if (stage === "connected") return 1;
   if (stage === "final_offer") return 10_000;
@@ -734,11 +755,21 @@ function stageSortOrder(stage: OrgStageId, customStages: RoleStageRow[]) {
 }
 
 function getVisibleOrgStage(args: {
+  connectedByOrgAction: boolean;
   customStageByTagKey: ReadonlyMap<string, OrgCustomStageId>;
+  includeInternalAccepted: boolean;
   tags: TalentOpportunityTagRow[];
 }): { stage: OrgStageId; stageTag: string } | null {
   for (const tag of args.tags) {
     const tagKey = normalizeTagKey(tag.tag);
+    if (tagKey === normalizeTagKey(INTERNAL_ACCEPTED_STAGE_TAG)) {
+      if (args.connectedByOrgAction) {
+        return { stage: "connected", stageTag: tag.tag };
+      }
+      return args.includeInternalAccepted
+        ? { stage: "accepted", stageTag: tag.tag }
+        : null;
+    }
     const builtIn = STAGE_BY_TAG_KEY.get(tagKey);
     if (builtIn) return { stage: builtIn, stageTag: tag.tag };
     if (tagKey === normalizeTagKey("내부:연결됨")) {
@@ -769,7 +800,7 @@ function buildMember(
     joinedAt: membership.created_at,
     name: user?.name ?? null,
     profilePicture: user?.profile_picture ?? null,
-    role: membership.role ?? null,
+    role: normalizeOrgMembershipRole(membership.role),
     userId: membership.company_user_id,
   };
 }
@@ -868,7 +899,7 @@ async function ensureOrgMembership(args: {
   const { data: existing, error: existingError } = await (
     args.admin.from("company_user_workspace" as any) as any
   )
-    .select("id")
+    .select("id, role")
     .eq("company_user_id", args.user.id)
     .eq("company_workspace_id", args.workspaceId)
     .maybeSingle();
@@ -883,12 +914,26 @@ async function ensureOrgMembership(args: {
     return workspace;
   }
 
+  const email = getUserEmail(args.user);
+  const { data: invitation, error: invitationError } = await (
+    args.admin.from("company_workspace_invitations") as any
+  )
+    .select("role")
+    .eq("company_workspace_id", args.workspaceId)
+    .eq("email", email ?? "")
+    .is("accepted_at", null)
+    .maybeSingle();
+  if (invitationError) throw invitationError;
+  const membershipRole = invitation
+    ? normalizeOrgMembershipRole(invitation.role)
+    : "viewer";
+
   const { error } = await (
     args.admin.from("company_user_workspace" as any) as any
   ).insert({
     company_user_id: args.user.id,
     company_workspace_id: args.workspaceId,
-    role: "member",
+    role: membershipRole,
   });
 
   if (error) throw error;
@@ -923,25 +968,55 @@ export async function assertOrgWorkspaceAccess(args: {
   user: User;
   workspaceId: string;
 }) {
+  return assertOrgWorkspacePermission({ ...args, permission: "view" });
+}
+
+export type OrgWorkspacePermission =
+  | "manage_candidates"
+  | "manage_integrations"
+  | "manage_members"
+  | "manage_workspace"
+  | "view";
+
+export async function assertOrgWorkspacePermission(args: {
+  admin: SupabaseAdminClient;
+  permission: OrgWorkspacePermission;
+  user: User;
+  workspaceId: string;
+}) {
   if (hasOrgAllInternalWorkspaceAccess(args.user)) {
     const workspace = await fetchWorkspaceById(args.admin, args.workspaceId);
     if (!workspace) throw new OrgHttpError(404, "Workspace not found");
     if (!workspace.is_internal) {
       throw new OrgHttpError(403, "Workspace access denied");
     }
-    return;
+    return "owner" as const;
   }
 
   const { data, error } = await (
     args.admin.from("company_user_workspace" as any) as any
   )
-    .select("id")
+    .select("id, role")
     .eq("company_user_id", args.user.id)
     .eq("company_workspace_id", args.workspaceId)
     .maybeSingle();
 
   if (error) throw error;
   if (!data) throw new OrgHttpError(403, "Workspace access denied");
+  const role = normalizeOrgMembershipRole(data.role);
+  const permissions = getOrgPermissions(role);
+  const allowed =
+    args.permission === "view" ||
+    (args.permission === "manage_candidates" &&
+      permissions.canManageCandidates) ||
+    (args.permission === "manage_integrations" &&
+      permissions.canManageIntegrations) ||
+    (args.permission === "manage_members" && permissions.canManageMembers) ||
+    (args.permission === "manage_workspace" && permissions.canManageWorkspace);
+  if (!allowed) {
+    throw new OrgHttpError(403, "이 작업을 수행할 권한이 없습니다.");
+  }
+  return role;
 }
 
 export async function leaveOrgWorkspace(args: {
@@ -961,7 +1036,7 @@ export async function leaveOrgWorkspace(args: {
   const { data: membership, error: membershipError } = await (
     admin.from("company_user_workspace" as any) as any
   )
-    .select("id")
+    .select("id, role")
     .eq("company_user_id", args.user.id)
     .eq("company_workspace_id", workspaceId)
     .maybeSingle();
@@ -972,6 +1047,22 @@ export async function leaveOrgWorkspace(args: {
       404,
       "이미 탈퇴했거나 참여 중인 Workspace가 아닙니다."
     );
+  }
+
+  if (normalizeOrgMembershipRole(membership.role) === "owner") {
+    const { count, error: ownerCountError } = await (
+      admin.from("company_user_workspace" as any) as any
+    )
+      .select("id", { count: "exact", head: true })
+      .eq("company_workspace_id", workspaceId)
+      .eq("role", "owner");
+    if (ownerCountError) throw ownerCountError;
+    if ((count ?? 0) <= 1) {
+      throw new OrgHttpError(
+        409,
+        "마지막 Owner는 Organization에서 나갈 수 없습니다."
+      );
+    }
   }
 
   const { error: deleteError } = await (
@@ -1085,7 +1176,7 @@ async function fetchOrgPendingInvitations(
     admin.from("company_workspace_invitations") as any
   )
     .select(
-      "invitation_id, company_workspace_id, email, invited_by_user_id, last_sent_at, accepted_at, created_at, updated_at"
+      "invitation_id, company_workspace_id, email, invited_by_user_id, last_sent_at, accepted_at, role, created_at, updated_at"
     )
     .eq("company_workspace_id", workspaceId)
     .is("accepted_at", null)
@@ -1120,6 +1211,7 @@ async function fetchOrgPendingInvitations(
       invitationId: row.invitation_id,
       invitedAt: row.created_at,
       lastSentAt: row.last_sent_at,
+      role: normalizeOrgMembershipRole(row.role),
       status: "pending" as const,
     }));
 }
@@ -1237,6 +1329,7 @@ function getOrgInviteFromEmail() {
 
 export async function sendOrgWorkspaceInvitations(args: {
   emails: unknown;
+  role?: unknown;
   siteUrl: string;
   user: User;
   workspaceId: string;
@@ -1256,9 +1349,19 @@ export async function sendOrgWorkspaceInvitations(args: {
   if (emails.length === 0) {
     throw new OrgHttpError(400, "초대할 이메일을 입력해 주세요.");
   }
+  const rawRole = normalizeText(args.role).toLowerCase();
+  if (!["owner", "admin", "viewer"].includes(rawRole)) {
+    throw new OrgHttpError(400, "올바른 초대 권한을 선택해 주세요.");
+  }
+  const role = rawRole as OrgMembershipRole;
 
   const admin = getSupabaseAdmin();
-  await assertOrgWorkspaceAccess({ admin, user: args.user, workspaceId });
+  await assertOrgWorkspacePermission({
+    admin,
+    permission: "manage_members",
+    user: args.user,
+    workspaceId,
+  });
   const workspace = await fetchWorkspaceById(admin, workspaceId);
   if (!workspace) throw new OrgHttpError(404, "Workspace not found");
 
@@ -1318,6 +1421,7 @@ export async function sendOrgWorkspaceInvitations(args: {
             email,
             invited_by_user_id: args.user.id,
             last_sent_at: now,
+            role,
             updated_at: now,
           },
           { onConflict: "company_workspace_id,email" }
@@ -1343,6 +1447,92 @@ export async function sendOrgWorkspaceInvitations(args: {
   );
 
   return { ok: true, results, workspaceId };
+}
+
+export async function cancelOrgWorkspaceInvitation(args: {
+  invitationId: string;
+  user: User;
+  workspaceId: string;
+}): Promise<OrgInvitationMutationResponse> {
+  const admin = getSupabaseAdmin();
+  const invitationId = normalizeText(args.invitationId);
+  const workspaceId = normalizeText(args.workspaceId);
+  if (!invitationId || !workspaceId) {
+    throw new OrgHttpError(400, "Missing required fields");
+  }
+  await assertOrgWorkspacePermission({
+    admin,
+    permission: "manage_members",
+    user: args.user,
+    workspaceId,
+  });
+  const { data, error } = await (
+    admin.from("company_workspace_invitations") as any
+  )
+    .delete()
+    .eq("invitation_id", invitationId)
+    .eq("company_workspace_id", workspaceId)
+    .is("accepted_at", null)
+    .select("invitation_id")
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new OrgHttpError(404, "대기 중인 초대를 찾지 못했습니다.");
+  return { invitationId, ok: true };
+}
+
+export async function updateOrgMembershipRole(args: {
+  role: unknown;
+  user: User;
+  userId: string;
+  workspaceId: string;
+}): Promise<OrgMembershipRoleUpdateResponse> {
+  const admin = getSupabaseAdmin();
+  const userId = normalizeText(args.userId);
+  const workspaceId = normalizeText(args.workspaceId);
+  const rawRole = normalizeText(args.role).toLowerCase();
+  if (!userId || !workspaceId) {
+    throw new OrgHttpError(400, "Missing required fields");
+  }
+  if (!["owner", "admin", "viewer"].includes(rawRole)) {
+    throw new OrgHttpError(400, "올바른 권한을 선택해 주세요.");
+  }
+  const role = rawRole as OrgMembershipRole;
+  await assertOrgWorkspacePermission({
+    admin,
+    permission: "manage_members",
+    user: args.user,
+    workspaceId,
+  });
+
+  const { data: membership, error: membershipError } = await (
+    admin.from("company_user_workspace" as any) as any
+  )
+    .select("id, role")
+    .eq("company_workspace_id", workspaceId)
+    .eq("company_user_id", userId)
+    .maybeSingle();
+  if (membershipError) throw membershipError;
+  if (!membership) throw new OrgHttpError(404, "멤버를 찾지 못했습니다.");
+
+  const previousRole = normalizeOrgMembershipRole(membership.role);
+  if (previousRole === "owner" && role !== "owner") {
+    const { count, error: countError } = await (
+      admin.from("company_user_workspace" as any) as any
+    )
+      .select("id", { count: "exact", head: true })
+      .eq("company_workspace_id", workspaceId)
+      .eq("role", "owner");
+    if (countError) throw countError;
+    if ((count ?? 0) <= 1) {
+      throw new OrgHttpError(409, "마지막 Owner의 권한은 변경할 수 없습니다.");
+    }
+  }
+
+  const { error } = await (admin.from("company_user_workspace" as any) as any)
+    .update({ role, updated_at: new Date().toISOString() })
+    .eq("id", membership.id);
+  if (error) throw error;
+  return { ok: true, role, userId };
 }
 
 async function fetchRoleRowsForWorkspace(
@@ -1378,10 +1568,20 @@ async function fetchCustomStages(
 
 function buildBoardStages(args: {
   customStages: RoleStageRow[];
+  includeInternalAccepted: boolean;
   roleById: ReadonlyMap<string, CompanyRoleRow>;
   selectedRoleId: string | null;
 }) {
   const stages: OrgStage[] = [
+    ...(args.includeInternalAccepted
+      ? [
+          {
+            id: "accepted" as const,
+            label: "Harper 내부 · 수락",
+            sortOrder: -1,
+          },
+        ]
+      : []),
     { id: "pending_connection", label: "연결 대기", sortOrder: 0 },
     { id: "connected", label: "연결됨", sortOrder: 1 },
     ...args.customStages.map((row) => {
@@ -1432,6 +1632,98 @@ async function fetchTagsForBoard(args: {
   return map;
 }
 
+async function fetchOrgConnectedRecommendationIds(args: {
+  admin: SupabaseAdminClient;
+  roleIds: string[];
+}) {
+  if (args.roleIds.length === 0) return new Set<string>();
+  const { data, error } = await (
+    args.admin.from("talent_progress" as any) as any
+  )
+    .select("recommendation_id")
+    .eq("kind", "org_stage_change")
+    .in("role_id", args.roleIds)
+    .contains("metadata", { stage: "connected" })
+    .not("recommendation_id", "is", null)
+    .limit(5000);
+  if (error) throw error;
+  return new Set(
+    (data ?? []).flatMap((row: { recommendation_id?: string | null }) =>
+      row.recommendation_id ? [row.recommendation_id] : []
+    )
+  );
+}
+
+async function assertOrgTalentVisibleInWorkspace(args: {
+  admin: SupabaseAdminClient;
+  recommendationId?: string | null;
+  roleRows?: CompanyRoleRow[];
+  talentId: string;
+  user: User;
+  workspaceId: string;
+}) {
+  const roleRows =
+    args.roleRows ??
+    (await fetchRoleRowsForWorkspace(args.admin, args.workspaceId));
+  const roleIds = roleRows.map((role) => role.role_id);
+  if (roleIds.length === 0) {
+    throw new OrgHttpError(404, "Talent not found");
+  }
+
+  let recommendationQuery = (
+    args.admin.from("talent_opportunity_recommendation" as any) as any
+  )
+    .select(
+      "id, talent_id, role_id, fit_summary, fit_reasons, recommended_at, created_at, updated_at"
+    )
+    .eq("talent_id", args.talentId)
+    .in("role_id", roleIds)
+    .order("recommended_at", { ascending: false })
+    .limit(100);
+  if (args.recommendationId) {
+    recommendationQuery = recommendationQuery.eq("id", args.recommendationId);
+  }
+
+  const { data, error } = await recommendationQuery;
+  if (error) throw error;
+  const recommendations = (data ?? []) as RecommendationRow[];
+  if (recommendations.length === 0) {
+    throw new OrgHttpError(404, "Talent not found");
+  }
+
+  const [customStages, tagsByKey, connectedRecommendationIds] =
+    await Promise.all([
+      fetchCustomStages(args.admin, roleIds),
+      fetchTagsForBoard({
+        admin: args.admin,
+        roleIds,
+        talentIds: [args.talentId],
+      }),
+      fetchOrgConnectedRecommendationIds({ admin: args.admin, roleIds }),
+    ]);
+  const customStageByTagKey = new Map(
+    customStages.map((row) => [
+      customTagKeyFromStageRow(row),
+      buildCustomStageId(row.id),
+    ])
+  );
+  const includeInternalAccepted = hasOrgAllInternalWorkspaceAccess(args.user);
+  const visible = recommendations.some((recommendation) =>
+    Boolean(
+      getVisibleOrgStage({
+        connectedByOrgAction: connectedRecommendationIds.has(recommendation.id),
+        customStageByTagKey,
+        includeInternalAccepted,
+        tags:
+          tagsByKey.get(
+            `${recommendation.talent_id}:${recommendation.role_id}`
+          ) ?? [],
+      })
+    )
+  );
+  if (!visible) throw new OrgHttpError(404, "Talent not found");
+}
+
 async function fetchTalentRows(
   admin: SupabaseAdminClient,
   talentIds: string[]
@@ -1459,9 +1751,15 @@ export async function fetchOrgBoard(args: {
   const admin = getSupabaseAdmin();
   const workspaceId = normalizeText(args.workspaceId);
   const selectedRoleId = normalizeNullableText(args.roleId);
+  const includeInternalAccepted = hasOrgAllInternalWorkspaceAccess(args.user);
 
   if (!workspaceId) throw new OrgHttpError(400, "workspaceId is required");
-  await assertOrgWorkspaceAccess({ admin, user: args.user, workspaceId });
+  await assertOrgWorkspacePermission({
+    admin,
+    permission: "view",
+    user: args.user,
+    workspaceId,
+  });
 
   const roleRows = await fetchRoleRowsForWorkspace(admin, workspaceId);
   const roleById = new Map(roleRows.map((row) => [row.role_id, row]));
@@ -1475,6 +1773,7 @@ export async function fetchOrgBoard(args: {
   const customStages = await fetchCustomStages(admin, roleIds);
   const stages = buildBoardStages({
     customStages,
+    includeInternalAccepted,
     roleById,
     selectedRoleId,
   });
@@ -1522,11 +1821,13 @@ export async function fetchOrgBoard(args: {
 
   const recommendationRows = (recommendations ?? []) as RecommendationRow[];
   const talentIds = uniqueTexts(recommendationRows.map((row) => row.talent_id));
-  const [talentById, tagsByKey, profileLabels] = await Promise.all([
-    fetchTalentRows(admin, talentIds),
-    fetchTagsForBoard({ admin, roleIds, talentIds }),
-    fetchBoardProfileLabels({ admin, talentIds }),
-  ]);
+  const [talentById, tagsByKey, profileLabels, connectedRecommendationIds] =
+    await Promise.all([
+      fetchTalentRows(admin, talentIds),
+      fetchTagsForBoard({ admin, roleIds, talentIds }),
+      fetchBoardProfileLabels({ admin, talentIds }),
+      fetchOrgConnectedRecommendationIds({ admin, roleIds }),
+    ]);
   const customStageByTagKey = new Map(
     customStages.map((row) => [
       customTagKeyFromStageRow(row),
@@ -1565,7 +1866,9 @@ export async function fetchOrgBoard(args: {
     }
 
     const stageInfo = getVisibleOrgStage({
+      connectedByOrgAction: connectedRecommendationIds.has(row.id),
       customStageByTagKey,
+      includeInternalAccepted,
       tags: tagsByKey.get(`${row.talent_id}:${row.role_id}`) ?? [],
     });
     if (!stageInfo) return [];
@@ -1913,6 +2216,7 @@ async function sendOrgIntroEmail(args: {
 }
 
 function getStageTagForInsert(stage: OrgStageId) {
+  if (stage === "accepted") return STAGE_TAG_BY_STAGE.accepted;
   if (stage === "pending_connection")
     return STAGE_TAG_BY_STAGE.pending_connection;
   if (stage === "connected") return STAGE_TAG_BY_STAGE.connected;
@@ -1948,6 +2252,7 @@ function validateStageForRole(stage: OrgStageId, stageRows: RoleStageRow[]) {
 
 export async function setOrgCandidateStage(args: {
   acceptReason?: string | null;
+  contactDirectly?: boolean;
   introEmails?: string[] | null;
   recommendationId: string;
   roleId: string;
@@ -1965,7 +2270,11 @@ export async function setOrgCandidateStage(args: {
   const recommendationId = normalizeText(args.recommendationId);
   const stage = normalizeText(args.stage) as OrgStageId;
   const acceptReason = normalizeText(args.acceptReason).slice(0, 2000);
-  const introEmails = normalizeLooseEmailList(args.introEmails);
+  const contactDirectly =
+    stage !== "process_stopped" && args.contactDirectly === true;
+  const introEmails = contactDirectly
+    ? []
+    : normalizeLooseEmailList(args.introEmails);
   const stopNote = normalizeText(args.stopNote);
 
   if (!workspaceId || !roleId || !talentId || !recommendationId || !stage) {
@@ -1984,8 +2293,16 @@ export async function setOrgCandidateStage(args: {
   if (introEmails.some((email) => !isValidEmailAddress(email))) {
     throw new OrgHttpError(400, "One or more introduction emails are invalid");
   }
+  if (stage === "accepted" && !hasOrgAllInternalWorkspaceAccess(args.user)) {
+    throw new OrgHttpError(403, "내부 수락 단계에 접근할 수 없습니다.");
+  }
 
-  await assertOrgWorkspaceAccess({ admin, user: args.user, workspaceId });
+  await assertOrgWorkspacePermission({
+    admin,
+    permission: "manage_candidates",
+    user: args.user,
+    workspaceId,
+  });
   await upsertOrgCompanyUser(admin, args.user);
   const roleRows = await fetchRoleRowsForWorkspace(admin, workspaceId);
   const role = roleRows.find((row) => row.role_id === roleId);
@@ -1998,6 +2315,14 @@ export async function setOrgCandidateStage(args: {
     recommendationId,
     roleId,
     talentId,
+  });
+  await assertOrgTalentVisibleInWorkspace({
+    admin,
+    recommendationId,
+    roleRows,
+    talentId,
+    user: args.user,
+    workspaceId,
   });
 
   const allStageTags = [
@@ -2016,17 +2341,19 @@ export async function setOrgCandidateStage(args: {
   if (previousError) throw previousError;
   const previousStage =
     getVisibleOrgStage({
+      connectedByOrgAction: false,
       customStageByTagKey: new Map(
         stageRows.map((row) => [
           customTagKeyFromStageRow(row),
           buildCustomStageId(row.id),
         ])
       ),
+      includeInternalAccepted: hasOrgAllInternalWorkspaceAccess(args.user),
       tags: (previousTags ?? []) as TalentOpportunityTagRow[],
     })?.stage ?? "pending_connection";
 
   const isIntroRequested =
-    stage !== "process_stopped" && introEmails.length > 0;
+    stage !== "process_stopped" && !contactDirectly && introEmails.length > 0;
   let introDelivery: {
     cc: string[];
     messageId: string;
@@ -2095,15 +2422,20 @@ export async function setOrgCandidateStage(args: {
         ? previousStage === stage
           ? `warm intro를 요청했습니다.`
           : `${nextDestinationLabel} 옮기고 warm intro를 요청했습니다.`
-        : previousStage === stage
-          ? `${nextDestinationLabel} 표시했습니다.`
-          : `${previousLabel}에서 ${nextDestinationLabel} 옮겼습니다.`;
+        : contactDirectly
+          ? previousStage === stage
+            ? `직접 연락하기로 했습니다.`
+            : `${nextDestinationLabel} 옮기고 직접 연락하기로 했습니다.`
+          : previousStage === stage
+            ? `${nextDestinationLabel} 표시했습니다.`
+            : `${previousLabel}에서 ${nextDestinationLabel} 옮겼습니다.`;
   const text =
     stage !== "process_stopped" && acceptReason
       ? `${baseText}\n수락 이유: ${acceptReason}`
       : baseText;
   const metadata = {
     acceptReason: stage !== "process_stopped" ? acceptReason || null : null,
+    contactDirectly,
     introEmailCc: introDelivery?.cc ?? [],
     introEmailMessageId: introDelivery?.messageId ?? null,
     introEmailRecipients: introDelivery?.recipients ?? [],
@@ -2134,7 +2466,7 @@ export async function setOrgCandidateStage(args: {
 
   if (progressError) throw progressError;
 
-  if (isIntroRequested || stage === "process_stopped") {
+  if (isIntroRequested || contactDirectly || stage === "process_stopped") {
     try {
       const [workspace, candidate] = await Promise.all([
         fetchWorkspaceById(admin, workspaceId),
@@ -2157,10 +2489,11 @@ export async function setOrgCandidateStage(args: {
           },
         };
 
-        if (isIntroRequested) {
+        if (isIntroRequested || contactDirectly) {
           await notifyOrgCandidateAcceptedSlack({
             ...slackBaseArgs,
             acceptReason,
+            contactDirectly,
             introEmails,
           });
         } else {
@@ -2201,7 +2534,12 @@ export async function createOrgTalentFeedItem(args: {
     throw new OrgHttpError(400, "Missing required fields");
   }
 
-  await assertOrgWorkspaceAccess({ admin, user: args.user, workspaceId });
+  await assertOrgWorkspacePermission({
+    admin,
+    permission: "manage_candidates",
+    user: args.user,
+    workspaceId,
+  });
   await upsertOrgCompanyUser(admin, args.user);
   const roleRows = await fetchRoleRowsForWorkspace(admin, workspaceId);
   if (!roleRows.some((row) => row.role_id === roleId)) {
@@ -2213,6 +2551,14 @@ export async function createOrgTalentFeedItem(args: {
     recommendationId: normalizeNullableText(args.recommendationId),
     roleId,
     talentId,
+  });
+  await assertOrgTalentVisibleInWorkspace({
+    admin,
+    recommendationId: recommendation.id,
+    roleRows,
+    talentId,
+    user: args.user,
+    workspaceId,
   });
 
   const { error } = await (admin.from("talent_progress" as any) as any).insert({
@@ -2245,8 +2591,9 @@ async function fetchMutableOrgFeedRow(args: {
     throw new OrgHttpError(400, "Missing required fields");
   }
 
-  await assertOrgWorkspaceAccess({
+  await assertOrgWorkspacePermission({
     admin: args.admin,
+    permission: "manage_candidates",
     user: args.user,
     workspaceId,
   });
@@ -2374,7 +2721,6 @@ function buildProfileMarkdown(args: {
   educations: TalentEducationRow[];
   experiences: TalentExperienceRow[];
   extras: TalentExtraRow[];
-  insights: TalentInsightRow[];
   talent: TalentUserRow;
 }) {
   const resumeText = normalizeText(args.talent.resume_text);
@@ -2410,19 +2756,6 @@ function buildProfileMarkdown(args: {
   const extraLines = getExtraMarkdown(args.extras);
   if (extraLines.length > 0) {
     sections.push(["## Extra", ...extraLines].join("\n"));
-  }
-
-  const insightLines = args.insights.flatMap((row) => {
-    if (!row.content || typeof row.content !== "object") return [];
-    return Object.entries(row.content as Record<string, unknown>).flatMap(
-      ([key, value]) => {
-        if (typeof value !== "string" || !value.trim()) return [];
-        return [`- ${key}: ${value.trim()}`];
-      }
-    );
-  });
-  if (insightLines.length > 0) {
-    sections.push(["## Insights", ...insightLines].join("\n"));
   }
 
   return sections.join("\n\n").trim();
@@ -2504,16 +2837,6 @@ function optionalRows<T>(
   return ((result.data ?? []) as T[]) ?? [];
 }
 
-function isAcceptedFeedback(feedback: string | null | undefined) {
-  const normalized = normalizeText(feedback).toLowerCase();
-  return normalized === "like" || normalized === "positive";
-}
-
-function isRejectedFeedback(feedback: string | null | undefined) {
-  const normalized = normalizeText(feedback).toLowerCase();
-  return normalized === "dislike" || normalized === "negative";
-}
-
 function appendReason(text: string, reason: string | null) {
   return reason ? `${text}\n이유: ${reason}` : text;
 }
@@ -2550,36 +2873,6 @@ function getOrgProgressFeedText(row: TalentProgressRow) {
   return row.text;
 }
 
-function buildRecommendationFeedbackFeedItem(args: {
-  recommendation: RecommendationRow;
-  roleName: string | null;
-}): OrgFeedItem | null {
-  const accepted = isAcceptedFeedback(args.recommendation.feedback);
-  const rejected = isRejectedFeedback(args.recommendation.feedback);
-  if (!accepted && !rejected) return null;
-
-  const actionText = accepted ? "수락" : "거절";
-  return {
-    actor: null,
-    companyUserId: null,
-    createdAt:
-      args.recommendation.feedback_at ??
-      args.recommendation.updated_at ??
-      args.recommendation.recommended_at,
-    id: `recommendation-feedback:${args.recommendation.id}`,
-    kind: accepted
-      ? "talent_recommendation_accepted"
-      : "talent_recommendation_rejected",
-    recommendationId: args.recommendation.id,
-    roleId: args.recommendation.role_id,
-    roleName: args.roleName,
-    text: appendReason(
-      `Talent가 이 추천을 ${actionText}했습니다.`,
-      normalizeNullableText(args.recommendation.feedback_reason)
-    ),
-  };
-}
-
 function sortOrgFeedItems(items: OrgFeedItem[]) {
   return items.sort((left, right) => {
     const leftTime = Date.parse(left.createdAt);
@@ -2604,7 +2897,12 @@ export async function fetchOrgTalentDetail(args: {
   if (!workspaceId || !talentId) {
     throw new OrgHttpError(400, "Missing required fields");
   }
-  await assertOrgWorkspaceAccess({ admin, user: args.user, workspaceId });
+  await assertOrgWorkspacePermission({
+    admin,
+    permission: "view",
+    user: args.user,
+    workspaceId,
+  });
 
   const recommendation = await fetchRecommendationForDetail({
     admin,
@@ -2617,13 +2915,20 @@ export async function fetchOrgTalentDetail(args: {
     (row) => row.role_id === recommendation.role_id
   );
   if (!roleRow) throw new OrgHttpError(404, "Role not found");
+  await assertOrgTalentVisibleInWorkspace({
+    admin,
+    recommendationId: recommendation.id,
+    roleRows,
+    talentId,
+    user: args.user,
+    workspaceId,
+  });
 
   const [
     talentResult,
     experiencesResult,
     educationsResult,
     extrasResult,
-    insightsResult,
     progressResult,
   ] = await Promise.all([
     (admin.from("talent_users" as any) as any)
@@ -2643,10 +2948,6 @@ export async function fetchOrgTalentDetail(args: {
     (admin.from("talent_extras" as any) as any)
       .select("*")
       .eq("talent_id", talentId),
-    (admin.from("talent_insights" as any) as any)
-      .select("*")
-      .eq("talent_id", talentId)
-      .order("created_at", { ascending: false }),
     (admin.from("talent_progress" as any) as any)
       .select(
         "id, talent_id, role_id, recommendation_id, text, kind, metadata, company_user_id, user_id, created_at"
@@ -2671,7 +2972,6 @@ export async function fetchOrgTalentDetail(args: {
     "educations"
   );
   const extras = optionalRows<TalentExtraRow>(extrasResult, "extras");
-  const insights = optionalRows<TalentInsightRow>(insightsResult, "insights");
   const progressRows = optionalRows<TalentProgressRow>(
     progressResult,
     "progress"
@@ -2700,17 +3000,8 @@ export async function fetchOrgTalentDetail(args: {
       text: getOrgProgressFeedText(row),
     };
   });
-  const recommendationFeedbackItem = buildRecommendationFeedbackFeedItem({
-    recommendation,
-    roleName: roleRow.name,
-  });
-
   return {
-    feed: sortOrgFeedItems(
-      recommendationFeedbackItem
-        ? [...progressFeedItems, recommendationFeedbackItem]
-        : progressFeedItems
-    ).slice(0, 50),
+    feed: sortOrgFeedItems(progressFeedItems).slice(0, 50),
     profile: {
       bio: talent.bio ?? null,
       educations: educations.map((education) => ({
@@ -2739,7 +3030,6 @@ export async function fetchOrgTalentDetail(args: {
       educations,
       experiences,
       extras,
-      insights,
       talent,
     }),
     recommendation: {
@@ -2778,7 +3068,18 @@ export async function openOrgResume(args: {
   if (!workspaceId || !talentId) {
     throw new OrgHttpError(400, "Missing required fields");
   }
-  await assertOrgWorkspaceAccess({ admin, user: args.user, workspaceId });
+  await assertOrgWorkspacePermission({
+    admin,
+    permission: "view",
+    user: args.user,
+    workspaceId,
+  });
+  await assertOrgTalentVisibleInWorkspace({
+    admin,
+    talentId,
+    user: args.user,
+    workspaceId,
+  });
 
   const { data, error } = await (admin.from("talent_users" as any) as any)
     .select("user_id, resume_storage_path, resume_links, resume_file_name")
@@ -2836,7 +3137,12 @@ export async function updateOrgWorkspace(args: {
   const admin = getSupabaseAdmin();
   const workspaceId = normalizeText(args.workspaceId);
   if (!workspaceId) throw new OrgHttpError(400, "workspaceId is required");
-  await assertOrgWorkspaceAccess({ admin, user: args.user, workspaceId });
+  await assertOrgWorkspacePermission({
+    admin,
+    permission: "manage_workspace",
+    user: args.user,
+    workspaceId,
+  });
 
   const patch = {
     company_description: args.companyDescription ?? null,
@@ -2868,7 +3174,12 @@ export async function updateOrgWorkspaceRequestOnly(args: {
   const admin = getSupabaseAdmin();
   const workspaceId = normalizeText(args.workspaceId);
   if (!workspaceId) throw new OrgHttpError(400, "workspaceId is required");
-  await assertOrgWorkspaceAccess({ admin, user: args.user, workspaceId });
+  await assertOrgWorkspacePermission({
+    admin,
+    permission: "manage_candidates",
+    user: args.user,
+    workspaceId,
+  });
 
   const { data: before, error: beforeError } = await (
     admin.from("company_workspace" as any) as any
@@ -2904,9 +3215,10 @@ export async function updateOrgWorkspaceRequestOnly(args: {
     })
     .eq("company_workspace_id", workspaceId);
   if (shouldCheckExpectedRequest) {
-    updateQuery = previousRequest === null
-      ? updateQuery.is("request", null)
-      : updateQuery.eq("request", previousRequest);
+    updateQuery =
+      previousRequest === null
+        ? updateQuery.is("request", null)
+        : updateQuery.eq("request", previousRequest);
   }
   const { data, error } = await updateQuery
     .select(
@@ -2948,24 +3260,44 @@ export async function updateOrgRole(args: {
   if (!workspaceId || !roleId) {
     throw new OrgHttpError(400, "Missing required fields");
   }
-  await assertOrgWorkspaceAccess({ admin, user: args.user, workspaceId });
-
-  const name = normalizeText(args.name);
-  if (!name) {
-    throw new OrgHttpError(400, "Role title is required");
-  }
+  await assertOrgWorkspacePermission({
+    admin,
+    permission: "manage_candidates",
+    user: args.user,
+    workspaceId,
+  });
 
   const patch: Record<string, unknown> = {
-    description: args.description ?? null,
-    external_jd_url: normalizeNullableText(args.externalJdUrl),
-    location_text: normalizeNullableText(args.locationText),
-    name,
-    request: args.request ?? null,
-    status: normalizeOrgRoleStatus(args.status),
-    type: normalizeOrgRoleEmploymentTypes(args.employmentTypes),
     updated_at: new Date().toISOString(),
-    work_mode: normalizeOrgRoleWorkMode(args.workMode),
   };
+  if (args.name !== undefined) {
+    const name = normalizeText(args.name);
+    if (!name) {
+      throw new OrgHttpError(400, "Role title is required");
+    }
+    patch.name = name;
+  }
+  if (args.description !== undefined) {
+    patch.description = args.description ?? null;
+  }
+  if (args.externalJdUrl !== undefined) {
+    patch.external_jd_url = normalizeNullableText(args.externalJdUrl);
+  }
+  if (args.locationText !== undefined) {
+    patch.location_text = normalizeNullableText(args.locationText);
+  }
+  if (args.request !== undefined) {
+    patch.request = args.request ?? null;
+  }
+  if (args.status !== undefined) {
+    patch.status = normalizeOrgRoleStatus(args.status);
+  }
+  if (args.employmentTypes !== undefined) {
+    patch.type = normalizeOrgRoleEmploymentTypes(args.employmentTypes);
+  }
+  if (args.workMode !== undefined) {
+    patch.work_mode = normalizeOrgRoleWorkMode(args.workMode);
+  }
   if (typeof args.isExpired === "boolean") {
     patch.is_expired = args.isExpired;
   }
@@ -3034,9 +3366,10 @@ export async function updateOrgRoleRequestOnly(args: {
     .eq("company_workspace_id", workspaceId)
     .eq("role_id", roleId);
   if (shouldCheckExpectedRequest) {
-    updateQuery = previousRequest === null
-      ? updateQuery.is("request", null)
-      : updateQuery.eq("request", previousRequest);
+    updateQuery =
+      previousRequest === null
+        ? updateQuery.is("request", null)
+        : updateQuery.eq("request", previousRequest);
   }
   const { data, error } = await updateQuery
     .select(
@@ -3064,8 +3397,9 @@ export async function assertOrgRoleAccess(args: {
   user: User;
   workspaceId: string;
 }) {
-  await assertOrgWorkspaceAccess({
+  await assertOrgWorkspacePermission({
     admin: args.admin,
+    permission: "manage_candidates",
     user: args.user,
     workspaceId: args.workspaceId,
   });

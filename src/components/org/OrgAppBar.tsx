@@ -363,6 +363,7 @@ export function OrgAppBar({
     try {
       const payload = await sendInvitations.mutateAsync({
         emails,
+        role: "admin",
         workspaceId: workspace.workspaceId,
       });
       const failures: Record<string, string> = {};
@@ -415,6 +416,7 @@ export function OrgAppBar({
     try {
       const payload = await sendInvitations.mutateAsync({
         emails: [email],
+        role: "admin",
         workspaceId: workspace.workspaceId,
       });
       const result = payload.results[0];

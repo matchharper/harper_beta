@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthenticatedUser(req);
     const body = (await req.json().catch(() => ({}))) as {
       acceptReason?: string | null;
+      contactDirectly?: boolean;
       recommendationId?: string;
       introEmails?: string[] | null;
       roleId?: string;
@@ -40,6 +41,7 @@ export async function POST(req: NextRequest) {
     };
     const payload = await setOrgCandidateStage({
       acceptReason: body.acceptReason ?? null,
+      contactDirectly: body.contactDirectly === true,
       introEmails: body.introEmails ?? null,
       recommendationId: body.recommendationId ?? "",
       roleId: body.roleId ?? "",

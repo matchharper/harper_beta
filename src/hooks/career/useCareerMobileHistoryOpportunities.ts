@@ -21,6 +21,8 @@ export type CareerMobileHistoryJobsTab =
   | "hidden"
   | "archived";
 
+const CAREER_MOBILE_HISTORY_INITIAL_PAGE_SIZE = 10;
+
 const compareRecommendedAtDesc = (
   left: CareerHistoryOpportunity,
   right: CareerHistoryOpportunity
@@ -201,7 +203,13 @@ export function useCareerMobileHistoryOpportunities(args: {
   ]);
 
   useEffect(() => {
-    if (!hasMore || opportunities.length > 0) return;
+    if (
+      !hasMore ||
+      opportunities.length >=
+        Math.min(totalCount, CAREER_MOBILE_HISTORY_INITIAL_PAGE_SIZE)
+    ) {
+      return;
+    }
     if (historyLoading || historyLoadingMore) return;
 
     const filterToLoad = filters.find((candidate) => {
@@ -225,6 +233,7 @@ export function useCareerMobileHistoryOpportunities(args: {
     historyOpportunityCounts,
     onLoadMoreHistoryOpportunities,
     opportunities.length,
+    totalCount,
   ]);
 
   return {

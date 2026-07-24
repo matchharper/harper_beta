@@ -6,8 +6,6 @@ import {
   getCareerDefaultFeedbackButtonClassName,
   getCareerNegativeFeedbackOptions,
   getCareerNegativeFeedbackModalCopy,
-  getCareerPositiveFeedbackModalCopy,
-  getCareerPositiveFeedbackSubmitButtonClassName,
   EXTERNAL_ALREADY_APPLIED_FEEDBACK_REASON,
 } from "../opportunityTypeMeta";
 import {
@@ -145,81 +143,6 @@ export const hasExternalAlreadyAppliedFeedbackReason = (
   selectedOptions: string[]
 ) => selectedOptions.includes(EXTERNAL_ALREADY_APPLIED_FEEDBACK_REASON);
 
-export const HistoryPositiveFeedbackModal = ({
-  draft,
-  item,
-  pending,
-  onChangeDraft,
-  onClose,
-  onSubmit,
-}: {
-  draft: string;
-  item: CareerHistoryOpportunity | null;
-  pending: boolean;
-  onChangeDraft: (value: string) => void;
-  onClose: () => void;
-  onSubmit: () => void;
-}) => {
-  const t = useCareerT();
-
-  if (!item) return null;
-
-  const positiveFeedbackModalCopy = getCareerPositiveFeedbackModalCopy(
-    item.opportunityType,
-    t
-  );
-
-  return (
-    <TalentCareerModal
-      open={Boolean(item)}
-      onClose={onClose}
-      title={positiveFeedbackModalCopy.title}
-      description={positiveFeedbackModalCopy.description}
-      panelClassName="max-w-[520px] border border-neutral-1000-a05 bg-bg-floating"
-      bodyClassName="bg-bg-floating px-5 py-5"
-      footer={
-        <div className="flex items-center justify-end gap-2">
-          <SecondaryButton onClick={onClose} disabled={pending}>
-            {t("career.settings.career_settings_modal.0jiry9t", "취소")}
-          </SecondaryButton>
-          <PrimaryButton
-            onClick={onSubmit}
-            disabled={pending}
-            className={getCareerPositiveFeedbackSubmitButtonClassName(
-              item.opportunityType
-            )}
-          >
-            {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {t("career.common.career_support_inquiry_modal.1ii5ibp", "제출")}
-            <EnterShortcutHint />
-          </PrimaryButton>
-        </div>
-      }
-      closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-floating text-neutral-muted transition-colors hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary"
-    >
-      <div className="space-y-3">
-        <UiTextarea
-          unstyled
-          autoFocus
-          value={draft}
-          onChange={(event) => onChangeDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.nativeEvent.isComposing) return;
-            if (event.key !== "Enter" || event.shiftKey) return;
-
-            event.preventDefault();
-            if (!pending) {
-              onSubmit();
-            }
-          }}
-          placeholder={positiveFeedbackModalCopy.placeholder}
-          className={cn(textareaSurfaceClassName, "min-h-[148px]")}
-        />
-      </div>
-    </TalentCareerModal>
-  );
-};
-
 export const HistoryNegativeFeedbackModal = ({
   customReason,
   item,
@@ -313,7 +236,6 @@ export const HistoryNegativeFeedbackModal = ({
           </PrimaryButton>
         </div>
       }
-      closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-floating text-neutral-muted transition-colors hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary"
     >
       <div className="space-y-4">
         <div className="grid gap-2 sm:grid-cols-2">
@@ -414,7 +336,6 @@ export const HistoryMemoModal = ({
           </PrimaryButton>
         </div>
       }
-      closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-floating text-neutral-muted transition-colors hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary"
     >
       <UiTextarea
         unstyled

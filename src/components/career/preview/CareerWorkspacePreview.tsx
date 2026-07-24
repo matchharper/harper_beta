@@ -786,6 +786,37 @@ const CareerWorkspacePreview = ({
       onLoadSavedStageHistoryOpportunityPages: () => undefined,
       onLoadHistoryOpportunityByRoleId: (roleId) =>
         historyOpportunities.find((item) => item.roleId === roleId) ?? null,
+      onChangeInternalHistoryOpportunityDecision: (
+        opportunityId,
+        action
+      ) => {
+        setHistoryOpportunities((current) =>
+          current.map((item) =>
+            item.id !== opportunityId
+              ? item
+              : action === "revert"
+                ? {
+                    ...item,
+                    feedback: null,
+                    feedbackAt: null,
+                    feedbackReason: null,
+                    internalProgress: null,
+                    savedStage: null,
+                  }
+                : {
+                    ...item,
+                    internalProgress: item.internalProgress
+                      ? {
+                          ...item.internalProgress,
+                          stage: "process_stopped",
+                        }
+                      : item.internalProgress,
+                    savedStage: "closed",
+                  }
+          )
+        );
+        return true;
+      },
       onUpdateHistoryOpportunityFeedback: (
         opportunityId,
         feedback,
@@ -1163,6 +1194,7 @@ const CareerWorkspacePreview = ({
           nextAssistantMessage,
         ]);
       },
+      onChangeInternalHistoryOpportunityDecision: async () => true,
       onUpdateHistoryOpportunityFeedback: async () => undefined,
       onLoadOlderMessages: async () => undefined,
       onForceCompleteOnboarding: async () => {

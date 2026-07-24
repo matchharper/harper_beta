@@ -33,6 +33,8 @@ import OpportunityPreferenceFit from "./OpportunityPreferenceFit";
 import { BareButton } from "@/components/ui/button";
 import { useMessages } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
+import { InternalOpportunityDecisionMenu } from "./InternalOpportunityDecisionActions";
+import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/internalOpportunityDecision";
 import {
   ActionDropdown,
   ActionDropdownItem,
@@ -635,6 +637,7 @@ export const HistoryOpportunityInlinePage = ({
   onOpenCompanyInfo,
   onOpenLink,
   onOpenOpportunityInfo,
+  onInternalDecisionAction,
   onSavedStatusChange,
   onUpdateTalentMemo,
   pending,
@@ -646,6 +649,9 @@ export const HistoryOpportunityInlinePage = ({
   onOpenCompanyInfo?: (item: CareerHistoryOpportunity) => void;
   onOpenLink: (url: string) => void;
   onOpenOpportunityInfo: (type: CareerOpportunityType) => void;
+  onInternalDecisionAction?: (
+    action: CareerInternalOpportunityDecisionAction
+  ) => void;
   onSavedStatusChange?: (value: CareerOpportunityManagementStatus) => void;
   onUpdateTalentMemo?: (
     item: CareerHistoryOpportunity,
@@ -665,7 +671,7 @@ export const HistoryOpportunityInlinePage = ({
 
   return (
     <section className={cn("min-w-0 pb-8 text-neutral-primary", className)}>
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-4 flex flex-row gap-3 items-center justify-between">
         <nav className="flex min-w-0 items-center gap-1 text-[13px] leading-5 text-neutral-muted">
           <BareButton
             type="button"
@@ -683,7 +689,15 @@ export const HistoryOpportunityInlinePage = ({
           </span>
         </nav>
 
-        {savedStatus && onSavedStatusChange && canChangeStatus ? (
+        {item.isInternal && onInternalDecisionAction ? (
+          <div className="flex max-w-full justify-start sm:justify-end">
+            <InternalOpportunityDecisionMenu
+              item={item}
+              pending={pending}
+              onAction={onInternalDecisionAction}
+            />
+          </div>
+        ) : savedStatus && onSavedStatusChange && canChangeStatus ? (
           <div className="flex max-w-full justify-start sm:justify-end">
             <OpportunityManagementStatusDropdown
               disabled={pending}

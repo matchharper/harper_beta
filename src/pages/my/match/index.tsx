@@ -36,7 +36,7 @@ import {
 import Image from "next/image";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
-import { BareButton } from "@/components/ui/button";
+import { BareButton, MuteButton } from "@/components/ui/button";
 
 const ROLE_STATUS_LABEL: Record<MatchRoleRecord["status"], string> = {
   active: "진행중",
@@ -317,10 +317,7 @@ export default function MatchPage() {
               align="end"
               contentClassName="w-[260px]"
               trigger={
-                <BareButton
-                  type="button"
-                  className="inline-flex items-center gap-2 rounded-md border border-neutral-1000-a05 bg-bg-floating px-3 py-2.5 text-xs font-medium text-neutral-primary transition hover:bg-bg-weak"
-                >
+                <MuteButton type="button" className="gap-2 text-xs font-medium">
                   <div className="flex flex-row items-center gap-2">
                     {workspace.logoUrl ? (
                       <img
@@ -336,7 +333,7 @@ export default function MatchPage() {
                     </span>
                   </div>
                   <ChevronDown size={14} className="text-neutral-muted" />
-                </BareButton>
+                </MuteButton>
               }
             >
               {workspaces.map((item) => (
@@ -495,14 +492,15 @@ export default function MatchPage() {
                     </div>
 
                     <div className="w-64 flex justify-end">
-                      <BareButton
+                      <MuteButton
                         type="button"
+                        variant="dark"
                         onClick={() => setIsEditingWorkspace(true)}
-                        className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full px-4 py-2 text-xs bg-black text-neutral-00 transition hover:bg-black/90"
+                        className="shrink-0 gap-2 rounded-full text-xs"
                       >
                         <Pencil size={14} />
                         Workspace 수정
-                      </BareButton>
+                      </MuteButton>
                     </div>
                   </div>
                   <div className="flex flex-row items-center justify-center w-full gap-4 text-sm text-neutral-muted">
@@ -697,16 +695,16 @@ export default function MatchPage() {
                               </div>
 
                               <div className="flex self-stretch flex-col items-end justify-between">
-                                <BareButton
+                                <MuteButton
                                   type="button"
                                   onClick={() => {
                                     setEditingRole(role);
                                   }}
-                                  className="inline-flex flex-row gap-2 items-center justify-center bg-bg-floating hover:bg-bg-weak rounded-md px-3 py-2 text-xs text-neutral-primary transition"
+                                  className="gap-2 text-xs"
                                 >
                                   <Edit size={14} />
                                   수정
-                                </BareButton>
+                                </MuteButton>
 
                                 <ActionDropdown
                                   align="end"
@@ -774,17 +772,18 @@ export default function MatchPage() {
                       <span className="text-neutral-primary">
                         {selectedRole.name}
                       </span>
-                      <BareButton
+                      <MuteButton
                         type="button"
+                        variant="transparent"
+                        size="sm"
                         onClick={() =>
                           replaceQuery({
                             workspaceId: workspace.companyWorkspaceId,
                           })
                         }
-                        className="text-neutral-muted transition hover:text-neutral-primary"
                       >
                         필터 해제
-                      </BareButton>
+                      </MuteButton>
                     </>
                   ) : (
                     <span>모든 role 기준으로 표시 중</span>

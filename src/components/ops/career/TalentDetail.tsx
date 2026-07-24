@@ -85,7 +85,7 @@ function TalentAllFeedTab({
 }) {
   return (
     <div className="space-y-4">
-      <TalentGeneralTagsPanel userId={userId} />
+      {/* <TalentGeneralTagsPanel userId={userId} /> */}
       <OpsProfileMemoFeed memos={memos} userId={userId} />
       <TalentRoleTagsPanel userId={userId} />
       <section className="rounded-md border border-neutral-1000-a05 bg-bg-floating p-4">

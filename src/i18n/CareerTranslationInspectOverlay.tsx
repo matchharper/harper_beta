@@ -185,12 +185,8 @@ function EditorDrawer() {
     [entry, selectedMatch]
   );
   const unsupportedPlaceholders = [
-    ...unsupportedKoPlaceholders.map(
-      (name) => `${fieldLabel("ko")} {${name}}`
-    ),
-    ...unsupportedEnPlaceholders.map(
-      (name) => `${fieldLabel("en")} {${name}}`
-    ),
+    ...unsupportedKoPlaceholders.map((name) => `${fieldLabel("ko")} {${name}}`),
+    ...unsupportedEnPlaceholders.map((name) => `${fieldLabel("en")} {${name}}`),
   ];
   const canSave =
     Boolean(selectedKey && entry && dirty) &&

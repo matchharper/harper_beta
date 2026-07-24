@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { leaveOrgWorkspace, OrgHttpError } from "@/lib/org/server";
+import {
+  leaveOrgWorkspace,
+  OrgHttpError,
+  updateOrgMembershipRole,
+} from "@/lib/org/server";
 import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 
 function toErrorResponse(error: unknown) {
@@ -27,6 +31,26 @@ export async function DELETE(req: NextRequest) {
     };
     const payload = await leaveOrgWorkspace({
       user,
+      workspaceId: body.workspaceId ?? "",
+    });
+    return NextResponse.json(payload);
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const user = await requireAuthenticatedUser(req);
+    const body = (await req.json().catch(() => ({}))) as {
+      role?: unknown;
+      userId?: string;
+      workspaceId?: string;
+    };
+    const payload = await updateOrgMembershipRole({
+      role: body.role,
+      user,
+      userId: body.userId ?? "",
       workspaceId: body.workspaceId ?? "",
     });
     return NextResponse.json(payload);

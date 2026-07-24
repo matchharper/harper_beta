@@ -3,7 +3,7 @@ import AppLayout from "@/components/layout/app";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { supabase } from "@/lib/supabase";
 import { Loader2 } from "lucide-react";
-import { BareButton } from "@/components/ui/button";
+import { MuteButton } from "@/components/ui/button";
 import { Input as UiInput } from "@/components/ui/input";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
@@ -128,23 +128,25 @@ const Account = () => {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <BareButton
+                    <MuteButton
+                      variant="transparent"
                       onClick={handleCancel}
-                      className="rounded-lg px-4 py-2 text-sm text-neutral-muted hover:bg-bg-weak transition"
+                      className="text-sm"
                     >
                       Cancel
-                    </BareButton>
+                    </MuteButton>
 
-                    <BareButton
+                    <MuteButton
+                      variant="dark"
                       onClick={handleSave}
                       disabled={isLoading}
-                      className="rounded-lg px-4 py-2 text-sm font-medium text-neutral-00 bg-black hover:opacity-90 disabled:opacity-70 transition inline-flex items-center gap-2"
+                      className="gap-2 text-sm font-medium"
                     >
                       {isLoading && (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       )}
                       Save changes
-                    </BareButton>
+                    </MuteButton>
                   </div>
                 </div>
               </div>

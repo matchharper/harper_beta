@@ -6,7 +6,8 @@ import {
   Loader2,
   User,
 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useRouter } from "next/router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CareerChatPanel from "@/components/career/CareerChatPanel";
 import CareerHistoryPanel from "@/components/career/CareerHistoryPanel";
 import CareerHomePanel from "@/components/career/CareerHomePanel";
@@ -15,9 +16,7 @@ import CareerCompanyWatchlistPanel from "@/components/career/watchlist/CareerCom
 import CareerCompanyDetailDrawer from "@/components/career/watchlist/CareerCompanyDetailDrawer";
 import CareerSupportInquiryModal from "@/components/career/CareerSupportInquiryModal";
 import HistoryOpportunityInfoModal from "@/components/career/history/HistoryOppotunityInfoModal";
-import InternalConnectionOnboardingModal, {
-  shouldBlockInternalConnectionAcceptance,
-} from "@/components/career/InternalConnectionOnboardingModal";
+import InternalConnectionAcceptanceModal from "@/components/career/InternalConnectionAcceptanceModal";
 import { useCareerSidebarContext } from "@/components/career/CareerSidebarContext";
 import CareerWorkspaceNav, {
   type CareerWorkspaceTab,
@@ -65,6 +64,17 @@ import {
   getAuthenticatedUserProfileImageUrl,
   getCareerMenuProfileImageUrl,
 } from "@/components/career/profileAvatar";
+import {
+  InternalOpportunityDecisionChangeModal,
+  type InternalOpportunityDecisionChangeRequest,
+} from "@/components/career/history/InternalOpportunityDecisionActions";
+import {
+  HistoryNegativeFeedbackModal,
+  hasExternalAlreadyAppliedFeedbackReason,
+  parseNegativeFeedbackReason,
+  serializeNegativeFeedbackReason,
+} from "@/components/career/history/FeedbackModal";
+import { EXTERNAL_ALREADY_APPLIED_FEEDBACK_REASON } from "@/components/career/opportunityTypeMeta";
 
 type JobsDisplayTab = CareerMobileHistoryJobsTab;
 
@@ -81,6 +91,60 @@ type CareerWorkspaceViewportMode = "desktop" | "mobile";
 
 const DESKTOP_MEDIA_QUERY = "(min-width: 768px)";
 const CHAT_PANEL_RESIZE_HANDLE_WIDTH_PX = 8;
+const CAREER_HISTORY_PATHNAME = "/career/history";
+const CAREER_PREVIEW_PATHNAME = "/career/preview";
+
+const getSingleQueryValue = (value: string | string[] | undefined) =>
+  Array.isArray(value) ? value[0] : value;
+
+const getMobileHistoryJobsTab = ({
+  historyTab,
+  savedStage,
+}: {
+  historyTab: string | string[] | undefined;
+  savedStage: string | string[] | undefined;
+}): JobsDisplayTab => {
+  const normalizedHistoryTab = getSingleQueryValue(historyTab);
+  const normalizedSavedStage = getSingleQueryValue(savedStage);
+
+  if (normalizedHistoryTab === "archived") return "archived";
+  if (normalizedHistoryTab !== "saved") return "new";
+  if (
+    normalizedSavedStage === "applied" ||
+    normalizedSavedStage === "connected" ||
+    normalizedSavedStage === "closed" ||
+    normalizedSavedStage === "hidden"
+  ) {
+    return normalizedSavedStage;
+  }
+  return "saved";
+};
+
+const getInitialMobileHistoryJobsTab = (
+  historyTarget: CareerWorkspaceHistoryTarget | null | undefined
+): JobsDisplayTab => {
+  if (historyTarget?.historyTab === "archived") return "archived";
+  if (historyTarget?.historyTab !== "saved") return "new";
+  if (
+    historyTarget.savedStage === "applied" ||
+    historyTarget.savedStage === "connected" ||
+    historyTarget.savedStage === "closed" ||
+    historyTarget.savedStage === "hidden"
+  ) {
+    return historyTarget.savedStage;
+  }
+  return "saved";
+};
+
+const getHistoryLocationState = (tab: JobsDisplayTab) => {
+  if (tab === "new") {
+    return { historyTab: "new" as const, savedStage: null };
+  }
+  if (tab === "archived") {
+    return { historyTab: "archived" as const, savedStage: null };
+  }
+  return { historyTab: "saved" as const, savedStage: tab };
+};
 
 type WorkspaceTabOption = {
   id: CareerWorkspaceTab;
@@ -501,6 +565,7 @@ const CareerWorkspaceMobileHistoryView = ({
   onOpenSupport: () => void;
   workspaceTabOptions: typeof MOBILE_WORKSPACE_TAB_OPTIONS;
 }) => {
+  const router = useRouter();
   const logCareerEvent = useCareerLogEvent();
   const {
     stage,
@@ -515,7 +580,10 @@ const CareerWorkspaceMobileHistoryView = ({
     historyLoading,
     historyLoadingMore,
     historyUpdatingOpportunityIds,
+    historyUpdateError,
     onLoadMoreHistoryOpportunities,
+    onLoadHistoryOpportunityByRoleId,
+    onChangeInternalHistoryOpportunityDecision,
     onUpdateHistoryOpportunityFeedback,
     onUpdateHistoryOpportunitySavedStage,
     onUpdateHistoryOpportunityTalentMemo,
@@ -530,21 +598,14 @@ const CareerWorkspaceMobileHistoryView = ({
     userEmail,
   } = useMobileUserDisplay();
 
-  const [jobsTab, setJobsTab] = useState<JobsDisplayTab>(() => {
-    if (initialHistoryTarget?.historyTab === "saved") {
-      if (
-        initialHistoryTarget.savedStage === "applied" ||
-        initialHistoryTarget.savedStage === "connected" ||
-        initialHistoryTarget.savedStage === "closed" ||
-        initialHistoryTarget.savedStage === "hidden"
-      ) {
-        return initialHistoryTarget.savedStage;
-      }
-      return "saved";
-    }
-    if (initialHistoryTarget?.historyTab === "archived") return "archived";
-    return "new";
-  });
+  const jobsTab = getSingleQueryValue(router.query.historyTab)
+    ? getMobileHistoryJobsTab({
+        historyTab: router.query.historyTab,
+        savedStage: router.query.savedStage,
+      })
+    : getInitialMobileHistoryJobsTab(initialHistoryTarget);
+  const [internalDecisionChangeRequest, setInternalDecisionChangeRequest] =
+    useState<InternalOpportunityDecisionChangeRequest | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [hintDismissed, setHintDismissed] = useState(false);
   const [companyDetailCompanyDbId, setCompanyDetailCompanyDbId] = useState<
@@ -552,14 +613,99 @@ const CareerWorkspaceMobileHistoryView = ({
   >(null);
   const [infoOpportunityType, setInfoOpportunityType] =
     useState<CareerOpportunityType | null>(null);
-  const [detailOpportunityId, setDetailOpportunityId] = useState<string | null>(
-    null
-  );
   const [
-    internalConnectionOnboardingOpportunityId,
-    setInternalConnectionOnboardingOpportunityId,
-  ] = useState<string | null>(null);
+    internalConnectionAcceptanceOpportunity,
+    setInternalConnectionAcceptanceOpportunity,
+  ] = useState<CareerHistoryOpportunity | null>(null);
+  const [negativePromptOpportunityId, setNegativePromptOpportunityId] =
+    useState<string | null>(null);
+  const [negativePromptSelectedOptions, setNegativePromptSelectedOptions] =
+    useState<string[]>([]);
+  const [negativePromptCustomReason, setNegativePromptCustomReason] =
+    useState("");
   const [chatOpen, setChatOpen] = useState(false);
+  const decidedOpportunityIdRef = useRef<string | null>(null);
+  const loadingRoleIdRef = useRef<string | null>(null);
+
+  const requestedRoleId = String(
+    getSingleQueryValue(router.query.id) ?? ""
+  ).trim();
+  const requestedOpportunity = requestedRoleId
+    ? (historyOpportunities.find(
+        (item) => String(item.roleId ?? "").trim() === requestedRoleId
+      ) ?? null)
+    : null;
+  const negativePromptOpportunity = negativePromptOpportunityId
+    ? (historyOpportunities.find(
+        (item) => item.id === negativePromptOpportunityId
+      ) ?? null)
+    : null;
+
+  const updateMobileHistoryLocation = useCallback(
+    (
+      nextTab: JobsDisplayTab,
+      options?: {
+        mode?: "push" | "replace";
+        roleId?: string | null;
+      }
+    ) => {
+      if (!router.isReady) return;
+
+      const locationState = getHistoryLocationState(nextTab);
+      const roleId = String(options?.roleId ?? "").trim();
+      const currentPathname =
+        router.asPath.split(/[?#]/)[0]?.replace(/\/+$/, "") || "";
+      const pathname =
+        currentPathname === CAREER_PREVIEW_PATHNAME
+          ? CAREER_PREVIEW_PATHNAME
+          : CAREER_HISTORY_PATHNAME;
+      const query: Record<string, string | string[] | undefined> = {
+        ...router.query,
+        historyTab: locationState.historyTab,
+      };
+      delete query.tab;
+
+      if (locationState.savedStage) {
+        query.savedStage = locationState.savedStage;
+      } else {
+        delete query.savedStage;
+      }
+
+      if (roleId) {
+        query.id = roleId;
+      } else {
+        delete query.id;
+      }
+
+      const currentHistoryTab = getSingleQueryValue(router.query.historyTab);
+      const currentSavedStage = getSingleQueryValue(router.query.savedStage);
+      const currentRoleId = String(
+        getSingleQueryValue(router.query.id) ?? ""
+      ).trim();
+      if (
+        currentPathname === pathname &&
+        currentHistoryTab === locationState.historyTab &&
+        (currentSavedStage ?? null) === locationState.savedStage &&
+        currentRoleId === roleId
+      ) {
+        return;
+      }
+
+      const nextLocation = { pathname, query };
+      if (options?.mode === "replace") {
+        void router.replace(nextLocation, undefined, {
+          shallow: true,
+          scroll: false,
+        });
+        return;
+      }
+      void router.push(nextLocation, undefined, {
+        shallow: true,
+        scroll: false,
+      });
+    },
+    [router]
+  );
 
   const handleOpenCompanyInfo = useCallback(
     (item: CareerHistoryOpportunity) => {
@@ -628,31 +774,86 @@ const CareerWorkspaceMobileHistoryView = ({
     [historyUpdatingOpportunityIds]
   );
 
-  const safeIndex = Math.min(
+  const localSafeIndex = Math.min(
     Math.max(currentIndex, 0),
     Math.max(filteredOpportunities.length - 1, 0)
   );
+  const requestedOpportunityIndex = requestedRoleId
+    ? filteredOpportunities.findIndex(
+        (item) => String(item.roleId ?? "").trim() === requestedRoleId
+      )
+    : -1;
+  const safeIndex =
+    jobsTab === "new" && requestedOpportunityIndex >= 0
+      ? requestedOpportunityIndex
+      : localSafeIndex;
   const currentOpportunity = filteredOpportunities[safeIndex] ?? null;
-  const detailOpportunity = detailOpportunityId
-    ? (historyOpportunities.find((item) => item.id === detailOpportunityId) ??
-      null)
-    : null;
-  const internalConnectionOnboardingOpportunity =
-    internalConnectionOnboardingOpportunityId
-      ? (historyOpportunities.find(
-          (item) => item.id === internalConnectionOnboardingOpportunityId
-        ) ?? null)
+  const detailOpportunity =
+    jobsTab !== "new" && requestedRoleId && requestedOpportunityIndex >= 0
+      ? filteredOpportunities[requestedOpportunityIndex]
       : null;
   const isCareerOnboardingComplete = isOnboardingDone || stage === "completed";
+
+  useEffect(() => {
+    if (
+      !router.isReady ||
+      !requestedRoleId ||
+      requestedOpportunity ||
+      historyLoading ||
+      loadingRoleIdRef.current === requestedRoleId
+    ) {
+      return;
+    }
+
+    loadingRoleIdRef.current = requestedRoleId;
+    void Promise.resolve(onLoadHistoryOpportunityByRoleId(requestedRoleId))
+      .catch(() => null)
+      .finally(() => {
+        if (loadingRoleIdRef.current === requestedRoleId) {
+          loadingRoleIdRef.current = null;
+        }
+      });
+  }, [
+    historyLoading,
+    onLoadHistoryOpportunityByRoleId,
+    requestedOpportunity,
+    requestedRoleId,
+    router.isReady,
+  ]);
+
+  useEffect(() => {
+    if (
+      !router.isReady ||
+      jobsTab !== "new" ||
+      requestedRoleId ||
+      !currentOpportunity
+    ) {
+      return;
+    }
+    if (decidedOpportunityIdRef.current === currentOpportunity.id) return;
+    decidedOpportunityIdRef.current = null;
+
+    updateMobileHistoryLocation("new", {
+      mode: "replace",
+      roleId: currentOpportunity.roleId,
+    });
+  }, [
+    currentOpportunity,
+    jobsTab,
+    requestedRoleId,
+    router.isReady,
+    updateMobileHistoryLocation,
+  ]);
 
   const handleChangeJobsTab = useCallback(
     (nextTab: JobsDisplayTab) => {
       logCareerEvent(`click_mobile_history_tab_${nextTab}`);
-      setJobsTab(nextTab);
       setCurrentIndex(0);
-      setDetailOpportunityId(null);
+      updateMobileHistoryLocation(nextTab, {
+        roleId: null,
+      });
     },
-    [logCareerEvent]
+    [logCareerEvent, updateMobileHistoryLocation]
   );
 
   const handleNavigate = useCallback(
@@ -660,7 +861,7 @@ const CareerWorkspaceMobileHistoryView = ({
       logCareerEvent(
         delta > 0 ? "click_mobile_history_next" : "click_mobile_history_prev"
       );
-      const next = currentIndex + delta;
+      const next = safeIndex + delta;
       if (next < 0) {
         setCurrentIndex(0);
         return;
@@ -673,28 +874,24 @@ const CareerWorkspaceMobileHistoryView = ({
         return;
       }
       setCurrentIndex(next);
+      updateMobileHistoryLocation("new", {
+        roleId: filteredOpportunities[next]?.roleId ?? null,
+      });
     },
     [
-      currentIndex,
-      filteredOpportunities.length,
+      filteredOpportunities,
       filteredOpportunityTotal,
       hasMoreFilteredOpportunities,
       loadMoreFilteredOpportunities,
       logCareerEvent,
+      safeIndex,
+      updateMobileHistoryLocation,
     ]
   );
 
   const handleDismissHint = useCallback(() => {
     setHintDismissed(true);
   }, []);
-
-  const openInternalConnectionOnboardingModal = useCallback(
-    (item: CareerHistoryOpportunity) => {
-      logCareerEvent("view_mobile_history_internal_connection_onboarding_gate");
-      setInternalConnectionOnboardingOpportunityId(item.id);
-    },
-    [logCareerEvent]
-  );
 
   const handleStartOnboardingChatFromGate = useCallback(() => {
     logCareerEvent("click_mobile_history_internal_connection_onboarding_chat");
@@ -708,19 +905,40 @@ const CareerWorkspaceMobileHistoryView = ({
     void onStartCallMode?.();
   }, [logCareerEvent, onStartCallMode]);
 
+  const replaceDecidedOpportunityInLocation = useCallback(
+    (item: CareerHistoryOpportunity) => {
+      if (jobsTab !== "new") return;
+
+      const itemIndex = filteredOpportunities.findIndex(
+        (candidate) => candidate.id === item.id
+      );
+      if (itemIndex < 0) return;
+
+      const nextOpportunity =
+        filteredOpportunities[itemIndex + 1] ??
+        filteredOpportunities[itemIndex - 1] ??
+        null;
+      decidedOpportunityIdRef.current = item.id;
+      updateMobileHistoryLocation("new", {
+        mode: "replace",
+        roleId: nextOpportunity?.roleId ?? null,
+      });
+    },
+    [filteredOpportunities, jobsTab, updateMobileHistoryLocation]
+  );
+
   const handleTrack = useCallback(() => {
     if (!currentOpportunity) return;
     logCareerEvent("click_mobile_history_positive");
-    if (
-      shouldBlockInternalConnectionAcceptance(
-        currentOpportunity,
-        isCareerOnboardingComplete
-      )
-    ) {
-      openInternalConnectionOnboardingModal(currentOpportunity);
+    if (currentOpportunity.sourceType === "internal") {
+      logCareerEvent(
+        "view_mobile_history_internal_connection_acceptance_modal"
+      );
+      setInternalConnectionAcceptanceOpportunity(currentOpportunity);
       return;
     }
 
+    replaceDecidedOpportunityInLocation(currentOpportunity);
     void onUpdateHistoryOpportunityFeedback(currentOpportunity.id, "positive", {
       interactionSource: "position_tab",
       promptImmediately:
@@ -731,50 +949,123 @@ const CareerWorkspaceMobileHistoryView = ({
   }, [
     currentOpportunity,
     historyOpportunityCounts.new,
-    isCareerOnboardingComplete,
     jobsTab,
     logCareerEvent,
-    openInternalConnectionOnboardingModal,
     onUpdateHistoryOpportunityFeedback,
+    replaceDecidedOpportunityInLocation,
   ]);
+
+  const requestNegativeFeedback = useCallback(
+    (item: CareerHistoryOpportunity) => {
+      const parsedReason = parseNegativeFeedbackReason(item);
+      setNegativePromptOpportunityId(item.id);
+      setNegativePromptSelectedOptions(parsedReason.selectedOptions);
+      setNegativePromptCustomReason(parsedReason.customReason);
+    },
+    []
+  );
+
+  const toggleNegativeFeedbackOption = useCallback((value: string) => {
+    setNegativePromptSelectedOptions((current) =>
+      current.includes(value)
+        ? current.filter((item) => item !== value)
+        : [...current, value]
+    );
+  }, []);
+
   const handleDismiss = useCallback(() => {
     if (!currentOpportunity) return;
     logCareerEvent("click_mobile_history_negative");
-    void onUpdateHistoryOpportunityFeedback(currentOpportunity.id, "negative", {
-      interactionSource: "position_tab",
-      promptImmediately:
-        jobsTab === "new" &&
-        currentOpportunity.feedback === null &&
-        historyOpportunityCounts.new <= 1,
+    requestNegativeFeedback(currentOpportunity);
+  }, [currentOpportunity, logCareerEvent, requestNegativeFeedback]);
+
+  const handleSubmitNegativePrompt = useCallback(() => {
+    if (!negativePromptOpportunity) return;
+
+    logCareerEvent("click_mobile_history_submit_negative_reason");
+    const feedbackReason = serializeNegativeFeedbackReason({
+      customReason: negativePromptCustomReason,
+      item: negativePromptOpportunity,
+      selectedOptions: negativePromptSelectedOptions,
     });
+
+    replaceDecidedOpportunityInLocation(negativePromptOpportunity);
+    if (
+      jobsTab !== "new" &&
+      requestedRoleId === String(negativePromptOpportunity.roleId ?? "").trim()
+    ) {
+      updateMobileHistoryLocation(jobsTab, {
+        mode: "replace",
+        roleId: null,
+      });
+    }
+    if (
+      hasExternalAlreadyAppliedFeedbackReason(negativePromptSelectedOptions)
+    ) {
+      void onUpdateHistoryOpportunityFeedback(
+        negativePromptOpportunity.id,
+        "positive",
+        {
+          feedbackReason: EXTERNAL_ALREADY_APPLIED_FEEDBACK_REASON,
+          interactionSource: "position_tab",
+          promptImmediately:
+            jobsTab === "new" &&
+            negativePromptOpportunity.feedback === null &&
+            historyOpportunityCounts.new <= 1,
+          savedStage: "closed",
+        }
+      );
+    } else {
+      void onUpdateHistoryOpportunityFeedback(
+        negativePromptOpportunity.id,
+        "negative",
+        {
+          feedbackReason,
+          interactionSource: "position_tab",
+          promptImmediately:
+            jobsTab === "new" &&
+            negativePromptOpportunity.feedback === null &&
+            historyOpportunityCounts.new <= 1,
+        }
+      );
+    }
+
+    setNegativePromptOpportunityId(null);
+    setNegativePromptSelectedOptions([]);
+    setNegativePromptCustomReason("");
   }, [
-    currentOpportunity,
     historyOpportunityCounts.new,
     jobsTab,
     logCareerEvent,
+    negativePromptCustomReason,
+    negativePromptOpportunity,
+    negativePromptSelectedOptions,
     onUpdateHistoryOpportunityFeedback,
+    replaceDecidedOpportunityInLocation,
+    requestedRoleId,
+    updateMobileHistoryLocation,
   ]);
+
+  const closeNegativePrompt = useCallback(() => {
+    setNegativePromptOpportunityId(null);
+    setNegativePromptSelectedOptions([]);
+    setNegativePromptCustomReason("");
+  }, []);
 
   const handleOpenDetail = useCallback(
     (item: CareerHistoryOpportunity) => {
       logCareerEvent("click_mobile_history_open_detail");
-      setDetailOpportunityId(item.id);
+      updateMobileHistoryLocation(jobsTab, { roleId: item.roleId });
     },
-    [logCareerEvent]
+    [jobsTab, logCareerEvent, updateMobileHistoryLocation]
   );
 
-  const handleOpenLink = useCallback(
-    (item: CareerHistoryOpportunity, url: string | null | undefined) => {
-      if (!url) return;
-      logCareerEvent(
-        "click_mobile_history_open_jd",
-        item.companyDbId != null ? { companyId: item.companyDbId } : undefined
-      );
-      void onMarkHistoryOpportunityClicked(item.id);
-      window.open(url, "_blank", "noopener,noreferrer");
-    },
-    [logCareerEvent, onMarkHistoryOpportunityClicked]
-  );
+  const handleCloseDetail = useCallback(() => {
+    updateMobileHistoryLocation(jobsTab, {
+      mode: "replace",
+      roleId: null,
+    });
+  }, [jobsTab, updateMobileHistoryLocation]);
 
   const handleStatusChange = useCallback(
     (
@@ -787,9 +1078,7 @@ const CareerWorkspaceMobileHistoryView = ({
       logCareerEvent(`click_mobile_history_status_${status}`);
 
       if (status === "archived") {
-        void onUpdateHistoryOpportunityFeedback(item.id, "negative", {
-          interactionSource: "position_tab",
-        });
+        requestNegativeFeedback(item);
         return;
       }
 
@@ -810,6 +1099,53 @@ const CareerWorkspaceMobileHistoryView = ({
       logCareerEvent,
       onUpdateHistoryOpportunityFeedback,
       onUpdateHistoryOpportunitySavedStage,
+      requestNegativeFeedback,
+    ]
+  );
+
+  const handleOpenLink = useCallback(
+    (item: CareerHistoryOpportunity, url: string | null | undefined) => {
+      if (!url) return;
+      logCareerEvent(
+        "click_mobile_history_open_jd",
+        item.companyDbId != null ? { companyId: item.companyDbId } : undefined
+      );
+      void onMarkHistoryOpportunityClicked(item.id);
+      window.open(url, "_blank", "noopener,noreferrer");
+    },
+    [logCareerEvent, onMarkHistoryOpportunityClicked]
+  );
+
+  const handleInternalDecisionChangeConfirm = useCallback(
+    async (request: InternalOpportunityDecisionChangeRequest) => {
+      logCareerEvent(
+        `click_mobile_history_internal_decision_${request.action}_confirm`
+      );
+      const changed = await onChangeInternalHistoryOpportunityDecision(
+        request.item.id,
+        request.action,
+        request.reason
+      );
+      if (!changed) return false;
+
+      setInternalDecisionChangeRequest(null);
+      if (
+        request.action === "revert" &&
+        detailOpportunity?.id === request.item.id
+      ) {
+        updateMobileHistoryLocation(jobsTab, {
+          mode: "replace",
+          roleId: null,
+        });
+      }
+      return true;
+    },
+    [
+      detailOpportunity,
+      jobsTab,
+      logCareerEvent,
+      onChangeInternalHistoryOpportunityDecision,
+      updateMobileHistoryLocation,
     ]
   );
 
@@ -860,11 +1196,14 @@ const CareerWorkspaceMobileHistoryView = ({
         showSwipeHint={showHint}
         onDismissSwipeHint={handleDismissHint}
         detailOpportunity={detailOpportunity}
-        onCloseDetail={() => setDetailOpportunityId(null)}
+        onCloseDetail={handleCloseDetail}
         onOpenCompanyInfo={handleOpenCompanyInfo}
         onOpenDetail={handleOpenDetail}
         onOpenLink={handleOpenLink}
         onOpenOpportunityInfo={handleOpenOpportunityInfo}
+        onInternalDecisionAction={(item, action) =>
+          setInternalDecisionChangeRequest({ action, item })
+        }
         onStatusChange={handleStatusChange}
         onUpdateTalentMemo={(item, talentMemo) =>
           onUpdateHistoryOpportunityTalentMemo(item.id, talentMemo)
@@ -877,17 +1216,68 @@ const CareerWorkspaceMobileHistoryView = ({
       >
         <CareerChatPanel />
       </CareerMobileChatLauncher>
-      <InternalConnectionOnboardingModal
-        open={Boolean(internalConnectionOnboardingOpportunity)}
+      <InternalConnectionAcceptanceModal
+        item={internalConnectionAcceptanceOpportunity}
+        isOnboardingComplete={isCareerOnboardingComplete}
+        pending={
+          internalConnectionAcceptanceOpportunity
+            ? pendingOpportunityIds.has(
+                internalConnectionAcceptanceOpportunity.id
+              )
+            : false
+        }
         callPending={Boolean(callStartPending)}
-        onClose={() => setInternalConnectionOnboardingOpportunityId(null)}
+        onClose={() => setInternalConnectionAcceptanceOpportunity(null)}
+        onAccept={(feedbackReason) => {
+          if (!internalConnectionAcceptanceOpportunity) return;
+          logCareerEvent(
+            "click_mobile_history_submit_internal_connection_acceptance"
+          );
+          replaceDecidedOpportunityInLocation(
+            internalConnectionAcceptanceOpportunity
+          );
+          void onUpdateHistoryOpportunityFeedback(
+            internalConnectionAcceptanceOpportunity.id,
+            "positive",
+            {
+              feedbackReason,
+              interactionSource: "position_tab",
+              promptImmediately:
+                jobsTab === "new" &&
+                internalConnectionAcceptanceOpportunity.feedback === null &&
+                historyOpportunityCounts.new <= 1,
+            }
+          );
+        }}
         onStartChat={handleStartOnboardingChatFromGate}
         onStartCall={handleStartOnboardingCallFromGate}
+      />
+      <HistoryNegativeFeedbackModal
+        item={negativePromptOpportunity}
+        customReason={negativePromptCustomReason}
+        selectedOptions={negativePromptSelectedOptions}
+        pending={
+          negativePromptOpportunity
+            ? pendingOpportunityIds.has(negativePromptOpportunity.id)
+            : false
+        }
+        onChangeCustomReason={setNegativePromptCustomReason}
+        onToggleOption={toggleNegativeFeedbackOption}
+        onClose={closeNegativePrompt}
+        onSubmit={handleSubmitNegativePrompt}
       />
       <HistoryOpportunityInfoModal
         opportunityType={infoOpportunityType}
         onClose={() => setInfoOpportunityType(null)}
       />
+      {internalDecisionChangeRequest ? (
+        <InternalOpportunityDecisionChangeModal
+          error={historyUpdateError}
+          request={internalDecisionChangeRequest}
+          onClose={() => setInternalDecisionChangeRequest(null)}
+          onConfirm={handleInternalDecisionChangeConfirm}
+        />
+      ) : null}
       <CareerCompanyDetailDrawer
         companyDbId={companyDetailCompanyDbId}
         open={companyDetailCompanyDbId !== null}

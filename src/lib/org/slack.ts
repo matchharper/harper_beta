@@ -1,4 +1,7 @@
-import { sendOrgWorkspaceSlackMessage } from "@/lib/org/slackIntegration";
+import {
+  sendOrgWorkspaceSlackMessage,
+  type OrgSlackNotificationKey,
+} from "@/lib/org/slackIntegration";
 
 export const ORG_SLACK_CHANNEL_ID =
   process.env.ORG_SLACK_CHANNEL_ID?.trim() || "C0AKK93FMH8";
@@ -64,7 +67,7 @@ function getPublicSiteUrl() {
 function buildOrgRoleUrl(workspaceId: string, roleId?: string | null) {
   const params = new URLSearchParams({ orgId: workspaceId });
   if (roleId) params.set("roleId", roleId);
-  return `${getPublicSiteUrl()}/org?${params.toString()}`;
+  return `${getPublicSiteUrl()}/org/jobs?${params.toString()}`;
 }
 
 function formatPerson(user: OrgSlackUser) {
@@ -118,11 +121,12 @@ async function postOrgSlackMessage(text: string) {
 
 async function postWorkspaceScopedOrgSlackMessage(
   text: string,
-  workspaceId: string
+  workspaceId: string,
+  notificationKey?: OrgSlackNotificationKey
 ) {
   const [internalResult, workspaceResult] = await Promise.allSettled([
     postOrgSlackMessage(text),
-    sendOrgWorkspaceSlackMessage({ text, workspaceId }),
+    sendOrgWorkspaceSlackMessage({ notificationKey, text, workspaceId }),
   ]);
 
   if (workspaceResult.status === "rejected") {
@@ -149,6 +153,7 @@ export async function notifyOrgCandidateAcceptedSlack(args: {
   acceptReason?: string | null;
   actor: OrgSlackUser;
   candidate: OrgSlackCandidate;
+  contactDirectly?: boolean;
   introEmails: string[];
   roleId: string;
   roleName: string;
@@ -161,13 +166,15 @@ export async function notifyOrgCandidateAcceptedSlack(args: {
     `- *Role*: ${escapeSlackText(args.roleName)}`,
     `- *Candidate*: ${formatCandidate(args.candidate)}`,
     `- *Accepted by*: ${formatPerson(args.actor)}`,
+    `- *Contact*: ${args.contactDirectly ? "회사에서 직접 연락" : "Harper 소개 메일"}`,
     `- *Intro emails*: ${args.introEmails.map(escapeSlackText).join(", ") || "없음"}`,
     `- *Reason*: ${formatOptional(args.acceptReason)}`,
   ];
 
   await postWorkspaceScopedOrgSlackMessage(
     lines.join("\n"),
-    args.workspace.workspaceId
+    args.workspace.workspaceId,
+    "candidateAccepted"
   );
 }
 
@@ -199,7 +206,8 @@ export async function notifyOrgCandidateRejectedSlack(args: {
 
   await postWorkspaceScopedOrgSlackMessage(
     lines.join("\n"),
-    args.workspace.workspaceId
+    args.workspace.workspaceId,
+    "candidateRejected"
   );
 }
 
@@ -213,7 +221,11 @@ export async function notifyOrgMemberJoinedSlack(args: {
     `- *Name*: ${escapeSlackText(args.user.name) || "Unknown"}`,
   ];
 
-  await postOrgSlackMessage(lines.join("\n"));
+  await postWorkspaceScopedOrgSlackMessage(
+    lines.join("\n"),
+    args.workspace.workspaceId,
+    "memberJoined"
+  );
 }
 
 export async function notifyOrgAgentMeetingRequestedSlack(args: {

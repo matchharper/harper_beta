@@ -282,7 +282,7 @@ export const CareerFlowProvider = ({
     setOpportunityFeedbackFollowUpTrigger,
   ] = useState<CareerOpportunityFeedbackFollowUpTrigger | null>(null);
   const refreshLatestHistoryOpportunitiesRef = useRef<
-    (() => void | Promise<void>) | null
+    ((roleId?: string | null) => void | Promise<void>) | null
   >(null);
 
   const cancelPendingCompanyFollowUp = useCallback(() => {
@@ -401,9 +401,12 @@ export const CareerFlowProvider = ({
     },
     []
   );
-  const handleOpportunityRecommendationsChanged = useCallback(() => {
-    return refreshLatestHistoryOpportunitiesRef.current?.();
-  }, []);
+  const handleOpportunityRecommendationsChanged = useCallback(
+    (roleId?: string | null) => {
+      return refreshLatestHistoryOpportunitiesRef.current?.(roleId);
+    },
+    []
+  );
 
   const {
     stage,
@@ -606,6 +609,7 @@ export const CareerFlowProvider = ({
     loadSavedStageHistoryOpportunityPages,
     onMarkHistoryOpportunityClicked,
     onMarkHistoryOpportunityViewed,
+    onChangeInternalHistoryOpportunityDecision,
     onUpdateHistoryOpportunityFeedback,
     onUpdateHistoryOpportunitySavedStage,
     onUpdateHistoryOpportunityTalentMemo,
@@ -2135,6 +2139,7 @@ export const CareerFlowProvider = ({
       onLoadSavedStageHistoryOpportunityPages:
         loadSavedStageHistoryOpportunityPages,
       onLoadHistoryOpportunityByRoleId: loadHistoryOpportunityByRoleId,
+      onChangeInternalHistoryOpportunityDecision,
       onUpdateHistoryOpportunityFeedback,
       onUpdateHistoryOpportunitySavedStage,
       onUpdateHistoryOpportunityTalentMemo,
@@ -2289,6 +2294,7 @@ export const CareerFlowProvider = ({
       workspaceDataLoading,
       onMarkHistoryOpportunityClicked,
       onMarkHistoryOpportunityViewed,
+      onChangeInternalHistoryOpportunityDecision,
       onUpdateHistoryOpportunityFeedback,
       onUpdateHistoryOpportunitySavedStage,
       onUpdateHistoryOpportunityTalentMemo,

@@ -632,7 +632,6 @@ export const CareerProfileSharingSettingsSection = ({
             </PrimaryButton>
           </div>
         }
-        closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-floating text-neutral-muted transition-colors hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary"
       >
         <div className="space-y-4">
           <div className="text-[12px] font-medium text-neutral-muted">

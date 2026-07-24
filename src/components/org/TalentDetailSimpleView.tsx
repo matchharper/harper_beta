@@ -1,16 +1,6 @@
 import Image from "next/image";
-import {
-  BriefcaseBusiness,
-  ExternalLink,
-  FileText,
-  Github,
-  GraduationCap,
-  Linkedin,
-  Link2,
-  LoaderCircle,
-  MapPin,
-  X,
-} from "lucide-react";
+import dynamic from "next/dynamic";
+import { CircleAlert, ExternalLink, LoaderCircle, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
@@ -22,7 +12,7 @@ import {
   type ProgressFeedIcon,
   type ProgressFeedItem,
 } from "@/components/progress-feed/ProgressFeed";
-import { BareButton, Button } from "@/components/ui/button";
+import { BareButton, Button, MuteButton } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -34,6 +24,7 @@ import {
   AcceptIntroDialog,
   StopCandidateDialog,
 } from "@/components/org/OrgCandidateDecisionDialogs";
+import { OrgErrorState } from "@/components/org/workspace/OrgErrorState";
 import {
   useCreateOrgFeedItem,
   useDeleteOrgFeedItem,
@@ -41,6 +32,7 @@ import {
   useUpdateOrgFeedItem,
 } from "@/hooks/org/useOrg";
 import type {
+  OrgMember,
   OrgStageChangeOptions,
   OrgStageId,
   OrgTalentDetailResponse,
@@ -62,7 +54,20 @@ const RESOURCE_LINK_KIND_ORDER: Record<ResourceLinkKind, number> = {
 };
 
 const profileItemClass =
-  "rounded-md bg-bg-floating px-0 py-2.5 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--color-neutral-00)_75%,transparent)]";
+  "border-b border-neutral-1000-a05 px-0 py-3 last:border-b-0";
+
+const OrgInternalTalentPanel = dynamic(
+  () => import("@/components/org/internal/OrgInternalTalentPanel"),
+  {
+    loading: () => (
+      <div className="flex min-h-56 items-center justify-center text-[11px] font-light text-neutral-muted">
+        <LoaderCircle className="mr-2 size-4 animate-spin" />
+        내부 데이터를 불러오는 중
+      </div>
+    ),
+    ssr: false,
+  }
+);
 
 function TalentAvatar({ name, src }: { name: string; src?: string | null }) {
   if (src) {
@@ -73,13 +78,13 @@ function TalentAvatar({ name, src }: { name: string; src?: string | null }) {
         width={64}
         height={64}
         unoptimized
-        className="h-10 w-10 rounded-full object-cover"
+        className="h-9 w-9 rounded-full object-cover"
       />
     );
   }
 
   return (
-    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-bg-weak text-sm font-semibold text-neutral-muted">
+    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-bg-weak text-[12px] font-medium text-neutral-muted">
       {name.slice(0, 1).toUpperCase()}
     </div>
   );
@@ -138,28 +143,16 @@ function getResourceLinkLabel(kind: ResourceLinkKind) {
   }
 }
 
-function ResourceIcon({ kind }: { kind: ResourceLinkKind }) {
-  if (kind === "linkedin") return <Linkedin className="h-3.5 w-3.5" />;
-  if (kind === "github") return <Github className="h-3.5 w-3.5" />;
-  if (kind === "resume") return <FileText className="h-3.5 w-3.5" />;
-  return <Link2 className="h-3.5 w-3.5" />;
-}
-
 function ProfileSection({
   children,
-  icon,
   title,
 }: {
   children: ReactNode;
-  icon?: ReactNode;
   title: string;
 }) {
   return (
     <section>
-      <div className="mb-2 flex items-center gap-1.5 text-xs text-neutral-muted">
-        {icon ? <span className="text-neutral-soft">{icon}</span> : null}
-        {title}
-      </div>
+      <div className="mb-2 text-[12px] text-neutral-muted">{title}</div>
       {children}
     </section>
   );
@@ -168,32 +161,27 @@ function ProfileSection({
 function ResourceRow({
   caption,
   href,
-  kind,
   label,
   onClick,
 }: {
   caption: string;
   href?: string;
-  kind: ResourceLinkKind;
   label: string;
   onClick?: () => void;
 }) {
   const className = cx(
     profileItemClass,
-    "flex w-full items-center justify-between gap-3 text-left text-sm transition bg-black/4 px-3 hover:bg-black/8"
+    "flex w-full items-center justify-between gap-3 bg-black/4 px-3 text-left text-[13px] transition hover:bg-black/8"
   );
 
   const content = (
     <>
-      <span className="flex min-w-0 items-center gap-2">
-        <span className="text-neutral-soft">
-          <ResourceIcon kind={kind} />
-        </span>
-        <span className="min-w-0 flex flex-row gap-2 items-center">
+      <span className="flex min-w-0 items-center gap-1.5">
+        <span className="min-w-0 flex flex-row items-center gap-1.5">
           <span className="block font-normal font-sm text-neutral-primary">
             {label}
           </span>
-          <span className="block text-xs text-neutral-muted max-w-[600px] truncate">
+          <span className="block max-w-[600px] truncate text-[12px] text-neutral-muted">
             {caption}
           </span>
         </span>
@@ -237,13 +225,13 @@ const profileMarkdownComponents: Components = {
     </a>
   ),
   h1: ({ children }) => (
-    <h1 className="mt-5 text-lg font-semibold first:mt-0">{children}</h1>
+    <h1 className="mt-4 text-[16px] font-medium first:mt-0">{children}</h1>
   ),
   h2: ({ children }) => (
-    <h2 className="mt-5 text-base font-semibold first:mt-0">{children}</h2>
+    <h2 className="mt-4 text-[15px] font-medium first:mt-0">{children}</h2>
   ),
   h3: ({ children }) => (
-    <h3 className="mt-4 text-sm font-semibold first:mt-0">{children}</h3>
+    <h3 className="mt-3 text-[13px] font-medium first:mt-0">{children}</h3>
   ),
   li: ({ children }) => <li className="pl-1">{children}</li>,
   ol: ({ children }) => (
@@ -267,12 +255,12 @@ const profileDescriptionMarkdownComponents: Components = {
     </a>
   ),
   blockquote: ({ children }) => (
-    <blockquote className="mt-2 border-l-2 border-neutral-1000-a10 pl-3 text-neutral-muted first:mt-0 [&_p]:mt-0">
+    <blockquote className="mt-2 border-l-2 border-neutral-1000-a10 pl-2.5 text-neutral-muted first:mt-0 [&_p]:mt-0">
       {children}
     </blockquote>
   ),
   code: ({ children }) => (
-    <code className="rounded bg-bg-weak px-1 py-0.5 font-mono text-[12px] text-neutral-primary">
+    <code className="rounded bg-bg-weak px-1 py-0.5 font-mono text-[11px] text-neutral-primary">
       {children}
     </code>
   ),
@@ -280,17 +268,17 @@ const profileDescriptionMarkdownComponents: Components = {
     <em className="italic text-neutral-muted">{children}</em>
   ),
   h1: ({ children }) => (
-    <h4 className="mt-3 text-sm font-semibold text-neutral-primary first:mt-0">
+    <h4 className="mt-2.5 text-[13px] font-medium text-neutral-primary first:mt-0">
       {children}
     </h4>
   ),
   h2: ({ children }) => (
-    <h4 className="mt-3 text-sm font-semibold text-neutral-primary first:mt-0">
+    <h4 className="mt-2.5 text-[13px] font-medium text-neutral-primary first:mt-0">
       {children}
     </h4>
   ),
   h3: ({ children }) => (
-    <h4 className="mt-3 text-[13px] font-semibold text-neutral-primary first:mt-0">
+    <h4 className="mt-2.5 text-[12px] font-medium text-neutral-primary first:mt-0">
       {children}
     </h4>
   ),
@@ -311,11 +299,11 @@ const profileDescriptionMarkdownComponents: Components = {
 
 function MarkdownProfile({ value }: { value: string }) {
   if (!value.trim()) {
-    return <div className="text-sm text-neutral-muted">-</div>;
+    return <div className="text-[13px] text-neutral-muted">-</div>;
   }
 
   return (
-    <div className="space-y-3 text-sm leading-6 text-neutral-primary">
+    <div className="space-y-3 text-[13px] leading-6 text-neutral-primary">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeSanitize]}
@@ -332,7 +320,7 @@ function ProfileDescriptionMarkdown({ value }: { value?: string | null }) {
   if (!trimmedValue) return null;
 
   return (
-    <div className="mt-2 max-w-none text-[13px] leading-5 text-neutral-muted">
+    <div className="mt-2 max-w-none text-[13px] leading-6 text-neutral-muted">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeSanitize]}
@@ -380,57 +368,44 @@ function ProfilePane({
   );
 
   return (
-    <div className="min-w-0 space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex min-w-0 items-start gap-4">
-          <TalentAvatar name={name} src={detail.talent.profilePicture} />
-          <div className="min-w-0 flex-1">
-            <div className="text-base font-medium text-neutral-primary">
-              {name}
-            </div>
-            <div className="mt-1 truncate text-sm text-neutral-muted">
-              {detail.talent.email ?? "-"}
-            </div>
-            {detail.talent.headline ? (
-              <div className="mt-2 text-sm leading-5 text-neutral-primary">
-                {detail.talent.headline}
-              </div>
-            ) : null}
+    <div className="min-w-0 space-y-5">
+      <div className="flex min-w-0 items-start gap-3">
+        <TalentAvatar name={name} src={detail.talent.profilePicture} />
+        <div className="min-w-0 flex-1">
+          <div className="text-[16px] font-medium text-neutral-primary">
+            {name}
           </div>
-        </div>
-        <div className="flex shrink-0 flex-col gap-2 sm:items-end">
-          <Button
-            type="button"
-            size="sm"
-            onClick={onAcceptClick}
-            disabled={decisionPending || acceptDisabled || !onAcceptClick}
-            className="w-full sm:w-auto bg-primary text-white"
-          >
-            이 후보자를 만나보겠습니다.
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            onClick={onRejectClick}
-            disabled={decisionPending || !onRejectClick}
-            className="w-full sm:w-auto border-red-500"
-          >
-            이 후보자는 거절하겠습니다.
-          </Button>
+          <div className="mt-1 truncate text-[13px] text-neutral-muted">
+            {detail.talent.email ?? "-"}
+          </div>
+          {detail.talent.headline ? (
+            <div className="mt-2 text-[13px] leading-6 text-neutral-primary">
+              {detail.talent.headline}
+            </div>
+          ) : null}
         </div>
       </div>
+
+      <CandidateDecisionActions
+        acceptDisabled={acceptDisabled}
+        candidateName={name}
+        className="lg:hidden"
+        decisionPending={decisionPending}
+        onAcceptClick={onAcceptClick}
+        onRejectClick={onRejectClick}
+      />
 
       <ProfileSection title="추천 이유">
         {detail.recommendation.fitSummary ||
         detail.recommendation.fitReasons.length > 0 ? (
           <div className="space-y-2">
             {detail.recommendation.fitSummary ? (
-              <div className="border-l-2 border-primary px-3 text-sm leading-6 text-neutral-primary">
+              <div className="border-l-2 border-primary px-3 text-[13px] leading-6 text-neutral-primary">
                 {detail.recommendation.fitSummary}
               </div>
             ) : null}
             {detail.recommendation.fitReasons.length > 0 ? (
-              <ul className="space-y-1.5 text-sm leading-6 text-neutral-muted">
+              <ul className="space-y-1.5 text-[13px] leading-6 text-neutral-muted">
                 {detail.recommendation.fitReasons.map((reason) => (
                   <li key={reason} className="ml-4 list-disc">
                     {reason}
@@ -440,7 +415,7 @@ function ProfilePane({
             ) : null}
           </div>
         ) : (
-          <div className="text-sm text-neutral-soft">-</div>
+          <div className="text-[13px] text-neutral-soft">-</div>
         )}
       </ProfileSection>
 
@@ -448,7 +423,6 @@ function ProfilePane({
         <div className="space-y-2">
           {detail.resume.hasStorageFile ? (
             <ResourceRow
-              kind="resume"
               label="이력서"
               caption={detail.resume.fileName ?? "저장된 이력서 파일"}
               onClick={() => onResumeClick("storage")}
@@ -460,7 +434,6 @@ function ProfilePane({
             return (
               <ResourceRow
                 key={link}
-                kind={kind}
                 label={getResourceLinkLabel(kind)}
                 caption={formatLinkLabel(link)}
                 href={isResumeLink ? undefined : normalizeLinkHref(link)}
@@ -471,7 +444,9 @@ function ProfilePane({
             );
           })}
           {!detail.resume.hasStorageFile && resourceLinks.length === 0 ? (
-            <div className={cx(profileItemClass, "text-sm text-neutral-soft")}>
+            <div
+              className={cx(profileItemClass, "text-[13px] text-neutral-soft")}
+            >
               등록된 자료가 없습니다.
             </div>
           ) : null}
@@ -480,25 +455,22 @@ function ProfilePane({
 
       {detail.profile.bio ? (
         <ProfileSection title="소개">
-          <div className="whitespace-pre-wrap text-sm leading-6 text-neutral-primary">
+          <div className="whitespace-pre-wrap text-[13px] leading-6 text-neutral-primary">
             {detail.profile.bio.trim()}
           </div>
         </ProfileSection>
       ) : null}
 
       {detail.profile.location ? (
-        <ProfileSection title="위치" icon={<MapPin className="h-3.5 w-3.5" />}>
-          <div className="text-sm text-neutral-primary">
+        <ProfileSection title="위치">
+          <div className="text-[13px] text-neutral-primary">
             {detail.profile.location}
           </div>
         </ProfileSection>
       ) : null}
 
       {detail.profile.experiences.length > 0 ? (
-        <ProfileSection
-          title="경력"
-          icon={<BriefcaseBusiness className="h-3.5 w-3.5" />}
-        >
+        <ProfileSection title="경력">
           <div className="space-y-2">
             {detail.profile.experiences.map((experience, index) => {
               const period = formatPeriod(
@@ -515,17 +487,17 @@ function ProfilePane({
               return (
                 <div key={index} className={profileItemClass}>
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 text-sm font-medium text-neutral-primary">
+                    <div className="min-w-0 text-[13px] font-medium text-neutral-primary">
                       {experience.role || "역할 미상"}
                     </div>
                     {period ? (
-                      <div className="shrink-0 text-xs text-neutral-soft">
+                      <div className="shrink-0 text-[11px] text-neutral-soft">
                         {period}
                       </div>
                     ) : null}
                   </div>
                   {companyMeta ? (
-                    <div className="mt-1 text-[13px] text-neutral-muted">
+                    <div className="mt-1 text-[12px] text-neutral-muted">
                       {companyMeta}
                     </div>
                   ) : null}
@@ -538,10 +510,7 @@ function ProfilePane({
       ) : null}
 
       {detail.profile.educations.length > 0 ? (
-        <ProfileSection
-          title="학력"
-          icon={<GraduationCap className="h-3.5 w-3.5" />}
-        >
+        <ProfileSection title="학력">
           <div className="space-y-2">
             {detail.profile.educations.map((education, index) => {
               const period = formatPeriod(
@@ -554,17 +523,17 @@ function ProfilePane({
               return (
                 <div key={index} className={profileItemClass}>
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 text-sm font-medium text-neutral-primary">
+                    <div className="min-w-0 text-[13px] font-medium text-neutral-primary">
                       {education.school || "학교 미상"}
                     </div>
                     {period ? (
-                      <div className="shrink-0 text-xs text-neutral-soft">
+                      <div className="shrink-0 text-[11px] text-neutral-soft">
                         {period}
                       </div>
                     ) : null}
                   </div>
                   {educationMeta ? (
-                    <div className="mt-1 text-[13px] text-neutral-muted">
+                    <div className="mt-1 text-[12px] text-neutral-muted">
                       {educationMeta}
                     </div>
                   ) : null}
@@ -582,11 +551,11 @@ function ProfilePane({
             {detail.profile.extras.map((extra, index) => (
               <div key={index} className={profileItemClass}>
                 <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 text-sm font-medium text-neutral-primary">
+                  <div className="min-w-0 text-[13px] font-medium text-neutral-primary">
                     {extra.title || "제목 없음"}
                   </div>
                   {extra.date ? (
-                    <div className="shrink-0 text-xs text-neutral-soft">
+                    <div className="shrink-0 text-[11px] text-neutral-soft">
                       {extra.date}
                     </div>
                   ) : null}
@@ -604,6 +573,67 @@ function ProfilePane({
         </ProfileSection>
       ) : null}
     </div>
+  );
+}
+
+function CandidateDecisionActions({
+  acceptDisabled,
+  candidateName,
+  className,
+  decisionPending,
+  onAcceptClick,
+  onRejectClick,
+}: {
+  acceptDisabled?: boolean;
+  candidateName: string;
+  className?: string;
+  decisionPending?: boolean;
+  onAcceptClick?: () => void;
+  onRejectClick?: () => void;
+}) {
+  if (!onAcceptClick && !onRejectClick) return null;
+
+  return (
+    <section
+      aria-label="후보자 연결 결정"
+      className={cx("border-y border-critical/20 py-4", className)}
+    >
+      <div className="flex items-start gap-2.5">
+        <div className="mt-0.5 shrink-0 text-critical">
+          <CircleAlert className="size-4" />
+        </div>
+        <div className="min-w-0">
+          <div className="text-[16px] font-medium text-critical">
+            결정이 필요합니다
+          </div>
+          <p className="mt-1 text-[12px] font-normal leading-5 text-neutral-muted">
+            {candidateName} 후보자와 연결을 진행할지 결정해 주세요.
+          </p>
+        </div>
+      </div>
+      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <MuteButton
+          type="button"
+          size="md"
+          variant="primary"
+          onClick={onAcceptClick}
+          disabled={decisionPending || acceptDisabled || !onAcceptClick}
+          className="min-h-10 w-full"
+        >
+          이 후보자를 만나보겠습니다
+        </MuteButton>
+        <MuteButton
+          type="button"
+          size="md"
+          variant="warn"
+          onClick={onRejectClick}
+          disabled={decisionPending || !onRejectClick}
+          className="min-h-10 w-full"
+        >
+          이번에는 거절하겠습니다
+        </MuteButton>
+      </div>
+    </section>
   );
 }
 
@@ -627,18 +657,22 @@ function getOrgFeedIcon(kind: string): ProgressFeedIcon {
   if (kind === "org_rejection" || kind === "talent_recommendation_rejected") {
     return "x";
   }
-  if (kind === "org_stage_change") return "sparkles";
+  if (kind === "org_stage_change") return "note";
   if (kind === "org_resume_opened") return "eye";
   return "note";
 }
 
 function FeedPane({
+  canManageCandidates,
   currentUserId,
+  decisionActions,
   detail,
   talentId,
   workspaceId,
 }: {
+  canManageCandidates: boolean;
   currentUserId?: string | null;
+  decisionActions?: ReactNode;
   detail: OrgTalentDetailResponse;
   talentId?: string | null;
   workspaceId: string;
@@ -651,8 +685,14 @@ function FeedPane({
   const feedItems: ProgressFeedItem[] = detail.feed.map((item) => ({
     actor: item.actor,
     createdAt: item.createdAt,
-    deletable: item.kind === "org_note" && item.companyUserId === currentUserId,
-    editable: item.kind === "org_note" && item.companyUserId === currentUserId,
+    deletable:
+      canManageCandidates &&
+      item.kind === "org_note" &&
+      item.companyUserId === currentUserId,
+    editable:
+      canManageCandidates &&
+      item.kind === "org_note" &&
+      item.companyUserId === currentUserId,
     icon: getOrgFeedIcon(item.kind),
     id: item.id,
     text: item.text,
@@ -660,8 +700,13 @@ function FeedPane({
   }));
 
   return (
-    <div className="min-w-0 space-y-3">
-      <div className="text-sm font-semibold text-neutral-primary">피드</div>
+    <div className="min-w-0 space-y-2.5">
+      {decisionActions ? (
+        <div className="sticky top-0 z-20 -mx-1 bg-bg-default px-1 pb-1">
+          {decisionActions}
+        </div>
+      ) : null}
+      <div className="text-[14px] font-medium text-neutral-primary">피드</div>
       <ProgressFeed
         actionsVariant="menu"
         deleteConfirmMessage="이 메모를 삭제할까요?"
@@ -672,36 +717,48 @@ function FeedPane({
         editError={updateFeed.error instanceof Error ? updateFeed.error : null}
         emptyLabel="아직 피드가 없습니다."
         items={feedItems}
-        onDelete={(item) => {
-          if (deleteFeed.isPending) return;
-          deleteFeed.mutate({
-            progressId: item.id,
-            workspaceId,
-          });
-        }}
-        onDraftChange={setDraft}
-        onEdit={async (item, text) => {
-          await updateFeed.mutateAsync({
-            progressId: item.id,
-            text,
-            workspaceId,
-          });
-        }}
-        onSubmit={() => {
-          if (!talentId || !trimmedDraft || createFeed.isPending) return;
-          createFeed.mutate(
-            {
-              recommendationId: detail.recommendation.recommendationId,
-              roleId: detail.role.roleId,
-              talentId,
-              text: trimmedDraft,
-              workspaceId,
-            },
-            {
-              onSuccess: () => setDraft(""),
-            }
-          );
-        }}
+        onDelete={
+          canManageCandidates
+            ? (item) => {
+                if (deleteFeed.isPending) return;
+                deleteFeed.mutate({
+                  progressId: item.id,
+                  workspaceId,
+                });
+              }
+            : undefined
+        }
+        onDraftChange={canManageCandidates ? setDraft : undefined}
+        onEdit={
+          canManageCandidates
+            ? async (item, text) => {
+                await updateFeed.mutateAsync({
+                  progressId: item.id,
+                  text,
+                  workspaceId,
+                });
+              }
+            : undefined
+        }
+        onSubmit={
+          canManageCandidates
+            ? () => {
+                if (!talentId || !trimmedDraft || createFeed.isPending) return;
+                createFeed.mutate(
+                  {
+                    recommendationId: detail.recommendation.recommendationId,
+                    roleId: detail.role.roleId,
+                    talentId,
+                    text: trimmedDraft,
+                    workspaceId,
+                  },
+                  {
+                    onSuccess: () => setDraft(""),
+                  }
+                );
+              }
+            : undefined
+        }
         pendingDeleteId={deleteFeed.variables?.progressId ?? null}
         pendingEditId={updateFeed.variables?.progressId ?? null}
         pendingSubmit={createFeed.isPending}
@@ -716,51 +773,72 @@ function FeedPane({
 
 export function TalentDetailSimpleView({
   acceptStageId,
+  canManageCandidates = true,
   companyName,
   currentUserEmail,
   currentUserId,
   decisionPending,
   detail,
   error,
+  internalOpsAccess = false,
   isLoading,
+  members = [],
   onAcceptCandidate,
   onClose,
   onRejectCandidate,
+  onRetry,
   open,
   talentId,
   workspaceId,
 }: {
   acceptStageId?: OrgStageId | null;
+  canManageCandidates?: boolean;
   companyName: string;
   currentUserEmail?: string | null;
   currentUserId?: string | null;
   decisionPending?: boolean;
   detail?: OrgTalentDetailResponse | null;
   error?: Error | null;
+  internalOpsAccess?: boolean;
   isLoading?: boolean;
+  members?: Pick<OrgMember, "email" | "name" | "userId">[];
   onAcceptCandidate?: (args: {
     acceptReason: string | null;
+    contactDirectly: boolean;
     introEmails: string[];
     stage: OrgStageId;
   }) => Promise<void>;
   onClose: () => void;
-  onRejectCandidate?: (options: OrgStageChangeOptions) => void;
+  onRejectCandidate?: (options: OrgStageChangeOptions) => void | Promise<void>;
+  onRetry?: () => void;
   open: boolean;
   talentId?: string | null;
   workspaceId: string;
 }) {
   const [acceptDialogOpen, setAcceptDialogOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<"profile" | "feed">("profile");
+  const [profileTab, setProfileTab] = useState<"internal" | "profile">(
+    "profile"
+  );
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [resumeRequest, setResumeRequest] = useState<{
     kind: "storage" | "link";
     link?: string | null;
   } | null>(null);
+  const [resumeError, setResumeError] = useState("");
   const openResume = useOpenOrgResume();
 
   const handleConfirmResume = () => {
     if (!resumeRequest || !talentId) return;
-    const popup = window.open("about:blank", "_blank", "noopener,noreferrer");
+    const popup = window.open("about:blank", "_blank");
+    if (!popup) {
+      setResumeError(
+        "새 창을 열지 못했습니다. 브라우저에서 팝업을 허용한 뒤 다시 시도해 주세요."
+      );
+      return;
+    }
+    popup.opener = null;
+    setResumeError("");
     openResume.mutate(
       {
         kind: resumeRequest.kind,
@@ -769,19 +847,28 @@ export function TalentDetailSimpleView({
         workspaceId,
       },
       {
-        onError: () => {
-          popup?.close();
+        onError: (requestError) => {
+          popup.close();
+          setResumeError(
+            requestError instanceof Error
+              ? requestError.message
+              : "이력서를 열지 못했습니다. 다시 시도해 주세요."
+          );
         },
         onSuccess: (payload) => {
-          if (popup) {
-            popup.location.href = payload.url;
-          } else {
-            window.open(payload.url, "_blank", "noopener,noreferrer");
-          }
+          popup.location.href = payload.url;
           setResumeRequest(null);
+          setResumeError("");
         },
       }
     );
+  };
+
+  const closeResumeDialog = () => {
+    if (openResume.isPending) return;
+    setResumeRequest(null);
+    setResumeError("");
+    openResume.reset();
   };
 
   if (!open) return null;
@@ -810,10 +897,10 @@ export function TalentDetailSimpleView({
         >
           <div className="flex shrink-0 items-center justify-between border-b border-neutral-1000-a05 bg-bg-default px-5 py-3">
             <div className="min-w-0">
-              <div className="truncate text-sm font-medium text-neutral-primary">
+              <div className="truncate text-[14px] font-medium text-neutral-primary">
                 {title}
               </div>
-              <div className="mt-0.5 truncate text-xs text-neutral-muted">
+              <div className="mt-1 truncate text-[11px] text-neutral-muted">
                 {subtitle}
               </div>
             </div>
@@ -828,14 +915,16 @@ export function TalentDetailSimpleView({
           </div>
 
           {isLoading ? (
-            <div className="flex flex-1 items-center justify-center text-sm text-neutral-muted">
+            <div className="flex flex-1 items-center justify-center text-[13px] text-neutral-muted">
               <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
               불러오는 중
             </div>
           ) : error ? (
-            <div className={cx(opsTheme.errorNotice, "m-5")}>
-              {error.message}
-            </div>
+            <OrgErrorState
+              className="m-5"
+              message={error.message}
+              onRetry={onRetry}
+            />
           ) : detail ? (
             <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_560px]">
               <div className="min-h-0 overflow-y-auto">
@@ -845,7 +934,7 @@ export function TalentDetailSimpleView({
                       type="button"
                       onClick={() => setMobileTab("profile")}
                       className={cx(
-                        "border-b-2 px-4 py-2.5 text-sm transition",
+                        "border-b-2 px-3.5 py-2.5 text-[13px] transition",
                         mobileTab === "profile"
                           ? "border-neutral-800 font-medium text-neutral-primary"
                           : "border-transparent text-neutral-muted hover:text-neutral-primary"
@@ -857,7 +946,7 @@ export function TalentDetailSimpleView({
                       type="button"
                       onClick={() => setMobileTab("feed")}
                       className={cx(
-                        "border-b-2 px-4 py-2.5 text-sm transition",
+                        "border-b-2 px-3.5 py-2.5 text-[13px] transition",
                         mobileTab === "feed"
                           ? "border-neutral-800 font-medium text-neutral-primary"
                           : "border-transparent text-neutral-muted hover:text-neutral-primary"
@@ -867,20 +956,75 @@ export function TalentDetailSimpleView({
                     </BareButton>
                   </div>
                 </div>
+                {internalOpsAccess ? (
+                  <div
+                    className={cx(
+                      "border-b border-neutral-1000-a05 bg-bg-default px-5",
+                      mobileTab !== "profile" && "hidden lg:block"
+                    )}
+                  >
+                    <div className="flex">
+                      <MuteButton
+                        className={cx(
+                          "rounded-none border-b-2 px-3 text-[12px]",
+                          profileTab === "profile"
+                            ? "border-neutral-1000 text-neutral-primary"
+                            : "border-transparent text-neutral-muted"
+                        )}
+                        onClick={() => setProfileTab("profile")}
+                        size="sm"
+                        variant="transparent"
+                      >
+                        회사 공개 프로필
+                      </MuteButton>
+                      <MuteButton
+                        className={cx(
+                          "rounded-none border-b-2 px-3 text-[12px]",
+                          profileTab === "internal"
+                            ? "border-neutral-1000 text-neutral-primary"
+                            : "border-transparent text-neutral-muted"
+                        )}
+                        onClick={() => setProfileTab("internal")}
+                        size="sm"
+                        variant="transparent"
+                      >
+                        Harper 내부 정보
+                      </MuteButton>
+                    </div>
+                  </div>
+                ) : null}
                 <div className="p-5">
                   <div
                     className={cx(mobileTab !== "profile" && "hidden lg:block")}
                   >
-                    <ProfilePane
-                      acceptDisabled={!acceptStageId}
-                      decisionPending={decisionPending}
-                      detail={detail}
-                      onAcceptClick={() => setAcceptDialogOpen(true)}
-                      onRejectClick={() => setRejectDialogOpen(true)}
-                      onResumeClick={(kind, link) =>
-                        setResumeRequest({ kind, link })
-                      }
-                    />
+                    {profileTab === "internal" && internalOpsAccess ? (
+                      <OrgInternalTalentPanel
+                        currentRecommendationId={
+                          detail.recommendation.recommendationId
+                        }
+                        talentId={detail.talent.userId}
+                        workspaceId={workspaceId}
+                      />
+                    ) : (
+                      <ProfilePane
+                        acceptDisabled={!acceptStageId || !canManageCandidates}
+                        decisionPending={decisionPending}
+                        detail={detail}
+                        onAcceptClick={
+                          canManageCandidates
+                            ? () => setAcceptDialogOpen(true)
+                            : undefined
+                        }
+                        onRejectClick={
+                          canManageCandidates
+                            ? () => setRejectDialogOpen(true)
+                            : undefined
+                        }
+                        onResumeClick={(kind, link) =>
+                          setResumeRequest({ kind, link })
+                        }
+                      />
+                    )}
                   </div>
                   <div
                     className={cx(
@@ -889,6 +1033,7 @@ export function TalentDetailSimpleView({
                     )}
                   >
                     <FeedPane
+                      canManageCandidates={canManageCandidates}
                       currentUserId={currentUserId}
                       detail={detail}
                       talentId={talentId}
@@ -897,9 +1042,27 @@ export function TalentDetailSimpleView({
                   </div>
                 </div>
               </div>
-              <div className="hidden min-h-0 overflow-y-auto border-l border-neutral-1000-a05 bg-bg-basement p-5 lg:block">
+              <div className="hidden min-h-0 overflow-y-auto border-l border-neutral-1000-a05 bg-bg-default p-5 lg:block">
                 <FeedPane
+                  canManageCandidates={canManageCandidates}
                   currentUserId={currentUserId}
+                  decisionActions={
+                    <CandidateDecisionActions
+                      acceptDisabled={!acceptStageId || !canManageCandidates}
+                      candidateName={title}
+                      decisionPending={decisionPending}
+                      onAcceptClick={
+                        canManageCandidates
+                          ? () => setAcceptDialogOpen(true)
+                          : undefined
+                      }
+                      onRejectClick={
+                        canManageCandidates
+                          ? () => setRejectDialogOpen(true)
+                          : undefined
+                      }
+                    />
+                  }
                   detail={detail}
                   talentId={talentId}
                   workspaceId={workspaceId}
@@ -912,26 +1075,30 @@ export function TalentDetailSimpleView({
 
       <Dialog
         open={Boolean(resumeRequest)}
-        onOpenChange={(nextOpen) => !nextOpen && setResumeRequest(null)}
+        onOpenChange={(nextOpen) => !nextOpen && closeResumeDialog()}
       >
         <DialogContent
-          className="z-[90] max-w-md rounded-lg"
+          className="z-[90] max-w-md gap-4 rounded-lg p-6"
           overlayClassName="z-[80]"
         >
           <DialogHeader>
-            <DialogTitle>이력서 열기</DialogTitle>
+            <DialogTitle className="text-[18px]">이력서 열기</DialogTitle>
           </DialogHeader>
-          <div className="mt-2 text-sm leading-6 text-neutral-primary">
-            해당 자료는 {companyName}측에만 전달된 개인 자료로, 절대 외부에
-            공개되어서는 안됩니다. 외부에 공유될 시 책임은 {companyName}에
-            있습니다.
+          <div className="mt-1 text-[13px] leading-5 text-neutral-primary">
+            이 자료는 채용 검토 목적으로만 사용하고 회사 외부에 공유하지
+            마세요.
           </div>
-          <DialogFooter className="mt-5">
+          {resumeError ? (
+            <div className="text-[12px] text-critical" role="alert">
+              {resumeError}
+            </div>
+          ) : null}
+          <DialogFooter className="mt-3">
             <Button
               type="button"
               variant="secondary"
               size="md"
-              onClick={() => setResumeRequest(null)}
+              onClick={closeResumeDialog}
               disabled={openResume.isPending}
             >
               취소
@@ -955,13 +1122,15 @@ export function TalentDetailSimpleView({
       <AcceptIntroDialog
         candidateName={title}
         defaultEmail={currentUserEmail}
+        members={members}
         open={acceptDialogOpen && Boolean(detail)}
         pending={decisionPending}
         onClose={() => setAcceptDialogOpen(false)}
-        onSubmit={async ({ acceptReason, introEmails }) => {
+        onSubmit={async ({ acceptReason, contactDirectly, introEmails }) => {
           if (!acceptStageId || !onAcceptCandidate) return;
           await onAcceptCandidate({
             acceptReason,
+            contactDirectly,
             introEmails,
             stage: acceptStageId,
           });
@@ -975,9 +1144,12 @@ export function TalentDetailSimpleView({
         open={rejectDialogOpen && Boolean(detail)}
         pending={decisionPending}
         onClose={() => setRejectDialogOpen(false)}
-        onSubmit={({ note }) => {
+        onSubmit={async ({ note }) => {
           if (!onRejectCandidate) return;
-          onRejectCandidate({ stopNote: note, stopReason: "company" });
+          await onRejectCandidate({
+            stopNote: note,
+            stopReason: "company",
+          });
           setRejectDialogOpen(false);
         }}
       />

@@ -71,7 +71,7 @@ function ToggleButton({
       type="button"
       onClick={onClick}
       className={cx(
-        "rounded-md px-3 py-2 text-xs transition",
+        "rounded-md px-3 py-2 text-[13px] transition",
         active
           ? "bg-black text-neutral-00"
           : "border border-neutral-1000-a10 bg-bg-floating text-neutral-primary hover:bg-bg-weak"
@@ -83,7 +83,7 @@ function ToggleButton({
 }
 
 function ToggleGrid({ children }: { children: ReactNode }) {
-  return <div className="flex flex-wrap gap-2">{children}</div>;
+  return <div className="flex flex-wrap gap-1.5">{children}</div>;
 }
 
 function AutoResizeTextarea({
@@ -121,7 +121,10 @@ function AutoResizeTextarea({
     <Textarea
       ref={ref}
       value={value}
-      className={cx("resize-none overflow-hidden pb-4", className)}
+      className={cx(
+        "resize-none overflow-hidden px-3 py-2.5 pb-3.5 text-[13px] leading-5",
+        className
+      )}
       {...props}
     />
   );
@@ -151,7 +154,7 @@ function RoleDescriptionMarkdownPreview({ markdown }: { markdown: string }) {
       <div
         className={cx(
           opsTheme.panelSoft,
-          "min-h-[120px] px-4 py-4 text-sm leading-6 text-neutral-primary"
+          "min-h-[112px] px-4 py-3.5 text-[13px] leading-6 text-neutral-primary"
         )}
       >
         {trimmedMarkdown ? (
@@ -170,17 +173,17 @@ function RoleDescriptionMarkdownPreview({ markdown }: { markdown: string }) {
                 </a>
               ),
               h1: ({ children }) => (
-                <h1 className="mt-5 text-lg font-semibold text-neutral-primary first:mt-0">
+                <h1 className="mt-4 text-[16px] font-medium text-neutral-primary first:mt-0">
                   {children}
                 </h1>
               ),
               h2: ({ children }) => (
-                <h2 className="mt-5 text-base font-semibold text-neutral-primary first:mt-0">
+                <h2 className="mt-4 text-[15px] font-medium text-neutral-primary first:mt-0">
                   {children}
                 </h2>
               ),
               h3: ({ children }) => (
-                <h3 className="mt-4 text-sm font-semibold text-neutral-primary first:mt-0">
+                <h3 className="mt-3 text-[13px] font-medium text-neutral-primary first:mt-0">
                   {children}
                 </h3>
               ),
@@ -194,7 +197,7 @@ function RoleDescriptionMarkdownPreview({ markdown }: { markdown: string }) {
                 </ol>
               ),
               p: ({ children }) => (
-                <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-neutral-muted first:mt-0">
+                <p className="mt-3 whitespace-pre-wrap text-[13px] leading-6 text-neutral-muted first:mt-0">
                   {children}
                 </p>
               ),
@@ -213,7 +216,7 @@ function RoleDescriptionMarkdownPreview({ markdown }: { markdown: string }) {
             {trimmedMarkdown}
           </ReactMarkdown>
         ) : (
-          <div className="text-sm text-neutral-muted">
+          <div className="text-[13px] text-neutral-muted">
             Description에 markdown을 입력하면 여기서 미리보기로 렌더링됩니다.
           </div>
         )}
@@ -265,10 +268,10 @@ export function OrgEditDialog({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="absolute bottom-0 right-0 top-0 flex w-full min-w-0 flex-col overflow-hidden bg-bg-default shadow-[0_24px_90px_color-mix(in_srgb,var(--color-neutral-1000)_22%,transparent)] animate-in slide-in-from-right-6 duration-200 sm:w-[784px]"
+        className="absolute bottom-0 right-0 top-0 flex w-full min-w-0 flex-col overflow-hidden bg-bg-default shadow-[0_24px_90px_color-mix(in_srgb,var(--color-neutral-1000)_22%,transparent)] animate-in slide-in-from-right-6 duration-200 sm:w-[820px]"
       >
         <div className="flex shrink-0 items-center justify-between border-b border-neutral-1000-a05 bg-bg-default px-5 py-3">
-          <div className="text-sm font-medium text-neutral-primary">
+          <div className="text-[15px] font-medium text-neutral-primary">
             {title}
           </div>
           <BareButton
@@ -329,10 +332,10 @@ export function OrgEditDialog({
               <>
                 <div className="rounded-md bg-primary-faded/30 p-4">
                   <label className={fieldClassName}>
-                    <span className="text-sm font-medium text-primary">
+                    <span className="text-[14px] font-medium text-primary">
                       Role Request & Criteria
                     </span>
-                    <span className="text-[13px] font-normal leading-5 text-black/60">
+                    <span className="text-[13px] font-normal leading-6 text-black/60">
                       이 내용은 매번 인재를 탐색하고 연결하거나 후보자를 추천할
                       때 기준으로 반영됩니다. 여러가지 사항이 있다면 무엇이 더
                       우선순위가 높은지 등을 자세히 알려주실 수록 좋습니다.
@@ -351,9 +354,9 @@ export function OrgEditDialog({
                     />
                   </label>
                 </div>
-                <div className="flex items-center gap-3 py-8">
+                <div className="flex items-center gap-3 py-6">
                   <div className="h-px flex-1 bg-neutral-1000-a10" />
-                  <span className="shrink-0 text-[11px] font-light text-neutral-muted">
+                  <span className="shrink-0 text-[12px] font-light text-neutral-muted">
                     기본 역할 정보
                   </span>
                   <div className="h-px flex-1 bg-neutral-1000-a10" />
@@ -361,6 +364,7 @@ export function OrgEditDialog({
                 <label className={fieldClassName}>
                   <span className={opsTheme.label}>Role title</span>
                   <Input
+                    className="h-10 px-3 py-2 text-[13px]"
                     value={draft.name ?? ""}
                     onChange={(event) =>
                       setDraft((prev) => ({
@@ -434,6 +438,7 @@ export function OrgEditDialog({
                 <label className={fieldClassName}>
                   <span className={opsTheme.label}>외부 JD 링크</span>
                   <Input
+                    className="h-10 px-3 py-2 text-[13px]"
                     value={draft.externalJdUrl ?? ""}
                     onChange={(event) =>
                       setDraft((prev) => ({
@@ -447,6 +452,7 @@ export function OrgEditDialog({
                 <label className={fieldClassName}>
                   <span className={opsTheme.label}>근무 지역</span>
                   <Input
+                    className="h-10 px-3 py-2 text-[13px]"
                     value={draft.locationText ?? ""}
                     onChange={(event) =>
                       setDraft((prev) => ({
@@ -458,7 +464,7 @@ export function OrgEditDialog({
                 </label>
                 <label className={cn(fieldClassName, "mt-2")}>
                   <span className={opsTheme.label}>Description</span>
-                  <span className="text-sm text-black/60 mb-1">
+                  <span className="mb-1 text-[13px] text-black/60">
                     후보자에게 전달되는 역할 설명입니다. 아래에서 미리보기로
                     실제로 어떻게 보여지는지 확인할 수 있습니다.
                   </span>

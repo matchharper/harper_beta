@@ -7,6 +7,38 @@ export default defineConfig([
   },
   ...nextCoreWebVitals,
   {
+    files: [
+      "src/components/org/**/*.{js,jsx,ts,tsx}",
+      "src/pages/org/**/*.{js,jsx,ts,tsx}",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "lucide-react",
+              importNames: [
+                "Bot",
+                "BotMessageSquare",
+                "Brain",
+                "BrainCircuit",
+                "Sparkle",
+                "Sparkles",
+                "Stars",
+                "Wand",
+                "Wand2",
+                "WandSparkles",
+              ],
+              message:
+                "Org UI에서는 막연한 AI 이미지를 만드는 아이콘을 사용하지 않습니다.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     plugins: {
       "react-hooks": nextCoreWebVitals[0].plugins["react-hooks"],
     },

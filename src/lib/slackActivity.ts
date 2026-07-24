@@ -1,7 +1,7 @@
 import type { User } from "@supabase/supabase-js";
 import { IncomingWebhook } from "@slack/webhook";
 
-type SlackActivityDetail = {
+export type SlackActivityDetail = {
   label: string;
   value?: string | number | boolean | null;
 };

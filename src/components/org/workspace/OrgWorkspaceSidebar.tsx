@@ -1,0 +1,347 @@
+import {
+  BriefcaseBusiness,
+  ChevronDown,
+  CircleHelp,
+  Home,
+  LogOut,
+  Settings,
+  Users,
+} from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import type { ComponentType } from "react";
+import { MuteButton } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
+import { buildOrgHref, type OrgWorkspacePageId } from "@/lib/org/routes";
+import type { OrgMember, OrgWorkspace } from "@/lib/org/server";
+import { cn } from "@/lib/utils";
+
+const PRIMARY_NAV: Array<{
+  icon: ComponentType<{ className?: string }>;
+  id: OrgWorkspacePageId;
+  label: string;
+}> = [
+  { icon: Home, id: "home", label: "Home" },
+  { icon: BriefcaseBusiness, id: "jobs", label: "Jobs" },
+  { icon: Users, id: "team", label: "Team" },
+  { icon: Settings, id: "settings", label: "Settings" },
+];
+
+function WorkspaceAvatar({
+  size = "md",
+  workspace,
+}: {
+  size?: "md" | "sm";
+  workspace: OrgWorkspace;
+}) {
+  const pixelSize = size === "sm" ? 24 : 28;
+  const className = size === "sm" ? "size-6 rounded-md" : "size-7 rounded-md";
+  if (workspace.logoUrl) {
+    return (
+      <Image
+        alt=""
+        className={cn(
+          className,
+          "shrink-0 border border-neutral-1000-a05 object-cover"
+        )}
+        height={pixelSize}
+        src={workspace.logoUrl}
+        unoptimized
+        width={pixelSize}
+      />
+    );
+  }
+  return (
+    <span
+      className={cn(
+        className,
+        "flex shrink-0 items-center justify-center bg-bg-weak text-[11px] font-medium text-neutral-muted"
+      )}
+    >
+      {workspace.companyName.slice(0, 1).toUpperCase()}
+    </span>
+  );
+}
+
+function UserAvatar({
+  member,
+  size = "md",
+}: {
+  member?: OrgMember | null;
+  size?: "md" | "sm";
+}) {
+  const displayName = member?.name || member?.email || "User";
+  const pixelSize = size === "sm" ? 24 : 30;
+  const className =
+    size === "sm" ? "size-6 rounded-full" : "size-[30px] rounded-full";
+  if (member?.profilePicture) {
+    return (
+      <Image
+        alt={displayName}
+        className={cn(className, "shrink-0 object-cover")}
+        height={pixelSize}
+        src={member.profilePicture}
+        unoptimized
+        width={pixelSize}
+      />
+    );
+  }
+  return (
+    <span
+      className={cn(
+        className,
+        "flex shrink-0 items-center justify-center bg-neutral-1000 text-xs font-medium text-neutral-00"
+      )}
+    >
+      {displayName.slice(0, 1).toUpperCase()}
+    </span>
+  );
+}
+
+function NavLink({
+  active,
+  href,
+  icon: Icon,
+  label,
+}: {
+  active: boolean;
+  href: string;
+  icon: ComponentType<{ className?: string }>;
+  label: string;
+}) {
+  return (
+    <Link
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "flex h-9 items-center gap-2.5 rounded-md px-3 text-[13px] font-normal outline-none transition focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
+        active
+          ? "bg-bg-weak text-neutral-primary"
+          : "text-neutral-muted hover:bg-bg-weak hover:text-neutral-primary"
+      )}
+      href={href}
+    >
+      <Icon className="size-4 stroke-[1.75]" />
+      <span>{label}</span>
+    </Link>
+  );
+}
+
+export function OrgWorkspaceSidebar({
+  activePage,
+  canSwitchWorkspace,
+  currentUser,
+  onSignOut,
+  onWorkspaceSelect,
+  signOutPending,
+  workspace,
+  workspaces,
+}: {
+  activePage: OrgWorkspacePageId;
+  canSwitchWorkspace: boolean;
+  currentUser: OrgMember | null;
+  onSignOut: () => void;
+  onWorkspaceSelect: (workspaceId: string) => void;
+  signOutPending?: boolean;
+  workspace: OrgWorkspace;
+  workspaces: OrgWorkspace[];
+}) {
+  const navHref = (page: OrgWorkspacePageId) =>
+    buildOrgHref({ orgId: workspace.workspaceId, page });
+
+  const workspaceControl =
+    canSwitchWorkspace && workspaces.length > 1 ? (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <MuteButton
+            aria-label="Workspace 변경"
+            className="w-full justify-between"
+            size="md"
+            variant="transparent"
+          >
+            <span className="flex min-w-0 items-center gap-2">
+              <WorkspaceAvatar workspace={workspace} />
+              <span className="truncate text-[13px] font-medium">
+                {workspace.companyName}
+              </span>
+            </span>
+            <ChevronDown className="size-3.5 text-neutral-soft" />
+          </MuteButton>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-56">
+          <DropdownMenuLabel>Workspace</DropdownMenuLabel>
+          {workspaces.map((item) => (
+            <DropdownMenuItem
+              key={item.workspaceId}
+              onSelect={() => onWorkspaceSelect(item.workspaceId)}
+              selected={item.workspaceId === workspace.workspaceId}
+            >
+              <WorkspaceAvatar size="sm" workspace={item} />
+              <span className="truncate">{item.companyName}</span>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    ) : (
+      <div className="flex min-w-0 items-center gap-2.5 px-2 py-1.5">
+        <WorkspaceAvatar workspace={workspace} />
+        <span className="truncate text-[13px] font-medium text-neutral-primary">
+          {workspace.companyName}
+        </span>
+      </div>
+    );
+
+  return (
+    <>
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[232px] flex-col border-r border-neutral-1000-a05 bg-bg-default px-3 py-3 lg:flex">
+        <div className="mb-6">{workspaceControl}</div>
+        <nav aria-label="Organization" className="space-y-1">
+          {PRIMARY_NAV.map((item) => (
+            <NavLink
+              key={item.id}
+              active={activePage === item.id}
+              href={navHref(item.id)}
+              icon={item.icon}
+              label={item.label}
+            />
+          ))}
+        </nav>
+
+        <div className="mt-auto space-y-1">
+          <NavLink
+            active={activePage === "help"}
+            href={navHref("help")}
+            icon={CircleHelp}
+            label="Help"
+          />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <MuteButton
+                aria-label="프로필 메뉴"
+                className="w-full justify-start"
+                size="md"
+                variant="transparent"
+              >
+                <UserAvatar member={currentUser} />
+                <span className="min-w-0 text-left">
+                  <span className="block truncate text-[12px] font-medium text-neutral-primary">
+                    {currentUser?.name || currentUser?.email || "User"}
+                  </span>
+                  {currentUser?.email ? (
+                    <span className="block truncate text-[11px] font-light text-neutral-soft">
+                      {currentUser.email}
+                    </span>
+                  ) : null}
+                </span>
+              </MuteButton>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[224px]" side="top">
+              <DropdownMenuLabel className="font-normal">
+                <span className="block truncate text-[13px] font-medium text-neutral-primary">
+                  {currentUser?.name || "이름 없음"}
+                </span>
+                <span className="mt-0.5 block truncate text-[11px] font-light text-neutral-muted">
+                  {currentUser?.email || "-"}
+                </span>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                disabled={signOutPending}
+                onSelect={onSignOut}
+                tone="danger"
+              >
+                <LogOut />
+                {signOutPending ? "로그아웃 중" : "로그아웃"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </aside>
+
+      <header className="sticky top-0 z-40 border-b border-neutral-1000-a05 bg-bg-default/95 backdrop-blur lg:hidden">
+        <div className="flex h-14 items-center justify-between gap-3 px-4">
+          <div className="min-w-0 flex-1">{workspaceControl}</div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <MuteButton
+                aria-label="프로필 메뉴"
+                size="sm"
+                variant="transparent"
+              >
+                <UserAvatar member={currentUser} size="sm" />
+              </MuteButton>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel className="font-normal">
+                <span className="block truncate text-[12px] font-medium">
+                  {currentUser?.name || "이름 없음"}
+                </span>
+                <span className="block truncate text-[11px] text-neutral-muted">
+                  {currentUser?.email || "-"}
+                </span>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={onSignOut} tone="danger">
+                <LogOut />
+                로그아웃
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        <nav
+          aria-label="Organization"
+          className="flex gap-1.5 overflow-x-auto px-4 pb-2 scrollbar-none"
+        >
+          {[
+            ...PRIMARY_NAV,
+            { icon: CircleHelp, id: "help" as const, label: "Help" },
+          ].map((item) => (
+            <Link
+              key={item.id}
+              aria-current={activePage === item.id ? "page" : undefined}
+              className={cn(
+                "shrink-0 rounded-md px-3 py-1.5 text-[12px] font-normal",
+                activePage === item.id
+                  ? "bg-bg-weak text-neutral-primary"
+                  : "text-neutral-muted"
+              )}
+              href={navHref(item.id)}
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+      </header>
+    </>
+  );
+}
+
+export function OrgWorkspaceShellSkeleton() {
+  return (
+    <main className="min-h-svh bg-bg-default">
+      <aside className="fixed inset-y-0 left-0 hidden w-[232px] border-r border-neutral-1000-a05 p-4 lg:block">
+        <Skeleton className="h-9 w-full" />
+        <div className="mt-5 space-y-1.5">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <Skeleton className="h-9 w-full" key={index} />
+          ))}
+        </div>
+      </aside>
+      <div className="mx-auto max-w-[1280px] px-4 py-7 lg:pl-[272px] lg:pr-10">
+        <Skeleton className="h-6 w-40" />
+        <Skeleton className="mt-2 h-3 w-72 max-w-full" />
+        <div className="mt-6 grid gap-3 lg:grid-cols-2">
+          <Skeleton className="h-48" />
+          <Skeleton className="h-48" />
+        </div>
+      </div>
+    </main>
+  );
+}

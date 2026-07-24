@@ -302,11 +302,13 @@ export type TalentInternalRecommendationProgressCode =
   | "company_acknowledged_awaiting_response"
   | "company_next_process"
   | "no_company_response_closed"
+  | "stopped_by_candidate"
   | "waiting_to_share";
 
 export type TalentInternalRecommendationProgressStage =
   | "accepted"
   | "archived"
+  | "connected"
   | "custom"
   | "final_offer"
   | "hold"
@@ -487,6 +489,7 @@ function normalizeFeedback(value: unknown): TalentOpportunityFeedback | null {
 const INTERNAL_RECOMMENDATION_PROGRESS_STAGE_BY_TAG = {
   "내부:수락": "accepted",
   "내부:아카이브": "archived",
+  "내부:연결됨": "connected",
   "내부:최종오퍼": "final_offer",
   "내부:보류": "hold",
   "내부:연결대기": "pending_connection",
@@ -513,6 +516,7 @@ const INTERNAL_RECOMMENDATION_PROGRESS_MESSAGES: Record<
     "회사에서 다음 프로세스를 진행하겠다고 알렸습니다. 혹시 아직 다른 연락이 없으신가요?",
   no_company_response_closed:
     "회사에게서 응답이 없습니다. 더 이상 프로세스를 진행할 의사가 없는 것으로 판단됩니다. 프로세스를 종료하고 더이상 트래킹 하지 않겠습니다. 불편을 드려 죄송합니다.",
+  stopped_by_candidate: "요청하신 대로 이 포지션의 진행을 종료했습니다.",
   waiting_to_share: "적절한 타이밍에 회사에게 전달하기 위해 대기중입니다.",
 };
 
@@ -597,11 +601,9 @@ function buildInternalRecommendationProgress(args: {
 
   if (effectiveStage === "pending_connection") {
     code = "company_acknowledged_awaiting_response";
-  } else if (
-    effectiveStage === "archived" ||
-    effectiveStage === "process_stopped" ||
-    effectiveStage === "rejected"
-  ) {
+  } else if (effectiveStage === "process_stopped") {
+    code = "stopped_by_candidate";
+  } else if (effectiveStage === "archived" || effectiveStage === "rejected") {
     code =
       isWithinInitialAcceptanceGrace || isWithinTerminalStageGrace
         ? "awaiting_company_response"
@@ -1928,9 +1930,40 @@ async function ensureTalentOpportunityRecommendationForPostingRole(args: {
   return insertedId;
 }
 
+async function resolvePositiveFeedbackSavedStage(args: {
+  admin: AdminClient;
+  opportunityId: string;
+  requestedSavedStage?: TalentOpportunitySavedStage | null;
+  userId: string;
+}) {
+  if (args.requestedSavedStage !== undefined) {
+    return args.requestedSavedStage;
+  }
+
+  const { data, error } = await ((
+    args.admin.from("talent_opportunity_recommendation" as any) as any
+  )
+    .select("company_role:company_roles!inner(source_type)")
+    .eq("talent_id", args.userId)
+    .eq("id", args.opportunityId)
+    .maybeSingle() as any);
+
+  if (error) {
+    throw new Error(
+      error.message ?? "Failed to resolve opportunity source type"
+    );
+  }
+
+  const relation = Array.isArray(data?.company_role)
+    ? data.company_role[0]
+    : data?.company_role;
+  return relation?.source_type === "internal" ? "connected" : null;
+}
+
 export async function updateTalentOpportunityHistoryItem(args: {
   action: "feedback" | "saved_stage" | "view" | "click" | "memo";
   admin: AdminClient;
+  clearEmailAcceptanceConfirmation?: boolean;
   feedback?: TalentOpportunityFeedback | null;
   feedbackReason?: string | null;
   opportunityId: string;
@@ -1961,7 +1994,14 @@ export async function updateTalentOpportunityHistoryItem(args: {
       ? String(args.feedbackReason ?? "").trim() || null
       : null;
     payload.saved_stage =
-      args.feedback === "positive" ? (args.savedStage ?? null) : null;
+      args.feedback === "positive"
+        ? await resolvePositiveFeedbackSavedStage({
+            admin: args.admin,
+            opportunityId,
+            requestedSavedStage: args.savedStage,
+            userId: args.userId,
+          })
+        : null;
   } else if (args.action === "saved_stage") {
     payload.saved_stage = args.savedStage ?? null;
   } else if (args.action === "view") {
@@ -1981,6 +2021,28 @@ export async function updateTalentOpportunityHistoryItem(args: {
 
   if (error) {
     throw new Error(error.message ?? "Failed to update opportunity state");
+  }
+
+  if (args.action === "feedback" && args.clearEmailAcceptanceConfirmation) {
+    const { error: confirmationError } = await ((
+      args.admin.from("talent_opportunity_recommendation" as any) as any
+    )
+      .update({ email_acceptance_confirmation: {} })
+      .eq("talent_id", args.userId)
+      .eq("id", opportunityId) as any);
+
+    if (confirmationError) {
+      console.warn(
+        "[TalentOpportunity] failed to clear email acceptance confirmation",
+        {
+          error:
+            confirmationError.message ??
+            "Failed to clear email acceptance confirmation",
+          opportunityId,
+          userId: args.userId,
+        }
+      );
+    }
   }
 
   return { ok: true, opportunityId, updatedAt: now };

@@ -8,12 +8,51 @@ export type OrgSlackStatus = {
   connectedAt: string | null;
   lastError: string | null;
   lastSentAt: string | null;
+  notifications: {
+    candidateAccepted: boolean;
+    candidateRejected: boolean;
+    memberJoined: boolean;
+  };
   teamId: string | null;
   teamName: string | null;
 };
 
 function slackQueryKey(workspaceId: string) {
   return ["org", "slack", workspaceId] as const;
+}
+
+export function useUpdateOrgSlackNotifications(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (notifications: OrgSlackStatus["notifications"]) =>
+      fetchWithInternalAuth<{ ok: true }>("/api/org/slack", {
+        body: JSON.stringify({ notifications, workspaceId }),
+        headers: { "Content-Type": "application/json" },
+        method: "PATCH",
+      }),
+    onMutate: async (notifications) => {
+      const queryKey = slackQueryKey(workspaceId);
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<OrgSlackStatus>(queryKey);
+      if (previous) {
+        queryClient.setQueryData<OrgSlackStatus>(queryKey, {
+          ...previous,
+          notifications,
+        });
+      }
+      return { previous };
+    },
+    onError: (_error, _notifications, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(
+          slackQueryKey(workspaceId),
+          context.previous
+        );
+      }
+    },
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: slackQueryKey(workspaceId) }),
+  });
 }
 
 export function useOrgSlackStatus(args: {

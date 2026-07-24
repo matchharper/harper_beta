@@ -1,27 +1,15 @@
 import Image from "next/image";
-import {
-  Component,
-  LoaderCircle,
-  MoreHorizontal,
-  Pause,
-  Pencil,
-  Play,
-  Search,
-  SquarePen,
-  Trash2,
-} from "lucide-react";
-import {
-  type DragEvent,
-  type FormEvent,
-  useMemo,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import { LoaderCircle, MoreHorizontal, Search } from "lucide-react";
+import { type DragEvent, type FormEvent, useMemo, useState } from "react";
 import { OpsDateRangeFilter } from "@/components/ops/OpsDateRangeFilter";
 import { formatKstRelativeDate } from "@/components/ops/dateUtils";
 import { ProfileLabelCell } from "@/components/ops/matching/MatchingTalentCells";
 import { cx, opsTheme } from "@/components/ops/theme";
-import { BareButton, Button, IconButton } from "@/components/ui/button";
+import {
+  BareButton,
+  Button,
+  MuteButton,
+} from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -49,15 +37,18 @@ import {
   AcceptIntroDialog,
   StopCandidateDialog,
 } from "@/components/org/OrgCandidateDecisionDialogs";
-import { Tooltips } from "@/components/ui/tooltip";
+import { InternalOnlyHatch } from "@/components/org/internal/InternalOnlySurface";
+import { OrgRoleActionsMenu } from "@/components/org/OrgRoleActionsMenu";
 import {
   useCreateOrgReviewStage,
   useDeleteOrgReviewStage,
   useUpdateOrgReviewStage,
 } from "@/hooks/org/useOrg";
+import { useOrgViewedRecommendations } from "@/hooks/org/useOrgViewedRecommendations";
 import type {
   OrgBoardItem,
   OrgBoardResponse,
+  OrgMember,
   OrgRole,
   OrgStageChangeOptions,
   OrgStage,
@@ -74,211 +65,6 @@ function canDropToStage(item: OrgBoardItem, stage: OrgStage) {
 
 function getCustomStageDbId(stageId: OrgStageId) {
   return stageId.startsWith("custom:") ? stageId.slice("custom:".length) : "";
-}
-
-function isRolePaused(status: string | null | undefined) {
-  const normalized = String(status ?? "")
-    .trim()
-    .toLowerCase();
-  return normalized === "paused" || normalized === "on_hold";
-}
-
-type RoleLifecycleAction = "delete" | "pause" | "resume";
-
-function OrgRoleHeaderActions({
-  onDelete,
-  onEdit,
-  onPause,
-  onResume,
-  pending,
-  role,
-}: {
-  onDelete: (role: OrgRole) => void;
-  onEdit: () => void;
-  onPause: (role: OrgRole) => void;
-  onResume: (role: OrgRole) => void;
-  pending?: boolean;
-  role?: OrgRole | null;
-}) {
-  const [confirmation, setConfirmation] = useState<RoleLifecycleAction | null>(
-    null
-  );
-  const paused = isRolePaused(role?.status);
-  const disabled = pending || !role;
-  const confirmationCopy =
-    role && confirmation
-      ? confirmation === "delete"
-        ? {
-            confirmLabel: "삭제 확인",
-            description: `“${role.name}” 역할이 조직 화면의 역할 목록과 파이프라인에서 숨겨지고 더 이상 활성 역할로 사용되지 않습니다. 기존 후보자와 진행 기록은 영구 삭제되지 않습니다.`,
-            title: "역할을 삭제할까요?",
-          }
-        : confirmation === "resume"
-          ? {
-              confirmLabel: "재개 확인",
-              description: `“${role.name}” 역할 상태가 ‘진행’으로 변경되어 다시 활성 역할로 표시됩니다. 기존 후보자와 파이프라인 기록은 그대로 유지됩니다.`,
-              title: "역할을 재개할까요?",
-            }
-          : {
-              confirmLabel: "중단 확인",
-              description: `“${role.name}” 역할 상태가 ‘중단’으로 변경됩니다. 기존 후보자와 파이프라인 기록은 유지되며, 나중에 다시 재개할 수 있습니다.`,
-              title: "역할을 중단할까요?",
-            }
-      : null;
-
-  const handleConfirm = () => {
-    if (!role || !confirmation) return;
-    const action = confirmation;
-    setConfirmation(null);
-    if (action === "delete") {
-      onDelete(role);
-      return;
-    }
-    if (action === "resume") {
-      onResume(role);
-      return;
-    }
-    onPause(role);
-  };
-
-  return (
-    <>
-      <div className="flex shrink-0 items-center gap-1.5">
-        <Button
-          type="button"
-          size="sm"
-          variant="secondary"
-          disabled={disabled}
-          onClick={onEdit}
-        >
-          <SquarePen className="h-3.5 w-3.5" />
-          역할 수정
-        </Button>
-        <Tooltips text={paused ? "역할 재개" : "역할 중단"} side="bottom">
-          <IconButton
-            type="button"
-            size="sm"
-            variant="secondary"
-            aria-label={paused ? "역할 재개" : "역할 중단"}
-            disabled={disabled}
-            icon={
-              paused ? (
-                <Play className="h-3.5 w-3.5" />
-              ) : (
-                <Pause className="h-3.5 w-3.5" />
-              )
-            }
-            onClick={() => setConfirmation(paused ? "resume" : "pause")}
-          />
-        </Tooltips>
-        <Tooltips text="역할 삭제" side="bottom">
-          <IconButton
-            type="button"
-            size="sm"
-            variant="secondary"
-            aria-label="역할 삭제"
-            className="text-critical hover:border-critical/30 hover:bg-critical-faded hover:text-critical"
-            disabled={disabled}
-            icon={<Trash2 className="h-3.5 w-3.5" />}
-            onClick={() => setConfirmation("delete")}
-          />
-        </Tooltips>
-      </div>
-
-      <Dialog
-        open={Boolean(confirmationCopy)}
-        onOpenChange={(open) => {
-          if (!open && !pending) setConfirmation(null);
-        }}
-      >
-        <DialogContent className="max-w-md" hideCloseButton={pending}>
-          <DialogHeader>
-            <DialogTitle>{confirmationCopy?.title}</DialogTitle>
-            <DialogDescription className="leading-6">
-              {confirmationCopy?.description}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={pending}
-              onClick={() => setConfirmation(null)}
-              className="font-normal"
-            >
-              취소
-            </Button>
-            <Button
-              type="button"
-              variant={confirmation === "delete" ? "critical" : "primary"}
-              disabled={pending}
-              onClick={handleConfirm}
-              className="font-normal"
-            >
-              {pending && <LoaderCircle className="h-4 w-4 animate-spin" />}
-              {confirmationCopy?.confirmLabel}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
-
-const ORG_PROFILE_VIEWED_STORAGE_PREFIX = "harper:org-profile-viewed:v1";
-const ORG_PROFILE_VIEWED_STORAGE_EVENT = "harper:org-profile-viewed-change";
-
-function buildProfileViewedStorageKey(args: {
-  currentUserEmail?: string | null;
-  workspaceId: string;
-}) {
-  const userKey = (args.currentUserEmail || "unknown").trim().toLowerCase();
-  return `${ORG_PROFILE_VIEWED_STORAGE_PREFIX}:${args.workspaceId}:${userKey}`;
-}
-
-function getProfileViewedStorageSnapshot(storageKey: string) {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(storageKey) ?? "[]";
-}
-
-function parseProfileViewedIds(rawValue: string | null) {
-  if (rawValue === null) return null;
-  try {
-    const parsed = rawValue ? JSON.parse(rawValue) : [];
-    if (!Array.isArray(parsed)) return new Set<string>();
-    return new Set(
-      parsed.filter((value): value is string => typeof value === "string")
-    );
-  } catch {
-    return new Set<string>();
-  }
-}
-
-function subscribeProfileViewedStorage(onStoreChange: () => void) {
-  if (typeof window === "undefined") return () => undefined;
-
-  const handleStorage = (event: StorageEvent) => {
-    if (!event.key || event.key.startsWith(ORG_PROFILE_VIEWED_STORAGE_PREFIX)) {
-      onStoreChange();
-    }
-  };
-
-  window.addEventListener("storage", handleStorage);
-  window.addEventListener(ORG_PROFILE_VIEWED_STORAGE_EVENT, onStoreChange);
-  return () => {
-    window.removeEventListener("storage", handleStorage);
-    window.removeEventListener(ORG_PROFILE_VIEWED_STORAGE_EVENT, onStoreChange);
-  };
-}
-
-function writeProfileViewedIds(storageKey: string, ids: ReadonlySet<string>) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(storageKey, JSON.stringify([...ids]));
-    window.dispatchEvent(new Event(ORG_PROFILE_VIEWED_STORAGE_EVENT));
-  } catch {
-    // Ignore storage failures; viewed state is only a local UI hint.
-  }
 }
 
 function RecommendedDateFilter({
@@ -306,6 +92,7 @@ function RecommendedDateFilter({
 }
 
 function CandidateCard({
+  canManageCandidates,
   item,
   onMove,
   onSelect,
@@ -313,6 +100,7 @@ function CandidateCard({
   stages,
   viewed,
 }: {
+  canManageCandidates: boolean;
   item: OrgBoardItem;
   onMove: (item: OrgBoardItem, stage: OrgStageId) => void;
   onSelect: (item: OrgBoardItem) => void;
@@ -327,7 +115,7 @@ function CandidateCard({
     <div
       role="button"
       tabIndex={0}
-      draggable={!pending}
+      draggable={canManageCandidates && !pending}
       onClick={() => onSelect(item)}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -336,11 +124,18 @@ function CandidateCard({
         }
       }}
       onDragStart={(event) => {
+        if (!canManageCandidates) {
+          event.preventDefault();
+          return;
+        }
         event.dataTransfer.effectAllowed = "move";
         event.dataTransfer.setData("text/plain", item.recommendationId);
       }}
       className={cx(
-        "cursor-grab rounded-sm border border-neutral-1000-a05 bg-bg-floating p-3 transition hover:border-neutral-1000-a10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 active:cursor-grabbing",
+        "rounded-sm border border-neutral-1000-a05 bg-bg-floating p-3 transition hover:border-neutral-1000-a10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
+        canManageCandidates
+          ? "cursor-grab active:cursor-grabbing"
+          : "cursor-pointer",
         pending && "cursor-wait opacity-60"
       )}
     >
@@ -349,19 +144,19 @@ function CandidateCard({
           <Image
             src={item.talent.profilePicture}
             alt=""
-            width={34}
-            height={34}
+            width={36}
+            height={36}
             unoptimized
-            className="h-[34px] w-[34px] shrink-0 rounded-full object-cover"
+            className="h-9 w-9 shrink-0 rounded-full object-cover"
           />
         ) : (
-          <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-bg-weak text-xs font-medium text-neutral-muted">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-bg-weak text-[12px] font-medium text-neutral-muted">
             {displayName.slice(0, 1).toUpperCase()}
           </div>
         )}
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-1.5">
-            <div className="truncate text-sm font-medium text-neutral-primary">
+            <div className="truncate text-[14px] font-medium text-neutral-primary">
               {displayName}
             </div>
             {!viewed ? (
@@ -373,34 +168,40 @@ function CandidateCard({
             ) : null}
           </div>
         </div>
-        <div
-          onClick={(event) => event.stopPropagation()}
-          onDragStart={(event) => event.stopPropagation()}
-          onPointerDown={(event) => event.stopPropagation()}
-        >
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="h-5 w-5 border-0 bg-transparent text-neutral-soft hover:bg-bg-weak hover:text-neutral-primary">
-                <MoreHorizontal className="h-4 w-4" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              {availableStages.map((stage) => (
-                <DropdownMenuItem
-                  key={stage.id}
-                  disabled={pending || stage.id === item.stage}
-                  onSelect={() => onMove(item, stage.id)}
+        {canManageCandidates ? (
+          <div
+            onClick={(event) => event.stopPropagation()}
+            onDragStart={(event) => event.stopPropagation()}
+            onPointerDown={(event) => event.stopPropagation()}
+          >
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <MuteButton
+                  aria-label="후보자 이동"
+                  size="sm"
+                  variant="transparent"
                 >
-                  {stage.label}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+                  <MoreHorizontal className="h-4 w-4" />
+                </MuteButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                {availableStages.map((stage) => (
+                  <DropdownMenuItem
+                    key={stage.id}
+                    disabled={pending || stage.id === item.stage}
+                    onSelect={() => onMove(item, stage.id)}
+                  >
+                    {stage.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        ) : null}
       </div>
 
       {item.talent.headline ? (
-        <div className="mt-2 line-clamp-2 text-xs leading-5 text-neutral-muted">
+        <div className="mt-2 line-clamp-2 text-[12px] leading-5 text-neutral-muted">
           {item.talent.headline}
         </div>
       ) : null}
@@ -418,12 +219,17 @@ function CandidateCard({
           />
         </div>
       </div>
+      {item.stage === "pending_connection" ? (
+        <div className="-mx-3 mt-3 bg-critical-faded px-3 py-1.5 text-[11px] font-medium text-critical">
+          결정이 필요합니다
+        </div>
+      ) : null}
       <div className="mt-3 flex flex-wrap gap-1.5">
-        <span className="rounded-sm bg-bg-weak px-1.5 py-0.5 text-[10px] leading-4 text-neutral-muted">
+        <span className="rounded-sm bg-bg-weak px-2 py-1 text-[11px] leading-4 text-neutral-muted">
           추천 {formatKstRelativeDate(item.recommendedAt)}
         </span>
         {item.roleName ? (
-          <span className="rounded-sm bg-bg-weak px-1.5 py-0.5 text-[10px] leading-4 text-neutral-muted">
+          <span className="rounded-sm bg-bg-weak px-2 py-1 text-[11px] leading-4 text-neutral-muted">
             {item.roleName}
           </span>
         ) : null}
@@ -433,6 +239,7 @@ function CandidateCard({
 }
 
 export function OrgPipeline({
+  canManageCandidates = true,
   activeRoleId,
   activeRoleName,
   activeRole,
@@ -440,6 +247,7 @@ export function OrgPipeline({
   currentUserEmail,
   error,
   isLoading,
+  members = [],
   onDeleteRole,
   nameQuery,
   onEditRole,
@@ -455,6 +263,7 @@ export function OrgPipeline({
   roleActionPending,
   workspaceId,
 }: {
+  canManageCandidates?: boolean;
   activeRoleId: string;
   activeRoleName?: string | null;
   activeRole?: OrgRole | null;
@@ -462,6 +271,7 @@ export function OrgPipeline({
   currentUserEmail?: string | null;
   error?: Error | null;
   isLoading?: boolean;
+  members?: Pick<OrgMember, "email" | "name" | "userId">[];
   onDeleteRole: (role: OrgRole) => void;
   nameQuery: string;
   onEditRole: () => void;
@@ -474,7 +284,7 @@ export function OrgPipeline({
     item: OrgBoardItem,
     stage: OrgStageId,
     options?: OrgStageChangeOptions
-  ) => void;
+  ) => void | Promise<void>;
   pendingRecommendationId?: string | null;
   recommendedFromDate: string;
   recommendedToDate: string;
@@ -498,6 +308,7 @@ export function OrgPipeline({
   const [customStageLabel, setCustomStageLabel] = useState("");
   const [customStageError, setCustomStageError] = useState("");
   const [customStageActionError, setCustomStageActionError] = useState("");
+  const [stageToDelete, setStageToDelete] = useState<OrgStage | null>(null);
   const createCustomStage = useCreateOrgReviewStage();
   const updateCustomStage = useUpdateOrgReviewStage();
   const deleteCustomStage = useDeleteOrgReviewStage();
@@ -510,32 +321,10 @@ export function OrgPipeline({
     : deleteCustomStage.isPending
       ? deleteCustomStage.variables?.stageId
       : null;
-  const viewedStorageKey = useMemo(
-    () => buildProfileViewedStorageKey({ currentUserEmail, workspaceId }),
-    [currentUserEmail, workspaceId]
-  );
-  const viewedStorageSnapshot = useSyncExternalStore(
-    subscribeProfileViewedStorage,
-    () => getProfileViewedStorageSnapshot(viewedStorageKey),
-    () => null
-  );
-  const viewedRecommendationIds = useMemo(
-    () => parseProfileViewedIds(viewedStorageSnapshot),
-    [viewedStorageSnapshot]
-  );
-
-  const markProfileViewed = (item: OrgBoardItem) => {
-    const current =
-      viewedRecommendationIds ??
-      parseProfileViewedIds(
-        getProfileViewedStorageSnapshot(viewedStorageKey)
-      ) ??
-      new Set<string>();
-    if (current.has(item.recommendationId)) return;
-    const next = new Set(current);
-    next.add(item.recommendationId);
-    writeProfileViewedIds(viewedStorageKey, next);
-  };
+  const { isViewed, markViewed } = useOrgViewedRecommendations({
+    currentUserEmail,
+    workspaceId,
+  });
   const itemsByStage = useMemo(() => {
     const map = new Map<OrgStageId, OrgBoardItem[]>();
     for (const stage of board?.stages ?? []) map.set(stage.id, []);
@@ -557,6 +346,7 @@ export function OrgPipeline({
     () =>
       (board?.stages ?? []).filter(
         (stage) =>
+          stage.id === "accepted" ||
           stage.id === "pending_connection" ||
           stage.id === "connected" ||
           Boolean(stage.roleId && stage.roleId === activeRoleId)
@@ -572,19 +362,21 @@ export function OrgPipeline({
   );
 
   const requestMove = (item: OrgBoardItem, stage: OrgStageId) => {
+    if (!canManageCandidates) return;
     if (item.stage === stage) return;
     if (stage === "process_stopped") {
       setStopItem(item);
       return;
     }
-    if (item.stage === "pending_connection") {
+    if (item.stage === "pending_connection" && stage !== "accepted") {
       setAcceptRequest({ item, stage });
       return;
     }
-    onStageChange(item, stage);
+    void Promise.resolve(onStageChange(item, stage)).catch(() => undefined);
   };
 
   const handleDrop = (event: DragEvent<HTMLElement>, stage: OrgStage) => {
+    if (!canManageCandidates) return;
     event.preventDefault();
     const recommendationId =
       event.dataTransfer.getData("text/plain") || draggedRecommendationId;
@@ -605,6 +397,7 @@ export function OrgPipeline({
   };
 
   const openCreateCustomStageDialog = () => {
+    if (!canManageCandidates) return;
     if (activeRoleId === "all") return;
     setCustomStageActionError("");
     setEditingCustomStage(null);
@@ -614,6 +407,7 @@ export function OrgPipeline({
   };
 
   const openEditCustomStageDialog = (stage: OrgStage) => {
+    if (!canManageCandidates) return;
     const stageId = getCustomStageDbId(stage.id);
     if (!stageId) return;
     setCustomStageActionError("");
@@ -660,26 +454,32 @@ export function OrgPipeline({
   };
 
   const handleDeleteCustomStage = (stage: OrgStage) => {
+    if (!canManageCandidates) return;
     const stageId = getCustomStageDbId(stage.id);
     if (!stageId || activeRoleId === "all") return;
-    if (!window.confirm(`"${stage.label}" 칼럼을 삭제할까요?`)) return;
     setCustomStageActionError("");
-    deleteCustomStage.mutate(
-      {
+    setStageToDelete(stage);
+  };
+
+  const confirmDeleteCustomStage = async () => {
+    if (!stageToDelete || activeRoleId === "all") return;
+    const stageId = getCustomStageDbId(stageToDelete.id);
+    if (!stageId) return;
+    setCustomStageActionError("");
+    try {
+      await deleteCustomStage.mutateAsync({
         roleId: activeRoleId,
         stageId,
         workspaceId,
-      },
-      {
-        onError: (deleteError) => {
-          setCustomStageActionError(
-            deleteError instanceof Error
-              ? deleteError.message
-              : "칼럼을 삭제하지 못했습니다."
-          );
-        },
-      }
-    );
+      });
+      setStageToDelete(null);
+    } catch (deleteError) {
+      setCustomStageActionError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "칼럼을 삭제하지 못했습니다."
+      );
+    }
   };
 
   const renderStageColumn = (stage: OrgStage, isLastColumn: boolean) => {
@@ -691,12 +491,15 @@ export function OrgPipeline({
     const isDropTarget = canDrop && dragOverStage === stage.id;
     const customStageId = getCustomStageDbId(stage.id);
     const isEditableCustomStage =
-      Boolean(customStageId) && stage.roleId === activeRoleId;
+      canManageCandidates &&
+      Boolean(customStageId) &&
+      stage.roleId === activeRoleId;
 
     return (
       <ReviewPipelineColumnShell
         key={stage.id}
         onDragOver={(event) => {
+          if (!canManageCandidates) return;
           if (!canDrop) return;
           event.preventDefault();
           event.dataTransfer.dropEffect = "move";
@@ -713,9 +516,19 @@ export function OrgPipeline({
         onDrop={(event) => handleDrop(event, stage)}
         canDrop={canDrop}
         isDropTarget={isDropTarget}
-        tone={stage.id === "process_stopped" ? "rejected" : "default"}
-        className={isLastColumn ? "border-r" : undefined}
+        tone={
+          stage.id === "accepted"
+            ? "accepted"
+            : stage.id === "process_stopped"
+              ? "rejected"
+              : "default"
+        }
+        className={cx(
+          stage.id === "accepted" && "relative isolate overflow-hidden",
+          isLastColumn && "border-r"
+        )}
       >
+        {stage.id === "accepted" ? <InternalOnlyHatch /> : null}
         <ReviewPipelineColumnHeader
           count={items.length}
           label={stage.label}
@@ -731,34 +544,34 @@ export function OrgPipeline({
           }
           pending={pendingCustomStageId === customStageId}
         />
-        <div className="space-y-2 p-2">
+        <div className="space-y-1.5 p-1.5">
           {isDropTarget ? (
             <ReviewPipelineDropTargetHint label={stage.label} />
           ) : null}
           {items.map((item) => (
             <div
               key={item.recommendationId}
-              onDragStart={() =>
-                setDraggedRecommendationId(item.recommendationId)
-              }
+              onDragStart={() => {
+                if (canManageCandidates) {
+                  setDraggedRecommendationId(item.recommendationId);
+                }
+              }}
               onDragEnd={() => {
                 setDraggedRecommendationId(null);
                 setDragOverStage(null);
               }}
             >
               <CandidateCard
+                canManageCandidates={canManageCandidates}
                 item={item}
                 onMove={requestMove}
                 onSelect={(selectedItem) => {
-                  markProfileViewed(selectedItem);
+                  markViewed(selectedItem.recommendationId);
                   onSelect(selectedItem);
                 }}
                 pending={pendingRecommendationId === item.recommendationId}
                 stages={board?.stages ?? []}
-                viewed={
-                  viewedRecommendationIds === null ||
-                  viewedRecommendationIds.has(item.recommendationId)
-                }
+                viewed={isViewed(item.recommendationId)}
               />
             </div>
           ))}
@@ -769,25 +582,27 @@ export function OrgPipeline({
   };
 
   return (
-    <section className="min-w-0 space-y-3">
+    <section className="min-w-0 space-y-4">
       <div className="flex flex-col gap-2 rounded-md py-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <div className="truncate text-sm font-medium text-neutral-primary">
+          <div className="truncate text-[15px] font-medium text-neutral-primary">
             {activeRoleName ?? "Role"} 설정
           </div>
-          <div className="mt-1 text-xs leading-5 text-neutral-muted">
+          <div className="mt-1 text-[13px] leading-5 text-neutral-muted">
             후보자에게 전달되는 역할명, 역할 설명, 위치, 그리고 연결되는 인재에
             대한 요청사항을 수정합니다.
           </div>
         </div>
-        <OrgRoleHeaderActions
-          role={activeRoleId === "all" ? null : activeRole}
-          pending={roleActionPending}
-          onEdit={() => onEditRole()}
-          onPause={onPauseRole}
-          onResume={onResumeRole}
-          onDelete={onDeleteRole}
-        />
+        {canManageCandidates ? (
+          <OrgRoleActionsMenu
+            role={activeRoleId === "all" ? null : activeRole}
+            pending={roleActionPending}
+            onEdit={() => onEditRole()}
+            onPause={onPauseRole}
+            onResume={onResumeRole}
+            onDelete={onDeleteRole}
+          />
+        ) : null}
       </div>
 
       <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
@@ -798,7 +613,7 @@ export function OrgPipeline({
               value={nameQuery}
               onChange={(event) => onNameQueryChange(event.target.value)}
               placeholder="이름 검색"
-              className="h-10 pl-9"
+              className="h-10 pl-9 text-[13px]"
             />
           </label>
           <RecommendedDateFilter
@@ -812,12 +627,14 @@ export function OrgPipeline({
       {error ? (
         <div className={opsTheme.errorNotice}>{error.message}</div>
       ) : null}
-      {customStageActionError && !customStageDialogOpen ? (
+      {customStageActionError &&
+      !customStageDialogOpen &&
+      !stageToDelete ? (
         <div className={opsTheme.errorNotice}>{customStageActionError}</div>
       ) : null}
 
       {isLoading ? (
-        <div className="flex h-48 items-center justify-center text-sm text-neutral-muted">
+        <div className="flex h-48 items-center justify-center text-[13px] text-neutral-muted">
           <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
           불러오는 중
         </div>
@@ -825,9 +642,11 @@ export function OrgPipeline({
         <div className="overflow-x-auto pb-2">
           <div className="flex min-w-max gap-0">
             {preOfferStages.map((stage) => renderStageColumn(stage, false))}
-            <ReviewPipelineColumnAddRail
-              onClick={openCreateCustomStageDialog}
-            />
+            {canManageCandidates ? (
+              <ReviewPipelineColumnAddRail
+                onClick={openCreateCustomStageDialog}
+              />
+            ) : null}
             {postOfferStages.map((stage, index) =>
               renderStageColumn(stage, index === postOfferStages.length - 1)
             )}
@@ -850,19 +669,65 @@ export function OrgPipeline({
         onClose={closeCustomStageDialog}
       />
 
+      <Dialog
+        open={Boolean(stageToDelete)}
+        onOpenChange={(open) => {
+          if (!open && !deleteCustomStage.isPending) setStageToDelete(null);
+        }}
+      >
+        <DialogContent className="max-w-sm gap-4 rounded-lg p-6">
+          <DialogHeader>
+            <DialogTitle className="text-[17px]">칼럼 삭제</DialogTitle>
+            <DialogDescription className="text-[13px] leading-5">
+              “{stageToDelete?.label}” 칼럼을 삭제합니다. 후보자가 남아 있다면
+              먼저 다른 칼럼으로 이동해 주세요.
+            </DialogDescription>
+          </DialogHeader>
+          {customStageActionError ? (
+            <div className="text-[12px] text-critical" role="alert">
+              {customStageActionError}
+            </div>
+          ) : null}
+          <DialogFooter>
+            <MuteButton
+              disabled={deleteCustomStage.isPending}
+              onClick={() => setStageToDelete(null)}
+              size="md"
+              type="button"
+            >
+              취소
+            </MuteButton>
+            <MuteButton
+              disabled={deleteCustomStage.isPending}
+              onClick={() => void confirmDeleteCustomStage()}
+              size="md"
+              type="button"
+              variant="warn"
+            >
+              {deleteCustomStage.isPending ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : null}
+              삭제
+            </MuteButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <AcceptIntroDialog
         candidateName={acceptRequest ? getDisplayName(acceptRequest.item) : ""}
         defaultEmail={currentUserEmail}
+        members={members}
         open={Boolean(acceptRequest)}
         pending={Boolean(
           acceptRequest &&
           pendingRecommendationId === acceptRequest.item.recommendationId
         )}
         onClose={() => setAcceptRequest(null)}
-        onSubmit={({ acceptReason, introEmails }) => {
+        onSubmit={async ({ acceptReason, contactDirectly, introEmails }) => {
           if (!acceptRequest) return;
-          onStageChange(acceptRequest.item, acceptRequest.stage, {
+          await onStageChange(acceptRequest.item, acceptRequest.stage, {
             acceptReason,
+            contactDirectly,
             introEmails,
           });
           setAcceptRequest(null);
@@ -878,9 +743,9 @@ export function OrgPipeline({
         )}
         showReasonChoice
         onClose={() => setStopItem(null)}
-        onSubmit={({ note, reason }) => {
+        onSubmit={async ({ note, reason }) => {
           if (!stopItem) return;
-          onStageChange(stopItem, "process_stopped", {
+          await onStageChange(stopItem, "process_stopped", {
             stopNote: note,
             stopReason: reason,
           });

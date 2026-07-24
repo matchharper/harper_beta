@@ -149,11 +149,13 @@ export type CareerInternalRecommendationProgressCode =
   | "company_acknowledged_awaiting_response"
   | "company_next_process"
   | "no_company_response_closed"
+  | "stopped_by_candidate"
   | "waiting_to_share";
 
 export type CareerInternalRecommendationProgressStage =
   | "accepted"
   | "archived"
+  | "connected"
   | "custom"
   | "final_offer"
   | "hold"

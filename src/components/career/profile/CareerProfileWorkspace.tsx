@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
+import { Loader2 } from "lucide-react";
 import CareerInPageTabs from "../CareerInPageTabs";
 import { useCareerSidebarContext } from "../CareerSidebarContext";
 import CareerTalentProfilePanel from "./CareerTalentProfilePanel";
@@ -56,8 +57,11 @@ const CareerProfileWorkspace = () => {
   const t = useCareerT();
   const router = useRouter();
   const logCareerEvent = useCareerLogEvent();
-  const { savedResumeFileName, savedResumeStoragePath } =
-    useCareerSidebarContext();
+  const {
+    savedResumeFileName,
+    savedResumeStoragePath,
+    workspaceDataLoading,
+  } = useCareerSidebarContext();
   const hasSavedResume = Boolean(savedResumeFileName || savedResumeStoragePath);
 
   const sectionItems = useMemo(
@@ -103,6 +107,24 @@ const CareerProfileWorkspace = () => {
     ) : (
       <CareerTalentProfilePanel />
     );
+
+  if (workspaceDataLoading) {
+    return (
+      <section
+        aria-busy="true"
+        aria-live="polite"
+        className="px-5 py-6"
+      >
+        <div className="flex items-center gap-2 text-[15px] leading-6 text-neutral-muted">
+          <Loader2 className="h-4 w-4 animate-spin text-neutral-primary" />
+          {t(
+            "career.common.career_history_panel.0s3czqf",
+            "저장된 정보를 불러오는 중입니다..."
+          )}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <>

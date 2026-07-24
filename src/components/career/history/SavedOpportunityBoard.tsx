@@ -13,6 +13,8 @@ import { BareButton } from "@/components/ui/button";
 import { useMessages, type Locale } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
 import { formatCareerLocation } from "@/lib/career/locationDisplay";
+import { InternalOpportunityDecisionMenu } from "./InternalOpportunityDecisionActions";
+import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/internalOpportunityDecision";
 
 type SavedOpportunityBoardProps = {
   columnLoadState: Record<
@@ -29,6 +31,10 @@ type SavedOpportunityBoardProps = {
   pendingOpportunityIds: Set<string>;
   onOpenDetail: (item: CareerHistoryOpportunity) => void;
   onLoadMoreColumn: (status: SavedOpportunityBoardStatus) => void;
+  onInternalDecisionAction?: (
+    item: CareerHistoryOpportunity,
+    action: CareerInternalOpportunityDecisionAction
+  ) => void;
   onStatusChange: (
     item: CareerHistoryOpportunity,
     status: SavedOpportunityBoardStatus
@@ -50,6 +56,7 @@ const SavedOpportunityBoardCard = ({
   dragging,
   onDragEnd,
   onDragStart,
+  onInternalDecisionAction,
   onOpenDetail,
 }: {
   item: CareerHistoryOpportunity;
@@ -57,7 +64,10 @@ const SavedOpportunityBoardCard = ({
   pending: boolean;
   dragging: boolean;
   onDragEnd: () => void;
-  onDragStart: (event: React.DragEvent<HTMLButtonElement>) => void;
+  onDragStart: (event: React.DragEvent<HTMLDivElement>) => void;
+  onInternalDecisionAction?: (
+    action: CareerInternalOpportunityDecisionAction
+  ) => void;
   onOpenDetail: () => void;
 }) => {
   const recommendedAgo = formatRelativeTime(item.recommendedAt, locale);
@@ -65,70 +75,86 @@ const SavedOpportunityBoardCard = ({
   const locationMeta = [displayLocation, item.workMode]
     .filter(Boolean)
     .join(" · ");
-  const canChangeStatus = canChangeCareerOpportunityManagementStatus(item);
+  const canChangeStatus =
+    !item.isInternal && canChangeCareerOpportunityManagementStatus(item);
 
   return (
-    <BareButton
-      type="button"
+    <div
       draggable={!pending && canChangeStatus}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      onClick={onOpenDetail}
-      disabled={pending}
       className={cn(
-        "group w-full rounded-[8px] border border-neutral-1000-a05 bg-bg-floating px-3 py-3 text-left transition-colors hover:border-neutral-400 hover:bg-bg-weak disabled:cursor-not-allowed disabled:opacity-60",
+        "group relative w-full rounded-[8px] border border-neutral-1000-a05 bg-bg-floating text-left transition-colors hover:border-neutral-400 hover:bg-bg-weak",
+        pending && "cursor-not-allowed opacity-60",
         dragging && "opacity-45"
       )}
     >
-      <div className="flex items-start gap-1">
-        {/* <GripVertical
-          className="mt-1 h-4 w-4 shrink-0 text-neutral-soft"
-          strokeWidth={1.2}
-        /> */}
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-2">
-            {item.companyLogoUrl ? (
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-neutral-1000-a05 bg-bg-default p-1">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={item.companyLogoUrl}
-                  alt={item.companyName}
-                  className="h-full w-full rounded-md object-cover"
-                />
-              </span>
-            ) : (
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-black text-neutral-00">
-                <Building2 className="h-3.5 w-3.5" />
-              </span>
-            )}
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-[13px] font-medium leading-5 text-neutral-primary">
-                {item.companyName}
+      {item.isInternal && onInternalDecisionAction ? (
+        <InternalOpportunityDecisionMenu
+          className="absolute right-2 top-2 z-10"
+          item={item}
+          pending={pending}
+          onCard
+          onAction={onInternalDecisionAction}
+        />
+      ) : null}
+      <BareButton
+        type="button"
+        onClick={onOpenDetail}
+        disabled={pending}
+        className="w-full px-3 py-3 text-left disabled:cursor-not-allowed"
+      >
+        <div className="flex items-start gap-1">
+          {/* <GripVertical
+            className="mt-1 h-4 w-4 shrink-0 text-neutral-soft"
+            strokeWidth={1.2}
+          /> */}
+          <div className="min-w-0 flex-1">
+            <div
+              className={cn(
+                "flex min-w-0 items-center gap-2",
+                item.isInternal && onInternalDecisionAction && "pr-9"
+              )}
+            >
+              {item.companyLogoUrl ? (
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-neutral-1000-a05 bg-bg-default p-1">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={item.companyLogoUrl}
+                    alt={item.companyName}
+                    className="h-full w-full rounded-md object-cover"
+                  />
+                </span>
+              ) : (
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-black text-neutral-00">
+                  <Building2 className="h-3.5 w-3.5" />
+                </span>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[13px] font-medium leading-5 text-neutral-primary">
+                  {item.companyName}
+                </div>
+                <div className="mt-0.5 line-clamp-2 text-[12px] leading-4 text-neutral-muted">
+                  {locationMeta}
+                </div>
               </div>
-              <div className="mt-0.5 line-clamp-2 text-[12px] leading-4 text-neutral-muted">
-                {locationMeta}
-              </div>
+              {pending ? (
+                <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-neutral-muted" />
+              ) : null}
             </div>
-            {pending ? (
-              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-neutral-muted" />
+
+            <div className="mt-3 line-clamp-2 text-[14px] font-normal leading-5 text-neutral-primary">
+              {item.title}
+            </div>
+            {recommendedAgo ? (
+              <div className="mt-2 truncate text-[12px] leading-4 text-neutral-muted">
+                {recommendedAgo}
+              </div>
             ) : null}
           </div>
-
-          <div className="mt-3 line-clamp-2 text-[14px] font-normal leading-5 text-neutral-primary">
-            {item.title}
-          </div>
-          {recommendedAgo ? (
-            <div className="mt-2 truncate text-[12px] leading-4 text-neutral-muted">
-              {recommendedAgo}
-            </div>
-          ) : null}
-
-          {item.isInternal ? (
-            <span className="inline-flex h-5 items-center rounded-md border border-neutral-1000-a10 bg-bg-weak px-1.5 text-[11px] font-medium leading-none text-neutral-primary"></span>
-          ) : null}
         </div>
-      </div>
-    </BareButton>
+      </BareButton>
+    </div>
   );
 };
 
@@ -139,6 +165,7 @@ function SavedOpportunityBoard({
   pendingOpportunityIds,
   onOpenDetail,
   onLoadMoreColumn,
+  onInternalDecisionAction,
   onStatusChange,
 }: SavedOpportunityBoardProps) {
   const t = useCareerT();
@@ -227,6 +254,7 @@ function SavedOpportunityBoard({
                 if (!draggingOpportunityId) return;
                 const item = itemById.get(draggingOpportunityId);
                 if (!item) return;
+                if (item.isInternal) return;
                 if (!canChangeCareerOpportunityManagementStatus(item)) return;
                 onStatusChange(item, column.id);
                 setDraggingOpportunityId(null);
@@ -260,6 +288,11 @@ function SavedOpportunityBoard({
                         setDraggingOpportunityId(item.id);
                       }}
                       onDragEnd={() => setDraggingOpportunityId(null)}
+                      onInternalDecisionAction={
+                        onInternalDecisionAction
+                          ? (action) => onInternalDecisionAction(item, action)
+                          : undefined
+                      }
                       onOpenDetail={() => onOpenDetail(item)}
                     />
                   );

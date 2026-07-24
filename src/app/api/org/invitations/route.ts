@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { OrgHttpError, sendOrgWorkspaceInvitations } from "@/lib/org/server";
+import {
+  cancelOrgWorkspaceInvitation,
+  OrgHttpError,
+  sendOrgWorkspaceInvitations,
+} from "@/lib/org/server";
 import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 import { getPublicSiteUrlFromRequest } from "@/lib/siteUrl";
 
@@ -25,11 +29,31 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthenticatedUser(req);
     const body = (await req.json().catch(() => ({}))) as {
       emails?: unknown;
+      role?: unknown;
       workspaceId?: string;
     };
     const payload = await sendOrgWorkspaceInvitations({
       emails: body.emails,
+      role: body.role,
       siteUrl: getPublicSiteUrlFromRequest(req),
+      user,
+      workspaceId: body.workspaceId ?? "",
+    });
+    return NextResponse.json(payload);
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const user = await requireAuthenticatedUser(req);
+    const body = (await req.json().catch(() => ({}))) as {
+      invitationId?: string;
+      workspaceId?: string;
+    };
+    const payload = await cancelOrgWorkspaceInvitation({
+      invitationId: body.invitationId ?? "",
       user,
       workspaceId: body.workspaceId ?? "",
     });

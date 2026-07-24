@@ -5,8 +5,10 @@ import type {
   OrgBootstrapResponse,
   OrgFeedCreateResponse,
   OrgFeedMutationResponse,
+  OrgInvitationMutationResponse,
   OrgInvitePreviewResponse,
   OrgInviteSendResponse,
+  OrgMembershipRoleUpdateResponse,
   OrgRoleReviewStageCreateResponse,
   OrgRoleReviewStageDeleteResponse,
   OrgRoleReviewStageUpdateResponse,
@@ -16,6 +18,7 @@ import type {
   OrgTalentDetailResponse,
   OrgWorkspaceLeaveResponse,
 } from "@/lib/org/server";
+import type { OrgMembershipRole } from "@/lib/org/permissions";
 import { queryKeys } from "@/lib/queryKeys";
 
 type OrgBoardFilters = {
@@ -76,7 +79,11 @@ export function useOrgInvitePreview(args: {
 export function useSendOrgInvitations() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (args: { emails: string[]; workspaceId: string }) =>
+    mutationFn: (args: {
+      emails: string[];
+      role: OrgMembershipRole;
+      workspaceId: string;
+    }) =>
       fetchWithInternalAuth<OrgInviteSendResponse>("/api/org/invitations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -84,7 +91,49 @@ export function useSendOrgInvitations() {
       }),
     onSuccess: () =>
       queryClient.invalidateQueries({
-        queryKey: queryKeys.org.all,
+        queryKey: queryKeys.org.bootstrapAll,
+      }),
+  });
+}
+
+export function useCancelOrgInvitation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { invitationId: string; workspaceId: string }) =>
+      fetchWithInternalAuth<OrgInvitationMutationResponse>(
+        "/api/org/invitations",
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(args),
+        }
+      ),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.org.bootstrapAll,
+      }),
+  });
+}
+
+export function useUpdateOrgMembershipRole() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: {
+      role: OrgMembershipRole;
+      userId: string;
+      workspaceId: string;
+    }) =>
+      fetchWithInternalAuth<OrgMembershipRoleUpdateResponse>(
+        "/api/org/membership",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(args),
+        }
+      ),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.org.bootstrapAll,
       }),
   });
 }
@@ -172,6 +221,7 @@ export function useSetOrgCandidateStage() {
   return useMutation({
     mutationFn: (args: {
       acceptReason?: OrgStageChangeOptions["acceptReason"];
+      contactDirectly?: OrgStageChangeOptions["contactDirectly"];
       introEmails?: OrgStageChangeOptions["introEmails"];
       recommendationId: string;
       roleId: string;
@@ -189,9 +239,11 @@ export function useSetOrgCandidateStage() {
           body: JSON.stringify(args),
         }
       ),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.org.all });
-    },
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.org.boardAll }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.org.detailAll }),
+      ]),
   });
 }
 
@@ -210,9 +262,8 @@ export function useCreateOrgFeedItem() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(args),
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.org.all });
-    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.org.detailAll }),
   });
 }
 
@@ -229,9 +280,8 @@ export function useUpdateOrgFeedItem() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(args),
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.org.all });
-    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.org.detailAll }),
   });
 }
 
@@ -244,9 +294,8 @@ export function useDeleteOrgFeedItem() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(args),
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.org.all });
-    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.org.detailAll }),
   });
 }
 
@@ -266,9 +315,8 @@ export function useCreateOrgReviewStage() {
           body: JSON.stringify(args),
         }
       ),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.org.all });
-    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.org.boardAll }),
   });
 }
 
@@ -289,9 +337,8 @@ export function useUpdateOrgReviewStage() {
           body: JSON.stringify(args),
         }
       ),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.org.all });
-    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.org.boardAll }),
   });
 }
 
@@ -311,9 +358,8 @@ export function useDeleteOrgReviewStage() {
           body: JSON.stringify(args),
         }
       ),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.org.all });
-    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.org.boardAll }),
   });
 }
 
@@ -331,9 +377,8 @@ export function useOpenOrgResume() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(args),
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.org.all });
-    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.org.detailAll }),
   });
 }
 
@@ -351,9 +396,8 @@ export function useUpdateOrgWorkspace() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(args),
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.org.all });
-    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.org.bootstrapAll }),
   });
 }
 
@@ -378,8 +422,11 @@ export function useUpdateOrgRole() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(args),
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.org.all });
-    },
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.org.bootstrapAll }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.org.boardAll }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.org.detailAll }),
+      ]),
   });
 }

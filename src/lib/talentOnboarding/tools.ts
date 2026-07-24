@@ -2,6 +2,7 @@ import { runWebSearch } from "@/lib/tools/webSearch";
 import {
   fetchTalentOpportunityHistory,
   fetchTalentOpportunityHistoryByIds,
+  fetchTalentOpportunityHistoryByRoleIds,
   updateTalentOpportunityHistoryItem,
   type TalentOpportunityFeedback,
   type TalentOpportunityHistoryItem,
@@ -63,6 +64,7 @@ import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import { formatCareerPromptCompactDateTime } from "@/lib/career/prompts/promptUtils";
 import { searchInternalRolesForCareerTool } from "@/lib/career/internalRoleSearch";
 import { IncomingWebhook } from "@slack/webhook";
+import { notifyInternalOpportunityDecisionSlack } from "@/lib/internalOpportunityDecisionSlack";
 
 export type TalentToolChannel = "chat" | "voice";
 
@@ -650,10 +652,15 @@ async function resolveRecommendedOpportunityForFeedbackUpdate(args: {
   if (args.opportunityId) {
     const postingRoleId = getPostingRoleIdFromOpportunityId(args.opportunityId);
     if (postingRoleId) {
+      const [opportunity] = await fetchTalentOpportunityHistoryByRoleIds({
+        admin: args.admin,
+        roleIds: [postingRoleId],
+        userId: args.userId,
+      });
       return {
         ok: true as const,
-        opportunity: null,
-        updateOpportunityId: args.opportunityId,
+        opportunity: opportunity ?? null,
+        updateOpportunityId: opportunity?.id ?? args.opportunityId,
       };
     }
 
@@ -680,10 +687,15 @@ async function resolveRecommendedOpportunityForFeedbackUpdate(args: {
 
   if (args.roleId) {
     const roleId = args.roleId;
+    const [opportunity] = await fetchTalentOpportunityHistoryByRoleIds({
+      admin: args.admin,
+      roleIds: [roleId],
+      userId: args.userId,
+    });
     return {
       ok: true as const,
-      opportunity: null,
-      updateOpportunityId: toPostingOpportunityId(roleId),
+      opportunity: opportunity ?? null,
+      updateOpportunityId: opportunity?.id ?? toPostingOpportunityId(roleId),
     };
   }
 
@@ -733,6 +745,7 @@ async function updateRecommendedOpportunityFeedback(args: {
   roleTitle: string | null;
   userId: string;
   conversationId?: string | null;
+  isMobile?: boolean | null;
 }) {
   const resolved = await resolveRecommendedOpportunityForFeedbackUpdate({
     admin: args.admin,
@@ -760,6 +773,8 @@ async function updateRecommendedOpportunityFeedback(args: {
   const result = await updateTalentOpportunityHistoryItem({
     action: "feedback",
     admin: args.admin,
+    clearEmailAcceptanceConfirmation:
+      resolved.opportunity?.sourceType === "internal",
     feedback,
     feedbackReason: args.feedbackReason,
     opportunityId: resolved.updateOpportunityId,
@@ -779,6 +794,21 @@ async function updateRecommendedOpportunityFeedback(args: {
       conversationId: args.conversationId ?? null,
       feedbackReason: args.feedbackReason,
       opportunity: updatedOpportunity,
+      userId: args.userId,
+    });
+
+    await notifyInternalOpportunityDecisionSlack({
+      admin: args.admin,
+      decision: feedback,
+      deviceLabel:
+        typeof args.isMobile === "boolean"
+          ? args.isMobile
+            ? "모바일"
+            : "데스크탑"
+          : null,
+      feedbackReason: args.feedbackReason,
+      opportunity: updatedOpportunity,
+      sourceLabel: "Harper 채팅",
       userId: args.userId,
     });
   }
@@ -1733,6 +1763,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         roleId,
         roleTitle: optionalToolString(input.roleTitle),
         userId,
+        isMobile: context?.isMobile,
       });
     },
   },

@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { openCustomCrispWidget } from "@/lib/feedback/customCrispEvents";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
-import { BareButton, Button, CardButton } from "@/components/ui/button";
+import { BareButton, CardButton, MuteButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useMessages, type Locale } from "@/i18n/useMessage";
@@ -510,15 +510,13 @@ const CareerProfileMenu = ({
             ) : null}
           </div>
           <footer className="flex justify-end border-t border-neutral-1000-a05 px-5 py-4">
-            <Button
+            <MuteButton
               type="button"
-              variant="secondary"
-              size="sm"
               disabled={Boolean(languagePending)}
               onClick={() => setLanguageModalOpen(false)}
             >
               {t("career.profile.language_selector.close", "닫기")}
-            </Button>
+            </MuteButton>
           </footer>
         </section>
       </TalentCareerModal>

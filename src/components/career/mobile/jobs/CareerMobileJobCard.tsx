@@ -26,6 +26,9 @@ import { cn } from "@/lib/utils";
 import { useMessages } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
 import { formatCareerLocation } from "@/lib/career/locationDisplay";
+import { InternalOpportunityDecisionMenu } from "@/components/career/history/InternalOpportunityDecisionActions";
+import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/internalOpportunityDecision";
+import { normalizeHarperPublicImageUrl } from "@/lib/imageUrl";
 
 type CareerMobileJobCardProps = {
   item: CareerHistoryOpportunity;
@@ -34,6 +37,9 @@ type CareerMobileJobCardProps = {
   onOpenDetail: () => void;
   onOpenCompanyInfo?: (item: CareerHistoryOpportunity) => void;
   onOpenOpportunityInfo?: (type: CareerOpportunityType) => void;
+  onInternalDecisionAction?: (
+    action: CareerInternalOpportunityDecisionAction
+  ) => void;
   onStatusChange?: (status: CareerOpportunityManagementStatus) => void;
 };
 
@@ -44,6 +50,7 @@ export const CareerMobileJobCard = React.memo(function CareerMobileJobCard({
   onOpenDetail,
   onOpenCompanyInfo,
   onOpenOpportunityInfo,
+  onInternalDecisionAction,
   onStatusChange,
 }: CareerMobileJobCardProps) {
   const t = useCareerT();
@@ -56,6 +63,7 @@ export const CareerMobileJobCard = React.memo(function CareerMobileJobCard({
     1
   );
   const companyInfoLink = item.companyHomepageUrl ?? item.companyLinkedinUrl;
+  const companyLogoSrc = normalizeHarperPublicImageUrl(item.companyLogoUrl);
   const canChangeStatus = canChangeCareerOpportunityManagementStatus(item);
   const canOpenCompanyInfo = Boolean(
     onOpenCompanyInfo && (item.companyDbId || companyInfoLink)
@@ -80,7 +88,14 @@ export const CareerMobileJobCard = React.memo(function CareerMobileJobCard({
   return (
     <InlinePanel className="relative rounded-[8px] border border-neutral-1000-a05 bg-bg-floating p-4 transition-colors active:bg-bg-weak">
       <div className="absolute right-2 top-2 z-10">
-        {onStatusChange && canChangeStatus ? (
+        {item.isInternal && onInternalDecisionAction ? (
+          <InternalOpportunityDecisionMenu
+            onCard
+            item={item}
+            pending={pending}
+            onAction={onInternalDecisionAction}
+          />
+        ) : onStatusChange && canChangeStatus ? (
           <CareerMobileJobStatusDropdown
             disabled={pending}
             status={status}
@@ -103,9 +118,9 @@ export const CareerMobileJobCard = React.memo(function CareerMobileJobCard({
           </div>
           <header className="flex items-start gap-3">
             <div className="flex shrink-0 items-center justify-center rounded-md border border-neutral-1000-a05 bg-bg-floating p-1">
-              {item.companyLogoUrl ? (
+              {companyLogoSrc ? (
                 <Image
-                  src={item.companyLogoUrl}
+                  src={companyLogoSrc}
                   alt={item.companyName}
                   width={28}
                   height={28}

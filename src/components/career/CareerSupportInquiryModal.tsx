@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { showToast } from "@/components/toast/toast";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
-import { BareButton } from "@/components/ui/button";
+import { BareButton, MuteButton } from "@/components/ui/button";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
 import { useCareerT } from "@/i18n/useCareerT";
 
@@ -135,17 +135,18 @@ const CareerSupportInquiryModal = ({
         }}
         className="relative z-10 w-full max-w-[460px] rounded-2xl border border-neutral-1000-a05 bg-bg-floating p-5 shadow-[0_20px_60px_color-mix(in_srgb,var(--color-neutral-1000)_18%,transparent)]"
       >
-        <BareButton
+        <MuteButton
           type="button"
+          variant="transparent"
           onClick={handleClose}
           disabled={submitting}
           aria-label={"문의 모달 닫기"}
-          className="absolute right-3 top-3 inline-flex h-11 w-11 items-center justify-center rounded-lg text-neutral-soft transition hover:bg-black/5 hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-40 md:h-8 md:w-8"
+          className="absolute right-3 top-3 h-11 w-11 p-0 md:h-auto md:w-auto md:p-[7px]"
         >
           <X className="h-4 w-4" />
-        </BareButton>
+        </MuteButton>
         <div className="pr-8">
-          <h2 className="text-lg font-semibold text-neutral-primary">
+          <h2 className="text-base font-medium text-neutral-primary">
             {t(
               "career.common.career_support_inquiry_modal.012iiio",
               "개선사항 혹은 문의사항을 알려주세요."
@@ -191,18 +192,19 @@ const CareerSupportInquiryModal = ({
           </label>
         </div>
         <div className="mt-5 flex justify-end gap-2">
-          <BareButton
+          <MuteButton
             type="button"
+            size="lg"
             onClick={handleClose}
             disabled={submitting}
-            className="inline-flex h-11 items-center justify-center rounded-xl border border-neutral-1000-a05 bg-bg-floating px-4 text-sm font-medium text-neutral-muted transition hover:bg-bg-weak disabled:cursor-not-allowed disabled:opacity-40 md:h-10"
           >
             {t("career.common.career_support_inquiry_modal.11apzn2", "닫기")}
-          </BareButton>
-          <BareButton
+          </MuteButton>
+          <MuteButton
             type="submit"
             disabled={submitting}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-medium text-neutral-00 transition hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-40 md:h-10"
+            variant="dark"
+            size="lg"
           >
             {submitting ? (
               <>
@@ -218,7 +220,7 @@ const CareerSupportInquiryModal = ({
                 "문의 보내기"
               )
             )}
-          </BareButton>
+          </MuteButton>
         </div>
       </form>
     </div>

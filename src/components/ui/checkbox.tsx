@@ -20,14 +20,14 @@ export interface CheckboxProps extends Omit<
 }
 
 const checkboxSizeClassNames: Record<CheckboxSize, string> = {
-  small: "size-4 rounded-[5px]",
-  medium: "size-5 rounded-md",
-  large: "size-6 rounded-md",
+  small: "size-3 rounded-[0px]",
+  medium: "size-4 rounded-sm",
+  large: "size-5 rounded-sm",
 };
 
 const labelSizeClassNames: Record<CheckboxSize, string> = {
   small: "text-[13px] leading-5",
-  medium: "text-[14px] leading-[22px]",
+  medium: "text-[13px] leading-[20px]",
   large: "text-[16px] leading-6",
 };
 
@@ -119,7 +119,7 @@ const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
           unstyled
             ? className
             : cn(
-                "shrink-0 appearance-none bg-bg-floating bg-center bg-no-repeat bg-size-[14px_14px] outline-none transition-[background-color,border-color,opacity,transform] focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:cursor-not-allowed disabled:opacity-55 active:scale-[0.97]",
+                "shrink-0 appearance-none bg-bg-floating bg-center bg-no-repeat bg-size-[14px_14px] outline-none transition-[opacity,transform] focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:cursor-not-allowed disabled:opacity-55 active:scale-[0.97]",
                 checkboxSizeClassNames[size],
                 state === "error"
                   ? "border border-[#9b2e1e33]"
@@ -140,7 +140,7 @@ const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
     return (
       <label
         className={cn(
-          "inline-flex items-start gap-2",
+          "inline-flex items-center gap-2",
           resolvedDisabled ? "cursor-not-allowed" : "cursor-pointer",
           className
         )}
@@ -154,7 +154,7 @@ const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
                 labelSizeClassNames[size],
                 resolvedDisabled
                   ? "text-neutral-disabled"
-                  : "text-neutral-primary"
+                  : "text-neutral-muted hover:text-neutral-primary"
               )}
             >
               {label}

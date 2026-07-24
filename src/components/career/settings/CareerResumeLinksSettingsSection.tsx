@@ -20,7 +20,7 @@ import { showToast } from "@/components/toast/toast";
 import { pickLinkedinProfileLink } from "@/hooks/career/careerHelpers";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { AttentionBadge } from "@/components/ui/badge";
-import { SecondaryButton, BareButton } from "@/components/ui/button";
+import { BareButton, MuteButton } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldLabel } from "@/components/ui/panel";
 import { Tooltips } from "@/components/ui/tooltip";
@@ -308,31 +308,31 @@ const CareerResumeLinksSettingsSection = () => {
                 className="h-9 flex-1 rounded-lg border border-neutral-400 bg-bg-floating px-2 text-sm text-neutral-primary outline-none transition-colors focus:border-neutral-800"
               />
               {index >= CAREER_LINK_ITEMS.length && (
-                <BareButton
+                <MuteButton
                   type="button"
                   onClick={() => {
                     logCareerEvent("click_resume_links_remove_link");
                     onRemoveProfileLink(index);
                   }}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-floating text-neutral-muted transition-colors hover:border-neutral-800 hover:bg-bg-weak hover:text-neutral-primary"
+                  aria-label={t("career.settings.career_resume_links_settings_section.114mcb5", "링크 삭제")}
                 >
                   <X className="h-4 w-4" />
-                </BareButton>
+                </MuteButton>
               )}
             </div>
           ))}
         </div>
 
-        <SecondaryButton
+        <MuteButton
           onClick={() => {
             logCareerEvent("click_resume_links_add_link");
             onAddProfileLink();
           }}
-          className="mt-5"
+          className="mt-5 gap-1.5"
         >
           <Plus className="h-3.5 w-3.5" />
           {t("career.chat.career_timeline_section.1gvzqes", "링크 추가")}
-        </SecondaryButton>
+        </MuteButton>
       </div>
 
       {profileSaveError && (

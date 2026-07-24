@@ -46,11 +46,9 @@ import {
   getCareerOpportunitySortPriority,
   getCareerOpportunityTypeLabel,
   getCareerPositiveActionLabel,
-  shouldCollectCareerPositiveFeedbackReason,
 } from "./opportunityTypeMeta";
 import {
   HistoryNegativeFeedbackModal,
-  HistoryPositiveFeedbackModal,
   hasExternalAlreadyAppliedFeedbackReason,
   parseNegativeFeedbackReason,
   serializeNegativeFeedbackReason,
@@ -65,9 +63,7 @@ import HistoryOpportunityDetailContent, {
 import HistoryOpportunityInfoModal from "./history/HistoryOppotunityInfoModal";
 import HistoryShortcutPanel from "./history/HistoryShortcutPanel";
 import CareerCompanyDetailDrawer from "./watchlist/CareerCompanyDetailDrawer";
-import InternalConnectionOnboardingModal, {
-  shouldBlockInternalConnectionAcceptance,
-} from "./InternalConnectionOnboardingModal";
+import InternalConnectionAcceptanceModal from "./InternalConnectionAcceptanceModal";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import React from "react";
 import {
@@ -92,6 +88,10 @@ import {
   useCareerWorkspaceUiStore,
   type CareerSavedHistoryDisplayMode,
 } from "@/store/useCareerWorkspaceUiStore";
+import {
+  InternalOpportunityDecisionChangeModal,
+  type InternalOpportunityDecisionChangeRequest,
+} from "./history/InternalOpportunityDecisionActions";
 import { getHistoryOpportunityBucket } from "@/hooks/career/careerSessionData";
 
 type HistoryTabId = "new" | "saved" | "archived";
@@ -271,9 +271,6 @@ export const getOpportunityStatusLabel = (
   return null;
 };
 
-const shouldCollectPositiveReason = (item: CareerHistoryOpportunity) =>
-  shouldCollectCareerPositiveFeedbackReason(item.opportunityType);
-
 export const getMetaItems = (
   item: CareerHistoryOpportunity,
   t?: CareerTHelper
@@ -334,6 +331,7 @@ export const HistoryFeedbackButton = ({
 type HistoryEmptyStateVariant = "onboarding" | "searching" | "matching";
 
 const SAVED_BOARD_MIN_ITEMS_PER_COLUMN = 4;
+const SAVED_LIST_INITIAL_PAGE_SIZE = 10;
 const SAVED_BOARD_COLUMN_STATUSES = [
   "saved",
   "applied",
@@ -644,6 +642,7 @@ const CareerHistoryPanel = () => {
     onLoadHistoryOpportunityByRoleId,
     onMarkHistoryOpportunityClicked,
     onMarkHistoryOpportunityViewed,
+    onChangeInternalHistoryOpportunityDecision,
     onUpdateHistoryOpportunityFeedback,
     onUpdateHistoryOpportunitySavedStage,
     onUpdateHistoryOpportunityTalentMemo,
@@ -677,18 +676,17 @@ const CareerHistoryPanel = () => {
   const [infoOpportunityType, setInfoOpportunityType] =
     useState<CareerOpportunityType | null>(null);
   const [
-    internalConnectionOnboardingOpportunityId,
-    setInternalConnectionOnboardingOpportunityId,
-  ] = useState<string | null>(null);
-  const [positivePromptOpportunityId, setPositivePromptOpportunityId] =
-    useState<string | null>(null);
-  const [positivePromptDraft, setPositivePromptDraft] = useState("");
+    internalConnectionAcceptanceOpportunity,
+    setInternalConnectionAcceptanceOpportunity,
+  ] = useState<CareerHistoryOpportunity | null>(null);
   const [negativePromptOpportunityId, setNegativePromptOpportunityId] =
     useState<string | null>(null);
   const [negativePromptSelectedOptions, setNegativePromptSelectedOptions] =
     useState<string[]>([]);
   const [negativePromptCustomReason, setNegativePromptCustomReason] =
     useState("");
+  const [internalDecisionChangeRequest, setInternalDecisionChangeRequest] =
+    useState<InternalOpportunityDecisionChangeRequest | null>(null);
   const [companyDetailCompanyDbId, setCompanyDetailCompanyDbId] = useState<
     number | null
   >(null);
@@ -711,14 +709,6 @@ const CareerHistoryPanel = () => {
       });
     },
     [logCareerEvent, router]
-  );
-
-  const openInternalConnectionOnboardingModal = useCallback(
-    (item: CareerHistoryOpportunity) => {
-      logCareerEvent("view_history_internal_connection_onboarding_gate");
-      setInternalConnectionOnboardingOpportunityId(item.id);
-    },
-    [logCareerEvent]
   );
 
   const startOnboardingChatFromGate = useCallback(() => {
@@ -1000,29 +990,7 @@ const CareerHistoryPanel = () => {
     [modalOpportunityId, opportunityById]
   );
 
-  const internalConnectionOnboardingOpportunity = useMemo(
-    () =>
-      internalConnectionOnboardingOpportunityId
-        ? (opportunityById.get(internalConnectionOnboardingOpportunityId) ??
-          null)
-        : null,
-    [internalConnectionOnboardingOpportunityId, opportunityById]
-  );
-
   const isCareerOnboardingComplete = isOnboardingDone || stage === "completed";
-  const shouldGateInternalConnection = useCallback(
-    (item: CareerHistoryOpportunity) =>
-      shouldBlockInternalConnectionAcceptance(item, isCareerOnboardingComplete),
-    [isCareerOnboardingComplete]
-  );
-
-  const positivePromptOpportunity = useMemo(
-    () =>
-      positivePromptOpportunityId
-        ? (opportunityById.get(positivePromptOpportunityId) ?? null)
-        : null,
-    [opportunityById, positivePromptOpportunityId]
-  );
 
   const negativePromptOpportunity = useMemo(
     () =>
@@ -1385,14 +1353,6 @@ const CareerHistoryPanel = () => {
     [logCareerEvent, onMarkHistoryOpportunityClicked, openUrl]
   );
 
-  const requestPositiveFeedback = useCallback(
-    (item: CareerHistoryOpportunity) => {
-      setPositivePromptOpportunityId(item.id);
-      setPositivePromptDraft(item.feedbackReason ?? "");
-    },
-    []
-  );
-
   const requestNegativeFeedback = useCallback(
     (item: CareerHistoryOpportunity) => {
       const parsedReason = parseNegativeFeedbackReason(item);
@@ -1489,13 +1449,9 @@ const CareerHistoryPanel = () => {
   const handlePositiveAction = useCallback(
     (item: CareerHistoryOpportunity) => {
       logCareerEvent("click_history_positive");
-      if (shouldGateInternalConnection(item)) {
-        openInternalConnectionOnboardingModal(item);
-        return;
-      }
-
-      if (shouldCollectPositiveReason(item)) {
-        requestPositiveFeedback(item);
+      if (item.sourceType === "internal") {
+        logCareerEvent("view_history_internal_connection_acceptance_modal");
+        setInternalConnectionAcceptanceOpportunity(item);
         return;
       }
 
@@ -1504,14 +1460,7 @@ const CareerHistoryPanel = () => {
         savedStage: getDefaultSavedStage(item),
       });
     },
-    [
-      rememberFeedbackAdvanceTarget,
-      logCareerEvent,
-      openInternalConnectionOnboardingModal,
-      requestPositiveFeedback,
-      shouldGateInternalConnection,
-      updateFeedbackForItem,
-    ]
+    [rememberFeedbackAdvanceTarget, logCareerEvent, updateFeedbackForItem]
   );
 
   const handleNegativeAction = useCallback(
@@ -1521,27 +1470,6 @@ const CareerHistoryPanel = () => {
     },
     [logCareerEvent, requestNegativeFeedback]
   );
-
-  const handleSubmitPositivePrompt = useCallback(() => {
-    if (!positivePromptOpportunity) return;
-
-    logCareerEvent("click_history_submit_positive_reason");
-    const feedbackReason = positivePromptDraft.trim();
-
-    rememberFeedbackAdvanceTarget(positivePromptOpportunity);
-    updateFeedbackForItem(positivePromptOpportunity, "positive", {
-      feedbackReason: feedbackReason || null,
-      savedStage: getDefaultSavedStage(positivePromptOpportunity),
-    });
-    setPositivePromptOpportunityId(null);
-    setPositivePromptDraft("");
-  }, [
-    positivePromptDraft,
-    positivePromptOpportunity,
-    logCareerEvent,
-    rememberFeedbackAdvanceTarget,
-    updateFeedbackForItem,
-  ]);
 
   const handleSubmitNegativePrompt = useCallback(() => {
     if (!negativePromptOpportunity) return;
@@ -1554,7 +1482,9 @@ const CareerHistoryPanel = () => {
     });
 
     rememberFeedbackAdvanceTarget(negativePromptOpportunity);
-    if (hasExternalAlreadyAppliedFeedbackReason(negativePromptSelectedOptions)) {
+    if (
+      hasExternalAlreadyAppliedFeedbackReason(negativePromptSelectedOptions)
+    ) {
       updateFeedbackForItem(negativePromptOpportunity, "positive", {
         feedbackReason: EXTERNAL_ALREADY_APPLIED_FEEDBACK_REASON,
         savedStage: "closed",
@@ -1585,7 +1515,7 @@ const CareerHistoryPanel = () => {
       activeTab !== "new" ||
       !activeOpportunity ||
       infoOpportunityType ||
-      positivePromptOpportunity ||
+      internalConnectionAcceptanceOpportunity ||
       negativePromptOpportunity
     ) {
       return;
@@ -1631,9 +1561,9 @@ const CareerHistoryPanel = () => {
     handleMoveNextOpportunity,
     handlePositiveAction,
     infoOpportunityType,
+    internalConnectionAcceptanceOpportunity,
     moveActiveOpportunity,
     negativePromptOpportunity,
-    positivePromptOpportunity,
   ]);
 
   const tabs = useMemo<CareerInPageTabItem<HistoryDisplayTabId>[]>(
@@ -1758,6 +1688,35 @@ const CareerHistoryPanel = () => {
       roleId: null,
     });
   }, [activeSavedStatus, activeTab, updateHistoryLocation]);
+
+  const handleInternalDecisionChangeConfirm = useCallback(
+    async (request: InternalOpportunityDecisionChangeRequest) => {
+      logCareerEvent(
+        `click_history_internal_decision_${request.action}_confirm`
+      );
+      const changed = await onChangeInternalHistoryOpportunityDecision(
+        request.item.id,
+        request.action,
+        request.reason
+      );
+      if (!changed) return false;
+
+      setInternalDecisionChangeRequest(null);
+      if (
+        request.action === "revert" &&
+        modalOpportunityId === request.item.id
+      ) {
+        closeOpportunityModal();
+      }
+      return true;
+    },
+    [
+      closeOpportunityModal,
+      logCareerEvent,
+      modalOpportunityId,
+      onChangeInternalHistoryOpportunityDecision,
+    ]
+  );
 
   const pendingOpportunityIds = useMemo(
     () => new Set(historyUpdatingOpportunityIds),
@@ -1918,12 +1877,19 @@ const CareerHistoryPanel = () => {
     ) {
       return;
     }
-    if (listItems.length > 0) return;
+    if (
+      !hasMoreListItems ||
+      listItems.length >= Math.min(listTotal, SAVED_LIST_INITIAL_PAGE_SIZE)
+    ) {
+      return;
+    }
     loadMoreListItems();
   }, [
     activeSavedStatus,
     activeTab,
+    hasMoreListItems,
     listItems.length,
+    listTotal,
     loadMoreListItems,
     savedDisplayMode,
   ]);
@@ -2101,6 +2067,12 @@ const CareerHistoryPanel = () => {
               onOpenCompanyInfo={openHistoryCompanyInfo}
               onOpenLink={(url) => openHistoryLink(modalOpportunity, url)}
               onOpenOpportunityInfo={openOpportunityInfo}
+              onInternalDecisionAction={(action) =>
+                setInternalDecisionChangeRequest({
+                  action,
+                  item: modalOpportunity,
+                })
+              }
               onSavedStatusChange={(status) =>
                 handleSavedStatusChange(modalOpportunity, status)
               }
@@ -2206,6 +2178,9 @@ const CareerHistoryPanel = () => {
                           pending={pendingOpportunityIds.has(item.id)}
                           onOpenOpportunityInfo={openOpportunityInfo}
                           onOpenCompanyInfo={openHistoryCompanyInfo}
+                          onInternalDecisionAction={(action) =>
+                            setInternalDecisionChangeRequest({ action, item })
+                          }
                           savedStatus={savedStatus}
                           onSavedStatusChange={(status) =>
                             handleSavedStatusChange(item, status)
@@ -2238,6 +2213,9 @@ const CareerHistoryPanel = () => {
                     items={savedBoardItems}
                     pendingOpportunityIds={pendingOpportunityIds}
                     onLoadMoreColumn={loadMoreSavedBoardColumn}
+                    onInternalDecisionAction={(item, action) =>
+                      setInternalDecisionChangeRequest({ action, item })
+                    }
                     onOpenDetail={openModalForItem}
                     onStatusChange={handleSavedStatusChange}
                   />
@@ -2274,6 +2252,9 @@ const CareerHistoryPanel = () => {
                     pending={pendingOpportunityIds.has(item.id)}
                     onOpenOpportunityInfo={openOpportunityInfo}
                     onOpenCompanyInfo={openHistoryCompanyInfo}
+                    onInternalDecisionAction={(action) =>
+                      setInternalDecisionChangeRequest({ action, item })
+                    }
                     savedStatus={getCareerOpportunityManagementStatus(item)}
                     onSavedStatusChange={(status) =>
                       handleSavedStatusChange(item, status)
@@ -2339,10 +2320,35 @@ const CareerHistoryPanel = () => {
         onClose={() => setInfoOpportunityType(null)}
       />
 
-      <InternalConnectionOnboardingModal
-        open={Boolean(internalConnectionOnboardingOpportunity)}
+      <InternalConnectionAcceptanceModal
+        item={internalConnectionAcceptanceOpportunity}
+        isOnboardingComplete={isCareerOnboardingComplete}
+        pending={
+          internalConnectionAcceptanceOpportunity
+            ? pendingOpportunityIds.has(
+                internalConnectionAcceptanceOpportunity.id
+              )
+            : false
+        }
         callPending={Boolean(callStartPending)}
-        onClose={() => setInternalConnectionOnboardingOpportunityId(null)}
+        onClose={() => setInternalConnectionAcceptanceOpportunity(null)}
+        onAccept={(feedbackReason) => {
+          if (!internalConnectionAcceptanceOpportunity) return;
+          logCareerEvent("click_history_submit_internal_connection_acceptance");
+          rememberFeedbackAdvanceTarget(
+            internalConnectionAcceptanceOpportunity
+          );
+          updateFeedbackForItem(
+            internalConnectionAcceptanceOpportunity,
+            "positive",
+            {
+              feedbackReason,
+              savedStage: getDefaultSavedStage(
+                internalConnectionAcceptanceOpportunity
+              ),
+            }
+          );
+        }}
         onStartChat={startOnboardingChatFromGate}
         onStartCall={startOnboardingCallFromGate}
       />
@@ -2351,22 +2357,6 @@ const CareerHistoryPanel = () => {
         companyDbId={companyDetailCompanyDbId}
         open={companyDetailCompanyDbId !== null}
         onClose={() => setCompanyDetailCompanyDbId(null)}
-      />
-
-      <HistoryPositiveFeedbackModal
-        item={positivePromptOpportunity}
-        draft={positivePromptDraft}
-        pending={
-          positivePromptOpportunity
-            ? pendingOpportunityIds.has(positivePromptOpportunity.id)
-            : false
-        }
-        onChangeDraft={setPositivePromptDraft}
-        onClose={() => {
-          setPositivePromptOpportunityId(null);
-          setPositivePromptDraft("");
-        }}
-        onSubmit={handleSubmitPositivePrompt}
       />
 
       <HistoryNegativeFeedbackModal
@@ -2387,6 +2377,15 @@ const CareerHistoryPanel = () => {
         }}
         onSubmit={handleSubmitNegativePrompt}
       />
+
+      {internalDecisionChangeRequest ? (
+        <InternalOpportunityDecisionChangeModal
+          error={historyUpdateError}
+          request={internalDecisionChangeRequest}
+          onClose={() => setInternalDecisionChangeRequest(null)}
+          onConfirm={handleInternalDecisionChangeConfirm}
+        />
+      ) : null}
     </div>
   );
 };

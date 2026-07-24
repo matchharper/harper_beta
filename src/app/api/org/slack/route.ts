@@ -5,6 +5,7 @@ import {
   getOrgSlackIntegrationStatus,
   OrgSlackIntegrationError,
   sendOrgSlackTestMessage,
+  updateOrgSlackNotificationSettings,
 } from "@/lib/org/slackIntegration";
 import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 
@@ -78,6 +79,28 @@ export async function DELETE(req: NextRequest) {
       workspaceId?: string;
     };
     const payload = await disconnectOrgSlackIntegration({
+      user,
+      workspaceId: body.workspaceId ?? "",
+    });
+    return NextResponse.json(payload);
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const user = await requireAuthenticatedUser(req);
+    const body = (await req.json().catch(() => ({}))) as {
+      notifications?: {
+        candidateAccepted?: boolean;
+        candidateRejected?: boolean;
+        memberJoined?: boolean;
+      };
+      workspaceId?: string;
+    };
+    const payload = await updateOrgSlackNotificationSettings({
+      notifications: body.notifications ?? {},
       user,
       workspaceId: body.workspaceId ?? "",
     });

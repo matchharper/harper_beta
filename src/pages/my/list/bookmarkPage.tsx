@@ -39,7 +39,7 @@ import ShortlistEmptyState from "./components/EmptyState";
 import { useSettingStore } from "@/store/useSettingStore";
 import ForwardIcon from "@/assets/icons/forward.svg";
 import { useRouter } from "next/router";
-import { BareButton } from "@/components/ui/button";
+import { BareButton, MuteButton } from "@/components/ui/button";
 import { Input as UiInput } from "@/components/ui/input";
 
 const PAGE_SIZE_OPTIONS = [10, 20, 30] as const;
@@ -574,13 +574,13 @@ export default function BookmarksPage() {
         className={`flex items-center justify-start gap-3 ${isToolbar ? "" : "px-4"}`}
       >
         <div className="flex flex-row items-center gap-3 text-sm text-neutral-primary">
-          <BareButton
+          <MuteButton
             type="button"
-            className={`w-8 h-8 flex items-center justify-center rounded-lg bg-bg-floating p-1 ${
+            className={
               !hasPrev || isFetching
                 ? "cursor-not-allowed opacity-40"
                 : "cursor-pointer"
-            }`}
+            }
             onClick={() =>
               updateListQuery({
                 [mode === "requested" ? "requestedPage" : "folderPage"]: String(
@@ -590,19 +590,20 @@ export default function BookmarksPage() {
             }
             disabled={!hasPrev || isFetching}
           >
-            <ChevronLeft size={16} className="text-neutral-primary" />
-          </BareButton>
+            <ChevronLeft size={16} />
+          </MuteButton>
           <div className="px-4 h-8 rounded-lg flex flex-row items-center justify-center gap-2 border border-neutral-1000-a05 bg-bg-default">
             <span className="font-medium">{pageIdx + 1}</span> /{" "}
             <span className="font-medium">{pageCount}</span>
           </div>
-          <BareButton
+          <MuteButton
             type="button"
-            className={`w-8 h-8 flex items-center justify-center rounded-md bg-bg-floating p-1 ${
+            variant="dark"
+            className={
               !hasNext || isFetching
                 ? "cursor-not-allowed opacity-40"
                 : "cursor-pointer"
-            }`}
+            }
             onClick={() => {
               if (!hasNext) return;
               updateListQuery({
@@ -613,8 +614,8 @@ export default function BookmarksPage() {
             }}
             disabled={!hasNext || isFetching}
           >
-            <ChevronRight size={16} className="text-neutral-primary" />
-          </BareButton>
+            <ChevronRight size={16} />
+          </MuteButton>
           {isFetching && (
             <span className="ml-2 text-neutral-soft">Syncing…</span>
           )}
@@ -625,13 +626,10 @@ export default function BookmarksPage() {
             align="end"
             contentClassName="min-w-[140px]"
             trigger={
-              <BareButton
-                type="button"
-                className="inline-flex items-center gap-2 rounded-lg bg-bg-floating px-3 py-2 text-sm text-neutral-primary transition-colors duration-200 hover:bg-bg-weak"
-              >
+              <MuteButton type="button" className="gap-2 text-sm">
                 <span>{pageSize}명씩 보기</span>
                 <ChevronDown className="h-4 w-4 text-neutral-muted" />
-              </BareButton>
+              </MuteButton>
             }
           >
             {PAGE_SIZE_OPTIONS.map((option) => (

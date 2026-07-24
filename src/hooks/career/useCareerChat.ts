@@ -44,7 +44,9 @@ type UseCareerChatArgs = {
   sessionPending: boolean;
   fetchWithAuth: FetchWithAuth;
   onOpportunityRunChanged?: (run: CareerOpportunityRun | null) => void;
-  onOpportunityRecommendationsChanged?: () => void | Promise<void>;
+  onOpportunityRecommendationsChanged?: (
+    roleId?: string | null
+  ) => void | Promise<void>;
   onTalentPreferencesRefreshed?: (
     preferences: unknown,
     updatedAt: unknown
@@ -689,17 +691,18 @@ export const useCareerChat = ({
             ).catch(() => undefined);
           };
 
-          const refreshOpportunityRecommendations = () => {
-            if (
-              recommendationRefreshPromise ||
-              !onOpportunityRecommendationsChanged
-            ) {
+          const refreshOpportunityRecommendations = (
+            roleId?: string | null
+          ) => {
+            if (!onOpportunityRecommendationsChanged) {
               return;
             }
 
-            recommendationRefreshPromise = Promise.resolve(
-              onOpportunityRecommendationsChanged()
-            ).catch(() => undefined);
+            recommendationRefreshPromise = (
+              recommendationRefreshPromise ?? Promise.resolve()
+            )
+              .then(() => onOpportunityRecommendationsChanged(roleId))
+              .catch(() => undefined);
           };
 
           const handleStreamEvent = async ({
@@ -787,6 +790,15 @@ export const useCareerChat = ({
                 refreshOpportunityRecommendations();
               }
               setScrollTick((t) => t + 1);
+              return;
+            }
+
+            if (event === "opportunity_recommendations_changed") {
+              refreshOpportunityRecommendations(
+                isRecord(data) && typeof data.roleId === "string"
+                  ? data.roleId
+                  : null
+              );
               return;
             }
 
@@ -998,6 +1010,18 @@ export const useCareerChat = ({
           throw new Error(
             getErrorMessage(payload, tCareer(H.messageSendFailed))
           );
+        }
+        if (
+          payload?.historyShouldRefresh === true &&
+          onOpportunityRecommendationsChanged
+        ) {
+          await Promise.resolve(
+            onOpportunityRecommendationsChanged(
+              typeof payload.historyChangedRoleId === "string"
+                ? payload.historyChangedRoleId
+                : null
+            )
+          ).catch(() => undefined);
         }
 
         const assistantPayloads = Array.isArray(payload.assistantMessages)

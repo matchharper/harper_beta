@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Drawer as DrawerPrimitive } from "vaul";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { useIsMobile } from "@/hooks/useMediaQuery";
@@ -21,7 +22,7 @@ import { useCareerSidebarContext } from "./CareerSidebarContext";
 import CareerProfileSettingsSection from "./CareerProfileSettingsSection";
 import { CareerReferralSettingsSection } from "./referral/CareerReferralModal";
 import CareerResumeLinksSettingsSection from "./settings/CareerResumeLinksSettingsSection";
-import { BareButton } from "@/components/ui/button";
+import { BareButton, MuteButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useReferralEntryPointEligibility } from "@/hooks/career/useReferralEntryPointEligibility";
 
@@ -33,6 +34,50 @@ type SettingsTabDefinition = {
   label: string;
   Icon: React.ComponentType<{ className?: string }>;
 };
+
+const SettingsTabPanel = ({
+  children,
+  title,
+}: {
+  children: React.ReactNode;
+  title: React.ReactNode;
+}) => (
+  <div className="relative min-h-full px-4 pb-6 pt-4 md:px-8 md:py-7">
+    <h2 className="text-base font-medium text-neutral-primary">{title}</h2>
+    <div className="mt-5">{children}</div>
+  </div>
+);
+
+const SettingRow = ({
+  action,
+  desc,
+  title,
+  variant = "default",
+}: {
+  action: React.ReactNode;
+  desc?: React.ReactNode;
+  title: React.ReactNode;
+  variant?: "default" | "critical";
+}) => (
+  <div className="flex flex-col gap-3 py-4 first:pt-0 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
+    <div className="min-w-0 flex-1 sm:py-1.5">
+      <h3
+        className={[
+          "text-sm font-normal",
+          variant === "critical" ? "text-critical" : "text-neutral-primary",
+        ].join(" ")}
+      >
+        {title}
+      </h3>
+      {desc && (
+        <p className="mt-1 text-sm font-normal leading-5 text-neutral-muted">
+          {desc}
+        </p>
+      )}
+    </div>
+    <div className="w-full shrink-0 sm:w-[360px]">{action}</div>
+  </div>
+);
 
 const getSettingsTabs = (
   t: ReturnType<typeof useCareerT>,
@@ -191,17 +236,18 @@ const AccountDeleteConfirmDialog = ({
         ) : null}
 
         <div className="mt-6 flex justify-end gap-2">
-          <BareButton
+          <MuteButton
             type="button"
+            size="lg"
             onClick={onClose}
             disabled={pending}
-            className="inline-flex h-10 items-center justify-center rounded-lg px-4 text-sm font-medium text-neutral-muted transition-colors hover:bg-bg-weak hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-60"
+            className="text-sm font-medium"
           >
             {t(
               "career.settings.career_settings_modal.keep_account",
               "계정 유지하기"
             )}
-          </BareButton>
+          </MuteButton>
           <BareButton
             type="button"
             onClick={onConfirm}
@@ -273,6 +319,15 @@ const AccountSectionContent = ({
   userId: string;
 }) => {
   const t = useCareerT();
+  const isMobile = useIsMobile();
+  const accountNameLabel = t(
+    "career.settings.career_settings_modal.account_name",
+    "이름"
+  );
+  const accountEmailLabel = t(
+    "career.settings.career_settings_modal.account_email",
+    "이메일"
+  );
 
   const { fetchWithAuth } = useCareerApi();
   const logCareerEvent = useCareerLogEvent();
@@ -433,28 +488,47 @@ const AccountSectionContent = ({
       setDeletePending(false);
     }
   };
+  const saveButton = hasAccountChanges ? (
+    <div
+      className={
+        isMobile
+          ? "fixed bottom-1 left-1 right-1 z-[70]"
+          : "absolute bottom-4 right-4"
+      }
+    >
+      <BareButton
+        type="submit"
+        form="career-settings-account-form"
+        disabled={savePending}
+        className={[
+          "inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-black px-4 text-[13px] font-normal text-neutral-00 transition-colors hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-60",
+          isMobile ? "w-full" : "w-auto",
+        ].join(" ")}
+      >
+        {savePending ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+        {savePending
+          ? t("career.settings.career_settings_modal.account_saving", "저장 중")
+          : t("career.settings.career_settings_modal.account_save", "저장")}
+      </BareButton>
+    </div>
+  ) : null;
 
   return (
     <>
-      <form className="space-y-4" onSubmit={handleSaveAccount}>
-        <div>
-          <h2 className="text-lg font-medium text-neutral-primary">
-            {t("career.settings.career_settings_modal.1lbfn2i", "계정 관리")}
-          </h2>
-          <p className="mt-1 text-sm text-neutral-soft font-normal">
-            {t(
-              "career.settings.career_settings_modal.1vcdzyt",
-              "계정과 가입 상태를 관리합니다."
-            )}
-          </p>
-        </div>
-
-        <div className="grid gap-3">
-          <label className="grid gap-1.5">
-            <span className="text-xs font-medium text-neutral-muted">
-              {t("career.settings.career_settings_modal.account_name", "이름")}
-            </span>
+      <form
+        id="career-settings-account-form"
+        className={[
+          "divide-y divide-neutral-1000-a05",
+          hasAccountChanges ? "pb-14" : "",
+        ].join(" ")}
+        onSubmit={handleSaveAccount}
+      >
+        <SettingRow
+          title={accountNameLabel}
+          action={
             <input
+              id="career-settings-account-name"
+              aria-label={accountNameLabel}
               type="text"
               value={draftName}
               onChange={(event) => {
@@ -462,18 +536,18 @@ const AccountSectionContent = ({
                 setSaveError("");
                 setSaveInfo("");
               }}
-              className="max-w-[360px] h-8 rounded-md border border-neutral-1000-a10 bg-bg-floating px-2.5 text-[13px] text-neutral-primary outline-none transition-colors placeholder:text-neutral-placeholder focus:border-neutral-400 focus:ring-2 focus:ring-neutral-1000-a10"
+              className="h-9 w-full rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 text-[13px] text-neutral-primary outline-none transition-colors placeholder:text-neutral-placeholder focus:border-neutral-400 focus:ring-2 focus:ring-neutral-1000-a10"
               autoComplete="name"
             />
-          </label>
-          <label className="grid gap-1.5">
-            <span className="text-xs font-medium text-neutral-muted">
-              {t(
-                "career.settings.career_settings_modal.account_email",
-                "이메일"
-              )}
-            </span>
+          }
+        />
+
+        <SettingRow
+          title={accountEmailLabel}
+          action={
             <input
+              id="career-settings-account-email"
+              aria-label={accountEmailLabel}
               type="email"
               value={draftEmail}
               onChange={(event) => {
@@ -481,75 +555,78 @@ const AccountSectionContent = ({
                 setSaveError("");
                 setSaveInfo("");
               }}
-              className="max-w-[360px] h-8 rounded-md border border-neutral-1000-a10 bg-bg-floating px-2.5 text-[13px] text-neutral-primary outline-none transition-colors placeholder:text-neutral-placeholder focus:border-neutral-400 focus:ring-2 focus:ring-neutral-1000-a10"
+              className="h-9 w-full rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 text-[13px] text-neutral-primary outline-none transition-colors placeholder:text-neutral-placeholder focus:border-neutral-400 focus:ring-2 focus:ring-neutral-1000-a10"
               autoComplete="email"
             />
-            {hasAccountChanges ? (
-              <BareButton
-                type="submit"
-                disabled={savePending}
-                className="mt-1 inline-flex h-8 w-fit items-center justify-center gap-1.5 rounded-md bg-black px-3 text-[13px] font-normal text-neutral-00 transition-colors hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {savePending ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : null}
-                {savePending
-                  ? t(
-                      "career.settings.career_settings_modal.account_saving",
-                      "저장 중"
-                    )
-                  : t(
-                      "career.settings.career_settings_modal.account_save",
-                      "저장"
-                    )}
-              </BareButton>
+          }
+        />
+
+        {saveError || saveInfo ? (
+          <div className="py-4 sm:ml-auto sm:w-[360px]">
+            {saveError ? (
+              <p className="rounded-lg border border-critical/30 bg-critical-faded px-3 py-2 text-sm text-critical">
+                {saveError}
+              </p>
             ) : null}
-          </label>
-        </div>
-
-        {saveError ? (
-          <p className="rounded-lg border border-critical/30 bg-critical-faded px-3 py-2 text-sm text-critical">
-            {saveError}
-          </p>
-        ) : null}
-        {saveInfo ? (
-          <p className="rounded-lg border border-neutral-1000-a05 bg-bg-weak px-3 py-2 text-sm text-neutral-muted">
-            {saveInfo}
-          </p>
+            {saveInfo ? (
+              <p className="rounded-lg border border-neutral-1000-a05 bg-bg-weak px-3 py-2 text-sm text-neutral-muted">
+                {saveInfo}
+              </p>
+            ) : null}
+          </div>
         ) : null}
 
-        <BareButton
-          type="button"
-          onClick={() => {
-            logCareerEvent("click_settings_logout");
-            void onLogout();
-          }}
-          className="mt-3 inline-flex h-10 items-center gap-2 rounded-lg border border-neutral-1000-a05 bg-bg-floating px-4 text-sm text-neutral-muted transition-colors hover:border-neutral-800 hover:bg-bg-weak hover:text-neutral-primary"
-        >
-          <LogOut className="h-4 w-4" />
-          {t("career.profile.career_profile_menu.1k7ppv0", "로그아웃")}
-        </BareButton>
+        <SettingRow
+          title={t("career.profile.career_profile_menu.1k7ppv0", "로그아웃")}
+          action={
+            <div className="flex sm:justify-end">
+              <MuteButton
+                type="button"
+                onClick={() => {
+                  logCareerEvent("click_settings_logout");
+                  void onLogout();
+                }}
+                className="gap-2 text-sm"
+              >
+                <LogOut className="h-4 w-4" />
+                {t("career.profile.career_profile_menu.1k7ppv0", "로그아웃")}
+              </MuteButton>
+            </div>
+          }
+        />
 
-        <div className="border-t border-neutral-1000-a05 pt-4">
-          <h3 className="text-sm font-semibold text-critical">
-            {t("career.settings.career_settings_modal.1ba4567", "회원 탈퇴")}
-          </h3>
-          <p className="mt-1 text-sm leading-relaxed text-neutral-soft">
-            {t(
-              "career.settings.career_settings_modal.0858bd9",
-              "탈퇴하면 계정과 커리어 프로필, 이력서, 대화/추천 등 모든 데이터가 삭제됩니다. 다시 되돌릴 수 없습니다."
-            )}
-          </p>
-          <BareButton
-            type="button"
-            onClick={handleOpenDeleteConfirm}
-            className="mt-6 inline-flex h-9 items-center gap-2 rounded-lg bg-critical px-3 text-sm font-medium text-neutral-00 transition-colors hover:opacity-90"
-          >
-            <Trash2 className="h-4 w-4" />
-            {t("career.settings.career_settings_modal.1ba4567", "회원 탈퇴")}
-          </BareButton>
-        </div>
+        <SettingRow
+          title={t(
+            "career.settings.career_settings_modal.1ba4567",
+            "회원 탈퇴"
+          )}
+          desc={t(
+            "career.settings.career_settings_modal.0858bd9",
+            "탈퇴하면 계정과 커리어 프로필, 이력서, 대화/추천 데이터가 삭제됩니다. 다시 되돌릴 수 없습니다."
+          )}
+          variant="critical"
+          action={
+            <div className="flex sm:justify-end">
+              <MuteButton
+                type="button"
+                variant="warn"
+                onClick={handleOpenDeleteConfirm}
+                className="gap-2 text-sm font-medium"
+              >
+                <Trash2 className="h-4 w-4" />
+                {t(
+                  "career.settings.career_settings_modal.1ba4567",
+                  "회원 탈퇴"
+                )}
+              </MuteButton>
+            </div>
+          }
+        />
       </form>
+
+      {isMobile && saveButton && typeof document !== "undefined"
+        ? createPortal(saveButton, document.body)
+        : saveButton}
 
       <AccountDeleteConfirmDialog
         error={deleteError}
@@ -672,6 +749,17 @@ const CareerSettingsModal = ({
     name: accountName,
     userId: talentProfile.talentUser?.user_id ?? user?.id ?? "",
   };
+  const renderTabPanel = (tab: CareerSettingsTab) => {
+    const title =
+      settingsTabs.find((settingsTab) => settingsTab.key === tab)?.label ??
+      (tab === "referral" ? t("career.referral.menu.invite", "초대하기") : "");
+
+    return (
+      <SettingsTabPanel title={title}>
+        {renderSection(tab, account, onLogout, onUpdateAccountProfile)}
+      </SettingsTabPanel>
+    );
+  };
 
   if (isMobile) {
     const handleOpenChange = (nextOpen: boolean) => {
@@ -757,14 +845,15 @@ const CareerSettingsModal = ({
             ) : (
               <>
                 <header className="flex shrink-0 items-center justify-between border-b border-neutral-1000-a05 px-3 pb-2">
-                  <BareButton
+                  <MuteButton
                     type="button"
+                    variant="transparent"
                     onClick={handleBackToMenu}
-                    className="inline-flex min-h-11 min-w-11 items-center gap-1 rounded-lg px-2 text-sm text-neutral-muted transition-colors hover:text-neutral-primary"
+                    className="min-h-11 min-w-11 gap-1 text-sm"
                   >
                     <ArrowLeft className="h-4 w-4" />
                     {t("career.settings.career_settings_modal.1338q8i", "설정")}
-                  </BareButton>
+                  </MuteButton>
                   <h2 className="text-[15px] font-semibold text-neutral-primary">
                     {settingsTabs.find((tab) => tab.key === mobileView)
                       ?.label ??
@@ -779,20 +868,8 @@ const CareerSettingsModal = ({
                     <X className="h-4 w-4" />
                   </DrawerPrimitive.Close>
                 </header>
-                <div
-                  className={[
-                    "min-h-0 flex-1 overflow-y-auto",
-                    mobileView === "referral"
-                      ? "px-0 pb-0 pt-0"
-                      : "px-4 pb-6 pt-4",
-                  ].join(" ")}
-                >
-                  {renderSection(
-                    mobileView,
-                    account,
-                    onLogout,
-                    onUpdateAccountProfile
-                  )}
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                  {renderTabPanel(mobileView)}
                 </div>
               </>
             )}
@@ -812,21 +889,21 @@ const CareerSettingsModal = ({
       overlayClassName="items-start pt-14"
       panelClassName="max-w-none h-[80svh] max-h-[860px] px-0 w-[min(1040px,90vw)]"
       bodyClassName="h-full p-0"
-      closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-floating text-neutral-muted transition-colors hover:border-neutral-800 hover:bg-bg-weak hover:text-neutral-primary"
       closeButtonAriaLabel={t("career.common.career.16x7oad", "설정 닫기")}
     >
       <section className="h-full">
         <div className="grid h-full grid-cols-[260px_minmax(0,1fr)]">
           <aside className="border-r border-neutral-1000-a05 bg-bg-basement p-2">
             <nav className="mt-2 space-y-1">
-              <BareButton
+              <MuteButton
                 type="button"
+                variant="transparent"
                 onClick={handleClose}
-                className="px-3 py-0 inline-flex items-center gap-1 text-[13px] text-neutral-soft transition-colors hover:text-neutral-primary"
+                className="gap-1 text-[13px]"
               >
                 <ArrowLeft className="h-4 w-4" />
                 {t("career.settings.career_settings_modal.0poe6eq", "뒤로")}
-              </BareButton>
+              </MuteButton>
               {settingsTabs.map((tab) => {
                 const isActive = tab.key === activeTab;
                 return (
@@ -840,7 +917,7 @@ const CareerSettingsModal = ({
                     className={[
                       "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors",
                       isActive
-                        ? "bg-bg-floating text-black"
+                        ? "bg-neutral-200 text-black"
                         : "text-neutral-primary hover:bg-bg-weak",
                     ].join(" ")}
                   >
@@ -852,18 +929,8 @@ const CareerSettingsModal = ({
             </nav>
           </aside>
 
-          <div
-            className={[
-              "h-full overflow-y-auto bg-bg-floating",
-              activeTab === "referral" ? "px-0 py-0" : "px-8 py-7",
-            ].join(" ")}
-          >
-            {renderSection(
-              activeTab,
-              account,
-              onLogout,
-              onUpdateAccountProfile
-            )}
+          <div className="h-full overflow-y-auto bg-bg-floating">
+            {renderTabPanel(activeTab)}
           </div>
         </div>
       </section>

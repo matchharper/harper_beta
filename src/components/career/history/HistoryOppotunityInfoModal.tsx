@@ -300,7 +300,6 @@ const HistoryOpportunityInfoModal = ({
       panelClassName="max-w-[680px] border border-neutral-1000-a05 bg-bg-floating"
       headerClassName="border-neutral-1000-a05 px-5 py-5 sm:px-6"
       bodyClassName="max-h-[72svh] overflow-y-auto bg-bg-floating px-5 py-5 pb-10 sm:px-6"
-      closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:border-neutral-400 hover:text-neutral-primary"
     >
       {content()}
     </TalentCareerModal>

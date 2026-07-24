@@ -963,7 +963,9 @@ const CandidateViews = ({
                         {column.draggable && (
                           <span
                             className={`absolute right-2 top-1/2 -translate-y-1/2 ${
-                              isDark ? "text-neutral-500/80" : "text-beige900/55"
+                              isDark
+                                ? "text-neutral-500/80"
+                                : "text-beige900/55"
                             }`}
                           >
                             <GripVertical className="w-3 h-3" />

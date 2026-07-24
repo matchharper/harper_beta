@@ -59,6 +59,123 @@ const BareButton = React.forwardRef<HTMLButtonElement, BareButtonProps>(
 );
 BareButton.displayName = "BareButton";
 
+const muteButtonVariants = cva(
+  "inline-flex h-fit items-center justify-center rounded-md border font-normal shadow-xs outline-none transition-[background-color,border-color,color,box-shadow,opacity] duration-150 focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-basement disabled:pointer-events-none disabled:opacity-40",
+  {
+    variants: {
+      variant: {
+        dark: "border-neutral-1000 bg-neutral-1000 text-neutral-00 hover:border-neutral-900 hover:bg-neutral-900 active:border-neutral-800 active:bg-neutral-800",
+        primary:
+          "border-primary bg-primary text-neutral-00 hover:border-primary/90 hover:bg-primary/90 active:border-primary/80 active:bg-primary/80",
+        default:
+          "border-neutral-1000-a10 bg-bg-floating text-neutral-primary hover:border-neutral-1000-a10 hover:bg-black/3 active:bg-bg-weak",
+        transparent:
+          "border-transparent bg-transparent text-neutral-muted shadow-none hover:border-transparent hover:bg-black/3 hover:text-neutral-primary active:bg-black/5",
+        warn: "border-critical/25 bg-critical-faded text-critical hover:border-critical/40 hover:bg-critical-faded/70 active:border-critical/50 active:bg-critical-faded",
+        neutral:
+          "border-neutral-1000-a05 bg-bg-weak text-neutral-primary hover:border-neutral-1000-a10 hover:bg-neutral-1000-a10 active:border-neutral-1000-a10 active:bg-neutral-1000-a10",
+      },
+      size: {
+        sm: "px-[5px] py-[5px] text-xs gap-1",
+        md: "px-[7px] py-[7px] text-[13px] gap-1.5",
+        lg: "px-[11px] py-[9px] text-[15px] gap-2",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "md",
+    },
+  }
+);
+
+const muteButtonTextPaddingClassName = {
+  sm: "px-[7px]",
+  md: "px-[9px]",
+  lg: "px-[14px]",
+} as const;
+
+const muteButtonTextOnlyVerticalPaddingClassName = {
+  sm: "py-[3px]",
+  md: "py-[5px]",
+  lg: "py-[7px]",
+} as const;
+
+const hasTextContent = (node: React.ReactNode): boolean =>
+  React.Children.toArray(node).some((child) => {
+    if (
+      typeof child === "string" ||
+      typeof child === "number" ||
+      typeof child === "bigint"
+    ) {
+      return String(child).trim().length > 0;
+    }
+
+    if (!React.isValidElement<{ children?: React.ReactNode }>(child)) {
+      return false;
+    }
+
+    return hasTextContent(child.props.children);
+  });
+
+const hasIconContent = (node: React.ReactNode): boolean =>
+  React.Children.toArray(node).some((child) => {
+    if (!React.isValidElement<{ children?: React.ReactNode }>(child)) {
+      return false;
+    }
+
+    if (React.Children.count(child.props.children) > 0) {
+      return hasIconContent(child.props.children);
+    }
+
+    return child.type !== React.Fragment;
+  });
+
+export interface MuteButtonProps
+  extends BareButtonProps, VariantProps<typeof muteButtonVariants> {}
+
+const MuteButton = React.forwardRef<HTMLButtonElement, MuteButtonProps>(
+  (
+    {
+      asChild = false,
+      children,
+      className,
+      size = "md",
+      type,
+      variant = "default",
+      ...props
+    },
+    ref
+  ) => {
+    const resolvedSize = size ?? "md";
+    const hasText = hasTextContent(children);
+    const textPaddingClassName = hasText
+      ? muteButtonTextPaddingClassName[resolvedSize]
+      : undefined;
+    const textOnlyVerticalPaddingClassName =
+      hasText && !hasIconContent(children)
+        ? muteButtonTextOnlyVerticalPaddingClassName[resolvedSize]
+        : undefined;
+
+    return (
+      <BareButton
+        ref={ref}
+        asChild={asChild}
+        type={asChild ? undefined : (type ?? "button")}
+        className={cn(
+          muteButtonVariants({ size: resolvedSize, variant }),
+          textPaddingClassName,
+          textOnlyVerticalPaddingClassName,
+          className
+        )}
+        {...props}
+      >
+        {children}
+      </BareButton>
+    );
+  }
+);
+MuteButton.displayName = "MuteButton";
+
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
@@ -416,8 +533,10 @@ export {
   ChoiceCard,
   IconButton,
   InteractiveCard,
+  MuteButton,
   PrimaryButton,
   SecondaryButton,
   ToggleButton,
   buttonVariants,
+  muteButtonVariants,
 };

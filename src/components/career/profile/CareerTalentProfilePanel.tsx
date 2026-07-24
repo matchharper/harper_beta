@@ -4,6 +4,7 @@ import {
   Building2,
   ChevronDown,
   ChevronUp,
+  EditIcon,
   Eye,
   FileText,
   Globe2,
@@ -29,12 +30,7 @@ import type {
 } from "../types";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { formatCareerLocation } from "@/lib/career/locationDisplay";
-import {
-  ActionButton,
-  PrimaryButton,
-  SecondaryButton,
-  BareButton,
-} from "@/components/ui/button";
+import { BareButton, MuteButton, PrimaryButton } from "@/components/ui/button";
 import { Input, Input as UiInput } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -674,17 +670,28 @@ const ItemRemoveButton = ({ onClick }: { onClick: () => void }) => {
   );
 };
 
-const profileEditInputClassName =
-  "h-11 border-neutral-1000-a10 bg-bg-floating text-base placeholder:text-neutral-placeholder md:h-9 md:text-[13px]";
+const profileEditMobileFieldClassName =
+  "rounded-md border border-neutral-1000-a10 bg-bg-floating px-2.5 text-[13px] font-normal leading-5 text-neutral-primary placeholder:text-neutral-placeholder hover:bg-bg-floating focus:border-neutral-400 focus:bg-bg-floating focus:ring-2 focus:ring-neutral-1000-a05";
 
-const profileEditTextareaClassName =
-  "min-h-[92px] border-neutral-1000-a10 bg-bg-floating text-base leading-6 placeholder:text-neutral-placeholder md:text-[13px]";
+const profileEditInputClassName = cn(
+  profileEditMobileFieldClassName,
+  "h-9 py-1.5 md:px-3 md:py-2"
+);
 
-const profileEditPlainInputClassName =
-  "h-auto rounded-[4px] border border-neutral-1000-a05 bg-bg-floating px-1.5 py-1 hover:bg-bg-weak focus:border-neutral-1000-a10 focus:bg-bg-floating focus:ring-1 focus:ring-neutral-1000-a05";
+const profileEditTextareaClassName = cn(
+  profileEditMobileFieldClassName,
+  "min-h-[72px] py-1.5 md:min-h-[92px] md:px-3 md:py-2 md:leading-6"
+);
 
-const profileEditPlainTextareaClassName =
-  "min-h-[74px] rounded-[6px] border border-neutral-1000-a05 bg-bg-floating px-1.5 py-1.5 hover:bg-bg-weak focus:border-neutral-1000-a10 focus:bg-bg-floating focus:ring-1 focus:ring-neutral-1000-a05";
+const profileEditPlainInputClassName = cn(
+  profileEditMobileFieldClassName,
+  "h-9 py-1.5 md:h-auto md:rounded-[4px] md:border-neutral-1000-a05 md:px-1.5 md:py-1 md:hover:bg-bg-weak md:focus:border-neutral-1000-a10 md:focus:ring-1"
+);
+
+const profileEditPlainTextareaClassName = cn(
+  profileEditMobileFieldClassName,
+  "min-h-[72px] py-1.5 md:min-h-[74px] md:rounded-[6px] md:border-neutral-1000-a05 md:px-1.5 md:py-1.5 md:hover:bg-bg-weak md:focus:border-neutral-1000-a10 md:focus:ring-1"
+);
 
 const profileNoticeClassName =
   "flex items-center gap-2.5 rounded-[14px] border border-neutral-1000-a05 bg-linear-to-br from-bg-basement to-bg-default px-3.5 py-2.5 text-[12.5px] leading-5 text-neutral-muted";
@@ -928,7 +935,7 @@ const ProfileHeader = ({
               aria-label={"이름"}
               className={cn(
                 profileEditInputClassName,
-                "h-10 max-w-[360px] font-hedvig text-[24px]"
+                "max-w-[360px] md:h-10 md:font-hedvig md:text-[24px]"
               )}
             />
           ) : (
@@ -999,11 +1006,12 @@ const ProfileHeader = ({
           <div className="mt-2 flex flex-wrap items-center gap-1">
             {profileSourceIndicators.map(({ Icon, iconSrc, key, label }) => (
               <Tooltips key={key} text={label} side="bottom">
-                <BareButton
+                <MuteButton
                   type="button"
+                  variant="transparent"
                   onClick={onOpenProfileSources}
                   aria-label={`${label} 관리`}
-                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-muted transition-colors hover:bg-bg-weak hover:text-neutral-primary"
+                  className="shrink-0"
                 >
                   {iconSrc ? (
                     <Image
@@ -1016,7 +1024,7 @@ const ProfileHeader = ({
                   ) : Icon ? (
                     <Icon className="h-3.5 w-3.5" />
                   ) : null}
-                </BareButton>
+                </MuteButton>
               </Tooltips>
             ))}
           </div>
@@ -1025,35 +1033,26 @@ const ProfileHeader = ({
 
       <div
         className={cn(
-          "absolute right-1 top-1 flex shrink-0 gap-2 sm:static sm:right-auto sm:top-auto",
-          isEditing ? "flex-wrap" : "flex-col items-end"
+          "absolute right-0 top-0 flex shrink-0 gap-1",
+          isEditing ? "flex-wrap" : "flex-row items-end"
         )}
       >
         {savedResumeDownloadUrl && (
-          <ActionButton
-            asChild
-            actionVariant="secondary"
-            className="h-9 gap-1.5 px-3.5 text-[12.5px]"
-          >
+          <MuteButton asChild variant="transparent">
             <a href={savedResumeDownloadUrl} target="_blank" rel="noreferrer">
               <FileText className="h-3.5 w-3.5 text-neutral-muted" />
               View CV
             </a>
-          </ActionButton>
+          </MuteButton>
         )}
         {!isEditing && onEdit ? (
-          <ActionButton
-            type="button"
-            actionVariant="secondary"
-            onClick={onEdit}
-            className="h-9 gap-1.5 px-3.5 text-[12.5px]"
-          >
-            <Pencil className="h-3.5 w-3.5" />
+          <MuteButton type="button" variant="transparent" onClick={onEdit}>
+            <EditIcon className="h-3.5 w-3.5 text-neutral-muted" />
             {t(
               "career.profile.career_talent_profile_panel.1iq5xym",
               "수정하기"
             )}
-          </ActionButton>
+          </MuteButton>
         ) : null}
       </div>
     </section>
@@ -1104,7 +1103,7 @@ const ProfileOverviewSection = ({
               onChange={(event) => onSummaryChange?.(event.target.value)}
               placeholder="Summary"
               aria-label="Summary"
-              className={cn(profileEditTextareaClassName, "mt-3")}
+              className={cn(profileEditTextareaClassName, "mt-2 md:mt-3")}
             />
           ) : (
             <p className="mt-3 whitespace-pre-line text-[14px] leading-6 text-neutral-primary">
@@ -1139,12 +1138,15 @@ const ProfileOverviewSection = ({
                     "아직 확인 중"
                   )}
                   aria-label={item.label}
-                  className={cn(profileEditTextareaClassName, "min-h-[52px]")}
+                  className={cn(
+                    profileEditTextareaClassName,
+                    "min-h-[56px] md:min-h-[52px]"
+                  )}
                 />
               ) : (
                 <div
                   className={cn(
-                    "text-[14px] leading-6",
+                    "text-[14px] leading-6 font-normal",
                     item.value ? "text-neutral-primary" : "text-neutral-soft"
                   )}
                 >
@@ -1160,10 +1162,10 @@ const ProfileOverviewSection = ({
         ))}
       </dl>
       {canShowAllInsights ? (
-        <BareButton
+        <MuteButton
           type="button"
           onClick={() => setShowAllInsights((current) => !current)}
-          className="mt-4 inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-neutral-1000-a05 bg-bg-floating px-3 text-[12px] font-medium text-neutral-muted transition-colors hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary"
+          className="mt-4 gap-1.5 text-[12px] font-medium"
         >
           {showAllInsights ? (
             <>
@@ -1179,7 +1181,7 @@ const ProfileOverviewSection = ({
               )}
             </>
           )}
-        </BareButton>
+        </MuteButton>
       ) : null}
     </section>
   );
@@ -1802,17 +1804,21 @@ const CareerTalentProfilePanel = ({
   };
 
   return (
-    <div className={cn("space-y-5", isEditing && "pb-24", className)}>
+    <div className={cn("space-y-5", isEditing && "pb-24 md:pb-0", className)}>
       {isEditing && (
-        <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+104px)] right-3 z-50 flex flex-wrap items-center justify-end gap-2 rounded-[12px] border border-neutral-1000-a05 bg-bg-floating/90 p-1 shadow-[0_16px_44px_color-mix(in_srgb,var(--color-neutral-1000)_16%,transparent)] backdrop-blur md:bottom-5 md:right-5">
-          <SecondaryButton
+        <div
+          role="toolbar"
+          aria-label={t("career.profile.career_talent_profile_panel.0o1w258", "프로필 편집 작업")}
+          className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+80px)] z-40 !mt-0 flex items-center justify-end gap-2 border-y border-neutral-1000-a05 bg-bg-floating/95 px-4 py-2 shadow-[0_-12px_28px_color-mix(in_srgb,var(--color-neutral-1000)_8%,transparent)] backdrop-blur md:sticky md:inset-x-auto md:bottom-auto md:top-0 md:z-20 md:ml-auto md:w-fit md:rounded-[10px] md:border md:p-1 md:shadow-[0_10px_28px_color-mix(in_srgb,var(--color-neutral-1000)_12%,transparent)]"
+        >
+          <MuteButton
             type="button"
             onClick={cancelEditing}
             disabled={profileSavePending || talentInsightsSavePending}
-            className="gap-1.5"
+            className="h-10 flex-1 gap-1.5 text-[13px] md:h-auto md:flex-none"
           >
             {t("career.settings.career_settings_modal.0jiry9t", "취소")}
-          </SecondaryButton>
+          </MuteButton>
           <PrimaryButton
             type="button"
             onClick={() => void handleSave()}
@@ -1821,7 +1827,7 @@ const CareerTalentProfilePanel = ({
               talentInsightsSavePending ||
               (!hasUnsavedChanges && !hasUnsavedTalentInsightsChanges)
             }
-            className="gap-1.5"
+            className="h-10 flex-1 gap-1.5 text-[13px] md:h-9 md:flex-none md:text-sm"
           >
             <Save className="h-4 w-4" />
             {profileSavePending || talentInsightsSavePending
@@ -1911,39 +1917,39 @@ const CareerTalentProfilePanel = ({
 
           <section className="px-1">
             <div className="mb-4 flex flex-wrap gap-2">
-              <SecondaryButton
+              <MuteButton
                 type="button"
                 onClick={addExperience}
-                className="h-11 gap-1.5 px-4 text-[13px] md:h-8 md:px-3 md:text-xs"
+                className="h-11 gap-1.5 px-4 text-[13px] md:h-auto md:px-[7px] md:py-[7px] md:text-xs"
               >
                 <Plus className="h-3.5 w-3.5" />
                 {t(
                   "career.profile.career_talent_profile_panel.0efzyx5",
                   "경력 추가"
                 )}
-              </SecondaryButton>
-              <SecondaryButton
+              </MuteButton>
+              <MuteButton
                 type="button"
                 onClick={addEducation}
-                className="h-11 gap-1.5 px-4 text-[13px] md:h-8 md:px-3 md:text-xs"
+                className="h-11 gap-1.5 px-4 text-[13px] md:h-auto md:px-[7px] md:py-[7px] md:text-xs"
               >
                 <Plus className="h-3.5 w-3.5" />
                 {t(
                   "career.profile.career_talent_profile_panel.1efofsl",
                   "학력 추가"
                 )}
-              </SecondaryButton>
-              <SecondaryButton
+              </MuteButton>
+              <MuteButton
                 type="button"
                 onClick={addExtra}
-                className="h-11 gap-1.5 px-4 text-[13px] md:h-8 md:px-3 md:text-xs"
+                className="h-11 gap-1.5 px-4 text-[13px] md:h-auto md:px-[7px] md:py-[7px] md:text-xs"
               >
                 <Plus className="h-3.5 w-3.5" />
                 {t(
                   "career.profile.career_talent_profile_panel.0wjximy",
                   "추가 정보"
                 )}
-              </SecondaryButton>
+              </MuteButton>
             </div>
 
             {draftBackgroundCount > 0 ? (
@@ -1992,7 +1998,7 @@ const CareerTalentProfilePanel = ({
                             aria-label={"직무"}
                             className={cn(
                               profileEditPlainInputClassName,
-                              "text-[14px] font-medium leading-[1.35]"
+                              "md:text-[14px] md:font-medium md:leading-[1.35]"
                             )}
                           />
                           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] leading-5 text-neutral-muted">
@@ -2012,7 +2018,7 @@ const CareerTalentProfilePanel = ({
                               aria-label={"회사명"}
                               className={cn(
                                 profileEditPlainInputClassName,
-                                "w-[180px] text-[12.5px] leading-5 text-neutral-muted"
+                                "w-[180px] md:text-[12.5px] md:leading-5 md:text-neutral-muted"
                               )}
                             />
                             <span className="text-neutral-1000-a10">·</span>
@@ -2032,7 +2038,7 @@ const CareerTalentProfilePanel = ({
                               aria-label={"근무 지역"}
                               className={cn(
                                 profileEditPlainInputClassName,
-                                "w-[150px] text-[12.5px] leading-5 text-neutral-muted"
+                                "w-[150px] md:text-[12.5px] md:leading-5 md:text-neutral-muted"
                               )}
                             />
                             <span className="text-neutral-1000-a10">·</span>
@@ -2052,7 +2058,7 @@ const CareerTalentProfilePanel = ({
                               aria-label={"고용 형태"}
                               className={cn(
                                 profileEditPlainInputClassName,
-                                "w-[120px] text-[12.5px] leading-5 text-neutral-muted"
+                                "w-[120px] md:text-[12.5px] md:leading-5 md:text-neutral-muted"
                               )}
                             />
                           </div>
@@ -2073,7 +2079,7 @@ const CareerTalentProfilePanel = ({
                               aria-label={"시작일"}
                               className={cn(
                                 profileEditPlainInputClassName,
-                                "w-[92px] text-[11.5px] leading-5 text-neutral-soft"
+                                "w-[92px] md:text-[11.5px] md:leading-5 md:text-neutral-soft"
                               )}
                             />
                             <span>-</span>
@@ -2093,7 +2099,7 @@ const CareerTalentProfilePanel = ({
                               aria-label={"종료일 또는 현재"}
                               className={cn(
                                 profileEditPlainInputClassName,
-                                "w-[92px] text-[11.5px] leading-5 text-neutral-soft"
+                                "w-[92px] md:text-[11.5px] md:leading-5 md:text-neutral-soft"
                               )}
                             />
                             <span className="text-neutral-1000-a10">·</span>
@@ -2128,7 +2134,7 @@ const CareerTalentProfilePanel = ({
                               aria-label={"회사 링크"}
                               className={cn(
                                 profileEditPlainInputClassName,
-                                "min-w-[180px] flex-1 text-[11.5px] leading-5 text-neutral-soft"
+                                "min-w-[180px] flex-1 md:text-[11.5px] md:leading-5 md:text-neutral-soft"
                               )}
                             />
                           </div>
@@ -2148,7 +2154,7 @@ const CareerTalentProfilePanel = ({
                             aria-label={"주요 업무와 성과"}
                             className={cn(
                               profileEditPlainTextareaClassName,
-                              "mt-2 text-[13px] leading-6 text-neutral-muted"
+                              "mt-2 md:text-[13px] md:leading-6 md:text-neutral-muted"
                             )}
                           />
                         </div>
@@ -2182,7 +2188,7 @@ const CareerTalentProfilePanel = ({
                           aria-label={"학교명"}
                           className={cn(
                             profileEditPlainInputClassName,
-                            "text-[14px] font-medium leading-[1.35]"
+                            "md:text-[14px] md:font-medium md:leading-[1.35]"
                           )}
                         />
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] leading-5 text-neutral-muted">
@@ -2202,7 +2208,7 @@ const CareerTalentProfilePanel = ({
                             aria-label={"전공"}
                             className={cn(
                               profileEditPlainInputClassName,
-                              "w-[170px] text-[12.5px] leading-5 text-neutral-muted"
+                              "w-[170px] md:text-[12.5px] md:leading-5 md:text-neutral-muted"
                             )}
                           />
                           <span className="text-neutral-1000-a10">·</span>
@@ -2222,7 +2228,7 @@ const CareerTalentProfilePanel = ({
                             aria-label={"학위"}
                             className={cn(
                               profileEditPlainInputClassName,
-                              "w-[150px] text-[12.5px] leading-5 text-neutral-muted"
+                              "w-[150px] md:text-[12.5px] md:leading-5 md:text-neutral-muted"
                             )}
                           />
                           <span className="text-neutral-1000-a10">·</span>
@@ -2242,7 +2248,7 @@ const CareerTalentProfilePanel = ({
                             aria-label={"학교/프로그램 링크"}
                             className={cn(
                               profileEditPlainInputClassName,
-                              "min-w-[180px] flex-1 text-[12.5px] leading-5 text-neutral-muted"
+                              "min-w-[180px] flex-1 md:text-[12.5px] md:leading-5 md:text-neutral-muted"
                             )}
                           />
                         </div>
@@ -2263,7 +2269,7 @@ const CareerTalentProfilePanel = ({
                             aria-label={"시작일"}
                             className={cn(
                               profileEditPlainInputClassName,
-                              "w-[92px] text-[11.5px] leading-5 text-neutral-soft"
+                              "w-[92px] md:text-[11.5px] md:leading-5 md:text-neutral-soft"
                             )}
                           />
                           <span>-</span>
@@ -2283,7 +2289,7 @@ const CareerTalentProfilePanel = ({
                             aria-label={"종료일"}
                             className={cn(
                               profileEditPlainInputClassName,
-                              "w-[92px] text-[11.5px] leading-5 text-neutral-soft"
+                              "w-[92px] md:text-[11.5px] md:leading-5 md:text-neutral-soft"
                             )}
                           />
                         </div>
@@ -2303,7 +2309,7 @@ const CareerTalentProfilePanel = ({
                           aria-label={"학력 설명"}
                           className={cn(
                             profileEditPlainTextareaClassName,
-                            "mt-2 text-[13px] leading-6 text-neutral-muted"
+                            "mt-2 md:text-[13px] md:leading-6 md:text-neutral-muted"
                           )}
                         />
                       </div>
@@ -2336,7 +2342,7 @@ const CareerTalentProfilePanel = ({
                         aria-label={"제목"}
                         className={cn(
                           profileEditPlainInputClassName,
-                          "text-[14px] font-medium leading-[1.35]"
+                          "md:text-[14px] md:font-medium md:leading-[1.35]"
                         )}
                       />
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] leading-5 text-neutral-muted">
@@ -2356,7 +2362,7 @@ const CareerTalentProfilePanel = ({
                           aria-label={"날짜"}
                           className={cn(
                             profileEditPlainInputClassName,
-                            "w-[160px] text-[12.5px] leading-5 text-neutral-muted"
+                            "w-[160px] md:text-[12.5px] md:leading-5 md:text-neutral-muted"
                           )}
                         />
                       </div>
@@ -2376,7 +2382,7 @@ const CareerTalentProfilePanel = ({
                         aria-label={"설명"}
                         className={cn(
                           profileEditPlainTextareaClassName,
-                          "mt-2 text-[13px] leading-6 text-neutral-muted"
+                          "mt-2 md:text-[13px] md:leading-6 md:text-neutral-muted"
                         )}
                       />
                     </div>
@@ -2530,18 +2536,17 @@ const CareerTalentProfilePanel = ({
               "아직 저장된 프로필 내용이 없습니다. 수정하기를 눌러 직접 입력할 수 있습니다."
             )}
           </div>
-          <ActionButton
+          <MuteButton
             type="button"
-            actionVariant="secondary"
             onClick={beginEditing}
-            className="mt-4 h-11 gap-1.5 px-4 text-[13.5px] md:h-9 md:px-3.5 md:text-[12.5px]"
+            className="mt-4 h-11 gap-1.5 px-4 text-[13.5px] md:h-auto md:px-[7px] md:py-[7px] md:text-[12.5px]"
           >
             <Pencil className="h-3.5 w-3.5" />
             {t(
               "career.profile.career_talent_profile_panel.1iq5xym",
               "수정하기"
             )}
-          </ActionButton>
+          </MuteButton>
         </div>
       )}
     </div>

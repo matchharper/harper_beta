@@ -5,7 +5,7 @@ import CareerProfileMenu from "./CareerProfileMenu";
 import CareerSupportInquiryModal from "./CareerSupportInquiryModal";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import React from "react";
-import { BareButton } from "@/components/ui/button";
+import { MuteButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
 import {
   getAuthenticatedUserProfileImageUrl,
@@ -63,8 +63,6 @@ const CareerWorkspaceNav = () => {
   });
 
   const [inquiryOpen, setInquiryOpen] = useState(false);
-  const btnStyle =
-    "inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-1000-a10 shadow-xs bg-bg-floating text-neutral-primary hover:border-neutral-1000-a10 hover:bg-black/3";
 
   return (
     <>
@@ -74,25 +72,23 @@ const CareerWorkspaceNav = () => {
             Harper
           </div>
           <div className="flex items-center gap-2">
-            <BareButton
+            <MuteButton
               type="button"
               onClick={() => {
                 logCareerEvent("click_open_support");
                 setInquiryOpen(true);
               }}
               aria-label={"개선사항 및 문의사항"}
-              className={btnStyle}
             >
               <MessageTextIcon className="h-4 w-4" strokeWidth={1.8} />
-            </BareButton>
-            <BareButton
+            </MuteButton>
+            <MuteButton
               type="button"
               onClick={onOpenSettings}
               aria-label={"설정"}
-              className={btnStyle}
             >
               <Settings className="h-4 w-4" />
-            </BareButton>
+            </MuteButton>
             <div></div>
             <CareerProfileMenu
               variant="desktop"

@@ -12,7 +12,7 @@ import {
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
-import { Button } from "@/components/ui/button";
+import { MuteButton } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -295,15 +295,9 @@ function ReferralRewardSection({
                   "채용 및 보상 현황을 불러오지 못했습니다."
                 )}
           </span>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={onRetry}
-            className="h-7 bg-bg-floating"
-          >
+          <MuteButton type="button" onClick={onRetry}>
             {t("career.referral.modal.retry", "다시 시도")}
-          </Button>
+          </MuteButton>
         </div>
       ) : items.length > 0 ? (
         <>
@@ -352,10 +346,8 @@ function ReferralRewardSection({
             </table>
           </div>
           {hasNextPage ? (
-            <Button
+            <MuteButton
               type="button"
-              variant="secondary"
-              size="sm"
               disabled={isFetchingNextPage}
               onClick={onLoadMore}
               className="mt-3 w-full"
@@ -364,7 +356,7 @@ function ReferralRewardSection({
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : null}
               {t("career.referral.modal.referrals_load_more", "더 보기")}
-            </Button>
+            </MuteButton>
           ) : null}
         </>
       ) : isLoading ? (
@@ -608,7 +600,7 @@ export function CareerReferralSettingsSection({
 
   return (
     <section className="break-keep text-neutral-primary pb-48">
-      <header className="border-b border-neutral-1000-a05 px-5 pb-5 pt-6 sm:px-6">
+      <header className="border-b border-neutral-1000-a05">
         <div className="text-[20px] mb-6">
           {t(
             "career.referral.modal.reward_headline",
@@ -745,13 +737,12 @@ export function CareerReferralSettingsSection({
               onFocus={(event) => event.currentTarget.select()}
             />
             <div className="flex gap-2">
-              <Button
+              <MuteButton
                 type="button"
                 variant="primary"
-                size="sm"
                 disabled={!referralUrl || loading}
                 onClick={handleCopy}
-                className="flex-1 sm:flex-none bg-primary text-white border-none hover:bg-primary/70"
+                className="flex-1 gap-1.5 sm:flex-none"
               >
                 {copied ? (
                   <Check className="h-4 w-4" />
@@ -761,32 +752,24 @@ export function CareerReferralSettingsSection({
                 {copied
                   ? t("career.referral.modal.copied", "복사됨")
                   : t("career.referral.modal.copy", "복사")}
-              </Button>
-              <Button
+              </MuteButton>
+              <MuteButton
                 type="button"
-                variant="secondary"
-                size="sm"
                 disabled={!referralUrl || loading}
                 onClick={() => void handleShare()}
-                className="flex-1 sm:flex-none"
+                className="flex-1 gap-1.5 sm:flex-none"
               >
                 <Share2 className="h-4 w-4" />
                 {t("career.referral.modal.share", "공유")}
-              </Button>
+              </MuteButton>
             </div>
           </div>
           {error ? (
             <div className="mt-3 flex items-center justify-between gap-3 rounded-md border border-critical/30 bg-critical-faded px-3 py-2 text-[12px] leading-5 text-critical">
               <span>{error}</span>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => void loadSummary()}
-                className="h-7 bg-bg-floating"
-              >
+              <MuteButton type="button" onClick={() => void loadSummary()}>
                 {t("career.referral.modal.retry", "다시 시도")}
-              </Button>
+              </MuteButton>
             </div>
           ) : null}
           <div className="mt-5">
@@ -805,13 +788,11 @@ export function CareerReferralSettingsSection({
                   )}
                 </p>
               </div>
-              <Button
+              <MuteButton
                 type="button"
-                variant="secondary"
-                size="sm"
                 disabled={!referralUrl || loading}
                 onClick={() => void handleCopyInviteMessage()}
-                className="w-full sm:w-auto"
+                className="sm:w-auto"
               >
                 {inviteMessageCopied ? (
                   <Check className="h-4 w-4" />
@@ -821,7 +802,7 @@ export function CareerReferralSettingsSection({
                 {inviteMessageCopied
                   ? t("career.referral.modal.copied", "복사됨")
                   : t("career.referral.modal.copy_invite_message", "문구 복사")}
-              </Button>
+              </MuteButton>
             </div>
             <Textarea
               readOnly
@@ -1008,15 +989,12 @@ export function CareerReferralSettingsSection({
                       "초대 목록을 불러오지 못했습니다."
                     )}
               </span>
-              <Button
+              <MuteButton
                 type="button"
-                variant="secondary"
-                size="sm"
                 onClick={() => void referralsQuery.refetch()}
-                className="h-7 bg-bg-floating"
               >
                 {t("career.referral.modal.retry", "다시 시도")}
-              </Button>
+              </MuteButton>
             </div>
           ) : referrals.length > 0 ? (
             <>
@@ -1068,10 +1046,8 @@ export function CareerReferralSettingsSection({
                 </table>
               </div>
               {referralsQuery.hasNextPage ? (
-                <Button
+                <MuteButton
                   type="button"
-                  variant="secondary"
-                  size="sm"
                   disabled={referralsQuery.isFetchingNextPage}
                   onClick={() => void referralsQuery.fetchNextPage()}
                   className="mt-3 w-full"
@@ -1080,7 +1056,7 @@ export function CareerReferralSettingsSection({
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : null}
                   {t("career.referral.modal.referrals_load_more", "더 보기")}
-                </Button>
+                </MuteButton>
               ) : null}
             </>
           ) : referralsQuery.isLoading ? (

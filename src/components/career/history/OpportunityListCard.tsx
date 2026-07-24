@@ -16,6 +16,8 @@ import {
 } from "./savedOpportunityStatus";
 import { BareButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
+import { InternalOpportunityDecisionMenu } from "./InternalOpportunityDecisionActions";
+import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/internalOpportunityDecision";
 
 const stopCardActivation = (event: React.SyntheticEvent) => {
   event.stopPropagation();
@@ -77,6 +79,7 @@ const OpportunityListCard = ({
   onOpenOpportunityInfo,
   savedStatus,
   onSavedStatusChange,
+  onInternalDecisionAction,
 }: {
   item: CareerHistoryOpportunity;
   pending: boolean;
@@ -85,6 +88,9 @@ const OpportunityListCard = ({
   onOpenOpportunityInfo: (type: CareerOpportunityType) => void;
   savedStatus?: CareerOpportunityManagementStatus;
   onSavedStatusChange?: (value: CareerOpportunityManagementStatus) => void;
+  onInternalDecisionAction?: (
+    action: CareerInternalOpportunityDecisionAction
+  ) => void;
 }) => {
   const t = useCareerT();
 
@@ -95,16 +101,24 @@ const OpportunityListCard = ({
     1
   );
   const hasActionArea = Boolean(
-    savedStatus &&
-    onSavedStatusChange &&
-    canChangeCareerOpportunityManagementStatus(item)
+    (savedStatus &&
+      onSavedStatusChange &&
+      canChangeCareerOpportunityManagementStatus(item)) ||
+    onInternalDecisionAction
   );
 
   return (
     <InlinePanel className="relative rounded-[8px] border border-neutral-1000-a05 bg-bg-floating p-2 transition-colors hover:bg-neutral-100">
       {hasActionArea && (
         <div className="absolute right-2 top-2 z-10">
-          {savedStatus && onSavedStatusChange ? (
+          {item.isInternal && onInternalDecisionAction ? (
+            <InternalOpportunityDecisionMenu
+              onCard
+              item={item}
+              pending={pending}
+              onAction={onInternalDecisionAction}
+            />
+          ) : savedStatus && onSavedStatusChange ? (
             <SavedManagementStatusDropdown
               status={savedStatus}
               disabled={pending}

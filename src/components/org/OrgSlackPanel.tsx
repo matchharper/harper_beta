@@ -88,7 +88,7 @@ export function OrgSlackPanel({
         className="left-auto right-0 top-0 flex h-dvh w-full max-w-[420px] translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-y-0 border-r-0 p-0 duration-300 data-[state=closed]:slide-out-to-right data-[state=closed]:zoom-out-100 data-[state=open]:slide-in-from-right data-[state=open]:zoom-in-100"
         overlayClassName="backdrop-blur-none"
       >
-        <div className="border-b border-neutral-1000-a05 px-5 py-5 pr-14">
+        <div className="border-b border-neutral-1000-a05 px-4 py-4 pr-12">
           <DialogHeader>
             <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-md border border-neutral-1000-a10 bg-bg-floating">
               <Image
@@ -98,14 +98,14 @@ export function OrgSlackPanel({
                 height={20}
               />
             </div>
-            <DialogTitle>Slack 연결</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-[16px]">Slack 연결</DialogTitle>
+            <DialogDescription className="text-[12px]">
               {workspace.companyName}의 Organization 알림 채널
             </DialogDescription>
           </DialogHeader>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-5">
+        <div className="flex-1 overflow-y-auto px-4 py-4">
           {statusQuery.isLoading ? (
             <div className="flex h-40 items-center justify-center text-neutral-muted">
               <LoaderCircle className="h-5 w-5 animate-spin" />
@@ -115,17 +115,17 @@ export function OrgSlackPanel({
               {getErrorMessage(statusQuery.error)}
             </div>
           ) : status?.connected ? (
-            <div className="space-y-5">
-              <div className="rounded-md border border-neutral-1000-a10 bg-bg-floating px-4 py-4">
+            <div className="space-y-4">
+              <div className="rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 py-3">
                 <div className="flex items-start gap-3">
                   <div className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-positive/10 text-positive">
                     <Check className="h-4 w-4" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold text-neutral-primary">
+                    <div className="text-[12px] font-medium text-neutral-primary">
                       연결됨
                     </div>
-                    <div className="mt-1 truncate text-sm text-neutral-muted">
+                    <div className="mt-0.5 truncate text-[11px] text-neutral-muted">
                       {status.teamName || "Slack"} ·{" "}
                       {formatChannelName(status.channelName)}
                     </div>
@@ -134,13 +134,13 @@ export function OrgSlackPanel({
               </div>
 
               <section>
-                <h3 className="text-sm font-semibold text-neutral-primary">
+                <h3 className="text-[12px] font-medium text-neutral-primary">
                   발송 알림
                 </h3>
-                <div className="mt-3 divide-y divide-neutral-1000-a05 border-y border-neutral-1000-a05 text-sm text-neutral-muted">
-                  <div className="py-3">Warm intro 요청</div>
-                  <div className="py-3">후보자 프로세스 중단</div>
-                  <div className="py-3">Organization 멤버 합류</div>
+                <div className="mt-2 divide-y divide-neutral-1000-a05 border-y border-neutral-1000-a05 text-[11px] text-neutral-muted">
+                  <div className="py-2.5">Warm intro 요청</div>
+                  <div className="py-2.5">후보자 프로세스 중단</div>
+                  <div className="py-2.5">Organization 멤버 합류</div>
                 </div>
               </section>
 
@@ -163,7 +163,7 @@ export function OrgSlackPanel({
                 <Button
                   type="button"
                   variant="primary"
-                  size="md"
+                  size="sm"
                   disabled={testSlack.isPending}
                   onClick={() => void handleTest()}
                 >
@@ -177,7 +177,7 @@ export function OrgSlackPanel({
                 <Button
                   type="button"
                   variant="default"
-                  size="md"
+                  size="sm"
                   disabled={connectSlack.isPending}
                   onClick={() => void handleConnect()}
                 >
@@ -191,12 +191,12 @@ export function OrgSlackPanel({
               </div>
             </div>
           ) : (
-            <div className="space-y-5">
+            <div className="space-y-4">
               <div>
-                <h3 className="text-base font-semibold text-neutral-primary">
+                <h3 className="text-[14px] font-medium text-neutral-primary">
                   Slack에서 바로 확인하세요
                 </h3>
-                <p className="mt-2 text-sm leading-6 text-neutral-muted">
+                <p className="mt-1.5 text-[12px] leading-5 text-neutral-muted">
                   후보자 진행 상황과 멤버 변경 알림을 선택한 채널로 보냅니다.
                 </p>
               </div>
@@ -210,7 +210,7 @@ export function OrgSlackPanel({
               <Button
                 type="button"
                 variant="primary"
-                size="lg"
+                size="sm"
                 className="w-full"
                 disabled={connectSlack.isPending}
                 onClick={() => void handleConnect()}
@@ -232,7 +232,7 @@ export function OrgSlackPanel({
         </div>
 
         {status?.connected ? (
-          <div className="border-t border-neutral-1000-a05 px-5 py-4">
+          <div className="border-t border-neutral-1000-a05 px-4 py-3">
             <Button
               type="button"
               variant="default"

@@ -6,7 +6,7 @@ import {
 import { useMemo, useState, useEffect } from "react";
 import CandidateViews from "@/components/CandidateViews";
 import { Loading } from "@/components/ui/loading";
-import { BareButton } from "@/components/ui/button";
+import { MuteButton } from "@/components/ui/button";
 
 const PAGE_SIZE = 10;
 
@@ -51,18 +51,19 @@ export default function PickedPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <BareButton
+          <MuteButton
             type="button"
-            className="px-3 py-1.5 rounded-lg border border-neutral-1000-a05 bg-bg-basement text-sm disabled:opacity-50"
+            className="text-sm"
             onClick={() => setPageIdx((p) => Math.max(0, p - 1))}
             disabled={!hasPrev || isFetching}
           >
             이전
-          </BareButton>
+          </MuteButton>
 
-          <BareButton
+          <MuteButton
             type="button"
-            className="px-3 py-1.5 rounded-lg border border-neutral-1000-a05 text-neutral-00 bg-black text-sm disabled:opacity-50"
+            variant="dark"
+            className="text-sm"
             onClick={() => {
               if (!hasNext) return;
               setPageIdx((p) => p + 1);
@@ -70,7 +71,7 @@ export default function PickedPage() {
             disabled={!hasNext || isFetching}
           >
             다음
-          </BareButton>
+          </MuteButton>
         </div>
       </div>
 

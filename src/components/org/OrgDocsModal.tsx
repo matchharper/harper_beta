@@ -34,15 +34,15 @@ function DocsSection({
   return (
     <section
       data-docs-section={id}
-      className="border-b border-neutral-1000-a05 py-7 last:border-b-0"
+      className="border-b border-neutral-1000-a05 py-5 last:border-b-0"
     >
-      <h2 className="text-base font-medium leading-6 text-neutral-primary">
+      <h2 className="text-[14px] font-medium leading-5 text-neutral-primary">
         {title}
       </h2>
-      <p className="mt-2 text-sm font-normal leading-6 text-neutral-muted">
+      <p className="mt-1.5 text-[12px] font-normal leading-5 text-neutral-muted">
         {description}
       </p>
-      {children ? <div className="mt-4">{children}</div> : null}
+      {children ? <div className="mt-3">{children}</div> : null}
     </section>
   );
 }
@@ -108,16 +108,18 @@ export function OrgDocsModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="h-[min(680px,calc(100svh-24px))] max-w-[720px] grid-rows-[auto_auto_minmax(0,1fr)] gap-0 overflow-hidden rounded-lg p-0 sm:h-[min(680px,calc(100svh-48px))]">
-        <DialogHeader className="border-b border-neutral-1000-a05 px-5 py-4 pr-14 sm:px-6">
-          <DialogTitle className="text-lg font-medium">Harper Docs</DialogTitle>
-          <DialogDescription className="mt-1 text-sm font-normal leading-5">
+        <DialogHeader className="border-b border-neutral-1000-a05 px-4 py-3 pr-12 sm:px-5">
+          <DialogTitle className="text-[16px] font-medium">
+            Harper Docs
+          </DialogTitle>
+          <DialogDescription className="mt-0.5 text-[12px] font-normal leading-4">
             후보자를 검토하고 관리하는 방법입니다.
           </DialogDescription>
         </DialogHeader>
 
         <nav
           aria-label="Docs 목차"
-          className="flex shrink-0 gap-5 overflow-x-auto border-b border-neutral-1000-a05 px-5 sm:px-6 scrollbar-none"
+          className="flex shrink-0 gap-4 overflow-x-auto border-b border-neutral-1000-a05 px-4 sm:px-5 scrollbar-none"
         >
           {DOCS_SECTIONS.map((section) => {
             const selected = section.id === activeSection;
@@ -128,7 +130,7 @@ export function OrgDocsModal({
                 aria-current={selected ? "location" : undefined}
                 onClick={() => scrollToSection(section.id)}
                 className={cn(
-                  "h-10 shrink-0 border-b text-xs font-normal outline-none",
+                  "h-9 shrink-0 border-b text-[11px] font-normal outline-none",
                   selected
                     ? "border-neutral-1000 font-medium text-neutral-primary"
                     : "border-transparent text-neutral-muted hover:text-neutral-primary"
@@ -143,7 +145,7 @@ export function OrgDocsModal({
         <div
           ref={scrollRef}
           onScroll={updateActiveSection}
-          className="min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-6 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10"
+          className="min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-5 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10"
         >
           <div className="mx-auto max-w-[620px]">
             <DocsSection
@@ -151,7 +153,7 @@ export function OrgDocsModal({
               title="후보자 검토"
               description="Role 탭에서 후보자 카드를 누르세요. 상세 화면에서 추천 이유, 경력, 이력서와 링크, 이전 피드를 확인할 수 있습니다."
             >
-              <ol className="space-y-2 text-sm font-normal leading-6 text-neutral-muted">
+              <ol className="space-y-1.5 text-[12px] font-normal leading-5 text-neutral-muted">
                 <li>
                   <span className="mr-2 font-medium text-neutral-primary">
                     1.
@@ -224,7 +226,7 @@ export function OrgDocsModal({
               title="파이프라인"
               description="후보자 카드를 실제 진행 상태에 맞게 옮기세요. Role별 인터뷰 단계가 더 필요하면 + 버튼으로 추가할 수 있습니다."
             >
-              <div className="overflow-x-auto text-sm font-normal text-neutral-primary">
+              <div className="overflow-x-auto text-[12px] font-normal text-neutral-primary">
                 <div className="flex min-w-max items-center gap-3">
                   <span>연결 대기</span>
                   <span className="text-neutral-soft">→</span>
