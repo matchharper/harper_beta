@@ -10,6 +10,7 @@ import LandingHeader from "@/components/landing/LandingHeader";
 import { useMessages } from "@/i18n/useMessage";
 import { supabase } from "@/lib/supabase";
 import Footer from "@/components/landing/Footer";
+import { trackSignUp } from "@/lib/ga";
 
 const LoginModal = dynamic(() => import("@/components/Modal/LoginModal"));
 const PricingSection = dynamic(() => import("@/components/landing/Pricing"));
@@ -115,13 +116,19 @@ export default function PricingPage() {
             Authorization: `Bearer ${accessToken}`,
           },
         });
+        const bootstrapJson = await bootstrapRes.json().catch(() => ({}));
         if (!bootstrapRes.ok) {
-          const bootstrapJson = await bootstrapRes.json().catch(() => ({}));
           return {
             message:
               bootstrapJson?.error ??
               "계정 초기화에 실패했습니다. 다시 시도해 주세요.",
           };
+        }
+        if (bootstrapJson?.created === true) {
+          trackSignUp({
+            flow: "pricing",
+            method: "email_or_existing_session",
+          });
         }
 
         setIsOpenLoginModal(false);

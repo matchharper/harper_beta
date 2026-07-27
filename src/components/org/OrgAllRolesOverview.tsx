@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 import { formatKstRelativeDate } from "@/components/ops/dateUtils";
-import { cx, opsTheme } from "@/components/ops/theme";
+import { opsTheme } from "@/components/ops/theme";
 import { OrgRoleActionsMenu } from "@/components/org/OrgRoleActionsMenu";
 import { InternalOnlySurface } from "@/components/org/internal/InternalOnlySurface";
 import { BareButton } from "@/components/ui/button";
@@ -18,6 +18,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import {
+  useOrgJobsBoard,
+  useOrgJobsNavigation,
+  useOrgJobsRoleActions,
+} from "@/hooks/org/useOrgJobs";
+import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import type {
   OrgBoardItem,
   OrgBoardResponse,
@@ -25,6 +31,7 @@ import type {
   OrgStage,
   OrgStageId,
 } from "@/lib/org/server";
+import { cn } from "@/lib/utils";
 
 function getRoleStageLabel(stage: OrgStage, role: OrgRole) {
   const prefix = `${role.name} · `;
@@ -90,7 +97,7 @@ function StageCountCell({
     <button
       type="button"
       onClick={onClick}
-      className={cx(
+      className={cn(
         "min-w-[136px] appearance-none border-l-4 bg-transparent py-1 pl-2.5 pr-2 text-left outline-none transition hover:bg-bg-weak focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
         borderClassName
       )}
@@ -99,7 +106,7 @@ function StageCountCell({
         {label}
       </div>
       <div
-        className={cx(
+        className={cn(
           "mt-0.5 text-[18px] leading-6",
           count > 0 ? "text-neutral-primary" : "text-neutral-soft"
         )}
@@ -217,7 +224,7 @@ function RoleStatusBadge({
   const meta = getRoleStatusMeta(status);
   return (
     <span
-      className={cx(
+      className={cn(
         "inline-flex h-7 shrink-0 items-center rounded-full px-2.5 text-[12px] font-medium",
         meta.className,
         className
@@ -228,31 +235,20 @@ function RoleStatusBadge({
   );
 }
 
-export function OrgAllRolesOverview({
-  board,
-  canManageCandidates = true,
-  error,
-  isLoading,
-  onDeleteRole,
-  onEditRole,
-  onPauseRole,
-  onResumeRole,
-  onRoleSelect,
-  roleActionPending,
-  roles,
-}: {
-  board?: OrgBoardResponse | null;
-  canManageCandidates?: boolean;
-  error?: Error | null;
-  isLoading?: boolean;
-  onDeleteRole: (role: OrgRole) => void;
-  onEditRole: (roleId: string) => void;
-  onPauseRole: (role: OrgRole) => void;
-  onResumeRole: (role: OrgRole) => void;
-  onRoleSelect: (roleId: string) => void;
-  roleActionPending?: boolean;
-  roles: OrgRole[];
-}) {
+export function OrgAllRolesOverview() {
+  const { boardQuery } = useOrgJobsBoard();
+  const { changeRole } = useOrgJobsNavigation();
+  const {
+    deleteRole,
+    openRoleEditor,
+    pauseRole,
+    resumeRole,
+    roleActionPending,
+  } = useOrgJobsRoleActions();
+  const { permissions, roles } = useOrgWorkspace();
+  const board = boardQuery.data;
+  const canManageCandidates = permissions.canManageCandidates;
+  const isLoading = boardQuery.isLoading;
   const [roleStatusFilters, setRoleStatusFilters] = useState<
     RoleStatusFilterValue[]
   >([]);
@@ -331,7 +327,7 @@ export function OrgAllRolesOverview({
             <DropdownMenuTrigger asChild>
               <BareButton
                 type="button"
-                className={cx(
+                className={cn(
                   "inline-flex h-10 min-w-[152px] items-center justify-between gap-2 rounded-md border px-3 text-[13px] font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
                   roleStatusFilters.length > 0
                     ? "border-primary/30 bg-primary-faded text-primary"
@@ -390,10 +386,6 @@ export function OrgAllRolesOverview({
           </div>
         </div>
 
-        {error ? (
-          <div className={opsTheme.errorNotice}>{error.message}</div>
-        ) : null}
-
         {isLoading ? (
           <div className="flex h-48 items-center justify-center text-[13px] text-neutral-muted">
             <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
@@ -419,7 +411,7 @@ export function OrgAllRolesOverview({
                       <div className="flex min-w-0 flex-wrap items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => onRoleSelect(role.roleId)}
+                          onClick={() => changeRole(role.roleId)}
                           className="min-w-0 max-w-full truncate text-left text-[14px] font-medium text-neutral-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
                         >
                           {role.name}
@@ -430,11 +422,11 @@ export function OrgAllRolesOverview({
                           role={role}
                           pending={roleActionPending}
                           onEdit={(selectedRole) =>
-                            onEditRole(selectedRole.roleId)
+                            openRoleEditor(selectedRole.roleId)
                           }
-                          onPause={onPauseRole}
-                          onResume={onResumeRole}
-                          onDelete={onDeleteRole}
+                          onPause={pauseRole}
+                          onResume={resumeRole}
+                          onDelete={deleteRole}
                         />
                       ) : null}
                     </div>
@@ -485,7 +477,7 @@ export function OrgAllRolesOverview({
                               counts.get(`${role.roleId}:${stage.id}`) ?? 0
                             }
                             label={getRoleStageLabel(stage, role)}
-                            onClick={() => onRoleSelect(role.roleId)}
+                            onClick={() => changeRole(role.roleId)}
                             stageId={stage.id}
                           />
                         );

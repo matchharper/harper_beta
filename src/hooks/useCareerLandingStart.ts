@@ -4,7 +4,10 @@ import {
   CAREER_UTM_DEFAULT_SOURCE,
   CAREER_UTM_LOGIN_LOGGED_STORAGE_PREFIX,
   CAREER_UTM_SOURCE_STORAGE_KEY,
+  buildCareerUtmLandingLogType,
   normalizeCareerUtmSource,
+  readCareerUtmParamsFromSearch,
+  readCareerUtmSourceFromQuery,
   readCareerUtmSourceFromSearch,
   resolveCareerUtmSource,
 } from "@/lib/career/utm";
@@ -25,6 +28,8 @@ const CAREER_ONBOARDING_HREF = "/career/onboarding";
 const CAREER_LANDING_LAST_ABTEST_TYPE_KEY =
   "harper_career_landing_last_abtest_type";
 const CAREER_LANDING_LAST_VISIT_AT_KEY = "harper_career_landing_last_visit_at";
+const CAREER_UTM_PARAMS_LOGGED_STORAGE_PREFIX =
+  "harper_career_utm_params_logged_v1";
 const CAREER_LANDING_SESSION_GAP_MS = 30 * 60 * 1000;
 
 type UseCareerLandingStartOptions = {
@@ -141,10 +146,7 @@ export function useCareerLandingStart({
   const effectiveLandingId = landingIdOverride || landingId;
   const hasLoggedFirstScrollRef = useRef(false);
   const marketingSource = useMemo(() => {
-    const querySource =
-      typeof router.query.source === "string"
-        ? normalizeCareerUtmSource(router.query.source)
-        : null;
+    const querySource = readCareerUtmSourceFromQuery(router.query);
     if (querySource) return querySource;
     if (typeof window === "undefined") return CAREER_UTM_DEFAULT_SOURCE;
     return (
@@ -152,7 +154,7 @@ export function useCareerLandingStart({
         localStorage.getItem(CAREER_UTM_SOURCE_STORAGE_KEY)
       ) ?? CAREER_UTM_DEFAULT_SOURCE
     );
-  }, [router.query.source]);
+  }, [router.query]);
   const careerStartHref = useCareerStartHref(
     marketingSource,
     effectiveLandingId,
@@ -225,6 +227,19 @@ export function useCareerLandingStart({
     );
     const resolvedSource =
       querySource ?? savedSource ?? CAREER_UTM_DEFAULT_SOURCE;
+    const utmLogType = buildCareerUtmLandingLogType(
+      readCareerUtmParamsFromSearch(window.location.search)
+    );
+    const addUtmLog = (localId: string, source: string) => {
+      if (!utmLogType) return;
+      const storageKey = `${CAREER_UTM_PARAMS_LOGGED_STORAGE_PREFIX}:${localId}:${utmLogType}`;
+      if (localStorage.getItem(storageKey)) return;
+
+      void (async () => {
+        const didLog = await addLandingLog(utmLogType, { localId, source });
+        if (didLog) localStorage.setItem(storageKey, "1");
+      })();
+    };
     localStorage.setItem(CAREER_UTM_SOURCE_STORAGE_KEY, resolvedSource);
 
     const savedId =
@@ -250,6 +265,8 @@ export function useCareerLandingStart({
         source: resolvedSource,
       });
     }
+
+    addUtmLog(resolvedLandingId, resolvedSource);
 
     queueMicrotask(() => setLandingId(resolvedLandingId));
 

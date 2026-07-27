@@ -4,12 +4,8 @@ import { type DragEvent, type FormEvent, useMemo, useState } from "react";
 import { OpsDateRangeFilter } from "@/components/ops/OpsDateRangeFilter";
 import { formatKstRelativeDate } from "@/components/ops/dateUtils";
 import { ProfileLabelCell } from "@/components/ops/matching/MatchingTalentCells";
-import { cx, opsTheme } from "@/components/ops/theme";
-import {
-  BareButton,
-  Button,
-  MuteButton,
-} from "@/components/ui/button";
+import { opsTheme } from "@/components/ops/theme";
+import { BareButton, Button, MuteButton } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -44,16 +40,17 @@ import {
   useDeleteOrgReviewStage,
   useUpdateOrgReviewStage,
 } from "@/hooks/org/useOrg";
+import {
+  useOrgJobsBoard,
+  useOrgJobsCandidateActions,
+  useOrgJobsFilters,
+  useOrgJobsNavigation,
+  useOrgJobsRoleActions,
+} from "@/hooks/org/useOrgJobs";
+import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useOrgViewedRecommendations } from "@/hooks/org/useOrgViewedRecommendations";
-import type {
-  OrgBoardItem,
-  OrgBoardResponse,
-  OrgMember,
-  OrgRole,
-  OrgStageChangeOptions,
-  OrgStage,
-  OrgStageId,
-} from "@/lib/org/server";
+import type { OrgBoardItem, OrgStage, OrgStageId } from "@/lib/org/server";
+import { cn } from "@/lib/utils";
 
 function getDisplayName(item: OrgBoardItem) {
   return item.talent.name || item.talent.email || "이름 없음";
@@ -131,7 +128,7 @@ function CandidateCard({
         event.dataTransfer.effectAllowed = "move";
         event.dataTransfer.setData("text/plain", item.recommendationId);
       }}
-      className={cx(
+      className={cn(
         "rounded-sm border border-neutral-1000-a05 bg-bg-floating p-3 transition hover:border-neutral-1000-a10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
         canManageCandidates
           ? "cursor-grab active:cursor-grabbing"
@@ -220,7 +217,7 @@ function CandidateCard({
         </div>
       </div>
       {item.stage === "pending_connection" ? (
-        <div className="-mx-3 mt-3 bg-critical-faded px-3 py-1.5 text-[11px] font-medium text-critical">
+        <div className="-mx-3 mt-3 bg-critical px-3 py-1 text-[12px] font-medium text-neutral-00">
           결정이 필요합니다
         </div>
       ) : null}
@@ -238,59 +235,37 @@ function CandidateCard({
   );
 }
 
-export function OrgPipeline({
-  canManageCandidates = true,
-  activeRoleId,
-  activeRoleName,
-  activeRole,
-  board,
-  currentUserEmail,
-  error,
-  isLoading,
-  members = [],
-  onDeleteRole,
-  nameQuery,
-  onEditRole,
-  onNameQueryChange,
-  onPauseRole,
-  onRecommendedDateChange,
-  onResumeRole,
-  onSelect,
-  onStageChange,
-  pendingRecommendationId,
-  recommendedFromDate,
-  recommendedToDate,
-  roleActionPending,
-  workspaceId,
-}: {
-  canManageCandidates?: boolean;
-  activeRoleId: string;
-  activeRoleName?: string | null;
-  activeRole?: OrgRole | null;
-  board?: OrgBoardResponse | null;
-  currentUserEmail?: string | null;
-  error?: Error | null;
-  isLoading?: boolean;
-  members?: Pick<OrgMember, "email" | "name" | "userId">[];
-  onDeleteRole: (role: OrgRole) => void;
-  nameQuery: string;
-  onEditRole: () => void;
-  onNameQueryChange: (value: string) => void;
-  onPauseRole: (role: OrgRole) => void;
-  onRecommendedDateChange: (from: string, to: string) => void;
-  onResumeRole: (role: OrgRole) => void;
-  onSelect: (item: OrgBoardItem) => void;
-  onStageChange: (
-    item: OrgBoardItem,
-    stage: OrgStageId,
-    options?: OrgStageChangeOptions
-  ) => void | Promise<void>;
-  pendingRecommendationId?: string | null;
-  recommendedFromDate: string;
-  recommendedToDate: string;
-  roleActionPending?: boolean;
-  workspaceId: string;
-}) {
+export function OrgPipeline() {
+  const { boardQuery } = useOrgJobsBoard();
+  const { changeStage: onStageChange, pendingRecommendationId } =
+    useOrgJobsCandidateActions();
+  const {
+    nameQuery,
+    recommendedFromDate,
+    recommendedToDate,
+    setNameQuery: onNameQueryChange,
+    setRecommendedDateRange: onRecommendedDateChange,
+  } = useOrgJobsFilters();
+  const {
+    activeRole,
+    activeRoleId,
+    selectTalent: onSelect,
+    workspaceId,
+  } = useOrgJobsNavigation();
+  const {
+    deleteRole: onDeleteRole,
+    openRoleEditor,
+    pauseRole: onPauseRole,
+    resumeRole: onResumeRole,
+    roleActionPending,
+  } = useOrgJobsRoleActions();
+  const { bootstrap, currentUserEmail, permissions } = useOrgWorkspace();
+  const members = bootstrap.members;
+  const board = boardQuery.data;
+  const canManageCandidates = permissions.canManageCandidates;
+  const isLoading = boardQuery.isLoading;
+  const activeRoleName = activeRole?.name ?? null;
+  const onEditRole = () => openRoleEditor(activeRoleId);
   const [dragOverStage, setDragOverStage] = useState<OrgStageId | null>(null);
   const [acceptRequest, setAcceptRequest] = useState<{
     item: OrgBoardItem;
@@ -523,7 +498,7 @@ export function OrgPipeline({
               ? "rejected"
               : "default"
         }
-        className={cx(
+        className={cn(
           stage.id === "accepted" && "relative isolate overflow-hidden",
           isLastColumn && "border-r"
         )}
@@ -624,12 +599,7 @@ export function OrgPipeline({
         </div>
       </div>
 
-      {error ? (
-        <div className={opsTheme.errorNotice}>{error.message}</div>
-      ) : null}
-      {customStageActionError &&
-      !customStageDialogOpen &&
-      !stageToDelete ? (
+      {customStageActionError && !customStageDialogOpen && !stageToDelete ? (
         <div className={opsTheme.errorNotice}>{customStageActionError}</div>
       ) : null}
 

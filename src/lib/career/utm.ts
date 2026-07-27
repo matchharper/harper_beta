@@ -1,6 +1,9 @@
 export const CAREER_UTM_SOURCE_QUERY_PARAM = "source";
+export const CAREER_UTM_STANDARD_SOURCE_QUERY_PARAM = "utm_source";
+export const CAREER_TM_SOURCE_QUERY_PARAM = "tm_source";
 export const CAREER_UTM_DEFAULT_SOURCE = "career";
 export const CAREER_UTM_SOURCE_MAX_LENGTH = 80;
+export const CAREER_UTM_PARAM_MAX_LENGTH = 120;
 export const CAREER_UTM_DESCRIPTION_MAX_LENGTH = 500;
 export const CAREER_UTM_SOURCE_STORAGE_KEY = "harper_career_utm_source_v1";
 export const CAREER_UTM_LOGIN_LOGGED_STORAGE_PREFIX =
@@ -23,6 +26,18 @@ export type CareerLandingHeroCopyAbtestType =
   (typeof CAREER_LANDING_HERO_COPY_ABTEST_TYPES)[number];
 
 const CAREER_UTM_SOURCE_PATTERN = /^[a-z0-9][a-z0-9_-]{0,79}$/;
+const CAREER_UTM_LOG_TYPE_MAX_LENGTH = 500;
+const CAREER_UTM_PARAM_KEYS = [
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_content",
+  "utm_term",
+] as const;
+
+type QueryValue = string | string[] | null | undefined;
+type CareerUtmParamKey = (typeof CAREER_UTM_PARAM_KEYS)[number];
+export type CareerUtmParams = Partial<Record<CareerUtmParamKey, string>>;
 
 export function normalizeCareerUtmSource(value: unknown) {
   const normalized = String(value ?? "")
@@ -34,6 +49,11 @@ export function normalizeCareerUtmSource(value: unknown) {
   return normalized;
 }
 
+function normalizeCareerUtmParam(value: unknown) {
+  const normalized = String(value ?? "").trim();
+  return normalized ? normalized.slice(0, CAREER_UTM_PARAM_MAX_LENGTH) : null;
+}
+
 export function normalizeCareerUtmDescription(value: unknown) {
   const normalized = String(value ?? "").trim();
   return normalized.slice(0, CAREER_UTM_DESCRIPTION_MAX_LENGTH);
@@ -43,13 +63,83 @@ export function resolveCareerUtmSource(value: unknown) {
   return normalizeCareerUtmSource(value) ?? CAREER_UTM_DEFAULT_SOURCE;
 }
 
+function getFirstQueryValue(value: QueryValue) {
+  return Array.isArray(value) ? (value[0] ?? null) : value;
+}
+
+function readCareerUtmSourceFromParams(params: URLSearchParams) {
+  return (
+    normalizeCareerUtmSource(params.get(CAREER_UTM_SOURCE_QUERY_PARAM)) ??
+    normalizeCareerUtmSource(
+      params.get(CAREER_UTM_STANDARD_SOURCE_QUERY_PARAM)
+    ) ??
+    normalizeCareerUtmSource(params.get(CAREER_TM_SOURCE_QUERY_PARAM))
+  );
+}
+
 export function readCareerUtmSourceFromSearch(search: string) {
   const params = new URLSearchParams(search);
-  return normalizeCareerUtmSource(params.get(CAREER_UTM_SOURCE_QUERY_PARAM));
+  return readCareerUtmSourceFromParams(params);
+}
+
+export function readCareerUtmSourceFromQuery(
+  query: Record<string, QueryValue>
+) {
+  return (
+    normalizeCareerUtmSource(
+      getFirstQueryValue(query[CAREER_UTM_SOURCE_QUERY_PARAM])
+    ) ??
+    normalizeCareerUtmSource(
+      getFirstQueryValue(query[CAREER_UTM_STANDARD_SOURCE_QUERY_PARAM])
+    ) ??
+    normalizeCareerUtmSource(
+      getFirstQueryValue(query[CAREER_TM_SOURCE_QUERY_PARAM])
+    )
+  );
+}
+
+export function readCareerUtmParamsFromSearch(search: string) {
+  const params = new URLSearchParams(search);
+  const hasExplicitUtm = CAREER_UTM_PARAM_KEYS.some((key) =>
+    params.has(key)
+  );
+  if (!hasExplicitUtm && !params.has(CAREER_TM_SOURCE_QUERY_PARAM)) {
+    return null;
+  }
+
+  const utmParams: CareerUtmParams = {};
+  const source = normalizeCareerUtmSource(
+    params.get(CAREER_UTM_STANDARD_SOURCE_QUERY_PARAM) ??
+      params.get(CAREER_TM_SOURCE_QUERY_PARAM) ??
+      params.get(CAREER_UTM_SOURCE_QUERY_PARAM)
+  );
+  if (source) utmParams.utm_source = source;
+
+  for (const key of CAREER_UTM_PARAM_KEYS) {
+    if (key === CAREER_UTM_STANDARD_SOURCE_QUERY_PARAM) continue;
+    const value = normalizeCareerUtmParam(params.get(key));
+    if (value) utmParams[key] = value;
+  }
+
+  return Object.keys(utmParams).length > 0 ? utmParams : null;
+}
+
+export function buildCareerUtmLandingLogType(params: CareerUtmParams | null) {
+  if (!params) return null;
+
+  const serialized = new URLSearchParams(
+    CAREER_UTM_PARAM_KEYS.flatMap((key) => {
+      const value = params[key];
+      return value ? [[key, value]] : [];
+    })
+  ).toString();
+  if (!serialized) return null;
+
+  return `utm:${serialized}`.slice(0, CAREER_UTM_LOG_TYPE_MAX_LENGTH);
 }
 
 export function buildCareerUtmUrl(source: string) {
-  return `https://matchharper.com?source=${encodeURIComponent(source)}`;
+  return `https://matchharper.com?utm_source=${encodeURIComponent(source)}`;
 }
 
 export function isCareerLandingHeroCopyAbtestType(

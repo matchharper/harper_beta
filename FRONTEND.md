@@ -1,10 +1,15 @@
 # FRONTEND.md
 
-Harper 프론트엔드의 디자인 시스템, 상태 관리, 성능 원칙, 그리고 **"useEffect 남용 금지"** 규칙을 정리한 문서. 새 기능을 추가하거나 모바일을 지원하는 모든 변경은 이 문서를 따른다.
+Harper 프론트엔드의 디자인 시스템, 상태 관리, 성능 원칙, 그리고
+**`useEffect`를 의도에 맞게 사용하는 기준**을 정리한 문서. 새 기능을 추가하거나
+모바일을 지원하는 모든 변경은 이 문서를 따른다.
 
 > **두 가지 절대 원칙**
-> 1. **`useEffect`는 마지막 수단이다.** React 공식 가이드 *[You Might Not Need an Effect](https://react.dev/learn/you-might-not-need-an-effect)* 를 그대로 따른다.
-> 2. **상태 책임을 깨지 않는다.** 서버 상태 → TanStack Query, 공유 UI 상태 → Zustand, 일시적 로컬 상태 → `useState`. 그 외는 금지.
+> 1. **`useEffect`는 외부 시스템 동기화에 사용한다.** 파생값 계산, 이벤트 처리,
+>    서버 데이터 패칭을 effect로 우회하지 않는다.
+> 2. **상태 책임을 깨지 않는다.** 서버 상태 → TanStack Query, 앱/라우트 간 공유
+>    UI 상태 → Zustand, 한 페이지의 형제들이 공유하는 상태 → page-scoped
+>    context/domain hook, 한 컴포넌트의 일시적 상태 → `useState`.
 
 ---
 
@@ -37,9 +42,11 @@ const map = new Map<string, CandidateRecord>();          // 구체적 타입 파
 | Supabase 쿼리 결과 | `src/types/database.types.ts`의 `Database` 제네릭 적용 |
 | 이벤트 핸들러 | `React.MouseEvent<HTMLButtonElement>` 등 구체적 이벤트 타입 |
 
-### 0.2 `useEffect`는 외부 시스템 동기화 전용
+### 0.2 `useEffect`로 상태 책임을 우회하지 않는다
 
-상세 규칙은 §3. 컴포넌트 본문에서 `useEffect`를 직접 호출하지 않는다 — 정당한 경우라도 `src/hooks/`에 캡슐화한다.
+상세 규칙은 §3. 외부 구독, 브라우저 API, imperative DOM, route/URL 정규화처럼
+렌더링만으로 처리할 수 없는 동기화에는 컴포넌트에서도 `useEffect`를 사용할 수
+있다. 다만 재사용되거나 복잡한 effect는 의도가 드러나는 custom hook으로 분리한다.
 
 ### 0.3 인라인 `style={{}}`는 동적 값 전용
 
@@ -234,7 +241,7 @@ import { PageContainer } from "@/components/layout/PageContainer";
 | 컴포넌트 | prop | 값 |
 |---|---|---|
 | `Page` | `minHeight` | `svh` (기본), `fillScreen`, `none` |
-| | `background` | `beige`, `beigeAlt`, `paper`, `dark`, `none` |
+| | `background` | `beige`, `beigeAlt`, `paper`, `neutral`, `dark`, `none` |
 | | `safeArea` | `none` (기본), `top`, `bottom`, `y`, `x`, `all` |
 | `PageContainer` | `size` | `narrow`(720) · `default`(1260) · `wide`(1440) · `full` |
 | | `padding` | `default` (`px-4 md:px-6 lg:px-8`), `tight`, `loose`, `none` |
@@ -312,9 +319,11 @@ import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 
 ---
 
-## 3. ⛔ `useEffect` 남용 금지
+## 3. `useEffect` 사용 기준
 
-> **원칙**: `useEffect`는 "React 바깥의 외부 시스템과 동기화"할 때만. 그 외 모든 경우는 useEffect 없이 해결.
+> **원칙**: `useEffect`는 React 상태를 외부 시스템과 동기화하는 도구다. effect
+> 자체를 금지하지 않으며, 렌더 중 계산·이벤트 핸들러·TanStack Query가 더 정확한
+> 문제에는 그 도구를 사용한다.
 > 참고: [react.dev — You Might Not Need an Effect](https://react.dev/learn/you-might-not-need-an-effect)
 
 ### 3.1 금지되는 안티패턴
@@ -392,15 +401,21 @@ function Parent() {
 }
 ```
 
-### 3.2 ✅ `useEffect`가 정당한 경우 (whitelist)
+### 3.2 ✅ `useEffect`가 적절한 대표 사례
 1. **외부 구독** — `window.addEventListener`, `matchMedia`, `IntersectionObserver`, `ResizeObserver`, Supabase realtime, `BroadcastChannel`. 가능하면 `useSyncExternalStore`로 대체 검토.
 2. **수동 DOM 측정/포커스** — `element.focus()`, `scrollIntoView`, `getBoundingClientRect`.
 3. **타이머** — `setTimeout`/`setInterval` 등록·cleanup.
 4. **3rd-party imperative API** — chart 인스턴스 생성/파괴, 지도 라이브러리.
-5. **document.title / analytics ping** — 렌더와 무관한 외부 시스템 푸시. 단 **analytics는 가능하면 이벤트 핸들러에서**.
+5. **URL/라우터 정규화** — 인증 또는 서버 응답 이후 canonical URL로 이동.
+6. **document.title / analytics ping** — 렌더와 무관한 외부 시스템 푸시. 단 **analytics는 가능하면 이벤트 핸들러에서**.
 
-### 3.3 규칙 — `useEffect`는 hook 안에 가둔다
-컴포넌트에서 `useEffect`를 직접 호출하지 않는다. 정당한 케이스도 **`src/hooks/`에 의도가 드러나는 이름의 훅을 만들고 그 훅 안에서만 사용**.
+### 3.3 배치 기준 — 로컬 effect와 custom hook
+
+- 한 컴포넌트에만 필요한 짧고 명확한 외부 동기화는 컴포넌트에 둬도 된다.
+- 여러 컴포넌트가 재사용하거나 구독/cleanup/상태 전이가 복잡하면
+  **`src/hooks/`에 의도가 드러나는 이름의 hook으로 분리**한다.
+- effect를 hook으로 옮기는 것만으로 잘못된 상태 책임이 해결되지는 않는다.
+  파생값·이벤트·서버 패칭인지 먼저 확인한다.
 
 ```tsx
 // 권장: src/hooks/useFocusOnMount.ts
@@ -420,7 +435,7 @@ useFocusOnMount(inputRef);
 - [ ] 데이터 패칭이면 TanStack Query 훅으로 옮길 수 있나?
 - [ ] state 리셋이면 `key` prop으로 풀 수 있나?
 - [ ] 외부 시스템 동기화면 `useSyncExternalStore`로 대체 가능한가?
-- [ ] effect가 컴포넌트 본문에 노출되어 있다면 `useXxx` 훅으로 캡슐화했는가?
+- [ ] effect가 복잡하거나 재사용된다면 `useXxx` hook으로 분리했는가?
 
 ### 3.5 ESLint (권장 도입)
 - `eslint-plugin-react-hooks` (기본)
@@ -495,6 +510,10 @@ export function useCandidateDetail(candidId: string) {
 | run 결과 도착 | — | run.results | — |
 | ATS outreach 발송 | — | candidate.detail, match.candidates | — |
 | ops opportunity 라벨링 | — | opsOpportunity.companies | — |
+| org 후보자 단계 변경 | — | org.board, org.detail | — |
+| org role 수정 | — | org.bootstrap, org.board, org.detail | — |
+| org 멤버/초대/회사 수정 | — | org.bootstrap | — |
+| org Slack 설정 변경 | org.slack (알림 optimistic) | org.slack | — |
 | 로그아웃 | — | — | `queryClient.clear()` |
 
 공용 헬퍼는 `src/lib/queryInvalidation.ts`(또는 도메인 모듈)에 모은다. 예: 기존 `invalidateBookmarkRelatedQueries(qc, userId)`. mutation 신설 시 도메인 헬퍼가 있으면 헬퍼를 부르고, 없으면 헬퍼부터 만든다.
@@ -510,6 +529,11 @@ export function useCandidateDetail(candidId: string) {
 | bookmarkFolders.byUser | 5min | 30min | 변경 적음, mutation이 invalidate |
 | run.detail / run.results | 30s | 10min | 폴링/롱폴링 결과 반영 필요 |
 | match.workspace / match.candidates | 60s | 10min | 워크스페이스 전환 시 fresh |
+| org.bootstrap | 30s | 10min | shell 공통 데이터, mutation이 invalidate |
+| org.invitePreview | 5min | 10min | 초대 진입 정보는 변경 빈도가 낮음 |
+| org.board / org.detail / org.agent* | 20s | 10min | Jobs 작업 결과를 빠르게 반영 |
+| org.slack | 15s | 10min | 외부 연동 상태 확인 |
+| org.internalTalent | 30s | 10min | 내부 운영 상세 데이터 |
 | opsOpportunity.* | 60s | 10min | 어드민 화면, 자주 갱신 |
 | searchHistory.byUser | 5min | 30min | 변경 적음 |
 | connections.count | 5min | 30min | 거의 안 변함 |
@@ -573,15 +597,18 @@ function handleCardHover(candidId: string) {
 
 ---
 
-## 5. Zustand — 베스트 프랙티스
+## 5. 클라이언트 상태와 Zustand — 베스트 프랙티스
 
-Zustand는 **순수 클라이언트 UI 상태**만 담당. 서버에서 온 데이터를 Zustand에 복제하지 않는다.
+Zustand는 페이지 경계를 넘어 유지하거나 여러 기능 영역에서 접근하는
+**순수 클라이언트 UI 상태**를 담당한다. 한 페이지의 형제 컴포넌트만 공유하는
+상태와 orchestration은 page-scoped context/domain hook으로 제한할 수 있다.
+서버에서 온 데이터는 어느 쪽에도 복제하지 않고 TanStack Query를 SSOT로 둔다.
 
 ### 5.1 무엇을 Zustand에 넣고, 무엇을 넣지 않는가
 | 넣어야 함 | 넣으면 안 됨 |
 |---|---|
 | 사용자 설정 (뷰 타입, 필터 정렬 순서) | 후보 목록, 폴더 목록 (서버 데이터) |
-| 모달 open/close | 모달 안의 폼 값 (`useState`로 충분) |
+| 여러 화면에서 여는 전역 모달 open/close | 페이지 내부 모달과 폼 값 (`useState`로 충분) |
 | 현재 워크스페이스 id | 워크스페이스 내용 |
 | Auth session 스냅샷 (Supabase 구독 결과) | 사용자 프로필 디테일 (Query로) |
 
@@ -815,7 +842,9 @@ function Page() {
 
 원칙:
 - **한 훅 = 한 책임**. 두 쿼리를 묶어야 하면 그 묶음 자체를 새로운 도메인 훅으로 만든다.
-- 컴포넌트 본문에서 `useQuery`/`useMutation`/`useEffect`를 직접 호출하면 리뷰에서 훅 분리 요청.
+- `useQuery`/`useMutation`은 페이지 또는 도메인 hook에서 호출한다. 여러 컴포넌트가
+  같은 orchestration을 공유할 때 도메인 hook/context로 분리한다.
+- `useEffect`는 §3의 배치 기준을 따른다.
 - 훅 시그니처는 **명시적 입력 → 명시적 출력**. 인자가 5개 넘으면 옵션 객체.
 - 훅이 query factory를 export하면 (§4.3) prefetch에 재사용 가능.
 
@@ -828,8 +857,10 @@ function Page() {
 3. **데이터** — `src/app/api/...`에 route + `src/hooks/use<Entity>.ts` 훅 + `queryOptions` factory (§4.3).
 4. **무효화** — 신규 mutation은 invalidation contract 표(§4.4)에 한 줄 추가.
 5. **staleTime** — staleTime policy 표(§4.5)에 한 줄 추가.
-6. **클라이언트 상태** — 페이지 내부면 `useState`, 페이지 간 공유면 Zustand. 서버 데이터 복제 금지.
-7. **부수효과** — `useEffect` 작성 전 §3.1 안티패턴 7개 재확인, 정당하면 `src/hooks/`에 캡슐화.
+6. **클라이언트 상태** — 한 컴포넌트면 `useState`, 한 페이지의 형제 간 공유면
+   page-scoped context/domain hook, 페이지 간 공유면 Zustand. 서버 데이터 복제 금지.
+7. **부수효과** — `useEffect` 작성 전 §3.1 안티패턴을 확인하고, 복잡하거나
+   재사용되는 동기화는 `src/hooks/`에 캡슐화.
 8. **컬러/spacing** — 토큰만. 새 색은 `tailwind.config.js`에 추가.
 9. **인라인 style 없음** (§0.3), **styled-jsx 없음** (§0.5).
 10. **prefetch** — hover/focus에서 route + query prefetch (§4.7) 필요 여부 검토.
@@ -849,7 +880,7 @@ function Page() {
 | `useEffect`로 부모 알림 | 복잡한 데이터 흐름 | 흐름 역전 (§3.1-G) |
 | `useEffect`로 state 리셋 | 추가 렌더 패스 | `key` 패턴 (§3.1-B) |
 | `useEffect` 체이닝 | N번의 불필요한 리렌더 | 렌더 중 계산 (§3.1-F) |
-| 컴포넌트 본문의 `useEffect` | 의도 흐려짐, 재사용 불가 | `src/hooks/`에 캡슐화 (§3.3) |
+| 복잡한 구독/동기화 effect를 여러 컴포넌트에 중복 | cleanup 누락, 동작 불일치 | 의도가 드러나는 custom hook (§3.3) |
 | `fetch` + `useState`로 서버 데이터 | 캐시·중복제거·에러 없음 | TanStack Query (§4) |
 | 수동 낙관적 업데이트 | 롤백 누락 | `useMutation` `onMutate`/`onError` (§4.6) |
 | 같은 리소스에 factory 없이 다른 queryKey | 캐시 분기 | `queryOptions` factory (§4.3) |

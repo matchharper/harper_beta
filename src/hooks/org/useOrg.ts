@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import type {
   OrgBoardResponse,
@@ -31,12 +36,12 @@ type OrgBoardFilters = {
   workspaceId?: string | null;
 };
 
-export function useOrgBootstrap(args: {
+export function orgBootstrapQueryOptions(args: {
   enabled?: boolean;
   orgId?: string | null;
 }) {
   const orgId = args.orgId?.trim() ?? "";
-  return useQuery({
+  return queryOptions({
     queryKey: queryKeys.org.bootstrap(orgId),
     queryFn: () => {
       const params = new URLSearchParams();
@@ -51,12 +56,19 @@ export function useOrgBootstrap(args: {
   });
 }
 
-export function useOrgInvitePreview(args: {
+export function useOrgBootstrap(args: {
+  enabled?: boolean;
+  orgId?: string | null;
+}) {
+  return useQuery(orgBootstrapQueryOptions(args));
+}
+
+export function orgInvitePreviewQueryOptions(args: {
   enabled?: boolean;
   orgId?: string | null;
 }) {
   const orgId = args.orgId?.trim() ?? "";
-  return useQuery({
+  return queryOptions({
     queryKey: queryKeys.org.invitePreview(orgId),
     queryFn: async () => {
       const response = await fetch(
@@ -74,6 +86,13 @@ export function useOrgInvitePreview(args: {
     staleTime: 5 * 60_000,
     retry: false,
   });
+}
+
+export function useOrgInvitePreview(args: {
+  enabled?: boolean;
+  orgId?: string | null;
+}) {
+  return useQuery(orgInvitePreviewQueryOptions(args));
 }
 
 export function useSendOrgInvitations() {
@@ -149,7 +168,7 @@ export function useLeaveOrgWorkspace() {
   });
 }
 
-export function useOrgBoard(filters: OrgBoardFilters) {
+export function orgBoardQueryOptions(filters: OrgBoardFilters) {
   const workspaceId = filters.workspaceId?.trim() ?? "";
   const roleId = filters.roleId?.trim() ?? "";
   const recommendedDate = filters.recommendedDate?.trim() ?? "";
@@ -157,7 +176,7 @@ export function useOrgBoard(filters: OrgBoardFilters) {
   const recommendedToDate = filters.recommendedToDate?.trim() ?? "";
   const query = filters.query?.trim() ?? "";
 
-  return useQuery({
+  return queryOptions({
     queryKey: queryKeys.org.board({
       query,
       recommendedDate,
@@ -183,7 +202,11 @@ export function useOrgBoard(filters: OrgBoardFilters) {
   });
 }
 
-export function useOrgTalentDetail(args: {
+export function useOrgBoard(filters: OrgBoardFilters) {
+  return useQuery(orgBoardQueryOptions(filters));
+}
+
+export function orgTalentDetailQueryOptions(args: {
   enabled?: boolean;
   recommendationId?: string | null;
   roleId?: string | null;
@@ -195,7 +218,7 @@ export function useOrgTalentDetail(args: {
   const roleId = args.roleId?.trim() ?? "";
   const recommendationId = args.recommendationId?.trim() ?? "";
 
-  return useQuery({
+  return queryOptions({
     queryKey: queryKeys.org.detail({
       recommendationId,
       roleId,
@@ -214,6 +237,16 @@ export function useOrgTalentDetail(args: {
       (args.enabled ?? true) && Boolean(workspaceId) && Boolean(talentId),
     staleTime: 20_000,
   });
+}
+
+export function useOrgTalentDetail(args: {
+  enabled?: boolean;
+  recommendationId?: string | null;
+  roleId?: string | null;
+  talentId?: string | null;
+  workspaceId?: string | null;
+}) {
+  return useQuery(orgTalentDetailQueryOptions(args));
 }
 
 export function useSetOrgCandidateStage() {

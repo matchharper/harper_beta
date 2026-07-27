@@ -89,6 +89,10 @@ type RecommendationRow = Pick<
   | "saved_stage"
   | "updated_at"
 >;
+type ExternalNegativeFeedbackReasonRow = Pick<
+  Database["public"]["Tables"]["talent_opportunity_recommendation"]["Row"],
+  "feedback_at" | "feedback_reason" | "id" | "talent_id" | "updated_at"
+>;
 type CareerEmailMessageRow = Pick<
   Database["public"]["Tables"]["career_email_messages"]["Row"],
   | "direction"
@@ -188,6 +192,7 @@ export type DailyUserStatsInternalConnectionResponseStats = {
 
 export type DailyUserStatsInternalOpportunityStats = {
   acceptedCount: number;
+  checkedCount: number;
   recommendationCount: number;
   rejectedCount: number;
 };
@@ -196,6 +201,19 @@ export type DailyUserStatsInternalOpportunityRecommendationRow = {
   companyName: string;
   roleName: string;
   talentCount: number;
+};
+
+export type DailyUserStatsExternalNegativeFeedbackReasonRow = {
+  count: number;
+  label: string;
+  rate: number | null;
+};
+
+export type DailyUserStatsExternalNegativeFeedbackReasonStats = {
+  endDate: string;
+  reasonSelectionResponseCount: number;
+  rows: DailyUserStatsExternalNegativeFeedbackReasonRow[];
+  startDate: string;
 };
 
 export type DailyUserStatsLandingAbtestRow = {
@@ -233,6 +251,7 @@ export type DailyUserStatsReport = {
   dateLabel: string;
   endDateExclusive: string;
   endIso: string;
+  externalNegativeFeedbackReasonStats: DailyUserStatsExternalNegativeFeedbackReasonStats;
   failedToolCallCount: number;
   highIntentTalentsCount: number;
   internalConnectionResponseStats: DailyUserStatsInternalConnectionResponseStats | null;
@@ -487,6 +506,102 @@ function getOpportunityDeliveryDedupeKey(args: {
 
 function countRate(numerator: number, denominator: number) {
   return denominator > 0 ? numerator / denominator : null;
+}
+
+const EXTERNAL_NEGATIVE_FEEDBACK_REASON_OPTIONS = [
+  {
+    label: "역할이나 직무가 맞지 않아요",
+    value: "역할이나 직무가 맞지 않아요",
+  },
+  {
+    label: "회사 혹은 조건이 기준을 충족하지 못해요",
+    value: "회사 혹은 조건이 기준을 충족하지 못해요.",
+  },
+  {
+    label: "이미 지원했던 회사/역할입니다",
+    value: "이미 지원했던 회사/역할입니다.",
+  },
+  {
+    label: "만료된 공고에요",
+    value: "만료된 공고에요.",
+  },
+  {
+    label: "근무 조건이 맞지않아요(리모트, 위치 등)",
+    value: "근무 조건이 맞지않아요(리모트, 위치 등)",
+  },
+  {
+    label: "기타 직접 입력",
+    value: "other",
+  },
+] as const;
+
+function parseExternalNegativeFeedbackReasonOptions(
+  feedbackReason: string | null | undefined
+) {
+  const raw = String(feedbackReason ?? "").trim();
+  if (!raw) return [];
+
+  try {
+    const parsed = JSON.parse(raw) as { selectedOptions?: unknown };
+    if (Array.isArray(parsed.selectedOptions)) {
+      const selectedSet = new Set(
+        parsed.selectedOptions.map((value) => String(value).trim())
+      );
+      return EXTERNAL_NEGATIVE_FEEDBACK_REASON_OPTIONS.filter(
+        (option) =>
+          selectedSet.has(option.value) || selectedSet.has(option.label)
+      ).map((option) => option.value);
+    }
+  } catch {
+    // Older feedback_reason values were stored as " | "-separated text.
+  }
+
+  const segments = new Set(
+    raw
+      .split(" | ")
+      .map((value) => value.trim())
+      .filter(Boolean)
+  );
+  return EXTERNAL_NEGATIVE_FEEDBACK_REASON_OPTIONS.filter(
+    (option) => segments.has(option.value) || segments.has(option.label)
+  ).map((option) => option.value);
+}
+
+export function buildExternalNegativeFeedbackReasonStats(args: {
+  endDate: string;
+  rows: Array<Pick<ExternalNegativeFeedbackReasonRow, "feedback_reason">>;
+  startDate: string;
+}): DailyUserStatsExternalNegativeFeedbackReasonStats {
+  const countByValue = new Map(
+    EXTERNAL_NEGATIVE_FEEDBACK_REASON_OPTIONS.map((option) => [option.value, 0])
+  );
+  let reasonSelectionResponseCount = 0;
+
+  for (const row of args.rows) {
+    const selectedOptions = parseExternalNegativeFeedbackReasonOptions(
+      row.feedback_reason
+    );
+    if (selectedOptions.length === 0) continue;
+
+    reasonSelectionResponseCount += 1;
+    for (const value of selectedOptions) {
+      countByValue.set(value, (countByValue.get(value) ?? 0) + 1);
+    }
+  }
+
+  return {
+    endDate: args.endDate,
+    reasonSelectionResponseCount,
+    rows: EXTERNAL_NEGATIVE_FEEDBACK_REASON_OPTIONS.map((option) => {
+      const count = countByValue.get(option.value) ?? 0;
+      return {
+        count,
+        label: option.label,
+        rate: countRate(count, reasonSelectionResponseCount),
+      };
+    }),
+    startDate: args.startDate,
+  };
 }
 
 const DAILY_USER_STATS_LANDING_ABTEST_VARIANTS = [
@@ -999,8 +1114,8 @@ function buildInternalConnectionResponseStats(args: {
   };
 }
 
-function buildInternalOpportunityStats(
-  rows: RecommendationRow[]
+export function buildInternalOpportunityStats(
+  rows: Array<Pick<RecommendationRow, "feedback" | "viewed_at">>
 ): DailyUserStatsInternalOpportunityStats {
   const acceptedCount = rows.filter(
     (row) => normalizeRecommendationFeedback(row.feedback) === "positive"
@@ -1008,9 +1123,15 @@ function buildInternalOpportunityStats(
   const rejectedCount = rows.filter(
     (row) => normalizeRecommendationFeedback(row.feedback) === "negative"
   ).length;
+  const checkedCount = rows.filter(
+    (row) =>
+      Boolean(row.viewed_at) ||
+      normalizeRecommendationFeedback(row.feedback) !== null
+  ).length;
 
   return {
     acceptedCount,
+    checkedCount,
     recommendationCount: rows.length,
     rejectedCount,
   };
@@ -1116,6 +1237,10 @@ async function buildUserStatsReport(args: {
     addDaysToDateOnly(endDateExclusive, -7),
     7
   );
+  const externalNegativeFeedbackReasonRolling7DayRange = getKstRange(
+    addDaysToDateOnly(endDateExclusive, -7),
+    7
+  );
   const excludedEmailSet = new Set(DAILY_USER_STATS_EXCLUDED_EMAILS);
 
   const [
@@ -1137,6 +1262,8 @@ async function buildUserStatsReport(args: {
     noRecommendationOnboardingEvents,
     recommendationTalentRowsBeforeObservationEnd,
     internalOpportunityRolling7DayRows,
+    externalNegativeFeedbackReasonAtRows,
+    externalNegativeFeedbackReasonLegacyRows,
     internalConnectionResponseRows,
     accountDeletionLogs,
     toolUsageLogs,
@@ -1337,6 +1464,38 @@ async function buildUserStatsReport(args: {
         .gte("created_at", internalOpportunityRolling7DayRange.startIso)
         .lt("created_at", internalOpportunityRolling7DayRange.endIso)
         .order("created_at", { ascending: true })
+        .range(from, to)
+    ),
+    fetchAllRows<ExternalNegativeFeedbackReasonRow>((from, to) =>
+      supabaseServer
+        .from("talent_opportunity_recommendation")
+        .select("id,talent_id,feedback_at,feedback_reason,updated_at")
+        .eq("opportunity_type", "external_jd")
+        .in("feedback", ["dislike", "negative"])
+        .gte(
+          "feedback_at",
+          externalNegativeFeedbackReasonRolling7DayRange.startIso
+        )
+        .lt(
+          "feedback_at",
+          externalNegativeFeedbackReasonRolling7DayRange.endIso
+        )
+        .order("feedback_at", { ascending: true })
+        .range(from, to)
+    ),
+    fetchAllRows<ExternalNegativeFeedbackReasonRow>((from, to) =>
+      supabaseServer
+        .from("talent_opportunity_recommendation")
+        .select("id,talent_id,feedback_at,feedback_reason,updated_at")
+        .eq("opportunity_type", "external_jd")
+        .in("feedback", ["dislike", "negative"])
+        .is("feedback_at", null)
+        .gte(
+          "updated_at",
+          externalNegativeFeedbackReasonRolling7DayRange.startIso
+        )
+        .lt("updated_at", externalNegativeFeedbackReasonRolling7DayRange.endIso)
+        .order("updated_at", { ascending: true })
         .range(from, to)
     ),
     args.internalConnectionResponseRange
@@ -1592,6 +1751,31 @@ async function buildUserStatsReport(args: {
   const internalOpportunityRolling7DayStats = buildInternalOpportunityStats(
     includedRolling7DayInternalRecommendedRows
   );
+  const includedExternalNegativeFeedbackReasonRows = Array.from(
+    new Map(
+      [
+        ...externalNegativeFeedbackReasonAtRows,
+        ...externalNegativeFeedbackReasonLegacyRows,
+      ].map((row) => [row.id, row])
+    ).values()
+  ).filter(
+    (row) =>
+      isIncludedUserId(row.talent_id) &&
+      isInRange(
+        row.feedback_at ?? row.updated_at,
+        externalNegativeFeedbackReasonRolling7DayRange.startIso,
+        externalNegativeFeedbackReasonRolling7DayRange.endIso
+      )
+  );
+  const externalNegativeFeedbackReasonStats =
+    buildExternalNegativeFeedbackReasonStats({
+      endDate: addDaysToDateOnly(
+        externalNegativeFeedbackReasonRolling7DayRange.endDateExclusive,
+        -1
+      ),
+      rows: includedExternalNegativeFeedbackReasonRows,
+      startDate: externalNegativeFeedbackReasonRolling7DayRange.startDate,
+    });
   const internalOpportunityRoleRows = await fetchInternalOpportunityRoleRows(
     includedInternalRecommendedRows.map((row) => row.role_id)
   );
@@ -1863,6 +2047,7 @@ async function buildUserStatsReport(args: {
     dateLabel,
     endDateExclusive,
     endIso,
+    externalNegativeFeedbackReasonStats,
     failedToolCallCount,
     highIntentTalentsCount: highIntentTalentIds.size,
     internalConnectionResponseStats,
@@ -2015,6 +2200,23 @@ function formatReferralFunnelStats(stats: DailyUserStatsReferralFunnelStats) {
   ].join("\n");
 }
 
+export function formatExternalNegativeFeedbackReasonStats(
+  stats: DailyUserStatsExternalNegativeFeedbackReasonStats
+) {
+  return [
+    formatSlackSectionTitle("거절 사유"),
+    `${stats.startDate} ~ ${stats.endDate} external 공고 dislike 중 객관식 선택 ${formatCount(
+      stats.reasonSelectionResponseCount
+    )}건 기준 (복수 선택)`,
+    ...stats.rows.map(
+      (row) =>
+        `- ${row.label}: ${formatCount(row.count)}건 (${formatPercent(
+          row.rate
+        )})`
+    ),
+  ].join("\n");
+}
+
 export function formatDailyUserStatsSlackMessages(
   report: DailyUserStatsReport
 ): DailyUserStatsSlackMessages {
@@ -2116,6 +2318,12 @@ export function formatDailyUserStatsSlackMessages(
   const referralFunnelMessage = formatReferralFunnelStats(
     report.referralFunnelStats
   );
+  const externalNegativeFeedbackReasonMessage =
+    report.period === "daily"
+      ? formatExternalNegativeFeedbackReasonStats(
+          report.externalNegativeFeedbackReasonStats
+        )
+      : null;
   const detailsMessage = [
     toolsMessage,
     "",
@@ -2125,6 +2333,9 @@ export function formatDailyUserStatsSlackMessages(
     ...(landingAbtestMessage ? ["", landingAbtestMessage] : []),
     "",
     referralFunnelMessage,
+    ...(externalNegativeFeedbackReasonMessage
+      ? ["", externalNegativeFeedbackReasonMessage]
+      : []),
   ].join("\n");
 
   const lines = [
@@ -2238,6 +2449,12 @@ export function formatDailyUserStatsSlackMessages(
       report.internalOpportunityStats.rejectedCount
     )}개, 전체 추천 대비 ${formatRatio(
       report.internalOpportunityStats.rejectedCount,
+      report.internalOpportunityStats.recommendationCount
+    )}`,
+    `전체 확인 비율: ${formatCount(
+      report.internalOpportunityStats.checkedCount
+    )}개, 전체 추천 대비 ${formatRatio(
+      report.internalOpportunityStats.checkedCount,
       report.internalOpportunityStats.recommendationCount
     )}`,
     `지난 7일 수락: ${formatCount(

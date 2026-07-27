@@ -2839,6 +2839,26 @@ export const careerTranslationMeta = {
     source: "src/components/career/mobile/CareerMobileHomeView.tsx:165",
     locations: ["src/components/career/mobile/CareerMobileHomeView.tsx:165"],
   },
+  "career.home.internal_role_decision_banner.confirm": {
+    source: "src/components/career/InternalRoleDecisionBanner.tsx:143",
+    locations: ["src/components/career/InternalRoleDecisionBanner.tsx:143"],
+  },
+  "career.home.internal_role_decision_banner.fallback_role": {
+    source: "src/components/career/InternalRoleDecisionBanner.tsx:54",
+    locations: ["src/components/career/InternalRoleDecisionBanner.tsx:54"],
+  },
+  "career.home.internal_role_decision_banner.multiple": {
+    source: "src/components/career/InternalRoleDecisionBanner.tsx:70",
+    locations: ["src/components/career/InternalRoleDecisionBanner.tsx:70"],
+  },
+  "career.home.internal_role_decision_banner.single": {
+    source: "src/components/career/InternalRoleDecisionBanner.tsx:80",
+    locations: ["src/components/career/InternalRoleDecisionBanner.tsx:80"],
+  },
+  "career.home.internal_role_decision_banner.week_old_description": {
+    source: "src/components/career/InternalRoleDecisionBanner.tsx:95",
+    locations: ["src/components/career/InternalRoleDecisionBanner.tsx:95"],
+  },
   "career.internal_opportunity.call_opening": {
     source: "src/components/career/CareerHomePanel.tsx:427",
     locations: [

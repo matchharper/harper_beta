@@ -23,6 +23,7 @@ import {
   type SearchLandingAssignmentType,
 } from "@/lib/search/landingLogs";
 import { withLandingLogSource } from "@/lib/landingLogTypes";
+import { trackSignUp } from "@/lib/ga";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
@@ -896,13 +897,19 @@ export default function RadarLandingPage() {
             Authorization: `Bearer ${accessToken}`,
           },
         });
+        const bootstrapJson = await bootstrapRes.json().catch(() => ({}));
 
         if (!bootstrapRes.ok) {
-          const bootstrapJson = await bootstrapRes.json().catch(() => ({}));
           return {
             message:
               bootstrapJson?.error ?? RADAR_LOGIN_MODAL_COPY.bootstrapFailed,
           };
+        }
+        if (bootstrapJson?.created === true) {
+          trackSignUp({
+            flow: "search",
+            method: "email_or_existing_session",
+          });
         }
 
         await logCompletedLogin(user.email ?? email.trim());

@@ -31,6 +31,7 @@ import type { Database } from "@/types/database.types";
 export const runtime = "nodejs";
 
 const BATCH_SIZE = 1000;
+const IN_FILTER_CHUNK_SIZE = 300;
 
 type CareerUtmSourceTableRow =
   Database["public"]["Tables"]["career_utm_sources"]["Row"];
@@ -56,7 +57,7 @@ type TalentSettingRow = Pick<
 >;
 type TalentMessageRow = Pick<
   Database["public"]["Tables"]["talent_messages"]["Row"],
-  "user_id" | "role" | "created_at" | "message_type"
+  "user_id" | "role" | "created_at"
 >;
 type TalentActivityEventRow = Pick<
   Database["public"]["Tables"]["talent_activity_events"]["Row"],
@@ -183,6 +184,50 @@ async function fetchAllRows<T>(
   }
 
   return rows;
+}
+
+async function fetchRowsForValues<T>(
+  values: Iterable<string>,
+  loadPage: (
+    values: string[],
+    from: number,
+    to: number
+  ) => PromiseLike<FetchPageResult<T>>
+) {
+  const normalizedValues = Array.from(
+    new Set(
+      Array.from(values)
+        .map((value) => String(value ?? "").trim())
+        .filter(Boolean)
+    )
+  );
+  const rows: T[] = [];
+
+  for (
+    let index = 0;
+    index < normalizedValues.length;
+    index += IN_FILTER_CHUNK_SIZE
+  ) {
+    const chunk = normalizedValues.slice(index, index + IN_FILTER_CHUNK_SIZE);
+    rows.push(
+      ...(await fetchAllRows<T>((from, to) => loadPage(chunk, from, to)))
+    );
+  }
+
+  return rows;
+}
+
+function buildLandingLogFilter(sources: Iterable<string>) {
+  const filters = new Set<string>();
+
+  for (const source of sources) {
+    filters.add(`type.eq.new_visit:${source}`);
+    filters.add(`type.eq.new_session:${source}`);
+    filters.add(`type.eq.click_start:${source}`);
+    filters.add(`type.like.login_email:%:${source}`);
+  }
+
+  return Array.from(filters).join(",");
 }
 
 function addToSetMap<K, V>(map: Map<K, Set<V>>, key: K, value: V) {
@@ -631,82 +676,35 @@ async function buildUtmResponse(req: NextRequest) {
     } satisfies AdminCareerUtmResponse;
   }
 
-  const [
-    landingLogs,
-    careerLogs,
-    loginCompletedLogs,
-    talentUsers,
-    talentSettings,
-    talentMessages,
-    talentActivityEvents,
-    recommendations,
-  ] = await Promise.all([
-    fetchAllRows<LandingLogRow>((from, to) =>
-      supabaseServer
-        .from("landing_logs")
-        .select("local_id,type,created_at")
-        .or(
-          "type.eq.new_visit,type.like.new_visit:%,type.eq.new_session,type.like.new_session:%,type.like.login_email:%"
-        )
-        .order("id", { ascending: true })
-        .range(from, to)
-    ),
-    fetchAllRows<LogRow>((from, to) =>
-      supabaseServer
-        .from("logs")
-        .select("user_id,type,created_at")
-        .like("type", "career_%")
-        .order("id", { ascending: true })
-        .range(from, to)
-    ),
-    fetchAllRows<LogRow>((from, to) =>
-      supabaseServer
-        .from("logs")
-        .select("user_id,type,created_at")
-        .eq("type", "login_completed")
-        .order("id", { ascending: true })
-        .range(from, to)
-    ),
-    fetchAllRows<TalentUserRow>((from, to) =>
+  const landingLogFilter = buildLandingLogFilter(
+    sourceRows.map((row) => row.source)
+  );
+  const landingLogs = await fetchAllRows<LandingLogRow>((from, to) =>
+    supabaseServer
+      .from("landing_logs")
+      .select("local_id,type,created_at")
+      .or(landingLogFilter)
+      .order("id", { ascending: true })
+      .range(from, to)
+  );
+  const statsBySource = buildLandingStats({ excludedEmails, landingLogs });
+  const loginEmails = new Set<string>();
+  for (const row of sourceRows) {
+    for (const email of statsBySource.get(row.source)?.loginEmails ?? []) {
+      loginEmails.add(email);
+    }
+  }
+
+  const talentUsers = await fetchRowsForValues<TalentUserRow>(
+    loginEmails,
+    (emails, from, to) =>
       supabaseServer
         .from("talent_users")
         .select("user_id,name,email,created_at,last_logined_at")
+        .in("email", emails)
         .order("created_at", { ascending: false })
         .range(from, to)
-    ),
-    fetchAllRows<TalentSettingRow>((from, to) =>
-      supabaseServer
-        .from("talent_setting")
-        .select("user_id,is_onboarding_done,updated_at")
-        .order("updated_at", { ascending: false })
-        .range(from, to)
-    ),
-    fetchAllRows<TalentMessageRow>((from, to) =>
-      supabaseServer
-        .from("talent_messages")
-        .select("user_id,role,created_at,message_type")
-        .order("id", { ascending: true })
-        .range(from, to)
-    ),
-    fetchAllRows<TalentActivityEventRow>((from, to) =>
-      supabaseServer
-        .from("talent_activity_events")
-        .select("talent_id,event_type,created_at")
-        .eq("event_type", "onboarding_completed")
-        .order("created_at", { ascending: true })
-        .range(from, to)
-    ),
-    fetchAllRows<RecommendationRow>((from, to) =>
-      supabaseServer
-        .from("talent_opportunity_recommendation")
-        .select(
-          "talent_id,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
-        )
-        .order("created_at", { ascending: true })
-        .range(from, to)
-    ),
-  ]);
-
+  );
   const talentByEmail = new Map<string, TalentUserRow>();
   for (const user of talentUsers) {
     const email = normalizeEmail(user.email);
@@ -715,24 +713,107 @@ async function buildUtmResponse(req: NextRequest) {
     }
   }
 
-  const statsBySource = buildLandingStats({ excludedEmails, landingLogs });
   const sources = buildSourceRows({ sourceRows, statsBySource, talentByEmail });
   const resolvedSelectedSource =
     selectedSource && sourceRows.some((row) => row.source === selectedSource)
       ? selectedSource
       : sources[0]?.source;
+  const sourceStats = resolvedSelectedSource
+    ? statsBySource.get(resolvedSelectedSource)
+    : undefined;
+  const selectedUserIds = new Set<string>();
+  for (const email of sourceStats?.loginEmails ?? []) {
+    const userId = talentByEmail.get(email)?.user_id;
+    if (userId) selectedUserIds.add(userId);
+  }
+
+  const [
+    careerLogs,
+    loginCompletedLogs,
+    talentSettings,
+    talentMessages,
+    talentActivityEvents,
+    recommendations,
+  ] = await Promise.all([
+    fetchRowsForValues<LogRow>(selectedUserIds, (userIds, from, to) =>
+      supabaseServer
+        .from("logs")
+        .select("user_id,type,created_at")
+        .in("user_id", userIds)
+        .like("type", "career_%")
+        .order("id", { ascending: true })
+        .range(from, to)
+    ),
+    fetchRowsForValues<LogRow>(selectedUserIds, (userIds, from, to) =>
+      supabaseServer
+        .from("logs")
+        .select("user_id,type,created_at")
+        .in("user_id", userIds)
+        .eq("type", "login_completed")
+        .order("id", { ascending: true })
+        .range(from, to)
+    ),
+    fetchRowsForValues<TalentSettingRow>(
+      selectedUserIds,
+      (userIds, from, to) =>
+        supabaseServer
+          .from("talent_setting")
+          .select("user_id,is_onboarding_done,updated_at")
+          .in("user_id", userIds)
+          .order("updated_at", { ascending: false })
+          .range(from, to)
+    ),
+    fetchRowsForValues<TalentMessageRow>(
+      selectedUserIds,
+      (userIds, from, to) =>
+        supabaseServer
+          .from("talent_messages")
+          .select("user_id,role,created_at")
+          .in("user_id", userIds)
+          .eq("role", "user")
+          .order("id", { ascending: true })
+          .range(from, to)
+    ),
+    fetchRowsForValues<TalentActivityEventRow>(
+      selectedUserIds,
+      (userIds, from, to) =>
+        supabaseServer
+          .from("talent_activity_events")
+          .select("talent_id,event_type,created_at")
+          .in("talent_id", userIds)
+          .eq("event_type", "onboarding_completed")
+          .order("created_at", { ascending: true })
+          .range(from, to)
+    ),
+    fetchRowsForValues<RecommendationRow>(
+      selectedUserIds,
+      (userIds, from, to) =>
+        supabaseServer
+          .from("talent_opportunity_recommendation")
+          .select(
+            "talent_id,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
+          )
+          .in("talent_id", userIds)
+          .order("created_at", { ascending: true })
+          .range(from, to)
+    ),
+  ]);
+
+  const selectedTalentUsers = talentUsers.filter((user) =>
+    selectedUserIds.has(user.user_id)
+  );
   const selectedSourceDetail = resolvedSelectedSource
     ? buildSelectedSourceDetail({
         careerLogs,
         loginCompletedLogs,
         recommendations,
         source: resolvedSelectedSource,
-        sourceStats: statsBySource.get(resolvedSelectedSource),
+        sourceStats,
         talentActivityEvents,
         talentByEmail,
         talentMessages,
         talentSettings,
-        talentUsers,
+        talentUsers: selectedTalentUsers,
       })
     : null;
 

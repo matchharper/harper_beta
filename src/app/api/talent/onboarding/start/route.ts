@@ -53,7 +53,6 @@ export const maxDuration = 240;
 
 type Body = {
   conversationId?: string;
-  email?: string;
   locale?: string;
   name?: string;
   resumeFileName?: string;
@@ -225,8 +224,8 @@ export async function POST(req: NextRequest) {
     const cookieLocale = req.cookies.get("NEXT_LOCALE")?.value;
     const conversationId = sanitizeSingleLineDbText(body.conversationId, 80);
     const submittedName = sanitizeSingleLineDbText(body.name, 240);
-    const submittedEmail = sanitizeSingleLineDbText(
-      body.email,
+    const verifiedEmail = sanitizeSingleLineDbText(
+      user.email,
       320
     )?.toLowerCase();
     const resumeFileName = sanitizeSingleLineDbText(body.resumeFileName, 240);
@@ -241,10 +240,7 @@ export async function POST(req: NextRequest) {
     const officialJobTitle = normalizeOfficialJobsRoleTitle(
       sanitizeSingleLineDbText(body.officialJobTitle, 240)
     );
-    const officialJobSlug = sanitizeSingleLineDbText(
-      body.officialJobSlug,
-      240
-    );
+    const officialJobSlug = sanitizeSingleLineDbText(body.officialJobSlug, 240);
     const officialJobSignupIntentPrompt =
       buildOfficialJobsOnboardingIntentPrompt(officialJobTitle);
     const hasResume = Boolean(
@@ -317,8 +313,8 @@ export async function POST(req: NextRequest) {
     if (submittedName) {
       profileUpdatePayload.name = submittedName.slice(0, 240);
     }
-    if (submittedEmail) {
-      profileUpdatePayload.email = submittedEmail.slice(0, 320);
+    if (verifiedEmail) {
+      profileUpdatePayload.email = verifiedEmail.slice(0, 320);
     }
 
     const { error: profileUpdateError } = await admin
@@ -444,8 +440,8 @@ export async function POST(req: NextRequest) {
     if (submittedName) {
       submittedIdentityPayload.name = submittedName.slice(0, 240);
     }
-    if (submittedEmail) {
-      submittedIdentityPayload.email = submittedEmail.slice(0, 320);
+    if (verifiedEmail) {
+      submittedIdentityPayload.email = verifiedEmail.slice(0, 320);
     }
 
     if (submittedIdentityPayload.name || submittedIdentityPayload.email) {
@@ -459,7 +455,7 @@ export async function POST(req: NextRequest) {
           conversationId,
           error: submittedIdentityUpdateError,
           metadata: {
-            hasSubmittedEmail: Boolean(submittedEmail),
+            hasSubmittedEmail: Boolean(verifiedEmail),
             hasSubmittedName: Boolean(submittedName),
           },
           route: "/api/talent/onboarding/start",
@@ -694,7 +690,7 @@ export async function POST(req: NextRequest) {
           { label: "Device", value: getSlackActivityDeviceLabel(req) },
           { label: "Headline", value: profile?.headline },
         ],
-        email: submittedEmail || profile?.email || user.email,
+        email: verifiedEmail || profile?.email || user.email,
         name: submittedName || profile?.name || displayName,
         user,
       });

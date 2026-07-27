@@ -9,6 +9,11 @@ import { buildLandingLoginEmailType } from "@/lib/landingLogTypes";
 import { getCareerSignupAttributionPayload } from "@/lib/career/signupAttribution";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
 import { getInitialClientLocalePreference } from "@/i18n/useMessage";
+import {
+  isTalentAccountEmailChangeExpiredError,
+  isTalentAccountEmailChangePendingConfirmation,
+  isTalentAccountEmailUnavailableError,
+} from "@/lib/career/accountEmailErrors";
 
 function inferLandingLogSource(args: { flow: string; nextPath: string }) {
   if (args.nextPath.startsWith("/search")) return "search";
@@ -35,6 +40,32 @@ function getNextPathParam(nextPath: string, key: string) {
   }
 }
 
+function getAuthCallbackHashValue(key: string) {
+  if (typeof window === "undefined") return "";
+
+  const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  return params.get(key)?.trim() ?? "";
+}
+
+function getAuthCallbackHashError() {
+  return (
+    getAuthCallbackHashValue("error_description") ||
+    getAuthCallbackHashValue("error_code") ||
+    getAuthCallbackHashValue("error")
+  );
+}
+
+function withEmailChangeResult(
+  nextPath: string,
+  result: "complete" | "error" | "expired" | "pending" | "unavailable"
+) {
+  if (typeof window === "undefined") return nextPath;
+
+  const nextUrl = new URL(nextPath, window.location.origin);
+  nextUrl.searchParams.set("emailChange", result);
+  return `${nextUrl.pathname}${nextUrl.search}`;
+}
+
 export default function AuthCallback() {
   const router = useRouter();
 
@@ -47,7 +78,11 @@ export default function AuthCallback() {
       const rawNext =
         typeof router.query.next === "string" ? router.query.next : "";
       const fallbackNextPath =
-        flow === "talent_capture" ? "/career" : "/invitation";
+        flow === "talent_capture"
+          ? "/career"
+          : flow === "career_email_change"
+            ? "/career/profile"
+            : "/invitation";
       const nextPath =
         rawNext.startsWith("/") && !rawNext.startsWith("//")
           ? rawNext
@@ -73,8 +108,38 @@ export default function AuthCallback() {
       const mail = emailOnboardingToken ? "" : rawMail;
       const code =
         typeof router.query.code === "string" ? router.query.code : "";
+      const callbackError =
+        getQueryText(router.query.error_description) ||
+        getQueryText(router.query.error_code) ||
+        getQueryText(router.query.error) ||
+        getAuthCallbackHashError();
+      const callbackMessage =
+        getQueryText(router.query.message) ||
+        getAuthCallbackHashValue("message");
 
-      if (code) {
+      if (flow === "career_email_change") {
+        const { error: initializationError } = await supabase.auth.initialize();
+        if (callbackError || initializationError) {
+          const callbackFailure = callbackError || initializationError;
+          const result = isTalentAccountEmailUnavailableError(callbackFailure)
+            ? "unavailable"
+            : isTalentAccountEmailChangeExpiredError(callbackFailure)
+              ? "expired"
+              : "error";
+          if (result === "error") {
+            console.error(
+              "career email change callback error:",
+              callbackFailure
+            );
+          }
+          router.replace(withEmailChangeResult(nextPath, result));
+          return;
+        }
+        if (isTalentAccountEmailChangePendingConfirmation(callbackMessage)) {
+          router.replace(withEmailChangeResult(nextPath, "pending"));
+          return;
+        }
+      } else if (code) {
         const { error: exchangeError } =
           await supabase.auth.exchangeCodeForSession(code);
         if (exchangeError) {
@@ -90,7 +155,11 @@ export default function AuthCallback() {
       const user = userData?.user;
 
       if (userErr || !user) {
-        router.replace("?error=no_user");
+        router.replace(
+          flow === "career_email_change"
+            ? withEmailChangeResult(nextPath, "error")
+            : "?error=no_user"
+        );
         return;
       }
 
@@ -117,7 +186,40 @@ export default function AuthCallback() {
       const accessToken = session?.access_token;
 
       if (!accessToken) {
-        router.replace("?error=no_session");
+        router.replace(
+          flow === "career_email_change"
+            ? withEmailChangeResult(nextPath, "error")
+            : "?error=no_session"
+        );
+        return;
+      }
+
+      if (flow === "career_email_change") {
+        const syncResponse = await fetch("/api/talent/account/email/sync", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+        const syncPayload = await syncResponse.json().catch(() => ({}));
+
+        if (!syncResponse.ok) {
+          const result = isTalentAccountEmailUnavailableError(syncPayload)
+            ? "unavailable"
+            : "error";
+          if (result === "error") {
+            console.error("career email change sync error:", syncPayload);
+          }
+          router.replace(withEmailChangeResult(nextPath, result));
+          return;
+        }
+
+        router.replace(
+          withEmailChangeResult(
+            nextPath,
+            syncPayload?.status === "pending" ? "pending" : "complete"
+          )
+        );
         return;
       }
 

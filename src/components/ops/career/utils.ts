@@ -71,6 +71,8 @@ export const mailTypeLabel = (mailType: string) => {
       return "온보딩 리뷰";
     case "opportunity_recommendation":
       return "추천 메일";
+    case "internal_connection_confirmed":
+      return "연결 확정 안내";
     default:
       return mailType;
   }

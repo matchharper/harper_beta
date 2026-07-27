@@ -1,5 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import {
+  infiniteQueryOptions,
+  queryOptions,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -86,18 +88,15 @@ function sanitizeVisibleAgentError(value: unknown) {
     .trim();
 }
 
-export function useOrgAgentMessageHistory(args: {
+export function orgAgentMessageHistoryQueryOptions(args: {
   enabled?: boolean;
   roleId?: string | null;
   workspaceId?: string | null;
 }) {
-  const queryClient = useQueryClient();
   const workspaceId = args.workspaceId?.trim() ?? "";
   const roleId = args.roleId?.trim() ?? "";
-  const queryKey = queryKeys.org.agentMessages({ roleId, workspaceId });
-
-  const infinite = useInfiniteQuery({
-    queryKey,
+  return infiniteQueryOptions({
+    queryKey: queryKeys.org.agentMessages({ roleId, workspaceId }),
     initialPageParam: null as number | null,
     queryFn: ({ pageParam }) => {
       const params = new URLSearchParams({
@@ -115,6 +114,19 @@ export function useOrgAgentMessageHistory(args: {
     refetchOnWindowFocus: false,
     staleTime: 20_000,
   });
+}
+
+export function useOrgAgentMessageHistory(args: {
+  enabled?: boolean;
+  roleId?: string | null;
+  workspaceId?: string | null;
+}) {
+  const queryClient = useQueryClient();
+  const workspaceId = args.workspaceId?.trim() ?? "";
+  const roleId = args.roleId?.trim() ?? "";
+  const options = orgAgentMessageHistoryQueryOptions(args);
+  const queryKey = options.queryKey;
+  const infinite = useInfiniteQuery(options);
 
   const messages = useMemo(() => {
     return [...(infinite.data?.pages ?? [])]
@@ -164,7 +176,7 @@ export function useOrgAgentMessageHistory(args: {
   };
 }
 
-export function useOrgAgentMentionCandidates(args: {
+export function orgAgentMentionCandidatesQueryOptions(args: {
   enabled?: boolean;
   query?: string | null;
   roleId?: string | null;
@@ -173,7 +185,7 @@ export function useOrgAgentMentionCandidates(args: {
   const workspaceId = args.workspaceId?.trim() ?? "";
   const roleId = args.roleId?.trim() ?? "";
   const query = args.query?.trim() ?? "";
-  return useQuery({
+  return queryOptions({
     queryKey: queryKeys.org.agentMentions({ query, roleId, workspaceId }),
     queryFn: async () => {
       const params = new URLSearchParams({ roleId, workspaceId });
@@ -186,6 +198,15 @@ export function useOrgAgentMentionCandidates(args: {
     enabled: (args.enabled ?? true) && Boolean(workspaceId && roleId),
     staleTime: 20_000,
   });
+}
+
+export function useOrgAgentMentionCandidates(args: {
+  enabled?: boolean;
+  query?: string | null;
+  roleId?: string | null;
+  workspaceId?: string | null;
+}) {
+  return useQuery(orgAgentMentionCandidatesQueryOptions(args));
 }
 
 export function useOrgAgentChat(args: {

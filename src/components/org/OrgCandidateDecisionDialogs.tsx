@@ -1,6 +1,5 @@
 import { FormEvent, useState } from "react";
 import { LoaderCircle, Plus, X } from "lucide-react";
-import { cx } from "@/components/ops/theme";
 import { Button, MuteButton } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -12,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import type { OrgMember, OrgStopReason } from "@/lib/org/server";
+import { cn } from "@/lib/utils";
 
 function parseEmailList(value: string) {
   return Array.from(
@@ -122,7 +122,7 @@ export function AcceptIntroDialog({
             </div>
           </div>
           <div
-            className={cx(
+            className={cn(
               "space-y-3 transition-opacity",
               contactDirectly && "opacity-45"
             )}
@@ -151,7 +151,7 @@ export function AcceptIntroDialog({
                           {member.name || email.split("@")[0]}
                         </span>
                         <span
-                          className={cx(
+                          className={cn(
                             "max-w-40 truncate text-[11px]",
                             selected
                               ? "text-neutral-00/75"
@@ -338,7 +338,7 @@ export function StopCandidateDialog({
                   size="md"
                   onClick={() => setReason(value)}
                   disabled={pending}
-                  className={cx(reason === value && "border-primary")}
+                  className={cn(reason === value && "border-primary")}
                 >
                   {label}
                 </Button>

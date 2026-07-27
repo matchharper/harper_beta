@@ -6,7 +6,7 @@ import {
   PhoneCall,
   Settings,
 } from "lucide-react";
-import { cx, opsTheme } from "@/components/ops/theme";
+import { cx } from "@/components/ops/theme";
 import { parseRecommendJobPostingStatusLog } from "@/lib/talentOnboarding/recommendJobPostingStatus";
 import { formatKst } from "./utils";
 
@@ -109,7 +109,7 @@ function getMessageToolLogs(logs: string[] | undefined): MessageToolLog[] {
 
 const toolLogClass = (tone: MessageToolLog["tone"]) =>
   cx(
-    "rounded-md border px-2.5 py-1.5 text-[11px] leading-5",
+    "rounded-md border px-2.5 py-1.5 text-[12px] leading-5",
     tone === "success"
       ? "border-positive/30 bg-positive-faded/70 text-positive"
       : tone === "error"
@@ -204,12 +204,7 @@ export const MessagesTab = memo(function MessagesTab({
             )}
           >
             <div className="mb-1 flex items-center justify-between">
-              <span
-                className={cx(
-                  opsTheme.eyebrow,
-                  "inline-flex items-center gap-1.5"
-                )}
-              >
+              <span className="inline-flex items-center gap-1.5 text-[13px] font-medium text-neutral-muted">
                 <span
                   className={cx(
                     "inline-flex h-5 w-5 items-center justify-center rounded-full border",
@@ -222,7 +217,7 @@ export const MessagesTab = memo(function MessagesTab({
                 </span>
                 <span>{msg.role === "assistant" ? "Harper" : "Talent"}</span>
               </span>
-              <span className="text-[10px] text-neutral-soft">
+              <span className="text-[12px] text-neutral-soft">
                 {formatKst(msg.createdAt)}
               </span>
             </div>

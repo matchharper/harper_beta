@@ -5,10 +5,13 @@ export const CONTACT_QUEUE_TYPE_SIGNUP_NO_PROFILE_SUBMIT =
   "career_signup_no_profile_submit";
 export const CONTACT_QUEUE_TYPE_PROFILE_SUBMITTED_NO_ANSWER =
   "career_profile_submitted_no_answer";
+export const CONTACT_QUEUE_TYPE_INTERNAL_CONNECTION_CONFIRMED =
+  "internal_connection_confirmed";
 
 export type ContactQueueType =
   | typeof CONTACT_QUEUE_TYPE_SIGNUP_NO_PROFILE_SUBMIT
   | typeof CONTACT_QUEUE_TYPE_PROFILE_SUBMITTED_NO_ANSWER
+  | typeof CONTACT_QUEUE_TYPE_INTERNAL_CONNECTION_CONFIRMED
   | "internal_recommendation_call_abandoned";
 
 const RESCHEDULABLE_STATUSES = ["queued", "processing", "failed"] as const;
@@ -22,7 +25,9 @@ function randomDelayHours() {
 }
 
 function scheduledAtAfterRandomDelay() {
-  return new Date(Date.now() + randomDelayHours() * 60 * 60 * 1000).toISOString();
+  return new Date(
+    Date.now() + randomDelayHours() * 60 * 60 * 1000
+  ).toISOString();
 }
 
 function isUniqueViolation(error: { code?: string; message?: string } | null) {
@@ -122,7 +127,9 @@ export async function enqueueProfileSubmittedNoAnswer(args: {
   if (await isOnboardingDone(args)) return;
 
   const payload =
-    args.payload && typeof args.payload === "object" && !Array.isArray(args.payload)
+    args.payload &&
+    typeof args.payload === "object" &&
+    !Array.isArray(args.payload)
       ? args.payload
       : {};
   const nextPayload: Json = {

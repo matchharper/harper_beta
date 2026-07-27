@@ -57,6 +57,7 @@ import {
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
 import { useCareerT } from "@/i18n/useCareerT";
 import { Skeleton } from "@/components/ui/skeleton";
+import InternalRoleDecisionBanner from "@/components/career/InternalRoleDecisionBanner";
 
 const countFormatter = new Intl.NumberFormat("ko-KR");
 const devAgentVariantOptions: Array<{
@@ -118,6 +119,7 @@ type CareerDevPromptLogKind = "text" | "voice";
 
 type HomeHistoryTarget = {
   historyTab: "new" | "saved" | "archived";
+  roleId?: string;
   savedStage?: CareerOpportunitySavedStageFilter;
 };
 
@@ -315,7 +317,6 @@ const CareerHomePanel = ({
     (typeof user?.email === "string" ? user.email.split("@")[0] : "Candidate");
 
   const newPositionCount = historyOpportunityCounts.new;
-  const newInternalOpportunityCount = historyOpportunityCounts.newInternal;
   const newPositionDescription = formatCareerMessage(
     m,
     t("career.home.career_home_panel.0x7lgjp", "추천된 기회")
@@ -906,6 +907,15 @@ const CareerHomePanel = ({
         onStartCall={handleStartCall}
         title={callCardTitle}
       />
+      <InternalRoleDecisionBanner
+        onConfirm={(roleId) =>
+          onOpenHistory({
+            historyTab: "new",
+            roleId: roleId ?? undefined,
+          })
+        }
+        variant="desktop"
+      />
       <InternalOpportunityCallActions
         callRequests={pendingInternalOpportunityCallRequests}
         callStartPending={callStartPending}
@@ -989,7 +999,7 @@ const CareerHomePanel = ({
       {isOnboardingCompleted ? (
         <div className="mt-12 grid grid-cols-1 gap-4 lg:grid-cols-2">
           <HomeOpportunitySummaryCard
-            title={t("career.home.career_home_panel.0sdf230", "새로 받은 기회")}
+            title={t("career.home.career_home_panel.0sdf230", "추천된 기회")}
             count={newPositionCount}
             description={newPositionDescription}
             buttonLabel={t("career.common.career.1nldebx", "검토하기")}

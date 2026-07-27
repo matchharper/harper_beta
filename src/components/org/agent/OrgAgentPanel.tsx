@@ -39,6 +39,8 @@ import {
   useOrgAgentMessageHistory,
   useSendOrgAgentMeetingRequest,
 } from "@/hooks/org/useOrgAgent";
+import { useOrgJobsNavigation } from "@/hooks/org/useOrgJobs";
+import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { cn } from "@/lib/utils";
 import Face from "@/components/common/Face";
 import Image from "next/image";
@@ -732,19 +734,13 @@ function OrgAgentRolePicker({
   );
 }
 
-export function OrgAgentPanel({
-  activeRole,
-  currentUserEmail,
-  onRoleSelect,
-  roles,
-  workspaceId,
-}: {
-  activeRole: OrgRole | null;
-  currentUserEmail?: string | null;
-  onRoleSelect: (roleId: string) => void;
-  roles: OrgRole[];
-  workspaceId: string;
-}) {
+export function OrgAgentPanel() {
+  const {
+    activeRole,
+    changeRole: onRoleSelect,
+    workspaceId,
+  } = useOrgJobsNavigation();
+  const { currentUserEmail, roles } = useOrgWorkspace();
   const roleId = activeRole?.roleId ?? "";
   const [open, setOpen] = useState(false);
   const [rolePickerOpen, setRolePickerOpen] = useState(false);

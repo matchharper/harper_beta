@@ -203,3 +203,22 @@ export async function getRequestUser(req: NextRequest): Promise<User | null> {
   requestUserInFlight.set(token, request);
   return request;
 }
+
+/**
+ * Fetches the latest user directly from Supabase Auth.
+ *
+ * Email-change completion must not use the request-user cache or the local JWT
+ * fallback because `new_email` and confirmation state are not JWT claims.
+ */
+export async function getFreshRequestUser(
+  req: NextRequest
+): Promise<User | null> {
+  const token = getBearerToken(req);
+  if (!token) return null;
+
+  const { data, error } = await supabaseAuthServer.auth.getUser(token);
+  if (error || !data.user) return null;
+
+  setCachedRequestUser(token, data.user);
+  return data.user;
+}

@@ -48,6 +48,7 @@ export type CallTranscriptEntry = {
 export type CareerTalentUser = {
   user_id: string;
   email?: string | null;
+  phone_number?: string | null;
   name: string | null;
   profile_picture: string | null;
   headline: string | null;
@@ -163,6 +164,11 @@ export type CareerInternalRecommendationProgressStage =
   | "process_stopped"
   | "rejected";
 
+export type CareerInternalRecommendationStopReason =
+  | "candidate"
+  | "company"
+  | "internal";
+
 export type CareerInternalRecommendationProgress = {
   acceptedAt: string;
   code: CareerInternalRecommendationProgressCode;
@@ -172,6 +178,7 @@ export type CareerInternalRecommendationProgress = {
   stage: CareerInternalRecommendationProgressStage | null;
   stageChangedAt: string | null;
   stageTag: string | null;
+  stopReason?: CareerInternalRecommendationStopReason | null;
 };
 
 export type CareerOpportunityCompanyData = {

@@ -5,10 +5,10 @@ import {
   ArrowDown,
   CheckCircle2,
   ChevronDown,
+  Handshake,
   Loader2,
   MessageCircle,
   Phone,
-  TriangleAlert,
 } from "lucide-react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import {
@@ -192,7 +192,7 @@ export default function InternalConnectionAcceptanceModal({
     <TalentCareerModal
       open
       onClose={closeModal}
-      panelClassName="max-h-[calc(100svh-2rem)] max-w-[560px] overflow-x-hidden overflow-y-auto border border-neutral-1000-a05 bg-bg-floating"
+      panelClassName="max-h-[calc(100svh-2rem)] max-w-[640px] overflow-x-hidden overflow-y-auto border border-neutral-1000-a05 bg-bg-floating"
       bodyClassName="bg-bg-floating px-5"
       mobileBottomSheet
       footer={
@@ -203,7 +203,7 @@ export default function InternalConnectionAcceptanceModal({
             required
             label={t(
               "career.common.internal_connection_acceptance_modal.acknowledgement",
-              "위 안내를 확인했습니다."
+              "서로의 시간을 존중하는 Harper의 약속을 확인했습니다."
             )}
             onChange={(event) => setAcknowledged(event.target.checked)}
             size="medium"
@@ -214,7 +214,10 @@ export default function InternalConnectionAcceptanceModal({
               onClick={closeModal}
               disabled={pending}
             >
-              {t("career.settings.career_settings_modal.0jiry9t", "취소")}
+              {t(
+                "career.common.internal_connection_acceptance_modal.close",
+                "닫기"
+              )}
             </SecondaryButton>
             <PrimaryButton
               type="submit"
@@ -248,21 +251,30 @@ export default function InternalConnectionAcceptanceModal({
       >
         <div className="flex flex-col gap-2 text-[14px] text-neutral-800">
           <div className="text-base font-semibold pt-6 pb-3 text-neutral-primary">
-            {t("career.common.internal_connection_acceptance_modal.01cracx", "연결 수락 후 다음 단계를 진행하시겠습니까?")}
+            {t(
+              "career.common.internal_connection_acceptance_modal.01cracx",
+              "연결을 수락하고 다음 단계를 진행할까요?"
+            )}
           </div>
           <div>
             {t(
               "career.common.internal_connection_acceptance_modal.028q399",
-              "연결 수락시 Harper가 회원님의 주요 정보와 왜 회원님이 적합한 인재인지에 대한 내용을 회사 측에 전달하고 다음 프로세스가 진행됩니다."
+              "수락하시면 Harper가 회원님을 회사에 소개하기 위한 준비를 시작합니다. 내부 검토를 거쳐 회원님의 주요 정보와 왜 적합한 인재인지 회사에 직접 전달됩니다."
+            )}
+          </div>
+          <div>
+            {t(
+              "career.common.internal_connection_acceptance_modal.pre_share_confirmation",
+              "회사에 전달되기 직전, 확인 메일을 한 번 더 드립니다. 그 전까지는 언제든 취소할 수 있어요."
             )}
           </div>
           <div>
             {t(
               "career.common.internal_connection_acceptance_modal.0emad1t",
-              "이후 회사 측으로부터 다음 일정에 대한 안내를 받을 수 있습니다."
+              "전달 이후에는 회사 측에서 다음 일정에 대한 안내를 받게 됩니다."
             )}
           </div>
-          <p className="mt-2">
+          <p className="mt-5 text-neutral-muted">
             {t(
               "career.common.internal_connection_acceptance_modal.memo_description",
               "이 메모는 Harper가 다음 단계를 준비할 때 참고합니다."
@@ -275,31 +287,46 @@ export default function InternalConnectionAcceptanceModal({
             key={item.id}
             ref={feedbackReasonRef}
             unstyled
+            rows={3}
             defaultValue={item.feedbackReason ?? ""}
             placeholder={t(
               "career.common.internal_connection_acceptance_modal.memo_placeholder",
-              "(Optional) Harper가 다음 단계에서 참고할 포인트 혹은 회사에 전달하고 싶은 내용을 알려주세요. 작성하지 않고 제출하셔도 됩니다."
+              "(optional) Harper가 다음 단계에서 참고할 포인트, 혹은 회사에 전달하고 싶은 내용을 알려주세요."
             )}
-            className={cn(textareaSurfaceClassName, "mt-2 min-h-[112px]")}
+            className={cn(textareaSurfaceClassName, "mt-2 min-h-[82px]")}
           />
         </label>
-        <div
+        <button
+          type="button"
+          aria-expanded={openMoreWarning}
           onClick={() => setOpenMoreWarning((prev) => !prev)}
-          className="mt-2 relative group flex flex-row gap-2 px-3 py-2 rounded-sm bg-critical-faded/50 hover:bg-critical-faded/70 transition-colors cursor-pointer"
+          className="mt-4 relative group flex w-full flex-row gap-2 rounded-sm bg-neutral-200 px-3 py-3 text-left text-neutral-primary transition-colors hover:bg-neutral-300"
         >
-          <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-critical" />
-          <div className="min-w-0 flex-1 text-critical">
-            <div>
+          <Handshake className="mt-0.5 h-4 w-4 shrink-0 text-neutral-primary" />
+          <div className="min-w-0 flex-1">
+            <div className="font-medium">
+              {t(
+                "career.common.internal_connection_acceptance_modal.community_title",
+                "Harper는 서로의 시간을 존중하는 멤버들의 커뮤니티입니다."
+              )}
+            </div>
+            <div className="mt-2">
               {t(
                 "career.common.internal_connection_acceptance_modal.0ujjrpc",
-                "이후 단계에서 정당한 사유나 사전 안내 없이 회사의 연락에 응답하지 않거나, 확정된 인터뷰에 불참·직전 취소하는 경우 향후 Harper 이용이 제한될 수 있습니다."
+                "수락 후의 빠른 응답과 약속된 인터뷰 참석은 회사들이 Harper를 특별히 신뢰하는 이유입니다. 회원님의 응답과 참여 이력은 이후 기회 매칭에 반영되며, 꾸준히 신뢰를 쌓은 멤버에게 더 좋은 기회가 먼저 도착합니다."
+              )}
+            </div>
+            <div className="mt-2">
+              {t(
+                "career.common.internal_connection_acceptance_modal.community_withdrawal",
+                "진행이 어려워지면 언제든 '절차 중단하기'로 알려주세요. 사유를 묻지 않으며, 매칭에 불이익이 없습니다."
               )}
             </div>
             {openMoreWarning && (
-              <div className="mt-2 text-critical/70">
+              <div className="mt-2 text-neutral-primary/70">
                 {t(
                   "career.common.internal_connection_acceptance_modal.1tvfp0q",
-                  "Harper가 사전 안내 여부와 사유, 무응답·불참·직전 취소의 반복 여부를 확인해 제한 여부를 판단합니다. 제한이 적용되면 새로운 회사 연결 제안 및 추천이 중단되며, 요청 시에만 검토 후 복구될 수 있습니다."
+                  "Harper가 경우에 따라 사전 안내 여부와 사유, 무응답·불참·직전 취소의 반복 여부를 확인해 이용 제한 여부를 판단할 수 있습니다. 이용 제한이 적용되면 새로운 회사 연결 제안 및 추천이 중단되며, 요청 시에만 검토 후 복구될 수 있습니다."
                 )}
                 <br />
                 {t(
@@ -311,10 +338,10 @@ export default function InternalConnectionAcceptanceModal({
           </div>
           <div className="absolute bottom-0 right-2 group-hover:opacity-100 group-hover:translate-y-[-4px] opacity-0 transition-all">
             <ArrowDown
-              className={`h-3.5 w-3.5 shrink-0 text-critical ${openMoreWarning ? "rotate-180" : ""}`}
+              className={`h-3.5 w-3.5 shrink-0 text-neutral-primary ${openMoreWarning ? "rotate-180" : ""}`}
             />
           </div>
-        </div>
+        </button>
       </form>
     </TalentCareerModal>
   );

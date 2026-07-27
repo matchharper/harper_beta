@@ -1,135 +1,103 @@
+import { OrgAgentPanel } from "@/components/org/agent/OrgAgentPanel";
 import { OrgAllRolesOverview } from "@/components/org/OrgAllRolesOverview";
+import { OrgEditDialog } from "@/components/org/OrgEditDialog";
 import { OrgPipeline } from "@/components/org/OrgPipeline";
 import { OrgRoleTabs } from "@/components/org/OrgRoleTabs";
-import { OrgPageHeader } from "@/components/org/workspace/OrgPageHeader";
+import { TalentDetailSimpleView } from "@/components/org/TalentDetailSimpleView";
 import { OrgErrorState } from "@/components/org/workspace/OrgErrorState";
-import type {
-  OrgBoardItem,
-  OrgBoardResponse,
-  OrgMember,
-  OrgRole,
-  OrgStageChangeOptions,
-} from "@/lib/org/server";
+import { OrgPageHeader } from "@/components/org/workspace/OrgPageHeader";
+import {
+  OrgJobsProvider,
+  useOrgJobsBoard,
+  useOrgJobsDetail,
+  useOrgJobsNavigation,
+  useOrgJobsRoleActions,
+} from "@/hooks/org/useOrgJobs";
+import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 
-export function OrgJobsPage({
-  activeRole,
-  activeRoleId,
-  board,
-  canManageCandidates,
-  currentUserEmail,
-  error,
-  isLoading,
-  members,
-  nameQuery,
-  onDeleteRole,
-  onEditRole,
-  onNameQueryChange,
-  onPauseRole,
-  onRecommendedDateChange,
-  onRetry,
-  onResumeRole,
-  onRoleChange,
-  onSelect,
-  onStageChange,
-  pendingRecommendationId,
-  recommendedFromDate,
-  recommendedToDate,
-  roleActionPending,
-  roles,
-  workspaceId,
-}: {
-  activeRole: OrgRole | null;
-  activeRoleId: string;
-  board?: OrgBoardResponse | null;
-  canManageCandidates: boolean;
-  currentUserEmail?: string | null;
-  error?: Error | null;
-  isLoading?: boolean;
-  members: OrgMember[];
-  nameQuery: string;
-  onDeleteRole: (role: OrgRole) => void;
-  onEditRole: (roleId: string) => void;
-  onNameQueryChange: (value: string) => void;
-  onPauseRole: (role: OrgRole) => void;
-  onRecommendedDateChange: (from: string, to: string) => void;
-  onRetry: () => void;
-  onResumeRole: (role: OrgRole) => void;
-  onRoleChange: (roleId: string) => void;
-  onSelect: (item: OrgBoardItem) => void;
-  onStageChange: (
-    item: OrgBoardItem,
-    stage: OrgBoardItem["stage"],
-    options?: OrgStageChangeOptions
-  ) => void | Promise<void>;
-  pendingRecommendationId?: string | null;
-  recommendedFromDate: string;
-  recommendedToDate: string;
-  roleActionPending?: boolean;
-  roles: OrgRole[];
-  workspaceId: string;
-}) {
+function OrgJobsMain() {
+  const { boardQuery } = useOrgJobsBoard();
+  const { activeRoleId } = useOrgJobsNavigation();
   const isAll = activeRoleId === "all";
+
   return (
     <div className="space-y-7">
       <OrgPageHeader
         description="Role별 후보자 진행 상태를 확인하고 다음 채용 액션을 관리하세요."
         title="Jobs"
       />
-      <OrgRoleTabs
-        activeRoleId={activeRoleId}
-        onChange={onRoleChange}
-        onDeleteRole={onDeleteRole}
-        onEditRole={onEditRole}
-        onPauseRole={onPauseRole}
-        onResumeRole={onResumeRole}
-        roleActionPending={roleActionPending}
-        roles={roles}
-        showActions={canManageCandidates}
-      />
-      {error ? (
-        <OrgErrorState message={error.message} onRetry={onRetry} />
+      <OrgRoleTabs />
+      {boardQuery.error instanceof Error ? (
+        <OrgErrorState
+          message={boardQuery.error.message}
+          onRetry={() => void boardQuery.refetch()}
+        />
       ) : null}
-      {isAll ? (
-        <OrgAllRolesOverview
-          board={board}
-          canManageCandidates={canManageCandidates}
-          error={null}
-          isLoading={isLoading}
-          onDeleteRole={onDeleteRole}
-          onEditRole={onEditRole}
-          onPauseRole={onPauseRole}
-          onResumeRole={onResumeRole}
-          onRoleSelect={onRoleChange}
-          roleActionPending={roleActionPending}
-          roles={roles}
-        />
-      ) : (
-        <OrgPipeline
-          activeRole={activeRole}
-          activeRoleId={activeRoleId}
-          activeRoleName={activeRole?.name ?? null}
-          board={board}
-          canManageCandidates={canManageCandidates}
-          currentUserEmail={currentUserEmail}
-          error={null}
-          isLoading={isLoading}
-          members={members}
-          nameQuery={nameQuery}
-          onDeleteRole={onDeleteRole}
-          onEditRole={() => onEditRole(activeRoleId)}
-          onNameQueryChange={onNameQueryChange}
-          onPauseRole={onPauseRole}
-          onRecommendedDateChange={onRecommendedDateChange}
-          onResumeRole={onResumeRole}
-          onSelect={onSelect}
-          onStageChange={onStageChange}
-          pendingRecommendationId={pendingRecommendationId}
-          recommendedFromDate={recommendedFromDate}
-          recommendedToDate={recommendedToDate}
-          roleActionPending={roleActionPending}
-          workspaceId={workspaceId}
-        />
-      )}
+      {isAll ? <OrgAllRolesOverview /> : <OrgPipeline />}
     </div>
+  );
+}
+
+function OrgJobsAgent() {
+  const { permissions } = useOrgWorkspace();
+  return permissions.canManageCandidates ? <OrgAgentPanel /> : null;
+}
+
+function OrgJobsTalentDetail() {
+  const { workspaceId } = useOrgJobsNavigation();
+  const { activeDetailRecommendationId, activeDetailTalentId } =
+    useOrgJobsDetail();
+
+  return (
+    <TalentDetailSimpleView
+      key={[
+        workspaceId,
+        activeDetailRecommendationId,
+        activeDetailTalentId,
+      ].join(":")}
+    />
+  );
+}
+
+function OrgJobsRoleEditor() {
+  const { editingRole, submitRoleEdit, closeRoleEditor, roleActionPending } =
+    useOrgJobsRoleActions();
+
+  return (
+    <OrgEditDialog
+      key={[editingRole?.roleId ?? "closed", editingRole?.updatedAt ?? ""].join(
+        ":"
+      )}
+      mode="role"
+      onClose={closeRoleEditor}
+      onSubmit={submitRoleEdit}
+      open={Boolean(editingRole)}
+      pending={roleActionPending}
+      value={
+        editingRole
+          ? {
+              description: editingRole.description,
+              employmentTypes: editingRole.employmentTypes,
+              externalJdUrl: editingRole.externalJdUrl,
+              locationText: editingRole.locationText,
+              name: editingRole.name,
+              request: editingRole.request,
+              status: editingRole.status,
+              workMode: editingRole.workMode,
+            }
+          : {}
+      }
+    />
+  );
+}
+
+export function OrgJobsPage() {
+  return (
+    <OrgJobsProvider>
+      <OrgJobsMain />
+      <OrgJobsAgent />
+      <OrgJobsTalentDetail />
+      <OrgJobsRoleEditor />
+    </OrgJobsProvider>
   );
 }

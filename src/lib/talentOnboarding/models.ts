@@ -13,6 +13,7 @@ export type TalentConversationRow = {
 export type TalentUserProfileRow = {
   user_id: string;
   email: string | null;
+  phone_number: string | null;
   name: string | null;
   profile_picture: string | null;
   headline: string | null;
@@ -49,6 +50,7 @@ export type TalentStructuredProfile = {
         TalentUserProfileRow,
         | "user_id"
         | "email"
+        | "phone_number"
         | "name"
         | "profile_picture"
         | "headline"

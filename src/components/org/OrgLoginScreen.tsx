@@ -32,7 +32,7 @@ function OrgEntryAppBar({ isAuthenticated }: { isAuthenticated: boolean }) {
             <Link
               href="/company"
               aria-label="Harper 회사 페이지로 이동"
-              className="rounded-full px-3 py-1.5 text-[12px] font-normal text-black/50 transition hover:bg-bg-weak"
+              className="rounded-full px-4 py-2 text-sm font-normal text-black/50 transition hover:bg-bg-weak hover:text-neutral-primary"
             >
               로그아웃
             </Link>
@@ -40,7 +40,7 @@ function OrgEntryAppBar({ isAuthenticated }: { isAuthenticated: boolean }) {
           <Link
             href="/company"
             aria-label="Harper 회사 페이지로 이동"
-            className="rounded-full border border-neutral-1000-a10 px-3 py-1.5 text-[12px] font-normal text-black/50 transition hover:bg-bg-weak"
+            className="rounded-full border border-neutral-1000-a10 px-4 py-2 text-sm font-normal text-black/50 transition hover:bg-bg-weak hover:text-neutral-primary"
           >
             Company
           </Link>
@@ -247,7 +247,8 @@ export function OrgLoginScreen({
           {workspace.companyName} Workspace에 초대받았습니다.
         </h1>
         <p className="mt-2 text-[13px] font-normal leading-5 text-neutral-muted">
-          Google 계정으로 계속하면 팀의 Organization에 바로 참여할 수 있습니다.
+          초대 메일을 받은 Google 계정으로 계속하면 팀의 Organization에 참여할
+          수 있습니다.
         </p>
         <button
           type="button"
@@ -294,13 +295,14 @@ export function OrgLoginScreen({
             ? "아직 가입된 Workspace가 없습니다."
             : "Harper Workspace"}
         </h1>
-        <p className="mt-3 text-center text-[13px] font-light leading-5 text-neutral-muted">
+        <p className="mt-3 text-center text-[14px] font-light leading-5 text-neutral-muted">
           {isAuthenticated ? (
             <>
               받으신 초대 링크를 통해 접속해주세요.
               <br />
-              미팅을 했지만 아직 초대 링크를 받지 못하셨다면 아래를 통해 문의를
-              남겨주세요.
+              미팅을 했지만 아직 초대 링크를 받지 못하셨다면
+              <br />
+              아래를 통해 문의를 남겨주세요.
             </>
           ) : (
             <>
@@ -348,7 +350,7 @@ export function OrgLoginScreen({
               value={message}
               onChange={(event) => updateMessage(event.target.value)}
               placeholder="예: 지난주 AI 엔지니어 채용에 관해 미팅했습니다."
-              className="mt-1.5 h-16 w-full resize-none rounded-md bg-black/3 px-2.5 py-2 text-[12px] font-normal leading-5 text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:ring-2 focus:ring-neutral-1000-a05"
+              className="mt-1.5 h-20 w-full resize-none rounded-md bg-black/3 px-2.5 py-2 text-[14px] font-normal leading-5 text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:ring-2 focus:ring-neutral-1000-a05"
             />
             <AnimatePresence initial={false}>
               {!isAuthenticated && collectEmail ? (
@@ -380,7 +382,7 @@ export function OrgLoginScreen({
                       setRequestError(null);
                     }}
                     placeholder="name@company.com"
-                    className="mt-1.5 h-8 w-full rounded-md border border-neutral-1000-a10 bg-bg-floating px-2.5 text-[12px] font-normal text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:ring-2 focus:ring-neutral-1000-a05"
+                    className="mt-1.5 h-8 w-full rounded-md border border-neutral-1000-a10 bg-bg-floating px-2.5 text-[14px] font-normal text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:ring-2 focus:ring-neutral-1000-a05"
                   />
                 </motion.div>
               ) : null}
@@ -395,7 +397,7 @@ export function OrgLoginScreen({
             <button
               type="submit"
               disabled={submitPending}
-              className="mt-1 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md bg-neutral-1000 px-3 text-[12px] font-medium text-neutral-00 transition hover:bg-neutral-900 disabled:cursor-not-allowed disabled:opacity-55"
+              className="mt-1 inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md bg-neutral-1000 px-3 text-[14px] font-medium text-neutral-00 transition hover:bg-neutral-900 disabled:cursor-not-allowed disabled:opacity-55"
             >
               {submitPending && (
                 <LoaderCircle className="h-4 w-4 animate-spin" />

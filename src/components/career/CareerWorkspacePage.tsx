@@ -20,6 +20,7 @@ import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useCareerVisitLog } from "@/hooks/career/useCareerVisitLog";
 import { useTalentOnboardingRedirect } from "@/hooks/career/useTalentOnboardingStatus";
 import { useMessages } from "@/i18n/useMessage";
+import { TALENT_ACCOUNT_EMAIL_UNAVAILABLE_MESSAGE } from "@/lib/career/accountEmailErrors";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
 import { supabase } from "@/lib/supabase";
 import { subscribeCareerReferralModalOpen } from "@/components/career/referral/careerReferralEvents";
@@ -33,6 +34,8 @@ import {
   OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM,
 } from "@/lib/officialJobs";
 import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
+import { showToast } from "@/components/toast/toast";
+import { useCareerT } from "@/i18n/useCareerT";
 
 const DELIVERY_EMAIL_HISTORY_LINK_ENTRY_PARAM = "entryPoint";
 const DELIVERY_EMAIL_HISTORY_LINK_ENTRY_VALUE = "delivery_email_history_link";
@@ -51,6 +54,7 @@ const CareerWorkspacePage = ({
   const logCareerEvent = useCareerLogEvent();
   const { user, authLoading } = useCareerAuth();
   const { locale } = useMessages();
+  const t = useCareerT();
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] =
     useState<CareerSettingsTab | null>(null);
@@ -74,6 +78,17 @@ const CareerWorkspacePage = ({
     isRouterReady && typeof router.query.panel === "string"
       ? router.query.panel
       : null;
+  const requestedSettingsTab =
+    isRouterReady &&
+    (router.query.settingsTab === "profile" ||
+      router.query.settingsTab === "resume" ||
+      router.query.settingsTab === "referral" ||
+      router.query.settingsTab === "account")
+      ? router.query.settingsTab
+      : null;
+  const emailChangeResult = isRouterReady
+    ? getSingleQueryParam(router.query.emailChange)
+    : null;
   const officialJobsSource = isRouterReady
     ? getSingleQueryParam(router.query.source)
     : null;
@@ -165,6 +180,60 @@ const CareerWorkspacePage = ({
       { shallow: true, scroll: false }
     );
   }, [isRouterReady, referralIntent, router, user]);
+
+  useEffect(() => {
+    if (!isRouterReady || !emailChangeResult) return;
+
+    if (emailChangeResult === "complete") {
+      showToast({
+        message: t(
+          "career.settings.email_change.completed",
+          "인증된 이메일로 변경했습니다."
+        ),
+        variant: "white",
+      });
+    } else if (emailChangeResult === "pending") {
+      showToast({
+        message: t(
+          "career.settings.email_change.still_pending",
+          "새 이메일로 받은 인증 링크를 확인해주세요."
+        ),
+        variant: "white",
+      });
+    } else if (emailChangeResult === "unavailable") {
+      showToast({
+        message: t(
+          "career.settings.email_change.in_use",
+          TALENT_ACCOUNT_EMAIL_UNAVAILABLE_MESSAGE
+        ),
+        variant: "error",
+      });
+    } else if (emailChangeResult === "expired") {
+      showToast({
+        message: t(
+          "career.settings.email_change.link_expired",
+          "이 링크는 만료되었거나 재발송으로 교체되었습니다. 가장 최근에 받은 인증 메일을 열어주세요."
+        ),
+        variant: "error",
+      });
+    } else {
+      showToast({
+        message: t(
+          "career.settings.email_change.callback_failed",
+          "인증된 이메일을 저장하지 못했습니다. 다시 시도해 주세요."
+        ),
+        variant: "error",
+      });
+    }
+
+    const nextQuery = { ...router.query };
+    delete nextQuery.emailChange;
+    void router.replace(
+      { pathname: router.pathname, query: nextQuery },
+      undefined,
+      { shallow: true, scroll: false }
+    );
+  }, [emailChangeResult, isRouterReady, router, t]);
 
   useEffect(() => {
     if (
@@ -265,6 +334,7 @@ const CareerWorkspacePage = ({
       options?: {
         historyTarget?: {
           historyTab: "new" | "saved" | "archived";
+          roleId?: string;
           savedStage?: CareerOpportunitySavedStageFilter;
         };
       }
@@ -276,6 +346,9 @@ const CareerWorkspacePage = ({
 
       if (historyTarget) {
         query.historyTab = historyTarget.historyTab;
+        if (historyTarget.roleId) {
+          query.id = historyTarget.roleId;
+        }
         if (historyTarget.savedStage) {
           query.savedStage = historyTarget.savedStage;
         }
@@ -341,7 +414,10 @@ const CareerWorkspacePage = ({
           onChangeTab={handleChangeTab}
         />
         <CareerSettingsModal
-          initialTab={settingsInitialTab}
+          initialTab={
+            settingsInitialTab ??
+            (settingsPanelRequested ? requestedSettingsTab : null)
+          }
           open={settingsModalOpen}
           onClose={handleCloseSettings}
         />

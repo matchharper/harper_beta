@@ -6,7 +6,7 @@ import { useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
-import { cx, opsTheme } from "@/components/ops/theme";
+import { opsTheme } from "@/components/ops/theme";
 import {
   ProgressFeed,
   type ProgressFeedIcon,
@@ -24,19 +24,25 @@ import {
   AcceptIntroDialog,
   StopCandidateDialog,
 } from "@/components/org/OrgCandidateDecisionDialogs";
+import { InternalOnlySurface } from "@/components/org/internal/InternalOnlySurface";
 import { OrgErrorState } from "@/components/org/workspace/OrgErrorState";
+import { formatKst } from "@/components/ops/career/utils";
+import { useOpsCareerDetail } from "@/hooks/ops/useOpsCareer";
 import {
   useCreateOrgFeedItem,
   useDeleteOrgFeedItem,
   useOpenOrgResume,
   useUpdateOrgFeedItem,
 } from "@/hooks/org/useOrg";
-import type {
-  OrgMember,
-  OrgStageChangeOptions,
-  OrgStageId,
-  OrgTalentDetailResponse,
-} from "@/lib/org/server";
+import {
+  useOrgJobsCandidateActions,
+  useOrgJobsDetail,
+  useOrgJobsNavigation,
+} from "@/hooks/org/useOrgJobs";
+import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
+import type { CareerTalentOpsProfileMemo } from "@/lib/ops/careerServer";
+import type { OrgTalentDetailResponse } from "@/lib/org/server";
+import { cn } from "@/lib/utils";
 
 type ResourceLinkKind =
   | "github"
@@ -60,7 +66,7 @@ const OrgInternalTalentPanel = dynamic(
   () => import("@/components/org/internal/OrgInternalTalentPanel"),
   {
     loading: () => (
-      <div className="flex min-h-56 items-center justify-center text-[11px] font-light text-neutral-muted">
+      <div className="flex min-h-56 items-center justify-center text-[13px] font-light text-neutral-muted">
         <LoaderCircle className="mr-2 size-4 animate-spin" />
         내부 데이터를 불러오는 중
       </div>
@@ -169,7 +175,7 @@ function ResourceRow({
   label: string;
   onClick?: () => void;
 }) {
-  const className = cx(
+  const className = cn(
     profileItemClass,
     "flex w-full items-center justify-between gap-3 bg-black/4 px-3 text-left text-[13px] transition hover:bg-black/8"
   );
@@ -332,18 +338,87 @@ function ProfileDescriptionMarkdown({ value }: { value?: string | null }) {
   );
 }
 
+function HarperMemoSection({
+  error,
+  isLoading,
+  memos,
+}: {
+  error: Error | null;
+  isLoading: boolean;
+  memos: CareerTalentOpsProfileMemo[];
+}) {
+  const sortedMemos = [...memos].sort((left, right) =>
+    (right.updatedAt ?? right.createdAt ?? "").localeCompare(
+      left.updatedAt ?? left.createdAt ?? ""
+    )
+  );
+
+  return (
+    <InternalOnlySurface
+      className="rounded-md bg-positive-faded px-4 py-4"
+      showLabel={false}
+    >
+      <div className="relative z-20">
+        <div className="text-[14px] font-medium text-neutral-primary">
+          Harper 메모
+        </div>
+        {isLoading ? (
+          <div className="mt-3 flex items-center text-[13px] text-neutral-muted">
+            <LoaderCircle className="mr-2 size-4 animate-spin" />
+            메모를 불러오는 중
+          </div>
+        ) : error ? (
+          <div className="mt-3 text-[13px] leading-5 text-critical">
+            {error.message}
+          </div>
+        ) : sortedMemos.length > 0 ? (
+          <div className="mt-3 space-y-3">
+            {sortedMemos.map((memo) => (
+              <div key={memo.id}>
+                <div className="whitespace-pre-wrap text-[14px] leading-6 text-neutral-primary">
+                  {memo.content}
+                </div>
+                <div className="mt-1 text-[12px] text-neutral-muted">
+                  {formatKst(memo.updatedAt ?? memo.createdAt)}
+                  {memo.updatedBy ? ` · ${memo.updatedBy}` : ""}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-2 text-[13px] text-neutral-muted">
+            등록된 Harper 메모가 없습니다.
+          </div>
+        )}
+      </div>
+    </InternalOnlySurface>
+  );
+}
+
 function ProfilePane({
   acceptDisabled,
+  currentStage,
   decisionPending,
   detail,
+  harperMemoError,
+  harperMemos,
+  harperMemosLoading,
+  internalOpsAccess,
   onAcceptClick,
+  onMoveToPendingConnection,
   onRejectClick,
   onResumeClick,
 }: {
   acceptDisabled?: boolean;
+  currentStage: OrgTalentDetailResponse["recommendation"]["stage"];
   decisionPending?: boolean;
   detail: OrgTalentDetailResponse;
+  harperMemoError: Error | null;
+  harperMemos: CareerTalentOpsProfileMemo[];
+  harperMemosLoading: boolean;
+  internalOpsAccess: boolean;
   onAcceptClick?: () => void;
+  onMoveToPendingConnection?: () => void;
   onRejectClick?: () => void;
   onResumeClick: (kind: "storage" | "link", link?: string | null) => void;
 }) {
@@ -390,10 +465,20 @@ function ProfilePane({
         acceptDisabled={acceptDisabled}
         candidateName={name}
         className="lg:hidden"
+        currentStage={currentStage}
         decisionPending={decisionPending}
         onAcceptClick={onAcceptClick}
+        onMoveToPendingConnection={onMoveToPendingConnection}
         onRejectClick={onRejectClick}
       />
+
+      {internalOpsAccess ? (
+        <HarperMemoSection
+          error={harperMemoError}
+          isLoading={harperMemosLoading}
+          memos={harperMemos}
+        />
+      ) : null}
 
       <ProfileSection title="추천 이유">
         {detail.recommendation.fitSummary ||
@@ -445,7 +530,7 @@ function ProfilePane({
           })}
           {!detail.resume.hasStorageFile && resourceLinks.length === 0 ? (
             <div
-              className={cx(profileItemClass, "text-[13px] text-neutral-soft")}
+              className={cn(profileItemClass, "text-[13px] text-neutral-soft")}
             >
               등록된 자료가 없습니다.
             </div>
@@ -580,23 +665,59 @@ function CandidateDecisionActions({
   acceptDisabled,
   candidateName,
   className,
+  currentStage,
   decisionPending,
   onAcceptClick,
+  onMoveToPendingConnection,
   onRejectClick,
 }: {
   acceptDisabled?: boolean;
   candidateName: string;
   className?: string;
+  currentStage: OrgTalentDetailResponse["recommendation"]["stage"];
   decisionPending?: boolean;
   onAcceptClick?: () => void;
+  onMoveToPendingConnection?: () => void;
   onRejectClick?: () => void;
 }) {
-  if (!onAcceptClick && !onRejectClick) return null;
+  if (currentStage === "accepted") {
+    if (!onMoveToPendingConnection) return null;
+    return (
+      <section
+        aria-label="연결 대기 상태로 이동"
+        className={cn("rounded-md bg-bg-weak px-4 py-4", className)}
+      >
+        <div className="text-[16px] font-medium text-neutral-primary">
+          연결 대기 상태로 옮기시겠습니까?
+        </div>
+        <p className="mt-1 text-[13px] font-normal leading-5 text-neutral-muted">
+          회사가 {candidateName} 후보자와 연결을 진행할지 결정할 수 있게 됩니다.
+        </p>
+        <MuteButton
+          className="mt-4 min-h-10 w-full sm:w-auto"
+          disabled={decisionPending}
+          onClick={onMoveToPendingConnection}
+          size="md"
+          type="button"
+          variant="primary"
+        >
+          연결 대기로 이동
+        </MuteButton>
+      </section>
+    );
+  }
+
+  if (
+    currentStage !== "pending_connection" ||
+    (!onAcceptClick && !onRejectClick)
+  ) {
+    return null;
+  }
 
   return (
     <section
       aria-label="후보자 연결 결정"
-      className={cx("border-y border-critical/20 py-4", className)}
+      className={cn("rounded-md bg-critical-faded px-4 py-4", className)}
     >
       <div className="flex items-start gap-2.5">
         <div className="mt-0.5 shrink-0 text-critical">
@@ -606,7 +727,7 @@ function CandidateDecisionActions({
           <div className="text-[16px] font-medium text-critical">
             결정이 필요합니다
           </div>
-          <p className="mt-1 text-[12px] font-normal leading-5 text-neutral-muted">
+          <p className="mt-1 text-[13px] font-normal leading-5 text-neutral-muted">
             {candidateName} 후보자와 연결을 진행할지 결정해 주세요.
           </p>
         </div>
@@ -771,50 +892,48 @@ function FeedPane({
   );
 }
 
-export function TalentDetailSimpleView({
-  acceptStageId,
-  canManageCandidates = true,
-  companyName,
-  currentUserEmail,
-  currentUserId,
-  decisionPending,
-  detail,
-  error,
-  internalOpsAccess = false,
-  isLoading,
-  members = [],
-  onAcceptCandidate,
-  onClose,
-  onRejectCandidate,
-  onRetry,
-  open,
-  talentId,
-  workspaceId,
-}: {
-  acceptStageId?: OrgStageId | null;
-  canManageCandidates?: boolean;
-  companyName: string;
-  currentUserEmail?: string | null;
-  currentUserId?: string | null;
-  decisionPending?: boolean;
-  detail?: OrgTalentDetailResponse | null;
-  error?: Error | null;
-  internalOpsAccess?: boolean;
-  isLoading?: boolean;
-  members?: Pick<OrgMember, "email" | "name" | "userId">[];
-  onAcceptCandidate?: (args: {
-    acceptReason: string | null;
-    contactDirectly: boolean;
-    introEmails: string[];
-    stage: OrgStageId;
-  }) => Promise<void>;
-  onClose: () => void;
-  onRejectCandidate?: (options: OrgStageChangeOptions) => void | Promise<void>;
-  onRetry?: () => void;
-  open: boolean;
-  talentId?: string | null;
-  workspaceId: string;
-}) {
+export function TalentDetailSimpleView() {
+  const { closeTalentDetail, workspaceId } = useOrgJobsNavigation();
+  const {
+    activeDetailRecommendationId,
+    activeDetailTalentId,
+    detailOpen,
+    detailQuery,
+    selectedAcceptStageId,
+  } = useOrgJobsDetail();
+  const {
+    acceptTalent,
+    moveTalentToPendingConnection,
+    pendingRecommendationId,
+    rejectTalent,
+  } = useOrgJobsCandidateActions();
+  const {
+    bootstrap,
+    currentUser,
+    currentUserEmail,
+    internalOpsAccess,
+    permissions,
+    user,
+    workspace,
+  } = useOrgWorkspace();
+  const members = bootstrap.members;
+  const acceptStageId = selectedAcceptStageId;
+  const canManageCandidates = permissions.canManageCandidates;
+  const companyName = workspace.companyName;
+  const currentUserId = currentUser?.userId ?? user.id;
+  const decisionPending = Boolean(
+    activeDetailRecommendationId &&
+    pendingRecommendationId === activeDetailRecommendationId
+  );
+  const detail = detailQuery.data;
+  const error = detailQuery.error instanceof Error ? detailQuery.error : null;
+  const isLoading = detailQuery.isLoading;
+  const onAcceptCandidate = canManageCandidates ? acceptTalent : undefined;
+  const onClose = closeTalentDetail;
+  const onRejectCandidate = canManageCandidates ? rejectTalent : undefined;
+  const onRetry = () => void detailQuery.refetch();
+  const open = detailOpen;
+  const talentId = activeDetailTalentId || null;
   const [acceptDialogOpen, setAcceptDialogOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<"profile" | "feed">("profile");
   const [profileTab, setProfileTab] = useState<"internal" | "profile">(
@@ -827,6 +946,16 @@ export function TalentDetailSimpleView({
   } | null>(null);
   const [resumeError, setResumeError] = useState("");
   const openResume = useOpenOrgResume();
+  const harperMemoQuery = useOpsCareerDetail(
+    talentId,
+    Boolean(open && internalOpsAccess && talentId && profileTab === "profile")
+  );
+  const harperMemoError =
+    harperMemoQuery.error instanceof Error ? harperMemoQuery.error : null;
+  const harperMemos = harperMemoQuery.data?.opsProfileMemos ?? [];
+  const onMoveToPendingConnection = canManageCandidates
+    ? () => void moveTalentToPendingConnection()
+    : undefined;
 
   const handleConfirmResume = () => {
     if (!resumeRequest || !talentId) return;
@@ -933,7 +1062,7 @@ export function TalentDetailSimpleView({
                     <BareButton
                       type="button"
                       onClick={() => setMobileTab("profile")}
-                      className={cx(
+                      className={cn(
                         "border-b-2 px-3.5 py-2.5 text-[13px] transition",
                         mobileTab === "profile"
                           ? "border-neutral-800 font-medium text-neutral-primary"
@@ -945,7 +1074,7 @@ export function TalentDetailSimpleView({
                     <BareButton
                       type="button"
                       onClick={() => setMobileTab("feed")}
-                      className={cx(
+                      className={cn(
                         "border-b-2 px-3.5 py-2.5 text-[13px] transition",
                         mobileTab === "feed"
                           ? "border-neutral-800 font-medium text-neutral-primary"
@@ -958,15 +1087,15 @@ export function TalentDetailSimpleView({
                 </div>
                 {internalOpsAccess ? (
                   <div
-                    className={cx(
+                    className={cn(
                       "border-b border-neutral-1000-a05 bg-bg-default px-5",
                       mobileTab !== "profile" && "hidden lg:block"
                     )}
                   >
                     <div className="flex">
                       <MuteButton
-                        className={cx(
-                          "rounded-none border-b-2 px-3 text-[12px]",
+                        className={cn(
+                          "rounded-none border-b-2 px-3 text-[13px]",
                           profileTab === "profile"
                             ? "border-neutral-1000 text-neutral-primary"
                             : "border-transparent text-neutral-muted"
@@ -978,8 +1107,8 @@ export function TalentDetailSimpleView({
                         회사 공개 프로필
                       </MuteButton>
                       <MuteButton
-                        className={cx(
-                          "rounded-none border-b-2 px-3 text-[12px]",
+                        className={cn(
+                          "rounded-none border-b-2 px-3 text-[13px]",
                           profileTab === "internal"
                             ? "border-neutral-1000 text-neutral-primary"
                             : "border-transparent text-neutral-muted"
@@ -995,7 +1124,7 @@ export function TalentDetailSimpleView({
                 ) : null}
                 <div className="p-5">
                   <div
-                    className={cx(mobileTab !== "profile" && "hidden lg:block")}
+                    className={cn(mobileTab !== "profile" && "hidden lg:block")}
                   >
                     {profileTab === "internal" && internalOpsAccess ? (
                       <OrgInternalTalentPanel
@@ -1008,13 +1137,19 @@ export function TalentDetailSimpleView({
                     ) : (
                       <ProfilePane
                         acceptDisabled={!acceptStageId || !canManageCandidates}
+                        currentStage={detail.recommendation.stage}
                         decisionPending={decisionPending}
                         detail={detail}
+                        harperMemoError={harperMemoError}
+                        harperMemos={harperMemos}
+                        harperMemosLoading={harperMemoQuery.isLoading}
+                        internalOpsAccess={internalOpsAccess}
                         onAcceptClick={
                           canManageCandidates
                             ? () => setAcceptDialogOpen(true)
                             : undefined
                         }
+                        onMoveToPendingConnection={onMoveToPendingConnection}
                         onRejectClick={
                           canManageCandidates
                             ? () => setRejectDialogOpen(true)
@@ -1027,7 +1162,7 @@ export function TalentDetailSimpleView({
                     )}
                   </div>
                   <div
-                    className={cx(
+                    className={cn(
                       mobileTab !== "feed" && "hidden",
                       "lg:hidden"
                     )}
@@ -1050,12 +1185,14 @@ export function TalentDetailSimpleView({
                     <CandidateDecisionActions
                       acceptDisabled={!acceptStageId || !canManageCandidates}
                       candidateName={title}
+                      currentStage={detail.recommendation.stage}
                       decisionPending={decisionPending}
                       onAcceptClick={
                         canManageCandidates
                           ? () => setAcceptDialogOpen(true)
                           : undefined
                       }
+                      onMoveToPendingConnection={onMoveToPendingConnection}
                       onRejectClick={
                         canManageCandidates
                           ? () => setRejectDialogOpen(true)
@@ -1085,8 +1222,7 @@ export function TalentDetailSimpleView({
             <DialogTitle className="text-[18px]">이력서 열기</DialogTitle>
           </DialogHeader>
           <div className="mt-1 text-[13px] leading-5 text-neutral-primary">
-            이 자료는 채용 검토 목적으로만 사용하고 회사 외부에 공유하지
-            마세요.
+            이 자료는 채용 검토 목적으로만 사용하고 회사 외부에 공유하지 마세요.
           </div>
           {resumeError ? (
             <div className="text-[12px] text-critical" role="alert">

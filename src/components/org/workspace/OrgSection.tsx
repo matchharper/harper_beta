@@ -42,7 +42,7 @@ export function OrgSectionHeader({
           {title}
         </h2>
         {description ? (
-          <p className="mt-1 max-w-3xl text-[13px] font-light leading-5 text-neutral-muted">
+          <p className="mt-1 max-w-3xl text-[14px] font-light leading-5 text-neutral-muted">
             {description}
           </p>
         ) : null}

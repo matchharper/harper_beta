@@ -53,6 +53,7 @@ import {
 import { cn } from "@/lib/cn";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
 import { getCareerSignupAttributionPayload } from "@/lib/career/signupAttribution";
+import { trackSignUp } from "@/lib/ga";
 import {
   OFFICIAL_JOBS_ONBOARDING_JOB_PARAM,
   OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM,
@@ -1338,12 +1339,14 @@ const CareerNetworkOnboardingContent = () => {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user, authLoading } = useCareerAuth();
+  const email = String(user?.email ?? "")
+    .trim()
+    .toLowerCase();
   const { fetchWithAuth } = useCareerApi();
   const logCareerEvent = useCareerLogEvent();
   const [bootstrapLoading, setBootstrapLoading] = useState(true);
   const [conversationId, setConversationId] = useState("");
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
   const [selectedProfileInputs, setSelectedProfileInputs] = useState<
     TalentNetworkProfileInputType[]
   >(["linkedin"]);
@@ -1466,6 +1469,13 @@ const CareerNetworkOnboardingContent = () => {
         )
       );
     }
+    const bootstrapPayload = await bootstrapRes.json().catch(() => ({}));
+    if (bootstrapPayload?.created === true) {
+      trackSignUp({
+        flow: "career_onboarding",
+        method: "email_or_existing_session",
+      });
+    }
 
     const sessionParams = new URLSearchParams({
       locale: requestLocale,
@@ -1506,7 +1516,6 @@ const CareerNetworkOnboardingContent = () => {
       user.user_metadata?.name ??
       (typeof user.email === "string" ? user.email.split("@")[0] : "");
     setName((current) => current || String(nextName ?? ""));
-    setEmail((current) => current || user.email || "");
   }, [user]);
 
   useEffect(() => {
@@ -1617,7 +1626,6 @@ const CareerNetworkOnboardingContent = () => {
     const response = await fetchWithAuth("/api/talent/onboarding/basic-info", {
       method: "POST",
       body: JSON.stringify({
-        email: trimmedEmail,
         locale,
         name: trimmedName,
       }),
@@ -1935,7 +1943,6 @@ const CareerNetworkOnboardingContent = () => {
         method: "POST",
         body: JSON.stringify({
           conversationId,
-          email: email.trim().toLowerCase(),
           links,
           locale,
           name: name.trim(),
@@ -1992,7 +1999,6 @@ const CareerNetworkOnboardingContent = () => {
   }, [
     conversationId,
     defaultDoneUserMessage,
-    email,
     fetchWithAuth,
     hasLinkedinProfileSignal,
     links,
@@ -2254,9 +2260,18 @@ const CareerNetworkOnboardingContent = () => {
                       <Input
                         type="email"
                         value={email}
-                        onChange={(event) => setEmail(event.target.value)}
+                        readOnly
+                        onClick={() =>
+                          showToast({
+                            message: t(
+                              "career.onboarding.onboarding.email_change_requires_verification",
+                              "가입 후 이메일 인증을 통해 변경할 수 있습니다."
+                            ),
+                            variant: "white",
+                          })
+                        }
                         placeholder="email@example.com"
-                        className="h-12 text-base mt-1"
+                        className="h-12 cursor-pointer text-base mt-1"
                       />
                     </div>
                   </div>

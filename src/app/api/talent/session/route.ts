@@ -45,6 +45,7 @@ import {
 import { fetchPendingInternalOpportunityCallRequests } from "@/lib/talentOnboarding/internalOpportunityCallRequest";
 import { TALENT_TOOL_NAMES } from "@/lib/talentOnboarding/tools";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
+import { syncVerifiedTalentAccountEmail } from "@/lib/talentOnboarding/accountEmail";
 
 // const REENGAGEMENT_IDLE_MS = 60 * 1000;
 const REENGAGEMENT_IDLE_MS = 12 * 60 * 60 * 1000; // 12시간 지나서 접속시 인사
@@ -168,6 +169,7 @@ const createFallbackTalentProfile = (
     ? {
         user_id: profile.user_id,
         email: profile.email,
+        phone_number: profile.phone_number,
         name: profile.name,
         profile_picture: profile.profile_picture,
         headline: profile.headline,
@@ -210,7 +212,7 @@ function getDeterministicDailyOffset(dateKey: string) {
   }
 
   const range = ACTIVE_COMPANY_ROLE_COUNT_DAILY_VARIATION * 2 + 1;
-  return (hash >>> 0) % range - ACTIVE_COMPANY_ROLE_COUNT_DAILY_VARIATION;
+  return ((hash >>> 0) % range) - ACTIVE_COMPANY_ROLE_COUNT_DAILY_VARIATION;
 }
 
 async function fetchActiveCompanyRoleCount() {
@@ -271,6 +273,12 @@ export async function GET(req: NextRequest) {
     const admin = getTalentSupabaseAdmin();
     const isMobile = isMobileRequest(req);
     await ensureTalentUserRecord({ admin, user });
+    await syncVerifiedTalentAccountEmail({ admin, user }).catch((error) => {
+      console.warn("[TalentSession] verified email sync skipped", {
+        error: error instanceof Error ? error.message : "Unknown error",
+        userId: user.id,
+      });
+    });
     await markTalentUserLoggedIn({ admin, userId: user.id });
     const initialTalentSetting = await withSessionFallback({
       fallback: null,

@@ -29,10 +29,31 @@ Organization은 회사 사용자가 Harper가 추천한 인재를 빠르게 검�
 `/org/home`으로 정규화한다. `orgId`, `roleId`, 후보자 상세 query는 필요한
 페이지 이동에서 보존한다.
 
-페이지 파일은 URL 진입점만 담당하고, 공통 인증/bootstrap/shell은
-`OrgWorkspaceApp`이 담당한다. 각 화면은 `components/org/workspace/pages` 아래의
-독립 컴포넌트로 분리한다. 공통 사이드바, 페이지 헤더, 초대 모달 등 반복 UI는
-`components/org/workspace`에 둔다.
+각 `src/pages/org/*.tsx` 파일은 자신의 페이지 컴포넌트를 명시적으로 구성한다.
+`OrgWorkspaceApp`은 인증, bootstrap 로딩/오류 처리, URL 정규화, 공통 sidebar와
+콘텐츠 레이아웃까지만 담당한다. Home/Jobs/Team/Settings의 query, mutation,
+filter, dialog와 페이지 전용 navigation을 `OrgWorkspaceApp`에 두지 않는다.
+
+공통 bootstrap 응답은 TanStack Query를 SSOT로 유지하고
+`useOrgWorkspace()`를 통해 현재 workspace, 멤버, 역할, 권한을 읽는다. 이 hook은
+Query 응답을 접근하기 쉽게 제공할 뿐 서버 데이터를 별도 store에 복제하지 않는다.
+페이지 전용 서버 데이터는 해당 페이지에서 Query hook을 직접 호출한다.
+
+- Home: board query, Home에서 Jobs/후보자로 이동하는 navigation
+- Jobs: role/filter/board/detail query, 후보자/role mutation, Jobs dialog와 agent
+- Team: 회사 정보, 초대, 멤버/권한 mutation
+- Settings: Slack query와 mutation
+- Help: 정적 도움말 콘텐츠
+
+Jobs 내부에서 여러 형제 컴포넌트가 함께 사용하는 값은 책임별 도메인 context로
+공유한다. navigation, filter, board query, detail query, candidate action,
+role action을 각각의 hook으로 읽고, 모든 값을 하나의 거대한 context에 합치지
+않는다. 이렇게 하면 filter 입력처럼 자주 바뀌는 값이 후보자 상세나 Agent까지
+불필요하게 다시 렌더링하지 않는다. 값과 callback을 shell에서 수십 개의 props로
+전달하지 않으며, 한 컴포넌트 안에서만 사용하는 form draft와 dialog open 상태는
+그 컴포넌트의 `useState`로 유지한다.
+
+공통 사이드바, 페이지 헤더 등 반복 UI는 `components/org/workspace`에 둔다.
 
 ## Home 행동 우선순위
 
@@ -100,7 +121,9 @@ Slack 상태는 모든 멤버가 볼 수 있지만 연결 변경과 알림 설�
 
 ## 데이터와 로딩
 
-- 인증/bootstrap, board, candidate detail, Slack 상태는 React Query를 사용한다.
+- 인증/bootstrap, board, candidate detail, Slack 상태는 TanStack Query를 사용한다.
+- 모든 조회 hook은 재사용 가능한 `queryOptions()` 또는
+  `infiniteQueryOptions()` factory를 export한다.
 - 데이터 의존 화면은 빈 값이 확정되기 전까지 공통 Skeleton/로딩 상태를 보여준다.
 - mutation 성공 시 `queryKeys.org.all` 또는 Slack query를 invalidate하여 서버
   결과를 다시 읽는다.

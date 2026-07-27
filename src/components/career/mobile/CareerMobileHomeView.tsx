@@ -35,6 +35,7 @@ import type {
 import { ActionButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
 import { Skeleton } from "@/components/ui/skeleton";
+import InternalRoleDecisionBanner from "@/components/career/InternalRoleDecisionBanner";
 
 const countFormatter = new Intl.NumberFormat("ko-KR");
 
@@ -77,6 +78,7 @@ const formatMobileHomeGreetingName = (name: string, t: CareerT) => {
 
 type HomeHistoryTarget = {
   historyTab: "new" | "saved" | "archived";
+  roleId?: string;
   savedStage?: CareerOpportunitySavedStageFilter;
 };
 
@@ -180,6 +182,7 @@ const SummaryCard = ({
 const CallHero = ({
   callDisabled,
   callStartPending,
+  compact,
   ctaLabel,
   description,
   isOnboardingCompleted,
@@ -189,6 +192,7 @@ const CallHero = ({
 }: {
   callDisabled: boolean;
   callStartPending: boolean;
+  compact?: boolean;
   ctaLabel?: string;
   description: React.ReactNode;
   isOnboardingCompleted: boolean;
@@ -196,7 +200,12 @@ const CallHero = ({
   title: React.ReactNode;
   extraComponent: React.ReactNode;
 }) => (
-  <section className="relative flex flex-col gap-2 min-h-[44svh] items-center justify-center overflow-hidden pb-2">
+  <section
+    className={cn(
+      "relative flex flex-col gap-2 items-center justify-center overflow-hidden pb-2",
+      compact ? "min-h-[30svh]" : "min-h-[44svh]"
+    )}
+  >
     <CareerCallCard
       callDisabled={callDisabled}
       callStartPending={callStartPending}
@@ -290,7 +299,6 @@ const CareerMobileHomeView = ({
   const isOnboardingCompleted = isOnboardingDone || stage === "completed";
 
   const newPositionCount = historyOpportunityCounts.new;
-  const newInternalOpportunityCount = historyOpportunityCounts.newInternal;
   const newPositionDescription = formatCareerMessage(
     m,
     t("career.home.career_home_panel.0x7lgjp", "추천된 기회")
@@ -466,9 +474,19 @@ const CareerMobileHomeView = ({
 
   return (
     <div className="flex flex-col gap-6 px-4 pb-[160px] pt-4">
+      <InternalRoleDecisionBanner
+        onConfirm={(roleId) =>
+          onOpenHistory({
+            historyTab: "new",
+            roleId: roleId ?? undefined,
+          })
+        }
+        variant="mobile"
+      />
       <CallHero
         callDisabled={!onStartCallMode}
         callStartPending={callStartPending}
+        compact={historyOpportunityCounts.newInternal > 0}
         description={callCardDescription}
         isOnboardingCompleted={callCardUsesCompletedLayout}
         onStartCall={handleStartCall}

@@ -1,7 +1,10 @@
 import { memo, useCallback, useMemo, useState } from "react";
 import { LoaderCircle, RefreshCw, Save } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
-import { useRefreshInsights, useUpdateInsights } from "@/hooks/ops/useOpsCareer";
+import {
+  useRefreshInsights,
+  useUpdateInsights,
+} from "@/hooks/ops/useOpsCareer";
 import { getInsightLabel } from "@/lib/talentOnboarding/insightChecklist";
 import type { CareerTalentInsightsResponse } from "@/lib/ops/careerServer";
 import { BareButton } from "@/components/ui/button";
@@ -94,7 +97,9 @@ export const InsightsTab = memo(function InsightsTab({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div className={opsTheme.eyebrow}>인사이트</div>
+        <div className="text-[13px] font-medium text-neutral-primary">
+          인사이트
+        </div>
         <div className="flex items-center gap-2">
           {isEditing ? (
             <>
@@ -185,9 +190,11 @@ export const InsightsTab = memo(function InsightsTab({
             >
               <div className="flex items-center justify-between">
                 <div className="flex min-w-0 items-center gap-1.5">
-                  <div className={opsTheme.eyebrow}>{item.label}</div>
+                  <div className="text-[13px] font-medium text-neutral-muted">
+                    {item.label}
+                  </div>
                   {item.isAdditional ? (
-                    <div className="truncate text-[11px] text-neutral-soft">
+                    <div className="truncate text-[12px] text-neutral-soft">
                       {item.key}
                     </div>
                   ) : null}

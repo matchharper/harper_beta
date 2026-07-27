@@ -31,6 +31,7 @@ import LandingHeader from "@/components/landing/LandingHeader";
 import Head from "next/head";
 import Link from "next/link";
 import { WhyImageSection } from "@/components/landing/WhySection";
+import { trackSignUp } from "@/lib/ga";
 
 export const isValidEmail = (email: string): boolean => {
   const trimmed = email.trim();
@@ -379,13 +380,19 @@ const CandidatePage = () => {
             Authorization: `Bearer ${accessToken}`,
           },
         });
+        const bootstrapJson = await bootstrapRes.json().catch(() => ({}));
         if (!bootstrapRes.ok) {
-          const bootstrapJson = await bootstrapRes.json().catch(() => ({}));
           return {
             message:
               bootstrapJson?.error ??
               "계정 초기화에 실패했습니다. 다시 시도해 주세요.",
           };
+        }
+        if (bootstrapJson?.created === true) {
+          trackSignUp({
+            flow: "find",
+            method: "email_or_existing_session",
+          });
         }
 
         setIsOpenLoginModal(false);

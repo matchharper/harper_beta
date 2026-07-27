@@ -1,5 +1,11 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
+import { queryKeys } from "@/lib/queryKeys";
 
 export type OrgSlackStatus = {
   channelId: string | null;
@@ -17,10 +23,6 @@ export type OrgSlackStatus = {
   teamName: string | null;
 };
 
-function slackQueryKey(workspaceId: string) {
-  return ["org", "slack", workspaceId] as const;
-}
-
 export function useUpdateOrgSlackNotifications(workspaceId: string) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -31,7 +33,7 @@ export function useUpdateOrgSlackNotifications(workspaceId: string) {
         method: "PATCH",
       }),
     onMutate: async (notifications) => {
-      const queryKey = slackQueryKey(workspaceId);
+      const queryKey = queryKeys.org.slack(workspaceId);
       await queryClient.cancelQueries({ queryKey });
       const previous = queryClient.getQueryData<OrgSlackStatus>(queryKey);
       if (previous) {
@@ -45,13 +47,30 @@ export function useUpdateOrgSlackNotifications(workspaceId: string) {
     onError: (_error, _notifications, context) => {
       if (context?.previous) {
         queryClient.setQueryData(
-          slackQueryKey(workspaceId),
+          queryKeys.org.slack(workspaceId),
           context.previous
         );
       }
     },
     onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: slackQueryKey(workspaceId) }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.org.slack(workspaceId),
+      }),
+  });
+}
+
+export function orgSlackStatusQueryOptions(args: {
+  enabled?: boolean;
+  workspaceId: string;
+}) {
+  return queryOptions({
+    enabled: (args.enabled ?? true) && Boolean(args.workspaceId),
+    queryFn: () =>
+      fetchWithInternalAuth<OrgSlackStatus>(
+        `/api/org/slack?workspaceId=${encodeURIComponent(args.workspaceId)}`
+      ),
+    queryKey: queryKeys.org.slack(args.workspaceId),
+    staleTime: 15_000,
   });
 }
 
@@ -59,15 +78,7 @@ export function useOrgSlackStatus(args: {
   enabled?: boolean;
   workspaceId: string;
 }) {
-  return useQuery({
-    enabled: (args.enabled ?? true) && Boolean(args.workspaceId),
-    queryFn: () =>
-      fetchWithInternalAuth<OrgSlackStatus>(
-        `/api/org/slack?workspaceId=${encodeURIComponent(args.workspaceId)}`
-      ),
-    queryKey: slackQueryKey(args.workspaceId),
-    staleTime: 15_000,
-  });
+  return useQuery(orgSlackStatusQueryOptions(args));
 }
 
 export function useConnectOrgSlack() {
@@ -91,7 +102,9 @@ export function useTestOrgSlack(workspaceId: string) {
         method: "POST",
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: slackQueryKey(workspaceId) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.org.slack(workspaceId),
+      });
     },
   });
 }
@@ -106,7 +119,9 @@ export function useDisconnectOrgSlack(workspaceId: string) {
         method: "DELETE",
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: slackQueryKey(workspaceId) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.org.slack(workspaceId),
+      });
     },
   });
 }

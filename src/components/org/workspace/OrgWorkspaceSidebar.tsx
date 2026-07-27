@@ -9,8 +9,11 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import type { ComponentType } from "react";
+import { useRouter } from "next/router";
+import { type ComponentType, useState } from "react";
 import { MuteButton } from "@/components/ui/button";
+import { Page } from "@/components/layout/Page";
+import { PageContainer } from "@/components/layout/PageContainer";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,9 +23,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { buildOrgHref, type OrgWorkspacePageId } from "@/lib/org/routes";
 import type { OrgMember, OrgWorkspace } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/store/useAuthStore";
 
 const PRIMARY_NAV: Array<{
   icon: ComponentType<{ className?: string }>;
@@ -121,10 +126,10 @@ function NavLink({
     <Link
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex h-9 items-center gap-2.5 rounded-md px-3 text-[13px] font-normal outline-none transition focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
+        "flex h-9 items-center gap-2.5 rounded-md px-3 text-[14px] font-normal outline-none transition focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
         active
-          ? "bg-bg-weak text-neutral-primary"
-          : "text-neutral-muted hover:bg-bg-weak hover:text-neutral-primary"
+          ? "bg-neutral-100 text-black"
+          : "text-neutral-muted hover:bg-neutral-100 hover:text-neutral-primary"
       )}
       href={href}
     >
@@ -134,27 +139,38 @@ function NavLink({
   );
 }
 
-export function OrgWorkspaceSidebar({
-  activePage,
-  canSwitchWorkspace,
-  currentUser,
-  onSignOut,
-  onWorkspaceSelect,
-  signOutPending,
-  workspace,
-  workspaces,
-}: {
-  activePage: OrgWorkspacePageId;
-  canSwitchWorkspace: boolean;
-  currentUser: OrgMember | null;
-  onSignOut: () => void;
-  onWorkspaceSelect: (workspaceId: string) => void;
-  signOutPending?: boolean;
-  workspace: OrgWorkspace;
-  workspaces: OrgWorkspace[];
-}) {
+export function OrgWorkspaceSidebar() {
+  const router = useRouter();
+  const signOut = useAuthStore((state) => state.signOut);
+  const [signOutPending, setSignOutPending] = useState(false);
+  const {
+    currentUser,
+    internalOpsAccess: canSwitchWorkspace,
+    page: activePage,
+    workspace,
+    workspaces,
+  } = useOrgWorkspace();
   const navHref = (page: OrgWorkspacePageId) =>
     buildOrgHref({ orgId: workspace.workspaceId, page });
+  const selectWorkspace = (workspaceId: string) => {
+    if (!workspaceId || workspaceId === workspace.workspaceId) return;
+    void router.push(
+      buildOrgHref({
+        orgId: workspaceId,
+        page: activePage,
+        roleId: activePage === "jobs" ? "all" : null,
+      })
+    );
+  };
+  const handleSignOut = async () => {
+    setSignOutPending(true);
+    try {
+      await signOut();
+      await router.replace("/org");
+    } finally {
+      setSignOutPending(false);
+    }
+  };
 
   const workspaceControl =
     canSwitchWorkspace && workspaces.length > 1 ? (
@@ -180,7 +196,7 @@ export function OrgWorkspaceSidebar({
           {workspaces.map((item) => (
             <DropdownMenuItem
               key={item.workspaceId}
-              onSelect={() => onWorkspaceSelect(item.workspaceId)}
+              onSelect={() => selectWorkspace(item.workspaceId)}
               selected={item.workspaceId === workspace.workspaceId}
             >
               <WorkspaceAvatar size="sm" workspace={item} />
@@ -200,7 +216,7 @@ export function OrgWorkspaceSidebar({
 
   return (
     <>
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[232px] flex-col border-r border-neutral-1000-a05 bg-bg-default px-3 py-3 lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[256px] flex-col border-r border-neutral-1000-a05 px-4 py-3 lg:flex">
         <div className="mb-6">{workspaceControl}</div>
         <nav aria-label="Organization" className="space-y-1">
           {PRIMARY_NAV.map((item) => (
@@ -254,7 +270,7 @@ export function OrgWorkspaceSidebar({
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 disabled={signOutPending}
-                onSelect={onSignOut}
+                onSelect={() => void handleSignOut()}
                 tone="danger"
               >
                 <LogOut />
@@ -288,9 +304,13 @@ export function OrgWorkspaceSidebar({
                 </span>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={onSignOut} tone="danger">
+              <DropdownMenuItem
+                disabled={signOutPending}
+                onSelect={() => void handleSignOut()}
+                tone="danger"
+              >
                 <LogOut />
-                로그아웃
+                {signOutPending ? "로그아웃 중" : "로그아웃"}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -325,8 +345,8 @@ export function OrgWorkspaceSidebar({
 
 export function OrgWorkspaceShellSkeleton() {
   return (
-    <main className="min-h-svh bg-bg-default">
-      <aside className="fixed inset-y-0 left-0 hidden w-[232px] border-r border-neutral-1000-a05 p-4 lg:block">
+    <Page as="main" background="neutral">
+      <aside className="fixed inset-y-0 left-0 hidden w-[256px] border-r border-neutral-1000-a05 p-4 lg:block">
         <Skeleton className="h-9 w-full" />
         <div className="mt-5 space-y-1.5">
           {Array.from({ length: 4 }).map((_, index) => (
@@ -334,14 +354,16 @@ export function OrgWorkspaceShellSkeleton() {
           ))}
         </div>
       </aside>
-      <div className="mx-auto max-w-[1280px] px-4 py-7 lg:pl-[272px] lg:pr-10">
-        <Skeleton className="h-6 w-40" />
-        <Skeleton className="mt-2 h-3 w-72 max-w-full" />
-        <div className="mt-6 grid gap-3 lg:grid-cols-2">
-          <Skeleton className="h-48" />
-          <Skeleton className="h-48" />
-        </div>
+      <div className="lg:pl-[256px]">
+        <PageContainer className="py-7" size="default">
+          <Skeleton className="h-6 w-40" />
+          <Skeleton className="mt-2 h-3 w-72 max-w-full" />
+          <div className="mt-6 grid gap-3 lg:grid-cols-2">
+            <Skeleton className="h-48" />
+            <Skeleton className="h-48" />
+          </div>
+        </PageContainer>
       </div>
-    </main>
+    </Page>
   );
 }

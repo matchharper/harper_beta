@@ -18,6 +18,7 @@ import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useCareerMobileChatNotice } from "@/hooks/career/useCareerMobileChatNotice";
 import { BareButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
+import { useCareerMobileChatLauncherVisibility } from "@/components/career/mobile/CareerMobileChatLauncherVisibilityContext";
 
 type CareerMobileChatLauncherProps = {
   children: React.ReactNode;
@@ -139,9 +140,11 @@ function CareerMobileChatLauncher({
   const t = useCareerT();
 
   const logCareerEvent = useCareerLogEvent();
+  const { isChatLauncherHidden } = useCareerMobileChatLauncherVisibility();
   const [internalOpen, setInternalOpen] = useState(false);
   const isControlled = controlledOpen !== undefined;
-  const open = isControlled ? controlledOpen : internalOpen;
+  const requestedOpen = isControlled ? controlledOpen : internalOpen;
+  const open = requestedOpen && !isChatLauncherHidden;
   const setOpen = (next: boolean) => {
     if (!isControlled) setInternalOpen(next);
     onOpenChange?.(next);
@@ -236,8 +239,22 @@ function CareerMobileChatLauncher({
 
   return (
     <>
-      <div
-        className={cn("fixed inset-x-0 bottom-0 z-30 flex flex-col", className)}
+      <motion.div
+        initial={false}
+        animate={{
+          opacity: isChatLauncherHidden ? 0 : 1,
+          y: isChatLauncherHidden ? "100%" : "0%",
+        }}
+        onAnimationStart={() => {
+          if (isChatLauncherHidden && requestedOpen) setOpen(false);
+        }}
+        transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+        aria-hidden={isChatLauncherHidden}
+        className={cn(
+          "fixed inset-x-0 bottom-0 z-30 flex flex-col",
+          isChatLauncherHidden && "pointer-events-none",
+          className
+        )}
       >
         <AnimatePresence initial={false}>
           {chatNotice.showPrompt && !showMinimizedCall ? (
@@ -369,7 +386,7 @@ function CareerMobileChatLauncher({
             )}
           </div>
         </div>
-      </div>
+      </motion.div>
 
       <DrawerPrimitive.Root
         open={open}

@@ -1,24 +1,18 @@
-import React, { useMemo, useState, useSyncExternalStore } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import {
   AwardIcon,
   Building2,
-  ChevronDown,
-  ChevronUp,
-  EditIcon,
   Eye,
-  FileText,
-  Globe2,
-  ImagePlus,
-  Loader2,
-  MapPin,
   Pencil,
   Plus,
-  Save,
   SchoolIcon,
-  Trash2,
   UserRound,
 } from "lucide-react";
-import Image from "next/image";
 import { useRouter } from "next/router";
 import { useCareerSidebarContext } from "../CareerSidebarContext";
 import type {
@@ -29,18 +23,10 @@ import type {
   CareerTalentUser,
 } from "../types";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
-import { formatCareerLocation } from "@/lib/career/locationDisplay";
-import { BareButton, MuteButton, PrimaryButton } from "@/components/ui/button";
-import { Input, Input as UiInput } from "@/components/ui/input";
+import { MuteButton } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  ActionDropdown,
-  ActionDropdownItem,
-  ActionDropdownSeparator,
-} from "@/components/ui/action-dropdown";
-import { Tooltips } from "@/components/ui/tooltip";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
-import RichText from "@/components/ui/rich-text";
 import { cn } from "@/lib/utils";
 import {
   INSIGHT_CHECKLIST_ORDER_MAP,
@@ -48,8 +34,28 @@ import {
 } from "@/lib/talentOnboarding/insightChecklist";
 import { useMessages, type Locale } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
-import Face from "@/components/common/Face";
-import { getCareerLinkLabels } from "@/components/career/constants";
+import { useCareerMobileChatLauncherVisibility } from "@/components/career/mobile/CareerMobileChatLauncherVisibilityContext";
+import ConfirmModal from "@/components/Modal/ConfirmModal";
+import TalentCareerModal from "@/components/common/TalentCareerModal";
+import {
+  ProfileHeader,
+  ProfileOverviewSection,
+  RecruiterProfileNotice,
+} from "./CareerProfileOverview";
+import CareerProfileEntryModal, {
+  type CareerProfileEntryFormValues,
+  type CareerProfileEntryKind,
+} from "./CareerProfileEntryModal";
+import CareerProfilePersonalInfo from "./CareerProfilePersonalInfo";
+import CareerEmailChangeModal from "../account/CareerEmailChangeModal";
+import {
+  EmptyEditState,
+  ProfileSectionHeader,
+  TimelineBlock,
+  TimelineEditBlock,
+  profileEditPlainInputClassName,
+  profileEditPlainTextareaClassName,
+} from "./CareerProfileTimeline";
 
 type EditableExperience = CareerTalentExperience & { clientKey: string };
 type EditableEducation = CareerTalentEducation & { clientKey: string };
@@ -62,13 +68,13 @@ type EditableTalentProfile = {
   talentExtras: EditableExtra[];
 };
 
-type CareerT = ReturnType<typeof useCareerT>;
-type ProfileSourceIndicator = {
-  Icon?: React.ComponentType<{ className?: string }>;
-  iconSrc?: string;
-  key: string;
+type PendingProfileEntryRemoval = {
+  index: number;
+  kind: CareerProfileEntryKind;
   label: string;
 };
+
+type CareerT = ReturnType<typeof useCareerT>;
 
 const getProfileRerankingInsights = (t: CareerT) =>
   [
@@ -105,12 +111,6 @@ const getProfileRerankingInsights = (t: CareerT) =>
       ),
     },
   ] as const;
-
-type ProfileInsightItem = {
-  key: string;
-  label: string;
-  value: string;
-};
 
 type MergedTimelineEntry<
   TExperience extends CareerTalentExperience,
@@ -278,14 +278,6 @@ const formatLastUpdated = (value: string | null, locale: Locale) => {
   }).format(date);
 };
 
-const getProfileLinkIconSrc = (index: number) => {
-  if (index === 0) return "/images/logos/linkedin.svg";
-  if (index === 1) return "/images/logos/github.svg";
-  if (index === 2) return "/images/logos/scholar.png";
-  if (index === 4) return "/images/logos/xcom.png";
-  return null;
-};
-
 const createClientKey = (prefix: string) =>
   `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 
@@ -300,8 +292,13 @@ const getLocalhostSnapshot = () =>
 
 const getServerLocalhostSnapshot = () => false;
 
-const createBlankTalentUser = (userId?: string | null): CareerTalentUser => ({
+const createBlankTalentUser = (
+  userId?: string | null,
+  email?: string | null
+): CareerTalentUser => ({
   user_id: userId ?? "",
+  email: email ?? null,
+  phone_number: null,
   name: null,
   profile_picture: null,
   headline: null,
@@ -310,11 +307,15 @@ const createBlankTalentUser = (userId?: string | null): CareerTalentUser => ({
 });
 
 const createEditableProfile = (
-  profile: CareerTalentProfile
+  profile: CareerTalentProfile,
+  fallbackEmail?: string | null
 ): EditableTalentProfile => ({
   talentUser: profile.talentUser
-    ? { ...profile.talentUser }
-    : createBlankTalentUser(),
+    ? {
+        ...profile.talentUser,
+        email: profile.talentUser.email ?? fallbackEmail ?? null,
+      }
+    : createBlankTalentUser(undefined, fallbackEmail),
   talentExperiences: profile.talentExperiences.map((item) => ({
     ...item,
     clientKey: createClientKey("exp"),
@@ -352,6 +353,7 @@ const toComparableProfile = (
   profile: CareerTalentProfile | EditableTalentProfile
 ) => ({
   talentUser: {
+    phone_number: trimSingleLine(profile.talentUser?.phone_number),
     name: trimSingleLine(profile.talentUser?.name),
     profile_picture: trimSingleLine(profile.talentUser?.profile_picture),
     headline: trimSingleLine(profile.talentUser?.headline),
@@ -396,6 +398,8 @@ const toStructuredProfile = (
 ): CareerTalentProfile => ({
   talentUser: {
     user_id: draft.talentUser.user_id || fallbackUserId || "",
+    email: trimSingleLine(draft.talentUser.email),
+    phone_number: trimSingleLine(draft.talentUser.phone_number),
     name: trimSingleLine(draft.talentUser.name),
     profile_picture: trimSingleLine(draft.talentUser.profile_picture),
     headline: trimSingleLine(draft.talentUser.headline),
@@ -506,799 +510,6 @@ const mergeExperienceAndEducation = <
   return merged;
 };
 
-const TimelineBlock = ({
-  title,
-  subtitle,
-  description,
-  memo,
-  meta,
-  icon,
-  kind = "work",
-  logoUrl,
-  logoAlt,
-  logoText,
-  isLast,
-}: {
-  title: string;
-  subtitle?: string;
-  description?: string;
-  memo?: string;
-  meta?: string;
-  icon: React.ReactNode;
-  kind?: "work" | "education" | "extra";
-  logoUrl?: string | null;
-  logoAlt?: string;
-  logoText?: string;
-  isLast?: boolean;
-}) => {
-  const t = useCareerT();
-
-  const badgeClassName =
-    kind === "education"
-      ? "bg-bg-weak text-neutral-muted"
-      : kind === "extra"
-        ? "bg-bg-weak text-neutral-muted"
-        : "bg-bg-weak text-neutral-muted";
-  const badgeLabel =
-    kind === "education" ? "Education" : kind === "extra" ? "Extra" : "Work";
-  const fallbackLogoText = (logoText ?? logoAlt ?? title)
-    .trim()
-    .slice(0, 1)
-    .toUpperCase();
-
-  return (
-    <div
-      className={cn(
-        "relative grid grid-cols-[40px_minmax(0,1fr)] gap-4 py-3 first:pt-0 last:pb-0",
-        !isLast && "pb-5"
-      )}
-    >
-      {!isLast && (
-        <div className="absolute bottom-[-8px] left-[19px] top-[46px] w-px bg-linear-to-b from-neutral-1000-a10 via-neutral-1000-a05 to-transparent" />
-      )}
-      <div className="relative z-1 flex h-10 w-10 items-center justify-center overflow-hidden rounded-[10px] border-2 border-bg-default bg-bg-weak text-[17px] font-semibold leading-none text-neutral-muted shadow-sm">
-        <span className="absolute inset-0 flex items-center justify-center">
-          {fallbackLogoText || icon}
-        </span>
-        {logoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={logoUrl}
-            alt={logoAlt ?? title}
-            className="relative h-full w-full object-cover"
-            onError={(event) => {
-              event.currentTarget.style.display = "none";
-            }}
-          />
-        ) : null}
-      </div>
-      <div className="min-w-0">
-        <div className="mb-1 flex flex-wrap items-center gap-2">
-          <span
-            className={cn(
-              "rounded-[4px] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em]",
-              badgeClassName
-            )}
-          >
-            {badgeLabel}
-          </span>
-          {meta && (
-            <span className="text-[11.5px] leading-5 text-neutral-soft">
-              {meta}
-            </span>
-          )}
-        </div>
-        <div className="text-[14px] font-medium leading-[1.35] text-neutral-primary">
-          {title}
-        </div>
-        {subtitle && (
-          <div className="mt-1 text-[12.5px] leading-5 text-neutral-muted">
-            {subtitle}
-          </div>
-        )}
-        {description && (
-          <RichText
-            content={description}
-            className="mt-2 text-neutral-muted [&_a]:text-neutral-muted [&_blockquote]:text-[13px] [&_code]:text-[12px] [&_em]:text-neutral-muted [&_li]:text-[13px] [&_ol]:text-[13px] [&_p]:text-[13px] [&_strong]:text-neutral-primary [&_ul]:text-[13px]"
-          />
-        )}
-        {memo && (
-          <div className="mt-3 flex items-start gap-2 rounded-[6px] px-1 py-2">
-            {/* <MessageSquare className="mt-[3px] h-3 w-3 shrink-0 text-neutral-muted" /> */}
-            {/* <Face size={24} /> */}
-            <div className="min-w-0">
-              <div className="mb-1 text-[12px] text-primary">
-                {t(
-                  "career.profile.career_talent_profile_panel.1d7d70h",
-                  "Harper 메모"
-                )}
-              </div>
-              <div className="text-[13px] leading-5 text-neutral-primary">
-                {memo}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-const ProfileSectionHeader = ({
-  count,
-  icon,
-  label,
-}: {
-  count?: number;
-  icon: React.ReactNode;
-  label: string;
-}) => (
-  <div className="flex items-center gap-2 px-1 pt-4">
-    <span className="flex h-5 w-5 shrink-0 items-center justify-center text-neutral-muted">
-      {icon}
-    </span>
-    <span className="font-halant text-lg leading-none text-neutral-primary">
-      {label}
-    </span>
-    {typeof count === "number" ? (
-      <span className="text-[13px] leading-none text-neutral-soft">
-        {count}
-      </span>
-    ) : null}
-    <span className="h-px min-w-8 flex-1 bg-neutral-1000-a05" />
-  </div>
-);
-
-const EmptyEditState = ({ label }: { label: string }) => (
-  <div className="rounded-[10px] border border-dashed border-neutral-1000-a10 bg-bg-floating px-4 py-4 text-sm text-neutral-muted">
-    {label}
-  </div>
-);
-
-const ItemRemoveButton = ({ onClick }: { onClick: () => void }) => {
-  const t = useCareerT();
-
-  return (
-    <BareButton
-      type="button"
-      onClick={onClick}
-      className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-neutral-1000-a05 bg-bg-floating text-neutral-muted transition-colors hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary md:h-8 md:w-8"
-      aria-label={"항목 삭제"}
-    >
-      <Trash2 className="h-4 w-4" />
-    </BareButton>
-  );
-};
-
-const profileEditMobileFieldClassName =
-  "rounded-md border border-neutral-1000-a10 bg-bg-floating px-2.5 text-[13px] font-normal leading-5 text-neutral-primary placeholder:text-neutral-placeholder hover:bg-bg-floating focus:border-neutral-400 focus:bg-bg-floating focus:ring-2 focus:ring-neutral-1000-a05";
-
-const profileEditInputClassName = cn(
-  profileEditMobileFieldClassName,
-  "h-9 py-1.5 md:px-3 md:py-2"
-);
-
-const profileEditTextareaClassName = cn(
-  profileEditMobileFieldClassName,
-  "min-h-[72px] py-1.5 md:min-h-[92px] md:px-3 md:py-2 md:leading-6"
-);
-
-const profileEditPlainInputClassName = cn(
-  profileEditMobileFieldClassName,
-  "h-9 py-1.5 md:h-auto md:rounded-[4px] md:border-neutral-1000-a05 md:px-1.5 md:py-1 md:hover:bg-bg-weak md:focus:border-neutral-1000-a10 md:focus:ring-1"
-);
-
-const profileEditPlainTextareaClassName = cn(
-  profileEditMobileFieldClassName,
-  "min-h-[72px] py-1.5 md:min-h-[74px] md:rounded-[6px] md:border-neutral-1000-a05 md:px-1.5 md:py-1.5 md:hover:bg-bg-weak md:focus:border-neutral-1000-a10 md:focus:ring-1"
-);
-
-const profileNoticeClassName =
-  "flex items-center gap-2.5 rounded-[14px] border border-neutral-1000-a05 bg-linear-to-br from-bg-basement to-bg-default px-3.5 py-2.5 text-[12.5px] leading-5 text-neutral-muted";
-
-const overviewEyebrowClassName = "text-[13px] font-medium text-neutral-muted";
-
-const insightTermClassName = "text-[13px] font-medium text-neutral-muted";
-
-const RecruiterProfileNotice = ({ copy }: { copy: string }) => {
-  const t = useCareerT();
-
-  return (
-    <div className={profileNoticeClassName}>
-      <Eye className="h-3.5 w-3.5 shrink-0 text-neutral-muted" />
-      <div>
-        <strong className="font-medium text-neutral-primary">{copy}</strong>
-        <span>
-          {t(
-            "career.profile.career_talent_profile_panel.0rfzx4s",
-            "· 연결이 성사된 회사에만 공유돼요"
-          )}
-        </span>
-      </div>
-    </div>
-  );
-};
-
-const ProfileAvatar = ({
-  imageUrl,
-  name,
-  onDeleteImage,
-  onFileChange,
-  uploadPending = false,
-}: {
-  imageUrl?: string | null;
-  name: string;
-  onDeleteImage?: () => void;
-  onFileChange?: (file: File) => void;
-  uploadPending?: boolean;
-}) => {
-  const t = useCareerT();
-
-  const [menuOpen, setMenuOpen] = useState(false);
-  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
-  const shouldShowImage =
-    Boolean(imageUrl) && !String(imageUrl).includes("media.licdn.com");
-  const hasStoredImage = Boolean(imageUrl);
-  const imageActionDisabled =
-    uploadPending || (!onFileChange && !onDeleteImage);
-
-  return (
-    <div className="relative h-14 w-14 shrink-0">
-      <UiInput
-        unstyled
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        className="sr-only"
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          event.target.value = "";
-          if (file) onFileChange?.(file);
-        }}
-      />
-      <ActionDropdown
-        open={menuOpen}
-        onOpenChange={setMenuOpen}
-        align="start"
-        side="bottom"
-        sideOffset={8}
-        contentClassName="w-[190px]"
-        trigger={
-          <BareButton
-            type="button"
-            aria-label={"프로필 사진 메뉴"}
-            disabled={imageActionDisabled}
-            className={cn(
-              "group relative flex h-14 w-14 items-center justify-center rounded-full border border-neutral-1000-a05 bg-bg-weak text-neutral-muted transition-all focus:outline-none focus-visible:ring-4 focus-visible:ring-positive/30",
-              imageActionDisabled
-                ? "cursor-default"
-                : "cursor-pointer hover:border-positive/30"
-            )}
-          >
-            <UserRound className="h-7 w-7" strokeWidth={1.7} />
-            {shouldShowImage ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={String(imageUrl)}
-                alt={name || "profile"}
-                className="absolute inset-0 h-full w-full rounded-full object-cover"
-                onError={(event) => {
-                  event.currentTarget.style.display = "none";
-                }}
-              />
-            ) : null}
-            {uploadPending ? (
-              <span className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full bg-black/30 text-neutral-00">
-                <Loader2 className="h-4 w-4 animate-spin" />
-              </span>
-            ) : null}
-          </BareButton>
-        }
-      >
-        <ActionDropdownItem
-          disabled={!onFileChange || uploadPending}
-          onSelect={() => {
-            setMenuOpen(false);
-            window.setTimeout(() => fileInputRef.current?.click(), 0);
-          }}
-          className="flex flex-row items-center gap-2.5 text-[13px]"
-        >
-          <ImagePlus className="h-4 w-4" />
-          {t(
-            "career.profile.career_talent_profile_panel.1rnsexk",
-            "사진 변경/업로드"
-          )}
-        </ActionDropdownItem>
-        <ActionDropdownSeparator />
-        <ActionDropdownItem
-          disabled={!onDeleteImage || !hasStoredImage || uploadPending}
-          onSelect={() => {
-            setMenuOpen(false);
-            onDeleteImage?.();
-          }}
-          tone="danger"
-          className="flex flex-row items-center gap-2.5 text-[13px]"
-        >
-          <Trash2 className="h-4 w-4" />
-          {t("career.profile.career_talent_profile_panel.1dp84h2", "사진 삭제")}
-        </ActionDropdownItem>
-      </ActionDropdown>
-    </div>
-  );
-};
-
-const ProfileHeader = ({
-  displayName,
-  isEditing,
-  locale,
-  onEdit,
-  onFieldChange,
-  onOpenProfileSources,
-  onProfileImageDelete,
-  onProfileImageFileChange,
-  profileUpdatedText,
-  profileImageUploadPending,
-  savedResumeDownloadUrl,
-  savedResumeFileName,
-  savedResumeStoragePath,
-  savedProfileLinks,
-  user,
-}: {
-  displayName: string;
-  isEditing: boolean;
-  locale: Locale;
-  onEdit?: () => void;
-  onFieldChange?: (
-    field: keyof Omit<CareerTalentUser, "user_id">,
-    value: string
-  ) => void;
-  onOpenProfileSources?: () => void;
-  onProfileImageDelete?: () => void;
-  onProfileImageFileChange?: (file: File) => void;
-  profileUpdatedText: string | null;
-  profileImageUploadPending?: boolean;
-  savedResumeDownloadUrl?: string | null;
-  savedResumeFileName?: string | null;
-  savedResumeStoragePath?: string | null;
-  savedProfileLinks?: string[];
-  user: CareerTalentUser | null | undefined;
-}) => {
-  const t = useCareerT();
-  const profileSourceIndicators = useMemo<ProfileSourceIndicator[]>(() => {
-    const items: ProfileSourceIndicator[] = [];
-    const hasSavedResume = Boolean(
-      savedResumeDownloadUrl || savedResumeFileName || savedResumeStoragePath
-    );
-
-    if (hasSavedResume) {
-      items.push({
-        Icon: FileText,
-        key: "resume",
-        label: t("career.common.career.0y7cerf", "저장된 이력서"),
-      });
-    }
-
-    const linkLabels = getCareerLinkLabels(t);
-    const links = savedProfileLinks ?? [];
-    const hasAdditionalLink = links
-      .slice(linkLabels.length)
-      .some((link) => link.trim().length > 0);
-
-    linkLabels.forEach((label, index) => {
-      if (!links[index]?.trim()) return;
-      const iconSrc = getProfileLinkIconSrc(index);
-      items.push({
-        ...(iconSrc ? { iconSrc } : { Icon: Globe2 }),
-        key: `link-${index}`,
-        label,
-      });
-    });
-
-    if (hasAdditionalLink) {
-      items.push({
-        Icon: Globe2,
-        key: "link-additional",
-        label: t("career.chat.career_timeline_section.0ong27a", "추가 링크"),
-      });
-    }
-
-    return items;
-  }, [
-    savedProfileLinks,
-    savedResumeDownloadUrl,
-    savedResumeFileName,
-    savedResumeStoragePath,
-    t,
-  ]);
-
-  return (
-    <section
-      className={cn(
-        "relative flex flex-col gap-4 px-1 pt-1 sm:flex-row items-start"
-      )}
-    >
-      <ProfileAvatar
-        imageUrl={user?.profile_picture}
-        name={isEditing ? user?.name || "Unknown" : displayName}
-        onDeleteImage={onProfileImageDelete}
-        onFileChange={onProfileImageFileChange}
-        uploadPending={profileImageUploadPending}
-      />
-
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 flex-wrap items-center gap-2.5">
-          {isEditing ? (
-            <Input
-              value={user?.name ?? ""}
-              onChange={(event) => onFieldChange?.("name", event.target.value)}
-              placeholder={t("career.onboarding.onboarding.1wh5aat", "이름")}
-              aria-label={"이름"}
-              className={cn(
-                profileEditInputClassName,
-                "max-w-[360px] md:h-10 md:font-hedvig md:text-[24px]"
-              )}
-            />
-          ) : (
-            <h2 className="font-hedvig text-[24px] leading-none text-neutral-primary">
-              {displayName}
-            </h2>
-          )}
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-bg-weak px-2.5 py-1 text-[11px] font-medium tracking-[0.02em] text-neutral-muted">
-            <span className="h-1.5 w-1.5 rounded-full bg-positive" />
-            Active
-          </span>
-        </div>
-
-        {isEditing ? (
-          <div className="mt-2 grid gap-2 md:grid-cols-2">
-            <Input
-              value={user?.headline ?? ""}
-              onChange={(event) =>
-                onFieldChange?.("headline", event.target.value)
-              }
-              placeholder={t(
-                "career.profile.career_talent_profile_panel.0tgcq59",
-                "한 줄 소개"
-              )}
-              aria-label={"한 줄 소개"}
-              className={profileEditInputClassName}
-            />
-            <Input
-              value={user?.location ?? ""}
-              onChange={(event) =>
-                onFieldChange?.("location", event.target.value)
-              }
-              placeholder={t(
-                "career.profile.career_talent_profile_panel.0csjlpy",
-                "지역"
-              )}
-              aria-label={"지역"}
-              className={profileEditInputClassName}
-            />
-          </div>
-        ) : (
-          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13.5px] leading-5 text-neutral-muted">
-            {user?.headline ? <span>{user.headline}</span> : null}
-            {user?.headline && user?.location ? (
-              <span className="text-neutral-1000-a10">|</span>
-            ) : null}
-            {user?.location ? (
-              <span className="inline-flex items-center gap-1.5">
-                <MapPin className="h-3.5 w-3.5" />
-                {formatCareerLocation(user.location, locale)}
-              </span>
-            ) : null}
-          </div>
-        )}
-
-        {profileUpdatedText ? (
-          <div
-            className={cn(
-              "text-[11.5px] leading-5 tracking-[0.02em] text-neutral-soft",
-              isEditing ? "mt-2" : "mt-1"
-            )}
-          >
-            Last updated · {profileUpdatedText}
-          </div>
-        ) : null}
-
-        {profileSourceIndicators.length > 0 ? (
-          <div className="mt-2 flex flex-wrap items-center gap-1">
-            {profileSourceIndicators.map(({ Icon, iconSrc, key, label }) => (
-              <Tooltips key={key} text={label} side="bottom">
-                <MuteButton
-                  type="button"
-                  variant="transparent"
-                  onClick={onOpenProfileSources}
-                  aria-label={`${label} 관리`}
-                  className="shrink-0"
-                >
-                  {iconSrc ? (
-                    <Image
-                      src={iconSrc}
-                      alt=""
-                      width={16}
-                      height={16}
-                      className="h-4 w-4 rounded-[3px] object-contain"
-                    />
-                  ) : Icon ? (
-                    <Icon className="h-3.5 w-3.5" />
-                  ) : null}
-                </MuteButton>
-              </Tooltips>
-            ))}
-          </div>
-        ) : null}
-      </div>
-
-      <div
-        className={cn(
-          "absolute right-0 top-0 flex shrink-0 gap-1",
-          isEditing ? "flex-wrap" : "flex-row items-end"
-        )}
-      >
-        {savedResumeDownloadUrl && (
-          <MuteButton asChild variant="transparent">
-            <a href={savedResumeDownloadUrl} target="_blank" rel="noreferrer">
-              <FileText className="h-3.5 w-3.5 text-neutral-muted" />
-              View CV
-            </a>
-          </MuteButton>
-        )}
-        {!isEditing && onEdit ? (
-          <MuteButton type="button" variant="transparent" onClick={onEdit}>
-            <EditIcon className="h-3.5 w-3.5 text-neutral-muted" />
-            {t(
-              "career.profile.career_talent_profile_panel.1iq5xym",
-              "수정하기"
-            )}
-          </MuteButton>
-        ) : null}
-      </div>
-    </section>
-  );
-};
-
-const ProfileOverviewSection = ({
-  allItems,
-  isEditing,
-  items,
-  onInsightChange,
-  onSummaryChange,
-  showAllInsightsButton = false,
-  summary,
-}: {
-  allItems?: ProfileInsightItem[];
-  isEditing: boolean;
-  items: ProfileInsightItem[];
-  onInsightChange?: (key: string, value: string) => void;
-  onSummaryChange?: (value: string) => void;
-  showAllInsightsButton?: boolean;
-  summary: string;
-}) => {
-  const t = useCareerT();
-
-  const [showAllInsights, setShowAllInsights] = useState(false);
-  const canShowAllInsights =
-    showAllInsightsButton &&
-    !isEditing &&
-    Boolean(
-      allItems?.some(
-        (item) => !items.some((currentItem) => currentItem.key === item.key)
-      )
-    );
-  const displayedItems =
-    showAllInsights && canShowAllInsights && allItems?.length
-      ? allItems
-      : items;
-
-  return (
-    <section className="px-1">
-      {isEditing || summary ? (
-        <div className="mb-7">
-          <div className={overviewEyebrowClassName}>Summary</div>
-          {isEditing ? (
-            <Textarea
-              value={summary}
-              onChange={(event) => onSummaryChange?.(event.target.value)}
-              placeholder="Summary"
-              aria-label="Summary"
-              className={cn(profileEditTextareaClassName, "mt-2 md:mt-3")}
-            />
-          ) : (
-            <p className="mt-3 whitespace-pre-line text-[14px] leading-6 text-neutral-primary">
-              {summary}
-            </p>
-          )}
-        </div>
-      ) : null}
-
-      <div className={overviewEyebrowClassName}>What They Are Looking For</div>
-      <dl className="mt-3 grid gap-x-4 gap-y-3 sm:grid-cols-[112px_minmax(0,1fr)]">
-        {displayedItems.map((item) => (
-          <React.Fragment key={item.key}>
-            <dt
-              className={cn(
-                insightTermClassName,
-                isEditing ? "pt-2" : "pt-0.5"
-              )}
-            >
-              {item.label}
-            </dt>
-            <dd className="m-0">
-              {isEditing ? (
-                <Textarea
-                  rows={2}
-                  value={item.value}
-                  onChange={(event) =>
-                    onInsightChange?.(item.key, event.target.value)
-                  }
-                  placeholder={t(
-                    "career.profile.career_talent_profile_panel.093jpik",
-                    "아직 확인 중"
-                  )}
-                  aria-label={item.label}
-                  className={cn(
-                    profileEditTextareaClassName,
-                    "min-h-[56px] md:min-h-[52px]"
-                  )}
-                />
-              ) : (
-                <div
-                  className={cn(
-                    "text-[14px] leading-6 font-normal",
-                    item.value ? "text-neutral-primary" : "text-neutral-soft"
-                  )}
-                >
-                  {item.value ||
-                    t(
-                      "career.profile.career_talent_profile_panel.093jpik",
-                      "아직 확인 중"
-                    )}
-                </div>
-              )}
-            </dd>
-          </React.Fragment>
-        ))}
-      </dl>
-      {canShowAllInsights ? (
-        <MuteButton
-          type="button"
-          onClick={() => setShowAllInsights((current) => !current)}
-          className="mt-4 gap-1.5 text-[12px] font-medium"
-        >
-          {showAllInsights ? (
-            <>
-              <ChevronUp className="h-3.5 w-3.5" />
-              {t("career.profile.career_talent_profile_panel.0tftkys", "접기")}
-            </>
-          ) : (
-            <>
-              <ChevronDown className="h-3.5 w-3.5" />
-              {t(
-                "career.profile.career_talent_profile_panel.1nc9ehf",
-                "전체 insight 보기"
-              )}
-            </>
-          )}
-        </MuteButton>
-      ) : null}
-    </section>
-  );
-};
-
-const TimelineEditBlock = ({
-  children,
-  kind = "work",
-  logoUrl,
-  logoAlt,
-  logoText,
-  isLast,
-  onRemove,
-  onLogoFileChange,
-  logoUploadPending = false,
-}: {
-  children: React.ReactNode;
-  kind?: "work" | "education" | "extra";
-  logoUrl?: string | null;
-  logoAlt?: string;
-  logoText?: string;
-  isLast?: boolean;
-  onRemove: () => void;
-  onLogoFileChange?: (file: File) => void;
-  logoUploadPending?: boolean;
-}) => {
-  const t = useCareerT();
-
-  const badgeClassName =
-    kind === "education"
-      ? "bg-bg-weak text-neutral-muted"
-      : kind === "extra"
-        ? "bg-bg-weak text-neutral-muted"
-        : "bg-bg-weak text-neutral-muted";
-
-  const badgeLabel =
-    kind === "education" ? "Education" : kind === "extra" ? "Extra" : "Work";
-
-  const fallbackLogoText = (logoText ?? logoAlt ?? badgeLabel)
-    .trim()
-    .slice(0, 1)
-    .toUpperCase();
-
-  return (
-    <div
-      className={cn(
-        "relative grid grid-cols-[40px_minmax(0,1fr)] gap-4 py-3 first:pt-0 last:pb-0",
-        !isLast && "pb-5"
-      )}
-    >
-      {!isLast && (
-        <div className="absolute bottom-[-8px] left-[19px] top-[46px] w-px bg-linear-to-b from-neutral-1000-a10 via-neutral-1000-a05 to-transparent" />
-      )}
-      <label
-        className={cn(
-          "relative z-1 flex h-10 w-10 items-center justify-center overflow-hidden rounded-[10px] border-2 border-bg-default bg-bg-weak text-[17px] font-semibold leading-none text-neutral-muted",
-          onLogoFileChange &&
-            "cursor-pointer transition-transform hover:scale-[1.03]",
-          logoUploadPending && "pointer-events-none opacity-75"
-        )}
-        aria-label={onLogoFileChange ? "로고 이미지 업로드" : undefined}
-      >
-        {onLogoFileChange ? (
-          <UiInput
-            unstyled
-            type="file"
-            accept="image/*"
-            className="sr-only"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              event.target.value = "";
-              if (file) onLogoFileChange(file);
-            }}
-          />
-        ) : null}
-        <span className="absolute inset-0 flex items-center justify-center">
-          {fallbackLogoText}
-        </span>
-        {logoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={logoUrl}
-            alt={logoAlt ?? badgeLabel}
-            className="relative h-full w-full object-cover"
-            onError={(event) => {
-              event.currentTarget.style.display = "none";
-            }}
-          />
-        ) : null}
-        {onLogoFileChange ? (
-          <span className="absolute bottom-[-3px] right-[-3px] z-2 flex h-5 w-5 items-center justify-center rounded-full border-2 border-bg-default bg-positive text-neutral-00">
-            {logoUploadPending ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
-            )}
-          </span>
-        ) : null}
-      </label>
-      <div className="min-w-0">
-        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-          <span
-            className={cn(
-              "rounded-[4px] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em]",
-              badgeClassName
-            )}
-          >
-            {badgeLabel}
-          </span>
-          <ItemRemoveButton onClick={onRemove} />
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-};
-
 const CareerTalentProfilePanel = ({
   className = "",
 }: {
@@ -1310,7 +521,9 @@ const CareerTalentProfilePanel = ({
   const logCareerEvent = useCareerLogEvent();
   const router = useRouter();
   const { fetchWithAuth } = useCareerApi();
+  const { setChatLauncherHidden } = useCareerMobileChatLauncherVisibility();
   const {
+    user,
     savedProfileLinks,
     savedResumeDownloadUrl,
     savedResumeFileName,
@@ -1327,12 +540,13 @@ const CareerTalentProfilePanel = ({
     profileSavePending,
     profileSaveError,
     onSaveTalentProfile,
+    onUpdateAccountProfile,
   } = useCareerSidebarContext();
   const { talentUser, talentExperiences, talentEducations, talentExtras } =
     talentProfile;
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState<EditableTalentProfile>(() =>
-    createEditableProfile(talentProfile)
+    createEditableProfile(talentProfile, user?.email)
   );
   const [logoUploadPendingKeys, setLogoUploadPendingKeys] = useState<
     Record<string, boolean>
@@ -1341,11 +555,25 @@ const CareerTalentProfilePanel = ({
   const [profileImageUploadPending, setProfileImageUploadPending] =
     useState(false);
   const [profileImageError, setProfileImageError] = useState("");
+  const [entryModalKind, setEntryModalKind] =
+    useState<CareerProfileEntryKind | null>(null);
+  const [pendingRemoval, setPendingRemoval] =
+    useState<PendingProfileEntryRemoval | null>(null);
+  const [phoneNumberModalOpen, setPhoneNumberModalOpen] = useState(false);
+  const [emailChangeModalOpen, setEmailChangeModalOpen] = useState(false);
   const isLocalhost = useSyncExternalStore(
     subscribeToLocalhostSnapshot,
     getLocalhostSnapshot,
     getServerLocalhostSnapshot
   );
+
+  useEffect(() => {
+    setChatLauncherHidden(isEditing);
+
+    return () => {
+      setChatLauncherHidden(false);
+    };
+  }, [isEditing, setChatLauncherHidden]);
 
   const mergedExperience = useMemo(
     () => mergeExperienceAndEducation(talentExperiences, talentEducations),
@@ -1413,6 +641,17 @@ const CareerTalentProfilePanel = ({
   const backgroundCount = mergedExperience.length + talentExtras.length;
   const draftBackgroundCount =
     draftMergedExperience.length + draft.talentExtras.length;
+  const personalInfoUser = isEditing
+    ? {
+        ...draft.talentUser,
+        email: user?.email ?? draft.talentUser.email ?? null,
+      }
+    : talentUser
+      ? {
+          ...talentUser,
+          email: user?.email ?? talentUser.email ?? null,
+        }
+      : createBlankTalentUser(user?.id, user?.email);
 
   const hasUnsavedChanges = useMemo(() => {
     return (
@@ -1423,7 +662,7 @@ const CareerTalentProfilePanel = ({
 
   const beginEditing = () => {
     logCareerEvent("click_profile_edit");
-    setDraft(createEditableProfile(talentProfile));
+    setDraft(createEditableProfile(talentProfile, user?.email));
     setIsEditing(true);
   };
 
@@ -1434,7 +673,7 @@ const CareerTalentProfilePanel = ({
 
   const cancelEditing = () => {
     logCareerEvent("click_profile_cancel_edit");
-    setDraft(createEditableProfile(talentProfile));
+    setDraft(createEditableProfile(talentProfile, user?.email));
     onResetTalentInsights();
     setIsEditing(false);
   };
@@ -1470,6 +709,17 @@ const CareerTalentProfilePanel = ({
         [field]: value,
       },
     }));
+  };
+
+  const openPhoneNumberModal = () => {
+    logCareerEvent("click_profile_phone_number");
+    if (!isEditing) beginEditing();
+    setPhoneNumberModalOpen(true);
+  };
+
+  const openEmailChangeModal = () => {
+    logCareerEvent("click_profile_email");
+    setEmailChangeModalOpen(true);
   };
 
   const applyProfileImageUrl = async (imageUrl: string | null) => {
@@ -1700,136 +950,235 @@ const CareerTalentProfilePanel = ({
     }));
   };
 
-  const addExperience = () => {
-    logCareerEvent("click_profile_add_experience");
-    setDraft((current) => ({
-      ...current,
-      talentExperiences: [
-        ...current.talentExperiences,
-        {
-          id: Date.now(),
-          talent_id:
-            current.talentUser.user_id ||
-            talentProfile.talentUser?.user_id ||
-            "",
-          role: null,
-          description: null,
-          employment_type: null,
-          start_date: null,
-          end_date: null,
-          months: null,
-          company_name: null,
-          company_location: null,
-          company_logo: null,
-          company_id: null,
-          company_link: null,
-          memo: null,
-          clientKey: createClientKey("exp"),
-        },
-      ],
-    }));
+  const openEntryModal = (kind: CareerProfileEntryKind) => {
+    if (kind === "work") {
+      logCareerEvent("click_profile_add_experience");
+    } else if (kind === "education") {
+      logCareerEvent("click_profile_add_education");
+    } else {
+      logCareerEvent("click_profile_add_extra");
+    }
+    setEntryModalKind(kind);
   };
 
-  const addEducation = () => {
-    logCareerEvent("click_profile_add_education");
-    setDraft((current) => ({
-      ...current,
-      talentEducations: [
-        ...current.talentEducations,
-        {
-          id: Date.now(),
-          talent_id:
-            current.talentUser.user_id ||
-            talentProfile.talentUser?.user_id ||
-            "",
-          school: null,
-          degree: null,
-          description: null,
-          field: null,
-          start_date: null,
-          end_date: null,
-          url: null,
-          memo: null,
-          clientKey: createClientKey("edu"),
+  const addExperience = () => openEntryModal("work");
+  const addEducation = () => openEntryModal("education");
+  const addExtra = () => openEntryModal("extra");
+
+  const getTalentId = () =>
+    draft.talentUser.user_id ||
+    talentProfile.talentUser?.user_id ||
+    talentProfile.talentExperiences[0]?.talent_id ||
+    talentProfile.talentEducations[0]?.talent_id ||
+    "";
+
+  const handleAddEntry = async (
+    kind: CareerProfileEntryKind,
+    values: CareerProfileEntryFormValues
+  ) => {
+    const talentId = getTalentId();
+
+    if (kind === "work") {
+      const experience: CareerTalentExperience = {
+        id: Date.now(),
+        talent_id: talentId,
+        role: trimSingleLine(values.role),
+        description: trimMultiline(values.description),
+        employment_type: trimSingleLine(values.employmentType),
+        start_date: trimDateText(values.startDate),
+        end_date: trimDateText(values.endDate),
+        months: calculateExperienceMonths(values.startDate, values.endDate),
+        company_id: null,
+        company_link: null,
+        company_name: trimSingleLine(values.companyName),
+        company_location: trimSingleLine(values.companyLocation),
+        company_logo: null,
+        memo: null,
+      };
+
+      if (isEditing) {
+        setDraft((current) => ({
+          ...current,
+          talentExperiences: [
+            ...current.talentExperiences,
+            {
+              ...experience,
+              clientKey: createClientKey("exp"),
+            },
+          ],
+        }));
+        return true;
+      }
+
+      return await onSaveTalentProfile({
+        structuredProfile: {
+          ...talentProfile,
+          talentExperiences: [...talentProfile.talentExperiences, experience],
         },
-      ],
-    }));
+      });
+    }
+
+    if (kind === "education") {
+      const education: CareerTalentEducation = {
+        id: Date.now(),
+        talent_id: talentId,
+        school: trimSingleLine(values.school),
+        degree: trimSingleLine(values.degree),
+        description: trimMultiline(values.description),
+        field: trimSingleLine(values.field),
+        start_date: trimDateText(values.startDate),
+        end_date: trimDateText(values.endDate),
+        url: trimSingleLine(values.url),
+        memo: null,
+      };
+
+      if (isEditing) {
+        setDraft((current) => ({
+          ...current,
+          talentEducations: [
+            ...current.talentEducations,
+            {
+              ...education,
+              clientKey: createClientKey("edu"),
+            },
+          ],
+        }));
+        return true;
+      }
+
+      return await onSaveTalentProfile({
+        structuredProfile: {
+          ...talentProfile,
+          talentEducations: [...talentProfile.talentEducations, education],
+        },
+      });
+    }
+
+    const extra: CareerTalentExtra = {
+      title: trimSingleLine(values.title),
+      description: trimMultiline(values.description),
+      date: trimDateText(values.date),
+      memo: null,
+    };
+
+    if (isEditing) {
+      setDraft((current) => ({
+        ...current,
+        talentExtras: [
+          ...current.talentExtras,
+          {
+            ...extra,
+            clientKey: createClientKey("extra"),
+          },
+        ],
+      }));
+      return true;
+    }
+
+    return await onSaveTalentProfile({
+      structuredProfile: {
+        ...talentProfile,
+        talentExtras: [...talentProfile.talentExtras, extra],
+      },
+    });
   };
 
-  const addExtra = () => {
-    logCareerEvent("click_profile_add_extra");
-    setDraft((current) => ({
-      ...current,
-      talentExtras: [
-        ...current.talentExtras,
-        {
-          title: null,
-          description: null,
-          date: null,
-          memo: null,
-          clientKey: createClientKey("extra"),
-        },
-      ],
-    }));
-  };
-
-  const removeExperience = (index: number) => {
+  const requestRemoveExperience = (index: number) => {
     logCareerEvent("click_profile_remove_experience");
-    setDraft((current) => ({
-      ...current,
-      talentExperiences: current.talentExperiences.filter(
-        (_, itemIndex) => itemIndex !== index
-      ),
-    }));
+    const experience = draft.talentExperiences[index];
+    setPendingRemoval({
+      index,
+      kind: "work",
+      label:
+        trimSingleLine(experience?.role) ??
+        trimSingleLine(experience?.company_name) ??
+        t("career.profile.career_talent_profile_panel.0efzyx5", "경력 추가"),
+    });
   };
 
-  const removeEducation = (index: number) => {
+  const requestRemoveEducation = (index: number) => {
     logCareerEvent("click_profile_remove_education");
-    setDraft((current) => ({
-      ...current,
-      talentEducations: current.talentEducations.filter(
-        (_, itemIndex) => itemIndex !== index
-      ),
-    }));
+    const education = draft.talentEducations[index];
+    setPendingRemoval({
+      index,
+      kind: "education",
+      label:
+        trimSingleLine(education?.school) ??
+        t("career.profile.career_talent_profile_panel.1efofsl", "학력 추가"),
+    });
   };
 
-  const removeExtra = (index: number) => {
+  const requestRemoveExtra = (index: number) => {
     logCareerEvent("click_profile_remove_extra");
+    const extra = draft.talentExtras[index];
+    setPendingRemoval({
+      index,
+      kind: "extra",
+      label:
+        trimSingleLine(extra?.title) ??
+        t("career.profile.career_talent_profile_panel.0wjximy", "추가 정보"),
+    });
+  };
+
+  const confirmRemoveEntry = () => {
+    if (!pendingRemoval) return;
+
     setDraft((current) => ({
       ...current,
-      talentExtras: current.talentExtras.filter(
-        (_, itemIndex) => itemIndex !== index
-      ),
+      talentExperiences:
+        pendingRemoval.kind === "work"
+          ? current.talentExperiences.filter(
+              (_, itemIndex) => itemIndex !== pendingRemoval.index
+            )
+          : current.talentExperiences,
+      talentEducations:
+        pendingRemoval.kind === "education"
+          ? current.talentEducations.filter(
+              (_, itemIndex) => itemIndex !== pendingRemoval.index
+            )
+          : current.talentEducations,
+      talentExtras:
+        pendingRemoval.kind === "extra"
+          ? current.talentExtras.filter(
+              (_, itemIndex) => itemIndex !== pendingRemoval.index
+            )
+          : current.talentExtras,
     }));
+    setPendingRemoval(null);
   };
 
   return (
-    <div className={cn("space-y-5", isEditing && "pb-24 md:pb-0", className)}>
+    <div
+      className={cn(
+        "space-y-5 relative",
+        isEditing && "pb-24 md:pb-0",
+        className
+      )}
+    >
       {isEditing && (
         <div
           role="toolbar"
-          aria-label={t("career.profile.career_talent_profile_panel.0o1w258", "프로필 편집 작업")}
-          className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+80px)] z-40 !mt-0 flex items-center justify-end gap-2 border-y border-neutral-1000-a05 bg-bg-floating/95 px-4 py-2 shadow-[0_-12px_28px_color-mix(in_srgb,var(--color-neutral-1000)_8%,transparent)] backdrop-blur md:sticky md:inset-x-auto md:bottom-auto md:top-0 md:z-20 md:ml-auto md:w-fit md:rounded-[10px] md:border md:p-1 md:shadow-[0_10px_28px_color-mix(in_srgb,var(--color-neutral-1000)_12%,transparent)]"
+          className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+8px)] z-40 !mt-0 flex items-center justify-end gap-2 md:sticky md:inset-x-auto md:bottom-auto md:top-2 md:z-20 md:ml-auto md:w-fit"
         >
           <MuteButton
             type="button"
+            size="lg"
             onClick={cancelEditing}
             disabled={profileSavePending || talentInsightsSavePending}
-            className="h-10 flex-1 gap-1.5 text-[13px] md:h-auto md:flex-none"
           >
             {t("career.settings.career_settings_modal.0jiry9t", "취소")}
           </MuteButton>
-          <PrimaryButton
+          <MuteButton
             type="button"
+            size="lg"
+            variant="dark"
             onClick={() => void handleSave()}
             disabled={
               profileSavePending ||
               talentInsightsSavePending ||
               (!hasUnsavedChanges && !hasUnsavedTalentInsightsChanges)
             }
-            className="h-10 flex-1 gap-1.5 text-[13px] md:h-9 md:flex-none md:text-sm"
           >
-            <Save className="h-4 w-4" />
             {profileSavePending || talentInsightsSavePending
               ? t(
                   "career.profile.career_profile_settings_section.08zy6at",
@@ -1839,7 +1188,7 @@ const CareerTalentProfilePanel = ({
                   "career.profile.career_talent_profile_panel.0x4dx7a",
                   "저장하기"
                 )}
-          </PrimaryButton>
+          </MuteButton>
         </div>
       )}
 
@@ -1867,10 +1216,24 @@ const CareerTalentProfilePanel = ({
         </p>
       )}
 
+      <CareerProfilePersonalInfo
+        isEditing={isEditing}
+        onEdit={beginEditing}
+        onFieldChange={(field, value) => updateTalentUserField(field, value)}
+        onOpenEmailChangeModal={openEmailChangeModal}
+        onOpenPhoneNumberModal={openPhoneNumberModal}
+        user={personalInfoUser}
+      />
+
+      <div className="flex flex-col items-start justify-start gap-3 pt-3 w-full">
+        <div className="flex items-center text-[15px] font-medium leading-4 text-neutral-primary">
+          {t("career.common.career_workspace_screen.0b0v9cr", "프로필")}
+        </div>
+        <RecruiterProfileNotice copy={recruiterProfileCopy} />
+      </div>
+
       {isEditing ? (
         <>
-          <RecruiterProfileNotice copy={recruiterProfileCopy} />
-
           <ProfileHeader
             displayName={draft.talentUser.name || "Unknown"}
             isEditing
@@ -1969,7 +1332,7 @@ const CareerTalentProfilePanel = ({
                         logoAlt={exp.company_name ?? exp.role ?? "Company"}
                         logoText={exp.company_name ?? exp.role ?? ""}
                         isLast={isLast}
-                        onRemove={() => removeExperience(entry.index)}
+                        onRemove={() => requestRemoveExperience(entry.index)}
                         onLogoFileChange={(file) =>
                           void uploadCompanyLogo(
                             entry.index,
@@ -2169,7 +1532,7 @@ const CareerTalentProfilePanel = ({
                       kind="education"
                       logoText={edu.school ?? "Education"}
                       isLast={isLast}
-                      onRemove={() => removeEducation(entry.index)}
+                      onRemove={() => requestRemoveEducation(entry.index)}
                     >
                       <div className="space-y-1.5">
                         <Input
@@ -2323,7 +1686,7 @@ const CareerTalentProfilePanel = ({
                     kind="extra"
                     logoText={extra.title ?? "Extra"}
                     isLast={extraIndex === draft.talentExtras.length - 1}
-                    onRemove={() => removeExtra(extraIndex)}
+                    onRemove={() => requestRemoveExtra(extraIndex)}
                   >
                     <div className="space-y-1.5">
                       <Input
@@ -2401,8 +1764,6 @@ const CareerTalentProfilePanel = ({
         </>
       ) : hasAnyProfileData ? (
         <>
-          <RecruiterProfileNotice copy={recruiterProfileCopy} />
-
           <ProfileHeader
             displayName={profileDisplayName}
             isEditing={false}
@@ -2448,12 +1809,12 @@ const CareerTalentProfilePanel = ({
                     const isLast =
                       index ===
                       mergedExperience.length + talentExtras.length - 1;
+                    const isFirstEntryOfKind = !mergedExperience
+                      .slice(0, index)
+                      .some((previous) => previous.kind === entry.kind);
 
                     if (entry.kind === "exp") {
                       const exp = entry.item;
-                      const subtitle = [exp.company_name, exp.company_location]
-                        .filter(Boolean)
-                        .join(" · ");
                       const meta = [
                         formatRange(exp.start_date, exp.end_date, locale, t),
                         formatMonth(exp.months, locale, t),
@@ -2465,7 +1826,9 @@ const CareerTalentProfilePanel = ({
                         <TimelineBlock
                           key={`exp-${exp.id}-${index}`}
                           title={exp.role ?? "Employee"}
-                          subtitle={subtitle}
+                          subtitle={exp.company_name ?? ""}
+                          subtitleTone="primary"
+                          secondarySubtitle={exp.company_location ?? ""}
                           meta={meta}
                           description={exp.description ?? ""}
                           memo={exp.memo ?? ""}
@@ -2475,6 +1838,11 @@ const CareerTalentProfilePanel = ({
                           logoAlt={exp.company_name ?? exp.role ?? "Company"}
                           logoText={exp.company_name ?? exp.role ?? ""}
                           isLast={isLast}
+                          onAdd={isFirstEntryOfKind ? addExperience : undefined}
+                          addLabel={t(
+                            "career.profile.career_talent_profile_panel.0efzyx5",
+                            "경력 추가"
+                          )}
                         />
                       );
                     }
@@ -2500,6 +1868,11 @@ const CareerTalentProfilePanel = ({
                         kind="education"
                         logoText={edu.school ?? "Education"}
                         isLast={isLast}
+                        onAdd={isFirstEntryOfKind ? addEducation : undefined}
+                        addLabel={t(
+                          "career.profile.career_talent_profile_panel.1efofsl",
+                          "학력 추가"
+                        )}
                       />
                     );
                   })}
@@ -2521,6 +1894,11 @@ const CareerTalentProfilePanel = ({
                       kind="extra"
                       logoText={extra.title ?? "Extra"}
                       isLast={extraIndex === talentExtras.length - 1}
+                      onAdd={extraIndex === 0 ? addExtra : undefined}
+                      addLabel={t(
+                        "career.profile.career_talent_profile_panel.0wjximy",
+                        "추가 정보"
+                      )}
                     />
                   ))}
                 </div>
@@ -2549,6 +1927,71 @@ const CareerTalentProfilePanel = ({
           </MuteButton>
         </div>
       )}
+
+      <CareerProfileEntryModal
+        key={entryModalKind ?? "closed"}
+        kind={entryModalKind}
+        onClose={() => setEntryModalKind(null)}
+        onSubmit={handleAddEntry}
+        error={isEditing ? null : profileSaveError}
+      />
+
+      <ConfirmModal
+        open={Boolean(pendingRemoval)}
+        onClose={() => setPendingRemoval(null)}
+        onConfirm={confirmRemoveEntry}
+        title={
+          pendingRemoval
+            ? t(
+                "career.profile.career_talent_profile_panel.remove_confirm_title",
+                "{label} 항목을 삭제할까요?",
+                { values: { label: pendingRemoval.label } }
+              )
+            : null
+        }
+        description={t(
+          "career.profile.career_talent_profile_panel.remove_confirm_description",
+          "확인하면 편집 화면에서 이 항목이 제거됩니다. 최종 반영하려면 프로필을 저장해 주세요."
+        )}
+        confirmLabel={t(
+          "career.profile.career_talent_profile_panel.18od9kw",
+          "항목 삭제"
+        )}
+        cancelLabel={t(
+          "career.profile.career_profile_settings_section.0jiry9t",
+          "취소"
+        )}
+      />
+
+      <TalentCareerModal
+        open={phoneNumberModalOpen}
+        onClose={() => setPhoneNumberModalOpen(false)}
+        title={t(
+          "career.profile.personal_info.phone_modal_title",
+          "휴대폰 번호 수정"
+        )}
+        mobileBottomSheet
+        panelClassName="max-w-[520px] border border-neutral-1000-a05 bg-bg-floating"
+      >
+        {null}
+      </TalentCareerModal>
+
+      <CareerEmailChangeModal
+        currentEmail={user?.email ?? talentUser?.email ?? ""}
+        onChanged={(profile) => {
+          onUpdateAccountProfile(profile);
+          setDraft((current) => ({
+            ...current,
+            talentUser: {
+              ...current.talentUser,
+              email: profile.email,
+            },
+          }));
+        }}
+        onClose={() => setEmailChangeModalOpen(false)}
+        open={emailChangeModalOpen}
+        returnPath="/career/profile"
+      />
     </div>
   );
 };

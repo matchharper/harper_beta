@@ -249,6 +249,14 @@ export default function OpsMatchingPage() {
     () => companiesQuery.data?.items ?? [],
     [companiesQuery.data?.items]
   );
+  const companySelectItems = useMemo(
+    () =>
+      companies.map((company) => ({
+        label: `회사: ${company.companyName}`,
+        value: company.companyWorkspaceId,
+      })),
+    [companies]
+  );
   const selectedCompanyExists = companies.some(
     (company) => company.companyWorkspaceId === selectedCompanyId
   );
@@ -262,6 +270,14 @@ export default function OpsMatchingPage() {
   const roles = useMemo(
     () => rolesQuery.data?.items ?? [],
     [rolesQuery.data?.items]
+  );
+  const roleSelectItems = useMemo(
+    () =>
+      roles.map((role) => ({
+        label: `Role: ${role.roleName}`,
+        value: role.roleId,
+      })),
+    [roles]
   );
   const effectiveRole = useMemo(() => {
     if (
@@ -592,10 +608,7 @@ export default function OpsMatchingPage() {
             <div className="flex flex-row gap-3">
               <label className="block">
                 <UiSelect
-                  items={companies.map((company) => ({
-                    label: `회사: ${company.companyName}`,
-                    value: company.companyWorkspaceId,
-                  }))}
+                  items={companySelectItems}
                   value={effectiveCompanyId}
                   onValueChange={(value) => {
                     handleCompanyChange(value ?? "");
@@ -605,7 +618,11 @@ export default function OpsMatchingPage() {
                   <SelectTrigger className="mt-2">
                     <SelectValue placeholder="회사 없음" />
                   </SelectTrigger>
-                  <SelectContent align="start" alignItemWithTrigger={false}>
+                  <SelectContent
+                    align="start"
+                    alignItemWithTrigger={false}
+                    className="w-80 max-w-[calc(100vw-2rem)] transition-none"
+                  >
                     <SelectGroup>
                       {companies.map((company) => (
                         <SelectItem
@@ -622,10 +639,7 @@ export default function OpsMatchingPage() {
 
               <label className="block">
                 <UiSelect
-                  items={roles.map((role) => ({
-                    label: `Role: ${role.roleName}`,
-                    value: role.roleId,
-                  }))}
+                  items={roleSelectItems}
                   value={effectiveRole?.roleId ?? ""}
                   onValueChange={(value) => {
                     handleRoleChange(value ?? "");
@@ -635,7 +649,11 @@ export default function OpsMatchingPage() {
                   <SelectTrigger className="mt-2">
                     <SelectValue placeholder="Role 없음" />
                   </SelectTrigger>
-                  <SelectContent align="start" alignItemWithTrigger={false}>
+                  <SelectContent
+                    align="start"
+                    alignItemWithTrigger={false}
+                    className="w-[28rem] max-w-[calc(100vw-2rem)] transition-none"
+                  >
                     <SelectGroup>
                       {roles.map((role) => (
                         <SelectItem key={role.roleId} value={role.roleId}>

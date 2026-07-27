@@ -26,6 +26,7 @@ import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { handleContactUs } from "@/utils/info";
 import { Input as UiInput } from "@/components/ui/input";
 import { BareButton } from "@/components/ui/button";
+import { trackSignUp } from "@/lib/ga";
 
 const LoginModal = dynamic(() => import("@/components/Modal/LoginModal"));
 
@@ -255,6 +256,7 @@ export default function InvitationPage() {
         },
       });
       const bootstrapJson = (await bootstrapRes.json().catch(() => ({}))) as {
+        created?: boolean;
         error?: string;
       };
 
@@ -262,6 +264,12 @@ export default function InvitationPage() {
         setInviteStatus("error");
         setInviteMessage(bootstrapJson.error || inviteCopy.bootstrapFailed);
         return false;
+      }
+      if (bootstrapJson.created === true) {
+        trackSignUp({
+          flow: "invitation_redeem",
+          method: "email_or_existing_session",
+        });
       }
 
       const resolvedName = resolveInviteName(overrideName);
@@ -472,14 +480,21 @@ export default function InvitationPage() {
             Authorization: `Bearer ${accessToken}`,
           },
         });
+        const bootstrapJson = (await bootstrapRes.json().catch(() => ({}))) as {
+          created?: boolean;
+          error?: string;
+        };
 
         if (!bootstrapRes.ok) {
-          const bootstrapJson = (await bootstrapRes
-            .json()
-            .catch(() => ({}))) as { error?: string };
           return {
             message: bootstrapJson.error || inviteCopy.bootstrapFailed,
           };
+        }
+        if (bootstrapJson.created === true) {
+          trackSignUp({
+            flow: "invitation_login",
+            method: "email_or_existing_session",
+          });
         }
 
         setIsOpenLoginModal(false);

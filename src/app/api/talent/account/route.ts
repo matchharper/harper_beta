@@ -25,7 +25,6 @@ type DeleteAccountBody = {
 };
 
 type UpdateAccountBody = {
-  email?: string;
   name?: string;
 };
 
@@ -228,68 +227,11 @@ function extractNetworkCvPaths(
   return uniqueValues<string>(paths);
 }
 
-const isValidEmail = (value: string) =>
-  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-
 const normalizeAccountName = (value: unknown) =>
   String(value ?? "")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 240);
-
-const normalizeAccountEmail = (value: unknown) =>
-  String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .slice(0, 320);
-
-async function assertAccountEmailAvailable(
-  admin: UntypedAdminClient,
-  args: {
-    email: string;
-    userId: string;
-  }
-) {
-  const { data, error } = await admin
-    .from("talent_users")
-    .select("user_id")
-    .ilike("email", args.email)
-    .neq("user_id", args.userId)
-    .limit(1);
-
-  if (error) {
-    throw dbError("talent_users", "read", error);
-  }
-
-  if ((data ?? []).length > 0) {
-    return false;
-  }
-
-  return true;
-}
-
-async function updateAccountEmailReferences(
-  admin: UntypedAdminClient,
-  args: {
-    email: string;
-    name: string;
-    userId: string;
-  }
-) {
-  const { error } = await admin
-    .from("career_email_onboarding_leads")
-    .update({
-      email: args.email,
-      name: args.name,
-      normalized_email: args.email,
-      updated_at: new Date().toISOString(),
-    })
-    .or(`talent_id.eq.${args.userId},converted_user_id.eq.${args.userId}`);
-
-  if (error) {
-    throw dbError("career_email_onboarding_leads", "update", error);
-  }
-}
 
 export async function PUT(req: NextRequest) {
   try {
@@ -300,7 +242,6 @@ export async function PUT(req: NextRequest) {
 
     const body = (await req.json().catch(() => ({}))) as UpdateAccountBody;
     const name = normalizeAccountName(body.name);
-    const email = normalizeAccountEmail(body.email);
 
     if (!name) {
       return NextResponse.json(
@@ -308,31 +249,12 @@ export async function PUT(req: NextRequest) {
         { status: 400 }
       );
     }
-    if (!isValidEmail(email)) {
-      return NextResponse.json(
-        { error: "유효한 이메일을 입력해주세요." },
-        { status: 400 }
-      );
-    }
-
     const admin = getTalentSupabaseAdmin() as UntypedAdminClient;
     await ensureTalentUserRecord({ admin, user });
-
-    const emailAvailable = await assertAccountEmailAvailable(admin, {
-      email,
-      userId: user.id,
-    });
-    if (!emailAvailable) {
-      return NextResponse.json(
-        { error: "이미 다른 계정에서 사용 중인 이메일입니다." },
-        { status: 409 }
-      );
-    }
 
     const { data, error } = await admin
       .from("talent_users")
       .update({
-        email,
         name,
         updated_at: new Date().toISOString(),
       })
@@ -346,12 +268,6 @@ export async function PUT(req: NextRequest) {
         { status: 500 }
       );
     }
-
-    await updateAccountEmailReferences(admin, {
-      email,
-      name,
-      userId: user.id,
-    });
 
     return NextResponse.json({
       ok: true,

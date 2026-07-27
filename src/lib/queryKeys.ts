@@ -105,6 +105,7 @@ export const queryKeys = {
     bootstrapAll: ["org", "bootstrap"] as const,
     boardAll: ["org", "board"] as const,
     detailAll: ["org", "detail"] as const,
+    slackAll: ["org", "slack"] as const,
     bootstrap: (orgId?: string | null) =>
       ["org", "bootstrap", orgId ?? ""] as const,
     invitePreview: (orgId?: string | null) =>
@@ -140,6 +141,18 @@ export const queryKeys = {
         filters?.roleId ?? "",
         filters?.talentId ?? "",
         filters?.recommendationId ?? "",
+      ] as const,
+    slack: (workspaceId?: string | null) =>
+      ["org", "slack", workspaceId ?? ""] as const,
+    internalTalent: (filters?: {
+      talentId?: string | null;
+      workspaceId?: string | null;
+    }) =>
+      [
+        "org",
+        "internalTalent",
+        filters?.workspaceId ?? "",
+        filters?.talentId ?? "",
       ] as const,
     agentMessages: (filters?: {
       roleId?: string | null;

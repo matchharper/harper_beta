@@ -28,8 +28,7 @@ import {
   useUpdateOrgSlackNotifications,
   type OrgSlackStatus,
 } from "@/hooks/org/useOrgSlack";
-import type { OrgPermissions } from "@/lib/org/permissions";
-import type { OrgWorkspace } from "@/lib/org/server";
+import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useToastStore } from "@/store/useToastStore";
 
 const NOTIFICATION_OPTIONS: Array<{
@@ -70,13 +69,8 @@ function formatLastSentAt(value: string | null | undefined) {
   }).format(date);
 }
 
-export function OrgSettingsPage({
-  permissions,
-  workspace,
-}: {
-  permissions: OrgPermissions;
-  workspace: OrgWorkspace;
-}) {
+export function OrgSettingsPage() {
+  const { permissions, workspace } = useOrgWorkspace();
   const router = useRouter();
   const addToast = useToastStore((state) => state.add);
   const handledSlackResult = useRef("");

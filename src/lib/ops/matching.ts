@@ -6,6 +6,11 @@ import {
   isOpsMatchingNoTagFilter,
   OPS_MATCHING_NO_HUMAN_LABEL_FILTER_VALUE,
 } from "@/lib/ops/matchingFilters";
+import {
+  fetchInternalConnectionConfirmationEmails,
+  syncInternalConnectionConfirmationEmailForStage,
+  type OpsMatchingConnectionConfirmationEmail,
+} from "@/lib/ops/connectionConfirmationEmail";
 import type {
   OpportunityEmploymentType,
   OpportunitySourceType,
@@ -674,6 +679,7 @@ export type OpsMatchingProgressItem = {
 };
 
 export type OpsMatchingProgressResponse = {
+  connectionConfirmationEmails: OpsMatchingConnectionConfirmationEmail[];
   fit: OpsMatchingTalentFitSummary | null;
   items: OpsMatchingProgressItem[];
   recommendation: OpsMatchingRecommendationSummary | null;
@@ -4545,6 +4551,14 @@ export async function setOpsMatchingReviewStage(args: {
       admin,
       "talent_progress"
     ).insert({
+      kind: "org_stage_change",
+      metadata: {
+        previousStage,
+        source: "ops_matching_review",
+        stage,
+        stopReason: stage === "process_stopped" ? "internal" : null,
+        tag: stageTag,
+      },
       recommendation_id: recommendation?.recommendationId ?? null,
       role_id: roleId,
       talent_id: talentId,
@@ -4565,6 +4579,23 @@ export async function setOpsMatchingReviewStage(args: {
       );
     }
   }
+
+  await syncInternalConnectionConfirmationEmailForStage({
+    actorEmail,
+    admin,
+    recommendation: recommendation
+      ? {
+          createdAt: recommendation.createdAt,
+          feedback: recommendation.feedback,
+          feedbackAt: recommendation.feedbackAt,
+          recommendationId: recommendation.recommendationId,
+          savedStage: recommendation.savedStage,
+        }
+      : null,
+    roleId,
+    stage,
+    talentId,
+  });
 
   return {
     ok: true,
@@ -4999,23 +5030,33 @@ export async function fetchOpsMatchingProgress(args: {
     query = query.eq("role_id", roleId);
   }
 
-  const [progressResult, recommendation, recommendations, fit] =
-    await Promise.all([
-      query,
-      roleId
-        ? fetchLatestRecommendation({ admin, roleId, talentId })
-        : Promise.resolve(null),
-      roleId
-        ? Promise.resolve([])
-        : fetchRecentRecommendations({
-            admin,
-            limit: MAX_MATCHING_PROGRESS_ITEMS,
-            talentId,
-          }),
-      roleId
-        ? fetchRoleTalentFitSummary({ admin, roleId, talentId })
-        : Promise.resolve(null),
-    ]);
+  const [
+    progressResult,
+    recommendation,
+    recommendations,
+    fit,
+    connectionConfirmationEmails,
+  ] = await Promise.all([
+    query,
+    roleId
+      ? fetchLatestRecommendation({ admin, roleId, talentId })
+      : Promise.resolve(null),
+    roleId
+      ? Promise.resolve([])
+      : fetchRecentRecommendations({
+          admin,
+          limit: MAX_MATCHING_PROGRESS_ITEMS,
+          talentId,
+        }),
+    roleId
+      ? fetchRoleTalentFitSummary({ admin, roleId, talentId })
+      : Promise.resolve(null),
+    fetchInternalConnectionConfirmationEmails({
+      admin,
+      roleId,
+      talentId,
+    }),
+  ]);
 
   if (
     progressResult.error &&
@@ -5039,6 +5080,7 @@ export async function fetchOpsMatchingProgress(args: {
     roleIds: [
       ...rows.map((row) => row.role_id),
       ...timelineRecommendations.map((item) => item.roleId),
+      ...connectionConfirmationEmails.map((item) => item.roleId ?? ""),
       roleId,
     ],
   });
@@ -5056,6 +5098,14 @@ export async function fetchOpsMatchingProgress(args: {
   ).slice(0, MAX_MATCHING_PROGRESS_ITEMS);
 
   return {
+    connectionConfirmationEmails: connectionConfirmationEmails.map((item) => {
+      const role = item.roleId ? roleMap.get(item.roleId) : null;
+      return {
+        ...item,
+        companyName: role?.companyName ?? item.companyName,
+        roleName: role?.roleName ?? item.roleName,
+      };
+    }),
     fit,
     items: visibleRows.map((row) => {
       const role = roleMap.get(row.role_id);

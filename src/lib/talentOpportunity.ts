@@ -142,6 +142,13 @@ type RawTalentOpportunityTagRow = {
   updated_at: string | null;
 };
 
+type RawTalentProgressRow = {
+  created_at: string;
+  metadata: Json;
+  role_id: string;
+  text: string;
+};
+
 const TALENT_OPPORTUNITY_HISTORY_SELECT = `
   id,
   role_id,
@@ -316,6 +323,17 @@ export type TalentInternalRecommendationProgressStage =
   | "process_stopped"
   | "rejected";
 
+export type TalentInternalRecommendationStopReason =
+  | "candidate"
+  | "company"
+  | "internal";
+
+export type TalentInternalRecommendationProgressEvent = {
+  createdAt: string;
+  metadata: Json;
+  text: string;
+};
+
 export type TalentInternalRecommendationProgress = {
   acceptedAt: string;
   code: TalentInternalRecommendationProgressCode;
@@ -325,6 +343,7 @@ export type TalentInternalRecommendationProgress = {
   stage: TalentInternalRecommendationProgressStage | null;
   stageChangedAt: string | null;
   stageTag: string | null;
+  stopReason: TalentInternalRecommendationStopReason | null;
 };
 
 export type TalentOpportunityCompanyData = {
@@ -502,6 +521,7 @@ const INTERNAL_RECOMMENDATION_PROGRESS_DAY_MS = 24 * 60 * 60 * 1000;
 const INTERNAL_RECOMMENDATION_PROGRESS_ONE_WEEK_DAYS = 7;
 const INTERNAL_RECOMMENDATION_PROGRESS_THREE_WEEKS_DAYS = 21;
 const INTERNAL_RECOMMENDATION_TERMINAL_STAGE_GRACE_DAYS = 3;
+const INTERNAL_PROGRESS_EVENT_MATCH_WINDOW_MS = 5 * 60 * 1000;
 
 const INTERNAL_RECOMMENDATION_PROGRESS_MESSAGES: Record<
   TalentInternalRecommendationProgressCode,
@@ -578,7 +598,66 @@ function getDaysSinceInternalProgressDate(value: string | null | undefined) {
   );
 }
 
-function buildInternalRecommendationProgress(args: {
+function getJsonRecord(value: Json | null | undefined) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, Json | undefined>;
+}
+
+function normalizeInternalStopReason(value: unknown) {
+  return value === "candidate" || value === "company" || value === "internal"
+    ? value
+    : null;
+}
+
+function isProcessStoppedProgressEvent(
+  event: TalentInternalRecommendationProgressEvent
+) {
+  const metadata = getJsonRecord(event.metadata);
+  const stage = String(metadata?.stage ?? "")
+    .trim()
+    .toLowerCase();
+  const tag = String(metadata?.tag ?? "").trim();
+  const text = String(event.text ?? "");
+  return (
+    stage === "process_stopped" ||
+    tag === "내부:프로세스중단" ||
+    text.includes("프로세스 중단") ||
+    text.includes("진행을 중단")
+  );
+}
+
+function resolveInternalStopReason(args: {
+  events: TalentInternalRecommendationProgressEvent[];
+  stageChangedAt: string | null;
+}): TalentInternalRecommendationStopReason {
+  const stageChangedAtMs = Date.parse(args.stageChangedAt ?? "");
+
+  for (const event of args.events) {
+    if (!isProcessStoppedProgressEvent(event)) continue;
+
+    const eventCreatedAtMs = Date.parse(event.createdAt);
+    if (
+      Number.isFinite(stageChangedAtMs) &&
+      Number.isFinite(eventCreatedAtMs) &&
+      Math.abs(eventCreatedAtMs - stageChangedAtMs) >
+        INTERNAL_PROGRESS_EVENT_MATCH_WINDOW_MS
+    ) {
+      continue;
+    }
+
+    const metadata = getJsonRecord(event.metadata);
+    return normalizeInternalStopReason(metadata?.stopReason) ?? "internal";
+  }
+
+  // Legacy Ops changes only stored the shared process_stopped tag. Candidate
+  // self-stop did not exist before stopReason events were introduced, so an
+  // un-attributed legacy stop must retain the existing internal/company
+  // closure semantics instead of being presented as a candidate request.
+  return "internal";
+}
+
+export function buildInternalRecommendationProgress(args: {
+  events?: TalentInternalRecommendationProgressEvent[];
   item: TalentOpportunityHistoryItem;
   tags: RawTalentOpportunityTagRow[];
 }): TalentInternalRecommendationProgress | null {
@@ -588,6 +667,13 @@ function buildInternalRecommendationProgress(args: {
   const daysSinceAccepted = getDaysSinceInternalProgressDate(acceptedAt);
   const { stage, stageChangedAt, stageTag } =
     resolveInternalProgressStageFromTags(args.tags);
+  const stopReason =
+    stage === "process_stopped"
+      ? resolveInternalStopReason({
+          events: args.events ?? [],
+          stageChangedAt,
+        })
+      : null;
   const daysSinceStageChanged =
     getDaysSinceInternalProgressDate(stageChangedAt);
   const effectiveStage = stage ?? "accepted";
@@ -602,7 +688,8 @@ function buildInternalRecommendationProgress(args: {
   if (effectiveStage === "pending_connection") {
     code = "company_acknowledged_awaiting_response";
   } else if (effectiveStage === "process_stopped") {
-    code = "stopped_by_candidate";
+    code =
+      stopReason === "candidate" ? "stopped_by_candidate" : "closed_by_company";
   } else if (effectiveStage === "archived" || effectiveStage === "rejected") {
     code =
       isWithinInitialAcceptanceGrace || isWithinTerminalStageGrace
@@ -633,6 +720,7 @@ function buildInternalRecommendationProgress(args: {
     stage,
     stageChangedAt,
     stageTag,
+    stopReason,
   };
 }
 
@@ -1450,6 +1538,60 @@ async function fetchInternalProgressTagsForHistoryItems(args: {
   return tagsByRoleId;
 }
 
+async function fetchInternalProgressEventsForHistoryItems(args: {
+  admin: AdminClient;
+  items: TalentOpportunityHistoryItem[];
+  userId: string;
+}) {
+  const roleIds = Array.from(
+    new Set(
+      args.items
+        .filter((item) => item.isInternal && item.feedback === "positive")
+        .map((item) => item.roleId)
+        .filter(Boolean)
+    )
+  );
+  if (roleIds.length === 0) {
+    return new Map<string, TalentInternalRecommendationProgressEvent[]>();
+  }
+
+  const { data, error } = await ((
+    args.admin.from("talent_progress" as any) as any
+  )
+    .select("role_id, metadata, text, created_at")
+    .eq("talent_id", args.userId)
+    .in("role_id", roleIds)
+    .order("created_at", { ascending: false }) as any);
+
+  if (error) {
+    console.warn(
+      "[TalentOpportunity] failed to load internal progress events",
+      {
+        error: error.message ?? "Unknown error",
+        userId: args.userId,
+      }
+    );
+    return new Map<string, TalentInternalRecommendationProgressEvent[]>();
+  }
+
+  const eventsByRoleId = new Map<
+    string,
+    TalentInternalRecommendationProgressEvent[]
+  >();
+  for (const row of coerceJsonArray<RawTalentProgressRow>(data)) {
+    const roleId = String(row.role_id ?? "").trim();
+    if (!roleId) continue;
+    const events = eventsByRoleId.get(roleId) ?? [];
+    events.push({
+      createdAt: row.created_at,
+      metadata: row.metadata,
+      text: row.text,
+    });
+    eventsByRoleId.set(roleId, events);
+  }
+  return eventsByRoleId;
+}
+
 async function enrichTalentOpportunityHistoryItems(args: {
   admin: AdminClient;
   items: TalentOpportunityHistoryItem[];
@@ -1457,11 +1599,15 @@ async function enrichTalentOpportunityHistoryItems(args: {
 }) {
   if (args.items.length === 0) return args.items;
 
-  const tagsByRoleId = await fetchInternalProgressTagsForHistoryItems(args);
+  const [tagsByRoleId, eventsByRoleId] = await Promise.all([
+    fetchInternalProgressTagsForHistoryItems(args),
+    fetchInternalProgressEventsForHistoryItems(args),
+  ]);
   if (tagsByRoleId.size === 0) {
     return args.items.map((item) => ({
       ...item,
       internalProgress: buildInternalRecommendationProgress({
+        events: eventsByRoleId.get(item.roleId) ?? [],
         item,
         tags: [],
       }),
@@ -1471,6 +1617,7 @@ async function enrichTalentOpportunityHistoryItems(args: {
   return args.items.map((item) => ({
     ...item,
     internalProgress: buildInternalRecommendationProgress({
+      events: eventsByRoleId.get(item.roleId) ?? [],
       item,
       tags: tagsByRoleId.get(item.roleId) ?? [],
     }),

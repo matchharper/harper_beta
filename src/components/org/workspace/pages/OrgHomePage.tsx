@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { useRouter } from "next/router";
 import { useMemo } from "react";
 import { formatKstRelativeDate } from "@/components/ops/dateUtils";
 import { OrgPageHeader } from "@/components/org/workspace/OrgPageHeader";
@@ -9,8 +10,12 @@ import {
 } from "@/components/org/workspace/OrgSection";
 import { BareButton, MuteButton } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useOrgBoard } from "@/hooks/org/useOrg";
 import { useOrgViewedRecommendations } from "@/hooks/org/useOrgViewedRecommendations";
-import type { OrgBoardItem, OrgBoardResponse, OrgRole } from "@/lib/org/server";
+import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
+import { buildOrgHref } from "@/lib/org/routes";
+import type { OrgBoardItem } from "@/lib/org/server";
+import { cn } from "@/lib/utils";
 
 export const ORG_PENDING_CONNECTION_PAUSE_THRESHOLD = 5;
 
@@ -41,7 +46,7 @@ function PendingCandidateButton({
           width={32}
         />
       ) : (
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-bg-weak text-[12px] font-medium text-neutral-muted">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-neutral-200/50 text-sm font-medium text-neutral-muted">
           {name.slice(0, 1).toUpperCase()}
         </span>
       )}
@@ -49,7 +54,7 @@ function PendingCandidateButton({
         <span className="block truncate text-[14px] font-medium text-neutral-primary">
           {name}
         </span>
-        <span className="mt-1 block truncate text-[12px] font-light text-neutral-soft">
+        <span className="mt-1 block truncate text-sm font-light text-neutral-soft">
           {item.roleName || "Role"} ·{" "}
           {formatKstRelativeDate(item.recommendedAt)}
         </span>
@@ -64,7 +69,7 @@ function HomeLoading() {
       <div className="border-b border-neutral-1000-a05 pb-8">
         <Skeleton className="h-5 w-36" />
         <Skeleton className="mt-2 h-3 w-72 max-w-full" />
-        <div className="mt-5 overflow-hidden rounded-lg bg-bg-weak px-4">
+        <div className="mt-5 overflow-hidden rounded-lg bg-neutral-200/50 px-4">
           {Array.from({ length: 2 }).map((_, rowIndex) => (
             <Skeleton className="my-3.5 h-10 w-full" key={rowIndex} />
           ))}
@@ -75,7 +80,7 @@ function HomeLoading() {
         <Skeleton className="mt-2 h-3 w-64 max-w-full" />
         <div className="mt-5 grid gap-2 sm:grid-cols-3">
           {Array.from({ length: 3 }).map((_, metricIndex) => (
-            <div className="rounded-lg bg-bg-weak p-4" key={metricIndex}>
+            <div className="rounded-lg bg-neutral-200/50 p-4" key={metricIndex}>
               <Skeleton className="h-3 w-20" />
               <Skeleton className="mt-3 h-6 w-12" />
             </div>
@@ -93,11 +98,11 @@ function HomeLoading() {
 
 function EmptyActionState() {
   return (
-    <div className="rounded-lg bg-bg-weak px-5 py-7">
+    <div className="rounded-lg bg-neutral-200/50 px-5 py-7">
       <div className="text-[14px] font-medium text-neutral-primary">
         지금 처리할 연결이 없습니다.
       </div>
-      <div className="mt-1 text-[12px] font-light leading-5 text-neutral-muted">
+      <div className="mt-1 text-sm font-light leading-5 text-neutral-muted">
         새로운 후보자가 추천되면 이곳에 가장 먼저 표시됩니다.
       </div>
     </div>
@@ -106,8 +111,8 @@ function EmptyActionState() {
 
 function JobsMetric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg bg-bg-weak px-4 py-4 sm:px-5">
-      <div className="text-[12px] font-light text-neutral-muted">{label}</div>
+    <div className="rounded-lg bg-neutral-200/50 px-4 py-4 sm:px-5">
+      <div className="text-sm font-light text-neutral-muted">{label}</div>
       <div className="mt-1.5 text-[20px] font-medium text-neutral-primary">
         {value}
       </div>
@@ -137,9 +142,10 @@ function PendingRoleRow({
           {name}
         </span>
         <span
-          className={`mt-1 block text-[12px] font-light leading-5 ${
+          className={cn(
+            "mt-1 block text-sm font-light leading-5",
             paused ? "text-critical" : "text-neutral-muted"
-          }`}
+          )}
         >
           {paused
             ? "새 연결 일시 중단 · 후보자를 결정하면 자동으로 다시 시작됩니다."
@@ -155,7 +161,7 @@ function PendingRoleRow({
 
 function PausedConnectionNotice({ roleCount }: { roleCount: number }) {
   return (
-    <div className="mt-3 rounded-md bg-bg-weak px-4 py-3 text-[12px] font-light leading-5 text-neutral-muted">
+    <div className="mt-3 rounded-md bg-neutral-200/50 px-4 py-3 text-sm font-light leading-5 text-neutral-muted">
       <span className="font-medium text-neutral-primary">
         새 연결이 중단된 Role이 {roleCount}개 있습니다.
       </span>{" "}
@@ -180,11 +186,11 @@ function NewCandidates({
           <h3 className="text-[14px] font-medium text-neutral-primary">
             새로 추천된 인재
           </h3>
-          <p className="mt-1 text-[12px] font-light text-neutral-muted">
+          <p className="mt-1 text-sm font-light text-neutral-muted">
             아직 열어보지 않은 연결 대기 후보자입니다.
           </p>
         </div>
-        <span className="shrink-0 text-[12px] font-medium text-primary">
+        <span className="shrink-0 text-sm font-medium text-primary">
           {items.length}명
         </span>
       </div>
@@ -214,22 +220,23 @@ function JobRoleRow({
 }) {
   return (
     <BareButton
-      className="grid w-full grid-cols-[minmax(0,1fr)_72px] items-center gap-3 px-3 py-3.5 text-left outline-none transition hover:bg-bg-weak focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-1000-a10 sm:grid-cols-[minmax(0,1fr)_88px_88px]"
+      className="grid w-full grid-cols-[minmax(0,1fr)_72px] items-center gap-3 px-3 py-3.5 text-left outline-none transition hover:bg-neutral-200/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-1000-a10 sm:grid-cols-[minmax(0,1fr)_88px_88px]"
       onClick={onClick}
       type="button"
     >
       <span className="min-w-0 truncate text-[14px] font-medium text-neutral-primary">
         {name}
       </span>
-      <span className="text-right text-[12px] font-light text-neutral-muted">
+      <span className="text-right text-sm font-light text-neutral-muted">
         {total}명
       </span>
       <span
-        className={`hidden text-right text-[12px] sm:block ${
+        className={cn(
+          "hidden text-right text-sm sm:block",
           pending > 0
             ? "font-medium text-primary"
             : "font-light text-neutral-soft"
-        }`}
+        )}
       >
         {pending > 0 ? `${pending}명 대기` : "대기 없음"}
       </span>
@@ -237,29 +244,37 @@ function JobRoleRow({
   );
 }
 
-export function OrgHomePage({
-  board,
-  currentUserEmail,
-  error,
-  isLoading,
-  onCandidateSelect,
-  onJobsOpen,
-  onRetry,
-  onRoleSelect,
-  roles,
-  workspaceId,
-}: {
-  board?: OrgBoardResponse | null;
-  currentUserEmail?: string | null;
-  error?: Error | null;
-  isLoading?: boolean;
-  onCandidateSelect: (item: OrgBoardItem) => void;
-  onJobsOpen: () => void;
-  onRetry: () => void;
-  onRoleSelect: (roleId: string) => void;
-  roles: OrgRole[];
-  workspaceId: string;
-}) {
+export function OrgHomePage() {
+  const router = useRouter();
+  const { currentUserEmail, roles, workspace } = useOrgWorkspace();
+  const workspaceId = workspace.workspaceId;
+  const boardQuery = useOrgBoard({ roleId: null, workspaceId });
+  const board = boardQuery.data;
+  const error = boardQuery.error instanceof Error ? boardQuery.error : null;
+  const isLoading = boardQuery.isLoading;
+  const openJobs = (roleId: string) => {
+    void router.push(
+      buildOrgHref({
+        orgId: workspaceId,
+        page: "jobs",
+        roleId: roleId || "all",
+      })
+    );
+  };
+  const openCandidate = (item: OrgBoardItem) => {
+    void router.push(
+      buildOrgHref({
+        detail: {
+          recommendationId: item.recommendationId,
+          roleId: item.roleId,
+          talentId: item.talentId,
+        },
+        orgId: workspaceId,
+        page: "jobs",
+        roleId: item.roleId,
+      })
+    );
+  };
   const { hasHydrated, viewedRecommendationIds } = useOrgViewedRecommendations({
     currentUserEmail,
     workspaceId,
@@ -354,7 +369,10 @@ export function OrgHomePage({
       />
 
       {error ? (
-        <OrgErrorState message={error.message} onRetry={onRetry} />
+        <OrgErrorState
+          message={error.message}
+          onRetry={() => void boardQuery.refetch()}
+        />
       ) : null}
 
       {isLoading ? (
@@ -371,9 +389,9 @@ export function OrgHomePage({
               title="지금 필요한 액션"
             />
             {pendingRoles.length > 0 ? (
-              <div className="overflow-hidden rounded-lg bg-bg-weak">
+              <div className="overflow-hidden rounded-lg bg-neutral-200/50">
                 <div className="flex items-center justify-between gap-3 border-b border-neutral-1000-a05 px-4 py-3">
-                  <span className="text-[12px] font-light text-neutral-muted">
+                  <span className="text-sm font-light text-neutral-muted">
                     연결 결정 대기
                   </span>
                   <span className="text-[15px] font-medium text-primary">
@@ -386,7 +404,7 @@ export function OrgHomePage({
                       count={count}
                       key={role.roleId}
                       name={role.name}
-                      onClick={() => onRoleSelect(role.roleId)}
+                      onClick={() => openJobs(role.roleId)}
                       paused={paused}
                     />
                   ))}
@@ -399,10 +417,7 @@ export function OrgHomePage({
               <PausedConnectionNotice roleCount={pausedRoleCount} />
             ) : null}
             {hasHydrated ? (
-              <NewCandidates
-                items={unseenPending}
-                onSelect={onCandidateSelect}
-              />
+              <NewCandidates items={unseenPending} onSelect={openCandidate} />
             ) : null}
           </OrgSection>
 
@@ -410,7 +425,7 @@ export function OrgHomePage({
             <OrgSectionHeader
               actions={
                 <MuteButton
-                  onClick={onJobsOpen}
+                  onClick={() => openJobs("all")}
                   size="md"
                   variant="transparent"
                 >
@@ -432,13 +447,13 @@ export function OrgHomePage({
               />
             </div>
             {activeRoles.length > 0 ? (
-              <div className="mt-5 grid grid-cols-[minmax(0,1fr)_72px] gap-3 px-3 pb-2 text-[11px] font-light text-neutral-soft sm:grid-cols-[minmax(0,1fr)_88px_88px]">
+              <div className="mt-5 grid grid-cols-[minmax(0,1fr)_72px] gap-3 px-3 pb-2 text-[14px] font-light text-neutral-soft sm:grid-cols-[minmax(0,1fr)_88px_88px]">
                 <span>Role</span>
                 <span className="text-right">후보자</span>
                 <span className="hidden text-right sm:block">연결 대기</span>
               </div>
             ) : null}
-            <div className="divide-y divide-neutral-1000-a05 border-y border-neutral-1000-a05">
+            <div className="divide-y divide-neutral-1000-a05">
               {activeRoles.slice(0, 5).map((role) => {
                 const count = roleCounts.get(role.roleId) ?? {
                   pending: 0,
@@ -448,14 +463,14 @@ export function OrgHomePage({
                   <JobRoleRow
                     key={role.roleId}
                     name={role.name}
-                    onClick={() => onRoleSelect(role.roleId)}
+                    onClick={() => openJobs(role.roleId)}
                     pending={count.pending}
                     total={count.total}
                   />
                 );
               })}
               {activeRoles.length === 0 ? (
-                <div className="py-9 text-center text-[12px] font-light text-neutral-muted">
+                <div className="py-9 text-center text-sm font-light text-neutral-muted">
                   진행 중인 Job이 없습니다.
                 </div>
               ) : null}

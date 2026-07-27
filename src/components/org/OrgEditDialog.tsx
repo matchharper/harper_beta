@@ -10,13 +10,13 @@ import { LoaderCircle, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
-import { cx, opsTheme } from "@/components/ops/theme";
+import { opsTheme } from "@/components/ops/theme";
 import { BareButton, Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
-type OrgEditDialogValue = {
+export type OrgEditDialogValue = {
   companyDescription?: string | null;
   description?: string | null;
   employmentTypes?: string[];
@@ -70,7 +70,7 @@ function ToggleButton({
     <BareButton
       type="button"
       onClick={onClick}
-      className={cx(
+      className={cn(
         "rounded-md px-3 py-2 text-[13px] transition",
         active
           ? "bg-black text-neutral-00"
@@ -121,7 +121,7 @@ function AutoResizeTextarea({
     <Textarea
       ref={ref}
       value={value}
-      className={cx(
+      className={cn(
         "resize-none overflow-hidden px-3 py-2.5 pb-3.5 text-[13px] leading-5",
         className
       )}
@@ -152,7 +152,7 @@ function RoleDescriptionMarkdownPreview({ markdown }: { markdown: string }) {
     <div className="grid gap-2">
       <div className={opsTheme.label}>Markdown Preview</div>
       <div
-        className={cx(
+        className={cn(
           opsTheme.panelSoft,
           "min-h-[112px] px-4 py-3.5 text-[13px] leading-6 text-neutral-primary"
         )}

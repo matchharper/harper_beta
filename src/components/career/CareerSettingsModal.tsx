@@ -25,6 +25,7 @@ import CareerResumeLinksSettingsSection from "./settings/CareerResumeLinksSettin
 import { BareButton, MuteButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useReferralEntryPointEligibility } from "@/hooks/career/useReferralEntryPointEligibility";
+import CareerEmailChangeModal from "./account/CareerEmailChangeModal";
 
 export type CareerSettingsTab = "profile" | "resume" | "referral" | "account";
 type MobileSettingsView = "menu" | CareerSettingsTab;
@@ -137,9 +138,6 @@ const normalizeAccountFieldEmail = (value: string | null | undefined) =>
   String(value ?? "")
     .trim()
     .toLowerCase();
-
-const isValidAccountEmail = (value: string) =>
-  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
 type SavedAccountProfile = {
   email: string;
@@ -337,7 +335,7 @@ const AccountSectionContent = ({
     userId,
   }));
   const [draftName, setDraftName] = useState(savedProfile.name);
-  const [draftEmail, setDraftEmail] = useState(savedProfile.email);
+  const [emailChangeModalOpen, setEmailChangeModalOpen] = useState(false);
   const [savePending, setSavePending] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [saveInfo, setSaveInfo] = useState("");
@@ -346,10 +344,7 @@ const AccountSectionContent = ({
   const [deleteError, setDeleteError] = useState("");
 
   const normalizedDraftName = normalizeAccountFieldName(draftName);
-  const normalizedDraftEmail = normalizeAccountFieldEmail(draftEmail);
-  const hasAccountChanges =
-    normalizedDraftName !== savedProfile.name ||
-    normalizedDraftEmail !== savedProfile.email;
+  const hasAccountChanges = normalizedDraftName !== savedProfile.name;
 
   const handleSaveAccount = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -367,16 +362,6 @@ const AccountSectionContent = ({
       );
       return;
     }
-    if (!isValidAccountEmail(normalizedDraftEmail)) {
-      setSaveError(
-        t(
-          "career.settings.career_settings_modal.account_email_invalid",
-          "유효한 이메일을 입력해주세요."
-        )
-      );
-      return;
-    }
-
     setSavePending(true);
     logCareerEvent("click_settings_account_save");
 
@@ -384,7 +369,6 @@ const AccountSectionContent = ({
       const response = await fetchWithAuth("/api/talent/account", {
         method: "PUT",
         body: JSON.stringify({
-          email: normalizedDraftEmail,
           name: normalizedDraftName,
         }),
       });
@@ -404,15 +388,12 @@ const AccountSectionContent = ({
 
       const profile = payload.profile ?? {};
       const nextSaved = {
-        email: normalizeAccountFieldEmail(
-          profile.email ?? normalizedDraftEmail
-        ),
+        email: normalizeAccountFieldEmail(profile.email ?? savedProfile.email),
         name: normalizeAccountFieldName(profile.name ?? normalizedDraftName),
         userId: String(profile.user_id ?? userId),
       };
       setSavedProfile(nextSaved);
       setDraftName(nextSaved.name);
-      setDraftEmail(nextSaved.email);
       onProfileSaved({
         email: nextSaved.email,
         name: nextSaved.name,
@@ -548,14 +529,12 @@ const AccountSectionContent = ({
             <input
               id="career-settings-account-email"
               aria-label={accountEmailLabel}
+              aria-haspopup="dialog"
               type="email"
-              value={draftEmail}
-              onChange={(event) => {
-                setDraftEmail(event.target.value);
-                setSaveError("");
-                setSaveInfo("");
-              }}
-              className="h-9 w-full rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 text-[13px] text-neutral-primary outline-none transition-colors placeholder:text-neutral-placeholder focus:border-neutral-400 focus:ring-2 focus:ring-neutral-1000-a10"
+              readOnly
+              value={savedProfile.email}
+              onClick={() => setEmailChangeModalOpen(true)}
+              className="h-9 w-full cursor-pointer rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 text-[13px] text-neutral-primary outline-none transition-colors placeholder:text-neutral-placeholder hover:border-neutral-400 focus:border-neutral-400 focus:ring-2 focus:ring-neutral-1000-a10"
               autoComplete="email"
             />
           }
@@ -638,6 +617,28 @@ const AccountSectionContent = ({
           setDeleteError("");
         }}
         onConfirm={() => void handleConfirmDelete()}
+      />
+
+      <CareerEmailChangeModal
+        currentEmail={savedProfile.email}
+        onChanged={(profile) => {
+          const nextSaved = {
+            email: normalizeAccountFieldEmail(
+              profile.email ?? savedProfile.email
+            ),
+            name: normalizeAccountFieldName(profile.name ?? savedProfile.name),
+            userId: profile.user_id || savedProfile.userId,
+          };
+          setSavedProfile(nextSaved);
+          onProfileSaved({
+            email: nextSaved.email,
+            name: nextSaved.name,
+            user_id: nextSaved.userId,
+          });
+        }}
+        onClose={() => setEmailChangeModalOpen(false)}
+        open={emailChangeModalOpen}
+        returnPath="/career/profile?panel=settings&settingsTab=account"
       />
     </>
   );
@@ -736,8 +737,8 @@ const CareerSettingsModal = ({
   }, [initialTab, isMobile, open]);
 
   const accountEmail =
-    talentProfile.talentUser?.email ??
     user?.email ??
+    talentProfile.talentUser?.email ??
     t("career.settings.career_settings_modal.0zjg8a0", "로그인 중");
   const accountName =
     talentProfile.talentUser?.name ??

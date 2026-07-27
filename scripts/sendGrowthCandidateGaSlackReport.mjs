@@ -171,18 +171,38 @@ function readMetricRow(payload, metricNames) {
 }
 
 async function fetchChannelMetrics(accessToken, dateRange, channel) {
-  const metrics = ["sessions", "totalUsers", "newUsers", "engagementRate"];
+  const trafficMetrics = ["sessions", "totalUsers", "newUsers"];
 
-  const payload = await runReport(accessToken, {
+  const trafficPayload = await runReport(accessToken, {
     dateRanges: [dateRange],
     dimensionFilter: channel.filter,
-    metrics: metrics.map((name) => ({ name })),
+    metrics: trafficMetrics.map((name) => ({ name })),
+  });
+  const signUpPayload = await runReport(accessToken, {
+    dateRanges: [dateRange],
+    dimensionFilter: andFilter(
+      channel.filter,
+      filterExact("eventName", "sign_up")
+    ),
+    metrics: ["eventCount", "totalUsers"].map((name) => ({ name })),
   });
 
-  const values = readMetricRow(payload, metrics);
+  const trafficValues = readMetricRow(trafficPayload, trafficMetrics);
+  const signUpValues = readMetricRow(signUpPayload, [
+    "eventCount",
+    "totalUsers",
+  ]);
+  const signUps = signUpValues.eventCount ?? 0;
+  const newSignUpUsers = signUpValues.totalUsers ?? 0;
+  const conversionRate =
+    trafficValues.sessions > 0 ? signUps / trafficValues.sessions : 0;
+
   return {
-    ...values,
+    ...trafficValues,
+    conversionRate,
     label: channel.label,
+    newSignUpUsers,
+    signUps,
   };
 }
 
@@ -206,7 +226,9 @@ function formatSlackMessage({ dateRange, rows }) {
       pad("세션", 7),
       pad("유저", 6),
       pad("신규 유저", 8),
-      "참여율",
+      pad("회원가입", 8),
+      pad("신규 가입자", 9),
+      "전환율",
     ].join(" "),
     ...sortedRows.map((row) =>
       [
@@ -214,7 +236,9 @@ function formatSlackMessage({ dateRange, rows }) {
         pad(formatInteger(row.sessions), 8),
         pad(formatInteger(row.totalUsers), 7),
         pad(formatInteger(row.newUsers), 9),
-        formatPercent(row.engagementRate),
+        pad(formatInteger(row.signUps), 9),
+        pad(formatInteger(row.newSignUpUsers), 10),
+        formatPercent(row.conversionRate),
       ].join(" ")
     ),
   ];
@@ -222,6 +246,8 @@ function formatSlackMessage({ dateRange, rows }) {
   return [
     "*Growth candidate GA 리포트*",
     `기간: ${dateRange.startDate} 00:00 - ${dateRange.endDate} 23:59 KST`,
+    "전환율: GA4 sign_up 이벤트 수 / 세션",
+    "신규 가입자: sign_up 이벤트가 찍힌 unique user 수",
     "",
     "```",
     tableLines.join("\n"),

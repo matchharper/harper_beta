@@ -27,6 +27,7 @@ import CareerMobileJobsView, {
   JobActionBar,
 } from "@/components/career/mobile/jobs/CareerMobileJobsView";
 import CareerMobileChatLauncher from "@/components/career/mobile/CareerMobileChatLauncher";
+import { CareerMobileChatLauncherVisibilityProvider } from "@/components/career/mobile/CareerMobileChatLauncherVisibilityContext";
 import CareerMobileHomeView from "@/components/career/mobile/CareerMobileHomeView";
 import CareerMobileShell from "@/components/career/mobile/CareerMobileShell";
 import CareerMobileTopBar, {
@@ -80,6 +81,7 @@ type JobsDisplayTab = CareerMobileHistoryJobsTab;
 
 type CareerWorkspaceHistoryTarget = {
   historyTab: "new" | "saved" | "archived";
+  roleId?: string;
   savedStage?: CareerOpportunitySavedStageFilter;
 };
 
@@ -1399,7 +1401,7 @@ const CareerWorkspaceMobileLayout = ({
   );
 
   return (
-    <>
+    <CareerMobileChatLauncherVisibilityProvider>
       <AnimatePresence mode="wait" initial={false}>
         {activeTab === "history" ? (
           <motion.div key="history" {...TAB_MOTION_PROPS}>
@@ -1453,6 +1455,6 @@ const CareerWorkspaceMobileLayout = ({
           defaultEmail={userEmail}
         />
       )}
-    </>
+    </CareerMobileChatLauncherVisibilityProvider>
   );
 };

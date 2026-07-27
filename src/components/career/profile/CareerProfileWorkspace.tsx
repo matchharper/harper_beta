@@ -57,11 +57,8 @@ const CareerProfileWorkspace = () => {
   const t = useCareerT();
   const router = useRouter();
   const logCareerEvent = useCareerLogEvent();
-  const {
-    savedResumeFileName,
-    savedResumeStoragePath,
-    workspaceDataLoading,
-  } = useCareerSidebarContext();
+  const { savedResumeFileName, savedResumeStoragePath, workspaceDataLoading } =
+    useCareerSidebarContext();
   const hasSavedResume = Boolean(savedResumeFileName || savedResumeStoragePath);
 
   const sectionItems = useMemo(
@@ -110,11 +107,7 @@ const CareerProfileWorkspace = () => {
 
   if (workspaceDataLoading) {
     return (
-      <section
-        aria-busy="true"
-        aria-live="polite"
-        className="px-5 py-6"
-      >
+      <section aria-busy="true" aria-live="polite" className="px-5 py-6">
         <div className="flex items-center gap-2 text-[15px] leading-6 text-neutral-muted">
           <Loader2 className="h-4 w-4 animate-spin text-neutral-primary" />
           {t(

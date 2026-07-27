@@ -31,6 +31,7 @@ import { FallingTagsMl } from "@/components/landing/FallingTagsML";
 import Reveal from "@/components/landing/Animation/Reveal";
 import { BareButton } from "@/components/ui/button";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
+import { trackSignUp } from "@/lib/ga";
 
 const LoginModal = dynamic(() => import("@/components/Modal/LoginModal"));
 
@@ -521,13 +522,19 @@ export default function RadarLandingPage() {
           Authorization: `Bearer ${accessToken}`,
         },
       });
+      const bootstrapJson = await bootstrapRes.json().catch(() => ({}));
 
       if (!bootstrapRes.ok) {
-        const bootstrapJson = await bootstrapRes.json().catch(() => ({}));
         return {
           message:
             bootstrapJson?.error ?? RADAR_LOGIN_MODAL_COPY.bootstrapFailed,
         };
+      }
+      if (bootstrapJson?.created === true) {
+        trackSignUp({
+          flow: "radar",
+          method: "email_or_existing_session",
+        });
       }
 
       setIsOpenLoginModal(false);

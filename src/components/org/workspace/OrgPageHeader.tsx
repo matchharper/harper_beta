@@ -21,7 +21,7 @@ export function OrgPageHeader({
           {title}
         </SectionTitle>
         <SectionDescription
-          className="text-[13px] font-light leading-5"
+          className="text-[14px] font-light leading-5"
           type="subtle"
         >
           {description}

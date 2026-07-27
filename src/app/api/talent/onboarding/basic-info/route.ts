@@ -8,7 +8,6 @@ import {
 import { careerT } from "@/lib/career/translatedCareerMessage";
 
 type Body = {
-  email?: string;
   locale?: string | null;
   name?: string;
 };
@@ -34,7 +33,7 @@ export async function POST(req: NextRequest) {
       .replace(/\s+/g, " ")
       .trim()
       .slice(0, 240);
-    const email = String(body.email ?? "")
+    const email = String(user.email ?? "")
       .trim()
       .toLowerCase()
       .slice(0, 320);

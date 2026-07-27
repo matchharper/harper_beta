@@ -69,7 +69,7 @@ const TalentCareerModal = ({
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay
           className={cn(
-            "fixed inset-0 z-80 bg-black/55 backdrop-blur-xs",
+            "fixed inset-0 z-80 bg-black/10 backdrop-blur-xs",
             "data-[state=open]:animate-in data-[state=closed]:animate-out",
             "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
             backdropClassName
@@ -179,7 +179,7 @@ const TalentCareerModal = ({
               <footer
                 className={cn(
                   "px-4 py-5 sm:px-5",
-                  mobileBottomSheet && "max-sm:shrink-0",
+                  mobileBottomSheet && "max-sm:shrink-0 pt-1 sm:pt-5",
                   footerClassName
                 )}
               >

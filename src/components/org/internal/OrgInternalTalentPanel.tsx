@@ -54,7 +54,7 @@ function PaneLoading() {
 
 function PaneError({ error, fallback }: { error: unknown; fallback: string }) {
   return (
-    <div className="rounded-md border border-critical/20 bg-critical-faded px-2.5 py-2 text-[11px] text-critical">
+    <div className="rounded-md border border-critical/20 bg-critical-faded px-3 py-2.5 text-[13px] text-critical">
       {error instanceof Error ? error.message : fallback}
     </div>
   );
@@ -98,17 +98,17 @@ function RecommendationRow({ item }: { item: CareerTalentRecommendationItem }) {
     <article className="border-b border-neutral-1000-a05 py-2.5 last:border-b-0">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[12px] font-medium text-neutral-primary">
+          <div className="truncate text-[13px] font-medium text-neutral-primary">
             {item.companyName} · {item.roleName}
           </div>
-          <div className="mt-1 text-[10px] font-light text-neutral-soft">
+          <div className="mt-1 text-[12px] font-light text-neutral-soft">
             {formatDateTime(item.recommendedAt)}
           </div>
         </div>
         <div className="flex items-center gap-1.5">
           <span
             className={cn(
-              "rounded-sm px-1.5 py-0.5 text-[10px] font-medium",
+              "rounded-sm px-2 py-1 text-[12px] font-medium",
               recommendationSourceClass(item.sourceType)
             )}
           >
@@ -116,7 +116,7 @@ function RecommendationRow({ item }: { item: CareerTalentRecommendationItem }) {
           </span>
           <span
             className={cn(
-              "inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-[10px] font-medium",
+              "inline-flex items-center gap-1 rounded-sm px-2 py-1 text-[12px] font-medium",
               response.className
             )}
           >
@@ -126,12 +126,12 @@ function RecommendationRow({ item }: { item: CareerTalentRecommendationItem }) {
         </div>
       </div>
       {item.fitSummary ? (
-        <p className="mt-1.5 line-clamp-2 text-[10px] font-light leading-4 text-neutral-muted">
+        <p className="mt-2 line-clamp-2 text-[13px] font-light leading-5 text-neutral-muted">
           {item.fitSummary}
         </p>
       ) : null}
       {item.feedbackReason ? (
-        <p className="mt-1.5 border-l-2 border-neutral-1000-a10 pl-2 text-[10px] font-light leading-4 text-neutral-muted">
+        <p className="mt-2 border-l-2 border-neutral-1000-a10 pl-2.5 text-[13px] font-light leading-5 text-neutral-muted">
           {item.feedbackReason}
         </p>
       ) : null}
@@ -142,8 +142,8 @@ function RecommendationRow({ item }: { item: CareerTalentRecommendationItem }) {
 function SystemMetricRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid gap-1 border-b border-neutral-1000-a05 py-2.5 sm:grid-cols-[112px_minmax(0,1fr)] sm:items-center">
-      <div className="text-[10px] font-light text-neutral-muted">{label}</div>
-      <div className="text-[12px] font-medium text-neutral-primary">
+      <div className="text-[13px] font-light text-neutral-muted">{label}</div>
+      <div className="text-[13px] font-medium text-neutral-primary">
         {value}
       </div>
     </div>
@@ -165,7 +165,7 @@ function RecommendationStats({
   return (
     <div className="border-y border-neutral-1000-a05 py-2.5">
       <div className="flex items-center justify-between gap-2">
-        <div className="text-[11px] font-medium text-neutral-primary">
+        <div className="text-[13px] font-medium text-neutral-primary">
           {label}
         </div>
         <Badge radius="full" size="sm" variant="faded">
@@ -179,7 +179,7 @@ function RecommendationStats({
           { label: "미응답", value: stats.noResponse },
         ].map((item) => (
           <div className="px-1.5 py-0.5" key={item.label}>
-            <div className="text-[10px] font-light text-neutral-muted">
+            <div className="text-[12px] font-light text-neutral-muted">
               {item.label}
             </div>
             <div className="mt-0.5 text-[14px] font-medium text-neutral-primary">
@@ -236,8 +236,8 @@ export default function OrgInternalTalentPanel({
       <div className="relative z-20 flex items-start gap-1.5 border-b border-neutral-1000-a10 bg-neutral-1000 px-2.5 py-2 text-neutral-00">
         <Eye className="mt-0.5 size-3.5 shrink-0" />
         <div>
-          <div className="text-[11px] font-medium">Harper 내부 전용</div>
-          <div className="mt-0.5 text-[10px] font-light text-neutral-00/65">
+          <div className="text-[13px] font-medium">Harper 내부 전용</div>
+          <div className="mt-1 text-[12px] font-light leading-5 text-neutral-00/70">
             아래 정보는 실제 회사 사용자에게 응답하거나 표시하지 않습니다.
           </div>
         </div>
@@ -247,7 +247,7 @@ export default function OrgInternalTalentPanel({
         {INTERNAL_TABS.map((tab) => (
           <MuteButton
             className={cn(
-              "shrink-0 rounded-none border-b-2 px-2.5 text-[10px]",
+              "shrink-0 rounded-none border-b-2 px-3 text-[13px]",
               activeTab === tab.id
                 ? "border-neutral-1000 text-neutral-primary"
                 : "border-transparent text-neutral-muted"
@@ -322,7 +322,7 @@ export default function OrgInternalTalentPanel({
               ) : null}
             </div>
           ) : (
-            <div className="py-9 text-center text-[11px] font-light text-neutral-muted">
+            <div className="py-9 text-center text-[13px] font-light text-neutral-muted">
               다른 추천 내역이 없습니다.
             </div>
           )
@@ -380,7 +380,7 @@ export default function OrgInternalTalentPanel({
                 />
               </div>
 
-              <div className="flex flex-wrap gap-1.5 text-[10px] font-light text-neutral-muted">
+              <div className="flex flex-wrap gap-1.5 text-[12px] font-light text-neutral-muted">
                 <span className="rounded-sm bg-bg-weak px-1.5 py-0.5">
                   External 추천{" "}
                   {systemQuery.data.account.externalRecommendationsEnabled

@@ -31,12 +31,24 @@ export function useHideOnScroll({
       scrollTarget === window
         ? window.scrollY
         : (scrollTarget as HTMLElement).scrollTop;
+    const getMaxScrollY = () => {
+      if (scrollTarget === window) {
+        const scrollingElement =
+          document.scrollingElement ?? document.documentElement;
+        return Math.max(scrollingElement.scrollHeight - window.innerHeight, 0);
+      }
+
+      const element = scrollTarget as HTMLElement;
+      return Math.max(element.scrollHeight - element.clientHeight, 0);
+    };
 
     lastScrollYRef.current = getScrollY();
 
     const handleScroll = () => {
       const currentY = getScrollY();
       const delta = currentY - lastScrollYRef.current;
+      const maxY = getMaxScrollY();
+      const isAtBottom = maxY > 0 && currentY >= maxY - threshold;
 
       if (currentY <= topRevealThreshold) {
         setVisible(true);
@@ -45,6 +57,12 @@ export function useHideOnScroll({
       }
 
       if (Math.abs(delta) < threshold) return;
+
+      if (isAtBottom && delta < 0) {
+        setVisible(false);
+        lastScrollYRef.current = currentY;
+        return;
+      }
 
       setVisible(delta <= 0);
       lastScrollYRef.current = currentY;

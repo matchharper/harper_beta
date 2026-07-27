@@ -18,10 +18,11 @@ import { lookupAnswerExamples } from "@/lib/serviceAnswerExamples";
 import { normalizeGeneratedTalentInsightEntry } from "./insights";
 import { openUrlWithDocumentsCache } from "./openUrlTool";
 import {
-  appendEducationMemo,
-  appendExperienceMemo,
-  appendExtraMemo,
   fetchTalentUserProfile,
+  mutateEducationMemo,
+  mutateExperienceMemo,
+  mutateExtraMemo,
+  type RowMemoOperation,
 } from "./profileStore";
 import {
   fetchTalentInsights,
@@ -185,6 +186,11 @@ const optionalToolString = (value: unknown) => {
   return text || null;
 };
 
+const normalizeRowMemoOperation = (value: unknown): RowMemoOperation | null => {
+  const operation = optionalToolString(value);
+  return operation === "append" || operation === "update" ? operation : null;
+};
+
 function buildCommonTalentToolAssistantInstruction(instruction: unknown) {
   return [
     TALENT_TOOL_COMMON_ASSISTANT_INSTRUCTION,
@@ -286,6 +292,7 @@ const TALENT_ACTIVITY_EVENT_TYPES = new Set([
   "profile_updated",
   "preferences_changed",
   "row_memo_added",
+  "row_memo_updated",
 ]);
 
 function normalizeActivityEventTypes(value: unknown) {
@@ -395,11 +402,16 @@ function formatRecommendedOpportunityProgress(
   if (!item.internalProgress) return null;
 
   return {
-    UserAcceptedAt:
+    acceptedAt:
       formatCompactToolDate(item.internalProgress.acceptedAt) ??
       item.internalProgress.acceptedAt,
     code: item.internalProgress.code,
     message: item.internalProgress.message,
+    stage: item.internalProgress.stage,
+    stageChangedAt:
+      formatCompactToolDate(item.internalProgress.stageChangedAt) ??
+      item.internalProgress.stageChangedAt,
+    stopReason: item.internalProgress.stopReason,
   };
 }
 
@@ -1296,7 +1308,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.READ_TALENT_ACTIVITY_EVENTS]: {
     name: TALENT_TOOL_NAMES.READ_TALENT_ACTIVITY_EVENTS,
     description:
-      "Read concise recent activity summaries for this talent user. Use when the answer depends on what the user recently changed or did in Career, such as profile preference changes, profile-row memo additions, onboarding completion, or Harper insight updates.",
+      "Read concise recent activity summaries for this talent user. Use when the answer depends on what the user recently changed or did in Career, such as profile preference changes, profile-row memo additions or updates, onboarding completion, or Harper insight updates.",
     parameters: {
       type: "object",
       properties: {
@@ -1329,6 +1341,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
               "company_unfollowed",
               "preferences_changed",
               "row_memo_added",
+              "row_memo_updated",
               "insight_updated",
               "onboarding_completed",
             ],
@@ -1378,7 +1391,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES]: {
     name: TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES,
     description:
-      "Read the user's existing recommended opportunities so the assistant can answer questions about previously recommended companies, roles, links, reasons, user feedback, and connection/review status.",
+      "Read the user's existing recommended opportunities so the assistant can answer questions about previously recommended companies, roles, links, reasons, user feedback, and connection/review status. For an internal stopped process, treat progress.stopReason as authoritative: say the candidate stopped it only when stopReason=candidate; company/internal means it was not a candidate-requested stop.",
     parameters: {
       type: "object",
       properties: {
@@ -1947,10 +1960,16 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         rowMemos: {
           type: "array",
           description:
-            "Memo additions for visible profile rows. Use only when the user's statement clearly maps to one specific row. rowId must be a verbatim RowID from the profile listing. Omit ambiguous or generic mentions.",
+            "Memo mutations for visible profile rows. Use append for genuinely new detail that should follow the current memo. Use update to replace the entire current memo with a complete final memo when the user corrects or asks to revise it. Never use update with only a partial delta. rowId must be a verbatim RowID from the profile listing. Omit ambiguous or generic mentions.",
           items: {
             type: "object",
             properties: {
+              operation: {
+                type: "string",
+                enum: ["append", "update"],
+                description:
+                  "append adds memo text after the existing memo. update replaces the entire existing memo, so memo must contain the complete final value.",
+              },
               type: {
                 type: "string",
                 enum: ["experience", "education", "extra"],
@@ -1966,11 +1985,12 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
               },
               memo: {
                 type: "string",
+                maxLength: 2000,
                 description:
-                  "Memo text to add to this row, based on the user's latest statement.",
+                  "For append, the new memo text to add. For update, the complete final memo that replaces the current memo.",
               },
             },
-            required: ["type", "rowId", "memo"],
+            required: ["operation", "type", "rowId", "memo"],
             additionalProperties: false,
           },
         },
@@ -2228,7 +2248,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         }
       }
 
-      // talent_experiences/educations/extras row memos — silent per-row append.
+      // talent_experiences/educations/extras row memos — silent per-row append/update.
       // Helpers enforce talent_id ownership and cap memo at 2000 chars.
       const groupedRowMemosInput = Array.isArray(rowMemosInput)
         ? {
@@ -2267,14 +2287,16 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         for (const rawEntry of experiencesEntries) {
           if (!rawEntry || typeof rawEntry !== "object") continue;
           const entry = rawEntry as Record<string, unknown>;
+          const operation = normalizeRowMemoOperation(entry.operation);
           const rowId = optionalToolString(entry.rowId);
           const memo = optionalToolString(entry.memo);
-          if (!rowId || !memo) continue;
-          const outcome = await appendExperienceMemo({
+          if (!operation || !rowId || !memo) continue;
+          const outcome = await mutateExperienceMemo({
             admin,
             userId,
             rowId,
             memo,
+            operation,
           });
           if (outcome.ok) {
             if (outcome.updated) {
@@ -2285,6 +2307,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
                   entityLabel: outcome.target.entityLabel,
                   entityType: outcome.target.entityType,
                   memo,
+                  operation,
                 });
               }
             }
@@ -2303,14 +2326,16 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         for (const rawEntry of educationsEntries) {
           if (!rawEntry || typeof rawEntry !== "object") continue;
           const entry = rawEntry as Record<string, unknown>;
+          const operation = normalizeRowMemoOperation(entry.operation);
           const rowId = optionalToolString(entry.rowId);
           const memo = optionalToolString(entry.memo);
-          if (!rowId || !memo) continue;
-          const outcome = await appendEducationMemo({
+          if (!operation || !rowId || !memo) continue;
+          const outcome = await mutateEducationMemo({
             admin,
             userId,
             rowId,
             memo,
+            operation,
           });
           if (outcome.ok) {
             if (outcome.updated) {
@@ -2321,6 +2346,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
                   entityLabel: outcome.target.entityLabel,
                   entityType: outcome.target.entityType,
                   memo,
+                  operation,
                 });
               }
             }
@@ -2339,14 +2365,16 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         for (const rawEntry of extrasEntries) {
           if (!rawEntry || typeof rawEntry !== "object") continue;
           const entry = rawEntry as Record<string, unknown>;
+          const operation = normalizeRowMemoOperation(entry.operation);
           const rowId = optionalToolString(entry.rowId);
           const memo = optionalToolString(entry.memo);
-          if (!rowId || !memo) continue;
-          const outcome = await appendExtraMemo({
+          if (!operation || !rowId || !memo) continue;
+          const outcome = await mutateExtraMemo({
             admin,
             userId,
             rowId,
             memo,
+            operation,
           });
           if (outcome.ok) {
             if (outcome.updated) {
@@ -2357,6 +2385,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
                   entityLabel: outcome.target.entityLabel,
                   entityType: outcome.target.entityType,
                   memo,
+                  operation,
                 });
               }
             }
@@ -2432,6 +2461,11 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
 
       const rowMemoSummary = buildRowMemoActivitySummary(rowMemoActivityItems);
       if (rowMemoSummary) {
+        const rowMemoEventType = rowMemoActivityItems.some(
+          (item) => item.operation === "update"
+        )
+          ? "row_memo_updated"
+          : "row_memo_added";
         await insertTalentActivityEvent({
           admin,
           changedDomains: [
@@ -2443,7 +2477,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             ),
           ],
           conversationId: context?.conversationId ?? null,
-          eventType: "row_memo_added",
+          eventType: rowMemoEventType,
           impactLevel: "medium",
           messageId: context?.userMessageId ?? null,
           source: "chat",

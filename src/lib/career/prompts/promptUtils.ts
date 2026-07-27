@@ -113,7 +113,10 @@ export function formatCareerPromptCompactDateTime(value: unknown) {
       ? value.toISOString()
       : typeof value === "string"
         ? value.replace(/\s+/g, " ").trim().slice(0, 160)
-        : String(value ?? "").replace(/\s+/g, " ").trim().slice(0, 160);
+        : String(value ?? "")
+            .replace(/\s+/g, " ")
+            .trim()
+            .slice(0, 160);
   if (!text) return "";
   if (/^\d{4}-\d{2}-\d{2} \d{1,2}시(?:\s*KST)?$/.test(text)) {
     return text.replace(/\s*KST$/, "");
@@ -188,5 +191,7 @@ export function formatCareerPromptKoreanDateTime(
     return careerPromptKstDateTimeFormatter.format(date);
   }
 
-  return `${year}년 ${month}월 ${day}일 ${hour}시 ${minute}분`;
+  const hourLabel = String(hour).padStart(2, "0");
+  const minuteLabel = String(minute).padStart(2, "0");
+  return `${year}년 ${month}월 ${day}일 ${hourLabel}:${minuteLabel} KST`;
 }

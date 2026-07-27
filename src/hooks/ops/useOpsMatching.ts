@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-query";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import type { OpsQueueManualInternalRecommendationResponse } from "@/lib/ops/careerServer";
+import type { OpsMatchingConnectionConfirmationEmailActionResponse } from "@/lib/ops/connectionConfirmationEmail";
 import { queryKeys } from "@/lib/queryKeys";
 import type {
   OpsMatchingCompanyOption,
@@ -94,7 +95,8 @@ export function useOpsMatchingCompanies(args: {
       );
     },
     enabled: args.enabled ?? true,
-    staleTime: 60_000,
+    gcTime: Infinity,
+    staleTime: Infinity,
   });
 }
 
@@ -112,7 +114,8 @@ export function useOpsMatchingRoles(args: {
       );
     },
     enabled: (args.enabled ?? true) && Boolean(companyWorkspaceId),
-    staleTime: 60_000,
+    gcTime: Infinity,
+    staleTime: Infinity,
   });
 }
 
@@ -683,6 +686,41 @@ export function useCreateOpsMatchingProgress() {
         queryKey: queryKeys.opsMatching.progress(
           variables.talentId,
           variables.roleId
+        ),
+      });
+    },
+  });
+}
+
+export function useUpdateOpsMatchingConnectionConfirmationEmail() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: {
+      action: "cancel" | "send_now";
+      queueId: string;
+      roleId?: string | null;
+      talentId: string;
+    }) =>
+      fetchWithInternalAuth<OpsMatchingConnectionConfirmationEmailActionResponse>(
+        "/api/internal/matching/connection-confirmation-email",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: args.action,
+            queueId: args.queueId,
+            talentId: args.talentId,
+          }),
+        }
+      ),
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.opsMatching.progress(variables.talentId, null),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.opsMatching.progress(
+          variables.talentId,
+          variables.roleId ?? null
         ),
       });
     },

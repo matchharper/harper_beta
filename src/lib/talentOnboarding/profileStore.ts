@@ -13,6 +13,8 @@ import {
   normalizeTalentBlockedCompanies,
 } from "@/lib/talentOnboarding/stateStore";
 
+export const MEMO_MAX_CHARS = 2000;
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
@@ -21,6 +23,13 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 function asText(value: unknown, maxLength = 4000): string | null {
   if (typeof value !== "string") return null;
   const normalized = value.replace(/\s+/g, " ").trim();
+  if (!normalized) return null;
+  return normalized.slice(0, maxLength);
+}
+
+function asMultilineText(value: unknown, maxLength = 4000): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.replace(/\r/g, "").trim();
   if (!normalized) return null;
   return normalized.slice(0, maxLength);
 }
@@ -98,15 +107,15 @@ function toTalentExtraItem(value: unknown): TalentExtraItem | null {
     asText(record.name, 300) ??
     asText(record.role, 300);
   const description =
-    asText(record.description, 8000) ??
-    asText(record.content, 8000) ??
-    asText(record.summary, 8000);
+    asMultilineText(record.description, 8000) ??
+    asMultilineText(record.content, 8000) ??
+    asMultilineText(record.summary, 8000);
   const date =
     asDateText(record.date) ??
     asDateText(record.issued_at) ??
     asDateText(record.published_at) ??
     asDateText(record.start_date);
-  const memo = asText(record.memo, 2000);
+  const memo = asMultilineText(record.memo, MEMO_MAX_CHARS);
 
   if (!title && !description && !date && !memo) return null;
   return { id, title, description, date, memo };
@@ -203,7 +212,7 @@ export async function fetchTalentUserProfile(args: {
   const { data, error } = await admin
     .from("talent_users")
     .select(
-      "user_id, email, name, profile_picture, headline, bio, current_location, location, last_logined_at, resume_file_name, resume_storage_path, resume_text, resume_links, created_at, updated_at"
+      "user_id, email, phone_number, name, profile_picture, headline, bio, current_location, location, last_logined_at, resume_file_name, resume_storage_path, resume_text, resume_links, created_at, updated_at"
     )
     .eq("user_id", userId)
     .maybeSingle();
@@ -268,7 +277,7 @@ export async function fetchTalentStructuredProfile(args: {
         : admin
             .from("talent_users")
             .select(
-              "user_id, email, name, profile_picture, headline, bio, current_location, location"
+              "user_id, email, phone_number, name, profile_picture, headline, bio, current_location, location"
             )
             .eq("user_id", userId)
             .maybeSingle(),
@@ -297,6 +306,7 @@ export async function fetchTalentStructuredProfile(args: {
     TalentUserProfileRow,
     | "user_id"
     | "email"
+    | "phone_number"
     | "name"
     | "profile_picture"
     | "headline"
@@ -414,7 +424,7 @@ export function buildTalentProfileContext(args: {
       }
       const description = clampPromptText(experience.description, 700);
       if (description) itemText += `\n   Description: ${description}`;
-      const memo = clampPromptText(experience.memo, 600);
+      const memo = clampPromptText(experience.memo, MEMO_MAX_CHARS);
       if (memo) itemText += `\n   Memo: ${memo}`;
       lines.push(itemText);
     });
@@ -438,7 +448,7 @@ export function buildTalentProfileContext(args: {
       if (includeRowIds && education.id) {
         itemText += `\n   RowID: ${education.id}`;
       }
-      const memo = clampPromptText(education.memo, 600);
+      const memo = clampPromptText(education.memo, MEMO_MAX_CHARS);
       if (memo) itemText += `\n   Memo: ${memo}`;
       lines.push(itemText);
     });
@@ -456,7 +466,7 @@ export function buildTalentProfileContext(args: {
       }
       const description = clampPromptText(extra.description, 500);
       if (description) itemText += `\n   Description: ${description}`;
-      const memo = clampPromptText(extra.memo, 600);
+      const memo = clampPromptText(extra.memo, MEMO_MAX_CHARS);
       if (memo) itemText += `\n   Memo: ${memo}`;
       lines.push(itemText);
     });
@@ -473,7 +483,7 @@ export function buildTalentProfileContext(args: {
   return lines.join("\n");
 }
 
-const MEMO_MAX_CHARS = 2000;
+export type RowMemoOperation = "append" | "update";
 
 export type RowMemoOutcome =
   | {
@@ -490,14 +500,22 @@ export type RowMemoOutcome =
       reason: "row_not_found" | "empty_input";
     };
 
-function joinMemoWithDelta(existing: string | null | undefined, memo: string) {
+export function applyRowMemoOperation(args: {
+  existing: string | null | undefined;
+  memo: string;
+  operation: RowMemoOperation;
+}) {
+  const { existing, memo, operation } = args;
   const trimmedExisting = (existing ?? "").replace(/\r/g, "").trim();
   const trimmedNew = memo.replace(/\r/g, "").trim();
   if (!trimmedNew) return null;
-  const joined = trimmedExisting
+  if (operation === "update") {
+    return trimmedNew.slice(0, MEMO_MAX_CHARS);
+  }
+  const appended = trimmedExisting
     ? `${trimmedExisting}\n${trimmedNew}`
     : trimmedNew;
-  return joined.slice(0, MEMO_MAX_CHARS);
+  return appended.slice(0, MEMO_MAX_CHARS);
 }
 
 function parseRowIdToNumber(rowId: string | number | null | undefined) {
@@ -591,18 +609,23 @@ export async function fetchEducationForMemo(args: {
   return data ?? null;
 }
 
-export async function appendExperienceMemo(args: {
+export async function mutateExperienceMemo(args: {
   admin: TalentAdminClient;
   userId: string;
   rowId: string | number;
   memo: string;
+  operation: RowMemoOperation;
 }): Promise<RowMemoOutcome> {
-  const { admin, userId, rowId, memo } = args;
+  const { admin, userId, rowId, memo, operation } = args;
   const parsedId = parseRowIdToNumber(rowId);
   if (parsedId === null) return { ok: false, reason: "row_not_found" };
   const row = await fetchExperienceForMemo({ admin, userId, rowId: parsedId });
   if (!row) return { ok: false, reason: "row_not_found" };
-  const next = joinMemoWithDelta(row.memo, memo);
+  const next = applyRowMemoOperation({
+    existing: row.memo,
+    memo,
+    operation,
+  });
   if (next === null) return { ok: false, reason: "empty_input" };
   if (next === (row.memo ?? "")) {
     return {
@@ -636,18 +659,23 @@ export async function appendExperienceMemo(args: {
   };
 }
 
-export async function appendEducationMemo(args: {
+export async function mutateEducationMemo(args: {
   admin: TalentAdminClient;
   userId: string;
   rowId: string | number;
   memo: string;
+  operation: RowMemoOperation;
 }): Promise<RowMemoOutcome> {
-  const { admin, userId, rowId, memo } = args;
+  const { admin, userId, rowId, memo, operation } = args;
   const parsedId = parseRowIdToNumber(rowId);
   if (parsedId === null) return { ok: false, reason: "row_not_found" };
   const row = await fetchEducationForMemo({ admin, userId, rowId: parsedId });
   if (!row) return { ok: false, reason: "row_not_found" };
-  const next = joinMemoWithDelta(row.memo, memo);
+  const next = applyRowMemoOperation({
+    existing: row.memo,
+    memo,
+    operation,
+  });
   if (next === null) return { ok: false, reason: "empty_input" };
   if (next === (row.memo ?? "")) {
     return {
@@ -679,13 +707,14 @@ export async function appendEducationMemo(args: {
   };
 }
 
-export async function appendExtraMemo(args: {
+export async function mutateExtraMemo(args: {
   admin: TalentAdminClient;
   userId: string;
   rowId: string;
   memo: string;
+  operation: RowMemoOperation;
 }): Promise<RowMemoOutcome> {
-  const { admin, userId, rowId, memo } = args;
+  const { admin, userId, rowId, memo, operation } = args;
   const queryRowId = rowId.trim();
   if (!queryRowId) {
     return { ok: false, reason: "empty_input" };
@@ -708,7 +737,11 @@ export async function appendExtraMemo(args: {
   }
 
   const target = items[matchIndex];
-  const next = joinMemoWithDelta(target.memo, memo);
+  const next = applyRowMemoOperation({
+    existing: target.memo,
+    memo,
+    operation,
+  });
   if (next === null) return { ok: false, reason: "empty_input" };
   if (next === (target.memo ?? "")) {
     return {

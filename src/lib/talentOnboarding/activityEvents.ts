@@ -37,6 +37,7 @@ export type TalentRowMemoActivityItem = {
   entityLabel: string;
   entityType: "education" | "experience" | "extra";
   memo: string;
+  operation: "append" | "update";
 };
 
 export type TalentProfileMaterialSnapshot = {
@@ -284,7 +285,8 @@ export function buildRowMemoActivitySummary(
 
   if (normalizedItems.length === 1) {
     const item = normalizedItems[0];
-    return `User added a memo to ${item.entityType} "${clampText(
+    const action = item.operation === "update" ? "updated" : "added";
+    return `User ${action} a memo on ${item.entityType} "${clampText(
       item.entityLabel,
       120
     )}": ${formatQuotedValue(item.memo)}.`;
@@ -294,15 +296,16 @@ export function buildRowMemoActivitySummary(
     .slice(0, 4)
     .map(
       (item) =>
-        `${item.entityType} "${clampText(item.entityLabel, 80)}": ${formatQuotedValue(
-          item.memo
-        )}`
+        `${item.operation} ${item.entityType} "${clampText(
+          item.entityLabel,
+          80
+        )}": ${formatQuotedValue(item.memo)}`
     );
   const suffix =
     normalizedItems.length > details.length
       ? `; plus ${normalizedItems.length - details.length} more`
       : "";
-  return `User added memos to profile rows: ${details.join("; ")}${suffix}.`;
+  return `User changed memos on profile rows: ${details.join("; ")}${suffix}.`;
 }
 
 function normalizeActivityString(value: string | null | undefined) {

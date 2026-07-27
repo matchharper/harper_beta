@@ -3,7 +3,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   BookOpenText,
   ChevronDown,
-  Copy,
   FileText,
   LoaderCircle,
   LogOut,
@@ -12,13 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { useRouter } from "next/router";
-import {
-  type ClipboardEvent,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { type ClipboardEvent, useEffect, useRef, useState } from "react";
 import { OrgSlackPanel } from "@/components/org/OrgSlackPanel";
 import { OrgDocsModal } from "@/components/org/OrgDocsModal";
 import { BareButton, Button } from "@/components/ui/button";
@@ -38,7 +31,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
 import {
   useLeaveOrgWorkspace,
   useSendOrgInvitations,
@@ -171,7 +163,6 @@ export function OrgAppBar({
   const [docsOpen, setDocsOpen] = useState(false);
   const [slackOpen, setSlackOpen] = useState(false);
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [inviteEmails, setInviteEmails] = useState<string[]>([]);
   const [inviteInput, setInviteInput] = useState("");
   const [inviteInputError, setInviteInputError] = useState("");
@@ -199,25 +190,6 @@ export function OrgAppBar({
       : slackStatusQuery.data?.connected
         ? "연결됨"
         : "미연결";
-  const inviteUrl = useMemo(() => {
-    if (typeof window === "undefined")
-      return `/org?orgId=${workspace.workspaceId}`;
-    return `${window.location.origin}/org?orgId=${workspace.workspaceId}`;
-  }, [workspace.workspaceId]);
-
-  const copyInvite = async () => {
-    try {
-      await navigator.clipboard.writeText(inviteUrl);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1200);
-    } catch {
-      addToast({
-        message: "초대 링크를 복사하지 못했습니다.",
-        variant: "error",
-      });
-    }
-  };
-
   const addInviteEmails = (values: string[]) => {
     const normalized = values.map(normalizeInviteEmail).filter(Boolean);
     if (normalized.length === 0) return false;
@@ -792,29 +764,6 @@ export function OrgAppBar({
                 </p>
               ) : null}
             </form>
-
-            <div className="">
-              <div className="mb-2 text-[13px] font-medium text-neutral-primary">
-                또는 초대 링크 공유
-              </div>
-              <div className="flex items-center gap-2">
-                <Input
-                  readOnly
-                  value={inviteUrl}
-                  className="h-9 min-w-0 bg-black/3 border-none text-[13px]"
-                />
-                <Button
-                  type="button"
-                  variant="default"
-                  size="md"
-                  onClick={() => void copyInvite()}
-                  className="shrink-0 h-9 text-[13px] font-normal"
-                >
-                  <Copy className="h-3 w-3" />
-                  {copied ? "복사됨" : "링크 복사"}
-                </Button>
-              </div>
-            </div>
 
             <div className="pt-6">
               <div className="mb-2 flex items-center justify-between gap-3">

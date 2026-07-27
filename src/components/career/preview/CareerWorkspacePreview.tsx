@@ -55,6 +55,7 @@ const previewMinutesAfter = (minutes: number) =>
 
 type CareerWorkspaceHistoryTarget = {
   historyTab: "new" | "saved" | "archived";
+  roleId?: string;
   savedStage?: "all" | "saved" | "applied" | "connected" | "closed" | "hidden";
 };
 
@@ -93,6 +94,8 @@ const getInitialTalentInsights = (t: CareerT): CareerTalentInsights => ({
 const getInitialTalentProfile = (t: CareerT): CareerTalentProfile => ({
   talentUser: {
     user_id: "career-preview-user",
+    email: "preview@harper.ai",
+    phone_number: "+82 10-1234-5678",
     name: "Preview Candidate",
     profile_picture: null,
     headline: "Applied AI Engineer focused on shipping agent products",
@@ -737,6 +740,12 @@ const CareerWorkspacePreview = ({
         delete query.savedStage;
       }
 
+      if (historyTarget.roleId) {
+        query.id = historyTarget.roleId;
+      } else {
+        delete query.id;
+      }
+
       void router.push(
         {
           pathname: "/career/preview",
@@ -786,10 +795,7 @@ const CareerWorkspacePreview = ({
       onLoadSavedStageHistoryOpportunityPages: () => undefined,
       onLoadHistoryOpportunityByRoleId: (roleId) =>
         historyOpportunities.find((item) => item.roleId === roleId) ?? null,
-      onChangeInternalHistoryOpportunityDecision: (
-        opportunityId,
-        action
-      ) => {
+      onChangeInternalHistoryOpportunityDecision: (opportunityId, action) => {
         setHistoryOpportunities((current) =>
           current.map((item) =>
             item.id !== opportunityId

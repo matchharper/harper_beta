@@ -4,6 +4,10 @@ import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import { careerT } from "@/lib/career/translatedCareerMessage";
 import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
 import {
+  type RoleSummaryLanguageKey,
+  validateRoleSummaryLanguage,
+} from "@/lib/talentOnboarding/roleSummaryLanguage";
+import {
   fetchTalentInsights,
   fetchTalentStructuredProfile,
   getTalentSupabaseAdmin,
@@ -281,7 +285,17 @@ Output schema:
 // - 현재 요청과 명확히 어긋나는 후보는 company_score 혹은 retrievalFtsScore가 높아도 제외한다.
 // - 이미 한번이라도 추천된 회사는 정말 좋은 role이 아니면 안고르는게 좋아.
 
-const FINAL_SELECTION_SYSTEM_PROMPT = `너는 Harper의 external job-posting selector다.
+function finalSelectionSystemPrompt(outputLanguage: string) {
+  const fitSummarySchemaInstruction =
+    outputLanguage === "English"
+      ? "A neutral overview of the company and the role. Write in English"
+      : "회사와 역할에 대한 중립 요약. 한글로 작성";
+  const fitSummaryExample =
+    outputLanguage === "English"
+      ? '- Example: "ElevenLabs develops AI for speech synthesis, voice cloning, and audio generation. Its substantial funding and strong adoption make it a technically compelling company for a Voice AI career. This Research Engineer role owns datasets, model training, and quality improvements for TTS models. The scope spans core voice-model development rather than a single product feature."'
+      : '- 예: "ElevenLabs는 음성 합성·음성 복제·오디오 생성 AI를 개발하는 글로벌 연구 중심 회사입니다. 대규모 투자와 높은 사용량이 확인되는 회사라 Voice AI 커리어에서 브랜드와 기술 밀도가 모두 강한 편입니다. 이 역할은 Research Engineer로 TTS 모델의 데이터셋, 모델 학습, 품질 개선을 담당합니다. 특정 기능 하나에만 묶이기보다 음성 AI 모델 개발 전반에 깊게 관여하는 포지션입니다."';
+
+  return `너는 Harper의 external job-posting selector다.
 반드시 JSON만 반환한다.
 
 유저에게 external public job posting을 추천한다. Harper가 소개/연결할 수 있는 internal opportunity처럼 쓰지 않는다.
@@ -293,7 +307,7 @@ Output schema:
     {
       "roleId": "...",
       "score": 87,
-      "fitSummary": "회사와 역할에 대한 중립 요약"
+      "fitSummary": "${fitSummarySchemaInstruction}"
     },
     {
       "roleId": "...",
@@ -308,13 +322,13 @@ Output schema:
 - roleId: 반드시 detailedExternalCandidates 안에 있는 roleId만 사용한다.
 - score: 정수 0~100. 이 유저에게 지금 추천하기 얼마나 방어 가능한지 나타낸다. retrieval 점수나 회사 점수를 복사하지 않는다.
 - fitSummary is a neutral card summary. It should cover company context in 2-4
-  concise lines/sentences and role context in 2-4 concise lines/sentences.
+  concise lines/sentences and role context in 2-4 concise lines/sentences in ${outputLanguage}.
   Use provided investment, funding amount, investor, stage, when it would make the company more compelling
   to this user. Never put personal fit reasoning in fitSummary.
   Use founder background information only when it is given, the company is small and the founders have good experience.
   - fitSummary에는 개인화된 추천 이유를 쓰지 않는다. 주어진 정보에 없는 내용은 만들지 않는다.
   - detailedExternalCandidates item에 role_summary가 있으면 fitSummary를 반드시 생략하고 score만 출력한다. 코드가 role_summary를 최종 fitSummary로 우선 사용한다.
-  - 예: "ElevenLabs는 음성 합성·음성 복제·오디오 생성 AI를 개발하는 글로벌 연구 중심 회사입니다. 대규모 투자와 높은 사용량이 확인되는 회사라 Voice AI 커리어에서 브랜드와 기술 밀도가 모두 강한 편입니다. 이 역할은 Research Engineer로 TTS 모델의 데이터셋, 모델 학습, 품질 개선을 담당합니다. 특정 기능 하나에만 묶이기보다 음성 AI 모델 개발 전반에 깊게 관여하는 포지션입니다."
+  ${fitSummaryExample}
 
 규칙:
 - roleId는 detailedExternalCandidates 안에 있는 roleId만 사용한다.
@@ -339,6 +353,7 @@ Hard Evaluation Rules:
 - A role with a core mismatch can still be evaluated, but it should receive a clearly lower score.
 - Treat explicit preferences and deal breakers as selection constraints, not as small caveats.
 `;
+}
 
 function cleanText(value: unknown, maxLength = 4000) {
   const text =
@@ -2617,7 +2632,9 @@ function normalizeExternalFitCache(
   };
 }
 
-function roleSummaryLanguageKey(outputLanguage: string) {
+function roleSummaryLanguageKey(
+  outputLanguage: string
+): RoleSummaryLanguageKey {
   return cleanText(outputLanguage, 40).toLowerCase() === "english"
     ? "en"
     : "ko";
@@ -2999,15 +3016,9 @@ async function shortlistRoles(args: {
 }
 
 function fallbackFitSummary(card: RoleCard) {
-  const company = cleanText(card.companyName, 160) || "해당 회사";
-  const title = cleanText(card.roleName, 180) || "해당 포지션";
-  const companyDescription =
-    normalizeMultiline(card.company.description, 260) ||
-    normalizeMultiline(card.company.shortDescription, 260);
-  if (companyDescription) {
-    return `${company}는 ${companyDescription.replace(/[.。]$/, "")}. 이 역할은 ${title} 포지션입니다.`;
-  }
-  return `${company}의 ${title} 포지션입니다.`;
+  const company = cleanText(card.companyName, 160) || "Company";
+  const title = cleanText(card.roleName, 180) || "Role";
+  return `${title} at ${company}`;
 }
 
 function selectedRecommendationFromExternalFitCache(
@@ -3154,7 +3165,10 @@ async function selectFinalRecommendations(args: {
       fallbackModel: RECOMMEND_JOB_POSTINGS_FALLBACK_MODEL,
       jsonMode: true,
       messages: [
-        { role: "system", content: FINAL_SELECTION_SYSTEM_PROMPT },
+        {
+          role: "system",
+          content: finalSelectionSystemPrompt(args.outputLanguage),
+        },
         {
           role: "system",
           content: `User-facing output language: ${args.outputLanguage}. Write fitSummary only when required, in ${args.outputLanguage}. Only output fields shown in the schema.`,
@@ -3298,12 +3312,13 @@ function buildRecommendationEvidence(item: EnrichedRankedRole) {
   ].filter((entry) => entry.text);
 }
 
-async function saveRoleFitSummaries(args: {
+async function saveValidatedRoleFitSummaries(args: {
   admin: AdminClient;
   outputLanguage: string;
   recommendations: EnrichedRankedRole[];
 }) {
   const languageKey = roleSummaryLanguageKey(args.outputLanguage);
+  let skippedLanguageValidation = 0;
   let stored = 0;
   for (const item of args.recommendations) {
     const roleId = cleanText(item.roleId || item.role.role_id, 120);
@@ -3321,6 +3336,20 @@ async function saveRoleFitSummaries(args: {
       ROLE_FIT_SUMMARY_MAX_LENGTH
     );
     if (!content) continue;
+    const validation = validateRoleSummaryLanguage(content, languageKey);
+    if (!validation.confidentMatch) {
+      skippedLanguageValidation += 1;
+      debugLog("role summary language validation skipped", {
+        englishSignalCount: validation.englishSignalCount,
+        englishWordCount: validation.englishWordCount,
+        hangulCharCount: validation.hangulCharCount,
+        languageKey,
+        latinCharCount: validation.latinCharCount,
+        reason: validation.reason,
+        roleId,
+      });
+      continue;
+    }
     const payload = JSON.stringify({
       content,
       generatedAt: new Date().toISOString(),
@@ -3357,7 +3386,7 @@ WHERE role_id = ${sqlLiteral(roleId)}::uuid
     if (error) throw new Error(error.message ?? "Failed to save role summary");
     stored += 1;
   }
-  return stored;
+  return { skippedLanguageValidation, stored };
 }
 
 async function persistRecommendations(args: {
@@ -3367,14 +3396,14 @@ async function persistRecommendations(args: {
   userId: string;
 }) {
   try {
-    const stored = await saveRoleFitSummaries({
+    const result = await saveValidatedRoleFitSummaries({
       admin: args.admin,
       outputLanguage: args.outputLanguage,
       recommendations: args.recommendations,
     });
-    if (stored > 0) debugLog("saved role fit summaries", { stored });
+    debugLog("validated role fit summary save completed", result);
   } catch (error) {
-    debugLog("role fit summary save skipped", {
+    debugLog("validated role fit summary save skipped", {
       message: error instanceof Error ? error.message : String(error),
     });
   }

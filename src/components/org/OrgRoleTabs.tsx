@@ -1,30 +1,24 @@
-import { cx } from "@/components/ops/theme";
-import type { OrgRole } from "@/lib/org/server";
 import { OrgRoleActionsMenu } from "@/components/org/OrgRoleActionsMenu";
+import {
+  useOrgJobsNavigation,
+  useOrgJobsRoleActions,
+} from "@/hooks/org/useOrgJobs";
+import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
+import { cn } from "@/lib/utils";
 
-export function OrgRoleTabs({
-  activeRoleId,
-  onChange,
-  onDeleteRole,
-  onEditRole,
-  onPauseRole,
-  onResumeRole,
-  roleActionPending,
-  roles,
-  showActions = true,
-}: {
-  activeRoleId: string;
-  onChange: (roleId: string) => void;
-  onDeleteRole: (role: OrgRole) => void;
-  onEditRole: (roleId: string) => void;
-  onPauseRole: (role: OrgRole) => void;
-  onResumeRole: (role: OrgRole) => void;
-  roleActionPending?: boolean;
-  roles: OrgRole[];
-  showActions?: boolean;
-}) {
+export function OrgRoleTabs() {
+  const { activeRoleId, changeRole } = useOrgJobsNavigation();
+  const {
+    deleteRole,
+    openRoleEditor,
+    pauseRole,
+    resumeRole,
+    roleActionPending,
+  } = useOrgJobsRoleActions();
+  const { permissions, roles } = useOrgWorkspace();
+  const showActions = permissions.canManageCandidates;
   const getTabClassName = (selected: boolean, variant: "all" | "role") =>
-    cx(
+    cn(
       "flex min-h-11 shrink-0 items-stretch justify-between rounded-md border-2 bg-bg-floating text-left outline-none transition-colors",
       variant === "all"
         ? "w-[96px] min-w-[96px] max-w-[96px]"
@@ -35,7 +29,7 @@ export function OrgRoleTabs({
     );
 
   const getTabButtonClassName = (hasMenu: boolean) =>
-    cx(
+    cn(
       "min-w-0 flex-1 px-3 py-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
       hasMenu ? "pr-1" : ""
     );
@@ -54,7 +48,7 @@ export function OrgRoleTabs({
               type="button"
               role="tab"
               aria-selected={activeRoleId === "all"}
-              onClick={() => onChange("all")}
+              onClick={() => changeRole("all")}
               className={getTabButtonClassName(false)}
             >
               <span className="block min-w-0 truncate text-[14px] font-medium leading-5">
@@ -73,7 +67,7 @@ export function OrgRoleTabs({
                   type="button"
                   role="tab"
                   aria-selected={selected}
-                  onClick={() => onChange(role.roleId)}
+                  onClick={() => changeRole(role.roleId)}
                   className={getTabButtonClassName(showActions)}
                 >
                   <span className="block min-w-0 truncate text-[14px] font-medium leading-5">
@@ -85,10 +79,12 @@ export function OrgRoleTabs({
                     <OrgRoleActionsMenu
                       role={role}
                       pending={roleActionPending}
-                      onEdit={(selectedRole) => onEditRole(selectedRole.roleId)}
-                      onPause={onPauseRole}
-                      onResume={onResumeRole}
-                      onDelete={onDeleteRole}
+                      onEdit={(selectedRole) =>
+                        openRoleEditor(selectedRole.roleId)
+                      }
+                      onPause={pauseRole}
+                      onResume={resumeRole}
+                      onDelete={deleteRole}
                     />
                   </div>
                 ) : null}

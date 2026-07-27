@@ -1,6 +1,6 @@
 import { Ellipsis, LoaderCircle } from "lucide-react";
 import Image from "next/image";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useState } from "react";
 import { OrgPageHeader } from "@/components/org/workspace/OrgPageHeader";
 import {
   OrgSection,
@@ -22,7 +22,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input, TextField } from "@/components/ui/input";
+import { TextField } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -38,11 +38,11 @@ import {
   useUpdateOrgMembershipRole,
   useUpdateOrgWorkspace,
 } from "@/hooks/org/useOrg";
+import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import {
   getOrgRoleLabel,
   ORG_MEMBERSHIP_ROLE_OPTIONS,
   type OrgMembershipRole,
-  type OrgPermissions,
 } from "@/lib/org/permissions";
 import type {
   OrgMember,
@@ -246,19 +246,13 @@ function InviteMemberDialog({
   );
 }
 
-export function OrgTeamPage({
-  currentUser,
-  invitations,
-  members,
-  permissions,
-  workspace,
-}: {
-  currentUser: OrgMember | null;
-  invitations: OrgWorkspaceInvitation[];
-  members: OrgMember[];
-  permissions: OrgPermissions;
-  workspace: OrgWorkspace;
-}) {
+export function OrgTeamPage() {
+  const {
+    bootstrap: { invitations, members },
+    currentUser,
+    permissions,
+    workspace,
+  } = useOrgWorkspace();
   const addToast = useToastStore((state) => state.add);
   const updateWorkspace = useUpdateOrgWorkspace();
   const sendInvitations = useSendOrgInvitations();
@@ -267,34 +261,14 @@ export function OrgTeamPage({
   const [inviteOpen, setInviteOpen] = useState(false);
   const [invitationToCancel, setInvitationToCancel] =
     useState<OrgWorkspaceInvitation | null>(null);
-  const [copied, setCopied] = useState(false);
   const [companyDescription, setCompanyDescription] = useState(
     workspace.companyDescription ?? ""
   );
   const [pitch, setPitch] = useState(workspace.pitch ?? "");
   const [companyError, setCompanyError] = useState("");
-  const inviteUrl = useMemo(() => {
-    if (typeof window === "undefined") {
-      return `/org?orgId=${workspace.workspaceId}`;
-    }
-    return `${window.location.origin}/org?orgId=${workspace.workspaceId}`;
-  }, [workspace.workspaceId]);
   const hasCompanyChanges =
     companyDescription !== (workspace.companyDescription ?? "") ||
     pitch !== (workspace.pitch ?? "");
-
-  const copyInvite = async () => {
-    try {
-      await navigator.clipboard.writeText(inviteUrl);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1200);
-    } catch {
-      addToast({
-        message: "초대 링크를 복사하지 못했습니다.",
-        variant: "error",
-      });
-    }
-  };
 
   const saveCompany = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -471,29 +445,6 @@ export function OrgTeamPage({
         />
 
         <div className="space-y-6">
-          <div className="max-w-3xl">
-            <label className="text-[14px] font-medium text-neutral-primary">
-              초대 링크
-            </label>
-            <p className="mt-1 text-[12px] font-light text-neutral-muted">
-              링크로 가입한 멤버는 Viewer 권한으로 시작합니다.
-            </p>
-            <div className="mt-2 flex items-center gap-2">
-              <Input
-                className="h-10 min-w-0 bg-bg-default px-3 py-2 text-[13px]"
-                readOnly
-                value={inviteUrl}
-              />
-              <MuteButton
-                className="shrink-0"
-                onClick={() => void copyInvite()}
-                size="md"
-              >
-                {copied ? "복사됨" : "링크 복사"}
-              </MuteButton>
-            </div>
-          </div>
-
           <div>
             <div className="mb-3 flex items-center justify-between gap-3">
               <h3 className="text-[14px] font-medium text-neutral-primary">
@@ -636,8 +587,8 @@ export function OrgTeamPage({
           <DialogHeader>
             <DialogTitle className="text-[17px]">초대 취소</DialogTitle>
             <DialogDescription className="text-[13px] leading-5">
-              {invitationToCancel?.email}의 초대 링크를 더 이상 사용할 수 없게
-              합니다.
+              {invitationToCancel?.email}에 부여한 Organization 초대 권한을
+              취소합니다.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

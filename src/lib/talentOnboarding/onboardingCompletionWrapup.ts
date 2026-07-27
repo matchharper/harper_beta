@@ -217,6 +217,7 @@ function buildWrapupInstruction(preferredLocale?: string | null) {
     "- If the user disclosed clear durable facts, preferences, constraints, or role-specific details that are missing from current state, you may call `update_talent_profile` before writing the wrap-up.",
     "- Tool calls are optional. Skip them when there is no clear new writable information or when the information is already saved.",
     "- For rowMemos, use only exact RowID values visible in the Structured Talent Profile. Do not guess row IDs or attach generic facts to a row.",
+    "- For rowMemos, use operation=append for genuinely new detail. Use operation=update only to replace an existing memo with a complete corrected final memo; never send only the changed fragment, and never delete or clear a memo.",
     "- For talentInsights, prefer existing checklist-style insight keys/current insight keys when they fit. Use a new free-form English snake_case key only when the fact is important for future matching and does not reasonably fit an existing key.",
     "- Do not put profile-row facts into talentInsights. Specific experience, education, project, responsibility, or achievement details should go to rowMemos when one visible row matches; if no row matches, do not work around it with a profile-like insight key.",
     `- talentInsights values must be complete ${outputLanguage} sentences, not fragments such as \`규모 선호.\`.`,

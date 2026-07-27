@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
 import { normalizeCareerUtmSource } from "@/lib/career/utm";
+import { trackSignUp } from "@/lib/ga";
 import { useMessages, type Locale } from "@/i18n/useMessage";
 import { useAuthStore } from "@/store/useAuthStore";
 import Face from "@/components/common/Face";
@@ -183,12 +184,19 @@ export default function CareerEmailOnboardingBridgePage() {
           }),
         });
         const payload = (await response.json().catch(() => ({}))) as {
+          created?: boolean;
           error?: string;
         };
         if (cancelled) return;
         if (!response.ok) {
           setError(payload.error || copy.claimFailed);
           return;
+        }
+        if (payload.created === true) {
+          trackSignUp({
+            flow: "career_email_onboarding",
+            method: "email_or_existing_session",
+          });
         }
         setClaimReady(true);
       } catch {
