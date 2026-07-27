@@ -2079,7 +2079,7 @@ export const ko = {
     "career.settings.email_change.current_email": "현재 이메일",
     "career.settings.email_change.completed": "인증된 이메일로 변경했습니다.",
     "career.settings.email_change.description":
-      "새 이메일을 인증한 뒤에 이메일이 변경됩니다.",
+      "변경을 원하시는 이메일을 알려주시면 인증 메일을 발송해드립니다. 인증 뒤 이메일이 변경됩니다.",
     "career.settings.email_change.invalid": "유효한 이메일을 입력해주세요.",
     "career.settings.email_change.in_use":
       "해당 이메일로 진행할 수 없습니다. 사유: 인증이 차단된 이메일 혹은 이미 등록된 이메일",

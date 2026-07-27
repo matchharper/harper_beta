@@ -352,7 +352,7 @@ const CareerEmailChangeModal = ({
             )
           : t(
               "career.settings.email_change.description",
-              "새 이메일을 인증한 뒤에 이메일이 변경됩니다."
+              "변경을 원하시는 이메일을 알려주시면 인증 메일을 발송해드립니다. 인증 뒤 이메일이 변경됩니다."
             )
       }
       mobileBottomSheet
@@ -440,6 +440,23 @@ const CareerEmailChangeModal = ({
           <form className="space-y-4" onSubmit={handleSend}>
             <div>
               <label
+                htmlFor="career-email-change-current-email"
+                className="text-xs font-medium text-neutral-muted"
+              >
+                {t("career.settings.email_change.current_email", "현재 이메일")}
+              </label>
+              <Input
+                id="career-email-change-current-email"
+                type="email"
+                autoComplete="email"
+                readOnly
+                value={normalizedCurrentEmail}
+                onFocus={(event) => event.currentTarget.select()}
+                className="mt-1 h-10 bg-bg-basement border-none text-neutral-muted focus:border-neutral-1000-a10 focus:bg-bg-weak focus:ring-0"
+              />
+            </div>
+            <div>
+              <label
                 htmlFor="career-email-change-new-email"
                 className="text-xs font-medium text-neutral-muted"
               >
@@ -474,12 +491,12 @@ const CareerEmailChangeModal = ({
         )}
 
         {error && (
-          <p className="rounded-lg bg-critical-faded px-3 py-2 text-sm text-critical">
+          <p className="mt-3 rounded-lg bg-critical-faded px-3 py-2 text-sm text-critical">
             {error}
           </p>
         )}
         {info && (
-          <p className="rounded-lg bg-bg-weak px-3 py-2 text-sm text-neutral-muted">
+          <p className="mt-3 rounded-lg bg-bg-weak px-3 py-2 text-sm text-neutral-muted">
             {info}
           </p>
         )}

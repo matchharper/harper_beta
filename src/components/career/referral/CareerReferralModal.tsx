@@ -600,7 +600,7 @@ export function CareerReferralSettingsSection({
 
   return (
     <section className="break-keep text-neutral-primary pb-48">
-      <header className="border-b border-neutral-1000-a05">
+      <header className="">
         <div className="text-[20px] mb-6">
           {t(
             "career.referral.modal.reward_headline",
@@ -685,7 +685,7 @@ export function CareerReferralSettingsSection({
         </div>
       </header>
 
-      <div className="px-5 py-5 sm:px-6">
+      <div className="mt-4 py-5">
         <section>
           <Text as="h3" type="body" className="font-normal">
             {t("career.referral.modal.how_it_works", "진행 방식")}

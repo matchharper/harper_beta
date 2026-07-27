@@ -2102,7 +2102,7 @@ export const en = {
     "career.settings.email_change.completed":
       "Your verified email has been updated.",
     "career.settings.email_change.description":
-      "Your email will be updated once the new address is verified.",
+      "Enter the email you'd like to use, and we'll send you a verification email. Your email will be updated once it's verified.",
     "career.settings.email_change.invalid":
       "Please enter a valid email address.",
     "career.settings.email_change.in_use":
