@@ -11,9 +11,11 @@ import {
   useOrgJobsDetailData,
 } from "@/hooks/org/useOrgJobsData";
 import { useOrgJobsRoute } from "@/hooks/org/useOrgJobsRoute";
+import type { OrgTalentSelection } from "@/hooks/org/useOrgJobsRoute";
 import { useOrgRoleActions } from "@/hooks/org/useOrgRoleActions";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import type { OrgBoardItem, OrgRole } from "@/lib/org/server";
+import type { OrgWorkspacePageId } from "@/lib/org/routes";
 
 type OrgJobsNavigationValue = {
   activeRole: OrgRole | null;
@@ -23,7 +25,7 @@ type OrgJobsNavigationValue = {
   detailRecommendationId: string;
   detailRoleId: string;
   detailTalentId: string;
-  selectTalent: (item: OrgBoardItem) => void;
+  selectTalent: (item: OrgTalentSelection) => void;
   selectedRoleId: string | null;
   workspaceId: string;
 };
@@ -102,10 +104,16 @@ function OrgJobsRoleActionsProvider({ children }: { children: ReactNode }) {
   );
 }
 
-function OrgJobsRouteProvider({ children }: { children: ReactNode }) {
+function OrgJobsRouteProvider({
+  children,
+  routePage,
+}: {
+  children: ReactNode;
+  routePage: Extract<OrgWorkspacePageId, "all" | "jobs">;
+}) {
   const { roles } = useOrgWorkspace();
   const roleActions = useOrgJobsRoleActions();
-  const route = useOrgJobsRoute();
+  const route = useOrgJobsRoute({ page: routePage });
   const {
     activeRoleId,
     changeRole,
@@ -240,17 +248,31 @@ function OrgJobsCandidateActionsProvider({
   );
 }
 
-export function OrgJobsProvider({ children }: { children: ReactNode }) {
+export function OrgJobsProvider({
+  children,
+  includeBoard = true,
+  routePage = "jobs",
+}: {
+  children: ReactNode;
+  includeBoard?: boolean;
+  routePage?: Extract<OrgWorkspacePageId, "all" | "jobs">;
+}) {
+  const detailProviders = (
+    <OrgJobsDetailProvider>
+      <OrgJobsCandidateActionsProvider>
+        {children}
+      </OrgJobsCandidateActionsProvider>
+    </OrgJobsDetailProvider>
+  );
+
   return (
     <OrgJobsRoleActionsProvider>
-      <OrgJobsRouteProvider>
-        <OrgJobsBoardProvider>
-          <OrgJobsDetailProvider>
-            <OrgJobsCandidateActionsProvider>
-              {children}
-            </OrgJobsCandidateActionsProvider>
-          </OrgJobsDetailProvider>
-        </OrgJobsBoardProvider>
+      <OrgJobsRouteProvider routePage={routePage}>
+        {includeBoard ? (
+          <OrgJobsBoardProvider>{detailProviders}</OrgJobsBoardProvider>
+        ) : (
+          detailProviders
+        )}
       </OrgJobsRouteProvider>
     </OrgJobsRoleActionsProvider>
   );

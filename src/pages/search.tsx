@@ -896,6 +896,7 @@ export default function RadarLandingPage() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${accessToken}`,
           },
+          body: JSON.stringify({ source: "search" }),
         });
         const bootstrapJson = await bootstrapRes.json().catch(() => ({}));
 
@@ -904,6 +905,10 @@ export default function RadarLandingPage() {
             message:
               bootstrapJson?.error ?? RADAR_LOGIN_MODAL_COPY.bootstrapFailed,
           };
+        }
+        if (bootstrapJson?.persona === "talent") {
+          window.location.assign(bootstrapJson?.redirectTo || "/career");
+          return null;
         }
         if (bootstrapJson?.created === true) {
           trackSignUp({

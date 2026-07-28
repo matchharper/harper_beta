@@ -55,7 +55,9 @@ const MailHistoryPanel = memo(function MailHistoryPanel({
     <div className={cx(opsTheme.panelSoft, "p-4")}>
       <div className="flex items-center justify-between gap-3">
         <div>
-          <div className={opsTheme.eyebrow}>Mail History</div>
+          <div className="text-[13px] font-medium text-neutral-primary">
+            Mail History
+          </div>
           <div className="mt-1 text-xs text-neutral-muted">
             시스템 발송, Ops 수동 발송, 유저 답장
           </div>
@@ -123,7 +125,7 @@ const MailHistoryPanel = memo(function MailHistoryPanel({
                               <div className="truncate font-medium text-neutral-muted">
                                 {mailActorLabel(item)}
                               </div>
-                              <div className="truncate text-[11px] text-neutral-soft">
+                              <div className="truncate text-[12px] text-neutral-soft">
                                 {mailTypeLabel(item.mailType)}
                               </div>
                             </div>
@@ -150,7 +152,7 @@ const MailHistoryPanel = memo(function MailHistoryPanel({
                         <td className="px-3 py-2 align-top">
                           <span
                             className={cx(
-                              "inline-flex rounded px-1.5 py-0.5 text-[11px] font-medium",
+                              "inline-flex rounded px-1.5 py-0.5 text-[12px] font-medium",
                               mailStatusClass(item.status)
                             )}
                           >
@@ -282,7 +284,9 @@ export const MailTab = memo(function MailTab({ detail }: MailTabProps) {
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className={opsTheme.eyebrow}>Recipient</div>
+          <div className="text-[13px] font-medium text-neutral-primary">
+            Recipient
+          </div>
           <div className="mt-1 break-all text-sm font-medium text-neutral-primary">
             {recipientLabel}
           </div>
@@ -381,37 +385,39 @@ export const MailTab = memo(function MailTab({ detail }: MailTabProps) {
       <div className={cx(opsTheme.panelSoft, "p-4")}>
         <div className="flex items-center gap-2">
           <Link2 className="h-4 w-4 text-neutral-soft" />
-          <div className={opsTheme.eyebrow}>Link Format</div>
+          <div className="text-[13px] font-medium text-neutral-primary">
+            Link Format
+          </div>
         </div>
         <div className="mt-3 space-y-2 text-xs leading-5 text-neutral-muted">
           <div>
             링크는{" "}
-            <code className="rounded bg-bg-weak px-1.5 py-0.5 font-mono text-[11px]">
+            <code className="rounded bg-bg-weak px-1.5 py-0.5 font-mono text-[12px]">
               [보여줄 문구](https://example.com)
             </code>{" "}
             형식으로 넣으면 됩니다.
           </div>
           <div>
             이메일 링크는{" "}
-            <code className="rounded bg-bg-weak px-1.5 py-0.5 font-mono text-[11px]">
+            <code className="rounded bg-bg-weak px-1.5 py-0.5 font-mono text-[12px]">
               [Chris에게 문의](mailto:chris@matchharper.com)
             </code>
             처럼 넣으세요.
           </div>
           <div>
             발신자 표시명을 바꾸려면 From에{" "}
-            <code className="rounded bg-bg-weak px-1.5 py-0.5 font-mono text-[11px]">
+            <code className="rounded bg-bg-weak px-1.5 py-0.5 font-mono text-[12px]">
               Harper &lt;chris@matchharper.com&gt;
             </code>
             처럼 쓰면 됩니다. Resend에서 인증된 도메인의 주소만 실제 발송됩니다.
           </div>
           <div>
             굵게는{" "}
-            <code className="rounded bg-bg-weak px-1.5 py-0.5 font-mono text-[11px]">
+            <code className="rounded bg-bg-weak px-1.5 py-0.5 font-mono text-[12px]">
               **텍스트**
             </code>
             , 목록은 줄 앞에{" "}
-            <code className="rounded bg-bg-weak px-1.5 py-0.5 font-mono text-[11px]">
+            <code className="rounded bg-bg-weak px-1.5 py-0.5 font-mono text-[12px]">
               -
             </code>
             를 붙이면 미리보기와 발송 HTML에 반영됩니다.

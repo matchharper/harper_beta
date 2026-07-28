@@ -1237,10 +1237,9 @@ async function buildUserStatsReport(args: {
     addDaysToDateOnly(endDateExclusive, -7),
     7
   );
-  const externalNegativeFeedbackReasonRolling7DayRange = getKstRange(
-    addDaysToDateOnly(endDateExclusive, -7),
-    7
-  );
+  // Keep rejection reasons on the same window as the report. In particular,
+  // the daily cron must not repeat a rolling seven days of reasons each day.
+  const externalNegativeFeedbackReasonRange = args.range;
   const excludedEmailSet = new Set(DAILY_USER_STATS_EXCLUDED_EMAILS);
 
   const [
@@ -1472,14 +1471,8 @@ async function buildUserStatsReport(args: {
         .select("id,talent_id,feedback_at,feedback_reason,updated_at")
         .eq("opportunity_type", "external_jd")
         .in("feedback", ["dislike", "negative"])
-        .gte(
-          "feedback_at",
-          externalNegativeFeedbackReasonRolling7DayRange.startIso
-        )
-        .lt(
-          "feedback_at",
-          externalNegativeFeedbackReasonRolling7DayRange.endIso
-        )
+        .gte("feedback_at", externalNegativeFeedbackReasonRange.startIso)
+        .lt("feedback_at", externalNegativeFeedbackReasonRange.endIso)
         .order("feedback_at", { ascending: true })
         .range(from, to)
     ),
@@ -1490,11 +1483,8 @@ async function buildUserStatsReport(args: {
         .eq("opportunity_type", "external_jd")
         .in("feedback", ["dislike", "negative"])
         .is("feedback_at", null)
-        .gte(
-          "updated_at",
-          externalNegativeFeedbackReasonRolling7DayRange.startIso
-        )
-        .lt("updated_at", externalNegativeFeedbackReasonRolling7DayRange.endIso)
+        .gte("updated_at", externalNegativeFeedbackReasonRange.startIso)
+        .lt("updated_at", externalNegativeFeedbackReasonRange.endIso)
         .order("updated_at", { ascending: true })
         .range(from, to)
     ),
@@ -1763,18 +1753,18 @@ async function buildUserStatsReport(args: {
       isIncludedUserId(row.talent_id) &&
       isInRange(
         row.feedback_at ?? row.updated_at,
-        externalNegativeFeedbackReasonRolling7DayRange.startIso,
-        externalNegativeFeedbackReasonRolling7DayRange.endIso
+        externalNegativeFeedbackReasonRange.startIso,
+        externalNegativeFeedbackReasonRange.endIso
       )
   );
   const externalNegativeFeedbackReasonStats =
     buildExternalNegativeFeedbackReasonStats({
       endDate: addDaysToDateOnly(
-        externalNegativeFeedbackReasonRolling7DayRange.endDateExclusive,
+        externalNegativeFeedbackReasonRange.endDateExclusive,
         -1
       ),
       rows: includedExternalNegativeFeedbackReasonRows,
-      startDate: externalNegativeFeedbackReasonRolling7DayRange.startDate,
+      startDate: externalNegativeFeedbackReasonRange.startDate,
     });
   const internalOpportunityRoleRows = await fetchInternalOpportunityRoleRows(
     includedInternalRecommendedRows.map((row) => row.role_id)

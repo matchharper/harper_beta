@@ -22,10 +22,7 @@ function OrgJobsMain() {
 
   return (
     <div className="space-y-7">
-      <OrgPageHeader
-        description="Role별 후보자 진행 상태를 확인하고 다음 채용 액션을 관리하세요."
-        title="Jobs"
-      />
+      <OrgPageHeader title="Jobs" />
       <OrgRoleTabs />
       {boardQuery.error instanceof Error ? (
         <OrgErrorState

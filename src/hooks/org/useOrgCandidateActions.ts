@@ -20,6 +20,9 @@ export function useOrgCandidateActions(args: {
   const pendingRecommendationId = setStage.isPending
     ? (setStage.variables?.recommendationId ?? null)
     : null;
+  const pendingStage = setStage.isPending
+    ? (setStage.variables?.stage ?? null)
+    : null;
 
   const changeStage = async (
     item: OrgBoardItem,
@@ -31,6 +34,7 @@ export function useOrgCandidateActions(args: {
       await setStage.mutateAsync({
         acceptReason: options?.acceptReason ?? null,
         contactDirectly: options?.contactDirectly ?? false,
+        emailMode: options?.emailMode,
         introEmails: options?.introEmails ?? null,
         recommendationId: item.recommendationId,
         roleId: item.roleId,
@@ -117,7 +121,9 @@ export function useOrgCandidateActions(args: {
     });
   };
 
-  const moveTalentToPendingConnection = async () => {
+  const moveTalentToPendingConnection = async (
+    emailMode: NonNullable<OrgStageChangeOptions["emailMode"]> = "schedule"
+  ) => {
     if (!args.canManageCandidates) return;
     const roleId = args.detail?.role.roleId ?? args.activeDetailRoleId;
     const recommendationId =
@@ -129,6 +135,7 @@ export function useOrgCandidateActions(args: {
       await setStage.mutateAsync({
         acceptReason: null,
         contactDirectly: false,
+        emailMode,
         introEmails: null,
         recommendationId,
         roleId,
@@ -150,6 +157,7 @@ export function useOrgCandidateActions(args: {
             : "연결 대기 상태로 옮기지 못했습니다.",
         variant: "error",
       });
+      throw error;
     }
   };
 
@@ -158,6 +166,7 @@ export function useOrgCandidateActions(args: {
     changeStage,
     moveTalentToPendingConnection,
     pendingRecommendationId,
+    pendingStage,
     rejectTalent,
   };
 }

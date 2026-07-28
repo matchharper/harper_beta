@@ -183,8 +183,6 @@ const EXTERNAL_FIT_CACHE_SHORTLIST_SKIP_MIN_COUNT = 20;
 const COMPANY_LEADERSHIP_MAX_PEOPLE = 3;
 const COMPANY_LEADERSHIP_MAX_COMPANY_AGE_YEARS = 11;
 const COMPANY_LEADERSHIP_MAX_EMPLOYEE_COUNT_END = 201;
-const RECOMMEND_JOB_POSTINGS_MODEL_VERSION =
-  "career_chat_recommend_job_postings_external_v5";
 
 const FTS_RANK_WEIGHTS = "ARRAY[0.04,0.57,0.64,1.0]::real[]";
 const MAX_FTS_KEYWORDS = 8;
@@ -3416,7 +3414,6 @@ async function persistRecommendations(args: {
         evidence: buildRecommendationEvidence(item),
         fit_reasons: item.detail.fitReasons.filter(Boolean),
         fit_summary: item.detail.roleOverviewText,
-        model_version: RECOMMEND_JOB_POSTINGS_MODEL_VERSION,
         opportunity_type: OpportunityType.ExternalJd,
         rank: index + 1,
         role_id: roleId,

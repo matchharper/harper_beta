@@ -102,6 +102,7 @@ export const queryKeys = {
   },
   org: {
     all: ["org"] as const,
+    acceptedAll: ["org", "acceptedTalents"] as const,
     bootstrapAll: ["org", "bootstrap"] as const,
     boardAll: ["org", "board"] as const,
     detailAll: ["org", "detail"] as const,
@@ -110,6 +111,7 @@ export const queryKeys = {
       ["org", "bootstrap", orgId ?? ""] as const,
     invitePreview: (orgId?: string | null) =>
       ["org", "invitePreview", orgId ?? ""] as const,
+    acceptedTalents: ["org", "acceptedTalents"] as const,
     board: (filters?: {
       query?: string | null;
       recommendedDate?: string | null;
@@ -127,6 +129,17 @@ export const queryKeys = {
         filters?.recommendedFromDate ?? "",
         filters?.recommendedToDate ?? "",
         filters?.query ?? "",
+      ] as const,
+    boardProfileLabels: (filters?: {
+      recommendationIds?: string[];
+      workspaceId?: string | null;
+    }) =>
+      [
+        "org",
+        "board",
+        "profileLabels",
+        filters?.workspaceId ?? "",
+        filters?.recommendationIds ?? [],
       ] as const,
     detail: (filters?: {
       recommendationId?: string | null;

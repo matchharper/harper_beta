@@ -1,12 +1,19 @@
 import {
   queryOptions,
+  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import type {
+  InternalConnectionConfirmationEmailMode,
+  OpsMatchingConnectionConfirmationEmailActionResponse,
+} from "@/lib/ops/connectionConfirmationEmail";
+import type {
+  OrgBoardProfileLabelsResponse,
   OrgBoardResponse,
+  OrgAcceptedTalentsResponse,
   OrgBootstrapResponse,
   OrgFeedCreateResponse,
   OrgFeedMutationResponse,
@@ -199,11 +206,62 @@ export function orgBoardQueryOptions(filters: OrgBoardFilters) {
     },
     enabled: (filters.enabled ?? true) && Boolean(workspaceId),
     staleTime: 20_000,
+    retry: 1,
   });
 }
 
 export function useOrgBoard(filters: OrgBoardFilters) {
   return useQuery(orgBoardQueryOptions(filters));
+}
+
+export function useOrgAcceptedTalents(args: { enabled?: boolean }) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.org.acceptedTalents,
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams({
+        offset: String(pageParam),
+      });
+      return fetchWithInternalAuth<OrgAcceptedTalentsResponse>(
+        `/api/org/accepted-talents?${params.toString()}`
+      );
+    },
+    getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
+    initialPageParam: 0,
+    enabled: args.enabled ?? true,
+    staleTime: 20_000,
+  });
+}
+
+export function useOrgBoardProfileLabels(args: {
+  enabled?: boolean;
+  recommendationIds: string[];
+  workspaceId?: string | null;
+}) {
+  const workspaceId = args.workspaceId?.trim() ?? "";
+  const recommendationIds = Array.from(
+    new Set(args.recommendationIds.map((value) => value.trim()).filter(Boolean))
+  );
+  return useQuery({
+    queryKey: queryKeys.org.boardProfileLabels({
+      recommendationIds,
+      workspaceId,
+    }),
+    queryFn: () =>
+      fetchWithInternalAuth<OrgBoardProfileLabelsResponse>(
+        "/api/org/board/profile-labels",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ recommendationIds, workspaceId }),
+        }
+      ),
+    enabled:
+      (args.enabled ?? true) &&
+      Boolean(workspaceId) &&
+      recommendationIds.length > 0,
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
 }
 
 export function orgTalentDetailQueryOptions(args: {
@@ -255,6 +313,7 @@ export function useSetOrgCandidateStage() {
     mutationFn: (args: {
       acceptReason?: OrgStageChangeOptions["acceptReason"];
       contactDirectly?: OrgStageChangeOptions["contactDirectly"];
+      emailMode?: InternalConnectionConfirmationEmailMode;
       introEmails?: OrgStageChangeOptions["introEmails"];
       recommendationId: string;
       roleId: string;
@@ -274,9 +333,35 @@ export function useSetOrgCandidateStage() {
       ),
     onSuccess: () =>
       Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.org.acceptedAll,
+        }),
         queryClient.invalidateQueries({ queryKey: queryKeys.org.boardAll }),
         queryClient.invalidateQueries({ queryKey: queryKeys.org.detailAll }),
       ]),
+  });
+}
+
+export function useUpdateOrgConnectionConfirmationEmail() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: {
+      action: "cancel" | "send_now";
+      queueId: string;
+      roleId: string;
+      talentId: string;
+      workspaceId: string;
+    }) =>
+      fetchWithInternalAuth<OpsMatchingConnectionConfirmationEmailActionResponse>(
+        "/api/org/connection-confirmation-email",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(args),
+        }
+      ),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.org.detailAll }),
   });
 }
 

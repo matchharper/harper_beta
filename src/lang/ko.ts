@@ -2068,6 +2068,27 @@ export const ko = {
     "career.settings.career_settings_modal.account_saved":
       "계정 정보를 저장했습니다.",
     "career.settings.career_settings_modal.account_saving": "저장 중",
+    "career.settings.career_settings_modal.delete_reason_detail_label":
+      "조금 더 알려주세요",
+    "career.settings.career_settings_modal.delete_reason_detail_placeholder":
+      "Harper가 개선할 수 있도록 의견을 남겨주세요.",
+    "career.settings.career_settings_modal.delete_reason_difficult_to_use":
+      "서비스 이용이 불편하거나 어려웠어요",
+    "career.settings.career_settings_modal.delete_reason_infrequent_use":
+      "서비스를 자주 사용하지 않아요",
+    "career.settings.career_settings_modal.delete_reason_label":
+      "탈퇴 사유에 대해서 공유해주시면 감사드리겠습니다.",
+    "career.settings.career_settings_modal.delete_reason_missing_opportunities":
+      "원하는 기회나 추천을 찾지 못했어요",
+    "career.settings.career_settings_modal.delete_reason_new_account":
+      "다른 계정으로 다시 가입하려고 해요",
+    "career.settings.career_settings_modal.delete_reason_other": "기타",
+    "career.settings.career_settings_modal.delete_reason_placeholder":
+      "(선택) 탈퇴 이유를 선택해주세요",
+    "career.settings.career_settings_modal.delete_reason_privacy_concern":
+      "개인정보가 걱정돼요",
+    "career.settings.career_settings_modal.delete_reason_recommendation_quality":
+      "추천 품질이 기대와 달랐어요",
     "career.settings.career_settings_modal.keep_account": "계정 유지하기",
     "career.settings.email_change.availability_check_failed":
       "이메일을 확인하지 못했습니다.",

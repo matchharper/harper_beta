@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthenticatedUser(req);
     const payload = await fetchOrgBoard({
+      includeProfileLabels: false,
       query: req.nextUrl.searchParams.get("query"),
       recommendedDate: req.nextUrl.searchParams.get("recommendedDate"),
       recommendedFromDate: req.nextUrl.searchParams.get("recommendedFromDate"),

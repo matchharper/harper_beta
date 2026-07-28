@@ -206,3 +206,23 @@ test("external dislike reason stats count objective choices per response", async
     ].join("\n")
   );
 });
+
+test("external dislike reason stats format a one-day daily report window", async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:54321";
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-key";
+  const {
+    buildExternalNegativeFeedbackReasonStats,
+    formatExternalNegativeFeedbackReasonStats,
+  } = await import("@/lib/dailyUserStats");
+
+  const stats = buildExternalNegativeFeedbackReasonStats({
+    endDate: "2026-07-27",
+    rows: [],
+    startDate: "2026-07-27",
+  });
+
+  assert.match(
+    formatExternalNegativeFeedbackReasonStats(stats),
+    /2026-07-27 ~ 2026-07-27 external 공고 dislike/
+  );
+});

@@ -115,6 +115,7 @@ export default function PricingPage() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${accessToken}`,
           },
+          body: JSON.stringify({ source: "pricing" }),
         });
         const bootstrapJson = await bootstrapRes.json().catch(() => ({}));
         if (!bootstrapRes.ok) {
@@ -123,6 +124,10 @@ export default function PricingPage() {
               bootstrapJson?.error ??
               "계정 초기화에 실패했습니다. 다시 시도해 주세요.",
           };
+        }
+        if (bootstrapJson?.persona === "talent") {
+          window.location.assign(bootstrapJson?.redirectTo || "/career");
+          return null;
         }
         if (bootstrapJson?.created === true) {
           trackSignUp({

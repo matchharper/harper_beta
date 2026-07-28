@@ -2090,6 +2090,27 @@ export const en = {
     "career.settings.career_settings_modal.account_saved":
       "Account information saved.",
     "career.settings.career_settings_modal.account_saving": "Saving",
+    "career.settings.career_settings_modal.delete_reason_detail_label":
+      "Tell us more",
+    "career.settings.career_settings_modal.delete_reason_detail_placeholder":
+      "Share anything that could help Harper improve.",
+    "career.settings.career_settings_modal.delete_reason_difficult_to_use":
+      "The service was difficult or inconvenient to use",
+    "career.settings.career_settings_modal.delete_reason_infrequent_use":
+      "I don't use the service often",
+    "career.settings.career_settings_modal.delete_reason_label":
+      "We'd appreciate it if you shared why you're leaving.",
+    "career.settings.career_settings_modal.delete_reason_missing_opportunities":
+      "I couldn't find the opportunities or recommendations I wanted",
+    "career.settings.career_settings_modal.delete_reason_new_account":
+      "I plan to sign up again with another account",
+    "career.settings.career_settings_modal.delete_reason_other": "Other",
+    "career.settings.career_settings_modal.delete_reason_placeholder":
+      "(Optional) Select a reason",
+    "career.settings.career_settings_modal.delete_reason_privacy_concern":
+      "I have privacy concerns",
+    "career.settings.career_settings_modal.delete_reason_recommendation_quality":
+      "The recommendation quality didn't meet my expectations",
     "career.settings.career_settings_modal.keep_account": "Keep Account",
     "career.settings.email_change.availability_check_failed":
       "We couldn't check whether this email is available.",

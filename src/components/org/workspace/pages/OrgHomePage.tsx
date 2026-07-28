@@ -1,7 +1,8 @@
 import Image from "next/image";
 import { useRouter } from "next/router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { formatKstRelativeDate } from "@/components/ops/dateUtils";
+import { InternalOnlySurface } from "@/components/org/internal/InternalOnlySurface";
 import { OrgPageHeader } from "@/components/org/workspace/OrgPageHeader";
 import { OrgErrorState } from "@/components/org/workspace/OrgErrorState";
 import {
@@ -13,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useOrgBoard } from "@/hooks/org/useOrg";
 import { useOrgViewedRecommendations } from "@/hooks/org/useOrgViewedRecommendations";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
+import { getDisplayableProfileImageUrl } from "@/lib/imageUrl";
 import { buildOrgHref } from "@/lib/org/routes";
 import type { OrgBoardItem } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
@@ -31,17 +33,25 @@ function PendingCandidateButton({
   onSelect: (item: OrgBoardItem) => void;
 }) {
   const name = candidateName(item);
+  const profilePicture = getDisplayableProfileImageUrl(
+    item.talent.profilePicture
+  );
+  const [failedImageSrc, setFailedImageSrc] = useState<string | null>(null);
+  const showProfilePicture =
+    profilePicture && failedImageSrc !== profilePicture;
+
   return (
     <BareButton
       className="flex w-full items-center gap-3 px-3 py-3.5 text-left outline-none transition hover:bg-neutral-1000-a05 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-1000-a10"
       onClick={() => onSelect(item)}
     >
-      {item.talent.profilePicture ? (
+      {showProfilePicture ? (
         <Image
           alt=""
           className="size-8 shrink-0 rounded-full object-cover"
           height={32}
-          src={item.talent.profilePicture}
+          onError={() => setFailedImageSrc(profilePicture)}
+          src={profilePicture}
           unoptimized
           width={32}
         />
@@ -63,7 +73,8 @@ function PendingCandidateButton({
   );
 }
 
-function HomeLoading() {
+function HomeLoading({ internalOpsAccess }: { internalOpsAccess: boolean }) {
+  const metricCount = internalOpsAccess ? 5 : 4;
   return (
     <div className="space-y-8">
       <div className="border-b border-neutral-1000-a05 pb-8">
@@ -78,8 +89,13 @@ function HomeLoading() {
       <div>
         <Skeleton className="h-5 w-32" />
         <Skeleton className="mt-2 h-3 w-64 max-w-full" />
-        <div className="mt-5 grid gap-2 sm:grid-cols-3">
-          {Array.from({ length: 3 }).map((_, metricIndex) => (
+        <div
+          className={cn(
+            "mt-5 grid gap-2 sm:grid-cols-2",
+            internalOpsAccess ? "xl:grid-cols-5" : "lg:grid-cols-4"
+          )}
+        >
+          {Array.from({ length: metricCount }).map((_, metricIndex) => (
             <div className="rounded-lg bg-neutral-200/50 p-4" key={metricIndex}>
               <Skeleton className="h-3 w-20" />
               <Skeleton className="mt-3 h-6 w-12" />
@@ -109,13 +125,38 @@ function EmptyActionState() {
   );
 }
 
-function JobsMetric({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-lg bg-neutral-200/50 px-4 py-4 sm:px-5">
+function JobsMetric({
+  internalOnly = false,
+  label,
+  value,
+}: {
+  internalOnly?: boolean;
+  label: string;
+  value: number;
+}) {
+  const content = (
+    <div className="relative z-20">
       <div className="text-sm font-light text-neutral-muted">{label}</div>
       <div className="mt-1.5 text-[20px] font-medium text-neutral-primary">
         {value}
       </div>
+    </div>
+  );
+
+  if (internalOnly) {
+    return (
+      <InternalOnlySurface
+        className="rounded-lg bg-neutral-200/50 px-4 py-4 sm:px-5"
+        showLabel={false}
+      >
+        {content}
+      </InternalOnlySurface>
+    );
+  }
+
+  return (
+    <div className="rounded-lg bg-neutral-200/50 px-4 py-4 sm:px-5">
+      {content}
     </div>
   );
 }
@@ -209,11 +250,13 @@ function NewCandidates({
 
 function JobRoleRow({
   name,
+  paused,
   pending,
   total,
   onClick,
 }: {
   name: string;
+  paused: boolean;
   pending: number;
   total: number;
   onClick: () => void;
@@ -224,8 +267,15 @@ function JobRoleRow({
       onClick={onClick}
       type="button"
     >
-      <span className="min-w-0 truncate text-[14px] font-medium text-neutral-primary">
-        {name}
+      <span className="flex min-w-0 items-center gap-2">
+        <span className="min-w-0 truncate text-[14px] font-medium text-neutral-primary">
+          {name}
+        </span>
+        {paused ? (
+          <span className="shrink-0 rounded-sm bg-info-faded px-1.5 py-0.5 text-[10px] font-medium text-info">
+            일시 중지
+          </span>
+        ) : null}
       </span>
       <span className="text-right text-sm font-light text-neutral-muted">
         {total}명
@@ -246,7 +296,8 @@ function JobRoleRow({
 
 export function OrgHomePage() {
   const router = useRouter();
-  const { currentUserEmail, roles, workspace } = useOrgWorkspace();
+  const { currentUserEmail, internalOpsAccess, roles, workspace } =
+    useOrgWorkspace();
   const workspaceId = workspace.workspaceId;
   const boardQuery = useOrgBoard({ roleId: null, workspaceId });
   const board = boardQuery.data;
@@ -327,16 +378,7 @@ export function OrgHomePage() {
         : [],
     [hasHydrated, pendingItems, viewedRecommendationIds]
   );
-  const activeRoles = useMemo(
-    () =>
-      roles.filter((role) =>
-        ["active", "open", "top_priority"].includes(
-          String(role.status ?? "active").toLowerCase()
-        )
-      ),
-    [roles]
-  );
-  const { roleCounts, stageCounts } = useMemo(() => {
+  const { currentStageCounts, roleCounts } = useMemo(() => {
     const nextRoleCounts = new Map<
       string,
       { pending: number; total: number }
@@ -356,8 +398,8 @@ export function OrgHomePage() {
       nextRoleCounts.set(item.roleId, roleCount);
     }
     return {
+      currentStageCounts: nextStageCounts,
       roleCounts: nextRoleCounts,
-      stageCounts: nextStageCounts,
     };
   }, [board?.items]);
 
@@ -376,7 +418,7 @@ export function OrgHomePage() {
       ) : null}
 
       {isLoading ? (
-        <HomeLoading />
+        <HomeLoading internalOpsAccess={internalOpsAccess} />
       ) : (
         <>
           <OrgSection>
@@ -432,21 +474,37 @@ export function OrgHomePage() {
                   전체 보기
                 </MuteButton>
               }
-              description="Role별 후보자 진행 상황의 요약입니다."
+              description="전체 Role의 후보자 진행 상황입니다."
               title="진행 중인 Jobs"
             />
-            <div className="grid gap-2 sm:grid-cols-3">
-              <JobsMetric label="진행 중 Role" value={activeRoles.length} />
+            <div
+              className={cn(
+                "grid gap-2 sm:grid-cols-2",
+                internalOpsAccess ? "xl:grid-cols-5" : "lg:grid-cols-4"
+              )}
+            >
+              <JobsMetric label="진행 중인 역할" value={roles.length} />
               <JobsMetric
-                label="연결됨"
-                value={stageCounts.get("connected") ?? 0}
+                label="연결 대기"
+                value={currentStageCounts.get("pending_connection") ?? 0}
               />
               <JobsMetric
-                label="최종 오퍼"
-                value={stageCounts.get("final_offer") ?? 0}
+                label="진행중"
+                value={currentStageCounts.get("connected") ?? 0}
               />
+              <JobsMetric
+                label="프로세스 중단"
+                value={currentStageCounts.get("process_stopped") ?? 0}
+              />
+              {internalOpsAccess ? (
+                <JobsMetric
+                  internalOnly
+                  label="수락 후 대기"
+                  value={currentStageCounts.get("accepted") ?? 0}
+                />
+              ) : null}
             </div>
-            {activeRoles.length > 0 ? (
+            {roles.length > 0 ? (
               <div className="mt-5 grid grid-cols-[minmax(0,1fr)_72px] gap-3 px-3 pb-2 text-[14px] font-light text-neutral-soft sm:grid-cols-[minmax(0,1fr)_88px_88px]">
                 <span>Role</span>
                 <span className="text-right">후보자</span>
@@ -454,7 +512,7 @@ export function OrgHomePage() {
               </div>
             ) : null}
             <div className="divide-y divide-neutral-1000-a05">
-              {activeRoles.slice(0, 5).map((role) => {
+              {roles.map((role) => {
                 const count = roleCounts.get(role.roleId) ?? {
                   pending: 0,
                   total: 0,
@@ -464,14 +522,17 @@ export function OrgHomePage() {
                     key={role.roleId}
                     name={role.name}
                     onClick={() => openJobs(role.roleId)}
+                    paused={["paused", "on_hold"].includes(
+                      String(role.status ?? "").toLowerCase()
+                    )}
                     pending={count.pending}
                     total={count.total}
                   />
                 );
               })}
-              {activeRoles.length === 0 ? (
+              {roles.length === 0 ? (
                 <div className="py-9 text-center text-sm font-light text-neutral-muted">
-                  진행 중인 Job이 없습니다.
+                  등록된 Job이 없습니다.
                 </div>
               ) : null}
             </div>

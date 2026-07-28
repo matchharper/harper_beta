@@ -362,10 +362,7 @@ export function OrgTeamPage() {
 
   return (
     <div className="space-y-8">
-      <OrgPageHeader
-        description="회사 정보와 Organization 멤버, 권한을 관리하세요."
-        title="Team"
-      />
+      <OrgPageHeader title="Team" />
 
       <OrgSection>
         <OrgSectionHeader

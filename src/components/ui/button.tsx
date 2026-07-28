@@ -97,7 +97,7 @@ const muteButtonTextPaddingClassName = {
 const muteButtonTextOnlyVerticalPaddingClassName = {
   sm: "py-[3px]",
   md: "py-[5px]",
-  lg: "py-[7px]",
+  lg: "py-[9px]",
 } as const;
 
 const hasTextContent = (node: React.ReactNode): boolean =>

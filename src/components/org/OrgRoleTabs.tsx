@@ -35,7 +35,7 @@ export function OrgRoleTabs() {
     );
 
   return (
-    <div className="relative -mx-1 px-1">
+    <div className="relative -mx-1 px-2">
       <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-3 bg-gradient-to-r from-bg-default to-transparent" />
       <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-bg-default to-transparent" />
       <div className="w-full overflow-x-auto overscroll-x-contain pb-1.5 [-webkit-overflow-scrolling:touch] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10 hover:scrollbar-thumb-neutral-1000-a50">
@@ -70,7 +70,7 @@ export function OrgRoleTabs() {
                   onClick={() => changeRole(role.roleId)}
                   className={getTabButtonClassName(showActions)}
                 >
-                  <span className="block min-w-0 truncate text-[14px] font-medium leading-5">
+                  <span className="block min-w-0 line-clamp-2 text-[14px] font-medium leading-5">
                     {role.name}
                   </span>
                 </button>

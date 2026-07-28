@@ -28,6 +28,17 @@ test("updates a row memo by replacing it with the complete final memo", () => {
   );
 });
 
+test("clears a row memo when update receives an empty string", () => {
+  assert.equal(
+    applyRowMemoOperation({
+      existing: "기존 메모",
+      memo: "",
+      operation: "update",
+    }),
+    ""
+  );
+});
+
 test("preserves multiline content and enforces the shared memo limit", () => {
   const multiline = "- 첫 번째\n- 두 번째";
   assert.equal(

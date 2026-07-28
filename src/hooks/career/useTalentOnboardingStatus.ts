@@ -5,6 +5,7 @@ import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
 import { normalizeCareerUtmSource } from "@/lib/career/utm";
 import {
+  OFFICIAL_JOBS_ONBOARDING_COMPANY_PARAM,
   OFFICIAL_JOBS_ONBOARDING_JOB_PARAM,
   OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM,
 } from "@/lib/officialJobs";
@@ -75,6 +76,10 @@ export function useTalentOnboardingRedirect({
     getSingleQueryParam(
       router.query[OFFICIAL_JOBS_ONBOARDING_JOB_PARAM]
     )?.trim() || "";
+  const officialJobCompanyName =
+    getSingleQueryParam(
+      router.query[OFFICIAL_JOBS_ONBOARDING_COMPANY_PARAM]
+    )?.trim() || "";
   const officialJobSlug =
     getSingleQueryParam(
       router.query[OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM]
@@ -101,6 +106,9 @@ export function useTalentOnboardingRedirect({
       query.lid = localId;
     }
     if (source) query.source = source;
+    if (officialJobCompanyName) {
+      query[OFFICIAL_JOBS_ONBOARDING_COMPANY_PARAM] = officialJobCompanyName;
+    }
     if (officialJobTitle) {
       query[OFFICIAL_JOBS_ONBOARDING_JOB_PARAM] = officialJobTitle;
     }
@@ -118,6 +126,7 @@ export function useTalentOnboardingRedirect({
     localId,
     mail,
     needsOnboarding,
+    officialJobCompanyName,
     officialJobSlug,
     officialJobTitle,
     router,

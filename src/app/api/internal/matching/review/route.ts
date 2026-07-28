@@ -9,10 +9,12 @@ import {
   parseOpsMatchingTags,
   setOpsMatchingReviewStage,
 } from "@/lib/ops/matching";
+import type { InternalConnectionConfirmationEmailMode } from "@/lib/ops/connectionConfirmationEmail";
 
 export const runtime = "nodejs";
 
 type ReviewStageBody = {
+  emailMode?: unknown;
   roleId?: string;
   stage?: unknown;
   talentId?: string;
@@ -50,9 +52,14 @@ export async function POST(req: NextRequest) {
     if (typeof body.stage !== "string") {
       throw new InternalApiError(400, "stage is required");
     }
+    const emailMode = String(body.emailMode ?? "schedule").trim();
+    if (!["schedule", "send_now", "skip"].includes(emailMode)) {
+      throw new InternalApiError(400, "emailMode is invalid");
+    }
 
     const payload = await setOpsMatchingReviewStage({
       actorEmail: user.email ?? null,
+      emailMode: emailMode as InternalConnectionConfirmationEmailMode,
       roleId,
       stage: body.stage,
       talentId,

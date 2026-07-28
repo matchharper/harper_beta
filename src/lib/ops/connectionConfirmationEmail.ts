@@ -5,6 +5,11 @@ import type { Json } from "@/types/database.types";
 export const INTERNAL_CONNECTION_CONFIRMED_QUEUE_TYPE =
   "internal_connection_confirmed";
 
+export type InternalConnectionConfirmationEmailMode =
+  | "schedule"
+  | "send_now"
+  | "skip";
+
 const INTERNAL_STAGE_TAGS = new Set([
   "내부:수락",
   "내부:아카이브",
@@ -256,6 +261,52 @@ function cancellationSource(row: ConnectionConfirmationQueueRow) {
   return normalizeText(asRecord(asRecord(row.payload).cancellation).source);
 }
 
+async function skipInternalConnectionConfirmationEmail(args: {
+  actorEmail?: string | null;
+  admin: AdminClient;
+  recommendationId: string;
+}) {
+  const existing = await fetchExistingQueue({
+    admin: args.admin,
+    recommendationId: args.recommendationId,
+  });
+  if (
+    !existing ||
+    !["queued", "failed", "cancelled"].includes(existing.status)
+  ) {
+    return existing ? toConnectionConfirmationEmail(existing) : null;
+  }
+
+  const now = new Date().toISOString();
+  const payload = {
+    ...asRecord(existing.payload),
+    cancellation: {
+      at: now,
+      by: normalizeText(args.actorEmail) || null,
+      source: "transition_skipped",
+    },
+  };
+  const { data, error } = await (args.admin.from("contact_queue" as any) as any)
+    .update({
+      cancelled_at: now,
+      last_error: null,
+      locked_at: null,
+      locked_by: null,
+      payload: payload as Json,
+      status: "cancelled",
+    })
+    .eq("id", existing.id)
+    .in("status", ["queued", "failed", "cancelled"])
+    .select(
+      "id, user_id, role_id, recommendation_id, scheduled_at, type, status, sent_at, cancelled_at, created_at, updated_at, payload, attempts, locked_at, locked_by, resend_email_id, last_error"
+    )
+    .maybeSingle();
+  if (error) throw error;
+  return data
+    ? toConnectionConfirmationEmail(data as ConnectionConfirmationQueueRow)
+    : null;
+}
+
 export async function scheduleInternalConnectionConfirmationEmail(args: {
   actorEmail?: string | null;
   admin?: AdminClient;
@@ -405,6 +456,7 @@ export async function cancelInternalConnectionConfirmationEmailsForStageChange(a
 export async function syncInternalConnectionConfirmationEmailForStage(args: {
   actorEmail?: string | null;
   admin?: AdminClient;
+  emailMode?: InternalConnectionConfirmationEmailMode;
   recommendation: InternalConnectionConfirmationRecommendation | null;
   roleId: string;
   stage: string;
@@ -415,13 +467,32 @@ export async function syncInternalConnectionConfirmationEmailForStage(args: {
     args.recommendation &&
     isAcceptedRecommendation(args.recommendation)
   ) {
-    return scheduleInternalConnectionConfirmationEmail({
+    if (args.emailMode === "skip") {
+      return skipInternalConnectionConfirmationEmail({
+        actorEmail: args.actorEmail,
+        admin: args.admin ?? getSupabaseAdmin(),
+        recommendationId: args.recommendation.recommendationId,
+      });
+    }
+
+    const item = await scheduleInternalConnectionConfirmationEmail({
       actorEmail: args.actorEmail,
       admin: args.admin,
       recommendation: args.recommendation,
       roleId: args.roleId,
       talentId: args.talentId,
     });
+    if (args.emailMode === "send_now" && item?.canSendNow) {
+      const response = await updateInternalConnectionConfirmationEmail({
+        action: "send_now",
+        actorEmail: args.actorEmail,
+        admin: args.admin,
+        queueId: item.id,
+        talentId: args.talentId,
+      });
+      return response.item;
+    }
+    return item;
   }
 
   if (args.stage !== "pending_connection") {
@@ -543,10 +614,11 @@ async function fetchActionQueue(args: {
 export async function updateInternalConnectionConfirmationEmail(args: {
   action: "cancel" | "send_now";
   actorEmail?: string | null;
+  admin?: AdminClient;
   queueId: string;
   talentId: string;
 }): Promise<OpsMatchingConnectionConfirmationEmailActionResponse> {
-  const admin = getSupabaseAdmin();
+  const admin = args.admin ?? getSupabaseAdmin();
   const row = await fetchActionQueue({
     admin,
     queueId: args.queueId,

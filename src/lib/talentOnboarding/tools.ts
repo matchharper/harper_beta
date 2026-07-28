@@ -186,6 +186,9 @@ const optionalToolString = (value: unknown) => {
   return text || null;
 };
 
+const normalizeRowMemoText = (value: unknown) =>
+  typeof value === "string" ? value.trim() : null;
+
 const normalizeRowMemoOperation = (value: unknown): RowMemoOperation | null => {
   const operation = optionalToolString(value);
   return operation === "append" || operation === "update" ? operation : null;
@@ -2289,8 +2292,8 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           const entry = rawEntry as Record<string, unknown>;
           const operation = normalizeRowMemoOperation(entry.operation);
           const rowId = optionalToolString(entry.rowId);
-          const memo = optionalToolString(entry.memo);
-          if (!operation || !rowId || !memo) continue;
+          const memo = normalizeRowMemoText(entry.memo);
+          if (!operation || !rowId || memo === null) continue;
           const outcome = await mutateExperienceMemo({
             admin,
             userId,
@@ -2328,8 +2331,8 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           const entry = rawEntry as Record<string, unknown>;
           const operation = normalizeRowMemoOperation(entry.operation);
           const rowId = optionalToolString(entry.rowId);
-          const memo = optionalToolString(entry.memo);
-          if (!operation || !rowId || !memo) continue;
+          const memo = normalizeRowMemoText(entry.memo);
+          if (!operation || !rowId || memo === null) continue;
           const outcome = await mutateEducationMemo({
             admin,
             userId,
@@ -2367,8 +2370,8 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           const entry = rawEntry as Record<string, unknown>;
           const operation = normalizeRowMemoOperation(entry.operation);
           const rowId = optionalToolString(entry.rowId);
-          const memo = optionalToolString(entry.memo);
-          if (!operation || !rowId || !memo) continue;
+          const memo = normalizeRowMemoText(entry.memo);
+          if (!operation || !rowId || memo === null) continue;
           const outcome = await mutateExtraMemo({
             admin,
             userId,

@@ -4,8 +4,6 @@ import { LoaderCircle, MessageSquareText, User } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import {
   useOpsCareerDetail,
-  useOpsCareerInsights,
-  useOpsCareerMessages,
   useOpsCareerProfile,
 } from "@/hooks/ops/useOpsCareer";
 import {
@@ -19,13 +17,13 @@ import {
   profileVisibilityBadgeClass,
   profileVisibilityLabel,
 } from "./utils";
-import { InsightsTab } from "./InsightsTab";
-import { MailTab } from "./MailTab";
-import { MatchingTab } from "./MatchingTab";
-import { MessagesTab } from "./MessagesTab";
 import { OpsProfileMemoFeed } from "./OpsProfileMemoFeed";
 import { ProfileTab } from "./ProfileTab";
-import { RecommendationsTab } from "./RecommendationsTab";
+import {
+  TALENT_DETAIL_SHARED_TABS,
+  TalentDetailSharedTabContent,
+  type TalentDetailSharedTabId,
+} from "./TalentDetailSharedTabs";
 import { TalentProgressFeed } from "./TalentProgressFeed";
 import {
   TalentGeneralTagsPanel,
@@ -34,23 +32,13 @@ import {
 import { BareButton } from "@/components/ui/button";
 import type { CareerTalentOpsProfileMemo } from "@/lib/ops/careerServer";
 
-type TalentDetailTabId =
-  | "all_feed"
-  | "insights"
-  | "mail"
-  | "matching"
-  | "messages"
-  | "profile"
-  | "recommendations";
+type TalentDetailTabId = "all_feed" | "profile" | TalentDetailSharedTabId;
 
 const TALENT_DETAIL_TABS = [
   { id: "all_feed", label: "전체 피드" },
-  { id: "insights", label: "인사이트" },
-  { id: "messages", label: "대화 내역" },
+  ...TALENT_DETAIL_SHARED_TABS.slice(0, 2),
   { id: "profile", label: "프로필" },
-  { id: "mail", label: "메일" },
-  { id: "recommendations", label: "추천" },
-  { id: "matching", label: "매칭" },
+  ...TALENT_DETAIL_SHARED_TABS.slice(2),
 ] as const satisfies readonly {
   id: TalentDetailTabId;
   label: string;
@@ -98,35 +86,6 @@ function TalentAllFeedTab({
       </section>
     </div>
   );
-}
-
-function TalentInsightsTab({ userId }: { userId: string }) {
-  const { data, error, isLoading } = useOpsCareerInsights(userId);
-  if (isLoading) return <TabLoading />;
-  if (error || !data) {
-    return (
-      <TabError error={error} fallback="인사이트를 불러오지 못했습니다." />
-    );
-  }
-  return (
-    <InsightsTab
-      userId={userId}
-      insights={data.insights}
-      mergedChecklist={data.mergedChecklist}
-      preferences={data.preferences}
-    />
-  );
-}
-
-function TalentMessagesTab({ userId }: { userId: string }) {
-  const { data, error, isLoading } = useOpsCareerMessages(userId);
-  if (isLoading) return <TabLoading />;
-  if (error || !data) {
-    return (
-      <TabError error={error} fallback="대화 내역을 불러오지 못했습니다." />
-    );
-  }
-  return <MessagesTab messages={data.messages} />;
 }
 
 function TalentProfileTab({ userId }: { userId: string }) {
@@ -272,23 +231,15 @@ export const TalentDetail = memo(function TalentDetail({
             userId={detail.userId}
           />
         ) : null}
-        {activeTab === "insights" ? (
-          <TalentInsightsTab userId={detail.userId} />
-        ) : null}
-        {activeTab === "messages" ? (
-          <TalentMessagesTab userId={detail.userId} />
-        ) : null}
         {activeTab === "profile" ? (
           <TalentProfileTab userId={detail.userId} />
         ) : null}
-        {activeTab === "mail" ? (
-          <MailTab key={detail.userId} detail={detail} />
-        ) : null}
-        {activeTab === "recommendations" ? (
-          <RecommendationsTab key={detail.userId} userId={detail.userId} />
-        ) : null}
-        {activeTab === "matching" ? (
-          <MatchingTab key={detail.userId} userId={detail.userId} />
+        {activeTab !== "all_feed" && activeTab !== "profile" ? (
+          <TalentDetailSharedTabContent
+            activeTab={activeTab}
+            detail={detail}
+            userId={detail.userId}
+          />
         ) : null}
       </div>
     </div>

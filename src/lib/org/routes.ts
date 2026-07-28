@@ -1,4 +1,5 @@
 export type OrgWorkspacePageId =
+  | "all"
   | "home"
   | "jobs"
   | "team"
@@ -6,6 +7,7 @@ export type OrgWorkspacePageId =
   | "help";
 
 const ORG_PAGE_PATHS: Record<OrgWorkspacePageId, string> = {
+  all: "/org/all",
   help: "/org/help",
   home: "/org/home",
   jobs: "/org/jobs",
@@ -18,6 +20,7 @@ export function buildOrgHref(args: {
     recommendationId?: string | null;
     roleId?: string | null;
     talentId?: string | null;
+    workspaceId?: string | null;
   } | null;
   orgId?: string | null;
   page?: OrgWorkspacePageId;
@@ -29,6 +32,7 @@ export function buildOrgHref(args: {
   const detailTalentId = args.detail?.talentId?.trim();
   const detailRecommendationId = args.detail?.recommendationId?.trim();
   const detailRoleId = args.detail?.roleId?.trim();
+  const detailWorkspaceId = args.detail?.workspaceId?.trim();
   if (orgId) params.set("orgId", orgId);
   if (roleId && args.page === "jobs") params.set("roleId", roleId);
   if (detailTalentId) params.set("talentId", detailTalentId);
@@ -36,6 +40,7 @@ export function buildOrgHref(args: {
     params.set("recommendationId", detailRecommendationId);
   }
   if (detailRoleId) params.set("detailRoleId", detailRoleId);
+  if (detailWorkspaceId) params.set("detailWorkspaceId", detailWorkspaceId);
   const query = params.toString();
   const pathname = ORG_PAGE_PATHS[args.page ?? "home"];
   return query ? `${pathname}?${query}` : pathname;

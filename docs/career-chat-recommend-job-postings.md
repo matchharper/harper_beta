@@ -503,17 +503,8 @@ scored near-misses only when direct-fit recommendations are fewer than 5.
 
 ## Persistence
 
-Saved rows in `talent_opportunity_recommendation` always use:
-
-```json
-{
-  "kind": "recommendation",
-  "opportunity_type": "external_jd",
-  "model_version": "career_chat_recommend_job_postings_external_v5"
-}
-```
-
-The saved row includes `role_id`, `rank`, `score`, `fit_summary`,
-`fit_reasons`, `tradeoffs`, `preference_fit`, and compact evidence from role,
-company, and search-intent text. `tradeoffs` is always persisted as an empty
-array for this tool.
+Saved rows in `talent_opportunity_recommendation` use
+`opportunity_type = external_jd`. The saved row includes `role_id`, `rank`,
+`score`, `fit_summary`, `fit_reasons`, `tradeoffs`, `preference_fit`, and
+compact evidence from role, company, and search-intent text. `tradeoffs` is
+always persisted as an empty array for this tool.

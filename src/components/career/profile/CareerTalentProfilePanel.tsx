@@ -1216,14 +1216,14 @@ const CareerTalentProfilePanel = ({
         </p>
       )}
 
-      <CareerProfilePersonalInfo
+      {/* <CareerProfilePersonalInfo
         isEditing={isEditing}
         onEdit={beginEditing}
         onFieldChange={(field, value) => updateTalentUserField(field, value)}
         onOpenEmailChangeModal={openEmailChangeModal}
         onOpenPhoneNumberModal={openPhoneNumberModal}
         user={personalInfoUser}
-      />
+      /> */}
 
       <div className="flex flex-col items-start justify-start gap-3 pt-3 w-full">
         <div className="flex items-center text-[15px] font-medium leading-4 text-neutral-primary">

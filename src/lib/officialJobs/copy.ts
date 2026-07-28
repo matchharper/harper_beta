@@ -48,6 +48,8 @@ export const OFFICIAL_JOBS_COPY = {
       treatment: "Apply with Harper",
     },
     initialChatDraft: "Harper 내부 기회인 {role} 포지션에 관심 있어요.",
+    initialChatDraftWithCompany:
+      "Harper 내부 기회인 {role} at {company} 포지션에 관심 있어요.",
     detail: {
       backToList: "역할 목록",
       facts: {
@@ -102,6 +104,8 @@ export const OFFICIAL_JOBS_COPY = {
     },
     initialChatDraft:
       "I'm interested in the Harper internal opportunity : {role} role.",
+    initialChatDraftWithCompany:
+      "I'm interested in the Harper internal opportunity: {role} at {company}.",
     detail: {
       backToList: "All roles",
       facts: {

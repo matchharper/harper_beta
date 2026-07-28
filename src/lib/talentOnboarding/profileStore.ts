@@ -508,10 +508,10 @@ export function applyRowMemoOperation(args: {
   const { existing, memo, operation } = args;
   const trimmedExisting = (existing ?? "").replace(/\r/g, "").trim();
   const trimmedNew = memo.replace(/\r/g, "").trim();
-  if (!trimmedNew) return null;
   if (operation === "update") {
     return trimmedNew.slice(0, MEMO_MAX_CHARS);
   }
+  if (!trimmedNew) return null;
   const appended = trimmedExisting
     ? `${trimmedExisting}\n${trimmedNew}`
     : trimmedNew;

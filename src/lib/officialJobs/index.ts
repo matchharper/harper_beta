@@ -15,12 +15,15 @@ export const OFFICIAL_JOBS_LOGIN_HREF = buildOfficialJobsLoginHref();
 export const OFFICIAL_JOBS_INTERNAL_COPY_ROLE_TITLE = "internal_internal";
 export const OFFICIAL_JOBS_INTERNAL_COPY_SLUG = "internal-internal";
 export const OFFICIAL_JOBS_ONBOARDING_JOB_PARAM = "job";
+export const OFFICIAL_JOBS_ONBOARDING_COMPANY_PARAM = "job_company";
 export const OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM = "job_slug";
+export const OFFICIAL_JOBS_COMPANY_NAME_MAX_LENGTH = 160;
 export const OFFICIAL_JOBS_ROLE_TITLE_MAX_LENGTH = 140;
 export const OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE =
   "official_jobs_signup_intent";
 
 export type OfficialJobsCareerJob = {
+  companyName?: string | null;
   roleTitle?: string | null;
   slug?: string | null;
 };
@@ -29,6 +32,19 @@ export function normalizeOfficialJobsRoleTitle(value?: string | null) {
   return String(value ?? "")
     .trim()
     .slice(0, OFFICIAL_JOBS_ROLE_TITLE_MAX_LENGTH);
+}
+
+export function normalizeOfficialJobsCompanyName(value?: string | null) {
+  const companyName = String(value ?? "")
+    .trim()
+    .slice(0, OFFICIAL_JOBS_COMPANY_NAME_MAX_LENGTH);
+  if (
+    companyName.toLocaleLowerCase("en-US") === "harper" ||
+    companyName.toLocaleLowerCase("en-US") === "[harper]"
+  ) {
+    return "[Harper]";
+  }
+  return companyName;
 }
 
 export function buildOfficialJobsOnboardingIntentPrompt(
@@ -46,9 +62,13 @@ export function buildOfficialJobsCareerHref(job?: OfficialJobsCareerJob) {
     source: OFFICIAL_JOBS_LANDING_SOURCE,
   });
   const roleTitle = normalizeOfficialJobsRoleTitle(job?.roleTitle);
+  const companyName = normalizeOfficialJobsCompanyName(job?.companyName);
   const slug = String(job?.slug ?? "").trim();
 
   if (roleTitle) params.set(OFFICIAL_JOBS_ONBOARDING_JOB_PARAM, roleTitle);
+  if (companyName) {
+    params.set(OFFICIAL_JOBS_ONBOARDING_COMPANY_PARAM, companyName);
+  }
   if (slug) params.set(OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM, slug);
 
   return `/career?${params.toString()}`;
@@ -77,12 +97,20 @@ export function buildOfficialJobsLoginHref(
     const roleTitle = normalizeOfficialJobsRoleTitle(
       nextUrl.searchParams.get(OFFICIAL_JOBS_ONBOARDING_JOB_PARAM)
     );
+    const companyName = String(
+      nextUrl.searchParams.get(OFFICIAL_JOBS_ONBOARDING_COMPANY_PARAM) ?? ""
+    )
+      .trim()
+      .slice(0, OFFICIAL_JOBS_COMPANY_NAME_MAX_LENGTH);
     const slug = String(
       nextUrl.searchParams.get(OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM) ?? ""
     ).trim();
 
     if (source === OFFICIAL_JOBS_LANDING_SOURCE && roleTitle) {
       params.set(OFFICIAL_JOBS_ONBOARDING_JOB_PARAM, roleTitle);
+    }
+    if (source === OFFICIAL_JOBS_LANDING_SOURCE && companyName) {
+      params.set(OFFICIAL_JOBS_ONBOARDING_COMPANY_PARAM, companyName);
     }
     if (source === OFFICIAL_JOBS_LANDING_SOURCE && slug) {
       params.set(OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM, slug);
@@ -96,13 +124,22 @@ export function buildOfficialJobsLoginHref(
 
 export function buildOfficialJobsInitialChatDraft(
   roleTitle?: string | null,
+  companyName?: string | null,
   locale: OfficialJobsLocale = "ko"
 ) {
   const normalizedRoleTitle = normalizeOfficialJobsRoleTitle(roleTitle);
   if (!normalizedRoleTitle) return "";
-  return formatOfficialJobsCopy(getOfficialJobsCopy(locale).initialChatDraft, {
-    role: normalizedRoleTitle,
-  });
+  const normalizedCompanyName = normalizeOfficialJobsCompanyName(companyName);
+  const copy = getOfficialJobsCopy(locale);
+  return formatOfficialJobsCopy(
+    normalizedCompanyName
+      ? copy.initialChatDraftWithCompany
+      : copy.initialChatDraft,
+    {
+      company: normalizedCompanyName,
+      role: normalizedRoleTitle,
+    }
+  );
 }
 
 export type OfficialJobRow = Tables<"official_jobs">;

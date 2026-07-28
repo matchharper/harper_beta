@@ -9,6 +9,7 @@ import {
 import {
   fetchInternalConnectionConfirmationEmails,
   syncInternalConnectionConfirmationEmailForStage,
+  type InternalConnectionConfirmationEmailMode,
   type OpsMatchingConnectionConfirmationEmail,
 } from "@/lib/ops/connectionConfirmationEmail";
 import type {
@@ -4446,6 +4447,7 @@ export async function fetchOpsMatchingTagOptions(): Promise<OpsMatchingTagOption
 
 export async function setOpsMatchingReviewStage(args: {
   actorEmail?: string | null;
+  emailMode?: InternalConnectionConfirmationEmailMode;
   roleId: string;
   stage: unknown;
   talentId: string;
@@ -4583,6 +4585,7 @@ export async function setOpsMatchingReviewStage(args: {
   await syncInternalConnectionConfirmationEmailForStage({
     actorEmail,
     admin,
+    emailMode: args.emailMode,
     recommendation: recommendation
       ? {
           createdAt: recommendation.createdAt,

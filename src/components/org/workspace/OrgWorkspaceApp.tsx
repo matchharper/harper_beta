@@ -32,15 +32,16 @@ export function OrgWorkspaceApp({
     user,
     workspace,
   } = useOrgWorkspaceController({ legacyEntry, page });
+  const useWideLayout = page === "all" || page === "jobs";
 
   if (authLoading || !routerReady) {
-    return <OrgWorkspaceShellSkeleton />;
+    return <OrgWorkspaceShellSkeleton wide={useWideLayout} />;
   }
   if (!user) {
     return <OrgLoginScreen orgId={orgId} />;
   }
   if (bootstrapQuery.isLoading) {
-    return <OrgWorkspaceShellSkeleton />;
+    return <OrgWorkspaceShellSkeleton wide={useWideLayout} />;
   }
   if (bootstrapQuery.error) {
     return (
@@ -62,7 +63,7 @@ export function OrgWorkspaceApp({
     );
   }
   if (orgId && !workspace) {
-    return <OrgWorkspaceShellSkeleton />;
+    return <OrgWorkspaceShellSkeleton wide={useWideLayout} />;
   }
   if (!workspace || !contextValue) {
     return <OrgLoginScreen authenticatedEmail={user.email} />;
@@ -78,7 +79,8 @@ export function OrgWorkspaceApp({
       <Page
         as="main"
         background="neutral"
-        className="font-sans text-neutral-primary"
+        className="overflow-x-clip overflow-y-auto font-sans text-neutral-primary"
+        minHeight="fillScreen"
       >
         <OrgWorkspaceSidebar />
         <div className="lg:pl-[256px]">
@@ -86,7 +88,7 @@ export function OrgWorkspaceApp({
             key={workspace.workspaceId}
             className="py-6 sm:py-9 lg:py-10"
             padding="default"
-            size={page === "jobs" ? "wide" : "default"}
+            size={useWideLayout ? "wide" : "default"}
           >
             {children}
           </PageContainer>

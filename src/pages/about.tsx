@@ -59,7 +59,11 @@ async function copyTextToClipboard(text: string) {
 }
 
 function isHarperOfficialJob(job: OfficialJobListItem) {
-  return job.companyName.trim().toLowerCase() === HARPER_COMPANY_NAME;
+  const normalizedCompanyName = job.companyName.trim().toLowerCase();
+  return (
+    normalizedCompanyName === HARPER_COMPANY_NAME ||
+    normalizedCompanyName === `[${HARPER_COMPANY_NAME}]`
+  );
 }
 
 export default function AboutPage({ harperJobs, locale }: AboutPageProps) {

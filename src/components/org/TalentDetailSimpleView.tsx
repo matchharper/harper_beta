@@ -2,7 +2,7 @@ import Image from "next/image";
 import dynamic from "next/dynamic";
 import { CircleAlert, ExternalLink, LoaderCircle, X } from "lucide-react";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
@@ -12,6 +12,7 @@ import {
   type ProgressFeedIcon,
   type ProgressFeedItem,
 } from "@/components/progress-feed/ProgressFeed";
+import { ConnectionConfirmationEmailFeedCard } from "@/components/progress-feed/ConnectionConfirmationEmailFeedCard";
 import { BareButton, Button, MuteButton } from "@/components/ui/button";
 import {
   Dialog,
@@ -27,11 +28,14 @@ import {
 import { InternalOnlySurface } from "@/components/org/internal/InternalOnlySurface";
 import { OrgErrorState } from "@/components/org/workspace/OrgErrorState";
 import { formatKst } from "@/components/ops/career/utils";
+import { formatKstRelativeDate } from "@/components/ops/dateUtils";
+import { PendingConnectionDialog } from "@/components/review-pipeline/PendingConnectionDialog";
 import { useOpsCareerDetail } from "@/hooks/ops/useOpsCareer";
 import {
   useCreateOrgFeedItem,
   useDeleteOrgFeedItem,
   useOpenOrgResume,
+  useUpdateOrgConnectionConfirmationEmail,
   useUpdateOrgFeedItem,
 } from "@/hooks/org/useOrg";
 import {
@@ -39,8 +43,11 @@ import {
   useOrgJobsDetail,
   useOrgJobsNavigation,
 } from "@/hooks/org/useOrgJobs";
+import { useOrgInternalTalentSystem } from "@/hooks/org/useOrgInternalTalent";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import type { CareerTalentOpsProfileMemo } from "@/lib/ops/careerServer";
+import { getDisplayableProfileImageUrl } from "@/lib/imageUrl";
+import type { OrgInternalTalentSystemResponse } from "@/lib/org/internalTalentTypes";
 import type { OrgTalentDetailResponse } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
 
@@ -76,14 +83,18 @@ const OrgInternalTalentPanel = dynamic(
 );
 
 function TalentAvatar({ name, src }: { name: string; src?: string | null }) {
-  if (src) {
+  const profilePicture = getDisplayableProfileImageUrl(src);
+  const [failedImageSrc, setFailedImageSrc] = useState<string | null>(null);
+
+  if (profilePicture && failedImageSrc !== profilePicture) {
     return (
       <Image
-        src={src}
+        src={profilePicture}
         alt=""
         width={64}
         height={64}
         unoptimized
+        onError={() => setFailedImageSrc(profilePicture)}
         className="h-9 w-9 rounded-full object-cover"
       />
     );
@@ -395,6 +406,53 @@ function HarperMemoSection({
   );
 }
 
+function SystemActivitySummary({
+  account,
+  error,
+  isLoading,
+}: {
+  account?: OrgInternalTalentSystemResponse["account"];
+  error: Error | null;
+  isLoading: boolean;
+}) {
+  const metrics = [
+    { label: "가입 날짜", value: account?.createdAt },
+    { label: "최근 로그인", value: account?.lastLoginAt },
+    { label: "최근 사용", value: account?.lastActiveAt },
+  ];
+
+  return (
+    <InternalOnlySurface
+      className="rounded-sm border border-neutral-1000-a05 bg-bg-weak/70 px-3 py-2"
+      showLabel={false}
+    >
+      <div className="relative z-20">
+        {isLoading ? (
+          <div className="flex items-center text-[11px] text-neutral-soft">
+            <LoaderCircle className="mr-1.5 size-3 animate-spin" />
+            시스템 활동을 불러오는 중
+          </div>
+        ) : error ? (
+          <div className="text-[11px] text-neutral-soft">
+            시스템 활동을 불러오지 못했습니다.
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] leading-4 text-neutral-muted">
+            {metrics.map((metric) => (
+              <span className="whitespace-nowrap" key={metric.label}>
+                <span className="font-medium text-neutral-primary">
+                  {metric.label}
+                </span>{" "}
+                {formatKstRelativeDate(metric.value)}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </InternalOnlySurface>
+  );
+}
+
 function ProfilePane({
   acceptDisabled,
   currentStage,
@@ -408,6 +466,9 @@ function ProfilePane({
   onMoveToPendingConnection,
   onRejectClick,
   onResumeClick,
+  systemActivityAccount,
+  systemActivityError,
+  systemActivityLoading,
 }: {
   acceptDisabled?: boolean;
   currentStage: OrgTalentDetailResponse["recommendation"]["stage"];
@@ -421,6 +482,9 @@ function ProfilePane({
   onMoveToPendingConnection?: () => void;
   onRejectClick?: () => void;
   onResumeClick: (kind: "storage" | "link", link?: string | null) => void;
+  systemActivityAccount?: OrgInternalTalentSystemResponse["account"];
+  systemActivityError: Error | null;
+  systemActivityLoading: boolean;
 }) {
   const name = detail.talent.name || detail.talent.email || "이름 없음";
   const registeredLinks = detail.profile.registeredLinks.length
@@ -473,11 +537,18 @@ function ProfilePane({
       />
 
       {internalOpsAccess ? (
-        <HarperMemoSection
-          error={harperMemoError}
-          isLoading={harperMemosLoading}
-          memos={harperMemos}
-        />
+        <div className="space-y-2">
+          <SystemActivitySummary
+            account={systemActivityAccount}
+            error={systemActivityError}
+            isLoading={systemActivityLoading}
+          />
+          <HarperMemoSection
+            error={harperMemoError}
+            isLoading={harperMemosLoading}
+            memos={harperMemos}
+          />
+        </div>
       ) : null}
 
       <ProfileSection title="추천 이유">
@@ -691,10 +762,11 @@ function CandidateDecisionActions({
           연결 대기 상태로 옮기시겠습니까?
         </div>
         <p className="mt-1 text-[13px] font-normal leading-5 text-neutral-muted">
-          회사가 {candidateName} 후보자와 연결을 진행할지 결정할 수 있게 됩니다.
+          회사 측의 페이지에 현재 후보자가 표시되며, 회사 측에서 연결을 받을지
+          결정하는 단계로 넘어갑니다.
         </p>
         <MuteButton
-          className="mt-4 min-h-10 w-full sm:w-auto"
+          className="mt-4"
           disabled={decisionPending}
           onClick={onMoveToPendingConnection}
           size="md"
@@ -798,27 +870,112 @@ function FeedPane({
   talentId?: string | null;
   workspaceId: string;
 }) {
+  const { detailQuery } = useOrgJobsDetail();
   const [draft, setDraft] = useState("");
+  const [pollingQueueId, setPollingQueueId] = useState<string | null>(null);
   const createFeed = useCreateOrgFeedItem();
   const updateFeed = useUpdateOrgFeedItem();
   const deleteFeed = useDeleteOrgFeedItem();
+  const updateConnectionEmail = useUpdateOrgConnectionConfirmationEmail();
   const trimmedDraft = draft.trim();
-  const feedItems: ProgressFeedItem[] = detail.feed.map((item) => ({
-    actor: item.actor,
-    createdAt: item.createdAt,
-    deletable:
-      canManageCandidates &&
-      item.kind === "org_note" &&
-      item.companyUserId === currentUserId,
-    editable:
-      canManageCandidates &&
-      item.kind === "org_note" &&
-      item.companyUserId === currentUserId,
-    icon: getOrgFeedIcon(item.kind),
-    id: item.id,
-    text: item.text,
-    title: getOrgFeedTitle(item.kind),
-  }));
+  const refetchDetail = detailQuery.refetch;
+  const pendingConnectionQueueId =
+    updateConnectionEmail.variables?.queueId ?? null;
+
+  useEffect(() => {
+    if (!pollingQueueId) return;
+    let cancelled = false;
+    const intervalId = window.setInterval(async () => {
+      const result = await refetchDetail();
+      const current = result.data?.connectionConfirmationEmails.find(
+        (item) => item.id === pollingQueueId
+      );
+      if (
+        !cancelled &&
+        current &&
+        current.status !== "scheduled" &&
+        current.status !== "sending"
+      ) {
+        setPollingQueueId(null);
+      }
+    }, 2_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [pollingQueueId, refetchDetail]);
+
+  const feedItems: ProgressFeedItem[] = [
+    ...detail.feed.map((item) => ({
+      actor: item.actor,
+      createdAt: item.createdAt,
+      deletable:
+        canManageCandidates &&
+        item.kind === "org_note" &&
+        item.companyUserId === currentUserId,
+      editable:
+        canManageCandidates &&
+        item.kind === "org_note" &&
+        item.companyUserId === currentUserId,
+      icon: getOrgFeedIcon(item.kind),
+      id: item.id,
+      text: item.text,
+      title: getOrgFeedTitle(item.kind),
+    })),
+    ...detail.connectionConfirmationEmails.map((item) => {
+      const pendingAction =
+        updateConnectionEmail.isPending && pendingConnectionQueueId === item.id
+          ? (updateConnectionEmail.variables?.action ?? null)
+          : null;
+      return {
+        createdAt: item.sentAt ?? item.createdAt,
+        customContent: (
+          <ConnectionConfirmationEmailFeedCard
+            item={item}
+            onCancel={
+              canManageCandidates
+                ? () =>
+                    updateConnectionEmail.mutate({
+                      action: "cancel",
+                      queueId: item.id,
+                      roleId: item.roleId ?? detail.role.roleId,
+                      talentId: item.talentId,
+                      workspaceId,
+                    })
+                : undefined
+            }
+            onSendNow={
+              canManageCandidates
+                ? () =>
+                    updateConnectionEmail.mutate(
+                      {
+                        action: "send_now",
+                        queueId: item.id,
+                        roleId: item.roleId ?? detail.role.roleId,
+                        talentId: item.talentId,
+                        workspaceId,
+                      },
+                      {
+                        onSuccess: () => setPollingQueueId(item.id),
+                      }
+                    )
+                : undefined
+            }
+            pendingAction={pendingAction}
+          />
+        ),
+        id: `connection-email:${item.id}`,
+        text: "",
+      };
+    }),
+  ].sort((left, right) => {
+    const leftTime = Date.parse(left.createdAt);
+    const rightTime = Date.parse(right.createdAt);
+    return (
+      (Number.isFinite(rightTime) ? rightTime : 0) -
+      (Number.isFinite(leftTime) ? leftTime : 0)
+    );
+  });
 
   return (
     <div className="min-w-0 space-y-2.5">
@@ -888,6 +1045,13 @@ function FeedPane({
           createFeed.error instanceof Error ? createFeed.error : null
         }
       />
+      {updateConnectionEmail.error ? (
+        <div className={opsTheme.errorNotice}>
+          {updateConnectionEmail.error instanceof Error
+            ? updateConnectionEmail.error.message
+            : "메일 상태를 변경하지 못했습니다."}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -916,16 +1080,16 @@ export function TalentDetailSimpleView() {
     user,
     workspace,
   } = useOrgWorkspace();
-  const members = bootstrap.members;
+  const detail = detailQuery.data;
+  const members = detail?.members ?? bootstrap.members;
   const acceptStageId = selectedAcceptStageId;
   const canManageCandidates = permissions.canManageCandidates;
-  const companyName = workspace.companyName;
+  const companyName = detail?.workspace.companyName ?? workspace.companyName;
   const currentUserId = currentUser?.userId ?? user.id;
   const decisionPending = Boolean(
     activeDetailRecommendationId &&
     pendingRecommendationId === activeDetailRecommendationId
   );
-  const detail = detailQuery.data;
   const error = detailQuery.error instanceof Error ? detailQuery.error : null;
   const isLoading = detailQuery.isLoading;
   const onAcceptCandidate = canManageCandidates ? acceptTalent : undefined;
@@ -935,6 +1099,8 @@ export function TalentDetailSimpleView() {
   const open = detailOpen;
   const talentId = activeDetailTalentId || null;
   const [acceptDialogOpen, setAcceptDialogOpen] = useState(false);
+  const [pendingConnectionDialogOpen, setPendingConnectionDialogOpen] =
+    useState(false);
   const [mobileTab, setMobileTab] = useState<"profile" | "feed">("profile");
   const [profileTab, setProfileTab] = useState<"internal" | "profile">(
     "profile"
@@ -950,11 +1116,22 @@ export function TalentDetailSimpleView() {
     talentId,
     Boolean(open && internalOpsAccess && talentId && profileTab === "profile")
   );
+  const systemActivityQuery = useOrgInternalTalentSystem({
+    enabled: Boolean(
+      open && internalOpsAccess && talentId && profileTab === "profile"
+    ),
+    talentId,
+    workspaceId,
+  });
   const harperMemoError =
     harperMemoQuery.error instanceof Error ? harperMemoQuery.error : null;
   const harperMemos = harperMemoQuery.data?.opsProfileMemos ?? [];
+  const systemActivityError =
+    systemActivityQuery.error instanceof Error
+      ? systemActivityQuery.error
+      : null;
   const onMoveToPendingConnection = canManageCandidates
-    ? () => void moveTalentToPendingConnection()
+    ? () => setPendingConnectionDialogOpen(true)
     : undefined;
 
   const handleConfirmResume = () => {
@@ -1128,9 +1305,6 @@ export function TalentDetailSimpleView() {
                   >
                     {profileTab === "internal" && internalOpsAccess ? (
                       <OrgInternalTalentPanel
-                        currentRecommendationId={
-                          detail.recommendation.recommendationId
-                        }
                         talentId={detail.talent.userId}
                         workspaceId={workspaceId}
                       />
@@ -1158,6 +1332,11 @@ export function TalentDetailSimpleView() {
                         onResumeClick={(kind, link) =>
                           setResumeRequest({ kind, link })
                         }
+                        systemActivityAccount={
+                          systemActivityQuery.data?.account
+                        }
+                        systemActivityError={systemActivityError}
+                        systemActivityLoading={systemActivityQuery.isLoading}
                       />
                     )}
                   </div>
@@ -1272,6 +1451,19 @@ export function TalentDetailSimpleView() {
           });
           setAcceptDialogOpen(false);
         }}
+      />
+
+      <PendingConnectionDialog
+        candidateName={title}
+        onClose={() => setPendingConnectionDialogOpen(false)}
+        onConfirm={async (emailMode) => {
+          const request = moveTalentToPendingConnection(emailMode);
+          setPendingConnectionDialogOpen(false);
+          await request;
+        }}
+        open={pendingConnectionDialogOpen && Boolean(detail)}
+        pending={decisionPending}
+        recipientEmail={detail?.talent.email}
       />
 
       <StopCandidateDialog

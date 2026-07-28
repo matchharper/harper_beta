@@ -30,6 +30,7 @@ import {
 } from "@/lib/talentNetworkReferral";
 import {
   buildOfficialJobsInitialChatDraft,
+  OFFICIAL_JOBS_ONBOARDING_COMPANY_PARAM,
   OFFICIAL_JOBS_ONBOARDING_JOB_PARAM,
   OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM,
 } from "@/lib/officialJobs";
@@ -95,6 +96,9 @@ const CareerWorkspacePage = ({
   const officialJobsRoleTitle = isRouterReady
     ? getSingleQueryParam(router.query[OFFICIAL_JOBS_ONBOARDING_JOB_PARAM])
     : null;
+  const officialJobsCompanyName = isRouterReady
+    ? getSingleQueryParam(router.query[OFFICIAL_JOBS_ONBOARDING_COMPANY_PARAM])
+    : null;
   const officialJobsRoleSlug = isRouterReady
     ? getSingleQueryParam(router.query[OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM])
     : null;
@@ -103,17 +107,28 @@ const CareerWorkspacePage = ({
 
     const draft = buildOfficialJobsInitialChatDraft(
       officialJobsRoleTitle,
+      officialJobsCompanyName,
       locale
     );
     if (!draft) return null;
 
     const keySource =
-      officialJobsRoleSlug?.trim() || officialJobsRoleTitle?.trim() || draft;
+      officialJobsRoleSlug?.trim() ||
+      [officialJobsRoleTitle?.trim(), officialJobsCompanyName?.trim()]
+        .filter(Boolean)
+        .join(":") ||
+      draft;
     return {
       draft,
       key: `official_jobs:${locale}:${keySource}`,
     };
-  }, [locale, officialJobsRoleSlug, officialJobsRoleTitle, officialJobsSource]);
+  }, [
+    locale,
+    officialJobsCompanyName,
+    officialJobsRoleSlug,
+    officialJobsRoleTitle,
+    officialJobsSource,
+  ]);
   const deliveryEmailHistoryLinkEntry = isRouterReady
     ? getSingleQueryParam(router.query[DELIVERY_EMAIL_HISTORY_LINK_ENTRY_PARAM])
     : null;
@@ -253,6 +268,7 @@ const CareerWorkspacePage = ({
     }
 
     const nextQuery = { ...router.query };
+    delete nextQuery[OFFICIAL_JOBS_ONBOARDING_COMPANY_PARAM];
     delete nextQuery[OFFICIAL_JOBS_ONBOARDING_JOB_PARAM];
     delete nextQuery[OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM];
     void router.replace(

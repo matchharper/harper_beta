@@ -254,15 +254,22 @@ export default function InvitationPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
         },
+        body: JSON.stringify({ source: "invitation" }),
       });
       const bootstrapJson = (await bootstrapRes.json().catch(() => ({}))) as {
         created?: boolean;
         error?: string;
+        persona?: string;
+        redirectTo?: string;
       };
 
       if (!bootstrapRes.ok) {
         setInviteStatus("error");
         setInviteMessage(bootstrapJson.error || inviteCopy.bootstrapFailed);
+        return false;
+      }
+      if (bootstrapJson.persona === "talent") {
+        await router.replace(bootstrapJson.redirectTo || "/career");
         return false;
       }
       if (bootstrapJson.created === true) {
@@ -479,16 +486,23 @@ export default function InvitationPage() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${accessToken}`,
           },
+          body: JSON.stringify({ source: "invitation" }),
         });
         const bootstrapJson = (await bootstrapRes.json().catch(() => ({}))) as {
           created?: boolean;
           error?: string;
+          persona?: string;
+          redirectTo?: string;
         };
 
         if (!bootstrapRes.ok) {
           return {
             message: bootstrapJson.error || inviteCopy.bootstrapFailed,
           };
+        }
+        if (bootstrapJson.persona === "talent") {
+          await router.replace(bootstrapJson.redirectTo || "/career");
+          return null;
         }
         if (bootstrapJson.created === true) {
           trackSignUp({

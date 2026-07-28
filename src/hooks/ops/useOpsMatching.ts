@@ -6,7 +6,10 @@ import {
 } from "@tanstack/react-query";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import type { OpsQueueManualInternalRecommendationResponse } from "@/lib/ops/careerServer";
-import type { OpsMatchingConnectionConfirmationEmailActionResponse } from "@/lib/ops/connectionConfirmationEmail";
+import type {
+  InternalConnectionConfirmationEmailMode,
+  OpsMatchingConnectionConfirmationEmailActionResponse,
+} from "@/lib/ops/connectionConfirmationEmail";
 import { queryKeys } from "@/lib/queryKeys";
 import type {
   OpsMatchingCompanyOption,
@@ -413,6 +416,7 @@ export function useSetOpsMatchingReviewStage() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (args: {
+      emailMode?: InternalConnectionConfirmationEmailMode;
       roleId: string;
       stage: Exclude<OpsMatchingReviewStageId, "recommended">;
       talentId: string;
@@ -425,24 +429,27 @@ export function useSetOpsMatchingReviewStage() {
           body: JSON.stringify(args),
         }
       ),
-    onSuccess: (_result, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.opsMatching.reviewAll(variables.roleId),
-      });
-      queryClient.invalidateQueries({ queryKey: queryKeys.opsMatching.all });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.opsMatching.roleTags(variables.talentId),
-      });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.opsMatching.progress(variables.talentId, null),
-      });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.opsMatching.progress(
-          variables.talentId,
-          variables.roleId
-        ),
-      });
-    },
+    onSuccess: (_result, variables) =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.opsMatching.reviewAll(variables.roleId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.opsMatching.all,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.opsMatching.roleTags(variables.talentId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.opsMatching.progress(variables.talentId, null),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.opsMatching.progress(
+            variables.talentId,
+            variables.roleId
+          ),
+        }),
+      ]),
   });
 }
 

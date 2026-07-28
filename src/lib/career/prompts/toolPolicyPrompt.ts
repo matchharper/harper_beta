@@ -136,7 +136,9 @@ export function buildCareerToolPolicyPrompt(args: {
           "- Use `get_internal_roles` when the user directly asks to look up internal Harper-connected roles by role title or company name. This is not a personalized recommendation or fit-ranking tool.",
           "- Pass 1-2 concrete FTS keywords only, taken from the user's role title or company name request. Do not pass broad preference paragraphs.",
           "- Multi-word keywords are AND-matched. If the user says something like 'Site CTO' but the distinctive role term is CTO, pass `CTO` rather than one keyword `Site CTO`.",
-          "- Never use this for listing roles. This is only for looking up a specific role by role title or company name. If user wants listing, say it's not possible because of the company's request.",
+          "- Never use this for listing all roles. This is only for looking up a specific role by role title or company name. If user wants listing all, say it's not possible because of the company's request.",
+          "- `[Harper]` means the company Harper, not Harper-connected roles in general. When it appears, include `Harper` in the FTS keywords.",
+          "",
         ]
       : []),
     ...(hasInternalRolePriorityReviewTool
@@ -213,7 +215,7 @@ export function buildCareerToolPolicyPrompt(args: {
           "- Trigger conditions: call ONLY when the user's latest statement directly maps to a writable field in this tool:",
           "1) talentUser.bio: explicit final Summary/About/Bio replacement, correction, or clear request; never infer it from assistant-only summaries.",
           "2) talentUser.location: explicit current primary base/residence only; not travel, past/target job location, desired work location, or relocation preference.",
-          `3) rowMemos: when the user's latest statement clearly maps to one specific visible experience/education/extra row, use operation=append for genuinely new detail that should follow the existing memo, or operation=update when the user corrects or asks to revise the existing memo. For update, send the complete final ${outputLanguage} memo, not only the changed fragment. Use the visible RowID, omit if ambiguous/no row/generic, never delete or clear a memo, and do not duplicate it into talentInsights.`,
+          `3) rowMemos: when the user's latest statement clearly maps to one specific visible experience/education/extra row, use operation=append for genuinely new detail that should follow the existing memo, or operation=update when the user corrects or asks to revise the existing memo. For update, send the complete final ${outputLanguage} memo, not only the changed fragment. Use the visible RowID, omit if ambiguous/no row/generic, update to empty string to delete it and do not duplicate it into talentInsights.`,
           `4) talentInsights: future preference/memory patch; merge existing axes, use English snake_case keys and complete ${outputLanguage} sentence values, and avoid profile-row keys like representative_experience. Things to remember for opportunity recommendation.`,
           args.isOnboardingActive
             ? "- Do NOT call this tool during onboarding for general answers that only update insight-like understanding, such as search intensity, desired next role, compensation, must-haves, deal-breakers, team style, environment preference, career-change reason, or optional-question answers. Those are handled outside this tool until onboarding completes."

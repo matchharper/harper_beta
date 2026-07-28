@@ -18,6 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 export type ReviewPipelineColumnShellProps = HTMLAttributes<HTMLElement> & {
   children: ReactNode;
@@ -61,6 +62,7 @@ export function ReviewPipelineColumnShell({
 }
 
 export function ReviewPipelineColumnHeader({
+  className,
   collapsed = false,
   count,
   label,
@@ -70,6 +72,7 @@ export function ReviewPipelineColumnHeader({
   onExpand,
   pending = false,
 }: {
+  className?: string;
   collapsed?: boolean;
   count: number;
   label: string;
@@ -80,7 +83,12 @@ export function ReviewPipelineColumnHeader({
   pending?: boolean;
 }) {
   return (
-    <div className="border-b border-neutral-1000-a10 bg-bg-floating px-3 py-2.5">
+    <div
+      className={cn(
+        "border-b border-neutral-1000-a10 bg-bg-floating px-3 py-2.5",
+        className
+      )}
+    >
       {collapsed ? (
         <div className="flex flex-col items-center gap-2">
           {onExpand ? (
@@ -166,6 +174,17 @@ export function ReviewPipelineEmptyState() {
   return (
     <div className="border border-dashed border-neutral-1000-a10 bg-bg-floating px-3 py-8 text-center text-xs text-neutral-soft">
       비어 있음
+    </div>
+  );
+}
+
+export function ReviewPipelineCardPendingState() {
+  return (
+    <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[inherit] bg-bg-floating/82 backdrop-blur-[1px]">
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-1000-a05 bg-bg-default px-2.5 py-1 text-[11px] font-medium text-neutral-muted shadow-sm">
+        <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+        이동 저장 중
+      </span>
     </div>
   );
 }

@@ -11,7 +11,7 @@ export function OrgPageHeader({
   title,
 }: {
   actions?: ReactNode;
-  description: string;
+  description?: string;
   title: string;
 }) {
   return (
@@ -20,12 +20,14 @@ export function OrgPageHeader({
         <SectionTitle as="h1" className="text-[20px]" type="head2">
           {title}
         </SectionTitle>
-        <SectionDescription
-          className="text-[14px] font-light leading-5"
-          type="subtle"
-        >
-          {description}
-        </SectionDescription>
+        {description && (
+          <SectionDescription
+            className="text-[14px] font-normal leading-5"
+            type="subtle"
+          >
+            {description}
+          </SectionDescription>
+        )}
       </SectionHeader>
       {actions ? <div className="shrink-0">{actions}</div> : null}
     </div>

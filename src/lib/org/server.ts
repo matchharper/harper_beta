@@ -14,6 +14,15 @@ import {
   type OrgMembershipRole,
 } from "@/lib/org/permissions";
 import { getOrgImplicitAcceptanceStage } from "@/lib/org/recommendationStage";
+import {
+  ConnectionConfirmationEmailError,
+  fetchInternalConnectionConfirmationEmails,
+  syncInternalConnectionConfirmationEmailForStage,
+  updateInternalConnectionConfirmationEmail,
+  type InternalConnectionConfirmationEmailMode,
+  type OpsMatchingConnectionConfirmationEmail,
+  type OpsMatchingConnectionConfirmationEmailActionResponse,
+} from "@/lib/ops/connectionConfirmationEmail";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import {
   notifyOrgCandidateAcceptedSlack,
@@ -149,6 +158,7 @@ export type OrgWorkspaceLeaveResponse = {
 
 export type OrgBuiltInStageId =
   | "accepted"
+  | "archived"
   | "pending_connection"
   | "connected"
   | "final_offer"
@@ -224,6 +234,39 @@ export type OrgBoardResponse = {
   workspaceId: string;
 };
 
+export type OrgBoardProfileLabelsResponse = {
+  items: Array<{
+    recentCompanies: OrgBoardProfileLabel[];
+    recentSchools: OrgBoardProfileLabel[];
+    talentId: string;
+  }>;
+  workspaceId: string;
+};
+
+export type OrgAcceptedTalentItem = {
+  acceptedAt: string;
+  companyName: string;
+  currentStage: OrgStageId | null;
+  isAwaitingStageMove: boolean;
+  recommendationId: string;
+  roleId: string;
+  roleName: string | null;
+  talent: {
+    headline: string | null;
+    name: string | null;
+    profilePicture: string | null;
+    userId: string;
+  };
+  talentId: string;
+  workspaceId: string;
+};
+
+export type OrgAcceptedTalentsResponse = {
+  items: OrgAcceptedTalentItem[];
+  nextOffset: number | null;
+  totalCount: number;
+};
+
 export type OrgFeedActor = {
   companyUserId: string;
   email: string | null;
@@ -271,7 +314,9 @@ export type OrgProfileExtra = {
 };
 
 export type OrgTalentDetailResponse = {
+  connectionConfirmationEmails: OpsMatchingConnectionConfirmationEmail[];
   feed: OrgFeedItem[];
+  members: OrgMember[];
   profile: {
     bio: string | null;
     educations: OrgProfileEducation[];
@@ -302,6 +347,7 @@ export type OrgTalentDetailResponse = {
     profilePicture: string | null;
     userId: string;
   };
+  workspace: Pick<OrgWorkspace, "companyName" | "workspaceId">;
 };
 
 export type OrgFeedCreateResponse = {
@@ -322,6 +368,7 @@ export type OrgStopReason = "candidate" | "company";
 export type OrgStageChangeOptions = {
   acceptReason?: string | null;
   contactDirectly?: boolean;
+  emailMode?: InternalConnectionConfirmationEmailMode;
   introEmails?: string[] | null;
   stopNote?: string | null;
   stopReason?: OrgStopReason | null;
@@ -329,21 +376,20 @@ export type OrgStageChangeOptions = {
 
 const CUSTOM_STAGE_ID_PREFIX = "custom:";
 const CUSTOM_STAGE_TAG_PREFIX = "내부단계:";
+const ORG_BOARD_ID_FILTER_CHUNK_SIZE = 150;
+const ORG_BOARD_MAX_RECOMMENDATION_COUNT = 800;
+export const ORG_ACCEPTED_TALENTS_PAGE_SIZE = 20;
 const MAX_ORG_ROLE_STAGE_LABEL_LENGTH = 40;
 const INTERNAL_ACCEPTED_STAGE_TAG = "내부:수락";
 const STAGE_TAG_BY_STAGE: Record<OrgBuiltInStageId, string> = {
   accepted: INTERNAL_ACCEPTED_STAGE_TAG,
+  archived: "내부:아카이브",
   pending_connection: "내부:연결대기",
   connected: "내부:연결됨",
   final_offer: "내부:최종오퍼",
   process_stopped: "내부:프로세스중단",
 };
-const EXTRA_INTERNAL_STAGE_TAGS = [
-  "내부:아카이브",
-  "내부:보류",
-  "내부:추천",
-  "내부:거절",
-];
+const EXTRA_INTERNAL_STAGE_TAGS = ["내부:보류", "내부:추천", "내부:거절"];
 const STAGE_BY_TAG_KEY = new Map(
   Object.entries(STAGE_TAG_BY_STAGE).map(([stage, tag]) => [
     normalizeTagKey(tag),
@@ -388,6 +434,14 @@ function uniqueTexts(values: string[]) {
   return Array.from(
     new Set(values.map((value) => value.trim()).filter(Boolean))
   );
+}
+
+function chunkValues<T>(values: T[], size = ORG_BOARD_ID_FILTER_CHUNK_SIZE) {
+  const chunks: T[][] = [];
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size));
+  }
+  return chunks;
 }
 
 function getUserName(user: User) {
@@ -624,34 +678,43 @@ async function fetchBoardProfileLabels(args: {
   const recentSchools = new Map<string, OrgBoardProfileLabel[]>();
   if (args.talentIds.length === 0) return { recentCompanies, recentSchools };
 
-  const [experienceResult, educationResult] = await Promise.all([
-    (args.admin.from("talent_experiences" as any) as any)
-      .select("talent_id, company_name, role, start_date, end_date")
-      .in("talent_id", args.talentIds)
-      .order("start_date", { ascending: false, nullsFirst: false }),
-    (args.admin.from("talent_educations" as any) as any)
-      .select("talent_id, school, degree, field, start_date, end_date")
-      .in("talent_id", args.talentIds)
-      .order("start_date", { ascending: false, nullsFirst: false }),
-  ]);
+  const results = await Promise.all(
+    chunkValues(uniqueTexts(args.talentIds)).map(async (talentIdChunk) => {
+      const [experienceResult, educationResult] = await Promise.all([
+        (args.admin.from("talent_experiences" as any) as any)
+          .select("talent_id, company_name, role, start_date, end_date")
+          .in("talent_id", talentIdChunk)
+          .order("start_date", { ascending: false, nullsFirst: false }),
+        (args.admin.from("talent_educations" as any) as any)
+          .select("talent_id, school, degree, field, start_date, end_date")
+          .in("talent_id", talentIdChunk)
+          .order("start_date", { ascending: false, nullsFirst: false }),
+      ]);
+      if (experienceResult.error) throw experienceResult.error;
+      if (educationResult.error) throw educationResult.error;
+      return {
+        educations: (educationResult.data ?? []) as TalentEducationRow[],
+        experiences: (experienceResult.data ?? []) as TalentExperienceRow[],
+      };
+    })
+  );
 
-  if (experienceResult.error) throw experienceResult.error;
-  if (educationResult.error) throw educationResult.error;
+  for (const result of results) {
+    for (const row of result.experiences) {
+      const label = buildExperienceLabel(row);
+      if (!label) continue;
+      const list = recentCompanies.get(row.talent_id) ?? [];
+      list.push(label);
+      recentCompanies.set(row.talent_id, list);
+    }
 
-  for (const row of (experienceResult.data ?? []) as TalentExperienceRow[]) {
-    const label = buildExperienceLabel(row);
-    if (!label) continue;
-    const list = recentCompanies.get(row.talent_id) ?? [];
-    list.push(label);
-    recentCompanies.set(row.talent_id, list);
-  }
-
-  for (const row of (educationResult.data ?? []) as TalentEducationRow[]) {
-    const label = buildEducationLabel(row);
-    if (!label) continue;
-    const list = recentSchools.get(row.talent_id) ?? [];
-    list.push(label);
-    recentSchools.set(row.talent_id, list);
+    for (const row of result.educations) {
+      const label = buildEducationLabel(row);
+      if (!label) continue;
+      const list = recentSchools.get(row.talent_id) ?? [];
+      list.push(label);
+      recentSchools.set(row.talent_id, list);
+    }
   }
 
   return { recentCompanies, recentSchools };
@@ -733,6 +796,7 @@ function customTagKeyFromStageRow(row: RoleStageRow) {
 
 function buildStageLabel(stage: OrgStageId, customStages: RoleStageRow[]) {
   if (stage === "accepted") return "수락";
+  if (stage === "archived") return "아카이브";
   if (stage === "pending_connection") return "연결 대기";
   if (stage === "connected") return "연결됨";
   if (stage === "final_offer") return "최종 오퍼";
@@ -752,6 +816,7 @@ function stageSortOrder(stage: OrgStageId, customStages: RoleStageRow[]) {
   if (stage === "connected") return 1;
   if (stage === "final_offer") return 10_000;
   if (stage === "process_stopped") return 10_001;
+  if (stage === "archived") return 10_002;
   const stageId = getCustomStageDbId(stage);
   const row = customStages.find((item) => item.id === stageId);
   return 100 + (row?.sort_order ?? 0);
@@ -787,7 +852,6 @@ function getVisibleOrgStage(args: {
 
     if (
       tagKey === normalizeTagKey("내부:거절") ||
-      tagKey === normalizeTagKey("내부:아카이브") ||
       tagKey === normalizeTagKey("내부:보류")
     ) {
       return null;
@@ -1625,6 +1689,7 @@ function buildBoardStages(args: {
     }),
     { id: "final_offer", label: "최종 오퍼", sortOrder: 10_000 },
     { id: "process_stopped", label: "프로세스 중단", sortOrder: 10_001 },
+    { id: "archived", label: "아카이브", sortOrder: 10_002 },
   ];
 
   return stages.sort((left, right) => left.sortOrder - right.sortOrder);
@@ -1639,22 +1704,29 @@ async function fetchTagsForBoard(args: {
     return new Map<string, TalentOpportunityTagRow[]>();
   }
 
-  const { data, error } = await (
-    args.admin.from("talent_opportunity_tag" as any) as any
-  )
-    .select("id, talent_id, opportunity_id, tag, created_at, updated_at")
-    .in("opportunity_id", args.roleIds)
-    .in("talent_id", args.talentIds)
-    .order("updated_at", { ascending: false })
-    .order("id", { ascending: false });
+  const results = await Promise.all(
+    chunkValues(uniqueTexts(args.talentIds)).map(async (talentIdChunk) => {
+      const { data, error } = await (
+        args.admin.from("talent_opportunity_tag" as any) as any
+      )
+        .select("id, talent_id, opportunity_id, tag, created_at, updated_at")
+        .in("opportunity_id", args.roleIds)
+        .in("talent_id", talentIdChunk)
+        .order("updated_at", { ascending: false })
+        .order("id", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as TalentOpportunityTagRow[];
+    })
+  );
 
-  if (error) throw error;
   const map = new Map<string, TalentOpportunityTagRow[]>();
-  for (const row of (data ?? []) as TalentOpportunityTagRow[]) {
-    const key = `${row.talent_id}:${row.opportunity_id}`;
-    const rows = map.get(key) ?? [];
-    rows.push(row);
-    map.set(key, rows);
+  for (const rows of results) {
+    for (const row of rows) {
+      const key = `${row.talent_id}:${row.opportunity_id}`;
+      const current = map.get(key) ?? [];
+      current.push(row);
+      map.set(key, current);
+    }
   }
   return map;
 }
@@ -1673,6 +1745,27 @@ async function fetchOrgConnectedRecommendationIds(args: {
     .contains("metadata", { stage: "connected" })
     .not("recommendation_id", "is", null)
     .limit(5000);
+  if (error) throw error;
+  return new Set(
+    (data ?? []).flatMap((row: { recommendation_id?: string | null }) =>
+      row.recommendation_id ? [row.recommendation_id] : []
+    )
+  );
+}
+
+async function fetchOrgConnectedRecommendationIdsForPage(args: {
+  admin: SupabaseAdminClient;
+  recommendationIds: string[];
+}) {
+  if (args.recommendationIds.length === 0) return new Set<string>();
+  const { data, error } = await (
+    args.admin.from("talent_progress" as any) as any
+  )
+    .select("recommendation_id")
+    .eq("kind", "org_stage_change")
+    .in("recommendation_id", args.recommendationIds)
+    .contains("metadata", { stage: "connected" })
+    .not("recommendation_id", "is", null);
   if (error) throw error;
   return new Set(
     (data ?? []).flatMap((row: { recommendation_id?: string | null }) =>
@@ -1763,17 +1856,20 @@ async function fetchTalentRows(
   talentIds: string[]
 ) {
   if (talentIds.length === 0) return new Map<string, TalentUserRow>();
-  const { data, error } = await (admin.from("talent_users" as any) as any)
-    .select("user_id, email, name, profile_picture, headline")
-    .in("user_id", talentIds);
-
-  if (error) throw error;
-  return new Map(
-    ((data ?? []) as TalentUserRow[]).map((row) => [row.user_id, row])
+  const results = await Promise.all(
+    chunkValues(uniqueTexts(talentIds)).map(async (talentIdChunk) => {
+      const { data, error } = await (admin.from("talent_users" as any) as any)
+        .select("user_id, email, name, profile_picture, headline")
+        .in("user_id", talentIdChunk);
+      if (error) throw error;
+      return (data ?? []) as TalentUserRow[];
+    })
   );
+  return new Map(results.flat().map((row) => [row.user_id, row] as const));
 }
 
 export async function fetchOrgBoard(args: {
+  includeProfileLabels?: boolean;
   query?: string | null;
   recommendedDate?: string | null;
   recommendedFromDate?: string | null;
@@ -1835,7 +1931,7 @@ export async function fetchOrgBoard(args: {
     )
     .in("role_id", roleIds)
     .order("recommended_at", { ascending: false })
-    .limit(800);
+    .limit(ORG_BOARD_MAX_RECOMMENDATION_COUNT);
 
   if (dateRange.startIso) {
     recommendationQuery = recommendationQuery.gte(
@@ -1859,7 +1955,12 @@ export async function fetchOrgBoard(args: {
     await Promise.all([
       fetchTalentRows(admin, talentIds),
       fetchTagsForBoard({ admin, roleIds, talentIds }),
-      fetchBoardProfileLabels({ admin, talentIds }),
+      args.includeProfileLabels === false
+        ? {
+            recentCompanies: new Map<string, OrgBoardProfileLabel[]>(),
+            recentSchools: new Map<string, OrgBoardProfileLabel[]>(),
+          }
+        : fetchBoardProfileLabels({ admin, talentIds }),
       fetchOrgConnectedRecommendationIds({ admin, roleIds }),
     ]);
   const customStageByTagKey = new Map(
@@ -1939,6 +2040,191 @@ export async function fetchOrgBoard(args: {
   };
 }
 
+export async function fetchOrgAcceptedTalents(args: {
+  offset?: number;
+  user: User;
+}): Promise<OrgAcceptedTalentsResponse> {
+  const admin = getSupabaseAdmin();
+  const offset = Math.max(0, Math.floor(Number(args.offset) || 0));
+
+  if (!hasOrgAllWorkspaceAccess(args.user)) {
+    throw new OrgHttpError(403, "내부 계정에서만 접근할 수 있습니다.");
+  }
+
+  const { count, data, error } = await (
+    admin.from("talent_opportunity_recommendation" as any) as any
+  )
+    .select(
+      "id, talent_id, role_id, feedback, feedback_at, saved_stage, role:company_roles!inner(role_id, name, source_type, company_workspace_id, workspace:company_workspace!inner(company_workspace_id, company_name))",
+      { count: "exact" }
+    )
+    .in("feedback", ["like", "positive"])
+    .not("feedback_at", "is", null)
+    .eq("role.source_type", "internal")
+    .eq("role.is_expired", false)
+    .order("feedback_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(offset, offset + ORG_ACCEPTED_TALENTS_PAGE_SIZE - 1);
+  if (error) throw error;
+
+  type AcceptedRoleRow = Pick<
+    CompanyRoleRow,
+    "company_workspace_id" | "name" | "role_id" | "source_type"
+  > & {
+    workspace:
+      | Pick<CompanyWorkspaceRow, "company_name" | "company_workspace_id">
+      | Array<
+          Pick<CompanyWorkspaceRow, "company_name" | "company_workspace_id">
+        >
+      | null;
+  };
+  type AcceptedRecommendationRow = Pick<
+    RecommendationRow,
+    "feedback" | "feedback_at" | "id" | "role_id" | "saved_stage" | "talent_id"
+  > & {
+    role: AcceptedRoleRow | AcceptedRoleRow[] | null;
+  };
+  const recommendationRows = (data ?? []) as AcceptedRecommendationRow[];
+  const recommendationIds = recommendationRows.map((row) => row.id);
+  const talentIds = uniqueTexts(recommendationRows.map((row) => row.talent_id));
+  const roleById = new Map<string, AcceptedRoleRow>();
+  for (const row of recommendationRows) {
+    const role = Array.isArray(row.role) ? (row.role[0] ?? null) : row.role;
+    if (role) roleById.set(role.role_id, role);
+  }
+  const roleIds = [...roleById.keys()];
+  const [customStages, connectedRecommendationIds, tagsByKey, talentById] =
+    await Promise.all([
+      fetchCustomStages(admin, roleIds),
+      fetchOrgConnectedRecommendationIdsForPage({
+        admin,
+        recommendationIds,
+      }),
+      fetchTagsForBoard({ admin, roleIds, talentIds }),
+      fetchTalentRows(admin, talentIds),
+    ]);
+  const customStageByTagKey = new Map(
+    customStages.map((row) => [
+      customTagKeyFromStageRow(row),
+      buildCustomStageId(row.id),
+    ])
+  );
+
+  const items = recommendationRows.flatMap((row): OrgAcceptedTalentItem[] => {
+    const talent = talentById.get(row.talent_id);
+    const acceptedAt = row.feedback_at;
+    const role = roleById.get(row.role_id);
+    const workspace = role
+      ? Array.isArray(role.workspace)
+        ? (role.workspace[0] ?? null)
+        : role.workspace
+      : null;
+    if (!talent || !acceptedAt || !role || !workspace) return [];
+
+    const stageInfo = getVisibleOrgStage({
+      connectedByOrgAction: connectedRecommendationIds.has(row.id),
+      customStageByTagKey,
+      feedback: row.feedback,
+      includeInternalAccepted: true,
+      isInternalRecommendation: true,
+      savedStage: row.saved_stage,
+      tags: tagsByKey.get(`${row.talent_id}:${row.role_id}`) ?? [],
+    });
+    const currentStage = stageInfo?.stage ?? null;
+
+    return [
+      {
+        acceptedAt,
+        companyName: workspace.company_name,
+        currentStage,
+        isAwaitingStageMove: currentStage === "accepted",
+        recommendationId: row.id,
+        roleId: row.role_id,
+        roleName: role.name,
+        talent: {
+          headline: talent.headline ?? null,
+          name: talent.name ?? null,
+          profilePicture: talent.profile_picture ?? null,
+          userId: talent.user_id,
+        },
+        talentId: row.talent_id,
+        workspaceId: workspace.company_workspace_id,
+      },
+    ];
+  });
+  const totalCount = count ?? offset + recommendationRows.length;
+  const nextOffset =
+    offset + ORG_ACCEPTED_TALENTS_PAGE_SIZE < totalCount
+      ? offset + ORG_ACCEPTED_TALENTS_PAGE_SIZE
+      : null;
+
+  return {
+    items,
+    nextOffset,
+    totalCount,
+  };
+}
+
+export async function fetchOrgBoardProfileLabels(args: {
+  recommendationIds: string[];
+  user: User;
+  workspaceId: string;
+}): Promise<OrgBoardProfileLabelsResponse> {
+  const admin = getSupabaseAdmin();
+  const workspaceId = normalizeText(args.workspaceId);
+  const recommendationIds = uniqueTexts(args.recommendationIds);
+
+  if (!workspaceId) throw new OrgHttpError(400, "workspaceId is required");
+  if (recommendationIds.length > ORG_BOARD_MAX_RECOMMENDATION_COUNT) {
+    throw new OrgHttpError(
+      400,
+      `recommendationIds must contain at most ${ORG_BOARD_MAX_RECOMMENDATION_COUNT} items`
+    );
+  }
+
+  await assertOrgWorkspacePermission({
+    admin,
+    permission: "view",
+    user: args.user,
+    workspaceId,
+  });
+  if (recommendationIds.length === 0) {
+    return { items: [], workspaceId };
+  }
+
+  const roleRows = await fetchRoleRowsForWorkspace(admin, workspaceId);
+  const roleIds = roleRows.map((row) => row.role_id);
+  if (roleIds.length === 0) {
+    return { items: [], workspaceId };
+  }
+
+  const recommendationResults = await Promise.all(
+    chunkValues(recommendationIds).map(async (recommendationIdChunk) => {
+      const { data, error } = await (
+        admin.from("talent_opportunity_recommendation" as any) as any
+      )
+        .select("id, talent_id")
+        .in("id", recommendationIdChunk)
+        .in("role_id", roleIds);
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; talent_id: string }>;
+    })
+  );
+  const talentIds = uniqueTexts(
+    recommendationResults.flat().map((row) => row.talent_id)
+  );
+  const profileLabels = await fetchBoardProfileLabels({ admin, talentIds });
+
+  return {
+    items: talentIds.map((talentId) => ({
+      recentCompanies: profileLabels.recentCompanies.get(talentId) ?? [],
+      recentSchools: profileLabels.recentSchools.get(talentId) ?? [],
+      talentId,
+    })),
+    workspaceId,
+  };
+}
+
 async function fetchRecommendationForStage(args: {
   admin: SupabaseAdminClient;
   recommendationId: string;
@@ -1949,7 +2235,7 @@ async function fetchRecommendationForStage(args: {
     args.admin.from("talent_opportunity_recommendation" as any) as any
   )
     .select(
-      "id, talent_id, role_id, fit_summary, fit_reasons, feedback, saved_stage, recommended_at, created_at, updated_at"
+      "id, talent_id, role_id, fit_summary, fit_reasons, feedback, feedback_at, saved_stage, recommended_at, created_at, updated_at"
     )
     .eq("id", args.recommendationId)
     .eq("role_id", args.roleId)
@@ -2256,6 +2542,7 @@ async function sendOrgIntroEmail(args: {
 
 function getStageTagForInsert(stage: OrgStageId) {
   if (stage === "accepted") return STAGE_TAG_BY_STAGE.accepted;
+  if (stage === "archived") return STAGE_TAG_BY_STAGE.archived;
   if (stage === "pending_connection")
     return STAGE_TAG_BY_STAGE.pending_connection;
   if (stage === "connected") return STAGE_TAG_BY_STAGE.connected;
@@ -2292,6 +2579,7 @@ function validateStageForRole(stage: OrgStageId, stageRows: RoleStageRow[]) {
 export async function setOrgCandidateStage(args: {
   acceptReason?: string | null;
   contactDirectly?: boolean;
+  emailMode?: InternalConnectionConfirmationEmailMode;
   introEmails?: string[] | null;
   recommendationId: string;
   roleId: string;
@@ -2509,6 +2797,22 @@ export async function setOrgCandidateStage(args: {
 
   if (progressError) throw progressError;
 
+  await syncInternalConnectionConfirmationEmailForStage({
+    actorEmail: getUserEmail(args.user),
+    admin,
+    emailMode: args.emailMode,
+    recommendation: {
+      createdAt: recommendation.created_at,
+      feedback: recommendation.feedback,
+      feedbackAt: recommendation.feedback_at,
+      recommendationId: recommendation.id,
+      savedStage: recommendation.saved_stage,
+    },
+    roleId,
+    stage,
+    talentId,
+  });
+
   if (isIntroRequested || contactDirectly || stage === "process_stopped") {
     try {
       const [workspace, candidate] = await Promise.all([
@@ -2558,6 +2862,58 @@ export async function setOrgCandidateStage(args: {
     stage,
     talentId,
   };
+}
+
+export async function updateOrgConnectionConfirmationEmail(args: {
+  action: "cancel" | "send_now";
+  queueId: string;
+  roleId: string;
+  talentId: string;
+  user: User;
+  workspaceId: string;
+}): Promise<OpsMatchingConnectionConfirmationEmailActionResponse> {
+  const admin = getSupabaseAdmin();
+  const workspaceId = normalizeText(args.workspaceId);
+  const roleId = normalizeText(args.roleId);
+  const talentId = normalizeText(args.talentId);
+  const queueId = normalizeText(args.queueId);
+  if (!workspaceId || !roleId || !talentId || !queueId) {
+    throw new OrgHttpError(400, "Missing required fields");
+  }
+
+  await assertOrgWorkspacePermission({
+    admin,
+    permission: "manage_candidates",
+    user: args.user,
+    workspaceId,
+  });
+  const roleRows = await fetchRoleRowsForWorkspace(admin, workspaceId);
+  if (!roleRows.some((role) => role.role_id === roleId)) {
+    throw new OrgHttpError(404, "Role not found");
+  }
+  const emails = await fetchInternalConnectionConfirmationEmails({
+    admin,
+    roleId,
+    talentId,
+  });
+  if (!emails.some((item) => item.id === queueId)) {
+    throw new OrgHttpError(404, "연결 확정 안내 메일을 찾을 수 없습니다.");
+  }
+
+  try {
+    return await updateInternalConnectionConfirmationEmail({
+      action: args.action,
+      actorEmail: getUserEmail(args.user),
+      admin,
+      queueId,
+      talentId,
+    });
+  } catch (error) {
+    if (error instanceof ConnectionConfirmationEmailError) {
+      throw new OrgHttpError(error.status, error.message);
+    }
+    throw error;
+  }
 }
 
 export async function createOrgTalentFeedItem(args: {
@@ -2953,7 +3309,12 @@ export async function fetchOrgTalentDetail(args: {
     roleId: normalizeNullableText(args.roleId),
     talentId,
   });
-  const roleRows = await fetchRoleRowsForWorkspace(admin, workspaceId);
+  const [detailWorkspace, members, roleRows] = await Promise.all([
+    fetchWorkspaceById(admin, workspaceId),
+    fetchOrgMembers(admin, workspaceId),
+    fetchRoleRowsForWorkspace(admin, workspaceId),
+  ]);
+  if (!detailWorkspace) throw new OrgHttpError(404, "Workspace not found");
   const roleRow = roleRows.find(
     (row) => row.role_id === recommendation.role_id
   );
@@ -2996,6 +3357,7 @@ export async function fetchOrgTalentDetail(args: {
     educationsResult,
     extrasResult,
     progressResult,
+    connectionConfirmationEmails,
   ] = await Promise.all([
     (admin.from("talent_users" as any) as any)
       .select(
@@ -3023,6 +3385,11 @@ export async function fetchOrgTalentDetail(args: {
       .in("kind", ["org_stage_change", "org_note"])
       .order("created_at", { ascending: false })
       .limit(50),
+    fetchInternalConnectionConfirmationEmails({
+      admin,
+      roleId: recommendation.role_id,
+      talentId,
+    }),
   ]);
 
   const talent = talentResult.data as TalentUserRow | null;
@@ -3067,7 +3434,9 @@ export async function fetchOrgTalentDetail(args: {
     };
   });
   return {
+    connectionConfirmationEmails,
     feed: sortOrgFeedItems(progressFeedItems).slice(0, 50),
+    members,
     profile: {
       bio: talent.bio ?? null,
       educations: educations.map((education) => ({
@@ -3118,6 +3487,10 @@ export async function fetchOrgTalentDetail(args: {
       name: talent.name ?? null,
       profilePicture: talent.profile_picture ?? null,
       userId: talent.user_id,
+    },
+    workspace: {
+      companyName: detailWorkspace.company_name,
+      workspaceId: detailWorkspace.company_workspace_id,
     },
   };
 }

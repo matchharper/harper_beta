@@ -51,6 +51,7 @@ function buildRoleStages(
   const customStages = stages.filter((stage) => stage.roleId === role.roleId);
   const finalOffer = stages.find((stage) => stage.id === "final_offer");
   const stopped = stages.find((stage) => stage.id === "process_stopped");
+  const archived = stages.find((stage) => stage.id === "archived");
 
   return [
     accepted,
@@ -59,6 +60,7 @@ function buildRoleStages(
     ...customStages,
     finalOffer,
     stopped,
+    archived,
   ].filter((stage): stage is OrgStage => Boolean(stage));
 }
 
@@ -236,7 +238,7 @@ function RoleStatusBadge({
 }
 
 export function OrgAllRolesOverview() {
-  const { boardQuery } = useOrgJobsBoard();
+  const { board, boardQuery } = useOrgJobsBoard();
   const { changeRole } = useOrgJobsNavigation();
   const {
     deleteRole,
@@ -246,7 +248,6 @@ export function OrgAllRolesOverview() {
     roleActionPending,
   } = useOrgJobsRoleActions();
   const { permissions, roles } = useOrgWorkspace();
-  const board = boardQuery.data;
   const canManageCandidates = permissions.canManageCandidates;
   const isLoading = boardQuery.isLoading;
   const [roleStatusFilters, setRoleStatusFilters] = useState<
@@ -481,7 +482,8 @@ export function OrgAllRolesOverview() {
                             stageId={stage.id}
                           />
                         );
-                        return stage.id === "accepted" ? (
+                        return stage.id === "accepted" ||
+                          stage.id === "archived" ? (
                           <InternalOnlySurface key={stage.id} showLabel={false}>
                             {cell}
                           </InternalOnlySurface>

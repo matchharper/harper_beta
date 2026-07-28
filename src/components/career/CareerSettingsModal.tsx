@@ -26,6 +26,19 @@ import { BareButton, MuteButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useReferralEntryPointEligibility } from "@/hooks/career/useReferralEntryPointEligibility";
 import CareerEmailChangeModal from "./account/CareerEmailChangeModal";
+import {
+  ACCOUNT_DELETE_CONFIRMATION,
+  ACCOUNT_DELETION_DETAIL_MAX_LENGTH,
+  type AccountDeletionReasonCode,
+} from "@/lib/career/accountDeletionFeedback";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 
 export type CareerSettingsTab = "profile" | "resume" | "referral" | "account";
 type MobileSettingsView = "menu" | CareerSettingsTab;
@@ -120,7 +133,6 @@ const getSettingsTabs = (
 const MENU_SNAP = "340px";
 const FULL_SNAP = 0.95;
 const SETTINGS_SNAP_POINTS: Array<number | string> = [MENU_SNAP, FULL_SNAP];
-const ACCOUNT_DELETE_CONFIRMATION = "delete_account";
 
 const getAccountDeleteErrorMessage = (error: unknown, fallback: string) => {
   if (error instanceof Error && error.message.trim()) {
@@ -155,19 +167,91 @@ type AccountProfilePayload = {
 };
 
 const AccountDeleteConfirmDialog = ({
+  detail,
   error,
   open,
   pending,
+  reason,
   onClose,
   onConfirm,
+  onDetailChange,
+  onReasonChange,
 }: {
+  detail: string;
   error: string;
   open: boolean;
   pending: boolean;
+  reason: AccountDeletionReasonCode | "";
   onClose: () => void;
   onConfirm: () => void;
+  onDetailChange: (value: string) => void;
+  onReasonChange: (value: AccountDeletionReasonCode | "") => void;
 }) => {
   const t = useCareerT();
+  const reasonOptions: Array<{
+    label: string;
+    value: AccountDeletionReasonCode;
+  }> = [
+    {
+      label: t(
+        "career.settings.career_settings_modal.delete_reason_missing_opportunities",
+        "원하는 기회나 추천을 찾지 못했어요"
+      ),
+      value: "missing_opportunities",
+    },
+    {
+      label: t(
+        "career.settings.career_settings_modal.delete_reason_recommendation_quality",
+        "추천 품질이 기대와 달랐어요"
+      ),
+      value: "recommendation_quality",
+    },
+    {
+      label: t(
+        "career.settings.career_settings_modal.delete_reason_infrequent_use",
+        "서비스를 자주 사용하지 않아요"
+      ),
+      value: "infrequent_use",
+    },
+    {
+      label: t(
+        "career.settings.career_settings_modal.delete_reason_difficult_to_use",
+        "서비스 이용이 불편하거나 어려웠어요"
+      ),
+      value: "difficult_to_use",
+    },
+    {
+      label: t(
+        "career.settings.career_settings_modal.delete_reason_privacy_concern",
+        "개인정보가 걱정돼요"
+      ),
+      value: "privacy_concern",
+    },
+    {
+      label: t(
+        "career.settings.career_settings_modal.delete_reason_new_account",
+        "다른 계정으로 다시 가입하려고 해요"
+      ),
+      value: "new_account",
+    },
+    {
+      label: t(
+        "career.settings.career_settings_modal.delete_reason_other",
+        "기타"
+      ),
+      value: "other",
+    },
+  ];
+  const selectItems = [
+    {
+      label: t(
+        "career.settings.career_settings_modal.delete_reason_placeholder",
+        "(선택) 탈퇴 이유를 선택해주세요"
+      ),
+      value: "",
+    },
+    ...reasonOptions,
+  ];
 
   useEffect(() => {
     if (!open || pending) return;
@@ -193,32 +277,35 @@ const AccountDeleteConfirmDialog = ({
     >
       <BareButton
         type="button"
-        aria-label={"회원 탈퇴 확인 닫기"}
+        aria-label={t(
+          "career.settings.career_settings_modal.11q4o0j",
+          "회원 탈퇴 확인 닫기"
+        )}
         className="absolute inset-0 bg-black/45"
         onClick={pending ? undefined : onClose}
       />
-      <div className="relative z-[81] w-full max-w-[440px] rounded-[16px] border border-critical/30 bg-bg-floating p-5 shadow-[0_24px_80px_color-mix(in_srgb,var(--color-neutral-1000)_24%,transparent)]">
+      <div className="relative font-normal z-[81] max-h-[calc(100dvh-2rem)] w-full max-w-[440px] overflow-y-auto rounded-[16px] border border-critical/30 bg-bg-floating p-5 shadow-[0_24px_80px_color-mix(in_srgb,var(--color-neutral-1000)_24%,transparent)]">
         <div className="flex items-start gap-3">
           <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-critical-faded text-critical">
-            <AlertTriangle className="h-5 w-5" />
+            <AlertTriangle className="h-5 w-5" strokeWidth={1.5} />
           </span>
           <div className="min-w-0">
             <h3
               id="career-account-delete-title"
-              className="text-base font-semibold text-neutral-primary"
+              className="text-base font-medium text-neutral-primary"
             >
               {t(
                 "career.settings.career_settings_modal.0j4pj4h",
                 "회원 탈퇴를 진행할까요?"
               )}
             </h3>
-            <p className="mt-2 text-sm leading-relaxed text-neutral-muted">
+            <p className="mt-2 text-sm text-neutral-muted">
               {t(
                 "career.settings.career_settings_modal.1stwtug",
                 "탈퇴하면 계정 접근 권한, 커리어 프로필, 이력서, 대화 기록, 추천/설정 데이터가 삭제됩니다. 이 작업은 되돌릴 수 없습니다."
               )}
             </p>
-            <p className="mt-2 text-sm font-medium text-critical">
+            <p className="mt-2 text-sm text-critical">
               {t(
                 "career.settings.career_settings_modal.1hdokry",
                 "삭제된 데이터는 복구할 수 없습니다."
@@ -227,11 +314,77 @@ const AccountDeleteConfirmDialog = ({
           </div>
         </div>
 
-        {error ? (
+        <div className="mt-5 space-y-4">
+          <div>
+            <label
+              htmlFor="career-account-delete-reason"
+              className="mb-1.5 block text-xs md:text-sm font-normal text-neutral-primary"
+            >
+              {t(
+                "career.settings.career_settings_modal.delete_reason_label",
+                "탈퇴 사유에 대해서 공유해주시면 감사드리겠습니다."
+              )}
+            </label>
+            <Select
+              items={selectItems}
+              value={reason}
+              onValueChange={(value) => {
+                onReasonChange((value ?? "") as AccountDeletionReasonCode | "");
+              }}
+              disabled={pending}
+            >
+              <SelectTrigger id="career-account-delete-reason">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="start" alignItemWithTrigger={false}>
+                <SelectItem value="">
+                  {t(
+                    "career.settings.career_settings_modal.delete_reason_placeholder",
+                    "(선택) 탈퇴 이유를 선택해주세요"
+                  )}
+                </SelectItem>
+                {reasonOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <label
+              htmlFor="career-account-delete-detail"
+              className="mb-1.5 block text-xs md:text-sm font-normal text-neutral-primary"
+            >
+              {t(
+                "career.settings.career_settings_modal.delete_reason_detail_label",
+                "조금 더 알려주세요"
+              )}
+            </label>
+            <Textarea
+              id="career-account-delete-detail"
+              value={detail}
+              onChange={(event) => onDetailChange(event.target.value)}
+              disabled={pending}
+              maxLength={ACCOUNT_DELETION_DETAIL_MAX_LENGTH}
+              rows={3}
+              placeholder={t(
+                "career.settings.career_settings_modal.delete_reason_detail_placeholder",
+                "Harper가 개선할 수 있도록 의견을 남겨주세요."
+              )}
+            />
+            <p className="mt-1 text-right text-xs text-neutral-soft">
+              {detail.length}/{ACCOUNT_DELETION_DETAIL_MAX_LENGTH}
+            </p>
+          </div>
+        </div>
+
+        {error && (
           <p className="mt-4 rounded-lg border border-critical/30 bg-critical-faded px-3 py-2 text-sm text-critical">
             {error}
           </p>
-        ) : null}
+        )}
 
         <div className="mt-6 flex justify-end gap-2">
           <MuteButton
@@ -246,11 +399,12 @@ const AccountDeleteConfirmDialog = ({
               "계정 유지하기"
             )}
           </MuteButton>
-          <BareButton
+          <MuteButton
             type="button"
+            variant="warn"
+            size="lg"
             onClick={onConfirm}
             disabled={pending}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-critical px-4 text-sm font-semibold text-neutral-00 transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
           >
             {pending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -263,7 +417,7 @@ const AccountDeleteConfirmDialog = ({
                   "탈퇴 처리 중"
                 )
               : t("career.settings.career_settings_modal.0tel9h5", "탈퇴하기")}
-          </BareButton>
+          </MuteButton>
         </div>
       </div>
     </div>
@@ -342,6 +496,12 @@ const AccountSectionContent = ({
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deletePending, setDeletePending] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [deleteReason, setDeleteReason] = useState<
+    AccountDeletionReasonCode | ""
+  >("");
+  const [deleteReasonDetail, setDeleteReasonDetail] = useState("");
+  const [deleteFeedbackSubmissionId, setDeleteFeedbackSubmissionId] =
+    useState("");
 
   const normalizedDraftName = normalizeAccountFieldName(draftName);
   const hasAccountChanges = normalizedDraftName !== savedProfile.name;
@@ -422,11 +582,14 @@ const AccountSectionContent = ({
   const handleOpenDeleteConfirm = () => {
     logCareerEvent("click_settings_delete_account");
     setDeleteError("");
+    setDeleteReason("");
+    setDeleteReasonDetail("");
+    setDeleteFeedbackSubmissionId(crypto.randomUUID());
     setDeleteConfirmOpen(true);
   };
 
   const handleConfirmDelete = async () => {
-    if (deletePending) return;
+    if (deletePending || !deleteFeedbackSubmissionId) return;
 
     setDeletePending(true);
     setDeleteError("");
@@ -437,6 +600,11 @@ const AccountSectionContent = ({
         method: "DELETE",
         body: JSON.stringify({
           confirmation: ACCOUNT_DELETE_CONFIRMATION,
+          feedback: {
+            detail: deleteReasonDetail,
+            reasonCode: deleteReason,
+            submissionId: deleteFeedbackSubmissionId,
+          },
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as {
@@ -608,15 +776,25 @@ const AccountSectionContent = ({
         : saveButton}
 
       <AccountDeleteConfirmDialog
+        detail={deleteReasonDetail}
         error={deleteError}
         open={deleteConfirmOpen}
         pending={deletePending}
+        reason={deleteReason}
         onClose={() => {
           if (deletePending) return;
           setDeleteConfirmOpen(false);
           setDeleteError("");
         }}
         onConfirm={() => void handleConfirmDelete()}
+        onDetailChange={(value) => {
+          setDeleteReasonDetail(value);
+          setDeleteError("");
+        }}
+        onReasonChange={(value) => {
+          setDeleteReason(value);
+          setDeleteError("");
+        }}
       />
 
       <CareerEmailChangeModal

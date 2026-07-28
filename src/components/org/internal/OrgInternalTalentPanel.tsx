@@ -1,35 +1,23 @@
-import { Check, Clock3, Eye, LoaderCircle, X } from "lucide-react";
-import { useMemo, useState } from "react";
-import { InsightsTab } from "@/components/ops/career/InsightsTab";
-import { MessagesTab } from "@/components/ops/career/MessagesTab";
+import { Eye } from "lucide-react";
+import { useState } from "react";
 import {
-  recommendationSourceClass,
-  recommendationSourceLabel,
-} from "@/components/ops/career/utils";
+  TALENT_DETAIL_SHARED_TABS,
+  TalentDetailSharedTabContent,
+  type TalentDetailSharedTabId,
+} from "@/components/ops/career/TalentDetailSharedTabs";
 import { InternalOnlySurface } from "@/components/org/internal/InternalOnlySurface";
 import { Badge } from "@/components/ui/badge";
 import { MuteButton } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  useOpsCareerInsights,
-  useOpsCareerMessages,
-  useOpsCareerRecommendations,
-} from "@/hooks/ops/useOpsCareer";
 import { useOrgInternalTalentSystem } from "@/hooks/org/useOrgInternalTalent";
-import type { CareerTalentRecommendationItem } from "@/lib/ops/careerServer";
 import { cn } from "@/lib/utils";
 
-type InternalTalentTab = "insights" | "messages" | "recommendations" | "system";
+type InternalTalentTab = TalentDetailSharedTabId | "system";
 
 const INTERNAL_TABS: Array<{
   id: InternalTalentTab;
   label: string;
-}> = [
-  { id: "insights", label: "인사이트" },
-  { id: "recommendations", label: "다른 추천" },
-  { id: "messages", label: "대화 내역" },
-  { id: "system", label: "시스템 데이터" },
-];
+}> = [...TALENT_DETAIL_SHARED_TABS, { id: "system", label: "시스템 데이터" }];
 
 function formatDateTime(value: string | null | undefined) {
   if (!value) return "-";
@@ -57,85 +45,6 @@ function PaneError({ error, fallback }: { error: unknown; fallback: string }) {
     <div className="rounded-md border border-critical/20 bg-critical-faded px-3 py-2.5 text-[13px] text-critical">
       {error instanceof Error ? error.message : fallback}
     </div>
-  );
-}
-
-function responseMeta(item: CareerTalentRecommendationItem) {
-  const feedback = String(item.feedback ?? "").toLowerCase();
-  if (
-    feedback === "like" ||
-    feedback === "positive" ||
-    item.savedStage === "accepted"
-  ) {
-    return {
-      className: "bg-positive-faded text-positive",
-      icon: Check,
-      label: "수락",
-    };
-  }
-  if (
-    feedback === "dislike" ||
-    feedback === "negative" ||
-    item.savedStage === "rejected"
-  ) {
-    return {
-      className: "bg-critical-faded text-critical",
-      icon: X,
-      label: "거절",
-    };
-  }
-  return {
-    className: "bg-bg-weak text-neutral-muted",
-    icon: Clock3,
-    label: "미응답",
-  };
-}
-
-function RecommendationRow({ item }: { item: CareerTalentRecommendationItem }) {
-  const response = responseMeta(item);
-  const ResponseIcon = response.icon;
-  return (
-    <article className="border-b border-neutral-1000-a05 py-2.5 last:border-b-0">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[13px] font-medium text-neutral-primary">
-            {item.companyName} · {item.roleName}
-          </div>
-          <div className="mt-1 text-[12px] font-light text-neutral-soft">
-            {formatDateTime(item.recommendedAt)}
-          </div>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span
-            className={cn(
-              "rounded-sm px-2 py-1 text-[12px] font-medium",
-              recommendationSourceClass(item.sourceType)
-            )}
-          >
-            {recommendationSourceLabel(item.sourceType)}
-          </span>
-          <span
-            className={cn(
-              "inline-flex items-center gap-1 rounded-sm px-2 py-1 text-[12px] font-medium",
-              response.className
-            )}
-          >
-            <ResponseIcon className="size-3" />
-            {response.label}
-          </span>
-        </div>
-      </div>
-      {item.fitSummary ? (
-        <p className="mt-2 line-clamp-2 text-[13px] font-light leading-5 text-neutral-muted">
-          {item.fitSummary}
-        </p>
-      ) : null}
-      {item.feedbackReason ? (
-        <p className="mt-2 border-l-2 border-neutral-1000-a10 pl-2.5 text-[13px] font-light leading-5 text-neutral-muted">
-          {item.feedbackReason}
-        </p>
-      ) : null}
-    </article>
   );
 }
 
@@ -193,40 +102,18 @@ function RecommendationStats({
 }
 
 export default function OrgInternalTalentPanel({
-  currentRecommendationId,
   talentId,
   workspaceId,
 }: {
-  currentRecommendationId?: string | null;
   talentId: string;
   workspaceId: string;
 }) {
   const [activeTab, setActiveTab] = useState<InternalTalentTab>("insights");
-  const insightsQuery = useOpsCareerInsights(
-    talentId,
-    activeTab === "insights"
-  );
-  const messagesQuery = useOpsCareerMessages(
-    talentId,
-    activeTab === "messages"
-  );
-  const recommendationsQuery = useOpsCareerRecommendations(
-    talentId,
-    20,
-    activeTab === "recommendations"
-  );
   const systemQuery = useOrgInternalTalentSystem({
     enabled: activeTab === "system",
     talentId,
     workspaceId,
   });
-  const recommendations = useMemo(
-    () =>
-      (recommendationsQuery.data?.pages ?? [])
-        .flatMap((page) => page.recommendations)
-        .filter((item) => item.recommendationId !== currentRecommendationId),
-    [currentRecommendationId, recommendationsQuery.data?.pages]
-  );
 
   return (
     <InternalOnlySurface
@@ -263,69 +150,11 @@ export default function OrgInternalTalentPanel({
       </div>
 
       <div className="p-3">
-        {activeTab === "insights" ? (
-          insightsQuery.isLoading ? (
-            <PaneLoading />
-          ) : insightsQuery.error || !insightsQuery.data ? (
-            <PaneError
-              error={insightsQuery.error}
-              fallback="인사이트를 불러오지 못했습니다."
-            />
-          ) : (
-            <InsightsTab
-              insights={insightsQuery.data.insights}
-              mergedChecklist={insightsQuery.data.mergedChecklist}
-              preferences={insightsQuery.data.preferences}
-              userId={talentId}
-            />
-          )
-        ) : null}
-
-        {activeTab === "messages" ? (
-          messagesQuery.isLoading ? (
-            <PaneLoading />
-          ) : messagesQuery.error || !messagesQuery.data ? (
-            <PaneError
-              error={messagesQuery.error}
-              fallback="대화 내역을 불러오지 못했습니다."
-            />
-          ) : (
-            <MessagesTab messages={messagesQuery.data.messages} />
-          )
-        ) : null}
-
-        {activeTab === "recommendations" ? (
-          recommendationsQuery.isLoading ? (
-            <PaneLoading />
-          ) : recommendationsQuery.error ? (
-            <PaneError
-              error={recommendationsQuery.error}
-              fallback="추천 내역을 불러오지 못했습니다."
-            />
-          ) : recommendations.length > 0 ? (
-            <div className="space-y-1.5">
-              {recommendations.map((item) => (
-                <RecommendationRow item={item} key={item.recommendationId} />
-              ))}
-              {recommendationsQuery.hasNextPage ? (
-                <MuteButton
-                  className="w-full"
-                  disabled={recommendationsQuery.isFetchingNextPage}
-                  onClick={() => void recommendationsQuery.fetchNextPage()}
-                  size="sm"
-                >
-                  {recommendationsQuery.isFetchingNextPage ? (
-                    <LoaderCircle className="size-4 animate-spin" />
-                  ) : null}
-                  더 보기
-                </MuteButton>
-              ) : null}
-            </div>
-          ) : (
-            <div className="py-9 text-center text-[13px] font-light text-neutral-muted">
-              다른 추천 내역이 없습니다.
-            </div>
-          )
+        {activeTab !== "system" ? (
+          <TalentDetailSharedTabContent
+            activeTab={activeTab}
+            userId={talentId}
+          />
         ) : null}
 
         {activeTab === "system" ? (

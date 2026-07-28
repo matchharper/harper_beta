@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import {
   CheckCircle2,
   ChevronDown,
@@ -44,6 +44,7 @@ export type ProgressFeedItem = {
   actor?: ProgressFeedActor | null;
   actorLabel?: string | null;
   createdAt: string;
+  customContent?: ReactNode;
   deletable?: boolean;
   delivery?: ProgressFeedDelivery | null;
   editable?: boolean;
@@ -234,6 +235,9 @@ export function ProgressFeed({
       ) : (
         <div className="space-y-2">
           {items.map((item) => {
+            if (item.customContent) {
+              return <div key={item.id}>{item.customContent}</div>;
+            }
             const isDeleting = Boolean(
               pendingDeleteId && pendingDeleteId === item.id
             );

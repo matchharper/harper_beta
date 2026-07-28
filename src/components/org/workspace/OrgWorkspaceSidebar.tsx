@@ -3,6 +3,7 @@ import {
   ChevronDown,
   CircleHelp,
   Home,
+  ListFilter,
   LogOut,
   Settings,
   Users,
@@ -28,6 +29,7 @@ import { buildOrgHref, type OrgWorkspacePageId } from "@/lib/org/routes";
 import type { OrgMember, OrgWorkspace } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
+import { InternalOnlyHatch } from "@/components/org/internal/InternalOnlySurface";
 
 const PRIMARY_NAV: Array<{
   icon: ComponentType<{ className?: string }>;
@@ -39,6 +41,11 @@ const PRIMARY_NAV: Array<{
   { icon: Users, id: "team", label: "Team" },
   { icon: Settings, id: "settings", label: "Settings" },
 ];
+const INTERNAL_ALL_NAV = {
+  icon: ListFilter,
+  id: "all" as const,
+  label: "All",
+};
 
 function WorkspaceAvatar({
   size = "md",
@@ -115,26 +122,29 @@ function NavLink({
   active,
   href,
   icon: Icon,
+  internalOnly = false,
   label,
 }: {
   active: boolean;
   href: string;
   icon: ComponentType<{ className?: string }>;
+  internalOnly?: boolean;
   label: string;
 }) {
   return (
     <Link
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex h-9 items-center gap-2.5 rounded-md px-3 text-[14px] font-normal outline-none transition focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
+        "relative isolate flex h-9 items-center gap-2.5 overflow-hidden rounded-md px-3 text-[14px] font-normal outline-none transition focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
         active
           ? "bg-neutral-100 text-black"
           : "text-neutral-muted hover:bg-neutral-100 hover:text-neutral-primary"
       )}
       href={href}
     >
-      <Icon className="size-4 stroke-[1.75]" />
-      <span>{label}</span>
+      {internalOnly ? <InternalOnlyHatch className="opacity-70" /> : null}
+      <Icon className="relative z-20 size-4 stroke-[1.75]" />
+      <span className="relative z-20">{label}</span>
     </Link>
   );
 }
@@ -145,11 +155,15 @@ export function OrgWorkspaceSidebar() {
   const [signOutPending, setSignOutPending] = useState(false);
   const {
     currentUser,
-    internalOpsAccess: canSwitchWorkspace,
+    internalOpsAccess,
     page: activePage,
     workspace,
     workspaces,
   } = useOrgWorkspace();
+  const canSwitchWorkspace = internalOpsAccess;
+  const primaryNav = internalOpsAccess
+    ? [INTERNAL_ALL_NAV, ...PRIMARY_NAV]
+    : PRIMARY_NAV;
   const navHref = (page: OrgWorkspacePageId) =>
     buildOrgHref({ orgId: workspace.workspaceId, page });
   const selectWorkspace = (workspaceId: string) => {
@@ -184,7 +198,7 @@ export function OrgWorkspaceSidebar() {
           >
             <span className="flex min-w-0 items-center gap-2">
               <WorkspaceAvatar workspace={workspace} />
-              <span className="truncate text-[13px] font-medium">
+              <span className="truncate text-[14px] font-medium text-neutral-primary">
                 {workspace.companyName}
               </span>
             </span>
@@ -219,12 +233,13 @@ export function OrgWorkspaceSidebar() {
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[256px] flex-col border-r border-neutral-1000-a05 px-4 py-3 lg:flex">
         <div className="mb-6">{workspaceControl}</div>
         <nav aria-label="Organization" className="space-y-1">
-          {PRIMARY_NAV.map((item) => (
+          {primaryNav.map((item) => (
             <NavLink
               key={item.id}
               active={activePage === item.id}
               href={navHref(item.id)}
               icon={item.icon}
+              internalOnly={item.id === "all"}
               label={item.label}
             />
           ))}
@@ -320,21 +335,24 @@ export function OrgWorkspaceSidebar() {
           className="flex gap-1.5 overflow-x-auto px-4 pb-2 scrollbar-none"
         >
           {[
-            ...PRIMARY_NAV,
+            ...primaryNav,
             { icon: CircleHelp, id: "help" as const, label: "Help" },
           ].map((item) => (
             <Link
               key={item.id}
               aria-current={activePage === item.id ? "page" : undefined}
               className={cn(
-                "shrink-0 rounded-md px-3 py-1.5 text-[12px] font-normal",
+                "relative isolate shrink-0 overflow-hidden rounded-md px-3 py-1.5 text-[12px] font-normal",
                 activePage === item.id
                   ? "bg-bg-weak text-neutral-primary"
                   : "text-neutral-muted"
               )}
               href={navHref(item.id)}
             >
-              {item.label}
+              {item.id === "all" ? (
+                <InternalOnlyHatch className="opacity-70" />
+              ) : null}
+              <span className="relative z-20">{item.label}</span>
             </Link>
           ))}
         </nav>
@@ -343,7 +361,11 @@ export function OrgWorkspaceSidebar() {
   );
 }
 
-export function OrgWorkspaceShellSkeleton() {
+export function OrgWorkspaceShellSkeleton({
+  wide = false,
+}: {
+  wide?: boolean;
+}) {
   return (
     <Page as="main" background="neutral">
       <aside className="fixed inset-y-0 left-0 hidden w-[256px] border-r border-neutral-1000-a05 p-4 lg:block">
@@ -355,7 +377,7 @@ export function OrgWorkspaceShellSkeleton() {
         </div>
       </aside>
       <div className="lg:pl-[256px]">
-        <PageContainer className="py-7" size="default">
+        <PageContainer className="py-7" size={wide ? "wide" : "narrow"}>
           <Skeleton className="h-6 w-40" />
           <Skeleton className="mt-2 h-3 w-72 max-w-full" />
           <div className="mt-6 grid gap-3 lg:grid-cols-2">

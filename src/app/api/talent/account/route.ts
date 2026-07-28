@@ -10,18 +10,26 @@ import {
   ensureTalentUserRecord,
   getTalentSupabaseAdmin,
 } from "@/lib/talentOnboarding/server";
+import {
+  ACCOUNT_DELETE_CONFIRMATION,
+  type AccountDeletionFeedback,
+  type AccountDeletionReasonCode,
+  parseAccountDeletionFeedback,
+} from "@/lib/career/accountDeletionFeedback";
 
 type UntypedAdminClient = SupabaseClient<any>;
 type IdValue = string | number;
 
-const ACCOUNT_DELETE_CONFIRMATION = "delete_account";
 const ACCOUNT_DELETED_LOG_TYPE = "career_account_deleted";
+const ACCOUNT_DELETION_FEEDBACK_KIND = "career-account-deletion-feedback";
+const ACCOUNT_DELETION_FEEDBACK_SOURCE = "career-account-deletion";
 const CAREER_PROFILE_ASSET_BUCKET = "company_logo";
 const TALENT_NETWORK_CV_BUCKET = "talent-network-cv";
 const DELETE_CHUNK_SIZE = 100;
 
 type DeleteAccountBody = {
   confirmation?: string;
+  feedback?: unknown;
 };
 
 type UpdateAccountBody = {
@@ -720,14 +728,31 @@ async function deleteAccountData(
 async function notifyAccountDeletionSlack(
   req: NextRequest,
   context: AccountDeletionContext,
-  user: NonNullable<Awaited<ReturnType<typeof getRequestUser>>>
+  user: NonNullable<Awaited<ReturnType<typeof getRequestUser>>>,
+  feedback: AccountDeletionFeedback | null
 ) {
+  const reasonLabels: Record<AccountDeletionReasonCode, string> = {
+    difficult_to_use: "서비스 이용이 불편하거나 어려움",
+    infrequent_use: "서비스를 자주 사용하지 않음",
+    missing_opportunities: "원하는 기회나 추천을 찾지 못함",
+    new_account: "다른 계정으로 다시 가입",
+    other: "기타",
+    privacy_concern: "개인정보 우려",
+    recommendation_quality: "추천 품질이 기대와 다름",
+  };
+
   try {
     await notifySlackActivity({
       action: "회원 탈퇴 완료",
       details: [
         { label: "Device", value: getSlackActivityDeviceLabel(req) },
         { label: "Source", value: "/career/settings" },
+        ...(feedback?.reasonCode
+          ? [{ label: "Reason", value: reasonLabels[feedback.reasonCode] }]
+          : []),
+        ...(feedback?.detail
+          ? [{ label: "Feedback", value: feedback.detail }]
+          : []),
       ],
       email: context.email ?? user.email,
       user,
@@ -735,6 +760,103 @@ async function notifyAccountDeletionSlack(
     });
   } catch (slackError) {
     console.error("[talent-account-delete] slack notify failed:", slackError);
+  }
+}
+
+async function upsertAccountDeletionFeedback(
+  admin: UntypedAdminClient,
+  req: NextRequest,
+  feedback: AccountDeletionFeedback
+) {
+  const locale =
+    req.headers.get("accept-language")?.split(",")[0]?.trim().slice(0, 35) ||
+    null;
+  const content = serializeAccountDeletionFeedback(feedback, locale, null);
+  const { data: existingRows, error: readError } = await admin
+    .from("feedback")
+    .select("id")
+    .eq("from", ACCOUNT_DELETION_FEEDBACK_SOURCE)
+    .like("content", `%${feedback.submissionId}%`)
+    .limit(1);
+
+  if (readError) {
+    throw dbError("feedback", "read", readError);
+  }
+
+  const existingId = existingRows?.[0]?.id;
+  if (typeof existingId === "number") {
+    const { error } = await admin
+      .from("feedback")
+      .update({ content, user_id: null })
+      .eq("id", existingId)
+      .eq("from", ACCOUNT_DELETION_FEEDBACK_SOURCE);
+
+    if (error) {
+      throw dbError("feedback", "update", error);
+    }
+    return { feedbackId: existingId, locale };
+  }
+
+  const { data, error } = await admin
+    .from("feedback")
+    .insert({
+      content,
+      from: ACCOUNT_DELETION_FEEDBACK_SOURCE,
+      user_id: null,
+    })
+    .select("id")
+    .single();
+
+  if (error || typeof data?.id !== "number") {
+    throw dbError("feedback", "write to", error ?? {});
+  }
+
+  return { feedbackId: data.id, locale };
+}
+
+function serializeAccountDeletionFeedback(
+  feedback: AccountDeletionFeedback,
+  locale: string | null,
+  deletionCompletedAt: string | null
+) {
+  return JSON.stringify({
+    deletionCompletedAt,
+    detail: feedback.detail,
+    kind: ACCOUNT_DELETION_FEEDBACK_KIND,
+    locale,
+    reasonCode: feedback.reasonCode,
+    source: "/career/settings",
+    status: deletionCompletedAt ? "completed" : "attempted",
+    submissionId: feedback.submissionId,
+    version: 1,
+  });
+}
+
+async function markAccountDeletionFeedbackCompleted(
+  admin: UntypedAdminClient,
+  feedbackId: number,
+  feedback: AccountDeletionFeedback,
+  locale: string | null
+) {
+  const deletionCompletedAt = new Date().toISOString();
+  const { error } = await admin
+    .from("feedback")
+    .update({
+      content: serializeAccountDeletionFeedback(
+        feedback,
+        locale,
+        deletionCompletedAt
+      ),
+      user_id: null,
+    })
+    .eq("id", feedbackId)
+    .eq("from", ACCOUNT_DELETION_FEEDBACK_SOURCE);
+
+  if (error) {
+    console.error(
+      "[talent-account-delete] feedback completion update failed:",
+      error
+    );
   }
 }
 
@@ -763,6 +885,16 @@ export async function DELETE(req: NextRequest) {
         { status: 400 }
       );
     }
+    const feedback =
+      body.feedback === undefined
+        ? null
+        : parseAccountDeletionFeedback(body.feedback);
+    if (body.feedback !== undefined && !feedback) {
+      return NextResponse.json(
+        { error: "Invalid account deletion feedback." },
+        { status: 400 }
+      );
+    }
 
     const admin = getTalentSupabaseAdmin() as UntypedAdminClient;
     const email =
@@ -771,6 +903,23 @@ export async function DELETE(req: NextRequest) {
         : null;
     const context = await collectAccountDeletionContext(admin, user.id, email);
 
+    let storedFeedback: Awaited<
+      ReturnType<typeof upsertAccountDeletionFeedback>
+    > | null = null;
+    if (feedback?.reasonCode || feedback?.detail) {
+      try {
+        storedFeedback = await upsertAccountDeletionFeedback(
+          admin,
+          req,
+          feedback
+        );
+      } catch (feedbackError) {
+        console.error(
+          "[talent-account-delete] feedback save failed:",
+          feedbackError
+        );
+      }
+    }
     await removeAccountStorage(admin, context);
     await deleteAccountData(admin, context);
 
@@ -784,8 +933,16 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
+    if (feedback && storedFeedback) {
+      await markAccountDeletionFeedbackCompleted(
+        admin,
+        storedFeedback.feedbackId,
+        feedback,
+        storedFeedback.locale
+      );
+    }
     await insertAccountDeletionLog(admin);
-    await notifyAccountDeletionSlack(req, context, user);
+    await notifyAccountDeletionSlack(req, context, user, feedback);
 
     return NextResponse.json({ ok: true });
   } catch (error) {

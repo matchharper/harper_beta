@@ -28,6 +28,8 @@ import { cn } from "@/lib/utils";
 import type { Locale } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
 import { getCareerLinkLabels } from "@/components/career/constants";
+import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
+import { getResumeSignedUrlLogMetadata } from "@/lib/career/resumeSignedUrlLog";
 
 export type CareerProfileInsightItem = {
   key: string;
@@ -232,6 +234,7 @@ export const ProfileHeader = ({
   user: CareerTalentUser | null | undefined;
 }) => {
   const t = useCareerT();
+  const logCareerEvent = useCareerLogEvent();
   const profileSourceIndicators = useMemo<ProfileSourceIndicator[]>(() => {
     const items: ProfileSourceIndicator[] = [];
     const hasSavedResume = Boolean(
@@ -405,7 +408,20 @@ export const ProfileHeader = ({
       >
         {!isEditing && savedResumeDownloadUrl && (
           <MuteButton asChild variant="default">
-            <a href={savedResumeDownloadUrl} target="_blank" rel="noreferrer">
+            <a
+              href={savedResumeDownloadUrl}
+              target="_blank"
+              rel="noreferrer"
+              onClick={() =>
+                logCareerEvent(
+                  "click_profile_view_cv",
+                  getResumeSignedUrlLogMetadata({
+                    hasStoragePath: Boolean(savedResumeStoragePath),
+                    signedUrl: savedResumeDownloadUrl,
+                  })
+                )
+              }
+            >
               <FileText className="h-3.5 w-3.5 text-neutral-muted" />
               View CV
             </a>

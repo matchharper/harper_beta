@@ -368,21 +368,12 @@ const CareerEmailChangeModal = ({
                 <p className="mt-1 text-sm text-center px-2 text-neutral-muted">
                   {t(
                     "career.settings.email_change.sent",
-                    "새 이메일로 인증 메일을 보냈습니다. 재발송하면 이전 링크는 만료되므로, 가장 최근에 받은 메일만 열어주세요."
+                    "아래 이메일로 인증 메일을 발송했습니다. 재발송하면 이전 링크는 만료되므로, 가장 최근에 받은 메일을 열어주세요."
                   )}
                 </p>
                 <p className="truncate text-sm text-neutral-primary">
                   {pendingEmail}
                 </p>
-                {requestCode && (
-                  <p className="text-xs font-medium text-neutral-secondary">
-                    {t(
-                      "career.settings.email_change.request_code",
-                      "가장 최근 메일 요청 코드"
-                    )}
-                    : {requestCode}
-                  </p>
-                )}
               </div>
             </div>
             <div className="w-full flex items-end justify-end">
@@ -405,35 +396,46 @@ const CareerEmailChangeModal = ({
                 )}
               </BareButton>
             </div>
-            <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
-              <MuteButton
-                type="button"
-                onClick={() => void handleResend()}
-                disabled={resendPending || resendCompleted || checkPending}
-              >
-                {resendPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                {resendCompleted
-                  ? t(
-                      "career.settings.email_change.resend_completed",
-                      "인증 메일 재발송 완료"
-                    )
-                  : t(
-                      "career.settings.email_change.resend",
-                      "인증 메일 재발송"
-                    )}
-              </MuteButton>
-              <MuteButton
-                variant="dark"
-                type="button"
-                onClick={() => void handleCheck()}
-                disabled={checkPending || resendPending}
-              >
-                {checkPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                {t(
-                  "career.settings.email_change.check_complete",
-                  "인증 완료 확인"
-                )}
-              </MuteButton>
+            <div className="w-full mt-6 flex flex-col gap-2 sm:flex-row sm:justify-between">
+              {requestCode && (
+                <p className="w-full md:w-[40%] text-xs font-normal text-neutral-primary flex items-center justify-center md:justify-start gap-1">
+                  Code: {requestCode}
+                </p>
+              )}
+              <div className="flex flex-row justify-end gap-2 w-full">
+                <MuteButton
+                  type="button"
+                  onClick={() => void handleResend()}
+                  className="w-full md:w-auto"
+                  disabled={resendPending || resendCompleted || checkPending}
+                >
+                  {resendPending && (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  )}
+                  {resendCompleted
+                    ? t(
+                        "career.settings.email_change.resend_completed",
+                        "인증 메일 재발송 완료"
+                      )
+                    : t(
+                        "career.settings.email_change.resend",
+                        "인증 메일 재발송"
+                      )}
+                </MuteButton>
+                <MuteButton
+                  variant="dark"
+                  type="button"
+                  className="w-full md:w-auto"
+                  onClick={() => void handleCheck()}
+                  disabled={checkPending || resendPending}
+                >
+                  {checkPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {t(
+                    "career.settings.email_change.check_complete",
+                    "인증 완료 확인"
+                  )}
+                </MuteButton>
+              </div>
             </div>
           </>
         ) : (

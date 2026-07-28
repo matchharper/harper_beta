@@ -6,6 +6,7 @@ import {
   type OrgStageId,
   type OrgStopReason,
 } from "@/lib/org/server";
+import type { InternalConnectionConfirmationEmailMode } from "@/lib/ops/connectionConfirmationEmail";
 
 function toErrorResponse(error: unknown) {
   if (error instanceof OrgHttpError) {
@@ -30,6 +31,7 @@ export async function POST(req: NextRequest) {
     const body = (await req.json().catch(() => ({}))) as {
       acceptReason?: string | null;
       contactDirectly?: boolean;
+      emailMode?: unknown;
       recommendationId?: string;
       introEmails?: string[] | null;
       roleId?: string;
@@ -39,9 +41,14 @@ export async function POST(req: NextRequest) {
       talentId?: string;
       workspaceId?: string;
     };
+    const emailMode = String(body.emailMode ?? "schedule").trim();
+    if (!["schedule", "send_now", "skip"].includes(emailMode)) {
+      throw new OrgHttpError(400, "emailMode is invalid");
+    }
     const payload = await setOrgCandidateStage({
       acceptReason: body.acceptReason ?? null,
       contactDirectly: body.contactDirectly === true,
+      emailMode: emailMode as InternalConnectionConfirmationEmailMode,
       introEmails: body.introEmails ?? null,
       recommendationId: body.recommendationId ?? "",
       roleId: body.roleId ?? "",

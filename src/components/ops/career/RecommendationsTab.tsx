@@ -317,7 +317,7 @@ export function ManualInternalRecommendationModal({
                               <td className="px-3 py-3 align-top">
                                 <span
                                   className={cx(
-                                    "inline-flex max-w-full items-center truncate rounded border px-1 text-[11px] font-medium",
+                                    "inline-flex max-w-full items-center truncate rounded border px-1 text-[12px] font-medium",
                                     active
                                       ? "border-neutral-00/25 bg-neutral-00/10 text-neutral-00"
                                       : "border-neutral-1000-a05 bg-bg-default/75 text-neutral-muted"
@@ -476,7 +476,7 @@ function RecommendationFitCell({
 }) {
   const fit = item.matchingFit;
   if (!fit) {
-    return <span className="text-[11px] text-neutral-soft">fit 없음</span>;
+    return <span className="text-[13px] text-neutral-soft">fit 없음</span>;
   }
 
   return (
@@ -485,7 +485,7 @@ function RecommendationFitCell({
         Score {fit.score ?? "-"}
       </div>
       <MatchingFitLabelCell isUpdating={false} item={fit} />
-      <div className="text-[11px] leading-5 text-neutral-soft">
+      <div className="text-[13px] leading-5 text-neutral-soft">
         {fit.lastEvaluatedAt ? (
           <div>평가 {formatKst(fit.lastEvaluatedAt)}</div>
         ) : null}
@@ -508,7 +508,7 @@ const RecommendationRow = memo(function RecommendationRow({
       <td className="px-2 py-2 align-top">
         <span
           className={cx(
-            "inline-flex rounded px-1.5 py-0.5 text-[11px] font-medium",
+            "inline-flex rounded px-1.5 py-0.5 text-[12px] font-medium",
             recommendationSourceClass(item.sourceType)
           )}
         >
@@ -523,7 +523,7 @@ const RecommendationRow = memo(function RecommendationRow({
           >
             {item.roleName}
           </div>
-          <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-neutral-muted">
+          <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[12px] text-neutral-muted">
             <span className="truncate" title={item.companyName}>
               {item.companyName}
             </span>
@@ -540,7 +540,7 @@ const RecommendationRow = memo(function RecommendationRow({
             ) : null}
           </div>
           {item.locationText ? (
-            <div className="mt-0.5 truncate text-[11px] text-neutral-soft">
+            <div className="mt-0.5 truncate text-[12px] text-neutral-soft">
               {item.locationText}
             </div>
           ) : null}
@@ -549,7 +549,7 @@ const RecommendationRow = memo(function RecommendationRow({
       <td className="px-2 py-2 align-top">
         <RecommendationFitCell item={item} />
       </td>
-      <td className="px-2 py-2 align-top text-[11px]">
+      <td className="px-2 py-2 align-top text-[12px]">
         <div
           className={cx(
             item.viewedAt ? "text-neutral-muted" : "text-neutral-soft"
@@ -569,20 +569,20 @@ const RecommendationRow = memo(function RecommendationRow({
       <td className="px-2 py-2 align-top">
         <span
           className={cx(
-            "inline-flex rounded px-1.5 py-0.5 text-[11px] font-medium",
+            "inline-flex rounded px-1.5 py-0.5 text-[12px] font-medium",
             recommendationFeedbackClass(item.feedback)
           )}
         >
           {recommendationFeedbackLabel(item.feedback)}
         </span>
         {item.feedbackAt ? (
-          <div className="mt-1 text-[11px] text-neutral-soft">
+          <div className="mt-1 text-[12px] text-neutral-soft">
             {formatKst(item.feedbackAt)}
           </div>
         ) : null}
         {item.feedbackReason ? (
           <div
-            className="mt-0.5 truncate text-[11px] text-neutral-muted"
+            className="mt-0.5 truncate text-[12px] text-neutral-muted"
             title={item.feedbackReason}
           >
             {item.feedbackReason}
@@ -643,7 +643,9 @@ export const RecommendationsTab = memo(function RecommendationsTab({
     <div className={cx(opsTheme.panelSoft, "p-4")}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className={opsTheme.eyebrow}>Recommendations</div>
+          <div className="text-[13px] font-medium text-neutral-primary">
+            Recommendations
+          </div>
           <div className="mt-1 text-xs text-neutral-muted">
             Internal / External 추천 기록, 열람, 클릭, 피드백
           </div>
@@ -663,7 +665,7 @@ export const RecommendationsTab = memo(function RecommendationsTab({
           <div
             role="radiogroup"
             aria-label="추천 표시 범위"
-            className="flex items-center gap-1.5 rounded-md border border-neutral-1000-a05 bg-bg-default/55 px-2 py-1 text-[11px] text-neutral-muted"
+            className="flex items-center gap-1.5 rounded-md border border-neutral-1000-a05 bg-bg-default/55 px-2 py-1 text-[12px] text-neutral-muted"
           >
             {RECOMMENDATION_SOURCE_FILTER_OPTIONS.map((option) => (
               <label

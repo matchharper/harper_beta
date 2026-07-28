@@ -14,6 +14,10 @@ import {
   isTalentAccountEmailChangePendingConfirmation,
   isTalentAccountEmailUnavailableError,
 } from "@/lib/career/accountEmailErrors";
+import {
+  inferCompanyAuthEntrySource,
+  isTalentAuthDestination,
+} from "@/lib/authPersona";
 
 function inferLandingLogSource(args: { flow: string; nextPath: string }) {
   if (args.nextPath.startsWith("/search")) return "search";
@@ -87,6 +91,10 @@ export default function AuthCallback() {
         rawNext.startsWith("/") && !rawNext.startsWith("//")
           ? rawNext
           : fallbackNextPath;
+      const isTalentDestination = isTalentAuthDestination({
+        flow,
+        nextPath,
+      });
       const countryLang =
         typeof router.query.cl === "string" ? router.query.cl : null;
       const abtestType =
@@ -223,7 +231,7 @@ export default function AuthCallback() {
         return;
       }
 
-      if (flow === "talent_capture") {
+      if (isTalentDestination) {
         const bootstrapRes = await fetch("/api/talent/auth/bootstrap", {
           method: "POST",
           headers: {
@@ -275,7 +283,7 @@ export default function AuthCallback() {
           Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
-          source: nextPath.startsWith("/org") ? "org" : undefined,
+          source: inferCompanyAuthEntrySource(nextPath),
         }),
       });
 
@@ -283,6 +291,10 @@ export default function AuthCallback() {
       if (!bootstrapRes.ok) {
         console.error("bootstrap error:", bootstrapJson);
         router.replace("?error=profile_upsert_failed");
+        return;
+      }
+      if (bootstrapJson?.persona === "talent") {
+        router.replace("/career");
         return;
       }
       if (bootstrapJson?.created === true) {

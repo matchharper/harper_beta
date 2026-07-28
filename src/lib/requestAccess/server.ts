@@ -15,6 +15,10 @@ import type {
   RequestAccessReviewStatus,
 } from "@/lib/requestAccess/types";
 import type { Database } from "@/types/database.types";
+import {
+  getCompanyAuthEntryLabel,
+  type CompanyAuthEntrySource,
+} from "@/lib/authPersona";
 
 export const REQUEST_ACCESS_APPROVE_ACTION_ID = "request_access_approve";
 export const REQUEST_ACCESS_REVIEW_PAGE_PATH = "/ops/request-access/review";
@@ -293,7 +297,11 @@ function buildSlackBlocks(row: RequestAccessSlackRow, reviewUrl: string) {
   ];
 }
 
-function buildSlackSignupBlocks(row: RequestAccessSlackRow, reviewUrl: string) {
+function buildSlackSignupBlocks(
+  row: RequestAccessSlackRow,
+  reviewUrl: string,
+  entrySource: CompanyAuthEntrySource
+) {
   return [
     {
       type: "section",
@@ -301,7 +309,8 @@ function buildSlackSignupBlocks(row: RequestAccessSlackRow, reviewUrl: string) {
         type: "mrkdwn",
         text: [
           "🎉 *New Signup*",
-          "• *Flow*: Company Search",
+          "• *Persona*: Company",
+          `• *Entry*: ${getCompanyAuthEntryLabel(entrySource)}`,
           `• *Name*: ${row.name || "N/A"}`,
           `• *Email*: ${row.email || "N/A"}`,
           `• *User ID*: ${row.user_id || "N/A"}`,
@@ -354,7 +363,8 @@ async function sendSlackRequestAccessMessage(
 
 async function sendSlackSignupMessage(
   row: RequestAccessSlackRow,
-  baseUrl: string
+  baseUrl: string,
+  entrySource: CompanyAuthEntrySource
 ) {
   const webhook = getSlackWebhook();
   const reviewUrl = buildRequestAccessReviewUrl({
@@ -363,7 +373,7 @@ async function sendSlackSignupMessage(
   });
   await webhook.send({
     text: `New signup: ${row.email || "unknown email"}`,
-    blocks: buildSlackSignupBlocks(row, reviewUrl),
+    blocks: buildSlackSignupBlocks(row, reviewUrl, entrySource),
   });
 }
 
@@ -673,6 +683,7 @@ export async function notifySlackSignupApprovalCandidate(args: {
   email: string;
   name?: string | null;
   baseUrl: string;
+  entrySource: CompanyAuthEntrySource;
 }) {
   if (process.env.NEXT_PUBLIC_WORKER_TEST_MODE === "true") {
     return;
@@ -691,7 +702,7 @@ export async function notifySlackSignupApprovalCandidate(args: {
     name: args.name,
   });
 
-  await sendSlackSignupMessage(row, args.baseUrl);
+  await sendSlackSignupMessage(row, args.baseUrl, args.entrySource);
 }
 
 export function buildRequestAccessActivationUrl(args: {

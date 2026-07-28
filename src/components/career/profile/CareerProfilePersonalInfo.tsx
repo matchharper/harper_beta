@@ -114,4 +114,4 @@ const CareerProfilePersonalInfo = ({
   );
 };
 
-export default CareerProfilePersonalInfo;
+export default React.memo(CareerProfilePersonalInfo);

@@ -55,6 +55,7 @@ import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding
 import { getCareerSignupAttributionPayload } from "@/lib/career/signupAttribution";
 import { trackSignUp } from "@/lib/ga";
 import {
+  OFFICIAL_JOBS_ONBOARDING_COMPANY_PARAM,
   OFFICIAL_JOBS_ONBOARDING_JOB_PARAM,
   OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM,
   OFFICIAL_JOBS_ROLE_TITLE_MAX_LENGTH,
@@ -1379,6 +1380,12 @@ const CareerNetworkOnboardingContent = () => {
     () => normalizeOnboardingJobTitle(officialJobTitleParam),
     [officialJobTitleParam]
   );
+  const officialJobCompanyParam =
+    router.query[OFFICIAL_JOBS_ONBOARDING_COMPANY_PARAM];
+  const officialJobCompanyName = useMemo(
+    () => getSingleQueryParam(officialJobCompanyParam)?.trim() || "",
+    [officialJobCompanyParam]
+  );
   const officialJobSlugParam =
     router.query[OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM];
   const officialJobSlug = useMemo(
@@ -2117,8 +2124,11 @@ const CareerNetworkOnboardingContent = () => {
       if (emailOnboarding) {
         query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM] = emailOnboarding;
       }
-      if (officialJobTitle || officialJobSlug) {
+      if (officialJobTitle || officialJobCompanyName || officialJobSlug) {
         query.source = OFFICIAL_JOBS_LANDING_SOURCE;
+      }
+      if (officialJobCompanyName) {
+        query[OFFICIAL_JOBS_ONBOARDING_COMPANY_PARAM] = officialJobCompanyName;
       }
       if (officialJobTitle) {
         query[OFFICIAL_JOBS_ONBOARDING_JOB_PARAM] = officialJobTitle;
@@ -2134,6 +2144,7 @@ const CareerNetworkOnboardingContent = () => {
     },
     [
       logCareerEvent,
+      officialJobCompanyName,
       officialJobSlug,
       officialJobTitle,
       queryClient,

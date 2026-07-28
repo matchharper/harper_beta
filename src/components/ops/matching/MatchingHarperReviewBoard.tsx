@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
 import {
+  ReviewPipelineCardPendingState,
   ReviewPipelineColumnAddRail,
   ReviewPipelineColumnHeader,
   ReviewPipelineColumnShell,
@@ -45,6 +46,7 @@ import {
   ReviewPipelineEmptyState,
   ReviewPipelineStageDialog,
 } from "@/components/review-pipeline/ReviewPipelinePrimitives";
+import { PendingConnectionDialog } from "@/components/review-pipeline/PendingConnectionDialog";
 import { useCreateOpsCareerProfileMemo } from "@/hooks/ops/useOpsCareer";
 import {
   useCreateOpsMatchingReviewStage,
@@ -380,7 +382,7 @@ function ReviewCard({
       }}
       onDragEnd={onDragEnd}
       className={cx(
-        "cursor-grab rounded-sm border border-neutral-1000-a05 bg-bg-floating p-3 transition hover:border-neutral-1000-a10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 active:cursor-grabbing",
+        "relative cursor-grab overflow-hidden rounded-sm border border-neutral-1000-a05 bg-bg-floating p-3 transition hover:border-neutral-1000-a10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 active:cursor-grabbing",
         draggingId === item.recommendationId && "opacity-45",
         pending && "cursor-wait opacity-60"
       )}
@@ -494,6 +496,7 @@ function ReviewCard({
           />
         </div>
       ) : null}
+      {pending ? <ReviewPipelineCardPendingState /> : null}
     </div>
   );
 }
@@ -843,6 +846,8 @@ export function MatchingHarperReviewBoard({
   >([]);
   const [confirmRecommendTalent, setConfirmRecommendTalent] =
     useState<OpsMatchingTalentItem | null>(null);
+  const [pendingConnectionMove, setPendingConnectionMove] =
+    useState<OpsMatchingReviewItem | null>(null);
   const [queuedAmbiguousTalentIds, setQueuedAmbiguousTalentIds] = useState<
     string[]
   >([]);
@@ -926,11 +931,27 @@ export function MatchingHarperReviewBoard({
     for (const control of REVIEW_LIST_TOGGLE_CONTROLS) {
       next.set(control.id, []);
     }
+    const optimisticStage = setReviewStage.isPending
+      ? setReviewStage.variables?.stage
+      : null;
+    const optimisticTalentId = setReviewStage.isPending
+      ? setReviewStage.variables?.talentId
+      : null;
     for (const item of items) {
-      next.get(item.stage)?.push(item);
+      const stage =
+        optimisticStage && item.talent.userId === optimisticTalentId
+          ? optimisticStage
+          : item.stage;
+      next.get(stage)?.push(item);
     }
     return next;
-  }, [customReviewColumns, items]);
+  }, [
+    customReviewColumns,
+    items,
+    setReviewStage.isPending,
+    setReviewStage.variables?.stage,
+    setReviewStage.variables?.talentId,
+  ]);
   const visibleArchiveColumns = useMemo(
     () =>
       REVIEW_LIST_TOGGLE_CONTROLS.filter((control) =>
@@ -1010,6 +1031,12 @@ export function MatchingHarperReviewBoard({
     if (!draggingId) return;
     const item = itemById.get(draggingId);
     if (!item || item.stage === stage) {
+      setDraggingId(null);
+      setDropTargetStageId(null);
+      return;
+    }
+    if (item.stage === "accepted" && stage === "pending_connection") {
+      setPendingConnectionMove(item);
       setDraggingId(null);
       setDropTargetStageId(null);
       return;
@@ -1273,7 +1300,10 @@ export function MatchingHarperReviewBoard({
                 onAddMemo={setSelectedMemoTalent}
                 onArchive={handleArchiveItem}
                 onSelect={handleSelectedTalentChange}
-                pending={setReviewStage.isPending}
+                pending={
+                  setReviewStage.isPending &&
+                  setReviewStage.variables?.talentId === item.talent.userId
+                }
                 visibleFields={visibleReviewFields}
               />
             ))}
@@ -1381,6 +1411,13 @@ export function MatchingHarperReviewBoard({
       ) : null}
       {customStageActionError ? (
         <div className={opsTheme.errorNotice}>{customStageActionError}</div>
+      ) : null}
+      {setReviewStage.error ? (
+        <div className={opsTheme.errorNotice}>
+          {setReviewStage.error instanceof Error
+            ? setReviewStage.error.message
+            : "후보자 상태를 변경하지 못했습니다."}
+        </div>
       ) : null}
 
       <div className="overflow-x-auto pb-2">
@@ -1497,6 +1534,35 @@ export function MatchingHarperReviewBoard({
           setCustomStageLabel("");
           setEditingCustomStage(null);
         }}
+      />
+
+      <PendingConnectionDialog
+        candidateName={
+          pendingConnectionMove?.talent.name ||
+          pendingConnectionMove?.talent.email ||
+          "이 후보자"
+        }
+        onClose={() => setPendingConnectionMove(null)}
+        onConfirm={async (emailMode) => {
+          if (!pendingConnectionMove) return;
+          const move = pendingConnectionMove;
+          const request = setReviewStage.mutateAsync({
+            emailMode,
+            roleId: role.roleId,
+            stage: "pending_connection",
+            talentId: move.talent.userId,
+          });
+          setPendingConnectionMove(null);
+          await request;
+        }}
+        open={Boolean(pendingConnectionMove)}
+        pending={
+          Boolean(pendingConnectionMove) &&
+          setReviewStage.isPending &&
+          setReviewStage.variables?.talentId ===
+            pendingConnectionMove?.talent.userId
+        }
+        recipientEmail={pendingConnectionMove?.talent.email}
       />
 
       <Dialog

@@ -1,17 +1,27 @@
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useState } from "react";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
-import { buildOrgHref } from "@/lib/org/routes";
-import type { OrgBoardItem } from "@/lib/org/server";
+import { buildOrgHref, type OrgWorkspacePageId } from "@/lib/org/routes";
+
+export type OrgTalentSelection = {
+  recommendationId: string;
+  roleId: string;
+  talentId: string;
+  workspaceId?: string;
+};
 
 function getQueryText(value: string | string[] | undefined) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-export function useOrgJobsRoute() {
+export function useOrgJobsRoute({
+  page = "jobs",
+}: {
+  page?: Extract<OrgWorkspacePageId, "all" | "jobs">;
+} = {}) {
   const router = useRouter();
   const { roles, workspace } = useOrgWorkspace();
-  const workspaceId = workspace.workspaceId;
+  const baseWorkspaceId = workspace.workspaceId;
   const urlRoleId = router.isReady ? getQueryText(router.query.roleId) : "";
   const detailTalentId = router.isReady
     ? getQueryText(router.query.talentId)
@@ -22,6 +32,11 @@ export function useOrgJobsRoute() {
   const detailRoleId = router.isReady
     ? getQueryText(router.query.detailRoleId)
     : "";
+  const detailWorkspaceId = router.isReady
+    ? getQueryText(router.query.detailWorkspaceId)
+    : "";
+  const workspaceId =
+    page === "all" && detailWorkspaceId ? detailWorkspaceId : baseWorkspaceId;
   const [nameQuery, setNameQuery] = useState("");
   const [recommendedFromDate, setRecommendedFromDate] = useState("");
   const [recommendedToDate, setRecommendedToDate] = useState("");
@@ -38,7 +53,7 @@ export function useOrgJobsRoute() {
     const orgId = getQueryText(router.query.orgId);
     const roleIsCanonical =
       urlRoleId === activeRoleId || (!urlRoleId && activeRoleId === "all");
-    if (orgId !== workspaceId || roleIsCanonical) return;
+    if (orgId !== baseWorkspaceId || roleIsCanonical) return;
     void router.replace(
       {
         pathname: router.pathname,
@@ -53,7 +68,7 @@ export function useOrgJobsRoute() {
     router.isReady,
     router.query,
     urlRoleId,
-    workspaceId,
+    baseWorkspaceId,
   ]);
 
   const changeRole = useCallback(
@@ -63,44 +78,45 @@ export function useOrgJobsRoute() {
       setRecommendedToDate("");
       void router.push(
         buildOrgHref({
-          orgId: workspaceId,
+          orgId: baseWorkspaceId,
           page: "jobs",
           roleId: roleId || "all",
         })
       );
     },
-    [router, workspaceId]
+    [baseWorkspaceId, router]
   );
 
   const selectTalent = useCallback(
-    (item: OrgBoardItem) => {
+    (item: OrgTalentSelection) => {
       void router.push(
         buildOrgHref({
           detail: {
             recommendationId: item.recommendationId,
             roleId: item.roleId,
             talentId: item.talentId,
+            workspaceId: item.workspaceId ?? baseWorkspaceId,
           },
-          orgId: workspaceId,
-          page: "jobs",
-          roleId: activeRoleId,
+          orgId: baseWorkspaceId,
+          page,
+          roleId: page === "jobs" ? activeRoleId : null,
         })
       );
     },
-    [activeRoleId, router, workspaceId]
+    [activeRoleId, baseWorkspaceId, page, router]
   );
 
   const closeTalentDetail = useCallback(() => {
     void router.replace(
       buildOrgHref({
-        orgId: workspaceId,
-        page: "jobs",
-        roleId: activeRoleId,
+        orgId: baseWorkspaceId,
+        page,
+        roleId: page === "jobs" ? activeRoleId : null,
       }),
       undefined,
       { shallow: true }
     );
-  }, [activeRoleId, router, workspaceId]);
+  }, [activeRoleId, baseWorkspaceId, page, router]);
 
   const setRecommendedDateRange = useCallback((from: string, to: string) => {
     setRecommendedFromDate(from);
