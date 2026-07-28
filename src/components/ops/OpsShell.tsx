@@ -535,7 +535,7 @@ export default function OpsShell({
   }
 
   return (
-    <div className={opsTheme.page}>
+    <div className="relative h-svh overflow-x-clip overflow-y-auto bg-bg-basement text-neutral-primary">
       <div className={opsTheme.backgroundGlow} />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--color-neutral-00)_20%,transparent),transparent)]" />
       <div

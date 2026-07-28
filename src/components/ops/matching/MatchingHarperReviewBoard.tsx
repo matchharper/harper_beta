@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
   CalendarDays,
@@ -833,6 +833,9 @@ export function MatchingHarperReviewBoard({
   selectedTalentId,
 }: MatchingHarperReviewBoardProps) {
   const [stickyTop, setStickyTop] = useState(0);
+  const [stickyControlsHeight, setStickyControlsHeight] = useState(0);
+  const reviewControlsRef = useRef<HTMLDivElement>(null);
+  const pipelineHeaderScrollRef = useRef<HTMLDivElement>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTargetStageId, setDropTargetStageId] =
     useState<DroppableReviewStageId | null>(null);
@@ -990,20 +993,25 @@ export function MatchingHarperReviewBoard({
       "[data-ops-shell-header]"
     );
     if (!header) return;
+    const controls = reviewControlsRef.current;
 
-    const updateStickyTop = () => {
+    const updateStickyMetrics = () => {
       setStickyTop(Math.ceil(header.getBoundingClientRect().height));
+      setStickyControlsHeight(
+        controls ? Math.ceil(controls.getBoundingClientRect().height) : 0
+      );
     };
 
-    updateStickyTop();
-    const observer = new ResizeObserver(updateStickyTop);
+    updateStickyMetrics();
+    const observer = new ResizeObserver(updateStickyMetrics);
     observer.observe(header);
-    window.addEventListener("resize", updateStickyTop);
+    if (controls) observer.observe(controls);
+    window.addEventListener("resize", updateStickyMetrics);
     return () => {
       observer.disconnect();
-      window.removeEventListener("resize", updateStickyTop);
+      window.removeEventListener("resize", updateStickyMetrics);
     };
-  }, []);
+  }, [reviewQuery.data]);
 
   const handleSelectedTalentChange = (talent: OpsMatchingTalentItem) => {
     onSelectedTalentChange(talent.userId);
@@ -1264,6 +1272,7 @@ export function MatchingHarperReviewBoard({
         className={index === totalColumns - 1 ? "border-r" : undefined}
       >
         <ReviewPipelineColumnHeader
+          className="hidden"
           collapsed={isCollapsed}
           count={columnItems.length}
           label={column.label}
@@ -1313,6 +1322,86 @@ export function MatchingHarperReviewBoard({
           <div className="h-full" />
         )}
       </ReviewPipelineColumnShell>
+    );
+  };
+
+  const renderStickyReviewColumnHeader = (
+    column: ReviewColumn,
+    index: number,
+    totalColumns: number
+  ) => {
+    const columnItems = groupedItems.get(column.id) ?? [];
+    const canDrop =
+      Boolean(draggingItem) &&
+      !column.locked &&
+      isDroppableReviewStageId(column.id) &&
+      draggingItem?.stage !== column.id;
+    const isDropTarget =
+      canDrop &&
+      isDroppableReviewStageId(column.id) &&
+      dropTargetStageId === column.id;
+    const isCollapsed = collapsedColumnIds.includes(column.id);
+    const isCustomColumn = Boolean(column.customStageId);
+    const isCustomColumnPending =
+      Boolean(column.customStageId) &&
+      pendingCustomStageId === column.customStageId;
+
+    return (
+      <div
+        className={cx(
+          "shrink-0 border-y border-l border-neutral-1000-a10",
+          isCollapsed ? "w-14" : "w-[300px]",
+          isDropTarget && "ring-2 ring-inset ring-primary/55",
+          index === totalColumns - 1 && "border-r"
+        )}
+        key={`sticky:${column.id}`}
+        onDragOver={(event) => {
+          if (canDrop && isDroppableReviewStageId(column.id)) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "move";
+            setDropTargetStageId(column.id);
+          }
+        }}
+        onDragLeave={(event) => {
+          if (
+            event.currentTarget.contains(event.relatedTarget as Node | null) ||
+            !isDroppableReviewStageId(column.id)
+          ) {
+            return;
+          }
+          handleDropTargetLeave(column.id);
+        }}
+        onDrop={(event) => {
+          event.preventDefault();
+          handleDrop(column);
+        }}
+      >
+        <ReviewPipelineColumnHeader
+          className={
+            isDropTarget
+              ? "bg-primary-faded"
+              : canDrop
+                ? "bg-primary-faded/20"
+                : column.id === "accepted"
+                  ? "bg-positive-faded"
+                  : column.id === "rejected"
+                    ? "bg-critical-faded/40"
+                    : "bg-bg-floating"
+          }
+          collapsed={isCollapsed}
+          count={columnItems.length}
+          label={column.label}
+          onCollapse={() => toggleReviewColumnCollapsed(role.roleId, column.id)}
+          onExpand={() => toggleReviewColumnCollapsed(role.roleId, column.id)}
+          onEdit={
+            isCustomColumn ? () => openEditCustomStageDialog(column) : undefined
+          }
+          onDelete={
+            isCustomColumn ? () => handleDeleteCustomStage(column) : undefined
+          }
+          pending={isCustomColumnPending}
+        />
+      </div>
     );
   };
 
@@ -1383,6 +1472,8 @@ export function MatchingHarperReviewBoard({
       </div>
 
       <div
+        ref={reviewControlsRef}
+        data-ops-matching-sticky-controls
         className="sticky z-20 -mx-1 rounded-md border border-neutral-1000-a05 bg-bg-default/90 px-1 py-2 shadow-[0_10px_30px_color-mix(in_srgb,var(--color-neutral-1000)_8%,transparent)] backdrop-blur-xl"
         style={{ top: stickyTop }}
       >
@@ -1420,13 +1511,76 @@ export function MatchingHarperReviewBoard({
         </div>
       ) : null}
 
-      <div className="overflow-x-auto pb-2">
+      <div
+        data-ops-matching-sticky-columns
+        className="sticky z-10 bg-bg-default/95 backdrop-blur"
+        style={{ top: stickyTop + stickyControlsHeight }}
+      >
+        <div className="overflow-hidden" ref={pipelineHeaderScrollRef}>
+          <div className="flex min-w-max gap-0">
+            {visibleArchiveColumns.map((column, index) =>
+              renderStickyReviewColumnHeader(column, index, totalReviewColumns)
+            )}
+            <div className="w-[320px] shrink-0 border-y border-l border-neutral-1000-a10 bg-bg-floating px-3 py-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="truncate text-xs font-semibold text-neutral-primary">
+                  Harper가 애매하다고 판단
+                </div>
+                <span className="rounded-sm bg-bg-default px-1.5 py-0.5 text-[10px] text-neutral-muted">
+                  {ambiguousTalentsQuery.data?.pages[0]?.totalCount ??
+                    ambiguousTalents.length}
+                </span>
+              </div>
+            </div>
+            {PRE_CUSTOM_REVIEW_COLUMNS.map((column, index) =>
+              renderStickyReviewColumnHeader(
+                column,
+                visibleArchiveColumns.length + 1 + index,
+                totalReviewColumns
+              )
+            )}
+            {customReviewColumns.map((column, index) =>
+              renderStickyReviewColumnHeader(
+                column,
+                visibleArchiveColumns.length +
+                  PRE_CUSTOM_REVIEW_COLUMNS.length +
+                  1 +
+                  index,
+                totalReviewColumns
+              )
+            )}
+            <div className="w-8 shrink-0 border-y border-neutral-1000-a10 bg-bg-default" />
+            {POST_CUSTOM_REVIEW_COLUMNS.map((column, index) =>
+              renderStickyReviewColumnHeader(
+                column,
+                visibleArchiveColumns.length +
+                  PRE_CUSTOM_REVIEW_COLUMNS.length +
+                  customReviewColumns.length +
+                  1 +
+                  index,
+                totalReviewColumns
+              )
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div
+        data-ops-matching-pipeline-scroll
+        className="overflow-x-auto pb-2"
+        onScroll={(event) => {
+          if (pipelineHeaderScrollRef.current) {
+            pipelineHeaderScrollRef.current.scrollLeft =
+              event.currentTarget.scrollLeft;
+          }
+        }}
+      >
         <div className="flex min-w-max gap-0">
           {visibleArchiveColumns.map((column, index) =>
             renderReviewColumn(column, index, totalReviewColumns)
           )}
           <section className="min-h-[560px] w-[320px] shrink-0 border-y border-l border-neutral-1000-a10 bg-bg-default">
-            <div className="border-b border-neutral-1000-a10 bg-bg-floating px-3 py-2.5">
+            <div className="hidden border-b border-neutral-1000-a10 bg-bg-floating px-3 py-2.5">
               <div className="flex items-center justify-between gap-2">
                 <div className="truncate text-xs font-semibold text-neutral-primary">
                   Harper가 애매하다고 판단

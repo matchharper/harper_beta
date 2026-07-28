@@ -88,7 +88,7 @@ export function OrgWorkspaceApp({
             key={workspace.workspaceId}
             className="py-6 sm:py-9 lg:py-10"
             padding="default"
-            size={useWideLayout ? "wide" : "default"}
+            size={useWideLayout ? "wide" : "narrow"}
           >
             {children}
           </PageContainer>

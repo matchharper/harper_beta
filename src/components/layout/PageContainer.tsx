@@ -7,8 +7,8 @@ import { cn } from "@/lib/utils";
 const pageContainerVariants = cva("mx-auto w-full", {
   variants: {
     size: {
-      narrow: "max-w-[720px]",
-      default: "max-w-[960px]",
+      narrow: "max-w-[960px]",
+      default: "max-w-[1260px]",
       wide: "max-w-[1440px]",
       full: "max-w-none",
     },
