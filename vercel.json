@@ -19,10 +19,6 @@
     {
       "path": "/api/internal/weekly-user-stats",
       "schedule": "0 16 * * 0"
-    },
-    {
-      "path": "/api/internal/matching/auto-intro-to-company",
-      "schedule": "0 0 * * 1,4"
     }
   ]
 }
