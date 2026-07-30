@@ -11,6 +11,7 @@ type OpenAICompatibleUsage = {
   cache_creation_input_tokens?: number | null;
   cache_read_input_tokens?: number | null;
   completion_tokens?: number | null;
+  cost_in_usd_ticks?: number | null;
   input_token_details?: {
     audio_tokens?: number | null;
     cached_tokens?: number | null;
@@ -606,16 +607,28 @@ export async function insertRealtimeLlmUsageLog(args: {
   response: any;
 }) {
   const usage = extractRealtimeLlmTokenUsage(args.response);
-  const cost = estimateRealtimeLlmUsageCost(args.model, usage);
+  const estimatedCost = estimateRealtimeLlmUsageCost(args.model, usage);
+  const providerCostTicks = toNullableNumber(
+    args.response?.usage?.cost_in_usd_ticks
+  );
+  const providerCostUsd =
+    providerCostTicks === null ? null : providerCostTicks / 10_000_000_000;
 
   await insertLlmLog({
-    estimatedCostUsd: cost?.estimatedCostUsd ?? 0,
+    estimatedCostUsd: providerCostUsd ?? estimatedCost?.estimatedCostUsd ?? 0,
     meta: {
       costKind: "actual",
       label: "career/realtime:response",
       step: "response",
       usage,
-      costBreakdown: cost,
+      costBreakdown:
+        providerCostUsd === null
+          ? estimatedCost
+          : {
+              estimatedCostUsd: providerCostUsd,
+              providerCostTicks,
+              source: "provider_reported",
+            },
       ...(args.meta ?? {}),
     },
     model: args.model,

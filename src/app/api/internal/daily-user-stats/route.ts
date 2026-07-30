@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import {
-  buildDailyUserStatsReport,
+  buildDailyUserStatsReportComparison,
   formatDailyUserStatsSlackMessage,
   formatDailyUserStatsSlackMessages,
   resolveDailyUserStatsDate,
@@ -106,12 +106,13 @@ async function handleDailyUserStats(req: NextRequest) {
   }
 
   const date = resolveDailyUserStatsDate(req.nextUrl.searchParams.get("date"));
-  const [report, companyNotificationGroups] = await Promise.all([
-    buildDailyUserStatsReport(date),
-    buildAutoRoleAcceptedNotificationGroups(),
-  ]);
-  const message = formatDailyUserStatsSlackMessage(report);
-  const messages = formatDailyUserStatsSlackMessages(report);
+  const [{ previousReport, report }, companyNotificationGroups] =
+    await Promise.all([
+      buildDailyUserStatsReportComparison(date),
+      buildAutoRoleAcceptedNotificationGroups(),
+    ]);
+  const message = formatDailyUserStatsSlackMessage(report, previousReport);
+  const messages = formatDailyUserStatsSlackMessages(report, previousReport);
   const companyNotificationMessage =
     formatAutoRoleAcceptedNotificationSlackMessage(
       companyNotificationGroups,
@@ -125,6 +126,7 @@ async function handleDailyUserStats(req: NextRequest) {
       dryRun: true,
       message,
       messages,
+      previousReport,
       report,
     });
   }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare a manual-2.2 SBVA Value Creation dry-run review.
+"""Prepare a manual-2.3 SBVA Communications dry-run review.
 
 This script performs deterministic database reads, country evidence gating,
 retrieval scoring, and artifact formatting only. It does not call a model,
@@ -39,9 +39,9 @@ from prepare_internal_role_matching_agent_review import (
 )
 
 
-MANUAL_VERSION = "2.2"
-EVALUATOR_VERSION = "codex-sbva-value-creation-direct-review-1"
-EXPECTED_ROLE_NAME = "Value Creation Team Assistant Manager (대리)"
+MANUAL_VERSION = "2.3"
+EVALUATOR_VERSION = "codex-sbva-communications-direct-review-20260730"
+EXPECTED_ROLE_NAME = "Communications Team Assistant Manager (대리)"
 EXPECTED_WORKSPACE_NAME = "SBVA"
 TARGET_POOL_SIZE = 200
 ALLOWED_ROLE_STATUSES = {"active", "top_priority", "paused"}
@@ -394,7 +394,14 @@ def country_evidence(
     ) + " " + " ".join(
         str(row.get("segment_summary") or row.get("summary_text") or "") for row in summaries
     )
-    if re.search(r"(relocat|move|이주|귀국|한국.*근무|서울.*근무|서울.*가능|korea.*role|seoul.*role)", preference_text, flags=re.IGNORECASE) and matches(preference_text, KOREA_PATTERNS):
+    current_in_korea = matches(location, KOREA_PATTERNS)
+    relocation_to_korea = re.search(
+        r"(?:relocat(?:e|ion)?|move|return|이주|귀국|근무|가능).{0,80}(?:south korea|korea|seoul|대한민국|한국|서울)"
+        r"|(?:south korea|korea|seoul|대한민국|한국|서울).{0,80}(?:relocat(?:e|ion)?|move|return|이주|귀국|근무|가능)",
+        preference_text,
+        flags=re.IGNORECASE,
+    )
+    if relocation_to_korea:
         evidence.append(
             {
                 "type": "explicit_relocation_intent",
@@ -425,7 +432,18 @@ def country_evidence(
                 "fact": "한국 소재 회사·학교·연구 경험이 확인됨",
             }
         )
-    if re.search(r"(remote only|not.*relocat|no relocation|미국.*만|singapore.*only|japan.*only|tokyo.*only)", preference_text, flags=re.IGNORECASE):
+    remote_only = re.search(r"\b(?:remote[- ]only|only remote|fully remote only)\b|원격(?:근무)?만", preference_text, flags=re.IGNORECASE)
+    exclusive_outside_korea = re.search(
+        r"(?:\b(?:united states|u\.?s\.?|singapore|japan|tokyo)\b|미국|싱가포르|일본|도쿄).{0,40}(?:\bonly\b|만(?:\b|\s))",
+        preference_text,
+        flags=re.IGNORECASE,
+    )
+    no_relocation = re.search(
+        r"\b(?:not willing to relocate|cannot relocate|can't relocate|no relocation)\b|이주 (?:불가|의향 없음)|귀국 (?:불가|의향 없음)",
+        preference_text,
+        flags=re.IGNORECASE,
+    )
+    if remote_only or exclusive_outside_korea or (no_relocation and not current_in_korea):
         conflicts.append("Korea/Seoul onsite와 충돌 가능성이 있는 지역·remote 제약 표현이 있음")
     if not evidence:
         unknowns.append("target country evidence 없음")
@@ -483,7 +501,7 @@ def load_detail(db: SupabaseReadOnly, pool_ids: Sequence[str]) -> dict[str, list
 
 
 def consideration_markdown() -> str:
-    return """# SBVA — Value Creation / Communications Assistant Manager consideration
+    return """# SBVA — Communications Team Assistant Manager consideration
 
 ## Role essence
 
@@ -519,7 +537,7 @@ def consideration_markdown() -> str:
 
 ## Learned feedback / do-not-use
 
-- 같은 role은 신규 paused role이고 동일 role outcome은 아직 없습니다. 같은 workspace의 기존 request가 investment team VP/Senior Associate를 언급하지만, 이 role의 PDF/JD와 role request가 더 최신·구체적이므로 현재 communications/value creation role 기준이 우선합니다.
+- 같은 role에는 이전 발송·진행 이력이 있으므로 최신 row를 중복 제외와 후보자 수락 신호로만 사용합니다. 같은 workspace의 investment team VP/Senior Associate 기준은 이 communications role의 기술·scope 기준으로 전이하지 않습니다.
 - 학교·회사 명성, 나이 대리변수, 외모·이름 기반 국적 추정, 단순 영어권 추정은 사용하지 않습니다.
 """
 
@@ -994,20 +1012,59 @@ def main() -> int:
             row["talentId"],
         )
     )
-    selected_ids: set[str] = set()
+    previous_completed_at = previous_memory.get("created_at") if previous_memory else None
+    fresh_rows: list[dict[str, Any]] = []
+    if previous_completed_at:
+        fresh_rows = [
+            row
+            for row in eligible
+            if compact(row.get("createdAt"), 80) > compact(previous_completed_at, 80)
+        ][:30]
+
+    # The freshness reservation is part of the final 200-person pool. Allocate
+    # the remaining capacity across the four evidence lanes in the manual's
+    # 80:60:40:20 ratio so freshness cannot crowd out later diversity lanes.
+    selected_ids: set[str] = {row["talentId"] for row in fresh_rows}
+    remaining_slots = TARGET_POOL_SIZE - len(selected_ids)
+    base_lane_specs = (
+        ("direct_function_title", 80),
+        ("core_work_evidence", 60),
+        ("adjacent_transferable", 40),
+        ("high_impact_non_obvious", 20),
+    )
+    lane_specs = [
+        (lane, round(remaining_slots * base_requested / TARGET_POOL_SIZE), base_requested)
+        for lane, base_requested in base_lane_specs
+    ]
     lane_stats: list[dict[str, Any]] = []
-    for lane, requested in (("direct_function_title", 80), ("core_work_evidence", 60), ("adjacent_transferable", 40), ("high_impact_non_obvious", 20)):
+    for lane, requested, base_requested in lane_specs:
         rows = [row for row in eligible if lane in row["retrievalLanes"]]
         overlap = sum(row["talentId"] in selected_ids for row in rows)
         contributed = 0
-        for row in rows:
-            if row["talentId"] in selected_ids:
-                continue
-            selected_ids.add(row["talentId"])
-            contributed += 1
-            if contributed >= requested:
-                break
-        lane_stats.append({"lane": lane, "requestedUnique": requested, "rawFetched": len(rows), "overlapWithEarlierLanes": overlap, "uniqueContributed": contributed, "eligibleRoleAdjacentRemaining": max(0, len(rows) - overlap - contributed)})
+        if requested:
+            for row in rows:
+                if len(selected_ids) >= TARGET_POOL_SIZE:
+                    break
+                if row["talentId"] in selected_ids:
+                    continue
+                selected_ids.add(row["talentId"])
+                contributed += 1
+                if contributed >= requested:
+                    break
+        lane_stats.append({
+            "lane": lane,
+            "baseRequestedUnique": base_requested,
+            "requestedUnique": requested,
+            "quotaAdjustment": (
+                "proportional reduction for 30-person freshness reservation"
+                if fresh_rows
+                else "none"
+            ),
+            "rawFetched": len(rows),
+            "overlapWithEarlierLanes": overlap,
+            "uniqueContributed": contributed,
+            "eligibleRoleAdjacentRemaining": max(0, len(rows) - overlap - contributed),
+        })
     for row in eligible:
         if len(selected_ids) >= TARGET_POOL_SIZE:
             break
@@ -1016,7 +1073,6 @@ def main() -> int:
     pool_ids = [row["talentId"] for row in pool]
     log(f"built retrieval pool: {len(pool)}")
 
-    previous_completed_at = previous_memory.get("created_at") if previous_memory else None
     funnel = {
         "allTalentUsers": len(profiles),
         "excluded": excluded,
@@ -1034,11 +1090,22 @@ def main() -> int:
         "cooldownInvalidatedByRoleChange": len(role_changed_review_ids),
         "cooldownInvalidatedByCandidateChange": len(candidate_changed_review_ids),
         "cooldownExpired": sum(1 for row in latest_reviews.values() if compact(row.get("final_disposition"), 60) == "do_not_recommend" and parse_date(row.get("excluded_until")) and datetime.fromisoformat(str(row.get("excluded_until")).replace("Z", "+00:00")) <= now),
-        "newOrMateriallyUpdatedReservation": {"applied": previous_memory is not None, "previousCompletedAt": previous_completed_at, "reserved": 0, "note": "first valid run; reservation does not apply" if previous_memory is None else "previous memory exists; current pool is below target or no displacement needed"},
+        "newOrMateriallyUpdatedReservation": {
+            "applied": previous_memory is not None,
+            "previousCompletedAt": previous_completed_at,
+            "reserved": len(fresh_rows),
+            "reservedTalentIds": [row["talentId"] for row in fresh_rows],
+            "basis": "talent_users.created_at_after_previous_completed_run",
+            "note": (
+                "first valid run; reservation does not apply"
+                if previous_memory is None
+                else "up to 30 newly joined, country-gated, role-adjacent candidates were secured before lane fill"
+            ),
+        },
         "lanes": lane_stats,
     }
     write_json(output / "retrieval_funnel.json", funnel)
-    write_text(output / "retrieval.sql", f"""-- Rendered read-only retrieval equivalent for manual 2.2.
+    write_text(output / "retrieval.sql", f"""-- Rendered read-only retrieval equivalent for manual 2.3.
 -- Executed via paginated Supabase PostgREST GETs; no RPC or mutation.
 -- role_id = {args.role_id}
 -- 1) read role/workspace/request/recommendation/progress/tag/review state;

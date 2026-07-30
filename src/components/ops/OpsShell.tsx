@@ -538,10 +538,7 @@ export default function OpsShell({
     <div className="relative h-svh overflow-x-clip overflow-y-auto bg-bg-basement text-neutral-primary">
       <div className={opsTheme.backgroundGlow} />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--color-neutral-00)_20%,transparent),transparent)]" />
-      <div
-        data-ops-shell-header
-        className="sticky top-0 z-30 border-b border-neutral-1000-a05 bg-bg-default/80 backdrop-blur-xl"
-      >
+      <div className="z-30 border-b border-neutral-1000-a05 bg-bg-default/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-[1600px] flex-col gap-3 px-4 py-3 lg:px-6">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 flex-wrap items-center gap-3">
@@ -629,14 +626,21 @@ export default function OpsShell({
                 </div>
               ) : null}
             </div>
-            {navActions && (
-              <div className="flex flex-row gap-2 items-center">
-                {navActions}
-              </div>
-            )}
           </nav>
         </div>
       </div>
+      {navActions ? (
+        <div
+          data-ops-shell-header
+          className="sticky top-0 z-30 border-b border-neutral-1000-a05 bg-bg-default/90 backdrop-blur-xl"
+        >
+          <div className="mx-auto max-w-[1600px] overflow-x-auto px-4 pb-3 lg:px-6">
+            <div className="flex min-w-max items-center gap-2">
+              {navActions}
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="relative mx-auto max-w-[1600px] px-4 py-4 lg:px-6">
         <main className="min-w-0 space-y-2">
           {actions && (

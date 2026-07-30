@@ -24,6 +24,8 @@ from typing import Any, Iterable, Mapping, Sequence
 
 from dotenv import load_dotenv
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 from internal_role_matching_run_memory import fetch_latest_run_memory
 
@@ -240,6 +242,17 @@ class SupabaseReadOnly:
     def __init__(self, url: str, key: str) -> None:
         self.base = url.rstrip("/") + "/rest/v1"
         self.headers = {"apikey": key, "Authorization": f"Bearer {key}", "Accept": "application/json"}
+        retry = Retry(
+            total=3,
+            connect=3,
+            read=3,
+            backoff_factor=1,
+            status_forcelist=(429, 500, 502, 503, 504),
+            allowed_methods=frozenset({"GET"}),
+        )
+        self.session = requests.Session()
+        self.session.mount("https://", HTTPAdapter(max_retries=retry))
+        self.session.mount("http://", HTTPAdapter(max_retries=retry))
 
     def get(self, table: str, *, select: str = "*", filters: Mapping[str, str] | None = None, order: str | None = None) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
@@ -251,7 +264,12 @@ class SupabaseReadOnly:
                 params.update(filters)
             if order:
                 params["order"] = order
-            response = requests.get(f"{self.base}/{table}", headers=self.headers, params=params, timeout=120)
+            response = self.session.get(
+                f"{self.base}/{table}",
+                headers=self.headers,
+                params=params,
+                timeout=(15, 120),
+            )
             response.raise_for_status()
             page = response.json()
             if not isinstance(page, list):

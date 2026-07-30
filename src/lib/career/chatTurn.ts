@@ -784,7 +784,10 @@ export async function runCareerChatTurn(
           typeof recommendationResult.recommendationCount === "number"
             ? recommendationResult.recommendationCount
             : null,
-        state: "completed",
+        state:
+          recommendationResult.initialRecommendationPending === true
+            ? "stopped"
+            : "completed",
       };
       recordRecommendationStatus(completedStatus, { persist: true });
       return result;

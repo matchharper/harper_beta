@@ -14,6 +14,10 @@ import {
   normalizeTalentBlockedCompanies,
 } from "@/lib/talentOnboarding/server";
 import { OpportunityType } from "@/lib/opportunityType";
+import {
+  buildInitialRecommendationPendingResult,
+  fetchActiveInitialConversationRun,
+} from "@/lib/talentOnboarding/initialRecommendationGuard";
 
 if (typeof window !== "undefined") {
   throw new Error("jobPostingRecommendations must not run in the browser");
@@ -32,6 +36,13 @@ type RoleSearchMode = "strict";
 
 type EntryPreference = -1 | 0 | 1;
 
+type PostingRecency = {
+  maxAgeDays: number | null;
+  olderWeight: number | null;
+  recentDays: number | null;
+  recentWeight: number | null;
+};
+
 type ExternalSearchPlan = {
   ftsKeywords: FtsKeyword[];
   includeContract: boolean;
@@ -43,6 +54,7 @@ type ExternalSearchPlan = {
   remoteOnly: boolean;
   roleTitles: string[];
   searchIntentSummary: string;
+  postingRecency: PostingRecency | null;
 };
 
 type RawRoleRow = {
@@ -221,10 +233,11 @@ Output schema:
   "include_contract": false,
   "include_parttime": false,
   "include_intern": false,
+  "includeRemote": true,
+  "remoteOnly": false,
   "is_prefer_entry": 0,
   "locations": [],
-  "includeRemote": true,
-  "remoteOnly": false
+  "postingRecency": null
 }
 
 Rules:
@@ -234,13 +247,17 @@ Rules:
 - Avoid standalone broad terms such as "AI", "data", "software".
 - Do not put pure preferences in ftsKeywords: company stage, company size, funding, investors, location, remote/hybrid/onsite, salary, culture, brand prestige, "startup", "Series A", "YC", "a16z", "global", or "Seoul" unless that word is literally part of the work domain.
 - locations: Geographic location filters or preferences only. Never put "remote" here. Keep empty if location preference is unknown.
-  - Examples: "Seoul", "Korea", ", CA", "United States",  "Japan"
+  - Examples: "Seoul", "Korea", ", CA", "United States",  "Japan", "New York"
   - 유저가 명시적으로 한국만을 원한다고 하지 않은 경우에는 기본적으로 한국과 미국 둘다 열어둬라. 
 - includeRemote: true means remote rows are allowed if they otherwise match the query. It must not broaden location SQL with "remote OR location". false means SQL must exclude rows where work_mode is remote.
 - remoteOnly: true only when remote is a hard requirement, e.g. "remote only", "완전 원격만", "원격 아니면 제외".
   - If remoteOnly=true and locations has geo values, SQL will require both remote work mode and one of those geographies, e.g. "US remote only".
   - If remoteOnly=true, includeRemote is effectively true because remote is required.
   - If the user only mildly prefers remote, set includeRemote=true and remoteOnly=false, then let shortlist/final selection handle it as a preference.
+- postingRecency MUST be null unless the current user request explicitly asks for posting freshness, a posting-age window, or recency weights.
+- postingRecency format example: {"recentDays": 7, "maxAgeDays": 28, "recentWeight": 20, "olderWeight": 5}.
+  recentDays: integer 1-3650, the recent-posting window. maxAgeDays: integer 1-3650, the hard age cutoff.
+  recentWeight and olderWeight: independent search-rank bonuses from 0 to 20. Use null for any unset value.
 ## role_titles rules
 - role_titles are a hard role-title gate over company_roles.name using ILIKE. Always output 1-15 title fragments.
   - They must be role/title fragments likely to appear in cr.name, not company names, domains, skills, locations, company stage, or preferences.
@@ -1409,6 +1426,67 @@ function entryPreferenceField(record: JsonRecord, ...keys: string[]) {
   return 0;
 }
 
+function optionalPlanNumber(
+  record: JsonRecord,
+  keys: string[],
+  min: number,
+  max: number,
+  integer = false
+) {
+  for (const key of keys) {
+    const value = record[key];
+    if (
+      value === null ||
+      value === undefined ||
+      value === "" ||
+      typeof value === "boolean"
+    ) {
+      continue;
+    }
+    const number = typeof value === "number" ? value : Number(value);
+    if (!Number.isFinite(number)) continue;
+    const clamped = Math.max(min, Math.min(max, number));
+    return integer ? Math.round(clamped) : clamped;
+  }
+  return null;
+}
+
+function normalizePostingRecency(value: unknown): PostingRecency | null {
+  const source = asRecord(value);
+  if (!source) return null;
+  const normalized: PostingRecency = {
+    recentDays: optionalPlanNumber(
+      source,
+      ["recentDays", "recent_days"],
+      1,
+      3650,
+      true
+    ),
+    maxAgeDays: optionalPlanNumber(
+      source,
+      ["maxAgeDays", "max_age_days"],
+      1,
+      3650,
+      true
+    ),
+    recentWeight: optionalPlanNumber(
+      source,
+      ["recentWeight", "recent_weight"],
+      0,
+      20
+    ),
+    olderWeight: optionalPlanNumber(
+      source,
+      ["olderWeight", "older_weight"],
+      0,
+      20
+    ),
+  };
+  return Object.values(normalized).some((item) => item !== null)
+    ? normalized
+    : null;
+}
+
 function normalizeExternalSearchPlan(
   raw: JsonRecord | null,
   request: string,
@@ -1461,6 +1539,9 @@ function normalizeExternalSearchPlan(
       source.role_titles ?? source.roleTitles,
       ftsKeywords,
       fallbackText
+    ),
+    postingRecency: normalizePostingRecency(
+      source.postingRecency ?? source.posting_recency
     ),
     searchIntentSummary:
       cleanText(source.searchIntentSummary ?? raw?.searchIntentSummary, 260) ||
@@ -1528,6 +1609,46 @@ function isUuid(value: string) {
 
 function sqlNumber(value: number) {
   return Number.isFinite(value) ? String(Math.round(value * 100) / 100) : "1";
+}
+
+function buildPostingRecencySql(plan: ExternalSearchPlan) {
+  const recency = plan.postingRecency;
+  if (!recency) return { rankSql: "0", where: [] as string[] };
+
+  const where =
+    recency.maxAgeDays === null
+      ? []
+      : [
+          `cr.posted_at >= now() - (${sqlNumber(
+            recency.maxAgeDays
+          )} * INTERVAL '1 day')`,
+        ];
+
+  if (
+    recency.recentDays !== null &&
+    (recency.recentWeight !== null || recency.olderWeight !== null)
+  ) {
+    return {
+      rankSql: `(CASE
+        WHEN tc.posted_at >= now() - (${sqlNumber(
+          recency.recentDays
+        )} * INTERVAL '1 day') THEN ${sqlNumber(recency.recentWeight ?? 0)}
+        WHEN tc.posted_at IS NOT NULL THEN ${sqlNumber(recency.olderWeight ?? 0)}
+        ELSE 0
+      END)`,
+      where,
+    };
+  }
+
+  return {
+    rankSql:
+      recency.olderWeight === null
+        ? "0"
+        : `(CASE WHEN tc.posted_at IS NOT NULL THEN ${sqlNumber(
+            recency.olderWeight
+          )} ELSE 0 END)`,
+    where,
+  };
 }
 
 function ftsTermQuerySql(term: string) {
@@ -1740,7 +1861,8 @@ function buildRoleSearchSql(args: {
 }) {
   const ftsQuerySql = ftsAnyQuerySql(args.plan.ftsKeywords);
   const companyTestScoreRankSql = `COALESCE(tc.company_test_score, 0) / ${COMPANY_TEST_SCORE_SEARCH_RANK_DIVISOR}.0`;
-  const searchRankSql = `(${ftsRankSql(args.plan.ftsKeywords, "tc.opportunity_search_tsv")} + ${companyTestScoreRankSql} + ${entryPreferenceRankSql(args.plan.isPreferEntry, "tc.role_name", "tc.seniority_level")})`;
+  const postingRecencySql = buildPostingRecencySql(args.plan);
+  const searchRankSql = `(${ftsRankSql(args.plan.ftsKeywords, "tc.opportunity_search_tsv")} + ${companyTestScoreRankSql} + ${entryPreferenceRankSql(args.plan.isPreferEntry, "tc.role_name", "tc.seniority_level")} + ${postingRecencySql.rankSql})`;
   const where = [
     "COALESCE(cr.is_expired, false) = false",
     "(cr.expires_at IS NULL OR cr.expires_at > now())",
@@ -1751,6 +1873,7 @@ function buildRoleSearchSql(args: {
     ...buildEmploymentTypeSql(args.plan),
     ...buildRoleTitleSql(args.plan.roleTitles),
     ...buildLocationSql(args.plan),
+    ...postingRecencySql.where,
   ].filter((sql): sql is string => Boolean(sql));
 
   return `
@@ -3625,6 +3748,25 @@ export async function runCareerJobPostingRecommendations(args: {
   if (!request) throw new Error("recommend_job_postings requires a request.");
   throwIfRecommendationSearchAborted(args.abortSignal);
 
+  const activeInitialRun = await fetchActiveInitialConversationRun({
+    admin: args.admin,
+    userId: args.userId,
+  });
+  if (activeInitialRun) {
+    console.info(
+      "[recommend_job_postings] skipped while initial recommendation is pending",
+      {
+        runId: activeInitialRun.id,
+        status: activeInitialRun.status,
+        userId: args.userId,
+      }
+    );
+    return buildInitialRecommendationPendingResult({
+      locale: args.preferredLocale,
+    });
+  }
+  throwIfRecommendationSearchAborted(args.abortSignal);
+
   const requestedCount = extractRequestedPostingCount(request);
   const startedAt = Date.now();
   console.info("[recommend_job_postings] start", {
@@ -3710,6 +3852,7 @@ export async function runCareerJobPostingRecommendations(args: {
     includeRemote: plan.includeRemote,
     is_prefer_entry: plan.isPreferEntry,
     locations: plan.locations,
+    postingRecency: plan.postingRecency,
     remoteOnly: plan.remoteOnly,
     role_titles: plan.roleTitles,
     searchIntentSummary: plan.searchIntentSummary,
@@ -3900,6 +4043,7 @@ export async function runCareerJobPostingRecommendations(args: {
       includeRemote: plan.includeRemote,
       is_prefer_entry: plan.isPreferEntry,
       locations: plan.locations,
+      postingRecency: plan.postingRecency,
       remoteOnly: plan.remoteOnly,
       role_titles: plan.roleTitles,
       searchIntentSummary: plan.searchIntentSummary,

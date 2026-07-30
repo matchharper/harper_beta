@@ -11,6 +11,10 @@ import type { User } from "@supabase/supabase-js";
 import { useCareerVoiceInput } from "@/components/career/useCareerVoiceInput";
 import { useRealtimeSession } from "@/hooks/career/useRealtimeSession";
 import type {
+  RealtimeAssistantResponseContext,
+  RealtimeUserSpeechStartedContext,
+} from "@/hooks/career/useRealtimeSession";
+import type {
   CallLiveTranscriptPlacement,
   CareerCallStartRequest,
   CareerInterviewProgress,
@@ -895,6 +899,22 @@ export const useCareerOnboardingVoice = ({
     [markUserTranscriptionPending, queueAssistantBufferFlush]
   );
 
+  const handleRealtimeAssistantResponseStarted = useCallback(
+    (context: RealtimeAssistantResponseContext) => {
+      if (
+        context.provider !== "xai" ||
+        !context.startedAfterUserSpeech ||
+        inputModeRef.current !== "call"
+      ) {
+        return;
+      }
+
+      liveUserTranscriptPlacementRef.current = "beforeCurrentAssistant";
+      setLiveUserTranscriptPlacement("beforeCurrentAssistant");
+    },
+    []
+  );
+
   const handleRealtimeAssistantDone = useCallback(
     (fullText: string) => {
       if (!fullText.trim()) return;
@@ -1058,21 +1078,26 @@ export const useCareerOnboardingVoice = ({
     }
   }, []);
 
-  const handleRealtimeUserSpeechStarted = useCallback(() => {
-    clearUserTranscriptionTimeout();
-    clearAssistantBufferFlushTimeout();
-    userSpeechObservedRef.current = true;
-    userTranscriptionPendingRef.current = false;
-    userSpeechWithoutTranscriptRef.current = false;
-    liveUserTranscriptPlacementRef.current = "afterCurrentAssistant";
-    setLiveUserTranscriptPlacement("afterCurrentAssistant");
+  const handleRealtimeUserSpeechStarted = useCallback(
+    (context: RealtimeUserSpeechStartedContext) => {
+      clearUserTranscriptionTimeout();
+      clearAssistantBufferFlushTimeout();
+      userSpeechObservedRef.current = true;
+      userTranscriptionPendingRef.current = false;
+      userSpeechWithoutTranscriptRef.current = false;
+      if (context.provider !== "xai" || !context.continuesCurrentUserTurn) {
+        liveUserTranscriptPlacementRef.current = "afterCurrentAssistant";
+        setLiveUserTranscriptPlacement("afterCurrentAssistant");
+      }
 
-    pendingAssistantDoneRef.current = null;
-    pendingAssistantDeltaTextRef.current = "";
-    suppressNextAssistantDoneRef.current = false;
-    pendingCallEndRef.current = false;
-    clearVoiceBufferRef.current?.();
-  }, [clearAssistantBufferFlushTimeout, clearUserTranscriptionTimeout]);
+      pendingAssistantDoneRef.current = null;
+      pendingAssistantDeltaTextRef.current = "";
+      suppressNextAssistantDoneRef.current = false;
+      pendingCallEndRef.current = false;
+      clearVoiceBufferRef.current?.();
+    },
+    [clearAssistantBufferFlushTimeout, clearUserTranscriptionTimeout]
+  );
 
   const handleRealtimeUserSpeechStopped = useCallback(() => {
     if (inputModeRef.current !== "call") return;
@@ -1091,6 +1116,7 @@ export const useCareerOnboardingVoice = ({
     onTranscript: handleRealtimeTranscript,
     onAssistantDelta: handleRealtimeAssistantDelta,
     onAssistantDone: handleRealtimeAssistantDone,
+    onAssistantResponseStarted: handleRealtimeAssistantResponseStarted,
     onError: handleRealtimeError,
     onConnectionChange: handleRealtimeConnectionChange,
     onEndCallTool: scheduleCallEndAfterRealtimePlayback,

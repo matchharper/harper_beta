@@ -3,9 +3,11 @@ import {
   ChevronDown,
   CircleHelp,
   Home,
+  Inbox,
   ListFilter,
   LogOut,
   Settings,
+  SquareKanban,
   Users,
 } from "lucide-react";
 import Image from "next/image";
@@ -37,7 +39,8 @@ const PRIMARY_NAV: Array<{
   label: string;
 }> = [
   { icon: Home, id: "home", label: "Home" },
-  { icon: BriefcaseBusiness, id: "jobs", label: "Jobs" },
+  { icon: Inbox, id: "inbox", label: "Inbox" },
+  { icon: SquareKanban, id: "jobs", label: "Pipeline" },
   { icon: Users, id: "team", label: "Team" },
   { icon: Settings, id: "settings", label: "Settings" },
 ];
@@ -262,11 +265,11 @@ export function OrgWorkspaceSidebar() {
               >
                 <UserAvatar member={currentUser} />
                 <span className="min-w-0 text-left">
-                  <span className="block truncate text-[12px] font-medium text-neutral-primary">
+                  <span className="block truncate text-sm font-medium text-neutral-primary">
                     {currentUser?.name || currentUser?.email || "User"}
                   </span>
                   {currentUser?.email ? (
-                    <span className="block truncate text-[11px] font-light text-neutral-soft">
+                    <span className="block truncate text-[13px] font-light text-neutral-soft">
                       {currentUser.email}
                     </span>
                   ) : null}
@@ -371,7 +374,7 @@ export function OrgWorkspaceShellSkeleton({
       <aside className="fixed inset-y-0 left-0 hidden w-[256px] border-r border-neutral-1000-a05 p-4 lg:block">
         <Skeleton className="h-9 w-full" />
         <div className="mt-5 space-y-1.5">
-          {Array.from({ length: 4 }).map((_, index) => (
+          {Array.from({ length: 5 }).map((_, index) => (
             <Skeleton className="h-9 w-full" key={index} />
           ))}
         </div>

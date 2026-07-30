@@ -141,6 +141,8 @@ export const queryKeys = {
         filters?.workspaceId ?? "",
         filters?.recommendationIds ?? [],
       ] as const,
+    inbox: (workspaceId?: string | null) =>
+      ["org", "board", "inbox", workspaceId ?? ""] as const,
     detail: (filters?: {
       recommendationId?: string | null;
       roleId?: string | null;
@@ -167,31 +169,27 @@ export const queryKeys = {
         filters?.workspaceId ?? "",
         filters?.talentId ?? "",
       ] as const,
-    agentMessages: (filters?: {
-      roleId?: string | null;
-      workspaceId?: string | null;
-    }) =>
-      [
-        "org",
-        "agentMessages",
-        filters?.workspaceId ?? "",
-        filters?.roleId ?? "",
-      ] as const,
+    agentMessages: (filters?: { workspaceId?: string | null }) =>
+      ["org", "agentMessages", filters?.workspaceId ?? ""] as const,
     agentMentions: (filters?: {
       query?: string | null;
-      roleId?: string | null;
       workspaceId?: string | null;
     }) =>
       [
         "org",
         "agentMentions",
         filters?.workspaceId ?? "",
-        filters?.roleId ?? "",
         filters?.query ?? "",
       ] as const,
   },
   opsMatching: {
     all: ["opsMatching"] as const,
+    fitsAll: ["opsMatching", "fits"] as const,
+    progressAll: ["opsMatching", "progress"] as const,
+    reviewRoot: ["opsMatching", "review"] as const,
+    talentFitsAll: ["opsMatching", "talentFits"] as const,
+    talentPoolAll: ["opsMatching", "talentPool"] as const,
+    talentsAll: ["opsMatching", "talents"] as const,
     allRoles: (filters: {
       limit?: number | null;
       query?: string | null;

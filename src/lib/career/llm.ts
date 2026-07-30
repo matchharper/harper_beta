@@ -23,6 +23,7 @@ import {
 } from "@/lib/talentOnboarding/toolLogging";
 import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import { buildCareerToolPolicyPrompt } from "@/lib/career/prompts/toolPolicyPrompt";
+import { resolveCareerRealtimeProvider } from "@/lib/career/realtimeProvider";
 
 export const CAREER_LLM_CONFIG = {
   // 커리어 제품군의 LLM/Realtime 기본 설정 모음.
@@ -96,12 +97,24 @@ export const CAREER_LLM_CONFIG = {
   profileIngestion: {
     temperature: 0.1,
   },
-  // OpenAI Realtime 세션 생성 설정.
+  // Realtime 세션 생성 설정.
   // 사용처: /api/realtime/token.
   realtime: {
-    model: "gpt-realtime-2.1",
-    transcriptionModel: "gpt-4o-transcribe",
-    voice: "cedar",
+    providers: {
+      openai: {
+        model: "gpt-realtime-2.1",
+        speechSpeed: 1.1,
+        transcriptionModel: "gpt-4o-transcribe",
+        voice: "cedar",
+      },
+      xai: {
+        model: "grok-voice-think-fast-2.0",
+        reasoningEffort: "high",
+        speechSpeed: 1.3,
+        transcriptionModel: "grok-transcribe",
+        voice: "Cosmo",
+      },
+    },
   },
   // 회사 스냅샷이 캐시에 없을 때 OpenAI Responses API + web_search로 조사한다.
   // createChatCompletionWithFallback 경로가 아니며, web_search tool을 쓰기 때문에
@@ -2152,11 +2165,20 @@ export async function runOpsRoleDescriptionSummary(args: {
   });
 }
 
-export function getCareerRealtimeSessionConfig() {
+export function getCareerRealtimeSessionConfig(args: {
+  userCreatedAt?: string | null;
+  userId: string;
+}) {
+  const provider = resolveCareerRealtimeProvider(args);
+  const providerConfig = CAREER_LLM_CONFIG.realtime.providers[provider];
+
   return {
-    model: CAREER_LLM_CONFIG.realtime.model,
-    outputModalities: ["audio"],
-    transcriptionModel: CAREER_LLM_CONFIG.realtime.transcriptionModel,
-    voice: CAREER_LLM_CONFIG.realtime.voice,
+    ...providerConfig,
+    outputModalities: ["audio"] as const,
+    provider,
+    reasoningEffort:
+      provider === "xai"
+        ? CAREER_LLM_CONFIG.realtime.providers.xai.reasoningEffort
+        : null,
   };
 }

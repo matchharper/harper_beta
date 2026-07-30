@@ -13,9 +13,9 @@ export type RecommendJobPostingStatus = {
 };
 
 export const RECOMMEND_JOB_POSTINGS_CHAT_PREAMBLE =
-  "좋습니다. 지금까지의 대화와 피드백을 기준으로 새 포지션을 찾아볼게요.";
+  "좋습니다. 먼저 현재 추천 진행 상태를 확인해볼게요.";
 export const RECOMMEND_JOB_POSTINGS_CHAT_PREAMBLE_EN =
-  "Got it. I'll look for new positions based on our conversation and your recent feedback.";
+  "Got it. Let me first check the status of your recommendations.";
 export const RECOMMEND_JOB_POSTINGS_CHAT_PREAMBLES = [
   RECOMMEND_JOB_POSTINGS_CHAT_PREAMBLE,
   RECOMMEND_JOB_POSTINGS_CHAT_PREAMBLE_EN,

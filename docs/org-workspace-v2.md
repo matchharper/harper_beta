@@ -4,13 +4,14 @@
 
 Organization은 회사 사용자가 Harper가 추천한 인재를 빠르게 검토하고,
 채용 팀이 같은 기준과 진행 상태를 공유하는 작업 공간이다. 이번 개편은
-기존의 단일 파이프라인 화면을 다음 다섯 가지 업무 흐름으로 분리한다.
+기존의 단일 파이프라인 화면을 다음 여섯 가지 업무 흐름으로 분리한다.
 
 1. **Home**: 지금 처리해야 하는 연결 결정을 가장 먼저 보여준다.
-2. **Jobs**: Role별 후보자 파이프라인과 채용 진행 상태를 관리한다.
-3. **Team**: 회사 정보, 초대, 멤버와 권한을 관리한다.
-4. **Settings**: Slack 연결과 Organization 알림을 관리한다.
-5. **Help**: 회사 사용자가 실제 업무 중 참고할 제품 설명과 FAQ를 제공한다.
+2. **Inbox**: Workspace에 추천되어 연결 검토가 시작된 인재를 최신순으로 확인한다.
+3. **Jobs**: Role별 후보자 파이프라인과 채용 진행 상태를 관리한다.
+4. **Team**: 회사 정보, 초대, 멤버와 권한을 관리한다.
+5. **Settings**: Slack 연결과 Organization 알림을 관리한다.
+6. **Help**: 회사 사용자가 실제 업무 중 참고할 제품 설명과 FAQ를 제공한다.
 
 화면은 데스크톱에서 고정 왼쪽 사이드바와 오른쪽 콘텐츠로 구성한다. 모바일에서는
 같은 목적지를 유지하는 축약 내비게이션을 제공한다.
@@ -20,6 +21,7 @@ Organization은 회사 사용자가 Harper가 추천한 인재를 빠르게 검�
 | 화면 | URL | 책임 |
 | --- | --- | --- |
 | Home | `/org/home` | 대기 결정, 미열람 추천, 진행 중 Jobs 요약 |
+| Inbox | `/org/inbox` | Workspace별 추천 인재, 미열람/연결 대기 필터 |
 | Jobs | `/org/jobs` | 전체 Role 및 Role별 pipeline |
 | Team | `/org/team` | 회사 정보, 초대, 멤버/권한 |
 | Settings | `/org/settings` | Slack 연결, 알림 설정 |
@@ -40,6 +42,8 @@ Query 응답을 접근하기 쉽게 제공할 뿐 서버 데이터를 별도 sto
 페이지 전용 서버 데이터는 해당 페이지에서 Query hook을 직접 호출한다.
 
 - Home: board query, Home에서 Jobs/후보자로 이동하는 navigation
+- Inbox: 내부 수락/아카이브 단계를 제외한 Workspace 추천 목록,
+  열람/연결 대기 filter
 - Jobs: role/filter/board/detail query, 후보자/role mutation, Jobs dialog와 agent
 - Team: 회사 정보, 초대, 멤버/권한 mutation
 - Settings: Slack query와 mutation
@@ -115,8 +119,10 @@ control을 숨기거나 비활성화한다. 같은 데이터를 Zustand에 다�
 - 후보자 프로세스 중단
 - 새 멤버 합류
 
-각 설정은 workspace Slack integration 행에 저장하며 발송 직전에 확인한다.
-Slack 상태는 모든 멤버가 볼 수 있지만 연결 변경과 알림 설정은 Owner와 Admin만
+각 채널은 workspace Slack integration 행으로 저장하며, 알림 설정은 연결된 모든
+채널 행에 동일하게 반영하고 발송 직전에 확인한다. 하나의 Organization에 여러
+채널을 연결할 수 있고 각 채널의 최근 발송 성공·실패 상태를 따로 관리한다. Slack
+상태는 모든 멤버가 볼 수 있지만 채널 추가·제거와 알림 설정은 Owner와 Admin만
 가능하다.
 
 ## 데이터와 로딩

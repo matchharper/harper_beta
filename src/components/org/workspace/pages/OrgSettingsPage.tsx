@@ -1,4 +1,4 @@
-import { CircleAlert, LoaderCircle } from "lucide-react";
+import { Hash, LoaderCircle, Plus, Trash2 } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
@@ -19,54 +19,23 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 import {
+  useAddOrgSlackChannel,
   useConnectOrgSlack,
   useDisconnectOrgSlack,
   useOrgSlackStatus,
-  useTestOrgSlack,
-  useUpdateOrgSlackNotifications,
-  type OrgSlackStatus,
+  useRemoveOrgSlackChannel,
 } from "@/hooks/org/useOrgSlack";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useToastStore } from "@/store/useToastStore";
 
-const NOTIFICATION_OPTIONS: Array<{
-  description: string;
-  key: keyof OrgSlackStatus["notifications"];
-  label: string;
-}> = [
-  {
-    description: "후보자를 만나기로 결정하고 warm intro를 요청했을 때",
-    key: "candidateAccepted",
-    label: "후보자 연결 수락",
-  },
-  {
-    description: "회사 또는 후보자 사유로 채용 프로세스가 중단됐을 때",
-    key: "candidateRejected",
-    label: "후보자 프로세스 중단",
-  },
-  {
-    description: "초대한 사용자가 Organization에 처음 합류했을 때",
-    key: "memberJoined",
-    label: "새 멤버 합류",
-  },
-];
-
-function formatChannel(value: string | null | undefined) {
+function formatChannel(
+  value: string | null | undefined,
+  channelId?: string | null
+) {
   const channel = String(value ?? "").trim();
-  if (!channel) return "선택한 채널";
+  if (!channel) return channelId ? `채널 ${channelId}` : "선택한 채널";
   return channel.startsWith("#") ? channel : `#${channel}`;
-}
-
-function formatLastSentAt(value: string | null | undefined) {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return new Intl.DateTimeFormat("ko-KR", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
 }
 
 export function OrgSettingsPage() {
@@ -75,16 +44,19 @@ export function OrgSettingsPage() {
   const addToast = useToastStore((state) => state.add);
   const handledSlackResult = useRef("");
   const [disconnectOpen, setDisconnectOpen] = useState(false);
+  const [removeChannelId, setRemoveChannelId] = useState<string | null>(null);
+  const [newChannelId, setNewChannelId] = useState("");
   const statusQuery = useOrgSlackStatus({
     workspaceId: workspace.workspaceId,
   });
   const connectSlack = useConnectOrgSlack();
-  const testSlack = useTestOrgSlack(workspace.workspaceId);
+  const addSlackChannel = useAddOrgSlackChannel(workspace.workspaceId);
   const disconnectSlack = useDisconnectOrgSlack(workspace.workspaceId);
-  const updateNotifications = useUpdateOrgSlackNotifications(
-    workspace.workspaceId
-  );
+  const removeSlackChannel = useRemoveOrgSlackChannel(workspace.workspaceId);
   const status = statusQuery.data;
+  const channelToRemove = status?.channels.find(
+    (channel) => channel.channelId === removeChannelId
+  );
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -132,11 +104,18 @@ export function OrgSettingsPage() {
     }
   };
 
-  const test = async () => {
+  const addChannel = async () => {
+    if (!newChannelId) return;
     try {
-      await testSlack.mutateAsync();
+      await addSlackChannel.mutateAsync({
+        channelId: newChannelId,
+      });
+      const channel = status?.availableChannels.find(
+        (item) => item.channelId === newChannelId
+      );
+      setNewChannelId("");
       addToast({
-        message: "Slack 테스트 알림을 보냈습니다.",
+        message: `${formatChannel(channel?.channelName, newChannelId)}을 Harper 채널로 추가했습니다.`,
         variant: "success",
       });
     } catch (error) {
@@ -144,7 +123,26 @@ export function OrgSettingsPage() {
         message:
           error instanceof Error
             ? error.message
-            : "테스트 알림을 보내지 못했습니다.",
+            : "Slack 채널을 추가하지 못했습니다.",
+        variant: "error",
+      });
+    }
+  };
+
+  const removeChannel = async () => {
+    if (!removeChannelId) return;
+    try {
+      await removeSlackChannel.mutateAsync(removeChannelId);
+      setRemoveChannelId(null);
+      addToast({
+        message: `${formatChannel(channelToRemove?.channelName, removeChannelId)} 연결을 제거했습니다.`,
+      });
+    } catch (error) {
+      addToast({
+        message:
+          error instanceof Error
+            ? error.message
+            : "Slack 채널을 제거하지 못했습니다.",
         variant: "error",
       });
     }
@@ -166,22 +164,11 @@ export function OrgSettingsPage() {
     }
   };
 
-  const toggleNotification = (
-    key: keyof OrgSlackStatus["notifications"],
-    checked: boolean
-  ) => {
-    if (!status) return;
-    updateNotifications.mutate({
-      ...status.notifications,
-      [key]: checked,
-    });
-  };
-
   const mutationError =
     connectSlack.error ??
-    testSlack.error ??
-    disconnectSlack.error ??
-    updateNotifications.error;
+    addSlackChannel.error ??
+    removeSlackChannel.error ??
+    disconnectSlack.error;
 
   return (
     <div className="space-y-8">
@@ -192,16 +179,20 @@ export function OrgSettingsPage() {
 
       <OrgSection>
         <OrgSectionHeader
-          description="후보자 결정과 팀 변경을 선택한 Slack 채널에서 확인하세요."
+          description="인재 연결 제안, 역할 기준 변경, 후보자 프로세스 중단 등을 Slack 채널에서 팀원과 함께 진행하세요."
           title={
-            <span className="inline-flex items-center gap-2">
-              <Image
-                alt=""
-                height={16}
-                src="/images/logos/slack.svg"
-                width={16}
-              />
-              Slack integration
+            <span className="inline-flex flex-col items-start gap-3">
+              <div className="border border-neutral-1000-a05 rounded-xl p-2">
+                <Image
+                  alt=""
+                  height={36}
+                  src="/images/logos/slack.svg"
+                  width={36}
+                />
+              </div>
+              <div className="text-xl font-medium text-neutral-primary">
+                Slack integration
+              </div>
             </span>
           }
         />
@@ -245,31 +236,43 @@ export function OrgSettingsPage() {
                       </Badge>
                     </div>
                     <div className="mt-1 text-[12px] font-light text-neutral-muted">
-                      {formatChannel(status.channelName)}
-                      {formatLastSentAt(status.lastSentAt)
-                        ? ` · 최근 알림 ${formatLastSentAt(status.lastSentAt)}`
-                        : ""}
+                      {status.channels.length}개 허용 채널
                     </div>
                   </div>
                 </div>
-                {permissions.canManageIntegrations ? (
-                  <div className="flex flex-wrap gap-2">
+                {permissions.canManageIntegrations &&
+                status.availableChannels.length > 0 ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      className="h-9 rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 text-[13px]"
+                      onChange={(event) => setNewChannelId(event.target.value)}
+                      value={newChannelId}
+                    >
+                      <option value="">채널 선택</option>
+                      {status.availableChannels.map((channel) => (
+                        <option
+                          key={channel.channelId}
+                          value={channel.channelId}
+                        >
+                          {formatChannel(
+                            channel.channelName,
+                            channel.channelId
+                          )}
+                          {channel.isPrivate ? " (private)" : ""}
+                        </option>
+                      ))}
+                    </select>
                     <MuteButton
-                      disabled={testSlack.isPending}
-                      onClick={() => void test()}
+                      disabled={addSlackChannel.isPending || !newChannelId}
+                      onClick={() => void addChannel()}
                       size="md"
                     >
-                      {testSlack.isPending ? (
+                      {addSlackChannel.isPending ? (
                         <LoaderCircle className="size-4 animate-spin" />
-                      ) : null}
-                      테스트
-                    </MuteButton>
-                    <MuteButton
-                      disabled={connectSlack.isPending}
-                      onClick={() => void connect()}
-                      size="md"
-                    >
-                      채널 변경
+                      ) : (
+                        <Plus className="size-4" />
+                      )}
+                      추가
                     </MuteButton>
                   </div>
                 ) : null}
@@ -277,45 +280,72 @@ export function OrgSettingsPage() {
 
               <div>
                 <h3 className="text-[14px] font-medium text-neutral-primary">
-                  알림 종류
+                  연결된 채널
                 </h3>
                 <div className="mt-3 divide-y divide-neutral-1000-a05 border-y border-neutral-1000-a05">
-                  {NOTIFICATION_OPTIONS.map((option) => (
+                  {status.channels.map((channel) => (
                     <div
-                      className="flex items-center gap-4 px-3 py-3.5"
-                      key={option.key}
+                      className="flex flex-col gap-3 px-3 py-3.5 sm:flex-row sm:items-center"
+                      key={channel.channelId}
                     >
-                      <div className="min-w-0 flex-1">
-                        <div className="text-[14px] font-normal text-neutral-primary">
-                          {option.label}
-                        </div>
-                        <div className="mt-1 text-[12px] font-light leading-5 text-neutral-muted">
-                          {option.description}
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-neutral-1000-a05 text-neutral-muted">
+                          <Hash className="size-4" />
+                        </span>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="truncate text-[14px] font-normal text-neutral-primary">
+                              {formatChannel(
+                                channel.channelName,
+                                channel.channelId
+                              )}
+                            </span>
+                            <Badge
+                              radius="full"
+                              size="sm"
+                              tone="positive"
+                              variant="faded"
+                            >
+                              {channel.respondToMentions
+                                ? "@Harper 활성"
+                                : "알림 전용"}
+                            </Badge>
+                          </div>
+                          <div className="mt-1 text-[12px] font-light text-neutral-muted">
+                            메시지 내용에서 포지션을 자동 판단
+                            {channel.replyToHarperThreads
+                              ? " · Harper 스레드 답글 활성"
+                              : ""}
+                          </div>
                         </div>
                       </div>
-                      <Switch
-                        aria-label={`${option.label} 알림`}
-                        checked={status.notifications[option.key]}
-                        disabled={
-                          !permissions.canManageIntegrations ||
-                          updateNotifications.isPending
-                        }
-                        onCheckedChange={(checked) =>
-                          toggleNotification(option.key, checked)
-                        }
-                      />
+                      {permissions.canManageIntegrations ? (
+                        <div className="flex gap-2 pl-11 sm:pl-0">
+                          <MuteButton
+                            aria-label={`${formatChannel(channel.channelName, channel.channelId)} 제거`}
+                            disabled={removeSlackChannel.isPending}
+                            onClick={() =>
+                              setRemoveChannelId(channel.channelId)
+                            }
+                            size="sm"
+                            variant="warn"
+                          >
+                            <Trash2 className="size-4" />
+                            제거
+                          </MuteButton>
+                        </div>
+                      ) : null}
                     </div>
                   ))}
                 </div>
+                {permissions.canManageIntegrations ? (
+                  <p className="mt-2 text-[12px] font-light leading-5 text-neutral-soft">
+                    공개 채널은 추가 시 Harper가 자동 참여합니다. 비공개 채널은
+                    Slack에서 먼저 <code>/invite @Harper</code>한 뒤 목록에서
+                    선택해 주세요.
+                  </p>
+                ) : null}
               </div>
-
-              {status.lastError ? (
-                <div className="flex gap-2 rounded-md border border-critical/20 bg-critical-faded px-3 py-3 text-[12px] font-normal leading-5 text-critical">
-                  <CircleAlert className="mt-0.5 size-4 shrink-0" />
-                  최근 알림 발송에 실패했습니다. 테스트 발송 후에도 문제가
-                  계속되면 채널을 다시 연결해 주세요.
-                </div>
-              ) : null}
 
               {permissions.canManageIntegrations ? (
                 <MuteButton
@@ -333,32 +363,20 @@ export function OrgSettingsPage() {
             </div>
           ) : (
             <div className="max-w-xl">
-              <h3 className="text-[14px] font-medium text-neutral-primary">
-                Slack에서 바로 확인하세요
-              </h3>
-              <p className="mt-2 text-[13px] font-light leading-6 text-neutral-muted">
-                연결 수락, 프로세스 중단, 멤버 합류 알림을 팀이 함께 보는 채널로
-                보냅니다.
-              </p>
               {permissions.canManageIntegrations ? (
                 <MuteButton
-                  className="mt-5"
+                  className="mt-2"
                   disabled={connectSlack.isPending}
                   onClick={() => void connect()}
-                  size="md"
-                  variant="primary"
+                  size="lg"
+                  variant="default"
                 >
+                  Slack 연결
                   {connectSlack.isPending ? (
                     <LoaderCircle className="size-4 animate-spin" />
                   ) : (
-                    <Image
-                      alt=""
-                      height={16}
-                      src="/images/logos/slack.svg"
-                      width={16}
-                    />
+                    <></>
                   )}
-                  Slack에 연결
                 </MuteButton>
               ) : (
                 <p className="mt-4 text-[12px] font-light text-neutral-soft">
@@ -385,7 +403,7 @@ export function OrgSettingsPage() {
               Slack 연결을 해제할까요?
             </DialogTitle>
             <DialogDescription className="text-[13px] leading-5">
-              선택한 채널로 더 이상 Organization 알림이 발송되지 않습니다.
+              연결된 모든 채널로 더 이상 Organization 알림이 발송되지 않습니다.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -406,6 +424,48 @@ export function OrgSettingsPage() {
                 <LoaderCircle className="size-4 animate-spin" />
               ) : null}
               연결 해제
+            </MuteButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(removeChannelId)}
+        onOpenChange={(open) => {
+          if (!open) setRemoveChannelId(null);
+        }}
+      >
+        <DialogContent className="max-w-md gap-4 rounded-lg p-6">
+          <DialogHeader>
+            <DialogTitle className="text-[18px]">
+              Slack 채널을 제거할까요?
+            </DialogTitle>
+            <DialogDescription className="text-[13px] leading-5">
+              {formatChannel(
+                channelToRemove?.channelName,
+                channelToRemove?.channelId
+              )}
+              로는 더 이상 Organization 알림이 발송되지 않습니다.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <MuteButton
+              disabled={removeSlackChannel.isPending}
+              onClick={() => setRemoveChannelId(null)}
+              size="md"
+            >
+              취소
+            </MuteButton>
+            <MuteButton
+              disabled={removeSlackChannel.isPending}
+              onClick={() => void removeChannel()}
+              size="md"
+              variant="warn"
+            >
+              {removeSlackChannel.isPending ? (
+                <LoaderCircle className="size-4 animate-spin" />
+              ) : null}
+              채널 제거
             </MuteButton>
           </DialogFooter>
         </DialogContent>

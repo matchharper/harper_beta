@@ -1,5 +1,6 @@
 import Head from "next/head";
 import type { ReactNode } from "react";
+import { OrgAgentPanel } from "@/components/org/agent/OrgAgentPanel";
 import { OrgLoginScreen } from "@/components/org/OrgLoginScreen";
 import { Page } from "@/components/layout/Page";
 import { PageContainer } from "@/components/layout/PageContainer";
@@ -32,7 +33,7 @@ export function OrgWorkspaceApp({
     user,
     workspace,
   } = useOrgWorkspaceController({ legacyEntry, page });
-  const useWideLayout = page === "all" || page === "jobs";
+  const useWideLayout = page === "all" || page === "inbox" || page === "jobs";
 
   if (authLoading || !routerReady) {
     return <OrgWorkspaceShellSkeleton wide={useWideLayout} />;
@@ -79,7 +80,7 @@ export function OrgWorkspaceApp({
       <Page
         as="main"
         background="neutral"
-        className="overflow-x-clip overflow-y-auto font-sans text-neutral-primary"
+        className="overflow-x-clip overflow-y-auto overscroll-y-none font-sans text-neutral-primary"
         minHeight="fillScreen"
       >
         <OrgWorkspaceSidebar />
@@ -94,6 +95,7 @@ export function OrgWorkspaceApp({
           </PageContainer>
         </div>
       </Page>
+      {contextValue.permissions.canManageCandidates ? <OrgAgentPanel /> : null}
     </OrgWorkspaceProvider>
   );
 }

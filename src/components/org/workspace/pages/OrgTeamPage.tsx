@@ -1,5 +1,6 @@
-import { Ellipsis, LoaderCircle } from "lucide-react";
+import { Ellipsis, LoaderCircle, Trash2 } from "lucide-react";
 import Image from "next/image";
+import { useRouter } from "next/router";
 import { FormEvent, useState } from "react";
 import { OrgPageHeader } from "@/components/org/workspace/OrgPageHeader";
 import {
@@ -34,6 +35,7 @@ import { Radio } from "@/components/ui/radio";
 import { Textarea } from "@/components/ui/textarea";
 import {
   useCancelOrgInvitation,
+  useRemoveOrgMember,
   useSendOrgInvitations,
   useUpdateOrgMembershipRole,
   useUpdateOrgWorkspace,
@@ -253,14 +255,17 @@ export function OrgTeamPage() {
     permissions,
     workspace,
   } = useOrgWorkspace();
+  const router = useRouter();
   const addToast = useToastStore((state) => state.add);
   const updateWorkspace = useUpdateOrgWorkspace();
   const sendInvitations = useSendOrgInvitations();
   const cancelInvitation = useCancelOrgInvitation();
+  const removeMember = useRemoveOrgMember();
   const updateMembershipRole = useUpdateOrgMembershipRole();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [invitationToCancel, setInvitationToCancel] =
     useState<OrgWorkspaceInvitation | null>(null);
+  const [memberToRemove, setMemberToRemove] = useState<OrgMember | null>(null);
   const [companyDescription, setCompanyDescription] = useState(
     workspace.companyDescription ?? ""
   );
@@ -360,6 +365,41 @@ export function OrgTeamPage() {
     }
   };
 
+  const removeSelectedMember = async () => {
+    if (!memberToRemove) return;
+    const member = memberToRemove;
+    try {
+      const payload = await removeMember.mutateAsync({
+        userId: member.userId,
+        workspaceId: workspace.workspaceId,
+      });
+      setMemberToRemove(null);
+      addToast({
+        message: `${member.name || member.email || "멤버"}를 Organization에서 제거했습니다.`,
+        variant: "success",
+      });
+
+      if (member.userId === currentUser?.userId) {
+        const nextHref = payload.nextWorkspaceId
+          ? `/org?orgId=${encodeURIComponent(payload.nextWorkspaceId)}`
+          : "/org";
+        try {
+          await router.replace(nextHref);
+        } catch {
+          window.location.assign(nextHref);
+        }
+      }
+    } catch (removeError) {
+      addToast({
+        message:
+          removeError instanceof Error
+            ? removeError.message
+            : "멤버를 제거하지 못했습니다.",
+        variant: "error",
+      });
+    }
+  };
+
   return (
     <div className="space-y-8">
       <OrgPageHeader title="Team" />
@@ -369,7 +409,7 @@ export function OrgTeamPage() {
           description="Harper가 후보자에게 회사를 설명하고 적절한 인재를 연결할 때 사용합니다."
           title="회사 정보"
         />
-        <form className="max-w-3xl space-y-5" onSubmit={saveCompany}>
+        <form className="space-y-5" onSubmit={saveCompany}>
           <label className="block">
             <span className="text-[14px] font-medium text-neutral-primary">
               회사 Pitch
@@ -379,7 +419,7 @@ export function OrgTeamPage() {
               주세요.
             </span>
             <Textarea
-              className="mt-2 min-h-28 px-3 py-2.5 text-[13px] leading-5"
+              className="mt-2 min-h-40 px-3 py-2.5 text-[13px] leading-5"
               disabled={!permissions.canManageWorkspace}
               onChange={(event) => setPitch(event.target.value)}
               value={pitch}
@@ -393,7 +433,7 @@ export function OrgTeamPage() {
               회사에 대한 객관적인 설명을 3~5문장으로 적어 주세요.
             </span>
             <Textarea
-              className="mt-2 min-h-32 px-3 py-2.5 text-[13px] leading-5"
+              className="mt-2 min-h-40 px-3 py-2.5 text-[13px] leading-5"
               disabled={!permissions.canManageWorkspace}
               onChange={(event) => setCompanyDescription(event.target.value)}
               value={companyDescription}
@@ -438,131 +478,193 @@ export function OrgTeamPage() {
             ) : null
           }
           description="함께 후보자를 검토할 팀원을 초대하고 역할에 맞는 권한을 부여하세요."
-          title="Organization"
+          title="멤버"
         />
 
         <div className="space-y-6">
           <div>
             <div className="mb-3 flex items-center justify-between gap-3">
               <h3 className="text-[14px] font-medium text-neutral-primary">
-                멤버
+                가입 멤버
               </h3>
               <span className="text-[12px] font-light text-neutral-soft">
                 {members.length}명
                 {invitations.length > 0
-                  ? ` · 초대 대기 ${invitations.length}명`
+                  ? ` · 수락 대기 ${invitations.length}명`
                   : ""}
               </span>
             </div>
-            <div className="divide-y divide-neutral-1000-a05 border-y border-neutral-1000-a05">
-              {invitations.map((invitation) => (
-                <div
-                  className="flex items-center gap-3 px-3 py-3.5"
-                  key={invitation.invitationId}
-                >
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-bg-weak text-[12px] font-medium text-neutral-muted">
-                    {invitation.email.slice(0, 1).toUpperCase()}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[14px] font-normal text-neutral-primary">
-                      {invitation.email}
-                    </span>
-                    <span className="mt-1 block text-[12px] font-light text-neutral-soft">
-                      {formatDate(invitation.lastSentAt)} 초대 ·{" "}
-                      {getOrgRoleLabel(invitation.role)}
-                    </span>
-                  </span>
-                  <Badge radius="full" size="sm" variant="faded">
-                    수락 대기
-                  </Badge>
-                  {permissions.canManageMembers ? (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <MuteButton
-                          aria-label={`${invitation.email} 초대 작업`}
-                          size="md"
-                          variant="transparent"
-                        >
-                          <Ellipsis className="size-4" />
-                        </MuteButton>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-40">
-                        <DropdownMenuItem
-                          disabled={sendInvitations.isPending}
-                          onSelect={() => void resendInvitation(invitation)}
-                        >
-                          다시 보내기
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          disabled={cancelInvitation.isPending}
-                          onSelect={() => setInvitationToCancel(invitation)}
-                          tone="danger"
-                        >
-                          초대 취소
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  ) : null}
-                </div>
-              ))}
-
-              {members.map((member) => (
-                <div
-                  className="flex items-center gap-3 px-3 py-3.5"
-                  key={member.userId}
-                >
-                  <MemberAvatar member={member} />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-1.5">
-                      <span className="truncate text-[14px] font-normal text-neutral-primary">
-                        {member.name || member.email || "이름 없음"}
-                      </span>
-                      {member.userId === currentUser?.userId ? (
-                        <Badge radius="full" size="sm" variant="faded">
-                          나
-                        </Badge>
-                      ) : null}
-                    </span>
-                    <span className="mt-1 block truncate text-[12px] font-light text-neutral-muted">
-                      {member.email || "-"} · {formatDate(member.joinedAt)} 합류
-                    </span>
-                  </span>
-                  {permissions.canManageMembers ? (
-                    <Select
-                      disabled={
-                        updateMembershipRole.isPending &&
-                        updateMembershipRole.variables?.userId === member.userId
-                      }
-                      onValueChange={(value) =>
-                        void changeMemberRole(
-                          member,
-                          value as OrgMembershipRole
-                        )
-                      }
-                      value={member.role}
+            <div className="overflow-x-auto rounded-sm border border-neutral-1000-a05 bg-bg-floating">
+              <table className="w-full min-w-[720px] border-collapse text-left">
+                <thead className="bg-neutral-200/35">
+                  <tr className="border-b border-neutral-1000-a05 text-[12px] font-light text-neutral-soft">
+                    <th className="px-4 py-2.5 font-normal">이메일</th>
+                    <th className="px-3 py-2.5 font-normal">이름</th>
+                    <th className="w-36 px-3 py-2.5 font-normal">역할</th>
+                    <th className="w-40 px-3 py-2.5 font-normal">가입 날짜</th>
+                    {permissions.canManageMembers ? (
+                      <th className="w-12 px-2 py-2.5 font-normal">
+                        <span className="sr-only">멤버 작업</span>
+                      </th>
+                    ) : null}
+                  </tr>
+                </thead>
+                <tbody>
+                  {members.map((member) => (
+                    <tr
+                      className="border-b border-neutral-1000-a05 last:border-b-0"
+                      key={`member-${member.userId}`}
                     >
-                      <SelectTrigger
-                        aria-label={`${member.name || member.email || "멤버"} 권한`}
-                        className="h-9 w-[112px] text-[12px]"
-                        size="sm"
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent align="end">
-                        {ORG_MEMBERSHIP_ROLE_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <span className="text-[12px] font-normal text-neutral-muted">
-                      {getOrgRoleLabel(member.role)}
-                    </span>
-                  )}
-                </div>
-              ))}
+                      <td className="max-w-60 truncate px-4 py-3 text-[13px] text-neutral-primary">
+                        {member.email || "-"}
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <MemberAvatar member={member} />
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            <span className="truncate text-[13px] text-neutral-primary">
+                              {member.name || "이름 없음"}
+                            </span>
+                            {member.userId === currentUser?.userId ? (
+                              <Badge radius="full" size="sm" variant="faded">
+                                나
+                              </Badge>
+                            ) : null}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3">
+                        {permissions.canManageMembers ? (
+                          <Select
+                            disabled={
+                              updateMembershipRole.isPending &&
+                              updateMembershipRole.variables?.userId ===
+                                member.userId
+                            }
+                            onValueChange={(value) =>
+                              void changeMemberRole(
+                                member,
+                                value as OrgMembershipRole
+                              )
+                            }
+                            value={member.role}
+                          >
+                            <SelectTrigger
+                              aria-label={`${member.name || member.email || "멤버"} 역할`}
+                              className="h-9 w-[112px] text-[12px]"
+                              size="sm"
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent align="end">
+                              {ORG_MEMBERSHIP_ROLE_OPTIONS.map((option) => (
+                                <SelectItem
+                                  key={option.value}
+                                  value={option.value}
+                                >
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <span className="text-[12px] font-normal text-neutral-muted">
+                            {getOrgRoleLabel(member.role)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-[12px] font-light text-neutral-muted">
+                        {formatDate(member.joinedAt)}
+                      </td>
+                      {permissions.canManageMembers ? (
+                        <td className="px-2 py-3 text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <MuteButton
+                                aria-label={`${member.name || member.email || "멤버"} 작업`}
+                                size="sm"
+                                variant="transparent"
+                              >
+                                <Ellipsis className="size-4" />
+                              </MuteButton>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-40">
+                              <DropdownMenuItem
+                                disabled={removeMember.isPending}
+                                onSelect={() => setMemberToRemove(member)}
+                                tone="danger"
+                              >
+                                <Trash2 />
+                                멤버 제거
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </td>
+                      ) : null}
+                    </tr>
+                  ))}
+                  {invitations.map((invitation) => (
+                    <tr
+                      className="border-b border-neutral-1000-a05 bg-bg-weak/30 last:border-b-0"
+                      key={`invitation-${invitation.invitationId}`}
+                    >
+                      <td className="max-w-60 truncate px-4 py-3 text-[13px] text-neutral-primary">
+                        {invitation.email}
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-2.5">
+                          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-bg-weak text-[12px] font-medium text-neutral-muted">
+                            {invitation.email.slice(0, 1).toUpperCase()}
+                          </span>
+                          <Badge radius="full" size="sm" variant="faded">
+                            수락 대기
+                          </Badge>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 text-[12px] font-normal text-neutral-muted">
+                        {getOrgRoleLabel(invitation.role)}
+                      </td>
+                      <td className="px-3 py-3 text-[12px] font-light text-neutral-muted">
+                        -
+                      </td>
+                      {permissions.canManageMembers ? (
+                        <td className="px-2 py-3 text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <MuteButton
+                                aria-label={`${invitation.email} 초대 작업`}
+                                size="sm"
+                                variant="transparent"
+                              >
+                                <Ellipsis className="size-4" />
+                              </MuteButton>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-40">
+                              <DropdownMenuItem
+                                disabled={sendInvitations.isPending}
+                                onSelect={() =>
+                                  void resendInvitation(invitation)
+                                }
+                              >
+                                다시 보내기
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={cancelInvitation.isPending}
+                                onSelect={() =>
+                                  setInvitationToCancel(invitation)
+                                }
+                                tone="danger"
+                              >
+                                초대 취소
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </td>
+                      ) : null}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -612,6 +714,44 @@ export function OrgTeamPage() {
                 <LoaderCircle className="size-4 animate-spin" />
               ) : null}
               초대 취소
+            </MuteButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(memberToRemove)}
+        onOpenChange={(open) => !open && setMemberToRemove(null)}
+      >
+        <DialogContent className="max-w-sm gap-4 rounded-lg p-6">
+          <DialogHeader>
+            <DialogTitle className="text-[17px]">멤버 제거</DialogTitle>
+            <DialogDescription className="text-[13px] leading-5">
+              {memberToRemove?.name || memberToRemove?.email || "선택한 멤버"}를
+              Organization에서 제거합니다. 제거한 멤버는 더 이상 이
+              Organization에 접근할 수 없습니다.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <MuteButton
+              disabled={removeMember.isPending}
+              onClick={() => setMemberToRemove(null)}
+              size="md"
+              type="button"
+            >
+              돌아가기
+            </MuteButton>
+            <MuteButton
+              disabled={removeMember.isPending}
+              onClick={() => void removeSelectedMember()}
+              size="md"
+              type="button"
+              variant="warn"
+            >
+              {removeMember.isPending ? (
+                <LoaderCircle className="size-4 animate-spin" />
+              ) : null}
+              멤버 제거
             </MuteButton>
           </DialogFooter>
         </DialogContent>

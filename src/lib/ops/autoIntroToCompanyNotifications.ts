@@ -2,7 +2,7 @@ import { createHash } from "crypto";
 import { renderEmailBodyHtml } from "@/lib/email/bodyFormat";
 import { getDefaultResendFromEmail, sendResendEmail } from "@/lib/email/send";
 import { CLAUDE_MODEL } from "@/lib/llm/modelConfig";
-import { sendOrgWorkspaceSlackMessage } from "@/lib/org/slackIntegration";
+import { sendHarperWorkspaceSlackMessage } from "@/lib/org/slackHarper";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
 import type { Json } from "@/types/database.types";
@@ -695,6 +695,8 @@ async function hasWorkspaceSlackIntegration(
   )
     .select("company_workspace_id")
     .eq("company_workspace_id", workspaceId)
+    .eq("status", "active")
+    .limit(1)
     .maybeSingle();
   if (error) throw error;
   return Boolean(data);
@@ -957,7 +959,7 @@ async function sendWorkspaceMessage(args: {
   let slackError: string | null = null;
   if (args.slackConnected) {
     try {
-      slackSent = await sendOrgWorkspaceSlackMessage({
+      slackSent = await sendHarperWorkspaceSlackMessage({
         text: args.message.body,
         workspaceId: args.group.workspaceId,
       });

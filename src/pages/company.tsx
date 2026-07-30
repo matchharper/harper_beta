@@ -145,7 +145,7 @@ const COMPANY_PAGE_COPY = {
       "좋은 사람들의 목록이 아니라, 지금 바로 채용 대화를 시작할 수 있는 사람을 연결합니다.",
     ],
     contact: {
-      title: "지금 필요한 Top talent를 함께 찾아보세요.",
+      title: "지금 필요한 Top talent를 알려주세요.",
       description:
         "Harper는 후보자와 직접 대화해 연봉 범위, 이동 의향, 관심도처럼 프로필만으로 알 수 없는 정보를 확인합니다. 그래서 회사는 많은 이력서를 검토하는 대신, 바로 인터뷰할 만한 소수의 후보자만 받을 수 있습니다.",
       talentLink: "For Talents",
@@ -1189,12 +1189,6 @@ export default function TestCompanyPage({ locale }: TestCompanyPageProps) {
           />
         </Head>
         <style jsx global>{`
-          #crisp-chatbox,
-          .crisp-client,
-          div.fixed.bottom-4.right-4 {
-            display: none !important;
-          }
-
           .harper-reply-bubble {
             --reply-open-height: 128px;
             position: relative;

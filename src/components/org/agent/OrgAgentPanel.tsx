@@ -2,7 +2,6 @@ import {
   ArrowUp,
   CalendarClock,
   Check,
-  ChevronRight,
   ChevronUp,
   Info,
   LoaderCircle,
@@ -32,18 +31,14 @@ import type {
   OrgAgentMessage,
   OrgAgentMessageAction,
 } from "@/lib/org/agent/types";
-import type { OrgRole } from "@/lib/org/server";
 import {
   useOrgAgentChat,
   useOrgAgentMentionCandidates,
   useOrgAgentMessageHistory,
   useSendOrgAgentMeetingRequest,
 } from "@/hooks/org/useOrgAgent";
-import { useOrgJobsNavigation } from "@/hooks/org/useOrgJobs";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { cn } from "@/lib/utils";
-import Face from "@/components/common/Face";
-import Image from "next/image";
 
 function parseDate(createdAt: string) {
   const date = new Date(createdAt);
@@ -180,12 +175,12 @@ function MessageActionView({
 }: {
   action: OrgAgentMessageAction;
   message: OrgAgentMessage;
-  roleId: string;
+  roleId?: string | null;
   workspaceId: string;
 }) {
   const meetingRequest = useSendOrgAgentMeetingRequest();
 
-  if (action.kind === "request_updated") {
+  if (action.kind === "entity_updated" || action.kind === "request_updated") {
     return (
       <div className="inline-flex items-center gap-1.5 text-[12px] text-positive">
         <Check className="h-3.5 w-3.5" />
@@ -201,8 +196,9 @@ function MessageActionView({
         type="button"
         size="sm"
         variant="secondary"
-        disabled={sent || meetingRequest.isPending}
-        onClick={() =>
+        disabled={!roleId || sent || meetingRequest.isPending}
+        onClick={() => {
+          if (!roleId) return;
           meetingRequest.mutate({
             actionId: action.id,
             messageId: message.id,
@@ -210,8 +206,8 @@ function MessageActionView({
             roleId,
             topic: action.payload.topic,
             workspaceId,
-          })
-        }
+          });
+        }}
       >
         {meetingRequest.isPending ? (
           <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
@@ -232,16 +228,18 @@ function MessageBubble({
   workspaceId,
 }: {
   message: OrgAgentMessage;
-  roleId: string;
+  roleId?: string | null;
   workspaceId: string;
 }) {
   const isUser = message.role === "user";
   const actions = message.metadata.actions ?? [];
   const toolResultActions = actions.filter(
-    (action) => action.kind === "request_updated"
+    (action) =>
+      action.kind === "entity_updated" || action.kind === "request_updated"
   );
   const followUpActions = actions.filter(
-    (action) => action.kind !== "request_updated"
+    (action) =>
+      action.kind !== "entity_updated" && action.kind !== "request_updated"
   );
 
   return (
@@ -388,7 +386,6 @@ function Composer({
   model,
   onModelChange,
   onSend,
-  roleId,
   showModelSelector,
   workspaceId,
 }: {
@@ -397,7 +394,6 @@ function Composer({
   model: OrgAgentModelId;
   onModelChange: (model: OrgAgentModelId) => void;
   onSend: (args: { mentions: OrgAgentMention[]; message: string }) => void;
-  roleId: string;
   showModelSelector: boolean;
   workspaceId: string;
 }) {
@@ -412,9 +408,8 @@ function Composer({
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const mentionQuery = mentionSearch?.query ?? "";
   const mentionCandidates = useOrgAgentMentionCandidates({
-    enabled: Boolean(mentionSearch && workspaceId && roleId),
+    enabled: Boolean(mentionSearch && workspaceId),
     query: mentionQuery,
-    roleId,
     workspaceId,
   });
 
@@ -625,134 +620,16 @@ function ThinkingPanel({
   );
 }
 
-function getRolePickerStatus(status: string | null) {
-  const normalized = String(status ?? "")
-    .trim()
-    .toLowerCase();
-
-  if (normalized === "active" || normalized === "open") {
-    return { dotClassName: "bg-positive", label: "진행 중" };
-  }
-  if (normalized === "top_priority") {
-    return { dotClassName: "bg-primary", label: "최우선" };
-  }
-  if (normalized === "paused" || normalized === "on_hold") {
-    return { dotClassName: "bg-info", label: "일시 중단" };
-  }
-  if (normalized === "draft" || normalized === "pending") {
-    return { dotClassName: "bg-neutral-400", label: "준비 중" };
-  }
-  if (
-    normalized === "closed" ||
-    normalized === "ended" ||
-    normalized === "expired" ||
-    normalized === "inactive"
-  ) {
-    return { dotClassName: "bg-critical", label: "종료" };
-  }
-  return { dotClassName: "bg-neutral-400", label: "역할" };
-}
-
-function OrgAgentRolePicker({
-  onClose,
-  onSelect,
-  roles,
-}: {
-  onClose: () => void;
-  onSelect: (role: OrgRole) => void;
-  roles: OrgRole[];
-}) {
-  return (
-    <section
-      role="dialog"
-      aria-label="채팅할 역할 선택"
-      className="pointer-events-auto w-[calc(100vw-32px)] max-w-[380px] overflow-hidden rounded-2xl border border-black/5 bg-bg-floating shadow-xl"
-    >
-      <header className="flex items-start justify-between gap-4 px-4 py-3.5">
-        <h2 className="text-[14px] font-medium text-neutral-primary">
-          어떤 역할에 대해 이야기할까요?
-        </h2>
-        <button
-          type="button"
-          aria-label="역할 선택 닫기"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-neutral-muted transition hover:bg-bg-weak hover:text-neutral-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
-          onClick={onClose}
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </header>
-
-      <div className="max-h-[360px] overflow-y-auto p-2 scrollbar-thin scrollbar-thumb-neutral-1000-a10 scrollbar-track-transparent">
-        {roles.length > 0 ? (
-          <div className="space-y-1">
-            {roles.map((role) => {
-              const status = getRolePickerStatus(role.status);
-              return (
-                <button
-                  key={role.roleId}
-                  type="button"
-                  className="group flex w-full items-center gap-3 rounded-md px-2 py-2 text-left outline-none transition hover:bg-bg-basement focus-visible:bg-bg-weak focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-1000-a10"
-                  onClick={() => onSelect(role)}
-                >
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[14px] font-normal leading-5 text-neutral-primary">
-                      {role.name}
-                    </span>
-                    <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-neutral-muted">
-                      <span
-                        className={cn(
-                          "h-1.5 w-1.5 shrink-0 rounded-full",
-                          status.dotClassName
-                        )}
-                      />
-                      <span className="shrink-0">{status.label}</span>
-                      {role.locationText && (
-                        <>
-                          <span className="text-neutral-1000-a20">·</span>
-                          <span className="truncate">{role.locationText}</span>
-                        </>
-                      )}
-                    </span>
-                  </span>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-neutral-placeholder transition group-hover:translate-x-0.5 group-hover:text-neutral-primary" />
-                </button>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="px-5 py-10 text-center">
-            <p className="text-[13px] font-medium text-neutral-primary">
-              선택할 역할이 없습니다.
-            </p>
-            <p className="mt-1 text-[12px] text-neutral-muted">
-              역할이 추가되면 여기에서 바로 채팅을 시작할 수 있습니다.
-            </p>
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
-
 export function OrgAgentPanel() {
-  const {
-    activeRole,
-    changeRole: onRoleSelect,
-    workspaceId,
-  } = useOrgJobsNavigation();
-  const { currentUserEmail, roles } = useOrgWorkspace();
-  const roleId = activeRole?.roleId ?? "";
+  const { currentUserEmail, workspace } = useOrgWorkspace();
+  const workspaceId = workspace.workspaceId;
   const [open, setOpen] = useState(false);
-  const [rolePickerOpen, setRolePickerOpen] = useState(false);
-  const launcherRef = useRef<HTMLDivElement | null>(null);
   const history = useOrgAgentMessageHistory({
-    enabled: Boolean(open && workspaceId && roleId),
-    roleId,
+    enabled: Boolean(open && workspaceId),
     workspaceId,
   });
   const chat = useOrgAgentChat({
     appendMessagesToCache: history.appendMessagesToCache,
-    roleId,
     workspaceId,
   });
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -785,37 +662,18 @@ export function OrgAgentPanel() {
       getDateKey(lastHistoryMessage?.createdAt ?? "")
   );
 
-  useEffect(() => {
-    if (!rolePickerOpen) return;
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (!launcherRef.current?.contains(event.target as Node)) {
-        setRolePickerOpen(false);
-      }
-    };
-    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") setRolePickerOpen(false);
-    };
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [rolePickerOpen]);
-
   const iconBtn =
     "flex h-7 w-7 items-center justify-center rounded-[10px] text-neutral-primary transition hover:bg-bg-weak";
 
   return (
     <div className="pointer-events-none fixed bottom-4 left-4 right-4 z-40 flex justify-end sm:bottom-5 sm:left-auto sm:right-5">
-      {activeRole && open ? (
+      {open ? (
         <aside className="pointer-events-auto flex h-[calc(100vh-96px)] max-h-[760px] w-[calc(100vw-32px)] max-w-[520px] overflow-hidden rounded-4xl border border-black/5 bg-bg-default shadow-xl shadow-gray-200">
           <div className="flex min-w-0 flex-1 flex-col relative">
             <header className="absolute top-0 left-0 w-full flex items-center justify-between gap-3 px-2.5 pt-2.5 pb-6 bg-linear-to-b from-70% from-bg-floating to-bg-floating/0">
               <div className="flex items-center gap-2 text-[13px] py-0.5 font-normal text-black truncate pl-1">
-                Harper <span className="text-primary">@ {activeRole.name}</span>
+                Harper{" "}
+                <span className="text-primary">@ {workspace.companyName}</span>
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 <div className="group relative">
@@ -834,15 +692,10 @@ export function OrgAgentPanel() {
                   >
                     <div className="absolute -top-1.5 right-2.5 h-3 w-3 rotate-45 border-l border-t border-neutral-1000-a10 bg-neutral-1000" />
                     <div className="relative space-y-2">
+                      <p>회사 전체 채용 정보를 읽고 다루는 채팅입니다.</p>
                       <p>
-                        {activeRole.name}의 인재 연결 기준을 조정하는
-                        채팅입니다.
-                      </p>
-                      <p>
-                        앞으로 중요하게 볼 경력, 기술, 전공 등 혹은 요구사항을
-                        알려주세요. ex) 경력 20년차는 너무 많다. 더 적은
-                        사람으로, Google, Meta 출신이면 좋아. 등등 편하신
-                        방법으로 알려주세요.
+                        포지션이나 후보자를 이름으로 말하면 Harper가 대상을
+                        찾습니다. 여러 포지션이 모호하게 겹치면 먼저 확인합니다.
                       </p>
                       <p>
                         @로 특정 후보자를 지정해 해당 후보자 연결의 좋은 점과
@@ -852,7 +705,9 @@ export function OrgAgentPanel() {
                         수락, 거절, 단계 이동은 후보자 프로필에서 직접 처리해야
                         합니다.
                       </p>
-                      <p>변경한 기준은 다음 후보 탐색과 추천부터 반영됩니다.</p>
+                      <p>
+                        회사·포지션 정보와 채용 기준 변경도 요청할 수 있습니다.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -909,9 +764,9 @@ export function OrgAgentPanel() {
                 !chat.optimisticUserMessage ? (
                 <div className="flex min-h-[260px] items-center justify-center px-8">
                   <p className="max-w-[320px] text-center leading-5 text-neutral-muted">
-                    현재 역할에 대해 앞으로 연결할 인재의 기준에
+                    후보자나 포지션을 찾아보거나, 회사·채용 정보를
                     <br />
-                    반영되었으면 하는 내용이 있다면 알려주세요.
+                    확인하고 변경할 내용을 알려주세요.
                   </p>
                 </div>
               ) : (
@@ -930,7 +785,6 @@ export function OrgAgentPanel() {
                       )}
                       <MessageBubble
                         message={message}
-                        roleId={roleId}
                         workspaceId={workspaceId}
                       />
                     </div>
@@ -948,7 +802,6 @@ export function OrgAgentPanel() {
                   )}
                   <MessageBubble
                     message={chat.optimisticUserMessage}
-                    roleId={roleId}
                     workspaceId={workspaceId}
                   />
                 </div>
@@ -963,52 +816,27 @@ export function OrgAgentPanel() {
             </div>
 
             <Composer
-              disabled={!roleId}
+              disabled={!workspaceId}
               isStreaming={chat.isStreaming}
               model={model}
               onModelChange={handleModelChange}
               onSend={({ mentions, message }) => {
                 void chat.sendMessage({ mentions, message, model });
               }}
-              roleId={roleId}
               showModelSelector={showModelSelector}
               workspaceId={workspaceId}
             />
           </div>
         </aside>
       ) : (
-        <div
-          ref={launcherRef}
-          className="pointer-events-auto flex flex-col items-end gap-3"
-        >
-          {!activeRole && rolePickerOpen && (
-            <OrgAgentRolePicker
-              onClose={() => setRolePickerOpen(false)}
-              onSelect={(role) => {
-                setRolePickerOpen(false);
-                setOpen(true);
-                onRoleSelect(role.roleId);
-              }}
-              roles={roles}
-            />
-          )}
+        <div className="pointer-events-auto flex flex-col items-end gap-3">
           <button
             type="button"
-            aria-label={activeRole ? "채팅 열기" : "채팅할 역할 선택"}
-            aria-expanded={activeRole ? false : rolePickerOpen}
-            aria-haspopup={activeRole ? undefined : "dialog"}
+            aria-label="채팅 열기"
             className="group flex h-15 w-15 items-center justify-center rounded-full bg-primary text-neutral-00 shadow-sm ring-2 ring-neutral-00/10 transition hover:-translate-y-0.5 hover:shadow-lg hover:ring-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
-            onClick={() => {
-              if (activeRole) {
-                setOpen(true);
-                return;
-              }
-              setRolePickerOpen((current) => !current);
-            }}
+            onClick={() => setOpen(true)}
           >
-            {/* <Image src="/svgs/face.svg" alt="Harper" width={28} height={28} /> */}
             <SquarePen className="h-6 w-6" strokeWidth={1.6} />
-            {/* <Face size={72} /> */}
           </button>
         </div>
       )}

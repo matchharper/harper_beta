@@ -58,6 +58,7 @@ type SlackOAuthResponse = {
 export type OrgSlackIntegrationStatus = {
   channelId: string | null;
   channelName: string | null;
+  channels: OrgSlackChannelStatus[];
   connected: boolean;
   connectedAt: string | null;
   lastError: string | null;
@@ -65,6 +66,14 @@ export type OrgSlackIntegrationStatus = {
   notifications: OrgSlackNotificationSettings;
   teamId: string | null;
   teamName: string | null;
+};
+
+export type OrgSlackChannelStatus = {
+  channelId: string;
+  channelName: string | null;
+  connectedAt: string;
+  lastError: string | null;
+  lastSentAt: string | null;
 };
 
 export type OrgSlackNotificationKey =
@@ -290,7 +299,7 @@ async function assertWorkspaceAccess(
   return { companyName: String(workspace.company_name), workspaceId };
 }
 
-async function fetchIntegration(workspaceId: string) {
+async function fetchIntegrations(workspaceId: string) {
   const admin = getSupabaseAdmin();
   const { data, error } = await (
     admin.from("company_slack_integrations" as any) as any
@@ -299,10 +308,10 @@ async function fetchIntegration(workspaceId: string) {
       "company_workspace_id, slack_team_id, slack_team_name, slack_channel_id, slack_channel_name, webhook_url_ciphertext, connected_at, last_sent_at, last_error, notify_candidate_accepted, notify_candidate_rejected, notify_member_joined"
     )
     .eq("company_workspace_id", workspaceId)
-    .maybeSingle();
+    .order("connected_at", { ascending: true });
 
   if (error) throw error;
-  return (data as SlackIntegrationRow | null) ?? null;
+  return ((data as SlackIntegrationRow[] | null) ?? []).filter(Boolean);
 }
 
 async function postIncomingWebhook(webhookUrl: string, text: string) {
@@ -320,6 +329,7 @@ async function postIncomingWebhook(webhookUrl: string, text: string) {
 }
 
 async function updateDeliveryResult(args: {
+  channelId: string;
   error?: unknown;
   workspaceId: string;
 }) {
@@ -342,7 +352,8 @@ async function updateDeliveryResult(args: {
     admin.from("company_slack_integrations" as any) as any
   )
     .update(patch)
-    .eq("company_workspace_id", args.workspaceId);
+    .eq("company_workspace_id", args.workspaceId)
+    .eq("slack_channel_id", args.channelId);
   if (error) console.error("[org/slack-integration] delivery status", error);
 }
 
@@ -405,6 +416,23 @@ export async function completeOrgSlackOAuth(args: {
   }
 
   const now = new Date().toISOString();
+  const existingIntegrations = await fetchIntegrations(state.workspaceId);
+  const existingTeamId = existingIntegrations[0]?.slack_team_id;
+  if (existingTeamId && existingTeamId !== teamId) {
+    throw new OrgSlackIntegrationError(
+      409,
+      "기존 연결과 다른 Slack workspace입니다. 기존 연결을 해제한 뒤 다시 연결해 주세요."
+    );
+  }
+  const notificationSettings = existingIntegrations[0]
+    ? {
+        notify_candidate_accepted:
+          existingIntegrations[0].notify_candidate_accepted,
+        notify_candidate_rejected:
+          existingIntegrations[0].notify_candidate_rejected,
+        notify_member_joined: existingIntegrations[0].notify_member_joined,
+      }
+    : {};
   const admin = getSupabaseAdmin();
   const { error } = await (
     admin.from("company_slack_integrations" as any) as any
@@ -414,6 +442,7 @@ export async function completeOrgSlackOAuth(args: {
       connected_at: now,
       installed_by_user_id: state.userId,
       last_error: null,
+      ...notificationSettings,
       slack_channel_id: channelId,
       slack_channel_name:
         normalizeText(payload.incoming_webhook?.channel) || null,
@@ -422,7 +451,7 @@ export async function completeOrgSlackOAuth(args: {
       updated_at: now,
       webhook_url_ciphertext: encryptWebhookUrl(webhookUrl),
     },
-    { onConflict: "company_workspace_id" }
+    { onConflict: "company_workspace_id,slack_channel_id" }
   );
   if (error) throw error;
 
@@ -431,9 +460,13 @@ export async function completeOrgSlackOAuth(args: {
       webhookUrl,
       "Harper Slack 연결이 완료되었습니다. 이 채널로 Organization 알림을 보내드릴게요."
     );
-    await updateDeliveryResult({ workspaceId: state.workspaceId });
+    await updateDeliveryResult({
+      channelId,
+      workspaceId: state.workspaceId,
+    });
   } catch (deliveryError) {
     await updateDeliveryResult({
+      channelId,
       error: deliveryError,
       workspaceId: state.workspaceId,
     });
@@ -451,11 +484,13 @@ export async function getOrgSlackIntegrationStatus(args: {
     throw new OrgSlackIntegrationError(400, "workspaceId가 필요합니다.");
   }
   await assertWorkspaceAccess(args.user, workspaceId);
-  const row = await fetchIntegration(workspaceId);
-  if (!row) {
+  const rows = await fetchIntegrations(workspaceId);
+  const primary = rows[0];
+  if (!primary) {
     return {
       channelId: null,
       channelName: null,
+      channels: [],
       connected: false,
       connectedAt: null,
       lastError: null,
@@ -470,24 +505,42 @@ export async function getOrgSlackIntegrationStatus(args: {
     };
   }
 
+  const latestSentAt =
+    rows
+      .map((row) => row.last_sent_at)
+      .filter((value): value is string => Boolean(value))
+      .sort()
+      .at(-1) ?? null;
+  const latestError =
+    [...rows].reverse().find((row) => Boolean(row.last_error))?.last_error ??
+    null;
+
   return {
-    channelId: row.slack_channel_id,
-    channelName: row.slack_channel_name,
+    channelId: primary.slack_channel_id,
+    channelName: primary.slack_channel_name,
+    channels: rows.map((row) => ({
+      channelId: row.slack_channel_id,
+      channelName: row.slack_channel_name,
+      connectedAt: row.connected_at,
+      lastError: row.last_error,
+      lastSentAt: row.last_sent_at,
+    })),
     connected: true,
-    connectedAt: row.connected_at,
-    lastError: row.last_error,
-    lastSentAt: row.last_sent_at,
+    connectedAt: primary.connected_at,
+    lastError: latestError,
+    lastSentAt: latestSentAt,
     notifications: {
-      candidateAccepted: row.notify_candidate_accepted,
-      candidateRejected: row.notify_candidate_rejected,
-      memberJoined: row.notify_member_joined,
+      candidateAccepted: primary.notify_candidate_accepted,
+      candidateRejected: primary.notify_candidate_rejected,
+      memberJoined: primary.notify_member_joined,
     },
-    teamId: row.slack_team_id,
-    teamName: row.slack_team_name,
+    teamId: primary.slack_team_id,
+    teamName: primary.slack_team_name,
   };
 }
 
 export async function disconnectOrgSlackIntegration(args: {
+  channelId?: string;
   user: User;
   workspaceId: string;
 }) {
@@ -497,16 +550,23 @@ export async function disconnectOrgSlackIntegration(args: {
   }
   await assertWorkspaceAccess(args.user, workspaceId, "manage_integrations");
   const admin = getSupabaseAdmin();
-  const { error } = await (
-    admin.from("company_slack_integrations" as any) as any
-  )
+  let query = (admin.from("company_slack_integrations" as any) as any)
     .delete()
     .eq("company_workspace_id", workspaceId);
+  const channelId = normalizeText(args.channelId);
+  if (channelId) {
+    query = query.eq("slack_channel_id", channelId);
+  }
+  const { data, error } = await query.select("slack_channel_id");
   if (error) throw error;
+  if (channelId && (!Array.isArray(data) || data.length === 0)) {
+    throw new OrgSlackIntegrationError(404, "연결된 Slack 채널이 없습니다.");
+  }
   return { ok: true as const };
 }
 
 export async function sendOrgWorkspaceSlackMessage(args: {
+  channelId?: string;
   notificationKey?: OrgSlackNotificationKey;
   text: string;
   workspaceId: string;
@@ -515,32 +575,62 @@ export async function sendOrgWorkspaceSlackMessage(args: {
   const text = normalizeText(args.text);
   if (!workspaceId || !text) return false;
 
-  const row = await fetchIntegration(workspaceId);
-  if (!row) return false;
+  const rows = await fetchIntegrations(workspaceId);
+  const primary = rows[0];
+  if (!primary) return false;
   const notificationEnabled =
     args.notificationKey === "candidateAccepted"
-      ? row.notify_candidate_accepted
+      ? primary.notify_candidate_accepted
       : args.notificationKey === "candidateRejected"
-        ? row.notify_candidate_rejected
+        ? primary.notify_candidate_rejected
         : args.notificationKey === "memberJoined"
-          ? row.notify_member_joined
+          ? primary.notify_member_joined
           : true;
   if (!notificationEnabled) return false;
 
-  try {
-    await postIncomingWebhook(
-      decryptWebhookUrl(row.webhook_url_ciphertext),
-      text
+  const requestedChannelId = normalizeText(args.channelId);
+  const targets = requestedChannelId
+    ? rows.filter((row) => row.slack_channel_id === requestedChannelId)
+    : rows;
+  if (targets.length === 0) return false;
+
+  const deliveryResults = await Promise.allSettled(
+    targets.map(async (row) => {
+      try {
+        await postIncomingWebhook(
+          decryptWebhookUrl(row.webhook_url_ciphertext),
+          text
+        );
+        await updateDeliveryResult({
+          channelId: row.slack_channel_id,
+          workspaceId,
+        });
+      } catch (error) {
+        await updateDeliveryResult({
+          channelId: row.slack_channel_id,
+          error,
+          workspaceId,
+        });
+        throw error;
+      }
+    })
+  );
+  const failedCount = deliveryResults.filter(
+    (result) => result.status === "rejected"
+  ).length;
+  if (failedCount > 0) {
+    throw new OrgSlackIntegrationError(
+      502,
+      failedCount === targets.length
+        ? "Slack 채널로 알림을 보내지 못했습니다."
+        : `일부 Slack 채널에 알림을 보내지 못했습니다. (${targets.length - failedCount}/${targets.length} 성공)`
     );
-    await updateDeliveryResult({ workspaceId });
-    return true;
-  } catch (error) {
-    await updateDeliveryResult({ error, workspaceId });
-    throw error;
   }
+  return true;
 }
 
 export async function sendOrgSlackTestMessage(args: {
+  channelId?: string;
   user: User;
   workspaceId: string;
 }) {
@@ -551,6 +641,7 @@ export async function sendOrgSlackTestMessage(args: {
     "manage_integrations"
   );
   const delivered = await sendOrgWorkspaceSlackMessage({
+    channelId: args.channelId,
     text: `[테스트] ${workspace.companyName}의 Harper Organization 알림이 정상적으로 연결되었습니다.`,
     workspaceId,
   });
@@ -588,10 +679,9 @@ export async function updateOrgSlackNotificationSettings(args: {
   )
     .update(patch)
     .eq("company_workspace_id", workspaceId)
-    .select("company_workspace_id")
-    .maybeSingle();
+    .select("company_workspace_id");
   if (error) throw error;
-  if (!data) {
+  if (!Array.isArray(data) || data.length === 0) {
     throw new OrgSlackIntegrationError(404, "연결된 Slack 채널이 없습니다.");
   }
   return { ok: true as const };

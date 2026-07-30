@@ -22,6 +22,7 @@ type RouteContext = {
 };
 
 type PatchCrispFeedbackBody = {
+  clearGuestIdentity?: boolean;
   content?: string;
   deleteFromMessageId?: string;
   guestEmail?: string;
@@ -133,20 +134,57 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 
   const now = new Date().toISOString();
   const nextPayload: CrispFeedbackPayload = { ...payload };
-  let shouldNotifySlack = false;
+  let slackMessage = null as ReturnType<typeof createCrispMessage> | null;
   let appendedMessage = null as ReturnType<typeof createCrispMessage> | null;
+  let clearedGuestIdentity = false;
   let deletedMessages = false;
+
+  if (
+    body.clearGuestIdentity === true &&
+    !nextPayload.userId &&
+    !nextPayload.userEmail
+  ) {
+    nextPayload.guestEmail = null;
+    nextPayload.guestName = null;
+    nextPayload.identityProvidedAt = null;
+    nextPayload.wantsEmailReply = null;
+    nextPayload.emailReplyAnsweredAt = null;
+    clearedGuestIdentity = true;
+  }
+
+  const guestName = normalizeCrispText(body.guestName, 120);
+  const guestEmail = normalizeCrispText(body.guestEmail, 240);
+  if (guestEmail && !isValidCrispEmail(guestEmail)) {
+    return NextResponse.json({ error: "Invalid email" }, { status: 400 });
+  }
+  const previouslyHadGuestIdentity = Boolean(
+    payload.guestName && payload.guestEmail
+  );
+  if (guestName || guestEmail) {
+    nextPayload.guestName = guestName || nextPayload.guestName || null;
+    nextPayload.guestEmail = guestEmail || nextPayload.guestEmail || null;
+    if (nextPayload.guestName && nextPayload.guestEmail) {
+      nextPayload.identityProvidedAt = now;
+    }
+  }
+  const hasKnownRequester = Boolean(
+    nextPayload.userEmail ||
+      (nextPayload.guestName && nextPayload.guestEmail)
+  );
 
   const content = normalizeCrispText(body.content);
   if (content) {
     appendedMessage = createCrispMessage("user", content, {
-      email: payload.userEmail ?? payload.guestEmail ?? null,
-      name: payload.userName ?? payload.guestName ?? null,
+      email: nextPayload.userEmail ?? nextPayload.guestEmail ?? null,
+      name: nextPayload.userName ?? nextPayload.guestName ?? null,
     });
     nextPayload.messages = [...payload.messages, appendedMessage];
     nextPayload.status = "open";
-    nextPayload.lastSlackNotifiedAt = now;
-    shouldNotifySlack = true;
+    if (hasKnownRequester) {
+      slackMessage = appendedMessage;
+    } else {
+      nextPayload.identityRequestedAt = now;
+    }
   }
 
   const deleteFromMessageId = normalizeCrispText(body.deleteFromMessageId, 200);
@@ -175,15 +213,19 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     deletedMessages = true;
   }
 
-  const guestName = normalizeCrispText(body.guestName, 120);
-  const guestEmail = normalizeCrispText(body.guestEmail, 240);
-  if (guestEmail && !isValidCrispEmail(guestEmail)) {
-    return NextResponse.json({ error: "Invalid email" }, { status: 400 });
-  }
-  if (guestName || guestEmail) {
-    nextPayload.guestName = guestName || nextPayload.guestName || null;
-    nextPayload.guestEmail = guestEmail || nextPayload.guestEmail || null;
-    nextPayload.identityProvidedAt = now;
+  const receivedCompleteGuestIdentity = Boolean(
+    nextPayload.guestName && nextPayload.guestEmail
+  );
+  if (
+    !slackMessage &&
+    receivedCompleteGuestIdentity &&
+    (!previouslyHadGuestIdentity || clearedGuestIdentity)
+  ) {
+    slackMessage =
+      [...nextPayload.messages]
+        .reverse()
+        .find((message) => message.role === "user" && !message.deletedAt) ??
+      null;
   }
 
   if (typeof body.wantsEmailReply === "boolean") {
@@ -194,12 +236,17 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 
   if (
     !content &&
+    !clearedGuestIdentity &&
     !deletedMessages &&
     !guestName &&
     !guestEmail &&
     typeof body.wantsEmailReply !== "boolean"
   ) {
     return NextResponse.json({ error: "No changes" }, { status: 400 });
+  }
+
+  if (slackMessage) {
+    nextPayload.lastSlackNotifiedAt = now;
   }
 
   const { data, error } = await supabaseServer
@@ -219,12 +266,12 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     );
   }
 
-  if (shouldNotifySlack && appendedMessage) {
+  if (slackMessage) {
     try {
       await notifyCrispFeedbackSlack({
         authenticated: Boolean(nextPayload.userId),
         feedbackId: id,
-        message: appendedMessage,
+        message: slackMessage,
         payload: nextPayload,
         req,
       });

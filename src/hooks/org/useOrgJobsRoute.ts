@@ -17,7 +17,7 @@ function getQueryText(value: string | string[] | undefined) {
 export function useOrgJobsRoute({
   page = "jobs",
 }: {
-  page?: Extract<OrgWorkspacePageId, "all" | "jobs">;
+  page?: Extract<OrgWorkspacePageId, "all" | "inbox" | "jobs">;
 } = {}) {
   const router = useRouter();
   const { roles, workspace } = useOrgWorkspace();

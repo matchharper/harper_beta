@@ -144,7 +144,7 @@ export async function sendCrispFeedbackReplyEmail({
   const senderLabel = operatorName?.trim() || operatorEmail;
   const subject = buildReplyEmailSubject(latestUserMessage);
   const text = [
-    `${senderLabel}님의 답변입니다.`,
+    `Harper 답변입니다.`,
     "",
     replyText,
     "",
@@ -154,7 +154,7 @@ export async function sendCrispFeedbackReplyEmail({
     .filter(Boolean)
     .join("\n");
   const html = [
-    `<p>${escapeHtml(senderLabel)}님의 답변입니다.</p>`,
+    `<p>Harper 답변입니다.</p>`,
     `<p>${escapeHtml(replyText).replace(/\n/g, "<br />")}</p>`,
     latestUserMessage
       ? `<hr /><p style="color:#666;font-size:13px;">문의 내용</p><p style="color:#333;font-size:13px;">${escapeHtml(

@@ -1,4 +1,3 @@
-import { OrgAgentPanel } from "@/components/org/agent/OrgAgentPanel";
 import { OrgAllRolesOverview } from "@/components/org/OrgAllRolesOverview";
 import { OrgEditDialog } from "@/components/org/OrgEditDialog";
 import { OrgPipeline } from "@/components/org/OrgPipeline";
@@ -13,7 +12,6 @@ import {
   useOrgJobsNavigation,
   useOrgJobsRoleActions,
 } from "@/hooks/org/useOrgJobs";
-import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 
 function OrgJobsMain() {
   const { boardQuery } = useOrgJobsBoard();
@@ -33,11 +31,6 @@ function OrgJobsMain() {
       {isAll ? <OrgAllRolesOverview /> : <OrgPipeline />}
     </div>
   );
-}
-
-function OrgJobsAgent() {
-  const { permissions } = useOrgWorkspace();
-  return permissions.canManageCandidates ? <OrgAgentPanel /> : null;
 }
 
 function OrgJobsTalentDetail() {
@@ -92,7 +85,6 @@ export function OrgJobsPage() {
   return (
     <OrgJobsProvider>
       <OrgJobsMain />
-      <OrgJobsAgent />
       <OrgJobsTalentDetail />
       <OrgJobsRoleEditor />
     </OrgJobsProvider>

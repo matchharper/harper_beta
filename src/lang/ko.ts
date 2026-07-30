@@ -7,50 +7,27 @@ export const ko = {
     emailConfirmationSent: "인증 메일을 발송했습니다. 이메일을 확인해주세요.",
     invalidAccount: "존재하지 않는 계정입니다.",
   },
-  invitation: {
+  requestAccess: {
     title: "Request access",
     description:
       "아래 정보를 남겨주시면 사용 권한을 최대한 빠르게\n로그인하신 이메일로 보내드리겠습니다.",
-    nameTitle: "이름을 입력해주세요.",
-    nameDescription:
-      "초대 코드가 확인되었습니다. 사용자분의 이름을 입력해주세요.",
-    namePlaceholder: "이름",
-    placeholder: "초대 코드",
-    nameSubmit: "저장하기",
-    submit: "입력하기",
-    divider: "또는",
-    waitlist: "Request access",
-    contact: "문의하기",
-    requestAccess: {
-      title: "Request access",
-      description:
-        "팀과 채용 상황을 간단히 알려주세요. 승인되면 로그인한 이메일로 접근 링크를 보내드리겠습니다.",
-      submit: "액세스 받기",
-      submitted:
-        "액세스 요청이 접수되었습니다. 승인되면 5분안에 이메일로 링크를 보내드리겠습니다.",
-      nameLabel: "이름",
-      namePlaceholder: "이름을 입력해주세요",
-      companyLabel: "회사명",
-      companyPlaceholder: "회사명을 입력해주세요",
-      roleLabel: "역할 (optional)",
-      rolePlaceholder: "예: Founder, Hiring Manager",
-      hiringNeedLabel:
-        "가장 중요하게 채용이 필요한 포지션(직무)과 대략적인 인원수",
-      hiringNeedPlaceholder: "예: Backend Engineer 2명, Founding Recruiter 1명",
-      errors: {
-        missingSession:
-          "로그인 상태를 확인할 수 없습니다. 다시 로그인해주세요.",
-        invalidForm: "이름과 회사명을 입력해주세요.",
-        submitFailed: "요청 접수에 실패했습니다. 다시 시도해주세요.",
-      },
-    },
+    submit: "액세스 받기",
+    submitted:
+      "액세스 요청이 접수되었습니다. 승인되면 5분안에 이메일로 링크를 보내드리겠습니다.",
+    nameLabel: "이름",
+    namePlaceholder: "이름을 입력해주세요",
+    companyLabel: "회사명",
+    companyPlaceholder: "회사명을 입력해주세요",
+    roleLabel: "역할 (optional)",
+    rolePlaceholder: "예: Founder, Hiring Manager",
+    hiringNeedLabel:
+      "가장 중요하게 채용이 필요한 포지션(직무)과 대략적인 인원수",
+    hiringNeedPlaceholder: "예: Backend Engineer 2명, Founding Recruiter 1명",
     errors: {
-      emptyCode: "초대 코드를 입력해주세요.",
-      invalidCode: "초대 코드가 일치하지 않습니다.",
-      domainMismatch:
-        "가입한 이메일의 도메인이 초대 코드에 지정된 회사 도메인과 일치하지 않습니다.",
-      emptyName: "이름을 입력해주세요.",
-      saveNameFailed: "이름 저장에 실패했습니다. 다시 시도해주세요.",
+      missingSession:
+        "로그인 상태를 확인할 수 없습니다. 다시 로그인해주세요.",
+      invalidForm: "이름과 회사명을 입력해주세요.",
+      submitFailed: "요청 접수에 실패했습니다. 다시 시도해주세요.",
     },
   },
   join: {
@@ -1481,6 +1458,8 @@ export const ko = {
     "career.job_posting_recommendations.answer.details_label": "조건",
     "career.job_posting_recommendations.answer.empty":
       "지금 조건으로 바로 추천할 만한 external 채용공고를 찾지 못했습니다.\n직무명, 지역, 근무 형태 중 하나를 조금 넓히면 다시 찾아볼 수 있습니다.",
+    "career.job_posting_recommendations.answer.initial_pending":
+      "첫 번째 추천은 저희가 이메일로 보내드릴 예정이에요. 잠시만 기다려 주세요. 혹시 1시간이 지나도 도착하지 않는다면 알려주세요. 그 이후부터는 좋은 기회를 주기적으로 찾아 먼저 이메일로 알려드릴 예정이고, 저에게 지금처럼 말씀해주시면 바로 찾아드릴게요.",
     "career.job_posting_recommendations.answer.requested_count_trimmed":
       "요청하신 {requestedCount}개를 한 번에 모두 보여드리기보다는, 지금은 바로 볼 만한 최대 {finalCount}개만 먼저 골랐습니다. 이후 주기 추천에서는 한 번에 최대 {batchLimit}개씩 더 넓게 찾아보되, 기준에 못 미치는 공고는 넣지 않겠습니다.",
     "career.job_posting_recommendations.answer.saved_headline":
@@ -1878,7 +1857,7 @@ export const ko = {
     "career.profile.settings.no_saved_changes":
       "아직 저장된 변경 이력이 없습니다.",
     "career.recommend_job_postings.chat_preamble":
-      "좋습니다. 지금까지의 대화와 피드백을 기준으로 새 포지션을 찾아볼게요.",
+      "좋습니다. 먼저 현재 추천 진행 상태를 확인해볼게요.",
     "career.referral.footer.invite_friends": "친구 초대하기",
     "career.referral.intro_test.greeting":
       "{candidateName}님, Harper를 소개드릴게요.",

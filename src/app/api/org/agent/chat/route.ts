@@ -15,7 +15,10 @@ function getVisibleErrorMessage(error: unknown) {
 
 function toErrorResponse(error: unknown) {
   if (error instanceof OrgHttpError) {
-    return NextResponse.json({ error: error.message }, { status: error.status });
+    return NextResponse.json(
+      { error: error.message },
+      { status: error.status }
+    );
   }
   if (error instanceof Error && error.message === "Unauthorized") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -49,7 +52,6 @@ export async function POST(req: NextRequest) {
       mentions: Array.isArray(body.mentions) ? body.mentions : [],
       message: body.message ?? "",
       model: body.model ?? null,
-      roleId: body.roleId ?? "",
       user,
       workspaceId: body.workspaceId ?? "",
     };

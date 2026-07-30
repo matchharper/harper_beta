@@ -53,6 +53,7 @@ import {
   useDeleteOpsMatchingReviewStage,
   useOpsMatchingTalents,
   useOpsMatchingReviewBoard,
+  usePendingOpsMatchingReviewStageMutations,
   useQueueOpsMatchingManualInternalRecommendation,
   useSetOpsMatchingReviewStage,
   useUpdateOpsMatchingReviewStage,
@@ -66,6 +67,7 @@ import type {
   OpsMatchingRoleOption,
   OpsMatchingTalentItem,
 } from "@/lib/ops/matching";
+import { buildPendingOpsMatchingReviewStageMap } from "@/lib/ops/matchingClient";
 import {
   Dialog,
   DialogContent,
@@ -888,6 +890,8 @@ export function MatchingHarperReviewBoard({
     roleId: role.roleId,
   });
   const setReviewStage = useSetOpsMatchingReviewStage();
+  const pendingReviewStageMutations =
+    usePendingOpsMatchingReviewStageMutations();
   const createReviewStage = useCreateOpsMatchingReviewStage();
   const updateReviewStage = useUpdateOpsMatchingReviewStage();
   const deleteReviewStage = useDeleteOpsMatchingReviewStage();
@@ -927,6 +931,14 @@ export function MatchingHarperReviewBoard({
     [items]
   );
   const draggingItem = draggingId ? itemById.get(draggingId) : null;
+  const pendingReviewStageByTalentId = useMemo(
+    () =>
+      buildPendingOpsMatchingReviewStageMap(
+        pendingReviewStageMutations,
+        role.roleId
+      ),
+    [pendingReviewStageMutations, role.roleId]
+  );
   const groupedItems = useMemo(() => {
     const next = new Map<OpsMatchingReviewStageId, OpsMatchingReviewItem[]>();
     for (const column of BASE_REVIEW_COLUMNS) next.set(column.id, []);
@@ -934,27 +946,13 @@ export function MatchingHarperReviewBoard({
     for (const control of REVIEW_LIST_TOGGLE_CONTROLS) {
       next.set(control.id, []);
     }
-    const optimisticStage = setReviewStage.isPending
-      ? setReviewStage.variables?.stage
-      : null;
-    const optimisticTalentId = setReviewStage.isPending
-      ? setReviewStage.variables?.talentId
-      : null;
     for (const item of items) {
       const stage =
-        optimisticStage && item.talent.userId === optimisticTalentId
-          ? optimisticStage
-          : item.stage;
+        pendingReviewStageByTalentId.get(item.talent.userId) ?? item.stage;
       next.get(stage)?.push(item);
     }
     return next;
-  }, [
-    customReviewColumns,
-    items,
-    setReviewStage.isPending,
-    setReviewStage.variables?.stage,
-    setReviewStage.variables?.talentId,
-  ]);
+  }, [customReviewColumns, items, pendingReviewStageByTalentId]);
   const visibleArchiveColumns = useMemo(
     () =>
       REVIEW_LIST_TOGGLE_CONTROLS.filter((control) =>
@@ -983,10 +981,6 @@ export function MatchingHarperReviewBoard({
     null;
   const isCustomStageSubmitting =
     createReviewStage.isPending || updateReviewStage.isPending;
-  const archivePendingTalentId =
-    setReviewStage.isPending && setReviewStage.variables?.stage === "archived"
-      ? setReviewStage.variables.talentId
-      : null;
 
   useEffect(() => {
     const header = document.querySelector<HTMLElement>(
@@ -1038,7 +1032,11 @@ export function MatchingHarperReviewBoard({
   const handleDropToStage = (stage: DroppableReviewStageId) => {
     if (!draggingId) return;
     const item = itemById.get(draggingId);
-    if (!item || item.stage === stage) {
+    if (
+      !item ||
+      item.stage === stage ||
+      pendingReviewStageByTalentId.has(item.talent.userId)
+    ) {
       setDraggingId(null);
       setDropTargetStageId(null);
       return;
@@ -1058,7 +1056,12 @@ export function MatchingHarperReviewBoard({
     setDropTargetStageId(null);
   };
   const handleArchiveItem = (item: OpsMatchingReviewItem) => {
-    if (item.stage === "archived" || setReviewStage.isPending) return;
+    if (
+      item.stage === "archived" ||
+      pendingReviewStageByTalentId.has(item.talent.userId)
+    ) {
+      return;
+    }
     setReviewStage.mutate({
       roleId: role.roleId,
       stage: "archived",
@@ -1301,7 +1304,10 @@ export function MatchingHarperReviewBoard({
                   setDraggingId(null);
                   setDropTargetStageId(null);
                 }}
-                archivePending={archivePendingTalentId === item.talent.userId}
+                archivePending={
+                  pendingReviewStageByTalentId.get(item.talent.userId) ===
+                  "archived"
+                }
                 onDragStart={(dragItem) => {
                   setDraggingId(dragItem.recommendationId);
                   setDropTargetStageId(null);
@@ -1309,10 +1315,7 @@ export function MatchingHarperReviewBoard({
                 onAddMemo={setSelectedMemoTalent}
                 onArchive={handleArchiveItem}
                 onSelect={handleSelectedTalentChange}
-                pending={
-                  setReviewStage.isPending &&
-                  setReviewStage.variables?.talentId === item.talent.userId
-                }
+                pending={pendingReviewStageByTalentId.has(item.talent.userId)}
                 visibleFields={visibleReviewFields}
               />
             ))}
@@ -1461,10 +1464,10 @@ export function MatchingHarperReviewBoard({
                 초기화
               </BareButton>
             ) : null}
-            {setReviewStage.isPending ? (
+            {pendingReviewStageByTalentId.size > 0 ? (
               <span className="inline-flex items-center gap-1.5 text-xs text-neutral-soft">
                 <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                변경 저장 중
+                변경 저장 중 ({pendingReviewStageByTalentId.size})
               </span>
             ) : null}
           </div>
@@ -1491,7 +1494,11 @@ export function MatchingHarperReviewBoard({
               onDrop={() => handleDropToStage(control.id)}
               onTargetLeave={() => handleDropTargetLeave(control.id)}
               onTargetOver={() => setDropTargetStageId(control.id)}
-              pending={setReviewStage.isPending}
+              pending={
+                draggingItem
+                  ? pendingReviewStageByTalentId.has(draggingItem.talent.userId)
+                  : false
+              }
             />
           ))}
         </div>
@@ -1712,9 +1719,9 @@ export function MatchingHarperReviewBoard({
         open={Boolean(pendingConnectionMove)}
         pending={
           Boolean(pendingConnectionMove) &&
-          setReviewStage.isPending &&
-          setReviewStage.variables?.talentId ===
-            pendingConnectionMove?.talent.userId
+          pendingReviewStageByTalentId.has(
+            pendingConnectionMove?.talent.userId ?? ""
+          )
         }
         recipientEmail={pendingConnectionMove?.talent.email}
       />

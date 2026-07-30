@@ -90,18 +90,15 @@ function sanitizeVisibleAgentError(value: unknown) {
 
 export function orgAgentMessageHistoryQueryOptions(args: {
   enabled?: boolean;
-  roleId?: string | null;
   workspaceId?: string | null;
 }) {
   const workspaceId = args.workspaceId?.trim() ?? "";
-  const roleId = args.roleId?.trim() ?? "";
   return infiniteQueryOptions({
-    queryKey: queryKeys.org.agentMessages({ roleId, workspaceId }),
+    queryKey: queryKeys.org.agentMessages({ workspaceId }),
     initialPageParam: null as number | null,
     queryFn: ({ pageParam }) => {
       const params = new URLSearchParams({
         limit: "30",
-        roleId,
         workspaceId,
       });
       if (pageParam) params.set("beforeMessageId", String(pageParam));
@@ -110,7 +107,7 @@ export function orgAgentMessageHistoryQueryOptions(args: {
       );
     },
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
-    enabled: (args.enabled ?? true) && Boolean(workspaceId && roleId),
+    enabled: (args.enabled ?? true) && Boolean(workspaceId),
     refetchOnWindowFocus: false,
     staleTime: 20_000,
   });
@@ -118,12 +115,10 @@ export function orgAgentMessageHistoryQueryOptions(args: {
 
 export function useOrgAgentMessageHistory(args: {
   enabled?: boolean;
-  roleId?: string | null;
   workspaceId?: string | null;
 }) {
   const queryClient = useQueryClient();
   const workspaceId = args.workspaceId?.trim() ?? "";
-  const roleId = args.roleId?.trim() ?? "";
   const options = orgAgentMessageHistoryQueryOptions(args);
   const queryKey = options.queryKey;
   const infinite = useInfiniteQuery(options);
@@ -147,7 +142,7 @@ export function useOrgAgentMessageHistory(args: {
         const latestPage = pages[0] ?? {
           conversation: {
             conversationId: "",
-            roleId,
+            roleId: null,
             title: null,
             workspaceId,
           },
@@ -163,7 +158,7 @@ export function useOrgAgentMessageHistory(args: {
         return { pageParams, pages };
       });
     },
-    [queryClient, queryKey, roleId, workspaceId]
+    [queryClient, queryKey, workspaceId]
   );
 
   return {
@@ -179,23 +174,21 @@ export function useOrgAgentMessageHistory(args: {
 export function orgAgentMentionCandidatesQueryOptions(args: {
   enabled?: boolean;
   query?: string | null;
-  roleId?: string | null;
   workspaceId?: string | null;
 }) {
   const workspaceId = args.workspaceId?.trim() ?? "";
-  const roleId = args.roleId?.trim() ?? "";
   const query = args.query?.trim() ?? "";
   return queryOptions({
-    queryKey: queryKeys.org.agentMentions({ query, roleId, workspaceId }),
+    queryKey: queryKeys.org.agentMentions({ query, workspaceId }),
     queryFn: async () => {
-      const params = new URLSearchParams({ roleId, workspaceId });
+      const params = new URLSearchParams({ workspaceId });
       if (query) params.set("query", query);
       const payload = await fetchWithInternalAuth<OrgAgentMentionsResponse>(
         `/api/org/agent/mentions?${params.toString()}`
       );
       return payload.candidates;
     },
-    enabled: (args.enabled ?? true) && Boolean(workspaceId && roleId),
+    enabled: (args.enabled ?? true) && Boolean(workspaceId),
     staleTime: 20_000,
   });
 }
@@ -203,7 +196,6 @@ export function orgAgentMentionCandidatesQueryOptions(args: {
 export function useOrgAgentMentionCandidates(args: {
   enabled?: boolean;
   query?: string | null;
-  roleId?: string | null;
   workspaceId?: string | null;
 }) {
   return useQuery(orgAgentMentionCandidatesQueryOptions(args));
@@ -211,12 +203,10 @@ export function useOrgAgentMentionCandidates(args: {
 
 export function useOrgAgentChat(args: {
   appendMessagesToCache: (messages: OrgAgentMessage[]) => void;
-  roleId?: string | null;
   workspaceId?: string | null;
 }) {
   const queryClient = useQueryClient();
   const appendMessagesToCache = args.appendMessagesToCache;
-  const activeRoleId = args.roleId?.trim() ?? "";
   const activeWorkspaceId = args.workspaceId?.trim() ?? "";
   const [error, setError] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -232,8 +222,7 @@ export function useOrgAgentChat(args: {
       model?: OrgAgentModelId | string | null;
     }) => {
       const workspaceId = activeWorkspaceId;
-      const roleId = activeRoleId;
-      if (!workspaceId || !roleId) return;
+      if (!workspaceId) return;
 
       setError(null);
       setIsStreaming(true);
@@ -268,7 +257,6 @@ export function useOrgAgentChat(args: {
             mentions: input.mentions ?? [],
             message: input.message,
             model: input.model ?? null,
-            roleId,
             workspaceId,
           }),
           headers: {
@@ -288,7 +276,6 @@ export function useOrgAgentChat(args: {
                 mentions: input.mentions ?? [],
                 message: input.message,
                 model: input.model ?? null,
-                roleId,
                 workspaceId,
               }),
               headers: {
@@ -357,7 +344,7 @@ export function useOrgAgentChat(args: {
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: queryKeys.org.all }),
           queryClient.invalidateQueries({
-            queryKey: queryKeys.org.agentMessages({ roleId, workspaceId }),
+            queryKey: queryKeys.org.agentMessages({ workspaceId }),
           }),
         ]);
       } catch (error) {
@@ -373,7 +360,7 @@ export function useOrgAgentChat(args: {
         setIsStreaming(false);
       }
     },
-    [activeRoleId, activeWorkspaceId, appendMessagesToCache, queryClient]
+    [activeWorkspaceId, appendMessagesToCache, queryClient]
   );
 
   return {
@@ -410,7 +397,6 @@ export function useSendOrgAgentMeetingRequest() {
       queryClient.invalidateQueries({ queryKey: queryKeys.org.all });
       queryClient.invalidateQueries({
         queryKey: queryKeys.org.agentMessages({
-          roleId: variables.roleId,
           workspaceId: variables.workspaceId,
         }),
       });

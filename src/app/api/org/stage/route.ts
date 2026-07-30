@@ -4,7 +4,6 @@ import {
   OrgHttpError,
   setOrgCandidateStage,
   type OrgStageId,
-  type OrgStopReason,
 } from "@/lib/org/server";
 import type { InternalConnectionConfirmationEmailMode } from "@/lib/ops/connectionConfirmationEmail";
 
@@ -37,7 +36,6 @@ export async function POST(req: NextRequest) {
       roleId?: string;
       stage?: OrgStageId;
       stopNote?: string | null;
-      stopReason?: OrgStopReason | null;
       talentId?: string;
       workspaceId?: string;
     };
@@ -54,7 +52,6 @@ export async function POST(req: NextRequest) {
       roleId: body.roleId ?? "",
       stage: body.stage ?? "pending_connection",
       stopNote: body.stopNote ?? null,
-      stopReason: body.stopReason ?? null,
       talentId: body.talentId ?? "",
       user,
       workspaceId: body.workspaceId ?? "",

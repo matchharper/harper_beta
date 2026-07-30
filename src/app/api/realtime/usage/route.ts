@@ -37,7 +37,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "usage is required" }, { status: 400 });
   }
 
-  const realtimeConfig = getCareerRealtimeSessionConfig();
+  const realtimeConfig = getCareerRealtimeSessionConfig({
+    userCreatedAt: user.created_at,
+    userId: user.id,
+  });
   await insertRealtimeLlmUsageLog({
     model: realtimeConfig.model,
     response: {
@@ -50,6 +53,7 @@ export async function POST(req: NextRequest) {
         typeof body.hadAudioInResponse === "boolean"
           ? body.hadAudioInResponse
           : null,
+      provider: realtimeConfig.provider,
       responseId: cleanString(body.responseId, 120) || null,
       status: cleanString(body.status, 80) || null,
       userId: user.id,

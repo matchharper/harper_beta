@@ -14,6 +14,7 @@ import {
 import { en } from "@/lang/en";
 import { ko } from "@/lang/ko";
 import {
+  DEFAULT_LOCALE,
   getBrowserInferredLocale,
   normalizeLocale,
   type ResolvedLocale,
@@ -26,6 +27,7 @@ export type MessageDictionary = typeof ko & {
 
 const LOCALE_STORAGE_KEY = "harper:locale";
 const LOCALE_COOKIE_NAME = "NEXT_LOCALE";
+const LOCALE_PREFERENCE_CHANGE_EVENT = "harper:locale-preference-change";
 const useIsomorphicLayoutEffect =
   typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
@@ -60,6 +62,11 @@ export function persistLocalePreference(locale: Locale) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
   document.cookie = `${LOCALE_COOKIE_NAME}=${locale}; path=/; max-age=31536000; samesite=lax`;
+  window.dispatchEvent(
+    new CustomEvent<Locale>(LOCALE_PREFERENCE_CHANGE_EVENT, {
+      detail: locale,
+    })
+  );
 }
 
 const DICTS: Record<Locale, MessageDictionary> = {
@@ -86,7 +93,7 @@ export function MessagesProvider({
   messages?: MessageDictionary;
   onLocaleChange?: (locale: Locale) => void;
 }) {
-  const [localeState, setLocaleState] = useState<Locale>("ko");
+  const [localeState, setLocaleState] = useState<Locale>(DEFAULT_LOCALE);
 
   useIsomorphicLayoutEffect(() => {
     if (controlledLocale) return;
@@ -111,6 +118,37 @@ export function MessagesProvider({
     }
   }, [controlledLocale]);
 
+  useIsomorphicLayoutEffect(() => {
+    if (controlledLocale || typeof window === "undefined") return;
+
+    const handleLocalePreferenceChange = (event: Event) => {
+      const nextLocale = normalizeLocale(
+        (event as CustomEvent<unknown>).detail
+      );
+      if (nextLocale) setLocaleState(nextLocale);
+    };
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== LOCALE_STORAGE_KEY) return;
+      setLocaleState(
+        normalizeLocale(event.newValue) ?? getBrowserInferredLocale()
+      );
+    };
+
+    window.addEventListener(
+      LOCALE_PREFERENCE_CHANGE_EVENT,
+      handleLocalePreferenceChange
+    );
+    window.addEventListener("storage", handleStorage);
+
+    return () => {
+      window.removeEventListener(
+        LOCALE_PREFERENCE_CHANGE_EVENT,
+        handleLocalePreferenceChange
+      );
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, [controlledLocale]);
+
   useEffect(() => {
     if (typeof document === "undefined") return;
     document.documentElement.lang = locale;
@@ -133,8 +171,8 @@ export function useMessages() {
   if (context) return context;
 
   return {
-    locale: "ko" as Locale,
-    m: DICTS.ko,
+    locale: DEFAULT_LOCALE,
+    m: DICTS[DEFAULT_LOCALE],
     setLocale: () => undefined,
   };
 }

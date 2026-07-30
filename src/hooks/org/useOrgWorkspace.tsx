@@ -18,6 +18,7 @@ import type {
   OrgWorkspace,
 } from "@/lib/org/server";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useOrgWorkspaceStore } from "@/store/useOrgWorkspaceStore";
 
 function getQueryText(value: string | string[] | undefined) {
   return typeof value === "string" ? value.trim() : "";
@@ -76,9 +77,22 @@ export function useOrgWorkspaceController({
   const authLoading = useAuthStore((state) => state.loading);
   const user = useAuthStore((state) => state.user);
   const orgId = router.isReady ? getQueryText(router.query.orgId) : "";
+  const hasHydratedLastWorkspace = useOrgWorkspaceStore(
+    (state) => state.hasHydrated
+  );
+  const lastWorkspaceId = useOrgWorkspaceStore(
+    (state) => state.lastWorkspaceId
+  );
+  const setLastWorkspaceId = useOrgWorkspaceStore(
+    (state) => state.setLastWorkspaceId
+  );
+  const requestedOrgId = orgId || lastWorkspaceId;
   const bootstrapQuery = useOrgBootstrap({
-    enabled: router.isReady && Boolean(user),
-    orgId,
+    enabled:
+      router.isReady &&
+      Boolean(user) &&
+      (Boolean(orgId) || hasHydratedLastWorkspace),
+    orgId: requestedOrgId,
   });
   const bootstrap = bootstrapQuery.data ?? null;
   const workspace = bootstrap?.workspace ?? null;
@@ -91,8 +105,43 @@ export function useOrgWorkspaceController({
   const roles = useMemo(() => bootstrap?.roles ?? [], [bootstrap?.roles]);
 
   useEffect(() => {
+    if (
+      !legacyEntry ||
+      !router.isReady ||
+      !user ||
+      !hasHydratedLastWorkspace ||
+      orgId ||
+      !lastWorkspaceId
+    ) {
+      return;
+    }
+    void router.replace(
+      buildOrgHref({
+        orgId: lastWorkspaceId,
+        page: "home",
+      })
+    );
+  }, [
+    hasHydratedLastWorkspace,
+    lastWorkspaceId,
+    legacyEntry,
+    orgId,
+    router,
+    router.isReady,
+    user,
+  ]);
+
+  useEffect(() => {
+    if (!workspace) return;
+    setLastWorkspaceId(workspace.workspaceId);
+  }, [setLastWorkspaceId, workspace]);
+
+  useEffect(() => {
     if (!router.isReady || !user || !bootstrap) return;
     if (!workspace) {
+      if (requestedOrgId && requestedOrgId === lastWorkspaceId) {
+        setLastWorkspaceId("");
+      }
       if (orgId) void router.replace("/org");
       return;
     }
@@ -116,7 +165,18 @@ export function useOrgWorkspaceController({
       undefined,
       { shallow: true }
     );
-  }, [bootstrap, legacyEntry, orgId, router, router.isReady, user, workspace]);
+  }, [
+    bootstrap,
+    lastWorkspaceId,
+    legacyEntry,
+    orgId,
+    requestedOrgId,
+    router,
+    router.isReady,
+    setLastWorkspaceId,
+    user,
+    workspace,
+  ]);
 
   const contextValue = useMemo<OrgWorkspaceContextValue | null>(() => {
     if (!bootstrap || !user || !workspace) return null;

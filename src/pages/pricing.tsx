@@ -137,7 +137,7 @@ export default function PricingPage() {
         }
 
         setIsOpenLoginModal(false);
-        router.push("/invitation");
+        router.push("/");
         return null;
       } catch (error) {
         console.error("[auth] signInWithPassword unexpected error", error);

@@ -540,6 +540,11 @@ const INTERNAL_RECOMMENDATION_PROGRESS_MESSAGES: Record<
   waiting_to_share: "적절한 타이밍에 회사에게 전달하기 위해 대기중입니다.",
 };
 
+const INTERNAL_ENDED_ROLE_PROGRESS_MESSAGE_AFTER_ACCEPTANCE =
+  "회사에서 해당 역할의 채용을 종료했다고 알려왔습니다. 이에 따라 이 기회의 프로세스를 종료하겠습니다.";
+const INTERNAL_ENDED_ROLE_PROGRESS_MESSAGE_AT_ACCEPTANCE =
+  "회사에 전달했지만 추가 진행 없이 해당 역할의 채용이 종료되었습니다. 자세한 검토까지 이어지지 않았을 가능성이 높습니다. 이에 따라 이 기회의 프로세스를 종료하겠습니다.";
+
 function normalizeInternalProgressTagKey(value: unknown) {
   return String(value ?? "")
     .trim()
@@ -677,6 +682,7 @@ export function buildInternalRecommendationProgress(args: {
   const daysSinceStageChanged =
     getDaysSinceInternalProgressDate(stageChangedAt);
   const effectiveStage = stage ?? "accepted";
+  const isEndedRole = args.item.status.trim().toLowerCase() === "ended";
   let code: TalentInternalRecommendationProgressCode;
   const isWithinInitialAcceptanceGrace =
     daysSinceAccepted !== null &&
@@ -685,11 +691,14 @@ export function buildInternalRecommendationProgress(args: {
     daysSinceStageChanged !== null &&
     daysSinceStageChanged < INTERNAL_RECOMMENDATION_TERMINAL_STAGE_GRACE_DAYS;
 
-  if (effectiveStage === "pending_connection") {
+  if (effectiveStage === "process_stopped" && stopReason === "candidate") {
+    code = "stopped_by_candidate";
+  } else if (isEndedRole) {
+    code = "closed_by_company";
+  } else if (effectiveStage === "pending_connection") {
     code = "company_acknowledged_awaiting_response";
   } else if (effectiveStage === "process_stopped") {
-    code =
-      stopReason === "candidate" ? "stopped_by_candidate" : "closed_by_company";
+    code = "closed_by_company";
   } else if (effectiveStage === "archived" || effectiveStage === "rejected") {
     code =
       isWithinInitialAcceptanceGrace || isWithinTerminalStageGrace
@@ -716,7 +725,12 @@ export function buildInternalRecommendationProgress(args: {
     code,
     daysSinceAccepted,
     daysSinceStageChanged,
-    message: INTERNAL_RECOMMENDATION_PROGRESS_MESSAGES[code],
+    message:
+      isEndedRole && code === "closed_by_company"
+        ? effectiveStage === "accepted"
+          ? INTERNAL_ENDED_ROLE_PROGRESS_MESSAGE_AT_ACCEPTANCE
+          : INTERNAL_ENDED_ROLE_PROGRESS_MESSAGE_AFTER_ACCEPTANCE
+        : INTERNAL_RECOMMENDATION_PROGRESS_MESSAGES[code],
     stage,
     stageChangedAt,
     stageTag,

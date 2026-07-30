@@ -671,7 +671,7 @@ export default function OpsMatchingPage() {
                 onClick={handleAllFitsClick}
                 className={cx(
                   toggleButtonClass(viewMode === "all_fits"),
-                  "mt-2 h-11 shrink-0 px-3 text-xs"
+                  "mt-2 h-9 shrink-0 px-3 text-xs"
                 )}
               >
                 <InlineToggleIndicator checked={viewMode === "all_fits"} />
@@ -684,7 +684,7 @@ export default function OpsMatchingPage() {
                 disabled={!effectiveRole || roleRecordQuery.isLoading}
                 className={cx(
                   opsTheme.buttonSecondary,
-                  "mt-2 h-11 shrink-0 px-3 text-xs"
+                  "mt-2 h-9 shrink-0 px-3 text-xs"
                 )}
               >
                 {roleRecordQuery.isLoading ? (

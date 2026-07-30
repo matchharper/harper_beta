@@ -1,12 +1,18 @@
 # Internal company role - talent matching 실행 매뉴얼
 
-문서 상태: 운영 실행 계약 2.2
+문서 상태: 운영 실행 계약 2.3
 
-기준일: 2026-07-22
+기준일: 2026-07-30
 
 대상: Harper 내부 운영자 또는 DB·코드·웹 리서치 도구를 사용할 수 있는 실행 agent
 
 연결 benchmark: `../docs/wonderful-korea-fde-field-cto-benchmark-manual-ko.md`
+
+2.3 변경 요약:
+
+- 수동 matching agent의 필수 문구 산출물에서 후보자 화면용 recommendation 상세 필드를 제외
+- 최종 선택자마다 직접 작성해야 하는 문구는 회사-facing `internal_reason`과 감사용 source mapping으로 제한
+- 후보자에게 실제로 노출되는 문구는 `send` 모드의 downstream delivery pipeline이 필요 시 별도 처리하며, 이 매뉴얼의 완료 조건·품질 감사 대상에서 제외
 
 2.2 변경 요약:
 
@@ -62,7 +68,7 @@
 
 1.5 변경 요약:
 
-- 수동 matching의 consideration 작성, 후보자 평가, 비교, 선택, 후보자-facing 문구 작성을 현재 대화의 실행 agent가 직접 수행하도록 고정
+- 수동 matching의 consideration 작성, 후보자 평가, 비교, 선택, 회사-facing `internal_reason` 작성을 현재 대화의 실행 agent가 직접 수행하도록 고정
 - Anthropic/Claude를 포함한 외부 LLM API·SDK·CLI·worker·sub-agent로 matching 판단을 위임하거나 후보자 데이터를 전송하는 것을 명시적으로 금지
 - 외부 모델 호출을 한 건이라도 시도한 run은 결과를 전부 무효화하고 `invalid_external_model_call`로 종료하며 DB write·queue·발송을 금지
 
@@ -74,9 +80,7 @@
 
 1.3 변경 요약:
 
-- New Harper Agent v2의 final-delivery prompt를 기준으로 recommendation 필드 3개를 후보자-facing 계약으로 재정의
-- `fit_summary`를 개인 적합성 설명이 아닌 회사·역할·기회의 매력을 설명하는 중립 요약으로 변경
-- `fit_reasons`를 후보자에게 이 역할을 제안하는 개인화된 이유로, `tradeoffs`를 후보자가 고려할 사실 기반 caveat·확인사항으로 명확화
+- 과거 버전에서 후보자 화면용 recommendation 상세 필드를 수동 matching 산출물로 다루던 계약은 2.3에서 폐기
 
 1.2 변경 요약:
 
@@ -135,7 +139,7 @@ requested_by=<운영자 식별자>
 | `commit_fit` | 실행 | 실행 | 실행 | 실행 | 실행 | 하지 않음 |
 | `send` | 실행 | 실행 | 실행 | 실행 | 실행 | 실행 |
 
-`execution_mode`가 생략되면 `dry_run`으로 처리한다. `dry_run`의 run memory 저장은 다음 실행을 위한 내부 메모 한 건뿐이며 consideration, candidate review, fit, recommendation, delivery 같은 business data는 변경하지 않는다. `commit_review`는 후보자-facing 효과 없이 role별 평가 이력과 cooldown만 DB에 남기는 모드다. `send`는 후보자에게 이메일·채팅·추천 탭 노출이 발생할 수 있는 외부 효과가 있는 모드다. “문서대로 실행”만으로 발송 권한을 추정하지 않는다. 사용자가 `send`, “발송까지”, “연결 제안까지 보내”처럼 명시해야 한다.
+`execution_mode`가 생략되면 `dry_run`으로 처리한다. `dry_run`의 run memory 저장은 다음 실행을 위한 내부 메모 한 건뿐이며 consideration, candidate review, fit, recommendation, delivery 같은 business data는 변경하지 않는다. `commit_review`는 후보자에게 노출되는 효과 없이 role별 평가 이력과 cooldown만 DB에 남기는 모드다. `send`는 후보자에게 이메일·채팅·추천 탭 노출이 발생할 수 있는 외부 효과가 있는 모드다. “문서대로 실행”만으로 발송 권한을 추정하지 않는다. 사용자가 `send`, “발송까지”, “연결 제안까지 보내”처럼 명시해야 한다.
 
 `max_proposals`는 1~50의 정수여야 한다. 없거나 범위를 벗어나면 임의의 기본값으로 사람 수를 정하지 않고 최종 selection·fit write·발송을 중단한다. consideration과 retrieval만 수행했다면 `incomplete_no_M`으로 보고한다.
 
@@ -149,7 +153,7 @@ requested_by=<운영자 식별자>
 2. retrieval pool 각 후보자의 독립 평가와 점수 산정
 3. Top 50 비교와 finalist·alternate 선택
 4. finalist와 cutoff 후보의 blind second-pass 검토
-5. `internal_reason`, `fit_summary`, `fit_reasons`, `tradeoffs` 작성
+5. `internal_reason` 작성과 `internalReasonSources` 보존
 
 위 작업을 다른 생성형 모델이나 agent에 맡기면 안 된다. 특히 다음 행위는 사용자가 별도로 모델 사용을 허용하지 않는 한 **항상 금지**다.
 
@@ -170,7 +174,7 @@ SQL·DB read, deterministic filtering·scoring·formatting script, 공개 웹 �
 3. `selected_count=0`으로 처리하고 run memory·consideration·review memory·fit DB write, recommendation queue, chat·email 발송을 모두 금지한다.
 4. 해당 run을 이어서 완료 처리하지 않는다. 원인을 제거한 새 timestamp run에서 Phase 0부터 다시 시작한다.
 
-`execution_mode=send`에서 Phase 7이 호출하는 기존 production `harper_worker` delivery pipeline의 내부 문구 생성은 이 수동 matching 판단의 위임으로 간주하지 않는다. 다만 이는 사용자가 `send`를 명시한 경우에만 허용되는 downstream 발송 효과이며, matching agent가 그 worker나 worker의 model을 Phase 1~6 평가·선택·추천 필드 작성에 재사용해서는 안 된다.
+`execution_mode=send`에서 Phase 7이 호출하는 기존 production `harper_worker` delivery pipeline의 내부 문구 생성은 이 수동 matching 판단의 위임으로 간주하지 않는다. 다만 이는 사용자가 `send`를 명시한 경우에만 허용되는 downstream 발송 효과이며, matching agent가 그 worker나 worker의 model을 Phase 1~6 평가·선택·`internal_reason` 작성에 재사용해서는 안 된다.
 
 ## 3. 완료의 정의
 
@@ -185,7 +189,7 @@ SQL·DB read, deterministic filtering·scoring·formatting script, 공개 웹 �
 7. 각 후보자를 다른 후보자와 비교하지 않고 독립적으로 평가했다.
 8. 독립 평가 상위 최대 50명만 모아 비교 평가했다.
 9. 회사 적합도와 후보자 수락 가능성이 모두 기준을 통과한 사람 중 최대 `M`명만 선택했다.
-10. 최종 선택자마다 내부 판단 근거와 후보자-facing `fit_summary`, `fit_reasons`, `tradeoffs`를 작성했다.
+10. 최종 선택자마다 내부 판단 근거와 회사-facing `internal_reason`, 감사용 `internalReasonSources`를 작성했다.
 11. 깊이 검토한 전원에게 `selected`, `eligible_not_selected`, `verification_needed`, `do_not_recommend` 중 하나의 최종 disposition을 남겼고, cooldown 대상과 단순 미선택자를 구분했다.
 12. 다음 run에 실제로 도움이 될 아주 짧은 run memory를 작성해 유효 완료 후 저장했다.
 13. `dry_run`에서는 run memory 외 DB를 변경하지 않았다. `commit_review`, `commit_fit`, `send`에서는 review memory를 저장했고, `commit_fit` 또는 `send`에서는 선택자만 `talent_opportunity_fit`에 호환되는 점수·label·reason으로 반영했다.
@@ -267,23 +271,22 @@ role의 실제 근무 국가·지역, onsite·remote 범위, 고객 지원 지�
 
 ### 4.7 서로 다른 audience의 정보를 섞지 않는다
 
-최소 네 종류의 reasoning을 분리한다.
+최소 세 종류의 reasoning·copy를 분리한다.
 
 1. `audit_reasoning`: Harper 운영자 전용 전체 판단. private request, 회사 피드백, 후보자 대화, 운영 메모, 점수와 탈락 비교를 사용할 수 있다. 회사나 후보자에게 그대로 전달하지 않는다.
 2. `internal_reason`: `talent_opportunity_fit.reason`에 저장되고 회사가 후보자 추천 이유로 읽는 소개문이다. 회사가 알아야 할 후보자의 professional fact·성과·선호·제약을 사용할 수 있지만, Harper 운영 메모, 내부 점수·label, 다른 후보자 정보, DB schema와 source row ID를 노출하지 않는다.
-3. `candidate_recommendation_fields`: 후보자에게 보이는 `fit_summary`, `fit_reasons`, `tradeoffs`. 공개하거나 후보자 본인에게 다시 보여도 안전한 회사·role 사실, 후보자 본인의 profile·선호 근거만 쓴다.
-4. `candidate_proposal_copy`: 후보자에게 role을 제안하는 문구. private company request, 다른 후보자의 거절 이유, 내부 점수·label·메모를 노출하지 않는다.
+3. `candidate_proposal_copy`: 후보자에게 role을 제안하는 문구. private company request, 다른 후보자의 거절 이유, 내부 점수·label·메모를 노출하지 않는다.
 
 `internal_reason`에 사용한 각 주장의 source mapping은 회사가 읽는 본문과 분리해 감사 산출물의 `internalReasonSources`에 보존한다. 회사용 reason에 `talent_insights:123`, `resume:456` 같은 내부 식별자를 붙이지 않는다.
 
-`talent_opportunity_recommendation.fit_summary`, `fit_reasons`, `tradeoffs`는 후보자 화면에 표시되는 문구다. 내부 심사 메모처럼 쓰지 말고, 후보자가 각각 “이 회사와 역할은 무엇인가”, “왜 나에게 제안되었는가”, “검토할 때 어떤 caveat가 있는가”를 이해할 수 있게 작성한다. “이전 후보자는 나이가 많아 거절했지만 이 후보자는 젊다” 같은 문장은 여기에 절대 저장하지 않는다.
+수동 matching agent는 후보자 화면용 recommendation 상세 필드를 직접 작성하지 않는다. 해당 필드가 downstream delivery pipeline에서 생성되더라도 이 매뉴얼의 평가·선택·완료 조건이 아니다. 다만 어떤 후보자 노출 문구에도 “이전 후보자는 나이가 많아 거절했지만 이 후보자는 젊다” 같은 보호 특성·다른 후보자 정보·내부 판단을 저장하거나 전달하면 안 된다.
 
-회사 피드백을 활용하고 싶으면 candidate-facing field에는 그 피드백이나 private request의 존재를 노출하지 않는다. 공개 role·JD·회사 정보와 후보자 본인의 profile·선호만으로 설명할 수 있는 현재 적합성 사실로 다시 쓴다.
+회사 피드백을 활용하고 싶으면 후보자에게 노출되는 문구에는 그 피드백이나 private request의 존재를 드러내지 않는다. 공개 role·JD·회사 정보와 후보자 본인의 profile·선호만으로 설명할 수 있는 현재 적합성 사실로 다시 쓴다.
 
 ```text
 내부 판단: 회사가 이전 후보자의 과도한 seniority와 높은 보상 기대를 이유로 중단했다.
-후보자-facing: 현재 4년의 관련 경력과 hands-on IC 역할을 지속하려는 명시적 선호가
-               이번 포지션의 scope와 일치합니다.
+후보자 노출 가능 표현: 현재 4년의 관련 경력과 hands-on IC 역할을 지속하려는 명시적 선호가
+                    이번 포지션의 scope와 일치합니다.
 ```
 
 ### 4.8 속도나 조기 발견을 품질의 대리변수로 삼지 않는다
@@ -1978,7 +1981,7 @@ Top 50 안에서 상대적으로 하위라고 해서 70점 미만으로 내릴 �
 - 현재 role 상태가 `active`, `top_priority`, `paused` 중 하나
 - 중복 제안 없음
 - 후보자 privacy·opt-out 위반 없음
-- shared reason을 객관적 사실로 작성 가능
+- 발송 reason을 객관적 사실로 작성 가능
 
 최종 선택 수는 `0..M`이다.
 
@@ -2040,7 +2043,7 @@ role_margin = best_role_mutual_score - second_role_mutual_score
 
 동명이인 가능성이 남으면 그 사실을 사용하지 않는다.
 
-최종 선택 예정자는 첫 평가를 보지 않는 독립적인 second-pass reviewer가 hard criteria, 양면 score, 핵심 evidence, candidate-facing recommendation fields를 다시 확인한다. 두 평가의 company fit 또는 candidate acceptance가 10점 이상 차이 나거나 decision이 다르면 자동 평균하지 않고 source를 다시 읽어 불일치 원인을 해결한다. 두 pass의 실제 score와 결론을 그대로 보존하고, 설명 없이 그 사이의 새 숫자를 `resolvedFinal`로 만들지 않는다. 재검토로 점수를 바꾸면 무엇을 과대·과소평가했는지와 선발 판단이 유지되거나 바뀐 이유를 함께 기록한다.
+최종 선택 예정자는 첫 평가를 보지 않는 독립적인 second-pass reviewer가 hard criteria, 양면 score, 핵심 evidence, `internal_reason`을 다시 확인한다. 두 평가의 company fit 또는 candidate acceptance가 10점 이상 차이 나거나 decision이 다르면 자동 평균하지 않고 source를 다시 읽어 불일치 원인을 해결한다. 두 pass의 실제 score와 결론을 그대로 보존하고, 설명 없이 그 사이의 새 숫자를 `resolvedFinal`로 만들지 않는다. 재검토로 점수를 바꾸면 무엇을 과대·과소평가했는지와 선발 판단이 유지되거나 바뀐 이유를 함께 기록한다.
 
 ### 13.3 객관적 고가치 사실의 작성 방식
 
@@ -2102,7 +2105,7 @@ role_margin = best_role_mutual_score - second_role_mutual_score
 
 ## 14. 추천 이유 작성 계약
 
-이 절에서 `internal_reason`은 회사-facing 필드이고, `fit_summary`, `fit_reasons`, `tradeoffs`는 후보자-facing 필드다. 후보자-facing 세 필드의 기준은 New Harper Agent v2의 final-delivery prompt인 `../../harper_worker/opp/agentic/prompts.py`의 `FINAL_DELIVERY_PROMPT_SECTIONS[ActionType.INTERNAL_RECOMMENDATION]`과 `V2_INTERNAL_SUMMARY_OUTPUT_FIELD_SCHEMA`를 따른다. audience가 다른 필드를 서로 섞지 않는다.
+이 절은 회사-facing `internal_reason` 작성 계약이다. 후보자 화면용 recommendation 상세 필드는 수동 matching agent가 작성하지 않으며, 이 매뉴얼의 필수 산출물·완료 조건·품질 감사 대상이 아니다. audience가 다른 필드를 서로 섞지 않는다.
 
 ### 14.1 내부 판단 이유 `internal_reason`
 
@@ -2218,60 +2221,7 @@ AI Solutions Engineer 겸 FDE로 근무하고 있습니다.
 }
 ```
 
-### 14.2 후보자-facing `fit_summary`
-
-후보자가 “이 회사와 역할이 무엇이고, 왜 살펴볼 만한가”를 이해할 수 있는 중립적인 추천 상세 카드 요약이다. 4~8개의 문장으로 작성한다.
-
-- 회사가 무엇을 만들거나 해결하는지 설명한다.
-- 이 role이 맡는 업무, scope 또는 기대 결과를 설명한다.
-- 제품, 기술 문제, 성장 기회, 업무 범위, 투자금, 매출, founder의 퀄리티, 팀의 장점 등 이 회사와 role의 객관적인 매력을 설명한다.
-- 후보자의 경력이나 선호, “왜 이 후보자에게 맞는지”는 여기 쓰지 않는다. 그 내용은 `fit_reasons`에 쓴다.
-- `companyPitch`를 활용할 수 있지만 과장 없이 자연스럽게 다시 쓰고, hidden company request나 내부 평가를 섞지 않는다.
-
-권장 구조:
-
-```text
-[회사]는 [제품·시장·해결하는 문제]를 다루는 회사입니다. 이 역할은 [핵심 업무와
-scope]를 맡으며, [검증된 객관적 매력]을 경험할 수 있는 포지션입니다.
-```
-
-private request, 다른 후보자의 결과, 후보자 개인의 적합성, 내부 점수·label, “회사에서 이걸 좋아한다”는 내부 표현을 쓰지 않는다.
-
-### 14.3 후보자-facing `fit_reasons`
-
-후보자가 “이 역할이 왜 나에게 추천되었는가”를 바로 이해할 수 있는 개인화된 이유다. 최종 선택자에게 1~3개 bullet을 작성하며, 각 bullet은 짧고 구체적으로 하나의 핵심 근거만 담는다.
-
-- 후보자의 경력·성과·대화에서 확인된 역할 방향·명시적 선호를 공개 role·JD·회사 evidence와 연결한다.
-- `candidate fact -> role relevance` 구조로 작성한다.
-- 특정 학교·회사·논문·제품·투자·팀 규모를 언급할 때는 이름을 나열하지 말고 이번 role과의 관련성을 설명한다.
-- profile 한 줄만 보면 놓칠 수 있는 성과의 구체성과 candidate의 명시적 역할 방향을 우선한다.
-- 후보자를 `candidate`라고 부르거나 내부 request, fit score, label, field name, 추천 시스템 동작을 노출하지 않는다.
-- 최근 저장·좋아요·싫어요 같은 행동은 판단 근거로 사용할 수 있지만, “좋아요를 눌렀기 때문에”처럼 추적 사실을 문구에 드러내지 않는다.
-
-예:
-
-```text
-실제 대화형 AI 제품에서 STT-LLM-TTS 파이프라인을 설계·배포한 경험이 이 역할의
-Voice AI agent production scope와 직접 연결됩니다.
-```
-
-### 14.4 `tradeoffs`
-
-후보자가 이 기회를 검토할 때 알아야 할 가장 중요한 사실 기반 caveat 또는 확인사항이다. 최대 1개만 쓰며, 의미 있는 tradeoff가 없으면 빈 값으로 둔다. 개수를 채우기 위해 단점을 만들지 않는다.
-
-- 장점과 기회의 매력은 `fit_summary` 또는 `fit_reasons`에 쓰고, `tradeoffs`에는 후보자 입장에서 실제 의사결정에 영향을 줄 수 있는 단점·전환 비용·미확정 조건을 쓴다.
-- location, office 근무, compensation, role scope, company stage처럼 확인된 role 사실과 후보자의 명시적 선호가 충돌하면 구체적으로 설명한다.
-- 일반론만 쓰지 않는다. “빠른 성장에 적응이 필요합니다”, “추가 확인이 필요합니다”처럼 어느 역할에도 붙일 수 있는 문장은 금지한다.
-- 정보 부족을 확정적 약점처럼 쓰지 말고 무엇이 미확정인지 정확히 적는다.
-- hard blocker가 남으면 tradeoff로 축소하지 말고 선발하지 않는다.
-
-예:
-
-```text
-Palo Alto 오피스 근무 비중이 있어 remote 선호가 강하다면 근무 방식 확인이 필요합니다.
-```
-
-### 14.5 과거 거절 기준을 활용하는 올바른 방식
+### 14.2 과거 거절 기준을 활용하는 올바른 방식
 
 내부 문서에는 명시적으로 비교할 수 있다.
 
@@ -2281,14 +2231,14 @@ Palo Alto 오피스 근무 비중이 있어 remote 선호가 강하다면 근무
 명시해 동일 criterion을 충족한다.
 ```
 
-후보자-facing 문구에는 다른 후보자를 언급하지 않는다.
+후보자에게 노출되는 문구에는 다른 후보자를 언급하지 않는다.
 
 ```text
 관련 경력 4년과 최근까지의 hands-on product ownership이 이번 IC role의 scope와
 직접 일치합니다.
 ```
 
-### 14.6 추천 문구 금지 사항
+### 14.3 추천 문구 금지 사항
 
 - 근거 없는 능력·성격 평가
 - 보호 특성 또는 나이 대리변수
@@ -2528,7 +2478,7 @@ WHERE tu.user_id = :talent_id::uuid
 - `is_expired=true`
 - `benchmark_do_not_send='true'`
 - source timestamp 변경
-- shared reason에 검증되지 않은 사실이 남음
+- 발송 reason에 검증되지 않은 사실이 남음
 - hard criterion이 다시 unknown/fail이 됨
 
 ### 16.3.1 `accepted_unprocessed` 선정자의 처리
@@ -2588,7 +2538,7 @@ SELECT pg_advisory_unlock(
 }
 ```
 
-`reason`에는 private company feedback 전체를 넣지 않는다. final writer가 후보자-facing copy에 노출해도 안전한 사실만 넣는다.
+`reason`에는 private company feedback 전체를 넣지 않는다. final writer가 후보자 노출 copy에 사용해도 안전한 사실만 넣는다.
 
 현재 경로의 동작:
 
@@ -2676,9 +2626,6 @@ SELECT
   rec.id AS recommendation_id,
   rec.role_id,
   rec.opportunity_type,
-  rec.fit_summary,
-  rec.fit_reasons,
-  rec.tradeoffs,
   rec.score AS recommendation_score
 FROM public.opportunity_discovery_run run
 LEFT JOIN public.talent_opportunity_recommendation rec
@@ -2692,7 +2639,7 @@ ORDER BY run.created_at;
 - 각 selected talent에 run 하나
 - role ID가 정확함
 - `opportunity_type='internal_recommendation'`
-- shared reason이 objective하고 private 정보를 노출하지 않음
+- recommendation 생성·delivery 과정에 private 정보가 노출되지 않음
 - unexpected external recommendation 없음
 - 추천 수가 M 이하
 
@@ -2774,7 +2721,6 @@ ORDER BY discovery_run_id, created_at;
 - system adjustment 반영 후 company fit / candidate acceptance / confidence / mutual score
 - hard criteria pass 요약
 - internal reason 요약
-- shared fit summary와 reasons
 - 핵심 caveat
 - fit write 결과
 - send 모드일 때 run/recommendation/delivery 상태
@@ -2892,8 +2838,8 @@ selected 후보가 0명인 것은 실패가 아니다. “이번 role에 현재 
 
 ### 문구
 
-- [ ] 운영자 전용 `audit_reasoning`, 회사-facing `internal_reason`, candidate-facing recommendation fields·proposal copy를 분리했다.
-- [ ] 현재 Codex agent가 추천 필드를 직접 작성했고 외부 LLM·worker에 생성을 맡기지 않았다.
+- [ ] 운영자 전용 `audit_reasoning`, 회사-facing `internal_reason`, 후보자 노출 copy를 분리했다.
+- [ ] 현재 Codex agent가 `internal_reason`을 직접 작성했고 외부 LLM·worker에 생성을 맡기지 않았다.
 - [ ] `internal_reason`은 “JD를 통과했다”가 아니라 “통과자 중 왜 이 후보자를 우선 봐야 하는가”에 답한다.
 - [ ] `internal_reason`의 첫 부분에 후보자의 고유한 객관적 성취와 간과하기 쉬운 경력 맥락이 나온다.
 - [ ] 회사 성장·투자 같은 환경 맥락과 후보자 개인에게 귀속되는 기여를 구분했다.
@@ -2909,10 +2855,7 @@ selected 후보가 0명인 것은 실패가 아니다. “이번 role에 현재 
 - [ ] 짧은 문단, 선별적인 굵은 강조, `Note` 등 Markdown을 사용해 읽기 쉽게 작성했다.
 - [ ] 별도 편집 pass에서 약한 첫 문단, profile 중복, 새 정보가 없는 문장, 내부 평가 용어와 keyword 나열을 제거했다.
 - [ ] 최종 Markdown을 preview해 실제 렌더링과 문단 가독성을 확인했다.
-- [ ] `fit_summary`는 회사·role·객관적 매력만 1~3문장으로 설명하고 개인 적합성은 넣지 않았다.
-- [ ] `fit_reasons`는 후보자 본인의 근거와 role evidence를 연결한 개인화된 이유 1~3개다.
-- [ ] `tradeoffs`는 의미 있는 사실 기반 caveat·확인사항 최대 1개이며, 없으면 비워 두었다.
-- [ ] 다른 후보자의 거절 이유를 candidate-facing copy에 노출하지 않았다.
+- [ ] 다른 후보자의 거절 이유를 후보자 노출 copy에 노출하지 않았다.
 - [ ] objective fact와 role relevance를 연결했다.
 - [ ] 창업·투자·논문·팀 규모 같은 사실을 검증했다.
 - [ ] 외부 검증에 private resume·대화·연락처를 전송하지 않았다.

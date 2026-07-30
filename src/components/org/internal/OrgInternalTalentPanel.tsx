@@ -120,16 +120,6 @@ export default function OrgInternalTalentPanel({
       className="min-h-[440px] border-y border-neutral-1000-a05 bg-bg-default"
       showLabel={false}
     >
-      <div className="relative z-20 flex items-start gap-1.5 border-b border-neutral-1000-a10 bg-neutral-1000 px-2.5 py-2 text-neutral-00">
-        <Eye className="mt-0.5 size-3.5 shrink-0" />
-        <div>
-          <div className="text-[13px] font-medium">Harper 내부 전용</div>
-          <div className="mt-1 text-[12px] font-light leading-5 text-neutral-00/70">
-            아래 정보는 실제 회사 사용자에게 응답하거나 표시하지 않습니다.
-          </div>
-        </div>
-      </div>
-
       <div className="flex overflow-x-auto border-b border-neutral-1000-a05 bg-bg-default px-1.5">
         {INTERNAL_TABS.map((tab) => (
           <MuteButton

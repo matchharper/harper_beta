@@ -25,14 +25,15 @@ export const getStaticPaths: GetStaticPaths<
   CareerTabPageParams
 > = async () => ({
   paths: CAREER_TAB_PATHS,
-  fallback: false,
+  fallback: "blocking",
 });
 
 export const getStaticProps: GetStaticProps<
   CareerTabPageProps,
   CareerTabPageParams
 > = async (context) => {
-  const rawTab = context.params?.tab?.[0] ?? null;
+  const tabSegments = context.params?.tab ?? [];
+  const rawTab = tabSegments[0] ?? null;
 
   if (!rawTab) {
     return {
@@ -42,9 +43,12 @@ export const getStaticProps: GetStaticProps<
     };
   }
 
-  if (!isCareerWorkspaceTab(rawTab)) {
+  if (tabSegments.length !== 1 || !isCareerWorkspaceTab(rawTab)) {
     return {
-      notFound: true,
+      redirect: {
+        destination: "/career",
+        permanent: false,
+      },
     };
   }
 

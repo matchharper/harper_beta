@@ -1,4 +1,13 @@
-import { useSetOrgCandidateStage } from "@/hooks/org/useOrg";
+import { useMemo, useRef } from "react";
+import {
+  usePendingOrgCandidateStageMutations,
+  useSetOrgCandidateStage,
+} from "@/hooks/org/useOrg";
+import {
+  buildPendingOrgCandidateStageMap,
+  getOrgCandidateStageMutationIdentity,
+  type OrgCandidateStageMutationInput,
+} from "@/lib/org/candidateStageClient";
 import type {
   OrgBoardItem,
   OrgStageChangeOptions,
@@ -17,12 +26,47 @@ export function useOrgCandidateActions(args: {
 }) {
   const addToast = useToastStore((state) => state.add);
   const setStage = useSetOrgCandidateStage();
-  const pendingRecommendationId = setStage.isPending
-    ? (setStage.variables?.recommendationId ?? null)
-    : null;
-  const pendingStage = setStage.isPending
-    ? (setStage.variables?.stage ?? null)
-    : null;
+  const pendingStageMutations = usePendingOrgCandidateStageMutations();
+  const locallyPendingCandidateKeysRef = useRef(new Set<string>());
+  const pendingStageByCandidateKey = useMemo(
+    () =>
+      buildPendingOrgCandidateStageMap(pendingStageMutations, args.workspaceId),
+    [args.workspaceId, pendingStageMutations]
+  );
+  const getCandidateKey = (candidate: { roleId: string; talentId: string }) =>
+    getOrgCandidateStageMutationIdentity({
+      ...candidate,
+      workspaceId: args.workspaceId,
+    });
+  const getPendingStage = (candidate: { roleId: string; talentId: string }) =>
+    pendingStageByCandidateKey.get(getCandidateKey(candidate))?.stage ?? null;
+  const isCandidateStagePending = (candidate: {
+    roleId: string;
+    talentId: string;
+  }) => {
+    const candidateKey = getCandidateKey(candidate);
+    return (
+      pendingStageByCandidateKey.has(candidateKey) ||
+      locallyPendingCandidateKeysRef.current.has(candidateKey)
+    );
+  };
+  const runStageMutation = async (input: OrgCandidateStageMutationInput) => {
+    const candidateKey = getOrgCandidateStageMutationIdentity(input);
+    if (
+      pendingStageByCandidateKey.has(candidateKey) ||
+      locallyPendingCandidateKeysRef.current.has(candidateKey)
+    ) {
+      return false;
+    }
+
+    locallyPendingCandidateKeysRef.current.add(candidateKey);
+    try {
+      await setStage.mutateAsync(input);
+      return true;
+    } finally {
+      locallyPendingCandidateKeysRef.current.delete(candidateKey);
+    }
+  };
 
   const changeStage = async (
     item: OrgBoardItem,
@@ -31,7 +75,7 @@ export function useOrgCandidateActions(args: {
   ) => {
     if (!args.canManageCandidates) return;
     try {
-      await setStage.mutateAsync({
+      const changed = await runStageMutation({
         acceptReason: options?.acceptReason ?? null,
         contactDirectly: options?.contactDirectly ?? false,
         emailMode: options?.emailMode,
@@ -40,10 +84,10 @@ export function useOrgCandidateActions(args: {
         roleId: item.roleId,
         stage,
         stopNote: options?.stopNote ?? null,
-        stopReason: options?.stopReason ?? null,
         talentId: item.talentId,
         workspaceId: args.workspaceId,
       });
+      if (!changed) return;
       addToast({
         message: "후보자 상태를 변경했습니다.",
         variant: "success",
@@ -78,7 +122,7 @@ export function useOrgCandidateActions(args: {
       args.activeDetailRecommendationId;
     const talentId = args.detail?.talent.userId ?? args.activeDetailTalentId;
     if (!roleId || !recommendationId || !talentId) return;
-    await setStage.mutateAsync({
+    const changed = await runStageMutation({
       acceptReason,
       contactDirectly,
       introEmails,
@@ -86,10 +130,10 @@ export function useOrgCandidateActions(args: {
       roleId,
       stage,
       stopNote: null,
-      stopReason: null,
       talentId,
       workspaceId: args.workspaceId,
     });
+    if (!changed) return;
     addToast({
       message: "후보자 연결을 수락했습니다.",
       variant: "success",
@@ -104,19 +148,19 @@ export function useOrgCandidateActions(args: {
       args.activeDetailRecommendationId;
     const talentId = args.detail?.talent.userId ?? args.activeDetailTalentId;
     if (!roleId || !recommendationId || !talentId) return;
-    await setStage.mutateAsync({
+    const changed = await runStageMutation({
       acceptReason: null,
       introEmails: null,
       recommendationId,
       roleId,
       stage: "process_stopped",
       stopNote: options.stopNote ?? null,
-      stopReason: options.stopReason ?? null,
       talentId,
       workspaceId: args.workspaceId,
     });
+    if (!changed) return;
     addToast({
-      message: "후보자 프로세스를 종료했습니다.",
+      message: "이 후보자와 연결받지 않기로 했습니다.",
       variant: "success",
     });
   };
@@ -132,7 +176,7 @@ export function useOrgCandidateActions(args: {
     const talentId = args.detail?.talent.userId ?? args.activeDetailTalentId;
     if (!roleId || !recommendationId || !talentId) return;
     try {
-      await setStage.mutateAsync({
+      const changed = await runStageMutation({
         acceptReason: null,
         contactDirectly: false,
         emailMode,
@@ -141,10 +185,10 @@ export function useOrgCandidateActions(args: {
         roleId,
         stage: "pending_connection",
         stopNote: null,
-        stopReason: null,
         talentId,
         workspaceId: args.workspaceId,
       });
+      if (!changed) return;
       addToast({
         message: "연결 대기 상태로 옮겼습니다.",
         variant: "success",
@@ -164,9 +208,9 @@ export function useOrgCandidateActions(args: {
   return {
     acceptTalent,
     changeStage,
+    getPendingStage,
+    isCandidateStagePending,
     moveTalentToPendingConnection,
-    pendingRecommendationId,
-    pendingStage,
     rejectTalent,
   };
 }

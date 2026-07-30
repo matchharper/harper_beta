@@ -735,7 +735,7 @@ export default function RadarLandingPage() {
 
       if (!normalizedValues.name || !normalizedValues.company) {
         showToast({
-          message: m.invitation.requestAccess.errors.invalidForm,
+          message: m.requestAccess.errors.invalidForm,
           variant: "white",
         });
         return;
@@ -744,7 +744,7 @@ export default function RadarLandingPage() {
       const accessToken = await getAccessToken();
       if (!accessToken) {
         showToast({
-          message: m.invitation.requestAccess.errors.missingSession,
+          message: m.requestAccess.errors.missingSession,
           variant: "white",
         });
         setIsOpenRequestAccessModal(false);
@@ -766,7 +766,7 @@ export default function RadarLandingPage() {
 
       if (!response.ok) {
         showToast({
-          message: m.invitation.requestAccess.errors.submitFailed,
+          message: m.requestAccess.errors.submitFailed,
           variant: "white",
         });
         return;
@@ -775,11 +775,11 @@ export default function RadarLandingPage() {
       await addLandingLog("submit_request_access");
       setHasSubmittedRequestAccess(true);
       showToast({
-        message: m.invitation.requestAccess.submitted,
+        message: m.requestAccess.submitted,
         variant: "white",
       });
     },
-    [addLandingLog, getAccessToken, isMobile, m.invitation.requestAccess]
+    [addLandingLog, getAccessToken, isMobile, m.requestAccess]
   );
 
   const logCompletedLogin = useCallback(
@@ -1112,11 +1112,11 @@ export default function RadarLandingPage() {
             open={isOpenRequestAccessModal}
             onClose={handleCloseRequestAccessModal}
             onSubmit={submitRequestAccess}
-            title={m.invitation.title}
-            description={m.invitation.description}
-            requestCopy={m.invitation.requestAccess}
+            title={m.requestAccess.title}
+            description={m.requestAccess.description}
+            requestCopy={m.requestAccess}
             submitted={hasSubmittedRequestAccess}
-            submittedMessage={m.invitation.requestAccess.submitted}
+            submittedMessage={m.requestAccess.submitted}
             initialValues={requestAccessInitialValues}
           />
         ) : null}

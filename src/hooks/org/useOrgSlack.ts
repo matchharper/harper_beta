@@ -8,50 +8,34 @@ import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import { queryKeys } from "@/lib/queryKeys";
 
 export type OrgSlackStatus = {
-  channelId: string | null;
-  channelName: string | null;
+  availableChannels: Array<{
+    channelId: string;
+    channelName: string | null;
+    isPrivate: boolean;
+  }>;
+  channels: Array<{
+    channelId: string;
+    channelName: string | null;
+    defaultRoleId: string | null;
+    isEnabled: boolean;
+    isPrivate: boolean;
+    replyToHarperThreads: boolean;
+    respondToMentions: boolean;
+  }>;
   connected: boolean;
-  connectedAt: string | null;
-  lastError: string | null;
-  lastSentAt: string | null;
-  notifications: {
-    candidateAccepted: boolean;
-    candidateRejected: boolean;
-    memberJoined: boolean;
-  };
   teamId: string | null;
   teamName: string | null;
 };
 
-export function useUpdateOrgSlackNotifications(workspaceId: string) {
+export function useAddOrgSlackChannel(workspaceId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (notifications: OrgSlackStatus["notifications"]) =>
+    mutationFn: (args: { channelId: string }) =>
       fetchWithInternalAuth<{ ok: true }>("/api/org/slack", {
-        body: JSON.stringify({ notifications, workspaceId }),
+        body: JSON.stringify({ action: "add_channel", ...args, workspaceId }),
         headers: { "Content-Type": "application/json" },
-        method: "PATCH",
+        method: "POST",
       }),
-    onMutate: async (notifications) => {
-      const queryKey = queryKeys.org.slack(workspaceId);
-      await queryClient.cancelQueries({ queryKey });
-      const previous = queryClient.getQueryData<OrgSlackStatus>(queryKey);
-      if (previous) {
-        queryClient.setQueryData<OrgSlackStatus>(queryKey, {
-          ...previous,
-          notifications,
-        });
-      }
-      return { previous };
-    },
-    onError: (_error, _notifications, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(
-          queryKeys.org.slack(workspaceId),
-          context.previous
-        );
-      }
-    },
     onSettled: () =>
       queryClient.invalidateQueries({
         queryKey: queryKeys.org.slack(workspaceId),
@@ -92,14 +76,14 @@ export function useConnectOrgSlack() {
   });
 }
 
-export function useTestOrgSlack(workspaceId: string) {
+export function useDisconnectOrgSlack(workspaceId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () =>
       fetchWithInternalAuth<{ ok: true }>("/api/org/slack", {
-        body: JSON.stringify({ action: "test", workspaceId }),
+        body: JSON.stringify({ workspaceId }),
         headers: { "Content-Type": "application/json" },
-        method: "POST",
+        method: "DELETE",
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -109,12 +93,12 @@ export function useTestOrgSlack(workspaceId: string) {
   });
 }
 
-export function useDisconnectOrgSlack(workspaceId: string) {
+export function useRemoveOrgSlackChannel(workspaceId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () =>
+    mutationFn: (channelId: string) =>
       fetchWithInternalAuth<{ ok: true }>("/api/org/slack", {
-        body: JSON.stringify({ workspaceId }),
+        body: JSON.stringify({ channelId, workspaceId }),
         headers: { "Content-Type": "application/json" },
         method: "DELETE",
       }),

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   BookOpen,
   BriefcaseBusiness,
@@ -50,6 +50,7 @@ import { Input as UiInput } from "@/components/ui/input";
 import {
   useOpsMatchingTalentHistory,
   useOpsMatchingTalents,
+  usePendingOpsMatchingFitHumanLabelMutations,
   useUpdateOpsMatchingFitHumanLabel,
 } from "@/hooks/ops/useOpsMatching";
 import type {
@@ -60,6 +61,7 @@ import type {
   OpsMatchingTalentHistorySection,
   OpsMatchingTalentItem,
 } from "@/lib/ops/matching";
+import { buildPendingOpsMatchingFitHumanLabelIds } from "@/lib/ops/matchingClient";
 
 type MatchingTalentBrowserProps = {
   canFetchInternal: boolean;
@@ -188,7 +190,7 @@ function MatchingTalentTable({
   onHumanLabelChange,
   onSelect,
   talents,
-  updatingFitId,
+  updatingFitIds,
   visibleSections,
 }: {
   onHumanLabelChange: (
@@ -197,7 +199,7 @@ function MatchingTalentTable({
   ) => void;
   onSelect: (talent: OpsMatchingTalentItem) => void;
   talents: OpsMatchingTalentItem[];
-  updatingFitId: string | null;
+  updatingFitIds: ReadonlySet<string>;
   visibleSections: CardViewSectionId[];
 }) {
   const visibleSectionSet = new Set(visibleSections);
@@ -277,7 +279,7 @@ function MatchingTalentTable({
                       </div>
                     ) : null}
                     <MatchingFitLabelCell
-                      isUpdating={updatingFitId === talent.fit.fitId}
+                      isUpdating={updatingFitIds.has(talent.fit.fitId)}
                       item={talent.fit}
                       onHumanLabelChange={(_, label) =>
                         onHumanLabelChange(talent, label)
@@ -315,7 +317,7 @@ function MatchingTalentCards({
   onHumanLabelChange,
   onSelect,
   talents,
-  updatingFitId,
+  updatingFitIds,
   visibleSections,
 }: {
   historyByTalentId: Map<string, OpsMatchingTalentHistoryItem>;
@@ -327,7 +329,7 @@ function MatchingTalentCards({
   ) => void;
   onSelect: (talent: OpsMatchingTalentItem) => void;
   talents: OpsMatchingTalentItem[];
-  updatingFitId: string | null;
+  updatingFitIds: ReadonlySet<string>;
   visibleSections: CardViewSectionId[];
 }) {
   const visibleSectionSet = new Set(visibleSections);
@@ -366,7 +368,7 @@ function MatchingTalentCards({
             <MatchingTalentCardDecision
               onHumanLabelChange={onHumanLabelChange}
               talent={talent}
-              updatingFitId={updatingFitId}
+              updatingFitIds={updatingFitIds}
             />
           </div>
         </div>
@@ -959,14 +961,14 @@ function isHoldOrAmbiguousFit(fit: OpsMatchingTalentItem["fit"]) {
 function MatchingTalentCardDecision({
   onHumanLabelChange,
   talent,
-  updatingFitId,
+  updatingFitIds,
 }: {
   onHumanLabelChange: (
     talent: OpsMatchingTalentItem,
     label: OpsMatchingFitLabel | null
   ) => void;
   talent: OpsMatchingTalentItem;
-  updatingFitId: string | null;
+  updatingFitIds: ReadonlySet<string>;
 }) {
   const holdSummary =
     talent.fit && isHoldOrAmbiguousFit(talent.fit)
@@ -1000,7 +1002,7 @@ function MatchingTalentCardDecision({
               </div>
             </div>
             <MatchingFitLabelCell
-              isUpdating={updatingFitId === talent.fit.fitId}
+              isUpdating={updatingFitIds.has(talent.fit.fitId)}
               item={talent.fit}
               onHumanLabelChange={(_, label) =>
                 onHumanLabelChange(talent, label)
@@ -1061,6 +1063,7 @@ export function MatchingTalentBrowser({
   );
   const [selectedTalent, setSelectedTalent] =
     useState<OpsMatchingTalentItem | null>(null);
+  const [humanLabelError, setHumanLabelError] = useState("");
   const normalizedLlmLabelFilters = useMemo(
     () => normalizeFitLabelFilters(llmLabelFilters),
     [llmLabelFilters]
@@ -1081,6 +1084,13 @@ export function MatchingTalentBrowser({
     roleId: role.roleId,
   });
   const updateHumanLabel = useUpdateOpsMatchingFitHumanLabel();
+  const pendingHumanLabelMutations =
+    usePendingOpsMatchingFitHumanLabelMutations();
+  const locallyUpdatingFitIdsRef = useRef(new Set<string>());
+  const updatingFitIds = useMemo(
+    () => buildPendingOpsMatchingFitHumanLabelIds(pendingHumanLabelMutations),
+    [pendingHumanLabelMutations]
+  );
   const talents = useMemo(
     () => talentsQuery.data?.pages.flatMap((page) => page.items) ?? [],
     [talentsQuery.data?.pages]
@@ -1130,11 +1140,31 @@ export function MatchingTalentBrowser({
     talent: OpsMatchingTalentItem,
     label: OpsMatchingFitLabel | null
   ) => {
-    if (updateHumanLabel.isPending || !talent.fit) return;
-    updateHumanLabel.mutate({
-      fitId: talent.fit.fitId,
-      humanLabel: label,
-    });
+    const fitId = talent.fit?.fitId;
+    if (
+      !fitId ||
+      updatingFitIds.has(fitId) ||
+      locallyUpdatingFitIdsRef.current.has(fitId)
+    ) {
+      return;
+    }
+    locallyUpdatingFitIdsRef.current.add(fitId);
+    setHumanLabelError("");
+    void updateHumanLabel
+      .mutateAsync({
+        fitId,
+        humanLabel: label,
+      })
+      .catch((error) => {
+        setHumanLabelError(
+          error instanceof Error
+            ? error.message
+            : "Human label을 저장하지 못했습니다."
+        );
+      })
+      .finally(() => {
+        locallyUpdatingFitIdsRef.current.delete(fitId);
+      });
   };
   const handleCardViewSectionToggle = (
     sectionId: CardViewSectionId,
@@ -1282,12 +1312,8 @@ export function MatchingTalentBrowser({
         </div>
       </div>
 
-      {updateHumanLabel.error ? (
-        <div className={opsTheme.errorNotice}>
-          {updateHumanLabel.error instanceof Error
-            ? updateHumanLabel.error.message
-            : "Human label을 저장하지 못했습니다."}
-        </div>
+      {humanLabelError ? (
+        <div className={opsTheme.errorNotice}>{humanLabelError}</div>
       ) : null}
 
       {talentsQuery.isLoading ? (
@@ -1309,7 +1335,7 @@ export function MatchingTalentBrowser({
           onHumanLabelChange={handleHumanLabelChange}
           talents={talents}
           onSelect={setSelectedTalent}
-          updatingFitId={updateHumanLabel.variables?.fitId ?? null}
+          updatingFitIds={updatingFitIds}
           visibleSections={cardViewSections}
         />
       ) : (
@@ -1320,7 +1346,7 @@ export function MatchingTalentBrowser({
           onHumanLabelChange={handleHumanLabelChange}
           talents={talents}
           onSelect={setSelectedTalent}
-          updatingFitId={updateHumanLabel.variables?.fitId ?? null}
+          updatingFitIds={updatingFitIds}
           visibleSections={cardViewSections}
         />
       )}

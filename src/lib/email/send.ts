@@ -4,7 +4,7 @@ type SendResendEmailArgs = {
   headers?: Record<string, string>;
   html: string;
   idempotencyKey?: string;
-  replyTo?: string | null;
+  replyTo?: string | string[] | null;
   subject: string;
   text: string;
   to: string;
@@ -42,8 +42,11 @@ export async function sendResendEmail(args: SendResendEmailArgs) {
   if (args.headers && Object.keys(args.headers).length > 0) {
     payload.headers = args.headers;
   }
-  if (args.replyTo?.trim()) {
-    payload.reply_to = args.replyTo.trim();
+  const replyTo = Array.isArray(args.replyTo)
+    ? args.replyTo.map((email) => email.trim()).filter(Boolean)
+    : args.replyTo?.trim();
+  if (replyTo && (!Array.isArray(replyTo) || replyTo.length > 0)) {
+    payload.reply_to = replyTo;
   }
 
   const headers: Record<string, string> = {

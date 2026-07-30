@@ -7,6 +7,11 @@ import {
   isOrgInvitationForUser,
 } from "@/lib/org/access";
 import { buildOrgIntroEmailDraft } from "@/lib/org/introEmail";
+import {
+  canInitiateOrgCandidateContact,
+  isOrgInternalStage,
+  requiresOrgIntroEmailRecipient,
+} from "@/lib/org/candidateDecision";
 import { buildOrgInviteEmail } from "@/lib/org/inviteEmail";
 import {
   getOrgPermissions,
@@ -14,6 +19,7 @@ import {
   type OrgMembershipRole,
 } from "@/lib/org/permissions";
 import { getOrgImplicitAcceptanceStage } from "@/lib/org/recommendationStage";
+import { normalizeOrgRoleStatus } from "@/lib/org/roleStatus";
 import {
   ConnectionConfirmationEmailError,
   fetchInternalConnectionConfirmationEmails,
@@ -25,7 +31,7 @@ import {
 } from "@/lib/ops/connectionConfirmationEmail";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import {
-  notifyOrgCandidateAcceptedSlack,
+  // notifyOrgCandidateAcceptedSlack,
   notifyOrgCandidateRejectedSlack,
   notifyOrgMemberJoinedSlack,
 } from "@/lib/org/slack";
@@ -148,6 +154,13 @@ export type OrgMembershipRoleUpdateResponse = {
   ok: true;
   role: OrgMembershipRole;
   userId: string;
+};
+
+export type OrgMemberRemoveResponse = {
+  nextWorkspaceId: string | null;
+  ok: true;
+  userId: string;
+  workspaceId: string;
 };
 
 export type OrgWorkspaceLeaveResponse = {
@@ -288,6 +301,7 @@ export type OrgFeedItem = {
 };
 
 export type OrgProfileExperience = {
+  companyLogo: string | null;
   companyLocation: string | null;
   companyName: string | null;
   description: string | null;
@@ -363,15 +377,12 @@ export type OrgResumeAccessResponse = {
   url: string;
 };
 
-export type OrgStopReason = "candidate" | "company";
-
 export type OrgStageChangeOptions = {
   acceptReason?: string | null;
   contactDirectly?: boolean;
   emailMode?: InternalConnectionConfirmationEmailMode;
   introEmails?: string[] | null;
   stopNote?: string | null;
-  stopReason?: OrgStopReason | null;
 };
 
 const CUSTOM_STAGE_ID_PREFIX = "custom:";
@@ -477,13 +488,6 @@ function buildVirtualOrgMember(user: User): OrgMember {
   };
 }
 
-const ORG_ROLE_STATUS_VALUES = [
-  "top_priority",
-  "active",
-  "ended",
-  "paused",
-  "deleted",
-] as const;
 const ORG_ROLE_EMPLOYMENT_TYPE_VALUES = [
   "full_time",
   "part_time",
@@ -491,15 +495,6 @@ const ORG_ROLE_EMPLOYMENT_TYPE_VALUES = [
   "contract",
 ] as const;
 const ORG_ROLE_WORK_MODE_VALUES = ["onsite", "hybrid", "remote"] as const;
-
-function normalizeOrgRoleStatus(value: unknown) {
-  const normalized = normalizeText(value);
-  return ORG_ROLE_STATUS_VALUES.includes(
-    normalized as (typeof ORG_ROLE_STATUS_VALUES)[number]
-  )
-    ? normalized
-    : "active";
-}
 
 function normalizeOrgRoleEmploymentTypes(value: unknown) {
   const values = Array.isArray(value) ? value : [];
@@ -842,7 +837,12 @@ function getVisibleOrgStage(args: {
         : null;
     }
     const builtIn = STAGE_BY_TAG_KEY.get(tagKey);
-    if (builtIn) return { stage: builtIn, stageTag: tag.tag };
+    if (builtIn) {
+      if (isOrgInternalStage(builtIn) && !args.includeInternalAccepted) {
+        return null;
+      }
+      return { stage: builtIn, stageTag: tag.tag };
+    }
     if (tagKey === normalizeTagKey("내부:연결됨")) {
       return { stage: "connected", stageTag: tag.tag };
     }
@@ -1162,6 +1162,75 @@ export async function leaveOrgWorkspace(args: {
   return {
     nextWorkspaceId: remainingMemberships[0]?.company_workspace_id ?? null,
     ok: true,
+    workspaceId,
+  };
+}
+
+export async function removeOrgWorkspaceMember(args: {
+  user: User;
+  userId: string;
+  workspaceId: string;
+}): Promise<OrgMemberRemoveResponse> {
+  const userId = normalizeText(args.userId);
+  const workspaceId = normalizeText(args.workspaceId);
+  if (!userId || !workspaceId) {
+    throw new OrgHttpError(400, "Missing required fields");
+  }
+
+  const admin = getSupabaseAdmin();
+  await assertOrgWorkspacePermission({
+    admin,
+    permission: "manage_members",
+    user: args.user,
+    workspaceId,
+  });
+
+  const { data: membership, error: membershipError } = await (
+    admin.from("company_user_workspace" as any) as any
+  )
+    .select("id, role")
+    .eq("company_user_id", userId)
+    .eq("company_workspace_id", workspaceId)
+    .maybeSingle();
+  if (membershipError) throw membershipError;
+  if (!membership) throw new OrgHttpError(404, "멤버를 찾지 못했습니다.");
+
+  if (normalizeOrgMembershipRole(membership.role) === "owner") {
+    const { count, error: ownerCountError } = await (
+      admin.from("company_user_workspace" as any) as any
+    )
+      .select("id", { count: "exact", head: true })
+      .eq("company_workspace_id", workspaceId)
+      .eq("role", "owner");
+    if (ownerCountError) throw ownerCountError;
+    if ((count ?? 0) <= 1) {
+      throw new OrgHttpError(409, "마지막 Owner는 제거할 수 없습니다.");
+    }
+  }
+
+  const { data: removedMembership, error: deleteError } = await (
+    admin.from("company_user_workspace" as any) as any
+  )
+    .delete()
+    .eq("id", membership.id)
+    .eq("company_user_id", userId)
+    .select("id")
+    .maybeSingle();
+  if (deleteError) throw deleteError;
+  if (!removedMembership) {
+    throw new OrgHttpError(404, "이미 제거되었거나 멤버를 찾지 못했습니다.");
+  }
+
+  let nextWorkspaceId: string | null = null;
+  if (userId === args.user.id) {
+    const remainingMemberships = await fetchMembershipsForUser(admin, userId);
+    nextWorkspaceId = remainingMemberships[0]?.company_workspace_id ?? null;
+  }
+
+  return {
+    nextWorkspaceId,
+    ok: true,
+    userId,
     workspaceId,
   };
 }
@@ -1689,7 +1758,15 @@ function buildBoardStages(args: {
     }),
     { id: "final_offer", label: "최종 오퍼", sortOrder: 10_000 },
     { id: "process_stopped", label: "프로세스 중단", sortOrder: 10_001 },
-    { id: "archived", label: "아카이브", sortOrder: 10_002 },
+    ...(args.includeInternalAccepted
+      ? [
+          {
+            id: "archived" as const,
+            label: "아카이브",
+            sortOrder: 10_002,
+          },
+        ]
+      : []),
   ];
 
   return stages.sort((left, right) => left.sortOrder - right.sortOrder);
@@ -1869,6 +1946,7 @@ async function fetchTalentRows(
 }
 
 export async function fetchOrgBoard(args: {
+  includeInternalStages?: boolean;
   includeProfileLabels?: boolean;
   query?: string | null;
   recommendedDate?: string | null;
@@ -1881,7 +1959,8 @@ export async function fetchOrgBoard(args: {
   const admin = getSupabaseAdmin();
   const workspaceId = normalizeText(args.workspaceId);
   const selectedRoleId = normalizeNullableText(args.roleId);
-  const includeInternalAccepted = hasOrgAllWorkspaceAccess(args.user);
+  const includeInternalAccepted =
+    args.includeInternalStages !== false && hasOrgAllWorkspaceAccess(args.user);
 
   if (!workspaceId) throw new OrgHttpError(400, "workspaceId is required");
   await assertOrgWorkspacePermission({
@@ -2491,6 +2570,7 @@ async function sendOrgIntroEmail(args: {
       from: fromEmail,
       html: renderEmailBodyHtml(body),
       idempotencyKey: identity.idempotencyKey,
+      replyTo: recipients,
       subject,
       text: body,
       to: candidateEmail,
@@ -2585,7 +2665,6 @@ export async function setOrgCandidateStage(args: {
   roleId: string;
   stage: OrgStageId;
   stopNote?: string | null;
-  stopReason?: OrgStopReason | null;
   talentId: string;
   user: User;
   workspaceId: string;
@@ -2597,31 +2676,22 @@ export async function setOrgCandidateStage(args: {
   const recommendationId = normalizeText(args.recommendationId);
   const stage = normalizeText(args.stage) as OrgStageId;
   const acceptReason = normalizeText(args.acceptReason).slice(0, 2000);
-  const contactDirectly =
-    stage !== "process_stopped" && args.contactDirectly === true;
-  const introEmails = contactDirectly
-    ? []
-    : normalizeLooseEmailList(args.introEmails);
+  const canInitiateContact = canInitiateOrgCandidateContact(stage);
+  const contactDirectly = canInitiateContact && args.contactDirectly === true;
+  const introEmails =
+    canInitiateContact && !contactDirectly
+      ? normalizeLooseEmailList(args.introEmails)
+      : [];
   const stopNote = normalizeText(args.stopNote);
 
   if (!workspaceId || !roleId || !talentId || !recommendationId || !stage) {
     throw new OrgHttpError(400, "Missing required fields");
   }
-  if (
-    stage === "process_stopped" &&
-    args.stopReason !== "candidate" &&
-    args.stopReason !== "company"
-  ) {
-    throw new OrgHttpError(400, "Stop reason is required");
-  }
-  if (stage === "process_stopped" && !stopNote) {
-    throw new OrgHttpError(400, "Stop note is required");
-  }
   if (introEmails.some((email) => !isValidEmailAddress(email))) {
     throw new OrgHttpError(400, "One or more introduction emails are invalid");
   }
-  if (stage === "accepted" && !hasOrgAllWorkspaceAccess(args.user)) {
-    throw new OrgHttpError(403, "내부 수락 단계에 접근할 수 없습니다.");
+  if (isOrgInternalStage(stage) && !hasOrgAllWorkspaceAccess(args.user)) {
+    throw new OrgHttpError(403, "Harper 내부 단계에 접근할 수 없습니다.");
   }
 
   await assertOrgWorkspacePermission({
@@ -2683,8 +2753,18 @@ export async function setOrgCandidateStage(args: {
       tags: (previousTags ?? []) as TalentOpportunityTagRow[],
     })?.stage ?? "pending_connection";
 
+  if (
+    requiresOrgIntroEmailRecipient(previousStage, stage, contactDirectly) &&
+    introEmails.length === 0
+  ) {
+    throw new OrgHttpError(
+      400,
+      "CC로 연결하려면 회사 담당자 이메일을 1개 이상 추가해 주세요."
+    );
+  }
+
   const isIntroRequested =
-    stage !== "process_stopped" && !contactDirectly && introEmails.length > 0;
+    canInitiateContact && !contactDirectly && introEmails.length > 0;
   let introDelivery: {
     cc: string[];
     messageId: string;
@@ -2777,7 +2857,7 @@ export async function setOrgCandidateStage(args: {
     previousStage,
     stage,
     stopNote: stage === "process_stopped" ? stopNote : null,
-    stopReason: stage === "process_stopped" ? (args.stopReason ?? null) : null,
+    stopReason: null,
     tag: nextTag,
     workspaceId,
   } satisfies Record<string, unknown>;
@@ -2837,17 +2917,17 @@ export async function setOrgCandidateStage(args: {
         };
 
         if (isIntroRequested || contactDirectly) {
-          await notifyOrgCandidateAcceptedSlack({
-            ...slackBaseArgs,
-            acceptReason,
-            contactDirectly,
-            introEmails,
-          });
+          // TODO: Re-enable the candidate accepted Slack notification when needed.
+          // await notifyOrgCandidateAcceptedSlack({
+          //   ...slackBaseArgs,
+          //   acceptReason,
+          //   contactDirectly,
+          //   introEmails,
+          // });
         } else {
           await notifyOrgCandidateRejectedSlack({
             ...slackBaseArgs,
             stopNote,
-            stopReason: args.stopReason ?? null,
           });
         }
       }
@@ -2860,6 +2940,7 @@ export async function setOrgCandidateStage(args: {
     ok: true as const,
     roleId,
     stage,
+    stageTag: nextTag,
     talentId,
   };
 }
@@ -3449,6 +3530,7 @@ export async function fetchOrgTalentDetail(args: {
         url: education.url ?? null,
       })),
       experiences: experiences.map((experience) => ({
+        companyLogo: experience.company_logo ?? null,
         companyLocation: experience.company_location ?? null,
         companyName: experience.company_name ?? null,
         description: experience.description ?? experience.memo ?? null,

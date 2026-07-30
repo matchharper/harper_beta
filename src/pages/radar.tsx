@@ -543,7 +543,7 @@ export default function RadarLandingPage() {
       }
 
       setIsOpenLoginModal(false);
-      router.push("/invitation");
+      router.push("/");
       return null;
     } catch (error) {
       if (error instanceof Error && error.message) {

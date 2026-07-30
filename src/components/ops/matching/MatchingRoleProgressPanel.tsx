@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { ManualInternalRecommendationModal } from "@/components/ops/career/RecommendationsTab";
 import { formatKst } from "@/components/ops/career/utils";
@@ -32,6 +32,8 @@ type MatchingRoleProgressPanelProps = {
   talentDisplayName: string;
   talentId: string;
 };
+
+const EMPTY_PROGRESS_ITEMS: OpsMatchingProgressItem[] = [];
 
 function toManualRole(
   role: OpsMatchingRoleOption
@@ -223,7 +225,7 @@ export const MatchingRoleProgressPanel = memo(
     });
     const createProgress = useCreateOpsMatchingProgress();
     const deleteProgress = useDeleteOpsMatchingProgress();
-    const items = progressQuery.data?.items ?? [];
+    const items = progressQuery.data?.items ?? EMPTY_PROGRESS_ITEMS;
     const fit = progressQuery.data?.fit ?? initialFit;
     const recommendation = progressQuery.data?.recommendation ?? null;
     const hasApplication = Boolean(recommendation);
@@ -238,58 +240,68 @@ export const MatchingRoleProgressPanel = memo(
       !hasQueuedProgress &&
       !queuedRecommendationAt;
     const manualRole = toManualRole(role);
-    const timelineItems = [
-      ...buildRecommendationTimelineItems({
-        queuedAt:
-          hasApplication || hasQueuedProgress ? null : queuedRecommendationAt,
-        recommendation,
-        role,
-      }),
-      ...items.map((item) => ({
-        createdAt: item.createdAt,
-        item,
-        kind: "progress" as const,
-      })),
-    ].sort((left, right) => {
-      const leftTime = Date.parse(left.createdAt);
-      const rightTime = Date.parse(right.createdAt);
-      const safeLeftTime = Number.isFinite(leftTime) ? leftTime : 0;
-      const safeRightTime = Number.isFinite(rightTime) ? rightTime : 0;
-      return safeRightTime - safeLeftTime;
-    });
-    const feedItems: ProgressFeedItem[] = timelineItems.map((timelineItem) => {
-      if (timelineItem.kind === "progress") {
-        return {
-          createdAt: timelineItem.item.createdAt,
-          deletable: true,
-          icon: "note",
-          id: timelineItem.item.id,
-          text: timelineItem.item.text,
-        };
-      }
+    const feedItems = useMemo<ProgressFeedItem[]>(() => {
+      const timelineItems = [
+        ...buildRecommendationTimelineItems({
+          queuedAt:
+            hasApplication || hasQueuedProgress ? null : queuedRecommendationAt,
+          recommendation,
+          role,
+        }),
+        ...items.map((item) => ({
+          createdAt: item.createdAt,
+          item,
+          kind: "progress" as const,
+        })),
+      ].sort((left, right) => {
+        const leftTime = Date.parse(left.createdAt);
+        const rightTime = Date.parse(right.createdAt);
+        const safeLeftTime = Number.isFinite(leftTime) ? leftTime : 0;
+        const safeRightTime = Number.isFinite(rightTime) ? rightTime : 0;
+        return safeRightTime - safeLeftTime;
+      });
 
-      return {
-        createdAt: timelineItem.createdAt,
-        delivery: timelineItem.delivery
-          ? {
-              bodyText: timelineItem.delivery.bodyText,
-              id: timelineItem.delivery.id,
-              subject: timelineItem.delivery.subject,
-            }
-          : null,
-        icon:
-          timelineItem.kind === "feedback"
-            ? timelineItem.title.includes("거절")
-              ? "x"
-              : "check"
-            : timelineItem.kind === "viewed"
-              ? "eye"
-              : "sparkles",
-        id: timelineItem.id,
-        text: timelineItem.text,
-        title: timelineItem.title,
-      };
-    });
+      return timelineItems.map((timelineItem) => {
+        if (timelineItem.kind === "progress") {
+          return {
+            createdAt: timelineItem.item.createdAt,
+            deletable: true,
+            icon: "note",
+            id: timelineItem.item.id,
+            text: timelineItem.item.text,
+          };
+        }
+
+        return {
+          createdAt: timelineItem.createdAt,
+          delivery: timelineItem.delivery
+            ? {
+                bodyText: timelineItem.delivery.bodyText,
+                id: timelineItem.delivery.id,
+                subject: timelineItem.delivery.subject,
+              }
+            : null,
+          icon:
+            timelineItem.kind === "feedback"
+              ? timelineItem.title.includes("거절")
+                ? "x"
+                : "check"
+              : timelineItem.kind === "viewed"
+                ? "eye"
+                : "sparkles",
+          id: timelineItem.id,
+          text: timelineItem.text,
+          title: timelineItem.title,
+        };
+      });
+    }, [
+      hasApplication,
+      hasQueuedProgress,
+      items,
+      queuedRecommendationAt,
+      recommendation,
+      role,
+    ]);
 
     const addProgress = (text: string, onSuccess?: () => void) => {
       const trimmed = text.trim();

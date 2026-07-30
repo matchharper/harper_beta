@@ -17,6 +17,7 @@ import {
   getCurrentCareerTranslationPath,
   isCareerTranslationRoute,
 } from "@/i18n/careerTranslationRoutes";
+import { DEFAULT_LOCALE } from "@/i18n/localeResolution";
 import {
   getInitialClientLocalePreference,
   MessagesProvider,
@@ -52,7 +53,7 @@ const useIsomorphicLayoutEffect =
 export default function App({ Component, pageProps }: AppProps) {
   const init = useAuthStore((s) => s.init);
   const router = useRouter();
-  const [careerLocale, setCareerLocale] = useState<Locale>("ko");
+  const [careerLocale, setCareerLocale] = useState<Locale>(DEFAULT_LOCALE);
   const currentPath = getCurrentCareerTranslationPath(
     router.asPath || router.pathname
   );

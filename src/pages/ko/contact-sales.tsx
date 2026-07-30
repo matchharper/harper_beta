@@ -241,11 +241,7 @@ export default function HarperContactSalesPage() {
         [data-nextjs-dev-tools],
         [data-nextjs-dev-tools-button],
         nextjs-portal,
-        .nextjs-toast,
-        div.fixed.bottom-4.left-4,
-        div.fixed.bottom-4.right-4 {
-          display: none !important;
-        }
+        .nextjs-toast
       `}</style>
       <main className="min-h-screen bg-[#f7f6f1] text-neutral-primary">
         <header className="mx-auto flex h-14 w-full max-w-[1300px] items-center justify-between px-6 xl:px-0">

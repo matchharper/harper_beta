@@ -8,50 +8,26 @@ export const en = {
       "We've sent a confirmation email. Please check your inbox.",
     invalidAccount: "Account not found.",
   },
-  invitation: {
+  requestAccess: {
     title: "Request access",
     description: "We will email you an access link as soon as possible.",
-    nameTitle: "Tell us your name.",
-    nameDescription:
-      "Your invite code has been verified. Please enter the name you'd like to use.",
-    namePlaceholder: "Name",
-    placeholder: "Invite code",
-    nameSubmit: "Save",
-    submit: "Continue",
-    divider: "or",
-    waitlist: "Request access",
-    contact: "Contact us",
-    requestAccess: {
-      title: "Request access",
-      description:
-        "Tell us a bit about your team and hiring needs. If approved, we'll email the access link to your signed-in address.",
-      submit: "Send request",
-      submitted:
-        "Your request has been submitted. We'll email you a link once access is approved.",
-      nameLabel: "Name",
-      namePlaceholder: "Your name",
-      companyLabel: "Company",
-      companyPlaceholder: "Company name",
-      roleLabel: "Role",
-      rolePlaceholder: "For example: Founder, Hiring Manager",
-      hiringNeedLabel:
-        "Most important role(s) you need to hire for and rough headcount",
-      hiringNeedPlaceholder:
-        "For example: Backend Engineer x2, Founding Recruiter x1",
-      errors: {
-        missingSession:
-          "We couldn't verify your session. Please sign in again.",
-        invalidForm: "Please fill in your name and company.",
-        submitFailed: "Failed to submit your request. Please try again.",
-      },
-    },
+    submit: "Send request",
+    submitted:
+      "Your request has been submitted. We'll email you a link once access is approved.",
+    nameLabel: "Name",
+    namePlaceholder: "Your name",
+    companyLabel: "Company",
+    companyPlaceholder: "Company name",
+    roleLabel: "Role",
+    rolePlaceholder: "For example: Founder, Hiring Manager",
+    hiringNeedLabel:
+      "Most important role(s) you need to hire for and rough headcount",
+    hiringNeedPlaceholder:
+      "For example: Backend Engineer x2, Founding Recruiter x1",
     errors: {
-      emptyCode: "Please enter the invite code.",
-      invalidCode: "The invite code is invalid.",
-      domainMismatch:
-        "The domain of your signup email must match the company domain assigned to this invite code.",
-      emptyName: "Please enter your name.",
-      saveNameFailed: "Failed to save your name. Please try again.",
+      missingSession: "We couldn't verify your session. Please sign in again.",
+      invalidForm: "Please fill in your name and company.",
+      submitFailed: "Failed to submit your request. Please try again.",
     },
   },
   join: {
@@ -1480,6 +1456,8 @@ export const en = {
     "career.job_posting_recommendations.answer.details_label": "Details",
     "career.job_posting_recommendations.answer.empty":
       "I couldn't find any external job postings that match your current criteria.\nBroadening the job title, location, or employment type might help me find more options.",
+    "career.job_posting_recommendations.answer.initial_pending":
+      "We'll send your first recommendations by email. Please give us a little time, and let me know if they haven't arrived within an hour. After that, we'll keep looking for strong opportunities and email you periodically. Whenever you ask me here like this, I'll also search right away.",
     "career.job_posting_recommendations.answer.requested_count_trimmed":
       "Instead of showing all {requestedCount} requested opportunities at once, I've selected the top {finalCount} that are the best fit for you right now. In future recommendations, I'll broaden the search to include up to {batchLimit} opportunities at a time, excluding any that don't meet the core criteria.",
     "career.job_posting_recommendations.answer.saved_headline":
@@ -1892,7 +1870,7 @@ export const en = {
       "Fetch updated LinkedIn information.",
     "career.profile.settings.no_saved_changes": "No saved changes yet.",
     "career.recommend_job_postings.chat_preamble":
-      "Great! Based on our conversation and your feedback so far, I'll start looking for new positions.",
+      "Got it. Let me first check the status of your recommendations.",
     "career.referral.footer.invite_friends": "Invite friends",
     "career.referral.intro_test.greeting":
       "Hi {candidateName}, I wanted to introduce you to Harper.",

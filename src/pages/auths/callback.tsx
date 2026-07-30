@@ -17,6 +17,8 @@ import {
 import {
   inferCompanyAuthEntrySource,
   isTalentAuthDestination,
+  resolveAuthCallbackDestination,
+  resolveAuthCallbackErrorDestination,
 } from "@/lib/authPersona";
 
 function inferLandingLogSource(args: { flow: string; nextPath: string }) {
@@ -81,16 +83,20 @@ export default function AuthCallback() {
       const flow = getQueryText(router.query.flow);
       const rawNext =
         typeof router.query.next === "string" ? router.query.next : "";
-      const fallbackNextPath =
-        flow === "talent_capture"
-          ? "/career"
-          : flow === "career_email_change"
-            ? "/career/profile"
-            : "/invitation";
-      const nextPath =
-        rawNext.startsWith("/") && !rawNext.startsWith("//")
-          ? rawNext
-          : fallbackNextPath;
+      const querySource =
+        getQueryText(router.query.src) ||
+        getQueryText(router.query.source) ||
+        getNextPathParam(rawNext, "source") ||
+        null;
+      const emailOnboardingToken =
+        getQueryText(router.query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM]) ||
+        getNextPathParam(rawNext, CAREER_EMAIL_ONBOARDING_TOKEN_PARAM);
+      const nextPath = resolveAuthCallbackDestination({
+        flow,
+        rawNext,
+        source: querySource,
+        emailOnboardingToken,
+      });
       const isTalentDestination = isTalentAuthDestination({
         flow,
         nextPath,
@@ -99,20 +105,11 @@ export default function AuthCallback() {
         typeof router.query.cl === "string" ? router.query.cl : null;
       const abtestType =
         typeof router.query.ab === "string" ? router.query.ab : null;
-      const querySource =
-        typeof router.query.src === "string"
-          ? router.query.src
-          : typeof router.query.source === "string"
-            ? router.query.source
-            : null;
       const inviteToken =
         getQueryText(router.query.invite) ||
         getNextPathParam(nextPath, "invite");
       const rawMail =
         getQueryText(router.query.mail) || getNextPathParam(nextPath, "mail");
-      const emailOnboardingToken =
-        getQueryText(router.query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM]) ||
-        getNextPathParam(nextPath, CAREER_EMAIL_ONBOARDING_TOKEN_PARAM);
       const mail = emailOnboardingToken ? "" : rawMail;
       const code =
         typeof router.query.code === "string" ? router.query.code : "";
@@ -166,7 +163,10 @@ export default function AuthCallback() {
         router.replace(
           flow === "career_email_change"
             ? withEmailChangeResult(nextPath, "error")
-            : "?error=no_user"
+            : resolveAuthCallbackErrorDestination({
+                error: "no_user",
+                isTalentDestination,
+              })
         );
         return;
       }
@@ -197,7 +197,10 @@ export default function AuthCallback() {
         router.replace(
           flow === "career_email_change"
             ? withEmailChangeResult(nextPath, "error")
-            : "?error=no_session"
+            : resolveAuthCallbackErrorDestination({
+                error: "no_session",
+                isTalentDestination,
+              })
         );
         return;
       }
@@ -254,7 +257,12 @@ export default function AuthCallback() {
         const bootstrapJson = await bootstrapRes.json().catch(() => ({}));
         if (!bootstrapRes.ok) {
           console.error("talent bootstrap error:", bootstrapJson);
-          router.replace("?error=talent_profile_upsert_failed");
+          router.replace(
+            resolveAuthCallbackErrorDestination({
+              error: "talent_profile_upsert_failed",
+              isTalentDestination,
+            })
+          );
           return;
         }
         if (bootstrapJson?.created === true) {

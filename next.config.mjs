@@ -34,6 +34,16 @@ const nextConfig = {
   async redirects() {
     return [
       {
+        source: "/invitation",
+        destination: "/",
+        permanent: false,
+      },
+      {
+        source: "/invitation/:path*",
+        destination: "/",
+        permanent: false,
+      },
+      {
         source: "/career/home",
         destination: "/career",
         permanent: false,

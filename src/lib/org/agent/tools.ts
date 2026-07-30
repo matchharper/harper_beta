@@ -1,160 +1,59 @@
+/**
+ * Tool contracts exposed to the organization-wide Harper agent.
+ *
+ * Keep this file declarative: names, descriptions, and JSON schemas only.
+ * Runtime validation and database work live in toolExecution.ts and data.ts.
+ */
 export const ORG_AGENT_TOOL_NAMES = [
-  "update_role_request",
-  "update_company_request",
-  "schedule_meeting",
-  "read_role_feed",
-  "read_candidate_context",
+  "get_talents",
+  "read_talent",
+  "read_role",
+  "update_company",
+  "update_role",
 ] as const;
 
 export type OrgAgentToolName = (typeof ORG_AGENT_TOOL_NAMES)[number];
 
-export type OrgAgentRequestImpact =
-  | "calibration_note"
-  | "hard_filter"
-  | "soft_preference";
-
-export type OrgAgentMeetingTopic =
-  | "custom_search"
-  | "integration"
-  | "new_role"
-  | "other"
-  | "pricing_or_contract"
-  | "workflow_question";
-
-const requestUpdateProperties = {
-  changeSummary: {
-    description:
-      "Short Korean audit summary of the exact criterion added, changed, or removed.",
-    maxLength: 500,
-    minLength: 1,
-    type: "string",
-  },
-  impact: {
-    description: "How strongly this change should affect future matching.",
-    enum: ["hard_filter", "soft_preference", "calibration_note"],
-    type: "string",
-  },
-  nextRequest: {
-    description:
-      "Complete replacement request text after merging the new instruction with all useful existing criteria. Never include candidate names or talent IDs.",
-    maxLength: 6_000,
-    minLength: 1,
-    type: "string",
-  },
-  referencedTalentIds: {
-    description:
-      "Stable talent IDs used only as evidence for this change. These IDs must not appear in nextRequest.",
-    items: { type: "string" },
-    maxItems: 3,
-    type: "array",
-  },
-} as const;
+const nullableText = (description: string, maxLength: number) => ({
+  description,
+  maxLength,
+  type: ["string", "null"],
+});
 
 export const ORG_AGENT_TOOLS = [
   {
     type: "function",
     function: {
-      name: "update_role_request",
+      name: "get_talents",
       description:
-        "Update the active role's private recruiting criteria for future candidate discovery and recommendations. Use for clear, durable role-specific changes.",
-      parameters: {
-        additionalProperties: false,
-        properties: requestUpdateProperties,
-        required: ["nextRequest", "changeSummary", "impact"],
-        type: "object",
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "update_company_request",
-      description:
-        "Update the current company's private recruiting criteria across all roles. Use only for an explicitly company-wide durable principle.",
-      parameters: {
-        additionalProperties: false,
-        properties: requestUpdateProperties,
-        required: ["nextRequest", "changeSummary", "impact"],
-        type: "object",
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "schedule_meeting",
-      description:
-        "Create a user-clickable CTA for Harper-team help with an unsupported or high-touch request. This only creates the CTA; it does not send the request until clicked.",
+        "Find company-visible candidates by name, email, headline, talent ID, or position title. Returns a bounded page with stable talent/role IDs, stage, and brief fit. Use read_role, not this search, for a position's whole pipeline.",
       parameters: {
         additionalProperties: false,
         properties: {
-          reason: {
-            description: "Concise Korean reason Harper-team help is needed.",
-            maxLength: 800,
-            minLength: 1,
-            type: "string",
-          },
-          suggestedMessage: {
-            description: "Optional short Korean sentence shown with the CTA.",
-            maxLength: 300,
-            type: "string",
-          },
-          topic: {
-            enum: [
-              "new_role",
-              "custom_search",
-              "workflow_question",
-              "pricing_or_contract",
-              "integration",
-              "other",
-            ],
-            type: "string",
-          },
-        },
-        required: ["topic", "reason"],
-        type: "object",
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "read_role_feed",
-      description:
-        "Read older or filtered activity for the active role pipeline when the latest 20 activity items in context are insufficient.",
-      parameters: {
-        additionalProperties: false,
-        properties: {
-          before: {
-            description: "Optional ISO timestamp cursor for older activity.",
-            type: "string",
-          },
-          eventTypes: {
-            items: {
-              enum: [
-                "recommended",
-                "accepted",
-                "rejected",
-                "note",
-                "stage_changed",
-              ],
-              type: "string",
-            },
-            maxItems: 5,
-            type: "array",
-          },
           limit: {
-            default: 20,
-            maximum: 50,
+            description: "Matches to return; 1-20, default 10.",
+            maximum: 20,
             minimum: 1,
             type: "integer",
           },
-          talentIds: {
-            items: { type: "string" },
-            maxItems: 5,
-            type: "array",
+          offset: {
+            description: "Page offset; 0-200, default 0.",
+            maximum: 200,
+            minimum: 0,
+            type: "integer",
+          },
+          query: {
+            description: "Name, email, headline, talent ID, or position title.",
+            maxLength: 200,
+            minLength: 1,
+            type: "string",
+          },
+          roleId: {
+            description: "Exact role ID when the target role is known.",
+            type: "string",
           },
         },
+        required: ["query"],
         type: "object",
       },
     },
@@ -162,24 +61,180 @@ export const ORG_AGENT_TOOLS = [
   {
     type: "function",
     function: {
-      name: "read_candidate_context",
+      name: "read_talent",
       description:
-        "Read compact company-visible context for up to 3 candidates. The server returns data only for candidates in the active role pipeline.",
+        "Read one company-visible candidate after resolving talentId. Returns every visible role/stage entry and bounded recent progress. Set includeProfile only when bio, resume, work, or education is needed because it is much larger.",
       parameters: {
         additionalProperties: false,
         properties: {
-          includeFeed: {
-            description: "Include up to 15 recent role activity items for these candidates.",
+          includeProfile: {
+            description:
+              "Include bio, resume, work, education, and extras; default false.",
             type: "boolean",
           },
-          talentIds: {
-            items: { type: "string" },
-            maxItems: 3,
-            minItems: 1,
-            type: "array",
+          progressLimit: {
+            description: "Recent progress events; 1-30, default 10.",
+            maximum: 30,
+            minimum: 1,
+            type: "integer",
+          },
+          roleId: {
+            description: "Focus on one role; omit to read all visible roles.",
+            type: "string",
+          },
+          talentId: {
+            description: "Exact talent ID.",
+            type: "string",
           },
         },
-        required: ["talentIds"],
+        required: ["talentId"],
+        type: "object",
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "read_role",
+      description:
+        "Read one role's details, exact whole-pipeline stage counts, stage definitions, a bounded candidate page, and recent progress. For overall pipeline/status/count questions omit stage. Use stage only when the user asks for one specific stage's people. Omit the description when only pipeline state is needed.",
+      parameters: {
+        additionalProperties: false,
+        properties: {
+          includeDescription: {
+            description: "Include the full JD; default true.",
+            type: "boolean",
+          },
+          peopleLimit: {
+            description: "Candidates in this page; 1-20, default 10.",
+            maximum: 20,
+            minimum: 1,
+            type: "integer",
+          },
+          peopleOffset: {
+            description: "Candidate page offset; 0-200, default 0.",
+            maximum: 200,
+            minimum: 0,
+            type: "integer",
+          },
+          recentUpdateLimit: {
+            description: "Recent progress events; 0-20, default 10.",
+            maximum: 20,
+            minimum: 0,
+            type: "integer",
+          },
+          roleId: {
+            description: "Exact role ID.",
+            type: "string",
+          },
+          stage: {
+            description:
+              "Only filter people when one specific stage was requested. Omit for whole-pipeline status/count questions. Example: connected or custom:<id>.",
+            maxLength: 100,
+            type: "string",
+          },
+        },
+        required: ["roleId"],
+        type: "object",
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_company",
+      description:
+        "Partially update company-wide description, candidate pitch, or durable recruiting criteria. Only supplied fields change; request must be the complete merged replacement. Returns updated or already_reflected status.",
+      parameters: {
+        additionalProperties: false,
+        properties: {
+          changeSummary: {
+            description: "Short audit summary of the requested change.",
+            maxLength: 500,
+            minLength: 1,
+            type: "string",
+          },
+          companyDescription: nullableText(
+            "New company description, or null to clear it.",
+            8_000
+          ),
+          pitch: nullableText(
+            "New candidate-facing company pitch, or null to clear it.",
+            8_000
+          ),
+          request: nullableText(
+            "Complete company-wide recruiting request after merging the user's change, or null to clear it.",
+            6_000
+          ),
+        },
+        required: ["changeSummary"],
+        type: "object",
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_role",
+      description:
+        "Partially update one resolved role. Only supplied fields change; request must be the complete merged replacement, so call read_role first when it was clipped or omitted. Do not call while multiple roles are plausible; returns updated or already_reflected status.",
+      parameters: {
+        additionalProperties: false,
+        properties: {
+          changeSummary: {
+            description: "Short audit summary of the requested change.",
+            maxLength: 500,
+            minLength: 1,
+            type: "string",
+          },
+          description: nullableText(
+            "New position description/JD, or null to clear it.",
+            20_000
+          ),
+          employmentTypes: {
+            description:
+              "Replacement employment types. An empty array clears the field.",
+            items: {
+              enum: ["full_time", "part_time", "internship", "contract"],
+              type: "string",
+            },
+            maxItems: 4,
+            type: "array",
+          },
+          externalJdUrl: nullableText(
+            "External JD URL, or null to clear it.",
+            2_000
+          ),
+          locationText: nullableText(
+            "Human-readable position location, or null to clear it.",
+            300
+          ),
+          name: {
+            description: "New position title.",
+            maxLength: 200,
+            minLength: 1,
+            type: "string",
+          },
+          request: nullableText(
+            "Complete position-specific recruiting request after merging the user's change, or null to clear it.",
+            6_000
+          ),
+          roleId: {
+            description: "Exact position ID to update.",
+            type: "string",
+          },
+          status: {
+            description: "Replacement position status.",
+            enum: ["top_priority", "active", "paused", "ended"],
+            type: "string",
+          },
+          workMode: {
+            description: "Replacement work mode, or null to clear it.",
+            enum: ["onsite", "hybrid", "remote", null],
+            type: ["string", "null"],
+          },
+        },
+        required: ["roleId", "changeSummary"],
         type: "object",
       },
     },

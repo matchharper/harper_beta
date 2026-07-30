@@ -14,6 +14,11 @@ import {
   normalizeRegisteredLinkHref,
 } from "./utils";
 import { BareButton } from "@/components/ui/button";
+import {
+  TalentEducationSection,
+  TalentExperienceSection,
+  TalentExtraSection,
+} from "@/components/profile/TalentExperienceSection";
 
 type ProfileTabProps = {
   detail: CareerTalentProfileResponse;
@@ -23,17 +28,22 @@ export const ProfileTab = memo(function ProfileTab({
   detail,
 }: ProfileTabProps) {
   const experiences = (detail.structuredProfile?.experiences ?? []) as Array<{
+    company_logo?: string | null;
+    company_location?: string | null;
     company_name?: string;
     description?: string | null;
+    employment_type?: string | null;
     end_date?: string;
     role?: string;
     start_date?: string;
   }>;
   const educations = (detail.structuredProfile?.educations ?? []) as Array<{
-    degree?: string;
+    degree?: string | null;
     description?: string | null;
-    field?: string;
-    school?: string;
+    end_date?: string | null;
+    field?: string | null;
+    school?: string | null;
+    start_date?: string | null;
   }>;
   const extras = (detail.structuredProfile?.extras ?? []) as Array<{
     date?: string | null;
@@ -298,79 +308,31 @@ export const ProfileTab = memo(function ProfileTab({
         </div>
       ) : null}
 
-      {experiences.length > 0 ? (
-        <div>
-          <div className={cx(opsTheme.eyebrow, "mb-2")}>경력</div>
-          <div className="space-y-2">
-            {experiences.map((exp, index) => (
-              <div key={index} className={cx(opsTheme.panelSoft, "p-3")}>
-                <div className="text-sm font-medium text-neutral-primary">
-                  {exp.role ?? "역할 미상"}
-                </div>
-                <div className="mt-1 text-[13px] text-neutral-muted">
-                  <span className="text-neutral-primary">
-                    {exp.company_name ?? ""}{" "}
-                  </span>
-                  {exp.start_date
-                    ? `(${exp.start_date} ~ ${exp.end_date ?? "현재"})`
-                    : ""}
-                </div>
-                {exp.description?.trim() ? (
-                  <div className="mt-2 whitespace-pre-wrap text-xs leading-5 text-neutral-muted">
-                    {exp.description.trim()}
-                  </div>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
+      <TalentExperienceSection
+        experiences={experiences.map((experience) => ({
+          companyLogo: experience.company_logo,
+          companyLocation: experience.company_location,
+          companyName: experience.company_name,
+          description: experience.description,
+          employmentType: experience.employment_type,
+          endDate: experience.end_date,
+          role: experience.role,
+          startDate: experience.start_date,
+        }))}
+      />
 
-      {educations.length > 0 ? (
-        <div>
-          <div className={cx(opsTheme.eyebrow, "mb-2")}>학력</div>
-          <div className="space-y-2">
-            {educations.map((edu, index) => (
-              <div key={index} className={cx(opsTheme.panelSoft, "p-3")}>
-                <div className="text-sm font-medium text-neutral-primary">
-                  {edu.school ?? "학교 미상"}
-                </div>
-                <div className="text-xs text-neutral-muted">
-                  {[edu.degree, edu.field].filter(Boolean).join(" · ")}
-                </div>
-                {edu.description?.trim() ? (
-                  <div className="mt-2 whitespace-pre-wrap text-xs leading-5 text-neutral-muted">
-                    {edu.description.trim()}
-                  </div>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
+      <TalentEducationSection
+        educations={educations.map((education) => ({
+          degree: education.degree,
+          description: education.description,
+          endDate: education.end_date,
+          field: education.field,
+          school: education.school,
+          startDate: education.start_date,
+        }))}
+      />
 
-      {extras.length > 0 ? (
-        <div>
-          <div className={cx(opsTheme.eyebrow, "mb-2")}>기타</div>
-          <div className="space-y-2">
-            {extras.map((extra, index) => (
-              <div key={index} className={cx(opsTheme.panelSoft, "p-3")}>
-                <div className="text-sm font-medium text-neutral-primary">
-                  {extra.title ?? "제목 없음"}
-                </div>
-                {extra.date ? (
-                  <div className="text-xs text-neutral-muted">{extra.date}</div>
-                ) : null}
-                {extra.description?.trim() ? (
-                  <div className="mt-2 whitespace-pre-wrap text-xs leading-5 text-neutral-muted">
-                    {extra.description.trim()}
-                  </div>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
+      <TalentExtraSection extras={extras} />
 
       {!detail.bio &&
       !detail.location &&

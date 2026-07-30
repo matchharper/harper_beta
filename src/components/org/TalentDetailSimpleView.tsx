@@ -2,7 +2,7 @@ import Image from "next/image";
 import dynamic from "next/dynamic";
 import { CircleAlert, ExternalLink, LoaderCircle, X } from "lucide-react";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
@@ -30,6 +30,11 @@ import { OrgErrorState } from "@/components/org/workspace/OrgErrorState";
 import { formatKst } from "@/components/ops/career/utils";
 import { formatKstRelativeDate } from "@/components/ops/dateUtils";
 import { PendingConnectionDialog } from "@/components/review-pipeline/PendingConnectionDialog";
+import {
+  TalentEducationSection,
+  TalentExperienceSection,
+  TalentExtraSection,
+} from "@/components/profile/TalentExperienceSection";
 import { useOpsCareerDetail } from "@/hooks/ops/useOpsCareer";
 import {
   useCreateOrgFeedItem,
@@ -47,6 +52,7 @@ import { useOrgInternalTalentSystem } from "@/hooks/org/useOrgInternalTalent";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import type { CareerTalentOpsProfileMemo } from "@/lib/ops/careerServer";
 import { getDisplayableProfileImageUrl } from "@/lib/imageUrl";
+import { isInternalDomainEmail } from "@/lib/internalAccess";
 import type { OrgInternalTalentSystemResponse } from "@/lib/org/internalTalentTypes";
 import type { OrgTalentDetailResponse } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
@@ -228,13 +234,6 @@ function ResourceRow({
   );
 }
 
-function formatPeriod(start?: string | null, end?: string | null) {
-  if (!start && !end) return "";
-  if (start && end) return `${start} - ${end}`;
-  if (start) return `${start} - 현재`;
-  return end ?? "";
-}
-
 const profileMarkdownComponents: Components = {
   a: ({ children, href }) => (
     <a href={href} target="_blank" rel="noreferrer" className={opsTheme.link}>
@@ -260,60 +259,6 @@ const profileMarkdownComponents: Components = {
   ),
 };
 
-const profileDescriptionMarkdownComponents: Components = {
-  a: ({ children, href }) => (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className="text-neutral-primary underline decoration-neutral-1000-a20 underline-offset-2 transition hover:text-neutral-muted"
-    >
-      {children}
-    </a>
-  ),
-  blockquote: ({ children }) => (
-    <blockquote className="mt-2 border-l-2 border-neutral-1000-a10 pl-2.5 text-neutral-muted first:mt-0 [&_p]:mt-0">
-      {children}
-    </blockquote>
-  ),
-  code: ({ children }) => (
-    <code className="rounded bg-bg-weak px-1 py-0.5 font-mono text-[11px] text-neutral-primary">
-      {children}
-    </code>
-  ),
-  em: ({ children }) => (
-    <em className="italic text-neutral-muted">{children}</em>
-  ),
-  h1: ({ children }) => (
-    <h4 className="mt-2.5 text-[13px] font-medium text-neutral-primary first:mt-0">
-      {children}
-    </h4>
-  ),
-  h2: ({ children }) => (
-    <h4 className="mt-2.5 text-[13px] font-medium text-neutral-primary first:mt-0">
-      {children}
-    </h4>
-  ),
-  h3: ({ children }) => (
-    <h4 className="mt-2.5 text-[12px] font-medium text-neutral-primary first:mt-0">
-      {children}
-    </h4>
-  ),
-  li: ({ children }) => <li className="pl-1 [&_p]:mt-0">{children}</li>,
-  ol: ({ children }) => (
-    <ol className="mt-2 list-decimal space-y-1 pl-5 first:mt-0">{children}</ol>
-  ),
-  p: ({ children }) => (
-    <p className="mt-2 whitespace-pre-wrap first:mt-0">{children}</p>
-  ),
-  strong: ({ children }) => (
-    <strong className="font-semibold text-neutral-primary">{children}</strong>
-  ),
-  ul: ({ children }) => (
-    <ul className="mt-2 list-disc space-y-1 pl-5 first:mt-0">{children}</ul>
-  ),
-};
-
 function MarkdownProfile({ value }: { value: string }) {
   if (!value.trim()) {
     return <div className="text-[13px] text-neutral-muted">-</div>;
@@ -327,23 +272,6 @@ function MarkdownProfile({ value }: { value: string }) {
         components={profileMarkdownComponents}
       >
         {value}
-      </ReactMarkdown>
-    </div>
-  );
-}
-
-function ProfileDescriptionMarkdown({ value }: { value?: string | null }) {
-  const trimmedValue = value?.trim();
-  if (!trimmedValue) return null;
-
-  return (
-    <div className="mt-2 max-w-none text-[13px] leading-6 text-neutral-muted">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeSanitize]}
-        components={profileDescriptionMarkdownComponents}
-      >
-        {trimmedValue}
       </ReactMarkdown>
     </div>
   );
@@ -458,33 +386,19 @@ function ProfilePane({
   currentStage,
   decisionPending,
   detail,
-  harperMemoError,
-  harperMemos,
-  harperMemosLoading,
-  internalOpsAccess,
   onAcceptClick,
   onMoveToPendingConnection,
   onRejectClick,
   onResumeClick,
-  systemActivityAccount,
-  systemActivityError,
-  systemActivityLoading,
 }: {
   acceptDisabled?: boolean;
   currentStage: OrgTalentDetailResponse["recommendation"]["stage"];
   decisionPending?: boolean;
   detail: OrgTalentDetailResponse;
-  harperMemoError: Error | null;
-  harperMemos: CareerTalentOpsProfileMemo[];
-  harperMemosLoading: boolean;
-  internalOpsAccess: boolean;
   onAcceptClick?: () => void;
   onMoveToPendingConnection?: () => void;
   onRejectClick?: () => void;
   onResumeClick: (kind: "storage" | "link", link?: string | null) => void;
-  systemActivityAccount?: OrgInternalTalentSystemResponse["account"];
-  systemActivityError: Error | null;
-  systemActivityLoading: boolean;
 }) {
   const name = detail.talent.name || detail.talent.email || "이름 없음";
   const registeredLinks = detail.profile.registeredLinks.length
@@ -535,21 +449,6 @@ function ProfilePane({
         onMoveToPendingConnection={onMoveToPendingConnection}
         onRejectClick={onRejectClick}
       />
-
-      {internalOpsAccess ? (
-        <div className="space-y-2">
-          <SystemActivitySummary
-            account={systemActivityAccount}
-            error={systemActivityError}
-            isLoading={systemActivityLoading}
-          />
-          <HarperMemoSection
-            error={harperMemoError}
-            isLoading={harperMemosLoading}
-            memos={harperMemos}
-          />
-        </div>
-      ) : null}
 
       <ProfileSection title="추천 이유">
         {detail.recommendation.fitSummary ||
@@ -625,103 +524,11 @@ function ProfilePane({
         </ProfileSection>
       ) : null}
 
-      {detail.profile.experiences.length > 0 ? (
-        <ProfileSection title="경력">
-          <div className="space-y-2">
-            {detail.profile.experiences.map((experience, index) => {
-              const period = formatPeriod(
-                experience.startDate,
-                experience.endDate
-              );
-              const companyMeta = [
-                experience.companyName,
-                experience.employmentType,
-                experience.companyLocation,
-              ]
-                .filter(Boolean)
-                .join(" · ");
-              return (
-                <div key={index} className={profileItemClass}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 text-[13px] font-medium text-neutral-primary">
-                      {experience.role || "역할 미상"}
-                    </div>
-                    {period ? (
-                      <div className="shrink-0 text-[11px] text-neutral-soft">
-                        {period}
-                      </div>
-                    ) : null}
-                  </div>
-                  {companyMeta ? (
-                    <div className="mt-1 text-[12px] text-neutral-muted">
-                      {companyMeta}
-                    </div>
-                  ) : null}
-                  <ProfileDescriptionMarkdown value={experience.description} />
-                </div>
-              );
-            })}
-          </div>
-        </ProfileSection>
-      ) : null}
+      <TalentExperienceSection experiences={detail.profile.experiences} />
 
-      {detail.profile.educations.length > 0 ? (
-        <ProfileSection title="학력">
-          <div className="space-y-2">
-            {detail.profile.educations.map((education, index) => {
-              const period = formatPeriod(
-                education.startDate,
-                education.endDate
-              );
-              const educationMeta = [education.degree, education.field]
-                .filter(Boolean)
-                .join(" · ");
-              return (
-                <div key={index} className={profileItemClass}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 text-[13px] font-medium text-neutral-primary">
-                      {education.school || "학교 미상"}
-                    </div>
-                    {period ? (
-                      <div className="shrink-0 text-[11px] text-neutral-soft">
-                        {period}
-                      </div>
-                    ) : null}
-                  </div>
-                  {educationMeta ? (
-                    <div className="mt-1 text-[12px] text-neutral-muted">
-                      {educationMeta}
-                    </div>
-                  ) : null}
-                  <ProfileDescriptionMarkdown value={education.description} />
-                </div>
-              );
-            })}
-          </div>
-        </ProfileSection>
-      ) : null}
+      <TalentEducationSection educations={detail.profile.educations} />
 
-      {detail.profile.extras.length > 0 ? (
-        <ProfileSection title="기타">
-          <div className="space-y-2">
-            {detail.profile.extras.map((extra, index) => (
-              <div key={index} className={profileItemClass}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 text-[13px] font-medium text-neutral-primary">
-                    {extra.title || "제목 없음"}
-                  </div>
-                  {extra.date ? (
-                    <div className="shrink-0 text-[11px] text-neutral-soft">
-                      {extra.date}
-                    </div>
-                  ) : null}
-                </div>
-                <ProfileDescriptionMarkdown value={extra.description} />
-              </div>
-            ))}
-          </div>
-        </ProfileSection>
-      ) : null}
+      <TalentExtraSection extras={detail.profile.extras} />
 
       {!hasProfileContent && detail.profileMarkdown ? (
         <ProfileSection title="프로필">
@@ -823,7 +630,7 @@ function CandidateDecisionActions({
           disabled={decisionPending || !onRejectClick}
           className="min-h-10 w-full"
         >
-          이번에는 거절하겠습니다
+          이번에는 연결받지 않겠습니다
         </MuteButton>
       </div>
     </section>
@@ -905,77 +712,96 @@ function FeedPane({
     };
   }, [pollingQueueId, refetchDetail]);
 
-  const feedItems: ProgressFeedItem[] = [
-    ...detail.feed.map((item) => ({
-      actor: item.actor,
-      createdAt: item.createdAt,
-      deletable:
-        canManageCandidates &&
-        item.kind === "org_note" &&
-        item.companyUserId === currentUserId,
-      editable:
-        canManageCandidates &&
-        item.kind === "org_note" &&
-        item.companyUserId === currentUserId,
-      icon: getOrgFeedIcon(item.kind),
-      id: item.id,
-      text: item.text,
-      title: getOrgFeedTitle(item.kind),
-    })),
-    ...detail.connectionConfirmationEmails.map((item) => {
-      const pendingAction =
-        updateConnectionEmail.isPending && pendingConnectionQueueId === item.id
-          ? (updateConnectionEmail.variables?.action ?? null)
-          : null;
-      return {
-        createdAt: item.sentAt ?? item.createdAt,
-        customContent: (
-          <ConnectionConfirmationEmailFeedCard
-            item={item}
-            onCancel={
-              canManageCandidates
-                ? () =>
-                    updateConnectionEmail.mutate({
-                      action: "cancel",
-                      queueId: item.id,
-                      roleId: item.roleId ?? detail.role.roleId,
-                      talentId: item.talentId,
-                      workspaceId,
-                    })
-                : undefined
-            }
-            onSendNow={
-              canManageCandidates
-                ? () =>
-                    updateConnectionEmail.mutate(
-                      {
-                        action: "send_now",
-                        queueId: item.id,
-                        roleId: item.roleId ?? detail.role.roleId,
-                        talentId: item.talentId,
-                        workspaceId,
-                      },
-                      {
-                        onSuccess: () => setPollingQueueId(item.id),
-                      }
-                    )
-                : undefined
-            }
-            pendingAction={pendingAction}
-          />
-        ),
-        id: `connection-email:${item.id}`,
-        text: "",
-      };
-    }),
-  ].sort((left, right) => {
-    const leftTime = Date.parse(left.createdAt);
-    const rightTime = Date.parse(right.createdAt);
-    return (
-      (Number.isFinite(rightTime) ? rightTime : 0) -
-      (Number.isFinite(leftTime) ? leftTime : 0)
-    );
-  });
+  const pendingConnectionAction =
+    updateConnectionEmail.variables?.action ?? null;
+  const updateConnectionEmailMutate = updateConnectionEmail.mutate;
+  const feedItems = useMemo<ProgressFeedItem[]>(
+    () =>
+      [
+        ...detail.feed.map((item) => ({
+          actor: item.actor,
+          createdAt: item.createdAt,
+          deletable:
+            canManageCandidates &&
+            item.kind === "org_note" &&
+            item.companyUserId === currentUserId,
+          editable:
+            canManageCandidates &&
+            item.kind === "org_note" &&
+            item.companyUserId === currentUserId,
+          icon: getOrgFeedIcon(item.kind),
+          id: item.id,
+          text: item.text,
+          title: getOrgFeedTitle(item.kind),
+        })),
+        ...detail.connectionConfirmationEmails.map((item) => {
+          const pendingAction =
+            updateConnectionEmail.isPending &&
+            pendingConnectionQueueId === item.id
+              ? pendingConnectionAction
+              : null;
+          return {
+            createdAt: item.sentAt ?? item.createdAt,
+            customContent: (
+              <ConnectionConfirmationEmailFeedCard
+                item={item}
+                onCancel={
+                  canManageCandidates
+                    ? () =>
+                        updateConnectionEmailMutate({
+                          action: "cancel",
+                          queueId: item.id,
+                          roleId: item.roleId ?? detail.role.roleId,
+                          talentId: item.talentId,
+                          workspaceId,
+                        })
+                    : undefined
+                }
+                onSendNow={
+                  canManageCandidates
+                    ? () =>
+                        updateConnectionEmailMutate(
+                          {
+                            action: "send_now",
+                            queueId: item.id,
+                            roleId: item.roleId ?? detail.role.roleId,
+                            talentId: item.talentId,
+                            workspaceId,
+                          },
+                          {
+                            onSuccess: () => setPollingQueueId(item.id),
+                          }
+                        )
+                    : undefined
+                }
+                pendingAction={pendingAction}
+              />
+            ),
+            id: `connection-email:${item.id}`,
+            text: "",
+          };
+        }),
+      ].sort((left, right) => {
+        const leftTime = Date.parse(left.createdAt);
+        const rightTime = Date.parse(right.createdAt);
+        return (
+          (Number.isFinite(rightTime) ? rightTime : 0) -
+          (Number.isFinite(leftTime) ? leftTime : 0)
+        );
+      }),
+    [
+      canManageCandidates,
+      currentUserId,
+      detail.connectionConfirmationEmails,
+      detail.feed,
+      detail.role.roleId,
+      pendingConnectionAction,
+      pendingConnectionQueueId,
+      updateConnectionEmail.isPending,
+      updateConnectionEmailMutate,
+      workspaceId,
+    ]
+  );
 
   return (
     <div className="min-w-0 space-y-2.5">
@@ -1059,7 +885,7 @@ function FeedPane({
 export function TalentDetailSimpleView() {
   const { closeTalentDetail, workspaceId } = useOrgJobsNavigation();
   const {
-    activeDetailRecommendationId,
+    activeDetailRoleId,
     activeDetailTalentId,
     detailOpen,
     detailQuery,
@@ -1067,8 +893,8 @@ export function TalentDetailSimpleView() {
   } = useOrgJobsDetail();
   const {
     acceptTalent,
+    isCandidateStagePending,
     moveTalentToPendingConnection,
-    pendingRecommendationId,
     rejectTalent,
   } = useOrgJobsCandidateActions();
   const {
@@ -1087,8 +913,12 @@ export function TalentDetailSimpleView() {
   const companyName = detail?.workspace.companyName ?? workspace.companyName;
   const currentUserId = currentUser?.userId ?? user.id;
   const decisionPending = Boolean(
-    activeDetailRecommendationId &&
-    pendingRecommendationId === activeDetailRecommendationId
+    activeDetailRoleId &&
+    activeDetailTalentId &&
+    isCandidateStagePending({
+      roleId: activeDetailRoleId,
+      talentId: activeDetailTalentId,
+    })
   );
   const error = detailQuery.error instanceof Error ? detailQuery.error : null;
   const isLoading = detailQuery.isLoading;
@@ -1114,11 +944,11 @@ export function TalentDetailSimpleView() {
   const openResume = useOpenOrgResume();
   const harperMemoQuery = useOpsCareerDetail(
     talentId,
-    Boolean(open && internalOpsAccess && talentId && profileTab === "profile")
+    Boolean(open && internalOpsAccess && talentId && profileTab === "internal")
   );
   const systemActivityQuery = useOrgInternalTalentSystem({
     enabled: Boolean(
-      open && internalOpsAccess && talentId && profileTab === "profile"
+      open && internalOpsAccess && talentId && profileTab === "internal"
     ),
     talentId,
     workspaceId,
@@ -1304,20 +1134,28 @@ export function TalentDetailSimpleView() {
                     className={cn(mobileTab !== "profile" && "hidden lg:block")}
                   >
                     {profileTab === "internal" && internalOpsAccess ? (
-                      <OrgInternalTalentPanel
-                        talentId={detail.talent.userId}
-                        workspaceId={workspaceId}
-                      />
+                      <div className="space-y-2">
+                        <SystemActivitySummary
+                          account={systemActivityQuery.data?.account}
+                          error={systemActivityError}
+                          isLoading={systemActivityQuery.isLoading}
+                        />
+                        <HarperMemoSection
+                          error={harperMemoError}
+                          isLoading={harperMemoQuery.isLoading}
+                          memos={harperMemos}
+                        />
+                        <OrgInternalTalentPanel
+                          talentId={detail.talent.userId}
+                          workspaceId={workspaceId}
+                        />
+                      </div>
                     ) : (
                       <ProfilePane
                         acceptDisabled={!acceptStageId || !canManageCandidates}
                         currentStage={detail.recommendation.stage}
                         decisionPending={decisionPending}
                         detail={detail}
-                        harperMemoError={harperMemoError}
-                        harperMemos={harperMemos}
-                        harperMemosLoading={harperMemoQuery.isLoading}
-                        internalOpsAccess={internalOpsAccess}
                         onAcceptClick={
                           canManageCandidates
                             ? () => setAcceptDialogOpen(true)
@@ -1332,11 +1170,6 @@ export function TalentDetailSimpleView() {
                         onResumeClick={(kind, link) =>
                           setResumeRequest({ kind, link })
                         }
-                        systemActivityAccount={
-                          systemActivityQuery.data?.account
-                        }
-                        systemActivityError={systemActivityError}
-                        systemActivityLoading={systemActivityQuery.isLoading}
                       />
                     )}
                   </div>
@@ -1435,7 +1268,10 @@ export function TalentDetailSimpleView() {
       </Dialog>
 
       <AcceptIntroDialog
+        candidateEmail={detail?.talent.email}
         candidateName={title}
+        companyContactName={currentUser?.name}
+        defaultContactDirectly={isInternalDomainEmail(currentUserEmail)}
         defaultEmail={currentUserEmail}
         members={members}
         open={acceptDialogOpen && Boolean(detail)}
@@ -1451,6 +1287,7 @@ export function TalentDetailSimpleView() {
           });
           setAcceptDialogOpen(false);
         }}
+        roleTitle={detail?.role.name ?? ""}
       />
 
       <PendingConnectionDialog
@@ -1468,7 +1305,6 @@ export function TalentDetailSimpleView() {
 
       <StopCandidateDialog
         candidateName={title}
-        defaultReason="company"
         open={rejectDialogOpen && Boolean(detail)}
         pending={decisionPending}
         onClose={() => setRejectDialogOpen(false)}
@@ -1476,7 +1312,6 @@ export function TalentDetailSimpleView() {
           if (!onRejectCandidate) return;
           await onRejectCandidate({
             stopNote: note,
-            stopReason: "company",
           });
           setRejectDialogOpen(false);
         }}

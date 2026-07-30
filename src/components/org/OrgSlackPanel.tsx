@@ -1,9 +1,7 @@
 import {
   Check,
-  CircleAlert,
   LoaderCircle,
   RefreshCw,
-  Send,
   Slack,
   Unplug,
 } from "lucide-react";
@@ -19,7 +17,6 @@ import {
   useConnectOrgSlack,
   useDisconnectOrgSlack,
   useOrgSlackStatus,
-  useTestOrgSlack,
 } from "@/hooks/org/useOrgSlack";
 import type { OrgWorkspace } from "@/lib/org/server";
 import { useToastStore } from "@/store/useToastStore";
@@ -29,12 +26,6 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error
     ? error.message
     : "Slack 요청을 처리하지 못했습니다.";
-}
-
-function formatChannelName(value: string | null | undefined) {
-  const channel = String(value ?? "").trim();
-  if (!channel) return "선택한 채널";
-  return channel.startsWith("#") ? channel : `#${channel}`;
 }
 
 export function OrgSlackPanel({
@@ -54,11 +45,10 @@ export function OrgSlackPanel({
     workspaceId: workspace.workspaceId,
   });
   const connectSlack = useConnectOrgSlack();
-  const testSlack = useTestOrgSlack(workspace.workspaceId);
   const disconnectSlack = useDisconnectOrgSlack(workspace.workspaceId);
   const status = statusQuery.data;
   const mutationError =
-    connectSlack.error ?? testSlack.error ?? disconnectSlack.error;
+    connectSlack.error ?? disconnectSlack.error;
 
   const handleConnect = async () => {
     const result = await connectSlack.mutateAsync({
@@ -66,14 +56,6 @@ export function OrgSlackPanel({
       workspaceId: workspace.workspaceId,
     });
     window.location.assign(result.authorizeUrl);
-  };
-
-  const handleTest = async () => {
-    await testSlack.mutateAsync();
-    addToast({
-      message: "Slack 테스트 알림을 보냈습니다.",
-      variant: "success",
-    });
   };
 
   const handleDisconnect = async () => {
@@ -126,8 +108,8 @@ export function OrgSlackPanel({
                       연결됨
                     </div>
                     <div className="mt-0.5 truncate text-[11px] text-neutral-muted">
-                      {status.teamName || "Slack"} ·{" "}
-                      {formatChannelName(status.channelName)}
+                      {status.teamName || "Slack"} · {status.channels.length}개
+                      채널
                     </div>
                   </div>
                 </div>
@@ -144,15 +126,6 @@ export function OrgSlackPanel({
                 </div>
               </section>
 
-              {status.lastError ? (
-                <div className="flex gap-2 rounded-md border border-critical/20 bg-critical/5 px-3 py-3 text-sm text-critical">
-                  <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-                  <span>
-                    최근 알림 발송에 실패했습니다. 테스트 후 다시 연결해 주세요.
-                  </span>
-                </div>
-              ) : null}
-
               {mutationError ? (
                 <div className="rounded-md border border-critical/20 bg-critical/5 px-3 py-3 text-sm text-critical">
                   {getErrorMessage(mutationError)}
@@ -160,20 +133,6 @@ export function OrgSlackPanel({
               ) : null}
 
               <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="sm"
-                  disabled={testSlack.isPending}
-                  onClick={() => void handleTest()}
-                >
-                  {testSlack.isPending ? (
-                    <LoaderCircle className="animate-spin" />
-                  ) : (
-                    <Send />
-                  )}
-                  테스트 발송
-                </Button>
                 <Button
                   type="button"
                   variant="default"
@@ -186,7 +145,7 @@ export function OrgSlackPanel({
                   ) : (
                     <RefreshCw />
                   )}
-                  채널 변경
+                  앱 다시 설치
                 </Button>
               </div>
             </div>

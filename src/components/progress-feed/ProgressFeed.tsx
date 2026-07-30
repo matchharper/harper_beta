@@ -1,5 +1,12 @@
 import Image from "next/image";
-import { type ReactNode, useState } from "react";
+import {
+  memo,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   CheckCircle2,
   ChevronDown,
@@ -150,6 +157,268 @@ function ProgressActor({
   );
 }
 
+type ProgressFeedItemRowProps = {
+  actionsDisabled: boolean;
+  actionsVariant: NonNullable<ProgressFeedProps["actionsVariant"]>;
+  canDeleteItems: boolean;
+  canEditItems: boolean;
+  deleteDisabled: boolean;
+  editingText: string;
+  expanded: boolean;
+  isDeleting: boolean;
+  isEditing: boolean;
+  isEditPending: boolean;
+  item: ProgressFeedItem;
+  onCancelEdit: () => void;
+  onDeleteItem: (item: ProgressFeedItem) => void;
+  onEditingTextChange: (value: string) => void;
+  onSaveEdit: (item: ProgressFeedItem, text: string) => Promise<void>;
+  onStartEdit: (item: ProgressFeedItem) => void;
+  onToggleDelivery: (deliveryKey: string) => void;
+};
+
+function equalActors(
+  left: ProgressFeedActor | null | undefined,
+  right: ProgressFeedActor | null | undefined
+) {
+  if (Boolean(left) !== Boolean(right)) return false;
+  if (!left || !right) return true;
+  return (
+    left.email === right.email &&
+    left.name === right.name &&
+    left.profilePicture === right.profilePicture
+  );
+}
+
+function equalDeliveries(
+  left: ProgressFeedDelivery | null | undefined,
+  right: ProgressFeedDelivery | null | undefined
+) {
+  if (Boolean(left) !== Boolean(right)) return false;
+  if (!left || !right) return true;
+  return (
+    left.bodyText === right.bodyText &&
+    left.id === right.id &&
+    left.subject === right.subject
+  );
+}
+
+function equalFeedItems(left: ProgressFeedItem, right: ProgressFeedItem) {
+  return (
+    left.id === right.id &&
+    left.actorLabel === right.actorLabel &&
+    left.createdAt === right.createdAt &&
+    left.deletable === right.deletable &&
+    left.editable === right.editable &&
+    left.icon === right.icon &&
+    left.roleContext === right.roleContext &&
+    left.text === right.text &&
+    left.title === right.title &&
+    equalActors(left.actor, right.actor) &&
+    equalDeliveries(left.delivery, right.delivery)
+  );
+}
+
+function equalRowProps(
+  left: ProgressFeedItemRowProps,
+  right: ProgressFeedItemRowProps
+) {
+  return (
+    left.actionsDisabled === right.actionsDisabled &&
+    left.actionsVariant === right.actionsVariant &&
+    left.canDeleteItems === right.canDeleteItems &&
+    left.canEditItems === right.canEditItems &&
+    left.deleteDisabled === right.deleteDisabled &&
+    left.editingText === right.editingText &&
+    left.expanded === right.expanded &&
+    left.isDeleting === right.isDeleting &&
+    left.isEditing === right.isEditing &&
+    left.isEditPending === right.isEditPending &&
+    left.onCancelEdit === right.onCancelEdit &&
+    left.onDeleteItem === right.onDeleteItem &&
+    left.onEditingTextChange === right.onEditingTextChange &&
+    left.onSaveEdit === right.onSaveEdit &&
+    left.onStartEdit === right.onStartEdit &&
+    left.onToggleDelivery === right.onToggleDelivery &&
+    equalFeedItems(left.item, right.item)
+  );
+}
+
+const ProgressFeedItemRow = memo(function ProgressFeedItemRow({
+  actionsDisabled,
+  actionsVariant,
+  canDeleteItems,
+  canEditItems,
+  deleteDisabled,
+  editingText,
+  expanded,
+  isDeleting,
+  isEditing,
+  isEditPending,
+  item,
+  onCancelEdit,
+  onDeleteItem,
+  onEditingTextChange,
+  onSaveEdit,
+  onStartEdit,
+  onToggleDelivery,
+}: ProgressFeedItemRowProps) {
+  const delivery = item.delivery ?? null;
+  const deliveryKey = delivery ? `${item.id}:${delivery.id}` : null;
+  const canEdit = canEditItems && Boolean(item.editable);
+  const canDelete = canDeleteItems && Boolean(item.deletable);
+  const useActionMenu = (canEdit || canDelete) && actionsVariant === "menu";
+
+  return (
+    <div className="flex items-start gap-1.5">
+      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-bg-weak text-neutral-muted">
+        <ProgressIcon icon={item.icon} />
+      </span>
+      <article className="min-w-0 flex-1 rounded-sm border border-neutral-1000-a05 bg-bg-floating px-3 py-2 text-sm text-neutral-primary">
+        <div className="flex items-start gap-2.5">
+          <div className="min-w-0 flex-1">
+            {item.roleContext ? (
+              <div className="truncate text-xs font-medium text-neutral-primary">
+                {item.roleContext}
+              </div>
+            ) : null}
+            <div className={cx("flex items-start justify-between gap-3")}>
+              {item.title ? (
+                <div className="min-w-0 truncate text-[12px] font-medium text-neutral-primary">
+                  {item.title}
+                </div>
+              ) : (
+                <div />
+              )}
+              <div className="shrink-0 text-[11px] text-neutral-soft">
+                {formatKst(item.createdAt)}
+              </div>
+            </div>
+            <ProgressActor actor={item.actor} fallbackLabel={item.actorLabel} />
+            {isEditing ? (
+              <div className="mt-2 space-y-2">
+                <Textarea
+                  unstyled
+                  value={editingText}
+                  onChange={(event) => onEditingTextChange(event.target.value)}
+                  maxLength={2000}
+                  disabled={isEditPending}
+                  className="min-h-[92px] w-full resize-y rounded-sm border border-neutral-1000-a10 bg-bg-default px-3 py-2 text-sm leading-6 text-neutral-primary outline-none transition focus:border-neutral-400"
+                />
+                <div className="flex justify-end gap-1.5">
+                  <BareButton
+                    type="button"
+                    onClick={onCancelEdit}
+                    disabled={isEditPending}
+                    className="h-8 rounded-sm px-2.5 text-xs font-medium text-neutral-muted transition hover:bg-bg-weak hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    취소
+                  </BareButton>
+                  <BareButton
+                    type="button"
+                    onClick={() => {
+                      const nextText = editingText.trim();
+                      if (!nextText || isEditPending) return;
+                      void onSaveEdit(item, nextText);
+                    }}
+                    disabled={!editingText.trim() || isEditPending}
+                    className={cx(
+                      opsTheme.buttonPrimary,
+                      "h-8 rounded-sm px-2.5 text-xs"
+                    )}
+                  >
+                    {isEditPending ? (
+                      <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                    ) : null}
+                    저장
+                  </BareButton>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-2 whitespace-pre-wrap leading-6 text-neutral-primary">
+                {item.text}
+              </div>
+            )}
+            {delivery && deliveryKey ? (
+              <div className="mt-2">
+                <BareButton
+                  type="button"
+                  onClick={() => onToggleDelivery(deliveryKey)}
+                  className="inline-flex h-7 items-center gap-1.5 rounded-md bg-bg-weak px-2 text-[11px] font-medium text-neutral-muted transition hover:text-neutral-primary"
+                >
+                  {expanded ? (
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  ) : (
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  )}
+                  <Mail className="h-3.5 w-3.5" />
+                  메일 내용
+                </BareButton>
+                {expanded ? <DeliveryPreview delivery={delivery} /> : null}
+              </div>
+            ) : null}
+          </div>
+          {useActionMenu ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <BareButton
+                  type="button"
+                  disabled={actionsDisabled}
+                  aria-label="피드 작업"
+                  title="피드 작업"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-soft transition hover:bg-bg-weak hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </BareButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-32">
+                {canEdit ? (
+                  <DropdownMenuItem onSelect={() => onStartEdit(item)}>
+                    <Pencil className="h-3.5 w-3.5" />
+                    수정
+                  </DropdownMenuItem>
+                ) : null}
+                {canDelete ? (
+                  <DropdownMenuItem
+                    tone="danger"
+                    onSelect={() => onDeleteItem(item)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    삭제
+                  </DropdownMenuItem>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : canDelete ? (
+            <BareButton
+              type="button"
+              onClick={() => onDeleteItem(item)}
+              disabled={deleteDisabled}
+              aria-label="Progress 삭제"
+              title="Progress 삭제"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-soft transition hover:bg-critical-faded hover:text-critical disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isDeleting ? (
+                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="h-3.5 w-3.5" />
+              )}
+            </BareButton>
+          ) : null}
+        </div>
+      </article>
+    </div>
+  );
+}, equalRowProps);
+
+const ProgressFeedCustomItem = memo(function ProgressFeedCustomItem({
+  content,
+}: {
+  content: ReactNode;
+}) {
+  return <div>{content}</div>;
+});
+
 export function ProgressFeed({
   actionsVariant = "inline",
   deleteConfirmMessage = "이 Progress를 삭제할까요?",
@@ -176,6 +445,51 @@ export function ProgressFeed({
   );
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
+  const deleteConfirmMessageRef = useRef(deleteConfirmMessage);
+  const onDeleteRef = useRef(onDelete);
+  const onEditRef = useRef(onEdit);
+
+  useEffect(() => {
+    deleteConfirmMessageRef.current = deleteConfirmMessage;
+    onDeleteRef.current = onDelete;
+    onEditRef.current = onEdit;
+  }, [deleteConfirmMessage, onDelete, onEdit]);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingItemId(null);
+    setEditingText("");
+  }, []);
+  const handleDeleteItem = useCallback((item: ProgressFeedItem) => {
+    const deleteItem = onDeleteRef.current;
+    if (!deleteItem || !window.confirm(deleteConfirmMessageRef.current)) return;
+    deleteItem(item);
+  }, []);
+  const handleEditingTextChange = useCallback((value: string) => {
+    setEditingText(value);
+  }, []);
+  const handleSaveEdit = useCallback(
+    async (item: ProgressFeedItem, nextText: string) => {
+      const editItem = onEditRef.current;
+      if (!editItem) return;
+      try {
+        await editItem(item, nextText);
+        setEditingItemId(null);
+        setEditingText("");
+      } catch {
+        // Keep the editor open; the parent renders the error.
+      }
+    },
+    []
+  );
+  const handleStartEdit = useCallback((item: ProgressFeedItem) => {
+    setEditingItemId(item.id);
+    setEditingText(item.text);
+  }, []);
+  const handleToggleDelivery = useCallback((deliveryKey: string) => {
+    setExpandedDeliveryId((current) =>
+      current === deliveryKey ? null : deliveryKey
+    );
+  }, []);
   const trimmedDraft = draft.trim();
   const showComposer = Boolean(onDraftChange && onSubmit);
 
@@ -236,200 +550,41 @@ export function ProgressFeed({
         <div className="space-y-2">
           {items.map((item) => {
             if (item.customContent) {
-              return <div key={item.id}>{item.customContent}</div>;
+              return (
+                <ProgressFeedCustomItem
+                  content={item.customContent}
+                  key={item.id}
+                />
+              );
             }
-            const isDeleting = Boolean(
-              pendingDeleteId && pendingDeleteId === item.id
-            );
             const isEditing = editingItemId === item.id;
-            const isEditPending = Boolean(
-              pendingEditId && pendingEditId === item.id
-            );
-            const delivery = item.delivery ?? null;
-            const deliveryKey = delivery ? `${item.id}:${delivery.id}` : null;
-            const expanded =
-              deliveryKey !== null && expandedDeliveryId === deliveryKey;
-            const canEdit = Boolean(onEdit && item.editable);
-            const canDelete = Boolean(onDelete && item.deletable);
-            const useActionMenu =
-              (canEdit || canDelete) && actionsVariant === "menu";
+            const deliveryKey = item.delivery
+              ? `${item.id}:${item.delivery.id}`
+              : null;
 
             return (
-              <div key={item.id} className="flex items-start gap-1.5">
-                <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-bg-weak text-neutral-muted">
-                  <ProgressIcon icon={item.icon} />
-                </span>
-                <article className="min-w-0 flex-1 rounded-sm border border-neutral-1000-a05 bg-bg-floating px-3 py-2 text-sm text-neutral-primary">
-                  <div className="flex items-start gap-2.5">
-                    <div className="min-w-0 flex-1">
-                      {item.roleContext && (
-                        <div className="truncate text-xs font-medium text-neutral-primary">
-                          {item.roleContext}
-                        </div>
-                      )}
-                      <div
-                        className={cx("flex items-start justify-between gap-3")}
-                      >
-                        {item.title ? (
-                          <div className="min-w-0 truncate text-[12px] font-medium text-neutral-primary">
-                            {item.title}
-                          </div>
-                        ) : (
-                          <div />
-                        )}
-                        <div className="shrink-0 text-[11px] text-neutral-soft">
-                          {formatKst(item.createdAt)}
-                        </div>
-                      </div>
-                      <ProgressActor
-                        actor={item.actor}
-                        fallbackLabel={item.actorLabel}
-                      />
-                      {isEditing ? (
-                        <div className="mt-2 space-y-2">
-                          <Textarea
-                            unstyled
-                            value={editingText}
-                            onChange={(event) =>
-                              setEditingText(event.target.value)
-                            }
-                            maxLength={2000}
-                            disabled={isEditPending}
-                            className="min-h-[92px] w-full resize-y rounded-sm border border-neutral-1000-a10 bg-bg-default px-3 py-2 text-sm leading-6 text-neutral-primary outline-none transition focus:border-neutral-400"
-                          />
-                          <div className="flex justify-end gap-1.5">
-                            <BareButton
-                              type="button"
-                              onClick={() => {
-                                setEditingItemId(null);
-                                setEditingText("");
-                              }}
-                              disabled={isEditPending}
-                              className="h-8 rounded-sm px-2.5 text-xs font-medium text-neutral-muted transition hover:bg-bg-weak hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              취소
-                            </BareButton>
-                            <BareButton
-                              type="button"
-                              onClick={async () => {
-                                const nextText = editingText.trim();
-                                if (!nextText || !onEdit || isEditPending) {
-                                  return;
-                                }
-                                try {
-                                  await onEdit(item, nextText);
-                                  setEditingItemId(null);
-                                  setEditingText("");
-                                } catch {
-                                  // Keep the editor open; the parent renders the error.
-                                }
-                              }}
-                              disabled={!editingText.trim() || isEditPending}
-                              className={cx(
-                                opsTheme.buttonPrimary,
-                                "h-8 rounded-sm px-2.5 text-xs"
-                              )}
-                            >
-                              {isEditPending ? (
-                                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                              ) : null}
-                              저장
-                            </BareButton>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="mt-2 whitespace-pre-wrap leading-6 text-neutral-primary">
-                          {item.text}
-                        </div>
-                      )}
-                      {delivery ? (
-                        <div className="mt-2">
-                          <BareButton
-                            type="button"
-                            onClick={() =>
-                              setExpandedDeliveryId(
-                                expanded ? null : deliveryKey
-                              )
-                            }
-                            className="inline-flex h-7 items-center gap-1.5 rounded-md bg-bg-weak px-2 text-[11px] font-medium text-neutral-muted transition hover:text-neutral-primary"
-                          >
-                            {expanded ? (
-                              <ChevronDown className="h-3.5 w-3.5" />
-                            ) : (
-                              <ChevronRight className="h-3.5 w-3.5" />
-                            )}
-                            <Mail className="h-3.5 w-3.5" />
-                            메일 내용
-                          </BareButton>
-                          {expanded ? (
-                            <DeliveryPreview delivery={delivery} />
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </div>
-                    {useActionMenu ? (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <BareButton
-                            type="button"
-                            disabled={Boolean(pendingDeleteId || pendingEditId)}
-                            aria-label="피드 작업"
-                            title="피드 작업"
-                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-soft transition hover:bg-bg-weak hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            <MoreHorizontal className="h-3.5 w-3.5" />
-                          </BareButton>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-32">
-                          {canEdit ? (
-                            <DropdownMenuItem
-                              onSelect={() => {
-                                setEditingItemId(item.id);
-                                setEditingText(item.text);
-                              }}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                              수정
-                            </DropdownMenuItem>
-                          ) : null}
-                          {canDelete ? (
-                            <DropdownMenuItem
-                              tone="danger"
-                              onSelect={() => {
-                                if (!window.confirm(deleteConfirmMessage)) {
-                                  return;
-                                }
-                                onDelete?.(item);
-                              }}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                              삭제
-                            </DropdownMenuItem>
-                          ) : null}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    ) : onDelete && item.deletable ? (
-                      <BareButton
-                        type="button"
-                        onClick={() => {
-                          if (!window.confirm(deleteConfirmMessage)) return;
-                          onDelete(item);
-                        }}
-                        disabled={Boolean(pendingDeleteId)}
-                        aria-label="Progress 삭제"
-                        title="Progress 삭제"
-                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-soft transition hover:bg-critical-faded hover:text-critical disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {isDeleting ? (
-                          <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-3.5 w-3.5" />
-                        )}
-                      </BareButton>
-                    ) : null}
-                  </div>
-                </article>
-              </div>
+              <ProgressFeedItemRow
+                actionsDisabled={Boolean(pendingDeleteId || pendingEditId)}
+                actionsVariant={actionsVariant}
+                canDeleteItems={Boolean(onDelete)}
+                canEditItems={Boolean(onEdit)}
+                deleteDisabled={Boolean(pendingDeleteId)}
+                editingText={isEditing ? editingText : ""}
+                expanded={
+                  deliveryKey !== null && expandedDeliveryId === deliveryKey
+                }
+                isDeleting={pendingDeleteId === item.id}
+                isEditing={isEditing}
+                isEditPending={pendingEditId === item.id}
+                item={item}
+                key={item.id}
+                onCancelEdit={handleCancelEdit}
+                onDeleteItem={handleDeleteItem}
+                onEditingTextChange={handleEditingTextChange}
+                onSaveEdit={handleSaveEdit}
+                onStartEdit={handleStartEdit}
+                onToggleDelivery={handleToggleDelivery}
+              />
             );
           })}
         </div>

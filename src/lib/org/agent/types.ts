@@ -29,6 +29,17 @@ export type OrgAgentMessageAction =
     }
   | {
       id: string;
+      kind: "entity_updated";
+      label: string;
+      payload: {
+        changeSummary: string;
+        scope: "company" | "role";
+      };
+      status?: "idle";
+    }
+  | {
+      /** Legacy action kind used by request-only Agent messages. */
+      id: string;
       kind: "request_updated";
       label: string;
       payload: {
@@ -41,6 +52,15 @@ export type OrgAgentMessageAction =
 export type OrgAgentMessageMetadata = {
   actions?: OrgAgentMessageAction[];
   fallbackReason?: string | null;
+  historyTruncated?: boolean;
+  llmUsage?: {
+    cacheCreationInputTokens: number;
+    cacheReadInputTokens: number;
+    completionCount: number;
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+  };
   model?: string | null;
   requestChange?: {
     after: string | null;
@@ -55,6 +75,7 @@ export type OrgAgentMessageMetadata = {
     scope: "company" | "role";
   }>;
   source?: string | null;
+  slackUserName?: string | null;
   toolResults?: Array<{
     callId: string;
     name: string;
@@ -77,7 +98,11 @@ export type OrgAgentMessage = {
 
 export type OrgAgentConversation = {
   conversationId: string;
-  roleId: string;
+  /**
+   * Legacy field kept during the workspace-conversation migration.
+   * New organization agent conversations always return null.
+   */
+  roleId: string | null;
   title: string | null;
   workspaceId: string;
 };
@@ -109,6 +134,7 @@ export type OrgAgentChatBody = {
   mentions?: OrgAgentMention[];
   message?: string;
   model?: OrgAgentModelId | string | null;
+  /** @deprecated The organization agent is no longer bound to one role. */
   roleId?: string;
   workspaceId?: string;
 };

@@ -5,7 +5,10 @@ import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 
 function toErrorResponse(error: unknown) {
   if (error instanceof OrgHttpError) {
-    return NextResponse.json({ error: error.message }, { status: error.status });
+    return NextResponse.json(
+      { error: error.message },
+      { status: error.status }
+    );
   }
   if (error instanceof Error && error.message === "Unauthorized") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -22,7 +25,6 @@ export async function GET(req: NextRequest) {
     const user = await requireAuthenticatedUser(req);
     const candidates = await searchOrgAgentMentionCandidates({
       query: req.nextUrl.searchParams.get("query"),
-      roleId: req.nextUrl.searchParams.get("roleId") ?? "",
       user,
       workspaceId: req.nextUrl.searchParams.get("workspaceId") ?? "",
     });

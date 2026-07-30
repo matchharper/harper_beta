@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { LoaderCircle, Search } from "lucide-react";
 import { formatKstRelativeDateTime } from "@/components/ops/dateUtils";
 import {
@@ -19,6 +19,7 @@ import { BareButton } from "@/components/ui/button";
 import { Input as UiInput } from "@/components/ui/input";
 import {
   useOpsMatchingFits,
+  usePendingOpsMatchingFitHumanLabelMutations,
   useUpdateOpsMatchingFitHumanLabel,
 } from "@/hooks/ops/useOpsMatching";
 import type {
@@ -27,6 +28,7 @@ import type {
   OpsMatchingFitRole,
   OpsMatchingRoleOption,
 } from "@/lib/ops/matching";
+import { buildPendingOpsMatchingFitHumanLabelIds } from "@/lib/ops/matchingClient";
 
 function toDrawerRole(role: OpsMatchingFitRole): OpsMatchingRoleOption {
   return {
@@ -69,7 +71,7 @@ function MatchingFitTable({
   items,
   onHumanLabelChange,
   onSelect,
-  updatingFitId,
+  updatingFitIds,
 }: {
   items: OpsMatchingFitItem[];
   onHumanLabelChange: (
@@ -77,7 +79,7 @@ function MatchingFitTable({
     label: OpsMatchingFitLabel | null
   ) => void;
   onSelect: (item: OpsMatchingFitItem) => void;
-  updatingFitId: string | null;
+  updatingFitIds: ReadonlySet<string>;
 }) {
   return (
     <div className="overflow-x-auto rounded-md border border-neutral-1000-a05 bg-bg-floating">
@@ -130,7 +132,7 @@ function MatchingFitTable({
               </td>
               <td className="px-3 py-3 align-top">
                 <MatchingFitLabelCell
-                  isUpdating={updatingFitId === item.fitId}
+                  isUpdating={updatingFitIds.has(item.fitId)}
                   item={item}
                   onHumanLabelChange={onHumanLabelChange}
                 />
@@ -186,6 +188,7 @@ export function MatchingFitRecordBrowser({
   const [selectedItem, setSelectedItem] = useState<OpsMatchingFitItem | null>(
     null
   );
+  const [humanLabelError, setHumanLabelError] = useState("");
   const normalizedLlmLabelFilters = useMemo(
     () => normalizeFitLabelFilters(llmLabelFilters),
     [llmLabelFilters]
@@ -202,6 +205,13 @@ export function MatchingFitRecordBrowser({
     query: searchQuery,
   });
   const updateHumanLabel = useUpdateOpsMatchingFitHumanLabel();
+  const pendingHumanLabelMutations =
+    usePendingOpsMatchingFitHumanLabelMutations();
+  const locallyUpdatingFitIdsRef = useRef(new Set<string>());
+  const updatingFitIds = useMemo(
+    () => buildPendingOpsMatchingFitHumanLabelIds(pendingHumanLabelMutations),
+    [pendingHumanLabelMutations]
+  );
   const items = useMemo(
     () => fitsQuery.data?.pages.flatMap((page) => page.items) ?? [],
     [fitsQuery.data?.pages]
@@ -220,11 +230,29 @@ export function MatchingFitRecordBrowser({
     item: OpsMatchingFitItem,
     label: OpsMatchingFitLabel | null
   ) => {
-    if (updateHumanLabel.isPending) return;
-    updateHumanLabel.mutate({
-      fitId: item.fitId,
-      humanLabel: label,
-    });
+    if (
+      updatingFitIds.has(item.fitId) ||
+      locallyUpdatingFitIdsRef.current.has(item.fitId)
+    ) {
+      return;
+    }
+    locallyUpdatingFitIdsRef.current.add(item.fitId);
+    setHumanLabelError("");
+    void updateHumanLabel
+      .mutateAsync({
+        fitId: item.fitId,
+        humanLabel: label,
+      })
+      .catch((error) => {
+        setHumanLabelError(
+          error instanceof Error
+            ? error.message
+            : "Human label을 저장하지 못했습니다."
+        );
+      })
+      .finally(() => {
+        locallyUpdatingFitIdsRef.current.delete(item.fitId);
+      });
   };
 
   return (
@@ -300,12 +328,8 @@ export function MatchingFitRecordBrowser({
         </div>
       </div>
 
-      {updateHumanLabel.error ? (
-        <div className={opsTheme.errorNotice}>
-          {updateHumanLabel.error instanceof Error
-            ? updateHumanLabel.error.message
-            : "Human label을 저장하지 못했습니다."}
-        </div>
+      {humanLabelError ? (
+        <div className={opsTheme.errorNotice}>{humanLabelError}</div>
       ) : null}
 
       {fitsQuery.isLoading ? (
@@ -327,7 +351,7 @@ export function MatchingFitRecordBrowser({
           items={items}
           onHumanLabelChange={handleHumanLabelChange}
           onSelect={setSelectedItem}
-          updatingFitId={updateHumanLabel.variables?.fitId ?? null}
+          updatingFitIds={updatingFitIds}
         />
       )}
 

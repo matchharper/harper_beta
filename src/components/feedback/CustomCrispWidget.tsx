@@ -1,11 +1,11 @@
 "use client";
 
 import {
+  ArrowUp,
   ChevronDown,
   Copy,
   Loader2,
   MessageCircle,
-  MessageSquareShare,
   Trash2,
   X,
 } from "lucide-react";
@@ -18,7 +18,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { BareButton, Button } from "@/components/ui/button";
+import { BareButton, Button, MuteButton } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -28,16 +28,23 @@ import {
   isValidCrispEmail,
 } from "@/lib/feedback/crisp";
 import { CUSTOM_CRISP_OPEN_EVENT } from "@/lib/feedback/customCrispEvents";
+import { useMessages } from "@/i18n/useMessage";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
 
 const STORAGE_KEY = "harper_custom_crisp_thread_v1";
+const IDENTITY_STORAGE_KEY = "harper_custom_crisp_identity_v1";
 const MAX_MESSAGE_LENGTH = 5000;
 const MAX_COMPOSER_TEXTAREA_HEIGHT = 100;
 
 type StoredThread = {
   id: number;
   token: string;
+};
+
+type StoredIdentity = {
+  email: string;
+  name: string;
 };
 
 type ApiThreadResponse = {
@@ -59,6 +66,7 @@ type WidgetCopy = {
   emailNo: string;
   emailPrompt: string;
   emailYes: string;
+  forgetIdentity: string;
   headline: string;
   identityEmail: string;
   invalidEmail: string;
@@ -82,15 +90,16 @@ const COPY: Record<WidgetLocale, WidgetCopy> = {
     emailNo: "아니오",
     emailPrompt: "답장을 이메일로 받으시겠습니까?",
     emailYes: "예",
+    forgetIdentity: "저장된 연락처 삭제",
     headline: "무엇을 도와드릴까요?",
     identityEmail: "이메일",
     invalidEmail: "이메일을 확인해주세요.",
     identityName: "이름",
-    identityPrompt: "답변 받을 이름과 이메일을 남겨주세요.",
+    identityPrompt: "(필수) 답변을 받으실 이름과 이메일을 남겨주세요.",
     identitySubmit: "제출",
     placeholder: "메시지를 입력하세요...",
     replyNotice:
-      "이메일과 현재 채팅창을 통해 답을 드릴게요.<br />연락해주셔서 감사합니다.",
+      "연락해주셔서 감사합니다.<br />{email} 이메일과 현재 채팅창을 통해 최대한 빠른 시일내에 답을 드리겠습니다.",
     submitError: "메시지를 보내지 못했습니다.",
     subtitle: "메시지를 남겨주시면 확인하고 답변드릴게요.",
   },
@@ -105,20 +114,43 @@ const COPY: Record<WidgetLocale, WidgetCopy> = {
     emailNo: "No",
     emailPrompt: "Would you like to receive replies by email?",
     emailYes: "Yes",
+    forgetIdentity: "Remove saved contact",
     headline: "How can we help?",
     identityEmail: "Email",
     invalidEmail: "Check the email address.",
     identityName: "Name",
-    identityPrompt: "Leave your name and email for a reply.",
+    identityPrompt: "(Required) Leave your name and email for a reply.",
     identitySubmit: "Submit",
     placeholder: "Type your message...",
     replyNotice:
-      "We will reply here and by email.<br />Thank you for contacting us.",
+      "Thank you for contacting us.<br />We will reply to {email} and in this chat as soon as possible.",
     submitError: "Could not send your message.",
     subtitle:
       "Send us a message and we'll get back to you as soon as possible.",
   },
 };
+
+function ReplyNoticeText({
+  email,
+  template,
+}: {
+  email: string;
+  template: string;
+}) {
+  return template.split("<br />").map((line, lineIndex) => {
+    const [beforeEmail, afterEmail] = line.split("{email}");
+    const includesEmail = line.includes("{email}");
+
+    return (
+      <span key={`${lineIndex}-${line}`}>
+        {lineIndex > 0 ? <br /> : null}
+        {beforeEmail}
+        {includesEmail ? <span className="text-blue-500">{email}</span> : null}
+        {includesEmail ? afterEmail : null}
+      </span>
+    );
+  });
+}
 
 function readStoredThread() {
   if (typeof window === "undefined") return null;
@@ -139,9 +171,41 @@ function writeStoredThread(value: StoredThread) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
 }
 
-function getWidgetLocale(): WidgetLocale {
-  if (typeof window === "undefined") return "ko";
-  return window.location.pathname.startsWith("/en") ? "en" : "ko";
+function readStoredIdentity() {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const parsed = JSON.parse(
+      localStorage.getItem(IDENTITY_STORAGE_KEY) ?? "null"
+    ) as StoredIdentity | null;
+    const name = parsed?.name?.trim() ?? "";
+    const email = parsed?.email?.trim() ?? "";
+    if (!name || !isValidCrispEmail(email)) return null;
+    return { email, name };
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredIdentity(value: StoredIdentity) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(IDENTITY_STORAGE_KEY, JSON.stringify(value));
+}
+
+function removeStoredIdentity() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(IDENTITY_STORAGE_KEY);
+}
+
+function getStoredIdentityFromThread(
+  thread: CrispFeedbackThread
+): StoredIdentity | null {
+  if (thread.userId || thread.userEmail) return null;
+
+  const name = thread.guestName?.trim() ?? "";
+  const email = thread.guestEmail?.trim() ?? "";
+  if (!name || !isValidCrispEmail(email)) return null;
+  return { email, name };
 }
 
 function getPagePath() {
@@ -260,7 +324,7 @@ function MessageBubble({
           </p>
         </div>
         {isUserMessage ? (
-          <div className="mt-1 flex h-5 items-center gap-0.5 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
+          <div className="mt-[1px] flex h-5 items-center gap-0.5 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
             <BareButton
               type="button"
               aria-label="메시지 복사"
@@ -420,9 +484,9 @@ function IdentityForm({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       onSubmit={onSubmit}
-      className="rounded-lg border border-neutral-1000-a05 bg-bg-floating px-3 py-3"
+      className=""
     >
-      <p className="text-[13px] font-medium leading-5 text-neutral-primary">
+      <p className="text-[13px] font-normal leading-5 text-neutral-primary">
         {copy.identityPrompt}
       </p>
       <div className="mt-2 grid grid-cols-1 gap-2">
@@ -430,27 +494,62 @@ function IdentityForm({
           value={name}
           onChange={(event) => onNameChange(event.target.value)}
           placeholder={copy.identityName}
-          className="h-9 rounded-md text-[13px]"
+          className="h-9 rounded-md text-[13px] max-w-[240px]"
         />
         <Input
           value={email}
           onChange={(event) => onEmailChange(event.target.value)}
           placeholder={copy.identityEmail}
           type="email"
-          className="h-9 rounded-md text-[13px]"
+          className="h-9 rounded-md text-[13px] max-w-[240px]"
         />
       </div>
-      <Button
+      <MuteButton
         type="submit"
-        size="sm"
-        variant="primary"
+        variant="dark"
         disabled={saving || !name.trim() || !email.trim()}
-        className="mt-2 h-8 rounded-md px-3 text-[12px]"
+        className="mt-2"
       >
         {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
         {copy.identitySubmit}
-      </Button>
+      </MuteButton>
     </motion.form>
+  );
+}
+
+function StoredIdentityBadge({
+  copy,
+  identity,
+  onRemove,
+  removing,
+}: {
+  copy: WidgetCopy;
+  identity: StoredIdentity;
+  onRemove: () => void;
+  removing: boolean;
+}) {
+  return (
+    <div
+      className="group inline-flex max-w-[220px] items-center rounded-full bg-neutral-1000-a05 py-0.5 pl-2 pr-1 text-[9px] leading-3 text-neutral-muted"
+      title={`${identity.name} · ${identity.email}`}
+    >
+      <span className="truncate">
+        {identity.name} · {identity.email}
+      </span>
+      <BareButton
+        type="button"
+        disabled={removing}
+        onClick={onRemove}
+        aria-label={copy.forgetIdentity}
+        className="ml-0.5 inline-flex h-3 w-3 shrink-0 items-center justify-center rounded-full opacity-0 transition hover:bg-neutral-1000-a10 hover:text-neutral-primary focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 disabled:cursor-wait"
+      >
+        {removing ? (
+          <Loader2 className="h-2.5 w-2.5 animate-spin" />
+        ) : (
+          <X className="h-2.5 w-2.5" />
+        )}
+      </BareButton>
+    </div>
   );
 }
 
@@ -470,6 +569,7 @@ function Composer({
   sending: boolean;
 }) {
   const canSubmit = input.trim().length > 0 && !sending;
+  const hasInput = input.length > 0;
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -491,7 +591,7 @@ function Composer({
       onSubmit={(event) => onSubmit(event)}
       className="shrink-0 border-t border-neutral-1000-a05 bg-bg-floating px-3 pb-3 pt-3"
     >
-      <div className="flex items-end gap-2">
+      <div className="relative">
         <Textarea
           ref={textareaRef}
           value={input}
@@ -503,9 +603,12 @@ function Composer({
             }
           }}
           placeholder={copy.placeholder}
-          rows={1}
+          rows={hasInput ? 2 : 1}
           maxLength={MAX_MESSAGE_LENGTH}
-          className="min-h-10 max-h-[100px] overflow-y-hidden rounded-md px-3 py-2.5 text-[13px] leading-5 shadow-[0_2px_8px_color-mix(in_srgb,var(--color-neutral-1000)_6%,transparent)] placeholder:text-neutral-muted"
+          className={cn(
+            "max-h-[100px] overflow-y-hidden rounded-md px-3 py-2 pr-12 text-[13px] leading-5 shadow-[0_2px_8px_color-mix(in_srgb,var(--color-neutral-1000)_6%,transparent)] transition-[height,border-color,background-color] placeholder:text-neutral-muted",
+            hasInput ? "min-h-[60px]" : "min-h-10"
+          )}
         />
         <Button
           type="submit"
@@ -513,7 +616,7 @@ function Composer({
           variant="secondary"
           disabled={!canSubmit}
           className={cn(
-            "h-10 w-10 rounded-md border-neutral-1000-a10 transition",
+            "absolute bottom-[11px] right-[5px] h-7.5 w-7.5 rounded-md transition",
             canSubmit
               ? "bg-neutral-1000 text-neutral-00 hover:bg-neutral-900"
               : "bg-bg-weak text-neutral-muted"
@@ -523,7 +626,7 @@ function Composer({
           {sending ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
-            <MessageSquareShare className="h-4 w-4" />
+            <ArrowUp className="h-3.5 w-3.5" />
           )}
         </Button>
       </div>
@@ -555,7 +658,7 @@ function Launcher({
       <BareButton
         type="button"
         onClick={onToggle}
-        className="relative inline-flex h-[52px] w-[52px] items-center justify-center rounded-full border border-neutral-1000 bg-neutral-1000 text-neutral-00 shadow-[0_18px_46px_color-mix(in_srgb,var(--color-neutral-1000)_24%,transparent)] transition hover:bg-neutral-900"
+        className="relative inline-flex md:h-[52px] md:w-[52px] h-[46px] w-[46px] items-center justify-center rounded-full border border-neutral-1000 bg-neutral-1000 text-neutral-00 shadow-lg transition hover:bg-neutral-900"
         aria-label="Harper 문의 열기"
       >
         <AnimatePresence mode="wait" initial={false}>
@@ -567,9 +670,9 @@ function Launcher({
             transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
           >
             {open ? (
-              <ChevronDown className="h-5 w-5" />
+              <ChevronDown className="h-4 w-4 md:h-5 md:w-5" />
             ) : (
-              <MessageCircle className="h-5 w-5" />
+              <MessageCircle className="h-4 w-4 md:h-5 md:w-5" />
             )}
           </motion.span>
         </AnimatePresence>
@@ -589,12 +692,17 @@ export default function CustomCrispWidget({
   showLauncherWhenOpen?: boolean;
 }) {
   const { session } = useAuthStore();
+  const { locale: preferredLocale } = useMessages();
   const [deleteMessageSaving, setDeleteMessageSaving] = useState(false);
   const [emailChoiceSaving, setEmailChoiceSaving] = useState(false);
   const [error, setError] = useState("");
   const [identityEmail, setIdentityEmail] = useState("");
   const [identityName, setIdentityName] = useState("");
+  const [identityPromptSuppressed, setIdentityPromptSuppressed] =
+    useState(false);
+  const [identityRemoving, setIdentityRemoving] = useState(false);
   const [identitySaving, setIdentitySaving] = useState(false);
+  const [guestIdentityRevoked, setGuestIdentityRevoked] = useState(false);
   const [input, setInput] = useState("");
   const [open, setOpen] = useState(false);
   const [pendingDeleteMessage, setPendingDeleteMessage] =
@@ -603,10 +711,15 @@ export default function CustomCrispWidget({
   const [storedThread, setStoredThread] = useState<StoredThread | null>(() =>
     readStoredThread()
   );
+  const [storedIdentity, setStoredIdentity] = useState<StoredIdentity | null>(
+    () => readStoredIdentity()
+  );
   const [thread, setThread] = useState<CrispFeedbackThread | null>(null);
+  const identityHydrationBlockedRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const accessToken = session?.access_token ?? null;
-  const locale = getWidgetLocale();
+  const authenticatedEmail = session?.user.email?.trim() ?? "";
+  const locale: WidgetLocale = preferredLocale === "ko" ? "ko" : "en";
   const copy = COPY[locale];
   const visibleMessages = useMemo(
     () => thread?.messages.filter((message) => !message.deletedAt) ?? [],
@@ -639,9 +752,22 @@ export default function CustomCrispWidget({
       if (!response.ok || !payload.feedback) {
         throw new Error(payload.error ?? "문의 내역을 불러오지 못했습니다.");
       }
-      setThread(payload.feedback);
+
+      const nextThread = payload.feedback;
+      setThread(nextThread);
+      if (
+        !authenticatedEmail &&
+        !identityHydrationBlockedRef.current &&
+        !readStoredIdentity()
+      ) {
+        const existingIdentity = getStoredIdentityFromThread(nextThread);
+        if (existingIdentity) {
+          writeStoredIdentity(existingIdentity);
+          setStoredIdentity(existingIdentity);
+        }
+      }
     },
-    [buildHeaders]
+    [authenticatedEmail, buildHeaders]
   );
 
   useEffect(() => {
@@ -713,18 +839,38 @@ export default function CustomCrispWidget({
       event?.preventDefault();
 
       const content = input.trim();
-      if (!content || sending) return;
+      if (!content || sending || identityRemoving) return;
 
       setError("");
       setSending(true);
 
       try {
+        const guestIdentity = authenticatedEmail ? null : storedIdentity;
+
         if (storedThread) {
-          await patchThread({ content });
+          await patchThread({
+            ...(guestIdentity
+              ? {
+                  guestEmail: guestIdentity.email,
+                  guestName: guestIdentity.name,
+                  wantsEmailReply: true,
+                }
+              : null),
+            ...(guestIdentityRevoked ? { clearGuestIdentity: true } : null),
+            content,
+          });
+          if (guestIdentityRevoked) setGuestIdentityRevoked(false);
         } else {
           const response = await fetch("/api/feedback/crisp", {
             body: JSON.stringify({
               content,
+              ...(guestIdentity
+                ? {
+                    guestEmail: guestIdentity.email,
+                    guestName: guestIdentity.name,
+                    wantsEmailReply: true,
+                  }
+                : null),
               locale,
               pagePath: getPagePath(),
             }),
@@ -747,6 +893,9 @@ export default function CustomCrispWidget({
           setThread(payload.feedback);
         }
 
+        if (!authenticatedEmail && !guestIdentity) {
+          setIdentityPromptSuppressed(false);
+        }
         setInput("");
       } catch {
         setError(copy.submitError);
@@ -755,12 +904,16 @@ export default function CustomCrispWidget({
       }
     },
     [
+      authenticatedEmail,
       buildHeaders,
       copy.submitError,
+      guestIdentityRevoked,
+      identityRemoving,
       input,
       locale,
       patchThread,
       sending,
+      storedIdentity,
       storedThread,
     ]
   );
@@ -800,7 +953,17 @@ export default function CustomCrispWidget({
         await patchThread({
           guestEmail,
           guestName,
+          wantsEmailReply: true,
         });
+        const nextIdentity = {
+          email: guestEmail,
+          name: guestName,
+        };
+        writeStoredIdentity(nextIdentity);
+        identityHydrationBlockedRef.current = false;
+        setStoredIdentity(nextIdentity);
+        setGuestIdentityRevoked(false);
+        setIdentityPromptSuppressed(false);
       } catch {
         setError(copy.submitError);
       } finally {
@@ -816,6 +979,43 @@ export default function CustomCrispWidget({
       patchThread,
     ]
   );
+
+  const handleRemoveStoredIdentity = useCallback(async () => {
+    if (identityRemoving) return;
+
+    identityHydrationBlockedRef.current = true;
+    removeStoredIdentity();
+    setStoredIdentity(null);
+    setIdentityEmail("");
+    setIdentityName("");
+    setIdentityPromptSuppressed(true);
+
+    if (!storedThread || authenticatedEmail) {
+      setGuestIdentityRevoked(false);
+      return;
+    }
+
+    setGuestIdentityRevoked(true);
+    if (!thread || thread.userId || thread.userEmail) return;
+
+    setIdentityRemoving(true);
+    setError("");
+    try {
+      await patchThread({ clearGuestIdentity: true });
+      setGuestIdentityRevoked(false);
+    } catch {
+      setError(copy.submitError);
+    } finally {
+      setIdentityRemoving(false);
+    }
+  }, [
+    authenticatedEmail,
+    copy.submitError,
+    identityRemoving,
+    patchThread,
+    storedThread,
+    thread,
+  ]);
 
   const handleCopyMessage = useCallback((message: CrispFeedbackMessage) => {
     const copyPromise = navigator.clipboard?.writeText(message.text);
@@ -858,11 +1058,15 @@ export default function CustomCrispWidget({
     hasMessages &&
     !thread.userId &&
     !thread.userEmail &&
+    !storedIdentity &&
+    !identityPromptSuppressed &&
     (!thread.requesterName || !thread.requesterEmail)
   );
   const showReplyNotice = Boolean(
     hasMessages && thread?.wantsEmailReply === true && !hasAdminReply
   );
+  const replyEmail =
+    thread?.requesterEmail ?? storedIdentity?.email ?? authenticatedEmail;
   const shouldRenderLauncher = showLauncher || (showLauncherWhenOpen && open);
 
   return (
@@ -896,67 +1100,84 @@ export default function CustomCrispWidget({
               stiffness: 360,
               type: "spring",
             }}
-            className="fixed bottom-[92px] right-4 z-[80] flex h-[min(calc(100dvh-104px),clamp(620px,73dvh,820px))] w-[min(calc(100vw-28px),clamp(380px,25vw,516px))] flex-col overflow-hidden rounded-[14px] border border-neutral-1000-a10 bg-bg-floating font-sans shadow-[0_20px_60px_rgba(0,0,0,0.14)] sm:right-5"
+            className="fixed md:bottom-[92px] bottom-[68px] right-4 z-[80] flex h-[min(calc(100dvh-104px),clamp(620px,73dvh,820px))] w-[min(calc(100vw-28px),clamp(380px,25vw,516px))] flex-col overflow-hidden rounded-[14px] border border-neutral-1000-a10 bg-bg-floating font-sans shadow-[0_20px_60px_rgba(0,0,0,0.14)] sm:right-5"
           >
             <WidgetHeader copy={copy} onClose={() => setOpen(false)} />
 
             <div className="relative flex min-h-0 flex-1 flex-col bg-bg-floating">
-              <div
-                className={cn(
-                  "min-h-0 flex-1 overflow-y-auto",
-                  hasMessages ? "px-4 py-4" : "flex px-0 py-0"
-                )}
-              >
-                {hasMessages && thread ? (
-                  <motion.div layout className="space-y-3">
-                    <AnimatePresence initial={false}>
-                      {visibleMessages.map((message) => (
-                        <MessageBubble
-                          key={message.id}
+              <div className="relative min-h-0 flex-1">
+                <div
+                  className={cn(
+                    "h-full overflow-y-auto",
+                    hasMessages ? "px-4 py-4" : "flex px-0 py-0",
+                    !authenticatedEmail && storedIdentity ? "pb-7" : null
+                  )}
+                >
+                  {hasMessages && thread ? (
+                    <motion.div layout className="space-y-2">
+                      <AnimatePresence initial={false}>
+                        {visibleMessages.map((message) => (
+                          <MessageBubble
+                            key={message.id}
+                            copy={copy}
+                            deleting={deleteMessageSaving}
+                            message={message}
+                            onCopy={handleCopyMessage}
+                            onRequestDelete={setPendingDeleteMessage}
+                          />
+                        ))}
+                      </AnimatePresence>
+
+                      {showEmailChoice ? (
+                        <EmailChoicePrompt
                           copy={copy}
-                          deleting={deleteMessageSaving}
-                          message={message}
-                          onCopy={handleCopyMessage}
-                          onRequestDelete={setPendingDeleteMessage}
+                          disabled={emailChoiceSaving}
+                          onSelect={handleEmailChoice}
                         />
-                      ))}
-                    </AnimatePresence>
+                      ) : null}
 
-                    {showEmailChoice ? (
-                      <EmailChoicePrompt
-                        copy={copy}
-                        disabled={emailChoiceSaving}
-                        onSelect={handleEmailChoice}
-                      />
-                    ) : null}
+                      {showIdentityForm ? (
+                        <IdentityForm
+                          copy={copy}
+                          email={identityEmail}
+                          name={identityName}
+                          onEmailChange={setIdentityEmail}
+                          onNameChange={setIdentityName}
+                          onSubmit={handleIdentitySubmit}
+                          saving={identitySaving}
+                        />
+                      ) : null}
 
-                    {showIdentityForm ? (
-                      <IdentityForm
-                        copy={copy}
-                        email={identityEmail}
-                        name={identityName}
-                        onEmailChange={setIdentityEmail}
-                        onNameChange={setIdentityName}
-                        onSubmit={handleIdentitySubmit}
-                        saving={identitySaving}
-                      />
-                    ) : null}
+                      {showReplyNotice ? (
+                        <motion.p
+                          layout
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="rounded-lg bg-black/5 px-3 py-2 text-[12px] leading-5 text-black/80"
+                        >
+                          <ReplyNoticeText
+                            email={replyEmail}
+                            template={copy.replyNotice}
+                          />
+                        </motion.p>
+                      ) : null}
 
-                    {showReplyNotice ? (
-                      <motion.p
-                        layout
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="rounded-lg bg-black/5 px-3 py-2 text-[12px] leading-5 text-black/80"
-                        dangerouslySetInnerHTML={{ __html: copy.replyNotice }}
-                      />
-                    ) : null}
-
-                    <div ref={messagesEndRef} />
-                  </motion.div>
-                ) : (
-                  <EmptyState copy={copy} />
-                )}
+                      <div ref={messagesEndRef} />
+                    </motion.div>
+                  ) : (
+                    <EmptyState copy={copy} />
+                  )}
+                </div>
+                {!authenticatedEmail && storedIdentity ? (
+                  <div className="absolute bottom-1 right-1 z-10 flex justify-end">
+                    <StoredIdentityBadge
+                      copy={copy}
+                      identity={storedIdentity}
+                      onRemove={() => void handleRemoveStoredIdentity()}
+                      removing={identityRemoving}
+                    />
+                  </div>
+                ) : null}
               </div>
 
               <Composer
@@ -965,7 +1186,7 @@ export default function CustomCrispWidget({
                 input={input}
                 onChange={setInput}
                 onSubmit={handleSubmitMessage}
-                sending={sending}
+                sending={sending || identityRemoving}
               />
               <AnimatePresence>
                 {pendingDeleteMessage ? (
@@ -986,7 +1207,7 @@ export default function CustomCrispWidget({
       </AnimatePresence>
 
       {shouldRenderLauncher ? (
-        <div className="fixed bottom-4 right-4 z-[81] sm:bottom-5 sm:right-5">
+        <div className="fixed bottom-3 right-3 z-[81] sm:bottom-5 sm:right-5">
           <Launcher
             copy={copy}
             hasAdminReply={hasAdminReply}

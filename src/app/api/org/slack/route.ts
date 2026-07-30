@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  createOrgSlackAuthorizeUrl,
-  disconnectOrgSlackIntegration,
-  getOrgSlackIntegrationStatus,
-  OrgSlackIntegrationError,
-  sendOrgSlackTestMessage,
-  updateOrgSlackNotificationSettings,
-} from "@/lib/org/slackIntegration";
+  addHarperSlackChannel,
+  createHarperSlackAuthorizeUrl,
+  getHarperSlackStatus,
+  HarperSlackError,
+  removeHarperSlackChannel,
+} from "@/lib/org/slackHarper";
 import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 
 function toErrorResponse(error: unknown) {
-  if (error instanceof OrgSlackIntegrationError) {
+  if (error instanceof HarperSlackError) {
     return NextResponse.json(
       { error: error.message },
       { status: error.status }
@@ -29,7 +28,7 @@ function toErrorResponse(error: unknown) {
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthenticatedUser(req);
-    const payload = await getOrgSlackIntegrationStatus({
+    const payload = await getHarperSlackStatus({
       user,
       workspaceId: req.nextUrl.searchParams.get("workspaceId") ?? "",
     });
@@ -43,13 +42,14 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthenticatedUser(req);
     const body = (await req.json().catch(() => ({}))) as {
-      action?: "connect" | "test";
+      action?: "add_channel" | "connect";
+      channelId?: string | null;
       returnTo?: string;
       workspaceId?: string;
     };
 
     if (body.action === "connect") {
-      const authorizeUrl = await createOrgSlackAuthorizeUrl({
+      const authorizeUrl = await createHarperSlackAuthorizeUrl({
         origin: req.nextUrl.origin,
         returnTo: body.returnTo,
         user,
@@ -58,8 +58,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ authorizeUrl });
     }
 
-    if (body.action === "test") {
-      const payload = await sendOrgSlackTestMessage({
+    if (body.action === "add_channel") {
+      const payload = await addHarperSlackChannel({
+        channelId: body.channelId ?? "",
         user,
         workspaceId: body.workspaceId ?? "",
       });
@@ -76,31 +77,11 @@ export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuthenticatedUser(req);
     const body = (await req.json().catch(() => ({}))) as {
+      channelId?: string;
       workspaceId?: string;
     };
-    const payload = await disconnectOrgSlackIntegration({
-      user,
-      workspaceId: body.workspaceId ?? "",
-    });
-    return NextResponse.json(payload);
-  } catch (error) {
-    return toErrorResponse(error);
-  }
-}
-
-export async function PATCH(req: NextRequest) {
-  try {
-    const user = await requireAuthenticatedUser(req);
-    const body = (await req.json().catch(() => ({}))) as {
-      notifications?: {
-        candidateAccepted?: boolean;
-        candidateRejected?: boolean;
-        memberJoined?: boolean;
-      };
-      workspaceId?: string;
-    };
-    const payload = await updateOrgSlackNotificationSettings({
-      notifications: body.notifications ?? {},
+    const payload = await removeHarperSlackChannel({
+      channelId: body.channelId,
       user,
       workspaceId: body.workspaceId ?? "",
     });

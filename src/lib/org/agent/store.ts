@@ -1,7 +1,7 @@
 import type { User } from "@supabase/supabase-js";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import {
-  assertOrgRoleAccess,
+  assertOrgWorkspacePermission,
   OrgHttpError,
   type OrgRole,
   upsertOrgCompanyUser,
@@ -26,7 +26,7 @@ export type OrgAgentConversationRow = {
   last_message_at: string | null;
   last_message_id: number | null;
   metadata: Json;
-  role_id: string;
+  role_id: string | null;
   summary_cursor_message_id: number | null;
   title: string | null;
   updated_at: string;
@@ -44,7 +44,7 @@ export type OrgAgentMessageRow = {
   metadata: Json;
   model: string | null;
   role: OrgAgentMessageRole;
-  role_id: string;
+  role_id: string | null;
   status: OrgAgentMessageStatus;
   thinking_logs: Json;
 };
@@ -58,7 +58,7 @@ export type OrgAgentSummaryRow = {
   message_count: number;
   metadata: Json;
   model: string | null;
-  role_id: string;
+  role_id: string | null;
   source_end_message_id: number;
   source_start_message_id: number;
 };
@@ -121,7 +121,9 @@ function normalizeMessageStatus(value: unknown): OrgAgentMessageStatus {
   return value === "pending" || value === "failed" ? value : "completed";
 }
 
-export function toOrgAgentConversation(row: OrgAgentConversationRow): OrgAgentConversation {
+export function toOrgAgentConversation(
+  row: OrgAgentConversationRow
+): OrgAgentConversation {
   return {
     conversationId: row.id,
     roleId: row.role_id,
@@ -145,7 +147,6 @@ export function toOrgAgentMessage(row: OrgAgentMessageRow): OrgAgentMessage {
 }
 
 export async function ensureOrgAgentConversation(args: {
-  roleId: string;
   user: User;
   workspaceId: string;
 }): Promise<{
@@ -154,13 +155,15 @@ export async function ensureOrgAgentConversation(args: {
 }> {
   const admin = getSupabaseAdmin();
   const workspaceId = normalizeText(args.workspaceId);
-  const roleId = normalizeText(args.roleId);
-  if (!workspaceId || !roleId) {
-    throw new OrgHttpError(400, "Missing required fields");
-  }
+  if (!workspaceId) throw new OrgHttpError(400, "workspaceId is required");
 
   await upsertOrgCompanyUser(admin, args.user);
-  await assertOrgRoleAccess({ admin, roleId, user: args.user, workspaceId });
+  await assertOrgWorkspacePermission({
+    admin,
+    permission: "manage_candidates",
+    user: args.user,
+    workspaceId,
+  });
 
   const { data: existing, error: existingError } = await (
     admin.from("company_conversations" as any) as any
@@ -169,7 +172,7 @@ export async function ensureOrgAgentConversation(args: {
       "id, company_workspace_id, role_id, title, last_message_at, last_message_id, summary_cursor_message_id, metadata, created_at, updated_at"
     )
     .eq("company_workspace_id", workspaceId)
-    .eq("role_id", roleId)
+    .is("role_id", null)
     .maybeSingle();
 
   if (existingError) throw existingError;
@@ -185,7 +188,7 @@ export async function ensureOrgAgentConversation(args: {
       company_workspace_id: workspaceId,
       created_at: now,
       metadata: {},
-      role_id: roleId,
+      role_id: null,
       title: null,
       updated_at: now,
     })
@@ -207,7 +210,7 @@ export async function ensureOrgAgentConversation(args: {
       "id, company_workspace_id, role_id, title, last_message_at, last_message_id, summary_cursor_message_id, metadata, created_at, updated_at"
     )
     .eq("company_workspace_id", workspaceId)
-    .eq("role_id", roleId)
+    .is("role_id", null)
     .single();
 
   if (racedError) throw racedError;
@@ -217,7 +220,6 @@ export async function ensureOrgAgentConversation(args: {
 export async function fetchOrgAgentMessages(args: {
   beforeMessageId?: number | null;
   limit?: number | null;
-  roleId: string;
   user: User;
   workspaceId: string;
 }) {
@@ -228,6 +230,7 @@ export async function fetchOrgAgentMessages(args: {
       "id, conversation_id, company_workspace_id, role_id, company_user_id, role, content, message_type, model, status, mentions, thinking_logs, metadata, created_at"
     )
     .eq("conversation_id", conversation.id)
+    .eq("message_type", "chat")
     .order("id", { ascending: false })
     .limit(limit + 1);
 
@@ -255,9 +258,14 @@ export async function insertOrgAgentMessage(args: {
   content: string;
   conversation: OrgAgentConversationRow;
   mentions?: OrgAgentMention[];
+  messageType?: string;
   metadata?: OrgAgentMessageMetadata;
   model?: string | null;
   role: OrgAgentMessageRole;
+  roleId?: string | null;
+  slackMessageTs?: string | null;
+  slackThreadId?: string | null;
+  slackUserId?: string | null;
   status?: OrgAgentMessageStatus;
   thinkingLogs?: OrgAgentThinkingLog[];
   userId?: string | null;
@@ -273,10 +281,14 @@ export async function insertOrgAgentMessage(args: {
       conversation_id: args.conversation.id,
       created_at: now,
       mentions: (args.mentions ?? []) as unknown as Json,
+      message_type: args.messageType ?? "chat",
       metadata: (args.metadata ?? {}) as Json,
       model: args.model ?? null,
       role: args.role,
-      role_id: args.conversation.role_id,
+      role_id: args.roleId ?? null,
+      slack_message_ts: args.slackMessageTs ?? null,
+      slack_thread_id: args.slackThreadId ?? null,
+      slack_user_id: args.slackUserId ?? null,
       status: args.status ?? "completed",
       thinking_logs: (args.thinkingLogs ?? []) as unknown as Json,
     })
@@ -307,33 +319,49 @@ export async function fetchRecentOrgAgentPromptMessages(args: {
   beforeMessageId?: number | null;
   conversationId: string;
   limit?: number;
+  slackThreadId?: string;
 }) {
   let query = (args.admin.from("company_messages" as any) as any)
-    .select("id, role, content, created_at, mentions")
+    .select("id, role, content, created_at, mentions, metadata, slack_user_id")
     .eq("conversation_id", args.conversationId)
     .order("id", { ascending: false });
 
   if (args.beforeMessageId) {
     query = query.lt("id", args.beforeMessageId);
   }
+  if (args.slackThreadId) {
+    query = query
+      .eq("message_type", "slack")
+      .eq("slack_thread_id", args.slackThreadId);
+  } else {
+    query = query.eq("message_type", "chat");
+  }
 
   const { data, error } = await query.limit(args.limit ?? 16);
 
   if (error) throw error;
-  return ((data ?? []) as Array<{
-    content: string;
-    created_at: string;
-    id: number;
-    mentions: Json;
-    role: OrgAgentMessageRole;
-  }>)
+  return (
+    (data ?? []) as Array<{
+      content: string;
+      created_at: string;
+      id: number;
+      metadata: Json;
+      mentions: Json;
+      role: OrgAgentMessageRole;
+      slack_user_id: string | null;
+    }>
+  )
     .reverse()
     .map((row) => ({
       content: row.content ?? "",
       createdAt: row.created_at,
       id: Number(row.id),
+      metadata: isRecord(row.metadata)
+        ? (row.metadata as OrgAgentMessageMetadata)
+        : {},
       mentions: safeMentions(row.mentions),
       role: row.role,
+      slackUserId: normalizeText(row.slack_user_id) || null,
     }));
 }
 
@@ -450,16 +478,16 @@ export async function updateOrgAgentAssistantMessageMetadata(args: {
   const { data: row, error: rowError } = await (
     admin.from("company_messages" as any) as any
   )
-    .select("id, company_workspace_id, role_id")
+    .select("id, company_workspace_id")
     .eq("id", args.messageId)
     .eq("company_workspace_id", workspaceId)
     .maybeSingle();
 
   if (rowError) throw rowError;
   if (!row) throw new OrgHttpError(404, "Message not found");
-  await assertOrgRoleAccess({
+  await assertOrgWorkspacePermission({
     admin,
-    roleId: (row as { role_id: string }).role_id,
+    permission: "manage_candidates",
     user: args.user,
     workspaceId,
   });

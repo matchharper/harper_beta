@@ -2,6 +2,10 @@ import { useMemo, useState } from "react";
 import type { OrgEditDialogValue } from "@/components/org/OrgEditDialog";
 import { useUpdateOrgRole } from "@/hooks/org/useOrg";
 import type { OrgRole } from "@/lib/org/server";
+import {
+  getOrgRoleLifecycleUpdate,
+  type OrgRoleLifecycleAction,
+} from "@/lib/org/roleStatus";
 import { useToastStore } from "@/store/useToastStore";
 
 export function useOrgRoleActions(args: {
@@ -22,9 +26,10 @@ export function useOrgRoleActions(args: {
 
   const updateRoleLifecycle = async (
     role: OrgRole,
-    options: { isExpired?: boolean; status: string }
+    action: OrgRoleLifecycleAction
   ) => {
     if (!args.canManageCandidates) return;
+    const options = getOrgRoleLifecycleUpdate(action);
     try {
       await updateRole.mutateAsync({
         isExpired: options.isExpired,
@@ -34,9 +39,9 @@ export function useOrgRoleActions(args: {
       });
       addToast({
         message:
-          options.status === "deleted"
+          action === "delete"
             ? "역할을 삭제했습니다."
-            : options.status === "paused"
+            : action === "pause"
               ? "역할을 일시 중지했습니다."
               : "역할을 다시 시작했습니다.",
         variant: "success",
@@ -90,17 +95,11 @@ export function useOrgRoleActions(args: {
 
   return {
     closeRoleEditor: () => setEditingRoleId(null),
-    deleteRole: (role: OrgRole) =>
-      void updateRoleLifecycle(role, {
-        isExpired: true,
-        status: "deleted",
-      }),
+    deleteRole: (role: OrgRole) => void updateRoleLifecycle(role, "delete"),
     editingRole,
     openRoleEditor: setEditingRoleId,
-    pauseRole: (role: OrgRole) =>
-      void updateRoleLifecycle(role, { status: "paused" }),
-    resumeRole: (role: OrgRole) =>
-      void updateRoleLifecycle(role, { status: "active" }),
+    pauseRole: (role: OrgRole) => void updateRoleLifecycle(role, "pause"),
+    resumeRole: (role: OrgRole) => void updateRoleLifecycle(role, "resume"),
     roleActionPending: updateRole.isPending,
     submitRoleEdit,
   };

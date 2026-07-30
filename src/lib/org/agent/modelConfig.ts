@@ -10,8 +10,15 @@ export const ORG_AGENT_MODEL_IDS = [
 
 export type OrgAgentModelId = (typeof ORG_AGENT_MODEL_IDS)[number];
 
-export const DEFAULT_ORG_AGENT_MODEL: OrgAgentModelId =
-  ORG_AGENT_CLAUDE_MODEL;
+export const DEFAULT_ORG_AGENT_MODEL: OrgAgentModelId = ORG_AGENT_GROK_MODEL;
+
+export function getOrgAgentFallbackModel(
+  model: OrgAgentModelId
+): OrgAgentModelId {
+  return model === ORG_AGENT_GROK_MODEL
+    ? ORG_AGENT_CLAUDE_MODEL
+    : ORG_AGENT_GROK_MODEL;
+}
 
 export function isOrgAgentModelId(value: unknown): value is OrgAgentModelId {
   return (

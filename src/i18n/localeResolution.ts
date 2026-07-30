@@ -1,6 +1,6 @@
 export type ResolvedLocale = "ko" | "en";
 
-export const DEFAULT_LOCALE: ResolvedLocale = "ko";
+export const DEFAULT_LOCALE: ResolvedLocale = "en";
 
 export function normalizeLocale(value: unknown): ResolvedLocale | null {
   const normalized = String(value ?? "")

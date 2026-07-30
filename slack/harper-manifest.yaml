@@ -1,0 +1,40 @@
+_metadata:
+  major_version: 1
+
+display_information:
+  name: Harper
+  description: Harper recruiting agent for organization Slack channels
+  background_color: "#111827"
+
+features:
+  bot_user:
+    display_name: Harper
+    always_online: false
+
+oauth_config:
+  redirect_urls:
+    - https://matchharper.com/api/org/slack/callback
+  scopes:
+    bot:
+      - app_mentions:read
+      - channels:history
+      - channels:join
+      - channels:read
+      - chat:write
+      - groups:history
+      - groups:read
+      - users:read
+
+settings:
+  event_subscriptions:
+    request_url: https://matchharper.com/api/internal/slack/events
+    bot_events:
+      - app_mention
+      - app_uninstalled
+      - message.channels
+      - message.groups
+  incoming_webhooks:
+    incoming_webhooks_enabled: false
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false

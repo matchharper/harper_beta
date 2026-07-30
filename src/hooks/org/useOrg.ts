@@ -1,15 +1,14 @@
 import {
+  type InfiniteData,
   queryOptions,
   useInfiniteQuery,
   useMutation,
+  useMutationState,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
-import type {
-  InternalConnectionConfirmationEmailMode,
-  OpsMatchingConnectionConfirmationEmailActionResponse,
-} from "@/lib/ops/connectionConfirmationEmail";
+import type { OpsMatchingConnectionConfirmationEmailActionResponse } from "@/lib/ops/connectionConfirmationEmail";
 import type {
   OrgBoardProfileLabelsResponse,
   OrgBoardResponse,
@@ -20,17 +19,24 @@ import type {
   OrgInvitationMutationResponse,
   OrgInvitePreviewResponse,
   OrgInviteSendResponse,
+  OrgMemberRemoveResponse,
   OrgMembershipRoleUpdateResponse,
   OrgRoleReviewStageCreateResponse,
   OrgRoleReviewStageDeleteResponse,
   OrgRoleReviewStageUpdateResponse,
   OrgResumeAccessResponse,
-  OrgStageChangeOptions,
-  OrgStageId,
   OrgTalentDetailResponse,
   OrgWorkspaceLeaveResponse,
 } from "@/lib/org/server";
 import type { OrgMembershipRole } from "@/lib/org/permissions";
+import {
+  applyOrgCandidateStageToAcceptedTalents,
+  applyOrgCandidateStageToBoard,
+  applyOrgCandidateStageToDetail,
+  ORG_CANDIDATE_STAGE_MUTATION_KEY,
+  type OrgCandidateStageMutationInput,
+  type OrgCandidateStageMutationResponse,
+} from "@/lib/org/candidateStageClient";
 import { queryKeys } from "@/lib/queryKeys";
 
 type OrgBoardFilters = {
@@ -164,6 +170,23 @@ export function useUpdateOrgMembershipRole() {
   });
 }
 
+export function useRemoveOrgMember() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { userId: string; workspaceId: string }) =>
+      fetchWithInternalAuth<OrgMemberRemoveResponse>("/api/org/membership", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(args),
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.org.bootstrapAll,
+      });
+    },
+  });
+}
+
 export function useLeaveOrgWorkspace() {
   return useMutation({
     mutationFn: (args: { workspaceId: string }) =>
@@ -212,6 +235,23 @@ export function orgBoardQueryOptions(filters: OrgBoardFilters) {
 
 export function useOrgBoard(filters: OrgBoardFilters) {
   return useQuery(orgBoardQueryOptions(filters));
+}
+
+export function useOrgInbox(args: {
+  enabled?: boolean;
+  workspaceId?: string | null;
+}) {
+  const workspaceId = args.workspaceId?.trim() ?? "";
+  return useQuery({
+    queryKey: queryKeys.org.inbox(workspaceId),
+    queryFn: () =>
+      fetchWithInternalAuth<OrgBoardResponse>(
+        `/api/org/inbox?workspaceId=${encodeURIComponent(workspaceId)}`
+      ),
+    enabled: (args.enabled ?? true) && Boolean(workspaceId),
+    staleTime: 20_000,
+    retry: 1,
+  });
 }
 
 export function useOrgAcceptedTalents(args: { enabled?: boolean }) {
@@ -310,20 +350,9 @@ export function useOrgTalentDetail(args: {
 export function useSetOrgCandidateStage() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (args: {
-      acceptReason?: OrgStageChangeOptions["acceptReason"];
-      contactDirectly?: OrgStageChangeOptions["contactDirectly"];
-      emailMode?: InternalConnectionConfirmationEmailMode;
-      introEmails?: OrgStageChangeOptions["introEmails"];
-      recommendationId: string;
-      roleId: string;
-      stage: OrgStageId;
-      stopNote?: OrgStageChangeOptions["stopNote"];
-      stopReason?: OrgStageChangeOptions["stopReason"];
-      talentId: string;
-      workspaceId: string;
-    }) =>
-      fetchWithInternalAuth<{ ok: true; roleId: string; stage: OrgStageId }>(
+    mutationKey: ORG_CANDIDATE_STAGE_MUTATION_KEY,
+    mutationFn: (args: OrgCandidateStageMutationInput) =>
+      fetchWithInternalAuth<OrgCandidateStageMutationResponse>(
         "/api/org/stage",
         {
           method: "POST",
@@ -331,14 +360,50 @@ export function useSetOrgCandidateStage() {
           body: JSON.stringify(args),
         }
       ),
-    onSuccess: () =>
-      Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.org.acceptedAll,
-        }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.org.boardAll }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.org.detailAll }),
-      ]),
+    onSuccess: (result, variables) => {
+      queryClient.setQueriesData<OrgBoardResponse>(
+        { queryKey: queryKeys.org.boardAll },
+        (current) => applyOrgCandidateStageToBoard(current, result, variables)
+      );
+      queryClient.setQueriesData<OrgTalentDetailResponse>(
+        { queryKey: queryKeys.org.detailAll },
+        (current) => applyOrgCandidateStageToDetail(current, result, variables)
+      );
+      queryClient.setQueriesData<
+        InfiniteData<OrgAcceptedTalentsResponse, number>
+      >({ queryKey: queryKeys.org.acceptedAll }, (current) =>
+        current
+          ? {
+              ...current,
+              pages: current.pages.map(
+                (page) =>
+                  applyOrgCandidateStageToAcceptedTalents(
+                    page,
+                    result,
+                    variables
+                  ) ?? page
+              ),
+            }
+          : current
+      );
+
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.org.acceptedAll,
+      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.org.boardAll });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.org.detailAll });
+    },
+  });
+}
+
+export function usePendingOrgCandidateStageMutations() {
+  return useMutationState<OrgCandidateStageMutationInput>({
+    filters: {
+      mutationKey: ORG_CANDIDATE_STAGE_MUTATION_KEY,
+      status: "pending",
+    },
+    select: (mutation) =>
+      mutation.state.variables as OrgCandidateStageMutationInput,
   });
 }
 

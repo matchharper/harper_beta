@@ -8,6 +8,7 @@ import { useCareerVoiceInputStore } from "@/store/useCareerVoiceInputStore";
 import type { CareerConversationStarterId } from "@/lib/career/prompts/conversationStarters";
 import type { RealtimeConnectFailure } from "@/hooks/career/useRealtimeSession";
 import { useCareerT } from "@/i18n/useCareerT";
+import { finalizeAssistantTranscriptEntries } from "./callTranscript";
 
 type RealtimeControls = {
   partialTranscript: string;
@@ -55,6 +56,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   const [callTranscriptEntries, setCallTranscriptEntries] = useState<
     CallTranscriptEntry[]
   >([]);
+  const inputModeRef = useRef<CareerInputMode>("text");
 
   const voiceLevelStreamRef = useRef<MediaStream | null>(null);
   const voiceLevelAudioContextRef = useRef<AudioContext | null>(null);
@@ -69,6 +71,10 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   const callAssistantTranscriptStreamingRef = useRef(false);
   const voiceTranscript =
     inputMode === "call" ? (realtimeControls?.partialTranscript ?? "") : "";
+
+  useEffect(() => {
+    inputModeRef.current = inputMode;
+  }, [inputMode]);
 
   const logVoiceDebug = useCallback(
     (phase: string, payload?: Record<string, unknown>) => {
@@ -312,11 +318,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   const clearVoiceBuffer = useCallback(() => undefined, []);
 
   useEffect(() => {
-    if (
-      inputMode !== "call" ||
-      voiceMuted ||
-      !voiceListening
-    ) {
+    if (inputMode !== "call" || voiceMuted || !voiceListening) {
       stopVoiceLevelMonitor();
       return;
     }
@@ -356,12 +358,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     stopVoiceLevelMonitor();
     setVoiceMuted(true);
     logVoiceDebug("voice-muted");
-  }, [
-    canInteract,
-    logVoiceDebug,
-    stopVoiceLevelMonitor,
-    voiceMuted,
-  ]);
+  }, [canInteract, logVoiceDebug, stopVoiceLevelMonitor, voiceMuted]);
 
   const switchToTextMode = useCallback(() => {
     stopVoiceLevelMonitor();
@@ -475,11 +472,6 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   // Accumulate transcript entries only during call mode. Realtime can stream
   // Harper's answer before the final user transcript arrives, so a delayed user
   // entry is inserted before the currently streaming assistant entry.
-  const inputModeRef = useRef<CareerInputMode>("text");
-  useEffect(() => {
-    inputModeRef.current = inputMode;
-  }, [inputMode]);
-
   const addCallTranscriptEntry = useCallback(
     (
       role: "user" | "assistant",
@@ -567,20 +559,12 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
 
     setCallTranscriptEntries((prev) => {
       const now = new Date().toISOString();
-      const lastIndex = prev.length - 1;
-      const last = prev[lastIndex];
-
-      if (wasStreaming && last?.role === "assistant") {
-        const next = [...prev];
-        next[lastIndex] = {
-          ...last,
-          text: cleanText,
-          timestamp: now,
-        };
-        return next;
-      }
-
-      return [...prev, { role: "assistant", text: cleanText, timestamp: now }];
+      return finalizeAssistantTranscriptEntries({
+        entries: prev,
+        text: cleanText,
+        timestamp: now,
+        wasStreaming,
+      });
     });
   }, []);
 

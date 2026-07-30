@@ -1,5 +1,12 @@
 # Org Recruiter Agent Product And Implementation Plan
 
+> **Deprecated (2026-07-30):** 이 문서는 role-scoped Recruiter Agent의 초기 설계
+> 기록이다. 현재 구현은 workspace-scoped Agent와
+> `get_talents`, `read_talent`, `read_role`, `update_company`, `update_role`을
+> 사용한다. 현재 동작과 수정 위치는
+> [`org-agent-tools-reference-ko.md`](./org-agent-tools-reference-ko.md)를
+> 소스 오브 트루스로 본다.
+
 ## 0. 문서 목적
 
 이 문서는 `/org` 안에 Harper recruiter Agent를 추가하기 위한 제품/기술 구현 계획이다.
@@ -1849,11 +1856,10 @@ export const ORG_AGENT_MODEL_IDS = [
 export type OrgAgentModelId = (typeof ORG_AGENT_MODEL_IDS)[number];
 ```
 
-기본 모델은 `claude-sonnet-5`로 둔다.
+현재 기본 모델은 `grok-4.3`으로 둔다.
 
-`ORG_AGENT_DEFAULT_MODEL` env가 있으면 allowlist 안의 값일 때만 기본값으로 사용한다.
-
-잘못된 env 값은 무시하고 `claude-sonnet-5`로 fallback한다.
+요청 model이 없거나 allowlist 밖의 값이면 `grok-4.3`을 사용한다. Grok 호출이
+실패하면 `claude-sonnet-5`로 fallback한다.
 
 Chat API body는 optional `model`을 받을 수 있다.
 

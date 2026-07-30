@@ -4,22 +4,34 @@ Harper 프론트엔드의 디자인 시스템, 상태 관리, 성능 원칙, 그
 **`useEffect`를 의도에 맞게 사용하는 기준**을 정리한 문서. 새 기능을 추가하거나
 모바일을 지원하는 모든 변경은 이 문서를 따른다.
 
+> 마지막 저장소 대조: **2026-07-30**
+>
+> 이 문서의 MUST 규칙은 **신규 코드와 PR에서 수정한 코드**에 적용한다. 기존
+> 레거시는 관련 영역을 수정할 때 함께 줄이되, PR 범위 밖의 전면 정리를 요구하지
+> 않는다. 현재 상태를 설명하는 표와 파일 목록은 코드가 바뀌면 함께 갱신한다.
+
 > **두 가지 절대 원칙**
 > 1. **`useEffect`는 외부 시스템 동기화에 사용한다.** 파생값 계산, 이벤트 처리,
 >    서버 데이터 패칭을 effect로 우회하지 않는다.
-> 2. **상태 책임을 깨지 않는다.** 서버 상태 → TanStack Query, 앱/라우트 간 공유
->    UI 상태 → Zustand, 한 페이지의 형제들이 공유하는 상태 → page-scoped
->    context/domain hook, 한 컴포넌트의 일시적 상태 → `useState`.
+> 2. **상태 책임을 깨지 않는다.** 브라우저에서 조회·갱신하는 서버 상태 →
+>    TanStack Query, 앱/라우트 간 공유 UI 상태 → Zustand, 한 페이지의 형제들이
+>    공유하는 상태 → page-scoped context/domain hook, 한 컴포넌트의 일시적 상태
+>    → `useState`.
 
 ---
 
-## 0. 절대 규칙 (PR 리뷰 차단 사유)
+## 0. 절대 규칙 (신규·수정 코드의 PR 리뷰 차단 사유)
 
-다음 규칙은 협상 불가. PR에서 발견되면 머지 보류.
+다음 규칙을 신규 코드나 PR에서 새로 위반하면 머지 보류. 기존 위반은
+grandfathered 상태로 보되, 수정한 코드 주변에서 합리적으로 제거할 수 있으면 함께
+정리한다. MUST 규칙은 가능한 한 ESLint/CI로 자동화하고, 자동화되지 않은 규칙만
+리뷰 체크리스트로 확인한다.
 
 ### 0.1 `any` 타입 금지
 
-TypeScript의 타입 안전성을 무력화하는 `any`는 어떤 상황에서도 쓰지 않는다.
+제품 소스의 신규·수정 코드에서는 TypeScript의 타입 안전성을 무력화하는 명시적
+`any`를 쓰지 않는다. 자동 생성 파일이나 타입이 없는 외부 모듈을 연결하는 선언
+파일은 예외로 둘 수 있지만, 범위를 최소화하고 예외 이유를 주석으로 남긴다.
 
 ```ts
 // ❌ 금지
@@ -57,7 +69,7 @@ const map = new Map<string, CandidateRecord>();          // 구체적 타입 파
 <div style={{ backgroundColor: "#111", padding: "16px" }} />
 
 // ✅ Tailwind
-<div className="bg-hblack900 p-4" />
+<div className="bg-neutral-1000 p-4" />
 
 // ✅ 정당한 인라인 (계산값/픽셀/퍼센트)
 <div style={{ gridTemplateColumns, width: `${percent}%` }} />
@@ -77,7 +89,10 @@ const map = new Map<string, CandidateRecord>();          // 구체적 타입 파
 
 ### 0.5 신규 styled-jsx 금지
 
-기존 4건(`landing/VCLogosWidth.tsx`, `landing/Background.tsx`, `pages/network.tsx`, `pages/blog/[slug].tsx`)은 점진 제거. 신규 파일에는 도입 금지.
+2026-07-30 기준 기존 6개 파일
+(`landing/career/TalentSocialProof.tsx`, `pages/index.tsx`,
+`pages/company.tsx`, `pages/network.tsx`, `pages/ko/contact-sales.tsx`,
+`pages/blog/[slug].tsx`)은 점진 제거한다. 신규 파일에는 도입 금지.
 
 ---
 
@@ -87,9 +102,8 @@ const map = new Map<string, CandidateRecord>();          // 구체적 타입 파
 - **CSS**: Tailwind CSS 4 (`tailwindcss@^4.3`) + `@tailwindcss/postcss` + `tailwind-merge` + `tw-animate-css` + `tailwind-scrollbar`
 - **컴포넌트**: shadcn/ui (`new-york` preset) + Radix UI primitives
   - `src/components/ui/` — shadcn 기본
-  - `src/components/ui/beige/` — beige 테마 오버라이드
 - **아이콘**: `lucide-react` (신규 코드는 lucide만)
-- **애니메이션**: `framer-motion` (페이지 단위) + Tailwind keyframes (`upDown`, `shake`, `textGlow`)
+- **애니메이션**: Motion (`motion/react`) + Tailwind keyframes (`upDown`, `shake`, `textGlow`)
 - **폰트**: `PretendardVariable` (sans 기본), `Instrument Serif` (serif) — `src/globals.css`의 `@theme`에 `--font-*` 변수로 등록
 
 설정 파일은 **`src/globals.css` 한 곳**이다 (`tailwind.config.js` 없음). 토큰을 추가하려면 `@theme` 블록에 변수 한 줄, 유틸리티가 필요하면 `@utility` 블록을 추가한다.
@@ -115,11 +129,17 @@ Tailwind는 **컬러·spacing·typography의 단일 소스**다. 다음 누수�
 ### 1.3 컬러 토큰
 모든 컬러는 `src/globals.css`의 `@theme` 안 `--color-*` 변수를 사용. v4는 변수에서 자동으로 유틸리티를 생성한다 (예: `--color-beige50` → `bg-beige50` / `text-beige50` / `border-beige50`). **hex 리터럴을 className/style에 직접 쓰지 않는다.**
 
-- 그레이스케일: `hgray100..hgray1000`, `hblack000..hblack1000` (앱 UI 기본)
-- 베이지: `beige50..beige900` (마케팅/온보딩)
-- 어두운 배경: `bgDark300..bgDark900`
-- 액센트: `brightnavy(#0624A8)`, `accenta1(#EFFF3F)`, `accentBronze`
+- 기본 팔레트: `neutral-00..neutral-1000`, `accent-00..accent-1000`
+- 상태 팔레트: `red-*`, `yellow-*`, `blue-*`, `green-*`
+- 베이지: `beige50`, `beige100`, `beige200`, `beige500`, `beige700`,
+  `beige900` (마케팅/온보딩의 기존 토큰)
+- 의미 기반 토큰: `bg-default`, `bg-basement`, `bg-floating`, `bg-weak`,
+  `neutral-primary`, `neutral-muted`, `primary`, `action`, `positive`,
+  `info`, `critical`, `link`
 - shadcn 토큰: `background`, `foreground`, `primary`, `muted`, `border` — `:root` HSL 변수로 정의, 다크는 `@custom-variant dark (&:is(.dark *))` 변형으로 오버라이드
+
+신규 앱 UI는 가능한 한 의미 기반 토큰을 먼저 사용한다. 팔레트 토큰을 직접
+사용해야 한다면 의미 기반 토큰으로 표현할 수 없는 이유가 분명해야 한다.
 
 ### 1.4 타이포그래피 / spacing
 - `font-sans` (Pretendard) 기본. 헤드라인은 `font-instrument` / `font-hedvig`.
@@ -135,12 +155,16 @@ Tailwind는 **컬러·spacing·typography의 단일 소스**다. 다음 누수�
 
 ## 2. 모바일 지원 전략
 
-> 데스크탑 강제 게이트(현재 켜져 있음)를 라우트 단위로 단계적 해제. 모바일 디자인이 끝난 라우트부터 게이트를 푼다.
+> 현재 앱 전역의 데스크탑 강제 게이트는 없다. 라우트별 모바일 완성도를 표로
+> 관리하며, `desktop_only`는 “차단됨”이 아니라 모바일 QA와 디자인이 완료되지
+> 않았다는 뜻이다.
 
-### 2.1 현재 게이트 위치
+### 2.1 현재 모바일 인프라
 - `src/hooks/useMediaQuery.ts` — `useSyncExternalStore` 기반 미디어 쿼리 훅. `useIsMobile`, `useIsTabletUp`, `useIsDesktop` 등 편의 훅 포함. 차단이 아닌 **레이아웃 분기**용.
 - `src/hooks/useIsMobile.ts` — `useMediaQuery.useIsMobile`의 re-export. 기존 30+ 호출처 호환.
-- `/career/*`/`/career_login` 모바일 차단은 제거됨(이전 `mobileBlocker.ts`). 신규 라우트를 모바일 차단해야 하면 동일 패턴으로 재도입.
+- `/career/*`/`/career_login`의 이전 모바일 차단은 제거되었고
+  `mobileBlocker.ts`도 현재 존재하지 않는다. 새 차단은 제품 요구가 명시된 경우에만
+  도입하고 §2.7 상태를 `blocked`로 기록한다.
 - `src/components/landing/Orbit.tsx`, `FallingTagsSmall.tsx` 등 `useIsMobile()` 조건부 렌더는 모바일 전용 컴포넌트로 분기.
 
 ### 2.2 Breakpoint 컨벤션 (Mobile-first)
@@ -213,7 +237,9 @@ const isLargeUp = useBreakpointUp("xl"); // >= 1280px
 const isLandscape = useMediaQuery("(orientation: landscape)");
 ```
 
-스크롤 방향에 따라 헤더를 숨기는 hide-on-scroll 패턴은 `src/hooks/useHideOnScroll.ts`로 통합 — 4곳 중복 코드(`network.tsx`, `landing-ko-vf.tsx`, `CareerAppBar.tsx`, `DemoSection.tsx`) 점진 이전.
+스크롤 방향에 따라 헤더를 숨기는 hide-on-scroll 패턴은
+`src/hooks/useHideOnScroll.ts`로 통합한다. 신규 구현에서 스크롤 listener와 방향
+판정 로직을 다시 작성하지 않는다.
 
 ### 2.5 터치 대응 체크리스트
 - 탭 타깃 최소 44×44px (`min-h-11 min-w-11` 또는 padding)
@@ -240,10 +266,10 @@ import { PageContainer } from "@/components/layout/PageContainer";
 
 | 컴포넌트 | prop | 값 |
 |---|---|---|
-| `Page` | `minHeight` | `svh` (기본), `fillScreen`, `none` |
+| `Page` | `minHeight` | `svh` (기본), `svhFill`(호환 alias), `fillScreen`, `none` |
 | | `background` | `beige`, `beigeAlt`, `paper`, `neutral`, `dark`, `none` |
 | | `safeArea` | `none` (기본), `top`, `bottom`, `y`, `x`, `all` |
-| `PageContainer` | `size` | `narrow`(720) · `default`(1260) · `wide`(1440) · `full` |
+| `PageContainer` | `size` | `narrow`(960) · `default`(1260) · `wide`(1440) · `full` |
 | | `padding` | `default` (`px-4 md:px-6 lg:px-8`), `tight`, `loose`, `none` |
 | | `safeArea` | `none` (기본), `top`, `bottom`, `y`, `x`, `all` |
 | | `as` | `div` (기본), `main`, `section`, `article` 등 |
@@ -278,18 +304,20 @@ import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 </ResponsiveDialog>
 ```
 
-- 데스크탑 = `Dialog` 중앙 모달, 모바일 = `Drawer` bottom sheet (drag-to-dismiss, snap)
+- 데스크탑 = `Dialog` 중앙 모달, 모바일 = `Drawer` bottom sheet (drag-to-dismiss)
 - 강제 분기: `forceVariant="dialog"` 또는 `"drawer"`
 - 기존 `BaseModal.tsx` 위에 만들어진 19개 모달은 점진 마이그레이션 (페이지 단위)
 
-### 2.7 라우트 모바일 활성화 표
+### 2.7 주요 라우트 모바일 상태 표
 
-모바일 디자인이 끝난 라우트부터 게이트를 푼다. PR에서 신규 라우트를 추가하거나 모바일 디자인을 완료할 때 이 표를 업데이트한다.
+사용자에게 직접 노출되는 주요 화면의 상태를 관리한다. 새 화면을 공개하거나
+모바일 디자인·QA를 완료한 PR은 이 표를 업데이트한다. 내부 redirect와 세부
+하위 라우트를 모두 나열하는 전체 route manifest는 아니다.
 
 | 라우트 | 카테고리 | 모바일 상태 | 비고 |
 |---|---|---|---|
 | `/` | landing | partial | `CareerAppBar` 사용, hide-on-scroll 동작. 모바일 분기 검증 필요 |
-| `/landing-ko-vf` | landing | partial | inline AppBar, 모바일 hide-on-scroll 동작. 통합 헤더로 마이그레이션 대상 |
+| `/ko`, `/en` | landing | partial | `/`과 같은 landing page를 locale별로 제공 |
 | `/network` | landing | partial | inline AppBar + preloader. 통합 헤더로 마이그레이션 대상 |
 | `/company` | landing | desktop_only | inline nav, 모바일 분기 없음 |
 | `/find` | landing | partial | `LandingHeader` 햄버거 있음. 본문 모바일 미검증 |
@@ -297,16 +325,15 @@ import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 | `/search` | landing/app | partial | `SearchHeader` 햄버거 있음 |
 | `/radar` | app | desktop_only | inline header, 모바일 분기 없음 |
 | `/talent` | landing | desktop_only | `AppHeader` 사용, 모바일 미디자인 |
-| `/talents` | landing | partial | 카피 일부 모바일 분기, 본문 미디자인 |
 | `/join` | auth | desktop_only | 헤더 없음, 모바일 미디자인 |
-| `/invitation` | auth | desktop_only | 모바일 미디자인 |
-| `/onboard`, `/onboarding2` | auth | desktop_only | 모바일 미디자인 |
-| `/career_login` | career | designed | 모바일 로그인 카드 + 풋터 로고 wrap. svh + iOS 줌 방지(BeigeInput text-base). |
+| `/invitation/*` | redirect | not_applicable | `next.config.mjs`에서 `/`로 임시 redirect |
+| `/onboard` | auth | desktop_only | 모바일 미디자인 |
+| `/career_login` | career | partial | 모바일 카드와 풋터 wrap 적용. 입력 글꼴 16px 이상으로 보정 후 iOS 줌 QA 필요 |
 | `/career`, `/career/onboarding`, `/career/preview` | career | designed | `CareerWorkspaceScreen` 모바일 분기(`CareerMobile*` 6종). onboarding은 단계별 모바일-퍼스트 그리드 + svh. preview는 workspace를 그대로 사용. |
 | `/auths/*` | auth | designed | 단순 콜백 페이지, 시각 요소 거의 없음 |
-| `/my`, `/my/*` (13개) | app | partial | `AppLayout`이 모바일에서 햄버거 + 하단 시트 drawer로 분기됨. 콘텐츠 영역 페이지별 모바일 디자인 필요 |
+| `/my`, `/my/*` | app | partial | `AppLayout`이 모바일에서 햄버거 + 하단 시트 drawer로 분기됨. 콘텐츠 영역 페이지별 모바일 디자인 필요 |
 | `/ops/*` | ops | partial | `OpsShell` overflow-x-auto pill nav. 본문 미검증 |
-| `/adminpage` | ops | desktop_only | 자체 admin shell |
+| `/admin`, `/admin/career/*` | ops | desktop_only | 자체 admin 화면 |
 | `/blog`, `/blog/[slug]` | public | partial | `LandingHeader`/`SearchHeader` 햄버거 |
 | `/share/*` | public | desktop_only | 셸 없음, 페이지 inline |
 | `/privacy`, `/terms` | public | designed | `LegalDocumentPage` |
@@ -316,6 +343,7 @@ import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 - `partial` — 일부 컴포넌트만 모바일 분기 (헤더 등)
 - `desktop_only` — 모바일 분기 0건, 데스크탑 전용
 - `blocked` — `mobileBlocker.ts` 등으로 명시 차단
+- `not_applicable` — redirect나 callback처럼 별도 반응형 화면이 없음
 
 ---
 
@@ -437,15 +465,25 @@ useFocusOnMount(inputRef);
 - [ ] 외부 시스템 동기화면 `useSyncExternalStore`로 대체 가능한가?
 - [ ] effect가 복잡하거나 재사용된다면 `useXxx` hook으로 분리했는가?
 
-### 3.5 ESLint (권장 도입)
-- `eslint-plugin-react-hooks` (기본)
-- `eslint-plugin-react-you-might-not-need-an-effect` — 안티패턴 자동 검출
+### 3.5 ESLint 집행 상태
+- `eslint-plugin-react-hooks`는 `eslint-config-next`를 통해 적용되어 있다.
+- `react-hooks/set-state-in-effect` 등 신규 규칙은 현재 `warn`이며 기존 코드
+  정리 후 신규·수정 코드부터 error 전환을 검토한다.
+- `eslint-plugin-react-you-might-not-need-an-effect`는 현재 설치되어 있지 않다.
+  도입 전 기존 경고량과 오탐을 측정한다.
 
 ---
 
 ## 4. TanStack Query — 베스트 프랙티스
 
-서버에서 오는 모든 데이터는 TanStack Query를 통과한다. `fetch` + `useState` 조합 금지.
+**Client Component에서 수명주기 동안 조회·갱신·캐시하는 remote state**는
+TanStack Query를 통과한다. `fetch` 결과를 로컬 `useState`에 저장해 별도 캐시를
+만드는 패턴은 금지한다.
+
+Route Handler나 서버 전용 모듈의 데이터 접근은 TanStack Query 대상이 아니다.
+API route는 인증·권한·secret·CORS·응답 정규화 등 서버 경계가 필요할 때 만든다.
+서버 내부 코드가 같은 앱의 API route를 다시 HTTP로 호출하지 않고 원본 service를
+직접 재사용한다.
 
 ### 4.1 QueryClient 기본값 (이미 적용 — `src/components/Provider.tsx`)
 ```ts
@@ -473,7 +511,7 @@ useQuery({ queryKey: ["candidate", id], queryFn });
 queryKey 단위가 아닌 **canonical query definition** 단위로 export한다. `useQuery`, `prefetchQuery`, `fetchQuery`가 모두 같은 factory를 재사용해야 키·queryFn·staleTime 불일치가 사라진다.
 
 ```ts
-// src/hooks/useCandidateDetail.ts
+// 신규 query module 또는 기존 hook 마이그레이션 후 형태
 import { queryOptions, useQuery } from "@tanstack/react-query";
 
 export function candidateDetailQueryOptions(candidId: string) {
@@ -509,7 +547,7 @@ export function useCandidateDetail(candidId: string) {
 | run 생성 | — | run.all | — |
 | run 결과 도착 | — | run.results | — |
 | ATS outreach 발송 | — | candidate.detail, match.candidates | — |
-| ops opportunity 라벨링 | — | opsOpportunity.companies | — |
+| ops opportunity role 저장 | — | opsOpportunity.all | — |
 | org 후보자 단계 변경 | — | org.board, org.detail | — |
 | org role 수정 | — | org.bootstrap, org.board, org.detail | — |
 | org 멤버/초대/회사 수정 | — | org.bootstrap | — |
@@ -527,16 +565,18 @@ export function useCandidateDetail(candidId: string) {
 | candidate.detail | 60s | 10min | 상세 페이지 진입 시 fresh, mutation이 invalidate |
 | candidate.bookmark | 30s | 10min | 토글 빈도 높음 |
 | bookmarkFolders.byUser | 5min | 30min | 변경 적음, mutation이 invalidate |
-| run.detail / run.results | 30s | 10min | 폴링/롱폴링 결과 반영 필요 |
-| match.workspace / match.candidates | 60s | 10min | 워크스페이스 전환 시 fresh |
+| run.detail | 60s | 10min | run 메타데이터 |
+| run.results | 30s | 5min | 폴링/롱폴링 결과 반영 필요 |
+| match.workspace | 15s | 10min | 워크스페이스 전환 상태 |
+| match.candidates | 10s | 10min | 후보 변경을 빠르게 반영 |
 | org.bootstrap | 30s | 10min | shell 공통 데이터, mutation이 invalidate |
 | org.invitePreview | 5min | 10min | 초대 진입 정보는 변경 빈도가 낮음 |
 | org.board / org.detail / org.agent* | 20s | 10min | Jobs 작업 결과를 빠르게 반영 |
 | org.slack | 15s | 10min | 외부 연동 상태 확인 |
 | org.internalTalent | 30s | 10min | 내부 운영 상세 데이터 |
-| opsOpportunity.* | 60s | 10min | 어드민 화면, 자주 갱신 |
-| searchHistory.byUser | 5min | 30min | 변경 적음 |
-| connections.count | 5min | 30min | 거의 안 변함 |
+| opsOpportunity.* | 15s | 10min | 어드민 편집 결과를 빠르게 반영 |
+| searchHistory.byUser | 30s | 10min | 최근 검색 변경 반영 |
+| connections.count | 30s | 10min | mutation invalidation과 함께 사용 |
 | auth session | — | — | Zustand가 관리 (서버 캐시 아님) |
 
 신규 도메인 추가 시 이 표에 한 줄을 더한다. 표에 없는 staleTime은 PR에서 잡는다.
@@ -553,7 +593,9 @@ const mutation = useMutation({
     return { prev };
   },
   onError: (_e, vars, ctx) => {
-    if (ctx?.prev) qc.setQueryData(queryKeys.candidate.detail(vars.candidId), ctx.prev);
+    if (ctx?.prev !== undefined) {
+      qc.setQueryData(queryKeys.candidate.detail(vars.candidId), ctx.prev);
+    }
   },
   onSettled: (_d, _e, vars) => {
     invalidateBookmarkRelatedQueries(qc, vars.userId);
@@ -581,16 +623,24 @@ function handleCardHover(candidId: string) {
 
 - 보이는 `<Link>`는 Next.js 기본 prefetch 유지.
 - button/dropdown/programmatic navigation은 intent signal(hover/focus)에서 수동 prefetch.
-- `prefetchQuery`는 staleTime 이내면 네트워크 요청을 건너뛴다 — 비용 거의 없음.
+- `prefetchQuery`는 staleTime 이내의 fresh cache가 있으면 네트워크 요청을
+  건너뛴다. 최초 prefetch는 정상 요청 비용이 발생하므로 큰 목록에서는 의도 지연,
+  데이터 크기, 중복 호출을 함께 점검한다.
 
 ### 4.8 모바일 추가 고려
-- 모바일에서 `refetchOnReconnect: true` 활성화 검토 (네트워크 자주 끊김).
-- 무한 스크롤은 `useInfiniteQuery` + cursor (`src/lib/server/cursor.ts`).
+- `refetchOnReconnect`는 기본값이 `true`다. 도메인 특성상 재연결 refetch를
+  막아야 하는 쿼리만 명시적으로 `false`로 설정한다.
+- 무한 스크롤은 `useInfiniteQuery`와 API가 정의한 cursor 또는 offset 기반
+  `pageParam`을 사용한다.
 
 ### 4.9 절대 하지 말 것
-- 컴포넌트 안에서 `fetch` 직접 호출 → API route + Query 훅으로
+- Client Component에서 imperative `fetch` 결과를 로컬 state에 캐시
+  → Query 훅과 공용 service로
 - `useEffect`로 `data` → `useState` 복사 (3.1-A 안티패턴)
-- queryKey에 객체를 통째로 넣기 → 직렬화 비결정성, 원시값 위주로 구성
+- queryKey에 함수·class instance·순환 참조 등 JSON 비직렬화 값을 넣기
+  → JSON 직렬화 가능한 원시값/정규화된 객체 사용
+- queryFn이 의존하는 변수를 queryKey에서 누락하기
+  → 캐시를 구분하는 모든 입력을 factory가 소유
 - 같은 리소스에 factory 없이 다른 queryKey 사용 → §4.3
 
 문서: [Query Invalidation](https://tanstack.com/query/v5/docs/framework/react/guides/query-invalidation), [Invalidations from Mutations](https://tanstack.com/query/v5/docs/react/guides/invalidations-from-mutations)
@@ -602,7 +652,8 @@ function handleCardHover(candidId: string) {
 Zustand는 페이지 경계를 넘어 유지하거나 여러 기능 영역에서 접근하는
 **순수 클라이언트 UI 상태**를 담당한다. 한 페이지의 형제 컴포넌트만 공유하는
 상태와 orchestration은 page-scoped context/domain hook으로 제한할 수 있다.
-서버에서 온 데이터는 어느 쪽에도 복제하지 않고 TanStack Query를 SSOT로 둔다.
+브라우저에서 캐시하는 remote state는 어느 쪽에도 복제하지 않고 TanStack Query를
+SSOT로 둔다.
 
 ### 5.1 무엇을 Zustand에 넣고, 무엇을 넣지 않는가
 | 넣어야 함 | 넣으면 안 됨 |
@@ -761,7 +812,8 @@ const handleLevel = useCallback((v: number) => {
 }, []);
 ```
 
-적용 후보: `CareerVoiceInputLevelFill.tsx`, `CareerCallScreen.tsx`, STT 표시 컴포넌트, 진행률 바.
+음성 레벨, STT 진행률, 비디오 `currentTime`처럼 고빈도 값이 있는 화면은 React
+Profiler로 리렌더 빈도를 확인한 뒤 이 패턴을 적용한다.
 
 ### 6.3 lazy 초기 state
 
@@ -778,6 +830,9 @@ const [x, setX] = useState(() => computeExpensive());
 이미 `Provider.tsx`의 `QueryClient` 초기화에서 사용 중 — 같은 패턴을 다른 곳에도 적용.
 
 ### 6.4 리렌더 최적화 도구
+먼저 React Profiler로 병목을 확인한다. 아래 도구를 기본 습관처럼 모든 값에
+적용하지 않는다.
+
 - 콜백에서만 쓰는 값은 `useRef`로 읽기 지연 → 컴포넌트가 그 값을 구독하지 않게 만든다.
 - 무거운 자식은 `React.memo`로 분리.
 - 파생 boolean을 구독 (`items.length > 0` vs `items` 전체).
@@ -799,16 +854,19 @@ const [x, setX] = useState(() => computeExpensive());
 
 ### 6.6 JS 마이크로 성능
 - 반복 조회는 `Map`/`Set` (O(1)).
-- `filter().map()` 체이닝 → 단일 `reduce`/`for` 루프로 결합 (큰 배열일 때).
+- 큰 배열의 측정된 hot path에서 중간 배열 할당이 병목이면
+  `filter().map()`을 단일 `reduce`/`for` 루프로 결합한다.
 - 배열 비교 전 `length` 먼저 체크.
 - RegExp 생성은 루프 밖에서.
 - 불변 정렬은 `toSorted()` (Node 20+, 우리 빌드 환경 OK).
 - 함수에서 빠르게 early return.
 
-적용 후보: `searchEvidence.ts`, `searchParallelLimit.ts`, 후보 매칭/필터링 코드.
+가독성을 해치면서까지 마이크로 최적화하지 않는다. 데이터 크기와 profiler 결과를
+PR 설명에 남길 수 있는 경우에만 복잡도를 추가한다.
 
-### 6.7 정적 JSX 추출
-매 렌더마다 같은 JSX를 만들지 않는다.
+### 6.7 정적 객체의 참조 안정성
+memoized child나 외부 라이브러리 API가 참조 동일성을 활용하는 경우, 변하지 않는
+객체·배열은 모듈 스코프로 올린다.
 
 ```tsx
 // ❌ 매 렌더마다 새 객체/배열
@@ -854,18 +912,25 @@ function Page() {
 
 1. **반응형부터 설계** — mobile-first Tailwind, `svh` 사용 (§2.3).
 2. **타입** — `any` 금지 (§0.1). Supabase는 `Database` 제네릭.
-3. **데이터** — `src/app/api/...`에 route + `src/hooks/use<Entity>.ts` 훅 + `queryOptions` factory (§4.3).
+3. **데이터** — client remote state는 공용 service + `src/hooks/use<Entity>.ts`
+   Query 훅 + `queryOptions` factory로 구성한다. 서버 경계가 필요할 때만
+   `src/app/api/...` route를 추가한다 (§4.3).
 4. **무효화** — 신규 mutation은 invalidation contract 표(§4.4)에 한 줄 추가.
 5. **staleTime** — staleTime policy 표(§4.5)에 한 줄 추가.
 6. **클라이언트 상태** — 한 컴포넌트면 `useState`, 한 페이지의 형제 간 공유면
    page-scoped context/domain hook, 페이지 간 공유면 Zustand. 서버 데이터 복제 금지.
 7. **부수효과** — `useEffect` 작성 전 §3.1 안티패턴을 확인하고, 복잡하거나
    재사용되는 동기화는 `src/hooks/`에 캡슐화.
-8. **컬러/spacing** — 토큰만. 새 색은 `tailwind.config.js`에 추가.
+8. **컬러/spacing** — 토큰만. 새 토큰은 `src/globals.css`의 `@theme`에 추가.
 9. **인라인 style 없음** (§0.3), **styled-jsx 없음** (§0.5).
 10. **prefetch** — hover/focus에서 route + query prefetch (§4.7) 필요 여부 검토.
 11. **a11y** — focus ring 유지, 탭 타깃 44px+, `aria-*` 누락 없음.
-12. **모바일 게이트** — `useIsMobile`/`mobileBlocker` 영향 범위 확인 후 라우트 단계적 해제.
+12. **모바일 상태** — `useIsMobile` 분기와 명시적 blocker 유무를 확인하고
+    §2.7의 라우트 상태를 업데이트.
+13. **상태 UI** — loading, empty, error, retry 상태를 정의하고 정상 상태와 같은
+    반응형·접근성 기준으로 검증.
+14. **검증** — `pnpm lint`와 관련 테스트를 통과시키고, 최소 375px·768px·1024px
+    viewport에서 overflow, 키보드 포커스, 주요 상호작용을 확인.
 
 ---
 
@@ -882,7 +947,7 @@ function Page() {
 | `useEffect` 체이닝 | N번의 불필요한 리렌더 | 렌더 중 계산 (§3.1-F) |
 | 복잡한 구독/동기화 effect를 여러 컴포넌트에 중복 | cleanup 누락, 동작 불일치 | 의도가 드러나는 custom hook (§3.3) |
 | `fetch` + `useState`로 서버 데이터 | 캐시·중복제거·에러 없음 | TanStack Query (§4) |
-| 수동 낙관적 업데이트 | 롤백 누락 | `useMutation` `onMutate`/`onError` (§4.6) |
+| 롤백 없는 낙관적 업데이트 | 실패 시 캐시 불일치 | `useMutation` `onMutate`/`onError` (§4.6) |
 | 같은 리소스에 factory 없이 다른 queryKey | 캐시 분기 | `queryOptions` factory (§4.3) |
 | 표에 없는 staleTime/invalidation | 일관성 깨짐 | §4.4 / §4.5 표 업데이트 |
 | Zustand에 서버 데이터 | 캐시 불일치 | TanStack Query (§5.1) |
@@ -895,7 +960,7 @@ function Page() {
 | 인라인 정적 `style={{}}` | 일관성 부재 | Tailwind 클래스 (§0.3) |
 | 신규 styled-jsx | 일관성 부재 | Tailwind / globals.css `@layer` (§0.5) |
 | `h-screen` / `100vh` | iOS Safari overflow | `h-svh` (§2.3) |
-| 컬러 hex 리터럴 직접 사용 | 토큰 우회 | `tailwind.config.js` 토큰 (§1.3) |
+| 컬러 hex 리터럴 직접 사용 | 토큰 우회 | `globals.css` `@theme` 토큰 (§1.3) |
 | Radix primitive 직접 import | wrapper 우회 | `src/components/ui/` (§1.5) |
 
 ---
@@ -908,6 +973,8 @@ function Page() {
 - [react.dev — Escape Hatches](https://react.dev/learn/escape-hatches)
 - [TanStack Query — Query Invalidation](https://tanstack.com/query/v5/docs/framework/react/guides/query-invalidation)
 - [TanStack Query — Invalidations from Mutations](https://tanstack.com/query/v5/docs/react/guides/invalidations-from-mutations)
+- [TanStack Query — Query Keys](https://tanstack.com/query/latest/docs/framework/react/guides/query-keys)
+- [TanStack Query — Important Defaults](https://tanstack.com/query/latest/docs/framework/react/guides/important-defaults)
 - [TanStack Query — `queryOptions` API](https://tanstack.com/query/v5/docs/framework/react/reference/queryOptions)
 - [TanStack Query — QueryClient API](https://tanstack.com/query/v5/docs/reference/QueryClient)
 - [Zustand — Slices Pattern](https://zustand.docs.pmnd.rs/learn/guides/slices-pattern)

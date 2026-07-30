@@ -401,7 +401,7 @@ const CandidatePage = () => {
         }
 
         setIsOpenLoginModal(false);
-        router.push("/invitation");
+        router.push("/");
         return null;
       } catch (error) {
         console.error("[auth] signInWithPassword unexpected error", error);
@@ -521,7 +521,7 @@ const CandidatePage = () => {
           router.push("/my");
           return;
         }
-        router.push("/invitation");
+        router.push("/");
         return;
       }
       setIsOpenLoginModal(true);

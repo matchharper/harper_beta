@@ -1,15 +1,14 @@
 import {
+  type InfiniteData,
   useInfiniteQuery,
   useMutation,
+  useMutationState,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import type { OpsQueueManualInternalRecommendationResponse } from "@/lib/ops/careerServer";
-import type {
-  InternalConnectionConfirmationEmailMode,
-  OpsMatchingConnectionConfirmationEmailActionResponse,
-} from "@/lib/ops/connectionConfirmationEmail";
+import type { OpsMatchingConnectionConfirmationEmailActionResponse } from "@/lib/ops/connectionConfirmationEmail";
 import { queryKeys } from "@/lib/queryKeys";
 import type {
   OpsMatchingCompanyOption,
@@ -38,6 +37,18 @@ import type {
   OpsMatchingTalentRoleTagsResponse,
   OpsMatchingTalentTag,
 } from "@/lib/ops/matching";
+import {
+  applyOpsMatchingFitHumanLabelToFitList,
+  applyOpsMatchingFitHumanLabelToProgress,
+  applyOpsMatchingFitHumanLabelToReviewBoard,
+  applyOpsMatchingFitHumanLabelToTalentFits,
+  applyOpsMatchingFitHumanLabelToTalentList,
+  applyOpsMatchingReviewStageUpdate,
+  OPS_MATCHING_FIT_HUMAN_LABEL_MUTATION_KEY,
+  OPS_MATCHING_REVIEW_STAGE_MUTATION_KEY,
+  type OpsMatchingFitHumanLabelMutationInput,
+  type OpsMatchingReviewStageMutationInput,
+} from "@/lib/ops/matchingClient";
 import type { OpportunityStatus } from "@/lib/ops/opportunity";
 
 type OpsMatchingCompaniesResponse = {
@@ -223,11 +234,8 @@ export function useOpsMatchingFits(filters: MatchingFitFilters) {
 export function useUpdateOpsMatchingFitHumanLabel() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (args: {
-      fitId: string;
-      humanLabel: OpsMatchingFitLabel | null;
-      humanReason?: string | null;
-    }) =>
+    mutationKey: OPS_MATCHING_FIT_HUMAN_LABEL_MUTATION_KEY,
+    mutationFn: (args: OpsMatchingFitHumanLabelMutationInput) =>
       fetchWithInternalAuth<OpsMatchingFitHumanLabelUpdateResponse>(
         "/api/internal/matching/fits/human-label",
         {
@@ -236,9 +244,76 @@ export function useUpdateOpsMatchingFitHumanLabel() {
           body: JSON.stringify(args),
         }
       ),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.opsMatching.all });
+    onSuccess: (result) => {
+      queryClient.setQueriesData<
+        InfiniteData<OpsMatchingFitListResponse, number>
+      >({ queryKey: queryKeys.opsMatching.fitsAll }, (current) =>
+        current
+          ? {
+              ...current,
+              pages: current.pages.map(
+                (page) =>
+                  applyOpsMatchingFitHumanLabelToFitList(page, result) ?? page
+              ),
+            }
+          : current
+      );
+      queryClient.setQueriesData<
+        InfiniteData<OpsMatchingTalentListResponse, number>
+      >({ queryKey: queryKeys.opsMatching.talentsAll }, (current) =>
+        current
+          ? {
+              ...current,
+              pages: current.pages.map(
+                (page) =>
+                  applyOpsMatchingFitHumanLabelToTalentList(page, result) ??
+                  page
+              ),
+            }
+          : current
+      );
+      queryClient.setQueriesData<
+        InfiniteData<OpsMatchingTalentPoolListResponse, number>
+      >({ queryKey: queryKeys.opsMatching.talentPoolAll }, (current) =>
+        current
+          ? {
+              ...current,
+              pages: current.pages.map(
+                (page) =>
+                  applyOpsMatchingFitHumanLabelToTalentList(page, result) ??
+                  page
+              ),
+            }
+          : current
+      );
+      queryClient.setQueriesData<OpsMatchingTalentFitsResponse>(
+        { queryKey: queryKeys.opsMatching.talentFitsAll },
+        (current) => applyOpsMatchingFitHumanLabelToTalentFits(current, result)
+      );
+      queryClient.setQueriesData<OpsMatchingReviewBoardResponse>(
+        { queryKey: queryKeys.opsMatching.reviewRoot },
+        (current) => applyOpsMatchingFitHumanLabelToReviewBoard(current, result)
+      );
+      queryClient.setQueriesData<OpsMatchingProgressResponse>(
+        { queryKey: queryKeys.opsMatching.progressAll },
+        (current) => applyOpsMatchingFitHumanLabelToProgress(current, result)
+      );
+
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.opsMatching.all,
+      });
     },
+  });
+}
+
+export function usePendingOpsMatchingFitHumanLabelMutations() {
+  return useMutationState<OpsMatchingFitHumanLabelMutationInput>({
+    filters: {
+      mutationKey: OPS_MATCHING_FIT_HUMAN_LABEL_MUTATION_KEY,
+      status: "pending",
+    },
+    select: (mutation) =>
+      mutation.state.variables as OpsMatchingFitHumanLabelMutationInput,
   });
 }
 
@@ -415,12 +490,8 @@ export function useOpsMatchingReviewBoard(args: {
 export function useSetOpsMatchingReviewStage() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (args: {
-      emailMode?: InternalConnectionConfirmationEmailMode;
-      roleId: string;
-      stage: Exclude<OpsMatchingReviewStageId, "recommended">;
-      talentId: string;
-    }) =>
+    mutationKey: OPS_MATCHING_REVIEW_STAGE_MUTATION_KEY,
+    mutationFn: (args: OpsMatchingReviewStageMutationInput) =>
       fetchWithInternalAuth<OpsMatchingReviewStageUpdateResponse>(
         "/api/internal/matching/review",
         {
@@ -429,27 +500,32 @@ export function useSetOpsMatchingReviewStage() {
           body: JSON.stringify(args),
         }
       ),
-    onSuccess: (_result, variables) =>
-      Promise.all([
-        queryClient.invalidateQueries({
+    onSuccess: (result, variables) => {
+      queryClient.setQueriesData<OpsMatchingReviewBoardResponse>(
+        {
           queryKey: queryKeys.opsMatching.reviewAll(variables.roleId),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.opsMatching.all,
-        }),
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.opsMatching.roleTags(variables.talentId),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.opsMatching.progress(variables.talentId, null),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.opsMatching.progress(
-            variables.talentId,
-            variables.roleId
-          ),
-        }),
-      ]),
+        },
+        (current) => applyOpsMatchingReviewStageUpdate(current, result)
+      );
+
+      // Refetch in the background. Returning this promise keeps the mutation
+      // pending until every active ops-matching query finishes refetching and
+      // causes subsequent card actions to be dropped.
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.opsMatching.all,
+      });
+    },
+  });
+}
+
+export function usePendingOpsMatchingReviewStageMutations() {
+  return useMutationState<OpsMatchingReviewStageMutationInput>({
+    filters: {
+      mutationKey: OPS_MATCHING_REVIEW_STAGE_MUTATION_KEY,
+      status: "pending",
+    },
+    select: (mutation) =>
+      mutation.state.variables as OpsMatchingReviewStageMutationInput,
   });
 }
 

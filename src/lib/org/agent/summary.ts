@@ -4,6 +4,7 @@ import {
 } from "@/lib/llm/llm";
 import {
   DEFAULT_ORG_AGENT_MODEL,
+  getOrgAgentFallbackModel,
   ORG_AGENT_GROK_MODEL,
   type OrgAgentModelId,
 } from "@/lib/org/agent/modelConfig";
@@ -15,7 +16,9 @@ import type { Json } from "@/types/database.types";
 
 const MIN_MESSAGE_COUNT = 14;
 const MIN_SOURCE_CHARS = 5_000;
-const RECENT_RAW_MESSAGE_LIMIT = 16;
+// Keep this aligned with buildOrgAgentPromptContext's recent-message query so
+// no messages sit between the latest summary cursor and the raw context.
+const RECENT_RAW_MESSAGE_LIMIT = 14;
 const MAX_SOURCE_MESSAGES = 80;
 const MAX_SOURCE_CHARS = 18_000;
 
@@ -56,12 +59,12 @@ async function summarizeOrgAgentSource(args: {
       messages: [
         {
           content:
-            "You summarize role-scoped recruiter-agent conversations for future context. Write Korean unless source is primarily English. Be concise and preserve durable hiring criteria, accepted/rejected calibration, request edits, unresolved questions, and explicit Harper-team handoff requests. Do not include small talk.",
+            "You summarize workspace-scoped recruiter-agent conversations for future context. A conversation may discuss multiple positions and candidates, so preserve the relevant role names/IDs when present. Write Korean unless source is primarily English. Be concise and preserve durable hiring criteria, accepted/rejected calibration, company/role edits, and unresolved questions. Do not include small talk.",
           role: "system",
         },
         {
           content: [
-            "Summarize the following older company-role conversation segment.",
+            "Summarize the following older company recruiting conversation segment.",
             "Focus on durable facts that should guide future recruiter-agent replies.",
             "",
             args.source,
@@ -72,7 +75,7 @@ async function summarizeOrgAgentSource(args: {
       temperature: 0.1,
     }),
     debugLabel: "org/agent:summary",
-    fallbackModel: ORG_AGENT_GROK_MODEL,
+    fallbackModel: getOrgAgentFallbackModel(args.model),
     model: args.model,
   });
 
@@ -94,6 +97,7 @@ export async function maybeSummarizeOrgAgentConversation(args: {
       "id, conversation_id, company_workspace_id, role_id, company_user_id, role, content, message_type, model, status, mentions, thinking_logs, metadata, created_at"
     )
     .eq("conversation_id", args.conversation.id)
+    .eq("message_type", "chat")
     .gt("id", cursor)
     .order("id", { ascending: true })
     .limit(MAX_SOURCE_MESSAGES + RECENT_RAW_MESSAGE_LIMIT);

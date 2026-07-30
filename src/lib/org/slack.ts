@@ -1,7 +1,7 @@
 import {
-  sendOrgWorkspaceSlackMessage,
-  type OrgSlackNotificationKey,
-} from "@/lib/org/slackIntegration";
+  sendHarperWorkspaceSlackMessage,
+  type HarperSlackNotificationKey,
+} from "@/lib/org/slackHarper";
 
 export const ORG_SLACK_CHANNEL_ID =
   process.env.ORG_SLACK_CHANNEL_ID?.trim() || "C0AKK93FMH8";
@@ -122,11 +122,11 @@ async function postOrgSlackMessage(text: string) {
 async function postWorkspaceScopedOrgSlackMessage(
   text: string,
   workspaceId: string,
-  notificationKey?: OrgSlackNotificationKey
+  notificationKey?: HarperSlackNotificationKey
 ) {
   const [internalResult, workspaceResult] = await Promise.allSettled([
     postOrgSlackMessage(text),
-    sendOrgWorkspaceSlackMessage({ notificationKey, text, workspaceId }),
+    sendHarperWorkspaceSlackMessage({ notificationKey, text, workspaceId }),
   ]);
 
   if (workspaceResult.status === "rejected") {
@@ -184,23 +184,15 @@ export async function notifyOrgCandidateRejectedSlack(args: {
   roleId: string;
   roleName: string;
   stopNote?: string | null;
-  stopReason?: string | null;
   workspace: OrgSlackWorkspace;
 }) {
   const roleUrl = buildOrgRoleUrl(args.workspace.workspaceId, args.roleId);
-  const stopReasonLabel =
-    args.stopReason === "candidate"
-      ? "후보자측 종료"
-      : args.stopReason === "company"
-        ? "회사측 종료"
-        : "미지정";
   const lines = [
-    "*Org 후보자 거절*",
+    "*Org 후보자 연결받지 않음*",
     `- *Workspace*: ${formatSlackLink(roleUrl, args.workspace.companyName)}`,
     `- *Role*: ${escapeSlackText(args.roleName)}`,
     `- *Candidate*: ${formatCandidate(args.candidate)}`,
-    `- *Rejected by*: ${formatPerson(args.actor)}`,
-    `- *Type*: ${escapeSlackText(stopReasonLabel)}`,
+    `- *Decided by*: ${formatPerson(args.actor)}`,
     `- *Reason*: ${formatOptional(args.stopNote)}`,
   ];
 

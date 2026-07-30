@@ -10,6 +10,7 @@ import {
 import { openCustomCrispWidget } from "@/lib/feedback/customCrispEvents";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useReferralEntryPointEligibility } from "@/hooks/career/useReferralEntryPointEligibility";
+import { persistLocalePreference } from "@/i18n/useMessage";
 import Face from "../common/Face";
 // import { useCareerT } from "@/i18n/useCareerT";
 
@@ -117,13 +118,6 @@ function CountryFlag({
   );
 }
 
-function persistLocale(locale: FooterLocale) {
-  if (typeof window === "undefined") return;
-
-  window.localStorage.setItem("harper:locale", locale);
-  document.cookie = `NEXT_LOCALE=${locale}; path=/; max-age=31536000; samesite=lax`;
-}
-
 function FooterLanguageDropdown({
   locale,
   onLocaleChange,
@@ -136,7 +130,7 @@ function FooterLanguageDropdown({
   const handleLocaleSelect = (nextLocale: FooterLocale) => {
     if (nextLocale === locale) return;
 
-    persistLocale(nextLocale);
+    persistLocalePreference(nextLocale);
     if (onLocaleChange) {
       onLocaleChange(nextLocale);
       return;

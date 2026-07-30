@@ -1,6 +1,7 @@
 export type OrgWorkspacePageId =
   | "all"
   | "home"
+  | "inbox"
   | "jobs"
   | "team"
   | "settings"
@@ -10,6 +11,7 @@ const ORG_PAGE_PATHS: Record<OrgWorkspacePageId, string> = {
   all: "/org/all",
   help: "/org/help",
   home: "/org/home",
+  inbox: "/org/inbox",
   jobs: "/org/jobs",
   settings: "/org/settings",
   team: "/org/team",

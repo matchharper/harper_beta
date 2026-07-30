@@ -9,6 +9,8 @@
     "start": "next start",
     "lint": "eslint .",
     "growth:ga-slack-report": "node scripts/sendGrowthCandidateGaSlackReport.mjs",
+    "org-agent:live-eval": "tsx --tsconfig scripts/tsconfig.json scripts/evalOrgAgentLive.ts",
+    "org-agent:prompt-benchmark": "tsx scripts/benchmarkOrgAgentPrompt.ts",
     "ops:workspace:sync-list": "node scripts/syncCompanyWorkspacesFromList.mjs",
     "translation:check-career": "node scripts/translation-extract-career.mjs --check",
     "translation:extract-career": "node scripts/translation-extract-career.mjs",

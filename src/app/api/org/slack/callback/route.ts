@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  buildOrgSlackCallbackPath,
-  completeOrgSlackOAuth,
-  readOrgSlackOAuthStateReturnTo,
-} from "@/lib/org/slackIntegration";
+  buildHarperSlackCallbackPath,
+  completeHarperSlackOAuth,
+  readHarperSlackStateReturnTo,
+} from "@/lib/org/slackHarper";
 
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code") ?? "";
@@ -12,11 +12,11 @@ export async function GET(req: NextRequest) {
   let returnTo = "/org";
 
   try {
-    returnTo = readOrgSlackOAuthStateReturnTo(state);
+    returnTo = readHarperSlackStateReturnTo(state);
     if (slackError) {
       return NextResponse.redirect(
         new URL(
-          buildOrgSlackCallbackPath({
+          buildHarperSlackCallbackPath({
             error:
               slackError === "access_denied"
                 ? "Slack 연결이 취소되었습니다."
@@ -29,14 +29,14 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const completedReturnTo = await completeOrgSlackOAuth({
+    const completedReturnTo = await completeHarperSlackOAuth({
       code,
       origin: req.nextUrl.origin,
       state,
     });
     return NextResponse.redirect(
       new URL(
-        buildOrgSlackCallbackPath({
+        buildHarperSlackCallbackPath({
           result: "connected",
           returnTo: completedReturnTo,
         }),
@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
     console.error("[org/slack/callback]", error);
     return NextResponse.redirect(
       new URL(
-        buildOrgSlackCallbackPath({
+        buildHarperSlackCallbackPath({
           error: "Slack 연결에 실패했습니다. 다시 시도해 주세요.",
           result: "error",
           returnTo,

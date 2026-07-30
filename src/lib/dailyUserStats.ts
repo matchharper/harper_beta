@@ -107,6 +107,10 @@ type TalentOpportunityDeliveryRow = Pick<
   Database["public"]["Tables"]["talent_opportunity_delivery"]["Row"],
   "channel" | "discovery_run_id" | "id" | "sent_at" | "status" | "talent_id"
 >;
+type TalentRecommendationSettingRow = Pick<
+  Database["public"]["Tables"]["talent_setting"]["Row"],
+  "get_external_recommendation" | "profile_visibility" | "user_id"
+>;
 type OpportunityDiscoveryRunRow = Pick<
   Database["public"]["Tables"]["opportunity_discovery_run"]["Row"],
   "completed_at" | "id" | "status" | "talent_id" | "updated_at"
@@ -273,6 +277,8 @@ export type DailyUserStatsReport = {
   newSignupSubmittedCount: number;
   newVisitorCount: number;
   onboardingCompletedCount: number;
+  onboardingCompletedNoEmailUserCount: number;
+  onboardingCompletedNoRecommendationInternalOnlyUserCount: number;
   opportunityDiscoveryFailedRunCount: number;
   period: "daily" | "weekly";
   periodicRecommendationMailUserCount: number;
@@ -1145,6 +1151,92 @@ function chunkArray<T>(values: T[], chunkSize: number) {
   return chunks;
 }
 
+export function buildOnboardingDeliveryGapStats(args: {
+  eligibleUserIds: Iterable<string>;
+  recommendationEmailUserIds: ReadonlySet<string>;
+  recommendationUserIds: ReadonlySet<string>;
+  settings: TalentRecommendationSettingRow[];
+}) {
+  const eligibleUserIds = Array.from(new Set(args.eligibleUserIds));
+  const settingByUserId = new Map(
+    args.settings.map((setting) => [setting.user_id, setting] as const)
+  );
+  const noRecommendationUserIds = eligibleUserIds.filter(
+    (userId) => !args.recommendationUserIds.has(userId)
+  );
+  const internalOnlyUserCount = noRecommendationUserIds.filter((userId) => {
+    const setting = settingByUserId.get(userId);
+    return (
+      setting?.get_external_recommendation === false ||
+      setting?.profile_visibility === "dont_share"
+    );
+  }).length;
+  const noEmailUserCount = eligibleUserIds.filter(
+    (userId) => !args.recommendationEmailUserIds.has(userId)
+  ).length;
+
+  return {
+    internalOnlyUserCount,
+    noEmailUserCount,
+    noRecommendationUserCount: noRecommendationUserIds.length,
+  };
+}
+
+async function fetchOnboardingDeliveryGapContext(args: {
+  endIso: string;
+  startIso: string;
+  userIds: string[];
+}) {
+  const settings: TalentRecommendationSettingRow[] = [];
+  const recommendationEmailUserIds = new Set<string>();
+
+  for (const userIdChunk of chunkArray(args.userIds, BATCH_SIZE)) {
+    const [settingRows, emailRows, deliveryRows] = await Promise.all([
+      fetchAllRows<TalentRecommendationSettingRow>((from, to) =>
+        supabaseServer
+          .from("talent_setting")
+          .select("user_id,get_external_recommendation,profile_visibility")
+          .in("user_id", userIdChunk)
+          .order("user_id", { ascending: true })
+          .range(from, to)
+      ),
+      fetchAllRows<Pick<CareerEmailMessageRow, "talent_id">>((from, to) =>
+        supabaseServer
+          .from("career_email_messages")
+          .select("talent_id")
+          .in("talent_id", userIdChunk)
+          .eq("direction", "outbound")
+          .eq("mail_type", "opportunity_recommendation")
+          .eq("status", "sent")
+          .gte("occurred_at", args.startIso)
+          .lt("occurred_at", args.endIso)
+          .order("occurred_at", { ascending: true })
+          .range(from, to)
+      ),
+      fetchAllRows<Pick<TalentOpportunityDeliveryRow, "talent_id">>(
+        (from, to) =>
+          supabaseServer
+            .from("talent_opportunity_delivery")
+            .select("talent_id")
+            .in("talent_id", userIdChunk)
+            .eq("channel", "email")
+            .eq("status", "sent")
+            .gte("sent_at", args.startIso)
+            .lt("sent_at", args.endIso)
+            .order("sent_at", { ascending: true })
+            .range(from, to)
+      ),
+    ]);
+
+    settings.push(...settingRows);
+    for (const row of [...emailRows, ...deliveryRows]) {
+      addUserId(recommendationEmailUserIds, row.talent_id);
+    }
+  }
+
+  return { recommendationEmailUserIds, settings };
+}
+
 function getInternalOpportunityCompanyName(row: InternalOpportunityRoleRow) {
   const workspace = Array.isArray(row.company_workspace)
     ? row.company_workspace[0]
@@ -1958,11 +2050,26 @@ async function buildUserStatsReport(args: {
       addUserId(recommendationTalentIdsBeforeObservationEnd, row.talent_id);
     }
   }
-  const onboardingCompletedNoRecommendationUserCount = Array.from(
+  const noRecommendationEligibleUserIds = Array.from(
     noRecommendationEligibleOnboardingCompletedUserIds
-  ).filter(
-    (userId) => !recommendationTalentIdsBeforeObservationEnd.has(userId)
-  ).length;
+  );
+  const deliveryGapContext =
+    noRecommendationEligibleUserIds.length > 0
+      ? await fetchOnboardingDeliveryGapContext({
+          endIso: noRecommendationObservationEndIso,
+          startIso,
+          userIds: noRecommendationEligibleUserIds,
+        })
+      : {
+          recommendationEmailUserIds: new Set<string>(),
+          settings: [] as TalentRecommendationSettingRow[],
+        };
+  const onboardingDeliveryGapStats = buildOnboardingDeliveryGapStats({
+    eligibleUserIds: noRecommendationEligibleUserIds,
+    recommendationEmailUserIds: deliveryGapContext.recommendationEmailUserIds,
+    recommendationUserIds: recommendationTalentIdsBeforeObservationEnd,
+    settings: deliveryGapContext.settings,
+  });
 
   const includedInternalConnectionResponseRows =
     internalConnectionResponseRows.filter(
@@ -2031,7 +2138,12 @@ async function buildUserStatsReport(args: {
     callTranscriptMessageCount: callTranscriptMessages.length,
     chatMessageCount: chatMessages.length,
     chatUniqueTalentCount: chatUserIds.size,
-    onboardingCompletedNoRecommendationUserCount,
+    onboardingCompletedNoEmailUserCount:
+      onboardingDeliveryGapStats.noEmailUserCount,
+    onboardingCompletedNoRecommendationInternalOnlyUserCount:
+      onboardingDeliveryGapStats.internalOnlyUserCount,
+    onboardingCompletedNoRecommendationUserCount:
+      onboardingDeliveryGapStats.noRecommendationUserCount,
     cumulativeTalentsCount: cumulativeTalentCount,
     date,
     dateLabel,
@@ -2092,6 +2204,28 @@ export async function buildDailyUserStatsReport(
   });
 }
 
+export async function buildDailyUserStatsReportComparison(
+  dateInput?: string | null
+): Promise<{
+  previousReport: DailyUserStatsReport;
+  report: DailyUserStatsReport;
+}> {
+  const date = resolveDailyUserStatsDate(dateInput);
+  const previousDate = addDaysToDateOnly(date, -1);
+  const [report, previousReport] = await Promise.all([
+    buildUserStatsReport({
+      period: "daily",
+      range: getKstDayRange(date),
+    }),
+    buildUserStatsReport({
+      period: "daily",
+      range: getKstDayRange(previousDate),
+    }),
+  ]);
+
+  return { previousReport, report };
+}
+
 export async function buildWeeklyUserStatsReport(
   weekStartDateInput?: string | null
 ): Promise<DailyUserStatsReport> {
@@ -2109,6 +2243,22 @@ export async function buildWeeklyUserStatsReport(
   });
 }
 
+export async function buildWeeklyUserStatsReportComparison(
+  weekStartDateInput?: string | null
+): Promise<{
+  previousReport: DailyUserStatsReport;
+  report: DailyUserStatsReport;
+}> {
+  const weekStartDate = resolveWeeklyUserStatsStartDate(weekStartDateInput);
+  const previousWeekStartDate = addDaysToDateOnly(weekStartDate, -7);
+  const [report, previousReport] = await Promise.all([
+    buildWeeklyUserStatsReport(weekStartDate),
+    buildWeeklyUserStatsReport(previousWeekStartDate),
+  ]);
+
+  return { previousReport, report };
+}
+
 const numberFormatter = new Intl.NumberFormat("ko-KR");
 
 function formatCount(value: number) {
@@ -2122,6 +2272,45 @@ function formatPercent(value: number | null) {
 
 function formatRatio(numerator: number, denominator: number) {
   return formatPercent(countRate(numerator, denominator));
+}
+
+function formatSignedPercent(value: number) {
+  const percent = value * 100;
+  const roundedPercent = Math.abs(percent) < 0.05 ? 0 : percent;
+  const sign = roundedPercent > 0 ? "+" : "";
+  return `${sign}${roundedPercent.toFixed(1)}%`;
+}
+
+function formatRelativeCountChange(current: number, previous: number) {
+  if (previous === 0) {
+    return current === 0 ? "0.0%" : "신규";
+  }
+
+  return formatSignedPercent((current - previous) / previous);
+}
+
+function formatPercentagePointChange(current: number, previous: number) {
+  const percentagePoints = (current - previous) * 100;
+  const roundedPercentagePoints =
+    Math.abs(percentagePoints) < 0.05 ? 0 : percentagePoints;
+  const sign = roundedPercentagePoints > 0 ? "+" : "";
+  return `${sign}${roundedPercentagePoints.toFixed(1)}%p`;
+}
+
+function formatCountChangeSuffix(
+  currentCount: number,
+  previousCount: number | undefined
+) {
+  if (previousCount === undefined) return "";
+  return `(${formatRelativeCountChange(currentCount, previousCount)})`;
+}
+
+function formatRateChangeSuffix(
+  currentRate: number | null,
+  previousRate: number | null | undefined
+) {
+  if (currentRate === null || previousRate == null) return "";
+  return ` (${formatPercentagePointChange(currentRate, previousRate)})`;
 }
 
 function formatSlackSectionTitle(value: string) {
@@ -2208,8 +2397,11 @@ export function formatExternalNegativeFeedbackReasonStats(
 }
 
 export function formatDailyUserStatsSlackMessages(
-  report: DailyUserStatsReport
+  report: DailyUserStatsReport,
+  previousReport?: DailyUserStatsReport
 ): DailyUserStatsSlackMessages {
+  const previousComparisonReport =
+    previousReport?.period === report.period ? previousReport : undefined;
   const tools =
     report.tools.length > 0
       ? report.tools
@@ -2332,132 +2524,376 @@ export function formatDailyUserStatsSlackMessages(
     title,
     "",
     formatSlackSectionTitle("신규"),
-    `신규 가입: ${formatCount(report.signupCount)}명`,
+    `신규 가입: ${formatCount(report.signupCount)}명${formatCountChangeSuffix(
+      report.signupCount,
+      previousComparisonReport?.signupCount
+    )}`,
     `신규 방문자 수: ${formatCount(
       report.newVisitorCount
-    )}명, 회원가입 전환율: ${formatRatio(
+    )}명${formatCountChangeSuffix(
+      report.newVisitorCount,
+      previousComparisonReport?.newVisitorCount
+    )}, 회원가입 전환율: ${formatRatio(
       report.signupCount,
       report.newVisitorCount
+    )}${formatRateChangeSuffix(
+      countRate(report.signupCount, report.newVisitorCount),
+      previousComparisonReport
+        ? countRate(
+            previousComparisonReport.signupCount,
+            previousComparisonReport.newVisitorCount
+          )
+        : undefined
     )}`,
     `신규 가입자 중 제출 완료: ${formatCount(
       report.newSignupSubmittedCount
-    )}명, 가입 대비 ${formatRatio(
+    )}명${formatCountChangeSuffix(
+      report.newSignupSubmittedCount,
+      previousComparisonReport?.newSignupSubmittedCount
+    )}, 가입 대비 ${formatRatio(
       report.newSignupSubmittedCount,
       report.signupCount
+    )}${formatRateChangeSuffix(
+      countRate(report.newSignupSubmittedCount, report.signupCount),
+      previousComparisonReport
+        ? countRate(
+            previousComparisonReport.newSignupSubmittedCount,
+            previousComparisonReport.signupCount
+          )
+        : undefined
     )}`,
     `신규 가입자 중 온보딩 완료: ${formatCount(
       report.newSignupOnboardingCompletedCount
-    )}명, 가입 대비 ${formatRatio(
+    )}명${formatCountChangeSuffix(
+      report.newSignupOnboardingCompletedCount,
+      previousComparisonReport?.newSignupOnboardingCompletedCount
+    )}, 가입 대비 ${formatRatio(
       report.newSignupOnboardingCompletedCount,
       report.signupCount
+    )}${formatRateChangeSuffix(
+      countRate(report.newSignupOnboardingCompletedCount, report.signupCount),
+      previousComparisonReport
+        ? countRate(
+            previousComparisonReport.newSignupOnboardingCompletedCount,
+            previousComparisonReport.signupCount
+          )
+        : undefined
     )}`,
     `채팅 4번 이상 후 진행 도중 이탈: ${formatCount(
       report.newSignupFourPlusChatDropoffCount
-    )}명, ${formatRatio(
+    )}명${formatCountChangeSuffix(
+      report.newSignupFourPlusChatDropoffCount,
+      previousComparisonReport?.newSignupFourPlusChatDropoffCount
+    )}, ${formatRatio(
       report.newSignupFourPlusChatDropoffCount,
       report.signupCount
+    )}${formatRateChangeSuffix(
+      countRate(report.newSignupFourPlusChatDropoffCount, report.signupCount),
+      previousComparisonReport
+        ? countRate(
+            previousComparisonReport.newSignupFourPlusChatDropoffCount,
+            previousComparisonReport.signupCount
+          )
+        : undefined
     )}`,
-    `회원 탈퇴: ${formatCount(report.accountDeletedCount)}명`,
+    `회원 탈퇴: ${formatCount(
+      report.accountDeletedCount
+    )}명${formatCountChangeSuffix(
+      report.accountDeletedCount,
+      previousComparisonReport?.accountDeletedCount
+    )}`,
     `${returningUserLabelPrefix} 제출 완료한 사람: ${formatCount(
       report.returningSubmittedCount
-    )}명`,
+    )}명${formatCountChangeSuffix(
+      report.returningSubmittedCount,
+      previousComparisonReport?.returningSubmittedCount
+    )}`,
     `${returningUserLabelPrefix} 온보딩 완료한 사람: ${formatCount(
       report.returningOnboardingCompletedCount
-    )}명`,
+    )}명${formatCountChangeSuffix(
+      report.returningOnboardingCompletedCount,
+      previousComparisonReport?.returningOnboardingCompletedCount
+    )}`,
     "",
     `Active talents: ${formatCount(
       report.activeTalentsCount
-    )}명 (로그인 없이 발생한 활동 포함, 상세 항목은 중복 포함)`,
+    )}명${formatCountChangeSuffix(
+      report.activeTalentsCount,
+      previousComparisonReport?.activeTalentsCount
+    )} (로그인 없이 발생한 활동 포함, 상세 항목은 중복 포함)`,
     `- 로그인: ${formatCount(
       report.activeTalentBreakdown.loggedInTalentCount
-    )}명`,
+    )}명${formatCountChangeSuffix(
+      report.activeTalentBreakdown.loggedInTalentCount,
+      previousComparisonReport?.activeTalentBreakdown.loggedInTalentCount
+    )}`,
     `- 신규 가입: ${formatCount(
       report.activeTalentBreakdown.signupTalentCount
-    )}명`,
-    `- 채팅: ${formatCount(report.activeTalentBreakdown.chatTalentCount)}명`,
+    )}명${formatCountChangeSuffix(
+      report.activeTalentBreakdown.signupTalentCount,
+      previousComparisonReport?.activeTalentBreakdown.signupTalentCount
+    )}`,
+    `- 채팅: ${formatCount(
+      report.activeTalentBreakdown.chatTalentCount
+    )}명${formatCountChangeSuffix(
+      report.activeTalentBreakdown.chatTalentCount,
+      previousComparisonReport?.activeTalentBreakdown.chatTalentCount
+    )}`,
     `- 통화: ${formatCount(
       report.activeTalentBreakdown.callTranscriptTalentCount
-    )}명`,
+    )}명${formatCountChangeSuffix(
+      report.activeTalentBreakdown.callTranscriptTalentCount,
+      previousComparisonReport?.activeTalentBreakdown.callTranscriptTalentCount
+    )}`,
     `- 메일 답장: ${formatCount(
       report.activeTalentBreakdown.inboundEmailTalentCount
-    )}명`,
+    )}명${formatCountChangeSuffix(
+      report.activeTalentBreakdown.inboundEmailTalentCount,
+      previousComparisonReport?.activeTalentBreakdown.inboundEmailTalentCount
+    )}`,
     `- 추천 열람: ${formatCount(
       report.activeTalentBreakdown.viewedRecommendationTalentCount
-    )}명`,
+    )}명${formatCountChangeSuffix(
+      report.activeTalentBreakdown.viewedRecommendationTalentCount,
+      previousComparisonReport?.activeTalentBreakdown
+        .viewedRecommendationTalentCount
+    )}`,
     `- 추천 클릭: ${formatCount(
       report.activeTalentBreakdown.clickedRecommendationTalentCount
-    )}명`,
+    )}명${formatCountChangeSuffix(
+      report.activeTalentBreakdown.clickedRecommendationTalentCount,
+      previousComparisonReport?.activeTalentBreakdown
+        .clickedRecommendationTalentCount
+    )}`,
     `- 추천 피드백: ${formatCount(
       report.activeTalentBreakdown.feedbackRecommendationTalentCount
-    )}명`,
+    )}명${formatCountChangeSuffix(
+      report.activeTalentBreakdown.feedbackRecommendationTalentCount,
+      previousComparisonReport?.activeTalentBreakdown
+        .feedbackRecommendationTalentCount
+    )}`,
     `- 추천 저장/상태 변경: ${formatCount(
       report.activeTalentBreakdown.savedRecommendationTalentCount
-    )}명`,
+    )}명${formatCountChangeSuffix(
+      report.activeTalentBreakdown.savedRecommendationTalentCount,
+      previousComparisonReport?.activeTalentBreakdown
+        .savedRecommendationTalentCount
+    )}`,
     // `High_intent_talents: ${formatCount(report.highIntentTalentsCount)}명`,
-    `누적 talents: ${formatCount(report.cumulativeTalentsCount)}명`,
+    `누적 talents: ${formatCount(
+      report.cumulativeTalentsCount
+    )}명${formatCountChangeSuffix(
+      report.cumulativeTalentsCount,
+      previousComparisonReport?.cumulativeTalentsCount
+    )}`,
     "",
     formatSlackSectionTitle("추천 통계"),
-    `추천된 기회: ${formatCount(report.recommendationCount)}개`,
+    `추천된 기회: ${formatCount(
+      report.recommendationCount
+    )}개${formatCountChangeSuffix(
+      report.recommendationCount,
+      previousComparisonReport?.recommendationCount
+    )}`,
     `열람(확인): ${formatCount(
       report.viewedRecommendationCount
-    )}개, ${formatRatio(
+    )}개${formatCountChangeSuffix(
+      report.viewedRecommendationCount,
+      previousComparisonReport?.viewedRecommendationCount
+    )}, ${formatRatio(
       report.viewedRecommendationCount,
       report.recommendationCount
+    )}${formatRateChangeSuffix(
+      countRate(report.viewedRecommendationCount, report.recommendationCount),
+      previousComparisonReport
+        ? countRate(
+            previousComparisonReport.viewedRecommendationCount,
+            previousComparisonReport.recommendationCount
+          )
+        : undefined
     )}`,
-    `수락/좋아요: ${formatCount(report.positiveFeedbackCount)}개, ${formatRatio(
+    `수락/좋아요: ${formatCount(
+      report.positiveFeedbackCount
+    )}개${formatCountChangeSuffix(
+      report.positiveFeedbackCount,
+      previousComparisonReport?.positiveFeedbackCount
+    )}, ${formatRatio(
       report.positiveFeedbackCount,
       report.recommendationCount
+    )}${formatRateChangeSuffix(
+      countRate(report.positiveFeedbackCount, report.recommendationCount),
+      previousComparisonReport
+        ? countRate(
+            previousComparisonReport.positiveFeedbackCount,
+            previousComparisonReport.recommendationCount
+          )
+        : undefined
     )}`,
-    `싫어요: ${formatCount(report.negativeFeedbackCount)}개, ${formatRatio(
+    `싫어요: ${formatCount(
+      report.negativeFeedbackCount
+    )}개${formatCountChangeSuffix(
+      report.negativeFeedbackCount,
+      previousComparisonReport?.negativeFeedbackCount
+    )}, ${formatRatio(
       report.negativeFeedbackCount,
       report.recommendationCount
+    )}${formatRateChangeSuffix(
+      countRate(report.negativeFeedbackCount, report.recommendationCount),
+      previousComparisonReport
+        ? countRate(
+            previousComparisonReport.negativeFeedbackCount,
+            previousComparisonReport.recommendationCount
+          )
+        : undefined
     )}`,
     `  ㄴ JD 확인 오픈: ${formatCount(
       report.negativeFeedbackClickedCount
-    )}개, ${formatRatio(
+    )}개${formatCountChangeSuffix(
+      report.negativeFeedbackClickedCount,
+      previousComparisonReport?.negativeFeedbackClickedCount
+    )}, ${formatRatio(
       report.negativeFeedbackClickedCount,
       report.negativeFeedbackCount
+    )}${formatRateChangeSuffix(
+      countRate(
+        report.negativeFeedbackClickedCount,
+        report.negativeFeedbackCount
+      ),
+      previousComparisonReport
+        ? countRate(
+            previousComparisonReport.negativeFeedbackClickedCount,
+            previousComparisonReport.negativeFeedbackCount
+          )
+        : undefined
     )}`,
     `opportunity_discovery_run failed 종료: ${formatCount(
       report.opportunityDiscoveryFailedRunCount
-    )}개`,
+    )}개${formatCountChangeSuffix(
+      report.opportunityDiscoveryFailedRunCount,
+      previousComparisonReport?.opportunityDiscoveryFailedRunCount
+    )}`,
     `• 기간 내 온보딩 완료 후 1시간+ 추천 0개인 유저 수: ${formatCount(
       report.onboardingCompletedNoRecommendationUserCount
+    )}명 (내부 기회만 요청: ${formatCount(
+      report.onboardingCompletedNoRecommendationInternalOnlyUserCount
+    )}명), 메일을 받지 못한 유저 수: ${formatCount(
+      report.onboardingCompletedNoEmailUserCount
     )}명`,
     "",
     formatSlackSectionTitle("내부 기회"),
     `추천된 내부 기회 수: ${formatCount(
       report.internalOpportunityStats.recommendationCount
-    )}개`,
+    )}개${formatCountChangeSuffix(
+      report.internalOpportunityStats.recommendationCount,
+      previousComparisonReport?.internalOpportunityStats.recommendationCount
+    )}`,
     `수락: ${formatCount(
       report.internalOpportunityStats.acceptedCount
-    )}개, 전체 추천 대비 ${formatRatio(
+    )}개${formatCountChangeSuffix(
+      report.internalOpportunityStats.acceptedCount,
+      previousComparisonReport?.internalOpportunityStats.acceptedCount
+    )}, 전체 추천 대비 ${formatRatio(
       report.internalOpportunityStats.acceptedCount,
       report.internalOpportunityStats.recommendationCount
+    )}${formatRateChangeSuffix(
+      countRate(
+        report.internalOpportunityStats.acceptedCount,
+        report.internalOpportunityStats.recommendationCount
+      ),
+      previousComparisonReport
+        ? countRate(
+            previousComparisonReport.internalOpportunityStats.acceptedCount,
+            previousComparisonReport.internalOpportunityStats
+              .recommendationCount
+          )
+        : undefined
     )}`,
     `거절: ${formatCount(
       report.internalOpportunityStats.rejectedCount
-    )}개, 전체 추천 대비 ${formatRatio(
+    )}개${formatCountChangeSuffix(
+      report.internalOpportunityStats.rejectedCount,
+      previousComparisonReport?.internalOpportunityStats.rejectedCount
+    )}, 전체 추천 대비 ${formatRatio(
       report.internalOpportunityStats.rejectedCount,
       report.internalOpportunityStats.recommendationCount
+    )}${formatRateChangeSuffix(
+      countRate(
+        report.internalOpportunityStats.rejectedCount,
+        report.internalOpportunityStats.recommendationCount
+      ),
+      previousComparisonReport
+        ? countRate(
+            previousComparisonReport.internalOpportunityStats.rejectedCount,
+            previousComparisonReport.internalOpportunityStats
+              .recommendationCount
+          )
+        : undefined
     )}`,
     `전체 확인 비율: ${formatCount(
       report.internalOpportunityStats.checkedCount
-    )}개, 전체 추천 대비 ${formatRatio(
+    )}개${formatCountChangeSuffix(
+      report.internalOpportunityStats.checkedCount,
+      previousComparisonReport?.internalOpportunityStats.checkedCount
+    )}, 전체 추천 대비 ${formatRatio(
       report.internalOpportunityStats.checkedCount,
       report.internalOpportunityStats.recommendationCount
+    )}${formatRateChangeSuffix(
+      countRate(
+        report.internalOpportunityStats.checkedCount,
+        report.internalOpportunityStats.recommendationCount
+      ),
+      previousComparisonReport
+        ? countRate(
+            previousComparisonReport.internalOpportunityStats.checkedCount,
+            previousComparisonReport.internalOpportunityStats
+              .recommendationCount
+          )
+        : undefined
     )}`,
     `지난 7일 수락: ${formatCount(
       report.internalOpportunityRolling7DayStats.acceptedCount
-    )}개, 전체 추천 대비 ${formatRatio(
+    )}개${formatCountChangeSuffix(
+      report.internalOpportunityRolling7DayStats.acceptedCount,
+      previousComparisonReport?.internalOpportunityRolling7DayStats
+        .acceptedCount
+    )}, 전체 추천 대비 ${formatRatio(
       report.internalOpportunityRolling7DayStats.acceptedCount,
       report.internalOpportunityRolling7DayStats.recommendationCount
+    )}${formatRateChangeSuffix(
+      countRate(
+        report.internalOpportunityRolling7DayStats.acceptedCount,
+        report.internalOpportunityRolling7DayStats.recommendationCount
+      ),
+      previousComparisonReport
+        ? countRate(
+            previousComparisonReport.internalOpportunityRolling7DayStats
+              .acceptedCount,
+            previousComparisonReport.internalOpportunityRolling7DayStats
+              .recommendationCount
+          )
+        : undefined
     )}`,
     `지난 7일 거절: ${formatCount(
       report.internalOpportunityRolling7DayStats.rejectedCount
-    )}개, 전체 추천 대비 ${formatRatio(
+    )}개${formatCountChangeSuffix(
+      report.internalOpportunityRolling7DayStats.rejectedCount,
+      previousComparisonReport?.internalOpportunityRolling7DayStats
+        .rejectedCount
+    )}, 전체 추천 대비 ${formatRatio(
       report.internalOpportunityRolling7DayStats.rejectedCount,
       report.internalOpportunityRolling7DayStats.recommendationCount
+    )}${formatRateChangeSuffix(
+      countRate(
+        report.internalOpportunityRolling7DayStats.rejectedCount,
+        report.internalOpportunityRolling7DayStats.recommendationCount
+      ),
+      previousComparisonReport
+        ? countRate(
+            previousComparisonReport.internalOpportunityRolling7DayStats
+              .rejectedCount,
+            previousComparisonReport.internalOpportunityRolling7DayStats
+              .recommendationCount
+          )
+        : undefined
     )}`,
     "",
     `유저가 보낸 메시지: ${formatCount(report.userMessageCount)}개`,
@@ -2488,7 +2924,10 @@ export function formatDailyUserStatsSlackMessages(
   };
 }
 
-export function formatDailyUserStatsSlackMessage(report: DailyUserStatsReport) {
-  const messages = formatDailyUserStatsSlackMessages(report);
+export function formatDailyUserStatsSlackMessage(
+  report: DailyUserStatsReport,
+  previousReport?: DailyUserStatsReport
+) {
+  const messages = formatDailyUserStatsSlackMessages(report, previousReport);
   return [messages.main, messages.details].join("\n");
 }

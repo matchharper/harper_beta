@@ -178,7 +178,7 @@ export function OrgDocsModal({
             <DocsSection
               id="decision"
               title="수락과 거절"
-              description="수락 이유는 선택 사항이고 거절 이유는 필수입니다. 이유를 구체적으로 남길수록 다음 추천이 정확해집니다."
+              description="수락 이유와 거절 이유는 모두 선택 사항입니다. 이유를 구체적으로 남길수록 다음 추천이 정확해집니다."
             >
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Button
@@ -199,7 +199,8 @@ export function OrgDocsModal({
                 </Button>
               </div>
               <p className="mt-3 text-xs font-normal leading-5 text-neutral-muted">
-                수락하면 연결됨으로, 거절하면 프로세스 중단으로 이동합니다.
+                수락하면 연결됨으로, 연결받지 않으면 프로세스 중단으로
+                이동합니다.
               </p>
             </DocsSection>
 

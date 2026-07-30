@@ -96,6 +96,22 @@ Use `Input`, `TextField`, `Textarea`, `Select`, `Checkbox`, `Switch`, and `Radio
 
 Controls should rest on `bg-bg-floating` with neutral borders and use `text-neutral-placeholder` for placeholders.
 
+Use `FilterChipGroup` when multiple temporary list filters can be active at the
+same time. Keep `Switch` for persistent settings.
+
+```tsx
+<FilterChipGroup
+  aria-label="Candidate filters"
+  label="Filters"
+  options={[
+    { label: "Unread", value: "unread" },
+    { label: "Waiting", value: "waiting" },
+  ]}
+  value={filters}
+  onValueChange={setFilters}
+/>
+```
+
 ### Navigation And Menus
 
 Use `Tabs` for tab lists, `ActionDropdown` for simple command menus, and `DropdownMenu` primitives for grouped menus, radio items, check items, or submenus.

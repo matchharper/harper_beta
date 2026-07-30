@@ -4,20 +4,26 @@ import {
   getLlmErrorMessage,
   type ChatCompletionFallbackReason,
 } from "@/lib/llm/llm";
+import { extractLlmTokenUsage } from "@/lib/llm/usageLogging";
 import {
   DEFAULT_ORG_AGENT_MODEL,
+  getOrgAgentFallbackModel,
   ORG_AGENT_GROK_MODEL,
   resolveOrgAgentModel,
   type OrgAgentModelId,
 } from "@/lib/org/agent/modelConfig";
 import {
   buildOrgAgentPromptContext,
-  filterOrgAgentMentionsForRole,
+  filterOrgAgentMentionsForWorkspace,
 } from "@/lib/org/agent/context";
 import {
   buildOrgAgentSystemPrompt,
   buildOrgAgentUserPrompt,
 } from "@/lib/org/agent/prompts";
+import {
+  serializeOrgAgentToolError,
+  serializeOrgAgentToolResult,
+} from "@/lib/org/agent/promptFormat";
 import { maybeSummarizeOrgAgentConversation } from "@/lib/org/agent/summary";
 import {
   ensureOrgAgentConversation,
@@ -28,6 +34,7 @@ import {
   executeOrgAgentTool,
   getOrgAgentToolStatusLabel,
   OrgAgentToolInputError,
+  promoteOrgAgentToolReadVisibility,
   type OrgAgentToolExecutionState,
 } from "@/lib/org/agent/toolExecution";
 import { isOrgAgentToolName, ORG_AGENT_TOOLS } from "@/lib/org/agent/tools";
@@ -77,8 +84,32 @@ type OrgAgentLlmMessage = {
   tool_calls?: OrgAgentLlmToolCall[];
 };
 
-const MAX_TOOL_LOOPS = 3;
-const MAX_TOTAL_TOOL_CALLS = 3;
+// A normal multi-step turn is search -> read -> update -> final answer.
+const MAX_TOOL_LOOPS = 4;
+const MAX_TOTAL_TOOL_CALLS = 5;
+
+type OrgAgentTurnUsage = NonNullable<OrgAgentMessageMetadata["llmUsage"]>;
+
+function createTurnUsage(): OrgAgentTurnUsage {
+  return {
+    cacheCreationInputTokens: 0,
+    cacheReadInputTokens: 0,
+    completionCount: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+  };
+}
+
+function addCompletionUsage(usage: OrgAgentTurnUsage, response: any) {
+  const current = extractLlmTokenUsage(response);
+  usage.cacheCreationInputTokens += current.cacheCreationInputTokens ?? 0;
+  usage.cacheReadInputTokens += current.cacheReadInputTokens ?? 0;
+  usage.completionCount += 1;
+  usage.inputTokens += current.inputTokens ?? 0;
+  usage.outputTokens += current.outputTokens ?? 0;
+  usage.totalTokens += current.totalTokens ?? 0;
+}
 
 function normalizeText(value: unknown) {
   return String(value ?? "").trim();
@@ -159,17 +190,14 @@ function parseToolArguments(rawArguments: string) {
 }
 
 function buildFallbackReply(state: OrgAgentToolExecutionState) {
-  const updates = state.requestChanges.map((change) => change.changeSummary);
+  const updates = state.updateSummaries;
   if (updates.length === 1) {
-    return `반영했습니다. 앞으로 ${updates[0]} 기준을 다음 후보 탐색과 추천에 적용할게요.`;
+    return `반영했습니다. ${updates[0]}`;
   }
   if (updates.length > 1) {
-    return `요청하신 기준을 모두 반영했습니다. 다음 후보 탐색과 추천부터 적용할게요.`;
+    return "요청하신 변경 사항을 모두 반영했습니다.";
   }
-  if (state.actions.some((action) => action.kind === "schedule_meeting")) {
-    return "이 요청은 Harper 팀과 직접 이야기하는 편이 좋겠습니다. 아래 버튼을 누르면 미팅 요청을 전달할게요.";
-  }
-  return "조금 더 구체적으로 알려주시면 다음 후보 탐색 기준에 맞게 정리해둘게요.";
+  return "요청을 처리하려면 대상 포지션이나 후보자를 조금 더 구체적으로 알려주세요.";
 }
 
 async function runCompletion(args: {
@@ -191,10 +219,7 @@ async function runCompletion(args: {
         : {}),
     }),
     debugLabel: "org/agent:chat",
-    fallbackModel:
-      args.model === DEFAULT_ORG_AGENT_MODEL
-        ? ORG_AGENT_GROK_MODEL
-        : DEFAULT_ORG_AGENT_MODEL,
+    fallbackModel: getOrgAgentFallbackModel(args.model),
     model: args.model,
   });
 }
@@ -209,6 +234,7 @@ async function runOrgAgentToolLoop(args: {
   mentions: OrgAgentMention[];
   model: OrgAgentModelId;
   user: User;
+  userLabel?: string | null;
   userMessage: string;
 }) {
   const messages: OrgAgentLlmMessage[] = [
@@ -217,6 +243,7 @@ async function runOrgAgentToolLoop(args: {
       content: buildOrgAgentUserPrompt({
         context: args.context,
         mentions: args.mentions,
+        userLabel: args.userLabel,
         userMessage: args.userMessage,
       }),
       role: "user",
@@ -226,6 +253,7 @@ async function runOrgAgentToolLoop(args: {
   let activeModel = args.model;
   let fallbackReason: ChatCompletionFallbackReason | null = null;
   let totalToolCalls = 0;
+  const usage = createTurnUsage();
 
   for (let loop = 0; loop < MAX_TOOL_LOOPS; loop += 1) {
     let completion: Awaited<ReturnType<typeof runCompletion>>;
@@ -246,10 +274,12 @@ async function runOrgAgentToolLoop(args: {
         model: activeModel,
         reply: buildFallbackReply(state),
         state,
+        usage,
       };
     }
     activeModel = completion.model as OrgAgentModelId;
     fallbackReason = fallbackReason ?? completion.fallbackReason ?? null;
+    addCompletionUsage(usage, completion.response);
 
     const responseMessage = completion.response?.choices?.[0]?.message;
     const assistantText = extractAssistantText(responseMessage);
@@ -260,6 +290,7 @@ async function runOrgAgentToolLoop(args: {
         model: activeModel,
         reply: assistantText || buildFallbackReply(state),
         state,
+        usage,
       };
     }
 
@@ -273,10 +304,9 @@ async function runOrgAgentToolLoop(args: {
       const toolName = toolCall.function.name;
       if (totalToolCalls >= MAX_TOTAL_TOOL_CALLS) {
         messages.push({
-          content: JSON.stringify({
-            error: "Tool call budget reached. Continue with a final answer.",
-            status: "error",
-          }),
+          content: serializeOrgAgentToolError(
+            "Tool call budget reached. Continue with a final answer."
+          ),
           name: toolName || "unknown_tool",
           role: "tool",
           tool_call_id: toolCall.id,
@@ -293,10 +323,9 @@ async function runOrgAgentToolLoop(args: {
           summary: "허용되지 않은 도구 호출",
         });
         messages.push({
-          content: JSON.stringify({
-            error: "Unknown tool. Use only the provided tools.",
-            status: "error",
-          }),
+          content: serializeOrgAgentToolError(
+            "Unknown tool. Use only the provided tools."
+          ),
           name: toolName || "unknown_tool",
           role: "tool",
           tool_call_id: toolCall.id,
@@ -318,7 +347,6 @@ async function runOrgAgentToolLoop(args: {
           callId: toolCall.id,
           conversation: args.conversation,
           input: parseToolArguments(toolCall.function.arguments),
-          mentions: args.mentions,
           name: toolName,
           state,
           user: args.user,
@@ -328,13 +356,15 @@ async function runOrgAgentToolLoop(args: {
           status: "done",
         });
         messages.push({
-          content: JSON.stringify(result),
+          content: serializeOrgAgentToolResult(toolName, result),
           name: toolName,
           role: "tool",
           tool_call_id: toolCall.id,
         });
       } catch (error) {
-        const isInputError = error instanceof OrgAgentToolInputError;
+        const isInputError =
+          error instanceof OrgAgentToolInputError ||
+          (error instanceof OrgHttpError && error.status < 500);
         const errorMessage = isInputError
           ? error.message
           : "The tool could not be completed. Do not claim success.";
@@ -357,13 +387,14 @@ async function runOrgAgentToolLoop(args: {
           status: "error",
         });
         messages.push({
-          content: JSON.stringify({ error: errorMessage, status: "error" }),
+          content: serializeOrgAgentToolError(errorMessage),
           name: toolName,
           role: "tool",
           tool_call_id: toolCall.id,
         });
       }
     }
+    promoteOrgAgentToolReadVisibility(state);
   }
 
   let finalCompletion: Awaited<ReturnType<typeof runCompletion>>;
@@ -391,10 +422,12 @@ async function runOrgAgentToolLoop(args: {
       model: activeModel,
       reply: buildFallbackReply(state),
       state,
+      usage,
     };
   }
   activeModel = finalCompletion.model as OrgAgentModelId;
   fallbackReason = fallbackReason ?? finalCompletion.fallbackReason ?? null;
+  addCompletionUsage(usage, finalCompletion.response);
   return {
     fallbackReason,
     model: activeModel,
@@ -402,6 +435,7 @@ async function runOrgAgentToolLoop(args: {
       extractAssistantText(finalCompletion.response?.choices?.[0]?.message) ||
       buildFallbackReply(state),
     state,
+    usage,
   };
 }
 
@@ -409,11 +443,13 @@ function buildAssistantMetadata(args: {
   fallbackReason: ChatCompletionFallbackReason | null;
   model: string;
   state: OrgAgentToolExecutionState;
+  usage: OrgAgentTurnUsage;
 }): OrgAgentMessageMetadata {
   const lastRequestChange = args.state.requestChanges.at(-1);
   return {
     ...(args.state.actions.length > 0 && { actions: args.state.actions }),
     fallbackReason: args.fallbackReason,
+    llmUsage: args.usage,
     model: args.model,
     ...(lastRequestChange && { requestChange: lastRequestChange }),
     ...(args.state.requestChanges.length > 0 && {
@@ -427,11 +463,20 @@ function buildAssistantMetadata(args: {
 }
 
 export async function runOrgAgentChat(args: {
+  assistantMessageMetadata?: OrgAgentMessageMetadata;
   emit?: OrgAgentChatEmitter;
+  messageType?: string;
+  messageUserId?: string | null;
   mentions?: OrgAgentMention[];
   message: string;
   model?: unknown;
-  roleId: string;
+  /** @deprecated Ignored. The conversation is workspace-scoped. */
+  roleId?: string | null;
+  slackAssistantUserId?: string | null;
+  slackThreadId?: string;
+  slackUserId?: string | null;
+  slackUserMessageTs?: string | null;
+  userMessageMetadata?: OrgAgentMessageMetadata;
   user: User;
   workspaceId: string;
 }): Promise<OrgAgentChatResult> {
@@ -444,17 +489,15 @@ export async function runOrgAgentChat(args: {
   const modelConfig = resolveOrgAgentModel(args.model);
   const thinkingLogs: OrgAgentThinkingLog[] = [];
   const { admin, conversation } = await ensureOrgAgentConversation({
-    roleId: args.roleId,
     user: args.user,
     workspaceId: args.workspaceId,
   });
 
   let mentions: OrgAgentMention[] = [];
   try {
-    mentions = await filterOrgAgentMentionsForRole({
+    mentions = await filterOrgAgentMentionsForWorkspace({
+      admin,
       mentions: args.mentions ?? [],
-      roleId: conversation.role_id,
-      user: args.user,
       workspaceId: conversation.company_workspace_id,
     });
   } catch (error) {
@@ -472,30 +515,39 @@ export async function runOrgAgentChat(args: {
     metadata: {
       model: modelConfig.model,
       source: "org_agent_user",
+      ...args.userMessageMetadata,
     },
+    messageType: args.messageType,
     role: "user",
-    userId: args.user.id,
+    slackMessageTs: args.slackUserMessageTs,
+    slackThreadId: args.slackThreadId,
+    slackUserId: args.slackUserId,
+    userId:
+      args.messageUserId === undefined ? args.user.id : args.messageUserId,
   });
   args.emit?.("user_message", userMessage);
 
   try {
-    thinkingLogs.push(nowLog("역할과 최근 후보 피드를 읽는 중", "running"));
+    thinkingLogs.push(nowLog("회사와 최근 추천 정보를 읽는 중", "running"));
     args.emit?.("tool_status", {
-      label: "역할과 최근 후보 피드를 읽는 중",
+      label: "회사와 최근 추천 정보를 읽는 중",
       status: "running",
     });
     const context = await buildOrgAgentPromptContext({
       admin,
       beforeMessageId: userMessage.id,
       conversation,
-      mentions,
+      slackHistoryTruncated: Boolean(
+        args.userMessageMetadata?.historyTruncated
+      ),
+      slackThreadId: args.slackThreadId,
     });
     thinkingLogs[thinkingLogs.length - 1] = nowLog(
-      "역할과 최근 후보 피드 확인 완료",
+      "회사와 최근 추천 정보 확인 완료",
       "done"
     );
     args.emit?.("tool_status", {
-      label: "역할과 최근 후보 피드 확인 완료",
+      label: "회사와 최근 추천 정보 확인 완료",
       status: "done",
     });
 
@@ -513,6 +565,11 @@ export async function runOrgAgentChat(args: {
       mentions,
       model: modelConfig.model,
       user: args.user,
+      userLabel: args.userMessageMetadata?.slackUserName
+        ? `${args.userMessageMetadata.slackUserName} [${args.slackUserId ?? "-"}]`
+        : args.slackUserId
+          ? `Slack user [${args.slackUserId}]`
+          : "user",
       userMessage: userMessageText,
     });
     const usedTool = llmResult.state.toolResults.length > 0;
@@ -535,21 +592,30 @@ export async function runOrgAgentChat(args: {
       admin,
       content: llmResult.reply,
       conversation,
-      metadata: buildAssistantMetadata(llmResult),
+      metadata: {
+        ...buildAssistantMetadata(llmResult),
+        ...args.assistantMessageMetadata,
+      },
+      messageType: args.messageType,
       model: llmResult.model,
       role: "assistant",
+      slackThreadId: args.slackThreadId,
+      slackUserId: args.slackAssistantUserId,
       thinkingLogs,
     });
     args.emit?.("assistant_message", assistantMessage);
 
-    void maybeSummarizeOrgAgentConversation({
-      admin,
-      conversation,
-      model:
-        llmResult.model === "grok-4.3" || llmResult.model === "claude-sonnet-5"
-          ? llmResult.model
-          : DEFAULT_ORG_AGENT_MODEL,
-    });
+    if (args.messageType !== "slack") {
+      void maybeSummarizeOrgAgentConversation({
+        admin,
+        conversation,
+        model:
+          llmResult.model === "grok-4.3" ||
+          llmResult.model === "claude-sonnet-5"
+            ? llmResult.model
+            : DEFAULT_ORG_AGENT_MODEL,
+      });
+    }
 
     return {
       assistantMessage,
@@ -571,9 +637,13 @@ export async function runOrgAgentChat(args: {
       metadata: {
         model: modelConfig.model,
         source: "org_agent_error",
+        ...args.assistantMessageMetadata,
       },
+      messageType: args.messageType,
       model: modelConfig.model,
       role: "assistant",
+      slackThreadId: args.slackThreadId,
+      slackUserId: args.slackAssistantUserId,
       status: "failed",
       thinkingLogs,
     });

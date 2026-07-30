@@ -259,7 +259,7 @@ export default function InternalConnectionAcceptanceModal({
           <div>
             {t(
               "career.common.internal_connection_acceptance_modal.028q399",
-              "수락하시면 Harper가 회원님을 회사에 소개하기 위한 준비를 시작합니다. 내부 검토를 거쳐 회원님의 주요 정보와 왜 적합한 인재인지 회사에 직접 전달됩니다."
+              "수락하시면 Harper가 회원님을 회사에 소개하기 위한 준비를 시작합니다. 내부 과정을 거쳐 회원님의 주요 정보와 왜 적합한 인재인지를 회사에 직접 전달합니다."
             )}
           </div>
           <div>

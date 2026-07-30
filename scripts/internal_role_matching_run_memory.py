@@ -160,15 +160,23 @@ def save_run_directory(run_dir: Path, url: str, key: str) -> dict[str, Any]:
             run_id=run_id,
             content=normalized,
         )
+        if (
+            str(row.get("role_id") or "") != role_id
+            or str(row.get("run_id") or "") != run_id
+            or normalize_content(str(row.get("content") or "")) != normalized
+        ):
+            raise RuntimeError("run memory write response did not verify role, run, and content")
         receipt = {
             "roleId": role_id,
             "runId": run_id,
             "createdAt": row.get("created_at"),
             "contentLength": len(normalized),
+            "contentVerified": True,
         }
         manifest["status"] = completion_status
         manifest["runMemoryWrites"] = 1
         manifest["runMemoryRunId"] = run_id
+        manifest["runMemoryPending"] = False
         manifest.pop("matchingCompletionStatus", None)
         manifest.pop("runMemoryError", None)
         manifest_path.write_text(
@@ -179,6 +187,27 @@ def save_run_directory(run_dir: Path, url: str, key: str) -> dict[str, Any]:
             json.dumps(receipt, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
+        verification_path = run_dir / "verification.json"
+        if verification_path.exists():
+            verification = json.loads(verification_path.read_text(encoding="utf-8"))
+            verification["runMemoryWritePending"] = False
+            verification["runMemoryWriteVerified"] = True
+            verification["runMemoryReceipt"] = receipt
+            verification_path.write_text(
+                json.dumps(verification, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+        verification_md_path = run_dir / "verification.md"
+        if verification_md_path.exists():
+            verification_md = verification_md_path.read_text(encoding="utf-8")
+            verification_md = verification_md.replace(
+                "- run memory: pending as the final allowed internal write",
+                (
+                    "- run memory: `1` final allowed internal write; "
+                    f"content verified (`{len(normalized)}` chars)"
+                ),
+            )
+            verification_md_path.write_text(verification_md, encoding="utf-8")
         return receipt
     except Exception as error:
         manifest["status"] = "run_memory_write_failed"

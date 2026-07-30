@@ -41,6 +41,12 @@ import {
   AcceptIntroDialog,
   StopCandidateDialog,
 } from "@/components/org/OrgCandidateDecisionDialogs";
+import {
+  isOrgInternalStage,
+  shouldOpenOrgAcceptIntroDialog,
+  shouldOpenOrgStopCandidateDialog,
+} from "@/lib/org/candidateDecision";
+import { isInternalDomainEmail } from "@/lib/internalAccess";
 import { InternalOnlyHatch } from "@/components/org/internal/InternalOnlySurface";
 import { OrgRoleActionsMenu } from "@/components/org/OrgRoleActionsMenu";
 import {
@@ -164,6 +170,7 @@ function ArchiveStageToggle({
 
 function CandidateCard({
   canManageCandidates,
+  internalOpsAccess,
   item,
   onMove,
   onSelect,
@@ -174,6 +181,7 @@ function CandidateCard({
   viewed,
 }: {
   canManageCandidates: boolean;
+  internalOpsAccess: boolean;
   item: OrgBoardItem;
   onMove: (item: OrgBoardItem, stage: OrgStageId) => void;
   onSelect: (item: OrgBoardItem) => void;
@@ -184,7 +192,11 @@ function CandidateCard({
   viewed?: boolean;
 }) {
   const displayName = getDisplayName(item);
-  const availableStages = stages.filter((stage) => canDropToStage(item, stage));
+  const availableStages = stages.filter(
+    (stage) =>
+      canDropToStage(item, stage) &&
+      (internalOpsAccess || !isOrgInternalStage(stage.id))
+  );
   const profilePicture = getDisplayableProfileImageUrl(
     item.talent.profilePicture
   );
@@ -267,15 +279,26 @@ function CandidateCard({
                 </MuteButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">
-                {availableStages.map((stage) => (
-                  <DropdownMenuItem
-                    key={stage.id}
-                    disabled={pending || stage.id === item.stage}
-                    onSelect={() => onMove(item, stage.id)}
-                  >
-                    {stage.label}
-                  </DropdownMenuItem>
-                ))}
+                {availableStages.map((stage) => {
+                  const isInternalStage = isOrgInternalStage(stage.id);
+                  return (
+                    <DropdownMenuItem
+                      className={cn(
+                        isInternalStage && "relative isolate overflow-hidden"
+                      )}
+                      key={stage.id}
+                      disabled={pending || stage.id === item.stage}
+                      onSelect={() => onMove(item, stage.id)}
+                    >
+                      {isInternalStage && (
+                        <InternalOnlyHatch className="opacity-70" />
+                      )}
+                      <span className={cn(isInternalStage && "relative z-20")}>
+                        {stage.label}
+                      </span>
+                    </DropdownMenuItem>
+                  );
+                })}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -339,8 +362,8 @@ export function OrgPipeline() {
     useOrgJobsBoard();
   const {
     changeStage: onStageChange,
-    pendingRecommendationId,
-    pendingStage,
+    getPendingStage,
+    isCandidateStagePending,
   } = useOrgJobsCandidateActions();
   const {
     nameQuery,
@@ -362,7 +385,13 @@ export function OrgPipeline() {
     resumeRole: onResumeRole,
     roleActionPending,
   } = useOrgJobsRoleActions();
-  const { bootstrap, currentUserEmail, permissions } = useOrgWorkspace();
+  const {
+    bootstrap,
+    currentUser,
+    currentUserEmail,
+    internalOpsAccess,
+    permissions,
+  } = useOrgWorkspace();
   const members = bootstrap.members;
   const canManageCandidates = permissions.canManageCandidates;
   const isLoading = boardQuery.isLoading;
@@ -410,16 +439,13 @@ export function OrgPipeline() {
     const map = new Map<OrgStageId, OrgBoardItem[]>();
     for (const stage of board?.stages ?? []) map.set(stage.id, []);
     for (const item of board?.items ?? []) {
-      const itemStage =
-        pendingRecommendationId === item.recommendationId && pendingStage
-          ? pendingStage
-          : item.stage;
+      const itemStage = getPendingStage(item) ?? item.stage;
       const rows = map.get(itemStage) ?? [];
       rows.push(item);
       map.set(itemStage, rows);
     }
     return map;
-  }, [board, pendingRecommendationId, pendingStage]);
+  }, [board, getPendingStage]);
   const itemByRecommendationId = useMemo(
     () =>
       new Map(
@@ -468,11 +494,11 @@ export function OrgPipeline() {
       setPendingConnectionRequest(item);
       return;
     }
-    if (stage === "process_stopped") {
+    if (shouldOpenOrgStopCandidateDialog(item.stage, stage)) {
       setStopItem(item);
       return;
     }
-    if (item.stage === "pending_connection" && stage !== "accepted") {
+    if (shouldOpenOrgAcceptIntroDialog(item.stage, stage)) {
       setAcceptRequest({ item, stage });
       return;
     }
@@ -673,13 +699,14 @@ export function OrgPipeline() {
             >
               <CandidateCard
                 canManageCandidates={canManageCandidates}
+                internalOpsAccess={internalOpsAccess}
                 item={item}
                 onMove={requestMove}
                 onSelect={(selectedItem) => {
                   markViewed(selectedItem.recommendationId);
                   onSelect(selectedItem);
                 }}
-                pending={pendingRecommendationId === item.recommendationId}
+                pending={isCandidateStagePending(item)}
                 profileLabelsError={profileLabelsError}
                 profileLabelsLoading={profileLabelsLoading}
                 stages={board?.stages ?? []}
@@ -767,13 +794,13 @@ export function OrgPipeline() {
   return (
     <section className="min-w-0 space-y-4">
       <div className="flex flex-col gap-2 rounded-md py-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
+        <div className="min-w-0 flex flex-row items-center gap-3">
           <div className="truncate text-[15px] font-medium text-neutral-primary">
-            {activeRoleName ?? "Role"} 설정
+            {activeRoleName ?? "Role"}
           </div>
-          <div className="mt-1 text-[13px] leading-5 text-neutral-muted">
-            후보자에게 전달되는 역할명, 역할 설명, 위치, 그리고 연결되는 인재에
-            대한 요청사항을 수정합니다.
+          <div className="flex items-center gap-1 bg-neutral-100 px-1.5 py-1 text-[13px]">
+            <div className="block h-1 w-1 rounded-full bg-positive"></div>
+            Hiring
           </div>
         </div>
         {canManageCandidates ? (
@@ -792,22 +819,22 @@ export function OrgPipeline() {
         data-org-pipeline-sticky-actions
         className="flex flex-col gap-2 lg:sticky lg:top-0 lg:z-30 lg:h-14 lg:flex-row lg:items-center lg:justify-between lg:border-b lg:border-neutral-1000-a05 lg:bg-neutral-00/95 lg:py-2 lg:backdrop-blur"
       >
-        <ArchiveStageToggle
-          active={archiveOpen}
-          canDrop={canDropToArchive}
-          count={itemsByStage.get("archived")?.length ?? 0}
-          isDropTarget={canDropToArchive && dragOverStage === "archived"}
-          onClick={() => setArchiveOpen((current) => !current)}
-          onDrop={(event) => {
-            if (archiveStage) handleDrop(event, archiveStage);
-          }}
-          onTargetLeave={() =>
-            setDragOverStage((current) =>
-              current === "archived" ? null : current
-            )
-          }
-          onTargetOver={() => setDragOverStage("archived")}
-        />
+        {internalOpsAccess && archiveStage && (
+          <ArchiveStageToggle
+            active={archiveOpen}
+            canDrop={canDropToArchive}
+            count={itemsByStage.get("archived")?.length ?? 0}
+            isDropTarget={canDropToArchive && dragOverStage === "archived"}
+            onClick={() => setArchiveOpen((current) => !current)}
+            onDrop={(event) => handleDrop(event, archiveStage)}
+            onTargetLeave={() =>
+              setDragOverStage((current) =>
+                current === "archived" ? null : current
+              )
+            }
+            onTargetOver={() => setDragOverStage("archived")}
+          />
+        )}
         <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-[minmax(0,1fr)_220px]">
           <label className="relative min-w-0">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-soft" />
@@ -923,7 +950,10 @@ export function OrgPipeline() {
         open={Boolean(pendingConnectionRequest)}
         pending={
           Boolean(pendingConnectionRequest) &&
-          pendingRecommendationId === pendingConnectionRequest?.recommendationId
+          Boolean(
+            pendingConnectionRequest &&
+            isCandidateStagePending(pendingConnectionRequest)
+          )
         }
         recipientEmail={pendingConnectionRequest?.talent.email}
       />
@@ -973,13 +1003,15 @@ export function OrgPipeline() {
       </Dialog>
 
       <AcceptIntroDialog
+        candidateEmail={acceptRequest?.item.talent.email}
         candidateName={acceptRequest ? getDisplayName(acceptRequest.item) : ""}
+        companyContactName={currentUser?.name}
+        defaultContactDirectly={isInternalDomainEmail(currentUserEmail)}
         defaultEmail={currentUserEmail}
         members={members}
         open={Boolean(acceptRequest)}
         pending={Boolean(
-          acceptRequest &&
-          pendingRecommendationId === acceptRequest.item.recommendationId
+          acceptRequest && isCandidateStagePending(acceptRequest.item)
         )}
         onClose={() => setAcceptRequest(null)}
         onSubmit={async ({ acceptReason, contactDirectly, introEmails }) => {
@@ -991,22 +1023,18 @@ export function OrgPipeline() {
           });
           setAcceptRequest(null);
         }}
+        roleTitle={acceptRequest?.item.roleName ?? ""}
       />
 
       <StopCandidateDialog
         candidateName={stopItem ? getDisplayName(stopItem) : ""}
-        defaultReason="company"
         open={Boolean(stopItem)}
-        pending={Boolean(
-          stopItem && pendingRecommendationId === stopItem.recommendationId
-        )}
-        showReasonChoice
+        pending={Boolean(stopItem && isCandidateStagePending(stopItem))}
         onClose={() => setStopItem(null)}
-        onSubmit={async ({ note, reason }) => {
+        onSubmit={async ({ note }) => {
           if (!stopItem) return;
           await onStageChange(stopItem, "process_stopped", {
             stopNote: note,
-            stopReason: reason,
           });
           setStopItem(null);
         }}
@@ -1014,3 +1042,5 @@ export function OrgPipeline() {
     </section>
   );
 }
+
+// select COUNT(*) from company_roles where length(description)<20 AND status='active' and is_expired=false;

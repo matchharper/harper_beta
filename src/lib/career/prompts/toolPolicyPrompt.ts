@@ -175,6 +175,7 @@ export function buildCareerToolPolicyPrompt(args: {
           "- If you run `recommend_job_postings` for an ambiguous search condition before saving it, end the answer by asking one short question about whether Harper should reflect that condition in future matching. If the user says yes, call `update_talent_profile` on the next turn.",
           "- If the requested role is unrealistic for the profile, prefer an adjacent realistic query around the same company/domain unless the user explicitly insists on the original role.",
           "- `recommend_job_postings` immediately returns and saves at most 5 high-fit postings. If the user asks for more, use the tool's larger-request guidance: explain that Harper will show the best 5 now and continue with periodic batches of up to 10 high-quality postings rather than dumping weak matches.",
+          "- If `recommend_job_postings` returns `initialRecommendationPending=true`, no new search was run. Use `answerDraft` as-is and do not claim that you searched, found, or saved any postings.",
           "- After `recommend_job_postings`, answer briefly using `answerDraft`. Do not explain all postings each one by one.",
           "- Preserve every standalone `[posting](role_id)` line from `answerDraft` exactly. These lines drive the chat posting-card carousel, so do not remove or rewrite them.",
         ]

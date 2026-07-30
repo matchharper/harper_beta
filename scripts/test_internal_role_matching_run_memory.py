@@ -65,7 +65,12 @@ class RunMemoryTest(unittest.TestCase):
     def test_success_is_idempotent_in_manifest_terms(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             run_dir = self.make_run(Path(directory))
-            row = {"created_at": "2026-07-22T12:00:01Z"}
+            row = {
+                "role_id": ROLE_ID,
+                "run_id": run_dir.name,
+                "content": VALID_MEMORY.strip(),
+                "created_at": "2026-07-22T12:00:01Z",
+            }
             with patch(
                 "internal_role_matching_run_memory.save_run_memory",
                 return_value=row,
@@ -114,7 +119,12 @@ class RunMemoryTest(unittest.TestCase):
 
             with patch(
                 "internal_role_matching_run_memory.save_run_memory",
-                return_value={"created_at": "2026-07-22T12:00:02Z"},
+                return_value={
+                    "role_id": ROLE_ID,
+                    "run_id": run_dir.name,
+                    "content": VALID_MEMORY.strip(),
+                    "created_at": "2026-07-22T12:00:02Z",
+                },
             ):
                 save_run_directory(run_dir, "https://example.test", "key")
             recovered = json.loads(

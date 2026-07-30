@@ -2,7 +2,7 @@ import { timingSafeEqual } from "crypto";
 import { IncomingWebhook } from "@slack/webhook";
 import { NextRequest, NextResponse } from "next/server";
 import {
-  buildWeeklyUserStatsReport,
+  buildWeeklyUserStatsReportComparison,
   formatDailyUserStatsSlackMessage,
   resolveWeeklyUserStatsStartDate,
 } from "@/lib/dailyUserStats";
@@ -76,13 +76,15 @@ async function handleWeeklyUserStats(req: NextRequest) {
     req.nextUrl.searchParams.get("weekStartDate") ??
       req.nextUrl.searchParams.get("date")
   );
-  const report = await buildWeeklyUserStatsReport(weekStartDate);
-  const message = formatDailyUserStatsSlackMessage(report);
+  const { previousReport, report } =
+    await buildWeeklyUserStatsReportComparison(weekStartDate);
+  const message = formatDailyUserStatsSlackMessage(report, previousReport);
 
   if (shouldDryRun(req)) {
     return NextResponse.json({
       dryRun: true,
       message,
+      previousReport,
       report,
     });
   }

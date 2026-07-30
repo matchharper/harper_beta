@@ -842,7 +842,7 @@ export type Database = {
           message_count: number
           metadata: Json
           model: string | null
-          role_id: string
+          role_id: string | null
           source_end_message_id: number
           source_start_message_id: number
         }
@@ -855,7 +855,7 @@ export type Database = {
           message_count: number
           metadata?: Json
           model?: string | null
-          role_id: string
+          role_id?: string | null
           source_end_message_id: number
           source_start_message_id: number
         }
@@ -868,7 +868,7 @@ export type Database = {
           message_count?: number
           metadata?: Json
           model?: string | null
-          role_id?: string
+          role_id?: string | null
           source_end_message_id?: number
           source_start_message_id?: number
         }
@@ -911,7 +911,7 @@ export type Database = {
           last_message_at: string | null
           last_message_id: number | null
           metadata: Json
-          role_id: string
+          role_id: string | null
           summary_cursor_message_id: number | null
           title: string | null
           updated_at: string
@@ -923,7 +923,7 @@ export type Database = {
           last_message_at?: string | null
           last_message_id?: number | null
           metadata?: Json
-          role_id: string
+          role_id?: string | null
           summary_cursor_message_id?: number | null
           title?: string | null
           updated_at?: string
@@ -935,7 +935,7 @@ export type Database = {
           last_message_at?: string | null
           last_message_id?: number | null
           metadata?: Json
-          role_id?: string
+          role_id?: string | null
           summary_cursor_message_id?: number | null
           title?: string | null
           updated_at?: string
@@ -1147,7 +1147,7 @@ export type Database = {
           metadata: Json
           model: string | null
           role: string
-          role_id: string
+          role_id: string | null
           status: string
           thinking_logs: Json
         }
@@ -1163,7 +1163,7 @@ export type Database = {
           metadata?: Json
           model?: string | null
           role: string
-          role_id: string
+          role_id?: string | null
           status?: string
           thinking_logs?: Json
         }
@@ -1179,7 +1179,7 @@ export type Database = {
           metadata?: Json
           model?: string | null
           role?: string
-          role_id?: string
+          role_id?: string | null
           status?: string
           thinking_logs?: Json
         }
@@ -1444,6 +1444,7 @@ export type Database = {
           company_workspace_id: string
           connected_at: string
           created_at: string
+          id: string
           installed_by_user_id: string | null
           last_error: string | null
           last_sent_at: string | null
@@ -1461,6 +1462,7 @@ export type Database = {
           company_workspace_id: string
           connected_at?: string
           created_at?: string
+          id?: string
           installed_by_user_id?: string | null
           last_error?: string | null
           last_sent_at?: string | null
@@ -1478,6 +1480,7 @@ export type Database = {
           company_workspace_id?: string
           connected_at?: string
           created_at?: string
+          id?: string
           installed_by_user_id?: string | null
           last_error?: string | null
           last_sent_at?: string | null
@@ -1495,14 +1498,14 @@ export type Database = {
           {
             foreignKeyName: "company_slack_integrations_company_workspace_id_fkey"
             columns: ["company_workspace_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "company_workspace"
             referencedColumns: ["company_workspace_id"]
           },
           {
             foreignKeyName: "company_slack_integrations_company_workspace_id_fkey"
             columns: ["company_workspace_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "ops_company_workspace_with_label"
             referencedColumns: ["company_workspace_id"]
           },
