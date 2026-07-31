@@ -35,6 +35,7 @@ import { showToast } from "@/components/toast/toast";
 import { showOpportunityDiscoveryStartedToast } from "./opportunityDiscoveryToast";
 import type { FetchWithAuth } from "./useCareerApi";
 import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
+import { useCareerRealtimeProviderOverrideStore } from "@/store/useCareerRealtimeProviderOverrideStore";
 import {
   hasTalentOnboardingCompletionMarker,
   stripTalentOnboardingCompletionMarker,
@@ -361,6 +362,9 @@ export const useCareerOnboardingVoice = ({
   const t = useCareerT();
   const tCareer = useCareerMessageFormatter();
   const { locale } = useMessages();
+  const realtimeProviderOverride = useCareerRealtimeProviderOverrideStore(
+    (state) => state.providerOverride
+  );
   const [showVoiceStartPrompt, setShowVoiceStartPrompt] = useState(false);
   const [onboardingBeginPending, setOnboardingBeginPending] = useState(false);
   const [onboardingWrapupPending, setOnboardingWrapupPending] = useState(false);
@@ -1113,6 +1117,7 @@ export const useCareerOnboardingVoice = ({
   const realtimeSession = useRealtimeSession({
     conversationId,
     fetchWithAuth,
+    providerOverride: realtimeProviderOverride,
     onTranscript: handleRealtimeTranscript,
     onAssistantDelta: handleRealtimeAssistantDelta,
     onAssistantDone: handleRealtimeAssistantDone,

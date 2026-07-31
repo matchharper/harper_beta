@@ -23,6 +23,7 @@ import {
   DEFAULT_ORG_AGENT_MODEL,
   ORG_AGENT_CLAUDE_MODEL,
   ORG_AGENT_GROK_MODEL,
+  ORG_AGENT_LUNA_MODEL,
   type OrgAgentModelId,
 } from "@/lib/org/agent/modelConfig";
 import type {
@@ -356,6 +357,7 @@ function ModelSelector({
   const options: Array<{ id: OrgAgentModelId; label: string }> = [
     { id: ORG_AGENT_CLAUDE_MODEL, label: "Claude" },
     { id: ORG_AGENT_GROK_MODEL, label: "Grok" },
+    { id: ORG_AGENT_LUNA_MODEL, label: "Luna · GPT-5.6" },
   ];
 
   if (!visible) return null;

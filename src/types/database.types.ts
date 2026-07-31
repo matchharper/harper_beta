@@ -3443,6 +3443,7 @@ export type Database = {
       }
       llm_logs: {
         Row: {
+          cost_status: string
           created_at: string
           estimated_cost_usd: number
           id: number
@@ -3452,6 +3453,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          cost_status?: string
           created_at?: string
           estimated_cost_usd?: number
           id?: number
@@ -3461,6 +3463,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          cost_status?: string
           created_at?: string
           estimated_cost_usd?: number
           id?: number

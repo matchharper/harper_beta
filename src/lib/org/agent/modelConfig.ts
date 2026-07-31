@@ -1,11 +1,16 @@
-import { CLAUDE_MODEL } from "@/lib/llm/modelConfig";
+import {
+  CLAUDE_MODEL,
+  GPT_56_LUNA_MODEL,
+} from "@/lib/llm/modelConfig";
 
 export const ORG_AGENT_GROK_MODEL = "grok-4.3" as const;
 export const ORG_AGENT_CLAUDE_MODEL = CLAUDE_MODEL;
+export const ORG_AGENT_LUNA_MODEL = GPT_56_LUNA_MODEL;
 
 export const ORG_AGENT_MODEL_IDS = [
   ORG_AGENT_CLAUDE_MODEL,
   ORG_AGENT_GROK_MODEL,
+  ORG_AGENT_LUNA_MODEL,
 ] as const;
 
 export type OrgAgentModelId = (typeof ORG_AGENT_MODEL_IDS)[number];

@@ -85,6 +85,7 @@ function sanitizeVisibleAgentError(value: unknown) {
   return String(value ?? "")
     .replace(/claude-sonnet-5(?:-[\w.-]+)?/gi, "선택한 모델")
     .replace(/grok-4\.3(?:-[\w.-]+)?/gi, "선택한 모델")
+    .replace(/gpt-5\.6-luna(?:-[\w.-]+)?/gi, "선택한 모델")
     .trim();
 }
 

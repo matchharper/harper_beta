@@ -7,6 +7,7 @@ import type { User } from "@supabase/supabase-js";
 import { logLlmTokenUsage } from "@/lib/llm/usageLogging";
 import { CLAUDE_MODEL } from "@/lib/llm/modelConfig";
 import { supportsSamplingParametersForModel } from "@/lib/llm/llm";
+import { canUseCareerDevControls } from "@/lib/internalAccess";
 
 export const CAREER_DEV_SQL_MODEL = CLAUDE_MODEL;
 
@@ -82,16 +83,7 @@ export type CompanyRoleFtsSearchResult = {
 let careerDevSqlClient: ReturnType<typeof postgres> | null = null;
 
 export function canUseCareerDevSql(user: Pick<User, "email"> | null) {
-  const email = String(user?.email ?? "")
-    .trim()
-    .toLowerCase();
-
-  return (
-    process.env.NODE_ENV !== "production" ||
-    email.endsWith("@matchharper.com") ||
-    email === "hyunbin.bk@gmail.com" ||
-    email === "khj605123@gmail.com"
-  );
+  return canUseCareerDevControls(user?.email);
 }
 
 function readCareerDevSqlDatabaseUrl() {

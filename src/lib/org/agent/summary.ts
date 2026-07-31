@@ -6,6 +6,7 @@ import {
   DEFAULT_ORG_AGENT_MODEL,
   getOrgAgentFallbackModel,
   ORG_AGENT_GROK_MODEL,
+  isOrgAgentModelId,
   type OrgAgentModelId,
 } from "@/lib/org/agent/modelConfig";
 import type {
@@ -80,7 +81,7 @@ async function summarizeOrgAgentSource(args: {
   });
 
   return {
-    model,
+    model: isOrgAgentModelId(model) ? model : DEFAULT_ORG_AGENT_MODEL,
     text: extractChatContent(response).slice(0, 4_000),
   };
 }

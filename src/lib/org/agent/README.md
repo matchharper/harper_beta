@@ -22,7 +22,7 @@ prompt/context/tool 설계 근거와 benchmark는
 [`docs/org-agent-context-engineering-ko.md`](../../../docs/org-agent-context-engineering-ko.md)에
 정리되어 있다.
 
-실제 workspace 데이터를 읽고 Grok의 답변/tool 선택을 검증하되 write tool은
+실제 workspace 데이터를 읽고 선택한 모델의 답변/tool 선택을 검증하되 write tool은
 DB에 반영하지 않는 live eval:
 
 ```bash

@@ -19,6 +19,7 @@ import {
 type UseRealtimeSessionArgs = {
   conversationId: string | null;
   fetchWithAuth: FetchWithAuth;
+  providerOverride?: "openai" | "xai" | null;
   onTranscript: (text: string) => void;
   onAssistantDelta: (delta: string) => void;
   onAssistantDone: (fullText: string) => void;
@@ -66,8 +67,32 @@ type PendingFunctionCallOutput = {
 };
 
 type RealtimeUsageLogOptions = {
+  billing?: XaiRealtimeBillingPayload | null;
+  eventType?: string;
   hadAudioInResponse: boolean;
   status: string;
+};
+
+type XaiRealtimeBillingPayload = {
+  audioDurationSeconds: number;
+  billingBasis: "audio_duration";
+  inputAudioSeconds: number;
+  outputAudioSeconds: number;
+  sessionDurationSeconds: number;
+  sessionEndedAt?: string | null;
+  sessionStartedAt: string;
+  textInputEventCount: number;
+};
+
+type XaiRealtimeBillingState = {
+  inputAudioSeconds: number;
+  outputAudioSeconds: number;
+  sentInputAudioSeconds: number;
+  sentOutputAudioSeconds: number;
+  sentTextInputEventCount: number;
+  sessionStartedAt: string;
+  sessionStartedAtMs: number;
+  textInputEventCount: number;
 };
 
 type RealtimeAudioTurnSavedOptions = {
@@ -280,6 +305,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   const {
     conversationId,
     fetchWithAuth,
+    providerOverride,
     onTranscript,
     onAssistantDelta,
     onAssistantDone,
@@ -313,6 +339,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   const xaiInputMuteRef = useRef<GainNode | null>(null);
   const xaiPlaybackSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
   const xaiNextPlaybackTimeRef = useRef(0);
+  const xaiBillingRef = useRef<XaiRealtimeBillingState | null>(null);
   const connectRef = useRef<
     ((options?: RealtimeConnectOptions) => Promise<boolean>) | null
   >(null);
@@ -504,6 +531,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
             conversationStarterId: options?.conversationStarterId ?? undefined,
             internalCallRequestId: options?.internalCallRequestId ?? undefined,
             locale,
+            providerOverride: providerOverride ?? undefined,
           }),
         });
         if (!res.ok) {
@@ -561,7 +589,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
         return null;
       }
     },
-    [conversationId, fetchWithAuth, locale, tCareer]
+    [conversationId, fetchWithAuth, locale, providerOverride, tCareer]
   );
 
   const sendEvent = useCallback((event: Record<string, unknown>) => {
@@ -809,6 +837,64 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     [recordRealtimeAssistantOutputItem]
   );
 
+  const beginXaiBilling = useCallback(() => {
+    const now = Date.now();
+    xaiBillingRef.current = {
+      inputAudioSeconds: 0,
+      outputAudioSeconds: 0,
+      sentInputAudioSeconds: 0,
+      sentOutputAudioSeconds: 0,
+      sentTextInputEventCount: 0,
+      sessionStartedAt: new Date(now).toISOString(),
+      sessionStartedAtMs: now,
+      textInputEventCount: 0,
+    };
+  }, []);
+
+  const consumeXaiBilling = useCallback((ended = false) => {
+    const state = xaiBillingRef.current;
+    if (!state) return null;
+
+    const inputAudioSeconds = Math.max(
+      state.inputAudioSeconds - state.sentInputAudioSeconds,
+      0
+    );
+    const outputAudioSeconds = Math.max(
+      state.outputAudioSeconds - state.sentOutputAudioSeconds,
+      0
+    );
+    const textInputEventCount = Math.max(
+      state.textInputEventCount - state.sentTextInputEventCount,
+      0
+    );
+    if (
+      inputAudioSeconds <= 0 &&
+      outputAudioSeconds <= 0 &&
+      textInputEventCount <= 0
+    ) {
+      return null;
+    }
+
+    state.sentInputAudioSeconds = state.inputAudioSeconds;
+    state.sentOutputAudioSeconds = state.outputAudioSeconds;
+    state.sentTextInputEventCount = state.textInputEventCount;
+
+    const now = Date.now();
+    return {
+      audioDurationSeconds: inputAudioSeconds + outputAudioSeconds,
+      billingBasis: "audio_duration" as const,
+      inputAudioSeconds,
+      outputAudioSeconds,
+      sessionDurationSeconds: Math.max(
+        (now - state.sessionStartedAtMs) / 1000,
+        0
+      ),
+      sessionEndedAt: ended ? new Date(now).toISOString() : null,
+      sessionStartedAt: state.sessionStartedAt,
+      textInputEventCount,
+    } satisfies XaiRealtimeBillingPayload;
+  }, []);
+
   const scheduleRealtimeUsageLog = useCallback(
     (
       response: Record<string, unknown> | undefined,
@@ -817,17 +903,25 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
       if (!conversationId) return;
 
       const usage = getRealtimeResponseUsage(response);
-      if (!usage) return;
+      const isXai = tokenInfoRef.current?.provider === "xai";
+      const billing =
+        options.billing !== undefined
+          ? options.billing
+          : isXai
+            ? consumeXaiBilling()
+            : null;
+      if (!usage && !billing) return;
 
       const responseId =
         typeof response?.id === "string" ? response.id.trim() : "";
       const payload = {
         conversationId,
-        eventType: "response.done",
+        eventType: options.eventType ?? "response.done",
         hadAudioInResponse: options.hadAudioInResponse,
         responseId,
         status: options.status,
-        usage,
+        usage: usage ?? {},
+        ...(billing ? { billing } : {}),
       };
 
       scheduleRealtimeUsageLogTask(() => {
@@ -846,7 +940,25 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
           });
       });
     },
-    [conversationId, fetchWithAuth]
+    [consumeXaiBilling, conversationId, fetchWithAuth]
+  );
+
+  const flushXaiBilling = useCallback(
+    (eventType: string, status: string) => {
+      if (tokenInfoRef.current?.provider !== "xai") return;
+
+      const billing = consumeXaiBilling(true);
+      if (billing) {
+        scheduleRealtimeUsageLog(undefined, {
+          billing,
+          eventType,
+          hadAudioInResponse: false,
+          status,
+        });
+      }
+      xaiBillingRef.current = null;
+    },
+    [consumeXaiBilling, scheduleRealtimeUsageLog]
   );
 
   const requestExactSpeech = useCallback(
@@ -961,6 +1073,11 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
       try {
         const samples = decodePcm16Base64(audio);
         if (samples.length === 0) return;
+
+        if (xaiBillingRef.current) {
+          xaiBillingRef.current.outputAudioSeconds +=
+            samples.length / XAI_AUDIO_SAMPLE_RATE;
+        }
 
         const audioContext = ensureXaiAudioContext();
         if (!audioContext || audioContext.state === "closed") return;
@@ -1698,6 +1815,10 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
             audioContext.sampleRate,
             XAI_AUDIO_SAMPLE_RATE
           );
+          if (xaiBillingRef.current) {
+            xaiBillingRef.current.inputAudioSeconds +=
+              resampled.length / XAI_AUDIO_SAMPLE_RATE;
+          }
           webSocket.send(
             JSON.stringify({
               type: "input_audio_buffer.append",
@@ -1738,6 +1859,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     assistantPlaybackStartedAtRef.current = null;
     playbackDrainUntilRef.current = 0;
     clearPlaybackDrainTimers();
+    flushXaiBilling("session.completed", "completed");
     cleanupTransport();
     tokenInfoRef.current = null;
     responseTextRef.current = "";
@@ -1763,7 +1885,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     setIsConnected(false);
     setIsConnecting(false);
     setConnectionStatus("disconnected");
-  }, [cleanupTransport, clearPlaybackDrainTimers]);
+  }, [cleanupTransport, clearPlaybackDrainTimers, flushXaiBilling]);
 
   const connect = useCallback(
     (options?: RealtimeConnectOptions): Promise<boolean> => {
@@ -1857,6 +1979,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
                     session: tokenInfo.session,
                   })
                 );
+                beginXaiBilling();
 
                 void startXaiAudioCapture(webSocket).then((audioOk) => {
                   if (
@@ -1886,6 +2009,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
                 if (connectAttemptIdRef.current !== attemptId) return;
                 setIsConnected(false);
                 setConnectionStatus("disconnected");
+                flushXaiBilling("session.disconnected", "error");
                 cleanupTransport();
                 onConnectionChangeRef.current(false);
                 onErrorRef.current(
@@ -2089,9 +2213,11 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
       return connectPromise;
     },
     [
+      beginXaiBilling,
       cleanupTransport,
       ensureRemoteAudioElement,
       fetchToken,
+      flushXaiBilling,
       handleMessage,
       startAudioCapture,
       startXaiAudioCapture,
@@ -2105,6 +2231,9 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   const sendTextMessage = useCallback(
     (text: string) => {
       responseTextRef.current = "";
+      if (tokenInfoRef.current?.provider === "xai" && xaiBillingRef.current) {
+        xaiBillingRef.current.textInputEventCount += 1;
+      }
       sendEvent({
         type: "conversation.item.create",
         item: {

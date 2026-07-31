@@ -35,6 +35,16 @@ export function isInternalEmail(value: string | null | undefined) {
   );
 }
 
+export function canUseCareerDevControls(value: string | null | undefined) {
+  const normalized = normalizeEmail(value);
+  return (
+    process.env.NODE_ENV !== "production" ||
+    getEmailDomain(normalized) === INTERNAL_EMAIL_DOMAIN ||
+    normalized === "hyunbin.bk@gmail.com" ||
+    normalized === "khj605123@gmail.com"
+  );
+}
+
 export function canInspectCareerTranslations(value: string | null | undefined) {
   const normalized = normalizeEmail(value);
   return (

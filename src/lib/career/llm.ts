@@ -2166,6 +2166,7 @@ export async function runOpsRoleDescriptionSummary(args: {
 }
 
 export function getCareerRealtimeSessionConfig(args: {
+  providerOverride?: string | null;
   userCreatedAt?: string | null;
   userId: string;
 }) {

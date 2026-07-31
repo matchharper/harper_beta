@@ -18,6 +18,7 @@ import {
   fetchTalentSetting,
   getTalentSupabaseAdmin,
 } from "@/lib/talentOnboarding/server";
+import { canUseCareerDevControls } from "@/lib/internalAccess";
 
 const TOKEN_RATE_LIMIT = new Map<string, { count: number; resetAt: number }>();
 const MAX_TOKENS_PER_MINUTE = 10;
@@ -211,11 +212,13 @@ export async function POST(req: NextRequest) {
       conversationStarterId: rawConversationStarterId,
       internalCallRequestId: rawInternalCallRequestId,
       locale: rawLocale,
+      providerOverride: rawProviderOverride,
     } = body as {
       conversationId?: string;
       conversationStarterId?: string;
       internalCallRequestId?: string;
       locale?: string;
+      providerOverride?: string;
     };
     const conversationId = rawConversationId?.trim();
     const conversationStarterId =
@@ -226,6 +229,11 @@ export async function POST(req: NextRequest) {
       typeof rawInternalCallRequestId === "string"
         ? rawInternalCallRequestId.trim()
         : "";
+    const providerOverride =
+      canUseCareerDevControls(user.email) &&
+      typeof rawProviderOverride === "string"
+        ? rawProviderOverride.trim() || undefined
+        : undefined;
 
     if (!conversationId) {
       return NextResponse.json(
@@ -304,6 +312,7 @@ export async function POST(req: NextRequest) {
     const tools = realtimeToolSelection.tools;
     const toolVoicePreambles = realtimeToolSelection.toolVoicePreambles;
     const realtimeConfig = getCareerRealtimeSessionConfig({
+      providerOverride,
       userCreatedAt: user.created_at,
       userId: user.id,
     });

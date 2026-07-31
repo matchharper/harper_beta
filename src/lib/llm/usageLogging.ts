@@ -5,6 +5,11 @@ import {
   CLAUDE_INPUT_USD_PER_MTOK,
   CLAUDE_MODEL,
   CLAUDE_OUTPUT_USD_PER_MTOK,
+  GPT_56_LUNA_CACHE_READ_USD_PER_MTOK,
+  GPT_56_LUNA_CACHE_WRITE_USD_PER_MTOK,
+  GPT_56_LUNA_INPUT_USD_PER_MTOK,
+  GPT_56_LUNA_MODEL,
+  GPT_56_LUNA_OUTPUT_USD_PER_MTOK,
 } from "@/lib/llm/modelConfig";
 
 type OpenAICompatibleUsage = {
@@ -90,6 +95,20 @@ type RealtimeTokenUsage = {
   unattributedOutputTokens: number;
 };
 
+export type RealtimeBillingUsage = {
+  audioDurationSeconds?: number | null;
+  billingBasis?: "audio_duration" | "session_duration_fallback" | null;
+  inputAudioSeconds?: number | null;
+  outputAudioSeconds?: number | null;
+  sessionDurationSeconds?: number | null;
+  sessionEndedAt?: string | null;
+  sessionStartedAt?: string | null;
+  textInputEventCount?: number | null;
+};
+
+const XAI_REALTIME_AUDIO_USD_PER_MINUTE = 0.05;
+const XAI_REALTIME_TEXT_INPUT_USD_PER_EVENT = 0.004;
+
 const LLM_LOG_TOOL_NAMES = [
   "recommend_job_postings",
   "read_recommended_opportunities",
@@ -133,6 +152,12 @@ const MODEL_PRICING_USD_PER_MTOK: Record<string, LlmModelPricing> = {
     cacheReadUsdPerMtok: 0.025,
     inputUsdPerMtok: 0.25,
     outputUsdPerMtok: 2,
+  },
+  [GPT_56_LUNA_MODEL]: {
+    cacheReadUsdPerMtok: GPT_56_LUNA_CACHE_READ_USD_PER_MTOK,
+    cacheWriteUsdPerMtok: GPT_56_LUNA_CACHE_WRITE_USD_PER_MTOK,
+    inputUsdPerMtok: GPT_56_LUNA_INPUT_USD_PER_MTOK,
+    outputUsdPerMtok: GPT_56_LUNA_OUTPUT_USD_PER_MTOK,
   },
   "grok-4.3": {
     cacheReadUsdPerMtok: 0.2,
@@ -195,6 +220,58 @@ const REALTIME_MODEL_PRICING_USD_PER_MTOK: Record<
 
 function toNullableNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function toNullableNonNegativeNumber(value: unknown): number | null {
+  const number = toNullableNumber(value);
+  return number !== null && number >= 0 ? number : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+export function normalizeRealtimeBillingUsage(
+  value: unknown
+): RealtimeBillingUsage | null {
+  if (!isRecord(value)) return null;
+
+  const billing: RealtimeBillingUsage = {
+    audioDurationSeconds: toNullableNonNegativeNumber(
+      value.audioDurationSeconds
+    ),
+    billingBasis:
+      value.billingBasis === "audio_duration" ||
+      value.billingBasis === "session_duration_fallback"
+        ? value.billingBasis
+        : null,
+    inputAudioSeconds: toNullableNonNegativeNumber(value.inputAudioSeconds),
+    outputAudioSeconds: toNullableNonNegativeNumber(value.outputAudioSeconds),
+    sessionDurationSeconds: toNullableNonNegativeNumber(
+      value.sessionDurationSeconds
+    ),
+    sessionEndedAt:
+      typeof value.sessionEndedAt === "string"
+        ? value.sessionEndedAt.trim().slice(0, 80) || null
+        : null,
+    sessionStartedAt:
+      typeof value.sessionStartedAt === "string"
+        ? value.sessionStartedAt.trim().slice(0, 80) || null
+        : null,
+    textInputEventCount: toNullableNonNegativeNumber(value.textInputEventCount),
+  };
+
+  const hasMeasurement = Object.entries(billing).some(([key, field]) => {
+    if (
+      key === "billingBasis" ||
+      key === "sessionStartedAt" ||
+      key === "sessionEndedAt"
+    ) {
+      return field !== null;
+    }
+    return field !== null && field !== undefined;
+  });
+  return hasMeasurement ? billing : null;
 }
 
 function getModelPricing(model: string): LlmModelPricing | null {
@@ -513,6 +590,72 @@ export function estimateRealtimeLlmUsageCost(
   };
 }
 
+export function estimateXaiRealtimeUsageCost(
+  model: string,
+  billing: RealtimeBillingUsage | null | undefined
+) {
+  if (!model.trim().toLowerCase().startsWith("grok-voice")) return null;
+
+  const normalizedBilling = normalizeRealtimeBillingUsage(billing);
+  if (!normalizedBilling) return null;
+
+  const inputAudioSeconds = numberOrZero(normalizedBilling.inputAudioSeconds);
+  const outputAudioSeconds = numberOrZero(normalizedBilling.outputAudioSeconds);
+  const explicitAudioDurationSeconds = toNullableNonNegativeNumber(
+    normalizedBilling.audioDurationSeconds
+  );
+  const sessionDurationSeconds = toNullableNonNegativeNumber(
+    normalizedBilling.sessionDurationSeconds
+  );
+  const audioDurationSeconds =
+    explicitAudioDurationSeconds ??
+    (normalizedBilling.inputAudioSeconds !== null ||
+    normalizedBilling.outputAudioSeconds !== null
+      ? inputAudioSeconds + outputAudioSeconds
+      : (sessionDurationSeconds ?? 0));
+  const textInputEventCount = numberOrZero(
+    normalizedBilling.textInputEventCount
+  );
+  const hasAudioMeasurement =
+    explicitAudioDurationSeconds !== null ||
+    normalizedBilling.inputAudioSeconds !== null ||
+    normalizedBilling.outputAudioSeconds !== null ||
+    sessionDurationSeconds !== null;
+  const hasTextMeasurement = normalizedBilling.textInputEventCount !== null;
+
+  if (!hasAudioMeasurement && !hasTextMeasurement) return null;
+
+  const audioCostUsd =
+    (audioDurationSeconds / 60) * XAI_REALTIME_AUDIO_USD_PER_MINUTE;
+  const textInputCostUsd =
+    textInputEventCount * XAI_REALTIME_TEXT_INPUT_USD_PER_EVENT;
+  const usesSessionFallback =
+    explicitAudioDurationSeconds === null &&
+    normalizedBilling.inputAudioSeconds === null &&
+    normalizedBilling.outputAudioSeconds === null &&
+    sessionDurationSeconds !== null;
+
+  return {
+    audioCostUsd: roundCost(audioCostUsd),
+    audioDurationSeconds: roundCost(audioDurationSeconds),
+    audioUsdPerMinute: XAI_REALTIME_AUDIO_USD_PER_MINUTE,
+    billingBasis: usesSessionFallback
+      ? "session_duration_fallback"
+      : "audio_duration",
+    estimatedCostUsd: roundCost(audioCostUsd + textInputCostUsd),
+    inputAudioSeconds: roundCost(inputAudioSeconds),
+    outputAudioSeconds: roundCost(outputAudioSeconds),
+    pricingSource: "xai_official_voice_api",
+    sessionDurationSeconds:
+      sessionDurationSeconds === null
+        ? null
+        : roundCost(sessionDurationSeconds),
+    textInputCostUsd: roundCost(textInputCostUsd),
+    textInputEventCount,
+    textInputUsdPerEvent: XAI_REALTIME_TEXT_INPUT_USD_PER_EVENT,
+  };
+}
+
 export function logLlmTokenUsage(args: {
   extraEstimatedCostUsd?: number;
   label?: string;
@@ -602,33 +745,48 @@ export function logLlmTokenUsageForToolCalls(args: {
 }
 
 export async function insertRealtimeLlmUsageLog(args: {
+  billing?: RealtimeBillingUsage | null;
   meta?: Record<string, unknown>;
   model: string;
   response: any;
 }) {
   const usage = extractRealtimeLlmTokenUsage(args.response);
-  const estimatedCost = estimateRealtimeLlmUsageCost(args.model, usage);
+  const durationBasedCost = estimateXaiRealtimeUsageCost(
+    args.model,
+    args.billing
+  );
+  const estimatedCost =
+    durationBasedCost ?? estimateRealtimeLlmUsageCost(args.model, usage);
   const providerCostTicks = toNullableNumber(
     args.response?.usage?.cost_in_usd_ticks
   );
   const providerCostUsd =
     providerCostTicks === null ? null : providerCostTicks / 10_000_000_000;
+  const costStatus =
+    providerCostUsd !== null
+      ? "provider_reported"
+      : estimatedCost !== null
+        ? "estimated"
+        : "unpriced";
 
   await insertLlmLog({
+    costStatus,
     estimatedCostUsd: providerCostUsd ?? estimatedCost?.estimatedCostUsd ?? 0,
     meta: {
-      costKind: "actual",
+      costKind: providerCostUsd !== null ? "actual" : costStatus,
+      costStatus,
       label: "career/realtime:response",
       step: "response",
       usage,
       costBreakdown:
         providerCostUsd === null
-          ? estimatedCost
+          ? (estimatedCost ?? { source: "unpriced" })
           : {
               estimatedCostUsd: providerCostUsd,
               providerCostTicks,
               source: "provider_reported",
             },
+      ...(args.billing ? { billing: args.billing } : {}),
       ...(args.meta ?? {}),
     },
     model: args.model,
@@ -651,6 +809,7 @@ function resolveLlmLogTarget(label: string) {
 }
 
 async function insertLlmLog(args: {
+  costStatus?: "priced" | "estimated" | "provider_reported" | "unpriced";
   estimatedCostUsd: number;
   meta: Record<string, unknown>;
   model: string;
@@ -659,6 +818,7 @@ async function insertLlmLog(args: {
   try {
     const admin = getTalentSupabaseAdmin() as any;
     const { error } = await admin.from("llm_logs").insert({
+      cost_status: args.costStatus ?? "priced",
       estimated_cost_usd: Number.isFinite(args.estimatedCostUsd)
         ? args.estimatedCostUsd
         : 0,

@@ -2,6 +2,7 @@ import type { User } from "@supabase/supabase-js";
 import {
   createChatCompletionWithFallback,
   getLlmErrorMessage,
+  usesMaxCompletionTokensForModel,
   type ChatCompletionFallbackReason,
 } from "@/lib/llm/llm";
 import { extractLlmTokenUsage } from "@/lib/llm/usageLogging";
@@ -9,6 +10,7 @@ import {
   DEFAULT_ORG_AGENT_MODEL,
   getOrgAgentFallbackModel,
   ORG_AGENT_GROK_MODEL,
+  isOrgAgentModelId,
   resolveOrgAgentModel,
   type OrgAgentModelId,
 } from "@/lib/org/agent/modelConfig";
@@ -207,8 +209,10 @@ async function runCompletion(args: {
 }) {
   return createChatCompletionWithFallback({
     anthropicOverloadFallbackModel: ORG_AGENT_GROK_MODEL,
-    buildRequest: () => ({
-      max_tokens: 2_000,
+    buildRequest: (model) => ({
+      ...(usesMaxCompletionTokensForModel(model)
+        ? { max_completion_tokens: 2_000 }
+        : { max_tokens: 2_000 }),
       messages: args.messages as any,
       temperature: 0.1,
       ...(args.allowTools
@@ -610,8 +614,7 @@ export async function runOrgAgentChat(args: {
         admin,
         conversation,
         model:
-          llmResult.model === "grok-4.3" ||
-          llmResult.model === "claude-sonnet-5"
+          isOrgAgentModelId(llmResult.model)
             ? llmResult.model
             : DEFAULT_ORG_AGENT_MODEL,
       });

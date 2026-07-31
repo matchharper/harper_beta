@@ -75,6 +75,12 @@ export function supportsResponseFormatForModel(model: string) {
 
 export function supportsSamplingParametersForModel(model: string) {
   const normalized = model.trim().toLowerCase();
+  if (
+    getLlmChatProviderForModel(normalized) === "openai" &&
+    (normalized === "gpt-5.6" || normalized.startsWith("gpt-5.6-"))
+  ) {
+    return false;
+  }
   if (getLlmChatProviderForModel(normalized) !== "anthropic") return true;
   if (
     normalized === "claude-sonnet-5" ||
@@ -93,15 +99,42 @@ export function supportsSamplingParametersForModel(model: string) {
   return true;
 }
 
+export function usesMaxCompletionTokensForModel(model: string) {
+  const normalized = model.trim().toLowerCase();
+  return (
+    getLlmChatProviderForModel(normalized) === "openai" &&
+    (normalized === "gpt-5.6" || normalized.startsWith("gpt-5.6-"))
+  );
+}
+
 function omitUnsupportedSamplingParameters(
   model: string,
   requestBody: Record<string, unknown>
 ) {
-  if (supportsSamplingParametersForModel(model)) return requestBody;
+  const needsMaxCompletionTokens = usesMaxCompletionTokensForModel(model);
+  if (
+    supportsSamplingParametersForModel(model) &&
+    !needsMaxCompletionTokens
+  ) {
+    return requestBody;
+  }
   const sanitized = { ...requestBody };
-  delete sanitized.temperature;
-  delete sanitized.top_p;
-  delete sanitized.top_k;
+  if (!supportsSamplingParametersForModel(model)) {
+    delete sanitized.temperature;
+    delete sanitized.top_p;
+    delete sanitized.top_k;
+  }
+  if (
+    needsMaxCompletionTokens &&
+    sanitized.max_completion_tokens === undefined &&
+    sanitized.max_tokens !== undefined
+  ) {
+    sanitized.max_completion_tokens = sanitized.max_tokens;
+    delete sanitized.max_tokens;
+  }
+  if (needsMaxCompletionTokens && sanitized.reasoning_effort === undefined) {
+    sanitized.reasoning_effort = "low";
+  }
   return sanitized;
 }
 
@@ -385,6 +418,10 @@ const pricingTable = {
     input: 0.25 / 1_000_000,
     output: 2 / 1_000_000,
   },
+  "gpt-5.6-luna": {
+    input: 0.2 / 1_000_000,
+    output: 1.2 / 1_000_000,
+  },
   "gemini-3-flash-preview": {
     input: 0.5 / 1_000_000,
     output: 3 / 1_000_000,
@@ -397,7 +434,8 @@ export const xaiInference = async (
     | "grok-4.3"
     | "grok-4.3"
     | "grok-4-fast-non-reasoning"
-    | "gpt-5-mini",
+    | "gpt-5-mini"
+    | "gpt-5.6-luna",
   systemPrompt: string,
   userPrompt: string,
   temperature: number = 0.7,

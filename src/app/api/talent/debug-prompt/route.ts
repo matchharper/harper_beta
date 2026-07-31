@@ -8,6 +8,7 @@ import {
   type CareerDebugPromptPayload,
 } from "@/lib/career/debugPrompts";
 import { sanitizeSingleLineDbText } from "@/lib/textSanitization";
+import { canUseCareerDevControls } from "@/lib/internalAccess";
 
 export const runtime = "nodejs";
 
@@ -20,16 +21,7 @@ type Body = {
 };
 
 function canUseCareerPromptDebug(user: User) {
-  if (process.env.NODE_ENV !== "production") return true;
-
-  const email = String(user.email ?? "")
-    .trim()
-    .toLowerCase();
-  return (
-    email.endsWith("@matchharper.com") ||
-    email === "hyunbin.bk@gmail.com" ||
-    email === "khj605123@gmail.com"
-  );
+  return canUseCareerDevControls(user.email);
 }
 
 function normalizePromptKind(value: unknown): "text" | "voice" {
