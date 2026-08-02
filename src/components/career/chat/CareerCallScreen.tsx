@@ -1,6 +1,9 @@
 import { Loader2, Mic, MicOff, Captions, PhoneOff } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
+import {
+  useCareerCallContext,
+  useCareerChatPanelContext,
+} from "@/components/career/CareerChatPanelContext";
 import Face, { type FaceStatus } from "@/components/common/Face";
 import { Tooltips } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -186,19 +189,22 @@ const CareerCallScreen = ({
   const t = useCareerT();
 
   const {
-    voiceMuted,
-    voiceTranscript,
-    liveUserTranscriptPlacement,
     isOnboardingDone,
     forceCompletePending = false,
     interviewProgress,
     onboardingWrapupPending,
+  } = useCareerChatPanelContext();
+  const {
+    voiceMuted,
+    voiceTranscript,
+    liveUserTranscriptPlacement,
     onToggleVoiceMute,
     onEndCallMode,
     callTranscriptEntries,
     callConnectionStatus,
     isAssistantSpeaking,
-  } = useCareerChatPanelContext();
+    isVoiceToolExecuting,
+  } = useCareerCallContext();
 
   const [showTranscript, setShowTranscript] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
@@ -318,6 +324,20 @@ const CareerCallScreen = ({
         >
           {isAssistantSpeaking ? "Speaking" : "Listening"}
         </span>
+
+        {isVoiceToolExecuting ? (
+          <div
+            className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-neutral-soft"
+            role="status"
+            aria-live="polite"
+          >
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            {t(
+              "career.chat.career_call_screen.tool_executing",
+              "정보 찾는 중..."
+            )}
+          </div>
+        ) : null}
 
         {showInterviewCallProgress ? (
           <div className="mt-4 w-full max-w-[360px] min-w-[360px] rounded-[12px] border border-neutral-1000-a05 bg-black/90 px-4 py-3 text-neutral-00 shadow-[0_14px_32px_color-mix(in_srgb,var(--color-neutral-1000)_16%,transparent)] backdrop-blur">

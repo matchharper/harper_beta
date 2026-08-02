@@ -549,24 +549,28 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     });
   }, []);
 
-  const finalizeCallAssistantTranscript = useCallback((text: string) => {
-    if (inputModeRef.current !== "call") return;
+  const finalizeCallAssistantTranscript = useCallback(
+    (text: string, options?: { alreadyRendered?: boolean }) => {
+      if (inputModeRef.current !== "call") return;
 
-    const cleanText = text.replace(CALL_END_MARKER, "").trim();
-    const wasStreaming = callAssistantTranscriptStreamingRef.current;
-    callAssistantTranscriptStreamingRef.current = false;
-    if (!cleanText) return;
+      const cleanText = text.replace(CALL_END_MARKER, "").trim();
+      const wasStreaming = callAssistantTranscriptStreamingRef.current;
+      callAssistantTranscriptStreamingRef.current = false;
+      if (!cleanText) return;
 
-    setCallTranscriptEntries((prev) => {
-      const now = new Date().toISOString();
-      return finalizeAssistantTranscriptEntries({
-        entries: prev,
-        text: cleanText,
-        timestamp: now,
-        wasStreaming,
+      setCallTranscriptEntries((prev) => {
+        const now = new Date().toISOString();
+        return finalizeAssistantTranscriptEntries({
+          alreadyRendered: options?.alreadyRendered,
+          entries: prev,
+          text: cleanText,
+          timestamp: now,
+          wasStreaming,
+        });
       });
-    });
-  }, []);
+    },
+    []
+  );
 
   return {
     inputMode,

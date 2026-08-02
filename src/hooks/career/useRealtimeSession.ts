@@ -23,9 +23,6 @@ type UseRealtimeSessionArgs = {
   onTranscript: (text: string) => void;
   onAssistantDelta: (delta: string) => void;
   onAssistantDone: (fullText: string) => void;
-  onAssistantResponseStarted?: (
-    context: RealtimeAssistantResponseContext
-  ) => void;
   onError: (error: string) => void;
   onConnectionChange: (connected: boolean) => void;
   onEndCallTool?: () => void;
@@ -41,11 +38,6 @@ type RealtimeConnectOptions = {
 export type RealtimeConnectFailure = {
   code: "internal_call_completed" | "token" | "connection";
   message: string;
-};
-
-export type RealtimeAssistantResponseContext = {
-  provider: "openai" | "xai";
-  startedAfterUserSpeech: boolean;
 };
 
 export type RealtimeUserSpeechStartedContext = {
@@ -309,7 +301,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     onTranscript,
     onAssistantDelta,
     onAssistantDone,
-    onAssistantResponseStarted,
     onError,
     onConnectionChange,
     onEndCallTool,
@@ -321,6 +312,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   const [isConnecting, setIsConnecting] = useState(false);
   const [partialTranscript, setPartialTranscript] = useState("");
   const [isAssistantSpeaking, setIsAssistantSpeaking] = useState(false);
+  const [isToolExecuting, setIsToolExecuting] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<
     "connected" | "reconnecting" | "disconnected"
   >("disconnected");
@@ -355,6 +347,8 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   const pendingResponseFunctionCallsRef = useRef<
     Array<{ arguments: string; callId: string; name: string }>
   >([]);
+  const nextToolExecutionIdRef = useRef(1);
+  const activeToolExecutionIdsRef = useRef<Set<number>>(new Set());
 
   const currentResponseAssistantItemIdsRef = useRef<string[]>([]);
   const currentResponseStartedAfterUserSpeechRef = useRef(false);
@@ -387,7 +381,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   const onTranscriptRef = useRef(onTranscript);
   const onAssistantDeltaRef = useRef(onAssistantDelta);
   const onAssistantDoneRef = useRef(onAssistantDone);
-  const onAssistantResponseStartedRef = useRef(onAssistantResponseStarted);
   const onErrorRef = useRef(onError);
   const onConnectionChangeRef = useRef(onConnectionChange);
   const onEndCallToolRef = useRef(onEndCallTool);
@@ -403,9 +396,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   useEffect(() => {
     onAssistantDoneRef.current = onAssistantDone;
   }, [onAssistantDone]);
-  useEffect(() => {
-    onAssistantResponseStartedRef.current = onAssistantResponseStarted;
-  }, [onAssistantResponseStarted]);
   useEffect(() => {
     onErrorRef.current = onError;
   }, [onError]);
@@ -918,6 +908,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
         conversationId,
         eventType: options.eventType ?? "response.done",
         hadAudioInResponse: options.hadAudioInResponse,
+        providerOverride: providerOverride ?? undefined,
         responseId,
         status: options.status,
         usage: usage ?? {},
@@ -940,7 +931,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
           });
       });
     },
-    [consumeXaiBilling, conversationId, fetchWithAuth]
+    [consumeXaiBilling, conversationId, fetchWithAuth, providerOverride]
   );
 
   const flushXaiBilling = useCallback(
@@ -1257,6 +1248,19 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     [conversationId, fetchWithAuth]
   );
 
+  const beginToolExecution = useCallback(() => {
+    const executionId = nextToolExecutionIdRef.current;
+    nextToolExecutionIdRef.current += 1;
+    activeToolExecutionIdsRef.current.add(executionId);
+    setIsToolExecuting(true);
+    return executionId;
+  }, []);
+
+  const finishToolExecution = useCallback((executionId: number) => {
+    activeToolExecutionIdsRef.current.delete(executionId);
+    setIsToolExecuting(activeToolExecutionIdsRef.current.size > 0);
+  }, []);
+
   const getToolVoicePreamble = useCallback(
     (
       functionCalls: Array<{
@@ -1285,7 +1289,10 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
         name: string;
       }>
     ) => {
-      const outputPromise = resolveFunctionCalls(functionCalls);
+      const toolExecutionId = beginToolExecution();
+      const outputPromise = resolveFunctionCalls(functionCalls).finally(() => {
+        finishToolExecution(toolExecutionId);
+      });
       const preamble = getToolVoicePreamble(functionCalls);
 
       if (preamble) {
@@ -1303,6 +1310,8 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
       sendFunctionCallOutputs(outputs);
     },
     [
+      beginToolExecution,
+      finishToolExecution,
       getToolVoicePreamble,
       requestExactSpeech,
       resolveFunctionCalls,
@@ -1332,11 +1341,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
             currentResponseStartedAfterUserSpeechRef.current =
               userSpeechSinceLastResponseRef.current ||
               pendingUserSpeechForAudioTurnRef.current;
-            onAssistantResponseStartedRef.current?.({
-              provider: tokenInfoRef.current?.provider ?? "openai",
-              startedAfterUserSpeech:
-                currentResponseStartedAfterUserSpeechRef.current,
-            });
             userSpeechSinceLastResponseRef.current = false;
             pendingUserSpeechForAudioTurnRef.current = false;
             responseInProgressRef.current = true;
@@ -1872,6 +1876,8 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     partialTranscriptItemIdRef.current = null;
     xaiTranscriptTurnRef.current = createXaiTranscriptTurnState();
     pendingResponseFunctionCallsRef.current = [];
+    activeToolExecutionIdsRef.current.clear();
+    setIsToolExecuting(false);
     currentResponseAssistantItemIdsRef.current = [];
     currentResponseStartedAfterUserSpeechRef.current = false;
     nextAudioDeleteEventIdRef.current = 1;
@@ -2329,6 +2335,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     isConnected,
     isConnecting,
     isAssistantSpeaking,
+    isToolExecuting,
     partialTranscript,
     connectionStatus,
     connect,

@@ -229,14 +229,17 @@ async function runCompletion(args: {
 }
 
 async function runOrgAgentToolLoop(args: {
+  actorId: string;
   admin: ReturnType<typeof getSupabaseAdmin>;
   context: Awaited<ReturnType<typeof buildOrgAgentPromptContext>>;
   conversation: Awaited<
     ReturnType<typeof ensureOrgAgentConversation>
   >["conversation"];
+  currentUserMessageId: number;
   emit?: OrgAgentChatEmitter;
   mentions: OrgAgentMention[];
   model: OrgAgentModelId;
+  slackThreadId: string | null;
   user: User;
   userLabel?: string | null;
   userMessage: string;
@@ -268,7 +271,7 @@ async function runOrgAgentToolLoop(args: {
         model: activeModel,
       });
     } catch (error) {
-      if (state.actions.length === 0) throw error;
+      if (state.updateSummaries.length === 0) throw error;
       console.error(
         "[org/agent:post-tool-completion]",
         getLlmErrorMessage(error)
@@ -347,11 +350,14 @@ async function runOrgAgentToolLoop(args: {
 
       try {
         const result = await executeOrgAgentTool({
+          actorId: args.actorId,
           admin: args.admin,
           callId: toolCall.id,
           conversation: args.conversation,
+          currentUserMessageId: args.currentUserMessageId,
           input: parseToolArguments(toolCall.function.arguments),
           name: toolName,
+          slackThreadId: args.slackThreadId,
           state,
           user: args.user,
         });
@@ -416,7 +422,7 @@ async function runOrgAgentToolLoop(args: {
       model: activeModel,
     });
   } catch (error) {
-    if (state.actions.length === 0) throw error;
+    if (state.updateSummaries.length === 0) throw error;
     console.error(
       "[org/agent:final-post-tool-completion]",
       getLlmErrorMessage(error)
@@ -452,6 +458,10 @@ function buildAssistantMetadata(args: {
   const lastRequestChange = args.state.requestChanges.at(-1);
   return {
     ...(args.state.actions.length > 0 && { actions: args.state.actions }),
+    ...(args.state.candidateConnectionConfirmations.length > 0 && {
+      candidateConnectionConfirmations:
+        args.state.candidateConnectionConfirmations,
+    }),
     fallbackReason: args.fallbackReason,
     llmUsage: args.usage,
     model: args.model,
@@ -562,12 +572,15 @@ export async function runOrgAgentChat(args: {
     });
 
     const llmResult = await runOrgAgentToolLoop({
+      actorId: args.slackUserId ?? args.user.id,
       admin,
       context,
       conversation,
+      currentUserMessageId: userMessage.id,
       emit: args.emit,
       mentions,
       model: modelConfig.model,
+      slackThreadId: args.slackThreadId ?? null,
       user: args.user,
       userLabel: args.userMessageMetadata?.slackUserName
         ? `${args.userMessageMetadata.slackUserName} [${args.slackUserId ?? "-"}]`
@@ -613,10 +626,9 @@ export async function runOrgAgentChat(args: {
       void maybeSummarizeOrgAgentConversation({
         admin,
         conversation,
-        model:
-          isOrgAgentModelId(llmResult.model)
-            ? llmResult.model
-            : DEFAULT_ORG_AGENT_MODEL,
+        model: isOrgAgentModelId(llmResult.model)
+          ? llmResult.model
+          : DEFAULT_ORG_AGENT_MODEL,
       });
     }
 

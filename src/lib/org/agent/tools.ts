@@ -10,9 +10,19 @@ export const ORG_AGENT_TOOL_NAMES = [
   "read_role",
   "update_company",
   "update_role",
+  "prepare_candidate_connection",
+  "decide_candidate_connection",
 ] as const;
 
 export type OrgAgentToolName = (typeof ORG_AGENT_TOOL_NAMES)[number];
+
+// Candidate connection mutations are intentionally paused until this flow is
+// ready to be enabled in production again. Keep the names in the type union so
+// the dormant execution code remains type-checked, but reject any invocation.
+const DISABLED_ORG_AGENT_TOOL_NAMES = new Set<OrgAgentToolName>([
+  "prepare_candidate_connection",
+  "decide_candidate_connection",
+]);
 
 const nullableText = (description: string, maxLength: number) => ({
   description,
@@ -239,11 +249,107 @@ export const ORG_AGENT_TOOLS = [
       },
     },
   },
+  /*
+   * Candidate connection tools are temporarily disabled. Do not expose these
+   * to the model until the outbound-introduction workflow is ready.
+   *
+  {
+    type: "function",
+    function: {
+      name: "prepare_candidate_connection",
+      description:
+        "Prepare a confirmation for an initial request to meet or introduce one candidate. Resolve the exact role, candidate, and recommendation first. This does not change any stage or send email. Call this before replying with the required explanation of email recipients and connection options; the later confirmed decision can only use a preparation from an earlier assistant reply in the same conversation thread.",
+      parameters: {
+        additionalProperties: false,
+        properties: {
+          recommendationId: {
+            description:
+              "Exact recommendation ID for this candidate in the selected role.",
+            type: "string",
+          },
+          roleId: {
+            description: "Exact role ID for the candidate connection.",
+            type: "string",
+          },
+          talentId: {
+            description: "Exact talent ID for the candidate connection.",
+            type: "string",
+          },
+        },
+        required: ["roleId", "talentId", "recommendationId"],
+        type: "object",
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "decide_candidate_connection",
+      description:
+        "Carry out a confirmed decision for one candidate who is awaiting a connection. Resolve the exact role, candidate, and recommendation first. Do not call this on an initial request to meet a candidate: first explain the connection choices and ask for confirmation. For accept, intro_email sends a warm introduction email and direct_contact only marks connected, so the company must contact the candidate itself. decline moves the candidate to process stopped. This cannot schedule a calendar meeting and rejects candidates not currently awaiting a connection.",
+      parameters: {
+        additionalProperties: false,
+        properties: {
+          connectionMethod: {
+            description:
+              "For accept only. intro_email is the default and sends a warm introduction email, CCing supplied recipients or the requester when omitted. direct_contact changes the status without sending Harper email.",
+            enum: ["intro_email", "direct_contact"],
+            type: "string",
+          },
+          confirmed: {
+            description:
+              "Must be true only after the user explicitly confirmed this exact connection method and its email recipients, or explicitly chose to contact the candidate directly.",
+            type: "boolean",
+          },
+          decision: {
+            description:
+              "accept to begin a connection, or decline to stop this candidate's process.",
+            enum: ["accept", "decline"],
+            type: "string",
+          },
+          introEmails: {
+            description:
+              "Optional company recipients for a warm introduction. For accept with intro_email, the requester is CCed if this is omitted.",
+            items: { type: "string" },
+            maxItems: 10,
+            type: "array",
+          },
+          recommendationId: {
+            description:
+              "Exact recommendation ID for this candidate in the selected role.",
+            type: "string",
+          },
+          reason: nullableText(
+            "Optional short reason for accepting or declining. This is recorded in the candidate progress history.",
+            2_000
+          ),
+          roleId: {
+            description: "Exact role ID for the candidate decision.",
+            type: "string",
+          },
+          talentId: {
+            description: "Exact talent ID for the candidate decision.",
+            type: "string",
+          },
+        },
+        required: [
+          "decision",
+          "confirmed",
+          "roleId",
+          "talentId",
+          "recommendationId",
+        ],
+        type: "object",
+      },
+    },
+  },
+  */
 ] as const;
 
 export function isOrgAgentToolName(value: unknown): value is OrgAgentToolName {
   return (
     typeof value === "string" &&
-    ORG_AGENT_TOOL_NAMES.includes(value as OrgAgentToolName)
+    ORG_AGENT_TOOL_NAMES.includes(value as OrgAgentToolName) &&
+    !DISABLED_ORG_AGENT_TOOL_NAMES.has(value as OrgAgentToolName)
   );
 }

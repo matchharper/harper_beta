@@ -51,6 +51,13 @@ export type OrgAgentMessageAction =
 
 export type OrgAgentMessageMetadata = {
   actions?: OrgAgentMessageAction[];
+  candidateConnectionConfirmations?: Array<{
+    actorId: string;
+    recommendationId: string;
+    roleId: string;
+    slackThreadId: string | null;
+    talentId: string;
+  }>;
   fallbackReason?: string | null;
   historyTruncated?: boolean;
   llmUsage?: {

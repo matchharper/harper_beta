@@ -14,7 +14,7 @@ import React, {
 } from "react";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { getErrorMessage } from "@/hooks/career/careerHelpers";
-import { useCareerSidebarContext } from "@/components/career/CareerSidebarContext";
+import { useCareerCompanyFollowContext } from "@/components/career/CareerSidebarContext";
 import { useMessages } from "@/i18n/useMessage";
 import CareerInPageTabs from "@/components/career/CareerInPageTabs";
 import { CompanyCard } from "./CompanyCard";
@@ -44,7 +44,7 @@ const CareerCompanyWatchlistPanel = () => {
   const queryClient = useQueryClient();
   const { fetchWithAuth } = useCareerApi();
   const { locale } = useMessages();
-  const { onUpdateCompanyFollow, user } = useCareerSidebarContext();
+  const { onUpdateCompanyFollow, user } = useCareerCompanyFollowContext();
   const userId = user?.id ?? null;
   const activeTab = parseWatchlistTab(router.query[WATCHLIST_TAB_QUERY_KEY]);
   const detailCompanyDbId = parseCompanyDbId(

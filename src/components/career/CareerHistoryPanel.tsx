@@ -25,7 +25,10 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/router";
-import { useCareerSidebarContext } from "./CareerSidebarContext";
+import {
+  useCareerHistoryContext,
+  useCareerSidebarContext,
+} from "./CareerSidebarContext";
 import CareerInPageTabs, { type CareerInPageTabItem } from "./CareerInPageTabs";
 import { PrimaryButton, BareButton } from "@/components/ui/button";
 import { InlinePanel } from "@/components/ui/panel";
@@ -630,6 +633,8 @@ const CareerHistoryPanel = () => {
     callStartPending,
     onStartCallMode,
     onUseChatOnly,
+  } = useCareerSidebarContext();
+  const {
     historyOpportunityCounts,
     historyOpportunities,
     historyLoading,
@@ -646,7 +651,7 @@ const CareerHistoryPanel = () => {
     onUpdateHistoryOpportunityFeedback,
     onUpdateHistoryOpportunitySavedStage,
     onUpdateHistoryOpportunityTalentMemo,
-  } = useCareerSidebarContext();
+  } = useCareerHistoryContext();
   const [activeTab, setActiveTab] = useState<HistoryTabId>("new");
   const [activeSavedStatus, setActiveSavedStatus] =
     useState<SavedOpportunityManagementStatus>("all");

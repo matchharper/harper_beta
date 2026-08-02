@@ -1,6 +1,9 @@
 import { MessageSquare, Settings } from "lucide-react";
 import { useState } from "react";
-import { useCareerSidebarContext } from "./CareerSidebarContext";
+import {
+  useCareerProfileContext,
+  useCareerSidebarContext,
+} from "./CareerSidebarContext";
 import CareerProfileMenu from "./CareerProfileMenu";
 import CareerSupportInquiryModal from "./CareerSupportInquiryModal";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
@@ -48,8 +51,8 @@ const CareerWorkspaceNav = () => {
   const t = useCareerT();
 
   const logCareerEvent = useCareerLogEvent();
-  const { user, onLogout, onOpenSettings, preferredLocale, talentProfile } =
-    useCareerSidebarContext();
+  const { onLogout, onOpenSettings } = useCareerSidebarContext();
+  const { preferredLocale, talentProfile, user } = useCareerProfileContext();
 
   const authDisplayName =
     user?.user_metadata?.full_name ??

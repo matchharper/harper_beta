@@ -12,7 +12,7 @@ import {
   X,
 } from "lucide-react";
 import React, { KeyboardEvent, useMemo, useState } from "react";
-import { useCareerSidebarContext } from "./CareerSidebarContext";
+import { useCareerProfileContext } from "./CareerSidebarContext";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import type {
@@ -145,7 +145,7 @@ export const CareerProfileSharingSettingsSection = ({
     onRemoveBlockedCompany,
     onSaveTalentSettings,
     onResetTalentSettings,
-  } = useCareerSidebarContext();
+  } = useCareerProfileContext();
   const [blockedCompanyDraft, setBlockedCompanyDraft] = useState("");
   const [profileVisibilitySavePending, setProfileVisibilitySavePending] =
     useState(false);

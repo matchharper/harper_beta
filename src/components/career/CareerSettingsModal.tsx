@@ -18,7 +18,10 @@ import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
-import { useCareerSidebarContext } from "./CareerSidebarContext";
+import {
+  useCareerProfileContext,
+  useCareerSidebarContext,
+} from "./CareerSidebarContext";
 import CareerProfileSettingsSection from "./CareerProfileSettingsSection";
 import { CareerReferralSettingsSection } from "./referral/CareerReferralModal";
 import CareerResumeLinksSettingsSection from "./settings/CareerResumeLinksSettingsSection";
@@ -861,13 +864,9 @@ const CareerSettingsModal = ({
 }) => {
   const t = useCareerT();
   const logCareerEvent = useCareerLogEvent();
-  const {
-    onLogout,
-    onUpdateAccountProfile,
-    preferredLocale,
-    talentProfile,
-    user,
-  } = useCareerSidebarContext();
+  const { onLogout } = useCareerSidebarContext();
+  const { onUpdateAccountProfile, preferredLocale, talentProfile, user } =
+    useCareerProfileContext();
   const showReferralEntryPoints = useReferralEntryPointEligibility({
     currentLocation: talentProfile.talentUser?.current_location,
     location: talentProfile.talentUser?.location,

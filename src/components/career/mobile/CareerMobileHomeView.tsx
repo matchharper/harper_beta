@@ -15,7 +15,11 @@ import {
 import { cn } from "@/lib/utils";
 import CareerCallCard from "@/components/career/CareerCallCard";
 import { InternalOpportunityCallActions } from "@/components/career/InternalOpportunityCallActions";
-import { useCareerSidebarContext } from "@/components/career/CareerSidebarContext";
+import {
+  useCareerHistoryContext,
+  useCareerProfileContext,
+  useCareerSidebarContext,
+} from "@/components/career/CareerSidebarContext";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import {
   formatCareerMessage,
@@ -279,14 +283,14 @@ const CareerMobileHomeView = ({
     workspaceDataLoading,
     activeCompanyRoleCount,
     callStartPending = false,
-    historyOpportunityCounts,
-    historyOpportunities,
     onStartCallMode,
     onStartConversationStarter,
     onRequestMoreOpenPositions,
     pendingInternalOpportunityCallRequests = [],
-    talentProfile,
   } = useCareerSidebarContext();
+  const { historyOpportunityCounts, historyOpportunities } =
+    useCareerHistoryContext();
+  const { talentProfile } = useCareerProfileContext();
   const { m } = useMessages();
 
   const displayName =

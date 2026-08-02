@@ -293,14 +293,20 @@ export default function RichText({
 
   if (!normalizedContent) {
     return trailingInlineNode ? (
-      <div className={cn("max-w-none text-sm leading-6", className)}>
+      <div
+        className={cn("max-w-none text-sm leading-6", className)}
+        data-career-i18n-skip="true"
+      >
         {trailingInlineNode}
       </div>
     ) : null;
   }
 
   return (
-    <div className={cn("max-w-none text-sm leading-6", className)}>
+    <div
+      className={cn("max-w-none text-sm leading-6", className)}
+      data-career-i18n-skip="true"
+    >
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{

@@ -2716,7 +2716,7 @@ ORDER BY discovery_run_id, created_at;
 
 각 사람마다:
 
-- talent ID와 식별 가능한 최소 정보
+- 후보자 이름은 `[이름](https://matchharper.com/ops/career?userId=<talent_user_id>)` 형식의 Harper Ops 프로필 직링크로 제공하고, talent ID와 식별 가능한 최소 정보도 함께 남긴다.
 - core company fit / core candidate acceptance
 - system adjustment 반영 후 company fit / candidate acceptance / confidence / mutual score
 - hard criteria pass 요약

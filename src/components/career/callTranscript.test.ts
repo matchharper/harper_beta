@@ -14,7 +14,7 @@ const USER_TRANSCRIPT: CallTranscriptEntry = {
   timestamp: "user-final",
 };
 
-test("finalizes the streaming assistant even when a late user transcript is last", () => {
+test("moves a streaming assistant after a late user transcript to match DB order", () => {
   const result = finalizeAssistantTranscriptEntries({
     entries: [ASSISTANT_PARTIAL, USER_TRANSCRIPT],
     text: "질문을 완료합니다.",
@@ -23,12 +23,12 @@ test("finalizes the streaming assistant even when a late user transcript is last
   });
 
   assert.deepEqual(result, [
+    USER_TRANSCRIPT,
     {
       role: "assistant",
       text: "질문을 완료합니다.",
       timestamp: "assistant-final",
     },
-    USER_TRANSCRIPT,
   ]);
 });
 
@@ -64,6 +64,31 @@ test("appends a non-streaming assistant transcript", () => {
       role: "assistant",
       text: "새 응답",
       timestamp: "assistant-final",
+    },
+  ]);
+});
+
+test("moves an already finalized assistant after a late user without duplicating it", () => {
+  const finalizedAssistant: CallTranscriptEntry = {
+    role: "assistant",
+    text: "질문을 완료합니다.",
+    timestamp: "assistant-first-final",
+  };
+
+  const result = finalizeAssistantTranscriptEntries({
+    alreadyRendered: true,
+    entries: [finalizedAssistant, USER_TRANSCRIPT],
+    text: "질문을 완료합니다.",
+    timestamp: "assistant-reconciled",
+    wasStreaming: false,
+  });
+
+  assert.deepEqual(result, [
+    USER_TRANSCRIPT,
+    {
+      role: "assistant",
+      text: "질문을 완료합니다.",
+      timestamp: "assistant-reconciled",
     },
   ]);
 });

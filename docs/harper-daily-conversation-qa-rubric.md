@@ -1,7 +1,7 @@
 # Harper Daily Conversation QA Rubric
 
-- Version: 1.2
-- Last updated: 2026-07-29
+- Version: 1.3
+- Last updated: 2026-07-31
 - Applies to: `Harper Daily Conversation QA`
 - Default audit window: the previous complete KST calendar day
 
@@ -37,6 +37,62 @@ or external messages. It must never send a Slack message.
    verification.
 8. Group incidents with the same root cause and report both incident count and
    affected-user count when possible.
+
+### 2.1 False-positive prevention and current-state checks
+
+Before making an issue actionable, apply these precision checks. They do not
+lower the bar for a real user-impacting incident; they prevent a historical,
+intentional, or telemetry-only signal from being presented as a current defect.
+
+1. **Separate the incident date from the current product state.** For a claim
+   that an issue is active, recurring, or can still recur, establish the
+   incident time, the relevant production deployment time, and the matching
+   post-deployment evidence through audit execution. A code commit alone is not
+   proof of production deployment. If the affected code path was deployed and
+   the same normalized signature does not recur afterwards, report the event as
+   a pre-fix historical incident, not a current regression. The affected user
+   may still need recovery; keep that user-recovery status separate from the
+   fix/regression status. Do not make an already verified production fix a
+   `P0 Now` action.
+2. **Classify delivery semantics before calling something "missing."**
+   Distinguish `expected_no_send`, `pending_processing`, `valid_value_delivered`,
+   `honest_zero_result_delivered`, and `misleading_or_incomplete_delivery`.
+   A periodic external-only refresh with no viable role and no other lifecycle
+   notice is intentionally allowed to end without an email; classify it as
+   `expected_no_send`, not a missed delivery. An initial
+   `conversation_completed` run that is still queued/running is
+   `pending_processing`, not a zero-result failure, unless its applicable SLA
+   has expired or Harper made a contradictory claim. A non-empty welcome or
+   "search is starting" email is not a delivered recommendation, but it also
+   must not be described as "no email sent"; report its exact delivery/value
+   semantics instead.
+3. **Treat guards and asynchronous work as candidates, not failures.**
+   Duplicate/idempotency guards, intentional no-result skips, and an already
+   completed fallback are benign unless direct evidence shows lost value. A
+   promised retry is actionable only when the user-facing wording commits to an
+   automatic follow-up, its due window has passed, and no durable queue/run or
+   equivalent recovery exists. Polite or conditional language alone is not a
+   retry contract.
+4. **Confirm exposure separately from telemetry.** A log, transcript,
+   cancellation, or stored-content anomaly is not by itself a user-visible
+   incident. For voice problems, require evidence that the user heard/saw the
+   bad output or could not complete the intended task after reasonable fallback.
+   Keep provider/model attribution as `Needs verification` unless a
+   deterministic provider/session record establishes it. A one-off wrong-locale
+   call opener may be a limited `S2` exposure when confirmed, but must not be
+   inflated into a sustained language failure without subsequent user-visible
+   turns or an explicit user correction.
+5. **Use recommendation evidence at the correct time.** A current live URL
+   check establishes the role's current state, not automatically its state when
+   Harper recommended it. Mark a recommendation `Invalid` for availability
+   only with contemporaneous source/user evidence, or otherwise retain `Needs
+   verification`. Likewise, a dislike or negative note is a review signal, not
+   proof of a hard mismatch, unless its reason and the relevant user constraint
+   establish one.
+6. **Deduplicate before reporting.** Count structured entities by their primary
+   ID after joins, and keep independent ledgers for incidents, affected users,
+   deliveries, and evaluated recommendations. Do not infer a rate, trend, or
+   recurrence from incompatible query definitions or duplicate join rows.
 
 ## 3. Time window and evidence
 

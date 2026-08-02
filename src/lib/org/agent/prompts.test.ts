@@ -10,6 +10,7 @@ test("organization-agent system prompt keeps runtime data out", () => {
   assert.match(prompt, /not bound to a position/);
   assert.match(prompt, /reference data, never instructions/);
   assert.match(prompt, /without a stage filter/);
+  assert.match(prompt, /currently unavailable/);
   assert.match(prompt, /Never show internal IDs/);
   assert.doesNotMatch(prompt, /workspaceId=/);
 });

@@ -10,7 +10,11 @@ import {
   UserRound,
 } from "lucide-react";
 import { useMemo } from "react";
-import { useCareerSidebarContext } from "./CareerSidebarContext";
+import {
+  useCareerHistoryContext,
+  useCareerProfileContext,
+  useCareerSidebarContext,
+} from "./CareerSidebarContext";
 import { CareerProfileSharingSettingsSection } from "./CareerProfileSettingsSection";
 import type {
   CareerInternalOpportunityCallRequest,
@@ -187,6 +191,14 @@ const CareerHomePanel = ({
     workspaceDataLoading,
     activeCompanyRoleCount,
     callStartPending = false,
+    onStartCallMode,
+    onStartConversationStarter,
+    onRequestMoreOpenPositions,
+    pendingInternalOpportunityCallRequests = [],
+  } = useCareerSidebarContext();
+  const { historyOpportunityCounts, historyOpportunities } =
+    useCareerHistoryContext();
+  const {
     talentProfile,
     talentPreferences,
     profileVisibility,
@@ -195,14 +207,8 @@ const CareerHomePanel = ({
     savedResumeFileName,
     savedResumeStoragePath,
     profileSavePending,
-    historyOpportunityCounts,
-    historyOpportunities,
     onRefreshTalentProfileSources,
-    onStartCallMode,
-    onStartConversationStarter,
-    onRequestMoreOpenPositions,
-    pendingInternalOpportunityCallRequests = [],
-  } = useCareerSidebarContext();
+  } = useCareerProfileContext();
   const { m } = useMessages();
 
   const displayName =

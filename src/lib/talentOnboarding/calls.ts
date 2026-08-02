@@ -14,6 +14,8 @@ import {
 export const TALENT_CALL_KIND_CAREER_ONBOARDING = "career_onboarding";
 export const TALENT_CALL_STATUS_ACTIVE = "active";
 export const TALENT_CALL_STATUS_COMPLETED = "completed";
+const COMPLETED_ONBOARDING_ACTIVE_CALL_GUARD_MESSAGE =
+  "active career onboarding call is not allowed after onboarding completion";
 
 export type OnboardingChecklistCoverageStatus = "covered";
 export type OnboardingChecklistCoverage = Record<
@@ -126,6 +128,36 @@ async function fetchActiveCareerOnboardingCall(args: {
   return (data ?? null) as TalentCallRow | null;
 }
 
+async function fetchTalentOnboardingDone(args: {
+  admin: TalentAdminClient;
+  userId: string;
+}) {
+  const { data, error } = await args.admin
+    .from("talent_setting")
+    .select("is_onboarding_done")
+    .eq("user_id", args.userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      error.message ?? "Failed to check talent onboarding completion"
+    );
+  }
+
+  return Boolean(data?.is_onboarding_done);
+}
+
+function isCompletedOnboardingActiveCallGuardError(error: {
+  code?: string;
+  message?: string;
+}) {
+  return (
+    error.code === "23514" &&
+    error.message?.includes(COMPLETED_ONBOARDING_ACTIVE_CALL_GUARD_MESSAGE) ===
+      true
+  );
+}
+
 async function updateTalentCallState(args: {
   admin: TalentAdminClient;
   callId: string;
@@ -159,6 +191,10 @@ export async function getOrCreateCareerOnboardingCall(args: {
   const seededCoverage = seedOnboardingChecklistCoverageFromInsights(
     args.initialInsightContent
   );
+  if (await fetchTalentOnboardingDone(args)) {
+    return null;
+  }
+
   const existing = await fetchActiveCareerOnboardingCall(args);
 
   if (existing) {
@@ -207,9 +243,14 @@ export async function getOrCreateCareerOnboardingCall(args: {
 
   if (!error) return data as TalentCallRow;
 
+  if (isCompletedOnboardingActiveCallGuardError(error)) {
+    return null;
+  }
+
   if (error.code === "23505") {
     const racedCall = await fetchActiveCareerOnboardingCall(args);
     if (racedCall) return racedCall;
+    if (await fetchTalentOnboardingDone(args)) return null;
   }
 
   throw new Error(error.message ?? "Failed to create talent call");
@@ -227,6 +268,11 @@ export async function getCareerOnboardingChecklistCoverage(args: {
     initialInsightContent: args.currentInsightContent,
     userId: args.userId,
   });
+  if (!call) {
+    return seedOnboardingChecklistCoverageFromInsights(
+      args.currentInsightContent
+    );
+  }
   return normalizeTalentCallState(call.state).checklist ?? {};
 }
 
@@ -243,6 +289,16 @@ export async function mergeCareerOnboardingChecklistCoverage(args: {
     initialInsightContent: args.currentInsightContent,
     userId: args.userId,
   });
+  if (!call) {
+    const currentCoverage = seedOnboardingChecklistCoverageFromInsights(
+      args.currentInsightContent
+    );
+    return {
+      call: null,
+      changedCount: 0,
+      coverage: mergeCoverage(currentCoverage, args.coveredKeys).coverage,
+    };
+  }
   const state = normalizeTalentCallState(call.state);
   const merged = mergeCoverage(state.checklist ?? {}, args.coveredKeys);
 
@@ -271,9 +327,6 @@ export async function completeActiveCareerOnboardingCall(args: {
   admin: TalentAdminClient;
   userId: string;
 }) {
-  const call = await fetchActiveCareerOnboardingCall(args);
-  if (!call) return null;
-
   const now = new Date().toISOString();
   const { data, error } = await args.admin
     .from("talent_calls")
@@ -283,15 +336,20 @@ export async function completeActiveCareerOnboardingCall(args: {
       status: TALENT_CALL_STATUS_COMPLETED,
       updated_at: now,
     })
-    .eq("id", call.id)
-    .select("*")
-    .single();
+    .eq("user_id", args.userId)
+    .eq("kind", TALENT_CALL_KIND_CAREER_ONBOARDING)
+    .eq("status", TALENT_CALL_STATUS_ACTIVE)
+    .select("*");
 
   if (error) {
     throw new Error(error.message ?? "Failed to complete talent call");
   }
 
-  return data as TalentCallRow;
+  const completedCalls = (data ?? []) as TalentCallRow[];
+  completedCalls.sort((a, b) =>
+    b.last_active_at.localeCompare(a.last_active_at)
+  );
+  return completedCalls[0] ?? null;
 }
 
 export function getOnboardingChecklistCoverageStats(

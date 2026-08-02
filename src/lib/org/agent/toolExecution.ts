@@ -19,6 +19,7 @@ import {
   updateOrgRoleRequestOnly,
   updateOrgWorkspace,
   updateOrgWorkspaceRequestOnly,
+  setOrgCandidateStage,
 } from "@/lib/org/server";
 
 export { createOrgAgentToolExecutionState, promoteOrgAgentToolReadVisibility };
@@ -105,6 +106,22 @@ function stringArray(
   if (items.some((item) => !allowed.includes(item))) {
     throw new OrgAgentToolInputError(
       `employmentTypes must contain only: ${allowed.join(", ")}`
+    );
+  }
+  return items;
+}
+
+function emailArray(value: unknown, maxItems: number) {
+  if (!Array.isArray(value)) {
+    throw new OrgAgentToolInputError("introEmails must be an array");
+  }
+  const items = Array.from(new Set(value.map(text).filter(Boolean))).slice(
+    0,
+    maxItems
+  );
+  if (items.some((item) => item.length > 320)) {
+    throw new OrgAgentToolInputError(
+      "Each introduction email must be at most 320 characters"
     );
   }
   return items;
@@ -210,6 +227,16 @@ export function getOrgAgentToolStatusLabel(args: {
       "포지션 정보를 업데이트하는 중",
       "포지션 정보 업데이트 완료",
       "포지션 정보를 업데이트하지 못했습니다",
+    ],
+    prepare_candidate_connection: [
+      "후보자 연결 방식을 확인하는 중",
+      "후보자 연결 확인 준비 완료",
+      "후보자 연결 확인을 준비하지 못했습니다",
+    ],
+    decide_candidate_connection: [
+      "후보자 연결 결정을 반영하는 중",
+      "후보자 연결 결정 반영 완료",
+      "후보자 연결 결정을 반영하지 못했습니다",
     ],
   };
   const index = args.status === "running" ? 0 : args.status === "done" ? 1 : 2;
@@ -504,16 +531,270 @@ async function executeUpdateRole(args: {
   };
 }
 
+async function executePrepareCandidateConnection(args: {
+  actorId: string;
+  admin: OrgAgentAdminClient;
+  callId: string;
+  input: Record<string, unknown>;
+  name: OrgAgentToolName;
+  slackThreadId: string | null;
+  state: OrgAgentToolExecutionState;
+  user: User;
+  workspaceId: string;
+}) {
+  const current = roleOrThrow(args.state, args.input.roleId);
+  const talentId = requiredText(args.input.talentId, "talentId", 100);
+  const recommendationId = requiredText(
+    args.input.recommendationId,
+    "recommendationId",
+    100
+  );
+  const talent = await readOrgAgentTalent({
+    admin: args.admin,
+    includeProfile: false,
+    roleId: current.roleId,
+    talentId,
+    workspaceId: args.workspaceId,
+  });
+  if (
+    !talent.positions.some(
+      (position) => position.recommendationId === recommendationId
+    )
+  ) {
+    throw new OrgAgentToolInputError(
+      "recommendationId does not belong to this candidate and role"
+    );
+  }
+
+  const confirmation = {
+    actorId: args.actorId,
+    recommendationId,
+    roleId: current.roleId,
+    slackThreadId: args.slackThreadId,
+    talentId,
+  };
+  if (
+    !args.state.candidateConnectionConfirmations.some(
+      (item) =>
+        item.actorId === confirmation.actorId &&
+        item.recommendationId === confirmation.recommendationId &&
+        item.roleId === confirmation.roleId &&
+        item.slackThreadId === confirmation.slackThreadId &&
+        item.talentId === confirmation.talentId
+    )
+  ) {
+    args.state.candidateConnectionConfirmations.push(confirmation);
+  }
+  recordResult(args.state, {
+    callId: args.callId,
+    name: args.name,
+    status: "success",
+    summary: "후보자 연결 방식 확인 준비",
+  });
+  return {
+    candidateEmail: talent.candidate.email,
+    candidateName: talent.candidate.name,
+    nextStep:
+      "Explain the email recipients and connection choices, then ask for confirmation without changing the candidate yet.",
+    requesterEmail: text(args.user.email).toLowerCase() || null,
+    status: "ready_for_confirmation",
+  };
+}
+
+async function hasPriorCandidateConnectionConfirmation(args: {
+  actorId: string;
+  admin: OrgAgentAdminClient;
+  conversation: OrgAgentConversationRow;
+  currentUserMessageId: number;
+  recommendationId: string;
+  roleId: string;
+  slackThreadId: string | null;
+  talentId: string;
+}) {
+  const { data, error } = await (
+    args.admin.from("company_messages" as any) as any
+  )
+    .select("id, metadata, slack_thread_id")
+    .eq("conversation_id", args.conversation.id)
+    .eq("role", "assistant")
+    .lt("id", args.currentUserMessageId)
+    .order("id", { ascending: false })
+    .limit(60);
+  if (error) throw error;
+
+  return (data ?? []).some((row: Record<string, unknown>) => {
+    const rowThreadId = text(row.slack_thread_id) || null;
+    if (rowThreadId !== args.slackThreadId) return false;
+    const confirmations = record(row.metadata).candidateConnectionConfirmations;
+    if (!Array.isArray(confirmations)) return false;
+    return confirmations.some((value) => {
+      const confirmation = record(value);
+      return (
+        text(confirmation.actorId) === args.actorId &&
+        text(confirmation.recommendationId) === args.recommendationId &&
+        text(confirmation.roleId) === args.roleId &&
+        text(confirmation.talentId) === args.talentId &&
+        (text(confirmation.slackThreadId) || null) === args.slackThreadId
+      );
+    });
+  });
+}
+
+async function executeCandidateConnectionDecision(args: {
+  actorId: string;
+  admin: OrgAgentAdminClient;
+  callId: string;
+  conversation: OrgAgentConversationRow;
+  currentUserMessageId: number;
+  input: Record<string, unknown>;
+  name: OrgAgentToolName;
+  slackThreadId: string | null;
+  state: OrgAgentToolExecutionState;
+  user: User;
+  workspaceId: string;
+}) {
+  const current = roleOrThrow(args.state, args.input.roleId);
+  const decision = requiredText(args.input.decision, "decision", 20);
+  if (decision !== "accept" && decision !== "decline") {
+    throw new OrgAgentToolInputError("decision must be accept or decline");
+  }
+  const talentId = requiredText(args.input.talentId, "talentId", 100);
+  const recommendationId = requiredText(
+    args.input.recommendationId,
+    "recommendationId",
+    100
+  );
+  if (args.input.confirmed !== true) {
+    throw new OrgAgentToolInputError(
+      "The user must explicitly confirm the candidate connection decision first"
+    );
+  }
+  const reason = nullableTextField(args.input, "reason", 2_000);
+
+  if (decision === "decline") {
+    const result = await setOrgCandidateStage({
+      expectedPreviousStage: "pending_connection",
+      recommendationId,
+      roleId: current.roleId,
+      stage: "process_stopped",
+      stopNote: reason.present ? reason.value : null,
+      talentId,
+      user: args.user,
+      workspaceId: args.workspaceId,
+    });
+    const changeSummary = "연결 대기 후보자의 프로세스를 중단했습니다.";
+    args.state.updateSummaries.push(changeSummary);
+    recordResult(args.state, {
+      callId: args.callId,
+      name: args.name,
+      status: "success",
+      summary: changeSummary,
+    });
+    return {
+      changeSummary,
+      decision,
+      roleId: result.roleId,
+      stage: result.stage,
+      status: "updated",
+      talentId: result.talentId,
+    };
+  }
+
+  const hasConfirmation = await hasPriorCandidateConnectionConfirmation({
+    actorId: args.actorId,
+    admin: args.admin,
+    conversation: args.conversation,
+    currentUserMessageId: args.currentUserMessageId,
+    recommendationId,
+    roleId: current.roleId,
+    slackThreadId: args.slackThreadId,
+    talentId,
+  });
+  if (!hasConfirmation) {
+    throw new OrgAgentToolInputError(
+      "The candidate connection must be explained and confirmed in a previous assistant reply before it can be sent"
+    );
+  }
+
+  const connectionMethod = text(args.input.connectionMethod) || "intro_email";
+  if (
+    connectionMethod !== "intro_email" &&
+    connectionMethod !== "direct_contact"
+  ) {
+    throw new OrgAgentToolInputError(
+      "connectionMethod must be intro_email or direct_contact"
+    );
+  }
+  if (connectionMethod === "direct_contact" && has(args.input, "introEmails")) {
+    throw new OrgAgentToolInputError(
+      "introEmails can only be used with connectionMethod intro_email"
+    );
+  }
+  const requestedIntroEmails = has(args.input, "introEmails")
+    ? emailArray(args.input.introEmails, 10)
+    : [];
+  const requesterEmail = text(args.user.email).toLowerCase();
+  const introEmails =
+    connectionMethod === "intro_email"
+      ? requestedIntroEmails.length > 0
+        ? requestedIntroEmails
+        : requesterEmail
+          ? [requesterEmail]
+          : []
+      : null;
+  if (connectionMethod === "intro_email" && !introEmails?.length) {
+    throw new OrgAgentToolInputError(
+      "A requester or company recipient email is needed for a warm introduction"
+    );
+  }
+
+  const result = await setOrgCandidateStage({
+    acceptReason: reason.present ? reason.value : null,
+    contactDirectly: connectionMethod === "direct_contact",
+    expectedPreviousStage: "pending_connection",
+    introEmails,
+    recommendationId,
+    roleId: current.roleId,
+    stage: "connected",
+    talentId,
+    user: args.user,
+    workspaceId: args.workspaceId,
+  });
+  const changeSummary =
+    connectionMethod === "intro_email"
+      ? "연결 대기 후보자에게 소개 메일을 보내 연결을 시작했습니다."
+      : "연결 대기 후보자를 연결됨으로 옮겼습니다. 회사에서 직접 연락해야 합니다.";
+  args.state.updateSummaries.push(changeSummary);
+  recordResult(args.state, {
+    callId: args.callId,
+    name: args.name,
+    status: "success",
+    summary: changeSummary,
+  });
+  return {
+    changeSummary,
+    connectionMethod,
+    decision,
+    roleId: result.roleId,
+    stage: result.stage,
+    status: "updated",
+    talentId: result.talentId,
+  };
+}
+
 /**
  * Executes one validated model tool call. This is the only bridge between
  * function-calling and application services.
  */
 export async function executeOrgAgentTool(args: {
+  actorId: string;
   admin: OrgAgentAdminClient;
   callId: string;
   conversation: OrgAgentConversationRow;
+  currentUserMessageId: number;
   input: unknown;
   name: OrgAgentToolName;
+  slackThreadId: string | null;
   state: OrgAgentToolExecutionState;
   user: User;
 }): Promise<Record<string, unknown>> {
@@ -549,11 +830,37 @@ export async function executeOrgAgentTool(args: {
       user: args.user,
       workspaceId,
     });
-  } else {
+  } else if (args.name === "update_role") {
     return executeUpdateRole({
       callId: args.callId,
       input,
       name: args.name,
+      state: args.state,
+      user: args.user,
+      workspaceId,
+    });
+  } else if (args.name === "prepare_candidate_connection") {
+    return executePrepareCandidateConnection({
+      actorId: args.actorId,
+      admin: args.admin,
+      callId: args.callId,
+      input,
+      name: args.name,
+      slackThreadId: args.slackThreadId,
+      state: args.state,
+      user: args.user,
+      workspaceId,
+    });
+  } else {
+    return executeCandidateConnectionDecision({
+      actorId: args.actorId,
+      admin: args.admin,
+      callId: args.callId,
+      conversation: args.conversation,
+      currentUserMessageId: args.currentUserMessageId,
+      input,
+      name: args.name,
+      slackThreadId: args.slackThreadId,
       state: args.state,
       user: args.user,
       workspaceId,

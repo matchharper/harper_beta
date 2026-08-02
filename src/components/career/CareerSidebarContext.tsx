@@ -228,27 +228,188 @@ export type CareerSidebarContextValue = {
   onReloadTalentSettings: () => void | Promise<void>;
 };
 
-const CareerSidebarContext = createContext<CareerSidebarContextValue | null>(
+export type CareerCompanyFollowContextValue = Pick<
+  CareerSidebarContextValue,
+  "onUpdateCompanyFollow" | "user"
+>;
+
+export type CareerHistoryContextValue = Pick<
+  CareerSidebarContextValue,
+  | "hasMoreHistoryOpportunities"
+  | "historyLoading"
+  | "historyLoadingMore"
+  | "historyOpportunities"
+  | "historyOpportunityCounts"
+  | "historyUpdateError"
+  | "historyUpdatingOpportunityIds"
+  | "isHistoryOpportunityPageFilterLoading"
+  | "onChangeInternalHistoryOpportunityDecision"
+  | "onLoadHistoryOpportunityByRoleId"
+  | "onLoadMoreHistoryOpportunities"
+  | "onLoadSavedStageHistoryOpportunityPages"
+  | "onMarkHistoryOpportunityClicked"
+  | "onMarkHistoryOpportunityViewed"
+  | "onUpdateHistoryOpportunityFeedback"
+  | "onUpdateHistoryOpportunitySavedStage"
+  | "onUpdateHistoryOpportunityTalentMemo"
+>;
+
+export type CareerProfileContextValue = Pick<
+  CareerSidebarContextValue,
+  | "blockedCompanies"
+  | "engagementTypes"
+  | "hasUnsavedTalentInsightsChanges"
+  | "hasUnsavedTalentPreferencesChanges"
+  | "hasUnsavedTalentSettingsChanges"
+  | "onAddBlockedCompany"
+  | "onAddProfileLink"
+  | "onEngagementTypesChange"
+  | "onProfileLinkChange"
+  | "onProfileVisibilityChange"
+  | "onRefreshTalentProfileSources"
+  | "onReloadTalentSettings"
+  | "onRemoveBlockedCompany"
+  | "onRemoveProfileLink"
+  | "onResetTalentInsights"
+  | "onResetTalentPreferences"
+  | "onResetTalentSettings"
+  | "onResumeFileChange"
+  | "onSaveTalentInsights"
+  | "onSaveTalentPreferences"
+  | "onSaveTalentProfile"
+  | "onSaveTalentSettings"
+  | "onTalentInsightsChange"
+  | "onTalentPreferencesChange"
+  | "onUpdateAccountProfile"
+  | "preferredLocale"
+  | "profileLinks"
+  | "profileSaveError"
+  | "profileSaveInfo"
+  | "profileSavePending"
+  | "profileVisibility"
+  | "resumeFile"
+  | "savedProfileLinks"
+  | "savedResumeDownloadUrl"
+  | "savedResumeFileName"
+  | "savedResumeStoragePath"
+  | "settingsError"
+  | "settingsLoading"
+  | "settingsSaving"
+  | "settingsUpdatedAt"
+  | "talentInsights"
+  | "talentInsightsSaveError"
+  | "talentInsightsSaveInfo"
+  | "talentInsightsSavePending"
+  | "talentInsightsUpdatedAt"
+  | "talentPreferences"
+  | "talentPreferencesSaveError"
+  | "talentPreferencesSaveInfo"
+  | "talentPreferencesSavePending"
+  | "talentPreferencesUpdatedAt"
+  | "talentProfile"
+  | "user"
+>;
+
+export type CareerWorkspaceContextValue = Omit<
+  CareerSidebarContextValue,
+  | keyof CareerCompanyFollowContextValue
+  | keyof CareerHistoryContextValue
+  | keyof CareerProfileContextValue
+> & {
+  user: CareerSidebarContextValue["user"];
+};
+
+const CareerSidebarContext = createContext<CareerWorkspaceContextValue | null>(
+  null
+);
+const CareerCompanyFollowContext =
+  createContext<CareerCompanyFollowContextValue | null>(null);
+const CareerHistoryContext = createContext<CareerHistoryContextValue | null>(
+  null
+);
+const CareerProfileContext = createContext<CareerProfileContextValue | null>(
   null
 );
 
+type CareerSidebarProviderProps =
+  | {
+      children: React.ReactNode;
+      companyFollowValue: CareerCompanyFollowContextValue;
+      historyValue: CareerHistoryContextValue;
+      profileValue: CareerProfileContextValue;
+      value: CareerWorkspaceContextValue;
+    }
+  | {
+      children: React.ReactNode;
+      companyFollowValue?: never;
+      historyValue?: never;
+      profileValue?: never;
+      value: CareerSidebarContextValue;
+    };
+
 export const CareerSidebarProvider = ({
-  value,
   children,
-}: {
-  value: CareerSidebarContextValue;
-  children: React.ReactNode;
-}) => (
-  <CareerSidebarContext.Provider value={value}>
-    {children}
-  </CareerSidebarContext.Provider>
-);
+  companyFollowValue,
+  historyValue,
+  profileValue,
+  value,
+}: CareerSidebarProviderProps) => {
+  const compatibilityValue = value as CareerSidebarContextValue;
+
+  return (
+    <CareerSidebarContext.Provider value={value}>
+      <CareerCompanyFollowContext.Provider
+        value={companyFollowValue ?? compatibilityValue}
+      >
+        <CareerHistoryContext.Provider
+          value={historyValue ?? compatibilityValue}
+        >
+          <CareerProfileContext.Provider
+            value={profileValue ?? compatibilityValue}
+          >
+            {children}
+          </CareerProfileContext.Provider>
+        </CareerHistoryContext.Provider>
+      </CareerCompanyFollowContext.Provider>
+    </CareerSidebarContext.Provider>
+  );
+};
 
 export const useCareerSidebarContext = () => {
   const context = useContext(CareerSidebarContext);
   if (!context) {
     throw new Error(
       "useCareerSidebarContext must be used inside CareerSidebarProvider"
+    );
+  }
+  return context;
+};
+
+export const useCareerCompanyFollowContext = () => {
+  const context = useContext(CareerCompanyFollowContext);
+  if (!context) {
+    throw new Error(
+      "useCareerCompanyFollowContext must be used inside CareerSidebarProvider"
+    );
+  }
+  return context;
+};
+
+export const useCareerHistoryContext = () => {
+  const context = useContext(CareerHistoryContext);
+  if (!context) {
+    throw new Error(
+      "useCareerHistoryContext must be used inside CareerSidebarProvider"
+    );
+  }
+  return context;
+};
+
+export const useCareerProfileContext = () => {
+  const context = useContext(CareerProfileContext);
+  if (!context) {
+    throw new Error(
+      "useCareerProfileContext must be used inside CareerSidebarProvider"
     );
   }
   return context;

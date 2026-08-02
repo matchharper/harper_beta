@@ -13,7 +13,7 @@ import Image from "next/image";
 import React, { useMemo, useState } from "react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import ResumeDropzone from "@/components/career/ResumeDropzone";
-import { useCareerSidebarContext } from "@/components/career/CareerSidebarContext";
+import { useCareerProfileContext } from "@/components/career/CareerSidebarContext";
 import { getCareerLinkLabels } from "@/components/career/constants";
 import LoadingState from "@/components/career/OnboardingLoadingState";
 import { showToast } from "@/components/toast/toast";
@@ -100,7 +100,7 @@ const CareerResumeLinksSettingsSection = () => {
     onRemoveProfileLink,
     onSaveTalentProfile,
     onRefreshTalentProfileSources,
-  } = useCareerSidebarContext();
+  } = useCareerProfileContext();
   const [isProcessingSourceUpdate, setIsProcessingSourceUpdate] =
     useState(false);
 
@@ -314,7 +314,10 @@ const CareerResumeLinksSettingsSection = () => {
                     logCareerEvent("click_resume_links_remove_link");
                     onRemoveProfileLink(index);
                   }}
-                  aria-label={t("career.settings.career_resume_links_settings_section.114mcb5", "링크 삭제")}
+                  aria-label={t(
+                    "career.settings.career_resume_links_settings_section.114mcb5",
+                    "링크 삭제"
+                  )}
                 >
                   <X className="h-4 w-4" />
                 </MuteButton>

@@ -10,10 +10,7 @@ import {
 import type { User } from "@supabase/supabase-js";
 import { useCareerVoiceInput } from "@/components/career/useCareerVoiceInput";
 import { useRealtimeSession } from "@/hooks/career/useRealtimeSession";
-import type {
-  RealtimeAssistantResponseContext,
-  RealtimeUserSpeechStartedContext,
-} from "@/hooks/career/useRealtimeSession";
+import type { RealtimeUserSpeechStartedContext } from "@/hooks/career/useRealtimeSession";
 import type {
   CallLiveTranscriptPlacement,
   CareerCallStartRequest,
@@ -800,7 +797,13 @@ export const useCareerOnboardingVoice = ({
     ((delta: string) => void) | null
   >(null);
   const finalizeCallAssistantTranscriptRef = useRef<
-    ((text: string) => void) | null
+    | ((
+        text: string,
+        options?: {
+          alreadyRendered?: boolean;
+        }
+      ) => void)
+    | null
   >(null);
   const handleRealtimeTranscript = useCallback(
     (text: string) => {
@@ -837,9 +840,9 @@ export const useCareerOnboardingVoice = ({
       if (!pendingAssistant || inputModeRef.current !== "call") return;
 
       pendingAssistantDoneRef.current = null;
-      if (!pendingAssistant.rendered) {
-        finalizeCallAssistantTranscriptRef.current?.(pendingAssistant.text);
-      }
+      finalizeCallAssistantTranscriptRef.current?.(pendingAssistant.text, {
+        alreadyRendered: pendingAssistant.rendered,
+      });
       void saveRealtimeTurn({
         userText: combinedUserText,
         assistantText: pendingAssistant.text,
@@ -901,22 +904,6 @@ export const useCareerOnboardingVoice = ({
       appendCallAssistantTranscriptDeltaRef.current?.(cleanDelta);
     },
     [markUserTranscriptionPending, queueAssistantBufferFlush]
-  );
-
-  const handleRealtimeAssistantResponseStarted = useCallback(
-    (context: RealtimeAssistantResponseContext) => {
-      if (
-        context.provider !== "xai" ||
-        !context.startedAfterUserSpeech ||
-        inputModeRef.current !== "call"
-      ) {
-        return;
-      }
-
-      liveUserTranscriptPlacementRef.current = "beforeCurrentAssistant";
-      setLiveUserTranscriptPlacement("beforeCurrentAssistant");
-    },
-    []
   );
 
   const handleRealtimeAssistantDone = useCallback(
@@ -1121,7 +1108,6 @@ export const useCareerOnboardingVoice = ({
     onTranscript: handleRealtimeTranscript,
     onAssistantDelta: handleRealtimeAssistantDelta,
     onAssistantDone: handleRealtimeAssistantDone,
-    onAssistantResponseStarted: handleRealtimeAssistantResponseStarted,
     onError: handleRealtimeError,
     onConnectionChange: handleRealtimeConnectionChange,
     onEndCallTool: scheduleCallEndAfterRealtimePlayback,
@@ -1831,5 +1817,6 @@ export const useCareerOnboardingVoice = ({
     handleProfileSubmitSuccess,
     resetOnboardingState,
     isAssistantSpeaking: realtimeSession.isAssistantSpeaking,
+    isVoiceToolExecuting: realtimeSession.isToolExecuting,
   };
 };

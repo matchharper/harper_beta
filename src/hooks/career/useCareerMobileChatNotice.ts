@@ -6,6 +6,7 @@ type LatestAssistantMessage = {
 };
 
 type NoticeSnapshot = {
+  conversationKey: string | null;
   initialized: boolean;
   lastSeenKey: string | null;
   promptKey: string | null;
@@ -14,6 +15,7 @@ type NoticeSnapshot = {
 };
 
 const EMPTY_NOTICE_SNAPSHOT: NoticeSnapshot = {
+  conversationKey: null,
   initialized: false,
   lastSeenKey: null,
   promptKey: null,
@@ -39,7 +41,7 @@ const getLatestAssistantMessage = (
   return null;
 };
 
-class MobileChatNoticeStore {
+export class MobileChatNoticeStore {
   private snapshot = EMPTY_NOTICE_SNAPSHOT;
   private listeners = new Set<() => void>();
 
@@ -53,18 +55,25 @@ class MobileChatNoticeStore {
   };
 
   updateLatest(args: {
+    conversationKey: string | null;
     latestKey: string | null;
     open: boolean;
+    ready: boolean;
     visibleMs: number;
   }) {
-    const { latestKey, open, visibleMs } = args;
+    const { conversationKey, latestKey, open, ready, visibleMs } = args;
 
-    if (!latestKey) {
-      if (!this.snapshot.initialized) {
-        this.setSnapshot({ ...this.snapshot, initialized: true });
-      }
+    if (conversationKey !== this.snapshot.conversationKey) {
+      this.setSnapshot({
+        ...EMPTY_NOTICE_SNAPSHOT,
+        conversationKey,
+        initialized: ready,
+        lastSeenKey: ready ? latestKey : null,
+      });
       return;
     }
+
+    if (!ready) return;
 
     if (!this.snapshot.initialized) {
       this.setSnapshot({
@@ -74,6 +83,8 @@ class MobileChatNoticeStore {
       });
       return;
     }
+
+    if (!latestKey) return;
 
     if (open) {
       this.setSnapshot({
@@ -120,6 +131,7 @@ class MobileChatNoticeStore {
 
   private setSnapshot(nextSnapshot: NoticeSnapshot) {
     if (
+      this.snapshot.conversationKey === nextSnapshot.conversationKey &&
       this.snapshot.initialized === nextSnapshot.initialized &&
       this.snapshot.lastSeenKey === nextSnapshot.lastSeenKey &&
       this.snapshot.promptKey === nextSnapshot.promptKey &&
@@ -137,11 +149,19 @@ class MobileChatNoticeStore {
 }
 
 export function useCareerMobileChatNotice(args: {
+  conversationId: string | null;
   messages: CareerMessage[];
   open: boolean;
   promptVisibleMs?: number;
+  ready: boolean;
 }) {
-  const { messages, open, promptVisibleMs = DEFAULT_PROMPT_VISIBLE_MS } = args;
+  const {
+    conversationId,
+    messages,
+    open,
+    promptVisibleMs = DEFAULT_PROMPT_VISIBLE_MS,
+    ready,
+  } = args;
   const store = useMemo(() => new MobileChatNoticeStore(), []);
   const snapshot = useSyncExternalStore(
     store.subscribe,
@@ -156,11 +176,13 @@ export function useCareerMobileChatNotice(args: {
 
   useEffect(() => {
     store.updateLatest({
+      conversationKey: conversationId,
       latestKey,
       open,
+      ready,
       visibleMs: promptVisibleMs,
     });
-  }, [latestKey, open, promptVisibleMs, store]);
+  }, [conversationId, latestKey, open, promptVisibleMs, ready, store]);
 
   useEffect(() => {
     const promptKey = snapshot.promptKey;

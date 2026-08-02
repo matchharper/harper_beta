@@ -43,11 +43,38 @@
 ## Context Boundaries
 
 - `CareerSidebarContext.tsx`
-  - profile/settings/history/sidebar 쪽에서 쓰는 읽기/쓰기 상태 계약입니다.
-  - 저장 상태, dirty 상태, reset/save 액션도 여기에 포함됩니다.
+  - preview 호환을 위해 `CareerSidebarContextValue` 전체 계약은 유지합니다.
+  - runtime 구독은 변경 빈도와 도메인에 따라 다음 hook으로 분리합니다.
+    - `useCareerSidebarContext` — workspace shell, onboarding/run 상태와 공통 액션
+    - `useCareerHistoryContext` — opportunity history 조회 결과와 액션
+    - `useCareerProfileContext` — profile/preferences/insights/settings draft와 저장 액션
+    - `useCareerCompanyFollowContext` — company follow 전용 상태와 액션
 
 - `CareerChatPanelContext.tsx`
-  - chat 패널 전용 상태 계약입니다.
+  - `useCareerChatPanelContext` — chat/timeline/composer 상태
+  - `useCareerCallContext` — transcript, mute, connection 등 고빈도 call 상태
+  - call transcript가 바뀔 때 일반 chat/profile/history consumer가 다시 렌더되지
+    않도록 별도 context로 유지합니다.
+
+## Prompt-critical Data Loading
+
+UI에 현재 보이는 탭과 prompt에 필요한 데이터의 로딩 시점은 분리되어 있습니다.
+
+- text chat `/api/talent/chat`
+  - 요청 시점에 서버가 talent setting, insights, structured profile, 최근 대화와
+    추천 기회를 조회해 prompt를 만듭니다.
+- voice call `/api/realtime/token`
+  - `buildCareerRealtimeSessionInstructions`가 요청 시점의 DB 데이터를 조회해
+    realtime instructions를 만듭니다.
+- `settingsDataEnabled`
+  - profile/settings 편집 UI의 클라이언트 조회 시점만 제어합니다.
+  - prompt용 setting/insight/profile 로딩을 제어하면 안 됩니다.
+- `/api/talent/session`
+  - workspace bootstrap과 UI hydration에 사용합니다. 이 응답의 클라이언트
+    복사본을 prompt 데이터의 유일한 소스로 간주하지 않습니다.
+
+따라서 탭 lazy loading이나 Context 경계를 변경할 때도 chat/realtime API의
+서버-side prompt 조회는 visible UI 여부와 무관하게 유지해야 합니다.
 
 ## Main UI Files
 

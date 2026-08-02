@@ -17,7 +17,11 @@ import CareerCompanyDetailDrawer from "@/components/career/watchlist/CareerCompa
 import CareerSupportInquiryModal from "@/components/career/CareerSupportInquiryModal";
 import HistoryOpportunityInfoModal from "@/components/career/history/HistoryOppotunityInfoModal";
 import InternalConnectionAcceptanceModal from "@/components/career/InternalConnectionAcceptanceModal";
-import { useCareerSidebarContext } from "@/components/career/CareerSidebarContext";
+import {
+  useCareerHistoryContext,
+  useCareerProfileContext,
+  useCareerSidebarContext,
+} from "@/components/career/CareerSidebarContext";
 import CareerWorkspaceNav, {
   type CareerWorkspaceTab,
 } from "@/components/career/CareerWorkspaceNav";
@@ -373,7 +377,7 @@ const CareerWorkspaceRoot = ({
       : CAREER_CHAT_PANEL_DEFAULT_WIDTH_PCT,
     onResizeEnd: handleChatPanelResizeEnd,
   });
-  const { historyOpportunityCounts } = useCareerSidebarContext();
+  const { historyOpportunityCounts } = useCareerHistoryContext();
   const activeTab = controlledActiveTab ?? activeTabState;
   const handleChangeTab =
     controlledOnChangeTab ??
@@ -530,7 +534,7 @@ const CareerWorkspaceRoot = ({
 };
 
 const useMobileUserDisplay = () => {
-  const { preferredLocale, user, talentProfile } = useCareerSidebarContext();
+  const { preferredLocale, user, talentProfile } = useCareerProfileContext();
   const authDisplayName =
     user?.user_metadata?.full_name ??
     user?.user_metadata?.name ??
@@ -577,6 +581,8 @@ const CareerWorkspaceMobileHistoryView = ({
     callStartPending,
     onStartCallMode,
     onUseChatOnly,
+  } = useCareerSidebarContext();
+  const {
     historyOpportunities,
     historyOpportunityCounts,
     historyLoading,
@@ -590,7 +596,7 @@ const CareerWorkspaceMobileHistoryView = ({
     onUpdateHistoryOpportunitySavedStage,
     onUpdateHistoryOpportunityTalentMemo,
     onMarkHistoryOpportunityClicked,
-  } = useCareerSidebarContext();
+  } = useCareerHistoryContext();
   const {
     displayName,
     preferredLocale,

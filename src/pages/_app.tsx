@@ -9,9 +9,6 @@ import { Analytics } from "@vercel/analytics/react";
 import { useEffect, useLayoutEffect, useState } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import dynamic from "next/dynamic";
-import CareerLanguageDevControls from "@/i18n/CareerLanguageDevControls";
-import CareerTranslationInspectOverlay from "@/i18n/CareerTranslationInspectOverlay";
-import { CareerTranslationInspectProvider } from "@/i18n/CareerTranslationInspectProvider";
 import CareerTranslationRuntime from "@/i18n/CareerTranslationRuntime";
 import {
   getCurrentCareerTranslationPath,
@@ -120,13 +117,9 @@ export default function App({ Component, pageProps }: AppProps) {
   }, [init]);
 
   const page = isCareerPage ? (
-    <CareerTranslationInspectProvider>
-      <CareerTranslationRuntime>
-        <Component {...pageProps} />
-        <CareerLanguageDevControls />
-      </CareerTranslationRuntime>
-      <CareerTranslationInspectOverlay />
-    </CareerTranslationInspectProvider>
+    <CareerTranslationRuntime>
+      <Component {...pageProps} />
+    </CareerTranslationRuntime>
   ) : (
     <Component {...pageProps} />
   );

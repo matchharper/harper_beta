@@ -381,6 +381,28 @@ function formatUpdateResult(
   ].join("\n");
 }
 
+function formatCandidateConnectionDecisionResult(result: Record<string, any>) {
+  return [
+    `status=${formatPromptCell(result.status, 40)}`,
+    `change=${formatPromptCell(result.changeSummary, 500)}`,
+    `decision=${formatPromptCell(result.decision, 30)}`,
+    `connection_method=${formatPromptCell(result.connectionMethod, 40)}`,
+    `stage=${formatPromptCell(result.stage, 100)}`,
+  ].join("\n");
+}
+
+function formatCandidateConnectionPreparationResult(
+  result: Record<string, any>
+) {
+  return [
+    `status=${formatPromptCell(result.status, 40)}`,
+    `candidate=${formatPromptCell(result.candidateName, 160)}`,
+    `candidate_email=${formatPromptCell(result.candidateEmail, 320)}`,
+    `requester_email=${formatPromptCell(result.requesterEmail, 320)}`,
+    `next_step=${formatPromptCell(result.nextStep, 160)}`,
+  ].join("\n");
+}
+
 /**
  * Database-shaped objects remain useful internally, but are a poor LLM
  * boundary. Each tool gets a small schema-once view containing only facts the
@@ -394,6 +416,12 @@ export function serializeOrgAgentToolResult(
   if (name === "get_talents") return formatTalentSearchResult(result);
   if (name === "read_talent") return formatTalentResult(result);
   if (name === "read_role") return formatRoleResult(result);
+  if (name === "decide_candidate_connection") {
+    return formatCandidateConnectionDecisionResult(result);
+  }
+  if (name === "prepare_candidate_connection") {
+    return formatCandidateConnectionPreparationResult(result);
+  }
   return formatUpdateResult(name, result);
 }
 

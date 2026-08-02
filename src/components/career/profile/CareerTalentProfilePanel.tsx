@@ -14,7 +14,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { useRouter } from "next/router";
-import { useCareerSidebarContext } from "../CareerSidebarContext";
+import { useCareerProfileContext } from "../CareerSidebarContext";
 import type {
   CareerTalentEducation,
   CareerTalentExperience,
@@ -541,7 +541,7 @@ const CareerTalentProfilePanel = ({
     profileSaveError,
     onSaveTalentProfile,
     onUpdateAccountProfile,
-  } = useCareerSidebarContext();
+  } = useCareerProfileContext();
   const { talentUser, talentExperiences, talentEducations, talentExtras } =
     talentProfile;
   const [isEditing, setIsEditing] = useState(false);

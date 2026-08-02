@@ -15,6 +15,9 @@ export type OrgAgentToolResultMetadata = NonNullable<
 
 export type OrgAgentToolExecutionState = {
   actions: OrgAgentMessageAction[];
+  candidateConnectionConfirmations: NonNullable<
+    OrgAgentMessageMetadata["candidateConnectionConfirmations"]
+  >;
   company: OrgWorkspace;
   fullRoleRequestIds: Set<string>;
   pendingFullRoleRequestIds: Set<string>;
@@ -29,6 +32,7 @@ export function createOrgAgentToolExecutionState(
 ): OrgAgentToolExecutionState {
   return {
     actions: [],
+    candidateConnectionConfirmations: [],
     company: { ...context.workspace },
     fullRoleRequestIds: new Set(context.completeRoleRequestIds),
     pendingFullRoleRequestIds: new Set(),

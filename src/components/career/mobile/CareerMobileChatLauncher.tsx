@@ -13,7 +13,10 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { cn } from "@/lib/utils";
-import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
+import {
+  useCareerCallContext,
+  useCareerChatPanelContext,
+} from "@/components/career/CareerChatPanelContext";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useCareerMobileChatNotice } from "@/hooks/career/useCareerMobileChatNotice";
 import { BareButton } from "@/components/ui/button";
@@ -157,24 +160,26 @@ function CareerMobileChatLauncher({
     assistantTyping,
     callWrapUpPending,
     chatPending,
-    callConnectionStatus,
+    conversationId,
     isOnboardingDone,
     messages,
     onboardingWrapupPending,
     opportunityFeedbackFollowUpPending,
+    sessionPending,
     sessionReengagementPending,
-    voiceMuted,
-    onToggleVoiceMute,
-    onEndCallMode,
     stage,
   } = useCareerChatPanelContext();
+  const { callConnectionStatus, voiceMuted, onToggleVoiceMute, onEndCallMode } =
+    useCareerCallContext();
   const isCallActive =
     callConnectionStatus === "connected" ||
     callConnectionStatus === "reconnecting";
   const showMinimizedCall = isCallActive && !open;
   const chatNotice = useCareerMobileChatNotice({
+    conversationId,
     messages,
     open,
+    ready: !sessionPending && Boolean(conversationId),
   });
   const harperPreparing =
     !open &&

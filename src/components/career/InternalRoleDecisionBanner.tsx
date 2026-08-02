@@ -1,6 +1,6 @@
 import { ArrowRight, BriefcaseBusiness, HeartHandshake } from "lucide-react";
 import { useMemo, useState } from "react";
-import { useCareerSidebarContext } from "@/components/career/CareerSidebarContext";
+import { useCareerHistoryContext } from "@/components/career/CareerSidebarContext";
 import { ActionButton } from "@/components/ui/button";
 import { getHistoryOpportunityBucket } from "@/hooks/career/careerSessionData";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
@@ -28,7 +28,7 @@ const InternalRoleDecisionBanner = ({
   const logCareerEvent = useCareerLogEvent();
   const [renderedAt] = useState(() => Date.now());
   const { historyOpportunities, historyOpportunityCounts } =
-    useCareerSidebarContext();
+    useCareerHistoryContext();
 
   const pendingInternalRoles = useMemo(
     () =>

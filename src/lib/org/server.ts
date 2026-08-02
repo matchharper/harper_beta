@@ -2660,6 +2660,7 @@ export async function setOrgCandidateStage(args: {
   acceptReason?: string | null;
   contactDirectly?: boolean;
   emailMode?: InternalConnectionConfirmationEmailMode;
+  expectedPreviousStage?: OrgStageId;
   introEmails?: string[] | null;
   recommendationId: string;
   roleId: string;
@@ -2752,6 +2753,16 @@ export async function setOrgCandidateStage(args: {
       savedStage: recommendation.saved_stage,
       tags: (previousTags ?? []) as TalentOpportunityTagRow[],
     })?.stage ?? "pending_connection";
+
+  if (
+    args.expectedPreviousStage &&
+    previousStage !== args.expectedPreviousStage
+  ) {
+    throw new OrgHttpError(
+      409,
+      "Candidate is no longer awaiting a connection decision"
+    );
+  }
 
   if (
     requiresOrgIntroEmailRecipient(previousStage, stage, contactDirectly) &&

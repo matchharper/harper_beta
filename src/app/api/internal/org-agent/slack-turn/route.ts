@@ -9,6 +9,7 @@ import {
   postHarperSlackMessage,
   syncHarperSlackThreadContext,
 } from "@/lib/org/slackHarper";
+import { getSlackOrgAgentModel } from "@/lib/org/agent/modelConfig";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 
 export const maxDuration = 180;
@@ -125,6 +126,7 @@ export async function POST(req: NextRequest) {
         message: prompt,
         messageType: "slack",
         messageUserId: null,
+        model: getSlackOrgAgentModel(),
         slackAssistantUserId: integration.slack_bot_user_id,
         slackThreadId: thread.id,
         slackUserId,

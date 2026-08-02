@@ -19,6 +19,7 @@ import {
   normalizeOrgMembershipRole,
 } from "@/lib/org/permissions";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
+import { createSlackApiRequest } from "./slackApiRequest";
 
 const CALLBACK_PATH = "/api/org/slack/callback";
 const STATE_TTL_MS = 10 * 60 * 1000;
@@ -256,14 +257,10 @@ export async function slackApi<T extends SlackApiResult>(
   method: string,
   body: Record<string, unknown> = {}
 ) {
-  const response = await fetch(`https://slack.com/api/${method}`, {
-    body: JSON.stringify(body),
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json; charset=utf-8",
-    },
-    method: "POST",
-  });
+  const response = await fetch(
+    `https://slack.com/api/${method}`,
+    createSlackApiRequest(token, body)
+  );
   const payload = (await response.json().catch(() => null)) as T | null;
   if (!response.ok || !payload?.ok)
     throw new HarperSlackError(

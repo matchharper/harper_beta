@@ -74,6 +74,23 @@ test("organization-agent update results contain only acknowledgement fields", ()
   assert.doesNotMatch(compact, new RegExp("x".repeat(100)));
 });
 
+test("candidate connection decisions return a compact outcome", () => {
+  const compact = serializeOrgAgentToolResult("decide_candidate_connection", {
+    changeSummary: "연결 대기 후보자에게 소개 메일을 보내 연결을 시작했습니다.",
+    connectionMethod: "intro_email",
+    decision: "accept",
+    roleId: "role-1",
+    stage: "connected",
+    status: "updated",
+    talentId: "talent-1",
+  });
+
+  assert.match(compact, /decision=accept/);
+  assert.match(compact, /connection_method=intro_email/);
+  assert.match(compact, /stage=connected/);
+  assert.doesNotMatch(compact, /talent-1/);
+});
+
 test("organization-agent role results expose whole-pipeline stage counts", () => {
   const compact = serializeOrgAgentToolResult("read_role", {
     availableStages: [],

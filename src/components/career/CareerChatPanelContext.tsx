@@ -136,28 +136,75 @@ export type CareerChatPanelContextValue = {
   liveUserTranscriptPlacement?: CallLiveTranscriptPlacement;
   callConnectionStatus?: "connected" | "reconnecting" | "disconnected";
   isAssistantSpeaking?: boolean;
+  isVoiceToolExecuting?: boolean;
 };
 
+export type CareerCallContextValue = Pick<
+  CareerChatPanelContextValue,
+  | "callConnectionStatus"
+  | "callTranscriptEntries"
+  | "isAssistantSpeaking"
+  | "isVoiceToolExecuting"
+  | "liveUserTranscriptPlacement"
+  | "onEndCallMode"
+  | "onToggleVoiceMute"
+  | "voiceMuted"
+  | "voiceTranscript"
+>;
+
+export type CareerChatPanelCoreContextValue = Omit<
+  CareerChatPanelContextValue,
+  keyof CareerCallContextValue
+>;
+
 const CareerChatPanelContext =
-  createContext<CareerChatPanelContextValue | null>(null);
+  createContext<CareerChatPanelCoreContextValue | null>(null);
+const CareerCallContext = createContext<CareerCallContextValue | null>(null);
+
+type CareerChatPanelProviderProps =
+  | {
+      callValue: CareerCallContextValue;
+      children: React.ReactNode;
+      value: CareerChatPanelCoreContextValue;
+    }
+  | {
+      callValue?: never;
+      children: React.ReactNode;
+      value: CareerChatPanelContextValue;
+    };
 
 export const CareerChatPanelProvider = ({
+  callValue,
   value,
   children,
-}: {
-  value: CareerChatPanelContextValue;
-  children: React.ReactNode;
-}) => (
-  <CareerChatPanelContext.Provider value={value}>
-    {children}
-  </CareerChatPanelContext.Provider>
-);
+}: CareerChatPanelProviderProps) => {
+  const compatibilityValue = value as CareerChatPanelContextValue;
+  const resolvedCallValue = callValue ?? compatibilityValue;
+
+  return (
+    <CareerChatPanelContext.Provider value={value}>
+      <CareerCallContext.Provider value={resolvedCallValue}>
+        {children}
+      </CareerCallContext.Provider>
+    </CareerChatPanelContext.Provider>
+  );
+};
 
 export const useCareerChatPanelContext = () => {
   const context = useContext(CareerChatPanelContext);
   if (!context) {
     throw new Error(
       "useCareerChatPanelContext must be used inside CareerChatPanelProvider"
+    );
+  }
+  return context;
+};
+
+export const useCareerCallContext = () => {
+  const context = useContext(CareerCallContext);
+  if (!context) {
+    throw new Error(
+      "useCareerCallContext must be used inside CareerChatPanelProvider"
     );
   }
   return context;

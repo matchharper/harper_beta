@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useCallback, useEffect, useState } from "react";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { getErrorMessage } from "@/hooks/career/careerHelpers";
-import { useCareerSidebarContext } from "@/components/career/CareerSidebarContext";
+import { useCareerCompanyFollowContext } from "@/components/career/CareerSidebarContext";
 import { useMessages } from "@/i18n/useMessage";
 import { CompanyDetailView } from "./CompanyDetailView";
 import type {
@@ -34,7 +34,7 @@ const CareerCompanyDetailDrawer = ({
   const queryClient = useQueryClient();
   const { fetchWithAuth } = useCareerApi();
   const { locale } = useMessages();
-  const { onUpdateCompanyFollow, user } = useCareerSidebarContext();
+  const { onUpdateCompanyFollow, user } = useCareerCompanyFollowContext();
   const userId = user?.id ?? null;
   const [updatingCompanyId, setUpdatingCompanyId] = useState<number | null>(
     null

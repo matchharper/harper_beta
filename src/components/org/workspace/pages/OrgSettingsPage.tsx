@@ -1,4 +1,13 @@
-import { Hash, LoaderCircle, Plus, Trash2 } from "lucide-react";
+import {
+  ChevronDown,
+  Ellipsis,
+  Hash,
+  LoaderCircle,
+  Plus,
+  Slack,
+  SlackIcon,
+  Trash2,
+} from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
@@ -18,6 +27,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useAddOrgSlackChannel,
@@ -215,74 +230,117 @@ export function OrgSettingsPage() {
             />
           ) : status?.connected ? (
             <div className="space-y-6">
-              <div className="flex flex-col gap-4 border-y border-neutral-1000-a05 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-3">
-                  <span
-                    aria-hidden="true"
-                    className="size-2 shrink-0 rounded-full bg-positive"
-                  />
+              <div className="relative w-full flex items-center justify-center overflow-hidden rounded-3xl p-7">
+                <Image
+                  alt=""
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 size-full object-cover"
+                  fill
+                  sizes="100vw"
+                  src="/images/bluesky.jpg"
+                />
+                <div className="relative flex flex-col gap-4 rounded-2xl bg-white/70 backdrop-blur-sm px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:w-[60%]">
                   <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[14px] font-medium text-neutral-primary">
-                        {status.teamName || "Slack"}
-                      </span>
-                      <Badge
-                        radius="full"
-                        size="sm"
-                        tone="positive"
-                        variant="faded"
-                      >
-                        연결됨
-                      </Badge>
+                    <div className="text-[15px] font-normal text-neutral-primary">
+                      {status.teamName || "Harper"}
                     </div>
-                    <div className="mt-1 text-[12px] font-light text-neutral-muted">
-                      {status.channels.length}개 허용 채널
+                    <div className="mt-0.5 text-[13px] font-light text-neutral-muted">
+                      연결된 채널 {status.channels.length}개
                     </div>
                   </div>
-                </div>
-                {permissions.canManageIntegrations &&
-                status.availableChannels.length > 0 ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <select
-                      className="h-9 rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 text-[13px]"
-                      onChange={(event) => setNewChannelId(event.target.value)}
-                      value={newChannelId}
-                    >
-                      <option value="">채널 선택</option>
-                      {status.availableChannels.map((channel) => (
-                        <option
-                          key={channel.channelId}
-                          value={channel.channelId}
+                  {permissions.canManageIntegrations ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <MuteButton
+                          aria-label="Slack 연결 관리"
+                          className="self-start sm:self-auto gap-6"
+                          size="md"
+                          variant="default"
                         >
-                          {formatChannel(
-                            channel.channelName,
-                            channel.channelId
-                          )}
-                          {channel.isPrivate ? " (private)" : ""}
-                        </option>
-                      ))}
-                    </select>
-                    <MuteButton
-                      disabled={addSlackChannel.isPending || !newChannelId}
-                      onClick={() => void addChannel()}
-                      size="md"
-                    >
-                      {addSlackChannel.isPending ? (
-                        <LoaderCircle className="size-4 animate-spin" />
-                      ) : (
-                        <Plus className="size-4" />
-                      )}
-                      추가
-                    </MuteButton>
-                  </div>
-                ) : null}
+                          <div className="flex items-center gap-2">
+                            <span
+                              aria-hidden="true"
+                              className="size-2 rounded-full bg-positive"
+                            />
+                            연결됨
+                          </div>
+                          <ChevronDown className="w-4 h-4" />
+                        </MuteButton>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-40">
+                        <DropdownMenuItem
+                          disabled={disconnectSlack.isPending}
+                          onSelect={() => setDisconnectOpen(true)}
+                          tone="danger"
+                        >
+                          연결 끊기
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    <span className="inline-flex items-center gap-2 self-start text-[13px] font-medium text-neutral-primary sm:self-auto">
+                      <span
+                        aria-hidden="true"
+                        className="size-2 rounded-full bg-positive"
+                      />
+                      연결됨
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div>
-                <h3 className="text-[14px] font-medium text-neutral-primary">
-                  연결된 채널
-                </h3>
-                <div className="mt-3 divide-y divide-neutral-1000-a05 border-y border-neutral-1000-a05">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h3 className="text-[14px] font-medium text-neutral-primary">
+                    연결된 채널
+                  </h3>
+                  {permissions.canManageIntegrations &&
+                  status.availableChannels.length > 0 ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <select
+                        className="h-9 rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 text-[13px]"
+                        onChange={(event) =>
+                          setNewChannelId(event.target.value)
+                        }
+                        value={newChannelId}
+                      >
+                        <option value="">채널 선택</option>
+                        {status.availableChannels.map((channel) => (
+                          <option
+                            key={channel.channelId}
+                            value={channel.channelId}
+                          >
+                            {formatChannel(
+                              channel.channelName,
+                              channel.channelId
+                            )}
+                            {channel.isPrivate ? " (private)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                      <MuteButton
+                        disabled={addSlackChannel.isPending || !newChannelId}
+                        onClick={() => void addChannel()}
+                        size="md"
+                      >
+                        {addSlackChannel.isPending ? (
+                          <LoaderCircle className="size-4 animate-spin" />
+                        ) : (
+                          <Plus className="size-4" />
+                        )}
+                        추가
+                      </MuteButton>
+                    </div>
+                  ) : null}
+                </div>
+                {permissions.canManageIntegrations ? (
+                  <p className="mt-2 text-[12px] font-light leading-5 text-neutral-soft">
+                    공개 채널은 Harper를 초대 시 자동으로 참여합니다. 비공개
+                    채널은 Slack에서 먼저 <code>/invite @Harper</code>를 한 뒤
+                    목록에서 선택해 추가해주세요.
+                  </p>
+                ) : null}
+                <div className="mt-4 border-t border-neutral-1000-a05">
                   {status.channels.map((channel) => (
                     <div
                       className="flex flex-col gap-3 px-3 py-3.5 sm:flex-row sm:items-center"
@@ -290,7 +348,11 @@ export function OrgSettingsPage() {
                     >
                       <div className="flex min-w-0 flex-1 items-center gap-3">
                         <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-neutral-1000-a05 text-neutral-muted">
-                          <Hash className="size-4" />
+                          <SlackIcon
+                            className="size-4"
+                            color="currentColor"
+                            fill="currentColor"
+                          />
                         </span>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
@@ -320,46 +382,34 @@ export function OrgSettingsPage() {
                         </div>
                       </div>
                       {permissions.canManageIntegrations ? (
-                        <div className="flex gap-2 pl-11 sm:pl-0">
-                          <MuteButton
-                            aria-label={`${formatChannel(channel.channelName, channel.channelId)} 제거`}
-                            disabled={removeSlackChannel.isPending}
-                            onClick={() =>
-                              setRemoveChannelId(channel.channelId)
-                            }
-                            size="sm"
-                            variant="warn"
-                          >
-                            <Trash2 className="size-4" />
-                            제거
-                          </MuteButton>
-                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <MuteButton
+                              aria-label={`${formatChannel(channel.channelName, channel.channelId)} 작업`}
+                              size="sm"
+                              variant="transparent"
+                            >
+                              <Ellipsis className="size-4" />
+                            </MuteButton>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-40">
+                            <DropdownMenuItem
+                              disabled={removeSlackChannel.isPending}
+                              onSelect={() =>
+                                setRemoveChannelId(channel.channelId)
+                              }
+                              tone="danger"
+                            >
+                              <Trash2 />
+                              채널 제거
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       ) : null}
                     </div>
                   ))}
                 </div>
-                {permissions.canManageIntegrations ? (
-                  <p className="mt-2 text-[12px] font-light leading-5 text-neutral-soft">
-                    공개 채널은 추가 시 Harper가 자동 참여합니다. 비공개 채널은
-                    Slack에서 먼저 <code>/invite @Harper</code>한 뒤 목록에서
-                    선택해 주세요.
-                  </p>
-                ) : null}
               </div>
-
-              {permissions.canManageIntegrations ? (
-                <MuteButton
-                  onClick={() => setDisconnectOpen(true)}
-                  size="md"
-                  variant="warn"
-                >
-                  연결 해제
-                </MuteButton>
-              ) : (
-                <p className="text-[12px] font-light text-neutral-soft">
-                  Slack 설정은 Owner 또는 Admin이 변경할 수 있습니다.
-                </p>
-              )}
             </div>
           ) : (
             <div className="max-w-xl">

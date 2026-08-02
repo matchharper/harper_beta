@@ -4,6 +4,7 @@ import {
   insertRealtimeLlmUsageLog,
   normalizeRealtimeBillingUsage,
 } from "@/lib/llm/usageLogging";
+import { canUseCareerDevControls } from "@/lib/internalAccess";
 import { getRequestUser } from "@/lib/supabaseServer";
 
 type RealtimeUsageLogBody = {
@@ -11,6 +12,7 @@ type RealtimeUsageLogBody = {
   conversationId?: unknown;
   eventType?: unknown;
   hadAudioInResponse?: unknown;
+  providerOverride?: unknown;
   responseId?: unknown;
   status?: unknown;
   usage?: unknown;
@@ -45,7 +47,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const rawProviderOverride = cleanString(
+    body.providerOverride,
+    20
+  ).toLowerCase();
+  const providerOverride =
+    canUseCareerDevControls(user.email) &&
+    (rawProviderOverride === "openai" || rawProviderOverride === "xai")
+      ? rawProviderOverride
+      : undefined;
   const realtimeConfig = getCareerRealtimeSessionConfig({
+    providerOverride,
     userCreatedAt: user.created_at,
     userId: user.id,
   });

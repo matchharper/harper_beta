@@ -229,15 +229,39 @@ async function main() {
                     },
                     status: "updated",
                   }
-                : await executeOrgAgentTool({
-                    admin,
-                    callId,
-                    conversation,
-                    input,
-                    name,
-                    state,
-                    user: fakeUser,
-                  });
+                : name === "prepare_candidate_connection"
+                  ? {
+                      candidateEmail: null,
+                      candidateName: "Candidate",
+                      nextStep:
+                        "Explain the email recipients and connection choices, then ask for confirmation without changing the candidate yet.",
+                      requesterEmail: fakeUser.email ?? null,
+                      status: "ready_for_confirmation",
+                    }
+                  : name === "decide_candidate_connection"
+                    ? {
+                        changeSummary: "후보자 연결 결정을 반영했습니다.",
+                        connectionMethod:
+                          input.connectionMethod ?? "intro_email",
+                        decision: input.decision,
+                        stage:
+                          input.decision === "decline"
+                            ? "process_stopped"
+                            : "connected",
+                        status: "updated",
+                      }
+                    : await executeOrgAgentTool({
+                        actorId: fakeUser.id,
+                        admin,
+                        callId,
+                        conversation,
+                        currentUserMessageId: 1,
+                        input,
+                        name,
+                        slackThreadId: null,
+                        state,
+                        user: fakeUser,
+                      });
           messages.push({
             content: serializeOrgAgentToolResult(name, result),
             name,

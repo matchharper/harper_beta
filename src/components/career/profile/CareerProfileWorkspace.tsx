@@ -2,7 +2,10 @@ import { useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import { Loader2 } from "lucide-react";
 import CareerInPageTabs from "../CareerInPageTabs";
-import { useCareerSidebarContext } from "../CareerSidebarContext";
+import {
+  useCareerProfileContext,
+  useCareerSidebarContext,
+} from "../CareerSidebarContext";
 import CareerTalentProfilePanel from "./CareerTalentProfilePanel";
 import CareerResumeLinksSettingsSection from "../settings/CareerResumeLinksSettingsSection";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
@@ -57,8 +60,9 @@ const CareerProfileWorkspace = () => {
   const t = useCareerT();
   const router = useRouter();
   const logCareerEvent = useCareerLogEvent();
-  const { savedResumeFileName, savedResumeStoragePath, workspaceDataLoading } =
-    useCareerSidebarContext();
+  const { workspaceDataLoading } = useCareerSidebarContext();
+  const { savedResumeFileName, savedResumeStoragePath } =
+    useCareerProfileContext();
   const hasSavedResume = Boolean(savedResumeFileName || savedResumeStoragePath);
 
   const sectionItems = useMemo(
