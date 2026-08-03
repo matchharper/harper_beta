@@ -513,7 +513,7 @@ export const careerTranslationMeta = {
       "src/lib/career/chatTurn.ts:210",
     ],
   },
-  "career.chat.tool.request_internal_role_priority_review.start": {
+  "career.chat.tool.internal_role_priority_review.start": {
     source: "src/app/api/talent/chat/route.ts:343",
     locations: [
       "src/app/api/talent/chat/route.ts:343",
@@ -1607,9 +1607,9 @@ export const careerTranslationMeta = {
     locations: ["src/components/career/ConversationStarterActions.tsx:292"],
   },
   "career.common.internal_connection_acceptance_modal.acknowledgement": {
-    source: "src/components/career/InternalConnectionAcceptanceModal.tsx:329",
+    source: "src/components/career/InternalConnectionAcceptanceModal.tsx:225",
     locations: [
-      "src/components/career/InternalConnectionAcceptanceModal.tsx:329",
+      "src/components/career/InternalConnectionAcceptanceModal.tsx:225",
     ],
   },
   "career.common.internal_connection_acceptance_modal.description": {
@@ -1634,6 +1634,12 @@ export const careerTranslationMeta = {
     source: "src/components/career/InternalConnectionAcceptanceModal.tsx:316",
     locations: [
       "src/components/career/InternalConnectionAcceptanceModal.tsx:316",
+    ],
+  },
+  "career.common.internal_connection_acceptance_modal.privacy_notice_link": {
+    source: "src/components/career/InternalConnectionAcceptanceModal.tsx:218",
+    locations: [
+      "src/components/career/InternalConnectionAcceptanceModal.tsx:218",
     ],
   },
   "career.common.internal_connection_acceptance_modal.response_description": {

@@ -17,8 +17,9 @@ import type { Json } from "@/types/database.types";
 
 const MIN_MESSAGE_COUNT = 14;
 const MIN_SOURCE_CHARS = 5_000;
-// Keep this aligned with buildOrgAgentPromptContext's recent-message query so
-// no messages sit between the latest summary cursor and the raw context.
+// Keep this aligned with buildOrgAgentPromptContext's shared recent-message
+// query so no web or Slack messages sit between the latest summary cursor and
+// the raw context.
 const RECENT_RAW_MESSAGE_LIMIT = 14;
 const MAX_SOURCE_MESSAGES = 80;
 const MAX_SOURCE_CHARS = 18_000;
@@ -98,7 +99,7 @@ export async function maybeSummarizeOrgAgentConversation(args: {
       "id, conversation_id, company_workspace_id, role_id, company_user_id, role, content, message_type, model, status, mentions, thinking_logs, metadata, created_at"
     )
     .eq("conversation_id", args.conversation.id)
-    .eq("message_type", "chat")
+    .in("message_type", ["chat", "slack"])
     .gt("id", cursor)
     .order("id", { ascending: true })
     .limit(MAX_SOURCE_MESSAGES + RECENT_RAW_MESSAGE_LIMIT);

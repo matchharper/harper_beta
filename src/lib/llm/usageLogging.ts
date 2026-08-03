@@ -113,7 +113,7 @@ const LLM_LOG_TOOL_NAMES = [
   "recommend_job_postings",
   "read_recommended_opportunities",
   "get_internal_roles",
-  "request_internal_role_priority_review",
+  "internal_role_priority_review",
   "get_role_context",
   "update_recommended_opportunity_feedback",
   "web_search",

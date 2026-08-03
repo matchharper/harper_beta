@@ -111,14 +111,14 @@ Input:
 Primary CTA:
 
 ```tsx
-<Button variant="primary">저장</Button>
+<MuteButton variant="primary" size="lg">저장</MuteButton>
 ```
 
 Neutral action:
 
 ```tsx
-<Button variant="default">필터</Button>
-<Button variant="secondary">취소</Button>
+<MuteButton variant="neutral">필터</MuteButton>
+<MuteButton>취소</MuteButton>
 ```
 
 Quiet compact action:
@@ -133,10 +133,10 @@ Quiet compact action:
 </MuteButton>
 ```
 
-Black action:
+High-contrast action:
 
 ```tsx
-<Button variant="black">새 기회 만들기</Button>
+<MuteButton variant="dark" size="lg">새 기회 만들기</MuteButton>
 ```
 
 Status:
@@ -152,10 +152,10 @@ Use shared UI components before writing raw markup:
 
 | Need | Component |
 | --- | --- |
-| Main action | `Button` |
+| Main action | `MuteButton` |
 | Quiet compact action | `MuteButton` |
-| Icon-only action | `IconButton` |
-| Compact repeated action | `ActionButton` |
+| Icon-only action | `MuteButton` |
+| Compact repeated action | `MuteButton` |
 | Clickable card | `CardButton` |
 | Existing card action migration | `InteractiveCard`, `ChoiceCard` |
 | Text | `Text` |
@@ -164,54 +164,43 @@ Use shared UI components before writing raw markup:
 | Menu | `ActionDropdown`, `DropdownMenu` |
 | Page section copy | `SectionHeader`, `SectionTitle`, `SectionDescription` |
 
-`Button` variants are limited to:
-
-| Variant | Use |
-| --- | --- |
-| `default` | Normal neutral action on `bg-bg-basement` or inside panels |
-| `primary` | Brand CTA, one main action in a scope |
-| `black` | Highest contrast CTA where brand color is not appropriate |
-| `secondary` | Lower emphasis neutral action, cancel, secondary controls |
-| `critical` | Destructive or irreversible action |
-| `positive` | Confirming a clearly positive action |
+새 UI의 button-shaped control에는 `MuteButton`만 쓴다. `Button`,
+`IconButton`, `ActionButton`은 기존 화면 호환을 위한 legacy component로
+취급하고 새 코드에서는 사용하지 않는다. 시각적 위계와 용도 차이는 별도
+button component가 아니라 `MuteButton`의 `variant`와 `size`로 표현한다.
 
 ### `MuteButton`
 
-`MuteButton`은 toolbar, modal footer, 작은 inline action처럼 공간이 좁고
-강조가 낮은 control에 쓴다. 아이콘 버튼과 짧은 텍스트 버튼이 같은 시각
-밀도로 반복될 때 특히 적합하다.
-
-표준 `Button` hierarchy의 정사각형 아이콘 control은 `IconButton`을 쓰고,
-`MuteButton`의 조용한 표면을 텍스트 action과 함께 운용해야 할 때는
-아이콘 전용이어도 `MuteButton`을 쓴다.
+`MuteButton`은 페이지의 main CTA부터 toolbar, modal footer, inline action,
+아이콘 전용 control, 목록에서 반복되는 action까지 모든 일반 버튼에 쓰는
+기본 component다.
 
 다음 상황에서는 `MuteButton`을 우선한다.
 
+- 페이지나 form의 main CTA
 - 상단 문의, 설정처럼 작지만 resting surface가 필요한 아이콘 control
 - `View CV`, 수정, 뒤로, 닫기처럼 본문 흐름을 보조하는 짧은 action
 - 복사, 공유, 재시도, 더 보기처럼 반복되는 modal/panel action
-- 링크 추가/삭제, 필터 초기화처럼 main CTA보다 한 단계 낮은 control
-- 취소와 저장이 함께 있는 compact toolbar의 보조 버튼
+- 긴 목록에서 반복되거나 active 상태가 필요한 action
+- 링크 추가/삭제, 필터 초기화, 취소처럼 main CTA보다 한 단계 낮은 control
+- 저장, 확인, 삭제처럼 명확한 결과를 만드는 action
 
 다음 상황에서는 사용하지 않는다.
 
-- 페이지나 form의 하나뿐인 main CTA: `Button`의 `primary` 또는 `black`
-- 실제 삭제, 탈퇴 확정처럼 되돌릴 수 없는 최종 action: `Button`의
-  `critical`
 - 선택 가능한 카드 전체: `CardButton`
-- 동일한 action이 긴 목록에서 반복되고 별도의 active 상태가 필요한 경우:
-  `ActionButton`
+- button이 아닌 form field, menu, tab, switch: 각 용도에 맞는 shared UI
+  component
 
 Variants:
 
 | Variant | Use |
 | --- | --- |
-| `default` | 흰 floating surface, 기본 border와 shadow가 필요한 일반 보조 action |
+| `default` | 흰 floating surface, 기본 border와 shadow가 필요한 일반 neutral action |
 | `transparent` | resting surface 없이 hover/active에서만 반응하는 수정, 뒤로, 닫기, inline action |
-| `neutral` | 약한 fill이 필요한 filter, toggle, grouped control |
-| `dark` | compact toolbar 안의 저장/확인처럼 높은 대비가 필요하지만 페이지 main CTA는 아닌 action |
-| `primary` | 복사, 초대처럼 브랜드 강조가 필요한 compact action. 한 scope에 남발하지 않는다 |
-| `warn` | 삭제/탈퇴 modal을 여는 진입 action. 최종 파괴 확인에는 `Button critical`을 쓴다 |
+| `neutral` | 약한 fill이 필요한 filter, toggle, grouped 또는 repeated action |
+| `dark` | 가장 높은 대비가 필요한 main CTA나 저장/확인 action |
+| `primary` | 브랜드 강조가 필요한 main CTA, 복사, 초대 action. 한 scope에 남발하지 않는다 |
+| `warn` | 삭제, 탈퇴처럼 destructive flow에 진입하거나 이를 확정하는 action |
 
 Sizes:
 
@@ -219,7 +208,7 @@ Sizes:
 | --- | --- |
 | `sm` | 아주 작은 toolbar, filter clear, 밀도가 높은 icon control |
 | `md` | 기본값. 상단 icon, 수정, 추가, 복사 등 대부분의 compact action |
-| `lg` | modal footer, 모바일 touch target, 조금 더 중요한 compact action |
+| `lg` | main CTA, modal footer, 모바일 touch target, 중요한 action |
 
 `MuteButton`은 children을 보고 padding을 자동 조정한다.
 
@@ -236,6 +225,9 @@ height, background, border를 `className`으로 덮지 말고 `variant`와 `size
 class는 허용한다.
 
 ```tsx
+// 페이지의 main CTA
+<MuteButton variant="primary" size="lg">저장</MuteButton>
+
 // 기본 아이콘 control
 <MuteButton aria-label="설정">
   <Settings className="h-4 w-4" />
@@ -250,7 +242,12 @@ class는 허용한다.
 // modal footer의 텍스트 전용 action
 <MuteButton size="lg">닫기</MuteButton>
 
-// 최종 삭제 확인이 아니라 삭제 흐름으로 들어가는 action
+// 반복되는 선택 action
+<MuteButton variant={selected ? "neutral" : "transparent"} aria-pressed={selected}>
+  후보자 보기
+</MuteButton>
+
+// destructive action
 <MuteButton variant="warn">
   <Trash2 className="h-4 w-4" />
   회원 탈퇴
@@ -268,4 +265,4 @@ When touching old UI:
 3. Replace `stroke-*` with `neutral-1000-a05`, `neutral-1000-a10`, `neutral-400`, or `neutral-800`.
 4. Replace `status-*` with `positive/info/critical` and their `*-faded` backgrounds.
 5. Replace `gray-*` design aliases with `neutral-*` or `black`.
-6. Prefer `Button`, `CardButton`, `Badge`, `Input`, `Select`, `Tabs`, and `Text` over local one-off components.
+6. Prefer `MuteButton`, `CardButton`, `Badge`, `Input`, `Select`, `Tabs`, and `Text` over local one-off components. Replace touched `Button`, `IconButton`, and `ActionButton` usages with `MuteButton` when practical.

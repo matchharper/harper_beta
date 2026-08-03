@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useId, useRef, useState } from "react";
+import Link from "next/link";
 import {
   ArrowDown,
   CheckCircle2,
@@ -26,6 +27,7 @@ import {
   Textarea as UiTextarea,
 } from "@/components/ui/textarea";
 import { useCareerT } from "@/i18n/useCareerT";
+import { buildCompanyProfileSharingPolicyHref } from "@/lib/legal/companyProfileSharingPolicy";
 import { cn } from "@/lib/utils";
 import type { CareerHistoryOpportunity } from "./types";
 
@@ -62,6 +64,10 @@ export default function InternalConnectionAcceptanceModal({
   };
 
   if (!item) return null;
+
+  const companyPolicyHref = buildCompanyProfileSharingPolicyHref(
+    item.companyName
+  );
 
   if (!isOnboardingComplete) {
     return (
@@ -201,10 +207,28 @@ export default function InternalConnectionAcceptanceModal({
             checked={acknowledged}
             disabled={pending}
             required
-            label={t(
-              "career.common.internal_connection_acceptance_modal.acknowledgement",
-              "서로의 시간을 존중하는 Harper의 약속을 확인했습니다."
-            )}
+            label={
+              <span>
+                <Link
+                  href={companyPolicyHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-link underline underline-offset-2"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  {t(
+                    "career.common.internal_connection_acceptance_modal.privacy_notice_link",
+                    "{companyName} 개인정보 제3자 제공 동의",
+                    { values: { companyName: item.companyName } }
+                  )}
+                </Link>
+                {t(
+                  "career.common.internal_connection_acceptance_modal.acknowledgement",
+                  " 내용을 확인하고 동의합니다.",
+                  { meaningChanged: true }
+                )}
+              </span>
+            }
             onChange={(event) => setAcknowledged(event.target.checked)}
             size="medium"
           />

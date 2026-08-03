@@ -17,6 +17,26 @@ test("appends new row memo text after the existing memo", () => {
   );
 });
 
+test("does not append an exact duplicate row memo", () => {
+  assert.equal(
+    applyRowMemoOperation({
+      existing: "같은 메모",
+      memo: "같은 메모",
+      operation: "append",
+    }),
+    "같은 메모"
+  );
+
+  assert.equal(
+    applyRowMemoOperation({
+      existing: "기존 메모\n마지막 메모",
+      memo: "마지막 메모",
+      operation: "append",
+    }),
+    "기존 메모\n마지막 메모"
+  );
+});
+
 test("updates a row memo by replacing it with the complete final memo", () => {
   assert.equal(
     applyRowMemoOperation({

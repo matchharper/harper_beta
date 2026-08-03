@@ -668,8 +668,8 @@ export const en = {
     "career.chat.opportunity_preview_cards.open_posting_label":
       "Open {companyName} {title} posting",
     "career.chat.tool.open_url.start": "Checking the shared link.",
-    "career.chat.tool.request_internal_role_priority_review.start":
-      "Saving your request for priority review of the internal role.",
+    "career.chat.tool.internal_role_priority_review.start":
+      "Processing your request for priority review of the internal role.",
     "career.chat.tool.research_company.start":
       "Looking up company information.",
     "career.chat.tool.update_setting.start":
@@ -1040,7 +1040,7 @@ export const en = {
     "career.common.internal_connection_acceptance_modal.1tvfp0q":
       "In some cases, Harper may consider whether you gave advance notice, the reason, and whether missed responses, no-shows, or last-minute cancellations are repeated when deciding on access restrictions. If a restriction is applied, new company connection requests and recommendations will stop. Access can only be restored after a review you request.",
     "career.common.internal_connection_acceptance_modal.acknowledgement":
-      "I understand Harper's commitment to mutual respect.",
+      ". I have reviewed it and consent.",
     "career.common.internal_connection_acceptance_modal.close": "Close",
     "career.common.internal_connection_acceptance_modal.community_title":
       "Harper is a community of members who respect each other's time.",
@@ -1052,6 +1052,8 @@ export const en = {
       "(Optional) Let Harper know anything to keep in mind for the next steps, or anything you'd like shared with the company.",
     "career.common.internal_connection_acceptance_modal.pre_share_confirmation":
       "Right before your information is shared with the company, Harper will send you one final confirmation email. You can cancel anytime until then.",
+    "career.common.internal_connection_acceptance_modal.privacy_notice_link":
+      "Consent to Share Personal Information with {companyName}",
     "career.common.internal_connection_acceptance_modal.submit":
       "Accept Connection",
     "career.common.internal_connection_onboarding_modal.037ebaa":

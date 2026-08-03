@@ -1390,10 +1390,6 @@ const Footer = ({
           </div>
         </div>
         <div className="text-[13px] text-beige900/80 flex flex-row items-center gap-1">
-          <Link href="/terms" className="cursor-pointer">
-            Terms
-          </Link>
-          <Dot size={8} />
           <Link href="/privacy" className="cursor-pointer">
             Privacy
           </Link>

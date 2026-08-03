@@ -11,6 +11,7 @@ export type TalentExperienceItem = {
   description?: string | null;
   employmentType?: string | null;
   endDate?: string | null;
+  memo?: string | null;
   role?: string | null;
   startDate?: string | null;
 };
@@ -20,6 +21,7 @@ export type TalentEducationItem = {
   description?: string | null;
   endDate?: string | null;
   field?: string | null;
+  memo?: string | null;
   school?: string | null;
   startDate?: string | null;
 };
@@ -27,6 +29,7 @@ export type TalentEducationItem = {
 export type TalentExtraItem = {
   date?: string | null;
   description?: string | null;
+  memo?: string | null;
   title?: string | null;
 };
 
@@ -125,6 +128,20 @@ function TalentProfileDescriptionMarkdown({
   );
 }
 
+export function TalentProfileMemo({ value }: { value?: string | null }) {
+  const trimmedValue = value?.trim();
+  if (!trimmedValue) return null;
+
+  return (
+    <div className="mt-3 px-1 py-2">
+      <div className="mb-1 text-[12px] text-primary">Harper 메모</div>
+      <div className="whitespace-pre-wrap break-words text-[13px] leading-5 text-neutral-primary">
+        {trimmedValue}
+      </div>
+    </div>
+  );
+}
+
 function ExperienceCompanyLogo({
   companyName,
   logoUrl,
@@ -188,6 +205,7 @@ export function TalentEducationSection({
                 </div>
               ) : null}
               <TalentProfileDescriptionMarkdown value={education.description} />
+              <TalentProfileMemo value={education.memo} />
             </div>
           );
         })}
@@ -216,6 +234,7 @@ export function TalentExtraSection({ extras }: { extras: TalentExtraItem[] }) {
               ) : null}
             </div>
             <TalentProfileDescriptionMarkdown value={extra.description} />
+            <TalentProfileMemo value={extra.memo} />
           </div>
         ))}
       </div>
@@ -274,6 +293,7 @@ export function TalentExperienceSection({
                       {experience.description.trim()}
                     </div>
                   ) : null}
+                  <TalentProfileMemo value={experience.memo} />
                 </div>
               </div>
             </div>

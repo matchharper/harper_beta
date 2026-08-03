@@ -1,26 +1,67 @@
 {
   "documents": {
-    "referral-terms": {
-      "title": "Harper 추천 프로그램 약관",
-      "locale": "ko",
+    "company-profile-sharing-policy": {
+      "title": "회사별 개인정보 제3자 제공 동의",
       "latest": "1.0.0",
       "versions": [
         {
           "version": "1.0.0",
+          "locale": "ko",
+          "status": "active",
+          "effectiveDate": "2026-08-03",
+          "path": "/docs/legal/company-profile-sharing-policy/v1.0.0.ko.md"
+        },
+        {
+          "version": "1.0.0",
+          "locale": "en",
+          "status": "active",
+          "effectiveDate": "2026-08-03",
+          "path": "/docs/legal/company-profile-sharing-policy/v1.0.0.en.md"
+        }
+      ]
+    },
+    "referral-terms": {
+      "title": "Harper 추천 프로그램 약관",
+      "latest": "1.0.0",
+      "versions": [
+        {
+          "version": "1.0.0",
+          "locale": "ko",
           "status": "active",
           "effectiveDate": "2026-07-16",
           "path": "/docs/legal/referral-terms/v1.0.0.ko.md"
+        },
+        {
+          "version": "1.0.0",
+          "locale": "en",
+          "status": "active",
+          "effectiveDate": "2026-07-16",
+          "path": "/docs/legal/referral-terms/v1.0.0.en.md"
         }
       ]
     },
     "privacy-policy": {
       "title": "Harper 개인정보 처리방침",
-      "locale": "ko",
-      "latest": "1.0.0",
+      "latest": "1.1.0",
       "versions": [
         {
-          "version": "1.0.0",
+          "version": "1.1.0",
+          "locale": "ko",
           "status": "active",
+          "effectiveDate": "2026-08-03",
+          "path": "/docs/legal/privacy-policy/v1.1.0.ko.md"
+        },
+        {
+          "version": "1.1.0",
+          "locale": "en",
+          "status": "active",
+          "effectiveDate": "2026-08-03",
+          "path": "/docs/legal/privacy-policy/v1.1.0.en.md"
+        },
+        {
+          "version": "1.0.0",
+          "locale": "ko",
+          "status": "superseded",
           "effectiveDate": "2026-07-16",
           "path": "/docs/legal/privacy-policy/v1.0.0.ko.md"
         }

@@ -307,6 +307,7 @@ export type OrgProfileExperience = {
   description: string | null;
   employmentType: string | null;
   endDate: string | null;
+  memo: string | null;
   role: string | null;
   startDate: string | null;
 };
@@ -316,6 +317,7 @@ export type OrgProfileEducation = {
   description: string | null;
   endDate: string | null;
   field: string | null;
+  memo: string | null;
   school: string | null;
   startDate: string | null;
   url: string | null;
@@ -324,6 +326,7 @@ export type OrgProfileEducation = {
 export type OrgProfileExtra = {
   date: string | null;
   description: string | null;
+  memo: string | null;
   title: string | null;
 };
 
@@ -3162,25 +3165,53 @@ export async function deleteOrgTalentFeedItem(args: {
   return { ok: true };
 }
 
+function getProfileExtraEntries(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  if (!value || typeof value !== "object") return [];
+
+  const record = value as Record<string, unknown>;
+  const listKeys = [
+    "talent_extras",
+    "talentExtras",
+    "extras",
+    "items",
+    "publications",
+    "projects",
+    "activities",
+  ];
+  for (const key of listKeys) {
+    if (Array.isArray(record[key])) return record[key];
+  }
+
+  if (
+    "title" in record ||
+    "name" in record ||
+    "description" in record ||
+    "memo" in record
+  ) {
+    return [record];
+  }
+
+  return Object.values(record).flatMap((item) =>
+    Array.isArray(item) ? item : item && typeof item === "object" ? [item] : []
+  );
+}
+
 function getExtraMarkdown(extras: TalentExtraRow[]) {
   const lines: string[] = [];
   for (const extra of extras) {
-    const values = Array.isArray(extra.content)
-      ? extra.content
-      : extra.content && typeof extra.content === "object"
-        ? Object.values(extra.content as Record<string, unknown>)
-        : [];
+    const values = getProfileExtraEntries(extra.content);
     for (const item of values) {
       if (!item || typeof item !== "object") continue;
       const record = item as Record<string, unknown>;
       const title = normalizeNullableText(record.title ?? record.name);
-      const description = normalizeNullableText(
-        record.description ?? record.memo
-      );
+      const description = normalizeNullableText(record.description);
       const date = normalizeNullableText(record.date);
-      if (!title && !description) continue;
+      const memo = normalizeNullableText(record.memo);
+      if (!title && !description && !memo) continue;
       lines.push(`- ${[title, date].filter(Boolean).join(" · ")}`);
       if (description) lines.push(`  ${description}`);
+      if (memo) lines.push(`  Harper memo: ${memo}`);
     }
   }
   return lines;
@@ -3188,22 +3219,17 @@ function getExtraMarkdown(extras: TalentExtraRow[]) {
 
 function buildProfileExtras(extras: TalentExtraRow[]): OrgProfileExtra[] {
   return extras.flatMap((extra) => {
-    const values = Array.isArray(extra.content)
-      ? extra.content
-      : extra.content && typeof extra.content === "object"
-        ? Object.values(extra.content as Record<string, unknown>)
-        : [];
+    const values = getProfileExtraEntries(extra.content);
 
     return values.flatMap((item): OrgProfileExtra[] => {
       if (!item || typeof item !== "object") return [];
       const record = item as Record<string, unknown>;
       const title = normalizeNullableText(record.title ?? record.name);
-      const description = normalizeNullableText(
-        record.description ?? record.memo
-      );
+      const description = normalizeNullableText(record.description);
       const date = normalizeNullableText(record.date);
-      if (!title && !description) return [];
-      return [{ date, description, title }];
+      const memo = normalizeNullableText(record.memo);
+      if (!title && !description && !memo) return [];
+      return [{ date, description, memo, title }];
     });
   });
 }
@@ -3325,7 +3351,7 @@ function optionalRows<T>(
     console.error(`[org/detail] ${label}`, result.error);
     return [] as T[];
   }
-  return ((result.data ?? []) as T[]) ?? [];
+  return (result.data as T[]) ?? [];
 }
 
 function appendReason(text: string, reason: string | null) {
@@ -3533,9 +3559,10 @@ export async function fetchOrgTalentDetail(args: {
       bio: talent.bio ?? null,
       educations: educations.map((education) => ({
         degree: education.degree ?? null,
-        description: education.description ?? education.memo ?? null,
+        description: education.description ?? null,
         endDate: education.end_date ?? null,
         field: education.field ?? null,
+        memo: education.memo ?? null,
         school: education.school ?? null,
         startDate: education.start_date ?? null,
         url: education.url ?? null,
@@ -3544,9 +3571,10 @@ export async function fetchOrgTalentDetail(args: {
         companyLogo: experience.company_logo ?? null,
         companyLocation: experience.company_location ?? null,
         companyName: experience.company_name ?? null,
-        description: experience.description ?? experience.memo ?? null,
+        description: experience.description ?? null,
         employmentType: experience.employment_type ?? null,
         endDate: experience.end_date ?? null,
+        memo: experience.memo ?? null,
         role: experience.role ?? null,
         startDate: experience.start_date ?? null,
       })),

@@ -21,6 +21,7 @@ type LegalManifest = {
       locale?: "ko" | "en";
       versions: Array<{
         effectiveDate: string;
+        locale?: "ko" | "en";
         path: string;
         status: string;
         version: string;
@@ -62,7 +63,11 @@ function stripLeadingDocumentTitle(body: string, title: string) {
     .trim();
 }
 
-export async function loadVersionedLegalDocument(slug: string) {
+export async function loadVersionedLegalDocument(
+  slug: string,
+  requestedLocale?: "ko" | "en",
+  requestedVersion?: string
+) {
   const manifestPath = path.join(process.cwd(), "public/docs/legal/index.json");
   const manifest = JSON.parse(
     await fs.readFile(manifestPath, "utf8")
@@ -72,11 +77,26 @@ export async function loadVersionedLegalDocument(slug: string) {
     throw new Error(`Legal document not found: ${slug}`);
   }
 
-  const version =
-    entry.versions.find((item) => item.version === entry.latest) ??
-    entry.versions[0];
+  const version = requestedVersion
+    ? entry.versions.find(
+        (item) =>
+          item.version === requestedVersion &&
+          (!requestedLocale || item.locale === requestedLocale)
+      )
+    : (entry.versions.find(
+        (item) =>
+          item.version === entry.latest &&
+          (!requestedLocale || item.locale === requestedLocale)
+      ) ??
+      entry.versions.find((item) => item.locale === requestedLocale) ??
+      entry.versions.find((item) => item.version === entry.latest) ??
+      entry.versions[0]);
   if (!version) {
-    throw new Error(`Legal document has no versions: ${slug}`);
+    throw new Error(
+      requestedVersion
+        ? `Legal document version not found: ${slug}@${requestedVersion}:${requestedLocale ?? "any"}`
+        : `Legal document has no versions: ${slug}`
+    );
   }
 
   const filePath = path.join(process.cwd(), "public", version.path);
@@ -91,7 +111,11 @@ export async function loadVersionedLegalDocument(slug: string) {
     effectiveDate:
       parsed.frontmatter.effective_date ?? version.effectiveDate ?? "",
     locale:
-      parsed.frontmatter.locale === "en" || entry.locale === "en" ? "en" : "ko",
+      parsed.frontmatter.locale === "en" ||
+      version.locale === "en" ||
+      entry.locale === "en"
+        ? "en"
+        : "ko",
     slug: parsed.frontmatter.slug ?? slug,
     status: parsed.frontmatter.status ?? version.status ?? "draft",
     title,

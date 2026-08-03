@@ -512,6 +512,12 @@ export function applyRowMemoOperation(args: {
     return trimmedNew.slice(0, MEMO_MAX_CHARS);
   }
   if (!trimmedNew) return null;
+  if (
+    trimmedExisting === trimmedNew ||
+    trimmedExisting.endsWith(`\n${trimmedNew}`)
+  ) {
+    return trimmedExisting.slice(0, MEMO_MAX_CHARS);
+  }
   const appended = trimmedExisting
     ? `${trimmedExisting}\n${trimmedNew}`
     : trimmedNew;

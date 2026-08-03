@@ -30,6 +30,7 @@ import {
 import { cn } from "@/lib/utils";
 import { showToast } from "@/components/toast/toast";
 import { useCareerT } from "@/i18n/useCareerT";
+import { useMessages } from "@/i18n/useMessage";
 
 type CareerReferralModalProps = {
   onClose: () => void;
@@ -380,6 +381,7 @@ export function CareerReferralSettingsSection({
   active = true,
 }: CareerReferralSettingsSectionProps) {
   const t = useCareerT();
+  const { locale } = useMessages();
   const { fetchWithAuth } = useCareerApi();
   const [summary, setSummary] = useState<TalentNetworkReferralSummary | null>(
     null
@@ -646,7 +648,10 @@ export function CareerReferralSettingsSection({
             )}
           </p>
           <Link
-            href="/referral-terms"
+            href={{
+              pathname: "/referral-terms",
+              query: { lang: locale },
+            }}
             target="_blank"
             className="text-neutral-900 mt-3 inline-flex items-center gap-1 text-[14px] leading-4 underline decoration-dotted"
           >

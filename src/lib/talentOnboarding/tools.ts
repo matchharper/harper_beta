@@ -135,8 +135,7 @@ export const TALENT_TOOL_NAMES = {
   RECOMMEND_JOB_POSTINGS: "recommend_job_postings",
   READ_RECOMMENDED_OPPORTUNITIES: "read_recommended_opportunities",
   GET_INTERNAL_ROLES: "get_internal_roles",
-  REQUEST_INTERNAL_ROLE_PRIORITY_REVIEW:
-    "request_internal_role_priority_review",
+  INTERNAL_ROLE_PRIORITY_REVIEW: "internal_role_priority_review",
   GET_ROLE_CONTEXT: "get_role_context",
   UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK:
     "update_recommended_opportunity_feedback",
@@ -161,7 +160,7 @@ export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS,
   TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES,
   TALENT_TOOL_NAMES.GET_INTERNAL_ROLES,
-  TALENT_TOOL_NAMES.REQUEST_INTERNAL_ROLE_PRIORITY_REVIEW,
+  TALENT_TOOL_NAMES.INTERNAL_ROLE_PRIORITY_REVIEW,
   TALENT_TOOL_NAMES.GET_ROLE_CONTEXT,
   TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK,
   TALENT_TOOL_NAMES.RESEARCH_COMPANY,
@@ -948,7 +947,8 @@ async function notifyHarperInternalRolePriorityReviewSlack(args: {
   return true;
 }
 
-async function requestInternalRolePriorityReview(args: {
+async function updateInternalRolePriorityReview(args: {
+  action: "register" | "withdraw";
   admin: any;
   conversationId?: string | null;
   roleId: string;
@@ -958,7 +958,7 @@ async function requestInternalRolePriorityReview(args: {
   const roleId = normalizePostingRoleId(args.roleId);
   if (!isPostingRoleId(roleId)) {
     throw new TalentToolError(
-      "request_internal_role_priority_review requires a valid roleId."
+      "internal_role_priority_review requires a valid roleId."
     );
   }
 
@@ -991,8 +991,7 @@ async function requestInternalRolePriorityReview(args: {
       ok: false,
       status: "role_not_found",
       roleId,
-      assistantInstruction:
-        "Tell the user Harper could not verify the exact role yet. Ask for the company name, role title, or link so Harper can identify it. Do not say it was saved.",
+      assistantInstruction: `Tell the user Harper could not verify the exact role yet. Ask for the company name, role title, or link so Harper can identify it. Do not say the priority-review request was ${args.action === "register" ? "saved" : "withdrawn"}.`,
     };
   }
 
@@ -1002,8 +1001,7 @@ async function requestInternalRolePriorityReview(args: {
       ok: false,
       status: "not_internal_role",
       roleId,
-      assistantInstruction:
-        "Tell the user Harper could not save this as a priority internal-role review request because it is not verified as a Harper-connected role. Do not promise a connection, interview, referral, company introduction, or specific timeline.",
+      assistantInstruction: `Tell the user Harper could not ${args.action === "register" ? "save" : "withdraw"} this priority internal-role review request because it is not verified as a Harper-connected role. Do not promise a connection, interview, referral, company introduction, or specific timeline.`,
     };
   }
 
@@ -1029,6 +1027,54 @@ async function requestInternalRolePriorityReview(args: {
 
   const existing = Array.isArray(existingRows) ? existingRows[0] : null;
   const existingCreatedAt = optionalToolString(existing?.created_at);
+
+  if (args.action === "withdraw") {
+    if (!existingCreatedAt) {
+      return {
+        ok: true,
+        status: "not_registered",
+        roleId,
+        roleTitle,
+        companyName,
+        assistantInstruction: [
+          "Tell the user there was no active priority-review request to withdraw for this role.",
+          "Say they can register it later if they become interested again.",
+        ].join(" "),
+      };
+    }
+
+    const { error: withdrawError } = await ((
+      args.admin.from("talent_progress" as any) as any
+    )
+      .delete()
+      .eq("talent_id", args.userId)
+      .eq("role_id", roleId)
+      .eq("kind", INTERNAL_ROLE_PRIORITY_REVIEW_PROGRESS_KIND) as any);
+
+    if (withdrawError) {
+      throw new TalentToolError(
+        withdrawError.message ?? "Failed to withdraw priority review request."
+      );
+    }
+
+    const withdrawnAt = new Date().toISOString();
+    return {
+      ok: true,
+      status: "withdrawn",
+      roleId,
+      roleTitle,
+      companyName,
+      previousCreatedAt: existingCreatedAt,
+      withdrawnAt,
+      withdrawnDate: formatKstDate(withdrawnAt),
+      assistantInstruction: [
+        "Tell the user Harper withdrew the priority-review request for this role.",
+        "Explain that this role will no longer be treated as an explicitly requested priority review, and say they can register it again later.",
+        "Do not imply that this deletes unrelated recommendations, profile information, or account data.",
+      ].join(" "),
+    };
+  }
+
   if (existingCreatedAt) {
     const existingCreatedDate = formatKstDate(existingCreatedAt);
     return {
@@ -1394,7 +1440,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES]: {
     name: TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES,
     description:
-      "Read the user's existing recommended opportunities so the assistant can answer questions about previously recommended companies, roles, links, reasons, user feedback, and connection/review status. For an internal stopped process, treat progress.stopReason as authoritative: say the candidate stopped it only when stopReason=candidate; company/internal means it was not a candidate-requested stop.",
+      "Read the user's existing recommended opportunities so the assistant can answer questions about previously recommended companies, roles, links, reasons, user feedback, and connection/review status. Treat feedback=negative and rejected as Talent-side rejection records, not company rejections. For archived and stopped processes, follow progress.message and treat progress.stopReason as authoritative.",
     parameters: {
       type: "object",
       properties: {
@@ -1561,20 +1607,26 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       });
     },
   },
-  [TALENT_TOOL_NAMES.REQUEST_INTERNAL_ROLE_PRIORITY_REVIEW]: {
-    name: TALENT_TOOL_NAMES.REQUEST_INTERNAL_ROLE_PRIORITY_REVIEW,
+  [TALENT_TOOL_NAMES.INTERNAL_ROLE_PRIORITY_REVIEW]: {
+    name: TALENT_TOOL_NAMES.INTERNAL_ROLE_PRIORITY_REVIEW,
     description:
-      "Save the candidate's explicit request for priority review on a specific internal role. Requires roleId. If roleId is unknown, call get_internal_roles first to resolve it.",
+      "Register or withdraw the candidate's explicit priority-review request for a specific internal role. Requires action and roleId. If roleId is unknown, call get_internal_roles first to resolve it.",
     parameters: {
       type: "object",
       properties: {
+        action: {
+          type: "string",
+          enum: ["register", "withdraw"],
+          description:
+            "Use register to save the candidate's priority-review request. Use withdraw to remove that request.",
+        },
         roleId: {
           type: "string",
           description:
-            "Internal role id for the role the candidate wants Harper to prioritize.",
+            "Internal role id whose priority-review request should be registered or withdrawn.",
         },
       },
-      required: ["roleId"],
+      required: ["action", "roleId"],
       additionalProperties: false,
     },
     channels: ["chat"],
@@ -1583,18 +1635,26 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const userId = context?.userId;
       if (!admin || !userId) {
         throw new TalentToolError(
-          "request_internal_role_priority_review requires user context."
+          "internal_role_priority_review requires user context."
+        );
+      }
+
+      const action = optionalToolString(input.action)?.toLowerCase();
+      if (action !== "register" && action !== "withdraw") {
+        throw new TalentToolError(
+          "internal_role_priority_review requires action register or withdraw."
         );
       }
 
       const roleId = optionalToolString(input.roleId);
       if (!roleId) {
         throw new TalentToolError(
-          "request_internal_role_priority_review requires roleId."
+          "internal_role_priority_review requires roleId."
         );
       }
 
-      return requestInternalRolePriorityReview({
+      return updateInternalRolePriorityReview({
+        action,
         admin: admin as any,
         conversationId: context?.conversationId ?? null,
         roleId,

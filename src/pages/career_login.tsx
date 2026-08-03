@@ -7,6 +7,7 @@ import {
 } from "react";
 import Head from "next/head";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/router";
 import type { ParsedUrlQuery } from "querystring";
 import { Copy, ExternalLink, Loader2, MailCheck } from "lucide-react";
@@ -25,6 +26,7 @@ import {
 import { useCountryLang } from "@/hooks/useCountryLang";
 import { BareButton } from "@/components/ui/button";
 import { Input as UiInput } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Text } from "@/components/ui/text";
 import ConfirmModal from "@/components/Modal/ConfirmModal";
 import { isOverseasCountryLang } from "@/i18n/localeResolution";
@@ -41,6 +43,7 @@ import {
   TALENT_NETWORK_REFERRAL_QUERY_KEY,
   TALENT_NETWORK_REFERRAL_SOURCE_CAREER_LOGIN,
 } from "@/lib/talentNetworkReferral";
+import { buildPrivacyPolicyAcknowledgement } from "@/lib/legal/legalDocumentAcceptance";
 
 type PartnerLogo = {
   src: string;
@@ -115,7 +118,9 @@ const CAREER_LOGIN_COPY: Record<
     copyBrowserLink: string;
     copyBrowserLinkDone: string;
     copyBrowserLinkFailed: string;
-    termsNotice: string;
+    privacyAcknowledgement: string;
+    privacyPolicyLabel: string;
+    privacyRequired: string;
     trustedBy: string;
   }
 > = {
@@ -166,8 +171,9 @@ const CAREER_LOGIN_COPY: Record<
       "링크를 복사했습니다. Safari나 Chrome 주소창에 붙여넣어 주세요.",
     copyBrowserLinkFailed:
       "링크 복사에 실패했습니다. 주소창의 URL을 Safari나 Chrome에서 직접 열어 주세요.",
-    termsNotice:
-      "계속 진행하면 Harper의 이용 약관 및 개인정보 처리방침에 동의한 것으로 간주됩니다.",
+    privacyAcknowledgement: "에 동의합니다.",
+    privacyPolicyLabel: "개인정보 처리방침",
+    privacyRequired: "회원가입하려면 개인정보 처리방침을 확인해 주세요.",
     trustedBy: "이곳의 인재들이 신뢰합니다.",
   },
   en: {
@@ -217,8 +223,9 @@ const CAREER_LOGIN_COPY: Record<
       "Link copied. Paste it into Safari or Chrome to continue.",
     copyBrowserLinkFailed:
       "We couldn't copy the link. Open the current URL directly in Safari or Chrome.",
-    termsNotice:
-      "By continuing, you agree to Harper's Terms of Service and Privacy Policy.",
+    privacyAcknowledgement: "",
+    privacyPolicyLabel: "I agree to the Privacy Policy",
+    privacyRequired: "Review the Privacy Policy before creating an account.",
     trustedBy: "Trusted by talent from these communities.",
   },
 };
@@ -337,6 +344,7 @@ const CareerLoginContent = () => {
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [emailMode, setEmailMode] = useState<"signin" | "signup">("signin");
+  const [privacyAcknowledged, setPrivacyAcknowledged] = useState(true);
   const [formError, setFormError] = useState("");
   const [resetInfo, setResetInfo] = useState("");
   const [resetPending, setResetPending] = useState(false);
@@ -459,6 +467,10 @@ const CareerLoginContent = () => {
   );
   const showInAppBrowserNotice =
     forceInAppBrowserNotice || detectedInAppBrowser;
+  const privacyPolicyAcknowledgement = useMemo(
+    () => buildPrivacyPolicyAcknowledgement(locale),
+    [locale]
+  );
 
   useEffect(() => {
     if (!router.isReady || typeof window === "undefined") return;
@@ -560,6 +572,10 @@ const CareerLoginContent = () => {
       return;
     }
 
+    if (emailMode === "signup" && !privacyAcknowledged) {
+      setFormError(copy.privacyRequired);
+      return;
+    }
     if (emailMode === "signup" && password !== passwordConfirm) {
       setFormError(copy.passwordMismatch);
       return;
@@ -567,11 +583,23 @@ const CareerLoginContent = () => {
     const ok = await handleEmailAuth({
       mode: emailMode,
       email,
+      legalAcceptance:
+        emailMode === "signup" ? privacyPolicyAcknowledgement : undefined,
       password,
     });
     if (ok) {
       void router.replace(buildResolvedNextPath());
     }
+  };
+
+  const handleGoogleAuth = () => {
+    setFormError("");
+    setResetInfo("");
+    if (!privacyAcknowledged) {
+      setFormError(copy.privacyRequired);
+      return;
+    }
+    void handleGoogleLogin(privacyPolicyAcknowledgement);
   };
 
   const sendPasswordResetEmail = useCallback(
@@ -827,7 +855,7 @@ const CareerLoginContent = () => {
                 ) : (
                   <BareButton
                     type="button"
-                    onClick={() => void handleGoogleLogin()}
+                    onClick={handleGoogleAuth}
                     disabled={authActionPending}
                     className="flex h-11 w-full items-center justify-center gap-2 rounded-[9px] border border-neutral-1000-a10 bg-bg-floating px-4 text-[14px] font-medium tracking-[-0.015em] text-neutral-primary outline-none transition hover:border-neutral-400 hover:bg-bg-weak focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:cursor-not-allowed disabled:opacity-60"
                   >
@@ -986,14 +1014,34 @@ const CareerLoginContent = () => {
                   </Text>
                 ) : null}
 
-                <Text
-                  as="p"
-                  variant="caption"
-                  tone="subtle"
-                  className="mx-auto mt-4 max-w-[370px] text-center text-[12px] font-normal leading-5"
-                >
-                  {copy.termsNotice}
-                </Text>
+                <div className="mx-auto mt-4 flex max-w-[370px] justify-center text-left">
+                  <Checkbox
+                    checked={privacyAcknowledged}
+                    onChange={(event) => {
+                      setPrivacyAcknowledged(event.target.checked);
+                      setFormError("");
+                    }}
+                    disabled={authActionPending}
+                    state={
+                      formError === copy.privacyRequired ? "error" : "default"
+                    }
+                    size="medium"
+                    label={
+                      <span>
+                        <Link
+                          href={`/privacy?lang=${locale}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-link underline underline-offset-2"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          {copy.privacyPolicyLabel}
+                        </Link>
+                        {copy.privacyAcknowledgement}
+                      </span>
+                    }
+                  />
+                </div>
               </>
             )}
           </div>

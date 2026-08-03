@@ -27,7 +27,7 @@ export function buildCareerToolPolicyPrompt(args: {
   const hasRoleContextTool = toolNames.includes("get_role_context");
   const hasInternalRolesTool = toolNames.includes("get_internal_roles");
   const hasInternalRolePriorityReviewTool = toolNames.includes(
-    "request_internal_role_priority_review"
+    "internal_role_priority_review"
   );
   const hasUpdateRecommendedOpportunityFeedbackTool = toolNames.includes(
     "update_recommended_opportunity_feedback"
@@ -111,6 +111,7 @@ export function buildCareerToolPolicyPrompt(args: {
           "- Use `read_recommended_opportunities` when the answer depends on opportunities already recommended to this user, such as comparing them, recalling links, explaining recommendation reasons, or checking prior feedback.",
           "- If the user asks what happened after accepting an internal recommendation, call `read_recommended_opportunities` and answer from the returned `progress.message` when it is present. Do not infer company-side progress from savedStage or stale internal fields.",
           "- Pass `only_internal: true` to `read_recommended_opportunities` when the user is asking specifically about internal recommendations, accepted internal opportunities, or internal connection/review status.",
+          "- Treat returned feedback=`negative` and progress.stage=`rejected` as Talent-side rejection records, not company rejections. This actor rule is specific to Talent rejection; for archived and stopped processes, follow progress.message and progress.stopReason.",
           ...(args.channel === "chat"
             ? [
                 "- When showing a returned opportunity in chat, include a standalone `[posting](roleId)` line for each returned opportunity you mention.",
@@ -143,7 +144,7 @@ export function buildCareerToolPolicyPrompt(args: {
       : []),
     ...(hasInternalRolePriorityReviewTool
       ? [
-          "- Use `request_internal_role_priority_review` when the user explicitly asks Harper to connect, prioritize, review, or consider them for a specific internal Harper-connected role. If the roleId is unknown, use `get_internal_roles` first; if the role remains ambiguous, ask one clarifying question. This is only for internal role.",
+          "- Use `internal_role_priority_review` with `action=register` when the user explicitly asks Harper to connect, prioritize, review, or consider them for a specific internal Harper-connected role. Use `action=withdraw` when the user explicitly asks to withdraw, cancel, or remove that priority-review request. If the roleId is unknown, use `get_internal_roles` first; if the role remains ambiguous, ask one clarifying question. This is only for internal role.",
         ]
       : []),
     ...(hasUpdateRecommendedOpportunityFeedbackTool

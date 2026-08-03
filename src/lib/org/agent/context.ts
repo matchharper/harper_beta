@@ -25,6 +25,7 @@ import type {
 } from "@/lib/org/agent/types";
 import {
   assertOrgWorkspacePermission,
+  fetchOrgBoard,
   OrgHttpError,
   upsertOrgCompanyUser,
 } from "@/lib/org/server";
@@ -158,8 +159,7 @@ function formatRecentRecommendations(
 }
 
 function formatConversation(
-  messages: Awaited<ReturnType<typeof fetchRecentOrgAgentPromptMessages>>,
-  preserveFirst: boolean
+  messages: Awaited<ReturnType<typeof fetchRecentOrgAgentPromptMessages>>
 ) {
   if (messages.length === 0) return "-";
   const rows = messages.map((message) => {
@@ -200,21 +200,6 @@ function formatConversation(
     totalChars += rowChars;
     selected.unshift(row);
   }
-  const first = rows[0];
-  if (preserveFirst && first && !selected.includes(first)) {
-    const firstChars = first.reduce<number>(
-      (sum, value) => sum + String(value ?? "").length,
-      0
-    );
-    while (selected.length > 1 && totalChars + firstChars > 8_000) {
-      const removed = selected.shift()!;
-      totalChars -= removed.reduce<number>(
-        (sum, value) => sum + String(value ?? "").length,
-        0
-      );
-    }
-    selected.unshift(first);
-  }
   return formatPromptTable(
     ["speaker", "mentions", "message"],
     selected,
@@ -253,7 +238,7 @@ function formatCompany(
  * Intentionally small and predictable:
  * - company information
  * - every role in compact form
- * - the 20 most recently recommended people
+ * - the 20 most recent candidates visible in the organization pipeline
  * - recent conversation and older summaries
  *
  * Candidate profiles and large role pipelines are never injected here. The
@@ -264,7 +249,7 @@ export async function buildOrgAgentPromptContext(args: {
   beforeMessageId?: number | null;
   conversation: OrgAgentConversationRow;
   slackHistoryTruncated?: boolean;
-  slackThreadId?: string;
+  user: User;
 }) {
   const workspaceId = args.conversation.company_workspace_id;
   const [workspace, roles, recentRecommendations, summaries, messages] =
@@ -282,6 +267,7 @@ export async function buildOrgAgentPromptContext(args: {
           fetchRecentOrgAgentRecommendations({
             admin: args.admin,
             limit: 20,
+            user: args.user,
             workspaceId,
           }),
       }),
@@ -289,13 +275,11 @@ export async function buildOrgAgentPromptContext(args: {
         fallback: [],
         label: "conversation_summaries",
         task: () =>
-          args.slackThreadId
-            ? Promise.resolve([])
-            : fetchRecentOrgAgentSummaries({
-                admin: args.admin,
-                conversationId: args.conversation.id,
-                limit: 2,
-              }),
+          fetchRecentOrgAgentSummaries({
+            admin: args.admin,
+            conversationId: args.conversation.id,
+            limit: 2,
+          }),
       }),
       optionalContext({
         fallback: [],
@@ -305,8 +289,7 @@ export async function buildOrgAgentPromptContext(args: {
             admin: args.admin,
             beforeMessageId: args.beforeMessageId,
             conversationId: args.conversation.id,
-            limit: args.slackThreadId ? 200 : 14,
-            slackThreadId: args.slackThreadId,
+            limit: 14,
           }),
       }),
     ]);
@@ -316,9 +299,9 @@ export async function buildOrgAgentPromptContext(args: {
     companyText: formatCompany(workspace),
     completeRoleRequestIds: formattedRoles.completeRoleRequestIds,
     contextNotesText: args.slackHistoryTruncated
-      ? "Slack API returned a partial thread page. Use the available root and stored recent replies; do not claim that unseen replies were reviewed."
+      ? "Slack API returned a partial thread page. Use only the synchronized messages available in the shared conversation; do not claim that unseen replies were reviewed."
       : "-",
-    conversationText: formatConversation(messages, Boolean(args.slackThreadId)),
+    conversationText: formatConversation(messages),
     recentRecommendationsText: formatRecentRecommendations(
       recentRecommendations
     ),
@@ -351,6 +334,7 @@ export async function searchOrgAgentMentionCandidates(args: {
     limit: 12,
     query: args.query,
     roleId: args.roleId,
+    user: args.user,
     workspaceId,
   });
   return result.items.map((item) => ({
@@ -379,43 +363,35 @@ export async function searchOrgAgentMentionCandidates(args: {
 export async function filterOrgAgentMentionsForWorkspace(args: {
   admin: OrgAgentAdminClient;
   mentions: OrgAgentMention[];
+  user: User;
   workspaceId: string;
 }) {
-  const talentIds = unique(args.mentions.map((mention) => mention.talentId));
-  if (talentIds.length === 0) return [];
-  const roles = await fetchOrgAgentRoles({
-    admin: args.admin,
+  if (unique(args.mentions.map((mention) => mention.talentId)).length === 0) {
+    return [];
+  }
+  const board = await fetchOrgBoard({
+    includeInternalStages: true,
+    includeProfileLabels: false,
+    user: args.user,
     workspaceId: args.workspaceId,
   });
-  const roleIds = roles.map((role) => role.roleId);
-  if (roleIds.length === 0) return [];
-  const { data, error } = await (
-    args.admin.from("talent_opportunity_recommendation" as any) as any
-  )
-    .select("id, talent_id, role_id, updated_at")
-    .in("role_id", roleIds)
-    .in("talent_id", talentIds)
-    .order("updated_at", { ascending: false });
-  if (error) throw error;
-
-  const rows = (data ?? []) as Array<{
-    id: string;
-    role_id: string;
-    talent_id: string;
-  }>;
   return args.mentions.flatMap((mention): OrgAgentMention[] => {
-    const preferred = rows.find(
-      (row) =>
-        row.talent_id === mention.talentId &&
-        (!mention.roleId || row.role_id === mention.roleId)
+    const candidates = board.items.filter(
+      (item) =>
+        item.talentId === mention.talentId &&
+        (!mention.roleId || item.roleId === mention.roleId)
     );
+    const preferred =
+      candidates.find(
+        (item) => item.recommendationId === mention.recommendationId
+      ) ?? candidates[0];
     if (!preferred || !text(mention.displayName)) return [];
     return [
       {
         displayName: text(mention.displayName),
-        recommendationId: mention.recommendationId || preferred.id,
-        roleId: preferred.role_id,
-        talentId: preferred.talent_id,
+        recommendationId: preferred.recommendationId,
+        roleId: preferred.roleId,
+        talentId: preferred.talentId,
       },
     ];
   });

@@ -39,6 +39,7 @@ import {
 import { MatchingTalentDrawer } from "@/components/ops/matching/MatchingTalentDrawer";
 import { MatchingMemoQuickAdd } from "@/components/ops/matching/MatchingTalentInlineActions";
 import { cx, opsTheme } from "@/components/ops/theme";
+import { TalentProfileMemo } from "@/components/profile/TalentExperienceSection";
 import { BareButton } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -601,6 +602,7 @@ function ProfileExperienceList({
                   {experience.description}
                 </div>
               ) : null}
+              <TalentProfileMemo value={experience.memo} />
             </div>
           ))
         )}
@@ -648,6 +650,7 @@ function ProfileEducationList({
                   {education.description}
                 </div>
               ) : null}
+              <TalentProfileMemo value={education.memo} />
             </div>
           ))
         )}
@@ -686,6 +689,7 @@ function ProfileExtraList({
                   {extra.description}
                 </div>
               ) : null}
+              <TalentProfileMemo value={extra.memo} />
             </div>
           ))
         )}

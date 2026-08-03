@@ -339,11 +339,11 @@ function getToolStartThinkingLog(toolName: string, locale?: string | null) {
         "career.chat.tool.research_company.start",
         "회사 정보를 확인하고 있습니다."
       );
-    case TALENT_TOOL_NAMES.REQUEST_INTERNAL_ROLE_PRIORITY_REVIEW:
+    case TALENT_TOOL_NAMES.INTERNAL_ROLE_PRIORITY_REVIEW:
       return careerT(
         locale,
-        "career.chat.tool.request_internal_role_priority_review.start",
-        "포지션 우선 검토 요청을 저장하고 있습니다."
+        "career.chat.tool.internal_role_priority_review.start",
+        "포지션 우선 검토 요청을 처리하고 있습니다."
       );
     default:
       return "";
@@ -474,7 +474,7 @@ function buildOfficialJobSignupSourcePrompt(args: {
     `Example: "${sourceLabel} 기회에 연결을 도와드릴 수 있어요. 이 포지션에 관심 있으신가요? 그렇다고하면 우선적으로 검토되실 수 있게 할게요."`,
     "If recent conversation already asked about this opportunity, do not ask again.",
     "",
-    "If the user says yes or clearly shows interest, Help the user with get_internal_roles, request_internal_role_priority_review tools.",
+    "If the user says yes or clearly shows interest, help the user with get_internal_roles and internal_role_priority_review using action=register.",
     "The question above is optional.",
   ].join("\n");
 }

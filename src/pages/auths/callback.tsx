@@ -20,6 +20,10 @@ import {
   resolveAuthCallbackDestination,
   resolveAuthCallbackErrorDestination,
 } from "@/lib/authPersona";
+import {
+  parseLegalAcceptanceQuery,
+  recordLegalDocumentAcceptance,
+} from "@/lib/legal/legalDocumentAcceptance";
 
 function inferLandingLogSource(args: { flow: string; nextPath: string }) {
   if (args.nextPath.startsWith("/search")) return "search";
@@ -121,6 +125,9 @@ export default function AuthCallback() {
       const callbackMessage =
         getQueryText(router.query.message) ||
         getAuthCallbackHashValue("message");
+      const legalAcceptance = parseLegalAcceptanceQuery((key) =>
+        getQueryText(router.query[key])
+      );
 
       if (flow === "career_email_change") {
         const { error: initializationError } = await supabase.auth.initialize();
@@ -232,6 +239,24 @@ export default function AuthCallback() {
           )
         );
         return;
+      }
+
+      if (isTalentDestination && legalAcceptance) {
+        try {
+          await recordLegalDocumentAcceptance({
+            acceptance: legalAcceptance,
+            accessToken,
+          });
+        } catch (acceptanceError) {
+          console.error("legal acceptance record error:", acceptanceError);
+          router.replace(
+            resolveAuthCallbackErrorDestination({
+              error: "legal_acceptance_failed",
+              isTalentDestination,
+            })
+          );
+          return;
+        }
       }
 
       if (isTalentDestination) {

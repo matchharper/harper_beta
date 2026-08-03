@@ -97,7 +97,7 @@ OpenAI-compatible Anthropic/xAI 호출 경로에는 explicit cache breakpoint를
 | role_requests | 비어 있지 않은 request | role당 600자, 전체 8,000자 |
 | recent_recommendations | 최근 20명의 ID/name/headline/role/stage/fit/date | email·recommendation ID 제외 |
 | older_summaries | 최근 summary 2개 | 각 1,200자 |
-| recent_conversation | 웹 14개 또는 같은 Slack thread 최대 200개 조회 | 최신 우선, Slack root 보존, 전체 약 8,000자 |
+| recent_conversation | 웹·Slack 통합 최신 14개 조회 | 최신 우선, 전체 약 8,000자 |
 | resolved_mentions | mention된 talent ID/role ID | recommendation ID 제외 |
 | user_message | 최신 요청 | 마지막 배치, 최대 8,000자 |
 
@@ -162,18 +162,17 @@ service 단계와 serializer 단계에서 description/memo 길이를 이중으�
 
 ## 대화와 summary
 
-웹의 최근 message는 최대 14개를 조회하지만 최종 prompt에서는 약 8,000자
-budget을 적용한다. 뒤에서부터 채워 최신 message를 우선하고, 한 message는
-900자로 제한한다. Slack은 같은 thread에서 최대 200개를 조회한 뒤 root message와
-최신 message를 우선 보존한다. Speaker는 `표시 이름 [Slack user ID]`이므로 여러
-사람의 말을 구분한다.
+웹과 Slack의 최근 message를 합쳐 최대 14개 조회하고, 최종 prompt에서는 약
+8,000자 budget을 적용한다. 뒤에서부터 채워 최신 message를 우선하고, 한
+message는 900자로 제한한다. Slack speaker는 `표시 이름 [Slack user ID]`이므로
+여러 사람의 말을 구분한다.
 
-웹 대화는 오래된 segment가 일정 크기를 넘으면 summary로 저장된다. 매 turn에는
-가장 최근 summary 2개만 각 1,200자까지 넣는다. Slack은 저장된 Organization
-summary 대신 같은 `slack_thread_id`의 message만 읽어 thread context가 섞이지
-않게 한다. 첫 mention 직전에는 Slack `conversations.replies` 한 page를
-동기화하고, 이후 자동 답변하지 않는 일반 댓글도 Events API에서 저장해 다음
-mention의 context로 사용한다.
+웹·Slack 통합 대화의 오래된 segment가 일정 크기를 넘으면 하나의 workspace
+summary로 저장된다. 매 turn에는 가장 최근 summary 2개만 각 1,200자까지 넣는다.
+따라서 웹에서 나눈 대화를 Slack이 기억하고, 여러 Slack thread에서 나눈 대화도
+웹과 다른 Slack thread가 이어서 기억한다. 첫 mention 직전에는 Slack
+`conversations.replies` 한 page를 동기화하고, 이후 자동 답변하지 않는 일반
+댓글도 Events API에서 저장해 다음 turn의 통합 context로 사용한다.
 
 ## Write 안전성과 token 절감의 경계
 

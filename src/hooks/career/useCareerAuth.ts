@@ -15,6 +15,11 @@ import {
 import { getOfficialJobsApplyHelpExperimentAbtestType } from "@/lib/officialJobs/experiment";
 import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
 import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
+import {
+  appendLegalAcceptanceQuery,
+  recordLegalDocumentAcceptance,
+  type LegalDocumentAcceptance,
+} from "@/lib/legal/legalDocumentAcceptance";
 import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 
 type CareerMessageFormatter = ReturnType<typeof useCareerMessageFormatter>;
@@ -100,6 +105,17 @@ function isAlreadyRegisteredSignUpResponse(data: {
   );
 }
 
+function redirectToCareerLoginForLegalAcknowledgement() {
+  if (typeof window === "undefined") return;
+
+  const loginUrl = new URL("/career_login", window.location.origin);
+  const currentPath = `${window.location.pathname}${window.location.search}`;
+  if (currentPath.startsWith("/") && !currentPath.startsWith("//")) {
+    loginUrl.searchParams.set("next", currentPath);
+  }
+  window.location.assign(loginUrl.toString());
+}
+
 export const useCareerAuth = () => {
   const { user, loading: authLoading, signOut } = useAuthStore();
   const tCareer = useCareerMessageFormatter();
@@ -108,7 +124,9 @@ export const useCareerAuth = () => {
   const [authError, setAuthError] = useState("");
   const [authInfo, setAuthInfo] = useState("");
 
-  const buildCareerAuthCallbackUrl = useCallback(() => {
+  const buildCareerAuthCallbackUrl: (
+    legalAcceptance?: LegalDocumentAcceptance
+  ) => string | undefined = useCallback((legalAcceptance) => {
     if (typeof window === "undefined") return undefined;
 
     const currentUrl = new URL(window.location.href);
@@ -255,36 +273,47 @@ export const useCareerAuth = () => {
         emailOnboardingToken
       );
     }
+    if (legalAcceptance) {
+      appendLegalAcceptanceQuery(callbackUrl, legalAcceptance);
+    }
 
     return callbackUrl.toString();
   }, []);
 
-  const handleGoogleLogin = useCallback(async () => {
-    if (authPending) return;
-    setAuthPending(true);
-    setAuthError("");
-    setAuthInfo("");
-    try {
-      const redirectTo = buildCareerAuthCallbackUrl();
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: { redirectTo },
-      });
-      if (error) throw error;
-      if (data?.url && typeof window !== "undefined") {
-        window.location.assign(data.url);
+  const handleGoogleLogin = useCallback(
+    async (legalAcceptance?: LegalDocumentAcceptance) => {
+      if (authPending) return;
+      if (!legalAcceptance) {
+        redirectToCareerLoginForLegalAcknowledgement();
+        return;
       }
-    } catch {
-      setAuthError(tCareer(H.authGoogleLoginFailed));
-    } finally {
-      setAuthPending(false);
-    }
-  }, [authPending, buildCareerAuthCallbackUrl, tCareer]);
+      setAuthPending(true);
+      setAuthError("");
+      setAuthInfo("");
+      try {
+        const redirectTo = buildCareerAuthCallbackUrl(legalAcceptance);
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: { redirectTo },
+        });
+        if (error) throw error;
+        if (data?.url && typeof window !== "undefined") {
+          window.location.assign(data.url);
+        }
+      } catch {
+        setAuthError(tCareer(H.authGoogleLoginFailed));
+      } finally {
+        setAuthPending(false);
+      }
+    },
+    [authPending, buildCareerAuthCallbackUrl, tCareer]
+  );
 
   const handleEmailAuth = useCallback(
     async (args: {
       mode: "signin" | "signup";
       email: string;
+      legalAcceptance?: LegalDocumentAcceptance;
       password: string;
     }) => {
       if (authPending) return false;
@@ -300,7 +329,11 @@ export const useCareerAuth = () => {
       setAuthInfo("");
       try {
         if (args.mode === "signup") {
-          const redirectTo = buildCareerAuthCallbackUrl();
+          if (!args.legalAcceptance) {
+            redirectToCareerLoginForLegalAcknowledgement();
+            return false;
+          }
+          const redirectTo = buildCareerAuthCallbackUrl(args.legalAcceptance);
           const { data, error } = await supabase.auth.signUp({
             email,
             password: args.password,
@@ -316,6 +349,12 @@ export const useCareerAuth = () => {
           if (!data.session) {
             setAuthInfo(tCareer(H.authEmailConfirmationSent));
             return false;
+          }
+          if (args.legalAcceptance) {
+            await recordLegalDocumentAcceptance({
+              acceptance: args.legalAcceptance,
+              accessToken: data.session.access_token,
+            });
           }
         } else {
           const { error } = await supabase.auth.signInWithPassword({

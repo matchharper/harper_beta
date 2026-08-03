@@ -181,7 +181,8 @@ export default function CareerLandingFooter({
   onLocaleChange,
   showLocaleSwitcher = true,
 }: CareerLandingFooterProps) {
-  const labels = FOOTER_COPY[locale ?? "ko"];
+  const resolvedLocale = locale ?? "ko";
+  const labels = FOOTER_COPY[resolvedLocale];
   const user = useAuthStore((state) => state.user);
   const showReferralEntryPoints = useReferralEntryPointEligibility({ user });
   const openSupportChat = () => {
@@ -296,7 +297,13 @@ export default function CareerLandingFooter({
                   {labels.privacy}
                 </Link> */}
                 {showReferralEntryPoints ? (
-                  <Link href="/referral-terms" className={liStyle}>
+                  <Link
+                    href={{
+                      pathname: "/referral-terms",
+                      query: { lang: resolvedLocale },
+                    }}
+                    className={liStyle}
+                  >
                     {labels.referralTerms}
                   </Link>
                 ) : null}

@@ -5964,6 +5964,7 @@ export type Database = {
           opportunity_type: string
           preference_fit: Json
           processed_stage: string | null
+          processed_stage_version: string | null
           rank: number | null
           recommended_at: string
           role_id: string
@@ -5993,6 +5994,7 @@ export type Database = {
           opportunity_type?: string
           preference_fit?: Json
           processed_stage?: string | null
+          processed_stage_version?: string | null
           rank?: number | null
           recommended_at?: string
           role_id: string
@@ -6022,6 +6024,7 @@ export type Database = {
           opportunity_type?: string
           preference_fit?: Json
           processed_stage?: string | null
+          processed_stage_version?: string | null
           rank?: number | null
           recommended_at?: string
           role_id?: string

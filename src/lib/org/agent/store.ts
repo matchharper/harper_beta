@@ -319,22 +319,15 @@ export async function fetchRecentOrgAgentPromptMessages(args: {
   beforeMessageId?: number | null;
   conversationId: string;
   limit?: number;
-  slackThreadId?: string;
 }) {
   let query = (args.admin.from("company_messages" as any) as any)
     .select("id, role, content, created_at, mentions, metadata, slack_user_id")
     .eq("conversation_id", args.conversationId)
+    .in("message_type", ["chat", "slack"])
     .order("id", { ascending: false });
 
   if (args.beforeMessageId) {
     query = query.lt("id", args.beforeMessageId);
-  }
-  if (args.slackThreadId) {
-    query = query
-      .eq("message_type", "slack")
-      .eq("slack_thread_id", args.slackThreadId);
-  } else {
-    query = query.eq("message_type", "chat");
   }
 
   const { data, error } = await query.limit(args.limit ?? 16);

@@ -41,6 +41,7 @@ type TalentExperienceRow = Pick<
   | "employment_type"
   | "end_date"
   | "id"
+  | "memo"
   | "role"
   | "start_date"
   | "talent_id"
@@ -52,6 +53,7 @@ type TalentEducationRow = Pick<
   | "end_date"
   | "field"
   | "id"
+  | "memo"
   | "school"
   | "start_date"
   | "talent_id"
@@ -340,6 +342,7 @@ export type OpsMatchingProfileExperience = {
   companyName: string | null;
   description: string | null;
   employmentType: string | null;
+  memo: string | null;
   period: string | null;
   role: string | null;
 };
@@ -348,6 +351,7 @@ export type OpsMatchingProfileEducation = {
   degree: string | null;
   description: string | null;
   field: string | null;
+  memo: string | null;
   period: string | null;
   school: string | null;
   url: string | null;
@@ -356,6 +360,7 @@ export type OpsMatchingProfileEducation = {
 export type OpsMatchingProfileExtra = {
   date: string | null;
   description: string | null;
+  memo: string | null;
   title: string | null;
 };
 
@@ -1243,17 +1248,26 @@ function buildExperienceProfile(
   const role = normalizeNullableText(row.role);
   const description = normalizeNullableText(row.description);
   const employmentType = normalizeNullableText(row.employment_type);
+  const memo = normalizeNullableText(row.memo);
   const period = formatPeriod({
     endDate: row.end_date,
     startDate: row.start_date,
   });
-  if (!companyName && !role && !description && !employmentType && !period) {
+  if (
+    !companyName &&
+    !role &&
+    !description &&
+    !employmentType &&
+    !memo &&
+    !period
+  ) {
     return null;
   }
   return {
     companyName,
     description,
     employmentType,
+    memo,
     period,
     role,
   };
@@ -1265,19 +1279,29 @@ function buildEducationProfile(
   const degree = normalizeNullableText(row.degree);
   const description = normalizeNullableText(row.description);
   const field = normalizeNullableText(row.field);
+  const memo = normalizeNullableText(row.memo);
   const period = formatPeriod({
     endDate: row.end_date,
     startDate: row.start_date,
   });
   const school = normalizeNullableText(row.school);
   const url = normalizeNullableText(row.url);
-  if (!degree && !description && !field && !period && !school && !url) {
+  if (
+    !degree &&
+    !description &&
+    !field &&
+    !memo &&
+    !period &&
+    !school &&
+    !url
+  ) {
     return null;
   }
   return {
     degree,
     description,
     field,
+    memo,
     period,
     school,
     url,
@@ -1288,7 +1312,15 @@ function getProfileExtraEntries(value: unknown): unknown[] {
   if (Array.isArray(value)) return value;
   const record = parseJsonRecord(value);
   if (!record) return [];
-  const listKeys = ["extras", "items", "projects", "activities"];
+  const listKeys = [
+    "talent_extras",
+    "talentExtras",
+    "extras",
+    "items",
+    "publications",
+    "projects",
+    "activities",
+  ];
   for (const key of listKeys) {
     const list = record[key];
     if (Array.isArray(list)) return list;
@@ -1301,7 +1333,9 @@ function normalizeProfileExtras(value: unknown): OpsMatchingProfileExtra[] {
     .map((entry) => {
       if (typeof entry === "string") {
         const description = normalizeNullableText(entry);
-        return description ? { date: null, description, title: null } : null;
+        return description
+          ? { date: null, description, memo: null, title: null }
+          : null;
       }
       if (!isRecord(entry)) return null;
       const title = getRecordPrimitiveText(entry, ["title", "name", "label"]);
@@ -1312,8 +1346,9 @@ function normalizeProfileExtras(value: unknown): OpsMatchingProfileExtra[] {
         "text",
         "summary",
       ]);
-      if (!title && !date && !description) return null;
-      return { date, description, title };
+      const memo = getRecordPrimitiveText(entry, ["memo"]);
+      if (!title && !date && !description && !memo) return null;
+      return { date, description, memo, title };
     })
     .filter((extra): extra is OpsMatchingProfileExtra => extra !== null);
 }
@@ -1676,7 +1711,7 @@ async function fetchProfileMaps(args: {
     args.admin
       .from("talent_experiences")
       .select(
-        "id, talent_id, company_name, role, employment_type, description, start_date, end_date"
+        "id, talent_id, company_name, role, employment_type, description, start_date, end_date, memo"
       )
       .in("talent_id", args.talentIds)
       .order("start_date", { ascending: false, nullsFirst: false })
@@ -1684,7 +1719,7 @@ async function fetchProfileMaps(args: {
     args.admin
       .from("talent_educations")
       .select(
-        "id, talent_id, school, degree, field, description, url, start_date, end_date"
+        "id, talent_id, school, degree, field, description, url, start_date, end_date, memo"
       )
       .in("talent_id", args.talentIds)
       .order("start_date", { ascending: false, nullsFirst: false })

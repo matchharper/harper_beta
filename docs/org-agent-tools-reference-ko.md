@@ -97,8 +97,8 @@ Tool은 `tool_choice = auto`로 제공한다. LLM이 필요 없다고 판단하�
 | All positions | 모든 role의 ID, 이름, 상태, 위치, 근무 형태, 고용 형태, 일 단위 updated date | core는 전부 |
 | Role requests | 비어 있지 않은 role request | role당 600자, 섹션 8,000자 |
 | Recent recommendations | talent ID, 이름, headline, role, stage, 짧은 fit, 추천일 | 최신 20명 |
-| Older summaries | 오래된 웹 대화 요약 | 최근 2개, 각 1,200자 |
-| Recent conversation | 같은 surface의 직전 대화 | 웹 14개; Slack 동일 thread 최대 200개 조회 후 약 8,000자 |
+| Older summaries | 오래된 웹·Slack 통합 대화 요약 | 최근 2개, 각 1,200자 |
+| Recent conversation | 웹·Slack을 합친 직전 대화 | 최신 14개 조회 후 약 8,000자 |
 | Resolved mentions | 브라우저 `@후보자`의 talentId/roleId | 요청에 포함된 mention |
 | New message | 이번 사용자 메시지 | 최대 8,000자 |
 
@@ -113,11 +113,11 @@ Tool은 `tool_choice = auto`로 제공한다. LLM이 필요 없다고 판단하�
 - 후보자의 bio, 전체 이력서, 경력, 학력은 항상 넣지 않는다.
 - 한 role의 전체 후보 목록이나 전체 progress도 항상 넣지 않는다.
 - 이 큰 데이터는 각각 `read_talent`, `read_role`로 필요한 만큼만 읽는다.
-- Slack에서는 `Recent conversation`이 같은 `slack_thread_id`의 메시지만 포함한다.
-  다른 Slack thread나 웹 대화가 섞이지 않는다.
+- 웹과 Slack은 workspace의 같은 대화 기억을 사용한다. 어느 surface에서 질문해도
+  최근 웹 채팅과 여러 Slack thread의 메시지 및 통합 summary를 함께 읽는다.
 - Slack speaker는 `표시 이름 [Slack user ID]`로 들어가며, 이름 scope가 없는
-  installation도 ID로 서로 구분된다. Thread root와 최신 댓글을 우선 보존한다.
-- 웹에서는 오래된 대화를 요약해 다음 turn에 다시 넣는다.
+  installation도 ID로 서로 구분된다.
+- 오래된 웹·Slack 대화는 하나의 workspace summary로 요약해 다음 turn에 다시 넣는다.
 - role request가 `…`로 잘렸거나 `omitted_role_requests`에 있으면
   `update_role(request=...)` 전에 `read_role`을 해야 한다. 실행기도 이 순서를
   검증해서 잘린 내용을 전체 값처럼 덮어쓰지 못하게 막는다.

@@ -512,6 +512,7 @@ export async function runOrgAgentChat(args: {
     mentions = await filterOrgAgentMentionsForWorkspace({
       admin,
       mentions: args.mentions ?? [],
+      user: args.user,
       workspaceId: conversation.company_workspace_id,
     });
   } catch (error) {
@@ -554,7 +555,7 @@ export async function runOrgAgentChat(args: {
       slackHistoryTruncated: Boolean(
         args.userMessageMetadata?.historyTruncated
       ),
-      slackThreadId: args.slackThreadId,
+      user: args.user,
     });
     thinkingLogs[thinkingLogs.length - 1] = nowLog(
       "회사와 최근 추천 정보 확인 완료",
@@ -622,15 +623,13 @@ export async function runOrgAgentChat(args: {
     });
     args.emit?.("assistant_message", assistantMessage);
 
-    if (args.messageType !== "slack") {
-      void maybeSummarizeOrgAgentConversation({
-        admin,
-        conversation,
-        model: isOrgAgentModelId(llmResult.model)
-          ? llmResult.model
-          : DEFAULT_ORG_AGENT_MODEL,
-      });
-    }
+    void maybeSummarizeOrgAgentConversation({
+      admin,
+      conversation,
+      model: isOrgAgentModelId(llmResult.model)
+        ? llmResult.model
+        : DEFAULT_ORG_AGENT_MODEL,
+    });
 
     return {
       assistantMessage,

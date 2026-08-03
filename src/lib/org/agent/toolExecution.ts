@@ -246,6 +246,7 @@ export function getOrgAgentToolStatusLabel(args: {
 async function executeGetTalents(args: {
   admin: OrgAgentAdminClient;
   input: Record<string, unknown>;
+  user: User;
   workspaceId: string;
 }) {
   return getOrgAgentTalents({
@@ -254,6 +255,7 @@ async function executeGetTalents(args: {
     offset: boundedInteger(args.input.offset, 0, 0, 200),
     query: requiredText(args.input.query, "query", 200),
     roleId: text(args.input.roleId) || null,
+    user: args.user,
     workspaceId: args.workspaceId,
   });
 }
@@ -261,6 +263,7 @@ async function executeGetTalents(args: {
 async function executeReadTalent(args: {
   admin: OrgAgentAdminClient;
   input: Record<string, unknown>;
+  user: User;
   workspaceId: string;
 }) {
   return readOrgAgentTalent({
@@ -269,6 +272,7 @@ async function executeReadTalent(args: {
     progressLimit: boundedInteger(args.input.progressLimit, 10, 1, 30),
     roleId: text(args.input.roleId) || null,
     talentId: requiredText(args.input.talentId, "talentId", 100),
+    user: args.user,
     workspaceId: args.workspaceId,
   });
 }
@@ -277,6 +281,7 @@ async function executeReadRole(args: {
   admin: OrgAgentAdminClient;
   input: Record<string, unknown>;
   state: OrgAgentToolExecutionState;
+  user: User;
   workspaceId: string;
 }) {
   const role = roleOrThrow(args.state, args.input.roleId);
@@ -288,6 +293,7 @@ async function executeReadRole(args: {
     recentUpdateLimit: boundedInteger(args.input.recentUpdateLimit, 10, 0, 20),
     roleId: role.roleId,
     stage: text(args.input.stage) || null,
+    user: args.user,
     workspaceId: args.workspaceId,
   });
   // A read and a write can appear in the same parallel tool-call batch. The
@@ -554,6 +560,7 @@ async function executePrepareCandidateConnection(args: {
     includeProfile: false,
     roleId: current.roleId,
     talentId,
+    user: args.user,
     workspaceId: args.workspaceId,
   });
   if (
@@ -806,12 +813,14 @@ export async function executeOrgAgentTool(args: {
     result = await executeGetTalents({
       admin: args.admin,
       input,
+      user: args.user,
       workspaceId,
     });
   } else if (args.name === "read_talent") {
     result = await executeReadTalent({
       admin: args.admin,
       input,
+      user: args.user,
       workspaceId,
     });
   } else if (args.name === "read_role") {
@@ -819,6 +828,7 @@ export async function executeOrgAgentTool(args: {
       admin: args.admin,
       input,
       state: args.state,
+      user: args.user,
       workspaceId,
     });
   } else if (args.name === "update_company") {

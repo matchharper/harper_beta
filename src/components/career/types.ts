@@ -150,6 +150,7 @@ export type CareerInternalRecommendationProgressCode =
   | "company_acknowledged_awaiting_response"
   | "company_next_process"
   | "no_company_response_closed"
+  | "rejected_by_talent"
   | "stopped_by_candidate"
   | "waiting_to_share";
 

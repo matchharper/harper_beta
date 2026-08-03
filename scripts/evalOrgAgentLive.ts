@@ -78,6 +78,14 @@ async function main() {
   ]);
 
   const admin = getSupabaseAdmin();
+  const fakeUser = {
+    app_metadata: {},
+    aud: "authenticated",
+    created_at: new Date().toISOString(),
+    email: "org-agent-live-eval@matchharper.com",
+    id: randomUUID(),
+    user_metadata: { name: "Live eval user" },
+  } as any;
   const conversation = {
     company_workspace_id: workspaceId,
     created_at: new Date().toISOString(),
@@ -91,10 +99,11 @@ async function main() {
     updated_at: new Date().toISOString(),
   };
   const [context, recommendations] = await Promise.all([
-    buildOrgAgentPromptContext({ admin, conversation }),
+    buildOrgAgentPromptContext({ admin, conversation, user: fakeUser }),
     fetchRecentOrgAgentRecommendations({
       admin,
       limit: 20,
+      user: fakeUser,
       workspaceId,
     }),
   ]);
@@ -111,6 +120,7 @@ async function main() {
     peopleLimit: 10,
     recentUpdateLimit: 10,
     roleId: targetRole.roleId,
+    user: fakeUser,
     workspaceId,
   });
   const workModeRole =
@@ -128,14 +138,6 @@ async function main() {
     )
     .map((role) => role.name);
   const topThree = recommendations.slice(0, 3);
-  const fakeUser = {
-    app_metadata: {},
-    aud: "authenticated",
-    created_at: new Date().toISOString(),
-    id: randomUUID(),
-    user_metadata: { name: "Live eval user" },
-  } as any;
-
   async function runCase(message: string): Promise<EvalResult> {
     const state = createOrgAgentToolExecutionState(context);
     const messages: any[] = [

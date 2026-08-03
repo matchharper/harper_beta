@@ -1,16 +1,12 @@
-import Link from "next/link";
-import Head from "next/head";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Copy, Download, Printer } from "lucide-react";
 import { useState } from "react";
 import type { VersionedLegalDocument } from "@/lib/legalDocs.server";
-import { Button } from "@/components/ui/button";
+import { MuteButton } from "@/components/ui/button";
 import { copyTextToClipboard } from "@/lib/talentNetworkReferral";
 import { showToast } from "@/components/toast/toast";
-import CareerLandingFooter from "@/components/landing/CareerLandingFooter";
-import CareerAppBar from "@/components/landing/career/CareerAppBarNew";
-import { useCareerLandingStart } from "@/hooks/useCareerLandingStart";
+import DocumentPageShell from "@/components/landing/DocumentPageShell";
 
 export type VersionedLegalDocumentPageProps = {
   document: VersionedLegalDocument;
@@ -81,18 +77,37 @@ export default function VersionedLegalDocumentPage({
   landingChrome = false,
 }: VersionedLegalDocumentPageProps) {
   const [copying, setCopying] = useState(false);
-  const { careerStartHref, handleCareerStartClick } = useCareerLandingStart({
-    trackingEnabled: false,
-  });
   const documentLocale = document.locale;
+  const copy =
+    documentLocale === "ko"
+      ? {
+          contact: "문의",
+          copied: "복사됨",
+          copy: "내용 복사",
+          copyError: "복사에 실패했습니다.",
+          copySuccess: "문서 내용이 복사되었습니다.",
+          effective: "시행일",
+          print: "인쇄",
+          savePdf: "PDF로 저장",
+        }
+      : {
+          contact: "Contact",
+          copied: "Copied",
+          copy: "Copy document",
+          copyError: "Failed to copy the document.",
+          copySuccess: "Document copied.",
+          effective: "Effective",
+          print: "Print",
+          savePdf: "Save as PDF",
+        };
 
   const handleCopy = async () => {
     setCopying(true);
     try {
       await copyTextToClipboard(document.body);
-      showToast({ message: "문서 내용이 복사되었습니다.", variant: "white" });
+      showToast({ message: copy.copySuccess, variant: "white" });
     } catch {
-      showToast({ message: "복사에 실패했습니다.", variant: "error" });
+      showToast({ message: copy.copyError, variant: "error" });
     } finally {
       window.setTimeout(() => setCopying(false), 800);
     }
@@ -103,129 +118,66 @@ export default function VersionedLegalDocumentPage({
   };
 
   return (
-    <main className="min-h-screen bg-bg-default text-neutral-primary">
-      <Head>
-        <title>{document.title} | Harper</title>
-        {document.description ? (
-          <meta name="description" content={document.description} />
-        ) : null}
-      </Head>
-      {landingChrome ? (
-        <CareerAppBar
-          careerStartHref={careerStartHref}
-          onCareerStartClick={handleCareerStartClick}
-          locale={documentLocale}
-          sectionHrefPrefix="/"
-        />
-      ) : (
-        <header className="border-b border-neutral-1000-a05 bg-bg-default">
-          <div className="mx-auto flex max-w-[1120px] items-center justify-between px-4 py-4 sm:px-6">
-            <Link
-              href="/"
-              className="font-hedvig text-[18px] text-neutral-primary"
-            >
-              Harper
-            </Link>
-            <Link href="/career" className="text-[13px] text-neutral-muted">
-              Career
-            </Link>
+    <DocumentPageShell
+      title={document.title}
+      description={document.description}
+      locale={documentLocale}
+      landingChrome={landingChrome}
+      aside={
+        <div className="rounded-sm border-b border-neutral-1000/2 pb-4 lg:border lg:bg-bg-basement lg:p-3">
+          <div className="text-[13px] leading-5 text-primary">
+            Version {document.version}
           </div>
-        </header>
-      )}
-
-      <div
-        className={`flex flex-col gap-20 mx-auto max-w-[1240px] px-4 sm:px-6 ${
-          landingChrome ? "pt-24 lg:pt-38" : "pt-10 lg:pt-14"
-        }`}
-      >
-        <div className="flex flex-col gap-4 font-normal">
-          <h1 className="max-w-[900px] text-[30px] font-normal leading-[1.2] tracking-normal text-neutral-primary sm:text-[48px] lg:text-[56px]">
-            {document.title}
-          </h1>
-          {document.description ? (
-            <div className="max-w-[720px] text-[14px] leading-6 text-neutral-muted sm:text-[16px]">
-              {document.description}
-            </div>
-          ) : null}
-        </div>
-
-        <div
-          className={`mx-auto grid gap-16 pb-10 lg:grid-cols-[240px_1fr] lg:pb-14`}
-        >
-          <aside
-            className={`lg:sticky lg:h-fit ${
-              landingChrome ? "lg:top-24" : "lg:top-8"
-            }`}
-          >
-            <div className="border-b border-neutral-1000/2 pb-4 lg:border lg:p-3 rounded-sm lg:bg-bg-basement">
-              <div className="text-[13px] leading-5 text-primary">
-                Version {document.version}
-              </div>
-              <div className="mt-1 text-[13px] leading-5 text-neutral-soft">
-                Effective {document.effectiveDate}
-              </div>
-              <div className="mt-5 flex flex-wrap gap-2 lg:flex-col">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="md"
-                  onClick={() => void handleCopy()}
-                  className="justify-start font-normal text-[13px] rounded-sm"
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                  {copying ? "Copied" : "Take a copy"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="md"
-                  onClick={handlePrint}
-                  className="justify-start font-normal text-[13px] rounded-sm"
-                >
-                  <Printer className="h-3.5 w-3.5" />
-                  Print
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="md"
-                  onClick={handlePrint}
-                  className="justify-start font-normal text-[13px] rounded-sm"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  Save as PDF
-                </Button>
-              </div>
-              <p className="mt-5 text-[12px] leading-5 text-neutral-soft">
-                문의:{" "}
-                <a
-                  href={`mailto:${document.contactEmail}`}
-                  className="text-link underline underline-offset-2"
-                >
-                  {document.contactEmail}
-                </a>
-              </p>
-            </div>
-          </aside>
-
-          <article className="min-w-0 rounded-lg">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={markdownComponents}
+          <div className="mt-1 text-[13px] leading-5 text-neutral-soft">
+            {copy.effective} {document.effectiveDate}
+          </div>
+          <div className="mt-5 flex flex-wrap gap-2 lg:flex-col">
+            <MuteButton
+              type="button"
+              size="md"
+              onClick={() => void handleCopy()}
+              className="justify-start"
             >
-              {document.body}
-            </ReactMarkdown>
-          </article>
+              <Copy className="h-3.5 w-3.5" />
+              {copying ? copy.copied : copy.copy}
+            </MuteButton>
+            <MuteButton
+              type="button"
+              size="md"
+              onClick={handlePrint}
+              className="justify-start"
+            >
+              <Printer className="h-3.5 w-3.5" />
+              {copy.print}
+            </MuteButton>
+            <MuteButton
+              type="button"
+              size="md"
+              onClick={handlePrint}
+              className="justify-start"
+            >
+              <Download className="h-3.5 w-3.5" />
+              {copy.savePdf}
+            </MuteButton>
+          </div>
+          <p className="mt-5 text-[12px] leading-5 text-neutral-soft">
+            {copy.contact}:{" "}
+            <a
+              href={`mailto:${document.contactEmail}`}
+              className="text-link underline underline-offset-2"
+            >
+              {document.contactEmail}
+            </a>
+          </p>
         </div>
-      </div>
-      {landingChrome ? (
-        <CareerLandingFooter
-          careerStartHref={careerStartHref}
-          onCareerStartClick={handleCareerStartClick}
-          locale={documentLocale}
-          showLocaleSwitcher={false}
-        />
-      ) : null}
-    </main>
+      }
+    >
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={markdownComponents}
+      >
+        {document.body}
+      </ReactMarkdown>
+    </DocumentPageShell>
   );
 }

@@ -260,10 +260,7 @@ const STREAMING_TOOL_CHAIN_MAX_CALLS = 3;
 const STREAMING_CHAINABLE_TOOLS: Record<string, readonly string[]> = {
   web_search: ["open_url", "web_search"],
   open_url: ["open_url", "web_search"],
-  get_internal_roles: [
-    "request_internal_role_priority_review",
-    "get_internal_roles",
-  ],
+  get_internal_roles: ["internal_role_priority_review", "get_internal_roles"],
   read_recommended_opportunities: [
     "get_role_context",
     "update_recommended_opportunity_feedback",

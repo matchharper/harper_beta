@@ -34,6 +34,7 @@ export const ProfileTab = memo(function ProfileTab({
     description?: string | null;
     employment_type?: string | null;
     end_date?: string;
+    memo?: string | null;
     role?: string;
     start_date?: string;
   }>;
@@ -42,12 +43,14 @@ export const ProfileTab = memo(function ProfileTab({
     description?: string | null;
     end_date?: string | null;
     field?: string | null;
+    memo?: string | null;
     school?: string | null;
     start_date?: string | null;
   }>;
   const extras = (detail.structuredProfile?.extras ?? []) as Array<{
     date?: string | null;
     description?: string | null;
+    memo?: string | null;
     title?: string | null;
   }>;
   const registeredLinks = detail.registeredLinks;
@@ -316,6 +319,7 @@ export const ProfileTab = memo(function ProfileTab({
           description: experience.description,
           employmentType: experience.employment_type,
           endDate: experience.end_date,
+          memo: experience.memo,
           role: experience.role,
           startDate: experience.start_date,
         }))}
@@ -327,6 +331,7 @@ export const ProfileTab = memo(function ProfileTab({
           description: education.description,
           endDate: education.end_date,
           field: education.field,
+          memo: education.memo,
           school: education.school,
           startDate: education.start_date,
         }))}

@@ -49,12 +49,6 @@ const Footer = ({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1 text-[13px] text-neutral-500">
-          <Link
-            href="/terms"
-            className="cursor-pointer hover:text-white/90 text-white/80"
-          >
-            Terms
-          </Link>
           <Dot size={8} />
           <Link
             href="/privacy"

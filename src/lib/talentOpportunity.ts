@@ -309,6 +309,7 @@ export type TalentInternalRecommendationProgressCode =
   | "company_acknowledged_awaiting_response"
   | "company_next_process"
   | "no_company_response_closed"
+  | "rejected_by_talent"
   | "stopped_by_candidate"
   | "waiting_to_share";
 
@@ -531,19 +532,21 @@ const INTERNAL_RECOMMENDATION_PROGRESS_MESSAGES: Record<
   closed_by_company:
     "회사 측에서 이번 포지션에서는 더 이상 진행하지 않기로 했습니다. 이력과 경험에 기반해 긍정적으로 검토했으나, 우선적으로 보고 있는 방향과 더 가까운 후보자와 다음 단계를 진행하게 되었다고 알려왔습니다. 또 다른 좋은 기회가 있을 때 연락드릴게요. 감사합니다.",
   company_acknowledged_awaiting_response:
-    "회사에게 전달되었고, 회신을 기다리고 있습니다. 회사에서 후보자님을 인지한 상태이니 조금만 기다려주세요.",
+    "회사에게 전달되었고, 회신을 기다리고 있습니다. 회사에서 후보자님을 인지한 상태이니 조금만 기다려주세요. 일반적으로 채용에는 시간이 소요되며, 꼭 긍정/부정 응답을 받으실 수 있도록 하겠습니다.",
   company_next_process:
-    "회사에서 다음 프로세스를 진행하겠다고 알렸습니다. 혹시 아직 다른 연락이 없으신가요?",
+    "회사에서 다음 프로세스를 진행하겠다고 알렸습니다. 혹시 아직 다른 연락을 받지 못하셨나요?",
   no_company_response_closed:
     "회사에게서 응답이 없습니다. 더 이상 프로세스를 진행할 의사가 없는 것으로 판단됩니다. 프로세스를 종료하고 더이상 트래킹 하지 않겠습니다. 불편을 드려 죄송합니다.",
+  rejected_by_talent:
+    "현재 기록에는 회원님이 이 연결 제안을 거절한 것으로 표시되어 있습니다. 수락하신 것이 맞다면 기록이 서로 일치하지 않아 확인이 필요합니다.",
   stopped_by_candidate: "요청하신 대로 이 포지션의 진행을 종료했습니다.",
   waiting_to_share: "적절한 타이밍에 회사에게 전달하기 위해 대기중입니다.",
 };
 
 const INTERNAL_ENDED_ROLE_PROGRESS_MESSAGE_AFTER_ACCEPTANCE =
-  "회사에서 해당 역할의 채용을 종료했다고 알려왔습니다. 이에 따라 이 기회의 프로세스를 종료하겠습니다.";
+  "회사에서 해당 역할의 채용을 종료했다고 알려왔습니다. 우선적으로 보고 있는 방향과 더 가까운 후보자와 다음 단계를 진행하게 되었다고 알려왔습니다. 또 다른 좋은 기회가 있을 때 연락드릴게요. 우선 이 기회의 프로세스를 종료하겠습니다. 감사합니다.";
 const INTERNAL_ENDED_ROLE_PROGRESS_MESSAGE_AT_ACCEPTANCE =
-  "회사에 전달했지만 추가 진행 없이 해당 역할의 채용이 종료되었습니다. 자세한 검토까지 이어지지 않았을 가능성이 높습니다. 이에 따라 이 기회의 프로세스를 종료하겠습니다.";
+  "회사에 전달했지만, 추가 진행 의사 없이 해당 역할의 채용이 종료되었습니다. 자세한 검토까지 이어지지 않았을 가능성이 높지만 우선 이 기회의 프로세스를 종료하겠습니다.";
 
 function normalizeInternalProgressTagKey(value: unknown) {
   return String(value ?? "")
@@ -693,13 +696,15 @@ export function buildInternalRecommendationProgress(args: {
 
   if (effectiveStage === "process_stopped" && stopReason === "candidate") {
     code = "stopped_by_candidate";
+  } else if (effectiveStage === "rejected") {
+    code = "rejected_by_talent";
   } else if (isEndedRole) {
     code = "closed_by_company";
   } else if (effectiveStage === "pending_connection") {
     code = "company_acknowledged_awaiting_response";
   } else if (effectiveStage === "process_stopped") {
     code = "closed_by_company";
-  } else if (effectiveStage === "archived" || effectiveStage === "rejected") {
+  } else if (effectiveStage === "archived") {
     code =
       isWithinInitialAcceptanceGrace || isWithinTerminalStageGrace
         ? "awaiting_company_response"

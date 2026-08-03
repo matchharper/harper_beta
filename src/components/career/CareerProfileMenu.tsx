@@ -12,10 +12,10 @@ import {
   LogOut,
   MessageCircle,
   Rotate3D,
+  ScrollText,
   UserRoundPlus,
 } from "lucide-react";
 import React, { useState } from "react";
-import CareerUpdateNotesModal from "./CareerUpdateNotesModal";
 import { cn } from "@/lib/utils";
 import {
   ActionDropdown,
@@ -100,7 +100,6 @@ const CareerProfileMenu = ({
   const [languageModalOpen, setLanguageModalOpen] = useState(false);
   const [languageError, setLanguageError] = useState("");
   const [languagePending, setLanguagePending] = useState<Locale | null>(null);
-  const [updateNotesOpen, setUpdateNotesOpen] = useState(false);
 
   const normalizedProfileName = String(profileName ?? "Candidate");
   const profileInitial =
@@ -127,18 +126,6 @@ const CareerProfileMenu = ({
   const closeMenu = () => {
     setAboutMenuOpen(false);
     setMenuOpen(false);
-  };
-
-  const handleOpenUpdateNotes = () => {
-    logCareerEvent("click_profile_menu_update_notes");
-    setUpdateNotesOpen(true);
-    closeMenu();
-  };
-
-  const handleSuggestUpdate = () => {
-    setUpdateNotesOpen(false);
-    closeMenu();
-    onSuggestUpdate();
   };
 
   const handleOpenSupport = () => {
@@ -279,6 +266,26 @@ const CareerProfileMenu = ({
       </DropdownMenuItem>
       <DropdownMenuItem asChild className={aboutMenuItemClassName}>
         <a
+          href="/update-notes"
+          target="_blank"
+          rel="noreferrer"
+          onClick={() =>
+            handleExternalAboutLinkClick("click_profile_menu_update_notes")
+          }
+        >
+          <ScrollText className="h-4 w-4" />
+          <span className="min-w-0 flex-1">
+            {t("career.common.career.14ybad0", "업데이트 노트")}
+          </span>
+          <ExternalLink
+            className="ml-auto text-neutral-soft"
+            size={12}
+            strokeWidth={1.8}
+          />
+        </a>
+      </DropdownMenuItem>
+      <DropdownMenuItem asChild className={aboutMenuItemClassName}>
+        <a
           href="https://www.linkedin.com/company/matchharper/"
           target="_blank"
           rel="noreferrer"
@@ -376,15 +383,6 @@ const CareerProfileMenu = ({
             {t("career.profile.language_selector.menu_label", "언어 설정")}
           </span>
         </ActionDropdownItem>
-        {/* <ActionDropdownItem
-          onSelect={() => handleOpenUpdateNotes()}
-          className="flex flex-row items-center gap-2.5"
-        >
-          <Scroll className="h-4 w-4" />
-          <span className="min-w-0 flex-1">
-            {t("career.profile.career_profile_menu.14ybad0", "업데이트 노트")}
-          </span>
-        </ActionDropdownItem> */}
         {isMobile ? (
           <div>
             <DropdownMenuItem
@@ -445,11 +443,6 @@ const CareerProfileMenu = ({
           {t("career.profile.career_profile_menu.1k7ppv0", "로그아웃")}
         </ActionDropdownItem>
       </ActionDropdown>
-      <CareerUpdateNotesModal
-        open={updateNotesOpen}
-        onClose={() => setUpdateNotesOpen(false)}
-        onSuggestUpdate={handleSuggestUpdate}
-      />
       <TalentCareerModal
         open={languageModalOpen}
         onClose={() => {

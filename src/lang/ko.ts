@@ -694,8 +694,8 @@ export const ko = {
     "career.chat.opportunity_preview_cards.open_posting_label":
       "{companyName} {title} 공고 열기",
     "career.chat.tool.open_url.start": "공유된 링크 내용을 확인하고 있습니다.",
-    "career.chat.tool.request_internal_role_priority_review.start":
-      "포지션 우선 검토 요청을 저장하고 있습니다.",
+    "career.chat.tool.internal_role_priority_review.start":
+      "포지션 우선 검토 요청을 처리하고 있습니다.",
     "career.chat.tool.research_company.start": "회사 정보를 확인하고 있습니다.",
     "career.chat.tool.update_setting.start":
       "추천 발송 설정을 업데이트하고 있습니다.",
@@ -1057,7 +1057,7 @@ export const ko = {
     "career.common.internal_connection_acceptance_modal.1tvfp0q":
       "Harper가 경우에 따라 사전 안내 여부와 사유, 무응답·불참·직전 취소의 반복 여부를 확인해 이용 제한 여부를 판단할 수 있습니다. 이용 제한이 적용되면 새로운 회사 연결 제안 및 추천이 중단되며, 요청 시에만 검토 후 복구될 수 있습니다.",
     "career.common.internal_connection_acceptance_modal.acknowledgement":
-      "서로의 시간을 존중하는 Harper의 약속을 확인했습니다.",
+      " 내용을 확인하고 동의합니다.",
     "career.common.internal_connection_acceptance_modal.close": "닫기",
     "career.common.internal_connection_acceptance_modal.community_title":
       "Harper는 서로의 시간을 존중하는 멤버들의 커뮤니티입니다.",
@@ -1069,6 +1069,8 @@ export const ko = {
       "(optional) Harper가 다음 단계에서 참고할 포인트, 혹은 회사에 전달하고 싶은 내용을 알려주세요.",
     "career.common.internal_connection_acceptance_modal.pre_share_confirmation":
       "회사에 전달되기 직전, 확인 메일을 한 번 더 드립니다. 그 전까지는 언제든 취소할 수 있어요.",
+    "career.common.internal_connection_acceptance_modal.privacy_notice_link":
+      "{companyName} 개인정보 제3자 제공 동의",
     "career.common.internal_connection_acceptance_modal.submit": "연결 수락",
     "career.common.internal_connection_onboarding_modal.037ebaa":
       "전화 연결 중...",

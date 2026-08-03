@@ -38,7 +38,7 @@ Action note: ...
 - `update_talent_profile`
 - `open_url`
 - `get_internal_roles`
-- `request_internal_role_priority_review`
+- `internal_role_priority_review`
 
 온보딩 완료 후 text chat 기본 tool:
 
@@ -46,7 +46,7 @@ Action note: ...
 - `open_url`
 - `recommend_job_postings`
 - `get_internal_roles`
-- `request_internal_role_priority_review`
+- `internal_role_priority_review`
 - `read_recommended_opportunities`
 - `get_role_context`
 - `update_recommended_opportunity_feedback`

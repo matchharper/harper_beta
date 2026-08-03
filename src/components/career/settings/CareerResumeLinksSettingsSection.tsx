@@ -149,7 +149,7 @@ const CareerResumeLinksSettingsSection = () => {
   };
 
   return (
-    <div className="">
+    <div className="pb-24">
       <Field
         label={t("career.common.career.0y7cerf", "저장된 이력서")}
         icon={<FileText className="h-4 w-4" />}
